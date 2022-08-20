@@ -38,7 +38,7 @@
 --
 -- = String Literals
 --
--- @SerialT Identity Char@ and @Array Char@ are instances of 'IsString' and
+-- @Stream Identity Char@ and @Array Char@ are instances of 'IsString' and
 -- 'IsList', therefore, 'OverloadedStrings' and 'OverloadedLists' extensions
 -- can be used for convenience when specifying unicode strings literals using
 -- these types.

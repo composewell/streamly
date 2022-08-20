@@ -23,15 +23,14 @@ import Data.IntMap.Strict (IntMap)
 import Data.Monoid (Last(..), Sum(..))
 import System.Random (randomRIO)
 
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.IsMap.HashMap ()
 
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
-import qualified Streamly.Internal.Data.Stream.IsStream as IP
-import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Gauge
 import Streamly.Benchmark.Common
@@ -41,8 +40,8 @@ import Prelude hiding (all, any, take, unzip, sequence_, filter)
 -- completely optimized out by the compiler in some cases.
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
-sourceUnfoldrM value n = S.unfoldrM step n
+sourceUnfoldrM :: Monad m => Int -> Int -> Stream m Int
+sourceUnfoldrM value n = Stream.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
@@ -50,14 +49,14 @@ sourceUnfoldrM value n = S.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE source #-}
-source :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+source :: Monad m => Int -> Int -> Stream m Int
 source = sourceUnfoldrM
 
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSink #-}
 benchIOSink
-    :: (S.IsStream t, NFData b)
-    => Int -> String -> (t IO Int -> IO b) -> Benchmark
+    :: NFData b
+    => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
 benchIOSink value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . source value
 
 -------------------------------------------------------------------------------
@@ -65,16 +64,16 @@ benchIOSink value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . source va
 -------------------------------------------------------------------------------
 
 {-# INLINE any #-}
-any :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
-any value = IP.fold (FL.any (> value))
+any :: (Monad m, Ord a) => a -> Stream m a -> m Bool
+any value = Stream.fold (FL.any (> value))
 
 {-# INLINE all #-}
-all :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
-all value = IP.fold (FL.all (<= value))
+all :: (Monad m, Ord a) => a -> Stream m a -> m Bool
+all value = Stream.fold (FL.all (<= value))
 
 {-# INLINE take #-}
-take :: Monad m => Int -> SerialT m a -> m ()
-take value = IP.fold (FL.take value FL.drain)
+take :: Monad m => Int -> Stream m a -> m ()
+take value = Stream.fold (FL.take value FL.drain)
 
 {-# INLINE sequence_ #-}
 sequence_ :: Monad m => Int -> Fold m a ()
@@ -91,17 +90,17 @@ sequence_ value =
 -------------------------------------------------------------------------------
 
 {-# INLINE filter #-}
-filter :: Monad m => Int -> SerialT m Int -> m ()
-filter _ = IP.fold (FL.filter even FL.drain)
+filter :: Monad m => Int -> Stream m Int -> m ()
+filter _ = Stream.fold (FL.filter even FL.drain)
 
 {-# INLINE foldFilter #-}
-foldFilter :: Monad m => Int -> SerialT m Int -> m ()
-foldFilter _ = IP.fold (FL.foldFilter (FL.satisfy even) FL.drain)
+foldFilter :: Monad m => Int -> Stream m Int -> m ()
+foldFilter _ = Stream.fold (FL.foldFilter (FL.satisfy even) FL.drain)
 
 {-# INLINE foldFilter2 #-}
-foldFilter2 :: Monad m => Int -> SerialT m Int -> m ()
+foldFilter2 :: Monad m => Int -> Stream m Int -> m ()
 foldFilter2 _ =
-    IP.fold
+    Stream.fold
         $ FL.foldFilter (FL.satisfy even)
         $ FL.foldFilter (FL.satisfy odd) FL.drain
 
@@ -110,43 +109,43 @@ foldFilter2 _ =
 -------------------------------------------------------------------------------
 
 {-# INLINE takeEndBy_ #-}
-takeEndBy_ :: Monad m => Int -> SerialT m Int -> m ()
-takeEndBy_ value = IP.fold (FL.takeEndBy_ (>= value) FL.drain)
+takeEndBy_ :: Monad m => Int -> Stream m Int -> m ()
+takeEndBy_ value = Stream.fold (FL.takeEndBy_ (>= value) FL.drain)
 
 {-# INLINE many #-}
-many :: Monad m => SerialT m Int -> m ()
-many = IP.fold (FL.many (FL.take 1 FL.drain) FL.drain)
+many :: Monad m => Stream m Int -> m ()
+many = Stream.fold (FL.many (FL.take 1 FL.drain) FL.drain)
 
 {-# INLINE splitAllAny #-}
-splitAllAny :: Monad m => Int -> SerialT m Int -> m (Bool, Bool)
+splitAllAny :: Monad m => Int -> Stream m Int -> m (Bool, Bool)
 splitAllAny value =
-    IP.fold
+    Stream.fold
         (FL.serialWith (,)
             (FL.all (<= (value `div` 2)))
             (FL.any (> value))
         )
 
 {-# INLINE serial_ #-}
-serial_ :: Monad m => Int -> SerialT m Int -> m Bool
+serial_ :: Monad m => Int -> Stream m Int -> m Bool
 serial_ value =
-    IP.fold
+    Stream.fold
         (FL.serial_
             (FL.all (<= (value `div` 2)))
             (FL.any (> value))
         )
 
 {-# INLINE shortest #-}
-shortest :: Monad m => SerialT m Int -> m (Either Int Int)
-shortest = IP.fold (FL.shortest FL.sum FL.length)
+shortest :: Monad m => Stream m Int -> m (Either Int Int)
+shortest = Stream.fold (FL.shortest FL.sum FL.length)
 
 {-# INLINE longest #-}
-longest :: Monad m => SerialT m Int -> m (Either Int Int)
-longest = IP.fold (FL.longest FL.sum FL.length)
+longest :: Monad m => Stream m Int -> m (Either Int Int)
+longest = Stream.fold (FL.longest FL.sum FL.length)
 
 {-# INLINE foldBreak #-}
-foldBreak :: Monad m => SerialT m Int -> m ()
+foldBreak :: Monad m => Stream m Int -> m ()
 foldBreak s = do
-    (r, s1) <- IP.foldBreak (FL.take 1 FL.length) s
+    (r, s1) <- Stream.foldBreak (FL.take 1 FL.length) s
     when (r /= 0) $ foldBreak s1
 
 -------------------------------------------------------------------------------
@@ -154,12 +153,12 @@ foldBreak s = do
 -------------------------------------------------------------------------------
 
 {-# INLINE teeSumLength #-}
-teeSumLength :: Monad m => SerialT m Int -> m (Int, Int)
-teeSumLength = IP.fold (FL.teeWith (,) FL.sum FL.length)
+teeSumLength :: Monad m => Stream m Int -> m (Int, Int)
+teeSumLength = Stream.fold (FL.teeWith (,) FL.sum FL.length)
 
 {-# INLINE teeAllAny #-}
-teeAllAny :: (Monad m, Ord a) => a -> SerialT m a -> m (Bool, Bool)
-teeAllAny value = IP.fold (FL.teeWith (,) all_ any_)
+teeAllAny :: (Monad m, Ord a) => a -> Stream m a -> m (Bool, Bool)
+teeAllAny value = Stream.fold (FL.teeWith (,) all_ any_)
 
     where
 
@@ -167,16 +166,16 @@ teeAllAny value = IP.fold (FL.teeWith (,) all_ any_)
     any_ = FL.any (> value)
 
 {-# INLINE teeWithFst #-}
-teeWithFst :: Monad m => SerialT m Int -> m (Int, Int)
-teeWithFst = IP.fold (FL.teeWithFst (,) FL.sum FL.length)
+teeWithFst :: Monad m => Stream m Int -> m (Int, Int)
+teeWithFst = Stream.fold (FL.teeWithFst (,) FL.sum FL.length)
 
 {-# INLINE teeWithMin #-}
-teeWithMin :: Monad m => SerialT m Int -> m (Int, Int)
-teeWithMin = IP.fold (FL.teeWithMin (,) FL.sum FL.length)
+teeWithMin :: Monad m => Stream m Int -> m (Int, Int)
+teeWithMin = Stream.fold (FL.teeWithMin (,) FL.sum FL.length)
 
 {-# INLINE distribute #-}
-distribute :: Monad m => SerialT m Int -> m [Int]
-distribute = IP.fold (FL.distribute [FL.sum, FL.length])
+distribute :: Monad m => Stream m Int -> m [Int]
+distribute = Stream.fold (FL.distribute [FL.sum, FL.length])
 
 -------------------------------------------------------------------------------
 -- Partitioning
@@ -187,88 +186,88 @@ oddEven :: Int -> Either Int Int
 oddEven x = if odd x then Left x else Right x
 
 {-# INLINE partition #-}
-partition :: Monad m => SerialT m Int -> m (Int, Int)
-partition = IP.fold $ FL.lmap oddEven (FL.partition FL.sum FL.length)
+partition :: Monad m => Stream m Int -> m (Int, Int)
+partition = Stream.fold $ FL.lmap oddEven (FL.partition FL.sum FL.length)
 
 {-# INLINE partitionByFstM #-}
-partitionByFstM :: Monad m => SerialT m Int -> m (Int, Int)
+partitionByFstM :: Monad m => Stream m Int -> m (Int, Int)
 partitionByFstM =
-    IP.fold (FL.partitionByFstM (return . oddEven) FL.sum FL.length)
+    Stream.fold (FL.partitionByFstM (return . oddEven) FL.sum FL.length)
 
 {-# INLINE partitionByMinM #-}
-partitionByMinM :: Monad m => SerialT m Int -> m (Int, Int)
+partitionByMinM :: Monad m => Stream m Int -> m (Int, Int)
 partitionByMinM =
-    IP.fold (FL.partitionByMinM (return . oddEven) FL.sum FL.length)
+    Stream.fold (FL.partitionByMinM (return . oddEven) FL.sum FL.length)
 
 {-# INLINE demuxWith  #-}
 demuxWith :: (Monad m, Ord k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
-demuxWith f g = S.fold (FL.demuxWith f g)
+    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
+demuxWith f g = Stream.fold (FL.demuxWith f g)
 
 {-# INLINE demuxWithInt  #-}
 demuxWithInt :: Monad m =>
-    (a -> Int) -> (a -> m (Fold m a b)) -> SerialT m a -> m (IntMap b)
-demuxWithInt f g = S.fold (FL.demuxWith f g)
+    (a -> Int) -> (a -> m (Fold m a b)) -> Stream m a -> m (IntMap b)
+demuxWithInt f g = Stream.fold (FL.demuxWith f g)
 
 {-# INLINE demuxWithHash  #-}
 demuxWithHash :: (Monad m, Ord k, Hashable k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
-demuxWithHash f g = S.fold (FL.demuxWith f g)
+    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
+demuxWithHash f g = Stream.fold (FL.demuxWith f g)
 
 {-# INLINE demuxMutWith  #-}
 demuxMutWith :: (MonadIO m, Ord k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (Map k b)
-demuxMutWith f g = S.fold (FL.demuxMutWith f g)
+    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
+demuxMutWith f g = Stream.fold (FL.demuxMutWith f g)
 
 {-# INLINE demuxMutWithHash  #-}
 demuxMutWithHash :: (MonadIO m, Ord k, Hashable k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> SerialT m a -> m (HashMap k b)
-demuxMutWithHash f g = S.fold (FL.demuxMutWith f g)
+    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
+demuxMutWithHash f g = Stream.fold (FL.demuxMutWith f g)
 
 {-# INLINE classifyWith #-}
 classifyWith ::
-       (Monad m, Ord k, Num a) => (a -> k) -> SerialT m a -> m (Map k a)
-classifyWith f = S.fold (FL.classifyWith f FL.sum)
+       (Monad m, Ord k, Num a) => (a -> k) -> Stream m a -> m (Map k a)
+classifyWith f = Stream.fold (FL.classifyWith f FL.sum)
 
 {-# INLINE classifyWithInt #-}
 classifyWithInt ::
-       (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (IntMap a)
-classifyWithInt f = S.fold (FL.classifyWith f FL.sum)
+       (Monad m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
+classifyWithInt f = Stream.fold (FL.classifyWith f FL.sum)
 
 {-# INLINE classifyMutWith #-}
 classifyMutWith ::
-       (MonadIO m, Ord k, Num a) => (a -> k) -> SerialT m a -> m (Map k a)
-classifyMutWith f = S.fold (FL.classifyMutWith f FL.sum)
+       (MonadIO m, Ord k, Num a) => (a -> k) -> Stream m a -> m (Map k a)
+classifyMutWith f = Stream.fold (FL.classifyMutWith f FL.sum)
 
 {-# INLINE classifyMutWithInt #-}
 classifyMutWithInt ::
-       (MonadIO m, Num a) => (a -> Int) -> SerialT m a -> m (IntMap a)
-classifyMutWithInt f = S.fold (FL.classifyMutWith f FL.sum)
+       (MonadIO m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
+classifyMutWithInt f = Stream.fold (FL.classifyMutWith f FL.sum)
 
 {-# INLINE classifyMutWithHash #-}
 classifyMutWithHash :: (MonadIO m, Ord k, Num a, Hashable k) =>
-    (a -> k) -> SerialT m a -> m (HashMap k a)
-classifyMutWithHash f = S.fold (FL.classifyMutWith f FL.sum)
+    (a -> k) -> Stream m a -> m (HashMap k a)
+classifyMutWithHash f = Stream.fold (FL.classifyMutWith f FL.sum)
 
 -------------------------------------------------------------------------------
 -- unzip
 -------------------------------------------------------------------------------
 
 {-# INLINE unzip #-}
-unzip :: Monad m => SerialT m Int -> m (Int, Int)
-unzip = IP.fold $ FL.lmap (\a -> (a, a)) (FL.unzip FL.sum FL.length)
+unzip :: Monad m => Stream m Int -> m (Int, Int)
+unzip = Stream.fold $ FL.lmap (\a -> (a, a)) (FL.unzip FL.sum FL.length)
 
 {-# INLINE unzipWithFstM #-}
-unzipWithFstM :: Monad m => SerialT m Int -> m (Int, Int)
+unzipWithFstM :: Monad m => Stream m Int -> m (Int, Int)
 unzipWithFstM = do
     let f = \a -> return (a + 1, a)
-    IP.fold (FL.unzipWithFstM f FL.sum FL.length)
+    Stream.fold (FL.unzipWithFstM f FL.sum FL.length)
 
 {-# INLINE unzipWithMinM #-}
-unzipWithMinM :: Monad m => SerialT m Int -> m (Int, Int)
+unzipWithMinM :: Monad m => Stream m Int -> m (Int, Int)
 unzipWithMinM = do
     let f = \a -> return (a + 1, a)
-    IP.fold (FL.unzipWithMinM f FL.sum FL.length)
+    Stream.fold (FL.unzipWithMinM f FL.sum FL.length)
 
 -------------------------------------------------------------------------------
 -- Nested
@@ -278,8 +277,8 @@ unzipWithMinM = do
 unfoldMany :: Int -> Benchmarkable
 unfoldMany val =
     nfIO
-        $ IP.fold (FL.unfoldMany (Unfold.replicateM val) FL.drain)
-        $ IP.fromPure (randomRIO (1, 1 :: Int))
+        $ Stream.fold (FL.unfoldMany (Unfold.replicateM val) FL.drain)
+        $ Stream.fromPure (randomRIO (1, 1 :: Int))
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -291,103 +290,103 @@ moduleName = "Data.Fold"
 o_1_space_serial_elimination :: Int -> [Benchmark]
 o_1_space_serial_elimination value =
     [ bgroup "elimination"
-        [ benchIOSink value "drain" (S.fold FL.drain)
-        , benchIOSink value "drainBy" (S.fold (FL.drainBy return))
-        , benchIOSink value "drainN" (S.fold (FL.drainN value))
-        , benchIOSink value "last" (S.fold FL.last)
-        , benchIOSink value "nub" (S.fold FL.nub)
-        , benchIOSink value "length" (S.fold FL.length)
-        , benchIOSink value "top" (S.fold $ FL.top 10)
-        , benchIOSink value "bottom" (S.fold $ FL.bottom 10)
-        , benchIOSink value "sum" (S.fold FL.sum)
-        , benchIOSink value "sum (foldMap)" (S.fold (FL.foldMap Sum))
-        , benchIOSink value "product" (S.fold FL.product)
-        , benchIOSink value "maximumBy" (S.fold (FL.maximumBy compare))
-        , benchIOSink value "maximum" (S.fold FL.maximum)
-        , benchIOSink value "minimumBy" (S.fold (FL.minimumBy compare))
-        , benchIOSink value "minimum" (S.fold FL.minimum)
+        [ benchIOSink value "drain" (Stream.fold FL.drain)
+        , benchIOSink value "drainBy" (Stream.fold (FL.drainBy return))
+        , benchIOSink value "drainN" (Stream.fold (FL.drainN value))
+        , benchIOSink value "last" (Stream.fold FL.last)
+        , benchIOSink value "nub" (Stream.fold FL.nub)
+        , benchIOSink value "length" (Stream.fold FL.length)
+        , benchIOSink value "top" (Stream.fold $ FL.top 10)
+        , benchIOSink value "bottom" (Stream.fold $ FL.bottom 10)
+        , benchIOSink value "sum" (Stream.fold FL.sum)
+        , benchIOSink value "sum (foldMap)" (Stream.fold (FL.foldMap Sum))
+        , benchIOSink value "product" (Stream.fold FL.product)
+        , benchIOSink value "maximumBy" (Stream.fold (FL.maximumBy compare))
+        , benchIOSink value "maximum" (Stream.fold FL.maximum)
+        , benchIOSink value "minimumBy" (Stream.fold (FL.minimumBy compare))
+        , benchIOSink value "minimum" (Stream.fold FL.minimum)
         , benchIOSink
               value
               "mean"
-              (S.fold FL.mean . S.map (fromIntegral :: Int -> Double))
+              (Stream.fold FL.mean . fmap (fromIntegral :: Int -> Double))
         , benchIOSink
               value
               "variance"
-              (S.fold FL.variance . S.map (fromIntegral :: Int -> Double))
+              (Stream.fold FL.variance . fmap (fromIntegral :: Int -> Double))
         , benchIOSink
               value
               "stdDev"
-              (S.fold FL.stdDev . S.map (fromIntegral :: Int -> Double))
+              (Stream.fold FL.stdDev . fmap (fromIntegral :: Int -> Double))
         , benchIOSink
               value
               "mconcat"
-              (S.fold FL.mconcat . S.map (Last . Just))
+              (Stream.fold FL.mconcat . fmap (Last . Just))
         , benchIOSink
               value
               "foldMap"
-              (S.fold (FL.foldMap (Last . Just)))
+              (Stream.fold (FL.foldMap (Last . Just)))
         , benchIOSink
               value
               "foldMapM"
-              (S.fold (FL.foldMapM (return . Last . Just)))
-        , benchIOSink value "index" (S.fold (FL.index (value + 1)))
-        , benchIOSink value "head" (S.fold FL.head)
-        , benchIOSink value "find" (S.fold (FL.find (== (value + 1))))
+              (Stream.fold (FL.foldMapM (return . Last . Just)))
+        , benchIOSink value "index" (Stream.fold (FL.index (value + 1)))
+        , benchIOSink value "head" (Stream.fold FL.head)
+        , benchIOSink value "find" (Stream.fold (FL.find (== (value + 1))))
         , benchIOSink
               value
               "lookup"
-              (S.fold (FL.lmap (\a -> (a, a)) (FL.lookup (value + 1))))
+              (Stream.fold (FL.lmap (\a -> (a, a)) (FL.lookup (value + 1))))
         , benchIOSink
               value
               "findIndex"
-              (S.fold (FL.findIndex (== (value + 1))))
+              (Stream.fold (FL.findIndex (== (value + 1))))
         , benchIOSink
               value
               "elemIndex"
-              (S.fold (FL.elemIndex (value + 1)))
-        , benchIOSink value "null" (S.fold FL.null)
-        , benchIOSink value "elem" (S.fold (FL.elem (value + 1)))
-        , benchIOSink value "notElem" (S.fold (FL.notElem (value + 1)))
+              (Stream.fold (FL.elemIndex (value + 1)))
+        , benchIOSink value "null" (Stream.fold FL.null)
+        , benchIOSink value "elem" (Stream.fold (FL.elem (value + 1)))
+        , benchIOSink value "notElem" (Stream.fold (FL.notElem (value + 1)))
         , benchIOSink value "all" $ all value
         , benchIOSink value "any" $ any value
         , benchIOSink value "take" $ take value
         , benchIOSink value "takeEndBy_" $ takeEndBy_ value
-        , benchIOSink value "and" (S.fold FL.and . S.map (<= (value + 1)))
-        , benchIOSink value "or" (S.fold FL.or . S.map (> (value + 1)))
+        , benchIOSink value "and" (Stream.fold FL.and . fmap (<= (value + 1)))
+        , benchIOSink value "or" (Stream.fold FL.or . fmap (> (value + 1)))
         ]
     ]
 
 o_1_space_serial_transformation :: Int -> [Benchmark]
 o_1_space_serial_transformation value =
     [ bgroup "transformation"
-        [ benchIOSink value "map" (S.fold (FL.lmap (+ 1) FL.drain))
+        [ benchIOSink value "map" (Stream.fold (FL.lmap (+ 1) FL.drain))
         , let f x = if even x then Just x else Nothing
               fld = FL.mapMaybe f FL.drain
-           in benchIOSink value "mapMaybe" (S.fold fld)
+           in benchIOSink value "mapMaybe" (Stream.fold fld)
         , benchIOSink
               value
               "rsequence"
-              (S.fold (FL.rmapM id (return <$> FL.drain)))
-        , benchIOSink value "rmapM" (S.fold (FL.rmapM return FL.drain))
+              (Stream.fold (FL.rmapM id (return <$> FL.drain)))
+        , benchIOSink value "rmapM" (Stream.fold (FL.rmapM return FL.drain))
         , benchIOSink
               value
               "pipe-mapM"
-              (S.fold
+              (Stream.fold
                    (FL.transform
                         (Pipe.mapM (\x -> return $ x + 1))
                         FL.drain))
         , benchIOSink
             value
             "fold-scan"
-            (S.fold $ FL.scan FL.sum FL.drain)
+            (Stream.fold $ FL.scan FL.sum FL.drain)
         , benchIOSink
             value
             "fold-scanMany"
-            (S.fold $ FL.scanMany (FL.take 2 FL.drain) FL.drain)
+            (Stream.fold $ FL.scanMany (FL.take 2 FL.drain) FL.drain)
         , benchIOSink
             value
             "fold-postscan"
-            (S.fold $ FL.postscan FL.sum FL.drain)
+            (Stream.fold $ FL.postscan FL.sum FL.drain)
         ]
     ]
 
@@ -421,7 +420,7 @@ o_1_space_serial_composition value =
 
 o_n_space_serial :: Int -> [Benchmark]
 o_n_space_serial value =
-    [ benchIOSink value "sequence_/100" $ S.fold (sequence_ (value `div` 100))
+    [ benchIOSink value "sequence_/100" $ Stream.fold (sequence_ (value `div` 100))
     ]
 
 o_n_heap_serial :: Int -> [Benchmark]
@@ -430,14 +429,14 @@ o_n_heap_serial value =
       -- Left folds for building a structure are inherently non-streaming
       -- as the structure cannot be lazily consumed until fully built.
             [
-              benchIOSink value "toList" (S.fold FL.toList)
-            , benchIOSink value "toListRev" (S.fold FL.toListRev)
+              benchIOSink value "toList" (Stream.fold FL.toList)
+            , benchIOSink value "toListRev" (Stream.fold FL.toListRev)
             , benchIOSink value "toStream"
-                (S.fold FL.toStream
-                    :: SerialT IO a -> IO (SerialT Identity a))
+                (Stream.fold FL.toStream
+                    :: Stream IO a -> IO (Stream Identity a))
             , benchIOSink value "toStreamRev"
-                (S.fold FL.toStreamRev
-                    :: SerialT IO a -> IO (SerialT Identity a))
+                (Stream.fold FL.toStreamRev
+                    :: Stream IO a -> IO (Stream Identity a))
             ]
     , bgroup "key-value"
             [

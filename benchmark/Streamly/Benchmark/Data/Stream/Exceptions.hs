@@ -23,7 +23,7 @@ module Stream.Exceptions (benchmarks) where
 
 import Control.Exception (SomeException, Exception, throwIO)
 import Stream.Common (drain)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import System.IO (Handle, hClose, hPutChar)
 
 import qualified Data.IORef as Ref
@@ -54,7 +54,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 -------------------------------------------------------------------------------
 
 {-# INLINE replicateM #-}
-replicateM :: Common.MonadAsync m => Int -> m a -> SerialT m a
+replicateM :: Common.MonadAsync m => Int -> m a -> Stream m a
 #ifdef USE_PRELUDE
 replicateM = Stream.replicateM
 #else

@@ -11,7 +11,7 @@ module Streamly.Test.FileSystem.Handle (main) where
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unboxed (sizeOf)
-import Streamly.Internal.Data.Stream.IsStream (IsStream, SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import System.FilePath ((</>))
 import System.IO
     ( Handle
@@ -28,7 +28,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
@@ -51,9 +51,12 @@ maxTestCount = 10
 chooseWord8 :: (Word8, Word8) -> Gen Word8
 chooseWord8 = choose
 
+toList :: Monad m => Stream m a -> m [a]
+toList = Stream.fold Fold.toList
+
 utf8ToString :: Array.Array Word8 -> String
 utf8ToString =
-    runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.toStream
+    runIdentity . toList . Unicode.decodeUtf8' . Array.toStream
 
 testData :: String
 testData = "This is the test data for FileSystem.Handle ??`!@#$%^&*~~))`]"
@@ -64,7 +67,7 @@ testDataLarge = concat $ replicate 6000 testData
 testBinData :: String
 testBinData = "01234567890123456789012345678901234567890123456789"
 
-executor :: (Handle -> SerialT IO Char) -> IO (SerialT IO Char)
+executor :: (Handle -> Stream IO Char) -> IO (Stream IO Char)
 executor f =
     withSystemTempDirectory "fs_handle" $ \fp -> do
         let fpath = fp </> "tmp_read.txt"
@@ -72,25 +75,25 @@ executor f =
         h <- openFile fpath ReadMode
         return $ f h
 
-readFromHandle :: IO (SerialT IO Char)
+readFromHandle :: IO (Stream IO Char)
 readFromHandle =
     let f = Unicode.decodeUtf8 . Stream.unfold Handle.read
     in executor f
 
-readWithBufferFromHandle :: IO (SerialT IO Char)
+readWithBufferFromHandle :: IO (Stream IO Char)
 readWithBufferFromHandle =
     let f1 = (\h -> (1024, h))
         f2 = Unicode.decodeUtf8 . Stream.unfold Handle.readWith . f1
     in executor f2
 
-readChunksFromHandle :: IO (SerialT IO Char)
+readChunksFromHandle :: IO (Stream IO Char)
 readChunksFromHandle =
     let f =   Unicode.decodeUtf8
             . Stream.concatMap Array.toStream
             . Stream.unfold Handle.readChunks
     in executor f
 
-readChunksWithBuffer :: IO (SerialT IO Char)
+readChunksWithBuffer :: IO (Stream IO Char)
 readChunksWithBuffer =
     let f1 = (\h -> (1024, h))
         f2 =
@@ -100,7 +103,7 @@ readChunksWithBuffer =
             . f1
     in executor f2
 
-testRead :: (IsStream t) => IO (t IO Char) -> Property
+testRead :: IO (Stream IO Char) -> Property
 testRead fn = monadicIO $ do
     let v2 = Stream.fromList testDataLarge
     v1 <- run fn
@@ -126,7 +129,7 @@ testWrite hfold =
                         _ <- Stream.fold (hfold h) $ Stream.fromList list
                         hFlush h
                         hSeek h AbsoluteSeek 0
-                        ls <- Stream.toList $ Stream.unfold Handle.read h
+                        ls <- toList $ Stream.unfold Handle.read h
                         hClose h
                         return (ls == list)
 
@@ -151,7 +154,7 @@ testWriteWithChunk =
                     $ Stream.unfold Handle.readChunksWith (1024, hr)
                 hFlush hw
                 hSeek hw AbsoluteSeek 0
-                ls <- Stream.toList $ Stream.unfold Handle.read hw
+                ls <- toList $ Stream.unfold Handle.read hw
                 let arr = Array.fromList ls
                 return (testDataLarge == utf8ToString arr)
 
@@ -166,7 +169,7 @@ testReadChunksFromToWith from to buffSize res = monadicIO $ run go
             writeFile fpathRead testBinData
             h <- openFile fpathRead ReadMode
             ls <-
-                Stream.toList
+                toList
                     $ Stream.unfold
                         Handle.readChunksFromToWith (from, to, buffSize, h)
             return (res `shouldBe` fmap Array.toList ls)

@@ -30,7 +30,7 @@ import qualified Stream.Common as Common
 import qualified Control.Monad.State.Strict as State
 
 import Gauge
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Benchmark.Common
 
 import Prelude hiding (reverse, tail)
@@ -41,7 +41,7 @@ import Prelude hiding (reverse, tail)
 
 {-# INLINE sourceUnfoldrState #-}
 sourceUnfoldrState :: Common.MonadAsync m =>
-    Int -> Int -> SerialT (StateT Int m) Int
+    Int -> Int -> Stream (StateT Int m) Int
 sourceUnfoldrState value n = Stream.unfoldrM step n
     where
     step cnt =
@@ -53,12 +53,12 @@ sourceUnfoldrState value n = Stream.unfoldrM step n
             return (Just (s, cnt + 1))
 
 {-# INLINE evalStateT #-}
-evalStateT :: Common.MonadAsync m => Int -> Int -> SerialT m Int
+evalStateT :: Common.MonadAsync m => Int -> Int -> Stream m Int
 evalStateT value n =
     Stream.evalStateT (return 0) (sourceUnfoldrState value n)
 
 {-# INLINE withState #-}
-withState :: Common.MonadAsync m => Int -> Int -> SerialT m Int
+withState :: Common.MonadAsync m => Int -> Int -> Stream m Int
 withState value n =
     Stream.evalStateT
         (return (0 :: Int)) (Stream.liftInner (sourceUnfoldrM value n))
@@ -66,7 +66,7 @@ withState value n =
 {-# INLINE benchHoistSink #-}
 benchHoistSink
     :: (NFData b)
-    => Int -> String -> (SerialT Identity Int -> IO b) -> Benchmark
+    => Int -> String -> (Stream Identity Int -> IO b) -> Benchmark
 benchHoistSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f .  sourceUnfoldr value
 
@@ -94,7 +94,7 @@ iterateStateIO n = do
     else return x
 
 {-# INLINE iterateStateT #-}
-iterateStateT :: Int -> SerialT (StateT Int IO) Int
+iterateStateT :: Int -> Stream (StateT Int IO) Int
 iterateStateT n = do
     x <- lift get
     if x > n
@@ -104,11 +104,11 @@ iterateStateT n = do
     else return x
 
 {-# INLINE iterateState #-}
-{-# SPECIALIZE iterateState :: Int -> SerialT (StateT Int IO) Int #-}
+{-# SPECIALIZE iterateState :: Int -> Stream (StateT Int IO) Int #-}
 iterateState ::
        MonadState Int m
     => Int
-    -> SerialT m Int
+    -> Stream m Int
 iterateState n = do
     x <- get
     if x > n
@@ -122,9 +122,9 @@ o_n_heap_transformer value =
     [ bgroup "transformer"
         [ benchIO "StateT Int IO (n times) (baseline)" $ \n ->
             State.evalStateT (iterateStateIO n) value
-        , benchIO "SerialT (StateT Int IO) (n times)" $ \n ->
+        , benchIO "Stream (StateT Int IO) (n times)" $ \n ->
             State.evalStateT (drain (iterateStateT n)) value
-        , benchIO "MonadState Int m => SerialT m Int" $ \n ->
+        , benchIO "MonadState Int m => Stream m Int" $ \n ->
             State.evalStateT (drain (iterateState n)) value
         ]
     ]

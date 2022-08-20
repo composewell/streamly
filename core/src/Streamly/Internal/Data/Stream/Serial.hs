@@ -21,8 +21,8 @@ module Streamly.Internal.Data.Stream.Serial
     -- * Construction
     , Stream.cons
     , Stream.consM
-    , repeat
-    , unfoldrM
+    , Stream.repeat
+    , Stream.unfoldrM
     , fromList
 
     -- * Elimination
@@ -38,13 +38,10 @@ where
 import Data.Semigroup (Semigroup(..))
 #endif
 import GHC.Exts (IsList(..))
-
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
+import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
 
-import Prelude hiding (map, mapM, repeat)
-
-#include "inline.hs"
+import Prelude hiding (map)
 
 -- $setup
 -- >>> import qualified Streamly.Prelude as Stream
@@ -53,7 +50,7 @@ import Prelude hiding (map, mapM, repeat)
 -- SerialT
 ------------------------------------------------------------------------------
 
-type SerialT = Stream.Stream
+type SerialT = Stream
 
 -- | A serial IO stream of elements of type @a@. See 'SerialT' documentation
 -- for more details.
@@ -62,17 +59,6 @@ type SerialT = Stream.Stream
 --
 -- @since 0.8.0
 type Serial = SerialT IO
-
-------------------------------------------------------------------------------
--- Generation
-------------------------------------------------------------------------------
-
--- |
--- Generate an infinite stream by repeating a pure value.
---
-{-# INLINE_NORMAL repeat #-}
-repeat :: Monad m => a -> SerialT m a
-repeat = Stream.fromStreamD . D.repeat
 
 ------------------------------------------------------------------------------
 -- Combining
@@ -98,32 +84,3 @@ serial = (<>)
 {-# INLINE map #-}
 map :: Monad m => (a -> b) -> SerialT m a -> SerialT m b
 map f = Stream.mapM (return . f)
-
-------------------------------------------------------------------------------
--- Construction
-------------------------------------------------------------------------------
-
--- | Build a stream by unfolding a /monadic/ step function starting from a
--- seed.  The step function returns the next element in the stream and the next
--- seed value. When it is done it returns 'Nothing' and the stream ends. For
--- example,
---
--- @
--- let f b =
---         if b > 3
---         then return Nothing
---         else print b >> return (Just (b, b + 1))
--- in drain $ unfoldrM f 0
--- @
--- @
---  0
---  1
---  2
---  3
--- @
---
--- /Pre-release/
---
-{-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
-unfoldrM step seed = Stream.fromStreamD (D.unfoldrM step seed)

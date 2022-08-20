@@ -52,11 +52,11 @@
 --     server spec addr =
 --           Stream.unfold Socket.accept (maxListenQueue, spec, addr) -- ParallelT IO Socket
 --         & Stream.mapM (Socket.forSocketM echo)                     -- ParallelT IO ()
---         & Stream.fromParallel                                      -- SerialT IO ()
+--         & Stream.fromParallel                                      -- Stream IO ()
 --         & Stream.drain                                             -- IO ()
 --
 --     echo sk =
---           Stream.unfold Socket.readChunks sk  -- SerialT IO (Array Word8)
+--           Stream.unfold Socket.readChunks sk  -- Stream IO (Array Word8)
 --         & Stream.fold (Socket.writeChunks sk) -- IO ()
 -- @
 --

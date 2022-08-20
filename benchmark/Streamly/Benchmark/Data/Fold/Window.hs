@@ -2,7 +2,7 @@ module Main (main) where
 
 import Control.DeepSeq (NFData)
 import Streamly.Data.Fold (Fold)
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 
 import qualified Streamly.Data.Fold as Fold
@@ -33,7 +33,7 @@ sourceDescendingInt = sourceDescending
 
 {-# INLINE benchWith #-}
 benchWith :: (Num a, NFData b) =>
-    (Int -> a -> SerialT IO a) -> Int -> String -> Fold IO a b -> Benchmark
+    (Int -> a -> Stream IO a) -> Int -> String -> Fold IO a b -> Benchmark
 benchWith src len name f =
     bench name
         $ nfIO
@@ -49,7 +49,7 @@ benchWithFoldInt = benchWith source
 
 {-# INLINE benchScanWith #-}
 benchScanWith :: Num a =>
-    (Int -> a -> SerialT IO a) -> Int -> String -> Fold IO a b -> Benchmark
+    (Int -> a -> Stream IO a) -> Int -> String -> Fold IO a b -> Benchmark
 benchScanWith src len name f =
     bench name
         $ nfIO

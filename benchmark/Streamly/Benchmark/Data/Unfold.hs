@@ -31,10 +31,10 @@ import qualified Prelude
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Prelude as SP
+
 
 import Gauge hiding (env)
 import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile)
@@ -161,7 +161,7 @@ swap size start =
 {-# INLINE fromStream #-}
 fromStream :: Int -> Int -> IO ()
 fromStream size start =
-    drainGeneration UF.fromStream (S.replicate size start :: S.SerialT IO Int)
+    drainGeneration UF.fromStream (S.replicate size start :: S.Stream IO Int)
 
 -- XXX INVESTIGATE: Although the performance of this should be equivalant to
 -- fromStream, this is considerably worse. More than 4x worse.
@@ -749,7 +749,7 @@ o_n_space_nested size =
 readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteOnExceptionUnfold inh devNull =
     let readEx = UF.onException (\_ -> hClose inh) FH.read
-    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
@@ -761,7 +761,7 @@ readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteHandleExceptionUnfold inh devNull =
     let handler (_e :: SomeException) = hClose inh >> return 10
         readEx = UF.handle (UF.functionM handler) FH.read
-    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
@@ -772,7 +772,7 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
 readWriteFinally_Unfold :: Handle -> Handle -> IO ()
 readWriteFinally_Unfold inh devNull =
     let readEx = UF.finally_ (\_ -> hClose inh) FH.read
-    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
@@ -782,13 +782,13 @@ inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
 readWriteFinallyUnfold :: Handle -> Handle -> IO ()
 readWriteFinallyUnfold inh devNull =
     let readEx = UF.finally (\_ -> hClose inh) FH.read
-    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
 readWriteBracket_Unfold :: Handle -> Handle -> IO ()
 readWriteBracket_Unfold inh devNull =
     let readEx = UF.bracket_ return (\_ -> hClose inh) FH.read
-    in SP.fold (FH.write devNull) $ SP.unfold readEx inh
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
@@ -798,7 +798,7 @@ inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 readWriteBracketUnfold :: Handle -> Handle -> IO ()
 readWriteBracketUnfold inh devNull =
     let readEx = UF.bracket return (\_ -> hClose inh) FH.read
-    in SP.fold (FH.write devNull) $ S.unfold readEx inh
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_exceptions env =

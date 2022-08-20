@@ -1,5 +1,3 @@
-
-
 -------------------------------------------------------------------------------
 -- Benchmark helpers
 -------------------------------------------------------------------------------
@@ -68,7 +66,7 @@ scanl' , scanl1', map
 
 {-# INLINE onArray #-}
 onArray
-    :: MonadIO m => Int -> (S.SerialT m Int -> S.SerialT m Int)
+    :: MonadIO m => Int -> (Stream.Stream m Int -> Stream.Stream m Int)
     -> Stream Int
     -> m (Stream Int)
 onArray value f arr = S.fold (A.writeN value) $ f $ S.unfold A.read arr
@@ -101,7 +99,6 @@ showInstance = P.show
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: MonadIO m => Stream Int -> m Int
 pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
-
 
 -------------------------------------------------------------------------------
 -- Elimination

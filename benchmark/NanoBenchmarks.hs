@@ -6,7 +6,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-import Streamly.Prelude (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Data.Array.Unboxed as A
@@ -24,9 +24,6 @@ import System.Random
 
 maxValue :: Int
 maxValue = 100000
-
--- type Stream = K.Stream
-type Stream = SerialT
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: MonadAsync m => Stream m Int

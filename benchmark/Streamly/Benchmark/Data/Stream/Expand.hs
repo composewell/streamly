@@ -21,7 +21,7 @@
 module Stream.Expand (benchmarks) where
 
 import Control.Monad.Trans.Class (lift)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Control.Applicative as AP
 
@@ -66,10 +66,10 @@ iterateN g initial count = f count initial
 -- Iterate a transformation over a singleton stream
 {-# INLINE iterateSingleton #-}
 iterateSingleton :: Monad m
-    => (Int -> SerialT m Int -> SerialT m Int)
+    => (Int -> Stream m Int -> Stream m Int)
     -> Int
     -> Int
-    -> SerialT m Int
+    -> Stream m Int
 iterateSingleton g count n = iterateN g (return n) count
 
 {-
@@ -81,10 +81,10 @@ iterateSingleton g count n = iterateN g (return n) count
 {-# INLINE _iterateSingleton #-}
 _iterateSingleton ::
        Monad m
-    => (Int -> SerialT m Int -> SerialT m Int)
+    => (Int -> Stream m Int -> Stream m Int)
     -> Int
     -> Int
-    -> SerialT m Int
+    -> Stream m Int
 _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
 -}
 
@@ -402,7 +402,7 @@ o_1_space_monad value =
 -- This is a good benchmark but inefficient way to compute primes. As we see a
 -- new prime we keep appending a division filter for all the future numbers.
 {-# INLINE sieve #-}
-sieve :: Monad m => SerialT m Int -> SerialT m Int
+sieve :: Monad m => Stream m Int -> Stream m Int
 sieve s = do
     r <- lift $ S.uncons s
     case r of
@@ -435,7 +435,7 @@ toKv p = (p, p)
 
 {-# INLINE joinWith #-}
 joinWith :: Common.MonadAsync m =>
-       ((Int -> Int -> Bool) -> SerialT m Int -> SerialT m Int -> SerialT m b)
+       ((Int -> Int -> Bool) -> Stream m Int -> Stream m Int -> Stream m b)
     -> Int
     -> Int
     -> m ()
@@ -444,7 +444,7 @@ joinWith j val i =
 
 {-# INLINE joinMapWith #-}
 joinMapWith :: Common.MonadAsync m =>
-       (SerialT m (Int, Int) -> SerialT m (Int, Int) -> SerialT m b)
+       (Stream m (Int, Int) -> Stream m (Int, Int) -> Stream m b)
     -> Int
     -> Int
     -> m ()

@@ -66,7 +66,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.Internal.Data.Array.Unboxed.Type
 --        (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
 --         lpackArraysChunksOf)
--- import Streamly.Internal.Data.Stream.Serial (SerialT)
+-- import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
@@ -315,7 +315,7 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 -- @since 0.7.0
 {-# INLINE fromChunks #-}
 fromChunks :: (MonadIO m, Storable a)
-    => Handle -> SerialT m (Array a) -> m ()
+    => Handle -> Stream m (Array a) -> m ()
 fromChunks h m = S.mapM_ (liftIO . writeArray h) m
 
 -- | @fromChunksWithBufferOf bufsize handle stream@ writes a stream of arrays
@@ -326,7 +326,7 @@ fromChunks h m = S.mapM_ (liftIO . writeArray h) m
 -- @since 0.7.0
 {-# INLINE fromChunksWithBufferOf #-}
 fromChunksWithBufferOf :: (MonadIO m, Storable a)
-    => Int -> Handle -> SerialT m (Array a) -> m ()
+    => Int -> Handle -> Stream m (Array a) -> m ()
 fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
 
 -- | @fromStreamWithBufferOf bufsize handle stream@ writes @stream@ to @handle@
@@ -335,7 +335,7 @@ fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
 --
 -- @since 0.7.0
 {-# INLINE fromStreamWithBufferOf #-}
-fromStreamWithBufferOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+fromStreamWithBufferOf :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
 fromStreamWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 -- fromStreamWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
 
@@ -349,7 +349,7 @@ fromStreamWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 --
 -- @since 0.7.0
 {-# INLINE fromStream #-}
-fromStream :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+fromStream :: MonadIO m => Handle -> Stream m Word8 -> m ()
 fromStream = fromStreamWithBufferOf defaultChunkSize
 
 -- | Write a stream of arrays to a handle. Each array in the stream is written

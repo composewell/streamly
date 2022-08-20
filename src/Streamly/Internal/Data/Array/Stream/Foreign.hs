@@ -68,7 +68,7 @@ import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Fold.Foreign (ArrayFold(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.SVar (adaptState, defState)
@@ -221,7 +221,7 @@ lpackArraysChunksOf n fld =
 -- @since 0.7.0
 {-# INLINE compact #-}
 compact :: (MonadIO m, Unboxed a)
-    => Int -> SerialT m (Array a) -> SerialT m (Array a)
+    => Int -> Stream m (Array a) -> Stream m (Array a)
 compact n xs = fromStreamD $ packArraysChunksOf n (toStreamD xs)
 
 -------------------------------------------------------------------------------
@@ -396,8 +396,8 @@ foldBreakK (Fold fstep initial extract) stream = do
 foldBreak ::
        (MonadIO m, Unboxed a)
     => FL.Fold m a b
-    -> SerialT m (A.Array a)
-    -> m (b, SerialT m (A.Array a))
+    -> Stream m (A.Array a)
+    -> m (b, Stream m (A.Array a))
 -- foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)
 foldBreak f =
       fmap (fmap Stream.fromStreamK)
@@ -465,14 +465,14 @@ splitAtArrayListRev n ls
 -- stream.
 {-# INLINE spliceArraysLenUnsafe #-}
 spliceArraysLenUnsafe :: (MonadIO m, Unboxed a)
-    => Int -> SerialT m (MA.Array a) -> m (MA.Array a)
+    => Int -> Stream m (MA.Array a) -> m (MA.Array a)
 spliceArraysLenUnsafe len buffered = do
     arr <- liftIO $ MA.newArray len
     S.foldlM' MA.spliceUnsafe (return arr) buffered
 
 {-# INLINE _spliceArrays #-}
 _spliceArrays :: (MonadIO m, Unboxed a)
-    => SerialT m (Array a) -> m (Array a)
+    => Stream m (Array a) -> m (Array a)
 _spliceArrays s = do
     buffered <- S.foldr S.cons S.nil s
     len <- S.sum (S.map Array.length buffered)
@@ -486,7 +486,7 @@ _spliceArrays s = do
 
 {-# INLINE _spliceArraysBuffered #-}
 _spliceArraysBuffered :: (MonadIO m, Unboxed a)
-    => SerialT m (Array a) -> m (Array a)
+    => Stream m (Array a) -> m (Array a)
 _spliceArraysBuffered s = do
     buffered <- S.foldr S.cons S.nil s
     len <- S.sum (S.map Array.length buffered)
@@ -494,7 +494,7 @@ _spliceArraysBuffered s = do
 
 {-# INLINE spliceArraysRealloced #-}
 spliceArraysRealloced :: forall m a. (MonadIO m, Unboxed a)
-    => SerialT m (Array a) -> m (Array a)
+    => Stream m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
     let n = allocBytesToElemCount (undefined :: a) (4 * 1024)
         idst = liftIO $ MA.newArray n
@@ -509,7 +509,7 @@ spliceArraysRealloced s = do
 --
 -- @since 0.7.0
 {-# INLINE toArray #-}
-toArray :: (MonadIO m, Unboxed a) => SerialT m (Array a) -> m (Array a)
+toArray :: (MonadIO m, Unboxed a) => Stream m (Array a) -> m (Array a)
 toArray = spliceArraysRealloced
 -- spliceArrays = _spliceArraysBuffered
 
@@ -529,7 +529,7 @@ toArraysInRange low high (Fold step initial extract) =
 -- | Fold the input to a pure buffered stream (List) of arrays.
 {-# INLINE _toArraysOf #-}
 _toArraysOf :: (MonadIO m, Unboxed a)
-    => Int -> Fold m a (SerialT Identity (Array a))
+    => Int -> Fold m a (Stream Identity (Array a))
 _toArraysOf n = FL.chunksOf n (A.writeNF n) FL.toStream
 -}
 
@@ -710,8 +710,8 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
 parseBreak ::
        (MonadIO m, MonadThrow m, Unboxed a)
     => PR.Parser m a b
-    -> SerialT m (A.Array a)
-    -> m (b, SerialT m (A.Array a))
+    -> Stream m (A.Array a)
+    -> m (b, Stream m (A.Array a))
 {-
 parseBreak p s =
     fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
@@ -808,8 +808,8 @@ runArrayParserDBreak
 parseArr ::
        (MonadIO m, MonadThrow m, Unboxed a)
     => ASF.Parser m a b
-    -> SerialT m (A.Array a)
-    -> m (b, SerialT m (A.Array a))
+    -> Stream m (A.Array a)
+    -> m (b, Stream m (A.Array a))
 parseArr p s = fmap fromStreamD <$> parseBreakD p (toStreamD s)
 -}
 
@@ -819,7 +819,7 @@ parseArr p s = fmap fromStreamD <$> parseBreakD p (toStreamD s)
 --
 {-# INLINE runArrayFold #-}
 runArrayFold :: (MonadIO m, MonadThrow m, Unboxed a) =>
-    ArrayFold m a b -> SerialT m (A.Array a) -> m b
+    ArrayFold m a b -> Stream m (A.Array a) -> m b
 runArrayFold (ArrayFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 
 -- | Like 'fold' but also returns the remaining stream.
@@ -828,7 +828,7 @@ runArrayFold (ArrayFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 --
 {-# INLINE runArrayFoldBreak #-}
 runArrayFoldBreak :: (MonadIO m, MonadThrow m, Unboxed a) =>
-    ArrayFold m a b -> SerialT m (A.Array a) -> m (b, SerialT m (A.Array a))
+    ArrayFold m a b -> Stream m (A.Array a) -> m (b, Stream m (A.Array a))
 runArrayFoldBreak (ArrayFold p) s =
     second fromStreamD <$> runArrayParserDBreak p (toStreamD s)
 

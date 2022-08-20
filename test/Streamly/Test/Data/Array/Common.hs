@@ -22,7 +22,7 @@ maxArrLen :: Int
 maxArrLen = defaultChunkSize * 8
 
 genericTestFrom ::
-       (Int -> SerialT IO Int -> IO (Array Int))
+       (Int -> Stream IO Int -> IO (Array Int))
     -> Property
 genericTestFrom arrFold =
     forAll (choose (0, maxArrLen)) $ \len ->
@@ -38,8 +38,8 @@ testLengthFromStreamN :: Property
 testLengthFromStreamN = genericTestFrom A.fromStreamN
 
 genericTestFromTo ::
-       (Int -> SerialT IO Int -> IO (Array Int))
-    -> (Array Int -> SerialT IO Int)
+       (Int -> Stream IO Int -> IO (Array Int))
+    -> (Array Int -> Stream IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> Property
 genericTestFromTo arrFold arrUnfold listEq =

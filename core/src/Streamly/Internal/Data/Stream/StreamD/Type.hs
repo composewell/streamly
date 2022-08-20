@@ -353,7 +353,7 @@ foldContinue (Fold fstep finitial fextract) (Stream sstep state) =
 -- lazy the following example, must work:
 --
 -- S.foldrM (\x t -> if x then return t else return False) (return True)
---  (S.fromList [False,undefined] :: SerialT IO Bool)
+--  (S.fromList [False,undefined] :: Stream IO Bool)
 --
 {-# INLINE_NORMAL foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b

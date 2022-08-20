@@ -106,7 +106,7 @@ import Prelude hiding (map, mapM, repeat, filter)
 -- [(1,3),(2,3),(1,4),(2,4)]
 --
 -- The @W@ in the name stands for @wide@ or breadth wise scheduling in
--- contrast to the depth wise scheduling behavior of 'SerialT'.
+-- contrast to the depth wise scheduling behavior of 'Stream'.
 --
 -- /Since: 0.2.0 ("Streamly")/
 --

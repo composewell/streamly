@@ -41,8 +41,7 @@ import qualified Streamly.Internal.Data.Stream as S
 #endif
 
 import Gauge
--- XXX Replace SerialT with Stream
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 #ifdef USE_PRELUDE
 import Streamly.Prelude (fromSerial)
 import Streamly.Benchmark.Prelude
@@ -76,90 +75,90 @@ repeat count = S.take count . S.repeat
 {-# INLINE foldableFoldl' #-}
 foldableFoldl' :: Int -> Int -> Int
 foldableFoldl' value n =
-    F.foldl' (+) 0 (sourceUnfoldr value n :: SerialT Identity Int)
+    F.foldl' (+) 0 (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableFoldrElem #-}
 foldableFoldrElem :: Int -> Int -> Bool
 foldableFoldrElem value n =
     F.foldr (\x xs -> x == value || xs)
             False
-            (sourceUnfoldr value n :: SerialT Identity Int)
+            (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableSum #-}
 foldableSum :: Int -> Int -> Int
 foldableSum value n =
-    Prelude.sum (sourceUnfoldr value n :: SerialT Identity Int)
+    Prelude.sum (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableProduct #-}
 foldableProduct :: Int -> Int -> Int
 foldableProduct value n =
-    Prelude.product (sourceUnfoldr value n :: SerialT Identity Int)
+    Prelude.product (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE _foldableNull #-}
 _foldableNull :: Int -> Int -> Bool
 _foldableNull value n =
-    Prelude.null (sourceUnfoldr value n :: SerialT Identity Int)
+    Prelude.null (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableElem #-}
 foldableElem :: Int -> Int -> Bool
 foldableElem value n =
-    value `Prelude.elem` (sourceUnfoldr value n :: SerialT Identity Int)
+    value `Prelude.elem` (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableNotElem #-}
 foldableNotElem :: Int -> Int -> Bool
 foldableNotElem value n =
-    value `Prelude.notElem` (sourceUnfoldr value n :: SerialT Identity Int)
+    value `Prelude.notElem` (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableFind #-}
 foldableFind :: Int -> Int -> Maybe Int
 foldableFind value n =
-    F.find (== (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
+    F.find (== (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableAll #-}
 foldableAll :: Int -> Int -> Bool
 foldableAll value n =
-    Prelude.all (<= (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
+    Prelude.all (<= (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableAny #-}
 foldableAny :: Int -> Int -> Bool
 foldableAny value n =
-    Prelude.any (> (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
+    Prelude.any (> (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableAnd #-}
 foldableAnd :: Int -> Int -> Bool
 foldableAnd value n =
     Prelude.and $ fmap
-        (<= (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
+        (<= (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableOr #-}
 foldableOr :: Int -> Int -> Bool
 foldableOr value n =
     Prelude.or $ fmap
-        (> (value + 1)) (sourceUnfoldr value n :: SerialT Identity Int)
+        (> (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableLength #-}
 foldableLength :: Int -> Int -> Int
 foldableLength value n =
-    Prelude.length (sourceUnfoldr value n :: SerialT Identity Int)
+    Prelude.length (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableMin #-}
 foldableMin :: Int -> Int -> Int
 foldableMin value n =
-    Prelude.minimum (sourceUnfoldr value n :: SerialT Identity Int)
+    Prelude.minimum (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE ordInstanceMin #-}
-ordInstanceMin :: SerialT Identity Int -> SerialT Identity Int
+ordInstanceMin :: Stream Identity Int -> Stream Identity Int
 ordInstanceMin src = min src src
 
 {-# INLINE foldableMax #-}
 foldableMax :: Int -> Int -> Int
 foldableMax value n =
-    Prelude.maximum (sourceUnfoldr value n :: SerialT Identity Int)
+    Prelude.maximum (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableMinBy #-}
 foldableMinBy :: Int -> Int -> Int
 foldableMinBy value n =
-    F.minimumBy compare (sourceUnfoldr value n :: SerialT Identity Int)
+    F.minimumBy compare (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableListMinBy #-}
 foldableListMinBy :: Int -> Int -> Int
@@ -168,30 +167,30 @@ foldableListMinBy value n = F.minimumBy compare [1..value+n]
 {-# INLINE foldableMaxBy #-}
 foldableMaxBy :: Int -> Int -> Int
 foldableMaxBy value n =
-    F.maximumBy compare (sourceUnfoldr value n :: SerialT Identity Int)
+    F.maximumBy compare (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableToList #-}
 foldableToList :: Int -> Int -> [Int]
 foldableToList value n =
-    F.toList (sourceUnfoldr value n :: SerialT Identity Int)
+    F.toList (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableMapM_ #-}
 foldableMapM_ :: Monad m => Int -> Int -> m ()
 foldableMapM_ value n =
-    F.mapM_ (\_ -> return ()) (sourceUnfoldr value n :: SerialT Identity Int)
+    F.mapM_ (\_ -> return ()) (sourceUnfoldr value n :: Stream Identity Int)
 
 {-# INLINE foldableSequence_ #-}
 foldableSequence_ :: Int -> Int -> IO ()
 foldableSequence_ value n =
-    F.sequence_ (sourceUnfoldrAction value n :: SerialT Identity (IO Int))
+    F.sequence_ (sourceUnfoldrAction value n :: Stream Identity (IO Int))
 
 {-# INLINE _foldableMsum #-}
 _foldableMsum :: Int -> Int -> IO Int
 _foldableMsum value n =
-    F.msum (sourceUnfoldrAction value n :: SerialT Identity (IO Int))
+    F.msum (sourceUnfoldrAction value n :: Stream Identity (IO Int))
 
 {-# INLINE showInstance #-}
-showInstance :: SerialT Identity Int -> String
+showInstance :: Stream Identity Int -> String
 showInstance = show
 
 o_1_space_elimination_foldable :: Int -> [Benchmark]
@@ -251,13 +250,13 @@ o_n_space_elimination_foldable value =
 
 {-# INLINE benchPureSink #-}
 benchPureSink :: NFData b
-    => Int -> String -> (SerialT Identity Int -> b) -> Benchmark
+    => Int -> String -> (Stream Identity Int -> b) -> Benchmark
 benchPureSink value name = benchPure name (sourceUnfoldr value)
 
 {-# INLINE benchHoistSink #-}
 benchHoistSink
     :: (NFData b)
-    => Int -> String -> (SerialT Identity Int -> IO b) -> Benchmark
+    => Int -> String -> (Stream Identity Int -> IO b) -> Benchmark
 benchHoistSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f .  sourceUnfoldr value
 
@@ -266,7 +265,7 @@ benchHoistSink value name f =
 {-# INLINE benchIdentitySink #-}
 benchIdentitySink
     :: (NFData b)
-    => Int -> String -> (SerialT Identity Int -> Identity b) -> Benchmark
+    => Int -> String -> (Stream Identity Int -> Identity b) -> Benchmark
 benchIdentitySink value name f = bench name $ nf (f . sourceUnfoldr value) 1
 
 -------------------------------------------------------------------------------
@@ -274,7 +273,7 @@ benchIdentitySink value name f = bench name $ nf (f . sourceUnfoldr value) 1
 -------------------------------------------------------------------------------
 
 {-# INLINE uncons #-}
-uncons :: Monad m => SerialT m Int -> m ()
+uncons :: Monad m => Stream m Int -> m ()
 uncons s = do
     r <- S.uncons s
     case r of
@@ -283,16 +282,16 @@ uncons s = do
 
 #ifdef USE_PRELUDE
 {-# INLINE init #-}
-init :: Monad m => SerialT m a -> m ()
+init :: Monad m => Stream m a -> m ()
 init s = S.init s >>= Prelude.mapM_ S.drain
 
 {-# INLINE mapM_ #-}
-mapM_ :: Monad m => SerialT m Int -> m ()
+mapM_ :: Monad m => Stream m Int -> m ()
 mapM_ = S.mapM_ (\_ -> return ())
 #endif
 
 {-# INLINE foldrMElem #-}
-foldrMElem :: Monad m => Int -> SerialT m Int -> m Bool
+foldrMElem :: Monad m => Int -> Stream m Int -> m Bool
 foldrMElem e =
     S.foldrM
         (\x xs ->
@@ -302,120 +301,120 @@ foldrMElem e =
         (return False)
 
 {-# INLINE foldrToStream #-}
-foldrToStream :: Monad m => SerialT m Int -> m (SerialT Identity Int)
+foldrToStream :: Monad m => Stream m Int -> m (Stream Identity Int)
 foldrToStream = S.foldr S.cons S.nil
 
 {-# INLINE foldrMBuild #-}
-foldrMBuild :: Monad m => SerialT m Int -> m [Int]
+foldrMBuild :: Monad m => Stream m Int -> m [Int]
 foldrMBuild = S.foldrM (\x xs -> (x :) <$> xs) (return [])
 
 #ifdef USE_PRELUDE
 {-# INLINE foldl'Reduce #-}
-foldl'Reduce :: Monad m => SerialT m Int -> m Int
+foldl'Reduce :: Monad m => Stream m Int -> m Int
 foldl'Reduce = S.foldl' (+) 0
 
 {-# INLINE foldl1'Reduce #-}
-foldl1'Reduce :: Monad m => SerialT m Int -> m (Maybe Int)
+foldl1'Reduce :: Monad m => Stream m Int -> m (Maybe Int)
 foldl1'Reduce = S.foldl1' (+)
 
 {-# INLINE foldlM'Reduce #-}
-foldlM'Reduce :: Monad m => SerialT m Int -> m Int
+foldlM'Reduce :: Monad m => Stream m Int -> m Int
 foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) (return 0)
 
 {-# INLINE last #-}
-last :: Monad m => SerialT m Int -> m (Maybe Int)
+last :: Monad m => Stream m Int -> m (Maybe Int)
 last = S.last
 
 {-# INLINE _head #-}
-_head :: Monad m => SerialT m Int -> m (Maybe Int)
+_head :: Monad m => Stream m Int -> m (Maybe Int)
 _head = S.head
 
 {-# INLINE elem #-}
-elem :: Monad m => Int -> SerialT m Int -> m Bool
+elem :: Monad m => Int -> Stream m Int -> m Bool
 elem value = S.elem (value + 1)
 
 {-# INLINE notElem #-}
-notElem :: Monad m => Int -> SerialT m Int -> m Bool
+notElem :: Monad m => Int -> Stream m Int -> m Bool
 notElem value = S.notElem (value + 1)
 
 {-# INLINE length #-}
-length :: Monad m => SerialT m Int -> m Int
+length :: Monad m => Stream m Int -> m Int
 length = S.length
 
 {-# INLINE all #-}
-all :: Monad m => Int -> SerialT m Int -> m Bool
+all :: Monad m => Int -> Stream m Int -> m Bool
 all value = S.all (<= (value + 1))
 
 {-# INLINE any #-}
-any :: Monad m => Int -> SerialT m Int -> m Bool
+any :: Monad m => Int -> Stream m Int -> m Bool
 any value = S.any (> (value + 1))
 
 {-# INLINE and #-}
-and :: Monad m => Int -> SerialT m Int -> m Bool
+and :: Monad m => Int -> Stream m Int -> m Bool
 and value = S.and . S.map (<= (value + 1))
 
 {-# INLINE or #-}
-or :: Monad m => Int -> SerialT m Int -> m Bool
+or :: Monad m => Int -> Stream m Int -> m Bool
 or value = S.or . S.map (> (value + 1))
 
 {-# INLINE find #-}
-find :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
+find :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 find value = S.find (== (value + 1))
 
 {-# INLINE findM #-}
-findM :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
+findM :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 findM value = S.findM (\z -> return $ z == (value + 1))
 
 {-# INLINE findIndex #-}
-findIndex :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
+findIndex :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 findIndex value = S.findIndex (== (value + 1))
 
 {-# INLINE elemIndex #-}
-elemIndex :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
+elemIndex :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 elemIndex value = S.elemIndex (value + 1)
 
 {-# INLINE maximum #-}
-maximum :: Monad m => SerialT m Int -> m (Maybe Int)
+maximum :: Monad m => Stream m Int -> m (Maybe Int)
 maximum = S.maximum
 
 {-# INLINE minimum #-}
-minimum :: Monad m => SerialT m Int -> m (Maybe Int)
+minimum :: Monad m => Stream m Int -> m (Maybe Int)
 minimum = S.minimum
 
 {-# INLINE sum #-}
-sum :: Monad m => SerialT m Int -> m Int
+sum :: Monad m => Stream m Int -> m Int
 sum = S.sum
 
 {-# INLINE product #-}
-product :: Monad m => SerialT m Int -> m Int
+product :: Monad m => Stream m Int -> m Int
 product = S.product
 
 {-# INLINE minimumBy #-}
-minimumBy :: Monad m => SerialT m Int -> m (Maybe Int)
+minimumBy :: Monad m => Stream m Int -> m (Maybe Int)
 minimumBy = S.minimumBy compare
 
 {-# INLINE maximumBy #-}
-maximumBy :: Monad m => SerialT m Int -> m (Maybe Int)
+maximumBy :: Monad m => Stream m Int -> m (Maybe Int)
 maximumBy = S.maximumBy compare
 
 {-# INLINE the #-}
-the :: Monad m => SerialT m Int -> m (Maybe Int)
+the :: Monad m => Stream m Int -> m (Maybe Int)
 the = S.the
 
 {-# INLINE drainN #-}
-drainN :: Monad m => Int -> SerialT m Int -> m ()
+drainN :: Monad m => Int -> Stream m Int -> m ()
 drainN = S.drainN
 
 {-# INLINE drainWhile #-}
-drainWhile :: Monad m => SerialT m Int -> m ()
+drainWhile :: Monad m => Stream m Int -> m ()
 drainWhile = S.drainWhile (const True)
 
 {-# INLINE (!!) #-}
-(!!) :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
+(!!) :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 (!!) = flip (S.!!)
 
 {-# INLINE lookup #-}
-lookup :: Monad m => Int -> SerialT m Int -> m (Maybe Int)
+lookup :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 lookup val = S.lookup val . S.map (\x -> (x, x))
 #endif
 
@@ -508,11 +507,11 @@ o_1_space_elimination_folds value =
 
 #ifdef USE_PRELUDE
 {-# INLINE foldl'Build #-}
-foldl'Build :: Monad m => SerialT m Int -> m [Int]
+foldl'Build :: Monad m => Stream m Int -> m [Int]
 foldl'Build = S.foldl' (flip (:)) []
 
 {-# INLINE foldlM'Build #-}
-foldlM'Build :: Monad m => SerialT m Int -> m [Int]
+foldlM'Build :: Monad m => Stream m Int -> m [Int]
 foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) (return [])
 
 o_n_heap_elimination_foldl :: Int -> [Benchmark]
@@ -546,7 +545,7 @@ o_n_heap_elimination_buffered value =
     ]
 
 {-# INLINE foldrMReduce #-}
-foldrMReduce :: Monad m => SerialT m Int -> m Int
+foldrMReduce :: Monad m => Stream m Int -> m Int
 foldrMReduce = S.foldrM (\x xs -> (x +) <$> xs) (return 0)
 
 o_n_space_elimination_foldr :: Int -> [Benchmark]
@@ -569,7 +568,7 @@ o_n_heap_elimination_toList value =
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toListRev" S.toListRev
         , benchIOSink value "toStreamRev"
-            (S.toStreamRev :: (SerialT IO Int -> IO (SerialT Identity Int)))
+            (S.toStreamRev :: (Stream IO Int -> IO (Stream Identity Int)))
         ]
     ]
 
@@ -579,7 +578,7 @@ o_n_space_elimination_toList value =
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toList" S.toList
         , benchIOSink value "toStream"
-            (S.toStream :: (SerialT IO Int -> IO (SerialT Identity Int)))
+            (S.toStream :: (Stream IO Int -> IO (Stream Identity Int)))
         ]
     ]
 #endif
@@ -593,7 +592,7 @@ o_n_space_elimination_toList value =
 -------------------------------------------------------------------------------
 
 {-# INLINE eqBy' #-}
-eqBy' :: (Monad m, Eq a) => SerialT m a -> m Bool
+eqBy' :: (Monad m, Eq a) => Stream m a -> m Bool
 eqBy' src = S.eqBy (==) src src
 
 {-# INLINE eqByPure #-}
@@ -607,15 +606,15 @@ inspect $ 'eqByPure `hasNoType` ''D.Step
 #endif
 
 {-# INLINE eqInstance #-}
-eqInstance :: SerialT Identity Int -> Bool
+eqInstance :: Stream Identity Int -> Bool
 eqInstance src = src == src
 
 {-# INLINE eqInstanceNotEq #-}
-eqInstanceNotEq :: SerialT Identity Int -> Bool
+eqInstanceNotEq :: Stream Identity Int -> Bool
 eqInstanceNotEq src = src /= src
 
 {-# INLINE cmpBy' #-}
-cmpBy' :: (Monad m, Ord a) => SerialT m a -> m Ordering
+cmpBy' :: (Monad m, Ord a) => Stream m a -> m Ordering
 cmpBy' src = S.cmpBy compare src src
 
 {-# INLINE cmpByPure #-}
@@ -629,7 +628,7 @@ inspect $ 'cmpByPure `hasNoType` ''D.Step
 #endif
 
 {-# INLINE ordInstance #-}
-ordInstance :: SerialT Identity Int -> Bool
+ordInstance :: Stream Identity Int -> Bool
 ordInstance src = src < src
 
 o_1_space_elimination_multi_stream_pure :: Int -> [Benchmark]
@@ -644,15 +643,15 @@ o_1_space_elimination_multi_stream_pure value =
     ]
 
 {-# INLINE isPrefixOf #-}
-isPrefixOf :: Monad m => SerialT m Int -> m Bool
+isPrefixOf :: Monad m => Stream m Int -> m Bool
 isPrefixOf src = S.isPrefixOf src src
 
 {-# INLINE isSubsequenceOf #-}
-isSubsequenceOf :: Monad m => SerialT m Int -> m Bool
+isSubsequenceOf :: Monad m => Stream m Int -> m Bool
 isSubsequenceOf src = S.isSubsequenceOf src src
 
 {-# INLINE stripPrefix #-}
-stripPrefix :: Monad m => SerialT m Int -> m ()
+stripPrefix :: Monad m => Stream m Int -> m ()
 stripPrefix src = do
     _ <- S.stripPrefix src src
     return ()

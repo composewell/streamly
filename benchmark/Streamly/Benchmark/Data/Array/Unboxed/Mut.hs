@@ -20,7 +20,6 @@
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor ((<&>))
-import Streamly.Prelude (MonadAsync, SerialT, IsStream)
 import System.Random (randomRIO)
 import Prelude
     ( IO
@@ -36,14 +35,16 @@ import Prelude
     , (||)
     , concat
     , const
+    , fmap
     , id
     , undefined
     )
 
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
-import qualified Streamly.Internal.Data.Stream.Type as Stream
-import qualified Streamly.Prelude as Stream
+import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Prelude as IsStream (scanl1')
 
 import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)
@@ -76,6 +77,9 @@ benchIOSink value name = benchIO' name (sourceIntFromTo value)
 {-# INLINE benchIOSrc #-}
 benchIOSrc :: String -> (Int -> IO (Stream a)) -> Benchmark
 benchIOSrc name src = benchIO name src id
+
+drain :: Monad m => Stream.Stream m a -> m ()
+drain = Stream.fold Fold.drain
 
 -------------------------------------------------------------------------------
 -- Bench Ops
@@ -113,7 +117,7 @@ sourceIntFromToFromStream value n =
     Stream.fold MArray.write $ Stream.enumerateFromTo n (n + value)
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (IsStream t, MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrM :: Monad m => Int -> Int -> Stream.Stream m Int
 sourceUnfoldrM value n = Stream.unfoldrM step n
     where
     step cnt =
@@ -138,19 +142,19 @@ composeN n f x =
 
 {-# INLINE scanl' #-}
 scanl' :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-scanl' value n = composeN n $ onArray value $ Stream.scanl' (+) 0
+scanl' value n = composeN n $ onArray value $ Stream.scan (Fold.foldl' (+) 0)
 
 {-# INLINE scanl1' #-}
 scanl1' :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-scanl1' value n = composeN n $ onArray value $ Stream.scanl1' (+)
+scanl1' value n = composeN n $ onArray value $ IsStream.scanl1' (+)
 
 {-# INLINE map #-}
 map :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-map value n = composeN n $ onArray value $ Stream.map (+ 1)
+map value n = composeN n $ onArray value $ fmap (+ 1)
 
 {-# INLINE onArray #-}
 onArray
-    :: MonadIO m => Int -> (Stream.SerialT m Int -> Stream.SerialT m Int)
+    :: MonadIO m => Int -> (Stream.Stream m Int -> Stream.Stream m Int)
     -> Stream Int
     -> m (Stream Int)
 onArray value f arr =
@@ -162,24 +166,24 @@ onArray value f arr =
 
 {-# INLINE unfoldReadDrain #-}
 unfoldReadDrain :: MonadIO m => Stream Int -> m ()
-unfoldReadDrain = Stream.drain . Stream.unfold MArray.read
+unfoldReadDrain = drain . Stream.unfold MArray.read
 
 {-# INLINE unfoldReadRevDrain #-}
 unfoldReadRevDrain :: MonadIO m => Stream Int -> m ()
-unfoldReadRevDrain = Stream.drain . Stream.unfold MArray.readRev
+unfoldReadRevDrain = drain . Stream.unfold MArray.readRev
 
 {-# INLINE toStreamDRevDrain #-}
 toStreamDRevDrain :: MonadIO m => Stream Int -> m ()
 toStreamDRevDrain =
-    Stream.drain . Stream.fromStreamD . MArray.toStreamDRev
+    drain . Stream.fromStreamD . MArray.toStreamDRev
 
 {-# INLINE toStreamDDrain #-}
 toStreamDDrain :: MonadIO m => Stream Int -> m ()
-toStreamDDrain = Stream.drain . Stream.fromStreamD . MArray.toStreamD
+toStreamDDrain = drain . Stream.fromStreamD . MArray.toStreamD
 
 {-# INLINE unfoldFold #-}
 unfoldFold :: MonadIO m => Stream Int -> m Int
-unfoldFold = Stream.foldl' (+) 0 . Stream.unfold MArray.read
+unfoldFold = Stream.fold (Fold.foldl' (+) 0) . Stream.unfold MArray.read
 
 -------------------------------------------------------------------------------
 -- Bench groups
@@ -273,8 +277,8 @@ main = do
     where
 
     alloc value = do
-        marr <- MArray.fromStream (sourceUnfoldrM value 0 :: SerialT IO Int)
-        indices <- Array.fromStream (sourceUnfoldrM value 0 :: SerialT IO Int)
+        marr <- MArray.fromStream (sourceUnfoldrM value 0 :: Stream.Stream IO Int)
+        indices <- Array.fromStream (sourceUnfoldrM value 0 :: Stream.Stream IO Int)
         return (marr, indices)
 
     allBenchmarks array value =

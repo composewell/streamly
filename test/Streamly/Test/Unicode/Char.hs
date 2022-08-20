@@ -21,11 +21,11 @@ import Streamly.Internal.Unicode.Char
     ( NormalizationMode(NFC, NFD, NFKC, NFKD)
     , normalize
     )
-import Streamly.Internal.Data.Stream.IsStream (SerialT)
+import Streamly.Internal.Data.Stream (Stream)
 import Text.Printf (printf)
 import System.FilePath.Posix ((</>))
 
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified System.Directory as Dir
 
@@ -35,7 +35,7 @@ chrToHex = map toUpper . printf "%.4x" . ord
 strToHex :: [Char] -> String
 strToHex = unwords . map chrToHex
 
-type Text = SerialT IO Char
+type Text = Stream IO Char
 
 checkEqual :: String -> (Text -> Text) -> (Text, Text) -> IO Bool
 checkEqual opName op (mc1, mc2) = do
