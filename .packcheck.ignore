@@ -11,6 +11,7 @@ appveyor.yml
 benchmark/bench-runner/default.nix
 benchmark/bench-runner/cabal.project
 bin/ghc.sh
+bin/repl
 bin/run-ci.sh
 bin/run-repl-quick.sh
 cabal.project
