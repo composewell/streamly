@@ -40,7 +40,7 @@ flag opt
   manual: True
   default: True
 
-flag test-core
+flag use-streamly-core
   description: Test only core package
   manual: True
   default: False
@@ -159,7 +159,7 @@ common test-dependencies
       , temporary         >= 1.3   && < 1.4
       , network           >= 3.1   && < 3.2
 
-  if !flag(test-core)
+  if !flag(use-streamly-core)
     build-depends: streamly
 
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
@@ -180,7 +180,7 @@ library
     import: lib-options, test-dependencies
     hs-source-dirs: lib
     exposed-modules: Streamly.Test.Common
-    if !flag(test-core)
+    if !flag(use-streamly-core)
       exposed-modules: Streamly.Test.Prelude.Common
     if flag(limit-build-mem)
       ghc-options: +RTS -M1500M -RTS
@@ -230,7 +230,7 @@ test-suite Data.Array
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array.hs
   ghc-options: -main-is Streamly.Test.Data.Array.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Data.Array.Unboxed
@@ -250,14 +250,14 @@ test-suite Data.Ring.Unboxed
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Ring/Unboxed.hs
   ghc-options: -main-is Streamly.Test.Data.Ring.Unboxed.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Data.Array.Stream.Foreign
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array/Stream/Foreign.hs
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Data.Fold
@@ -290,7 +290,7 @@ test-suite Data.SmallArray
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/SmallArray.hs
   ghc-options: -main-is Streamly.Test.Data.SmallArray.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Data.Unfold
@@ -304,7 +304,7 @@ test-suite FileSystem.Event
   ghc-options: -main-is Streamly.Test.FileSystem.Event
   main-is: Streamly/Test/FileSystem/Event.hs
   other-modules: Streamly.Test.FileSystem.Event.Common
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite FileSystem.Event.Darwin
@@ -316,7 +316,7 @@ test-suite FileSystem.Event.Darwin
   ghc-options: -main-is Streamly.Test.FileSystem.Event.Darwin
   if !os(darwin)
     buildable: False
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite FileSystem.Event.Linux
@@ -328,7 +328,7 @@ test-suite FileSystem.Event.Linux
   ghc-options: -main-is Streamly.Test.FileSystem.Event.Linux
   if !os(linux)
     buildable: False
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite FileSystem.Event.Windows
@@ -340,7 +340,7 @@ test-suite FileSystem.Event.Windows
   ghc-options: -main-is Streamly.Test.FileSystem.Event.Windows
   if !os(windows)
     buildable: False
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite FileSystem.Handle
@@ -348,21 +348,21 @@ test-suite FileSystem.Handle
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/FileSystem/Handle.hs
   ghc-options: -main-is Streamly.Test.FileSystem.Handle.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Network.Inet.TCP
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Network/Inet/TCP.hs
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Network.Socket
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Network/Socket.hs
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude
@@ -370,7 +370,7 @@ test-suite Prelude
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude.hs
   ghc-options: -main-is Streamly.Test.Prelude.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.Ahead
@@ -378,7 +378,7 @@ test-suite Prelude.Ahead
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Ahead.hs
   ghc-options: -main-is Streamly.Test.Prelude.Ahead.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.Async
@@ -386,7 +386,7 @@ test-suite Prelude.Async
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Async.hs
   ghc-options: -main-is Streamly.Test.Prelude.Async.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.Concurrent
@@ -396,7 +396,7 @@ test-suite Prelude.Concurrent
   ghc-options: -main-is Streamly.Test.Prelude.Concurrent.main
   if flag(limit-build-mem)
     ghc-options: +RTS -M2000M -RTS
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.Fold
@@ -404,7 +404,7 @@ test-suite Prelude.Fold
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Fold.hs
   ghc-options: -main-is Streamly.Test.Prelude.Fold.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.Parallel
@@ -412,7 +412,7 @@ test-suite Prelude.Parallel
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Parallel.hs
   ghc-options: -main-is Streamly.Test.Prelude.Parallel.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.Rate
@@ -424,7 +424,7 @@ test-suite Prelude.Rate
     buildable: True
   else
     buildable: False
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.Serial
@@ -434,14 +434,14 @@ test-suite Prelude.Serial
   ghc-options: -main-is Streamly.Test.Prelude.Serial.main
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.Top
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Top.hs
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.WAsync
@@ -449,7 +449,7 @@ test-suite Prelude.WAsync
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/WAsync.hs
   ghc-options: -main-is Streamly.Test.Prelude.WAsync.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.WSerial
@@ -457,7 +457,7 @@ test-suite Prelude.WSerial
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/WSerial.hs
   ghc-options: -main-is Streamly.Test.Prelude.WSerial.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.ZipAsync
@@ -467,7 +467,7 @@ test-suite Prelude.ZipAsync
   ghc-options: -main-is Streamly.Test.Prelude.ZipAsync.main
   if flag(limit-build-mem)
     ghc-options: +RTS -M750M -RTS
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Prelude.ZipSerial
@@ -475,7 +475,7 @@ test-suite Prelude.ZipSerial
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/ZipSerial.hs
   ghc-options: -main-is Streamly.Test.Prelude.ZipSerial.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Unicode.Stream
@@ -483,7 +483,7 @@ test-suite Unicode.Stream
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Unicode/Stream.hs
   ghc-options: -main-is Streamly.Test.Unicode.Stream.main
-  if flag(test-core)
+  if flag(use-streamly-core)
     buildable: False
 
 test-suite Unicode.Char
@@ -491,7 +491,7 @@ test-suite Unicode.Char
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Unicode/Char.hs
   ghc-options: -main-is Streamly.Test.Unicode.Char.main
-  if flag(test-core) || !flag(dev)
+  if flag(use-streamly-core) || !flag(dev)
     buildable: False
 
 test-suite version-bounds
