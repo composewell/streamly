@@ -8,7 +8,7 @@
 --
 -- To run the examples in this module:
 --
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 
@@ -85,7 +85,7 @@ import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 import Prelude hiding (map, mapM, concatMap, zipWith, takeWhile)
 
 -- $setup
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 
@@ -549,7 +549,7 @@ apply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)
 --
 -- >>> rlist = Unfold.lmap fst Unfold.fromList
 -- >>> llist = Unfold.lmap snd Unfold.fromList
--- >>> Stream.toList $ Stream.unfold ((,) <$> rlist <*> llist) ([1,2],[3,4])
+-- >>> Stream.fold Fold.toList $ Stream.unfold ((,) <$> rlist <*> llist) ([1,2],[3,4])
 -- [(1,3),(1,4),(2,3),(2,4)]
 --
 instance Monad m => Applicative (Unfold m a) where
@@ -635,7 +635,7 @@ bind = flip concatMap
 --   y <- Unfold.enumerateFromToIntegral x
 --   return (x, y)
 -- :}
--- >>> Stream.toList $ Stream.unfold u 1
+-- >>> Stream.fold Fold.toList $ Stream.unfold u 1
 -- [(1,1),(2,1),(2,2),(3,1),(3,2),(3,3),(4,1),(4,2),(4,3),(4,4)]
 --
 instance Monad m => Monad (Unfold m a) where
@@ -850,7 +850,7 @@ data ManyInterleaveState o i =
     | ManyInterleaveInnerL [i] [i]
     | ManyInterleaveInnerR [i] [i]
 
--- | 'Streamly.Internal.Data.Stream.IsStream.unfoldManyInterleave' for
+-- | 'Streamly.Internal.Data.Stream.unfoldManyInterleave' for
 -- documentation and notes.
 --
 -- This is almost identical to unfoldManyInterleave in StreamD module.

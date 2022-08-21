@@ -266,8 +266,8 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- >>> import Control.Applicative ((<|>))
 -- >>> import Data.Char (isSpace)
 -- >>> import qualified Data.Maybe as Maybe
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (parse, parseMany)
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream (parse, parseMany)
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 
@@ -945,7 +945,7 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSpc =
 --
 -- >>> :{
 --  runGroupsBy eq =
---      Stream.toList
+--      Stream.fold Fold.toList
 --          . Stream.parseMany (Parser.groupBy eq Fold.toList)
 --          . Stream.fromList
 -- :}
@@ -979,7 +979,7 @@ groupBy eq = D.toParserK . D.groupBy eq
 --
 -- >>> :{
 --  runGroupsByRolling eq =
---      Stream.toList
+--      Stream.fold Fold.toList
 --          . Stream.parseMany (Parser.groupByRolling eq Fold.toList)
 --          . Stream.fromList
 -- :}

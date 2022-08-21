@@ -173,7 +173,7 @@ gbracket bef aft onExc onGC ftry action =
             Skip s    -> return $ Skip (GBracketIOException (Stream step1 s))
             Stop      -> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.before'.
+-- | See 'Streamly.Internal.Data.Stream.before'.
 --
 {-# INLINE_NORMAL before #-}
 before :: Monad m => m b -> Stream m a -> Stream m a
@@ -191,7 +191,7 @@ before action (Stream step state) = Stream step' Nothing
             Skip s    -> return $ Skip (Just s)
             Stop      -> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.after_'.
+-- | See 'Streamly.Internal.Data.Stream.after_'.
 --
 {-# INLINE_NORMAL after_ #-}
 after_ :: Monad m => m b -> Stream m a -> Stream m a
@@ -207,7 +207,7 @@ after_ action (Stream step state) = Stream step' state
             Skip s    -> return $ Skip s
             Stop      -> action >> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.after'.
+-- | See 'Streamly.Internal.Data.Stream.after'.
 --
 {-# INLINE_NORMAL after #-}
 after :: MonadRunInIO m
@@ -232,7 +232,7 @@ after action (Stream step state) = Stream step' Nothing
 -- XXX For high performance error checks in busy streams we may need another
 -- Error constructor in step.
 --
--- | See 'Streamly.Internal.Data.Stream.IsStream.onException'.
+-- | See 'Streamly.Internal.Data.Stream.onException'.
 --
 {-# INLINE_NORMAL onException #-}
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
@@ -258,7 +258,7 @@ _onException action (Stream step state) = Stream step' state
             Skip s    -> return $ Skip s
             Stop      -> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.bracket_'.
+-- | See 'Streamly.Internal.Data.Stream.bracket_'.
 --
 {-# INLINE_NORMAL bracket_ #-}
 bracket_ :: MonadCatch m
@@ -270,7 +270,7 @@ bracket_ bef aft =
         (\a (e :: SomeException) _ -> nilM (aft a >> MC.throwM e))
         (inline MC.try)
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.bracket'.
+-- | See 'Streamly.Internal.Data.Stream.bracket'.
 --
 {-# INLINE_NORMAL bracket' #-}
 bracket' :: (MonadAsync m, MonadCatch m) =>
@@ -314,13 +314,13 @@ _bracket bef aft bet = Stream step' BracketInit
                 Skip s    -> return $ Skip (BracketRun (Stream step s) v)
                 Stop      -> aft v >> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.finally_'.
+-- | See 'Streamly.Internal.Data.Stream.finally_'.
 --
 {-# INLINE finally_ #-}
 finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
 finally_ action xs = bracket_ (return ()) (const action) (const xs)
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.finally'.
+-- | See 'Streamly.Internal.Data.Stream.finally'.
 --
 -- finally action xs = after action $ onException action xs
 --
@@ -329,7 +329,7 @@ finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
 finally action xs = bracket' (return ()) act act act (const xs)
     where act _ = action
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.ghandle'.
+-- | See 'Streamly.Internal.Data.Stream.ghandle'.
 --
 {-# INLINE_NORMAL ghandle #-}
 ghandle :: (MonadCatch m, Exception e)
@@ -337,7 +337,7 @@ ghandle :: (MonadCatch m, Exception e)
 ghandle f stream =
     gbracket_ (return ()) return (const f) (inline MC.try) (const stream)
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.handle'.
+-- | See 'Streamly.Internal.Data.Stream.handle'.
 --
 {-# INLINE_NORMAL handle #-}
 handle :: (MonadCatch m, Exception e)
@@ -375,7 +375,7 @@ data RetryState emap s1 s2
     = RetryWithMap emap s1
     | RetryDefault s2
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.retry'
+-- | See 'Streamly.Internal.Data.Stream.retry'
 --
 {-# INLINE_NORMAL retry #-}
 retry

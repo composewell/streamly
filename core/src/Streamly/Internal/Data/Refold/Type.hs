@@ -54,7 +54,7 @@ import Prelude hiding (take, iterate)
 -- >>> :set -package streamly
 -- >>> import qualified Streamly.Internal.Data.Refold.Type as Refold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 -- All folds in the Fold module should be implemented using Refolds.
 --
@@ -145,7 +145,7 @@ drainBy f = Refold step inject extract
 
 -- | Append the elements of an input stream to a provided starting value.
 --
--- >>> stream = Stream.map Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
+-- >>> stream = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
 -- >>> Stream.fold (Fold.fromRefold Refold.sconcat 10) stream
 -- Sum {getSum = 65}
 --

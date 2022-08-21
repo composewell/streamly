@@ -1044,7 +1044,7 @@ concatMap_ f xs = buildS
      (\c n -> foldrSShared (\x b -> foldrSShared c b (unShare $ f x)) n xs)
 -}
 
--- | See 'Streamly.Internal.Data.Stream.IsStream.concatPairsWith' for
+-- | See 'Streamly.Internal.Data.Stream.concatPairsWith' for
 -- documentation.
 --
 {-# INLINE concatPairsWith #-}

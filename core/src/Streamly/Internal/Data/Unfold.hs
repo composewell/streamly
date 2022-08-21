@@ -118,7 +118,7 @@ module Streamly.Internal.Data.Unfold
 
     -- * Unfolds
     -- One to one correspondence with
-    -- "Streamly.Internal.Data.Stream.IsStream.Generate"
+    -- "Streamly.Internal.Data.Stream.Generate"
     -- ** Basic Constructors
     , mkUnfoldM
     , mkUnfoldrM
@@ -297,7 +297,7 @@ import Foreign.Ptr
 -- $setup
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 
 
 -- | Convert an 'Unfold' into an unfold accepting a tuple as an argument,

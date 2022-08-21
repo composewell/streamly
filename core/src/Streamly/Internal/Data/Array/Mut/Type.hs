@@ -181,7 +181,7 @@ import Prelude hiding (read)
 -- >>> :m
 -- >>> :set -package streamly
 -- >>> import qualified Streamly.Internal.Data.Array.Mut.Type as Array
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold

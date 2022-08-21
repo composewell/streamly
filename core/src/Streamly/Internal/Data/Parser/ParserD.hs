@@ -226,8 +226,8 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- >>> :set -package streamly
 -- >>> import Prelude hiding ()
 -- >>> import qualified Data.Maybe as Maybe
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 
