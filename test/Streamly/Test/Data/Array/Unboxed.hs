@@ -8,12 +8,10 @@
 
 module Streamly.Test.Data.Array.Unboxed (main) where
 
-import Streamly.Internal.Data.Unboxed (sizeOf)
 import Streamly.Data.Fold (Fold)
+import Streamly.Internal.Data.Unboxed (sizeOf)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Test.Common (listEquals)
-
-
 
 import Data.Char (isLower)
 import Data.List (sort)
