@@ -244,7 +244,7 @@ parseBreakD parser strm = do
 
 -- | Parse a stream using the supplied 'Parser'.
 --
--- /Internal/
+-- /Not fused/
 --
 {-# INLINE parseBreak #-}
 parseBreak :: MonadThrow m => Parser m a b -> Stream m a -> m (b, Stream m a)

@@ -551,11 +551,11 @@ data ConcatUnfoldInterleaveState o i =
 -- Maybe we can configure the behavior.
 --
 -- XXX Instead of using "concatPairsWith wSerial" we can implement an N-way
--- interleaving CPS combinator which behaves like unfoldManyInterleave. Intead
--- of pairing up the streams We just need to go yielding one element from each
+-- interleaving CPS combinator which behaves like unfoldManyInterleave. Instead
+-- of pairing up the streams we just need to go yielding one element from each
 -- stream and storing the remaining streams and then keep doing rounds through
 -- those in a round robin fashion. This would be much like wAsync.
---
+
 -- | This does not pair streams like concatPairsWith, instead, it goes through
 -- each stream one by one and yields one element from each stream. After it
 -- goes to the last stream it reverses the traversal to come back to the first
