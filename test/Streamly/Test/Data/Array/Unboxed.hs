@@ -8,7 +8,12 @@
 
 module Streamly.Test.Data.Array.Unboxed (main) where
 
-#include "Streamly/Test/Data/Array/CommonImports.hs"
+import Streamly.Internal.Data.Unboxed (sizeOf)
+import Streamly.Data.Fold (Fold)
+import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Test.Common (listEquals)
+
+
 
 import Data.Char (isLower)
 import Data.List (sort)
@@ -18,10 +23,16 @@ import Streamly.Internal.Data.Unboxed (Unboxed)
 import Test.QuickCheck (chooseInt, listOf)
 import GHC.Ptr (plusPtr)
 
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
-import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Stream as S
+
+import Test.Hspec.QuickCheck
+import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)
+import Test.QuickCheck.Monadic (monadicIO, assert, run)
+import Test.Hspec as H
 
 type Array = A.Array
 

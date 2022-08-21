@@ -11,7 +11,6 @@ module Streamly.Test.Data.Array (main) where
 #include "Streamly/Test/Data/Array/CommonImports.hs"
 
 import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Internal.Data.Fold as Fold
 
 type Array = A.Array
 
