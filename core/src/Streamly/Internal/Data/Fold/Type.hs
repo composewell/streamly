@@ -411,6 +411,7 @@ module Streamly.Internal.Data.Fold.Type
     , snoc
     , duplicate
     , finish
+    , isDone
     )
 where
 
@@ -1428,6 +1429,17 @@ finish (Fold _ initial extract) = do
     case res of
           Partial fs -> extract fs
           Done b -> return b
+
+-- | Check if the fold is done and can take no more input.
+--
+-- /Pre-release/
+{-# INLINE isDone #-}
+isDone :: Monad m => Fold m a b -> m (Maybe b)
+isDone (Fold _ initial _) = do
+    res <- initial
+    return $ case res of
+          Partial _ -> Nothing
+          Done b -> Just b
 
 ------------------------------------------------------------------------------
 -- Parsing
