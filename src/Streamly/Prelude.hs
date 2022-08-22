@@ -989,7 +989,7 @@ import Streamly.Internal.Data.Stream.IsStream
 
 -- $rightfolds
 --
--- Let's take a closer look at the @foldr@ definition for lists, as given3
+-- Let's take a closer look at the @foldr@ definition for lists, as given
 -- earlier:
 --
 -- @

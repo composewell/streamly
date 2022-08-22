@@ -208,7 +208,7 @@ fold fl strm = D.fold fl $ D.fromStreamK $ toStreamK strm
 
 -- | Like 'fold' but also returns the remaining stream.
 --
--- /Inhibits stream fusion/
+-- /Not fused/
 --
 {-# INLINE foldBreak #-}
 foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
