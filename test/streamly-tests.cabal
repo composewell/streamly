@@ -238,8 +238,6 @@ test-suite Data.Array.Unboxed
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array/Unboxed.hs
   ghc-options: -main-is Streamly.Test.Data.Array.Unboxed.main
-  if flag(test-core)
-    buildable: False
 
 test-suite Data.Array.Unboxed.Mut
   import: test-options

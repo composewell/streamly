@@ -47,7 +47,7 @@ genericTestFromTo arrFold arrUnfold listEq =
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
                 arr <- run $ arrFold len $ S.fromList list
-                xs <- run $ S.toList $ arrUnfold arr
+                xs <- run $ S.fold Fold.toList $ arrUnfold arr
                 assert (listEq xs list)
 
 
@@ -79,7 +79,7 @@ testFromListN =
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
                 monadicIO $ do
                     let arr = A.fromListN n list
-                    xs <- run $ S.toList $ S.unfold A.read arr
+                    xs <- run $ S.fold Fold.toList $ S.unfold A.read arr
                     listEquals (==) xs (take n list)
 
 foldManyWith :: (Int -> Fold IO Int (Array Int)) -> Property
@@ -88,7 +88,7 @@ foldManyWith f =
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
                 xs <- run
-                    $ S.toList
+                    $ S.fold Fold.toList
                     $ S.unfoldMany A.read
                     $ S.foldMany (f 240)
                     $ S.fromList list

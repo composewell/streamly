@@ -10,4 +10,5 @@ import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Test.Common (listEquals)
 
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Prelude as S
