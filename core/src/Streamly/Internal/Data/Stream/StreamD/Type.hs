@@ -44,6 +44,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , fold
     , foldBreak
     , foldContinue
+    , foldStream
 
     -- * Right Folds
     , foldrT
@@ -305,6 +306,9 @@ foldBreak (Fold fstep begin done) (UnStream step state) = do
                 b <- done fs
                 return $! (b, Stream (\ _ _ -> return Stop) ())
 
+-- | If the fold finishes before the stream, we can detect that the fold is
+-- done by checking if the initial action returns Done. But the remaining
+-- stream is discarded.
 {-# INLINE_NORMAL foldContinue #-}
 foldContinue :: Monad m => Fold m a b -> Stream m a -> Fold m a b
 foldContinue (Fold fstep finitial fextract) (Stream sstep state) =
@@ -329,6 +333,16 @@ foldContinue (Fold fstep finitial fextract) (Stream sstep state) =
                     FL.Partial fs1 -> go SPEC fs1 s
             Skip s -> go SPEC fs s
             Stop -> return $ FL.Partial fs
+
+-- | Returns when either the fold or the stream finishes. If the Fold finishes
+-- first we can check that using Fold.done. If the fold is not done then stream
+-- would be nil.
+--
+-- /Unimplemented/
+{-# INLINE_NORMAL foldStream #-}
+foldStream :: -- Monad m =>
+    Fold m a b -> Stream m a -> m (Fold m a b, Stream m a)
+foldStream = undefined
 
 ------------------------------------------------------------------------------
 -- Right Folds
