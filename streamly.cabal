@@ -137,7 +137,6 @@ extra-source-files:
     core/src/Streamly/Internal/Control/Monad.hs
     core/src/Streamly/Internal/Control/ForkIO.hs
     core/src/Streamly/Internal/Data/Cont.hs
-    core/src/Streamly/Internal/Foreign/Malloc.hs
     core/src/Streamly/Internal/System/IO.hs
     core/src/Streamly/Internal/Data/IsMap.hs
     core/src/Streamly/Internal/Data/Tuple/Strict.hs
@@ -287,11 +286,6 @@ flag has-llvm
   manual: True
   default: False
 
-flag use-c-malloc
-  description: Use C malloc instead of GHC malloc
-  manual: True
-  default: False
-
 flag opt
   description: off=GHC default, on=-O2
   manual: True
@@ -323,9 +317,6 @@ common compile-options
 
     if flag(inspection)
       cpp-options:    -DINSPECTION
-
-    if flag(use-c-malloc)
-      cpp-options:    -DUSE_C_MALLOC
 
     ghc-options:    -Weverything
                     -Wno-implicit-prelude
@@ -534,7 +525,6 @@ library
                      , Streamly.Internal.Control.Monad
                      , Streamly.Internal.Control.ForkIO
                      , Streamly.Internal.Data.Cont
-                     , Streamly.Internal.Foreign.Malloc
                      , Streamly.Internal.System.IO
 
                      -- streamly-strict-data
