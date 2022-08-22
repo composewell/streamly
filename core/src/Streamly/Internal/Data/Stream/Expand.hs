@@ -55,9 +55,11 @@ module Streamly.Internal.Data.Stream.Expand
     --
     -- @Unfold m a b -> Stream m a -> Stream m b@
 
-    -- ** Append Many (Unfold)
+    -- ** Unfold and combine streams
     -- | Unfold and flatten streams.
-    , unfoldMany
+    , unfoldMany -- XXX Rename to unfoldAppend
+    , unfoldInterleave
+    , unfoldRoundRobin
 
     -- ** Interpose
     -- | Insert effects between streams. Like unfoldMany but intersperses an
@@ -75,7 +77,7 @@ module Streamly.Internal.Data.Stream.Expand
     , gintercalate
     , gintercalateSuffix
 
-    -- * Append Many (concatMap)
+    -- * Combine Streams of Streams
     -- | Map and serially append streams. 'concatMapM' is a generalization of
     -- the binary append operation to append many streams.
     , concatMapM
@@ -284,6 +286,37 @@ mergeFstBy _f _m1 _m2 = undefined
 {-# INLINE unfoldMany #-}
 unfoldMany ::Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldMany u m = fromStreamD $ D.unfoldMany u (toStreamD m)
+
+-- | This does not pair streams like concatPairsWith, instead, it goes through
+-- each stream one by one and yields one element from each stream. After it
+-- goes to the last stream it reverses the traversal to come back to the first
+-- stream yielding elements from each stream on its way back to the first
+-- stream and so on.
+--
+-- >>> lists = Stream.fromList [[1,1],[2,2],[3,3],[4,4],[5,5]]
+-- >>> interleaved = Stream.unfoldInterleave Unfold.fromList lists
+-- >>> Stream.fold Fold.toList interleaved
+-- [1,2,3,4,5,5,4,3,2,1]
+--
+-- Note that this is order of magnitude more efficient than "concatPairsWith
+-- wSerial" because of fusion.
+--
+-- /Fused/
+{-# INLINE unfoldInterleave #-}
+unfoldInterleave ::Monad m => Unfold m a b -> Stream m a -> Stream m b
+unfoldInterleave u m =
+    fromStreamD $ D.unfoldManyInterleave u (toStreamD m)
+
+-- | 'unfoldInterleave' switches to the next stream whenever a value from a
+-- stream is yielded, it does not switch on a 'Skip'. So if a stream keeps
+-- skipping for long time other streams won't get a chance to run.
+-- 'unfoldRoundRobin' switches on Skip as well. So it basically schedules each
+-- stream fairly irrespective of whether it produces a value or not.
+--
+{-# INLINE unfoldRoundRobin #-}
+unfoldRoundRobin ::Monad m => Unfold m a b -> Stream m a -> Stream m b
+unfoldRoundRobin u m =
+    fromStreamD $ D.unfoldManyInterleave u (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose

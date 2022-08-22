@@ -556,18 +556,6 @@ data ConcatUnfoldInterleaveState o i =
 -- stream and storing the remaining streams and then keep doing rounds through
 -- those in a round robin fashion. This would be much like wAsync.
 
--- | This does not pair streams like concatPairsWith, instead, it goes through
--- each stream one by one and yields one element from each stream. After it
--- goes to the last stream it reverses the traversal to come back to the first
--- stream yielding elements from each stream on its way back to the first
--- stream and so on.
---
--- >>> input = Stream.fromList [[1,1],[2,2],[3,3],[4,4],[5,5]]
--- >>> Stream.toList $ Stream.unfoldManyInterleave Unfold.fromList input
--- [1,2,3,4,5,5,4,3,2,1]
---
--- Note that this is order of magnitude more efficient than "concatPairsWith
--- wSerial"
 {-# INLINE_NORMAL unfoldManyInterleave #-}
 unfoldManyInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =
