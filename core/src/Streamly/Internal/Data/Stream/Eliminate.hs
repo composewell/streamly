@@ -221,8 +221,10 @@ parseK = parse
 
 -- | Parse a stream using the supplied 'Parser'.
 --
--- Unlike folds, parsers may not always result in a valid output, they may
--- result in an error.  For example:
+-- Parsers (See "Streamly.Internal.Data.Parser") are more powerful folds that
+-- add backtracking and error functionality to terminating folds. Unlike folds,
+-- parsers may not always result in a valid output, they may result in an
+-- error.  For example:
 --
 -- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
 -- *** Exception: ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0"
