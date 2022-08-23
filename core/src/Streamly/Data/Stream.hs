@@ -95,6 +95,10 @@ module Streamly.Data.Stream
     -- versions provided in this module can be much more efficient in most
     -- cases. Users can create custom combinators using these primitives.
     , nil
+    , cons
+    , consM
+    -- , cons2 -- fused version
+    -- , consM2 -- fused version
 
     -- ** Unfolding
     -- | Generalized way of generating a stream efficiently.
@@ -142,143 +146,12 @@ module Streamly.Data.Stream
     -- using the corresponding unfolds in the "Streamly.Data.Unfold" module.
     , unfold -- XXX rename to fromUnfold?
 
-    -- * Expanding
-    -- | Operations that increase the size of a stream by adding one or more
-    -- elements to it.
+    -- * Elimination
+    -- | Functions ending in the general shape @Stream m a -> m b@ or @Stream m
+    -- a -> m (b, Stream m a)@
     --
-    -- See also: "Streamly.Internal.Data.Stream.Expand" for
-    -- @Pre-release@ functions.
-
-    -- ** Consing Elements
-    , cons
-    , consM
-    -- , cons2 -- fused version
-    -- , consM2 -- fused version
-
-    -- ** Inserting Elements
-    -- | Inserting elements is a special case of interleaving/merging streams.
-
-    , insertBy
-    , intersperseM
-    , intersperse
-
-    -- ** Appending
-    , append
-    , append2
-
-    -- ** Interleaving
-    -- , interleave
-    -- , interleave2
-    , wSerial -- XXX rename to interleaveWeighted
-
-    -- ** Merging
-    -- | Merging of @n@ streams can be performed by combining the streams pair
-    -- wise using
-    -- 'Streamly.Internal.Data.Stream.IsStream.Expand.concatPairsWith' to give
-    -- O(n * log n) time complexity.
-    -- If used with 'concatMapWith' it will have O(n^2) performance.
-
-    , mergeBy
-    , mergeByM
-    -- , mergeBy2
-    -- , mergeByM2
-
-    -- ** Nested Unfolds
-    , unfoldMany
-    , intercalate
-    , intercalateSuffix
-
-    -- ** Nested Streams
-    -- | Stream operations like map and filter represent loop processing in
-    -- imperative programming terms. Similarly, the imperative concept of
-    -- nested loops are represented by streams of streams. The 'concatMap'
-    -- operation represents nested looping.
-    -- A 'concatMap' operation loops over the input stream and then for each
-    -- element of the input stream generates another stream and then loops over
-    -- that inner stream as well producing effects and generating a single
-    -- output stream.
-    -- The 'Monad' instances of different stream types provide a more
-    -- convenient way of writing nested loops. Note that the monad bind
-    -- operation is just @flip concatMap@.
-    --
-    -- One dimension loops are just a special case of nested loops.  For
-    -- example, 'concatMap' can degenerate to a simple map operation:
-    --
-    -- > map f m = S.concatMap (\x -> S.fromPure (f x)) m
-    --
-    -- Similarly, 'concatMap' can perform filtering by mapping an element to a
-    -- 'nil' stream:
-    --
-    -- > filter p m = S.concatMap (\x -> if p x then S.fromPure x else S.nil) m
-    --
-
-    , concatMapWith
-    , concatMap
-    , concatMapM
-
-    -- * Scanning
-    -- | One-to-one transformations not changing the size (almost) of the
-    -- stream.
-    --
-    -- See also: "Streamly.Internal.Data.Stream.Transform" for
-    -- @Pre-release@ functions.
-
-    -- ** Mapping
-    -- | Stateless one-to-one transformations. Use 'fmap' for mapping a pure
-    -- function on a stream.
-
-    -- EXPLANATION:
-    -- In imperative terms a map operation can be considered as a loop over
-    -- the stream that transforms the stream into another stream by performing
-    -- an operation on each element of the stream.
-    --
-    -- 'map' is the least powerful transformation operation with strictest
-    -- guarantees.  A map, (1) is a stateless loop which means that no state is
-    -- allowed to be carried from one iteration to another, therefore,
-    -- operations on different elements are guaranteed to not affect each
-    -- other, (2) is a strictly one-to-one transformation of stream elements
-    -- which means it guarantees that no elements can be added or removed from
-    -- the stream, it can merely transform them.
-    , sequence
-    , mapM
-
-    -- ** Mapping Side Effects
-    -- , trace -- XXX Use "tracing" map instead?
-    , tap
-    , delay
-
-    -- ** Scanning
-    -- | Stateful one-to-one transformations.
-    , scan
-    , postscan
-    -- XXX postscan1 can be implemented using Monoids or Refolds.
-
-    -- ** Indexing
-    -- | Indexing can be considered as a special type of zipping where we zip a
-    -- stream with an index stream.
-    , indexed
-    , indexedR
-
-    -- ** Reordering Elements
-    , reverse
-
-    -- ** Zipping
-    -- | Zipping of @n@ streams can be performed by combining the streams pair
-    -- wise using
-    -- 'Streamly.Internal.Data.Stream.IsStream.Expand.concatPairsWith' with
-    -- O(n * log n) time complexity.
-    -- If used with 'concatMapWith' it will have O(n^2) performance.
-    , zipWith
-    , zipWithM
-    -- , zipWith2
-    -- , zipWithM2
-
-    -- * Reducing
-    -- | Operations that reduce the size of a stream by removing some or all
-    -- elements from it.
-    --
-    -- See also: "Streamly.Internal.Data.Stream.Reduce" and
-    -- "Streamly.Internal.Data.Stream.Eliminate" for @Pre-release@ functions.
+    -- See also: "Streamly.Internal.Data.Stream.Eliminate" for @Pre-release@
+    -- functions.
 
 -- EXPLANATION: In imperative terms a fold can be considered as a loop over the stream
 -- that reduces the stream to a single value.
@@ -347,65 +220,20 @@ module Streamly.Data.Stream
 -- the previous step. However, it is possible to fold parts of the stream in
 -- parallel and then combine the results using a monoid.
 
-    -- ** Unconsing
+    -- ** Primitives
+    -- Consuming a part of the stream and returning the rest. Functions
+    -- ending in the general shape @Stream m a -> m (b, Stream m a)@
     , uncons
 
-    -- ** Filter Map
-    -- | Stateless filters. Remove some elements from the stream based on a
-    -- predicate.
-
-    -- EXPLANATION:
-    -- In imperative terms a filter over a stream corresponds to a loop with a
-    -- @continue@ clause for the cases when the predicate fails.
-
-    , mapMaybe
-    , mapMaybeM
-    , filter
-    , filterM
-
-    -- ** Filter Scans
-    -- | Stateful filters.
-    , take
-    , takeWhile
-    , takeWhileM
-    , drop
-    , dropWhile
-    , dropWhileM
-    , deleteBy
-    , uniq
-
-    -- ** Searching
-    -- | Finding the presence or location of an element, a sequence of elements
-    -- or another stream within a stream.
-
-    -- -- ** Searching Elements
-    , findIndices
-    , elemIndices
-
-    -- ** Splitting
-    -- | Consuming a part of the stream and returning the rest. Functions
-    -- ending in the general shape @Stream m a -> m (b, Stream m a)@
-    , foldBreak
-    , parseBreak
-
-    -- ** Elimination
-    -- | Functions ending in the general shape @Stream m a -> m b@
-    -- Consuming the stream entirely or partially, discarding the rest.
-    --
-    -- Strict left folds consume a stream and build a left associated
-    -- expression, suitable for incremental/strict evaluation. Evaluation of
-    -- the input happens when the fold runs, the fold output is fully
-    -- evaluated. A fold can terminate without consuming the entire stream.
-    --
-    -- This is suitable for reduction operations, for example, operations like
-    -- summing the stream. See "Streamly.Data.Fold" for an overview of
-    -- composable left folds. Parsers (See "Streamly.Internal.Data.Parser") are
-    -- more powerful folds that add backtracking and error functionality to
-    -- terminating folds.
-    --
+    -- ** Folding
     , fold -- XXX rename to run? We can have a Stream.run and Fold.run.
     -- XXX fold1 can be achieved using Monoids or Refolds.
+    , foldBreak
+    , foldContinue
+
+    -- ** Parsing
     , parse
+    , parseBreak
 
     -- -- ** Lazy Right Folds
     -- Consuming a stream to build a right associated expression, suitable
@@ -417,10 +245,154 @@ module Streamly.Data.Stream
     -- , foldrM
     -- , foldr
 
-    -- ** Nested Folds
-    , foldMany
+    -- * Mapping
+    -- | Stateless one-to-one transformations. Use 'fmap' for mapping a pure
+    -- function on a stream.
 
-    -- ** Multi-Stream folds
+    -- EXPLANATION:
+    -- In imperative terms a map operation can be considered as a loop over
+    -- the stream that transforms the stream into another stream by performing
+    -- an operation on each element of the stream.
+    --
+    -- 'map' is the least powerful transformation operation with strictest
+    -- guarantees.  A map, (1) is a stateless loop which means that no state is
+    -- allowed to be carried from one iteration to another, therefore,
+    -- operations on different elements are guaranteed to not affect each
+    -- other, (2) is a strictly one-to-one transformation of stream elements
+    -- which means it guarantees that no elements can be added or removed from
+    -- the stream, it can merely transform them.
+    , sequence
+    , mapM
+    -- , trace -- XXX Use "tracing" map instead?
+    , tap
+    , delay
+
+    -- * Scanning
+    -- | Stateful one-to-one transformations.
+    --
+    -- See also: "Streamly.Internal.Data.Stream.Transform" for
+    -- @Pre-release@ functions.
+    , scan
+    , postscan
+    -- XXX postscan1 can be implemented using Monoids or Refolds.
+    -- Indexing can be considered as a special type of zipping where we zip a
+    -- stream with an index stream.
+    , indexed
+    , indexedR
+
+    -- * Insertion
+    -- | Add elements to the stream.
+
+    -- Inserting elements is a special case of interleaving/merging streams.
+    , insertBy
+    , intersperseM
+    , intersperse
+
+    -- * Filtering
+    -- | Remove elements from the stream.
+
+    -- ** Stateless Filters
+    -- EXPLANATION:
+    -- In imperative terms a filter over a stream corresponds to a loop with a
+    -- @continue@ clause for the cases when the predicate fails.
+
+    , mapMaybe
+    , mapMaybeM
+    , filter
+    , filterM
+
+    -- ** Stateful Filters
+    , take
+    , takeWhile
+    , takeWhileM
+    , drop
+    , dropWhile
+    , dropWhileM
+    , deleteBy
+    , uniq
+
+    -- ** Searching
+    -- Finding the presence or location of an element, a sequence of elements
+    -- or another stream within a stream.
+
+    -- -- ** Searching Elements
+    , findIndices
+    , elemIndices
+
+    -- * Combining Two Streams
+    -- ** Appending
+    , append
+    , append2
+
+    -- ** Interleaving
+    -- , interleave
+    -- , interleave2
+    , wSerial -- XXX rename to interleaveWeighted
+
+    -- ** Merging
+    -- | Merging of @n@ streams can be performed by combining the streams pair
+    -- wise using
+    -- 'Streamly.Internal.Data.Stream.IsStream.Expand.concatPairsWith' to give
+    -- O(n * log n) time complexity.
+    -- If used with 'concatMapWith' it will have O(n^2) performance.
+
+    , mergeBy
+    , mergeByM
+    -- , mergeBy2
+    -- , mergeByM2
+
+    -- ** Zipping
+    -- | Zipping of @n@ streams can be performed by combining the streams pair
+    -- wise using
+    -- 'Streamly.Internal.Data.Stream.IsStream.Expand.concatPairsWith' with
+    -- O(n * log n) time complexity.
+    -- If used with 'concatMapWith' it will have O(n^2) performance.
+    , zipWith
+    , zipWithM
+    -- , zipWith2
+    -- , zipWithM2
+
+    -- * Unfold Each
+    , unfoldMany
+    , intercalate
+    , intercalateSuffix
+
+    -- * Stream of streams
+    -- | Stream operations like map and filter represent loop processing in
+    -- imperative programming terms. Similarly, the imperative concept of
+    -- nested loops are represented by streams of streams. The 'concatMap'
+    -- operation represents nested looping.
+    -- A 'concatMap' operation loops over the input stream and then for each
+    -- element of the input stream generates another stream and then loops over
+    -- that inner stream as well producing effects and generating a single
+    -- output stream.
+    -- The 'Monad' instances of different stream types provide a more
+    -- convenient way of writing nested loops. Note that the monad bind
+    -- operation is just @flip concatMap@.
+    --
+    -- One dimension loops are just a special case of nested loops.  For
+    -- example, 'concatMap' can degenerate to a simple map operation:
+    --
+    -- > map f m = S.concatMap (\x -> S.fromPure (f x)) m
+    --
+    -- Similarly, 'concatMap' can perform filtering by mapping an element to a
+    -- 'nil' stream:
+    --
+    -- > filter p m = S.concatMap (\x -> if p x then S.fromPure x else S.nil) m
+    --
+
+    , concatMapWith
+    , concatMap
+    , concatMapM
+
+    -- * Repeated Fold
+    , foldMany -- XXX Rename to foldRepeat
+
+    -- * Buffered Operations
+    -- | Operations that require buffering of the stream.
+    , reverse
+
+    -- * Multi-Stream folds
     -- | Operations that consume multiple streams at the same time.
     , eqBy
     , cmpBy
