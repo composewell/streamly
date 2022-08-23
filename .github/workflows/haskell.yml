@@ -70,6 +70,14 @@ jobs:
             cabal_project: cabal.project.ghc-head
             disable_sdist_build: "y"
             ignore_error: true
+          - name: 9.4.1
+            ghc_version: 9.4.1
+            runner: ubuntu-latest
+            build: cabal
+            cabal_project: cabal.project
+            cabal_version: 3.8
+            disable_sdist_build: "y"
+            ignore_error: false
           - name: 9.2.2
             ghc_version: 9.2.2
             runner: ubuntu-latest
