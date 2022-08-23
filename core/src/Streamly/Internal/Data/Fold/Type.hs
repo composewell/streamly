@@ -416,12 +416,10 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- >>> import Streamly.Data.Fold (Fold)
 -- >>> import Streamly.Internal.Data.Stream.Type (Stream)
 -- >>> import qualified Data.Foldable as Foldable
--- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
--- >>> import qualified Streamly.Internal.Data.Stream.Type as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 -- >>> import Prelude hiding (concatMap, filter, map)
 
@@ -1042,7 +1040,7 @@ data ConcatMapState m sa a c
 --
 -- /Time: O(n^2) where @n@ is the number of compositions./
 --
--- See also: 'Streamly.Internal.Data.Stream.IsStream.foldIterateM', 'refold'
+-- See also: 'Streamly.Internal.Data.Stream.foldIterateM', 'refold'
 --
 -- @since 0.8.0
 --

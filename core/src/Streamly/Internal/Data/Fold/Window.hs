@@ -73,7 +73,7 @@ import Prelude hiding (length, sum, minimum, maximum)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
 -- >>> import qualified Streamly.Internal.Data.Ring.Foreign as Ring
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import Prelude hiding (length, sum, minimum, maximum)
 
 -------------------------------------------------------------------------------

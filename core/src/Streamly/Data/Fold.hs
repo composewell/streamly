@@ -12,7 +12,7 @@
 --
 -- >>> import Data.Function ((&))
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 --
 -- For example, a 'sum' Fold represents adding the input to the accumulated
 -- sum.  A fold driver e.g. 'Streamly.Prelude.fold' pushes values from a stream
@@ -59,7 +59,7 @@
 -- folds. For example, to count even and odd numbers in a stream:
 --
 -- >>> split n = if even n then Left n else Right n
--- >>> stream = Stream.map split $ Stream.fromList [1..100]
+-- >>> stream = fmap split $ Stream.fromList [1..100]
 -- >>> countEven = fmap (("Even " ++) . show) Fold.length
 -- >>> countOdd = fmap (("Odd "  ++) . show) Fold.length
 -- >>> f = Fold.partition countEven countOdd
@@ -78,7 +78,7 @@
 -- of fold results. To split a stream on newlines:
 --
 -- >>> f = Fold.takeEndBy (== '\n') Fold.toList
--- >>> Stream.toList $ Stream.foldMany f $ Stream.fromList "Hello there!\nHow are you\n"
+-- >>> Stream.fold Fold.toList $ Stream.foldMany f $ Stream.fromList "Hello there!\nHow are you\n"
 -- ["Hello there!\n","How are you\n"]
 --
 -- Similarly, we can split the input of a fold too:
@@ -102,8 +102,8 @@
 -- >>> :{
 --  f stream =
 --        Stream.filter odd stream
---      & Stream.map (+1)
---      & Stream.sum
+--      & fmap (+1)
+--      & Stream.fold Fold.sum
 -- :}
 --
 -- >>> f $ Stream.fromList [1..100 :: Int]
@@ -286,4 +286,4 @@ import Streamly.Internal.Data.Fold
 -- $setup
 -- >>> import Data.Function ((&))
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream

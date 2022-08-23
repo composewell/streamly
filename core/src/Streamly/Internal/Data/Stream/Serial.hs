@@ -9,7 +9,7 @@
 --
 -- To run examples in this module:
 --
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 --
 module Streamly.Internal.Data.Stream.Serial
     (
@@ -44,7 +44,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import Prelude hiding (map)
 
 -- $setup
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
 -- SerialT

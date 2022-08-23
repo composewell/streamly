@@ -20,8 +20,8 @@
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Array.Stream.Foreign as ArrayStream
 -- >>> import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign as ArrayFold
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (arraysOf)
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream (arraysOf)
+-- >>> import qualified Streamly.Data.Stream as Stream
 --
 -- >>> f = ArrayFold.fromFold (Fold.take 7 Fold.toList)
 -- >>> s = Stream.arraysOf 5 $ Stream.fromList "hello world"

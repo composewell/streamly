@@ -15,7 +15,7 @@
 -- through the stream twice:
 --
 -- >>> import Streamly.Data.Fold.Tee (Tee(..))
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 --
 -- >>> avg = (/) <$> (Tee Fold.sum) <*> (Tee $ fmap fromIntegral Fold.length)

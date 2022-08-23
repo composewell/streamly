@@ -555,7 +555,10 @@ data ConcatUnfoldInterleaveState o i =
 -- of pairing up the streams we just need to go yielding one element from each
 -- stream and storing the remaining streams and then keep doing rounds through
 -- those in a round robin fashion. This would be much like wAsync.
-
+--
+-- See 'Streamly.Internal.Data.Stream.unfoldInterleave' documentation for more
+-- details.
+--
 {-# INLINE_NORMAL unfoldManyInterleave #-}
 unfoldManyInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =

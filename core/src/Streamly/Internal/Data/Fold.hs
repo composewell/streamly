@@ -339,8 +339,7 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> :m
 -- >>> :set -package streamly
 -- >>> import Prelude hiding (break, map, span, splitAt)
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (catMaybes, parse, foldMany)
+-- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
@@ -598,7 +597,7 @@ foldFilter f1 f2 = many f1 (catMaybes f2)
 -- returns 'Nothing' for any other occurrences.
 --
 -- >>> stream = Stream.fromList [1::Int,1,2,3,4,4,5,1,5,7]
--- >>> Stream.toList $ Stream.catMaybes $ Stream.postscan Fold.nub stream
+-- >>> Stream.fold Fold.toList $ Stream.mapMaybe id $ Stream.postscan Fold.nub stream
 -- [1,2,3,4,5,7]
 --
 -- /Pre-release/
@@ -990,7 +989,7 @@ rollingMapM f = Fold step initial extract
 
 -- | Append the elements of an input stream to a provided starting value.
 --
--- >>> Stream.fold (Fold.sconcat 10) (Stream.map Data.Monoid.Sum $ Stream.enumerateFromTo 1 10)
+-- >>> Stream.fold (Fold.sconcat 10) (fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10)
 -- Sum {getSum = 65}
 --
 -- @
@@ -1005,7 +1004,7 @@ sconcat = foldl' (<>)
 -- | Fold an input stream consisting of monoidal elements using 'mappend'
 -- and 'mempty'.
 --
--- >>> Stream.fold Fold.mconcat (Stream.map Data.Monoid.Sum $ Stream.enumerateFromTo 1 10)
+-- >>> Stream.fold Fold.mconcat (fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10)
 -- Sum {getSum = 55}
 --
 -- > mconcat = Fold.sconcat mempty
@@ -1404,7 +1403,7 @@ splitAt n fld = serialWith (,) (take n fld)
 -- >>> Stream.fold (Fold.takeEndBy_ (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
 -- "hello"
 --
--- >>> Stream.toList $ Stream.foldMany (Fold.takeEndBy_ (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- >>> Stream.fold Fold.toList $ Stream.foldMany (Fold.takeEndBy_ (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
 -- ["hello","there"]
 --
 -- > Stream.splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
@@ -1431,7 +1430,7 @@ takeEndBy_ predicate (Fold fstep finitial fextract) =
 -- >>> Stream.fold (Fold.takeEndBy (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
 -- "hello\n"
 --
--- >>> Stream.toList $ Stream.foldMany (Fold.takeEndBy (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- >>> Stream.fold Fold.toList $ Stream.foldMany (Fold.takeEndBy (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
 -- ["hello\n","there\n"]
 --
 -- > Stream.splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
@@ -1479,7 +1478,7 @@ data SplitOnSeqState acc a rb rh w ck =
 -- >>> Stream.fold f s
 -- "hello there"
 --
--- >>> Stream.toList $ Stream.foldMany f s
+-- >>> Stream.fold Fold.toList $ Stream.foldMany f s
 -- ["hello there",". How are"," you?"]
 --
 -- /Pre-release/
