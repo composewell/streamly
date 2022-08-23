@@ -533,9 +533,31 @@ data ConcatUnfoldInterleaveState o i =
     | ConcatUnfoldInterleaveInnerL [i] [i]
     | ConcatUnfoldInterleaveInnerR [i] [i]
 
--- | Interleaves the unfold on each elements of the stream.
--- See Streamly.Internal.Data.Stream.unfoldInterleave documentation for more details.
--- @since 0.8.0
+-- XXX use arrays to store state instead of lists?
+--
+-- XXX In general we can use different scheduling strategies e.g. how to
+-- schedule the outer vs inner loop or assigning weights to different streams
+-- or outer and inner loops.
+
+-- After a yield, switch to the next stream. Do not switch streams on Skip.
+-- Yield from outer stream switches to the inner stream.
+--
+-- There are two choices here, (1) exhaust the outer stream first and then
+-- start yielding from the inner streams, this is much simpler to implement,
+-- (2) yield at least one element from an inner stream before going back to
+-- outer stream and opening the next stream from it.
+--
+-- Ideally, we need some scheduling bias to inner streams vs outer stream.
+-- Maybe we can configure the behavior.
+--
+-- XXX Instead of using "concatPairsWith wSerial" we can implement an N-way
+-- interleaving CPS combinator which behaves like unfoldManyInterleave. Instead
+-- of pairing up the streams we just need to go yielding one element from each
+-- stream and storing the remaining streams and then keep doing rounds through
+-- those in a round robin fashion. This would be much like wAsync.
+--
+-- See 'Streamly.Internal.Data.Stream.unfoldInterleave' documentation for more
+-- details.
 --
 {-# INLINE_NORMAL unfoldManyInterleave #-}
 unfoldManyInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
