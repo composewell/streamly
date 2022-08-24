@@ -26,6 +26,7 @@ import qualified  Streamly.Internal.Data.Stream.UnliftedExceptions as UE
 -- $setup
 -- >>> :m
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import qualified  Streamly.Internal.Data.Stream.UnliftedExceptions as UE
 
 ------------------------------------------------------------------------------
 -- Exceptions
@@ -103,7 +104,7 @@ finally_ action xs = fromStreamD $ UE.finally_ action $ toStreamD xs
 -- The semantics of running the action @m b@ are similar to the cleanup action
 -- semantics described in 'bracket'.
 --
--- >>> finally release = Stream.bracket (return ()) (const release)
+-- >>> finally release = UE.bracket (return ()) (const release)
 --
 -- /See also 'finally_'/
 --
