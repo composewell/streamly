@@ -26,7 +26,7 @@ import qualified  Streamly.Internal.Data.Stream.UnliftedExceptions as UE
 -- $setup
 -- >>> :m
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified  Streamly.Internal.Data.Stream.UnliftedExceptions as UE
+-- >>> import qualified Streamly.Data.Stream.UnliftedExceptions as UE
 
 ------------------------------------------------------------------------------
 -- Exceptions
