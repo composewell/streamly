@@ -38,6 +38,8 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 
+import qualified Streamly.Data.Stream.UnliftedExceptions as Stream
+
 import Gauge hiding (env)
 import Prelude hiding (last, length)
 import Streamly.Benchmark.Common
