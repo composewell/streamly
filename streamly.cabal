@@ -497,6 +497,7 @@ library
 
                      -- Exposed modules
                      , Streamly.Prelude
+                     , Streamly.Internal.Data.Stream.UnliftedExceptions
 
                      -- Text Processing
                      , Streamly.Unicode.Stream

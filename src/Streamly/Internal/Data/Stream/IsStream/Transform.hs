@@ -258,6 +258,7 @@ import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Prelude
+import qualified Streamly.Internal.Data.Stream.UnliftedExceptions as UE
 
 import Prelude hiding
        ( filter, drop, dropWhile, take, takeWhile, foldr, map, mapM, sequence
@@ -573,7 +574,7 @@ pollCounts ::
     -> t m a
 pollCounts predicate f xs =
       fromStreamD
-    $ D.pollCounts predicate (f . fromStreamD)
+    $ UE.pollCounts predicate (f . fromStreamD)
     $ toStreamD xs
 
 -- | Apply a monadic function to each element flowing through the stream and
