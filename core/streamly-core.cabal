@@ -289,7 +289,6 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Eliminate
                      , Streamly.Internal.Data.Stream.StreamD.Nesting
                      , Streamly.Internal.Data.Stream.StreamD.Transform
-                     , Streamly.Internal.Data.Stream.StreamD.Exception
                      , Streamly.Internal.Data.Stream.StreamD.Lift
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.StreamDK
@@ -312,7 +311,7 @@ library
                      , Streamly.Internal.Data.Stream.Generate
                      , Streamly.Internal.Data.Stream.Transform
                      , Streamly.Internal.Data.Stream.Bottom
-                     , Streamly.Internal.Data.Stream.Exception
+
                      , Streamly.Internal.Data.Stream.Expand
                      , Streamly.Internal.Data.Stream.Lift
                      , Streamly.Internal.Data.Stream.Reduce
