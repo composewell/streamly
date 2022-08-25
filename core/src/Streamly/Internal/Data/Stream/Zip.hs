@@ -12,8 +12,9 @@
 --
 -- To run examples in this module:
 --
+-- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.Zip as Zip
+-- >>> import qualified Streamly.Internal.Data.Stream.Zip as Stream
 --
 module Streamly.Internal.Data.Stream.Zip
     (
@@ -34,8 +35,9 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -- $setup
+-- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.Zip as Zip
+-- >>> import qualified Streamly.Internal.Data.Stream.Zip as Stream
 
 {-# INLINE zipWithMK #-}
 zipWithMK :: Monad m =>
@@ -64,7 +66,8 @@ zipWithK f = zipWithMK (\a b -> return (f a b))
 -- >>> s1 = Stream.ZipStream $ Stream.fromFoldable [1, 2]
 -- >>> s2 = Stream.ZipStream $ Stream.fromFoldable [3, 4]
 -- >>> s3 = Stream.ZipStream $ Stream.fromFoldable [5, 6]
--- >>> Stream.toList $ Stream.getZipStream $ (,,) <$> s1 <*> s2 <*> s3
+-- >>> s = (,,) <$> s1 <*> s2 <*> s3
+-- >>> Stream.fold Fold.toList (Stream.getZipStream s)
 -- [(1,3,5),(2,4,6)]
 --
 -- /Since: 0.2.0 ("Streamly")/
