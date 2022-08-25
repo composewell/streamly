@@ -294,6 +294,10 @@ flag limit-build-mem
   manual: True
   default: False
 
+flag use-unliftio
+  description: Use unliftio-core instead of monad-control
+  manual: True
+  default: False
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -315,6 +319,9 @@ common compile-options
 
     if flag(inspection)
       cpp-options:    -DINSPECTION
+
+    if flag(use-unliftio)
+      cpp-options: -DUSE_UNLIFTIO
 
     ghc-options:    -Weverything
                     -Wno-implicit-prelude
@@ -495,6 +502,7 @@ library
 
                      -- Exposed modules
                      , Streamly.Prelude
+                     , Streamly.Internal.Unlifted.Concurrent
                      , Streamly.Data.Stream.UnliftedExceptions
                      , Streamly.Internal.Data.Stream.UnliftedExceptions
 
@@ -684,6 +692,11 @@ library
 
                     -- Network
                      , network           >= 2.6   && < 3.2
+
+    if flag(use-unliftio)
+          build-depends:   unliftio-core     >= 0.2 && < 0.3
+    else
+          build-depends:   monad-control     >= 1.0 && < 1.1
 
     if os(windows)
           build-depends: Win32 >= 2.6 && < 2.13

@@ -18,7 +18,7 @@ where
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Data.Map.Strict (Map)
-import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Unlifted.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
 import qualified  Streamly.Internal.Data.Stream.UnliftedExceptions as UE
