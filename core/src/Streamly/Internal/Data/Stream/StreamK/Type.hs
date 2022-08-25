@@ -1172,7 +1172,7 @@ interleaveFst m1 m2 = mkStream $ \st yld sng stp -> do
 interleaveMin :: Stream m a -> Stream m a -> Stream m a
 interleaveMin m1 m2 = mkStream $ \st yld _ stp -> do
     let stop       = stp
-        -- "single a" is defined as "yld a (wSerialMin m2 nil)" instead of
+        -- "single a" is defined as "yld a (interleaveMin m2 nil)" instead of
         -- "sng a" to keep the behaviour consistent with the yield
         -- continuation.
         single a   = yld a (interleaveMin m2 nil)
