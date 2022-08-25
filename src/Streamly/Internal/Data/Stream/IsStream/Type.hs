@@ -107,7 +107,7 @@ import Streamly.Internal.Data.Stream.Async
     (AsyncT(..), Async, WAsyncT(..), WAsync)
 import Streamly.Internal.Data.Stream.Ahead (AheadT(..), Ahead)
 import Streamly.Internal.Data.Stream.Parallel (ParallelT(..), Parallel)
-import Streamly.Internal.Data.Stream.Zip (ZipSerialM(..), ZipSerial)
+import Streamly.Internal.Data.Stream.Zip (ZipSerialM, ZipSerial)
 import Streamly.Internal.Data.Stream.ZipAsync (ZipAsyncM(..), ZipAsync)
 import Streamly.Internal.Data.SVar.Type (State, adaptState)
 
@@ -567,6 +567,10 @@ instance IsStream ParallelT where
 -- Zip
 -------------------------------------------------------------------------------
 
+consMZip :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
+consMZip m (Zip.ZipStream r) =
+    Zip.ZipStream $ Stream.fromStreamK $ K.consM m (Stream.toStreamK r)
+
 -- | Fix the type of a polymorphic stream as 'ZipSerialM'.
 --
 -- /Since: 0.2.0 ("Streamly")/
@@ -575,18 +579,18 @@ instance IsStream ParallelT where
 fromZipSerial :: IsStream t => ZipSerialM m a -> t m a
 fromZipSerial = adapt
 instance IsStream ZipSerialM where
-    toStream = getZipSerialM
-    fromStream = ZipSerialM
+    toStream = Stream.toStreamK . Zip.getZipStream
+    fromStream = Zip.ZipStream . Stream.fromStreamK
 
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
     consM :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
-    consM = Zip.consMZip
+    consM = consMZip
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
     (|:) :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
-    (|:) = Zip.consMZip
+    (|:) = consMZip
 
 -- | Fix the type of a polymorphic stream as 'ZipAsyncM'.
 --

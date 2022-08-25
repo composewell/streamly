@@ -70,7 +70,7 @@ import GHC.Exts (IsList(..), IsString(..))
 import Data.Semigroup (Semigroup(..))
 #endif
 import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Stream.Zip (ZipSerialM(..))
+import Streamly.Internal.Data.Stream.Zip (ZipStream(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
@@ -94,19 +94,11 @@ newtype List a = List { toStream :: Stream Identity a }
     deriving
     ( Show, Read, Eq, Ord, NFData , NFData1
     , Semigroup, Monoid, Functor, Foldable
-    , Applicative, Traversable, Monad)
+    , Applicative, Traversable, Monad, IsList)
 
 instance (a ~ Char) => IsString (List a) where
     {-# INLINE fromString #-}
     fromString = List . fromList
-
--- GHC versions 8.0 and below cannot derive IsList
-instance IsList (List a) where
-    type (Item (List a)) = a
-    {-# INLINE fromList #-}
-    fromList = List . fromList
-    {-# INLINE toList #-}
-    toList = toList . toStream
 
 ------------------------------------------------------------------------------
 -- Patterns
@@ -153,33 +145,25 @@ pattern Cons x xs <-
 -- and no 'Monad' instance.
 --
 -- @since 0.6.0
-newtype ZipList a = ZipList { toZipSerial :: ZipSerialM Identity a }
+newtype ZipList a = ZipList { toZipStream :: ZipStream Identity a }
     deriving
     ( Show, Read, Eq, Ord, NFData , NFData1
     , Semigroup, Monoid, Functor, Foldable
-    , Applicative, Traversable
+    , Applicative, Traversable, IsList
     )
 
 instance (a ~ Char) => IsString (ZipList a) where
     {-# INLINE fromString #-}
     fromString = ZipList . fromList
 
--- GHC versions 8.0 and below cannot derive IsList
-instance IsList (ZipList a) where
-    type (Item (ZipList a)) = a
-    {-# INLINE fromList #-}
-    fromList = ZipList . fromList
-    {-# INLINE toList #-}
-    toList = toList . toZipSerial
-
 -- | Convert a 'ZipList' to a regular 'List'
 --
 -- @since 0.6.0
 fromZipList :: ZipList a -> List a
-fromZipList (ZipList zs) = List $ Stream.fromStreamK $ getZipSerialM zs
+fromZipList (ZipList zs) = List $ getZipStream zs
 
 -- | Convert a regular 'List' to a 'ZipList'
 --
 -- @since 0.6.0
 toZipList :: List a -> ZipList a
-toZipList = ZipList . ZipSerialM . Stream.toStreamK . toStream
+toZipList = ZipList . ZipStream . toStream
