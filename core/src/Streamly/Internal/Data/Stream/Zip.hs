@@ -13,7 +13,7 @@
 -- To run examples in this module:
 --
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Stream.Zip as Zip
+-- >>> import qualified Streamly.Internal.Data.Stream.Zip as Zip
 --
 module Streamly.Internal.Data.Stream.Zip
     (
@@ -35,7 +35,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -- $setup
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Stream.Zip as Zip
+-- >>> import qualified Streamly.Internal.Data.Stream.Zip as Zip
 
 {-# INLINE zipWithMK #-}
 zipWithMK :: Monad m =>
