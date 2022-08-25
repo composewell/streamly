@@ -290,7 +290,7 @@ test-suite Data.SmallArray
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/SmallArray.hs
   ghc-options: -main-is Streamly.Test.Data.SmallArray.main
-  if flag(use-streamly-core)
+  if !flag(dev) || flag(use-streamly-core)
     buildable: False
 
 test-suite Data.Unfold

@@ -6,27 +6,27 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+import Data.Char (ord)
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.SVar (MonadAsync)
+import System.IO (hSeek, SeekMode(..), openFile, IOMode(..))
 
 import qualified Streamly.Data.Array.Unboxed as A
-import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
-import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Data.Stream.StreamK as K
 
-import Data.Char (ord)
 import Gauge
-import System.IO (hSeek, SeekMode(..), openFile, IOMode(..))
 import System.Random
 
 maxValue :: Int
 maxValue = 100000
 
+drain :: Monad m => S.Stream m a -> m ()
+drain = S.fold FL.drain
+
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: MonadAsync m => Stream m Int
+sourceUnfoldrM :: Monad m => Stream m Int
 sourceUnfoldrM = S.unfoldrM step 0
     where
     step cnt =
@@ -35,7 +35,7 @@ sourceUnfoldrM = S.unfoldrM step 0
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE sourceUnfoldrMN #-}
-sourceUnfoldrMN :: MonadAsync m => Int -> Stream m Int
+sourceUnfoldrMN :: Monad m => Int -> Stream m Int
 sourceUnfoldrMN n = S.unfoldrM step n
     where
     step cnt =
@@ -64,7 +64,7 @@ takeAllDropOne = S.drop 1 . S.take maxValue
 
 {-# INLINE takeDrop #-}
 takeDrop :: Monad m => Stream m Int -> m ()
-takeDrop = S.drain .
+takeDrop = drain .
     takeAllDropOne . takeAllDropOne . takeAllDropOne . takeAllDropOne
 
 -------------------------------------------------------------------------------
@@ -79,7 +79,7 @@ dropWhileFalse = S.dropWhile (> maxValue)
 
 {-# INLINE dropWhileFalseX4 #-}
 dropWhileFalseX4 :: Monad m => Stream m Int -> m ()
-dropWhileFalseX4 = S.drain
+dropWhileFalseX4 = drain
     . dropWhileFalse . dropWhileFalse . dropWhileFalse .  dropWhileFalse
 
 -------------------------------------------------------------------------------
@@ -88,7 +88,7 @@ dropWhileFalseX4 = S.drain
 
 {-# INLINE iterateSource #-}
 iterateSource
-    :: MonadAsync m
+    :: Monad m
     => (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
 iterateSource g i n = f i (sourceUnfoldrMN n)
     where
@@ -100,20 +100,26 @@ iterateSource g i n = f i (sourceUnfoldrMN n)
 main :: IO ()
 main = do
     defaultMain [bench "unfoldr" $ nfIO $
-        randomRIO (1,1) >>= \n -> S.drain (sourceUnfoldr n)]
+        randomRIO (1,1) >>= \n -> drain (sourceUnfoldr n)]
     defaultMain [bench "take-drop" $ nfIO $ takeDrop sourceUnfoldrM]
     defaultMain [bench "dropWhileFalseX4" $
         nfIO $ dropWhileFalseX4 sourceUnfoldrM]
     defaultMain [bench "iterate-mapM" $
-        nfIO $ S.drain $ iterateSource (S.mapM return) 100000 10]
+        nfIO $ drain $ iterateSource (S.mapM return) 100000 10]
 
     inText <- openFile "benchmark/text-processing/gutenberg-500.txt" ReadMode
     defaultMain [mkBenchText "splitOn abc...xyz" inText $ do
-                (S.length $ Internal.splitOnSeq (A.fromList $ map (fromIntegral . ord)
-                    "abcdefghijklmnopqrstuvwxyz") FL.drain
-                        $ IFH.getBytes inText) >>= print
+                S.fold FL.length
+                    (Internal.splitOnSeq
+                        (A.fromList
+                            $ map (fromIntegral . ord) "abcdefghijklmnopqrstuvwxyz"
+                        )
+                        FL.drain
+                        $ IFH.getBytes inText
+                    )
+                    >>= print
                 ]
     where
 
     mkBenchText name h action =
-        bench name $ perRunEnv (hSeek h AbsoluteSeek 0) (\_ -> action)
+        env (hSeek h AbsoluteSeek 0) (\_ -> bench name $ nfIO action)

@@ -107,10 +107,6 @@ import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 import Data.Semigroup (Semigroup(..))
 #endif
 
-#ifdef DEVBUILD
-import qualified Data.Foldable as F
-#endif
-
 --
 -- $setup
 -- >>> :m
@@ -563,9 +559,9 @@ instance (Unboxed a, Ord a) => Ord (Array a) where
 -- Definitions using the Unboxed constraint from the Array type. These are to
 -- make the Foldable instance possible though it is much slower (7x slower).
 --
-{-# INLINE_NORMAL toStreamD_ #-}
-toStreamD_ :: forall m a. MonadIO m => Int -> Array a -> D.Stream m a
-toStreamD_ size Array{..} = D.Stream step arrStart
+{-# INLINE_NORMAL _toStreamD_ #-}
+_toStreamD_ :: forall m a. MonadIO m => Int -> Array a -> D.Stream m a
+_toStreamD_ size Array{..} = D.Stream step arrStart
 
     where
 
@@ -573,25 +569,22 @@ toStreamD_ size Array{..} = D.Stream step arrStart
     step _ p | p == arrEnd = return D.Stop
     step _ p = liftIO $ do
         x <- peekWith arrContents p
-        return $ D.Yield x (p `plusPtr` size)
+        return $ D.Yield x (p + size)
 
 {-
-
 XXX Why isn't Unboxed implicit? This does not compile unless I use the Unboxed
 contraint.
-
 {-# INLINE_NORMAL _foldr #-}
 _foldr :: forall a b. (a -> b -> b) -> b -> Array a -> b
 _foldr f z arr =
     let !n = SIZE_OF(a)
     in unsafePerformIO $ D.foldr f z $ toStreamD_ n arr
-
 -- | Note that the 'Foldable' instance is 7x slower than the direct
 -- operations.
 instance Foldable Array where
   foldr = _foldr
-
 -}
+
 #endif
 
 -------------------------------------------------------------------------------
