@@ -37,9 +37,10 @@ module Streamly.Internal.Data.Stream.Expand
     -- ** Append
     , append2
 
-    -- ** Zip
-    , zipWith
-    , zipWithM
+    -- ** Interleave
+    , interleave
+    , interleaveFst
+    , interleaveMin
 
     -- ** Merge
     , mergeBy
@@ -47,6 +48,10 @@ module Streamly.Internal.Data.Stream.Expand
     , mergeByM2
     , mergeMinBy
     , mergeFstBy
+
+    -- ** Zip
+    , zipWith
+    , zipWithM
 
     -- * Combine Streams and Unfolds
     -- |
@@ -184,6 +189,42 @@ infixr 6 `append`
 {-# INLINE append #-}
 append :: Stream m a -> Stream m a -> Stream m a
 append = (<>)
+
+------------------------------------------------------------------------------
+-- Interleaving
+------------------------------------------------------------------------------
+
+-- | Interleaves two streams, yielding one element from each stream
+-- alternately.  When one stream stops the rest of the other stream is used in
+-- the output stream.
+--
+-- When joining many streams in a left associative manner earlier streams will
+-- get exponential priority than the ones joining later. Because of exponential
+-- weighting it can be used with 'concatMapWith' even on a large number of
+-- streams.
+--
+-- /Not fused/
+{-# INLINE interleave #-}
+interleave :: Stream m a -> Stream m a -> Stream m a
+interleave s1 s2 = fromStreamK $ K.interleave (toStreamK s1) (toStreamK s2)
+
+-- | Like `interleave` but stops interleaving as soon as the first stream
+-- stops.
+--
+-- /Not fused/
+{-# INLINE interleaveFst #-}
+interleaveFst :: Stream m a -> Stream m a -> Stream m a
+interleaveFst s1 s2 =
+    fromStreamK $ K.interleaveFst (toStreamK s1) (toStreamK s2)
+
+-- | Like `interleave` but stops interleaving as soon as any of the two streams
+-- stops.
+--
+-- /Not fused/
+{-# INLINE interleaveMin #-}
+interleaveMin :: Stream m a -> Stream m a -> Stream m a
+interleaveMin s1 s2 =
+    fromStreamK $ K.interleaveMin (toStreamK s1) (toStreamK s2)
 
 ------------------------------------------------------------------------------
 -- Merging (sorted streams)
