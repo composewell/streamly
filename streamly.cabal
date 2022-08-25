@@ -188,7 +188,6 @@ extra-source-files:
 
     core/src/Streamly/Internal/Data/Parser.hs
     core/src/Streamly/Internal/Data/Pipe.hs
-    core/src/Streamly/Internal/Data/Stream/Serial.hs
     core/src/Streamly/Internal/Data/Stream.hs
     core/src/Streamly/Internal/Data/Stream/Bottom.hs
     core/src/Streamly/Internal/Data/Stream/Eliminate.hs
@@ -201,7 +200,6 @@ extra-source-files:
     core/src/Streamly/Internal/Data/Stream/Top.hs
     core/src/Streamly/Internal/Data/Stream/Transform.hs
     core/src/Streamly/Internal/Data/Stream/Type.hs
-    core/src/Streamly/Internal/Data/Stream/WSerial.hs
     core/src/Streamly/Internal/Data/Stream/Zip.hs
     core/src/Streamly/Internal/Data/List.hs
     core/src/Streamly/Internal/Data/Array.hs
@@ -443,6 +441,8 @@ library
                      , Streamly.Internal.Data.Stream.SVar.Generate
                      , Streamly.Internal.Data.Stream.SVar.Eliminate
 
+                     , Streamly.Internal.Data.Stream.Serial
+                     , Streamly.Internal.Data.Stream.WSerial
                      , Streamly.Internal.Data.Stream.Async
                      , Streamly.Internal.Data.Stream.Parallel
                      , Streamly.Internal.Data.Stream.Ahead
@@ -599,7 +599,6 @@ library
                      , Streamly.Internal.Data.Stream.Lift
                      , Streamly.Internal.Data.Stream.Top
                      , Streamly.Internal.Data.Stream
-                     , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.List
 

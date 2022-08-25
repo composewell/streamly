@@ -70,7 +70,7 @@ import GHC.Exts (IsList(..), IsString(..))
 import Data.Semigroup (Semigroup(..))
 #endif
 import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Stream.Zip (ZipSerialM(..))
+import Streamly.Internal.Data.Stream.Zip (ZipSerialM, ZipStream(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
@@ -176,10 +176,10 @@ instance IsList (ZipList a) where
 --
 -- @since 0.6.0
 fromZipList :: ZipList a -> List a
-fromZipList (ZipList zs) = List $ Stream.fromStreamK $ getZipSerialM zs
+fromZipList (ZipList zs) = List $ getZipStream zs
 
 -- | Convert a regular 'List' to a 'ZipList'
 --
 -- @since 0.6.0
 toZipList :: List a -> ZipList a
-toZipList = ZipList . ZipSerialM . Stream.toStreamK . toStream
+toZipList = ZipList . ZipStream . toStream

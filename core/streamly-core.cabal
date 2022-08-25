@@ -317,8 +317,6 @@ library
                      , Streamly.Internal.Data.Stream.Reduce
                      , Streamly.Internal.Data.Stream.Top
                      , Streamly.Internal.Data.Stream
-                     , Streamly.Internal.Data.Stream.Serial
-                     , Streamly.Internal.Data.Stream.WSerial
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.List
 
