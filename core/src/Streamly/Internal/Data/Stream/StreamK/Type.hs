@@ -89,6 +89,11 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , foldlS
     , reverse
 
+    -- * Interleave
+    , interleave
+    , interleaveFst
+    , interleaveMin
+
     -- * Reader
     , withLocal
     )
@@ -1127,6 +1132,52 @@ concatUnfoldr :: IsStream t
     => (b -> t m (Maybe (a, b))) -> t m b -> t m a
 concatUnfoldr = undefined
 -}
+
+------------------------------------------------------------------------------
+-- Interleaving
+------------------------------------------------------------------------------
+
+-- Additionally we can have m elements yield from the first stream and n
+-- elements yielding from the second stream. We can also have time slicing
+-- variants of positional interleaving, e.g. run first stream for m seconds and
+-- run the second stream for n seconds.
+--
+-- Similar combinators can be implemented using WAhead style.
+
+{-# INLINE interleave #-}
+interleave :: Stream m a -> Stream m a -> Stream m a
+interleave m1 m2 = mkStream $ \st yld sng stp -> do
+    let stop       = foldStream st yld sng stp m2
+        single a   = yld a m2
+        yieldk a r = yld a (interleave m2 r)
+    foldStream st yieldk single stop m1
+
+-- | Like `interleaveK` but stops interleaving as soon as the first stream stops.
+--
+{-# INLINE interleaveFst #-}
+interleaveFst :: Stream m a -> Stream m a -> Stream m a
+interleaveFst m1 m2 = mkStream $ \st yld sng stp -> do
+    let yieldFirst a r = yld a (yieldSecond r m2)
+     in foldStream st yieldFirst sng stp m1
+
+    where
+
+    yieldSecond s1 s2 = mkStream $ \st yld sng stp -> do
+            let stop       = foldStream st yld sng stp s1
+                single a   = yld a s1
+                yieldk a r = yld a (interleave s1 r)
+             in foldStream st yieldk single stop s2
+
+{-# INLINE interleaveMin #-}
+interleaveMin :: Stream m a -> Stream m a -> Stream m a
+interleaveMin m1 m2 = mkStream $ \st yld _ stp -> do
+    let stop       = stp
+        -- "single a" is defined as "yld a (interleaveMin m2 nil)" instead of
+        -- "sng a" to keep the behaviour consistent with the yield
+        -- continuation.
+        single a   = yld a (interleaveMin m2 nil)
+        yieldk a r = yld a (interleaveMin m2 r)
+    foldStream st yieldk single stop m1
 
 ------------------------------------------------------------------------------
 -- MonadReader

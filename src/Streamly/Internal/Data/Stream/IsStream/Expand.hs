@@ -285,7 +285,7 @@ infixr 6 `wSerial`
 --
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
-wSerial m1 m2 = fromStream $ WSerial.wSerialK (toStream m1) (toStream m2)
+wSerial m1 m2 = fromStream $ K.interleave (toStream m1) (toStream m2)
 
 -- XXX Same as 'wSerial'. We should perhaps rename wSerial to interleave.
 -- XXX Document the interleaving behavior of side effects in all the

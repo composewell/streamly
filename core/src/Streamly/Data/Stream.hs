@@ -325,9 +325,8 @@ module Streamly.Data.Stream
     , append2
 
     -- ** Interleaving
-    -- , interleave
+    , interleave
     -- , interleave2
-    , wSerial -- XXX rename to interleaveWeighted
 
     -- ** Merging
     -- | Merging of @n@ streams can be performed by combining the streams pair
@@ -436,7 +435,6 @@ module Streamly.Data.Stream
 where
 
 import Streamly.Internal.Data.Stream
-import Streamly.Internal.Data.Stream.WSerial (wSerial)
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,

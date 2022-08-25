@@ -18,7 +18,6 @@ module Streamly.Internal.Data.Stream.WSerial
     -- * Serial interleaving stream
       WSerialT(..)
     , WSerial
-    , wSerialK
     , wSerial
     , wSerialFst
     , wSerialMin
@@ -48,8 +47,7 @@ import Text.Read
        , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Stream.StreamK.Type
-       (Stream, mkStream, foldStream)
+import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
@@ -133,21 +131,6 @@ consMWSerial m (WSerialT ms) = WSerialT $ K.consM m ms
 
 infixr 6 `wSerial`
 
--- Additionally we can have m elements yield from the first stream and n
--- elements yielding from the second stream. We can also have time slicing
--- variants of positional interleaving, e.g. run first stream for m seconds and
--- run the second stream for n seconds.
---
--- Similar combinators can be implemented using WAhead style.
-
-{-# INLINE wSerialK #-}
-wSerialK :: Stream m a -> Stream m a -> Stream m a
-wSerialK m1 m2 = mkStream $ \st yld sng stp -> do
-    let stop       = foldStream st yld sng stp m2
-        single a   = yld a m2
-        yieldk a r = yld a (wSerialK m2 r)
-    foldStream st yieldk single stop m1
-
 -- | Interleaves two streams, yielding one element from each stream
 -- alternately.  When one stream stops the rest of the other stream is used in
 -- the output stream.
@@ -170,46 +153,15 @@ wSerialK m1 m2 = mkStream $ \st yld sng stp -> do
 --
 {-# INLINE wSerial #-}
 wSerial :: WSerialT m a -> WSerialT m a -> WSerialT m a
-wSerial (WSerialT m1) (WSerialT m2) = WSerialT $ wSerialK m1 m2
-
--- | Like `wSerial` but stops interleaving as soon as the first stream stops.
---
--- @since 0.7.0
-{-# INLINE wSerialFstK #-}
-wSerialFstK :: Stream m a -> Stream m a -> Stream m a
-wSerialFstK m1 m2 = mkStream $ \st yld sng stp -> do
-    let yieldFirst a r = yld a (yieldSecond r m2)
-     in foldStream st yieldFirst sng stp m1
-
-    where
-
-    yieldSecond s1 s2 = mkStream $ \st yld sng stp -> do
-            let stop       = foldStream st yld sng stp s1
-                single a   = yld a s1
-                yieldk a r = yld a (wSerialK s1 r)
-             in foldStream st yieldk single stop s2
+wSerial (WSerialT m1) (WSerialT m2) = WSerialT $ K.interleave m1 m2
 
 {-# INLINE wSerialFst #-}
 wSerialFst :: WSerialT m a -> WSerialT m a -> WSerialT m a
-wSerialFst (WSerialT m1) (WSerialT m2) = WSerialT $ wSerialFstK m1 m2
-
--- | Like `wSerial` but stops interleaving as soon as any of the two streams
--- stops.
---
--- @since 0.7.0
-{-# INLINE wSerialMinK #-}
-wSerialMinK :: Stream m a -> Stream m a -> Stream m a
-wSerialMinK m1 m2 = mkStream $ \st yld _ stp -> do
-    let stop       = stp
-        -- "single a" is defined as "yld a (wSerialMin m2 K.nil)" instead of
-        -- "sng a" to keep the behaviour consistent with the yield continuation.
-        single a   = yld a (wSerialMinK m2 K.nil)
-        yieldk a r = yld a (wSerialMinK m2 r)
-    foldStream st yieldk single stop m1
+wSerialFst (WSerialT m1) (WSerialT m2) = WSerialT $ K.interleaveFst m1 m2
 
 {-# INLINE wSerialMin #-}
 wSerialMin :: WSerialT m a -> WSerialT m a -> WSerialT m a
-wSerialMin (WSerialT m1) (WSerialT m2) = WSerialT $ wSerialMinK m1 m2
+wSerialMin (WSerialT m1) (WSerialT m2) = WSerialT $ K.interleaveMin m1 m2
 
 instance Semigroup (WSerialT m a) where
     (<>) = wSerial
@@ -225,8 +177,8 @@ instance Monoid (WSerialT m a) where
 {-# INLINE apWSerial #-}
 apWSerial :: Monad m => WSerialT m (a -> b) -> WSerialT m a -> WSerialT m b
 apWSerial (WSerialT m1) (WSerialT m2) =
-    let f x1 = K.concatMapWith wSerialK (pure . x1) m2
-    in WSerialT $ K.concatMapWith wSerialK f m1
+    let f x1 = K.concatMapWith K.interleave (pure . x1) m2
+    in WSerialT $ K.concatMapWith K.interleave f m1
 
 instance Monad m => Applicative (WSerialT m) where
     {-# INLINE pure #-}
@@ -241,7 +193,7 @@ instance Monad m => Applicative (WSerialT m) where
 instance Monad m => Monad (WSerialT m) where
     return = pure
     {-# INLINE (>>=) #-}
-    (>>=) (WSerialT m) f = WSerialT $ K.bindWith wSerialK m (getWSerialT . f)
+    (>>=) (WSerialT m) f = WSerialT $ K.bindWith K.interleave m (getWSerialT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
