@@ -196,10 +196,10 @@ main = hspec $
 
         it "Show instance" $ do
             show ([1..3] :: ZipList Int) `shouldBe`
-                "ZipList {toZipSerial = fromList [1,2,3]}"
+                "ZipList {toZipStream = fromList [1,2,3]}"
 
         it "Read instance" $ do
-            (read "ZipList {toZipSerial = fromList [1,2,3]}" :: ZipList Int)
+            (read "ZipList {toZipStream = fromList [1,2,3]}" :: ZipList Int)
                 `shouldBe` [1..3]
 
         it "Eq instance" $ do

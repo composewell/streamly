@@ -30,6 +30,9 @@ import Control.DeepSeq (NFData(..), NFData1(..))
 import Data.Functor.Identity (Identity(..))
 import GHC.Exts (IsList(..), IsString(..))
 import Streamly.Internal.Data.Stream.Type (Stream, toStreamD, fromStreamD)
+import Text.Read
+       ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
+       , readListPrecDefault)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -82,10 +85,18 @@ deriving instance IsList (ZipStream Identity a)
 deriving instance (a ~ Char) => IsString (ZipStream Identity a)
 deriving instance Eq a => Eq (ZipStream Identity a)
 deriving instance Ord a => Ord (ZipStream Identity a)
-deriving instance Show a => Show (ZipStream Identity a)
-deriving instance Read a => Read (ZipStream Identity a)
 deriving instance (Foldable m, Monad m) => Foldable (ZipStream m)
 deriving instance Traversable (ZipStream Identity)
+
+instance Show a => Show (ZipStream Identity a) where
+    showsPrec p dl = showParen (p > 10) $
+        showString "fromList " . shows (toList dl)
+
+instance Read a => Read (ZipStream Identity a) where
+    readPrec = parens $ prec 10 $ do
+        Ident "fromList" <- lexP
+        fromList <$> readPrec
+    readListPrec = readListPrecDefault
 
 type ZipSerialM = ZipStream
 
