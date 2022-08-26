@@ -47,7 +47,7 @@ import GHC.Exts
 --------------------------------------------------------------------------------
 
 -- XXX can use UnliftedNewtypes
-data MutableByteArray a = MutableByteArray !(MutableByteArray# RealWorld)
+data MutableByteArray a = MutableByteArray (MutableByteArray# RealWorld)
 
 {-# INLINE getMutableByteArray# #-}
 getMutableByteArray# :: MutableByteArray a -> MutableByteArray# RealWorld

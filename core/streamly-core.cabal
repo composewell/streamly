@@ -167,6 +167,7 @@ common default-extensions
         TupleSections
         TypeApplications
         TypeFamilies
+        TypeOperators
         ViewPatterns
 
         -- MonoLocalBinds, enabled by TypeFamilies, causes performance
