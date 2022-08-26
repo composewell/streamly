@@ -14,6 +14,7 @@ jobs:
       LC_ALL: C.UTF-8
       BUILD: ${{ matrix.build }}
       GHCVER: ${{ matrix.ghc_version }}
+      CABALVER: ${{ matrix.cabal_version }}
       DISABLE_DOCS: ${{ matrix.disable_docs }}
       DISABLE_TEST: ${{ matrix.disable_test }}
       DISABLE_BENCH: ${{ matrix.disable_bench }}
@@ -204,7 +205,9 @@ jobs:
         else
           ./ghcup install ghc $GHCVER
         fi
+        ./ghcup install cabal $CABALVER
         ./ghcup set ghc $GHCVER
+        ./ghcup set cabal $CABALVER
 
     - name: Run tests
       run: |
