@@ -37,6 +37,8 @@ module Streamly.Internal.Data.Stream.Type
     )
 where
 
+#include "inline.hs"
+
 import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
@@ -62,9 +64,6 @@ import Text.Read
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-
-#include "Instances.hs"
-#include "inline.hs"
 
 -- $setup
 -- >>> import qualified Streamly.Data.Fold as Fold
@@ -112,19 +111,19 @@ newtype Stream m a = Stream (K.Stream m a)
 -- Conversions
 ------------------------------------------------------------------------------
 
-{-# INLINE fromStreamK #-}
+{-# INLINE_EARLY fromStreamK #-}
 fromStreamK :: K.Stream m a -> Stream m a
 fromStreamK = Stream
 
-{-# INLINE toStreamK #-}
+{-# INLINE_EARLY toStreamK #-}
 toStreamK :: Stream m a -> K.Stream m a
 toStreamK (Stream k) = k
 
-{-# INLINE fromStreamD #-}
+{-# INLINE_EARLY fromStreamD #-}
 fromStreamD :: Monad m => D.Stream m a -> Stream m a
 fromStreamD = fromStreamK . D.toStreamK
 
-{-# INLINE toStreamD #-}
+{-# INLINE_EARLY toStreamD #-}
 toStreamD :: Applicative m => Stream m a -> D.Stream m a
 toStreamD = D.fromStreamK . toStreamK
 
@@ -150,30 +149,19 @@ cmpBy
 cmpBy f m1 m2 = D.cmpBy f (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
--- Monad
+-- Functor
 ------------------------------------------------------------------------------
 
-instance Monad m => Monad (Stream m) where
-    return = pure
+instance Monad m => Functor (Stream m) where
+    {-# INLINE fmap #-}
+    -- IMPORTANT: do not use eta reduction.
+    fmap f m = fromStreamD $ D.mapM (return . f) $ toStreamD m
 
-    -- Benchmarks better with StreamD bind and pure:
-    -- toList, filterAllout, *>, *<, >> (~2x)
-    --
-    -- pure = Stream . D.fromStreamD . D.fromPure
-    -- m >>= f = D.fromStreamD $ D.concatMap (D.toStreamD . f) (D.toStreamD m)
-
-    -- Benchmarks better with CPS bind and pure:
-    -- Prime sieve (25x)
-    -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
-    --
-    {-# INLINE (>>=) #-}
-    (>>=) m f = fromStreamK $ K.bindWith K.serial (toStreamK m) (toStreamK . f)
-
-    {-# INLINE (>>) #-}
-    (>>)  = (*>)
+    {-# INLINE (<$) #-}
+    (<$) = fmap . const
 
 ------------------------------------------------------------------------------
--- Other instances
+-- Applicative
 ------------------------------------------------------------------------------
 
 {-# INLINE apSerial #-}
@@ -212,12 +200,214 @@ instance Monad m => Applicative (Stream m) where
     (<*) = apDiscardSnd
     -- (<*)  = K.apSerialDiscardSnd
 
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
+instance Monad m => Monad (Stream m) where
+    return = pure
+
+    -- Benchmarks better with StreamD bind and pure:
+    -- toList, filterAllout, *>, *<, >> (~2x)
+    --
+    -- pure = Stream . D.fromStreamD . D.fromPure
+    -- m >>= f = D.fromStreamD $ D.concatMap (D.toStreamD . f) (D.toStreamD m)
+
+    -- Benchmarks better with CPS bind and pure:
+    -- Prime sieve (25x)
+    -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
+    --
+    {-# INLINE (>>=) #-}
+    (>>=) m f = fromStreamK $ K.bindWith K.serial (toStreamK m) (toStreamK . f)
+
+    {-# INLINE (>>) #-}
+    (>>) = (*>)
+
+------------------------------------------------------------------------------
+-- Transformers
+------------------------------------------------------------------------------
+
 -- XXX Need to remove the MonadBase instance
-MONAD_COMMON_INSTANCES(Stream,)
-LIST_INSTANCES(Stream)
-NFDATA1_INSTANCE(Stream)
-FOLDABLE_INSTANCE(Stream)
-TRAVERSABLE_INSTANCE(Stream)
+instance (MonadBase b m, Monad m ) => MonadBase b (Stream m) where
+    liftBase = liftBaseDefault
+
+instance (MonadIO m) => MonadIO (Stream m) where
+    liftIO = lift . liftIO
+
+instance (MonadThrow m) => MonadThrow (Stream m) where
+    throwM = lift . throwM
+
+instance (MonadReader r m) => MonadReader r (Stream m) where
+    ask = lift ask
+
+    local f (Stream m) = Stream $ K.withLocal f m
+
+instance (MonadState s m) => MonadState s (Stream m) where
+    {-# INLINE get #-}
+    get = lift get
+
+    {-# INLINE put #-}
+    put x = lift (put x)
+
+    {-# INLINE state #-}
+    state k = lift (state k)
+
+------------------------------------------------------------------------------
+-- NFData
+------------------------------------------------------------------------------
+
+instance NFData a => NFData (Stream Identity a) where
+    {-# INLINE rnf #-}
+    rnf (Stream xs) = runIdentity $ P.foldl' (\_ x -> rnf x) () xs
+
+instance NFData1 (Stream Identity) where
+    {-# INLINE liftRnf #-}
+    liftRnf f (Stream xs) = runIdentity $ P.foldl' (\_ x -> f x) () xs
+
+------------------------------------------------------------------------------
+-- Lists
+------------------------------------------------------------------------------
+
+-- Serial streams can act like regular lists using the Identity monad
+
+-- XXX Show instance is 10x slower compared to read, we can do much better.
+-- The list show instance itself is really slow.
+
+-- XXX The default definitions of "<" in the Ord instance etc. do not perform
+-- well, because they do not get inlined. Need to add INLINE in Ord class in
+-- base?
+
+instance IsList (Stream Identity a) where
+    type (Item (Stream Identity a)) = a
+
+    {-# INLINE fromList #-}
+    fromList xs = Stream $ P.fromList xs
+
+    {-# INLINE toList #-}
+    toList (Stream xs) = runIdentity $ P.toList xs
+
+instance Eq a => Eq (Stream Identity a) where
+    {-# INLINE (==) #-}
+    (==) (Stream xs) (Stream ys) = runIdentity $ P.eqBy (==) xs ys
+
+instance Ord a => Ord (Stream Identity a) where
+    {-# INLINE compare #-}
+    compare (Stream xs) (Stream ys) = runIdentity $ P.cmpBy compare xs ys
+
+    {-# INLINE (<) #-}
+    x < y =
+        case compare x y of
+            LT -> True
+            _ -> False
+
+    {-# INLINE (<=) #-}
+    x <= y =
+        case compare x y of
+            GT -> False
+            _ -> True
+
+    {-# INLINE (>) #-}
+    x > y =
+        case compare x y of
+            GT -> True
+            _ -> False
+
+    {-# INLINE (>=) #-}
+    x >= y =
+        case compare x y of
+            LT -> False
+            _ -> True
+
+    {-# INLINE max #-}
+    max x y = if x <= y then y else x
+
+    {-# INLINE min #-}
+    min x y = if x <= y then x else y
+
+instance Show a => Show (Stream Identity a) where
+    showsPrec p dl = showParen (p > 10) $
+        showString "fromList " . shows (toList dl)
+
+instance Read a => Read (Stream Identity a) where
+    readPrec = parens $ prec 10 $ do
+        Ident "fromList" <- lexP
+        fromList <$> readPrec
+
+    readListPrec = readListPrecDefault
+
+instance (a ~ Char) => IsString (Stream Identity a) where
+    {-# INLINE fromString #-}
+    fromString xs = Stream $ P.fromList xs
+
+-------------------------------------------------------------------------------
+-- Foldable
+-------------------------------------------------------------------------------
+
+-- The default Foldable instance has several issues:
+-- 1) several definitions do not have INLINE on them, so we provide
+--    re-implementations with INLINE pragmas.
+-- 2) the definitions of sum/product/maximum/minimum are inefficient as they
+--    use right folds, they cannot run in constant memory. We provide
+--    implementations using strict left folds here.
+
+instance (Foldable m, Monad m) => Foldable (Stream m) where
+
+    {-# INLINE foldMap #-}
+    foldMap f (Stream xs) = fold $ P.foldr (mappend . f) mempty xs
+
+    {-# INLINE foldr #-}
+    foldr f z t = appEndo (foldMap (Endo #. f) t) z
+
+    {-# INLINE foldl' #-}
+    foldl' f z0 xs = foldr f' id xs z0
+        where f' x k = oneShot $ \z -> k $! f z x
+
+    {-# INLINE length #-}
+    length = foldl' (\n _ -> n + 1) 0
+
+    {-# INLINE elem #-}
+    elem = any . (==)
+
+    {-# INLINE maximum #-}
+    maximum =
+          fromMaybe (errorWithoutStackTrace "maximum: empty stream")
+        . toMaybe
+        . foldl' getMax Nothing'
+
+        where
+
+        getMax Nothing' x = Just' x
+        getMax (Just' mx) x = Just' $! max mx x
+
+    {-# INLINE minimum #-}
+    minimum =
+          fromMaybe (errorWithoutStackTrace "minimum: empty stream")
+        . toMaybe
+        . foldl' getMin Nothing'
+
+        where
+
+        getMin Nothing' x = Just' x
+        getMin (Just' mn) x = Just' $! min mn x
+
+    {-# INLINE sum #-}
+    sum = foldl' (+) 0
+
+    {-# INLINE product #-}
+    product = foldl' (*) 1
+
+-------------------------------------------------------------------------------
+-- Traversable
+-------------------------------------------------------------------------------
+
+instance Traversable (Stream Identity) where
+    {-# INLINE traverse #-}
+    traverse f (Stream xs) =
+        fmap Stream $ runIdentity $ P.foldr consA (pure mempty) xs
+
+        where
+
+        consA x ys = liftA2 K.cons (f x) ys
 
 -------------------------------------------------------------------------------
 -- Construction

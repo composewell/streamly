@@ -20,7 +20,6 @@ extra-source-files:
     configure.ac
 
     -- This is duplicated
-    src/Streamly/Internal/Data/Stream/Instances.hs
     src/Streamly/Internal/Data/Array/ArrayMacros.h
     src/assert.hs
     src/inline.hs
