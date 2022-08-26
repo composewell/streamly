@@ -5,7 +5,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/composewell/packdiff.git
-  tag: 8ce91f9750cba77a59399c9c3e81a8196bb67e0c
+  tag: 45cdca157e7159b8dd4261b3616fe7fa4200b967
 
 source-repository-package
   type: git
@@ -15,9 +15,9 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/composewell/streamly-coreutils.git
-  tag: 74cfc8e5a12e4acfd65f943e3787221d6cf356dc
+  tag: acf1ca79b964e7c92ddfc71ca77c1adcba7e2450
 
 source-repository-package
   type: git
   location: https://github.com/composewell/streamly-process.git
-  tag: e310c8a9c6e61515373a2f5f1fb82f6e15fe452b
+  tag: 7ef84bddc869c6a7c46fd5e4ef9c1b4a22c301db
