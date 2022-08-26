@@ -553,7 +553,7 @@ library
                      , directory         >= 1.2.2 && < 1.4
                      , exceptions        >= 0.8   && < 0.11
                      , ghc-prim          >= 0.2   && < 0.10
-                     , mtl               >= 2.2   && < 2.3
+                     , mtl               >= 2.2   && < 2.4
                      , transformers      >= 0.4   && < 0.7
                      , template-haskell  >= 2.13 && < 2.20
 
@@ -570,7 +570,7 @@ library
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
-                     , lockfree-queue    >= 0.2.3 && < 0.3
+                     , lockfree-queue    >= 0.2.4 && < 0.3
 
                      , unicode-data      >= 0.1   && < 0.4
 

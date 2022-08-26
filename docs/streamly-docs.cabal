@@ -40,7 +40,7 @@ library
     User.Tutorials.ReactiveProgramming
 
   build-depends:
-      base              >= 4.9   &&  < 4.17
+      base              >= 4.9   &&  < 4.18
     , transformers      >= 0.4   && < 0.6
     , streamly
     , streamly-core
