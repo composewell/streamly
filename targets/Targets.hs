@@ -18,11 +18,6 @@ targets =
             , "noTest"
             ]
       )
-    , ("Data.Stream.StreamDK",
-            [ "base_stream_grp"
-            , "noTest"
-            ]
-      )
 
     -- Streams
     , ("Data.Stream", ["serial_wserial_cmp"])
