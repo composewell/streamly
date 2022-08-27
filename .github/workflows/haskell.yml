@@ -223,15 +223,7 @@ jobs:
           cabal build --project-file cabal.project.doctest all
           $HOME/.cabal/bin/cabal-docspec --version
           $HOME/.cabal/bin/cabal-docspec --timeout 60 --check-properties --property-variables xs
-        elif test -z "$COVERAGE"
-        then
-          export TOOLS_DIR=/opt
-          # /usr/local/opt/curl/bin for macOS
-          export PATH=$HOME/.local/bin:$HOME/.ghcup/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/opt/curl/bin
-          bash -c "$PACKCHECK_LOCAL_PATH $BUILD"
-        fi
-
-        if test -n "$COVERAGE"
+        elif test -n "$COVERAGE"
         then
           # Run tests with coverage
           cabal update
@@ -243,4 +235,9 @@ jobs:
           bin/test.sh --coverage --raw
           # XXX Uncomment this and fix it properly later
           # hpc-coveralls --repo-token="$COVERALLS_TOKEN" --coverage-mode=StrictlyFullLines
+        else
+          export TOOLS_DIR=/opt
+          # /usr/local/opt/curl/bin for macOS
+          export PATH=$HOME/.local/bin:$HOME/.ghcup/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/opt/curl/bin
+          bash -c "$PACKCHECK_LOCAL_PATH $BUILD"
         fi
