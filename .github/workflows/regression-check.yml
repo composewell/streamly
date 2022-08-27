@@ -58,7 +58,8 @@ jobs:
 
     - name: Download ghc
       run: |
-        curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/0.1.17.4/x86_64-linux-ghcup-0.1.17.4
+        GHCUP_VER=0.1.18.0
+        curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
         chmod +x ./ghcup
         GHCVER=8.10.7
         ./ghcup install ghc $GHCVER
@@ -71,7 +72,7 @@ jobs:
         path: |
             ~/.cabal
         # Bump the key version to clear the cache
-        key: cache-v1
+        key: cache-v2
 
     - name: Cache charts from master
       id: cache-charts-master
