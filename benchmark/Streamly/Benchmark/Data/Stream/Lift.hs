@@ -15,14 +15,12 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.State.Strict (StateT, get, put, MonadState)
 import Data.Functor.Identity (Identity)
-import Stream.Common (sourceUnfoldr, sourceUnfoldrM, benchIOSrc, drain)
+import Stream.Common
+    (benchIO, sourceUnfoldr, sourceUnfoldrM, benchIOSrc, drain)
 import System.Random (randomRIO)
 #ifdef USE_PRELUDE
-import Streamly.Benchmark.Prelude hiding
-    (sourceUnfoldr, sourceUnfoldrM, benchIOSrc)
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
-import Streamly.Benchmark.Prelude (benchIO)
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 import qualified Streamly.Internal.Data.Fold as Fold

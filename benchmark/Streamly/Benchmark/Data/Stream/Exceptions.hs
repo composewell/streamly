@@ -21,17 +21,22 @@
 
 module Stream.Exceptions (benchmarks) where
 
-import Control.Exception (SomeException, Exception, throwIO)
+import Control.Exception (Exception, throwIO)
 import Stream.Common (drain)
 import Streamly.Internal.Data.Stream (Stream)
-import System.IO (Handle, hClose, hPutChar)
 
 import qualified Data.IORef as Ref
 import qualified Data.Map.Strict as Map
 import qualified Stream.Common as Common
+
+#ifndef USE_STREAMLY_CORE
+import Control.Exception (SomeException)
+import System.IO (Handle, hClose, hPutChar)
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.FileSystem.Handle as IFH
+import qualified Streamly.Internal.Data.Unfold as IUF
+#endif
+
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
@@ -133,6 +138,9 @@ o_1_space_serial_exceptions length =
           , benchIOSrc1 "retryUnknown" (retryUnknown length)
           ]
     ]
+
+-- XXX Move these to FileSystem.Handle benchmarks
+#ifndef USE_STREAMLY_CORE
 
 -------------------------------------------------------------------------------
 -- copy stream exceptions
@@ -323,12 +331,16 @@ o_1_space_copy_exceptions_toChunks env =
         ]
     ]
 
+#endif
+
 benchmarks :: String -> BenchEnv -> Int -> [Benchmark]
-benchmarks moduleName env size =
+benchmarks moduleName _env size =
         [ bgroup (o_1_space_prefix moduleName) $ concat
-            [ o_1_space_copy_exceptions_readChunks env
-            , o_1_space_copy_exceptions_toChunks env
-            , o_1_space_copy_stream_exceptions env
-            , o_1_space_serial_exceptions size
+            [ o_1_space_serial_exceptions size
+#ifndef USE_STREAMLY_CORE
+            , o_1_space_copy_exceptions_readChunks _env
+            , o_1_space_copy_exceptions_toChunks _env
+            , o_1_space_copy_stream_exceptions _env
+#endif
             ]
         ]

@@ -32,11 +32,9 @@ import qualified Prelude
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Unfold as Unfold
 #ifdef USE_PRELUDE
-import Streamly.Benchmark.Prelude (benchIO)
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import Streamly.Internal.Data.Time.Units
 #else
-import Streamly.Benchmark.Prelude (benchIO)
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 

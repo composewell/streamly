@@ -32,7 +32,6 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
-import Streamly.Benchmark.Prelude (benchIO)
 import qualified Stream.Common as Common
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as S

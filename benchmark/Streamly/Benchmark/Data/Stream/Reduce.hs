@@ -17,7 +17,6 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
-import Streamly.Internal.Data.IsMap.HashMap ()
 import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Streamly.Internal.Data.Refold.Type as Refold
@@ -27,15 +26,15 @@ import qualified Stream.Common as Common
 import Control.Monad (when)
 import Data.Proxy (Proxy(..))
 import Data.HashMap.Strict (HashMap)
+import Streamly.Internal.Data.IsMap.HashMap ()
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import Streamly.Prelude (fromSerial)
 import Streamly.Benchmark.Prelude hiding
-    ( benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2
+    ( benchIO, benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2
     , toNullAp, monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM
     , filterSome, breakAfterSome, toListM, toListSome, transformMapM
     , transformComposeMapM, transformTeeMapM, transformZipMapM)
 #else
-import Streamly.Benchmark.Prelude (benchIO)
 import qualified Streamly.Internal.Data.Stream as S
 #endif
 

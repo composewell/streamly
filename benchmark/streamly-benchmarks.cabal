@@ -76,6 +76,9 @@ flag use-prelude
 common compile-options
     default-language: Haskell2010
 
+    if flag(use-streamly-core)
+      cpp-options:    -DUSE_STREAMLY_CORE
+
     if flag(use-prelude)
       cpp-options:    -DUSE_PRELUDE
 
@@ -235,10 +238,6 @@ benchmark Data.Stream
   if flag(use-prelude)
     other-modules:
       Stream.Split
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
   if flag(limit-build-mem)
     if flag(dev)
       ghc-options: +RTS -M3500M -RTS

@@ -34,6 +34,7 @@ module Stream.Common
     -- Benchmark stream elimination
     , benchIOSink
     , benchIOSrc
+    , benchIO
 
     -- Benchmarking functions
     , concatStreamsWith
@@ -62,6 +63,7 @@ module Stream.Common
 where
 
 import Control.Applicative (liftA2)
+import Control.DeepSeq (NFData)
 import Control.Exception (try)
 import GHC.Exception (ErrorCall)
 import Streamly.Internal.Data.Stream (Stream)
@@ -79,7 +81,6 @@ import Streamly.Benchmark.Prelude
     , concatStreamsWith, concatPairsWith
     )
 #else
-import Control.DeepSeq (NFData)
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 
@@ -182,6 +183,10 @@ benchIOSrc
     -> Benchmark
 benchIOSrc name f =
     bench name $ nfIO $ randomRIO (1,1) >>= drain . f
+
+{-# NOINLINE benchIO #-}
+benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
 #ifndef USE_PRELUDE
 {-# INLINE concatStreamsWith #-}
