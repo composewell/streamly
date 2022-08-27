@@ -24,6 +24,12 @@ active-repositories: hackage.haskell.org, head.hackage.ghc.haskell.org:override
 source-repository-package
   type: git
   location: https://github.com/composewell/fusion-plugin
-  tag: 25aa89c97aaaf83209d4282638ef774780061366
+  tag: 3c6535a7027d60d88c37b9a601cb180b805e7431
+
+source-repository-package
+  type: git
+  location: https://github.com/rrnewton/haskell-lockfree
+  tag: 00a70cfe74994b41eb3627c752170d1e82118a8e
+  subdir: lockfree-queue
 
 allow-newer: all
