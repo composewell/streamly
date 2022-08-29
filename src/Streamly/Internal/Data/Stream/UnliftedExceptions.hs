@@ -27,8 +27,8 @@ import Data.Functor (void)
 import Data.Map.Strict (Map)
 import GHC.Exts (inline)
 import Streamly.Internal.Unlifted.Concurrent (MonadRunInIO, MonadAsync, withRunInIO)
-import Streamly.Internal.Control.ForkLifted (forkManaged)
-import Streamly.Internal.Data.IOFinalizer
+import Streamly.Internal.Unlifted.Concurrent.Forklifted (forkManaged)
+import Streamly.Internal.Unlifted.Concurrent.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.StreamD.Type
     (Stream(..), Step(Skip, Yield, Stop), nilM)

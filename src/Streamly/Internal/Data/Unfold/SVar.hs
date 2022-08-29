@@ -20,7 +20,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
-import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Unlifted.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.SVar (printSVar, cleanupSVar, sendStopToProducer)
@@ -28,7 +28,7 @@ import System.Mem (performMajorGC)
 
 import qualified Control.Monad.Catch as MC
 
-import Streamly.Internal.Data.SVar.Type
+import Streamly.Internal.Unlifted.Concurrent.SVar.Type
 import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith

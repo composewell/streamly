@@ -9,7 +9,7 @@
 -- A value associated with an IO action that is automatically called whenever
 -- the value is garbage collected.
 
-module Streamly.Internal.Data.IOFinalizer
+module Streamly.Internal.Unlifted.Concurrent.IOFinalizer
     (
       IOFinalizer
     , newIOFinalizer
@@ -19,10 +19,10 @@ module Streamly.Internal.Data.IOFinalizer
 where
 
 import Control.Exception (mask_)
-
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
---import Streamly.Internal.Control.Concurrent (MonadRunInIO, askRunInIO, runInIO, withRunInIO)
+import Streamly.Internal.Control.Concurrent (MonadRunInIO, askRunInIO, runInIO, withRunInIO)
 
 -- | An 'IOFinalizer' has an associated IO action that is automatically called
 -- whenever the finalizer is garbage collected. The action can be run and
@@ -35,6 +35,15 @@ import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
 --
 -- /Pre-release/
 newtype IOFinalizer = IOFinalizer (IORef (Maybe (IO ())))
+
+-- | Make a finalizer from a monadic action @m a@ that can run in IO monad.
+mkIOFinalizer :: MonadRunInIO m => m b -> m (IO ())
+mkIOFinalizer f = do
+    mrun <- askRunInIO
+    return $
+        void $ do
+            _ <- runInIO mrun f
+            return ()
 
 -- | GC hook to run an IO action stored in a finalized IORef.
 runFinalizerGC :: IORef (Maybe (IO ())) -> IO ()
@@ -56,10 +65,11 @@ runFinalizerGC ref = do
 -- of the monad but we want to keep both the cases consistent.
 --
 -- /Pre-release/
-newIOFinalizer :: IO () -> IO IOFinalizer
+newIOFinalizer :: MonadRunInIO m => m a -> m IOFinalizer
 newIOFinalizer finalizer = do
-    ref <- liftIO $ newIORef $ Just finalizer
-    _ <- mkWeakIORef ref (runFinalizerGC ref)
+    f <- mkIOFinalizer finalizer
+    ref <- liftIO $ newIORef $ Just f
+    _ <- liftIO $ mkWeakIORef ref (runFinalizerGC ref)
     return $ IOFinalizer ref
 
 -- | Run the action associated with the finalizer and deactivate it so that it
@@ -84,6 +94,9 @@ runIOFinalizer (IOFinalizer ref) = liftIO $ do
 -- action is run with async exceptions masked.
 --
 -- /Pre-release/
-clearingIOFinalizer :: IOFinalizer -> IO a -> IO a
-clearingIOFinalizer (IOFinalizer ref) action =
-    mask_ $ writeIORef ref Nothing >> action
+clearingIOFinalizer :: MonadRunInIO m => IOFinalizer -> m a -> m a
+clearingIOFinalizer (IOFinalizer ref) action = do
+    withRunInIO $ \runinio ->
+        mask_ $ do
+            writeIORef ref Nothing
+            runinio action

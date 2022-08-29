@@ -9,7 +9,7 @@
 --
 module Streamly.Internal.Data.SVar
     (
-      module Streamly.Internal.Data.SVar.Type
+      module Streamly.Internal.Unlifted.Concurrent.SVar.Type
     , module Streamly.Internal.Data.SVar.Worker
     , module Streamly.Internal.Data.SVar.Dispatch
     , module Streamly.Internal.Data.SVar.Pull
@@ -47,7 +47,7 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Heap (Heap, Entry(..))
 import Data.IORef (newIORef, readIORef)
 import Data.IORef (IORef, atomicModifyIORef)
-import Streamly.Internal.Control.Concurrent
+import Streamly.Internal.Unlifted.Concurrent
     (MonadAsync, askRunInIO, RunInIO)
 import Streamly.Internal.Data.Atomics
        (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier)
@@ -59,7 +59,7 @@ import qualified Data.Set as S
 
 import Streamly.Internal.Data.SVar.Dispatch
 import Streamly.Internal.Data.SVar.Pull
-import Streamly.Internal.Data.SVar.Type
+import Streamly.Internal.Unlifted.Concurrent.SVar.Type
 import Streamly.Internal.Data.SVar.Worker
 
 -------------------------------------------------------------------------------

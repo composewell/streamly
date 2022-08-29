@@ -134,7 +134,6 @@ import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 import qualified Data.Set as Set
 
-import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
@@ -331,11 +330,10 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
 
 {-# INLINE_NORMAL pollCounts #-}
 pollCounts
-    :: MonadAsync m
-    => (a -> Bool)
-    -> (Stream m Int -> m b)
-    -> Stream m a
-    -> Stream m a
+    :: (a -> Bool)
+    -> (Stream IO Int -> IO b)
+    -> Stream IO a
+    -> Stream IO a
 pollCounts predicate fld (Stream step state) = Stream step' Nothing
   where
 
@@ -344,7 +342,7 @@ pollCounts predicate fld (Stream step state) = Stream step' Nothing
         -- As long as we are using an "Int" for counts lockfree reads from
         -- Var should work correctly on both 32-bit and 64-bit machines.
         -- However, an Int on a 32-bit machine may overflow quickly.
-        countVar <- liftIO $ Unboxed.newIORef (0 :: Int)
+        countVar <- Unboxed.newIORef (0 :: Int)
         tid <- forkManaged
             $ void $ fld
             $ Unboxed.toStreamD countVar
@@ -355,11 +353,11 @@ pollCounts predicate fld (Stream step state) = Stream step' Nothing
         case r of
             Yield x s -> do
                 when (predicate x)
-                    $ liftIO $ Unboxed.modifyIORef' countVar (+ 1)
+                    $ Unboxed.modifyIORef' countVar (+ 1)
                 return $ Yield x (Just (countVar, tid, s))
             Skip s -> return $ Skip (Just (countVar, tid, s))
             Stop -> do
-                liftIO $ killThread tid
+                killThread tid
                 return Stop
 
 ------------------------------------------------------------------------------

@@ -271,7 +271,7 @@ import Control.Exception (Exception, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Data.Functor (($>))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunInIO)
+--import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
@@ -918,13 +918,12 @@ gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 -- /Pre-release/
 {-# INLINE_NORMAL gbracket #-}
 gbracket
-    :: MonadRunInIO m
-    => (a -> m c)                           -- ^ before
-    -> (c -> m d)                           -- ^ after, on normal stop, or GC
-    -> Unfold m (c, e) b                    -- ^ on exception
-    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
-    -> Unfold m c b                         -- ^ unfold to run
-    -> Unfold m a b
+    :: (a -> IO c)                           -- ^ before
+    -> (c -> IO ())                           -- ^ after, on normal stop, or GC
+    -> Unfold IO (c, e) b                    -- ^ on exception
+    -> (forall s. IO s -> IO (Either e s))    -- ^ try (exception handling)
+    -> Unfold IO c b                         -- ^ unfold to run
+    -> Unfold IO a b
 gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
     Unfold step inject
 
@@ -933,7 +932,7 @@ gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
     inject x = do
         -- Mask asynchronous exceptions to make the execution of 'bef' and
         -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
-        (r, ref) <- withRunInIO $ \run -> mask_ $ run $ do
+        (r, ref) <- mask_ $ do
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
@@ -1019,8 +1018,7 @@ after_ action (Unfold step1 inject1) = Unfold step inject
 --
 -- /Pre-release/
 {-# INLINE_NORMAL after #-}
-after :: MonadRunInIO m
-    => (a -> m c) -> Unfold m a b -> Unfold m a b
+after :: (a -> IO ()) -> Unfold IO a b -> Unfold IO a b
 after action (Unfold step1 inject1) = Unfold step inject
 
     where
@@ -1121,8 +1119,7 @@ finally_ action (Unfold step1 inject1) = Unfold step inject
 --
 -- /Pre-release/
 {-# INLINE_NORMAL finally #-}
-finally :: (MonadAsync m, MonadCatch m)
-    => (a -> m c) -> Unfold m a b -> Unfold m a b
+finally :: (a -> IO ()) -> Unfold IO a b -> Unfold IO a b
 finally action (Unfold step1 inject1) = Unfold step inject
 
     where
@@ -1202,8 +1199,7 @@ bracket_ bef aft (Unfold step1 inject1) = Unfold step inject
 --
 -- /Pre-release/
 {-# INLINE_NORMAL bracket #-}
-bracket :: (MonadAsync m, MonadCatch m)
-    => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
+bracket :: (a -> IO c) -> (c -> IO ()) -> Unfold IO c b -> Unfold IO a b
 bracket bef aft (Unfold step1 inject1) = Unfold step inject
 
     where
@@ -1211,7 +1207,7 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
     inject x = do
         -- Mask asynchronous exceptions to make the execution of 'bef' and
         -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
-        (r, ref) <- withRunInIO $ \run -> mask_ $ run $ do
+        (r, ref) <- mask_ $ do
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)

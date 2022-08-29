@@ -57,7 +57,7 @@ import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
 import qualified Data.Set as S
 
-import Streamly.Internal.Control.Concurrent
+import Streamly.Internal.Unlifted.Concurrent
     (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO, restoreM)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
@@ -68,7 +68,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
-import Streamly.Internal.Data.SVar.Type
+import Streamly.Internal.Unlifted.Concurrent.SVar.Type
 import Streamly.Internal.Data.SVar
 
 #include "Instances.hs"

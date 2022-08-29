@@ -32,12 +32,12 @@ import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (readIORef, writeIORef)
 import Data.IORef (IORef)
-import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Unlifted.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
 
 import qualified Data.Set as S
 
-import Streamly.Internal.Data.SVar.Type
+import Streamly.Internal.Unlifted.Concurrent.SVar.Type
 import Streamly.Internal.Data.SVar.Dispatch
 
 -------------------------------------------------------------------------------

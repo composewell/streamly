@@ -6,9 +6,10 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Control.ForkLifted
+module Streamly.Internal.Unlifted.Concurrent.Forklifted
     (
       doFork
+    , fork
     , forkManaged
     )
 where
@@ -16,7 +17,8 @@ where
 import Control.Concurrent (ThreadId, forkIO)
 import Control.Exception (SomeException(..), catch, mask)
 import Data.Functor (void)
--- import Streamly.Internal.Control.Concurrent (MonadRunInIO, RunInIO(..), withRunInIO, withRunInIONoRestore)
+import Streamly.Internal.Unlifted.Concurrent
+    (MonadRunInIO, RunInIO(..), withRunInIO, withRunInIONoRestore)
 import Streamly.Internal.Control.ForkIO (rawForkIO, forkManagedWith)
 
 -- | Fork a thread to run the given computation, installing the provided
@@ -26,18 +28,27 @@ import Streamly.Internal.Control.ForkIO (rawForkIO, forkManagedWith)
 -- TODO: the RunInIO argument can be removed, we can directly pass the action
 -- as "mrun action" instead.
 {-# INLINE doFork #-}
-doFork ::
-       IO ()
-    -> (IO () -> IO ())
+doFork :: MonadRunInIO m
+    => m ()
+    -> RunInIO m
     -> (SomeException -> IO ())
-    -> IO ThreadId
-doFork action mrun exHandler =
+    -> m ThreadId
+doFork action (RunInIO mrun) exHandler =
+    withRunInIO $ \run ->
         mask $ \restore -> do
-            rawForkIO $ catch (restore $ void $ mrun action) exHandler
+                tid <- rawForkIO $ catch (restore $ void $ mrun action)
+                                         exHandler
+                run (return tid)
+
+-- | 'fork' lifted to any monad with 'MonadBaseControl IO m' capability.
+--
+{-# INLINABLE fork #-}
+fork :: MonadRunInIO m => m () -> m ThreadId
+fork m = withRunInIONoRestore $ \run -> forkIO $ void $ run m
 
 -- | Fork a thread that is automatically killed as soon as the reference to the
 -- returned threadId is garbage collected.
 --
 {-# INLINABLE forkManaged #-}
-forkManaged :: IO () -> IO ThreadId
-forkManaged = forkManagedWith forkIO
+forkManaged :: MonadRunInIO m => m () -> m ThreadId
+forkManaged = forkManagedWith fork

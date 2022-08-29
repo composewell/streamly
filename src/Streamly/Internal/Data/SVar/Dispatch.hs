@@ -49,8 +49,8 @@ import Data.IORef (IORef, modifyIORef, newIORef, readIORef, writeIORef)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Semigroup ((<>))
 #endif
-import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
-import Streamly.Internal.Control.ForkLifted (doFork)
+import Streamly.Internal.Unlifted.Concurrent (MonadAsync, askRunInIO)
+import Streamly.Internal.Unlifted.Concurrent.Forklifted (doFork)
 import Streamly.Internal.Data.Atomics
        (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier,
         storeLoadBarrier)
@@ -63,7 +63,7 @@ import System.IO (hPutStrLn, stderr)
 import qualified Data.Heap as H
 import qualified Data.Set as S
 
-import Streamly.Internal.Data.SVar.Type
+import Streamly.Internal.Unlifted.Concurrent.SVar.Type
 import Streamly.Internal.Data.SVar.Worker
 
 -------------------------------------------------------------------------------

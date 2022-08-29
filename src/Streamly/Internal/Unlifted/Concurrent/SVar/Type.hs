@@ -6,7 +6,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.SVar.Type
+module Streamly.Internal.Unlifted.Concurrent.SVar.Type
     (
     -- * Parent child communication
       ThreadAbort (..)
@@ -62,7 +62,7 @@ import Data.Kind (Type)
 import Data.Set (Set)
 
 import Streamly.Internal.Data.Time.Units (AbsTime, NanoSecond64(..))
---import Streamly.Internal.Control.Concurrent (RunInIO)
+import Streamly.Internal.Unlifted.Concurrent (RunInIO)
 
 newtype Count = Count Int64
     deriving ( Eq
@@ -93,7 +93,7 @@ data ChildEvent a =
 data AheadHeapEntry (t :: (Type -> Type) -> Type -> Type) m a =
       AheadEntryNull
     | AheadEntryPure a
-    | AheadEntryStream (m a, t m a)
+    | AheadEntryStream (RunInIO m, t m a)
 #undef Type
 
 ------------------------------------------------------------------------------
@@ -275,7 +275,7 @@ data SVar t m a = SVar
     {
     -- Read only state
       svarStyle       :: SVarStyle
-    , svarMrun        :: m a
+    , svarMrun        :: RunInIO m
     , svarStopStyle   :: SVarStopStyle
     , svarStopBy      :: IORef ThreadId
 
@@ -330,7 +330,7 @@ data SVar t m a = SVar
     , yieldRateInfo  :: Maybe YieldRateInfo
 
     -- Used only by bounded SVar types
-    , enqueue        :: (m a, t m a) -> IO ()
+    , enqueue        :: (RunInIO m, t m a) -> IO ()
     , isWorkDone     :: IO Bool
     , isQueueDone    :: IO Bool
     , needDoorBell   :: IORef Bool

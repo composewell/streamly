@@ -58,7 +58,7 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), diffAbsTime64, fromRelTime64)
 
-import Streamly.Internal.Data.SVar.Type
+import Streamly.Internal.Unlifted.Concurrent.SVar.Type
 
 ------------------------------------------------------------------------------
 -- Collecting results from child workers in a streamed fashion
