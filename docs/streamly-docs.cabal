@@ -11,6 +11,10 @@ synopsis:           Documentation for Streamly
 description:        Documentation for Streamly
 build-type:         Simple
 
+flag use-streamly-core
+  description: Benchmark only core package
+  manual: True
+  default: False
 -------------------------------------------------------------------------------
 -- Library
 -------------------------------------------------------------------------------
@@ -42,5 +46,9 @@ library
   build-depends:
       base              >= 4.9   &&  < 4.18
     , transformers      >= 0.4   && < 0.6
-    , streamly
-    , streamly-core
+
+  if flag(use-streamly-core)
+    build-depends: streamly-core
+  else
+    build-depends: streamly
+        , streamly-core
