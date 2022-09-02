@@ -38,11 +38,108 @@ import qualified Control.Monad.Catch as MC
 import qualified Data.Map.Strict as Map
 
 import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.IOFinalizer
+    (newIOFinalizer, clearingIOFinalizer)
 
 data GbracketState s1 s2 v
     = GBracketInit
     | GBracketNormal s1 v
     | GBracketException s2
+
+data GbracketIOState s1 s2 v wref
+    = GBracketIOInit
+    | GBracketIONormal s1 v wref
+    | GBracketIOException s2
+
+-- | Run the alloc action @IO c@ with async exceptions disabled but keeping
+-- blocking operations interruptible (see 'Control.Exception.mask').  Use the
+-- output @c@ as input to @c -> Stream m b@ to generate an output stream. When
+-- generating the stream use the supplied @try@ operation @forall s. IO s -> IO
+-- (Either e s)@ to catch synchronous exceptions. If an exception occurs run
+-- the exception handler @c -> e -> Stream IO b -> IO (Stream IO b)@. Note that
+-- 'gbracket' does not rethrow the exception, it has to be done by the
+-- exception handler if desired.
+--
+-- The cleanup action @c -> IO d@, runs whenever the stream ends normally, due
+-- to a sync or async exception or if it gets garbage collected after a partial
+-- lazy evaluation.  See 'bracket' for the semantics of the cleanup action.
+--
+-- 'gbracket' can express all other exception handling combinators.
+--
+-- /Inhibits stream fusion/
+--
+-- /Pre-release/
+{-# INLINE_NORMAL gbracket #-}
+gbracket
+    ::  IO c -- ^ before
+    -> (c -> IO d1) -- ^ on normal stop
+    -> (c -> e -> Stream IO b -> IO (Stream IO b)) -- ^ on exception
+    -> (c -> IO d2) -- ^ on GC without normal stop or exception
+    -> (forall s. IO s -> IO (Either e s)) -- ^ try (exception handling)
+    -> (c -> Stream IO b) -- ^ stream generator
+    -> Stream IO b
+gbracket bef aft onExc onGC ftry action =
+    Stream step GBracketIOInit
+
+    where
+
+    -- If the stream is never evaluated the "aft" action will never be
+    -- called. For that to occur we will need the user of this API to pass a
+    -- weak pointer to us.
+    {-# INLINE_LATE step #-}
+    step _ GBracketIOInit = do
+        -- We mask asynchronous exceptions to make the execution
+        -- of 'bef' and the registration of 'aft' atomic.
+        -- A similar thing is done in the resourcet package: https://git.io/JvKV3
+        -- Tutorial: https://markkarpov.com/tutorial/exceptions.html
+        (r, ref) <- mask_ $ do
+            r <- bef
+            ref <- newIOFinalizer (onGC r)
+            return (r, ref)
+        return $ Skip $ GBracketIONormal (action r) r ref
+
+    step gst (GBracketIONormal (UnStream step1 st) v ref) = do
+        res <- ftry $ step1 gst st
+        case res of
+            Right r -> case r of
+                Yield x s ->
+                    return $ Yield x (GBracketIONormal (Stream step1 s) v ref)
+                Skip s ->
+                    return $ Skip (GBracketIONormal (Stream step1 s) v ref)
+                Stop ->
+                    clearingIOFinalizer ref (aft v) >> return Stop
+            -- XXX Do not handle async exceptions, just rethrow them.
+            Left e -> do
+                -- Clearing of finalizer and running of exception handler must
+                -- be atomic wrt async exceptions. Otherwise if we have cleared
+                -- the finalizer and have not run the exception handler then we
+                -- may leak the resource.
+                stream <-
+                    clearingIOFinalizer ref (onExc v e (UnStream step1 st))
+                return $ Skip (GBracketIOException stream)
+    step gst (GBracketIOException (UnStream step1 st)) = do
+        res <- step1 gst st
+        case res of
+            Yield x s ->
+                return $ Yield x (GBracketIOException (Stream step1 s))
+            Skip s    -> return $ Skip (GBracketIOException (Stream step1 s))
+            Stop      -> return Stop
+
+{-# INLINE_NORMAL bracket' #-}
+bracket' ::
+       IO b
+    -> (b -> IO c)
+    -> (b -> IO d)
+    -> (b -> IO e)
+    -> (b -> Stream IO a)
+    -> Stream IO a
+bracket' bef aft onExc onGC =
+    gbracket
+        bef
+        aft
+        (\a (e :: SomeException) _ -> onExc a >> return (nilM (MC.throwM e)))
+        onGC
+        (inline MC.try)
 
 -- | Like 'gbracket' but with following differences:
 --
@@ -92,11 +189,6 @@ gbracket_ bef aft onExc ftry action =
             Yield x s -> return $ Yield x (GBracketException (Stream step1 s))
             Skip s    -> return $ Skip (GBracketException (Stream step1 s))
             Stop      -> return Stop
-
-data GbracketIOState s1 s2 v wref
-    = GBracketIOInit
-    | GBracketIONormal s1 v wref
-    | GBracketIOException s2
 
 -- | Run the alloc action @m c@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the
