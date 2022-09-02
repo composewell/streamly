@@ -253,6 +253,7 @@ import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
 
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.Exceptions.Lifted as LE
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -573,7 +574,7 @@ pollCounts ::
     -> t m a
 pollCounts predicate f xs =
       fromStreamD
-    $ D.pollCounts predicate (f . fromStreamD)
+    $ LE.pollCounts predicate (f . fromStreamD)
     $ toStreamD xs
 
 -- | Apply a monadic function to each element flowing through the stream and

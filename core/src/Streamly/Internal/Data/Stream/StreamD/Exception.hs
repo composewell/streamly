@@ -8,16 +8,8 @@
 
 module Streamly.Internal.Data.Stream.StreamD.Exception
     (
-      gbracket_
-    , gbracket
-    , before
-    , after_
-    , after
-    , bracket_
-    , bracket'
+      before
     , onException
-    , finally_
-    , finally
     , ghandle
     , handle
     , retry
@@ -26,13 +18,10 @@ where
 
 #include "inline.hs"
 
-import Control.Exception (Exception, SomeException, mask_)
+import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Data.Map.Strict (Map)
 import GHC.Exts (inline)
-import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunInIO)
-import Streamly.Internal.Data.IOFinalizer
-    (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
 import qualified Control.Monad.Catch as MC
 import qualified Data.Map.Strict as Map
@@ -93,85 +82,6 @@ gbracket_ bef aft onExc ftry action =
             Skip s    -> return $ Skip (GBracketException (Stream step1 s))
             Stop      -> return Stop
 
-data GbracketIOState s1 s2 v wref
-    = GBracketIOInit
-    | GBracketIONormal s1 v wref
-    | GBracketIOException s2
-
--- | Run the alloc action @m c@ with async exceptions disabled but keeping
--- blocking operations interruptible (see 'Control.Exception.mask').  Use the
--- output @c@ as input to @c -> Stream m b@ to generate an output stream. When
--- generating the stream use the supplied @try@ operation @forall s. m s -> m
--- (Either e s)@ to catch synchronous exceptions. If an exception occurs run
--- the exception handler @c -> e -> Stream m b -> m (Stream m b)@. Note that
--- 'gbracket' does not rethrow the exception, it has to be done by the
--- exception handler if desired.
---
--- The cleanup action @c -> m d@, runs whenever the stream ends normally, due
--- to a sync or async exception or if it gets garbage collected after a partial
--- lazy evaluation.  See 'bracket' for the semantics of the cleanup action.
---
--- 'gbracket' can express all other exception handling combinators.
---
--- /Inhibits stream fusion/
---
--- /Pre-release/
-{-# INLINE_NORMAL gbracket #-}
-gbracket
-    :: MonadRunInIO m
-    => m c -- ^ before
-    -> (c -> m d1) -- ^ on normal stop
-    -> (c -> e -> Stream m b -> m (Stream m b)) -- ^ on exception
-    -> (c -> m d2) -- ^ on GC without normal stop or exception
-    -> (forall s. m s -> m (Either e s)) -- ^ try (exception handling)
-    -> (c -> Stream m b) -- ^ stream generator
-    -> Stream m b
-gbracket bef aft onExc onGC ftry action =
-    Stream step GBracketIOInit
-
-    where
-
-    -- If the stream is never evaluated the "aft" action will never be
-    -- called. For that to occur we will need the user of this API to pass a
-    -- weak pointer to us.
-    {-# INLINE_LATE step #-}
-    step _ GBracketIOInit = do
-        -- We mask asynchronous exceptions to make the execution
-        -- of 'bef' and the registration of 'aft' atomic.
-        -- A similar thing is done in the resourcet package: https://git.io/JvKV3
-        -- Tutorial: https://markkarpov.com/tutorial/exceptions.html
-        (r, ref) <- withRunInIO $ \run -> mask_ $ run $ do
-            r <- bef
-            ref <- newIOFinalizer (onGC r)
-            return (r, ref)
-        return $ Skip $ GBracketIONormal (action r) r ref
-
-    step gst (GBracketIONormal (UnStream step1 st) v ref) = do
-        res <- ftry $ step1 gst st
-        case res of
-            Right r -> case r of
-                Yield x s ->
-                    return $ Yield x (GBracketIONormal (Stream step1 s) v ref)
-                Skip s ->
-                    return $ Skip (GBracketIONormal (Stream step1 s) v ref)
-                Stop ->
-                    clearingIOFinalizer ref (aft v) >> return Stop
-            -- XXX Do not handle async exceptions, just rethrow them.
-            Left e -> do
-                -- Clearing of finalizer and running of exception handler must
-                -- be atomic wrt async exceptions. Otherwise if we have cleared
-                -- the finalizer and have not run the exception handler then we
-                -- may leak the resource.
-                stream <-
-                    clearingIOFinalizer ref (onExc v e (UnStream step1 st))
-                return $ Skip (GBracketIOException stream)
-    step gst (GBracketIOException (UnStream step1 st)) = do
-        res <- step1 gst st
-        case res of
-            Yield x s ->
-                return $ Yield x (GBracketIOException (Stream step1 s))
-            Skip s    -> return $ Skip (GBracketIOException (Stream step1 s))
-            Stop      -> return Stop
 
 -- | See 'Streamly.Internal.Data.Stream.before'.
 --
@@ -190,44 +100,6 @@ before action (Stream step state) = Stream step' Nothing
             Yield x s -> return $ Yield x (Just s)
             Skip s    -> return $ Skip (Just s)
             Stop      -> return Stop
-
--- | See 'Streamly.Internal.Data.Stream.after_'.
---
-{-# INLINE_NORMAL after_ #-}
-after_ :: Monad m => m b -> Stream m a -> Stream m a
-after_ action (Stream step state) = Stream step' state
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' gst st = do
-        res <- step gst st
-        case res of
-            Yield x s -> return $ Yield x s
-            Skip s    -> return $ Skip s
-            Stop      -> action >> return Stop
-
--- | See 'Streamly.Internal.Data.Stream.after'.
---
-{-# INLINE_NORMAL after #-}
-after :: MonadRunInIO m
-    => m b -> Stream m a -> Stream m a
-after action (Stream step state) = Stream step' Nothing
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' _ Nothing = do
-        ref <- newIOFinalizer action
-        return $ Skip $ Just (state, ref)
-    step' gst (Just (st, ref)) = do
-        res <- step gst st
-        case res of
-            Yield x s -> return $ Yield x (Just (s, ref))
-            Skip s    -> return $ Skip (Just (s, ref))
-            Stop      -> do
-                runIOFinalizer ref
-                return Stop
 
 -- XXX For high performance error checks in busy streams we may need another
 -- Error constructor in step.
@@ -258,76 +130,6 @@ _onException action (Stream step state) = Stream step' state
             Skip s    -> return $ Skip s
             Stop      -> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.bracket_'.
---
-{-# INLINE_NORMAL bracket_ #-}
-bracket_ :: MonadCatch m
-    => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket_ bef aft =
-    gbracket_
-        bef
-        aft
-        (\a (e :: SomeException) _ -> nilM (aft a >> MC.throwM e))
-        (inline MC.try)
-
--- | See 'Streamly.Internal.Data.Stream.bracket'.
---
-{-# INLINE_NORMAL bracket' #-}
-bracket' :: (MonadAsync m, MonadCatch m) =>
-       m b
-    -> (b -> m c)
-    -> (b -> m d)
-    -> (b -> m e)
-    -> (b -> Stream m a)
-    -> Stream m a
-bracket' bef aft onExc onGC =
-    gbracket
-        bef
-        aft
-        (\a (e :: SomeException) _ -> onExc a >> return (nilM (MC.throwM e)))
-        onGC
-        (inline MC.try)
-
-data BracketState s v = BracketInit | BracketRun s v
-
--- | Alternate (custom) implementation of 'bracket'.
---
-{-# INLINE_NORMAL _bracket #-}
-_bracket :: MonadCatch m
-    => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-_bracket bef aft bet = Stream step' BracketInit
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' _ BracketInit = bef >>= \x -> return (Skip (BracketRun (bet x) x))
-
-    -- NOTE: It is important to use UnStream instead of the Stream pattern
-    -- here, otherwise we get huge perf degradation, see note in concatMap.
-    step' gst (BracketRun (UnStream step state) v) = do
-        -- res <- step gst state `MC.onException` aft v
-        res <- inline MC.try $ step gst state
-        case res of
-            Left (e :: SomeException) -> aft v >> MC.throwM e >> return Stop
-            Right r -> case r of
-                Yield x s -> return $ Yield x (BracketRun (Stream step s) v)
-                Skip s    -> return $ Skip (BracketRun (Stream step s) v)
-                Stop      -> aft v >> return Stop
-
--- | See 'Streamly.Internal.Data.Stream.finally_'.
---
-{-# INLINE finally_ #-}
-finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
-finally_ action xs = bracket_ (return ()) (const action) (const xs)
-
--- | See 'Streamly.Internal.Data.Stream.finally'.
---
--- finally action xs = after action $ onException action xs
---
-{-# INLINE finally #-}
-finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
-finally action xs = bracket' (return ()) act act act (const xs)
-    where act _ = action
 
 -- | See 'Streamly.Internal.Data.Stream.ghandle'.
 --

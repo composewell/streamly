@@ -415,9 +415,6 @@ module Streamly.Data.Stream
 
     -- * Resource Management
     , before
-    , after
-    , finally
-    , bracket
 
     -- * Lifting Inner Monad
     -- | See also: "Streamly.Internal.Data.Stream.Lift" for
