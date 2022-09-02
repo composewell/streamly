@@ -42,6 +42,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
+import qualified Streamly.Data.Stream.Exceptions.Lifted as Stream
 
 import Gauge hiding (env)
 import Prelude hiding (last, length)

@@ -448,6 +448,7 @@ library
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.ZipAsync
 
+                     , Streamly.Data.Stream.Exceptions.Lifted
                      , Streamly.Internal.Data.Stream.Exceptions.Lifted
 
                      , Streamly.Internal.Data.Stream.IsStream.Type
