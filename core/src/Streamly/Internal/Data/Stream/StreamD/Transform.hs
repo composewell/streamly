@@ -124,8 +124,7 @@ where
 
 #include "inline.hs"
 
-import Control.Concurrent (killThread)
-import Control.Monad (void, when)
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Maybe (fromJust, isJust)
@@ -133,8 +132,6 @@ import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 import qualified Data.Set as Set
 
-import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.SVar.Type (defState, adaptState)
@@ -143,7 +140,6 @@ import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 
 import Prelude hiding
