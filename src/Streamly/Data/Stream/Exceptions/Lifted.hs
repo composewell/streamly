@@ -19,7 +19,7 @@ import qualified Streamly.Internal.Data.Stream.Exceptions.Lifted as LE
 -- $setup
 -- >>> :m
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Stream.Exceptions.Lifted as UE
+-- >>> import qualified Streamly.Data.Stream.Exceptions.Lifted as LE
 
 ------------------------------------------------------------------------------
 -- Exceptions
