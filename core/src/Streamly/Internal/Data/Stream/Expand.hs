@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Expand
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -186,10 +187,17 @@ infixr 6 `append`
 --
 -- /Pre-release/
 --
-{-# INLINE append #-}
-append :: Stream m a -> Stream m a -> Stream m a
+{-# INLINE[1] append #-}
+append :: Monad m => Stream m a -> Stream m a -> Stream m a
 append = (<>)
 
+{-# INLINE[1] fuse #-}
+fuse :: a -> a
+fuse  = id
+
+{-# RULES
+   "fuseAppend" fuse append = append2
+#-}
 ------------------------------------------------------------------------------
 -- Interleaving
 ------------------------------------------------------------------------------
