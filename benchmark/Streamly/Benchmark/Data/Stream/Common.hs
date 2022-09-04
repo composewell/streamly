@@ -94,7 +94,7 @@ type MonadAsync = Monad
 #endif
 
 {-# INLINE append #-}
-append :: Stream m a -> Stream m a -> Stream m a
+append :: Monad m => Stream m a -> Stream m a -> Stream m a
 #ifdef USE_PRELUDE
 append = Stream.serial
 #else
