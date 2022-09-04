@@ -1,4 +1,3 @@
-{-# LANGUAGE GADTs #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Expand
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -37,6 +36,9 @@ module Streamly.Internal.Data.Stream.Expand
 
     -- ** Append
     , append2
+
+    -- ** Modifier for Stream fusion
+    , fuse
 
     -- ** Interleave
     , interleave
@@ -187,8 +189,10 @@ infixr 6 `append`
 --
 -- /Pre-release/
 --
-{-# INLINE[1] append #-}
-append :: Monad m => Stream m a -> Stream m a -> Stream m a
+{-# INLINE_NORMAL append #-}
+append :: Monad m => Stream m a -- ^ Monad contraint due to fuse re write RULES
+  -> Stream m a -- ^
+  -> Stream m a
 append = (<>)
 
 {-# INLINE[1] fuse #-}
