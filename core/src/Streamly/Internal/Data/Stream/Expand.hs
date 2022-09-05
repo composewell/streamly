@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Expand
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -36,9 +37,6 @@ module Streamly.Internal.Data.Stream.Expand
 
     -- ** Append
     , append2
-
-    -- ** Modifier for Stream fusion
-    , fuse
 
     -- ** Interleave
     , interleave
@@ -130,7 +128,7 @@ import Streamly.Internal.Data.Stream.Bottom
     , zipWith, zipWithM)
 import Streamly.Internal.Data.Stream.Type
     ( Stream, fromStreamD, fromStreamK, toStreamD, toStreamK
-    , bindWith, concatMapWith, nil)
+    , bindWith, concatMapWith, nil, fuse)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -195,10 +193,6 @@ append :: Monad m => Stream m a -- ^ Monad contraint due to fuse re write RULES
   -> Stream m a
 append = (<>)
 
-{-# INLINE[1] fuse #-}
-fuse :: a -> a
-fuse  = id
-
 {-# RULES
    "fuseAppend" fuse append = append2
 #-}
@@ -216,9 +210,17 @@ fuse  = id
 -- streams.
 --
 -- /Not fused/
-{-# INLINE interleave #-}
-interleave :: Stream m a -> Stream m a -> Stream m a
+{-# INLINE_NORMAL interleave #-}
+interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleave s1 s2 = fromStreamK $ K.interleave (toStreamK s1) (toStreamK s2)
+
+{-# INLINE interleave2 #-}
+interleave2 :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleave2 s1 s2 = fromStreamD $ D.interleave (toStreamD s1) (toStreamD s2)
+
+{-# RULES
+   "fuseInterleave" fuse interleave = interleave2
+#-}
 
 -- | Like `interleave` but stops interleaving as soon as the first stream
 -- stops.
@@ -291,7 +293,7 @@ mergeBy f m1 m2 = fromStreamK $ K.mergeBy f (toStreamK m1) (toStreamK m2)
 --
 -- See also: 'mergeByM2'
 --
-{-# INLINE mergeByM #-}
+{-# INLINE_NORMAL mergeByM #-}
 mergeByM
     :: Monad m
     => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
@@ -310,6 +312,9 @@ mergeByM2
 mergeByM2 f m1 m2 =
     fromStreamD $ D.mergeByM f (toStreamD m1) (toStreamD m2)
 
+{-# RULES
+   "fusemergeByM" fuse mergeByM = mergeByM2
+#-}
 -- | Like 'mergeByM' but stops merging as soon as any of the two streams stops.
 --
 -- /Unimplemented/

@@ -34,6 +34,9 @@ module Streamly.Internal.Data.Stream.Type
     -- * Double folds
     , eqBy
     , cmpBy
+
+    -- * Modifier for Stream fusion
+    , fuse
     )
 where
 
@@ -538,3 +541,7 @@ concatMapWith
     -> Stream m a
     -> Stream m b
 concatMapWith par f xs = bindWith par xs f
+
+{-# INLINE_NORMAL fuse #-}
+fuse :: a -> a
+fuse = id
