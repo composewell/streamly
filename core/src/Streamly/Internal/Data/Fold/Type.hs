@@ -17,7 +17,7 @@
 --   good for scanning, nesting (many) is easy.
 -- * Non-failing (backtracking only) parsers: cannot be used as scans because
 --   of backtracking, nesting is complicated because of backtracking, appending
---   is efficient because of no ALternative, alternative does not make sense
+--   is efficient because of no Alternative, Alternative does not make sense
 --   because it cannot fail.
 -- * Parsers: Alternative on failure, appending is not as efficient because of
 --   buffering for Alternative.

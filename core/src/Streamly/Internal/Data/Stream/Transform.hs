@@ -446,8 +446,8 @@ with f comb g = fmap snd . comb g . f
 --
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
-filter p m = fromStreamD $ D.filter p $ toStreamD m
 -- filter p = scanMaybe (FL.filtering p)
+filter p m = fromStreamD $ D.filter p $ toStreamD m
 
 -- | Same as 'filter' but with a monadic predicate.
 --
@@ -495,8 +495,8 @@ uniqBy eq = catMaybes . rollingMap f
 --
 {-# INLINE uniq #-}
 uniq :: (Eq a, Monad m) => Stream m a -> Stream m a
-uniq = fromStreamD . D.uniq . toStreamD
 -- uniq = scanMaybe FL.uniq
+uniq = fromStreamD . D.uniq . toStreamD
 
 -- | Strip all leading and trailing occurrences of an element passing a
 -- predicate and make all other consecutive occurrences uniq.
@@ -541,8 +541,8 @@ repeated = undefined
 --
 {-# INLINE deleteBy #-}
 deleteBy :: Monad m => (a -> a -> Bool) -> a -> Stream m a -> Stream m a
-deleteBy cmp x m = fromStreamD $ D.deleteBy cmp x (toStreamD m)
 -- deleteBy cmp x = scanMaybe (FL.deleteBy cmp x)
+deleteBy cmp x m = fromStreamD $ D.deleteBy cmp x (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Trimming
@@ -552,23 +552,23 @@ deleteBy cmp x m = fromStreamD $ D.deleteBy cmp x (toStreamD m)
 --
 {-# INLINE takeWhileM #-}
 takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
-takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 -- takeWhileM p = scanMaybe (FL.takingEndByM_ (\x -> not <$> p x))
+takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
 --
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
-dropWhile p m = fromStreamD $ D.dropWhile p $ toStreamD m
 -- dropWhile p = scanMaybe (FL.droppingWhile p)
+dropWhile p m = fromStreamD $ D.dropWhile p $ toStreamD m
 
 -- | Same as 'dropWhile' but with a monadic predicate.
 --
 {-# INLINE dropWhileM #-}
 dropWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
-dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 -- dropWhileM p = scanMaybe (FL.droppingWhileM p)
+dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Inserting Elements
@@ -760,8 +760,8 @@ reassembleBy = undefined
 --
 {-# INLINE indexed #-}
 indexed :: Monad m => Stream m a -> Stream m (Int, a)
-indexed = fromStreamD . D.indexed . toStreamD
 -- indexed = scanMaybe FL.indexing
+indexed = fromStreamD . D.indexed . toStreamD
 
 -- |
 -- >>> f n = Fold.foldl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
@@ -778,8 +778,8 @@ indexed = fromStreamD . D.indexed . toStreamD
 --
 {-# INLINE indexedR #-}
 indexedR :: Monad m => Int -> Stream m a -> Stream m (Int, a)
-indexedR n = fromStreamD . D.indexedR n . toStreamD
 -- indexedR n = scanMaybe (FL.indexingRev n)
+indexedR n = fromStreamD . D.indexedR n . toStreamD
 
 ------------------------------------------------------------------------------
 -- Searching
@@ -810,8 +810,8 @@ elemIndices a = findIndices (== a)
 --
 {-# INLINE rollingMap #-}
 rollingMap :: Monad m => (Maybe a -> a -> b) -> Stream m a -> Stream m b
-rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 -- rollingMap f = scanMaybe (FL.slide2 $ Window.rollingMap f)
+rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 
 -- | Like 'rollingMap' but with an effectful map function.
 --
@@ -819,8 +819,8 @@ rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 --
 {-# INLINE rollingMapM #-}
 rollingMapM :: Monad m => (Maybe a -> a -> m b) -> Stream m a -> Stream m b
-rollingMapM f m = fromStreamD $ D.rollingMapM f $ toStreamD m
 -- rollingMapM f = scanMaybe (FL.slide2 $ Window.rollingMapM f)
+rollingMapM f m = fromStreamD $ D.rollingMapM f $ toStreamD m
 
 -- | Like 'rollingMap' but requires at least two elements in the stream,
 -- returns an empty stream otherwise.

@@ -227,7 +227,7 @@ module Streamly.Data.Stream
     , uncons
 
     -- ** Folding
-    -- XXX Need to have a general parse operations here which can be used to
+    -- XXX Need to have a general parse operation here which can be used to
     -- express all others.
     , fold -- XXX rename to run? We can have a Stream.run and Fold.run.
     -- XXX fold1 can be achieved using Monoids or Refolds.
@@ -399,7 +399,7 @@ module Streamly.Data.Stream
 
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.
-    -- Reverse is essentially a left fold followed by unfold.
+    -- Reverse is essentially a left fold followed by an unfold.
     , reverse
 
     -- * Multi-Stream folds
@@ -425,8 +425,8 @@ module Streamly.Data.Stream
     , handle
 
     -- * Resource Management
-    -- | 'bracket' is the most general operation, all other operations can be
-    -- expressed using it.
+    -- | 'bracket' is the most general resource management operation, all other
+    -- operations can be expressed using it.
     , before
     , after
     , finally

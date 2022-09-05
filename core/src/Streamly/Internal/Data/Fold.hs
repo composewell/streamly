@@ -678,7 +678,7 @@ prune = error "Not implemented yet!"
 -- /Unimplemented/
 repeated :: -- (Monad m, Eq a) =>
     Fold m a (Maybe a)
-repeated = undefined
+repeated = error "Not implemented yet!"
 
 -- | Used as a scan. Returns 'Just' for the first occurrence of an element,
 -- returns 'Nothing' for any other occurrences.

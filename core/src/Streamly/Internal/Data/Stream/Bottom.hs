@@ -339,27 +339,27 @@ scanMaybe p = catMaybes . postscan p
 --
 {-# INLINE take #-}
 take :: Monad m => Int -> Stream m a -> Stream m a
--- take n m = fromStreamD $ D.take n $ toStreamD m
-take n = scanMaybe (Fold.taking n)
+-- take n = scanMaybe (Fold.taking n)
+take n m = fromStreamD $ D.take n $ toStreamD m
 
 -- | End the stream as soon as the predicate fails on an element.
 --
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
-takeWhile p m = fromStreamD $ D.takeWhile p $ toStreamD m
 -- takeWhile p = scanMaybe (Fold.takingEndBy_ (not . p))
+takeWhile p m = fromStreamD $ D.takeWhile p $ toStreamD m
 
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
-takeEndBy p m = fromStreamD $ D.takeEndBy p $ toStreamD m
 -- takeEndBy p = scanMaybe (Fold.takingEndBy p)
+takeEndBy p m = fromStreamD $ D.takeEndBy p $ toStreamD m
 
 -- | Discard first 'n' elements from the stream and take the rest.
 --
 {-# INLINE drop #-}
 drop :: Monad m => Int -> Stream m a -> Stream m a
-drop n m = fromStreamD $ D.drop n $ toStreamD m
 -- drop n = scanMaybe (Fold.dropping n)
+drop n m = fromStreamD $ D.drop n $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Searching
@@ -372,8 +372,8 @@ drop n m = fromStreamD $ D.drop n $ toStreamD m
 --
 {-# INLINE findIndices #-}
 findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
-findIndices p m = fromStreamD $ D.findIndices p (toStreamD m)
 -- findIndices p = scanMaybe (Fold.findIndices p)
+findIndices p m = fromStreamD $ D.findIndices p (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Transformation by Inserting
