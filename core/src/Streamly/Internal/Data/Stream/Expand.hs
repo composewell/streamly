@@ -188,13 +188,11 @@ infixr 6 `append`
 -- /Pre-release/
 --
 {-# INLINE_NORMAL append #-}
-append :: Monad m => Stream m a -- ^ Monad contraint due to fuse re write RULES
-  -> Stream m a -- ^
-  -> Stream m a
+append :: Monad m => Stream m a -> Stream m a -> Stream m a
 append = (<>)
 
 {-# RULES
-   "fuseAppend" fuse append = append2
+   "fuse append" fuse append = append2
 #-}
 ------------------------------------------------------------------------------
 -- Interleaving
@@ -219,7 +217,7 @@ interleave2 :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleave2 s1 s2 = fromStreamD $ D.interleave (toStreamD s1) (toStreamD s2)
 
 {-# RULES
-   "fuseInterleave" fuse interleave = interleave2
+   "fuse interleave" fuse interleave = interleave2
 #-}
 
 -- | Like `interleave` but stops interleaving as soon as the first stream
@@ -313,7 +311,7 @@ mergeByM2 f m1 m2 =
     fromStreamD $ D.mergeByM f (toStreamD m1) (toStreamD m2)
 
 {-# RULES
-   "fusemergeByM" fuse mergeByM = mergeByM2
+   "fuse mergeByM" fuse mergeByM = mergeByM2
 #-}
 -- | Like 'mergeByM' but stops merging as soon as any of the two streams stops.
 --
