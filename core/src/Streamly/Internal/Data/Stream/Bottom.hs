@@ -28,6 +28,9 @@ module Streamly.Internal.Data.Stream.Bottom
     , smapM
     -- $smapM_Notes
     , postscan
+    , catMaybes
+    , scanMaybe
+
     , take
     , takeWhile
     , takeEndBy
@@ -79,6 +82,7 @@ import Streamly.Internal.Data.Stream.Type
 -- >>> import Control.Monad (join)
 -- >>> import Control.Monad.Trans.Class (lift)
 -- >>> import Data.Function (fix, (&))
+-- >>> import Data.Maybe (fromJust, isJust)
 -- >>> import Data.Semigroup (cycle1)
 -- >>> import Prelude hiding (take, takeWhile, drop, reverse)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
@@ -305,6 +309,28 @@ smapM step initial stream =
                 (fmap (,undefined) initial)
      in fmap snd $ postscan f stream
 
+-- | In a stream of 'Maybe's, discard 'Nothing's and unwrap 'Just's.
+--
+-- >>> catMaybes = Stream.mapMaybe id
+-- >>> catMaybes = fmap fromJust . Stream.filter isJust
+--
+-- /Pre-release/
+--
+{-# INLINE catMaybes #-}
+catMaybes :: Monad m => Stream m (Maybe a) -> Stream m a
+-- catMaybes = fmap fromJust . filter isJust
+catMaybes = fromStreamD . D.catMaybes . toStreamD
+
+-- | Use a filtering fold on a stream.
+--
+-- >>> scanMaybe f = Stream.catMaybes . Stream.postscan f
+--
+-- /Pre-release/
+--
+{-# INLINE scanMaybe #-}
+scanMaybe :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
+scanMaybe p = catMaybes . postscan p
+
 ------------------------------------------------------------------------------
 -- Transformation - Trimming
 ------------------------------------------------------------------------------
@@ -313,22 +339,26 @@ smapM step initial stream =
 --
 {-# INLINE take #-}
 take :: Monad m => Int -> Stream m a -> Stream m a
+-- take n = scanMaybe (Fold.taking n)
 take n m = fromStreamD $ D.take n $ toStreamD m
 
 -- | End the stream as soon as the predicate fails on an element.
 --
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+-- takeWhile p = scanMaybe (Fold.takingEndBy_ (not . p))
 takeWhile p m = fromStreamD $ D.takeWhile p $ toStreamD m
 
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+-- takeEndBy p = scanMaybe (Fold.takingEndBy p)
 takeEndBy p m = fromStreamD $ D.takeEndBy p $ toStreamD m
 
 -- | Discard first 'n' elements from the stream and take the rest.
 --
 {-# INLINE drop #-}
 drop :: Monad m => Int -> Stream m a -> Stream m a
+-- drop n = scanMaybe (Fold.dropping n)
 drop n m = fromStreamD $ D.drop n $ toStreamD m
 
 ------------------------------------------------------------------------------
@@ -342,6 +372,7 @@ drop n m = fromStreamD $ D.drop n $ toStreamD m
 --
 {-# INLINE findIndices #-}
 findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
+-- findIndices p = scanMaybe (Fold.findIndices p)
 findIndices p m = fromStreamD $ D.findIndices p (toStreamD m)
 
 ------------------------------------------------------------------------------

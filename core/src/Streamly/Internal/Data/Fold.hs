@@ -36,6 +36,11 @@ module Streamly.Internal.Data.Fold
     , foldr
     , foldrM
 
+    -- * Mappers
+    -- | Monadic functions useful with mapM/lmapM on folds or streams.
+    , tracing
+    , trace
+
     -- * Folds
     -- ** Identity
     , fromPure
@@ -51,7 +56,6 @@ module Streamly.Internal.Data.Fold
     -- *** Reducers
     , drain
     , drainBy
-    , last
     , the
     , length
     , genericLength
@@ -63,7 +67,6 @@ module Streamly.Internal.Data.Fold
     , rollingHashWithSalt
     , rollingHashFirstN
     -- , rollingHashLastN
-    , rollingMapM
 
     -- *** Saturating Reducers
     -- | 'product' terminates if it becomes 0. Other folds can theoretically
@@ -86,8 +89,33 @@ module Streamly.Internal.Data.Fold
     , toStream
     , toStreamRev
     , toMap
+    , topBy
     , top
     , bottom
+
+    -- *** Scanners
+    -- | Stateful transformation of the elements. Useful in combination with
+    -- the 'scanMaybe' combinator. For scanners the result of the fold is
+    -- usually a transformation of the current element rather than an
+    -- aggregation of all elements till now.
+    , last -- XXX prev
+ -- , nthLast -- using Ring array
+    , indexingWith
+    , indexing
+    , indexingRev
+    , rollingMapM
+
+    -- *** Filters
+    -- | Useful in combination with the 'scanMaybe' combinator.
+    , filtering
+    , deleteBy
+    , nub
+    , nubInt
+    , uniqBy
+    , uniq
+    , repeated
+    , findIndices
+    , elemIndices
 
     -- ** Terminating Folds
     -- Element folds. Terminate after inspecting one element. All these can be
@@ -95,6 +123,7 @@ module Streamly.Internal.Data.Fold
     , head
     , one
     , null
+    , satisfy
     , maybe
 
     -- Sequence folds. Terminate after inspecting a sequence of elements.
@@ -115,6 +144,18 @@ module Streamly.Internal.Data.Fold
     , and
     , or
 
+    -- ** Trimmers
+    -- | Useful in combination with the 'scanMaybe' combinator.
+    , taking
+    , dropping
+    , takingEndByM
+    , takingEndBy
+    , takingEndByM_
+    , takingEndBy_
+    , droppingWhileM
+    , droppingWhile
+    , prune
+
     -- * Combinators
     -- ** Utilities
     , with
@@ -131,42 +172,35 @@ module Streamly.Internal.Data.Fold
     , lmap
     --, lsequence
     , lmapM
+
+    -- ** Sliding Window
+    , slide2
+
+    -- ** Scanning Input
     , scan
     , scanMany
     , postscan
     , indexed
-    , trace
 
     -- ** Zipping Input
     , zipWithM
     , zip
 
-    -- ** Filtering
+    -- ** Filtering Input
+    , catMaybes
+    , mapMaybeM
+    , mapMaybe
+    , scanMaybe
     , filter
     , filterM
-    , foldFilter
-    , satisfy
     , sampleFromthen
-    -- , ldeleteBy
-    -- , luniq
-    , nub
-    , nubInt
-
-    -- ** Mapping Filters
-    , catMaybes
-    , mapMaybe
-    -- , mapMaybeM
 
     -- Either streams
     , lefts
     , rights
     , both
 
-    -- ** Scanning Filters
-    , findIndices
     {-
-    , elemIndices
-
     -- ** Insertion
     -- | Insertion adds more elements to the stream.
 
@@ -304,10 +338,10 @@ import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
-import Data.Maybe (isJust, fromJust)
 import Data.Word (Word32)
 import Foreign.Storable (peek, sizeOf)
 import Streamly.Internal.Data.IsMap (IsMap(..))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unboxed (Unboxed)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -339,17 +373,18 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> :m
 -- >>> :set -package streamly
 -- >>> import Prelude hiding (break, map, span, splitAt)
--- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import qualified Streamly.Internal.Data.Stream.Type as Stream
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import Streamly.Internal.Data.Stream.Type (Stream)
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 
 ------------------------------------------------------------------------------
 -- hoist
@@ -390,9 +425,19 @@ sequence = rmapM id
 mapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
 mapM = rmapM
 
+-- |
+-- >>> mapMaybeM f = Fold.lmapM f . Fold.catMaybes
+--
+{-# INLINE mapMaybeM #-}
+mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Fold m b r -> Fold m a r
+mapMaybeM f = lmapM f . catMaybes
+
 -- | @mapMaybe f fold@ maps a 'Maybe' returning function @f@ on the input of
 -- the fold, filters out 'Nothing' elements, and return the values extracted
 -- from 'Just'.
+--
+-- >>> mapMaybe f = Fold.lmap f . Fold.catMaybes
+-- >>> mapMaybe f = Fold.mapMaybeM (return . f)
 --
 -- >>> f x = if even x then Just x else Nothing
 -- >>> fld = Fold.mapMaybe f Fold.toList
@@ -401,12 +446,24 @@ mapM = rmapM
 --
 -- @since 0.8.0
 {-# INLINE mapMaybe #-}
-mapMaybe :: (Monad m) => (a -> Maybe b) -> Fold m b r -> Fold m a r
-mapMaybe f = lmap f . filter isJust . lmap fromJust
+mapMaybe :: Monad m => (a -> Maybe b) -> Fold m b r -> Fold m a r
+mapMaybe f = lmap f . catMaybes
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
 ------------------------------------------------------------------------------
+
+-- | Apply a monadic function on the input and return the input.
+--
+-- >>> Stream.fold (Fold.lmapM (Fold.tracing print) Fold.drain) $ (Stream.enumerateFromTo (1 :: Int) 2)
+-- 1
+-- 2
+--
+-- /Pre-release/
+--
+{-# INLINE tracing #-}
+tracing :: Monad m => (a -> m b) -> (a -> m a)
+tracing f x = void (f x) >> return x
 
 -- | Apply a monadic function to each element flowing through and discard the
 -- results.
@@ -415,10 +472,12 @@ mapMaybe f = lmap f . filter isJust . lmap fromJust
 -- 1
 -- 2
 --
+-- >>> trace f = Fold.lmapM (Fold.tracing f)
+--
 -- /Pre-release/
 {-# INLINE trace #-}
 trace :: Monad m => (a -> m b) -> Fold m a r -> Fold m a r
-trace f = lmapM (\x -> void (f x) >> return x)
+trace f = lmapM (tracing f)
 
 -- rename to lpipe?
 --
@@ -516,82 +575,110 @@ scan = scanWith False
 scanMany :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 scanMany = scanWith True
 
--- | Postscan the input of a 'Fold' to change it in a stateful manner using
--- another 'Fold'.
--- /Pre-release/
-{-# INLINE postscan #-}
-postscan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
-postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
-
-    where
-
-    {-# INLINE runStep #-}
-    runStep actionL sR = do
-        rL <- actionL
-        case rL of
-            Done bL -> do
-                rR <- stepR sR bL
-                case rR of
-                    Partial sR1 -> Done <$> extractR sR1
-                    Done bR -> return $ Done bR
-            Partial sL -> do
-                !b <- extractL sL
-                rR <- stepR sR b
-                return
-                    $ case rR of
-                        Partial sR1 -> Partial (sL, sR1)
-                        Done bR -> Done bR
-
-    initial = do
-        r <- initialR
-        rL <- initialL
-        case r of
-            Partial sR ->
-                case rL of
-                    Done _ -> Done <$> extractR sR
-                    Partial sL -> return $ Partial (sL, sR)
-            Done b -> return $ Done b
-
-    step (sL, sR) x = runStep (stepL sL x) sR
-
-    extract = extractR . snd
-
 ------------------------------------------------------------------------------
 -- Filters
 ------------------------------------------------------------------------------
 
--- | Convert a predicate into a filtering fold.
+-- | A filtering scan that deletes the first occurrence of the element in the
+-- stream that satisfies the given equality predicate.
 --
--- >>> f = Fold.foldFilter (Fold.satisfy (> 5)) Fold.sum
--- >>> Stream.fold f $ Stream.fromList [1..10]
--- 40
+-- >>> input = Stream.unfold Unfold.fromList [1,3,3,5]
+-- >>> Stream.fold Fold.toList $ Stream.scanMaybe (Fold.deleteBy (==) 3) input
+-- [1,3,5]
 --
--- /Pre-release/
-{-# INLINE satisfy #-}
-satisfy :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
-satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
+{-# INLINE_NORMAL deleteBy #-}
+deleteBy :: Monad m => (a -> a -> Bool) -> a -> Fold m a (Maybe a)
+deleteBy eq x0 = fmap extract $ foldl' step (Tuple' False Nothing)
 
     where
 
-    step () a = return $ Done $ if f a then Just a else Nothing
+    step (Tuple' False _) x =
+        if eq x x0
+        then Tuple' True Nothing
+        else Tuple' False (Just x)
+    step (Tuple' True _) x = Tuple' True (Just x)
 
--- | Use a 'Maybe' returning fold as a filtering scan.
+    extract (Tuple' _ x) = x
+
+-- | Provide a sliding window of length 2 elements.
 --
--- >>> f = Fold.foldFilter (Fold.satisfy (> 5)) Fold.sum
--- >>> Stream.fold f $ Stream.fromList [1..10]
--- 40
+-- See "Streamly.Internal.Data.Fold.Window".
 --
--- The above snippet is equivalent to:
+{-# INLINE slide2 #-}
+slide2 :: Monad m => Fold m (a, Maybe a) b -> Fold m a b
+slide2 (Fold step1 initial1 extract1) = Fold step initial extract
+
+    where
+
+    initial =
+        first (Tuple' Nothing) <$> initial1
+
+    step (Tuple' prev s) cur =
+        first (Tuple' (Just cur)) <$> step1 s (cur, prev)
+
+    extract (Tuple' _ s) = extract1 s
+
+-- | Drop repeated elements that are adjacent to each other using the supplied
+-- comparison function.
 --
--- >>> f = Fold.filter (> 5) Fold.sum
--- >>> Stream.fold f $ Stream.fromList [1..10]
--- 40
+-- To strip duplicate path separators:
+--
+-- >>> input = Stream.unfold Unfold.fromList "//a//b"
+-- >>> f x y = x == '/' && y == '/'
+-- >>> Stream.fold Fold.toList $ Stream.scanMaybe (Fold.uniqBy f) input
+-- "/a/b"
+--
+-- Space: @O(1)@
+--
+-- See also: 'nubBy'.
 --
 -- /Pre-release/
-{-# INLINE foldFilter #-}
-foldFilter :: Monad m => Fold m a (Maybe b) -> Fold m b c -> Fold m a c
-foldFilter f1 f2 = many f1 (catMaybes f2)
+--
+{-# INLINE uniqBy #-}
+uniqBy :: Monad m => (a -> a -> Bool) -> Fold m a (Maybe a)
+uniqBy eq = rollingMap f
+
+    where
+
+    f pre curr =
+        case pre of
+            Nothing -> Just curr
+            Just x -> if x `eq` curr then Nothing else Just curr
+
+-- | Drop repeated elements that are adjacent to each other.
+--
+-- >>> uniq = Fold.uniqBy (==)
+--
+{-# INLINE uniq #-}
+uniq :: (Monad m, Eq a) => Fold m a (Maybe a)
+uniq = uniqBy (==)
+
+-- | Strip all leading and trailing occurrences of an element passing a
+-- predicate and make all other consecutive occurrences uniq.
+--
+-- >> prune p = Stream.dropWhileAround p $ Stream.uniqBy (x y -> p x && p y)
+--
+-- @
+-- > Stream.prune isSpace (Stream.fromList "  hello      world!   ")
+-- "hello world!"
+--
+-- @
+--
+-- Space: @O(1)@
+--
+-- /Unimplemented/
+{-# INLINE prune #-}
+prune ::
+    -- (Monad m, Eq a) =>
+    (a -> Bool) -> Fold m a (Maybe a)
+prune = error "Not implemented yet!"
+
+-- | Emit only repeated elements, once.
+--
+-- /Unimplemented/
+repeated :: -- (Monad m, Eq a) =>
+    Fold m a (Maybe a)
+repeated = error "Not implemented yet!"
 
 -- | Used as a scan. Returns 'Just' for the first occurrence of an element,
 -- returns 'Nothing' for any other occurrences.
@@ -960,6 +1047,9 @@ rollingHash = rollingHashWithSalt defaultSalt
 rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int64
 rollingHashFirstN n = take n rollingHash
 
+-- XXX Compare this with the implementation in Fold.Window, preferrably use the
+-- latter if performance is good.
+
 -- | Apply a function on every two successive elements of a stream. The first
 -- argument of the map function is the previous element and the second argument
 -- is the current element. When processing the very first element in the
@@ -982,6 +1072,10 @@ rollingMapM f = Fold step initial extract
         return $ Partial (Just cur, x)
 
     extract = return . snd
+
+{-# INLINE rollingMap #-}
+rollingMap :: Monad m => (Maybe a -> a -> b) -> Fold m a b
+rollingMap f = rollingMapM (\x y -> return $ f x y)
 
 ------------------------------------------------------------------------------
 -- Monoidal left folds
@@ -1122,6 +1216,17 @@ index = genericIndex
 maybe :: Monad m => (a -> Maybe b) -> Fold m a (Maybe b)
 maybe f = foldt' (const (Done . f)) (Partial Nothing) id
 
+-- | Test if the next element satisfies the supplied predicate.
+--
+-- /Pre-release/
+{-# INLINE satisfy #-}
+satisfy :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
+satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
+
+    where
+
+    step () a = return $ Done $ if f a then Just a else Nothing
+
 -- Naming notes:
 --
 -- "head" and "next" are two alternative names for the same API. head sounds
@@ -1227,6 +1332,7 @@ findIndex predicate = foldt' step (Partial 0) (const Nothing)
 {-# INLINE findIndices #-}
 findIndices :: Monad m => (a -> Bool) -> Fold m a (Maybe Int)
 findIndices predicate =
+    -- XXX implement by combining indexing and filtering scans
     fmap (either (const Nothing) Just) $ foldl' step (Left (-1))
 
     where
@@ -1235,6 +1341,15 @@ findIndices predicate =
         if predicate a
         then Right (either id id i + 1)
         else Left (either id id i + 1)
+
+-- | Find all the indices where the value of the element in the stream is equal
+-- to the given value.
+--
+-- >>> elemIndices a = Fold.findIndices (== a)
+--
+{-# INLINE elemIndices #-}
+elemIndices :: (Monad m, Eq a) => a -> Fold m a (Maybe Int)
+elemIndices a = findIndices (== a)
 
 -- | Returns the first index where a given value is found in the stream.
 --
@@ -1393,6 +1508,73 @@ splitAt n fld = serialWith (,) (take n fld)
 -- Binary APIs
 ------------------------------------------------------------------------------
 
+{-# INLINE takingEndByM #-}
+takingEndByM :: Monad m => (a -> m Bool) -> Fold m a (Maybe a)
+takingEndByM p = Fold step initial (return . toMaybe)
+
+    where
+
+    initial = return $ Partial Nothing'
+
+    step _ a = do
+        r <- p a
+        return
+            $ if r
+              then Done $ Just a
+              else Partial $ Just' a
+
+-- |
+--
+-- >>> takingEndBy p = Fold.takingEndByM (return . p)
+--
+{-# INLINE takingEndBy #-}
+takingEndBy :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
+takingEndBy p = takingEndByM (return . p)
+
+{-# INLINE takingEndByM_ #-}
+takingEndByM_ :: Monad m => (a -> m Bool) -> Fold m a (Maybe a)
+takingEndByM_ p = Fold step initial (return . toMaybe)
+
+    where
+
+    initial = return $ Partial Nothing'
+
+    step _ a = do
+        r <- p a
+        return
+            $ if r
+              then Done Nothing
+              else Partial $ Just' a
+
+-- |
+--
+-- >>> takingEndBy_ p = Fold.takingEndByM_ (return . p)
+--
+{-# INLINE takingEndBy_ #-}
+takingEndBy_ :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
+takingEndBy_ p = takingEndByM_ (return . p)
+
+{-# INLINE droppingWhileM #-}
+droppingWhileM :: Monad m => (a -> m Bool) -> Fold m a (Maybe a)
+droppingWhileM p = Fold step initial (return . toMaybe)
+
+    where
+
+    initial = return $ Partial Nothing'
+
+    step Nothing' a = do
+        r <- p a
+        return
+            $ Partial
+            $ if r
+              then Nothing'
+              else Just' a
+    step _ a = return $ Partial $ Just' a
+
+{-# INLINE droppingWhile #-}
+droppingWhile :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
+droppingWhile p = droppingWhileM (return . p)
+
 -- Note: Keep this consistent with S.splitOn. In fact we should eliminate
 -- S.splitOn in favor of the fold.
 --
@@ -1414,6 +1596,7 @@ splitAt n fld = serialWith (,) (take n fld)
 -- @since 0.8.0
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+-- takeEndBy_ predicate = scanMaybe (takingEndBy_ predicate)
 takeEndBy_ predicate (Fold fstep finitial fextract) =
     Fold step finitial fextract
 
@@ -1441,6 +1624,7 @@ takeEndBy_ predicate (Fold fstep finitial fextract) =
 -- @since 0.8.0
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+-- takeEndBy predicate = scanMaybe (takingEndBy predicate)
 takeEndBy predicate (Fold fstep finitial fextract) =
     Fold step finitial fextract
 
@@ -2469,11 +2653,30 @@ zip = zipWithM (curry return)
 
 -- | Pair each element of a fold input with its index, starting from index 0.
 --
--- /Unimplemented/
+{-# INLINE indexingWith #-}
+indexingWith :: Monad m => Int -> (Int -> Int) -> Fold m a (Maybe (Int, a))
+indexingWith i f = fmap toMaybe $ foldl' step initial
+
+    where
+
+    initial = Nothing'
+
+    step Nothing' a = Just' (i, a)
+    step (Just' (n, _)) a = Just' (f n, a)
+
+{-# INLINE indexing #-}
+indexing :: Monad m => Fold m a (Maybe (Int, a))
+indexing = indexingWith 0 (+ 1)
+
+{-# INLINE indexingRev #-}
+indexingRev :: Monad m => Int -> Fold m a (Maybe (Int, a))
+indexingRev n = indexingWith n (subtract 1)
+
+-- | Pair each element of a fold input with its index, starting from index 0.
+--
 {-# INLINE indexed #-}
-indexed :: -- forall m a b. Monad m =>
-    Fold m (Int, a) b -> Fold m a b
-indexed = undefined -- zip (Stream.enumerateFrom 0 :: Stream m Int)
+indexed :: Monad m => Fold m (Int, a) b -> Fold m a b
+indexed = scanMaybe indexing
 
 -- | Change the predicate function of a Fold from @a -> b@ to accept an
 -- additional state input @(s, a) -> b@. Convenient to filter with an
@@ -2493,10 +2696,12 @@ with ::
     -> (((s, a) -> c) -> Fold m a b -> Fold m a b)
 with f comb g = f . comb g . lmap snd
 
+-- XXX Implement as a filter
+-- sampleFromthen :: Monad m => Int -> Int -> Fold m a (Maybe a)
+
 -- | @sampleFromthen offset stride@ samples the element at @offset@ index and
 -- then every element at strides of @stride@.
 --
--- /Unimplemented/
 {-# INLINE sampleFromthen #-}
 sampleFromthen :: Monad m => Int -> Int -> Fold m a b -> Fold m a b
 sampleFromthen offset size =

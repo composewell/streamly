@@ -68,9 +68,9 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
 
     -- * Filtering
     -- | Produce a subset of the stream.
+    , scanMaybe
     , filter
     , filterM
-    , foldFilter
     , deleteBy
     , uniq
     , nub
@@ -120,6 +120,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Maybe Streams
     , mapMaybe
     , mapMaybeM
+    , catMaybes
     )
 where
 
@@ -705,19 +706,6 @@ scanl1' f = scanl1M' (\x y -> return (f x y))
 -- Filtering
 -------------------------------------------------------------------------------
 
--- XXX nested foldMany does not fuse, therefore, this may not be very useful as
--- a filter unless that is fixed.
---
--- | Use a filtering fold on a stream.
---
--- > Stream.sum $ Stream.foldFilter (Fold.satisfy (> 5)) $ Stream.fromList [1..10]
--- 40
---
--- /Pre-release/
-{-# INLINE foldFilter #-}
-foldFilter :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
-foldFilter f = catMaybes . foldMany f
-
 -- Adapted from the vector package
 {-# INLINE_NORMAL filterM #-}
 filterM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
@@ -1259,5 +1247,27 @@ mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
 {-# INLINE catMaybes #-}
-catMaybes :: (Monad m) => Stream m (Maybe a) -> Stream m a
-catMaybes = fmap fromJust . filter isJust
+catMaybes :: Monad m => Stream m (Maybe a) -> Stream m a
+-- catMaybes = fmap fromJust . filter isJust
+catMaybes (Stream step state) = Stream step1 state
+
+    where
+
+    {-# INLINE_LATE step1 #-}
+    step1 gst st = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                return
+                    $ case x of
+                        Just a -> Yield a s
+                        Nothing -> Skip s
+            Skip s -> return $ Skip s
+            Stop -> return Stop
+
+-- | Use a filtering fold on a stream.
+--
+-- /Pre-release/
+{-# INLINE scanMaybe #-}
+scanMaybe :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
+scanMaybe f = catMaybes . postscanOnce f

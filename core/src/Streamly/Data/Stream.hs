@@ -101,7 +101,8 @@ module Streamly.Data.Stream
     -- , consM2 -- fused version
 
     -- ** Unfolding
-    -- | Generalized way of generating a stream efficiently.
+    -- | 'unfoldrM' is the most general way of generating a stream efficiently.
+    -- All other generation operations can be expressed using it.
     , unfoldr
     , unfoldrM
 
@@ -226,6 +227,8 @@ module Streamly.Data.Stream
     , uncons
 
     -- ** Folding
+    -- XXX Need to have a general parse operation here which can be used to
+    -- express all others.
     , fold -- XXX rename to run? We can have a Stream.run and Fold.run.
     -- XXX fold1 can be achieved using Monoids or Refolds.
     , foldBreak
@@ -292,6 +295,8 @@ module Streamly.Data.Stream
     -- | Remove elements from the stream.
 
     -- ** Stateless Filters
+    -- | 'mapMaybeM' is the most general stateless filtering operation. All
+    -- other filtering operations can be expressed using it.
     -- EXPLANATION:
     -- In imperative terms a filter over a stream corresponds to a loop with a
     -- @continue@ clause for the cases when the predicate fails.
@@ -302,6 +307,11 @@ module Streamly.Data.Stream
     , filterM
 
     -- ** Stateful Filters
+    -- | 'scanMaybe' is the most general stateful filtering operation. The
+    -- filtering folds (folds returning a 'Maybe' type) in
+    -- "Streamly.Internal.Data.Fold" can be used along with 'scanMaybe' to
+    -- perform stateful filtering operations in general.
+    , scanMaybe
     , take
     , takeWhile
     , takeWhileM
@@ -389,6 +399,7 @@ module Streamly.Data.Stream
 
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.
+    -- Reverse is essentially a left fold followed by an unfold.
     , reverse
 
     -- * Multi-Stream folds
@@ -414,6 +425,8 @@ module Streamly.Data.Stream
     , handle
 
     -- * Resource Management
+    -- | 'bracket' is the most general resource management operation, all other
+    -- operations can be expressed using it.
     , before
     , after
     , finally

@@ -12,9 +12,22 @@
 -- We can classify stream consumers in the following categories in order of
 -- increasing complexity and power:
 --
--- == Folds that never terminate
+-- * Accumulators: Tee/Zip is simple, cannot be appended, good for scanning.
+-- * Terminating folds: Tee/Zip varies based on termination, can be appended,
+--   good for scanning, nesting (many) is easy.
+-- * Non-failing (backtracking only) parsers: cannot be used as scans because
+--   of backtracking, nesting is complicated because of backtracking, appending
+--   is efficient because of no Alternative, Alternative does not make sense
+--   because it cannot fail.
+-- * Parsers: Alternative on failure, appending is not as efficient because of
+--   buffering for Alternative.
 --
--- An Accumulator is the simplest type of fold, it never fails and never
+-- First two are represented by the 'Fold' type and the last two by the
+-- 'Parser' type.
+--
+-- == Folds that never terminate (Accumulators)
+--
+-- An @Accumulator@ is the simplest type of fold, it never fails and never
 -- terminates. It can always accept more inputs (never terminates) and the
 -- accumulator is always valid.  For example 'Streamly.Internal.Data.Fold.sum'.
 -- Traditional Haskell left folds like 'foldl' are accumulators.
@@ -40,7 +53,7 @@
 --
 -- == Folds that terminate after one or more input
 --
--- Terminating folds are accumulators that can terminate, like accumulators
+-- @Terminating folds@ are accumulators that can terminate, like accumulators
 -- they do not fail. Once a fold terminates it no longer accepts any more
 -- inputs.  Terminating folds can be appended, the next fold can be
 -- applied after the first one terminates.  Because they cannot fail, they do
@@ -130,7 +143,9 @@
 -- wordBy
 -- @
 --
--- However, it creates several complications.
+-- However, it creates several complications. The most important one is that we
+-- cannot use such folds for scanning. We cannot backtrack after producing an
+-- output in a scan.
 --
 -- === Nested backtracking
 --
@@ -349,17 +364,22 @@ module Streamly.Internal.Data.Fold.Type
     -- ** Mapping Input
     , lmap
     , lmapM
+    , postscan
 
     -- ** Filtering
-    , filter
-    , filterM
     , catMaybes
+    , scanMaybe
+    , filter
+    , filtering
+    , filterM
     , lefts
     , rights
     , both
 
     -- ** Trimming
     , take
+    , taking
+    , dropping
 
     -- ** Sequential application
     , serialWith -- rename to "append"
@@ -395,10 +415,10 @@ module Streamly.Internal.Data.Fold.Type
 where
 
 #include "inline.hs"
+
 import Control.Monad ((>=>))
 import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
-import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep, chainStepM)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
@@ -413,6 +433,7 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- >>> :m
 -- >>> :set -XFlexibleContexts
 -- >>> :set -package streamly
+-- >>> import Data.Maybe (fromJust, isJust)
 -- >>> import Streamly.Data.Fold (Fold)
 -- >>> import Streamly.Internal.Data.Stream.Type (Stream)
 -- >>> import qualified Data.Foldable as Foldable
@@ -602,7 +623,7 @@ foldt' step initial extract =
 -- | Make a terminating fold with an effectful step function and initial state,
 -- and a state extraction function.
 --
--- > mkFoldM = Fold
+-- >>> foldtM' = Fold.Fold
 --
 --  We can just use 'Fold' but it is provided for completeness.
 --
@@ -1110,25 +1131,112 @@ lmapM f (Fold step begin done) = Fold step' begin done
     where
     step' x a = f a >>= step x
 
+-- | Postscan the input of a 'Fold' to change it in a stateful manner using
+-- another 'Fold'.
+--
+-- @postscan scanner collector@
+--
+-- /Pre-release/
+{-# INLINE postscan #-}
+postscan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
+postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
+
+    where
+
+    {-# INLINE runStep #-}
+    runStep actionL sR = do
+        rL <- actionL
+        case rL of
+            Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 -> Done <$> extractR sR1
+                    Done bR -> return $ Done bR
+            Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                return
+                    $ case rR of
+                        Partial sR1 -> Partial (sL, sR1)
+                        Done bR -> Done bR
+
+    initial = do
+        r <- initialR
+        rL <- initialL
+        case r of
+            Partial sR ->
+                case rL of
+                    Done _ -> Done <$> extractR sR
+                    Partial sL -> return $ Partial (sL, sR)
+            Done b -> return $ Done b
+
+    step (sL, sR) x = runStep (stepL sL x) sR
+
+    extract = extractR . snd
+
 ------------------------------------------------------------------------------
 -- Filtering
 ------------------------------------------------------------------------------
+
+-- | Modify a fold to receive a 'Maybe' input, the 'Just' values are unwrapped
+-- and sent to the original fold, 'Nothing' values are discarded.
+--
+-- >>> catMaybes = Fold.mapMaybe id
+-- >>> catMaybes = Fold.filter isJust . Fold.lmap fromJust
+--
+-- @since 0.8.0
+{-# INLINE_NORMAL catMaybes #-}
+catMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
+catMaybes (Fold step initial extract) = Fold step1 initial extract
+
+    where
+
+    step1 s a =
+        case a of
+            Nothing -> return $ Partial s
+            Just x -> step s x
+
+-- | Use a 'Maybe' returning fold as a filtering scan.
+--
+-- >>> scanMaybe p f = Fold.postscan p (Fold.catMaybes f)
+--
+-- /Pre-release/
+{-# INLINE scanMaybe #-}
+scanMaybe :: Monad m => Fold m a (Maybe b) -> Fold m b c -> Fold m a c
+scanMaybe f1 f2 = postscan f1 (catMaybes f2)
+
+-- | A scanning fold for filtering elements based on a predicate.
+--
+{-# INLINE filtering #-}
+filtering :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
+filtering f = foldl' step Nothing
+
+    where
+
+    step _ a = if f a then Just a else Nothing
 
 -- | Include only those elements that pass a predicate.
 --
 -- >>> Stream.fold (Fold.filter (> 5) Fold.sum) $ Stream.fromList [1..10]
 -- 40
 --
--- > filter f = Fold.filterM (return . f)
+-- >>> filter p = Fold.scanMaybe (Fold.filtering p)
+-- >>> filter p = Fold.filterM (return . p)
+-- >>> filter p = Fold.mapMaybe (\x -> if p x then Just x else Nothing)
 --
 -- @since 0.8.0
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
+-- filter p = scanMaybe (filtering p)
 filter f (Fold step begin done) = Fold step' begin done
     where
     step' x a = if f a then step x a else return $ Partial x
 
 -- | Like 'filter' but with a monadic predicate.
+--
+-- >>> f p x = p x >>= \r -> return $ if r then Just x else Nothing
+-- >>> filterM p = Fold.mapMaybeM (f p)
 --
 -- @since 0.8.0
 {-# INLINE filterM #-}
@@ -1138,14 +1246,6 @@ filterM f (Fold step begin done) = Fold step' begin done
     step' x a = do
       use <- f a
       if use then step x a else return $ Partial x
-
--- | Modify a fold to receive a 'Maybe' input, the 'Just' values are unwrapped
--- and sent to the original fold, 'Nothing' values are discarded.
---
--- @since 0.8.0
-{-# INLINE_NORMAL catMaybes #-}
-catMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
-catMaybes = filter isJust . lmap fromJust
 
 ------------------------------------------------------------------------------
 -- Either streams
@@ -1184,6 +1284,39 @@ both = lmap (either id id)
 {-# ANN type Tuple'Fused Fuse #-}
 data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 
+{-# INLINE taking #-}
+taking :: Monad m => Int -> Fold m a (Maybe a)
+taking n = foldt' step initial extract
+
+    where
+
+    initial =
+        if n <= 0
+        then Done Nothing
+        else Partial (Tuple'Fused n Nothing)
+
+    step (Tuple'Fused i _) a =
+        if i > 1
+        then Partial (Tuple'Fused (i - 1) (Just a))
+        else Done (Just a)
+
+    extract (Tuple'Fused _ r) = r
+
+{-# INLINE dropping #-}
+dropping :: Monad m => Int -> Fold m a (Maybe a)
+dropping n = foldt' step initial extract
+
+    where
+
+    initial = Partial (Tuple'Fused n Nothing)
+
+    step (Tuple'Fused i _) a =
+        if i > 0
+        then Partial (Tuple'Fused (i - 1) Nothing)
+        else Partial (Tuple'Fused i (Just a))
+
+    extract (Tuple'Fused _ r) = r
+
 -- | Take at most @n@ input elements and fold them using the supplied fold. A
 -- negative count is treated as 0.
 --
@@ -1193,6 +1326,7 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 -- @since 0.8.0
 {-# INLINE take #-}
 take :: Monad m => Int -> Fold m a b -> Fold m a b
+-- take n = scanMaybe (taking n)
 take n (Fold fstep finitial fextract) = Fold step initial extract
 
     where
