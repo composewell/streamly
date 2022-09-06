@@ -15,7 +15,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Lifted as LE
 -- $setup
 -- >>> :m
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Stream.StreamD.Lifted as LE
+-- >>> import qualified Streamly.Data.Stream.Lifted as LE
 
 ------------------------------------------------------------------------------
 -- Exceptions
