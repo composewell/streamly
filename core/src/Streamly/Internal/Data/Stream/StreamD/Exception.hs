@@ -422,4 +422,3 @@ retry emap0 defaultHandler (Stream step0 state0) = Stream step state
                            in RetryWithMap emap1 st
                       | otherwise -> RetryDefault $ defaultHandler e
                   Nothing -> RetryDefault $ defaultHandler e
-                  
