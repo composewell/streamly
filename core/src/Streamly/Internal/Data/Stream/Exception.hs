@@ -118,7 +118,7 @@ finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 -- /Inhibits stream fusion/
 --
 {-# INLINE finally #-}
-finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
+finally :: IO b -> Stream IO a -> Stream IO a
 finally action xs = fromStreamD $ D.finally action $ toStreamD xs
 
 -- | Like 'bracket' but with following differences:
@@ -161,8 +161,7 @@ bracket_ bef aft bet = fromStreamD $
 -- /Inhibits stream fusion/
 --
 {-# INLINE bracket #-}
-bracket :: (MonadAsync m, MonadCatch m)
-    => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
+bracket :: IO b -> (b -> IO c) -> (b -> Stream IO a) -> Stream IO a
 bracket bef aft = bracket' bef aft aft aft
 
 -- For a use case of this see the "streamly-process" package. It needs to kill
@@ -177,13 +176,12 @@ bracket bef aft = bracket' bef aft aft aft
 --
 -- /Pre-release/
 {-# INLINE bracket' #-}
-bracket' :: (MonadAsync m, MonadCatch m)
-    => m b
-    -> (b -> m c)
-    -> (b -> m d)
-    -> (b -> m e)
-    -> (b -> Stream m a)
-    -> Stream m a
+bracket' :: IO b
+    -> (b -> IO c)
+    -> (b -> IO d)
+    -> (b -> IO e)
+    -> (b -> Stream IO a)
+    -> Stream IO a
 bracket' bef aft gc exc bet = fromStreamD $
     D.bracket' bef aft exc gc (toStreamD . bet)
 

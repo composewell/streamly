@@ -31,7 +31,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
---import qualified Streamly.Internal.Data.Stream.Exceptions.Lifted as EL
+import qualified Streamly.Internal.Data.Stream.StreamD.Lifted as LE
 
 
 -- $setup
@@ -131,7 +131,7 @@ finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 --
 {-# INLINE finally #-}
 finally :: (IsStream t, MonadAsync m, MonadCatch m) => m b -> t m a -> t m a
-finally action xs = fromStreamD $ D.finally action $ toStreamD xs
+finally action xs = fromStreamD $ LE.finally action $ toStreamD xs
 
 -- | Like 'bracket' but with following differences:
 --
@@ -194,7 +194,7 @@ bracket bef aft = bracket' bef aft aft aft
 bracket' :: (IsStream t, MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> m d) -> (b -> m e) -> (b -> t m a) -> t m a
 bracket' bef aft gc exc bet = fromStreamD $
-    D.bracket' bef aft exc gc (toStreamD . bet)
+    LE.bracket' bef aft exc gc (toStreamD . bet)
 
 -- | Like 'handle' but the exception handler is also provided with the stream
 -- that generated the exception as input. The exception handler can thus

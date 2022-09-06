@@ -43,17 +43,18 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 
-import qualified Streamly.Data.Stream.Lifted as LE
-import Gauge hiding (env)
-import Prelude hiding (last, length)
-import Streamly.Benchmark.Common
-import Streamly.Benchmark.Common.Handle
+import qualified Streamly.Internal.Data.Stream.Exception as LE
 
 #ifdef INSPECTION
 import Test.Inspection
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
+
+import Gauge hiding (env)
+import Prelude hiding (last, length)
+import Streamly.Benchmark.Common
+import Streamly.Benchmark.Common.Handle
 
 -------------------------------------------------------------------------------
 -- stream exceptions
