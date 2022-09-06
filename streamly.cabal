@@ -448,9 +448,6 @@ library
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.ZipAsync
 
-                     , Streamly.Data.Stream.Lifted
-                     , Streamly.Internal.Data.Stream.StreamD.Lifted
-
                      , Streamly.Internal.Data.Stream.IsStream.Type
                      , Streamly.Internal.Data.Stream.IsStream.Combinators
                      , Streamly.Internal.Data.Stream.IsStream.Common
@@ -507,6 +504,10 @@ library
                      -- Network/IO
                      , Streamly.Network.Socket
                      , Streamly.Network.Inet.TCP
+
+                     -- Lifted MonadAsync operations
+                     , Streamly.Data.Stream.Lifted
+                     , Streamly.Internal.Data.Stream.StreamD.Lifted
 
                      -- Deprecated
                      , Streamly
