@@ -1,11 +1,7 @@
-module Streamly.Data.Stream.Exceptions.Lifted
+module Streamly.Data.Stream.Lifted
 (
-     after_
-    , after
-    , bracket_
+     after
     , bracket
-    , bracket'
-    , finally_
     , finally
     )
 where
@@ -14,33 +10,16 @@ import Control.Monad.Catch (MonadCatch)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
-import qualified Streamly.Internal.Data.Stream.Exceptions.Lifted as LE
+import qualified Streamly.Internal.Data.Stream.StreamD.Lifted as LE
 
 -- $setup
 -- >>> :m
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Stream.Exceptions.Lifted as LE
+-- >>> import qualified Streamly.Data.Stream.StreamD.Lifted as LE
 
 ------------------------------------------------------------------------------
 -- Exceptions
 ------------------------------------------------------------------------------
-
--- | Like 'after', with following differences:
---
--- * action @m b@ won't run if the stream is garbage collected
---   after partial evaluation.
--- * Monad @m@ does not require any other constraints.
--- * has slightly better performance than 'after'.
---
--- Same as the following, but with stream fusion:
---
--- >>> after_ action xs = xs <> Stream.nilM action
---
--- /Pre-release/
---
-{-# INLINE after_ #-}
-after_ :: Monad m => m b -> Stream m a -> Stream m a
-after_ action xs = fromStreamD $ LE.after_ action $ toStreamD xs
 
 -- | Run the action @m b@ whenever the stream @Stream m a@ stops normally, or
 -- if it is garbage collected after a partial lazy evaluation.
@@ -54,21 +33,6 @@ after_ action xs = fromStreamD $ LE.after_ action $ toStreamD xs
 after :: MonadAsync m
     => m b -> Stream m a -> Stream m a
 after action xs = fromStreamD $ LE.after action $ toStreamD xs
-
--- | Like 'finally' with following differences:
---
--- * action @m b@ won't run if the stream is garbage collected
---   after partial evaluation.
--- * does not require a 'MonadAsync' constraint.
--- * has slightly better performance than 'finally'.
---
--- /Inhibits stream fusion/
---
--- /Pre-release/
---
-{-# INLINE finally_ #-}
-finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
-finally_ action xs = fromStreamD $ LE.finally_ action $ toStreamD xs
 
 -- | Run the action @m b@ whenever the stream @Stream m a@ stops normally,
 -- aborts due to an exception or if it is garbage collected after a partial
@@ -86,24 +50,6 @@ finally_ action xs = fromStreamD $ LE.finally_ action $ toStreamD xs
 {-# INLINE finally #-}
 finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
 finally action xs = fromStreamD $ LE.finally action $ toStreamD xs
-
--- | Like 'bracket' but with following differences:
---
--- * alloc action @m b@ runs with async exceptions enabled
--- * cleanup action @b -> m c@ won't run if the stream is garbage collected
---   after partial evaluation.
--- * does not require a 'MonadAsync' constraint.
--- * has slightly better performance than 'bracket'.
---
--- /Inhibits stream fusion/
---
--- /Pre-release/
---
-{-# INLINE bracket_ #-}
-bracket_ :: MonadCatch m
-    => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket_ bef aft bet = fromStreamD $
-    LE.bracket_ bef aft (toStreamD . bet)
 
 -- | Run the alloc action @m b@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the

@@ -1,13 +1,9 @@
-module Streamly.Internal.Data.Stream.Exceptions.Lifted
+module Streamly.Internal.Data.Stream.StreamD.Lifted
     ( pollCounts
-    , gbracket_
     , gbracket
-    , after_
     , after
-    , bracket_
-    , bracket'
-    , finally_
     , finally
+    , bracket'
     )
 where
 
@@ -60,61 +56,6 @@ pollCounts predicate fld (Stream step state) = Stream step' Nothing
             Stop -> do
                 liftIO $ killThread tid
                 return Stop
-
-data GbracketState s1 s2 v
-    = GBracketInit
-    | GBracketNormal s1 v
-    | GBracketException s2
-
--- | Like 'gbracket' but with following differences:
---
--- * alloc action @m c@ runs with async exceptions enabled
--- * cleanup action @c -> m d@ won't run if the stream is garbage collected
---   after partial evaluation.
--- * does not require a 'MonadAsync' constraint.
---
--- /Inhibits stream fusion/
---
--- /Pre-release/
---
-{-# INLINE_NORMAL gbracket_ #-}
-gbracket_
-    :: Monad m
-    => m c                                  -- ^ before
-    -> (c -> m d)                           -- ^ after, on normal stop
-    -> (c -> e -> Stream m b -> Stream m b) -- ^ on exception
-    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
-    -> (c -> Stream m b)                    -- ^ stream generator
-    -> Stream m b
-gbracket_ bef aft onExc ftry action =
-    Stream step GBracketInit
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ GBracketInit = do
-        r <- bef
-        return $ Skip $ GBracketNormal (action r) r
-
-    step gst (GBracketNormal (UnStream step1 st) v) = do
-        res <- ftry $ step1 gst st
-        case res of
-            Right r -> case r of
-                Yield x s ->
-                    return $ Yield x (GBracketNormal (Stream step1 s) v)
-                Skip s -> return $ Skip (GBracketNormal (Stream step1 s) v)
-                Stop -> aft v >> return Stop
-            -- XXX Do not handle async exceptions, just rethrow them.
-            Left e ->
-                return
-                    $ Skip (GBracketException (onExc v e (UnStream step1 st)))
-    step gst (GBracketException (UnStream step1 st)) = do
-        res <- step1 gst st
-        case res of
-            Yield x s -> return $ Yield x (GBracketException (Stream step1 s))
-            Skip s    -> return $ Skip (GBracketException (Stream step1 s))
-            Stop      -> return Stop
-
 data GbracketIOState s1 s2 v wref
     = GBracketIOInit
     | GBracketIONormal s1 v wref
@@ -195,23 +136,6 @@ gbracket bef aft onExc onGC ftry action =
             Skip s    -> return $ Skip (GBracketIOException (Stream step1 s))
             Stop      -> return Stop
 
-
--- | See 'Streamly.Internal.Data.Stream.after_'.
---
-{-# INLINE_NORMAL after_ #-}
-after_ :: Monad m => m b -> Stream m a -> Stream m a
-after_ action (Stream step state) = Stream step' state
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' gst st = do
-        res <- step gst st
-        case res of
-            Yield x s -> return $ Yield x s
-            Skip s    -> return $ Skip s
-            Stop      -> action >> return Stop
-
 -- | See 'Streamly.Internal.Data.Stream.after'.
 --
 {-# INLINE_NORMAL after #-}
@@ -234,18 +158,6 @@ after action (Stream step state) = Stream step' Nothing
                 runIOFinalizer ref
                 return Stop
 
--- | See 'Streamly.Internal.Data.Stream.bracket_'.
---
-{-# INLINE_NORMAL bracket_ #-}
-bracket_ :: MonadCatch m
-    => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket_ bef aft =
-    gbracket_
-        bef
-        aft
-        (\a (e :: SomeException) _ -> nilM (aft a >> MC.throwM e))
-        (inline MC.try)
-
 -- | See 'Streamly.Internal.Data.Stream.bracket'.
 --
 {-# INLINE_NORMAL bracket' #-}
@@ -263,38 +175,6 @@ bracket' bef aft onExc onGC =
         (\a (e :: SomeException) _ -> onExc a >> return (nilM (MC.throwM e)))
         onGC
         (inline MC.try)
-
-data BracketState s v = BracketInit | BracketRun s v
-
--- | Alternate (custom) implementation of 'bracket'.
---
-{-# INLINE_NORMAL _bracket #-}
-_bracket :: MonadCatch m
-    => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-_bracket bef aft bet = Stream step' BracketInit
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' _ BracketInit = bef >>= \x -> return (Skip (BracketRun (bet x) x))
-
-    -- NOTE: It is important to use UnStream instead of the Stream pattern
-    -- here, otherwise we get huge perf degradation, see note in concatMap.
-    step' gst (BracketRun (UnStream step state) v) = do
-        -- res <- step gst state `MC.onException` aft v
-        res <- inline MC.try $ step gst state
-        case res of
-            Left (e :: SomeException) -> aft v >> MC.throwM e >> return Stop
-            Right r -> case r of
-                Yield x s -> return $ Yield x (BracketRun (Stream step s) v)
-                Skip s    -> return $ Skip (BracketRun (Stream step s) v)
-                Stop      -> aft v >> return Stop
-
--- | See 'Streamly.Internal.Data.Stream.finally_'.
---
-{-# INLINE finally_ #-}
-finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
-finally_ action xs = bracket_ (return ()) (const action) (const xs)
 
 -- | See 'Streamly.Internal.Data.Stream.finally'.
 --

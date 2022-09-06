@@ -42,7 +42,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
-import qualified Streamly.Data.Stream.Exceptions.Lifted as Stream
+import qualified Streamly.Data.Stream.Lifted as LE
 
 import Gauge hiding (env)
 import Prelude hiding (last, length)
@@ -180,7 +180,7 @@ inspect $ hasNoTypeClasses 'readWriteFinally_Stream
 
 readWriteFinallyStream :: Handle -> Handle -> IO ()
 readWriteFinallyStream inh devNull =
-    let readEx = Stream.finally (hClose inh) (Stream.unfold FH.read inh)
+    let readEx = LE.finally (hClose inh) (Stream.unfold FH.read inh)
     in Stream.fold (FH.write devNull) readEx
 
 -- | Send the file contents to /dev/null with exception handling
@@ -196,14 +196,14 @@ inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
 
 fromToBytesBracketStream :: Handle -> Handle -> IO ()
 fromToBytesBracketStream inh devNull =
-    let readEx = Stream.bracket (return ()) (\_ -> hClose inh)
+    let readEx = LE.bracket (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.getBytes inh)
     in IFH.putBytes devNull readEx
 
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
     let readEx =
-            Stream.after (hClose inh)
+            LE.after (hClose inh)
                 $ Stream.before (hPutChar devNull 'A') (Stream.unfold FH.read inh)
      in Stream.fold (FH.write devNull) readEx
 
@@ -213,7 +213,7 @@ inspect $ 'readWriteBeforeAfterStream `hasNoType` ''D.Step
 
 readWriteAfterStream :: Handle -> Handle -> IO ()
 readWriteAfterStream inh devNull =
-    let readEx = Stream.after (hClose inh) (Stream.unfold FH.read inh)
+    let readEx = LE.after (hClose inh) (Stream.unfold FH.read inh)
      in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -316,7 +316,7 @@ inspect $ hasNoTypeClasses 'toChunksBracket_
 
 toChunksBracket :: Handle -> Handle -> IO ()
 toChunksBracket inh devNull =
-    let readEx = Stream.bracket
+    let readEx = LE.bracket
             (return ())
             (\_ -> hClose inh)
             (\_ -> IFH.getChunks inh)
