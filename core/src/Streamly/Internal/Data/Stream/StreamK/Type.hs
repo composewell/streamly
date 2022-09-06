@@ -96,17 +96,23 @@ module Streamly.Internal.Data.Stream.StreamK.Type
 
     -- * Reader
     , withLocal
+    , evalStateT
+    , liftInner
     )
 where
 
 import Control.Monad (ap, (>=>))
 import Control.Monad.Reader.Class (MonadReader(..))
+import Control.Monad.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Function (fix)
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
+
+import qualified Control.Monad.State.Strict as State
+import qualified Prelude
+
 import Prelude hiding
     (map, mapM, concatMap, foldr, repeat, null, reverse, tail, init)
-import qualified Prelude
 
 ------------------------------------------------------------------------------
 -- Basic stream type
@@ -1368,3 +1374,34 @@ foldlS step = go
 {-# INLINE reverse #-}
 reverse :: Stream m a -> Stream m a
 reverse = foldlS (flip cons) nil
+
+------------------------------------------------------------------------------
+-- Lifting inner monad
+------------------------------------------------------------------------------
+
+{-# INLINE evalStateT #-}
+evalStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m a
+evalStateT = go
+
+    where
+
+    -- XXX Do not use stream monad
+    go st m1 = do
+        (res, s1) <- lift $ st >>= State.runStateT (uncons m1)
+        case res of
+            Just (h, t) -> cons h (go (return s1) t)
+            Nothing -> nil
+
+{-# INLINE liftInner #-}
+liftInner :: (Monad m, MonadTrans t, Monad (t m)) =>
+    Stream m a -> Stream (t m) a
+liftInner = go
+
+    where
+
+    -- XXX Do not use stream monad
+    go m1 = do
+        res <- fromEffect $ lift $ uncons m1
+        case res of
+            Just (h, t) -> cons h (go t)
+            Nothing -> nil
