@@ -472,8 +472,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- >>> stream2 = print 3 |: print 4 |: Stream.nil
 -- >>> Stream.drain $ Stream.fromWAsync $ stream1 <> stream2
 -- 1
--- 3
--- 2
+-- ...
+-- ...
 -- 4
 --
 -- The polymorphic version of the binary operation '<>' of the 'WAsync' type is
