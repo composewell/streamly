@@ -145,6 +145,7 @@ dropSuffix = error "Not implemented yet!"
 -- Note 'foldMany' on an empty stream results in an empty stream. Therefore,
 -- @Stream.fold f@ is not the same as @Stream.head . Stream.foldMany f@.
 --
+-- @since 0.9.0
 {-# INLINE foldMany #-}
 foldMany
     :: Monad m

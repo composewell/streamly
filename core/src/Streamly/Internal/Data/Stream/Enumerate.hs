@@ -92,7 +92,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 --
 -- @
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromStepIntegral #-}
 enumerateFromStepIntegral
     :: (Monad m, Integral a)
@@ -110,7 +110,7 @@ enumerateFromStepIntegral from stride =
 --
 -- @
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral
     :: (Monad m, Integral a, Bounded a)
@@ -131,7 +131,7 @@ enumerateFromIntegral from = fromStreamD $ D.enumerateFromIntegral from
 --
 -- @
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromThenIntegral #-}
 enumerateFromThenIntegral
     :: (Monad m, Integral a, Bounded a)
@@ -150,7 +150,7 @@ enumerateFromThenIntegral from next =
 --
 -- @
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: (Monad m, Integral a) => a -> a -> Stream m a
 enumerateFromToIntegral from to =
@@ -170,7 +170,7 @@ enumerateFromToIntegral from to =
 --
 -- @
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromThenToIntegral #-}
 enumerateFromThenToIntegral
     :: (Monad m, Integral a)
@@ -201,7 +201,7 @@ enumerateFromThenToIntegral from next to =
 -- @
 --
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromFractional #-}
 enumerateFromFractional :: (Monad m, Fractional a) => a -> Stream m a
 enumerateFromFractional from = fromStreamD $ D.enumerateFromNum from
@@ -224,7 +224,7 @@ enumerateFromFractional from = fromStreamD $ D.enumerateFromNum from
 --
 -- @
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromThenFractional #-}
 enumerateFromThenFractional
     :: (Monad m, Fractional a)
@@ -251,7 +251,7 @@ enumerateFromThenFractional from next = fromStreamD $ D.enumerateFromThenNum fro
 -- Notice that the last element is equal to the specified @to@ value after
 -- rounding to the nearest integer.
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromToFractional #-}
 enumerateFromToFractional
     :: (Monad m, Fractional a, Ord a)
@@ -277,7 +277,7 @@ enumerateFromToFractional from to =
 -- @
 --
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromThenToFractional #-}
 enumerateFromThenToFractional
     :: (Monad m, Fractional a, Ord a)
@@ -291,7 +291,7 @@ enumerateFromThenToFractional from next to =
 --
 -- | 'enumerateFromTo' for 'Enum' types not larger than 'Int'.
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromToSmall #-}
 enumerateFromToSmall :: (Monad m, Enum a) => a -> a -> Stream m a
 enumerateFromToSmall from to =
@@ -300,7 +300,7 @@ enumerateFromToSmall from to =
 
 -- | 'enumerateFromThenTo' for 'Enum' types not larger than 'Int'.
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromThenToSmall #-}
 enumerateFromThenToSmall :: (Monad m, Enum a)
     => a -> a -> a -> Stream m a
@@ -317,7 +317,7 @@ enumerateFromThenToSmall from next to =
 -- of 'toEnum' when converting back to 'Enum'. Therefore we require a 'Bounded'
 -- instance for this function to be safely used.
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromThenSmallBounded #-}
 enumerateFromThenSmallBounded :: (Monad m, Enumerable a, Bounded a)
     => a -> a -> Stream m a
@@ -344,7 +344,7 @@ enumerateFromThenSmallBounded from next =
 -- generate a stream instead of a list. Use the functions in
 -- "Streamly.Internal.Data.Stream.Enumeration" module to define new instances.
 --
--- @since 0.6.0
+-- @since 0.9.0
 class Enum a => Enumerable a where
     -- | @enumerateFrom from@ generates a stream starting with the element
     -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
@@ -365,7 +365,7 @@ class Enum a => Enumerable a where
     --
     -- @
     --
-    -- @since 0.6.0
+    -- @since 0.9.0
     enumerateFrom :: (Monad m) => a -> Stream m a
 
     -- | Generate a finite stream starting with the element @from@, enumerating
@@ -390,7 +390,7 @@ class Enum a => Enumerable a where
     --
     -- @
     --
-    -- @since 0.6.0
+    -- @since 0.9.0
     enumerateFromTo :: (Monad m) => a -> a -> Stream m a
 
     -- | @enumerateFromThen from then@ generates a stream whose first element
@@ -409,7 +409,7 @@ class Enum a => Enumerable a where
     --
     -- @
     --
-    -- @since 0.6.0
+    -- @since 0.9.0
     enumerateFromThen :: (Monad m) => a -> a -> Stream m a
 
     -- | @enumerateFromThenTo from then to@ generates a finite stream whose
@@ -427,7 +427,7 @@ class Enum a => Enumerable a where
     --
     -- @
     --
-    -- @since 0.6.0
+    -- @since 0.9.0
     enumerateFromThenTo :: (Monad m) => a -> a -> a -> Stream m a
 
 -- MAYBE: Sometimes it is more convenient to know the count rather then the
@@ -450,7 +450,7 @@ class Enum a => Enumerable a where
 --
 -- Enumerate a 'Bounded' type from its 'minBound' to 'maxBound'
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerate #-}
 enumerate :: (Monad m, Bounded a, Enumerable a) => Stream m a
 enumerate = enumerateFrom minBound
@@ -460,7 +460,7 @@ enumerate = enumerateFrom minBound
 --
 -- Enumerate a 'Bounded' type from its 'minBound' to specified value.
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateTo #-}
 enumerateTo :: (Monad m, Bounded a, Enumerable a) => a -> Stream m a
 enumerateTo = enumerateFromTo minBound
@@ -470,7 +470,7 @@ enumerateTo = enumerateFromTo minBound
 --
 -- 'enumerateFrom' for 'Bounded' 'Enum' types.
 --
--- @since 0.6.0
+-- @since 0.9.0
 {-# INLINE enumerateFromBounded #-}
 enumerateFromBounded :: (Monad m, Enumerable a, Bounded a)
     => a -> Stream m a

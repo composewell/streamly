@@ -66,6 +66,7 @@ generally xs = fromStreamK $ K.hoist (return . runIdentity) (toStreamK xs)
 -- | Lift the inner monad @m@ of a stream @Stream m a@ to @tr m@ using the monad
 -- transformer @tr@.
 --
+-- @since 0.9.0
 {-# INLINE liftInner #-}
 liftInner :: (Monad m, MonadTrans tr, Monad (tr m))
     => Stream m a -> Stream (tr m) a
@@ -77,6 +78,7 @@ liftInner xs = fromStreamD $ D.liftInner (toStreamD xs)
 
 -- | Evaluate the inner monad of a stream as 'ReaderT'.
 --
+-- @since 0.9.0
 {-# INLINE runReaderT #-}
 runReaderT :: Monad m => m s -> Stream (ReaderT s m) a -> Stream m a
 runReaderT s xs = fromStreamD $ D.runReaderT s (toStreamD xs)
@@ -131,6 +133,7 @@ usingStateT s f = evalStateT s . f . liftInner
 -- | Evaluate the inner monad of a stream as 'StateT' and emit the resulting
 -- state and value pair after each step.
 --
+-- @since 0.9.0
 {-# INLINE runStateT #-}
 runStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)

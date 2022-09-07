@@ -118,7 +118,7 @@ import Prelude hiding (iterate, replicate, repeat)
 -- hello
 -- hello
 --
--- /Pre-release/
+-- @since 0.9.0
 {-# INLINE unfold #-}
 unfold :: Monad m => Unfold m a b -> a -> Stream m b
 unfold unf = Stream.fromStreamD . D.unfold unf
@@ -149,6 +149,7 @@ unfold unf = Stream.fromStreamD . D.unfold unf
 -- :}
 -- [0,1,2]
 --
+-- @since 0.9.0
 {-# INLINE_EARLY unfoldr #-}
 unfoldr :: Monad m => (b -> Maybe (a, b)) -> b -> Stream m a
 unfoldr step seed = fromStreamD (D.unfoldr step seed)
@@ -169,7 +170,7 @@ unfoldr step seed = fromStreamD (D.unfoldr step seed)
 -- :}
 -- [0,1,2]
 --
---
+-- @since 0.9.0
 {-# INLINE unfoldrM #-}
 unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> Stream m a
 unfoldrM step = fromStreamD . D.unfoldrM step
@@ -181,6 +182,7 @@ unfoldrM step = fromStreamD . D.unfoldrM step
 -- |
 -- Generate an infinite stream by repeating a pure value.
 --
+-- @since 0.9.0
 {-# INLINE_NORMAL repeat #-}
 repeat :: Monad m => a -> Stream m a
 repeat = fromStreamD . D.repeat
@@ -190,6 +192,7 @@ repeat = fromStreamD . D.repeat
 --
 -- Generate a stream of length @n@ by repeating a value @n@ times.
 --
+-- @since 0.9.0
 {-# INLINE_NORMAL replicate #-}
 replicate :: Monad m => Int -> a -> Stream m a
 replicate n = fromStreamD . D.replicate n
@@ -293,6 +296,7 @@ timeout = undefined
 -- >>> Stream.fold Fold.toList $ Stream.take 5 $ Stream.iterate (+1) 1
 -- [1,2,3,4,5]
 --
+-- @since 0.9.0
 {-# INLINE_NORMAL iterate #-}
 iterate :: Monad m => (a -> a) -> a -> Stream m a
 iterate step = fromStreamD . D.iterate step
@@ -313,6 +317,7 @@ iterate step = fromStreamD . D.iterate step
 -- 1
 -- [0,1,2]
 --
+-- @since 0.9.0
 {-# INLINE iterateM #-}
 iterateM :: Monad m => (a -> m a) -> m a -> Stream m a
 iterateM step = fromStreamD . D.iterateM step
@@ -385,6 +390,7 @@ mfix f = fromStreamK $ K.mfix (toStreamK . f)
 --
 -- /Not fused/
 --
+-- @since 0.9.0
 {-# INLINE fromFoldable #-}
 fromFoldable :: Foldable f => f a -> Stream m a
 fromFoldable = fromStreamK . K.fromFoldable

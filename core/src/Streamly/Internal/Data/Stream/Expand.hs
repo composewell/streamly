@@ -163,7 +163,7 @@ infixr 6 `append2`
 --
 -- /Fused/
 --
--- /Pre-release/
+-- @since 0.9.0
 {-# INLINE append2 #-}
 append2 ::Monad m => Stream m b -> Stream m b -> Stream m b
 append2 m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
@@ -184,8 +184,7 @@ infixr 6 `append`
 --
 -- /Not fused/
 --
--- /Pre-release/
---
+-- @since 0.9.0
 {-# INLINE append #-}
 append :: Stream m a -> Stream m a -> Stream m a
 append = (<>)
@@ -204,6 +203,8 @@ append = (<>)
 -- streams.
 --
 -- /Not fused/
+--
+-- @since 0.9.0
 {-# INLINE interleave #-}
 interleave :: Stream m a -> Stream m a -> Stream m a
 interleave s1 s2 = fromStreamK $ K.interleave (toStreamK s1) (toStreamK s2)
@@ -245,6 +246,7 @@ interleaveMin s1 s2 =
 --
 -- See also: 'mergeByM2'
 --
+-- @since 0.9.0
 {-# INLINE mergeBy #-}
 mergeBy :: (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeBy f m1 m2 = fromStreamK $ K.mergeBy f (toStreamK m1) (toStreamK m2)
@@ -279,6 +281,7 @@ mergeBy f m1 m2 = fromStreamK $ K.mergeBy f (toStreamK m1) (toStreamK m2)
 --
 -- See also: 'mergeByM2'
 --
+-- @since 0.9.0
 {-# INLINE mergeByM #-}
 mergeByM
     :: Monad m
@@ -324,6 +327,7 @@ mergeFstBy _f _m1 _m2 = undefined
 -- 'concatMap' this can fuse the 'Unfold' code with the inner loop and
 -- therefore provide many times better performance.
 --
+-- @since 0.9.0
 {-# INLINE unfoldMany #-}
 unfoldMany ::Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldMany u m = fromStreamD $ D.unfoldMany u (toStreamD m)
@@ -427,6 +431,7 @@ gintercalate unf1 str1 unf2 str2 =
 -- >>> Stream.fold Fold.toList $ Stream.intercalate Unfold.fromList " " input
 -- "abc def ghi"
 --
+-- @since 0.9.0
 {-# INLINE intercalate #-}
 intercalate :: Monad m
     => Unfold m b c -> b -> Stream m b -> Stream m c
@@ -457,6 +462,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 -- >>> Stream.fold Fold.toList $ Stream.intercalateSuffix Unfold.fromList "\n" input
 -- "abc\ndef\nghi\n"
 --
+-- @since 0.9.0
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: Monad m
     => Unfold m b c -> b -> Stream m b -> Stream m c

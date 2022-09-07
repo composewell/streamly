@@ -470,6 +470,7 @@ consM m = fromStreamK . K.consM m . toStreamK
 -- >>> Stream.fold Fold.toList Stream.nil
 -- []
 --
+-- @since 0.9.0
 {-# INLINE_NORMAL nil #-}
 nil ::  Stream m a
 nil = fromStreamK K.nil
@@ -491,6 +492,7 @@ nilM = fromStreamK . K.nilM
 -- >>> fromPure = pure
 -- >>> fromPure = fromEffect . pure
 --
+-- @since 0.9.0
 {-# INLINE_NORMAL fromPure #-}
 fromPure :: a -> Stream m a
 fromPure = fromStreamK . K.fromPure
@@ -503,6 +505,7 @@ fromPure = fromStreamK . K.fromPure
 -- >>> Stream.fold Fold.drain $ Stream.fromEffect (putStrLn "hello")
 -- hello
 --
+-- @since 0.9.0
 {-# INLINE_NORMAL fromEffect #-}
 fromEffect :: Monad m => m a -> Stream m a
 fromEffect = fromStreamK . K.fromEffect
@@ -531,6 +534,7 @@ bindWith par m1 f =
 --
 -- Note we can merge streams concurrently by using a concurrent merge function.
 --
+-- @since 0.9.0
 {-# INLINE concatMapWith #-}
 concatMapWith
     :: (Stream m b -> Stream m b -> Stream m b)

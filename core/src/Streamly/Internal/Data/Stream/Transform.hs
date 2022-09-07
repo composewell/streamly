@@ -265,8 +265,7 @@ foldrT f z s = D.foldrT f z (toStreamD s)
 -- >>> Stream.fold Fold.drain $ Stream.mapM putStr s
 -- abc
 --
--- /Pre-release/
---
+-- @since 0.9.0
 {-# INLINE mapM #-}
 mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
 mapM f m = fromStreamK $ D.toStreamK $ D.mapM f $ toStreamD m
@@ -281,6 +280,7 @@ mapM f m = fromStreamK $ D.toStreamK $ D.mapM f $ toStreamD m
 -- >>> Stream.fold Fold.drain $ Stream.sequence s
 -- abc
 --
+-- @since 0.9.0
 {-# INLINE sequence #-}
 sequence :: Monad m => Stream m (m a) -> Stream m a
 sequence = mapM id
@@ -307,6 +307,7 @@ sequence = mapM id
 --
 -- Compare with 'trace'.
 --
+-- @since 0.9.0
 {-# INLINE tap #-}
 tap :: Monad m => FL.Fold m a b -> Stream m a -> Stream m a
 tap f xs = fromStreamD $ D.tap f (toStreamD xs)
@@ -363,6 +364,7 @@ trace_ eff = fromStreamD . D.mapM (\x -> eff >> return x) . toStreamD
 --
 -- See also: 'usingStateT'
 --
+-- @since 0.9.0
 
 -- EXPLANATION:
 -- >>> scanl' step z = Stream.scan (Fold.foldl' step z)
@@ -407,6 +409,7 @@ trace_ eff = fromStreamD . D.mapM (\x -> eff >> return x) . toStreamD
 -- lazy expressions inside the accumulator, it is recommended that a strict
 -- data structure is used for accumulator.
 --
+-- @since 0.9.0
 {-# INLINE scan #-}
 scan :: Monad m => Fold m a b -> Stream m a -> Stream m b
 scan fld m = fromStreamD $ D.scanOnce fld $ toStreamD m
@@ -414,7 +417,7 @@ scan fld m = fromStreamD $ D.scanOnce fld $ toStreamD m
 -- | Like 'scan' but restarts scanning afresh when the scanning fold
 -- terminates.
 --
--- /Pre-release/
+-- @since 0.9.0
 {-# INLINE scanMany #-}
 scanMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
 scanMany fld m = fromStreamD $ D.scanMany fld $ toStreamD m
@@ -444,6 +447,7 @@ with f comb g = fmap snd . comb g . f
 -- >>> filter p = Stream.mapMaybe (\x -> if p x then Just x else Nothing)
 -- >>> filter p = Stream.scanMaybe (Fold.filtering p)
 --
+-- @since 0.9.0
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 -- filter p = scanMaybe (FL.filtering p)
@@ -454,6 +458,7 @@ filter p m = fromStreamD $ D.filter p $ toStreamD m
 -- >>> f p x = p x >>= \r -> return $ if r then Just x else Nothing
 -- >>> filterM p = Stream.mapMaybeM (f p)
 --
+-- @since 0.9.0
 {-# INLINE filterM #-}
 filterM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 filterM p m = fromStreamD $ D.filterM p $ toStreamD m
@@ -493,6 +498,7 @@ uniqBy eq = catMaybes . rollingMap f
 --
 -- >>> uniq = Stream.uniqBy (==)
 --
+-- @since 0.9.0
 {-# INLINE uniq #-}
 uniq :: (Eq a, Monad m) => Stream m a -> Stream m a
 -- uniq = scanMaybe FL.uniq
@@ -539,6 +545,7 @@ repeated = undefined
 -- >>> Stream.fold Fold.toList $ Stream.deleteBy (==) 3 input
 -- [1,3,5]
 --
+-- @since 0.9.0
 {-# INLINE deleteBy #-}
 deleteBy :: Monad m => (a -> a -> Bool) -> a -> Stream m a -> Stream m a
 -- deleteBy cmp x = scanMaybe (FL.deleteBy cmp x)
@@ -550,6 +557,7 @@ deleteBy cmp x m = fromStreamD $ D.deleteBy cmp x (toStreamD m)
 
 -- | Same as 'takeWhile' but with a monadic predicate.
 --
+-- @since 0.9.0
 {-# INLINE takeWhileM #-}
 takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 -- takeWhileM p = scanMaybe (FL.takingEndByM_ (\x -> not <$> p x))
@@ -558,6 +566,7 @@ takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
 --
+-- @since 0.9.0
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 -- dropWhile p = scanMaybe (FL.droppingWhile p)
@@ -565,6 +574,7 @@ dropWhile p m = fromStreamD $ D.dropWhile p $ toStreamD m
 
 -- | Same as 'dropWhile' but with a monadic predicate.
 --
+-- @since 0.9.0
 {-# INLINE dropWhileM #-}
 dropWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 -- dropWhileM p = scanMaybe (FL.droppingWhileM p)
@@ -583,6 +593,7 @@ dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 -- >>> Stream.fold Fold.toList $ Stream.insertBy compare 2 input
 -- [1,2,3,5]
 --
+-- @since 0.9.0
 {-# INLINE insertBy #-}
 insertBy ::Monad m => (a -> a -> Ordering) -> a -> Stream m a -> Stream m a
 insertBy cmp x m = fromStreamD $ D.insertBy cmp x (toStreamD m)
@@ -593,6 +604,7 @@ insertBy cmp x m = fromStreamD $ D.insertBy cmp x (toStreamD m)
 -- >>> Stream.fold Fold.toList $ Stream.intersperse ',' input
 -- "h,e,l,l,o"
 --
+-- @since 0.9.0
 {-# INLINE intersperse #-}
 intersperse :: Monad m => a -> Stream m a -> Stream m a
 intersperse a = fromStreamD . D.intersperse a . toStreamD
@@ -691,6 +703,7 @@ interspersePrefix_ m = mapM (\x -> void m >> return x)
 -- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
 -- >>> delay n = Stream.intersperseM_ $ sleep n
 --
+-- @since 0.9.0
 {-# INLINE delay #-}
 delay :: MonadIO m => Double -> Stream m a -> Stream m a
 delay n = intersperseM_ $ liftIO $ threadDelay $ round $ n * 1000000
@@ -758,6 +771,7 @@ reassembleBy = undefined
 -- >>> Stream.fold Fold.toList $ Stream.indexed $ Stream.fromList "hello"
 -- [(0,'h'),(1,'e'),(2,'l'),(3,'l'),(4,'o')]
 --
+-- @since 0.9.0
 {-# INLINE indexed #-}
 indexed :: Monad m => Stream m a -> Stream m (Int, a)
 -- indexed = scanMaybe FL.indexing
@@ -776,6 +790,7 @@ indexed = fromStreamD . D.indexed . toStreamD
 -- >>> Stream.fold Fold.toList $ Stream.indexedR 10 $ Stream.fromList "hello"
 -- [(10,'h'),(9,'e'),(8,'l'),(7,'l'),(6,'o')]
 --
+-- @since 0.9.0
 {-# INLINE indexedR #-}
 indexedR :: Monad m => Int -> Stream m a -> Stream m (Int, a)
 -- indexedR n = scanMaybe (FL.indexingRev n)
@@ -790,6 +805,7 @@ indexedR n = fromStreamD . D.indexedR n . toStreamD
 --
 -- >>> elemIndices a = Stream.findIndices (== a)
 --
+-- @since 0.9.0
 {-# INLINE elemIndices #-}
 elemIndices :: (Monad m, Eq a) => a -> Stream m a -> Stream m Int
 elemIndices a = findIndices (== a)
@@ -844,6 +860,7 @@ rollingMap2 f m = fromStreamD $ D.rollingMap2 f $ toStreamD m
 --
 -- >>> mapMaybe f = Stream.catMaybes . fmap f
 --
+-- @since 0.9.0
 {-# INLINE mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Stream m a -> Stream m b
 mapMaybe f m = fromStreamD $ D.mapMaybe f $ toStreamD m
@@ -856,6 +873,7 @@ mapMaybe f m = fromStreamD $ D.mapMaybe f $ toStreamD m
 --
 -- >>> mapM f = Stream.mapMaybeM (\x -> Just <$> f x)
 --
+-- @since 0.9.0
 {-# INLINE_EARLY mapMaybeM #-}
 mapMaybeM :: Monad m
           => (a -> m (Maybe b)) -> Stream m a -> Stream m b

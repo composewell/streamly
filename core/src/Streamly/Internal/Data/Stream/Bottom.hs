@@ -102,6 +102,7 @@ import Streamly.Internal.Data.Stream.Type
 -- Construct a stream from a list of pure values. This is more efficient than
 -- 'fromFoldable'.
 --
+-- @since 0.9.0
 {-# INLINE fromList #-}
 fromList :: Monad m => [a] -> Stream m a
 fromList = fromStreamK . Common.fromList
@@ -183,7 +184,7 @@ relTimesWith = fmap snd . timesWith
 --
 -- >>> fold f = Fold.finish . Stream.foldContinue f
 --
--- /Internal/
+-- @since 0.9.0
 {-# INLINE foldContinue #-}
 foldContinue :: Monad m => Fold m a b -> Stream m a -> Fold m a b
 foldContinue f s = D.foldContinue f $ toStreamD s
@@ -214,6 +215,7 @@ fold fl strm = D.fold fl $ D.fromStreamK $ toStreamK strm
 --
 -- /Not fused/
 --
+-- @since 0.9.0
 {-# INLINE foldBreak #-}
 foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
 {-
@@ -265,6 +267,7 @@ map f = fromStreamD . D.map f . toStreamD
 -- :}
 -- [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 --
+-- @since 0.9.0
 {-# INLINE postscan #-}
 postscan :: Monad m => Fold m a b -> Stream m a -> Stream m b
 postscan fld = fromStreamD . D.postscanOnce fld . toStreamD
@@ -325,8 +328,7 @@ catMaybes = fromStreamD . D.catMaybes . toStreamD
 --
 -- >>> scanMaybe f = Stream.catMaybes . Stream.postscan f
 --
--- /Pre-release/
---
+-- @since 0.9.0
 {-# INLINE scanMaybe #-}
 scanMaybe :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
 scanMaybe p = catMaybes . postscan p
@@ -337,6 +339,7 @@ scanMaybe p = catMaybes . postscan p
 
 -- | Take first 'n' elements from the stream and discard the rest.
 --
+-- @since 0.9.0
 {-# INLINE take #-}
 take :: Monad m => Int -> Stream m a -> Stream m a
 -- take n = scanMaybe (Fold.taking n)
@@ -344,6 +347,7 @@ take n m = fromStreamD $ D.take n $ toStreamD m
 
 -- | End the stream as soon as the predicate fails on an element.
 --
+-- @since 0.9.0
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 -- takeWhile p = scanMaybe (Fold.takingEndBy_ (not . p))
@@ -356,6 +360,7 @@ takeEndBy p m = fromStreamD $ D.takeEndBy p $ toStreamD m
 
 -- | Discard first 'n' elements from the stream and take the rest.
 --
+-- @since 0.9.0
 {-# INLINE drop #-}
 drop :: Monad m => Int -> Stream m a -> Stream m a
 -- drop n = scanMaybe (Fold.dropping n)
@@ -370,6 +375,7 @@ drop n m = fromStreamD $ D.drop n $ toStreamD m
 --
 -- >>> findIndices p = Stream.fold (Fold.findIndices p)
 --
+-- @since 0.9.0
 {-# INLINE findIndices #-}
 findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
 -- findIndices p = scanMaybe (Fold.findIndices p)
@@ -395,6 +401,7 @@ findIndices p m = fromStreamD $ D.findIndices p (toStreamD m)
 -- >>> Stream.fold Fold.toList $ Stream.intersperseM (putChar '.' >> return ',') $ Stream.trace putChar input
 -- he.l.l.o."h,e,l,l,o"
 --
+-- @since 0.9.0
 {-# INLINE intersperseM #-}
 intersperseM :: Monad m => m a -> Stream m a -> Stream m a
 intersperseM m = fromStreamD . D.intersperseM m . toStreamD
@@ -414,6 +421,7 @@ intersperseM m = fromStreamD . D.intersperseM m . toStreamD
 --
 -- >>> reverse = Stream.foldlT (flip Stream.cons) Stream.nil
 --
+-- @since 0.9.0
 {-# INLINE reverse #-}
 reverse :: Monad m => Stream m a -> Stream m a
 reverse s = fromStreamD $ D.reverse $ toStreamD s
@@ -442,6 +450,7 @@ reverse' =
 -- generation function is monadic, unlike 'concatMap', it can produce an
 -- effect at the beginning of each iteration of the inner loop.
 --
+-- @since 0.9.0
 {-# INLINE concatMapM #-}
 concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
 concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
@@ -454,6 +463,7 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 -- >>> concatMap f = Stream.concat . fmap f
 -- >>> concatMap f = Stream.unfoldMany (Unfold.lmap f Unfold.fromStream)
 --
+-- @since 0.9.0
 {-# INLINE concatMap #-}
 concatMap ::Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
@@ -500,6 +510,7 @@ foldManyPost f m = fromStreamD $ D.foldManyPost f (toStreamD m)
 
 -- | Like 'zipWith' but using a monadic zipping function.
 --
+-- @since 0.9.0
 {-# INLINE zipWithM #-}
 zipWithM :: Monad m =>
     (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
@@ -517,6 +528,7 @@ zipWithM f m1 m2 = fromStreamD $ D.zipWithM f (toStreamD m1) (toStreamD m2)
 -- >>> Stream.fold Fold.toList $ Stream.zipWith (+) s1 s2
 -- [5,7,9]
 --
+-- @since 0.9.0
 {-# INLINE zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWith f m1 m2 = fromStreamD $ D.zipWith f (toStreamD m1) (toStreamD m2)
