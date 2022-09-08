@@ -101,8 +101,9 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Data.Array.Unboxed as A (read, length, writeN)
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+    (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe)
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Fold as FL

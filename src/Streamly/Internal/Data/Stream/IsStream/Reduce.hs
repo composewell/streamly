@@ -182,6 +182,7 @@ import Streamly.Internal.Data.Unboxed (Unboxed)
 import qualified Data.Heap as H
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+    (arraysOf, toStream)
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
