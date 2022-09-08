@@ -28,8 +28,8 @@ module Streamly.Internal.Data.Stream.IsStream.Type
     , foldStream
 
     -- * Stream Types
-   -- , Stream.Stream
-   -- , Serial
+    , SerialT
+    , Serial
     , fromSerial
 
     , WSerialT
@@ -101,7 +101,7 @@ where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
---import Streamly.Internal.Data.Stream.Serial (Stream, Serial)
+import Streamly.Internal.Data.Stream.Serial (SerialT, Serial)
 
 import Streamly.Internal.Data.Stream.WSerial (WSerialT(..), WSerial)
 import Streamly.Internal.Data.Stream.Async
