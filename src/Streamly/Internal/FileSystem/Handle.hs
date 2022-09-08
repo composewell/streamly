@@ -137,7 +137,8 @@ import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Fold.Type as FL
+    (drainBy, chunksOf, lmap, takeEndBy_, many, take)
+import qualified Streamly.Internal.Data.Fold.Type as FL(refoldMany)
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Unfold as UF

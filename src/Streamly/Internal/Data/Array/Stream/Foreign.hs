@@ -66,7 +66,7 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Fold.Foreign (ArrayFold(..))
-import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -84,6 +84,7 @@ import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
+    (Fold(..), lmap, Step(Done, Partial))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.IsStream as S
@@ -319,7 +320,7 @@ splitOnSuffix byte s =
 {-# INLINE_NORMAL foldBreakD #-}
 foldBreakD :: forall m a b. (MonadIO m, Unboxed a) =>
     Fold m a b -> D.Stream m (Array a) -> m (b, D.Stream m (Array a))
-foldBreakD (Fold fstep initial extract) stream@(D.Stream step state) = do
+foldBreakD (FL.Fold fstep initial extract) stream@(D.Stream step state) = do
     res <- initial
     case res of
         FL.Partial fs -> go SPEC state fs
@@ -355,7 +356,7 @@ foldBreakD (Fold fstep initial extract) stream@(D.Stream step state) = do
 {-# INLINE_NORMAL foldBreakK #-}
 foldBreakK :: forall m a b. (MonadIO m, Unboxed a) =>
     Fold m a b -> K.Stream m (Array a) -> m (b, K.Stream m (Array a))
-foldBreakK (Fold fstep initial extract) stream = do
+foldBreakK (FL.Fold fstep initial extract) stream = do
     res <- initial
     case res of
         FL.Partial fs -> go fs stream
@@ -395,7 +396,7 @@ foldBreakK (Fold fstep initial extract) stream = do
 {-# INLINE_NORMAL foldBreak #-}
 foldBreak ::
        (MonadIO m, Unboxed a)
-    => FL.Fold m a b
+    => Fold m a b
     -> Stream m (A.Array a)
     -> m (b, Stream m (A.Array a))
 -- foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)

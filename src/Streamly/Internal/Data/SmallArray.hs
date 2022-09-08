@@ -52,11 +52,12 @@ import Streamly.Internal.Data.SmallArray.Type
 
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Fold.Type as FL
+    (Fold (..), Step (Done, Partial))
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 {-# NOINLINE bottomElement #-}
@@ -106,7 +107,7 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- of elements use an 'Array' from either "Streamly.Data.Array" or "Streamly.Data.Array.Foreign".
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
-writeN len = Fold step initial extract
+writeN len = FL.Fold step initial extract
 
     where
 

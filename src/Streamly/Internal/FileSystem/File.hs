@@ -100,12 +100,12 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
--- import Streamly.Data.Fold (Fold)
+import Streamly.Data.Fold (chunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Data.Array.Unboxed as A
-import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL(Step(Done, Partial), snoc, initialize)
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
@@ -405,7 +405,7 @@ writeChunks path = Fold step initial extract
 writeWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Fold m Word8 ()
 writeWith n path =
-    FL.chunksOf n (writeNUnsafe n) (writeChunks path)
+    chunksOf n (writeNUnsafe n) (writeChunks path)
 
 -- > write = 'writeWith' A.defaultChunkSize
 --

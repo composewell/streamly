@@ -24,7 +24,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
-import Streamly.Internal.Data.Fold.Type
+import Streamly.Internal.Data.Fold.Type (Fold(..), Step (Done, Partial), many)
 
 -- $setup
 -- >>> :m
