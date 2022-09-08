@@ -87,6 +87,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
     (Fold(..), lmap, Step(Done, Partial))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+    (Parser(..), Initial(..), fromParserK)
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K

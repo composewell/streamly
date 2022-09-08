@@ -32,8 +32,10 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 
 import qualified Streamly.Internal.Data.Array.Unboxed as A
+    (unsafeIndex, castUnsafe, writeN)
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+    (Parser(..), Initial(..), Step(..), toParserK)
 
 -- | A value of type '()' is encoded as @0@ in binary encoding.
 --
