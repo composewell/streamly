@@ -30,9 +30,10 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Functor.Identity (Identity (..))
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+--import Streamly.Internal.Data.Stream.Serial (S.Stream)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Data.Stream as S
 
 ------------------------------------------------------------------------------
 -- Generalize the underlying monad
@@ -44,7 +45,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 --
 {-# INLINE hoist #-}
 hoist :: (Monad m, Monad n)
-    => (forall x. m x -> n x) -> SerialT m a -> SerialT n a
+    => (forall x. m x -> n x) -> S.Stream m a -> S.Stream n a
 hoist f xs = fromStreamD $ D.hoist f (toStreamD xs)
 
 -- | Generalize the inner monad of the stream from 'Identity' to any monad.
@@ -102,7 +103,7 @@ usingReaderT r f xs = runReaderT r $ f $ liftInner xs
 
 -- | Evaluate the inner monad of a stream as 'StateT'.
 --
--- This is supported only for 'SerialT' as concurrent state updation may not be
+-- This is supported only for 'S.Stream' as concurrent state updation may not be
 -- safe.
 --
 -- > evalStateT s = Stream.map snd . Stream.runStateT s
@@ -110,13 +111,13 @@ usingReaderT r f xs = runReaderT r $ f $ liftInner xs
 -- / Internal/
 --
 {-# INLINE evalStateT #-}
-evalStateT ::  Monad m => m s -> SerialT (StateT s m) a -> SerialT m a
+evalStateT ::  Monad m => m s -> S.Stream (StateT s m) a -> S.Stream m a
 -- evalStateT s = fmap snd . runStateT s
 evalStateT s xs = fromStreamD $ D.evalStateT s (toStreamD xs)
 
 -- | Run a stateful (StateT) stream transformation using a given state.
 --
--- This is supported only for 'SerialT' as concurrent state updation may not be
+-- This is supported only for 'S.Stream' as concurrent state updation may not be
 -- safe.
 --
 -- > usingStateT s f = evalStateT s . f . liftInner
@@ -129,19 +130,19 @@ evalStateT s xs = fromStreamD $ D.evalStateT s (toStreamD xs)
 usingStateT
     :: Monad m
     => m s
-    -> (SerialT (StateT s m) a -> SerialT (StateT s m) a)
-    -> SerialT m a
-    -> SerialT m a
+    -> (S.Stream (StateT s m) a -> S.Stream (StateT s m) a)
+    -> S.Stream m a
+    -> S.Stream m a
 usingStateT s f = evalStateT s . f . liftInner
 
 -- | Evaluate the inner monad of a stream as 'StateT' and emit the resulting
 -- state and value pair after each step.
 --
--- This is supported only for 'SerialT' as concurrent state updation may not be
+-- This is supported only for 'S.Stream' as concurrent state updation may not be
 -- safe.
 --
 -- @since 0.8.0
 --
 {-# INLINE runStateT #-}
-runStateT :: Monad m => m s -> SerialT (StateT s m) a -> SerialT m (s, a)
+runStateT :: Monad m => m s -> S.Stream (StateT s m) a -> S.Stream m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)

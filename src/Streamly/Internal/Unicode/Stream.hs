@@ -119,7 +119,6 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Stream.IsStream as S
@@ -1033,7 +1032,7 @@ encodeObjects :: (MonadIO m, IsStream t) =>
     -> Unfold m a Char
     -> t m a
     -> t m (Array Word8)
-encodeObjects encode u = adapt . Serial.mapM (encodeObject encode u) . adapt
+encodeObjects encode u = adapt . Stream.mapM (encodeObject encode u) . adapt
 
 -- | Encode a stream of 'String' using the supplied encoding scheme. Each
 -- string is encoded as an @Array Word8@.

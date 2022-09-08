@@ -22,13 +22,14 @@ import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 
 import Streamly.Prelude hiding (repeat)
 import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream as Stream
 
 import Streamly.Test.Common
 import Streamly.Test.Prelude.Common
 
 associativityCheck
     :: String
-    -> (WSerialT IO Int -> SerialT IO Int)
+    -> (WSerialT IO Int -> Stream.Stream IO Int)
     -> Spec
 associativityCheck desc t = prop desc assocCheckProp
   where
@@ -44,7 +45,7 @@ associativityCheck desc t = prop desc assocCheckProp
             listEquals (==) infixAssocstream assocStream
 
 interleaveCheck :: IsStream t
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> Stream.Stream IO Int)
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
 interleaveCheck t f =

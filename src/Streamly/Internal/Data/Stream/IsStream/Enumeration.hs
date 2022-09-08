@@ -64,7 +64,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type (IsStream(..), fromStreamD)
 
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
-import qualified Streamly.Internal.Data.Stream.Serial as Serial (map)
+
 
 -- $setup
 -- >>> import Streamly.Prelude as Stream
@@ -294,7 +294,7 @@ enumerateFromThenToFractional from next to =
 enumerateFromToSmall :: (IsStream t, Monad m, Enum a) => a -> a -> t m a
 enumerateFromToSmall from to =
     IsStream.fromSerial
-        $ Serial.map toEnum
+        $ fmap toEnum
         $ enumerateFromToIntegral (fromEnum from) (fromEnum to)
 
 -- | 'enumerateFromThenTo' for 'Enum' types not larger than 'Int'.
@@ -305,7 +305,7 @@ enumerateFromThenToSmall :: (IsStream t, Monad m, Enum a)
     => a -> a -> a -> t m a
 enumerateFromThenToSmall from next to =
     IsStream.fromSerial
-        $ Serial.map toEnum
+        $ fmap toEnum
         $ enumerateFromThenToIntegral
             (fromEnum from) (fromEnum next) (fromEnum to)
 
@@ -556,17 +556,17 @@ ENUMERABLE_FRACTIONAL((Ratio a),Integral a)
 instance Enumerable a => Enumerable (Identity a) where
     {-# INLINE enumerateFrom #-}
     enumerateFrom (Identity from) =
-        IsStream.fromSerial $ Serial.map Identity $ enumerateFrom from
+        IsStream.fromSerial $ fmap Identity $ enumerateFrom from
     {-# INLINE enumerateFromThen #-}
     enumerateFromThen (Identity from) (Identity next) =
-        IsStream.fromSerial $ Serial.map Identity $ enumerateFromThen from next
+        IsStream.fromSerial $ fmap Identity $ enumerateFromThen from next
     {-# INLINE enumerateFromTo #-}
     enumerateFromTo (Identity from) (Identity to) =
-        IsStream.fromSerial $ Serial.map Identity $ enumerateFromTo from to
+        IsStream.fromSerial $ fmap Identity $ enumerateFromTo from to
     {-# INLINE enumerateFromThenTo #-}
     enumerateFromThenTo (Identity from) (Identity next) (Identity to) =
         IsStream.fromSerial
-            $ Serial.map Identity
+            $ fmap Identity
             $ enumerateFromThenTo from next to
 
 -- TODO

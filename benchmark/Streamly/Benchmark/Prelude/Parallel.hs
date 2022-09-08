@@ -11,9 +11,10 @@ import Prelude hiding (mapM)
 
 import Data.Function ((&))
 import Streamly.Prelude
-       ( SerialT, fromParallel, parallel, fromSerial, maxBuffer, maxThreads)
+       (fromParallel, parallel, fromSerial, maxBuffer, maxThreads)
 
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
@@ -50,19 +51,19 @@ mergeAsyncBy count n =
 -------------------------------------------------------------------------------
 
 {-# INLINE parAppMap #-}
-parAppMap :: S.MonadAsync m => SerialT m Int -> m ()
+parAppMap :: S.MonadAsync m => Stream.Stream m Int -> m ()
 parAppMap src = S.drain $ S.map (+1) S.|$ src
 
 {-# INLINE parAppSum #-}
-parAppSum :: S.MonadAsync m => SerialT m Int -> m ()
+parAppSum :: S.MonadAsync m => Stream.Stream m Int -> m ()
 parAppSum src = (S.sum S.|$. src) >>= \x -> seq x (return ())
 
 {-# INLINE (|&) #-}
-(|&) :: S.MonadAsync m => SerialT m Int -> m ()
+(|&) :: S.MonadAsync m => Stream.Stream m Int -> m ()
 (|&) src = src S.|& S.map (+ 1) & S.drain
 
 {-# INLINE (|&.) #-}
-(|&.) :: S.MonadAsync m => SerialT m Int -> m ()
+(|&.) :: S.MonadAsync m => Stream.Stream m Int -> m ()
 (|&.) src = (src S.|&. S.sum) >>= \x -> seq x (return ())
 
 -------------------------------------------------------------------------------
@@ -70,11 +71,11 @@ parAppSum src = (S.sum S.|$. src) >>= \x -> seq x (return ())
 -------------------------------------------------------------------------------
 
 {-# INLINE tapAsyncS #-}
-tapAsyncS :: S.MonadAsync m => Int -> SerialT m Int -> m ()
+tapAsyncS :: S.MonadAsync m => Int -> Stream.Stream m Int -> m ()
 tapAsyncS n = composeN n $ Internal.tapAsyncK S.sum
 
 {-# INLINE tapAsync #-}
-tapAsync :: S.MonadAsync m => Int -> SerialT m Int -> m ()
+tapAsync :: S.MonadAsync m => Int -> Stream.Stream m Int -> m ()
 tapAsync n = composeN n $ Internal.tapAsync FL.sum
 
 o_1_space_merge_app_tap :: Int -> [Benchmark]

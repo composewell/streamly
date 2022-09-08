@@ -248,14 +248,13 @@ import Streamly.Internal.Data.Stream.IsStream.Common
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD, toConsK)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
 
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Prelude
 
@@ -308,12 +307,12 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 --
 -- Find if any element in the stream is 'True':
 --
--- >>> Stream.toList $ Stream.foldrS (\x xs -> if odd x then return True else xs) (return False) $ (Stream.fromList (2:4:5:undefined) :: Stream.SerialT IO Int)
+-- >>> Stream.toList $ Stream.foldrS (\x xs -> if odd x then return True else xs) (return False) $ (Stream.fromList (2:4:5:undefined) :: Stream.S.Stream IO Int)
 -- [True]
 --
 -- Map (+2) on odd elements and filter out the even elements:
 --
--- >>> Stream.toList $ Stream.foldrS (\x xs -> if odd x then (x + 2) `Stream.cons` xs else xs) Stream.nil $ (Stream.fromList [1..5] :: Stream.SerialT IO Int)
+-- >>> Stream.toList $ Stream.foldrS (\x xs -> if odd x then (x + 2) `Stream.cons` xs else xs) Stream.nil $ (Stream.fromList [1..5] :: Stream.S.Stream IO Int)
 -- [3,5,7]
 --
 -- 'foldrM' can also be represented in terms of 'foldrS', however, the former
@@ -394,8 +393,8 @@ mapM f = fromStream . K.mapMWith (toConsK (consM @t)) f . toStream
 
 {-# RULES "mapM serial" mapM = mapMSerial #-}
 {-# INLINE mapMSerial #-}
-mapMSerial :: Monad m => (a -> m b) -> SerialT m a -> SerialT m b
-mapMSerial = Serial.mapM
+mapMSerial :: Monad m => (a -> m b) -> S.Stream m a -> S.Stream m b
+mapMSerial = S.mapM
 
 -- |
 -- @
@@ -1518,7 +1517,7 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
 {-# RULES "mapMaybeM serial" mapMaybeM = mapMaybeMSerial #-}
 {-# INLINE mapMaybeMSerial #-}
-mapMaybeMSerial :: Monad m => (a -> m (Maybe b)) -> SerialT m a -> SerialT m b
+mapMaybeMSerial :: Monad m => (a -> m (Maybe b)) -> S.Stream m a -> S.Stream m b
 mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 
 -- | In a stream of 'Maybe's, discard 'Nothing's and unwrap 'Just's.

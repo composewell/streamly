@@ -100,7 +100,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , yield, yieldM, repeatM)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream (..), fromSerial, consM, fromStreamD)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+--import Streamly.Internal.Data.Stream.Serial (S.Stream)
 import Streamly.Internal.Data.Stream.WSerial (WSerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
@@ -109,10 +109,11 @@ import Streamly.Internal.Data.Unboxed (Unboxed)
 import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
+--import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Data.Stream as S
 import qualified System.IO as IO
 
 import Prelude hiding (iterate, replicate, repeat)
@@ -223,19 +224,19 @@ unfoldrM step = fromStream . K.unfoldrMWith (IsStream.toConsK (consM @t)) step
 
 {-# RULES "unfoldrM serial" unfoldrM = unfoldrMSerial #-}
 {-# INLINE_EARLY unfoldrMSerial #-}
-unfoldrMSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
-unfoldrMSerial = Serial.unfoldrM
+unfoldrMSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> S.Stream m a
+unfoldrMSerial = S.unfoldrM
 
 {-# RULES "unfoldrM wSerial" unfoldrM = unfoldrMWSerial #-}
 {-# INLINE_EARLY unfoldrMWSerial #-}
 unfoldrMWSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> WSerialT m a
-unfoldrMWSerial f = fromSerial . Serial.unfoldrM f
+unfoldrMWSerial f = fromSerial . S.unfoldrM f
 
 {-# RULES "unfoldrM zipSerial" unfoldrM = unfoldrMZipSerial #-}
 {-# INLINE_EARLY unfoldrMZipSerial #-}
 unfoldrMZipSerial :: MonadAsync m =>
     (b -> m (Maybe (a, b))) -> b -> ZipSerialM m a
-unfoldrMZipSerial f = fromSerial . Serial.unfoldrM f
+unfoldrMZipSerial f = fromSerial . S.unfoldrM f
 
 ------------------------------------------------------------------------------
 -- From Values
@@ -290,7 +291,7 @@ replicateM count =
 
 {-# RULES "replicateM serial" replicateM = replicateMSerial #-}
 {-# INLINE replicateMSerial #-}
-replicateMSerial :: MonadAsync m => Int -> m a -> SerialT m a
+replicateMSerial :: MonadAsync m => Int -> m a -> S.Stream m a
 replicateMSerial n = fromStreamD . D.replicateM n
 
 ------------------------------------------------------------------------------
@@ -434,7 +435,7 @@ fromIndicesM = fromStream . K.fromIndicesMWith (IsStream.toConsK (consM @t))
 
 {-# RULES "fromIndicesM serial" fromIndicesM = fromIndicesMSerial #-}
 {-# INLINE fromIndicesMSerial #-}
-fromIndicesMSerial :: MonadAsync m => (Int -> m a) -> SerialT m a
+fromIndicesMSerial :: MonadAsync m => (Int -> m a) -> S.Stream m a
 fromIndicesMSerial = fromStreamD . D.fromIndicesM
 
 ------------------------------------------------------------------------------
@@ -502,7 +503,7 @@ iterateM f = fromStream . K.iterateMWith (IsStream.toConsK (consM @t))  f
 
 {-# RULES "iterateM serial" iterateM = iterateMSerial #-}
 {-# INLINE iterateMSerial #-}
-iterateMSerial :: MonadAsync m => (a -> m a) -> m a -> SerialT m a
+iterateMSerial :: MonadAsync m => (a -> m a) -> m a -> S.Stream m a
 iterateMSerial step = fromStreamD . D.iterateM step
 
 -- | We can define cyclic structures using @let@:
@@ -615,7 +616,7 @@ fromListM = fromFoldableM
 
 {-# RULES "fromListM serial" fromListM = fromListMSerial #-}
 {-# INLINE_EARLY fromListMSerial #-}
-fromListMSerial :: MonadAsync m => [m a] -> SerialT m a
+fromListMSerial :: MonadAsync m => [m a] -> S.Stream m a
 fromListMSerial = fromStreamD . D.fromListM
 
 -- | Read lines from an IO Handle into a stream of Strings.
@@ -643,7 +644,7 @@ fromHandle h = go
 -- /Pre-release/
 --
 {-# INLINE fromCallback #-}
-fromCallback :: MonadAsync m => ((a -> m ()) -> m ()) -> SerialT m a
+fromCallback :: MonadAsync m => ((a -> m ()) -> m ()) -> S.Stream m a
 fromCallback setCallback = concatM $ do
     (callback, stream) <- Par.newCallbackStream
     setCallback callback

@@ -40,7 +40,8 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import Test.Hspec as H
 
-import Streamly.Prelude (SerialT, IsStream, serial, fromSerial)
+import Streamly.Prelude (IsStream, serial, fromSerial)
+import qualified Streamly.Data.Stream as Stream
 #ifndef COVERAGE_BUILD
 import Streamly.Prelude (avgRate, maxBuffer)
 #endif
@@ -385,7 +386,7 @@ groupingOps = do
 
 associativityCheck
     :: String
-    -> (SerialT IO Int -> SerialT IO Int)
+    -> (Stream.Stream IO Int -> Stream.Stream IO Int)
     -> Spec
 associativityCheck desc t = prop desc assocCheckProp
   where
@@ -523,13 +524,13 @@ main = hspec
   $ modifyMaxSuccess (const 10)
 #endif
   $ describe moduleName $ do
-    let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
+    let serialOps :: IsStream t => ((Stream.Stream IO a -> t IO a) -> Spec) -> Spec
         serialOps spec = mapOps spec $ makeOps fromSerial
 #ifndef COVERAGE_BUILD
             <> [("rate AvgRate 0.00000001", fromSerial . avgRate 0.00000001)]
             <> [("maxBuffer -1", fromSerial . maxBuffer (-1))]
 #endif
-    let toListSerial :: SerialT IO a -> IO [a]
+    let toListSerial :: Stream.Stream IO a -> IO [a]
         toListSerial = S.toList . fromSerial
 
     describe "Runners" $ do

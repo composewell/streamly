@@ -124,7 +124,7 @@ import Test.Hspec
 import Test.QuickCheck (Property, choose, forAll, listOf, withMaxSuccess)
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
-import Streamly.Prelude (SerialT, IsStream, (.:), nil, (|&), fromSerial)
+import Streamly.Prelude (IsStream, (.:), nil, (|&), fromSerial)
 #ifndef COVERAGE_BUILD
 import Streamly.Prelude (avgRate, rate, maxBuffer, maxThreads)
 #endif
@@ -133,6 +133,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.IsStream.Common as IS
 import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Data.Stream as Stream
 
 import qualified Data.Map.Strict as Map
 
@@ -163,7 +164,7 @@ constructWithLen
     :: (Show a, Eq a)
     => (Int -> t IO a)
     -> (Int -> [a])
-    -> (t IO a -> SerialT IO a)
+    -> (t IO a -> Stream.Stream IO a)
     -> Word8
     -> Property
 constructWithLen mkStream mkList op len = withMaxSuccess maxTestCount $
@@ -175,7 +176,7 @@ constructWithLen mkStream mkList op len = withMaxSuccess maxTestCount $
 constructWithLenM
     :: (Int -> t IO Int)
     -> (Int -> IO [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithLenM mkStream mkList op len = withMaxSuccess maxTestCount $
@@ -186,7 +187,7 @@ constructWithLenM mkStream mkList op len = withMaxSuccess maxTestCount $
 
 constructWithReplicate, constructWithReplicateM, constructWithIntFromThenTo
     :: IsStream t
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 
@@ -208,7 +209,7 @@ constructWithIntFromThenTo op l =
 
 constructWithRepeat, constructWithRepeatM
     :: IsStream t
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithRepeat = constructWithLenM stream list
@@ -225,7 +226,7 @@ constructWithRepeatM = constructWithLenM stream list
 -- XXX try very small steps close to 0
 constructWithDoubleFromThenTo
     :: IsStream t
-    => (t IO Double -> SerialT IO Double)
+    => (t IO Double -> Stream.Stream IO Double)
     -> Word8
     -> Property
 constructWithDoubleFromThenTo op l =
@@ -238,7 +239,7 @@ constructWithDoubleFromThenTo op l =
 #endif
 
 constructWithIterate ::
-       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+       IsStream t => (t IO Int -> Stream.Stream IO Int) -> Word8 -> Property
 constructWithIterate op len =
     withMaxSuccess maxTestCount $
     monadicIO $ do
@@ -250,7 +251,7 @@ constructWithIterate op len =
         listEquals (==) stream list
 
 constructWithIterateM ::
-       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+       IsStream t => (t IO Int -> Stream.Stream IO Int) -> Word8 -> Property
 constructWithIterateM op len =
     withMaxSuccess maxTestCount $
     monadicIO $ do
@@ -265,7 +266,7 @@ constructWithIterateM op len =
         listEquals (==) streamEffect list
 
 constructWithFromIndices ::
-       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+       IsStream t => (t IO Int -> Stream.Stream IO Int) -> Word8 -> Property
 constructWithFromIndices op len =
     withMaxSuccess maxTestCount $
     monadicIO $ do
@@ -275,7 +276,7 @@ constructWithFromIndices op len =
         listEquals (==) stream list
 
 constructWithFromIndicesM ::
-       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+       IsStream t => (t IO Int -> Stream.Stream IO Int) -> Word8 -> Property
 constructWithFromIndicesM op len =
     withMaxSuccess maxTestCount $
     monadicIO $ do
@@ -291,7 +292,7 @@ constructWithFromIndicesM op len =
 constructWithCons ::
        IsStream t
     => (Int -> t IO Int -> t IO Int)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithCons cons op len =
@@ -308,7 +309,7 @@ constructWithConsM ::
        IsStream t
     => (IO Int -> t IO Int -> t IO Int)
     -> ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithConsM consM listT op len =
@@ -324,7 +325,7 @@ constructWithConsM consM listT op len =
 constructWithEnumerate ::
        IsStream t
     => ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithEnumerate listT op len =
@@ -337,7 +338,7 @@ constructWithEnumerate listT op len =
 constructWithEnumerateTo ::
        IsStream t
     => ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithEnumerateTo listT op len =
@@ -352,7 +353,7 @@ constructWithEnumerateTo listT op len =
 constructWithFromList ::
        IsStream t
     => ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithFromList listT op len =
@@ -365,7 +366,7 @@ constructWithFromList listT op len =
 constructWithFromListM ::
        IsStream t
     => ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithFromListM listT op len =
@@ -380,7 +381,7 @@ constructWithFromListM listT op len =
 constructWithUnfoldr ::
        IsStream t
     => ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithUnfoldr listT op len =
@@ -402,7 +403,7 @@ constructWithFromPure ::
 #endif
        )
     => ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithFromPure listT op len =
@@ -422,7 +423,7 @@ constructWithFromEffect ::
 #endif
        )
     => ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Word8
     -> Property
 constructWithFromEffect listT op len =
@@ -437,14 +438,14 @@ constructWithFromEffect listT op len =
 
 simpleProps ::
        (Int -> t IO Int)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Int
     -> Property
 simpleProps constr op a = monadicIO $ do
   strm <- run $ S.toList . op . constr $ a
   listEquals (==) strm [a]
 
-simpleOps :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
+simpleOps :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> Spec
 simpleOps op = do
   prop "fromPure a = a" $ simpleProps S.fromPure op
   prop "fromEffect a = a" $ simpleProps (S.fromEffect . return) op
@@ -458,7 +459,7 @@ applicativeOps
     => ([Int] -> t IO Int)
     -> String
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
-    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
+    -> (t IO (Int, Int) -> Stream.Stream IO (Int, Int))
     -> Spec
 applicativeOps constr desc eq t = do
     prop (desc <> " <*>") $
@@ -485,7 +486,7 @@ applicativeOps1
     => ([Int] -> t IO Int)
     -> String
     -> ([Int] -> [Int] -> Bool)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 applicativeOps1 constr desc eq t = do
     prop (desc <> " *>") $
@@ -498,7 +499,7 @@ transformFromList2
   => ([a] -> t IO a)
   -> ([c] -> [c] -> Bool)
   -> ([a] -> [a] -> [c])
-  -> (t IO a -> t IO a -> SerialT IO c)
+  -> (t IO a -> t IO a -> Stream.Stream IO c)
   -> ([a], [a])
   -> Property
 transformFromList2 constr eq listOp op (a, b) =
@@ -554,7 +555,7 @@ referenceUniq = go
 eliminationOps
     :: ([Int] -> t IO Int)
     -> String
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 eliminationOps constr desc t = do
     -- Elimination
@@ -648,7 +649,7 @@ eliminationOps constr desc t = do
 eliminationOpsOrdered
     :: ([Int] -> t IO Int)
     -> String
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 eliminationOpsOrdered constr desc t = do
     prop (desc <> " head") $ eliminateOp constr (wrapMaybe head) $ S.head . t
@@ -666,8 +667,8 @@ eliminationOpsOrdered constr desc t = do
 
 elemOp
     :: ([Word8] -> t IO Word8)
-    -> (t IO Word8 -> SerialT IO Word8)
-    -> (Word8 -> SerialT IO Word8 -> IO Bool)
+    -> (t IO Word8 -> Stream.Stream IO Word8)
+    -> (Word8 -> Stream.Stream IO Word8 -> IO Bool)
     -> (Word8 -> [Word8] -> Bool)
     -> (Word8, [Word8])
     -> Property
@@ -680,7 +681,7 @@ elemOp constr op streamOp listOp (x, xs) =
 eliminationOpsWord8
     :: ([Word8] -> t IO Word8)
     -> String
-    -> (t IO Word8 -> SerialT IO Word8)
+    -> (t IO Word8 -> Stream.Stream IO Word8)
     -> Spec
 eliminationOpsWord8 constr desc t = do
     prop (desc <> " elem") $ elemOp constr t S.elem elem
@@ -695,7 +696,7 @@ functorOps
     => ([Int] -> t IO Int)
     -> String
     -> ([Int] -> [Int] -> Bool)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 functorOps constr desc eq t = do
     prop (desc <> " id") $ transformFromList constr eq id t
@@ -711,7 +712,7 @@ transformFromList
        ([a] -> t IO a)
     -> ([b] -> [b] -> Bool)
     -> ([a] -> [b])
-    -> (t IO a -> SerialT IO b)
+    -> (t IO a -> Stream.Stream IO b)
     -> [a]
     -> Property
 transformFromList constr eq listOp op a =
@@ -730,7 +731,7 @@ monoidOps
     => String
     -> t IO Int
     -> ([Int] -> [Int] -> Bool)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 monoidOps desc z eq t = do
     -- XXX these should get covered by the property tests
@@ -802,7 +803,7 @@ bindAndComposeSimpleOps
     :: IsStream t
     => String
     -> ([Int] -> [Int] -> Bool)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 bindAndComposeSimpleOps desc eq t = do
     bindAndComposeSimple
@@ -855,7 +856,7 @@ bindAndComposeSimpleOps desc eq t = do
 bindAndComposeHierarchyOps ::
        (IsStream t, Monad (t IO))
     => String
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 bindAndComposeHierarchyOps desc t1 = do
     let fldldesc = "Bind and compose foldl, " <> desc <> " Stream "
@@ -937,7 +938,7 @@ nestTwoStreams
     => String
     -> ([Int] -> [Int])
     -> ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 nestTwoStreams desc streamListT listT t =
     it ("Nests two streams using monadic " <> desc <> " composition") $ do
@@ -954,7 +955,7 @@ nestTwoStreamsApp
     => String
     -> ([Int] -> [Int])
     -> ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 nestTwoStreamsApp desc streamListT listT t =
     it ("Nests two streams using applicative " <> desc <> " composition") $ do
@@ -970,7 +971,7 @@ composeAndComposeSimple
     :: ( IsStream t1, Semigroup (t1 IO Int)
        , IsStream t2, Monoid (t2 IO Int), Monad (t2 IO)
        )
-    => (t1 IO Int -> SerialT IO Int)
+    => (t1 IO Int -> Stream.Stream IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> [[Int]] -> Spec
 composeAndComposeSimple t1 t2 answer = do
@@ -996,7 +997,7 @@ composeAndComposeSimpleSerially
     :: (IsStream t, Semigroup (t IO Int))
     => String
     -> [[Int]]
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 composeAndComposeSimpleSerially desc answer t = do
     describe (desc <> " and Serial <>") $ composeAndComposeSimple t S.fromSerial answer
@@ -1005,7 +1006,7 @@ composeAndComposeSimpleAheadly
     :: (IsStream t, Semigroup (t IO Int))
     => String
     -> [[Int]]
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 composeAndComposeSimpleAheadly desc answer t = do
     describe (desc <> " and Ahead <>") $ composeAndComposeSimple t S.fromAhead answer
@@ -1014,7 +1015,7 @@ composeAndComposeSimpleWSerially
     :: (IsStream t, Semigroup (t IO Int))
     => String
     -> [[Int]]
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 composeAndComposeSimpleWSerially desc answer t = do
     describe (desc <> " and WSerial <>") $ composeAndComposeSimple t S.fromWSerial answer
@@ -1025,7 +1026,7 @@ composeAndComposeSimpleWSerially desc answer t = do
 
 foldFromList
     :: ([Int] -> t IO Int)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> [Int]
     -> Property
@@ -1040,7 +1041,7 @@ semigroupOps
        , Monoid (t IO Int))
     => String
     -> ([Int] -> [Int] -> Bool)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 semigroupOps desc eq t = do
     prop (desc <> " <>") $ foldFromList (S.concatMapFoldableWith (<>) singleton) t eq
@@ -1055,7 +1056,7 @@ transformCombineFromList
     => ([Int] -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> (t IO Int -> t IO Int)
     -> [Int]
     -> [Int]
@@ -1088,7 +1089,7 @@ transformCombineOpsCommon
     => ([Int] -> t IO Int)
     -> String
     -> ([Int] -> [Int] -> Bool)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 transformCombineOpsCommon constr desc eq t = do
     let transform = transformCombineFromList constr eq
@@ -1221,7 +1222,7 @@ transformCombineOpsOrdered
     => ([Int] -> t IO Int)
     -> String
     -> ([Int] -> [Int] -> Bool)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 transformCombineOpsOrdered constr desc eq t = do
     let transform = transformCombineFromList constr eq
@@ -1276,7 +1277,7 @@ monadThen
     :: Monad (t IO)
     => ([Int] -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> ([Int], [Int])
     -> Property
 monadThen constr eq t (a, b) = withMaxSuccess maxTestCount $ monadicIO $ do
@@ -1288,7 +1289,7 @@ monadBind
     :: Monad (t IO)
     => ([Int] -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> ([Int], [Int])
     -> Property
 monadBind constr eq t (a, b) = withMaxSuccess maxTestCount $
@@ -1308,7 +1309,7 @@ zipApplicative
     :: (IsStream t, Applicative (t IO))
     => ([Int] -> t IO Int)
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
-    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
+    -> (t IO (Int, Int) -> Stream.Stream IO (Int, Int))
     -> ([Int], [Int])
     -> Property
 zipApplicative constr eq t (a, b) = withMaxSuccess maxTestCount $
@@ -1325,7 +1326,7 @@ zipMonadic
     :: IsStream t
     => ([Int] -> t IO Int)
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
-    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
+    -> (t IO (Int, Int) -> Stream.Stream IO (Int, Int))
     -> ([Int], [Int])
     -> Property
 zipMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
@@ -1341,7 +1342,7 @@ zipAsyncMonadic
     :: IsStream t
     => ([Int] -> t IO Int)
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
-    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
+    -> (t IO (Int, Int) -> Stream.Stream IO (Int, Int))
     -> ([Int], [Int])
     -> Property
 zipAsyncMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
@@ -1362,7 +1363,7 @@ zipAsyncApplicative
     :: IsStream t
     => ([Int] -> t IO Int)
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
-    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
+    -> (t IO (Int, Int) -> Stream.Stream IO (Int, Int))
     -> ([Int], [Int])
     -> Property
 zipAsyncApplicative constr eq t (a, b) = withMaxSuccess maxTestCount $
@@ -1379,7 +1380,7 @@ zipAsyncApplicative constr eq t (a, b) = withMaxSuccess maxTestCount $
 ---------------------------------------------------------------------------
 
 parallelCheck :: (IsStream t, Monad (t IO))
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> Stream.Stream IO Int)
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
 parallelCheck t f = do
@@ -1397,7 +1398,7 @@ parallelCheck t f = do
 -- Exception ops
 -------------------------------------------------------------------------------
 
-beforeProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+beforeProp :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> [Int] -> Property
 beforeProp t vec =
     withMaxSuccess maxTestCount $
     monadicIO $ do
@@ -1411,7 +1412,7 @@ beforeProp t vec =
         refValue <- run $ readIORef ioRef
         listEquals (==) (head refValue : sort (tail refValue)) (0:sort vec)
 
-afterProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+afterProp :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> [Int] -> Property
 afterProp t vec =
     withMaxSuccess maxTestCount $
     monadicIO $ do
@@ -1425,7 +1426,7 @@ afterProp t vec =
         refValue <- run $ readIORef ioRef
         listEquals (==) (head refValue : sort (tail refValue)) (0:sort vec)
 
-bracketProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+bracketProp :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> [Int] -> Property
 bracketProp t vec =
     withMaxSuccess maxTestCount $
     monadicIO $ do
@@ -1444,7 +1445,7 @@ bracketProp t vec =
 
 #ifdef DEVBUILD
 bracketPartialStreamProp ::
-       (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+       (IsStream t) => (t IO Int -> Stream.Stream IO Int) -> [Int] -> Property
 bracketPartialStreamProp t vec =
     forAll (choose (0, length vec)) $ \len -> do
         withMaxSuccess maxTestCount $
@@ -1474,7 +1475,7 @@ bracketExceptionProp ::
        , Semigroup (t IO Int)
 #endif
        )
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> Stream.Stream IO Int)
     -> Property
 bracketExceptionProp t =
     withMaxSuccess maxTestCount $
@@ -1491,7 +1492,7 @@ bracketExceptionProp t =
         refValue <- run $ readIORef ioRef
         assert $ refValue == 1
 
-finallyProp :: (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+finallyProp :: (IsStream t) => (t IO Int -> Stream.Stream IO Int) -> [Int] -> Property
 finallyProp t vec =
     withMaxSuccess maxTestCount $
     monadicIO $ do
@@ -1537,7 +1538,7 @@ retry = do
 
 #ifdef DEVBUILD
 finallyPartialStreamProp ::
-       (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
+       (IsStream t) => (t IO Int -> Stream.Stream IO Int) -> [Int] -> Property
 finallyPartialStreamProp t vec =
     forAll (choose (0, length vec)) $ \len -> do
         withMaxSuccess maxTestCount $
@@ -1565,7 +1566,7 @@ finallyExceptionProp ::
        , Semigroup (t IO Int)
 #endif
        )
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> Stream.Stream IO Int)
     -> Property
 finallyExceptionProp t =
     withMaxSuccess maxTestCount $
@@ -1587,7 +1588,7 @@ onExceptionProp ::
        , Semigroup (t IO Int)
 #endif
        )
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> Stream.Stream IO Int)
     -> Property
 onExceptionProp t =
     withMaxSuccess maxTestCount $
@@ -1605,7 +1606,7 @@ onExceptionProp t =
 
 handleProp ::
        IsStream t
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> Stream.Stream IO Int)
     -> [Int]
     -> Property
 handleProp t vec =
@@ -1626,7 +1627,7 @@ exceptionOps ::
 #endif
        )
     => String
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> Spec
 exceptionOps desc t = do
     prop (desc <> " before") $ beforeProp t
@@ -1658,7 +1659,7 @@ composeWithMonadThrow
        , Semigroup (t IO Int)
        , MonadThrow (t IO)
        )
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> Stream.Stream IO Int)
     -> Spec
 composeWithMonadThrow t = do
     it "Compose throwM, nil" $
@@ -1706,7 +1707,7 @@ composeWithMonadThrow t = do
 
 checkCleanup :: IsStream t
     => Int
-    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> Stream.Stream IO Int)
     -> (t IO Int -> t IO Int)
     -> IO ()
 checkCleanup d t op = do
@@ -1726,7 +1727,7 @@ checkCleanup d t op = do
 -------------------------------------------------------------------------------
 
 takeCombined :: (Monad m, Semigroup (t m Int), Show a, Eq a, IsStream t)
-    => Int -> (t m Int -> SerialT IO a) -> IO ()
+    => Int -> (t m Int -> Stream.Stream IO a) -> IO ()
 takeCombined n t = do
     let constr = S.fromFoldable
     r <- (S.toList . t) $

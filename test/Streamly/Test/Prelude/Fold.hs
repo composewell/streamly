@@ -25,8 +25,8 @@ import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Stream.IsStream as IS
 import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream as Stream
 
-import Streamly.Prelude (SerialT)
 #ifdef DEVBUILD
 import Streamly.Prelude (IsStream)
 #endif
@@ -56,12 +56,12 @@ checkScanxStrictness = do
     (\(ErrorCall err) -> return err)
     `shouldReturn` "success"
 
-foldxMStrictCheck :: IORef Int -> SerialT IO Int -> IO ()
+foldxMStrictCheck :: IORef Int -> Stream.Stream IO Int -> IO ()
 foldxMStrictCheck ref = S.foldxM (\_ _ -> writeIORef ref 1) (return ()) return
 
 checkCleanupFold :: IsStream t
-    => (t IO Int -> SerialT IO Int)
-    -> (SerialT IO Int -> IO (Maybe Int))
+    => (t IO Int -> Stream.Stream IO Int)
+    -> (Stream.Stream IO Int -> IO (Maybe Int))
     -> IO ()
 checkCleanupFold t op = do
     r <- newIORef ([] :: [Int])
@@ -79,7 +79,7 @@ checkCleanupFold t op = do
     delay ref i =
         threadDelay (i * delayUnit) >> modifyIORef ref (i :) >> return i
 
-testFoldOpsCleanup :: String -> (SerialT IO Int -> IO a) -> Spec
+testFoldOpsCleanup :: String -> (Stream.Stream IO Int -> IO a) -> Spec
 testFoldOpsCleanup name f = do
     let testOp op x = op x >> return Nothing
     it (name <> " asyncly") $ checkCleanupFold S.fromAsync (testOp f)
@@ -90,7 +90,7 @@ testFoldOpsCleanup name f = do
 #endif
 #endif
 
-checkFoldMStrictness :: (IORef Int -> SerialT IO Int -> IO ()) -> IO ()
+checkFoldMStrictness :: (IORef Int -> Stream.Stream IO Int -> IO ()) -> IO ()
 checkFoldMStrictness f = do
   ref <- newIORef 0
   let s = return 1 `S.consM` error "x"
@@ -122,13 +122,13 @@ checkScanl'Strictness = do
         (\(ErrorCall err) -> return err)
         `shouldReturn` "success"
 
-foldlM'StrictCheck :: IORef Int -> SerialT IO Int -> IO ()
+foldlM'StrictCheck :: IORef Int -> Stream.Stream IO Int -> IO ()
 foldlM'StrictCheck ref = S.foldlM' (\_ _ -> writeIORef ref 1) (return ())
 
-scanlM'StrictCheck :: IORef Int -> SerialT IO Int -> SerialT IO ()
+scanlM'StrictCheck :: IORef Int -> Stream.Stream IO Int -> Stream.Stream IO ()
 scanlM'StrictCheck ref = S.scanlM' (\_ _ -> writeIORef ref 1) (return ())
 
-checkScanlMStrictness :: (IORef Int -> SerialT IO Int -> SerialT IO ()) -> IO ()
+checkScanlMStrictness :: (IORef Int -> Stream.Stream IO Int -> Stream.Stream IO ()) -> IO ()
 checkScanlMStrictness f = do
   ref <- newIORef 0
   let s = return 1 `S.consM` error "x"
@@ -143,12 +143,12 @@ checkFoldrLaziness = do
 
     S.toList (IS.foldrS (\x xs -> if odd x then return True else xs)
                         (return False)
-                        $ (S.fromList (2:4:5:undefined) :: SerialT IO Int))
+                        $ (S.fromList (2:4:5:undefined) :: Stream.Stream IO Int))
         `shouldReturn` [True]
 
     S.toList (IS.foldrT (\x xs -> if odd x then return True else xs)
                         (return False)
-                        $ (S.fromList (2:4:5:undefined) :: SerialT IO Int))
+                        $ (S.fromList (2:4:5:undefined) :: Stream.Stream IO Int))
         `shouldReturn` [True]
 
 moduleName :: String

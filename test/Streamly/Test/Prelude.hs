@@ -19,11 +19,12 @@ import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
 import Test.Hspec as H
 
-import Streamly.Prelude (SerialT, IsStream)
+import Streamly.Prelude (IsStream)
 
 import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream as Stream
 
-toListSerial :: SerialT IO a -> IO [a]
+toListSerial :: Stream.Stream IO a -> IO [a]
 toListSerial = S.toList . S.fromSerial
 
 -- XXX need to test that we have promptly cleaned up everything after the error
@@ -55,7 +56,7 @@ _composeWithMonadError
        , Semigroup (t (ExceptT String IO) Int)
        , MonadError String (t (ExceptT String IO))
        )
-    => (t (ExceptT String IO) Int -> SerialT (ExceptT String IO) Int) -> Spec
+    => (t (ExceptT String IO) Int -> Stream.Stream (ExceptT String IO) Int) -> Spec
 _composeWithMonadError t = do
     let tl = S.toList . t
     it "Compose throwError, nil" $
@@ -72,7 +73,7 @@ mixedOps =
                             ] :: [Int])
     where
 
-    composeMixed :: SerialT IO Int
+    composeMixed :: Stream.Stream IO Int
     composeMixed = do
         S.fromEffect $ return ()
         S.fromEffect $ putStr ""
@@ -102,7 +103,7 @@ mixedOpsAheadly =
                             ] :: [Int])
     where
 
-    composeMixed :: SerialT IO Int
+    composeMixed :: Stream.Stream IO Int
     composeMixed = do
         S.fromEffect $ return ()
         S.fromEffect $ putStr ""
@@ -137,7 +138,7 @@ nestedLoops = S.drain $ do
 
     -- we can just use
     -- fromParallel $ mconcat $ replicate n $ fromEffect (...)
-    loop :: String -> Int -> SerialT IO String
+    loop :: String -> Int -> Stream.Stream IO String
     loop name n = do
         rnd <- S.fromEffect (randomIO :: IO Int)
         let result = name <> show rnd
@@ -157,7 +158,7 @@ parallelLoops = do
 
     -- we can just use
     -- fromParallel $ cycle1 $ fromEffect (...)
-    loop :: String -> SerialT IO (String, Int)
+    loop :: String -> Stream.Stream IO (String, Int)
     loop name = do
         S.fromEffect $ threadDelay 1000000
         rnd <- S.fromEffect (randomIO :: IO Int)

@@ -20,8 +20,9 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-import Streamly.Internal.Data.Stream.IsStream (SerialT)
+--import Streamly.Internal.Data.Stream.IsStream (S.Stream)
 import qualified Data.List as List
+import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- import qualified Streamly.Internal.Data.Unfold as Unfold
 
@@ -47,9 +48,9 @@ moduleName = "Prelude.Merge"
 {-# INLINE mergeWith #-}
 mergeWith ::
     (  (Int -> Int -> Ordering)
-    -> SerialT IO Int
-    -> SerialT IO Int
-    -> SerialT IO Int
+    -> S.Stream IO Int
+    -> S.Stream IO Int
+    -> S.Stream IO Int
     )
     -> (Int -> Int -> Ordering)
     -> Int -> Int -> IO ()
@@ -63,9 +64,9 @@ mergeWith g cmp count n =
 {-# INLINE mergeWithM #-}
 mergeWithM ::
     (  (Int -> Int -> IO Ordering)
-    -> SerialT IO Int
-    -> SerialT IO Int
-    -> SerialT IO Int
+    -> S.Stream IO Int
+    -> S.Stream IO Int
+    -> S.Stream IO Int
     )
     -> (Int -> Int -> Ordering)
     -> Int -> Int -> IO ()
@@ -192,7 +193,7 @@ inspect $ hasNoTypeClasses 'unfoldManyMergeBy
 -}
 
 {-# INLINE sortBy #-}
-sortBy :: (Int -> Int -> Ordering) -> SerialT IO Int -> IO ()
+sortBy :: (Int -> Int -> Ordering) -> S.Stream IO Int -> IO ()
 sortBy cmp = Stream.drain . Stream.sortBy cmp
 
 {-

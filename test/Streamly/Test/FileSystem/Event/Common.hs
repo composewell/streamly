@@ -65,6 +65,7 @@ import System.IO.Temp (withSystemTempDirectory)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Streamly.Data.Stream as S
 import qualified Streamly.Unicode.Stream as Unicode
 
 #if defined(FILESYSTEM_EVENT_LINUX)
@@ -93,7 +94,7 @@ type EventChecker =
     -> MVar ()   -- mvar to sync file system ops and the watch
     -> [(String, Event -> Bool)] -- expected events
     -> IO ()
-type EventWatcher = NonEmpty (Array Word8) -> Stream.SerialT IO Event.Event
+type EventWatcher = NonEmpty (Array Word8) -> S.Stream IO Event.Event
 
 eventMatches :: Event -> (String, Event -> Bool) -> Bool
 eventMatches ev (expectedPath, f) =

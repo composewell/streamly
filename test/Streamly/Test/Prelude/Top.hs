@@ -2,7 +2,7 @@ module Main (main) where
 
 import Data.List (elem, intersect, nub, sort)
 import Data.Maybe (isNothing)
-import Streamly.Prelude (SerialT)
+--import Streamly.Prelude (Stream.Stream)
 import Test.QuickCheck
     ( Gen
     , Property
@@ -12,6 +12,7 @@ import Test.QuickCheck
     )
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Top as Top
 
 import Prelude hiding
@@ -170,9 +171,9 @@ joinLeftMap =
 intersectBy ::
        ([Int] -> [Int])
     -> (   (Int -> Int -> a)
-        -> SerialT IO Int
-        -> SerialT IO Int
-        -> SerialT IO Int
+        -> Stream.Stream IO Int
+        -> Stream.Stream IO Int
+        -> Stream.Stream IO Int
        )
     -> (Int -> Int -> a)
     -> Property

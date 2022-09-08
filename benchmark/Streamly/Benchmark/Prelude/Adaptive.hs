@@ -11,6 +11,7 @@ import Control.Monad.IO.Class (liftIO)
 import Gauge
 import Streamly.Prelude as S
 import System.Random (randomRIO)
+import qualified Streamly.Data.Stream as Stream
 
 -- Note that we should also compare the cpuTime especially when threaded
 -- runtime is used with this benchmark because thread scheduling is not
@@ -33,7 +34,7 @@ source range = S.replicateM value $ do
     return r
 
 {-# INLINE run #-}
-run :: IsStream t => (Int, Int) -> (Int, Int) -> (t IO Int -> SerialT IO Int) -> IO ()
+run :: IsStream t => (Int, Int) -> (Int, Int) -> (t IO Int -> Stream.Stream IO Int) -> IO ()
 run srange crange t = S.drain $ do
     n <- t $ source srange
     d <- liftIO (randomRIO crange)
@@ -46,37 +47,37 @@ medium = 20
 high = 30
 
 {-# INLINE noDelay #-}
-noDelay :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
+noDelay :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> IO ()
 noDelay = run (0,0) (0,0)
 
 {-# INLINE alwaysConstSlowSerial #-}
-alwaysConstSlowSerial :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
+alwaysConstSlowSerial :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> IO ()
 alwaysConstSlowSerial = run (0,0) (medium,medium)
 
 {-# INLINE alwaysConstSlow #-}
-alwaysConstSlow :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
+alwaysConstSlow :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> IO ()
 alwaysConstSlow = run (low,low) (medium,medium)
 
 {-# INLINE alwaysConstFast #-}
-alwaysConstFast :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
+alwaysConstFast :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> IO ()
 alwaysConstFast = run (high,high) (medium,medium)
 
 {-# INLINE alwaysVarSlow #-}
-alwaysVarSlow :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
+alwaysVarSlow :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> IO ()
 alwaysVarSlow = run (low,low) (low,high)
 
 {-# INLINE alwaysVarFast #-}
-alwaysVarFast :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
+alwaysVarFast :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> IO ()
 alwaysVarFast = run (high,high) (low,high)
 
 -- XXX add variable producer tests as well
 
 {-# INLINE runVarSometimesFast #-}
-runVarSometimesFast :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
+runVarSometimesFast :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> IO ()
 runVarSometimesFast = run (medium,medium) (low,high)
 
 {-# INLINE randomVar #-}
-randomVar :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
+randomVar :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> IO ()
 randomVar = run (low,high) (low,high)
 
 main :: IO ()

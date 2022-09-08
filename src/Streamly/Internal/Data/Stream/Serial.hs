@@ -12,6 +12,7 @@
 -- >>> import qualified Streamly.Data.Stream as Stream
 --
 module Streamly.Internal.Data.Stream.Serial
+    {-# DEPRECATED "Please use \"Streamly.Data.Stream\" instead." #-}
     (
     -- * Serial appending stream
       SerialT

@@ -75,7 +75,6 @@ import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators (maxYields)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Unboxed (Unboxed)
@@ -86,6 +85,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
@@ -195,7 +195,7 @@ repeatM = K.repeatMWith IsStream.consM
 
 {-# RULES "repeatM serial" repeatM = repeatMSerial #-}
 {-# INLINE repeatMSerial #-}
-repeatMSerial :: MonadAsync m => m a -> SerialT m a
+repeatMSerial :: MonadAsync m => m a -> S.Stream m a
 repeatMSerial = fromStreamD . D.repeatM
 
 ------------------------------------------------------------------------------
@@ -277,7 +277,7 @@ relTimesWith = fmap snd . timesWith
 --
 -- /Internal/
 {-# INLINE foldContinue #-}
-foldContinue :: Monad m => Fold m a b -> SerialT m a -> Fold m a b
+foldContinue :: Monad m => Fold m a b -> S.Stream m a -> Fold m a b
 foldContinue f s = D.foldContinue f $ IsStream.toStreamD s
 
 ------------------------------------------------------------------------------

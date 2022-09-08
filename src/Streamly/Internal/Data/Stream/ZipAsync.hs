@@ -30,10 +30,10 @@ import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+
 import Streamly.Internal.Data.SVar
 
 import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
@@ -127,7 +127,7 @@ instance Monad m => Functor (ZipAsyncM m) where
         ZipAsyncM $ Stream.toStreamK $ fmap f (Stream.fromStreamK m)
 
 instance MonadAsync m => Applicative (ZipAsyncM m) where
-    pure = ZipAsyncM . Stream.toStreamK . Serial.repeat
+    pure = ZipAsyncM . Stream.toStreamK . Stream.repeat
 
     {-# INLINE (<*>) #-}
     ZipAsyncM m1 <*> ZipAsyncM m2 = ZipAsyncM $ zipAsyncWithK id m1 m2

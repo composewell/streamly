@@ -10,12 +10,13 @@
 import Control.Concurrent
 import Control.Monad (when, replicateM)
 import Streamly.Prelude
-    ( IsStream, SerialT, serial, async, fromAsync, ahead, fromAhead, wAsync
+    ( IsStream, serial, async, fromAsync, ahead, fromAhead, wAsync
     , fromWAsync, parallel, fromParallel
     )
 
 import Gauge
 import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream as Stream
 
 -------------------------------------------------------------------------------
 -- Append
@@ -27,7 +28,7 @@ import qualified Streamly.Prelude as S
 --
 {-# INLINE append #-}
 append :: IsStream t
-    => Int -> Int -> Int -> (t IO Int -> SerialT IO Int) -> IO ()
+    => Int -> Int -> Int -> (t IO Int -> Stream.Stream IO Int) -> IO ()
 append buflen tcount d t =
     let work = (\i -> when (d /= 0) (threadDelay d) >> return i)
     in S.drain
@@ -47,7 +48,7 @@ concated
     -> Int
     -> Int
     -> Int
-    -> (forall a. SerialT IO a -> SerialT IO a -> SerialT IO a)
+    -> (forall a. Stream.Stream IO a -> Stream.Stream IO a -> Stream.Stream IO a)
     -> IO ()
 concated buflen threads d elems t =
     let work = \i -> S.replicateM i (when (d /= 0) (threadDelay d) >> return i)

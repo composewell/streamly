@@ -62,7 +62,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common (concatM)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), adapt, foldl', fromList)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+--import Streamly.Internal.Data.Stream.Serial (S.Stream)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 
 import qualified Data.List as List
@@ -71,6 +71,7 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Eliminate as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Generate as Stream
@@ -235,7 +236,7 @@ sampleBurstStart = sampleBurst False
 -- /Pre-release/
 --
 {-# INLINE sortBy #-}
-sortBy :: MonadCatch m => (a -> a -> Ordering) -> SerialT m a -> SerialT m a
+sortBy :: MonadCatch m => (a -> a -> Ordering) -> S.Stream m a -> S.Stream m a
 -- sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
 sortBy cmp =
     let p =
@@ -334,7 +335,7 @@ joinInner eq s1 s2 = do
         ) s1
 
 -- XXX Generate error if a duplicate insertion is attempted?
-toMap ::  (Monad m, Ord k) => IsStream.SerialT m (k, v) -> m (Map.Map k v)
+toMap ::  (Monad m, Ord k) => S.Stream m (k, v) -> m (Map.Map k v)
 toMap = Stream.foldl' (\kv (k, b) -> Map.insert k b kv) Map.empty
 
 -- If the second stream is too big it can be partitioned based on hashes and
@@ -406,7 +407,7 @@ joinInnerMerge = undefined
 -- /Unimplemented/
 {-# INLINE joinLeft #-}
 joinLeft :: Monad m =>
-    (a -> b -> Bool) -> SerialT m a -> SerialT m b -> SerialT m (a, Maybe b)
+    (a -> b -> Bool) -> S.Stream m a -> S.Stream m b -> S.Stream m (a, Maybe b)
 joinLeft eq s1 s2 = Stream.evalStateT (return False) $ do
     a <- Stream.liftInner s1
     -- XXX should we use StreamD monad here?
@@ -479,9 +480,9 @@ mergeLeftJoin _eq _s1 _s2 = undefined
 {-# INLINE joinOuter #-}
 joinOuter :: MonadIO m =>
        (a -> b -> Bool)
-    -> SerialT m a
-    -> SerialT m b
-    -> SerialT m (Maybe a, Maybe b)
+    -> S.Stream m a
+    -> S.Stream m b
+    -> S.Stream m (Maybe a, Maybe b)
 joinOuter eq s1 s =
     Stream.concatM $ do
         inputArr <- Array.fromStream s

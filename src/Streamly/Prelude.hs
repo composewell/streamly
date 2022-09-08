@@ -873,7 +873,7 @@ module Streamly.Prelude
 
     -- ** Serial Streams
     -- $serial
-    , SerialT
+    --, SerialT
     , WSerialT
 
     -- ** Speculative Streams
@@ -892,7 +892,7 @@ module Streamly.Prelude
     , ZipAsyncM
 
     -- * IO Streams
-    , Serial
+    --, Serial
     , WSerial
     , Ahead
     , Async

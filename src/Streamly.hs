@@ -104,7 +104,7 @@ module Streamly {-# DEPRECATED "Please use \"Streamly.Prelude\" instead." #-}
 
     -- ** Serial Streams
     -- $serial
-    , SerialT
+    -- , SerialT
     , WSerialT
 
     -- ** Speculative Streams
@@ -167,7 +167,7 @@ module Streamly {-# DEPRECATED "Please use \"Streamly.Prelude\" instead." #-}
     , adapt
 
     -- * IO Streams
-    , Serial
+    --, Serial
     , WSerial
     , Ahead
     , Async
@@ -203,6 +203,7 @@ import Streamly.Internal.Data.Stream.IsStream.Expand
 import Streamly.Internal.Data.Stream.IsStream.Type
 
 import qualified Streamly.Prelude as P
+import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.IsStream as IP
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
 
@@ -343,7 +344,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
 -- | Same as "Streamly.Prelude.runStream".
 --
 {-# DEPRECATED runStream "Please use Streamly.Prelude.drain instead." #-}
-runStream :: Monad m => SerialT m a -> m ()
+runStream :: Monad m => S.Stream m a -> m ()
 runStream = P.drain
 
 {-
@@ -591,7 +592,7 @@ forEachWith :: (IsStream t, Foldable f) => (t m b -> t m b -> t m b) -> f a -> (
 forEachWith = P.concatForFoldableWith
 
 {-# DEPRECATED serially "Please use 'Streamly.Prelude.fromSerial' instead." #-}
-serially :: IsStream t => SerialT m a -> t m a
+serially :: IsStream t => S.Stream m a -> t m a
 serially = fromSerial
 
 {-# DEPRECATED wSerially "Please use 'Streamly.Prelude.fromWSerial' instead." #-}

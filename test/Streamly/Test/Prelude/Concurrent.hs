@@ -30,6 +30,7 @@ import Test.QuickCheck.Monadic (monadicIO, run)
 
 import Streamly.Prelude hiding (fold, replicate, replicateM, reverse, runStateT)
 import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream as Stream
 
 import Streamly.Test.Common
 import Streamly.Test.Prelude.Common
@@ -64,7 +65,7 @@ mvarSequenceOp mv n x = do
 concurrentMapM
     :: ([Word8] -> t IO Word8)
     -> ([Word8] -> [Word8] -> Bool)
-    -> (Word8 -> MVar () -> t IO Word8 -> SerialT IO Word8)
+    -> (Word8 -> MVar () -> t IO Word8 -> Stream.Stream IO Word8)
     -> Word8
     -> Property
 concurrentMapM constr eq op n =
@@ -78,7 +79,7 @@ concurrentMapM constr eq op n =
 concurrentFromFoldable
     :: IsStream t
     => ([Word8] -> [Word8] -> Bool)
-    -> (t IO Word8 -> SerialT IO Word8)
+    -> (t IO Word8 -> Stream.Stream IO Word8)
     -> Word8
     -> Property
 concurrentFromFoldable eq op n =
@@ -107,7 +108,7 @@ sourceUnfoldrM mv n = S.unfoldrM step 0
 concurrentUnfoldrM
     :: IsStream t
     => ([Word8] -> [Word8] -> Bool)
-    -> (t IO Word8 -> SerialT IO Word8)
+    -> (t IO Word8 -> Stream.Stream IO Word8)
     -> Word8
     -> Property
 concurrentUnfoldrM eq op n =
@@ -144,7 +145,7 @@ concurrentOps
     => ([Word8] -> t IO Word8)
     -> String
     -> ([Word8] -> [Word8] -> Bool)
-    -> (t IO Word8 -> SerialT IO Word8)
+    -> (t IO Word8 -> Stream.Stream IO Word8)
     -> Spec
 concurrentOps constr desc eq t = do
     let prop1 d p = prop d $ withMaxSuccess maxTestCount p
@@ -171,7 +172,7 @@ concurrentOps constr desc eq t = do
 
 concurrentApplication :: IsStream t
     => ([Word8] -> [Word8] -> Bool)
-    -> (t IO Word8 -> SerialT IO Word8)
+    -> (t IO Word8 -> Stream.Stream IO Word8)
     -> Word8
     -> Property
 concurrentApplication eq t n = withMaxSuccess maxTestCount $
@@ -271,7 +272,7 @@ monadicStateSnapshot
        , MonadIO (t (StateT Int IO))
        , MonadState Int (t (StateT Int IO))
        )
-    => (t (StateT Int IO) () -> SerialT (StateT Int IO) ()) -> IO ()
+    => (t (StateT Int IO) () -> Stream.Stream (StateT Int IO) ()) -> IO ()
 monadicStateSnapshot t = void $ runStateT (S.drain $ t stateComp) 0
 
 stateCompOp
@@ -279,7 +280,7 @@ stateCompOp
         -> AsyncT (StateT Int IO) ()
         -> AsyncT (StateT Int IO) ()
        )
-    -> SerialT (StateT Int IO) ()
+    -> Stream.Stream (StateT Int IO) ()
 stateCompOp op = do
     -- Each task in a concurrent composition inherits the state and maintains
     -- its own modifications to it, not affecting the parent computation.
@@ -293,7 +294,7 @@ checkMonadicStateTransfer
     :: (IsStream t1, IsStream t2)
     => (    t1 (StateT Int IO) ()
         ->  t2 (StateT Int IO) ()
-        ->  SerialT (StateT Int IO) a3 )
+        ->  Stream.Stream (StateT Int IO) a3 )
     -> IO ()
 checkMonadicStateTransfer op = evalStateT str (0 :: Int)
   where
@@ -318,7 +319,7 @@ monadicStateSnapshotOp
     -> IO ()
 monadicStateSnapshotOp op = void $ runStateT (S.drain $ stateCompOp op) 0
 
-takeInfinite :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
+takeInfinite :: IsStream t => (t IO Int -> Stream.Stream IO Int) -> Spec
 takeInfinite t =
     it "take 1" $
         S.drain (t $ S.take 1 $ S.repeatM (print "hello" >> return (1::Int)))
@@ -335,7 +336,7 @@ main = hspec
 #endif
   $ describe moduleName $ do
     -- We can have these in Test.Prelude, but I think it's unnecessary.
-    let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
+    let serialOps :: IsStream t => ((Stream.Stream IO a -> t IO a) -> Spec) -> Spec
         serialOps spec = mapOps spec $ makeOps fromSerial
 #ifndef COVERAGE_BUILD
             <> [("rate AvgRate 0.00000001", fromSerial . avgRate 0.00000001)]

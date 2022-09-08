@@ -28,8 +28,8 @@ module Streamly.Internal.Data.Stream.IsStream.Type
     , foldStream
 
     -- * Stream Types
-    , SerialT
-    , Serial
+   -- , Stream.Stream
+   -- , Serial
     , fromSerial
 
     , WSerialT
@@ -101,7 +101,8 @@ where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
-import Streamly.Internal.Data.Stream.Serial (SerialT, Serial)
+--import Streamly.Internal.Data.Stream.Serial (Stream, Serial)
+
 import Streamly.Internal.Data.Stream.WSerial (WSerialT(..), WSerial)
 import Streamly.Internal.Data.Stream.Async
     (AsyncT(..), Async, WAsyncT(..), WAsync)
@@ -115,11 +116,10 @@ import qualified Prelude
 import qualified Streamly.Internal.Data.Stream.Ahead as Ahead
 import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.Parallel as Parallel
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Stream.Zip as Zip
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
@@ -429,12 +429,12 @@ foldStream st yld sng stp m =
 -- Serial
 -------------------------------------------------------------------------------
 
--- | Fix the type of a polymorphic stream as 'SerialT'.
+-- | Fix the type of a polymorphic stream as 'Stream'.
 --
 -- /Since: 0.1.0 ("Streamly")/
 --
 -- @since 0.8.0
-fromSerial :: IsStream t => SerialT m a -> t m a
+fromSerial :: IsStream t => Stream.Stream m a -> t m a
 fromSerial = adapt
 
 instance IsStream Stream.Stream where
@@ -442,12 +442,12 @@ instance IsStream Stream.Stream where
     fromStream = Stream.fromStreamK
 
     {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
-    consM = Serial.consM
+    {-# SPECIALIZE consM :: IO a -> Stream.Stream IO a -> Stream.Stream IO a #-}
+    consM = Stream.consM
 
     {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> SerialT IO a -> SerialT IO a #-}
-    (|:) = Serial.consM
+    {-# SPECIALIZE (|:) :: IO a -> Stream.Stream IO a -> Stream.Stream IO a #-}
+    (|:) = Stream.consM
 
 -- | Fix the type of a polymorphic stream as 'WSerialT'.
 --

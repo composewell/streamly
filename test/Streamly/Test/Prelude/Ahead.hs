@@ -17,15 +17,16 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
-import Streamly.Prelude (IsStream, SerialT, AheadT)
+import Streamly.Prelude (IsStream, AheadT)
 import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream as Stream
 
 import Streamly.Test.Common
 import Streamly.Test.Prelude.Common
 
 associativityCheck
     :: String
-    -> (AheadT IO Int -> SerialT IO Int)
+    -> (AheadT IO Int -> Stream.Stream IO Int)
     -> Spec
 associativityCheck desc t = prop desc assocCheckProp
   where
