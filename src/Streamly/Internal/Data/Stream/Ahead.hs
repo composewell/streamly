@@ -54,7 +54,10 @@ import Streamly.Internal.Control.Concurrent
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (foldStreamShared, cons, mkStream, foldStream, fromEffect
+    , nil, concatMapWith, fromPure, bindWith, withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (mapM, fromStreamK, toStreamK)
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Streamly.Internal.Data.Stream.SVar.Generate

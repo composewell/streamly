@@ -70,7 +70,10 @@ import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (foldStreamShared, mkStream, foldStream, fromEffect
+    , nil, concatMapWith, fromPure, bindWith, withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (Stream(..), mapM, toStreamK, fromStreamK)
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
 import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
 import qualified Streamly.Internal.Data.Stream.Type as Stream

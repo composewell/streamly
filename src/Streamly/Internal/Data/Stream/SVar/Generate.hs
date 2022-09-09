@@ -43,8 +43,10 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+    (Stream(..), foldStreamShared, mkStream, foldStream)
+import qualified Streamly.Internal.Data.Stream.Type as Stream (fromStreamK)
 
 import Streamly.Internal.Data.SVar
 

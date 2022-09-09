@@ -177,8 +177,13 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+    (append, interleave, interleaveSuffix, interleaveInfix, interleaveMin
+    , roundRobin, mergeByM, unfoldMany, unfoldManyInterleave, intersperse
+    , unfoldManyRoundRobin, interpose, interposeSuffix, gintercalate
+    , gintercalateSuffix, intersperseSuffix)
 import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy, mergeByM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (interleave, serial, concatPairsWith)
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
 import Prelude hiding (concat, concatMap, zipWith)

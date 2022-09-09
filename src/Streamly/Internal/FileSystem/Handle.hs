@@ -141,6 +141,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Type as FL(refoldMany)
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Unfold as UF
 
 -- $setup

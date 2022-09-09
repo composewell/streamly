@@ -40,8 +40,11 @@ import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (Stream(..), Step(..), fold)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (Stream(..), mkStream, foldStream, foldStreamShared, nilM)
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+    (fromStreamK, toStreamK)
 
 import Streamly.Internal.Data.SVar
 

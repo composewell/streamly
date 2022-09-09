@@ -85,7 +85,12 @@ import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (fromPure, fromEffect, repeatMWith, reverse)
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+    (repeatM, times, foldContinue, map, scanlMAfter', postscanlMAfter'
+    , postscanlM', take,  takeWhile, takeEndBy, drop, findIndices
+    , fromStreamK, toStreamK, concatMapM, concatMap, foldManyPost, splitOnSeq
+    , zipWithM, zipWith, intersperseM, reverse)
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)

@@ -27,9 +27,9 @@ import Data.Semigroup (Semigroup(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+    (mkStream, foldStream, zipWithM, consM)
+import qualified Streamly.Internal.Data.Stream.StreamD as D (fromStreamK)
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar

@@ -150,6 +150,7 @@ import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (Stream(..), Step(..))
 
 -------------------------------------------------------------------------------
 -- References
