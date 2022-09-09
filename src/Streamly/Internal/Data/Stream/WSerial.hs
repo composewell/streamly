@@ -50,8 +50,8 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D (mapM)
+import qualified Streamly.Internal.Data.Stream.StreamD as D
+    (fromStreamK, toStreamK, mapM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (cons, consM, nil, concatMapWith, fromPure, bindWith
     , withLocal, interleave, interleaveFst, interleaveMin)

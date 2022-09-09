@@ -182,8 +182,9 @@ import GHC.IO.Handle.FD (handleToFd)
 import qualified Data.IntMap.Lazy as Map
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Array.Unboxed as A
-import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
+    (takeEQ, fromEffect, fromFold)
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.FileSystem.Dir as Dir
 import qualified Streamly.Internal.FileSystem.Handle as FH

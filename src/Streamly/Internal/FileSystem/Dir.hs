@@ -73,6 +73,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 -- import qualified Streamly.Data.Fold as FL
 -- import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Unfold as UF
+    (lmapM, fromList, mapM2, filter, map)
 -- import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 -- import qualified Streamly.Data.Array.Unboxed as A

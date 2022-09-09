@@ -25,7 +25,6 @@ import Streamly.Internal.Data.Stream.IsStream (IsStream)
 
 import qualified Streamly.Internal.Data.Array.Unboxed as A
     (write, read)
-
 import qualified Streamly.Internal.Unicode.Stream as S
 
 -- $setup

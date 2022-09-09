@@ -69,7 +69,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     , nil, concatMapWith, fromPure, bindWith, withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..), mapM, toStreamK, fromStreamK)
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream as Stream (toStreamK)
 
 import Streamly.Internal.Data.SVar
 

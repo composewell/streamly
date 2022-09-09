@@ -34,6 +34,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 import qualified Streamly.Internal.Data.Array.Unboxed as A
     (unsafeIndex, castUnsafe, writeN)
 import qualified Streamly.Internal.Data.Parser as PR
+    (fromPure, either, satisfy, takeEQ)
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
     (Parser(..), Initial(..), Step(..), toParserK)
 

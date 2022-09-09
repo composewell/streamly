@@ -35,7 +35,7 @@ import Streamly.Internal.Data.SVar.Type
     , ChildEvent(..)
     , ThreadAbort(ThreadAbort)
     )
-import Streamly.Internal.Data.Unfold.Type
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile, either)

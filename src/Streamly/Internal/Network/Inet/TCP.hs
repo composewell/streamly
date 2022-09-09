@@ -117,8 +117,8 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Control.Monad.Catch as MC
 import qualified Network.Socket as Net
 
-import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Unfold as UF (bracket, first, many, lmap)
+import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (initialize, snoc, chunksOf, Step(Done, Partial))

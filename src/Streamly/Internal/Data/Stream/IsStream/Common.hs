@@ -92,6 +92,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
     , fromStreamK, toStreamK, concatMapM, concatMap, foldManyPost, splitOnSeq
     , zipWithM, zipWith, intersperseM, reverse)
 import qualified Streamly.Internal.Data.Stream as Stream
+    (fold, foldBreak)
 
 import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
 

@@ -62,7 +62,14 @@ import Streamly.Internal.Data.Parser (Parser)
 
 import qualified Data.Char as Char
 import qualified Streamly.Internal.Data.Parser as Parser
-import qualified Streamly.Internal.Data.Fold as Fold
+    (
+      lmap
+    , satisfy
+    , list
+    , takeWhile1
+    , dropWhile
+    )
+import qualified Streamly.Data.Fold as Fold
 
 --------------------------------------------------------------------------------
 -- Character classification

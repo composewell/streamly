@@ -171,7 +171,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , zipWith, zipWithM)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD)
-import Streamly.Internal.Data.Unfold.Type (Unfold)
+import Streamly.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par

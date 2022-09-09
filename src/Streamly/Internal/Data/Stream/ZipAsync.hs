@@ -33,7 +33,8 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D (fromStreamK)
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
+    (fromStreamK, toStreamK)
 import Streamly.Internal.Data.SVar
 
 import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)

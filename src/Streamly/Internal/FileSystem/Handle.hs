@@ -133,7 +133,8 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
     (byteLength, asPtrUnsafe)
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
+    (Array(..), newPinnedArrayBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL

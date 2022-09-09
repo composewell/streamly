@@ -90,8 +90,15 @@ import qualified Streamly.Internal.Data.Parser.ParserD as PRD
     (Parser(..), Initial(..), fromParserK)
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+    ( fromList, nil, cons, map
+    , unfoldMany, append, splitInnerBy, splitInnerBySuffix
+    )
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (Step(Yield, Stop, Skip),  Stream(Stream))
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (Stream, cons, nil, fromPure, foldStream)
+import qualified Streamly.Internal.Data.Stream as Stream
+    (fromStreamK, toStreamK)
 
 -- XXX Since these are immutable arrays MonadIO constraint can be removed from
 -- most places.

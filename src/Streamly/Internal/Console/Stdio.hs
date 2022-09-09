@@ -47,9 +47,10 @@ import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.Fold (Fold)
 
-import qualified Streamly.Internal.Data.Array.Unboxed as Array
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+    (fromList)
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
-import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Unfold as Unfold (lmap)
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 

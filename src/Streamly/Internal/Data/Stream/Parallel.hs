@@ -76,7 +76,8 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), mapM, toStreamK, fromStreamK)
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
 import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
+    (toStreamK, fromStreamK)
 
 import Streamly.Internal.Data.SVar
 
