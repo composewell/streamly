@@ -59,6 +59,15 @@ import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), diffAbsTime64, fromRelTime64)
 
 import Streamly.Internal.Data.SVar.Type
+    ( SVar(..)
+    , PushBufferPolicy(..)
+    , Limit(..)
+    , YieldRateInfo(..)
+    , LatencyRange(..)
+    , WorkerInfo(..)
+    , ChildEvent(..)
+    , Count(..)
+    )
 
 ------------------------------------------------------------------------------
 -- Collecting results from child workers in a streamed fashion

@@ -60,6 +60,37 @@ import qualified Data.Set as S
 import Streamly.Internal.Data.SVar.Dispatch
 import Streamly.Internal.Data.SVar.Pull
 import Streamly.Internal.Data.SVar.Type
+    (SVar (..)
+    , State(..)
+    , YieldRateInfo(..)
+    , SVarStopStyle(..)
+    , Rate(..)
+    , SVarStats(..)
+    , AheadHeapEntry
+    , Limit(..)
+    , WorkerInfo(..)
+    , LatencyRange(..)
+    , Count(..)
+    , SVarStyle(..)
+    , PushBufferPolicy(..)
+    , ChildEvent(..)
+    , ThreadAbort(..)
+    , AheadHeapEntry(..)
+    , defState
+    , adaptState
+    , getMaxThreads
+    , setMaxThreads
+    , getMaxBuffer
+    , setMaxBuffer
+    , getStreamRate
+    , setStreamRate
+    , getStreamLatency
+    , setStreamLatency
+    , getYieldLimit
+    , setYieldLimit
+    , getInspectMode
+    , setInspectMode
+    , yieldRateInfo )
 import Streamly.Internal.Data.SVar.Worker
 
 -------------------------------------------------------------------------------

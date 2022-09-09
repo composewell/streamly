@@ -29,6 +29,12 @@ import System.Mem (performMajorGC)
 import qualified Control.Monad.Catch as MC
 
 import Streamly.Internal.Data.SVar.Type
+    ( SVar(..)
+    , SVarStopStyle(..)
+    , SVarStats(..)
+    , ChildEvent(..)
+    , ThreadAbort(ThreadAbort)
+    )
 import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith

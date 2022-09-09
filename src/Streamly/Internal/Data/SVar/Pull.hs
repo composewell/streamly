@@ -38,6 +38,11 @@ import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
 import qualified Data.Set as S
 
 import Streamly.Internal.Data.SVar.Type
+    ( SVar(..)
+    , SVarStats(..)
+    , ChildEvent
+    , ThreadAbort(..)
+    )
 import Streamly.Internal.Data.SVar.Dispatch
 
 -------------------------------------------------------------------------------

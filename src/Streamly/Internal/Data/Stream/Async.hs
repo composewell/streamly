@@ -71,7 +71,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..), mapM, toStreamK, fromStreamK)
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
-import Streamly.Internal.Data.SVar.Type
 import Streamly.Internal.Data.SVar
 
 #include "Instances.hs"
