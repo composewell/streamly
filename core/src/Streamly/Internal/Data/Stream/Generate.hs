@@ -8,15 +8,6 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Some idioms:
---
--- >>> fromEffect = Stream.sequence . Stream.fromPure
--- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0
--- >>> repeatM = Stream.sequence . Stream.repeat
--- >>> replicateM n = Stream.sequence . Stream.replicate n
--- >>> fromListM = Stream.sequence . Stream.fromList
--- >>> fromFoldableM = Stream.sequence . Stream.fromFoldable
---
 module Streamly.Internal.Data.Stream.Generate
     (
     -- * Primitives

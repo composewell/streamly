@@ -75,6 +75,14 @@
 -- "Data.List" like functions and many more powerful combinators to perform
 -- common programming tasks.
 --
+-- Some common idioms:
+--
+-- >>> repeatM = Stream.sequence . Stream.repeat
+-- >>> replicateM n = Stream.sequence . Stream.replicate n
+-- >>> fromListM = Stream.sequence . Stream.fromList
+-- >>> fromFoldableM = Stream.sequence . Stream.fromFoldable
+-- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0
+--
 -- Also see "Streamly.Internal.Data.Stream" module for many more @Pre-release@
 -- combinators. See the <https://github.com/composewell/streamly-examples>
 -- repository for many more real world examples of stream programming.
