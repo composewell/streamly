@@ -244,6 +244,18 @@ benchmark Data.Stream
     else
       ghc-options: +RTS -M2500M -RTS
 
+benchmark Data.Stream.Async
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
+  main-is: Async.hs
+  other-modules:
+      Stream.Common
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
 benchmark Prelude.WSerial
   import: bench-options
   type: exitcode-stdio-1.0

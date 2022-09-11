@@ -20,8 +20,6 @@ targets =
       )
 
     -- Streams
-    , ("Data.Stream", ["serial_wserial_cmp"])
-    , ("Prelude.WSerial", ["serial_wserial_cmp"])
     , ("Data.Stream",
             [ "prelude_serial_grp"
             , "infinite_grp"
@@ -29,6 +27,14 @@ targets =
             , "serial_async_cmp"
             ]
       )
+    , ("Data.Stream.Async",
+            [ "prelude_concurrent_grp"
+            , "infinite_grp"
+            , "concurrent_cmp"
+            , "serial_async_cmp"
+            ]
+      )
+    , ("Prelude.WSerial", ["serial_wserial_cmp"])
     , ("Prelude.WSerial",
             [ "prelude_serial_grp"
             , "infinite_grp"
