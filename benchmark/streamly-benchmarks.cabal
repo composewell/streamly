@@ -115,7 +115,7 @@ common bench-depends
     -- Core libraries shipped with ghc, the min and max
     -- constraints of these libraries should match with
     -- the GHC versions we support
-      base                >= 4.9   && < 4.17
+      base                >= 4.9   && < 4.18
     , deepseq             >= 1.4.1 && < 1.5
     , mtl                 >= 2.2   && < 2.3
 
@@ -127,7 +127,7 @@ common bench-depends
     , process             >= 1.4 && < 1.7
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.5
-    , ghc-prim          >= 0.4   && < 0.9
+    , ghc-prim          >= 0.4   && < 0.10
 
   if flag(use-gauge)
     build-depends:  gauge >= 0.2.4 && < 0.3
