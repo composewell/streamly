@@ -2,6 +2,10 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
+## 0.8.3 (September 2022)
+
+* Fix build with GHC 9.4
+
 ## 0.8.2 (Mar 2022)
 
 * Fix performance issues for GHC-9. These changes coupled with GHC changes

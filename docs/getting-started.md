@@ -204,7 +204,7 @@ You can also ask `cabal` to use a specific version of `streamly` by
 adding a version number constraint to the `--build-depends` flag:
 
 ```
-$ cabal repl --build-depends streamly==0.8.2
+$ cabal repl --build-depends streamly==0.8.3
 [1 of 1] Compiling Main             ( Main.hs, interpreted )
 Ok, modules loaded: Main.
 *Main>

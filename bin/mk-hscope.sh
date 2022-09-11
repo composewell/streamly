@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 GHC_VERSION=8.10.4
-STREAMLY_VERSION=0.8.2
+STREAMLY_VERSION=0.8.3
 
 case `uname` in
   Darwin) SYSTEM=x86_64-osx;;

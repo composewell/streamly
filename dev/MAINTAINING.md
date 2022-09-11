@@ -120,7 +120,7 @@
 
 * _Update changelog & Version_:
 
-    * Find API changes using `cabal-diff streamly 0.8.2 .` and record
+    * Find API changes using `cabal-diff streamly 0.8.3 .` and record
       them in docs/API-changelog.txt.
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
