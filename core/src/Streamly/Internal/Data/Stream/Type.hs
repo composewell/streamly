@@ -542,6 +542,6 @@ concatMapWith
     -> Stream m b
 concatMapWith par f xs = bindWith par xs f
 
-{-# INLINE_NORMAL fuse #-}
+{-# NOINLINE fuse #-}
 fuse :: a -> a
-fuse = id
+fuse = error "Operation with fuse modifier could not be rewritten"

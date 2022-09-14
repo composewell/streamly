@@ -187,7 +187,7 @@ infixr 6 `append`
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL append #-}
+{-# NOINLINE  append #-}
 append :: Monad m => Stream m a -> Stream m a -> Stream m a
 append = (<>)
 

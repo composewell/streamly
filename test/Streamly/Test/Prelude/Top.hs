@@ -14,6 +14,9 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream.Top as Top
 
+import Streamly.Internal.Data.Stream as ST(fold, fuse, append, fromList)
+import Streamly.Data.Fold as F(toList)
+
 import Prelude hiding
     (maximum, minimum, elem, notElem, null, product, sum, head, last, take)
 import Test.Hspec as H
@@ -30,6 +33,11 @@ chooseInt = choose
 
 eq :: Int -> Int -> Bool
 eq = (==)
+
+append :: Property
+append =  monadicIO $ do
+    v1 <- ST.fold F.toList $  (ST.fuse ST.append) (ST.fromList [1,2]) (ST.fromList [3,4])
+    assert (v1 == [1,2,3,4])
 
 joinInner :: Property
 joinInner =
@@ -204,6 +212,7 @@ moduleName = "Prelude.Top"
 main :: IO ()
 main = hspec $ do
     describe moduleName $ do
+        prop "append" Main.append
         -- Joins
         prop "joinInner" Main.joinInner
         prop "joinInnerMap" Main.joinInnerMap
