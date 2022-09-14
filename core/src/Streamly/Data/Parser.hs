@@ -75,7 +75,6 @@ module Streamly.Data.Parser
     , takeEndBy
     , takeEndByEsc
     , takeStartBy
-    , takeEitherSepBy
     , wordBy
 
     -- ** By comparing
@@ -98,9 +97,6 @@ module Streamly.Data.Parser
     -- secondary parser.
     , deintercalate
 
-    , sepBy
-    , sepBy1
-
     -- ** Sequential Alternative
     , alt
 
@@ -110,29 +106,9 @@ module Streamly.Data.Parser
     , concatMap
 
     -- ** Sequential Repetition
-    , count
-    , countBetween
-
-    , manyP
     , many
     , some
-    , manyTillP
     , manyTill
-    , manyThen
-
-    -- * Distribution
-    --
-    -- | A simple and stupid impl would be to just convert the stream to an
-    -- array and give the array reference to all consumers. The array can be
-    -- grown on demand by any consumer and truncated when nonbody needs it.
-
-    -- ** Interleaved collection
-    , roundRobin
-
-    -- ** Repeated Alternatives
-    , retryMaxTotal
-    , retryMaxSuccessive
-    , retry
     )
 where
 import Streamly.Internal.Data.Parser
