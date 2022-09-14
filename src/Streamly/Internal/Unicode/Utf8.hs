@@ -27,7 +27,7 @@ import Data.Word (Word8)
 import Streamly.Data.Array.Unboxed (Array)
 import System.IO.Unsafe (unsafePerformIO)
 
-import Streamly.Internal.Data.Array.Unboxed (fromStreamN, toStream)
+import qualified  Streamly.Internal.Data.Array.Unboxed as Array (fromStreamN, toStream)
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
@@ -54,7 +54,7 @@ pack :: String -> Utf8
 pack s =
     Utf8
         $ unsafePerformIO
-        $ fromStreamN len $ Unicode.encodeUtf8' $ Stream.fromList s
+        $ Array.fromStreamN len $ Unicode.encodeUtf8' $ Stream.fromList s
 
     where
 
@@ -64,4 +64,4 @@ pack s =
 unpack :: Utf8 -> String
 unpack u =
     unsafePerformIO
-        $ Stream.toList $ Unicode.decodeUtf8' $ toStream $ toArray u
+        $ Stream.toList $ Unicode.decodeUtf8' $ Array.toStream $ toArray u

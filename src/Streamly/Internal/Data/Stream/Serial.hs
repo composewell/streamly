@@ -39,9 +39,8 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import GHC.Exts (IsList(..))
 import Streamly.Internal.Data.Stream (Stream)
-import qualified Streamly.Internal.Data.Stream.Generate as Stream
-    (cons, consM, repeat, unfoldrM)
-import qualified Streamly.Internal.Data.Stream.Transform as Stream (mapM)
+
+import qualified Streamly.Data.Stream as Stream
 
 import Prelude hiding (map)
 

@@ -83,8 +83,9 @@ import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as AS
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Type as FL
-    (Fold(..), lmap, Step(Done, Partial))
+    (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
     (Parser(..), Initial(..), fromParserK)

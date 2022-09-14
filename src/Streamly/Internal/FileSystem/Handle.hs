@@ -130,6 +130,7 @@ import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
     (byteLength, asPtrUnsafe)
@@ -137,8 +138,6 @@ import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
     (Array(..), newPinnedArrayBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Refold.Type as Refold
-import qualified Streamly.Internal.Data.Fold as FL
-    (drainBy, chunksOf, lmap, takeEndBy_, many, take)
 import qualified Streamly.Internal.Data.Fold.Type as FL(refoldMany)
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D

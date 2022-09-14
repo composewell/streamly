@@ -111,8 +111,8 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))
-import qualified Streamly.Internal.Data.Unfold as UF
-    (first, map, many)
+import qualified Streamly.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Unfold as UF (first, map)
 
 -- | @'forSocketM' action socket@ runs the monadic computation @action@ passing
 -- the socket handle to it.  The handle will be closed on exit from
