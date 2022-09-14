@@ -21,12 +21,10 @@ import Control.Concurrent.MVar (MVar, newMVar, swapMVar, readMVar)
 import Control.Exception (SomeException(..), catch, mask)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Control.Concurrent (MonadAsync, withRunInIO)
-import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
-
-
 import Streamly.Data.Fold (many)
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step (..))
+import Streamly.Internal.Control.Concurrent (MonadAsync, withRunInIO)
+import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
 -- $setup
 -- >>> :m
