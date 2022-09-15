@@ -469,13 +469,7 @@ library
                      -- streamly-serde
                      , Streamly.Internal.Data.Binary.Decode
 
-                     -- streamly-unicode
-                     , Streamly.Internal.Unicode.Stream
-                     , Streamly.Internal.Unicode.String
-                     , Streamly.Internal.Unicode.Utf8
-                     , Streamly.Internal.Unicode.Char
-                     , Streamly.Internal.Unicode.Char.Parser
-                     , Streamly.Internal.Unicode.Array.Char
+
 
                      -- streamly-filesystem
                      , Streamly.Internal.System.IOVec.Type
@@ -496,9 +490,6 @@ library
                      -- Exposed modules
                      , Streamly.Prelude
 
-                     -- Text Processing
-                     , Streamly.Unicode.Stream
-
                      -- Filesystem/IO
                      , Streamly.FileSystem.Handle
                      , Streamly.Console.Stdio
@@ -509,7 +500,7 @@ library
 
                      -- Deprecated
                      , Streamly
-                     , Streamly.Data.Unicode.Stream
+
                      , Streamly.Memory.Array
                      , Streamly.Data.Array.Foreign
 
