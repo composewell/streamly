@@ -480,7 +480,7 @@ parseDToK
 parseDToK pstep initial extract leftover (0, _) cont = do
     res <- initial
     case res of
-        IPartial r -> return $ K.Continue leftover (parseCont (return r))
+        IPartial r -> return $ K.Partial leftover (parseCont (return r))
         IDone b -> cont state (K.Success 0 b)
         IError err -> cont state (K.Failure err)
 
@@ -516,7 +516,7 @@ parseDToK pstep initial extract leftover (0, _) cont = do
 parseDToK pstep initial extract leftover (level, count) cont = do
     res <- initial
     case res of
-        IPartial r -> return $ K.Continue leftover (parseCont count (return r))
+        IPartial r -> return $ K.Partial leftover (parseCont count (return r))
         IDone b -> cont (level,count) (K.Success 0 b)
         IError err -> cont (level,count) (K.Failure err)
 
@@ -592,7 +592,7 @@ fromParserK parser = Parser step initial extract
         return $ case r of
             K.Done n b -> assert (n == 0) (IDone b)
             K.Error e -> IError e
-            K.Partial _ cont -> assert False (IPartial cont)
+            K.Partial n cont -> assert (n == 0) (IPartial cont)
             K.Continue n cont -> assert (n == 0) (IPartial cont)
 
     step cont a = do
@@ -605,11 +605,11 @@ fromParserK parser = Parser step initial extract
 
     extract cont = do
         r <- cont Nothing
-        return $ case r of
-            K.Done n b -> Done n b
-            K.Error e -> Error e
-            K.Partial _ _ -> error "Bug: extract got Partial"
-            K.Continue n cont1 -> Continue n cont1
+        case r of
+            K.Done n b -> return $ Done n b
+            K.Error e -> return $ Error e
+            K.Partial _ cont1 -> extract cont1
+            K.Continue n cont1 -> return $ Continue n cont1
 
 #ifndef DISABLE_FUSION
 {-# RULES "fromParserK/toParserK fusion" [2]
