@@ -73,7 +73,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 -- import qualified Streamly.Data.Fold as FL
 -- import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Unfold as UF (mapM2, map)
+import qualified Streamly.Internal.Data.Unfold as UF (mapM2)
 -- import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 -- import qualified Streamly.Data.Array.Unboxed as A
@@ -240,7 +240,7 @@ readEither =
 --
 {-# INLINE readFiles #-}
 readFiles :: MonadIO m => Unfold m String String
-readFiles = UF.map (fromRight undefined) $ UF.filter isRight readEither
+readFiles = fmap (fromRight undefined) $ UF.filter isRight readEither
 
 -- | Read directories only. Filter out "." and ".." entries.
 --
@@ -248,7 +248,7 @@ readFiles = UF.map (fromRight undefined) $ UF.filter isRight readEither
 --
 {-# INLINE readDirs #-}
 readDirs :: MonadIO m => Unfold m String String
-readDirs = UF.map (fromLeft undefined) $ UF.filter isLeft readEither
+readDirs = fmap (fromLeft undefined) $ UF.filter isLeft readEither
 
 -- | Raw read of a directory.
 --
