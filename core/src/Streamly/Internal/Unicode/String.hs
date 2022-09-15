@@ -43,8 +43,7 @@ import Language.Haskell.TH.Quote
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
-    (some, many, takeWhile1)
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Unicode.Char.Parser as Parser
 
 -- $setup

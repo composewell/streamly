@@ -334,6 +334,17 @@ library
                      -- Only used for benchmarks
                      , Streamly.Internal.Data.Stream.StreamK
 
+                    -- streamly-unicode
+                     , Streamly.Internal.Unicode.Stream
+                     , Streamly.Internal.Unicode.String
+                     , Streamly.Internal.Unicode.Utf8
+                     , Streamly.Internal.Unicode.Char
+                     , Streamly.Internal.Unicode.Char.Parser
+                     , Streamly.Internal.Unicode.Array.Char
+
+                    -- Text Processing
+                     , Streamly.Unicode.Stream
+
                      -- streamly-core exposed modules
                      , Streamly.Data.Stream
                      , Streamly.Data.Unbox
@@ -362,8 +373,10 @@ library
                      , ghc-prim          >= 0.2   && < 0.10
                      , mtl               >= 2.2   && < 2.3
                      , transformers      >= 0.4   && < 0.7
+                     , template-haskell  >= 2.13 && < 2.20
 
                      , fusion-plugin-types >= 0.1 && < 0.2
+                     , unicode-data      >= 0.1   && < 0.4
 
                      -- XXX to be removed
                      , transformers-base >= 0.4   && < 0.5

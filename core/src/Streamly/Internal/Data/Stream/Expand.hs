@@ -164,7 +164,7 @@ infixr 6 `append2`
 -- /Fused/
 --
 -- @since 0.9.0
-{-# INLINE append2 #-}
+{-# INLINE [1] append2 #-}
 append2 ::Monad m => Stream m b -> Stream m b -> Stream m b
 append2 m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
 

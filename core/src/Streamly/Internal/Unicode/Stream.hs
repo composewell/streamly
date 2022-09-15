@@ -104,11 +104,10 @@ import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Unboxed (Array)
 import Streamly.Internal.Data.Array.Unboxed.Mut.Type (MutableByteArray)
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream.IsStream.Type
-    (IsStream, fromStreamD, toStreamD, adapt)
+import Streamly.Internal.Data.Stream (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.StreamD (Step (..))
-import Streamly.Internal.Data.SVar (adaptState)
+import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unboxed (peekWith)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -118,12 +117,11 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Parser as Parser (Parser)
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
-    (Parser(..), Step(..), Initial(..), toParserK, toFold)
-import qualified Streamly.Internal.Data.Stream as Stream (fromByteStr#)
-import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Data.Array.Unboxed as Array
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as A (Array (..))
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream as Serial
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import Prelude hiding (lines, words, unlines, unwords)
@@ -148,8 +146,8 @@ import Prelude hiding (lines, words, unlines, unwords)
 --
 -- @since 0.8.0
 {-# INLINE decodeLatin1 #-}
-decodeLatin1 :: (IsStream t, Monad m) => t m Word8 -> t m Char
-decodeLatin1 = S.map (unsafeChr . fromIntegral)
+decodeLatin1 :: (Monad m) => Stream.Stream m Word8 -> Stream.Stream m Char
+decodeLatin1 = fmap (unsafeChr . fromIntegral)
 
 -------------------------------------------------------------------------------
 -- Latin1 encoding
@@ -161,8 +159,8 @@ decodeLatin1 = S.map (unsafeChr . fromIntegral)
 --
 -- @since 0.8.0
 {-# INLINE encodeLatin1' #-}
-encodeLatin1' :: (IsStream t, Monad m) => t m Char -> t m Word8
-encodeLatin1' = S.map convert
+encodeLatin1' :: (Monad m) => Stream.Stream m Char -> Stream.Stream m Word8
+encodeLatin1' = fmap convert
     where
     convert c =
         let codepoint = ord c
@@ -183,21 +181,21 @@ encodeLatin1' = S.map convert
 --
 -- /Since: 0.8.0 (Lenient Behaviour)/
 {-# INLINE encodeLatin1 #-}
-encodeLatin1 :: (IsStream t, Monad m) => t m Char -> t m Word8
-encodeLatin1 = S.map (fromIntegral . ord)
+encodeLatin1 :: (Monad m) => Stream.Stream m Char -> Stream.Stream m Word8
+encodeLatin1 = fmap (fromIntegral . ord)
 
 -- | Like 'encodeLatin1' but drops the input characters beyond 255.
 --
 -- @since 0.8.0
 {-# INLINE encodeLatin1_ #-}
-encodeLatin1_ :: (IsStream t, Monad m) => t m Char -> t m Word8
-encodeLatin1_ = S.map (fromIntegral . ord) . S.filter (<= chr 255)
+encodeLatin1_ :: (Monad m) => Stream.Stream m Char -> Stream.Stream m Word8
+encodeLatin1_ = fmap (fromIntegral . ord) . S.filter (<= chr 255)
 
 -- | Same as 'encodeLatin1'
 --
 {-# DEPRECATED encodeLatin1Lax "Please use 'encodeLatin1' instead" #-}
 {-# INLINE encodeLatin1Lax #-}
-encodeLatin1Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeLatin1Lax :: (Monad m) => Stream.Stream m Char -> Stream.Stream m Word8
 encodeLatin1Lax = encodeLatin1
 
 -------------------------------------------------------------------------------
@@ -428,8 +426,8 @@ decodeUtf8EitherD = resumeDecodeUtf8EitherD 0 0
 --
 -- /Pre-release/
 {-# INLINE decodeUtf8Either #-}
-decodeUtf8Either :: (Monad m, IsStream t)
-    => t m Word8 -> t m (Either DecodeError Char)
+decodeUtf8Either :: (Monad m)
+    => Stream.Stream m Word8 -> Stream.Stream m (Either DecodeError Char)
 decodeUtf8Either = fromStreamD . decodeUtf8EitherD . toStreamD
 
 -- |
@@ -437,11 +435,11 @@ decodeUtf8Either = fromStreamD . decodeUtf8EitherD . toStreamD
 -- /Pre-release/
 {-# INLINE resumeDecodeUtf8Either #-}
 resumeDecodeUtf8Either
-    :: (Monad m, IsStream t)
+    :: (Monad m)
     => DecodeState
     -> CodePoint
-    -> t m Word8
-    -> t m (Either DecodeError Char)
+    -> Stream.Stream m Word8
+    -> Stream.Stream m (Either DecodeError Char)
 resumeDecodeUtf8Either st cp =
     fromStreamD . resumeDecodeUtf8EitherD st cp . toStreamD
 
@@ -661,7 +659,7 @@ decodeUtf8D = decodeUtf8WithD TransliterateCodingFailure
 --
 -- /Since: 0.8.0 (Lenient Behaviour)/
 {-# INLINE decodeUtf8 #-}
-decodeUtf8 :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8 :: (Monad m) => Stream.Stream m Word8 -> Stream.Stream m Char
 decodeUtf8 = fromStreamD . decodeUtf8D . toStreamD
 
 {-# INLINE decodeUtf8D' #-}
@@ -673,7 +671,7 @@ decodeUtf8D' = decodeUtf8WithD ErrorOnCodingFailure
 --
 -- @since 0.8.0
 {-# INLINE decodeUtf8' #-}
-decodeUtf8' :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8' :: (Monad m) => Stream.Stream m Word8 -> Stream.Stream m Char
 decodeUtf8' = fromStreamD . decodeUtf8D' . toStreamD
 
 {-# INLINE decodeUtf8D_ #-}
@@ -685,14 +683,14 @@ decodeUtf8D_ = decodeUtf8WithD DropOnCodingFailure
 --
 -- @since 0.8.0
 {-# INLINE decodeUtf8_ #-}
-decodeUtf8_ :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8_ :: (Monad m) => Stream.Stream m Word8 -> Stream.Stream m Char
 decodeUtf8_ = fromStreamD . decodeUtf8D_ . toStreamD
 
 -- | Same as 'decodeUtf8'
 --
 {-# DEPRECATED decodeUtf8Lax "Please use 'decodeUtf8' instead" #-}
 {-# INLINE decodeUtf8Lax #-}
-decodeUtf8Lax :: (IsStream t, Monad m) => t m Word8 -> t m Char
+decodeUtf8Lax :: (Monad m) => Stream.Stream m Word8 -> Stream.Stream m Char
 decodeUtf8Lax = decodeUtf8
 
 -------------------------------------------------------------------------------
@@ -835,7 +833,7 @@ decodeUtf8ArraysD = decodeUtf8ArraysWithD TransliterateCodingFailure
 -- /Pre-release/
 {-# INLINE decodeUtf8Arrays #-}
 decodeUtf8Arrays ::
-       (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+       (MonadIO m) => Stream.Stream m (Array Word8) -> Stream.Stream m Char
 decodeUtf8Arrays =
     fromStreamD . decodeUtf8ArraysD . toStreamD
 
@@ -850,7 +848,7 @@ decodeUtf8ArraysD' = decodeUtf8ArraysWithD ErrorOnCodingFailure
 --
 -- /Pre-release/
 {-# INLINE decodeUtf8Arrays' #-}
-decodeUtf8Arrays' :: (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+decodeUtf8Arrays' :: (MonadIO m) => Stream.Stream m (Array Word8) -> Stream.Stream m Char
 decodeUtf8Arrays' = fromStreamD . decodeUtf8ArraysD' . toStreamD
 
 {-# INLINE decodeUtf8ArraysD_ #-}
@@ -865,7 +863,7 @@ decodeUtf8ArraysD_ = decodeUtf8ArraysWithD DropOnCodingFailure
 -- /Pre-release/
 {-# INLINE decodeUtf8Arrays_ #-}
 decodeUtf8Arrays_ ::
-       (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+       (MonadIO m) => Stream.Stream m (Array Word8) -> Stream.Stream m Char
 decodeUtf8Arrays_ =
     fromStreamD . decodeUtf8ArraysD_ . toStreamD
 
@@ -941,7 +939,7 @@ encodeUtf8D' = D.unfoldMany readCharUtf8'
 --
 -- @since 0.8.0
 {-# INLINE encodeUtf8' #-}
-encodeUtf8' :: (Monad m, IsStream t) => t m Char -> t m Word8
+encodeUtf8' :: (Monad m) => Stream.Stream m Char -> Stream.Stream m Word8
 encodeUtf8' = fromStreamD . encodeUtf8D' . toStreamD
 
 {-# INLINE_NORMAL readCharUtf8 #-}
@@ -963,7 +961,7 @@ encodeUtf8D = D.unfoldMany readCharUtf8
 --
 -- /Since: 0.8.0 (Lenient Behaviour)/
 {-# INLINE encodeUtf8 #-}
-encodeUtf8 :: (Monad m, IsStream t) => t m Char -> t m Word8
+encodeUtf8 :: (Monad m) => Stream.Stream m Char -> Stream.Stream m Word8
 encodeUtf8 = fromStreamD . encodeUtf8D . toStreamD
 
 {-# INLINE_NORMAL readCharUtf8_ #-}
@@ -979,14 +977,14 @@ encodeUtf8D_ = D.unfoldMany readCharUtf8_
 --
 -- @since 0.8.0
 {-# INLINE encodeUtf8_ #-}
-encodeUtf8_ :: (Monad m, IsStream t) => t m Char -> t m Word8
+encodeUtf8_ :: (Monad m) => Stream.Stream m Char -> Stream.Stream m Word8
 encodeUtf8_ = fromStreamD . encodeUtf8D_ . toStreamD
 
 -- | Same as 'encodeUtf8'
 --
 {-# DEPRECATED encodeUtf8Lax "Please use 'encodeUtf8' instead" #-}
 {-# INLINE encodeUtf8Lax #-}
-encodeUtf8Lax :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeUtf8Lax :: (Monad m) => Stream.Stream m Char -> Stream.Stream m Word8
 encodeUtf8Lax = encodeUtf8
 
 -------------------------------------------------------------------------------
@@ -1029,20 +1027,20 @@ encodeObject encode u = S.fold Array.write . encode . S.unfold u
 --
 -- /Internal/
 {-# INLINE encodeObjects #-}
-encodeObjects :: (MonadIO m, IsStream t) =>
+encodeObjects :: (MonadIO m) =>
        (Stream m Char -> Stream m Word8)
     -> Unfold m a Char
-    -> t m a
-    -> t m (Array Word8)
-encodeObjects encode u = adapt . Serial.mapM (encodeObject encode u) . adapt
+    -> Stream.Stream m a
+    -> Stream.Stream m (Array Word8)
+encodeObjects encode u = Serial.mapM (encodeObject encode u)
 
 -- | Encode a stream of 'String' using the supplied encoding scheme. Each
 -- string is encoded as an @Array Word8@.
 --
 -- @since 0.8.0
 {-# INLINE encodeStrings #-}
-encodeStrings :: (MonadIO m, IsStream t) =>
-    (Stream m Char -> Stream m Word8) -> t m String -> t m (Array Word8)
+encodeStrings :: (MonadIO m) =>
+    (Stream m Char -> Stream m Word8) -> Stream.Stream m String -> Stream.Stream m (Array Word8)
 encodeStrings encode = encodeObjects encode Unfold.fromList
 
 {-
@@ -1050,10 +1048,10 @@ encodeStrings encode = encodeObjects encode Unfold.fromList
 -- Utility operations on strings
 -------------------------------------------------------------------------------
 
-strip :: IsStream t => t m Char -> t m Char
+strip :: IsStream t => Stream.Stream m Char -> Stream.Stream m Char
 strip = undefined
 
-stripTail :: IsStream t => t m Char -> t m Char
+stripTail :: IsStream t => Stream.Stream m Char -> Stream.Stream m Char
 stripTail = undefined
 -}
 
@@ -1063,7 +1061,7 @@ stripTail = undefined
 --
 -- /Pre-release/
 {-# INLINE stripHead #-}
-stripHead :: (Monad m, IsStream t) => t m Char -> t m Char
+stripHead :: (Monad m) => Stream.Stream m Char -> Stream.Stream m Char
 stripHead = S.dropWhile isSpace
 
 -- | Fold each line of the stream using the supplied 'Fold'
@@ -1076,8 +1074,10 @@ stripHead = S.dropWhile isSpace
 --
 -- /Pre-release/
 {-# INLINE lines #-}
-lines :: (Monad m, IsStream t) => Fold m Char b -> t m Char -> t m b
-lines = S.splitOnSuffix (== '\n')
+lines :: (Monad m) => Fold m Char b -> Stream.Stream m Char -> Stream.Stream m b
+lines f m =
+    Stream.fromStreamD $
+    D.foldMany (Fold.takeEndBy_ (== '\n') f) (Stream.toStreamD m)
 
 #if !MIN_VERSION_base(4,17,0)
 foreign import ccall unsafe "u_iswspace"
@@ -1107,8 +1107,8 @@ isSpace c
 --
 -- /Pre-release/
 {-# INLINE words #-}
-words :: (Monad m, IsStream t) => Fold m Char b -> t m Char -> t m b
-words = S.wordsBy isSpace
+words :: (Monad m) => Fold m Char b -> Stream.Stream m Char -> Stream.Stream m b
+words f m =  Stream.fromStreamD $ D.wordsBy isSpace f (Stream.toStreamD m)
 
 -- | Unfold a stream to character streams using the supplied 'Unfold'
 -- and concat the results suffixing a newline character @\\n@ to each stream.
@@ -1120,7 +1120,7 @@ words = S.wordsBy isSpace
 --
 -- /Pre-release/
 {-# INLINE unlines #-}
-unlines :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
+unlines :: (MonadIO m) => Unfold m a Char -> Stream.Stream m a -> Stream.Stream m Char
 unlines = S.interposeSuffix '\n'
 
 -- | Unfold the elements of a stream to character streams using the supplied
@@ -1134,5 +1134,5 @@ unlines = S.interposeSuffix '\n'
 --
 -- /Pre-release/
 {-# INLINE unwords #-}
-unwords :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
+unwords :: (MonadIO m) => Unfold m a Char -> Stream.Stream m a -> Stream.Stream m Char
 unwords = S.interpose ' '
