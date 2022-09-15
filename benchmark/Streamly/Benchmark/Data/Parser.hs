@@ -421,6 +421,11 @@ parseBreak s = do
 concatSequence :: MonadThrow m => Stream m Int -> m ()
 concatSequence = Stream.parse $ PR.concatSequence Fold.drain $ Stream.repeat PR.one
 
+{-# INLINE parseManyGroupBy #-}
+parseManyGroupBy :: MonadThrow m => (Int -> Int -> Bool) -> Stream m Int -> m ()
+parseManyGroupBy cmp =
+    Stream.fold Fold.drain . Stream.parseMany (PR.groupBy cmp Fold.drain)
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -466,6 +471,8 @@ o_1_space_serial value =
     , benchIOSink value "parseIterate (take 1)" (parseIterate 1)
     , benchIOSink value "parseIterate (take all)" (parseIterate value)
     , benchIOSink value "concatSequence" concatSequence
+    , benchIOSink value "parseMany (groupBy (<))" (parseManyGroupBy (<))
+    , benchIOSink value "parseMany (groupBy (==))" (parseManyGroupBy (==))
     ]
 
 o_1_space_filesystem :: BenchEnv -> [Benchmark]
