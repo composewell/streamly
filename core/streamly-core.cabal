@@ -320,7 +320,6 @@ library
                      , Streamly.Internal.Data.List
 
                      -- streamly-core-data-arrays
-                     -- XXX Depends on primitive
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Array.Unboxed
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
@@ -328,7 +327,6 @@ library
 
                     -- Ring Arrays
                      , Streamly.Internal.Data.Ring.Foreign
-                     -- XXX Depends on primitive
                      , Streamly.Internal.Data.Ring
 
                      -- Only used for benchmarks
@@ -368,7 +366,6 @@ library
 
                      -- XXX to be removed
                      , transformers-base >= 0.4   && < 0.5
-                     , primitive         >= 0.5.4 && < 0.8
                      , heaps             >= 0.3     && < 0.5
     if flag(use-unliftio)
       build-depends:   unliftio-core     >= 0.2 && < 0.3

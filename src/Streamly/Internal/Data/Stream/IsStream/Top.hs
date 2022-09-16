@@ -67,7 +67,8 @@ import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Streamly.Internal.Data.Array as Array (fromStream, toStream)
+import qualified Streamly.Internal.Data.Array as Array
+    (fromStream, length, toStream)
 import qualified Streamly.Data.Array.Unboxed.Mut as MA
 import qualified Streamly.Internal.Data.Fold as Fold
     (head, last, toStream, toStreamRev)
@@ -487,7 +488,7 @@ joinOuter :: MonadIO m =>
 joinOuter eq s1 s =
     Stream.concatM $ do
         inputArr <- Array.fromStream s
-        let len = length inputArr
+        let len = Array.length inputArr
         foundArr <-
             Stream.fold
             (MA.writeN len)

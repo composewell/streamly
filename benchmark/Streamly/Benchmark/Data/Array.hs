@@ -27,7 +27,6 @@ benchIOSrc name src = benchIO name src id
 sourceIntFromToFromList :: MonadIO m => Int -> Int -> m (Stream Int)
 sourceIntFromToFromList value n = P.return $ A.fromListN value [n..n + value]
 
-
 {-# INLINE readInstance #-}
 readInstance :: P.String -> Stream Int
 readInstance str =
@@ -50,7 +49,8 @@ foldableSum = P.sum
 
 {-# INLINE sourceIntFromToFromStream #-}
 sourceIntFromToFromStream :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceIntFromToFromStream value n = S.fold A.write $ S.enumerateFromTo n (n + value)
+sourceIntFromToFromStream value n =
+    S.fold A.write $ S.enumerateFromTo n (n + value)
 
 -------------------------------------------------------------------------------
 -- Bench groups
@@ -61,7 +61,7 @@ o_1_space_generation value =
     [ bgroup
         "generation"
         [ benchIOSrc "write . intFromTo" (sourceIntFromToFromStream value)
-        , let testStr = mkListString value
+        , let testStr = "fromList " ++ mkListString value
            in testStr `deepseq` bench "read" (nf readInstance testStr)
         ]
     ]

@@ -366,7 +366,7 @@ joinOuter :: MonadIO m =>
 joinOuter eq s1 s =
     Stream.concatM $ do
         inputArr <- Array.fromStream s
-        let len = length inputArr
+        let len = Array.length inputArr
         foundArr <-
             Stream.fold
             (MA.writeN len)
