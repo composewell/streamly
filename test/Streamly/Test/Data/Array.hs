@@ -37,6 +37,15 @@ testFromList =
 testLengthFromStream :: Property
 testLengthFromStream = genericTestFrom (const A.fromStream)
 
+testReadShowInstance :: Property
+testReadShowInstance =
+    forAll (choose (0, maxArrLen)) $ \len ->
+            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+                monadicIO $ do
+                    let arr = A.fromList list
+                    assert (A.toList (read (show arr)) == list)
+
+
 main :: IO ()
 main =
     hspec $
@@ -49,3 +58,4 @@ main =
             prop "toStream . fromStream === id" testFromStreamToStream
             prop "read . write === id" testFoldUnfold
             prop "fromList" testFromList
+            prop "testReadShowInstance" testReadShowInstance

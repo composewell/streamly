@@ -13,12 +13,15 @@ module Streamly.Internal.Data.Ring
     , unsafeInsertRing
     ) where
 
-import Control.Monad.Primitive (PrimMonad(PrimState))
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef, IORef)
-import Data.Primitive.Array (newArray, writeArray, MutableArray)
+import Streamly.Internal.Data.Array.Mut.Type
+    ( Array(..)
+    , newArray
+    , putIndexUnsafe
+    )
 
 data Ring a = Ring
-    { arr :: MutableArray (PrimState IO) a
+    { arr :: Array a
     , ringHead :: IORef Int -- current index to be over-written
     , ringMax :: !Int       -- first index beyond allocated memory
     }
@@ -26,7 +29,7 @@ data Ring a = Ring
 {-# INLINE createRing #-}
 createRing :: Int -> IO (Ring a)
 createRing count = do
-    arr' <- newArray count (undefined :: a)
+    arr' <- newArray count
     head' <- newIORef 0
     return (Ring
         { arr = arr'
@@ -37,7 +40,7 @@ createRing count = do
 {-# INLINE unsafeInsertRing #-}
 unsafeInsertRing :: Ring a -> Int -> a -> IO ()
 unsafeInsertRing Ring{..} idx x = do
-    writeArray arr (mod idx ringMax) x
+    putIndexUnsafe arr (mod idx ringMax) x
     ref <- readIORef ringHead
     if (ref+1) < ringMax
     then modifyIORef' ringHead ( + 1)

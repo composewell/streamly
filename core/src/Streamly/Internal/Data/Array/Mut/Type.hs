@@ -59,6 +59,9 @@ module Streamly.Internal.Data.Array.Mut.Type
     -- and therefore have a cons as well as snoc. But that will require two
     -- bounds in the array representation.
 
+    -- ** Reallocation
+    , realloc
+
     -- ** Appending elements
     , snocWith
     , snoc
@@ -146,15 +149,17 @@ module Streamly.Internal.Data.Array.Mut.Type
     -- , spliceWith
     -- , splice
     -- , spliceExp
-    -- , putSlice
+    , putSliceUnsafe
     -- , appendSlice
     -- , appendSliceFrom
+
+    , clone
     )
 where
 
 #include "inline.hs"
+#include "assert.hs"
 
-import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Base
     ( MutableArray#
@@ -568,3 +573,31 @@ producer = Producer step inject extract
 {-# INLINE_NORMAL read #-}
 read :: MonadIO m => Unfold m (Array a) a
 read = Producer.simplify producer
+
+--------------------------------------------------------------------------------
+-- Appending arrays
+--------------------------------------------------------------------------------
+
+-- | Put a sub range of a source array into a subrange of a destination array.
+-- This is not safe as it does not check the bounds.
+{-# INLINE putSliceUnsafe #-}
+putSliceUnsafe :: MonadIO m => Array a -> Int -> Array a -> Int -> Int -> m ()
+putSliceUnsafe src srcStart dst dstStart len = liftIO $ do
+    assertM(len <= arrLen dst)
+    assertM(len <= arrLen src)
+    let !(I# srcStart#) = srcStart + arrStart src
+        !(I# dstStart#) = dstStart + arrStart dst
+        !(I# len#) = len
+    let arrS# = arrContents# src
+        arrD# = arrContents# dst
+    IO $ \s# -> (# copyMutableArray#
+                    arrS# srcStart# arrD# dstStart# len# s#
+                , () #)
+
+{-# INLINE clone #-}
+clone :: MonadIO m => Array a -> m (Array a)
+clone src = liftIO $ do
+    let len = arrLen src
+    dst <- newArray len
+    putSliceUnsafe src 0 dst 0 len
+    return dst
