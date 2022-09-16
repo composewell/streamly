@@ -78,11 +78,9 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Trimming
     -- | Produce a subset of the stream trimmed at ends.
     , take
-    , takeByTime
     , takeWhile
     , takeWhileM
     , drop
-    , dropByTime
     , dropWhile
     , dropWhileM
 
@@ -133,17 +131,14 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Maybe (fromJust, isJust)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
-import qualified Data.Set as Set
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.SVar.Type (defState, adaptState)
-import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
-import Streamly.Internal.Data.Time.Units
-       (TimeUnit64, toRelTime64, diffAbsTime64)
 
+import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
@@ -790,84 +785,6 @@ deleteBy eq x (Stream step state) = Stream step' (state, False)
 ------------------------------------------------------------------------------
 -- Trimming
 ------------------------------------------------------------------------------
-
--- XXX using getTime in the loop can be pretty expensive especially for
--- computations where iterations are lightweight. We have the following
--- options:
---
--- 1) Run a timeout thread updating a flag asynchronously and check that
--- flag here, that way we can have a cheap termination check.
---
--- 2) Use COARSE clock to get time with lower resolution but more efficiently.
---
--- 3) Use rdtscp/rdtsc to get time directly from the processor, compute the
--- termination value of rdtsc in the beginning and then in each iteration just
--- get rdtsc and check if we should terminate.
---
-data TakeByTime st s
-    = TakeByTimeInit st
-    | TakeByTimeCheck st s
-    | TakeByTimeYield st s
-
-{-# INLINE_NORMAL takeByTime #-}
-takeByTime :: (MonadIO m, TimeUnit64 t) => t -> Stream m a -> Stream m a
-takeByTime duration (Stream step1 state1) = Stream step (TakeByTimeInit state1)
-    where
-
-    lim = toRelTime64 duration
-
-    {-# INLINE_LATE step #-}
-    step _ (TakeByTimeInit _) | lim == 0 = return Stop
-    step _ (TakeByTimeInit st) = do
-        t0 <- liftIO $ getTime Monotonic
-        return $ Skip (TakeByTimeYield st t0)
-    step _ (TakeByTimeCheck st t0) = do
-        t <- liftIO $ getTime Monotonic
-        return $
-            if diffAbsTime64 t t0 > lim
-            then Stop
-            else Skip (TakeByTimeYield st t0)
-    step gst (TakeByTimeYield st t0) = do
-        r <- step1 gst st
-        return $ case r of
-             Yield x s -> Yield x (TakeByTimeCheck s t0)
-             Skip s -> Skip (TakeByTimeCheck s t0)
-             Stop -> Stop
-
-data DropByTime st s x
-    = DropByTimeInit st
-    | DropByTimeGen st s
-    | DropByTimeCheck st s x
-    | DropByTimeYield st
-
-{-# INLINE_NORMAL dropByTime #-}
-dropByTime :: (MonadIO m, TimeUnit64 t) => t -> Stream m a -> Stream m a
-dropByTime duration (Stream step1 state1) = Stream step (DropByTimeInit state1)
-    where
-
-    lim = toRelTime64 duration
-
-    {-# INLINE_LATE step #-}
-    step _ (DropByTimeInit st) = do
-        t0 <- liftIO $ getTime Monotonic
-        return $ Skip (DropByTimeGen st t0)
-    step gst (DropByTimeGen st t0) = do
-        r <- step1 gst st
-        return $ case r of
-             Yield x s -> Skip (DropByTimeCheck s t0 x)
-             Skip s -> Skip (DropByTimeGen s t0)
-             Stop -> Stop
-    step _ (DropByTimeCheck st t0 x) = do
-        t <- liftIO $ getTime Monotonic
-        if diffAbsTime64 t t0 <= lim
-        then return $ Skip $ DropByTimeGen st t0
-        else return $ Yield x $ DropByTimeYield st
-    step gst (DropByTimeYield st) = do
-        r <- step1 gst st
-        return $ case r of
-             Yield x s -> Yield x (DropByTimeYield s)
-             Skip s -> Skip (DropByTimeYield s)
-             Stop -> Stop
 
 -- Adapted from the vector package
 {-# INLINE_NORMAL drop #-}

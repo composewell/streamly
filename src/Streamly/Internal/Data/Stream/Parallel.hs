@@ -11,7 +11,7 @@
 --
 -- To run examples in this module:
 --
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{
 --  delay n = do
@@ -42,10 +42,15 @@ module Streamly.Internal.Data.Stream.Parallel
 
     -- * Callbacks
     , newCallbackStream
+
+    -- * Combinators
+    , interjectSuffix
+    , takeInterval
+    , dropInterval
     )
 where
 
-import Control.Concurrent (myThreadId, takeMVar)
+import Control.Concurrent (myThreadId, takeMVar, threadDelay)
 import Control.Monad (when)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -56,37 +61,36 @@ import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor (void)
 import Data.IORef (readIORef, writeIORef)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isNothing)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
-import Prelude hiding (map)
-
-import qualified Data.Set as Set
 
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream)
 
+import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (foldStreamShared, mkStream, foldStream, fromEffect
+    (Stream, foldStreamShared, mkStream, foldStream, fromEffect
     , nil, concatMapWith, fromPure, bindWith, withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), mapM, toStreamK, fromStreamK)
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
 import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar
 import qualified Streamly.Internal.Data.Stream as Stream
-    (toStreamK, fromStreamK)
+    (catMaybes, dropWhile, fromStreamK, repeat, sequence, takeWhile, toStreamK)
 
 import Streamly.Internal.Data.SVar
+import Prelude hiding (map)
 
 #include "inline.hs"
 #include "Instances.hs"
 
 --
 -- $setup
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{
 --  delay n = do
@@ -106,7 +110,7 @@ import Streamly.Internal.Data.SVar
 {-# NOINLINE runOne #-}
 runOne
     :: MonadIO m
-    => State Stream m a -> Stream m a -> Maybe WorkerInfo -> m ()
+    => State K.Stream m a -> K.Stream m a -> Maybe WorkerInfo -> m ()
 runOne st m0 winfo =
     case getYieldLimit st of
         Nothing -> go m0
@@ -129,7 +133,7 @@ runOne st m0 winfo =
 
 runOneLimited
     :: MonadIO m
-    => State Stream m a -> Stream m a -> Maybe WorkerInfo -> m ()
+    => State K.Stream m a -> K.Stream m a -> Maybe WorkerInfo -> m ()
 runOneLimited st m0 winfo = go m0
 
     where
@@ -166,7 +170,7 @@ runOneLimited st m0 winfo = go m0
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: MonadAsync m
-    => SVarStopStyle -> Stream m a -> Stream m a -> Stream m a
+    => SVarStopStyle -> K.Stream m a -> K.Stream m a -> K.Stream m a
 forkSVarPar ss m r = K.mkStream $ \st yld sng stp -> do
     sv <- newParallelVar ss st
     pushWorkerPar sv (runOne st{streamVar = Just sv} m)
@@ -179,8 +183,13 @@ forkSVarPar ss m r = K.mkStream $ \st yld sng stp -> do
     K.foldStream st yld sng stp $ Stream.toStreamK (SVar.fromSVar sv)
 
 {-# INLINE joinStreamVarPar #-}
-joinStreamVarPar :: MonadAsync m
-    => SVarStyle -> SVarStopStyle -> Stream m a -> Stream m a -> Stream m a
+joinStreamVarPar ::
+       MonadAsync m
+    => SVarStyle
+    -> SVarStopStyle
+    -> K.Stream m a
+    -> K.Stream m a
+    -> K.Stream m a
 joinStreamVarPar style ss m1 m2 = K.mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style && svarStopStyle sv == ss -> do
@@ -230,7 +239,7 @@ joinStreamVarPar style ss m1 m2 = K.mkStream $ \st yld sng stp ->
 -------------------------------------------------------------------------------
 
 {-# INLINE parallelK #-}
-parallelK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+parallelK :: MonadAsync m => K.Stream m a -> K.Stream m a -> K.Stream m a
 parallelK = joinStreamVarPar ParallelVar StopNone
 
 -- | XXX we can implement it more efficienty by directly implementing instead
@@ -248,7 +257,7 @@ consM m (ParallelT r) = ParallelT $ parallelK (K.fromEffect m) r
 --
 -- /Pre-release/
 {-# INLINE parallelFstK #-}
-parallelFstK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+parallelFstK :: MonadAsync m => K.Stream m a -> K.Stream m a -> K.Stream m a
 parallelFstK = joinStreamVarPar ParallelVar StopBy
 
 -- This is a race like combinator for streams.
@@ -258,7 +267,7 @@ parallelFstK = joinStreamVarPar ParallelVar StopBy
 --
 -- /Pre-release/
 {-# INLINE parallelMinK #-}
-parallelMinK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+parallelMinK :: MonadAsync m => K.Stream m a -> K.Stream m a -> K.Stream m a
 parallelMinK = joinStreamVarPar ParallelVar StopAny
 
 ------------------------------------------------------------------------------
@@ -269,7 +278,7 @@ parallelMinK = joinStreamVarPar ParallelVar StopAny
 --
 -- /Pre-release/
 --
-mkParallelK :: MonadAsync m => Stream m a -> Stream m a
+mkParallelK :: MonadAsync m => K.Stream m a -> K.Stream m a
 mkParallelK m = K.mkStream $ \st yld sng stp -> do
     sv <- newParallelVar StopNone (adaptState st)
     -- pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream m)
@@ -342,7 +351,8 @@ mkParallelD m = D.Stream step Nothing
 --
 -- /Pre-release/
 {-# INLINE tapAsyncK #-}
-tapAsyncK :: MonadAsync m => (Stream m a -> m b) -> Stream m a -> Stream m a
+tapAsyncK ::
+       MonadAsync m => (K.Stream m a -> m b) -> K.Stream m a -> K.Stream m a
 tapAsyncK f m = K.mkStream $ \st yld sng stp -> do
     sv <- SVar.newFoldSVar st (f . Stream.toStreamK)
     K.foldStreamShared st yld sng stp
@@ -420,7 +430,7 @@ tapAsyncF f (D.Stream step1 state1) = D.Stream step TapInit
 -- /Since: 0.7.0 (maxBuffer applies to ParallelT streams)/
 --
 -- @since 0.8.0
-newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
+newtype ParallelT m a = ParallelT {getParallelT :: K.Stream m a}
     deriving (MonadTrans)
 
 -- | A parallely composing IO stream of elements of type @a@.
@@ -507,7 +517,7 @@ MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 -- /Pre-release/
 --
 {-# INLINE_NORMAL newCallbackStream #-}
-newCallbackStream :: MonadAsync m => m (a -> m (), Stream m a)
+newCallbackStream :: MonadAsync m => m (a -> m (), K.Stream m a)
 newCallbackStream = do
     sv <- newParallelVar StopNone defState
 
@@ -520,3 +530,87 @@ newCallbackStream = do
     -- XXX we can return an SVar and then the consumer can unfold from the
     -- SVar?
     return (callback, D.toStreamK (SVar.fromSVarD sv))
+
+------------------------------------------------------------------------------
+-- Combinators
+------------------------------------------------------------------------------
+
+{-# INLINE parallelFst #-}
+parallelFst :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+parallelFst m1 m2 =
+    Stream.fromStreamK
+        $ parallelFstK (Stream.toStreamK m1) (Stream.toStreamK m2)
+
+-- | Intersperse a monadic action into the input stream after every @n@
+-- seconds.
+--
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Stream.Parallel as Parallel
+-- >>> Stream.fold Fold.drain $ Parallel.interjectSuffix 1.05 (putChar ',') $ Stream.mapM (\x -> threadDelay 1000000 >> putChar x) $ Stream.fromList "hello"
+-- h,e,l,l,o
+--
+-- /Pre-release/
+{-# INLINE interjectSuffix #-}
+interjectSuffix :: MonadAsync m => Double -> m a -> Stream m a -> Stream m a
+interjectSuffix n f xs = xs `parallelFst` repeatM timed
+    where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
+          repeatM = Stream.sequence . Stream.repeat
+
+-- XXX Notes from D.takeByTime (which was removed)
+-- XXX using getTime in the loop can be pretty expensive especially for
+-- computations where iterations are lightweight. We have the following
+-- options:
+--
+-- 1) Run a timeout thread updating a flag asynchronously and check that
+-- flag here, that way we can have a cheap termination check.
+--
+-- 2) Use COARSE clock to get time with lower resolution but more efficiently.
+--
+-- 3) Use rdtscp/rdtsc to get time directly from the processor, compute the
+-- termination value of rdtsc in the beginning and then in each iteration just
+-- get rdtsc and check if we should terminate.
+
+
+-- | @takeInterval duration@ yields stream elements upto specified time
+-- @duration@ in seconds. The duration starts when the stream is evaluated for
+-- the first time, before the first element is yielded. The time duration is
+-- checked before generating each element, if the duration has expired the
+-- stream stops.
+--
+-- The total time taken in executing the stream is guaranteed to be /at least/
+-- @duration@, however, because the duration is checked before generating an
+-- element, the upper bound is indeterminate and depends on the time taken in
+-- generating and processing the last element.
+--
+-- No element is yielded if the duration is zero. At least one element is
+-- yielded if the duration is non-zero.
+--
+-- /Pre-release/
+--
+{-# INLINE takeInterval #-}
+takeInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
+takeInterval d =
+    Stream.catMaybes
+        . Stream.takeWhile isNothing
+        . interjectSuffix d (return Nothing) . fmap Just
+
+-- | @dropInterval duration@ drops stream elements until specified @duration@ in
+-- seconds has passed.  The duration begins when the stream is evaluated for the
+-- first time. The time duration is checked /after/ generating a stream element,
+-- the element is yielded if the duration has expired otherwise it is dropped.
+--
+-- The time elapsed before starting to generate the first element is /at most/
+-- @duration@, however, because the duration expiry is checked after the
+-- element is generated, the lower bound is indeterminate and depends on the
+-- time taken in generating an element.
+--
+-- All elements are yielded if the duration is zero.
+--
+-- /Pre-release/
+--
+{-# INLINE dropInterval #-}
+dropInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
+dropInterval d =
+    Stream.catMaybes
+        . Stream.dropWhile isNothing
+        . interjectSuffix d (return Nothing) . fmap Just
