@@ -1449,6 +1449,7 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
             Partial _ _ -> error "concatMap: extract Partial"
             Continue n s -> return $ Continue n (ConcatParseL s)
 
+{-
 -- Note: The monad instance has quadratic performance complexity. It works fine
 -- for small number of compositions but for a scalable implementation we need a
 -- CPS version.
@@ -1494,6 +1495,7 @@ instance (Monad m, MonadState s m) => MonadState s (Parser m a) where
 instance (Monad m, MonadIO m) => MonadIO (Parser m a) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
+-}
 
 ------------------------------------------------------------------------------
 -- Mapping on input
