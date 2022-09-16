@@ -35,6 +35,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import Streamly.Internal.Data.Time.Units
 #else
+import qualified Streamly.Internal.Data.Stream.Parallel as Stream
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 
@@ -301,16 +302,16 @@ takeWhileTrue value n = composeN n $ Stream.takeWhile (<= (value + 1))
 takeWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeWhileMTrue value n = composeN n $ Stream.takeWhileM (return . (<= (value + 1)))
 
-#ifdef USE_PRELUDE
 {-# INLINE takeInterval #-}
-takeInterval :: NanoSecond64 -> Int -> Stream IO Int -> IO ()
+takeInterval :: Double -> Int -> Stream IO Int -> IO ()
 takeInterval i n = composeN n (Stream.takeInterval i)
 
+-- Inspection testing is disabled for takeInterval
+-- Enable it when looking at it throughly
 #ifdef INSPECTION
 -- inspect $ hasNoType 'takeInterval ''SPEC
-inspect $ hasNoTypeClasses 'takeInterval
+-- inspect $ hasNoTypeClasses 'takeInterval
 -- inspect $ 'takeInterval `hasNoType` ''D.Step
-#endif
 #endif
 
 {-# INLINE dropOne #-}
@@ -338,15 +339,17 @@ dropWhileFalse value n = composeN n $ Stream.dropWhile (> (value + 1))
 {-# INLINE _intervalsOfSum #-}
 _intervalsOfSum :: MonadAsync m => Double -> Int -> Stream m Int -> m ()
 _intervalsOfSum i n = composeN n (Stream.intervalsOf i FL.sum)
+#endif
 
 {-# INLINE dropInterval #-}
-dropInterval :: NanoSecond64 -> Int -> Stream IO Int -> IO ()
+dropInterval :: Double -> Int -> Stream IO Int -> IO ()
 dropInterval i n = composeN n (Stream.dropInterval i)
 
+-- Inspection testing is disabled for dropInterval
+-- Enable it when looking at it throughly
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'dropInterval
+-- inspect $ hasNoTypeClasses 'dropInterval
 -- inspect $ 'dropInterval `hasNoType` ''D.Step
-#endif
 #endif
 
 {-# INLINE findIndices #-}
@@ -403,16 +406,8 @@ o_1_space_filtering value =
      -- , benchIOSink value "takeWhileM-true" (_takeWhileMTrue value 1)
         , benchIOSink value "drop-one" (dropOne 1)
         , benchIOSink value "drop-all" (dropAll value 1)
-#ifdef USE_PRELUDE
-        , benchIOSink
-              value
-              "takeInterval-all"
-              (takeInterval (NanoSecond64 maxBound) 1)
-        , benchIOSink
-              value
-              "dropInterval-all"
-              (dropInterval (NanoSecond64 maxBound) 1)
-#endif
+        , benchIOSink value "takeInterval-all" (takeInterval 10000 1)
+        , benchIOSink value "dropInterval-all" (dropInterval 10000 1)
         , benchIOSink value "dropWhile-true" (dropWhileTrue value 1)
      -- , benchIOSink value "dropWhileM-true" (_dropWhileMTrue value 1)
         , benchIOSink

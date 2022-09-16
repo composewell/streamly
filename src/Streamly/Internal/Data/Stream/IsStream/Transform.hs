@@ -85,7 +85,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     -- | Produce a subset of the stream trimmed at ends.
 
     , take
-    , takeInterval
     , takeLast
     , takeLastInterval
     , takeWhile
@@ -93,7 +92,6 @@ module Streamly.Internal.Data.Stream.IsStream.Transform
     , takeWhileLast
     , takeWhileAround
     , drop
-    , dropInterval
     , dropLast
     , dropLastInterval
     , dropWhile
@@ -250,7 +248,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD, toConsK)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.SVar (Rate(..))
-import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
+import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
@@ -259,7 +257,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
     (transform, foldrT, tap, tapOffsetEvery, pollCounts, mapM, scanOnce
     , scanMany, postscanOnce, scanlx', scanlM', scanl', postscanl', prescanl'
     , prescanlM', scanl1M', scanl1', filter, filterM, uniq, deleteBy, takeWhileM
-    , takeByTime, dropWhile, dropWhileM, dropByTime, insertBy, intersperse
+    , dropWhile, dropWhileM, insertBy, intersperse
     , intersperseM_, intersperseSuffix, intersperseSuffix_
     , intersperseSuffixBySpan, indexed, indexedR, rollingMap, rollingMapM
     , rollingMap2, mapMaybe, mapMaybeM)
@@ -1059,26 +1057,6 @@ takeWhileAround :: -- (IsStream t, Monad m) =>
     (a -> Bool) -> t m a -> t m a
 takeWhileAround = undefined -- fromStreamD $ D.takeWhileAround n $ toStreamD m
 
--- | @takeInterval duration@ yields stream elements upto specified time
--- @duration@. The duration starts when the stream is evaluated for the first
--- time, before the first element is yielded. The time duration is checked
--- before generating each element, if the duration has expired the stream
--- stops.
---
--- The total time taken in executing the stream is guaranteed to be /at least/
--- @duration@, however, because the duration is checked before generating an
--- element, the upper bound is indeterminate and depends on the time taken in
--- generating and processing the last element.
---
--- No element is yielded if the duration is zero. At least one element is
--- yielded if the duration is non-zero.
---
--- /Pre-release/
---
-{-# INLINE takeInterval #-}
-takeInterval ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
-takeInterval d = fromStreamD . D.takeByTime d . toStreamD
-
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
 --
@@ -1093,24 +1071,6 @@ dropWhile p m = fromStreamD $ D.dropWhile p $ toStreamD m
 {-# INLINE dropWhileM #-}
 dropWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
-
--- | @dropInterval duration@ drops stream elements until specified @duration@ has
--- passed.  The duration begins when the stream is evaluated for the first
--- time. The time duration is checked /after/ generating a stream element, the
--- element is yielded if the duration has expired otherwise it is dropped.
---
--- The time elapsed before starting to generate the first element is /at most/
--- @duration@, however, because the duration expiry is checked after the
--- element is generated, the lower bound is indeterminate and depends on the
--- time taken in generating an element.
---
--- All elements are yielded if the duration is zero.
---
--- /Pre-release/
---
-{-# INLINE dropInterval #-}
-dropInterval ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
-dropInterval d = fromStreamD . D.dropByTime d . toStreamD
 
 -- | Drop @n@ elements at the end of the stream.
 --
