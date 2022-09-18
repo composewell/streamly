@@ -446,6 +446,13 @@ library
 
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.WSerial
+                     , Streamly.Internal.Data.Stream.Async.Channel.Type
+                     , Streamly.Internal.Data.Stream.Async.Channel.Worker
+                     , Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
+                     , Streamly.Internal.Data.Stream.Async.Channel.Consumer
+                     , Streamly.Internal.Data.Stream.Async.Channel.Core
+                     , Streamly.Internal.Data.Stream.Async.Channel
+                     , Streamly.Internal.Data.Stream.Async
                      , Streamly.Internal.Data.Stream.Parallel
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.ZipAsync
@@ -560,6 +567,8 @@ library
                      , mtl               >= 2.2   && < 2.4
                      , transformers      >= 0.4   && < 0.7
                      , template-haskell  >= 2.13 && < 2.20
+
+                     , monad-control
 
                      -- The core streamly package
                      , streamly-core     == 0.1.0
