@@ -451,7 +451,9 @@ library
                      , Streamly.Internal.Data.Stream.Async.Channel.Worker
                      , Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
                      , Streamly.Internal.Data.Stream.Async.Channel.Consumer
-                     , Streamly.Internal.Data.Stream.Async.Channel.Core
+                     , Streamly.Internal.Data.Stream.Async.Channel.Append
+                     , Streamly.Internal.Data.Stream.Async.Channel.Interleave
+                     , Streamly.Internal.Data.Stream.Async.Channel.Operations
                      , Streamly.Internal.Data.Stream.Async.Channel
                      , Streamly.Internal.Data.Stream.Async
                      , Streamly.Internal.Data.Stream.Parallel
