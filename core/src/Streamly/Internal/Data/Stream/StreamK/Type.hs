@@ -89,6 +89,10 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , foldlS
     , reverse
 
+    , before
+    , concatEffect
+    , concatMapEffect
+
     -- * Interleave
     , interleave
     , interleaveFst
@@ -1374,6 +1378,30 @@ foldlS step = go
 {-# INLINE reverse #-}
 reverse :: Stream m a -> Stream m a
 reverse = foldlS (flip cons) nil
+
+------------------------------------------------------------------------------
+-- Runnining effects
+------------------------------------------------------------------------------
+
+-- | Run an action before evaluating the stream.
+{-# INLINE before #-}
+before :: Monad m => m b -> Stream m a -> Stream m a
+before action stream =
+    mkStream $ \st yld sng stp ->
+        action >> foldStreamShared st yld sng stp stream
+
+-- | concat . fromEffect
+{-# INLINE concatEffect #-}
+concatEffect :: Monad m => m (Stream m a) -> Stream m a
+concatEffect action =
+    mkStream $ \st yld sng stp ->
+        action >>= foldStreamShared st yld sng stp
+
+{-# INLINE concatMapEffect #-}
+concatMapEffect :: Monad m => (b -> Stream m a) -> m b -> Stream m a
+concatMapEffect f action =
+    mkStream $ \st yld sng stp ->
+        action >>= foldStreamShared st yld sng stp . f
 
 ------------------------------------------------------------------------------
 -- Lifting inner monad
