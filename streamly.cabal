@@ -446,7 +446,6 @@ library
 
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.WSerial
-                     , Streamly.Internal.Data.Stream.Async
                      , Streamly.Internal.Data.Stream.Parallel
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.ZipAsync
@@ -463,6 +462,7 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Exception
                      , Streamly.Internal.Data.Stream.IsStream.Lift
                      , Streamly.Internal.Data.Stream.IsStream.Top
+                     , Streamly.Internal.Data.Stream.IsStream.Async
                      , Streamly.Internal.Data.Stream.IsStream
 
                      , Streamly.Internal.Data.Array.Stream.Foreign

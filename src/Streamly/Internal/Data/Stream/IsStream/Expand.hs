@@ -165,7 +165,7 @@ where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.Ahead (aheadK)
-import Streamly.Internal.Data.Stream.Async (asyncK, wAsyncK)
+import Streamly.Internal.Data.Stream.IsStream.Async (asyncK, wAsyncK)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( concatM, concatMapM, concatMap, smapM, fromPure, fromEffect, parallelFst
     , zipWith, zipWithM)

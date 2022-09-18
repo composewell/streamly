@@ -103,7 +103,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Stream.Serial (SerialT, Serial)
 import Streamly.Internal.Data.Stream.WSerial (WSerialT(..), WSerial)
-import Streamly.Internal.Data.Stream.Async
+import Streamly.Internal.Data.Stream.IsStream.Async
     (AsyncT(..), Async, WAsyncT(..), WAsync)
 import Streamly.Internal.Data.Stream.Ahead (AheadT(..), Ahead)
 import Streamly.Internal.Data.Stream.Parallel (ParallelT(..), Parallel)
@@ -113,7 +113,7 @@ import Streamly.Internal.Data.SVar.Type (State, adaptState)
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.Stream.Ahead as Ahead
-import qualified Streamly.Internal.Data.Stream.Async as Async
+import qualified Streamly.Internal.Data.Stream.IsStream.Async as Async
 import qualified Streamly.Internal.Data.Stream.Parallel as Parallel
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.WSerial as WSerial

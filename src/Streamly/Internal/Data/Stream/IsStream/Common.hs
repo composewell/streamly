@@ -82,7 +82,7 @@ import Streamly.Internal.Data.Unboxed (Unboxed)
 
 import qualified Streamly.Data.Stream as Stream (fold, foldBreak)
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
-import qualified Streamly.Internal.Data.Stream.Async as Async
+import qualified Streamly.Internal.Data.Stream.IsStream.Async as Async
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
