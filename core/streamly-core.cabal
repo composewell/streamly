@@ -334,6 +334,10 @@ library
                      -- Only used for benchmarks
                      , Streamly.Internal.Data.Stream.StreamK
 
+                     -- streamly-console
+                     , Streamly.Internal.Console.Stdio
+                     , Streamly.Console.Stdio
+
                       -- streamly-filesystem
                      , Streamly.Internal.System.IOVec.Type
                      , Streamly.Internal.System.IOVec
@@ -361,7 +365,7 @@ library
                      , Streamly.Data.Unfold
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Array.Unboxed.Mut
-    
+
     if flag(dev)
       exposed-modules:
                         Streamly.Internal.Data.Stream.StreamDK
