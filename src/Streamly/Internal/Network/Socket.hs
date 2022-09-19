@@ -101,14 +101,18 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Data.Array.Unboxed as A (read, length, writeN)
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
+    (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe)
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
+    (Array(..), newPinnedArrayBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Unfold as UF
+    (Stream(..), Step(..))
+import qualified Streamly.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Unfold as UF (first, map)
 
 -- | @'forSocketM' action socket@ runs the monadic computation @action@ passing
 -- the socket handle to it.  The handle will be closed on exit from

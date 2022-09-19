@@ -182,11 +182,28 @@ import Streamly.Internal.Data.Unboxed (Unboxed)
 import qualified Data.Heap as H
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+    (arraysOf, toStream)
 import qualified Streamly.Internal.Data.Fold as FL
+    (Fold, Step(..), takeEndBy_, takeEndBy, catMaybes, take)
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+    (Parser(..), fromParserK)
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+    ( foldMany
+    , chunksOf
+    , refoldMany
+    , foldIterateM
+    , refoldIterateM
+    , parseMany
+    , parseIterate
+    , groupsBy
+    , groupsRollingBy
+    , wordsBy
+    , splitOnSuffixSeq
+    , splitInnerBy
+    , splitInnerBySuffix
+    )
 import qualified Streamly.Internal.Data.Stream.IsStream.Expand as Expand
 import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
 

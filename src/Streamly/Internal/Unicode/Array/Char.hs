@@ -18,15 +18,14 @@ module Streamly.Internal.Unicode.Array.Char
 where
 
 import Control.Monad.IO.Class (MonadIO)
-import Streamly.Prelude (MonadAsync)
-import Prelude hiding (String, lines, words, unlines, unwords)
-import Streamly.Internal.Data.Array.Unboxed (Array)
+import Streamly.Data.Array.Unboxed (Array)
 import Streamly.Internal.Data.Stream.IsStream (IsStream)
+import Streamly.Prelude (MonadAsync)
 
-import qualified Streamly.Internal.Data.Array.Unboxed as A
-    (write, read)
-
+import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Unicode.Stream as S
+
+import Prelude hiding (String, lines, words, unlines, unwords)
 
 -- $setup
 -- >>> :m

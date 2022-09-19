@@ -118,8 +118,16 @@ import qualified Streamly.Internal.Data.Stream.Parallel as Parallel
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (Stream(..), toStreamK, fromStreamK
+    , drain, eqBy, cmpBy, fromList, toList, foldrMx, foldlMx'
+    , foldlx', foldl', fold)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+    (Stream(..), cons, fromEffect
+    , nil, fromPure, bindWith, drain
+    , fromFoldable, consM, nilM, repeat)
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
+    (fromStreamK, toStreamK)
 import qualified Streamly.Internal.Data.Stream.Zip as Zip
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 

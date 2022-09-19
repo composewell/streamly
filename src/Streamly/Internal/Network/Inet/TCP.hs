@@ -117,10 +117,13 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Control.Monad.Catch as MC
 import qualified Network.Socket as Net
 
-import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Data.Array.Unboxed as A
+import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Unfold as UF (bracket, first)
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
+    (initialize, snoc, Step(..))
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Network.Socket as ISK
 

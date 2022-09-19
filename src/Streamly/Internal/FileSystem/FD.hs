@@ -146,10 +146,12 @@ import qualified Streamly.Internal.System.IOVec.Type as RawIO
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Data.Array.Unboxed as A
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
+    (Array(..), newPinnedArrayBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (Stream(..), Step(..))
 
 -------------------------------------------------------------------------------
 -- References

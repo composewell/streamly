@@ -24,10 +24,10 @@ where
 
 import Control.DeepSeq (NFData)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Array.Unboxed.Type (Array)
+import Streamly.Data.Array.Unboxed (Array)
 import System.IO.Unsafe (unsafePerformIO)
 
-import qualified Streamly.Internal.Data.Array.Unboxed as Array
+import qualified  Streamly.Internal.Data.Array.Unboxed as Array (fromStreamN, toStream)
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 

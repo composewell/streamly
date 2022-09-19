@@ -252,11 +252,19 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (TimeUnit64, AbsTime, RelTime64)
 
-import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+    (transform, foldrT, tap, tapOffsetEvery, pollCounts, mapM, scanOnce
+    , scanMany, postscanOnce, scanlx', scanlM', scanl', postscanl', prescanl'
+    , prescanlM', scanl1M', scanl1', filter, filterM, uniq, deleteBy, takeWhileM
+    , takeByTime, dropWhile, dropWhileM, dropByTime, insertBy, intersperse
+    , intersperseM_, intersperseSuffix, intersperseSuffix_
+    , intersperseSuffixBySpan, indexed, indexedR, rollingMap, rollingMapM
+    , rollingMap2, mapMaybe, mapMaybeM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (foldrS, foldrSShared, mapMWith)
 import qualified Prelude
 
 import Prelude hiding

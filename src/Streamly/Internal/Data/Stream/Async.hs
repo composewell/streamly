@@ -65,10 +65,12 @@ import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 import Streamly.Internal.Data.Stream.SVar.Generate (fromSVar, fromSVarD)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (foldStreamShared, mkStream, foldStream, fromEffect
+    , nil, concatMapWith, fromPure, bindWith, withLocal)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+    (Stream(..), Step(..), mapM, toStreamK, fromStreamK)
+import qualified Streamly.Internal.Data.Stream as Stream (toStreamK)
 
-import Streamly.Internal.Data.SVar.Type
 import Streamly.Internal.Data.SVar
 
 #include "Instances.hs"

@@ -80,13 +80,18 @@ import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Unboxed (Unboxed)
 
+import qualified Streamly.Data.Stream as Stream (fold, foldBreak)
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (fromPure, fromEffect, repeatMWith, reverse)
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream as Stream
+    (repeatM, times, foldContinue, map, scanlMAfter', postscanlMAfter'
+    , postscanlM', take,  takeWhile, takeEndBy, drop, findIndices
+    , fromStreamK, toStreamK, concatMapM, concatMap, foldManyPost, splitOnSeq
+    , zipWithM, zipWith, intersperseM, reverse)
 
 import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
 

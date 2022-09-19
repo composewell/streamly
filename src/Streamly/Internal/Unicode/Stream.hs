@@ -114,14 +114,15 @@ import Streamly.Internal.Data.Unboxed (peekWith)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
-import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Parser as Parser
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Parser as Parser (Parser)
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
-import qualified Streamly.Internal.Data.Stream as Stream
+    (Parser(..), Step(..), Initial(..), toParserK, toFold)
+import qualified Streamly.Internal.Data.Stream as Stream (fromByteStr#)
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Array.Unboxed as Array
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Data.Array.Unboxed as Array
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as A (Array (..))
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 

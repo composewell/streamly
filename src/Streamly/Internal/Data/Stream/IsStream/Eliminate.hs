@@ -166,12 +166,18 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Unboxed (Unboxed)
 
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Data.Array.Unboxed as A
+import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+    (foldr1, foldlT, foldlM', mapM_, null, head, headElse, last, elem
+    , notElem, all, any, minimum, minimumBy, maximum, maximumBy, the, lookup
+    , find, findM, toListRev, isPrefixOf, isSubsequenceOf, stripPrefix,  (!!))
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (uncons, foldlS, tail, init)
 import qualified Streamly.Internal.Data.Stream as Stream
+    (foldr, toStreamK, parseK, parseD, parseBreakD, foldrM, stripSuffix)
 import qualified System.IO as IO
 
 import Prelude hiding

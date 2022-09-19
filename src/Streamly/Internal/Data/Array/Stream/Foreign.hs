@@ -64,11 +64,11 @@ import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Prelude hiding (null, last, (!!), read, concat, unlines)
 
+import Streamly.Data.Fold (Fold)
+import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Fold.Foreign (ArrayFold(..))
-import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.SVar (adaptState, defState)
@@ -76,6 +76,7 @@ import Streamly.Internal.Data.Array.Unboxed.Mut.Type
     (allocBytesToElemCount)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 -- import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign
@@ -84,12 +85,21 @@ import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
+    (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+    (Parser(..), Initial(..), fromParserK)
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+    ( fromList, nil, cons, map
+    , unfoldMany, append, splitInnerBy, splitInnerBySuffix
+    )
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+    (Step(Yield, Stop, Skip),  Stream(Stream))
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+    (Stream, cons, nil, fromPure, foldStream)
+import qualified Streamly.Internal.Data.Stream as Stream
+    (fromStreamK, toStreamK)
 
 -- XXX Since these are immutable arrays MonadIO constraint can be removed from
 -- most places.
@@ -319,7 +329,7 @@ splitOnSuffix byte s =
 {-# INLINE_NORMAL foldBreakD #-}
 foldBreakD :: forall m a b. (MonadIO m, Unboxed a) =>
     Fold m a b -> D.Stream m (Array a) -> m (b, D.Stream m (Array a))
-foldBreakD (Fold fstep initial extract) stream@(D.Stream step state) = do
+foldBreakD (FL.Fold fstep initial extract) stream@(D.Stream step state) = do
     res <- initial
     case res of
         FL.Partial fs -> go SPEC state fs
@@ -355,7 +365,7 @@ foldBreakD (Fold fstep initial extract) stream@(D.Stream step state) = do
 {-# INLINE_NORMAL foldBreakK #-}
 foldBreakK :: forall m a b. (MonadIO m, Unboxed a) =>
     Fold m a b -> K.Stream m (Array a) -> m (b, K.Stream m (Array a))
-foldBreakK (Fold fstep initial extract) stream = do
+foldBreakK (FL.Fold fstep initial extract) stream = do
     res <- initial
     case res of
         FL.Partial fs -> go fs stream
@@ -395,7 +405,7 @@ foldBreakK (Fold fstep initial extract) stream = do
 {-# INLINE_NORMAL foldBreak #-}
 foldBreak ::
        (MonadIO m, Unboxed a)
-    => FL.Fold m a b
+    => Fold m a b
     -> Stream m (A.Array a)
     -> m (b, Stream m (A.Array a))
 -- foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)

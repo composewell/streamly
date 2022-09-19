@@ -38,8 +38,9 @@ where
 import Data.Semigroup (Semigroup(..))
 #endif
 import GHC.Exts (IsList(..))
-import Streamly.Internal.Data.Stream (Stream)
-import qualified Streamly.Internal.Data.Stream as Stream
+import Streamly.Data.Stream (Stream)
+
+import qualified Streamly.Data.Stream as Stream
 
 import Prelude hiding (map)
 
