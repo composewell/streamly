@@ -36,7 +36,7 @@ import Streamly.Internal.Control.ForkLifted (doFork)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Fold.SVar (write, writeLimited)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D

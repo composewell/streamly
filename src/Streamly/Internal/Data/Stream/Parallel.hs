@@ -64,8 +64,8 @@ import Prelude hiding (map)
 
 import qualified Data.Set as Set
 
-import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Data.Fold (Fold)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 

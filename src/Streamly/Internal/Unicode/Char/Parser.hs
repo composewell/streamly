@@ -61,6 +61,7 @@ import Prelude hiding (print)
 import Streamly.Internal.Data.Parser (Parser)
 
 import qualified Data.Char as Char
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
     (
       lmap
@@ -69,7 +70,6 @@ import qualified Streamly.Internal.Data.Parser as Parser
     , takeWhile1
     , dropWhile
     )
-import qualified Streamly.Data.Fold as Fold
 
 --------------------------------------------------------------------------------
 -- Character classification

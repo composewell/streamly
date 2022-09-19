@@ -102,12 +102,12 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Data.Array.Unboxed as A (read, length, writeN)
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
     (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe)
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
     (Array(..), newPinnedArrayBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))

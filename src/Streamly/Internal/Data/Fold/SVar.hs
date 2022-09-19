@@ -20,7 +20,7 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 
-import qualified Streamly.Internal.Data.Fold.Type as FL(Step(Done, Partial))
+import qualified Streamly.Internal.Data.Fold.Type as FL (Step(Done, Partial))
 
 import Streamly.Internal.Data.SVar
 

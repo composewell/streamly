@@ -64,15 +64,6 @@ import qualified Data.Heap as H
 import qualified Data.Set as S
 
 import Streamly.Internal.Data.SVar.Type
-    ( SVar(..)
-    , Limit(..)
-    , SVarStats(..)
-    , YieldRateInfo(..)
-    , WorkerInfo(..)
-    , SVarStyle(..)
-    , Count
-    , magicMaxBuffer
-    )
 import Streamly.Internal.Data.SVar.Worker
 
 -------------------------------------------------------------------------------
