@@ -99,9 +99,6 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
--- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Data.Array.Unboxed as A
@@ -111,7 +108,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Unfold as UF (bracket)
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 
 -------------------------------------------------------------------------------
 -- References
@@ -140,8 +137,8 @@ import qualified Streamly.Internal.Data.Stream.IsStream as S
 -- /Pre-release/
 --
 {-# INLINE withFile #-}
-withFile :: (IsStream t, MonadCatch m, MonadAsync m)
-    => FilePath -> IOMode -> (Handle -> t m a) -> t m a
+withFile :: (MonadCatch m, MonadAsync m)
+    => FilePath -> IOMode -> (Handle -> S.Stream m a) -> S.Stream m a
 withFile file mode = S.bracket (liftIO $ openFile file mode) (liftIO . hClose)
 
 -- | Transform an 'Unfold' from a 'Handle' to an unfold from a 'FilePath'.  The
@@ -219,8 +216,8 @@ appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 --
 -- @since 0.9.0
 {-# INLINE toChunksWith #-}
-toChunksWith :: (IsStream t, MonadCatch m, MonadAsync m)
-    => Int -> FilePath -> t m (Array Word8)
+toChunksWith :: (MonadCatch m, MonadAsync m)
+    => Int -> FilePath -> S.Stream m (Array Word8)
 toChunksWith size file =
     withFile file ReadMode (FH.getChunksWith size)
 
@@ -234,8 +231,8 @@ toChunksWith size file =
 --
 -- @since 0.7.0
 {-# INLINE toChunks #-}
-toChunks :: (IsStream t, MonadCatch m, MonadAsync m)
-    => FilePath -> t m (Array Word8)
+toChunks :: (MonadCatch m, MonadAsync m)
+    => FilePath -> S.Stream m (Array Word8)
 toChunks = toChunksWith defaultChunkSize
 
 -------------------------------------------------------------------------------
@@ -306,7 +303,7 @@ read = UF.many A.read (usingFile FH.readChunks)
 -- /Pre-release/
 --
 {-# INLINE toBytes #-}
-toBytes :: (IsStream t, MonadCatch m, MonadAsync m) => FilePath -> t m Word8
+toBytes :: (MonadCatch m, MonadAsync m) => FilePath -> S.Stream m Word8
 toBytes file = AS.concat $ withFile file ReadMode FH.getChunks
 
 {-
@@ -316,7 +313,7 @@ toBytes file = AS.concat $ withFile file ReadMode FH.getChunks
 --
 -- @since 0.7.0
 {-# INLINE readShared #-}
-readShared :: (IsStream t, MonadIO m) => Handle -> t m Word8
+readShared :: (MonadIO m) => Handle -> S.Stream m Word8
 readShared = undefined
 -}
 
@@ -327,7 +324,7 @@ readShared = undefined
 {-# INLINE fromChunksMode #-}
 fromChunksMode :: (MonadAsync m, MonadCatch m)
     => IOMode -> FilePath -> Stream m (Array a) -> m ()
-fromChunksMode mode file xs = S.drain $
+fromChunksMode mode file xs = S.fold FL.drain $
     withFile file mode (\h -> S.mapM (FH.putChunk h) xs)
 
 -- | Write a stream of arrays to a file. Overwrites the file if it exists.
@@ -470,7 +467,7 @@ appendShared = undefined
 --
 -- @since 0.7.0
 {-# INLINE readUtf8 #-}
-readUtf8 :: (IsStream t, MonadIO m) => Handle -> t m Char
+readUtf8 :: (MonadIO m) => Handle -> S.Stream m Char
 readUtf8 = decodeUtf8 . read
 
 -- |
@@ -492,7 +489,7 @@ writeUtf8 h s = write h $ encodeUtf8 s
 --
 -- @since 0.7.0
 {-# INLINE writeUtf8ByLines #-}
-writeUtf8ByLines :: (IsStream t, MonadIO m) => Handle -> t m Char -> m ()
+writeUtf8ByLines :: (MonadIO m) => Handle -> S.Stream m Char -> m ()
 writeUtf8ByLines = undefined
 
 -- | Read UTF-8 lines from a file handle and apply the specified fold to each
@@ -500,7 +497,7 @@ writeUtf8ByLines = undefined
 --
 -- @since 0.7.0
 {-# INLINE readLines #-}
-readLines :: (IsStream t, MonadIO m) => Handle -> Fold m Char b -> t m b
+readLines :: (MonadIO m) => Handle -> Fold m Char b -> S.Stream m b
 readLines h f = foldLines (readUtf8 h) f
 
 -------------------------------------------------------------------------------
@@ -513,8 +510,8 @@ readLines h f = foldLines (readUtf8 h) f
 --
 -- @since 0.7.0
 {-# INLINE readFrames #-}
-readFrames :: (IsStream t, MonadIO m, Storable a)
-    => Array a -> Handle -> Fold m a b -> t m b
+readFrames :: (MonadIO m, Storable a)
+    => Array a -> Handle -> Fold m a b -> S.Stream m b
 readFrames = undefined -- foldFrames . read
 
 -- | Write a stream to the given file handle buffering up to frames separated
@@ -522,8 +519,8 @@ readFrames = undefined -- foldFrames . read
 --
 -- @since 0.7.0
 {-# INLINE writeByFrames #-}
-writeByFrames :: (IsStream t, MonadIO m, Storable a)
-    => Array a -> Handle -> t m a -> m ()
+writeByFrames :: (MonadIO m, Storable a)
+    => Array a -> Handle -> S.Stream m a -> m ()
 writeByFrames = undefined
 
 -------------------------------------------------------------------------------
@@ -560,8 +557,8 @@ readIndex arr i = undefined
 -- chunk is aligned with @chunkSize@ from second chunk onwards.
 --
 {-# INLINE readSliceWith #-}
-readSliceWith :: (IsStream t, MonadIO m, Storable a)
-    => Int -> Handle -> Int -> Int -> t m a
+readSliceWith :: (MonadIO m, Storable a)
+    => Int -> Handle -> Int -> Int -> S.Stream m a
 readSliceWith chunkSize h pos len = undefined
 
 -- | @readSlice h i count@ streams a slice from the file handle @h@ starting
@@ -570,8 +567,8 @@ readSliceWith chunkSize h pos len = undefined
 --
 -- @since 0.7.0
 {-# INLINE readSlice #-}
-readSlice :: (IsStream t, MonadIO m, Storable a)
-    => Handle -> Int -> Int -> t m a
+readSlice :: (MonadIO m, Storable a)
+    => Handle -> Int -> Int -> S.Stream m a
 readSlice = readSliceWith defaultChunkSize
 
 -- | @readSliceRev h i count@ streams a slice from the file handle @h@ starting
@@ -580,8 +577,8 @@ readSlice = readSliceWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readSliceRev #-}
-readSliceRev :: (IsStream t, MonadIO m, Storable a)
-    => Handle -> Int -> Int -> t m a
+readSliceRev :: (MonadIO m, Storable a)
+    => Handle -> Int -> Int -> S.Stream m a
 readSliceRev h i count = undefined
 
 -- | Write the given element at the given index in the file.
@@ -597,8 +594,8 @@ writeIndex h i a = undefined
 --
 -- @since 0.7.0
 {-# INLINE writeSlice #-}
-writeSlice :: (IsStream t, Monad m, Storable a)
-    => Handle -> Int -> Int -> t m a -> m ()
+writeSlice :: (Monad m, Storable a)
+    => Handle -> Int -> Int -> S.Stream m a -> m ()
 writeSlice h i len s = undefined
 
 -- | @writeSliceRev h i count stream@ writes a stream to the file handle @h@
@@ -607,7 +604,7 @@ writeSlice h i len s = undefined
 --
 -- @since 0.7.0
 {-# INLINE writeSliceRev #-}
-writeSliceRev :: (IsStream t, Monad m, Storable a)
-    => Handle -> Int -> Int -> t m a -> m ()
+writeSliceRev :: (Monad m, Storable a)
+    => Handle -> Int -> Int -> S.Stream m a -> m ()
 writeSliceRev arr i len s = undefined
 -}

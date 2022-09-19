@@ -338,10 +338,6 @@ library
                      , Streamly.Internal.System.IOVec.Type
                      , Streamly.Internal.System.IOVec
                      , Streamly.Internal.FileSystem.Handle
-                     , Streamly.Internal.FileSystem.Dir
-                     , Streamly.Internal.FileSystem.File
-                     , Streamly.Internal.FileSystem.FDIO
-                     , Streamly.Internal.FileSystem.FD
 
                     -- streamly-unicode
                      , Streamly.Internal.Unicode.Stream
@@ -350,6 +346,9 @@ library
                      , Streamly.Internal.Unicode.Char
                      , Streamly.Internal.Unicode.Char.Parser
                      , Streamly.Internal.Unicode.Array.Char
+
+                    -- Filesystem/IO
+                     , Streamly.FileSystem.Handle
 
                     -- Text Processing
                      , Streamly.Unicode.Stream
@@ -362,7 +361,7 @@ library
                      , Streamly.Data.Unfold
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Array.Unboxed.Mut
-
+    
     if flag(dev)
       exposed-modules:
                         Streamly.Internal.Data.Stream.StreamDK

@@ -140,6 +140,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 -- $setup
 -- >>> import qualified Streamly.Data.Array.Unboxed as Array
@@ -212,10 +213,10 @@ getChunkOf = undefined
 {-# INLINE _getChunksWith #-}
 _getChunksWith :: (MonadIO m)
     => Int -> Handle -> S.Stream m (Array Word8)
-_getChunksWith size h = go
-  where
+_getChunksWith size h = S.fromStreamK go
+    where
     -- XXX use cons/nil instead
-    go = mkStream $ \_ yld _ stp -> do
+    go = K.MkStream $ \_ yld _ stp -> do
         arr <- getChunk size h
         if byteLength arr == 0
         then stp
@@ -353,6 +354,10 @@ readWith = UF.many A.read readChunksWith
 readWithBufferOf :: MonadIO m => Unfold m (Int, Handle) Word8
 readWithBufferOf = readWith
 
+{-# INLINE concat' #-}
+concat' :: (Monad m, Unboxed a) => S.Stream m (Array a) -> S.Stream m a
+concat' m = S.fromStreamD $ D.unfoldMany A.read (S.toStreamD m)
+
 -- | @getBytesWith bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.
 --
@@ -361,7 +366,7 @@ readWithBufferOf = readWith
 -- /Pre-release/
 {-# INLINE getBytesWith #-}
 getBytesWith :: (MonadIO m) => Int -> Handle -> S.Stream m Word8
-getBytesWith size h = S.concat $ getChunksWith size h
+getBytesWith size h = concat' $ getChunksWith size h
 
 -- TODO
 -- Generate a stream of elements of the given type from a file 'Handle'.
@@ -385,7 +390,7 @@ read = UF.many A.read readChunks
 -- /Pre-release/
 {-# INLINE getBytes #-}
 getBytes :: (MonadIO m) => Handle -> S.Stream m Word8
-getBytes = S.concat . getChunks
+getBytes = concat' . getChunks
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -444,7 +449,10 @@ putChunks h = mapM'_ (putChunk h)
 {-# INLINE putChunksWith #-}
 putChunksWith :: (MonadIO m, Unboxed a)
     => Int -> Handle -> Stream m (Array a) -> m ()
-putChunksWith n h xs = putChunks h $ AS.compact n xs
+putChunksWith n h xs =
+    putChunks h
+        $ fmap A.unsafeFreeze
+        $ AS.compact n (fmap A.unsafeThaw xs)
 
 -- | @putBytesWith bufsize handle stream@ writes @stream@ to @handle@
 -- in chunks of @bufsize@.  A write is performed to the IO device as soon as we
@@ -488,6 +496,12 @@ writeChunks h = FL.drainBy (putChunk h)
 {-# INLINE consumeChunks #-}
 consumeChunks :: MonadIO m => Refold m Handle (Array a) ()
 consumeChunks = Refold.drainBy putChunk
+
+{-# INLINE_NORMAL lpackArraysChunksOf #-}
+lpackArraysChunksOf :: (MonadIO m, Unboxed a)
+    => Int -> Fold m (Array a) () -> Fold m (Array a) ()
+lpackArraysChunksOf n fld =
+    FL.lmap A.unsafeThaw $ AS.lpackArraysChunksOf n (FL.lmap A.unsafeFreeze fld)
 
 -- XXX lpackArraysChunksOf should be written idiomatically
 --

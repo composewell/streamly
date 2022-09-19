@@ -483,7 +483,10 @@ library
                      , Streamly.Prelude
 
                      -- Filesystem/IO
-                     , Streamly.FileSystem.Handle
+                     , Streamly.Internal.FileSystem.Dir
+                     , Streamly.Internal.FileSystem.File
+                     , Streamly.Internal.FileSystem.FDIO
+                     , Streamly.Internal.FileSystem.FD
                      , Streamly.Console.Stdio
 
                      -- Network/IO
