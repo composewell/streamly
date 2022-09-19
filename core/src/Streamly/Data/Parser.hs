@@ -7,31 +7,33 @@
 -- Portability : GHC
 --
 -- Fast backtracking parsers with stream fusion and native streaming
--- capability.
+-- capability. Parsers are just more powerful folds, folds and parsers can be
+-- interconverted.
+--
+-- Note that these parsers do not report the error context (e.g. line number or
+-- column). Though this can be supported in future.
 --
 module Streamly.Data.Parser
     (
+    -- * Parser Type
       Parser
-    , ParseError
 
-    -- * Downgrade to Fold
-    , toFold
+    -- XXX Should we use Fold.fromParser instead?
+    -- -- * Downgrade to Fold
+    -- , toFold
 
-    -- First order parsers
-    -- * Accumulators
+    -- * Parsers
+    -- ** From Folds
     , fromFold
-    , fromFoldMaybe
+
+    -- ** Without Input
+    -- , fromFoldMaybe
     , fromPure
     , fromEffect
     , die
-    , dieM
+    -- , dieM
 
-    -- * Map on input
-    , lmap
-    , lmapM
-    , filter
-
-    -- * Element parsers
+    -- ** Element parsers
     , peek
 
     -- All of these can be expressed in terms of either
@@ -40,78 +42,64 @@ module Streamly.Data.Parser
     , except
     , oneOf
     , noneOf
-    , eof
     , satisfy
-    , maybe
-    , either
+    -- , maybe
+    -- , either
+    , eof
 
-    -- * Sequence parsers (tokenizers)
-    --
-    -- | Parsers chained in series, if one parser terminates the composition
-    -- terminates.
-
-    , lookAhead
-
-    -- ** By length
-    -- | Grab a sequence of input elements without inspecting them
-    , takeBetween
-    , takeEQ -- takeBetween n n
-    , takeGE -- takeBetween n maxBound
-    , takeP
-
-    -- Grab a sequence of input elements by inspecting them
-    -- ** Exact match
+    -- ** Sequences
     , eqBy
     , list
 
-    -- ** By predicate
-    , takeWhileP
+    -- * Combinators
+    -- Mapping on output
+    -- , rmapM
+
+    -- ** Mapping on input
+    , lmap
+    , lmapM
+
+    -- ** Filtering
+    , filter
+
+    -- ** Look Ahead
+    , lookAhead
+
+    -- ** Tokenize by length
+    -- , takeBetween
+    , takeEQ
+    -- , takeGE
+    -- , takeP
+
+    -- ** Tokenize by predicate
+    -- , takeWhileP
     , takeWhile
-    -- $takeWhile
     , takeWhile1
     , dropWhile
-
-    -- ** Separators
-    , takeEndBy
-    , takeEndByEsc
-    , takeStartBy
+    -- , takeEndBy
+    -- , takeEndByEsc
+    -- , takeStartBy
     , wordBy
 
-    -- ** By comparing
+    -- ** Grouping
     , groupBy
-    , groupByRolling
-    , groupByRollingEither
+    -- , groupByRolling
+    -- , groupByRollingEither
 
     -- ** Framing
     , wordFramedBy
     , wordQuotedBy
 
-    -- Second order parsers (parsers using parsers)
-    -- * Binary Combinators
-
-    -- ** Sequential Applicative
-    , serialWith
-
-    -- ** Sequential Interleaving
-    -- Use two folds, run a primary parser, its rejected values go to the
-    -- secondary parser.
-    , deintercalate
-
-    -- ** Sequential Alternative
-    , alt
-
-    -- * N-ary Combinators
-    -- ** Sequential Collection
-    , concatSequence
-    , concatMap
-
-    -- ** Sequential Repetition
+    -- ** Splitting
     , many
     , some
     , manyTill
+
+    -- ** De-interleaving
+    , deintercalate
     )
+
 where
+
 import Streamly.Internal.Data.Parser
-import Prelude hiding
-    ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
-    , filter )
+import Prelude hiding (dropWhile, takeWhile, filter)
