@@ -471,14 +471,6 @@ library
 
 
 
-                     -- streamly-filesystem
-                     , Streamly.Internal.System.IOVec.Type
-                     , Streamly.Internal.System.IOVec
-                     , Streamly.Internal.FileSystem.Handle
-                     , Streamly.Internal.FileSystem.Dir
-                     , Streamly.Internal.FileSystem.File
-                     , Streamly.Internal.FileSystem.FDIO
-                     , Streamly.Internal.FileSystem.FD
 
                      -- streamly-console
                      , Streamly.Internal.Console.Stdio

@@ -67,7 +67,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 --        (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
 --         lpackArraysChunksOf)
 -- import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
+--import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 -- import qualified Streamly.Data.Fold as FL
@@ -75,7 +75,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (mapM2)
 -- import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 -- import qualified Streamly.Data.Array.Unboxed as A
 -- import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified System.Directory as Dir
@@ -104,8 +104,8 @@ readArrayUpto size h = do
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
 {-# INLINE _toChunksWithBufferOf #-}
-_toChunksWithBufferOf :: (IsStream t, MonadIO m)
-    => Int -> Handle -> t m (Array Word8)
+_toChunksWithBufferOf :: (MonadIO m)
+    => Int -> Handle -> S.Stream m (Array Word8)
 _toChunksWithBufferOf size h = go
   where
     -- XXX use cons/nil instead
@@ -121,7 +121,7 @@ _toChunksWithBufferOf size h = go
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL toChunksWithBufferOf #-}
-toChunksWithBufferOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m (Array Word8)
+toChunksWithBufferOf :: (MonadIO m) => Int -> Handle -> S.Stream m (Array Word8)
 toChunksWithBufferOf size h = D.fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
@@ -161,7 +161,7 @@ readChunksWithBufferOf = Unfold step return
 --
 -- @since 0.7.0
 {-# INLINE toChunks #-}
-toChunks :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
+toChunks :: (MonadIO m) => Handle -> S.Stream m (Array Word8)
 toChunks = toChunksWithBufferOf defaultChunkSize
 
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
@@ -196,7 +196,7 @@ readWithBufferOf = UF.many readChunksWithBufferOf A.read
 --
 -- /Pre-release/
 {-# INLINE toStreamWithBufferOf #-}
-toStreamWithBufferOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+toStreamWithBufferOf :: (MonadIO m) => Int -> Handle -> S.Stream m Word8
 toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 -}
 
@@ -254,7 +254,7 @@ readDirs = fmap (fromLeft undefined) $ UF.filter isLeft readEither
 --
 -- /Pre-release/
 {-# INLINE toStream #-}
-toStream :: (IsStream t, MonadIO m) => String -> t m String
+toStream :: (MonadIO m) => String -> S.Stream m String
 toStream = S.unfold read
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
@@ -262,8 +262,8 @@ toStream = S.unfold read
 --
 -- /Pre-release/
 {-# INLINE toEither #-}
-toEither :: (IsStream t, MonadIO m)
-    => String -> t m (Either String String)
+toEither :: (MonadIO m)
+    => String -> S.Stream m (Either String String)
 toEither = S.unfold readEither
 
 -- | Read files only.
@@ -271,7 +271,7 @@ toEither = S.unfold readEither
 --  /Internal/
 --
 {-# INLINE toFiles #-}
-toFiles :: (IsStream t, MonadIO m) => String -> t m String
+toFiles :: (MonadIO m) => String -> S.Stream m String
 toFiles = S.unfold readFiles
 
 -- | Read directories only.
@@ -279,7 +279,7 @@ toFiles = S.unfold readFiles
 --  /Internal/
 --
 {-# INLINE toDirs #-}
-toDirs :: (IsStream t, MonadIO m) => String -> t m String
+toDirs :: (MonadIO m) => String -> S.Stream m String
 toDirs = S.unfold readDirs
 
 {-
