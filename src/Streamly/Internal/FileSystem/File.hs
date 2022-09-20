@@ -99,12 +99,13 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold.Type as FL
-    (Step(..), snoc, initialize)
+    (Step(..), drain, snoc, initialize)
 import qualified Streamly.Internal.Data.Unfold as UF (bracket)
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
