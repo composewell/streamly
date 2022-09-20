@@ -1008,7 +1008,7 @@ groupByRolling eq = D.toParserK . D.groupByRolling eq
 -- ascending and descending cases we can use 'groupByRollingEither (<=)
 -- Fold.toList Fold.toList'.
 --
--- /Unimplemented/
+-- /Pre-release/
 {-# INLINE groupByRollingEither #-}
 groupByRollingEither :: Monad m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
@@ -1370,7 +1370,7 @@ manyTillP :: -- Monad m =>
 manyTillP _p1 _p2 _f = undefined
     -- D.toParserK $ D.manyTillP (D.fromParserK p1) (D.fromParserK p2) f
 
--- | @manyTill f collect test@ tries the parser @test@ on the input, if @test@
+-- | @manyTill f test collect@ tries the parser @test@ on the input, if @test@
 -- fails it backtracks and tries @collect@, after @collect@ succeeds @test@ is
 -- tried again and so on. The parser stops when @test@ succeeds.  The output of
 -- @test@ is discarded and the output of @collect@ is accumulated by the
