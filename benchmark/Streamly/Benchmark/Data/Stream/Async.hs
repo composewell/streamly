@@ -65,10 +65,24 @@ async2 count n =
     Stream.fold Fold.drain $
         sourceUnfoldrM count n `Async.append` sourceUnfoldrM count (n + 1)
 
+{-# INLINE concatAsync2 #-}
+concatAsync2 :: Int -> Int -> IO ()
+concatAsync2 count n =
+    Stream.fold Fold.drain $
+        Async.concatList [sourceUnfoldrM count n, sourceUnfoldrM count (n + 1)]
+
+{-# INLINE interleave2 #-}
+interleave2 :: Int -> Int -> IO ()
+interleave2 count n =
+    Stream.fold Fold.drain $
+        sourceUnfoldrM count n `Async.interleave` sourceUnfoldrM count (n + 1)
+
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
     [ bgroup "joining"
         [ benchIOSrc1 "async (2 of n/2)" (async2 (value `div` 2))
+        , benchIOSrc1 "concat async (2 of n/2)" (concatAsync2 (value `div` 2))
+        , benchIOSrc1 "interleave (2 of n/2)" (interleave2 (value `div` 2))
         ]
     ]
 
@@ -129,6 +143,17 @@ concatFmapStreamsWith outer inner n =
         $ Async.concat
         $ fmap (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
 
+{-# INLINE concatMapInterleaveStreamsWith #-}
+concatMapInterleaveStreamsWith
+    :: Int
+    -> Int
+    -> Int
+    -> IO ()
+concatMapInterleaveStreamsWith outer inner n =
+    Stream.fold Fold.drain
+        $ Async.concatMapInterleave
+            (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
+
 o_1_space_concatMap :: Int -> [Benchmark]
 o_1_space_concatMap value =
     value2 `seq`
@@ -141,6 +166,12 @@ o_1_space_concatMap value =
                   (concatMapStreamsWith 1 value)
             , benchIO "concat . fmap (n of 1)"
                   (concatFmapStreamsWith value 1)
+            , benchIO "concatMapInterleaveWith (n of 1)"
+                  (concatMapInterleaveStreamsWith value 1)
+            , benchIO "concatMapInterleaveWith (sqrt x of sqrt x)"
+                  (concatMapInterleaveStreamsWith value2 value2)
+            , benchIO "concatMapInterleaveWith (1 of n)"
+                  (concatMapInterleaveStreamsWith 1 value)
             ]
         ]
 
