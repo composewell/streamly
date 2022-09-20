@@ -89,6 +89,7 @@ extra-source-files:
     src/assert.hs
     src/config.h.in
     src/inline.hs
+    src/Streamly/Data/Unicode/Stream.hs
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/CommonImports.hs
     test/Streamly/Test/Data/Array/Common.hs
@@ -222,6 +223,20 @@ extra-source-files:
     core/streamly-core.cabal
     core/jsbits/clock.js
     core/Setup.hs
+    core/src/Streamly/Console/Stdio.hs
+    core/src/Streamly/FileSystem/Handle.hs
+    core/src/Streamly/Internal/Console/Stdio.hs
+    core/src/Streamly/Internal/FileSystem/Handle.hs
+    core/src/Streamly/Internal/System/IOVec.hs
+    core/src/Streamly/Internal/System/IOVec/Type.hsc
+    core/src/Streamly/Internal/Unicode/Array/Char.hs
+    core/src/Streamly/Internal/Unicode/Char.hs
+    core/src/Streamly/Internal/Unicode/Char/Parser.hs
+    core/src/Streamly/Internal/Unicode/Stream.hs
+    core/src/Streamly/Internal/Unicode/String.hs
+    core/src/Streamly/Internal/Unicode/Utf8.hs
+    core/src/Streamly/Unicode/Stream.hs
+
 
 extra-doc-files:
     CONTRIBUTING.md
