@@ -464,7 +464,6 @@ library
                      , Streamly.Internal.Data.Stream.Async.Channel.Operations
                      , Streamly.Internal.Data.Stream.Async.Channel
                      , Streamly.Internal.Data.Stream.Async
-                     , Streamly.Internal.Data.Stream.Parallel
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.ZipAsync
 
@@ -481,6 +480,7 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Lift
                      , Streamly.Internal.Data.Stream.IsStream.Top
                      , Streamly.Internal.Data.Stream.IsStream.Async
+                     , Streamly.Internal.Data.Stream.IsStream.Parallel
                      , Streamly.Internal.Data.Stream.IsStream
 
                      -- streamly-serde

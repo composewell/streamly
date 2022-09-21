@@ -174,7 +174,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
-import qualified Streamly.Internal.Data.Stream.Parallel as Par
+import qualified Streamly.Internal.Data.Stream.IsStream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     (append, interleave, interleaveSuffix, interleaveInfix, interleaveMin

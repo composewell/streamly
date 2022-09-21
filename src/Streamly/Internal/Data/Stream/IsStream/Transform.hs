@@ -251,7 +251,7 @@ import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
 
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.Parallel as Par
+import qualified Streamly.Internal.Data.Stream.IsStream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     (transform, foldrT, tap, tapOffsetEvery, pollCounts, mapM, scanOnce

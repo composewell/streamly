@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 -- |
--- Module      : Streamly.Internal.Data.Stream.Parallel
+-- Module      : Streamly.Internal.Data.Stream.IsStream.Parallel
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -20,7 +20,7 @@
 --      return n                    -- IO Int
 -- :}
 --
-module Streamly.Internal.Data.Stream.Parallel
+module Streamly.Internal.Data.Stream.IsStream.Parallel
     (
     -- * Parallel Stream Type
       ParallelT(..)
@@ -545,7 +545,7 @@ parallelFst m1 m2 =
 -- seconds.
 --
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Stream.Parallel as Parallel
+-- >>> import qualified Streamly.Internal.Data.Stream.IsStream.Parallel as Parallel
 -- >>> Stream.fold Fold.drain $ Parallel.interjectSuffix 1.05 (putChar ',') $ Stream.mapM (\x -> threadDelay 1000000 >> putChar x) $ Stream.fromList "hello"
 -- h,e,l,l,o
 --
