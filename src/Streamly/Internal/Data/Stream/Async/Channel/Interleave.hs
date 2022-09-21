@@ -22,14 +22,14 @@ import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pu
 import Data.IORef (newIORef, readIORef)
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO)
+import Streamly.Internal.Data.Stream.Channel.Dispatcher (delThread)
 
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.Stream.Async.Channel.Consumer
-import Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Async.Channel.Type
-import Streamly.Internal.Data.Stream.Async.Channel.Worker
+import Streamly.Internal.Data.Stream.Channel.Types
 
 ------------------------------------------------------------------------------
 -- Creating a channel
@@ -49,7 +49,7 @@ enqueueFIFO ::
     -> IO ()
 enqueueFIFO sv q m = do
     pushL q m
-    ringDoorBell sv
+    ringDoorBell (needDoorBell sv) (outputDoorBell sv)
 
 -- XXX we can remove sv as it is derivable from st
 
@@ -64,11 +64,10 @@ workLoopFIFO q sv winfo = run
 
     where
 
-    stop = liftIO $ sendStop sv winfo
     run = do
         work <- liftIO $ tryPopR q
         case work of
-            Nothing -> stop
+            Nothing -> liftIO $ stop sv winfo
             Just (RunInIO runin, m) -> do
                 r <- liftIO
                         $ runin
@@ -77,10 +76,10 @@ workLoopFIFO q sv winfo = run
                 res <- restoreM r
                 case res of
                     Continue -> run
-                    Suspend -> stop
+                    Suspend -> liftIO $ stop sv winfo
 
     single a = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ yield sv winfo a
         return $ if res then Continue else Suspend
 
     -- XXX in general we would like to yield "n" elements from a single stream
@@ -88,7 +87,7 @@ workLoopFIFO q sv winfo = run
     -- expensive in certain cases. Similarly, we can use time limit for
     -- yielding.
     yieldk a r = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ yield sv winfo a
         runInIO <- askRunInIO
         liftIO $ enqueueFIFO sv q (runInIO, r)
         return $ if res then Continue else Suspend
@@ -104,14 +103,15 @@ workLoopFIFOLimited q sv winfo = run
 
     where
 
-    stop = liftIO $ sendStop sv winfo
-    incrContinue = liftIO (incrementYieldLimit sv) >> return Continue
+    incrContinue =
+        liftIO (incrementYieldLimit (remainingWork sv)) >> return Continue
+
     run = do
         work <- liftIO $ tryPopR q
         case work of
-            Nothing -> stop
+            Nothing -> liftIO $ stop sv winfo
             Just (RunInIO runin, m) -> do
-                yieldLimitOk <- liftIO $ decrementYieldLimit sv
+                yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
                 if yieldLimitOk
                 then do
                     r <- liftIO
@@ -121,25 +121,25 @@ workLoopFIFOLimited q sv winfo = run
                     res <- restoreM r
                     case res of
                         Continue -> run
-                        Suspend -> stop
+                        Suspend -> liftIO $ stop sv winfo
                 else liftIO $ do
                     enqueueFIFO sv q (RunInIO runin, m)
-                    incrementYieldLimit sv
-                    sendStop sv winfo
+                    incrementYieldLimit (remainingWork sv)
+                    stop sv winfo
 
     single a = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ yield sv winfo a
         return $ if res then Continue else Suspend
 
     yieldk a r = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ yield sv winfo a
         runInIO <- askRunInIO
         liftIO $ enqueueFIFO sv q (runInIO, r)
-        yieldLimitOk <- liftIO $ decrementYieldLimit sv
+        yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
         if res && yieldLimitOk
         then return Continue
         else liftIO $ do
-            incrementYieldLimit sv
+            incrementYieldLimit (remainingWork sv)
             return Suspend
 
 -------------------------------------------------------------------------------
@@ -162,7 +162,7 @@ getFifoSVar mrun cfg = do
     yl      <- case getYieldLimit cfg of
                 Nothing -> return Nothing
                 Just x -> Just <$> newIORef x
-    rateInfo <- getYieldRateInfo cfg
+    rateInfo <- newRateInfo cfg
 
     stats <- newSVarStats
     tid <- myThreadId
@@ -204,7 +204,7 @@ getFifoSVar mrun cfg = do
             , needDoorBell     = wfw
             , svarMrun         = mrun
             , workerCount      = active
-            , accountThread    = delThread sv
+            , accountThread    = delThread running
             , workerStopMVar   = undefined
             , svarRef          = Nothing
             , svarInspectMode  = getInspectMode cfg

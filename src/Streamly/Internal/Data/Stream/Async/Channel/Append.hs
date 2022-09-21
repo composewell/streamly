@@ -28,14 +28,14 @@ import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
+import Streamly.Internal.Data.Stream.Channel.Dispatcher (delThread)
 
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.Stream.Async.Channel.Consumer
-import Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Async.Channel.Type
-import Streamly.Internal.Data.Stream.Async.Channel.Worker
+import Streamly.Internal.Data.Stream.Channel.Types
 
 ------------------------------------------------------------------------------
 -- Creating a channel
@@ -53,7 +53,7 @@ enqueueLIFO ::
    -> IO ()
 enqueueLIFO sv q m = do
     atomicModifyIORefCAS_ q $ \ms -> m : ms
-    ringDoorBell sv
+    ringDoorBell (needDoorBell sv) (outputDoorBell sv)
 
 data WorkerStatus = Continue | Suspend
 
@@ -69,11 +69,10 @@ workLoopLIFO q sv winfo = run
 
     where
 
-    stop = liftIO $ sendStop sv winfo
     run = do
         work <- dequeue
         case work of
-            Nothing -> stop
+            Nothing -> liftIO $ stop sv winfo
             Just (RunInIO runin, m) -> do
                 -- XXX when we finish we need to send the monadic state back to
                 -- the parent so that the state can be merged back. We capture
@@ -92,14 +91,14 @@ workLoopLIFO q sv winfo = run
                 res <- restoreM r
                 case res of
                     Continue -> run
-                    Suspend -> stop
+                    Suspend -> liftIO $ stop sv winfo
 
     single a = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ yield sv winfo a
         return $ if res then Continue else Suspend
 
     yieldk a r = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ yield sv winfo a
         if res
         then K.foldStreamShared undefined yieldk single (return Continue) r
         else do
@@ -128,12 +127,13 @@ workLoopLIFOLimited q sv winfo = run
 
     where
 
-    incrContinue = liftIO (incrementYieldLimit sv) >> return Continue
-    stop = liftIO $ sendStop sv winfo
+    incrContinue =
+        liftIO (incrementYieldLimit (remainingWork sv)) >> return Continue
+
     run = do
         work <- dequeue
         case work of
-            Nothing -> stop
+            Nothing -> liftIO $ stop sv winfo
             Just (RunInIO runin, m) -> do
                 -- XXX This is just a best effort minimization of concurrency
                 -- to the yield limit. If the stream is made of concurrent
@@ -141,7 +141,7 @@ workLoopLIFOLimited q sv winfo = run
                 -- streams before executing the action. This can be done
                 -- though, by sharing the yield limit ref with downstream
                 -- actions via state passing. Just a todo.
-                yieldLimitOk <- liftIO $ decrementYieldLimit sv
+                yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
                 if yieldLimitOk
                 then do
                     r <- liftIO $ runin $
@@ -154,28 +154,28 @@ workLoopLIFOLimited q sv winfo = run
                     res <- restoreM r
                     case res of
                         Continue -> run
-                        Suspend -> stop
+                        Suspend -> liftIO $ stop sv winfo
                 -- Avoid any side effects, undo the yield limit decrement if we
                 -- never yielded anything.
                 else liftIO $ do
                     enqueueLIFO sv q (RunInIO runin, m)
-                    incrementYieldLimit sv
-                    sendStop sv winfo
+                    incrementYieldLimit (remainingWork sv)
+                    stop sv winfo
 
     single a = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ yield sv winfo a
         return $ if res then Continue else Suspend
 
     -- XXX can we pass on the yield limit downstream to limit the concurrency
     -- of constituent streams.
     yieldk a r = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
-        yieldLimitOk <- liftIO $ decrementYieldLimit sv
+        res <- liftIO $ yield sv winfo a
+        yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
         if res && yieldLimitOk
         then K.foldStreamShared undefined yieldk single incrContinue r
         else do
             runInIO <- askRunInIO
-            liftIO $ incrementYieldLimit sv
+            liftIO $ incrementYieldLimit (remainingWork sv)
             liftIO $ enqueueLIFO sv q (runInIO, r)
             return Suspend
 
@@ -205,7 +205,7 @@ getLifoSVar mrun cfg = do
     yl      <- case getYieldLimit cfg of
                 Nothing -> return Nothing
                 Just x -> Just <$> newIORef x
-    rateInfo <- getYieldRateInfo cfg
+    rateInfo <- newRateInfo cfg
 
     stats <- newSVarStats
     tid <- myThreadId
@@ -248,7 +248,7 @@ getLifoSVar mrun cfg = do
             , needDoorBell     = wfw
             , svarMrun         = mrun
             , workerCount      = active
-            , accountThread    = delThread sv
+            , accountThread    = delThread running
             , workerStopMVar   = undefined
             , svarRef          = Nothing
             , svarInspectMode  = getInspectMode cfg

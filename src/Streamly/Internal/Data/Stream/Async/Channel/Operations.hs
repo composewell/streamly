@@ -42,9 +42,9 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Streamly.Internal.Data.Stream.Async.Channel.Consumer
 import Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Async.Channel.Type
+import Streamly.Internal.Data.Stream.Channel.Types
 
 import Prelude hiding (map, concat, concatMap)
 
@@ -91,6 +91,7 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
+{-# INLINE toChannelK #-}
 toChannelK :: (MonadIO m, MonadBaseControl IO m) =>
     Channel m a -> K.Stream m a -> m ()
 toChannelK sv m = do
@@ -132,7 +133,7 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
         when (svarInspectMode sv) $ do
             t <- liftIO $ getTime Monotonic
             liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
-            liftIO $ printSVar sv "SVar Done"
+            liftIO $ printSVar (dumpSVar sv) "SVar Done"
         stp
 
     {-# INLINE processEvents #-}
@@ -154,7 +155,9 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
                         case fromException ex of
                             Just ThreadAbort ->
                                 K.foldStream st yld sng stp rest
-                            Nothing -> liftIO (cleanupSVar sv) >> throwM ex
+                            Nothing -> do
+                                liftIO (cleanupSVar (workerThreads sv))
+                                throwM ex
 
 #if __GLASGOW_HASKELL__ < 810
 #ifdef INSPECTION
@@ -199,8 +202,8 @@ fromChannelK sv =
         when (svarInspectMode sv) $ do
             r <- liftIO $ readIORef (svarStopTime (svarStats sv))
             when (isNothing r) $
-                printSVar sv "SVar Garbage Collected"
-        cleanupSVar sv
+                printSVar (dumpSVar sv) "SVar Garbage Collected"
+        cleanupSVar (workerThreads sv)
         -- If there are any SVars referenced by this SVar a GC will prompt
         -- them to be cleaned up quickly.
         when (svarInspectMode sv) performMajorGC
@@ -245,8 +248,8 @@ _fromChannelD svar = D.Stream step FromSVarInit
             when (svarInspectMode svar) $ do
                 r <- liftIO $ readIORef (svarStopTime (svarStats svar))
                 when (isNothing r) $
-                    printSVar svar "SVar Garbage Collected"
-            cleanupSVar svar
+                    printSVar (dumpSVar svar) "SVar Garbage Collected"
+            cleanupSVar (workerThreads svar)
             -- If there are any SVars referenced by this SVar a GC will prompt
             -- them to be cleaned up quickly.
             when (svarInspectMode svar) performMajorGC
@@ -275,11 +278,13 @@ _fromChannelD svar = D.Stream step FromSVarInit
                         case fromException ex of
                             Just ThreadAbort ->
                                 return $ D.Skip (FromSVarLoop sv es)
-                            Nothing -> liftIO (cleanupSVar sv) >> throwM ex
+                            Nothing -> do
+                                liftIO (cleanupSVar (workerThreads sv))
+                                throwM ex
 
     step _ (FromSVarDone sv) = do
         when (svarInspectMode sv) $ do
             t <- liftIO $ getTime Monotonic
             liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
-            liftIO $ printSVar sv "SVar Done"
+            liftIO $ printSVar (dumpSVar sv) "SVar Done"
         return D.Stop

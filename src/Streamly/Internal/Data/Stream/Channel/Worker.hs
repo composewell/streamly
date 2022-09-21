@@ -6,34 +6,18 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
---
-module Streamly.Internal.Data.Stream.Async.Channel.Worker
-    (
-    -- * Adjusting Limits
-      decrementYieldLimit
-    , incrementYieldLimit
+-- Collecting results from child workers in a streamed fashion
 
-    -- * Rate Control
-    , Work (..)
-    , isBeyondMaxRate
+module Streamly.Internal.Data.Stream.Channel.Worker
+    (
+      Work (..)
     , estimateWorkers
-    , updateYieldCount
-    , minThreadDelay
-    , workerRateControl
-    , workerUpdateLatency
 
     -- * Send Events
-    , send
-    , ringDoorBell
-
-    -- ** Yield
+    , sendWithDoorBell
     , sendYield
-
-    -- ** Stop
     , sendStop
-
-    -- ** Exception
-    , handleChildException
+    , handleChildException -- XXX rename to sendException
     )
 where
 
@@ -43,48 +27,12 @@ import Control.Exception (SomeException(..), assert)
 import Control.Monad (when, void)
 import Data.IORef (IORef, readIORef, writeIORef)
 import Streamly.Internal.Data.Atomics
-       (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier,
-        storeLoadBarrier)
+       (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), diffAbsTime64, fromRelTime64)
 
-import Streamly.Internal.Data.Stream.Async.Channel.Type
-
-------------------------------------------------------------------------------
--- Collecting results from child workers in a streamed fashion
-------------------------------------------------------------------------------
-
--- XXX Can we make access to remainingWork and yieldRateInfo fields in sv
--- faster, along with the fields in sv required by send?
--- XXX make it noinline
---
--- XXX we may want to employ an increment and decrement in batches when the
--- througput is high or when the cost of synchronization is high. For example
--- if the application is distributed then inc/dec of a shared variable may be
--- very costly.
---
--- A worker decrements the yield limit before it executes an action. However,
--- the action may not result in an element being yielded, in that case we have
--- to increment the yield limit.
---
--- Note that we need it to be an Int type so that we have the ability to undo a
--- decrement that takes it below zero.
-{-# INLINE decrementYieldLimit #-}
-decrementYieldLimit :: Channel m a -> IO Bool
-decrementYieldLimit sv =
-    case remainingWork sv of
-        Nothing -> return True
-        Just ref -> do
-            r <- atomicModifyIORefCAS ref $ \x -> (x - 1, x)
-            return $ r >= 1
-
-{-# INLINE incrementYieldLimit #-}
-incrementYieldLimit :: Channel m a -> IO ()
-incrementYieldLimit sv =
-    case remainingWork sv of
-        Nothing -> return ()
-        Just ref -> atomicModifyIORefCAS_ ref (+ 1)
+import Streamly.Internal.Data.Stream.Channel.Types
 
 -------------------------------------------------------------------------------
 -- Yield control
@@ -106,20 +54,6 @@ isBeyondMaxYield cnt winfo =
 -- Sending results from worker
 -------------------------------------------------------------------------------
 
-{-# INLINE ringDoorBell #-}
-ringDoorBell :: Channel m a -> IO ()
-ringDoorBell sv = do
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        -- Note: the sequence of operations is important for correctness here.
-        -- We need to set the flag to false strictly before sending the
-        -- outputDoorBell, otherwise the outputDoorBell may get processed too
-        -- early and then we may set the flag to False to later making the
-        -- consumer lose the flag, even without receiving a outputDoorBell.
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
-
 {-# INLINE sendWithDoorBell #-}
 sendWithDoorBell ::
     IORef ([ChildEvent a], Int) -> MVar () -> ChildEvent a -> IO Int
@@ -139,11 +73,6 @@ sendWithDoorBell q bell msg = do
         -- doorbell if something was added to the queue after it empties it.
         void $ tryPutMVar bell ()
     return oldlen
-
--- | This function is used by the producer threads to queue output for the
--- consumer thread to consume. Returns whether the queue has more space.
-send :: Channel m a -> ChildEvent a -> IO Int
-send sv = sendWithDoorBell (outputQueue sv) (outputDoorBell sv)
 
 -------------------------------------------------------------------------------
 -- Collect and update worker latency
@@ -205,17 +134,6 @@ data Work
     | PartialWorker Count
     | ManyWorkers Int Count
     deriving Show
-
--- | This is a magic number and it is overloaded, and used at several places to
--- achieve batching:
---
--- 1. If we have to sleep to slowdown this is the minimum period that we
---    accumulate before we sleep. Also, workers do not stop until this much
---    sleep time is accumulated.
--- 3. Collected latencies are computed and transferred to measured latency
---    after a minimum of this period.
-minThreadDelay :: NanoSecond64
-minThreadDelay = 1000000
 
 -- | Another magic number! When we have to start more workers to cover up a
 -- number of yields that we are lagging by then we cannot start one worker for
@@ -333,16 +251,16 @@ estimateWorkers workerLimit svarYields gainLossYields
                 Unlimited -> n
                 Limited x -> min n (fromIntegral x)
 
-isBeyondMaxRate :: Channel m a -> YieldRateInfo -> IO Bool
-isBeyondMaxRate sv yinfo = do
-    (count, tstamp, wLatency) <- getWorkerLatency yinfo
+isBeyondMaxRate :: Limit -> IORef Int -> YieldRateInfo -> IO Bool
+isBeyondMaxRate workerLimit workerCount rateInfo = do
+    (count, tstamp, wLatency) <- getWorkerLatency rateInfo
     now <- getTime Monotonic
     let duration = fromRelTime64 $ diffAbsTime64 now tstamp
-    let targetLat = svarLatencyTarget yinfo
-    gainLoss <- readIORef (svarGainedLostYields yinfo)
-    let work = estimateWorkers (maxWorkerLimit sv) count gainLoss duration
-                               wLatency targetLat (svarLatencyRange yinfo)
-    cnt <- readIORef $ workerCount sv
+    let targetLat = svarLatencyTarget rateInfo
+    gainLoss <- readIORef (svarGainedLostYields rateInfo)
+    let work = estimateWorkers workerLimit count gainLoss duration
+                               wLatency targetLat (svarLatencyRange rateInfo)
+    cnt <- readIORef workerCount
     return $ case work of
         -- XXX set the worker's maxYields or polling interval based on yields
         PartialWorker _yields -> cnt > 1
@@ -354,29 +272,31 @@ isBeyondMaxRate sv yinfo = do
 -- and we should stop based on the aggregate yields. However, latency update
 -- period can be based on individual worker yields.
 {-# NOINLINE checkRatePeriodic #-}
-checkRatePeriodic :: Channel m a
-                  -> YieldRateInfo
-                  -> WorkerInfo
-                  -> Count
-                  -> IO Bool
-checkRatePeriodic sv yinfo winfo ycnt = do
-    i <- readIORef (workerPollingInterval yinfo)
+checkRatePeriodic ::
+       Limit
+    -> IORef Int
+    -> YieldRateInfo
+    -> WorkerInfo
+    -> Count
+    -> IO Bool
+checkRatePeriodic workerLimit workerCount rateInfo workerInfo ycnt = do
+    i <- readIORef (workerPollingInterval rateInfo)
     -- XXX use generation count to check if the interval has been updated
     if i /= 0 && (ycnt `mod` i) == 0
     then do
-        workerUpdateLatency yinfo winfo
+        workerUpdateLatency rateInfo workerInfo
         -- XXX not required for parallel streams
-        isBeyondMaxRate sv yinfo
+        isBeyondMaxRate workerLimit workerCount rateInfo
     else return False
 
--- CAUTION! this also updates the yield count and therefore should be called
+-- | CAUTION! this also updates the yield count and therefore should be called
 -- only when we are actually yielding an element.
 {-# NOINLINE workerRateControl #-}
-workerRateControl :: Channel m a -> YieldRateInfo -> WorkerInfo -> IO Bool
-workerRateControl sv yinfo winfo = do
-    cnt <- updateYieldCount winfo
-    beyondMaxRate <- checkRatePeriodic sv yinfo winfo cnt
-    return $ not (isBeyondMaxYield cnt winfo || beyondMaxRate)
+workerRateControl :: Limit -> IORef Int -> YieldRateInfo -> WorkerInfo -> IO Bool
+workerRateControl workerLimit workerCount rateInfo workerInfo = do
+    cnt <- updateYieldCount workerInfo
+    beyondMaxRate <- checkRatePeriodic workerLimit workerCount rateInfo workerInfo cnt
+    return $ not (isBeyondMaxYield cnt workerInfo || beyondMaxRate)
 
 -------------------------------------------------------------------------------
 -- Send a yield event
@@ -385,24 +305,35 @@ workerRateControl sv yinfo winfo = do
 -- XXX we should do rate control here but not latency update in case of ahead
 -- streams. latency update must be done when we yield directly to outputQueue
 -- or when we yield to heap.
---
--- returns whether the worker should continue (True) or stop (False).
+
+-- | Returns whether the worker should continue (True) or stop (False).
 {-# INLINE sendYield #-}
-sendYield :: Channel m a -> Maybe WorkerInfo -> ChildEvent a -> IO Bool
-sendYield sv mwinfo msg = do
-    oldlen <- send sv msg
-    let limit = maxBufferLimit sv
-    bufferSpaceOk <- case limit of
+sendYield ::
+       Limit
+    -> Limit
+    -> IORef Int
+    -> Maybe WorkerInfo
+    -> Maybe YieldRateInfo
+    -> IORef ([ChildEvent a], Int)
+    -> MVar ()
+    -> ChildEvent a
+    -> IO Bool
+sendYield bufferLimit workerLimit workerCount workerInfo rateInfo q bell msg =
+    do
+    oldlen <- sendWithDoorBell q bell msg
+    bufferSpaceOk <-
+        case bufferLimit of
             Unlimited -> return True
             Limited lim -> do
-                active <- readIORef (workerCount sv)
+                active <- readIORef workerCount
                 return $ (oldlen + 1) < (fromIntegral lim - active)
     rateLimitOk <-
-        case mwinfo of
+        case workerInfo of
             Just winfo ->
-                case yieldRateInfo sv of
+                case rateInfo of
                     Nothing -> return True
-                    Just yinfo -> workerRateControl sv yinfo winfo
+                    Just yinfo ->
+                        workerRateControl workerLimit workerCount yinfo winfo
             Nothing -> return True
     return $ bufferSpaceOk && rateLimitOk
 
@@ -417,18 +348,26 @@ workerStopUpdate winfo info = do
     when (i /= 0) $ workerUpdateLatency info winfo
 
 {-# INLINABLE sendStop #-}
-sendStop :: Channel m a -> Maybe WorkerInfo -> IO ()
-sendStop sv mwinfo = do
-    atomicModifyIORefCAS_ (workerCount sv) $ \n -> n - 1
-    case (mwinfo, yieldRateInfo sv) of
-      (Just winfo, Just info) ->
-          workerStopUpdate winfo info
+sendStop ::
+       IORef Int
+    -> Maybe WorkerInfo
+    -> Maybe YieldRateInfo
+    -> IORef ([ChildEvent a], Int)
+    -> MVar ()
+    -> IO ()
+sendStop workerCount workerInfo rateInfo q bell = do
+    atomicModifyIORefCAS_ workerCount $ \n -> n - 1
+    case (workerInfo, rateInfo) of
+      (Just winfo, Just rinfo) ->
+          workerStopUpdate winfo rinfo
       _ ->
           return ()
-    myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
+    myThreadId >>= \tid ->
+        void $ sendWithDoorBell q bell (ChildStop tid Nothing)
 
 {-# NOINLINE handleChildException #-}
-handleChildException :: Channel m a -> SomeException -> IO ()
-handleChildException sv e = do
+handleChildException ::
+    IORef ([ChildEvent a], Int) -> MVar () -> SomeException -> IO ()
+handleChildException q bell e = do
     tid <- myThreadId
-    void $ send sv (ChildStop tid (Just e))
+    void $ sendWithDoorBell q bell (ChildStop tid (Just e))

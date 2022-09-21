@@ -447,8 +447,11 @@ library
 
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.WSerial
+                     , Streamly.Internal.Data.Stream.Channel.Types
+                     , Streamly.Internal.Data.Stream.Channel.Dispatcher
+                     , Streamly.Internal.Data.Stream.Channel.Worker
+
                      , Streamly.Internal.Data.Stream.Async.Channel.Type
-                     , Streamly.Internal.Data.Stream.Async.Channel.Worker
                      , Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
                      , Streamly.Internal.Data.Stream.Async.Channel.Consumer
                      , Streamly.Internal.Data.Stream.Async.Channel.Append

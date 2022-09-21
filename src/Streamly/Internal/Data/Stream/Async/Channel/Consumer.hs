@@ -9,52 +9,39 @@
 module Streamly.Internal.Data.Stream.Async.Channel.Consumer
     (
     -- * Read Output
-      readOutputQBasic
-    , readOutputQRaw
-    , readOutputQPaced
+      readOutputQPaced
     , readOutputQBounded
 
     -- * Postprocess Hook After Reading
     , postProcessPaced
     , postProcessBounded
-
-    -- * Release Resources
-    , cleanupSVar
     )
 where
 
 import Control.Monad.Trans.Control (MonadBaseControl)
-import Control.Concurrent (throwTo)
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Data.IORef (IORef, readIORef, writeIORef)
-import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
+import Data.IORef (readIORef)
 
-import Streamly.Internal.Data.Stream.Async.Channel.Type
 import Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
+import Streamly.Internal.Data.Stream.Async.Channel.Type
+import Streamly.Internal.Data.Stream.Channel.Dispatcher
+import Streamly.Internal.Data.Stream.Channel.Types
 
 -------------------------------------------------------------------------------
 -- Reading from the workers' output queue/buffer
 -------------------------------------------------------------------------------
 
-{-# INLINE readOutputQBasic #-}
-readOutputQBasic :: IORef ([ChildEvent a], Int) -> IO ([ChildEvent a], Int)
-readOutputQBasic q = atomicModifyIORefCAS q $ \x -> (([],0), x)
-
-{-# INLINE readOutputQRaw #-}
-readOutputQRaw :: Channel m a -> IO ([ChildEvent a], Int)
-readOutputQRaw sv = do
-    (list, len) <- readOutputQBasic (outputQueue sv)
-    when (svarInspectMode sv) $ do
-        let ref = maxOutQSize $ svarStats sv
-        oqLen <- readIORef ref
-        when (len > oqLen) $ writeIORef ref len
-    return (list, len)
+{-# INLINE readOutputQChan #-}
+readOutputQChan :: Channel m a -> IO ([ChildEvent a], Int)
+readOutputQChan sv = do
+    let ss = if svarInspectMode sv then Just (svarStats sv) else Nothing
+     in readOutputQRaw (outputQueue sv) ss
 
 readOutputQBounded :: (MonadIO m, MonadBaseControl IO m) =>
     Channel m a -> m [ChildEvent a]
 readOutputQBounded sv = do
-    (list, len) <- liftIO $ readOutputQRaw sv
+    (list, len) <- liftIO $ readOutputQChan sv
     -- When there is no output seen we dispatch more workers to help
     -- out if there is work pending in the work queue.
     if len <= 0
@@ -78,12 +65,12 @@ readOutputQBounded sv = do
     {-# INLINE blockingRead #-}
     blockingRead = do
         sendWorkerWait sendWorkerDelay (dispatchWorker 0) sv
-        liftIO (fst `fmap` readOutputQRaw sv)
+        liftIO (fst `fmap` readOutputQChan sv)
 
 readOutputQPaced :: (MonadIO m, MonadBaseControl IO m) =>
     Channel m a -> m [ChildEvent a]
 readOutputQPaced sv = do
-    (list, len) <- liftIO $ readOutputQRaw sv
+    (list, len) <- liftIO $ readOutputQChan sv
     if len <= 0
     then blockingRead
     else do
@@ -97,11 +84,11 @@ readOutputQPaced sv = do
     {-# INLINE blockingRead #-}
     blockingRead = do
         sendWorkerWait sendWorkerDelayPaced dispatchWorkerPaced sv
-        liftIO (fst `fmap` readOutputQRaw sv)
+        liftIO (fst `fmap` readOutputQChan sv)
 
 postProcessPaced :: (MonadIO m, MonadBaseControl IO m) => Channel m a -> m Bool
 postProcessPaced sv = do
-    workersDone <- allThreadsDone sv
+    workersDone <- allThreadsDone (workerThreads sv)
     -- XXX If during consumption we figure out we are getting delayed then we
     -- should trigger dispatch there as well.  We should try to check on the
     -- workers after consuming every n item from the buffer?
@@ -113,7 +100,7 @@ postProcessPaced sv = do
             -- Note that we need to guarantee a worker since the work is not
             -- finished, therefore we cannot just rely on dispatchWorkerPaced
             -- which may or may not send a worker.
-            noWorker <- allThreadsDone sv
+            noWorker <- allThreadsDone (workerThreads  sv)
             when noWorker $ pushWorker 0 sv
         return r
     else return False
@@ -121,7 +108,7 @@ postProcessPaced sv = do
 postProcessBounded :: (MonadIO m, MonadBaseControl IO m) =>
     Channel m a -> m Bool
 postProcessBounded sv = do
-    workersDone <- allThreadsDone sv
+    workersDone <- allThreadsDone (workerThreads sv)
     -- There may still be work pending even if there are no workers pending
     -- because all the workers may return if the outputQueue becomes full. In
     -- that case send off a worker to kickstart the work again.
@@ -141,13 +128,3 @@ postProcessBounded sv = do
         -- void $ dispatchWorker sv
         return r
     else return False
-
--------------------------------------------------------------------------------
--- Cleanup
--------------------------------------------------------------------------------
-
-cleanupSVar :: Channel m a -> IO ()
-cleanupSVar sv = do
-    workers <- readIORef (workerThreads sv)
-    Prelude.mapM_ (`throwTo` ThreadAbort)
-          workers

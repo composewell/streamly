@@ -43,7 +43,7 @@ where
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
 import Streamly.Internal.Data.Stream.Async.Channel.Operations
-    (fromChannel, toChannel, toChannelK)
+    (fromChannel, fromChannelK, toChannel, toChannelK)
 import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -53,6 +53,7 @@ import qualified Streamly.Internal.Data.Stream.Async.Channel.Interleave
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.Stream.Async.Channel.Type
+import Streamly.Internal.Data.Stream.Channel.Types
 
 -- | Allocate a channel and evaluate the stream using the channel and the
 -- supplied evaluator function. The evaluator is run in a worker thread.
@@ -69,7 +70,7 @@ withChannelK evaluator modifier input = K.concatEffect action
     action = do
         chan <- Append.newChannel modifier
         toChannelK chan (evaluator chan input)
-        return $ Stream.toStreamK $ fromChannel chan
+        return $ fromChannelK chan
 
 {-# INLINE withInterleaveChannelK #-}
 withInterleaveChannelK :: MonadAsync m =>
