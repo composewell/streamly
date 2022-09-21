@@ -466,6 +466,10 @@ read = UF.first defaultChunkSize readWith
 -- Writing
 -------------------------------------------------------------------------------
 
+{-# INLINE mapM'_ #-}
+mapM'_ :: Monad m => (a -> m b) -> S.Stream m a -> m ()
+mapM'_ f = D.mapM_ f . S.toStreamD
+
 -- | Write a stream of arrays to a handle.
 --
 -- @since 0.7.0
