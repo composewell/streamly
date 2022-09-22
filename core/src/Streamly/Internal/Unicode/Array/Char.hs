@@ -18,9 +18,8 @@ module Streamly.Internal.Unicode.Array.Char
 where
 
 import Control.Monad.IO.Class (MonadIO)
-import Streamly.Data.Array.Unboxed (Array)
-import Streamly.Internal.Data.Stream.IsStream (IsStream)
-import Streamly.Prelude (MonadAsync)
+import Streamly.Data.Stream (Stream)
+import Streamly.Internal.Data.Array.Unboxed (Array)
 
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Unicode.Stream as S
@@ -43,7 +42,7 @@ import Prelude hiding (String, lines, words, unlines, unwords)
 -- ["lines","this","string","",""]
 --
 {-# INLINE lines #-}
-lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
+lines :: (MonadIO m) => Stream m Char -> Stream m (Array Char)
 lines = S.lines A.write
 
 -- | Break a string up into a stream of strings, which were delimited
@@ -55,7 +54,7 @@ lines = S.lines A.write
 -- ["A","newline","is","considered","white","space?"]
 --
 {-# INLINE words #-}
-words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
+words :: (MonadIO m) => Stream m Char -> Stream m (Array Char)
 words = S.words A.write
 
 -- | Flattens the stream of @Array Char@, after appending a terminating
@@ -72,7 +71,7 @@ words = S.words A.write
 --
 -- > unlines . lines /= id
 {-# INLINE unlines #-}
-unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
+unlines :: (MonadIO m) => Stream m (Array Char) -> Stream m Char
 unlines = S.unlines A.read
 
 -- | Flattens the stream of @Array Char@, after appending a separating
@@ -89,5 +88,5 @@ unlines = S.unlines A.read
 --
 -- > unwords . words /= id
 {-# INLINE unwords #-}
-unwords :: (MonadAsync m, IsStream t) => t m (Array Char) -> t m Char
+unwords :: (MonadIO m) => Stream m (Array Char) -> Stream m Char
 unwords = S.unwords A.read
