@@ -228,6 +228,8 @@ extra-source-files:
     core/src/Streamly/Internal/Unicode/Stream.hs
     core/src/Streamly/Internal/Unicode/String.hs
     core/src/Streamly/Unicode/Stream.hs
+    core/src/Streamly/Console/Stdio.hs
+    core/src/Streamly/Internal/Console/Stdio.hs
     core/streamly-core.cabal
     core/jsbits/clock.js
     core/Setup.hs
@@ -496,18 +498,12 @@ library
                      , Streamly.Internal.FileSystem.Dir
                      , Streamly.Internal.FileSystem.File
 
-                     -- streamly-console
-                     , Streamly.Internal.Console.Stdio
-
                      -- streamly-network
                      , Streamly.Internal.Network.Socket
                      , Streamly.Internal.Network.Inet.TCP
 
                      -- Exposed modules
                      , Streamly.Prelude
-
-                     -- Filesystem/IO
-                     , Streamly.Console.Stdio
 
                      -- Network/IO
                      , Streamly.Network.Socket

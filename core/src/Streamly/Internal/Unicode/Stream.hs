@@ -144,7 +144,7 @@ import Prelude hiding (lines, words, unlines, unwords)
 --
 -- @since 0.8.0
 {-# INLINE decodeLatin1 #-}
-decodeLatin1 :: (Monad m) => Stream m Word8 -> Stream m Char
+decodeLatin1 :: Monad m => Stream m Word8 -> Stream m Char
 decodeLatin1 = fmap (unsafeChr . fromIntegral)
 
 -------------------------------------------------------------------------------
@@ -157,7 +157,7 @@ decodeLatin1 = fmap (unsafeChr . fromIntegral)
 --
 -- @since 0.8.0
 {-# INLINE encodeLatin1' #-}
-encodeLatin1' :: (Monad m) => Stream m Char -> Stream m Word8
+encodeLatin1' :: Monad m => Stream m Char -> Stream m Word8
 encodeLatin1' = fmap convert
     where
     convert c =
@@ -179,21 +179,21 @@ encodeLatin1' = fmap convert
 --
 -- /Since: 0.8.0 (Lenient Behaviour)/
 {-# INLINE encodeLatin1 #-}
-encodeLatin1 :: (Monad m) => Stream m Char -> Stream m Word8
+encodeLatin1 :: Monad m => Stream m Char -> Stream m Word8
 encodeLatin1 = fmap (fromIntegral . ord)
 
 -- | Like 'encodeLatin1' but drops the input characters beyond 255.
 --
 -- @since 0.8.0
 {-# INLINE encodeLatin1_ #-}
-encodeLatin1_ :: (Monad m) => Stream m Char -> Stream m Word8
+encodeLatin1_ :: Monad m => Stream m Char -> Stream m Word8
 encodeLatin1_ = fmap (fromIntegral . ord) . Stream.filter (<= chr 255)
 
 -- | Same as 'encodeLatin1'
 --
 {-# DEPRECATED encodeLatin1Lax "Please use 'encodeLatin1' instead" #-}
 {-# INLINE encodeLatin1Lax #-}
-encodeLatin1Lax :: (Monad m) => Stream m Char -> Stream m Word8
+encodeLatin1Lax :: Monad m => Stream m Char -> Stream m Word8
 encodeLatin1Lax = encodeLatin1
 
 -------------------------------------------------------------------------------
@@ -424,7 +424,7 @@ decodeUtf8EitherD = resumeDecodeUtf8EitherD 0 0
 --
 -- /Pre-release/
 {-# INLINE decodeUtf8Either #-}
-decodeUtf8Either :: (Monad m)
+decodeUtf8Either :: Monad m
     => Stream m Word8 -> Stream m (Either DecodeError Char)
 decodeUtf8Either = fromStreamD . decodeUtf8EitherD . toStreamD
 
@@ -433,7 +433,7 @@ decodeUtf8Either = fromStreamD . decodeUtf8EitherD . toStreamD
 -- /Pre-release/
 {-# INLINE resumeDecodeUtf8Either #-}
 resumeDecodeUtf8Either
-    :: (Monad m)
+    :: Monad m
     => DecodeState
     -> CodePoint
     -> Stream m Word8
@@ -657,7 +657,7 @@ decodeUtf8D = decodeUtf8WithD TransliterateCodingFailure
 --
 -- /Since: 0.8.0 (Lenient Behaviour)/
 {-# INLINE decodeUtf8 #-}
-decodeUtf8 :: (Monad m) => Stream m Word8 -> Stream m Char
+decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8 = fromStreamD . decodeUtf8D . toStreamD
 
 {-# INLINE decodeUtf8D' #-}
@@ -669,7 +669,7 @@ decodeUtf8D' = decodeUtf8WithD ErrorOnCodingFailure
 --
 -- @since 0.8.0
 {-# INLINE decodeUtf8' #-}
-decodeUtf8' :: (Monad m) => Stream m Word8 -> Stream m Char
+decodeUtf8' :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8' = fromStreamD . decodeUtf8D' . toStreamD
 
 {-# INLINE decodeUtf8D_ #-}
@@ -681,14 +681,14 @@ decodeUtf8D_ = decodeUtf8WithD DropOnCodingFailure
 --
 -- @since 0.8.0
 {-# INLINE decodeUtf8_ #-}
-decodeUtf8_ :: (Monad m) => Stream m Word8 -> Stream m Char
+decodeUtf8_ :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8_ = fromStreamD . decodeUtf8D_ . toStreamD
 
 -- | Same as 'decodeUtf8'
 --
 {-# DEPRECATED decodeUtf8Lax "Please use 'decodeUtf8' instead" #-}
 {-# INLINE decodeUtf8Lax #-}
-decodeUtf8Lax :: (Monad m) => Stream m Word8 -> Stream m Char
+decodeUtf8Lax :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8Lax = decodeUtf8
 
 -------------------------------------------------------------------------------
@@ -936,7 +936,7 @@ encodeUtf8D' = D.unfoldMany readCharUtf8'
 --
 -- @since 0.8.0
 {-# INLINE encodeUtf8' #-}
-encodeUtf8' :: (Monad m) => Stream m Char -> Stream m Word8
+encodeUtf8' :: Monad m => Stream m Char -> Stream m Word8
 encodeUtf8' = fromStreamD . encodeUtf8D' . toStreamD
 
 {-# INLINE_NORMAL readCharUtf8 #-}
@@ -958,7 +958,7 @@ encodeUtf8D = D.unfoldMany readCharUtf8
 --
 -- /Since: 0.8.0 (Lenient Behaviour)/
 {-# INLINE encodeUtf8 #-}
-encodeUtf8 :: (Monad m) => Stream m Char -> Stream m Word8
+encodeUtf8 :: Monad m => Stream m Char -> Stream m Word8
 encodeUtf8 = fromStreamD . encodeUtf8D . toStreamD
 
 {-# INLINE_NORMAL readCharUtf8_ #-}
@@ -974,14 +974,14 @@ encodeUtf8D_ = D.unfoldMany readCharUtf8_
 --
 -- @since 0.8.0
 {-# INLINE encodeUtf8_ #-}
-encodeUtf8_ :: (Monad m) => Stream m Char -> Stream m Word8
+encodeUtf8_ :: Monad m => Stream m Char -> Stream m Word8
 encodeUtf8_ = fromStreamD . encodeUtf8D_ . toStreamD
 
 -- | Same as 'encodeUtf8'
 --
 {-# DEPRECATED encodeUtf8Lax "Please use 'encodeUtf8' instead" #-}
 {-# INLINE encodeUtf8Lax #-}
-encodeUtf8Lax :: (Monad m) => Stream m Char -> Stream m Word8
+encodeUtf8Lax :: Monad m => Stream m Char -> Stream m Word8
 encodeUtf8Lax = encodeUtf8
 
 -------------------------------------------------------------------------------
@@ -1060,7 +1060,7 @@ stripTail = undefined
 --
 -- /Pre-release/
 {-# INLINE stripHead #-}
-stripHead :: (Monad m) => Stream m Char -> Stream m Char
+stripHead :: Monad m => Stream m Char -> Stream m Char
 stripHead = Stream.dropWhile isSpace
 
 -- | Fold each line of the stream using the supplied 'Fold'
@@ -1073,7 +1073,7 @@ stripHead = Stream.dropWhile isSpace
 --
 -- /Pre-release/
 {-# INLINE lines #-}
-lines :: (Monad m) => Fold m Char b -> Stream m Char -> Stream m b
+lines :: Monad m => Fold m Char b -> Stream m Char -> Stream m b
 lines f = Stream.foldMany (Fold.takeEndBy_ (== '\n') f)
 
 #if !MIN_VERSION_base(4,17,0)
@@ -1104,7 +1104,7 @@ isSpace c
 --
 -- /Pre-release/
 {-# INLINE words #-}
-words :: (Monad m) => Fold m Char b -> Stream m Char -> Stream m b
+words :: Monad m => Fold m Char b -> Stream m Char -> Stream m b
 words f m =  Stream.fromStreamD $ D.wordsBy isSpace f (Stream.toStreamD m)
 
 -- | Unfold a stream to character streams using the supplied 'Unfold'
