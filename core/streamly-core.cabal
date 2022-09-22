@@ -326,6 +326,12 @@ library
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
                      , Streamly.Internal.Data.Array.Stream.Foreign
+                     
+                    -- streamly-unicode
+                     , Streamly.Internal.Unicode.Stream
+                     , Streamly.Internal.Unicode.String
+                     , Streamly.Internal.Unicode.Char.Parser
+                     , Streamly.Internal.Unicode.Array.Char
 
                     -- Ring Arrays
                      , Streamly.Internal.Data.Ring.Foreign
@@ -343,6 +349,9 @@ library
                      , Streamly.Data.Unfold
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Array.Unboxed.Mut
+
+                    -- Text Processing
+                     , Streamly.Unicode.Stream
 
     if flag(dev)
       exposed-modules:
@@ -363,6 +372,7 @@ library
                      , ghc-prim          >= 0.2   && < 0.10
                      , mtl               >= 2.2   && < 2.3
                      , transformers      >= 0.4   && < 0.7
+                     , template-haskell  >= 2.13 && < 2.20
 
                      , fusion-plugin-types >= 0.1 && < 0.2
 

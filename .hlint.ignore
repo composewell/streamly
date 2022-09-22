@@ -1,7 +1,7 @@
 core/src/Streamly/Internal/Data/Stream/StreamK/Type.hs
 core/src/Streamly/Internal/Data/Pipe/Type.hs
+core/src/Streamly/Internal/Unicode/Stream.hs
 src/Streamly/Internal/Data/SmallArray/Type.hs
-src/Streamly/Internal/Unicode/Stream.hs
 test/Streamly/Test/Data/Array.hs
 test/Streamly/Test/Data/Parser.hs
 test/Streamly/Test/Data/Parser/ParserD.hs

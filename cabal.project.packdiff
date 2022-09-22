@@ -5,7 +5,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/composewell/packdiff.git
-  tag: 45cdca157e7159b8dd4261b3616fe7fa4200b967
+  tag: 8b5d35b72b8ba3c9fb34f16e30d9d58f22b78f3e
 
 source-repository-package
   type: git
