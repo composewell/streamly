@@ -830,8 +830,7 @@ decodeUtf8ArraysD = decodeUtf8ArraysWithD TransliterateCodingFailure
 --
 -- /Pre-release/
 {-# INLINE decodeUtf8Arrays #-}
-decodeUtf8Arrays ::
-       (MonadIO m) => Stream m (Array Word8) -> Stream m Char
+decodeUtf8Arrays :: MonadIO m => Stream m (Array Word8) -> Stream m Char
 decodeUtf8Arrays =
     fromStreamD . decodeUtf8ArraysD . toStreamD
 
@@ -846,7 +845,7 @@ decodeUtf8ArraysD' = decodeUtf8ArraysWithD ErrorOnCodingFailure
 --
 -- /Pre-release/
 {-# INLINE decodeUtf8Arrays' #-}
-decodeUtf8Arrays' :: (MonadIO m) => Stream m (Array Word8) -> Stream m Char
+decodeUtf8Arrays' :: MonadIO m => Stream m (Array Word8) -> Stream m Char
 decodeUtf8Arrays' = fromStreamD . decodeUtf8ArraysD' . toStreamD
 
 {-# INLINE decodeUtf8ArraysD_ #-}
@@ -861,7 +860,7 @@ decodeUtf8ArraysD_ = decodeUtf8ArraysWithD DropOnCodingFailure
 -- /Pre-release/
 {-# INLINE decodeUtf8Arrays_ #-}
 decodeUtf8Arrays_ ::
-       (MonadIO m) => Stream m (Array Word8) -> Stream m Char
+       MonadIO m => Stream m (Array Word8) -> Stream m Char
 decodeUtf8Arrays_ =
     fromStreamD . decodeUtf8ArraysD_ . toStreamD
 
@@ -1025,7 +1024,7 @@ encodeObject encode u = Stream.fold Array.write . encode . Stream.unfold u
 --
 -- /Internal/
 {-# INLINE encodeObjects #-}
-encodeObjects :: (MonadIO m) =>
+encodeObjects :: MonadIO m =>
        (Stream m Char -> Stream m Word8)
     -> Unfold m a Char
     -> Stream m a
@@ -1037,8 +1036,10 @@ encodeObjects encode u = Stream.mapM (encodeObject encode u)
 --
 -- @since 0.8.0
 {-# INLINE encodeStrings #-}
-encodeStrings :: (MonadIO m) =>
-    (Stream m Char -> Stream m Word8) -> Stream m String -> Stream m (Array Word8)
+encodeStrings :: MonadIO m =>
+       (Stream m Char -> Stream m Word8)
+    -> Stream m String
+    -> Stream m (Array Word8)
 encodeStrings encode = encodeObjects encode Unfold.fromList
 
 {-
@@ -1116,7 +1117,7 @@ words f m =  Stream.fromStreamD $ D.wordsBy isSpace f (Stream.toStreamD m)
 --
 -- /Pre-release/
 {-# INLINE unlines #-}
-unlines :: (MonadIO m) => Unfold m a Char -> Stream m a -> Stream m Char
+unlines :: MonadIO m => Unfold m a Char -> Stream m a -> Stream m Char
 unlines = Stream.interposeSuffix '\n'
 
 -- | Unfold the elements of a stream to character streams using the supplied
@@ -1130,5 +1131,5 @@ unlines = Stream.interposeSuffix '\n'
 --
 -- /Pre-release/
 {-# INLINE unwords #-}
-unwords :: (MonadIO m) => Unfold m a Char -> Stream m a -> Stream m Char
+unwords :: MonadIO m => Unfold m a Char -> Stream m a -> Stream m Char
 unwords = Stream.interpose ' '

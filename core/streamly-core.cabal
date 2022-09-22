@@ -324,14 +324,16 @@ library
                      , Streamly.Internal.Data.Array.Unboxed
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
-
                      , Streamly.Internal.Data.Array.Stream.Foreign
-                     
+
                     -- streamly-unicode
                      , Streamly.Internal.Unicode.Stream
                      , Streamly.Internal.Unicode.String
                      , Streamly.Internal.Unicode.Char.Parser
                      , Streamly.Internal.Unicode.Array.Char
+
+                     -- Filesystem/IO
+                     , Streamly.Internal.FileSystem.Handle
 
                     -- Ring Arrays
                      , Streamly.Internal.Data.Ring.Foreign
@@ -349,9 +351,8 @@ library
                      , Streamly.Data.Unfold
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Array.Unboxed.Mut
-
-                    -- Text Processing
                      , Streamly.Unicode.Stream
+                     , Streamly.FileSystem.Handle
 
     if flag(dev)
       exposed-modules:

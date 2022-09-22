@@ -131,10 +131,8 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
-    (byteLength, asPtrUnsafe)
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
-    (Array(..), newPinnedArrayBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold.Type as FL(refoldMany)
 import qualified Streamly.Internal.Data.Stream as S
@@ -212,8 +210,7 @@ getChunkOf = undefined
 -- read may be less than or equal to @size@.
 -- @since 0.9.0
 {-# INLINE _getChunksWith #-}
-_getChunksWith :: (MonadIO m)
-    => Int -> Handle -> Stream m (Array Word8)
+_getChunksWith :: MonadIO m => Int -> Handle -> Stream m (Array Word8)
 _getChunksWith size h = S.fromStreamK go
   where
     -- XXX use cons/nil instead
@@ -231,8 +228,7 @@ _getChunksWith size h = S.fromStreamK go
 --
 -- @since 0.9.0
 {-# INLINE_NORMAL getChunksWith #-}
-getChunksWith :: (MonadIO m) =>
-    Int -> Handle -> Stream m (Array Word8)
+getChunksWith :: MonadIO m => Int -> Handle -> Stream m (Array Word8)
 getChunksWith size h = S.fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
@@ -313,7 +309,7 @@ readChunksFromToWith = Unfold step inject
 --
 -- @since 0.9.0
 {-# INLINE getChunks #-}
-getChunks :: (MonadIO m) => Handle -> Stream m (Array Word8)
+getChunks :: MonadIO m => Handle -> Stream m (Array Word8)
 getChunks = getChunksWith defaultChunkSize
 
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
@@ -362,7 +358,7 @@ readWithBufferOf = readWith
 --
 -- /Pre-release/
 {-# INLINE getBytesWith #-}
-getBytesWith :: (MonadIO m) => Int -> Handle -> Stream m Word8
+getBytesWith :: MonadIO m => Int -> Handle -> Stream m Word8
 getBytesWith size h = AS.concat $ getChunksWith size h
 
 -- TODO
@@ -386,7 +382,7 @@ read = UF.many A.read readChunks
 --
 -- /Pre-release/
 {-# INLINE getBytes #-}
-getBytes :: (MonadIO m) => Handle -> Stream m Word8
+getBytes :: MonadIO m => Handle -> Stream m Word8
 getBytes = AS.concat . getChunks
 
 -------------------------------------------------------------------------------
@@ -600,7 +596,7 @@ write = toHandleWith A.defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readUtf8 #-}
-readUtf8 :: (MonadIO m) => Handle -> Stream m Char
+readUtf8 :: MonadIO m => Handle -> Stream m Char
 readUtf8 = decodeUtf8 . read
 
 -- |
@@ -622,7 +618,7 @@ writeUtf8 h s = write h $ encodeUtf8 s
 --
 -- @since 0.7.0
 {-# INLINE writeUtf8ByLines #-}
-writeUtf8ByLines :: (MonadIO m) => Handle -> Stream m Char -> m ()
+writeUtf8ByLines :: MonadIO m => Handle -> Stream m Char -> m ()
 writeUtf8ByLines = undefined
 
 -- | Read UTF-8 lines from a file handle and apply the specified fold to each
@@ -630,7 +626,7 @@ writeUtf8ByLines = undefined
 --
 -- @since 0.7.0
 {-# INLINE readLines #-}
-readLines :: (MonadIO m) => Handle -> Fold m Char b -> Stream m b
+readLines :: MonadIO m => Handle -> Fold m Char b -> Stream m b
 readLines h f = foldLines (readUtf8 h) f
 
 -------------------------------------------------------------------------------

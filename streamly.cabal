@@ -219,8 +219,10 @@ extra-source-files:
     core/src/Streamly/Data/Unbox.hs
     core/src/Streamly/Data/Array/Unboxed.hs
     core/src/Streamly/Data/Array/Unboxed/Mut.hs
+    core/src/Streamly/FileSystem/Handle.hs
     core/src/Streamly/Internal/Data/Time/Clock/Darwin.c
     core/src/Streamly/Internal/Data/Time/Clock/Windows.c
+    core/src/Streamly/Internal/FileSystem/Handle.hs
     core/src/Streamly/Internal/Unicode/Array/Char.hs
     core/src/Streamly/Internal/Unicode/Char/Parser.hs
     core/src/Streamly/Internal/Unicode/Stream.hs
@@ -491,7 +493,6 @@ library
                      , Streamly.Internal.Unicode.Char
 
                      -- streamly-filesystem
-                     , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.Dir
                      , Streamly.Internal.FileSystem.File
 
@@ -506,7 +507,6 @@ library
                      , Streamly.Prelude
 
                      -- Filesystem/IO
-                     , Streamly.FileSystem.Handle
                      , Streamly.Console.Stdio
 
                      -- Network/IO
