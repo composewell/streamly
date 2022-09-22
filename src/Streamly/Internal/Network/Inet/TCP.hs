@@ -302,7 +302,10 @@ usingConnection =
 -- /Pre-release/
 {-# INLINE withConnection #-}
 withConnection :: (MonadCatch m, MonadAsync m)
-    => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> Stream m a) -> Stream m a
+    => (Word8, Word8, Word8, Word8)
+    -> PortNumber
+    -> (Socket -> Stream m a)
+    -> Stream m a
 withConnection addr port =
     S.bracket (liftIO $ connect addr port) (liftIO . Net.close)
 
