@@ -126,6 +126,7 @@ import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.Unicode.Utf8 as UTF8
 import qualified Streamly.Internal.Data.Array.Unboxed as A
+-- XXX Don't use D here directly
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import Streamly.Internal.Data.Array.Unboxed (Array)
 
@@ -414,9 +415,13 @@ fILE_ACTION_RENAMED_OLD_NAME  =  4
 fILE_ACTION_RENAMED_NEW_NAME  :: FileAction
 fILE_ACTION_RENAMED_NEW_NAME  =  5
 
+-- XXX Don't use StreamD here
+
+-- repeatM = S.sequence . S.repeat
 repeatM :: Monad m => m a -> Stream m a
 repeatM = S.fromStreamD . D.repeatM
 
+-- mapM_ = S.fold FL.drain . S.mapM
 {-# INLINE mapM'_ #-}
 mapM'_ :: Monad m => (a -> m b) -> Stream m a -> m ()
 mapM'_ f = D.mapM_ f . S.toStreamD
@@ -425,6 +430,7 @@ eventStreamAggr :: (HANDLE, FilePath, Config) -> Stream IO Event
 eventStreamAggr (handle, rootPath, cfg) =  do
     let recMode = getConfigRecMode cfg
         flagMasks = getConfigFlag cfg
+    -- XXX
     S.concatMap S.fromList $ repeatM
         $ readDirectoryChanges rootPath handle recMode flagMasks
 
@@ -448,6 +454,7 @@ utf8ToStringList = NonEmpty.map utf8ToString
 -- | Close a Directory handle.
 --
 closePathHandleStream :: Stream IO (HANDLE, FilePath, Config) -> IO ()
+-- XXX
 closePathHandleStream = mapM'_ (\(h, _, _) -> closeHandle h)
 
 -- XXX
