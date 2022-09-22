@@ -99,7 +99,6 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
-
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -316,7 +315,7 @@ toBytes file = AS.concat $ withFile file ReadMode FH.getChunks
 --
 -- @since 0.7.0
 {-# INLINE readShared #-}
-readShared :: (MonadIO m) => Handle -> Stream m Word8
+readShared :: MonadIO m => Handle -> Stream m Word8
 readShared = undefined
 -}
 
@@ -470,7 +469,7 @@ appendShared = undefined
 --
 -- @since 0.7.0
 {-# INLINE readUtf8 #-}
-readUtf8 :: (MonadIO m) => Handle -> Stream m Char
+readUtf8 :: MonadIO m => Handle -> Stream m Char
 readUtf8 = decodeUtf8 . read
 
 -- |
@@ -492,7 +491,7 @@ writeUtf8 h s = write h $ encodeUtf8 s
 --
 -- @since 0.7.0
 {-# INLINE writeUtf8ByLines #-}
-writeUtf8ByLines :: (MonadIO m) => Handle -> Stream m Char -> m ()
+writeUtf8ByLines :: MonadIO m => Handle -> Stream m Char -> m ()
 writeUtf8ByLines = undefined
 
 -- | Read UTF-8 lines from a file handle and apply the specified fold to each
@@ -500,7 +499,7 @@ writeUtf8ByLines = undefined
 --
 -- @since 0.7.0
 {-# INLINE readLines #-}
-readLines :: (MonadIO m) => Handle -> Fold m Char b -> Stream m b
+readLines :: MonadIO m => Handle -> Fold m Char b -> Stream m b
 readLines h f = foldLines (readUtf8 h) f
 
 -------------------------------------------------------------------------------
