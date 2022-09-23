@@ -94,11 +94,11 @@ import Prelude hiding (read)
 import qualified Control.Monad.Catch as MC
 import qualified System.IO as SIO
 
-import Streamly.Data.Fold (chunksOf)
+import Streamly.Data.Fold (chunksOf, drain)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -106,11 +106,11 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold.Type as FL
-    (Step(..), drain, snoc, initialize)
+    (Step(..), snoc, initialize)
 import qualified Streamly.Internal.Data.Unfold as UF (bracket)
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Data.Stream as S (fold, bracket, mapM)
 
 -------------------------------------------------------------------------------
 -- References
@@ -326,7 +326,7 @@ readShared = undefined
 {-# INLINE fromChunksMode #-}
 fromChunksMode :: (MonadAsync m, MonadCatch m)
     => IOMode -> FilePath -> Stream m (Array a) -> m ()
-fromChunksMode mode file xs = S.fold FL.drain $
+fromChunksMode mode file xs = S.fold drain $
     withFile file mode (\h -> S.mapM (FH.putChunk h) xs)
 
 -- | Write a stream of arrays to a file. Overwrites the file if it exists.
