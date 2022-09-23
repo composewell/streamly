@@ -471,7 +471,7 @@ read = UF.first defaultChunkSize readWith
 -- Stream.Eliminate.mapM_
 {-# INLINE mapM'_ #-}
 mapM'_ :: Monad m => (a -> m b) -> S.Stream m a -> m ()
-mapM'_ f = D.mapM_ f . S.toStreamD
+mapM'_ f = S.fold (FL.drainBy f)
 
 -- | Write a stream of arrays to a handle.
 --
