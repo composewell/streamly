@@ -185,8 +185,6 @@ import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
     (takeEQ, fromEffect, fromFold)
--- XXX You should not be using StreamD directly here
-import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.FileSystem.Dir as Dir
 import qualified Streamly.Internal.FileSystem.Handle as FH
@@ -666,11 +664,9 @@ appendPaths a b
   | byteLength b == 0 = a
   | otherwise = ensureTrailingSlash a <> b
 
--- XXX You shouldn't use StreamD combinators here. This module should be
--- agnostic to D and K
 {-# INLINE mapM'_ #-}
 mapM'_ :: Monad m => (a -> m b) -> S.Stream m a -> m ()
-mapM'_ f = D.mapM_ f . S.toStreamD
+mapM'_ f = S.fold (FL.drainBy f)
 
 -- | @addToWatch cfg watch root subpath@ adds @subpath@ to the list of paths
 -- being monitored under @root@ via the watch handle @watch@.  @root@ must be
@@ -731,9 +727,6 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     -- to "/" separated by byte arrays.
     pathIsDir <- doesDirectoryExist $ utf8ToString absPath
     when (watchRec && pathIsDir) $ do
-        -- XXX You can try S.mapM followed by S.fold FL.drain and check the
-        -- benchmarks. If the benchmarks are not performing well, raise and
-        -- issue w.r.t and add a this mapM'_ as Stream.Eliminate.mapM_
         mapM'_ (addToWatch cfg watch0 root . appendPaths path)
             $ S.mapM toUtf8
             $ Dir.toDirs $ utf8ToString absPath
