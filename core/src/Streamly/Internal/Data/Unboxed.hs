@@ -24,7 +24,7 @@ module Streamly.Internal.Data.Unboxed
 import Data.Complex (Complex((:+)))
 import GHC.Base (IO(..))
 import GHC.Int (Int32(..), Int64(..))
-import GHC.Word (Word8(..), Word64(..))
+import GHC.Word (Word32(..), Word64(..), Word8(..))
 import Foreign.Storable (Storable(..))
 
 import GHC.Exts
@@ -119,6 +119,7 @@ unpin arr@(MutableByteArray marr#) =
 #define SIZEOF_HSINT_PRIMITIVE 8#
 #define SIZEOF_HSWORD_PRIMITIVE 8#
 #define SIZEOF_WORD8_PRIMITIVE 1#
+#define SIZEOF_WORD32_PRIMITIVE 4#
 #define SIZEOF_WORD64_PRIMITIVE 8#
 #define SIZEOF_HSDOUBLE_PRIMITIVE 8#
 #define SIZEOF_INT32_PRIMITIVE 4#
@@ -195,6 +196,18 @@ writeWord8ArrayAsWord# ::
        MutableByteArray# d -> Int# -> Word# -> State# d -> State# d
 writeWord8ArrayAsWord# arr# i# =
     writeWordArray# arr# (quotInt# i# SIZEOF_HSWORD_PRIMITIVE)
+
+{-# INLINE readWord8ArrayAsWord32# #-}
+readWord8ArrayAsWord32# ::
+       MutableByteArray# d -> Int# -> State# d -> (# State# d, Word# #)
+readWord8ArrayAsWord32# arr# i# =
+    readWord32Array# arr# (quotInt# i# SIZEOF_WORD32_PRIMITIVE)
+
+{-# INLINE writeWord8ArrayAsWord32# #-}
+writeWord8ArrayAsWord32# ::
+       MutableByteArray# d -> Int# -> Word# -> State# d -> State# d
+writeWord8ArrayAsWord32# arr# i# =
+    writeWord32Array# arr# (quotInt# i# SIZEOF_WORD32_PRIMITIVE)
 
 {-# INLINE readWord8ArrayAsWord64# #-}
 readWord8ArrayAsWord64# ::
@@ -312,6 +325,11 @@ DERIVE_UNBOXED( Word8
               , W8#
               , readWord8Array#
               , writeWord8Array#)
+
+DERIVE_UNBOXED( Word32
+              , W32#
+              , readWord8ArrayAsWord32#
+              , writeWord8ArrayAsWord32#)
 
 DERIVE_UNBOXED( Word64
               , W64#
