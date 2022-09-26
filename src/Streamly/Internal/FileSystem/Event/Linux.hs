@@ -664,10 +664,6 @@ appendPaths a b
   | byteLength b == 0 = a
   | otherwise = ensureTrailingSlash a <> b
 
-{-# INLINE mapM'_ #-}
-mapM'_ :: Monad m => (a -> m b) -> S.Stream m a -> m ()
-mapM'_ f = S.fold (FL.drainBy f)
-
 -- | @addToWatch cfg watch root subpath@ adds @subpath@ to the list of paths
 -- being monitored under @root@ via the watch handle @watch@.  @root@ must be
 -- an absolute path and @subpath@ must be relative to @root@.
@@ -727,9 +723,10 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     -- to "/" separated by byte arrays.
     pathIsDir <- doesDirectoryExist $ utf8ToString absPath
     when (watchRec && pathIsDir) $ do
-        mapM'_ (addToWatch cfg watch0 root . appendPaths path)
-            $ S.mapM toUtf8
-            $ Dir.toDirs $ utf8ToString absPath
+        let f = addToWatch cfg watch0 root . appendPaths path
+            in S.fold (FL.drainBy f)
+                $ S.mapM toUtf8
+                $ Dir.toDirs $ utf8ToString absPath
 
 foreign import ccall unsafe
     "sys/inotify.h inotify_rm_watch" c_inotify_rm_watch

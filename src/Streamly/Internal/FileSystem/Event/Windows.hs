@@ -413,17 +413,11 @@ fILE_ACTION_RENAMED_OLD_NAME  =  4
 fILE_ACTION_RENAMED_NEW_NAME  :: FileAction
 fILE_ACTION_RENAMED_NEW_NAME  =  5
 
-repeatM :: Monad m => m a -> Stream m a
-repeatM = S.sequence . S.repeat
-
-{-# INLINE mapM'_ #-}
-mapM'_ :: Monad m => (a -> m b) -> Stream m a -> m ()
-mapM'_ f = S.fold (Fold.drainBy f)
-
 eventStreamAggr :: (HANDLE, FilePath, Config) -> Stream IO Event
 eventStreamAggr (handle, rootPath, cfg) =  do
     let recMode = getConfigRecMode cfg
         flagMasks = getConfigFlag cfg
+        repeatM = S.sequence . S.repeat
     S.concatMap S.fromList $ repeatM
         $ readDirectoryChanges rootPath handle recMode flagMasks
 
@@ -447,7 +441,9 @@ utf8ToStringList = NonEmpty.map utf8ToString
 -- | Close a Directory handle.
 --
 closePathHandleStream :: Stream IO (HANDLE, FilePath, Config) -> IO ()
-closePathHandleStream = mapM'_ (\(h, _, _) -> closeHandle h)
+closePathHandleStream =
+    let f (h, _, _) = closeHandle h
+        in S.fold (Fold.drainBy f)
 
 -- XXX
 -- Document the path treatment for Linux/Windows/macOS modules.
