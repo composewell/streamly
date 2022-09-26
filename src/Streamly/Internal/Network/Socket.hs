@@ -466,20 +466,19 @@ read = UF.first defaultChunkSize readWith
 -- Writing
 -------------------------------------------------------------------------------
 
--- XXX We should not define it here. This module should not decide whether we
--- use D or K. Maintanince will become tiresome. We should have it as
--- Stream.Eliminate.mapM_
-{-# INLINE mapM'_ #-}
-mapM'_ :: Monad m => (a -> m b) -> S.Stream m a -> m ()
-mapM'_ f = S.fold (FL.drainBy f)
-
 -- | Write a stream of arrays to a handle.
 --
 -- @since 0.7.0
 {-# INLINE putChunks #-}
 putChunks :: (MonadIO m, Unboxed a)
     => Socket -> Stream m (Array a) -> m ()
+<<<<<<< HEAD
 putChunks h = S.fold (FL.drainBy (liftIO . writeChunk h))
+=======
+putChunks h =
+    let f = liftIO . writeChunk h
+        in S.fold (FL.drainBy f)
+>>>>>>> 01f9a6a6 (Fix review comments)
 
 -- | Write a stream of arrays to a socket.  Each array in the stream is written
 -- to the socket as a separate IO request.
