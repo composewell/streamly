@@ -177,6 +177,7 @@
       package.yaml to the next major release target.
     * Bump the package version in configure.ac to the next major release target
       and run autoreconf.
+    * Sync the package version of `streamly` and `streamly-docs`.
 
 ## Breaking Changes
 
