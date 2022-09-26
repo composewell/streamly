@@ -6,7 +6,7 @@ cabal-version:      2.2
 -- * Documentation can be released independent of the library
 -- * We do not want too many doc modules in the main library
 name:               streamly-docs
-version:            0.0.0
+version:            0.8.2
 synopsis:           Documentation for Streamly
 description:        Documentation for Streamly
 build-type:         Simple
