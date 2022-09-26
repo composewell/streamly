@@ -41,7 +41,7 @@ jobs:
       # packcheck location and revision
       PACKCHECK_LOCAL_PATH: "./packcheck.sh"
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "075e13ab716c67d2110db4905ae42b0280af046d"
+      PACKCHECK_GITHUB_COMMIT: "a302772c8f3791c477edd1764b82f8d1f5b22fdf"
 
       # Pull token from "secrets" setting of the github repo
       COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
