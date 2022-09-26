@@ -51,6 +51,7 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
             "-K8M -M64M"
         | "Data.Stream/o-n-space.grouping." `isPrefixOf` benchName = ""
         | "Data.Stream/o-n-space." `isPrefixOf` benchName = "-K4M"
+        | "Data.Stream.Parallel/o-1-space." `isPrefixOf` benchName = "-M512M"
         | "Prelude.WSerial/o-n-space." `isPrefixOf` benchName = "-K4M"
         | "Prelude.Async/o-n-space.monad-outer-product." `isPrefixOf` benchName =
             "-K4M"
