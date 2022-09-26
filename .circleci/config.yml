@@ -389,7 +389,7 @@ jobs:
               HLINT_OPTIONS: lint
               HLINT_TARGETS: core/src src test benchmark
             command: |
-              bash -c "$PACKCHECK $BUILD" || exit 1
+              # bash -c "$PACKCHECK $BUILD" || exit 1
               echo "Checking trailing spaces..."
               count=$(find . -name "*.hs" -exec grep -H '\ $' {} \; | tee /dev/tty | wc -l)
               exit $count
