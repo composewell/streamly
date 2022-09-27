@@ -201,10 +201,12 @@ ghcHEAD () {
 #------------------------------------------------------------------------------
 
 ghcjs () {
-      export PATH=~/.local/bin:/opt/ghc/bin:/opt/ghcjs/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH
+      # We don't pass 'CABAL_BUILD_OPTIONS="--flag limit-build-mem"' here as
+      # ghcjs requires more memory to build. Adding a conditional for ghcjs in
+      # the cabal file is a maintainence overhead.
       packcheck.sh cabal-v2 \
-        GHCVER=8.4.0 \
-        CABAL_BUILD_OPTIONS="$CABAL_BUILD_OPTIONS --jobs=$JOBS" \
+        GHCVER=8.10.7 \
+        CABAL_BUILD_OPTIONS="--jobs=$JOBS" \
         CABAL_CHECK_RELAX=y \
         DISABLE_SDIST_BUILD=y \
         DISABLE_TEST=y \
