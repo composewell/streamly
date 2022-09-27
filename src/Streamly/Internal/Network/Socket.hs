@@ -94,8 +94,6 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream.IsStream.Type
-    (IsStream, mkStream, fromStreamD)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
@@ -108,11 +106,12 @@ import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
     (Array(..), newPinnedArrayBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (first, map)
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 
 -- | @'forSocketM' action socket@ runs the monadic computation @action@ passing
 -- the socket handle to it.  The handle will be closed on exit from
@@ -132,8 +131,8 @@ forSocketM f sk = finally (f sk) (liftIO (Net.close sk))
 --
 -- /Internal/
 {-# INLINE withSocket #-}
-withSocket :: (IsStream t, MonadAsync m, MonadCatch m)
-    => Socket -> (Socket -> t m a) -> t m a
+withSocket :: (MonadAsync m, MonadCatch m)
+    => Socket -> (Socket -> Stream m a) -> Stream m a
 withSocket sk f = S.finally (liftIO $ Net.close sk) (f sk)
 
 -------------------------------------------------------------------------------
@@ -331,13 +330,13 @@ writeChunk = writeArrayWith sendAll
 -------------------------------------------------------------------------------
 
 {-# INLINE _readChunksUptoWith #-}
-_readChunksUptoWith :: (IsStream t, MonadIO m)
+_readChunksUptoWith :: (MonadIO m)
     => (Int -> h -> IO (Array Word8))
-    -> Int -> h -> t m (Array Word8)
-_readChunksUptoWith f size h = go
+    -> Int -> h -> Stream m (Array Word8)
+_readChunksUptoWith f size h = S.fromStreamK go
   where
     -- XXX use cons/nil instead
-    go = mkStream $ \_ yld _ stp -> do
+    go = K.mkStream $ \_ yld _ stp -> do
         arr <- liftIO $ f size h
         if A.length arr == 0
         then stp
@@ -348,10 +347,10 @@ _readChunksUptoWith f size h = go
 -- 'fromHandleArraysUpto' ignores the prevailing 'TextEncoding' and 'NewlineMode'
 -- on the 'Handle'.
 {-# INLINE_NORMAL toChunksWith #-}
-toChunksWith :: (IsStream t, MonadIO m)
-    => Int -> Socket -> t m (Array Word8)
+toChunksWith :: (MonadIO m)
+    => Int -> Socket -> Stream m (Array Word8)
 -- toChunksWith = _readChunksUptoWith readChunk
-toChunksWith size h = fromStreamD (D.Stream step ())
+toChunksWith size h = S.fromStreamD (D.Stream step ())
     where
     {-# INLINE_LATE step #-}
     step _ _ = do
@@ -368,7 +367,7 @@ toChunksWith size h = fromStreamD (D.Stream step ())
 --
 -- @since 0.7.0
 {-# INLINE toChunks #-}
-toChunks :: (IsStream t, MonadIO m) => Socket -> t m (Array Word8)
+toChunks :: (MonadIO m) => Socket -> Stream m (Array Word8)
 toChunks = toChunksWith defaultChunkSize
 
 -- | Unfold the tuple @(bufsize, socket)@ into a stream of 'Word8' arrays.
@@ -422,12 +421,12 @@ readChunks = UF.first defaultChunkSize readChunksWith
 -- as soon as EOF is encountered.
 --
 {-# INLINE readWith #-}
-readWith :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+readWith :: (MonadIO m) => Int -> Handle -> Stream m Word8
 readWith chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
 -}
 
 -- TODO
--- read :: (IsStream t, MonadIO m, Unboxed a) => Handle -> t m a
+-- read :: (MonadIO m, Unboxed a) => Handle -> Stream m a
 --
 -- > read = 'readByChunks' defaultChunkSize
 -- | Generate a stream of elements of the given type from a socket. The
@@ -435,7 +434,7 @@ readWith chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
 --
 -- @since 0.7.0
 {-# INLINE toBytes #-}
-toBytes :: (IsStream t, MonadIO m) => Socket -> t m Word8
+toBytes :: (MonadIO m) => Socket -> Stream m Word8
 toBytes = AS.concat . toChunks
 
 -- | Unfolds the tuple @(bufsize, socket)@ into a byte stream, read requests
@@ -473,7 +472,7 @@ read = UF.first defaultChunkSize readWith
 {-# INLINE putChunks #-}
 putChunks :: (MonadIO m, Unboxed a)
     => Socket -> Stream m (Array a) -> m ()
-putChunks h = S.mapM_ (liftIO . writeChunk h)
+putChunks h = S.fold (FL.drainBy (liftIO . writeChunk h))
 
 -- | Write a stream of arrays to a socket.  Each array in the stream is written
 -- to the socket as a separate IO request.
@@ -591,7 +590,7 @@ write = toHandleWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readUtf8 #-}
-readUtf8 :: (IsStream t, MonadIO m) => Handle -> t m Char
+readUtf8 :: (MonadIO m) => Handle -> Stream m Char
 readUtf8 = decodeUtf8 . read
 
 -- |
@@ -613,7 +612,7 @@ writeUtf8 h s = write h $ encodeUtf8 s
 --
 -- @since 0.7.0
 {-# INLINE writeUtf8ByLines #-}
-writeUtf8ByLines :: (IsStream t, MonadIO m) => Handle -> t m Char -> m ()
+writeUtf8ByLines :: (MonadIO m) => Handle -> Stream m Char -> m ()
 writeUtf8ByLines = undefined
 
 -- | Read UTF-8 lines from a file handle and apply the specified fold to each
@@ -621,7 +620,7 @@ writeUtf8ByLines = undefined
 --
 -- @since 0.7.0
 {-# INLINE readLines #-}
-readLines :: (IsStream t, MonadIO m) => Handle -> Fold m Char b -> t m b
+readLines :: (MonadIO m) => Handle -> Fold m Char b -> Stream m b
 readLines h f = foldLines (readUtf8 h) f
 
 -------------------------------------------------------------------------------
@@ -634,8 +633,8 @@ readLines h f = foldLines (readUtf8 h) f
 --
 -- @since 0.7.0
 {-# INLINE readFrames #-}
-readFrames :: (IsStream t, MonadIO m, Unboxed a)
-    => Array a -> Handle -> Fold m a b -> t m b
+readFrames :: (MonadIO m, Unboxed a)
+    => Array a -> Handle -> Fold m a b -> Stream m b
 readFrames = undefined -- foldFrames . read
 
 -- | Write a stream to the given file handle buffering up to frames separated
@@ -643,7 +642,7 @@ readFrames = undefined -- foldFrames . read
 --
 -- @since 0.7.0
 {-# INLINE writeByFrames #-}
-writeByFrames :: (IsStream t, MonadIO m, Unboxed a)
-    => Array a -> Handle -> t m a -> m ()
+writeByFrames :: (MonadIO m, Unboxed a)
+    => Array a -> Handle -> Stream m a -> m ()
 writeByFrames = undefined
 -}

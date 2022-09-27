@@ -205,6 +205,7 @@ extra-source-files:
     core/src/Streamly/Internal/Data/List.hs
     core/src/Streamly/Internal/Data/Array.hs
     core/src/Streamly/Internal/Data/Array/Unboxed.hs
+    core/src/Streamly/Internal/Data/Array/Stream/Foreign.hs
     core/src/Streamly/Internal/Data/Array/Stream/Mut/Foreign.hs
     core/src/Streamly/Internal/Data/Array/Stream/Fold/Foreign.hs
     core/src/Streamly/Internal/Data/Ring/Foreign.hs
@@ -474,8 +475,6 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Top
                      , Streamly.Internal.Data.Stream.IsStream.Async
                      , Streamly.Internal.Data.Stream.IsStream
-
-                     , Streamly.Internal.Data.Array.Stream.Foreign
 
                      -- streamly-serde
                      , Streamly.Internal.Data.Binary.Decode

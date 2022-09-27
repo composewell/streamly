@@ -325,6 +325,8 @@ library
                      , Streamly.Internal.Data.Array.Stream.Mut.Foreign
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
 
+                     , Streamly.Internal.Data.Array.Stream.Foreign
+
                     -- Ring Arrays
                      , Streamly.Internal.Data.Ring.Foreign
                      , Streamly.Internal.Data.Ring

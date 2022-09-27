@@ -107,7 +107,6 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (fork)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.IsStream.Type (IsStream)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -302,8 +301,8 @@ usingConnection =
 --
 -- /Pre-release/
 {-# INLINE withConnection #-}
-withConnection :: (IsStream t, MonadCatch m, MonadAsync m)
-    => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> t m a) -> t m a
+withConnection :: (MonadCatch m, MonadAsync m)
+    => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> Stream m a) -> Stream m a
 withConnection addr port =
     S.bracket (liftIO $ connect addr port) (liftIO . Net.close)
 
@@ -323,8 +322,8 @@ read = UF.many A.read (usingConnection ISK.readChunks)
 --
 -- @since 0.7.0
 {-# INLINE toBytes #-}
-toBytes :: (IsStream t, MonadCatch m, MonadAsync m)
-    => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
+toBytes :: (MonadCatch m, MonadAsync m)
+    => (Word8, Word8, Word8, Word8) -> PortNumber -> Stream m Word8
 toBytes addr port = AS.concat $ withConnection addr port ISK.toChunks
 
 -------------------------------------------------------------------------------
@@ -424,12 +423,12 @@ write = writeWithBufferOf defaultChunkSize
 
 {-# INLINE withInputConnect #-}
 withInputConnect
-    :: (IsStream t, MonadCatch m, MonadAsync m)
+    :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Stream m Word8
-    -> (Socket -> t m a)
-    -> t m a
+    -> (Socket -> Stream m a)
+    -> Stream m a
 withInputConnect addr port input f = S.bracket pre post handler
 
     where
@@ -452,9 +451,9 @@ withInputConnect addr port input f = S.bracket pre post handler
 --
 {-# INLINE processBytes #-}
 processBytes
-    :: (IsStream t, MonadAsync m, MonadCatch m)
+    :: (MonadAsync m, MonadCatch m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Stream m Word8
-    -> t m Word8
+    -> Stream m Word8
 processBytes addr port input = withInputConnect addr port input ISK.toBytes
