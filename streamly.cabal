@@ -475,8 +475,6 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Async
                      , Streamly.Internal.Data.Stream.IsStream
 
-                     , Streamly.Internal.Data.Array.Stream.Foreign
-
                      -- streamly-serde
                      , Streamly.Internal.Data.Binary.Decode
 

@@ -69,9 +69,9 @@ import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
 import Streamly.Internal.Data.Array.Stream.Fold.Foreign (ArrayFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Stream.IsStream.Type
-    (IsStream, fromStreamD, toStreamD)
-import Streamly.Internal.Data.SVar (adaptState, defState)
+import Streamly.Internal.Data.Stream
+    (fromStreamD, fromStreamK, toStreamD, toStreamK)
+import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Array.Unboxed.Mut.Type
     (allocBytesToElemCount)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -79,27 +79,22 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
--- import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign
---      as ArrayFold
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Stream.Mut.Foreign as AS
-import qualified Streamly.Internal.Data.Fold.Type as FL
-    (Fold(..), Step(..))
+import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
     (Parser(..), Initial(..), fromParserK)
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     ( fromList, nil, cons, map
-    , unfoldMany, append, splitInnerBy, splitInnerBySuffix
+    , unfoldMany, append, splitInnerBy, splitInnerBySuffix, foldlM'
     )
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Step(Yield, Stop, Skip),  Stream(Stream))
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (Stream, cons, nil, fromPure, foldStream)
-import qualified Streamly.Internal.Data.Stream as Stream
-    (fromStreamK, toStreamK)
 
 -- XXX Since these are immutable arrays MonadIO constraint can be removed from
 -- most places.
@@ -115,8 +110,8 @@ import qualified Streamly.Internal.Data.Stream as Stream
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}
-arraysOf :: (IsStream t, MonadIO m, Unboxed a)
-    => Int -> t m a -> t m (Array a)
+arraysOf :: (MonadIO m, Unboxed a)
+    => Int -> Stream m a -> Stream m (Array a)
 arraysOf n str = fromStreamD $ A.arraysOf n (toStreamD str)
 
 -------------------------------------------------------------------------------
@@ -135,7 +130,7 @@ arraysOf n str = fromStreamD $ A.arraysOf n (toStreamD str)
 --
 -- @since 0.7.0
 {-# INLINE concat #-}
-concat :: (IsStream t, Monad m, Unboxed a) => t m (Array a) -> t m a
+concat :: (Monad m, Unboxed a) => Stream m (Array a) -> Stream m a
 -- concat m = fromStreamD $ A.flattenArrays (toStreamD m)
 -- concat m = fromStreamD $ D.concatMap A.toStreamD (toStreamD m)
 concat m = fromStreamD $ D.unfoldMany A.read (toStreamD m)
@@ -147,7 +142,7 @@ concat m = fromStreamD $ D.unfoldMany A.read (toStreamD m)
 --
 -- @since 0.7.0
 {-# INLINE concatRev #-}
-concatRev :: (IsStream t, Monad m, Unboxed a) => t m (Array a) -> t m a
+concatRev :: (Monad m, Unboxed a) => Stream m (Array a) -> Stream m a
 -- concatRev m = fromStreamD $ A.flattenArraysRev (toStreamD m)
 concatRev m = fromStreamD $ D.unfoldMany A.readRev (toStreamD m)
 
@@ -160,12 +155,12 @@ concatRev m = fromStreamD $ D.unfoldMany A.readRev (toStreamD m)
 --
 -- /Pre-release/
 {-# INLINE interpose #-}
-interpose :: (Monad m, IsStream t, Unboxed a) => a -> t m (Array a) -> t m a
+interpose :: (Monad m, Unboxed a) => a -> Stream m (Array a) -> Stream m a
 interpose x = S.interpose x A.read
 
 {-# INLINE intercalateSuffix #-}
-intercalateSuffix :: (Monad m, IsStream t, Unboxed a)
-    => Array a -> t m (Array a) -> t m a
+intercalateSuffix :: (Monad m, Unboxed a)
+    => Array a -> Stream m (Array a) -> Stream m a
 intercalateSuffix = S.intercalateSuffix A.read
 
 -- | Flatten a stream of arrays appending the given element after each
@@ -173,8 +168,8 @@ intercalateSuffix = S.intercalateSuffix A.read
 --
 -- @since 0.7.0
 {-# INLINE interposeSuffix #-}
-interposeSuffix :: (Monad m, IsStream t, Unboxed a)
-    => a -> t m (Array a) -> t m a
+interposeSuffix :: (Monad m, Unboxed a)
+    => a -> Stream m (Array a) -> Stream m a
 -- interposeSuffix x = fromStreamD . A.unlines x . toStreamD
 interposeSuffix x = S.interposeSuffix x A.read
 
@@ -302,19 +297,19 @@ _splitOn byte (D.Stream step state) = D.Stream step' (Initial state)
 -- @since 0.7.0
 {-# INLINE splitOn #-}
 splitOn
-    :: (IsStream t, MonadIO m)
+    :: (MonadIO m)
     => Word8
-    -> t m (Array Word8)
-    -> t m (Array Word8)
+    -> Stream m (Array Word8)
+    -> Stream m (Array Word8)
 splitOn byte s =
     fromStreamD $ D.splitInnerBy (A.breakOn byte) A.splice $ toStreamD s
 
 {-# INLINE splitOnSuffix #-}
 splitOnSuffix
-    :: (IsStream t, MonadIO m)
+    :: (MonadIO m)
     => Word8
-    -> t m (Array Word8)
-    -> t m (Array Word8)
+    -> Stream m (Array Word8)
+    -> Stream m (Array Word8)
 -- splitOn byte s = fromStreamD $ A.splitOn byte $ toStreamD s
 splitOnSuffix byte s =
     fromStreamD $ D.splitInnerBySuffix (A.breakOn byte) A.splice $ toStreamD s
@@ -410,9 +405,9 @@ foldBreak ::
     -> m (b, Stream m (A.Array a))
 -- foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)
 foldBreak f =
-      fmap (fmap Stream.fromStreamK)
+      fmap (fmap fromStreamK)
     . foldBreakK f
-    . Stream.toStreamK
+    . toStreamK
 -- If foldBreak performs better than runArrayFoldBreak we can use a rewrite
 -- rule to rewrite runArrayFoldBreak to fold.
 -- foldBreak f = runArrayFoldBreak (ArrayFold.fromFold f)
@@ -468,6 +463,10 @@ splitAtArrayListRev n ls
 -- Fold to a single Array
 -------------------------------------------------------------------------------
 
+{-# INLINE foldlM' #-}
+foldlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> m b
+foldlM' step begin = D.foldlM' step begin . S.toStreamD
+
 -- XXX Both of these implementations of splicing seem to perform equally well.
 -- We need to perform benchmarks over a range of sizes though.
 
@@ -478,16 +477,16 @@ spliceArraysLenUnsafe :: (MonadIO m, Unboxed a)
     => Int -> Stream m (MA.Array a) -> m (MA.Array a)
 spliceArraysLenUnsafe len buffered = do
     arr <- liftIO $ MA.newArray len
-    S.foldlM' MA.spliceUnsafe (return arr) buffered
+    foldlM' MA.spliceUnsafe (return arr) buffered
 
 {-# INLINE _spliceArrays #-}
 _spliceArrays :: (MonadIO m, Unboxed a)
     => Stream m (Array a) -> m (Array a)
 _spliceArrays s = do
     buffered <- S.foldr S.cons S.nil s
-    len <- S.sum (S.map Array.length buffered)
+    len <- S.fold FL.sum (fmap Array.length buffered)
     arr <- liftIO $ MA.newArray len
-    final <- S.foldlM' writeArr (return arr) s
+    final <- foldlM' writeArr (return arr) s
     return $ A.unsafeFreeze final
 
     where
@@ -499,8 +498,8 @@ _spliceArraysBuffered :: (MonadIO m, Unboxed a)
     => Stream m (Array a) -> m (Array a)
 _spliceArraysBuffered s = do
     buffered <- S.foldr S.cons S.nil s
-    len <- S.sum (S.map Array.length buffered)
-    A.unsafeFreeze <$> spliceArraysLenUnsafe len (S.map A.unsafeThaw s)
+    len <- S.fold FL.sum (fmap Array.length buffered)
+    A.unsafeFreeze <$> spliceArraysLenUnsafe len (fmap A.unsafeThaw s)
 
 {-# INLINE spliceArraysRealloced #-}
 spliceArraysRealloced :: forall m a. (MonadIO m, Unboxed a)
@@ -509,7 +508,7 @@ spliceArraysRealloced s = do
     let n = allocBytesToElemCount (undefined :: a) (4 * 1024)
         idst = liftIO $ MA.newArray n
 
-    arr <- S.foldlM' MA.spliceExp idst (S.map A.unsafeThaw s)
+    arr <- foldlM' MA.spliceExp idst (fmap A.unsafeThaw s)
     liftIO $ A.unsafeFreeze <$> MA.rightSize arr
 
 -- XXX This should just be "fold A.write"
@@ -530,7 +529,7 @@ toArray = spliceArraysRealloced
 --
 {-
 {-# INLINE toArraysInRange #-}
-toArraysInRange :: (IsStream t, MonadIO m, Unboxed a)
+toArraysInRange :: (MonadIO m, Unboxed a)
     => Int -> Int -> Fold m (Array a) b -> Fold m a b
 toArraysInRange low high (Fold step initial extract) =
 -}
@@ -785,9 +784,9 @@ parseBreak p s =
     fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
 -}
 parseBreak p =
-      fmap (fmap Stream.fromStreamK)
+      fmap (fmap fromStreamK)
     . parseBreakK (PRD.fromParserK p)
-    . Stream.toStreamK
+    . toStreamK
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers
@@ -1155,8 +1154,8 @@ runArrayFoldManyD
 -- /Pre-release/
 {-# INLINE runArrayFoldMany #-}
 runArrayFoldMany
-    :: (IsStream t, MonadThrow m, Unboxed a)
+    :: (MonadThrow m, Unboxed a)
     => ArrayFold m a b
-    -> t m (Array a)
-    -> t m b
+    -> Stream m (Array a)
+    -> Stream m b
 runArrayFoldMany p m = fromStreamD $ runArrayFoldManyD p (toStreamD m)
