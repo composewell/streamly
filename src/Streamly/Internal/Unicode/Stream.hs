@@ -95,7 +95,9 @@ import Data.Char (generalCategory, GeneralCategory(Space))
 import Data.Word (Word8)
 import Foreign.Marshal.Alloc (mallocBytes)
 import Foreign.Storable (Storable(..))
+#ifndef __GHCJS__
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import GHC.Base (assert, unsafeChr)
 import GHC.Exts (Addr#)
 import GHC.IO.Encoding.Failure (isSurrogate)

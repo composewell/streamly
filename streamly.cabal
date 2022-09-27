@@ -488,13 +488,9 @@ library
                      , Streamly.Internal.Unicode.Array.Char
 
                      -- streamly-filesystem
-                     , Streamly.Internal.System.IOVec.Type
-                     , Streamly.Internal.System.IOVec
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.Dir
                      , Streamly.Internal.FileSystem.File
-                     , Streamly.Internal.FileSystem.FDIO
-                     , Streamly.Internal.FileSystem.FD
 
                      -- streamly-console
                      , Streamly.Internal.Console.Stdio
@@ -522,6 +518,13 @@ library
                      , Streamly.Data.Unicode.Stream
                      , Streamly.Memory.Array
                      , Streamly.Data.Array.Foreign
+
+    if !impl(ghcjs) && flag(dev)
+        exposed-modules:
+                       Streamly.Internal.System.IOVec.Type
+                     , Streamly.Internal.System.IOVec
+                     , Streamly.Internal.FileSystem.FDIO
+                     , Streamly.Internal.FileSystem.FD
 
     reexported-modules:
                      -- streamly-core exposed modules
