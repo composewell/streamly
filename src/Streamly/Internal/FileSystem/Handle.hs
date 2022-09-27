@@ -124,8 +124,6 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Unboxed.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink, byteLength)
 import Streamly.Internal.Data.Stream.Type (Stream)
---import Streamly.Internal.Data.Stream.IsStream.Type
---    (IsStream, mkStream, fromStreamD)
 import Streamly.Internal.Data.Array.Stream.Foreign (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)

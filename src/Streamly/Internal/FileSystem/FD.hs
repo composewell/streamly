@@ -132,7 +132,6 @@ import Streamly.Internal.Data.Array.Unboxed.Type
     (Array(..), byteLength, unsafeFreeze, asPtrUnsafe)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Stream.Type (Stream)
---import Streamly.Internal.Data.Stream.IsStream.Type    (mkStream, fromStreamD)
 #if !defined(mingw32_HOST_OS)
 {-
 import Streamly.Internal.Data.Stream.IsStream.Type (toStreamD)
