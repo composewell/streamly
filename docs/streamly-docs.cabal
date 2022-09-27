@@ -25,6 +25,7 @@ extra-doc-files:
   User/Explanatory/streaming-pradigms.rst
   User/ProjectRelated/*.md
   User/ProjectRelated/*.link
+  User/ProjectRelated/API-changelog.txt
   Developer/*.png
   Developer/*.md
   Developer/*.link
