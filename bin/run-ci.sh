@@ -200,6 +200,8 @@ ghcHEAD () {
 # ghcjs
 #------------------------------------------------------------------------------
 
+# Use the following nix expression for ghcjs
+# nix-env -f https://github.com/composewell/nixpkgs/archive/refs/tags/22.05-composewell.tar.gz -iA pkgs.haskell.compiler.ghcjs
 ghcjs () {
       # We don't pass 'CABAL_BUILD_OPTIONS="--flag limit-build-mem"' here as
       # ghcjs requires more memory to build. Adding a conditional for ghcjs in
