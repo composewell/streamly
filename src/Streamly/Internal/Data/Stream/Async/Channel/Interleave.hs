@@ -37,9 +37,10 @@ import Streamly.Internal.Data.Stream.Channel.Types
 
 data WorkerStatus = Continue | Suspend
 
--- XXX we can use the Ahead style sequence/heap mechanism to make the best
--- effort to always try to finish the streams on the left side of an expression
--- first as long as possible.
+-- XXX This is not strictly round-robin as the streams that are faster may
+-- yield more elements than the ones that are slower. Also, when streams
+-- suspend due to buffer getting full they get added to the queue in a random
+-- order.
 
 {-# INLINE enqueueFIFO #-}
 enqueueFIFO ::
@@ -50,8 +51,6 @@ enqueueFIFO ::
 enqueueFIFO sv q m = do
     pushL q m
     ringDoorBell (needDoorBell sv) (outputDoorBell sv)
-
--- XXX we can remove sv as it is derivable from st
 
 {-# INLINE workLoopFIFO #-}
 workLoopFIFO

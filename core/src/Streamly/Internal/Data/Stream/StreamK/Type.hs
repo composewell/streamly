@@ -1380,7 +1380,7 @@ reverse :: Stream m a -> Stream m a
 reverse = foldlS (flip cons) nil
 
 ------------------------------------------------------------------------------
--- Runnining effects
+-- Running effects
 ------------------------------------------------------------------------------
 
 -- | Run an action before evaluating the stream.

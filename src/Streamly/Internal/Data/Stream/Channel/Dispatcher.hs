@@ -263,7 +263,7 @@ delThread workerSet tid =
 
 -- If present then delete else add. This takes care of out of order add and
 -- delete i.e. a delete arriving before we even added a thread.
--- This occurs when the forked thRead is done even before the 'addThread' right
+-- This occurs when the forked thread is done even before the 'addThread' right
 -- after the fork gets a chance to run.
 {-# INLINE modifyThread #-}
 modifyThread :: MonadIO m => IORef (Set ThreadId) -> MVar () -> ThreadId -> m ()

@@ -417,17 +417,29 @@ maxBuffer n st =
 getMaxBuffer :: Config -> Limit
 getMaxBuffer = _bufferHigh
 
--- | Specify the pull rate of a channel.
--- A 'Nothing' value resets the rate to default which is unlimited.  When the
--- rate is specified, concurrent production may be ramped up or down
--- automatically to achieve the specified yield rate. The specific behavior for
--- different styles of 'Rate' specifications is documented under 'Rate'.  The
--- effective maximum production rate achieved by a channel is governed by:
+-- | Specify the stream evaluation rate of a channel.
+--
+-- A 'Nothing' value means there is no smart rate control, concurrent execution
+-- blocks only if 'maxThreads' or 'maxBuffer' is reached, or there are no more
+-- concurrent tasks to execute. This is the default.
+--
+-- When rate (throughput) is specified, concurrent production may be ramped
+-- up or down automatically to achieve the specified stream throughput. The
+-- specific behavior for different styles of 'Rate' specifications is
+-- documented under 'Rate'.  The effective maximum production rate achieved by
+-- a channel is governed by:
 --
 -- * The 'maxThreads' limit
 -- * The 'maxBuffer' limit
 -- * The maximum rate that the stream producer can achieve
 -- * The maximum rate that the stream consumer can achieve
+--
+-- Maximum production rate is given by:
+--
+-- \(rate = \frac{maxThreads}{latency}\)
+--
+-- If we know the average latency of the tasks we can set 'maxThreads'
+-- accordingly.
 --
 rate :: Maybe Rate -> Config -> Config
 rate r st = st { _maxStreamRate = r }
