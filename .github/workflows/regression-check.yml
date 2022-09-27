@@ -28,6 +28,7 @@ jobs:
         Data.Stream.StreamK:6
         Data.Unfold
         Data.Stream
+        Data.Stream.Async
         FileSystem.Handle
         Prelude.Ahead
         Prelude.Async:12
