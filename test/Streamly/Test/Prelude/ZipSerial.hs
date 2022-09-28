@@ -9,9 +9,6 @@
 
 module Streamly.Test.Prelude.ZipSerial (main) where
 
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
-#endif
 import Test.Hspec.QuickCheck
 import Test.Hspec as H
 

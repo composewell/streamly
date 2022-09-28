@@ -38,9 +38,6 @@ import Data.Foldable (Foldable(foldl'), fold)
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Data.Maybe (fromMaybe)
 import Data.Semigroup (Endo(..))
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import GHC.Exts (IsList(..), IsString(..), oneShot)
 import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec

@@ -103,10 +103,6 @@ import qualified GHC.Exts as Exts
 
 import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
-
 --
 -- $setup
 -- >>> :m

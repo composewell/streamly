@@ -50,9 +50,6 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pushL)
 import Data.IORef (IORef, newIORef, readIORef)
 import Data.Maybe (fromJust)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 
 import Prelude hiding (map)
 import qualified Data.Set as S

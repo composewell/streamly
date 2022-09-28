@@ -15,9 +15,6 @@ module Streamly.Internal.Data.Fold.Tee
 where
 
 import Control.Applicative (liftA2)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import Streamly.Internal.Data.Fold.Type (Fold)
 
 import qualified Streamly.Internal.Data.Fold.Type as Fold

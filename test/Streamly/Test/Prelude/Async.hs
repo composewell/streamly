@@ -11,9 +11,6 @@ module Streamly.Test.Prelude.Async (main) where
 
 import Control.Concurrent (threadDelay)
 import Data.List (sort)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
-#endif
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)

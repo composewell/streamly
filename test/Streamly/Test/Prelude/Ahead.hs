@@ -9,9 +9,6 @@
 
 module Streamly.Test.Prelude.Ahead (main) where
 
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
-#endif
 import Test.QuickCheck (Property)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)

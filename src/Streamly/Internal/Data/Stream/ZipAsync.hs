@@ -21,9 +21,6 @@ module Streamly.Internal.Data.Stream.ZipAsync
     )
 where
 
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
