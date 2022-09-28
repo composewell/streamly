@@ -140,6 +140,7 @@
 
     * Wait for final CI tests to pass:
 
+        * Manually run packcheck for ghcjs, `bin/run-ci.sh --targets ghcjs`.
         * Mask out the build status lines from the
           [docs/Introduction.md](/docs/User/Tutorials/Introduction.md)
         * Upload to hackage
