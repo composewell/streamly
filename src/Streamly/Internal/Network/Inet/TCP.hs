@@ -107,7 +107,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (fork)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
@@ -302,7 +302,10 @@ usingConnection =
 -- /Pre-release/
 {-# INLINE withConnection #-}
 withConnection :: (MonadCatch m, MonadAsync m)
-    => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> Stream m a) -> Stream m a
+    => (Word8, Word8, Word8, Word8)
+    -> PortNumber
+    -> (Socket -> Stream m a)
+    -> Stream m a
 withConnection addr port =
     S.bracket (liftIO $ connect addr port) (liftIO . Net.close)
 

@@ -434,7 +434,7 @@ readWith chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
 --
 -- @since 0.7.0
 {-# INLINE toBytes #-}
-toBytes :: (MonadIO m) => Socket -> Stream m Word8
+toBytes :: MonadIO m => Socket -> Stream m Word8
 toBytes = AS.concat . toChunks
 
 -- | Unfolds the tuple @(bufsize, socket)@ into a byte stream, read requests
@@ -590,7 +590,7 @@ write = toHandleWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readUtf8 #-}
-readUtf8 :: (MonadIO m) => Handle -> Stream m Char
+readUtf8 :: MonadIO m => Handle -> Stream m Char
 readUtf8 = decodeUtf8 . read
 
 -- |
@@ -612,7 +612,7 @@ writeUtf8 h s = write h $ encodeUtf8 s
 --
 -- @since 0.7.0
 {-# INLINE writeUtf8ByLines #-}
-writeUtf8ByLines :: (MonadIO m) => Handle -> Stream m Char -> m ()
+writeUtf8ByLines :: MonadIO m => Handle -> Stream m Char -> m ()
 writeUtf8ByLines = undefined
 
 -- | Read UTF-8 lines from a file handle and apply the specified fold to each
@@ -620,7 +620,7 @@ writeUtf8ByLines = undefined
 --
 -- @since 0.7.0
 {-# INLINE readLines #-}
-readLines :: (MonadIO m) => Handle -> Fold m Char b -> Stream m b
+readLines :: MonadIO m => Handle -> Fold m Char b -> Stream m b
 readLines h f = foldLines (readUtf8 h) f
 
 -------------------------------------------------------------------------------
