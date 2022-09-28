@@ -410,8 +410,6 @@ enumerateFromThenToSmallUnit =
                 in testUnfold unf (f :: (), th, to) $
                     Prelude.take 1 $ Prelude.enumFromThenTo f th to
 
-
-#if MIN_VERSION_base(4,12,0)
 enumerateFromFractional :: Property
 enumerateFromFractional =
     property
@@ -442,8 +440,6 @@ enumerateFromToFractional =
         $ \f t ->
                 let unf = UF.enumerateFromToFractional
                 in testUnfold unf (f :: Double, t) [f..(t :: Double)]
-
-#endif
 
 -------------------------------------------------------------------------------
 -- Stream transformation
@@ -651,12 +647,10 @@ testGeneration =
             prop "enumerateFromToSmallBool" enumerateFromToSmallBool
             prop "enumerateFromThenToSmallBool" enumerateFromThenToSmallBool
 
-#if MIN_VERSION_base(4,12,0)
             prop "enumerateFromFractional" enumerateFromFractional
             prop "enumerateFromThenFractional" enumerateFromThenFractional
             prop "enumerateFromToFractional" enumerateFromToFractional
             prop "enumerateFromThenToFractional" enumerateFromThenToFractional
-#endif
 
 testTransformation :: Spec
 testTransformation =

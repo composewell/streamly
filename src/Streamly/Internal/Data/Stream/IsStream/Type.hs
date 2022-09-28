@@ -152,13 +152,11 @@ infixr 5 |:
 --
 -- @since 0.8.0
 class
-#if __GLASGOW_HASKELL__ >= 806
     ( forall m a. MonadAsync m => Semigroup (t m a)
     , forall m a. MonadAsync m => Monoid (t m a)
     , forall m. Monad m => Functor (t m)
     , forall m. MonadAsync m => Applicative (t m)
     ) =>
-#endif
       IsStream t where
     toStream :: t m a -> K.Stream m a
     fromStream :: K.Stream m a -> t m a

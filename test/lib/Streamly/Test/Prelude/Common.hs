@@ -15,9 +15,7 @@ module Streamly.Test.Prelude.Common
     , constructWithReplicate
     , constructWithReplicateM
     , constructWithIntFromThenTo
-#if __GLASGOW_HASKELL__ >= 806
     , constructWithDoubleFromThenTo
-#endif
     , constructWithIterate
     , constructWithIterateM
     , constructWithEnumerate
@@ -221,7 +219,6 @@ constructWithRepeatM = constructWithLenM stream list
     stream n = S.take n $ S.repeatM (return 1)
     list n = return $ replicate n 1
 
-#if __GLASGOW_HASKELL__ >= 806
 -- XXX try very small steps close to 0
 constructWithDoubleFromThenTo
     :: IsStream t
@@ -235,7 +232,6 @@ constructWithDoubleFromThenTo op l =
         let list len = take len [from,next..to]
             stream len = S.take len $ S.enumerateFromThenTo from next to
         in constructWithLen stream list op l
-#endif
 
 constructWithIterate ::
        IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
@@ -396,11 +392,7 @@ constructWithUnfoldr listT op len =
         else Just (seed, seed + 1)
 
 constructWithFromPure ::
-       (IsStream t
-#if __GLASGOW_HASKELL__ < 806
-       , Monoid (t IO Int)
-#endif
-       )
+       (IsStream t, Monoid (t IO Int))
     => ([Int] -> [Int])
     -> (t IO Int -> SerialT IO Int)
     -> Word8
@@ -416,11 +408,7 @@ constructWithFromPure listT op len =
         listEquals (==) (listT strm) list
 
 constructWithFromEffect ::
-       (IsStream t
-#if __GLASGOW_HASKELL__ < 806
-       , Monoid (t IO Int)
-#endif
-       )
+       (IsStream t, Monoid (t IO Int))
     => ([Int] -> [Int])
     -> (t IO Int -> SerialT IO Int)
     -> Word8
@@ -1033,11 +1021,7 @@ foldFromList constr op eq = transformFromList constr eq id op
 
 -- XXX concatenate streams of multiple elements rather than single elements
 semigroupOps
-    :: (IsStream t
-#if __GLASGOW_HASKELL__ < 804
-       , Semigroup (t IO Int)
-#endif
-       , Monoid (t IO Int))
+    :: (IsStream t, Monoid (t IO Int))
     => String
     -> ([Int] -> [Int] -> Bool)
     -> (t IO Int -> SerialT IO Int)
@@ -1469,11 +1453,7 @@ bracketPartialStreamProp t vec =
 #endif
 
 bracketExceptionProp ::
-       (IsStream t, MonadThrow (t IO)
-#if __GLASGOW_HASKELL__ < 806
-       , Semigroup (t IO Int)
-#endif
-       )
+       (IsStream t, MonadThrow (t IO), Semigroup (t IO Int))
     => (t IO Int -> SerialT IO Int)
     -> Property
 bracketExceptionProp t =
@@ -1560,11 +1540,7 @@ finallyPartialStreamProp t vec =
 #endif
 
 finallyExceptionProp ::
-       (IsStream t, MonadThrow (t IO)
-#if __GLASGOW_HASKELL__ < 806
-       , Semigroup (t IO Int)
-#endif
-       )
+       (IsStream t, MonadThrow (t IO), Semigroup (t IO Int))
     => (t IO Int -> SerialT IO Int)
     -> Property
 finallyExceptionProp t =
@@ -1582,11 +1558,7 @@ finallyExceptionProp t =
         assert $ refValue == 1
 
 onExceptionProp ::
-       (IsStream t, MonadThrow (t IO)
-#if __GLASGOW_HASKELL__ < 806
-       , Semigroup (t IO Int)
-#endif
-       )
+       (IsStream t, MonadThrow (t IO), Semigroup (t IO Int))
     => (t IO Int -> SerialT IO Int)
     -> Property
 onExceptionProp t =
@@ -1620,11 +1592,7 @@ handleProp t vec =
         assert $ res == vec ++ [0] ++ vec
 
 exceptionOps ::
-       (IsStream t, MonadThrow (t IO)
-#if __GLASGOW_HASKELL__ < 806
-       , Semigroup (t IO Int)
-#endif
-       )
+       (IsStream t, MonadThrow (t IO), Semigroup (t IO Int))
     => String
     -> (t IO Int -> SerialT IO Int)
     -> Spec

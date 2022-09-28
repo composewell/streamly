@@ -44,9 +44,6 @@ import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Maybe (fromJust, fromMaybe)
 import Data.IORef (IORef, modifyIORef, newIORef, readIORef, writeIORef)
-#if __GLASGOW_HASKELL__ < 804
-import Data.Semigroup ((<>))
-#endif
 import Streamly.Internal.Control.ForkLifted (doFork)
 import Streamly.Internal.Data.Atomics
        (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier,
