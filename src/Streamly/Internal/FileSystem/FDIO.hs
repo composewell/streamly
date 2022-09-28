@@ -57,13 +57,8 @@ isNonBlocking fd = fdIsNonBlocking fd /= 0
 
 -- "poll"s the fd for data to become available or timeout
 -- See cbits/inputReady.c in base package
-#if __GLASGOW_HASKELL__ >= 804
 foreign import ccall unsafe "fdReady"
     unsafe_fdReady :: CInt -> CBool -> Int64 -> CBool -> IO CInt
-#else
-foreign import ccall safe "fdReady"
-    unsafe_fdReady :: CInt -> CInt -> CInt -> CInt -> IO CInt
-#endif
 
 writeNonBlocking :: String -> FD -> Ptr Word8 -> Int -> CSize -> IO CInt
 writeNonBlocking loc !fd !buf !off !len

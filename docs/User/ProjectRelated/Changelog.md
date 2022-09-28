@@ -3,6 +3,7 @@
 <!-- See rendered changelog at https://streamly.composewell.com -->
 ## Unreleased
 
+* Remove support for GHC 8.4.*
 * The unboxed arrays now require `Unbox` instance along with `Storable` for the
   stored type. The `Unbox` typeclass can be found in `Streamly.Data.Unbox`.
 * New modules for unboxed mutable & unboxed immutable arrays are added.

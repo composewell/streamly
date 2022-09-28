@@ -157,13 +157,6 @@ jobs:
             cabal_project: cabal.project
             cabal_build_options: "--flag debug --flag -opt"
             ignore_error: false
-          - name: 8.4.4-sdist
-            ghc_version: 8.4.4
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project
-            ignore_error: false
 
     steps:
     - uses: actions/checkout@v2

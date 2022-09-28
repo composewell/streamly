@@ -555,10 +555,8 @@ main = hspec
         serialOps   $ prop "serially replicateM" . constructWithReplicateM
         serialOps   $ prop "serially intFromThenTo" .
                             constructWithIntFromThenTo
-#if __GLASGOW_HASKELL__ >= 806
         serialOps   $ prop "serially DoubleFromThenTo" .
                             constructWithDoubleFromThenTo
-#endif
         serialOps   $ prop "serially iterate" . constructWithIterate
         -- XXX test for all types of streams
         serialOps   $ prop "serially iterateM" . constructWithIterateM

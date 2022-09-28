@@ -409,8 +409,8 @@ workflows:
       #- cabal-ghc-8_0_2:
       #    name: GHC 8.0.2 + no-test + no-bench + no-docs
       #- cabal-ghc-7.10.3
-      - cabal-ghcjs-8_4:
-          name: GHCJS 8.4 + no-test + no-docs
+      # - cabal-ghcjs-8_4:
+      #     name: GHCJS 8.4 + no-test + no-docs
       #- stack-ghc-8.4
       #- stack-ghc-8.2
       #- coveralls-ghc-8.2.2
