@@ -185,7 +185,7 @@ import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
     (takeEQ, fromEffect, fromFold)
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.FileSystem.Dir as Dir
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Unicode.Stream as U
@@ -624,7 +624,7 @@ toUtf8 :: MonadIO m => String -> m (Array Word8)
 toUtf8 = A.fromStream . U.encodeUtf8 . S.fromList
 
 utf8ToString :: Array Word8 -> String
-utf8ToString = runIdentity . S.toList . U.decodeUtf8' . A.toStream
+utf8ToString = runIdentity . S.fold FL.toList . U.decodeUtf8' . A.toStream
 
 -- | Add a trailing "/" at the end of the path if there is none. Do not add a
 -- "/" if the path is empty.
@@ -723,9 +723,10 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     -- to "/" separated by byte arrays.
     pathIsDir <- doesDirectoryExist $ utf8ToString absPath
     when (watchRec && pathIsDir) $ do
-        S.mapM_ (\p -> addToWatch cfg watch0 root (appendPaths path p))
-            $ S.mapM toUtf8
-            $ Dir.toDirs $ utf8ToString absPath
+        let f = addToWatch cfg watch0 root . appendPaths path
+            in S.fold (FL.drainBy f)
+                $ S.mapM toUtf8
+                $ Dir.toDirs $ utf8ToString absPath
 
 foreign import ccall unsafe
     "sys/inotify.h inotify_rm_watch" c_inotify_rm_watch

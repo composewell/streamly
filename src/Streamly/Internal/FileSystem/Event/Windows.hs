@@ -121,7 +121,8 @@ import System.Win32.File
     )
 import System.Win32.Types (BOOL, DWORD, HANDLE, LPVOID, LPDWORD, failIfFalse_)
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.Unicode.Utf8 as UTF8
 import qualified Streamly.Internal.Data.Array.Unboxed as A
@@ -416,7 +417,8 @@ eventStreamAggr :: (HANDLE, FilePath, Config) -> Stream IO Event
 eventStreamAggr (handle, rootPath, cfg) =  do
     let recMode = getConfigRecMode cfg
         flagMasks = getConfigFlag cfg
-    S.concatMap S.fromList $ S.repeatM
+        repeatM = S.sequence . S.repeat
+    S.concatMap S.fromList $ repeatM
         $ readDirectoryChanges rootPath handle recMode flagMasks
 
 pathsToHandles ::
@@ -424,14 +426,14 @@ pathsToHandles ::
 pathsToHandles paths cfg = do
     let pathStream = S.fromList (NonEmpty.toList paths)
         st2 = S.mapM getWatchHandle pathStream
-    S.map (\(h, f) -> (h, f, cfg)) st2
+    fmap (\(h, f) -> (h, f, cfg)) st2
 
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
 
 utf8ToString :: Array Word8 -> FilePath
-utf8ToString = runIdentity . S.toList . U.decodeUtf8 . A.toStream
+utf8ToString = runIdentity . S.fold Fold.toList . U.decodeUtf8 . A.toStream
 
 utf8ToStringList :: NonEmpty (Array Word8) -> NonEmpty FilePath
 utf8ToStringList = NonEmpty.map utf8ToString
@@ -439,7 +441,9 @@ utf8ToStringList = NonEmpty.map utf8ToString
 -- | Close a Directory handle.
 --
 closePathHandleStream :: Stream IO (HANDLE, FilePath, Config) -> IO ()
-closePathHandleStream = S.mapM_ (\(h, _, _) -> closeHandle h)
+closePathHandleStream =
+    let f (h, _, _) = closeHandle h
+        in S.fold (Fold.drainBy f)
 
 -- XXX
 -- Document the path treatment for Linux/Windows/macOS modules.
