@@ -17,9 +17,6 @@ module Streamly.Test.Common
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.List ((\\))
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
-#endif
 import Test.QuickCheck (Property, Gen, choose, counterexample)
 import Test.QuickCheck.Monadic (PropertyM, assert, monitor, monadicIO)
 

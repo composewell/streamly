@@ -10,9 +10,6 @@
 module Streamly.Test.Prelude.WSerial (main) where
 
 import Data.List (sort)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
-#endif
 import Test.QuickCheck (Property, forAll)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck.Monadic (monadicIO, run)

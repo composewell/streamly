@@ -17,9 +17,6 @@ import Data.Int (Int64)
 import Data.List (sort, group, intercalate)
 import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
-#endif
 import Data.Semigroup (Sum(..), getSum)
 import Streamly.Internal.Data.Unboxed (Unboxed)
 import Test.Hspec.QuickCheck

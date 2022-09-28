@@ -219,9 +219,6 @@ import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, (.|.), (.&.))
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.Ptr (plusPtr, minusPtr, nullPtr)

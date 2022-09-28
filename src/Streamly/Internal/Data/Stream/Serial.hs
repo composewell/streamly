@@ -34,9 +34,6 @@ module Streamly.Internal.Data.Stream.Serial
     )
 where
 
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import GHC.Exts (IsList(..))
 import Streamly.Data.Stream (Stream)
 

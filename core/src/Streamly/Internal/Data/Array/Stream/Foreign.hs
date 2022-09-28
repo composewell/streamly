@@ -54,9 +54,6 @@ import Data.Bifunctor (second)
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unboxed (Unboxed, peekWith, sizeOf)
 import Fusion.Plugin.Types (Fuse(..))

@@ -22,9 +22,6 @@ where
 import Control.Arrow (Arrow(..))
 import Control.Category (Category(..))
 import Data.Maybe (isJust)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import Prelude hiding (zipWith, map, id, unzip, null)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 

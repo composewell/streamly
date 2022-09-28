@@ -16,9 +16,6 @@ import Control.Exception (Exception, try)
 import Control.Monad (replicateM)
 import Control.Monad.Catch (throwM)
 import Data.List (sort)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup ((<>))
-#endif
 import Data.Word (Word8)
 import Streamly.Data.Stream (Stream)
 import Test.Hspec.QuickCheck

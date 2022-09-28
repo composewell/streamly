@@ -62,9 +62,6 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor (void)
 import Data.IORef (readIORef, writeIORef)
 import Data.Maybe (fromJust, isNothing)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Control.Concurrent (MonadAsync)

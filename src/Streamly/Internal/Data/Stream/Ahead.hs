@@ -42,9 +42,6 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Heap (Heap, Entry(..))
 import Data.IORef (IORef, readIORef, atomicModifyIORef, writeIORef)
 import Data.Maybe (fromJust)
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import GHC.Exts (inline)
 
 import qualified Data.Heap as H
