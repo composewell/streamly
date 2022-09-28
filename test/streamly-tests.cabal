@@ -397,6 +397,16 @@ test-suite Data.Stream.Async
   if flag(use-streamly-core)
     buildable: False
 
+test-suite Data.Stream.Parallel
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Stream/Parallel.hs
+  ghc-options: -main-is Streamly.Test.Data.Stream.Parallel.main
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M3000M -RTS
+  if flag(use-streamly-core)
+    buildable: False
+
 test-suite Prelude.Concurrent
   import: test-options
   type: exitcode-stdio-1.0

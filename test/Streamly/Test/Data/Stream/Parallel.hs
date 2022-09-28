@@ -10,7 +10,7 @@
 -- This module is almost identical to other concurrent stream test modules. Any
 -- changes in one should be made in others as well.
 
-module Streamly.Test.Data.Stream.Async (main) where
+module Streamly.Test.Data.Stream.Parallel (main) where
 
 #ifdef DEVBUILD
 import Control.Concurrent (threadDelay)
@@ -31,16 +31,18 @@ import Test.Hspec as H
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.Async as Async
+import qualified Streamly.Internal.Data.Stream.Parallel as Async
 
 import Streamly.Test.Common (listEquals)
 
 moduleName :: String
-moduleName = "Data.Stream.Async"
+moduleName = "Data.Stream.Parallel"
 
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
+
+-- XXX Move these to common module.
 
 sortEq :: Ord a => [a] -> [a] -> Bool
 sortEq a b = sort a == sort b
@@ -75,7 +77,7 @@ transformCombineFromList constr eq listOp op a b c =
     withMaxSuccess maxTestCount $
         monadicIO $ do
             stream <- run (Stream.fold Fold.toList $
-                constr a `Async.append` op (constr b `Async.append` constr c))
+                constr a `Async.parallel` op (constr b `Async.parallel` constr c))
             let list = a <> listOp (b <> c)
             listEquals eq stream list
 
@@ -83,14 +85,7 @@ commonOpConfigs :: [(String, Async.Config -> Async.Config)]
 commonOpConfigs =
     [ ("default", id)
 #ifndef COVERAGE_BUILD
-    , ("rate AvgRate 10000", Async.avgRate 10000)
-    , ("rate Nothing", Async.rate Nothing)
     , ("maxBuffer 0", Async.maxBuffer 0)
-    , ("maxThreads 0", Async.maxThreads 0)
-    , ("maxThreads 1", Async.maxThreads 1)
-#ifdef USE_LARGE_MEMORY
-    , ("maxThreads -1", Async.maxThreads (-1))
-#endif
 #endif
     ]
 
@@ -190,7 +185,7 @@ takeCombined n = do
     let constr = Stream.fromFoldable
     r <- Stream.fold Fold.toList $
             Stream.take n
-                (constr ([] :: [Int]) `Async.append` constr ([] :: [Int]))
+                (constr ([] :: [Int]) `Async.parallel` constr ([] :: [Int]))
     r `shouldBe` []
 
 ---------------------------------------------------------------------------
@@ -244,62 +239,62 @@ main = hspec
 
         -- Binary append
         prop1 "append [] []"
-            $ cmp (Stream.nil `Async.append` Stream.nil) sortEq []
+            $ cmp (Stream.nil `Async.parallel` Stream.nil) sortEq []
         prop1 "append [] [1]"
-            $ cmp (Stream.nil `Async.append` Stream.fromPure 1) sortEq [1]
+            $ cmp (Stream.nil `Async.parallel` Stream.fromPure 1) sortEq [1]
         prop1 "append [1] []"
-            $ cmp (Stream.fromPure 1 `Async.append` Stream.nil) sortEq [1]
+            $ cmp (Stream.fromPure 1 `Async.parallel` Stream.nil) sortEq [1]
         prop1 "append [0] [1]"
             $ let stream =
-                    Stream.fromPure 0 `Async.append` Stream.fromPure 1
+                    Stream.fromPure 0 `Async.parallel` Stream.fromPure 1
                in cmp stream sortEq [0, 1]
 
         prop1 "append [0] [] [1]"
             $ let stream =
                     Stream.fromPure 0
-                        `Async.append` Stream.nil
-                        `Async.append` Stream.fromPure 1
+                        `Async.parallel` Stream.nil
+                        `Async.parallel` Stream.fromPure 1
                in cmp stream sortEq [0, 1]
 
         prop1 "append left associated"
             $ let stream =
                     Stream.fromPure 0
-                        `Async.append` Stream.fromPure 1
-                        `Async.append` Stream.fromPure 2
-                        `Async.append` Stream.fromPure 3
+                        `Async.parallel` Stream.fromPure 1
+                        `Async.parallel` Stream.fromPure 2
+                        `Async.parallel` Stream.fromPure 3
                in cmp stream sortEq [0, 1, 2, 3]
 
         prop1 "append right associated"
             $ let stream =
                     Stream.fromPure 0
-                        `Async.append` (Stream.fromPure 1
-                        `Async.append` (Stream.fromPure 2
-                        `Async.append` Stream.fromPure 3))
+                        `Async.parallel` (Stream.fromPure 1
+                        `Async.parallel` (Stream.fromPure 2
+                        `Async.parallel` Stream.fromPure 3))
                in cmp stream sortEq [0, 1, 2, 3]
 
         prop1 "append balanced"
-            $ let leaf x y = Stream.fromPure x `Async.append` Stream.fromPure y
-                  leaf11 = leaf 0 1 `Async.append` leaf 2 (3 :: Int)
-                  leaf12 = leaf 4 5 `Async.append` leaf 6 7
-                  stream = leaf11 `Async.append` leaf12
+            $ let leaf x y = Stream.fromPure x `Async.parallel` Stream.fromPure y
+                  leaf11 = leaf 0 1 `Async.parallel` leaf 2 (3 :: Int)
+                  leaf12 = leaf 4 5 `Async.parallel` leaf 6 7
+                  stream = leaf11 `Async.parallel` leaf12
                in cmp stream sortEq [0, 1, 2, 3, 4, 5, 6,7]
 
-        prop1 "appendWith (maxThreads 1)"
+        prop1 "appendWith (maxBuffer 1)"
             $ let stream =
-                    Async.appendWith (Async.maxThreads 1)
+                    Async.parallelWith Async.StopNone (Async.maxBuffer 1)
                         (Stream.fromList [1,2,3,4,5])
                         (Stream.fromList [6,7,8,9,10])
-               in cmp stream (==) [1,2,3,4,5,6,7,8,9,10]
+               in cmp stream sortEq [1,2,3,4,5,6,7,8,9,10]
 
         prop1 "apply (async arg1)"
-            $ let s1 = Async.apply (pure (,)) (pure 1 `Async.append` pure 2)
+            $ let s1 = Async.apply (pure (,)) (pure 1 `Async.parallel` pure 2)
                   s2 = Async.apply s1 (pure 3) :: Stream IO (Int, Int)
                   xs = Stream.fold Fold.toList s2
                in sort <$> xs `shouldReturn` [(1, 3), (2, 3)]
 
         prop1 "apply (async arg2)"
             $ let s1 = pure (1,)
-                  s2 = Async.apply s1 (pure 2 `Async.append` pure 3)
+                  s2 = Async.apply s1 (pure 2 `Async.parallel` pure 3)
                   xs = Stream.fold Fold.toList s2 :: IO [(Int, Int)]
                in sort <$> xs `shouldReturn` [(1, 2), (1, 3)]
 
@@ -318,8 +313,8 @@ main = hspec
                     (Async.concatMap (const (Stream.fromList [1..n])))
 
 #ifdef DEVBUILD
-        describe "Time ordering" $ timeOrdering Async.append
+        describe "Time ordering" $ timeOrdering Async.parallel
 #endif
-        describe "Exception propagation" $ exceptionPropagation Async.append
+        describe "Exception propagation" $ exceptionPropagation Async.parallel
         -- Ad-hoc tests
         it "takes n from stream of streams" $ takeCombined 2
