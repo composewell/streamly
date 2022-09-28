@@ -59,7 +59,7 @@ env: &env
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "35efa99b2082d13722b8a0183ac6455df98e91b9"
+      PACKCHECK_GITHUB_COMMIT: "a302772c8f3791c477edd1764b82f8d1f5b22fdf"
 
 executors:
   amd64-executor:
@@ -150,6 +150,7 @@ jobs:
               DISABLE_TEST: "yes"
               DISABLE_BENCH: "yes"
               DISABLE_DIST_CHECKS: "yes"
+              DISABLE_SDIST_BUILD: "yes"
             command: |
               apt-get install -y ghc-8.10.4
               apt-get install -y cabal-install-3.4
@@ -385,8 +386,9 @@ jobs:
         - run:
             name: Hlint src
             environment:
-              BUILD: cabal-v2
+              BUILD: hlint
               HLINT_OPTIONS: lint
+              DISABLE_SDIST_BUILD: "yes"
               HLINT_TARGETS: core/src src test benchmark
             command: |
               bash -c "$PACKCHECK $BUILD" || exit 1

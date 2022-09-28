@@ -41,7 +41,7 @@ jobs:
       # packcheck location and revision
       PACKCHECK_LOCAL_PATH: "./packcheck.sh"
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "075e13ab716c67d2110db4905ae42b0280af046d"
+      PACKCHECK_GITHUB_COMMIT: "a302772c8f3791c477edd1764b82f8d1f5b22fdf"
 
       # Pull token from "secrets" setting of the github repo
       COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
@@ -55,7 +55,7 @@ jobs:
       matrix:
         # The order is important to optimize fail-fast.
         name:
-          - 8.10.7-sdist-fusion-inspection-Werror
+          - 8.10.7-fusion-inspection-Werror
           - 9.2.4-docspec
         # - 8.10.7-coverage
 
@@ -93,14 +93,14 @@ jobs:
             doctest: "y"
             cabal_version: 3.6.2.0
             cabal_project: cabal.project
+            disable_sdist_build: "y"
             ignore_error: false
           - name: 9.0.2
             ghc_version: 9.0.2
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
-            cabal_project: cabal.project.902
-            disable_sdist_build: "y"
+            cabal_project: cabal.project.streamly
             ignore_error: true
           - name: 8.10.7-sdist-stack
             runner: ubuntu-latest
@@ -125,12 +125,13 @@ jobs:
         #   coverage: "y"
         #   cabal_version: 3.6.2.0
         #   ignore_error: false
-          - name: 8.10.7-sdist-fusion-inspection-Werror
+          - name: 8.10.7-fusion-inspection-Werror
             ghc_version: 8.10.7
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
             cabal_project: cabal.project.Werror
+            disable_sdist_build: "y"
             cabal_build_options: "--flag fusion-plugin --flag inspection"
             ignore_error: false
           - name: 8.8.4-sdist-fusion
@@ -138,7 +139,7 @@ jobs:
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
-            cabal_project: cabal.project
+            cabal_project: cabal.project.streamly
             cabal_build_options: "--flag fusion-plugin"
             ignore_error: false
           - name: 8.6.5-sdist-no-fusion-unoptimized
@@ -146,7 +147,7 @@ jobs:
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
-            cabal_project: cabal.project
+            cabal_project: cabal.project.streamly
             cabal_build_options: "--flag no-fusion --flag -opt"
             ignore_error: false
           - name: 8.6.5-sdist-debug-unoptimized
@@ -154,7 +155,7 @@ jobs:
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
-            cabal_project: cabal.project
+            cabal_project: cabal.project.streamly
             cabal_build_options: "--flag debug --flag -opt"
             ignore_error: false
 
