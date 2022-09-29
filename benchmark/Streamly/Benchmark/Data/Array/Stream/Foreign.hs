@@ -244,7 +244,7 @@ foldBreak s = do
 {-# INLINE parseBreak #-}
 parseBreak :: Stream IO (Array.Array Int) -> IO ()
 parseBreak s = do
-    r <- try $ ArrayStream.parseBreak Parser.one s
+    r <- try $ ArrayStream.parseBreak Parser.next s
     case r of
         Left (_ :: SomeException) -> return ()
         Right (_, s1) -> parseBreak s1
