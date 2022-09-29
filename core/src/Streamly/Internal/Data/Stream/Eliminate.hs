@@ -82,7 +82,6 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import Streamly.Internal.Data.Stream.Bottom
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import Streamly.Internal.Data.Stream.Type
 import Streamly.Internal.Data.Unboxed (Unboxed)
 import Prelude hiding (foldr, reverse)
