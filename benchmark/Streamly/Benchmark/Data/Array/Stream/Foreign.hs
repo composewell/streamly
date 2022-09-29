@@ -238,7 +238,7 @@ parse value s = void $ ArrayStream.parseBreak (drainWhile (< value)) s
 {-# INLINE foldBreak #-}
 foldBreak :: Stream IO (Array.Array Int) -> IO ()
 foldBreak s = do
-    (r, s1) <- ArrayStream.foldBreak Fold.one s
+    (r, s1) <- ArrayStream.foldBreak Fold.next s
     when (isJust r) $ foldBreak s1
 
 {-# INLINE parseBreak #-}
