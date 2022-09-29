@@ -59,6 +59,9 @@ module Streamly.Data.Parser
     , lmap
     , lmapM
 
+     -- * Map on output
+    , rmapM
+
     -- ** Filtering
     , filter
 

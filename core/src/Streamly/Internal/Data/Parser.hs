@@ -68,6 +68,9 @@ module Streamly.Internal.Data.Parser
     , lmapM
     , filter
 
+    -- * Map on output
+    , rmapM
+
     -- * Element parsers
     , peek
 
@@ -383,6 +386,13 @@ lmap f p = D.toParserK $ D.lmap f $ D.fromParserK p
 {-# INLINE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Parser m b r -> Parser m a r
 lmapM f p = D.toParserK $ D.lmapM f $ D.fromParserK p
+
+-- | @rmapM f parser@ maps the monadic function @f@ on the output of the parser.
+--
+-- /Internal/
+{-# INLINE rmapM #-}
+rmapM :: Monad m => (b -> m c) -> Parser m a b -> Parser m a c
+rmapM f p = D.toParserK $ D.rmapM f $ D.fromParserK p
 
 -- | Include only those elements that pass a predicate.
 --
