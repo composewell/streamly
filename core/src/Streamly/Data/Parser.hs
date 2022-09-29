@@ -37,7 +37,7 @@ module Streamly.Data.Parser
     , peek
 
     -- All of these can be expressed in terms of either
-    , one
+    , next
     , element
     , except
     , oneOf

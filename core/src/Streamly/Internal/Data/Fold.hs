@@ -121,7 +121,7 @@ module Streamly.Internal.Data.Fold
     -- Element folds. Terminate after inspecting one element. All these can be
     -- implemented in terms of the 'maybe' fold.
     , head
-    , one
+    , next
     , null
     , satisfy
     , maybe
@@ -1256,19 +1256,19 @@ satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
 --
 -- /Pre-release/
 --
-{-# INLINE one #-}
-one :: Monad m => Fold m a (Maybe a)
-one = maybe Just
+{-# INLINE next #-}
+next :: Monad m => Fold m a (Maybe a)
+next = maybe Just
 
 -- | Extract the first element of the stream, if any.
 --
--- >>> head = Fold.one
+-- >>> head = Fold.next
 --
 -- @since 0.7.0
--- {-# DEPRECATED head "Please use \"one\" instead" #-}
+-- {-# DEPRECATED head "Please use \"next\" instead" #-}
 {-# INLINE head #-}
 head :: Monad m => Fold m a (Maybe a)
-head = one
+head = next
 
 -- | Returns the first element that satisfies the given predicate.
 --

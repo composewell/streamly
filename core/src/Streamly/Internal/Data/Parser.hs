@@ -72,7 +72,7 @@ module Streamly.Internal.Data.Parser
     , peek
 
     -- All of these can be expressed in terms of either
-    , one
+    , next
     , element
     , except
     , oneOf
@@ -238,9 +238,6 @@ module Streamly.Internal.Data.Parser
     , retryMaxTotal
     , retryMaxSuccessive
     , retry
-
-     -- * Deprecated
-    , next
     )
 where
 
@@ -439,16 +436,16 @@ eof = D.toParserK D.eof
 satisfy :: Monad m => (a -> Bool) -> Parser m a a
 satisfy = D.toParserK . D.satisfy
 
--- | Consume one element from the head of the stream.  Fails if it encounters
+-- | Consume next element from the head of the stream.  Fails if it encounters
 -- end of input.
 --
--- >>> one = Parser.satisfy $ const True
+-- >>> next = Parser.satisfy $ const True
 --
 -- /Pre-release/
 --
-{-# INLINE one #-}
-one :: Monad m => Parser m a a
-one = satisfy $ const True
+{-# INLINE next #-}
+next :: Monad m => Parser m a a
+next = satisfy $ const True
 
 -- | Match a specific element.
 --
@@ -498,6 +495,7 @@ oneOf xs = satisfy (`elem` xs)
 noneOf :: (Monad m, Eq a) => [a] -> Parser m a a
 noneOf xs = satisfy (`notElem` xs)
 
+{-
 -- | Return the next element of the input. Returns 'Nothing'
 -- on end of input. Also known as 'head'.
 --
@@ -507,7 +505,7 @@ noneOf xs = satisfy (`notElem` xs)
 {-# INLINE next #-}
 next :: Monad m => Parser m a (Maybe a)
 next = D.toParserK D.next
-
+-}
 -- | Map a 'Maybe' returning function on the next element in the stream. The
 -- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
 -- value.

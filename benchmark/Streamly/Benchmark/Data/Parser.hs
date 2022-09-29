@@ -111,14 +111,14 @@ benchIOSink value name f =
 -- Parsers
 -------------------------------------------------------------------------------
 
-{-# INLINE one #-}
-one :: MonadThrow m => Int -> Stream m Int -> m (Maybe Int)
-one value = Stream.parse p
+{-# INLINE next #-}
+next :: MonadThrow m => Int -> Stream m Int -> m (Maybe Int)
+next value = Stream.parse p
 
     where
 
     p = do
-        m <- PR.fromFold Fold.one
+        m <- PR.fromFold Fold.next
         case m of
           Just i -> if i >= value then pure m else p
           Nothing -> pure Nothing
@@ -412,14 +412,14 @@ parseIterate n =
 {-# INLINE parseBreak #-}
 parseBreak :: MonadCatch m => Stream m Int -> m ()
 parseBreak s = do
-    r <- try $ Stream.parseBreak PR.one s
+    r <- try $ Stream.parseBreak PR.next s
     case r of
         Left (_ :: SomeException) -> return ()
         Right (_, s1) -> parseBreak s1
 
 {-# INLINE concatSequence #-}
 concatSequence :: MonadThrow m => Stream m Int -> m ()
-concatSequence = Stream.parse $ PR.concatSequence Fold.drain $ Stream.repeat PR.one
+concatSequence = Stream.parse $ PR.concatSequence Fold.drain $ Stream.repeat PR.next
 
 {-# INLINE parseManyGroupBy #-}
 parseManyGroupBy :: MonadThrow m => (Int -> Int -> Bool) -> Stream m Int -> m ()
@@ -435,7 +435,7 @@ moduleName = "Data.Parser"
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
-    [ benchIOSink value "one (fold)" $ one value
+    [ benchIOSink value "next (fold)" $ next value
     , benchIOSink value "takeBetween" $ takeBetween value
     , benchIOSink value "takeEQ" $ takeEQ value
     , benchIOSink value "takeWhile" $ takeWhile value
