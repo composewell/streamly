@@ -14,76 +14,79 @@
 --
 -- We call them stream folding functions, they reduce a stream @Stream m a@ to
 -- a monadic value @m b@.
+
 module Streamly.Internal.Data.Stream.Eliminate
-  ( -- * Running Examples
+    (
+    -- * Running Examples
     -- $setup
 
     -- * Running a 'Fold'
-
     --  See "Streamly.Internal.Data.Fold".
-    fold,
-    foldBreak,
-    foldContinue,
+      fold
+    , foldBreak
+    , foldContinue
 
     -- * Running a 'Parser'
-
     -- "Streamly.Internal.Data.Parser".
-    parse,
-    parseK,
-    parseD,
-    parseBreak,
-    parseBreakD,
+    , parse
+    , parseK
+    , parseD
+    , parseBreak
+    , parseBreakD
 
     -- * Stream Deconstruction
-
     -- | foldr and foldl do not provide the remaining stream.  'uncons' is more
     -- general, as it can be used to implement those as well.  It allows to use
     -- the stream one element at a time, and we have the remaining stream all
     -- the time.
-    uncons,
+    , uncons
 
     -- * Right Folds
-    foldrM,
-    foldr,
+    , foldrM
+    , foldr
 
     -- * Left Folds
-
     -- Lazy left folds are useful only for reversing the stream
-    foldlS,
-    foldlT,
+    , foldlS
+    , foldlT
 
     -- * Multi-Stream folds
-
     -- Full equivalence
-    eqBy,
-    cmpBy,
+    , eqBy
+    , cmpBy
+
     -- finding subsequences
-    isPrefixOf,
-    isInfixOf,
-    isSuffixOf,
-    isSubsequenceOf,
+    , isPrefixOf
+    , isInfixOf
+    , isSuffixOf
+    , isSubsequenceOf
+
     -- trimming sequences
-    stripPrefix,
+    , stripPrefix
     -- , stripInfix
-    stripSuffix,
-  )
+    , stripSuffix
+    )
 where
 
 #include "inline.hs"
 
 import Control.Monad.Catch (MonadThrow)
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Trans.Class (MonadTrans (..))
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Streamly.Internal.Data.Parser (Parser (..))
+import Streamly.Internal.Data.Unboxed (Unboxed)
+
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
-import Streamly.Internal.Data.Parser (Parser (..))
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
-import Streamly.Internal.Data.Stream.Bottom
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+
+import Streamly.Internal.Data.Stream.Bottom
 import Streamly.Internal.Data.Stream.Type
-import Streamly.Internal.Data.Unboxed (Unboxed)
+
 import Prelude hiding (foldr, reverse)
 
 -- $setup
@@ -149,8 +152,9 @@ uncons m = fmap (fmap (fmap fromStreamK)) $ K.uncons (toStreamK m)
 -- >>> step x xs = if odd x then return True else xs
 -- >>> Stream.foldrM step (return False) s
 -- True
+--
 {-# INLINE foldrM #-}
-foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
+foldrM ::  Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
 foldrM step acc m = D.foldrM step acc $ toStreamD m
 
 -- | Right fold, lazy for lazy monads and pure streams, and strict for strict
@@ -164,6 +168,7 @@ foldrM step acc m = D.foldrM step acc $ toStreamD m
 -- all its input.
 --
 -- >>> foldr f z = Stream.foldrM (\a b -> f a <$> b) (return z)
+--
 {-# INLINE foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
 foldr f z = foldrM (\a b -> f a <$> b) (return z)
@@ -175,13 +180,13 @@ foldr f z = foldrM (\a b -> f a <$> b) (return z)
 -- | Lazy left fold to a stream.
 {-# INLINE foldlS #-}
 foldlS ::
-  (Stream m b -> a -> Stream m b) -> Stream m b -> Stream m a -> Stream m b
+    (Stream m b -> a -> Stream m b) -> Stream m b -> Stream m a -> Stream m b
 foldlS f z =
-  fromStreamK
-    . K.foldlS
-      (\xs x -> toStreamK $ f (fromStreamK xs) x)
-      (toStreamK z)
-    . toStreamK
+    fromStreamK
+        . K.foldlS
+            (\xs x -> toStreamK $ f (fromStreamK xs) x)
+            (toStreamK z)
+        . toStreamK
 
 -- | Lazy left fold to a transformer monad.
 --
@@ -189,13 +194,10 @@ foldlS f z =
 --
 -- >>> input = Stream.fromList [1..5] :: Stream IO Int
 -- >>> rev = Stream.fold Fold.toList $ Stream.foldlT (flip Stream.cons) Stream.nil input
+--
 {-# INLINE foldlT #-}
-foldlT ::
-  (Monad m, Monad (s m), MonadTrans s) =>
-  (s m b -> a -> s m b) ->
-  s m b ->
-  Stream m a ->
-  s m b
+foldlT :: (Monad m, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
 foldlT f z s = D.foldlT f z (toStreamD s)
 
 ------------------------------------------------------------------------------
@@ -205,7 +207,7 @@ foldlT f z s = D.foldlT f z (toStreamD s)
 -- | Parse a stream using the supplied ParserD 'PRD.Parser'.
 --
 -- /Internal/
-
+--
 {-# INLINE_NORMAL parseD #-}
 parseD :: MonadThrow m => PRD.Parser m a b -> Stream m a -> m b
 parseD p = D.parse p . toStreamD
@@ -235,14 +237,11 @@ parse :: MonadThrow m => Parser m a b -> Stream m a -> m b
 parse = parseD . PRD.fromParserK
 
 {-# INLINE_NORMAL parseBreakD #-}
-parseBreakD ::
-  MonadThrow m =>
-  PRD.Parser m a b ->
-  Stream m a ->
-  m (b, Stream m a)
+parseBreakD :: MonadThrow m =>
+    PRD.Parser m a b -> Stream m a -> m (b, Stream m a)
 parseBreakD parser strm = do
-  (b, strmD) <- D.parseBreak parser (toStreamD strm)
-  return $! (b, fromStreamD strmD)
+    (b, strmD) <- D.parseBreak parser (toStreamD strm)
+    return $! (b, fromStreamD strmD)
 
 -- | Parse a stream using the supplied 'Parser'.
 --
@@ -252,7 +251,9 @@ parseBreakD parser strm = do
 {-# INLINE parseBreak #-}
 parseBreak :: MonadThrow m => Parser m a b -> Stream m a -> m (b, Stream m a)
 parseBreak p strm = fmap f $ K.parseBreak (PRD.fromParserK p) (toStreamK strm)
-  where
+
+    where
+
     f (b, str) = (b, fromStreamK str)
 
 ------------------------------------------------------------------------------
@@ -282,17 +283,15 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 -- /Pre-release/
 --
 -- /Requires 'Storable' constraint/
+--
 {-# INLINE isInfixOf #-}
-isInfixOf ::
-  (MonadIO m, Eq a, Enum a, Unboxed a) =>
-  Stream m a ->
-  Stream m a ->
-  m Bool
+isInfixOf :: (MonadIO m, Eq a, Enum a, Unboxed a)
+    => Stream m a -> Stream m a -> m Bool
 isInfixOf infx stream = do
-  arr <- fold Array.write infx
-  -- XXX can use breakOnSeq instead (when available)
-  r <- D.null $ D.drop 1 $ D.splitOnSeq arr Fold.drain $ toStreamD stream
-  return (not r)
+    arr <- fold Array.write infx
+    -- XXX can use breakOnSeq instead (when available)
+    r <- D.null $ D.drop 1 $ D.splitOnSeq arr Fold.drain $ toStreamD stream
+    return (not r)
 
 -- Note: isPrefixOf uses the prefix stream only once. In contrast, isSuffixOf
 -- may use the suffix stream many times. To run in optimal memory we do not
@@ -321,6 +320,7 @@ isInfixOf infx stream = do
 -- /Pre-release/
 --
 -- /Suboptimal/ - Help wanted.
+--
 {-# INLINE isSuffixOf #-}
 isSuffixOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
 isSuffixOf suffix stream = reverse suffix `isPrefixOf` reverse stream
@@ -352,14 +352,11 @@ isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 --
 -- @since 0.9.0
 {-# INLINE stripPrefix #-}
-stripPrefix ::
-  (Monad m, Eq a) =>
-  Stream m a ->
-  Stream m a ->
-  m (Maybe (Stream m a))
-stripPrefix m1 m2 =
-  fmap fromStreamD
-    <$> D.stripPrefix (toStreamD m1) (toStreamD m2)
+stripPrefix
+    :: (Monad m, Eq a)
+    => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+stripPrefix m1 m2 = fmap fromStreamD <$>
+    D.stripPrefix (toStreamD m1) (toStreamD m2)
 
 -- | Drops the given suffix from a stream. Returns 'Nothing' if the stream does
 -- not end with the given suffix. Returns @Just nil@ when the suffix is the
@@ -375,9 +372,7 @@ stripPrefix m1 m2 =
 --
 -- /Pre-release/
 {-# INLINE stripSuffix #-}
-stripSuffix ::
-  (Monad m, Eq a) =>
-  Stream m a ->
-  Stream m a ->
-  m (Maybe (Stream m a))
+stripSuffix
+    :: (Monad m, Eq a)
+    => Stream m a -> Stream m a -> m (Maybe (Stream m a))
 stripSuffix m1 m2 = fmap reverse <$> stripPrefix (reverse m1) (reverse m2)

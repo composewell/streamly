@@ -14,49 +14,47 @@
 --
 -- We call them stream folding functions, they reduce a stream @t m a@ to a
 -- monadic value @m b@.
+
 module Streamly.Internal.Data.Stream.IsStream.Eliminate
-  ( -- * Running Examples
+    (
+    -- * Running Examples
     -- $setup
 
     -- * Running a 'Fold'
-
     --  See "Streamly.Internal.Data.Fold".
-    fold,
-    foldBreak,
-    foldContinue,
+      fold
+    , foldBreak
+    , foldContinue
 
     -- * Running a 'Parser'
-
     -- "Streamly.Internal.Data.Parser".
-    Stream.parse,
-    Stream.parseK,
-    Stream.parseD,
-    Stream.parseBreak,
-    Stream.parseBreakD,
+    , Stream.parse
+    , Stream.parseK
+    , Stream.parseD
+    , Stream.parseBreak
+    , Stream.parseBreakD
 
     -- * Stream Deconstruction
-
     -- | foldr and foldl do not provide the remaining stream.  'uncons' is more
     -- general, as it can be used to implement those as well.  It allows to use
     -- the stream one element at a time, and we have the remaining stream all
     -- the time.
-    uncons,
+    , uncons
 
     -- * Right Folds
-    Stream.foldrM,
-    Stream.foldr,
+    , Stream.foldrM
+    , Stream.foldr
 
     -- * Left Folds
-
     -- Lazy left folds are useful only for reversing the stream
-    foldlS,
-    foldlT,
-    foldl',
-    foldl1',
-    foldlM',
+    , foldlS
+    , foldlT
+
+    , foldl'
+    , foldl1'
+    , foldlM'
 
     -- * Specific Fold Functions
-
     -- | Folds as functions of the shape @t m a -> m b@.
     --
     -- These functions are good to run individually but they do not compose
@@ -73,187 +71,120 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate
     -- ** Full Folds
 
     -- -- ** To Summary (Full Folds)
-    mapM_,
-    drain,
-    last,
-    length,
-    sum,
-    product,
-    mconcat,
+    , mapM_
+    , drain
+    , last
+    , length
+    , sum
+    , product
+    , mconcat
+
     -- -- ** To Summary (Maybe) (Full Folds)
-    maximumBy,
-    maximum,
-    minimumBy,
-    minimum,
-    the,
+    , maximumBy
+    , maximum
+    , minimumBy
+    , minimum
+    , the
 
     -- ** Partial Folds
 
     -- -- ** To Elements (Partial Folds)
-    drainN,
-    drainWhile,
-    -- -- | Folds that extract selected elements of a stream or their properties.
-    (!!),
-    head,
-    headElse,
-    tail,
-    init,
-    findM,
-    find,
-    findIndex,
-    elemIndex,
-    lookup,
-    -- -- ** To Boolean (Partial Folds)
-    null,
-    elem,
-    notElem,
-    all,
-    any,
-    and,
-    or,
-    -- -- ** Lazy Folds
+    , drainN
+    , drainWhile
 
+    -- -- | Folds that extract selected elements of a stream or their properties.
+    , (!!)
+    , head
+    , headElse
+    , tail
+    , init
+    , findM
+    , find
+    , findIndex
+    , elemIndex
+    , lookup
+
+    -- -- ** To Boolean (Partial Folds)
+    , null
+    , elem
+    , notElem
+    , all
+    , any
+    , and
+    , or
+
+    -- -- ** Lazy Folds
     -- ** To Containers
-    toList,
-    toListRev,
-    toStream,
-    toStreamRev,
+    , toList
+    , toListRev
+    , toStream
+    , toStreamRev
 
     -- * Concurrent Folds
-    foldAsync,
-    (|$.),
-    (|&.),
+    , foldAsync
+    , (|$.)
+    , (|&.)
 
     -- * Multi-Stream folds
-
     -- Full equivalence
-    eqBy,
-    cmpBy,
+    , eqBy
+    , cmpBy
+
     -- finding subsequences
-    isPrefixOf,
-    isInfixOf,
-    isSuffixOf,
-    isSubsequenceOf,
+    , isPrefixOf
+    , isInfixOf
+    , isSuffixOf
+    , isSubsequenceOf
+
     -- trimming sequences
-    stripPrefix,
+    , stripPrefix
     -- , stripInfix
-    Stream.stripSuffix,
+    , Stream.stripSuffix
 
     -- * Deprecated
-    foldx,
-    foldxM,
-    foldr1,
-    runStream,
-    runN,
-    runWhile,
-    toHandle,
-  )
+    , foldx
+    , foldxM
+    , foldr1
+    , runStream
+    , runN
+    , runWhile
+    , toHandle
+    )
 where
 
 #include "inline.hs"
 
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Trans.Class (MonadTrans (..))
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Data.SVar (defState)
+import Streamly.Internal.Data.Stream.IsStream.Common
+    ( fold, foldBreak, foldContinue, drop, findIndices, reverse, splitOnSeq
+    , take , takeWhile, mkParallel)
+import Streamly.Internal.Data.Stream.IsStream.Type
+    (IsStream, toStreamD, fromStreamD, toStreamD)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Unboxed (Unboxed)
+
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Data.Stream as Stream
-import Streamly.Internal.Control.Concurrent (MonadAsync)
 import qualified Streamly.Internal.Data.Fold as FL
-import Streamly.Internal.Data.SVar (defState)
-import qualified Streamly.Internal.Data.Stream as Stream
-  ( foldr,
-    foldrM,
-    parseBreakD,
-    parseD,
-    parseK,
-    stripSuffix,
-    toStreamK,
-  )
-import Streamly.Internal.Data.Stream.IsStream.Common
-  ( drop,
-    findIndices,
-    fold,
-    foldBreak,
-    foldContinue,
-    mkParallel,
-    reverse,
-    splitOnSeq,
-    take,
-    takeWhile,
-  )
-import Streamly.Internal.Data.Stream.IsStream.Type
-  ( IsStream,
-    fromStreamD,
-    toStreamD,
-  )
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
-import Streamly.Internal.Data.Stream.Serial (SerialT)
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-  ( all,
-    any,
-    elem,
-    find,
-    findM,
-    foldlM',
-    foldlT,
-    foldr1,
-    head,
-    headElse,
-    isPrefixOf,
-    isSubsequenceOf,
-    last,
-    lookup,
-    mapM_,
-    maximum,
-    maximumBy,
-    minimum,
-    minimumBy,
-    notElem,
-    null,
-    stripPrefix,
-    the,
-    toListRev,
-    (!!),
-  )
+    (foldr1, foldlT, foldlM', mapM_, null, head, headElse, last, elem
+    , notElem, all, any, minimum, minimumBy, maximum, maximumBy, the, lookup
+    , find, findM, toListRev, isPrefixOf, isSubsequenceOf, stripPrefix,  (!!))
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-  ( foldlS,
-    init,
-    tail,
-    uncons,
-  )
-import Streamly.Internal.Data.Unboxed (Unboxed)
+    (uncons, foldlS, tail, init)
+import qualified Streamly.Internal.Data.Stream as Stream
+    (foldr, toStreamK, parseK, parseD, parseBreakD, foldrM, stripSuffix)
 import qualified System.IO as IO
+
 import Prelude hiding
-  ( all,
-    and,
-    any,
-    break,
-    drop,
-    elem,
-    foldl,
-    foldr,
-    foldr1,
-    head,
-    init,
-    last,
-    length,
-    lookup,
-    mapM_,
-    maximum,
-    mconcat,
-    minimum,
-    notElem,
-    null,
-    or,
-    product,
-    reverse,
-    sequence,
-    splitAt,
-    sum,
-    tail,
-    take,
-    takeWhile,
-    (!!),
-  )
+       ( drop, take, takeWhile, foldr , foldl, mapM_, sequence, all, any, sum
+       , product, elem, notElem, maximum, minimum, head, last, tail, length
+       , null , reverse, init, and, or, lookup, foldr1, (!!) , splitAt, break
+       , mconcat)
 
 -- $setup
 -- >>> :m
@@ -302,7 +233,6 @@ uncons = fmap (fmap (fmap IsStream.fromStream)) . K.uncons . Stream.toStreamK
 -- XXX This seems to be of limited use as it cannot be used to construct
 -- recursive structures and for reduction foldl1' is better.
 --
-
 -- | Lazy right fold for non-empty streams, using first element as the starting
 -- value. Returns 'Nothing' if the stream is empty.
 --
@@ -320,24 +250,21 @@ foldr1 f m = D.foldr1 f (toStreamD m)
 {-# INLINE foldlS #-}
 foldlS :: IsStream t => (t m b -> a -> t m b) -> t m b -> t m a -> t m b
 foldlS f z =
-  IsStream.fromStream
-    . K.foldlS
-      (\xs x -> IsStream.toStream $ f (IsStream.fromStream xs) x)
-      (IsStream.toStream z)
-    . IsStream.toStream
+    IsStream.fromStream
+        . K.foldlS
+            (\xs x -> IsStream.toStream $ f (IsStream.fromStream xs) x)
+            (IsStream.toStream z)
+        . IsStream.toStream
 
 -- | Lazy left fold to a transformer monad.
 --
 -- For example, to reverse a stream:
 --
 -- > D.toList $ D.foldlT (flip D.cons) D.nil $ (D.fromList [1..5] :: SerialT IO Int)
+--
 {-# INLINE foldlT #-}
-foldlT ::
-  (Monad m, IsStream t, Monad (s m), MonadTrans s) =>
-  (s m b -> a -> s m b) ->
-  s m b ->
-  t m a ->
-  s m b
+foldlT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> t m a -> s m b
 foldlT f z s = D.foldlT f z (toStreamD s)
 
 -- | Strict left fold with an extraction function. Like the standard strict
@@ -371,12 +298,12 @@ foldl' = IsStream.foldl'
 {-# INLINE foldl1' #-}
 foldl1' :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
 foldl1' step m = do
-  r <- uncons m
-  case r of
-    Nothing -> return Nothing
-    Just (h, t) -> do
-      res <- foldl' step h t
-      return $ Just res
+    r <- uncons m
+    case r of
+        Nothing -> return Nothing
+        Just (h, t) -> do
+            res <- foldl' step h t
+            return $ Just res
 
 -- | Like 'foldx', but with a monadic step function.
 --
@@ -410,7 +337,6 @@ runSink = fold . toFold
 ------------------------------------------------------------------------------
 
 -- XXX this can utilize parallel mapping if we implement it as drain . mapM
-
 -- |
 -- > mapM_ = Stream.drain . Stream.mapM
 --
@@ -594,7 +520,7 @@ any p m = D.any p (toStreamD m)
 -- @since 0.5.0
 {-# INLINE and #-}
 and :: Monad m => SerialT m Bool -> m Bool
-and = all (== True)
+and = all (==True)
 
 -- | Determines whether at least one element of a boolean stream is True.
 --
@@ -603,7 +529,7 @@ and = all (== True)
 -- @since 0.5.0
 {-# INLINE or #-}
 or :: Monad m => SerialT m Bool -> m Bool
-or = any (== True)
+or = any (==True)
 
 -- | Determine the sum of all elements of a stream of numbers. Returns @0@ when
 -- the stream is empty. Note that this is not numerically stable for floating
@@ -638,7 +564,7 @@ mconcat = Stream.foldr mappend mempty
 -- |
 -- @
 -- minimum = 'minimumBy' compare
--- minimum = Stream.fold Fold.minimum
+ -- minimum = Stream.fold Fold.minimum
 -- @
 --
 -- Determine the minimum element in a stream.
@@ -792,18 +718,16 @@ toListRev = D.toListRev . toStreamD
 -- Write a stream of Strings to an IO Handle.
 --
 -- @since 0.1.0
-{-# DEPRECATED
-  toHandle
-  "Please use Streamly.FileSystem.Handle module (see the changelog)"
-  #-}
+{-# DEPRECATED toHandle
+   "Please use Streamly.FileSystem.Handle module (see the changelog)" #-}
 toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
 toHandle h = go
-  where
+    where
     go m1 =
-      let stop = return ()
-          single a = liftIO (IO.hPutStrLn h a)
-          yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-       in IsStream.foldStream defState yieldk single stop m1
+        let stop = return ()
+            single a = liftIO (IO.hPutStrLn h a)
+            yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
+        in IsStream.foldStream defState yieldk single stop m1
 
 -- | Convert a stream to a pure stream.
 --
@@ -812,6 +736,7 @@ toHandle h = go
 -- @
 --
 -- /Pre-release/
+--
 {-# INLINE toStream #-}
 toStream :: Monad m => SerialT m a -> m (SerialT n a)
 toStream = Stream.foldr IsStream.cons IsStream.nil
@@ -823,6 +748,7 @@ toStream = Stream.foldr IsStream.cons IsStream.nil
 -- @
 --
 -- /Pre-release/
+--
 {-# INLINE toStreamRev #-}
 toStreamRev :: Monad m => SerialT m a -> m (SerialT n a)
 toStreamRev = foldl' (flip IsStream.cons) IsStream.nil
@@ -872,6 +798,7 @@ infixr 0 |$.
 -- | Same as '|$.'.
 --
 --  /Internal/
+--
 {-# INLINE foldAsync #-}
 foldAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
 foldAsync = (|$.)
@@ -917,17 +844,15 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 -- /Pre-release/
 --
 -- /Requires 'Storable' constraint/
+--
 {-# INLINE isInfixOf #-}
-isInfixOf ::
-  (MonadIO m, Eq a, Enum a, Unboxed a) =>
-  SerialT m a ->
-  SerialT m a ->
-  m Bool
+isInfixOf :: (MonadIO m, Eq a, Enum a, Unboxed a)
+    => SerialT m a -> SerialT m a -> m Bool
 isInfixOf infx stream = do
-  arr <- fold A.write infx
-  -- XXX can use breakOnSeq instead (when available)
-  r <- null $ drop 1 $ splitOnSeq arr FL.drain stream
-  return (not r)
+    arr <- fold A.write infx
+    -- XXX can use breakOnSeq instead (when available)
+    r <- null $ drop 1 $ splitOnSeq arr FL.drain stream
+    return (not r)
 
 -- Note: isPrefixOf uses the prefix stream only once. In contrast, isSuffixOf
 -- may use the suffix stream many times. To run in optimal memory we do not
@@ -956,6 +881,7 @@ isInfixOf infx stream = do
 -- /Pre-release/
 --
 -- /Suboptimal/ - Help wanted.
+--
 {-# INLINE isSuffixOf #-}
 isSuffixOf :: (Monad m, Eq a) => SerialT m a -> SerialT m a -> m Bool
 isSuffixOf suffix stream = reverse suffix `isPrefixOf` reverse stream
@@ -976,7 +902,6 @@ isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 -- suffix/infix was present or not along with the stripped stream then
 -- we need to buffer the whole input stream.
 --
-
 -- | @stripPrefix prefix stream@ strips @prefix@ from @stream@ if it is a
 -- prefix of stream. Returns 'Nothing' if the stream does not start with the
 -- given prefix, stripped stream otherwise. Returns @Just nil@ when the prefix
@@ -988,14 +913,11 @@ isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 --
 -- @since 0.6.0
 {-# INLINE stripPrefix #-}
-stripPrefix ::
-  (Eq a, IsStream t, Monad m) =>
-  t m a ->
-  t m a ->
-  m (Maybe (t m a))
-stripPrefix m1 m2 =
-  fmap fromStreamD
-    <$> D.stripPrefix (toStreamD m1) (toStreamD m2)
+stripPrefix
+    :: (Eq a, IsStream t, Monad m)
+    => t m a -> t m a -> m (Maybe (t m a))
+stripPrefix m1 m2 = fmap fromStreamD <$>
+    D.stripPrefix (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
 -- Comparison
@@ -1004,18 +926,15 @@ stripPrefix m1 m2 =
 -- | Compare two streams for equality using an equality function.
 --
 -- @since 0.6.0
-{-# INLINEABLE eqBy #-}
+{-# INLINABLE eqBy #-}
 eqBy :: (IsStream t, Monad m) => (a -> b -> Bool) -> t m a -> t m b -> m Bool
 eqBy = IsStream.eqBy
 
 -- | Compare two streams lexicographically using a comparison function.
 --
 -- @since 0.6.0
-{-# INLINEABLE cmpBy #-}
-cmpBy ::
-  (IsStream t, Monad m) =>
-  (a -> b -> Ordering) ->
-  t m a ->
-  t m b ->
-  m Ordering
+{-# INLINABLE cmpBy #-}
+cmpBy
+    :: (IsStream t, Monad m)
+    => (a -> b -> Ordering) -> t m a -> t m b -> m Ordering
 cmpBy = IsStream.cmpBy

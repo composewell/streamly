@@ -1,7 +1,3 @@
--- A few functions in this module have been adapted from the vector package
--- (c) Roman Leshchinskiy.
---
-
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Eliminate
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -10,80 +6,84 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+
+-- A few functions in this module have been adapted from the vector package
+-- (c) Roman Leshchinskiy.
+--
 module Streamly.Internal.Data.Stream.StreamD.Eliminate
-  ( -- * Running a 'Fold'
-    fold,
+    (
+    -- * Running a 'Fold'
+      fold
+
     -- -- * Running a 'Parser'
-    parse,
-    parseBreak,
+    , parse
+    , parseBreak
 
     -- * Stream Deconstruction
-    uncons,
+    , uncons
 
     -- * Right Folds
-    foldrM,
-    foldr,
-    foldrMx,
-    foldr1,
+    , foldrM
+    , foldr
+    , foldrMx
+    , foldr1
 
     -- * Left Folds
-    foldlM',
-    foldl',
-    foldlMx',
-    foldlx',
+    , foldlM'
+    , foldl'
+    , foldlMx'
+    , foldlx'
 
     -- * Specific Fold Functions
-    drain,
-    mapM_, -- Map and Fold
-    null,
-    head,
-    headElse,
-    tail,
-    last,
-    elem,
-    notElem,
-    all,
-    any,
-    maximum,
-    maximumBy,
-    minimum,
-    minimumBy,
-    lookup,
-    findM,
-    find,
-    (!!),
-    the,
+    , drain
+    , mapM_ -- Map and Fold
+    , null
+    , head
+    , headElse
+    , tail
+    , last
+    , elem
+    , notElem
+    , all
+    , any
+    , maximum
+    , maximumBy
+    , minimum
+    , minimumBy
+    , lookup
+    , findM
+    , find
+    , (!!)
+    , the
 
     -- * To containers
-    toList,
-    toListRev,
+    , toList
+    , toListRev
 
     -- * Multi-Stream Folds
-
     -- ** Comparisons
-
     -- | These should probably be expressed using zipping operations.
-    eqBy,
-    cmpBy,
+    , eqBy
+    , cmpBy
 
     -- ** Substreams
-
     -- | These should probably be expressed using parsers.
-    isPrefixOf,
-    isSubsequenceOf,
-    stripPrefix,
-  )
+    , isPrefixOf
+    , isSubsequenceOf
+    , stripPrefix
+    )
 where
 
 #include "inline.hs"
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadThrow, throwM)
-import GHC.Exts (SpecConstrAnnotation (..))
-import GHC.Types (SPEC (..))
-import Streamly.Internal.Data.Maybe.Strict (Maybe' (..))
-import Streamly.Internal.Data.Parser (ParseError (..))
+import GHC.Exts (SpecConstrAnnotation(..))
+import GHC.Types (SPEC(..))
+import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.SVar.Type (defState)
+
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 #ifdef USE_FOLDS_EVERYWHERE
 import qualified Streamly.Internal.Data.Fold as Fold
 #endif
@@ -91,26 +91,11 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as StreamD
 import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
-import Streamly.Internal.Data.Stream.StreamD.Type
+
 import Prelude hiding
-  ( all,
-    any,
-    elem,
-    foldr,
-    foldr1,
-    head,
-    last,
-    lookup,
-    mapM,
-    mapM_,
-    maximum,
-    minimum,
-    notElem,
-    null,
-    splitAt,
-    tail,
-    (!!),
-  )
+       ( all, any, elem, foldr, foldr1, head, last, lookup, mapM, mapM_
+       , maximum, minimum, notElem, null, splitAt, tail, (!!))
+import Streamly.Internal.Data.Stream.StreamD.Type
 
 ------------------------------------------------------------------------------
 -- Elimination by Folds
@@ -123,10 +108,10 @@ import Prelude hiding
 {-# INLINE_NORMAL foldr1 #-}
 foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
 foldr1 f m = do
-  r <- uncons m
-  case r of
-    Nothing -> return Nothing
-    Just (h, t) -> fmap Just (foldr f h t)
+     r <- uncons m
+     case r of
+         Nothing   -> return Nothing
+         Just (h, t) -> fmap Just (foldr f h t)
 
 ------------------------------------------------------------------------------
 -- Parsers
@@ -136,17 +121,17 @@ foldr1 f m = do
 -- degrades and parseMany does not fuse. Even using "inline" at the callsite
 -- does not help.
 {-# INLINE splitAt #-}
-splitAt :: Int -> [a] -> ([a], [a])
+splitAt :: Int -> [a] -> ([a],[a])
 splitAt n ls
   | n <= 0 = ([], ls)
-  | otherwise = splitAt' n ls
-  where
-    splitAt' :: Int -> [a] -> ([a], [a])
-    splitAt' _ [] = ([], [])
-    splitAt' 1 (x : xs) = ([x], xs)
-    splitAt' m (x : xs) = (x : xs', xs'')
-      where
-        (xs', xs'') = splitAt' (m - 1) xs
+  | otherwise          = splitAt' n ls
+    where
+        splitAt' :: Int -> [a] -> ([a], [a])
+        splitAt' _  []     = ([], [])
+        splitAt' 1  (x:xs) = ([x], xs)
+        splitAt' m  (x:xs) = (x:xs', xs'')
+          where
+            (xs', xs'') = splitAt' (m - 1) xs
 
 -- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
 -- to make a newtype.
@@ -154,32 +139,32 @@ splitAt n ls
 newtype List a = List {getList :: [a]}
 
 -- | Run a 'Parse' over a stream.
-
 {-# INLINE_NORMAL parse #-}
-parse ::
-  MonadThrow m =>
-  PRD.Parser m a b ->
-  Stream m a ->
-  m b
+parse
+    :: MonadThrow m
+    => PRD.Parser m a b
+    -> Stream m a
+    -> m b
 parse parser strm = do
-  (b, _) <- parseBreak parser strm
-  return b
+    (b, _) <- parseBreak parser strm
+    return b
 
 -- | Run a 'Parse' over a stream and return rest of the Stream.
-
 {-# INLINE_NORMAL parseBreak #-}
-parseBreak ::
-  MonadThrow m =>
-  PRD.Parser m a b ->
-  Stream m a ->
-  m (b, Stream m a)
+parseBreak
+    :: MonadThrow m
+    => PRD.Parser m a b
+    -> Stream m a
+    -> m (b, Stream m a)
 parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
-  res <- initial
-  case res of
-    PRD.IPartial s -> go SPEC state (List []) s
-    PRD.IDone b -> return (b, stream)
-    PRD.IError err -> throwM $ ParseError err
-  where
+    res <- initial
+    case res of
+        PRD.IPartial s -> go SPEC state (List []) s
+        PRD.IDone b -> return (b, stream)
+        PRD.IError err -> throwM $ ParseError err
+
+    where
+
     -- "buf" contains last few items in the stream that we may have to
     -- backtrack to.
     --
@@ -187,106 +172,106 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
     go !_ st buf !pst = do
-      r <- step defState st
-      case r of
-        Yield x s -> do
-          pRes <- pstep pst x
-          case pRes of
-            PR.Partial 0 pst1 -> go SPEC s (List []) pst1
-            PR.Partial n pst1 -> do
-              assert (n <= length (x : getList buf)) (return ())
-              let src0 = Prelude.take n (x : getList buf)
-                  src = Prelude.reverse src0
-              gobuf SPEC s (List []) (List src) pst1
-            PR.Continue 0 pst1 -> go SPEC s (List (x : getList buf)) pst1
-            PR.Continue n pst1 -> do
-              assert (n <= length (x : getList buf)) (return ())
-              let (src0, buf1) = splitAt n (x : getList buf)
-                  src = Prelude.reverse src0
-              gobuf SPEC s (List buf1) (List src) pst1
-            PR.Done 0 b -> return (b, Stream step st)
-            PR.Done n b -> do
-              assert (n <= length (x : getList buf)) (return ())
-              let src0 = Prelude.take n (x : getList buf)
-                  src = Prelude.reverse src0
-              -- XXX This would make it quadratic. We should probably
-              -- use StreamK if we have to append many times.
-              return (b, Nesting.append (fromList src) (Stream step s))
-            PR.Error err -> throwM $ ParseError err
-        Skip s -> go SPEC s buf pst
-        Stop -> goStop buf pst
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                pRes <- pstep pst x
+                case pRes of
+                    PR.Partial 0 pst1 -> go SPEC s (List []) pst1
+                    PR.Partial n pst1 -> do
+                        assert (n <= length (x:getList buf)) (return ())
+                        let src0 = Prelude.take n (x:getList buf)
+                            src  = Prelude.reverse src0
+                        gobuf SPEC s (List []) (List src) pst1
+                    PR.Continue 0 pst1 -> go SPEC s (List (x:getList buf)) pst1
+                    PR.Continue n pst1 -> do
+                        assert (n <= length (x:getList buf)) (return ())
+                        let (src0, buf1) = splitAt n (x:getList buf)
+                            src  = Prelude.reverse src0
+                        gobuf SPEC s (List buf1) (List src) pst1
+                    PR.Done 0 b -> return (b, Stream step st)
+                    PR.Done n b -> do
+                        assert (n <= length (x:getList buf)) (return ())
+                        let src0 = Prelude.take n (x:getList buf)
+                            src  = Prelude.reverse src0
+                        -- XXX This would make it quadratic. We should probably
+                        -- use StreamK if we have to append many times.
+                        return (b, Nesting.append (fromList src) (Stream step s))
+                    PR.Error err -> throwM $ ParseError err
+            Skip s -> go SPEC s buf pst
+            Stop -> goStop buf pst
 
     gobuf !_ s buf (List []) !pst = go SPEC s buf pst
-    gobuf !_ s buf (List (x : xs)) !pst = do
-      pRes <- pstep pst x
-      case pRes of
-        PR.Partial 0 pst1 ->
-          gobuf SPEC s (List []) (List xs) pst1
-        PR.Partial n pst1 -> do
-          assert (n <= length (x : getList buf)) (return ())
-          let src0 = Prelude.take n (x : getList buf)
-              src = Prelude.reverse src0 ++ xs
-          gobuf SPEC s (List []) (List src) pst1
-        PR.Continue 0 pst1 ->
-          gobuf SPEC s (List (x : getList buf)) (List xs) pst1
-        PR.Continue n pst1 -> do
-          assert (n <= length (x : getList buf)) (return ())
-          let (src0, buf1) = splitAt n (x : getList buf)
-              src = Prelude.reverse src0 ++ xs
-          gobuf SPEC s (List buf1) (List src) pst1
-        PR.Done n b -> do
-          assert (n <= length (x : getList buf)) (return ())
-          let src0 = Prelude.take n (x : getList buf)
-              src = Prelude.reverse src0
-          return (b, Nesting.append (fromList src) (Stream step s))
-        PR.Error err -> throwM $ ParseError err
+    gobuf !_ s buf (List (x:xs)) !pst = do
+        pRes <- pstep pst x
+        case pRes of
+            PR.Partial 0 pst1 ->
+                gobuf SPEC s (List []) (List xs) pst1
+            PR.Partial n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                gobuf SPEC s (List []) (List src) pst1
+            PR.Continue 0 pst1 ->
+                gobuf SPEC s (List (x:getList buf)) (List xs) pst1
+            PR.Continue n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let (src0, buf1) = splitAt n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                gobuf SPEC s (List buf1) (List src) pst1
+            PR.Done n b -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0
+                return (b, Nesting.append (fromList src) (Stream step s))
+            PR.Error err -> throwM $ ParseError err
 
     -- This is simplified gobuf
     goExtract !_ buf (List []) !pst = goStop buf pst
-    goExtract !_ buf (List (x : xs)) !pst = do
-      pRes <- pstep pst x
-      case pRes of
-        PR.Partial 0 pst1 ->
-          goExtract SPEC (List []) (List xs) pst1
-        PR.Partial n pst1 -> do
-          assert (n <= length (x : getList buf)) (return ())
-          let src0 = Prelude.take n (x : getList buf)
-              src = Prelude.reverse src0 ++ xs
-          goExtract SPEC (List []) (List src) pst1
-        PR.Continue 0 pst1 ->
-          goExtract SPEC (List (x : getList buf)) (List xs) pst1
-        PR.Continue n pst1 -> do
-          assert (n <= length (x : getList buf)) (return ())
-          let (src0, buf1) = splitAt n (x : getList buf)
-              src = Prelude.reverse src0 ++ xs
-          goExtract SPEC (List buf1) (List src) pst1
-        PR.Done n b -> do
-          assert (n <= length (x : getList buf)) (return ())
-          let src0 = Prelude.take n (x : getList buf)
-              src = Prelude.reverse src0
-          return (b, fromList src)
-        PR.Error err -> throwM $ ParseError err
+    goExtract !_ buf (List (x:xs)) !pst = do
+        pRes <- pstep pst x
+        case pRes of
+            PR.Partial 0 pst1 ->
+                goExtract SPEC (List []) (List xs) pst1
+            PR.Partial n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                goExtract SPEC (List []) (List src) pst1
+            PR.Continue 0 pst1 ->
+                goExtract SPEC (List (x:getList buf)) (List xs) pst1
+            PR.Continue n pst1 -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let (src0, buf1) = splitAt n (x:getList buf)
+                    src  = Prelude.reverse src0 ++ xs
+                goExtract SPEC (List buf1) (List src) pst1
+            PR.Done n b -> do
+                assert (n <= length (x:getList buf)) (return ())
+                let src0 = Prelude.take n (x:getList buf)
+                    src  = Prelude.reverse src0
+                return (b, fromList src)
+            PR.Error err -> throwM $ ParseError err
 
     -- This is simplified goExtract
     {-# INLINE goStop #-}
     goStop buf pst = do
-      pRes <- extract pst
-      case pRes of
-        PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
-        PR.Continue 0 _ ->
-          error "parseBreak: extract, Continue 0 creates infinite loop"
-        PR.Continue n pst1 -> do
-          assert (n <= length (getList buf)) (return ())
-          let (src0, buf1) = splitAt n (getList buf)
-              src = Prelude.reverse src0
-          goExtract SPEC (List buf1) (List src) pst1
-        PR.Done 0 b -> return (b, StreamD.nil)
-        PR.Done n b -> do
-          assert (n <= length (getList buf)) (return ())
-          let src0 = Prelude.take n (getList buf)
-              src = Prelude.reverse src0
-          return (b, fromList src)
-        PR.Error err -> throwM $ ParseError err
+        pRes <- extract pst
+        case pRes of
+            PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
+            PR.Continue 0 _ ->
+                error "parseBreak: extract, Continue 0 creates infinite loop"
+            PR.Continue n pst1 -> do
+                assert (n <= length (getList buf)) (return ())
+                let (src0, buf1) = splitAt n (getList buf)
+                    src = Prelude.reverse src0
+                goExtract SPEC (List buf1) (List src) pst1
+            PR.Done 0 b -> return (b, StreamD.nil)
+            PR.Done n b -> do
+                assert (n <= length (getList buf)) (return ())
+                let src0 = Prelude.take n (getList buf)
+                    src  = Prelude.reverse src0
+                return (b, fromList src)
+            PR.Error err -> throwM $ ParseError err
 
 ------------------------------------------------------------------------------
 -- Specialized Folds
@@ -319,11 +304,11 @@ tail :: Monad m => Stream m a -> m (Maybe (Stream m a))
 tail (UnStream step state) = go SPEC state
   where
     go !_ st = do
-      r <- step defState st
-      case r of
-        Yield _ s -> return (Just $ Stream step s)
-        Skip s -> go SPEC s
-        Stop -> return Nothing
+        r <- step defState st
+        case r of
+            Yield _ s -> return (Just $ Stream step s)
+            Skip  s   -> go SPEC s
+            Stop      -> return Nothing
 
 -- XXX will it fuse? need custom impl?
 {-# INLINE_NORMAL last #-}
@@ -569,7 +554,6 @@ the (Stream step state) = go SPEC state
 ------------------------------------------------------------------------------
 
 -- | Execute a monadic action for each element of the 'Stream'
-
 {-# INLINE_NORMAL mapM_ #-}
 mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
 #ifdef USE_FOLDS_EVERYWHERE
@@ -585,63 +569,70 @@ mapM_ m = drain . mapM m
 {-# INLINE_NORMAL isPrefixOf #-}
 isPrefixOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
 isPrefixOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
-  where
+
+    where
+
     go !_ Nothing' sa sb = do
-      r <- stepa defState sa
-      case r of
-        Yield x sa' -> go SPEC (Just' x) sa' sb
-        Skip sa' -> go SPEC Nothing' sa' sb
-        Stop -> return True
+        r <- stepa defState sa
+        case r of
+            Yield x sa' -> go SPEC (Just' x) sa' sb
+            Skip sa'    -> go SPEC Nothing' sa' sb
+            Stop        -> return True
+
     go !_ (Just' x) sa sb = do
-      r <- stepb defState sb
-      case r of
-        Yield y sb' ->
-          if x == y
-            then go SPEC Nothing' sa sb'
-            else return False
-        Skip sb' -> go SPEC (Just' x) sa sb'
-        Stop -> return False
+        r <- stepb defState sb
+        case r of
+            Yield y sb' ->
+                if x == y
+                    then go SPEC Nothing' sa sb'
+                    else return False
+            Skip sb' -> go SPEC (Just' x) sa sb'
+            Stop     -> return False
 
 {-# INLINE_NORMAL isSubsequenceOf #-}
 isSubsequenceOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
 isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
-  where
+
+    where
+
     go !_ Nothing' sa sb = do
-      r <- stepa defState sa
-      case r of
-        Yield x sa' -> go SPEC (Just' x) sa' sb
-        Skip sa' -> go SPEC Nothing' sa' sb
-        Stop -> return True
+        r <- stepa defState sa
+        case r of
+            Yield x sa' -> go SPEC (Just' x) sa' sb
+            Skip sa' -> go SPEC Nothing' sa' sb
+            Stop -> return True
+
     go !_ (Just' x) sa sb = do
-      r <- stepb defState sb
-      case r of
-        Yield y sb' ->
-          if x == y
-            then go SPEC Nothing' sa sb'
-            else go SPEC (Just' x) sa sb'
-        Skip sb' -> go SPEC (Just' x) sa sb'
-        Stop -> return False
+        r <- stepb defState sb
+        case r of
+            Yield y sb' ->
+                if x == y
+                    then go SPEC Nothing' sa sb'
+                    else go SPEC (Just' x) sa sb'
+            Skip sb' -> go SPEC (Just' x) sa sb'
+            Stop -> return False
 
 {-# INLINE_NORMAL stripPrefix #-}
-stripPrefix ::
-  (Eq a, Monad m) =>
-  Stream m a ->
-  Stream m a ->
-  m (Maybe (Stream m a))
+stripPrefix
+    :: (Eq a, Monad m)
+    => Stream m a -> Stream m a -> m (Maybe (Stream m a))
 stripPrefix (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
-  where
+
+    where
+
     go !_ Nothing' sa sb = do
-      r <- stepa defState sa
-      case r of
-        Yield x sa' -> go SPEC (Just' x) sa' sb
-        Skip sa' -> go SPEC Nothing' sa' sb
-        Stop -> return $ Just (Stream stepb sb)
+        r <- stepa defState sa
+        case r of
+            Yield x sa' -> go SPEC (Just' x) sa' sb
+            Skip sa'    -> go SPEC Nothing' sa' sb
+            Stop        -> return $ Just (Stream stepb sb)
+
     go !_ (Just' x) sa sb = do
-      r <- stepb defState sb
-      case r of
-        Yield y sb' ->
-          if x == y
-            then go SPEC Nothing' sa sb'
-            else return Nothing
-        Skip sb' -> go SPEC (Just' x) sa sb'
-        Stop -> return Nothing
+        r <- stepb defState sb
+        case r of
+            Yield y sb' ->
+                if x == y
+                    then go SPEC Nothing' sa sb'
+                    else return Nothing
+            Skip sb' -> go SPEC (Just' x) sa sb'
+            Stop     -> return Nothing
