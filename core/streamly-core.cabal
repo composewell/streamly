@@ -351,6 +351,7 @@ library
                      , Streamly.Data.Unfold
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Array.Unboxed.Mut
+                     , Streamly.Unicode.Char.Parser
                      , Streamly.Unicode.Stream
                      , Streamly.FileSystem.Handle
 
