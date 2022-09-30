@@ -323,7 +323,7 @@ findIndicesOf = undefined
 
 {-
 findIndexOf :: (a -> Bool) -> Array a -> Maybe Int
-findIndexOf p = Unfold.fold Fold.head . Stream.unfold (findIndicesOf p)
+findIndexOf p = Unfold.fold Fold.next . Stream.unfold (findIndicesOf p)
 
 find :: (a -> Bool) -> Array a -> Bool
 find = Unfold.fold Fold.null . Stream.unfold (findIndicesOf p)

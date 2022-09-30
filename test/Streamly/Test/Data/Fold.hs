@@ -70,7 +70,7 @@ rollingHashFirstN =
                 assert $ a == b
 
 head :: [Int] -> Expectation
-head ls = Stream.fold Fold.head (Stream.fromList  ls) `shouldReturn` headl ls
+head ls = Stream.fold Fold.next (Stream.fromList  ls) `shouldReturn` headl ls
 
 headl :: [a] -> Maybe a
 headl [] = Nothing
@@ -582,7 +582,7 @@ many =
 
 foldBreak :: [Int] -> Property
 foldBreak ls = monadicIO $ do
-    (mbh, rest) <- run $ Stream.foldBreak Fold.head (Stream.fromList  ls)
+    (mbh, rest) <- run $ Stream.foldBreak Fold.next (Stream.fromList  ls)
     rests <- run $ Stream.fold Fold.toList rest
     assert (mbh == headl ls)
     listEquals (==) rests (taill ls)

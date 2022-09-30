@@ -1366,7 +1366,7 @@ elemIndex a = findIndex (a ==)
 
 -- | Return 'True' if the input stream is empty.
 --
--- > null = fmap isJust Fold.head
+-- > null = fmap isJust Fold.next
 --
 -- @since 0.7.0
 {-# INLINE null #-}

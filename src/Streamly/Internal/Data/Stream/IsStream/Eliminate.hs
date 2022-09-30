@@ -427,7 +427,7 @@ null = D.null . toStreamD
 -- | Extract the first element of the stream, if any.
 --
 -- > head = (!! 0)
--- > head = Stream.fold Fold.head
+-- > head = Stream.fold Fold.next
 --
 -- @since 0.1.0
 {-# INLINE head #-}

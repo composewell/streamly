@@ -32,7 +32,7 @@
 -- 'Fold's have an early termination capability e.g. the 'head' fold would
 -- terminate on an infinite stream:
 --
--- >>> Stream.fold Fold.head $ Stream.fromList [1..]
+-- >>> Stream.fold Fold.next $ Stream.fromList [1..]
 -- Just 1
 --
 -- The above example is similar to the following right fold:
