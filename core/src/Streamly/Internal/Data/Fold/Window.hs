@@ -1,3 +1,6 @@
+-- XXX A window fold can be driven either using the Ring.slidingWindow
+-- combinator or by zipping nthLast fold and last fold.
+
 -- |
 -- Module      : Streamly.Internal.Data.Fold.Window
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -17,13 +20,9 @@
 --
 -- For more advanced statistical measures see the @streamly-statistics@
 -- package.
-
--- XXX A window fold can be driven either using the Ring.slidingWindow
--- combinator or by zipping nthLast fold and last fold.
-
 module Streamly.Internal.Data.Fold.Window
-    (
-    -- * Incremental Folds
+  ( -- * Incremental Folds
+
     -- | Folds of type @Fold m (a, Maybe a) b@ are incremental sliding window
     -- folds. An input of type @(a, Nothing)@ indicates that the input element
     -- @a@ is being inserted in the window without ejecting an old value
@@ -35,50 +34,47 @@ module Streamly.Internal.Data.Fold.Window
     -- You can compute the statistics over the entire stream using sliding
     -- window folds by keeping the second element of the input tuple as
     -- @Nothing@.
-    --
-      lmap
-    , cumulative
-
-    , rollingMap
-    , rollingMapM
+    lmap,
+    cumulative,
+    rollingMap,
+    rollingMapM,
 
     -- ** Sums
-    , length
-    , sum
-    , sumInt
-    , powerSum
-    , powerSumFrac
+    length,
+    sum,
+    sumInt,
+    powerSum,
+    powerSumFrac,
 
     -- ** Location
-    , minimum
-    , maximum
-    , range
-    , mean
+    minimum,
+    maximum,
+    range,
+    mean,
 
     -- ** Distribution
-    , frequency
-    )
+    frequency,
+  )
 where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.Bifunctor(bimap)
-import Foreign.Storable (Storable, peek)
-
-import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
-import Streamly.Internal.Data.Tuple.Strict
-    (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
-
+import Data.Bifunctor (bimap)
 import qualified Data.Map as Map
+import Foreign.Storable (Storable, peek)
+import Streamly.Internal.Data.Fold.Type (Fold (..), Step (..))
 import qualified Streamly.Internal.Data.Fold.Type as Fold
-import qualified Streamly.Internal.Data.Ring.Foreign as Ring
-
-import Prelude hiding (length, sum, minimum, maximum)
+import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
+import Streamly.Internal.Data.Tuple.Strict
+  ( Tuple' (..),
+    Tuple3Fused' (Tuple3Fused'),
+  )
+import Prelude hiding (length, maximum, minimum, sum)
 
 -- $setup
 -- >>> import Data.Bifunctor(bimap)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
--- >>> import qualified Streamly.Internal.Data.Ring.Foreign as Ring
+-- >>> import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import Prelude hiding (length, sum, minimum, maximum)
 
@@ -90,7 +86,6 @@ import Prelude hiding (length, sum, minimum, maximum)
 -- window fold.
 --
 -- >>> lmap f = Fold.lmap (bimap f (f <$>))
---
 {-# INLINE lmap #-}
 lmap :: (c -> a) -> Fold m (a, Maybe a) b -> Fold m (c, Maybe c) b
 lmap f = Fold.lmap (bimap f (f <$>))
@@ -99,10 +94,9 @@ lmap f = Fold.lmap (bimap f (f <$>))
 -- stream as a single window.
 --
 -- >>> cumulative f = Fold.lmap (\x -> (x, Nothing)) f
---
 {-# INLINE cumulative #-}
 cumulative :: Fold m (a, Maybe a) b -> Fold m a b
-cumulative = Fold.lmap (, Nothing)
+cumulative = Fold.lmap (,Nothing)
 
 -- XXX Exchange the first two arguments of rollingMap or exchange the order in
 -- the fold input tuple.
@@ -110,12 +104,12 @@ cumulative = Fold.lmap (, Nothing)
 -- | Apply an effectful function on the latest and the oldest element of the
 -- window.
 {-# INLINE rollingMapM #-}
-rollingMapM :: Monad m =>
-    (Maybe a -> a -> m (Maybe b)) -> Fold m (a, Maybe a) (Maybe b)
+rollingMapM ::
+  Monad m =>
+  (Maybe a -> a -> m (Maybe b)) ->
+  Fold m (a, Maybe a) (Maybe b)
 rollingMapM f = Fold.foldlM' f1 initial
-
-    where
-
+  where
     initial = return Nothing
 
     f1 _ (a, ma) = f ma a
@@ -123,14 +117,13 @@ rollingMapM f = Fold.foldlM' f1 initial
 -- | Apply a pure function on the latest and the oldest element of the window.
 --
 -- >>> rollingMap f = FoldW.rollingMapM (\x y -> return $ f x y)
---
 {-# INLINE rollingMap #-}
-rollingMap :: Monad m =>
-    (Maybe a -> a -> Maybe b) -> Fold m (a, Maybe a) (Maybe b)
+rollingMap ::
+  Monad m =>
+  (Maybe a -> a -> Maybe b) ->
+  Fold m (a, Maybe a) (Maybe b)
 rollingMap f = Fold.foldl' f1 initial
-
-    where
-
+  where
     initial = Nothing
 
     f1 _ (a, ma) = f ma a
@@ -141,6 +134,7 @@ rollingMap f = Fold.foldl' f1 initial
 
 -- XXX Overflow.
 --
+
 -- | The sum of all the elements in a rolling window. The input elements are
 -- required to be intergal numbers.
 --
@@ -149,26 +143,24 @@ rollingMap f = Fold.foldl' f1 initial
 -- for intergal values!
 --
 -- /Internal/
---
 {-# INLINE sumInt #-}
 sumInt :: forall m a. (Monad m, Integral a) => Fold m (a, Maybe a) a
 sumInt = Fold step initial extract
-
-    where
-
+  where
     initial = return $ Partial (0 :: a)
 
     step s (a, ma) =
-        return
-            $ Partial
-                $ case ma of
-                    Nothing -> s + a
-                    Just old -> s + a - old
+      return $
+        Partial $
+          case ma of
+            Nothing -> s + a
+            Just old -> s + a - old
 
     extract = return
 
 -- XXX Overflow.
 --
+
 -- | Sum of all the elements in a rolling window:
 --
 -- \(S = \sum_{i=1}^n x_{i}\)
@@ -183,37 +175,33 @@ sumInt = Fold step initial extract
 -- /Space/: \(\mathcal{O}(1)\)
 --
 -- /Time/: \(\mathcal{O}(n)\)
---
 {-# INLINE sum #-}
 sum :: forall m a. (Monad m, Num a) => Fold m (a, Maybe a) a
 sum = Fold step initial extract
-
-    where
-
+  where
     initial =
-        return
-            $ Partial
-            $ Tuple'
-                (0 :: a) -- running sum
-                (0 :: a) -- accumulated rounding error
-
+      return $
+        Partial $
+          Tuple'
+            (0 :: a) -- running sum
+            (0 :: a) -- accumulated rounding error
     step (Tuple' total err) (new, mOld) =
-        let incr =
-                case mOld of
-                    -- XXX new may be large and err may be small we may lose it
-                    Nothing -> new - err
-                    -- XXX if (new - old) is large we may lose err
-                    Just old -> (new - old) - err
-            -- total is large and incr may be small, we may round incr here but
-            -- we will accumulate the rounding error in err1 in the next step.
-            total1 = total + incr
-            -- Accumulate any rounding error in err1
-            -- XXX In the Nothing case above we may lose err, therefore we
-            -- should use ((total1 - total) - new) + err here.
-            -- Or even in the just case if (new - old) is large we may lose
-            -- err, so we should use ((total1 - total) + (old - new)) + err.
-            err1 = (total1 - total) - incr
-        in return $ Partial $ Tuple' total1 err1
+      let incr =
+            case mOld of
+              -- XXX new may be large and err may be small we may lose it
+              Nothing -> new - err
+              -- XXX if (new - old) is large we may lose err
+              Just old -> (new - old) - err
+          -- total is large and incr may be small, we may round incr here but
+          -- we will accumulate the rounding error in err1 in the next step.
+          total1 = total + incr
+          -- Accumulate any rounding error in err1
+          -- XXX In the Nothing case above we may lose err, therefore we
+          -- should use ((total1 - total) - new) + err here.
+          -- Or even in the just case if (new - old) is large we may lose
+          -- err, so we should use ((total1 - total) + (old - new)) + err.
+          err1 = (total1 - total) - incr
+       in return $ Partial $ Tuple' total1 err1
 
     extract (Tuple' total _) = return total
 
@@ -222,13 +210,10 @@ sum = Fold step initial extract
 -- This is the \(0\)th power sum.
 --
 -- >>> length = powerSum 0
---
 {-# INLINE length #-}
 length :: (Monad m, Num b) => Fold m (a, Maybe a) b
 length = Fold.foldl' step 0
-
-    where
-
+  where
     step w (_, Nothing) = w + 1
     step w _ = w
 
@@ -249,7 +234,6 @@ powerSum k = lmap (^ k) sum
 -- than 'powerSum' for positive intergal powers.
 --
 -- >>> powerSumFrac p = lmap (** p) sum
---
 {-# INLINE powerSumFrac #-}
 powerSumFrac :: (Monad m, Floating a) => a -> Fold m (a, Maybe a) a
 powerSumFrac p = lmap (** p) sum
@@ -268,26 +252,23 @@ powerSumFrac p = lmap (** p) sum
 -- /Space/: \(\mathcal{O}(n)\) where @n@ is the window size.
 --
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
---
 {-# INLINE range #-}
 range :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe (a, a))
 range n = Fold step initial extract
-
-    where
-
+  where
     -- XXX Use Ring unfold and then fold for composing maximum and minimum to
     -- get the range.
 
     initial =
-        if n <= 0
+      if n <= 0
         then error "range: window size must be > 0"
         else
-            let f (a, b) = Partial $ Tuple3Fused' a b (0 :: Int)
-             in fmap f $ liftIO $ Ring.new n
+          let f (a, b) = Partial $ Tuple3Fused' a b (0 :: Int)
+           in fmap f $ liftIO $ Ring.new n
 
     step (Tuple3Fused' rb rh i) a = do
-        rh1 <- liftIO $ Ring.unsafeInsert rb rh a
-        return $ Partial $ Tuple3Fused' rb rh1 (i + 1)
+      rh1 <- liftIO $ Ring.unsafeInsert rb rh a
+      return $ Partial $ Tuple3Fused' rb rh1 (i + 1)
 
     -- XXX We need better Ring array APIs so that we can unfold the ring to a
     -- stream and fold the stream using a fold of our choice.
@@ -297,16 +278,16 @@ range n = Fold step initial extract
     -- rings refer to the same mutable ring, therefore, downstream needs to
     -- process those strictly before it can change.
     foldFunc i
-        | i < n = Ring.unsafeFoldRingM
-        | otherwise = Ring.unsafeFoldRingFullM
+      | i < n = Ring.unsafeFoldRingM
+      | otherwise = Ring.unsafeFoldRingFullM
 
     extract (Tuple3Fused' rb rh i) =
-        if i == 0
+      if i == 0
         then return Nothing
         else do
-            x <- liftIO $ peek rh
-            let accum (mn, mx) a = return (min mn a, max mx a)
-            fmap Just $ foldFunc i rh accum (x, x) rb
+          x <- liftIO $ peek rh
+          let accum (mn, mx) a = return (min mn a, max mx a)
+          fmap Just $ foldFunc i rh accum (x, x) rb
 
 -- | Find the minimum element in a rolling window.
 --
@@ -319,7 +300,6 @@ range n = Fold step initial extract
 -- 'Streamly.Data.Fold.minimum' is much faster.
 --
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
---
 {-# INLINE minimum #-}
 minimum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
 minimum n = fmap (fmap fst) $ range n
@@ -332,7 +312,6 @@ minimum n = fmap (fmap fst) $ range n
 -- be much faster.
 --
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
---
 {-# INLINE maximum #-}
 maximum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
 maximum n = fmap (fmap snd) $ range n
@@ -369,20 +348,17 @@ mean = Fold.teeWith (/) sum length
 -- fromList [(1,1),(3,1),(4,2)]
 --
 -- /Pre-release/
---
 {-# INLINE frequency #-}
 frequency :: (Monad m, Ord a) => Fold m (a, Maybe a) (Map.Map a Int)
 frequency = Fold.foldl' step Map.empty
-
-    where
-
+  where
     decrement v =
-        if v == 1
+      if v == 1
         then Nothing
         else Just (v - 1)
 
     step refCountMap (new, mOld) =
-        let m1 = Map.insertWith (+) new 1 refCountMap
-        in case mOld of
-                Just k -> Map.update decrement k m1
-                Nothing -> m1
+      let m1 = Map.insertWith (+) new 1 refCountMap
+       in case mOld of
+            Just k -> Map.update decrement k m1
+            Nothing -> m1

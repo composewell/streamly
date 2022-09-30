@@ -8,7 +8,7 @@ import Test.QuickCheck (forAll, Property, vectorOf, Gen, Arbitrary (arbitrary))
 import Test.QuickCheck.Monadic (monadicIO, run)
 
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
-import qualified Streamly.Internal.Data.Array.Stream.Foreign as ArrayStream
+import qualified Streamly.Internal.Data.Array.Stream.Unboxed as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream

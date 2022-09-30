@@ -20,17 +20,15 @@
 -- single pipe.
 --
 -- > import qualified Streamly.Internal.Data.Pipe as Pipe
-
 module Streamly.Internal.Data.Pipe
-    (
-    -- * Pipe Type
-      Pipe
+  ( -- * Pipe Type
+    Pipe,
 
     -- * Pipes
-    -- ** Mapping
-    , map
-    , mapM
 
+    -- ** Mapping
+    map,
+    mapM,
     {-
     -- ** Filtering
     , lfilter
@@ -113,107 +111,106 @@ module Streamly.Internal.Data.Pipe
     -}
 
     -- * Composing Pipes
-    , tee
-    , zipWith
-    , compose
-
+    tee,
+    zipWith,
+    compose,
     {-
-    -- * Distributing
-    -- |
-    -- The 'Applicative' instance of a distributing 'Fold' distributes one copy
-    -- of the stream to each fold and combines the results using a function.
-    --
-    -- @
-    --
-    --                 |-------Fold m a b--------|
-    -- ---stream m a---|                         |---m (b,c,...)
-    --                 |-------Fold m a c--------|
-    --                 |                         |
-    --                            ...
-    -- @
-    --
-    -- To compute the average of numbers in a stream without going through the
-    -- stream twice:
-    --
-    -- >>> let avg = (/) <$> FL.sum <*> fmap fromIntegral FL.length
-    -- >>> FL.foldl' avg (S.enumerateFromTo 1.0 100.0)
-    -- 50.5
-    --
-    -- The 'Semigroup' and 'Monoid' instances of a distributing fold distribute
-    -- the input to both the folds and combines the outputs using Monoid or
-    -- Semigroup instances of the output types:
-    --
-    -- >>> import Data.Monoid (Sum)
-    -- >>> FL.foldl' (FL.head <> FL.last) (fmap Sum $ S.enumerateFromTo 1.0 100.0)
-    -- Just (Sum {getSum = 101.0})
-    --
-    -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
+        -- * Distributing
+        -- |
+        -- The 'Applicative' instance of a distributing 'Fold' distributes one copy
+        -- of the stream to each fold and combines the results using a function.
+        --
+        -- @
+        --
+        --                 |-------Fold m a b--------|
+        -- ---stream m a---|                         |---m (b,c,...)
+        --                 |-------Fold m a c--------|
+        --                 |                         |
+        --                            ...
+        -- @
+        --
+        -- To compute the average of numbers in a stream without going through the
+        -- stream twice:
+        --
+        -- >>> let avg = (/) <$> FL.sum <*> fmap fromIntegral FL.length
+        -- >>> FL.foldl' avg (S.enumerateFromTo 1.0 100.0)
+        -- 50.5
+        --
+        -- The 'Semigroup' and 'Monoid' instances of a distributing fold distribute
+        -- the input to both the folds and combines the outputs using Monoid or
+        -- Semigroup instances of the output types:
+        --
+        -- >>> import Data.Monoid (Sum)
+        -- >>> FL.foldl' (FL.head <> FL.last) (fmap Sum $ S.enumerateFromTo 1.0 100.0)
+        -- Just (Sum {getSum = 101.0})
+        --
+        -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
 
-    , tee
-    , distribute
+        , tee
+        , distribute
 
-    -- * Partitioning
-    -- |
-    -- Direct items in the input stream to different folds using a function to
-    -- select the fold. This is useful to demultiplex the input stream.
-    -- , partitionByM
-    -- , partitionBy
-    , partition
+        -- * Partitioning
+        -- |
+        -- Direct items in the input stream to different folds using a function to
+        -- select the fold. This is useful to demultiplex the input stream.
+        -- , partitionByM
+        -- , partitionBy
+        , partition
 
-    -- * Demultiplexing
-    , demux
-    -- , demuxWith
-    , demux_
-    -- , demuxWith_
+        -- * Demultiplexing
+        , demux
+        -- , demuxWith
+        , demux_
+        -- , demuxWith_
 
-    -- * Classifying
-    , classify
-    -- , classifyWith
+        -- * Classifying
+        , classify
+        -- , classifyWith
 
-    -- * Unzipping
-    , unzip
-    -- These can be expressed using lmap/lmapM and unzip
-    -- , unzipWith
-    -- , unzipWithM
+        -- * Unzipping
+        , unzip
+        -- These can be expressed using lmap/lmapM and unzip
+        -- , unzipWith
+        -- , unzipWithM
 
-    -- * Nested Folds
-    -- , concatMap
-    -- , chunksOf
-    , duplicate  -- experimental
+        -- * Nested Folds
+        -- , concatMap
+        -- , chunksOf
+        , duplicate  -- experimental
 
-    -- * Windowed Classification
-    -- | Split the stream into windows or chunks in space or time. Each window
-    -- can be associated with a key, all events associated with a particular
-    -- key in the window can be folded to a single result. The stream is split
-    -- into windows of specified size, the window can be terminated early if
-    -- the closing flag is specified in the input stream.
-    --
-    -- The term "chunk" is used for a space window and the term "session" is
-    -- used for a time window.
+        -- * Windowed Classification
+        -- | Split the stream into windows or chunks in space or time. Each window
+        -- can be associated with a key, all events associated with a particular
+        -- key in the window can be folded to a single result. The stream is split
+        -- into windows of specified size, the window can be terminated early if
+        -- the closing flag is specified in the input stream.
+        --
+        -- The term "chunk" is used for a space window and the term "session" is
+        -- used for a time window.
 
-    -- ** Tumbling Windows
-    -- | A new window starts after the previous window is finished.
-    -- , classifyChunksOf
-    , classifySessionsOf
+        -- ** Tumbling Windows
+        -- | A new window starts after the previous window is finished.
+        -- , classifyChunksOf
+        , classifySessionsOf
 
-    -- ** Keep Alive Windows
-    -- | The window size is extended if an event arrives within the specified
-    -- window size. This can represent sessions with idle or inactive timeout.
-    -- , classifyKeepAliveChunks
-    , classifyKeepAliveSessions
+        -- ** Keep Alive Windows
+        -- | The window size is extended if an event arrives within the specified
+        -- window size. This can represent sessions with idle or inactive timeout.
+        -- , classifyKeepAliveChunks
+        , classifyKeepAliveSessions
 
-    {-
-    -- ** Sliding Windows
-    -- | A new window starts after the specified slide from the previous
-    -- window. Therefore windows can overlap.
-    , classifySlidingChunks
-    , classifySlidingSessions
+        {-
+        -- ** Sliding Windows
+        -- | A new window starts after the specified slide from the previous
+        -- window. Therefore windows can overlap.
+        , classifySlidingChunks
+        , classifySlidingSessions
+        -}
+        -- ** Sliding Window Buffers
+        -- , slidingChunkBuffer
+        -- , slidingSessionBuffer
     -}
-    -- ** Sliding Window Buffers
-    -- , slidingChunkBuffer
-    -- , slidingSessionBuffer
--}
-    )
+  )
 where
 
 -- import Control.Concurrent (threadDelay, forkIO, killThread)
@@ -230,13 +227,6 @@ where
 -- import Data.Maybe (fromJust, isJust, isNothing)
 
 -- import Foreign.Storable (Storable(..))
-import Prelude
-       hiding (id, filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
-               foldl, map, mapM_, sequence, all, any, sum, product, elem,
-               notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
-               span, splitAt, break, mapM)
 
 -- import qualified Data.Heap as H
 -- import qualified Data.Map.Strict as Map
@@ -245,9 +235,63 @@ import Prelude
 -- import Streamly.Prelude (MonadAsync, parallel)
 -- import Streamly.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Type
-       (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
+  ( Pipe (..),
+    PipeState (..),
+    Step (..),
+    compose,
+    map,
+    tee,
+    zipWith,
+  )
+import Prelude hiding
+  ( all,
+    and,
+    any,
+    break,
+    concatMap,
+    drop,
+    dropWhile,
+    elem,
+    filter,
+    foldMap,
+    foldl,
+    foldr,
+    foldr1,
+    head,
+    id,
+    init,
+    iterate,
+    last,
+    length,
+    lookup,
+    map,
+    mapM,
+    mapM_,
+    maximum,
+    mconcat,
+    minimum,
+    notElem,
+    null,
+    or,
+    product,
+    replicate,
+    reverse,
+    scanl,
+    scanl1,
+    sequence,
+    span,
+    splitAt,
+    sum,
+    tail,
+    take,
+    takeWhile,
+    unzip,
+    zipWith,
+    (!!),
+  )
+
 -- import Streamly.Internal.Data.Array.Unboxed.Type (Array)
--- import Streamly.Internal.Data.Ring.Foreign (Ring)
+-- import Streamly.Internal.Data.Ring.Unboxed (Ring)
 -- import Streamly.Internal.Data.Stream (Stream)
 -- import Streamly.Internal.Data.Stream.StreamK (IsStream())
 -- import Streamly.Internal.Data.Time.Units
@@ -272,10 +316,11 @@ import Streamly.Internal.Data.Pipe.Type
 {-# INLINE mapM #-}
 mapM :: Monad m => (a -> m b) -> Pipe m a b
 mapM f = Pipe consume undefined ()
-    where
+  where
     consume _ a = do
-        r <- f a
-        return $ Yield r (Consume ())
+      r <- f a
+      return $ Yield r (Consume ())
+
 {-
 ------------------------------------------------------------------------------
 -- Filtering

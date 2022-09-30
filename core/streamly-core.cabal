@@ -322,9 +322,9 @@ library
                      -- streamly-core-data-arrays
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Array.Unboxed
-                     , Streamly.Internal.Data.Array.Stream.Mut.Foreign
-                     , Streamly.Internal.Data.Array.Stream.Fold.Foreign
-                     , Streamly.Internal.Data.Array.Stream.Foreign
+                     , Streamly.Internal.Data.Array.Stream.Mut.Unboxed
+                     , Streamly.Internal.Data.Array.Stream.Fold.Unboxed
+                     , Streamly.Internal.Data.Array.Stream.Unboxed
 
                     -- streamly-unicode
                      , Streamly.Internal.Unicode.Stream
@@ -336,7 +336,7 @@ library
                      , Streamly.Internal.FileSystem.Handle
 
                     -- Ring Arrays
-                     , Streamly.Internal.Data.Ring.Foreign
+                     , Streamly.Internal.Data.Ring.Unboxed
                      , Streamly.Internal.Data.Ring
 
                      -- Only used for benchmarks

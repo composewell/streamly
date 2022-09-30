@@ -8,7 +8,7 @@
 --
 -- Combinators to efficiently manipulate streams of mutable arrays.
 --
-module Streamly.Internal.Data.Array.Stream.Mut.Foreign
+module Streamly.Internal.Data.Array.Stream.Mut.Unboxed
     (
     -- * Generation
       arraysOf

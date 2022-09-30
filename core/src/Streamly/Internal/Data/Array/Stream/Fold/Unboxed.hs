@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Stream.Fold.Foreign
+-- Module      : Streamly.Internal.Data.Array.Stream.Fold.Unboxed
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,8 +18,8 @@
 -- element stream. For example:
 --
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Array.Stream.Foreign as ArrayStream
--- >>> import qualified Streamly.Internal.Data.Array.Stream.Fold.Foreign as ArrayFold
+-- >>> import qualified Streamly.Internal.Data.Array.Stream.Unboxed as ArrayStream
+-- >>> import qualified Streamly.Internal.Data.Array.Stream.Fold.Unboxed as ArrayFold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream (arraysOf)
 -- >>> import qualified Streamly.Data.Stream as Stream
 --
@@ -28,7 +28,7 @@
 -- >>> ArrayStream.runArrayFold f s
 -- "hello w"
 --
-module Streamly.Internal.Data.Array.Stream.Fold.Foreign
+module Streamly.Internal.Data.Array.Stream.Fold.Unboxed
     (
       ArrayFold (..)
 

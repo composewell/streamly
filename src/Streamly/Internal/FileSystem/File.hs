@@ -18,11 +18,9 @@
 -- leakage.
 --
 -- > import qualified Streamly.Internal.FileSystem.File as File
---
-
 module Streamly.Internal.FileSystem.File
-    (
-    -- * Streaming IO
+  ( -- * Streaming IO
+
     -- | Stream data to or from a file or device sequentially.  When reading,
     -- the stream is lazy and generated on-demand as the consumer consumes it.
     -- Read IO requests to the IO device are performed in chunks limited to a
@@ -41,76 +39,73 @@ module Streamly.Internal.FileSystem.File
     -- access capability.
 
     -- ** File IO Using Handle
-      withFile
+    withFile,
 
     -- ** Read From File
-    , readWith
-    , read
+    readWith,
+    read,
     -- , readShared
     -- , readUtf8
     -- , readLines
     -- , readFrames
 
-    , toBytes
-
+    toBytes,
     -- -- * Array Read
-    , readChunksWith
-    , readChunksFromToWith
-    , readChunks
-
-    , toChunksWith
-    , toChunks
+    readChunksWith,
+    readChunksFromToWith,
+    readChunks,
+    toChunksWith,
+    toChunks,
 
     -- ** Write To File
-    , write
+    write,
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeWith
-
-    , fromBytes
-    , fromBytesWith
-
+    writeWith,
+    fromBytes,
+    fromBytesWith,
     -- -- * Array Write
-    , putChunk
-    , writeChunks
-    , fromChunks
+    putChunk,
+    writeChunks,
+    fromChunks,
 
     -- ** Append To File
-    , append
-    , appendWith
+    append,
+    appendWith,
     -- , appendShared
-    , appendArray
-    , appendChunks
-    )
+    appendArray,
+    appendChunks,
+  )
 where
 
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.IO.Class (MonadIO(..))
-import Data.Word (Word8)
-import System.IO (Handle, openFile, IOMode(..), hClose)
-import Prelude hiding (read)
-
 import qualified Control.Monad.Catch as MC
-import qualified System.IO as SIO
-
-import Streamly.Data.Fold (chunksOf, drain)
-import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
-import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Data.Stream (Stream)
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Control.Monad.IO.Class (MonadIO (..))
+import Data.Word (Word8)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
-import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Data.Array.Unboxed as A
+import Streamly.Data.Fold (chunksOf, drain)
+import Streamly.Data.Stream (Stream)
+import qualified Streamly.Data.Stream as S (bracket, fold, mapM)
 import qualified Streamly.Data.Unfold as UF
+import Streamly.Internal.Control.Concurrent (MonadAsync)
+import qualified Streamly.Internal.Data.Array.Stream.Unboxed as AS
+import Streamly.Internal.Data.Array.Unboxed.Type (Array (..), writeNUnsafe)
+import Streamly.Internal.Data.Fold.Type (Fold (..))
 import qualified Streamly.Internal.Data.Fold.Type as FL
-    (Step(..), snoc, initialize)
+  ( Step (..),
+    initialize,
+    snoc,
+  )
 import qualified Streamly.Internal.Data.Unfold as UF (bracket)
+import Streamly.Internal.Data.Unfold.Type (Unfold (..))
 import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
-import qualified Streamly.Data.Stream as S (fold, bracket, mapM)
+import Streamly.Internal.System.IO (defaultChunkSize)
+import System.IO (Handle, IOMode (..), hClose, openFile)
+import qualified System.IO as SIO
+import Prelude hiding (read)
 
 -------------------------------------------------------------------------------
 -- References
@@ -137,10 +132,13 @@ import qualified Streamly.Data.Stream as S (fold, bracket, mapM)
 -- raised by 'act'.
 --
 -- /Pre-release/
---
 {-# INLINE withFile #-}
-withFile :: (MonadCatch m, MonadAsync m)
-    => FilePath -> IOMode -> (Handle -> Stream m a) -> Stream m a
+withFile ::
+  (MonadCatch m, MonadAsync m) =>
+  FilePath ->
+  IOMode ->
+  (Handle -> Stream m a) ->
+  Stream m a
 withFile file mode = S.bracket (liftIO $ openFile file mode) (liftIO . hClose)
 
 -- | Transform an 'Unfold' from a 'Handle' to an unfold from a 'FilePath'.  The
@@ -150,37 +148,39 @@ withFile file mode = S.bracket (liftIO $ openFile file mode) (liftIO . hClose)
 -- this exception will be raised by 'usingFile'.
 --
 -- /Pre-release/
---
 {-# INLINE usingFile #-}
-usingFile :: (MonadCatch m, MonadAsync m)
-    => Unfold m Handle a -> Unfold m FilePath a
+usingFile ::
+  (MonadCatch m, MonadAsync m) =>
+  Unfold m Handle a ->
+  Unfold m FilePath a
 usingFile =
-    UF.bracket (\file -> liftIO $ openFile file ReadMode)
-               (liftIO . hClose)
+  UF.bracket
+    (\file -> liftIO $ openFile file ReadMode)
+    (liftIO . hClose)
 
 {-# INLINE usingFile2 #-}
-usingFile2 :: (MonadCatch m, MonadAsync m)
-    => Unfold m (x, Handle) a -> Unfold m (x, FilePath) a
+usingFile2 ::
+  (MonadCatch m, MonadAsync m) =>
+  Unfold m (x, Handle) a ->
+  Unfold m (x, FilePath) a
 usingFile2 = UF.bracket before after
-
-    where
-
-    before (x, file) =  do
-        h <- liftIO $ openFile file ReadMode
-        return (x, h)
+  where
+    before (x, file) = do
+      h <- liftIO $ openFile file ReadMode
+      return (x, h)
 
     after (_, h) = liftIO $ hClose h
 
 {-# INLINE usingFile3 #-}
-usingFile3 :: (MonadCatch m, MonadAsync m)
-    => Unfold m (x, y, z, Handle) a -> Unfold m (x, y, z, FilePath) a
+usingFile3 ::
+  (MonadCatch m, MonadAsync m) =>
+  Unfold m (x, y, z, Handle) a ->
+  Unfold m (x, y, z, FilePath) a
 usingFile3 = UF.bracket before after
-
-    where
-
-    before (x, y, z, file) =  do
-        h <- liftIO $ openFile file ReadMode
-        return (x, y, z, h)
+  where
+    before (x, y, z, file) = do
+      h <- liftIO $ openFile file ReadMode
+      return (x, y, z, h)
 
     after (_, _, _, h) = liftIO $ hClose h
 
@@ -197,14 +197,14 @@ usingFile3 = UF.bracket before after
 -- | Write an array to a file. Overwrites the file if it exists.
 --
 -- @since 0.7.0
-{-# INLINABLE putChunk #-}
+{-# INLINEABLE putChunk #-}
 putChunk :: FilePath -> Array a -> IO ()
 putChunk file arr = SIO.withFile file WriteMode (`FH.putChunk` arr)
 
 -- | append an array to a file.
 --
 -- @since 0.7.0
-{-# INLINABLE appendArray #-}
+{-# INLINEABLE appendArray #-}
 appendArray :: FilePath -> Array a -> IO ()
 appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 
@@ -218,13 +218,17 @@ appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 --
 -- @since 0.9.0
 {-# INLINE toChunksWith #-}
-toChunksWith :: (MonadCatch m, MonadAsync m)
-    => Int -> FilePath -> Stream m (Array Word8)
+toChunksWith ::
+  (MonadCatch m, MonadAsync m) =>
+  Int ->
+  FilePath ->
+  Stream m (Array Word8)
 toChunksWith size file =
-    withFile file ReadMode (FH.getChunksWith size)
+  withFile file ReadMode (FH.getChunksWith size)
 
 -- XXX read 'Array a' instead of Word8
 --
+
 -- | @toChunks file@ reads a stream of arrays from file @file@.
 -- The maximum size of a single array is limited to @defaultChunkSize@. The
 -- actual size read may be less than @defaultChunkSize@.
@@ -233,8 +237,10 @@ toChunksWith size file =
 --
 -- @since 0.7.0
 {-# INLINE toChunks #-}
-toChunks :: (MonadCatch m, MonadAsync m)
-    => FilePath -> Stream m (Array Word8)
+toChunks ::
+  (MonadCatch m, MonadAsync m) =>
+  FilePath ->
+  Stream m (Array Word8)
 toChunks = toChunksWith defaultChunkSize
 
 -------------------------------------------------------------------------------
@@ -251,10 +257,10 @@ toChunks = toChunksWith defaultChunkSize
 -- or equal to @bufsize@.
 --
 -- /Pre-release/
---
 {-# INLINE readChunksWith #-}
-readChunksWith :: (MonadCatch m, MonadAsync m)
-    => Unfold m (Int, FilePath) (Array Word8)
+readChunksWith ::
+  (MonadCatch m, MonadAsync m) =>
+  Unfold m (Int, FilePath) (Array Word8)
 readChunksWith = usingFile2 FH.readChunksWith
 
 -- | Unfold the tuple @(from, to, bufsize, filepath)@ into a stream
@@ -266,8 +272,9 @@ readChunksWith = usingFile2 FH.readChunksWith
 --
 -- /Pre-release/
 {-# INLINE readChunksFromToWith #-}
-readChunksFromToWith :: (MonadCatch m, MonadAsync m) =>
-    Unfold m (Int, Int, Int, FilePath) (Array Word8)
+readChunksFromToWith ::
+  (MonadCatch m, MonadAsync m) =>
+  Unfold m (Int, Int, Int, FilePath) (Array Word8)
 readChunksFromToWith = usingFile3 FH.readChunksFromToWith
 
 -- | Unfolds a 'FilePath' into a stream of 'Word8' arrays. Requests to the IO
@@ -303,7 +310,6 @@ read = UF.many A.read (usingFile FH.readChunks)
 -- writer locking mode.
 --
 -- /Pre-release/
---
 {-# INLINE toBytes #-}
 toBytes :: (MonadCatch m, MonadAsync m) => FilePath -> Stream m Word8
 toBytes file = AS.concat $ withFile file ReadMode FH.getChunks
@@ -324,17 +330,25 @@ readShared = undefined
 -------------------------------------------------------------------------------
 
 {-# INLINE fromChunksMode #-}
-fromChunksMode :: (MonadAsync m, MonadCatch m)
-    => IOMode -> FilePath -> Stream m (Array a) -> m ()
-fromChunksMode mode file xs = S.fold drain $
+fromChunksMode ::
+  (MonadAsync m, MonadCatch m) =>
+  IOMode ->
+  FilePath ->
+  Stream m (Array a) ->
+  m ()
+fromChunksMode mode file xs =
+  S.fold drain $
     withFile file mode (\h -> S.mapM (FH.putChunk h) xs)
 
 -- | Write a stream of arrays to a file. Overwrites the file if it exists.
 --
 -- @since 0.7.0
 {-# INLINE fromChunks #-}
-fromChunks :: (MonadAsync m, MonadCatch m)
-    => FilePath -> Stream m (Array a) -> m ()
+fromChunks ::
+  (MonadAsync m, MonadCatch m) =>
+  FilePath ->
+  Stream m (Array a) ->
+  m ()
 fromChunks = fromChunksMode WriteMode
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
@@ -351,12 +365,17 @@ fromChunks = fromChunksMode WriteMode
 --
 -- @since 0.9.0
 {-# INLINE fromBytesWith #-}
-fromBytesWith :: (MonadAsync m, MonadCatch m)
-    => Int -> FilePath -> Stream m Word8 -> m ()
+fromBytesWith ::
+  (MonadAsync m, MonadCatch m) =>
+  Int ->
+  FilePath ->
+  Stream m Word8 ->
+  m ()
 fromBytesWith n file xs = fromChunks file $ AS.arraysOf n xs
 
 -- > write = 'writeWith' defaultChunkSize
 --
+
 -- | Write a byte stream to a file. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing. If the file exists it is
 -- truncated to zero size before writing. If the file does not exist it is
@@ -378,24 +397,27 @@ write = toHandleWith A.defaultChunkSize
 --
 -- /Pre-release/
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, MonadCatch m)
-    => FilePath -> Fold m (Array a) ()
+writeChunks ::
+  (MonadIO m, MonadCatch m) =>
+  FilePath ->
+  Fold m (Array a) ()
 writeChunks path = Fold step initial extract
-    where
+  where
     initial = do
-        h <- liftIO (openFile path WriteMode)
-        fld <- FL.initialize (FH.writeChunks h)
-                `MC.onException` liftIO (hClose h)
-        return $ FL.Partial (fld, h)
+      h <- liftIO (openFile path WriteMode)
+      fld <-
+        FL.initialize (FH.writeChunks h)
+          `MC.onException` liftIO (hClose h)
+      return $ FL.Partial (fld, h)
     step (fld, h) x = do
-        r <- FL.snoc fld x `MC.onException` liftIO (hClose h)
-        return $ FL.Partial (r, h)
+      r <- FL.snoc fld x `MC.onException` liftIO (hClose h)
+      return $ FL.Partial (r, h)
     extract (Fold _ initial1 extract1, h) = do
-        liftIO $ hClose h
-        res <- initial1
-        case res of
-            FL.Partial fs -> extract1 fs
-            FL.Done fb -> return fb
+      liftIO $ hClose h
+      res <- initial1
+      case res of
+        FL.Partial fs -> extract1 fs
+        FL.Done fb -> return fb
 
 -- | @writeWith chunkSize handle@ writes the input stream to @handle@.
 -- Bytes in the input stream are collected into a buffer until we have a chunk
@@ -403,19 +425,22 @@ writeChunks path = Fold step initial extract
 --
 -- /Pre-release/
 {-# INLINE writeWith #-}
-writeWith :: (MonadIO m, MonadCatch m)
-    => Int -> FilePath -> Fold m Word8 ()
+writeWith ::
+  (MonadIO m, MonadCatch m) =>
+  Int ->
+  FilePath ->
+  Fold m Word8 ()
 writeWith n path =
-    chunksOf n (writeNUnsafe n) (writeChunks path)
+  chunksOf n (writeNUnsafe n) (writeChunks path)
 
 -- > write = 'writeWith' A.defaultChunkSize
 --
+
 -- | Write a byte stream to a file. Accumulates the input in chunks of up to
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before writing to
 -- the IO device.
 --
 -- /Pre-release/
---
 {-# INLINE write #-}
 write :: (MonadIO m, MonadCatch m) => FilePath -> Fold m Word8 ()
 write = writeWith defaultChunkSize
@@ -424,8 +449,11 @@ write = writeWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE appendChunks #-}
-appendChunks :: (MonadAsync m, MonadCatch m)
-    => FilePath -> Stream m (Array a) -> m ()
+appendChunks ::
+  (MonadAsync m, MonadCatch m) =>
+  FilePath ->
+  Stream m (Array a) ->
+  m ()
 appendChunks = fromChunksMode AppendMode
 
 -- | Like 'append' but provides control over the write buffer. Output will
@@ -434,8 +462,12 @@ appendChunks = fromChunksMode AppendMode
 --
 -- @since 0.9.0
 {-# INLINE appendWith #-}
-appendWith :: (MonadAsync m, MonadCatch m)
-    => Int -> FilePath -> Stream m Word8 -> m ()
+appendWith ::
+  (MonadAsync m, MonadCatch m) =>
+  Int ->
+  FilePath ->
+  Stream m Word8 ->
+  m ()
 appendWith n file xs = appendChunks file $ AS.arraysOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to

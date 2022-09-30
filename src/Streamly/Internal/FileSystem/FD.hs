@@ -147,7 +147,7 @@ import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
     (Array(..), newPinnedArrayBytes, asPtrUnsafe)
-import qualified Streamly.Internal.Data.Array.Stream.Foreign as AS
+import qualified Streamly.Internal.Data.Array.Stream.Unboxed as AS
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))

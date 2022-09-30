@@ -1,25 +1,21 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 -- |
 -- Module      : Streamly.Benchmark.Data.Ring.Unboxed
 -- Copyright   : (c) 2022 Composewell
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
-
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Main (main) where
 
 import Control.Monad (void)
-import GHC.Ptr (Ptr(..))
-
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
-import qualified Streamly.Internal.Data.Ring.Foreign as Ring
 import qualified Data.Foldable as P
-
+import GHC.Ptr (Ptr (..))
 import Gauge
 import Streamly.Benchmark.Common
-
+import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 import Prelude as P
 
 -------------------------------------------------------------------------------
@@ -37,11 +33,11 @@ unsafeEqArray (arr, (ring, rh)) = Ring.unsafeEqArray ring rh arr
 -------------------------------------------------------------------------------
 
 o_1_space_serial ::
-       Int -> Array.Array Int -> (Ring.Ring Int, Ptr Int) -> [Benchmark]
+  Int -> Array.Array Int -> (Ring.Ring Int, Ptr Int) -> [Benchmark]
 o_1_space_serial value arr (ring, rh) =
-    [ bench "unsafeEqArrayN" $ nf unsafeEqArrayN (value, arr, (ring, rh))
-    , bench "unsafeEqArray" $ nf unsafeEqArray (arr, (ring, rh))
-    ]
+  [ bench "unsafeEqArrayN" $ nf unsafeEqArrayN (value, arr, (ring, rh)),
+    bench "unsafeEqArray" $ nf unsafeEqArray (arr, (ring, rh))
+  ]
 
 -------------------------------------------------------------------------------
 -- Main
@@ -52,19 +48,17 @@ moduleName = "Data.Ring.Unboxed"
 
 main :: IO ()
 main = do
-    runWithCLIOptsEnv defaultStreamSize alloc allBenchmarks
-
-    where
-
+  runWithCLIOptsEnv defaultStreamSize alloc allBenchmarks
+  where
     alloc value = do
-        let input = [1 .. value] :: [Int]
-        let arr = Array.fromList input
-        (ring, rh) <- Ring.new value
-        void $ P.foldlM (Ring.unsafeInsert ring) rh input
-        return (arr, (ring, rh))
+      let input = [1 .. value] :: [Int]
+      let arr = Array.fromList input
+      (ring, rh) <- Ring.new value
+      void $ P.foldlM (Ring.unsafeInsert ring) rh input
+      return (arr, (ring, rh))
 
     allBenchmarks (arr, (ring, rh)) value =
-        [ bgroup
-              (o_1_space_prefix moduleName)
-              (o_1_space_serial value arr (ring, rh))
-        ]
+      [ bgroup
+          (o_1_space_prefix moduleName)
+          (o_1_space_serial value arr (ring, rh))
+      ]
