@@ -357,6 +357,9 @@ library
                      , Streamly.Unicode.Stream
                      , Streamly.FileSystem.Handle
 
+    other-modules:
+                    Streamly.Data.Array
+
     if flag(dev)
       exposed-modules:
                         Streamly.Internal.Data.Stream.StreamDK
