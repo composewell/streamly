@@ -1265,7 +1265,7 @@ next = maybe Just
 -- >>> head = Fold.next
 --
 -- @since 0.7.0
--- {-# DEPRECATED head "Please use \"next\" instead" #-}
+{-# DEPRECATED head "Please use \"next\" instead" #-}
 {-# INLINE head #-}
 head :: Monad m => Fold m a (Maybe a)
 head = next

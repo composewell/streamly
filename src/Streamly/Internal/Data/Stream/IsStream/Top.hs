@@ -140,7 +140,7 @@ sampleIntervalEnd n = Stream.catMaybes . Stream.intervalsOf n Fold.last
 {-# INLINE sampleIntervalStart #-}
 sampleIntervalStart :: (IsStream t, MonadAsync m, Functor (t m)) =>
     Double -> t m a -> t m a
-sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.head
+sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.next
 
 data BurstState t x =
       BurstNone
