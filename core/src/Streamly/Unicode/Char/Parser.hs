@@ -3,7 +3,7 @@
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- To parse a text input, use the decode routines from
@@ -39,7 +39,7 @@ module Streamly.Unicode.Char.Parser
     , space
     , symbol
 
-    -- digits
+    -- * Digits
     , digit
     , octDigit
     , hexDigit
@@ -53,3 +53,4 @@ module Streamly.Unicode.Char.Parser
 where
 
 import Streamly.Internal.Unicode.Char.Parser
+import Prelude hiding (print)
