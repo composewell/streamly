@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Stream.Mut.Foreign
+-- Module      : Streamly.Internal.Data.Array.Stream.Mut.Unboxed
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -243,7 +243,7 @@ compactLEParserD n = ParserD.Parser step initial extract
     extract (Just buf) = return $ ParserD.Done 0 buf
 
     functionPath =
-        "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactLEParserD"
+        "Streamly.Internal.Data.Array.Stream.Mut.Unboxed.compactLEParserD"
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- minimum specified size. Note that if all the arrays in the stream together
@@ -292,7 +292,7 @@ compactGEFold n = Fold step initial extract
     extract (Just buf) = return buf
 
     functionPath =
-        "Streamly.Internal.Data.Array.Stream.Mut.Foreign.compactGEFold"
+        "Streamly.Internal.Data.Array.Stream.Mut.Unboxed.compactGEFold"
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.

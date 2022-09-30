@@ -58,7 +58,7 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Array/Unboxed.hs
     benchmark/Streamly/Benchmark/Data/Ring/Unboxed.hs
     benchmark/Streamly/Benchmark/Data/Array/Unboxed/Mut.hs
-    benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs
+    benchmark/Streamly/Benchmark/Data/Array/Stream/Unboxed.hs
     benchmark/Streamly/Benchmark/Data/Fold/Window.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
@@ -94,7 +94,7 @@ extra-source-files:
     test/Streamly/Test/Data/Array/Unboxed.hs
     test/Streamly/Test/Data/Array/Unboxed/Mut.hs
     test/Streamly/Test/Data/Ring/Unboxed.hs
-    test/Streamly/Test/Data/Array/Stream/Foreign.hs
+    test/Streamly/Test/Data/Array/Stream/Unboxed.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
     test/Streamly/Test/Data/Stream/Async.hs
     test/Streamly/Test/FileSystem/Event.hs
@@ -564,7 +564,6 @@ library
                      , deepseq           >= 1.4.1 && < 1.5
                      , directory         >= 1.2.2 && < 1.4
                      , exceptions        >= 0.8   && < 0.11
-                     , ghc-prim          >= 0.2   && < 0.10
                      , mtl               >= 2.2   && < 2.4
                      , transformers      >= 0.4   && < 0.7
 

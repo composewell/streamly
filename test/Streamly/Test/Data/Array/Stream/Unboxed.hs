@@ -69,7 +69,7 @@ splitOnSuffix sep inp out = do
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Array.Stream.Foreign"
+moduleName = "Data.Array.Stream.Unboxed"
 
 -- Instead of hard coding 10000 here we can have maxStreamLength for operations
 -- that use stream of arrays.

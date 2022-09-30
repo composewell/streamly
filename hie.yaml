@@ -16,8 +16,8 @@ cradle:
       config:
         cradle:
           cabal:
-            - path: "./benchmark/Streamly/Benchmark/Data/Array/Stream/Foreign.hs"
-              component: "bench:Data.Array.Stream.Foreign"
+            - path: "./benchmark/Streamly/Benchmark/Data/Array/Stream/Unboxed.hs"
+              component: "bench:Data.Array.Stream.Unboxed"
             - path: "./benchmark/Streamly/Benchmark/Data/Fold.hs"
               component: "bench:Data.Fold"
             - path: "./benchmark/Streamly/Benchmark/Data/Parser.hs"
@@ -78,8 +78,8 @@ cradle:
               component: "test:Data.Array.Unboxed"
             - path: "./test/Streamly/Test/Data/Array/Unboxed/Mut.hs"
               component: "test:Data.Array.Unboxed.Mut"
-            - path: "./test/Streamly/Test/Data/Array/Stream/Foreign.hs"
-              component: "test:Data.Array.Stream.Foreign"
+            - path: "./test/Streamly/Test/Data/Array/Stream/Unboxed.hs"
+              component: "test:Data.Array.Stream.Unboxed"
             - path: "./test/Streamly/Test/Data/Fold.hs"
               component: "test:Data.Fold"
             - path: "./test/Streamly/Test/Data/List.hs"
