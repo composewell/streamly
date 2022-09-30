@@ -326,6 +326,9 @@ library
                      , Streamly.Internal.Data.Array.Stream.Fold.Foreign
                      , Streamly.Internal.Data.Array.Stream.Foreign
 
+                     -- streamly-serde
+                     , Streamly.Internal.Data.Binary.Decode
+
                     -- streamly-unicode
                      , Streamly.Internal.Unicode.Stream
                      , Streamly.Internal.Unicode.String
