@@ -174,6 +174,7 @@ module Streamly.Data.Fold
 
     , index
     , head
+    , next
     , find
     , lookup
     , findIndex
