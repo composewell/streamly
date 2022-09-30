@@ -1,9 +1,9 @@
 -- |
 -- Module      : Streamly.Unicode.String
 -- Copyright   : (c) 2022 Composewell Technologies
--- License     : Apache-2.0
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
+-- Stability   : released
 -- Portability : GHC
 --
 -- Convenient template Haskell quasiquoters to format strings.
