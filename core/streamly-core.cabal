@@ -349,6 +349,7 @@ library
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Parser
                      , Streamly.Data.Unfold
+                     , Streamly.Data.Array
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Array.Unboxed.Mut
                      , Streamly.Unicode.Stream
