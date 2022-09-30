@@ -220,6 +220,7 @@ extra-source-files:
     core/src/Streamly/Data/Array/Unboxed.hs
     core/src/Streamly/Data/Array/Unboxed/Mut.hs
     core/src/Streamly/FileSystem/Handle.hs
+    core/src/Streamly/Internal/Data/Binary/Decode.hs
     core/src/Streamly/Internal/Data/Time/Clock/Darwin.c
     core/src/Streamly/Internal/Data/Time/Clock/Windows.c
     core/src/Streamly/Internal/FileSystem/Handle.hs
@@ -486,9 +487,6 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Async
                      , Streamly.Internal.Data.Stream.IsStream.Parallel
                      , Streamly.Internal.Data.Stream.IsStream
-
-                     -- streamly-serde
-                     , Streamly.Internal.Data.Binary.Decode
 
                      -- streamly-unicode
                      , Streamly.Internal.Unicode.Utf8
