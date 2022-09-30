@@ -204,9 +204,9 @@ extra-source-files:
     core/src/Streamly/Internal/Data/List.hs
     core/src/Streamly/Internal/Data/Array.hs
     core/src/Streamly/Internal/Data/Array/Unboxed.hs
-    core/src/Streamly/Internal/Data/Array/Stream/Unboxed.hs
-    core/src/Streamly/Internal/Data/Array/Stream/Mut/Unboxed.hs
-    core/src/Streamly/Internal/Data/Array/Stream/Fold/Unboxed.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed/Stream.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed/Mut/Stream.hs
+    core/src/Streamly/Internal/Data/Array/Unboxed/Stream/Fold.hs
     core/src/Streamly/Internal/Data/Ring/Unboxed.hs
     core/src/Streamly/Internal/Data/Ring.hs
     core/src/Streamly/Internal/Data/Stream/StreamK.hs
