@@ -253,7 +253,7 @@ test-suite Data.Ring.Unboxed
   if flag(use-streamly-core)
     buildable: False
 
-test-suite Data.Array.Stream.Unboxed
+test-suite Data.Array.Unboxed.Stream
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array/Stream/Unboxed.hs

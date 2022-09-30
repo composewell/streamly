@@ -40,7 +40,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Array.Stream.Mut.Unboxed as MAS
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Stream as MAS
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as AT
 
 import Test.Inspection

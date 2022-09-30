@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Stream.Unboxed
+-- Module      : Streamly.Internal.Data.Array.Unboxed.Stream
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Combinators to efficiently manipulate streams of immutable arrays.
 --
-module Streamly.Internal.Data.Array.Stream.Unboxed
+module Streamly.Internal.Data.Array.Unboxed.Stream
     (
     -- * Creation
       arraysOf
@@ -67,7 +67,7 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
-import Streamly.Internal.Data.Array.Stream.Fold.Unboxed (ArrayFold(..))
+import Streamly.Internal.Data.Array.Unboxed.Stream.Fold (ArrayFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream
     (fromStreamD, fromStreamK, toStreamD, toStreamK)
@@ -81,7 +81,7 @@ import qualified Streamly.Internal.Data.Array.Unboxed as A
 import qualified Streamly.Internal.Data.Array.Unboxed as Array
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
-import qualified Streamly.Internal.Data.Array.Stream.Mut.Unboxed as AS
+import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Stream as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
@@ -204,7 +204,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 -------------------------------------------------------------------------------
 
 -- XXX These would not be needed once we implement compactLEFold, see
--- module Streamly.Internal.Data.Array.Stream.Mut.Unboxed
+-- module Streamly.Internal.Data.Array.Unboxed.Mut.Stream
 --
 {-# INLINE_NORMAL packArraysChunksOf #-}
 packArraysChunksOf :: (MonadIO m, Unboxed a)
