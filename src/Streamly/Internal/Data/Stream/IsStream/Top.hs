@@ -71,7 +71,7 @@ import qualified Streamly.Internal.Data.Array as Array
     (fromStream, length, toStream)
 import qualified Streamly.Data.Array.Unboxed.Mut as MA
 import qualified Streamly.Internal.Data.Fold as Fold
-    (head, last, toStream, toStreamRev)
+    (last, next, toStream, toStreamRev)
 import qualified Streamly.Internal.Data.Parser as Parser
     (groupByRollingEither)
 import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream
@@ -132,7 +132,7 @@ sampleIntervalEnd n = Stream.catMaybes . Stream.intervalsOf n Fold.last
 -- | Like 'sampleInterval' but samples at the beginning of the time window.
 --
 -- @
--- sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.head
+-- sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.next
 -- @
 --
 -- /Pre-release/
