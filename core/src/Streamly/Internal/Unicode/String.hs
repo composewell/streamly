@@ -2,7 +2,7 @@
 -- |
 -- Module      : Streamly.Internal.Unicode.String
 -- Copyright   : (c) 2022 Composewell Technologies
--- License     : Apache-2.0
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC

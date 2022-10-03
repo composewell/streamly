@@ -355,6 +355,7 @@ library
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Array.Unboxed.Mut
                      , Streamly.Unicode.Stream
+                     , Streamly.Unicode.String
                      , Streamly.FileSystem.Handle
 
     other-modules:
