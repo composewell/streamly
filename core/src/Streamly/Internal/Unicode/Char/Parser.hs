@@ -43,10 +43,10 @@ module Streamly.Internal.Unicode.Char.Parser
     , digit
     , octDigit
     , hexDigit
+    , numeric
 
     -- * Numeric
     , signed
-    , numeric
     , double
     , decimal
     , hexadecimal
