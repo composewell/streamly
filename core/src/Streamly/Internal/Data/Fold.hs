@@ -356,7 +356,7 @@ import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as FoldW
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Ring.Foreign as Ring
+import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 

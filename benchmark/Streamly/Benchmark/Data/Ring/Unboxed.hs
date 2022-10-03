@@ -14,7 +14,7 @@ import Control.Monad (void)
 import GHC.Ptr (Ptr(..))
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
-import qualified Streamly.Internal.Data.Ring.Foreign as Ring
+import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 import qualified Data.Foldable as P
 
 import Gauge

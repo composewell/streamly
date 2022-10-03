@@ -567,11 +567,11 @@ benchmark Data.Ring.Unboxed
 -- Array Stream Benchmarks
 -------------------------------------------------------------------------------
 
-benchmark Data.Array.Stream.Foreign
+benchmark Data.Array.Unboxed.Stream
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Array/Stream
-  main-is: Foreign.hs
+  main-is: Unboxed.hs
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
   else

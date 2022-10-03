@@ -18,7 +18,7 @@
 -- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
 -- instances should be used with care; concatenating arrays using binary
 -- operations can be highly inefficient.  Instead, use
--- 'Streamly.Internal.Data.Array.Stream.Foreign.toArray' to concatenate N
+-- 'Streamly.Internal.Data.Array.Unboxed.Stream.toArray' to concatenate N
 -- arrays at once.
 --
 -- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
@@ -140,7 +140,7 @@ import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
-import qualified Streamly.Internal.Data.Ring.Foreign as RB
+import qualified Streamly.Internal.Data.Ring.Unboxed as RB
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Type as Stream

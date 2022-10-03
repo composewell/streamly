@@ -70,7 +70,7 @@ import Streamly.Internal.Data.Tuple.Strict
 
 import qualified Data.Map as Map
 import qualified Streamly.Internal.Data.Fold.Type as Fold
-import qualified Streamly.Internal.Data.Ring.Foreign as Ring
+import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 
 import Prelude hiding (length, sum, minimum, maximum)
 
@@ -78,7 +78,7 @@ import Prelude hiding (length, sum, minimum, maximum)
 -- >>> import Data.Bifunctor(bimap)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
--- >>> import qualified Streamly.Internal.Data.Ring.Foreign as Ring
+-- >>> import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import Prelude hiding (length, sum, minimum, maximum)
 
