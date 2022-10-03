@@ -29,7 +29,7 @@
 -- >>> Data.List.foldl' (+) 0 [1..100]
 -- 5050
 --
--- 'Fold's have an early termination capability e.g. the 'head' fold would
+-- 'Fold's have an early termination capability e.g. the 'one' fold would
 -- terminate on an infinite stream:
 --
 -- >>> Stream.fold Fold.one $ Stream.fromList [1..]
@@ -173,7 +173,7 @@ module Streamly.Data.Fold
     -- | These are much like lazy right folds.
 
     , index
-    , head
+    , one
     , find
     , lookup
     , findIndex
@@ -276,7 +276,7 @@ where
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM_, sequence, all, any, sum, product, elem,
-               notElem, maximum, minimum, head, last, tail, length, null,
+               notElem, maximum, minimum, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
                span, splitAt, break, mapM)
