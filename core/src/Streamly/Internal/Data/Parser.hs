@@ -241,9 +241,6 @@ module Streamly.Internal.Data.Parser
     , retryMaxTotal
     , retryMaxSuccessive
     , retry
-
-     -- * Deprecated
-    , next
     )
 where
 
@@ -507,16 +504,6 @@ oneOf xs = satisfy (`elem` xs)
 {-# INLINE noneOf #-}
 noneOf :: (Monad m, Eq a) => [a] -> Parser m a a
 noneOf xs = satisfy (`notElem` xs)
-
--- | Return the next element of the input. Returns 'Nothing'
--- on end of input. Also known as 'head'.
---
--- /Pre-release/
---
-{-# DEPRECATED next "Please use \"fromFold Fold.one\" instead" #-}
-{-# INLINE next #-}
-next :: Monad m => Parser m a (Maybe a)
-next = D.toParserK D.next
 
 -- | Map a 'Maybe' returning function on the next element in the stream. The
 -- parser fails if the function returns 'Nothing' otherwise returns the 'Just'

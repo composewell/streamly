@@ -1265,7 +1265,7 @@ one = maybe Just
 -- >>> head = Fold.one
 --
 -- @since 0.7.0
--- {-# DEPRECATED head "Please use \"one\" instead" #-}
+{-# DEPRECATED head "Please use \"one\" instead" #-}
 {-# INLINE head #-}
 head :: Monad m => Fold m a (Maybe a)
 head = one
@@ -1366,7 +1366,7 @@ elemIndex a = findIndex (a ==)
 
 -- | Return 'True' if the input stream is empty.
 --
--- > null = fmap isJust Fold.head
+-- > null = fmap isJust Fold.one
 --
 -- @since 0.7.0
 {-# INLINE null #-}
