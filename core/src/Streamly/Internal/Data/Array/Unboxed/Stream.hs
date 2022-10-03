@@ -473,7 +473,7 @@ foldlM' step begin = D.foldlM' step begin . S.toStreamD
 spliceArraysLenUnsafe :: (MonadIO m, Unboxed a)
     => Int -> Stream m (MA.Array a) -> m (MA.Array a)
 spliceArraysLenUnsafe len buffered = do
-    arr <- liftIO $ MA.newArray len
+    arr <- liftIO $ MA.newPinned len
     foldlM' MA.spliceUnsafe (return arr) buffered
 
 {-# INLINE _spliceArrays #-}
@@ -482,7 +482,7 @@ _spliceArrays :: (MonadIO m, Unboxed a)
 _spliceArrays s = do
     buffered <- S.foldr S.cons S.nil s
     len <- S.fold FL.sum (fmap Array.length buffered)
-    arr <- liftIO $ MA.newArray len
+    arr <- liftIO $ MA.newPinned len
     final <- foldlM' writeArr (return arr) s
     return $ A.unsafeFreeze final
 
@@ -503,7 +503,7 @@ spliceArraysRealloced :: forall m a. (MonadIO m, Unboxed a)
     => Stream m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
     let n = allocBytesToElemCount (undefined :: a) (4 * 1024)
-        idst = liftIO $ MA.newArray n
+        idst = liftIO $ MA.newPinned n
 
     arr <- foldlM' MA.spliceExp idst (fmap A.unsafeThaw s)
     liftIO $ A.unsafeFreeze <$> MA.rightSize arr

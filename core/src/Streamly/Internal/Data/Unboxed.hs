@@ -14,7 +14,9 @@ module Streamly.Internal.Data.Unboxed
     , getMutableByteArray#
     , pin
     , unpin
-    , newUnpinnedArrayContents
+    , newUnpinnedBytes
+    , newAlignedPinnedBytes
+    , nil
     ) where
 
 #include "MachDeps.h"
@@ -36,6 +38,7 @@ import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
 #if MIN_VERSION_base(4,15,0)
 import GHC.RTS.Flags (IoSubSystem(..))
 #endif
+import System.IO.Unsafe (unsafePerformIO)
 
 import GHC.Exts
 
@@ -63,12 +66,26 @@ touch (MutableByteArray contents) =
 -- Creation
 --------------------------------------------------------------------------------
 
-{-# INLINE newUnpinnedArrayContents #-}
-newUnpinnedArrayContents :: Int -> IO (MutableByteArray a)
-newUnpinnedArrayContents nbytes | nbytes < 0 =
-  errorWithoutStackTrace "newUnpinnedArrayContents: size must be >= 0"
-newUnpinnedArrayContents (I# nbytes) = IO $ \s ->
+{-# NOINLINE nil #-}
+nil :: MutableByteArray a
+nil = unsafePerformIO $ newUnpinnedBytes 0
+
+{-# INLINE newUnpinnedBytes #-}
+newUnpinnedBytes :: Int -> IO (MutableByteArray a)
+newUnpinnedBytes nbytes | nbytes < 0 =
+  errorWithoutStackTrace "newUnpinnedBytes: size must be >= 0"
+newUnpinnedBytes (I# nbytes) = IO $ \s ->
     case newByteArray# nbytes s of
+        (# s', mbarr# #) ->
+           let c = MutableByteArray mbarr#
+            in (# s', c #)
+
+{-# INLINE newAlignedPinnedBytes #-}
+newAlignedPinnedBytes :: Int -> Int -> IO (MutableByteArray a)
+newAlignedPinnedBytes nbytes _align | nbytes < 0 =
+  errorWithoutStackTrace "newAlignedPinnedBytes: size must be >= 0"
+newAlignedPinnedBytes (I# nbytes) (I# align) = IO $ \s ->
+    case newAlignedPinnedByteArray# nbytes align s of
         (# s', mbarr# #) ->
            let c = MutableByteArray mbarr#
             in (# s', c #)
