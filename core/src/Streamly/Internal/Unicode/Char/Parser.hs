@@ -33,7 +33,7 @@ module Streamly.Internal.Unicode.Char.Parser
     , lower
     , upper
     , mark
-    , print
+    , printable
     , punctuation
     , separator
     , space
@@ -57,7 +57,6 @@ import Control.Applicative (Alternative(..))
 import Control.Monad.Catch (MonadCatch)
 import Data.Bits (Bits, (.|.), shiftL)
 import Data.Char (ord)
-import Prelude hiding (print)
 import Streamly.Internal.Data.Parser (Parser)
 
 import qualified Data.Char as Char
@@ -101,8 +100,8 @@ CHAR_PARSER(alpha,isAlpha)
 CHAR_PARSER_SIG(alphaNum)
 CHAR_PARSER(alphaNum,isAlphaNum)
 
-CHAR_PARSER_SIG(print)
-CHAR_PARSER(print,isPrint)
+CHAR_PARSER_SIG(printable)
+CHAR_PARSER(printable,isPrint)
 
 CHAR_PARSER_SIG(digit)
 CHAR_PARSER(digit,isDigit)

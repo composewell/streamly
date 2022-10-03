@@ -33,7 +33,7 @@ module Streamly.Unicode.Parser
     , lower
     , upper
     , mark
-    , print
+    , printable
     , punctuation
     , separator
     , space
@@ -53,4 +53,3 @@ module Streamly.Unicode.Parser
 where
 
 import Streamly.Internal.Unicode.Char.Parser
-import Prelude hiding (print)
