@@ -1,7 +1,7 @@
 # Changelog
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
-## Unreleased
+## 0.9.0 (Unreleased)
 
 * Remove support for GHC 8.4.*
 * The unboxed arrays now require `Unbox` instance along with `Storable` for the

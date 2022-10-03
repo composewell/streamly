@@ -126,9 +126,9 @@
       they want.
     * Make sure the package version in configure.ac has the correct release
       version, else set the version correctly and run autoreconf. This might
-      need to be done on a minor release.
-    * Change the `Unreleased` section at the top of changelog file to the new
-      release version number and the month/year of publishing.
+      need to be done for a minor release.
+    * Make sure the `Unreleased` section at the top of changelog file has the
+      new release version number and the month/year of publishing.
     * Make sure the package version in the cabal file and package.yaml has the
       correct release version, else set the version correctly. This might need
       to be done on a minor release.
@@ -179,6 +179,8 @@
     * Bump the package version in configure.ac to the next major release target
       and run autoreconf.
     * Sync the package version of `streamly` and `streamly-docs`.
+    * Add an `Unreleased` section at the top of changelog file with the next
+      major release target.
 
 ## Breaking Changes
 
