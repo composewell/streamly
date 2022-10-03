@@ -159,7 +159,7 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
                                 liftIO (cleanupSVar (workerThreads sv))
                                 throwM ex
 
-#if MIN_VERSION_base(4,13,0)
+#if MIN_VERSION_base(4,14,0)
 #ifdef INSPECTION
 -- Use of GHC constraint tuple (GHC.Classes.(%,,%)) in fromStreamVar leads to
 -- space leak because the tuple gets allocated in every recursive call and each
