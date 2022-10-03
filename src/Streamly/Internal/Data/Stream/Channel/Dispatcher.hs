@@ -32,9 +32,6 @@ import Control.Exception (assert)
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (IORef, modifyIORef, readIORef, writeIORef)
-#if __GLASGOW_HASKELL__ < 804
-import Data.Semigroup ((<>))
-#endif
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS, writeBarrier)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units

@@ -50,7 +50,7 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream (fromStreamK)
 
 import Streamly.Internal.Data.SVar
 
-#if __GLASGOW_HASKELL__ < 810
+#if MIN_VERSION_base(4,13,0)
 #ifdef INSPECTION
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow)
@@ -161,7 +161,7 @@ fromStreamVar sv = K.MkStream $ \st yld sng stp -> do
                 sid <- liftIO $ readIORef (svarStopBy sv)
                 return $ tid == sid
 
-#if __GLASGOW_HASKELL__ < 810
+#if MIN_VERSION_base(4,13,0)
 #ifdef INSPECTION
 -- Use of GHC constraint tuple (GHC.Classes.(%,,%)) in fromStreamVar leads to
 -- space leak because the tuple gets allocated in every recursive call and each
