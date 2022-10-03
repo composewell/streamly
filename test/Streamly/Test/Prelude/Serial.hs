@@ -432,7 +432,7 @@ checkTakeDropTime (mt0, mt1) = do
 testTakeInterval :: IO Bool
 testTakeInterval = do
     r <-
-          S.fold (FL.tee FL.head FL.last)
+          S.fold (FL.tee FL.head FL.end)
         $ IS.takeInterval takeDropTime
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime r
@@ -494,7 +494,7 @@ foldIterateM =
         let s1 = Prelude.sum lst
             strm = S.fromList lst
         ms2 <-
-            S.last
+            S.end
                 $ S.map getSum
                 $ IS.foldIterateM
                       (return . FL.take 1 . FL.sconcat)

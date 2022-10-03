@@ -174,7 +174,7 @@ foldl  = S.foldl' (+) 0
 
 {-# INLINE last #-}
 last :: Monad m => Stream m Int -> m (Maybe Int)
-last   = S.last
+last   = S.end
 -}
 
 -------------------------------------------------------------------------------

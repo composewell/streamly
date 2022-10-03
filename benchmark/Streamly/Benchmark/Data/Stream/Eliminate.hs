@@ -55,7 +55,7 @@ import Stream.Common
 #endif
 import Streamly.Benchmark.Common
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
-    lookup, repeat, minimum, maximum, product, last, mapM_, init)
+    lookup, repeat, minimum, maximum, product, end, mapM_, init)
 import qualified Prelude
 
 #ifdef USE_PRELUDE
@@ -323,7 +323,7 @@ foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) (return 0)
 
 {-# INLINE last #-}
 last :: Monad m => Stream m Int -> m (Maybe Int)
-last = S.last
+last = S.end
 
 {-# INLINE _head #-}
 _head :: Monad m => Stream m Int -> m (Maybe Int)

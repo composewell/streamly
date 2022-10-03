@@ -84,7 +84,7 @@ benchIO name src sink =
 toChunksLast :: Handle -> IO (Maybe Word8)
 toChunksLast inh = do
     let s = Handle.getChunks inh
-    larr <- Stream.last s
+    larr <- Stream.end s
     return $ case larr of
         Nothing -> Nothing
         Just arr -> Array.getIndex (Array.length arr - 1) arr
@@ -154,7 +154,7 @@ o_1_space_read_chunked :: BenchEnv -> [Benchmark]
 o_1_space_read_chunked env =
     -- read using toChunks instead of read
     [ bgroup "reduce/toChunks"
-        [ mkBench "Stream.last" env $ \inH _ ->
+        [ mkBench "Stream.end" env $ \inH _ ->
             toChunksLast inH
         -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
         -- wc uses lseek to just determine the file size rather than reading

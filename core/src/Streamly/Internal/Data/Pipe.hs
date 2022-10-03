@@ -144,7 +144,7 @@ module Streamly.Internal.Data.Pipe
     -- Semigroup instances of the output types:
     --
     -- >>> import Data.Monoid (Sum)
-    -- >>> FL.foldl' (FL.head <> FL.last) (fmap Sum $ S.enumerateFromTo 1.0 100.0)
+    -- >>> FL.foldl' (FL.head <> FL.end) (fmap Sum $ S.enumerateFromTo 1.0 100.0)
     -- Just (Sum {getSum = 101.0})
     --
     -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
@@ -233,7 +233,7 @@ where
 import Prelude
        hiding (id, filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM_, sequence, all, any, sum, product, elem,
-               notElem, maximum, minimum, head, last, tail, length, null,
+               notElem, maximum, minimum, head, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
                span, splitAt, break, mapM)
@@ -1758,7 +1758,7 @@ classifyChunksBy
     => Int   -- ^ window spaceout (spread)
     -> Bool  -- ^ reset the spaceout when a chunk window element is received
     -> Fold m a b       -- ^ Fold to be applied to chunk window elements
-    -> t m (k, a, Bool) -- ^ chunk key, data, last element
+    -> t m (k, a, Bool) -- ^ chunk key, data, end element
     -> t m (k, b)
 classifyChunksBy spanout reset (Fold step initial extract) str = undefined
 
@@ -1771,7 +1771,7 @@ classifyKeepAliveChunks
     :: (IsStream t, MonadAsync m, Ord k)
     => Int   -- ^ window spaceout (spread)
     -> Fold m a b       -- ^ Fold to be applied to chunk window elements
-    -> t m (k, a, Bool) -- ^ chunk key, data, last element
+    -> t m (k, a, Bool) -- ^ chunk key, data, end element
     -> t m (k, b)
 classifyKeepAliveChunks spanout = classifyChunksBy spanout True
 -}

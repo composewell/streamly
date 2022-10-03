@@ -98,7 +98,7 @@ module Streamly.Internal.Data.Fold
     -- the 'scanMaybe' combinator. For scanners the result of the fold is
     -- usually a transformation of the current element rather than an
     -- aggregation of all elements till now.
-    , last -- XXX prev
+    , end -- XXX prev
  -- , nthLast -- using Ring array
     , indexingWith
     , indexing
@@ -739,14 +739,14 @@ nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 drainBy ::  Monad m => (a -> m b) -> Fold m a ()
 drainBy f = lmapM f drain
 
--- | Extract the last element of the input stream, if any.
+-- | Extract the end element of the input stream, if any.
 --
--- > last = fmap getLast $ Fold.foldMap (Last . Just)
+-- > end = fmap getLast $ Fold.foldMap (Last . Just)
 --
 -- @since 0.7.0
-{-# INLINE last #-}
-last :: Monad m => Fold m a (Maybe a)
-last = foldl1' (\_ x -> x)
+{-# INLINE end #-}
+end :: Monad m => Fold m a (Maybe a)
+end = foldl1' (\_ x -> x)
 
 -- | If the stream consists of one or more occurences of the same element
 -- then returns that element else terminates and returns 'Nothing'.
@@ -2291,7 +2291,7 @@ demuxWith getKey getFold =
         getMap (Just action) = action
         aggregator =
             teeWith IsMap.mapUnion
-                (rmapM getMap $ lmap fst last)
+                (rmapM getMap $ lmap fst end)
                 (lmap snd $ catMaybes toMap)
     in postscan classifier aggregator
 
@@ -2309,7 +2309,7 @@ demuxMutWith getKey getFold =
         getMap (Just action) = action
         aggregator =
             teeWith IsMap.mapUnion
-                (rmapM getMap $ lmap fst last)
+                (rmapM getMap $ lmap fst end)
                 (lmap snd $ catMaybes toMap)
     in postscan classifier aggregator
 
@@ -2494,7 +2494,7 @@ classifyWith f fld =
         getMap (Just action) = action
         aggregator =
             teeWith IsMap.mapUnion
-                (rmapM getMap $ lmap fst last)
+                (rmapM getMap $ lmap fst end)
                 (lmap snd $ catMaybes toMap)
     in postscan classifier aggregator
 
@@ -2513,7 +2513,7 @@ classifyMutWith f fld =
         getMap (Just action) = action
         aggregator =
             teeWith IsMap.mapUnion
-                (rmapM getMap $ lmap fst last)
+                (rmapM getMap $ lmap fst end)
                 (lmap snd $ catMaybes toMap)
     in postscan classifier aggregator
 

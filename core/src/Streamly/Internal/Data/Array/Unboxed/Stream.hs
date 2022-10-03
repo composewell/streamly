@@ -59,7 +59,7 @@ import Streamly.Internal.Data.Unboxed (Unboxed, peekWith, sizeOf)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
-import Prelude hiding (null, last, (!!), read, concat, unlines)
+import Prelude hiding (null, (!!), read, concat, unlines)
 
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)

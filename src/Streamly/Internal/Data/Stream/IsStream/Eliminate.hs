@@ -463,7 +463,7 @@ init m = fmap (fmap IsStream.fromStream) $ K.init $ Stream.toStreamK m
 -- | Extract the last element of the stream, if any.
 --
 -- > last xs = xs !! (Stream.length xs - 1)
--- > last = Stream.fold Fold.last
+-- > last = Stream.fold Fold.end
 --
 -- @since 0.1.1
 {-# INLINE last #-}

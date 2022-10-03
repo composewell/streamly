@@ -1132,7 +1132,7 @@ classifyChunksBy
     => Int   -- ^ window spaceout (spread)
     -> Bool  -- ^ reset the spaceout when a chunk window element is received
     -> Fold m a b       -- ^ Fold to be applied to chunk window elements
-    -> t m (k, a, Bool) -- ^ chunk key, data, last element
+    -> t m (k, a, Bool) -- ^ chunk key, data, end element
     -> t m (k, b)
 classifyChunksBy spanout reset (Fold step initial extract) str = undefined
 
@@ -1145,7 +1145,7 @@ classifyKeepAliveChunks
     :: (IsStream t, MonadAsync m, Ord k)
     => Int   -- ^ window spaceout (spread)
     -> Fold m a b       -- ^ Fold to be applied to chunk window elements
-    -> t m (k, a, Bool) -- ^ chunk key, data, last element
+    -> t m (k, a, Bool) -- ^ chunk key, data, end element
     -> t m (k, b)
 classifyKeepAliveChunks spanout = classifyChunksBy spanout True
 -}

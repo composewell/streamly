@@ -341,7 +341,7 @@ data Step s b =
     -- ^ Done with leftover input count and result.
     --
     -- @Done count result@ means the parser has finished, it will accept no
-    -- more input, last @count@ elements from the input are unused and the
+    -- more input, end @count@ elements from the input are unused and the
     -- result of the parser is in @result@.
 
     | Error !String

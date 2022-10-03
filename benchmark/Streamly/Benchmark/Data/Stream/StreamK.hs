@@ -24,7 +24,7 @@ import Control.Monad (when)
 import Data.Maybe (isJust)
 import System.Random (randomRIO)
 import Prelude hiding
-    ( tail, mapM_, foldl, last, map, mapM, concatMap, zipWith, init, iterate
+    ( tail, mapM_, foldl, end, map, mapM, concatMap, zipWith, init, iterate
     , repeat, replicate
     )
 
@@ -237,7 +237,7 @@ foldl' = S.foldl' (+) 0
 
 {-# INLINE last #-}
 last :: Monad m => Stream m Int -> m (Maybe Int)
-last = S.last
+last = S.end
 
 -------------------------------------------------------------------------------
 -- Transformation
@@ -801,7 +801,7 @@ o_1_space_list :: Int -> Benchmark
 o_1_space_list streamLen =
     bgroup "list"
       [ bgroup "elimination"
-        [ benchList "last" (\xs -> [List.last xs]) (unfoldrList streamLen)
+        [ benchList "last" (\xs -> [List.end xs]) (unfoldrList streamLen)
         ]
       , bgroup "nested"
         [ benchList "toNullAp" toNullApNestedList (unfoldrList streamLen2)

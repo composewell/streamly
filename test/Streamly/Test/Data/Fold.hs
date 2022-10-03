@@ -28,7 +28,7 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding
-    (maximum, minimum, elem, notElem, null, product, sum, head, last, take)
+    (maximum, minimum, elem, notElem, null, product, sum, head, end, take)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 
@@ -130,7 +130,7 @@ safeLast (x:[]) = Just x
 safeLast (_:xs) = safeLast xs
 
 last :: [String] -> Expectation
-last ls = Stream.fold Fold.last (Stream.fromList  ls) `shouldReturn` safeLast ls
+last ls = Stream.fold Fold.end (Stream.fromList  ls) `shouldReturn` safeLast ls
 
 mapMaybe :: [Int] -> Expectation
 mapMaybe ls =

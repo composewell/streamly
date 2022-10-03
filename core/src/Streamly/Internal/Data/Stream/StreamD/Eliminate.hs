@@ -314,7 +314,7 @@ tail (UnStream step state) = go SPEC state
 {-# INLINE_NORMAL last #-}
 last :: Monad m => Stream m a -> m (Maybe a)
 #ifdef USE_FOLDS_EVERYWHERE
-last = fold Fold.last
+last = fold Fold.end
 #else
 last = foldl' (\_ y -> Just y) Nothing
 #endif

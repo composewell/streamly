@@ -59,7 +59,7 @@ import Test.Inspection
 
 -- | Get the last byte from a file bytestream.
 readLast :: Handle -> IO (Maybe Word8)
-readLast = S.last . S.unfold FH.read
+readLast = S.end . S.unfold FH.read
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readLast
@@ -157,7 +157,7 @@ o_1_space_reduce_read env =
         [ -- read raw bytes without any decoding
           mkBench "S.drain" env $ \inh _ ->
             readDrain inh
-        , mkBench "S.last" env $ \inh _ ->
+        , mkBench "S.end" env $ \inh _ ->
             readLast inh
         , mkBench "S.sum" env $ \inh _ ->
             readSumBytes inh

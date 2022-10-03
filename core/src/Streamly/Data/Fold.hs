@@ -153,7 +153,7 @@ module Streamly.Data.Fold
     -- Reducers
     , drain
     , drainBy
-    , last
+    , end
     , length
     , sum
     , product
@@ -276,7 +276,7 @@ where
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM_, sequence, all, any, sum, product, elem,
-               notElem, maximum, minimum, head, last, tail, length, null,
+               notElem, maximum, minimum, head, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
                span, splitAt, break, mapM)
