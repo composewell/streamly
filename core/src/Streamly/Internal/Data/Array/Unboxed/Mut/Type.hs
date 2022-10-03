@@ -18,7 +18,6 @@ module Streamly.Internal.Data.Array.Unboxed.Mut.Type
     -- $arrayNotes
       Array (..)
     , MutableByteArray
-    , nilArrayContents
     , touch
     , pin
     , unpin
@@ -28,11 +27,11 @@ module Streamly.Internal.Data.Array.Unboxed.Mut.Type
     , nil
 
     -- *** Uninitialized Arrays
-    , newArray
-    , newPinnedArrayBytes
-    , newArrayAligned
+    , newPinned
+    , newPinnedBytes
+    , newAlignedPinned
+    , new
     , newArrayWith
-    , newAlignedArrayContents
 
     -- *** Initialized Arrays
     , withNewArrayUnsafe
@@ -234,9 +233,11 @@ import Streamly.Internal.Data.Unboxed
     , touch
     )
 import GHC.Base
-    ( IO(..), byteArrayContents#
-    , Int(..), newAlignedPinnedByteArray#
-    , copyMutableByteArray#, compareByteArrays#
+    ( IO(..)
+    , Int(..)
+    , byteArrayContents#
+    , compareByteArrays#
+    , copyMutableByteArray#
     )
 import GHC.Base (noinline)
 import GHC.Exts (unsafeCoerce#)
@@ -248,7 +249,6 @@ import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
-import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -385,6 +385,8 @@ unpin arr@Array{..} = do
 -- Alignment must be greater than or equal to machine word size and a power of
 -- 2.
 --
+-- Alignment is ignored if the allocator allocates unpinned memory.
+--
 -- /Pre-release/
 {-# INLINE newArrayWith #-}
 newArrayWith :: forall m a. (MonadIO m, Unboxed a)
@@ -399,67 +401,62 @@ newArrayWith alloc alignSize count = do
         , arrBound = size
         }
 
--- XXX Move this to Unboxed and rename this to newPinnedAlignedBytes?
--- XXX Similarly have newUnpinnedBytes
-{-# INLINE newAlignedArrayContents #-}
-newAlignedArrayContents :: Int -> Int -> IO (MutableByteArray a)
-newAlignedArrayContents nbytes _align | nbytes < 0 =
-  errorWithoutStackTrace "newAlignedArrayContents: size must be >= 0"
-newAlignedArrayContents (I# nbytes) (I# align) = IO $ \s ->
-    case newAlignedPinnedByteArray# nbytes align s of
-        (# s', mbarr# #) ->
-           let c = MutableByteArray mbarr#
-            in (# s', c #)
-
-{-# NOINLINE nilArrayContents #-}
-nilArrayContents :: MutableByteArray a
-nilArrayContents =
-    unsafePerformIO $ newAlignedArrayContents 0 0
-
 nil ::
 #ifdef DEVBUILD
     Unboxed a =>
 #endif
     Array a
-nil = Array nilArrayContents 0 0 0
+nil = Array Unboxed.nil 0 0 0
 
--- | Like 'newArrayWith' but using an allocator that aligns the memory to the
--- alignment dictated by the 'Unboxed' instance of the type.
---
--- /Internal/
-{-# INLINE newArrayAligned #-}
-newArrayAligned :: (MonadIO m, Unboxed a) => Int -> Int -> m (Array a)
-newArrayAligned = newArrayWith (\s a -> liftIO $ newAlignedArrayContents s a)
-
--- XXX Intead of newArray, make newPinnedArray and newUnpinnedArray. Make it
--- more explicit.
--- XXX can unaligned allocation be more efficient when alignment is not needed?
---
--- | Allocates an empty array that can hold 'count' items.  The memory of the
--- array is uninitialized and the allocation is aligned as per the 'Unboxed'
--- instance of the type.
---
--- /Pre-release/
-{-# INLINE newArray #-}
-newArray :: forall m a. (MonadIO m, Unboxed a) => Int -> m (Array a)
-newArray = newArrayAligned (alignment (undefined :: a))
 
 -- | Allocates a pinned empty array that can hold 'count' items.  The memory of
 -- the array is uninitialized and the allocation is aligned as per the
 -- 'Unboxed' instance of the type.
 --
 -- /Pre-release/
-{-# INLINE newPinnedArrayBytes #-}
-newPinnedArrayBytes :: forall m a. (MonadIO m, Unboxed a) => Int -> m (Array a)
-newPinnedArrayBytes bytes = do
+{-# INLINE newPinnedBytes #-}
+newPinnedBytes :: forall m a. (MonadIO m, Unboxed a) => Int -> m (Array a)
+newPinnedBytes bytes = do
     contents <-
-        liftIO $ newAlignedArrayContents bytes (alignment (undefined :: a))
+        liftIO
+            $ Unboxed.newAlignedPinnedBytes bytes (alignment (undefined :: a))
     return $ Array
         { arrContents = contents
         , arrStart = 0
         , arrEnd   = 0
         , arrBound = bytes
         }
+
+-- | Like 'newArrayWith' but using an allocator is a pinned memory allocator and
+-- the alignment is dictated by the 'Unboxed' instance of the type.
+--
+-- /Internal/
+{-# INLINE newAlignedPinned #-}
+newAlignedPinned :: (MonadIO m, Unboxed a) => Int -> Int -> m (Array a)
+newAlignedPinned =
+    newArrayWith (\s a -> liftIO $ Unboxed.newAlignedPinnedBytes s a)
+
+-- XXX can unaligned allocation be more efficient when alignment is not needed?
+--
+-- | Allocates an empty pinned array that can hold 'count' items.  The memory of
+-- the array is uninitialized and the allocation is aligned as per the 'Unboxed'
+-- instance of the type.
+--
+-- /Pre-release/
+{-# INLINE newPinned #-}
+newPinned :: forall m a. (MonadIO m, Unboxed a) => Int -> m (Array a)
+newPinned = newAlignedPinned (alignment (undefined :: a))
+
+-- | Allocates an empty unpinned array that can hold 'count' items.  The memory
+-- of the array is uninitialized.
+--
+-- /Pre-release/
+{-# INLINE new #-}
+new :: (MonadIO m, Unboxed a) => Int -> m (Array a)
+new =
+    newArrayWith
+        (\s _ -> liftIO $ Unboxed.newUnpinnedBytes s)
+        (error "new: alignment is not used in unpinned arrays.")
 
 -- | Allocate an Array of the given size and run an IO action passing the array
 -- start pointer.
@@ -469,7 +466,7 @@ newPinnedArrayBytes bytes = do
 withNewArrayUnsafe ::
        (MonadIO m, Unboxed a) => Int -> (Ptr a -> m ()) -> m (Array a)
 withNewArrayUnsafe count f = do
-    arr <- newArray count
+    arr <- newPinned count
     asPtrUnsafe arr
         $ \p -> f p >> return arr
 
@@ -719,7 +716,7 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
 
     -- Allocate new array
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
-    contents <- newAlignedArrayContents newCapMaxInBytes alignSize
+    contents <- Unboxed.newAlignedPinnedBytes newCapMaxInBytes alignSize
     let !(MutableByteArray mbarrFrom#) = arrContents
         !(MutableByteArray mbarrTo#) = contents
 
@@ -1310,7 +1307,7 @@ arraysOf n (D.Stream step state) =
             error $ "Streamly.Internal.Data.Array.Unboxed.Mut.Type.arraysOf: "
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
-        Array contents start end bound <- liftIO $ newArray n
+        Array contents start end bound <- liftIO $ newPinned n
         return $ D.Skip (GroupBuffer st contents start end bound)
 
     step' gst (GroupBuffer st contents start end bound) = do
@@ -1749,13 +1746,13 @@ writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
--- >>> writeNUnsafe = Array.writeNWithUnsafe Array.newArray
+-- >>> writeNUnsafe = Array.writeNWithUnsafe Array.newPinned
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Fold m a (Array a)
-writeNUnsafe = writeNWithUnsafe newArray
+writeNUnsafe = writeNWithUnsafe newPinned
 
 -- | @writeNWith alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
@@ -1771,14 +1768,14 @@ writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
--- >>> writeN = Array.writeNWith Array.newArray
+-- >>> writeN = Array.writeNWith Array.newPinned
 -- >>> writeN n = Fold.take n (Array.writeNUnsafe n)
--- >>> writeN n = Array.appendN (Array.newArray n) n
+-- >>> writeN n = Array.appendN (Array.newPinned n) n
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL writeN #-}
 writeN :: forall m a. (MonadIO m, Unboxed a) => Int -> Fold m a (Array a)
-writeN = writeNWith newArray
+writeN = writeNWith newPinned
 
 -- | Like writeNWithUnsafe but writes the array in reverse order.
 --
@@ -1814,20 +1811,20 @@ writeRevNWith alloc n = FL.take n (writeRevNWithUnsafe alloc n)
 -- /Pre-release/
 {-# INLINE_NORMAL writeRevN #-}
 writeRevN :: forall m a. (MonadIO m, Unboxed a) => Int -> Fold m a (Array a)
-writeRevN = writeRevNWith newArray
+writeRevN = writeRevNWith newPinned
 
 -- | @writeNAligned align n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
 --
--- >>> writeNAligned align = Array.writeNWith (Array.newArrayAligned align)
--- >>> writeNAligned align n = Array.appendN (Array.newArrayAligned align n) n
+-- >>> writeNAligned align = Array.writeNWith (Array.newAlignedPinned align)
+-- >>> writeNAligned align n = Array.appendN (Array.newAlignedPinned align n) n
 --
 -- /Pre-release/
 --
 {-# INLINE_NORMAL writeNAligned #-}
 writeNAligned :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Int -> Fold m a (Array a)
-writeNAligned align = writeNWith (newArrayAligned align)
+writeNAligned align = writeNWith (newAlignedPinned align)
 
 -- XXX Buffer to a list instead?
 --
@@ -1870,7 +1867,7 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 --
 -- /Caution! Do not use this on infinite streams./
 --
--- >>> f n = Array.appendWith (* 2) (Array.newArray n)
+-- >>> f n = Array.appendWith (* 2) (Array.newPinned n)
 -- >>> writeWith n = Fold.rmapM Array.rightSize (f n)
 -- >>> writeWith n = Fold.rmapM Array.fromArrayStreamK (Array.writeChunks n)
 --
@@ -1878,7 +1875,7 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Fold m a (Array a)
--- writeWith n = FL.rmapM rightSize $ appendWith (* 2) (newArray n)
+-- writeWith n = FL.rmapM rightSize $ appendWith (* 2) (newPinned n)
 writeWith elemCount =
     FL.rmapM extract $ FL.foldlM' step initial
 
@@ -1890,7 +1887,7 @@ writeWith elemCount =
 
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
-        liftIO $ newArrayAligned (alignment (undefined :: a)) elemCount
+        liftIO $ newAlignedPinned (alignment (undefined :: a)) elemCount
     step arr@(Array _ start end bound) x
         | INDEX_NEXT(end,a) > bound = do
         let oldSize = end - start
@@ -1931,7 +1928,7 @@ fromStreamDN :: forall m a. (MonadIO m, Unboxed a)
     => Int -> D.Stream m a -> m (Array a)
 -- fromStreamDN n = D.fold (writeN n)
 fromStreamDN limit str = do
-    arr <- liftIO $ newArray limit
+    arr <- liftIO $ newPinned limit
     end <- D.foldlM' (fwrite (arrContents arr)) (return $ arrEnd arr) $ D.take limit str
     return $ arr {arrEnd = end}
 
@@ -2038,7 +2035,7 @@ spliceCopy arr1 arr2 = liftIO $ do
         len2 = arrEnd arr2 - start2
     newArrContents <-
         liftIO
-            $ newAlignedArrayContents
+            $ Unboxed.newAlignedPinnedBytes
                   (len1 + len2)
                   (alignment (undefined :: a))
     let len = len1 + len2

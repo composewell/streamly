@@ -45,7 +45,7 @@ import Streamly.Internal.Data.Unboxed
     , sizeOf
     , peekWith
     , pokeWith
-    , newUnpinnedArrayContents
+    , newUnpinnedBytes
     )
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
@@ -59,7 +59,7 @@ newtype IORef a = IORef (MutableByteArray a)
 {-# INLINE newIORef #-}
 newIORef :: forall a. Unboxed a => a -> IO (IORef a)
 newIORef x = do
-    var <- newUnpinnedArrayContents (sizeOf (undefined :: a))
+    var <- newUnpinnedBytes (sizeOf (undefined :: a))
     pokeWith var 0 x
     return $ IORef var
 

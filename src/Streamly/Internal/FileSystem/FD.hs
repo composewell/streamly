@@ -146,7 +146,7 @@ import qualified Streamly.Internal.System.IOVec.Type as RawIO
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
-    (Array(..), newPinnedArrayBytes, asPtrUnsafe)
+    (Array(..), newPinnedBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
@@ -217,7 +217,7 @@ openFile path mode = Handle . fst <$> FD.openFile path mode True
 {-# INLINABLE readArrayUpto #-}
 readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size (Handle fd) = do
-    arr <- MArray.newPinnedArrayBytes size
+    arr <- MArray.newPinnedBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     MArray.asPtrUnsafe arr $ \p -> do
         -- n <- hGetBufSome h p size

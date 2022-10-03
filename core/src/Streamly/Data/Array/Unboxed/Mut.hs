@@ -19,7 +19,8 @@ module Streamly.Data.Array.Unboxed.Mut
     -- ** Construction
 
     -- Uninitialized Arrays
-    , newArray
+    , new
+    , newPinned
 
     -- From containers
     , fromListN

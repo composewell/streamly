@@ -42,7 +42,7 @@ testAppend =
 
         action ls = do
             x <- Stream.fold
-                    (MArray.append (MArray.newArray 0))
+                    (MArray.append (MArray.newPinned 0))
                     (Stream.fromList (ls::[Int]))
             lst <- MArray.toList x
             assert (ls == lst)

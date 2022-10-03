@@ -579,7 +579,7 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
                     Done b -> Done b
 
     toArray foldRing rb rh = do
-        arr <- liftIO $ MA.newArray n
+        arr <- liftIO $ MA.newPinned n
         let snoc' b a = liftIO $ MA.snocUnsafe b a
         foldRing rh snoc' arr rb
 

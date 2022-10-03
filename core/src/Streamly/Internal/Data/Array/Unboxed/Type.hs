@@ -94,12 +94,13 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
+import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
-import qualified GHC.Exts as Exts
 
 import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 
@@ -595,7 +596,7 @@ nil ::
     Unboxed a =>
 #endif
     Array a
-nil = Array MA.nilArrayContents 0 0
+nil = Array Unboxed.nil 0 0
 
 instance Unboxed a => Monoid (Array a) where
     mempty = nil

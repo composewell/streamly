@@ -2812,7 +2812,7 @@ topBy cmp n = Fold step initial extract
     where
 
     initial = do
-        arr <- MA.newArray n
+        arr <- MA.newPinned n
         if n <= 0
         then return $ Done arr
         else return $ Partial (arr, 0)
