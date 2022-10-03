@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Unicode.Char.Parser
+-- Module      : Streamly.Unicode.Parser
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -10,15 +10,15 @@
 -- "Streamly.Unicode.Stream" module to convert an input byte stream to a
 -- Unicode Char stream and then use these parsers on the Char stream.
 
-module Streamly.Unicode.Char.Parser
+module Streamly.Unicode.Parser
     (
      -- * Generic
       char
-    , charAnyCase
+    , charIgnoreCase
 
     -- * Sequences
     , string
-    , stringAnyCase
+    , stringIgnoreCase
     , dropSpace
     , dropSpace1
 
@@ -43,10 +43,10 @@ module Streamly.Unicode.Char.Parser
     , digit
     , octDigit
     , hexDigit
-    , number
 
     -- * Numeric
     , signed
+    , numeric
     , decimal
     , hexadecimal
     )

@@ -14,11 +14,11 @@ module Streamly.Internal.Unicode.Char.Parser
     (
     -- * Generic
       char
-    , charAnyCase
+    , charIgnoreCase
 
     -- * Sequences
     , string
-    , stringAnyCase
+    , stringIgnoreCase
     , dropSpace
     , dropSpace1
 
@@ -43,10 +43,10 @@ module Streamly.Internal.Unicode.Char.Parser
     , digit
     , octDigit
     , hexDigit
-    , number
 
     -- * Numeric
     , signed
+    , numeric
     , double
     , decimal
     , hexadecimal
@@ -77,7 +77,7 @@ import qualified Streamly.Internal.Data.Parser as Parser
 
 -- XXX It may be possible to implement faster predicates for ASCII byte stream.
 -- We can measure if there is a signficant difference and if so we can add such
--- predicates to Streamly.Unicode.Char.Parser.Latin1.
+-- predicates to Streamly.Unicode.Parser.Latin1.
 --
 #define CHAR_PARSER_SIG(NAME)         NAME :: MonadCatch m => Parser m Char Char
 -- XXX Need to use the predicates from Unicode.Char module/unicode-data package
@@ -119,8 +119,8 @@ CHAR_PARSER(letter,isLetter)
 CHAR_PARSER_SIG(mark)
 CHAR_PARSER(mark,isMark)
 
-CHAR_PARSER_SIG(number)
-CHAR_PARSER(number,isNumber)
+CHAR_PARSER_SIG(numeric)
+CHAR_PARSER(numeric,isNumber)
 
 CHAR_PARSER_SIG(punctuation)
 CHAR_PARSER(punctuation,isPunctuation)
@@ -154,9 +154,9 @@ char c = Parser.satisfy (== c)
 
 -- XXX Case conversion may lead to change in number of chars
 -- | Match a specific character ignoring case.
-{-# INLINE charAnyCase #-}
-charAnyCase :: MonadCatch m => Char -> Parser m Char Char
-charAnyCase c = Parser.lmap Char.toLower (Parser.satisfy (== Char.toLower c))
+{-# INLINE charIgnoreCase #-}
+charIgnoreCase :: MonadCatch m => Char -> Parser m Char Char
+charIgnoreCase c = Parser.lmap Char.toLower (Parser.satisfy (== Char.toLower c))
 
 --------------------------------------------------------------------------------
 -- Character sequences
@@ -168,8 +168,8 @@ string = Parser.list
 
 -- XXX Not accurate unicode case conversion
 -- | Match the input with the supplied string and return it if successful.
-stringAnyCase :: MonadCatch m => String -> Parser m Char String
-stringAnyCase s = Parser.lmap Char.toLower (Parser.list (map Char.toLower s))
+stringIgnoreCase :: MonadCatch m => String -> Parser m Char String
+stringIgnoreCase s = Parser.lmap Char.toLower (Parser.list (map Char.toLower s))
 
 -- | Drop /zero/ or more white space characters.
 dropSpace :: MonadCatch m => Parser m Char ()
