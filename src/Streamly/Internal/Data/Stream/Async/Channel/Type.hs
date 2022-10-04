@@ -84,7 +84,7 @@ data Channel m a = Channel
     , remainingWork  :: Maybe (IORef Count)
     , yieldRateInfo  :: Maybe YieldRateInfo
 
-    , enqueue        :: (RunInIO m, Stream m a) -> IO ()
+    , enqueue        :: Bool -> (RunInIO m, Stream m a) -> IO ()
     , isWorkDone     :: IO Bool
     , isQueueDone    :: IO Bool
     , needDoorBell   :: IORef Bool

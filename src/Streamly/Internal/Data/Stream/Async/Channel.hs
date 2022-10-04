@@ -190,7 +190,10 @@ mkEnqueue :: MonadAsync m =>
 mkEnqueue chan runner = do
     runInIO <- askRunInIO
     return
-        $ let q stream = liftIO $ enqueue chan (runInIO, runner q stream) in q
+        $ let q stream =
+                -- Enqueue the outer loop
+                liftIO $ enqueue chan False (runInIO, runner q stream)
+           in q
 
 -- XXX Can be renamed to concatMapWithK if we move concatMapWithK to higher
 -- level module. We can keep only Channel based ops in this module.

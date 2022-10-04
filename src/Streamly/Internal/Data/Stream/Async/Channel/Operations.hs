@@ -96,7 +96,7 @@ toChannelK :: (MonadIO m, MonadBaseControl IO m) =>
     Channel m a -> K.Stream m a -> m ()
 toChannelK sv m = do
     runIn <- askRunInIO
-    liftIO $ enqueue sv (runIn, m)
+    liftIO $ enqueue sv False (runIn, m)
 
 -- INLINE for fromStreamK/toStreamK fusion
 
