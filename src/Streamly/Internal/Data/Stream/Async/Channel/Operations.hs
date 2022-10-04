@@ -51,7 +51,6 @@ import Prelude hiding (map, concat, concatMap)
 #ifdef INSPECTION
 import Control.Exception (Exception)
 #if __GLASGOW_HASKELL__ < 810
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Trans.Control (MonadBaseControl)
 #endif
 import Data.Typeable (Typeable)
@@ -168,10 +167,12 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
 inspect $ hasNoTypeClassesExcept 'fromChannelRaw
     [ ''Monad
     , ''Applicative
-    , ''MonadThrow
     , ''Exception
     , ''MonadIO
+    , ''MonadThrow
+#if __GLASGOW_HASKELL__ < 810
     , ''MonadBaseControl
+#endif
     , ''Typeable
     , ''Functor
     ]

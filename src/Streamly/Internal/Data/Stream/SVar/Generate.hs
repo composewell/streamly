@@ -52,10 +52,8 @@ import Streamly.Internal.Data.SVar
 
 #ifdef INSPECTION
 import Control.Exception (Exception)
-#if __GLASGOW_HASKELL__ < 810
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Trans.Control (MonadBaseControl)
-#endif
 import Data.Typeable (Typeable)
 import Test.Inspection (inspect, hasNoTypeClassesExcept)
 #endif
@@ -170,9 +168,9 @@ fromStreamVar sv = K.MkStream $ \st yld sng stp -> do
 inspect $ hasNoTypeClassesExcept 'fromStreamVar
     [ ''Monad
     , ''Applicative
-    , ''MonadThrow
     , ''Exception
     , ''MonadIO
+    , ''MonadThrow
     , ''MonadBaseControl
     , ''Typeable
     , ''Functor
