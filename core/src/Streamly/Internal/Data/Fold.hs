@@ -319,6 +319,7 @@ module Streamly.Internal.Data.Fold
     , finish
 
     -- * Deprecated
+    , last
     , sequence
     , mapM
     , variance
@@ -747,6 +748,16 @@ drainBy f = lmapM f drain
 {-# INLINE end #-}
 end :: Monad m => Fold m a (Maybe a)
 end = foldl1' (\_ x -> x)
+
+-- | Extract the last element of the input stream, if any.
+--
+-- > last = fmap getLast $ Fold.foldMap (Last . Just)
+--
+-- @since 0.9.0
+{-# DEPRECATED last "Please use \"end\" instead" #-}
+{-# INLINE last #-}
+last :: Monad m => Fold m a (Maybe a)
+last = end
 
 -- | If the stream consists of one or more occurences of the same element
 -- then returns that element else terminates and returns 'Nothing'.
