@@ -153,6 +153,10 @@ takeFramedByEsc_ _ = Stream.parse parser
 
     parser = PR.takeFramedByEsc_ isEsc isBegin isEnd Fold.drain
 
+{-# INLINE eqBy #-}
+eqBy :: Int -> Stream IO Int -> IO ()
+eqBy len = Stream.parse (PR.eqBy (==) [1 .. len])
+
 {-# INLINE takeWhile #-}
 takeWhile :: MonadThrow m => Int -> Stream m Int -> m ()
 takeWhile value = Stream.parse (PR.takeWhile (<= value) Fold.drain)
@@ -473,6 +477,7 @@ o_1_space_serial value =
     , benchIOSink value "concatSequence" concatSequence
     , benchIOSink value "parseMany (groupBy (<))" (parseManyGroupBy (<))
     , benchIOSink value "parseMany (groupBy (==))" (parseManyGroupBy (==))
+    , benchIOSink value "eqBy" (eqBy value)
     ]
 
 o_1_space_filesystem :: BenchEnv -> [Benchmark]
