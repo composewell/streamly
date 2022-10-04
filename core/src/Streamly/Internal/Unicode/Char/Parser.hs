@@ -81,64 +81,84 @@ import qualified Streamly.Internal.Data.Parser as Parser
 #define CHAR_PARSER_SIG(NAME)         NAME :: MonadCatch m => Parser m Char Char
 -- XXX Need to use the predicates from Unicode.Char module/unicode-data package
 #define CHAR_PARSER(NAME, PREDICATE)  NAME = Parser.satisfy Char.PREDICATE
+#define CHAR_PARSER_DOC(PREDICATE) -- | Match any character that satisfies 'Char.PREDICATE'
 
 -- XXX Add haddock documentation
 -- XXX Add INLINE pragmas
 
+CHAR_PARSER_DOC(isSpace)
 CHAR_PARSER_SIG(space)
 CHAR_PARSER(space,isSpace)
 
+CHAR_PARSER_DOC(isLower)
 CHAR_PARSER_SIG(lower)
 CHAR_PARSER(lower,isLower)
 
+CHAR_PARSER_DOC(isUpper)
 CHAR_PARSER_SIG(upper)
 CHAR_PARSER(upper,isUpper)
 
+CHAR_PARSER_DOC(isAlpha)
 CHAR_PARSER_SIG(alpha)
 CHAR_PARSER(alpha,isAlpha)
 
+CHAR_PARSER_DOC(isAlphaNum)
 CHAR_PARSER_SIG(alphaNum)
 CHAR_PARSER(alphaNum,isAlphaNum)
 
+CHAR_PARSER_DOC(isPrint)
 CHAR_PARSER_SIG(printable)
 CHAR_PARSER(printable,isPrint)
 
+CHAR_PARSER_DOC(isDigit)
 CHAR_PARSER_SIG(digit)
 CHAR_PARSER(digit,isDigit)
 
+CHAR_PARSER_DOC(isOctDigit)
 CHAR_PARSER_SIG(octDigit)
 CHAR_PARSER(octDigit,isOctDigit)
 
+CHAR_PARSER_DOC(isHexDigit)
 CHAR_PARSER_SIG(hexDigit)
 CHAR_PARSER(hexDigit,isHexDigit)
 
+CHAR_PARSER_DOC(isLetter)
 CHAR_PARSER_SIG(letter)
 CHAR_PARSER(letter,isLetter)
 
+CHAR_PARSER_DOC(isMark)
 CHAR_PARSER_SIG(mark)
 CHAR_PARSER(mark,isMark)
 
+CHAR_PARSER_DOC(isNumber)
 CHAR_PARSER_SIG(numeric)
 CHAR_PARSER(numeric,isNumber)
 
+CHAR_PARSER_DOC(isPunctuation)
 CHAR_PARSER_SIG(punctuation)
 CHAR_PARSER(punctuation,isPunctuation)
 
+CHAR_PARSER_DOC(isSymbol)
 CHAR_PARSER_SIG(symbol)
 CHAR_PARSER(symbol,isSymbol)
 
+CHAR_PARSER_DOC(isSeparator)
 CHAR_PARSER_SIG(separator)
 CHAR_PARSER(separator,isSeparator)
 
+CHAR_PARSER_DOC(isAscii)
 CHAR_PARSER_SIG(ascii)
 CHAR_PARSER(ascii,isAscii)
 
+CHAR_PARSER_DOC(isLatin1)
 CHAR_PARSER_SIG(latin1)
 CHAR_PARSER(latin1,isLatin1)
 
+CHAR_PARSER_DOC(isAsciiUpper)
 CHAR_PARSER_SIG(asciiUpper)
 CHAR_PARSER(asciiUpper,isAsciiUpper)
 
+CHAR_PARSER_DOC(isAsciiLower)
 CHAR_PARSER_SIG(asciiLower)
 CHAR_PARSER(asciiLower,isAsciiLower)
 
