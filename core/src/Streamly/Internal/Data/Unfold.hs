@@ -662,7 +662,7 @@ fromPtr = Unfold step return
 --
 -- /Since: 0.9.0/
 --
-{-# INLINE replicateM1 #-}
+{-# INLINE replicateM #-}
 replicateM :: Applicative m => Unfold m (Int, m a) a
 replicateM = Unfold step inject
 
