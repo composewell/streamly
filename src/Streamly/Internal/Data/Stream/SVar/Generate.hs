@@ -50,12 +50,14 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream (fromStreamK)
 
 import Streamly.Internal.Data.SVar
 
+#if __GLASGOW_HASKELL__ > 810
 #ifdef INSPECTION
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Typeable (Typeable)
 import Test.Inspection (inspect, hasNoTypeClassesExcept)
+#endif
 #endif
 
 ------------------------------------------------------------------------------
