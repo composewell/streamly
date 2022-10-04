@@ -138,6 +138,7 @@ module Streamly.Internal.Data.Unfold
     -- | Generate a monadic stream from a seed.
     , repeatM
     , replicateM
+    , replicateM1
     , fromIndicesM
     , iterateM
 
@@ -667,6 +668,7 @@ fromPtr = Unfold step return
 --
 -- /Since: 0.8.0/
 --
+{-# DEPRECATED replicateM "Please use replicateM1 instead." #-}
 {-# INLINE replicateM #-}
 replicateM :: Applicative m => Int -> Unfold m (m a) a
 replicateM n = Unfold step inject
@@ -680,6 +682,25 @@ replicateM n = Unfold step inject
         if i <= 0
         then pure Stop
         else (\x -> Yield x (action, i - 1)) <$> action
+
+-- | Given a seed @(n, action)@, generates a stream replicating the @action@ @n@
+-- times.
+--
+-- /Since: 0.9.0/
+--
+{-# INLINE replicateM1 #-}
+replicateM1 :: Applicative m => Unfold m (Int, m a) a
+replicateM1 = Unfold step inject
+
+    where
+
+    inject seed = pure seed
+
+    {-# INLINE_LATE step #-}
+    step (i, action) =
+        if i <= 0
+        then pure Stop
+        else (\x -> Yield x (i - 1, action)) <$> action
 
 -- | Generates an infinite stream repeating the seed.
 --
