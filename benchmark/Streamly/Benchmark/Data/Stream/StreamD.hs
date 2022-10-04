@@ -8,6 +8,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -416,8 +417,8 @@ unfoldManyRepl :: Int -> Int -> Int -> IO ()
 unfoldManyRepl outer inner n =
     S.drain
          $ S.unfoldMany
-               (UF.lmap return (UF.replicateM inner))
-               (sourceUnfoldrMN outer n)
+               UF.replicateM
+               (S.map ((inner,) . return) (sourceUnfoldrMN outer n))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'unfoldManyRepl
