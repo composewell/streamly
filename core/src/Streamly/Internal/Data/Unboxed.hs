@@ -22,10 +22,20 @@ module Streamly.Internal.Data.Unboxed
 #include "ArrayMacros.h"
 
 import Data.Complex (Complex((:+)))
-import GHC.Base (IO(..))
-import GHC.Int (Int32(..), Int64(..))
-import GHC.Word (Word32(..), Word64(..), Word8(..))
+import Data.Functor ((<&>))
+import Data.Functor.Const (Const(..))
+import Data.Functor.Identity (Identity(..))
+import Foreign.Ptr (IntPtr(..), WordPtr(..))
 import Foreign.Storable (Storable(..))
+import GHC.Base (IO(..))
+import GHC.Fingerprint.Type (Fingerprint(..))
+import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
+import GHC.Real (Ratio(..))
+import GHC.Stable (StablePtr(..))
+import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
+#if MIN_VERSION_base(4,15,0)
+import GHC.RTS.Flags (IoSubSystem(..))
+#endif
 
 import GHC.Exts
 
@@ -166,18 +176,50 @@ type Unboxed a = (Unbox a, Storable a)
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray) \
 instance Unbox _type where {                                         \
 ; {-# INLINE box #-}                                                 \
-; box (MutableByteArray mbarr) (I# n) = IO $ \s ->                      \
+; box (MutableByteArray mbarr) (I# n) = IO $ \s ->                   \
       case _readArray mbarr n s of                                   \
           { (# s1, i #) -> (# s1, _constructor i #) }                \
 ; {-# INLINE unbox #-}                                               \
-; unbox (MutableByteArray mbarr) (I# n) (_constructor val) =            \
+; unbox (MutableByteArray mbarr) (I# n) (_constructor val) =         \
         IO $ \s -> (# _writeArray mbarr n val s, () #)               \
+}
+
+#define DERIVE_WRAPPED_UNBOX(_constraint, _type, _constructor) \
+instance _constraint Unbox _type where                        \
+; {-# INLINE box #-}                                          \
+; box arr i = _constructor <$> box (castContents arr) i       \
+; {-# INLINE unbox #-}                                        \
+; unbox arr i (_constructor a) = unbox (castContents arr) i a
+
+#define DERIVE_BINARY_UNBOX(_constraint, _type, _constructor, _innerType) \
+instance _constraint Unbox _type where {                                  \
+; {-# INLINE box #-}                                                      \
+; box arr i =                                                             \
+   let contents = castContents arr :: MutableByteArray _innerType         \
+    in box contents i >>=                                                 \
+         (\p1 -> box contents (i + SIZE_OF(_innerType))                   \
+             <&> _constructor p1)                                         \
+; {-# INLINE unbox #-}                                                    \
+; unbox arr i (_constructor p1 p2) =                                      \
+   let contents = castContents arr :: MutableByteArray _innerType         \
+    in unbox contents i p1 >>                                             \
+       unbox contents (i + SIZE_OF(_innerType)) p2                        \
 }
 
 DERIVE_UNBOXED( Char
               , C#
               , readWord8ArrayAsWideChar#
               , writeWord8ArrayAsWideChar#)
+
+DERIVE_UNBOXED( Int8
+              , I8#
+              , readInt8Array#
+              , writeInt8Array#)
+
+DERIVE_UNBOXED( Int16
+              , I16#
+              , readWord8ArrayAsInt16#
+              , writeWord8ArrayAsInt16#)
 
 DERIVE_UNBOXED( Int32
               , I32#
@@ -204,6 +246,11 @@ DERIVE_UNBOXED( Word8
               , readWord8Array#
               , writeWord8Array#)
 
+DERIVE_UNBOXED( Word16
+              , W16#
+              , readWord8ArrayAsWord16#
+              , writeWord8ArrayAsWord16#)
+
 DERIVE_UNBOXED( Word32
               , W32#
               , readWord8ArrayAsWord32#
@@ -219,6 +266,55 @@ DERIVE_UNBOXED( Double
               , readWord8ArrayAsDouble#
               , writeWord8ArrayAsDouble#)
 
+DERIVE_UNBOXED( Float
+              , F#
+              , readWord8ArrayAsFloat#
+              , writeWord8ArrayAsFloat#)
+
+DERIVE_UNBOXED( (StablePtr a)
+              , StablePtr
+              , readWord8ArrayAsStablePtr#
+              , writeWord8ArrayAsStablePtr#)
+
+DERIVE_UNBOXED( (Ptr a)
+              , Ptr
+              , readWord8ArrayAsAddr#
+              , writeWord8ArrayAsAddr#)
+
+DERIVE_UNBOXED( (FunPtr a)
+              , FunPtr
+              , readWord8ArrayAsAddr#
+              , writeWord8ArrayAsAddr#)
+
+DERIVE_WRAPPED_UNBOX(,IntPtr,IntPtr)
+DERIVE_WRAPPED_UNBOX(,WordPtr,WordPtr)
+DERIVE_WRAPPED_UNBOX(Unbox a =>,(Identity a),Identity)
+#if MIN_VERSION_base(4,14,0)
+DERIVE_WRAPPED_UNBOX(Unbox a =>,(Down a),Down)
+#endif
+DERIVE_WRAPPED_UNBOX(Unbox a =>,(Const a b),Const)
+DERIVE_BINARY_UNBOX(forall a. Unboxed a =>,(Complex a),(:+),a)
+DERIVE_BINARY_UNBOX(forall a. (Integral a, Unboxed a) =>,(Ratio a),(:%),a)
+DERIVE_BINARY_UNBOX(,Fingerprint,Fingerprint,Word64)
+
+instance Unbox () where
+
+    {-# INLINE box #-}
+    box _ _ = return ()
+
+    {-# INLINE unbox #-}
+    unbox _ _ _ = return ()
+
+#if MIN_VERSION_base(4,15,0)
+instance Unbox IoSubSystem where
+
+    {-# INLINE box #-}
+    box arr i = toEnum <$> box (castContents arr) i
+
+    {-# INLINE unbox #-}
+    unbox arr i a = unbox (castContents arr) i (fromEnum a)
+#endif
+
 instance Unbox Bool where
 
     {-# INLINE box #-}
@@ -231,21 +327,6 @@ instance Unbox Bool where
         if a
         then unbox (castContents arr) i (1 :: Int32)
         else unbox (castContents arr) i (0 :: Int32)
-
-instance forall a. Unboxed a => Unbox (Complex a) where
-
-    {-# INLINE box #-}
-    box arr i = do
-        let contents = castContents arr :: MutableByteArray a
-        real <- box contents i
-        img <- box contents (i + SIZE_OF(a))
-        return $ real :+ img
-
-    {-# INLINE unbox #-}
-    unbox arr i (real :+ img) = do
-        let contents = castContents arr :: MutableByteArray a
-        unbox contents i real
-        unbox contents (i + SIZE_OF(a)) img
 
 --------------------------------------------------------------------------------
 -- Functions
