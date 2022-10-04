@@ -103,6 +103,7 @@ module Streamly.Internal.Data.Parser
     -- Grab a sequence of input elements by inspecting them
     -- ** Exact match
     , eqBy
+    , matchBy
     , list
 
     -- ** By predicate
@@ -1024,8 +1025,6 @@ groupByRollingEither :: Monad m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
 groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 
--- XXX Use a stream instead of a list so that we can use any container type.
-
 -- | Match the given sequence of elements using the given comparison function.
 --
 -- >>> Stream.parse (Parser.eqBy (==) "string") $ Stream.fromList "string"
@@ -1038,6 +1037,11 @@ groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 {-# INLINE eqBy #-}
 eqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser m a ()
 eqBy cmp = D.toParserK . D.eqBy cmp
+
+-- | Like eqBy but uses a stream instead of a list
+{-# INLINE matchBy #-}
+matchBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser m a ()
+matchBy cmp = D.toParserK . D.matchBy cmp . Stream.toStreamD
 
 -- | Match the input sequence with the supplied list and return it if
 -- successful.
