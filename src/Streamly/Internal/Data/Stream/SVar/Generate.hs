@@ -50,14 +50,14 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream (fromStreamK)
 
 import Streamly.Internal.Data.SVar
 
-#if __GLASGOW_HASKELL__ < 810
 #ifdef INSPECTION
 import Control.Exception (Exception)
+#if __GLASGOW_HASKELL__ < 810
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Trans.Control (MonadBaseControl)
+#endif
 import Data.Typeable (Typeable)
 import Test.Inspection (inspect, hasNoTypeClassesExcept)
-#endif
 #endif
 
 ------------------------------------------------------------------------------
@@ -161,7 +161,6 @@ fromStreamVar sv = K.MkStream $ \st yld sng stp -> do
                 sid <- liftIO $ readIORef (svarStopBy sv)
                 return $ tid == sid
 
-#if __GLASGOW_HASKELL__ < 810
 #ifdef INSPECTION
 -- Use of GHC constraint tuple (GHC.Classes.(%,,%)) in fromStreamVar leads to
 -- space leak because the tuple gets allocated in every recursive call and each
@@ -178,7 +177,6 @@ inspect $ hasNoTypeClassesExcept 'fromStreamVar
     , ''Typeable
     , ''Functor
     ]
-#endif
 #endif
 
 -- | Generate a stream from an SVar.  An unevaluated stream can be pushed to an
