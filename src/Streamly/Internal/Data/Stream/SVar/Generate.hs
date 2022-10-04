@@ -170,9 +170,9 @@ fromStreamVar sv = K.MkStream $ \st yld sng stp -> do
 inspect $ hasNoTypeClassesExcept 'fromStreamVar
     [ ''Monad
     , ''Applicative
+    , ''MonadThrow
     , ''Exception
     , ''MonadIO
-    , ''MonadThrow
     , ''MonadBaseControl
     , ''Typeable
     , ''Functor

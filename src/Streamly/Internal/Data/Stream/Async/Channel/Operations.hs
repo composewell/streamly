@@ -167,9 +167,9 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
 inspect $ hasNoTypeClassesExcept 'fromChannelRaw
     [ ''Monad
     , ''Applicative
+    , ''MonadThrow
     , ''Exception
     , ''MonadIO
-    , ''MonadThrow
 #if __GLASGOW_HASKELL__ < 810
     , ''MonadBaseControl
 #endif
