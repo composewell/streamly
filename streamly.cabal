@@ -229,6 +229,7 @@ extra-source-files:
     core/src/Streamly/Internal/Unicode/Char/Parser.hs
     core/src/Streamly/Internal/Unicode/Stream.hs
     core/src/Streamly/Internal/Unicode/String.hs
+    core/src/Streamly/Unicode/Parser.hs
     core/src/Streamly/Unicode/Stream.hs
     core/src/Streamly/Unicode/String.hs
     core/src/Streamly/Console/Stdio.hs
