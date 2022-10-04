@@ -657,29 +657,24 @@ fromPtr = Unfold step return
 -- Specialized Generation
 ------------------------------------------------------------------------------
 
--- XXX If the count depends on the input e.g. when we have to resample (see
--- resample in streamly-statistics) an array and we have to iterate as many
--- times as the array then we need the count to be passed via unfold i.e. it
--- should be Unfold m (Int, m a) a. We can use concatMap to pass the count
--- argument to replicateM but that won't perform well.
+-- | Given a seed @(n, action)@, generates a stream replicating the @action@ @n@
+-- times.
 --
--- | Generates a stream replicating the seed @n@ times.
---
--- /Since: 0.8.0/
+-- /Since: 0.9.0/
 --
 {-# INLINE replicateM #-}
-replicateM :: Applicative m => Int -> Unfold m (m a) a
-replicateM n = Unfold step inject
+replicateM :: Applicative m => Unfold m (Int, m a) a
+replicateM = Unfold step inject
 
     where
 
-    inject action = pure (action, n)
+    inject seed = pure seed
 
     {-# INLINE_LATE step #-}
-    step (action, i) =
+    step (i, action) =
         if i <= 0
         then pure Stop
-        else (\x -> Yield x (action, i - 1)) <$> action
+        else (\x -> Yield x (i - 1, action)) <$> action
 
 -- | Generates an infinite stream repeating the seed.
 --

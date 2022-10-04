@@ -277,8 +277,8 @@ unzipWithMinM = do
 unfoldMany :: Int -> Benchmarkable
 unfoldMany val =
     nfIO
-        $ Stream.fold (FL.unfoldMany (Unfold.replicateM val) FL.drain)
-        $ Stream.fromPure (randomRIO (1, 1 :: Int))
+        $ Stream.fold (FL.unfoldMany Unfold.replicateM FL.drain)
+        $ Stream.fromPure (val, randomRIO (1, 1 :: Int))
 
 -------------------------------------------------------------------------------
 -- Benchmarks

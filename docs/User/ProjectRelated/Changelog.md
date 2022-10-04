@@ -24,6 +24,7 @@
     `streamly-statistics` package instead.
 * `Streamly.Data.Array.Foreign` is deprecated. Use `Streamly.Data.Array.Unboxed`
   instead.
+* The type of `replicateM` in `Streamly.Data.Unfold` is changed.
 
 ## 0.8.2 (Mar 2022)
 

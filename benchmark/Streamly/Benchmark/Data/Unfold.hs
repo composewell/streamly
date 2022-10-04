@@ -231,7 +231,7 @@ _fromProducer = undefined
 
 {-# INLINE replicateM #-}
 replicateM :: Monad m => Int -> Int -> m ()
-replicateM size start = drainGeneration (UF.replicateM size) (return start)
+replicateM size start = drainGeneration UF.replicateM (size, return start)
 
 {-# INLINE repeatM #-}
 repeatM :: Monad m => Int -> Int -> m ()

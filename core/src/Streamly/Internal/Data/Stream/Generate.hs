@@ -103,7 +103,7 @@ import Prelude hiding (iterate, replicate, repeat)
 
 -- | Convert an 'Unfold' into a stream by supplying it an input seed.
 --
--- >>> s = Stream.unfold (Unfold.replicateM 3) (putStrLn "hello")
+-- >>> s = Stream.unfold Unfold.replicateM (3, putStrLn "hello")
 -- >>> Stream.fold Fold.drain s
 -- hello
 -- hello

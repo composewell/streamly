@@ -182,7 +182,7 @@ repeat x = Stream (\_ _ -> return $ Yield x ()) ()
 {-# INLINE_NORMAL replicateM #-}
 replicateM :: forall m a. Monad m => Int -> m a -> Stream m a
 #ifdef USE_UNFOLDS_EVERYWHERE
-replicateM n = unfold (Unfold.replicateM n)
+replicateM n p = unfold Unfold.replicateM (n, p)
 #else
 replicateM n p = Stream step n
   where

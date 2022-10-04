@@ -168,8 +168,8 @@ replicateM =
     property
         $ \i ->
               let ns = max 0 i
-                  seed = modify (+ 1) >> get
-               in testUnfoldMD (UF.replicateM i) seed 0 ns [1 .. i]
+                  seed = (i, modify (+ 1) >> get)
+               in testUnfoldMD UF.replicateM seed 0 ns [1 .. i]
 
 repeatM :: Bool
 repeatM =
@@ -547,8 +547,8 @@ zipWithM =
 
 concat :: Bool
 concat =
-    let unfIn = UF.replicateM 10
-        unfOut = UF.map return UF.enumerateFromToIntegral
+    let unfIn = UF.replicateM
+        unfOut = UF.map ((10,) . return) UF.enumerateFromToIntegral
         unf = UF.many unfIn unfOut
         lst = Prelude.concat $ Prelude.map (Prelude.replicate 10) [1 .. 10]
      in testUnfoldD unf (1, 10) lst
@@ -568,7 +568,7 @@ outerProduct =
 concatMapM :: Bool
 concatMapM =
     let inner b =
-          let u = UF.lmap (\_ -> modify (+ 1) >> return b) (UF.replicateM 10)
+          let u = UF.lmap (\_ -> (10, modify (+ 1) >> return b)) UF.replicateM
            in modify (+ 1) >> return u
         unf = UF.concatMapM inner UF.enumerateFromToIntegral
         list = List.concatMap (replicate 10) [1 .. 10]
