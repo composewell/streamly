@@ -1053,7 +1053,7 @@ data ConcatMapState m sa a c
 -- elements that we have to add, then:
 --
 -- >>> import Data.Maybe (fromJust)
--- >>> count = fmap fromJust Fold.head
+-- >>> count = fmap fromJust Fold.one
 -- >>> total n = Fold.take n Fold.sum
 -- >>> Stream.fold (Fold.concatMap total count) $ Stream.fromList [10,9..1]
 -- 45

@@ -27,7 +27,7 @@
 -- instances of the output types:
 --
 -- >>> import Data.Monoid (Sum(..))
--- >>> t = Tee Fold.head <> Tee Fold.last
+-- >>> t = Tee Fold.one <> Tee Fold.last
 -- >>> Stream.fold (toFold t) (fmap Sum $ Stream.enumerateFromTo 1.0 100.0)
 -- Just (Sum {getSum = 101.0})
 --

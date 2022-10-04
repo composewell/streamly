@@ -29,10 +29,10 @@
 -- >>> Data.List.foldl' (+) 0 [1..100]
 -- 5050
 --
--- 'Fold's have an early termination capability e.g. the 'head' fold would
+-- 'Fold's have an early termination capability e.g. the 'one' fold would
 -- terminate on an infinite stream:
 --
--- >>> Stream.fold Fold.head $ Stream.fromList [1..]
+-- >>> Stream.fold Fold.one $ Stream.fromList [1..]
 -- Just 1
 --
 -- The above example is similar to the following right fold:
@@ -173,7 +173,7 @@ module Streamly.Data.Fold
     -- | These are much like lazy right folds.
 
     , index
-    , head
+    , one
     , find
     , lookup
     , findIndex
@@ -266,6 +266,7 @@ module Streamly.Data.Fold
     , concatMap
 
     -- * Deprecated
+    , head
     , sequence
     , mapM
     , variance
