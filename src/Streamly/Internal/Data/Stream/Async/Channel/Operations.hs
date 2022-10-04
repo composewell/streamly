@@ -50,8 +50,10 @@ import Prelude hiding (map, concat, concatMap)
 
 #ifdef INSPECTION
 import Control.Exception (Exception)
+#if __GLASGOW_HASKELL__ < 810
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Trans.Control (MonadBaseControl)
+#endif
 import Data.Typeable (Typeable)
 import Test.Inspection (inspect, hasNoTypeClassesExcept)
 #endif
