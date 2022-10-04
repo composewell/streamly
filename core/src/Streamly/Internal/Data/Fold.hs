@@ -120,7 +120,6 @@ module Streamly.Internal.Data.Fold
     -- ** Terminating Folds
     -- Element folds. Terminate after inspecting one element. All these can be
     -- implemented in terms of the 'maybe' fold.
-    , head
     , one
     , null
     , satisfy
@@ -319,6 +318,7 @@ module Streamly.Internal.Data.Fold
     , finish
 
     -- * Deprecated
+    , head
     , sequence
     , mapM
     , variance
