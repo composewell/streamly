@@ -158,7 +158,7 @@ fromStreamVar sv = K.MkStream $ \st yld sng stp -> do
             StopBy -> do
                 sid <- liftIO $ readIORef (svarStopBy sv)
                 return $ tid == sid
-
+#if __GLASGOW_HASKELL__ > 810
 #ifdef INSPECTION
 -- Use of GHC constraint tuple (GHC.Classes.(%,,%)) in fromStreamVar leads to
 -- space leak because the tuple gets allocated in every recursive call and each
@@ -175,6 +175,7 @@ inspect $ hasNoTypeClassesExcept 'fromStreamVar
     , ''Typeable
     , ''Functor
     ]
+#endif
 #endif
 
 -- | Generate a stream from an SVar.  An unevaluated stream can be pushed to an
