@@ -48,6 +48,14 @@ import Streamly.Internal.Data.Stream.Channel.Types
 
 import Prelude hiding (map, concat, concatMap)
 
+#ifdef INSPECTION
+import Control.Exception (Exception)
+import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Trans.Control (MonadBaseControl)
+import Data.Typeable (Typeable)
+import Test.Inspection (inspect, hasNoTypeClassesExcept)
+#endif
+
 ------------------------------------------------------------------------------
 -- Generating streams from a channel
 ------------------------------------------------------------------------------
@@ -148,6 +156,24 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
                             Nothing -> do
                                 liftIO (cleanupSVar (workerThreads sv))
                                 throwM ex
+
+#ifdef INSPECTION
+-- Use of GHC constraint tuple (GHC.Classes.(%,,%)) in fromStreamVar leads to
+-- space leak because the tuple gets allocated in every recursive call and each
+-- allocation holds on to the previous allocation. This test is to make sure
+-- that we do not use the constraint tuple type class.
+--
+inspect $ hasNoTypeClassesExcept 'fromChannelRaw
+    [ ''Monad
+    , ''Applicative
+    , ''MonadThrow
+    , ''Exception
+    , ''MonadIO
+    , ''MonadBaseControl
+    , ''Typeable
+    , ''Functor
+    ]
+#endif
 
 -- XXX fromChannel Should not be called multiple times, we can add a
 -- safeguard for that. Or we can replicate the stream so that we can distribute
