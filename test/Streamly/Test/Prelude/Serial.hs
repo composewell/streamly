@@ -494,7 +494,7 @@ foldIterateM =
         let s1 = Prelude.sum lst
             strm = S.fromList lst
         ms2 <-
-            S.end
+            S.last
                 $ S.map getSum
                 $ IS.foldIterateM
                       (return . FL.take 1 . FL.sconcat)

@@ -59,7 +59,7 @@ import Test.Inspection
 
 -- | Get the last byte from a file bytestream.
 readLast :: Handle -> IO (Maybe Word8)
-readLast = S.end . S.unfold FH.read
+readLast = S.last . S.unfold FH.read
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readLast

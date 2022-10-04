@@ -84,7 +84,7 @@ benchIO name src sink =
 toChunksLast :: Handle -> IO (Maybe Word8)
 toChunksLast inh = do
     let s = Handle.getChunks inh
-    larr <- Stream.end s
+    larr <- Stream.last s
     return $ case larr of
         Nothing -> Nothing
         Just arr -> Array.getIndex (Array.length arr - 1) arr

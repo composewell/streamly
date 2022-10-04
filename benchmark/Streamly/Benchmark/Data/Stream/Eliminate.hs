@@ -55,7 +55,7 @@ import Stream.Common
 #endif
 import Streamly.Benchmark.Common
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
-    lookup, repeat, minimum, maximum, product, end, mapM_, init)
+    lookup, repeat, minimum, maximum, product, last, mapM_, init)
 import qualified Prelude
 
 #ifdef USE_PRELUDE

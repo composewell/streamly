@@ -645,7 +645,7 @@ eliminationOpsOrdered constr desc t = do
         case r of
             Nothing -> return Nothing
             Just s -> Just <$> S.toList s
-    prop (desc <> " last") $ eliminateOp constr (wrapMaybe last) $ S.end . t
+    prop (desc <> " last") $ eliminateOp constr (wrapMaybe last) $ S.last . t
     prop (desc <> " init") $ eliminateOp constr (wrapMaybe init) $ \x -> do
         r <- S.init (t x)
         case r of

@@ -24,7 +24,7 @@ import Control.Monad (when)
 import Data.Maybe (isJust)
 import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)
 import System.Random (randomRIO)
-import Prelude hiding (tail, mapM_, foldl, end, map, mapM, concatMap, zip)
+import Prelude hiding (tail, mapM_, foldl, last, map, mapM, concatMap, zip)
 
 import qualified Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamD as S
@@ -154,7 +154,7 @@ foldl  = S.foldl' (+) 0
 
 {-# INLINE last #-}
 last :: Monad m => Stream m Int -> m (Maybe Int)
-last   = S.end
+last   = S.last
 
 -------------------------------------------------------------------------------
 -- Transformation

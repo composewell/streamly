@@ -15,7 +15,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream.Top as Top
 
 import Prelude hiding
-    (maximum, minimum, elem, notElem, null, product, sum, head, end, take)
+    (maximum, minimum, elem, notElem, null, product, sum, head, take)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 
