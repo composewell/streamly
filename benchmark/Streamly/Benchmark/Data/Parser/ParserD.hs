@@ -70,6 +70,10 @@ benchIOSink value name f =
 eqBy :: Int -> Stream IO Int -> IO ()
 eqBy len = Stream.parseD (PR.eqBy (==) [1 .. len])
 
+{-# INLINE matchBy #-}
+matchBy :: Int -> Stream IO Int -> IO ()
+matchBy len = Stream.parseD (PR.matchBy (==) (D.enumerateFromToIntegral 1 len))
+
 {-# INLINE drainWhile #-}
 drainWhile :: MonadThrow m => (a -> Bool) -> PR.Parser m a ()
 drainWhile p = PR.takeWhile p Fold.drain
@@ -356,6 +360,7 @@ o_1_space_serial value =
     -}
     , benchIOSink value "sequenceParser" sequenceParser
     , benchIOSink value "eqBy" (eqBy value)
+    , benchIOSink value "matchBy" (matchBy value)
     ]
 
 o_1_space_serial_spanning :: Int -> [Benchmark]

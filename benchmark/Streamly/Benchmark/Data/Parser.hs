@@ -157,6 +157,10 @@ takeFramedByEsc_ _ = Stream.parse parser
 eqBy :: Int -> Stream IO Int -> IO ()
 eqBy len = Stream.parse (PR.eqBy (==) [1 .. len])
 
+{-# INLINE matchBy #-}
+matchBy :: Int -> Stream IO Int -> IO ()
+matchBy len = Stream.parse (PR.matchBy (==) (Stream.enumerateFromTo 1 len))
+
 {-# INLINE takeWhile #-}
 takeWhile :: MonadThrow m => Int -> Stream m Int -> m ()
 takeWhile value = Stream.parse (PR.takeWhile (<= value) Fold.drain)
@@ -478,6 +482,7 @@ o_1_space_serial value =
     , benchIOSink value "parseMany (groupBy (<))" (parseManyGroupBy (<))
     , benchIOSink value "parseMany (groupBy (==))" (parseManyGroupBy (==))
     , benchIOSink value "eqBy" (eqBy value)
+    , benchIOSink value "matchBy" (matchBy value)
     ]
 
 o_1_space_filesystem :: BenchEnv -> [Benchmark]
