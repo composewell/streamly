@@ -233,10 +233,6 @@ _fromProducer = undefined
 replicateM :: Monad m => Int -> Int -> m ()
 replicateM size start = drainGeneration (UF.replicateM size) (return start)
 
-{-# INLINE replicateM1 #-}
-replicateM1 :: Monad m => Int -> Int -> m ()
-replicateM1 size start = drainGeneration UF.replicateM1 (size, return start)
-
 {-# INLINE repeatM #-}
 repeatM :: Monad m => Int -> Int -> m ()
 repeatM size start = drainGeneration (UF.take size UF.repeatM) (return start)
@@ -653,7 +649,6 @@ o_1_space_generation size =
           -- , benchIO "fromSVar" $ fromSVar size
           -- , benchIO "fromProducer" $ fromProducer size
           , benchIO "replicateM" $ replicateM size
-          , benchIO "replicateM1" $ replicateM1 size
           , benchIO "repeatM" $ repeatM size
           , benchIO "iterateM" $ iterateM size
           , benchIO "fromIndicesM" $ fromIndicesM size
