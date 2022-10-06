@@ -62,11 +62,21 @@ pushWorker yieldMax sv = do
                     , workerYieldCount = cntRef
                     , workerLatencyStart = lat
                     }
-    doFork (workLoop sv winfo) (svarMrun sv) exception
-        >>= addThread (workerThreads sv)
+    -- In case of lazy dispatch we dispatch workers only from the consumer
+    -- thread. In that case it is ok to use addThread here as it is guaranteed
+    -- that the thread will be added to the workerSet before the thread STOP
+    -- event is processed, because we do both of these actions in the same
+    -- consumer thread. However, in case of eager dispatch we may dispatch
+    -- workers from workers, in which case the thread Stop even may get
+    -- processed before the addThread occurs, so in that case we have to use
+    -- modifyThread which performs a toggle rather than adding or deleting.
+    --
+    -- XXX We can use addThread or modThread based on eager flag.
+    doFork (workLoop sv winfo) (svarMrun sv) exception >>= modThread
 
     where
 
+    modThread = modifyThread (workerThreads sv) (outputDoorBell sv)
     exception = handleChildException (outputQueue sv) (outputDoorBell sv)
 
 -- | Determine the maximum number of workers required based on 'maxWorkerLimit'
@@ -287,6 +297,7 @@ sendWorkerWait delay dispatch sv = do
 
     liftIO $ delay sv
     (_, n) <- liftIO $ readIORef (outputQueue sv)
+    -- XXX or eagerDispatch is true
     when (n <= 0) $ do
         -- The queue may be empty temporarily if the worker has dequeued the
         -- work item but has not enqueued the remaining part yet. For the same

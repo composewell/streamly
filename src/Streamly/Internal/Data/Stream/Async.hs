@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Stream.Async
     , Config
     , maxThreads
     , maxBuffer
+    , eagerEval
     -- maxYields
     , Rate(..)
     , rate

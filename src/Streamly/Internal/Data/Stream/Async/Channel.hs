@@ -15,6 +15,7 @@ module Streamly.Internal.Data.Stream.Async.Channel
     , Config
     , maxThreads
     , maxBuffer
+    , eagerEval
     , Rate(..)
     , rate
     , avgRate
@@ -190,9 +191,15 @@ mkEnqueue :: MonadAsync m =>
 mkEnqueue chan runner = do
     runInIO <- askRunInIO
     return
-        $ let q stream =
+        $ let q stream = do
                 -- Enqueue the outer loop
                 liftIO $ enqueue chan False (runInIO, runner q stream)
+                -- XXX In case of eager dispatch we can just directly dispatch
+                -- a worker with the tail stream here rather than first queuing
+                -- and then dispatching a worker which dequeues the work. The
+                -- older implementation did a direct dispatch here and its perf
+                -- characterstics looked much better.
+                eagerDispatch chan
            in q
 
 -- XXX Can be renamed to concatMapWithK if we move concatMapWithK to higher

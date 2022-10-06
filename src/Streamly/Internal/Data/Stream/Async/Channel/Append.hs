@@ -21,6 +21,7 @@ where
 
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.MVar (newEmptyMVar)
+import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Trans.Control (MonadBaseControl, restoreM)
 import Data.IORef (IORef, newIORef, readIORef)
@@ -28,12 +29,13 @@ import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
-import Streamly.Internal.Data.Stream.Channel.Dispatcher (delThread)
+import Streamly.Internal.Data.Stream.Channel.Dispatcher (modifyThread)
 
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.Stream.Async.Channel.Consumer
+import Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Async.Channel.Type
 import Streamly.Internal.Data.Stream.Channel.Types
 
@@ -251,6 +253,8 @@ getLifoSVar mrun cfg = do
             qEmpty <- isWorkFinished sv
             return $ qEmpty || yieldsDone
 
+    let eager = getEagerDispatch cfg
+
     let getSVar :: Channel m a
             -> (Channel m a -> m [ChildEvent a])
             -> (Channel m a -> m Bool)
@@ -272,12 +276,14 @@ getLifoSVar mrun cfg = do
             , workerThreads    = running
             , workLoop         = wloop q sv
             , enqueue          = enqueueLIFO sv q
+            , eagerDispatch    = when eager $ void $ dispatchWorker 0 sv
             , isWorkDone       = workDone sv
             , isQueueDone      = workDone sv
             , needDoorBell     = wfw
             , svarMrun         = mrun
             , workerCount      = active
-            , accountThread    = delThread running
+            -- XXX We can use delThread or modThread based on eager flag.
+            , accountThread    = modifyThread running outQMv
             , workerStopMVar   = undefined
             , svarRef          = Nothing
             , svarInspectMode  = getInspectMode cfg

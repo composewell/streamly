@@ -71,6 +71,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , maxBuffer
     , maxYields
     , inspectMode
+    , eagerEval
 
     , rate
     , avgRate
@@ -86,6 +87,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , setStreamLatency
     , getYieldLimit
     , getInspectMode
+    , getEagerDispatch
 
     -- * Cleanup
     , cleanupSVar
@@ -320,6 +322,7 @@ data Config = Config
     , _streamLatency  :: Maybe NanoSecond64 -- bootstrap latency
     , _maxStreamRate  :: Maybe Rate
     , _inspectMode    :: Bool
+    , _eagerDispatch  :: Bool
     }
 
 -------------------------------------------------------------------------------
@@ -349,6 +352,8 @@ defaultConfig = Config
     , _maxStreamRate = Nothing
     , _streamLatency = Nothing
     , _inspectMode = False
+    -- XXX Set it to True when Rate is not set?
+    , _eagerDispatch = False
     }
 
 -------------------------------------------------------------------------------
@@ -458,11 +463,26 @@ setStreamLatency n st =
 getStreamLatency :: Config -> Maybe NanoSecond64
 getStreamLatency = _streamLatency
 
+-- | Print debug information about the 'Channel' when the stream ends.
+--
+-- /Pre-release/
+--
 inspectMode :: Config -> Config
 inspectMode st = st { _inspectMode = True }
 
 getInspectMode :: Config -> Bool
 getInspectMode = _inspectMode
+
+-- | By default the stream is evaluated on demand, new evaluation may be
+-- deferred until the consumer consumes the evaluated stream. When 'eagerEval'
+-- option is on the evaluation is aggressive and does not wait for consumption
+-- to proceed, the only reason it might block is because of 'maxThreads' or
+-- 'maxBuffer' limitation.
+eagerEval :: Config -> Config
+eagerEval st = st { _eagerDispatch = True }
+
+getEagerDispatch :: Config -> Bool
+getEagerDispatch = _eagerDispatch
 
 -------------------------------------------------------------------------------
 -- Initialization

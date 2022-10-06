@@ -198,6 +198,7 @@ getFifoSVar mrun cfg = do
             , workerThreads    = running
             , workLoop         = wloop q sv
             , enqueue          = \_ -> enqueueFIFO sv q
+            , eagerDispatch    = return ()
             , isWorkDone       = workDone sv
             , isQueueDone      = workDone sv
             , needDoorBell     = wfw

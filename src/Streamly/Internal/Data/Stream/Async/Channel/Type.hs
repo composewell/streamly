@@ -85,6 +85,7 @@ data Channel m a = Channel
     , yieldRateInfo  :: Maybe YieldRateInfo
 
     , enqueue        :: Bool -> (RunInIO m, Stream m a) -> IO ()
+    , eagerDispatch  :: m ()
     , isWorkDone     :: IO Bool
     , isQueueDone    :: IO Bool
     , needDoorBell   :: IORef Bool
