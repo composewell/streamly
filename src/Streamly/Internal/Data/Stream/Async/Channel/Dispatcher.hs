@@ -286,19 +286,19 @@ dispatchWorkerPaced sv = do
 {-# NOINLINE sendWorkerWait #-}
 sendWorkerWait
     :: MonadIO m
-    => (Channel m a -> IO ())
+    => Bool
+    -> (Channel m a -> IO ())
     -> (Channel m a -> m Bool)
     -> Channel m a
     -> m ()
-sendWorkerWait delay dispatch sv = do
+sendWorkerWait eager delay dispatch sv = do
     -- Note that we are guaranteed to have at least one outstanding worker when
     -- we enter this function. So if we sleep we are guaranteed to be woken up
     -- by an outputDoorBell, when the worker exits.
 
     liftIO $ delay sv
     (_, n) <- liftIO $ readIORef (outputQueue sv)
-    -- XXX or eagerDispatch is true
-    when (n <= 0) $ do
+    when (n <= 0 || eager) $ do
         -- The queue may be empty temporarily if the worker has dequeued the
         -- work item but has not enqueued the remaining part yet. For the same
         -- reason, a worker may come back if it tries to dequeue and finds the
@@ -356,7 +356,7 @@ sendWorkerWait delay dispatch sv = do
         -- forever.
 
         if canDoMore
-        then sendWorkerWait delay dispatch sv
+        then sendWorkerWait eager delay dispatch sv
         else do
             liftIO
                 $ withDiagMVar
@@ -365,7 +365,7 @@ sendWorkerWait delay dispatch sv = do
                     "sendWorkerWait: nothing to do"
                 $ takeMVar (outputDoorBell sv)
             (_, len) <- liftIO $ readIORef (outputQueue sv)
-            when (len <= 0) $ sendWorkerWait delay dispatch sv
+            when (len <= 0) $ sendWorkerWait eager delay dispatch sv
 
 -- | Start the evaluation of the channel's work queue by kicking off a worker.
 -- Note: Work queue must not be empty otherwise the worker will exit without

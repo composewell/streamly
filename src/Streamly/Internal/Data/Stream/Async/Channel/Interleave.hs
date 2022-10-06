@@ -216,11 +216,11 @@ getFifoSVar mrun cfg = do
             case getStreamRate cfg of
                 Nothing ->
                     case getYieldLimit cfg of
-                        Nothing -> getSVar sv readOutputQBounded
+                        Nothing -> getSVar sv (readOutputQBounded False)
                                               postProcessBounded
                                               isWorkFinished
                                               workLoopFIFO
-                        Just _  -> getSVar sv readOutputQBounded
+                        Just _  -> getSVar sv (readOutputQBounded False)
                                               postProcessBounded
                                               isWorkFinishedLimited
                                               workLoopFIFOLimited

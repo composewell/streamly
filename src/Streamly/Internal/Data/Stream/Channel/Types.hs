@@ -478,6 +478,9 @@ getInspectMode = _inspectMode
 -- option is on the evaluation is aggressive and does not wait for consumption
 -- to proceed, the only reason it might block is because of 'maxThreads' or
 -- 'maxBuffer' limitation.
+--
+-- Note that this option does nothing for interleave operations or when rate
+-- has been specified.
 eagerEval :: Config -> Config
 eagerEval st = st { _eagerDispatch = True }
 

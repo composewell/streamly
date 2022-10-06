@@ -39,8 +39,8 @@ readOutputQChan sv = do
      in readOutputQRaw (outputQueue sv) ss
 
 readOutputQBounded :: (MonadIO m, MonadBaseControl IO m) =>
-    Channel m a -> m [ChildEvent a]
-readOutputQBounded sv = do
+    Bool -> Channel m a -> m [ChildEvent a]
+readOutputQBounded eager sv = do
     (list, len) <- liftIO $ readOutputQChan sv
     -- When there is no output seen we dispatch more workers to help
     -- out if there is work pending in the work queue.
@@ -64,7 +64,7 @@ readOutputQBounded sv = do
 
     {-# INLINE blockingRead #-}
     blockingRead = do
-        sendWorkerWait sendWorkerDelay (dispatchWorker 0) sv
+        sendWorkerWait eager sendWorkerDelay (dispatchWorker 0) sv
         liftIO (fst `fmap` readOutputQChan sv)
 
 readOutputQPaced :: (MonadIO m, MonadBaseControl IO m) =>
@@ -83,7 +83,7 @@ readOutputQPaced sv = do
 
     {-# INLINE blockingRead #-}
     blockingRead = do
-        sendWorkerWait sendWorkerDelayPaced dispatchWorkerPaced sv
+        sendWorkerWait False sendWorkerDelayPaced dispatchWorkerPaced sv
         liftIO (fst `fmap` readOutputQChan sv)
 
 postProcessPaced :: (MonadIO m, MonadBaseControl IO m) => Channel m a -> m Bool
