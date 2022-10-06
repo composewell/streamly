@@ -1835,14 +1835,14 @@ data DeintercalateState fs sp ss =
 --
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>
-       Fold m (Either x y) z
-    -> Parser m a x
+       Parser m a x
     -> Parser m a y
+    -> Fold m (Either x y) z
     -> Parser m a z
 deintercalate
-    (Fold fstep finitial fextract)
     (Parser stepL initialL extractL)
-    (Parser stepR initialR extractR) = Parser step initial extract
+    (Parser stepR initialR extractR)
+    (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 

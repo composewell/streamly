@@ -199,7 +199,7 @@ deintercalate _ = Stream.parse (partition even)
 
     partition p =
         PR.deintercalate
-            Fold.drain (PR.takeWhile (not . p) Fold.sum) (PR.takeWhile p Fold.sum)
+            (PR.takeWhile (not . p) Fold.sum) (PR.takeWhile p Fold.sum) Fold.drain
 
 {-# INLINE manyWordByEven #-}
 manyWordByEven :: MonadThrow m => Stream m Int -> m ()

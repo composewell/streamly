@@ -1446,14 +1446,14 @@ manyThen _parser _recover _f = undefined
 --
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>
-       Fold m (Either x y) z
-    -> Parser m a x
+       Parser m a x
     -> Parser m a y
+    -> Fold m (Either x y) z
     -> Parser m a z
-deintercalate sink contentL contentR =
+deintercalate contentL contentR sink =
     D.toParserK
         $ D.deintercalate
-            sink (D.fromParserK contentL) (D.fromParserK contentR)
+            (D.fromParserK contentL) (D.fromParserK contentR) sink
 
 -- | Parse items separated by a separator parsed by the supplied parser. At
 -- least one item must be present for the parser to succeed.
