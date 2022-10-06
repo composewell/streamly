@@ -199,7 +199,7 @@ longestAllAny value =
 
 {-# INLINE sequenceParser #-}
 sequenceParser :: MonadThrow m => Stream m Int -> m ()
-sequenceParser = Stream.parseD (PR.sequence Fold.drain (D.repeat (PR.satisfy $ const True)))
+sequenceParser = Stream.parseD (PR.sequence (D.repeat (PR.satisfy $ const True)) Fold.drain)
 
 -------------------------------------------------------------------------------
 -- Spanning
