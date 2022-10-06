@@ -1479,9 +1479,9 @@ sepBy1 sink p sep = do
 --
 {-# INLINE sepBy #-}
 sepBy :: Monad m =>
-    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
-sepBy sink content sep =
-    D.toParserK $ D.sepBy sink (D.fromParserK content) (D.fromParserK sep)
+    Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
+sepBy content sep sink =
+    D.toParserK $ D.sepBy (D.fromParserK content) (D.fromParserK sep) sink
 -- sepBy sink = deintercalate (FL.lefts sink)
 
 -------------------------------------------------------------------------------

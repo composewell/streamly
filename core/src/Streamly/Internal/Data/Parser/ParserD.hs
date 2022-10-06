@@ -1932,11 +1932,11 @@ data SepByState fs sp ss =
 -- terms of deintercalate.
 {-# INLINE sepBy #-}
 sepBy :: Monad m =>
-    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
+    Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
 sepBy
-    (Fold fstep finitial fextract)
     (Parser pstep pinitial pextract)
-    (Parser sstep sinitial _) = Parser step initial extract
+    (Parser sstep sinitial _)
+    (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 

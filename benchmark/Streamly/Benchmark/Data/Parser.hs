@@ -189,7 +189,7 @@ wordBy value = Stream.parse (PR.wordBy (>= value) Fold.drain)
 sepByWords :: MonadThrow m => Int -> Stream m Int -> m ()
 sepByWords _ = Stream.parse (wrds even Fold.drain)
     where
-    wrds p f = PR.sepBy f (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
+    wrds p = PR.sepBy (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
 
 {-# INLINE deintercalate #-}
 deintercalate :: MonadThrow m => Int -> Stream m Int -> m ()
