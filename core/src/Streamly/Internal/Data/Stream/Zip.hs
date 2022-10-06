@@ -21,8 +21,8 @@ module Streamly.Internal.Data.Stream.Zip
       ZipStream (..)
     , ZipSerialM
     , ZipSerial
-    , zipWithK
-    , zipWithMK
+    , zipWithD
+    , zipWithMD
     )
 where
 
@@ -42,16 +42,16 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.Zip as Stream
 
-{-# INLINE zipWithMK #-}
-zipWithMK :: Monad m =>
+{-# INLINE zipWithMD #-}
+zipWithMD :: Monad m =>
     (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipWithMK f m1 m2 =
+zipWithMD f m1 m2 =
     fromStreamD $ D.zipWithM f (toStreamD m1) (toStreamD m2)
 
-{-# INLINE zipWithK #-}
-zipWithK :: Monad m
+{-# INLINE zipWithD #-}
+zipWithD :: Monad m
     => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipWithK f = zipWithMK (\a b -> return (f a b))
+zipWithD f = zipWithMD (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
@@ -111,4 +111,4 @@ instance Monad m => Applicative (ZipStream m) where
     pure = ZipStream . Stream.repeat
 
     {-# INLINE (<*>) #-}
-    ZipStream m1 <*> ZipStream m2 = ZipStream $ zipWithK id m1 m2
+    ZipStream m1 <*> ZipStream m2 = ZipStream $ zipWithD id m1 m2
