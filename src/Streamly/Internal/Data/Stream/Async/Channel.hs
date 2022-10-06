@@ -21,6 +21,7 @@ module Streamly.Internal.Data.Stream.Async.Channel
     , minRate
     , maxRate
     , constRate
+    , inspectMode
 
     -- * Operations
     , fromChannel

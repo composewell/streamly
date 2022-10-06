@@ -35,6 +35,7 @@ module Streamly.Internal.Data.Stream.Async
     , minRate
     , maxRate
     , constRate
+    , inspectMode
 
     -- * Combinators
     -- | Stream combinators using Async channel
@@ -55,6 +56,7 @@ module Streamly.Internal.Data.Stream.Async
     , interleaveWith
 
     , apply
+    , applyWith
     , concatList
     , concat
     , concatWith
@@ -284,10 +286,21 @@ concat = concatWith id
 concatList :: MonadAsync m => [Stream m a] -> Stream m a
 concatList = concat . Stream.fromList
 
+{-# INLINE applyWith #-}
+{-# SPECIALIZE applyWith ::
+   (Config -> Config) -> Stream IO (a -> b) -> Stream IO a -> Stream IO b #-}
+applyWith :: MonadAsync m =>
+    (Config -> Config) -> Stream m (a -> b) -> Stream m a -> Stream m b
+applyWith modifier stream1 stream2 =
+    concatMapWith
+        modifier
+        (\g -> concatMapWith modifier (pure . g) stream2)
+        stream1
+
 {-# INLINE apply #-}
 {-# SPECIALIZE apply :: Stream IO (a -> b) -> Stream IO a -> Stream IO b #-}
 apply :: MonadAsync m => Stream m (a -> b) -> Stream m a -> Stream m b
-apply stream1 stream2 = concatMap (\g -> concatMap (pure . g) stream2) stream1
+apply = applyWith id
 
 -- |
 -- >>> mapMWith modifier f = Async.concatMapWith modifier (Stream.fromEffect . f)
