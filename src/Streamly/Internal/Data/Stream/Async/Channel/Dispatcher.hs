@@ -69,14 +69,64 @@ pushWorker yieldMax sv = do
 
     exception = handleChildException (outputQueue sv) (outputDoorBell sv)
 
--- Returns:
--- True: can dispatch more
--- False: cannot dispatch any more
-dispatchWorker :: (MonadIO m, MonadBaseControl IO m) => Count -> Channel m a -> m Bool
-dispatchWorker yieldCount sv = do
+-- | Determine the maximum number of workers required based on 'maxWorkerLimit'
+-- and 'remainingWork'.
+{-# INLINE getEffectiveWorkerLimit #-}
+getEffectiveWorkerLimit :: MonadIO m => Channel m a -> m Limit
+getEffectiveWorkerLimit sv = do
     let workerLimit = maxWorkerLimit sv
+    case remainingWork sv of
+        Nothing -> return workerLimit
+        Just ref -> do
+            n <- liftIO $ readIORef ref
+            case yieldRateInfo sv of
+                Just _ -> return workerLimit
+                Nothing ->
+                    return $
+                        case workerLimit of
+                            Unlimited -> Limited (fromIntegral n)
+                            Limited lim -> Limited $ min lim (fromIntegral n)
+
+-- | Determine whether the active threads are more than the max threads we are
+-- allowed to dispatch.
+{-# INLINE checkMaxThreads #-}
+checkMaxThreads :: MonadIO m => Int -> Channel m a -> m Bool
+checkMaxThreads active sv = do
+    -- Note that we may deadlock if the previous workers (tasks in the
+    -- stream) wait/depend on the future workers (tasks in the stream)
+    -- executing. In that case we should either configure the maxWorker
+    -- count to higher or use parallel style instead of ahead or async
+    -- style.
+    limit <- getEffectiveWorkerLimit sv
+    return
+        $ case limit of
+            Unlimited -> True
+            -- Note that the use of remainingWork and workerCount is not
+            -- atomic and the counts may even have changed between reading
+            -- and using them here, so this is just approximate logic and
+            -- we cannot rely on it for correctness. We may actually
+            -- dispatch more workers than required.
+            Limited lim -> fromIntegral lim > active
+
+-- | Determine whether we would exceed max buffer if we dispatch more workers
+-- based on the current outputQueue size and active workers.
+{-# INLINE checkMaxBuffer #-}
+checkMaxBuffer :: MonadIO m => Int -> Channel m a -> m Bool
+checkMaxBuffer active sv = do
+    let limit = maxBufferLimit sv
+    case limit of
+        Unlimited -> return True
+        Limited lim -> do
+            (_, n) <- liftIO $ readIORef (outputQueue sv)
+            return $ fromIntegral lim > n + active
+
+dispatchWorker :: (MonadIO m, MonadBaseControl IO m) =>
+    Count -> Channel m a -> m Bool
+dispatchWorker yieldCount sv = do
     -- XXX in case of Ahead streams we should not send more than one worker
     -- when the work queue is done but heap is not done.
+    -- XXX Should we have a single abstraction for checking q and
+    -- work instead checking the two separately?
     done <- liftIO $ isWorkDone sv
     -- Note, "done" may not mean that the work is actually finished if there
     -- are workers active, because there may be a worker which has not yet
@@ -84,43 +134,26 @@ dispatchWorker yieldCount sv = do
     if not done
     then do
         qDone <- liftIO $ isQueueDone sv
-        -- This count may not be accurate as it is decremented by the workers
-        -- and we have no synchronization with that decrement.
+        -- This count may be more until the sendStop events are processed.
         active <- liftIO $ readIORef $ workerCount sv
+        when (active < 0) $ error "dispatchWorker active negative"
         if not qDone
         then do
-            -- Note that we may deadlock if the previous workers (tasks in the
-            -- stream) wait/depend on the future workers (tasks in the stream)
-            -- executing. In that case we should either configure the maxWorker
-            -- count to higher or use parallel style instead of ahead or async
-            -- style.
-            limit <- case remainingWork sv of
-                Nothing -> return workerLimit
-                Just ref -> do
-                    n <- liftIO $ readIORef ref
-                    case yieldRateInfo sv of
-                        Just _ -> return workerLimit
-                        Nothing ->
-                            return $
-                                case workerLimit of
-                                    Unlimited -> Limited (fromIntegral n)
-                                    Limited lim -> Limited $ min lim (fromIntegral n)
-
             -- XXX for ahead streams shall we take the heap yields into account
             -- for controlling the dispatch? We should not dispatch if the heap
             -- has already got the limit covered.
-            let dispatch = pushWorker yieldCount sv >> return True
-             in case limit of
-                Unlimited -> dispatch
-                -- Note that the use of remainingWork and workerCount is not
-                -- atomic and the counts may even have changed between reading
-                -- and using them here, so this is just approximate logic and
-                -- we cannot rely on it for correctness. We may actually
-                -- dispatch more workers than required.
-                Limited lim | lim > fromIntegral active -> dispatch
-                _ -> return False
+            r <- checkMaxThreads active sv
+            if r
+            then do
+                r1 <- checkMaxBuffer active sv
+                if r1
+                then pushWorker yieldCount sv >> return True
+                else return False
+            else return False
         else do
-            when (active <= 0) $ pushWorker 0 sv
+            when (active <= 0) $ do
+                r <- liftIO $ isWorkDone sv
+                when (not r) $ pushWorker 0 sv
             return False
     else return False
 
