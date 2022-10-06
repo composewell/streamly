@@ -505,6 +505,7 @@ library
 
                      -- Exposed modules
                      , Streamly.Prelude
+                     , Streamly.Data.Stream.Concurrent
 
                      -- Network/IO
                      , Streamly.Network.Socket

@@ -17,6 +17,9 @@
 
 * Signature changed: Streamly.Data.Unfold.fromStream
 
+* Add `Streamly.Data.Stream.Concurrent` that provide combinators for handling
+  non-serial streams.
+
 ### Deprecations
 
 * In `Streamly.Data.Fold`:
