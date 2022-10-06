@@ -6,11 +6,13 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-import Stream.AsyncCommon (allBenchmarks, interleaveBenchmarks)
+import Stream.AsyncCommon (allBenchmarks)
 import Streamly.Benchmark.Common (runWithCLIOpts, defaultStreamSize)
 
+import qualified Streamly.Internal.Data.Stream.Async as Async
+
 moduleName :: String
-moduleName = "Data.Stream.Async"
+moduleName = "Data.Stream.AsyncEager"
 
 -------------------------------------------------------------------------------
 -- Main
@@ -18,8 +20,4 @@ moduleName = "Data.Stream.Async"
 
 main :: IO ()
 main =
-    runWithCLIOpts defaultStreamSize
-        (\value ->
-               allBenchmarks moduleName id value
-            <> interleaveBenchmarks moduleName id value
-        )
+    runWithCLIOpts defaultStreamSize (allBenchmarks moduleName Async.eagerEval)

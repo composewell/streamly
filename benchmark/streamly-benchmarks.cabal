@@ -250,6 +250,20 @@ benchmark Data.Stream.Async
   hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
   main-is: Async.hs
   other-modules:
+      Stream.AsyncCommon
+      Stream.Common
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Stream.AsyncEager
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
+  main-is: AsyncEager.hs
+  other-modules:
+      Stream.AsyncCommon
       Stream.Common
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
