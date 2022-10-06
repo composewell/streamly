@@ -3,6 +3,7 @@
 .github/workflows/haskell.yml
 .github/workflows/regression-check.yml
 .github/workflows/packdiff.yml
+.github/workflows/check-commit-message.yml
 .gitignore
 .hlint.ignore
 .hlint.yaml
