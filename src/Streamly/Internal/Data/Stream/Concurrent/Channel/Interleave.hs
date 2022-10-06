@@ -87,6 +87,8 @@ workLoopFIFO q sv winfo = run
     yieldk a r = do
         res <- liftIO $ yield sv winfo a
         runInIO <- askRunInIO
+        -- XXX If the queue is empty we do not need to enqueue. We can just
+        -- continue evaluating the stream.
         liftIO $ enqueueFIFO sv q (runInIO, r)
         return $ if res then Continue else Suspend
 
