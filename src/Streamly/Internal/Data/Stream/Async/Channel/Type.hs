@@ -18,6 +18,7 @@ where
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
 import Data.IORef (IORef)
+import Data.List (intersperse)
 import Data.Set (Set)
 
 import Streamly.Internal.Control.Concurrent (RunInIO)
@@ -138,7 +139,7 @@ stop sv winfo =
 {-# NOINLINE dumpSVar #-}
 dumpSVar :: Channel m a -> IO String
 dumpSVar sv = do
-    xs <- sequence
+    xs <- sequence $ intersperse (return "\n")
         [ return (dumpCreator (svarCreator sv))
         , return "---------CURRENT STATE-----------"
         , dumpOutputQ (outputQueue sv)
