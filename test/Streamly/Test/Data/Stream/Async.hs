@@ -82,6 +82,7 @@ commonOpConfigs =
     , ("maxBuffer 0", Async.maxBuffer 0)
     , ("maxThreads 0", Async.maxThreads 0)
     , ("maxThreads 1", Async.maxThreads 1)
+    , ("eagerEval", Async.eagerEval)
 #ifdef USE_LARGE_MEMORY
     , ("maxThreads -1", Async.maxThreads (-1))
 #endif
@@ -98,6 +99,7 @@ opConfigs = commonOpConfigs
 
 makeSpec :: [(String, a)] -> (a -> Spec) -> Spec
 makeSpec cfg spec = mapM_ (\(desc, arg) -> describe desc $ spec arg) cfg
+
 asyncSpec :: ((Async.Config -> Async.Config) -> Spec) -> Spec
 asyncSpec =
     makeSpec $ opConfigs
