@@ -1,7 +1,5 @@
 name: Haskell CI
 
-
-
 on:
   push:
     branches:
