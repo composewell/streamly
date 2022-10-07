@@ -14,6 +14,19 @@
     writeWithBufferOf -> writeWith
     writeChunksWithBufferOf -> writeChunksWith
 
+* Following APIs have been renamed in Streamly.Data.Fold module:
+    head -> one
+
+* Moved Streamly.Data.Array from streamly to streamly-core package.
+* Moved Streamly.Data.Unfold from streamly to streamly-core package.
+* Moved Streamly.Console.Stdio from streamly to streamly-core package.
+* Moved Streamly.FileSystem.Handle from streamly to streamly-core package.
+* Moved Streamly.Unicode.Stream from streamly to streamly-core package.
+
+* Exposed Streamly.Data.Parser module.
+* Exposed Streamly.Unicode.String module.
+* Exposed Streamly.Unicode.Parser module.
+
 * Signature changed: Streamly.Data.Unfold.fromStream
 
 * Add `Streamly.Data.Stream.Concurrent` that provide combinators for handling
