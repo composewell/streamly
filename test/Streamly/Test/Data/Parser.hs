@@ -605,7 +605,7 @@ deintercalate =
             partition =
                 FL.tee (fmap concat $ FL.lefts FL.toList)
                        (fmap concat $ FL.rights FL.toList)
-            p = P.deintercalate partition p1 p2
+            p = P.deintercalate p1 p2 partition
 
 -- shortestPass :: Property
 -- shortestPass =

@@ -1446,14 +1446,14 @@ manyThen _parser _recover _f = undefined
 --
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>
-       Fold m (Either x y) z
-    -> Parser m a x
+       Parser m a x
     -> Parser m a y
+    -> Fold m (Either x y) z
     -> Parser m a z
-deintercalate sink contentL contentR =
+deintercalate contentL contentR sink =
     D.toParserK
         $ D.deintercalate
-            sink (D.fromParserK contentL) (D.fromParserK contentR)
+            (D.fromParserK contentL) (D.fromParserK contentR) sink
 
 -- | Parse items separated by a separator parsed by the supplied parser. At
 -- least one item must be present for the parser to succeed.
@@ -1474,7 +1474,7 @@ sepBy1 sink p sep = do
 -- run, when it is done content parser is run again and so on. If none of the
 -- parsers consumes an input then parser returns a failure.
 --
--- >>> sepBy sink = Parser.deintercalate (Fold.lefts sink)
+-- >>> sepBy sink p1 p2 = Parser.deintercalate p1 p2 (Fold.lefts sink)
 -- >>> sepBy sink content sep = Parser.sepBy1 sink content sep <|> return mempty
 --
 {-# INLINE sepBy #-}
