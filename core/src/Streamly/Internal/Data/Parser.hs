@@ -1474,7 +1474,7 @@ sepBy1 sink p sep = do
 -- run, when it is done content parser is run again and so on. If none of the
 -- parsers consumes an input then parser returns a failure.
 --
--- >>> sepBy sink = Parser.deintercalate (Fold.lefts sink)
+-- >>> sepBy sink p1 p2 = Parser.deintercalate p1 p2 (Fold.lefts sink)
 -- >>> sepBy sink content sep = Parser.sepBy1 sink content sep <|> return mempty
 --
 {-# INLINE sepBy #-}
