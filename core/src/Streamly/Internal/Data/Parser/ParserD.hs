@@ -2158,10 +2158,10 @@ data ManyTillState fs sr sl
 --
 {-# INLINE manyTill #-}
 manyTill :: Monad m
-    => Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
-manyTill (Fold fstep finitial fextract)
-         (Parser stepL initialL extractL)
-         (Parser stepR initialR _) =
+    => Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
+manyTill (Parser stepL initialL extractL)
+         (Parser stepR initialR _)
+         (Fold fstep finitial fextract) =
     Parser step initial extract
 
     where

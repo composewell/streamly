@@ -143,7 +143,7 @@ manyTill :: MonadThrow m => Int -> Stream m Int -> m Int
 manyTill value =
     let p = PR.satisfy (> 0)
         pcond = PR.satisfy (== value)
-    in Stream.parseD (PR.manyTill Fold.length p pcond)
+    in Stream.parseD (PR.manyTill p pcond Fold.length)
 
 {-# INLINE serialWith #-}
 serialWith :: MonadThrow m

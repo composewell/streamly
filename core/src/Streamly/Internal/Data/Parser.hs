@@ -1384,7 +1384,7 @@ manyTillP :: -- Monad m =>
 manyTillP _p1 _p2 _f = undefined
     -- D.toParserK $ D.manyTillP (D.fromParserK p1) (D.fromParserK p2) f
 
--- | @manyTill f test collect@ tries the parser @test@ on the input, if @test@
+-- | @manyTill collect test f@ tries the parser @test@ on the input, if @test@
 -- fails it backtracks and tries @collect@, after @collect@ succeeds @test@ is
 -- tried again and so on. The parser stops when @test@ succeeds.  The output of
 -- @test@ is discarded and the output of @collect@ is accumulated by the
@@ -1397,8 +1397,8 @@ manyTillP _p1 _p2 _f = undefined
 {-# INLINE manyTill #-}
 manyTill :: Monad m
     => Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
-manyTill p1 p2 f =
-    D.toParserK $ D.manyTill f (D.fromParserK p1) (D.fromParserK p2)
+manyTill collect test f =
+    D.toParserK $ D.manyTill (D.fromParserK collect) (D.fromParserK test) f
 
 -- | @manyThen f collect recover@ repeats the parser @collect@ on the input and
 -- collects the output in the supplied fold. If the the parser @collect@ fails,
