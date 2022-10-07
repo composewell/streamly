@@ -25,8 +25,9 @@ where
 
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Map.Strict (Map)
-import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -78,7 +79,7 @@ after_ action xs = fromStreamD $ D.after_ action $ toStreamD xs
 --
 -- @since 0.9.0
 {-# INLINE after #-}
-after :: MonadAsync m
+after :: (MonadIO m, MonadBaseControl IO m)
     => m b -> Stream m a -> Stream m a
 after action xs = fromStreamD $ D.after action $ toStreamD xs
 
@@ -122,7 +123,8 @@ finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 --
 -- @since 0.9.0
 {-# INLINE finally #-}
-finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
+finally :: (MonadIO m, MonadBaseControl IO m, MonadCatch m) =>
+    m b -> Stream m a -> Stream m a
 finally action xs = fromStreamD $ D.finally action $ toStreamD xs
 
 -- | Like 'bracket' but with following differences:
@@ -166,7 +168,7 @@ bracket_ bef aft bet = fromStreamD $
 --
 -- @since 0.9.0
 {-# INLINE bracket #-}
-bracket :: (MonadAsync m, MonadCatch m)
+bracket :: (MonadIO m, MonadBaseControl IO m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
 bracket bef aft = bracket' bef aft aft aft
 
@@ -182,7 +184,7 @@ bracket bef aft = bracket' bef aft aft aft
 --
 -- /Pre-release/
 {-# INLINE bracket' #-}
-bracket' :: (MonadAsync m, MonadCatch m)
+bracket' :: (MonadIO m, MonadBaseControl IO m, MonadCatch m)
     => m b
     -> (b -> m c)
     -> (b -> m d)
