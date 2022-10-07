@@ -2009,8 +2009,8 @@ sepBy
 -- | See 'Streamly.Internal.Data.Parser.sequence'.
 {-# INLINE sequence #-}
 sequence :: Monad m =>
-    Fold m b c -> D.Stream m (Parser m a b) -> Parser m a c
-sequence (Fold fstep finitial fextract) (D.Stream sstep sstate) =
+    D.Stream m (Parser m a b) -> Fold m b c -> Parser m a c
+sequence (D.Stream sstep sstate) (Fold fstep finitial fextract) =
     Parser step initial extract
 
     where

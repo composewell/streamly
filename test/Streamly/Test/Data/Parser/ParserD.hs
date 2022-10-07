@@ -666,7 +666,7 @@ parserSequence =
     monadicIO $ do
       let parsers = D.fromList
                 $ fmap (\xs -> P.fromFold $ FL.take (length xs) FL.sum) ins
-      let sequencedParser = P.sequence FL.sum parsers
+      let sequencedParser = P.sequence parsers FL.sum
       outs <-
         run $
           S.parseD sequencedParser $ S.concatMap S.fromList (S.fromList ins)

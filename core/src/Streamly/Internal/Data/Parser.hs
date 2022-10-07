@@ -1251,7 +1251,7 @@ concatSequence ::
     Fold m b c -> Stream m (Parser m a b) -> Parser m a c
 concatSequence f p =
     let sp = fmap D.fromParserK $ Stream.toStreamD p
-        in D.toParserK $ D.sequence f sp
+        in D.toParserK $ D.sequence sp f
 
 -- | Map a 'Parser' returning function on the result of a 'Parser'.
 --
