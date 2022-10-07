@@ -37,6 +37,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
       Count (..)
     , Limit (..)
     , ThreadAbort (..)
+    , ChannelStop (..)
     , ChildEvent (..)
 
     -- * Stats
@@ -60,6 +61,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
 
     -- * Configuration
     , Rate (..)
+    , StopWhen (..)
     , Config
 
     -- ** Default config
@@ -72,6 +74,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , maxYields
     , inspectMode
     , eagerEval
+    , stopWhen
 
     , rate
     , avgRate
@@ -88,6 +91,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , getYieldLimit
     , getInspectMode
     , getEagerDispatch
+    , getStopWhen
 
     -- * Cleanup
     , cleanupSVar
@@ -107,7 +111,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     )
 where
 
-import Control.Concurrent (ThreadId, myThreadId, throwTo, MVar, tryReadMVar)
+import Control.Concurrent (ThreadId, throwTo, MVar, tryReadMVar)
 import Control.Concurrent.MVar (tryPutMVar)
 import Control.Exception
     ( SomeException(..), Exception, catches, throwIO, Handler(..)
@@ -163,10 +167,19 @@ instance Ord Limit where
 -- Parent child thread communication type
 ------------------------------------------------------------------------------
 
+-- | Channel driver throws this exception to all active workers to clean up
+-- the channel.
 data ThreadAbort = ThreadAbort deriving Show
 
 instance Exception ThreadAbort
 
+-- | If any stream in the channel throws this exception, the channel stops
+-- immediately.
+data ChannelStop = ChannelStop deriving Show
+
+instance Exception ChannelStop
+
+-- XXX Use a ChildSingle event to speed up mapM?
 -- | Events that a child thread may send to a parent thread.
 data ChildEvent a =
       ChildYield a
@@ -298,6 +311,14 @@ data Rate = Rate
     , rateBuffer :: Int    -- ^ Maximum slack from the goal
     }
 
+-- | Specify when the 'Channel' should stop. Note that for ordered streams only
+-- 'FirstStops' and 'AnyStop' would be the same, and usually only 'AllStop'
+-- would make sense. This option is most useful for eager unordered streams.
+data StopWhen =
+      FirstStops -- ^ Stop when the first stream/action ends.
+    | AllStop    -- ^ Stop when all the streams end.
+    | AnyStops   -- ^ Stop when any one stream ends.
+
 -- XXX we can put the resettable fields in a oneShotConfig field and others in
 -- a persistentConfig field. That way reset would be fast and scalable
 -- irrespective of the number of fields.
@@ -323,6 +344,7 @@ data Config = Config
     , _maxStreamRate  :: Maybe Rate
     , _inspectMode    :: Bool
     , _eagerDispatch  :: Bool
+    , _stopWhen :: StopWhen
     }
 
 -------------------------------------------------------------------------------
@@ -354,6 +376,7 @@ defaultConfig = Config
     , _inspectMode = False
     -- XXX Set it to True when Rate is not set?
     , _eagerDispatch = False
+    , _stopWhen = AllStop
     }
 
 -------------------------------------------------------------------------------
@@ -463,6 +486,8 @@ setStreamLatency n st =
 getStreamLatency :: Config -> Maybe NanoSecond64
 getStreamLatency = _streamLatency
 
+-- XXX Rename to "inspect"
+
 -- | Print debug information about the 'Channel' when the stream ends.
 --
 -- /Pre-release/
@@ -472,6 +497,8 @@ inspectMode st = st { _inspectMode = True }
 
 getInspectMode :: Config -> Bool
 getInspectMode = _inspectMode
+
+-- XXX rename to "eager"
 
 -- | By default the stream is evaluated on demand, new evaluation may be
 -- deferred until the consumer consumes the evaluated stream. When 'eagerEval'
@@ -486,6 +513,13 @@ eagerEval st = st { _eagerDispatch = True }
 
 getEagerDispatch :: Config -> Bool
 getEagerDispatch = _eagerDispatch
+
+-- | Specify when the 'Channel' should stop.
+stopWhen :: StopWhen -> Config -> Config
+stopWhen cond st = st { _stopWhen = cond }
+
+getStopWhen :: Config -> StopWhen
+getStopWhen = _stopWhen
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -740,13 +774,14 @@ printSVar dump how = do
 -- Cleanup
 -------------------------------------------------------------------------------
 
--- Can be called from a worker as well, avoids throwing to itself
+-- | Never called from a worker thread.
 cleanupSVar :: IORef (Set ThreadId) -> IO ()
 cleanupSVar workerSet = do
     workers <- readIORef workerSet
-    self <- myThreadId
+    -- self <- myThreadId
     Prelude.mapM_ (`throwTo` ThreadAbort)
-          (Prelude.filter (/= self) $ Set.toList workers)
+          -- (Prelude.filter (/= self) $ Set.toList workers)
+          (Set.toList workers)
 
 -------------------------------------------------------------------------------
 -- Evaluator

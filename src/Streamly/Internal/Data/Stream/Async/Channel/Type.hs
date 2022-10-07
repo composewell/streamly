@@ -11,19 +11,24 @@ module Streamly.Internal.Data.Stream.Async.Channel.Type
       Channel(..)
     , yield
     , stop
+    , stopChannel
     , dumpSVar
     )
 where
 
-import Control.Concurrent (ThreadId)
+import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.MVar (MVar)
+import Control.Exception (toException)
+import Control.Monad (void)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.IORef (IORef)
 import Data.List (intersperse)
 import Data.Set (Set)
-
 import Streamly.Internal.Control.Concurrent (RunInIO)
+import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (dumpSVarStats)
-import Streamly.Internal.Data.Stream.Channel.Worker (sendYield, sendStop)
+import Streamly.Internal.Data.Stream.Channel.Worker
+    (sendYield, sendStop, sendWithDoorBell)
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import Streamly.Internal.Data.Stream.Channel.Types
@@ -136,6 +141,17 @@ stop sv winfo =
         (yieldRateInfo sv)
         (outputQueue sv)
         (outputDoorBell sv)
+
+{-# INLINABLE stopChannel #-}
+stopChannel :: MonadIO m => Channel m a -> m ()
+stopChannel chan = liftIO $ do
+    atomicModifyIORefCAS_ (workerCount chan) $ \n -> n - 1
+    myThreadId >>= \tid ->
+        void
+            $ sendWithDoorBell
+                (outputQueue chan)
+                (outputDoorBell chan)
+                (ChildStop tid (Just (toException ChannelStop)))
 
 {-# NOINLINE dumpSVar #-}
 dumpSVar :: Channel m a -> IO String

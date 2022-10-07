@@ -129,18 +129,17 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
 
     where
 
-    allDone stp = do
-        when (svarInspectMode sv) $ do
-            t <- liftIO $ getTime Monotonic
-            liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
-            liftIO $ printSVar (dumpSVar sv) "SVar Done"
-        stp
+    cleanup = do
+        when (svarInspectMode sv) $ liftIO $ do
+            t <- getTime Monotonic
+            writeIORef (svarStopTime (svarStats sv)) (Just t)
+            printSVar (dumpSVar sv) "SVar Done"
 
     {-# INLINE processEvents #-}
     processEvents [] = K.MkStream $ \st yld sng stp -> do
         done <- postProcess sv
         if done
-        then allDone stp
+        then cleanup >> stp
         else K.foldStream st yld sng stp $ fromChannelRaw sv
 
     processEvents (ev : es) = K.MkStream $ \st yld sng stp -> do
@@ -153,11 +152,23 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
                     Nothing -> K.foldStream st yld sng stp rest
                     Just ex ->
                         case fromException ex of
-                            Just ThreadAbort ->
-                                K.foldStream st yld sng stp rest
-                            Nothing -> do
+                            Just ChannelStop -> do
                                 liftIO (cleanupSVar (workerThreads sv))
-                                throwM ex
+                                cleanup >> stp
+                            Nothing -> do
+                                case fromException ex of
+                                    Just ThreadAbort ->
+                                        -- We terminate the loop after sending
+                                        -- ThreadAbort to workers so we should
+                                        -- never get it unless it is thrown
+                                        -- from inside a worker thread or by
+                                        -- someone else to our thread.
+                                        error "processEvents: got ThreadAbort"
+                                        -- K.foldStream st yld sng stp rest
+                                    Nothing -> do
+                                        -- Throw ThreadAbort to all and exit.
+                                        liftIO (cleanupSVar (workerThreads sv))
+                                        cleanup >> throwM ex
 
 #if __GLASGOW_HASKELL__ < 810
 #ifdef INSPECTION
