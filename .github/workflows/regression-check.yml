@@ -83,6 +83,28 @@ jobs:
         # Bump the key version to clear the cache
         key: charts-master-v1
 
+    - name: Cache bench-runner from pr
+      id: cache-bench-runner-pr
+      uses: actions/cache@v2
+      with:
+        path: bench-runner
+        # Bump the key version to clear the cache
+        key: bench-runner-v1
+
+    # -----------------------------------------------------------------
+    # -- Install bench-report in the current directory
+    # -----------------------------------------------------------------
+
+    - name: Checkout the current branch
+      uses: actions/checkout@v2
+      with:
+        clean: false
+
+    - name: Install bench-runner
+      if: steps.cache-bench-runner-pr.outputs.cache-hit != 'true'
+      run: |
+        cabal install bench-runner --project-file=cabal.project.report --installdir=./
+
     # -----------------------------------------------------------------
     # -- Generate reports for the base branch and upload
     # -----------------------------------------------------------------
@@ -92,11 +114,12 @@ jobs:
       uses: actions/checkout@v2
       with:
         ref: master
+        clean: false
 
     - name: Run benchmarks
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
       run: |
-        cabal run bench-runner --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --raw
+        ./bench-runner --targets "$CI_BENCHMARKS" --raw
 
     - name: Move charts to charts-master
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
@@ -116,7 +139,7 @@ jobs:
 
     - name: Run benchmarks and append
       run: |
-        cabal run bench-runner --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --raw --append
+        ./bench-runner --targets "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
     # -- Compare
@@ -124,7 +147,7 @@ jobs:
 
     - name: List all benchmarks
       run: |
-        cabal run bench-runner --project-file=cabal.project.report -- --targets "$CI_BENCHMARKS" --no-measure
+        ./bench-runner --targets "$CI_BENCHMARKS" --no-measure
 
     - name: Compare benchmarks
       run: |
@@ -142,7 +165,7 @@ jobs:
 
           echo
           echo "Checking $bname for regressions greater than $cutoff percent"
-          ! cabal run bench-runner --project-file=cabal.project.report -- \
+          ! ./bench-runner \
                       --targets "$bname" \
                       --fields "$CI_FIELDS" \
                       --no-measure --silent \
