@@ -132,14 +132,14 @@ evalWithD modifier m = D.Stream step Nothing
 -- appending two streams
 -------------------------------------------------------------------------------
 
-{-# INLINE appendGeneric #-}
-appendGeneric :: MonadAsync m =>
+{-# INLINE _appendGeneric #-}
+_appendGeneric :: MonadAsync m =>
        ((Config -> Config) -> m (Channel m a))
     -> (Config -> Config)
     -> K.Stream m a
     -> K.Stream m a
     -> K.Stream m a
-appendGeneric newChan modifier stream1 stream2 = K.concatEffect action
+_appendGeneric newChan modifier stream1 stream2 = K.concatEffect action
 
     where
 
@@ -164,14 +164,22 @@ appendGeneric newChan modifier stream1 stream2 = K.concatEffect action
 {-# INLINE appendWithK #-}
 appendWithK :: MonadAsync m =>
     (Config -> Config) -> K.Stream m a -> K.Stream m a -> K.Stream m a
-appendWithK = appendGeneric Append.newChannel
+appendWithK modifier stream1 stream2 =
+{-
+    if getOrdered (modifier defaultConfig)
+    then concatMapWithK modifier id (stream1 `K.cons` K.fromPure stream2)
+    else _appendGeneric Append.newChannel modifier stream1 stream2
+-}
+    concatMapWithK modifier id (stream1 `K.cons` K.fromPure stream2)
 
 -- | Create a new channel and add both the streams to it for async evaluation.
 -- The output stream is the result of the evaluation.
 {-# INLINE interleaveWithK #-}
 interleaveWithK :: MonadAsync m =>
     (Config -> Config) -> K.Stream m a -> K.Stream m a -> K.Stream m a
-interleaveWithK = appendGeneric Interleave.newChannel
+-- interleaveWithK = _appendGeneric Interleave.newChannel
+interleaveWithK modifier stream1 stream2 =
+    concatMapInterleaveWithK modifier id (stream1 `K.cons` K.fromPure stream2)
 
 -- | Evaluate the first stream in the current thread and add the second stream
 -- to the supplied channel. This is to be used by a worker thread.
