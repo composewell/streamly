@@ -83,6 +83,8 @@ commonOpConfigs =
     , ("maxThreads 0", Async.maxThreads 0)
     , ("maxThreads 1", Async.maxThreads 1)
     , ("eagerEval", Async.eagerEval)
+    -- XXX Need to use an unsorted eq operation for ahead
+    , ("ordered", Async.ordered)
 #ifdef USE_LARGE_MEMORY
     , ("maxThreads -1", Async.maxThreads (-1))
 #endif
@@ -238,6 +240,7 @@ main = hspec
         prop "mapM (+1)" $
             transform (fmap (+1)) (Async.mapM (\x -> return (x + 1)))
 
+        -- XXX Need to use eq instead of sortEq for ahead oeprations
         -- Binary append
         prop1 "append [] []"
             $ cmp (Stream.nil `Async.append` Stream.nil) sortEq []
