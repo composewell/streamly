@@ -57,6 +57,7 @@ module Streamly.Internal.Data.Stream.Async
     , appendWith
     , interleave
     , interleaveWith
+    , ahead
     , parallel
     , parallelFst
     , parallelMin
@@ -177,6 +178,14 @@ append = appendWith id
 {-# INLINE interleave #-}
 interleave :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 interleave = interleaveWith id
+
+-- | Like 'append' but with 'ordered' on.
+--
+-- >>> ahead = Async.appendWith Async.ordered
+--
+{-# INLINE ahead #-}
+ahead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+ahead = appendWith ordered
 
 -- | Like 'append' but with 'eagerEval' on.
 --
