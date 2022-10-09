@@ -23,6 +23,22 @@
 * Moved Streamly.FileSystem.Handle from streamly to streamly-core package.
 * Moved Streamly.Unicode.Stream from streamly to streamly-core package.
 
+* Following internal modules moved from streamly to streamly-core:
+    Streamly.Internal.Console.Stdio
+    Streamly.Internal.Data.Array.Stream.Foreign
+    Streamly.Internal.Data.Binary.Decode
+    Streamly.Internal.FileSystem.Handle
+    Streamly.Internal.Unicode.Stream
+    Streamly.Internal.Unicode.String
+    Streamly.Internal.Unicode.Char.Parser
+    Streamly.Internal.Unicode.Array.Char
+
+* Following modules renamed in streamly-core package:
+    Streamly.Internal.Data.Array.Stream.Mut.Foreign ->  Streamly.Internal.Data.Array.Unboxed.Mut.Stream
+    Streamly.Internal.Data.Array.Stream.Foreign -> Streamly.Internal.Data.Array.Unboxed.Stream
+    Streamly.Internal.Data.Array.Stream.Fold.Foreign -> Streamly.Internal.Data.Array.Unboxed.Stream.Fold
+    Streamly.Internal.Data.Ring.Foreign -> Streamly.Internal.Data.Ring.Unboxed
+
 * Exposed Streamly.Data.Parser module.
 * Exposed Streamly.Unicode.String module.
 * Exposed Streamly.Unicode.Parser module.
@@ -32,6 +48,7 @@
 * Add `Streamly.Data.Stream.Concurrent` that provide combinators for handling
   non-serial streams.
 * Remove the MonadBase instance of the SerialT type.
+* Add `rmapM` to module Streamly.Internal.Data.Parser.
 
 ### Deprecations
 
