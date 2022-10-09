@@ -37,7 +37,6 @@ module Streamly.Internal.Data.Stream.Channel.Types
       Count (..)
     , Limit (..)
     , ThreadAbort (..)
-    , ChannelStop (..)
     , ChildEvent (..)
 
     -- * Stats
@@ -75,6 +74,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , inspectMode
     , eagerEval
     , stopWhen
+    , ordered
 
     , rate
     , avgRate
@@ -92,6 +92,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , getInspectMode
     , getEagerDispatch
     , getStopWhen
+    , getOrdered
 
     -- * Cleanup
     , cleanupSVar
@@ -173,16 +174,11 @@ data ThreadAbort = ThreadAbort deriving Show
 
 instance Exception ThreadAbort
 
--- | If any stream in the channel throws this exception, the channel stops
--- immediately.
-data ChannelStop = ChannelStop deriving Show
-
-instance Exception ChannelStop
-
 -- XXX Use a ChildSingle event to speed up mapM?
 -- | Events that a child thread may send to a parent thread.
 data ChildEvent a =
       ChildYield a
+    | ChildStopChannel
     | ChildStop ThreadId (Maybe SomeException)
 
 -- | We measure the individual worker latencies to estimate the number of workers
@@ -345,6 +341,7 @@ data Config = Config
     , _inspectMode    :: Bool
     , _eagerDispatch  :: Bool
     , _stopWhen :: StopWhen
+    , _ordered :: Bool
     }
 
 -------------------------------------------------------------------------------
@@ -377,6 +374,7 @@ defaultConfig = Config
     -- XXX Set it to True when Rate is not set?
     , _eagerDispatch = False
     , _stopWhen = AllStop
+    , _ordered = False
     }
 
 -------------------------------------------------------------------------------
@@ -520,6 +518,17 @@ stopWhen cond st = st { _stopWhen = cond }
 
 getStopWhen :: Config -> StopWhen
 getStopWhen = _stopWhen
+
+-- | When enabled the streams may be evaluated cocnurrently but the results are
+-- produced in the same sequence as a serial evaluation would produce.
+--
+-- /Note:/ this option is not supported with interleave operations.
+--
+ordered :: Config -> Config
+ordered st = st { _ordered = True }
+
+getOrdered :: Config -> Bool
+getOrdered = _ordered
 
 -------------------------------------------------------------------------------
 -- Initialization

@@ -146,29 +146,26 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
         let rest = processEvents es
         case ev of
             ChildYield a -> yld a rest
+            ChildStopChannel -> do
+                liftIO (cleanupSVar (workerThreads sv))
+                cleanup >> stp
             ChildStop tid e -> do
                 accountThread sv tid
                 case e of
                     Nothing -> K.foldStream st yld sng stp rest
                     Just ex ->
                         case fromException ex of
-                            Just ChannelStop -> do
-                                liftIO (cleanupSVar (workerThreads sv))
-                                cleanup >> stp
+                            Just ThreadAbort ->
+                                -- We terminate the loop after sending
+                                -- ThreadAbort to workers so we should never
+                                -- get it unless it is thrown from inside a
+                                -- worker thread or by someone else to our
+                                -- thread.
+                                error "processEvents: got ThreadAbort"
+                                -- K.foldStream st yld sng stp rest
                             Nothing -> do
-                                case fromException ex of
-                                    Just ThreadAbort ->
-                                        -- We terminate the loop after sending
-                                        -- ThreadAbort to workers so we should
-                                        -- never get it unless it is thrown
-                                        -- from inside a worker thread or by
-                                        -- someone else to our thread.
-                                        error "processEvents: got ThreadAbort"
-                                        -- K.foldStream st yld sng stp rest
-                                    Nothing -> do
-                                        -- Throw ThreadAbort to all and exit.
-                                        liftIO (cleanupSVar (workerThreads sv))
-                                        cleanup >> throwM ex
+                                liftIO (cleanupSVar (workerThreads sv))
+                                cleanup >> throwM ex
 
 #if __GLASGOW_HASKELL__ < 810
 #ifdef INSPECTION
@@ -281,6 +278,9 @@ _fromChannelD svar = D.Stream step FromSVarInit
     step _ (FromSVarLoop sv (ev : es)) = do
         case ev of
             ChildYield a -> return $ D.Yield a (FromSVarLoop sv es)
+            ChildStopChannel -> do
+                liftIO (cleanupSVar (workerThreads sv))
+                return $ D.Skip (FromSVarDone sv)
             ChildStop tid e -> do
                 accountThread sv tid
                 case e of

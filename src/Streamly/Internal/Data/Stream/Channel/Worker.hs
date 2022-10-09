@@ -12,6 +12,8 @@ module Streamly.Internal.Data.Stream.Channel.Worker
     (
       Work (..)
     , estimateWorkers
+    , isBeyondMaxRate
+    , workerRateControl
 
     -- * Send Events
     , sendWithDoorBell

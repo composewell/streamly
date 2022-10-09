@@ -25,6 +25,7 @@ module Streamly.Internal.Data.Stream.Async.Channel
     , inspectMode
     , StopWhen (..)
     , stopWhen
+    , ordered
 
     -- * Operations
     , fromChannel

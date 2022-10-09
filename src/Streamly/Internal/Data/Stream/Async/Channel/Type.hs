@@ -16,9 +16,8 @@ module Streamly.Internal.Data.Stream.Async.Channel.Type
     )
 where
 
-import Control.Concurrent (ThreadId, myThreadId)
+import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
-import Control.Exception (toException)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.IORef (IORef)
@@ -106,7 +105,7 @@ data Channel m a = Channel
     , workerCount    :: IORef Int
     -- XXX Can we use IO instead of m here?
     , accountThread  :: ThreadId -> m ()
-    , workerStopMVar :: MVar ()
+    , workerStopMVar :: MVar () -- Used only in ordered streams
 
     -- cleanup: to track garbage collection of SVar --
     , svarRef        :: Maybe (IORef ())
@@ -146,12 +145,11 @@ stop sv winfo =
 stopChannel :: MonadIO m => Channel m a -> m ()
 stopChannel chan = liftIO $ do
     atomicModifyIORefCAS_ (workerCount chan) $ \n -> n - 1
-    myThreadId >>= \tid ->
-        void
-            $ sendWithDoorBell
-                (outputQueue chan)
-                (outputDoorBell chan)
-                (ChildStop tid (Just (toException ChannelStop)))
+    void
+        $ sendWithDoorBell
+            (outputQueue chan)
+            (outputDoorBell chan)
+            ChildStopChannel
 
 {-# NOINLINE dumpSVar #-}
 dumpSVar :: Channel m a -> IO String

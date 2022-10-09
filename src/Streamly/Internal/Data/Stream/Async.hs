@@ -31,6 +31,7 @@ module Streamly.Internal.Data.Stream.Async
     , eagerEval
     , StopWhen (..)
     , stopWhen
+    , ordered
     -- maxYields
     , Rate(..)
     , rate
