@@ -79,6 +79,15 @@ jobs:
             cabal_version: 3.8.1.0
             disable_sdist_build: "y"
             ignore_error: false
+          - name: 9.4.2-fusion-inspection
+            ghc_version: 9.4.2
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.8.1.0
+            disable_sdist_build: "y"
+            cabal_project: cabal.project
+            cabal_build_options: "--flag fusion-plugin --flag inspection"
+            ignore_error: false
           - name: 9.2.4
             ghc_version: 9.2.4
             runner: ubuntu-latest
@@ -93,15 +102,6 @@ jobs:
             doctest: "y"
             cabal_version: 3.6.2.0
             cabal_project: cabal.project
-            ignore_error: false
-          - name: 9.4.2-fusion-inspection-Werror
-            ghc_version: 9.4.2
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.8.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            cabal_build_options: "--flag fusion-plugin --flag inspection"
             ignore_error: false
           - name: 9.0.2
             ghc_version: 9.0.2
