@@ -337,6 +337,10 @@ library
                      , Streamly.Internal.Data.Stream.Channel.Dispatcher
                      , Streamly.Internal.Data.Stream.Channel.Worker
 
+                     , Streamly.Internal.Data.Fold.Concurrent.Channel.Type
+                     , Streamly.Internal.Data.Fold.Concurrent.Channel
+                     , Streamly.Internal.Data.Fold.Concurrent
+
                      , Streamly.Internal.Data.Stream.Concurrent.Channel.Type
                      , Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
                      , Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
