@@ -10,7 +10,7 @@ import Stream.AsyncCommon (allBenchmarks, interleaveBenchmarks)
 import Streamly.Benchmark.Common (runWithCLIOpts, defaultStreamSize)
 
 moduleName :: String
-moduleName = "Data.Stream.Async"
+moduleName = "Data.Stream.Concurrent"
 
 -------------------------------------------------------------------------------
 -- Main

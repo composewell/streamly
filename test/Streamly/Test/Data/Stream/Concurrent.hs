@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Test.Data.Stream.Async
+-- Module      : Streamly.Test.Data.Stream.Concurrent
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Stream.Async (main) where
+module Streamly.Test.Data.Stream.Concurrent (main) where
 
 #ifdef DEVBUILD
 import Control.Concurrent (threadDelay)
@@ -25,12 +25,12 @@ import Test.Hspec as H
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.Async as Async
+import qualified Streamly.Internal.Data.Stream.Concurrent as Async
 
 import Streamly.Test.Common (listEquals)
 
 moduleName :: String
-moduleName = "Data.Stream.Async"
+moduleName = "Data.Stream.Concurrent"
 
 -------------------------------------------------------------------------------
 -- Utilities

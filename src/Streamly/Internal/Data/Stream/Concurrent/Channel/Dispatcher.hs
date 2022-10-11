@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
+-- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -7,7 +7,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
+module Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
     (
     -- * Dispatching
       pushWorker
@@ -33,7 +33,7 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (MicroSecond64(..), diffAbsTime64, fromRelTime64, toRelTime64)
 
-import Streamly.Internal.Data.Stream.Async.Channel.Type
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
 import Streamly.Internal.Data.Stream.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Channel.Types
 import Streamly.Internal.Data.Stream.Channel.Worker

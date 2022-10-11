@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Async.Channel.Worker
+-- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel.Worker
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com

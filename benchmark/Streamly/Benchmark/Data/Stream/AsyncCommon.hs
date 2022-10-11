@@ -15,12 +15,12 @@ where
 import Stream.Common
     (composeN, benchIO, benchIOSink, benchIOSrc, sourceUnfoldrM)
 import Streamly.Data.Stream (Stream)
-import Streamly.Internal.Data.Stream.Async (MonadAsync, Config)
+import Streamly.Internal.Data.Stream.Concurrent (MonadAsync, Config)
 
 import qualified Data.List as List
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.Async as Async
+import qualified Streamly.Internal.Data.Stream.Concurrent as Async
 
 import Gauge
 import Prelude hiding (mapM)

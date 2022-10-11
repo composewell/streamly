@@ -27,7 +27,7 @@ targets =
             , "serial_async_cmp"
             ]
       )
-    , ("Data.Stream.Async",
+    , ("Data.Stream.Concurrent",
             [ "prelude_concurrent_grp"
             , "infinite_grp"
             , "concurrent_cmp"

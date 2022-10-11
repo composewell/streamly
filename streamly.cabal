@@ -96,7 +96,7 @@ extra-source-files:
     test/Streamly/Test/Data/Ring/Unboxed.hs
     test/Streamly/Test/Data/Array/Stream/Unboxed.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
-    test/Streamly/Test/Data/Stream/Async.hs
+    test/Streamly/Test/Data/Stream/Concurrent.hs
     test/Streamly/Test/FileSystem/Event.hs
     test/Streamly/Test/FileSystem/Event/Common.hs
     test/Streamly/Test/FileSystem/Event/Darwin.hs
@@ -464,14 +464,14 @@ library
                      , Streamly.Internal.Data.Stream.Channel.Dispatcher
                      , Streamly.Internal.Data.Stream.Channel.Worker
 
-                     , Streamly.Internal.Data.Stream.Async.Channel.Type
-                     , Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
-                     , Streamly.Internal.Data.Stream.Async.Channel.Consumer
-                     , Streamly.Internal.Data.Stream.Async.Channel.Append
-                     , Streamly.Internal.Data.Stream.Async.Channel.Interleave
-                     , Streamly.Internal.Data.Stream.Async.Channel.Operations
-                     , Streamly.Internal.Data.Stream.Async.Channel
-                     , Streamly.Internal.Data.Stream.Async
+                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Type
+                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
+                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
+                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Append
+                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
+                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
+                     , Streamly.Internal.Data.Stream.Concurrent.Channel
+                     , Streamly.Internal.Data.Stream.Concurrent
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.ZipAsync
 
