@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Async.Channel.Interleave
+-- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.Async.Channel.Interleave
+module Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
     (
       newChannel
     )
@@ -27,8 +27,8 @@ import Streamly.Internal.Data.Stream.Channel.Dispatcher (delThread)
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Streamly.Internal.Data.Stream.Async.Channel.Consumer
-import Streamly.Internal.Data.Stream.Async.Channel.Type
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
 import Streamly.Internal.Data.Stream.Channel.Types
 
 ------------------------------------------------------------------------------

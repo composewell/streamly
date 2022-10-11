@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Async.Channel.Append
+-- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel.Append
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -13,7 +13,7 @@
 -- use INLINABLE and SPECIALIZE on it which makes it specialized but it is not
 -- actually inlined.
 
-module Streamly.Internal.Data.Stream.Async.Channel.Append
+module Streamly.Internal.Data.Stream.Concurrent.Channel.Append
     (
       newChannel
     )
@@ -39,9 +39,9 @@ import qualified Data.Heap as H
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Streamly.Internal.Data.Stream.Async.Channel.Consumer
-import Streamly.Internal.Data.Stream.Async.Channel.Dispatcher
-import Streamly.Internal.Data.Stream.Async.Channel.Type
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
 import Streamly.Internal.Data.Stream.Channel.Types
 import Streamly.Internal.Data.Stream.Channel.Worker
 

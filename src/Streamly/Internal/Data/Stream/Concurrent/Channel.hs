@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Async.Channel
+-- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.Async.Channel
+module Streamly.Internal.Data.Stream.Concurrent.Channel
     (
     -- * Channel
       Channel
@@ -47,16 +47,16 @@ where
 
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
-import Streamly.Internal.Data.Stream.Async.Channel.Operations
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
     (fromChannel, fromChannelK, toChannel, toChannelK)
 
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.Async.Channel.Append as Append
-import qualified Streamly.Internal.Data.Stream.Async.Channel.Interleave
+import qualified Streamly.Internal.Data.Stream.Concurrent.Channel.Append as Append
+import qualified Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
     as Interleave
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Streamly.Internal.Data.Stream.Async.Channel.Type
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
 import Streamly.Internal.Data.Stream.Channel.Types
 
 -- | Allocate a channel and evaluate the stream using the channel and the

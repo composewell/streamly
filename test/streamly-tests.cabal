@@ -389,11 +389,11 @@ test-suite Prelude.Async
   if flag(use-streamly-core)
     buildable: False
 
-test-suite Data.Stream.Async
+test-suite Data.Stream.Concurrent
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Stream/Async.hs
-  ghc-options: -main-is Streamly.Test.Data.Stream.Async.main
+  ghc-options: -main-is Streamly.Test.Data.Stream.Concurrent.main
   if flag(use-streamly-core)
     buildable: False
 

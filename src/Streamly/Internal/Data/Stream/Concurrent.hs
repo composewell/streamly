@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Async
+-- Module      : Streamly.Internal.Data.Stream.Concurrent
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -16,7 +16,7 @@
 -- Common Channel functionality to Data.Channel.
 -- Stream channel to Data.Stream.Channel.
 
-module Streamly.Internal.Data.Stream.Async
+module Streamly.Internal.Data.Stream.Concurrent
     (
     -- * Imports
     -- $setup
@@ -79,7 +79,7 @@ import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 
-import Streamly.Internal.Data.Stream.Async.Channel
+import Streamly.Internal.Data.Stream.Concurrent.Channel
 import Prelude hiding (mapM, sequence, concat, concatMap)
 
 -- $setup
@@ -92,7 +92,7 @@ import Prelude hiding (mapM, sequence, concat, concatMap)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.Async as Async
+-- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Async
 -- >>> import Prelude hiding (concatMap, concat)
 -- >>> :{
 --  delay n = do
