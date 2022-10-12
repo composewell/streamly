@@ -511,6 +511,9 @@ library
                      , Streamly.Network.Socket
                      , Streamly.Network.Inet.TCP
 
+                     -- Concurrency
+                     Streamly.Data.Stream.Concurrent
+
                      -- Deprecated
                      , Streamly
                      , Streamly.Data.Unicode.Stream
