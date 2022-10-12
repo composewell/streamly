@@ -18,7 +18,7 @@ module Streamly.Data.Stream.Concurrent
     , eagerEval
     , stopWhen
     , ordered
-    
+
     , rate
     , avgRate
     , minRate
