@@ -257,11 +257,11 @@ benchmark Data.Stream.Async
   else
     buildable: True
 
-benchmark Data.Stream.AsyncEager
+benchmark Data.Stream.ConcurrentEager
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
-  main-is: AsyncEager.hs
+  main-is: ConcurrentEager.hs
   other-modules:
       Stream.AsyncCommon
       Stream.Common
@@ -270,11 +270,11 @@ benchmark Data.Stream.AsyncEager
   else
     buildable: True
 
-benchmark Data.Stream.AsyncOrdered
+benchmark Data.Stream.ConcurrentOrdered
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
-  main-is: AsyncOrdered.hs
+  main-is: ConcurrentOrdered.hs
   other-modules:
       Stream.AsyncCommon
       Stream.Common

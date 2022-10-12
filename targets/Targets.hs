@@ -34,13 +34,13 @@ targets =
             , "serial_async_cmp"
             ]
       )
-    , ("Data.Stream.AsyncEager",
+    , ("Data.Stream.ConcurrentEager",
             [ "prelude_concurrent_grp"
             , "infinite_grp"
             , "concurrent_cmp"
             ]
       )
-    , ("Data.Stream.AsyncOrdered",
+    , ("Data.Stream.ConcurrentOrdered",
             [ "prelude_concurrent_grp"
             , "infinite_grp"
             , "concurrent_cmp"
