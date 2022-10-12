@@ -10,17 +10,15 @@ module Streamly.Data.Stream.Concurrent
     (
       MonadAsync
     , Config
-    , defaultConfig
 
     -- ** Set config
     , maxThreads
     , maxBuffer
-    , maxYields
     , inspectMode
     , eagerEval
     , stopWhen
     , ordered
-
+    
     , rate
     , avgRate
     , minRate
@@ -32,7 +30,6 @@ module Streamly.Data.Stream.Concurrent
     , sequence
     , sequenceWith
 
-    -- XXX experimental binary ops, move to parallel?
     , append
     , appendWith
     , interleave
