@@ -95,14 +95,14 @@ jobs:
             cabal_project: cabal.project
             disable_sdist_build: "y"
             ignore_error: false
-          - name: 9.0.2
+          - name: 9.0.2-streamly-sdist
             ghc_version: 9.0.2
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
             cabal_project: cabal.project.streamly
             ignore_error: true
-          - name: 8.10.7-sdist-stack
+          - name: 8.10.7-streamly-sdist-stack
             runner: ubuntu-latest
             build: stack
             resolver: lts-18.23
@@ -134,29 +134,32 @@ jobs:
             disable_sdist_build: "y"
             cabal_build_options: "--flag fusion-plugin --flag inspection"
             ignore_error: false
-          - name: 8.8.4-sdist-fusion
+          - name: 8.8.4-fusion
             ghc_version: 8.8.4
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
-            cabal_project: cabal.project.streamly
+            cabal_project: cabal.project
             cabal_build_options: "--flag fusion-plugin"
+            disable_sdist_build: "y"
             ignore_error: false
-          - name: 8.6.5-sdist-no-fusion-unoptimized
+          - name: 8.6.5-no-fusion-unoptimized
             ghc_version: 8.6.5
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
-            cabal_project: cabal.project.streamly
+            cabal_project: cabal.project
             cabal_build_options: "--flag no-fusion --flag -opt"
+            disable_sdist_build: "y"
             ignore_error: false
-          - name: 8.6.5-sdist-debug-unoptimized
+          - name: 8.6.5-debug-unoptimized
             ghc_version: 8.6.5
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
-            cabal_project: cabal.project.streamly
+            cabal_project: cabal.project
             cabal_build_options: "--flag debug --flag -opt"
+            disable_sdist_build: "y"
             ignore_error: false
 
     steps:

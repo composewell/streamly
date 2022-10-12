@@ -149,7 +149,6 @@ jobs:
               CABAL_PROJECT: "cabal.project"
               DISABLE_TEST: "yes"
               DISABLE_BENCH: "yes"
-              DISABLE_DIST_CHECKS: "yes"
               DISABLE_SDIST_BUILD: "yes"
             command: |
               apt-get install -y ghc-8.10.4

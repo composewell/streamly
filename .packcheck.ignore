@@ -22,10 +22,10 @@ cabal.project.hpc-coveralls
 cabal.project.O0
 cabal.project.report
 cabal.project.packdiff
+cabal.project.streamly
 cabal.project.Werror
 cabal.project.Werror-nocode
-cabal.project.902
-cabal.project.streamly
+core/
 default.nix
 examples/README.md
 hie.yaml
@@ -34,4 +34,3 @@ targets/default.nix
 targets/cabal.project
 test/test-runner/default.nix
 test/test-runner/cabal.project
-core/
