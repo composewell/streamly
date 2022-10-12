@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Stream.IsStream.Async
+-- Module      : Streamly.Internal.Data.Stream.Async
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -22,7 +22,7 @@
 --      return n                    -- IO Int
 -- :}
 --
-module Streamly.Internal.Data.Stream.IsStream.Async
+module Streamly.Internal.Data.Stream.Async
     (
       AsyncT(..)
     , Async

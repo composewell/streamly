@@ -197,7 +197,7 @@ import Data.Semigroup (Semigroup(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Stream.Ahead
-import Streamly.Internal.Data.Stream.IsStream.Async
+import Streamly.Internal.Data.Stream.Async
 import Streamly.Internal.Data.Stream.IsStream.Combinators
 import Streamly.Internal.Data.Stream.IsStream.Expand
 import Streamly.Internal.Data.Stream.IsStream.Type
