@@ -12,7 +12,7 @@ import Streamly.Benchmark.Common (runWithCLIOpts, defaultStreamSize)
 import qualified Streamly.Internal.Data.Stream.Concurrent as Async
 
 moduleName :: String
-moduleName = "Data.Stream.AsyncEager"
+moduleName = "Data.Stream.ConcurrentOrdered"
 
 -------------------------------------------------------------------------------
 -- Main
@@ -20,4 +20,4 @@ moduleName = "Data.Stream.AsyncEager"
 
 main :: IO ()
 main =
-    runWithCLIOpts defaultStreamSize (allBenchmarks moduleName Async.eagerEval)
+    runWithCLIOpts defaultStreamSize (allBenchmarks moduleName Async.ordered)
