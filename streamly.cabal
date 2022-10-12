@@ -345,6 +345,7 @@ library
 
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.WSerial
+                     , Streamly.Internal.Data.Stream.Parallel
                      , Streamly.Internal.Data.Stream.Channel.Types
                      , Streamly.Internal.Data.Stream.Channel.Dispatcher
                      , Streamly.Internal.Data.Stream.Channel.Worker
@@ -373,7 +374,6 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Lift
                      , Streamly.Internal.Data.Stream.IsStream.Top
                      , Streamly.Internal.Data.Stream.IsStream.Async
-                     , Streamly.Internal.Data.Stream.IsStream.Parallel
                      , Streamly.Internal.Data.Stream.IsStream
 
                      -- streamly-unicode

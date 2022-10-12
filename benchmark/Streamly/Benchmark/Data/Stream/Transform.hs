@@ -35,7 +35,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import Streamly.Internal.Data.Time.Units
 #else
-import qualified Streamly.Internal.Data.Stream.IsStream.Parallel as Stream
+import qualified Streamly.Internal.Data.Stream.Parallel as Stream
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 
