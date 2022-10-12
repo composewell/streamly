@@ -100,8 +100,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , yield, yieldM, repeatM)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream (..), fromSerial, consM, fromStreamD)
-import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.WSerial (WSerialT)
+import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
 import Streamly.Internal.Data.Unboxed (Unboxed)

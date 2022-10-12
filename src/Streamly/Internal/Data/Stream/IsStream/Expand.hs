@@ -52,8 +52,8 @@ module Streamly.Internal.Data.Stream.IsStream.Expand
     -- streams that come earlier in the composition.
     --
     , wSerial
-    , WSerial.wSerialFst
-    , WSerial.wSerialMin
+    , Serial.wSerialFst
+    , Serial.wSerialMin
 
     -- ** Interleave
     -- | 'interleave' is like 'wSerial'  but using a direct style
@@ -175,7 +175,7 @@ import Streamly.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     (append, interleave, interleaveSuffix, interleaveInfix, interleaveMin
     , roundRobin, mergeByM, unfoldMany, unfoldManyInterleave, intersperse

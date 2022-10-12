@@ -101,8 +101,8 @@ where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
-import Streamly.Internal.Data.Stream.Serial (SerialT, Serial)
-import Streamly.Internal.Data.Stream.WSerial (WSerialT(..), WSerial)
+import Streamly.Internal.Data.Stream.Serial
+    (SerialT, Serial, WSerialT(..), WSerial)
 import Streamly.Internal.Data.Stream.Async
     (AsyncT(..), Async, WAsyncT(..), WAsync)
 import Streamly.Internal.Data.Stream.Ahead (AheadT(..), Ahead)
@@ -116,7 +116,6 @@ import qualified Streamly.Internal.Data.Stream.Ahead as Ahead
 import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.Parallel as Parallel
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.WSerial as WSerial
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), toStreamK, fromStreamK
     , drain, eqBy, cmpBy, fromList, toList, foldrMx, foldlMx'
@@ -470,12 +469,12 @@ instance IsStream WSerialT where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> WSerialT IO a -> WSerialT IO a #-}
     consM :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    consM = WSerial.consMWSerial
+    consM = Serial.consMWSerial
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> WSerialT IO a -> WSerialT IO a #-}
     (|:) :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    (|:) = WSerial.consMWSerial
+    (|:) = Serial.consMWSerial
 
 -------------------------------------------------------------------------------
 -- Async
