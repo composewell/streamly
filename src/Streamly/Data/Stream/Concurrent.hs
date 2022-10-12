@@ -52,6 +52,4 @@ module Streamly.Data.Stream.Concurrent
 where
 
 import Streamly.Internal.Data.Stream.Concurrent
-import Streamly.Internal.Data.Stream.Channel.Types
-    ( defaultConfig, maxYields )
 import Prelude hiding (mapM, sequence, concat, concatMap)
