@@ -3,15 +3,28 @@
 This file documents the required CI test matrix so that we do not accidentally
 remove or miss any tests when making changes to CI configs:
 
+## Mono repo
+
+We host "streamly" and "streamly-core" packages in the same repo. This
+creates a problem for the sdist build for the "streamly" package because
+it depends on the "streamly-core" package. In the "streamly" sdist build
+we use a cabal.project file to pick up "streamly-core" from github
+master branch HEAD. If we make changes to both the packages at the same
+time we won't be able to do this.
+
+We use one sdist build for "streamly" package and one for "streamly-core". The
+sdist build for "streamly" might fail because of the reason described above.
+
 ## For prime GHC version:
 
 Distribution:
-  * build from source distribution WITHOUT a cabal.project file
+  * build "streamly" from source distribution WITHOUT a cabal.project file
+  * build "streamly-core" from source distribution WITHOUT a cabal.project file
 
 Performance:
   * `--flag inspection` + `--flag fusion-plugin`
-  * Run `bin/bench.sh --quick --raw`
-  * Run `bin/test.sh`
+  * Run `benchmark/bench-runner --quick --raw`
+  * Run `test/test-runner`
   * -Werror (for lib, test, bench)
 
 Lint:
@@ -26,9 +39,6 @@ Coverage:
 
 Debug:
   * --flag debug
-
-StreamK:
-  * --flag streamk
 
 Windows:
   * Windows + stack
