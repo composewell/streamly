@@ -13,7 +13,8 @@
 
 module Streamly.Data.Array.Unboxed.Mut
     (
-      Array
+      Unbox (..)
+    , Array
 
     -- * Arrays
     -- ** Construction
@@ -58,3 +59,4 @@ where
 
 import Prelude hiding (length, read)
 import Streamly.Internal.Data.Array.Unboxed.Mut
+import Streamly.Internal.Data.Unboxed (Unbox (..))

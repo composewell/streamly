@@ -53,7 +53,8 @@
 
 module Streamly.Data.Array.Unboxed
     (
-      A.Array
+      Unbox (..)
+    , A.Array
 
     -- * Arrays
     -- ** Construction
@@ -93,6 +94,7 @@ module Streamly.Data.Array.Unboxed
 where
 
 import Streamly.Internal.Data.Array.Unboxed as A
+import Streamly.Internal.Data.Unboxed (Unbox (..))
 
 -- $setup
 -- >>> :m
