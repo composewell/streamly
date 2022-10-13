@@ -23,6 +23,17 @@ higher level operations with additional dependencies.
 * In `Streamly.Data.Unfold`, signatures changed:
   * `fromStream`
   * `replicateM`
+* Several APIs in `Streamly.Unicode.Stream` have been changed to use `SerialT`
+  (type synonym for `Stream`) instead of a polymorphic stream type. You can use
+  `adapt` to use these APIs with other stream types.
+* Functions that work with arrays require an `Unbox` constraint instead of
+  `Storable`. You can derive `Unbox` instances using generic deriving, see the
+  documentation of `Unbox`.
+* The signature of `replicateM`, `many`, and `fromStream` in
+  `Streamly.Data.Unfold` is changed.
+* `toFold` in `Streamly.Data.Fold.Tee` is removed, use `unTee` instead.
+* The signature of `read` and `readRev` in `Streamly.Data.Array.Foreign` is
+  changed.
 
 ### Enhancements
 
