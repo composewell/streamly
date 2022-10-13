@@ -813,16 +813,14 @@ indexedR n = fromStreamD . D.indexedR n . toStreamD
 -- If we do not do that then the following example will generate the same
 -- timestamp for first two elements:
 --
--- Stream.mapM_ print $ Stream.timestamped $ Stream.delay $ Stream.enumerateFromTo 1 3
+-- Stream.fold Fold.toList $ Stream.timestamped $ Stream.delay $ Stream.enumerateFromTo 1 3
 --
 -- | Pair each element in a stream with an absolute timestamp, using a clock of
 -- specified granularity.  The timestamp is generated just before the element
 -- is consumed.
 --
--- >>> Stream.mapM_ print $ Stream.timestampWith 0.01 $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
--- (AbsTime (TimeSpec {sec = ..., nsec = ...}),1)
--- (AbsTime (TimeSpec {sec = ..., nsec = ...}),2)
--- (AbsTime (TimeSpec {sec = ..., nsec = ...}),3)
+-- >>> Stream.fold Fold.toList $ Stream.timestampWith 0.01 $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- [(AbsTime (TimeSpec {sec = ..., nsec = ...}),1),(AbsTime (TimeSpec {sec = ..., nsec = ...}),2),(AbsTime (TimeSpec {sec = ..., nsec = ...}),3)]
 --
 -- /Pre-release/
 --
@@ -844,10 +842,8 @@ timestamped = timestampWith 0.01
 -- clock with the specified granularity. The time is measured just before the
 -- element is consumed.
 --
--- >>> Stream.mapM_ print $ Stream.timeIndexWith 0.01 $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
--- (RelTime64 (NanoSecond64 ...),1)
--- (RelTime64 (NanoSecond64 ...),2)
--- (RelTime64 (NanoSecond64 ...),3)
+-- >>> Stream.fold Fold.toList $ Stream.timeIndexWith 0.01 $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- [(RelTime64 (NanoSecond64 ...),1),(RelTime64 (NanoSecond64 ...),2),(RelTime64 (NanoSecond64 ...),3)]
 --
 -- /Pre-release/Monad
 --
@@ -860,10 +856,8 @@ timeIndexWith g stream = zipWith (flip (,)) stream (relTimesWith g)
 -- 10 ms granularity clock. The time is measured just before the element is
 -- consumed.
 --
--- >>> Stream.mapM_ print $ Stream.timeIndexed $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
--- (RelTime64 (NanoSecond64 ...),1)
--- (RelTime64 (NanoSecond64 ...),2)
--- (RelTime64 (NanoSecond64 ...),3)
+-- >>> Stream.fold Fold.toList $ Stream.timeIndexed $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- [(RelTime64 (NanoSecond64 ...),1),(RelTime64 (NanoSecond64 ...),2),(RelTime64 (NanoSecond64 ...),3)]
 --
 -- /Pre-release/
 --
