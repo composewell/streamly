@@ -50,7 +50,7 @@ enqueueFIFO ::
     -> IO ()
 enqueueFIFO sv q m = do
     pushL q m
-    ringDoorBell (needDoorBell sv) (outputDoorBell sv)
+    ringDoorBell (doorBellOnWorkQ sv) (outputDoorBell sv)
 
 {-# INLINE workLoopFIFO #-}
 workLoopFIFO
@@ -201,7 +201,7 @@ getFifoSVar mrun cfg = do
             , eagerDispatch    = return ()
             , isWorkDone       = workDone sv
             , isQueueDone      = workDone sv
-            , needDoorBell     = wfw
+            , doorBellOnWorkQ  = wfw
             , svarMrun         = mrun
             , workerCount      = active
             , accountThread    = delThread running

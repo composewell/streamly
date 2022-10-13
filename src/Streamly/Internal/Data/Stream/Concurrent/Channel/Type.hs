@@ -67,7 +67,7 @@ data Channel m a = Channel
 
     -- [LOCKING] Infrequent MVar. Used when the outputQ transitions from empty
     -- to non-empty, or a work item is queued by a worker to the work queue and
-    -- needDoorBell is set by the consumer.
+    -- doorBellOnWorkQ is set by the consumer.
     , outputDoorBell :: MVar ()  -- signal the consumer about output
     -- XXX Can we use IO instead of m here?
     , readOutputQ    :: m [ChildEvent a]
@@ -92,7 +92,8 @@ data Channel m a = Channel
     , eagerDispatch  :: m ()
     , isWorkDone     :: IO Bool
     , isQueueDone    :: IO Bool
-    , needDoorBell   :: IORef Bool
+    , doorBellOnWorkQ   :: IORef Bool -- ring outputDoorBell on enqueue so that a
+    -- sleeping consumer thread can wake up and send more workers.
     , workLoop       :: Maybe WorkerInfo -> m ()
 
     -- Shared, thread tracking
@@ -160,7 +161,7 @@ dumpSVar sv = do
         , dumpOutputQ (outputQueue sv)
         -- XXX print the types of events in the outputQueue, first 5
         , dumpDoorBell (outputDoorBell sv)
-        , dumpNeedDoorBell (needDoorBell sv)
+        , dumpNeedDoorBell (doorBellOnWorkQ sv)
         , dumpRunningThreads (workerThreads sv)
         -- XXX print the status of first 5 threads
         , dumpWorkerCount (workerCount sv)

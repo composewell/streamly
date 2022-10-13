@@ -63,7 +63,7 @@ enqueueLIFO ::
 enqueueLIFO sv q inner m = do
     atomicModifyIORefCAS_ q $ \(xs, ys) ->
         if inner then (xs, m : ys) else (m : xs, ys)
-    ringDoorBell (needDoorBell sv) (outputDoorBell sv)
+    ringDoorBell (doorBellOnWorkQ sv) (outputDoorBell sv)
 
 data QResult a = QEmpty | QOuter a | QInner a
 
@@ -239,7 +239,7 @@ enqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([snd m], n + 1)  -- increment sequence
         _ -> error "enqueueAhead: queue is not empty"
-    ringDoorBell (needDoorBell sv) (outputDoorBell sv)
+    ringDoorBell (doorBellOnWorkQ sv) (outputDoorBell sv)
 
 -- enqueue without incrementing the sequence number
 {-# INLINE reEnqueueAhead #-}
@@ -249,7 +249,7 @@ reEnqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([m], n)  -- DO NOT increment sequence
         _ -> error "reEnqueueAhead: queue is not empty"
-    ringDoorBell (needDoorBell sv) (outputDoorBell sv)
+    ringDoorBell (doorBellOnWorkQ sv) (outputDoorBell sv)
 
 -- Normally the thread that has the token should never go away. The token gets
 -- handed over to another thread, but someone or the other has the token at any
@@ -983,7 +983,7 @@ getLifoSVar mrun cfg = do
                 then isQueueDoneAhead sv aheadQ
                 else workDone sv
 
-            , needDoorBell     = wfw
+            , doorBellOnWorkQ  = wfw
             , svarMrun         = mrun
             , workerCount      = active
             -- XXX We can use delThread or modThread based on eager flag.

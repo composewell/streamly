@@ -351,7 +351,7 @@ sendWorkerWait eager delay dispatch sv = go
             -- that if we sleep because the queue was empty we are guaranteed
             -- to get a doorbell on the next enqueue.
 
-            liftIO $ atomicModifyIORefCAS_ (needDoorBell sv) $ const True
+            liftIO $ atomicModifyIORefCAS_ (doorBellOnWorkQ sv) $ const True
             liftIO storeLoadBarrier
             canDoMore <- dispatch sv
 
@@ -372,7 +372,12 @@ sendWorkerWait eager delay dispatch sv = go
                         "sendWorkerWait: nothing to do"
                     $ takeMVar (outputDoorBell sv)
                 (_, len) <- liftIO $ readIORef (outputQueue sv)
-                when (len <= 0) go
+                if len <= 0
+                then go
+                else
+                    liftIO
+                        $ atomicModifyIORefCAS_ (doorBellOnWorkQ sv)
+                        $ const False
 
 -- | Start the evaluation of the channel's work queue by kicking off a worker.
 -- Note: Work queue must not be empty otherwise the worker will exit without
