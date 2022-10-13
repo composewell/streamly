@@ -350,6 +350,7 @@ library
 
                      -- streamly-core exposed modules
                      , Streamly.Data.Stream
+                     , Streamly.Data.Stream.Zip
                      , Streamly.Data.Unbox
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
