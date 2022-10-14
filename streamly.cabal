@@ -345,6 +345,7 @@ library
                      , Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
                      , Streamly.Internal.Data.Stream.Concurrent.Channel
                      , Streamly.Internal.Data.Stream.Concurrent
+                     , Streamly.Internal.Data.Stream.Zip.ConcurrentZip
 
                      -- streamly-unicode
                      , Streamly.Internal.Unicode.Utf8

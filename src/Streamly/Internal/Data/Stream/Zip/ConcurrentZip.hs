@@ -1,0 +1,54 @@
+
+{-# LANGUAGE UndecidableInstances #-}
+
+-- |
+-- Module      : Streamly.Internal.Data.Stream.ConcurrentZip
+-- Copyright   : (c) 2017 Composewell Technologies
+-- License     : BSD-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
+--
+-- To run examples in this module:
+--
+-- >>> import qualified Streamly.Prelude as Stream
+--
+module Streamly.Internal.Data.Stream.Zip.ConcurrentZip
+    (
+      ConcurrentZipM (..)
+    , ConcurrentZip
+    , consMConcurrentZip
+    )
+where
+
+
+import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.Concurrent (MonadAsync, zipWith)
+
+import qualified Streamly.Internal.Data.Stream as Stream (consM, repeat)
+
+import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
+
+#include "Instances.hs"
+
+newtype ConcurrentZipM m a = ConcurrentZipM {getStream :: Stream m a}
+        deriving (Semigroup, Monoid)
+
+-- | An IO stream whose applicative instance zips streams concurrently.--
+--
+-- @since 0.9.0
+type ConcurrentZip = ConcurrentZipM IO
+
+consMConcurrentZip :: Monad m => m a -> ConcurrentZipM m a -> ConcurrentZipM m a
+consMConcurrentZip m (ConcurrentZipM r) = ConcurrentZipM $ Stream.consM m r
+
+instance Monad m => Functor (ConcurrentZipM m) where
+    {-# INLINE fmap #-}
+    fmap f (ConcurrentZipM m) =
+        ConcurrentZipM $ fmap f m
+
+instance MonadAsync m => Applicative (ConcurrentZipM m) where
+    pure = ConcurrentZipM . Stream.repeat
+
+    {-# INLINE (<*>) #-}
+    ConcurrentZipM m1 <*> ConcurrentZipM m2 = ConcurrentZipM $ zipWith id m1 m2
