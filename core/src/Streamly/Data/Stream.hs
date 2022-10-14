@@ -245,7 +245,6 @@ module Streamly.Data.Stream
     -- ** Parsing
     , parse
     , parseBreak
-    , parseMany
 
     -- -- ** Lazy Right Folds
     -- Consuming a stream to build a right associated expression, suitable
@@ -405,6 +404,7 @@ module Streamly.Data.Stream
 
     -- * Repeated Fold
     , foldMany -- XXX Rename to foldRepeat
+    , parseMany
 
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.
