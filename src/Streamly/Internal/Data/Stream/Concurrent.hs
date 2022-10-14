@@ -32,6 +32,7 @@ module Streamly.Internal.Data.Stream.Concurrent
     , StopWhen (..)
     , stopWhen
     , ordered
+    , interleaved
     -- maxYields
     , Rate(..)
     , rate
@@ -62,13 +63,12 @@ module Streamly.Internal.Data.Stream.Concurrent
     -- | Use a channel for each pair.
     -- combine/concur/conjoin
     , append
-    , appendWith
     , interleave
-    , interleaveWith
     , ahead
     , parallel
     , parallelFst
     , parallelMin
+    , combineWith
 
     -- ** Apply
     -- | Use a separate channel for each application.
@@ -83,7 +83,6 @@ module Streamly.Internal.Data.Stream.Concurrent
     , concatMap
     , concatMapInterleave
     , concatMapWith
-    , concatMapInterleaveWith
     )
 where
 
@@ -140,21 +139,12 @@ eval = evalWith id
 -------------------------------------------------------------------------------
 
 -- | Like 'append' but with a Config modifier.
-{-# INLINE appendWith #-}
-appendWith :: MonadAsync m =>
+{-# INLINE combineWith #-}
+combineWith :: MonadAsync m =>
     (Config -> Config) -> Stream m a -> Stream m a -> Stream m a
-appendWith modifier stream1 stream2 =
+combineWith modifier stream1 stream2 =
     Stream.fromStreamK
         $ appendWithK
-            modifier (Stream.toStreamK stream1) (Stream.toStreamK stream2)
-
--- | Like 'interleave' but with a Config modifier.
-{-# INLINE interleaveWith #-}
-interleaveWith :: MonadAsync m =>
-    (Config -> Config) -> Stream m a -> Stream m a -> Stream m a
-interleaveWith modifier stream1 stream2 =
-    Stream.fromStreamK
-        $ interleaveWithK
             modifier (Stream.toStreamK stream1) (Stream.toStreamK stream2)
 
 -- | Binary operation to evaluate two streams concurrently prioritizing the
@@ -167,7 +157,7 @@ interleaveWith modifier stream1 stream2 =
 -- all streams. However, with this operation you can precisely control the
 -- scheduling by creating arbitrary shape expression trees.
 --
--- >>> append = Async.appendWith id
+-- >>> append = Async.combineWith id
 --
 -- The following code finishes in 4 seconds:
 --
@@ -180,52 +170,52 @@ interleaveWith modifier stream1 stream2 =
 --
 {-# INLINE append #-}
 append :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-append = appendWith id
+append = combineWith id
 
 -- | Like 'append' but interleaves the streams fairly instead of prioritizing
 -- the left stream. This schedules all streams in a round robin fashion over
 -- limited number of threads.
 --
--- >>> interleave = Async.interleaveWith id
+-- >>> interleave = Async.combineWith Async.interleaved
 --
 {-# INLINE interleave #-}
 interleave :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-interleave = interleaveWith id
+interleave = combineWith interleaved
 
 -- | Like 'append' but with 'ordered' on.
 --
--- >>> ahead = Async.appendWith Async.ordered
+-- >>> ahead = Async.combineWith Async.ordered
 --
 {-# INLINE ahead #-}
 ahead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-ahead = appendWith ordered
+ahead = combineWith ordered
 
 -- | Like 'append' but with 'eagerEval' on.
 --
--- >>> parallel = Async.appendWith Async.eagerEval
+-- >>> parallel = Async.combineWith Async.eagerEval
 --
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallel = appendWith eagerEval
+parallel = combineWith eagerEval
 
 -- | Like 'parallel' but stops the output as soon as the first stream stops.
 --
--- >>> parallelFst = Async.appendWith (Async.eagerEval . Async.stopWhen Async.FirstStops)
+-- >>> parallelFst = Async.combineWith (Async.eagerEval . Async.stopWhen Async.FirstStops)
 --
 -- /Pre-release/
 {-# INLINE parallelFst #-}
 parallelFst :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallelFst = appendWith (eagerEval . stopWhen FirstStops)
+parallelFst = combineWith (eagerEval . stopWhen FirstStops)
 
 -- | Like 'parallel' but stops the output as soon as any of the two streams
 -- stops.
 --
--- >>> parallelMin = Async.appendWith (Async.eagerEval . Async.stopWhen Async.AnyStops)
+-- >>> parallelMin = Async.combineWith (Async.eagerEval . Async.stopWhen Async.AnyStops)
 --
 -- /Pre-release/
 {-# INLINE parallelMin #-}
 parallelMin :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallelMin = appendWith (eagerEval . stopWhen AnyStops)
+parallelMin = combineWith (eagerEval . stopWhen AnyStops)
 
 -- concatMapWith modifier f stream = concatWith modifier $ fmap f stream
 
@@ -238,17 +228,6 @@ concatMapWith :: MonadAsync m =>
 concatMapWith modifier f stream =
     Stream.fromStreamK
         $ concatMapWithK
-            modifier (Stream.toStreamK . f) (Stream.toStreamK stream)
-
--- | Like 'concatMapInterleave' but we can also specify the concurrent
--- channel's configuration parameters using Config modifiers.
---
-{-# INLINE concatMapInterleaveWith #-}
-concatMapInterleaveWith :: MonadAsync m =>
-    (Config -> Config) -> (a -> Stream m b) -> Stream m a -> Stream m b
-concatMapInterleaveWith modifier f stream =
-    Stream.fromStreamK
-        $ concatMapInterleaveWithK
             modifier (Stream.toStreamK . f) (Stream.toStreamK stream)
 
 -- | Map each element of the input to a stream and then concurrently evaluate
@@ -298,11 +277,11 @@ concatMap = concatMapWith id
 -- evaluate the earlier stream first, this schedules all streams in a round
 -- robin fashion over the available threads.
 --
--- >>> concatMapInterleave = Async.concatMapInterleaveWith id
+-- >>> concatMapInterleave = Async.concatMapWith Async.interleaved
 --
 -- When used with a single thread it behaves like serial interleaving:
 --
--- >>> f cfg xs = Stream.fold Fold.toList $ Async.concatMapInterleaveWith cfg id $ Stream.fromList xs
+-- >>> f cfg xs = Stream.fold Fold.toList $ Async.concatMapWith (Async.interleaved . cfg) id $ Stream.fromList xs
 --
 -- >>> stream1 = Stream.fromList [1,2,3]
 -- >>> stream2 = Stream.fromList [4,5,6]
@@ -313,7 +292,7 @@ concatMap = concatMapWith id
 --
 {-# INLINE concatMapInterleave #-}
 concatMapInterleave :: MonadAsync m => (a -> Stream m b) -> Stream m a -> Stream m b
-concatMapInterleave = concatMapInterleaveWith id
+concatMapInterleave = concatMapWith interleaved
 
 -- | Like 'concat' but we can also specify the concurrent channel's
 -- configuration parameters using Config modifiers.

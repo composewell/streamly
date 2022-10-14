@@ -21,7 +21,7 @@ import Control.Monad.Trans.Control (MonadBaseControl, restoreM)
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pushL)
 import Data.IORef (newIORef, readIORef)
 import Streamly.Internal.Control.Concurrent
-    (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO)
+    (MonadRunInIO, RunInIO(..), askRunInIO)
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (delThread)
 
 import qualified Data.Set as Set
@@ -241,7 +241,7 @@ getFifoSVar mrun cfg = do
 -- newChannel.
 {-# INLINABLE newChannel #-}
 {-# SPECIALIZE newChannel :: (Config -> Config) -> IO (Channel IO a) #-}
-newChannel :: (MonadAsync m) =>
+newChannel :: (MonadIO m, MonadBaseControl IO m) =>
     (Config -> Config) -> m (Channel m a)
 newChannel modifier = do
     mrun <- askRunInIO

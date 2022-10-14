@@ -18,6 +18,7 @@ module Streamly.Data.Stream.Concurrent
     , eagerEval
     , stopWhen
     , ordered
+    , interleaved
 
     , rate
     , avgRate
@@ -31,23 +32,18 @@ module Streamly.Data.Stream.Concurrent
     , sequenceWith
 
     , append
-    , appendWith
-    , interleave
-    , interleaveWith
     , ahead
     , parallel
-    , parallelFst
-    , parallelMin
+    , combineWith
 
     , apply
     , applyWith
+
     , concatList
     , concat
     , concatWith
     , concatMap
-    , concatMapInterleave
     , concatMapWith
-    , concatMapInterleaveWith
     )
 where
 

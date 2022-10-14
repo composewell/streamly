@@ -75,6 +75,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , eagerEval
     , stopWhen
     , ordered
+    , interleaved
 
     , rate
     , avgRate
@@ -93,6 +94,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , getEagerDispatch
     , getStopWhen
     , getOrdered
+    , getInterleaved
 
     -- * Cleanup
     , cleanupSVar
@@ -342,6 +344,7 @@ data Config = Config
     , _eagerDispatch  :: Bool
     , _stopWhen :: StopWhen
     , _ordered :: Bool
+    , _interleaved :: Bool
     }
 
 -------------------------------------------------------------------------------
@@ -375,6 +378,7 @@ defaultConfig = Config
     , _eagerDispatch = False
     , _stopWhen = AllStop
     , _ordered = False
+    , _interleaved = False
     }
 
 -------------------------------------------------------------------------------
@@ -522,13 +526,26 @@ getStopWhen = _stopWhen
 -- | When enabled the streams may be evaluated cocnurrently but the results are
 -- produced in the same sequence as a serial evaluation would produce.
 --
--- /Note:/ this option is not supported with interleave operations.
+-- /Note:/ Not supported with 'interleaved'.
 --
 ordered :: Config -> Config
 ordered st = st { _ordered = True }
 
 getOrdered :: Config -> Bool
 getOrdered = _ordered
+
+-- | Interleave the streams fairly instead of prioritizing the left stream.
+-- This schedules all streams in a round robin fashion over limited number of
+-- threads.
+--
+-- /Note:/ Can only be used on finite number of streams.
+-- /Note:/ Not supported with 'ordered'.
+--
+interleaved :: Config -> Config
+interleaved st = st { _interleaved = True }
+
+getInterleaved :: Config -> Bool
+getInterleaved = _interleaved
 
 -------------------------------------------------------------------------------
 -- Initialization

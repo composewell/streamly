@@ -69,7 +69,7 @@ o_n_heap_buffering value f =
 async2 :: (Config -> Config) -> Int -> Int -> IO ()
 async2 f count n =
     Stream.fold Fold.drain
-        $ Async.appendWith f
+        $ Async.combineWith f
             (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
 
 {-# INLINE concatAsync2 #-}
@@ -84,7 +84,7 @@ concatAsync2 f count n =
 interleave2 :: (Config -> Config) -> Int -> Int -> IO ()
 interleave2 f count n =
     Stream.fold Fold.drain
-        $ Async.interleaveWith f
+        $ Async.combineWith (f . Async.interleaved)
             (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
 
 o_1_space_joining :: Int -> (Config -> Config) -> [Benchmark]
@@ -165,7 +165,7 @@ concatMapInterleaveStreamsWith
     -> IO ()
 concatMapInterleaveStreamsWith f outer inner n =
     Stream.fold Fold.drain
-        $ Async.concatMapInterleaveWith f
+        $ Async.concatMapWith (f . Async.interleaved)
             (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
 
 o_1_space_concatMap :: Int -> (Config -> Config) -> [Benchmark]

@@ -30,7 +30,7 @@ import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef, writeIORef)
 import Data.Kind (Type)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Concurrent
-    (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO)
+    (MonadRunInIO, RunInIO(..), askRunInIO)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (modifyThread)
@@ -1052,7 +1052,7 @@ getLifoSVar mrun cfg = do
 -- newChannel.
 {-# INLINABLE newChannel #-}
 {-# SPECIALIZE newChannel :: (Config -> Config) -> IO (Channel IO a) #-}
-newChannel :: (MonadAsync m) =>
+newChannel :: (MonadIO m, MonadBaseControl IO m) =>
     (Config -> Config) -> m (Channel m a)
 newChannel modifier = do
     mrun <- askRunInIO

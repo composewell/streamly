@@ -283,9 +283,9 @@ main = hspec
                   stream = leaf11 `Async.append` leaf12
                in cmp stream sortEq [0, 1, 2, 3, 4, 5, 6,7]
 
-        prop1 "appendWith (maxThreads 1)"
+        prop1 "combineWith (maxThreads 1)"
             $ let stream =
-                    Async.appendWith (Async.maxThreads 1)
+                    Async.combineWith (Async.maxThreads 1)
                         (Stream.fromList [1,2,3,4,5])
                         (Stream.fromList [6,7,8,9,10])
                in cmp stream (==) [1,2,3,4,5,6,7,8,9,10]
