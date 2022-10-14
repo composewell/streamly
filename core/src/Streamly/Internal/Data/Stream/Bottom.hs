@@ -532,14 +532,3 @@ zipWithM f m1 m2 = fromStreamD $ D.zipWithM f (toStreamD m1) (toStreamD m2)
 {-# INLINE zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWith f m1 m2 = fromStreamD $ D.zipWith f (toStreamD m1) (toStreamD m2)
-
-repeatMWith :: (m a -> Stream m a -> Stream m a) -> m a -> Stream m a
-repeatMWith cns = go
-
-    where
-
-    go m = m `cns` go m
-
-{-# INLINE_EARLY repeatM #-}
-repeatM :: (Monad m) => m a -> Stream m a
-repeatM = repeatMWith consM
