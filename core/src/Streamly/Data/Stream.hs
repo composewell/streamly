@@ -119,6 +119,7 @@ module Streamly.Data.Stream
     , fromPure
     , fromEffect
     , repeat
+    , repeatM
     , replicate
 
     -- Note: Using enumeration functions e.g. 'Prelude.enumFromThen' turns out

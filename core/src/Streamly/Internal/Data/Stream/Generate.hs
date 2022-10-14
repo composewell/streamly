@@ -27,6 +27,7 @@ module Streamly.Internal.Data.Stream.Generate
     , Stream.fromPure
     , Stream.fromEffect
     , repeat
+    , repeatM
     , replicate
 
     -- * Enumeration
@@ -85,6 +86,7 @@ import qualified Streamly.Internal.Data.Stream.Bottom as Bottom
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.Transform as Stream (sequence)
 
 import Prelude hiding (iterate, replicate, repeat)
 
@@ -177,6 +179,10 @@ unfoldrM step = fromStreamD . D.unfoldrM step
 {-# INLINE_NORMAL repeat #-}
 repeat :: Monad m => a -> Stream m a
 repeat = fromStreamD . D.repeat
+
+{-# INLINE_NORMAL repeatM #-}
+repeatM :: Monad m => m a -> Stream m a
+repeatM = Stream.sequence . repeat
 
 -- |
 -- >>> replicate n = Stream.take n . Stream.repeat
