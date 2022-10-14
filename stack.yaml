@@ -9,6 +9,7 @@ extra-deps:
   - unicode-data-0.2.0
   - tasty-bench-0.3.1
   - lockfree-queue-0.2.4
+  - monad-control-1.0.3@sha256:16e320d0d7ee4cd88d9f73bf1bc9af46005f9eb121adab8856d43e57f9cd64aa,2363
 
 #allow-newer: true
 rebuild-ghc-options: true
