@@ -58,6 +58,10 @@ module Streamly.Data.Stream.Concurrent
     , ahead
     , parallel
     , concatListWith
+    , parallelFst
+    , parallelMin
+    , zipWithM
+    , zipWith
 
     -- ** Stream of streams
     -- *** Apply
@@ -76,4 +80,4 @@ module Streamly.Data.Stream.Concurrent
 where
 
 import Streamly.Internal.Data.Stream.Concurrent
-import Prelude hiding (mapM, sequence, concat, concatMap)
+import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
