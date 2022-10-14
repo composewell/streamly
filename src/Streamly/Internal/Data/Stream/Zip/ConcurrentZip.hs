@@ -48,7 +48,7 @@ newtype ConcurrentZipM m a = ConcurrentZipM {getStream :: Stream m a}
 --
 -- >>> s = ConcurrentZipM $ Stream.fromList [1, 2, 3]
 -- >>> x = (,,) <$> s <*> s <*> s
--- >>> Stream.fold F.toList (getStream x)
+-- >>> Stream.fold Fold.toList (getStream x)
 -- [(1,1,1),(2,2,2),(3,3,3)]
 --
 -- @since 0.9.0
