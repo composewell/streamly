@@ -21,37 +21,23 @@ module Streamly.Internal.Data.Stream.Zip
       ZipStream (..)
     , ZipSerialM
     , ZipSerial
-    , zipWithD
-    , zipWithMD
     )
 where
 
 import Control.DeepSeq (NFData(..), NFData1(..))
 import Data.Functor.Identity (Identity(..))
 import GHC.Exts (IsList(..), IsString(..))
-import Streamly.Internal.Data.Stream.Type (Stream, toStreamD, fromStreamD)
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
 
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -- $setup
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.Zip as Stream
-
-{-# INLINE zipWithMD #-}
-zipWithMD :: Monad m =>
-    (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipWithMD f m1 m2 =
-    fromStreamD $ D.zipWithM f (toStreamD m1) (toStreamD m2)
-
-{-# INLINE zipWithD #-}
-zipWithD :: Monad m
-    => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipWithD f = zipWithMD (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
@@ -111,4 +97,4 @@ instance Monad m => Applicative (ZipStream m) where
     pure = ZipStream . Stream.repeat
 
     {-# INLINE (<*>) #-}
-    ZipStream m1 <*> ZipStream m2 = ZipStream $ zipWithD id m1 m2
+    ZipStream m1 <*> ZipStream m2 = ZipStream $ Stream.zipWith id m1 m2
