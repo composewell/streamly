@@ -42,17 +42,25 @@ module Streamly.Internal.Data.Stream.Concurrent
     , inspectMode
 
     -- * Combinators
-    -- | Stream combinators using Async channel
+    -- | Stream combinators using a concurrent channel
 
+    -- ** Evaluate
+    -- | Evaluate a stream concurrently using a channel.
     , eval
     , evalWith
+    -- Add unfoldrM/iterateM?
 
+    -- ** Map
+    -- | Use a single channel to evaluate all actions.
     , mapM
     , mapMWith
     , sequence
     , sequenceWith
+    -- Add repeatM/replicateM?
 
-    -- XXX experimental binary ops, move to parallel?
+    -- ** Combine two
+    -- | Use a channel for each pair.
+    -- combine/concur/conjoin
     , append
     , appendWith
     , interleave
@@ -62,8 +70,13 @@ module Streamly.Internal.Data.Stream.Concurrent
     , parallelFst
     , parallelMin
 
+    -- ** Apply
+    -- | Use a separate channel for each application.
     , apply
     , applyWith
+
+    -- ** Combine many
+    -- | Share a single channel across many streams.
     , concatList
     , concat
     , concatWith
