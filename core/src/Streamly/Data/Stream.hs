@@ -404,6 +404,7 @@ module Streamly.Data.Stream
 
     -- * Repeated Fold
     , foldMany -- XXX Rename to foldRepeat
+    , parseMany
 
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.
