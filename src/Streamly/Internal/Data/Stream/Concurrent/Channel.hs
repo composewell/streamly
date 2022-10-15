@@ -79,11 +79,11 @@ newChannel modifier =
 -- supplied evaluator function. The evaluator is run in a worker thread.
 {-# INLINE withChannelK #-}
 withChannelK :: MonadAsync m =>
-       (Channel m b -> K.Stream m a -> K.Stream m b)
-    -> (Config -> Config)
+       (Config -> Config)
     -> K.Stream m a
+    -> (Channel m b -> K.Stream m a -> K.Stream m b)
     -> K.Stream m b
-withChannelK evaluator modifier input = K.concatEffect action
+withChannelK modifier input evaluator = K.concatEffect action
 
     where
 
@@ -96,10 +96,10 @@ withChannelK evaluator modifier input = K.concatEffect action
 -- supplied evaluator function. The evaluator is run in a worker thread.
 {-# INLINE withChannel #-}
 withChannel :: MonadAsync m =>
-       (Channel m b -> Stream m a -> Stream m b)
-    -> (Config -> Config)
+       (Config -> Config)
     -> Stream m a
+    -> (Channel m b -> Stream m a -> Stream m b)
     -> Stream m b
-withChannel evaluator modifier input =
+withChannel modifier input evaluator =
     let f chan stream = toStreamK $ evaluator chan (fromStreamK stream)
-     in fromStreamK $ withChannelK f modifier (toStreamK input)
+     in fromStreamK $ withChannelK modifier (toStreamK input) f

@@ -148,7 +148,7 @@ evalWithD modifier m = D.Stream step Nothing
 --
 {-# INLINE evalWith #-}
 evalWith :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
-evalWith = withChannel (const id)
+evalWith modifier input = withChannel modifier input (const id)
     -- Stream.fromStreamD $ evalWithD cfg $ Stream.toStreamD stream
 
 -- | Evaluate a stream asynchronously using a channel and serve the consumer
@@ -390,9 +390,9 @@ concatMapWithChanKGeneric modifier chan f stream = do
 {-# INLINE concatMapWithK #-}
 concatMapWithK :: MonadAsync m =>
     (Config -> Config) -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
-concatMapWithK modifier f =
+concatMapWithK modifier f input =
     let g = concatMapWithChanKGeneric modifier
-     in withChannelK (`g` f) modifier
+     in withChannelK modifier input (`g` f)
 
 -- concatMapWith modifier f stream = concatWith modifier $ fmap f stream
 
