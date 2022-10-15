@@ -941,7 +941,7 @@ getLifoSVar mrun cfg = do
             qEmpty <- isWorkFinished sv
             return $ qEmpty || yieldsDone
 
-    let eager = getEagerDispatch cfg
+    let eagerEval = getEagerDispatch cfg
         inOrder = getOrdered cfg
 
     let getSVar :: Channel m a
@@ -973,7 +973,7 @@ getLifoSVar mrun cfg = do
                     if inOrder
                     then enqueueAhead sv aheadQ
                     else enqueueLIFO sv q inner
-            , eagerDispatch = when eager $ void $ dispatchWorker 0 sv
+            , eagerDispatch = when eagerEval $ void $ dispatchWorker 0 sv
             , isWorkDone =
                 if inOrder
                 then isWorkDoneAhead sv aheadQ outH
@@ -999,11 +999,11 @@ getLifoSVar mrun cfg = do
             case getStreamRate cfg of
                 Nothing ->
                     case getYieldLimit cfg of
-                        Nothing -> getSVar sv (readOutputQBounded eager)
+                        Nothing -> getSVar sv (readOutputQBounded eagerEval)
                                               postProcessBounded
                                               isWorkFinished
                                               workLoopLIFO
-                        Just _  -> getSVar sv (readOutputQBounded eager)
+                        Just _  -> getSVar sv (readOutputQBounded eagerEval)
                                               postProcessBounded
                                               isWorkFinishedLimited
                                               workLoopLIFOLimited

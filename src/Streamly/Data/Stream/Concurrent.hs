@@ -14,8 +14,8 @@ module Streamly.Data.Stream.Concurrent
     -- ** Set config
     , maxThreads
     , maxBuffer
-    , inspectMode
-    , eagerEval
+    , inspect
+    , eager
     , stopWhen
     , ordered
     , interleaved

@@ -28,7 +28,7 @@ module Streamly.Internal.Data.Stream.Concurrent
     , Config
     , maxThreads
     , maxBuffer
-    , eagerEval
+    , eager
     , StopWhen (..)
     , stopWhen
     , ordered
@@ -40,7 +40,7 @@ module Streamly.Internal.Data.Stream.Concurrent
     , minRate
     , maxRate
     , constRate
-    , inspectMode
+    , inspect
 
     -- * Combinators
     -- | Stream combinators using a concurrent channel
@@ -272,32 +272,32 @@ interleave = combineWith interleaved
 ahead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 ahead = combineWith ordered
 
--- | Like 'append' but with 'eagerEval' on.
+-- | Like 'append' but with 'eager' on.
 --
--- >>> parallel = Async.combineWith Async.eagerEval
+-- >>> parallel = Async.combineWith Async.eager
 --
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallel = combineWith eagerEval
+parallel = combineWith eager
 
 -- | Like 'parallel' but stops the output as soon as the first stream stops.
 --
--- >>> parallelFst = Async.combineWith (Async.eagerEval . Async.stopWhen Async.FirstStops)
+-- >>> parallelFst = Async.combineWith (Async.eager . Async.stopWhen Async.FirstStops)
 --
 -- /Pre-release/
 {-# INLINE parallelFst #-}
 parallelFst :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallelFst = combineWith (eagerEval . stopWhen FirstStops)
+parallelFst = combineWith (eager . stopWhen FirstStops)
 
 -- | Like 'parallel' but stops the output as soon as any of the two streams
 -- stops.
 --
--- >>> parallelMin = Async.combineWith (Async.eagerEval . Async.stopWhen Async.AnyStops)
+-- >>> parallelMin = Async.combineWith (Async.eager . Async.stopWhen Async.AnyStops)
 --
 -- /Pre-release/
 {-# INLINE parallelMin #-}
 parallelMin :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallelMin = combineWith (eagerEval . stopWhen AnyStops)
+parallelMin = combineWith (eager . stopWhen AnyStops)
 
 -------------------------------------------------------------------------------
 -- concat

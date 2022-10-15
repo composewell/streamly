@@ -291,7 +291,7 @@ sendWorkerWait
     -> (Channel m a -> m Bool)
     -> Channel m a
     -> m ()
-sendWorkerWait eager delay dispatch sv = go
+sendWorkerWait eagerEval delay dispatch sv = go
 
     where
 
@@ -303,7 +303,7 @@ sendWorkerWait eager delay dispatch sv = go
 
         liftIO $ delay sv
         (_, n) <- liftIO $ readIORef (outputQueue sv)
-        when (n <= 0 || eager) $ do
+        when (n <= 0 || eagerEval) $ do
             -- The queue may be empty temporarily if the worker has dequeued
             -- the work item but has not enqueued the remaining part yet. For
             -- the same reason, a worker may come back if it tries to dequeue

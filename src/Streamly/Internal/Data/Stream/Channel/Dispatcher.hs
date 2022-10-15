@@ -138,7 +138,7 @@ collectLatency ::
     -> YieldRateInfo
     -> Bool
     -> IO (Count, AbsTime, NanoSecond64)
-collectLatency inspect ss yinfo drain = do
+collectLatency inspecting ss yinfo drain = do
     let cur      = workerPendingLatency yinfo
         col      = workerCollectedLatency yinfo
         longTerm = svarAllTimeLatency yinfo
@@ -155,7 +155,7 @@ collectLatency inspect ss yinfo drain = do
         Nothing -> retWith prevLat
         Just (count, time) -> do
             let newLat = time `div` fromIntegral count
-            when inspect $ recordMinMaxLatency ss newLat
+            when inspecting $ recordMinMaxLatency ss newLat
             -- When we have collected a significant sized batch we compute the
             -- new latency using that batch and return the new latency,
             -- otherwise we return the previous latency derived from the
@@ -164,7 +164,7 @@ collectLatency inspect ss yinfo drain = do
             then do
                 -- XXX make this NOINLINE?
                 updateWorkerPollingInterval yinfo (max newLat prevLat)
-                when inspect $ recordAvgLatency ss (count, time)
+                when inspecting $ recordAvgLatency ss (count, time)
                 writeIORef col (0, 0, 0)
                 writeIORef measured ((prevLat + newLat) `div` 2)
                 modifyIORef longTerm $ \(_, t) -> (newLcount, t)
@@ -176,11 +176,11 @@ collectLatency inspect ss yinfo drain = do
 -------------------------------------------------------------------------------
 
 dumpSVarStats :: Bool -> Maybe YieldRateInfo -> SVarStats -> IO String
-dumpSVarStats inspect rateInfo ss = do
+dumpSVarStats inspecting rateInfo ss = do
     case rateInfo of
         Nothing -> return ()
         Just yinfo -> do
-            _ <- liftIO $ collectLatency inspect ss yinfo True
+            _ <- liftIO $ collectLatency inspecting ss yinfo True
             return ()
 
     dispatches <- readIORef $ totalDispatches ss

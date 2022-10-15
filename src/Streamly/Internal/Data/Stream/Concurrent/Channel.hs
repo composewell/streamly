@@ -40,12 +40,12 @@ module Streamly.Internal.Data.Stream.Concurrent.Channel
     , getStopWhen
 
     -- ** Scheduling behavior
-    , eagerEval
+    , eager
     , ordered
     , interleaved
 
     -- ** Diagnostics
-    , inspectMode
+    , inspect
     )
 where
 

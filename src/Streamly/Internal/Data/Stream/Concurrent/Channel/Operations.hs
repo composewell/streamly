@@ -44,7 +44,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-import Streamly.Internal.Data.Stream.Channel.Types
+import Streamly.Internal.Data.Stream.Channel.Types hiding (inspect)
 
 import Prelude hiding (map, concat, concatMap)
 

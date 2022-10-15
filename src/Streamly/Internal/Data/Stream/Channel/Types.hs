@@ -71,8 +71,8 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , maxThreads
     , maxBuffer
     , maxYields
-    , inspectMode
-    , eagerEval
+    , inspect
+    , eager
     , stopWhen
     , ordered
     , interleaved
@@ -340,7 +340,7 @@ data Config = Config
     -- XXX these two can be collapsed into a single type
     , _streamLatency  :: Maybe NanoSecond64 -- bootstrap latency
     , _maxStreamRate  :: Maybe Rate
-    , _inspectMode    :: Bool
+    , _inspect    :: Bool
     , _eagerDispatch  :: Bool
     , _stopWhen :: StopWhen
     , _ordered :: Bool
@@ -373,7 +373,7 @@ defaultConfig = Config
     , _bufferHigh = defaultMaxBuffer
     , _maxStreamRate = Nothing
     , _streamLatency = Nothing
-    , _inspectMode = False
+    , _inspect = False
     -- XXX Set it to True when Rate is not set?
     , _eagerDispatch = False
     , _stopWhen = AllStop
@@ -494,24 +494,24 @@ getStreamLatency = _streamLatency
 --
 -- /Pre-release/
 --
-inspectMode :: Config -> Config
-inspectMode st = st { _inspectMode = True }
+inspect :: Config -> Config
+inspect st = st { _inspect = True }
 
 getInspectMode :: Config -> Bool
-getInspectMode = _inspectMode
+getInspectMode = _inspect
 
--- XXX rename to "eager"
-
--- | By default the stream is evaluated on demand, new evaluation may be
--- deferred until the consumer consumes the evaluated stream. When 'eagerEval'
--- option is on the evaluation is aggressive and does not wait for consumption
--- to proceed, the only reason it might block is because of 'maxThreads' or
--- 'maxBuffer' limitation.
+-- | By default, processing of output from the worker threads is given priority
+-- over dispatching new workers. More workers are dispatched only when there is
+-- no output to process. With 'eager' on workers are dispatched aggresively as
+-- long as there is more work to do irrespective of whether there is output
+-- pending to be processed. However, dispatching may stop if 'maxThreads' or
+-- 'maxBuffer' is reached.
 --
--- Note that this option does nothing for interleave operations or when rate
--- has been specified.
-eagerEval :: Config -> Config
-eagerEval st = st { _eagerDispatch = True }
+-- /Note:/ This option has no effect when rate has been specified.
+-- /Note:/ Not supported with 'interleaved'.
+--
+eager :: Config -> Config
+eager st = st { _eagerDispatch = True }
 
 getEagerDispatch :: Config -> Bool
 getEagerDispatch = _eagerDispatch
@@ -783,8 +783,8 @@ stmExcHandler dump label e@BlockedIndefinitelyOnSTM = do
 -- happen, but it may result in unexpected output when threads are left hanging
 -- until they are GCed because the consumer went away.
 withDiagMVar :: Bool -> IO String -> String -> IO () -> IO ()
-withDiagMVar inspect dump label action =
-    if inspect
+withDiagMVar inspecting dump label action =
+    if inspecting
     then
         action `catches` [ Handler (mvarExcHandler dump label)
                          , Handler (stmExcHandler dump label)

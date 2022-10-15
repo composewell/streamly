@@ -82,7 +82,7 @@ commonOpConfigs =
     , ("maxBuffer 0", Async.maxBuffer 0)
     , ("maxThreads 0", Async.maxThreads 0)
     , ("maxThreads 1", Async.maxThreads 1)
-    , ("eagerEval", Async.eagerEval)
+    , ("eager", Async.eager)
     -- XXX Need to use an unsorted eq operation for ahead
     , ("ordered", Async.ordered)
 #ifdef USE_LARGE_MEMORY
