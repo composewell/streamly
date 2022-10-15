@@ -453,7 +453,7 @@ library
                      , mtl               >= 2.2   && < 2.4
                      , transformers      >= 0.4   && < 0.7
 
-                     , monad-control
+                     , monad-control     >= 1.0 && < 1.1
 
                      -- The core streamly package
                      , streamly-core     == 0.1.0
