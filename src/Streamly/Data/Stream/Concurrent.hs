@@ -9,36 +9,69 @@
 module Streamly.Data.Stream.Concurrent
     (
       MonadAsync
+
+    -- * Configuration
     , Config
 
-    -- ** Set config
+    -- ** Limits
     , maxThreads
     , maxBuffer
-    , inspect
-    , eager
-    , stopWhen
-    , ordered
-    , interleaved
 
+    -- ** Rate Control
+    , Rate(..)
     , rate
     , avgRate
     , minRate
     , maxRate
     , constRate
 
+    -- ** Stop behavior
+    , StopWhen (..)
+    , stopWhen
+
+    -- ** Scheduling behavior
+    , eager
+    , ordered
+    , interleaved
+
+    -- ** Diagnostics
+    , inspect
+
+    -- * Combinators
+    -- | Stream combinators using a concurrent channel.
+
+    -- ** Evaluate
+    -- | Evaluate a stream concurrently using a channel.
+    , eval
+    , evalWith
+
+    -- ** Map
+    -- | Use a single channel to evaluate mapped actions concurrently.
     , mapM
     , mapMWith
     , sequence
     , sequenceWith
 
+    -- ** Combine two
+    -- | Use one channel for each pair. When you have to chain more than two
+    -- actions concat family of operations are much more efficient because they
+    -- use a single channel for all streams.
+    --
+    -- XXX Do not expose binary operations, instead use these to concatenate n
+    -- streams from a list in the given style?
     , append
     , ahead
     , parallel
     , combineWith
 
+    -- ** Apply
+    -- | Apply arguments to a function concurrently. Uses a separate channel
+    -- for each application.
     , apply
     , applyWith
 
+    -- ** Combine many
+    -- | Share a single channel across many streams.
     , concatList
     , concat
     , concatWith
