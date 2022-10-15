@@ -142,6 +142,7 @@ stop sv winfo =
         (outputQueue sv)
         (outputDoorBell sv)
 
+-- | Stop the channel. Kill all running worker threads.
 {-# INLINABLE stopChannel #-}
 stopChannel :: MonadIO m => Channel m a -> m ()
 stopChannel chan = liftIO $ do

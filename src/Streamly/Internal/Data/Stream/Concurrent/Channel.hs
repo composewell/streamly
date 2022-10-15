@@ -17,6 +17,7 @@ module Streamly.Internal.Data.Stream.Concurrent.Channel
     , toChannel
     , toChannelK
     , stopChannel
+    -- quiesceChannel -- wait for running tasks but do not schedule any more.
 
     -- * Configuration
     , Config
