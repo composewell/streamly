@@ -68,8 +68,9 @@ transformCombineFromList ::
 transformCombineFromList constr eq listOp op a b c =
     withMaxSuccess maxTestCount $
         monadicIO $ do
-            stream <- run (Stream.fold Fold.toList $
-                constr a `Async.append` op (constr b `Async.append` constr c))
+            let s1 = op (Async.append [constr b, constr c])
+            let s2 = Async.append [constr a, s1]
+            stream <- run (Stream.fold Fold.toList s2)
             let list = a <> listOp (b <> c)
             listEquals eq stream list
 
@@ -144,8 +145,8 @@ exceptionPropagation f = do
                 (Left (ExampleException "E") :: Either ExampleException [Int])
 
     it "concatMap throwM" $ do
-        let s1 = Async.concatList $ fmap Stream.fromPure [1..4]
-            s2 = Async.concatList $ fmap Stream.fromPure [5..8]
+        let s1 = Async.concatListWith id $ fmap Stream.fromPure [1..4]
+            s2 = Async.concatListWith id $ fmap Stream.fromPure [5..8]
         try $ tl (
             let bind = flip Async.concatMap
              in bind s1 $ \x ->
@@ -186,9 +187,8 @@ timeOrdering f = do
 takeCombined :: Int -> IO ()
 takeCombined n = do
     let constr = Stream.fromFoldable
-    r <- Stream.fold Fold.toList $
-            Stream.take n
-                (constr ([] :: [Int]) `Async.append` constr ([] :: [Int]))
+    let s = Async.append [constr ([] :: [Int]), constr ([] :: [Int])]
+    r <- Stream.fold Fold.toList $ Stream.take n s
     r `shouldBe` []
 
 ---------------------------------------------------------------------------
@@ -243,44 +243,42 @@ main = hspec
         -- XXX Need to use eq instead of sortEq for ahead oeprations
         -- Binary append
         prop1 "append [] []"
-            $ cmp (Stream.nil `Async.append` Stream.nil) sortEq []
+            $ cmp (Async.append [Stream.nil, Stream.nil]) sortEq []
         prop1 "append [] [1]"
-            $ cmp (Stream.nil `Async.append` Stream.fromPure 1) sortEq [1]
+            $ cmp (Async.append [Stream.nil, Stream.fromPure 1]) sortEq [1]
         prop1 "append [1] []"
-            $ cmp (Stream.fromPure 1 `Async.append` Stream.nil) sortEq [1]
+            $ cmp (Async.append [Stream.fromPure 1, Stream.nil]) sortEq [1]
         prop1 "append [0] [1]"
-            $ let stream =
-                    Stream.fromPure 0 `Async.append` Stream.fromPure 1
+            $ let stream = Async.append [Stream.fromPure 0, Stream.fromPure 1]
                in cmp stream sortEq [0, 1]
 
         prop1 "append [0] [] [1]"
             $ let stream =
-                    Stream.fromPure 0
-                        `Async.append` Stream.nil
-                        `Async.append` Stream.fromPure 1
+                    Async.append
+                        [Stream.fromPure 0, Stream.nil, Stream.fromPure 1]
                in cmp stream sortEq [0, 1]
 
-        prop1 "append left associated"
+        prop1 "append2 left associated"
             $ let stream =
                     Stream.fromPure 0
-                        `Async.append` Stream.fromPure 1
-                        `Async.append` Stream.fromPure 2
-                        `Async.append` Stream.fromPure 3
+                        `Async.append2` Stream.fromPure 1
+                        `Async.append2` Stream.fromPure 2
+                        `Async.append2` Stream.fromPure 3
                in cmp stream sortEq [0, 1, 2, 3]
 
         prop1 "append right associated"
             $ let stream =
                     Stream.fromPure 0
-                        `Async.append` (Stream.fromPure 1
-                        `Async.append` (Stream.fromPure 2
-                        `Async.append` Stream.fromPure 3))
+                        `Async.append2` (Stream.fromPure 1
+                        `Async.append2` (Stream.fromPure 2
+                        `Async.append2` Stream.fromPure 3))
                in cmp stream sortEq [0, 1, 2, 3]
 
         prop1 "append balanced"
-            $ let leaf x y = Stream.fromPure x `Async.append` Stream.fromPure y
-                  leaf11 = leaf 0 1 `Async.append` leaf 2 (3 :: Int)
-                  leaf12 = leaf 4 5 `Async.append` leaf 6 7
-                  stream = leaf11 `Async.append` leaf12
+            $ let leaf x y = Stream.fromPure x `Async.append2` Stream.fromPure y
+                  leaf11 = leaf 0 1 `Async.append2` leaf 2 (3 :: Int)
+                  leaf12 = leaf 4 5 `Async.append2` leaf 6 7
+                  stream = leaf11 `Async.append2` leaf12
                in cmp stream sortEq [0, 1, 2, 3, 4, 5, 6,7]
 
         prop1 "combineWith (maxThreads 1)"
@@ -291,14 +289,14 @@ main = hspec
                in cmp stream (==) [1,2,3,4,5,6,7,8,9,10]
 
         prop1 "apply (async arg1)"
-            $ let s1 = Async.apply (pure (,)) (pure 1 `Async.append` pure 2)
+            $ let s1 = Async.apply (pure (,)) (pure 1 `Async.append2` pure 2)
                   s2 = Async.apply s1 (pure 3) :: Stream IO (Int, Int)
                   xs = Stream.fold Fold.toList s2
                in sort <$> xs `shouldReturn` [(1, 3), (2, 3)]
 
         prop1 "apply (async arg2)"
             $ let s1 = pure (1,)
-                  s2 = Async.apply s1 (pure 2 `Async.append` pure 3)
+                  s2 = Async.apply s1 (pure 2 `Async.append2` pure 3)
                   xs = Stream.fold Fold.toList s2 :: IO [(Int, Int)]
                in sort <$> xs `shouldReturn` [(1, 2), (1, 3)]
 
@@ -319,6 +317,6 @@ main = hspec
 #ifdef DEVBUILD
         describe "Time ordering" $ timeOrdering Async.append
 #endif
-        describe "Exception propagation" $ exceptionPropagation Async.append
+        describe "Exception propagation" $ exceptionPropagation Async.append2
         -- Ad-hoc tests
         it "takes n from stream of streams" $ takeCombined 2

@@ -41,38 +41,33 @@ module Streamly.Data.Stream.Concurrent
     -- | Stream combinators using a concurrent channel.
 
     -- ** Evaluate
-    -- | Evaluate a stream concurrently using a channel.
+    -- | Evaluates a stream concurrently using a channel.
     , eval
     , evalWith
 
     -- ** Map
-    -- | Use a single channel to evaluate mapped actions concurrently.
+    -- | Uses a single channel to evaluate mapped actions concurrently.
     , mapM
     , mapMWith
     , sequence
     , sequenceWith
 
-    -- ** Combine two
-    -- | Use one channel for each pair. When you have to chain more than two
-    -- actions concat family of operations are much more efficient because they
-    -- use a single channel for all streams.
-    --
-    -- XXX Do not expose binary operations, instead use these to concatenate n
-    -- streams from a list in the given style?
+    -- ** List of streams
+    -- | Shares a single channel across many streams.
     , append
     , ahead
     , parallel
-    , combineWith
+    , concatListWith
 
-    -- ** Apply
-    -- | Apply arguments to a function concurrently. Uses a separate channel
-    -- for each application.
+    -- ** Stream of streams
+    -- *** Apply
+    -- | Apply argument streams to a function concurrently. Uses a separate
+    -- channel for each application.
     , apply
     , applyWith
 
-    -- ** Combine many
-    -- | Share a single channel across many streams.
-    , concatList
+    -- *** Concat
+    -- | Shares a single channel across many streams.
     , concat
     , concatWith
     , concatMap
