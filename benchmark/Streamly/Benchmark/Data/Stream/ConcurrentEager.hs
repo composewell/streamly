@@ -19,5 +19,4 @@ moduleName = "Data.Stream.ConcurrentEager"
 -------------------------------------------------------------------------------
 
 main :: IO ()
-main =
-    runWithCLIOpts defaultStreamSize (allBenchmarks moduleName Async.eager)
+main = runWithCLIOpts defaultStreamSize (allBenchmarks moduleName Async.eager)

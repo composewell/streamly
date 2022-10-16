@@ -8,7 +8,6 @@
 
 module Stream.AsyncCommon
     ( allBenchmarks
-    , interleaveBenchmarks
     )
 where
 
@@ -80,19 +79,11 @@ concatAsync2 f count n =
         $ Stream.fromList
             [sourceUnfoldrM count n, sourceUnfoldrM count (n + 1)]
 
-{-# INLINE interleave2 #-}
-interleave2 :: (Config -> Config) -> Int -> Int -> IO ()
-interleave2 f count n =
-    Stream.fold Fold.drain
-        $ Async.combineWith (f . Async.interleaved)
-            (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
-
 o_1_space_joining :: Int -> (Config -> Config) -> [Benchmark]
 o_1_space_joining value f =
     [ bgroup "joining"
         [ benchIOSrc1 "async (2 of n/2)" (async2 f (value `div` 2))
         , benchIOSrc1 "concat async (2 of n/2)" (concatAsync2 f (value `div` 2))
-        , benchIOSrc1 "interleave (2 of n/2)" (interleave2 f (value `div` 2))
         ]
     ]
 
@@ -156,18 +147,6 @@ concatFmapStreamsWith f outer inner n =
         $ Async.concatWith f
         $ fmap (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
 
-{-# INLINE concatMapInterleaveStreamsWith #-}
-concatMapInterleaveStreamsWith
-    :: (Config -> Config)
-    -> Int
-    -> Int
-    -> Int
-    -> IO ()
-concatMapInterleaveStreamsWith f outer inner n =
-    Stream.fold Fold.drain
-        $ Async.concatMapWith (f . Async.interleaved)
-            (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
-
 o_1_space_concatMap :: Int -> (Config -> Config) -> [Benchmark]
 o_1_space_concatMap value f =
     value2 `seq`
@@ -180,24 +159,6 @@ o_1_space_concatMap value f =
                   (concatMapStreamsWith f 1 value)
             , benchIO "concat . fmap (n of 1)"
                   (concatFmapStreamsWith f value 1)
-            ]
-        ]
-
-    where
-
-    value2 = round $ sqrt (fromIntegral value :: Double)
-
--- XXX These do not work with the eager option
-o_1_space_concatMapInterleave :: Int -> (Config -> Config) -> [Benchmark]
-o_1_space_concatMapInterleave value f =
-    value2 `seq`
-        [ bgroup "concat"
-            [ benchIO "concatMapInterleaveWith (n of 1)"
-                  (concatMapInterleaveStreamsWith f value 1)
-            , benchIO "concatMapInterleaveWith (sqrt x of sqrt x)"
-                  (concatMapInterleaveStreamsWith f value2 value2)
-            , benchIO "concatMapInterleaveWith (1 of n)"
-                  (concatMapInterleaveStreamsWith f 1 value)
             ]
         ]
 
@@ -243,11 +204,4 @@ allBenchmarks moduleName modifier value =
         ]
     , bgroup (o_n_heap_prefix moduleName)
         (o_n_heap_buffering value modifier)
-    ]
-
-interleaveBenchmarks :: String -> (Config -> Config) -> Int -> [Benchmark]
-interleaveBenchmarks moduleName modifier value =
-    [ bgroup
-        (o_1_space_prefix moduleName)
-        (o_1_space_concatMapInterleave value modifier)
     ]
