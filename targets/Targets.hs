@@ -46,6 +46,12 @@ targets =
             , "concurrent_cmp"
             ]
       )
+    , ("Data.Stream.ConcurrentInterleaved",
+            [ "prelude_concurrent_grp"
+            , "infinite_grp"
+            , "concurrent_cmp"
+            ]
+      )
     , ("Prelude.WSerial", ["serial_wserial_cmp"])
     , ("Prelude.WSerial",
             [ "prelude_serial_grp"
