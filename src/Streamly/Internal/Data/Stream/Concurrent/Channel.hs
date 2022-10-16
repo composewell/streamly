@@ -46,7 +46,6 @@ module Streamly.Internal.Data.Stream.Concurrent.Channel
 where
 
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.Trans.Control (MonadBaseControl)
 import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
     (fromChannel, fromChannelK, toChannel, toChannelK)
@@ -64,7 +63,7 @@ import Streamly.Internal.Data.Stream.Channel.Types
 -- state used to run the stream actions is taken from the call site of
 -- newChannel.
 {-# INLINE newChannel #-}
-newChannel :: (MonadIO m, MonadBaseControl IO m) =>
+newChannel :: MonadAsync m =>
     (Config -> Config) -> m (Channel m a)
 newChannel modifier =
     let cfg = modifier defaultConfig

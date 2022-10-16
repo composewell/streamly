@@ -21,7 +21,7 @@ import Control.Monad.Trans.Control (MonadBaseControl, restoreM)
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pushL)
 import Data.IORef (newIORef, readIORef)
 import Streamly.Internal.Control.Concurrent
-    (MonadRunInIO, RunInIO(..), askRunInIO)
+    (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO)
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (delThread)
 
 import qualified Data.Set as Set
@@ -236,12 +236,15 @@ getFifoSVar mrun cfg = do
                                               workLoopFIFOLimited
      in return sv
 
+-- XXX GHC: If instead of MonadAsync we use (MonadIO m, MonadBaseControl IO m)
+-- constraint we get a 2x perf regression. Need to look into that.
+--
 -- | Create a new async style concurrent stream evaluation channel. The monad
 -- state used to run the stream actions is taken from the call site of
 -- newChannel.
 {-# INLINABLE newChannel #-}
 {-# SPECIALIZE newChannel :: (Config -> Config) -> IO (Channel IO a) #-}
-newChannel :: (MonadIO m, MonadBaseControl IO m) =>
+newChannel :: MonadAsync m =>
     (Config -> Config) -> m (Channel m a)
 newChannel modifier = do
     mrun <- askRunInIO
