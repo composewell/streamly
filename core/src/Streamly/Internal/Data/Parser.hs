@@ -248,11 +248,6 @@ module Streamly.Internal.Data.Parser
     )
 where
 
-import Data.Functor (($>))
-import Prelude hiding
-    ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
-    , filter )
-
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -261,6 +256,10 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+
+import Prelude hiding
+    ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
+    , filter )
 
 --
 -- $setup
