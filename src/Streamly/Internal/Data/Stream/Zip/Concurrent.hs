@@ -29,7 +29,7 @@ import Prelude hiding (map, repeat, zipWith)
 --
 
 newtype ZipConcurrent m a = ZipConcurrent {getStream :: Stream m a}
-        deriving (Semigroup, Monoid, Functor)
+      deriving (Functor)
 
 -- | An IO stream whose applicative instance zips streams concurrently.
 --
