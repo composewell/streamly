@@ -619,7 +619,7 @@ sequence :: MonadAsync m =>
 sequence = sequenceWith id
 
 -- |
--- >>> zipWithM f m1 m2 = Stream.zipWithM f (eval m1) (eval m2)
+-- >>> zipWithM f m1 m2 = Stream.zipWithM f (Async.eval m1) (Async.eval m2)
 --
 {-# INLINE zipWithM #-}
 zipWithM :: MonadAsync m
@@ -627,7 +627,7 @@ zipWithM :: MonadAsync m
 zipWithM f m1 m2 = Stream.zipWithM f (eval m1) (eval m2)
 
 -- |
--- >>> zipWith f = zipWithM (\a b -> return $ f a b)
+-- >>> zipWith f = Stream.zipWithM (\a b -> return $ f a b)
 --
 -- >>> m1 = Stream.fromList [1,2,3]
 -- >>> m2 = Stream.fromList [4,5,6]
