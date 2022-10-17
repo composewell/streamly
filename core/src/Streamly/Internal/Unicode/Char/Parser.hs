@@ -65,7 +65,7 @@ import qualified Streamly.Internal.Data.Parser as Parser
     (
       lmap
     , satisfy
-    , list
+    , listEq
     , takeWhile1
     , dropWhile
     )
@@ -183,12 +183,13 @@ charIgnoreCase c = Parser.lmap Char.toLower (Parser.satisfy (== Char.toLower c))
 
 -- | Match the input with the supplied string and return it if successful.
 string :: MonadCatch m => String -> Parser m Char String
-string = Parser.list
+string = Parser.listEq
 
 -- XXX Not accurate unicode case conversion
 -- | Match the input with the supplied string and return it if successful.
 stringIgnoreCase :: MonadCatch m => String -> Parser m Char String
-stringIgnoreCase s = Parser.lmap Char.toLower (Parser.list (map Char.toLower s))
+stringIgnoreCase s =
+    Parser.lmap Char.toLower (Parser.listEq (map Char.toLower s))
 
 -- | Drop /zero/ or more white space characters.
 dropSpace :: MonadCatch m => Parser m Char ()

@@ -38,8 +38,8 @@ module Streamly.Data.Parser
 
     -- All of these can be expressed in terms of either
     , one
-    , element
-    , except
+    -- , oneEq
+    -- , oneNotEq
     , oneOf
     , noneOf
     , satisfy
@@ -49,7 +49,8 @@ module Streamly.Data.Parser
 
     -- ** Sequences
     , eqBy
-    , list
+    , listEqBy
+    , listEq
 
     -- * Combinators
     -- Mapping on output
