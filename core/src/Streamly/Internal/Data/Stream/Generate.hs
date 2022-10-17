@@ -93,7 +93,8 @@ import Prelude hiding (iterate, replicate, repeat)
 -- $setup
 -- >>> :m
 -- >>> import Control.Concurrent (threadDelay)
--- >>> import Data.Function ((&))
+-- >>> import Data.Function (fix, (&))
+-- >>> import Data.Semigroup (cycle1)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
@@ -180,6 +181,22 @@ unfoldrM step = fromStreamD . D.unfoldrM step
 repeat :: Monad m => a -> Stream m a
 repeat = fromStreamD . D.repeat
 
+-- |
+-- >>> repeatM = fix . Stream.consM
+-- >>> repeatM = cycle1 . Stream.fromEffect
+--
+-- Generate a stream by repeatedly executing a monadic action forever.
+--
+-- >>> :{
+-- repeatAsync =
+--        Stream.repeatM (threadDelay 1000000 >> print 1)
+--      & Stream.take 10
+--      & Stream.fold Fold.drain
+-- :}
+--
+-- /Concurrent, infinite (do not use with 'fromParallel')/
+--
+-- @since 0.9.0
 {-# INLINE_NORMAL repeatM #-}
 repeatM :: Monad m => m a -> Stream m a
 repeatM = Stream.sequence . repeat
