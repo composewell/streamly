@@ -248,9 +248,9 @@ benchmark Data.Stream.Concurrent
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
-  main-is: Async.hs
+  main-is: Concurrent.hs
   other-modules:
-      Stream.AsyncCommon
+      Stream.ConcurrentCommon
       Stream.Common
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
@@ -276,7 +276,7 @@ benchmark Data.Stream.ConcurrentEager
   hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
   main-is: ConcurrentEager.hs
   other-modules:
-      Stream.AsyncCommon
+      Stream.ConcurrentCommon
       Stream.Common
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
@@ -289,7 +289,7 @@ benchmark Data.Stream.ConcurrentOrdered
   hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
   main-is: ConcurrentOrdered.hs
   other-modules:
-      Stream.AsyncCommon
+      Stream.ConcurrentCommon
       Stream.Common
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False

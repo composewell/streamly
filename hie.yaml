@@ -42,7 +42,7 @@ cradle:
               component: "bench:Data.Stream"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/Async.hs"
               component: "bench:Data.Stream.Concurrent"
-            - path: "./benchmark/Streamly/Benchmark/Data/Stream/AsyncCommon.hs"
+            - path: "./benchmark/Streamly/Benchmark/Data/Stream/ConcurrentCommon.hs"
               component: "bench:Data.Stream.Concurrent"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/ConcurrentEager.hs"
               component: "bench:Data.Stream.ConcurrentEager"
