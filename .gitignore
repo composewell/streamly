@@ -6,6 +6,12 @@ dist-newstyle*/
 autom4te.cache/
 benchmark/bench-report/bin/bench-report
 charts/
+*/build/*
+*/*/build/*
+*/cache/*
+*/*/cache/*
+*/packagedb/*
+*/*/packagedb/*
 
 # Local GHC and Cabal related files
 .ghc.environment*
