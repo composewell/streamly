@@ -102,14 +102,10 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
 import Streamly.Internal.Data.Stream.Channel.Types (concatMapDivK)
 import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
-    (fromChannelK)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
-    as Interleave (newChannel)
 
 import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 import Streamly.Internal.Data.Stream.Concurrent.Channel
