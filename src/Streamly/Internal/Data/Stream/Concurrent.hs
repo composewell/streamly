@@ -104,11 +104,8 @@ import Streamly.Internal.Data.Stream.Channel.Types (concatMapDivK)
 import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream as Stream
-<<<<<<< HEAD
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-=======
->>>>>>> f70e9337 (Using eval)
 
 import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 import Streamly.Internal.Data.Stream.Concurrent.Channel
