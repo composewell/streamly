@@ -102,14 +102,10 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
 import Streamly.Internal.Data.Stream.Channel.Types (concatMapDivK)
 import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
-    (fromChannelK)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
-    as Interleave (newChannel)
 
 import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 import Streamly.Internal.Data.Stream.Concurrent.Channel
@@ -126,7 +122,7 @@ import Streamly.Internal.Data.Stream.Concurrent.Channel
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Async
--- >>> import Prelude hiding (concatMap, concat)
+-- >>> import Prelude hiding (concatMap, concat, zipWith)
 -- >>> :{
 --  delay n = do
 --      threadDelay (n * 1000000)   -- sleep for n seconds
@@ -622,24 +618,17 @@ sequence :: MonadAsync m =>
     Stream m (m a) -> Stream m a
 sequence = sequenceWith id
 
-{-# INLINE zipWithMK #-}
-zipWithMK :: MonadAsync m
-    => (a -> b -> m c) -> K.Stream m a -> K.Stream m b -> K.Stream m c
-zipWithMK f m1 m2 =
-    K.mkStream $ \st yld sng stp -> do
-        ch <- Interleave.newChannel id
-        toChannelK ch m2
-        K.foldStream st yld sng stp $
-            K.zipWithM f m1 $ fromChannelK ch
-
+-- |
+-- >>> zipWithM f m1 m2 = Stream.zipWithM f (eval m1) (eval m2)
+--
 {-# INLINE zipWithM #-}
 zipWithM :: MonadAsync m
     => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipWithM f m1 m2 =
-    Stream.fromStreamK $
-        zipWithMK f (Stream.toStreamK m1) (Stream.toStreamK m2)
+zipWithM f m1 m2 = Stream.zipWithM f (eval m1) (eval m2)
 
 -- |
+-- >>> zipWith f = zipWithM (\a b -> return $ f a b)
+--
 -- >>> m1 = Stream.fromList [1,2,3]
 -- >>> m2 = Stream.fromList [4,5,6]
 -- >>> Stream.fold Fold.toList $ Async.zipWith (,) m1 m2
@@ -648,13 +637,4 @@ zipWithM f m1 m2 =
 {-# INLINE zipWith #-}
 zipWith :: MonadAsync m
     => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-<<<<<<< HEAD
-zipWith f m1 m2 =
-    Stream.fromStreamK $
-        zipWithMK
-            (\a b -> return $ f a b)
-            (Stream.toStreamK m1)
-            (Stream.toStreamK m2)
-=======
 zipWith f = zipWithM (\a b -> return $ f a b)
->>>>>>> c81d3af3 (Fix review comments)
