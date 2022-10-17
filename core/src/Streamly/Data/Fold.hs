@@ -153,6 +153,8 @@ module Streamly.Data.Fold
     -- Reducers
     , drain
     , drainBy
+    , the
+    , uniq
     , last
     , length
     , sum
