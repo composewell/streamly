@@ -18,45 +18,41 @@ module Streamly.Internal.Network.Socket
 
     -- * Accept connections
     , accept
-    , connections
+    , acceptor
+
+    -- * Connect
     , connect
     , connectFrom
 
     -- * Read from connection
+    , readChunk
+
+    -- ** Streams
     , read
     , readWith
-    -- , readUtf8
-    -- , readLines
-    -- , readFrames
-    -- , readByChunks
-
-    -- -- * Array Read
-    -- , readArrayUpto
-    -- , readChunksUpto
-    , readChunk
     , readChunks
     , readChunksWith
 
-    , toChunksWith
-    , toChunks
-    , toBytes
+    -- ** Unfolds
+    , reader
+    , readerWith
+    , chunkReader
+    , chunkReaderWith
 
     -- * Write to connection
+    , writeChunk
+
+    -- ** Folds
     , write
-    -- , writeUtf8
-    -- , writeUtf8ByLines
-    -- , writeByFrames
     , writeWith
+    , writeChunks
+    , writeChunksWith
     , writeMaybesWith
 
+    -- ** Stream writes
     , putChunks
     , putBytesWith
     , putBytes
-
-    -- -- * Array Write
-    , writeChunk
-    , writeChunks
-    , writeChunksWith
 
     -- reading/writing datagrams
 
@@ -70,9 +66,10 @@ where
 
 import Control.Concurrent (threadWaitWrite, rtsSupportsBoundThreads)
 import Control.Exception (onException)
+import Control.Monad (forM_, when)
 import Control.Monad.Catch (MonadCatch, finally, MonadMask)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad (forM_, when)
+import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, Ptr, castPtr)
@@ -90,7 +87,6 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
-import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
 import Streamly.Internal.Data.Array.Unboxed.Stream (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
@@ -113,6 +109,11 @@ import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (first, map)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 
+-- $setup
+-- >>> :m
+-- >>> import Streamly.Internal.System.IO (defaultChunkSize)
+-- >>> import qualified Streamly.Internal.Network.Socket as Socket
+
 -- | @'forSocketM' action socket@ runs the monadic computation @action@ passing
 -- the socket handle to it.  The handle will be closed on exit from
 -- 'forSocketM', whether by normal termination or by raising an exception.  If
@@ -131,8 +132,8 @@ forSocketM f sk = finally (f sk) (liftIO (Net.close sk))
 --
 -- /Internal/
 {-# INLINE withSocket #-}
-withSocket :: (MonadAsync m, MonadCatch m)
-    => Socket -> (Socket -> Stream m a) -> Stream m a
+withSocket :: (MonadIO m, MonadBaseControl IO m, MonadCatch m) =>
+    Socket -> (Socket -> Stream m a) -> Stream m a
 withSocket sk f = S.finally (liftIO $ Net.close sk) (f sk)
 
 -------------------------------------------------------------------------------
@@ -183,10 +184,10 @@ listenTuples = Unfold step inject
 -- protocol and options specification and @addr@ is the protocol address where
 -- the server listens for incoming connections.
 --
--- @since 0.7.0
-{-# INLINE accept #-}
-accept :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
-accept = UF.map fst listenTuples
+-- @since 0.9.0
+{-# INLINE acceptor #-}
+acceptor :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
+acceptor = UF.map fst listenTuples
 
 {-# INLINE connectCommon #-}
 connectCommon :: SockSpec -> Maybe SockAddr -> SockAddr -> IO Socket
@@ -226,7 +227,7 @@ connectFrom spec local = connectCommon spec (Just local)
 -------------------------------------------------------------------------------
 
 {-# INLINE recvConnectionTuplesWith #-}
-recvConnectionTuplesWith :: MonadAsync m
+recvConnectionTuplesWith :: MonadIO m
     => Int -> SockSpec -> SockAddr -> Stream m (Socket, SockAddr)
 recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
     where
@@ -245,9 +246,9 @@ recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
 -- argument is the maximum number of pending connections in the backlog.
 --
 -- /Pre-release/
-{-# INLINE connections #-}
-connections :: MonadAsync m => Int -> SockSpec -> SockAddr -> Stream m Socket
-connections tcpListenQ spec addr =
+{-# INLINE accept #-}
+accept :: MonadIO m => Int -> SockSpec -> SockAddr -> Stream m Socket
+accept tcpListenQ spec addr =
     fst <$> recvConnectionTuplesWith tcpListenQ spec addr
 
 -------------------------------------------------------------------------------
@@ -342,15 +343,14 @@ _readChunksUptoWith f size h = S.fromStreamK go
         then stp
         else yld arr go
 
--- | @toChunksWith size h@ reads a stream of arrays from file handle @h@.
--- The maximum size of a single array is limited to @size@.
--- 'fromHandleArraysUpto' ignores the prevailing 'TextEncoding' and 'NewlineMode'
--- on the 'Handle'.
-{-# INLINE_NORMAL toChunksWith #-}
-toChunksWith :: (MonadIO m)
-    => Int -> Socket -> Stream m (Array Word8)
--- toChunksWith = _readChunksUptoWith readChunk
-toChunksWith size h = S.fromStreamD (D.Stream step ())
+-- | @readChunksWith bufsize socket@ reads a stream of arrays from @socket@.
+-- The maximum size of a single array is limited to @bufsize@.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL readChunksWith #-}
+readChunksWith :: MonadIO m => Int -> Socket -> Stream m (Array Word8)
+-- readChunksWith = _readChunksUptoWith readChunk
+readChunksWith size h = S.fromStreamD (D.Stream step ())
     where
     {-# INLINE_LATE step #-}
     step _ _ = do
@@ -360,15 +360,15 @@ toChunksWith size h = S.fromStreamD (D.Stream step ())
                 0 -> D.Stop
                 _ -> D.Yield arr ()
 
--- XXX read 'Array a' instead of Word8
+-- | Read a stream of byte arrays from a socket. The maximum size of a single
+-- array is limited to @defaultChunkSize@.
 --
--- | @toChunks h@ reads a stream of arrays from socket handle @h@.
--- The maximum size of a single array is limited to @defaultChunkSize@.
+-- >>> readChunks = Socket.readChunksWith defaultChunkSize
 --
--- @since 0.7.0
-{-# INLINE toChunks #-}
-toChunks :: (MonadIO m) => Socket -> Stream m (Array Word8)
-toChunks = toChunksWith defaultChunkSize
+-- /Pre-release/
+{-# INLINE readChunks #-}
+readChunks :: MonadIO m => Socket -> Stream m (Array Word8)
+readChunks = readChunksWith defaultChunkSize
 
 -- | Unfold the tuple @(bufsize, socket)@ into a stream of 'Word8' arrays.
 -- Read requests to the socket are performed using a buffer of size @bufsize@.
@@ -376,9 +376,9 @@ toChunks = toChunksWith defaultChunkSize
 -- @bufsize@.
 --
 -- @since 0.9.0
-{-# INLINE_NORMAL readChunksWith #-}
-readChunksWith :: MonadIO m => Unfold m (Int, Socket) (Array Word8)
-readChunksWith = Unfold step return
+{-# INLINE_NORMAL chunkReaderWith #-}
+chunkReaderWith :: MonadIO m => Unfold m (Int, Socket) (Array Word8)
+chunkReaderWith = Unfold step return
     where
     {-# INLINE_LATE step #-}
     step (size, h) = do
@@ -388,13 +388,13 @@ readChunksWith = Unfold step return
                 0 -> D.Stop
                 _ -> D.Yield arr (size, h)
 
--- | Same as 'readChunksWith'
+-- | Same as 'chunkReaderWith'
 --
 -- @since 0.7.0
-{-# DEPRECATED readChunksWithBufferOf "Please use 'readChunksWith' instead" #-}
+{-# DEPRECATED readChunksWithBufferOf "Please use 'chunkReaderWith' instead" #-}
 {-# INLINE_NORMAL readChunksWithBufferOf #-}
 readChunksWithBufferOf :: MonadIO m => Unfold m (Int, Socket) (Array Word8)
-readChunksWithBufferOf = readChunksWith
+readChunksWithBufferOf = chunkReaderWith
 
 -- | Unfolds a socket into a stream of 'Word8' arrays. Requests to the socket
 -- are performed using a buffer of size
@@ -402,65 +402,55 @@ readChunksWithBufferOf = readChunksWith
 -- size of arrays in the resulting stream are therefore less than or equal to
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
--- @since 0.7.0
-{-# INLINE readChunks #-}
-readChunks :: MonadIO m => Unfold m Socket (Array Word8)
-readChunks = UF.first defaultChunkSize readChunksWith
+-- @since 0.9.0
+{-# INLINE chunkReader #-}
+chunkReader :: MonadIO m => Unfold m Socket (Array Word8)
+chunkReader = UF.first defaultChunkSize chunkReaderWith
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
 -------------------------------------------------------------------------------
 
--- TODO for concurrent streams implement readahead IO. We can send multiple
--- read requests at the same time. For serial case we can use async IO. We can
--- also control the read throughput in mbps or IOPS.
-
-{-
--- | @readWith bufsize handle@ reads a byte stream from a file
--- handle, reads are performed in chunks of up to @bufsize@.  The stream ends
--- as soon as EOF is encountered.
+-- | Generate a byte stream from a socket using a buffer of the given size.
 --
+-- /Pre-release/
 {-# INLINE readWith #-}
-readWith :: (MonadIO m) => Int -> Handle -> Stream m Word8
-readWith chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
--}
+readWith :: MonadIO m => Int -> Socket -> Stream m Word8
+readWith size = AS.concat . readChunksWith size
 
--- TODO
--- read :: (MonadIO m, Unboxed a) => Handle -> Stream m a
+-- | Generate a byte stream from a socket.
 --
--- > read = 'readByChunks' defaultChunkSize
--- | Generate a stream of elements of the given type from a socket. The
--- stream ends when EOF is encountered.
+-- >>> read = Socket.readWith defaultChunkSize
 --
--- @since 0.7.0
-{-# INLINE toBytes #-}
-toBytes :: MonadIO m => Socket -> Stream m Word8
-toBytes = AS.concat . toChunks
+-- /Pre-release/
+{-# INLINE read #-}
+read :: MonadIO m => Socket -> Stream m Word8
+read = readWith defaultChunkSize
 
 -- | Unfolds the tuple @(bufsize, socket)@ into a byte stream, read requests
 -- to the socket are performed using buffers of @bufsize@.
 --
 -- @since 0.9.0
-{-# INLINE readWith #-}
-readWith :: MonadIO m => Unfold m (Int, Socket) Word8
-readWith = UF.many A.read readChunksWith
+{-# INLINE readerWith #-}
+readerWith :: MonadIO m => Unfold m (Int, Socket) Word8
+readerWith = UF.many A.read chunkReaderWith
 
 -- | Same as 'readWith'
 --
 -- @since 0.7.0
-{-# DEPRECATED readWithBufferOf "Please use 'readWith' instead" #-}
+{-# DEPRECATED readWithBufferOf "Please use 'readerWith' instead" #-}
 {-# INLINE readWithBufferOf #-}
 readWithBufferOf :: MonadIO m => Unfold m (Int, Socket) Word8
-readWithBufferOf = readWith
+readWithBufferOf = readerWith
 
 -- | Unfolds a 'Socket' into a byte stream.  IO requests to the socket are
 -- performed in sizes of
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
--- @since 0.7.0
-{-# INLINE read #-}
-read :: MonadIO m => Unfold m Socket Word8
-read = UF.first defaultChunkSize readWith
+-- @since 0.9.0
+{-# INLINE reader #-}
+reader :: MonadIO m => Unfold m Socket Word8
+reader = UF.first defaultChunkSize readerWith
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -571,78 +561,3 @@ putBytes = putBytesWith defaultChunkSize
 {-# INLINE write #-}
 write :: MonadIO m => Socket -> Fold m Word8 ()
 write = writeWith defaultChunkSize
-
-{-
-{-# INLINE write #-}
-write :: (MonadIO m, Unboxed a) => Handle -> Stream m a -> m ()
-write = toHandleWith defaultChunkSize
--}
-
--------------------------------------------------------------------------------
--- IO with encoding/decoding Unicode characters
--------------------------------------------------------------------------------
-
-{-
--- |
--- > readUtf8 = decodeUtf8 . read
---
--- Read a UTF8 encoded stream of unicode characters from a file handle.
---
--- @since 0.7.0
-{-# INLINE readUtf8 #-}
-readUtf8 :: MonadIO m => Handle -> Stream m Char
-readUtf8 = decodeUtf8 . read
-
--- |
--- > writeUtf8 h s = write h $ encodeUtf8 s
---
--- Encode a stream of unicode characters to UTF8 and write it to the given file
--- handle. Default block buffering applies to the writes.
---
--- @since 0.7.0
-{-# INLINE writeUtf8 #-}
-writeUtf8 :: MonadIO m => Handle -> Stream m Char -> m ()
-writeUtf8 h s = write h $ encodeUtf8 s
-
--- | Write a stream of unicode characters after encoding to UTF-8 in chunks
--- separated by a linefeed character @'\n'@. If the size of the buffer exceeds
--- @defaultChunkSize@ and a linefeed is not yet found, the buffer is written
--- anyway.  This is similar to writing to a 'Handle' with the 'LineBuffering'
--- option.
---
--- @since 0.7.0
-{-# INLINE writeUtf8ByLines #-}
-writeUtf8ByLines :: MonadIO m => Handle -> Stream m Char -> m ()
-writeUtf8ByLines = undefined
-
--- | Read UTF-8 lines from a file handle and apply the specified fold to each
--- line. This is similar to reading a 'Handle' with the 'LineBuffering' option.
---
--- @since 0.7.0
-{-# INLINE readLines #-}
-readLines :: MonadIO m => Handle -> Fold m Char b -> Stream m b
-readLines h f = foldLines (readUtf8 h) f
-
--------------------------------------------------------------------------------
--- Framing on a sequence
--------------------------------------------------------------------------------
-
--- | Read a stream from a file handle and split it into frames delimited by
--- the specified sequence of elements. The supplied fold is applied on each
--- frame.
---
--- @since 0.7.0
-{-# INLINE readFrames #-}
-readFrames :: (MonadIO m, Unboxed a)
-    => Array a -> Handle -> Fold m a b -> Stream m b
-readFrames = undefined -- foldFrames . read
-
--- | Write a stream to the given file handle buffering up to frames separated
--- by the given sequence or up to a maximum of @defaultChunkSize@.
---
--- @since 0.7.0
-{-# INLINE writeByFrames #-}
-writeByFrames :: (MonadIO m, Unboxed a)
-    => Array a -> Handle -> Stream m a -> m ()
-writeByFrames = undefined
--}

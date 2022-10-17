@@ -14,18 +14,19 @@
 module Streamly.Internal.Network.Inet.TCP
     (
     -- * TCP Servers
-    -- ** Unfolds
+    -- ** Streams
       acceptOnAddr
     , acceptOnAddrWith
     , acceptOnPort
-    , acceptOnPortWith
+    -- , acceptOnPortWith
     , acceptOnPortLocal
 
-    -- ** Streams
-    , connectionsOnAddr
-    , connectionsOnAddrWith
-    , connectionsOnPort
-    , connectionsOnLocalHost
+    -- ** Unfolds
+    , acceptorOnAddr
+    , acceptorOnAddrWith
+    , acceptorOnPort
+    , acceptorOnPortWith
+    , acceptorOnPortLocal
 
     -- * TCP clients
     -- | IP Address based operations.
@@ -34,12 +35,12 @@ module Streamly.Internal.Network.Inet.TCP
 
     -- ** Unfolds
     , usingConnection
-    , read
+    , reader
 
     -- ** Streams
     , withConnection
     -- *** Source
-    , toBytes
+    , read
     -- , readUtf8
     -- , readLines
     -- , readFrames
@@ -110,7 +111,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
+import Streamly.Internal.Network.Socket (SockSpec(..), accept, acceptor)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Control.Monad.Catch as MC
@@ -130,12 +131,12 @@ import qualified Streamly.Internal.Network.Socket as ISK
 -- Accept (unfolds)
 -------------------------------------------------------------------------------
 
-{-# INLINE acceptOnAddrWith #-}
-acceptOnAddrWith
+{-# INLINE acceptorOnAddrWith #-}
+acceptorOnAddrWith
     :: MonadIO m
     => [(SocketOption, Int)]
     -> Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
-acceptOnAddrWith opts = UF.lmap f accept
+acceptorOnAddrWith opts = UF.lmap f acceptor
     where
     f (addr, port) =
         (maxListenQueue
@@ -152,54 +153,54 @@ acceptOnAddrWith opts = UF.lmap f accept
 -- @ipAddr@ is the local IP address and @port@ is the local port on which
 -- connections are accepted.
 --
--- @since 0.7.0
-{-# INLINE acceptOnAddr #-}
-acceptOnAddr
+-- @since 0.9.0
+{-# INLINE acceptorOnAddr #-}
+acceptorOnAddr
     :: MonadIO m
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
-acceptOnAddr = acceptOnAddrWith []
+acceptorOnAddr = acceptorOnAddrWith []
 
-{-# INLINE acceptOnPortWith #-}
-acceptOnPortWith :: MonadIO m
+{-# INLINE acceptorOnPortWith #-}
+acceptorOnPortWith :: MonadIO m
     => [(SocketOption, Int)]
     -> Unfold m PortNumber Socket
-acceptOnPortWith opts = UF.first (0,0,0,0) (acceptOnAddrWith opts)
+acceptorOnPortWith opts = UF.first (0,0,0,0) (acceptorOnAddrWith opts)
 
--- | Like 'acceptOnAddr' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
+-- | Like 'acceptorOnAddr' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
 -- the specified port.
 --
--- > acceptOnPort = UF.first acceptOnAddr (0,0,0,0)
+-- > acceptorOnPort = UF.first acceptorOnAddr (0,0,0,0)
 --
--- @since 0.7.0
-{-# INLINE acceptOnPort #-}
-acceptOnPort :: MonadIO m => Unfold m PortNumber Socket
-acceptOnPort = UF.first (0,0,0,0) acceptOnAddr
+-- @since 0.9.0
+{-# INLINE acceptorOnPort #-}
+acceptorOnPort :: MonadIO m => Unfold m PortNumber Socket
+acceptorOnPort = UF.first (0,0,0,0) acceptorOnAddr
 
--- | Like 'acceptOnAddr' but binds on the localhost IPv4 address @127.0.0.1@.
+-- | Like 'acceptorOnAddr' but binds on the localhost IPv4 address @127.0.0.1@.
 -- The server can only be accessed from the local host, it cannot be accessed
 -- from other hosts on the network.
 --
--- > acceptOnPortLocal = UF.first acceptOnAddr (127,0,0,1)
+-- > acceptorOnPortLocal = UF.first acceptorOnAddr (127,0,0,1)
 --
--- @since 0.7.0
-{-# INLINE acceptOnPortLocal #-}
-acceptOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
-acceptOnPortLocal = UF.first (127,0,0,1) acceptOnAddr
+-- @since 0.9.0
+{-# INLINE acceptorOnPortLocal #-}
+acceptorOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
+acceptorOnPortLocal = UF.first (127,0,0,1) acceptorOnAddr
 
 -------------------------------------------------------------------------------
 -- Accept (streams)
 -------------------------------------------------------------------------------
 
-{-# INLINE connectionsOnAddrWith #-}
-connectionsOnAddrWith
-    :: MonadAsync m
+{-# INLINE acceptOnAddrWith #-}
+acceptOnAddrWith
+    :: MonadIO m
     => [(SocketOption, Int)]
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Stream m Socket
-connectionsOnAddrWith opts addr port =
-    connections maxListenQueue SockSpec
+acceptOnAddrWith opts addr port =
+    accept maxListenQueue SockSpec
         { sockFamily = AF_INET
         , sockType = Stream
         , sockProto = defaultProtocol
@@ -207,39 +208,39 @@ connectionsOnAddrWith opts addr port =
         }
         (SockAddrInet port (tupleToHostAddress addr))
 
--- | Like 'connections' but binds on the specified IPv4 address of the machine
+-- | Like 'accept' but binds on the specified IPv4 address of the machine
 -- and listens for TCP connections on the specified port.
 --
 -- /Pre-release/
-{-# INLINE connectionsOnAddr #-}
-connectionsOnAddr
-    :: MonadAsync m
+{-# INLINE acceptOnAddr #-}
+acceptOnAddr
+    :: MonadIO m
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Stream m Socket
-connectionsOnAddr = connectionsOnAddrWith []
+acceptOnAddr = acceptOnAddrWith []
 
--- | Like 'connections' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
+-- | Like 'accept' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
 -- the specified port.
 --
--- > connectionsOnPort = connectionsOnAddr (0,0,0,0)
+-- > acceptOnPort = acceptOnAddr (0,0,0,0)
 --
 -- /Pre-release/
-{-# INLINE connectionsOnPort #-}
-connectionsOnPort :: MonadAsync m => PortNumber -> Stream m Socket
-connectionsOnPort = connectionsOnAddr (0,0,0,0)
+{-# INLINE acceptOnPort #-}
+acceptOnPort :: MonadIO m => PortNumber -> Stream m Socket
+acceptOnPort = acceptOnAddr (0,0,0,0)
 
--- | Like 'connections' but binds on the localhost IPv4 address @127.0.0.1@.
+-- | Like 'accept' but binds on the localhost IPv4 address @127.0.0.1@.
 -- The server can only be accessed from the local host, it cannot be accessed
 -- from other hosts on the network.
 --
--- > connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
+-- > acceptOnPortLocal = acceptOnAddr (127,0,0,1)
 --
 -- /Pre-release/
-{-# INLINE connectionsOnLocalHost #-}
-connectionsOnLocalHost :: MonadAsync m => PortNumber -> Stream m Socket
-connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
+{-# INLINE acceptOnPortLocal #-}
+acceptOnPortLocal :: MonadIO m => PortNumber -> Stream m Socket
+acceptOnPortLocal = acceptOnAddr (127,0,0,1)
 
 -------------------------------------------------------------------------------
 -- TCP Clients
@@ -315,19 +316,19 @@ withConnection addr port =
 
 -- | Read a stream from the supplied IPv4 host address and port number.
 --
--- @since 0.7.0
-{-# INLINE read #-}
-read :: (MonadCatch m, MonadAsync m)
+-- @since 0.9.0
+{-# INLINE reader #-}
+reader :: (MonadCatch m, MonadAsync m)
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
-read = UF.many A.read (usingConnection ISK.readChunks)
+reader = UF.many A.read (usingConnection ISK.chunkReader)
 
 -- | Read a stream from the supplied IPv4 host address and port number.
 --
--- @since 0.7.0
-{-# INLINE toBytes #-}
-toBytes :: (MonadCatch m, MonadAsync m)
+-- /Pre-release/
+{-# INLINE read #-}
+read :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> Stream m Word8
-toBytes addr port = AS.concat $ withConnection addr port ISK.toChunks
+read addr port = AS.concat $ withConnection addr port ISK.readChunks
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -336,7 +337,7 @@ toBytes addr port = AS.concat $ withConnection addr port ISK.toChunks
 -- | Write a stream of arrays to the supplied IPv4 host address and port
 -- number.
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINE putChunks #-}
 putChunks
     :: (MonadCatch m, MonadAsync m)
@@ -353,7 +354,7 @@ putChunks addr port xs =
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
 writeChunks
-    :: (MonadAsync m, MonadCatch m)
+    :: (MonadIO m, MonadCatch m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Fold m (Array Word8) ()
@@ -378,7 +379,7 @@ writeChunks addr port = Fold step initial extract
 -- be written to the IO device as soon as we collect the specified number of
 -- input elements.
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINE putBytesWithBufferOf #-}
 putBytesWithBufferOf
     :: (MonadCatch m, MonadAsync m)
@@ -396,7 +397,7 @@ putBytesWithBufferOf n addr port m = putChunks addr port $ AS.arraysOf n m
 -- @since 0.7.0
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf
-    :: (MonadAsync m, MonadCatch m)
+    :: (MonadIO m, MonadCatch m)
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
@@ -406,7 +407,7 @@ writeWithBufferOf n addr port =
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
--- @since 0.7.0
+-- /Pre-release/
 {-# INLINE putBytes #-}
 putBytes :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> Stream m Word8 -> m ()
@@ -416,7 +417,7 @@ putBytes = putBytesWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: (MonadAsync m, MonadCatch m)
+write :: (MonadIO m, MonadCatch m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> Fold m Word8 ()
 write = writeWithBufferOf defaultChunkSize
 
@@ -459,4 +460,4 @@ pipeBytes
     -> PortNumber
     -> Stream m Word8
     -> Stream m Word8
-pipeBytes addr port input = withInputConnect addr port input ISK.toBytes
+pipeBytes addr port input = withInputConnect addr port input ISK.read

@@ -97,32 +97,62 @@ module Streamly.Network.Socket
       SockSpec(..)
 
     -- * Accept Connections
-    , accept
+    , acceptor
 
-    -- * Read
-    , read
-    , readWith
-    , readChunks
-    , readChunksWith
+    -- * Reads
+    -- ** Singleton
     , readChunk
 
-    -- * Write
+    -- ** Unfolds
+    , reader
+    , readerWith
+    , chunkReader
+    , chunkReaderWith
+
+    -- * Writes
+    -- ** Singleton
+    , writeChunk
+
+    -- ** Folds
     , write
     , writeWith
     , writeChunks
     , writeChunksWith
-    , writeChunk
 
     -- * Exceptions
     , forSocketM
 
     -- * Deprecated
+    , accept
+    , read
     , readWithBufferOf
+    , readChunks
     , readChunksWithBufferOf
     , writeWithBufferOf
     , writeChunksWithBufferOf
     )
 where
 
-import Streamly.Internal.Network.Socket
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.Word (Word8)
+import Network.Socket (Socket, SockAddr)
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
+
+import Streamly.Internal.Network.Socket hiding (accept, read, readChunks)
 import Prelude hiding (read)
+
+{-# DEPRECATED accept "Please use 'acceptor' instead" #-}
+{-# INLINE accept #-}
+accept :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
+accept = acceptor
+
+{-# DEPRECATED read "Please use 'reader' instead" #-}
+{-# INLINE read #-}
+read :: MonadIO m => Unfold m Socket Word8
+read = reader
+
+{-# DEPRECATED readChunks "Please use 'chunkReader' instead" #-}
+{-# INLINE readChunks #-}
+readChunks :: MonadIO m => Unfold m Socket (Array Word8)
+readChunks = chunkReader

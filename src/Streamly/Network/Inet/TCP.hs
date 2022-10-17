@@ -15,9 +15,10 @@
 module Streamly.Network.Inet.TCP
     (
     -- * Accept Connections
-      acceptOnAddr
-    , acceptOnPort
-    , acceptOnPortLocal
+    -- ** Unfolds
+      acceptorOnAddr
+    , acceptorOnPort
+    , acceptorOnPortLocal
 
     -- * Connect to Servers
     , connect
@@ -25,7 +26,7 @@ module Streamly.Network.Inet.TCP
     {-
     -- XXX Expose this as a pipe when we have pipes.
     -- * Transformation
-    -- , processBytes
+    -- , pipeBytes
 
     -- ** Sink Servers
 
@@ -47,7 +48,34 @@ module Streamly.Network.Inet.TCP
     , datagrams
     , datagramsOn
     -}
+    -- * Deprecated
+    , acceptOnAddr
+    , acceptOnPort
+    , acceptOnPortLocal
     )
 where
 
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.Word (Word8)
+import Network.Socket (Socket, PortNumber)
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+
 import Streamly.Internal.Network.Inet.TCP
+    hiding (acceptOnAddr, acceptOnPort, acceptOnPortLocal)
+
+{-# DEPRECATED acceptOnAddr "Please use 'acceptorOnAddr' instead" #-}
+{-# INLINE acceptOnAddr #-}
+acceptOnAddr
+    :: MonadIO m
+    => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
+acceptOnAddr = acceptorOnAddr
+
+{-# DEPRECATED acceptOnPort "Please use 'acceptorOnPort' instead" #-}
+{-# INLINE acceptOnPort #-}
+acceptOnPort :: MonadIO m => Unfold m PortNumber Socket
+acceptOnPort = acceptorOnPort
+
+{-# DEPRECATED acceptOnPortLocal "Please use 'acceptorOnPortLocal' instead" #-}
+{-# INLINE acceptOnPortLocal #-}
+acceptOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
+acceptOnPortLocal = acceptorOnPortLocal

@@ -43,7 +43,7 @@ testDataSource = concat $ replicate 1000 testData
 ------------------------------------------------------------------------------
 handlerRW :: Socket -> IO ()
 handlerRW sk =
-          Stream.unfold Socket.read sk
+          Stream.unfold Socket.reader sk
         & Stream.fold (Socket.write sk)
         & discard
 
@@ -85,7 +85,7 @@ sender port sem = do
     Stream.replicate 1000 testData                     -- Stream IO String
         & Stream.concatMap Stream.fromList             -- Stream IO Char
         & Unicode.encodeLatin1                         -- Stream IO Word8
-        & TCP.processBytes remoteAddr port             -- Stream IO Word8
+        & TCP.pipeBytes remoteAddr port                -- Stream IO Word8
         & Unicode.decodeLatin1                         -- Stream IO Char
 
 execute
@@ -106,7 +106,7 @@ validateOnPort :: Property
 validateOnPort = monadicIO $ do
     res <- run $ do
         ls2 <-
-            execute TCP.acceptOnPort basePort defaultChunkSize handlerRW
+            execute TCP.acceptorOnPort basePort defaultChunkSize handlerRW
         let dataChunk = take defaultChunkSize testDataSource
         Stream.eqBy (==) (Stream.fromList dataChunk) ls2
     assert res
@@ -116,7 +116,7 @@ validateOnPortLocal = monadicIO $ do
     res <- run $ do
         ls2 <-
             execute
-                TCP.acceptOnPortLocal
+                TCP.acceptorOnPortLocal
                 (basePort + 1)
                 defaultChunkSize
                 handlerRW

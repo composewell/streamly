@@ -40,29 +40,31 @@ testDataSource = concat $ replicate 1000 testData
 ------------------------------------------------------------------------------
 -- Parse and handle commands on a socket
 ------------------------------------------------------------------------------
+
 handlerChunksWithBuffer :: Socket -> IO ()
 handlerChunksWithBuffer sk =
-          Stream.unfold Socket.readChunksWith (100, sk)
+          Stream.unfold Socket.chunkReaderWith (100, sk)
         & Stream.fold (Socket.writeChunks sk)
         & discard
 
 handlerChunks :: Socket -> IO ()
 handlerChunks sk =
-          Stream.unfold Socket.readChunks sk
+          Stream.unfold Socket.chunkReader sk
         & Stream.fold (Socket.writeChunks sk)
         & discard
 
 handlerwithbuffer :: Socket -> IO ()
 handlerwithbuffer sk =
-          Stream.unfold Socket.readWith (100, sk)
+          Stream.unfold Socket.readerWith (100, sk)
         & Stream.fold (Socket.writeWith 100 sk)
         & discard
 
 handlerRW :: Socket -> IO ()
 handlerRW sk =
-          Stream.unfold Socket.read sk
+          Stream.unfold Socket.reader sk
         & Stream.fold (Socket.write sk)
         & discard
+
 ------------------------------------------------------------------------------
 -- Accept connections and handle connected sockets
 ------------------------------------------------------------------------------
@@ -82,7 +84,7 @@ basePort = 64000
 server :: PortNumber -> MVar () -> (Socket -> IO ()) -> IO ()
 server port sem handler = do
     putMVar sem ()
-    Stream.fromSerial (Stream.unfold TCP.acceptOnPort port)
+    Stream.fromSerial (Stream.unfold TCP.acceptorOnPort port)
         & Stream.fromAsync . Stream.mapM (Socket.forSocketM handler)
         & Stream.drain
 
@@ -96,7 +98,7 @@ sender port sem = do
     Stream.replicate 1000 testData                     -- Stream IO String
         & Stream.concatMap Stream.fromList             -- Stream IO Char
         & Unicode.encodeLatin1                         -- Stream IO Word8
-        & TCP.processBytes remoteAddr port             -- Stream IO Word8
+        & TCP.pipeBytes remoteAddr port                -- Stream IO Word8
         & Unicode.decodeLatin1                         -- Stream IO Char
 
 execute :: PortNumber -> Int -> (Socket -> IO ()) -> IO (Stream IO Char)
