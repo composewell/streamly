@@ -32,6 +32,7 @@ module Streamly.Internal.Data.Stream.Transform
     , scanMany
     , postscan
     , smapM
+    , scanlMAfter'
 
     -- * Filtering
     -- | Produce a subset of the stream using criteria based on the values of
@@ -350,6 +351,32 @@ trace f = mapM (\x -> void (f x) >> return x)
 {-# INLINE trace_ #-}
 trace_ :: Monad m => m b -> Stream m a -> Stream m a
 trace_ eff = fromStreamD . D.mapM (\x -> eff >> return x) . toStreamD
+
+-------------------------------------------------------------------------------
+-- Scanning
+-------------------------------------------------------------------------------
+
+-- | @scanlMAfter' accumulate initial done stream@ is like 'scanlM'' except
+-- that it provides an additional @done@ function to be applied on the
+-- accumulator when the stream stops. The result of @done@ is also emitted in
+-- the stream.
+--
+-- This function can be used to allocate a resource in the beginning of the
+-- scan and release it when the stream ends or to flush the internal state of
+-- the scan at the end.
+--
+-- /Pre-release/
+--
+{-# INLINE scanlMAfter' #-}
+scanlMAfter' ::
+       Monad m
+    => (b -> a -> m b)
+    -> m b
+    -> (b -> m b)
+    -> Stream m a
+    -> Stream m b
+scanlMAfter' step initial done stream =
+    fromStreamD $ D.scanlMAfter' step initial done $ toStreamD stream
 
 ------------------------------------------------------------------------------
 -- Scanning with a Fold
