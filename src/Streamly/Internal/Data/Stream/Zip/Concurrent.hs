@@ -28,14 +28,14 @@ import Prelude hiding (map, repeat, zipWith)
 -- >>> import qualified Streamly.Data.Fold as Fold
 --
 
-newtype ZipConcurrent m a = ZipConcurrent {getStream :: Stream m a}
+newtype ZipConcurrent m a = ZipConcurrent {getZipConcurrent :: Stream m a}
       deriving (Functor)
 
 -- | An IO stream whose applicative instance zips streams concurrently.
 --
 -- >>> s = ZipConcurrent $ Stream.fromList [1, 2, 3]
 -- >>> x = (,,) <$> s <*> s <*> s
--- >>> Stream.fold Fold.toList (getStream x)
+-- >>> Stream.fold Fold.toList (getZipConcurrent x)
 -- [(1,1,1),(2,2,2),(3,3,3)]
 --
 -- @since 0.9.0
