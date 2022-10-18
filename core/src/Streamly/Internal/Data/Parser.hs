@@ -1028,6 +1028,7 @@ groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 -- Returns the original sequence if successful.
 --
 -- >>> Stream.parse (Parser.listEqBy (==) "string") $ Stream.fromList "string"
+-- "string"
 --
 -- >>> Stream.parse (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
 -- *** Exception: ParseError "listEqBy: failed, yet to match 7 elements"
