@@ -182,7 +182,7 @@ repeat :: Monad m => a -> Stream m a
 repeat = fromStreamD . D.repeat
 
 -- |
--- >>> repeatM = Stream.sequence . repeat
+-- >>> repeatM = Stream.sequence . Stream.repeat
 -- >>> repeatM = fix . Stream.consM
 -- >>> repeatM = cycle1 . Stream.fromEffect
 --
