@@ -91,8 +91,8 @@ module Streamly.Internal.Data.Parser.ParserD
     , groupByRollingEither
 
     -- Matching strings
+    , listEqBy
     , eqBy
-    , matchBy
     -- , prefixOf -- match any prefix of a given string
     -- , suffixOf -- match any suffix of a given string
     -- , infixOf -- match any substring of a given string
@@ -1474,40 +1474,39 @@ groupByRollingEither
 --
 -- /Pre-release/
 --
-{-# INLINE eqBy #-}
-eqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser m a ()
-eqBy cmp str = Parser step initial extract
+{-# INLINE listEqBy #-}
+listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser m a [a]
+listEqBy cmp str = Parser step initial extract
 
     where
 
     -- XXX Should return IDone in initial for [] case
     initial = return $ IPartial str
 
-    step [] _ = return $ Done 0 ()
+    step [] _ = return $ Done 0 str
     step [x] a =
         return
             $ if x `cmp` a
-              then Done 0 ()
-              else Error "eqBy: failed, yet to match the last element"
+              then Done 0 str
+              else Error "listEqBy: failed, yet to match the last element"
     step (x:xs) a =
         return
             $ if x `cmp` a
               then Continue 0 xs
               else Error
-                       $ "eqBy: failed, yet to match "
+                       $ "listEqBy: failed, yet to match "
                        ++ show (length xs + 1) ++ " elements"
 
     extract xs =
         return
             $ Error
-            $ "eqBy: end of input, yet to match "
+            $ "listEqBy: end of input, yet to match "
             ++ show (length xs) ++ " elements"
 
--- XXX rename to streamBy?
--- | Like eqBy but uses a stream instead of a list
-{-# INLINE matchBy #-}
-matchBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser m a ()
-matchBy cmp (D.Stream sstep state) = Parser step initial extract
+-- | Like 'listEqBy' but uses a stream instead of a list
+{-# INLINE eqBy #-}
+eqBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser m a ()
+eqBy cmp (D.Stream sstep state) = Parser step initial extract
 
     where
 
@@ -1528,7 +1527,7 @@ matchBy cmp (D.Stream sstep state) = Parser step initial extract
                     D.Yield x1 s -> Continue 0 (Just' x1, s)
                     D.Stop -> Done 0 ()
                     D.Skip s -> Continue 1 (Nothing', s)
-          else return $ Error "match: mismtach occurred"
+          else return $ Error "eqBy: mismtach occurred"
     step (Nothing', st) a = do
         r <- sstep defState st
         return
@@ -1536,11 +1535,11 @@ matchBy cmp (D.Stream sstep state) = Parser step initial extract
                 D.Yield x s -> do
                     if x `cmp` a
                     then Continue 0 (Nothing', s)
-                    else Error "match: mismatch occurred"
+                    else Error "eqBy: mismatch occurred"
                 D.Stop -> Done 1 ()
                 D.Skip s -> Continue 1 (Nothing', s)
 
-    extract _ = return $ Error "match: end of input"
+    extract _ = return $ Error "eqBy: end of input"
 
 -------------------------------------------------------------------------------
 -- Transformations on input

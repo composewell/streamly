@@ -76,8 +76,8 @@ module Streamly.Internal.Data.Parser
 
     -- All of these can be expressed in terms of either
     , one
-    , element
-    , except
+    , oneEq
+    , oneNotEq
     , oneOf
     , noneOf
     , eof
@@ -102,9 +102,9 @@ module Streamly.Internal.Data.Parser
 
     -- Grab a sequence of input elements by inspecting them
     -- ** Exact match
+    , listEq
+    , listEqBy
     , eqBy
-    , matchBy
-    , list
 
     -- ** By predicate
     , takeWhileP
@@ -248,11 +248,6 @@ module Streamly.Internal.Data.Parser
     )
 where
 
-import Data.Functor (($>))
-import Prelude hiding
-    ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
-    , filter )
-
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -261,6 +256,10 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+
+import Prelude hiding
+    ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
+    , filter )
 
 --
 -- $setup
@@ -463,19 +462,19 @@ one = satisfy $ const True
 
 -- | Match a specific element.
 --
--- >>> element x = Parser.satisfy (== x)
+-- >>> oneEq x = Parser.satisfy (== x)
 --
-{-# INLINE element #-}
-element :: (Monad m, Eq a) => a -> Parser m a a
-element x = satisfy (== x)
+{-# INLINE oneEq #-}
+oneEq :: (Monad m, Eq a) => a -> Parser m a a
+oneEq x = satisfy (== x)
 
 -- | Match anything other than the supplied element.
 --
--- >>> except x = Parser.satisfy (/= x)
+-- >>> oneNotEq x = Parser.satisfy (/= x)
 --
-{-# INLINE except #-}
-except :: (Monad m, Eq a) => a -> Parser m a a
-except x = satisfy (/= x)
+{-# INLINE oneNotEq #-}
+oneNotEq :: (Monad m, Eq a) => a -> Parser m a a
+oneNotEq x = satisfy (/= x)
 
 -- | Match any one of the elements in the supplied list.
 --
@@ -1026,30 +1025,37 @@ groupByRollingEither :: Monad m =>
 groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 
 -- | Match the given sequence of elements using the given comparison function.
+-- Returns the original sequence if successful.
 --
--- >>> Stream.parse (Parser.eqBy (==) "string") $ Stream.fromList "string"
+-- >>> Stream.parse (Parser.listEqBy (==) "string") $ Stream.fromList "string"
+-- "string"
 --
--- >>> Stream.parse (Parser.eqBy (==) "mismatch") $ Stream.fromList "match"
--- *** Exception: ParseError "eqBy: failed, yet to match 7 elements"
+-- >>> Stream.parse (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
+-- *** Exception: ParseError "listEqBy: failed, yet to match 7 elements"
 --
 -- /Pre-release/
 --
-{-# INLINE eqBy #-}
-eqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser m a ()
-eqBy cmp = D.toParserK . D.eqBy cmp
+{-# INLINE listEqBy #-}
+listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser m a [a]
+listEqBy cmp xs = D.toParserK (D.listEqBy cmp xs)
 
--- | Like eqBy but uses a stream instead of a list
-{-# INLINE matchBy #-}
-matchBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser m a ()
-matchBy cmp = D.toParserK . D.matchBy cmp . Stream.toStreamD
+-- | Like 'listEqBy' but uses a stream instead of a list and does not return
+-- the stream.
+--
+-- /Pre-release/
+{-# INLINE eqBy #-}
+eqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser m a ()
+eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
 
 -- | Match the input sequence with the supplied list and return it if
 -- successful.
 --
+-- >>> listEq = Parser.listEqBy (==)
+--
 -- /Pre-release/
-{-# INLINE list #-}
-list :: (Monad m, Eq a) => [a] -> Parser m a [a]
-list xs = eqBy (==) xs $> xs
+{-# INLINE listEq #-}
+listEq :: (Monad m, Eq a) => [a] -> Parser m a [a]
+listEq = listEqBy (==)
 
 -------------------------------------------------------------------------------
 -- nested parsers

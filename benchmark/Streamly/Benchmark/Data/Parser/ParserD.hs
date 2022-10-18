@@ -66,13 +66,13 @@ benchIOSink value name f =
 -- Parsers
 -------------------------------------------------------------------------------
 
+{-# INLINE listEqBy #-}
+listEqBy :: Int -> Stream IO Int -> IO [Int]
+listEqBy len = Stream.parseD (PR.listEqBy (==) [1 .. len])
+
 {-# INLINE eqBy #-}
 eqBy :: Int -> Stream IO Int -> IO ()
-eqBy len = Stream.parseD (PR.eqBy (==) [1 .. len])
-
-{-# INLINE matchBy #-}
-matchBy :: Int -> Stream IO Int -> IO ()
-matchBy len = Stream.parseD (PR.matchBy (==) (D.enumerateFromToIntegral 1 len))
+eqBy len = Stream.parseD (PR.eqBy (==) (D.enumerateFromToIntegral 1 len))
 
 {-# INLINE drainWhile #-}
 drainWhile :: MonadThrow m => (a -> Bool) -> PR.Parser m a ()
@@ -359,8 +359,8 @@ o_1_space_serial value =
     , benchIOSink value "longest (all,any)" $ longestAllAny value
     -}
     , benchIOSink value "sequenceParser" sequenceParser
+    , benchIOSink value "listEqBy" (listEqBy value)
     , benchIOSink value "eqBy" (eqBy value)
-    , benchIOSink value "matchBy" (matchBy value)
     ]
 
 o_1_space_serial_spanning :: Int -> [Benchmark]
