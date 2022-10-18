@@ -182,21 +182,21 @@ repeat :: Monad m => a -> Stream m a
 repeat = fromStreamD . D.repeat
 
 -- |
+-- >>> repeatM = Stream.sequence . repeat
 -- >>> repeatM = fix . Stream.consM
 -- >>> repeatM = cycle1 . Stream.fromEffect
 --
 -- Generate a stream by repeatedly executing a monadic action forever.
 --
 -- >>> :{
--- repeatAsync =
+-- repeatAction =
 --        Stream.repeatM (threadDelay 1000000 >> print 1)
 --      & Stream.take 10
 --      & Stream.fold Fold.drain
 -- :}
 --
--- /Concurrent, infinite (do not use with 'fromParallel')/
+-- /Pre-release/
 --
--- @since 0.9.0
 {-# INLINE_NORMAL repeatM #-}
 repeatM :: Monad m => m a -> Stream m a
 repeatM = Stream.sequence . repeat
