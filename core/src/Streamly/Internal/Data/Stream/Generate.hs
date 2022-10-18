@@ -27,6 +27,7 @@ module Streamly.Internal.Data.Stream.Generate
     , Stream.fromPure
     , Stream.fromEffect
     , repeat
+    , repeatM
     , replicate
 
     -- * Enumeration
@@ -85,13 +86,15 @@ import qualified Streamly.Internal.Data.Stream.Bottom as Bottom
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.Transform as Stream (sequence)
 
 import Prelude hiding (iterate, replicate, repeat)
 
 -- $setup
 -- >>> :m
 -- >>> import Control.Concurrent (threadDelay)
--- >>> import Data.Function ((&))
+-- >>> import Data.Function (fix, (&))
+-- >>> import Data.Semigroup (cycle1)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
@@ -177,6 +180,26 @@ unfoldrM step = fromStreamD . D.unfoldrM step
 {-# INLINE_NORMAL repeat #-}
 repeat :: Monad m => a -> Stream m a
 repeat = fromStreamD . D.repeat
+
+-- |
+-- >>> repeatM = Stream.sequence . Stream.repeat
+-- >>> repeatM = fix . Stream.consM
+-- >>> repeatM = cycle1 . Stream.fromEffect
+--
+-- Generate a stream by repeatedly executing a monadic action forever.
+--
+-- >>> :{
+-- repeatAction =
+--        Stream.repeatM (threadDelay 1000000 >> print 1)
+--      & Stream.take 10
+--      & Stream.fold Fold.drain
+-- :}
+--
+-- /Pre-release/
+--
+{-# INLINE_NORMAL repeatM #-}
+repeatM :: Monad m => m a -> Stream m a
+repeatM = Stream.sequence . repeat
 
 -- |
 -- >>> replicate n = Stream.take n . Stream.repeat
