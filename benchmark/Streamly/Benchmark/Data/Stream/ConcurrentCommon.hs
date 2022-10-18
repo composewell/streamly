@@ -6,7 +6,7 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-module Stream.AsyncCommon
+module Stream.ConcurrentCommon
     ( allBenchmarks
     )
 where
