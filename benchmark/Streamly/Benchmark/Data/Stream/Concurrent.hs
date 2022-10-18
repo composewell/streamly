@@ -6,7 +6,7 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-import Stream.AsyncCommon (allBenchmarks)
+import Stream.ConcurrentCommon (allBenchmarks)
 import Streamly.Benchmark.Common (runWithCLIOpts, defaultStreamSize)
 
 moduleName :: String

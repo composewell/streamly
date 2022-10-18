@@ -263,7 +263,7 @@ benchmark Data.Stream.ConcurrentInterleaved
   hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
   main-is: ConcurrentInterleaved.hs
   other-modules:
-      Stream.AsyncCommon
+      Stream.ConcurrentCommon
       Stream.Common
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
