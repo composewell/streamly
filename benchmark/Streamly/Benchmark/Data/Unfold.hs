@@ -707,7 +707,7 @@ lf = fromIntegral (ord '\n')
 -- | Split on line feed.
 foldManySepBy :: Handle -> IO Int
 foldManySepBy =
-    let u = UF.foldMany (FL.takeEndBy_ (== lf) FL.drain) FH.read
+    let u = UF.foldMany (FL.takeEndBy_ (== lf) FL.drain) FH.reader
      in UF.fold FL.length u
 
 o_1_space_nested :: BenchEnv -> Int -> [Benchmark]
@@ -748,7 +748,7 @@ o_n_space_nested size =
 -- | Send the file contents to /dev/null with exception handling
 readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteOnExceptionUnfold inh devNull =
-    let readEx = UF.onException (\_ -> hClose inh) FH.read
+    let readEx = UF.onException (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
@@ -760,7 +760,7 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
 readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteHandleExceptionUnfold inh devNull =
     let handler (_e :: SomeException) = hClose inh >> return 10
-        readEx = UF.handle (UF.functionM handler) FH.read
+        readEx = UF.handle (UF.functionM handler) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
@@ -771,7 +771,7 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
 -- | Send the file contents to /dev/null with exception handling
 readWriteFinally_Unfold :: Handle -> Handle -> IO ()
 readWriteFinally_Unfold inh devNull =
-    let readEx = UF.finally_ (\_ -> hClose inh) FH.read
+    let readEx = UF.finally_ (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
@@ -781,13 +781,13 @@ inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
 
 readWriteFinallyUnfold :: Handle -> Handle -> IO ()
 readWriteFinallyUnfold inh devNull =
-    let readEx = UF.finally (\_ -> hClose inh) FH.read
+    let readEx = UF.finally (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
 readWriteBracket_Unfold :: Handle -> Handle -> IO ()
 readWriteBracket_Unfold inh devNull =
-    let readEx = UF.bracket_ return (\_ -> hClose inh) FH.read
+    let readEx = UF.bracket_ return (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
@@ -797,7 +797,7 @@ inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 
 readWriteBracketUnfold :: Handle -> Handle -> IO ()
 readWriteBracketUnfold inh devNull =
-    let readEx = UF.bracket return (\_ -> hClose inh) FH.read
+    let readEx = UF.bracket return (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]

@@ -52,7 +52,7 @@ import Test.Inspection
 
 -- | Copy file
 copyChunks :: Handle -> Handle -> IO ()
-copyChunks inh outh = S.fold (IFH.writeChunks outh) $ IFH.getChunks inh
+copyChunks inh outh = S.fold (IFH.writeChunks outh) $ IFH.readChunks inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyChunks
@@ -75,7 +75,7 @@ o_1_space_copy_chunked env =
 
 -- | Copy file
 copyStream :: Handle -> Handle -> IO ()
-copyStream inh outh = S.fold (FH.write outh) (S.unfold FH.read inh)
+copyStream inh outh = S.fold (FH.write outh) (S.unfold FH.reader inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStream
@@ -102,7 +102,7 @@ o_1_space_copy_read env =
 
 -- | Send the file contents to /dev/null
 readFromBytesNull :: Handle -> Handle -> IO ()
-readFromBytesNull inh devNull = IFH.putBytes devNull $ S.unfold FH.read inh
+readFromBytesNull inh devNull = IFH.putBytes devNull $ S.unfold FH.reader inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readFromBytesNull
@@ -116,7 +116,7 @@ inspect $ 'readFromBytesNull `hasNoType` ''D.FoldMany
 readWithFromBytesNull :: Handle -> Handle -> IO ()
 readWithFromBytesNull inh devNull =
     IFH.putBytes devNull
-        $ S.unfold FH.readWith (defaultChunkSize, inh)
+        $ S.unfold FH.readerWith (defaultChunkSize, inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWithFromBytesNull
@@ -134,7 +134,7 @@ _readChunks inh devNull = IUF.fold fld unf inh
     where
 
     fld = FH.write devNull
-    unf = IUF.many A.read FH.readChunks
+    unf = IUF.many A.read FH.chunkReader
 
 -- | Send the chunk content to /dev/null
 -- Implicitly benchmarked via 'readWithFromBytesNull'
@@ -144,7 +144,7 @@ _readChunksWith inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
     where
 
     fld = FH.write devNull
-    unf = IUF.many A.read FH.readChunksWith
+    unf = IUF.many A.read FH.chunkReaderWith
 
 o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
 o_1_space_copy_fromBytes env =
@@ -163,7 +163,7 @@ writeReadWith inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
     where
 
     fld = FH.writeWith defaultChunkSize devNull
-    unf = FH.readWith
+    unf = FH.readerWith
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'writeReadWith
@@ -180,7 +180,7 @@ writeRead inh devNull = IUF.fold fld unf inh
     where
 
     fld = FH.write devNull
-    unf = FH.read
+    unf = FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'writeRead

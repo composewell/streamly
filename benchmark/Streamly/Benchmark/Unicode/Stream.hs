@@ -23,7 +23,6 @@ import System.IO (Handle)
 
 import qualified Streamly.Data.Array.Unboxed as Array
 import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
@@ -54,7 +53,7 @@ copyCodecUtf8ArraysLenient inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeUtf8'
      $ Unicode.decodeUtf8Arrays
-     $ Handle.getChunks inh
+     $ Handle.readChunks inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyCodecUtf8ArraysLenient
@@ -82,7 +81,7 @@ linesUnlinesCopy inh outh =
       $ Unicode.unlines Unfold.fromList
       $ Stream.splitOnSuffix (== '\n') Fold.toList
       $ Unicode.decodeLatin1
-      $ Stream.unfold Handle.read inh
+      $ Stream.unfold Handle.reader inh
 
 {-# NOINLINE linesUnlinesArrayWord8Copy #-}
 linesUnlinesArrayWord8Copy :: Handle -> Handle -> IO ()
@@ -90,7 +89,7 @@ linesUnlinesArrayWord8Copy inh outh =
     Stream.fold (Handle.write outh)
       $ Stream.interposeSuffix 10 Array.read
       $ Stream.splitOnSuffix (== 10) Array.write
-      $ Stream.unfold Handle.read inh
+      $ Stream.unfold Handle.reader inh
 
 -- XXX splitSuffixOn requires -funfolding-use-threshold=150 for better fusion
 -- | Lines and unlines
@@ -102,7 +101,7 @@ linesUnlinesArrayCharCopy inh outh =
       $ UnicodeArr.unlines
       $ UnicodeArr.lines
       $ Unicode.decodeLatin1
-      $ Stream.unfold Handle.read inh
+      $ Stream.unfold Handle.reader inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'linesUnlinesArrayCharCopy [''Unboxed]
@@ -130,7 +129,7 @@ wordsUnwordsCopyWord8 inh outh =
     Stream.fold (Handle.write outh)
         $ Stream.interposeSuffix 32 Unfold.fromList
         $ Stream.wordsBy isSp Fold.toList
-        $ Stream.unfold Handle.read inh
+        $ Stream.unfold Handle.reader inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'wordsUnwordsCopyWord8
@@ -154,7 +153,7 @@ wordsUnwordsCopy inh outh =
       $ Stream.wordsBy isSpace Fold.toList
       -- -- $ Stream.splitOn isSpace Fold.toList
       $ Unicode.decodeLatin1
-      $ Stream.unfold Handle.read inh
+      $ Stream.unfold Handle.reader inh
 
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'wordsUnwordsCopy
@@ -169,7 +168,7 @@ wordsUnwordsCharArrayCopy inh outh =
       $ UnicodeArr.unwords
       $ UnicodeArr.words
       $ Unicode.decodeLatin1
-      $ Stream.unfold Handle.read inh
+      $ Stream.unfold Handle.reader inh
 
 o_1_space_copy_read_group_ungroup :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_group_ungroup env =
@@ -201,7 +200,7 @@ copyStreamLatin1' inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeLatin1'
      $ Unicode.decodeLatin1
-     $ Stream.unfold Handle.read inh
+     $ Stream.unfold Handle.reader inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStreamLatin1'
@@ -221,7 +220,7 @@ copyStreamLatin1 inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeLatin1
      $ Unicode.decodeLatin1
-     $ Stream.unfold Handle.read inh
+     $ Stream.unfold Handle.reader inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStreamLatin1
@@ -241,7 +240,7 @@ _copyStreamUtf8' inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeUtf8'
      $ Unicode.decodeUtf8'
-     $ Stream.unfold Handle.read inh
+     $ Stream.unfold Handle.reader inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses '_copyStreamUtf8'
@@ -257,7 +256,7 @@ copyStreamUtf8 inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeUtf8
      $ Unicode.decodeUtf8
-     $ Stream.unfold Handle.read inh
+     $ Stream.unfold Handle.reader inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStreamUtf8
@@ -272,7 +271,7 @@ _copyStreamUtf8'Fold inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeUtf8
      $ Stream.foldMany Unicode.writeCharUtf8'
-     $ Stream.unfold Handle.read inh
+     $ Stream.unfold Handle.reader inh
 
 {-# NOINLINE _copyStreamUtf8Parser #-}
 _copyStreamUtf8Parser :: Handle -> Handle -> IO ()
@@ -281,7 +280,7 @@ _copyStreamUtf8Parser inh outh =
      $ Unicode.encodeUtf8
      $ Stream.parseMany
            (Unicode.parseCharUtf8With Unicode.TransliterateCodingFailure)
-     $ Stream.unfold Handle.read inh
+     $ Stream.unfold Handle.reader inh
 
 o_1_space_decode_encode_read :: BenchEnv -> [Benchmark]
 o_1_space_decode_encode_read env =

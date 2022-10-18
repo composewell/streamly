@@ -13,9 +13,9 @@
 
 module Streamly.Console.Stdio
     (
-    -- * Read (stdin)
-      read
-    , readChunks
+    -- * Unfolds (stdin)
+      reader
+    , chunkReader
 
     -- * Write (stdout)
     , write
@@ -24,8 +24,33 @@ module Streamly.Console.Stdio
     -- * Write (stderr)
     , writeErr
     , writeErrChunks
+
+    -- * Deprecated
+    , read
+    , readChunks
     )
 where
 
-import Streamly.Internal.Console.Stdio
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.Word (Word8)
+import Streamly.Internal.Data.Array.Unboxed.Type (Array)
+import Streamly.Internal.Data.Unfold (Unfold)
+
+import Streamly.Internal.Console.Stdio hiding (read, readChunks)
 import Prelude hiding (read)
+
+-- Same as 'reader'
+--
+-- @since 0.8.0
+{-# DEPRECATED read "Please use 'reader' instead" #-}
+{-# INLINE read #-}
+read :: MonadIO m => Unfold m () Word8
+read = reader
+
+-- Same as 'chunkReader'
+--
+-- @since 0.8.0
+{-# DEPRECATED readChunks "Please use 'chunkReader' instead" #-}
+{-# INLINE readChunks #-}
+readChunks :: MonadIO m => Unfold m () (Array Word8)
+readChunks = chunkReader

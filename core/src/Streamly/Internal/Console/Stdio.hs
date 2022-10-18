@@ -9,25 +9,29 @@
 
 module Streamly.Internal.Console.Stdio
     (
-    -- * Read
+    -- * Streams
       read
-    , getBytes
-    , getChars
+    , readChars
     , readChunks
-    , getChunks
     -- , getChunksLn
     -- , getStringsWith -- get strings using the supplied decoding
     -- , getStrings -- get strings of complete chars,
                   -- leave any partial chars for next string
     -- , getStringsLn -- get lines decoded as char strings
 
-    -- * Write
+    -- * Unfolds
+    , reader
+    , chunkReader
+
+    -- * Folds
     , write
+    , writeChunks
     , writeErr
+    , writeErrChunks
+
+    -- * Stream writes
     , putBytes  -- Buffered (32K)
     , putChars
-    , writeChunks
-    , writeErrChunks
     , putChunks -- Unbuffered
     , putStringsWith
     , putStrings
@@ -59,51 +63,51 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode
 
 -- | Unfold standard input into a stream of 'Word8'.
 --
--- @since 0.8.0
-{-# INLINE read #-}
-read :: MonadIO m => Unfold m () Word8
-read = Unfold.lmap (\() -> stdin) Handle.read
+-- @since 0.9.0
+{-# INLINE reader #-}
+reader :: MonadIO m => Unfold m () Word8
+reader = Unfold.lmap (\() -> stdin) Handle.reader
 
 -- | Read a byte stream from standard input.
 --
--- > getBytes = Handle.getBytes stdin
--- > getBytes = Stream.unfold Stdio.read ()
+-- > read = Handle.read stdin
+-- > read = Stream.unfold Stdio.reader ()
 --
 -- /Pre-release/
 --
-{-# INLINE getBytes #-}
-getBytes :: MonadIO m => Stream m Word8
-getBytes = Handle.getBytes stdin
+{-# INLINE read #-}
+read :: MonadIO m => Stream m Word8
+read = Handle.read stdin
 
 -- | Read a character stream from Utf8 encoded standard input.
 --
--- > getChars = Unicode.decodeUtf8 Stdio.getBytes
+-- > readChars = Unicode.decodeUtf8 Stdio.read
 --
 -- /Pre-release/
 --
-{-# INLINE getChars #-}
-getChars :: MonadIO m => Stream m Char
-getChars = Unicode.decodeUtf8 getBytes
+{-# INLINE readChars #-}
+readChars :: MonadIO m => Stream m Char
+readChars = Unicode.decodeUtf8 read
 
 -- | Unfolds standard input into a stream of 'Word8' arrays.
 --
--- @since 0.8.0
-{-# INLINE readChunks #-}
-readChunks :: MonadIO m => Unfold m () (Array Word8)
-readChunks = Unfold.lmap (\() -> stdin) Handle.readChunks
+-- @since 0.9.0
+{-# INLINE chunkReader #-}
+chunkReader :: MonadIO m => Unfold m () (Array Word8)
+chunkReader = Unfold.lmap (\() -> stdin) Handle.chunkReader
 
 -- | Read a stream of chunks from standard input.  The maximum size of a single
 -- chunk is limited to @defaultChunkSize@. The actual size read may be less
 -- than @defaultChunkSize@.
 --
--- > getChunks = Handle.getChunks stdin
--- > getChunks = Stream.unfold Stdio.readChunks ()
+-- > readChunks = Handle.readChunks stdin
+-- > readChunks = Stream.unfold Stdio.chunkReader ()
 --
 -- /Pre-release/
 --
-{-# INLINE getChunks #-}
-getChunks :: MonadIO m => Stream m (Array Word8)
-getChunks = Handle.getChunks stdin
+{-# INLINE readChunks #-}
+readChunks :: MonadIO m => Stream m (Array Word8)
+readChunks = Handle.readChunks stdin
 
 {-
 -- | Read UTF8 encoded lines from standard input.

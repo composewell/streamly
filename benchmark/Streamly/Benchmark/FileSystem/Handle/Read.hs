@@ -59,7 +59,7 @@ import Test.Inspection
 
 -- | Get the last byte from a file bytestream.
 readLast :: Handle -> IO (Maybe Word8)
-readLast = S.last . S.unfold FH.read
+readLast = S.last . S.unfold FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readLast
@@ -71,7 +71,7 @@ inspect $ 'readLast `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 -- assert that flattenArrays constructors are not present
 -- | Count the number of bytes in a file.
 readCountBytes :: Handle -> IO Int
-readCountBytes = S.length . S.unfold FH.read
+readCountBytes = S.length . S.unfold FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountBytes
@@ -86,7 +86,7 @@ readCountLines =
     S.length
         . IUS.lines FL.drain
         . SS.decodeLatin1
-        . S.unfold FH.read
+        . S.unfold FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountLines
@@ -101,7 +101,7 @@ readCountWords =
     S.length
         . IUS.words FL.drain
         . SS.decodeLatin1
-        . S.unfold FH.read
+        . S.unfold FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountWords
@@ -110,7 +110,7 @@ inspect $ hasNoTypeClasses 'readCountWords
 
 -- | Sum the bytes in a file.
 readSumBytes :: Handle -> IO Word8
-readSumBytes = S.sum . S.unfold FH.read
+readSumBytes = S.sum . S.unfold FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readSumBytes
@@ -130,7 +130,7 @@ inspect $ 'readSumBytes `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 -- fusion-plugin to propagate INLINE phase information such that this problem
 -- does not occur.
 readDrain :: Handle -> IO ()
-readDrain inh = S.drain $ S.unfold FH.read inh
+readDrain inh = S.drain $ S.unfold FH.reader inh
 
 -- XXX investigate why we need an INLINE in this case (GHC)
 {-# INLINE readDecodeLatin1 #-}
@@ -138,13 +138,13 @@ readDecodeLatin1 :: Handle -> IO ()
 readDecodeLatin1 inh =
    S.drain
      $ SS.decodeLatin1
-     $ S.unfold FH.read inh
+     $ S.unfold FH.reader inh
 
 readDecodeUtf8 :: Handle -> IO ()
 readDecodeUtf8 inh =
    S.drain
      $ SS.decodeUtf8
-     $ S.unfold FH.read inh
+     $ S.unfold FH.reader inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readDecodeUtf8
@@ -189,7 +189,7 @@ getChunksConcatUnfoldCountLines inh =
         $ IUS.lines FL.drain
         $ SS.decodeLatin1
         -- XXX replace with toBytes
-        $ S.unfoldMany A.read (IFH.getChunks inh)
+        $ S.unfoldMany A.read (IFH.readChunks inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'getChunksConcatUnfoldCountLines
@@ -210,15 +210,15 @@ o_1_space_reduce_toBytes env =
 -------------------------------------------------------------------------------
 
 chunksOfSum :: Int -> Handle -> IO Int
-chunksOfSum n inh = S.length $ S.chunksOf n FL.sum (S.unfold FH.read inh)
+chunksOfSum n inh = S.length $ S.chunksOf n FL.sum (S.unfold FH.reader inh)
 
 foldManyPostChunksOfSum :: Int -> Handle -> IO Int
 foldManyPostChunksOfSum n inh =
-    S.length $ IP.foldManyPost (FL.take n FL.sum) (S.unfold FH.read inh)
+    S.length $ IP.foldManyPost (FL.take n FL.sum) (S.unfold FH.reader inh)
 
 foldManyChunksOfSum :: Int -> Handle -> IO Int
 foldManyChunksOfSum n inh =
-    S.length $ IP.foldMany (FL.take n FL.sum) (S.unfold FH.read inh)
+    S.length $ IP.foldMany (FL.take n FL.sum) (S.unfold FH.reader inh)
 
 -- XXX investigate why we need an INLINE in this case (GHC)
 -- Even though allocations remain the same in both cases inlining improves time
@@ -228,7 +228,7 @@ foldManyChunksOfSum n inh =
 chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
     -- writeNUnsafe gives 2.5x boost here over writeN.
-    S.length $ S.chunksOf n (AT.writeNUnsafe n) (S.unfold FH.read inh)
+    S.length $ S.chunksOf n (AT.writeNUnsafe n) (S.unfold FH.reader inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'chunksOf
@@ -241,7 +241,7 @@ inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 
 {-# INLINE arraysOf #-}
 arraysOf :: Int -> Handle -> IO Int
-arraysOf n inh = S.length $ IP.arraysOf n (S.unfold FH.read inh)
+arraysOf n inh = S.length $ IP.arraysOf n (S.unfold FH.reader inh)
 
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_grouped env =

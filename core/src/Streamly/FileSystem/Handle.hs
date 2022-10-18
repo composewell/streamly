@@ -75,12 +75,19 @@ module Streamly.FileSystem.Handle
     -- position of the file handle. The stream ends as soon as EOF is
     -- encountered.
 
-    , read
-    , readWith
-    , readChunks
-    , readChunksWith
+    -- -- *** Streams
+    -- , read
+    -- , readWith
+    -- , readChunks
+    -- , readChunksWith
 
-    -- ** Writing
+    -- -- *** Unfolds
+    , reader
+    , readerWith
+    , chunkReader
+    , chunkReaderWith
+
+    -- ** Folds
     -- | 'TextEncoding', 'NewLineMode', and 'Buffering' options of the
     -- underlying handle are ignored. The write occurs from the current seek
     -- position of the file handle.  The write behavior depends on the 'IOMode'
@@ -91,12 +98,36 @@ module Streamly.FileSystem.Handle
     , writeChunks
 
      -- * Deprecated
-    , readChunksWithBufferOf
+    , read
     , readWithBufferOf
+    , readChunks
+    , readChunksWithBufferOf
     , writeChunksWithBufferOf
     , writeWithBufferOf
     )
 where
 
-import Streamly.Internal.FileSystem.Handle
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.Word (Word8)
+import Streamly.Internal.Data.Array.Unboxed.Type (Array)
+import Streamly.Internal.Data.Unfold.Type (Unfold)
+import System.IO (Handle)
+
+import Streamly.Internal.FileSystem.Handle hiding (read, readChunks)
 import Prelude hiding (read)
+
+-- | Same as 'reader'
+--
+-- @since 0.7.0
+{-# DEPRECATED read "Please use 'reader' instead" #-}
+{-# INLINE read #-}
+read :: MonadIO m => Unfold m Handle Word8
+read = reader
+
+-- | Same as 'chunkReader'
+--
+-- @since 0.7.0
+{-# DEPRECATED readChunks "Please use 'chunkReader' instead" #-}
+{-# INLINE readChunks #-}
+readChunks :: MonadIO m => Unfold m Handle (Array Word8)
+readChunks = chunkReader

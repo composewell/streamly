@@ -330,7 +330,7 @@ parseManyChunksOfSum n inh =
     Stream.fold Fold.length
         $ Stream.parseMany
               (PR.fromFold $ Fold.take n Fold.sum)
-              (Stream.unfold Handle.read inh)
+              (Stream.unfold Handle.reader inh)
 
 -------------------------------------------------------------------------------
 -- Parsing with unfolds
