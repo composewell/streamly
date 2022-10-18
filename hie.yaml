@@ -124,6 +124,8 @@ cradle:
               component: "test:Prelude.Async"
             - path: "./test/Streamly/Test/Prelude/Concurrent.hs"
               component: "test:Prelude.Concurrent"
+            - path: "./test/Streamly/Test/Prelude/ConcurrentChannel.hs"
+              component: "test:Prelude.ConcurrentChannel"
             - path: "./test/Streamly/Test/Prelude/Fold.hs"
               component: "test:Prelude.Fold"
             - path: "./test/Streamly/Test/Prelude/Parallel.hs"
