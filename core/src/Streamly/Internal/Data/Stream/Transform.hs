@@ -54,6 +54,7 @@ module Streamly.Internal.Data.Stream.Transform
     -- Stateful/scanning filters
     , uniq
     , uniqBy
+    , nubBy
     , prune
     , repeated
 
@@ -61,11 +62,17 @@ module Streamly.Internal.Data.Stream.Transform
     -- | Produce a subset of the stream trimmed at ends.
 
     , take
+    , takeLast
     , takeWhile
     , takeWhileM
+    , takeWhileLast
+    , takeWhileAround
     , drop
+    , dropLast
     , dropWhile
     , dropWhileM
+    , dropWhileLast
+    , dropWhileAround
 
     -- * Position Indexing
     , indexed
@@ -539,6 +546,23 @@ uniq :: (Eq a, Monad m) => Stream m a -> Stream m a
 -- uniq = scanMaybe FL.uniq
 uniq = fromStreamD . D.uniq . toStreamD
 
+-- We can have more efficient implementations for nubOrd and nubInt by using
+-- Set and IntSet to find/remove duplication. For Hashable we can use a
+-- hashmap. Use rewrite rules to specialize to more efficient impls.
+--
+-- | Drop repeated elements anywhere in the stream.
+--
+-- /Caution: not scalable for infinite streams/
+--
+-- /See also: nubWindowBy/
+--
+-- /Unimplemented/
+--
+{-# INLINE nubBy #-}
+nubBy :: -- Monad m =>
+    (a -> a -> Bool) -> Stream m a -> Stream m a
+nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
+
 -- | Strip all leading and trailing occurrences of an element passing a
 -- predicate and make all other consecutive occurrences uniq.
 --
@@ -598,6 +622,42 @@ takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 -- takeWhileM p = scanMaybe (FL.takingEndByM_ (\x -> not <$> p x))
 takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 
+
+-- See the lastN fold for impl hints. Use a Data.Array based ring buffer.
+--
+-- takeLast n = Stream.concatM . fmap Array.toStream . fold Fold.lastN
+--
+-- | Take @n@ elements at the end of the stream.
+--
+-- O(n) space, where n is the number elements taken.
+--
+-- /Unimplemented/
+{-# INLINE takeLast #-}
+takeLast :: -- Monad m =>
+    Int -> Stream m a -> Stream m a
+takeLast = undefined -- fromStreamD $ D.takeLast n $ toStreamD m
+
+-- | Take all consecutive elements at the end of the stream for which the
+-- predicate is true.
+--
+-- O(n) space, where n is the number elements taken.
+--
+-- /Unimplemented/
+{-# INLINE takeWhileLast #-}
+takeWhileLast :: -- Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m a
+takeWhileLast = undefined -- fromStreamD $ D.takeWhileLast n $ toStreamD m
+
+-- | Like 'takeWhile' and 'takeWhileLast' combined.
+--
+-- O(n) space, where n is the number elements taken from the end.
+--
+-- /Unimplemented/
+{-# INLINE takeWhileAround #-}
+takeWhileAround :: -- Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m a
+takeWhileAround = undefined -- fromStreamD $ D.takeWhileAround n $ toStreamD m
+
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
 --
@@ -614,6 +674,37 @@ dropWhile p m = fromStreamD $ D.dropWhile p $ toStreamD m
 dropWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 -- dropWhileM p = scanMaybe (FL.droppingWhileM p)
 dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
+
+-- | Drop @n@ elements at the end of the stream.
+--
+-- O(n) space, where n is the number elements dropped.
+--
+-- /Unimplemented/
+{-# INLINE dropLast #-}
+dropLast :: -- Monad m =>
+    Int -> Stream m a -> Stream m a
+dropLast = undefined -- fromStreamD $ D.dropLast n $ toStreamD m
+
+-- | Drop all consecutive elements at the end of the stream for which the
+-- predicate is true.
+--
+-- O(n) space, where n is the number elements dropped.
+--
+-- /Unimplemented/
+{-# INLINE dropWhileLast #-}
+dropWhileLast :: -- Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m a
+dropWhileLast = undefined -- fromStreamD $ D.dropWhileLast n $ toStreamD m
+
+-- | Like 'dropWhile' and 'dropWhileLast' combined.
+--
+-- O(n) space, where n is the number elements dropped from the end.
+--
+-- /Unimplemented/
+{-# INLINE dropWhileAround #-}
+dropWhileAround :: -- Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m a
+dropWhileAround = undefined -- fromStreamD $ D.dropWhileAround n $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Inserting Elements

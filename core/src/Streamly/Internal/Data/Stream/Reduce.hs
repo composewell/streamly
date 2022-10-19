@@ -38,6 +38,16 @@ module Streamly.Internal.Data.Stream.Reduce
     -- | Element unaware grouping.
     , arraysOf
 
+    -- | Element aware grouping
+    , wordsOn
+
+
+    -- ** Spilitting
+    -- XXX Implement these as folds or parsers instead.
+    , splitOnSuffixSeqAny
+    , splitOnPrefix
+    , splitOnAny
+
     -- * Reduce By Parsers
     -- ** Generic Parsing
     -- | Apply parsers on a stream.
@@ -205,6 +215,113 @@ refoldIterateM :: Monad m =>
 refoldIterateM c i m = fromStreamD $ D.refoldIterateM c i (toStreamD m)
 
 ------------------------------------------------------------------------------
+-- Splitting
+------------------------------------------------------------------------------
+
+-- Implement this as a fold or a parser instead.
+-- This can be implemented easily using Rabin Karp
+-- | Split post any one of the given patterns.
+--
+-- /Unimplemented/
+{-# INLINE splitOnSuffixSeqAny #-}
+splitOnSuffixSeqAny :: -- (Monad m, Unboxed a, Integral a) =>
+    [Array a] -> Fold m a b -> Stream m a -> Stream m b
+splitOnSuffixSeqAny _subseq _f _m = undefined
+    -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
+
+-- | Split on a prefixed separator element, dropping the separator.  The
+-- supplied 'Fold' is applied on the split segments.
+--
+-- @
+-- > splitOnPrefix' p xs = Stream.toList $ Stream.splitOnPrefix p (Fold.toList) (Stream.fromList xs)
+-- > splitOnPrefix' (== '.') ".a.b"
+-- ["a","b"]
+-- @
+--
+-- An empty stream results in an empty output stream:
+-- @
+-- > splitOnPrefix' (== '.') ""
+-- []
+-- @
+--
+-- An empty segment consisting of only a prefix is folded to the default output
+-- of the fold:
+--
+-- @
+-- > splitOnPrefix' (== '.') "."
+-- [""]
+--
+-- > splitOnPrefix' (== '.') ".a.b."
+-- ["a","b",""]
+--
+-- > splitOnPrefix' (== '.') ".a..b"
+-- ["a","","b"]
+--
+-- @
+--
+-- A prefix is optional at the beginning of the stream:
+--
+-- @
+-- > splitOnPrefix' (== '.') "a"
+-- ["a"]
+--
+-- > splitOnPrefix' (== '.') "a.b"
+-- ["a","b"]
+-- @
+--
+-- 'splitOnPrefix' is an inverse of 'intercalatePrefix' with a single element:
+--
+-- > Stream.intercalatePrefix (Stream.fromPure '.') Unfold.fromList . Stream.splitOnPrefix (== '.') Fold.toList === id
+--
+-- Assuming the input stream does not contain the separator:
+--
+-- > Stream.splitOnPrefix (== '.') Fold.toList . Stream.intercalatePrefix (Stream.fromPure '.') Unfold.fromList === id
+--
+-- /Unimplemented/
+{-# INLINE splitOnPrefix #-}
+splitOnPrefix :: -- (IsStream t, MonadCatch m) =>
+    (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitOnPrefix _predicate _f = undefined
+    -- parseMany (Parser.sliceBeginBy predicate f)
+
+-- Int list examples for splitOn:
+--
+-- >>> splitList [] [1,2,3,3,4]
+-- > [[1],[2],[3],[3],[4]]
+--
+-- >>> splitList [5] [1,2,3,3,4]
+-- > [[1,2,3,3,4]]
+--
+-- >>> splitList [1] [1,2,3,3,4]
+-- > [[],[2,3,3,4]]
+--
+-- >>> splitList [4] [1,2,3,3,4]
+-- > [[1,2,3,3],[]]
+--
+-- >>> splitList [2] [1,2,3,3,4]
+-- > [[1],[3,3,4]]
+--
+-- >>> splitList [3] [1,2,3,3,4]
+-- > [[1,2],[],[4]]
+--
+-- >>> splitList [3,3] [1,2,3,3,4]
+-- > [[1,2],[4]]
+--
+-- >>> splitList [1,2,3,3,4] [1,2,3,3,4]
+-- > [[],[]]
+
+-- This can be implemented easily using Rabin Karp
+-- | Split on any one of the given patterns.
+--
+-- /Unimplemented/
+--
+{-# INLINE splitOnAny #-}
+splitOnAny :: -- (Monad m, Unboxed a, Integral a) =>
+    [Array a] -> Fold m a b -> Stream m a -> Stream m b
+splitOnAny _subseq _f _m =
+    undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.toStreamD m)
+
+------------------------------------------------------------------------------
 -- Parsing
 ------------------------------------------------------------------------------
 
@@ -320,3 +437,13 @@ parseIterate f i m = fromStreamD $
 arraysOf :: (MonadIO m, Unboxed a)
     => Int -> Stream m a -> Stream m (Array a)
 arraysOf n = fromStreamD . Array.arraysOf n . toStreamD
+
+-- Implement this as a fold or a parser instead.
+-- | Like 'splitOn' but drops any empty splits.
+--
+-- /Unimplemented/
+{-# INLINE wordsOn #-}
+wordsOn :: -- (Monad m, Unboxed a, Eq a) =>
+    Array a -> Fold m a b -> Stream m a -> Stream m b
+wordsOn _subseq _f _m =
+    undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStreamD m)

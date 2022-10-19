@@ -11,8 +11,11 @@ module Streamly.Internal.Data.Stream.Time
     (
     -- Primitives
       interjectSuffix
+    , ticks
     , takeInterval
+    , takeLastInterval
     , dropInterval
+    , dropLastInterval
     , intervalsOf
     , chunksOfTimeout
 
@@ -21,6 +24,15 @@ module Streamly.Internal.Data.Stream.Time
     , classifySessionsBy
     , classifySessionsOf
     , classifyKeepAliveSessions
+
+    -- ** Buffering and Sampling
+    -- | Evaluate strictly using a buffer of results.  When the buffer becomes
+    -- full we can block, drop the new elements, drop the oldest element and
+    -- insert the new at the end or keep dropping elements uniformly to match
+    -- the rate of the consumer.
+    , sampleOld
+    , sampleNew
+    , sampleRate
 
     -- Sampling
     , sampleIntervalEnd
@@ -108,6 +120,19 @@ interjectSuffix n f xs = parallelFst [xs, repeatM timed]
     timed = liftIO (threadDelay (round $ n * 1000000)) >> f
     repeatM = Stream.sequence . Stream.repeat
 
+-- | Generate ticks at the specified rate. The rate is adaptive, the tick
+-- generation speed can be increased or decreased at different times to achieve
+-- the specified rate.  The specific behavior for different styles of 'Rate'
+-- specifications is documented under 'Rate'.  The effective maximum rate
+-- achieved by a stream is governed by the processor speed.
+--
+-- /Unimplemented/
+--
+{-# INLINE ticks #-}
+ticks :: -- (MonadAsync m) =>
+    Rate -> Stream m ()
+ticks = undefined
+
 -- XXX Notes from D.takeByTime (which was removed)
 -- XXX using getTime in the loop can be pretty expensive especially for
 -- computations where iterations are lightweight. We have the following
@@ -146,6 +171,16 @@ takeInterval d =
         . Stream.takeWhile isNothing
         . interjectSuffix d (return Nothing) . fmap Just
 
+-- | Take time interval @i@ seconds at the end of the stream.
+--
+-- O(n) space, where n is the number elements taken.
+--
+-- /Unimplemented/
+{-# INLINE takeLastInterval #-}
+takeLastInterval :: -- MonadAsync m =>
+    Double -> Stream m a -> Stream m a
+takeLastInterval = undefined
+
 -- | @dropInterval duration@ drops stream elements until specified @duration@ in
 -- seconds has passed.  The duration begins when the stream is evaluated for the
 -- first time. The time duration is checked /after/ generating a stream element,
@@ -166,6 +201,16 @@ dropInterval d =
     Stream.catMaybes
         . Stream.dropWhile isNothing
         . interjectSuffix d (return Nothing) . fmap Just
+
+-- | Drop time interval @i@ seconds at the end of the stream.
+--
+-- O(n) space, where n is the number elements dropped.
+--
+-- /Unimplemented/
+{-# INLINE dropLastInterval #-}
+dropLastInterval :: -- MonadAsync m =>
+    Int -> Stream m a -> Stream m a
+dropLastInterval = undefined
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
@@ -860,3 +905,49 @@ sampleBurstEnd = sampleBurst True
 {-# INLINE sampleBurstStart #-}
 sampleBurstStart :: MonadAsync m => Double -> Stream m a -> Stream m a
 sampleBurstStart = sampleBurst False
+
+
+------------------------------------------------------------------------------
+-- Lossy Buffering
+------------------------------------------------------------------------------
+
+-- XXX We could use 'maxBuffer Block/Drop/Rotate/Sample' instead. However we
+-- may want to have the evaluation rate independent of the sampling rate. To
+-- support that we can decouple evaluation and sampling in independent stages.
+-- The sampling stage would strictly evaluate and sample, the evaluation stage
+-- would control the evaluation rate.
+
+-- | Evaluate the input stream continuously and keep only the oldest @n@
+-- elements in the buffer, discard the new ones when the buffer is full.  When
+-- the output stream is evaluated it consumes the values from the buffer in a
+-- FIFO manner.
+--
+-- /Unimplemented/
+--
+{-# INLINE sampleOld #-}
+sampleOld :: -- MonadAsync m =>
+    Int -> Stream m a -> Stream m a
+sampleOld = undefined
+
+-- | Evaluate the input stream continuously and keep only the latest @n@
+-- elements in a ring buffer, keep discarding the older ones to make space for
+-- the new ones.  When the output stream is evaluated it consumes the values
+-- from the buffer in a FIFO manner.
+--
+-- /Unimplemented/
+--
+{-# INLINE sampleNew #-}
+sampleNew :: -- MonadAsync m =>
+    Int -> Stream m a -> Stream m a
+sampleNew = undefined
+
+-- | Like 'sampleNew' but samples at uniform intervals to match the consumer
+-- rate. Note that 'sampleNew' leads to non-uniform sampling depending on the
+-- consumer pattern.
+--
+-- /Unimplemented/
+--
+{-# INLINE sampleRate #-}
+sampleRate :: -- MonadAsync m =>
+    Double -> Stream m a -> Stream m a
+sampleRate = undefined
