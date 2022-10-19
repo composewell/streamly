@@ -130,18 +130,18 @@ arraysOf n str = fromStreamD $ A.arraysOf n (toStreamD str)
 concat :: (Monad m, Unboxed a) => Stream m (Array a) -> Stream m a
 -- concat m = fromStreamD $ A.flattenArrays (toStreamD m)
 -- concat m = fromStreamD $ D.concatMap A.toStreamD (toStreamD m)
-concat m = fromStreamD $ D.unfoldMany A.read (toStreamD m)
+concat m = fromStreamD $ D.unfoldMany A.reader (toStreamD m)
 
 -- | Convert a stream of arrays into a stream of their elements reversing the
 -- contents of each array before flattening.
 --
--- > concatRev = Stream.unfoldMany Array.readRev
+-- > concatRev = Stream.unfoldMany Array.readerRev
 --
 -- @since 0.7.0
 {-# INLINE concatRev #-}
 concatRev :: (Monad m, Unboxed a) => Stream m (Array a) -> Stream m a
 -- concatRev m = fromStreamD $ A.flattenArraysRev (toStreamD m)
-concatRev m = fromStreamD $ D.unfoldMany A.readRev (toStreamD m)
+concatRev m = fromStreamD $ D.unfoldMany A.readerRev (toStreamD m)
 
 -------------------------------------------------------------------------------
 -- Intersperse and append
@@ -153,12 +153,12 @@ concatRev m = fromStreamD $ D.unfoldMany A.readRev (toStreamD m)
 -- /Pre-release/
 {-# INLINE interpose #-}
 interpose :: (Monad m, Unboxed a) => a -> Stream m (Array a) -> Stream m a
-interpose x = S.interpose x A.read
+interpose x = S.interpose x A.reader
 
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (Monad m, Unboxed a)
     => Array a -> Stream m (Array a) -> Stream m a
-intercalateSuffix = S.intercalateSuffix A.read
+intercalateSuffix = S.intercalateSuffix A.reader
 
 -- | Flatten a stream of arrays appending the given element after each
 -- array.
@@ -168,7 +168,7 @@ intercalateSuffix = S.intercalateSuffix A.read
 interposeSuffix :: (Monad m, Unboxed a)
     => a -> Stream m (Array a) -> Stream m a
 -- interposeSuffix x = fromStreamD . A.unlines x . toStreamD
-interposeSuffix x = S.interposeSuffix x A.read
+interposeSuffix x = S.interposeSuffix x A.reader
 
 data FlattenState s a =
       OuterLoop s

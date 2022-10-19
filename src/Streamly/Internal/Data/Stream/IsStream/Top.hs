@@ -68,7 +68,7 @@ import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Array as Array
-    (fromStream, length, toStream)
+    (fromStream, length, read)
 import qualified Streamly.Data.Array.Unboxed.Mut as MA
 import qualified Streamly.Internal.Data.Fold as Fold
     (one, last, toStream, toStreamRev)
@@ -498,8 +498,8 @@ joinOuter eq s1 s =
     where
 
     leftOver inputArr foundArr =
-            let stream1 = IsStream.fromSerial $ Array.toStream inputArr
-                stream2 = Stream.unfold MA.read foundArr
+            let stream1 = IsStream.fromSerial $ Array.read inputArr
+                stream2 = Stream.unfold MA.reader foundArr
             in Stream.filter
                     isJust
                     ( Stream.zipWith (\x y ->
@@ -521,7 +521,7 @@ joinOuter eq s1 s =
                 then Stream.nil
                 else Stream.fromPure Nothing
         (i, b) <-
-            let stream = IsStream.fromSerial $ Array.toStream inputArr
+            let stream = IsStream.fromSerial $ Array.read inputArr
              in Stream.indexed $ fmap Just (Stream.liftInner stream) <> final
 
         case b of

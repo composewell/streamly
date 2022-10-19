@@ -65,10 +65,10 @@ arrInput file = second (fmap Array.fromList) (strInput file)
 
 benchFunctions :: [(String, Array Char -> IO ())]
 benchFunctions =
-    [ ("NFD", IsStream.drain . normalize NFD . Array.toStream)
-    , ("NFKD", IsStream.drain . normalize NFKD . Array.toStream)
-    , ("NFC", IsStream.drain . normalize NFC . Array.toStream)
-    , ("NFKC", IsStream.drain . normalize NFKC . Array.toStream)
+    [ ("NFD", IsStream.drain . normalize NFD . Array.read)
+    , ("NFKD", IsStream.drain . normalize NFKD . Array.read)
+    , ("NFC", IsStream.drain . normalize NFC . Array.read)
+    , ("NFKC", IsStream.drain . normalize NFKC . Array.read)
     ]
 
 main :: IO ()

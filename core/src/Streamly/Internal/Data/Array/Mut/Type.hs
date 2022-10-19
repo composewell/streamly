@@ -84,9 +84,10 @@ module Streamly.Internal.Data.Array.Mut.Type
 
     -- * Eliminating and Reading
 
-    -- ** To streams
-    , read
-    -- , readRev
+    -- ** Unfolds
+    , reader
+    -- , readerRev
+    , producer -- experimental
 
     -- ** To containers
     , toStreamD
@@ -94,9 +95,6 @@ module Streamly.Internal.Data.Array.Mut.Type
     , toStreamK
     -- , toStreamKRev
     , toList
-
-    -- experimental
-    , producer
 
     -- ** Random reads
     , getIndex
@@ -570,9 +568,9 @@ producer = Producer step inject extract
 
 -- | Unfold an array into a stream.
 --
-{-# INLINE_NORMAL read #-}
-read :: MonadIO m => Unfold m (Array a) a
-read = Producer.simplify producer
+{-# INLINE_NORMAL reader #-}
+reader :: MonadIO m => Unfold m (Array a) a
+reader = Producer.simplify producer
 
 --------------------------------------------------------------------------------
 -- Appending arrays

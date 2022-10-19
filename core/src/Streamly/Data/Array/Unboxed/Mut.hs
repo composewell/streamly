@@ -13,11 +13,11 @@
 
 module Streamly.Data.Array.Unboxed.Mut
     (
+    -- * Types
       Unbox (..)
     , Array
 
-    -- * Arrays
-    -- ** Construction
+    -- * Construction
 
     -- Uninitialized Arrays
     , new
@@ -30,29 +30,31 @@ module Streamly.Data.Array.Unboxed.Mut
     , write       -- full buffer
     -- writeLastN
 
-    -- ** Appending elements
+    -- * Appending elements
     , snoc
 
-    -- ** Appending streams
+    -- * Appending streams
     , appendN
     , append
 
-    -- ** Inplace mutation
+    -- * Inplace mutation
     , putIndex
 
-    -- ** Random access
+    -- * Random access
     , getIndex
 
-    -- ** Elimination
+    -- * Conversion
     , toList
-    , read
-    , readRev
 
-    -- ** Casting
+    -- * Unfolds
+    , reader
+    , readerRev
+
+    -- * Casting
     , cast
     , asBytes
 
-    -- ** Size
+    -- * Size
     , length
     )
 where

@@ -87,7 +87,7 @@ linesUnlinesCopy inh outh =
 linesUnlinesArrayWord8Copy :: Handle -> Handle -> IO ()
 linesUnlinesArrayWord8Copy inh outh =
     Stream.fold (Handle.write outh)
-      $ Stream.interposeSuffix 10 Array.read
+      $ Stream.interposeSuffix 10 Array.reader
       $ Stream.splitOnSuffix (== 10) Array.write
       $ Stream.unfold Handle.reader inh
 

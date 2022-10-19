@@ -22,19 +22,19 @@ module Streamly.Data.Array
     , A.writeN
     , A.write
 
-    -- * Elimination
-
-    , A.toStream
-    , A.toStreamRev
+    -- * Streams
     , A.read
+    , A.readRev
+
+    -- * Unfolds
+    , A.reader
 
     -- * Random Access
+    , A.length
 
     -- * Folding Arrays
-    , A.streamFold
+    -- , A.streamFold
     , A.fold
-
-    , A.length
     )
 where
 

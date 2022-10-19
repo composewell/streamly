@@ -72,7 +72,7 @@ words = S.words A.write
 -- > unlines . lines /= id
 {-# INLINE unlines #-}
 unlines :: MonadIO m => Stream m (Array Char) -> Stream m Char
-unlines = S.unlines A.read
+unlines = S.unlines A.reader
 
 -- | Flattens the stream of @Array Char@, after appending a separating
 -- space to each string.
@@ -89,4 +89,4 @@ unlines = S.unlines A.read
 -- > unwords . words /= id
 {-# INLINE unwords #-}
 unwords :: MonadIO m => Stream m (Array Char) -> Stream m Char
-unwords = S.unwords A.read
+unwords = S.unwords A.reader

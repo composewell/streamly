@@ -332,12 +332,12 @@ chunkReader = UF.first defaultChunkSize chunkReaderWith
 -- | Unfolds the tuple @(bufsize, handle)@ into a byte stream, read requests
 -- to the IO device are performed using buffers of @bufsize@.
 --
--- >>> readerWith = Unfold.many Array.read Handle.chunkReaderWith
+-- >>> readerWith = Unfold.many Array.reader Handle.chunkReaderWith
 --
 -- @since 0.9.0
 {-# INLINE readerWith #-}
 readerWith :: MonadIO m => Unfold m (Int, Handle) Word8
-readerWith = UF.many A.read chunkReaderWith
+readerWith = UF.many A.reader chunkReaderWith
 
 -- | Same as 'readerWith'
 --
@@ -350,7 +350,7 @@ readWithBufferOf = readerWith
 -- | @readWith bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.
 --
--- >>> readWith size h = Stream.unfoldMany Array.read $ Handle.readChunksWith size h
+-- >>> readWith size h = Stream.unfoldMany Array.reader $ Handle.readChunksWith size h
 --
 -- /Pre-release/
 {-# INLINE readWith #-}
@@ -361,16 +361,16 @@ readWith size h = AS.concat $ readChunksWith size h
 -- performed in sizes of
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
--- >>> reader = Unfold.many Array.read chunkReader
+-- >>> reader = Unfold.many Array.reader chunkReader
 --
 -- @since 0.9.0
 {-# INLINE reader #-}
 reader :: MonadIO m => Unfold m Handle Word8
-reader = UF.many A.read chunkReader
+reader = UF.many A.reader chunkReader
 
 -- | Generate a byte stream from a file 'Handle'.
 --
--- >>> read h = Stream.unfoldMany Array.read $ Handle.readChunks h
+-- >>> read h = Stream.unfoldMany Array.reader $ Handle.readChunks h
 --
 -- /Pre-release/
 {-# INLINE read #-}

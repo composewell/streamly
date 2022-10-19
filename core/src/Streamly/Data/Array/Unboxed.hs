@@ -1,5 +1,3 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Data.Array.Unboxed
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -53,11 +51,11 @@
 
 module Streamly.Data.Array.Unboxed
     (
+    -- * Types
       Unbox (..)
     , A.Array
 
-    -- * Arrays
-    -- ** Construction
+    -- * Construction
     -- | When performance matters, the fastest way to generate an array is
     -- 'writeN'. 'IsList' and 'IsString' instances can be
     -- used to conveniently construct arrays from literal values.
@@ -74,27 +72,37 @@ module Streamly.Data.Array.Unboxed
     , A.write       -- full buffer
     , writeLastN    -- drop old (ring buffer)
 
-    -- ** Elimination
+    -- * Conversion
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
     -- list.
-
     , A.toList
-    , A.read
-    , A.readRev
 
-    -- ** Casting
+    -- * Unfolds
+    , A.reader
+    , A.readerRev
+
+    -- * Casting
     , cast
     , asBytes
 
-    -- ** Random Access
+    -- * Random Access
     , A.length
     -- , (!!)
     , A.getIndex
+
+    -- * Deprecated
+    , read
+    , readRev
     )
 where
 
-import Streamly.Internal.Data.Array.Unboxed as A
+#include "inline.hs"
+
+import Streamly.Internal.Data.Unfold (Unfold)
+import Streamly.Internal.Data.Array.Unboxed as A hiding (read, readRev)
+
 import Streamly.Internal.Data.Unboxed (Unbox (..))
+import Prelude hiding (read)
 
 -- $setup
 -- >>> :m
@@ -104,3 +112,17 @@ import Streamly.Internal.Data.Unboxed (Unbox (..))
 -- >>> import Streamly.Data.Array.Unboxed (Array)
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Array.Unboxed as Array
+
+-- | Same as 'reader'
+--
+{-# DEPRECATED read "Please use 'reader' instead" #-}
+{-# INLINE_NORMAL read #-}
+read :: (Monad m, Unbox a) => Unfold m (Array a) a
+read = reader
+
+-- | Same as 'readerRev'
+--
+{-# DEPRECATED readRev "Please use 'readerRev' instead" #-}
+{-# INLINE_NORMAL readRev #-}
+readRev :: (Monad m, Unbox a) => Unfold m (Array a) a
+readRev = readerRev

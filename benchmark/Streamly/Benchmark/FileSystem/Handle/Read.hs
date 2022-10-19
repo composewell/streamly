@@ -189,7 +189,7 @@ getChunksConcatUnfoldCountLines inh =
         $ IUS.lines FL.drain
         $ SS.decodeLatin1
         -- XXX replace with toBytes
-        $ S.unfoldMany A.read (IFH.readChunks inh)
+        $ S.unfoldMany A.reader (IFH.readChunks inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'getChunksConcatUnfoldCountLines
