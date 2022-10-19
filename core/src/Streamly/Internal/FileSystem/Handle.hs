@@ -146,7 +146,6 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 -- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
--- >>> import qualified Streamly.FileSystem.Handle as Handle
 -- >>> import qualified Streamly.Prelude as Stream
 --
 -- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array (writeNUnsafe)
