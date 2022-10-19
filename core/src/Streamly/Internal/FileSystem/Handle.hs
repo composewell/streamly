@@ -149,7 +149,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 -- >>> import qualified Streamly.FileSystem.Handle as Handle
 -- >>> import qualified Streamly.Prelude as Stream
 --
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed as Array (writeNUnsafe)
+-- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array (writeNUnsafe)
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold (first)
 -- >>> import qualified Streamly.Internal.FileSystem.Handle as Handle
