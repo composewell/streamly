@@ -33,11 +33,18 @@
     Streamly.Internal.Unicode.Char.Parser
     Streamly.Internal.Unicode.Array.Char
 
-* Following modules renamed in streamly-core package:
-    Streamly.Internal.Data.Array.Stream.Mut.Foreign ->  Streamly.Internal.Data.Array.Unboxed.Mut.Stream
+* Following modules are renamed in streamly-core package:
+    Streamly.Internal.Data.Array.Foreign -> Streamly.Internal.Data.Array.Unboxed
+    Streamly.Internal.Data.Array.Foreign.Mut -> Streamly.Internal.Data.Array.Unboxed.Mut
+    Streamly.Internal.Data.Array.Foreign.Mut.Type -> Streamly.Internal.Data.Array.Unboxed.Mut.Type
+    Streamly.Internal.Data.Array.Foreign.Type -> Streamly.Internal.Data.Array.Unboxed.Type
     Streamly.Internal.Data.Array.Stream.Foreign -> Streamly.Internal.Data.Array.Unboxed.Stream
+    Streamly.Internal.Data.Array.Stream.Mut.Foreign ->  Streamly.Internal.Data.Array.Unboxed.Mut.Stream
     Streamly.Internal.Data.Array.Stream.Fold.Foreign -> Streamly.Internal.Data.Array.Unboxed.Stream.Fold
     Streamly.Internal.Data.Ring.Foreign -> Streamly.Internal.Data.Ring.Unboxed
+
+    Streamly.Internal.Data.IORef.Prim -> Streamly.Internal.Data.IORef.Unboxed
+
 
 * Exposed Streamly.Data.Parser module.
 * Exposed Streamly.Unicode.String module.
