@@ -25,7 +25,7 @@ module Streamly.Internal.Network.Socket
     , connectFrom
 
     -- * Read from connection
-    , readChunk
+    , getChunk
 
     -- ** Streams
     , read
@@ -40,7 +40,7 @@ module Streamly.Internal.Network.Socket
     , chunkReaderWith
 
     -- * Write to connection
-    , writeChunk
+    , putChunk
 
     -- ** Folds
     , write
@@ -278,10 +278,10 @@ readArrayUptoWith f size h = do
 -- becomes available. If data is available then it immediately returns that
 -- data without blocking.
 --
--- @since 0.8.0
-{-# INLINABLE readChunk #-}
-readChunk :: Int -> Socket -> IO (Array Word8)
-readChunk = readArrayUptoWith recvBuf
+-- @since 0.9.0
+{-# INLINABLE getChunk #-}
+getChunk :: Int -> Socket -> IO (Array Word8)
+getChunk = readArrayUptoWith recvBuf
 
 -------------------------------------------------------------------------------
 -- Array IO (output)
@@ -321,10 +321,10 @@ writeArrayWith f h arr = A.asPtrUnsafe arr $ \ptr -> f h (castPtr ptr) aLen
 
 -- | Write an Array to a file handle.
 --
--- @since 0.8.0
-{-# INLINABLE writeChunk #-}
-writeChunk :: Unboxed a => Socket -> Array a -> IO ()
-writeChunk = writeArrayWith sendAll
+-- @since 0.9.0
+{-# INLINABLE putChunk #-}
+putChunk :: Unboxed a => Socket -> Array a -> IO ()
+putChunk = writeArrayWith sendAll
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -354,7 +354,7 @@ readChunksWith size h = S.fromStreamD (D.Stream step ())
     where
     {-# INLINE_LATE step #-}
     step _ _ = do
-        arr <- liftIO $ readChunk size h
+        arr <- liftIO $ getChunk size h
         return $
             case A.length arr of
                 0 -> D.Stop
@@ -382,7 +382,7 @@ chunkReaderWith = Unfold step return
     where
     {-# INLINE_LATE step #-}
     step (size, h) = do
-        arr <- liftIO $ readChunk size h
+        arr <- liftIO $ getChunk size h
         return $
             case A.length arr of
                 0 -> D.Stop
@@ -462,7 +462,7 @@ reader = UF.first defaultChunkSize readerWith
 {-# INLINE putChunks #-}
 putChunks :: (MonadIO m, Unboxed a)
     => Socket -> Stream m (Array a) -> m ()
-putChunks h = S.fold (FL.drainBy (liftIO . writeChunk h))
+putChunks h = S.fold (FL.drainBy (liftIO . putChunk h))
 
 -- | Write a stream of arrays to a socket.  Each array in the stream is written
 -- to the socket as a separate IO request.
@@ -470,7 +470,7 @@ putChunks h = S.fold (FL.drainBy (liftIO . writeChunk h))
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, Unboxed a) => Socket -> Fold m (Array a) ()
-writeChunks h = FL.drainBy (liftIO . writeChunk h)
+writeChunks h = FL.drainBy (liftIO . putChunk h)
 
 -- | @writeChunksWith bufsize socket@ writes a stream of arrays to
 -- @socket@ after coalescing the adjacent arrays in chunks of @bufsize@.

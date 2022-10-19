@@ -101,7 +101,7 @@ module Streamly.Network.Socket
 
     -- * Reads
     -- ** Singleton
-    , readChunk
+    , getChunk
 
     -- ** Unfolds
     , reader
@@ -111,7 +111,7 @@ module Streamly.Network.Socket
 
     -- * Writes
     -- ** Singleton
-    , writeChunk
+    , putChunk
 
     -- ** Folds
     , write
@@ -124,6 +124,8 @@ module Streamly.Network.Socket
 
     -- * Deprecated
     , accept
+    , readChunk
+    , writeChunk
     , read
     , readWithBufferOf
     , readChunks
@@ -138,6 +140,7 @@ import Data.Word (Word8)
 import Network.Socket (Socket, SockAddr)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
+import Streamly.Internal.Data.Unboxed (Unbox)
 
 import Streamly.Internal.Network.Socket hiding (accept, read, readChunks)
 import Prelude hiding (read)
@@ -146,6 +149,16 @@ import Prelude hiding (read)
 {-# INLINE accept #-}
 accept :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
 accept = acceptor
+
+{-# DEPRECATED readChunk "Please use 'getChunk' instead" #-}
+{-# INLINABLE readChunk #-}
+readChunk :: Int -> Socket -> IO (Array Word8)
+readChunk = getChunk
+
+{-# DEPRECATED writeChunk "Please use 'putChunk' instead" #-}
+{-# INLINABLE writeChunk #-}
+writeChunk :: Unbox a => Socket -> Array a -> IO ()
+writeChunk = putChunk
 
 {-# DEPRECATED read "Please use 'reader' instead" #-}
 {-# INLINE read #-}
