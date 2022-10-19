@@ -29,6 +29,7 @@ module Streamly.Internal.Data.Stream.Generate
     , repeat
     , repeatM
     , replicate
+    , replicateM
 
     -- * Enumeration
     , Enumerable (..)
@@ -86,9 +87,9 @@ import qualified Streamly.Internal.Data.Stream.Bottom as Bottom
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
-import qualified Streamly.Internal.Data.Stream.Transform as Stream (sequence)
+import qualified Streamly.Internal.Data.Stream.Transform as Stream (sequence, take)
 
-import Prelude hiding (iterate, replicate, repeat)
+import Prelude hiding (iterate, replicate, repeat, take)
 
 -- $setup
 -- >>> :m
@@ -211,6 +212,14 @@ repeatM = Stream.sequence . repeat
 replicate :: Monad m => Int -> a -> Stream m a
 replicate n = fromStreamD . D.replicate n
 
+-- |
+-- >>> replicateM n = Stream.take n . Stream.repeatM
+--
+-- Generate a stream by performing a monadic action @n@ times.
+-- /Pre-release/
+{-# INLINE_NORMAL replicateM #-}
+replicateM :: Monad m => Int -> m a -> Stream m a
+replicateM n = Stream.take n . repeatM
 ------------------------------------------------------------------------------
 -- Time Enumeration
 ------------------------------------------------------------------------------
