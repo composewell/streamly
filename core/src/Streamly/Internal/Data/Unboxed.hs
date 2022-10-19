@@ -188,7 +188,7 @@ class Storable a => Unbox a where
     -- index.
     unbox :: MutableByteArray a -> Int -> a -> IO ()
 
-type Unboxed a = (Unbox a, Storable a)
+type Unboxed a = Unbox a
 
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray) \
 instance Unbox _type where {                                         \
