@@ -9,6 +9,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
+#ifdef USE_PRELUDE
+{-# OPTIONS_GHC -Wno-deprecations #-}
+#endif
+
 module Stream.Generate (benchmarks) where
 
 import Data.Functor.Identity (Identity)

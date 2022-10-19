@@ -128,7 +128,7 @@ import Prelude hiding (lines, words, unlines, unwords)
 -- >>> :m
 -- >>> :set -XMagicHash
 -- >>> import Prelude hiding (lines, words, unlines, unwords)
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Unicode.Stream as Unicode
 -- >>> import Streamly.Internal.Unicode.Stream
@@ -1066,7 +1066,7 @@ stripHead = Stream.dropWhile isSpace
 -- | Fold each line of the stream using the supplied 'Fold'
 -- and stream the result.
 --
--- >>> Stream.toList $ lines Fold.toList (Stream.fromList "lines\nthis\nstring\n\n\n")
+-- >>> Stream.fold Fold.toList $ lines Fold.toList (Stream.fromList "lines\nthis\nstring\n\n\n")
 -- ["lines","this","string","",""]
 --
 -- > lines = Stream.splitOnSuffix (== '\n')
@@ -1097,7 +1097,7 @@ isSpace c
 -- | Fold each word of the stream using the supplied 'Fold'
 -- and stream the result.
 --
--- >>>  Stream.toList $ words Fold.toList (Stream.fromList "fold these     words")
+-- >>>  Stream.fold Fold.toList $ words Fold.toList (Stream.fromList "fold these     words")
 -- ["fold","these","words"]
 --
 -- > words = Stream.wordsBy isSpace

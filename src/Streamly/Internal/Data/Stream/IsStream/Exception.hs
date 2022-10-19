@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Exception
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -6,7 +8,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.IsStream.Exception
+module Streamly.Internal.Data.Stream.IsStream.Exception {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
       before
     , after_
@@ -46,6 +48,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Exception as D
 
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream (nilM)
 

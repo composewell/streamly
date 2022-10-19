@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Lift
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -6,7 +8,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.IsStream.Lift
+module Streamly.Internal.Data.Stream.IsStream.Lift {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
     -- * Generalize Inner Monad
       hoist

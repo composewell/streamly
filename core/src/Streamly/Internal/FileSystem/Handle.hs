@@ -146,10 +146,10 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 -- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Data.Stream as Stream
 --
 -- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array (writeNUnsafe)
--- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold (first)
 -- >>> import qualified Streamly.Internal.FileSystem.Handle as Handle
 -- >>> import qualified Streamly.Internal.System.IO as IO (defaultChunkSize)
@@ -410,7 +410,7 @@ putChunk h arr = A.asPtrUnsafe arr $ \ptr ->
 -- XXX use an unfold to fromObjects or fromUnfold so that we can put any object
 -- | Write a stream of arrays to a handle.
 --
--- >>> putChunks h = Stream.mapM_ (Handle.putChunk h)
+-- >>> putChunks h = Stream.fold (Fold.drainBy (Handle.putChunk h))
 --
 -- @since 0.7.0
 {-# INLINE putChunks #-}

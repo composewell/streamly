@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 {-# LANGUAGE CPP #-}
 
 #include "Streamly/Benchmark/Data/Array/CommonImports.hs"

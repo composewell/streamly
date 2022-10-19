@@ -9,7 +9,8 @@
 --
 -- To run examples in this module:
 --
--- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
 --
 module Streamly.Internal.Data.Stream.Zip.Concurrent
     (

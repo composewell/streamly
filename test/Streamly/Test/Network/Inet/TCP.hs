@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Test.Network.Socket
 -- Copyright   : (c) 2020 Composewell technologies

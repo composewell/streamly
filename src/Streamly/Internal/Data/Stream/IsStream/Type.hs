@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -10,7 +11,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Internal.Data.Stream.IsStream.Type
+module Streamly.Internal.Data.Stream.IsStream.Type {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
     -- * IsStream Type Class
       IsStream (..)

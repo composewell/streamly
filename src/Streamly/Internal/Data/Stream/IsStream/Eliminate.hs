@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Eliminate
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -15,7 +17,7 @@
 -- We call them stream folding functions, they reduce a stream @t m a@ to a
 -- monadic value @m b@.
 
-module Streamly.Internal.Data.Stream.IsStream.Eliminate
+module Streamly.Internal.Data.Stream.IsStream.Eliminate {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
     -- * Running Examples
     -- $setup
@@ -188,6 +190,7 @@ import Prelude hiding
 
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import Streamly.Prelude (SerialT)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream

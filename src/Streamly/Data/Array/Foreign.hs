@@ -97,6 +97,7 @@ import Streamly.Internal.Data.Array.Unboxed as A
 
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> :set -XFlexibleContexts
 -- >>> :set -package streamly
 -- >>> import Streamly.Internal.Data.Stream (Stream)

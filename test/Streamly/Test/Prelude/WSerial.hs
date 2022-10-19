@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Test.Prelude.WSerial
 -- Copyright   : (c) 2020 Composewell Technologies

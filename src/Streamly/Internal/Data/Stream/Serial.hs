@@ -79,6 +79,7 @@ import Prelude hiding (map, mapM, repeat, filter)
 #include "inline.hs"
 
 -- $setup
+-- >>> :set -fno-warn-deprecations
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Prelude as IsStream
 

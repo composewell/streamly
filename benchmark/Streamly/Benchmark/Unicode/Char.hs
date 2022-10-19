@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 --
 -- Module      : Streamly.Unicode.Char
 -- Copyright   : (c) 2021 Composewell Technologies

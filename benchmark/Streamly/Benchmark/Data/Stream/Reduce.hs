@@ -11,6 +11,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
 
+#ifdef USE_PRELUDE
+{-# OPTIONS_GHC -Wno-deprecations #-}
+#endif
+
 module Stream.Reduce (benchmarks) where
 
 import Control.DeepSeq (NFData(..))

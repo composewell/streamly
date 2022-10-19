@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Benchmark.Data.Array.Unboxed.Mut
 -- Copyright   : (c) 2021 Composewell Technologies

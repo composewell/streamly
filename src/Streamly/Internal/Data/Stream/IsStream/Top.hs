@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Top
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -9,7 +11,7 @@
 -- Top level IsStream module that can use all other lower level IsStream
 -- modules.
 
-module Streamly.Internal.Data.Stream.IsStream.Top
+module Streamly.Internal.Data.Stream.IsStream.Top {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
     -- * Transformation
     -- ** Sampling
@@ -87,6 +89,7 @@ import Prelude hiding (filter, zipWith, concatMap, concat)
 
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import Prelude hiding (filter, zipWith, concatMap, concat)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream

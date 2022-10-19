@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Stream.Split
 -- Copyright   : (c) 2019 Composewell Technologies

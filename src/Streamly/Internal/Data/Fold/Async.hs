@@ -28,6 +28,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> :set -XFlexibleContexts
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold

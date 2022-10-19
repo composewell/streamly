@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 module Streamly.Test.Unicode.Stream (main) where
 
 import Data.Char (ord, chr)

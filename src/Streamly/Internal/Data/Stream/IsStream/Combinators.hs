@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Combinators
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -7,7 +9,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Internal.Data.Stream.IsStream.Combinators
+module Streamly.Internal.Data.Stream.IsStream.Combinators {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     ( maxThreads
     , maxBuffer
     , maxYields

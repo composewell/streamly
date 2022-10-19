@@ -73,6 +73,7 @@ import Streamly.Internal.Data.SVar
 #include "Instances.hs"
 
 -- $setup
+-- >>> :set -fno-warn-deprecations
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Test.Prelude.MaxRate
 -- Copyright   : (c) 2018 Composewell Technologies

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 module Main (main) where
 
 import Data.List (elem, intersect, nub, sort)

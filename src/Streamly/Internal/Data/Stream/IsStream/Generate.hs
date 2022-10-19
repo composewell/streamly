@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- |
@@ -15,7 +16,7 @@
 -- as StreamK when StreamK is used, avoiding conversion to StreamD. Will that
 -- help? Are there any other reasons to keep these and not use unfolds?
 
-module Streamly.Internal.Data.Stream.IsStream.Generate
+module Streamly.Internal.Data.Stream.IsStream.Generate {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
     -- * Primitives
       IsStream.nil
@@ -124,6 +125,7 @@ import Prelude hiding (iterate, replicate, repeat)
 
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import Data.Function ((&))
 -- >>> import Prelude hiding (iterate, replicate, repeat)
 -- >>> import qualified Streamly.Prelude as Stream
