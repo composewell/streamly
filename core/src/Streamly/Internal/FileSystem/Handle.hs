@@ -149,6 +149,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 -- >>> import qualified Streamly.FileSystem.Handle as Handle
 -- >>> import qualified Streamly.Prelude as Stream
 --
+-- >>> import qualified Streamly.Internal.Data.Array.Unboxed as Array (writeNUnsafe)
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold (first)
 -- >>> import qualified Streamly.Internal.FileSystem.Handle as Handle
@@ -170,8 +171,6 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 -------------------------------------------------------------------------------
 -- Array IO (Input)
 -------------------------------------------------------------------------------
-
--- XXX rename to readChunk
 
 -- | Read a 'ByteArray' consisting of one or more bytes from a file handle. If
 -- no data is available on the handle it blocks until at least one byte becomes
@@ -298,8 +297,6 @@ chunkReaderFromToWith = Unfold step inject
                         assert (len <= remaining)
                             $ D.Yield arr (remaining - len, bufSize, h)
 
--- XXX read 'Array a' instead of Word8
-
 -- | @getChunks handle@ reads a stream of arrays from the specified file
 -- handle.  The maximum size of a single array is limited to
 -- @defaultChunkSize@. The actual size read may be less than or equal to
@@ -318,7 +315,7 @@ readChunks = readChunksWith defaultChunkSize
 -- size of arrays in the resulting stream are therefore less than or equal to
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
--- >>> readChunks = Unfold.first IO.defaultChunkSize Handle.readChunksWith
+-- >>> chunkReader = Unfold.first IO.defaultChunkSize Handle.chunkReaderWith
 --
 -- @since 0.9.0
 {-# INLINE chunkReader #-}
@@ -365,7 +362,7 @@ readWith size h = AS.concat $ readChunksWith size h
 -- performed in sizes of
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
--- >>> reader = Unfold.many Handle.readChunks Array.read
+-- >>> reader = Unfold.many Array.read chunkReader
 --
 -- @since 0.9.0
 {-# INLINE reader #-}
@@ -374,7 +371,7 @@ reader = UF.many A.read chunkReader
 
 -- | Generate a byte stream from a file 'Handle'.
 --
--- >>> read h = Stream.unfoldMany Array.read $ Handle.getChunks h
+-- >>> read h = Stream.unfoldMany Array.read $ Handle.readChunks h
 --
 -- /Pre-release/
 {-# INLINE read #-}
@@ -388,8 +385,6 @@ read = AS.concat . readChunks
 -------------------------------------------------------------------------------
 -- Array IO (output)
 -------------------------------------------------------------------------------
-
--- XXX rename to writeChunk
 
 -- | Write an 'Array' to a file handle.
 --
