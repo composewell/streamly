@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Benchmark.Data.Stream.StreamDK
 -- Copyright   : (c) 2018 Composewell Technologies

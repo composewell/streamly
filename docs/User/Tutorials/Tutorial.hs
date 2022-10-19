@@ -74,7 +74,7 @@ module User.Tutorials.Tutorial
     )
 where
 
-import Streamly.Prelude
+import Streamly.Data.Stream
 import Data.Semigroup
 import Control.Applicative
 import Control.Monad
@@ -83,8 +83,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- CAUTION: please keep setup and imports sections in sync
 
+-- XXX This tutorial has to be re-written.
+
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import Data.Function ((&))
 -- >>> import Streamly.Prelude ((|:), (|&))
 -- >>> import qualified Streamly.Prelude as Stream

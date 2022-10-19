@@ -30,9 +30,10 @@ where
 
 import Data.Char (isAsciiUpper, isAsciiLower, chr, ord)
 import Unicode.Char (DecomposeMode(..))
-import Streamly.Internal.Data.Stream.IsStream.Type
-    (IsStream, fromStreamD, toStreamD)
+import Streamly.Internal.Data.Stream (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
+
+import qualified Streamly.Internal.Data.Stream as Stream (Stream)
 
 import qualified Unicode.Char as Char
 
@@ -313,5 +314,9 @@ normalizeD NFKD = decomposeD True Kompat
 normalizeD NFC = partialComposeD . decomposeD False Canonical
 normalizeD NFKC = partialComposeD . decomposeD False Kompat
 
-normalize :: (IsStream t, Monad m) => NormalizationMode -> t m Char -> t m Char
+normalize ::
+       Monad m
+    => NormalizationMode
+    -> Stream.Stream m Char
+    -> Stream.Stream m Char
 normalize mode = fromStreamD . normalizeD mode  . toStreamD

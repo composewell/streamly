@@ -124,7 +124,7 @@ import qualified Streamly.Internal.Data.Unfold as UF (bracket, first)
 import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (initialize, snoc, Step(..))
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Network.Socket as ISK
 
 -------------------------------------------------------------------------------
@@ -346,7 +346,8 @@ putChunks
     -> Stream m (Array Word8)
     -> m ()
 putChunks addr port xs =
-    S.drain $ withConnection addr port (\sk -> S.fromEffect $ ISK.putChunks sk xs)
+    S.fold FL.drain
+        $ withConnection addr port (\sk -> S.fromEffect $ ISK.putChunks sk xs)
 
 -- | Write a stream of arrays to the supplied IPv4 host address and port
 -- number.

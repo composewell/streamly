@@ -9,6 +9,10 @@
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
+#ifdef USE_PRELUDE
+{-# OPTIONS_GHC -Wno-deprecations #-}
+#endif
+
 module Stream.Common
     ( MonadAsync
 

@@ -39,6 +39,7 @@ import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
 #include "Instances.hs"
 
 -- $setup
+-- >>> :set -fno-warn-deprecations
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{

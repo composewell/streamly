@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans  #-}
 
 -- |
@@ -11,7 +12,7 @@
 -- Bottom level IsStream module that can be used by all other upper level
 -- IsStream modules.
 
-module Streamly.Internal.Data.Stream.IsStream.Common
+module Streamly.Internal.Data.Stream.IsStream.Common {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
     -- * Generation
       fromPure
@@ -98,6 +99,7 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
 --
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> import Control.Monad (join)
 -- >>> import Control.Monad.Trans.Class (lift)

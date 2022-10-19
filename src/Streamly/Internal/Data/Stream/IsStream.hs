@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -10,7 +12,7 @@
 -- module "Streamly.Prelude". It contains some additional unreleased or
 -- experimental APIs.
 
-module Streamly.Internal.Data.Stream.IsStream
+module Streamly.Internal.Data.Stream.IsStream  {-# DEPRECATED "Please use \"Streamly.Data.Stream\", \"Streamly.Data.Stream.Concurrent\", & \"Streamly.Data.Stream.Time\" instead." #-}
     ( module Streamly.Internal.Data.Stream.IsStream.Type
     , module Streamly.Internal.Data.Stream.IsStream.Generate
     , module Streamly.Internal.Data.Stream.IsStream.Eliminate

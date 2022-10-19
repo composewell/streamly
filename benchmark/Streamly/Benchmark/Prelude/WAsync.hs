@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2018 Composewell Technologies

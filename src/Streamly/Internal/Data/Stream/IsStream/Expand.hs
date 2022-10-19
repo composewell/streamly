@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Expand
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -9,7 +11,7 @@
 -- Expand a stream by combining two or more streams or by combining streams
 -- with unfolds.
 
-module Streamly.Internal.Data.Stream.IsStream.Expand
+module Streamly.Internal.Data.Stream.IsStream.Expand {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
     -- * Binary Combinators (Linear)
     -- | Functions ending in the shape:
@@ -190,6 +192,7 @@ import Prelude hiding (concat, concatMap, zipWith)
 
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> import Data.IORef
 -- >>> import Prelude hiding (zipWith, concatMap, concat)

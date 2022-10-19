@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Test.Data.Array
 -- Copyright   : (c) 2019 Composewell Technologies

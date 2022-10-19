@@ -10,6 +10,10 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 
+#ifdef USE_PRELUDE
+{-# OPTIONS_GHC -Wno-deprecations #-}
+#endif
+
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
 #endif

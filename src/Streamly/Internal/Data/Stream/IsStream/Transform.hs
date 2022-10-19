@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Transform
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -6,7 +8,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.IsStream.Transform
+module Streamly.Internal.Data.Stream.IsStream.Transform {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
     -- * Piping
     -- | Pass through a 'Pipe'.
@@ -272,6 +274,7 @@ import Prelude hiding
 --
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> import Data.Function ((&))
 -- >>> import Streamly.Prelude ((|$))

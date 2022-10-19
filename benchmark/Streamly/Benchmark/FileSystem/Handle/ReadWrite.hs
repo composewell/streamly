@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Benchmark.FileSystem.Handle
 -- Copyright   : (c) 2019 Composewell Technologies

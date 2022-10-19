@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Reduce
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -8,7 +10,7 @@
 --
 -- Reduce streams by streams, folds or parsers.
 
-module Streamly.Internal.Data.Stream.IsStream.Reduce
+module Streamly.Internal.Data.Stream.IsStream.Reduce {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
     -- * Reduce By Streams
       dropPrefix
@@ -211,6 +213,7 @@ import Prelude hiding (concatMap, map)
 
 -- $setup
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import Prelude hiding (zipWith, concatMap, concat)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Streamly.Internal.Data.Stream.IsStream as Stream

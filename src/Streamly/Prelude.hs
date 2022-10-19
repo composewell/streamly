@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 #include "inline.hs"
@@ -317,7 +318,7 @@
 -- documentation for illustration. The actual implementation may differ for
 -- performance reasons.
 
-module Streamly.Prelude
+module Streamly.Prelude {-# DEPRECATED "Please use \"Streamly.Data.Stream\", \"Streamly.Data.Stream.Concurrent\", & \"Streamly.Data.Stream.Time\" instead." #-}
     (
     -- * Construction
     -- | Functions ending in the general shape @b -> t m a@.
@@ -945,6 +946,7 @@ import Prelude
 import Streamly.Internal.Data.Stream.IsStream
 
 -- $setup
+-- >>> :set -fno-warn-deprecations
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Prelude as Stream
 

@@ -20,7 +20,7 @@ module User.Tutorials.ReactiveProgramming
     )
 where
 
-import Streamly.Prelude
+import Streamly.Data.Stream
 import Data.Semigroup
 import Control.Applicative
 import Control.Monad

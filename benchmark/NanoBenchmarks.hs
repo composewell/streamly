@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -------------------------------------------------------------------------------
 -- Investigate specific benchmarks more closely in isolation, possibly looking
 -- at GHC generated code for optimizing specific problematic cases.

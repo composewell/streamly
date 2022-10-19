@@ -64,6 +64,7 @@ import Prelude hiding (map)
 #include "Instances.hs"
 
 -- $setup
+-- >>> :set -fno-warn-deprecations
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{

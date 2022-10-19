@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Enumeration
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -20,7 +22,7 @@
 -- in this module can be used to define them. Alternatively, these functions
 -- can be used directly.
 
-module Streamly.Internal.Data.Stream.IsStream.Enumeration
+module Streamly.Internal.Data.Stream.IsStream.Enumeration {-# DEPRECATED "Please use \"Streamly.Data.Stream.*\" instead." #-}
     (
       Enumerable (..)
 
@@ -77,6 +79,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Serial as Serial (map)
 
 -- $setup
+-- >>> :set -fno-warn-deprecations
 -- >>> import Streamly.Prelude as Stream
 -- >>> import Streamly.Internal.Data.Stream.IsStream.Enumeration as Stream
 
