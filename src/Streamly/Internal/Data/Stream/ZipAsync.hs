@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- |
@@ -12,7 +13,7 @@
 --
 -- >>> import qualified Streamly.Prelude as Stream
 --
-module Streamly.Internal.Data.Stream.ZipAsync
+module Streamly.Internal.Data.Stream.ZipAsync {-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream.Zip.Concurrent\" instead." #-}
     ( ZipAsyncM(..)
     , ZipAsync
     , consMZipAsync
