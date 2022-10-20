@@ -149,7 +149,7 @@ o_1_space_serial_exceptions length =
 -- | Send the file contents to /dev/null with exception handling
 readWriteOnExceptionStream :: Handle -> Handle -> IO ()
 readWriteOnExceptionStream inh devNull =
-    let readEx = Stream.onException (hClose inh) (Stream.unfold FH.read inh)
+    let readEx = Stream.onException (hClose inh) (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -160,7 +160,7 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
 readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
 readWriteHandleExceptionStream inh devNull =
     let handler (_e :: SomeException) = Stream.fromEffect (hClose inh >> return 10)
-        readEx = Stream.handle handler (Stream.unfold FH.read inh)
+        readEx = Stream.handle handler (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -170,7 +170,7 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
 -- | Send the file contents to /dev/null with exception handling
 readWriteFinally_Stream :: Handle -> Handle -> IO ()
 readWriteFinally_Stream inh devNull =
-    let readEx = Stream.finally_ (hClose inh) (Stream.unfold FH.read inh)
+    let readEx = Stream.finally_ (hClose inh) (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -179,14 +179,14 @@ inspect $ hasNoTypeClasses 'readWriteFinally_Stream
 
 readWriteFinallyStream :: Handle -> Handle -> IO ()
 readWriteFinallyStream inh devNull =
-    let readEx = Stream.finally (hClose inh) (Stream.unfold FH.read inh)
+    let readEx = Stream.finally (hClose inh) (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
 -- | Send the file contents to /dev/null with exception handling
 fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
 fromToBytesBracket_Stream inh devNull =
     let readEx = Stream.bracket_ (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.getBytes inh)
+                    (\_ -> IFH.read inh)
     in IFH.putBytes devNull readEx
 
 #ifdef INSPECTION
@@ -196,14 +196,14 @@ inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
 fromToBytesBracketStream :: Handle -> Handle -> IO ()
 fromToBytesBracketStream inh devNull =
     let readEx = Stream.bracket (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.getBytes inh)
+                    (\_ -> IFH.read inh)
     in IFH.putBytes devNull readEx
 
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
     let readEx =
             Stream.after (hClose inh)
-                $ Stream.before (hPutChar devNull 'A') (Stream.unfold FH.read inh)
+                $ Stream.before (hPutChar devNull 'A') (Stream.unfold FH.reader inh)
      in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -212,7 +212,7 @@ inspect $ 'readWriteBeforeAfterStream `hasNoType` ''D.Step
 
 readWriteAfterStream :: Handle -> Handle -> IO ()
 readWriteAfterStream inh devNull =
-    let readEx = Stream.after (hClose inh) (Stream.unfold FH.read inh)
+    let readEx = Stream.after (hClose inh) (Stream.unfold FH.reader inh)
      in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -221,7 +221,7 @@ inspect $ 'readWriteAfterStream `hasNoType` ''D.Step
 
 readWriteAfter_Stream :: Handle -> Handle -> IO ()
 readWriteAfter_Stream inh devNull =
-    let readEx = Stream.after_ (hClose inh) (Stream.unfold FH.read inh)
+    let readEx = Stream.after_ (hClose inh) (Stream.unfold FH.reader inh)
      in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -262,7 +262,7 @@ o_1_space_copy_stream_exceptions env =
 -- | Send the file contents to /dev/null with exception handling
 readChunksOnException :: Handle -> Handle -> IO ()
 readChunksOnException inh devNull =
-    let readEx = IUF.onException (\_ -> hClose inh) FH.readChunks
+    let readEx = IUF.onException (\_ -> hClose inh) FH.chunkReader
     in IUF.fold (IFH.writeChunks devNull) readEx inh
 
 #ifdef INSPECTION
@@ -272,7 +272,7 @@ inspect $ hasNoTypeClasses 'readChunksOnException
 -- | Send the file contents to /dev/null with exception handling
 readChunksBracket_ :: Handle -> Handle -> IO ()
 readChunksBracket_ inh devNull =
-    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.readChunks
+    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.chunkReader
     in IUF.fold (IFH.writeChunks devNull) readEx inh
 
 #ifdef INSPECTION
@@ -281,7 +281,7 @@ inspect $ hasNoTypeClasses 'readChunksBracket_
 
 readChunksBracket :: Handle -> Handle -> IO ()
 readChunksBracket inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh) FH.readChunks
+    let readEx = IUF.bracket return (\_ -> hClose inh) FH.chunkReader
     in IUF.fold (IFH.writeChunks devNull) readEx inh
 
 o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
@@ -306,7 +306,7 @@ toChunksBracket_ inh devNull =
     let readEx = Stream.bracket_
             (return ())
             (\_ -> hClose inh)
-            (\_ -> IFH.getChunks inh)
+            (\_ -> IFH.readChunks inh)
     in Stream.fold (IFH.writeChunks devNull) readEx
 
 #ifdef INSPECTION
@@ -318,7 +318,7 @@ toChunksBracket inh devNull =
     let readEx = Stream.bracket
             (return ())
             (\_ -> hClose inh)
-            (\_ -> IFH.getChunks inh)
+            (\_ -> IFH.readChunks inh)
     in Stream.fold (IFH.writeChunks devNull) readEx
 
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]

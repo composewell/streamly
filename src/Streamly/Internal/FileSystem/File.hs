@@ -43,37 +43,36 @@ module Streamly.Internal.FileSystem.File
     -- ** File IO Using Handle
       withFile
 
-    -- ** Read From File
-    , readWith
+    -- ** Streams
     , read
+    , readChunksWith
+    , readChunks
+
+    -- ** Unfolds
+    , readerWith
+    , reader
     -- , readShared
     -- , readUtf8
     -- , readLines
     -- , readFrames
-
-    , toBytes
-
-    -- -- * Array Read
-    , readChunksWith
-    , readChunksFromToWith
-    , readChunks
-
-    , toChunksWith
-    , toChunks
+    , chunkReaderWith
+    , chunkReaderFromToWith
+    , chunkReader
 
     -- ** Write To File
+    , putChunk -- writeChunk?
+
+    -- ** Folds
     , write
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
     , writeWith
-
-    , fromBytes
-    , fromBytesWith
-
-    -- -- * Array Write
-    , putChunk
     , writeChunks
+
+    -- ** Writing Streams
+    , fromBytes -- putBytes?
+    , fromBytesWith
     , fromChunks
 
     -- ** Append To File
@@ -212,30 +211,30 @@ appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
--- | @toChunksWith size file@ reads a stream of arrays from file @file@.
+-- | @readChunksWith size file@ reads a stream of arrays from file @file@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
 --
 -- @since 0.9.0
-{-# INLINE toChunksWith #-}
-toChunksWith :: (MonadCatch m, MonadAsync m)
+{-# INLINE readChunksWith #-}
+readChunksWith :: (MonadCatch m, MonadAsync m)
     => Int -> FilePath -> Stream m (Array Word8)
-toChunksWith size file =
-    withFile file ReadMode (FH.getChunksWith size)
+readChunksWith size file =
+    withFile file ReadMode (FH.readChunksWith size)
 
 -- XXX read 'Array a' instead of Word8
 --
--- | @toChunks file@ reads a stream of arrays from file @file@.
+-- | @readChunks file@ reads a stream of arrays from file @file@.
 -- The maximum size of a single array is limited to @defaultChunkSize@. The
 -- actual size read may be less than @defaultChunkSize@.
 --
--- > toChunks = toChunksWith defaultChunkSize
+-- > readChunks = readChunksWith defaultChunkSize
 --
 -- @since 0.7.0
-{-# INLINE toChunks #-}
-toChunks :: (MonadCatch m, MonadAsync m)
+{-# INLINE readChunks #-}
+readChunks :: (MonadCatch m, MonadAsync m)
     => FilePath -> Stream m (Array Word8)
-toChunks = toChunksWith defaultChunkSize
+readChunks = readChunksWith defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -252,10 +251,10 @@ toChunks = toChunksWith defaultChunkSize
 --
 -- /Pre-release/
 --
-{-# INLINE readChunksWith #-}
-readChunksWith :: (MonadCatch m, MonadAsync m)
+{-# INLINE chunkReaderWith #-}
+chunkReaderWith :: (MonadCatch m, MonadAsync m)
     => Unfold m (Int, FilePath) (Array Word8)
-readChunksWith = usingFile2 FH.readChunksWith
+chunkReaderWith = usingFile2 FH.chunkReaderWith
 
 -- | Unfold the tuple @(from, to, bufsize, filepath)@ into a stream
 -- of 'Word8' arrays.
@@ -265,10 +264,10 @@ readChunksWith = usingFile2 FH.readChunksWith
 -- less than or equal to @bufsize@.
 --
 -- /Pre-release/
-{-# INLINE readChunksFromToWith #-}
-readChunksFromToWith :: (MonadCatch m, MonadAsync m) =>
+{-# INLINE chunkReaderFromToWith #-}
+chunkReaderFromToWith :: (MonadCatch m, MonadAsync m) =>
     Unfold m (Int, Int, Int, FilePath) (Array Word8)
-readChunksFromToWith = usingFile3 FH.readChunksFromToWith
+chunkReaderFromToWith = usingFile3 FH.chunkReaderFromToWith
 
 -- | Unfolds a 'FilePath' into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
@@ -277,26 +276,26 @@ readChunksFromToWith = usingFile3 FH.readChunksFromToWith
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
 -- /Pre-release/
-{-# INLINE readChunks #-}
-readChunks :: (MonadCatch m, MonadAsync m) => Unfold m FilePath (Array Word8)
-readChunks = usingFile FH.readChunks
+{-# INLINE chunkReader #-}
+chunkReader :: (MonadCatch m, MonadAsync m) => Unfold m FilePath (Array Word8)
+chunkReader = usingFile FH.chunkReader
 
 -- | Unfolds the tuple @(bufsize, filepath)@ into a byte stream, read requests
 -- to the IO device are performed using buffers of @bufsize@.
 --
 -- /Pre-release/
-{-# INLINE readWith #-}
-readWith :: (MonadCatch m, MonadAsync m) => Unfold m (Int, FilePath) Word8
-readWith = usingFile2 FH.readWith
+{-# INLINE readerWith #-}
+readerWith :: (MonadCatch m, MonadAsync m) => Unfold m (Int, FilePath) Word8
+readerWith = usingFile2 FH.readerWith
 
 -- | Unfolds a file path into a byte stream. IO requests to the device are
 -- performed in sizes of
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
 --
--- @since 0.7.0
-{-# INLINE read #-}
-read :: (MonadCatch m, MonadAsync m) => Unfold m FilePath Word8
-read = UF.many A.read (usingFile FH.readChunks)
+-- /Pre-release/
+{-# INLINE reader #-}
+reader :: (MonadCatch m, MonadAsync m) => Unfold m FilePath Word8
+reader = UF.many A.read (usingFile FH.chunkReader)
 
 -- | Generate a stream of bytes from a file specified by path. The stream ends
 -- when EOF is encountered. File is locked using multiple reader and single
@@ -304,9 +303,9 @@ read = UF.many A.read (usingFile FH.readChunks)
 --
 -- /Pre-release/
 --
-{-# INLINE toBytes #-}
-toBytes :: (MonadCatch m, MonadAsync m) => FilePath -> Stream m Word8
-toBytes file = AS.concat $ withFile file ReadMode FH.getChunks
+{-# INLINE read #-}
+read :: (MonadCatch m, MonadAsync m) => FilePath -> Stream m Word8
+read file = AS.concat $ withFile file ReadMode FH.readChunks
 
 {-
 -- | Generate a stream of elements of the given type from a file 'Handle'. The

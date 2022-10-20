@@ -879,7 +879,7 @@ watchToStream cfg wt@(Watch handle _) = do
     --          sizeof(struct inotify_event) + NAME_MAX + 1
     --
     -- will be sufficient to read at least one event.
-    S.parseMany (readOneEvent cfg wt) $ S.unfold FH.read handle
+    S.parseMany (readOneEvent cfg wt) $ S.unfold FH.reader handle
 
 -- XXX We should not go across the mount points of network file systems or file
 -- systems that are known to not generate any events.

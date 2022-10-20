@@ -77,20 +77,20 @@ executor f =
 
 readFromHandle :: IO (Stream IO Char)
 readFromHandle =
-    let f = Unicode.decodeUtf8 . Stream.unfold Handle.read
+    let f = Unicode.decodeUtf8 . Stream.unfold Handle.reader
     in executor f
 
 readWithBufferFromHandle :: IO (Stream IO Char)
 readWithBufferFromHandle =
     let f1 = (\h -> (1024, h))
-        f2 = Unicode.decodeUtf8 . Stream.unfold Handle.readWith . f1
+        f2 = Unicode.decodeUtf8 . Stream.unfold Handle.readerWith . f1
     in executor f2
 
 readChunksFromHandle :: IO (Stream IO Char)
 readChunksFromHandle =
     let f =   Unicode.decodeUtf8
             . Stream.concatMap Array.toStream
-            . Stream.unfold Handle.readChunks
+            . Stream.unfold Handle.chunkReader
     in executor f
 
 readChunksWithBuffer :: IO (Stream IO Char)
@@ -99,7 +99,7 @@ readChunksWithBuffer =
         f2 =
               Unicode.decodeUtf8
             . Stream.concatMap Array.toStream
-            . Stream.unfold Handle.readChunksWith
+            . Stream.unfold Handle.chunkReaderWith
             . f1
     in executor f2
 
@@ -129,7 +129,7 @@ testWrite hfold =
                         _ <- Stream.fold (hfold h) $ Stream.fromList list
                         hFlush h
                         hSeek h AbsoluteSeek 0
-                        ls <- toList $ Stream.unfold Handle.read h
+                        ls <- toList $ Stream.unfold Handle.reader h
                         hClose h
                         return (ls == list)
 
@@ -151,10 +151,10 @@ testWriteWithChunk =
                 hw <- openFile fpathWrite ReadWriteMode
                 hSeek hw AbsoluteSeek 0
                 _ <- Stream.fold (Handle.writeChunks hw)
-                    $ Stream.unfold Handle.readChunksWith (1024, hr)
+                    $ Stream.unfold Handle.chunkReaderWith (1024, hr)
                 hFlush hw
                 hSeek hw AbsoluteSeek 0
-                ls <- toList $ Stream.unfold Handle.read hw
+                ls <- toList $ Stream.unfold Handle.reader hw
                 let arr = Array.fromList ls
                 return (testDataLarge == utf8ToString arr)
 
@@ -171,7 +171,7 @@ testReadChunksFromToWith from to buffSize res = monadicIO $ run go
             ls <-
                 toList
                     $ Stream.unfold
-                        Handle.readChunksFromToWith (from, to, buffSize, h)
+                        Handle.chunkReaderFromToWith (from, to, buffSize, h)
             return (res `shouldBe` fmap Array.toList ls)
 
 -- Test for first byte
