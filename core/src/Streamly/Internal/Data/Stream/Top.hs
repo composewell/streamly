@@ -376,8 +376,8 @@ joinOuter eq s1 s =
     where
 
     leftOver inputArr foundArr =
-            let stream1 = Array.toStream inputArr
-                stream2 = Stream.unfold MA.read foundArr
+            let stream1 = Array.read inputArr
+                stream2 = Stream.unfold MA.reader foundArr
             in Stream.filter
                     isJust
                     ( Stream.zipWith (\x y ->
@@ -399,7 +399,7 @@ joinOuter eq s1 s =
                 then Stream.nil
                 else Stream.fromPure Nothing
         (i, b) <-
-            let stream = Array.toStream inputArr
+            let stream = Array.read inputArr
              in Stream.indexed $ fmap Just (Stream.liftInner stream) <> final
 
         case b of

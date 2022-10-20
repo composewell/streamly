@@ -49,12 +49,17 @@ module Streamly.Internal.Data.Array.Unboxed
     , writeLastN
 
     -- * Elimination
+    -- ** Conversion
     , A.toList
-    , A.toStream
-    , A.toStreamRev
-    , read
-    , unsafeRead    -- XXX readUnsafe?
+
+    -- ** Streams
+    , A.read
     , A.readRev
+
+    -- ** Unfolds
+    , reader
+    , readerUnsafe
+    , A.readerRev
     , producer -- experimental
 
     -- * Random Access
@@ -103,6 +108,10 @@ module Streamly.Internal.Data.Array.Unboxed
     -- ** Folding
     , streamFold
     , fold
+
+    -- * Deprecated
+    , A.toStream
+    , A.toStreamRev
     )
 where
 
@@ -187,12 +196,10 @@ producer =
 
 -- | Unfold an array into a stream.
 --
--- /Since 0.7.0 (Streamly.Memory.Array)/
---
--- @since 0.8.0
-{-# INLINE_NORMAL read #-}
-read :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
-read = Producer.simplify producer
+-- @since 0.9.0
+{-# INLINE_NORMAL reader #-}
+reader :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
+reader = Producer.simplify producer
 
 -- | Unfold an array into a stream, does not check the end of the array, the
 -- user is responsible for terminating the stream within the array bounds. For
@@ -205,9 +212,9 @@ read = Producer.simplify producer
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL unsafeRead #-}
-unsafeRead :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
-unsafeRead = Unfold step inject
+{-# INLINE_NORMAL readerUnsafe #-}
+readerUnsafe :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
+readerUnsafe = Unfold step inject
     where
 
     inject (Array contents start end) =
@@ -484,7 +491,7 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 streamTransform :: forall m a b. (MonadIO m, Unboxed a, Unboxed b)
     => (Stream m a -> Stream m b) -> Array a -> m (Array b)
 streamTransform f arr =
-    P.fold (A.writeWith (length arr)) $ Stream.toStreamK $ f (A.toStream arr)
+    P.fold (A.writeWith (length arr)) $ Stream.toStreamK $ f (A.read arr)
 
 -------------------------------------------------------------------------------
 -- Casts
@@ -544,16 +551,18 @@ asCStringUnsafe arr act = do
 -- Folds
 -------------------------------------------------------------------------------
 
+-- XXX We can directly use toStreamD and D.fold here.
+
 -- | Fold an array using a 'Fold'.
 --
 -- /Pre-release/
 {-# INLINE fold #-}
 fold :: forall m a b. (Monad m, Unboxed a) => Fold m a b -> Array a -> m b
-fold f arr = P.fold f (Stream.toStreamK (A.toStream arr))
+fold f arr = P.fold f (Stream.toStreamK (A.read arr))
 
 -- | Fold an array using a stream fold operation.
 --
 -- /Pre-release/
 {-# INLINE streamFold #-}
 streamFold :: (Monad m, Unboxed a) => (Stream m a -> m b) -> Array a -> m b
-streamFold f arr = f (A.toStream arr)
+streamFold f arr = f (A.read arr)

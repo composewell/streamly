@@ -182,7 +182,7 @@ import Streamly.Internal.Data.Unboxed (Unboxed)
 import qualified Data.Heap as H
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
-    (arraysOf, toStream)
+    (arraysOf, read)
 import qualified Streamly.Internal.Data.Fold as FL
     (Fold, Step(..), takeEndBy_, takeEndBy, catMaybes, take)
 import qualified Streamly.Internal.Data.IsMap as IsMap
@@ -843,7 +843,7 @@ splitBySeq
     :: (IsStream t, MonadAsync m, Unboxed a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitBySeq patt f m =
-    intersperseM (fold f (A.toStream patt)) $ splitOnSeq patt f m
+    intersperseM (fold f (A.read patt)) $ splitOnSeq patt f m
 
 -- | Like 'splitSuffixBy' but the separator is a sequence of elements, instead
 -- of a predicate for a single element.

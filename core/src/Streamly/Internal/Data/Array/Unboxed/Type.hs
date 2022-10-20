@@ -39,7 +39,7 @@ module Streamly.Internal.Data.Array.Unboxed.Type
 
     -- * Elimination
     , unsafeIndexIO
-    , unsafeIndex
+    , unsafeIndex -- getIndexUnsafe
     , byteLength
     , length
 
@@ -47,13 +47,15 @@ module Streamly.Internal.Data.Array.Unboxed.Type
     , foldr
     , splitAt
 
-    , readRev
     , toStreamD
     , toStreamDRev
     , toStreamK
     , toStreamKRev
     , toStream
     , toStreamRev
+    , read
+    , readRev
+    , readerRev
     , toList
 
     -- * Folds
@@ -341,10 +343,10 @@ length arr = MA.length (unsafeThaw arr)
 
 -- | Unfold an array into a stream in reverse order.
 --
--- @since 0.8.0
-{-# INLINE_NORMAL readRev #-}
-readRev :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
-readRev = Unfold.lmap unsafeThaw $ MA.readRevWith (return . unsafeInlineIO)
+-- @since 0.9.0
+{-# INLINE_NORMAL readerRev #-}
+readerRev :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
+readerRev = Unfold.lmap unsafeThaw $ MA.readerRevWith (return . unsafeInlineIO)
 
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Unboxed a) => Array a -> D.Stream m a
@@ -367,9 +369,16 @@ toStreamKRev arr =
 -- | Convert an 'Array' into a stream.
 --
 -- /Pre-release/
+{-# INLINE_EARLY read #-}
+read :: (Monad m, Unboxed a) => Array a -> Stream m a
+read = Stream.fromStreamD . toStreamD
+
+-- | Same as 'read'
+--
+{-# DEPRECATED toStream "Please use 'read' instead." #-}
 {-# INLINE_EARLY toStream #-}
 toStream :: (Monad m, Unboxed a) => Array a -> Stream m a
-toStream = Stream.fromStreamD . toStreamD
+toStream = read
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
 --     forall a. S.readK (read a) = K.fromArray a #-}
@@ -377,9 +386,16 @@ toStream = Stream.fromStreamD . toStreamD
 -- | Convert an 'Array' into a stream in reverse order.
 --
 -- /Pre-release/
+{-# INLINE_EARLY readRev #-}
+readRev :: (Monad m, Unboxed a) => Array a -> Stream m a
+readRev = Stream.fromStreamD . toStreamDRev
+
+-- | Same as 'readRev'
+--
+{-# DEPRECATED toStreamRev "Please use 'readRev' instead." #-}
 {-# INLINE_EARLY toStreamRev #-}
 toStreamRev :: (Monad m, Unboxed a) => Array a -> Stream m a
-toStreamRev = Stream.fromStreamD . toStreamDRev
+toStreamRev = readRev
 
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]

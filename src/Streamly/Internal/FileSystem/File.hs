@@ -295,7 +295,7 @@ readerWith = usingFile2 FH.readerWith
 -- /Pre-release/
 {-# INLINE reader #-}
 reader :: (MonadCatch m, MonadAsync m) => Unfold m FilePath Word8
-reader = UF.many A.read (usingFile FH.chunkReader)
+reader = UF.many A.reader (usingFile FH.chunkReader)
 
 -- | Generate a stream of bytes from a file specified by path. The stream ends
 -- when EOF is encountered. File is locked using multiple reader and single

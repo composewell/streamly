@@ -433,7 +433,7 @@ pathsToHandles paths cfg = do
 -------------------------------------------------------------------------------
 
 utf8ToString :: Array Word8 -> FilePath
-utf8ToString = runIdentity . S.fold Fold.toList . U.decodeUtf8 . A.toStream
+utf8ToString = runIdentity . S.fold Fold.toList . U.decodeUtf8 . A.read
 
 utf8ToStringList :: NonEmpty (Array Word8) -> NonEmpty FilePath
 utf8ToStringList = NonEmpty.map utf8ToString

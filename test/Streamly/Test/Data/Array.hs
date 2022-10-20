@@ -20,10 +20,12 @@ moduleName = "Data.Array"
 #include "Streamly/Test/Data/Array/Common.hs"
 
 testFromStreamToStream :: Property
-testFromStreamToStream = genericTestFromTo (const A.fromStream) A.toStream (==)
+testFromStreamToStream =
+    genericTestFromTo (const A.fromStream) A.read (==)
 
 testFoldUnfold :: Property
-testFoldUnfold = genericTestFromTo (const (S.fold A.write)) (S.unfold A.read) (==)
+testFoldUnfold =
+    genericTestFromTo (const (S.fold A.write)) (S.unfold A.reader) (==)
 
 testFromList :: Property
 testFromList =
@@ -31,7 +33,7 @@ testFromList =
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
                 monadicIO $ do
                     let arr = A.fromList list
-                    xs <- run $ S.fold Fold.toList $ S.unfold A.read arr
+                    xs <- run $ S.fold Fold.toList $ S.unfold A.reader arr
                     assert (xs == list)
 
 testLengthFromStream :: Property

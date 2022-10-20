@@ -158,7 +158,7 @@ onArray
     -> Stream Int
     -> m (Stream Int)
 onArray value f arr =
-    Stream.fold (MArray.writeN value) $ f $ Stream.unfold MArray.read arr
+    Stream.fold (MArray.writeN value) $ f $ Stream.unfold MArray.reader arr
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -166,11 +166,11 @@ onArray value f arr =
 
 {-# INLINE unfoldReadDrain #-}
 unfoldReadDrain :: MonadIO m => Stream Int -> m ()
-unfoldReadDrain = drain . Stream.unfold MArray.read
+unfoldReadDrain = drain . Stream.unfold MArray.reader
 
 {-# INLINE unfoldReadRevDrain #-}
 unfoldReadRevDrain :: MonadIO m => Stream Int -> m ()
-unfoldReadRevDrain = drain . Stream.unfold MArray.readRev
+unfoldReadRevDrain = drain . Stream.unfold MArray.readerRev
 
 {-# INLINE toStreamDRevDrain #-}
 toStreamDRevDrain :: MonadIO m => Stream Int -> m ()
@@ -183,7 +183,7 @@ toStreamDDrain = drain . Stream.fromStreamD . MArray.toStreamD
 
 {-# INLINE unfoldFold #-}
 unfoldFold :: MonadIO m => Stream Int -> m Int
-unfoldFold = Stream.fold (Fold.foldl' (+) 0) . Stream.unfold MArray.read
+unfoldFold = Stream.fold (Fold.foldl' (+) 0) . Stream.unfold MArray.reader
 
 -------------------------------------------------------------------------------
 -- Bench groups
@@ -260,7 +260,7 @@ o_1_space_serial_marray value ~(array, indices) =
         $ MArray.strip (> 0)
     , benchIO' "modifyIndices (+ 1)" (const (return indices))
         $ Stream.fold (MArray.modifyIndices (\_idx val -> val + 1) array)
-        . Stream.unfold Array.read
+        . Stream.unfold Array.reader
     ]
 
 -------------------------------------------------------------------------------

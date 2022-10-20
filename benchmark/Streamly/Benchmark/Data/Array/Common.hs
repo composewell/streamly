@@ -69,7 +69,7 @@ onArray
     :: MonadIO m => Int -> (Stream.Stream m Int -> Stream.Stream m Int)
     -> Stream Int
     -> m (Stream Int)
-onArray value f arr = S.fold (A.writeN value) $ f $ S.unfold A.read arr
+onArray value f arr = S.fold (A.writeN value) $ f $ S.unfold A.reader arr
 
 scanl'  value n = composeN n $ onArray value $ S.scanl' (+) 0
 scanl1' value n = composeN n $ onArray value $ S.scanl1' (+)
@@ -98,7 +98,7 @@ showInstance = P.show
 
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: MonadIO m => Stream Int -> m Int
-pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
+pureFoldl' = S.foldl' (+) 0 . S.unfold A.reader
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -106,11 +106,11 @@ pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 
 {-# INLINE unfoldReadDrain #-}
 unfoldReadDrain :: MonadIO m => Stream Int -> m ()
-unfoldReadDrain = S.drain . S.unfold A.read
+unfoldReadDrain = S.drain . S.unfold A.reader
 
 {-# INLINE toStreamRevDrain #-}
 toStreamRevDrain :: MonadIO m => Stream Int -> m ()
-toStreamRevDrain = S.drain . A.toStreamRev
+toStreamRevDrain = S.drain . A.readRev
 
 -------------------------------------------------------------------------------
 -- Bench groups

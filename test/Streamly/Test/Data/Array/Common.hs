@@ -53,24 +53,25 @@ genericTestFromTo arrFold arrUnfold listEq =
 
 testFoldNUnfold :: Property
 testFoldNUnfold =
-    genericTestFromTo (S.fold . A.writeN) (S.unfold A.read) (==)
+    genericTestFromTo (S.fold . A.writeN) (S.unfold A.reader) (==)
 
 testFoldNToStream :: Property
 testFoldNToStream =
-    genericTestFromTo (S.fold . A.writeN) A.toStream (==)
+    genericTestFromTo (S.fold . A.writeN) A.read (==)
 
 testFoldNToStreamRev :: Property
 testFoldNToStreamRev =
     genericTestFromTo
         (S.fold . A.writeN)
-        A.toStreamRev
+        A.readRev
         (\xs list -> xs == reverse list)
 
 testFromStreamNUnfold :: Property
-testFromStreamNUnfold = genericTestFromTo A.fromStreamN (S.unfold A.read) (==)
+testFromStreamNUnfold =
+    genericTestFromTo A.fromStreamN (S.unfold A.reader) (==)
 
 testFromStreamNToStream :: Property
-testFromStreamNToStream = genericTestFromTo A.fromStreamN A.toStream (==)
+testFromStreamNToStream = genericTestFromTo A.fromStreamN A.read (==)
 
 testFromListN :: Property
 testFromListN =
@@ -79,7 +80,7 @@ testFromListN =
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
                 monadicIO $ do
                     let arr = A.fromListN n list
-                    xs <- run $ S.fold Fold.toList $ S.unfold A.read arr
+                    xs <- run $ S.fold Fold.toList $ S.unfold A.reader arr
                     listEquals (==) xs (take n list)
 
 foldManyWith :: (Int -> Fold IO Int (Array Int)) -> Property
@@ -89,7 +90,7 @@ foldManyWith f =
             monadicIO $ do
                 xs <- run
                     $ S.fold Fold.toList
-                    $ S.unfoldMany A.read
+                    $ S.unfoldMany A.reader
                     $ S.foldMany (f 240)
                     $ S.fromList list
                 assert (xs == list)

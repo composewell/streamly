@@ -30,13 +30,13 @@ module Streamly.Internal.Data.Array
 
     -- * Elimination
     , length
-    , read
+    , reader
 
     , toList
-    , toStreamD
-    , toStreamDRev
-    , toStream
-    , toStreamRev
+    , readStreamD
+    , readRevStreamD
+    , read
+    , readRev
 
     , foldl'
     , foldr
@@ -173,9 +173,9 @@ fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
 length :: Array a -> Int
 length = arrLen
 
-{-# INLINE_NORMAL read #-}
-read :: MonadIO m => Unfold m (Array a) a
-read = Unfold.lmap unsafeThaw MArray.read
+{-# INLINE_NORMAL reader #-}
+reader :: MonadIO m => Unfold m (Array a) a
+reader = Unfold.lmap unsafeThaw MArray.reader
 
 -------------------------------------------------------------------------------
 -- Elimination - to streams
@@ -191,23 +191,23 @@ toList arr = loop 0
     loop i | i == len = []
     loop i = getIndexUnsafe arr i : loop (i + 1)
 
-{-# INLINE_NORMAL toStreamD #-}
-toStreamD :: MonadIO m => Array a -> D.Stream m a
-toStreamD = MArray.toStreamD . unsafeThaw
+{-# INLINE_NORMAL readStreamD #-}
+readStreamD :: MonadIO m => Array a -> D.Stream m a
+readStreamD = MArray.toStreamD . unsafeThaw
 
-{-# INLINE_NORMAL toStreamDRev #-}
-toStreamDRev :: Monad m => Array a -> D.Stream m a
-toStreamDRev arr@Array{..} =
+{-# INLINE_NORMAL readRevStreamD #-}
+readRevStreamD :: Monad m => Array a -> D.Stream m a
+readRevStreamD arr@Array{..} =
     D.map (getIndexUnsafe arr)
         $ D.enumerateFromThenToIntegral (arrLen - 1) (arrLen - 2) 0
 
-{-# INLINE_EARLY toStream #-}
-toStream :: MonadIO m => Array a -> Stream m a
-toStream = Stream.fromStreamD . toStreamD
+{-# INLINE_EARLY read #-}
+read :: MonadIO m => Array a -> Stream m a
+read = Stream.fromStreamD . readStreamD
 
-{-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: Monad m => Array a -> Stream m a
-toStreamRev = Stream.fromStreamD . toStreamDRev
+{-# INLINE_EARLY readRev #-}
+readRev :: Monad m => Array a -> Stream m a
+readRev = Stream.fromStreamD . readRevStreamD
 
 -------------------------------------------------------------------------------
 -- Elimination - using Folds
@@ -215,11 +215,11 @@ toStreamRev = Stream.fromStreamD . toStreamDRev
 
 {-# INLINE_NORMAL foldl' #-}
 foldl' :: (b -> a -> b) -> b -> Array a -> b
-foldl' f z arr = unsafePerformIO $ D.foldl' f z $ toStreamD arr
+foldl' f z arr = unsafePerformIO $ D.foldl' f z $ readStreamD arr
 
 {-# INLINE_NORMAL foldr #-}
 foldr :: (a -> b -> b) -> b -> Array a -> b
-foldr f z arr = unsafePerformIO $ D.foldr f z $ toStreamD arr
+foldr f z arr = unsafePerformIO $ D.foldr f z $ readStreamD arr
 
 instance NFData a => NFData (Array a) where
     {-# INLINE rnf #-}
@@ -227,11 +227,11 @@ instance NFData a => NFData (Array a) where
 
 {-# INLINE fold #-}
 fold :: MonadIO m => Fold m a b -> Array a -> m b
-fold f arr = D.fold f (toStreamD arr)
+fold f arr = D.fold f (readStreamD arr)
 
 {-# INLINE streamFold #-}
 streamFold :: MonadIO m => (Stream m a -> m b) -> Array a -> m b
-streamFold f arr = f (toStream arr)
+streamFold f arr = f (read arr)
 
 -------------------------------------------------------------------------------
 -- Random reads and writes

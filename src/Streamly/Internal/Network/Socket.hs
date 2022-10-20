@@ -95,7 +95,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Data.Array.Unboxed as A (read, length, writeN)
+import qualified Streamly.Data.Array.Unboxed as A (reader, length, writeN)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
     (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe)
@@ -433,7 +433,7 @@ read = readWith defaultChunkSize
 -- @since 0.9.0
 {-# INLINE readerWith #-}
 readerWith :: MonadIO m => Unfold m (Int, Socket) Word8
-readerWith = UF.many A.read chunkReaderWith
+readerWith = UF.many A.reader chunkReaderWith
 
 -- | Same as 'readWith'
 --

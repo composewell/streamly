@@ -96,9 +96,9 @@ module Streamly.Internal.Data.Array.Unboxed.Mut.Type
     -- * Eliminating and Reading
 
     -- ** To streams
-    , read
-    , readRevWith
-    , readRev
+    , reader
+    , readerRevWith
+    , readerRev
 
     -- ** To containers
     , toStreamDWith
@@ -1088,7 +1088,7 @@ getSlice index len (Array contents start e _) =
 -- XXX consider the bulk update/accumulation/permutation APIs from vector.
 
 -- | You may not need to reverse an array because you can consume it in reverse
--- using 'readRev'. To reverse large arrays you can read in reverse and write
+-- using 'readerRev'. To reverse large arrays you can read in reverse and write
 -- to another array. However, in-place reverse can be useful to take adavantage
 -- of cache locality and when you do not want to allocate additional memory.
 --
@@ -1350,9 +1350,9 @@ data FlattenState s contents a =
       OuterLoop s
     | InnerLoop s contents !Int !Int
 
--- | Use the "read" unfold instead.
+-- | Use the "reader" unfold instead.
 --
--- @flattenArrays = unfoldMany read@
+-- @flattenArrays = unfoldMany reader@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
@@ -1379,9 +1379,9 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
         x <- liftIO $ peekWith contents p
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
--- | Use the "readRev" unfold instead.
+-- | Use the "readerRev" unfold instead.
 --
--- @flattenArrays = unfoldMany readRev@
+-- @flattenArrays = unfoldMany readerRev@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
@@ -1459,15 +1459,15 @@ producer = producerWith liftIO
 -- | Unfold an array into a stream.
 --
 -- @since 0.7.0
-{-# INLINE_NORMAL read #-}
-read :: forall m a. (MonadIO m, Unboxed a) => Unfold m (Array a) a
-read = Producer.simplify producer
+{-# INLINE_NORMAL reader #-}
+reader :: forall m a. (MonadIO m, Unboxed a) => Unfold m (Array a) a
+reader = Producer.simplify producer
 
-{-# INLINE_NORMAL readRevWith #-}
-readRevWith ::
+{-# INLINE_NORMAL readerRevWith #-}
+readerRevWith ::
        forall m a. (Monad m, Unboxed a)
     => (forall b. IO b -> m b) -> Unfold m (Array a) a
-readRevWith liftio = Unfold step inject
+readerRevWith liftio = Unfold step inject
     where
 
     inject (Array contents start end _) =
@@ -1483,9 +1483,9 @@ readRevWith liftio = Unfold step inject
 -- | Unfold an array into a stream in reverse order.
 --
 -- /Pre-release/
-{-# INLINE_NORMAL readRev #-}
-readRev :: forall m a. (MonadIO m, Unboxed a) => Unfold m (Array a) a
-readRev = readRevWith liftIO
+{-# INLINE_NORMAL readerRev #-}
+readerRev :: forall m a. (MonadIO m, Unboxed a) => Unfold m (Array a) a
+readerRev = readerRevWith liftIO
 
 -------------------------------------------------------------------------------
 -- to Lists and streams
@@ -1543,9 +1543,9 @@ toStreamDWith liftio Array{..} = D.Stream step arrStart
         r <- peekWith arrContents p
         return $ D.Yield r (INDEX_NEXT(p,a))
 
--- | Use the 'read' unfold instead.
+-- | Use the 'reader' unfold instead.
 --
--- @toStreamD = D.unfold read@
+-- @toStreamD = D.unfold reader@
 --
 -- We can try this if the unfold has any performance issues.
 {-# INLINE_NORMAL toStreamD #-}
@@ -1585,9 +1585,9 @@ toStreamDRevWith liftio Array{..} =
         r <- peekWith arrContents p
         return $ D.Yield r (INDEX_PREV(p,a))
 
--- | Use the 'readRev' unfold instead.
+-- | Use the 'readerRev' unfold instead.
 --
--- @toStreamDRev = D.unfold readRev@
+-- @toStreamDRev = D.unfold readerRev@
 --
 -- We can try this if the unfold has any perf issues.
 {-# INLINE_NORMAL toStreamDRev #-}
@@ -1970,7 +1970,7 @@ fromArrayStreamK :: (Unboxed a, MonadIO m) =>
     K.Stream m (Array a) -> m (Array a)
 fromArrayStreamK as = do
     len <- arrayStreamKLength as
-    fromStreamDN len $ D.unfoldMany read $ D.fromStreamK as
+    fromStreamDN len $ D.unfoldMany reader $ D.fromStreamK as
 
 -- CAUTION: a very large number (millions) of arrays can degrade performance
 -- due to GC overhead because we need to buffer the arrays before we flatten

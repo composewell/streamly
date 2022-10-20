@@ -108,7 +108,7 @@ inspect $ 'toChunksSumLengths `hasNoType` ''Step
 -- | Sum the bytes in a file.
 toChunksCountBytes :: Handle -> IO Word8
 toChunksCountBytes inh = do
-    let foldlArr' f z = runIdentity . Stream.foldl' f z . Array.toStream
+    let foldlArr' f z = runIdentity . Stream.foldl' f z . Array.read
     let s = Handle.readChunks inh
     Stream.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
 

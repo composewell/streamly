@@ -624,7 +624,7 @@ toUtf8 :: MonadIO m => String -> m (Array Word8)
 toUtf8 = A.fromStream . U.encodeUtf8 . S.fromList
 
 utf8ToString :: Array Word8 -> String
-utf8ToString = runIdentity . S.fold FL.toList . U.decodeUtf8' . A.toStream
+utf8ToString = runIdentity . S.fold FL.toList . U.decodeUtf8' . A.read
 
 -- | Add a trailing "/" at the end of the path if there is none. Do not add a
 -- "/" if the path is empty.
