@@ -11,17 +11,20 @@
 
 module Streamly.Internal.FileSystem.Dir
     (
-    -- ** Read from Directory
+    -- * Streams
       read
     , readFiles
     , readDirs
     , readEither
     -- , readWithBufferOf
 
-    , toStream
-    , toEither
-    , toFiles
-    , toDirs
+    -- * Unfolds
+    -- | Use the more convenient stream APIs instead of unfolds where possible.
+    , reader
+    , fileReader
+    , dirReader
+    , eitherReader
+
       {-
     , toStreamWithBufferOf
 
@@ -47,6 +50,11 @@ module Streamly.Internal.FileSystem.Dir
     , fromChunks
     , fromChunksWithBufferOf
     -}
+    -- * Deprecated
+    , toStream
+    , toEither
+    , toFiles
+    , toDirs
     )
 where
 
@@ -186,9 +194,9 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 --
 --  /Internal/
 --
-{-# INLINE read #-}
-read :: MonadIO m => Unfold m String String
-read =
+{-# INLINE reader #-}
+reader :: MonadIO m => Unfold m String String
+reader =
     -- XXX use proper streaming read of the dir
     UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList
 
@@ -202,9 +210,9 @@ read =
 --
 --  /Internal/
 --
-{-# INLINE readEither #-}
-readEither :: MonadIO m => Unfold m String (Either String String)
-readEither =
+{-# INLINE eitherReader #-}
+eitherReader :: MonadIO m => Unfold m String (Either String String)
+eitherReader =
       UF.mapM2 classify
     $ UF.filter (\x -> x /= "." && x /= "..")
     -- XXX use proper streaming read of the dir
@@ -219,48 +227,68 @@ readEither =
 --
 --  /Internal/
 --
-{-# INLINE readFiles #-}
-readFiles :: MonadIO m => Unfold m String String
-readFiles = fmap (fromRight undefined) $ UF.filter isRight readEither
+{-# INLINE fileReader #-}
+fileReader :: MonadIO m => Unfold m String String
+fileReader = fmap (fromRight undefined) $ UF.filter isRight eitherReader
 
 -- | Read directories only. Filter out "." and ".." entries.
 --
 --  /Internal/
 --
-{-# INLINE readDirs #-}
-readDirs :: MonadIO m => Unfold m String String
-readDirs = fmap (fromLeft undefined) $ UF.filter isLeft readEither
+{-# INLINE dirReader #-}
+dirReader :: MonadIO m => Unfold m String String
+dirReader = fmap (fromLeft undefined) $ UF.filter isLeft eitherReader
 
 -- | Raw read of a directory.
 --
 -- /Pre-release/
+{-# INLINE read #-}
+read :: MonadIO m => String -> Stream m String
+read = S.unfold reader
+
+{-# DEPRECATED toStream "Please use 'read' instead" #-}
 {-# INLINE toStream #-}
 toStream :: MonadIO m => String -> Stream m String
-toStream = S.unfold read
+toStream = read
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries.
 --
 -- /Pre-release/
+{-# INLINE readEither #-}
+readEither :: MonadIO m => String -> Stream m (Either String String)
+readEither = S.unfold eitherReader
+
+{-# DEPRECATED toEither "Please use 'readEither' instead" #-}
 {-# INLINE toEither #-}
 toEither :: MonadIO m => String -> Stream m (Either String String)
-toEither = S.unfold readEither
+toEither = readEither
 
 -- | Read files only.
 --
 --  /Internal/
 --
+{-# INLINE readFiles #-}
+readFiles :: MonadIO m => String -> Stream m String
+readFiles = S.unfold fileReader
+
+{-# DEPRECATED toFiles "Please use 'readFiles' instead" #-}
 {-# INLINE toFiles #-}
 toFiles :: MonadIO m => String -> Stream m String
-toFiles = S.unfold readFiles
+toFiles = readFiles
 
 -- | Read directories only.
 --
 --  /Internal/
 --
+{-# INLINE readDirs #-}
+readDirs :: MonadIO m => String -> Stream m String
+readDirs = S.unfold dirReader
+
+{-# DEPRECATED toDirs "Please use 'readDirs' instead" #-}
 {-# INLINE toDirs #-}
 toDirs :: MonadIO m => String -> Stream m String
-toDirs = S.unfold readDirs
+toDirs = readDirs
 
 {-
 -------------------------------------------------------------------------------

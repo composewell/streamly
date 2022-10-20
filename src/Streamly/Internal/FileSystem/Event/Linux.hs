@@ -719,14 +719,14 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     -- XXX Ensure that we generate events that we may have missed while we were
     -- adding the dirs. That may generate spurious events though.
     --
-    -- XXX toDirs currently uses paths as String, we need to convert it
+    -- XXX readDirs currently uses paths as String, we need to convert it
     -- to "/" separated by byte arrays.
     pathIsDir <- doesDirectoryExist $ utf8ToString absPath
     when (watchRec && pathIsDir) $ do
         let f = addToWatch cfg watch0 root . appendPaths path
             in S.fold (FL.drainBy f)
                 $ S.mapM toUtf8
-                $ Dir.toDirs $ utf8ToString absPath
+                $ Dir.readDirs $ utf8ToString absPath
 
 foreign import ccall unsafe
     "sys/inotify.h inotify_rm_watch" c_inotify_rm_watch
