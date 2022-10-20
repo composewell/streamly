@@ -87,7 +87,7 @@ import qualified Streamly.Internal.Data.Stream.Bottom as Bottom
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
-import qualified Streamly.Internal.Data.Stream.Transform as Stream (sequence, take)
+import qualified Streamly.Internal.Data.Stream.Transform as Stream (sequence)
 
 import Prelude hiding (iterate, replicate, repeat, take)
 
