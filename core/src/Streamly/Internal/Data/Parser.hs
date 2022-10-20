@@ -297,8 +297,6 @@ toFold p = D.toFold $ D.fromParserK p
 --
 -- | Make a 'Parser' from a 'Fold'.
 --
--- /Pre-release/
---
 {-# INLINE fromFold #-}
 fromFold :: Monad m => Fold m a b -> Parser m a b
 fromFold = D.toParserK . D.fromFold
@@ -321,8 +319,6 @@ fromFoldMaybe err = D.toParserK . D.fromFoldMaybe err
 --
 -- | A parser that always yields a pure value without consuming any input.
 --
--- /Pre-release/
---
 {-# INLINE [3] fromPure #-}
 fromPure :: Monad m => b -> Parser m a b
 fromPure = D.toParserK . D.fromPure
@@ -334,8 +330,6 @@ fromPure = D.toParserK . D.fromPure
 -- | A parser that always yields the result of an effectful action without
 -- consuming any input.
 --
--- /Pre-release/
---
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> Parser m a b
 fromEffect = K.fromEffect -- D.toParserK . D.fromEffect
@@ -344,8 +338,6 @@ fromEffect = K.fromEffect -- D.toParserK . D.fromEffect
 --
 -- | A parser that always fails with an error message without consuming
 -- any input.
---
--- /Pre-release/
 --
 {-# INLINE [3] die #-}
 die :: Monad m => String -> Parser m a b
@@ -375,21 +367,18 @@ dieM = D.toParserK . D.dieM
 --
 -- > lmap = Parser.lmapM return
 --
--- /Internal/
 {-# INLINE lmap #-}
 lmap :: Monad m => (a -> b) -> Parser m b r -> Parser m a r
 lmap f p = D.toParserK $ D.lmap f $ D.fromParserK p
 
 -- | @lmapM f parser@ maps the monadic function @f@ on the input of the parser.
 --
--- /Internal/
 {-# INLINE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Parser m b r -> Parser m a r
 lmapM f p = D.toParserK $ D.lmapM f $ D.fromParserK p
 
 -- | @rmapM f parser@ maps the monadic function @f@ on the output of the parser.
 --
--- /Internal/
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Parser m a b -> Parser m a c
 rmapM f p = D.toParserK $ D.rmapM f $ D.fromParserK p
@@ -399,7 +388,6 @@ rmapM f p = D.toParserK $ D.rmapM f $ D.fromParserK p
 -- >>> Stream.parse (Parser.filter (> 5) (Parser.fromFold Fold.sum)) $ Stream.fromList [1..10]
 -- 40
 --
--- /Internal/
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Parser m a b -> Parser m a b
 filter f p = D.toParserK $ D.filter f $ D.fromParserK p
@@ -418,8 +406,6 @@ filter f p = D.toParserK $ D.filter f $ D.fromParserK p
 -- peek = lookAhead (satisfy True)
 -- @
 --
--- /Pre-release/
---
 {-# INLINE peek #-}
 peek :: Monad m => Parser m a a
 peek = D.toParserK D.peek
@@ -428,8 +414,6 @@ peek = D.toParserK D.peek
 --
 -- >>> Stream.parse ((,) <$> Parser.satisfy (> 0) <*> Parser.eof) $ Stream.fromList [1]
 -- (1,())
---
--- /Pre-release/
 --
 {-# INLINE eof #-}
 eof :: Monad m => Parser m a ()
@@ -443,8 +427,6 @@ eof = D.toParserK D.eof
 -- >>> toMaybe f x = if f x then Just x else Nothing
 -- >>> satisfy f = Parser.maybe (toMaybe f)
 --
--- /Pre-release/
---
 {-# INLINE satisfy #-}
 satisfy :: Monad m => (a -> Bool) -> Parser m a a
 satisfy = D.toParserK . D.satisfy
@@ -453,8 +435,6 @@ satisfy = D.toParserK . D.satisfy
 -- end of input.
 --
 -- >>> one = Parser.satisfy $ const True
---
--- /Pre-release/
 --
 {-# INLINE one #-}
 one :: Monad m => Parser m a a
@@ -601,8 +581,6 @@ takeBetween m n = D.toParserK . D.takeBetween m n
 -- >>> Stream.parse (Parser.takeEQ 4 Fold.toList) $ Stream.fromList [1,0,1]
 -- *** Exception: ParseError "takeEQ: Expecting exactly 4 elements, input terminated on 3"
 --
--- /Pre-release/
---
 {-# INLINE takeEQ #-}
 takeEQ :: Monad m => Int -> Fold m a b -> Parser m a b
 takeEQ n = D.toParserK . D.takeEQ n
@@ -669,8 +647,6 @@ takeWhileP cond p = D.toParserK $ D.takeWhileP cond (D.fromParserK p)
 -- breakOn p = takeWhile (not p)
 -- @
 --
--- /Pre-release/
---
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile cond = D.toParserK . D.takeWhile cond
@@ -679,8 +655,6 @@ takeWhile cond = D.toParserK . D.takeWhile cond
 -- | Like 'takeWhile' but takes at least one element otherwise fails.
 --
 -- >>> takeWhile1 cond p = Parser.takeWhileP cond (Parser.takeBetween 1 maxBound p)
---
--- /Pre-release/
 --
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
@@ -693,8 +667,6 @@ takeWhile1 cond = D.toParserK . D.takeWhile1 cond
 -- This is also called @skipWhile@ in some parsing libraries.
 --
 -- >>> dropWhile p = Parser.takeWhile p Fold.drain
---
--- /Pre-release/
 --
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => (a -> Bool) -> Parser m a ()
@@ -898,7 +870,6 @@ wordBy f = D.toParserK . D.wordBy f
 -- >>> Stream.parse quotes $ Stream.fromList "\"a\"\"b\""
 -- "ab"
 --
--- /Pre-release/
 {-# INLINE wordFramedBy #-}
 wordFramedBy :: Monad m =>
        (a -> Bool)  -- ^ Escape
@@ -969,8 +940,6 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSpc =
 -- >>> runGroupsBy (<) [3, 5, 4, 1, 2, 0]
 -- [[3,5,4],[1,2],[0]]
 --
--- /Pre-release/
---
 {-# INLINE groupBy #-}
 groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
 groupBy eq = D.toParserK . D.groupBy eq
@@ -1033,8 +1002,6 @@ groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 -- >>> Stream.parse (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
 -- *** Exception: ParseError "listEqBy: failed, yet to match 7 elements"
 --
--- /Pre-release/
---
 {-# INLINE listEqBy #-}
 listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser m a [a]
 listEqBy cmp xs = D.toParserK (D.listEqBy cmp xs)
@@ -1042,7 +1009,6 @@ listEqBy cmp xs = D.toParserK (D.listEqBy cmp xs)
 -- | Like 'listEqBy' but uses a stream instead of a list and does not return
 -- the stream.
 --
--- /Pre-release/
 {-# INLINE eqBy #-}
 eqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser m a ()
 eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
@@ -1052,7 +1018,6 @@ eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
 --
 -- >>> listEq = Parser.listEqBy (==)
 --
--- /Pre-release/
 {-# INLINE listEq #-}
 listEq :: (Monad m, Eq a) => [a] -> Parser m a [a]
 listEq = listEqBy (==)
@@ -1216,8 +1181,6 @@ longest p1 p2 = D.toParserK $ D.longest (D.fromParserK p1) (D.fromParserK p2)
 
 -- | Run a parser without consuming the input.
 --
--- /Pre-release/
---
 {-# INLINE lookAhead #-}
 lookAhead :: Monad m => Parser m a b -> Parser m a b
 lookAhead p = D.toParserK $ D.lookAhead $ D.fromParserK p
@@ -1315,8 +1278,6 @@ manyP _p _f = undefined -- D.toParserK $ D.manyP (D.fromParserK p) f
 --
 -- Compare with 'Control.Applicative.many'.
 --
--- /Pre-release/
---
 {-# INLINE many #-}
 many :: Monad m => Parser m a b -> Fold m b c -> Parser m a c
 many p f = D.toParserK $ D.many (D.fromParserK p) f
@@ -1335,8 +1296,6 @@ many p f = D.toParserK $ D.many (D.fromParserK p) f
 -- >>> some = Parser.countBetween 1 maxBound
 --
 -- Compare with 'Control.Applicative.some'.
---
--- /Pre-release/
 --
 {-# INLINE some #-}
 some :: Monad m => Parser m a b -> Fold m b c -> Parser m a c
@@ -1398,8 +1357,6 @@ manyTillP _p1 _p2 _f = undefined
 --
 -- Stops when the fold @f@ stops.
 --
--- /Pre-release/
---
 {-# INLINE manyTill #-}
 manyTill :: Monad m
     => Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
@@ -1447,8 +1404,6 @@ manyThen _parser _recover _f = undefined
 -- two patterns.
 --
 -- This undoes a "gintercalate" of two streams.
---
--- /Pre-release/
 --
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>

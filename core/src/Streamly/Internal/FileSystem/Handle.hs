@@ -177,7 +177,6 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 -- without blocking. As a result of this behavior, it may read less than or
 -- equal to the size requested.
 --
--- @since 0.8.1
 {-# INLINABLE getChunk #-}
 getChunk :: MonadIO m => Int -> Handle -> m (Array Word8)
 getChunk size h = liftIO $ do
@@ -209,7 +208,7 @@ getChunkOf = undefined
 -- | @getChunksWith size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
--- @since 0.9.0
+--
 {-# INLINE _getChunksWith #-}
 _getChunksWith :: MonadIO m => Int -> Handle -> Stream m (Array Word8)
 _getChunksWith size h = S.fromStreamK go
@@ -227,7 +226,6 @@ _getChunksWith size h = S.fromStreamK go
 --
 -- >>> readChunksWith size h = Stream.unfold Handle.chunkReaderWith (size, h)
 --
--- @since 0.9.0
 {-# INLINE_NORMAL readChunksWith #-}
 readChunksWith :: MonadIO m => Int -> Handle -> Stream m (Array Word8)
 readChunksWith size h = S.fromStreamD (D.Stream step ())
@@ -245,7 +243,6 @@ readChunksWith size h = S.fromStreamD (D.Stream step ())
 -- @bufsize@.  The size of an array in the resulting stream is always less than
 -- or equal to @bufsize@.
 --
--- @since 0.9.0
 {-# INLINE_NORMAL chunkReaderWith #-}
 chunkReaderWith :: MonadIO m => Unfold m (Int, Handle) (Array Word8)
 chunkReaderWith =
@@ -254,7 +251,6 @@ chunkReaderWith =
 
 -- | Same as 'chunkReaderWith'
 --
--- @since 0.7.0
 {-# DEPRECATED readChunksWithBufferOf "Please use chunkReaderWith instead." #-}
 {-# INLINE_NORMAL readChunksWithBufferOf #-}
 readChunksWithBufferOf :: MonadIO m => Unfold m (Int, Handle) (Array Word8)
@@ -316,7 +312,6 @@ readChunks = readChunksWith defaultChunkSize
 --
 -- >>> chunkReader = Unfold.first IO.defaultChunkSize Handle.chunkReaderWith
 --
--- @since 0.9.0
 {-# INLINE chunkReader #-}
 chunkReader :: MonadIO m => Unfold m Handle (Array Word8)
 chunkReader = UF.first defaultChunkSize chunkReaderWith
@@ -334,14 +329,12 @@ chunkReader = UF.first defaultChunkSize chunkReaderWith
 --
 -- >>> readerWith = Unfold.many Array.reader Handle.chunkReaderWith
 --
--- @since 0.9.0
 {-# INLINE readerWith #-}
 readerWith :: MonadIO m => Unfold m (Int, Handle) Word8
 readerWith = UF.many A.reader chunkReaderWith
 
 -- | Same as 'readerWith'
 --
--- @since 0.7.0
 {-# DEPRECATED readWithBufferOf "Please use 'readerWith' instead." #-}
 {-# INLINE readWithBufferOf #-}
 readWithBufferOf :: MonadIO m => Unfold m (Int, Handle) Word8
@@ -363,7 +356,6 @@ readWith size h = AS.concat $ readChunksWith size h
 --
 -- >>> reader = Unfold.many Array.reader chunkReader
 --
--- @since 0.9.0
 {-# INLINE reader #-}
 reader :: MonadIO m => Unfold m Handle Word8
 reader = UF.many A.reader chunkReader
@@ -387,7 +379,6 @@ read = AS.concat . readChunks
 
 -- | Write an 'Array' to a file handle.
 --
--- @since 0.8.1
 {-# INLINABLE putChunk #-}
 putChunk :: MonadIO m => Handle -> Array a -> m ()
 putChunk _ arr | byteLength arr == 0 = return ()
@@ -412,7 +403,6 @@ putChunk h arr = A.asPtrUnsafe arr $ \ptr ->
 --
 -- >>> putChunks h = Stream.fold (Fold.drainBy (Handle.putChunk h))
 --
--- @since 0.7.0
 {-# INLINE putChunks #-}
 putChunks :: MonadIO m => Handle -> Stream m (Array a) -> m ()
 putChunks h = S.fold (FL.drainBy (putChunk h))
@@ -426,7 +416,6 @@ putChunks h = S.fold (FL.drainBy (putChunk h))
 -- The chunk size is only a maximum and the actual writes could be smaller as
 -- we do not split the arrays to fit exactly to the specified size.
 --
--- @since 0.9.0
 {-# INLINE putChunksWith #-}
 putChunksWith :: (MonadIO m, Unboxed a)
     => Int -> Handle -> Stream m (Array a) -> m ()
@@ -438,7 +427,6 @@ putChunksWith n h xs = putChunks h $ AS.compact n xs
 --
 -- >>> putBytesWith n h m = Handle.putChunks h $ Stream.arraysOf n m
 --
--- @since 0.9.0
 {-# INLINE putBytesWith #-}
 putBytesWith :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
 putBytesWith n h m = putChunks h $ S.arraysOf n m
@@ -453,7 +441,6 @@ putBytesWith n h m = putChunks h $ S.arraysOf n m
 --
 -- >>> putBytes = Handle.putBytesWith IO.defaultChunkSize
 --
--- @since 0.7.0
 {-# INLINE putBytes #-}
 putBytes :: MonadIO m => Handle -> Stream m Word8 -> m ()
 putBytes = putBytesWith defaultChunkSize
@@ -463,7 +450,6 @@ putBytes = putBytesWith defaultChunkSize
 --
 -- writeChunks h = Fold.drainBy (Handle.putChunk h)
 --
--- @since 0.7.0
 {-# INLINE writeChunks #-}
 writeChunks :: MonadIO m => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (putChunk h)
@@ -483,7 +469,6 @@ chunkWriter = Refold.drainBy putChunk
 -- it emitted as it is. Multiple arrays are coalesed as long as the total size
 -- remains below the specified size.
 --
--- @since 0.9.0
 {-# INLINE writeChunksWith #-}
 writeChunksWith :: (MonadIO m, Unboxed a)
     => Int -> Handle -> Fold m (Array a) ()
@@ -491,7 +476,6 @@ writeChunksWith n h = lpackArraysChunksOf n (writeChunks h)
 
 -- | Same as 'writeChunksWith'
 --
--- @since 0.7.0
 {-# DEPRECATED writeChunksWithBufferOf "Please use writeChunksWith instead." #-}
 {-# INLINE writeChunksWithBufferOf #-}
 writeChunksWithBufferOf :: (MonadIO m, Unboxed a)
@@ -514,14 +498,12 @@ writeChunksWithBufferOf = writeChunksWith
 --
 -- >>> writeWith n h = Fold.chunksOf n (Array.writeNUnsafe n) (Handle.writeChunks h)
 --
--- @since 0.7.0
 {-# INLINE writeWith #-}
 writeWith :: MonadIO m => Int -> Handle -> Fold m Word8 ()
 writeWith n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
 
 -- | Same as 'writeWith'
 --
--- @since 0.7.0
 {-# DEPRECATED writeWithBufferOf "Please use writeWith instead." #-}
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
@@ -554,7 +536,6 @@ writerWith n =
 --
 -- >>> write = Handle.writeWith IO.defaultChunkSize
 --
--- @since 0.7.0
 {-# INLINE write #-}
 write :: MonadIO m => Handle -> Fold m Word8 ()
 write = writeWith defaultChunkSize
@@ -580,7 +561,6 @@ writer = writerWith defaultChunkSize
 --
 -- Read a UTF8 encoded stream of unicode characters from a file handle.
 --
--- @since 0.7.0
 {-# INLINE readUtf8 #-}
 readUtf8 :: MonadIO m => Handle -> Stream m Char
 readUtf8 = decodeUtf8 . read
@@ -591,7 +571,6 @@ readUtf8 = decodeUtf8 . read
 -- Encode a stream of unicode characters to UTF8 and write it to the given file
 -- handle. Default block buffering applies to the writes.
 --
--- @since 0.7.0
 {-# INLINE writeUtf8 #-}
 writeUtf8 :: MonadIO m => Handle -> Stream m Char -> m ()
 writeUtf8 h s = write h $ encodeUtf8 s
@@ -602,7 +581,6 @@ writeUtf8 h s = write h $ encodeUtf8 s
 -- anyway.  This is similar to writing to a 'Handle' with the 'LineBuffering'
 -- option.
 --
--- @since 0.7.0
 {-# INLINE writeUtf8ByLines #-}
 writeUtf8ByLines :: MonadIO m => Handle -> Stream m Char -> m ()
 writeUtf8ByLines = undefined
@@ -610,7 +588,6 @@ writeUtf8ByLines = undefined
 -- | Read UTF-8 lines from a file handle and apply the specified fold to each
 -- line. This is similar to reading a 'Handle' with the 'LineBuffering' option.
 --
--- @since 0.7.0
 {-# INLINE readLines #-}
 readLines :: MonadIO m => Handle -> Fold m Char b -> Stream m b
 readLines h f = foldLines (readUtf8 h) f
@@ -623,7 +600,6 @@ readLines h f = foldLines (readUtf8 h) f
 -- the specified sequence of elements. The supplied fold is applied on each
 -- frame.
 --
--- @since 0.7.0
 {-# INLINE readFrames #-}
 readFrames :: (MonadIO m, Unboxed a)
     => Array a -> Handle -> Fold m a b -> Stream m b
@@ -632,7 +608,6 @@ readFrames = undefined -- foldFrames . read
 -- | Write a stream to the given file handle buffering up to frames separated
 -- by the given sequence or up to a maximum of @defaultChunkSize@.
 --
--- @since 0.7.0
 {-# INLINE writeByFrames #-}
 writeByFrames :: (MonadIO m, Unboxed a)
     => Array a -> Handle -> Stream m a -> m ()
@@ -667,7 +642,6 @@ writeBySessionsOf n = writeByChunksOrSessionsOf defaultChunkSize n
 
 -- | Read the element at the given index treating the file as an array.
 --
--- @since 0.7.0
 {-# INLINE readIndex #-}
 readIndex :: Unboxed a => Handle -> Int -> Maybe a
 readIndex arr i = undefined
@@ -697,7 +671,6 @@ readSliceWith chunkSize h pos len = undefined
 -- at index @i@ and reading up to @count@ elements in the forward direction
 -- ending at the index @i + count - 1@.
 --
--- @since 0.7.0
 {-# INLINE readSlice #-}
 readSlice :: (MonadIO m, Unboxed a)
     => Handle -> Int -> Int -> Stream m a
@@ -707,7 +680,6 @@ readSlice = readSliceWith A.defaultChunkSize
 -- at index @i@ and reading up to @count@ elements in the reverse direction
 -- ending at the index @i - count + 1@.
 --
--- @since 0.7.0
 {-# INLINE readSliceRev #-}
 readSliceRev :: (MonadIO m, Unboxed a)
     => Handle -> Int -> Int -> Stream m a
@@ -715,7 +687,6 @@ readSliceRev h i count = undefined
 
 -- | Write the given element at the given index in the file.
 --
--- @since 0.7.0
 {-# INLINE writeIndex #-}
 writeIndex :: (MonadIO m, Unboxed a) => Handle -> Int -> a -> m ()
 writeIndex h i a = undefined
@@ -724,7 +695,6 @@ writeIndex h i a = undefined
 -- starting at index @i@ and writing up to @count@ elements in the forward
 -- direction ending at the index @i + count - 1@.
 --
--- @since 0.7.0
 {-# INLINE writeSlice #-}
 writeSlice :: (Monad m, Unboxed a)
     => Handle -> Int -> Int -> Stream m a -> m ()
@@ -734,7 +704,6 @@ writeSlice h i len s = undefined
 -- starting at index @i@ and writing up to @count@ elements in the reverse
 -- direction ending at the index @i - count + 1@.
 --
--- @since 0.7.0
 {-# INLINE writeSliceRev #-}
 writeSliceRev :: (Monad m, Unboxed a)
     => Handle -> Int -> Int -> Stream m a -> m ()

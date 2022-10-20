@@ -442,7 +442,6 @@ newAlignedPinned =
 -- the array is uninitialized and the allocation is aligned as per the 'Unboxed'
 -- instance of the type.
 --
--- /Pre-release/
 {-# INLINE newPinned #-}
 newPinned :: forall m a. (MonadIO m, Unboxed a) => Int -> m (Array a)
 newPinned = newAlignedPinned (alignment (undefined :: a))
@@ -450,7 +449,6 @@ newPinned = newAlignedPinned (alignment (undefined :: a))
 -- | Allocates an empty unpinned array that can hold 'count' items.  The memory
 -- of the array is uninitialized.
 --
--- /Pre-release/
 {-# INLINE new #-}
 new :: (MonadIO m, Unboxed a) => Int -> m (Array a)
 new =
@@ -497,7 +495,6 @@ invalidIndex label i =
 -- >>> f = Array.putIndices
 -- >>> putIndex ix val arr = Stream.fold (f arr) (Stream.fromPure (ix, val))
 --
--- /Pre-release/
 {-# INLINE putIndex #-}
 putIndex :: forall m a. (MonadIO m, Unboxed a) => Int -> a -> Array a -> m ()
 putIndex i x Array{..} = do
@@ -949,7 +946,6 @@ snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
 --
 -- Performs O(n * log n) copies to grow, but is liberal with memory allocation.
 --
--- /Pre-release/
 {-# INLINE snoc #-}
 snoc :: forall m a. (MonadIO m, Unboxed a) => Array a -> a -> m (Array a)
 snoc = snocWith f
@@ -1092,7 +1088,6 @@ getSlice index len (Array contents start e _) =
 -- to another array. However, in-place reverse can be useful to take adavantage
 -- of cache locality and when you do not want to allocate additional memory.
 --
--- /Pre-release/
 {-# INLINE reverse #-}
 reverse :: forall m a. (MonadIO m, Unboxed a) => Array a -> m ()
 reverse Array{..} = liftIO $ do
@@ -1226,7 +1221,6 @@ mergeBy = undefined
 
 -- | /O(1)/ Get the byte length of the array.
 --
--- @since 0.7.0
 {-# INLINE byteLength #-}
 byteLength :: Array a -> Int
 byteLength Array{..} =
@@ -1243,7 +1237,6 @@ byteLength Array{..} =
 -- Note that 'byteLength' is less expensive than this operation, as 'length'
 -- involves a costly division operation.
 --
--- @since 0.7.0
 {-# INLINE length #-}
 length :: forall a. Unboxed a => Array a -> Int
 length arr =
@@ -1458,7 +1451,6 @@ producer = producerWith liftIO
 
 -- | Unfold an array into a stream.
 --
--- @since 0.7.0
 {-# INLINE_NORMAL reader #-}
 reader :: forall m a. (MonadIO m, Unboxed a) => Unfold m (Array a) a
 reader = Producer.simplify producer
@@ -1482,7 +1474,6 @@ readerRevWith liftio = Unfold step inject
 
 -- | Unfold an array into a stream in reverse order.
 --
--- /Pre-release/
 {-# INLINE_NORMAL readerRev #-}
 readerRev :: forall m a. (MonadIO m, Unboxed a) => Unfold m (Array a) a
 readerRev = readerRevWith liftIO
@@ -1518,7 +1509,6 @@ toListFB c n Array{..} = go arrStart
 -- Reference: https://www.researchgate.net/publication/220676509_Monadic_augment_and_generalised_short_cut_fusion
 -- | Convert an 'Array' into a list.
 --
--- @since 0.7.0
 {-# INLINE toList #-}
 toList :: forall m a. (MonadIO m, Unboxed a) => Array a -> m [a]
 toList Array{..} = liftIO $ go arrStart
@@ -1682,7 +1672,6 @@ appendNUnsafe action n =
 --
 -- >>> appendN initial n = Fold.take n (Array.appendNUnsafe initial n)
 --
--- /Pre-release/
 {-# INLINE_NORMAL appendN #-}
 appendN :: forall m a. (MonadIO m, Unboxed a) =>
     m (Array a) -> Int -> Fold m a (Array a)
@@ -1711,7 +1700,6 @@ appendWith sizer = FL.foldlM' (snocWith sizer)
 --
 -- >>> append = Array.appendWith (* 2)
 --
--- /Pre-release/
 {-# INLINE append #-}
 append :: forall m a. (MonadIO m, Unboxed a) =>
     m (Array a) -> Fold m a (Array a)
@@ -1748,7 +1736,6 @@ writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 --
 -- >>> writeNUnsafe = Array.writeNWithUnsafe Array.newPinned
 --
--- @since 0.7.0
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Fold m a (Array a)
@@ -1772,7 +1759,6 @@ writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
 -- >>> writeN n = Fold.take n (Array.writeNUnsafe n)
 -- >>> writeN n = Array.appendN (Array.newPinned n) n
 --
--- @since 0.7.0
 {-# INLINE_NORMAL writeN #-}
 writeN :: forall m a. (MonadIO m, Unboxed a) => Int -> Fold m a (Array a)
 writeN = writeNWith newPinned
@@ -1910,7 +1896,6 @@ writeWith elemCount =
 --
 -- /Caution! Do not use this on infinite streams./
 --
--- @since 0.7.0
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Unboxed a) => Fold m a (Array a)
 write = writeWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
@@ -1942,7 +1927,6 @@ fromStreamDN limit str = do
 -- allocated to size N, if the list terminates before N elements then the
 -- array may hold less than N elements.
 --
--- @since 0.7.0
 {-# INLINABLE fromListN #-}
 fromListN :: (MonadIO m, Unboxed a) => Int -> [a] -> m (Array a)
 fromListN n xs = fromStreamDN n $ D.fromList xs
@@ -1991,7 +1975,6 @@ fromStreamD m = arrayStreamKFromStreamD m >>= fromArrayStreamK
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
--- @since 0.7.0
 {-# INLINE fromList #-}
 fromList :: (MonadIO m, Unboxed a) => [a] -> m (Array a)
 fromList xs = fromStreamD $ D.fromList xs
@@ -2154,7 +2137,6 @@ breakOn sep arr@Array{..} = asPtrUnsafe arr $ \p -> liftIO $ do
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
 --
--- @since 0.7.0
 splitAt :: forall a. Unboxed a => Int -> Array a -> (Array a, Array a)
 splitAt i arr@Array{..} =
     let maxIndex = length arr - 1
@@ -2200,16 +2182,12 @@ castUnsafe (Array contents start end bound) =
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
--- /Pre-release/
---
 asBytes :: Array a -> Array Word8
 asBytes = castUnsafe
 
 -- | Cast an array having elements of type @a@ into an array having elements of
 -- type @b@. The length of the array should be a multiple of the size of the
 -- target element otherwise 'Nothing' is returned.
---
--- /Pre-release/
 --
 cast :: forall a b. Unboxed b => Array a -> Maybe (Array b)
 cast arr =

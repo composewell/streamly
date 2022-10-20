@@ -140,9 +140,6 @@ import Prelude hiding (lines, words, unlines, unwords)
 -- | Decode a stream of bytes to Unicode characters by mapping each byte to a
 -- corresponding Unicode 'Char' in 0-255 range.
 --
--- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
---
--- @since 0.8.0
 {-# INLINE decodeLatin1 #-}
 decodeLatin1 :: Monad m => Stream m Word8 -> Stream m Char
 decodeLatin1 = fmap (unsafeChr . fromIntegral)
@@ -155,7 +152,6 @@ decodeLatin1 = fmap (unsafeChr . fromIntegral)
 -- to a byte in 0-255 range. Throws an error if the input stream contains
 -- characters beyond 255.
 --
--- @since 0.8.0
 {-# INLINE encodeLatin1' #-}
 encodeLatin1' :: Monad m => Stream m Char -> Stream m Word8
 encodeLatin1' = fmap convert
@@ -175,16 +171,12 @@ encodeLatin1' = fmap convert
 -- arbitrary Latin1 chars in 0-255 range. No error or exception is thrown when
 -- such mapping occurs.
 --
--- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
---
--- /Since: 0.8.0 (Lenient Behaviour)/
 {-# INLINE encodeLatin1 #-}
 encodeLatin1 :: Monad m => Stream m Char -> Stream m Word8
 encodeLatin1 = fmap (fromIntegral . ord)
 
 -- | Like 'encodeLatin1' but drops the input characters beyond 255.
 --
--- @since 0.8.0
 {-# INLINE encodeLatin1_ #-}
 encodeLatin1_ :: Monad m => Stream m Char -> Stream m Word8
 encodeLatin1_ = fmap (fromIntegral . ord) . Stream.filter (<= chr 255)
@@ -653,9 +645,6 @@ decodeUtf8D = decodeUtf8WithD TransliterateCodingFailure
 -- Any invalid codepoint encountered is replaced with the unicode replacement
 -- character.
 --
--- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
---
--- /Since: 0.8.0 (Lenient Behaviour)/
 {-# INLINE decodeUtf8 #-}
 decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8 = fromStreamD . decodeUtf8D . toStreamD
@@ -667,7 +656,6 @@ decodeUtf8D' = decodeUtf8WithD ErrorOnCodingFailure
 -- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
 -- The function throws an error if an invalid codepoint is encountered.
 --
--- @since 0.8.0
 {-# INLINE decodeUtf8' #-}
 decodeUtf8' :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8' = fromStreamD . decodeUtf8D' . toStreamD
@@ -679,7 +667,6 @@ decodeUtf8D_ = decodeUtf8WithD DropOnCodingFailure
 -- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
 -- Any invalid codepoint encountered is dropped.
 --
--- @since 0.8.0
 {-# INLINE decodeUtf8_ #-}
 decodeUtf8_ :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8_ = fromStreamD . decodeUtf8D_ . toStreamD
@@ -934,7 +921,6 @@ encodeUtf8D' = D.unfoldMany readCharUtf8'
 -- any invalid character (U+D800-U+D8FF) is encountered in the input stream the
 -- function errors out.
 --
--- @since 0.8.0
 {-# INLINE encodeUtf8' #-}
 encodeUtf8' :: Monad m => Stream m Char -> Stream m Word8
 encodeUtf8' = fromStreamD . encodeUtf8D' . toStreamD
@@ -954,9 +940,6 @@ encodeUtf8D = D.unfoldMany readCharUtf8
 -- Invalid characters (U+D800-U+D8FF) in the input stream are replaced by the
 -- Unicode replacement character U+FFFD.
 --
--- /Since: 0.7.0 ("Streamly.Data.Unicode.Stream")/
---
--- /Since: 0.8.0 (Lenient Behaviour)/
 {-# INLINE encodeUtf8 #-}
 encodeUtf8 :: Monad m => Stream m Char -> Stream m Word8
 encodeUtf8 = fromStreamD . encodeUtf8D . toStreamD
@@ -972,7 +955,6 @@ encodeUtf8D_ = D.unfoldMany readCharUtf8_
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. Any
 -- Invalid characters (U+D800-U+D8FF) in the input stream are dropped.
 --
--- @since 0.8.0
 {-# INLINE encodeUtf8_ #-}
 encodeUtf8_ :: Monad m => Stream m Char -> Stream m Word8
 encodeUtf8_ = fromStreamD . encodeUtf8D_ . toStreamD
@@ -1034,7 +1016,6 @@ encodeObjects encode u = Stream.mapM (encodeObject encode u)
 -- | Encode a stream of 'String' using the supplied encoding scheme. Each
 -- string is encoded as an @Array Word8@.
 --
--- @since 0.8.0
 {-# INLINE encodeStrings #-}
 encodeStrings :: MonadIO m =>
        (Stream m Char -> Stream m Word8)

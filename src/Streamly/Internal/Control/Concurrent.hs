@@ -38,15 +38,10 @@ type MonadRunInIO m = MonadUnliftIO m
 type MonadRunInIO m = (MonadIO m, MonadBaseControl IO m)
 #endif
 
--- /Since: 0.8.0 ("Streamly.Prelude")/
---
 -- | A monad that can perform concurrent or parallel IO operations. Streams
 -- that can be composed concurrently require the underlying monad to be
 -- 'MonadAsync'.
 --
--- /Since: 0.1.0 ("Streamly")/
---
--- @since 0.8.0
 #ifdef USE_UNLIFTIO
 type MonadAsync m = (MonadUnliftIO m, MonadThrow m)
 #else

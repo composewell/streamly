@@ -411,7 +411,6 @@ generally = hoist (return . runIdentity)
 
 -- | Flatten the monadic output of a fold to pure output.
 --
--- @since 0.7.0
 {-# DEPRECATED sequence "Use \"rmapM id\" instead" #-}
 {-# INLINE sequence #-}
 sequence :: Monad m => Fold m a (m b) -> Fold m a b
@@ -419,7 +418,6 @@ sequence = rmapM id
 
 -- | Map a monadic function on the output of a fold.
 --
--- @since 0.7.0
 {-# DEPRECATED mapM "Use rmapM instead" #-}
 {-# INLINE mapM #-}
 mapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
@@ -444,7 +442,6 @@ mapMaybeM f = lmapM f . catMaybes
 -- >>> Stream.fold fld (Stream.enumerateFromTo 1 10)
 -- [2,4,6,8,10]
 --
--- @since 0.8.0
 {-# INLINE mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Fold m b r -> Fold m a r
 mapMaybe f = lmap f . catMaybes
@@ -734,7 +731,6 @@ nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 --
 -- See also: 'Streamly.Prelude.mapM_'
 --
--- @since 0.7.0
 {-# INLINE drainBy #-}
 drainBy ::  Monad m => (a -> m b) -> Fold m a ()
 drainBy f = lmapM f drain
@@ -743,7 +739,6 @@ drainBy f = lmapM f drain
 --
 -- > last = fmap getLast $ Fold.foldMap (Last . Just)
 --
--- @since 0.7.0
 {-# INLINE last #-}
 last :: Monad m => Fold m a (Maybe a)
 last = foldl1' (\_ x -> x)
@@ -751,7 +746,6 @@ last = foldl1' (\_ x -> x)
 -- | If the stream consists of one or more occurences of the same element
 -- then returns that element else terminates and returns 'Nothing'.
 --
--- /Pre-release/
 {-# INLINE the #-}
 the :: (Monad m, Eq a) => Fold m a (Maybe a)
 the = foldt' step initial id
@@ -783,7 +777,6 @@ genericLength = foldl' (\n _ -> n + 1) 0
 --
 -- > length = fmap getSum $ Fold.foldMap (Sum . const  1)
 --
--- @since 0.7.0
 {-# INLINE length #-}
 length :: Monad m => Fold m a Int
 length = genericLength
@@ -861,7 +854,6 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- >>> sum = Fold.foldl' (+) 0
 -- >>> sum = fmap Data.Monoid.getSum $ Fold.foldMap Data.Monoid.Sum
 --
--- @since 0.7.0
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Fold m a a
 sum = FoldW.cumulative FoldW.sum
@@ -872,8 +864,6 @@ sum = FoldW.cumulative FoldW.sum
 --
 -- Compare with @Fold.foldMap Product@.
 --
--- @since 0.7.0
--- /Since 0.8.0 (Added 'Eq' constraint)/
 {-# INLINE product #-}
 product :: (Monad m, Num a, Eq a) => Fold m a a
 product =  foldt' step (Partial 1) id
@@ -892,7 +882,6 @@ product =  foldt' step (Partial 1) id
 -- | Determine the maximum element in a stream using the supplied comparison
 -- function.
 --
--- @since 0.7.0
 {-# INLINE maximumBy #-}
 maximumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
 maximumBy cmp = foldl1' max'
@@ -913,14 +902,12 @@ maximumBy cmp = foldl1' max'
 --
 -- Compare with @Fold.foldMap Max@.
 --
--- @since 0.7.0
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => Fold m a (Maybe a)
 maximum = foldl1' max
 
 -- | Computes the minimum element with respect to the given comparison function
 --
--- @since 0.7.0
 {-# INLINE minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
 minimumBy cmp = foldl1' min'
@@ -941,7 +928,6 @@ minimumBy cmp = foldl1' min'
 --
 -- Compare with @Fold.foldMap Min@.
 --
--- @since 0.7.0
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Fold m a (Maybe a)
 minimum = foldl1' min
@@ -953,7 +939,6 @@ minimum = foldl1' min
 -- | Compute a numerically stable arithmetic mean of all elements in the input
 -- stream.
 --
--- @since 0.7.0
 {-# INLINE mean #-}
 mean :: (Monad m, Fractional a) => Fold m a a
 mean = fmap done $ foldl' step begin
@@ -971,7 +956,6 @@ mean = fmap done $ foldl' step begin
 -- | Compute a numerically stable (population) variance over all elements in
 -- the input stream.
 --
--- @since 0.7.0
 {-# DEPRECATED variance "Use the streamly-statistics package instead" #-}
 {-# INLINE variance #-}
 variance :: (Monad m, Fractional a) => Fold m a a
@@ -995,7 +979,6 @@ variance = fmap done $ foldl' step begin
 -- | Compute a numerically stable (population) standard deviation over all
 -- elements in the input stream.
 --
--- @since 0.7.0
 {-# DEPRECATED stdDev "Use the streamly-statistics package instead" #-}
 {-# INLINE stdDev #-}
 stdDev :: (Monad m, Floating a) => Fold m a a
@@ -1012,7 +995,6 @@ stdDev = sqrt <$> variance
 --
 -- See https://en.wikipedia.org/wiki/Rolling_hash
 --
--- @since 0.8.0
 {-# INLINE rollingHashWithSalt #-}
 rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Fold m a Int64
 rollingHashWithSalt = foldl' step
@@ -1032,7 +1014,6 @@ defaultSalt = -2578643520546668380
 --
 -- > rollingHash = Fold.rollingHashWithSalt defaultSalt
 --
--- @since 0.8.0
 {-# INLINE rollingHash #-}
 rollingHash :: (Monad m, Enum a) => Fold m a Int64
 rollingHash = rollingHashWithSalt defaultSalt
@@ -1090,7 +1071,6 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 -- sconcat = Fold.foldl' (<>)
 -- @
 --
--- @since 0.8.0
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => a -> Fold m a a
 sconcat = foldl' (<>)
@@ -1103,7 +1083,6 @@ sconcat = foldl' (<>)
 --
 -- > mconcat = Fold.sconcat mempty
 --
--- @since 0.7.0
 {-# INLINE mconcat #-}
 mconcat ::
     ( Monad m
@@ -1119,7 +1098,6 @@ mconcat = sconcat mempty
 -- >>> Stream.fold (Fold.foldMap Data.Monoid.Sum) $ Stream.enumerateFromTo 1 10
 -- Sum {getSum = 55}
 --
--- @since 0.7.0
 {-# INLINE foldMap #-}
 foldMap :: (Monad m, Monoid b
     ) => (a -> b) -> Fold m a b
@@ -1134,7 +1112,6 @@ foldMap f = lmap f mconcat
 -- >>> Stream.fold (Fold.foldMapM (return . Data.Monoid.Sum)) $ Stream.enumerateFromTo 1 10
 -- Sum {getSum = 55}
 --
--- @since 0.7.0
 {-# INLINE foldMapM #-}
 foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Fold m a b
 foldMapM act = foldlM' step (pure mempty)
@@ -1160,7 +1137,6 @@ foldMapM act = foldlM' step (pure mempty)
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
 --
--- @since 0.8.0
 
 --  xn : ... : x2 : x1 : []
 {-# INLINE toListRev #-}
@@ -1203,7 +1179,6 @@ genericIndex i = foldt' step (Partial 0) (const Nothing)
 --
 -- See also: 'Streamly.Prelude.!!'
 --
--- @since 0.7.0
 {-# INLINE index #-}
 index :: Monad m => Int -> Fold m a (Maybe a)
 index = genericIndex
@@ -1254,8 +1229,6 @@ satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
 
 -- | Take one element from the stream and stop.
 --
--- /Pre-release/
---
 {-# INLINE one #-}
 one :: Monad m => Fold m a (Maybe a)
 one = maybe Just
@@ -1264,7 +1237,6 @@ one = maybe Just
 --
 -- >>> head = Fold.one
 --
--- @since 0.7.0
 {-# DEPRECATED head "Please use \"one\" instead" #-}
 {-# INLINE head #-}
 head :: Monad m => Fold m a (Maybe a)
@@ -1288,7 +1260,6 @@ findM predicate = Fold step (return $ Partial ()) (const $ return Nothing)
 
 -- | Returns the first element that satisfies the given predicate.
 --
--- @since 0.7.0
 {-# INLINE find #-}
 find :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
 find p = findM (return . p)
@@ -1298,7 +1269,6 @@ find p = findM (return . p)
 --
 -- > lookup = snd <$> Fold.find ((==) . fst)
 --
--- @since 0.7.0
 {-# INLINE lookup #-}
 lookup :: (Eq a, Monad m) => a -> Fold m (a,b) (Maybe b)
 lookup a0 = foldt' step (Partial ()) (const Nothing)
@@ -1312,7 +1282,6 @@ lookup a0 = foldt' step (Partial ()) (const Nothing)
 
 -- | Returns the first index that satisfies the given predicate.
 --
--- @since 0.7.0
 {-# INLINE findIndex #-}
 findIndex :: Monad m => (a -> Bool) -> Fold m a (Maybe Int)
 findIndex predicate = foldt' step (Partial 0) (const Nothing)
@@ -1355,7 +1324,6 @@ elemIndices a = findIndices (== a)
 --
 -- > elemIndex a = Fold.findIndex (== a)
 --
--- @since 0.7.0
 {-# INLINE elemIndex #-}
 elemIndex :: (Eq a, Monad m) => a -> Fold m a (Maybe Int)
 elemIndex a = findIndex (a ==)
@@ -1368,7 +1336,6 @@ elemIndex a = findIndex (a ==)
 --
 -- > null = fmap isJust Fold.one
 --
--- @since 0.7.0
 {-# INLINE null #-}
 null :: Monad m => Fold m a Bool
 null = foldt' (\() _ -> Done False) (Partial ()) (const True)
@@ -1380,7 +1347,6 @@ null = foldt' (\() _ -> Done False) (Partial ()) (const True)
 --
 -- > any p = Fold.lmap p Fold.or
 --
--- @since 0.7.0
 {-# INLINE any #-}
 any :: Monad m => (a -> Bool) -> Fold m a Bool
 any predicate = foldt' step initial id
@@ -1398,7 +1364,6 @@ any predicate = foldt' step initial id
 --
 -- > elem a = Fold.any (== a)
 --
--- @since 0.7.0
 {-# INLINE elem #-}
 elem :: (Eq a, Monad m) => a -> Fold m a Bool
 elem a = any (a ==)
@@ -1410,7 +1375,6 @@ elem a = any (a ==)
 --
 -- > all p = Fold.lmap p Fold.and
 --
--- @since 0.7.0
 {-# INLINE all #-}
 all :: Monad m => (a -> Bool) -> Fold m a Bool
 all predicate = foldt' step initial id
@@ -1428,7 +1392,6 @@ all predicate = foldt' step initial id
 --
 -- > notElem a = Fold.all (/= a)
 --
--- @since 0.7.0
 {-# INLINE notElem #-}
 notElem :: (Eq a, Monad m) => a -> Fold m a Bool
 notElem a = all (a /=)
@@ -1437,7 +1400,6 @@ notElem a = all (a /=)
 --
 -- > and = Fold.all (== True)
 --
--- @since 0.7.0
 {-# INLINE and #-}
 and :: Monad m => Fold m Bool Bool
 and = all (== True)
@@ -1446,7 +1408,6 @@ and = all (== True)
 --
 -- > or = Fold.any (== True)
 --
--- @since 0.7.0
 {-# INLINE or #-}
 or :: Monad m => Fold m Bool Bool
 or = any (== True)
@@ -1593,7 +1554,6 @@ droppingWhile p = droppingWhileM (return . p)
 -- See 'Streamly.Prelude.splitOnSuffix' for more details on splitting a
 -- stream using 'takeEndBy_'.
 --
--- @since 0.8.0
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 -- takeEndBy_ predicate = scanMaybe (takingEndBy_ predicate)
@@ -1621,7 +1581,6 @@ takeEndBy_ predicate (Fold fstep finitial fextract) =
 -- See 'Streamly.Prelude.splitWithSuffix' for more details on splitting a
 -- stream using 'takeEndBy'.
 --
--- @since 0.8.0
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 -- takeEndBy predicate = scanMaybe (takingEndBy predicate)
@@ -1971,7 +1930,6 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
 --
 -- > tee = teeWith (,)
 --
--- @since 0.7.0
 {-# INLINE tee #-}
 tee :: Monad m => Fold m a b -> Fold m a c -> Fold m a (b,c)
 tee = teeWith (,)
@@ -2001,7 +1959,6 @@ tee = teeWith (,)
 --
 -- Stops when all the folds stop.
 --
--- @since 0.7.0
 {-# INLINE distribute #-}
 distribute :: Monad m => [Fold m a b] -> Fold m a [b]
 distribute = Prelude.foldr (teeWith (:)) (fromPure [])
@@ -2125,7 +2082,6 @@ partitionBy f = partitionByM (return . f)
 --
 -- > partition = partitionBy id
 --
--- @since 0.7.0
 {-# INLINE partition #-}
 partition :: Monad m
     => Fold m b x -> Fold m c y -> Fold m (Either b c) (x, y)
@@ -2619,7 +2575,6 @@ unzipWith f = unzipWithM (return . f)
 --
 -- This is the consumer side dual of the producer side 'zip' operation.
 --
--- @since 0.7.0
 {-# INLINE unzip #-}
 unzip :: Monad m => Fold m a x -> Fold m b y -> Fold m (a,b) (x,y)
 unzip = unzipWith id

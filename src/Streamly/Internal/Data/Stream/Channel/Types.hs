@@ -299,9 +299,6 @@ data SVarStats = SVarStats {
 -- If the 'rateGoal' is 0 or negative the stream never yields a value.
 -- If the 'rateBuffer' is 0 or negative we do not attempt to recover.
 --
--- /Since: 0.5.0 ("Streamly")/
---
--- @since 0.8.0
 data Rate = Rate
     { rateLow    :: Double -- ^ The lower rate limit
     , rateGoal   :: Double -- ^ The target rate we want to achieve
@@ -491,8 +488,6 @@ getStreamLatency = _streamLatency
 -- XXX Rename to "inspect"
 
 -- | Print debug information about the 'Channel' when the stream ends.
---
--- /Pre-release/
 --
 inspect :: Config -> Config
 inspect st = st { _inspect = True }

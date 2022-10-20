@@ -128,7 +128,6 @@ import Prelude hiding (foldr, init, reverse)
 --
 -- /Not fused/
 --
--- @since 0.9.0
 {-# INLINE uncons #-}
 uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
 uncons m = fmap (fmap (fmap fromStreamK)) $ K.uncons (toStreamK m)
@@ -241,7 +240,6 @@ parseK = parse
 --
 -- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --
--- @since 0.9.0
 {-# INLINE [3] parse #-}
 parse :: MonadThrow m => Parser m a b -> Stream m a -> m b
 parse = parseD . PRD.fromParserK
@@ -257,7 +255,6 @@ parseBreakD parser strm = do
 --
 -- /Not fused/
 --
--- @since 0.9.0
 {-# INLINE parseBreak #-}
 parseBreak :: MonadThrow m => Parser m a b -> Stream m a -> m (b, Stream m a)
 parseBreak p strm = fmap f $ K.parseBreak (PRD.fromParserK p) (toStreamK strm)
@@ -276,7 +273,6 @@ parseBreak p strm = fmap f $ K.parseBreak (PRD.fromParserK p) (toStreamK strm)
 -- >>> Stream.isPrefixOf (Stream.fromList "hello") (Stream.fromList "hello" :: Stream IO Char)
 -- True
 --
--- @since 0.9.0
 {-# INLINE isPrefixOf #-}
 isPrefixOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
 isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
@@ -342,7 +338,6 @@ isSuffixOf suffix stream = reverse suffix `isPrefixOf` reverse stream
 -- >>> Stream.isSubsequenceOf (Stream.fromList "hlo") (Stream.fromList "hello" :: Stream IO Char)
 -- True
 --
--- @since 0.9.0
 {-# INLINE isSubsequenceOf #-}
 isSubsequenceOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
 isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
@@ -360,7 +355,6 @@ isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 --
 -- Space: @O(1)@
 --
--- @since 0.9.0
 {-# INLINE stripPrefix #-}
 stripPrefix
     :: (Monad m, Eq a)
@@ -376,7 +370,7 @@ stripPrefix m1 m2 = fmap fromStreamD <$>
 -- stripSuffix on that especially if the elements have a Storable or Prim
 -- instance.
 --
--- See also "Streamly.Internal.Data.Stream.Nesting.dropSuffix".
+-- See also "Streamly.Internal.Data.Stream.Reduce.dropSuffix".
 --
 -- Space: @O(n)@, buffers the entire input stream as well as the suffix
 --

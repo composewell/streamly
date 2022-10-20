@@ -219,9 +219,6 @@ splice arr1 arr2 =
 -- allocated to size N, if the list terminates before N elements then the
 -- array may hold less than N elements.
 --
--- /Since 0.7.0 (Streamly.Memory.Array)/
---
--- @since 0.8.0
 {-# INLINABLE fromListN #-}
 fromListN :: Unboxed a => Int -> [a] -> Array a
 fromListN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListN n xs
@@ -237,9 +234,6 @@ fromListRevN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRevN n xs
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
--- /Since 0.7.0 (Streamly.Memory.Array)/
---
--- @since 0.8.0
 {-# INLINE fromList #-}
 fromList :: Unboxed a => [a] -> Array a
 fromList xs = unsafePerformIO $ unsafeFreeze <$> MA.fromList xs
@@ -326,7 +320,6 @@ unsafeIndex i arr = let !r = unsafeInlineIO $ unsafeIndexIO i arr in r
 
 -- | /O(1)/ Get the byte length of the array.
 --
--- @since 0.7.0
 {-# INLINE byteLength #-}
 byteLength :: Array a -> Int
 byteLength = MA.byteLength . unsafeThaw
@@ -334,16 +327,12 @@ byteLength = MA.byteLength . unsafeThaw
 -- | /O(1)/ Get the length of the array i.e. the number of elements in the
 -- array.
 --
--- /Since 0.7.0 (Streamly.Memory.Array)/
---
--- @since 0.8.0
 {-# INLINE length #-}
 length :: Unboxed a => Array a -> Int
 length arr = MA.length (unsafeThaw arr)
 
 -- | Unfold an array into a stream in reverse order.
 --
--- @since 0.9.0
 {-# INLINE_NORMAL readerRev #-}
 readerRev :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
 readerRev = Unfold.lmap unsafeThaw $ MA.readerRevWith (return . unsafeInlineIO)
@@ -412,7 +401,6 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
 --
--- @since 0.7.0
 splitAt :: Unboxed a => Int -> Array a -> (Array a, Array a)
 splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
   where
@@ -438,9 +426,6 @@ toListFB c n Array{..} = go arrStart
 
 -- | Convert an 'Array' into a list.
 --
--- /Since 0.7.0 (Streamly.Memory.Array)/
---
--- @since 0.8.0
 {-# INLINE toList #-}
 toList :: Unboxed a => Array a -> [a]
 toList s = build (\c n -> toListFB c n s)
@@ -452,9 +437,6 @@ toList s = build (\c n -> toListFB c n s)
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
--- /Since 0.7.0 (Streamly.Memory.Array)/
---
--- @since 0.8.0
 {-# INLINE_NORMAL writeN #-}
 writeN :: forall m a. (MonadIO m, Unboxed a) => Int -> Fold m a (Array a)
 writeN = fmap unsafeFreeze . MA.writeN
@@ -475,7 +457,6 @@ writeNAligned alignSize = fmap unsafeFreeze . MA.writeNAligned alignSize
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
--- @since 0.7.0
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: forall m a. (MonadIO m, Unboxed a)
     => Int -> Fold m a (Array a)
@@ -491,9 +472,6 @@ writeWith elemCount = unsafeFreeze <$> MA.writeWith elemCount
 --
 -- /Caution! Do not use this on infinite streams./
 --
--- /Since 0.7.0 (Streamly.Memory.Array)/
---
--- @since 0.8.0
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Unboxed a) => Fold m a (Array a)
 write = fmap unsafeFreeze MA.write

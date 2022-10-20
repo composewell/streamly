@@ -567,7 +567,6 @@ parallel = concatListWith eager
 --
 -- >>> parallelFst = Async.concatListWith (Async.eager . Async.stopWhen Async.FirstStops)
 --
--- /Pre-release/
 {-# INLINE parallelFst #-}
 parallelFst :: MonadAsync m => [Stream m a] -> Stream m a
 parallelFst = concatListWith (eager . stopWhen FirstStops)
@@ -577,7 +576,6 @@ parallelFst = concatListWith (eager . stopWhen FirstStops)
 --
 -- >>> parallelMin = Async.concatListWith (Async.eager . Async.stopWhen Async.AnyStops)
 --
--- /Pre-release/
 {-# INLINE parallelMin #-}
 parallelMin :: MonadAsync m => [Stream m a] -> Stream m a
 parallelMin = concatListWith (eager . stopWhen AnyStops)

@@ -59,9 +59,6 @@ import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> Stream.fold Fold.toList (Stream.getZipStream s)
 -- [(1,3,5),(2,4,6)]
 --
--- /Since: 0.2.0 ("Streamly")/
---
--- @since 0.8.0
 newtype ZipStream m a = ZipStream {getZipStream :: Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
@@ -88,9 +85,6 @@ type ZipSerialM = ZipStream
 
 -- | An IO stream whose applicative instance zips streams serially.
 --
--- /Since: 0.2.0 ("Streamly")/
---
--- @since 0.8.0
 type ZipSerial = ZipSerialM IO
 
 instance Monad m => Applicative (ZipStream m) where
