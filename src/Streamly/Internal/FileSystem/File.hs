@@ -81,6 +81,16 @@ module Streamly.Internal.FileSystem.File
     -- , appendShared
     , appendArray
     , appendChunks
+
+    -- * Deprecated
+    , readWithBufferOf
+    , readChunksWithBufferOf
+    , readChunksFromToWith
+    , toBytes
+    , toChunks
+    , toChunksWithBufferOf
+    , writeWithBufferOf
+    , fromBytesWithBufferOf
     )
 where
 
@@ -222,6 +232,12 @@ readChunksWith :: (MonadCatch m, MonadAsync m)
 readChunksWith size file =
     withFile file ReadMode (FH.readChunksWith size)
 
+{-# DEPRECATED toChunksWithBufferOf "Please use 'readChunksWith' instead" #-}
+{-# INLINE toChunksWithBufferOf #-}
+toChunksWithBufferOf :: (MonadCatch m, MonadAsync m)
+    => Int -> FilePath -> Stream m (Array Word8)
+toChunksWithBufferOf = readChunksWith
+
 -- XXX read 'Array a' instead of Word8
 --
 -- | @readChunks file@ reads a stream of arrays from file @file@.
@@ -235,6 +251,11 @@ readChunksWith size file =
 readChunks :: (MonadCatch m, MonadAsync m)
     => FilePath -> Stream m (Array Word8)
 readChunks = readChunksWith defaultChunkSize
+
+{-# DEPRECATED toChunks "Please use 'readChunks' instead" #-}
+{-# INLINE toChunks #-}
+toChunks :: (MonadCatch m, MonadAsync m) => FilePath -> Stream m (Array Word8)
+toChunks = readChunks
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -256,6 +277,13 @@ chunkReaderWith :: (MonadCatch m, MonadAsync m)
     => Unfold m (Int, FilePath) (Array Word8)
 chunkReaderWith = usingFile2 FH.chunkReaderWith
 
+{-# DEPRECATED readChunksWithBufferOf
+    "Please use 'chunkReaderWith' instead" #-}
+{-# INLINE readChunksWithBufferOf #-}
+readChunksWithBufferOf :: (MonadCatch m, MonadAsync m)
+    => Unfold m (Int, FilePath) (Array Word8)
+readChunksWithBufferOf = chunkReaderWith
+
 -- | Unfold the tuple @(from, to, bufsize, filepath)@ into a stream
 -- of 'Word8' arrays.
 -- Read requests to the IO device are performed using a buffer of size
@@ -268,6 +296,13 @@ chunkReaderWith = usingFile2 FH.chunkReaderWith
 chunkReaderFromToWith :: (MonadCatch m, MonadAsync m) =>
     Unfold m (Int, Int, Int, FilePath) (Array Word8)
 chunkReaderFromToWith = usingFile3 FH.chunkReaderFromToWith
+
+{-# DEPRECATED readChunksFromToWith
+    "Please use 'chunkReaderFromToWith' instead" #-}
+{-# INLINE readChunksFromToWith #-}
+readChunksFromToWith :: (MonadCatch m, MonadAsync m) =>
+    Unfold m (Int, Int, Int, FilePath) (Array Word8)
+readChunksFromToWith = chunkReaderFromToWith
 
 -- | Unfolds a 'FilePath' into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
@@ -288,6 +323,12 @@ chunkReader = usingFile FH.chunkReader
 readerWith :: (MonadCatch m, MonadAsync m) => Unfold m (Int, FilePath) Word8
 readerWith = usingFile2 FH.readerWith
 
+{-# DEPRECATED readWithBufferOf "Please use 'readerWith' instead" #-}
+{-# INLINE readWithBufferOf #-}
+readWithBufferOf :: (MonadCatch m, MonadAsync m) =>
+    Unfold m (Int, FilePath) Word8
+readWithBufferOf = readerWith
+
 -- | Unfolds a file path into a byte stream. IO requests to the device are
 -- performed in sizes of
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
@@ -306,6 +347,11 @@ reader = UF.many A.reader (usingFile FH.chunkReader)
 {-# INLINE read #-}
 read :: (MonadCatch m, MonadAsync m) => FilePath -> Stream m Word8
 read file = AS.concat $ withFile file ReadMode FH.readChunks
+
+{-# DEPRECATED toBytes "Please use 'read' instead"  #-}
+{-# INLINE toBytes #-}
+toBytes :: (MonadCatch m, MonadAsync m) => FilePath -> Stream m Word8
+toBytes = read
 
 {-
 -- | Generate a stream of elements of the given type from a file 'Handle'. The
@@ -353,6 +399,12 @@ fromChunks = fromChunksMode WriteMode
 fromBytesWith :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> Stream m Word8 -> m ()
 fromBytesWith n file xs = fromChunks file $ AS.arraysOf n xs
+
+{-# DEPRECATED fromBytesWithBufferOf "Please use 'fromBytesWith' instead"  #-}
+{-# INLINE fromBytesWithBufferOf #-}
+fromBytesWithBufferOf :: (MonadAsync m, MonadCatch m)
+    => Int -> FilePath -> Stream m Word8 -> m ()
+fromBytesWithBufferOf = fromBytesWith
 
 -- > write = 'writeWith' defaultChunkSize
 --
@@ -406,6 +458,12 @@ writeWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Fold m Word8 ()
 writeWith n path =
     chunksOf n (writeNUnsafe n) (writeChunks path)
+
+{-# DEPRECATED writeWithBufferOf "Please use 'writeWith' instead"  #-}
+{-# INLINE writeWithBufferOf #-}
+writeWithBufferOf :: (MonadIO m, MonadCatch m)
+    => Int -> FilePath -> Fold m Word8 ()
+writeWithBufferOf = writeWith
 
 -- > write = 'writeWith' A.defaultChunkSize
 --
