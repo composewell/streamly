@@ -220,6 +220,7 @@ replicate n = fromStreamD . D.replicate n
 {-# INLINE_NORMAL replicateM #-}
 replicateM :: Monad m => Int -> m a -> Stream m a
 replicateM n = Stream.take n . repeatM
+
 ------------------------------------------------------------------------------
 -- Time Enumeration
 ------------------------------------------------------------------------------
