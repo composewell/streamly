@@ -129,7 +129,6 @@ bracket3D bef aft onExc onGC =
 -- is executed, if the stream is abandoned @onGC@ is executed, if the stream
 -- encounters an exception @onException@ is executed.
 --
--- /Pre-release/
 {-# INLINE bracket' #-}
 bracket' :: (MonadRunInIO m, MonadCatch m)
     => m b
@@ -162,7 +161,6 @@ bracket' bef aft gc exc bet = fromStreamD $
 --
 -- /Inhibits stream fusion/
 --
--- @since 0.9.0
 {-# INLINE bracket #-}
 bracket :: (MonadRunInIO m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
@@ -181,7 +179,6 @@ bracket bef aft = bracket' bef aft aft aft
 --
 -- /Inhibits stream fusion/
 --
--- @since 0.9.0
 {-# INLINE finally #-}
 finally :: (MonadRunInIO m, MonadCatch m) =>
     m b -> Stream m a -> Stream m a
@@ -215,7 +212,6 @@ afterD action (D.Stream step state) = D.Stream step' Nothing
 --
 -- /See also 'after_'/
 --
--- @since 0.9.0
 {-# INLINE after #-}
 after :: MonadRunInIO m => m b -> Stream m a -> Stream m a
 after action xs = fromStreamD $ afterD action $ toStreamD xs

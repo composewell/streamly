@@ -46,7 +46,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- >>> before action xs = Stream.nilM action <> xs
 -- >>> before action xs = Stream.concatMap (const xs) (Stream.fromEffect action)
 --
--- @since 0.9.0
 {-# INLINE before #-}
 before :: Monad m => m b -> Stream m a -> Stream m a
 before action xs = fromStreamD $ D.before action $ toStreamD xs
@@ -85,7 +84,6 @@ afterIO action xs = fromStreamD $ D.after action $ toStreamD xs
 --
 -- /Inhibits stream fusion/
 --
--- @since 0.9.0
 {-# INLINE onException #-}
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
 onException action xs = fromStreamD $ D.onException action $ toStreamD xs
@@ -212,7 +210,6 @@ ghandle handler =
 --
 -- /Inhibits stream fusion/
 --
--- @since 0.9.0
 {-# INLINE handle #-}
 handle :: (MonadCatch m, Exception e)
     => (e -> Stream m a) -> Stream m a -> Stream m a

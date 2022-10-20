@@ -154,7 +154,6 @@ acceptorOnAddrWith opts = UF.lmap f acceptor
 -- @ipAddr@ is the local IP address and @port@ is the local port on which
 -- connections are accepted.
 --
--- @since 0.9.0
 {-# INLINE acceptorOnAddr #-}
 acceptorOnAddr
     :: MonadIO m
@@ -173,7 +172,6 @@ acceptorOnPortWith opts = UF.first (0,0,0,0) (acceptorOnAddrWith opts)
 --
 -- > acceptorOnPort = UF.first acceptorOnAddr (0,0,0,0)
 --
--- @since 0.9.0
 {-# INLINE acceptorOnPort #-}
 acceptorOnPort :: MonadIO m => Unfold m PortNumber Socket
 acceptorOnPort = UF.first (0,0,0,0) acceptorOnAddr
@@ -184,7 +182,6 @@ acceptorOnPort = UF.first (0,0,0,0) acceptorOnAddr
 --
 -- > acceptorOnPortLocal = UF.first acceptorOnAddr (127,0,0,1)
 --
--- @since 0.9.0
 {-# INLINE acceptorOnPortLocal #-}
 acceptorOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
 acceptorOnPortLocal = UF.first (127,0,0,1) acceptorOnAddr
@@ -250,7 +247,6 @@ acceptOnPortLocal = acceptOnAddr (127,0,0,1)
 -- | Connect to the specified IP address and port number. Returns a connected
 -- socket or throws an exception.
 --
--- @since 0.7.0
 connect :: (Word8, Word8, Word8, Word8) -> PortNumber -> IO Socket
 connect addr port = do
     sock <- socket AF_INET Stream defaultProtocol
@@ -314,7 +310,6 @@ withConnection addr port = S.bracketIO (connect addr port) Net.close
 
 -- | Read a stream from the supplied IPv4 host address and port number.
 --
--- @since 0.9.0
 {-# INLINE reader #-}
 reader :: (MonadCatch m, MonadAsync m)
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
@@ -350,7 +345,6 @@ putChunks addr port xs =
 -- | Write a stream of arrays to the supplied IPv4 host address and port
 -- number.
 --
--- @since 0.7.0
 {-# INLINE writeChunks #-}
 writeChunks
     :: (MonadIO m, MonadCatch m)
@@ -393,7 +387,6 @@ putBytesWithBufferOf n addr port m = putChunks addr port $ AS.arraysOf n m
 -- be written to the IO device as soon as we collect the specified number of
 -- input elements.
 --
--- @since 0.7.0
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf
     :: (MonadIO m, MonadCatch m)
@@ -414,7 +407,6 @@ putBytes = putBytesWithBufferOf defaultChunkSize
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
--- @since 0.7.0
 {-# INLINE write #-}
 write :: (MonadIO m, MonadCatch m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> Fold m Word8 ()

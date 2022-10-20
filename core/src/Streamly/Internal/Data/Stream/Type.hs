@@ -98,7 +98,6 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 -- :}
 -- [(1,3),(1,4),(2,3),(2,4)]
 --
--- @since 0.9.0
 newtype Stream m a = Stream (K.Stream m a)
     -- XXX when deriving do we inherit an INLINE?
     deriving (Semigroup, Monoid, MonadTrans)
@@ -129,7 +128,6 @@ toStreamD = D.fromStreamK . toStreamK
 
 -- | Compare two streams for equality
 --
--- @since 0.9.0
 {-# INLINE eqBy #-}
 eqBy :: Monad m =>
     (a -> b -> Bool) -> Stream m a -> Stream m b -> m Bool
@@ -137,7 +135,6 @@ eqBy f m1 m2 = D.eqBy f (toStreamD m1) (toStreamD m2)
 
 -- | Compare two streams
 --
--- @since 0.9.0
 {-# INLINE cmpBy #-}
 cmpBy
     :: Monad m
@@ -424,8 +421,6 @@ infixr 5 `cons`
 --
 -- /Not fused/
 --
--- @since 0.9.0
---
 {-# INLINE_NORMAL cons #-}
 cons ::  a -> Stream m a -> Stream m a
 cons x = fromStreamK . K.cons x . toStreamK
@@ -450,8 +445,6 @@ infixr 5 `consM`
 --
 -- /Not fused/
 --
--- @since 0.9.0
---
 {-# INLINE consM #-}
 {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
 consM :: Monad m => m a -> Stream m a -> Stream m a
@@ -462,7 +455,6 @@ consM m = fromStreamK . K.consM m . toStreamK
 -- >>> Stream.fold Fold.toList Stream.nil
 -- []
 --
--- @since 0.9.0
 {-# INLINE_NORMAL nil #-}
 nil ::  Stream m a
 nil = fromStreamK K.nil
@@ -484,7 +476,6 @@ nilM = fromStreamK . K.nilM
 -- >>> fromPure = pure
 -- >>> fromPure = fromEffect . pure
 --
--- @since 0.9.0
 {-# INLINE_NORMAL fromPure #-}
 fromPure :: a -> Stream m a
 fromPure = fromStreamK . K.fromPure
@@ -497,7 +488,6 @@ fromPure = fromStreamK . K.fromPure
 -- >>> Stream.fold Fold.drain $ Stream.fromEffect (putStrLn "hello")
 -- hello
 --
--- @since 0.9.0
 {-# INLINE_NORMAL fromEffect #-}
 fromEffect :: Monad m => m a -> Stream m a
 fromEffect = fromStreamK . K.fromEffect
@@ -526,7 +516,6 @@ bindWith par m1 f =
 --
 -- Note we can merge streams concurrently by using a concurrent merge function.
 --
--- @since 0.9.0
 {-# INLINE concatMapWith #-}
 concatMapWith
     :: (Stream m b -> Stream m b -> Stream m b)

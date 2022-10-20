@@ -318,8 +318,6 @@ instance Monad m => Alternative (Parser m a) where
 -- | 'mzero' is same as 'empty', it aborts the parser. 'mplus' is same as
 -- '<|>', it selects the first succeeding parser.
 --
--- /Pre-release/
---
 instance Monad m => MonadPlus (Parser m a) where
     {-# INLINE mzero #-}
     mzero = die "mzero"

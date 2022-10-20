@@ -23,7 +23,6 @@ import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- 'Applicative', 'Semigroup', 'Monoid', 'Num', 'Floating' and 'Fractional'
 -- instances.
 --
--- @since 0.8.0
 newtype Tee m a b =
     Tee { toFold :: Fold m a b }
     deriving (Functor)

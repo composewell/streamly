@@ -118,7 +118,6 @@ import Prelude hiding (read)
 
 -- | Same as 'reader'
 --
--- @since 0.7.0
 {-# DEPRECATED read "Please use 'reader' instead" #-}
 {-# INLINE read #-}
 read :: MonadIO m => Unfold m Handle Word8
@@ -126,7 +125,6 @@ read = reader
 
 -- | Same as 'chunkReader'
 --
--- @since 0.7.0
 {-# DEPRECATED readChunks "Please use 'chunkReader' instead" #-}
 {-# INLINE readChunks #-}
 readChunks :: MonadIO m => Unfold m Handle (Array Word8)

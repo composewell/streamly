@@ -469,10 +469,6 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- constructor of this type please consider using the smart constructors in
 -- "Streamly.Internal.Data.Fold" instead.
 --
--- /since 0.8.0 (type changed)/
---
--- @since 0.7.0
-
 data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
   forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b)
@@ -483,7 +479,6 @@ data Fold m a b =
 
 -- | Map a monadic function on the output of a fold.
 --
--- @since 0.8.0
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
 rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
@@ -512,8 +507,6 @@ rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
 --
 -- See also: @Streamly.Prelude.foldl'@
 --
--- @since 0.8.0
---
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Fold m a b
 foldl' step initial =
@@ -533,8 +526,6 @@ foldl' step initial =
 -- @
 --
 -- See also: @Streamly.Prelude.foldlM'@
---
--- @since 0.8.0
 --
 {-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
@@ -571,7 +562,6 @@ foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
 --
 -- See also: 'Streamly.Prelude.foldr'
 --
--- @since 0.8.0
 {-# INLINE foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Fold m a b
 foldr g z = fmap ($ z) $ foldl' (\f x -> f . g x) id
@@ -657,7 +647,6 @@ fromRefold (Refold step inject extract) c =
 --
 -- > drain = drainBy (const (return ()))
 --
--- @since 0.7.0
 {-# INLINE drain #-}
 drain :: Monad m => Fold m a ()
 drain = foldl' (\_ _ -> ()) ()
@@ -670,7 +659,6 @@ drain = foldl' (\_ _ -> ()) ()
 --
 -- > toList = foldr (:) []
 --
--- @since 0.7.0
 {-# INLINE toList #-}
 toList :: Monad m => Fold m a [a]
 toList = foldr (:) []
@@ -758,8 +746,6 @@ data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 -- dipping rapidly compared to a CPS style implementation.
 --
 -- /Time: O(n^2) where n is the number of compositions./
---
--- @since 0.8.0
 --
 {-# INLINE serialWith #-}
 serialWith :: Monad m =>
@@ -853,8 +839,6 @@ data TeeState sL sR bL bR
 -- "Streamly.Internal.Data.Fold.Tee".
 --
 -- See also: "Streamly.Internal.Data.Fold.Tee"
---
--- @since 0.8.0
 --
 {-# INLINE teeWith #-}
 teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
@@ -1064,8 +1048,6 @@ data ConcatMapState m sa a c
 --
 -- See also: 'Streamly.Internal.Data.Stream.foldIterateM', 'refold'
 --
--- @since 0.8.0
---
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (b -> Fold m a c) -> Fold m a b -> Fold m a c
 concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
@@ -1116,7 +1098,6 @@ concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
 --
 -- > lmap = Fold.lmapM return
 --
--- @since 0.8.0
 {-# INLINE lmap #-}
 lmap :: (a -> b) -> Fold m b r -> Fold m a r
 lmap f (Fold step begin done) = Fold step' begin done
@@ -1125,7 +1106,6 @@ lmap f (Fold step begin done) = Fold step' begin done
 
 -- | @lmapM f fold@ maps the monadic function @f@ on the input of the fold.
 --
--- @since 0.8.0
 {-# INLINE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Fold m b r -> Fold m a r
 lmapM f (Fold step begin done) = Fold step' begin done
@@ -1186,7 +1166,6 @@ postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- >>> catMaybes = Fold.mapMaybe id
 -- >>> catMaybes = Fold.filter isJust . Fold.lmap fromJust
 --
--- @since 0.8.0
 {-# INLINE_NORMAL catMaybes #-}
 catMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
 catMaybes (Fold step initial extract) = Fold step1 initial extract
@@ -1226,7 +1205,6 @@ filtering f = foldl' step Nothing
 -- >>> filter p = Fold.filterM (return . p)
 -- >>> filter p = Fold.mapMaybe (\x -> if p x then Just x else Nothing)
 --
--- @since 0.8.0
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
 -- filter p = scanMaybe (filtering p)
@@ -1239,7 +1217,6 @@ filter f (Fold step begin done) = Fold step' begin done
 -- >>> f p x = p x >>= \r -> return $ if r then Just x else Nothing
 -- >>> filterM p = Fold.mapMaybeM (f p)
 --
--- @since 0.8.0
 {-# INLINE filterM #-}
 filterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
 filterM f (Fold step begin done) = Fold step' begin done
@@ -1324,7 +1301,6 @@ dropping n = foldt' step initial extract
 -- >>> Stream.fold (Fold.take 2 Fold.toList) $ Stream.fromList [1..10]
 -- [1,2]
 --
--- @since 0.8.0
 {-# INLINE take #-}
 take :: Monad m => Int -> Fold m a b -> Fold m a b
 -- take n = scanMaybe (taking n)
@@ -1467,8 +1443,6 @@ data ManyState s1 s2
 --
 -- See also: 'Streamly.Prelude.concatMap', 'Streamly.Prelude.foldMany'
 --
--- @since 0.8.0
---
 {-# INLINE many #-}
 many :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
@@ -1578,8 +1552,6 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 -- > chunksOf n split = many (take n split)
 --
 -- Stops when @collect@ stops.
---
--- @since 0.8.0
 --
 {-# INLINE chunksOf #-}
 chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c

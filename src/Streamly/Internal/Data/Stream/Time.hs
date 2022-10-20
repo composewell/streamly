@@ -221,7 +221,6 @@ dropLastInterval = undefined
 -- >>> Stream.toList $ Stream.take 5 $ Stream.intervalsOf 1 Fold.sum $ Stream.constRate 2 $ Stream.enumerateFrom 1
 -- [...,...,...,...,...]
 --
--- @since 0.7.0
 {-# INLINE intervalsOf #-}
 intervalsOf :: MonadAsync m => Double -> Fold m a b -> Stream m a -> Stream m b
 intervalsOf n f xs =

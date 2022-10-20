@@ -196,7 +196,6 @@ producer =
 
 -- | Unfold an array into a stream.
 --
--- @since 0.9.0
 {-# INLINE_NORMAL reader #-}
 reader :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
 reader = Producer.simplify producer
@@ -272,7 +271,6 @@ last = getIndexRev 0
 -- | @writeLastN n@ folds a maximum of @n@ elements from the end of the input
 -- stream to an 'Array'.
 --
--- @since 0.8.0
 {-# INLINE writeLastN #-}
 writeLastN ::
        (Unboxed a, MonadIO m) => Int -> Fold m a (Array a)
@@ -409,7 +407,6 @@ getSlicesFromLen from len =
 --
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
--- @since 0.8.0
 {-# INLINE getIndex #-}
 getIndex :: forall a. Unboxed a => Int -> Array a -> Maybe a
 getIndex i arr =
@@ -473,7 +470,6 @@ getIndicesFromThenTo = undefined
 -- | Transform an array into another array using a pipe transformation
 -- operation.
 --
--- @since 0.7.0
 {-# INLINE runPipe #-}
 runPipe :: (MonadIO m, Unboxed a, Unboxed b)
     => Pipe m a b -> Array a -> m (Array b)
@@ -514,7 +510,6 @@ castUnsafe (Array contents start end) =
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
--- @since 0.8.0
 --
 asBytes :: Array a -> Array Word8
 asBytes = castUnsafe
@@ -523,7 +518,6 @@ asBytes = castUnsafe
 -- type @b@. The length of the array should be a multiple of the size of the
 -- target element otherwise 'Nothing' is returned.
 --
--- @since 0.8.0
 --
 cast :: forall a b. (Unboxed b) => Array a -> Maybe (Array b)
 cast arr =
