@@ -104,7 +104,7 @@ eventMatches ev (expectedPath, f) =
 
     utf8ToString :: Array Word8 -> String
     utf8ToString =
-        runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.toStream
+        runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.read
 
     evPath = utf8ToString (Event.getAbsPath ev)
 

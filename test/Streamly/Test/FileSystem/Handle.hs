@@ -56,7 +56,7 @@ toList = Stream.fold Fold.toList
 
 utf8ToString :: Array.Array Word8 -> String
 utf8ToString =
-    runIdentity . toList . Unicode.decodeUtf8' . Array.toStream
+    runIdentity . toList . Unicode.decodeUtf8' . Array.read
 
 testData :: String
 testData = "This is the test data for FileSystem.Handle ??`!@#$%^&*~~))`]"
@@ -89,7 +89,7 @@ readWithBufferFromHandle =
 readChunksFromHandle :: IO (Stream IO Char)
 readChunksFromHandle =
     let f =   Unicode.decodeUtf8
-            . Stream.concatMap Array.toStream
+            . Stream.concatMap Array.read
             . Stream.unfold Handle.chunkReader
     in executor f
 
@@ -98,7 +98,7 @@ readChunksWithBuffer =
     let f1 = (\h -> (1024, h))
         f2 =
               Unicode.decodeUtf8
-            . Stream.concatMap Array.toStream
+            . Stream.concatMap Array.read
             . Stream.unfold Handle.chunkReaderWith
             . f1
     in executor f2
