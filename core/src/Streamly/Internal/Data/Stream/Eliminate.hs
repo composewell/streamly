@@ -40,6 +40,7 @@ module Streamly.Internal.Data.Stream.Eliminate
     -- the stream one element at a time, and we have the remaining stream all
     -- the time.
     , uncons
+    , init
 
     -- * Right Folds
     , foldrM
@@ -87,7 +88,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 import Streamly.Internal.Data.Stream.Bottom
 import Streamly.Internal.Data.Stream.Type
 
-import Prelude hiding (foldr, reverse)
+import Prelude hiding (foldr, init, reverse)
 
 -- $setup
 -- >>> :m
@@ -131,6 +132,15 @@ import Prelude hiding (foldr, reverse)
 {-# INLINE uncons #-}
 uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
 uncons m = fmap (fmap (fmap fromStreamK)) $ K.uncons (toStreamK m)
+
+-- | Extract all but the last element of the stream, if any.
+--
+-- Note: This will end up buffering the entire stream.
+--
+-- /Pre-release/
+{-# INLINE init #-}
+init :: Monad m => Stream m a -> m (Maybe (Stream m a))
+init m = fmap (fmap fromStreamK) $ K.init $ toStreamK m
 
 ------------------------------------------------------------------------------
 -- Right Folds

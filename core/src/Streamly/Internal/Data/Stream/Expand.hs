@@ -41,6 +41,11 @@ module Streamly.Internal.Data.Stream.Expand
     , interleave
     , interleaveFst
     , interleaveMin
+    , interleaveFstSuffix2
+    , interleaveFst2
+
+    -- ** Round Robin
+    , roundrobin
 
     -- ** Merge
     , mergeBy
@@ -140,6 +145,7 @@ import Prelude hiding (concat, concatMap, zipWith)
 -- >>> :m
 -- >>> import Data.Either (either)
 -- >>> import Data.IORef
+-- >>> import Streamly.Internal.Data.Stream (Stream)
 -- >>> import Prelude hiding (zipWith, concatMap, concat)
 -- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
@@ -226,6 +232,74 @@ interleaveFst s1 s2 =
 interleaveMin :: Stream m a -> Stream m a -> Stream m a
 interleaveMin s1 s2 =
     fromStreamK $ K.interleaveMin (toStreamK s1) (toStreamK s2)
+
+-- | Interleaves the outputs of two streams, yielding elements from each stream
+-- alternately, starting from the first stream. As soon as the first stream
+-- finishes, the output stops, discarding the remaining part of the second
+-- stream. In this case, the last element in the resulting stream would be from
+-- the second stream. If the second stream finishes early then the first stream
+-- still continues to yield elements until it finishes.
+--
+-- >>> :set -XOverloadedStrings
+-- >>> import Data.Functor.Identity (Identity)
+-- >>> Stream.interleaveFstSuffix2 "abc" ",,,," :: Stream Identity Char
+-- fromList "a,b,c,"
+-- >>> Stream.interleaveFstSuffix2 "abc" "," :: Stream Identity Char
+-- fromList "a,bc"
+--
+-- 'interleaveFstSuffix2' is a dual of 'interleaveFst2'.
+--
+-- Do not use at scale in concatMapWith.
+--
+-- /Pre-release/
+{-# INLINE interleaveFstSuffix2 #-}
+interleaveFstSuffix2 :: Monad m => Stream m b -> Stream m b -> Stream m b
+interleaveFstSuffix2 m1 m2 =
+    fromStreamD $ D.interleaveSuffix (toStreamD m1) (toStreamD m2)
+
+-- | Interleaves the outputs of two streams, yielding elements from each stream
+-- alternately, starting from the first stream and ending at the first stream.
+-- If the second stream is longer than the first, elements from the second
+-- stream are infixed with elements from the first stream. If the first stream
+-- is longer then it continues yielding elements even after the second stream
+-- has finished.
+--
+-- >>> :set -XOverloadedStrings
+-- >>> import Data.Functor.Identity (Identity)
+-- >>> Stream.interleaveFst2 "abc" ",,,," :: Stream Identity Char
+-- fromList "a,b,c"
+-- >>> Stream.interleaveFst2 "abc" "," :: Stream Identity Char
+-- fromList "a,bc"
+--
+-- 'interleaveFst2' is a dual of 'interleaveFstSuffix2'.
+--
+-- Do not use at scale in concatMapWith.
+--
+-- /Pre-release/
+{-# INLINE interleaveFst2 #-}
+interleaveFst2 :: Monad m => Stream m b -> Stream m b -> Stream m b
+interleaveFst2 m1 m2 =
+    fromStreamD $ D.interleaveInfix (toStreamD m1) (toStreamD m2)
+
+------------------------------------------------------------------------------
+-- Scheduling
+------------------------------------------------------------------------------
+
+-- | Schedule the execution of two streams in a fair round-robin manner,
+-- executing each stream once, alternately. Execution of a stream may not
+-- necessarily result in an output, a stream may chose to @Skip@ producing an
+-- element until later giving the other stream a chance to run. Therefore, this
+-- combinator fairly interleaves the execution of two streams rather than
+-- fairly interleaving the output of the two streams. This can be useful in
+-- co-operative multitasking without using explicit threads. This can be used
+-- as an alternative to `async`.
+--
+-- Do not use at scale in concatMapWith.
+--
+-- /Pre-release/
+{-# INLINE roundrobin #-}
+roundrobin :: Monad m => Stream m b -> Stream m b -> Stream m b
+roundrobin m1 m2 = fromStreamD $ D.roundRobin (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
 -- Merging (sorted streams)
@@ -361,7 +435,7 @@ unfoldInterleave u m =
 {-# INLINE unfoldRoundRobin #-}
 unfoldRoundRobin ::Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldRoundRobin u m =
-    fromStreamD $ D.unfoldManyInterleave u (toStreamD m)
+    fromStreamD $ D.unfoldManyRoundRobin u (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose
@@ -407,7 +481,7 @@ interposeSuffix x unf str =
 -- > unfoldMany unf str =
 -- >     gintercalate unf str (UF.nilM (\_ -> return ())) (repeat ())
 
--- | 'interleaveInfix' followed by unfold and concat.
+-- | 'interleaveFst' followed by unfold and concat.
 --
 -- /Pre-release/
 {-# INLINE gintercalate #-}
@@ -438,7 +512,7 @@ intercalate :: Monad m
 intercalate unf seed str = fromStreamD $
     D.unfoldMany unf $ D.intersperse seed (toStreamD str)
 
--- | 'interleaveSuffix' followed by unfold and concat.
+-- | 'interleaveFstSuffix2' followed by unfold and concat.
 --
 -- /Pre-release/
 {-# INLINE gintercalateSuffix #-}
