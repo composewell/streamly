@@ -54,7 +54,6 @@ module Streamly.Internal.Data.Stream.Transform
     -- Stateful/scanning filters
     , uniq
     , uniqBy
-    , nubBy
     , prune
     , repeated
 
@@ -62,7 +61,6 @@ module Streamly.Internal.Data.Stream.Transform
     -- | Produce a subset of the stream trimmed at ends.
 
     , take
-    , takeLast
     , takeWhile
     , takeWhileM
     , takeWhileLast
@@ -519,8 +517,6 @@ filterM p m = fromStreamD $ D.filterM p $ toStreamD m
 --
 -- Space: @O(1)@
 --
--- See also: 'nubBy'.
---
 -- /Pre-release/
 --
 {-# INLINE uniqBy #-}
@@ -545,23 +541,6 @@ uniqBy eq = catMaybes . rollingMap f
 uniq :: (Eq a, Monad m) => Stream m a -> Stream m a
 -- uniq = scanMaybe FL.uniq
 uniq = fromStreamD . D.uniq . toStreamD
-
--- We can have more efficient implementations for nubOrd and nubInt by using
--- Set and IntSet to find/remove duplication. For Hashable we can use a
--- hashmap. Use rewrite rules to specialize to more efficient impls.
---
--- | Drop repeated elements anywhere in the stream.
---
--- /Caution: not scalable for infinite streams/
---
--- /See also: nubWindowBy/
---
--- /Unimplemented/
---
-{-# INLINE nubBy #-}
-nubBy :: -- Monad m =>
-    (a -> a -> Bool) -> Stream m a -> Stream m a
-nubBy = undefined -- fromStreamD . D.nubBy . toStreamD
 
 -- | Strip all leading and trailing occurrences of an element passing a
 -- predicate and make all other consecutive occurrences uniq.
@@ -621,21 +600,6 @@ deleteBy cmp x m = fromStreamD $ D.deleteBy cmp x (toStreamD m)
 takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 -- takeWhileM p = scanMaybe (FL.takingEndByM_ (\x -> not <$> p x))
 takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
-
-
--- See the lastN fold for impl hints. Use a Data.Array based ring buffer.
---
--- takeLast n = Stream.concatM . fmap Array.toStream . fold Fold.lastN
---
--- | Take @n@ elements at the end of the stream.
---
--- O(n) space, where n is the number elements taken.
---
--- /Unimplemented/
-{-# INLINE takeLast #-}
-takeLast :: -- Monad m =>
-    Int -> Stream m a -> Stream m a
-takeLast = undefined -- fromStreamD $ D.takeLast n $ toStreamD m
 
 -- | Take all consecutive elements at the end of the stream for which the
 -- predicate is true.

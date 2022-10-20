@@ -135,6 +135,8 @@ uncons m = fmap (fmap (fmap fromStreamK)) $ K.uncons (toStreamK m)
 
 -- | Extract all but the last element of the stream, if any.
 --
+-- Note: This will end up buffering the entire stream.
+--
 -- /Pre-release/
 {-# INLINE init #-}
 init :: Monad m => Stream m a -> m (Maybe (Stream m a))

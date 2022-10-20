@@ -38,11 +38,7 @@ module Streamly.Internal.Data.Stream.Reduce
     -- | Element unaware grouping.
     , arraysOf
 
-    -- | Element aware grouping
-    , wordsOn
-
-
-    -- ** Spilitting
+    -- ** Splitting
     -- XXX Implement these as folds or parsers instead.
     , splitOnSuffixSeqAny
     , splitOnPrefix
@@ -437,13 +433,3 @@ parseIterate f i m = fromStreamD $
 arraysOf :: (MonadIO m, Unboxed a)
     => Int -> Stream m a -> Stream m (Array a)
 arraysOf n = fromStreamD . Array.arraysOf n . toStreamD
-
--- Implement this as a fold or a parser instead.
--- | Like 'splitOn' but drops any empty splits.
---
--- /Unimplemented/
-{-# INLINE wordsOn #-}
-wordsOn :: -- (Monad m, Unboxed a, Eq a) =>
-    Array a -> Fold m a b -> Stream m a -> Stream m b
-wordsOn _subseq _f _m =
-    undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStreamD m)

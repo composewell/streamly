@@ -906,7 +906,6 @@ sampleBurstEnd = sampleBurst True
 sampleBurstStart :: MonadAsync m => Double -> Stream m a -> Stream m a
 sampleBurstStart = sampleBurst False
 
-
 ------------------------------------------------------------------------------
 -- Lossy Buffering
 ------------------------------------------------------------------------------

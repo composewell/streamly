@@ -41,8 +41,8 @@ module Streamly.Internal.Data.Stream.Expand
     , interleave
     , interleaveFst
     , interleaveMin
-    , interleaveSuffix
-    , interleaveInfix
+    , interleaveFstSuffix2
+    , interleaveFst2
 
     -- ** Round Robin
     , roundrobin
@@ -242,19 +242,19 @@ interleaveMin s1 s2 =
 --
 -- >>> :set -XOverloadedStrings
 -- >>> import Data.Functor.Identity (Identity)
--- >>> Stream.interleaveSuffix "abc" ",,,," :: Stream Identity Char
+-- >>> Stream.interleaveFstSuffix2 "abc" ",,,," :: Stream Identity Char
 -- fromList "a,b,c,"
--- >>> Stream.interleaveSuffix "abc" "," :: Stream Identity Char
+-- >>> Stream.interleaveFstSuffix2 "abc" "," :: Stream Identity Char
 -- fromList "a,bc"
 --
--- 'interleaveSuffix' is a dual of 'interleaveInfix'.
+-- 'interleaveFstSuffix2' is a dual of 'interleaveFst2'.
 --
 -- Do not use at scale in concatMapWith.
 --
 -- /Pre-release/
-{-# INLINE interleaveSuffix #-}
-interleaveSuffix :: Monad m => Stream m b -> Stream m b -> Stream m b
-interleaveSuffix m1 m2 =
+{-# INLINE interleaveFstSuffix2 #-}
+interleaveFstSuffix2 :: Monad m => Stream m b -> Stream m b -> Stream m b
+interleaveFstSuffix2 m1 m2 =
     fromStreamD $ D.interleaveSuffix (toStreamD m1) (toStreamD m2)
 
 -- | Interleaves the outputs of two streams, yielding elements from each stream
@@ -266,19 +266,19 @@ interleaveSuffix m1 m2 =
 --
 -- >>> :set -XOverloadedStrings
 -- >>> import Data.Functor.Identity (Identity)
--- >>> Stream.interleaveInfix "abc" ",,,," :: Stream Identity Char
+-- >>> Stream.interleaveFst2 "abc" ",,,," :: Stream Identity Char
 -- fromList "a,b,c"
--- >>> Stream.interleaveInfix "abc" "," :: Stream Identity Char
+-- >>> Stream.interleaveFst2 "abc" "," :: Stream Identity Char
 -- fromList "a,bc"
 --
--- 'interleaveInfix' is a dual of 'interleaveSuffix'.
+-- 'interleaveFst2' is a dual of 'interleaveFstSuffix2'.
 --
 -- Do not use at scale in concatMapWith.
 --
 -- /Pre-release/
-{-# INLINE interleaveInfix #-}
-interleaveInfix :: Monad m => Stream m b -> Stream m b -> Stream m b
-interleaveInfix m1 m2 =
+{-# INLINE interleaveFst2 #-}
+interleaveFst2 :: Monad m => Stream m b -> Stream m b -> Stream m b
+interleaveFst2 m1 m2 =
     fromStreamD $ D.interleaveInfix (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
@@ -481,7 +481,7 @@ interposeSuffix x unf str =
 -- > unfoldMany unf str =
 -- >     gintercalate unf str (UF.nilM (\_ -> return ())) (repeat ())
 
--- | 'interleaveInfix' followed by unfold and concat.
+-- | 'interleaveFst' followed by unfold and concat.
 --
 -- /Pre-release/
 {-# INLINE gintercalate #-}
@@ -512,7 +512,7 @@ intercalate :: Monad m
 intercalate unf seed str = fromStreamD $
     D.unfoldMany unf $ D.intersperse seed (toStreamD str)
 
--- | 'interleaveSuffix' followed by unfold and concat.
+-- | 'interleaveFstSuffix2' followed by unfold and concat.
 --
 -- /Pre-release/
 {-# INLINE gintercalateSuffix #-}
