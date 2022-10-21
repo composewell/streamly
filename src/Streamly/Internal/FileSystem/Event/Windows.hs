@@ -101,7 +101,7 @@ import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Storable (peekByteOff)
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr, nullFunPtr, plusPtr)
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Prelude (parallel)
+import Streamly.Internal.Data.Stream.Concurrent (eager)
 import System.Win32.File
     ( FileNotificationFlag
     , LPOVERLAPPED
@@ -126,6 +126,7 @@ import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.Unicode.Utf8 as UTF8
 import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
 import Streamly.Internal.Data.Array.Unboxed (Array)
 
 -- | Watch configuration, used to specify the events of interest and the
@@ -478,7 +479,7 @@ closePathHandleStream =
 --
 watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
 watchWith f paths =
-     S.bracket before after (S.concatMapWith parallel eventStreamAggr)
+     S.bracket before after (Concur.concatMapWith eager eventStreamAggr)
 
     where
 
