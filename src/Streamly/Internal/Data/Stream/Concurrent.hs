@@ -98,15 +98,18 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** Reactive
     , fromCallback
+    , pollCountsD
+    , pollCounts
     )
 where
 
 #include "inline.hs"
 
-import Control.Concurrent (myThreadId)
-import Control.Monad (void)
+import Control.Concurrent (myThreadId, killThread)
+import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
+import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (modifyThread)
 import Streamly.Internal.Data.Stream.Channel.Types
     ( ChildEvent(..)
@@ -114,8 +117,11 @@ import Streamly.Internal.Data.Stream.Channel.Types
     )
 import Streamly.Internal.Data.Stream.Channel.Worker (sendWithDoorBell)
 import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD (Step(..))
 
+import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
@@ -695,3 +701,65 @@ fromCallback setCallback = Stream.concatM $ do
     (callback, stream) <- newCallbackStream
     setCallback callback
     return stream
+
+{-# INLINE_NORMAL pollCountsD #-}
+pollCountsD
+    :: MonadAsync m
+    => (a -> Bool)
+    -> (D.Stream m Int -> m b)
+    -> D.Stream m a
+    -> D.Stream m a
+pollCountsD predicate fld (D.Stream step state) = D.Stream step' Nothing
+  where
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        -- As long as we are using an "Int" for counts lockfree reads from
+        -- Var should work correctly on both 32-bit and 64-bit machines.
+        -- However, an Int on a 32-bit machine may overflow quickly.
+        countVar <- liftIO $ Unboxed.newIORef (0 :: Int)
+        tid <- forkManaged
+            $ void $ fld
+            $ Unboxed.toStreamD countVar
+        return $ Skip (Just (countVar, tid, state))
+
+    step' gst (Just (countVar, tid, st)) = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                when (predicate x)
+                    $ liftIO $ Unboxed.modifyIORef' countVar (+ 1)
+                return $ Yield x (Just (countVar, tid, s))
+            Skip s -> return $ Skip (Just (countVar, tid, s))
+            Stop -> do
+                liftIO $ killThread tid
+                return Stop
+
+-- | @pollCounts predicate transform fold stream@ counts those elements in the
+-- stream that pass the @predicate@. The resulting count stream is sent to
+-- another thread which transforms it using @transform@ and then folds it using
+-- @fold@.  The thread is automatically cleaned up if the stream stops or
+-- aborts due to exception.
+--
+-- For example, to print the count of elements processed every second:
+--
+-- @
+-- > Stream.drain $ Concur.pollCounts (const True) (Stream.rollingMap (-) . Stream.delayPost 1) (Fold.drainBy print)
+--           $ Stream.enumerateFrom 0
+-- @
+--
+-- Note: This may not work correctly on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE pollCounts #-}
+pollCounts ::
+       (MonadAsync m)
+    => (a -> Bool)
+    -> (Stream m Int -> m b)
+    -> Stream m a
+    -> Stream m a
+pollCounts predicate f xs =
+      Stream.fromStreamD
+    $ pollCountsD predicate (f . Stream.fromStreamD)
+    $ Stream.toStreamD xs

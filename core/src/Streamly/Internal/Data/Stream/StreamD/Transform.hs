@@ -27,7 +27,6 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Mapping Effects
     , tap
     , tapOffsetEvery
-    , pollCounts
 
     -- * Folding
     , foldrS
@@ -124,23 +123,18 @@ where
 
 #include "inline.hs"
 
-import Control.Concurrent (killThread)
-import Control.Monad (void, when)
-import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad (void)
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Maybe (fromJust, isJust)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 
-import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.SVar.Type (defState, adaptState)
 
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 
 import Prelude hiding
@@ -324,39 +318,6 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
                   Yield x s -> Yield x (TapOffDone s)
                   Skip s -> Skip (TapOffDone s)
                   Stop -> Stop
-
-{-# INLINE_NORMAL pollCounts #-}
-pollCounts
-    :: MonadAsync m
-    => (a -> Bool)
-    -> (Stream m Int -> m b)
-    -> Stream m a
-    -> Stream m a
-pollCounts predicate fld (Stream step state) = Stream step' Nothing
-  where
-
-    {-# INLINE_LATE step' #-}
-    step' _ Nothing = do
-        -- As long as we are using an "Int" for counts lockfree reads from
-        -- Var should work correctly on both 32-bit and 64-bit machines.
-        -- However, an Int on a 32-bit machine may overflow quickly.
-        countVar <- liftIO $ Unboxed.newIORef (0 :: Int)
-        tid <- forkManaged
-            $ void $ fld
-            $ Unboxed.toStreamD countVar
-        return $ Skip (Just (countVar, tid, state))
-
-    step' gst (Just (countVar, tid, st)) = do
-        r <- step gst st
-        case r of
-            Yield x s -> do
-                when (predicate x)
-                    $ liftIO $ Unboxed.modifyIORef' countVar (+ 1)
-                return $ Yield x (Just (countVar, tid, s))
-            Skip s -> return $ Skip (Just (countVar, tid, s))
-            Stop -> do
-                liftIO $ killThread tid
-                return Stop
 
 ------------------------------------------------------------------------------
 -- Scanning with a Fold

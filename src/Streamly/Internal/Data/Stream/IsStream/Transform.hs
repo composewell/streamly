@@ -253,10 +253,11 @@ import Streamly.Internal.Data.SVar (Rate(..))
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
 
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-    (transform, foldrT, tap, tapOffsetEvery, pollCounts, mapM, scanOnce
+    (transform, foldrT, tap, tapOffsetEvery, mapM, scanOnce
     , scanMany, postscanOnce, scanlx', scanlM', scanl', postscanl', prescanl'
     , prescanlM', scanl1M', scanl1', filter, filterM, uniq, deleteBy, takeWhileM
     , dropWhile, dropWhileM, insertBy, intersperse
@@ -582,7 +583,7 @@ pollCounts ::
     -> t m a
 pollCounts predicate f xs =
       fromStreamD
-    $ D.pollCounts predicate (f . fromStreamD)
+    $ Concur.pollCountsD predicate (f . fromStreamD)
     $ toStreamD xs
 
 -- | Apply a monadic function to each element flowing through the stream and
