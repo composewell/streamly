@@ -49,7 +49,6 @@ data GbracketState s1 s2 v
 -- * alloc action @m c@ runs with async exceptions enabled
 -- * cleanup action @c -> m d@ won't run if the stream is garbage collected
 --   after partial evaluation.
--- * does not require a 'MonadAsync' constraint.
 --
 -- /Inhibits stream fusion/
 --

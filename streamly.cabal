@@ -366,6 +366,7 @@ library
 
                      -- Exposed modules
                      , Streamly.Data.Stream.Concurrent
+                     , Streamly.Data.Stream.Exception
 
                      -- Network/IO
                      , Streamly.Network.Socket

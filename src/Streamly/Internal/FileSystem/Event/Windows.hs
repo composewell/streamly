@@ -90,7 +90,6 @@ module Streamly.Internal.FileSystem.Event.Windows
     )
 where
 
-import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Bits ((.|.), (.&.), complement)
 import Data.Char (ord)
 import Data.Functor.Identity (runIdentity)
@@ -479,12 +478,12 @@ closePathHandleStream =
 --
 watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
 watchWith f paths =
-     S.bracket before after (Concur.concatMapWith eager eventStreamAggr)
+     S.bracketIO before after (Concur.concatMapWith eager eventStreamAggr)
 
     where
 
     before = return $ pathsToHandles (utf8ToStringList paths) $ f defaultConfig
-    after = liftIO . closePathHandleStream
+    after = closePathHandleStream
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --

@@ -437,9 +437,9 @@ module Streamly.Data.Stream
     -- | 'bracket' is the most general resource management operation, all other
     -- operations can be expressed using it.
     , before
-    , after
-    , finally
-    , bracket
+    , afterIO
+    , finallyIO
+    , bracketIO
 
     -- * Lifting Inner Monad
     -- | See also: "Streamly.Internal.Data.Stream.Lift" for
