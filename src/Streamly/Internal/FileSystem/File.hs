@@ -119,7 +119,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Unfold as UF (bracket)
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
-import qualified Streamly.Data.Stream as S (fold, bracket, mapM)
+import qualified Streamly.Data.Stream as S (fold, bracketIO, mapM)
 
 -------------------------------------------------------------------------------
 -- References
@@ -150,7 +150,7 @@ import qualified Streamly.Data.Stream as S (fold, bracket, mapM)
 {-# INLINE withFile #-}
 withFile :: (MonadCatch m, MonadAsync m)
     => FilePath -> IOMode -> (Handle -> Stream m a) -> Stream m a
-withFile file mode = S.bracket (liftIO $ openFile file mode) (liftIO . hClose)
+withFile file mode = S.bracketIO (openFile file mode) hClose
 
 -- | Transform an 'Unfold' from a 'Handle' to an unfold from a 'FilePath'.  The
 -- resulting unfold opens a handle in 'ReadMode', uses it using the supplied

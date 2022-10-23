@@ -35,16 +35,19 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import qualified Streamly.Internal.Data.Stream.StreamD.Exception as D
     ( before
     , after_
-    , after
     , onException
     , bracket_
-    , bracket'
     , finally_
-    , finally
     , ghandle
     , handle
     , retry
     )
+
+import qualified Streamly.Internal.Data.Stream.Exception.Lifted as D
+    ( afterD
+    , bracket3D
+    )
+
 
 -- $setup
 -- >>> :m
@@ -98,7 +101,7 @@ after_ action xs = fromStreamD $ D.after_ action $ toStreamD xs
 {-# INLINE after #-}
 after :: (IsStream t, MonadRunInIO m)
     => m b -> t m a -> t m a
-after action xs = fromStreamD $ D.after action $ toStreamD xs
+after action xs = fromStreamD $ D.afterD action $ toStreamD xs
 
 -- | Run the action @m b@ if the stream aborts due to an exception. The
 -- exception is not caught, simply rethrown.
@@ -132,10 +135,6 @@ finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 -- The semantics of running the action @m b@ are similar to the cleanup action
 -- semantics described in 'bracket'.
 --
--- @
--- finally release = bracket (return ()) (const release)
--- @
---
 -- /See also 'finally_'/
 --
 -- /Inhibits stream fusion/
@@ -144,7 +143,7 @@ finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 --
 {-# INLINE finally #-}
 finally :: (IsStream t, MonadAsync m, MonadCatch m) => m b -> t m a -> t m a
-finally action xs = fromStreamD $ D.finally action $ toStreamD xs
+finally action xs = bracket (return ()) (const action) (const xs)
 
 -- | Like 'bracket' but with following differences:
 --
@@ -207,7 +206,7 @@ bracket bef aft = bracket' bef aft aft aft
 bracket' :: (IsStream t, MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> m d) -> (b -> m e) -> (b -> t m a) -> t m a
 bracket' bef aft gc exc bet = fromStreamD $
-    D.bracket' bef aft exc gc (toStreamD . bet)
+    D.bracket3D bef aft exc gc (toStreamD . bet)
 
 -- | Like 'handle' but the exception handler is also provided with the stream
 -- that generated the exception as input. The exception handler can thus

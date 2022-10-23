@@ -918,7 +918,7 @@ watchToStream cfg wt@(Watch handle _) = do
 -- /Pre-release/
 --
 watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
-watchWith f paths = S.bracket before after (watchToStream cfg)
+watchWith f paths = S.bracketIO before after (watchToStream cfg)
 
     where
 

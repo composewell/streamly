@@ -10,16 +10,12 @@ module Streamly.Internal.Data.Stream.Exception
     (
       before
     , after_
-    , after
     , afterIO
     , bracket_
-    , bracket
     , bracketIO
-    , bracket'
     , bracket3IO
     , onException
     , finally_
-    , finally
     , finallyIO
     , ghandle
     , handle
@@ -30,7 +26,6 @@ where
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Map.Strict (Map)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
@@ -73,20 +68,6 @@ before action xs = fromStreamD $ D.before action $ toStreamD xs
 after_ :: Monad m => m b -> Stream m a -> Stream m a
 after_ action xs = fromStreamD $ D.after_ action $ toStreamD xs
 
--- | Run the action @m b@ whenever the stream @Stream m a@ stops normally, or
--- if it is garbage collected after a partial lazy evaluation.
---
--- The semantics of the action @m b@ are similar to the semantics of cleanup
--- action in 'bracket'.
---
--- /See also 'after_'/
---
--- @since 0.9.0
-{-# INLINE after #-}
-after :: (MonadIO m, MonadBaseControl IO m)
-    => m b -> Stream m a -> Stream m a
-after action xs = fromStreamD $ D.after action $ toStreamD xs
-
 -- | Run the action @IO b@ whenever the stream stream stops normally, or
 -- if it is garbage collected after a partial lazy evaluation.
 --
@@ -96,8 +77,8 @@ after action xs = fromStreamD $ D.after action $ toStreamD xs
 -- /See also 'after_'/
 --
 {-# INLINE afterIO #-}
-afterIO :: IO b -> Stream IO a -> Stream IO a
-afterIO = after
+afterIO :: MonadIO m => IO b -> Stream m a -> Stream m a
+afterIO action xs = fromStreamD $ D.after action $ toStreamD xs
 
 -- | Run the action @m b@ if the stream aborts due to an exception. The
 -- exception is not caught, simply rethrown.
@@ -123,25 +104,6 @@ onException action xs = fromStreamD $ D.onException action $ toStreamD xs
 finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
 finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 
--- | Run the action @m b@ whenever the stream @Stream m a@ stops normally,
--- aborts due to an exception or if it is garbage collected after a partial
--- lazy evaluation.
---
--- The semantics of running the action @m b@ are similar to the cleanup action
--- semantics described in 'bracket'.
---
--- >>> finally release = Stream.bracket (return ()) (const release)
---
--- /See also 'finally_'/
---
--- /Inhibits stream fusion/
---
--- @since 0.9.0
-{-# INLINE finally #-}
-finally :: (MonadIO m, MonadBaseControl IO m, MonadCatch m) =>
-    m b -> Stream m a -> Stream m a
-finally action xs = fromStreamD $ D.finally action $ toStreamD xs
-
 -- | Run the action @IO b@ whenever the stream stream stops normally, aborts
 -- due to an exception or if it is garbage collected after a partial lazy
 -- evaluation.
@@ -156,8 +118,9 @@ finally action xs = fromStreamD $ D.finally action $ toStreamD xs
 -- /Inhibits stream fusion/
 --
 {-# INLINE finallyIO #-}
-finallyIO :: IO b -> Stream IO a -> Stream IO a
-finallyIO = finally
+finallyIO :: (MonadIO m, MonadCatch m) =>
+    IO b -> Stream m a -> Stream m a
+finallyIO action xs = fromStreamD $ D.finally action $ toStreamD xs
 
 -- | Like 'bracket' but with following differences:
 --
@@ -176,74 +139,9 @@ bracket_ :: MonadCatch m
 bracket_ bef aft bet = fromStreamD $
     D.bracket_ bef aft (toStreamD . bet)
 
--- | Run the alloc action @m b@ with async exceptions disabled but keeping
--- blocking operations interruptible (see 'Control.Exception.mask').  Use the
--- output @b@ as input to @b -> Stream m a@ to generate an output stream.
---
--- @b@ is usually a resource under the state of monad @m@, e.g. a file
--- handle, that requires a cleanup after use. The cleanup action @b -> m c@,
--- runs whenever the stream ends normally, due to a sync or async exception or
--- if it gets garbage collected after a partial lazy evaluation.
---
--- 'bracket' only guarantees that the cleanup action runs, and it runs with
--- async exceptions enabled. The action must ensure that it can successfully
--- cleanup the resource in the face of sync or async exceptions.
---
--- When the stream ends normally or on a sync exception, cleanup action runs
--- immediately in the current thread context, whereas in other cases it runs in
--- the GC context, therefore, cleanup may be delayed until the GC gets to run.
---
--- /See also: 'bracket_'/
---
--- /Inhibits stream fusion/
---
--- @since 0.9.0
-{-# INLINE bracket #-}
-bracket :: (MonadIO m, MonadBaseControl IO m, MonadCatch m)
-    => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket bef aft = bracket' bef aft aft aft
-
--- For a use case of this see the "streamly-process" package. It needs to kill
--- the process in case of exception or garbage collection, but waits for the
--- process to terminate in normal cases.
-
--- | Like 'bracket' but can use separate cleanup actions depending on the mode
--- of termination.  @bracket' before onStop onGC onException action@ runs
--- @action@ using the result of @before@. If the stream stops, @onStop@ action
--- is executed, if the stream is abandoned @onGC@ is executed, if the stream
--- encounters an exception @onException@ is executed.
---
--- /Pre-release/
-{-# INLINE bracket' #-}
-bracket' :: (MonadIO m, MonadBaseControl IO m, MonadCatch m)
-    => m b
-    -> (b -> m c)
-    -> (b -> m d)
-    -> (b -> m e)
-    -> (b -> Stream m a)
-    -> Stream m a
-bracket' bef aft gc exc bet = fromStreamD $
-    D.bracket' bef aft exc gc (toStreamD . bet)
-
--- | Like 'bracketIO' but can use separate cleanup actions depending on the mode
--- of termination.  @bracket3IO before onStop onGC onException action@ runs
--- @action@ using the result of @before@. If the stream stops, @onStop@ action
--- is executed, if the stream is abandoned @onGC@ is executed, if the stream
--- encounters an exception @onException@ is executed.
---
--- /Pre-release/
-{-# INLINE bracket3IO #-}
-bracket3IO :: IO b
-    -> (b -> IO c)
-    -> (b -> IO d)
-    -> (b -> IO e)
-    -> (b -> Stream IO a)
-    -> Stream IO a
-bracket3IO = bracket'
-
 -- | Run the alloc action @IO b@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the
--- output @b@ as input to @b -> Stream IO a@ to generate an output stream.
+-- output @b@ as input to @b -> Stream m a@ to generate an output stream.
 --
 -- @b@ is usually a resource under the IO monad, e.g. a file handle, that
 -- requires a cleanup after use. The cleanup action @b -> IO c@, runs whenever
@@ -263,8 +161,31 @@ bracket3IO = bracket'
 -- /Inhibits stream fusion/
 --
 {-# INLINE bracketIO #-}
-bracketIO :: IO b -> (b -> IO c) -> (b -> Stream IO a) -> Stream IO a
+bracketIO :: (MonadIO m, MonadCatch m)
+    => IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
 bracketIO bef aft = bracket3IO bef aft aft aft
+
+-- For a use case of this see the "streamly-process" package. It needs to kill
+-- the process in case of exception or garbage collection, but waits for the
+-- process to terminate in normal cases.
+
+-- | Like 'bracketIO' but can use separate cleanup actions depending on the mode
+-- of termination.  @bracket3IO before onStop onGC onException action@ runs
+-- @action@ using the result of @before@. If the stream stops, @onStop@ action
+-- is executed, if the stream is abandoned @onGC@ is executed, if the stream
+-- encounters an exception @onException@ is executed.
+--
+-- /Pre-release/
+{-# INLINE bracket3IO #-}
+bracket3IO :: (MonadIO m, MonadCatch m)
+    => IO b
+    -> (b -> IO c)
+    -> (b -> IO d)
+    -> (b -> IO e)
+    -> (b -> Stream m a)
+    -> Stream m a
+bracket3IO bef aft gc exc bet = fromStreamD $
+    D.bracket' bef aft exc gc (toStreamD . bet)
 
 -- | Like 'handle' but the exception handler is also provided with the stream
 -- that generated the exception as input. The exception handler can thus

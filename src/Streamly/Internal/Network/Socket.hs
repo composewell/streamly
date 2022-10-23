@@ -69,7 +69,6 @@ import Control.Exception (onException)
 import Control.Monad (forM_, when)
 import Control.Monad.Catch (MonadCatch, finally, MonadMask)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, Ptr, castPtr)
@@ -132,9 +131,9 @@ forSocketM f sk = finally (f sk) (liftIO (Net.close sk))
 --
 -- /Internal/
 {-# INLINE withSocket #-}
-withSocket :: (MonadIO m, MonadBaseControl IO m, MonadCatch m) =>
+withSocket :: (MonadIO m, MonadCatch m) =>
     Socket -> (Socket -> Stream m a) -> Stream m a
-withSocket sk f = S.finally (liftIO $ Net.close sk) (f sk)
+withSocket sk f = S.finallyIO (Net.close sk) (f sk)
 
 -------------------------------------------------------------------------------
 -- Accept (Unfolds)

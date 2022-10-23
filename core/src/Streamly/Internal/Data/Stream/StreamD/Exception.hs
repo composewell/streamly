@@ -26,11 +26,11 @@ where
 
 #include "inline.hs"
 
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Data.Map.Strict (Map)
 import GHC.Exts (inline)
-import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunInIO)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
@@ -117,11 +117,11 @@ data GbracketIOState s1 s2 v wref
 -- /Pre-release/
 {-# INLINE_NORMAL gbracket #-}
 gbracket
-    :: MonadRunInIO m
-    => m c -- ^ before
-    -> (c -> m d1) -- ^ on normal stop
-    -> (c -> e -> Stream m b -> m (Stream m b)) -- ^ on exception
-    -> (c -> m d2) -- ^ on GC without normal stop or exception
+    :: MonadIO m
+    => IO c -- ^ before
+    -> (c -> IO d1) -- ^ on normal stop
+    -> (c -> e -> Stream m b -> IO (Stream m b)) -- ^ on exception
+    -> (c -> IO d2) -- ^ on GC without normal stop or exception
     -> (forall s. m s -> m (Either e s)) -- ^ try (exception handling)
     -> (c -> Stream m b) -- ^ stream generator
     -> Stream m b
@@ -139,7 +139,7 @@ gbracket bef aft onExc onGC ftry action =
         -- of 'bef' and the registration of 'aft' atomic.
         -- A similar thing is done in the resourcet package: https://git.io/JvKV3
         -- Tutorial: https://markkarpov.com/tutorial/exceptions.html
-        (r, ref) <- withRunInIO $ \run -> mask_ $ run $ do
+        (r, ref) <- liftIO $ mask_ $ do
             r <- bef
             ref <- newIOFinalizer (onGC r)
             return (r, ref)
@@ -154,7 +154,7 @@ gbracket bef aft onExc onGC ftry action =
                 Skip s ->
                     return $ Skip (GBracketIONormal (Stream step1 s) v ref)
                 Stop ->
-                    clearingIOFinalizer ref (aft v) >> return Stop
+                    liftIO (clearingIOFinalizer ref (aft v)) >> return Stop
             -- XXX Do not handle async exceptions, just rethrow them.
             Left e -> do
                 -- Clearing of finalizer and running of exception handler must
@@ -162,7 +162,7 @@ gbracket bef aft onExc onGC ftry action =
                 -- the finalizer and have not run the exception handler then we
                 -- may leak the resource.
                 stream <-
-                    clearingIOFinalizer ref (onExc v e (UnStream step1 st))
+                    liftIO (clearingIOFinalizer ref (onExc v e (UnStream step1 st)))
                 return $ Skip (GBracketIOException stream)
     step gst (GBracketIOException (UnStream step1 st)) = do
         res <- step1 gst st
@@ -209,15 +209,15 @@ after_ action (Stream step state) = Stream step' state
 -- | See 'Streamly.Internal.Data.Stream.after'.
 --
 {-# INLINE_NORMAL after #-}
-after :: MonadRunInIO m
-    => m b -> Stream m a -> Stream m a
+after :: MonadIO m
+    => IO b -> Stream m a -> Stream m a
 after action (Stream step state) = Stream step' Nothing
 
     where
 
     {-# INLINE_LATE step' #-}
     step' _ Nothing = do
-        ref <- newIOFinalizer action
+        ref <- liftIO $ newIOFinalizer action
         return $ Skip $ Just (state, ref)
     step' gst (Just (st, ref)) = do
         res <- step gst st
@@ -272,11 +272,11 @@ bracket_ bef aft =
 -- | See 'Streamly.Internal.Data.Stream.bracket'.
 --
 {-# INLINE_NORMAL bracket' #-}
-bracket' :: (MonadAsync m, MonadCatch m) =>
-       m b
-    -> (b -> m c)
-    -> (b -> m d)
-    -> (b -> m e)
+bracket' :: (MonadIO m, MonadCatch m) =>
+       IO b
+    -> (b -> IO c)
+    -> (b -> IO d)
+    -> (b -> IO e)
     -> (b -> Stream m a)
     -> Stream m a
 bracket' bef aft onExc onGC =
@@ -324,7 +324,7 @@ finally_ action xs = bracket_ (return ()) (const action) (const xs)
 -- finally action xs = after action $ onException action xs
 --
 {-# INLINE finally #-}
-finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
+finally :: (MonadIO m, MonadCatch m) => IO b -> Stream m a -> Stream m a
 finally action xs = bracket' (return ()) act act act (const xs)
     where act _ = action
 

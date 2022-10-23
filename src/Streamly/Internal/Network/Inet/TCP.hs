@@ -125,6 +125,7 @@ import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (initialize, snoc, Step(..))
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S
 import qualified Streamly.Internal.Network.Socket as ISK
 
 -------------------------------------------------------------------------------
@@ -307,8 +308,7 @@ withConnection :: (MonadCatch m, MonadAsync m)
     -> PortNumber
     -> (Socket -> Stream m a)
     -> Stream m a
-withConnection addr port =
-    S.bracket (liftIO $ connect addr port) (liftIO . Net.close)
+withConnection addr port = S.bracketIO (connect addr port) Net.close
 
 -------------------------------------------------------------------------------
 -- Read Addr to Stream

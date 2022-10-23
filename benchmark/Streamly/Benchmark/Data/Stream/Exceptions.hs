@@ -45,7 +45,7 @@ import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.Exception as Stream
+import qualified Streamly.Internal.Data.Stream.Exception.Lifted as Stream
 #endif
 
 import Gauge hiding (env)

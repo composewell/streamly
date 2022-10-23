@@ -12,9 +12,9 @@ module Streamly.Data.Stream.Exception
     (
       after
     , bracket
-    , bracket3
+    , bracket'
     , finally
     )
 where
 
-import qualified Streamly.Internal.Data.Stream.Exception
+import Streamly.Internal.Data.Stream.Exception.Lifted
