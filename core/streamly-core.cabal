@@ -335,6 +335,7 @@ library
 
                      -- Filesystem/IO
                      , Streamly.Internal.FileSystem.Handle
+                     , Streamly.Internal.FileSystem.File
 
                     -- Ring Arrays
                      , Streamly.Internal.Data.Ring.Unboxed

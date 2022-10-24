@@ -371,7 +371,6 @@ library
 
                      -- streamly-filesystem
                      , Streamly.Internal.FileSystem.Dir
-                     , Streamly.Internal.FileSystem.File
 
                      -- streamly-network
                      , Streamly.Internal.Network.Socket
