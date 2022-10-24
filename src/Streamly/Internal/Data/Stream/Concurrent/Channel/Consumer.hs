@@ -18,10 +18,10 @@ module Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
     )
 where
 
-import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (readIORef)
+import Streamly.Internal.Control.Concurrent (MonadRunInIO)
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
@@ -38,8 +38,7 @@ readOutputQChan sv = do
     let ss = if svarInspectMode sv then Just (svarStats sv) else Nothing
      in readOutputQRaw (outputQueue sv) ss
 
-readOutputQBounded :: (MonadIO m, MonadBaseControl IO m) =>
-    Bool -> Channel m a -> m [ChildEvent a]
+readOutputQBounded :: MonadRunInIO m => Bool -> Channel m a -> m [ChildEvent a]
 readOutputQBounded eagerEval sv = do
     (list, len) <- liftIO $ readOutputQChan sv
     -- When there is no output seen we dispatch more workers to help
@@ -67,8 +66,7 @@ readOutputQBounded eagerEval sv = do
         sendWorkerWait eagerEval sendWorkerDelay (dispatchWorker 0) sv
         liftIO (fst `fmap` readOutputQChan sv)
 
-readOutputQPaced :: (MonadIO m, MonadBaseControl IO m) =>
-    Channel m a -> m [ChildEvent a]
+readOutputQPaced :: MonadRunInIO m => Channel m a -> m [ChildEvent a]
 readOutputQPaced sv = do
     (list, len) <- liftIO $ readOutputQChan sv
     if len <= 0
@@ -86,7 +84,7 @@ readOutputQPaced sv = do
         sendWorkerWait False sendWorkerDelayPaced dispatchWorkerPaced sv
         liftIO (fst `fmap` readOutputQChan sv)
 
-postProcessPaced :: (MonadIO m, MonadBaseControl IO m) => Channel m a -> m Bool
+postProcessPaced :: MonadRunInIO m => Channel m a -> m Bool
 postProcessPaced sv = do
     workersDone <- allThreadsDone (workerThreads sv)
     -- XXX If during consumption we figure out we are getting delayed then we
@@ -105,8 +103,7 @@ postProcessPaced sv = do
         return r
     else return False
 
-postProcessBounded :: (MonadIO m, MonadBaseControl IO m) =>
-    Channel m a -> m Bool
+postProcessBounded :: MonadRunInIO m => Channel m a -> m Bool
 postProcessBounded sv = do
     workersDone <- allThreadsDone (workerThreads sv)
     -- There may still be work pending even if there are no workers pending

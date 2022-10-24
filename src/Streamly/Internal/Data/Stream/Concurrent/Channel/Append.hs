@@ -24,13 +24,12 @@ import Control.Concurrent.MVar (newEmptyMVar, newMVar, putMVar, takeMVar)
 import Control.Exception (assert)
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.Trans.Control (MonadBaseControl, restoreM)
 import Data.Heap (Heap, Entry(..))
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef, writeIORef)
 import Data.Kind (Type)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Concurrent
-    (MonadRunInIO, RunInIO(..), askRunInIO)
+    (MonadRunInIO, RunInIO(..), askRunInIO, restoreM)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (modifyThread)
@@ -896,7 +895,7 @@ workLoopAhead q heap sv winfo = do
 -- than 10%.  Need to investigate what the root cause is.
 -- Interestingly, the same thing does not make any difference for Ahead.
 -- {-# INLINABLE getLifoSVar #-}
-getLifoSVar :: forall m a. (MonadIO m, MonadBaseControl IO m) =>
+getLifoSVar :: forall m a. MonadRunInIO m =>
     RunInIO m -> Config -> IO (Channel m a)
 getLifoSVar mrun cfg = do
     outQ    <- newIORef ([], 0)
@@ -1052,8 +1051,7 @@ getLifoSVar mrun cfg = do
 -- newChannel.
 {-# INLINABLE newChannel #-}
 {-# SPECIALIZE newChannel :: (Config -> Config) -> IO (Channel IO a) #-}
-newChannel :: (MonadIO m, MonadBaseControl IO m) =>
-    (Config -> Config) -> m (Channel m a)
+newChannel :: MonadRunInIO m => (Config -> Config) -> m (Channel m a)
 newChannel modifier = do
     mrun <- askRunInIO
     liftIO $ getLifoSVar mrun (modifier defaultConfig)

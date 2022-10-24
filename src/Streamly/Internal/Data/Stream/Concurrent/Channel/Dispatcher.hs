@@ -20,13 +20,13 @@ module Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
     )
 where
 
-import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Concurrent (takeMVar, threadDelay)
 import Control.Exception (assert)
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Maybe (fromJust, fromMaybe)
 import Data.IORef (modifyIORef, newIORef, readIORef, writeIORef)
+import Streamly.Internal.Control.Concurrent (MonadRunInIO)
 import Streamly.Internal.Control.ForkLifted (doFork)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_, storeLoadBarrier)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
@@ -43,7 +43,7 @@ import Streamly.Internal.Data.Stream.Channel.Worker
 -------------------------------------------------------------------------------
 
 {-# NOINLINE pushWorker #-}
-pushWorker :: (MonadIO m, MonadBaseControl IO m) => Count -> Channel m a -> m ()
+pushWorker :: MonadRunInIO m => Count -> Channel m a -> m ()
 pushWorker yieldMax sv = do
     liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
     when (svarInspectMode sv)
@@ -130,7 +130,7 @@ checkMaxBuffer active sv = do
             (_, n) <- liftIO $ readIORef (outputQueue sv)
             return $ fromIntegral lim > n + active
 
-dispatchWorker :: (MonadIO m, MonadBaseControl IO m) =>
+dispatchWorker :: MonadRunInIO m =>
     Count -> Channel m a -> m Bool
 dispatchWorker yieldCount sv = do
     -- XXX in case of Ahead streams we should not send more than one worker
@@ -175,7 +175,7 @@ dispatchWorker yieldCount sv = do
 -- Returns:
 -- True: can dispatch more
 -- False: full, no more dispatches
-dispatchWorkerPaced :: (MonadIO m, MonadBaseControl IO m) =>
+dispatchWorkerPaced :: MonadRunInIO m =>
     Channel m a -> m Bool
 dispatchWorkerPaced sv = do
     let yinfo = fromJust $ yieldRateInfo sv
@@ -382,7 +382,7 @@ sendWorkerWait eagerEval delay dispatch sv = go
 -- | Start the evaluation of the channel's work queue by kicking off a worker.
 -- Note: Work queue must not be empty otherwise the worker will exit without
 -- doing anything.
-startChannel :: (MonadIO m, MonadBaseControl IO m) =>
+startChannel :: MonadRunInIO m =>
     Channel m a -> m ()
 startChannel chan = do
     case yieldRateInfo chan of

@@ -17,11 +17,10 @@ where
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.MVar (newEmptyMVar)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.Trans.Control (MonadBaseControl, restoreM)
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pushL)
 import Data.IORef (newIORef, readIORef)
 import Streamly.Internal.Control.Concurrent
-    (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO)
+    (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO, restoreM)
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (delThread)
 
 import qualified Data.Set as Set
@@ -149,7 +148,7 @@ workLoopFIFOLimited q sv winfo = run
 -- function argument to this function results in a perf degradation of more
 -- than 10%.  Need to investigate what the root cause is.
 -- Interestingly, the same thing does not make any difference for Ahead.
-getFifoSVar :: forall m a. (MonadIO m, MonadBaseControl IO m) =>
+getFifoSVar :: forall m a. MonadRunInIO m =>
     RunInIO m -> Config -> IO (Channel m a)
 getFifoSVar mrun cfg = do
     outQ    <- newIORef ([], 0)

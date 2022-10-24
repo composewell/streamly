@@ -30,10 +30,10 @@ import Control.Exception (fromException)
 import Control.Monad (when)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
-import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
+import Streamly.Internal.Control.Concurrent
+    (MonadAsync, MonadRunInIO, askRunInIO)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
@@ -50,6 +50,7 @@ import Prelude hiding (map, concat, concatMap)
 
 #ifdef INSPECTION
 import Control.Exception (Exception)
+import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Typeable (Typeable)
 import Test.Inspection (inspect, hasNoTypeClassesExcept)
 #endif
@@ -88,8 +89,7 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
 {-# INLINE toChannelK #-}
-toChannelK :: (MonadIO m, MonadBaseControl IO m) =>
-    Channel m a -> K.Stream m a -> m ()
+toChannelK :: MonadRunInIO m => Channel m a -> K.Stream m a -> m ()
 toChannelK sv m = do
     runIn <- askRunInIO
     liftIO $ enqueue sv False (runIn, m)
@@ -98,8 +98,7 @@ toChannelK sv m = do
 
 -- | Send a stream to a given channel for concurrent evaluation.
 {-# INLINE toChannel #-}
-toChannel :: (MonadIO m, MonadBaseControl IO m) =>
-    Channel m a -> Stream m a -> m ()
+toChannel :: MonadRunInIO m => Channel m a -> Stream m a -> m ()
 toChannel chan = toChannelK chan . Stream.toStreamK
 
 {-
