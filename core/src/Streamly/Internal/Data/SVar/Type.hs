@@ -11,6 +11,7 @@ module Streamly.Internal.Data.SVar.Type
     -- * Parent child communication
       ThreadAbort (..)
     , ChildEvent (..)
+    , RunInIO(..)
     , AheadHeapEntry (..)
 
     -- * SVar
@@ -55,6 +56,9 @@ where
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.MVar (MVar)
 import Control.Exception (SomeException(..), Exception)
+#ifndef USE_UNLIFTIO
+import Control.Monad.Trans.Control (MonadBaseControl(StM))
+#endif
 import Data.Heap (Heap, Entry(..))
 import Data.Int (Int64)
 import Data.IORef (IORef)
@@ -62,7 +66,6 @@ import Data.Kind (Type)
 import Data.Set (Set)
 
 import Streamly.Internal.Data.Time.Units (AbsTime, NanoSecond64(..))
-import Streamly.Internal.Control.Concurrent (RunInIO)
 
 newtype Count = Count Int64
     deriving ( Eq
@@ -88,6 +91,12 @@ instance Exception ThreadAbort
 data ChildEvent a =
       ChildYield a
     | ChildStop ThreadId (Maybe SomeException)
+
+#ifdef USE_UNLIFTIO
+newtype RunInIO m = RunInIO { runInIO :: forall b. m b -> IO b }
+#else
+newtype RunInIO m = RunInIO { runInIO :: forall b. m b -> IO (StM m b) }
+#endif
 
 -- | Sorting out-of-turn outputs in a heap for Ahead style streams
 data AheadHeapEntry (t :: (Type -> Type) -> Type -> Type) m a =

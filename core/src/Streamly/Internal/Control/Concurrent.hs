@@ -23,6 +23,7 @@ module Streamly.Internal.Control.Concurrent
 where
 
 import Control.Monad.Catch (MonadThrow)
+import Streamly.Internal.Data.SVar.Type (RunInIO(..))
 
 #ifdef USE_UNLIFTIO
 import Control.Monad.IO.Unlift (MonadUnliftIO(..), UnliftIO(..), askUnliftIO)
@@ -50,13 +51,6 @@ type MonadRunInIO m = (MonadIO m, MonadBaseControl IO m)
 type MonadAsync m = (MonadUnliftIO m, MonadThrow m)
 #else
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-#endif
-
-
-#ifdef USE_UNLIFTIO
-newtype RunInIO m = RunInIO { runInIO :: forall b. m b -> IO b }
-#else
-newtype RunInIO m = RunInIO { runInIO :: forall b. m b -> IO (StM m b) }
 #endif
 
 -- | When we run computations concurrently, we completely isolate the state of

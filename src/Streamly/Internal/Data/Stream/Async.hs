@@ -55,7 +55,7 @@ import Prelude hiding (map)
 import qualified Data.Set as S
 
 import Streamly.Internal.Control.Concurrent
-    (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO, restoreM)
+    (MonadRunInIO, MonadAsync, askRunInIO, restoreM)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream)

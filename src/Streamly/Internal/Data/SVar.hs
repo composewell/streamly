@@ -47,8 +47,7 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Heap (Heap, Entry(..))
 import Data.IORef (newIORef, readIORef)
 import Data.IORef (IORef, atomicModifyIORef)
-import Streamly.Internal.Control.Concurrent
-    (MonadAsync, askRunInIO, RunInIO)
+import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
 import Streamly.Internal.Data.Atomics
        (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
