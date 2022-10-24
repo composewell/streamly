@@ -246,8 +246,6 @@ library
                      , Streamly.Internal.Data.Maybe.Strict
                      , Streamly.Internal.Data.Either.Strict
 
-                     -- XXX Depends on monad-control or unliftio-core
-                     , Streamly.Internal.Control.Concurrent
                      , Streamly.Internal.Data.IOFinalizer
 
                      -- streamly-time

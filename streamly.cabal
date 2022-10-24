@@ -332,6 +332,7 @@ library
                        Streamly.Internal.Data.IsMap.HashMap
 
                      -- streamly-concurrent
+                     , Streamly.Internal.Control.Concurrent
                      , Streamly.Internal.Control.ForkLifted
                      , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.IOFinalizer.Lifted
