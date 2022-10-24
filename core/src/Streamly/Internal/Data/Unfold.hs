@@ -1,5 +1,3 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Unfold
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -250,13 +248,13 @@ module Streamly.Internal.Data.Unfold
 
     -- ** Resource Management
     , gbracket_
-    , gbracket
+    , gbracketIO
     , before
-    , after
+    , afterIO
     , after_
-    , finally
+    , finallyIO
     , finally_
-    , bracket
+    , bracketIO
     , bracket_
 
     -- ** Exceptions
@@ -265,13 +263,13 @@ module Streamly.Internal.Data.Unfold
     )
 where
 
+#include "inline.hs"
 #include "ArrayMacros.h"
 
 import Control.Exception (Exception, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Data.Functor (($>))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
@@ -846,12 +844,11 @@ dropWhile f = dropWhileM (return . f)
 -- Exceptions
 ------------------------------------------------------------------------------
 
--- | Like 'gbracket' but with following differences:
+-- | Like 'gbracketIO' but with following differences:
 --
 -- * alloc action @a -> m c@ runs with async exceptions enabled
 -- * cleanup action @c -> m d@ won't run if the stream is garbage collected
 --   after partial evaluation.
--- * does not require a 'MonadAsync' constraint.
 --
 -- /Inhibits stream fusion/
 --
@@ -911,16 +908,17 @@ gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 -- /Inhibits stream fusion/
 --
 -- /Pre-release/
-{-# INLINE_NORMAL gbracket #-}
-gbracket
-    :: MonadRunInIO m
-    => (a -> m c)                           -- ^ before
-    -> (c -> m d)                           -- ^ after, on normal stop, or GC
-    -> Unfold m (c, e) b                    -- ^ on exception
-    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
+{-# INLINE_NORMAL gbracketIO #-}
+gbracketIO
+    :: MonadIO m
+    => (a -> IO c)                           -- ^ before
+    -> (c -> IO d)                           -- ^ after, on normal stop, or GC
+    -> (c -> IO ())                          -- ^ action on exception
+    -> Unfold m e b                          -- ^ stream on exception
+    -> (forall s. m s -> IO (Either e s))    -- ^ try (exception handling)
     -> Unfold m c b                         -- ^ unfold to run
     -> Unfold m a b
-gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
+gbracketIO bef aft onExc (Unfold estep einject) ftry (Unfold step1 inject1) =
     Unfold step inject
 
     where
@@ -928,7 +926,7 @@ gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
     inject x = do
         -- Mask asynchronous exceptions to make the execution of 'bef' and
         -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
-        (r, ref) <- withRunInIO $ \run -> mask_ $ run $ do
+        (r, ref) <- liftIO $ mask_ $ do
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
@@ -937,7 +935,7 @@ gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
 
     {-# INLINE_LATE step #-}
     step (Right (st, v, ref)) = do
-        res <- ftry $ step1 st
+        res <- liftIO $ ftry $ step1 st
         case res of
             Right r -> case r of
                 Yield x s -> return $ Yield x (Right (s, v, ref))
@@ -951,7 +949,8 @@ gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
                 -- be atomic wrt async exceptions. Otherwise if we have cleared
                 -- the finalizer and have not run the exception handler then we
                 -- may leak the resource.
-                r <- clearingIOFinalizer ref (einject (v, e))
+                liftIO $ clearingIOFinalizer ref (onExc v)
+                r <- einject e
                 return $ Skip (Left r)
     step (Left st) = do
         res <- estep st
@@ -1013,16 +1012,16 @@ after_ action (Unfold step1 inject1) = Unfold step inject
 -- /See also 'after_'/
 --
 -- /Pre-release/
-{-# INLINE_NORMAL after #-}
-after :: MonadRunInIO m
-    => (a -> m c) -> Unfold m a b -> Unfold m a b
-after action (Unfold step1 inject1) = Unfold step inject
+{-# INLINE_NORMAL afterIO #-}
+afterIO :: MonadIO m
+    => (a -> IO c) -> Unfold m a b -> Unfold m a b
+afterIO action (Unfold step1 inject1) = Unfold step inject
 
     where
 
     inject x = do
         s <- inject1 x
-        ref <- newIOFinalizer (action x)
+        ref <- liftIO $ newIOFinalizer (action x)
         return (s, ref)
 
     {-# INLINE_LATE step #-}
@@ -1072,11 +1071,10 @@ _finally action =
     gbracket_ return MC.try action
         (nilM (\(a, e :: MC.SomeException) -> action a >> MC.throwM e))
 
--- | Like 'finally' with following differences:
+-- | Like 'finallyIO' with following differences:
 --
 -- * action @a -> m c@ won't run if the stream is garbage collected
 --   after partial evaluation.
--- * does not require a 'MonadAsync' constraint.
 --
 -- /Inhibits stream fusion/
 --
@@ -1115,16 +1113,16 @@ finally_ action (Unfold step1 inject1) = Unfold step inject
 -- /Inhibits stream fusion/
 --
 -- /Pre-release/
-{-# INLINE_NORMAL finally #-}
-finally :: (MonadAsync m, MonadCatch m)
-    => (a -> m c) -> Unfold m a b -> Unfold m a b
-finally action (Unfold step1 inject1) = Unfold step inject
+{-# INLINE_NORMAL finallyIO #-}
+finallyIO :: (MonadIO m, MonadCatch m)
+    => (a -> IO c) -> Unfold m a b -> Unfold m a b
+finallyIO action (Unfold step1 inject1) = Unfold step inject
 
     where
 
     inject x = do
         s <- inject1 x
-        ref <- newIOFinalizer (action x)
+        ref <- liftIO $ newIOFinalizer (action x)
         return (s, ref)
 
     {-# INLINE_LATE step #-}
@@ -1144,12 +1142,11 @@ _bracket bef aft =
     gbracket_ bef MC.try aft (nilM (\(a, e :: MC.SomeException) -> aft a >>
     MC.throwM e))
 
--- | Like 'bracket' but with following differences:
+-- | Like 'bracketIO' but with following differences:
 --
 -- * alloc action @a -> m c@ runs with async exceptions enabled
 -- * cleanup action @c -> m d@ won't run if the stream is garbage collected
 --   after partial evaluation.
--- * does not require a 'MonadAsync' constraint.
 --
 -- /Inhibits stream fusion/
 --
@@ -1196,17 +1193,17 @@ bracket_ bef aft (Unfold step1 inject1) = Unfold step inject
 -- /Inhibits stream fusion/
 --
 -- /Pre-release/
-{-# INLINE_NORMAL bracket #-}
-bracket :: (MonadAsync m, MonadCatch m)
-    => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
-bracket bef aft (Unfold step1 inject1) = Unfold step inject
+{-# INLINE_NORMAL bracketIO #-}
+bracketIO :: (MonadIO m, MonadCatch m)
+    => (a -> IO c) -> (c -> IO d) -> Unfold m c b -> Unfold m a b
+bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
 
     where
 
     inject x = do
         -- Mask asynchronous exceptions to make the execution of 'bef' and
         -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
-        (r, ref) <- withRunInIO $ \run -> mask_ $ run $ do
+        (r, ref) <- liftIO $ mask_ $ do
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)

@@ -116,7 +116,7 @@ import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (Step(..), snoc, initialize)
-import qualified Streamly.Internal.Data.Unfold as UF (bracket)
+import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
 import qualified Streamly.Data.Stream as S (fold, bracketIO, mapM)
@@ -163,35 +163,33 @@ withFile file mode = S.bracketIO (openFile file mode) hClose
 {-# INLINE usingFile #-}
 usingFile :: (MonadCatch m, MonadAsync m)
     => Unfold m Handle a -> Unfold m FilePath a
-usingFile =
-    UF.bracket (\file -> liftIO $ openFile file ReadMode)
-               (liftIO . hClose)
+usingFile = UF.bracketIO (`openFile` ReadMode) hClose
 
 {-# INLINE usingFile2 #-}
 usingFile2 :: (MonadCatch m, MonadAsync m)
     => Unfold m (x, Handle) a -> Unfold m (x, FilePath) a
-usingFile2 = UF.bracket before after
+usingFile2 = UF.bracketIO before after
 
     where
 
     before (x, file) =  do
-        h <- liftIO $ openFile file ReadMode
+        h <- openFile file ReadMode
         return (x, h)
 
-    after (_, h) = liftIO $ hClose h
+    after (_, h) = hClose h
 
 {-# INLINE usingFile3 #-}
 usingFile3 :: (MonadCatch m, MonadAsync m)
     => Unfold m (x, y, z, Handle) a -> Unfold m (x, y, z, FilePath) a
-usingFile3 = UF.bracket before after
+usingFile3 = UF.bracketIO before after
 
     where
 
     before (x, y, z, file) =  do
-        h <- liftIO $ openFile file ReadMode
+        h <- openFile file ReadMode
         return (x, y, z, h)
 
-    after (_, _, _, h) = liftIO $ hClose h
+    after (_, _, _, h) = hClose h
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)

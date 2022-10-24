@@ -333,10 +333,12 @@ library
 
                      -- streamly-concurrent
                      , Streamly.Internal.Data.Atomics
+                     , Streamly.Internal.Data.IOFinalizer.Lifted
                      , Streamly.Internal.Data.Stream.Channel.Types
                      , Streamly.Internal.Data.Stream.Channel.Dispatcher
                      , Streamly.Internal.Data.Stream.Channel.Worker
 
+                     , Streamly.Internal.Data.Unfold.Exception
                      , Streamly.Internal.Data.Fold.Concurrent.Channel.Type
                      , Streamly.Internal.Data.Fold.Concurrent.Channel
                      , Streamly.Internal.Data.Fold.Concurrent

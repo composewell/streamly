@@ -120,7 +120,7 @@ import qualified Network.Socket as Net
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Unfold as UF (bracket, first)
+import qualified Streamly.Internal.Data.Unfold as UF (bracketIO, first)
 import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (initialize, snoc, Step(..))
@@ -286,9 +286,7 @@ withConnectionM addr port =
 usingConnection :: (MonadCatch m, MonadAsync m)
     => Unfold m Socket a
     -> Unfold m ((Word8, Word8, Word8, Word8), PortNumber) a
-usingConnection =
-    UF.bracket (\(addr, port) -> liftIO $ connect addr port)
-               (liftIO . Net.close)
+usingConnection = UF.bracketIO (\(addr, port) -> connect addr port) Net.close
 
 -------------------------------------------------------------------------------
 -- Connect (streams)
