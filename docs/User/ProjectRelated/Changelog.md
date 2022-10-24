@@ -18,6 +18,7 @@
 
 * Add `Streamly.Data.Stream.Concurrent` that provide combinators for handling
   non-serial streams.
+* Remove the MonadBase instance of the SerialT type.
 
 ### Deprecations
 

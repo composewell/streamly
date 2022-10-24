@@ -41,7 +41,6 @@ where
 
 import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData(..), NFData1(..))
-import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
@@ -223,10 +222,6 @@ instance Monad m => Monad (Stream m) where
 ------------------------------------------------------------------------------
 -- Transformers
 ------------------------------------------------------------------------------
-
--- XXX Need to remove the MonadBase instance
-instance (MonadBase b m, Monad m ) => MonadBase b (Stream m) where
-    liftBase = liftBaseDefault
 
 instance (MonadIO m) => MonadIO (Stream m) where
     liftIO = lift . liftIO

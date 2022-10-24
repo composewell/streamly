@@ -388,9 +388,6 @@ library
                      , fusion-plugin-types >= 0.1 && < 0.2
 
                      -- XXX to be removed
-                     , transformers-base >= 0.4   && < 0.5
                      , heaps             >= 0.3     && < 0.5
-    if flag(use-unliftio)
-      build-depends:   unliftio-core     >= 0.2 && < 0.3
-    else
+    if !flag(use-unliftio)
       build-depends:   monad-control     >= 1.0 && < 1.1
