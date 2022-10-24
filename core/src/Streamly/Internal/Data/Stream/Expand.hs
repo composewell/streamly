@@ -648,8 +648,7 @@ iterateMapWith combine f = concatMapWith combine go
 --
 -- /Unimplemented/
 {-# INLINE iterateUnfold #-}
-iterateUnfold :: -- (MonadAsync m) =>
-    Unfold m a a -> Stream m a -> Stream m a
+iterateUnfold :: Unfold m a a -> Stream m a -> Stream m a
 iterateUnfold = undefined
 
 ------------------------------------------------------------------------------
@@ -706,8 +705,7 @@ iterateSmapMWith combine f initial stream =
 --
 {-
 concatMapEitherWith
-    :: -- (MonadAsync m) =>
-       (forall x. t m x -> t m x -> t m x)
+    :: (forall x. t m x -> t m x -> t m x)
     -> (a -> t m (Either (Stream m b) b))
     -> Stream m a
     -> Stream m b

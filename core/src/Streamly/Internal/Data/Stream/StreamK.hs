@@ -217,8 +217,7 @@ unfoldrM = unfoldrMWith consM
 -- concurrent version could be async or ahead etc. Depending on how we queue
 -- back the feedback portion b, it could be DFS or BFS style.
 --
-unfoldrA :: (IsStream t, MonadAsync m) =>
-    (b -> Maybe (m a, b)) -> b -> Stream m a
+unfoldrA :: (b -> Maybe (m a, b)) -> b -> Stream m a
 unfoldrA = undefined
 -}
 
