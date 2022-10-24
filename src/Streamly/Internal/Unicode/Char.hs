@@ -6,12 +6,16 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+
+-- XXX This module should have the reader/writer unfold/refold and read/write
+-- stream/fold routines to convert a char to/from stream.
 --
 module Streamly.Internal.Unicode.Char
     (
     -- * Predicates
-      isAsciiAlpha
+      isAsciiAlpha -- XXX Remove or move to unicode-data
 
+    -- XXX move to Unicode.Char.Case?
     -- * Unicode aware operations
     {-
       toCaseFold
@@ -20,6 +24,7 @@ module Streamly.Internal.Unicode.Char
     , toTitle
     -}
 
+    -- XXX Move to Unicode.Stream.Normalize or Unicode.Normalize?
     -- * Unicode normalization
     , NormalizationMode(..)
     , normalize

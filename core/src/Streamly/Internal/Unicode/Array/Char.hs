@@ -6,6 +6,11 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+
+-- XXX Remove this or move this to Unicode.Utf32 making "Array Char" as a
+-- newtype wrapper for Utf32. Is this any better than the [Char] (String) type?
+-- This provides random access and the length of the string in O(1). Also,
+-- better append performance.
 --
 module Streamly.Internal.Unicode.Array.Char
     (

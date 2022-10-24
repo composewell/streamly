@@ -5,7 +5,12 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
---
+
+-- XXX We can move this to stream-core/streamly-unicode-core, and provide an
+-- additional module in streamly-unicode for case conversions (because it
+-- depends on unicode-data). Or just keep all of it in streamly-unicode
+-- which will have a dependency on unicode-data.
+
 module Streamly.Internal.Unicode.Utf8
     (
     -- * Type

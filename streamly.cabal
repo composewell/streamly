@@ -365,7 +365,7 @@ library
                      , Streamly.Internal.Data.Stream.Time
                      , Streamly.Internal.Data.Stream.Exception.Lifted
 
-                     -- streamly-unicode
+                     -- streamly-unicode (depends on unicode-data)
                      , Streamly.Internal.Unicode.Utf8
                      , Streamly.Internal.Unicode.Char
 
