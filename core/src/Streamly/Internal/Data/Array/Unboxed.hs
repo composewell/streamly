@@ -126,7 +126,7 @@ import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.Ptr (castPtr)
 import Streamly.Internal.Data.Unboxed
-    ( Unboxed
+    ( Unbox
     , castContents
     , peekWith
     , sizeOf
@@ -165,7 +165,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 --
 -- /Pre-release/
 {-# INLINE fromStreamN #-}
-fromStreamN :: (MonadIO m, Unboxed a) => Int -> Stream m a -> m (Array a)
+fromStreamN :: (MonadIO m, Unbox a) => Int -> Stream m a -> m (Array a)
 fromStreamN n m = do
     when (n < 0) $ error "writeN: negative write count specified"
     A.fromStreamDN n $ Stream.toStreamD m
@@ -180,7 +180,7 @@ fromStreamN n m = do
 --
 -- /Pre-release/
 {-# INLINE fromStream #-}
-fromStream :: (MonadIO m, Unboxed a) => Stream m a -> m (Array a)
+fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (Array a)
 fromStream m = P.fold A.write $ Stream.toStreamK m
 -- write m = A.fromStreamD $ D.fromStreamK m
 
@@ -189,7 +189,7 @@ fromStream m = P.fold A.write $ Stream.toStreamK m
 -------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL producer #-}
-producer :: forall m a. (Monad m, Unboxed a) => Producer m (Array a) a
+producer :: forall m a. (Monad m, Unbox a) => Producer m (Array a) a
 producer =
     Producer.translate A.unsafeThaw A.unsafeFreeze
         $ MA.producerWith (return . unsafeInlineIO)
@@ -197,7 +197,7 @@ producer =
 -- | Unfold an array into a stream.
 --
 {-# INLINE_NORMAL reader #-}
-reader :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
+reader :: forall m a. (Monad m, Unbox a) => Unfold m (Array a) a
 reader = Producer.simplify producer
 
 -- | Unfold an array into a stream, does not check the end of the array, the
@@ -212,7 +212,7 @@ reader = Producer.simplify producer
 -- /Pre-release/
 --
 {-# INLINE_NORMAL readerUnsafe #-}
-readerUnsafe :: forall m a. (Monad m, Unboxed a) => Unfold m (Array a) a
+readerUnsafe :: forall m a. (Monad m, Unbox a) => Unfold m (Array a) a
 readerUnsafe = Unfold step inject
     where
 
@@ -245,7 +245,7 @@ null arr = A.byteLength arr == 0
 --
 -- /Pre-release/
 {-# INLINE getIndexRev #-}
-getIndexRev :: forall a. Unboxed a => Int -> Array a -> Maybe a
+getIndexRev :: forall a. Unbox a => Int -> Array a -> Maybe a
 getIndexRev i arr =
     unsafeInlineIO
         $ do
@@ -261,7 +261,7 @@ getIndexRev i arr =
 --
 -- /Pre-release/
 {-# INLINE last #-}
-last :: Unboxed a => Array a -> Maybe a
+last :: Unbox a => Array a -> Maybe a
 last = getIndexRev 0
 
 -------------------------------------------------------------------------------
@@ -273,7 +273,7 @@ last = getIndexRev 0
 --
 {-# INLINE writeLastN #-}
 writeLastN ::
-       (Unboxed a, MonadIO m) => Int -> Fold m a (Array a)
+       (Unbox a, MonadIO m) => Int -> Fold m a (Array a)
 writeLastN n
     | n <= 0 = fmap (const mempty) FL.drain
     | otherwise = A.unsafeFreeze <$> Fold step initial done
@@ -353,7 +353,7 @@ find = Unfold.fold Fold.null . Stream.unfold (findIndicesOf p)
 -- /Pre-release/
 {-# INLINE getSliceUnsafe #-}
 getSliceUnsafe ::
-       forall a. Unboxed a
+       forall a. Unbox a
     => Int -- ^ starting index
     -> Int -- ^ length of the slice
     -> Array a
@@ -369,7 +369,7 @@ getSliceUnsafe index len (Array contents start e) =
 --
 -- /Pre-release/
 {-# INLINE splitOn #-}
-splitOn :: (Monad m, Unboxed a) =>
+splitOn :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
 splitOn predicate arr =
     Stream.fromStreamD
@@ -377,7 +377,7 @@ splitOn predicate arr =
         $ D.sliceOnSuffix predicate (A.toStreamD arr)
 
 {-# INLINE genSlicesFromLen #-}
-genSlicesFromLen :: forall m a. (Monad m, Unboxed a)
+genSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Int, Int)
@@ -390,7 +390,7 @@ genSlicesFromLen from len =
 --
 -- /Pre-release//
 {-# INLINE getSlicesFromLen #-}
-getSlicesFromLen :: forall m a. (Monad m, Unboxed a)
+getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Array a)
@@ -408,7 +408,7 @@ getSlicesFromLen from len =
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: forall a. Unboxed a => Int -> Array a -> Maybe a
+getIndex :: forall a. Unbox a => Int -> Array a -> Maybe a
 getIndex i arr =
     unsafeInlineIO
         $ do
@@ -435,7 +435,7 @@ getIndex i arr =
 --
 -- /Pre-release/
 {-# INLINE getIndices #-}
-getIndices :: (Monad m, Unboxed a) => Stream m Int -> Unfold m (Array a) a
+getIndices :: (Monad m, Unbox a) => Stream m Int -> Unfold m (Array a) a
 getIndices m =
     let unf = MA.getIndicesD (return . unsafeInlineIO) $ D.fromStreamK $ Stream.toStreamK m
      in Unfold.lmap A.unsafeThaw unf
@@ -471,7 +471,7 @@ getIndicesFromThenTo = undefined
 -- operation.
 --
 {-# INLINE runPipe #-}
-runPipe :: (MonadIO m, Unboxed a, Unboxed b)
+runPipe :: (MonadIO m, Unbox a, Unbox b)
     => Pipe m a b -> Array a -> m (Array b)
 runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 -}
@@ -484,7 +484,7 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 --
 -- /Pre-release/
 {-# INLINE streamTransform #-}
-streamTransform :: forall m a b. (MonadIO m, Unboxed a, Unboxed b)
+streamTransform :: forall m a b. (MonadIO m, Unbox a, Unbox b)
     => (Stream m a -> Stream m b) -> Array a -> m (Array b)
 streamTransform f arr =
     P.fold (A.writeWith (length arr)) $ Stream.toStreamK $ f (A.read arr)
@@ -519,7 +519,7 @@ asBytes = castUnsafe
 -- target element otherwise 'Nothing' is returned.
 --
 --
-cast :: forall a b. (Unboxed b) => Array a -> Maybe (Array b)
+cast :: forall a b. (Unbox b) => Array a -> Maybe (Array b)
 cast arr =
     let len = A.byteLength arr
         r = len `mod` SIZE_OF(b)
@@ -551,12 +551,12 @@ asCStringUnsafe arr act = do
 --
 -- /Pre-release/
 {-# INLINE fold #-}
-fold :: forall m a b. (Monad m, Unboxed a) => Fold m a b -> Array a -> m b
+fold :: forall m a b. (Monad m, Unbox a) => Fold m a b -> Array a -> m b
 fold f arr = P.fold f (Stream.toStreamK (A.read arr))
 
 -- | Fold an array using a stream fold operation.
 --
 -- /Pre-release/
 {-# INLINE streamFold #-}
-streamFold :: (Monad m, Unboxed a) => (Stream m a -> m b) -> Array a -> m b
+streamFold :: (Monad m, Unbox a) => (Stream m a -> m b) -> Array a -> m b
 streamFold f arr = f (A.read arr)

@@ -115,7 +115,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Function ((&))
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
@@ -417,7 +417,7 @@ putChunks h = S.fold (FL.drainBy (putChunk h))
 -- we do not split the arrays to fit exactly to the specified size.
 --
 {-# INLINE putChunksWith #-}
-putChunksWith :: (MonadIO m, Unboxed a)
+putChunksWith :: (MonadIO m, Unbox a)
     => Int -> Handle -> Stream m (Array a) -> m ()
 putChunksWith n h xs = putChunks h $ AS.compact n xs
 
@@ -470,7 +470,7 @@ chunkWriter = Refold.drainBy putChunk
 -- remains below the specified size.
 --
 {-# INLINE writeChunksWith #-}
-writeChunksWith :: (MonadIO m, Unboxed a)
+writeChunksWith :: (MonadIO m, Unbox a)
     => Int -> Handle -> Fold m (Array a) ()
 writeChunksWith n h = lpackArraysChunksOf n (writeChunks h)
 
@@ -478,7 +478,7 @@ writeChunksWith n h = lpackArraysChunksOf n (writeChunks h)
 --
 {-# DEPRECATED writeChunksWithBufferOf "Please use writeChunksWith instead." #-}
 {-# INLINE writeChunksWithBufferOf #-}
-writeChunksWithBufferOf :: (MonadIO m, Unboxed a)
+writeChunksWithBufferOf :: (MonadIO m, Unbox a)
     => Int -> Handle -> Fold m (Array a) ()
 writeChunksWithBufferOf = writeChunksWith
 

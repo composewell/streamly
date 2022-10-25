@@ -51,7 +51,7 @@ import Streamly.Benchmark.Common.Handle
 import Control.Monad.IO.Class (MonadIO)
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Test.Inspection
 #endif
@@ -188,7 +188,7 @@ copyChunksSplitInterposeSuffix inh outh =
         $ Handle.readChunks inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterposeSuffix [''Unboxed]
+inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterposeSuffix [''Unbox]
 inspect $ 'copyChunksSplitInterposeSuffix `hasNoType` ''Step
 #endif
 
@@ -203,7 +203,7 @@ copyChunksSplitInterpose inh outh =
         $ Handle.readChunks inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Unboxed]
+inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Unbox]
 inspect $ 'copyChunksSplitInterpose `hasNoType` ''Step
 #endif
 

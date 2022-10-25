@@ -120,7 +120,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 -- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (castPtr)
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 -- import System.IO (Handle, hGetBufSome, hPutBuf)
 import System.IO (IOMode)
 import Prelude hiding (read)
@@ -240,7 +240,7 @@ readArrayUpto size (Handle fd) = do
 --
 -- @since 0.7.0
 {-# INLINABLE writeArray #-}
-writeArray :: Unboxed a => Handle -> Array a -> IO ()
+writeArray :: Unbox a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
 writeArray (Handle fd) arr =
     asPtrUnsafe arr $ \p ->
@@ -337,7 +337,7 @@ readInChunksOf :: (MonadIO m) => Int -> Handle -> Stream m Word8
 readInChunksOf chunkSize h = AS.concat $ readArraysOfUpto chunkSize h
 
 -- TODO
--- read :: (MonadIO m, Unboxed a) => Handle -> Stream m a
+-- read :: (MonadIO m, Unbox a) => Handle -> Stream m a
 --
 -- > read = 'readByChunks' A.defaultChunkSize
 -- | Generate a stream of elements of the given type from a file 'Handle'. The
@@ -356,7 +356,7 @@ read = AS.concat . readArrays
 --
 -- @since 0.7.0
 {-# INLINE writeArrays #-}
-writeArrays :: (MonadIO m, Unboxed a) => Handle -> Stream m (Array a) -> m ()
+writeArrays :: (MonadIO m, Unbox a) => Handle -> Stream m (Array a) -> m ()
 writeArrays h = S.fold (FL.drainBy (liftIO . writeArray h))
 
 -- | Write a stream of arrays to a handle after coalescing them in chunks of
@@ -366,7 +366,7 @@ writeArrays h = S.fold (FL.drainBy (liftIO . writeArray h))
 --
 -- @since 0.7.0
 {-# INLINE writeArraysPackedUpto #-}
-writeArraysPackedUpto :: (MonadIO m, Unboxed a)
+writeArraysPackedUpto :: (MonadIO m, Unbox a)
     => Int -> Handle -> Stream m (Array a) -> m ()
 writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 

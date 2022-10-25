@@ -2,8 +2,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 
 module Streamly.Internal.Data.Unboxed
-    ( Unboxed
-    , Unbox(..)
+    ( Unbox(..)
     , alignment
     , peekWith
     , pokeWith
@@ -137,7 +136,7 @@ unpin arr@(MutableByteArray marr#) =
                        (# s1#, marr1# #) -> (# s1#, MutableByteArray marr1# #)
 
 --------------------------------------------------------------------------------
--- The Unboxed type class
+-- The Unbox type class
 --------------------------------------------------------------------------------
 
 -- In theory we could convert a type to and from a byte stream and use that
@@ -187,8 +186,6 @@ class Storable a => Unbox a where
     -- | Write an element of type "a" to a MutableByteArray given the byte
     -- index.
     unbox :: MutableByteArray a -> Int -> a -> IO ()
-
-type Unboxed a = Unbox a
 
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray) \
 instance Unbox _type where {                                         \
@@ -310,8 +307,8 @@ DERIVE_WRAPPED_UNBOX(Unbox a =>,(Identity a),Identity)
 DERIVE_WRAPPED_UNBOX(Unbox a =>,(Down a),Down)
 #endif
 DERIVE_WRAPPED_UNBOX(Unbox a =>,(Const a b),Const)
-DERIVE_BINARY_UNBOX(forall a. Unboxed a =>,(Complex a),(:+),a)
-DERIVE_BINARY_UNBOX(forall a. (Integral a, Unboxed a) =>,(Ratio a),(:%),a)
+DERIVE_BINARY_UNBOX(forall a. Unbox a =>,(Complex a),(:+),a)
+DERIVE_BINARY_UNBOX(forall a. (Integral a, Unbox a) =>,(Ratio a),(:%),a)
 DERIVE_BINARY_UNBOX(,Fingerprint,Fingerprint,Word64)
 
 instance Unbox () where
@@ -350,9 +347,9 @@ instance Unbox Bool where
 --------------------------------------------------------------------------------
 
 {-# INLINE peekWith #-}
-peekWith :: Unboxed a => MutableByteArray a -> Int -> IO a
+peekWith :: Unbox a => MutableByteArray a -> Int -> IO a
 peekWith = box
 
 {-# INLINE pokeWith #-}
-pokeWith :: Unboxed a => MutableByteArray a -> Int -> a -> IO ()
+pokeWith :: Unbox a => MutableByteArray a -> Int -> a -> IO ()
 pokeWith = unbox

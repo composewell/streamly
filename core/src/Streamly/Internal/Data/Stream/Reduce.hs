@@ -64,7 +64,7 @@ import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Stream.Bottom (foldManyPost)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
@@ -427,6 +427,6 @@ parseIterate f i m = fromStreamD $
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}
-arraysOf :: (MonadIO m, Unboxed a)
+arraysOf :: (MonadIO m, Unbox a)
     => Int -> Stream m a -> Stream m (Array a)
 arraysOf n = fromStreamD . Array.arraysOf n . toStreamD
