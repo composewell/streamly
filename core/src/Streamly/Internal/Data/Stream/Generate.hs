@@ -79,7 +79,7 @@ import Streamly.Internal.Data.Stream.Enumerate
 import Streamly.Internal.Data.Stream.Type
     (Stream, fromStreamD, fromStreamK, toStreamK)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 
 import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
@@ -458,5 +458,5 @@ fromByteStr# addr =
 -- /Pre-release/
 --
 {-# INLINE fromUnboxedIORef #-}
-fromUnboxedIORef :: (MonadIO m, Unboxed a) => Unboxed.IORef a -> Stream m a
+fromUnboxedIORef :: (MonadIO m, Unbox a) => Unboxed.IORef a -> Stream m a
 fromUnboxedIORef = fromStreamD . Unboxed.toStreamD

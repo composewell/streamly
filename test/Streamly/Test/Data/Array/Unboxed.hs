@@ -15,7 +15,7 @@ import Foreign.Storable (peek)
 import GHC.Ptr (plusPtr)
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.Unboxed (Unboxed, sizeOf)
+import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
 import Streamly.Test.Common (listEquals)
 
 import qualified Streamly.Data.Fold as Fold
@@ -164,7 +164,7 @@ testBubbleAsc = testBubbleWith True
 testBubbleDesc ::  Property
 testBubbleDesc = testBubbleWith False
 
-testByteLengthWithMA :: forall a. Unboxed a => a -> IO ()
+testByteLengthWithMA :: forall a. Unbox a => a -> IO ()
 testByteLengthWithMA _ = do
      arrA <- MA.newPinned 100 :: IO (MA.Array a)
      let arrW8 = MA.castUnsafe arrA :: MA.Array Word8

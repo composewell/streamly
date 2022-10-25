@@ -79,7 +79,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.System.IO (defaultChunkSize)
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 
 import qualified Streamly.Data.Stream as Stream (fold, foldBreak)
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
@@ -500,7 +500,7 @@ reverse s = fromStreamD $ D.reverse $ toStreamD s
 --
 -- /Pre-release/
 {-# INLINE reverse' #-}
-reverse' :: (IsStream t, MonadIO m, Unboxed a) => t m a -> t m a
+reverse' :: (IsStream t, MonadIO m, Unbox a) => t m a -> t m a
 -- reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 reverse' =
         fromStreamD
@@ -679,7 +679,7 @@ foldManyPost f m = fromStreamD $ D.foldManyPost f (toStreamD m)
 -- that we can search files in files for example.
 {-# INLINE splitOnSeq #-}
 splitOnSeq
-    :: (IsStream t, MonadIO m, Unboxed a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Unbox a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m =
     IsStream.fromStreamD $ D.splitOnSeq patt f (IsStream.toStreamD m)

@@ -166,7 +166,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, toStreamD, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Data.Stream as Stream
@@ -849,7 +849,7 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 -- /Requires 'Storable' constraint/
 --
 {-# INLINE isInfixOf #-}
-isInfixOf :: (MonadIO m, Eq a, Enum a, Unboxed a)
+isInfixOf :: (MonadIO m, Eq a, Enum a, Unbox a)
     => SerialT m a -> SerialT m a -> m Bool
 isInfixOf infx stream = do
     arr <- fold A.write infx

@@ -13,7 +13,7 @@ import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Real (Ratio(..))
 import GHC.Stable (StablePtr(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 import Streamly.Test.Common (chooseInt)
 import Test.Hspec (hspec, describe, it)
 import Test.Hspec.QuickCheck
@@ -138,7 +138,7 @@ testUnboxInstanceExistance = do
         TEST_IE(Const Int Int)
     where
 
-    testIE :: Unboxed a => [a] -> IO ()
+    testIE :: Unbox a => [a] -> IO ()
     testIE lst = void $ MArray.fromList lst
 
 main :: IO ()

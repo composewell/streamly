@@ -41,7 +41,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unboxed
     ( MutableByteArray(..)
-    , Unboxed
+    , Unbox
     , sizeOf
     , peekWith
     , pokeWith
@@ -50,14 +50,14 @@ import Streamly.Internal.Data.Unboxed
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
--- | An 'IORef' holds a single 'Unboxed' value.
+-- | An 'IORef' holds a single 'Unbox'-able value.
 newtype IORef a = IORef (MutableByteArray a)
 
 -- | Create a new 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE newIORef #-}
-newIORef :: forall a. Unboxed a => a -> IO (IORef a)
+newIORef :: forall a. Unbox a => a -> IO (IORef a)
 newIORef x = do
     var <- newUnpinnedBytes (sizeOf (undefined :: a))
     pokeWith var 0 x
@@ -67,21 +67,21 @@ newIORef x = do
 --
 -- /Pre-release/
 {-# INLINE writeIORef #-}
-writeIORef :: Unboxed a => IORef a -> a -> IO ()
+writeIORef :: Unbox a => IORef a -> a -> IO ()
 writeIORef (IORef var) = pokeWith var 0
 
 -- | Read a value from an 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE readIORef #-}
-readIORef :: Unboxed a => IORef a -> IO a
+readIORef :: Unbox a => IORef a -> IO a
 readIORef (IORef var) = peekWith var 0
 
 -- | Modify the value of an 'IORef' using a function with strict application.
 --
 -- /Pre-release/
 {-# INLINE modifyIORef' #-}
-modifyIORef' :: Unboxed a => IORef a -> (a -> a) -> IO ()
+modifyIORef' :: Unbox a => IORef a -> (a -> a) -> IO ()
 modifyIORef' var g = do
   x <- readIORef var
   writeIORef var (g x)
@@ -90,7 +90,7 @@ modifyIORef' var g = do
 --
 -- /Pre-release/
 {-# INLINE_NORMAL toStreamD #-}
-toStreamD :: (MonadIO m, Unboxed a) => IORef a -> D.Stream m a
+toStreamD :: (MonadIO m, Unbox a) => IORef a -> D.Stream m a
 toStreamD var = D.Stream step ()
 
     where

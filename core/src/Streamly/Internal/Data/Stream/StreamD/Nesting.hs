@@ -166,7 +166,7 @@ import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
@@ -1823,7 +1823,7 @@ data SplitOnSeqState rb rh ck w fs s b x =
 
 {-# INLINE_NORMAL splitOnSeq #-}
 splitOnSeq
-    :: forall m a b. (MonadIO m, Unboxed a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
     => Array a
     -> Fold m a b
     -> Stream m a
@@ -2136,7 +2136,7 @@ data SplitOnSuffixSeqState rb rh ck w fs s b x =
 
 {-# INLINE_NORMAL splitOnSuffixSeq #-}
 splitOnSuffixSeq
-    :: forall m a b. (MonadIO m, Unboxed a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
     => Bool
     -> Array a
     -> Fold m a b

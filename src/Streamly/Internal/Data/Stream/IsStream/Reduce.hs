@@ -179,7 +179,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
        , toAbsTime)
-import Streamly.Internal.Data.Unboxed (Unboxed)
+import Streamly.Internal.Data.Unboxed (Unbox)
 
 import qualified Data.Heap as H
 import qualified Streamly.Data.Unfold as Unfold
@@ -798,7 +798,7 @@ splitWithSuffix predicate f = foldMany (FL.takeEndBy predicate f)
 -- /Unimplemented/
 --
 {-# INLINE splitOnAny #-}
-splitOnAny :: -- (IsStream t, Monad m, Unboxed a, Integral a) =>
+splitOnAny :: -- (IsStream t, Monad m, Unbox a, Integral a) =>
     [Array a] -> Fold m a b -> t m a -> t m b
 splitOnAny _subseq _f _m =
     undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.toStreamD m)
@@ -843,7 +843,7 @@ splitOnAny _subseq _f _m =
 -- /Pre-release/
 {-# INLINE splitBySeq #-}
 splitBySeq
-    :: (IsStream t, MonadAsync m, Unboxed a, Enum a, Eq a)
+    :: (IsStream t, MonadAsync m, Unbox a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitBySeq patt f m =
     intersperseM (fold f (A.read patt)) $ splitOnSeq patt f m
@@ -894,7 +894,7 @@ splitBySeq patt f m =
 -- /Pre-release/
 {-# INLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq
-    :: (IsStream t, MonadIO m, Unboxed a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Unbox a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeq patt f m =
     fromStreamD $ D.splitOnSuffixSeq False patt f (toStreamD m)
@@ -908,7 +908,7 @@ splitOnSuffixSeq patt f m =
 --
 -- /Unimplemented/
 {-# INLINE wordsOn #-}
-wordsOn :: -- (IsStream t, Monad m, Unboxed a, Eq a) =>
+wordsOn :: -- (IsStream t, Monad m, Unbox a, Eq a) =>
     Array a -> Fold m a b -> t m a -> t m b
 wordsOn _subseq _f _m =
     undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStreamD m)
@@ -946,7 +946,7 @@ wordsOn _subseq _f _m =
 -- /Pre-release/
 {-# INLINE splitWithSuffixSeq #-}
 splitWithSuffixSeq
-    :: (IsStream t, MonadIO m, Unboxed a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Unbox a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitWithSuffixSeq patt f m =
     fromStreamD $ D.splitOnSuffixSeq True patt f (toStreamD m)
@@ -958,7 +958,7 @@ splitWithSuffixSeq patt f m =
 --
 -- /Unimplemented/
 {-# INLINE splitOnSuffixSeqAny #-}
-splitOnSuffixSeqAny :: -- (IsStream t, Monad m, Unboxed a, Integral a) =>
+splitOnSuffixSeqAny :: -- (IsStream t, Monad m, Unbox a, Integral a) =>
     [Array a] -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeqAny _subseq _f _m = undefined
     -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
@@ -994,7 +994,7 @@ chunksOf n f = fromStreamD . D.chunksOf n f . toStreamD
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}
-arraysOf :: (IsStream t, MonadIO m, Unboxed a)
+arraysOf :: (IsStream t, MonadIO m, Unbox a)
     => Int -> t m a -> t m (Array a)
 arraysOf n = fromStreamD . A.arraysOf n . toStreamD
 
@@ -1100,7 +1100,7 @@ classifySlidingSessions tick interval slide (Fold step initial extract) str
 -- insert the new elements, and apply an incremental fold on the sliding
 -- window, supplying the outgoing elements, the new ring buffer as arguments.
 slidingChunkBuffer
-    :: (IsStream t, Monad m, Ord a, Unboxed a)
+    :: (IsStream t, Monad m, Ord a, Unbox a)
     => Int -- window size
     -> Int -- window slide
     -> Fold m (Ring a, Array a) b
@@ -1113,7 +1113,7 @@ slidingChunkBuffer = undefined
 -- an incremental fold on the sliding window, supplying the outgoing elements,
 -- and the new radix tree buffer as arguments.
 slidingSessionBuffer
-    :: (IsStream t, Monad m, Ord a, Unboxed a)
+    :: (IsStream t, Monad m, Ord a, Unbox a)
     => Int    -- window size
     -> Int    -- tick size
     -> Fold m (RTree a, Array a) b
