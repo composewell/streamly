@@ -96,7 +96,7 @@ main = do
             -- No events occur when a symlink root is moved
             : regSymTests
 
-    let w = Event.watchWith (Event.setAllEvents Event.On)
+    let w = Event.watchWith (Event.setAllEvents True)
         run = runTests moduleName "non-recursive" w
 
     run DirType regTests
@@ -142,7 +142,7 @@ main = do
         recSymTests = symTests ++ regSymRecTests
 
     let recw = Event.watchWith
-                (Event.setAllEvents Event.On . Event.setRecursiveMode Event.On)
+                (Event.setAllEvents True . Event.setRecursiveMode True)
         runRec = runTests moduleName "recursive" recw
 
     runRec DirType recRegTests

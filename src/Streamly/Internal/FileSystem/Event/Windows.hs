@@ -48,7 +48,6 @@ module Streamly.Internal.FileSystem.Event.Windows
 
     -- ** Default configuration
       Config
-    , Switch (..)
     , defaultConfig
 
     -- ** Watch Behavior
@@ -143,28 +142,22 @@ data Config = Config
 -- Boolean settings
 -------------------------------------------------------------------------------
 
--- | Whether a setting is 'On' or 'Off'.
---
--- /Pre-release/
---
-data Switch = On | Off deriving (Show, Eq)
-
-setFlag :: DWORD -> Switch -> Config -> Config
+setFlag :: DWORD -> Bool -> Config -> Config
 setFlag mask status cfg@Config{..} =
     let flags =
-            case status of
-                On -> createFlags .|. mask
-                Off -> createFlags .&. complement mask
+            if status
+            then createFlags .|. mask
+            else createFlags .&. complement mask
     in cfg {createFlags = flags}
 
 -- | Set watch event on directory recursively.
 --
--- /default: Off/
+-- /default: False/
 --
 -- /Pre-release/
 --
-setRecursiveMode :: Switch -> Config -> Config
-setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec == On}
+setRecursiveMode :: Bool -> Config -> Config
+setRecursiveMode recursive cfg@Config{} = cfg {watchRec = recursive}
 
 -- | Generate notify events on file create, rename or delete.
 --
@@ -172,11 +165,11 @@ setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec == On}
 -- directory or subtree causes a change notification wait operation to return.
 -- Changes include renaming, creating, or deleting a file.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setFileNameEvents :: Switch -> Config -> Config
+setFileNameEvents :: Bool -> Config -> Config
 setFileNameEvents = setFlag fILE_NOTIFY_CHANGE_FILE_NAME
 
 -- | Generate notify events on directory create, rename or delete.
@@ -185,21 +178,21 @@ setFileNameEvents = setFlag fILE_NOTIFY_CHANGE_FILE_NAME
 -- directory or subtree causes a change notification wait operation to return.
 -- Changes include creating or deleting a directory.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setDirNameEvents :: Switch -> Config -> Config
+setDirNameEvents :: Bool -> Config -> Config
 setDirNameEvents = setFlag fILE_NOTIFY_CHANGE_DIR_NAME
 
 -- | Generate an 'isModified' event on any attribute change in the watched
 -- directory or subtree.
 --
--- /default: Off/
+-- /default: False/
 --
 -- /Pre-release/
 --
-setAttrsModified :: Switch -> Config -> Config
+setAttrsModified :: Bool -> Config -> Config
 setAttrsModified = setFlag fILE_NOTIFY_CHANGE_ATTRIBUTES
 
 -- | Generate an 'isModified' event when the file size is changed.
@@ -210,11 +203,11 @@ setAttrsModified = setFlag fILE_NOTIFY_CHANGE_ATTRIBUTES
 -- written to the disk. For operating systems that use extensive caching,
 -- detection occurs only when the cache is sufficiently flushed.
 --
--- /default: Off/
+-- /default: False/
 --
 -- /Pre-release/
 --
-setSizeModified :: Switch -> Config -> Config
+setSizeModified :: Bool -> Config -> Config
 setSizeModified = setFlag fILE_NOTIFY_CHANGE_SIZE
 
 -- | Generate an 'isModified' event when the last write timestamp of the file
@@ -227,24 +220,24 @@ setSizeModified = setFlag fILE_NOTIFY_CHANGE_SIZE
 -- that use extensive caching, detection occurs only when the cache is
 -- sufficiently flushed.
 --
--- /default: Off/
+-- /default: False/
 --
 -- /Pre-release/
 --
-setLastWriteTimeModified :: Switch -> Config -> Config
+setLastWriteTimeModified :: Bool -> Config -> Config
 setLastWriteTimeModified = setFlag fILE_NOTIFY_CHANGE_LAST_WRITE
 
 -- | Generate an 'isModified' event when any security-descriptor change occurs
 -- in the watched directory or subtree.
 --
--- /default: Off/
+-- /default: False/
 --
 -- /Pre-release/
 --
-setSecurityModified :: Switch -> Config -> Config
+setSecurityModified :: Bool -> Config -> Config
 setSecurityModified = setFlag fILE_NOTIFY_CHANGE_SECURITY
 
--- | Set all tunable events 'On' or 'Off'. Equivalent to setting:
+-- | Set all tunable events 'True' or 'False'. Equivalent to setting:
 --
 -- * setFileNameEvents
 -- * setDirNameEvents
@@ -255,7 +248,7 @@ setSecurityModified = setFlag fILE_NOTIFY_CHANGE_SECURITY
 --
 -- /Pre-release/
 --
-setAllEvents :: Switch -> Config -> Config
+setAllEvents :: Bool -> Config -> Config
 setAllEvents s =
       setFileNameEvents s
     . setDirNameEvents s
@@ -266,19 +259,19 @@ setAllEvents s =
 
 -- | The tunable events that are enabled by default are:
 --
--- * setFileNameEvents On
--- * setDirNameEvents On
--- * setSizeModified On
--- * setLastWriteTimeModified On
+-- * setFileNameEvents True
+-- * setDirNameEvents True
+-- * setSizeModified True
+-- * setLastWriteTimeModified True
 --
 -- /Pre-release/
 --
 defaultConfig :: Config
 defaultConfig =
-      setFileNameEvents On
-    $ setDirNameEvents On
-    $ setSizeModified On
-    $ setLastWriteTimeModified On
+      setFileNameEvents True
+    $ setDirNameEvents True
+    $ setSizeModified True
+    $ setLastWriteTimeModified True
     $ Config {watchRec = False, createFlags = 0}
 
 getConfigFlag :: Config -> DWORD
@@ -471,7 +464,7 @@ closePathHandleStream =
 --
 -- @
 -- watchWith
---  ('setAttrsModified' On . 'setLastWriteTimeModified' Off)
+--  ('setAttrsModified' True . 'setLastWriteTimeModified' False)
 --  [Array.fromList "dir"]
 -- @
 --
@@ -488,12 +481,12 @@ watchWith f paths =
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
--- >>> watchRecursive = watchWith (setRecursiveMode On)
+-- >>> watchRecursive = watchWith (setRecursiveMode True)
 --
 -- /Pre-release/
 --
 watchRecursive :: NonEmpty (Array Word8) -> Stream IO Event
-watchRecursive = watchWith (setRecursiveMode On)
+watchRecursive = watchWith (setRecursiveMode True)
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
 --

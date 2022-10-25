@@ -64,7 +64,6 @@ module Streamly.Internal.FileSystem.Event.Linux
 
     -- ** Default configuration
       Config (..)
-    , Switch (..)
     , defaultConfig
 
     -- ** Watch Behavior
@@ -208,22 +207,12 @@ data Config = Config
 -- Boolean settings
 -------------------------------------------------------------------------------
 
--- | Whether a setting is 'On' or 'Off'.
---
--- /Pre-release/
---
-data Switch = On | Off deriving (Show, Eq)
-
-toggle :: Switch -> Switch
-toggle On = Off
-toggle Off = On
-
-setFlag :: Word32 -> Switch -> Config -> Config
+setFlag :: Word32 -> Bool -> Config -> Config
 setFlag mask status cfg@Config{..} =
     let flags =
-            case status of
-                On -> createFlags .|. mask
-                Off -> createFlags .&. complement mask
+            if status
+            then createFlags .|. mask
+            else createFlags .&. complement mask
     in cfg {createFlags = flags}
 
 -------------------------------------------------------------------------------
@@ -233,12 +222,12 @@ setFlag mask status cfg@Config{..} =
 -- | Watch the whole directory tree recursively instead of watching just one
 -- level of directory.
 --
--- /default: Off/
+-- /default: False/
 --
 -- /Pre-release/
 --
-setRecursiveMode :: Switch -> Config -> Config
-setRecursiveMode rec cfg@Config{} = cfg {watchRec = rec == On}
+setRecursiveMode :: Bool -> Config -> Config
+setRecursiveMode recursive cfg@Config{} = cfg {watchRec = recursive}
 
 foreign import capi
     "sys/inotify.h value IN_DONT_FOLLOW" iN_DONT_FOLLOW :: Word32
@@ -249,12 +238,12 @@ foreign import capi
 -- Note that the path location in the events is through the original symbolic
 -- link path rather than the resolved path.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setFollowSymLinks :: Switch -> Config -> Config
-setFollowSymLinks s = setFlag iN_DONT_FOLLOW (toggle s)
+setFollowSymLinks :: Bool -> Config -> Config
+setFollowSymLinks s = setFlag iN_DONT_FOLLOW (not s)
 
 foreign import capi
     "sys/inotify.h value IN_EXCL_UNLINK" iN_EXCL_UNLINK :: Word32
@@ -262,11 +251,11 @@ foreign import capi
 -- | If an object moves out of the directory being watched then stop watching
 -- it.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setUnwatchMoved :: Switch -> Config -> Config
+setUnwatchMoved :: Bool -> Config -> Config
 setUnwatchMoved = setFlag iN_EXCL_UNLINK
 
 #if HAVE_DECL_IN_MASK_CREATE
@@ -283,7 +272,7 @@ foreign import capi
 -- /Pre-release/
 --
 data WhenExists =
-      AddIfExists -- ^ Do not set an existing setting to 'Off' only set to 'On'
+      AddIfExists -- ^ Do not set an existing setting to 'False' only set to 'True'
     | ReplaceIfExists -- ^ Replace the existing settings with new settings
 #if HAVE_DECL_IN_MASK_CREATE
     | FailIfExists -- ^ Fail the API
@@ -299,10 +288,10 @@ data WhenExists =
 setWhenExists :: WhenExists -> Config -> Config
 setWhenExists val cfg =
     case val of
-        AddIfExists -> setFlag iN_MASK_ADD On cfg
-        ReplaceIfExists -> setFlag iN_MASK_ADD Off cfg
+        AddIfExists -> setFlag iN_MASK_ADD True cfg
+        ReplaceIfExists -> setFlag iN_MASK_ADD False cfg
 #if HAVE_DECL_IN_MASK_CREATE
-        FailIfExists -> setFlag iN_MASK_CREATE On cfg
+        FailIfExists -> setFlag iN_MASK_CREATE True cfg
 #endif
 
 foreign import capi
@@ -310,11 +299,11 @@ foreign import capi
 
 -- | Watch the object only for one event and then remove it from the watch.
 --
--- /default: Off/
+-- /default: False/
 --
 -- /Pre-release/
 --
-setOneShot :: Switch -> Config -> Config
+setOneShot :: Bool -> Config -> Config
 setOneShot = setFlag iN_ONESHOT
 
 foreign import capi
@@ -323,11 +312,11 @@ foreign import capi
 -- | Watch the object only if it is a directory. This provides a race-free way
 -- to ensure that the watched object is a directory.
 --
--- /default: Off/
+-- /default: False/
 --
 -- /Pre-release/
 --
-setOnlyDir :: Switch -> Config -> Config
+setOnlyDir :: Bool -> Config -> Config
 setOnlyDir = setFlag iN_ONLYDIR
 
 -------------------------------------------------------------------------------
@@ -339,11 +328,11 @@ foreign import capi
 
 -- | Report when the watched path itself gets deleted.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setRootDeleted :: Switch -> Config -> Config
+setRootDeleted :: Bool -> Config -> Config
 setRootDeleted = setFlag iN_DELETE_SELF
 
 foreign import capi
@@ -351,20 +340,20 @@ foreign import capi
 
 -- | Report when the watched root path itself gets renamed.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setRootMoved :: Switch -> Config -> Config
+setRootMoved :: Bool -> Config -> Config
 setRootMoved = setFlag iN_MOVE_SELF
 
 -- | Report when the watched root path itself gets deleted or renamed.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setRootPathEvents :: Switch -> Config -> Config
+setRootPathEvents :: Bool -> Config -> Config
 setRootPathEvents = setFlag (iN_DELETE_SELF .|. iN_MOVE_SELF)
 
 foreign import capi
@@ -373,11 +362,11 @@ foreign import capi
 -- | Report when the metadata e.g. owner, permission modes, modifications times
 -- of an object changes.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setAttrsModified :: Switch -> Config -> Config
+setAttrsModified :: Bool -> Config -> Config
 setAttrsModified = setFlag iN_ATTRIB
 
 foreign import capi
@@ -385,11 +374,11 @@ foreign import capi
 
 -- | Report when a file is accessed.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setAccessed :: Switch -> Config -> Config
+setAccessed :: Bool -> Config -> Config
 setAccessed = setFlag iN_ACCESS
 
 foreign import capi
@@ -397,11 +386,11 @@ foreign import capi
 
 -- | Report when a file is opened.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setOpened :: Switch -> Config -> Config
+setOpened :: Bool -> Config -> Config
 setOpened = setFlag iN_OPEN
 
 foreign import capi
@@ -409,11 +398,11 @@ foreign import capi
 
 -- | Report when a file that was opened for writes is closed.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setWriteClosed :: Switch -> Config -> Config
+setWriteClosed :: Bool -> Config -> Config
 setWriteClosed = setFlag iN_CLOSE_WRITE
 
 foreign import capi
@@ -421,11 +410,11 @@ foreign import capi
 
 -- | Report when a file that was opened for not writing is closed.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setNonWriteClosed :: Switch -> Config -> Config
+setNonWriteClosed :: Bool -> Config -> Config
 setNonWriteClosed = setFlag iN_CLOSE_NOWRITE
 
 foreign import capi
@@ -433,11 +422,11 @@ foreign import capi
 
 -- | Report when a file is created.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setCreated :: Switch -> Config -> Config
+setCreated :: Bool -> Config -> Config
 setCreated = setFlag iN_CREATE
 
 foreign import capi
@@ -445,11 +434,11 @@ foreign import capi
 
 -- | Report when a file is deleted.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setDeleted :: Switch -> Config -> Config
+setDeleted :: Bool -> Config -> Config
 setDeleted = setFlag iN_DELETE
 
 foreign import capi
@@ -457,11 +446,11 @@ foreign import capi
 
 -- | Report the source of a move.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setMovedFrom :: Switch -> Config -> Config
+setMovedFrom :: Bool -> Config -> Config
 setMovedFrom = setFlag iN_MOVED_FROM
 
 foreign import capi
@@ -469,11 +458,11 @@ foreign import capi
 
 -- | Report the target of a move.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setMovedTo :: Switch -> Config -> Config
+setMovedTo :: Bool -> Config -> Config
 setMovedTo = setFlag iN_MOVED_TO
 
 foreign import capi
@@ -481,14 +470,14 @@ foreign import capi
 
 -- | Report when a file is modified.
 --
--- /default: On/
+-- /default: True/
 --
 -- /Pre-release/
 --
-setModified :: Switch -> Config -> Config
+setModified :: Bool -> Config -> Config
 setModified = setFlag iN_MODIFY
 
--- | Set all tunable events 'On' or 'Off'. Equivalent to setting:
+-- | Set all tunable events 'True' or 'False'. Equivalent to setting:
 --
 -- * setRootDeleted
 -- * setRootMoved
@@ -505,7 +494,7 @@ setModified = setFlag iN_MODIFY
 --
 -- /Pre-release/
 --
-setAllEvents :: Switch -> Config -> Config
+setAllEvents :: Bool -> Config -> Config
 setAllEvents s =
       setRootDeleted s
     . setRootMoved s
@@ -529,30 +518,30 @@ setAllEvents s =
 --
 -- | The default configuration settings are:
 --
--- * 'setFollowSymLinks' 'On'
--- * 'setUnwatchMoved' 'On'
--- * 'setOneShot' 'Off'
--- * 'setOnlyDir' 'Off'
+-- * 'setFollowSymLinks' 'True'
+-- * 'setUnwatchMoved' 'True'
+-- * 'setOneShot' 'False'
+-- * 'setOnlyDir' 'False'
 -- * 'setWhenExists' 'AddIfExists'
 --
 -- The tunable events enabled by default are:
 --
--- * setCreated On
--- * setDeleted On
--- * setMovedFrom On
--- * setMovedTo On
--- * setModified On
+-- * setCreated True
+-- * setDeleted True
+-- * setMovedFrom True
+-- * setMovedTo True
+-- * setModified True
 --
 -- /Pre-release/
 --
 defaultConfig :: Config
 defaultConfig =
       setWhenExists AddIfExists
-    $ setCreated On
-    $ setDeleted On
-    $ setMovedFrom On
-    $ setMovedTo On
-    $ setModified On
+    $ setCreated True
+    $ setDeleted True
+    $ setMovedFrom True
+    $ setMovedTo True
+    $ setModified True
     $ Config
         { watchRec = False
         , createFlags = 0
@@ -911,7 +900,7 @@ watchToStream cfg wt@(Watch handle _) = do
 --
 -- @
 -- watchwith
---      ('setFollowSymLinks' On . 'setUnwatchMoved' Off)
+--      ('setFollowSymLinks' True . 'setUnwatchMoved' False)
 --      [Array.fromList "dir"]
 -- @
 --
@@ -928,14 +917,14 @@ watchWith f paths = S.bracket before after (watchToStream cfg)
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
--- >>> watchRecursive = watchWith (setRecursiveMode On)
+-- >>> watchRecursive = watchWith (setRecursiveMode True)
 --
 -- See 'watchWith' for pitfalls and bugs when using recursive watch on Linux.
 --
 -- /Pre-release/
 --
 watchRecursive :: NonEmpty (Array Word8) -> Stream IO Event
-watchRecursive = watchWith (setRecursiveMode On)
+watchRecursive = watchWith (setRecursiveMode True)
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
 --
@@ -1242,7 +1231,7 @@ isModified :: Event -> Bool
 isModified = getFlag iN_MODIFY
 
 -------------------------------------------------------------------------------
--- Information about path type (applicable only when 'setFileEvents' is 'On')
+-- Information about path type (applicable only when 'setFileEvents' is 'True')
 -------------------------------------------------------------------------------
 
 foreign import capi
