@@ -78,7 +78,7 @@ main = do
             , fileModify "" (const [])
             ]
 
-    let w = Event.watchWith (Event.setAllEvents Event.On)
+    let w = Event.watchWith (Event.setAllEvents True)
         run = runTests moduleName "recursive" w
 
     run DirType regularRootTests

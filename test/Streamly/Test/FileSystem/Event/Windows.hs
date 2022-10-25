@@ -30,7 +30,7 @@ main = do
         --
         -- ++ dirDelete "" (\dir -> [(dir, Event.isDeleted)])
 
-    let w = Event.watchWith (Event.setAllEvents Event.On)
+    let w = Event.watchWith (Event.setAllEvents True)
         run = runTests moduleName "non-recursive" w
 
     run DirType regularRootTests
@@ -44,7 +44,7 @@ main = do
             ] ++ commonRecTests
 
     let recw = Event.watchWith
-                (Event.setAllEvents Event.On . Event.setRecursiveMode Event.On)
+                (Event.setAllEvents True . Event.setRecursiveMode True)
         runRec = runTests moduleName "recursive" recw
 
     runRec DirType (regularRootTests ++ recTests)
