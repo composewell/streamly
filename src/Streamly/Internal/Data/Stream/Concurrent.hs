@@ -289,46 +289,46 @@ append2 = combineWith id
 -- the left stream. This schedules all streams in a round robin fashion over
 -- limited number of threads.
 --
--- >>> interleave2 = Async.combineWith Async.interleaved
+-- >>> interleave2 = Async.combineWith (Async.interleaved True)
 --
 {-# INLINE interleave2 #-}
 interleave2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-interleave2 = combineWith interleaved
+interleave2 = combineWith (interleaved True)
 
 -- | Like 'append' but with 'ordered' on.
 --
--- >>> ahead2 = Async.combineWith Async.ordered
+-- >>> ahead2 = Async.combineWith (Async.ordered True)
 --
 {-# INLINE ahead2 #-}
 ahead2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-ahead2 = combineWith ordered
+ahead2 = combineWith (ordered True)
 
 -- | Like 'append2' but with 'eager' on.
 --
--- >>> parallel2 = Async.combineWith Async.eager
+-- >>> parallel2 = Async.combineWith (Async.eager True)
 --
 {-# INLINE parallel2 #-}
 parallel2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallel2 = combineWith eager
+parallel2 = combineWith (eager True)
 
 -- | Like 'parallel2' but stops the output as soon as the first stream stops.
 --
--- >>> parallelFst2 = Async.combineWith (Async.eager . Async.stopWhen Async.FirstStops)
+-- >>> parallelFst2 = Async.combineWith (Async.eager True . Async.stopWhen Async.FirstStops)
 --
 -- /Pre-release/
 {-# INLINE parallelFst2 #-}
 parallelFst2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallelFst2 = combineWith (eager . stopWhen FirstStops)
+parallelFst2 = combineWith (eager True . stopWhen FirstStops)
 
 -- | Like 'parallel2' but stops the output as soon as any of the two streams
 -- stops.
 --
--- >>> parallelMin2 = Async.combineWith (Async.eager . Async.stopWhen Async.AnyStops)
+-- >>> parallelMin2 = Async.combineWith (Async.eager True . Async.stopWhen Async.AnyStops)
 --
 -- /Pre-release/
 {-# INLINE parallelMin2 #-}
 parallelMin2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallelMin2 = combineWith (eager . stopWhen AnyStops)
+parallelMin2 = combineWith (eager True . stopWhen AnyStops)
 
 -------------------------------------------------------------------------------
 -- concat streams
@@ -482,11 +482,11 @@ concatMap = concatMapWith id
 -- evaluate the earlier stream first, this schedules all streams in a round
 -- robin fashion over the available threads.
 --
--- >>> concatMapInterleave = Async.concatMapWith Async.interleaved
+-- >>> concatMapInterleave = Async.concatMapWith (Async.interleaved True)
 --
 -- When used with a single thread it behaves like serial interleaving:
 --
--- >>> f cfg xs = Stream.fold Fold.toList $ Async.concatMapWith (Async.interleaved . cfg) id $ Stream.fromList xs
+-- >>> f cfg xs = Stream.fold Fold.toList $ Async.concatMapWith (Async.interleaved True . cfg) id $ Stream.fromList xs
 --
 -- >>> stream1 = Stream.fromList [1,2,3]
 -- >>> stream2 = Stream.fromList [4,5,6]
@@ -497,7 +497,7 @@ concatMap = concatMapWith id
 --
 {-# INLINE concatMapInterleave #-}
 concatMapInterleave :: MonadAsync m => (a -> Stream m b) -> Stream m a -> Stream m b
-concatMapInterleave = concatMapWith interleaved
+concatMapInterleave = concatMapWith (interleaved True)
 
 -- | Like 'concat' but we can also specify the concurrent channel's
 -- configuration parameters using Config modifiers.
@@ -541,44 +541,44 @@ append = concatListWith id
 -- the left stream. This schedules all streams in a round robin fashion over
 -- limited number of threads.
 --
--- >>> interleave = Async.concatListWith Async.interleaved
+-- >>> interleave = Async.concatListWith (Async.interleaved True)
 --
 {-# INLINE interleave #-}
 interleave :: MonadAsync m => [Stream m a] -> Stream m a
-interleave = concatListWith interleaved
+interleave = concatListWith (interleaved True)
 
 -- | Like 'append' but with 'ordered' on.
 --
--- >>> ahead = Async.concatListWith Async.ordered
+-- >>> ahead = Async.concatListWith (Async.ordered True)
 --
 {-# INLINE ahead #-}
 ahead :: MonadAsync m => [Stream m a] -> Stream m a
-ahead = concatListWith ordered
+ahead = concatListWith (ordered True)
 
 -- | Like 'append' but with 'eager' on.
 --
--- >>> parallel = Async.concatListWith Async.eager
+-- >>> parallel = Async.concatListWith (Async.eager True)
 --
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => [Stream m a] -> Stream m a
-parallel = concatListWith eager
+parallel = concatListWith (eager True)
 
 -- | Like 'parallel' but stops the output as soon as the first stream stops.
 --
--- >>> parallelFst = Async.concatListWith (Async.eager . Async.stopWhen Async.FirstStops)
+-- >>> parallelFst = Async.concatListWith (Async.eager True . Async.stopWhen Async.FirstStops)
 --
 {-# INLINE parallelFst #-}
 parallelFst :: MonadAsync m => [Stream m a] -> Stream m a
-parallelFst = concatListWith (eager . stopWhen FirstStops)
+parallelFst = concatListWith (eager True . stopWhen FirstStops)
 
 -- | Like 'parallel' but stops the output as soon as any of the two streams
 -- stops.
 --
--- >>> parallelMin = Async.concatListWith (Async.eager . Async.stopWhen Async.AnyStops)
+-- >>> parallelMin = Async.concatListWith (Async.eager True . Async.stopWhen Async.AnyStops)
 --
 {-# INLINE parallelMin #-}
 parallelMin :: MonadAsync m => [Stream m a] -> Stream m a
-parallelMin = concatListWith (eager . stopWhen AnyStops)
+parallelMin = concatListWith (eager True . stopWhen AnyStops)
 
 -------------------------------------------------------------------------------
 -- Applicative
@@ -671,7 +671,7 @@ zipWith f = zipWithM (\a b -> return $ f a b)
 {-# INLINE_NORMAL newCallbackStream #-}
 newCallbackStream :: MonadAsync m => m (a -> m (), Stream m a)
 newCallbackStream = do
-    chan <- newChannel eager
+    chan <- newChannel (eager True)
 
     -- XXX Add our own thread-id to the SVar as we can not know the callback's
     -- thread-id and the callback is not run in a managed worker. We need to
