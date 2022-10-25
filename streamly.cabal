@@ -419,6 +419,8 @@ library
 
                      , Streamly.Internal.Data.Stream.IsStream
 
+                     , Streamly.Internal.Data.Stream.ToStream
+
     if !impl(ghcjs) && flag(dev)
         other-modules:
                        Streamly.Internal.System.IOVec.Type
