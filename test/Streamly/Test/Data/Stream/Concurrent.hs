@@ -219,7 +219,7 @@ sequenceReplicate cfg = constructWithLenM stream list
     where
 
     list = flip replicateM (return 1 :: IO Int)
-    stream = Async.sequenceWith cfg . flip Stream.replicate (return 1 :: IO Int)
+    stream = Async.sequenceUsing cfg . flip Stream.replicate (return 1 :: IO Int)
 
 main :: IO ()
 main = hspec
@@ -235,7 +235,7 @@ main = hspec
                 (fmap (+2))
                 (fmap (+1) . Async.eval . fmap (+1))
 
-        asyncSpec $ prop "sequenceWith" . sequenceReplicate
+        asyncSpec $ prop "sequenceUsing" . sequenceReplicate
         -- XXX Need to use asyncSpec in all tests
         prop "mapM (+1)" $
             transform (fmap (+1)) (Async.mapM (\x -> return (x + 1)))
@@ -281,9 +281,9 @@ main = hspec
                   stream = leaf11 `Async.append2` leaf12
                in cmp stream sortEq [0, 1, 2, 3, 4, 5, 6,7]
 
-        prop1 "combineWith (maxThreads 1)"
+        prop1 "joinUsing (maxThreads 1)"
             $ let stream =
-                    Async.combineWith (Async.maxThreads 1)
+                    Async.joinUsing (Async.maxThreads 1)
                         (Stream.fromList [1,2,3,4,5])
                         (Stream.fromList [6,7,8,9,10])
                in cmp stream (==) [1,2,3,4,5,6,7,8,9,10]

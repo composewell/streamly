@@ -5,12 +5,20 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : released
 -- Portability : GHC
+--
+-- Suggested idioms:
+--
+-- >>> joinAsync = joinUsing id
+--
+-- Note: this module is designed to not conflict with Data.Stream so that both
+-- can be imported as Stream.
 
 module Streamly.Data.Stream.Concurrent
     (
       MonadAsync
 
     -- * Configuration
+    -- | Define the concurrency strategy.
     , Config
 
     -- ** Limits
@@ -43,39 +51,27 @@ module Streamly.Data.Stream.Concurrent
     -- ** Evaluate
     -- | Evaluates a stream concurrently using a channel.
     , eval
-    , evalWith
+    , evalUsing
 
     -- ** Map
     -- | Uses a single channel to evaluate mapped actions concurrently.
-    , mapM
-    , mapMWith
-    , sequence
-    , sequenceWith
+    , mapMUsing
+    , sequenceUsing
 
     -- ** List of streams
     -- | Shares a single channel across many streams.
-    , append
-    , ahead
-    , parallel
-    , concatListWith
-    , parallelFst
-    , parallelMin
-    , zipWithM
-    , zipWith
+    , joinUsing
 
     -- ** Stream of streams
     -- *** Apply
     -- | Apply argument streams to a function concurrently. Uses a separate
     -- channel for each application.
-    , apply
-    , applyWith
+    , applyUsing
 
     -- *** Concat
     -- | Shares a single channel across many streams.
-    , concat
-    , concatWith
-    , concatMap
-    , concatMapWith
+    , concatUsing
+    , concatMapUsing
     )
 where
 
