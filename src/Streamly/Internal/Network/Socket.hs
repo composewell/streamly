@@ -521,8 +521,6 @@ writeMaybesWith n h =
         writeOnNothing = FL.takeEndBy_ isNothing writeNJusts
     in FL.many writeOnNothing (writeChunks h)
 
--- > write = 'writeWith' defaultChunkSize
---
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of size
 -- up to 'defaultChunkSize' before writing.  Note that the write behavior
 -- depends on the 'IOMode' and the current seek position of the handle.
@@ -534,9 +532,7 @@ putBytes = putBytesWith defaultChunkSize
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- up to 'defaultChunkSize' bytes before writing.
 --
--- @
--- write = 'writeWith' 'defaultChunkSize'
--- @
+-- >>> write = Socket.writeWith defaultChunkSize
 --
 {-# INLINE write #-}
 write :: MonadIO m => Socket -> Fold m Word8 ()
