@@ -23,6 +23,10 @@ module Streamly.Internal.Data.Stream.Bottom
     , fold
     , foldContinue
     , foldBreak
+    , foldBreak2
+    , foldEither
+    , foldEither2
+    , foldConcat
 
     -- * Scans
     , smapM
@@ -61,10 +65,13 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
+import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.System.IO (defaultChunkSize)
+import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -214,20 +221,126 @@ fold fl strm = D.fold fl $ D.fromStreamK $ toStreamK strm
 --
 {-# INLINE foldBreak #-}
 foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
-{-
--- XXX This shows quadratic performance when used recursively perhaps because
--- of StreamK to StreamD conversions not getting eliminated sue to recursion.
-foldBreak fl (Stream strm) = fmap f $ D.foldBreak fl $ D.fromStreamK strm
-
-    where
-
-    f (b, str) = (b, Stream (D.toStreamK str))
--}
 foldBreak fl strm = fmap f $ K.foldBreak fl (toStreamK strm)
 
     where
 
     f (b, str) = (b, fromStreamK str)
+
+-- XXX The quadratic slowdown in recursive use is because recursive function
+-- cannot be inlined and StreamD/StreamK conversions pile up and cannot be
+-- eliminated by rewrite rules.
+
+-- | Like 'foldBreak' but fuses.
+--
+-- /Note:/ Unlike 'foldBreak', recursive application on the resulting stream
+-- would lead to quadratic slowdown. If you need recursion with fusion (within
+-- one iteration of recursion) use StreamD.foldBreak directly.
+--
+-- /Internal/
+{-# INLINE foldBreak2 #-}
+foldBreak2 :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
+foldBreak2 fl strm = fmap f $ D.foldBreak fl $ toStreamD strm
+
+    where
+
+    f (b, str) = (b, fromStreamD str)
+
+-- | Fold resulting in either breaking the stream or continuation of the fold
+-- Instead of supplying the input stream in one go we can run the fold multiple
+-- times each time supplying the next segment of the input stream. If the fold
+-- has not yet finished it returns a fold that can be run again otherwise it
+-- returns the fold result and the residual stream.
+--
+-- /Internal/
+{-# INLINE foldEither #-}
+foldEither :: Monad m =>
+    Fold m a b -> Stream m a -> m (Either (Fold m a b) (b, Stream m a))
+foldEither fl strm = fmap (fmap f) $ K.foldEither fl $ toStreamK strm
+
+    where
+
+    f (b, str) = (b, fromStreamK str)
+
+-- | Like 'foldEither' but fuses. However, recursive application on resulting
+-- stream would lead to quadratic slowdown.
+--
+-- /Internal/
+{-# INLINE foldEither2 #-}
+foldEither2 :: Monad m =>
+    Fold m a b -> Stream m a -> m (Either (Fold m a b) (b, Stream m a))
+foldEither2 fl strm = fmap (fmap f) $ D.foldEither fl $ toStreamD strm
+
+    where
+
+    f (b, str) = (b, fromStreamD str)
+
+-- XXX Array folds can be implemented using this.
+-- foldContainers? Specialized to foldArrays.
+
+-- | Generate streams from individual elements of a stream and fold the
+-- concatenation of those streams using the supplied fold. Return the result of
+-- the fold and residual stream.
+--
+-- For example, this can be used to efficiently fold an Array Word8 stream
+-- using Word8 folds.
+--
+-- The outer stream forces CPS to allow scalable appends and the inner stream
+-- forces direct style for stream fusion.
+--
+-- /Internal/
+{-# INLINE foldConcat #-}
+foldConcat :: Monad m =>
+    Producer m a b -> Fold m b c -> Stream m a -> m (c, Stream m a)
+foldConcat
+    (Producer pstep pinject pextract)
+    (Fold fstep begin done)
+    stream = do
+
+    res <- begin
+    case res of
+        Fold.Partial fs -> go fs streamK
+        Fold.Done fb -> return (fb, fromStreamK streamK)
+
+    where
+
+    streamK = toStreamK stream
+
+    go !acc m1 = do
+        let stop = do
+                r <- done acc
+                return (r, fromStreamK K.nil)
+            single a = do
+                st <- pinject a
+                res <- go1 SPEC acc st
+                case res of
+                    Left fs -> do
+                        r <- done fs
+                        return (r, fromStreamK K.nil)
+                    Right (b, s) -> do
+                        x <- pextract s
+                        return (b, fromStreamK (K.fromPure x))
+            yieldk a r = do
+                st <- pinject a
+                res <- go1 SPEC acc st
+                case res of
+                    Left fs -> go fs r
+                    Right (b, s) -> do
+                        x <- pextract s
+                        return (b, fromStreamK (x `K.cons` r))
+         in K.foldStream defState yieldk single stop m1
+
+    {-# INLINE go1 #-}
+    go1 !_ !fs st = do
+        r <- pstep st
+        case r of
+            D.Yield x s -> do
+                res <- fstep fs x
+                case res of
+                    Fold.Done b -> return $ Right (b, s)
+                    Fold.Partial fs1 -> go1 SPEC fs1 s
+            D.Skip s -> go1 SPEC fs s
+            D.Stop -> return $ Left fs
 
 ------------------------------------------------------------------------------
 -- Transformation

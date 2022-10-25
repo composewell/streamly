@@ -315,9 +315,6 @@ splitOnSuffix byte s =
 -- Elimination - Running folds
 -------------------------------------------------------------------------------
 
--- XXX This should be written using CPS (as foldK) if we want it to scale wrt
--- to the number of times it can be called on the same stream.
---
 {-# INLINE_NORMAL foldBreakD #-}
 foldBreakD :: forall m a b. (MonadIO m, Unbox a) =>
     Fold m a b -> D.Stream m (Array a) -> m (b, D.Stream m (Array a))

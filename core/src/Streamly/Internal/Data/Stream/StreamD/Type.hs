@@ -44,7 +44,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , fold
     , foldBreak
     , foldContinue
-    , foldStream
+    , foldEither
 
     -- * Right Folds
     , foldrT
@@ -282,13 +282,14 @@ fold fld strm = do
     (b, _) <- foldBreak fld strm
     return b
 
-{-# INLINE_NORMAL foldBreak #-}
-foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
-foldBreak (Fold fstep begin done) (UnStream step state) = do
+{-# INLINE_NORMAL foldEither #-}
+foldEither :: Monad m =>
+    Fold m a b -> Stream m a -> m (Either (Fold m a b) (b, Stream m a))
+foldEither (Fold fstep begin done) (UnStream step state) = do
     res <- begin
     case res of
         FL.Partial fs -> go SPEC fs state
-        FL.Done fb -> return $! (fb, Stream step state)
+        FL.Done fb -> return $! Right (fb, Stream step state)
 
     where
 
@@ -299,12 +300,28 @@ foldBreak (Fold fstep begin done) (UnStream step state) = do
             Yield x s -> do
                 res <- fstep fs x
                 case res of
-                    FL.Done b -> return $! (b, Stream step s)
+                    FL.Done b -> return $! Right (b, Stream step s)
                     FL.Partial fs1 -> go SPEC fs1 s
             Skip s -> go SPEC fs s
-            Stop -> do
-                b <- done fs
-                return $! (b, Stream (\ _ _ -> return Stop) ())
+            Stop -> return $! Left (Fold fstep (return $ FL.Partial fs) done)
+
+{-# INLINE_NORMAL foldBreak #-}
+foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
+foldBreak fld strm = do
+    r <- foldEither fld strm
+    case r of
+        Right res -> return res
+        Left (Fold _ initial extract) -> do
+            res <- initial
+            case res of
+                FL.Done _ -> error "foldBreak: unreachable state"
+                FL.Partial s -> do
+                    b <- extract s
+                    return (b, nil)
+
+    where
+
+    nil = Stream (\_ _ -> return Stop) ()
 
 -- | If the fold finishes before the stream, we can detect that the fold is
 -- done by checking if the initial action returns Done. But the remaining
@@ -333,16 +350,6 @@ foldContinue (Fold fstep finitial fextract) (Stream sstep state) =
                     FL.Partial fs1 -> go SPEC fs1 s
             Skip s -> go SPEC fs s
             Stop -> return $ FL.Partial fs
-
--- | Returns when either the fold or the stream finishes. If the Fold finishes
--- first we can check that using Fold.done. If the fold is not done then stream
--- would be nil.
---
--- /Unimplemented/
-{-# INLINE_NORMAL foldStream #-}
-foldStream :: -- Monad m =>
-    Fold m a b -> Stream m a -> m (Fold m a b, Stream m a)
-foldStream = undefined
 
 ------------------------------------------------------------------------------
 -- Right Folds

@@ -83,6 +83,7 @@ module Streamly.Internal.Data.Stream.StreamK
     , foldlMx'
     , fold
     , foldBreak
+    , foldEither
     , parseBreak
 
     -- ** Specialized Folds
@@ -180,6 +181,7 @@ where
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad (void, join)
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
@@ -333,29 +335,45 @@ fold (FL.Fold step begin done) m = do
                         FL.Done b1 -> return b1
          in foldStream defState yieldk single stop m1
 
-{-# INLINE foldBreak #-}
-foldBreak :: Monad m => FL.Fold m a b -> Stream m a -> m (b, Stream m a)
-foldBreak (FL.Fold step begin done) m = do
+{-# INLINE foldEither #-}
+foldEither :: Monad m =>
+    Fold m a b -> Stream m a -> m (Either (Fold m a b) (b, Stream m a))
+foldEither (FL.Fold step begin done) m = do
     res <- begin
     case res of
         FL.Partial fs -> go fs m
-        FL.Done fb -> return (fb, m)
+        FL.Done fb -> return $ Right (fb, m)
 
     where
 
     go !acc m1 =
-        let stop = (, nil) <$> done acc
+        let stop = return $ Left (Fold step (return $ FL.Partial acc) done)
             single a =
                 step acc a
                   >>= \case
-                    FL.Partial s -> (, nil) <$> done s
-                    FL.Done b1 -> return (b1, nil)
+                    FL.Partial s ->
+                        return $ Left (Fold step (return $ FL.Partial s) done)
+                    FL.Done b1 -> return $ Right (b1, nil)
             yieldk a r =
                 step acc a
                   >>= \case
                     FL.Partial s -> go s r
-                    FL.Done b1 -> return (b1, r)
+                    FL.Done b1 -> return $ Right (b1, r)
          in foldStream defState yieldk single stop m1
+
+{-# INLINE foldBreak #-}
+foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
+foldBreak fld strm = do
+    r <- foldEither fld strm
+    case r of
+        Right res -> return res
+        Left (Fold _ initial extract) -> do
+            res <- initial
+            case res of
+                FL.Done _ -> error "foldBreak: unreachable state"
+                FL.Partial s -> do
+                    b <- extract s
+                    return (b, nil)
 
 -- | Like 'foldl'' but with a monadic step function.
 {-# INLINE foldlM' #-}
