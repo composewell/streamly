@@ -223,7 +223,6 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 --
 -- $setup
 -- >>> :m
--- >>> :set -package streamly
 -- >>> import Prelude hiding ()
 -- >>> import qualified Data.Maybe as Maybe
 -- >>> import qualified Streamly.Data.Stream as Stream

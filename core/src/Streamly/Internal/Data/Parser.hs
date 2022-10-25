@@ -264,7 +264,6 @@ import Prelude hiding
 --
 -- $setup
 -- >>> :m
--- >>> :set -package streamly
 -- >>> import Prelude hiding (any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either, filter)
 -- >>> import Control.Applicative ((<|>))
 -- >>> import Data.Char (isSpace)

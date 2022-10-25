@@ -49,7 +49,6 @@ import qualified Streamly.Internal.Unicode.Char.Parser as Parser
 
 -- $setup
 -- >>> :m
--- >>> :set -package streamly
 -- >>> :set -XQuasiQuotes
 -- >>> import Streamly.Internal.Unicode.String
 --

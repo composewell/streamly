@@ -51,7 +51,6 @@ import Prelude hiding (take, iterate)
 
 -- $setup
 -- >>> :m
--- >>> :set -package streamly
 -- >>> import qualified Streamly.Internal.Data.Refold.Type as Refold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream

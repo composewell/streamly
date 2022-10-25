@@ -182,7 +182,6 @@ import Prelude hiding (read)
 
 -- $setup
 -- >>> :m
--- >>> :set -package streamly
 -- >>> import qualified Streamly.Internal.Data.Array.Mut.Type as Array
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.StreamD as StreamD

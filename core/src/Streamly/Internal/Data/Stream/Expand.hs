@@ -627,9 +627,9 @@ concatPairsWith par f m =
 -- It can be used to traverse a tree structure.  For example, to list a
 -- directory tree:
 --
--- >> input = Stream.fromPure (Left ".")
--- >> f = either Dir.toEither (const Stream.nil)
--- >> ls = Stream.iterateMapWith Stream.append f input
+-- >>> input = Stream.fromPure (Left ".")
+-- >>> f = either Dir.readEither (const Stream.nil)
+-- >>> ls = Stream.iterateMapWith Stream.append f input
 --
 -- /Pre-release/
 --
@@ -719,8 +719,8 @@ concatMapEitherWith = undefined
 --
 -- To traverse a directory tree:
 --
--- >> input = fromPure (Left ".")
--- >> ls = Stream.iterateMapLeftsWith Stream.append Dir.toEither input
+-- >>> input = Stream.fromPure (Left ".")
+-- >>> ls = Stream.iterateMapLeftsWith Stream.append Dir.readEither input
 --
 -- /Pre-release/
 --
