@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Unboxed.Stream.Fold
+-- Module      : Streamly.Internal.Data.Array.Unboxed.Fold
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -19,7 +19,7 @@
 --
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Stream as ArrayStream
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Stream.Fold as ArrayFold
+-- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Fold as ArrayFold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream (arraysOf)
 -- >>> import qualified Streamly.Data.Stream as Stream
 --
@@ -28,7 +28,7 @@
 -- >>> ArrayStream.runArrayFold f s
 -- "hello w"
 --
-module Streamly.Internal.Data.Array.Unboxed.Stream.Fold
+module Streamly.Internal.Data.Array.Unboxed.Fold
     (
       ArrayFold (..)
 

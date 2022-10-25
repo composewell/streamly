@@ -64,7 +64,7 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
-import Streamly.Internal.Data.Array.Unboxed.Stream.Fold (ArrayFold(..))
+import Streamly.Internal.Data.Array.Unboxed.Fold (ArrayFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream
     (fromStreamD, fromStreamK, toStreamD, toStreamK)
