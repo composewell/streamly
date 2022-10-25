@@ -469,12 +469,12 @@ library
                     -- packages depending on the "ghc" package (packages
                     -- depending on doctest is a common example) can
                     -- depend on streamly.
-                       base              >= 4.9   && < 4.18
-                     , containers        >= 0.5   && < 0.7
-                     , deepseq           >= 1.4.1 && < 1.5
-                     , exceptions        >= 0.8   && < 0.11
-                     , mtl               >= 2.2   && < 2.4
-                     , transformers      >= 0.4   && < 0.7
+                       base              >= 4.12  && < 4.18
+                     , containers        >= 0.6.0 && < 0.7
+                     , deepseq           >= 1.4.4 && < 1.5
+                     , exceptions        >= 0.8.0 && < 0.11
+                     , mtl               >= 2.2.2 && < 2.4
+                     , transformers      >= 0.5.5 && < 0.7
 
                      -- The core streamly package
                      , streamly-core     == 0.1.0
@@ -490,7 +490,7 @@ library
                      , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.4 && < 0.3
 
-                     , unicode-data      >= 0.1   && < 0.4
+                     , unicode-data      >= 0.1 && < 0.5
 
                     -- Network
                      , network           >= 2.6   && < 3.2
