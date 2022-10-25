@@ -348,20 +348,46 @@ library
                      -- streamly-console
                      , Streamly.Internal.Console.Stdio
 
-                     -- streamly-core exposed modules
-                     , Streamly.Data.Stream
-                     , Streamly.Data.Fold
-                     , Streamly.Data.Fold.Tee
-                     , Streamly.Data.Parser
-                     , Streamly.Data.Unfold
+                     -- To be implemented
+                     -- , Streamly.Data.Refold
+                     -- , Streamly.Data.Array.Mut
+                     -- , Streamly.Data.Binary.Encode -- Stream types
+
+                     -- Pre-release modules
+                     -- , Streamly.Data.Fold.Window
+                     -- , Streamly.Data.Pipe
+                     -- , Streamly.Data.Array.Unboxed.Stream
+                     -- XXX rename to Streamly.Data.Array.Unboxed.Fold
+                     -- , Streamly.Data.Array.Unboxed.Stream.Fold
+                     -- , Streamly.Data.Array.Unboxed.Mut.Stream
+                     -- , Streamly.Data.Ring
+                     -- , Streamly.Data.Ring.Unboxed
+                     -- , Streamly.Data.IORef.Unboxed
+                     -- , Streamly.Data.List
+                     -- , Streamly.Data.Binary.Decode
+                     -- , Streamly.FileSystem.File
+                     -- , Streamly.FileSystem.Dir
+                     -- , Streamly.Data.Time.Units
+                     -- , Streamly.Data.Time.Clock
+                     -- , Streamly.Data.Tuple.Strict
+                     -- , Streamly.Data.Maybe.Strict
+                     -- , Streamly.Data.Either.Strict
+
+                     -- streamly-core released modules in alphabetic order
+                     -- NOTE: these must be added to streamly.cabal as well
+                     , Streamly.Console.Stdio
                      , Streamly.Data.Array
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Array.Unboxed.Mut
+                     , Streamly.Data.Fold
+                     , Streamly.Data.Fold.Tee
+                     , Streamly.Data.Parser
+                     , Streamly.Data.Stream
+                     , Streamly.Data.Unfold
+                     , Streamly.FileSystem.Handle
                      , Streamly.Unicode.Parser
                      , Streamly.Unicode.Stream
                      , Streamly.Unicode.String
-                     , Streamly.FileSystem.Handle
-                     , Streamly.Console.Stdio
 
     other-modules: Streamly.Data.Stream.Zip
 
