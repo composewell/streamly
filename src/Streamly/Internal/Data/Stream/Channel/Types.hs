@@ -489,8 +489,8 @@ getStreamLatency = _streamLatency
 
 -- | Print debug information about the 'Channel' when the stream ends.
 --
-inspect :: Config -> Config
-inspect st = st { _inspect = True }
+inspect :: Bool -> Config -> Config
+inspect flag st = st { _inspect = flag }
 
 getInspectMode :: Config -> Bool
 getInspectMode = _inspect
@@ -505,8 +505,8 @@ getInspectMode = _inspect
 -- /Note:/ This option has no effect when rate has been specified.
 -- /Note:/ Not supported with 'interleaved'.
 --
-eager :: Config -> Config
-eager st = st { _eagerDispatch = True }
+eager :: Bool -> Config -> Config
+eager flag st = st { _eagerDispatch = flag }
 
 getEagerDispatch :: Config -> Bool
 getEagerDispatch = _eagerDispatch
@@ -523,8 +523,8 @@ getStopWhen = _stopWhen
 --
 -- /Note:/ Not supported with 'interleaved'.
 --
-ordered :: Config -> Config
-ordered st = st { _ordered = True }
+ordered :: Bool -> Config -> Config
+ordered flag st = st { _ordered = flag }
 
 getOrdered :: Config -> Bool
 getOrdered = _ordered
@@ -536,8 +536,8 @@ getOrdered = _ordered
 -- /Note:/ Can only be used on finite number of streams.
 -- /Note:/ Not supported with 'ordered'.
 --
-interleaved :: Config -> Config
-interleaved st = st { _interleaved = True }
+interleaved :: Bool -> Config -> Config
+interleaved flag st = st { _interleaved = flag }
 
 getInterleaved :: Config -> Bool
 getInterleaved = _interleaved

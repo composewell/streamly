@@ -21,4 +21,5 @@ moduleName = "Data.Stream.ConcurrentInterleaved"
 main :: IO ()
 main =
     runWithCLIOpts
-        defaultStreamSize (allBenchmarks moduleName Async.interleaved)
+        defaultStreamSize
+        (allBenchmarks moduleName (Async.interleaved True))

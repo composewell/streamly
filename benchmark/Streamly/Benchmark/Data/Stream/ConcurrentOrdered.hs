@@ -20,4 +20,6 @@ moduleName = "Data.Stream.ConcurrentOrdered"
 
 main :: IO ()
 main =
-    runWithCLIOpts defaultStreamSize (allBenchmarks moduleName Async.ordered)
+    runWithCLIOpts
+        defaultStreamSize
+        (allBenchmarks moduleName (Async.ordered True))

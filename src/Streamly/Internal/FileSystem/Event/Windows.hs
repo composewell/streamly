@@ -471,7 +471,7 @@ closePathHandleStream =
 --
 watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
 watchWith f paths =
-     S.bracketIO before after (Concur.concatMapWith eager eventStreamAggr)
+    S.bracketIO before after (Concur.concatMapWith (eager True) eventStreamAggr)
 
     where
 
