@@ -350,7 +350,6 @@ library
 
                      -- streamly-core exposed modules
                      , Streamly.Data.Stream
-                     , Streamly.Data.Stream.Zip
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
                      , Streamly.Data.Parser
@@ -363,6 +362,8 @@ library
                      , Streamly.Unicode.String
                      , Streamly.FileSystem.Handle
                      , Streamly.Console.Stdio
+
+    other-modules: Streamly.Data.Stream.Zip
 
     if flag(dev)
       exposed-modules:

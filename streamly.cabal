@@ -437,7 +437,6 @@ library
                       , Streamly.Data.Fold.Tee
                       , Streamly.Data.Parser
                       , Streamly.Data.Stream
-                      , Streamly.Data.Stream.Zip
                       , Streamly.Data.Unfold
                       , Streamly.FileSystem.Handle
                       , Streamly.Unicode.Parser
