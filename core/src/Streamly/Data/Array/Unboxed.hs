@@ -107,7 +107,6 @@ import Prelude hiding (read)
 -- $setup
 -- >>> :m
 -- >>> :set -XFlexibleContexts
--- >>> :set -package streamly
 -- >>> import Streamly.Internal.Data.Stream (Stream)
 -- >>> import Streamly.Data.Array.Unboxed (Array)
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream

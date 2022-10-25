@@ -225,7 +225,6 @@ import Prelude hiding (concatMap, filter)
 --
 -- $setup
 -- >>> :m
--- >>> :set -package streamly
 -- >>> import Control.Applicative ((<|>))
 -- >>> import Data.Bifunctor (second)
 -- >>> import Prelude hiding (concatMap)

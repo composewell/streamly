@@ -433,7 +433,6 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- $setup
 -- >>> :m
 -- >>> :set -XFlexibleContexts
--- >>> :set -package streamly
 -- >>> import Data.Maybe (fromJust, isJust)
 -- >>> import Streamly.Data.Fold (Fold)
 -- >>> import Streamly.Internal.Data.Stream.Type (Stream)
