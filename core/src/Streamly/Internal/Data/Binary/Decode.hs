@@ -12,7 +12,7 @@ module Streamly.Internal.Data.Binary.Decode
     ( unit
     , bool
     , ordering
-    , eqWord8
+    , eqWord8 -- XXX rename to word8Eq
     , word8
     , word16be
     , word16le
