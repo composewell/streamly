@@ -139,7 +139,7 @@ import Streamly.Internal.Data.Stream.Concurrent.Channel
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Async
+-- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
 -- >>> import Prelude hiding (concatMap, concat, zipWith)
 -- >>> :{
 --  delay n = do
@@ -185,7 +185,7 @@ evalWith modifier input = withChannel modifier input (const id)
 -- | Evaluate a stream asynchronously using a channel and serve the consumer
 -- from the evaluation buffer.
 --
--- >>> eval = Async.evalWith id
+-- >>> eval = Concur.evalWith id
 --
 {-# INLINE eval #-}
 eval :: MonadAsync m => Stream m a -> Stream m a
@@ -270,13 +270,13 @@ combineWith modifier stream1 stream2 =
 -- all streams. However, with this operation you can precisely control the
 -- scheduling by creating arbitrary shape expression trees.
 --
--- >>> append2 = Async.combineWith id
+-- >>> append2 = Concur.combineWith id
 --
 -- The following code finishes in 4 seconds:
 --
 -- >>> stream1 = Stream.fromEffect (delay 4)
 -- >>> stream2 = Stream.fromEffect (delay 2)
--- >>> Stream.fold Fold.toList $ stream1 `Async.append2` stream2
+-- >>> Stream.fold Fold.toList $ stream1 `Concur.append2` stream2
 -- 2 sec
 -- 4 sec
 -- [2,4]
@@ -289,7 +289,7 @@ append2 = combineWith id
 -- the left stream. This schedules all streams in a round robin fashion over
 -- limited number of threads.
 --
--- >>> interleave2 = Async.combineWith (Async.interleaved True)
+-- >>> interleave2 = Concur.combineWith (Concur.interleaved True)
 --
 {-# INLINE interleave2 #-}
 interleave2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -297,7 +297,7 @@ interleave2 = combineWith (interleaved True)
 
 -- | Like 'append' but with 'ordered' on.
 --
--- >>> ahead2 = Async.combineWith (Async.ordered True)
+-- >>> ahead2 = Concur.combineWith (Concur.ordered True)
 --
 {-# INLINE ahead2 #-}
 ahead2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -305,7 +305,7 @@ ahead2 = combineWith (ordered True)
 
 -- | Like 'append2' but with 'eager' on.
 --
--- >>> parallel2 = Async.combineWith (Async.eager True)
+-- >>> parallel2 = Concur.combineWith (Concur.eager True)
 --
 {-# INLINE parallel2 #-}
 parallel2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -313,7 +313,7 @@ parallel2 = combineWith (eager True)
 
 -- | Like 'parallel2' but stops the output as soon as the first stream stops.
 --
--- >>> parallelFst2 = Async.combineWith (Async.eager True . Async.stopWhen Async.FirstStops)
+-- >>> parallelFst2 = Concur.combineWith (Concur.eager True . Concur.stopWhen Concur.FirstStops)
 --
 -- /Pre-release/
 {-# INLINE parallelFst2 #-}
@@ -323,7 +323,7 @@ parallelFst2 = combineWith (eager True . stopWhen FirstStops)
 -- | Like 'parallel2' but stops the output as soon as any of the two streams
 -- stops.
 --
--- >>> parallelMin2 = Async.combineWith (Async.eager True . Async.stopWhen Async.AnyStops)
+-- >>> parallelMin2 = Concur.combineWith (Concur.eager True . Concur.stopWhen Concur.AnyStops)
 --
 -- /Pre-release/
 {-# INLINE parallelMin2 #-}
@@ -440,9 +440,9 @@ concatMapWith modifier f stream =
 -- concurrently but earlier streams are perferred. Output from the streams are
 -- used as they arrive.
 --
--- >>> concatMap = Async.concatMapWith id
+-- >>> concatMap = Concur.concatMapWith id
 --
--- >>> f cfg xs = Stream.fold Fold.toList $ Async.concatMapWith cfg id $ Stream.fromList xs
+-- >>> f cfg xs = Stream.fold Fold.toList $ Concur.concatMapWith cfg id $ Stream.fromList xs
 --
 -- The following streams finish in 4 seconds:
 --
@@ -458,19 +458,19 @@ concatMapWith modifier f stream =
 -- Limiting threads to 2 schedules the third stream only after one of the first
 -- two has finished, releasing a thread:
 --
--- >>> f (Async.maxThreads 2) [stream1, stream2, stream3]
+-- >>> f (Concur.maxThreads 2) [stream1, stream2, stream3]
 -- ...
 -- [2,1,4]
 --
 -- When used with a Single thread it behaves like serial concatMap:
 --
--- >>> f (Async.maxThreads 1) [stream1, stream2, stream3]
+-- >>> f (Concur.maxThreads 1) [stream1, stream2, stream3]
 -- ...
 -- [4,2,1]
 --
 -- >>> stream1 = Stream.fromList [1,2,3]
 -- >>> stream2 = Stream.fromList [4,5,6]
--- >>> f (Async.maxThreads 1) [stream1, stream2]
+-- >>> f (Concur.maxThreads 1) [stream1, stream2]
 -- [1,2,3,4,5,6]
 --
 {-# INLINE concatMap #-}
@@ -482,15 +482,15 @@ concatMap = concatMapWith id
 -- evaluate the earlier stream first, this schedules all streams in a round
 -- robin fashion over the available threads.
 --
--- >>> concatMapInterleave = Async.concatMapWith (Async.interleaved True)
+-- >>> concatMapInterleave = Concur.concatMapWith (Concur.interleaved True)
 --
 -- When used with a single thread it behaves like serial interleaving:
 --
--- >>> f cfg xs = Stream.fold Fold.toList $ Async.concatMapWith (Async.interleaved True . cfg) id $ Stream.fromList xs
+-- >>> f cfg xs = Stream.fold Fold.toList $ Concur.concatMapWith (Concur.interleaved True . cfg) id $ Stream.fromList xs
 --
 -- >>> stream1 = Stream.fromList [1,2,3]
 -- >>> stream2 = Stream.fromList [4,5,6]
--- >>> f (Async.maxThreads 1) [stream1, stream2]
+-- >>> f (Concur.maxThreads 1) [stream1, stream2]
 -- [1,4,2,5,3,6]
 --
 -- /Works only on finite number of streams/
@@ -502,7 +502,7 @@ concatMapInterleave = concatMapWith (interleaved True)
 -- | Like 'concat' but we can also specify the concurrent channel's
 -- configuration parameters using Config modifiers.
 --
--- >>> concatWith modifier = Async.concatMapWith modifier id
+-- >>> concatWith modifier = Concur.concatMapWith modifier id
 --
 {-# INLINE concatWith #-}
 concatWith :: MonadAsync m =>
@@ -511,7 +511,7 @@ concatWith modifier = concatMapWith modifier id
 
 -- | Evaluate the streams in the input stream concurrently and combine them.
 --
--- >>> concat = Async.concatWith id
+-- >>> concat = Concur.concatWith id
 --
 {-# INLINE concat #-}
 concat :: MonadAsync m => Stream m (Stream m a) -> Stream m a
@@ -523,7 +523,7 @@ concat = concatWith id
 
 -- | Like 'concatWith' but works on a list of streams.
 --
--- >>> concatListWith modifier = Async.concatWith modifier . Stream.fromList
+-- >>> concatListWith modifier = Concur.concatWith modifier . Stream.fromList
 --
 {-# INLINE concatListWith #-}
 concatListWith :: MonadAsync m => (Config -> Config) -> [Stream m a] -> Stream m a
@@ -531,7 +531,7 @@ concatListWith modifier = concatWith modifier . Stream.fromList
 
 -- | Like 'concat' but works on a list of streams.
 --
--- >>> append = Async.concatListWith id
+-- >>> append = Concur.concatListWith id
 --
 {-# INLINE append #-}
 append :: MonadAsync m => [Stream m a] -> Stream m a
@@ -541,7 +541,7 @@ append = concatListWith id
 -- the left stream. This schedules all streams in a round robin fashion over
 -- limited number of threads.
 --
--- >>> interleave = Async.concatListWith (Async.interleaved True)
+-- >>> interleave = Concur.concatListWith (Concur.interleaved True)
 --
 {-# INLINE interleave #-}
 interleave :: MonadAsync m => [Stream m a] -> Stream m a
@@ -549,7 +549,7 @@ interleave = concatListWith (interleaved True)
 
 -- | Like 'append' but with 'ordered' on.
 --
--- >>> ahead = Async.concatListWith (Async.ordered True)
+-- >>> ahead = Concur.concatListWith (Concur.ordered True)
 --
 {-# INLINE ahead #-}
 ahead :: MonadAsync m => [Stream m a] -> Stream m a
@@ -557,7 +557,7 @@ ahead = concatListWith (ordered True)
 
 -- | Like 'append' but with 'eager' on.
 --
--- >>> parallel = Async.concatListWith (Async.eager True)
+-- >>> parallel = Concur.concatListWith (Concur.eager True)
 --
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => [Stream m a] -> Stream m a
@@ -565,7 +565,7 @@ parallel = concatListWith (eager True)
 
 -- | Like 'parallel' but stops the output as soon as the first stream stops.
 --
--- >>> parallelFst = Async.concatListWith (Async.eager True . Async.stopWhen Async.FirstStops)
+-- >>> parallelFst = Concur.concatListWith (Concur.eager True . Concur.stopWhen Concur.FirstStops)
 --
 {-# INLINE parallelFst #-}
 parallelFst :: MonadAsync m => [Stream m a] -> Stream m a
@@ -574,7 +574,7 @@ parallelFst = concatListWith (eager True . stopWhen FirstStops)
 -- | Like 'parallel' but stops the output as soon as any of the two streams
 -- stops.
 --
--- >>> parallelMin = Async.concatListWith (Async.eager True . Async.stopWhen Async.AnyStops)
+-- >>> parallelMin = Concur.concatListWith (Concur.eager True . Concur.stopWhen Concur.AnyStops)
 --
 {-# INLINE parallelMin #-}
 parallelMin :: MonadAsync m => [Stream m a] -> Stream m a
@@ -605,7 +605,7 @@ apply = applyWith id
 -------------------------------------------------------------------------------
 
 -- |
--- >>> mapMWith modifier f = Async.concatMapWith modifier (Stream.fromEffect . f)
+-- >>> mapMWith modifier f = Concur.concatMapWith modifier (Stream.fromEffect . f)
 --
 {-# INLINE mapMWith #-}
 mapMWith :: MonadAsync m =>
@@ -613,13 +613,13 @@ mapMWith :: MonadAsync m =>
 mapMWith modifier f = concatMapWith modifier (Stream.fromEffect . f)
 
 -- |
--- >>> mapM = Async.mapMWith id
+-- >>> mapM = Concur.mapMWith id
 {-# INLINE mapM #-}
 mapM :: MonadAsync m => (a -> m b) -> Stream m a -> Stream m b
 mapM = mapMWith id
 
 -- |
--- >>> sequenceWith modifier = Async.mapMWith modifier id
+-- >>> sequenceWith modifier = Concur.mapMWith modifier id
 --
 {-# INLINE sequenceWith #-}
 sequenceWith :: MonadAsync m =>
@@ -627,7 +627,7 @@ sequenceWith :: MonadAsync m =>
 sequenceWith modifier = mapMWith modifier id
 
 -- |
--- >>> sequence = Async.sequenceWith id
+-- >>> sequence = Concur.sequenceWith id
 --
 {-# INLINE sequence #-}
 sequence :: MonadAsync m =>
@@ -635,7 +635,7 @@ sequence :: MonadAsync m =>
 sequence = sequenceWith id
 
 -- |
--- >>> zipWithM f m1 m2 = Stream.zipWithM f (Async.eval m1) (Async.eval m2)
+-- >>> zipWithM f m1 m2 = Stream.zipWithM f (Concur.eval m1) (Concur.eval m2)
 --
 {-# INLINE zipWithM #-}
 zipWithM :: MonadAsync m
@@ -647,7 +647,7 @@ zipWithM f m1 m2 = Stream.zipWithM f (eval m1) (eval m2)
 --
 -- >>> m1 = Stream.fromList [1,2,3]
 -- >>> m2 = Stream.fromList [4,5,6]
--- >>> Stream.fold Fold.toList $ Async.zipWith (,) m1 m2
+-- >>> Stream.fold Fold.toList $ Concur.zipWith (,) m1 m2
 -- [(1,4),(2,5),(3,6)]
 --
 {-# INLINE zipWith #-}
