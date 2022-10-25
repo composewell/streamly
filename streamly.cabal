@@ -430,6 +430,7 @@ library
     reexported-modules:
                       -- streamly-core exposed modules
                       , Streamly.Console.Stdio
+                      , Streamly.Data.Array
                       , Streamly.Data.Array.Unboxed
                       , Streamly.Data.Array.Unboxed.Mut
                       , Streamly.Data.Fold
