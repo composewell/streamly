@@ -21,6 +21,8 @@ module Streamly.Internal.Data.Tuple.Strict
     (
       Tuple' (..)
     , Tuple3' (..)
+    -- XXX Remove this type, use a fuse annotation in Tuple3' itself or use a
+    -- custom type where fuse annotation is needed.
     , Tuple3Fused' (..)
     , Tuple4' (..)
     )

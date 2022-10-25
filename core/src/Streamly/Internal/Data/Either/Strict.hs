@@ -19,6 +19,8 @@
 --
 module Streamly.Internal.Data.Either.Strict
     ( Either' (..)
+    -- XXX Remove these and add lazyEither/strictEither to convert to and from
+    -- lazy Either type.
     , isLeft'
     , isRight'
     , fromLeft'

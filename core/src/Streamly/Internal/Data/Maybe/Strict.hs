@@ -16,10 +16,19 @@
 -- One major advantage of strict data structures as accumulators in folds and
 -- scans is that it helps the compiler optimize the code much better by
 -- unboxing. In a big tight loop the difference could be huge.
+
+-- Notes: The purpose of the strict Maybe type is to force storing an evaluated
+-- value instead of a lazy thunk. To enforce that we use a strict Maybe type in
+-- a data structure. If we need to operate on such strict values, the simplest
+-- way to do that is to convert it to a lazy type and operate on that.
+-- Therefore, we do not provide any other operations other than ways to
+-- construct a strict type and convert it to a lazy type.
 --
 module Streamly.Internal.Data.Maybe.Strict
     ( Maybe' (..)
+    -- XXX rename to lazyMaybe, also supply a strictMaybe function.
     , toMaybe
+    -- XXX Remove these, use isJust . toMaybe etc instead.
     , isJust'
     , fromJust'
     )
