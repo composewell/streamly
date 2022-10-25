@@ -9,13 +9,13 @@
 module Streamly.Internal.Data.Stream.Exception
     (
       before
-    , after_
+    , afterUnsafe
     , afterIO
-    , bracket_
+    , bracketUnsafe
     , bracketIO
     , bracket3IO
     , onException
-    , finally_
+    , finallyUnsafe
     , finallyIO
     , ghandle
     , handle
@@ -59,13 +59,13 @@ before action xs = fromStreamD $ D.before action $ toStreamD xs
 --
 -- Same as the following, but with stream fusion:
 --
--- >>> after_ action xs = xs <> Stream.nilM action
+-- >>> afterUnsafe action xs = xs <> Stream.nilM action
 --
 -- /Pre-release/
 --
-{-# INLINE after_ #-}
-after_ :: Monad m => m b -> Stream m a -> Stream m a
-after_ action xs = fromStreamD $ D.after_ action $ toStreamD xs
+{-# INLINE afterUnsafe #-}
+afterUnsafe :: Monad m => m b -> Stream m a -> Stream m a
+afterUnsafe action xs = fromStreamD $ D.after_ action $ toStreamD xs
 
 -- | Run the action @IO b@ whenever the stream stream stops normally, or
 -- if it is garbage collected after a partial lazy evaluation.
@@ -73,7 +73,7 @@ after_ action xs = fromStreamD $ D.after_ action $ toStreamD xs
 -- The semantics of the action @IO b@ are similar to the semantics of cleanup
 -- action in 'bracketIO'.
 --
--- /See also 'after_'/
+-- /See also 'afterUnsafe'/
 --
 {-# INLINE afterIO #-}
 afterIO :: MonadIO m => IO b -> Stream m a -> Stream m a
@@ -98,9 +98,9 @@ onException action xs = fromStreamD $ D.onException action $ toStreamD xs
 --
 -- /Pre-release/
 --
-{-# INLINE finally_ #-}
-finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
-finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
+{-# INLINE finallyUnsafe #-}
+finallyUnsafe :: MonadCatch m => m b -> Stream m a -> Stream m a
+finallyUnsafe action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 
 -- | Run the action @IO b@ whenever the stream stream stops normally, aborts
 -- due to an exception or if it is garbage collected after a partial lazy
@@ -111,7 +111,7 @@ finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 --
 -- >>> finallyIO release = Stream.bracketIO (return ()) (const release)
 --
--- /See also 'finally_'/
+-- /See also 'finallyUnsafe'/
 --
 -- /Inhibits stream fusion/
 --
@@ -131,11 +131,10 @@ finallyIO action xs = fromStreamD $ D.finally action $ toStreamD xs
 --
 -- /Pre-release/
 --
-{-# INLINE bracket_ #-}
-bracket_ :: MonadCatch m
+{-# INLINE bracketUnsafe #-}
+bracketUnsafe :: MonadCatch m
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket_ bef aft bet = fromStreamD $
-    D.bracket_ bef aft (toStreamD . bet)
+bracketUnsafe bef aft bet = fromStreamD $ D.bracket_ bef aft (toStreamD . bet)
 
 -- | Run the alloc action @IO b@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the
@@ -154,7 +153,7 @@ bracket_ bef aft bet = fromStreamD $
 -- immediately in the current thread context, whereas in other cases it runs in
 -- the GC context, therefore, cleanup may be delayed until the GC gets to run.
 --
--- /See also: 'bracket_'/
+-- /See also: 'bracketUnsafe'/
 --
 -- /Inhibits stream fusion/
 --
@@ -167,11 +166,17 @@ bracketIO bef aft = bracket3IO bef aft aft aft
 -- the process in case of exception or garbage collection, but waits for the
 -- process to terminate in normal cases.
 
--- | Like 'bracketIO' but can use separate cleanup actions depending on the mode
--- of termination.  @bracket3IO before onStop onGC onException action@ runs
--- @action@ using the result of @before@. If the stream stops, @onStop@ action
--- is executed, if the stream is abandoned @onGC@ is executed, if the stream
--- encounters an exception @onException@ is executed.
+-- | Like 'bracketIO' but can use 3 separate cleanup actions depending on the
+-- mode of termination:
+--
+-- 1. When the stream stops normally
+-- 2. When the stream is garbage collected
+-- 3. When the stream encounters an exception
+--
+-- @bracket3IO before onStop onGC onException action@ runs @action@ using the
+-- result of @before@. If the stream stops, @onStop@ action is executed, if the
+-- stream is abandoned @onGC@ is executed, if the stream encounters an
+-- exception @onException@ is executed.
 --
 -- /Pre-release/
 {-# INLINE bracket3IO #-}

@@ -10,7 +10,7 @@ module Streamly.Internal.Data.Stream.Exception.Lifted
     (
       after
     , bracket
-    , bracket'
+    , bracket3
     , finally
 
     -- For IsStream module
@@ -123,21 +123,28 @@ bracket3D bef aft onExc onGC =
 -- the process in case of exception or garbage collection, but waits for the
 -- process to terminate in normal cases.
 
--- | Like 'bracket' but can use separate cleanup actions depending on the mode
--- of termination.  @bracket' before onStop onGC onException action@ runs
--- @action@ using the result of @before@. If the stream stops, @onStop@ action
--- is executed, if the stream is abandoned @onGC@ is executed, if the stream
--- encounters an exception @onException@ is executed.
+-- | Like 'bracket' but can use 3 separate cleanup actions depending on the
+-- mode of termination:
 --
-{-# INLINE bracket' #-}
-bracket' :: (MonadRunInIO m, MonadCatch m)
+-- 1. When the stream stops normally
+-- 2. When the stream is garbage collected
+-- 3. When the stream encounters an exception
+--
+-- @bracket3 before onStop onGC onException action@ runs @action@ using the
+-- result of @before@. If the stream stops, @onStop@ action is executed, if the
+-- stream is abandoned @onGC@ is executed, if the stream encounters an
+-- exception @onException@ is executed.
+--
+-- /Pre-release/
+{-# INLINE bracket3 #-}
+bracket3 :: (MonadRunInIO m, MonadCatch m)
     => m b
     -> (b -> m c)
     -> (b -> m d)
     -> (b -> m e)
     -> (b -> Stream m a)
     -> Stream m a
-bracket' bef aft gc exc bet = fromStreamD $
+bracket3 bef aft gc exc bet = fromStreamD $
     bracket3D bef aft exc gc (toStreamD . bet)
 
 -- | Run the alloc action @m b@ with async exceptions disabled but keeping
@@ -164,7 +171,7 @@ bracket' bef aft gc exc bet = fromStreamD $
 {-# INLINE bracket #-}
 bracket :: (MonadRunInIO m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket bef aft = bracket' bef aft aft aft
+bracket bef aft = bracket3 bef aft aft aft
 
 -- | Run the action @m b@ whenever the stream @Stream m a@ stops normally,
 -- aborts due to an exception or if it is garbage collected after a partial

@@ -6,13 +6,16 @@
 -- Stability   : released
 -- Portability : GHC
 --
+-- This module is designed such that it does not conflict with
+-- "Streamly.Data.Stream" module.
+--
 -- >>> import qualified Streamly.Data.Stream.Exception as Stream
 --
 module Streamly.Data.Stream.Exception
     (
       after
     , bracket
-    , bracket'
+    , bracket3
     , finally
     )
 where
