@@ -510,6 +510,14 @@ parseDToK pstep initial extract leftover (0, _) cont = do
             Partial _ _ -> error "Bug: parseDToK Partial unreachable"
             Continue n pst1 -> return $ K.Continue n (parseCont (return pst1))
 
+-- XXX Pass on the stream to parserK and inside parserK drive the parserD
+-- directly from the stream. That way we can feed full chunks efficiently to
+-- parserD with fusion. The remaining stream can be passed on to the
+-- continuation and at the end the leftover stream can be returned.
+--
+-- contification of parserD completely breaks fusion. We can avoid that by
+-- fusing the parserD with the source stream.
+
 -- 'Alternative' case. Used count needs to be maintained when inside an
 -- Alternative.
 parseDToK pstep initial extract leftover (level, count) cont = do
@@ -569,9 +577,9 @@ toParserK (Parser step initial extract) =
 {-# INLINE parserDone #-}
 parserDone :: Monad m => (Int, Int) -> K.Parse b -> m (K.Step m a b)
 parserDone (0,_) (K.Success n b) = return $ K.Done n b
-parserDone st (K.Success _ _) =
-    error $ "Bug: fromParserK: inside alternative: " ++ show st
-parserDone _ (K.Failure e) = return $ K.Error e
+parserDone (0,_) (K.Failure e) = return $ K.Error e
+parserDone st _ =
+    error $ "Bug: fromParserK: parser done inside alternative: " ++ show st
 
 -- | Convert a CPS style 'K.Parser' to a direct style 'Parser'.
 --
@@ -1025,7 +1033,7 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                           IPartial rR -> Continue cnt (AltParseR rR)
                           IDone b -> Done cnt b
                           IError err -> Error err
-            Partial _ _ -> error "Bug: serialWith extract 'Partial'"
+            Partial _ _ -> error "Bug: alt: extractL 'Partial'"
             Continue n s -> do
                 assertM(n == cnt)
                 return $ Continue n (AltParseL 0 s)

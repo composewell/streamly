@@ -744,8 +744,8 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
         pRes <- extract pst
         case pRes of
             PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
-            PR.Continue 0 _ ->
-                error "parseBreak: extract, Continue 0 creates infinite loop"
+            PR.Continue 0 s ->
+                goStop s backBuf
             PR.Continue n s -> do
                 assert (n <= Prelude.length backBuf) (return ())
                 let (src0, buf1) = splitAt n backBuf
@@ -897,8 +897,8 @@ runArrayParserDBreak
         pRes <- extract pst
         case pRes of
             PR.Partial _ _ -> error "Bug: runArrayParserDBreak: Partial in extract"
-            PR.Continue 0 _ ->
-                error "runArrayParserDBreak: extract, Continue 0 creates infinite loop"
+            PR.Continue 0 pst1 ->
+                goStop backBuf pst1
             PR.Continue n pst1 -> do
                 assert
                     (n <= sum (map Array.length (getList backBuf)))
@@ -1123,7 +1123,8 @@ runArrayFoldManyD
         pRes <- extract pst
         case pRes of
             PR.Partial _ _ -> error "runArrayFoldManyD: Partial in extract"
-            PR.Continue 0 _ -> error "runArrayFoldManyD: Continue 0 in extract"
+            PR.Continue 0 pst1 ->
+                return $ D.Skip $ ParseChunksStop backBuf pst1
             PR.Continue n pst1 -> do
                 assert (n <= sum (map Array.length backBuf)) (return ())
                 let (src0, buf1) = splitAtArrayListRev n backBuf

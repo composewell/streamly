@@ -84,14 +84,14 @@ instance Functor Parse where
 --
 newtype Parser m a b = MkParser
     { runParser :: forall r.
-           -- The number of elements that were not used by the previous
-           -- consumer and should be carried forward.
+           -- leftover: the number of elements that were not used by the
+           -- previous consumer and should be carried forward.
            Int
-           -- (nesting level, used elem count). Nesting level is increased
-           -- whenever we enter an Alternative composition and decreased when
-           -- it is done. The used element count is a count of elements
-           -- consumed by the Alternative. If the Alternative fails we need to
-           -- backtrack by this amount.
+           -- (alt nesting level, alt used elem count). Nesting level is
+           -- increased whenever we enter an Alternative composition and
+           -- decreased when it is done. The used element count is a count of
+           -- elements consumed by the Alternative. If the Alternative fails we
+           -- need to backtrack by this amount.
            --
            -- The nesting level is used in parseDToK to optimize the case when
            -- we are not in an alternative, in that case we do not need to

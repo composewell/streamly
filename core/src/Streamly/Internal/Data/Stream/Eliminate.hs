@@ -221,6 +221,8 @@ foldlT f z s = D.foldlT f z (toStreamD s)
 parseD :: MonadThrow m => PRD.Parser m a b -> Stream m a -> m b
 parseD p = D.parse p . toStreamD
 
+-- XXX Drive directly as parserK rather than converting to parserD first.
+
 -- | Parse a stream using the supplied ParserK 'PRK.Parser'.
 --
 -- /Internal/

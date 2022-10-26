@@ -1054,7 +1054,7 @@ parseBreak (PR.Parser pstep initial extract) stream = do
                             src  = Prelude.reverse src0
                         return (b, fromList src)
                     PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
-                    PR.Continue 0 _ -> error "parseBreak: extract, Continue 0 creates infinite loop"
+                    PR.Continue 0 s -> goStream nil buf s
                     PR.Continue n s -> do
                         assertM(n <= length buf)
                         let (src0, buf1) = splitAt n buf

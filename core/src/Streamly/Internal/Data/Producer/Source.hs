@@ -221,8 +221,8 @@ parseD
         pRes <- extract pst
         case pRes of
             Partial _ _ -> error "Bug: parseD: Partial in extract"
-            Continue 0 _ ->
-                error "parseD: extract, Continue 0 creates infinite loop"
+            Continue 0 pst1 ->
+                goStop buf pst1
             Continue n pst1 -> do
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)

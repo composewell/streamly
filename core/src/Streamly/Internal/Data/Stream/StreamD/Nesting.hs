@@ -1300,8 +1300,8 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
         pRes <- extract pst
         case pRes of
             PR.Partial _ _ -> error "Bug: parseMany: Partial in extract"
-            PR.Continue 0 _ ->
-                error "parseMany: extract, Continue 0 creates infinite loop"
+            PR.Continue 0 pst1 ->
+                return $ Skip $ ParseChunksStop buf pst1
             PR.Continue n pst1 -> do
                 assert (n <= length buf) (return ())
                 let (src0, buf1) = splitAt n buf
@@ -1480,8 +1480,8 @@ parseIterate func seed (Stream step state) =
         pRes <- extract pst
         case pRes of
             PR.Partial _ _ -> error "Bug: parseIterate: Partial in extract"
-            PR.Continue 0 _ ->
-                error "parseIterate: extract, Continue 0 creates infinite loop"
+            PR.Continue 0 pst1 ->
+                return $ Skip $ ConcatParseStop buf pstep pst1 extract
             PR.Continue n pst1 -> do
                 assert (n <= length buf) (return ())
                 let (src0, buf1) = splitAt n buf

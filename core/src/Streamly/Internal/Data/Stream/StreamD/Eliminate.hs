@@ -253,13 +253,13 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
             PR.Error err -> throwM $ ParseError err
 
     -- This is simplified goExtract
+    -- XXX Use SPEC?
     {-# INLINE goStop #-}
     goStop buf pst = do
         pRes <- extract pst
         case pRes of
             PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
-            PR.Continue 0 _ ->
-                error "parseBreak: extract, Continue 0 creates infinite loop"
+            PR.Continue 0 pst1 -> goStop buf pst1
             PR.Continue n pst1 -> do
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)
