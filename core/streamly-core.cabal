@@ -315,6 +315,7 @@ library
                      , Streamly.Internal.Data.Stream.Top
                      , Streamly.Internal.Data.Stream
                      , Streamly.Internal.Data.Stream.Zip
+                     , Streamly.Internal.Data.Stream.TypeGen
                      , Streamly.Internal.Data.List
 
                      -- streamly-core-data-arrays
