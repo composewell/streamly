@@ -27,38 +27,38 @@
 -- this example can be written even more succinctly by using higher level
 -- operations from "Streamly.Network.Inet.TCP" module.
 --
--- @
--- {-\# LANGUAGE FlexibleContexts #-}
 --
--- import Data.Function ((&))
--- import Network.Socket
--- import Streamly.Network.Socket (SockSpec(..))
---
--- import qualified Streamly.Prelude as Stream
--- import qualified Streamly.Network.Socket as Socket
---
--- main = do
---     let spec = SockSpec
---                { sockFamily = AF_INET
---                , sockType   = Stream
---                , sockProto  = defaultProtocol
---                , sockOpts   = []
---                }
---         addr = SockAddrInet 8090 (tupleToHostAddress (0,0,0,0))
---      in server spec addr
---
---     where
---
---     server spec addr =
---           Stream.unfold Socket.accept (maxListenQueue, spec, addr) -- ParallelT IO Socket
---         & Stream.mapM (Socket.forSocketM echo)                     -- ParallelT IO ()
---         & Stream.fromParallel                                      -- Stream IO ()
---         & Stream.drain                                             -- IO ()
---
---     echo sk =
---           Stream.unfold Socket.readChunks sk  -- Stream IO (Array Word8)
---         & Stream.fold (Socket.writeChunks sk) -- IO ()
--- @
+-- >>> :set -XFlexibleContexts
+-- >>>
+-- >>> import Data.Function ((&))
+-- >>> import Network.Socket
+-- >>> import Streamly.Network.Socket (SockSpec(..))
+-- >>>
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Stream.Concurrent as Concur
+-- >>> import qualified Streamly.Network.Socket as Socket
+-- >>>
+-- >>> :{
+--  main :: IO ()
+--  main = do
+--       let spec = SockSpec
+--                  { sockFamily = AF_INET
+--                  , sockType   = Stream
+--                  , sockProto  = defaultProtocol
+--                  , sockOpts   = []
+--                  }
+--           addr = SockAddrInet 8090 (tupleToHostAddress (0,0,0,0))
+--        in server spec addr
+--       where
+--       server spec addr =
+--             Stream.unfold Socket.acceptor (maxListenQueue, spec, addr)
+--           & Concur.mapMWith (Concur.eager True) (Socket.forSocketM echo)
+--           & Stream.fold Fold.drain
+--       echo sk =
+--             Stream.unfold Socket.chunkReader sk -- Stream IO (Array Word8)
+--           & Stream.fold (Socket.writeChunks sk) -- IO ()
+-- :}
 --
 -- = Programmer Notes
 --
