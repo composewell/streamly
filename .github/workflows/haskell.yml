@@ -134,13 +134,12 @@ jobs:
             cabal_project: cabal.project.Werror
             disable_sdist_build: "y"
             ignore_error: false
-          - name: 8.8.4-fusion
+          - name: 8.8.4
             ghc_version: 8.8.4
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
             cabal_project: cabal.project
-            cabal_build_options: "--flag fusion-plugin"
             disable_sdist_build: "y"
             ignore_error: false
           - name: 8.6.5-no-fusion-unoptimized

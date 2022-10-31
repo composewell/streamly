@@ -108,7 +108,7 @@ werror () {
 ghc_prime_Werror () {
   nix-shell \
     --argstr compiler "$GHC_PRIME_NIX" \
-    --run "cabal build $CABAL_BUILD_OPTIONS --jobs=$JOBS --project-file cabal.project.Werror all"
+    --run "cabal build $CABAL_BUILD_OPTIONS --jobs=$JOBS --project-file cabal.project.Werror --enable-tests --enable-benchmarks all"
 }
 
 ghc_prime_doctests () {
