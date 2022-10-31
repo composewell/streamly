@@ -8,15 +8,12 @@
 -- Portability : GHC
 --
 module Streamly.Data.Array
-    ( Array
+    (
+      A.Array
 
     -- * Construction
     , A.fromListN
     , A.fromList
-
-    -- Stream Folds
-    , A.fromStreamN
-    , A.fromStream
 
     -- MonadicAPIs
     , A.writeN
@@ -31,13 +28,9 @@ module Streamly.Data.Array
 
     -- * Random Access
     , A.length
-
-    -- * Folding Arrays
-    -- , A.streamFold
-    , A.fold
+     -- , (!!)
+    , A.getIndex
     )
 where
 
-import Streamly.Internal.Data.Array (Array)
-
-import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Data.Array.Unboxed as A
