@@ -252,6 +252,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
 import Streamly.Internal.Data.Stream.Type (Stream)
 
+import qualified Data.Foldable as Foldable
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
@@ -268,6 +269,7 @@ import Prelude hiding
 -- >>> import Control.Applicative ((<|>))
 -- >>> import Data.Char (isSpace)
 -- >>> import qualified Data.Maybe as Maybe
+-- >>> import qualified Data.Foldable as Foldable
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream (parse, parseMany)
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
@@ -378,6 +380,7 @@ lmapM f p = D.toParserK $ D.lmapM f $ D.fromParserK p
 
 -- | @rmapM f parser@ maps the monadic function @f@ on the output of the parser.
 --
+-- >>> rmap = fmap
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Parser m a b -> Parser m a c
 rmapM f p = D.toParserK $ D.rmapM f $ D.fromParserK p
@@ -457,10 +460,10 @@ oneNotEq x = satisfy (/= x)
 
 -- | Match any one of the elements in the supplied list.
 --
--- >>> oneOf xs = Parser.satisfy (`elem` xs)
+-- >>> oneOf xs = Parser.satisfy (`Foldable.elem` xs)
 --
 -- When performance matters a pattern matching predicate could be more
--- efficient than a list:
+-- efficient than a 'Foldable' datatype:
 --
 -- @
 -- let p x =
@@ -476,16 +479,16 @@ oneNotEq x = satisfy (/= x)
 -- search.
 --
 {-# INLINE oneOf #-}
-oneOf :: (Monad m, Eq a) => [a] -> Parser m a a
-oneOf xs = satisfy (`elem` xs)
+oneOf :: (Monad m, Eq a, Foldable f) => f a -> Parser m a a
+oneOf xs = satisfy (`Foldable.elem` xs)
 
 -- | See performance notes in 'oneOf'.
 --
--- >>> noneOf xs = Parser.satisfy (`notElem` xs)
+-- >>> noneOf xs = Parser.satisfy (`Foldable.notElem` xs)
 --
 {-# INLINE noneOf #-}
-noneOf :: (Monad m, Eq a) => [a] -> Parser m a a
-noneOf xs = satisfy (`notElem` xs)
+noneOf :: (Monad m, Eq a, Foldable f) => f a -> Parser m a a
+noneOf xs = satisfy (`Foldable.notElem` xs)
 
 -- | Return the next element of the input. Returns 'Nothing'
 -- on end of input. Also known as 'head'.
@@ -1008,6 +1011,7 @@ listEqBy cmp xs = D.toParserK (D.listEqBy cmp xs)
 -- | Like 'listEqBy' but uses a stream instead of a list and does not return
 -- the stream.
 --
+-- Note: A @Stream m a@ isn't returned as it isn't buffered.
 {-# INLINE eqBy #-}
 eqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser m a ()
 eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
@@ -1348,17 +1352,21 @@ manyTillP :: -- Monad m =>
 manyTillP _p1 _p2 _f = undefined
     -- D.toParserK $ D.manyTillP (D.fromParserK p1) (D.fromParserK p2) f
 
--- | @manyTill collect test f@ tries the parser @test@ on the input, if @test@
--- fails it backtracks and tries @collect@, after @collect@ succeeds @test@ is
+-- | @manyTill chunking test f@ tries the parser @test@ on the input, if @test@
+-- fails it backtracks and tries @chunking@, after @chunking@ succeeds @test@ is
 -- tried again and so on. The parser stops when @test@ succeeds.  The output of
--- @test@ is discarded and the output of @collect@ is accumulated by the
--- supplied fold. The parser fails if @collect@ fails.
+-- @test@ is discarded and the output of @chunking@ is accumulated by the
+-- supplied fold. The parser fails if @chunking@ fails.
 --
 -- Stops when the fold @f@ stops.
 --
 {-# INLINE manyTill #-}
 manyTill :: Monad m
-    => Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
+    => Parser m a b -- ^ Chunking parser. Parses chunks of input.
+    -> Parser m a x -- ^ Test parser. Parsing stops when this parser succeeds
+                    -- else backtract and run the chunking parser.
+    -> Fold m b c   -- ^ Folds the output of the chunking parser.
+    -> Parser m a c
 manyTill collect test f =
     D.toParserK $ D.manyTill (D.fromParserK collect) (D.fromParserK test) f
 
@@ -1402,8 +1410,6 @@ manyThen _parser _recover _f = undefined
 -- considered an interleaving of two patterns. The two parsers represent the
 -- two patterns.
 --
--- This undoes a "gintercalate" of two streams.
---
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>
        Parser m a x
@@ -1423,8 +1429,8 @@ deintercalate contentL contentR sink =
 --
 {-# INLINE sepBy1 #-}
 sepBy1 :: Monad m =>
-    Fold m b c -> Parser m a b -> Parser m a x -> Parser m a c
-sepBy1 sink p sep = do
+    Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
+sepBy1 p sep sink = do
     x <- p
     f <- fromEffect $ FL.initialize sink
     f1 <- fromEffect $ FL.snoc f x
@@ -1434,8 +1440,8 @@ sepBy1 sink p sep = do
 -- run, when it is done content parser is run again and so on. If none of the
 -- parsers consumes an input then parser returns a failure.
 --
--- >>> sepBy sink p1 p2 = Parser.deintercalate p1 p2 (Fold.lefts sink)
--- >>> sepBy sink content sep = Parser.sepBy1 sink content sep <|> return mempty
+-- >>> sepBy p1 p2 sink = Parser.deintercalate p1 p2 (Fold.lefts sink)
+-- >>> sepBy content sep sink = Parser.sepBy1 content sep sink <|> return mempty
 --
 {-# INLINE sepBy #-}
 sepBy :: Monad m =>
