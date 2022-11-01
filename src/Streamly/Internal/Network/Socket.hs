@@ -450,14 +450,14 @@ reader = UF.first defaultChunkSize readerWith
 {-# INLINE putChunks #-}
 putChunks :: (MonadIO m, Unbox a)
     => Socket -> Stream m (Array a) -> m ()
-putChunks h = S.fold (FL.drainBy (liftIO . putChunk h))
+putChunks h = S.fold (FL.drainMapM (liftIO . putChunk h))
 
 -- | Write a stream of arrays to a socket.  Each array in the stream is written
 -- to the socket as a separate IO request.
 --
 {-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, Unbox a) => Socket -> Fold m (Array a) ()
-writeChunks h = FL.drainBy (liftIO . putChunk h)
+writeChunks h = FL.drainMapM (liftIO . putChunk h)
 
 -- | @writeChunksWith bufsize socket@ writes a stream of arrays to
 -- @socket@ after coalescing the adjacent arrays in chunks of @bufsize@.

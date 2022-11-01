@@ -25,6 +25,7 @@ import qualified Data.Map
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Fold.Extra as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding

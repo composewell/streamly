@@ -322,18 +322,11 @@
 -- can be expressed using 'mconcat' and a suitable 'Monoid'.  Instead of
 -- writing folds we can write Monoids and turn them into folds.
 --
--- = Performance Notes
---
--- 'Streamly.Prelude' module provides fold functions to directly fold streams
--- e.g.  Streamly.Prelude/'Streamly.Prelude.sum' serves the same purpose as
--- Fold/'sum'.  However, the functions in Streamly.Prelude cannot be
--- efficiently combined together e.g. we cannot drive the input stream through
--- @sum@ and @length@ fold functions simultaneously.  Using the 'Fold' type we
--- can efficiently split the stream across multiple folds because it allows the
--- compiler to perform stream fusion optimizations.
---
 module Streamly.Internal.Data.Fold.Type
     (
+    -- * Imports
+    -- $setup
+
     -- * Types
       Step (..)
     , Fold (..)
@@ -344,8 +337,8 @@ module Streamly.Internal.Data.Fold.Type
     , foldl1'
     , foldt'
     , foldtM'
-    , foldr
-    , foldrM
+    , foldr'
+    , foldrM'
 
     -- * Folds
     , fromPure
@@ -395,6 +388,7 @@ module Streamly.Internal.Data.Fold.Type
 
     -- ** Nested Application
     , concatMap
+    , duplicate
     , refold
 
     -- ** Parallel Distribution
@@ -407,11 +401,17 @@ module Streamly.Internal.Data.Fold.Type
     , longest
 
     -- * Running A Fold
-    , initialize
+    , extractM
+    , reduce
     , snoc
-    , duplicate
-    , finish
-    , isDone
+    , snocM
+    , snocl
+    , snoclM
+    , close
+    , isClosed
+
+    -- * Deprecated
+    , foldr
     )
 where
 
@@ -434,6 +434,7 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- >>> :m
 -- >>> :set -XFlexibleContexts
 -- >>> import Data.Maybe (fromJust, isJust)
+-- >>> import Data.Monoid (Endo(..))
 -- >>> import Streamly.Data.Fold (Fold)
 -- >>> import Streamly.Internal.Data.Stream.Type (Stream)
 -- >>> import qualified Data.Foldable as Foldable
@@ -504,8 +505,6 @@ rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
 -- mkfoldlx step initial extract = fmap extract (foldl' step initial)
 -- @
 --
--- See also: @Streamly.Prelude.foldl'@
---
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Fold m a b
 foldl' step initial =
@@ -524,8 +523,6 @@ foldl' step initial =
 -- mkFoldlxM step initial extract = rmapM extract (foldlM' step initial)
 -- @
 --
--- See also: @Streamly.Prelude.foldlM'@
---
 {-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
 foldlM' step initial =
@@ -533,8 +530,6 @@ foldlM' step initial =
 
 -- | Make a strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns Nothing if the stream is empty.
---
--- See also: @Streamly.Prelude.foldl1'@
 --
 -- /Pre-release/
 {-# INLINE foldl1' #-}
@@ -552,34 +547,43 @@ foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
 
 -- | Make a fold using a right fold style step function and a terminal value.
 -- It performs a strict right fold via a left fold using function composition.
--- Note that this is strict fold, it can only be useful for constructing strict
+-- Note that a strict right fold can only be useful for constructing strict
 -- structures in memory. For reductions this will be very inefficient.
 --
--- For example,
+-- Definitions:
 --
--- > toList = foldr (:) []
+-- >>> foldr' f z = fmap (flip appEndo z) $ Fold.foldMap (Endo . f)
+-- >>> foldr' f z = fmap ($ z) $ Fold.foldl' (\g x -> g . f x) id
 --
--- See also: 'Streamly.Prelude.foldr'
+-- Example:
 --
+-- >>> Stream.fold (Fold.foldr' (:) []) $ Stream.enumerateFromTo 1 5
+-- [1,2,3,4,5]
+--
+{-# INLINE foldr' #-}
+foldr' :: Monad m => (a -> b -> b) -> b -> Fold m a b
+foldr' f z = fmap ($ z) $ foldl' (\g x -> g . f x) id
+
+{-# DEPRECATED foldr "Please use foldr' instead." #-}
 {-# INLINE foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Fold m a b
-foldr g z = fmap ($ z) $ foldl' (\f x -> f . g x) id
+foldr = foldr'
 
 -- XXX we have not seen any use of this yet, not releasing until we have a use
 -- case.
+
+-- | Like foldr' but with a monadic step function.
 --
--- | Like 'foldr' but with a monadic step function.
+-- Example:
 --
--- For example,
+-- >>> toList = Fold.foldrM' (\a xs -> return $ a : xs) (return [])
 --
--- > toList = foldrM (\a xs -> return $ a : xs) (return [])
---
--- See also: 'Streamly.Prelude.foldrM'
+-- See also: 'Streamly.Internal.Data.Stream.foldrM'
 --
 -- /Pre-release/
-{-# INLINE foldrM #-}
-foldrM :: Monad m => (a -> b -> m b) -> m b -> Fold m a b
-foldrM g z =
+{-# INLINE foldrM' #-}
+foldrM' :: Monad m => (a -> b -> m b) -> m b -> Fold m a b
+foldrM' g z =
     rmapM (z >>=) $ foldlM' (\f x -> return $ g x >=> f) (return return)
 
 ------------------------------------------------------------------------------
@@ -644,7 +648,8 @@ fromRefold (Refold step inject extract) c =
 -- | A fold that drains all its input, running the effects and discarding the
 -- results.
 --
--- > drain = drainBy (const (return ()))
+-- >>> drain = Fold.drainMapM (const (return ()))
+-- >>> drain = Fold.foldl' (\_ _ -> ()) ()
 --
 {-# INLINE drain #-}
 drain :: Monad m => Fold m a ()
@@ -656,11 +661,11 @@ drain = foldl' (\_ _ -> ()) ()
 -- very inefficient, consider using "Streamly.Data.Array.Unboxed"
 -- instead.
 --
--- > toList = foldr (:) []
+-- >>> toList = Fold.foldr' (:) []
 --
 {-# INLINE toList #-}
 toList :: Monad m => Fold m a [a]
-toList = foldr (:) []
+toList = foldr' (:) []
 
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
@@ -702,9 +707,28 @@ instance Functor m => Functor (Fold m a) where
         step s b = fmap2 f (step1 s b)
         fmap2 g = fmap (fmap g)
 
--- This is the dual of stream "fromPure".
+-- XXX These are singleton folds that are closed for input. The correspondence
+-- to a nil stream would be a nil fold that returns "Done" in "initial" i.e. it
+-- does not produce any accumulator value. However, we do not have a
+-- representation of an empty value in folds, because the Done constructor
+-- always produces a value (Done b). We can potentially use "Partial s b" and
+-- "Done" to make the type correspond to the stream type. That may be possible
+-- if we introduce the "Skip" constructor as well because after the last
+-- "Partial s b" we have to emit a "Skip to Done" state to keep cranking the
+-- fold until it is done.
 --
--- | A fold that always yields a pure value without consuming any input.
+-- There is also the asymmetry between folds and streams because folds have an
+-- "initial" to initialize the fold without any input. A similar concept is
+-- possible in streams as well to stop the stream. That would be a "closing"
+-- operation for the stream which can be called even without consuming any item
+-- from the stream or when we are done consuming.
+--
+-- However, the initial action in folds creates a discrepancy with the CPS
+-- folds, and the same may be the case if we have a stop/cleanup operation in
+-- streams.
+
+-- | Make a fold that yields the supplied value without consuming any further
+-- input.
 --
 -- /Pre-release/
 --
@@ -712,10 +736,8 @@ instance Functor m => Functor (Fold m a) where
 fromPure :: Applicative m => b -> Fold m a b
 fromPure b = Fold undefined (pure $ Done b) pure
 
--- This is the dual of stream "fromEffect".
---
--- | A fold that always yields the result of an effectful action without
--- consuming any input.
+-- | Make a fold that yields the result of the supplied effectful action
+-- without consuming any further input.
 --
 -- /Pre-release/
 --
@@ -732,17 +754,22 @@ data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 -- or if the input stream is over, the outputs of the two folds are combined
 -- using the supplied function.
 --
--- >>> f = Fold.serialWith (,) (Fold.take 8 Fold.toList) (Fold.takeEndBy (== '\n') Fold.toList)
+-- Example:
+--
+-- >>> header = Fold.take 8 Fold.toList
+-- >>> line = Fold.takeEndBy (== '\n') Fold.toList
+-- >>> f = Fold.serialWith (,) header line
 -- >>> Stream.fold f $ Stream.fromList "header: hello\n"
 -- ("header: ","hello\n")
 --
--- Note: This is dual to appending streams using 'Streamly.Prelude.serial'.
+-- Note: This is dual to appending streams using 'Data.Stream.append'.
 --
 -- Note: this implementation allows for stream fusion but has quadratic time
 -- complexity, because each composition adds a new branch that each subsequent
 -- fold's input element has to traverse, therefore, it cannot scale to a large
 -- number of compositions. After around 100 compositions the performance starts
--- dipping rapidly compared to a CPS style implementation.
+-- dipping rapidly compared to a CPS style implementation. When you need
+-- scaling use parser monad instead.
 --
 -- /Time: O(n^2) where n is the number of compositions./
 --
@@ -828,16 +855,20 @@ data TeeState sL sR bL bR
 -- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until both
 -- of them terminate and combines their output using @k@.
 --
+-- Definition:
+--
+-- >>> teeWith k f1 f2 = fmap (uncurry k) (Fold.tee f1 f2)
+--
+-- Example:
+--
 -- >>> avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
 -- >>> Stream.fold avg $ Stream.fromList [1.0..100.0]
 -- 50.5
 --
--- > teeWith k f1 f2 = fmap (uncurry k) ((Fold.tee f1 f2)
---
 -- For applicative composition using this combinator see
--- "Streamly.Internal.Data.Fold.Tee".
+-- "Streamly.Data.Fold.Tee".
 --
--- See also: "Streamly.Internal.Data.Fold.Tee"
+-- See also: "Streamly.Data.Fold.Tee"
 --
 {-# INLINE teeWith #-}
 teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
@@ -1092,10 +1123,15 @@ concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
 
 -- | @lmap f fold@ maps the function @f@ on the input of the fold.
 --
--- >>> Stream.fold (Fold.lmap (\x -> x * x) Fold.sum) (Stream.enumerateFromTo 1 100)
--- 338350
+-- Definition:
 --
--- > lmap = Fold.lmapM return
+-- >>> lmap = Fold.lmapM return
+--
+-- Example:
+--
+-- >>> sumSquared = Fold.lmap (\x -> x * x) Fold.sum
+-- >>> Stream.fold sumSquared (Stream.enumerateFromTo 1 100)
+-- 338350
 --
 {-# INLINE lmap #-}
 lmap :: (a -> b) -> Fold m b r -> Fold m a r
@@ -1247,6 +1283,10 @@ rights = filter isRight . lmap (fromRight undefined)
 -- | Remove the either wrapper and flatten both lefts and as well as rights in
 -- the output stream.
 --
+-- Definition:
+--
+-- >>> both = Fold.lmap (either id id)
+--
 -- /Pre-release/
 --
 {-# INLINE both #-}
@@ -1328,28 +1368,17 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 -- Nesting
 ------------------------------------------------------------------------------
 
+-- Similar to the comonad "duplicate" operation.
+
 -- | 'duplicate' provides the ability to run a fold in parts.  The duplicated
 -- fold consumes the input and returns the same fold as output instead of
 -- returning the final result, the returned fold can be run later to consume
 -- more input.
 --
--- We can append a stream to a fold as follows:
---
--- >>> :{
--- foldAppend :: Monad m => Fold m a b -> Stream m a -> m (Fold m a b)
--- foldAppend f = Stream.fold (Fold.duplicate f)
--- :}
---
--- >>> :{
--- do
---  sum1 <- foldAppend Fold.sum (Stream.enumerateFromTo 1 10)
---  sum2 <- foldAppend sum1 (Stream.enumerateFromTo 11 20)
---  Stream.fold sum2 (Stream.enumerateFromTo 21 30)
--- :}
--- 465
---
 -- 'duplicate' essentially appends a stream to the fold without finishing the
 -- fold.  Compare with 'snoc' which appends a singleton value to the fold.
+--
+-- See also 'Streamly.Internal.Data.Stream.build'.
 --
 -- /Pre-release/
 {-# INLINE duplicate #-}
@@ -1363,23 +1392,94 @@ duplicate (Fold step1 initial1 extract1) =
 
     step s a = second fromPure <$> step1 s a
 
--- | Run the initialization effect of a fold. The returned fold would use the
--- value returned by this effect as its initial value.
+-- If there were a finalize/flushing action in the stream type that would be
+-- equivalent to running initialize in Fold. But we do not have a flushing
+-- action in streams.
+
+-- | Evaluate the initialization effect of a fold. If we are building the fold
+-- by chaining lazy actions in fold init this would reduce the actions to a
+-- strict accumulator value.
 --
 -- /Pre-release/
-{-# INLINE initialize #-}
-initialize :: Monad m => Fold m a b -> m (Fold m a b)
-initialize (Fold step initial extract) = do
+{-# INLINE reduce #-}
+reduce :: Monad m => Fold m a b -> m (Fold m a b)
+reduce (Fold step initial extract) = do
     i <- initial
     return $ Fold step (return i) extract
 
--- | Append a singleton value to the fold.
+-- This is the dual of Stream @cons@.
+
+-- | Append an effect to the fold lazily, in other words run a single
+-- step of the fold.
+--
+-- /Pre-release/
+{-# INLINE snoclM #-}
+snoclM :: Monad m => Fold m a b -> m a -> Fold m a b
+snoclM (Fold fstep finitial fextract) action = Fold fstep initial fextract
+
+    where
+
+    initial = do
+        res <- finitial
+        case res of
+            Partial fs -> action >>= fstep fs
+            Done b -> return $ Done b
+
+-- | Append a singleton value to the fold lazily, in other words run a single
+-- step of the fold.
+--
+-- Definition:
+--
+-- >>> snocl f = Fold.snoclM f . return
+--
+-- Example:
 --
 -- >>> import qualified Data.Foldable as Foldable
--- >>> Foldable.foldlM Fold.snoc Fold.toList [1..3] >>= Fold.finish
+-- >>> Fold.extractM $ Foldable.foldl Fold.snocl Fold.toList [1..3]
 -- [1,2,3]
 --
--- Compare with 'duplicate' which allows appending a stream to the fold.
+-- /Pre-release/
+{-# INLINE snocl #-}
+snocl :: Monad m => Fold m a b -> a -> Fold m a b
+-- snocl f = snoclM f . return
+snocl (Fold fstep finitial fextract) a = Fold fstep initial fextract
+
+    where
+
+    initial = do
+        res <- finitial
+        case res of
+            Partial fs -> fstep fs a
+            Done b -> return $ Done b
+
+-- | Append a singleton value to the fold in other words run a single step of
+-- the fold.
+--
+-- Definition:
+--
+-- >>> snocM f = Fold.reduce . Fold.snoclM f
+--
+-- /Pre-release/
+{-# INLINE snocM #-}
+snocM :: Monad m => Fold m a b -> m a -> m (Fold m a b)
+snocM (Fold step initial extract) action = do
+    res <- initial
+    r <- case res of
+          Partial fs -> action >>= step fs
+          Done _ -> return res
+    return $ Fold step (return r) extract
+
+-- | Append a singleton value to the fold, in other words run a single step of
+-- the fold.
+--
+-- Definitions:
+--
+-- >>> snoc f = Fold.reduce . Fold.snocl f
+-- >>> snoc f = Fold.snocM f . return
+--
+-- >>> import qualified Data.Foldable as Foldable
+-- >>> Foldable.foldlM Fold.snoc Fold.toList [1..3] >>= Fold.extractM
+-- [1,2,3]
 --
 -- /Pre-release/
 {-# INLINE snoc #-}
@@ -1391,30 +1491,54 @@ snoc (Fold step initial extract) a = do
           Done _ -> return res
     return $ Fold step (return r) extract
 
--- | Finish the fold to extract the current value of the fold.
+-- Similar to the comonad "extract" operation.
+-- XXX rename to extract. We can use "extr" for the fold extract function.
+
+-- | Extract the accumulated result of the fold.
 --
--- >>> Fold.finish Fold.toList
+-- Definition:
+--
+-- >>> extractM = Fold.drive Stream.nil
+--
+-- Example:
+--
+-- >>> Fold.extractM Fold.toList
 -- []
 --
 -- /Pre-release/
-{-# INLINE finish #-}
-finish :: Monad m => Fold m a b -> m b
-finish (Fold _ initial extract) = do
+{-# INLINE extractM #-}
+extractM :: Monad m => Fold m a b -> m b
+extractM (Fold _ initial extract) = do
     res <- initial
     case res of
           Partial fs -> extract fs
           Done b -> return b
 
--- | Check if the fold is done and can take no more input.
+-- | Close a fold so that it does not accept any more input.
+{-# INLINE close #-}
+close :: Monad m => Fold m a b -> Fold m a b
+close (Fold _ initial1 extract1) = Fold undefined initial undefined
+
+    where
+
+    initial = do
+        res <- initial1
+        case res of
+              Partial s -> Done <$> extract1 s
+              Done b -> return $ Done b
+
+-- Corresponds to the null check for streams.
+
+-- | Check if the fold has terminated and can take no more input.
 --
 -- /Pre-release/
-{-# INLINE isDone #-}
-isDone :: Monad m => Fold m a b -> m (Maybe b)
-isDone (Fold _ initial _) = do
+{-# INLINE isClosed #-}
+isClosed :: Monad m => Fold m a b -> m Bool
+isClosed (Fold _ initial _) = do
     res <- initial
     return $ case res of
-          Partial _ -> Nothing
-          Done b -> Just b
+          Partial _ -> False
+          Done _ -> True
 
 ------------------------------------------------------------------------------
 -- Parsing
@@ -1440,7 +1564,7 @@ data ManyState s1 s2
 --
 -- Stops when @collect@ stops.
 --
--- See also: 'Streamly.Prelude.concatMap', 'Streamly.Prelude.foldMany'
+-- See also: 'Data.Stream.concatMap', 'Data.Stream.foldMany'
 --
 {-# INLINE many #-}
 many :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
@@ -1499,7 +1623,7 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 --
 -- /Internal/
 --
--- /See also: 'Streamly.Prelude.concatMap', 'Streamly.Prelude.foldMany'/
+-- See also: 'Data.Stream.concatMap', 'Data.Stream.foldMany'
 --
 {-# INLINE manyPost #-}
 manyPost :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
@@ -1544,11 +1668,15 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 -- of @n@ items in the input stream and supplies the result to the @collect@
 -- fold.
 --
+-- Definition:
+--
+-- >>> chunksOf n split = Fold.many (Fold.take n split)
+--
+-- Example:
+--
 -- >>> twos = Fold.chunksOf 2 Fold.toList Fold.toList
 -- >>> Stream.fold twos $ Stream.fromList [1..10]
 -- [[1,2],[3,4],[5,6],[7,8],[9,10]]
---
--- > chunksOf n split = many (take n split)
 --
 -- Stops when @collect@ stops.
 --
@@ -1665,4 +1793,5 @@ refoldMany1 (Refold sstep sinject sextract) (Fold cstep cinitial cextract) =
 -- /Internal/
 {-# INLINE refold #-}
 refold :: Monad m => Refold m b a c -> Fold m a b -> Fold m a c
-refold (Refold step inject extract) f = Fold step (finish f >>= inject) extract
+refold (Refold step inject extract) f =
+    Fold step (extractM f >>= inject) extract

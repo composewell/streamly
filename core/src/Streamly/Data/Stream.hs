@@ -242,7 +242,10 @@ module Streamly.Data.Stream
     , fold -- XXX rename to run? We can have a Stream.run and Fold.run.
     -- XXX fold1 can be achieved using Monoids or Refolds.
     , foldBreak
-    , foldContinue
+
+    -- * Builders
+    , build
+    -- , buildl
 
     -- ** Parsing
     , parse

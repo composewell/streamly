@@ -12,28 +12,31 @@ module Streamly.Internal.Data.Stream.Exception.Lifted
     , bracket
     , bracket3
     , finally
+    , retry
 
     -- For IsStream module
     , afterD
     , bracket3D
+    , retryD
     )
 where
 
 #include "inline.hs"
 
-import Control.Exception (SomeException, mask_)
+import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
+import Data.Map.Strict (Map)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.IOFinalizer.Lifted
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
+import Streamly.Internal.Data.Stream.StreamD (Step(..))
 
 import qualified Control.Monad.Catch as MC
+import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-
-import Streamly.Internal.Data.Stream.StreamD.Type hiding (Stream)
 
 -- $setup
 -- >>> :m
@@ -76,7 +79,7 @@ gbracket bef aft onExc onGC ftry action =
             return (r, ref)
         return $ Skip $ GBracketIONormal (action r) r ref
 
-    step gst (GBracketIONormal (UnStream step1 st) v ref) = do
+    step gst (GBracketIONormal (D.UnStream step1 st) v ref) = do
         res <- ftry $ step1 gst st
         case res of
             Right r -> case r of
@@ -93,9 +96,9 @@ gbracket bef aft onExc onGC ftry action =
                 -- the finalizer and have not run the exception handler then we
                 -- may leak the resource.
                 stream <-
-                    clearingIOFinalizer ref (onExc v e (UnStream step1 st))
+                    clearingIOFinalizer ref (onExc v e (D.UnStream step1 st))
                 return $ Skip (GBracketIOException stream)
-    step gst (GBracketIOException (UnStream step1 st)) = do
+    step gst (GBracketIOException (D.UnStream step1 st)) = do
         res <- step1 gst st
         case res of
             Yield x s ->
@@ -115,7 +118,7 @@ bracket3D bef aft onExc onGC =
     gbracket
         bef
         aft
-        (\a (e :: SomeException) _ -> onExc a >> return (nilM (MC.throwM e)))
+        (\a (e :: SomeException) _ -> onExc a >> return (D.nilM (MC.throwM e)))
         onGC
         (inline MC.try)
 
@@ -222,3 +225,97 @@ afterD action (D.Stream step state) = D.Stream step' Nothing
 {-# INLINE after #-}
 after :: MonadRunInIO m => m b -> Stream m a -> Stream m a
 after action xs = fromStreamD $ afterD action $ toStreamD xs
+
+data RetryState emap s1 s2
+    = RetryWithMap emap s1
+    | RetryDefault s2
+
+-- | See 'Streamly.Internal.Data.Stream.retry'
+--
+{-# INLINE_NORMAL retryD #-}
+retryD
+    :: forall e m a. (Exception e, Ord e, MonadCatch m)
+    => Map e Int
+       -- ^ map from exception to retry count
+    -> (e -> D.Stream m a)
+       -- ^ default handler for those exceptions that are not in the map
+    -> D.Stream m a
+    -> D.Stream m a
+retryD emap0 defaultHandler (D.Stream step0 state0) = D.Stream step state
+
+    where
+
+    state = RetryWithMap emap0 state0
+
+    {-# INLINE_LATE step #-}
+    step gst (RetryWithMap emap st) = do
+        eres <- MC.try $ step0 gst st
+        case eres of
+            Left e -> handler e emap st
+            Right res ->
+                return
+                    $ case res of
+                          Yield x st1 -> Yield x $ RetryWithMap emap st1
+                          Skip st1 -> Skip $ RetryWithMap emap st1
+                          Stop -> Stop
+    step gst (RetryDefault (D.UnStream step1 state1)) = do
+        res <- step1 gst state1
+        return
+            $ case res of
+                  Yield x st1 -> Yield x $ RetryDefault (D.Stream step1 st1)
+                  Skip st1 -> Skip $ RetryDefault (D.Stream step1 st1)
+                  Stop -> Stop
+
+    {-# INLINE handler #-}
+    handler e emap st =
+        return
+            $ Skip
+            $ case Map.lookup e emap of
+                  Just i
+                      | i > 0 ->
+                          let emap1 = Map.insert e (i - 1) emap
+                           in RetryWithMap emap1 st
+                      | otherwise -> RetryDefault $ defaultHandler e
+                  Nothing -> RetryDefault $ defaultHandler e
+
+-- | @retry@ takes 3 arguments
+--
+-- 1. A map @m@ whose keys are exceptions and values are the number of times to
+-- retry the action given that the exception occurs.
+--
+-- 2. A handler @han@ that decides how to handle an exception when the exception
+-- cannot be retried.
+--
+-- 3. The stream itself that we want to run this mechanism on.
+--
+-- When evaluating a stream if an exception occurs,
+--
+-- 1. The stream evaluation aborts
+--
+-- 2. The exception is looked up in @m@
+--
+--    a. If the exception exists and the mapped value is > 0 then,
+--
+--       i. The value is decreased by 1.
+--
+--       ii. The stream is resumed from where the exception was called, retrying
+--       the action.
+--
+--    b. If the exception exists and the mapped value is == 0 then the stream
+--    evaluation stops.
+--
+--    c. If the exception does not exist then we handle the exception using
+--    @han@.
+--
+-- /Internal/
+--
+{-# INLINE retry #-}
+retry :: (MonadCatch m, Exception e, Ord e)
+    => Map e Int
+       -- ^ map from exception to retry count
+    -> (e -> Stream m a)
+       -- ^ default handler for those exceptions that are not in the map
+    -> Stream m a
+    -> Stream m a
+retry emap handler inp =
+    fromStreamD $ retryD emap (toStreamD . handler) $ toStreamD inp

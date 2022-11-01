@@ -225,7 +225,7 @@ replicateM n = Stream.sequence . replicate n
 -- (epoch) denoting the start of the stream and the second component is a time
 -- relative to the reference.
 --
--- >>> f = Fold.drainBy (\x -> print x >> threadDelay 1000000)
+-- >>> f = Fold.drainMapM (\x -> print x >> threadDelay 1000000)
 -- >>> Stream.fold f $ Stream.take 3 $ Stream.times
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
@@ -242,7 +242,7 @@ times = timesWith 0.01
 -- | @absTimes@ returns a stream of absolute timestamps using a clock of 10 ms
 -- granularity.
 --
--- >>> f = Fold.drainBy print
+-- >>> f = Fold.drainMapM print
 -- >>> Stream.fold f $ Stream.delayPre 1 $ Stream.take 3 $ Stream.absTimes
 -- AbsTime (TimeSpec {sec = ..., nsec = ...})
 -- AbsTime (TimeSpec {sec = ..., nsec = ...})
@@ -259,7 +259,7 @@ absTimes = fmap (uncurry addToAbsTime64) times
 -- | @relTimes@ returns a stream of relative time values starting from 0,
 -- using a clock of granularity 10 ms.
 --
--- >>> f = Fold.drainBy print
+-- >>> f = Fold.drainMapM print
 -- >>> Stream.fold f $ Stream.delayPre 1 $ Stream.take 3 $ Stream.relTimes
 -- RelTime64 (NanoSecond64 ...)
 -- RelTime64 (NanoSecond64 ...)
@@ -373,7 +373,7 @@ iterateM step = fromStreamD . D.iterateM step
 -- >>> import System.IO.Unsafe (unsafeInterleaveIO)
 --
 -- >>> :{
--- main = Stream.fold (Fold.drainBy print) $ Stream.mfix f
+-- main = Stream.fold (Fold.drainMapM print) $ Stream.mfix f
 --     where
 --     f action = do
 --         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act

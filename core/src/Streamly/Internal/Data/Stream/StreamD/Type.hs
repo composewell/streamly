@@ -323,9 +323,6 @@ foldBreak fld strm = do
 
     nil = Stream (\_ _ -> return Stop) ()
 
--- | If the fold finishes before the stream, we can detect that the fold is
--- done by checking if the initial action returns Done. But the remaining
--- stream is discarded.
 {-# INLINE_NORMAL foldContinue #-}
 foldContinue :: Monad m => Fold m a b -> Stream m a -> Fold m a b
 foldContinue (Fold fstep finitial fextract) (Stream sstep state) =

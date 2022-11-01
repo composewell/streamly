@@ -313,7 +313,7 @@ sequence = mapM id
 -- @
 --
 -- >>> s = Stream.enumerateFromTo 1 2
--- >>> Stream.fold Fold.drain $ Stream.tap (Fold.drainBy print) s
+-- >>> Stream.fold Fold.drain $ Stream.tap (Fold.drainMapM print) s
 -- 1
 -- 2
 --
@@ -770,7 +770,7 @@ interspersePrefix_ m = mapM (\x -> void m >> return x)
 -- | Introduce a delay of specified seconds between elements of the stream.
 --
 -- >>> input = Stream.enumerateFromTo 1 3
--- >>> Stream.fold (Fold.drainBy print) $ Stream.delay 1 input
+-- >>> Stream.fold (Fold.drainMapM print) $ Stream.delay 1 input
 -- 1
 -- 2
 -- 3
@@ -786,7 +786,7 @@ delay n = intersperseM_ $ liftIO $ threadDelay $ round $ n * 1000000
 -- stream.
 --
 -- >>> input = Stream.enumerateFromTo 1 3
--- >>> Stream.fold (Fold.drainBy print) $ Stream.delayPost 1 input
+-- >>> Stream.fold (Fold.drainMapM print) $ Stream.delayPost 1 input
 -- 1
 -- 2
 -- 3
@@ -801,7 +801,7 @@ delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 -- stream.
 --
 -- >>> input = Stream.enumerateFromTo 1 3
--- >>> Stream.fold (Fold.drainBy print) $ Stream.delayPre 1 input
+-- >>> Stream.fold (Fold.drainMapM print) $ Stream.delayPre 1 input
 -- 1
 -- 2
 -- 3

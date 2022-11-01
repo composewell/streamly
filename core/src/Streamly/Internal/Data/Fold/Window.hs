@@ -54,9 +54,6 @@ module Streamly.Internal.Data.Fold.Window
     , maximum
     , range
     , mean
-
-    -- ** Distribution
-    , frequency
     )
 where
 
@@ -68,7 +65,6 @@ import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict
     (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
 
-import qualified Data.Map as Map
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 
@@ -353,36 +349,3 @@ maximum n = fmap (fmap snd) $ range n
 {-# INLINE mean #-}
 mean :: forall m a. (Monad m, Fractional a) => Fold m (a, Maybe a) a
 mean = Fold.teeWith (/) sum length
-
--------------------------------------------------------------------------------
--- Distribution
--------------------------------------------------------------------------------
-
--- XXX We can use a Windowed classifyWith operation, that will allow us to
--- express windowed frequency, mode, histograms etc idiomatically.
-
--- | Count the frequency of elements in a sliding window.
---
--- >>> input = Stream.fromList [1,1,3,4,4::Int]
--- >>> f = Ring.slidingWindow 4 FoldW.frequency
--- >>> Stream.fold f input
--- fromList [(1,1),(3,1),(4,2)]
---
--- /Pre-release/
---
-{-# INLINE frequency #-}
-frequency :: (Monad m, Ord a) => Fold m (a, Maybe a) (Map.Map a Int)
-frequency = Fold.foldl' step Map.empty
-
-    where
-
-    decrement v =
-        if v == 1
-        then Nothing
-        else Just (v - 1)
-
-    step refCountMap (new, mOld) =
-        let m1 = Map.insertWith (+) new 1 refCountMap
-        in case mOld of
-                Just k -> Map.update decrement k m1
-                Nothing -> m1

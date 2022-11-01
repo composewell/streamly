@@ -28,6 +28,7 @@ import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.IsMap.HashMap ()
 
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Extra as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream as Stream

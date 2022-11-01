@@ -405,7 +405,7 @@ putChunk h arr = A.asPtrUnsafe arr $ \ptr ->
 --
 {-# INLINE putChunks #-}
 putChunks :: MonadIO m => Handle -> Stream m (Array a) -> m ()
-putChunks h = S.fold (FL.drainBy (putChunk h))
+putChunks h = S.fold (FL.drainMapM (putChunk h))
 
 -- XXX AS.compact can be written idiomatically in terms of foldMany, just like
 -- AS.concat is written in terms of foldMany. Once that is done we can write
@@ -452,7 +452,7 @@ putBytes = putBytesWith defaultChunkSize
 --
 {-# INLINE writeChunks #-}
 writeChunks :: MonadIO m => Handle -> Fold m (Array a) ()
-writeChunks h = FL.drainBy (putChunk h)
+writeChunks h = FL.drainMapM (putChunk h)
 
 -- | Like writeChunks but uses the experimental 'Refold' API.
 --

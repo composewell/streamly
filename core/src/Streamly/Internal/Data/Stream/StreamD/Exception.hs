@@ -20,7 +20,6 @@ module Streamly.Internal.Data.Stream.StreamD.Exception
     , finally
     , ghandle
     , handle
-    , retry
     )
 where
 
@@ -29,13 +28,11 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
-import Data.Map.Strict (Map)
 import GHC.Exts (inline)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
 import qualified Control.Monad.Catch as MC
-import qualified Data.Map.Strict as Map
 
 import Streamly.Internal.Data.Stream.StreamD.Type
 
@@ -369,55 +366,3 @@ _handle f (Stream step state) = Stream step' (Left state)
             Yield x s -> return $ Yield x (Right (Stream step1 s))
             Skip s    -> return $ Skip (Right (Stream step1 s))
             Stop      -> return Stop
-
-data RetryState emap s1 s2
-    = RetryWithMap emap s1
-    | RetryDefault s2
-
--- | See 'Streamly.Internal.Data.Stream.retry'
---
-{-# INLINE_NORMAL retry #-}
-retry
-    :: forall e m a. (Exception e, Ord e, MonadCatch m)
-    => Map e Int
-       -- ^ map from exception to retry count
-    -> (e -> Stream m a)
-       -- ^ default handler for those exceptions that are not in the map
-    -> Stream m a
-    -> Stream m a
-retry emap0 defaultHandler (Stream step0 state0) = Stream step state
-
-    where
-
-    state = RetryWithMap emap0 state0
-
-    {-# INLINE_LATE step #-}
-    step gst (RetryWithMap emap st) = do
-        eres <- MC.try $ step0 gst st
-        case eres of
-            Left e -> handler e emap st
-            Right res ->
-                return
-                    $ case res of
-                          Yield x st1 -> Yield x $ RetryWithMap emap st1
-                          Skip st1 -> Skip $ RetryWithMap emap st1
-                          Stop -> Stop
-    step gst (RetryDefault (UnStream step1 state1)) = do
-        res <- step1 gst state1
-        return
-            $ case res of
-                  Yield x st1 -> Yield x $ RetryDefault (Stream step1 st1)
-                  Skip st1 -> Skip $ RetryDefault (Stream step1 st1)
-                  Stop -> Stop
-
-    {-# INLINE handler #-}
-    handler e emap st =
-        return
-            $ Skip
-            $ case Map.lookup e emap of
-                  Just i
-                      | i > 0 ->
-                          let emap1 = Map.insert e (i - 1) emap
-                           in RetryWithMap emap1 st
-                      | otherwise -> RetryDefault $ defaultHandler e
-                  Nothing -> RetryDefault $ defaultHandler e
