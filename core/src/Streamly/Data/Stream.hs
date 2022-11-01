@@ -119,7 +119,9 @@ module Streamly.Data.Stream
     , fromPure
     , fromEffect
     , repeat
+    , repeatM
     , replicate
+    , replicateM
 
     -- Note: Using enumeration functions e.g. 'Prelude.enumFromThen' turns out
     -- to be slightly faster than the idioms like @[from, then..]@.
@@ -289,7 +291,6 @@ module Streamly.Data.Stream
     -- Indexing can be considered as a special type of zipping where we zip a
     -- stream with an index stream.
     , indexed
-    , indexedR
 
     -- * Insertion
     -- | Add elements to the stream.
@@ -297,6 +298,7 @@ module Streamly.Data.Stream
     -- Inserting elements is a special case of interleaving/merging streams.
     , insertBy
     , intersperseM
+    , intersperseM_
     , intersperse
 
     -- * Filtering
@@ -340,7 +342,6 @@ module Streamly.Data.Stream
     -- * Combining Two Streams
     -- ** Appending
     , append
-    , append2
 
     -- ** Interleaving
     , interleave
@@ -440,6 +441,7 @@ module Streamly.Data.Stream
     , afterIO
     , finallyIO
     , bracketIO
+    , bracket3IO
 
     -- * Lifting Inner Monad
     -- | See also: "Streamly.Internal.Data.Stream.Lift" for
