@@ -24,7 +24,14 @@ module Streamly.Internal.Data.Stream.Eliminate
     --  See "Streamly.Internal.Data.Fold".
       fold
     , foldBreak
-    , foldContinue
+    , foldBreak2
+    , foldEither
+    , foldEither2
+    , foldConcat
+
+    -- * Builders
+    , build
+    , buildl
 
     -- * Running a 'Parser'
     -- "Streamly.Internal.Data.Parser".
@@ -106,10 +113,15 @@ import Prelude hiding (foldr, init, reverse)
 -- 'Nothing'. If the stream is non-empty, returns @Just (a, ma)@, where @a@ is
 -- the head of the stream and @ma@ its tail.
 --
--- This can be used to do pretty much anything in an imperative manner, as it
--- just breaks down the stream into individual elements and we can loop over
--- them as we deem fit. For example, this can be used to convert a streamly
--- stream into other stream types.
+-- Properties:
+--
+-- >>> Nothing <- Stream.uncons Stream.nil
+-- >>> Just ("a", t) <- Stream.uncons (Stream.cons "a" Stream.nil)
+--
+-- This can be used to consume the stream in an imperative manner one element
+-- at a time, as it just breaks down the stream into individual elements and we
+-- can loop over them as we deem fit. For example, this can be used to convert
+-- a streamly stream into other stream types.
 --
 -- All the folds in this module can be expressed in terms of 'uncons', however,
 -- this is generally less efficient than specific folds because it takes apart

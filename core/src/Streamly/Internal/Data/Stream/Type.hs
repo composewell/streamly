@@ -18,6 +18,7 @@ module Streamly.Internal.Data.Stream.Type
     , toStreamK
     , fromStreamD
     , toStreamD
+    , Streamly.Internal.Data.Stream.Type.fromList
 
     -- * Construction
     , cons
@@ -121,6 +122,20 @@ fromStreamD = fromStreamK . D.toStreamK
 {-# INLINE_EARLY toStreamD #-}
 toStreamD :: Applicative m => Stream m a -> D.Stream m a
 toStreamD = D.fromStreamK . toStreamK
+
+------------------------------------------------------------------------------
+-- Generation
+------------------------------------------------------------------------------
+
+-- |
+-- >>> fromList = Prelude.foldr Stream.cons Stream.nil
+--
+-- Construct a stream from a list of pure values. This is more efficient than
+-- 'fromFoldable'.
+--
+{-# INLINE fromList #-}
+fromList :: Monad m => [a] -> Stream m a
+fromList = fromStreamK . P.fromList
 
 ------------------------------------------------------------------------------
 -- Comparison
@@ -320,7 +335,7 @@ instance Show a => Show (Stream Identity a) where
 instance Read a => Read (Stream Identity a) where
     readPrec = parens $ prec 10 $ do
         Ident "fromList" <- lexP
-        fromList <$> readPrec
+        Streamly.Internal.Data.Stream.Type.fromList <$> readPrec
 
     readListPrec = readListPrecDefault
 
@@ -450,7 +465,7 @@ infixr 5 `consM`
 consM :: Monad m => m a -> Stream m a -> Stream m a
 consM m = fromStreamK . K.consM m . toStreamK
 
--- | A pure empty stream with no result and no side-effect.
+-- | A stream that terminates without producing any output or side effect.
 --
 -- >>> Stream.fold Fold.toList Stream.nil
 -- []
@@ -459,7 +474,8 @@ consM m = fromStreamK . K.consM m . toStreamK
 nil ::  Stream m a
 nil = fromStreamK K.nil
 
--- | An empty stream producing the supplied side effect.
+-- | A stream that terminates without producing any output, but produces a side
+-- effect.
 --
 -- >>> Stream.fold Fold.toList (Stream.nilM (print "nil"))
 -- "nil"

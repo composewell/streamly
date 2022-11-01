@@ -280,7 +280,7 @@ relTimesWith = fmap snd . timesWith
 --
 -- >>> concatFold = Prelude.foldl Stream.foldContinue Fold.sum
 --
--- >>> fold f = Fold.finish . Stream.foldContinue f
+-- >>> fold f = Fold.extractM . Stream.foldContinue f
 --
 -- /Internal/
 {-# INLINE foldContinue #-}

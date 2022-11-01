@@ -105,6 +105,7 @@ module Streamly.Internal.Data.Parser
     , listEq
     , listEqBy
     , eqBy
+    , subsequenceBy
 
     -- ** By predicate
     , takeWhileP
@@ -442,6 +443,8 @@ satisfy = D.toParserK . D.satisfy
 one :: Monad m => Parser m a a
 one = satisfy $ const True
 
+-- Alternate names: "only", "onlyThis".
+
 -- | Match a specific element.
 --
 -- >>> oneEq x = Parser.satisfy (== x)
@@ -449,6 +452,8 @@ one = satisfy $ const True
 {-# INLINE oneEq #-}
 oneEq :: (Monad m, Eq a) => a -> Parser m a a
 oneEq x = satisfy (== x)
+
+-- Alternate names: "exclude", "notThis".
 
 -- | Match anything other than the supplied element.
 --
@@ -995,27 +1000,40 @@ groupByRollingEither :: Monad m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
 groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 
+-- XXX eqBy is not a good name because we are not matching the entire stream
+-- unlike the eqBy in Stream module. matchStreamBy, matchStream, matchListBy,
+-- matchList.
+
+-- | Like 'listEqBy' but uses a stream instead of a list and does not return
+-- the stream.
+--
+-- See also: "Streamly.Data.Stream.eqBy"
+--
+{-# INLINE eqBy #-}
+eqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser m a ()
+eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
+
 -- | Match the given sequence of elements using the given comparison function.
 -- Returns the original sequence if successful.
+--
+-- Definition:
+--
+-- >>> listEqBy cmp xs = Parser.eqBy cmp (Stream.fromList xs) *> Parser.fromPure xs
+--
+-- Examples:
 --
 -- >>> Stream.parse (Parser.listEqBy (==) "string") $ Stream.fromList "string"
 -- "string"
 --
 -- >>> Stream.parse (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
--- *** Exception: ParseError "listEqBy: failed, yet to match 7 elements"
+-- *** Exception: ParseError "eqBy: mismtach occurred"
 --
 {-# INLINE listEqBy #-}
 listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser m a [a]
-listEqBy cmp xs = D.toParserK (D.listEqBy cmp xs)
+-- listEqBy cmp xs = D.toParserK (D.listEqBy cmp xs)
+listEqBy cmp xs = eqBy cmp (Stream.fromList xs) *> fromPure xs
 
--- | Like 'listEqBy' but uses a stream instead of a list and does not return
--- the stream.
---
--- Note: A @Stream m a@ isn't returned as it isn't buffered.
-{-# INLINE eqBy #-}
-eqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser m a ()
-eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
-
+-- Rename to "list".
 -- | Match the input sequence with the supplied list and return it if
 -- successful.
 --
@@ -1024,6 +1042,29 @@ eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
 {-# INLINE listEq #-}
 listEq :: (Monad m, Eq a) => [a] -> Parser m a [a]
 listEq = listEqBy (==)
+
+-- | Match if the input stream is a subsequence of the argument stream i.e. all
+-- the elements of the input stream occur, in order, in the argument stream.
+-- The elements do not have to occur consecutively. A sequence is considered a
+-- subsequence of itself.
+{-# INLINE subsequenceBy #-}
+subsequenceBy :: -- Monad m =>
+    (a -> a -> Bool) -> Stream m a -> Parser m a ()
+subsequenceBy = undefined
+
+{-
+-- Should go in Data.Parser.Regex in streamly package so that it can depend on
+-- regex backends.
+{-# INLINE regexPosix #-}
+regexPosix :: -- Monad m =>
+    Regex -> Parser m a (Maybe (Array (MatchOffset, MatchLength)))
+regexPosix = undefined
+
+{-# INLINE regexPCRE #-}
+regexPCRE :: -- Monad m =>
+    Regex -> Parser m a (Maybe (Array (MatchOffset, MatchLength)))
+regexPCRE = undefined
+-}
 
 -------------------------------------------------------------------------------
 -- nested parsers
@@ -1432,7 +1473,7 @@ sepBy1 :: Monad m =>
     Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
 sepBy1 p sep sink = do
     x <- p
-    f <- fromEffect $ FL.initialize sink
+    f <- fromEffect $ FL.reduce sink
     f1 <- fromEffect $ FL.snoc f x
     many (sep >> p) f1
 

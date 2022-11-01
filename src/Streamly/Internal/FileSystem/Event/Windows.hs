@@ -436,7 +436,7 @@ utf8ToStringList = NonEmpty.map utf8ToString
 closePathHandleStream :: Stream IO (HANDLE, FilePath, Config) -> IO ()
 closePathHandleStream =
     let f (h, _, _) = closeHandle h
-        in S.fold (Fold.drainBy f)
+        in S.fold (Fold.drainMapM f)
 
 -- XXX
 -- Document the path treatment for Linux/Windows/macOS modules.

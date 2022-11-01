@@ -45,6 +45,7 @@ import Streamly.Benchmark.Prelude
     , sourceFoldMapWithStream, concatFoldableWith, concatForFoldableWith)
 #else
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.Extra as S
 #endif
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold as Fold

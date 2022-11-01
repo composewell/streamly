@@ -114,7 +114,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold.Type as FL
-    (Step(..), snoc, initialize)
+    (Step(..), snoc, reduce)
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
@@ -432,7 +432,7 @@ writeChunks path = Fold step initial extract
     where
     initial = do
         h <- liftIO (openFile path WriteMode)
-        fld <- FL.initialize (FH.writeChunks h)
+        fld <- FL.reduce (FH.writeChunks h)
                 `MC.onException` liftIO (hClose h)
         return $ FL.Partial (fld, h)
     step (fld, h) x = do

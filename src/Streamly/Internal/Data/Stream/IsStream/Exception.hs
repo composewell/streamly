@@ -40,12 +40,12 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Exception as D
     , finally_
     , ghandle
     , handle
-    , retry
     )
 
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as D
     ( afterD
     , bracket3D
+    , retryD
     )
 
 
@@ -281,4 +281,4 @@ retry :: (IsStream t, MonadCatch m, Exception e, Ord e)
     -> t m a
     -> t m a
 retry emap handler inp =
-    fromStreamD $ D.retry emap (toStreamD . handler) $ toStreamD inp
+    fromStreamD $ D.retryD emap (toStreamD . handler) $ toStreamD inp

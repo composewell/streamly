@@ -21,12 +21,15 @@ module Streamly.Internal.Data.Stream.Bottom
 
     -- * Folds
     , fold
-    , foldContinue
     , foldBreak
     , foldBreak2
     , foldEither
     , foldEither2
     , foldConcat
+
+    -- * Builders
+    , build
+    , buildl
 
     -- * Scans
     , smapM
@@ -75,7 +78,6 @@ import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.Common as Common
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -86,7 +88,7 @@ import Streamly.Internal.Data.Stream.Type
 --
 -- $setup
 -- >>> :m
--- >>> import Control.Monad (join)
+-- >>> import Control.Monad (join, (>=>), (<=<))
 -- >>> import Control.Monad.Trans.Class (lift)
 -- >>> import Data.Function (fix, (&))
 -- >>> import Data.Maybe (fromJust, isJust)
@@ -98,20 +100,6 @@ import Streamly.Internal.Data.Stream.Type
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
-
-------------------------------------------------------------------------------
--- Generation
-------------------------------------------------------------------------------
-
--- |
--- >>> fromList = Prelude.foldr Stream.cons Stream.nil
---
--- Construct a stream from a list of pure values. This is more efficient than
--- 'fromFoldable'.
---
-{-# INLINE fromList #-}
-fromList :: Monad m => [a] -> Stream m a
-fromList = fromStreamK . Common.fromList
 
 ------------------------------------------------------------------------------
 -- Generation - Time related
@@ -126,7 +114,7 @@ fromList = fromStreamK . Common.fromList
 -- terms of CPU usage. Any granularity lower than 1 ms is treated as 1 ms.
 --
 -- >>> import Control.Concurrent (threadDelay)
--- >>> f = Fold.drainBy (\x -> print x >> threadDelay 1000000)
+-- >>> f = Fold.drainMapM (\x -> print x >> threadDelay 1000000)
 -- >>> Stream.fold f $ Stream.take 3 $ Stream.timesWith 0.01
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
 -- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
@@ -145,7 +133,7 @@ timesWith g = fromStreamD $ D.times g
 -- expensive in terms of CPU usage.  Any granularity lower than 1 ms is treated
 -- as 1 ms.
 --
--- >>> f = Fold.drainBy print
+-- >>> f = Fold.drainMapM print
 -- >>> Stream.fold f $ Stream.delayPre 1 $ Stream.take 3 $ Stream.absTimesWith 0.01
 -- AbsTime (TimeSpec {sec = ..., nsec = ...})
 -- AbsTime (TimeSpec {sec = ..., nsec = ...})
@@ -164,7 +152,7 @@ absTimesWith = fmap (uncurry addToAbsTime64) . timesWith
 -- clock is more expensive in terms of CPU usage.  Any granularity lower than 1
 -- ms is treated as 1 ms.
 --
--- >>> f = Fold.drainBy print
+-- >>> f = Fold.drainMapM print
 -- >>> Stream.fold f $ Stream.delayPre 1 $ Stream.take 3 $ Stream.relTimesWith 0.01
 -- RelTime64 (NanoSecond64 ...)
 -- RelTime64 (NanoSecond64 ...)
@@ -182,40 +170,64 @@ relTimesWith = fmap snd . timesWith
 -- Elimination - Running a Fold
 ------------------------------------------------------------------------------
 
--- | We can create higher order folds using 'foldContinue'. We can fold a
--- number of streams to a given fold efficiently with full stream fusion. For
--- example, to fold a list of streams on the same sum fold:
+-- | Append a stream to a fold lazily to build an accumulator incrementally.
 --
--- >>> concatFold = Prelude.foldl Stream.foldContinue Fold.sum
+-- Example, to continue folding a list of streams on the same sum fold:
 --
--- >>> fold f = Fold.finish . Stream.foldContinue f
+-- >>> streams = [Stream.fromList [1..5], Stream.fromList [6..10]]
+-- >>> f = Prelude.foldl Stream.buildl Fold.sum streams
+-- >>> Fold.extractM f
+-- 55
 --
-{-# INLINE foldContinue #-}
-foldContinue :: Monad m => Fold m a b -> Stream m a -> Fold m a b
-foldContinue f s = D.foldContinue f $ toStreamD s
+{-# INLINE buildl #-}
+buildl :: Monad m => Fold m a b -> Stream m a -> Fold m a b
+buildl f s = D.foldContinue f $ toStreamD s
+
+-- | Append a stream to a fold strictly to build an accumulator incrementally.
+--
+-- Definitions:
+--
+-- >>> build f = Stream.fold (Fold.duplicate f)
+-- >>> build f = Stream.buildl f >=> Fold.reduce
+--
+-- Example:
+--
+-- >>> :{
+-- do
+--  sum1 <- Stream.build Fold.sum (Stream.enumerateFromTo 1 10)
+--  sum2 <- Stream.build sum1 (Stream.enumerateFromTo 11 20)
+--  Stream.fold sum2 (Stream.enumerateFromTo 21 30)
+-- :}
+-- 465
+--
+build :: Monad m => Fold m a b -> Stream m a -> m (Fold m a b)
+build f = fold (Fold.duplicate f)
 
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
 -- expression strictly at each step. The behavior is similar to 'foldl''. A
 -- 'Fold' can terminate early without consuming the full stream. See the
 -- documentation of individual 'Fold's for termination behavior.
 --
+-- Definitions:
+--
+-- >>> fold f = fmap fst . Stream.foldBreak f
+-- >>> fold f = Fold.extractM . Stream.buildl f
+-- >>> fold f = Fold.extractM <=< Stream.build f
+-- >>> fold f = Stream.parse (Parser.fromFold f)
+--
+-- Example:
+--
 -- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
 -- 5050
---
--- Folds never fail, therefore, they produce a default value even when no input
--- is provided. It means we can always fold an empty stream and get a valid
--- result.  For example:
---
--- >>> Stream.fold Fold.sum Stream.nil
--- 0
---
--- >>> fold f = Stream.parse (Parser.fromFold f)
 --
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> Stream m a -> m b
 fold fl strm = D.fold fl $ D.fromStreamK $ toStreamK strm
 
--- | Like 'fold' but also returns the remaining stream.
+-- Alternative name foldSome, but may be confused vs foldMany.
+
+-- | Like 'fold' but also returns the remaining stream. The resulting stream
+-- would be 'Stream.nil' if the stream finished before the fold.
 --
 -- /Not fused/
 --
@@ -246,9 +258,9 @@ foldBreak2 fl strm = fmap f $ D.foldBreak fl $ toStreamD strm
 
     f (b, str) = (b, fromStreamD str)
 
--- | Fold resulting in either breaking the stream or continuation of the fold
+-- | Fold resulting in either breaking the stream or continuation of the fold.
 -- Instead of supplying the input stream in one go we can run the fold multiple
--- times each time supplying the next segment of the input stream. If the fold
+-- times, each time supplying the next segment of the input stream. If the fold
 -- has not yet finished it returns a fold that can be run again otherwise it
 -- returns the fold result and the residual stream.
 --
@@ -372,7 +384,7 @@ map f = fromStreamD . D.map f . toStreamD
 --  Stream.fold Fold.toList
 --   $ fmap (fromJust . fst)
 --   $ Stream.takeWhile (\(_,x) -> x <= 10)
---   $ Stream.postscan (Fold.tee Fold.last avg) s
+--   $ Stream.postscan (Fold.tee Fold.latest avg) s
 -- :}
 -- [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 --

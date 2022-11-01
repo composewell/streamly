@@ -8,12 +8,13 @@
 -- Portability : GHC
 --
 -- See "Streamly.Data.Fold" for an overview and
--- "Streamly.Internal.Data.Fold.Types" for design notes.
---
--- IMPORTANT: keep the signatures consistent with the folds in Streamly.Prelude
+-- "Streamly.Internal.Data.Fold.Type" for design notes.
 
 module Streamly.Internal.Data.Fold
     (
+    -- * Imports
+    -- $setup
+
     -- * Fold Type
       Step (..)
     , Fold (..)
@@ -22,19 +23,17 @@ module Streamly.Internal.Data.Fold
     -- | Which constructor to use?
     --
     -- * @foldl*@: If the fold never terminates i.e. does not use the 'Done'
-    -- constructor otherwise use the @mkFold@ variants.
+    -- constructor otherwise use the @foldt*@ variants.
     -- * @*M@: Use the @M@ suffix variants if any of the step, initial, or
     -- extract function is monadic, otherwise use the pure variants.
-    -- * @*_@: Use the @_@ suffix variants if the extract function is 'id' or
-    -- 'return'.
     --
     , foldl'
     , foldlM'
     , foldl1'
     , foldt'
     , foldtM'
-    , foldr
-    , foldrM
+    , foldr'
+    , foldrM'
 
     -- * Mappers
     -- | Monadic functions useful with mapM/lmapM on folds or streams.
@@ -42,9 +41,6 @@ module Streamly.Internal.Data.Fold
     , trace
 
     -- * Folds
-    -- ** Identity
-    , fromPure
-    , fromEffect
 
     -- ** Accumulators
     -- *** Semigroups and Monoids
@@ -55,15 +51,13 @@ module Streamly.Internal.Data.Fold
 
     -- *** Reducers
     , drain
-    , drainBy
+    , drainMapM
     , the
     , length
-    , genericLength
-    , countDistinct
-    , countDistinctInt
-    , frequency
+    , lengthGeneric
     , mean
     , rollingHash
+    , defaultSalt
     , rollingHashWithSalt
     , rollingHashFirstN
     -- , rollingHashLastN
@@ -88,8 +82,7 @@ module Streamly.Internal.Data.Fold
     -- $toListRev
     , toStream
     , toStreamRev
-    , toMap
-    , topBy
+    , bottomBy
     , top
     , bottom
 
@@ -98,7 +91,7 @@ module Streamly.Internal.Data.Fold
     -- the 'scanMaybe' combinator. For scanners the result of the fold is
     -- usually a transformation of the current element rather than an
     -- aggregation of all elements till now.
-    , last -- XXX prev
+    , latest
  -- , nthLast -- using Ring array
     , indexingWith
     , indexing
@@ -109,8 +102,6 @@ module Streamly.Internal.Data.Fold
     -- | Useful in combination with the 'scanMaybe' combinator.
     , filtering
     , deleteBy
-    , nub
-    , nubInt
     , uniqBy
     , uniq
     , repeated
@@ -118,18 +109,25 @@ module Streamly.Internal.Data.Fold
     , elemIndices
 
     -- ** Terminating Folds
-    -- Element folds. Terminate after inspecting one element. All these can be
-    -- implemented in terms of the 'maybe' fold.
+    -- *** Empty folds
+    -- | Folds that return a result without consuming any input.
+    , fromPure
+    , fromEffect
+
+    -- *** Singleton folds
+    -- | Folds that terminate after consuming exactly one input element. All
+    -- these can be implemented in terms of the 'maybe' fold.
     , one
     , null
     , satisfy
     , maybe
 
-    -- Sequence folds. Terminate after inspecting a sequence of elements.
+    -- *** Multi folds
+    -- | Terminate after consuming one or more elements.
     , drainN
     -- , lastN
     -- , (!!)
-    , genericIndex
+    , indexGeneric
     , index
     , findM
     , find
@@ -154,6 +152,20 @@ module Streamly.Internal.Data.Fold
     , droppingWhileM
     , droppingWhile
     , prune
+
+    -- * Running A Fold
+    , drive
+    , driveBreak
+
+    -- * Building Incrementally
+    , extractM
+    , reduce
+    , isClosed
+    , snoc
+    , snocl
+    , snocM
+    , snoclM
+    , augment
 
     -- * Combinators
     -- ** Utilities
@@ -182,8 +194,8 @@ module Streamly.Internal.Data.Fold
     , indexed
 
     -- ** Zipping Input
-    , zipWithM
-    , zip
+    , zipStreamWithM
+    , zipStream
 
     -- ** Filtering Input
     , catMaybes
@@ -260,41 +272,6 @@ module Streamly.Internal.Data.Fold
     , partitionBy
     , partition
 
-    -- ** Demultiplexing
-    -- | Direct values in the input stream to different folds using an n-ary
-    -- fold selector. 'demux' is a generalization of 'classify' (and
-    -- 'partition') where each key of the classifier can use a different fold.
-    , demux
-    , demuxWith
-    , demuxScanWith
-    , demuxScanMutWith
-    , demuxMutWith
-
-    -- TODO: These can be implemented using the above operations
-    -- , demuxWithSel -- Stop when the fold for the specified key stops
-    -- , demuxWithMin -- Stop when any of the folds stop
-    -- , demuxWithAll -- Stop when all the folds stop (run once)
-
-    -- ** Classifying
-    -- | In an input stream of key value pairs fold values for different keys
-    -- in individual output buckets using the given fold. 'classify' is a
-    -- special case of 'demux' where all the branches of the demultiplexer use
-    -- the same fold.
-    --
-    -- Different types of maps can be used with these combinators via the IsMap
-    -- type class. Hashmap performs better when there are more collisions, trie
-    -- Map performs better otherwise. Trie has an advantage of sorting the keys
-    -- at the same time.  For example if we want to store a dictionary of words
-    -- and their meanings then trie Map would be better if we also want to
-    -- display them in sorted order.
-
-    , classify
-    , classifyWith
-    , classifyMutWith
-    , classifyScanWith
-    -- , classifyWithSel
-    -- , classifyWithMin
-
     -- ** Splitting
     , many
     , chunksOf
@@ -304,20 +281,12 @@ module Streamly.Internal.Data.Fold
     , unfoldMany
     , concatSequence
     , concatMap
-
-    -- * Running A Fold
-    -- | Normally you would run a fold to completion by supplying it a stream,
-    -- e.g. using 'Stream.fold'. However, you could also run a fold partially
-    -- by using 'duplicate' on it and then running it with a stream.
-    -- Alternatively, 'initialize', 'snoc' and 'finish' can be used to run a
-    -- fold incrementally, however, that may not be the most efficient way to
-    -- run a fold.
-    , initialize
-    , snoc
     , duplicate
-    , finish
 
     -- * Deprecated
+    , foldr
+    , drainBy
+    , last
     , head
     , sequence
     , mapM
@@ -336,11 +305,8 @@ import Data.Bits (shiftL, shiftR, (.|.), (.&.))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
-import Data.IORef (newIORef, readIORef, writeIORef)
-import Data.Map.Strict (Map)
 import Data.Word (Word32)
 import Foreign.Storable (peek, sizeOf)
-import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unboxed (Unbox)
@@ -348,16 +314,14 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 
-import qualified Data.IntSet as IntSet
-import qualified Data.Set as Set
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as FoldW
-import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Prelude hiding
@@ -371,7 +335,13 @@ import Streamly.Internal.Data.Fold.Type
 
 -- $setup
 -- >>> :m
--- >>> import Prelude hiding (break, map, span, splitAt)
+-- >>> :set -package random
+-- >>> import Control.Monad (void)
+-- >>> import Data.Functor.Identity (runIdentity)
+-- >>> import Data.Maybe (isJust)
+-- >>> import Data.Monoid (Last(..), Sum(..))
+-- >>> import Streamly.Data.Stream (Stream)
+-- >>> import Data.IORef (newIORef, readIORef, writeIORef)
 -- >>> import qualified Streamly.Data.Array.Unboxed as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
@@ -382,8 +352,60 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 -- >>> import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
--- >>> import Streamly.Internal.Data.Stream.Type (Stream)
--- >>> import Data.IORef (newIORef, readIORef, writeIORef)
+-- >>> import Prelude hiding (break, map, span, splitAt)
+
+------------------------------------------------------------------------------
+-- Running
+------------------------------------------------------------------------------
+
+-- | Drive a fold using the supplied 'Stream', reducing the resulting
+-- expression strictly at each step.
+--
+-- Definition:
+--
+-- >>> drive = flip Stream.fold
+--
+-- Example:
+--
+-- >>> Fold.drive (Stream.enumerateFromTo 1 100) Fold.sum
+-- 5050
+--
+{-# INLINE drive #-}
+drive :: Monad m => Stream m a -> Fold m a b -> m b
+drive strm fl = StreamD.fold fl $ StreamD.fromStreamK $ Stream.toStreamK strm
+
+-- | Like 'drive' but also returns the remaining stream. The resulting stream
+-- would be 'Stream.nil' if the stream finished before the fold.
+--
+-- Definition:
+--
+-- >>> driveBreak = flip Stream.foldBreak
+--
+-- /Not fused/
+--
+{-# INLINE driveBreak #-}
+driveBreak :: Monad m => Stream m a -> Fold m a b -> m (b, Stream m a)
+driveBreak strm fl = fmap f $ K.foldBreak fl (Stream.toStreamK strm)
+
+    where
+
+    f (b, str) = (b, Stream.fromStreamK str)
+
+-- | Augment a fold strictly by adding a stream to it.
+--
+-- Definitions:
+--
+-- >>> augment stream = Fold.drive stream . Fold.duplicate
+--
+-- >>> :{
+--  Fold.augment (Stream.enumerateFromTo 1 10) Fold.sum
+--      >>= Fold.augment (Stream.enumerateFromTo 11 20)
+--      >>= Fold.drive (Stream.enumerateFromTo 21 30)
+-- :}
+-- 465
+--
+augment :: Monad m => Stream m a -> Fold m a b -> m (Fold m a b)
+augment stream = drive stream . duplicate
 
 ------------------------------------------------------------------------------
 -- hoist
@@ -398,7 +420,7 @@ hoist f (Fold step initial extract) =
 
 -- | Adapt a pure fold to any monad
 --
--- > generally = Fold.hoist (return . runIdentity)
+-- >>> generally = Fold.hoist (return . runIdentity)
 --
 -- /Pre-release/
 generally :: Monad m => Fold Identity a b -> Fold m a b
@@ -575,10 +597,12 @@ scanMany = scanWith True
 -- Filters
 ------------------------------------------------------------------------------
 
--- | A filtering scan that deletes the first occurrence of the element in the
--- stream that satisfies the given equality predicate.
+-- | Returns the latest element omitting the first occurrence that satisfies
+-- the given equality predicate.
 --
--- >>> input = Stream.unfold Unfold.fromList [1,3,3,5]
+-- Example:
+--
+-- >>> input = Stream.fromList [1,3,3,5]
 -- >>> Stream.fold Fold.toList $ Stream.scanMaybe (Fold.deleteBy (==) 3) input
 -- [1,3,5]
 --
@@ -614,19 +638,18 @@ slide2 (Fold step1 initial1 extract1) = Fold step initial extract
 
     extract (Tuple' _ s) = extract1 s
 
--- | Drop repeated elements that are adjacent to each other using the supplied
--- comparison function.
+-- | Return the latest unique element using the supplied comparison function.
+-- Returns 'Nothing' if the current element is same as the last element
+-- otherwise returns 'Just'.
 --
--- To strip duplicate path separators:
+-- Example, strip duplicate path separators:
 --
--- >>> input = Stream.unfold Unfold.fromList "//a//b"
+-- >>> input = Stream.fromList "//a//b"
 -- >>> f x y = x == '/' && y == '/'
 -- >>> Stream.fold Fold.toList $ Stream.scanMaybe (Fold.uniqBy f) input
 -- "/a/b"
 --
 -- Space: @O(1)@
---
--- See also: 'nubBy'.
 --
 -- /Pre-release/
 --
@@ -641,7 +664,9 @@ uniqBy eq = rollingMap f
             Nothing -> Just curr
             Just x -> if x `eq` curr then Nothing else Just curr
 
--- | Drop repeated elements that are adjacent to each other.
+-- | See 'uniqBy'.
+--
+-- Definition:
 --
 -- >>> uniq = Fold.uniqBy (==)
 --
@@ -676,43 +701,6 @@ repeated :: -- (Monad m, Eq a) =>
     Fold m a (Maybe a)
 repeated = error "Not implemented yet!"
 
--- | Used as a scan. Returns 'Just' for the first occurrence of an element,
--- returns 'Nothing' for any other occurrences.
---
--- >>> stream = Stream.fromList [1::Int,1,2,3,4,4,5,1,5,7]
--- >>> Stream.fold Fold.toList $ Stream.mapMaybe id $ Stream.postscan Fold.nub stream
--- [1,2,3,4,5,7]
---
--- /Pre-release/
-{-# INLINE nub #-}
-nub :: (Monad m, Ord a) => Fold m a (Maybe a)
-nub = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
-
-    where
-
-    initial = Tuple' Set.empty Nothing
-
-    step (Tuple' set _) x =
-        if Set.member x set
-        then Tuple' set Nothing
-        else Tuple' (Set.insert x set) (Just x)
-
--- | Like 'nub' but specialized to a stream of 'Int', for better performance.
---
--- /Pre-release/
-{-# INLINE nubInt #-}
-nubInt :: Monad m => Fold m Int (Maybe Int)
-nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
-
-    where
-
-    initial = Tuple' IntSet.empty Nothing
-
-    step (Tuple' set _) x =
-        if IntSet.member x set
-        then Tuple' set Nothing
-        else Tuple' (IntSet.insert x set) (Just x)
-
 ------------------------------------------------------------------------------
 -- Left folds
 ------------------------------------------------------------------------------
@@ -722,28 +710,40 @@ nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 ------------------------------------------------------------------------------
 
 -- |
--- > drainBy f = lmapM f drain
--- > drainBy = Fold.foldMapM (void . f)
+-- Definitions:
+--
+-- >>> drainMapM f = Fold.lmapM f Fold.drain
+-- >>> drainMapM f = Fold.foldMapM (void . f)
 --
 -- Drain all input after passing it through a monadic function. This is the
 -- dual of mapM_ on stream producers.
 --
--- See also: 'Streamly.Prelude.mapM_'
---
+{-# INLINE drainMapM #-}
+drainMapM ::  Monad m => (a -> m b) -> Fold m a ()
+drainMapM f = lmapM f drain
+
+{-# DEPRECATED drainBy "Please use 'drainMapM' instead." #-}
 {-# INLINE drainBy #-}
 drainBy ::  Monad m => (a -> m b) -> Fold m a ()
-drainBy f = lmapM f drain
+drainBy = drainMapM
 
--- | Extract the last element of the input stream, if any.
+-- | Returns the latest element of the input stream, if any.
 --
--- > last = fmap getLast $ Fold.foldMap (Last . Just)
+-- >>> latest = Fold.foldl1' (\_ x -> x)
+-- >>> latest = fmap getLast $ Fold.foldMap (Last . Just)
 --
+{-# INLINE latest #-}
+latest :: Monad m => Fold m a (Maybe a)
+latest = foldl1' (\_ x -> x)
+
+{-# DEPRECATED last "Please use 'latest' instead." #-}
 {-# INLINE last #-}
 last :: Monad m => Fold m a (Maybe a)
-last = foldl1' (\_ x -> x)
+last = latest
 
--- | If the stream consists of one or more occurences of the same element
--- then returns that element else terminates and returns 'Nothing'.
+-- | Terminates with 'Nothing' as soon as it finds an element different than
+-- the previous one, returns 'the' element if the entire input consists of the
+-- same element.
 --
 {-# INLINE the #-}
 the :: (Monad m, Eq a) => Fold m a (Maybe a)
@@ -765,82 +765,27 @@ the = foldt' step initial id
 
 -- | Like 'length', except with a more general 'Num' return value
 --
--- > genericLength = fmap getSum $ foldMap (Sum . const  1)
+-- Definition:
+--
+-- >>> lengthGeneric = fmap getSum $ Fold.foldMap (Sum . const  1)
+-- >>> lengthGeneric = Fold.foldl' (\n _ -> n + 1) 0
 --
 -- /Pre-release/
-{-# INLINE genericLength #-}
-genericLength :: (Monad m, Num b) => Fold m a b
-genericLength = foldl' (\n _ -> n + 1) 0
+{-# INLINE lengthGeneric #-}
+lengthGeneric :: (Monad m, Num b) => Fold m a b
+lengthGeneric = foldl' (\n _ -> n + 1) 0
 
 -- | Determine the length of the input stream.
 --
--- > length = fmap getSum $ Fold.foldMap (Sum . const  1)
+-- Definition:
+--
+-- >>> length = Fold.lengthGeneric
+-- >>> length = fmap getSum $ Fold.foldMap (Sum . const  1)
 --
 {-# INLINE length #-}
 length :: Monad m => Fold m a Int
-length = genericLength
+length = lengthGeneric
 
--- XXX Try Hash set
--- XXX Add a countDistinct window fold
--- XXX Add a bloom filter fold
-
--- | Count non-duplicate elements in the stream.
---
--- Equivalent to using 'nub' followed by 'length' on a stream.
---
--- >>> countDistinct = Fold.postscan Fold.nub $ Fold.catMaybes $ Fold.length
---
--- The memory used is proportional to the number of distinct elements in the
--- stream, to guard against using too much memory use it as a scan and
--- terminate if the count reaches more than a threshold.
---
--- /Space/: \(\mathcal{O}(n)\)
---
--- /Pre-release/
---
-{-# INLINE countDistinct #-}
-countDistinct :: (Monad m, Ord a) => Fold m a Int
-countDistinct = postscan nub $ catMaybes length
-{-
-countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
-
-    where
-
-    initial = Tuple' Set.empty 0
-
-    step (Tuple' set n) x = do
-        if Set.member x set
-        then
-            Tuple' set n
-        else
-            let cnt = n + 1
-             in Tuple' (Set.insert x set) cnt
--}
-
--- | Like 'countDistinct' but specialized to a stream of 'Int', for better
--- performance.
---
--- >>> countDistinctInt = Fold.postscan Fold.nubInt $ Fold.catMaybes $ Fold.length
---
--- /Pre-release/
-{-# INLINE countDistinctInt #-}
-countDistinctInt :: Monad m => Fold m Int Int
-countDistinctInt = postscan nubInt $ catMaybes length
-{-
-countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
-
-    where
-
-    initial = Tuple' IntSet.empty 0
-
-    step (Tuple' set n) x = do
-        if IntSet.member x set
-        then
-            Tuple' set n
-        else
-            let cnt = n + 1
-             in Tuple' (IntSet.insert x set) cnt
- -}
 
 -- | Determine the sum of all elements of a stream of numbers. Returns additive
 -- identity (@0@) when the stream is empty. Note that this is not numerically
@@ -861,7 +806,9 @@ sum = FoldW.cumulative FoldW.sum
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates
 -- when it encounters (@0@) in its input.
 --
--- Compare with @Fold.foldMap Product@.
+-- Same as the following but terminates on multiplication by @0@:
+--
+-- >>> product = fmap Data.Monoid.getProduct $ Fold.foldMap Data.Monoid.Product
 --
 {-# INLINE product #-}
 product :: (Monad m, Num a, Eq a) => Fold m a a
@@ -892,14 +839,17 @@ maximumBy cmp = foldl1' max'
             GT -> x
             _ -> y
 
--- |
--- @
--- maximum = Fold.maximumBy compare
--- @
+-- | Determine the maximum element in a stream.
 --
--- Determine the maximum element in a stream.
+-- Definitions:
 --
--- Compare with @Fold.foldMap Max@.
+-- >>> maximum = Fold.maximumBy compare
+-- >>> maximum = Fold.foldl1' max
+--
+-- Same as the following but without a default maximum. The 'Max' Monoid uses
+-- the 'minBound' as the default maximum:
+--
+-- >>> maximum = fmap Data.Semigroup.getMax $ Fold.foldMap Data.Semigroup.Max
 --
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => Fold m a (Maybe a)
@@ -921,11 +871,15 @@ minimumBy cmp = foldl1' min'
 -- | Determine the minimum element in a stream using the supplied comparison
 -- function.
 --
--- @
--- minimum = 'minimumBy' compare
--- @
+-- Definitions:
 --
--- Compare with @Fold.foldMap Min@.
+-- >>> minimum = Fold.minimumBy compare
+-- >>> minimum = Fold.foldl1' min
+--
+-- Same as the following but without a default minimum. The 'Min' Monoid uses the
+-- 'maxBound' as the default maximum:
+--
+-- >>> maximum = fmap Data.Semigroup.getMin $ Fold.foldMap Data.Semigroup.Min
 --
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Fold m a (Maybe a)
@@ -1011,7 +965,7 @@ defaultSalt = -2578643520546668380
 
 -- | Compute an 'Int' sized polynomial rolling hash of a stream.
 --
--- > rollingHash = Fold.rollingHashWithSalt defaultSalt
+-- >>> rollingHash = Fold.rollingHashWithSalt Fold.defaultSalt
 --
 {-# INLINE rollingHash #-}
 rollingHash :: (Monad m, Enum a) => Fold m a Int64
@@ -1020,7 +974,7 @@ rollingHash = rollingHashWithSalt defaultSalt
 -- | Compute an 'Int' sized polynomial rolling hash of the first n elements of
 -- a stream.
 --
--- > rollingHashFirstN = Fold.take n Fold.rollingHash
+-- >>> rollingHashFirstN n = Fold.take n Fold.rollingHash
 --
 -- /Pre-release/
 {-# INLINE rollingHashFirstN #-}
@@ -1053,6 +1007,9 @@ rollingMapM f = Fold step initial extract
 
     extract = return . snd
 
+-- |
+-- >>> rollingMap f = Fold.rollingMapM (\x y -> return $ f x y)
+--
 {-# INLINE rollingMap #-}
 rollingMap :: Monad m => (Maybe a -> a -> b) -> Fold m a b
 rollingMap f = rollingMapM (\x y -> return $ f x y)
@@ -1061,26 +1018,31 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 -- Monoidal left folds
 ------------------------------------------------------------------------------
 
--- | Append the elements of an input stream to a provided starting value.
+-- | Semigroup concat. Append the elements of an input stream to a provided
+-- starting value.
 --
--- >>> Stream.fold (Fold.sconcat 10) (fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10)
+-- Definition:
+--
+-- >>> sconcat = Fold.foldl' (<>)
+--
+-- >>> semigroups = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
+-- >>> Stream.fold (Fold.sconcat 10) semigroups
 -- Sum {getSum = 65}
---
--- @
--- sconcat = Fold.foldl' (<>)
--- @
 --
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => a -> Fold m a a
 sconcat = foldl' (<>)
 
--- | Fold an input stream consisting of monoidal elements using 'mappend'
--- and 'mempty'.
+-- | Monoid concat. Fold an input stream consisting of monoidal elements using
+-- 'mappend' and 'mempty'.
 --
--- >>> Stream.fold Fold.mconcat (fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10)
+-- Definition:
+--
+-- >>> mconcat = Fold.sconcat mempty
+--
+-- >>> monoids = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
+-- >>> Stream.fold Fold.mconcat monoids
 -- Sum {getSum = 55}
---
--- > mconcat = Fold.sconcat mempty
 --
 {-# INLINE mconcat #-}
 mconcat ::
@@ -1089,26 +1051,31 @@ mconcat ::
 mconcat = sconcat mempty
 
 -- |
--- > foldMap f = Fold.lmap f Fold.mconcat
+-- Definition:
+--
+-- >>> foldMap f = Fold.lmap f Fold.mconcat
 --
 -- Make a fold from a pure function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- >>> Stream.fold (Fold.foldMap Data.Monoid.Sum) $ Stream.enumerateFromTo 1 10
+-- >>> sum = Fold.foldMap Data.Monoid.Sum
+-- >>> Stream.fold sum $ Stream.enumerateFromTo 1 10
 -- Sum {getSum = 55}
 --
 {-# INLINE foldMap #-}
-foldMap :: (Monad m, Monoid b
-    ) => (a -> b) -> Fold m a b
+foldMap :: (Monad m, Monoid b) => (a -> b) -> Fold m a b
 foldMap f = lmap f mconcat
 
 -- |
--- > foldMapM f = Fold.lmapM f Fold.mconcat
+-- Definition:
+--
+-- >>> foldMapM f = Fold.lmapM f Fold.mconcat
 --
 -- Make a fold from a monadic function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- >>> Stream.fold (Fold.foldMapM (return . Data.Monoid.Sum)) $ Stream.enumerateFromTo 1 10
+-- >>> sum = Fold.foldMapM (return . Data.Monoid.Sum)
+-- >>> Stream.fold sum $ Stream.enumerateFromTo 1 10
 -- Sum {getSum = 55}
 --
 {-# INLINE foldMapM #-}
@@ -1131,7 +1098,9 @@ foldMapM act = foldlM' step (pure mempty)
 
 -- | Buffers the input stream to a list in the reverse order of the input.
 --
--- > toListRev = Fold.foldl' (flip (:)) []
+-- Definition:
+--
+-- >>> toListRev = Fold.foldl' (flip (:)) []
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
@@ -1149,7 +1118,9 @@ toListRev = foldl' (flip (:)) []
 -- | A fold that drains the first n elements of its input, running the effects
 -- and discarding the results.
 --
--- > drainN n = Fold.take n Fold.drain
+-- Definition:
+--
+-- >>> drainN n = Fold.take n Fold.drain
 --
 -- /Pre-release/
 {-# INLINE drainN #-}
@@ -1163,9 +1134,9 @@ drainN n = take n drain
 -- | Like 'index', except with a more general 'Integral' argument
 --
 -- /Pre-release/
-{-# INLINE genericIndex #-}
-genericIndex :: (Integral i, Monad m) => i -> Fold m a (Maybe a)
-genericIndex i = foldt' step (Partial 0) (const Nothing)
+{-# INLINE indexGeneric #-}
+indexGeneric :: (Integral i, Monad m) => i -> Fold m a (Maybe a)
+indexGeneric i = foldt' step (Partial 0) (const Nothing)
 
     where
 
@@ -1174,15 +1145,18 @@ genericIndex i = foldt' step (Partial 0) (const Nothing)
         then Done $ Just a
         else Partial (j + 1)
 
--- | Lookup the element at the given index.
+-- | Return the element at the given index.
 --
--- See also: 'Streamly.Prelude.!!'
+-- Definition:
+--
+-- >>> index = Fold.indexGeneric
 --
 {-# INLINE index #-}
 index :: Monad m => Int -> Fold m a (Maybe a)
-index = genericIndex
+index = indexGeneric
 
--- | Map a 'Maybe' returning function on the next element in the stream.
+-- | Consume a single input and transform it using the supplied 'Maybe'
+-- returning function.
 --
 -- /Pre-release/
 --
@@ -1190,16 +1164,24 @@ index = genericIndex
 maybe :: Monad m => (a -> Maybe b) -> Fold m a (Maybe b)
 maybe f = foldt' (const (Done . f)) (Partial Nothing) id
 
--- | Test if the next element satisfies the supplied predicate.
+-- | Consume a single element and return it if it passes the predicate else
+-- return 'Nothing'.
+--
+-- Definition:
+--
+-- >>> satisfy f = Fold.maybe (\a -> if f a then Just a else Nothing)
 --
 -- /Pre-release/
 {-# INLINE satisfy #-}
 satisfy :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
+satisfy f = maybe (\a -> if f a then Just a else Nothing)
+{-
 satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
 
     where
 
     step () a = return $ Done $ if f a then Just a else Nothing
+-}
 
 -- Naming notes:
 --
@@ -1227,6 +1209,12 @@ satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
 -- stream to the head element i.e. take the head and drain the rest.
 
 -- | Take one element from the stream and stop.
+--
+-- Definition:
+--
+-- >>> one = Fold.maybe Just
+--
+-- This is similar to the stream 'Stream.uncons' operation.
 --
 {-# INLINE one #-}
 one :: Monad m => Fold m a (Maybe a)
@@ -1266,7 +1254,9 @@ find p = findM (return . p)
 -- | In a stream of (key-value) pairs @(a, b)@, return the value @b@ of the
 -- first pair where the key equals the given value @a@.
 --
--- > lookup = snd <$> Fold.find ((==) . fst)
+-- Definition:
+--
+-- >>> lookup x = fmap snd <$> Fold.find ((== x) . fst)
 --
 {-# INLINE lookup #-}
 lookup :: (Eq a, Monad m) => a -> Fold m (a,b) (Maybe b)
@@ -1292,10 +1282,8 @@ findIndex predicate = foldt' step (Partial 0) (const Nothing)
         then Done $ Just i
         else Partial (i + 1)
 
--- XXX If we have a Continue contructor we won't need a Maybe type for the
--- scan. The fold will have the ability to skip producing output.
---
--- | Returns all indices that satisfy the given predicate.
+-- | Returns the index of the latest element if the element satisfies the given
+-- predicate.
 --
 {-# INLINE findIndices #-}
 findIndices :: Monad m => (a -> Bool) -> Fold m a (Maybe Int)
@@ -1310,8 +1298,10 @@ findIndices predicate =
         then Right (either id id i + 1)
         else Left (either id id i + 1)
 
--- | Find all the indices where the value of the element in the stream is equal
--- to the given value.
+-- | Returns the index of the latest element if the element matches the given
+-- value.
+--
+-- Definition:
 --
 -- >>> elemIndices a = Fold.findIndices (== a)
 --
@@ -1321,30 +1311,45 @@ elemIndices a = findIndices (== a)
 
 -- | Returns the first index where a given value is found in the stream.
 --
--- > elemIndex a = Fold.findIndex (== a)
+-- Definition:
+--
+-- >>> elemIndex a = Fold.findIndex (== a)
 --
 {-# INLINE elemIndex #-}
 elemIndex :: (Eq a, Monad m) => a -> Fold m a (Maybe Int)
-elemIndex a = findIndex (a ==)
+elemIndex a = findIndex (== a)
 
 ------------------------------------------------------------------------------
 -- To Boolean
 ------------------------------------------------------------------------------
 
--- | Return 'True' if the input stream is empty.
+-- Similar to 'eof' parser, but the fold consumes and discards an input element
+-- when not at eof. XXX Remove or Rename to "eof"?
+
+-- | Consume one element, return 'True' if successful else return 'False'. In
+-- other words, test if the input is empty or not.
 --
--- > null = fmap isJust Fold.one
+-- WARNING! It consumes one element if the stream is not empty. If that is not
+-- what you want please use the eof parser instead.
+--
+-- Definition:
+--
+-- >>> null = fmap isJust Fold.one
 --
 {-# INLINE null #-}
 null :: Monad m => Fold m a Bool
 null = foldt' (\() _ -> Done False) (Partial ()) (const True)
 
--- | Returns 'True' if any of the elements of a stream satisfies a predicate.
+-- | Returns 'True' if any element of the input satisfies the predicate.
+--
+-- Definition:
+--
+-- >>> any p = Fold.lmap p Fold.or
+--
+-- Example:
 --
 -- >>> Stream.fold (Fold.any (== 0)) $ Stream.fromList [1,0,1]
 -- True
---
--- > any p = Fold.lmap p Fold.or
 --
 {-# INLINE any #-}
 any :: Monad m => (a -> Bool) -> Fold m a Bool
@@ -1361,18 +1366,24 @@ any predicate = foldt' step initial id
 
 -- | Return 'True' if the given element is present in the stream.
 --
--- > elem a = Fold.any (== a)
+-- Definition:
+--
+-- >>> elem a = Fold.any (== a)
 --
 {-# INLINE elem #-}
 elem :: (Eq a, Monad m) => a -> Fold m a Bool
-elem a = any (a ==)
+elem a = any (== a)
 
--- | Returns 'True' if all elements of a stream satisfy a predicate.
+-- | Returns 'True' if all elements of the input satisfy the predicate.
+--
+-- Definition:
+--
+-- >>> all p = Fold.lmap p Fold.and
+--
+-- Example:
 --
 -- >>> Stream.fold (Fold.all (== 0)) $ Stream.fromList [1,0,1]
 -- False
---
--- > all p = Fold.lmap p Fold.and
 --
 {-# INLINE all #-}
 all :: Monad m => (a -> Bool) -> Fold m a Bool
@@ -1389,15 +1400,19 @@ all predicate = foldt' step initial id
 
 -- | Returns 'True' if the given element is not present in the stream.
 --
--- > notElem a = Fold.all (/= a)
+-- Definition:
+--
+-- >>> notElem a = Fold.all (/= a)
 --
 {-# INLINE notElem #-}
 notElem :: (Eq a, Monad m) => a -> Fold m a Bool
-notElem a = all (a /=)
+notElem a = all (/= a)
 
 -- | Returns 'True' if all elements are 'True', 'False' otherwise
 --
--- > and = Fold.all (== True)
+-- Definition:
+--
+-- >>> and = Fold.all (== True)
 --
 {-# INLINE and #-}
 and :: Monad m => Fold m Bool Bool
@@ -1405,7 +1420,9 @@ and = all (== True)
 
 -- | Returns 'True' if any element is 'True', 'False' otherwise
 --
--- > or = Fold.any (== True)
+-- Definition:
+--
+-- >>> or = Fold.any (== True)
 --
 {-# INLINE or #-}
 or :: Monad m => Fold m Bool Bool
@@ -1531,6 +1548,9 @@ droppingWhileM p = Fold step initial (return . toMaybe)
               else Just' a
     step _ a = return $ Partial $ Just' a
 
+-- |
+-- >>> droppingWhile p = Fold.droppingWhileM (return . p)
+--
 {-# INLINE droppingWhile #-}
 droppingWhile :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
 droppingWhile p = droppingWhileM (return . p)
@@ -1539,19 +1559,19 @@ droppingWhile p = droppingWhileM (return . p)
 -- S.splitOn in favor of the fold.
 --
 -- XXX Use Fold.many instead once it is fixed.
---
+-- > Stream.splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
+
 -- | Like 'takeEndBy' but drops the element on which the predicate succeeds.
 --
--- >>> Stream.fold (Fold.takeEndBy_ (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- Example:
+--
+-- >>> input = Stream.fromList "hello\nthere\n"
+-- >>> line = Fold.takeEndBy_ (== '\n') Fold.toList
+-- >>> Stream.fold line input
 -- "hello"
 --
--- >>> Stream.fold Fold.toList $ Stream.foldMany (Fold.takeEndBy_ (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- >>> Stream.fold Fold.toList $ Stream.foldMany line input
 -- ["hello","there"]
---
--- > Stream.splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
---
--- See 'Streamly.Prelude.splitOnSuffix' for more details on splitting a
--- stream using 'takeEndBy_'.
 --
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
@@ -1566,19 +1586,21 @@ takeEndBy_ predicate (Fold fstep finitial fextract) =
         then fstep s a
         else Done <$> fextract s
 
+-- Note:
+-- > Stream.splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
+
 -- | Take the input, stop when the predicate succeeds taking the succeeding
 -- element as well.
 --
--- >>> Stream.fold (Fold.takeEndBy (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- Example:
+--
+-- >>> input = Stream.fromList "hello\nthere\n"
+-- >>> line = Fold.takeEndBy (== '\n') Fold.toList
+-- >>> Stream.fold line input
 -- "hello\n"
 --
--- >>> Stream.fold Fold.toList $ Stream.foldMany (Fold.takeEndBy (== '\n') Fold.toList) $ Stream.fromList "hello\nthere\n"
+-- >>> Stream.fold Fold.toList $ Stream.foldMany line input
 -- ["hello\n","there\n"]
---
--- > Stream.splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
---
--- See 'Streamly.Prelude.splitWithSuffix' for more details on splitting a
--- stream using 'takeEndBy'.
 --
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
@@ -1924,10 +1946,16 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
 -- ---stream m a---|                         |---m (b,c)
 --                 |-------Fold m a c--------|
 -- @
--- >>> Stream.fold (Fold.tee Fold.sum Fold.length) (Stream.enumerateFromTo 1.0 100.0)
--- (5050.0,100)
 --
--- > tee = teeWith (,)
+--  Definition:
+--
+-- >>> tee = Fold.teeWith (,)
+--
+-- Example:
+--
+-- >>> t = Fold.tee Fold.sum Fold.length
+-- >>> Stream.fold t (Stream.enumerateFromTo 1.0 100.0)
+-- (5050.0,100)
 --
 {-# INLINE tee #-}
 tee :: Monad m => Fold m a b -> Fold m a c -> Fold m a (b,c)
@@ -1992,16 +2020,15 @@ partitionByMUsing t f fld1 fld2 =
 --                                     |-------Fold c y--------|
 -- @
 --
--- Send input to either fold randomly:
+-- Example, send input to either fold randomly:
 --
--- @
--- > import System.Random (randomIO)
--- > randomly a = randomIO >>= \\x -> return $ if x then Left a else Right a
--- > Stream.fold (Fold.partitionByM randomly Fold.length Fold.length) (Stream.enumerateFromTo 1 100)
--- (59,41)
--- @
+-- >>> import System.Random (randomIO)
+-- >>> randomly a = randomIO >>= \x -> return $ if x then Left a else Right a
+-- >>> f = Fold.partitionByM randomly Fold.length Fold.length
+-- >>> Stream.fold f (Stream.enumerateFromTo 1 100)
+-- ...
 --
--- Send input to the two folds in a proportion of 2:1:
+-- Example, send input to the two folds in a proportion of 2:1:
 --
 -- >>> :{
 -- proportionately m n = do
@@ -2014,8 +2041,9 @@ partitionByMUsing t f fld1 fld2 =
 --
 -- >>> :{
 -- main = do
---  f <- proportionately 2 1
---  r <- Stream.fold (Fold.partitionByM f Fold.length Fold.length) (Stream.enumerateFromTo (1 :: Int) 100)
+--  g <- proportionately 2 1
+--  let f = Fold.partitionByM g Fold.length Fold.length
+--  r <- Stream.fold f (Stream.enumerateFromTo (1 :: Int) 100)
 --  print r
 -- :}
 --
@@ -2040,14 +2068,12 @@ partitionByM = partitionByMUsing teeWith
 
 -- | Similar to 'partitionByM' but terminates when the first fold terminates.
 --
---
 {-# INLINE partitionByFstM #-}
 partitionByFstM :: Monad m
     => (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
 partitionByFstM = partitionByMUsing teeWithFst
 
 -- | Similar to 'partitionByM' but terminates when any fold terminates.
---
 --
 {-# INLINE partitionByMinM #-}
 partitionByMinM :: Monad m =>
@@ -2057,9 +2083,10 @@ partitionByMinM = partitionByMUsing teeWithMin
 -- Note: we could use (a -> Bool) instead of (a -> Either b c), but the latter
 -- makes the signature clearer as to which case belongs to which fold.
 -- XXX need to check the performance in both cases.
+
 -- | Same as 'partitionByM' but with a pure partition function.
 --
--- Count even and odd numbers in a stream:
+-- Example, count even and odd numbers in a stream:
 --
 -- >>> :{
 --  let f = Fold.partitionBy (\n -> if even n then Left n else Right n)
@@ -2079,7 +2106,9 @@ partitionBy f = partitionByM (return . f)
 -- and routes the 'Left' values to the first fold and 'Right' values to the
 -- second fold.
 --
--- > partition = partitionBy id
+-- Definition:
+--
+-- >>> partition = Fold.partitionBy id
 --
 {-# INLINE partition #-}
 partition :: Monad m
@@ -2093,412 +2122,6 @@ partition = partitionBy id
 -- partitionN :: Monad m => [Fold m a b] -> Fold m a [b]
 -- partitionN fs = Fold step begin done
 -}
-
-------------------------------------------------------------------------------
--- demux: in a key value stream fold each key sub-stream with a different fold
-------------------------------------------------------------------------------
-
--- TODO Demultiplex an input element into a number of typed variants. We want
--- to statically restrict the target values within a set of predefined types,
--- an enumeration of a GADT.
---
--- This is the consumer side dual of the producer side 'mux' operation (XXX to
--- be implemented).
---
--- XXX If we use Refold in it, it can perhaps fuse/be more efficient. For
--- example we can store just the result rather than storing the whole fold in
--- the Map.
---
--- Note: There are separate functions to determine Key and Fold from the input
--- because key is to be determined on each input whereas fold is to be
--- determined only once for a key.
-
--- | In a key value stream, fold values corresponding to each key with a key
--- specific fold. The fold returns the fold result as the second component of
--- the output tuple whenever a fold terminates. The first component of the
--- tuple is a container of in-progress folds. If a fold terminates, another
--- instance of the fold is started upon receiving an input with that key.
---
--- This can be used to scan a stream and collect the results from the scan
--- output.
---
--- /Pre-release/
---
-{-# INLINE demuxScanWith #-}
-demuxScanWith :: (Monad m, IsMap f, Traversable f) =>
-       (a -> Key f)
-    -> (a -> m (Fold m a b))
-    -> Fold m a (m (f b), Maybe (Key f, b))
-demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
-
-    where
-
-    initial = return $ Tuple' IsMap.mapEmpty Nothing
-
-    {-# INLINE runFold #-}
-    runFold kv (Fold step1 initial1 extract1) (k, a) = do
-         res <- initial1
-         case res of
-            Partial s -> do
-                res1 <- step1 s a
-                return
-                    $ case res1 of
-                        Partial _ ->
-                            let fld = Fold step1 (return res1) extract1
-                             in Tuple' (IsMap.mapInsert k fld kv) Nothing
-                        Done b -> Tuple' (IsMap.mapDelete k kv) (Just (k, b))
-            Done b -> return $ Tuple' kv (Just (k, b))
-
-    step (Tuple' kv _) a = do
-        let k = getKey a
-        case IsMap.mapLookup k kv of
-            Nothing -> do
-                fld <- getFold a
-                runFold kv fld (k, a)
-            Just f -> runFold kv f (k, a)
-
-    extract (Tuple' kv x) = (Prelude.mapM f kv, x)
-
-        where
-
-        f (Fold _ i e) = do
-            r <- i
-            case r of
-                Partial s -> e s
-                Done b -> return b
-
--- | This is specialized version of 'demuxScanWith' that uses mutable cells as
--- fold accumulators for better performance.
---
--- >>> demuxScanMutWith = Fold.demuxScanWith
---
-{-# INLINE demuxScanMutWith #-}
-demuxScanMutWith :: (MonadIO m, IsMap f, Traversable f) =>
-       (a -> Key f)
-    -> (a -> m (Fold m a b))
-    -> Fold m a (m (f b), Maybe (Key f, b))
-demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
-
-    where
-
-    initial = return $ Tuple' IsMap.mapEmpty Nothing
-
-    {-# INLINE initFold #-}
-    initFold kv (Fold step1 initial1 extract1) (k, a) = do
-         res <- initial1
-         case res of
-            Partial s -> do
-                res1 <- step1 s a
-                case res1 of
-                    Partial _ -> do
-                        let fld = Fold step1 (return res1) extract1
-                        ref <- liftIO $ newIORef fld
-                        return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
-                    Done b -> return $ Tuple' kv (Just (k, b))
-            Done b -> return $ Tuple' kv (Just (k, b))
-
-    {-# INLINE runFold #-}
-    runFold kv ref (Fold step1 initial1 extract1) (k, a) = do
-         res <- initial1
-         case res of
-            Partial s -> do
-                res1 <- step1 s a
-                case res1 of
-                        Partial _ -> do
-                            let fld = Fold step1 (return res1) extract1
-                            liftIO $ writeIORef ref fld
-                            return $ Tuple' kv Nothing
-                        Done b ->
-                            let kv1 = IsMap.mapDelete k kv
-                             in return $ Tuple' kv1 (Just (k, b))
-            Done _ -> error "demuxScanMutWith: unreachable"
-
-    step (Tuple' kv _) a = do
-        let k = getKey a
-        case IsMap.mapLookup k kv of
-            Nothing -> do
-                f <- getFold a
-                initFold kv f (k, a)
-            Just ref -> do
-                f <- liftIO $ readIORef ref
-                runFold kv ref f (k, a)
-
-    extract (Tuple' kv x) = (Prelude.mapM f kv, x)
-
-        where
-
-        f ref = do
-            (Fold _ i e) <- liftIO $ readIORef ref
-            r <- i
-            case r of
-                Partial s -> e s
-                Done b -> return b
-
--- | This collects all the results of 'demuxScanWith' in a container.
---
-{-# INLINE demuxWith #-}
-demuxWith :: (Monad m, IsMap f, Traversable f) =>
-    (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
-demuxWith getKey getFold =
-    let
-        classifier = demuxScanWith getKey getFold
-        getMap Nothing = pure IsMap.mapEmpty
-        getMap (Just action) = action
-        aggregator =
-            teeWith IsMap.mapUnion
-                (rmapM getMap $ lmap fst last)
-                (lmap snd $ catMaybes toMap)
-    in postscan classifier aggregator
-
--- | Same as 'demuxWith' but uses 'demuxScanMutWith' for better performance.
---
--- >>> demuxMutWith = Fold.demuxWith
---
-{-# INLINE demuxMutWith #-}
-demuxMutWith :: (MonadIO m, IsMap f, Traversable f) =>
-    (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
-demuxMutWith getKey getFold =
-    let
-        classifier = demuxScanMutWith getKey getFold
-        getMap Nothing = pure IsMap.mapEmpty
-        getMap (Just action) = action
-        aggregator =
-            teeWith IsMap.mapUnion
-                (rmapM getMap $ lmap fst last)
-                (lmap snd $ catMaybes toMap)
-    in postscan classifier aggregator
-
--- | Fold a stream of key value pairs using a function that maps keys to folds.
---
--- >>> import Data.Map (Map)
--- >>> :{
---  let f "SUM" = return Fold.sum
---      f _ = return Fold.product
---      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
---   in Stream.fold (Fold.demux f) input :: IO (Map String Int)
--- :}
--- fromList [("PRODUCT",8),("SUM",4)]
---
--- >>> demux f = Fold.demuxWith fst (Fold.lmap snd . f)
---
--- /Pre-release/
-{-# INLINE demux #-}
-demux :: (Monad m, IsMap f, Traversable f) =>
-    (Key f -> m (Fold m a b)) -> Fold m (Key f, a) (f b)
-demux f = demuxWith fst (\(k, _) -> fmap (lmap snd) (f k))
-
-------------------------------------------------------------------------------
--- Classify: Like demux but uses the same fold for all keys.
-------------------------------------------------------------------------------
-
--- XXX Change these to make the behavior similar to demux* variants. We can
--- implement this using classifyScanManyWith. Maintain a set of done folds in
--- the underlying monad, and when initial is called look it up, if the fold is
--- done then initial would set a flag in the state to ignore the input or
--- return an error.
-
--- | Folds the values for each key using the supplied fold. When scanning, as
--- soon as the fold is complete, its result is available in the second
--- component of the tuple.  The first component of the tuple is a snapshot of
--- the in-progress folds.
---
--- Once the fold for a key is done, any future values of the key are ignored.
---
--- >>> classifyScanWith f fld = Fold.demuxScanWith f (const fld)
---
-{-# INLINE classifyScanWith #-}
-classifyScanWith :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
-    -- Note: we need to return the Map itself to display the in-progress values
-    -- e.g. to implement top. We could possibly create a separate abstraction
-    -- for that use case. We return an action because we want it to be lazy so
-    -- that the downstream consumers can choose to process or discard it.
-    (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
-classifyScanWith f (Fold step1 initial1 extract1) =
-    fmap extract $ foldlM' step initial
-
-    where
-
-    initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
-
-    {-# INLINE initFold #-}
-    initFold kv set k a = do
-        x <- initial1
-        case x of
-              Partial s -> do
-                r <- step1 s a
-                return
-                    $ case r of
-                          Partial s1 ->
-                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
-                          Done b ->
-                            Tuple3' kv set (Just (k, b))
-              Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
-
-    step (Tuple3' kv set _) a = do
-        let k = f a
-        case IsMap.mapLookup k kv of
-            Nothing -> do
-                if Set.member k set
-                then return (Tuple3' kv set Nothing)
-                else initFold kv set k a
-            Just s -> do
-                r <- step1 s a
-                return
-                    $ case r of
-                          Partial s1 ->
-                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
-                          Done b ->
-                            let kv1 = IsMap.mapDelete k kv
-                             in Tuple3' kv1 (Set.insert k set) (Just (k, b))
-
-    extract (Tuple3' kv _ x) = (Prelude.mapM extract1 kv, x)
-
--- XXX we can use a Prim IORef if we can constrain the state "s" to be Prim
---
--- The code is almost the same as classifyScanWith except the IORef operations.
---
--- | Same as classifyScanWith except that it uses mutable IORef cells in the
--- Map providing better performance. Be aware that if this is used as a scan,
--- the values in the intermediate Maps would be mutable.
---
--- >>> classifyScanMutWith = classifyScanWith
--- >>> classifyScanMutWith f fld = demuxScanMutWith f (const fld)
---
-{-# INLINE classifyScanMutWith #-}
-classifyScanMutWith :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
-    (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
-classifyScanMutWith f (Fold step1 initial1 extract1) =
-    fmap extract $ foldlM' step initial
-
-    where
-
-    initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
-
-    {-# INLINE initFold #-}
-    initFold kv set k a = do
-        x <- initial1
-        case x of
-              Partial s -> do
-                r <- step1 s a
-                case r of
-                      Partial s1 -> do
-                        ref <- liftIO $ newIORef s1
-                        return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
-                      Done b ->
-                        return $ Tuple3' kv set (Just (k, b))
-              Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
-
-    step (Tuple3' kv set _) a = do
-        let k = f a
-        case IsMap.mapLookup k kv of
-            Nothing -> do
-                if Set.member k set
-                then return (Tuple3' kv set Nothing)
-                else initFold kv set k a
-            Just ref -> do
-                s <- liftIO $ readIORef ref
-                r <- step1 s a
-                case r of
-                      Partial s1 -> do
-                        liftIO $ writeIORef ref s1
-                        return $ Tuple3' kv set Nothing
-                      Done b ->
-                        let kv1 = IsMap.mapDelete k kv
-                         in return
-                                $ Tuple3' kv1 (Set.insert k set) (Just (k, b))
-
-    extract (Tuple3' kv _ x) =
-        (Prelude.mapM (\ref -> liftIO (readIORef ref) >>= extract1) kv, x)
-
--- | Fold a key value stream to a key-value container. If the same key appears
--- multiple times, only the last value is retained.
-{-# INLINE toMap #-}
-toMap :: (Monad m, IsMap f) => Fold m (Key f, a) (f a)
-toMap = foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
-
--- | Split the input stream based on a key field and fold each split using the
--- given fold. Useful for map/reduce, bucketizing the input in different bins
--- or for generating histograms.
---
--- >>> import Data.Map.Strict (Map)
--- >>> :{
---  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
---      classify = Fold.classifyWith fst (Fold.lmap snd Fold.toList)
---   in Stream.fold classify input :: IO (Map String [Double])
--- :}
--- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
---
--- Once the classifier fold terminates for a particular key any further inputs
--- in that bucket are ignored.
---
--- Space used is proportional to the number of keys seen till now and
--- monotonically increases because it stores whether a key has been seen or
--- not.
---
--- /Stops: never/
---
--- /Pre-release/
---
-{-# INLINE classifyWith #-}
-classifyWith :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
-    (a -> Key f) -> Fold m a b -> Fold m a (f b)
-classifyWith f fld =
-    let
-        classifier = classifyScanWith f fld
-        getMap Nothing = pure IsMap.mapEmpty
-        getMap (Just action) = action
-        aggregator =
-            teeWith IsMap.mapUnion
-                (rmapM getMap $ lmap fst last)
-                (lmap snd $ catMaybes toMap)
-    in postscan classifier aggregator
-
--- | Same as 'classifyWith' but maybe faster because it uses mutable cells as
--- fold accumulators in the Map.
---
--- >>> classifyMutWith = Fold.classifyWith
---
-{-# INLINE classifyMutWith #-}
-classifyMutWith :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
-    (a -> Key f) -> Fold m a b -> Fold m a (f b)
-classifyMutWith f fld =
-    let
-        classifier = classifyScanMutWith f fld
-        getMap Nothing = pure IsMap.mapEmpty
-        getMap (Just action) = action
-        aggregator =
-            teeWith IsMap.mapUnion
-                (rmapM getMap $ lmap fst last)
-                (lmap snd $ catMaybes toMap)
-    in postscan classifier aggregator
-
--- | Given an input stream of key value pairs and a fold for values, fold all
--- the values belonging to each key.  Useful for map/reduce, bucketizing the
--- input in different bins or for generating histograms.
---
--- >>> :{
---  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
---   in Stream.fold (Fold.classify Fold.toList) input
--- :}
--- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
---
--- Same as:
---
--- >>> classify = Fold.classifyWith fst . Fold.lmap snd
---
--- /Pre-release/
-{-# INLINE classify #-}
-classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
-classify = classifyWith fst . lmap snd
-
--- | Determine the frequency of each element in the stream.
---
--- You can just collect the keys of the resulting map to get the unique
--- elements in the stream.
---
-{-# INLINE frequency #-}
-frequency :: (Monad m, Ord a) => Fold m a (Map a Int)
-frequency = classifyWith id length
 
 ------------------------------------------------------------------------------
 -- Unzipping
@@ -2522,7 +2145,9 @@ unzipWithMUsing t f fld1 fld2 =
 
 -- | Like 'unzipWith' but with a monadic splitter function.
 --
--- @unzipWithM k f1 f2 = lmapM k (unzip f1 f2)@
+-- Definition:
+--
+-- >>> unzipWithM k f1 f2 = Fold.lmapM k (Fold.unzip f1 f2)
 --
 -- /Pre-release/
 {-# INLINE unzipWithM #-}
@@ -2532,14 +2157,12 @@ unzipWithM = unzipWithMUsing teeWith
 
 -- | Similar to 'unzipWithM' but terminates when the first fold terminates.
 --
---
 {-# INLINE unzipWithFstM #-}
 unzipWithFstM :: Monad m =>
     (a -> m (b, c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
 unzipWithFstM = unzipWithMUsing teeWithFst
 
 -- | Similar to 'unzipWithM' but terminates when any fold terminates.
---
 --
 {-# INLINE unzipWithMinM #-}
 unzipWithMinM :: Monad m =>
@@ -2549,7 +2172,10 @@ unzipWithMinM = unzipWithMUsing teeWithMin
 -- | Split elements in the input stream into two parts using a pure splitter
 -- function, direct each part to a different fold and zip the results.
 --
--- @unzipWith f fld1 fld2 = Fold.lmap f (Fold.unzip fld1 fld2)@
+-- Definitions:
+--
+-- >>> unzipWith f = Fold.unzipWithM (return . f)
+-- >>> unzipWith f fld1 fld2 = Fold.lmap f (Fold.unzip fld1 fld2)
 --
 -- This fold terminates when both the input folds terminate.
 --
@@ -2570,7 +2196,9 @@ unzipWith f = unzipWithM (return . f)
 --
 -- @
 --
--- > unzip = Fold.unzipWith id
+-- Definition:
+--
+-- >>> unzip = Fold.unzipWith id
 --
 -- This is the consumer side dual of the producer side 'zip' operation.
 --
@@ -2588,22 +2216,27 @@ unzip = unzipWith id
 -- handled in parsers using the Continue facility. See zipWithM in the Parser
 -- module.
 --
+-- cmpBy, eqBy, isPrefixOf, isSubsequenceOf etc can be implemented using
+-- zipStream.
+
 -- | Zip a stream with the input of a fold using the supplied function.
 --
 -- /Unimplemented/
 --
-{-# INLINE zipWithM #-}
-zipWithM :: -- Monad m =>
-    (a -> b -> m c) -> t m a -> Fold m c x -> Fold m b x
-zipWithM = undefined
+{-# INLINE zipStreamWithM #-}
+zipStreamWithM :: -- Monad m =>
+    (a -> b -> m c) -> Stream m a -> Fold m c x -> Fold m b x
+zipStreamWithM = undefined
 
 -- | Zip a stream with the input of a fold.
 --
+-- >>> zip = Fold.zipStreamWithM (curry return)
+--
 -- /Unimplemented/
 --
-{-# INLINE zip #-}
-zip :: Monad m => t m a -> Fold m (a, b) x -> Fold m b x
-zip = zipWithM (curry return)
+{-# INLINE zipStream #-}
+zipStream :: Monad m => Stream m a -> Fold m (a, b) x -> Fold m b x
+zipStream = zipStreamWithM (curry return)
 
 -- | Pair each element of a fold input with its index, starting from index 0.
 --
@@ -2618,15 +2251,23 @@ indexingWith i f = fmap toMaybe $ foldl' step initial
     step Nothing' a = Just' (i, a)
     step (Just' (n, _)) a = Just' (f n, a)
 
+-- |
+-- >>> indexing = Fold.indexingWith 0 (+ 1)
+--
 {-# INLINE indexing #-}
 indexing :: Monad m => Fold m a (Maybe (Int, a))
 indexing = indexingWith 0 (+ 1)
 
+-- |
+-- >>> indexingRev n = Fold.indexingWith n (subtract 1)
+--
 {-# INLINE indexingRev #-}
 indexingRev :: Monad m => Int -> Fold m a (Maybe (Int, a))
 indexingRev n = indexingWith n (subtract 1)
 
 -- | Pair each element of a fold input with its index, starting from index 0.
+--
+-- >>> indexed = Fold.scanMaybe Fold.indexing
 --
 {-# INLINE indexed #-}
 indexed :: Monad m => Fold m (Int, a) b -> Fold m a b
@@ -2636,8 +2277,9 @@ indexed = scanMaybe indexing
 -- additional state input @(s, a) -> b@. Convenient to filter with an
 -- addiitonal index or time input.
 --
+-- >>> filterWithIndex = Fold.with Fold.indexed Fold.filter
+--
 -- @
--- filterWithIndex = with indexed filter
 -- filterWithAbsTime = with timestamped filter
 -- filterWithRelTime = with timeIndexed filter
 -- @
@@ -2756,12 +2398,14 @@ unfoldMany (Unfold ustep inject) (Fold fstep initial extract) =
     {-# INLINE_LATE consume #-}
     consume s a = inject a >>= produce s
 
-{-# INLINE topBy #-}
-topBy :: (MonadIO m, Unbox a) =>
+-- | Get the bottom most @n@ elements using the supplied comparison function.
+--
+{-# INLINE bottomBy #-}
+bottomBy :: (MonadIO m, Unbox a) =>
        (a -> a -> Ordering)
     -> Int
     -> Fold m a (MA.Array a)
-topBy cmp n = Fold step initial extract
+bottomBy cmp n = Fold step initial extract
 
     where
 
@@ -2790,6 +2434,10 @@ topBy cmp n = Fold step initial extract
 
 -- | Fold the input stream to top n elements.
 --
+-- Definition:
+--
+-- >>> top = Fold.bottomBy $ flip compare
+--
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
 -- >>> Stream.fold (Fold.top 3) stream >>= MA.toList
 -- [17,11,9]
@@ -2797,9 +2445,13 @@ topBy cmp n = Fold step initial extract
 -- /Pre-release/
 {-# INLINE top #-}
 top :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (MA.Array a)
-top = topBy $ flip compare
+top = bottomBy $ flip compare
 
 -- | Fold the input stream to bottom n elements.
+--
+-- Definition:
+--
+-- >>> bottom = Fold.bottomBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
 -- >>> Stream.fold (Fold.bottom 3) stream >>= MA.toList
@@ -2808,4 +2460,4 @@ top = topBy $ flip compare
 -- /Pre-release/
 {-# INLINE bottom #-}
 bottom :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (MA.Array a)
-bottom = topBy compare
+bottom = bottomBy compare

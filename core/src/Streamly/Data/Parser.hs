@@ -18,7 +18,6 @@ module Streamly.Data.Parser
     -- * Parser Type
       Parser
 
-    -- XXX Should we use Fold.fromParser instead?
     -- -- * Downgrade to Fold
     -- , toFold
 

@@ -1,5 +1,3 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Network.Inet.TCP
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -94,6 +92,8 @@ module Streamly.Internal.Network.Inet.TCP
     )
 where
 
+#include "inline.hs"
+
 import Control.Exception (onException)
 import Control.Monad.Catch (MonadCatch, MonadMask, bracket)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -122,8 +122,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO, first)
 import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
-import qualified Streamly.Internal.Data.Fold.Type as FL
-    (initialize, snoc, Step(..))
+import qualified Streamly.Internal.Data.Fold.Type as FL (Step(..))
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S
 import qualified Streamly.Internal.Network.Socket as ISK
@@ -355,7 +354,7 @@ writeChunks addr port = Fold step initial extract
     where
     initial = do
         skt <- liftIO (connect addr port)
-        fld <- FL.initialize (ISK.writeChunks skt)
+        fld <- FL.reduce (ISK.writeChunks skt)
                     `MC.onException` liftIO (Net.close skt)
         return $ FL.Partial (Tuple' fld skt)
     step (Tuple' fld skt) x = do

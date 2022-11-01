@@ -713,7 +713,7 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     pathIsDir <- doesDirectoryExist $ utf8ToString absPath
     when (watchRec && pathIsDir) $ do
         let f = addToWatch cfg watch0 root . appendPaths path
-            in S.fold (FL.drainBy f)
+            in S.fold (FL.drainMapM f)
                 $ S.mapM toUtf8
                 $ Dir.readDirs $ utf8ToString absPath
 

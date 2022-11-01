@@ -32,14 +32,11 @@ module Streamly.Internal.Data.Stream.Top
     -- ** Join operations
     , crossJoin
     , joinInner
-    , joinInnerMap
     , joinInnerMerge
     , joinLeft
     , mergeLeftJoin
-    , joinLeftMap
     , joinOuter
     , mergeOuterJoin
-    , joinOuterMap
     )
 where
 
@@ -56,7 +53,6 @@ import Streamly.Internal.Data.Stream.Common ()
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
 import qualified Data.List as List
-import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -211,44 +207,6 @@ joinInner eq s1 s2 = do
             ) s2
         ) s1
 
--- XXX Generate error if a duplicate insertion is attempted?
-toMap ::  (Monad m, Ord k) => Stream m (k, v) -> m (Map.Map k v)
-toMap =
-    let f = Fold.foldl' (\kv (k, b) -> Map.insert k b kv) Map.empty
-     in Stream.fold f
-
--- If the second stream is too big it can be partitioned based on hashes and
--- then we can process one parition at a time.
---
--- XXX An IntMap may be faster when the keys are Int.
--- XXX Use hashmap instead of map?
---
--- | Like 'joinInner' but uses a 'Map' for efficiency.
---
--- If the input streams have duplicate keys, the behavior is undefined.
---
--- For space efficiency use the smaller stream as the second stream.
---
--- Space: O(n)
---
--- Time: O(m + n)
---
--- /Pre-release/
-{-# INLINE joinInnerMap #-}
-joinInnerMap :: (Monad m, Ord k) =>
-    Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, b)
-joinInnerMap s1 s2 =
-    Stream.concatM $ do
-        km <- toMap s2
-        pure $ Stream.mapMaybe (joinAB km) s1
-
-    where
-
-    joinAB kvm (k, a) =
-        case k `Map.lookup` kvm of
-            Just b -> Just (k, a, b)
-            Nothing -> Nothing
-
 -- | Like 'joinInner' but works only on sorted streams.
 --
 -- Space: O(1)
@@ -308,28 +266,6 @@ joinLeft eq s1 s2 = Stream.evalStateT (return False) $ do
                 return (a, Just b1)
             else Stream.nil
         Nothing -> return (a, Nothing)
-
--- | Like 'joinLeft' but uses a hashmap for efficiency.
---
--- Space: O(n)
---
--- Time: O(m + n)
---
--- /Pre-release/
-{-# INLINE joinLeftMap #-}
-joinLeftMap :: (Ord k, Monad m) =>
-    Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, Maybe b)
-joinLeftMap s1 s2 =
-    Stream.concatM $ do
-        km <- toMap s2
-        return $ fmap (joinAB km) s1
-
-            where
-
-            joinAB km (k, a) =
-                case k `Map.lookup` km of
-                    Just b -> (k, a, Just b)
-                    Nothing -> (k, a, Nothing)
 
 -- | Like 'joinLeft' but works only on sorted streams.
 --
@@ -411,57 +347,6 @@ joinOuter eq s1 s =
                     return (Just a, Just b1)
                 else Stream.nil
             Nothing -> return (Just a, Nothing)
-
--- Put the b's that have been paired, in another hash or mutate the hash to set
--- a flag. At the end go through @Stream m b@ and find those that are not in that
--- hash to return (Nothing, b).
---
--- | Like 'joinOuter' but uses a 'Map' for efficiency.
---
--- Space: O(m + n)
---
--- Time: O(m + n)
---
--- /Pre-release/
-{-# INLINE joinOuterMap #-}
-joinOuterMap ::
-    (Ord k, MonadIO m) =>
-    Stream m (k, a) -> Stream m (k, b) -> Stream m (k, Maybe a, Maybe b)
-joinOuterMap s1 s2 =
-    Stream.concatM $ do
-        km1 <- kvFold s1
-        km2 <- kvFold s2
-
-        -- XXX Not sure if toList/fromList would fuse optimally. We may have to
-        -- create a fused Map.toStream function.
-        let res1 = fmap (joinAB km2)
-                        $ Stream.fromList $ Map.toList km1
-                    where
-                    joinAB km (k, a) =
-                        case k `Map.lookup` km of
-                            Just b -> (k, Just a, Just b)
-                            Nothing -> (k, Just a, Nothing)
-
-        -- XXX We can take advantage of the lookups in the first pass above to
-        -- reduce the number of lookups in this pass. If we keep mutable cells
-        -- in the second Map, we can flag it in the first pass and not do any
-        -- lookup in the second pass if it is flagged.
-        let res2 = Stream.mapMaybe (joinAB km1)
-                        $ Stream.fromList $ Map.toList km2
-                    where
-                    joinAB km (k, b) =
-                        case k `Map.lookup` km of
-                            Just _ -> Nothing
-                            Nothing -> Just (k, Nothing, Just b)
-
-        return $ Stream.append res1 res2
-
-        where
-
-        -- XXX Generate error if a duplicate insertion is attempted?
-        kvFold =
-            let f = Fold.foldl' (\kv (k, b) -> Map.insert k b kv) Map.empty
-             in Stream.fold f
 
 -- | Like 'joinOuter' but works only on sorted streams.
 --

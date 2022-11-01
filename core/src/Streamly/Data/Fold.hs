@@ -15,8 +15,8 @@
 -- >>> import qualified Streamly.Data.Stream as Stream
 --
 -- For example, a 'sum' Fold represents adding the input to the accumulated
--- sum.  A fold driver e.g. 'Streamly.Prelude.fold' pushes values from a stream
--- to the 'Fold' one at a time, reducing the stream to a single value.
+-- sum.  A fold driver pushes values from a stream to the 'Fold' one at a time,
+-- reducing the stream to a single value.
 --
 -- >>> Stream.fold Fold.sum $ Stream.fromList [1..100]
 -- 5050
@@ -93,7 +93,7 @@
 --
 -- We can often use streams or folds to achieve the same goal. However, streams
 -- are more efficient in composition of producers (e.g.
--- 'Streamly.Prelude.serial' or 'Streamly.Prelude.mergeBy') whereas folds are
+-- 'Data.Stream.append' or 'Data.Stream.mergeBy') whereas folds are
 -- more efficient in composition of consumers (e.g.  'serialWith', 'partition'
 -- or 'teeWith').
 --
@@ -135,7 +135,8 @@ module Streamly.Data.Fold
     -- * Constructors
     , foldl'
     , foldlM'
-    , foldr
+    , foldl1'
+    , foldr'
 
     -- * Folds
     -- ** Accumulators
@@ -152,17 +153,10 @@ module Streamly.Data.Fold
 
     -- Reducers
     , drain
-    , drainBy
-    , the
-    , uniq
-    , last
+    , drainMapM
     , length
     , sum
     , product
-    , maximumBy
-    , maximum
-    , minimumBy
-    , minimum
     , mean
     , rollingHash
     , rollingHashWithSalt
@@ -171,16 +165,38 @@ module Streamly.Data.Fold
     , toList
     , toListRev
 
+    -- ** Non-Empty Accumulators
+    -- | Accumulators that do not have a default value, therefore, return
+    -- 'Nothing' on an empty stream.
+    , latest
+    , maximumBy
+    , maximum
+    , minimumBy
+    , minimum
+
+    -- ** Filtering Scanners
+    -- | Accumulators that are usually run as a scan using the 'scanMaybe'
+    -- combinator.
+    , uniq
+    , uniqBy
+    , deleteBy
+    , findIndices
+    , elemIndices
+
     -- ** Terminating Folds
     -- | These are much like lazy right folds.
 
-    , index
     , one
+    , null
+    -- , satisfy
+    -- , maybe
+
+    , index
+    , the
     , find
     , lookup
     , findIndex
     , elemIndex
-    , null
     , elem
     , notElem
     , all
@@ -188,24 +204,36 @@ module Streamly.Data.Fold
     , and
     , or
 
+    -- * Running A Fold
+    , drive
+    , driveBreak
+
+    -- * Building Incrmentally
+    , extractM
+    , reduce
+    , snoc
+    -- , snocl
+    , snocM
+    -- , snoclM
+    , augment
+    , duplicate
+    -- , isClosed
+
     -- * Combinators
     -- | Combinators are modifiers of folds.  In the type @Fold m a b@, @a@ is
     -- the input type and @b@ is the output type.  Transformations can be
-    -- applied either on the input side or on the output side.  Therefore,
-    -- combinators are of one of the following general shapes:
+    -- applied either on the input side (contravariant) or on the output side
+    -- (covariant).  Therefore, combinators are of one of the following general
+    -- shapes:
     --
     -- * @... -> Fold m a b -> Fold m c b@ (input transformation)
     -- * @... -> Fold m a b -> Fold m a c@ (output transformation)
     --
-    -- Output transformations are also known as covariant transformations, and
-    -- input transformations are also known as contravariant transformations.
     -- The input side transformations are more interesting for folds.  Most of
     -- the following sections describe the input transformation operations on a
-    -- fold.  The names and signatures of the operations are consistent with
-    -- corresponding operations in "Streamly.Prelude". When an operation makes
-    -- sense on both input and output side we use the prefix @l@ (for left) for
-    -- input side operations and the prefix @r@ (for right) for output side
-    -- operations.
+    -- fold. When an operation makes sense on both input and output side we use
+    -- the prefix @l@ (for left) for input side operations and the prefix @r@
+    -- (for right) for output side operations.
 
     -- ** Mapping on output
     -- | The 'Functor' instance of a fold maps on the output of the fold:
@@ -219,7 +247,10 @@ module Streamly.Data.Fold
     , lmap
     , lmapM
 
-    -- ** Filtering
+    -- ** Scanning and Filtering
+    , scan
+    , postscan
+    , scanMaybe
     , filter
     , filterM
 
@@ -268,6 +299,9 @@ module Streamly.Data.Fold
     , concatMap
 
     -- * Deprecated
+    , foldr
+    , drainBy
+    , last
     , head
     , sequence
     , mapM
@@ -282,7 +316,7 @@ import Prelude
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
-               span, splitAt, break, mapM)
+               span, splitAt, break, mapM, maybe)
 
 import Streamly.Internal.Data.Fold
 

@@ -709,7 +709,7 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
 -- session is created for that key.
 --
 -- >>> :{
--- Stream.fold (Fold.drainBy print)
+-- Stream.fold (Fold.drainMapM print)
 --     $ Concur.classifySessionsBy 1 False (const (return False)) 3 (Fold.take 3 Fold.toList)
 --     $ Stream.timestamped
 --     $ Stream.delay 0.1
@@ -815,7 +815,7 @@ classifySessionsOf = classifySessionsBy 1 False
 --
 {-# INLINE sampleIntervalEnd #-}
 sampleIntervalEnd :: MonadAsync m => Double -> Stream m a -> Stream m a
-sampleIntervalEnd n = Stream.catMaybes . intervalsOf n Fold.last
+sampleIntervalEnd n = Stream.catMaybes . intervalsOf n Fold.latest
 
 -- | Like 'sampleInterval' but samples at the beginning of the time window.
 --

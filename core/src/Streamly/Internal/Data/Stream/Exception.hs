@@ -19,14 +19,12 @@ module Streamly.Internal.Data.Stream.Exception
     , finallyIO
     , ghandle
     , handle
-    , retry
     )
 where
 
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
-import Data.Map.Strict (Map)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -220,46 +218,3 @@ handle :: (MonadCatch m, Exception e)
     => (e -> Stream m a) -> Stream m a -> Stream m a
 handle handler xs =
     fromStreamD $ D.handle (toStreamD . handler) $ toStreamD xs
-
-
--- | @retry@ takes 3 arguments
---
--- 1. A map @m@ whose keys are exceptions and values are the number of times to
--- retry the action given that the exception occurs.
---
--- 2. A handler @han@ that decides how to handle an exception when the exception
--- cannot be retried.
---
--- 3. The stream itself that we want to run this mechanism on.
---
--- When evaluating a stream if an exception occurs,
---
--- 1. The stream evaluation aborts
---
--- 2. The exception is looked up in @m@
---
---    a. If the exception exists and the mapped value is > 0 then,
---
---       i. The value is decreased by 1.
---
---       ii. The stream is resumed from where the exception was called, retrying
---       the action.
---
---    b. If the exception exists and the mapped value is == 0 then the stream
---    evaluation stops.
---
---    c. If the exception does not exist then we handle the exception using
---    @han@.
---
--- /Internal/
---
-{-# INLINE retry #-}
-retry :: (MonadCatch m, Exception e, Ord e)
-    => Map e Int
-       -- ^ map from exception to retry count
-    -> (e -> Stream m a)
-       -- ^ default handler for those exceptions that are not in the map
-    -> Stream m a
-    -> Stream m a
-retry emap handler inp =
-    fromStreamD $ D.retry emap (toStreamD . handler) $ toStreamD inp
