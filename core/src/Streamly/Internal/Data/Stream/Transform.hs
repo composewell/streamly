@@ -839,6 +839,7 @@ reassembleBy = undefined
 -- >>> f = Fold.foldl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
 -- >>> indexed = Stream.postscan f
 -- >>> indexed = Stream.zipWith (,) (Stream.enumerateFrom 0)
+-- >>> indexedR n = fmap (\(i, a) -> (n - i, a)) . indexed
 --
 -- Pair each element in a stream with its index, starting from index 0.
 --
