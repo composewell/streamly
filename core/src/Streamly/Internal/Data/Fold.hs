@@ -372,7 +372,7 @@ import Streamly.Internal.Data.Fold.Type
 -- $setup
 -- >>> :m
 -- >>> import Prelude hiding (break, map, span, splitAt)
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA

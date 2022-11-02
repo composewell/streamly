@@ -147,7 +147,7 @@ import Prelude hiding (concat, concatMap, zipWith)
 -- >>> import Data.IORef
 -- >>> import Streamly.Internal.Data.Stream (Stream)
 -- >>> import Prelude hiding (zipWith, concatMap, concat)
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold

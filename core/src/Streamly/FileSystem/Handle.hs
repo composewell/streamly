@@ -35,7 +35,7 @@
 -- Design notes:
 --
 -- By design, file handle IO APIs are quite similar to
--- "Streamly.Data.Array.Unboxed" read write APIs. In that regard, arrays can be
+-- "Streamly.Data.Array" read write APIs. In that regard, arrays can be
 -- considered as in-memory files or files can be considered as on-disk arrays.
 --
 module Streamly.FileSystem.Handle

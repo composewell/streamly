@@ -109,7 +109,7 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold

@@ -31,7 +31,7 @@ import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 
-import qualified Streamly.Data.Array.Unboxed as A
+import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array.Unboxed as A
     (unsafeIndex, castUnsafe)
 import qualified Streamly.Internal.Data.Parser as PR

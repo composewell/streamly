@@ -377,7 +377,7 @@ library
                      -- NOTE: these must be added to streamly.cabal as well
                      , Streamly.Console.Stdio
                      , Streamly.Data.Array
-                     , Streamly.Data.Array.Unboxed
+                     , Streamly.Data.Array.Generic
                      , Streamly.Data.Array.Unboxed.Mut
                      , Streamly.Data.Fold
                      , Streamly.Data.Fold.Tee
