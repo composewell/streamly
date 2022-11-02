@@ -24,7 +24,7 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce {-# DEPRECATED "Please use 
     --
     -- @
     -- f (Fold m a b) -> t m a -> t m b
-    -- f (Parser m a b) -> t m a -> t m b
+    -- f (Parser a m b) -> t m a -> t m b
     -- @
 
     -- ** Generic Folding
@@ -383,7 +383,7 @@ refoldIterateM c i m = fromStreamD $ D.refoldIterateM c i (toStreamD m)
 {-# INLINE parseMany #-}
 parseMany
     :: (IsStream t, MonadThrow m)
-    => Parser m a b
+    => Parser a m b
     -> t m a
     -> t m b
 parseMany p m =
@@ -396,7 +396,7 @@ parseMany p m =
 {-# INLINE parseManyD #-}
 parseManyD
     :: (IsStream t, MonadThrow m)
-    => PRD.Parser m a b
+    => PRD.Parser a m b
     -> t m a
     -> t m b
 parseManyD p m =
@@ -410,7 +410,7 @@ parseManyD p m =
 {-# INLINE parseSequence #-}
 parseSequence
        :: -- (IsStream t, Monad m) =>
-       t m (Parser m a b)
+       t m (Parser a m b)
     -> t m a
     -> t m b
 parseSequence _f _m = undefined
@@ -428,8 +428,8 @@ parseSequence _f _m = undefined
 {-# INLINE parseManyTill #-}
 parseManyTill ::
     -- (IsStream t, MonadThrow m) =>
-       Parser m a b
-    -> Parser m a x
+       Parser a m b
+    -> Parser a m x
     -> t m a
     -> t m b
 parseManyTill = undefined
@@ -450,7 +450,7 @@ parseManyTill = undefined
 {-# INLINE parseIterate #-}
 parseIterate
     :: (IsStream t, MonadThrow m)
-    => (b -> Parser m a b)
+    => (b -> Parser a m b)
     -> b
     -> t m a
     -> t m b

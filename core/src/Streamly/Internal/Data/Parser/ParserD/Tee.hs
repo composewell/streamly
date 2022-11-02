@@ -104,7 +104,7 @@ data Res = Yld Int | Stp Int | Skp | Err String
 --
 {-# INLINE teeWith #-}
 teeWith :: Monad m
-    => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
+    => (a -> b -> c) -> Parser x m a -> Parser x m b -> Parser x m c
 teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     Parser step initial extract
 
@@ -246,7 +246,7 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 --
 {-# INLINE teeWithFst #-}
 teeWithFst :: Monad m
-    => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
+    => (a -> b -> c) -> Parser x m a -> Parser x m b -> Parser x m c
 teeWithFst zf (Parser stepL initialL extractL)
               (Parser stepR initialR extractR) =
     Parser step initial extract
@@ -370,7 +370,7 @@ teeWithFst zf (Parser stepL initialL extractL)
 {-# INLINE teeWithMin #-}
 teeWithMin ::
     -- Monad m =>
-    (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
+    (a -> b -> c) -> Parser x m a -> Parser x m b -> Parser x m c
 teeWithMin = undefined
 
 -------------------------------------------------------------------------------
@@ -382,7 +382,7 @@ teeWithMin = undefined
 -- /Broken/
 --
 {-# INLINE shortest #-}
-shortest :: Monad m => Parser m x a -> Parser m x a -> Parser m x a
+shortest :: Monad m => Parser x m a -> Parser x m a -> Parser x m a
 shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
     Parser step initial extract
 
@@ -471,7 +471,7 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
 -- /Broken/
 --
 {-# INLINE longest #-}
-longest :: MonadCatch m => Parser m x a -> Parser m x a -> Parser m x a
+longest :: MonadCatch m => Parser x m a -> Parser x m a -> Parser x m a
 longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     Parser step initial extract
 

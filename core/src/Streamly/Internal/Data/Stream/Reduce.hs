@@ -22,7 +22,7 @@ module Streamly.Internal.Data.Stream.Reduce
     --
     -- @
     -- f (Fold m a b) -> Stream m a -> Stream m b
-    -- f (Parser m a b) -> Stream m a -> Stream m b
+    -- f (Parser a m b) -> Stream m a -> Stream m b
     -- @
 
     -- ** Generic Folding
@@ -339,7 +339,7 @@ splitOnAny _subseq _f _m =
 {-# INLINE parseMany #-}
 parseMany
     :: MonadThrow m
-    => Parser m a b
+    => Parser a m b
     -> Stream m a
     -> Stream m b
 parseMany p m =
@@ -352,7 +352,7 @@ parseMany p m =
 {-# INLINE parseManyD #-}
 parseManyD
     :: MonadThrow m
-    => ParserD.Parser m a b
+    => ParserD.Parser a m b
     -> Stream m a
     -> Stream m b
 parseManyD p m =
@@ -366,7 +366,7 @@ parseManyD p m =
 {-# INLINE parseSequence #-}
 parseSequence
        :: -- Monad m =>
-       Stream m (Parser m a b)
+       Stream m (Parser a m b)
     -> Stream m a
     -> Stream m b
 parseSequence _f _m = undefined
@@ -384,8 +384,8 @@ parseSequence _f _m = undefined
 {-# INLINE parseManyTill #-}
 parseManyTill ::
     -- MonadThrow m =>
-       Parser m a b
-    -> Parser m a x
+       Parser a m b
+    -> Parser a m x
     -> t m a
     -> t m b
 parseManyTill = undefined
@@ -407,7 +407,7 @@ parseManyTill = undefined
 {-# INLINE parseIterate #-}
 parseIterate
     :: MonadThrow m
-    => (b -> Parser m a b)
+    => (b -> Parser a m b)
     -> b
     -> Stream m a
     -> Stream m b

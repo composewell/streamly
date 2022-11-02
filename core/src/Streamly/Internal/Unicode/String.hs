@@ -61,12 +61,12 @@ data StrSegment
     | StrVar String
     deriving (Show, Eq)
 
-haskellIdentifier :: MonadCatch m => Parser m Char String
+haskellIdentifier :: MonadCatch m => Parser Char m String
 haskellIdentifier =
     let p = Parser.alphaNum <|> Parser.char '\'' <|> Parser.char '_'
      in Parser.some p Fold.toList
 
-strParser :: MonadCatch m => Parser m Char [StrSegment]
+strParser :: MonadCatch m => Parser Char m [StrSegment]
 strParser = Parser.many content Fold.toList
 
     where

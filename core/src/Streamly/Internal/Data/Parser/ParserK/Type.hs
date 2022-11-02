@@ -82,7 +82,7 @@ instance Functor Parse where
 -- input without a result or return a result with no further input to be
 -- consumed.
 --
-newtype Parser m a b = MkParser
+newtype Parser a m b = MkParser
     { runParser :: forall r.
            -- leftover: the number of elements that were not used by the
            -- previous consumer and should be carried forward.
@@ -111,7 +111,7 @@ newtype Parser m a b = MkParser
 -- XXX rewrite this using ParserD, expose rmapM from ParserD.
 -- | Maps a function over the output of the parser.
 --
-instance Functor m => Functor (Parser m a) where
+instance Functor m => Functor (Parser a m) where
     {-# INLINE fmap #-}
     fmap f parser = MkParser $ \n st k ->
         let k1 s res = k s (fmap f res)
@@ -128,7 +128,7 @@ instance Functor m => Functor (Parser m a) where
 -- /Pre-release/
 --
 {-# INLINE fromPure #-}
-fromPure :: b -> Parser m a b
+fromPure :: b -> Parser a m b
 fromPure b = MkParser $ \n st k -> k st (Success n b)
 
 -- | See 'Streamly.Internal.Data.Parser.fromEffect'.
@@ -136,14 +136,14 @@ fromPure b = MkParser $ \n st k -> k st (Success n b)
 -- /Pre-release/
 --
 {-# INLINE fromEffect #-}
-fromEffect :: Monad m => m b -> Parser m a b
+fromEffect :: Monad m => m b -> Parser a m b
 fromEffect eff = MkParser $ \n st k -> eff >>= \b -> k st (Success n b)
 
 -- | 'Applicative' form of 'Streamly.Internal.Data.Parser.serialWith'. Note that
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.serialWith'
 -- when fusion is important.
 --
-instance Monad m => Applicative (Parser m a) where
+instance Monad m => Applicative (Parser a m) where
     {-# INLINE pure #-}
     pure = fromPure
 
@@ -180,7 +180,7 @@ instance Monad m => Applicative (Parser m a) where
 -- /Pre-release/
 --
 {-# INLINE die #-}
-die :: String -> Parser m a b
+die :: String -> Parser a m b
 die err = MkParser (\_ st k -> k st (Failure err))
 
 -- | Monad composition can be used for lookbehind parsers, we can make the
@@ -190,7 +190,7 @@ die err = MkParser (\_ st k -> k st (Failure err))
 -- following parser:
 --
 -- @
--- backtracking :: MonadCatch m => PR.Parser m Char String
+-- backtracking :: MonadCatch m => PR.Parser Char m String
 -- backtracking =
 --     sequence [PR.satisfy isDigit, PR.satisfy isAlpha]
 --     '<|>'
@@ -206,7 +206,7 @@ die err = MkParser (\_ st k -> k st (Failure err))
 -- @
 -- data DigitOrAlpha = Digit Char | Alpha Char
 --
--- lookbehind :: MonadCatch m => PR.Parser m Char String
+-- lookbehind :: MonadCatch m => PR.Parser Char m String
 -- lookbehind = do
 --     x1 \<-    Digit '<$>' PR.satisfy isDigit
 --          '<|>' Alpha '<$>' PR.satisfy isAlpha
@@ -225,7 +225,7 @@ die err = MkParser (\_ st k -> k st (Failure err))
 -- does not fuse, use 'Streamly.Internal.Data.Parser.concatMap' when you need
 -- fusion.
 --
-instance Monad m => Monad (Parser m a) where
+instance Monad m => Monad (Parser a m) where
     {-# INLINE return #-}
     return = pure
 
@@ -244,12 +244,12 @@ instance Monad m => Monad (Parser m a) where
     {-# INLINE fail #-}
     fail = die
 #endif
-instance Monad m => Fail.MonadFail (Parser m a) where
+instance Monad m => Fail.MonadFail (Parser a m) where
     {-# INLINE fail #-}
     fail = die
 
 instance (MonadThrow m, MonadReader r m, MonadCatch m) =>
-    MonadReader r (Parser m a) where
+    MonadReader r (Parser a m) where
 
     {-# INLINE ask #-}
     ask = fromEffect ask
@@ -257,14 +257,14 @@ instance (MonadThrow m, MonadReader r m, MonadCatch m) =>
     {-# INLINE local #-}
     local f p = MkParser $ \n st k -> local f $ runParser p n st k
 
-instance (MonadThrow m, MonadState s m) => MonadState s (Parser m a) where
+instance (MonadThrow m, MonadState s m) => MonadState s (Parser a m) where
     {-# INLINE get #-}
     get = fromEffect get
 
     {-# INLINE put #-}
     put = fromEffect . put
 
-instance (MonadThrow m, MonadIO m) => MonadIO (Parser m a) where
+instance (MonadThrow m, MonadIO m) => MonadIO (Parser a m) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
 
@@ -285,7 +285,7 @@ instance (MonadThrow m, MonadIO m) => MonadIO (Parser m a) where
 -- does not fuse, use 'Streamly.Internal.Data.Parser.alt' when you need
 -- fusion.
 --
-instance Monad m => Alternative (Parser m a) where
+instance Monad m => Alternative (Parser a m) where
     {-# INLINE empty #-}
     empty = die "empty"
 
@@ -318,7 +318,7 @@ instance Monad m => Alternative (Parser m a) where
 -- | 'mzero' is same as 'empty', it aborts the parser. 'mplus' is same as
 -- '<|>', it selects the first succeeding parser.
 --
-instance Monad m => MonadPlus (Parser m a) where
+instance Monad m => MonadPlus (Parser a m) where
     {-# INLINE mzero #-}
     mzero = die "mzero"
 

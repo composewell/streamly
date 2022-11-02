@@ -489,7 +489,7 @@ data Event = Event
 -- XXX should we use a magic in the header to avoid any issues due to
 -- misalignment of records? Can that ever happen?
 --
-readOneEvent :: Parser IO Word8 Event
+readOneEvent :: Parser Word8 IO Event
 readOneEvent = do
     arr <- PR.takeEQ 24 (A.writeN 24)
     let arr1 = A.castUnsafe arr :: Array Word64

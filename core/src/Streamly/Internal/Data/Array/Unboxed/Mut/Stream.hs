@@ -205,7 +205,7 @@ compact n = Stream.fromStreamD . packArraysChunksOf n . Stream.toStreamD
 {-# INLINE_NORMAL compactLEParserD #-}
 compactLEParserD ::
        forall m a. (MonadThrow m, MonadIO m, Unbox a)
-    => Int -> ParserD.Parser m (Array a) (Array a)
+    => Int -> ParserD.Parser (Array a) m (Array a)
 compactLEParserD n = ParserD.Parser step initial extract
 
     where

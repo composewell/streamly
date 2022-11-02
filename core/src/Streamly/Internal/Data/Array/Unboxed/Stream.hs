@@ -554,7 +554,7 @@ newtype List a = List {getList :: [a]}
 {-# INLINE_NORMAL parseBreakD #-}
 parseBreakD ::
        forall m a b. (MonadIO m, MonadThrow m, Unbox a)
-    => PRD.Parser m a b
+    => PRD.Parser a m b
     -> D.Stream m (Array.Array a)
     -> m (b, D.Stream m (Array.Array a))
 parseBreakD
@@ -635,7 +635,7 @@ parseBreakD
 {-# INLINE_NORMAL parseBreakK #-}
 parseBreakK ::
        forall m a b. (MonadIO m, MonadThrow m, Unbox a)
-    => PRD.Parser m a b
+    => PRD.Parser a m b
     -> K.Stream m (Array.Array a)
     -> m (b, K.Stream m (Array.Array a))
 parseBreakK (PRD.Parser pstep initial extract) stream = do
@@ -770,7 +770,7 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak ::
        (MonadIO m, MonadThrow m, Unbox a)
-    => PR.Parser m a b
+    => PR.Parser a m b
     -> Stream m (A.Array a)
     -> m (b, Stream m (A.Array a))
 {-
@@ -786,7 +786,7 @@ parseBreak p =
 -- Elimination - Running Array Folds and parsers
 -------------------------------------------------------------------------------
 
--- | Note that this is not the same as using a @Parser m (Array a) b@ with the
+-- | Note that this is not the same as using a @Parser (Array a) m b@ with the
 -- regular "Streamly.Internal.Data.IsStream.parse" function. The regular parse
 -- would consume the input arrays as single unit. This parser parses in the way
 -- as described in the ArrayFold module. The input arrays are treated as @n@
@@ -796,7 +796,7 @@ parseBreak p =
 {-# INLINE_NORMAL runArrayParserDBreak #-}
 runArrayParserDBreak ::
        forall m a b. (MonadIO m, MonadThrow m, Unbox a)
-    => PRD.Parser m (Array a) b
+    => PRD.Parser (Array a) m b
     -> D.Stream m (Array.Array a)
     -> m (b, D.Stream m (Array.Array a))
 runArrayParserDBreak
@@ -925,7 +925,7 @@ runArrayParserDBreak
 {-# INLINE parseArr #-}
 parseArr ::
        (MonadIO m, MonadThrow m, Unbox a)
-    => ASF.Parser m a b
+    => ASF.Parser a m b
     -> Stream m (A.Array a)
     -> m (b, Stream m (A.Array a))
 parseArr p s = fmap fromStreamD <$> parseBreakD p (toStreamD s)

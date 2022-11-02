@@ -77,7 +77,7 @@ eqBy :: Int -> Stream IO Int -> IO ()
 eqBy len = Stream.parseD (PR.eqBy (==) (D.enumerateFromToIntegral 1 len))
 
 {-# INLINE drainWhile #-}
-drainWhile :: MonadThrow m => (a -> Bool) -> PR.Parser m a ()
+drainWhile :: MonadThrow m => (a -> Bool) -> PR.Parser a m ()
 drainWhile p = PR.takeWhile p Fold.drain
 
 {-# INLINE takeStartBy #-}

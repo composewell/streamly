@@ -1025,7 +1025,7 @@ splitAt n ls
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak
     :: MonadThrow m
-    => PR.Parser m a b
+    => PR.Parser a m b
     -> Stream m a
     -> m (b, Stream m a)
 parseBreak (PR.Parser pstep initial extract) stream = do

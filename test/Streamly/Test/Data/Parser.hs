@@ -259,7 +259,7 @@ takeGE =
 nLessThanEqual0 ::
        (  Int
        -> FL.Fold (Either SomeException) Int [Int]
-       -> P.Parser (Either SomeException) Int [Int]
+       -> P.Parser Int (Either SomeException) [Int]
        )
     -> (Int -> [Int] -> [Int])
     -> Property
@@ -765,7 +765,7 @@ data Event = Event
    , eventAbsPath :: A.Array Word8
    } deriving (Show, Ord, Eq)
 
-readOneEvent :: P.Parser IO Word8 Event
+readOneEvent :: P.Parser Word8 IO Event
 readOneEvent = do
     arr <- P.takeEQ 24 (A.writeN 24)
     let arr1 = A.castUnsafe arr :: A.Array Word64

@@ -239,7 +239,7 @@
 --     | Continue Int s  -- no result and how much to backtrack
 --     | Error String    -- error
 --
--- data Parser m a b =
+-- data Parser a m b =
 --   forall s. Fold
 --      (s -> a -> m (Step s b))   -- step
 --      (m (Step s b))             -- initial
