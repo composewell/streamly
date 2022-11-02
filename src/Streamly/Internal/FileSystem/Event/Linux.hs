@@ -799,7 +799,7 @@ data Event = Event
 -- XXX We can perhaps use parseD monad instance for fusing with parseMany? Need
 -- to measure the perf.
 --
-readOneEvent :: Config -> Watch -> Parser IO Word8 Event
+readOneEvent :: Config -> Watch -> Parser Word8 IO Event
 readOneEvent cfg  wt@(Watch _ wdMap) = do
     let headerLen = sizeOf (undefined :: CInt) + 12
     arr <- PR.takeEQ headerLen (A.writeN headerLen)

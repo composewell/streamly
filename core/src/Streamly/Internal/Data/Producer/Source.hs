@@ -113,7 +113,7 @@ newtype List a = List {getList :: [a]}
 {-# INLINE_NORMAL parseD #-}
 parseD
     :: MonadThrow m
-    => ParserD.Parser m a b
+    => ParserD.Parser a m b
     -> Producer m (Source s a) a
     -> Source s a
     -> m (b, Source s a)
@@ -243,7 +243,7 @@ parseD
 {-# INLINE [3] parse #-}
 parse
     :: MonadThrow m
-    => ParserK.Parser m a b
+    => ParserK.Parser a m b
     -> Producer m (Source s a) a
     -> Source s a
     -> m (b, Source s a)
@@ -255,7 +255,7 @@ parse = parseD . ParserD.fromParserK
 
 {-# INLINE parseManyD #-}
 parseManyD :: MonadThrow m =>
-       ParserD.Parser m a b
+       ParserD.Parser a m b
     -> Producer m (Source x a) a
     -> Producer m (Source x a) b
 parseManyD parser reader = Producer step return return
@@ -276,7 +276,7 @@ parseManyD parser reader = Producer step return return
 -- /Pre-release/
 {-# INLINE parseMany #-}
 parseMany :: MonadThrow m =>
-       ParserK.Parser m a b
+       ParserK.Parser a m b
     -> Producer m (Source x a) a
     -> Producer m (Source x a) b
 parseMany parser = parseManyD (ParserD.fromParserK parser)

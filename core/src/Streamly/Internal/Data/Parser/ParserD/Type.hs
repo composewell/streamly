@@ -417,7 +417,7 @@ mapMStep f res =
 --
 -- /Pre-release/
 --
-data Parser m a b =
+data Parser a m b =
     forall s. Parser
         (s -> a -> m (Step s b))
         -- Initial cannot return "Partial/Done n" or "Continue". Continue 0 is
@@ -439,7 +439,7 @@ newtype ParseError = ParseError String
 instance Exception ParseError where
     displayException (ParseError err) = err
 
-instance Functor m => Functor (Parser m a) where
+instance Functor m => Functor (Parser a m) where
     {-# INLINE fmap #-}
     fmap f (Parser step1 initial1 extract) =
         Parser step initial (fmap3 f extract)
@@ -565,7 +565,7 @@ parseDToK pstep initial extract leftover (level, count) cont = do
 -- /Pre-release/
 --
 {-# INLINE_LATE toParserK #-}
-toParserK :: Monad m => Parser m a b -> K.Parser m a b
+toParserK :: Monad m => Parser a m b -> K.Parser a m b
 toParserK (Parser step initial extract) =
     K.MkParser $ parseDToK step initial extract
 
@@ -589,7 +589,7 @@ parserDone st _ =
 -- /Pre-release/
 --
 {-# INLINE_LATE fromParserK #-}
-fromParserK :: Monad m => K.Parser m a b -> Parser m a b
+fromParserK :: Monad m => K.Parser a m b -> Parser a m b
 fromParserK parser = Parser step initial extract
 
     where
@@ -633,7 +633,7 @@ fromParserK parser = Parser step initial extract
 --
 -- /Pre-release/
 {-# INLINE rmapM #-}
-rmapM :: Monad m => (b -> m c) -> Parser m a b -> Parser m a c
+rmapM :: Monad m => (b -> m c) -> Parser a m b -> Parser a m c
 rmapM f (Parser step initial extract) =
     Parser step1 initial1 (extract >=> mapMStep f)
 
@@ -653,7 +653,7 @@ rmapM f (Parser step initial extract) =
 -- /Pre-release/
 --
 {-# INLINE_NORMAL fromPure #-}
-fromPure :: Monad m => b -> Parser m a b
+fromPure :: Monad m => b -> Parser a m b
 fromPure b = Parser undefined (pure $ IDone b) undefined
 
 -- | See 'Streamly.Internal.Data.Parser.fromEffect'.
@@ -661,7 +661,7 @@ fromPure b = Parser undefined (pure $ IDone b) undefined
 -- /Pre-release/
 --
 {-# INLINE fromEffect #-}
-fromEffect :: Monad m => m b -> Parser m a b
+fromEffect :: Monad m => m b -> Parser a m b
 fromEffect b = Parser undefined (IDone <$> b) undefined
 
 -------------------------------------------------------------------------------
@@ -684,7 +684,7 @@ data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 --
 {-# INLINE serialWith #-}
 serialWith :: Monad m
-    => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
+    => (a -> b -> c) -> Parser x m a -> Parser x m b -> Parser x m c
 serialWith func (Parser stepL initialL extractL)
                (Parser stepR initialR extractR) =
     Parser step initial extract
@@ -767,7 +767,7 @@ serialWith func (Parser stepL initialL extractL)
 -- | Works correctly only if both the parsers are guaranteed to never fail.
 {-# INLINE noErrorUnsafeSplitWith #-}
 noErrorUnsafeSplitWith :: Monad m
-    => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
+    => (a -> b -> c) -> Parser x m a -> Parser x m b -> Parser x m c
 noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
                (Parser stepR initialR extractR) =
     Parser step initial extract
@@ -833,7 +833,7 @@ data SeqAState sl sr = SeqAL sl | SeqAR sr
 -- /Pre-release/
 --
 {-# INLINE split_ #-}
-split_ :: Monad m => Parser m x a -> Parser m x b -> Parser m x b
+split_ :: Monad m => Parser x m a -> Parser x m b -> Parser x m b
 split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     Parser step initial extract
 
@@ -887,7 +887,7 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 
 -- For backtracking folds
 {-# INLINE noErrorUnsafeSplit_ #-}
-noErrorUnsafeSplit_ :: Monad m => Parser m x a -> Parser m x b -> Parser m x b
+noErrorUnsafeSplit_ :: Monad m => Parser x m a -> Parser x m b -> Parser x m b
 noErrorUnsafeSplit_
     (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     Parser step initial extract
@@ -941,7 +941,7 @@ noErrorUnsafeSplit_
             Continue n s -> return $ Continue n (SeqAL s)
 
 -- | 'Applicative' form of 'serialWith'.
-instance Monad m => Applicative (Parser m a) where
+instance Monad m => Applicative (Parser a m) where
     {-# INLINE pure #-}
     pure = fromPure
 
@@ -973,7 +973,7 @@ data AltParseState sl sr = AltParseL Int sl | AltParseR sr
 -- /Pre-release/
 --
 {-# INLINE alt #-}
-alt :: Monad m => Parser m x a -> Parser m x a -> Parser m x a
+alt :: Monad m => Parser x m a -> Parser x m a -> Parser x m a
 alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     Parser step initial extract
 
@@ -1043,7 +1043,7 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 -- /Pre-release/
 --
 {-# INLINE splitMany #-}
-splitMany :: Monad m =>  Parser m a b -> Fold m b c -> Parser m a c
+splitMany :: Monad m =>  Parser a m b -> Fold m b c -> Parser a m c
 splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1107,7 +1107,7 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
 -- /Internal/
 --
 {-# INLINE splitManyPost #-}
-splitManyPost :: Monad m =>  Parser m a b -> Fold m b c -> Parser m a c
+splitManyPost :: Monad m =>  Parser a m b -> Fold m b c -> Parser a m c
 splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1169,7 +1169,7 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE splitSome #-}
-splitSome :: Monad m => Parser m a b -> Fold m b c -> Parser m a c
+splitSome :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
 splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1272,7 +1272,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE_NORMAL die #-}
-die :: Monad m => String -> Parser m a b
+die :: Monad m => String -> Parser a m b
 die err = Parser undefined (pure (IError err)) undefined
 
 -- | See 'Streamly.Internal.Data.Parser.dieM'.
@@ -1280,7 +1280,7 @@ die err = Parser undefined (pure (IError err)) undefined
 -- /Pre-release/
 --
 {-# INLINE dieM #-}
-dieM :: Monad m => m String -> Parser m a b
+dieM :: Monad m => m String -> Parser a m b
 dieM err = Parser undefined (IError <$> err) undefined
 
 -- Note: The default implementations of "some" and "many" loop infinitely
@@ -1299,7 +1299,7 @@ dieM err = Parser undefined (IError <$> err) undefined
 -- >>> Stream.parse (Parser.satisfy (> 0) <|> undefined) $ Stream.fromList [1..10]
 -- 1
 --
-instance Monad m => Alternative (Parser m a) where
+instance Monad m => Alternative (Parser a m) where
     {-# INLINE empty #-}
     empty = die "empty"
 
@@ -1323,7 +1323,7 @@ data ConcatParseState sl m a b =
 --
 {-# INLINE concatMap #-}
 concatMap :: Monad m =>
-    (b -> Parser m a c) -> Parser m a b -> Parser m a c
+    (b -> Parser a m c) -> Parser a m b -> Parser a m c
 concatMap func (Parser stepL initialL extractL) = Parser step initial extract
 
     where
@@ -1390,7 +1390,7 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
 
 {-# INLINE noErrorUnsafeConcatMap #-}
 noErrorUnsafeConcatMap :: Monad m =>
-    (b -> Parser m a c) -> Parser m a b -> Parser m a c
+    (b -> Parser a m c) -> Parser a m b -> Parser a m c
 noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
     Parser step initial extract
 
@@ -1462,7 +1462,7 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
 --
-instance Monad m => Monad (Parser m a) where
+instance Monad m => Monad (Parser a m) where
     {-# INLINE return #-}
     return = pure
 
@@ -1474,14 +1474,14 @@ instance Monad m => Monad (Parser m a) where
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
 --
-instance Monad m => MonadPlus (Parser m a) where
+instance Monad m => MonadPlus (Parser a m) where
     {-# INLINE mzero #-}
     mzero = die "mzero"
 
     {-# INLINE mplus #-}
     mplus = alt
 
-instance (Monad m, MonadReader r m) => MonadReader r (Parser m a) where
+instance (Monad m, MonadReader r m) => MonadReader r (Parser a m) where
     {-# INLINE ask #-}
     ask = fromEffect ask
 
@@ -1491,14 +1491,14 @@ instance (Monad m, MonadReader r m) => MonadReader r (Parser m a) where
              (local f init')
              (local f . extract)
 
-instance (Monad m, MonadState s m) => MonadState s (Parser m a) where
+instance (Monad m, MonadState s m) => MonadState s (Parser a m) where
     {-# INLINE get #-}
     get = fromEffect get
 
     {-# INLINE put #-}
     put = fromEffect . put
 
-instance (Monad m, MonadIO m) => MonadIO (Parser m a) where
+instance (Monad m, MonadIO m) => MonadIO (Parser a m) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
 
@@ -1507,7 +1507,7 @@ instance (Monad m, MonadIO m) => MonadIO (Parser m a) where
 ------------------------------------------------------------------------------
 
 {-# INLINE lmap #-}
-lmap :: (a -> b) -> Parser m b r -> Parser m a r
+lmap :: (a -> b) -> Parser b m r -> Parser a m r
 lmap f (Parser step begin done) = Parser step1 begin done
 
     where
@@ -1515,7 +1515,7 @@ lmap f (Parser step begin done) = Parser step1 begin done
     step1 x a = step x (f a)
 
 {-# INLINE lmapM #-}
-lmapM :: Monad m => (a -> m b) -> Parser m b r -> Parser m a r
+lmapM :: Monad m => (a -> m b) -> Parser b m r -> Parser a m r
 lmapM f (Parser step begin done) = Parser step1 begin done
 
     where
@@ -1523,7 +1523,7 @@ lmapM f (Parser step begin done) = Parser step1 begin done
     step1 x a = f a >>= step x
 
 {-# INLINE filter #-}
-filter :: Monad m => (a -> Bool) -> Parser m a b -> Parser m a b
+filter :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
 filter f (Parser step initial extract) = Parser step1 initial extract
 
     where

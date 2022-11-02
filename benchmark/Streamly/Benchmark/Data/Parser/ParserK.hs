@@ -65,11 +65,11 @@ benchIOSink value name f =
 #endif
 
 {-# INLINE satisfy #-}
-satisfy :: Monad m => (a -> Bool) -> PR.Parser m a a
+satisfy :: Monad m => (a -> Bool) -> PR.Parser a m a
 satisfy = PRD.toParserK . PRD.satisfy
 
 {-# INLINE takeWhile #-}
-takeWhile :: Monad m => (a -> Bool) -> PR.Parser m a ()
+takeWhile :: Monad m => (a -> Bool) -> PR.Parser a m ()
 takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}

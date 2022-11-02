@@ -48,7 +48,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 -- /Pre-release/
 --
 {-# INLINE unit #-}
-unit :: Monad m => Parser m Word8 ()
+unit :: Monad m => Parser Word8 m ()
 unit = eqWord8 0 *> PR.fromPure ()
 
 {-# INLINE word8ToBool #-}
@@ -67,7 +67,7 @@ word8ToBool w = Left ("Invalid Bool encoding " ++ Prelude.show w)
 -- /Pre-release/
 --
 {-# INLINE bool #-}
-bool :: Monad m => Parser m Word8 Bool
+bool :: Monad m => Parser Word8 m Bool
 bool = PR.either word8ToBool
 
 {-# INLINE word8ToOrdering #-}
@@ -88,7 +88,7 @@ word8ToOrdering w = Left ("Invalid Ordering encoding " ++ Prelude.show w)
 -- /Pre-release/
 --
 {-# INLINE ordering #-}
-ordering :: Monad m => Parser m Word8 Ordering
+ordering :: Monad m => Parser Word8 m Ordering
 ordering = PR.either word8ToOrdering
 
 -- XXX should go in a Word8 parser module?
@@ -97,7 +97,7 @@ ordering = PR.either word8ToOrdering
 -- /Pre-release/
 --
 {-# INLINE eqWord8 #-}
-eqWord8 :: Monad m => Word8 -> Parser m Word8 Word8
+eqWord8 :: Monad m => Word8 -> Parser Word8 m Word8
 eqWord8 b = PR.satisfy (== b)
 
 -- | Accept any byte.
@@ -105,12 +105,12 @@ eqWord8 b = PR.satisfy (== b)
 -- /Pre-release/
 --
 {-# INLINE word8 #-}
-word8 :: Monad m => Parser m Word8 Word8
+word8 :: Monad m => Parser Word8 m Word8
 word8 = PR.satisfy (const True)
 
 -- | Big endian (MSB first) Word16
 {-# INLINE word16beD #-}
-word16beD :: Monad m => PRD.Parser m Word8 Word16
+word16beD :: Monad m => PRD.Parser Word8 m Word16
 word16beD = PRD.Parser step initial extract
 
     where
@@ -132,12 +132,12 @@ word16beD = PRD.Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE word16be #-}
-word16be :: Monad m => Parser m Word8 Word16
+word16be :: Monad m => Parser Word8 m Word16
 word16be = PRD.toParserK word16beD
 
 -- | Little endian (LSB first) Word16
 {-# INLINE word16leD #-}
-word16leD :: Monad m => PRD.Parser m Word8 Word16
+word16leD :: Monad m => PRD.Parser Word8 m Word16
 word16leD = PRD.Parser step initial extract
 
     where
@@ -157,12 +157,12 @@ word16leD = PRD.Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE word16le #-}
-word16le :: Monad m => Parser m Word8 Word16
+word16le :: Monad m => Parser Word8 m Word16
 word16le = PRD.toParserK word16leD
 
 -- | Big endian (MSB first) Word32
 {-# INLINE word32beD #-}
-word32beD :: Monad m => PRD.Parser m Word8 Word32
+word32beD :: Monad m => PRD.Parser Word8 m Word32
 word32beD = PRD.Parser step initial extract
 
     where
@@ -184,12 +184,12 @@ word32beD = PRD.Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE word32be #-}
-word32be :: Monad m => Parser m Word8 Word32
+word32be :: Monad m => Parser Word8 m Word32
 word32be = PRD.toParserK word32beD
 
 -- | Little endian (LSB first) Word32
 {-# INLINE word32leD #-}
-word32leD :: Monad m => PRD.Parser m Word8 Word32
+word32leD :: Monad m => PRD.Parser Word8 m Word32
 word32leD = PRD.Parser step initial extract
 
     where
@@ -210,12 +210,12 @@ word32leD = PRD.Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE word32le #-}
-word32le :: Monad m => Parser m Word8 Word32
+word32le :: Monad m => Parser Word8 m Word32
 word32le = PRD.toParserK word32leD
 
 -- | Big endian (MSB first) Word64
 {-# INLINE word64beD #-}
-word64beD :: Monad m => PRD.Parser m Word8 Word64
+word64beD :: Monad m => PRD.Parser Word8 m Word64
 word64beD = PRD.Parser step initial extract
 
     where
@@ -237,12 +237,12 @@ word64beD = PRD.Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE word64be #-}
-word64be :: Monad m => Parser m Word8 Word64
+word64be :: Monad m => Parser Word8 m Word64
 word64be = PRD.toParserK word64beD
 
 -- | Little endian (LSB first) Word64
 {-# INLINE word64leD #-}
-word64leD :: Monad m => PRD.Parser m Word8 Word64
+word64leD :: Monad m => PRD.Parser Word8 m Word64
 word64leD = PRD.Parser step initial extract
 
     where
@@ -263,7 +263,7 @@ word64leD = PRD.Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE word64le #-}
-word64le :: Monad m => Parser m Word8 Word64
+word64le :: Monad m => Parser Word8 m Word64
 word64le = PRD.toParserK word64leD
 
 -------------------------------------------------------------------------------
@@ -275,6 +275,6 @@ word64le = PRD.toParserK word64leD
 -- /Pre-release/
 --
 {-# INLINE word64host #-}
-word64host :: MonadIO m => Parser m Word8 Word64
+word64host :: MonadIO m => Parser Word8 m Word64
 word64host =
     fmap (A.unsafeIndex 0 . A.castUnsafe) $ PR.takeEQ 8 (A.writeN 8)

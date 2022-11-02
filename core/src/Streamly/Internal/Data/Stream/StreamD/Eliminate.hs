@@ -142,7 +142,7 @@ newtype List a = List {getList :: [a]}
 {-# INLINE_NORMAL parse #-}
 parse
     :: MonadThrow m
-    => PRD.Parser m a b
+    => PRD.Parser a m b
     -> Stream m a
     -> m b
 parse parser strm = do
@@ -153,7 +153,7 @@ parse parser strm = do
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak
     :: MonadThrow m
-    => PRD.Parser m a b
+    => PRD.Parser a m b
     -> Stream m a
     -> m (b, Stream m a)
 parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do

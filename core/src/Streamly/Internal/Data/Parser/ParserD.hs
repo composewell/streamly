@@ -239,7 +239,7 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- /Internal/
 --
 {-# INLINE toFold #-}
-toFold :: Monad m => Parser m a b -> Fold m a b
+toFold :: Monad m => Parser a m b -> Fold m a b
 toFold (Parser pstep pinitial pextract) = Fold step initial extract
 
     where
@@ -286,7 +286,7 @@ toFold (Parser pstep pinitial pextract) = Fold step initial extract
 -- /Pre-release/
 --
 {-# INLINE fromFold #-}
-fromFold :: Monad m => Fold m a b -> Parser m a b
+fromFold :: Monad m => Fold m a b -> Parser a m b
 fromFold (Fold fstep finitial fextract) = Parser step initial extract
 
     where
@@ -312,7 +312,7 @@ fromFold (Fold fstep finitial fextract) = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE fromFoldMaybe #-}
-fromFoldMaybe :: Monad m => String -> Fold m a (Maybe b) -> Parser m a b
+fromFoldMaybe :: Monad m => String -> Fold m a (Maybe b) -> Parser a m b
 fromFoldMaybe errMsg (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -353,7 +353,7 @@ fromFoldMaybe errMsg (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE peek #-}
-peek :: Monad m => Parser m a a
+peek :: Monad m => Parser a m a
 peek = Parser step initial extract
 
     where
@@ -369,7 +369,7 @@ peek = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE eof #-}
-eof :: Monad m => Parser m a ()
+eof :: Monad m => Parser a m ()
 eof = Parser step initial extract
 
     where
@@ -385,7 +385,7 @@ eof = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE next #-}
-next :: Monad m => Parser m a (Maybe a)
+next :: Monad m => Parser a m (Maybe a)
 next = Parser step initial extract
 
   where
@@ -401,7 +401,7 @@ next = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE either #-}
-either :: Monad m => (a -> Either String b) -> Parser m a b
+either :: Monad m => (a -> Either String b) -> Parser a m b
 either f = Parser step initial extract
 
     where
@@ -423,7 +423,7 @@ either f = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE maybe #-}
-maybe :: Monad m => (a -> Maybe b) -> Parser m a b
+maybe :: Monad m => (a -> Maybe b) -> Parser a m b
 -- maybe f = either (Maybe.maybe (Left "maybe: predicate failed") Right . f)
 maybe parserF = Parser step initial extract
 
@@ -446,7 +446,7 @@ maybe parserF = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE satisfy #-}
-satisfy :: Monad m => (a -> Bool) -> Parser m a a
+satisfy :: Monad m => (a -> Bool) -> Parser a m a
 -- satisfy predicate = maybe (\a -> if predicate a then Just a else Nothing)
 satisfy predicate = Parser step initial extract
 
@@ -474,7 +474,7 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 -- /Pre-release/
 --
 {-# INLINE takeBetween #-}
-takeBetween :: Monad m => Int -> Int -> Fold m a b -> Parser m a b
+takeBetween :: Monad m => Int -> Int -> Fold m a b -> Parser a m b
 takeBetween low high (Fold fstep finitial fextract) =
 
     Parser step initial (extract streamErr)
@@ -551,7 +551,7 @@ takeBetween low high (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE takeEQ #-}
-takeEQ :: Monad m => Int -> Fold m a b -> Parser m a b
+takeEQ :: Monad m => Int -> Fold m a b -> Parser a m b
 takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
@@ -607,7 +607,7 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE takeGE #-}
-takeGE :: Monad m => Int -> Fold m a b -> Parser m a b
+takeGE :: Monad m => Int -> Fold m a b -> Parser a m b
 takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
@@ -664,7 +664,7 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE takeWhileP #-}
-takeWhileP :: Monad m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeWhileP :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
 takeWhileP predicate (Parser pstep pinitial pextract) =
     Parser step pinitial pextract
 
@@ -687,7 +687,7 @@ takeWhileP predicate (Parser pstep pinitial pextract) =
 -- /Pre-release/
 --
 {-# INLINE takeWhile #-}
-takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
 takeWhile predicate (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -716,7 +716,7 @@ takeWhile predicate (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE takeWhile1 #-}
-takeWhile1 :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeWhile1 :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
 takeWhile1 predicate (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -766,7 +766,7 @@ takeFramedByGeneric :: Monad m =>
     -> Maybe (a -> Bool)
     -> Maybe (a -> Bool)
     -> Fold m a b
-    -> Parser m a b
+    -> Parser a m b
 takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
 
     Parser step initial extract
@@ -862,7 +862,7 @@ takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE takeEndBy #-}
-takeEndBy :: Monad m => (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndBy :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
 takeEndBy cond (Parser pstep pinitial pextract) =
 
     Parser step initial pextract
@@ -883,7 +883,7 @@ takeEndBy cond (Parser pstep pinitial pextract) =
 --
 {-# INLINE takeEndByEsc #-}
 takeEndByEsc :: Monad m =>
-    (a -> Bool) -> (a -> Bool) -> Parser m a b -> Parser m a b
+    (a -> Bool) -> (a -> Bool) -> Parser a m b -> Parser a m b
 takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
 
     Parser step initial extract
@@ -914,7 +914,7 @@ takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
 -- /Pre-release/
 --
 {-# INLINE takeEndBy_ #-}
-takeEndBy_ :: (a -> Bool) -> Parser m a b -> Parser m a b
+takeEndBy_ :: (a -> Bool) -> Parser a m b -> Parser a m b
 takeEndBy_ cond (Parser pstep pinitial pextract) =
 
     Parser step pinitial pextract
@@ -932,7 +932,7 @@ takeEndBy_ cond (Parser pstep pinitial pextract) =
 --
 
 {-# INLINE takeStartBy #-}
-takeStartBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeStartBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
 takeStartBy cond (Fold fstep finitial fextract) =
 
     Parser step initial extract
@@ -968,7 +968,7 @@ takeStartBy cond (Fold fstep finitial fextract) =
 
 {-# INLINE takeFramedByEsc_ #-}
 takeFramedByEsc_ :: Monad m =>
-    (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+    (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser a m b
 takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial fextract) =
 
     Parser step initial extract
@@ -1019,7 +1019,7 @@ data FramedState s = FrameInit !s | FrameGo !s Int
 
 {-# INLINE takeFramedBy_ #-}
 takeFramedBy_ :: Monad m =>
-    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser m a b
+    (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser a m b
 takeFramedBy_ isBegin isEnd (Fold fstep finitial fextract) =
 
     Parser step initial extract
@@ -1068,7 +1068,7 @@ data WordByState s b = WBLeft !s | WBWord !s | WBRight !b
 --
 --
 {-# INLINE wordBy #-}
-wordBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+wordBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
 wordBy predicate (Fold fstep finitial fextract) = Parser step initial extract
 
     where
@@ -1123,7 +1123,7 @@ wordFramedBy :: Monad m =>
     -> (a -> Bool)  -- ^ right quote
     -> (a -> Bool)  -- ^ word seperator
     -> Fold m a b
-    -> Parser m a b
+    -> Parser a m b
 wordFramedBy isEsc isBegin isEnd isSep
     (Fold fstep finitial fextract) =
     Parser step initial extract
@@ -1215,7 +1215,7 @@ wordQuotedBy :: (Monad m, Eq a) =>
     -> (a -> a)     -- ^ get right quote from the left quote
     -> (a -> Bool)  -- ^ word seperator
     -> Fold m a b
-    -> Parser m a b
+    -> Parser a m b
 wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
     (Fold fstep finitial fextract) =
     Parser step initial extract
@@ -1316,7 +1316,7 @@ data GroupByState a s
 -- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --
 {-# INLINE groupBy #-}
-groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
+groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
 groupBy eq (Fold fstep finitial fextract) = Parser step initial extract
 
     where
@@ -1348,7 +1348,7 @@ groupBy eq (Fold fstep finitial fextract) = Parser step initial extract
 -- | See 'Streamly.Internal.Data.Parser.groupByRolling'.
 --
 {-# INLINE groupByRolling #-}
-groupByRolling :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser m a b
+groupByRolling :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
 groupByRolling eq (Fold fstep finitial fextract) = Parser step initial extract
 
     where
@@ -1386,7 +1386,7 @@ data GroupByStatePair a s1 s2
 
 {-# INLINE groupByRollingEither #-}
 groupByRollingEither :: Monad m =>
-    (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (Either b c)
+    (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (Either b c)
 groupByRollingEither
     eq
     (Fold fstep1 finitial1 fextract1)
@@ -1474,7 +1474,7 @@ groupByRollingEither
 -- /Pre-release/
 --
 {-# INLINE listEqBy #-}
-listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser m a [a]
+listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser a m [a]
 listEqBy cmp str = Parser step initial extract
 
     where
@@ -1504,7 +1504,7 @@ listEqBy cmp str = Parser step initial extract
 
 -- | Like 'listEqBy' but uses a stream instead of a list
 {-# INLINE eqBy #-}
-eqBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser m a ()
+eqBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser a m ()
 eqBy cmp (D.Stream sstep state) = Parser step initial extract
 
     where
@@ -1555,12 +1555,12 @@ eqBy cmp (D.Stream sstep state) = Parser step initial extract
 --
 {-# INLINE postscan #-}
 postscan :: -- Monad m =>
-    Fold m a b -> Parser m b c -> Parser m a c
+    Fold m a b -> Parser b m c -> Parser a m c
 postscan = undefined
 
 {-# INLINE zipWithM #-}
 zipWithM :: Monad m =>
-    (a -> b -> m c) -> D.Stream m a -> Fold m c x -> Parser m b x
+    (a -> b -> m c) -> D.Stream m a -> Fold m c x -> Parser b m x
 zipWithM zf (D.Stream sstep state) (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1615,14 +1615,14 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE zip #-}
-zip :: Monad m => D.Stream m a -> Fold m (a, b) x -> Parser m b x
+zip :: Monad m => D.Stream m a -> Fold m (a, b) x -> Parser b m x
 zip = zipWithM (curry return)
 
 -- | Pair each element of a fold input with its index, starting from index 0.
 --
 -- /Pre-release/
 {-# INLINE indexed #-}
-indexed :: forall m a b. Monad m => Fold m (Int, a) b -> Parser m a b
+indexed :: forall m a b. Monad m => Fold m (Int, a) b -> Parser a m b
 indexed = zip (D.enumerateFromIntegral 0 :: D.Stream m Int)
 
 -- | @makeIndexFilter indexer filter predicate@ generates a fold filtering
@@ -1641,9 +1641,9 @@ indexed = zip (D.enumerateFromIntegral 0 :: D.Stream m Int)
 -- /Pre-release/
 {-# INLINE makeIndexFilter #-}
 makeIndexFilter ::
-       (Fold m (s, a) b -> Parser m a b)
+       (Fold m (s, a) b -> Parser a m b)
     -> (((s, a) -> Bool) -> Fold m (s, a) b -> Fold m (s, a) b)
-    -> (((s, a) -> Bool) -> Fold m a b -> Parser m a b)
+    -> (((s, a) -> Bool) -> Fold m a b -> Parser a m b)
 makeIndexFilter f comb g = f . comb g . FL.lmap snd
 
 -- | @sampleFromthen offset stride@ samples the element at @offset@ index and
@@ -1651,7 +1651,7 @@ makeIndexFilter f comb g = f . comb g . FL.lmap snd
 --
 -- /Pre-release/
 {-# INLINE sampleFromthen #-}
-sampleFromthen :: Monad m => Int -> Int -> Fold m a b -> Parser m a b
+sampleFromthen :: Monad m => Int -> Int -> Fold m a b -> Parser a m b
 sampleFromthen offset size =
     makeIndexFilter indexed FL.filter (\(i, _) -> (i + offset) `mod` size == 0)
 
@@ -1679,7 +1679,7 @@ sampleFromthen offset size =
 --
 -- /Pre-release/
 {-# INLINE span #-}
-span :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (b, c)
+span :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (b, c)
 span p f1 f2 = noErrorUnsafeSplitWith (,) (takeWhile p f1) (fromFold f2)
 
 -- | Break the input stream into two groups, the first group takes the input as
@@ -1691,7 +1691,7 @@ span p f1 f2 = noErrorUnsafeSplitWith (,) (takeWhile p f1) (fromFold f2)
 {-# INLINE spanBy #-}
 spanBy ::
        Monad m
-    => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (b, c)
+    => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (b, c)
 spanBy eq f1 f2 = noErrorUnsafeSplitWith (,) (groupBy eq f1) (fromFold f2)
 
 -- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
@@ -1701,7 +1701,7 @@ spanBy eq f1 f2 = noErrorUnsafeSplitWith (,) (groupBy eq f1) (fromFold f2)
 {-# INLINE spanByRolling #-}
 spanByRolling ::
        Monad m
-    => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser m a (b, c)
+    => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (b, c)
 spanByRolling eq f1 f2 =
     noErrorUnsafeSplitWith (,) (groupByRolling eq f1) (fromFold f2)
 
@@ -1713,7 +1713,7 @@ spanByRolling eq f1 f2 =
 --
 -- /Internal/
 {-# INLINE takeP #-}
-takeP :: Monad m => Int -> Parser m a b -> Parser m a b
+takeP :: Monad m => Int -> Parser a m b -> Parser a m b
 takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
 
     where
@@ -1788,7 +1788,7 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
 -- /Pre-release/
 --
 {-# INLINE lookAhead #-}
-lookAhead :: Monad m => Parser m a b -> Parser m a b
+lookAhead :: Monad m => Parser a m b -> Parser a m b
 lookAhead (Parser step1 initial1 _) = Parser step initial extract
 
     where
@@ -1833,10 +1833,10 @@ data DeintercalateState fs sp ss =
 --
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>
-       Parser m a x
-    -> Parser m a y
+       Parser a m x
+    -> Parser a m y
     -> Fold m (Either x y) z
-    -> Parser m a z
+    -> Parser a m z
 deintercalate
     (Parser stepL initialL extractL)
     (Parser stepR initialR extractR)
@@ -1930,7 +1930,7 @@ data SepByState fs sp ss =
 -- terms of deintercalate.
 {-# INLINE sepBy #-}
 sepBy :: Monad m =>
-    Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
+    Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
 sepBy
     (Parser pstep pinitial pextract)
     (Parser sstep sinitial _)
@@ -2007,7 +2007,7 @@ sepBy
 -- | See 'Streamly.Internal.Data.Parser.sequence'.
 {-# INLINE sequence #-}
 sequence :: Monad m =>
-    D.Stream m (Parser m a b) -> Fold m b c -> Parser m a c
+    D.Stream m (Parser a m b) -> Fold m b c -> Parser a m c
 sequence (D.Stream sstep sstate) (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -2094,7 +2094,7 @@ sequence (D.Stream sstep sstate) (Fold fstep finitial fextract) =
 -- /Broken/
 --
 {-# INLINE choice #-}
-choice :: (MonadCatch m, Foldable t) => t (Parser m a b) -> Parser m a b
+choice :: (MonadCatch m, Foldable t) => t (Parser a m b) -> Parser a m b
 choice = foldl1 shortest
 -}
 
@@ -2104,7 +2104,7 @@ choice = foldl1 shortest
 
 {-# INLINE manyP #-}
 manyP :: -- MonadCatch m =>
-    Parser m a b -> Parser m b c -> Parser m a c
+    Parser a m b -> Parser b m c -> Parser a m c
 manyP _p _f = undefined
 
 -- | See 'Streamly.Internal.Data.Parser.many'.
@@ -2112,7 +2112,7 @@ manyP _p _f = undefined
 -- /Pre-release/
 --
 {-# INLINE many #-}
-many :: Monad m => Parser m a b -> Fold m b c -> Parser m a c
+many :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
 many = splitMany
 -- many = countBetween 0 maxBound
 
@@ -2121,7 +2121,7 @@ many = splitMany
 -- /Pre-release/
 --
 {-# INLINE some #-}
-some :: Monad m => Parser m a b -> Fold m b c -> Parser m a c
+some :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
 some = splitSome
 -- some p f = manyP p (takeGE 1 f)
 -- some = countBetween 1 maxBound
@@ -2132,7 +2132,7 @@ some = splitSome
 --
 {-# INLINE countBetween #-}
 countBetween :: -- MonadCatch m =>
-    Int -> Int -> Parser m a b -> Fold m b c -> Parser m a c
+    Int -> Int -> Parser a m b -> Fold m b c -> Parser a m c
 countBetween _m _n _p = undefined
 -- countBetween m n p f = manyP p (takeBetween m n f)
 
@@ -2142,7 +2142,7 @@ countBetween _m _n _p = undefined
 --
 {-# INLINE count #-}
 count :: -- MonadCatch m =>
-    Int -> Parser m a b -> Fold m b c -> Parser m a c
+    Int -> Parser a m b -> Fold m b c -> Parser a m c
 count n = countBetween n n
 -- count n p f = manyP p (takeEQ n f)
 
@@ -2156,7 +2156,7 @@ data ManyTillState fs sr sl
 --
 {-# INLINE manyTill #-}
 manyTill :: Monad m
-    => Parser m a b -> Parser m a x -> Fold m b c -> Parser m a c
+    => Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
 manyTill (Parser stepL initialL extractL)
          (Parser stepR initialR _)
          (Fold fstep finitial fextract) =

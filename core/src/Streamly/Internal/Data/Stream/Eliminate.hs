@@ -230,7 +230,7 @@ foldlT f z s = D.foldlT f z (toStreamD s)
 -- /Internal/
 --
 {-# INLINE_NORMAL parseD #-}
-parseD :: MonadThrow m => PRD.Parser m a b -> Stream m a -> m b
+parseD :: MonadThrow m => PRD.Parser a m b -> Stream m a -> m b
 parseD p = D.parse p . toStreamD
 
 -- XXX Drive directly as parserK rather than converting to parserD first.
@@ -239,7 +239,7 @@ parseD p = D.parse p . toStreamD
 --
 -- /Internal/
 {-# INLINE parseK #-}
-parseK :: MonadThrow m => PRK.Parser m a b -> Stream m a -> m b
+parseK :: MonadThrow m => PRK.Parser a m b -> Stream m a -> m b
 parseK = parse
 
 -- | Parse a stream using the supplied 'Parser'.
@@ -255,12 +255,12 @@ parseK = parse
 -- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --
 {-# INLINE [3] parse #-}
-parse :: MonadThrow m => Parser m a b -> Stream m a -> m b
+parse :: MonadThrow m => Parser a m b -> Stream m a -> m b
 parse = parseD . PRD.fromParserK
 
 {-# INLINE_NORMAL parseBreakD #-}
 parseBreakD :: MonadThrow m =>
-    PRD.Parser m a b -> Stream m a -> m (b, Stream m a)
+    PRD.Parser a m b -> Stream m a -> m (b, Stream m a)
 parseBreakD parser strm = do
     (b, strmD) <- D.parseBreak parser (toStreamD strm)
     return $! (b, fromStreamD strmD)
@@ -270,7 +270,7 @@ parseBreakD parser strm = do
 -- /Not fused/
 --
 {-# INLINE parseBreak #-}
-parseBreak :: MonadThrow m => Parser m a b -> Stream m a -> m (b, Stream m a)
+parseBreak :: MonadThrow m => Parser a m b -> Stream m a -> m (b, Stream m a)
 parseBreak p strm = fmap f $ K.parseBreak (PRD.fromParserK p) (toStreamK strm)
 
     where

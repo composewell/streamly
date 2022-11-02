@@ -106,7 +106,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     --
     -- @
     -- f (Fold m a b) -> t m a -> t m b
-    -- f (Parser m a b) -> t m a -> t m b
+    -- f (Parser a m b) -> t m a -> t m b
     -- @
 
     -- ** Folding
@@ -1152,7 +1152,7 @@ data ParseChunksState x inpBuf st pst =
 {-# INLINE_NORMAL parseMany #-}
 parseMany
     :: MonadThrow m
-    => PRD.Parser m a b
+    => PRD.Parser a m b
     -> Stream m a
     -> Stream m b
 parseMany (PRD.Parser pstep initial extract) (Stream step state) =
@@ -1338,7 +1338,7 @@ data ConcatParseState b inpBuf st p m a =
 {-# INLINE_NORMAL parseIterate #-}
 parseIterate
     :: MonadThrow m
-    => (b -> PRD.Parser m a b)
+    => (b -> PRD.Parser a m b)
     -> b
     -> Stream m a
     -> Stream m b

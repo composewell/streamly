@@ -88,7 +88,7 @@ import Prelude hiding (concatMap, take)
 --
 -- /Pre-release/
 --
-newtype ArrayFold m a b = ArrayFold (ParserD.Parser m (Array a) b)
+newtype ArrayFold m a b = ArrayFold (ParserD.Parser (Array a) m b)
 
 -------------------------------------------------------------------------------
 -- Constructing array stream folds from element folds and parsers
@@ -145,7 +145,7 @@ fromParserD :: forall m a b. (MonadIO m) =>
 #else
 fromParserD :: forall m a b. (MonadIO m, Unbox a) =>
 #endif
-    ParserD.Parser m a b -> ArrayFold m a b
+    ParserD.Parser a m b -> ArrayFold m a b
 fromParserD (ParserD.Parser step1 initial1 extract1) =
     ArrayFold (ParserD.Parser step initial1 extract1)
 
@@ -191,7 +191,7 @@ fromParser :: forall m a b. (MonadThrow m, MonadIO m) =>
 #else
 fromParser :: forall m a b. (MonadThrow m, MonadIO m, Unbox a) =>
 #endif
-    Parser.Parser m a b -> ArrayFold m a b
+    Parser.Parser a m b -> ArrayFold m a b
 fromParser = fromParserD . ParserD.fromParserK
 
 -- | Adapt an array stream fold.

@@ -222,7 +222,7 @@ o_1_space_copy_toChunks_group_ungroup env =
 -------------------------------------------------------------------------------
 
 {-# INLINE drainWhile #-}
-drainWhile :: MonadCatch m => (a -> Bool) -> Parser.Parser m a ()
+drainWhile :: MonadCatch m => (a -> Bool) -> Parser.Parser a m ()
 drainWhile p = Parser.takeWhile p Fold.drain
 
 -------------------------------------------------------------------------------

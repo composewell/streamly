@@ -453,7 +453,7 @@ data UTF8CharDecodeState a
 
 {-# INLINE parseCharUtf8WithD #-}
 parseCharUtf8WithD ::
-       MonadThrow m => CodingFailureMode -> ParserD.Parser m Word8 Char
+       MonadThrow m => CodingFailureMode -> ParserD.Parser Word8 m Char
 parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
 
     where
@@ -541,7 +541,7 @@ writeCharUtf8' =  ParserD.toFold (parseCharUtf8WithD ErrorOnCodingFailure)
 -- This needs to be investigated futher.
 {-# INLINE parseCharUtf8With #-}
 parseCharUtf8With ::
-       MonadCatch m => CodingFailureMode -> Parser.Parser m Word8 Char
+       MonadCatch m => CodingFailureMode -> Parser.Parser Word8 m Char
 parseCharUtf8With = ParserD.toParserK . parseCharUtf8WithD
 
 -- XXX write it as a parser and use parseMany to decode a stream, need to check
