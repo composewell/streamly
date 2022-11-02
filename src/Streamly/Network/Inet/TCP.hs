@@ -9,7 +9,7 @@
 --
 -- Combinators to build Inet/TCP clients and servers.
 --
--- > import qualified Streamly.Network.Inet.TCP as TCP
+-- >>> import qualified Streamly.Network.Inet.TCP as TCP
 --
 
 module Streamly.Network.Inet.TCP
