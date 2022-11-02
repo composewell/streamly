@@ -7,18 +7,17 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- This module provides Array and stream based socket operations to connect to
--- remote hosts, to receive connections from remote hosts, and to read and
--- write streams and arrays of bytes to and from network sockets.
+-- This module provides socket based streaming APIs to to receive connections
+-- from remote hosts, and to read and write from and to network sockets.
 --
 -- For basic socket types and operations please consult the @Network.Socket@
 -- module of the <http://hackage.haskell.org/package/network network> package.
 --
 -- = Examples
 --
--- To write a server, use the 'accept' unfold to start listening for
--- connections from clients.  'accept' supplies a stream of connected sockets.
--- We can map an effectful action on this socket stream to handle the
+-- To write a server, use the 'acceptor' unfold to start listening for
+-- connections from clients.  'acceptor' generates a stream of connected
+-- sockets. We can map an effectful action on this socket stream to handle the
 -- connections. The action would typically use socket reading and writing
 -- operations to communicate with the remote host. We can read/write a stream
 -- of bytes or a stream of chunks of bytes ('Array').
@@ -26,7 +25,6 @@
 -- Following is a short example of a concurrent echo server.  Please note that
 -- this example can be written even more succinctly by using higher level
 -- operations from "Streamly.Network.Inet.TCP" module.
---
 --
 -- >>> :set -XFlexibleContexts
 -- >>>
@@ -65,10 +63,10 @@
 -- Read IO requests to connected stream sockets are performed in chunks of
 -- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.  Unless
 -- specified otherwise in the API, writes are collected into chunks of
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before they are
--- written to the socket. APIs are provided to control the chunking behavior.
+-- 'Streamly.Internal.System.IO.defaultChunkSize' before they are written to
+-- the socket.
 --
--- > import qualified Streamly.Network.Socket as Socket
+-- >>> import qualified Streamly.Network.Socket as Socket
 --
 -- = See Also
 --

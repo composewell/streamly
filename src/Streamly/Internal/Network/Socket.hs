@@ -315,7 +315,7 @@ writeArrayWith f h arr = A.asPtrUnsafe arr $ \ptr -> f h (castPtr ptr) aLen
 
     aLen = A.byteLength arr
 
--- | Write an Array to a file handle.
+-- | Write an Array to a socket.
 --
 {-# INLINABLE putChunk #-}
 putChunk :: Unbox a => Socket -> Array a -> IO ()
