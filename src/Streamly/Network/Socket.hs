@@ -53,7 +53,7 @@
 --       where
 --       server spec addr =
 --             Stream.unfold Socket.acceptor (maxListenQueue, spec, addr)
---           & Concur.mapMWith (Concur.eager True) (Socket.forSocketM echo)
+--           & Concur.mapMUsing (Concur.eager True) (Socket.forSocketM echo)
 --           & Stream.fold Fold.drain
 --       echo sk =
 --             Stream.unfold Socket.chunkReader sk -- Stream IO (Array Word8)
