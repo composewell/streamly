@@ -164,7 +164,7 @@ import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Parser (Parser (..))
-import Streamly.Internal.Data.Array.Unboxed.Type (Array)
+import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( fold
     , interjectSuffix
@@ -183,7 +183,7 @@ import Streamly.Internal.Data.Unboxed (Unbox)
 
 import qualified Data.Heap as H
 import qualified Streamly.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Internal.Data.Array.Type as A
     (arraysOf, read)
 import qualified Streamly.Internal.Data.Fold as FL
     (Fold, Step(..), takeEndBy_, takeEndBy, catMaybes, take)
@@ -221,7 +221,7 @@ import Prelude hiding (concatMap, map)
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 
 ------------------------------------------------------------------------------
 -- Trimming

@@ -36,8 +36,8 @@ import System.IO (Handle)
 import System.Random (randomRIO)
 import Prelude hiding ()
 
-import qualified Streamly.Internal.Data.Array.Unboxed as Array
-import qualified Streamly.Internal.Data.Array.Unboxed.Stream as ArrayStream
+import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Array.Stream as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream as S
@@ -275,7 +275,7 @@ o_1_space_serial_array bound arraysSmall arraysBig =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Array.Unboxed.Stream"
+moduleName = "Data.Array.Stream"
 
 main :: IO ()
 main = do

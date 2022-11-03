@@ -245,7 +245,7 @@ import Prelude
 -- import Streamly.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Type
        (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
--- import Streamly.Internal.Data.Array.Unboxed.Type (Array)
+-- import Streamly.Internal.Data.Array.Type (Array)
 -- import Streamly.Internal.Data.Ring.Unboxed (Ring)
 -- import Streamly.Internal.Data.Stream (Stream)
 -- import Streamly.Internal.Data.Time.Units
@@ -254,7 +254,7 @@ import Streamly.Internal.Data.Pipe.Type
 
 -- import Streamly.Internal.Data.Strict
 
--- import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+-- import qualified Streamly.Internal.Data.Array.Type as A
 -- import qualified Streamly.Prelude as S
 -- import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- import qualified Streamly.Internal.Data.Stream.StreamK as K

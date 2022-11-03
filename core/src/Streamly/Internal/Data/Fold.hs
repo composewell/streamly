@@ -315,8 +315,8 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Prelude
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+import qualified Streamly.Internal.Data.Array.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as FoldW
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
@@ -342,10 +342,10 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> import Data.Monoid (Last(..), Sum(..))
 -- >>> import Streamly.Data.Stream (Stream)
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
+-- >>> import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW

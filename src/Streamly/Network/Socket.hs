@@ -61,7 +61,7 @@
 -- = Programmer Notes
 --
 -- Read IO requests to connected stream sockets are performed in chunks of
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.  Unless
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.  Unless
 -- specified otherwise in the API, writes are collected into chunks of
 -- 'Streamly.Internal.System.IO.defaultChunkSize' before they are written to
 -- the socket.
@@ -137,7 +137,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Network.Socket (Socket, SockAddr)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
+import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Unboxed (Unbox)
 
 import Streamly.Internal.Network.Socket hiding (accept, read, readChunks)

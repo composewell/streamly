@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Unboxed.Type
+-- Module      : Streamly.Internal.Data.Array.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD3-3-Clause
@@ -7,9 +7,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- See notes in "Streamly.Internal.Data.Array.Unboxed.Mut.Type"
+-- See notes in "Streamly.Internal.Data.Array.Mut.Type"
 --
-module Streamly.Internal.Data.Array.Unboxed.Type
+module Streamly.Internal.Data.Array.Type
     (
     -- $arrayNotes
       Array (..)
@@ -87,7 +87,7 @@ import GHC.Exts (IsList, IsString(..))
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Unboxed.Mut.Type (MutableByteArray)
+import Streamly.Internal.Data.Array.Mut.Type (MutableByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unboxed (Unbox, peekWith, sizeOf)
@@ -97,7 +97,7 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
 import qualified GHC.Exts as Exts
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
@@ -111,7 +111,7 @@ import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 -- >>> :m
 -- >>> :set -XMagicHash
 -- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
--- >>> import Streamly.Internal.Data.Array.Unboxed as Array
+-- >>> import Streamly.Internal.Data.Array as Array
 
 -------------------------------------------------------------------------------
 -- Array Data Type

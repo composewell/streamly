@@ -104,20 +104,20 @@ import qualified Control.Monad.Catch as MC
 import qualified System.IO as SIO
 
 import Streamly.Data.Fold (chunksOf, drain)
-import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
+import Streamly.Internal.Data.Array.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Data.Array.Unboxed as A
+import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (Step(..), snoc, reduce)
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
+import qualified Streamly.Internal.Data.Array.Stream as AS
 import qualified Streamly.Data.Stream as S (fold, bracketIO, mapM)
 
 -------------------------------------------------------------------------------
@@ -303,9 +303,9 @@ readChunksFromToWith = chunkReaderFromToWith
 
 -- | Unfolds a 'FilePath' into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
 -- /Pre-release/
 {-# INLINE chunkReader #-}
@@ -328,7 +328,7 @@ readWithBufferOf = readerWith
 
 -- | Unfolds a file path into a byte stream. IO requests to the device are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
 -- /Pre-release/
 {-# INLINE reader #-}
@@ -465,7 +465,7 @@ writeWithBufferOf = writeWith
 -- > write = 'writeWith' A.defaultChunkSize
 --
 -- | Write a byte stream to a file. Accumulates the input in chunks of up to
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before writing to
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing to
 -- the IO device.
 --
 -- /Pre-release/

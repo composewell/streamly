@@ -103,8 +103,8 @@ import GHC.Exts (Addr#)
 import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Ptr (Ptr (..), plusPtr)
 import System.IO.Unsafe (unsafePerformIO)
-import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
-import Streamly.Internal.Data.Array.Unboxed.Mut.Type (MutableByteArray)
+import Streamly.Internal.Data.Array.Type (Array(..))
+import Streamly.Internal.Data.Array.Mut.Type (MutableByteArray)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream (Stream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamD (Step (..))
@@ -116,7 +116,7 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Parser as Parser (Parser)
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Stream as Stream

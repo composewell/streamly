@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Unboxed
+-- Module      : Streamly.Internal.Data.Array
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -18,7 +18,7 @@
 -- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
 -- instances should be used with care; concatenating arrays using binary
 -- operations can be highly inefficient.  Instead, use
--- 'Streamly.Internal.Data.Array.Unboxed.Stream.toArray' to concatenate N
+-- 'Streamly.Internal.Data.Array.Stream.toArray' to concatenate N
 -- arrays at once.
 --
 -- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
@@ -28,7 +28,7 @@
 -- if we use one array for each chunk. This is still significant to add
 -- pressure to GC.
 
-module Streamly.Internal.Data.Array.Unboxed
+module Streamly.Internal.Data.Array
     (
       Array
 
@@ -133,8 +133,8 @@ import Streamly.Internal.Data.Unboxed
     )
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import Streamly.Internal.Data.Array.Unboxed.Mut.Type (ArrayUnsafe(..))
-import Streamly.Internal.Data.Array.Unboxed.Type
+import Streamly.Internal.Data.Array.Mut.Type (ArrayUnsafe(..))
+import Streamly.Internal.Data.Array.Type
     (Array(..), length, asPtrUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
@@ -143,9 +143,9 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MA
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Internal.Data.Array.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array.Mut as MA
+import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -233,7 +233,7 @@ readerUnsafe = Unfold step inject
 
 -- |
 --
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+-- >>> import qualified Streamly.Internal.Data.Array.Type as Array
 -- >>> null arr = Array.byteLength arr == 0
 --
 -- /Pre-release/
@@ -256,7 +256,7 @@ getIndexRev i arr =
 
 -- |
 --
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Internal.Data.Array as Array
 -- >>> last arr = Array.getIndexRev arr 0
 --
 -- /Pre-release/

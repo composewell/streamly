@@ -122,18 +122,18 @@ import Prelude hiding (read)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Array.Unboxed.Type
+import Streamly.Internal.Data.Array.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink, byteLength)
 import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Array.Unboxed.Stream (lpackArraysChunksOf)
+import Streamly.Internal.Data.Array.Stream (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Data.Array.Unboxed as A
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
-import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MArray
+import qualified Streamly.Data.Array as A
+import qualified Streamly.Internal.Data.Array.Type as A
+import qualified Streamly.Internal.Data.Array.Stream as AS
+import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold.Type as FL(refoldMany)
 import qualified Streamly.Internal.Data.Stream as S
@@ -143,12 +143,12 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 
 -- $setup
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Data.Stream as Stream
 --
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array (writeNUnsafe)
+-- >>> import qualified Streamly.Internal.Data.Array.Type as Array (writeNUnsafe)
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold (first)
 -- >>> import qualified Streamly.Internal.FileSystem.Handle as Handle
@@ -306,9 +306,9 @@ readChunks = readChunksWith defaultChunkSize
 
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
 -- >>> chunkReader = Unfold.first IO.defaultChunkSize Handle.chunkReaderWith
 --
@@ -352,7 +352,7 @@ readWith size h = AS.concat $ readChunksWith size h
 
 -- | Unfolds a file handle into a byte stream. IO requests to the device are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
 -- >>> reader = Unfold.many Array.reader chunkReader
 --
@@ -434,7 +434,7 @@ putBytesWith n h m = putChunks h $ S.arraysOf n m
 -- putBytesWith n h m = putChunks h $ AS.arraysOf n m
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before writing.
+-- up to 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing.
 --
 -- NOTE: This may perform better than the 'write' fold, you can try this if you
 -- need some extra perf boost.
@@ -531,7 +531,7 @@ writerWith n =
     FL.refoldMany (FL.take n $ writeNUnsafe n) chunkWriter
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before writing
+-- up to 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing
 -- to the IO device.
 --
 -- >>> write = Handle.writeWith IO.defaultChunkSize

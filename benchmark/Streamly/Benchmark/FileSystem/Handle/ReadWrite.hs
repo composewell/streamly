@@ -31,7 +31,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Data.Array.Unboxed as A
+import qualified Streamly.Data.Array as A
 import qualified Streamly.Prelude as S
 
 import Gauge hiding (env)
@@ -42,8 +42,8 @@ import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Stream as MAS
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as AT
+import qualified Streamly.Internal.Data.Array.Mut.Stream as MAS
+import qualified Streamly.Internal.Data.Array.Type as AT
 
 import Test.Inspection
 #endif

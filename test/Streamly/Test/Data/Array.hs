@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Test.Data.Array.Unboxed
+-- Module      : Streamly.Test.Data.Array
 -- Copyright   : (c) 2019 Composewell technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Array.Unboxed (main) where
+module Streamly.Test.Data.Array (main) where
 
 import Data.Char (isLower)
 import Data.List (sort)
@@ -19,9 +19,9 @@ import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
 import Streamly.Test.Common (listEquals)
 
 import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Array.Unboxed as A
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as MA
+import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Array.Type as A
+import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream as S
 
 import Test.Hspec as H
@@ -33,7 +33,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 type Array = A.Array
 
 moduleName :: String
-moduleName = "Data.Array.Unboxed"
+moduleName = "Data.Array"
 
 #include "Streamly/Test/Data/Array/Common.hs"
 

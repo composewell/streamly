@@ -6,7 +6,7 @@
 * Remove support for GHC 8.4.*
 * New modules for unboxed mutable & unboxed immutable arrays are added.
 * The unboxed arrays now require `Unbox` instead of `Storable` for the stored
-  type. The `Unbox` typeclass can be found in `Streamly.Data.Array.Unboxed`.
+  type. The `Unbox` typeclass can be found in `Streamly.Data.Array`.
 
 * Following APIs have been renamed in Streamly.Network.Socket module:
     readWithBufferOf -> readWith
@@ -25,7 +25,7 @@
 * In `Streamly.Data.Fold`:
   * `variance`, and `stdDev` have been deprecated. Please use the
     `streamly-statistics` package instead.
-* `Streamly.Data.Array.Foreign` is deprecated. Use `Streamly.Data.Array.Unboxed`
+* `Streamly.Data.Array.Foreign` is deprecated. Use `Streamly.Data.Array`
   instead.
 * The type of `replicateM` in `Streamly.Data.Unfold` is changed.
 

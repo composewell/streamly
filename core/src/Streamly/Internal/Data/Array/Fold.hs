@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Unboxed.Fold
+-- Module      : Streamly.Internal.Data.Array.Fold
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -18,8 +18,8 @@
 -- element stream. For example:
 --
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Stream as ArrayStream
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Fold as ArrayFold
+-- >>> import qualified Streamly.Internal.Data.Array.Stream as ArrayStream
+-- >>> import qualified Streamly.Internal.Data.Array.Fold as ArrayFold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream (arraysOf)
 -- >>> import qualified Streamly.Data.Stream as Stream
 --
@@ -28,7 +28,7 @@
 -- >>> ArrayStream.runArrayFold f s
 -- "hello w"
 --
-module Streamly.Internal.Data.Array.Unboxed.Fold
+module Streamly.Internal.Data.Array.Fold
     (
       ArrayFold (..)
 
@@ -63,12 +63,12 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 import Streamly.Internal.Data.Unboxed (peekWith, sizeOf, Unbox)
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Array.Unboxed.Mut.Type (touch)
-import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
+import Streamly.Internal.Data.Array.Mut.Type (touch)
+import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Parser.ParserD (Initial(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Array.Unboxed as Array
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD

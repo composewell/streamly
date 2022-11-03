@@ -84,7 +84,7 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unboxed (Unbox)
 
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK

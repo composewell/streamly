@@ -56,10 +56,10 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Array/CommonImports.hs
     benchmark/Streamly/Benchmark/Data/Array/Generic.hs
     benchmark/Streamly/Benchmark/Data/Array/SmallArray.hs
-    benchmark/Streamly/Benchmark/Data/Array/Unboxed.hs
+    benchmark/Streamly/Benchmark/Data/Array.hs
     benchmark/Streamly/Benchmark/Data/Ring/Unboxed.hs
-    benchmark/Streamly/Benchmark/Data/Array/Unboxed/Mut.hs
-    benchmark/Streamly/Benchmark/Data/Array/Stream/Unboxed.hs
+    benchmark/Streamly/Benchmark/Data/Array/Mut.hs
+    benchmark/Streamly/Benchmark/Data/Array/Stream.hs
     benchmark/Streamly/Benchmark/Data/Fold/Window.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
@@ -93,10 +93,10 @@ extra-source-files:
     test/Streamly/Test/Data/Array/CommonImports.hs
     test/Streamly/Test/Data/Array/Common.hs
     test/Streamly/Test/Data/Array/Generic.hs
-    test/Streamly/Test/Data/Array/Unboxed.hs
-    test/Streamly/Test/Data/Array/Unboxed/Mut.hs
+    test/Streamly/Test/Data/Array.hs
+    test/Streamly/Test/Data/Array/Mut.hs
     test/Streamly/Test/Data/Ring/Unboxed.hs
-    test/Streamly/Test/Data/Array/Stream/Unboxed.hs
+    test/Streamly/Test/Data/Array/Stream.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
     test/Streamly/Test/Data/Stream/Concurrent.hs
     test/Streamly/Test/FileSystem/Event.hs
@@ -436,8 +436,8 @@ library
                       -- streamly-core exposed modules
                       , Streamly.Console.Stdio
                       , Streamly.Data.Array.Generic
-                      , Streamly.Data.Array.Unboxed
-                      , Streamly.Data.Array.Unboxed.Mut
+                      , Streamly.Data.Array
+                      , Streamly.Data.Array.Mut
                       , Streamly.Data.Fold
                       , Streamly.Data.Fold.Tee
                       , Streamly.Data.Parser

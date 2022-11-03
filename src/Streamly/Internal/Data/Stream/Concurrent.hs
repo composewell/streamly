@@ -135,7 +135,7 @@ import Streamly.Internal.Data.Stream.Concurrent.Channel
 -- >>> :m
 -- >>> {-# LANGUAGE FlexibleContexts #-}
 -- >>> import Control.Concurrent (threadDelay)
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Stream as Stream

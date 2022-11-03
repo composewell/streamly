@@ -123,9 +123,9 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.Unicode.Utf8 as UTF8
-import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
-import Streamly.Internal.Data.Array.Unboxed (Array)
+import Streamly.Internal.Data.Array (Array)
 
 -- | Watch configuration, used to specify the events of interest and the
 -- behavior of the watch.

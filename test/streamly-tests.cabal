@@ -233,17 +233,17 @@ test-suite Data.Array.Generic
   if flag(use-streamly-core)
     buildable: False
 
-test-suite Data.Array.Unboxed
+test-suite Data.Array
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Unboxed.hs
-  ghc-options: -main-is Streamly.Test.Data.Array.Unboxed.main
+  main-is: Streamly/Test/Data/Array.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.main
 
-test-suite Data.Array.Unboxed.Mut
+test-suite Data.Array.Mut
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Unboxed/Mut.hs
-  ghc-options: -main-is Streamly.Test.Data.Array.Unboxed.Mut.main
+  main-is: Streamly/Test/Data/Array/Mut.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.Mut.main
 
 test-suite Data.Ring.Unboxed
   import: test-options
@@ -253,10 +253,10 @@ test-suite Data.Ring.Unboxed
   if flag(use-streamly-core)
     buildable: False
 
-test-suite Data.Array.Unboxed.Stream
+test-suite Data.Array.Stream
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Stream/Unboxed.hs
+  main-is: Streamly/Test/Data/Array/Stream.hs
   if flag(use-streamly-core)
     buildable: False
 

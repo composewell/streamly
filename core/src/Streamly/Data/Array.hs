@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Array.Unboxed
+-- Module      : Streamly.Data.Array
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -45,11 +45,11 @@
 --
 -- This module is designed to be imported qualified:
 --
--- > import qualified Streamly.Data.Array.Unboxed as Array
+-- > import qualified Streamly.Data.Array as Array
 --
--- For experimental APIs see "Streamly.Internal.Data.Array.Unboxed".
+-- For experimental APIs see "Streamly.Internal.Data.Array".
 
-module Streamly.Data.Array.Unboxed
+module Streamly.Data.Array
     (
     -- * Types
       Unbox (..)
@@ -99,7 +99,7 @@ where
 #include "inline.hs"
 
 import Streamly.Internal.Data.Unfold (Unfold)
-import Streamly.Internal.Data.Array.Unboxed as A hiding (read, readRev)
+import Streamly.Internal.Data.Array as A hiding (read, readRev)
 
 import Streamly.Internal.Data.Unboxed (Unbox (..))
 import Prelude hiding (read)
@@ -108,9 +108,9 @@ import Prelude hiding (read)
 -- >>> :m
 -- >>> :set -XFlexibleContexts
 -- >>> import Streamly.Internal.Data.Stream (Stream)
--- >>> import Streamly.Data.Array.Unboxed (Array)
+-- >>> import Streamly.Data.Array (Array)
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 
 -- | Same as 'reader'
 --

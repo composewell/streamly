@@ -29,12 +29,12 @@ where
 
 import Control.DeepSeq (NFData)
 import Data.Word (Word8)
-import Streamly.Data.Array.Unboxed (Array)
+import Streamly.Data.Array (Array)
 import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Array.Unboxed as Array
+import qualified Streamly.Internal.Data.Array as Array
     ( fromStreamN
     , read
     )

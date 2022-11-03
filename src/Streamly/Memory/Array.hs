@@ -32,7 +32,7 @@
 --
 -- > import qualified Streamly.Array as A
 --
--- For experimental APIs see "Streamly.Internal.Data.Array.Unboxed".
+-- For experimental APIs see "Streamly.Internal.Data.Array".
 
 module Streamly.Memory.Array
     {-# DEPRECATED "Use Streamly.Data.Array.Foreign instead" #-}
@@ -71,4 +71,4 @@ module Streamly.Memory.Array
     )
 where
 
-import Streamly.Internal.Data.Array.Unboxed as A
+import Streamly.Internal.Data.Array as A

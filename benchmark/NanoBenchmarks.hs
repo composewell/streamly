@@ -12,7 +12,7 @@ import Data.Char (ord)
 import Streamly.Internal.Data.Stream (Stream)
 import System.IO (hSeek, SeekMode(..), openFile, IOMode(..))
 
-import qualified Streamly.Data.Array.Unboxed as A
+import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream as S

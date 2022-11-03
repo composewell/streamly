@@ -658,7 +658,7 @@ drain = foldl' (\_ _ -> ()) ()
 -- | Folds the input stream to a list.
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
--- very inefficient, consider using "Streamly.Data.Array.Unboxed"
+-- very inefficient, consider using "Streamly.Data.Array"
 -- instead.
 --
 -- >>> toList = Fold.foldr' (:) []

@@ -58,7 +58,7 @@ where
 
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Data.Array.Unboxed.Type (Array)
+import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Refold.Type (Refold (..))
@@ -66,7 +66,7 @@ import Streamly.Internal.Data.Stream.Bottom (foldManyPost)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Unboxed (Unbox)
 
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -80,7 +80,7 @@ import Prelude hiding (concatMap, map)
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 
 ------------------------------------------------------------------------------
 -- Trimming
