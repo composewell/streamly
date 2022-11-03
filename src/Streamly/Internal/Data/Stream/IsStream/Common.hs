@@ -71,7 +71,7 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Array.Unboxed.Type (Array)
+import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators (maxYields)
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -82,7 +82,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Unboxed (Unbox)
 
 import qualified Streamly.Data.Stream as Stream (fold, foldBreak)
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
@@ -109,7 +109,7 @@ import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import Streamly.Internal.Data.Stream.IsStream as Stream
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold

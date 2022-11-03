@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Array.Unboxed.Mut
+-- Module      : Streamly.Data.Array.Mut
 -- Copyright   : (c) 2022 Composewell Technologies
 --
 -- License     : BSD3
@@ -11,7 +11,7 @@
 -- random access, and mutation.
 --
 
-module Streamly.Data.Array.Unboxed.Mut
+module Streamly.Data.Array.Mut
     (
     -- * Types
       Unbox (..)
@@ -60,5 +60,5 @@ module Streamly.Data.Array.Unboxed.Mut
 where
 
 import Prelude hiding (length, read)
-import Streamly.Internal.Data.Array.Unboxed.Mut
+import Streamly.Internal.Data.Array.Mut
 import Streamly.Internal.Data.Unboxed (Unbox (..))

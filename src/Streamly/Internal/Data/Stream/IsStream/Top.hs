@@ -71,7 +71,7 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Array.Generic as Array
     (fromStream, length, read)
-import qualified Streamly.Data.Array.Unboxed.Mut as MA
+import qualified Streamly.Data.Array.Mut as MA
 import qualified Streamly.Internal.Data.Fold as Fold
     (one, last, toStream, toStreamRev)
 import qualified Streamly.Internal.Data.Parser as Parser

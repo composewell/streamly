@@ -202,7 +202,7 @@ import Prelude hiding (concat, concatMap, zipWith)
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import qualified Streamly.Data.Array.Unboxed as Array
+-- >>> import qualified Streamly.Data.Array as Array
 -- >>> :{
 --  delay n = do
 --      threadDelay (n * 1000000)   -- sleep for n seconds

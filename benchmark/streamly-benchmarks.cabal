@@ -572,10 +572,10 @@ benchmark Data.SmallArray
   else
     buildable: False
 
-benchmark Data.Array.Unboxed
+benchmark Data.Array
   import: bench-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Array/Unboxed.hs
+  main-is: Streamly/Benchmark/Data/Array.hs
   if flag(use-streamly-core)
     buildable: False
   else
@@ -583,10 +583,10 @@ benchmark Data.Array.Unboxed
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
-benchmark Data.Array.Unboxed.Mut
+benchmark Data.Array.Mut
   import: bench-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Array/Unboxed/Mut.hs
+  main-is: Streamly/Benchmark/Data/Array/Mut.hs
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
   if flag(use-streamly-core)
@@ -609,11 +609,11 @@ benchmark Data.Ring.Unboxed
 -- Array Stream Benchmarks
 -------------------------------------------------------------------------------
 
-benchmark Data.Array.Unboxed.Stream
+benchmark Data.Array.Stream
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Array/Stream
-  main-is: Unboxed.hs
+  hs-source-dirs: Streamly/Benchmark/Data/Array
+  main-is: Stream.hs
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
   else

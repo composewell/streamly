@@ -48,7 +48,7 @@ import Data.Function ((&))
 import Data.Functor.Identity (runIdentity)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Word (Word8)
-import Streamly.Data.Array.Unboxed (Array)
+import Streamly.Data.Array (Array)
 import System.Directory
     ( createDirectory
     , createDirectoryIfMissing
@@ -65,7 +65,7 @@ import System.IO
 import System.IO.Temp (withSystemTempDirectory)
 
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Streamly.Internal.Data.Array.Unboxed as Array
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Unicode.Stream as Unicode
 

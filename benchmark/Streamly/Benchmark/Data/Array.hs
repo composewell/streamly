@@ -6,11 +6,11 @@
 
 import Control.DeepSeq (deepseq)
 
-import qualified Streamly.Internal.Data.Array.Unboxed as IA
+import qualified Streamly.Internal.Data.Array as IA
 import qualified GHC.Exts as GHC
 
--- import qualified Streamly.Data.Array.Unboxed as A
-import qualified Streamly.Internal.Data.Array.Unboxed as A
+-- import qualified Streamly.Data.Array as A
+import qualified Streamly.Internal.Data.Array as A
 type Stream = A.Array
 
 #include "Streamly/Benchmark/Data/Array/Common.hs"
@@ -116,7 +116,7 @@ o_n_heap_serial value =
     ]
 
 moduleName :: String
-moduleName = "Data.Array.Unboxed"
+moduleName = "Data.Array"
 
 defStreamSize :: Int
 defStreamSize = defaultStreamSize

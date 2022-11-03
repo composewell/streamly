@@ -155,9 +155,9 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE readChunks #-}
@@ -351,7 +351,7 @@ fromStreamWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before writing.
+-- up to 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing.
 --
 -- NOTE: This may perform better than the 'write' fold, you can try this if you
 -- need some extra perf boost.
@@ -401,7 +401,7 @@ writeWithBufferOf n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize' before writing
+-- up to 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing
 -- to the IO device.
 --
 -- @since 0.7.0

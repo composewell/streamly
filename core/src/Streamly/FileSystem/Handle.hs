@@ -35,7 +35,7 @@
 -- Design notes:
 --
 -- By design, file handle IO APIs are quite similar to
--- "Streamly.Data.Array.Unboxed" read write APIs. In that regard, arrays can be
+-- "Streamly.Data.Array" read write APIs. In that regard, arrays can be
 -- considered as in-memory files or files can be considered as on-disk arrays.
 --
 module Streamly.FileSystem.Handle
@@ -109,7 +109,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Streamly.Internal.Data.Array.Unboxed.Type (Array)
+import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 import System.IO (Handle)
 

@@ -86,21 +86,21 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
-import Streamly.Internal.Data.Array.Unboxed.Type (Array(..))
-import Streamly.Internal.Data.Array.Unboxed.Stream (lpackArraysChunksOf)
+import Streamly.Internal.Data.Array.Type (Array(..))
+import Streamly.Internal.Data.Array.Stream (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Data.Array.Unboxed as A (reader, length, writeN)
+import qualified Streamly.Data.Array as A (reader, length, writeN)
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as A
+import qualified Streamly.Internal.Data.Array.Type as A
     (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe)
-import qualified Streamly.Internal.Data.Array.Unboxed.Mut as MArray
+import qualified Streamly.Internal.Data.Array.Mut as MArray
     (Array(..), newPinnedBytes, asPtrUnsafe)
-import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
+import qualified Streamly.Internal.Data.Array.Stream as AS
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))
@@ -391,9 +391,9 @@ readChunksWithBufferOf = chunkReaderWith
 
 -- | Unfolds a socket into a stream of 'Word8' arrays. Requests to the socket
 -- are performed using a buffer of size
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
 {-# INLINE chunkReader #-}
 chunkReader :: MonadIO m => Unfold m Socket (Array Word8)
@@ -435,7 +435,7 @@ readWithBufferOf = readerWith
 
 -- | Unfolds a 'Socket' into a byte stream.  IO requests to the socket are
 -- performed in sizes of
--- 'Streamly.Internal.Data.Array.Unboxed.Type.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
 {-# INLINE reader #-}
 reader :: MonadIO m => Unfold m Socket Word8

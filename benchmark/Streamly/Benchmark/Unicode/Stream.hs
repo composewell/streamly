@@ -23,7 +23,7 @@
 import Prelude hiding (last, length)
 import System.IO (Handle)
 
-import qualified Streamly.Data.Array.Unboxed as Array
+import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
@@ -40,7 +40,7 @@ import Streamly.Internal.Data.Unboxed (Unbox)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Array.Unboxed.Type as Array
+import qualified Streamly.Internal.Data.Array.Type as Array
 
 import Test.Inspection
 #endif

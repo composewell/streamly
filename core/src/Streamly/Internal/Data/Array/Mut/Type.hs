@@ -1,6 +1,6 @@
 {-# LANGUAGE UnboxedTuples #-}
 -- |
--- Module      : Streamly.Internal.Data.Array.Unboxed.Mut.Type
+-- Module      : Streamly.Internal.Data.Array.Mut.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -12,7 +12,7 @@
 -- strive to keep the API consistent for both. Ideally, you should be able to
 -- replace one with another with little changes to the code.
 
-module Streamly.Internal.Data.Array.Unboxed.Mut.Type
+module Streamly.Internal.Data.Array.Mut.Type
     (
     -- * Type
     -- $arrayNotes
@@ -263,7 +263,7 @@ import Prelude hiding
 
 -- $setup
 -- >>> :m
--- >>> import qualified Streamly.Internal.Data.Array.Unboxed.Mut.Type as Array
+-- >>> import qualified Streamly.Internal.Data.Array.Mut.Type as Array
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
@@ -1297,7 +1297,7 @@ arraysOf n (D.Stream step state) =
     step' _ (GroupStart st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Unboxed.Mut.Type.arraysOf: "
+            error $ "Streamly.Internal.Data.Array.Mut.Type.arraysOf: "
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
         Array contents start end bound <- liftIO $ newPinned n

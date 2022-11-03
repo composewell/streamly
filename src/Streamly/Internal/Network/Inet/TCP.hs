@@ -106,7 +106,7 @@ import Prelude hiding (read)
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (fork)
-import Streamly.Internal.Data.Array.Unboxed.Type (Array(..), writeNUnsafe)
+import Streamly.Internal.Data.Array.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -117,11 +117,11 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Control.Monad.Catch as MC
 import qualified Network.Socket as Net
 
-import qualified Streamly.Data.Array.Unboxed as A
+import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO, first)
-import qualified Streamly.Internal.Data.Array.Unboxed.Stream as AS
+import qualified Streamly.Internal.Data.Array.Stream as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL (Step(..))
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S

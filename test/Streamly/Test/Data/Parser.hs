@@ -15,7 +15,7 @@ import Prelude hiding (sequence)
 
 import qualified Data.List as List
 import qualified Prelude
-import qualified Streamly.Internal.Data.Array.Unboxed as A
+import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Stream as S
