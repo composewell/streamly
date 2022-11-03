@@ -277,7 +277,7 @@ library
                      , Streamly.Internal.Data.Array.Unboxed.Mut.Type
                      , Streamly.Internal.Data.Array.Unboxed.Mut
                      , Streamly.Internal.Data.Array.Unboxed.Type
-                     , Streamly.Internal.Data.Array.Mut.Type
+                     , Streamly.Internal.Data.Array.Generic.Mut.Type
 
                      -- streamly-core-streams
                      -- StreamD depends on streamly-array-types
@@ -318,7 +318,7 @@ library
                      , Streamly.Internal.Data.List
 
                      -- streamly-core-data-arrays
-                     , Streamly.Internal.Data.Array
+                     , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array.Unboxed
                      , Streamly.Internal.Data.Array.Unboxed.Mut.Stream
                      , Streamly.Internal.Data.Array.Unboxed.Fold
@@ -375,7 +375,7 @@ library
                      -- streamly-core released modules in alphabetic order
                      -- NOTE: these must be added to streamly.cabal as well
                      , Streamly.Console.Stdio
-                     , Streamly.Data.Array
+                     , Streamly.Data.Array.Generic
                      , Streamly.Data.Array.Unboxed
                      , Streamly.Data.Array.Unboxed.Mut
                      , Streamly.Data.Fold

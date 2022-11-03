@@ -133,7 +133,7 @@ $ cabal-docspec --timeout 60 --check-properties --property-variables xs
 ## Naming of test modules
 
 Tests are organized by source modules. For example, for the source
-module `Streamly.Data.Array` and `Streamly.Internal.Data.Array` we have
-a test module `Data.Array`. For some modules tests for a source module
+module `Streamly.Data.Array.Generic` and `Streamly.Internal.Data.Array.Generic` we have
+a test module `Data.Array.Generic`. For some modules tests for a source module
 are broken into multiple modules. For example, for `Streamly.Prelude` we have
 `Streamly.Prelude.Serial`, `Streamly.Prelude.Async` etc.

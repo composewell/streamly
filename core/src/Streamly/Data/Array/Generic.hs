@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Array
+-- Module      : Streamly.Data.Array.Generic
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Data.Array
+module Streamly.Data.Array.Generic
     ( Array
 
     -- * Construction
@@ -38,6 +38,6 @@ module Streamly.Data.Array
     )
 where
 
-import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.Array.Generic (Array)
 
-import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Array.Generic as A

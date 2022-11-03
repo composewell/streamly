@@ -551,11 +551,11 @@ benchmark Prelude.Rate
 -- Array Benchmarks
 -------------------------------------------------------------------------------
 
-benchmark Data.Array
+benchmark Data.Array.Generic
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: .
-  main-is: Streamly/Benchmark/Data/Array.hs
+  main-is: Streamly/Benchmark/Data/Array/Generic.hs
   if flag(use-streamly-core)
     buildable: False
   else

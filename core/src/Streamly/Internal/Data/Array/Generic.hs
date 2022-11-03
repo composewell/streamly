@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Array
+-- Module      : Streamly.Internal.Data.Array.Generic
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -11,7 +11,7 @@
 -- Stability   : pre-release
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Array
+module Streamly.Internal.Data.Array.Generic
     ( Array(..)
 
     -- * Construction
@@ -62,7 +62,7 @@ import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
-import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
+import qualified Streamly.Internal.Data.Array.Generic.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamD as D

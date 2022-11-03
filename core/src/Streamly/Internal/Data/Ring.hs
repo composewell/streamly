@@ -14,7 +14,7 @@ module Streamly.Internal.Data.Ring
     ) where
 
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef, IORef)
-import Streamly.Internal.Data.Array.Mut.Type
+import Streamly.Internal.Data.Array.Generic.Mut.Type
     ( Array(..)
     , newArray
     , putIndexUnsafe

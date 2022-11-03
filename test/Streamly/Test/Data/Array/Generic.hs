@@ -1,18 +1,18 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- |
--- Module      : Streamly.Test.Data.Array
+-- Module      : Streamly.Test.Data.Array.Generic
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Array (main) where
+module Streamly.Test.Data.Array.Generic (main) where
 
 #include "Streamly/Test/Data/Array/CommonImports.hs"
 
-import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Array.Generic as A
 
 type Array = A.Array
 
