@@ -225,11 +225,11 @@ test-suite Data.List.Base
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/List.hs
 
-test-suite Data.Array
+test-suite Data.Array.Generic
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array.hs
-  ghc-options: -main-is Streamly.Test.Data.Array.main
+  main-is: Streamly/Test/Data/Array/Generic.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.Generic.main
   if flag(use-streamly-core)
     buildable: False
 
