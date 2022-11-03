@@ -86,6 +86,7 @@ hierarchy and can be used everywhere. For example, we can have the following
 Array types, here we have organized the types under the `Array` hierarchy
 rather than putting the `PrimArray` under a `Prim` hierarchy.
 
+-- XXX This needs to be changed. The text above as well.
 ```
 Streamly.Internal.Data.Array.Boxed
 Streamly.Internal.Data.Array.Prim

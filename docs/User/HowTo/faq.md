@@ -16,18 +16,21 @@ example:
 
 ```haskell
 import Data.Function ((&))
-import qualified Streamly.Prelude as Stream
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Data.Stream.Concurrent as Concur
 
 f1 x =
       Prelude.map ($ x) [return . (+ 1), return . (+ 2)]
-    & Stream.fromListM
-    & Stream.fromAhead
-    & Stream.toList
+    & Stream.fromList
+    & Concur.sequenceWith (Concur.ordered True)
+    & Stream.fold Fold.toList
 ```
 
 Alternatively, if you want to concurrently zip different types of outputs, you
 can use `Applicative` composition:
 
+-- XXX Use TypeGen accodingly?
 ```haskell
 import Data.Maybe (fromJust)
 f2 x =
@@ -45,8 +48,8 @@ Then apply the function `f` concurrently to your input stream:
 ```haskell
 g f xs =
   Stream.fromList xs
-    & Stream.mapM f
-    & Stream.fromAhead
+    & fmap f
+    & Concur.sequenceWith (Concur.ordered True)
     & Stream.toList
 ```
 
@@ -64,7 +67,7 @@ g f xs =
 >>> :{
   Stream.fromList [1,2,3,4,5::Int]
 & Stream.scan (Array.writeLastN 2)
-& Stream.toList
+& Stream.fold Fold.list
 :}
 [[],[1],[1,2],[2,3],[3,4],[4,5]]
 ```

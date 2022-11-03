@@ -79,11 +79,18 @@ API.
 This simple console echo program shows the simplicity of Streamly API
 and its similarity with the list API:
 
+-- XXX Use sequence here instead?
 ```haskell
+import Data.Function ((&))
+
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as Stream
+
+echo :: IO ()
 echo =
-      Stream.repeatM getLine
+      Stream.repeat getLine
     & Stream.mapM putStrLn
-    & Stream.drain
+    & Stream.fold Fold.drain
 ```
 
 Streamly uses dual representation for streams. On top it uses Scott
@@ -111,8 +118,11 @@ to the list monad. It provides the functionality provided by `list-t` or
 the serial stream monad:
 
 ```haskell
-import qualified Streamly.Prelude as S
+import Streamly.Data.Stream (Stream)
 
+import qualified Streamly.Data.Stream as Stream
+
+loops :: Stream IO ()
 loops = do
     x <- Stream.fromFoldable [1,2]
     y <- Stream.fromFoldable [3,4]
@@ -146,8 +156,37 @@ scheduling behavior.  The example from the previous section can be run
 with interleaved scheduling behavior as follows, without changing the
 code at all:
 
+-- XXX The documentation above needs to be changed, or the example below needs
+to be changed.
 ```haskell
-main = Stream.drain $ Stream.fromWserial loops
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
+
+import Control.Monad.Catch (MonadThrow(..))
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Reader.Class (MonadReader(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Streamly.Data.Stream (Stream)
+
+import qualified Control.Monad
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.TypeGen as TypeGen
+
+bindWserial :: Stream m a -> (a -> Stream m b) -> Stream m b
+bindWserial = flip (Stream.concatMapWith Stream.interleave)
+
+$(TypeGen.mkNestingType "WSerial" "bindWserial" False)
+
+loops :: WSerial IO ()
+loops = do
+    x <- mkWSerial $ Stream.fromFoldable [1,2]
+    y <- mkWSerial $ Stream.fromFoldable [3,4]
+    mkWSerial $ Stream.fromEffect $ print (x, y)
+
+main :: IO ()
+main = Stream.fold Fold.drain $ unWSerial loops
 ```
 
 Scheduling is fundamental to expressing many common programming problems
@@ -172,14 +211,72 @@ execution of loop iterations as follows, without changing the code at
 all:
 
 ```haskell
-main = Stream.drain $ Stream.fromAhead loops
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
+
+import Control.Monad.Catch (MonadThrow(..))
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Reader.Class (MonadReader(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Streamly.Data.Stream (Stream)
+import Streamly.Data.Stream.Concurrent (MonadAsync)
+
+import qualified Control.Monad
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Data.Stream.Concurrent as Concur
+import qualified Streamly.Internal.Data.Stream.TypeGen as TypeGen
+
+bindAhead :: MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
+bindAhead = flip (Concur.concatMapWith (Concur.ordered True))
+
+$(TypeGen.mkNestingType "Ahead" "bindAhead" True)
+
+loops :: Ahead IO ()
+loops = do
+    x <- mkAhead $ Stream.fromFoldable [1,2]
+    y <- mkAhead $ Stream.fromFoldable [3,4]
+    mkAhead $ Stream.fromEffect $ print (x, y)
+
+main :: IO ()
+main = Stream.fold Fold.drain $ unAhead loops
 ```
 
 And interleaving with concurrent execution of the loop iterations can be
 written like this:
 
 ```haskell
-main = Stream.drain $ Stream.fromWAsync loops
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
+
+import Control.Monad.Catch (MonadThrow(..))
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Reader.Class (MonadReader(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Streamly.Data.Stream (Stream)
+import Streamly.Data.Stream.Concurrent (MonadAsync)
+
+import qualified Control.Monad
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Data.Stream.Concurrent as Concur
+import qualified Streamly.Internal.Data.Stream.TypeGen as TypeGen
+
+bindWAsync :: MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
+bindWAsync = flip (Concur.concatMapWith (Concur.interleaved True))
+
+$(TypeGen.mkNestingType "WAsync" "bindWAsync" True)
+
+loops :: WAsync IO ()
+loops = do
+    x <- mkWAsync $ Stream.fromFoldable [1,2]
+    y <- mkWAsync $ Stream.fromFoldable [3,4]
+    mkWAsync $ Stream.fromEffect $ print (x, y)
+
+main :: IO ()
+main = Stream.fold Fold.drain $ unWAsync loops
 ```
 
 All this comes with no change in the streaming APIs.

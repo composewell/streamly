@@ -23,7 +23,7 @@ streaming style processing:
 ```
   replicate 10 1
     & zipWith (+) [1..10]
-    & map (+1)
+    & fmap (+1)
     & filter odd
     & sum
 ```
@@ -38,9 +38,9 @@ processes it:
 ```
   xs <- replicateM 10 (return 1)
   zipWith (+) [1..10] xs
-    & map (+1)
+    & fmap (+1)
     & filter odd
-    & sum
+    & fold Fold.sum
 ```
 
 Monadic streams solve this problem. To be able to consume elements from
@@ -51,11 +51,11 @@ same API.  So we can represent the previous example in a streaming fashion by
 replacing the list combinators with corresponding streamly combinators:
 
 ```
-  S.replicateM 10 (return 1)
+  S.sequence (S.replicate 10 (return 1))
     & S.zipWith (+) (S.fromList [1..10])
-    & S.map (+1)
+    & fmap (+1)
     & S.filter odd
-    & S.sum
+    & S.fold Fold.sum
 ```
 
 Streamly's monadic streams are a generalization of pure streams (aka lists) and
@@ -82,11 +82,10 @@ Pure streams are constructed using `S.nil` (corresponds to `[]`) and `S.cons`
 or `.:` (corresponds to `:`):
 
 ```
-import Streamly
-import Streamly.Prelude ((.:))
-import qualified Streamly.Prelude as S
+import Streamly.Data.Stream (cons)
+import qualified Streamly.Data.Stream as S
 
-> "hello" .: "world" .: S.nil :: SerialT Identity String
+> "hello" `cons` "world" `cons` S.nil :: Stream Identity String
 fromList ["hello","world"]
 ```
 
@@ -113,16 +112,16 @@ Lists:
 
 ```
 > replicate 10 1
-> map (+1) $ replicate 10 1
-> length $ replicate 10 1
+> fmap (+1) $ replicate 10 1
+> Stream.fold Fold.length $ replicate 10 1
 ```
 
 Pure streams are almost identical:
 
 ```
-> S.replicate 10 1 :: SerialT Identity Int
-> S.map (+1) $ S.replicate 10 1 :: SerialT Identity Int
-> length (S.replicate 10 1 :: SerialT Identity Int)
+> S.replicate 10 1 :: Stream Identity Int
+> fmap (+1) $ S.replicate 10 1 :: Stream Identity Int
+> Stream.fold Fold.length (S.replicate 10 1 :: Stream Identity Int)
 ```
 
 ## Monadic Operations
@@ -152,9 +151,10 @@ Streams:
 
 ```
 import Streamly
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as Stream
 main = do
-  n <- S.length
+  n <- S.fold Fold.length
       $ S.mapM (\x -> return $ x + 1)
       $ S.replicateM 10000000 (pure 1)
   print n
@@ -175,9 +175,10 @@ Monadic streams are nothing but lists made monadic. We can construct streams
 using monadic actions, just the way pure lists are constructed:
 
 ```
-> import Streamly.Prelude ((|:))
-> import qualified Streamly.Prelude as S
-> S.toList $ getLine |: getLine |: S.nil
+> import Streamly.Data.Stream (consM)
+> import qualified Streamly.Data.Fold as Fold
+> import qualified Streamly.Data.Stream as S
+> S.fold Fold.toList $ getLine `consM` getLine `concsM` S.nil
 hello
 world
 ["hello","world"]
@@ -199,11 +200,11 @@ The following code prints one element every second:
 
 ```haskell
 import Control.Concurrent
-import Streamly
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as S
 
 func = S.mapM (\x -> threadDelay 1000000 >> print x) $ S.replicate 10 1
-main = runStream func
+main = S.fold Fold.drain func
 ```
 
 To run it concurrently, just run the same code with `fromAsync` combinator:
@@ -217,8 +218,8 @@ stream elements.  It prints all the 10 elements after one second because all
 the delay actions run concurrently. Alternatively we can write:
 
 ```
-func = S.mapM $ fromAsync $ S.replicateM (threadDelay 1000000 >> print 1)
-main = runStream func
+func = S.mapM $ Concur.sequence $ S.replicate (threadDelay 1000000 >> print 1)
+main = S.fold Fold.drain func
 ```
 
 Here, the `replicateM` operation replicates the action concurrently.  In real

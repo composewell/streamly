@@ -113,13 +113,16 @@ An example setup section:
 Some tests that may take long can be written as follows.  Just defining
 the snippet as a function makes it compile but not run.
 
+-- XXX This needs to be changed. Although not required. This is just an example,
+we can just have different examples instead.
 ```
+>>> drain = Stream.fold Fold.drain
 >>> :{
 main = do
- Stream.drain $ Stream.fromAsync $ foldMap delay [1..10]
- Stream.drain $ Stream.concatFoldableWith Stream.async (map delay [1..10])
- Stream.drain $ Stream.concatMapFoldableWith Stream.async delay [1..10]
- Stream.drain $ Stream.concatForFoldableWith Stream.async [1..10] delay
+ drain $ Stream.fromAsync $ foldMap delay [1..10]
+ drain $ Stream.concatFoldableWith Stream.async (map delay [1..10])
+ drain $ Stream.concatMapFoldableWith Stream.async delay [1..10]
+ drain $ Stream.concatForFoldableWith Stream.async [1..10] delay
 :}
 ```
 

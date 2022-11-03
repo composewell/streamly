@@ -177,13 +177,13 @@ Once at the `*Main>` prompt, you can import `streamly` and use it
 directly:
 
 ```
-*Main> import qualified Streamly.Prelude as Stream
-
-*Main Stream> Stream.drain $ Stream.mapM print $ Stream.fromList [1..3]
+*Main> import qualified Streamly.Data.Stream as Stream
+*Main Stream> import qualified Streamly.Data.Fold as Fold
+*Main Stream Fold> Stream.fold Fold.drain $ Stream.mapM print $ Stream.fromList [1..3]
 1
 2
 3
-*Main Stream>
+*Main Stream Fold>
 ```
 
 For the curious, here is a high level overview of what these lines
@@ -248,10 +248,11 @@ Edit `Main.hs` to contain the following:
 ```haskell
 module Main where
 
-import qualified Streamly.Prelude as Stream
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as Stream
 
 main :: IO ()
-main = Stream.drain $ Stream.mapM print $ Stream.fromList [1..3]
+main = Stream.fold Fold.drain $ Stream.mapM print $ Stream.fromList [1..3]
 ```
 
 Build and run this program using `cabal run`:

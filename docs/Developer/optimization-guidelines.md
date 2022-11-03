@@ -175,12 +175,13 @@ generate a tighter loop. However, it is not necessarily optimal to inline the
 whole loop itself into a parent function. For example, consider the following
 function in the `FileSystem.Handle` benchmarks:
 
+-- XXX There is no NOINLINE on `readWriteAfter_Stream` anymore.
 ```
 {-# NOINLINE readWriteAfter_Stream #-}
 readWriteAfter_Stream :: Handle -> Handle -> IO ()
 readWriteAfter_Stream inh devNull =
-    let readEx = IP.after_ (hClose inh) (S.unfold FH.read inh)
-     in S.fold (FH.write devNull) readEx
+    let readEx = Stream.afterUnsafe (hClose inh) (Stream.unfold FH.reader inh)
+     in Stream.fold (FH.write devNull) readEx
 ```
 
 If this is inlined into a parent benchmark group list, this leads to
@@ -281,10 +282,10 @@ style would have worse performance than the CPS style ops.
 
 ```
 {-# INLINE_EARLY unfoldr #-}
-unfoldr :: (Monad m, IsStream t) => (b -> Maybe (a, b)) -> b -> t m a
-unfoldr step seed = fromStreamS (S.unfoldr step seed)
+unfoldr :: Monad m => (b -> Maybe (a, b)) -> b -> Stream m a
+unfoldr step seed = fromStreamD (D.unfoldr step seed)
 {-# RULES "unfoldr fallback to StreamK" [1]
-     forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}
+    forall a b. D.toStreamK (D.unfoldr a b) = K.unfoldr a b #-}
 ```
 
 ## High Level Operation Fusion

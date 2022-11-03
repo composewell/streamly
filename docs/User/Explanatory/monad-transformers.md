@@ -15,11 +15,11 @@ singleton stream use 'lift' and to lift from an IO action use 'liftIO'.
 
 ```
 >>> import Control.Monad.IO.Class (liftIO)
->>> Stream.drain $ liftIO $ putStrLn "Hello world!"
+>>> Stream.fold Fold.drain $ liftIO $ putStrLn "Hello world!"
 Hello world!
 
 >>> import Control.Monad.Trans.Class (MonadTrans(lift))
->>> Stream.drain $ lift $ putStrLn "Hello world!"
+>>> Stream.fold Fold.drain $ lift $ putStrLn "Hello world!"
 Hello world!
 ```
 

@@ -119,16 +119,19 @@ numbers from stdin, prints the squares of even numbers and exits if an even
 number more than 9 is entered.
 
 ``` haskell
-import qualified Streamly.Prelude as S
 import Data.Function ((&))
 
-main = S.drain $
-       S.repeatM getLine
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Data.Stream.Concurrent as Concur
+
+main = Stream.drain $
+       Stream.repeatM getLine
      & fmap read
-     & S.filter even
-     & S.takeWhile (<= 9)
+     & Stream.filter even
+     & Stream.takeWhile (<= 9)
      & fmap (\x -> x * x)
-     & S.mapM print
+     & Stream.mapM print
 ```
 
 Unlike `pipes` or `conduit` and like `vector` and `streaming`, `streamly`
@@ -138,6 +141,8 @@ stream.  Therefore, no special operator is needed to join stages in a streaming
 pipeline, just the standard function application (`$`) or reverse function
 application (`&`) operator is enough.
 
+-- XXX The following along with the examples need to be changed.
+-- I have not verified if the examples will compile.
 ## Concurrent Stream Generation
 
 `consM` or its operator form `|:` can be used to construct a stream from
@@ -151,7 +156,7 @@ each action is finished (asyncly):
 
 ``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
-> S.toList $ S.fromAsync $ p 3 |: p 2 |: p 1 |: S.nil
+> Stream.fold Fold.toList $ Concur.async [p 3, p 2, p 1 ]
 [1,2,3]
 ```
 
@@ -159,7 +164,7 @@ Use `fromAhead` if you want speculative concurrency i.e. execute the actions in
 the stream concurrently but consume the results in the specified order:
 
 ``` haskell
-> S.toList $ S.fromAhead $ p 3 |: p 2 |: p 1 |: S.nil
+> Stream.fold Fold.toList $ S.ahead [p 3, p 2, p 1]
 [3,2,1]
 ```
 
@@ -169,7 +174,7 @@ Monadic stream generation functions e.g. `unfoldrM`, `replicateM`, `repeatM`,
 The following finishes in 10 seconds (100 seconds when serial):
 
 ``` haskell
-S.drain $ S.fromAsync $ S.replicateM 10 $ p 10
+Stream.fold Fold.drain $ Concur.sequence $ Stream.replicate 10 $ p 10
 ```
 
 ## Concurrent Streaming Pipelines
@@ -179,9 +184,10 @@ following example prints a "hello" every second; if you use `&` instead of
 `|&` you will see that the delay doubles to 2 seconds instead because of serial
 application.
 
+-- XXX This needs to be changed. We should use `eval` here?
 ``` haskell
-main = S.drain $
-      S.repeatM (threadDelay 1000000 >> return "hello")
+main = Stream.drain $
+      Stream.repeatM (threadDelay 1000000 >> return "hello")
    |& S.mapM (\x -> threadDelay 1000000 >> putStrLn x)
 ```
 
@@ -191,7 +197,7 @@ We can use `mapM` or `sequence` functions concurrently on a stream.
 
 ``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
-> S.drain $ S.fromAhead $ S.mapM (\x -> p 1 >> print x) (S.fromSerial $ S.repeatM (p 1))
+> Stream.fold Fold.drain $ Concur.mapMWith (Concur.ordered True) (\x -> p 1 >> print x) (Stream.repeatM (p 1))
 ```
 
 ## Serial and Concurrent Merging
@@ -201,6 +207,7 @@ concurrently. In the following example we compose ten actions in the
 stream, each with a delay of 1 to 10 seconds, respectively. Since all the
 actions are concurrent we see one output printed every second:
 
+-- XXX This needs to be changed
 ``` haskell
 import qualified Streamly.Prelude as S
 import Control.Concurrent (threadDelay)
@@ -214,10 +221,10 @@ below, see the tutorial for more ways. We use the following `delay`
 function in the examples to demonstrate the concurrency aspects:
 
 ``` haskell
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream as Stream
 import Control.Concurrent
 
-delay n = S.fromEffect $ do
+delay n = Stream.fromEffect $ do
     threadDelay (n * 1000000)
     tid <- myThreadId
     putStrLn (show tid ++ ": Delay " ++ show n)
@@ -225,7 +232,7 @@ delay n = S.fromEffect $ do
 ### Serial
 
 ``` haskell
-main = S.drain $ delay 3 <> delay 2 <> delay 1
+main = Stream.fold Fold.drain $ delay 3 <> delay 2 <> delay 1
 ```
 ```
 ThreadId 36: Delay 3
@@ -235,8 +242,9 @@ ThreadId 36: Delay 1
 
 ### Parallel
 
+-- XXX Change this.
 ``` haskell
-main = S.drain . S.fromParallel $ delay 3 <> delay 2 <> delay 1
+main = Stream.fold Fold.drain . Concur.parallel [delay 3, delay 2, delay 1]
 ```
 ```
 ThreadId 42: Delay 1
@@ -249,14 +257,15 @@ ThreadId 40: Delay 3
 The monad instance composes like a list monad.
 
 ``` haskell
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as Stream
 
 loops = do
-    x <- S.fromFoldable [1,2]
-    y <- S.fromFoldable [3,4]
-    S.fromEffect $ putStrLn $ show (x, y)
+    x <- Stream.fromFoldable [1,2]
+    y <- Stream.fromFoldable [3,4]
+    Stream.fromEffect $ putStrLn $ show (x, y)
 
-main = S.drain loops
+main = Stream.fold Fold.drain loops
 ```
 ```
 (1,3)
@@ -271,6 +280,7 @@ To run the above code with speculative concurrency i.e. each iteration in the
 loop can run concurrently but the results are presented to the consumer of the
 output in the same order as serial execution:
 
+-- XXX This needs to be changed. We can use TypeGen here.
 ``` haskell
 main = S.drain $ S.fromAhead $ loops
 ```
@@ -287,6 +297,8 @@ concurrently using combinators like `fromAsync`, `parallelly`. For example,
 to concurrently generate squares of a stream of numbers and then concurrently
 sum the square roots of all combinations of two streams:
 
+-- XXX This needs to be changed. We don't have magical concurrency. We have
+clear and understandable concurrency now.
 ``` haskell
 import qualified Streamly.Prelude as S
 
@@ -306,9 +318,16 @@ For bounded concurrent streams, stream yield rate can be specified. For
 example, to print hello once every second you can simply write this:
 
 ``` haskell
-import Streamly.Prelude as S
+import Data.Function ((&))
 
-main = S.drain $ S.fromAsync $ S.avgRate 1 $ S.repeatM $ putStrLn "hello"
+import Streamly.Data.Fold as Fold
+import Streamly.Data.Stream as Stream
+import Streamly.Data.Stream.Concurrent as Concur
+
+main =
+    Stream.repeat $ putStrLn "hello"
+        & Concur.sequenceWith (Concur.avgRate 1)
+        & Stream.fold Fold.drain
 ```
 
 For some practical uses of rate control, see
@@ -372,12 +391,13 @@ to keep them short and elegant. Source file
 [CoreUtilsHandle.hs](https://github.com/composewell/streamly-examples/blob/master/examples/CoreUtilsHandle.hs)
 in the examples directory includes these examples.
 
+-- XXX No more unboxed
 ``` haskell
 module Main where
 
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Data.Array.Foreign as A
+import qualified Streamly.Data.Array.Unboxed as A
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 
@@ -400,21 +420,21 @@ withArg2 f = do
 ### cat
 
 ``` haskell
-cat = S.fold (FH.writeChunks stdout) . S.unfold FH.readChunks
+cat = S.fold (FH.writeChunks stdout) . S.unfold FH.chunkReader
 main = withArg cat
 ```
 
 ### cp
 
 ``` haskell
-cp src dst = S.fold (FH.writeChunks dst) $ S.unfold FH.readChunks src
+cp src dst = S.fold (FH.writeChunks dst) $ S.unfold FH.chunkReader src
 main = withArg2 cp
 ```
 
 ### wc -l
 
 ``` haskell
-wcl = S.length . S.splitOn (== 10) FL.drain . S.unfold FH.read
+wcl = S.length . S.foldMany (FL.takeEndBy_ (== 10) FL.drain) . S.unfold FH.reader
 main = withArg wcl >>= print
 ```
 
@@ -423,8 +443,8 @@ main = withArg wcl >>= print
 ``` haskell
 avgll =
       S.fold avg
-    . S.splitOn (== 10) FL.length
-    . S.unfold FH.read
+    . S.foldMany (FL.takeEndBy_ (== 10) FL.length)
+    . S.unfold FH.reader
 
     where avg      = (/) <$> toDouble FL.sum <*> toDouble FL.length
           toDouble = fmap (fromIntegral :: Int -> Double)
@@ -440,9 +460,9 @@ main = withArg avgll >>= print
 ``` haskell
 llhisto =
       S.fold (FL.classify FL.length)
-    . S.map bucket
-    . S.splitOn (== 10) FL.length
-    . S.unfold FH.read
+    . fmap bucket
+    . S.foldMany (FL.takeEndBy_ (== 10) FL.length)
+    . S.unfold FH.reader
 
     where
     bucket n = let i = n `mod` 10 in if i > 9 then (9,n) else (i,n)
