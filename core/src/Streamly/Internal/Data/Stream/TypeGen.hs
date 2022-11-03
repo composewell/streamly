@@ -503,7 +503,7 @@ mkZippingType dtNameStr apOpStr isConcurrent = do
 
     classConstraints =
         if isConcurrent
-        then ["Streamly.Internal.Data.Stream.Concurrent.MonadAsync"]
+        then ["Streamly.Data.Stream.Concurrent.MonadAsync"]
         else ["Monad"]
 
 -- | Create a type with specific stream combination properties.
@@ -518,11 +518,11 @@ mkZippingType dtNameStr apOpStr isConcurrent = do
 -- instance Monad m => Functor (Parallel m)
 --     where {-# INLINE fmap #-}
 --           fmap f (Parallel strm) = Parallel (fmap f strm)
--- instance Streamly.Internal.Data.Stream.Concurrent.MonadAsync m => Monad (Parallel m)
+-- instance Streamly.Data.Stream.Concurrent.MonadAsync m => Monad (Parallel m)
 --     where {-# INLINE (>>=) #-}
 --           (>>=) (Parallel strm1) f = let f1 a = unParallel (f a)
 --                                       in Parallel (bindConcurrent strm1 f1)
--- instance Streamly.Internal.Data.Stream.Concurrent.MonadAsync m => Applicative (Parallel m)
+-- instance Streamly.Data.Stream.Concurrent.MonadAsync m => Applicative (Parallel m)
 --     where {-# INLINE pure #-}
 --           pure = Parallel . Streamly.Data.Stream.fromPure
 --           {-# INLINE (<*>) #-}
@@ -565,5 +565,5 @@ mkNestingType dtNameStr bindOpStr isConcurrent = do
 
     classConstraints =
         if isConcurrent
-        then ["Streamly.Internal.Data.Stream.Concurrent.MonadAsync"]
+        then ["Streamly.Data.Stream.Concurrent.MonadAsync"]
         else ["Monad"]
