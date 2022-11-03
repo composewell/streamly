@@ -891,7 +891,7 @@ indexedR n = fromStreamD . D.indexedR n . toStreamD
 --
 {-# INLINE timestampWith #-}
 timestampWith :: (MonadIO m)
-    => Double -> Stream m a -> Stream m(AbsTime, a)
+    => Double -> Stream m a -> Stream m (AbsTime, a)
 timestampWith g stream = zipWith (flip (,)) stream (absTimesWith g)
 
 -- TBD: check performance vs a custom implementation without using zipWith.
@@ -900,7 +900,7 @@ timestampWith g stream = zipWith (flip (,)) stream (absTimesWith g)
 --
 {-# INLINE timestamped #-}
 timestamped :: (MonadIO m)
-    => Stream m a -> Stream m(AbsTime, a)
+    => Stream m a -> Stream m (AbsTime, a)
 timestamped = timestampWith 0.01
 
 -- | Pair each element in a stream with relative times starting from 0, using a
@@ -914,7 +914,7 @@ timestamped = timestampWith 0.01
 --
 {-# INLINE timeIndexWith #-}
 timeIndexWith :: (MonadIO m)
-    => Double -> Stream m a -> Stream m(RelTime64, a)
+    => Double -> Stream m a -> Stream m (RelTime64, a)
 timeIndexWith g stream = zipWith (flip (,)) stream (relTimesWith g)
 
 -- | Pair each element in a stream with relative times starting from 0, using a
@@ -928,7 +928,7 @@ timeIndexWith g stream = zipWith (flip (,)) stream (relTimesWith g)
 --
 {-# INLINE timeIndexed #-}
 timeIndexed :: (MonadIO m)
-    => Stream m a -> Stream m(RelTime64, a)
+    => Stream m a -> Stream m (RelTime64, a)
 timeIndexed = timeIndexWith 0.01
 
 ------------------------------------------------------------------------------
