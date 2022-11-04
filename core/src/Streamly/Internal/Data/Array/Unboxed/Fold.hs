@@ -44,7 +44,7 @@ module Streamly.Internal.Data.Array.Unboxed.Fold
     -- * Applicative
     , fromPure
     , fromEffect
-    , serialWith
+    , splitWith
 
     -- * Monad
     , concatMap
@@ -255,20 +255,20 @@ serial_ (ArrayFold p1) (ArrayFold p2) =
 -- results using the supplied function.
 --
 -- /Pre-release/
-{-# INLINE serialWith #-}
-serialWith :: MonadThrow m
+{-# INLINE splitWith #-}
+splitWith :: MonadThrow m
     => (a -> b -> c) -> ArrayFold m x a -> ArrayFold m x b -> ArrayFold m x c
-serialWith f (ArrayFold p1) (ArrayFold p2) =
+splitWith f (ArrayFold p1) (ArrayFold p2) =
     ArrayFold $ ParserD.noErrorUnsafeSplitWith f p1 p2
 
--- | 'Applicative' form of 'serialWith'.
--- > (<*>) = serialWith id
+-- | 'Applicative' form of 'splitWith'.
+-- > (<*>) = splitWith id
 instance MonadThrow m => Applicative (ArrayFold m a) where
     {-# INLINE pure #-}
     pure = fromPure
 
     {-# INLINE (<*>) #-}
-    (<*>) = serialWith id
+    (<*>) = splitWith id
 
     {-# INLINE (*>) #-}
     (*>) = serial_

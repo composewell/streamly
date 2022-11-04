@@ -25,6 +25,7 @@
 * In `Streamly.Data.Fold`:
   * `variance`, and `stdDev` have been deprecated. Please use the
     `streamly-statistics` package instead.
+  * `serialWith` is deprecated. Use `splitWith` instead.
 * `Streamly.Data.Array.Foreign` is deprecated. Use `Streamly.Data.Array.Unboxed`
   instead.
 * The type of `replicateM` in `Streamly.Data.Unfold` is changed.

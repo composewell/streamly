@@ -106,7 +106,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- * Binary Combinators
 
     -- ** Sequential Applicative
-    , serialWith
+    , splitWith
     , split_
 
     {-

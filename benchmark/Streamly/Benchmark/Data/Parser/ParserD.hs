@@ -147,10 +147,10 @@ manyTill value =
         pcond = PR.satisfy (== value)
     in Stream.parseD (PR.manyTill p pcond Fold.length)
 
-{-# INLINE serialWith #-}
-serialWith :: MonadThrow m
+{-# INLINE splitWith #-}
+splitWith :: MonadThrow m
     => Int -> Stream m Int -> m ((), ())
-serialWith value =
+splitWith value =
     Stream.parseD
         ((,)
             <$> drainWhile (<= (value `div` 2))
@@ -348,7 +348,7 @@ o_1_space_serial value =
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
-    , benchIOSink value "serialWith" $ serialWith value
+    , benchIOSink value "splitWith" $ splitWith value
     , benchIOSink value "many" many
     , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some

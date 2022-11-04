@@ -237,7 +237,7 @@ module Streamly.Internal.Data.Fold
     -}
 
     -- ** Serial Append
-    , serialWith
+    , splitWith
     , serial_
     -- , tail
     -- , init
@@ -1464,7 +1464,7 @@ or = any (== True)
 -- >>> splitAt_ 4 [1,2,3]
 -- ([1,2,3],[])
 --
--- > splitAt n f1 f2 = Fold.serialWith (,) (Fold.take n f1) f2
+-- > splitAt n f1 f2 = Fold.splitWith (,) (Fold.take n f1) f2
 --
 -- /Internal/
 
@@ -1475,7 +1475,7 @@ splitAt
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-splitAt n fld = serialWith (,) (take n fld)
+splitAt n fld = splitWith (,) (take n fld)
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs

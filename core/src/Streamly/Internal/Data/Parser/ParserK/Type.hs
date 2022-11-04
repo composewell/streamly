@@ -139,8 +139,8 @@ fromPure b = MkParser $ \n st k -> k st (Success n b)
 fromEffect :: Monad m => m b -> Parser a m b
 fromEffect eff = MkParser $ \n st k -> eff >>= \b -> k st (Success n b)
 
--- | 'Applicative' form of 'Streamly.Internal.Data.Parser.serialWith'. Note that
--- this operation does not fuse, use 'Streamly.Internal.Data.Parser.serialWith'
+-- | 'Applicative' form of 'Streamly.Internal.Data.Parser.splitWith'. Note that
+-- this operation does not fuse, use 'Streamly.Internal.Data.Parser.splitWith'
 -- when fusion is important.
 --
 instance Monad m => Applicative (Parser a m) where

@@ -784,7 +784,7 @@ main = hspec $ do
         prop "takeEndByOrMax" takeEndByOrMax
 
         -- Appending
-        -- serialWith
+        -- splitWith
 
         -- Distributing
         -- tee
