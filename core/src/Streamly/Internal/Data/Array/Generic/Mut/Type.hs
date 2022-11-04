@@ -87,6 +87,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     -- ** Unfolds
     , reader
     -- , readerRev
+    , producerWith -- experimental
     , producer -- experimental
 
     -- ** To containers
@@ -545,9 +546,9 @@ writeN n = FL.take n $ writeNUnsafe n
 
 -- | Resumable unfold of an array.
 --
-{-# INLINE_NORMAL producer #-}
-producer :: MonadIO m => Producer m (Array a) a
-producer = Producer step inject extract
+{-# INLINE_NORMAL producerWith #-}
+producerWith :: Monad m => (forall b. IO b -> m b) -> Producer m (Array a) a
+producerWith liftio = Producer step inject extract
 
     where
 
@@ -562,8 +563,14 @@ producer = Producer step inject extract
     step (arr, i)
         | assert (arrLen arr >= 0) (i == arrLen arr) = return D.Stop
     step (arr, i) = do
-        x <- getIndexUnsafe arr i
+        x <- liftio $ getIndexUnsafe arr i
         return $ D.Yield x (arr, i + 1)
+
+-- | Resumable unfold of an array.
+--
+{-# INLINE_NORMAL producer #-}
+producer :: MonadIO m => Producer m (Array a) a
+producer = producerWith liftIO
 
 -- | Unfold an array into a stream.
 --
