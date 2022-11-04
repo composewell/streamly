@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Test.Prelude.Concurrent
+-- Module      : Streamly.Test.Prelude.ConcurrentChannel
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -173,7 +173,7 @@ concurrentOps constr desc eq t = do
 
 {-# INLINE_NORMAL mkParallel #-}
 mkParallel :: (MonadAsync m) => Stream m a -> Stream m a
-mkParallel = Concur.evalWith Concur.eager
+mkParallel = Concur.evalWith $ Concur.eager True
 
 {-# INLINE (|$) #-}
 (|$) :: (MonadAsync m) => (Stream m a -> Stream m b) -> (Stream m a -> Stream m b)
@@ -385,7 +385,7 @@ main = hspec
     let parallelConcurrentAppOps :: ((Stream IO a -> Stream IO a) -> Spec) -> Spec
         parallelConcurrentAppOps spec =
             mapOps1 spec $
-                makeConcurrentAppOps (Concur.evalWith Concur.eager) <> parallelCommonOps
+                makeConcurrentAppOps (Concur.evalWith $ Concur.eager True) <> parallelCommonOps
 
     -- These tests won't work with maxBuffer or maxThreads set to 1, so we
     -- exclude those cases from these.
@@ -409,15 +409,15 @@ main = hspec
 
     describe "Stream concurrent operations" $ do
 
-        forOps (mkOps (Concur.evalWith Concur.ordered)) $ concurrentOps S.fromFoldable "aheadly" (==)
+        forOps (mkOps (Concur.evalWith $ Concur.ordered True)) $ concurrentOps S.fromFoldable "aheadly" (==)
         forOps (mkOps Concur.eval) $ concurrentOps S.fromFoldable "asyncly" sortEq
-        forOps (mkOps (Concur.evalWith Concur.interleaved))  $ concurrentOps S.fromFoldable "wAsyncly" sortEq
-        forOps (mkOps (Concur.evalWith Concur.eager)) $ concurrentOps S.fromFoldable "parallely" sortEq
+        forOps (mkOps (Concur.evalWith $ Concur.interleaved True))  $ concurrentOps S.fromFoldable "wAsyncly" sortEq
+        forOps (mkOps (Concur.evalWith $ Concur.eager True)) $ concurrentOps S.fromFoldable "parallely" sortEq
 
-        forOps (mkOps (Concur.evalWith Concur.ordered))   $ concurrentOps folded "aheadly folded" (==)
+        forOps (mkOps (Concur.evalWith $ Concur.ordered True))   $ concurrentOps folded "aheadly folded" (==)
         forOps (mkOps Concur.eval) $ concurrentOps folded "asyncly folded" sortEq
-        forOps (mkOps (Concur.evalWith Concur.interleaved))  $ concurrentOps folded "wAsyncly folded" sortEq
-        forOps (mkOps (Concur.evalWith Concur.eager)) $ concurrentOps folded "parallely folded" sortEq
+        forOps (mkOps (Concur.evalWith $ Concur.interleaved True))  $ concurrentOps folded "wAsyncly folded" sortEq
+        forOps (mkOps (Concur.evalWith $ Concur.eager True)) $ concurrentOps folded "parallely folded" sortEq
 
     describe "Concurrent application" $ do
         serialOps $ prop "serial" . concurrentApplication (==)
