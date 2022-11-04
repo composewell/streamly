@@ -184,42 +184,42 @@ unpin arr@(MutableByteArray marr#) =
 class Storable a => Unbox a where
     -- | Read an element of type "a" from a MutableByteArray given the byte
     -- index.
-    box :: MutableByteArray a -> Int -> IO a
+    peekByteIndex :: MutableByteArray a -> Int -> IO a
     -- | Write an element of type "a" to a MutableByteArray given the byte
     -- index.
-    unbox :: MutableByteArray a -> Int -> a -> IO ()
+    pokeByteIndex :: MutableByteArray a -> Int -> a -> IO ()
 
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray) \
 instance Unbox _type where {                                         \
-; {-# INLINE box #-}                                                 \
-; box (MutableByteArray mbarr) (I# n) = IO $ \s ->                   \
+; {-# INLINE peekByteIndex #-}                                       \
+; peekByteIndex (MutableByteArray mbarr) (I# n) = IO $ \s ->         \
       case _readArray mbarr n s of                                   \
           { (# s1, i #) -> (# s1, _constructor i #) }                \
-; {-# INLINE unbox #-}                                               \
-; unbox (MutableByteArray mbarr) (I# n) (_constructor val) =         \
+; {-# INLINE pokeByteIndex #-}                                       \
+; pokeByteIndex (MutableByteArray mbarr) (I# n) (_constructor val) = \
         IO $ \s -> (# _writeArray mbarr n val s, () #)               \
 }
 
 #define DERIVE_WRAPPED_UNBOX(_constraint, _type, _constructor) \
 instance _constraint Unbox _type where                        \
-; {-# INLINE box #-}                                          \
-; box arr i = _constructor <$> box (castContents arr) i       \
-; {-# INLINE unbox #-}                                        \
-; unbox arr i (_constructor a) = unbox (castContents arr) i a
+; {-# INLINE peekByteIndex #-}                                          \
+; peekByteIndex arr i = _constructor <$> peekByteIndex (castContents arr) i \
+; {-# INLINE pokeByteIndex #-}                                        \
+; pokeByteIndex arr i (_constructor a) = pokeByteIndex (castContents arr) i a
 
 #define DERIVE_BINARY_UNBOX(_constraint, _type, _constructor, _innerType) \
 instance _constraint Unbox _type where {                                  \
-; {-# INLINE box #-}                                                      \
-; box arr i =                                                             \
+; {-# INLINE peekByteIndex #-}                                            \
+; peekByteIndex arr i =                                                   \
    let contents = castContents arr :: MutableByteArray _innerType         \
-    in box contents i >>=                                                 \
-         (\p1 -> box contents (i + SIZE_OF(_innerType))                   \
+    in peekByteIndex contents i >>=                                       \
+         (\p1 -> peekByteIndex contents (i + SIZE_OF(_innerType))         \
              <&> _constructor p1)                                         \
-; {-# INLINE unbox #-}                                                    \
-; unbox arr i (_constructor p1 p2) =                                      \
+; {-# INLINE pokeByteIndex #-}                                            \
+; pokeByteIndex arr i (_constructor p1 p2) =                              \
    let contents = castContents arr :: MutableByteArray _innerType         \
-    in unbox contents i p1 >>                                             \
-       unbox contents (i + SIZE_OF(_innerType)) p2                        \
+    in pokeByteIndex contents i p1 >>                                     \
+       pokeByteIndex contents (i + SIZE_OF(_innerType)) p2                \
 }
 
 DERIVE_UNBOXED( Char
@@ -315,34 +315,34 @@ DERIVE_BINARY_UNBOX(,Fingerprint,Fingerprint,Word64)
 
 instance Unbox () where
 
-    {-# INLINE box #-}
-    box _ _ = return ()
+    {-# INLINE peekByteIndex #-}
+    peekByteIndex _ _ = return ()
 
-    {-# INLINE unbox #-}
-    unbox _ _ _ = return ()
+    {-# INLINE pokeByteIndex #-}
+    pokeByteIndex _ _ _ = return ()
 
 #if MIN_VERSION_base(4,15,0)
 instance Unbox IoSubSystem where
 
-    {-# INLINE box #-}
-    box arr i = toEnum <$> box (castContents arr) i
+    {-# INLINE peekByteIndex #-}
+    peekByteIndex arr i = toEnum <$> peekByteIndex (castContents arr) i
 
-    {-# INLINE unbox #-}
-    unbox arr i a = unbox (castContents arr) i (fromEnum a)
+    {-# INLINE pokeByteIndex #-}
+    pokeByteIndex arr i a = pokeByteIndex (castContents arr) i (fromEnum a)
 #endif
 
 instance Unbox Bool where
 
-    {-# INLINE box #-}
-    box arr i = do
-        res <- box (castContents arr) i
+    {-# INLINE peekByteIndex #-}
+    peekByteIndex arr i = do
+        res <- peekByteIndex (castContents arr) i
         return $ res /= (0 :: Int32)
 
-    {-# INLINE unbox #-}
-    unbox arr i a =
+    {-# INLINE pokeByteIndex #-}
+    pokeByteIndex arr i a =
         if a
-        then unbox (castContents arr) i (1 :: Int32)
-        else unbox (castContents arr) i (0 :: Int32)
+        then pokeByteIndex (castContents arr) i (1 :: Int32)
+        else pokeByteIndex (castContents arr) i (0 :: Int32)
 
 --------------------------------------------------------------------------------
 -- Functions
@@ -350,8 +350,8 @@ instance Unbox Bool where
 
 {-# INLINE peekWith #-}
 peekWith :: Unbox a => MutableByteArray a -> Int -> IO a
-peekWith = box
+peekWith = peekByteIndex
 
 {-# INLINE pokeWith #-}
 pokeWith :: Unbox a => MutableByteArray a -> Int -> a -> IO ()
-pokeWith = unbox
+pokeWith = pokeByteIndex
