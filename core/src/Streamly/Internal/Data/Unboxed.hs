@@ -179,6 +179,8 @@ unpin arr@(MutableByteArray marr#) =
 -- is similar to Storable in the sense that it has corresponding operations for
 -- peekByteOff and pokeByteOff. While Storable allows writing to a Ptr, this
 -- type class allows writing to a MutableByteArray#.
+--
+-- Note: Enable @QuantifiedConstraints@ to simplify constraint specification.
 class Storable a => Unbox a where
     -- | Read an element of type "a" from a MutableByteArray given the byte
     -- index.
