@@ -376,7 +376,7 @@ module Streamly.Internal.Data.Fold.Type
 
     -- ** Sequential application
     , splitWith -- rename to "append"
-    , serial_
+    , split_
 
     -- ** Repeated Application (Splitting)
     , ManyState
@@ -813,9 +813,9 @@ data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
 -- using splitWith, but the current benchmarks show that it has the same
 -- performance. So do not expose it unless some benchmark shows benefit.
 --
-{-# INLINE serial_ #-}
-serial_ :: Monad m => Fold m x a -> Fold m x b -> Fold m x b
-serial_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
+{-# INLINE split_ #-}
+split_ :: Monad m => Fold m x a -> Fold m x b -> Fold m x b
+split_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
     Fold step initial extract
 
     where

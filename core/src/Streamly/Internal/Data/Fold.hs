@@ -238,7 +238,7 @@ module Streamly.Internal.Data.Fold
 
     -- ** Serial Append
     , splitWith
-    , serial_
+    , split_
     -- , tail
     -- , init
     , splitAt -- spanN
