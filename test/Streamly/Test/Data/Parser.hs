@@ -537,7 +537,7 @@ parseManyWordQuotedBy =
 -- splitWithPass :: Property
 -- splitWithPass =
 --     forAll (listOf (chooseInt (0, 1))) $ \ls ->
---         case S.parse (P.serialWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
+--         case S.parse (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
 --             Right (result_first, result_second) -> case ls of
 --                 0 : 1 : _ -> (result_first == 0) && (result_second == 1)
 --                 _ -> False
@@ -547,19 +547,19 @@ parseManyWordQuotedBy =
 
 -- splitWithFailLeft :: Property
 -- splitWithFailLeft =
---     property (case S.parse (P.serialWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+--     property (case S.parse (P.splitWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
 
 -- splitWithFailRight :: Property
 -- splitWithFailRight =
---     property (case S.parse (P.serialWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+--     property (case S.parse (P.splitWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
 
 -- splitWithFailBoth :: Property
 -- splitWithFailBoth =
---     property (case S.parse (P.serialWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+--     property (case S.parse (P.splitWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
 

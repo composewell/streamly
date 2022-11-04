@@ -375,7 +375,7 @@ module Streamly.Internal.Data.Fold.Type
     , dropping
 
     -- ** Sequential application
-    , serialWith -- rename to "append"
+    , splitWith -- rename to "append"
     , serial_
 
     -- ** Repeated Application (Splitting)
@@ -758,7 +758,7 @@ data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 --
 -- >>> header = Fold.take 8 Fold.toList
 -- >>> line = Fold.takeEndBy (== '\n') Fold.toList
--- >>> f = Fold.serialWith (,) header line
+-- >>> f = Fold.splitWith (,) header line
 -- >>> Stream.fold f $ Stream.fromList "header: hello\n"
 -- ("header: ","hello\n")
 --
@@ -773,10 +773,10 @@ data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 --
 -- /Time: O(n^2) where n is the number of compositions./
 --
-{-# INLINE serialWith #-}
-serialWith :: Monad m =>
+{-# INLINE splitWith #-}
+splitWith :: Monad m =>
     (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
-serialWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
 
     where
@@ -810,7 +810,7 @@ data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
 -- discarding the result of the first.
 --
 -- This was written in the hope that it might be faster than implementing it
--- using serialWith, but the current benchmarks show that it has the same
+-- using splitWith, but the current benchmarks show that it has the same
 -- performance. So do not expose it unless some benchmark shows benefit.
 --
 {-# INLINE serial_ #-}

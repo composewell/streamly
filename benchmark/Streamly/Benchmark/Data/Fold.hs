@@ -121,7 +121,7 @@ many = Stream.fold (FL.many (FL.take 1 FL.drain) FL.drain)
 splitAllAny :: Monad m => Int -> Stream m Int -> m (Bool, Bool)
 splitAllAny value =
     Stream.fold
-        (FL.serialWith (,)
+        (FL.splitWith (,)
             (FL.all (<= (value `div` 2)))
             (FL.any (> value))
         )
@@ -399,7 +399,7 @@ o_1_space_serial_composition value =
             , benchIOSink value "scanMaybe even" $ scanMaybe value
             , benchIOSink value "scanMaybe even, odd" $ scanMaybe2 value
             , benchIOSink value "foldBreak (recursive)" foldBreak
-            , benchIOSink value "serialWith (all, any)" $ splitAllAny value
+            , benchIOSink value "splitWith (all, any)" $ splitAllAny value
             , benchIOSink value "serial_ (all, any)" $ serial_ value
             , benchIOSink value "tee (all, any)" $ teeAllAny value
             , benchIOSink value "many drain (take 1)" many
