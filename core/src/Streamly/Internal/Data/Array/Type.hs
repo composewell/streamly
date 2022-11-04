@@ -79,6 +79,7 @@ where
 
 import Control.Exception (assert)
 import Control.DeepSeq (NFData(..), NFData1(..))
+import Control.Monad (replicateM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
@@ -92,7 +93,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unboxed (Unbox, peekWith, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Text.Read (readPrec, readListPrec, readListPrecDefault)
+import Text.Read (readPrec)
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 
@@ -103,6 +104,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
+import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
 import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 
@@ -481,13 +483,16 @@ write = fmap unsafeFreeze MA.write
 -------------------------------------------------------------------------------
 
 instance (Show a, Unbox a) => Show (Array a) where
-    {-# INLINE showsPrec #-}
-    showsPrec _ = shows . toList
+    {-# INLINE show #-}
+    show arr = "fromList " ++ show (toList arr)
 
 instance (Unbox a, Read a, Show a) => Read (Array a) where
     {-# INLINE readPrec #-}
-    readPrec = fromList <$> readPrec
-    readListPrec = readListPrecDefault
+    readPrec = do
+        fromListWord <- replicateM 9 ReadPrec.get
+        if fromListWord == "fromList "
+        then fromList <$> readPrec
+        else ReadPrec.pfail
 
 instance (a ~ Char) => IsString (Array a) where
     {-# INLINE fromString #-}
