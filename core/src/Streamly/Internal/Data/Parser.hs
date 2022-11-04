@@ -1077,7 +1077,7 @@ regexPCRE = undefined
 -- operation fails if any of the parsers fail.
 --
 -- Note: This is a parsing dual of appending streams using
--- 'Streamly.Prelude.serial', it splits the streams using two parsers and zips
+-- 'Streamly.Data.Stream.append', it splits the streams using two parsers and zips
 -- the results.
 --
 -- This implementation is strict in the second argument, therefore, the

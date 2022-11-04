@@ -95,9 +95,9 @@
 -- optimization when merging, appending or concatenating multiple streams.
 -- Even though stream based combinator have excellent performance, they are
 -- much less efficient when compared to combinators using 'Unfold'.  For
--- example, the 'Streamly.Prelude.concatMap' combinator which uses @a -> t m b@
+-- example, the 'Streamly.Data.Stream.concatMap' combinator which uses @a -> t m b@
 -- (where @t@ is a stream type) to generate streams is much less efficient
--- compared to 'Streamly.Prelude.unfoldMany'.
+-- compared to 'Streamly.Data.Stream.unfoldMany'.
 --
 -- On the other hand, transformation operations on stream types are as
 -- efficient as transformations on 'Unfold'.

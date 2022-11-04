@@ -14,9 +14,9 @@
 -- A byte stream of Unicode text read from an IO device or from an
 -- 'Streamly.Data.Array.Array' in memory can be decoded into a 'Char' stream
 -- using the decoding routines in this module.  A 'String' (@[Char]@) can be
--- converted into a 'Char' stream using 'Streamly.Prelude.fromList'.  An @Array
--- Char@ can be 'Streamly.Prelude.unfold'ed into a stream using the array
--- 'Streamly.Data.Array.read' unfold.
+-- converted into a 'Char' stream using 'Streamly.Data.Stream.fromList'.  An
+-- @Array Char@ can be 'Streamly.Data.Stream.unfold'ed into a stream using the
+-- array 'Streamly.Data.Array.read' unfold.
 --
 -- = Storing Unicode Strings
 --
@@ -25,14 +25,13 @@
 -- memory.
 --
 -- If you have to store a 'Char' stream in memory you can convert it into a
--- 'String' using 'Streamly.Prelude.toList' or using the
--- 'Streamly.Data.Fold.toList' fold. The 'String' type can be more efficient
--- than pinned arrays for short and short lived strings.
+-- 'String' using 'Streamly.Data.Fold.toList' fold. The 'String' type can be
+-- more efficient than pinned arrays for short and short lived strings.
 --
--- For longer or long lived streams you can 'Streamly.Prelude.fold' the 'Char'
--- stream as @Array Char@ using the array 'Streamly.Data.Array.write' fold.
--- The 'Array' type provides a more compact representation and pinned memory
--- reducing GC overhead. If space efficiency is a concern you can use
+-- For longer or long lived streams you can 'Streamly.Data.Stream.fold' the
+-- 'Char' stream as @Array Char@ using the array 'Streamly.Data.Array.write'
+-- fold.  The 'Array' type provides a more compact representation and pinned
+-- memory reducing GC overhead. If space efficiency is a concern you can use
 -- 'encodeUtf8'' on the 'Char' stream before writing it to an 'Array' providing
 -- an even more compact representation.
 --
