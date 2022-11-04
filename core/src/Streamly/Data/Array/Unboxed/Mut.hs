@@ -34,8 +34,8 @@ module Streamly.Data.Array.Unboxed.Mut
     , snoc
 
     -- * Appending streams
-    , appendN
-    , append
+    , writeAppendN
+    , writeAppend
 
     -- * Inplace mutation
     , putIndex

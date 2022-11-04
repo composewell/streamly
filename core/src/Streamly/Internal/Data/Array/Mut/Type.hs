@@ -70,10 +70,10 @@ module Streamly.Internal.Data.Array.Mut.Type
     , snocUnsafe
 
     -- ** Appending streams
-    -- , appendNUnsafe
-    -- , appendN
-    -- , appendWith
-    -- , append
+    -- , writeAppendNUnsafe
+    -- , writeAppendN
+    -- , writeAppendWith
+    -- , writeAppend
 
     -- ** Truncation
     -- These are not the same as slicing the array at the beginning, they may
