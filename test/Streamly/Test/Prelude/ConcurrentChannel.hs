@@ -8,7 +8,6 @@
 -- Portability : GHC
 
 {-# LANGUAGE OverloadedLists #-}
-#include "inline.hs"
 
 module Streamly.Test.Prelude.ConcurrentChannel (main) where
 
@@ -171,7 +170,7 @@ concurrentOps constr desc eq t = do
 -- Concurrent Application
 -------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL mkParallel #-}
+{-# INLINE mkParallel #-}
 mkParallel :: (MonadAsync m) => Stream m a -> Stream m a
 mkParallel = Concur.evalWith $ Concur.eager True
 
