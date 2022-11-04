@@ -76,7 +76,7 @@ data Refold m c a b =
 -- If your 'Fold' returns only 'Partial' (i.e. never returns a 'Done') then you
 -- can use @foldl'*@ constructors.
 --
--- See also: @Streamly.Prelude.foldl'@
+-- See also: @Streamly.Data.Fold.foldl'@
 --
 -- /Internal/
 --

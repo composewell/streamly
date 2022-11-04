@@ -17,13 +17,13 @@
 -- The 'TextEncoding', 'NewLineMode', and 'Buffering' options of the underlying
 -- GHC 'Handle' are ignored by these APIs. Please use @Streamly.Unicode.*@
 -- modules for encoding and decoding a byte stream, use stream splitting
--- operations in "Streamly.Prelude" to create a stream of lines or to split the
--- input stream on any other type of boundaries.
+-- operations in "Streamly.Data.Stream" to create a stream of lines or to split
+-- the input stream on any other type of boundaries.
 --
 -- To set the read or write start position use 'hSeek' on the 'Handle', the
--- 'Streamly.Prelude.before' combinator may be used to do that on a streaming
--- combinator.  To restrict the length of read or write use the stream trimming
--- operations like 'Streamly.Prelude.take'.
+-- 'Streamly.Data.Stream.before' combinator may be used to do that on a
+-- streaming combinator.  To restrict the length of read or write use the stream
+-- trimming operations like 'Streamly.Data.Stream.take'.
 --
 -- Note that a 'Handle' is inherently stateful, therefore, we cannot use these
 -- APIs from multiple threads without serialization; reading or writing in one

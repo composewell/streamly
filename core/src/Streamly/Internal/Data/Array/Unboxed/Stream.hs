@@ -1144,7 +1144,7 @@ runArrayFoldManyD
 -- | Apply an 'ArrayFold' repeatedly on an array stream and emit the
 -- fold outputs in the output stream.
 --
--- See "Streamly.Prelude.foldMany" for more details.
+-- See "Streamly.Data.Stream.foldMany" for more details.
 --
 -- /Pre-release/
 {-# INLINE runArrayFoldMany #-}
