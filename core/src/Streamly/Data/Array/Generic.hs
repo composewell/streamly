@@ -14,10 +14,6 @@ module Streamly.Data.Array.Generic
     , A.fromListN
     , A.fromList
 
-    -- Stream Folds
-    , A.fromStreamN
-    , A.fromStream
-
     -- MonadicAPIs
     , A.writeN
     , A.write
