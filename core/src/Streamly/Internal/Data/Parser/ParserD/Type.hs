@@ -183,7 +183,7 @@ module Streamly.Internal.Data.Parser.ParserD.Type
 
     , fromPure
     , fromEffect
-    , serialWith
+    , splitWith
     , split_
 
     , die
@@ -671,9 +671,9 @@ fromEffect b = Parser undefined (IDone <$> b) undefined
 {-# ANN type SeqParseState Fuse #-}
 data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 
--- | See 'Streamly.Internal.Data.Parser.serialWith'.
+-- | See 'Streamly.Internal.Data.Parser.splitWith'.
 --
--- Note: this implementation of serialWith is fast because of stream fusion but
+-- Note: this implementation of splitWith is fast because of stream fusion but
 -- has quadratic time complexity, because each composition adds a new branch
 -- that each subsequent parse's input element has to go through, therefore, it
 -- cannot scale to a large number of compositions. After around 100
@@ -682,10 +682,10 @@ data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 --
 -- /Pre-release/
 --
-{-# INLINE serialWith #-}
-serialWith :: Monad m
+{-# INLINE splitWith #-}
+splitWith :: Monad m
     => (a -> b -> c) -> Parser x m a -> Parser x m b -> Parser x m c
-serialWith func (Parser stepL initialL extractL)
+splitWith func (Parser stepL initialL extractL)
                (Parser stepR initialR extractR) =
     Parser step initial extract
 
@@ -748,7 +748,7 @@ serialWith func (Parser stepL initialL extractL)
                     IDone bR -> return $ Done n $ func bL bR
                     IError err -> return $ Error err
             Error err -> return $ Error err
-            Partial _ _ -> error "Bug: serialWith extract 'Partial'"
+            Partial _ _ -> error "Bug: splitWith extract 'Partial'"
             Continue n s -> return $ Continue n (SeqParseL s)
 
 -------------------------------------------------------------------------------
@@ -827,7 +827,7 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
 {-# ANN type SeqAState Fuse #-}
 data SeqAState sl sr = SeqAL sl | SeqAR sr
 
--- This turns out to be slightly faster than serialWith
+-- This turns out to be slightly faster than splitWith
 -- | See 'Streamly.Internal.Data.Parser.split_'.
 --
 -- /Pre-release/
@@ -940,13 +940,13 @@ noErrorUnsafeSplit_
             Partial _ _ -> error "split_: Partial"
             Continue n s -> return $ Continue n (SeqAL s)
 
--- | 'Applicative' form of 'serialWith'.
+-- | 'Applicative' form of 'splitWith'.
 instance Monad m => Applicative (Parser a m) where
     {-# INLINE pure #-}
     pure = fromPure
 
     {-# INLINE (<*>) #-}
-    (<*>) = serialWith id
+    (<*>) = splitWith id
 
     {-# INLINE (*>) #-}
     (*>) = split_

@@ -70,7 +70,7 @@
 -- first fold consumes the input until it terminates and the second fold
 -- consumes the rest of the input until it terminates:
 --
--- >>> f = Fold.serialWith (,) (Fold.take 8 Fold.toList) (Fold.takeEndBy (== '\n') Fold.toList)
+-- >>> f = Fold.splitWith (,) (Fold.take 8 Fold.toList) (Fold.takeEndBy (== '\n') Fold.toList)
 -- >>> Stream.fold f $ Stream.fromList "header: hello\n"
 -- ("header: ","hello\n")
 --
@@ -94,7 +94,7 @@
 -- We can often use streams or folds to achieve the same goal. However, streams
 -- are more efficient in composition of producers (e.g.
 -- 'Data.Stream.append' or 'Data.Stream.mergeBy') whereas folds are
--- more efficient in composition of consumers (e.g.  'serialWith', 'partition'
+-- more efficient in composition of consumers (e.g.  'splitWith', 'partition'
 -- or 'teeWith').
 --
 -- Streams are producers, transformations on streams happen on the output side:
@@ -265,7 +265,7 @@ module Streamly.Data.Fold
     , takeEndBy
 
     -- ** Serial Append
-    , serialWith
+    , splitWith
 
     -- ** Parallel Distribution
     -- | For applicative composition using distribution see
@@ -307,6 +307,7 @@ module Streamly.Data.Fold
     , mapM
     , variance
     , stdDev
+    , serialWith
     )
 where
 
@@ -319,6 +320,11 @@ import Prelude
                span, splitAt, break, mapM, maybe)
 
 import Streamly.Internal.Data.Fold
+
+{-# DEPRECATED serialWith "Please use \"splitWith\" instead" #-}
+{-# INLINE serialWith #-}
+serialWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
+serialWith = splitWith
 
 -- $setup
 -- >>> import Data.Function ((&))

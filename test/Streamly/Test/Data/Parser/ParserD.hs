@@ -392,10 +392,10 @@ wordBy =
          in if wrds == [] && length lst > 0 then [""] else wrds
 
 
-serialWith :: Property
-serialWith =
+splitWith :: Property
+splitWith =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case S.parseD (P.serialWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
+        case S.parseD (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
             Right (result_first, result_second) -> case ls of
                 0 : 1 : _ -> (result_first == 0) && (result_second == 1)
                 _ -> False
@@ -405,19 +405,19 @@ serialWith =
 
 splitWithFailLeft :: Property
 splitWithFailLeft =
-    property (case S.parseD (P.serialWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.splitWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
 splitWithFailRight :: Property
 splitWithFailRight =
-    property (case S.parseD (P.serialWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.splitWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
 splitWithFailBoth :: Property
 splitWithFailBoth =
-    property (case S.parseD (P.serialWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case S.parseD (P.splitWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
@@ -794,7 +794,7 @@ main =
         prop "groupByRolling" groupByRolling
         prop "P.takeEndByOrMax = Prelude.take n (Prelude.takeWhile (not . predicate)" takeEndByOrMax
         prop "many (P.wordBy ' ') = words'" wordBy
-        prop "parse 0, then 1, else fail" serialWith
+        prop "parse 0, then 1, else fail" splitWith
         prop "fail due to die as left parser" splitWithFailLeft
         prop "fail due to die as right parser" splitWithFailRight
         prop "fail due to die as both parsers" splitWithFailBoth
