@@ -32,14 +32,14 @@
 -- >>> s = Stream.fromList [1..10] :: Stream Identity Int
 -- >>> s1 = Stream.hoist (return . runIdentity) s :: Stream IO Int
 -- >>> Stream.fold Array.write s1 :: IO (Array Int)
--- [1,2,3,4,5,6,7,8,9,10]
+-- fromList [1,2,3,4,5,6,7,8,9,10]
 --
 -- 'unsafePerformIO' can be used to get a pure API from IO, as long as you know
 -- it is safe to do so:
 --
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> unsafePerformIO $ Stream.fold Array.write s1 :: Array Int
--- [1,2,3,4,5,6,7,8,9,10]
+-- fromList [1,2,3,4,5,6,7,8,9,10]
 --
 -- To apply a transformation to an array use 'read' to unfold the array into a
 -- stream, apply a transformation on the stream and then use 'write' to fold it
