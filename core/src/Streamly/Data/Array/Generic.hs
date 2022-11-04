@@ -30,7 +30,7 @@ module Streamly.Data.Array.Generic
 
     -- * Folding Arrays
     -- , A.streamFold
-    , A.fold
+    -- , A.fold
     )
 where
 
