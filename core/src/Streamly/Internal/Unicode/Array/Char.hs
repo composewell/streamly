@@ -45,7 +45,7 @@ import Prelude hiding (String, lines, words, unlines, unwords)
 -- > lines = S.lines A.write
 --
 -- >>> Stream.fold Fold.toList $ Unicode.lines $ Stream.fromList "lines\nthis\nstring\n\n\n"
--- ["lines","this","string","",""]
+-- [fromList "lines",fromList "this",fromList "string",fromList "",fromList ""]
 --
 {-# INLINE lines #-}
 lines :: MonadIO m => Stream m Char -> Stream m (Array Char)
@@ -57,7 +57,7 @@ lines = S.lines A.write
 -- > words = S.words A.write
 --
 -- >>> Stream.fold Fold.toList $ Unicode.words $ Stream.fromList "A  newline\nis considered white space?"
--- ["A","newline","is","considered","white","space?"]
+-- [fromList "A",fromList "newline",fromList "is",fromList "considered",fromList "white",fromList "space?"]
 --
 {-# INLINE words #-}
 words :: MonadIO m => Stream m Char -> Stream m (Array Char)
