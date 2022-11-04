@@ -245,10 +245,10 @@ fromEffect = ArrayFold . ParserD.fromEffect
 -- results using the supplied function.
 --
 -- /Pre-release/
-{-# INLINE serial_ #-}
-serial_ :: MonadThrow m =>
+{-# INLINE split_ #-}
+split_ :: MonadThrow m =>
     ArrayFold m x a -> ArrayFold m x b -> ArrayFold m x b
-serial_ (ArrayFold p1) (ArrayFold p2) =
+split_ (ArrayFold p1) (ArrayFold p2) =
     ArrayFold $ ParserD.noErrorUnsafeSplit_ p1 p2
 
 -- | Applies two folds sequentially on the input stream and combines their
@@ -271,7 +271,7 @@ instance MonadThrow m => Applicative (ArrayFold m a) where
     (<*>) = splitWith id
 
     {-# INLINE (*>) #-}
-    (*>) = serial_
+    (*>) = split_
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
