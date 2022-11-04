@@ -61,13 +61,15 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Producer.Type as Producer
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Type as Stream
-import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
 import Data.IORef
@@ -174,8 +176,11 @@ length :: Array a -> Int
 length = arrLen
 
 {-# INLINE_NORMAL reader #-}
-reader :: MonadIO m => Unfold m (Array a) a
-reader = Unfold.lmap unsafeThaw MArray.reader
+reader :: Monad m => Unfold m (Array a) a
+reader =
+    Producer.simplify
+        $ Producer.translate unsafeThaw unsafeFreeze
+        $ MArray.producerWith (return . unsafeInlineIO)
 
 -------------------------------------------------------------------------------
 -- Elimination - to streams
