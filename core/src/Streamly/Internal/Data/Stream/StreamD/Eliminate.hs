@@ -178,6 +178,7 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 pRes <- pstep pst x
                 case pRes of
                     PR.Partial 0 pst1 -> go SPEC s (List []) pst1
+                    PR.Partial 1 pst1 -> go1 SPEC s x pst1
                     PR.Partial n pst1 -> do
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
@@ -200,6 +201,30 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     PR.Error err -> throwM $ ParseError err
             Skip s -> go SPEC s buf pst
             Stop -> goStop buf pst
+
+    go1 _ s x !pst = do
+        pRes <- pstep pst x
+        case pRes of
+            PR.Partial 0 pst1 ->
+                go SPEC s (List []) pst1
+            PR.Partial 1 pst1 -> do
+                go1 SPEC s x pst1
+            PR.Partial n _ ->
+                error $ "parseBreak: parser bug, go1: Partial n = " ++ show n
+            PR.Continue 0 pst1 ->
+                go SPEC s (List [x]) pst1
+            PR.Continue 1 pst1 ->
+                go1 SPEC s x pst1
+            PR.Continue n _ -> do
+                error $ "parseBreak: parser bug, go1: Continue n = " ++ show n
+            PR.Done 0 b -> do
+                return (b, Stream step s)
+            PR.Done 1 b -> do
+                return (b, StreamD.cons x (Stream step s))
+            PR.Done n _ -> do
+                error $ "parseBreak: parser bug, go1: Done n = " ++ show n
+            PR.Error err ->
+                throwM $ ParseError err
 
     gobuf !_ s buf (List []) !pst = go SPEC s buf pst
     gobuf !_ s buf (List (x:xs)) !pst = do
