@@ -51,13 +51,17 @@ module Streamly.Internal.Data.Stream.Concurrent
     , evalWith
     -- Add unfoldrM/iterateM?
 
+    -- ** Generate
+    -- | Uses a single channel to evaluate all actions.
+    , repeatM
+    , replicateM
+
     -- ** Map
     -- | Uses a single channel to evaluate all actions.
     , mapM
     , mapMWith
     , sequence
     , sequenceWith
-    -- Add repeatM/replicateM?
 
     -- ** Combine two
     -- | Use a channel for each pair.
@@ -654,6 +658,27 @@ zipWithM f m1 m2 = Stream.zipWithM f (eval m1) (eval m2)
 zipWith :: MonadAsync m
     => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWith f = zipWithM (\a b -> return $ f a b)
+
+-------------------------------------------------------------------------------
+-- Generate
+-------------------------------------------------------------------------------
+
+-- |
+-- >>> repeatM = Concur.sequence . Stream.repeat
+--
+-- Generate a stream by repeatedly executing a monadic action forever. The
+-- number of actions that are executed concurrently is limited by 'maxThreads'.
+{-# INLINE repeatM #-}
+repeatM :: MonadAsync m => m a -> Stream m a
+repeatM = sequence . Stream.repeat
+
+-- |
+-- >>> replicateM n = Concur.sequence . Stream.replicate n
+--
+-- Generate a stream by concurrently performing a monadic action @n@ times.
+{-# INLINE replicateM #-}
+replicateM :: MonadAsync m => Int -> m a -> Stream m a
+replicateM n = sequence . Stream.replicate n
 
 -------------------------------------------------------------------------------
 -- Reactive

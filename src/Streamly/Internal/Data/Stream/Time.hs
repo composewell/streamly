@@ -113,12 +113,11 @@ import Streamly.Internal.Data.Stream.Concurrent
 -- /Pre-release/
 {-# INLINE interjectSuffix #-}
 interjectSuffix :: MonadAsync m => Double -> m a -> Stream m a -> Stream m a
-interjectSuffix n f xs = parallelFst [xs, repeatM timed]
+interjectSuffix n f xs = parallelFst [xs, Stream.repeatM timed]
 
     where
 
     timed = liftIO (threadDelay (round $ n * 1000000)) >> f
-    repeatM = Stream.sequence . Stream.repeat
 
 -- | Generate ticks at the specified rate. The rate is adaptive, the tick
 -- generation speed can be increased or decreased at different times to achieve
