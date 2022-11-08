@@ -417,6 +417,7 @@ where
 
 #include "inline.hs"
 
+import Control.Applicative (liftA2)
 import Control.Monad ((>=>))
 import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
@@ -845,6 +846,21 @@ split_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
         case res of
             Partial sR -> extractR sR
             Done rR -> return rR
+
+-- | 'Applicative' form of 'splitWith'. Split the input serially over two
+-- folds.
+instance Monad m => Applicative (Fold m a) where
+    {-# INLINE pure #-}
+    pure = fromPure
+
+    {-# INLINE (<*>) #-}
+    (<*>) = splitWith id
+
+    {-# INLINE (*>) #-}
+    (*>) = split_
+
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
 
 {-# ANN type TeeState Fuse #-}
 data TeeState sL sR bL bR
