@@ -54,7 +54,6 @@ module Streamly.Internal.Unicode.Char.Parser
 where
 
 import Control.Applicative (Alternative(..))
-import Control.Monad.Catch (MonadCatch)
 import Data.Bits (Bits, (.|.), shiftL)
 import Data.Char (ord)
 import Streamly.Internal.Data.Parser (Parser)
@@ -78,7 +77,7 @@ import qualified Streamly.Internal.Data.Parser as Parser
 -- We can measure if there is a signficant difference and if so we can add such
 -- predicates to Streamly.Unicode.Parser.Latin1.
 --
-#define CHAR_PARSER_SIG(NAME)         NAME :: MonadCatch m => Parser Char m Char
+#define CHAR_PARSER_SIG(NAME)         NAME :: Monad m => Parser Char m Char
 -- XXX Need to use the predicates from Unicode.Char module/unicode-data package
 #define CHAR_PARSER(NAME, PREDICATE)  NAME = Parser.satisfy Char.PREDICATE
 #define CHAR_PARSER_DOC(PREDICATE) -- | Match any character that satisfies 'Char.PREDICATE'
@@ -168,13 +167,13 @@ CHAR_PARSER(asciiLower,isAsciiLower)
 
 -- | Match a specific character.
 {-# INLINE char #-}
-char :: MonadCatch m => Char -> Parser Char m Char
+char :: Monad m => Char -> Parser Char m Char
 char c = Parser.satisfy (== c)
 
 -- XXX Case conversion may lead to change in number of chars
 -- | Match a specific character ignoring case.
 {-# INLINE charIgnoreCase #-}
-charIgnoreCase :: MonadCatch m => Char -> Parser Char m Char
+charIgnoreCase :: Monad m => Char -> Parser Char m Char
 charIgnoreCase c = Parser.lmap Char.toLower (Parser.satisfy (== Char.toLower c))
 
 --------------------------------------------------------------------------------
@@ -182,21 +181,21 @@ charIgnoreCase c = Parser.lmap Char.toLower (Parser.satisfy (== Char.toLower c))
 --------------------------------------------------------------------------------
 
 -- | Match the input with the supplied string and return it if successful.
-string :: MonadCatch m => String -> Parser Char m String
+string :: Monad m => String -> Parser Char m String
 string = Parser.listEq
 
 -- XXX Not accurate unicode case conversion
 -- | Match the input with the supplied string and return it if successful.
-stringIgnoreCase :: MonadCatch m => String -> Parser Char m String
+stringIgnoreCase :: Monad m => String -> Parser Char m String
 stringIgnoreCase s =
     Parser.lmap Char.toLower (Parser.listEq (map Char.toLower s))
 
 -- | Drop /zero/ or more white space characters.
-dropSpace :: MonadCatch m => Parser Char m ()
+dropSpace :: Monad m => Parser Char m ()
 dropSpace = Parser.dropWhile Char.isSpace
 
 -- | Drop /one/ or more white space characters.
-dropSpace1 :: MonadCatch m => Parser Char m ()
+dropSpace1 :: Monad m => Parser Char m ()
 dropSpace1 = Parser.takeWhile1 Char.isSpace Fold.drain
 
 --------------------------------------------------------------------------------
@@ -207,7 +206,7 @@ dropSpace1 = Parser.takeWhile1 Char.isSpace Fold.drain
 --
 -- | Parse and decode an unsigned integral decimal number.
 {-# INLINE decimal #-}
-decimal :: (MonadCatch m, Integral a) => Parser Char m a
+decimal :: (Monad m, Integral a) => Parser Char m a
 decimal = Parser.takeWhile1 Char.isDigit (Fold.foldl' step 0)
 
     where
@@ -219,7 +218,7 @@ decimal = Parser.takeWhile1 Char.isDigit (Fold.foldl' step 0)
 --
 -- Note: This parser does not accept a leading @\"0x\"@ string.
 {-# INLINE hexadecimal #-}
-hexadecimal :: (MonadCatch m, Integral a, Bits a) => Parser Char m a
+hexadecimal :: (Monad m, Integral a, Bits a) => Parser Char m a
 hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
 
     where
@@ -244,7 +243,7 @@ hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
 -- | Allow an optional leading @\'+\'@ or @\'-\'@ sign character before any
 -- parser.
 {-# INLINE signed #-}
-signed :: (Num a, MonadCatch m) => Parser Char m a -> Parser Char m a
+signed :: (Num a, Monad m) => Parser Char m a -> Parser Char m a
 signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 
 -- | Parse a 'Double'.
