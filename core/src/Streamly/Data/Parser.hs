@@ -31,9 +31,10 @@ module Streamly.Data.Parser
     , fromEffect
     , die
     -- , dieM
+    , peek
+    , eof
 
     -- ** Element parsers
-    , peek
 
     -- All of these can be expressed in terms of either
     , one
@@ -44,7 +45,6 @@ module Streamly.Data.Parser
     , satisfy
     -- , maybe
     -- , either
-    , eof
 
     -- ** Sequences
     , eqBy
