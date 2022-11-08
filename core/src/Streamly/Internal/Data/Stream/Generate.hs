@@ -192,8 +192,6 @@ repeat = fromStreamD . D.repeat
 --      & Stream.fold Fold.drain
 -- :}
 --
--- /Pre-release/
---
 {-# INLINE_NORMAL repeatM #-}
 repeatM :: Monad m => m a -> Stream m a
 repeatM = Stream.sequence . repeat
@@ -211,7 +209,6 @@ replicate n = fromStreamD . D.replicate n
 -- >>> replicateM n = Stream.sequence . Stream.replicate n
 --
 -- Generate a stream by performing a monadic action @n@ times.
--- /Pre-release/
 {-# INLINE_NORMAL replicateM #-}
 replicateM :: Monad m => Int -> m a -> Stream m a
 replicateM n = Stream.sequence . replicate n

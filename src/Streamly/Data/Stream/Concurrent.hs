@@ -45,6 +45,11 @@ module Streamly.Data.Stream.Concurrent
     , eval
     , evalWith
 
+    -- ** Generate
+    -- | Uses a single channel to evaluate mapped actions concurrently.
+    , repeatM
+    , replicateM
+
     -- ** Map
     -- | Uses a single channel to evaluate mapped actions concurrently.
     , mapM
