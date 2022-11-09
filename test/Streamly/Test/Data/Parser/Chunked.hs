@@ -700,7 +700,7 @@ applicative =
              in monadicIO $ do
                     let arrays = [A.fromList list1, A.fromList list2]
                     (olist1, olist2) <-
-                        run $ parse (P.fromRaw parser) (S.fromList arrays)
+                        run $ parse (P.fromParserD parser) (S.fromList arrays)
                     listEquals (==) olist1 list1
                     listEquals (==) olist2 list2
 
@@ -728,7 +728,7 @@ monad =
              in monadicIO $ do
                     let arrays = [A.fromList list1, A.fromList list2]
                     (olist1, olist2) <-
-                        run $ parse (P.fromRaw parser) (S.fromList arrays)
+                        run $ parse (P.fromParserD parser) (S.fromList arrays)
                     listEquals (==) olist1 list1
                     listEquals (==) olist2 list2
 

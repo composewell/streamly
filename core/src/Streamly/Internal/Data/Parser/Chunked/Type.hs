@@ -25,7 +25,7 @@
 module Streamly.Internal.Data.Parser.Chunked.Type
     (
       Step (..)
-    , Parse (..)
+    , ParseResult (..)
     , ParserChunked (..)
     , fromPure
     , fromEffect
@@ -52,34 +52,47 @@ import qualified Control.Monad.Fail as Fail
 --
 -- /Pre-release/
 --
-data Step m a r =
+data Step a m r =
+    -- The Int is the current stream position index wrt to the start of the
+    -- array.
       Done !Int r
       -- XXX we can use a "resume" and a "stop" continuations instead of Maybe.
       -- measure if that works any better.
+      -- Array a -> m (Step a m r), m (Step a m r)
       -- XXX The Array is the only difference from element parser, we can pass
       -- this as parameter?
-    | Partial !Int (Maybe (Array a) -> m (Step m a r))
-    | Continue !Int (Maybe (Array a) -> m (Step m a r))
-    | Error String
+    | Partial !Int (Maybe (Array a) -> m (Step a m r))
+    | Continue !Int (Maybe (Array a) -> m (Step a m r))
+    | Error !Int String
 
-instance Functor m => Functor (Step m a) where
+instance Functor m => Functor (Step a m) where
     fmap f (Done n r) = Done n (f r)
     fmap f (Partial n k) = Partial n (fmap (fmap f) . k)
     fmap f (Continue n k) = Continue n (fmap (fmap f) . k)
-    fmap _ (Error e) = Error e
+    fmap _ (Error n e) = Error n e
 
 -- | The parser's result.
 --
+-- Int is the position index into the current input array. Could be negative.
+-- Cannot be beyond the input array max bound.
+--
 -- /Pre-release/
 --
-data Parse b =
-      Success !Int !b     -- Leftover count, result
-    | Failure !String     -- Error
+data ParseResult b =
+      Success !Int !b      -- Position index, result
+    | Failure !Int !String -- Position index, error
 
 -- | Map a function over 'Success'.
-instance Functor Parse where
+instance Functor ParseResult where
     fmap f (Success n b) = Success n (f b)
-    fmap _ (Failure e) = Failure e
+    fmap _ (Failure n e) = Failure n e
+
+-- XXX Change the type to the shape (a -> m r -> m r) -> (m r -> m r) -> m r
+--
+-- The parse continuation would be: Array a -> m (Step a m r) -> m (Step a m r)
+-- The extract continuation would be: m (Step a m r) -> m (Step a m r)
+--
+-- Use Step itself in place of ParseResult.
 
 -- | A continuation passing style parser representation. A continuation of
 -- 'Step's, each step passes a state and a parse result to the next 'Step'. The
@@ -90,24 +103,27 @@ instance Functor Parse where
 --
 newtype ParserChunked a m b = MkParser
     { runParser :: forall r.
-           -- leftover: the number of elements that were not used by the
-           -- previous consumer and should be carried forward.
+           -- XXX Maintain and pass the original position in the stream. that
+           -- way we can also report better errors. Use a Context structure for
+           -- passing the state.
+
+           -- Stream position index wrt to the current input array start. If
+           -- negative then backtracking is required before using the array.
+           -- The parser should use "Continue -n" in this case if it needs to
+           -- consume input. Negative value cannot be beyond the current
+           -- backtrack buffer. Positive value cannot be beyond array length.
+           -- If the parser needs to advance beyond the array length it should
+           -- use "Continue +n".
            Int
-           -- (alt nesting level, alt used elem count). Nesting level is
-           -- increased whenever we enter an Alternative composition and
-           -- decreased when it is done. The used element count is a count of
-           -- elements consumed by the Alternative. If the Alternative fails we
-           -- need to backtrack by this amount.
-           --
-           -- The nesting level is used in parseDToK to optimize the case when
-           -- we are not in an alternative, in that case we do not need to
-           -- maintain the element count for backtracking.
-        -> (Int, Int)
-           -- The first argument is the (nest level, used count) tuple as
-           -- described above. The leftover element count is carried as part of
-           -- 'Success' constructor of 'Parse'.
-        -> ((Int, Int) -> Parse b -> m (Step m a r))
-        -> m (Step m a r)
+           -- used elem count, a count of elements consumed by the parser. If
+           -- an Alternative fails we need to backtrack by this amount.
+        -> Int
+           -- The second argument is the used count as described above. The
+           -- current input position is carried as part of 'Success'
+           -- constructor of 'ParseResult'.
+        -> Maybe (Array a)
+        -> (ParseResult b -> Int -> Maybe (Array a) -> m (Step a m r))
+        -> m (Step a m r)
     }
 
 -------------------------------------------------------------------------------
@@ -119,9 +135,9 @@ newtype ParserChunked a m b = MkParser
 --
 instance Functor m => Functor (ParserChunked a m) where
     {-# INLINE fmap #-}
-    fmap f parser = MkParser $ \n st k ->
-        let k1 s res = k s (fmap f res)
-         in runParser parser n st k1
+    fmap f parser = MkParser $ \n st arr pk ->
+        let pk1 res = pk (fmap f res)
+         in runParser parser n st arr pk1
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -135,7 +151,7 @@ instance Functor m => Functor (ParserChunked a m) where
 --
 {-# INLINE fromPure #-}
 fromPure :: b -> ParserChunked a m b
-fromPure b = MkParser $ \n st k -> k st (Success n b)
+fromPure b = MkParser $ \n st arr pk -> pk (Success n b) st arr
 
 -- | See 'Streamly.Internal.Data.Parser.fromEffect'.
 --
@@ -143,7 +159,8 @@ fromPure b = MkParser $ \n st k -> k st (Success n b)
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> ParserChunked a m b
-fromEffect eff = MkParser $ \n st k -> eff >>= \b -> k st (Success n b)
+fromEffect eff =
+    MkParser $ \n st arr pk -> eff >>= \b -> pk (Success n b) st arr
 
 -- | 'Applicative' form of 'Streamly.Internal.Data.Parser.serialWith'. Note that
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.serialWith'
@@ -157,19 +174,19 @@ instance Monad m => Applicative (ParserChunked a m) where
     (<*>) = ap
 
     {-# INLINE (*>) #-}
-    p1 *> p2 = MkParser $ \n st k ->
-        let k1 s (Success n1 _) = runParser p2 n1 s k
-            k1 s (Failure e) = k s (Failure e)
-        in runParser p1 n st k1
+    p1 *> p2 = MkParser $ \n st arr k ->
+        let k1 (Success n1 _) s input = runParser p2 n1 s input k
+            k1 (Failure n1 e) s input = k (Failure n1 e) s input
+        in runParser p1 n st arr k1
 
     {-# INLINE (<*) #-}
-    p1 <* p2 = MkParser $ \n st k ->
-        let k1 s1 (Success n1 b) =
-                let k2 s2 (Success n2 _) = k s2 (Success n2 b)
-                    k2 s2 (Failure e) = k s2 (Failure e)
-                in runParser p2 n1 s1 k2
-            k1 s1 (Failure e) = k s1 (Failure e)
-        in runParser p1 n st k1
+    p1 <* p2 = MkParser $ \n st arr k ->
+        let k1 (Success n1 b) s1 input =
+                let k2 (Success n2 _) = k (Success n2 b)
+                    k2 (Failure n2 e) = k (Failure n2 e)
+                in runParser p2 n1 s1 input k2
+            k1 (Failure n1 e) s1 input = k (Failure n1 e) s1 input
+        in runParser p1 n st arr k1
 
     {-# INLINE liftA2 #-}
     liftA2 f p = (<*>) (fmap f p)
@@ -187,7 +204,7 @@ instance Monad m => Applicative (ParserChunked a m) where
 --
 {-# INLINE die #-}
 die :: String -> ParserChunked a m b
-die err = MkParser (\_ st k -> k st (Failure err))
+die err = MkParser (\n st arr pk -> pk (Failure n err) st arr)
 
 -- | Monad composition can be used for lookbehind parsers, we can make the
 -- future parses depend on the previously parsed values.
@@ -236,10 +253,10 @@ instance Monad m => Monad (ParserChunked a m) where
     return = pure
 
     {-# INLINE (>>=) #-}
-    p >>= f = MkParser $ \n st k ->
-        let k1 s1 (Success n1 b) = runParser (f b) n1 s1 k
-            k1 s1 (Failure e) = k s1 (Failure e)
-         in runParser p n st k1
+    p >>= f = MkParser $ \n st arr pk ->
+        let pk1 (Success n1 b) s1 inp = runParser (f b) n1 s1 inp pk
+            pk1 (Failure n1 e) s1 inp = pk (Failure n1 e) s1 inp
+         in runParser p n st arr pk1
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
@@ -261,7 +278,7 @@ instance (MonadThrow m, MonadReader r m, MonadCatch m) =>
     ask = fromEffect ask
 
     {-# INLINE local #-}
-    local f p = MkParser $ \n st k -> local f $ runParser p n st k
+    local f p = MkParser $ \n st arr k -> local f $ runParser p n st arr k
 
 instance (MonadThrow m, MonadState s m) => MonadState s (ParserChunked a m) where
     {-# INLINE get #-}
@@ -296,11 +313,11 @@ instance Monad m => Alternative (ParserChunked a m) where
     empty = die "empty"
 
     {-# INLINE (<|>) #-}
-    p1 <|> p2 = MkParser $ \n (level, _) k ->
-        let k1 (0, _) _ = error "Bug: 0 nest level in Alternative"
-            k1 (l1, n1) (Failure _) = runParser p2 n1 (l1 - 1, 0) k
-            k1 (l1, _) success = k (l1 - 1, 0) success
-        in runParser p1 n (level + 1, 0) k1
+    p1 <|> p2 = MkParser $ \n _ arr k ->
+        let
+            k1 (Failure pos _) used input = runParser p2 (pos - used) 0 input k
+            k1 success _ input = k success 0 input
+        in runParser p1 n 0 arr k1
 
     -- some and many are implemented here instead of using default definitions
     -- so that we can use INLINE on them. It gives 50% performance improvement.
