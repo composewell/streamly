@@ -292,6 +292,7 @@ module Streamly.Internal.Data.Fold
     , mapM
     , variance
     , stdDev
+    , serialWith
     )
 where
 

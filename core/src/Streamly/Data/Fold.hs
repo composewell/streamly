@@ -321,11 +321,6 @@ import Prelude
 
 import Streamly.Internal.Data.Fold
 
-{-# DEPRECATED serialWith "Please use \"splitWith\" instead" #-}
-{-# INLINE serialWith #-}
-serialWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
-serialWith = splitWith
-
 -- $setup
 -- >>> import Data.Function ((&))
 -- >>> import qualified Streamly.Data.Fold as Fold
