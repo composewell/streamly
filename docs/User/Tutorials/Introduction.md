@@ -55,9 +55,7 @@ As an expository device, we have indicated the types at the intermediate
 stages of stream computations as comments in the examples below.
 The meaning of these types are:
 
-* A `SerialT IO a` is a serial stream of values of type `a` in the IO Monad.
-* An `AsyncT IO a` is a concurrent (asynchronous) stream of values of type
-  `a` in the IO Monad.
+* A `Stream IO a` is a serial stream of values of type `a` in the IO Monad.
 * An `Unfold IO a b` is a representation of a function that converts a seed
   value of type `a` into a stream of values of type `b` in the IO Monad.
 * A `Fold IO a b` is a representation of a function that converts a stream of
@@ -98,14 +96,16 @@ program, including the imports that we have omitted here.
 
 We start with a code fragment that counts the number of bytes in a file:
 
-```haskell
+```haskell ghci
+import Data.Function ((&))
+
 import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.File as File
-import qualified Streamly.Prelude as Stream
 
 wcb :: String -> IO Int
 wcb file =
-    File.toBytes file        -- SerialT IO Word8
+    File.read file           -- Stream IO Word8
   & Stream.fold Fold.length  -- IO Int
 ```
 
@@ -113,7 +113,10 @@ wcb file =
 
 The next code fragment shows how to count the number of lines in a file:
 
-```haskell
+```haskell ghci
+import Data.Word (Word8)
+import Streamly.Data.Fold (Fold)
+
 -- ASCII character 10 is a newline.
 countl :: Int -> Word8 -> Int
 countl n ch = if ch == 10 then n + 1 else n
@@ -124,7 +127,7 @@ nlines = Fold.foldl' countl 0
 
 wcl :: String -> IO Int
 wcl file =
-    File.toBytes file  -- SerialT IO Word8
+    File.read file     -- Stream IO Word8
   & Stream.fold nlines -- IO Int
 ```
 
@@ -133,7 +136,9 @@ wcl file =
 Our final code fragment counts the number of whitespace-separated words
 in a stream:
 
-```haskell
+```haskell ghci
+import Data.Char (chr, isSpace)
+
 countw :: (Int, Bool) -> Word8 -> (Int, Bool)
 countw (n, wasSpace) ch =
     if isSpace $ chr $ fromIntegral ch
@@ -146,7 +151,7 @@ nwords = fst <$> Fold.foldl' countw (0, True)
 
 wcw :: String -> IO Int
 wcw file =
-    File.toBytes file   -- SerialT IO Word8
+    File.read file      -- Stream IO Word8
   & Stream.fold nwords  -- IO Int
 ```
 
@@ -159,7 +164,8 @@ to all the supplied folds (`Fold.length`, `nlines`, and `nwords`) and
 then combines the outputs from the folds using the supplied combiner
 function (`(,,)`).
 
-```haskell
+```haskell ghci
+import Streamly.Internal.Data.Fold.Tee (Tee(Tee))
 import qualified Streamly.Internal.Data.Fold.Tee as Tee
 
 -- The fold accepts a stream of `Word8` and returns the three counts.
@@ -168,7 +174,7 @@ countAll = Tee.toFold $ (,,) <$> Tee Fold.length <*> Tee nlines <*> Tee nwords
 
 wc :: String -> IO (Int, Int, Int)
 wc file =
-    File.toBytes file    -- SerialT IO Word8
+    File.read file       -- Stream IO Word8
   & Stream.fold countAll -- IO (Int, Int, Int)
 ```
 
@@ -218,16 +224,36 @@ arrays for our input data.
 Please see the file [WordCountParallel.hs][] for the complete working
 code for this example, including the imports that we have omitted below.
 
+First we create a new data type `Counts` that holds all the context.
+
+```haskell ghci
+-- Counts lines words chars lastCharWasSpace
+data Counts = Counts !Int !Int !Int !Bool deriving Show
+
+{-# INLINE count #-}
+count :: Counts -> Char -> Counts
+count (Counts l w c wasSpace) ch =
+    let l1 = if ch == '\n' then l + 1 else l
+        (w1, wasSpace1) =
+            if isSpace ch
+            then (w, True)
+            else (if wasSpace then w + 1 else w, False)
+    in Counts l1 w1 (c + 1) wasSpace1
+```
+
 The `countArray` function counts the line, word, char counts in one chunk:
 
-```haskell
-import qualified Streamly.Data.Array.Foreign as Array
+```haskell ghci
+import Streamly.Data.Array (Array)
+
+import qualified Streamly.Data.Array as Array
+import qualified Streamly.Unicode.Stream as Unicode
 
 countArray :: Array Word8 -> IO Counts
 countArray arr =
-      Stream.unfold Array.read arr            -- SerialT IO Word8
-    & Stream.decodeLatin1                     -- SerialT IO Char
-    & Stream.foldl' count (Counts 0 0 0 True) -- IO Counts
+      Stream.unfold Array.reader arr                      -- Stream IO Word8
+    & Unicode.decodeLatin1                                -- Stream IO Char
+    & Stream.fold (Fold.foldl' count (Counts 0 0 0 True)) -- IO Counts
 ```
 
 Here the function `count` and the `Counts` data type are defined in the
@@ -240,10 +266,10 @@ whether the chunk starts with a new word. The `partialCounts` function
 adds a `Bool` flag to `Counts` returned by `countArray` to indicate
 whether the first character in the chunk is a space.
 
-```haskell
+```haskell ghci
 partialCounts :: Array Word8 -> IO (Bool, Counts)
 partialCounts arr = do
-    let r = Array.getIndex arr 0
+    let r = Array.getIndex 0 arr
     case r of
         Just x -> do
             counts <- countArray arr
@@ -253,7 +279,7 @@ partialCounts arr = do
 
 `addCounts` then adds the counts from two consecutive chunks:
 
-```haskell
+```haskell ghci
 addCounts :: (Bool, Counts) -> (Bool, Counts) -> (Bool, Counts)
 addCounts (sp1, Counts l1 w1 c1 ws1) (sp2, Counts l2 w2 c2 ws2) =
     let wcount =
@@ -267,22 +293,34 @@ To count in parallel we now only need to divide the stream into arrays,
 apply our counting function to each array, and then combine the counts
 from each chunk.
 
-```haskell
+```haskell ghci
+{-# LANGUAGE FlexibleContexts #-}
+
+import qualified Streamly.Data.Stream.Concurrent as Concur
+
+-- Number of threads we can afford
+numCapabilities :: Int
+numCapabilities = 10
+
 wc :: String -> IO (Bool, Counts)
 wc file = do
-      Stream.unfold File.readChunks file -- AheadT IO (Array Word8)
-    & Stream.mapM partialCounts          -- AheadT IO (Bool, Counts)
-    & Stream.maxThreads numCapabilities  -- AheadT IO (Bool, Counts)
-    & Stream.fromAhead                   -- SerialT IO (Bool, Counts)
-    & Stream.foldl' addCounts (False, Counts 0 0 0 True) -- IO (Bool, Counts)
+      Stream.unfold File.chunkReader file
+    & Concur.mapMWith
+          ( Concur.maxThreads numCapabilities
+          . Concur.ordered True )
+          partialCounts
+    & Stream.fold
+          (Fold.foldl' addCounts (False, Counts 0 0 0 True))
 ```
 
-Please note that the only difference between a concurrent and a
-non-concurrent program lies in the use of the `Stream.fromAhead`
-combinator.  If we remove the call to `Stream.fromAhead`, we would
-still have a perfectly valid and performant serial program. Notice
-how succinctly and idiomatically we have expressed the concurrent word
-counting problem.
+Please note that we use the mapping function from
+`Streamly.Data.Stream.Concurrent` module. We explicitly specify what parts of
+our stream are concurrent.
+
+If we replace `Concur.mapMWith (Concur.maxThreads numCapabilities
+. Concur.ordered True)` with `Stream.mapM`, we would still have a perfectly
+valid and performant serial program. Notice how succinctly and idiomatically we
+have expressed the concurrent word counting problem.
 
 A benchmark with 2 CPUs:
 
@@ -313,14 +351,17 @@ with ease, with support for different types of concurrent scheduling.
 
 We now move to a slightly more complicated example: we simulate a
 dictionary lookup server which can serve word meanings to multiple
-clients concurrently.  This example demonstrates the use of the concurrent
-`mapM` combinator.
+clients concurrently.
 
 Please see the file [WordServer.hs][] for the complete code for this
 example, including the imports that we have omitted below.
 
-```haskell
-import qualified Streamly.Data.Fold as Fold
+```haskell ghci
+import Control.Concurrent (threadDelay)
+import Control.Exception (finally)
+import Network.Socket (Socket, close)
+
+import qualified Streamly.Data.Parser as Parser
 import qualified Streamly.Network.Inet.TCP as TCP
 import qualified Streamly.Network.Socket as Socket
 import qualified Streamly.Unicode.Stream as Unicode
@@ -335,16 +376,14 @@ fetch w = threadDelay 1000000 >> return (w,w)
 -- connection is closed.
 lookupWords :: Socket -> IO ()
 lookupWords sk =
-      Stream.unfold Socket.read sk               -- SerialT IO Word8
-    & Unicode.decodeLatin1                       -- SerialT IO Char
-    & Stream.wordsBy isSpace Fold.toList         -- SerialT IO String
-    & Stream.fromSerial                          -- AheadT  IO String
-    & Stream.mapM fetch                          -- AheadT  IO (String, String)
-    & Stream.fromAhead                           -- SerialT IO (String, String)
-    & Stream.map show                            -- SerialT IO String
-    & Stream.intersperse "\n"                    -- SerialT IO String
-    & Unicode.encodeStrings Unicode.encodeLatin1 -- SerialT IO (Array Word8)
-    & Stream.fold (Socket.writeChunks sk)        -- IO ()
+      Stream.unfold Socket.reader sk
+    & Unicode.decodeLatin1
+    & Stream.parseMany (Parser.wordBy isSpace Fold.toList)
+    & Concur.mapMWith (Concur.ordered True) fetch
+    & fmap show
+    & Stream.intersperse "\n"
+    & Unicode.encodeStrings Unicode.encodeLatin1
+    & Stream.fold (Socket.writeChunks sk)
 
 serve :: Socket -> IO ()
 serve sk = finally (lookupWords sk) (close sk)
@@ -354,11 +393,9 @@ serve sk = finally (lookupWords sk) (close sk)
 -- "nc" as a client to try it out.
 main :: IO ()
 main =
-      Stream.unfold TCP.acceptOnPort 8091 -- SerialT IO Socket
-    & Stream.fromSerial                   -- AsyncT IO ()
-    & Stream.mapM serve                   -- AsyncT IO ()
-    & Stream.fromAsync                    -- SerialT IO ()
-    & Stream.drain                        -- IO ()
+      Stream.unfold TCP.acceptorOnPort 8091
+    & Concur.mapMWith id serve
+    & Stream.fold Fold.drain
 ```
 
 ### Merging Incoming Streams
@@ -372,21 +409,27 @@ streams concurrently.
 Please see the file [MergeServer.hs][] for the complete working code,
 including the imports that we have omitted below.
 
-```haskell
+```haskell ghci
+{-# LANGUAGE FlexibleContexts #-}
+
+import Streamly.Data.Stream (Stream)
+import System.IO (IOMode(AppendMode), Handle, withFile)
+
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Network.Socket as Socket
+import qualified Streamly.FileSystem.Handle as Handle
 
 -- | Read a line stream from a socket.
 -- Note: lines are buffered, and we could add a limit to the
 -- buffering for safety.
-readLines :: Socket -> SerialT IO (Array Char)
+readLines :: Socket -> Stream IO (Array Char)
 readLines sk =
-    Stream.unfold Socket.read sk                 -- SerialT IO Word8
-  & Unicode.decodeLatin1                         -- SerialT IO Char
-  & Stream.splitWithSuffix (== '\n') Array.write -- SerialT IO String
+    Stream.unfold Socket.reader sk
+  & Unicode.decodeLatin1
+  & Stream.foldMany (Fold.takeEndBy (== '\n') Array.write)
 
-recv :: Socket -> SerialT IO (Array Char)
-recv sk = Stream.finally (liftIO $ close sk) (readLines sk)
+recv :: Socket -> Stream IO (Array Char)
+recv sk = Stream.finallyIO (close sk) (readLines sk)
 
 -- | Starts a server at port 8091 listening for lines with space separated
 -- words. Multiple clients can connect to the server and send streams of lines.
@@ -394,11 +437,11 @@ recv sk = Stream.finally (liftIO $ close sk) (readLines sk)
 -- streams at line boundaries and writes the merged stream to a file.
 server :: Handle -> IO ()
 server file =
-      Stream.unfold TCP.acceptOnPort 8090        -- SerialT IO Socket
-    & Stream.concatMapWith Stream.parallel recv  -- SerialT IO (Array Char)
-    & Stream.unfoldMany Array.read               -- SerialT IO Char
-    & Unicode.encodeLatin1                       -- SerialT IO Word8
-    & Stream.fold (Handle.write file)            -- IO ()
+      Stream.unfold TCP.acceptorOnPort 8090
+    & Concur.concatMapWith (Concur.eager True) recv
+    & Stream.unfoldMany Array.reader
+    & Unicode.encodeLatin1
+    & Stream.fold (Handle.write file)
 
 main :: IO ()
 main = withFile "output.txt" AppendMode server
@@ -409,37 +452,43 @@ main = withFile "output.txt" AppendMode server
 Our next example lists a directory tree recursively, reading
 multiple directories concurrently.
 
-This example uses the tree traversing combinator `iterateMapLeftsWith`.
-This combinator maps a stream generator on the `Left` values in its
-input stream (directory names in this case), feeding the resulting `Left`
-values back to the input, while it lets the `Right` values (file names
-in this case) pass through to the output. The `Stream.ahead` stream
-joining combinator then makes it iterate on the directories concurrently.
+This example uses the tree traversing combinator `iterateMapLeftsWith`.  This
+combinator maps a stream generator on the `Left` values in its input stream
+(directory names in this case), feeding the resulting `Left` values back to the
+input, while it lets the `Right` values (file names in this case) pass through
+to the output. The joining combinator explicitly sends streams to a channel
+making it iterate on the directories concurrently.
 
 Please see the file [ListDir.hs][] for the complete working code,
 including the imports that we have omitted below.
 
-```haskell
-import Streamly.Internal.Data.Stream.IsStream (iterateMapLeftsWith)
-
-import qualified Streamly.Prelude as Stream
-import qualified Streamly.Internal.FileSystem.Dir as Dir (toEither)
+```haskell ghci
+import Data.Bifunctor (bimap)
+import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+import qualified Streamly.Internal.Data.Stream as Stream (iterateMapLeftsWith)
+import qualified Streamly.Internal.FileSystem.Dir as Dir (readEither)
+import qualified Streamly.Internal.Data.Stream.Concurrent.Channel as Concur
 
 -- Lists a directory as a stream of (Either Dir File).
-listDir :: String -> SerialT IO (Either String String)
+listDir :: String -> Stream IO (Either String String)
 listDir dir =
-      Dir.toEither dir               -- SerialT IO (Either String String)
-    & Stream.map (bimap mkAbs mkAbs) -- SerialT IO (Either String String)
+      Dir.readEither dir
+    & fmap (bimap mkAbs mkAbs)
 
     where mkAbs x = dir ++ "/" ++ x
 
 -- | List the current directory recursively using concurrent processing.
 main :: IO ()
 main = do
+    chan <- Concur.newChannel (Concur.ordered True)
+    let combineOrdered s1 s2 = do
+            Stream.fromEffect $ Concur.toChannel chan s1
+            Stream.fromEffect $ Concur.toChannel chan s2
+            Concur.fromChannel chan
     hSetBuffering stdout LineBuffering
     let start = Stream.fromPure (Left ".")
-    Stream.iterateMapLeftsWith Stream.ahead listDir start
-        & Stream.mapM_ print
+    Stream.iterateMapLeftsWith combineOrdered listDir start
+        & Stream.fold (Fold.drainMapM print)
 ```
 
 ### Rate Limiting
@@ -448,14 +497,15 @@ For bounded concurrent streams, a stream yield rate can be specified
 easily.  For example, to print "tick" once every second you can simply
 write:
 
-```haskell
+```haskell ghci
+import qualified Streamly.Internal.Data.Stream as Stream (timestamped)
+
 main :: IO ()
 main =
-      Stream.repeatM (pure "tick")  -- AsyncT IO String
-    & Stream.timestamped            -- AsyncT IO (AbsTime, String)
-    & Stream.avgRate 1              -- AsyncT IO (AbsTime, String)
-    & Stream.fromAsync              -- SerialT IO (AbsTime, String)
-    & Stream.mapM_ print            -- IO ()
+      Stream.repeat (pure "tick")
+    & Concur.sequenceWith (Concur.avgRate 1)
+    & Stream.timestamped
+    & Stream.fold (Fold.drainMapM print)
 ```
 
 Please see the file [Rate.hs][] for the complete working code.
@@ -469,13 +519,9 @@ documentation][Streamly].
 
 ### Reactive Programming
 
-Streamly supports reactive (time domain) programming because of its
-support for declarative concurrency. Please see the `Streamly.Prelude`
-module for time-specific combinators like `intervalsOf`, and
-folds like `takeInterval` in `Streamly.Internal.Data.Fold`.
-Please also see the pre-release sampling combinators in the
-`Streamly.Internal.Data.Stream.IsStream.Top` module for `throttle` and
-`debounce` like operations.
+Streamly supports reactive (time domain) programming because of its support for
+declarative concurrency. Please see the `Streamly.Internal.Data.Stream.Time`
+module for time-specific and sampling combinators.
 
 The examples [AcidRain.hs][] and [CirclingSquare.hs][] demonstrate
 reactive programming using [Streamly][].
