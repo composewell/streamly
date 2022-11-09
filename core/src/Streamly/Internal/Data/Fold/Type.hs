@@ -412,6 +412,7 @@ module Streamly.Internal.Data.Fold.Type
 
     -- * Deprecated
     , foldr
+    , serialWith
     )
 where
 
@@ -803,6 +804,11 @@ splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
             $ case res of
                 Partial sR -> extractR sR
                 Done rR -> return rR
+
+{-# DEPRECATED serialWith "Please use \"splitWith\" instead" #-}
+{-# INLINE serialWith #-}
+serialWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
+serialWith = splitWith
 
 {-# ANN type SeqFoldState_ Fuse #-}
 data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
