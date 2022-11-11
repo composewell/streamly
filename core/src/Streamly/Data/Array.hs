@@ -7,53 +7,82 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- This module provides immutable arrays in pinned memory (non GC memory)
--- suitable for long lived data storage, random access and for interfacing with
--- the operating system.
+-- This module provides APIs to create and use unboxed immutable arrays. Once
+-- created their contents cannot be modified. Only types that are unboxable via
+-- the 'Unbox' type class can be stored in these arrays.
 --
--- Arrays in this module are chunks of pinned memory that hold a sequence of
--- 'Storable' values of a given type, they cannot store non-serializable data
--- like functions.  Once created an array cannot be modified.  Pinned memory
--- allows efficient buffering of long lived data without adding any impact to
--- GC. One array is just one pointer visible to GC and it does not have to be
--- copied across generations.  Moreover, pinned memory allows communication
--- with foreign consumers and producers (e.g. file or network IO) without
--- copying the data.
+-- = Folding Arrays
 --
--- = Programmer Notes
+-- Convert array to stream, and fold the stream:
 --
--- Array creation APIs require a 'MonadIO' Monad, except 'fromList' which is a
--- pure API. To operate on streams in pure Monads like 'Identity' you can hoist
--- it to IO monad as follows:
+-- >>> fold f arr = Stream.unfold Array.reader arr & Stream.fold f
+-- >>> fold Fold.sum (Array.fromList [1,2,3::Int])
+-- 6
 --
--- >>> import Data.Functor.Identity (Identity, runIdentity)
--- >>> s = Stream.fromList [1..10] :: Stream Identity Int
--- >>> s1 = Stream.hoist (return . runIdentity) s :: Stream IO Int
--- >>> Stream.fold Array.write s1 :: IO (Array Int)
--- fromList [1,2,3,4,5,6,7,8,9,10]
+-- = Transforming Arrays
 --
--- 'unsafePerformIO' can be used to get a pure API from IO, as long as you know
--- it is safe to do so:
+-- Convert array to stream, transform, and fold back to array:
 --
--- >>> import System.IO.Unsafe (unsafePerformIO)
--- >>> unsafePerformIO $ Stream.fold Array.write s1 :: Array Int
--- fromList [1,2,3,4,5,6,7,8,9,10]
+-- >>> amap f arr = Stream.unfold Array.reader arr & fmap f & Stream.fold Array.write
+-- >>> amap (+1) (Array.fromList [1,2,3::Int])
+-- fromList [2,3,4]
 --
--- To apply a transformation to an array use 'read' to unfold the array into a
--- stream, apply a transformation on the stream and then use 'write' to fold it
--- back to an array.
+-- = Pinned and Unpinned Arrays
+--
+-- The array type can use both pinned and unpinned memory under the hood.
+-- Currently the array creation APIs create arrays in pinned memory but it will
+-- change to unpinned in future releases. The change should not affect users
+-- functionally unless they are directly accessing the internal memory of the
+-- array via internal APIs. As of now unpinned arrays can be created using
+-- unreleased APIs.
+--
+-- Unpinned arrays have the advantage of allowing automatic defragmentation of
+-- the memory by GC. Whereas pinned arrays have the advantage of not requiring
+-- a copy by GC. Normally you would want to use unpinned arrays. However, in
+-- some cases, for example, for long lived large data storage, and for
+-- interfacing with the operating system or foreign (non-Haskell) consumers you
+-- may want to use pinned arrays.
+--
+-- = Creating Arrays from Non-IO Streams
+--
+-- Array creation folds require 'MonadIO' because they need to sequence effects
+-- in IO streams. To operate on streams in pure Monads like 'Identity' you can
+-- hoist it to IO monad as follows:
+--
+-- The 'MonadIO' based folds can be hoisted to 'Identity' stream folds:
+--
+-- >>> purely = Fold.hoist (Identity . unsafePerformIO)
+-- >>> Stream.fold (purely Array.write) $ Stream.fromList [1,2,3::Int]
+-- Identity fromList [1,2,3]
+--
+-- Alternatively, 'Identity' streams can be generalized to IO streams:
+--
+-- >>> pure = Stream.fromList [1,2,3] :: Stream Identity Int
+-- >>> generally = Stream.hoist (return . runIdentity)
+-- >>> Stream.fold Array.write (generally pure :: Stream IO Int)
+-- fromList [1,2,3]
+--
+-- Since it is a pure stream we can use 'unsafePerformIO' to extract the result
+-- of fold from IO.
+--
+-- = Programming Tips
 --
 -- This module is designed to be imported qualified:
 --
--- > import qualified Streamly.Data.Array as Array
+-- >>> import qualified Streamly.Data.Array as Array
+--
+-- Use @QuantifiedConstraints@ extension to avoid the 'Storable' constraint
+-- when using the 'Unbox' constraint.
 --
 -- For experimental APIs see "Streamly.Internal.Data.Array".
 
 module Streamly.Data.Array
     (
-    -- * Types
-      Unbox (..)
-    , A.Array
+    -- * Imports for Examples
+    -- $setup
+
+    -- * The Array Type
+      A.Array
 
     -- * Construction
     -- | When performance matters, the fastest way to generate an array is
@@ -90,6 +119,9 @@ module Streamly.Data.Array
     -- , (!!)
     , A.getIndex
 
+    -- * Unbox Type Class
+    , Unbox (..)
+
     -- * Deprecated
     , read
     , readRev
@@ -107,10 +139,16 @@ import Prelude hiding (read)
 -- $setup
 -- >>> :m
 -- >>> :set -XFlexibleContexts
--- >>> import Streamly.Internal.Data.Stream (Stream)
+-- >>> import Data.Function ((&))
+-- >>> import Data.Functor.Identity (Identity(..))
 -- >>> import Streamly.Data.Array (Array)
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import Streamly.Data.Stream (Stream)
+-- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import qualified Streamly.Data.Array as Array
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold (hoist)
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream (hoist)
 
 -- | Same as 'reader'
 --
