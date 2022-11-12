@@ -530,8 +530,6 @@ bindWith par m1 f =
 -- elements in the input @stream@ and the @mixer@ function is used to merge
 -- those streams.
 --
--- Note we can merge streams concurrently by using a concurrent merge function.
---
 {-# INLINE concatMapWith #-}
 concatMapWith
     :: (Stream m b -> Stream m b -> Stream m b)

@@ -310,6 +310,7 @@ module Streamly.Data.Stream
     -- ** Stateless Filters
     -- | 'mapMaybeM' is the most general stateless filtering operation. All
     -- other filtering operations can be expressed using it.
+
     -- EXPLANATION:
     -- In imperative terms a filter over a stream corresponds to a loop with a
     -- @continue@ clause for the cases when the predicate fails.
@@ -318,6 +319,7 @@ module Streamly.Data.Stream
     , mapMaybeM
     , filter
     , filterM
+    , catMaybes
 
     -- ** Stateful Filters
     -- | 'scanMaybe' is the most general stateful filtering operation. The
@@ -387,9 +389,6 @@ module Streamly.Data.Stream
     -- element of the input stream generates another stream and then loops over
     -- that inner stream as well producing effects and generating a single
     -- output stream.
-    -- The 'Monad' instances of different stream types provide a more
-    -- convenient way of writing nested loops. Note that the monad bind
-    -- operation is just @flip concatMap@.
     --
     -- One dimension loops are just a special case of nested loops.  For
     -- example, 'concatMap' can degenerate to a simple map operation:
