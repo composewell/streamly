@@ -306,11 +306,9 @@ data Rate = Rate
     , rateBuffer :: Int    -- ^ Maximum slack from the goal
     }
 
--- | Specify when the 'Channel' should stop. Note that for ordered streams only
--- 'FirstStops' and 'AnyStop' would be the same, and usually only 'AllStop'
--- would make sense. This option is most useful for eager unordered streams.
+-- | Specify when the 'Channel' should stop.
 data StopWhen =
-      FirstStops -- ^ Stop when the first stream/action ends.
+      FirstStops -- ^ Stop when the first stream ends.
     | AllStop    -- ^ Stop when all the streams end.
     | AnyStops   -- ^ Stop when any one stream ends.
 
@@ -321,8 +319,8 @@ data StopWhen =
 -- XXX make all these Limited types and use phantom types to distinguish them
 
 -- | An abstract type for specifying the configuration parameters of a
--- 'Channel'. Use @Config -> Config@ modifier functions to modify the
--- default configuration. See the modifiers for default values.
+-- 'Channel'. Use @Config -> Config@ modifier functions to modify the default
+-- configuration. See the individual modifier documentation for default values.
 --
 data Config = Config
     { -- one shot configuration, automatically reset for each API call
@@ -503,6 +501,7 @@ getInspectMode = _inspect
 -- 'maxBuffer' is reached.
 --
 -- /Note:/ This option has no effect when rate has been specified.
+--
 -- /Note:/ Not supported with 'interleaved'.
 --
 eager :: Bool -> Config -> Config
@@ -534,6 +533,7 @@ getOrdered = _ordered
 -- threads.
 --
 -- /Note:/ Can only be used on finite number of streams.
+--
 -- /Note:/ Not supported with 'ordered'.
 --
 interleaved :: Bool -> Config -> Config
