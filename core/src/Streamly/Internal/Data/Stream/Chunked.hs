@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Stream
+-- Module      : Streamly.Internal.Data.Stream.Chunked
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Combinators to efficiently manipulate streams of immutable arrays.
 --
-module Streamly.Internal.Data.Array.Stream
+module Streamly.Internal.Data.Stream.Chunked
     (
     -- * Creation
       arraysOf

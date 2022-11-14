@@ -117,7 +117,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
     (Step(..), snoc, reduce)
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Array.Stream as AS
+import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import qualified Streamly.Data.Stream as S (fold, bracketIO, mapM)
 
 -------------------------------------------------------------------------------
