@@ -147,7 +147,7 @@ import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Mut as MArray
     (Array(..), newPinnedBytes, asPtrUnsafe)
-import qualified Streamly.Internal.Data.Array.Stream as AS
+import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))

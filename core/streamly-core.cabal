@@ -313,6 +313,7 @@ library
                      , Streamly.Internal.Data.Stream.Reduce
                      , Streamly.Internal.Data.Stream.Top
                      , Streamly.Internal.Data.Stream
+                     , Streamly.Internal.Data.Stream.Chunked
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.Stream.TypeGen
                      , Streamly.Internal.Data.List
@@ -322,7 +323,6 @@ library
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Array.Mut.Stream
                      , Streamly.Internal.Data.Array.Fold
-                     , Streamly.Internal.Data.Array.Stream
 
                      -- streamly-serde
                      , Streamly.Internal.Data.Binary.Decode
