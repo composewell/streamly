@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Fold
+-- Module      : Streamly.Internal.Data.Fold.Chunked
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -28,7 +28,7 @@
 -- >>> ArrayStream.runArrayFold f s
 -- "hello w"
 --
-module Streamly.Internal.Data.Array.Fold
+module Streamly.Internal.Data.Fold.Chunked
     (
       ArrayFold (..)
 
