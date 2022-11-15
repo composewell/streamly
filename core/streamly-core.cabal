@@ -298,6 +298,7 @@ library
                      , Streamly.Internal.Data.Unfold.Enumeration
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Fold.Chunked
                      , Streamly.Internal.Data.Fold.Window
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
@@ -322,7 +323,6 @@ library
                      , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Array.Mut.Stream
-                     , Streamly.Internal.Data.Array.Fold
 
                      -- streamly-serde
                      , Streamly.Internal.Data.Binary.Decode
