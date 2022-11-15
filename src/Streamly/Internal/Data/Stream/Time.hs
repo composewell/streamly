@@ -5,41 +5,49 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
---
 
 module Streamly.Internal.Data.Stream.Time
     (
-    -- Primitives
-      interjectSuffix
-    , ticks
+    -- * Imports for Examples
+    -- $setup
+
+    -- * Timers
+      periodic -- XXX Should go to Streamly.Data.Stream
+    , ticks -- XXX Should go to Streamly.Data.Stream
+    , ticksRate
+    , interject
+
+    -- * Trimming
     , takeInterval
     , takeLastInterval
     , dropInterval
     , dropLastInterval
+
+    -- * Chunking
     , intervalsOf
     , chunksOfTimeout
 
-    -- Sessions
-    , classifySessionsByGeneric
-    , classifySessionsBy
-    , classifySessionsOf
-    , classifyKeepAliveSessions
-
-    -- ** Buffering and Sampling
-    -- | Evaluate strictly using a buffer of results.  When the buffer becomes
-    -- full we can block, drop the new elements, drop the oldest element and
-    -- insert the new at the end or keep dropping elements uniformly to match
-    -- the rate of the consumer.
-    , sampleOld
-    , sampleNew
-    , sampleRate
-
-    -- Sampling
+    -- * Sampling
     , sampleIntervalEnd
     , sampleIntervalStart
     , sampleBurst
     , sampleBurstEnd
     , sampleBurstStart
+
+    -- * Windowed Sessions
+    , classifySessionsByGeneric
+    , classifySessionsBy
+    , classifySessionsOf
+    , classifyKeepAliveSessions
+
+    -- XXX This should go in the concurrent module
+    -- * Buffering
+    -- | Evaluate strictly using a buffer of results.  When the buffer becomes
+    -- full we can block, drop the new elements, drop the oldest element and
+    -- insert the new at the end.
+    , bufferLatest
+    , bufferLatestN
+    , bufferOldestN
     )
 where
 
@@ -71,8 +79,7 @@ import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Fold as Fold (Step(..))
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Stream as Stream
-    ( catMaybes
-    , scanlMAfter'
+    ( scanlMAfter'
     , timeIndexed
     , timestamped
     )
@@ -89,9 +96,9 @@ import Streamly.Internal.Data.Stream.Concurrent
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream as Stream (timestamped)
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream (delayPost, timestamped)
 -- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
--- >>> import qualified Streamly.Internal.Data.Stream.Time as Concur
+-- >>> import qualified Streamly.Internal.Data.Stream.Time as Stream
 -- >>> import Prelude hiding (concatMap, concat)
 -- >>> :{
 --  delay n = do
@@ -104,71 +111,74 @@ import Streamly.Internal.Data.Stream.Concurrent
 -- Combinators
 --------------------------------------------------------------------------------
 
--- | Intersperse a monadic action into the input stream after every @n@
--- seconds.
+-- | Generate a stream by running an action periodically at the specified time
+-- interval.
 --
--- >>> Stream.fold Fold.drain $ Concur.interjectSuffix 1.05 (putChar ',') $ Stream.mapM (\x -> threadDelay 1000000 >> putChar x) $ Stream.fromList "hello"
--- h,e,l,l,o
---
--- /Pre-release/
-{-# INLINE interjectSuffix #-}
-interjectSuffix :: MonadAsync m => Double -> m a -> Stream m a -> Stream m a
-interjectSuffix n f xs = parallelFst [xs, Stream.repeatM timed]
+{-# INLINE periodic #-}
+periodic :: MonadIO m => m a -> Double -> Stream m a
+periodic action n = Stream.repeatM timed
 
     where
 
-    timed = liftIO (threadDelay (round $ n * 1000000)) >> f
+    timed = liftIO (threadDelay (round $ n * 1000000)) >> action
 
--- | Generate ticks at the specified rate. The rate is adaptive, the tick
--- generation speed can be increased or decreased at different times to achieve
--- the specified rate.  The specific behavior for different styles of 'Rate'
--- specifications is documented under 'Rate'.  The effective maximum rate
--- achieved by a stream is governed by the processor speed.
+-- | Generate a tick stream consisting of '()' elements, each tick is generated
+-- after the specified time delay given in seconds.
 --
--- /Unimplemented/
+-- >>> ticks = Stream.periodic (return ())
 --
 {-# INLINE ticks #-}
-ticks :: -- (MonadAsync m) =>
-    Rate -> Stream m ()
-ticks = undefined
+ticks :: MonadIO m => Double -> Stream m ()
+ticks = periodic (return ())
 
--- XXX Notes from D.takeByTime (which was removed)
--- XXX using getTime in the loop can be pretty expensive especially for
--- computations where iterations are lightweight. We have the following
--- options:
+-- | Generate a tick stream, ticks are generated at the specified 'Rate'. The
+-- rate is adaptive, the tick generation speed can be increased or decreased at
+-- different times to achieve the specified rate.  The specific behavior for
+-- different styles of 'Rate' specifications is documented under 'Rate'.  The
+-- effective maximum rate achieved by a stream is governed by the processor
+-- speed.
 --
--- 1) Run a timeout thread updating a flag asynchronously and check that
--- flag here, that way we can have a cheap termination check.
+-- >>> tickStream = Stream.repeatM (return ())
+-- >>> ticksRate r = Concur.evalWith (Concur.rate (Just r)) tickStream
 --
--- 2) Use COARSE clock to get time with lower resolution but more efficiently.
---
--- 3) Use rdtscp/rdtsc to get time directly from the processor, compute the
--- termination value of rdtsc in the beginning and then in each iteration just
--- get rdtsc and check if we should terminate.
+{-# INLINE ticksRate #-}
+ticksRate :: MonadAsync m => Rate -> Stream m ()
+ticksRate r = evalWith (rate (Just r)) $ Stream.repeatM (return ())
 
+-- XXX The case when the interval is 0, we should run only the stream being
+-- interjected.
 
--- | @takeInterval duration@ yields stream elements upto specified time
--- @duration@ in seconds. The duration starts when the stream is evaluated for
--- the first time, before the first element is yielded. The time duration is
--- checked before generating each element, if the duration has expired the
--- stream stops.
+-- | Intersperse a monadic action into the input stream after every @n@
+-- seconds.
 --
--- The total time taken in executing the stream is guaranteed to be /at least/
--- @duration@, however, because the duration is checked before generating an
--- element, the upper bound is indeterminate and depends on the time taken in
--- generating and processing the last element.
+-- Definition:
 --
--- No element is yielded if the duration is zero. At least one element is
--- yielded if the duration is non-zero.
+-- >>> interject n f xs = Concur.parallelFst [xs, Stream.periodic f n]
 --
--- /Pre-release/
+-- Example:
+--
+-- >>> s = Stream.fromList "hello"
+-- >>> input = Stream.mapM (\x -> threadDelay 1000000 >> putChar x) s
+-- >>> Stream.fold Fold.drain $ Stream.interject (putChar ',') 1.05 input
+-- h,e,l,l,o
+--
+{-# INLINE interject #-}
+interject :: MonadAsync m => m a -> Double -> Stream m a -> Stream m a
+interject f n xs = parallelFst [xs, periodic f n]
+
+-- XXX No element should be yielded if the duration is zero.
+
+-- | @takeInterval interval@ runs the stream only upto the specified time
+-- @interval@ in seconds.
+--
+-- The interval starts when the stream is evaluated for the first time.
 --
 {-# INLINE takeInterval #-}
 takeInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
 takeInterval d =
     Stream.catMaybes
         . Stream.takeWhile isNothing
-        . interjectSuffix d (return Nothing) . fmap Just
+        . interject (return Nothing) d . fmap Just
 
 -- | Take time interval @i@ seconds at the end of the stream.
 --
@@ -180,26 +190,19 @@ takeLastInterval :: -- MonadAsync m =>
     Double -> Stream m a -> Stream m a
 takeLastInterval = undefined
 
--- | @dropInterval duration@ drops stream elements until specified @duration@ in
--- seconds has passed.  The duration begins when the stream is evaluated for the
--- first time. The time duration is checked /after/ generating a stream element,
--- the element is yielded if the duration has expired otherwise it is dropped.
+-- XXX All elements should be yielded if the duration is zero.
+
+-- | @dropInterval interval@ drops all the stream elements that are generated
+-- before the specified @interval@ in seconds has passed.
 --
--- The time elapsed before starting to generate the first element is /at most/
--- @duration@, however, because the duration expiry is checked after the
--- element is generated, the lower bound is indeterminate and depends on the
--- time taken in generating an element.
---
--- All elements are yielded if the duration is zero.
---
--- /Pre-release/
+-- The interval begins when the stream is evaluated for the first time.
 --
 {-# INLINE dropInterval #-}
 dropInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
 dropInterval d =
     Stream.catMaybes
         . Stream.dropWhile isNothing
-        . interjectSuffix d (return Nothing) . fmap Just
+        . interject (return Nothing) d . fmap Just
 
 -- | Drop time interval @i@ seconds at the end of the stream.
 --
@@ -211,32 +214,31 @@ dropLastInterval :: -- MonadAsync m =>
     Int -> Stream m a -> Stream m a
 dropLastInterval = undefined
 
--- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
--- XXX add this example after fixing the serial stream rate control
---
 -- | Group the input stream into windows of @n@ second each and then fold each
 -- group using the provided fold function.
 --
--- >>> Stream.toList $ Stream.take 5 $ Stream.intervalsOf 1 Fold.sum $ Stream.constRate 2 $ Stream.enumerateFrom 1
--- [...,...,...,...,...]
+-- >>> twoPerSec = Concur.evalWith (Concur.constRate 2) $ Stream.enumerateFrom 1
+-- >>> intervals = Stream.intervalsOf 1 Fold.toList twoPerSec
+-- >>> Stream.fold Fold.toList $ Stream.take 2 intervals
+-- [...,...]
 --
 {-# INLINE intervalsOf #-}
 intervalsOf :: MonadAsync m => Double -> Fold m a b -> Stream m a -> Stream m b
 intervalsOf n f xs =
     Stream.foldMany
         (Fold.takeEndBy isNothing (Fold.catMaybes f))
-        (interjectSuffix n (return Nothing) (fmap Just xs))
+        (interject (return Nothing) n (fmap Just xs))
 
 -- XXX This can be implemented more efficiently by sharing a Clock.Timer across
 -- parallel threads and resetting it whenever a span is emitted.
---
+
 -- | Like 'chunksOf' but if the chunk is not completed within the specified
 -- time interval then emit whatever we have collected till now. The chunk
 -- timeout is reset whenever a chunk is emitted. The granularity of the clock
 -- is 100 ms.
 --
 -- >>> s = Stream.delayPost 0.3 $ Stream.fromList [1..1000]
--- >>> f = Stream.fold (Fold.drainBy print) $ Stream.chunksOfTimeout 5 1 Fold.toList s
+-- >>> f = Stream.fold (Fold.drainMapM print) $ Stream.chunksOfTimeout 5 1 Fold.toList s
 --
 -- /Pre-release/
 {-# INLINE chunksOfTimeout #-}
@@ -248,7 +250,6 @@ chunksOfTimeout n timeout f =
         0.1 False (const (return False)) timeout (Fold.take n f)
     . Stream.timestamped
     . fmap ((),)
-
 
 ------------------------------------------------------------------------------
 -- Windowed classification
@@ -537,7 +538,7 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
     (Fold step initial extract) input =
     Stream.unfoldMany (Unfold.lmap sessionOutputStream Unfold.fromStream)
         $ Stream.scanlMAfter' sstep (return szero) (flush extract)
-        $ interjectSuffix tick (return Nothing)
+        $ interject (return Nothing) tick
         $ fmap Just input
 
     where
@@ -709,7 +710,7 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
 --
 -- >>> :{
 -- Stream.fold (Fold.drainMapM print)
---     $ Concur.classifySessionsBy 1 False (const (return False)) 3 (Fold.take 3 Fold.toList)
+--     $ Stream.classifySessionsBy 1 False (const (return False)) 3 (Fold.take 3 Fold.toList)
 --     $ Stream.timestamped
 --     $ Stream.delay 0.1
 --     $ (,) <$> Stream.fromList [1,2,3] <*> Stream.fromList ['a','b','c']
@@ -781,9 +782,7 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 -- | Same as 'classifySessionsBy' with a timer tick of 1 second and keepalive
 -- option set to 'False'.
 --
--- @
--- classifySessionsOf = classifySessionsBy 1 False
--- @
+-- >>> classifySessionsOf = Stream.classifySessionsBy 1 False
 --
 -- /Pre-release/
 --
@@ -801,16 +800,12 @@ classifySessionsOf = classifySessionsBy 1 False
 -- Sampling
 ------------------------------------------------------------------------------
 
--- | Continuously evaluate the input stream and sample the last event in time
--- window of @n@ seconds.
+-- | Continuously evaluate the input stream and sample the last event in each
+-- time window of @n@ seconds.
 --
 -- This is also known as @throttle@ in some libraries.
 --
--- @
--- sampleIntervalEnd n = Stream.catMaybes . Stream.intervalsOf n Fold.last
--- @
---
--- /Pre-release/
+-- >>> sampleIntervalEnd n = Stream.catMaybes . Stream.intervalsOf n Fold.latest
 --
 {-# INLINE sampleIntervalEnd #-}
 sampleIntervalEnd :: MonadAsync m => Double -> Stream m a -> Stream m a
@@ -818,11 +813,7 @@ sampleIntervalEnd n = Stream.catMaybes . intervalsOf n Fold.latest
 
 -- | Like 'sampleInterval' but samples at the beginning of the time window.
 --
--- @
--- sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.one
--- @
---
--- /Pre-release/
+-- >>> sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.one
 --
 {-# INLINE sampleIntervalStart #-}
 sampleIntervalStart :: MonadAsync m => Double -> Stream m a -> Stream m a
@@ -843,7 +834,7 @@ sampleBurst sampleAtEnd gap xs =
     Stream.mapMaybe extract
         $ Stream.scan (Fold.foldl' step BurstNone)
         $ Stream.timeIndexed
-        $ interjectSuffix 0.01 (return Nothing) (fmap Just xs)
+        $ interject (return Nothing) 0.01 (fmap Just xs)
 
     where
 
@@ -889,16 +880,12 @@ sampleBurst sampleAtEnd gap xs =
 --
 -- The clock granularity is 10 ms.
 --
--- /Pre-release/
---
 {-# INLINE sampleBurstEnd #-}
 sampleBurstEnd :: MonadAsync m => Double -> Stream m a -> Stream m a
 sampleBurstEnd = sampleBurst True
 
 -- | Like 'sampleBurstEnd' but samples the event at the beginning of the burst
 -- instead of at the end of it.
---
--- /Pre-release/
 --
 {-# INLINE sampleBurstStart #-}
 sampleBurstStart :: MonadAsync m => Double -> Stream m a -> Stream m a
@@ -913,38 +900,50 @@ sampleBurstStart = sampleBurst False
 -- support that we can decouple evaluation and sampling in independent stages.
 -- The sampling stage would strictly evaluate and sample, the evaluation stage
 -- would control the evaluation rate.
+--
+-- bufferLatest - evaluate retaining only the latest element. Fork a thread
+-- that keeps writing the stream to an IORef, another parallel thread reads
+-- from the IORef.
+--
+-- bufferLatestN - Fork a thread that keeps writing to a sliding ring buffer,
+-- and the stream unfolds the entire buffer when it is read, and the empty
+-- buffer starts filling again in the same way.
+--
+-- bufferOldestN - Fork a thread that keeps writing to a buffer until it is
+-- filled and keeps dropping once it is filled. When the stream is read the
+-- buffer is unfolded to a stream and the empty buffer starts filling again.
 
 -- | Evaluate the input stream continuously and keep only the oldest @n@
 -- elements in the buffer, discard the new ones when the buffer is full.  When
--- the output stream is evaluated it consumes the values from the buffer in a
--- FIFO manner.
+-- the output stream is evaluated the collected buffer is streamed and the
+-- buffer starts filling again.
 --
 -- /Unimplemented/
 --
-{-# INLINE sampleOld #-}
-sampleOld :: -- MonadAsync m =>
+{-# INLINE bufferOldestN #-}
+bufferOldestN :: -- MonadAsync m =>
     Int -> Stream m a -> Stream m a
-sampleOld = undefined
+bufferOldestN = undefined
 
 -- | Evaluate the input stream continuously and keep only the latest @n@
 -- elements in a ring buffer, keep discarding the older ones to make space for
--- the new ones.  When the output stream is evaluated it consumes the values
--- from the buffer in a FIFO manner.
+-- the new ones.  When the output stream is evaluated the buffer collected till
+-- now is streamed and it starts filling again.
 --
 -- /Unimplemented/
 --
-{-# INLINE sampleNew #-}
-sampleNew :: -- MonadAsync m =>
+{-# INLINE bufferLatestN #-}
+bufferLatestN :: -- MonadAsync m =>
     Int -> Stream m a -> Stream m a
-sampleNew = undefined
+bufferLatestN = undefined
 
--- | Like 'sampleNew' but samples at uniform intervals to match the consumer
--- rate. Note that 'sampleNew' leads to non-uniform sampling depending on the
--- consumer pattern.
+-- | Always produce the latest available element from the stream without any
+-- delay. The stream is continuously evaluated at the highest possible rate and
+-- only the latest element is retained for sampling.
 --
 -- /Unimplemented/
 --
-{-# INLINE sampleRate #-}
-sampleRate :: -- MonadAsync m =>
-    Double -> Stream m a -> Stream m a
-sampleRate = undefined
+{-# INLINE bufferLatest #-}
+bufferLatest :: -- MonadAsync m =>
+    Stream m a -> Stream m (Maybe a)
+bufferLatest = undefined

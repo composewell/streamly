@@ -379,8 +379,9 @@ library
                      , Streamly.Internal.Network.Inet.TCP
 
                      -- Exposed modules
-                     , Streamly.Data.Stream.Concurrent
                      , Streamly.Data.Stream.Exception
+                     , Streamly.Data.Stream.Concurrent
+                     , Streamly.Data.Stream.Time
 
                      -- Network/IO
                      , Streamly.Network.Socket
