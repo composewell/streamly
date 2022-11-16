@@ -121,10 +121,10 @@ import System.Win32.Types (BOOL, DWORD, HANDLE, LPVOID, LPDWORD, failIfFalse_)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.Concurrent as S (parConcatMap)
 import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.Unicode.Utf8 as UTF8
 import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
 import Streamly.Internal.Data.Array (Array)
 
 -- | Watch configuration, used to specify the events of interest and the
@@ -471,7 +471,7 @@ closePathHandleStream =
 --
 watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
 watchWith f paths =
-    S.bracketIO before after (Concur.concatMapWith (eager True) eventStreamAggr)
+    S.bracketIO before after (S.parConcatMap (eager True) eventStreamAggr)
 
     where
 

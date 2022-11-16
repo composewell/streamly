@@ -39,7 +39,7 @@ mapM ::
     -> Int
     -> Stream m Int
     -> m ()
-mapM f n = composeN n $ Async.mapMWith f return
+mapM f n = composeN n $ Async.parMapM f return
 
 o_1_space_mapping :: Int -> (Config -> Config) -> [Benchmark]
 o_1_space_mapping value f =
@@ -56,7 +56,7 @@ o_n_heap_buffering :: Int -> (Config -> Config) -> [Benchmark]
 o_n_heap_buffering value f =
     [ bgroup "buffered"
         [ benchIOSink value "mkAsync"
-            (Stream.fold Fold.drain . Async.evalWith f)
+            (Stream.fold Fold.drain . Async.parEval f)
         ]
     ]
 
@@ -75,7 +75,7 @@ async2 f count n =
 concatAsync2 :: (Config -> Config) -> Int -> Int -> IO ()
 concatAsync2 f count n =
     Stream.fold Fold.drain
-        $ Async.concatWith f
+        $ Async.parConcat f
         $ Stream.fromList
             [sourceUnfoldrM count n, sourceUnfoldrM count (n + 1)]
 
@@ -94,12 +94,12 @@ o_1_space_joining value f =
 {-# INLINE sourceFoldMapWith #-}
 sourceFoldMapWith :: (Config -> Config) -> Int -> Int -> Stream IO Int
 sourceFoldMapWith f value n =
-    Async.concatMapWith f Stream.fromPure $ Stream.fromList [n..n+value]
+    Async.parConcatMap f Stream.fromPure $ Stream.fromList [n..n+value]
 
 {-# INLINE sourceFoldMapWithStream #-}
 sourceFoldMapWithStream :: (Config -> Config) -> Int -> Int -> Stream IO Int
 sourceFoldMapWithStream f value n =
-    Async.concatMapWith f Stream.fromPure
+    Async.parConcatMap f Stream.fromPure
         $ Stream.enumerateFromTo n (n + value)
 
 {-# INLINE concatFoldableWith #-}
@@ -110,7 +110,7 @@ concatFoldableWith f value n =
             then Just (Stream.fromPure x, x + 1)
             else Nothing
         list = List.unfoldr step n
-     in Async.concatWith f (Stream.fromList  list)
+     in Async.parConcat f (Stream.fromList  list)
 
 o_1_space_concatFoldable :: Int -> (Config -> Config) -> [Benchmark]
 o_1_space_concatFoldable value f =
@@ -133,7 +133,7 @@ concatMapStreamsWith
     -> IO ()
 concatMapStreamsWith f outer inner n =
     Stream.fold Fold.drain
-        $ Async.concatMapWith f (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
+        $ Async.parConcatMap f (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
 
 {-# INLINE concatFmapStreamsWith #-}
 concatFmapStreamsWith
@@ -144,18 +144,18 @@ concatFmapStreamsWith
     -> IO ()
 concatFmapStreamsWith f outer inner n =
     Stream.fold Fold.drain
-        $ Async.concatWith f
+        $ Async.parConcat f
         $ fmap (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
 
 o_1_space_concatMap :: Int -> (Config -> Config) -> [Benchmark]
 o_1_space_concatMap value f =
     value2 `seq`
         [ bgroup "concat"
-            [ benchIO "concatMapWith (n of 1)"
+            [ benchIO "parConcatMap (n of 1)"
                   (concatMapStreamsWith f value 1)
-            , benchIO "concatMapWith (sqrt x of sqrt x)"
+            , benchIO "parConcatMap (sqrt x of sqrt x)"
                   (concatMapStreamsWith f value2 value2)
-            , benchIO "concatMapWith (1 of n)"
+            , benchIO "parConcatMap (1 of n)"
                   (concatMapStreamsWith f 1 value)
             , benchIO "concat . fmap (n of 1)"
                   (concatFmapStreamsWith f value 1)
@@ -174,7 +174,7 @@ o_1_space_concatMap value f =
 toNullAp :: (Config -> Config) -> Int -> Int -> IO ()
 toNullAp f linearCount start =
     Stream.fold Fold.drain
-        $ Async.applyWith f
+        $ Async.parApply f
             (fmap (+) (sourceUnfoldrM nestedCount2 start))
             (sourceUnfoldrM nestedCount2 start)
 

@@ -19,7 +19,7 @@ module Streamly.Internal.Data.Stream.Zip.Concurrent
 where
 
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.Stream.Concurrent (MonadAsync, zipWith)
+import Streamly.Internal.Data.Stream.Concurrent (MonadAsync, parZipWith)
 
 import qualified Streamly.Internal.Data.Stream as Stream (repeat)
 import Prelude hiding (map, repeat, zipWith)
@@ -32,7 +32,8 @@ import Prelude hiding (map, repeat, zipWith)
 newtype ZipConcurrent m a = ZipConcurrent {getZipConcurrent :: Stream m a}
       deriving (Functor)
 
--- | An IO stream whose applicative instance zips streams concurrently.
+-- | An IO stream whose applicative instance zips streams concurrently. Note
+-- that it uses the default concurrency options.
 --
 -- >>> s = ZipConcurrent $ Stream.fromList [1, 2, 3]
 -- >>> x = (,,) <$> s <*> s <*> s
@@ -45,4 +46,5 @@ instance MonadAsync m => Applicative (ZipConcurrent m) where
     pure = ZipConcurrent . Stream.repeat
 
     {-# INLINE (<*>) #-}
-    ZipConcurrent m1 <*> ZipConcurrent m2 = ZipConcurrent $ zipWith id m1 m2
+    ZipConcurrent m1 <*> ZipConcurrent m2 =
+        ZipConcurrent $ parZipWith id id m1 m2

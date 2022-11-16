@@ -68,8 +68,8 @@ transformCombineFromList ::
 transformCombineFromList constr eq listOp op a b c =
     withMaxSuccess maxTestCount $
         monadicIO $ do
-            let s1 = op (Async.append [constr b, constr c])
-            let s2 = Async.append [constr a, s1]
+            let s1 = op (Async.parLazy [constr b, constr c])
+            let s2 = Async.parLazy [constr a, s1]
             stream <- run (Stream.fold Fold.toList s2)
             let list = a <> listOp (b <> c)
             listEquals eq stream list
@@ -145,8 +145,8 @@ exceptionPropagation f = do
                 (Left (ExampleException "E") :: Either ExampleException [Int])
 
     it "concatMap throwM" $ do
-        let s1 = Async.concatListWith id $ fmap Stream.fromPure [1..4]
-            s2 = Async.concatListWith id $ fmap Stream.fromPure [5..8]
+        let s1 = Async.parConcatList id $ fmap Stream.fromPure [1..4]
+            s2 = Async.parConcatList id $ fmap Stream.fromPure [5..8]
         try $ tl (
             let bind = flip Async.concatMap
              in bind s1 $ \x ->
@@ -187,7 +187,7 @@ timeOrdering f = do
 takeCombined :: Int -> IO ()
 takeCombined n = do
     let constr = Stream.fromFoldable
-    let s = Async.append [constr ([] :: [Int]), constr ([] :: [Int])]
+    let s = Async.parLazy [constr ([] :: [Int]), constr ([] :: [Int])]
     r <- Stream.fold Fold.toList $ Stream.take n s
     r `shouldBe` []
 
@@ -219,7 +219,7 @@ sequenceReplicate cfg = constructWithLenM stream list
     where
 
     list = flip replicateM (return 1 :: IO Int)
-    stream = Async.sequenceWith cfg . flip Stream.replicate (return 1 :: IO Int)
+    stream = Async.parSequence cfg . flip Stream.replicate (return 1 :: IO Int)
 
 main :: IO ()
 main = hspec
@@ -235,7 +235,7 @@ main = hspec
                 (fmap (+2))
                 (fmap (+1) . Async.eval . fmap (+1))
 
-        asyncSpec $ prop "sequenceWith" . sequenceReplicate
+        asyncSpec $ prop "parSequence" . sequenceReplicate
         -- XXX Need to use asyncSpec in all tests
         prop "mapM (+1)" $
             transform (fmap (+1)) (Async.mapM (\x -> return (x + 1)))
@@ -243,18 +243,18 @@ main = hspec
         -- XXX Need to use eq instead of sortEq for ahead oeprations
         -- Binary append
         prop1 "append [] []"
-            $ cmp (Async.append [Stream.nil, Stream.nil]) sortEq []
+            $ cmp (Async.parLazy [Stream.nil, Stream.nil]) sortEq []
         prop1 "append [] [1]"
-            $ cmp (Async.append [Stream.nil, Stream.fromPure 1]) sortEq [1]
+            $ cmp (Async.parLazy [Stream.nil, Stream.fromPure 1]) sortEq [1]
         prop1 "append [1] []"
-            $ cmp (Async.append [Stream.fromPure 1, Stream.nil]) sortEq [1]
+            $ cmp (Async.parLazy [Stream.fromPure 1, Stream.nil]) sortEq [1]
         prop1 "append [0] [1]"
-            $ let stream = Async.append [Stream.fromPure 0, Stream.fromPure 1]
+            $ let stream = Async.parLazy [Stream.fromPure 0, Stream.fromPure 1]
                in cmp stream sortEq [0, 1]
 
         prop1 "append [0] [] [1]"
             $ let stream =
-                    Async.append
+                    Async.parLazy
                         [Stream.fromPure 0, Stream.nil, Stream.fromPure 1]
                in cmp stream sortEq [0, 1]
 
@@ -315,7 +315,7 @@ main = hspec
                     (Async.concatMap (const (Stream.fromList [1..n])))
 
 #ifdef DEVBUILD
-        describe "Time ordering" $ timeOrdering Async.append
+        describe "Time ordering" $ timeOrdering Async.parLazy
 #endif
         describe "Exception propagation" $ exceptionPropagation Async.append2
         -- Ad-hoc tests

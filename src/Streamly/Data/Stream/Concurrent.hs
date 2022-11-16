@@ -80,6 +80,13 @@
 -- A concurrent 'repeatM' would repeat an action using multiple concurrent
 -- executions of the action. Similarly, a concurrent 'mapM' would perform the
 -- mapped action in independent threads.
+--
+-- == Programming Tips
+--
+-- The names in this module do not conflict with other stream modules,
+-- therefore, you can import it in the same namespace:
+--
+-- >>> import qualified Streamly.Data.Stream.Concurrent as Stream
 
 module Streamly.Data.Stream.Concurrent
     (
@@ -119,20 +126,20 @@ module Streamly.Data.Stream.Concurrent
     -- | Evaluates a stream concurrently using a channel.
 
     -- , eval
-    , evalWith
+    , parEval
 
     -- ** Generate
     -- | Uses a single channel to evaluate mapped actions concurrently.
-    , repeatMWith
-    , replicateMWith
+    , parRepeatM
+    , parReplicateM
 
     -- ** Map
     -- | Uses a single channel to evaluate mapped actions concurrently.
 
     -- , mapM
-    , mapMWith
+    , parMapM
     -- , sequence
-    , sequenceWith
+    , parSequence
 
     -- ** List of streams
     -- | Shares a single channel across many streams.
@@ -140,7 +147,7 @@ module Streamly.Data.Stream.Concurrent
     -- , append
     -- , ahead
     -- , parallel
-    , concatListWith
+    , parConcatList
     -- , parallelFst
     -- , parallelMin
     -- , zipWithM
@@ -150,15 +157,15 @@ module Streamly.Data.Stream.Concurrent
     -- *** Apply
 
     -- , apply
-    , applyWith
+    , parApply
 
     -- *** Concat
     -- | Shares a single channel across many streams.
 
     -- , concat
-    , concatWith
+    , parConcat
     -- , concatMap
-    , concatMapWith
+    , parConcatMap
     )
 where
 

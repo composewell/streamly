@@ -48,22 +48,22 @@ module Streamly.Internal.Data.Stream.Concurrent
     -- ** Evaluate
     -- | Evaluates a stream concurrently using a channel.
     , eval
-    , evalWith
+    , parEval
     -- Add unfoldrM/iterateM?
 
     -- ** Generate
     -- | Uses a single channel to evaluate all actions.
     , repeatM
-    , repeatMWith
+    , parRepeatM
     , replicateM
-    , replicateMWith
+    , parReplicateM
 
     -- ** Map
     -- | Uses a single channel to evaluate all actions.
     , mapM
-    , mapMWith
+    , parMapM
     , sequence
-    , sequenceWith
+    , parSequence
 
     -- ** Combine two
     -- | Use a channel for each pair.
@@ -78,28 +78,29 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** List of streams
     -- | Shares a single channel across many streams.
-    , append
-    , interleave
-    , ahead
-    , parallel
-    , parallelFst
-    , parallelMin
-    , concatListWith
-    , zipWithM
-    , zipWith
+    , parLazy
+    , parLazyOrdered
+    , parLazyInterleaved
+    , parEager
+    , parEagerFst
+    , parEagerMin
+    , parConcatList
+
+    , parZipWithM
+    , parZipWith
 
     -- ** Stream of streams
     -- *** Apply
     , apply
-    , applyWith
+    , parApply
 
     -- *** Concat
     -- | Shares a single channel across many streams.
     , concat
-    , concatWith
+    , parConcat
     , concatMap
     , concatMapInterleave
-    , concatMapWith
+    , parConcatMap
 
     -- ** Reactive
     , fromCallback
@@ -144,7 +145,7 @@ import Streamly.Internal.Data.Stream.Concurrent.Channel
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
+-- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Stream
 -- >>> import Prelude hiding (concatMap, concat, zipWith)
 -- >>> :{
 --  delay n = do
@@ -158,9 +159,9 @@ import Streamly.Internal.Data.Stream.Concurrent.Channel
 -------------------------------------------------------------------------------
 
 {-
-{-# INLINE_NORMAL evalWithD #-}
-evalWithD :: MonadAsync m => (Config -> Config) -> D.Stream m a -> D.Stream m a
-evalWithD modifier m = D.Stream step Nothing
+{-# INLINE_NORMAL parEvalD #-}
+parEvalD :: MonadAsync m => (Config -> Config) -> D.Stream m a -> D.Stream m a
+parEvalD modifier m = D.Stream step Nothing
     where
 
     step _ Nothing = do
@@ -180,18 +181,23 @@ evalWithD modifier m = D.Stream step Nothing
 -- | Evaluate a stream asynchronously using a channel and serve the consumer
 -- from the evaluation buffer.
 --
-{-# INLINE evalWith #-}
-evalWith :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
-evalWith modifier input = withChannel modifier input (const id)
-    -- Stream.fromStreamD $ evalWithD cfg $ Stream.toStreamD stream
+-- Note that the evaluation requires a single thread as only one stream needs
+-- to be evaluated. Therefore, the concurrency options that are relevant to
+-- multiple streams won't apply here e.g. maxThreads, eager, interleaved,
+-- ordered, stopWhen options won't have any effect.
+--
+{-# INLINE parEval #-}
+parEval :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
+parEval modifier input = withChannel modifier input (const id)
+    -- Stream.fromStreamD $ parEvalD cfg $ Stream.toStreamD stream
 
 -- | Definition:
 --
--- >>> eval = Concur.evalWith id
+-- >>> eval = Stream.parEval id
 --
 {-# INLINE eval #-}
 eval :: MonadAsync m => Stream m a -> Stream m a
-eval = evalWith id
+eval = parEval id
 
 -------------------------------------------------------------------------------
 -- combining two streams
@@ -232,18 +238,18 @@ appendWithK :: MonadAsync m =>
 appendWithK modifier stream1 stream2 =
 {-
     if getOrdered (modifier defaultConfig)
-    then concatMapWithK modifier id (stream1 `K.cons` K.fromPure stream2)
+    then parConcatMapK modifier id (stream1 `K.cons` K.fromPure stream2)
     else _appendGeneric Append.newChannel modifier stream1 stream2
 -}
-    concatMapWithK modifier id (stream1 `K.cons` K.fromPure stream2)
+    parConcatMapK modifier id (stream1 `K.cons` K.fromPure stream2)
 
 -- | Evaluate the first stream in the current thread and add the second stream
 -- to the supplied channel. This is to be used by a worker thread.
 --
--- This can be used with concatMapWith:
+-- This can be used with parConcatMap:
 --
 -- @
--- concatMap = K.concatMapWith (_appendWithChanK chan) f stream
+-- concatMap = K.parConcatMap (_appendWithChanK chan) f stream
 -- @
 --
 {-# INLINE _appendWithChanK #-}
@@ -272,13 +278,13 @@ combineWith modifier stream1 stream2 =
 -- all streams. However, with this operation you can precisely control the
 -- scheduling by creating arbitrary shape expression trees.
 --
--- >>> append2 = Concur.combineWith id
+-- >>> append2 = Stream.combineWith id
 --
 -- The following code finishes in 4 seconds:
 --
 -- >>> stream1 = Stream.fromEffect (delay 4)
 -- >>> stream2 = Stream.fromEffect (delay 2)
--- >>> Stream.fold Fold.toList $ stream1 `Concur.append2` stream2
+-- >>> Stream.fold Fold.toList $ stream1 `Stream.append2` stream2
 -- 2 sec
 -- 4 sec
 -- [2,4]
@@ -291,7 +297,7 @@ append2 = combineWith id
 -- the left stream. This schedules all streams in a round robin fashion over
 -- limited number of threads.
 --
--- >>> interleave2 = Concur.combineWith (Concur.interleaved True)
+-- >>> interleave2 = Stream.combineWith (Stream.interleaved True)
 --
 {-# INLINE interleave2 #-}
 interleave2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -299,7 +305,7 @@ interleave2 = combineWith (interleaved True)
 
 -- | Like 'append' but with 'ordered' on.
 --
--- >>> ahead2 = Concur.combineWith (Concur.ordered True)
+-- >>> ahead2 = Stream.combineWith (Stream.ordered True)
 --
 {-# INLINE ahead2 #-}
 ahead2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -307,7 +313,7 @@ ahead2 = combineWith (ordered True)
 
 -- | Like 'append2' but with 'eager' on.
 --
--- >>> parallel2 = Concur.combineWith (Concur.eager True)
+-- >>> parallel2 = Stream.combineWith (Stream.eager True)
 --
 {-# INLINE parallel2 #-}
 parallel2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -315,7 +321,7 @@ parallel2 = combineWith (eager True)
 
 -- | Like 'parallel2' but stops the output as soon as the first stream stops.
 --
--- >>> parallelFst2 = Concur.combineWith (Concur.eager True . Concur.stopWhen Concur.FirstStops)
+-- >>> parallelFst2 = Stream.combineWith (Stream.eager True . Stream.stopWhen Stream.FirstStops)
 --
 -- /Pre-release/
 {-# INLINE parallelFst2 #-}
@@ -325,7 +331,7 @@ parallelFst2 = combineWith (eager True . stopWhen FirstStops)
 -- | Like 'parallel2' but stops the output as soon as any of the two streams
 -- stops.
 --
--- >>> parallelMin2 = Concur.combineWith (Concur.eager True . Concur.stopWhen Concur.AnyStops)
+-- >>> parallelMin2 = Stream.combineWith (Stream.eager True . Stream.stopWhen Stream.AnyStops)
 --
 -- /Pre-release/
 {-# INLINE parallelMin2 #-}
@@ -366,26 +372,26 @@ mkEnqueue chan runner = do
 --
 -- This function is designed to be used by worker threads on a channel to
 -- concurrently map and evaluate a stream.
-{-# INLINE concatMapWithChanK #-}
-concatMapWithChanK :: MonadAsync m =>
+{-# INLINE parConcatMapChanK #-}
+parConcatMapChanK :: MonadAsync m =>
     Channel m b -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
-concatMapWithChanK chan f stream =
+parConcatMapChanK chan f stream =
    let run q = concatMapDivK q f
     in K.concatMapEffect (`run` stream) (mkEnqueue chan run)
-    -- K.concatMapWith (_appendWithChanK chan) f stream
+    -- K.parConcatMap (_appendWithChanK chan) f stream
 
-{-# INLINE concatMapWithChanKAny #-}
-concatMapWithChanKAny :: MonadAsync m =>
+{-# INLINE parConcatMapChanKAny #-}
+parConcatMapChanKAny :: MonadAsync m =>
     Channel m b -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
-concatMapWithChanKAny chan f stream =
+parConcatMapChanKAny chan f stream =
    let done = K.nilM (stopChannel chan)
        run q = concatMapDivK q (\x -> K.serial (f x) done)
     in K.concatMapEffect (`run` stream) (mkEnqueue chan run)
 
-{-# INLINE concatMapWithChanKFirst #-}
-concatMapWithChanKFirst :: MonadAsync m =>
+{-# INLINE parConcatMapChanKFirst #-}
+parConcatMapChanKFirst :: MonadAsync m =>
     Channel m b -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
-concatMapWithChanKFirst chan f stream =
+parConcatMapChanKFirst chan f stream =
    let done = K.nilM (stopChannel chan)
        run q = concatMapDivK q f
     in K.concatEffect $ do
@@ -397,19 +403,19 @@ concatMapWithChanKFirst chan f stream =
                 q t
                 return $ K.serial (f h) done
 
-{-# INLINE concatMapWithChanKGeneric #-}
-concatMapWithChanKGeneric :: MonadAsync m =>
+{-# INLINE parConcatMapChanKGeneric #-}
+parConcatMapChanKGeneric :: MonadAsync m =>
        (Config -> Config)
     -> Channel m b
     -> (a -> K.Stream m b)
     -> K.Stream m a
     -> K.Stream m b
-concatMapWithChanKGeneric modifier chan f stream = do
+parConcatMapChanKGeneric modifier chan f stream = do
         let cfg = modifier defaultConfig
         case getStopWhen cfg of
-            AllStop -> concatMapWithChanK chan f stream
-            FirstStops -> concatMapWithChanKFirst chan f stream
-            AnyStops -> concatMapWithChanKAny chan f stream
+            AllStop -> parConcatMapChanK chan f stream
+            FirstStops -> parConcatMapChanKFirst chan f stream
+            AnyStops -> parConcatMapChanKAny chan f stream
 
 -- XXX Add a deep evaluation variant that evaluates individual elements in the
 -- generated streams in parallel.
@@ -417,11 +423,11 @@ concatMapWithChanKGeneric modifier chan f stream = do
 -- | Allocate a channel and use it to concurrently evaluate the streams
 -- generated by the mapped function.
 --
-{-# INLINE concatMapWithK #-}
-concatMapWithK :: MonadAsync m =>
+{-# INLINE parConcatMapK #-}
+parConcatMapK :: MonadAsync m =>
     (Config -> Config) -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
-concatMapWithK modifier f input =
-    let g = concatMapWithChanKGeneric modifier
+parConcatMapK modifier f input =
+    let g = parConcatMapChanKGeneric modifier
      in withChannelK modifier input (`g` f)
 
 -- | Map each element of the input to a stream and then concurrently evaluate
@@ -431,11 +437,11 @@ concatMapWithK modifier f input =
 --
 -- Definition:
 --
--- >>> concatMapWith modifier f stream = Concur.concatWith modifier $ fmap f stream
+-- >>> parConcatMap modifier f stream = Stream.parConcat modifier $ fmap f stream
 --
 -- Examples:
 --
--- >>> f cfg xs = Stream.fold Fold.toList $ Concur.concatMapWith cfg id $ Stream.fromList xs
+-- >>> f cfg xs = Stream.fold Fold.toList $ Stream.parConcatMap cfg id $ Stream.fromList xs
 --
 -- The following streams finish in 4 seconds:
 --
@@ -451,140 +457,140 @@ concatMapWithK modifier f input =
 -- Limiting threads to 2 schedules the third stream only after one of the first
 -- two has finished, releasing a thread:
 --
--- >>> f (Concur.maxThreads 2) [stream1, stream2, stream3]
+-- >>> f (Stream.maxThreads 2) [stream1, stream2, stream3]
 -- ...
 -- [2,1,4]
 --
 -- When used with a Single thread it behaves like serial concatMap:
 --
--- >>> f (Concur.maxThreads 1) [stream1, stream2, stream3]
+-- >>> f (Stream.maxThreads 1) [stream1, stream2, stream3]
 -- ...
 -- [4,2,1]
 --
 -- >>> stream1 = Stream.fromList [1,2,3]
 -- >>> stream2 = Stream.fromList [4,5,6]
--- >>> f (Concur.maxThreads 1) [stream1, stream2]
+-- >>> f (Stream.maxThreads 1) [stream1, stream2]
 -- [1,2,3,4,5,6]
 --
-{-# INLINE concatMapWith #-}
-concatMapWith :: MonadAsync m =>
+{-# INLINE parConcatMap #-}
+parConcatMap :: MonadAsync m =>
     (Config -> Config) -> (a -> Stream m b) -> Stream m a -> Stream m b
-concatMapWith modifier f stream =
+parConcatMap modifier f stream =
     Stream.fromStreamK
-        $ concatMapWithK
+        $ parConcatMapK
             modifier (Stream.toStreamK . f) (Stream.toStreamK stream)
 
 -- | Definition:
 --
--- >>> concatMap = Concur.concatMapWith id
+-- >>> concatMap = Stream.parConcatMap id
 --
 {-# INLINE concatMap #-}
 concatMap :: MonadAsync m => (a -> Stream m b) -> Stream m a -> Stream m b
-concatMap = concatMapWith id
+concatMap = parConcatMap id
 
 -- | Map each element of the input to a stream and then concurrently evaluate
 -- and interleave the resulting streams. Unlike 'concatMap' which prefers to
 -- evaluate the earlier stream first, this schedules all streams in a round
 -- robin fashion over the available threads.
 --
--- >>> concatMapInterleave = Concur.concatMapWith (Concur.interleaved True)
+-- >>> concatMapInterleave = Stream.parConcatMap (Stream.interleaved True)
 --
 -- When used with a single thread it behaves like serial interleaving:
 --
--- >>> f cfg xs = Stream.fold Fold.toList $ Concur.concatMapWith (Concur.interleaved True . cfg) id $ Stream.fromList xs
+-- >>> f cfg xs = Stream.fold Fold.toList $ Stream.parConcatMap (Stream.interleaved True . cfg) id $ Stream.fromList xs
 --
 -- >>> stream1 = Stream.fromList [1,2,3]
 -- >>> stream2 = Stream.fromList [4,5,6]
--- >>> f (Concur.maxThreads 1) [stream1, stream2]
+-- >>> f (Stream.maxThreads 1) [stream1, stream2]
 -- [1,4,2,5,3,6]
 --
 -- /Works only on finite number of streams/
 --
 {-# INLINE concatMapInterleave #-}
 concatMapInterleave :: MonadAsync m => (a -> Stream m b) -> Stream m a -> Stream m b
-concatMapInterleave = concatMapWith (interleaved True)
+concatMapInterleave = parConcatMap (interleaved True)
 
 -- | Evaluate the streams in the input stream concurrently and combine them.
 --
--- >>> concatWith modifier = Concur.concatMapWith modifier id
+-- >>> parConcat modifier = Stream.parConcatMap modifier id
 --
-{-# INLINE concatWith #-}
-concatWith :: MonadAsync m =>
+{-# INLINE parConcat #-}
+parConcat :: MonadAsync m =>
     (Config -> Config) -> Stream m (Stream m a) -> Stream m a
-concatWith modifier = concatMapWith modifier id
+parConcat modifier = parConcatMap modifier id
 
 -- | Definition:
 --
--- >>> concat = Concur.concatWith id
+-- >>> concat = Stream.parConcat id
 --
 {-# INLINE concat #-}
 concat :: MonadAsync m => Stream m (Stream m a) -> Stream m a
-concat = concatWith id
+concat = parConcat id
 
 -------------------------------------------------------------------------------
 -- concat Lists
 -------------------------------------------------------------------------------
 
--- | Like 'concatWith' but works on a list of streams.
+-- | Like 'parConcat' but works on a list of streams.
 --
--- >>> concatListWith modifier = Concur.concatWith modifier . Stream.fromList
+-- >>> parConcatList modifier = Stream.parConcat modifier . Stream.fromList
 --
-{-# INLINE concatListWith #-}
-concatListWith :: MonadAsync m => (Config -> Config) -> [Stream m a] -> Stream m a
-concatListWith modifier = concatWith modifier . Stream.fromList
+{-# INLINE parConcatList #-}
+parConcatList :: MonadAsync m => (Config -> Config) -> [Stream m a] -> Stream m a
+parConcatList modifier = parConcat modifier . Stream.fromList
 
 -- | Like 'concat' but works on a list of streams.
 --
--- >>> append = Concur.concatListWith id
+-- >>> parLazy = Stream.parConcatList id
 --
-{-# INLINE append #-}
-append :: MonadAsync m => [Stream m a] -> Stream m a
-append = concatListWith id
+{-# INLINE parLazy #-}
+parLazy :: MonadAsync m => [Stream m a] -> Stream m a
+parLazy = parConcatList id
 
--- | Like 'append' but interleaves the streams fairly instead of prioritizing
+-- | Like 'parLazy' but interleaves the streams fairly instead of prioritizing
 -- the left stream. This schedules all streams in a round robin fashion over
 -- limited number of threads.
 --
--- >>> interleave = Concur.concatListWith (Concur.interleaved True)
+-- >>> parLazyInterleaved = Stream.parConcatList (Stream.interleaved True)
 --
-{-# INLINE interleave #-}
-interleave :: MonadAsync m => [Stream m a] -> Stream m a
-interleave = concatListWith (interleaved True)
+{-# INLINE parLazyInterleaved #-}
+parLazyInterleaved :: MonadAsync m => [Stream m a] -> Stream m a
+parLazyInterleaved = parConcatList (interleaved True)
 
--- | Like 'append' but with 'ordered' on.
+-- | Like 'parLazy' but with 'ordered' on.
 --
--- >>> ahead = Concur.concatListWith (Concur.ordered True)
+-- >>> parLazyOrdered = Stream.parConcatList (Stream.ordered True)
 --
-{-# INLINE ahead #-}
-ahead :: MonadAsync m => [Stream m a] -> Stream m a
-ahead = concatListWith (ordered True)
+{-# INLINE parLazyOrdered #-}
+parLazyOrdered :: MonadAsync m => [Stream m a] -> Stream m a
+parLazyOrdered = parConcatList (ordered True)
 
--- | Like 'append' but with 'eager' on.
+-- | Like 'parLazy' but with 'eager' on.
 --
--- >>> parallel = Concur.concatListWith (Concur.eager True)
+-- >>> parEager = Stream.parConcatList (Stream.eager True)
 --
-{-# INLINE parallel #-}
-parallel :: MonadAsync m => [Stream m a] -> Stream m a
-parallel = concatListWith (eager True)
+{-# INLINE parEager #-}
+parEager :: MonadAsync m => [Stream m a] -> Stream m a
+parEager = parConcatList (eager True)
 
--- | Like 'parallel' but stops the output as soon as the first stream stops.
+-- | Like 'parEager' but stops the output as soon as the first stream stops.
 --
--- >>> parallelFst = Concur.concatListWith (Concur.eager True . Concur.stopWhen Concur.FirstStops)
+-- >>> parEagerFst = Stream.parConcatList (Stream.eager True . Stream.stopWhen Stream.FirstStops)
 --
-{-# INLINE parallelFst #-}
-parallelFst :: MonadAsync m => [Stream m a] -> Stream m a
-parallelFst = concatListWith (eager True . stopWhen FirstStops)
+{-# INLINE parEagerFst #-}
+parEagerFst :: MonadAsync m => [Stream m a] -> Stream m a
+parEagerFst = parConcatList (eager True . stopWhen FirstStops)
 
--- | Like 'parallel' but stops the output as soon as any of the two streams
+-- | Like 'parEager' but stops the output as soon as any of the two streams
 -- stops.
 --
 -- Definition:
 --
--- >>> parallelMin = Concur.concatListWith (Concur.eager True . Concur.stopWhen Concur.AnyStops)
+-- >>> parEagerMin = Stream.parConcatList (Stream.eager True . Stream.stopWhen Stream.AnyStops)
 --
-{-# INLINE parallelMin #-}
-parallelMin :: MonadAsync m => [Stream m a] -> Stream m a
-parallelMin = concatListWith (eager True . stopWhen AnyStops)
+{-# INLINE parEagerMin #-}
+parEagerMin :: MonadAsync m => [Stream m a] -> Stream m a
+parEagerMin = parConcatList (eager True . stopWhen AnyStops)
 
 -------------------------------------------------------------------------------
 -- Applicative
@@ -592,21 +598,21 @@ parallelMin = concatListWith (eager True . stopWhen AnyStops)
 
 -- | Apply an argument stream to a function stream concurrently. Uses a
 -- shared channel for all individual applications within a stream application.
-{-# INLINE applyWith #-}
-{-# SPECIALIZE applyWith ::
+{-# INLINE parApply #-}
+{-# SPECIALIZE parApply ::
    (Config -> Config) -> Stream IO (a -> b) -> Stream IO a -> Stream IO b #-}
-applyWith :: MonadAsync m =>
+parApply :: MonadAsync m =>
     (Config -> Config) -> Stream m (a -> b) -> Stream m a -> Stream m b
-applyWith modifier stream1 stream2 =
-    concatMapWith
+parApply modifier stream1 stream2 =
+    parConcatMap
         modifier
-        (\g -> concatMapWith modifier (pure . g) stream2)
+        (\g -> parConcatMap modifier (pure . g) stream2)
         stream1
 
 {-# INLINE apply #-}
 {-# SPECIALIZE apply :: Stream IO (a -> b) -> Stream IO a -> Stream IO b #-}
 apply :: MonadAsync m => Stream m (a -> b) -> Stream m a -> Stream m b
-apply = applyWith id
+apply = parApply id
 
 -------------------------------------------------------------------------------
 -- Map
@@ -615,79 +621,85 @@ apply = applyWith id
 -- |
 -- Definition:
 --
--- >>> mapMWith modifier f = Concur.concatMapWith modifier (Stream.fromEffect . f)
+-- >>> parMapM modifier f = Stream.parConcatMap modifier (Stream.fromEffect . f)
 --
 -- Example, the following example finishes in 1 second as all actions run in
 -- parallel. Even though results are available out of order they are ordered
 -- due to the config option::
 --
 -- >>> f x = delay x >> return x
--- >>> Stream.fold Fold.toList $ Concur.mapMWith (Concur.ordered True) f $ Stream.fromList [3,2,1]
+-- >>> Stream.fold Fold.toList $ Stream.parMapM (Stream.ordered True) f $ Stream.fromList [3,2,1]
 -- 1 sec
 -- 2 sec
 -- 3 sec
 -- [3,2,1]
 --
-{-# INLINE mapMWith #-}
-mapMWith :: MonadAsync m =>
+{-# INLINE parMapM #-}
+parMapM :: MonadAsync m =>
     (Config -> Config) -> (a -> m b) -> Stream m a -> Stream m b
-mapMWith modifier f = concatMapWith modifier (Stream.fromEffect . f)
+parMapM modifier f = parConcatMap modifier (Stream.fromEffect . f)
 
 -- |
 -- Definition:
 --
--- >>> mapM = Concur.mapMWith id
---
--- Example, the following example finishes in 1 second as all actions run in
--- parallel, by default, the results are output as soon as they are available::
---
--- >>> f x = delay x >> return x
--- >>> Stream.fold Fold.toList $ Concur.mapM f $ Stream.fromList [3,2,1]
--- 1 sec
--- 2 sec
--- 3 sec
--- [1,2,3]
+-- >>> mapM = Stream.parMapM id
 --
 {-# INLINE mapM #-}
 mapM :: MonadAsync m => (a -> m b) -> Stream m a -> Stream m b
-mapM = mapMWith id
+mapM = parMapM id
 
 -- |
--- >>> sequenceWith modifier = Concur.mapMWith modifier id
+-- >>> parSequence modifier = Stream.parMapM modifier id
 --
-{-# INLINE sequenceWith #-}
-sequenceWith :: MonadAsync m =>
+{-# INLINE parSequence #-}
+parSequence :: MonadAsync m =>
     (Config -> Config) -> Stream m (m a) -> Stream m a
-sequenceWith modifier = mapMWith modifier id
+parSequence modifier = parMapM modifier id
 
 -- |
--- >>> sequence = Concur.sequenceWith id
+-- >>> sequence = Stream.parSequence id
 --
 {-# INLINE sequence #-}
 sequence :: MonadAsync m =>
     Stream m (m a) -> Stream m a
-sequence = sequenceWith id
+sequence = parSequence id
 
--- |
--- >>> zipWithM f m1 m2 = Stream.zipWithM f (Concur.eval m1) (Concur.eval m2)
+-- | Evaluates the streams being zipped in separate threads than the consumer.
+-- The zip function is evaluated in the consumer thread.
 --
-{-# INLINE zipWithM #-}
-zipWithM :: MonadAsync m
-    => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipWithM f m1 m2 = Stream.zipWithM f (eval m1) (eval m2)
+-- >>> parZipWithM cfg f m1 m2 = Stream.zipWithM f (Stream.parEval cfg m1) (Stream.parEval cfg m2)
+--
+-- Multi-stream concurrency options won't apply here, see the notes in
+-- 'parEval'.
+--
+-- If you want to evaluate the zip function as well in a separate thread, you
+-- can use a 'parEval' on 'parZipWithM'.
+--
+{-# INLINE parZipWithM #-}
+parZipWithM :: MonadAsync m
+    => (Config -> Config)
+    -> (a -> b -> m c)
+    -> Stream m a
+    -> Stream m b
+    -> Stream m c
+parZipWithM cfg f m1 m2 = Stream.zipWithM f (parEval cfg m1) (parEval cfg m2)
 
 -- |
--- >>> zipWith f = Stream.zipWithM (\a b -> return $ f a b)
+-- >>> parZipWith cfg f = Stream.parZipWithM cfg (\a b -> return $ f a b)
 --
 -- >>> m1 = Stream.fromList [1,2,3]
 -- >>> m2 = Stream.fromList [4,5,6]
--- >>> Stream.fold Fold.toList $ Concur.zipWith (,) m1 m2
+-- >>> Stream.fold Fold.toList $ Stream.parZipWith id (,) m1 m2
 -- [(1,4),(2,5),(3,6)]
 --
-{-# INLINE zipWith #-}
-zipWith :: MonadAsync m
-    => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipWith f = zipWithM (\a b -> return $ f a b)
+{-# INLINE parZipWith #-}
+parZipWith :: MonadAsync m
+    => (Config -> Config)
+    -> (a -> b -> c)
+    -> Stream m a
+    -> Stream m b
+    -> Stream m c
+parZipWith cfg f = parZipWithM cfg (\a b -> return $ f a b)
 
 -------------------------------------------------------------------------------
 -- Generate
@@ -696,46 +708,46 @@ zipWith f = zipWithM (\a b -> return $ f a b)
 -- |
 -- Definition:
 --
--- >>> repeatMWith cfg = Concur.sequenceWith cfg . Stream.repeat
+-- >>> parRepeatM cfg = Stream.parSequence cfg . Stream.repeat
 --
 -- Generate a stream by repeatedly executing a monadic action forever.
-{-# INLINE repeatMWith #-}
-repeatMWith :: MonadAsync m => (Config -> Config) -> m a -> Stream m a
-repeatMWith cfg = sequenceWith cfg . Stream.repeat
+{-# INLINE parRepeatM #-}
+parRepeatM :: MonadAsync m => (Config -> Config) -> m a -> Stream m a
+parRepeatM cfg = parSequence cfg . Stream.repeat
 
 -- |
 --  Definition:
 --
--- >>> repeatM = Concur.repeatMWith id
+-- >>> repeatM = Stream.parRepeatM id
 --
 {-# INLINE repeatM #-}
 repeatM :: MonadAsync m => m a -> Stream m a
-repeatM = repeatMWith id
+repeatM = parRepeatM id
 
 -- | Generate a stream by concurrently performing a monadic action @n@ times.
 --
 --  Definition:
 --
--- >>> replicateMWith cfg n = Concur.sequenceWith cfg . Stream.replicate n
+-- >>> parReplicateM cfg n = Stream.parSequence cfg . Stream.replicate n
 --
--- Example, 'replicateMWith' in the following example executes all the
+-- Example, 'parReplicateM' in the following example executes all the
 -- replicated actions concurrently, thus taking only 1 second:
 --
--- >>> Stream.fold Fold.drain $ Concur.replicateMWith id 10 $ delay 1
+-- >>> Stream.fold Fold.drain $ Stream.parReplicateM id 10 $ delay 1
 -- ...
 --
-{-# INLINE replicateMWith #-}
-replicateMWith :: MonadAsync m => (Config -> Config) -> Int -> m a -> Stream m a
-replicateMWith cfg n = sequenceWith cfg . Stream.replicate n
+{-# INLINE parReplicateM #-}
+parReplicateM :: MonadAsync m => (Config -> Config) -> Int -> m a -> Stream m a
+parReplicateM cfg n = parSequence cfg . Stream.replicate n
 
 -- |
 --  Definition:
 --
--- >>> replicateM n = Concur.replicateMWith id
+-- >>> replicateM n = Stream.parReplicateM id
 --
 {-# INLINE replicateM #-}
 replicateM :: MonadAsync m => Int -> m a -> Stream m a
-replicateM = replicateMWith id
+replicateM = parReplicateM id
 
 -------------------------------------------------------------------------------
 -- Reactive
@@ -824,7 +836,7 @@ pollCountsD predicate fld (D.Stream step state) = D.Stream step' Nothing
 -- For example, to print the count of elements processed every second:
 --
 -- @
--- > Stream.drain $ Concur.pollCounts (const True) (Stream.rollingMap (-) . Stream.delayPost 1) (Fold.drainBy print)
+-- > Stream.drain $ Stream.pollCounts (const True) (Stream.rollingMap (-) . Stream.delayPost 1) (Fold.drainBy print)
 --           $ Stream.enumerateFrom 0
 -- @
 --

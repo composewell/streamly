@@ -97,7 +97,8 @@ import Streamly.Internal.Data.Stream.Concurrent
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream (delayPost, timestamped)
--- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
+-- >>> import qualified Streamly.Data.Stream.Concurrent as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Stream (parEagerFst)
 -- >>> import qualified Streamly.Internal.Data.Stream.Time as Stream
 -- >>> import Prelude hiding (concatMap, concat)
 -- >>> :{
@@ -139,11 +140,11 @@ ticks = periodic (return ())
 -- speed.
 --
 -- >>> tickStream = Stream.repeatM (return ())
--- >>> ticksRate r = Concur.evalWith (Concur.rate (Just r)) tickStream
+-- >>> ticksRate r = Stream.parEval (Stream.rate (Just r)) tickStream
 --
 {-# INLINE ticksRate #-}
 ticksRate :: MonadAsync m => Rate -> Stream m ()
-ticksRate r = evalWith (rate (Just r)) $ Stream.repeatM (return ())
+ticksRate r = parEval (rate (Just r)) $ Stream.repeatM (return ())
 
 -- XXX The case when the interval is 0, we should run only the stream being
 -- interjected.
@@ -153,7 +154,7 @@ ticksRate r = evalWith (rate (Just r)) $ Stream.repeatM (return ())
 --
 -- Definition:
 --
--- >>> interject n f xs = Concur.parallelFst [xs, Stream.periodic f n]
+-- >>> interject n f xs = Stream.parEagerFst [xs, Stream.periodic f n]
 --
 -- Example:
 --
@@ -164,7 +165,7 @@ ticksRate r = evalWith (rate (Just r)) $ Stream.repeatM (return ())
 --
 {-# INLINE interject #-}
 interject :: MonadAsync m => m a -> Double -> Stream m a -> Stream m a
-interject f n xs = parallelFst [xs, periodic f n]
+interject f n xs = parEagerFst [xs, periodic f n]
 
 -- XXX No element should be yielded if the duration is zero.
 
@@ -217,7 +218,7 @@ dropLastInterval = undefined
 -- | Group the input stream into windows of @n@ second each and then fold each
 -- group using the provided fold function.
 --
--- >>> twoPerSec = Concur.evalWith (Concur.constRate 2) $ Stream.enumerateFrom 1
+-- >>> twoPerSec = Stream.parEval (Stream.constRate 2) $ Stream.enumerateFrom 1
 -- >>> intervals = Stream.intervalsOf 1 Fold.toList twoPerSec
 -- >>> Stream.fold Fold.toList $ Stream.take 2 intervals
 -- [...,...]

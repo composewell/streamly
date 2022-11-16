@@ -34,7 +34,7 @@
 -- >>>
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Stream.Concurrent as Concur
+-- >>> import qualified Streamly.Data.Stream.Concurrent as Stream
 -- >>> import qualified Streamly.Network.Socket as Socket
 -- >>>
 -- >>> :{
@@ -51,7 +51,7 @@
 --       where
 --       server spec addr =
 --             Stream.unfold Socket.acceptor (maxListenQueue, spec, addr)
---           & Concur.mapMWith (Concur.eager True) (Socket.forSocketM echo)
+--           & Stream.parMapM (Stream.eager True) (Socket.forSocketM echo)
 --           & Stream.fold Fold.drain
 --       echo sk =
 --             Stream.unfold Socket.chunkReader sk -- Stream IO (Array Word8)
