@@ -64,7 +64,7 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.Array.Fold (ArrayFold(..))
+import Streamly.Internal.Data.Fold.Chunked (ChunkFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream
     (fromStreamD, fromStreamK, toStreamD, toStreamK)
@@ -387,7 +387,7 @@ foldBreakK (FL.Fold fstep initial extract) stream = do
 -- | Fold an array stream using the supplied 'Fold'. Returns the fold result
 -- and the unconsumed stream.
 --
--- > foldBreak f = runArrayFoldBreak (ArrayFold.fromFold f)
+-- > foldBreak f = runArrayFoldBreak (ChunkFold.fromFold f)
 --
 -- /Internal/
 --
@@ -404,7 +404,7 @@ foldBreak f =
     . toStreamK
 -- If foldBreak performs better than runArrayFoldBreak we can use a rewrite
 -- rule to rewrite runArrayFoldBreak to fold.
--- foldBreak f = runArrayFoldBreak (ArrayFold.fromFold f)
+-- foldBreak f = runArrayFoldBreak (ChunkFold.fromFold f)
 
 -------------------------------------------------------------------------------
 -- Fold to a single Array
@@ -789,7 +789,7 @@ parseBreak p =
 -- | Note that this is not the same as using a @Parser (Array a) m b@ with the
 -- regular "Streamly.Internal.Data.IsStream.parse" function. The regular parse
 -- would consume the input arrays as single unit. This parser parses in the way
--- as described in the ArrayFold module. The input arrays are treated as @n@
+-- as described in the ChunkFold module. The input arrays are treated as @n@
 -- element units and can be consumed partially. The remaining elements are
 -- inserted in the source stream as an array.
 --
@@ -937,8 +937,8 @@ parseArr p s = fmap fromStreamD <$> parseBreakD p (toStreamD s)
 --
 {-# INLINE runArrayFold #-}
 runArrayFold :: (MonadIO m, MonadThrow m, Unbox a) =>
-    ArrayFold m a b -> Stream m (A.Array a) -> m b
-runArrayFold (ArrayFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
+    ChunkFold m a b -> Stream m (A.Array a) -> m b
+runArrayFold (ChunkFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 
 -- | Like 'fold' but also returns the remaining stream.
 --
@@ -946,8 +946,8 @@ runArrayFold (ArrayFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 --
 {-# INLINE runArrayFoldBreak #-}
 runArrayFoldBreak :: (MonadIO m, MonadThrow m, Unbox a) =>
-    ArrayFold m a b -> Stream m (A.Array a) -> m (b, Stream m (A.Array a))
-runArrayFoldBreak (ArrayFold p) s =
+    ChunkFold m a b -> Stream m (A.Array a) -> m (b, Stream m (A.Array a))
+runArrayFoldBreak (ChunkFold p) s =
     second fromStreamD <$> runArrayParserDBreak p (toStreamD s)
 
 {-# ANN type ParseChunksState Fuse #-}
@@ -964,11 +964,11 @@ data ParseChunksState x inpBuf st pst =
 {-# INLINE_NORMAL runArrayFoldManyD #-}
 runArrayFoldManyD
     :: (MonadThrow m, Unbox a)
-    => ArrayFold m a b
+    => ChunkFold m a b
     -> D.Stream m (Array a)
     -> D.Stream m b
 runArrayFoldManyD
-    (ArrayFold (PRD.Parser pstep initial extract)) (D.Stream step state) =
+    (ChunkFold (PRD.Parser pstep initial extract)) (D.Stream step state) =
 
     D.Stream stepOuter (ParseChunksInit [] state)
 
@@ -1141,7 +1141,7 @@ runArrayFoldManyD
 
     stepOuter _ (ParseChunksYield a next) = return $ D.Yield a next
 
--- | Apply an 'ArrayFold' repeatedly on an array stream and emit the
+-- | Apply an 'ChunkFold' repeatedly on an array stream and emit the
 -- fold outputs in the output stream.
 --
 -- See "Streamly.Data.Stream.foldMany" for more details.
@@ -1150,7 +1150,7 @@ runArrayFoldManyD
 {-# INLINE runArrayFoldMany #-}
 runArrayFoldMany
     :: (MonadThrow m, Unbox a)
-    => ArrayFold m a b
+    => ChunkFold m a b
     -> Stream m (Array a)
     -> Stream m b
 runArrayFoldMany p m = fromStreamD $ runArrayFoldManyD p (toStreamD m)
