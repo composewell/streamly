@@ -41,9 +41,6 @@ where
 #include "inline.hs"
 
 import Control.Applicative (liftA2)
-import Control.Monad.Catch (MonadThrow, throwM)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Foldable (Foldable(foldl'), fold)
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Data.Maybe (fromMaybe)
@@ -72,33 +69,9 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 --
 -- >>> (<>) = Stream.append
 --
--- Monad bind maps a stream generator function on the stream and flattens the
--- resulting stream:
---
--- >>> (>>=) = flip (Stream.concatMapWith Stream.append)
---
--- A 'Monad' bind behaves like a @for@ loop:
---
--- >>> :{
--- Stream.fold Fold.toList $ do
---      x <- Stream.fromList [1,2] -- foreach x in stream
---      return x
--- :}
--- [1,2]
---
--- Nested monad binds behave like nested @for@ loops:
---
--- >>> :{
--- Stream.fold Fold.toList $ do
---     x <- Stream.fromList [1,2] -- foreach x in stream
---     y <- Stream.fromList [3,4] -- foreach y in stream
---     return (x, y)
--- :}
--- [(1,3),(1,4),(2,3),(2,4)]
---
 newtype Stream m a = Stream (K.Stream m a)
     -- XXX when deriving do we inherit an INLINE?
-    deriving (Semigroup, Monoid, MonadTrans)
+    deriving (Semigroup, Monoid)
 
 ------------------------------------------------------------------------------
 -- Conversions
@@ -164,79 +137,6 @@ instance Monad m => Functor (Stream m) where
 
     {-# INLINE (<$) #-}
     (<$) = fmap . const
-
-------------------------------------------------------------------------------
--- Applicative
-------------------------------------------------------------------------------
-
-{-# INLINE apSerial #-}
-apSerial :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
-apSerial (Stream m1) (Stream m2) =
-    fromStreamK $ D.toStreamK $ D.fromStreamK m1 <*> D.fromStreamK m2
-
-{-# INLINE apSequence #-}
-apSequence :: Monad m => Stream m a -> Stream m b -> Stream m b
-apSequence (Stream m1) (Stream m2) =
-    fromStreamK $ D.toStreamK $ D.fromStreamK m1 *> D.fromStreamK m2
-
-{-# INLINE apDiscardSnd #-}
-apDiscardSnd :: Monad m => Stream m a -> Stream m b -> Stream m a
-apDiscardSnd (Stream m1) (Stream m2) =
-    fromStreamK $ D.toStreamK $ D.fromStreamK m1 <* D.fromStreamK m2
-
--- Note: we need to define all the typeclass operations because we want to
--- INLINE them.
-instance Monad m => Applicative (Stream m) where
-    {-# INLINE pure #-}
-    pure = fromStreamK . K.fromPure
-
-    {-# INLINE (<*>) #-}
-    (<*>) = apSerial
-    -- (<*>) = K.apSerial
-
-    {-# INLINE liftA2 #-}
-    liftA2 f x = (<*>) (fmap f x)
-
-    {-# INLINE (*>) #-}
-    (*>)  = apSequence
-    -- (*>)  = K.apSerialDiscardFst
-
-    {-# INLINE (<*) #-}
-    (<*) = apDiscardSnd
-    -- (<*)  = K.apSerialDiscardSnd
-
-------------------------------------------------------------------------------
--- Monad
-------------------------------------------------------------------------------
-
-instance Monad m => Monad (Stream m) where
-    return = pure
-
-    -- Benchmarks better with StreamD bind and pure:
-    -- toList, filterAllout, *>, *<, >> (~2x)
-    --
-    -- pure = Stream . D.fromStreamD . D.fromPure
-    -- m >>= f = D.fromStreamD $ D.concatMap (D.toStreamD . f) (D.toStreamD m)
-
-    -- Benchmarks better with CPS bind and pure:
-    -- Prime sieve (25x)
-    -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
-    --
-    {-# INLINE (>>=) #-}
-    (>>=) m f = fromStreamK $ K.bindWith K.serial (toStreamK m) (toStreamK . f)
-
-    {-# INLINE (>>) #-}
-    (>>) = (*>)
-
-------------------------------------------------------------------------------
--- Transformers
-------------------------------------------------------------------------------
-
-instance (MonadIO m) => MonadIO (Stream m) where
-    liftIO = lift . liftIO
-
-instance (MonadThrow m) => MonadThrow (Stream m) where
-    throwM = lift . throwM
 
 ------------------------------------------------------------------------------
 -- Lists

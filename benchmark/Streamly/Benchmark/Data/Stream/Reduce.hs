@@ -62,12 +62,12 @@ iterateN g initial count = f count initial
 
 -- Iterate a transformation over a singleton stream
 {-# INLINE iterateSingleton #-}
-iterateSingleton :: Monad m
-    => (Int -> Stream m Int -> Stream m Int)
+iterateSingleton ::
+       (Int -> Stream m Int -> Stream m Int)
     -> Int
     -> Int
     -> Stream m Int
-iterateSingleton g count n = iterateN g (return n) count
+iterateSingleton g count n = iterateN g (S.fromPure n) count
 
 {-
 -- XXX need to check why this is slower than the explicit recursion above, even

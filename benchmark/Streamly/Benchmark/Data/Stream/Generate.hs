@@ -35,6 +35,7 @@ import qualified Prelude
 import Gauge
 import Streamly.Benchmark.Common
 import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 #ifdef USE_PRELUDE
 import Streamly.Prelude (MonadAsync)
 import Stream.Common hiding (MonadAsync)
@@ -178,10 +179,10 @@ fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
 mfixUnfold :: Int -> Int -> Stream IO (Int, Int)
 mfixUnfold count start = Stream.mfix f
     where
-    f action = do
+    f action = getCrossStream $ do
         let incr n act = fmap ((+n) . snd)  $ unsafeInterleaveIO act
-        x <- Common.fromListM [incr 1 action, incr 2 action]
-        y <- Common.sourceUnfoldr count start
+        x <- CrossStream (Common.fromListM [incr 1 action, incr 2 action])
+        y <- CrossStream (Common.sourceUnfoldr count start)
         return (x, y)
 
 o_1_space_generation :: Int -> [Benchmark]

@@ -319,6 +319,7 @@ library
                      , Streamly.Internal.Data.Stream
                      , Streamly.Internal.Data.Stream.Chunked
                      , Streamly.Internal.Data.Stream.Zip
+                     , Streamly.Internal.Data.Stream.Cross
                      , Streamly.Internal.Data.Stream.TypeGen
                      , Streamly.Internal.Data.List
 

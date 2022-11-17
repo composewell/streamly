@@ -12,6 +12,9 @@
 
 module User.Tutorials.ConcurrentStreams
     (
+    -- * Imports
+    -- $setup
+
     -- * Concurrent Streams
     -- $concurrentStreams
 
@@ -99,33 +102,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- XXX This tutorial has to be rewritten.
 
 -- $setup
--- >>> :m
--- >>> :set -fno-warn-deprecations
--- >>> import Data.Function ((&))
--- >>> import Streamly.Prelude ((|:), (|&))
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
---
--- >>> import Control.Concurrent (threadDelay, myThreadId)
--- >>> :{
---   delay n = Stream.fromEffect $ do
---      threadDelay (n * 1000000)
---      tid <- myThreadId
---      putStrLn (show tid ++ ": Delay " ++ show n)
--- :}
---
--- >>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
--- >>> hSetBuffering stdout LineBuffering
---
-
--- $imports
---
 -- In most of example snippets we do not repeat the imports. Where imports are
 -- not explicitly specified use the imports shown below.
 --
 -- >>> :m
+-- >>> :set -fno-warn-deprecations
 -- >>> import Data.Function ((&))
 -- >>> import Streamly.Prelude ((|:), (|&))
+-- >>> import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 --
@@ -726,7 +710,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'fromZipAsync' type combinator can be used to switch to parallel applicative
 -- zip composition:
 --
--- >>> d n = delay n >> return n
+-- >>> d n = getCrossStream (CrossStream (delay n) >> return n)
 -- >>> s1 = Stream.fromSerial $ d 2 <> d 4
 -- >>> s2 = Stream.fromSerial $ d 3 <> d 1
 -- >>> (Stream.toList $ Stream.fromZipAsync $ (,) <$> s1 <*> s2) >>= print
@@ -760,13 +744,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- >>> import Data.List (sum)
 -- >>> :{
 -- main = do
---     z <-   Stream.toList
+--     z <- Stream.toList
 --          $ Stream.fromSerial     -- Serial monadic processing (sqrt below)
---          $ do
---              x2 <- Stream.concatForFoldableWith Stream.async [1..100] $ -- Concurrent @"for"@ loop
---                          \x -> return $ x * x  -- body of the loop
---              y2 <- Stream.concatForFoldableWith Stream.async [1..100] $
---                          \y -> return $ y * y
+--          $ getCrossStream $ do
+--              -- Concurrent @"for"@ loop
+--              x2 <- CrossStream (Stream.concatForFoldableWith Stream.async [1..100] $
+--                          \x -> Stream.fromPure $ x * x)  -- body of the loop
+--              y2 <- CrossStream (Stream.concatForFoldableWith Stream.async [1..100] $
+--                          \y -> Stream.fromPure $ y * y)
 --              return $ sqrt (x2 + y2)
 --     print $ sum z
 -- :}

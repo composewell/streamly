@@ -41,10 +41,10 @@ module Streamly.Internal.Data.Stream.IsStream.Top {-# DEPRECATED "Please use \"S
     , joinInner
     , joinInnerMap
     , joinInnerMerge
-    , joinLeft
+    -- , joinLeft
     , mergeLeftJoin
     , joinLeftMap
-    , joinOuter
+    -- , joinOuter
     , mergeOuterJoin
     , joinOuterMap
     )
@@ -54,12 +54,12 @@ where
 
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.State.Strict (get, put)
-import Data.Function ((&))
+-- import Control.Monad.Trans.Class (lift)
+-- import Control.Monad.Trans.State.Strict (get, put)
+-- import Data.Function ((&))
 import Data.IORef (newIORef, readIORef, modifyIORef')
 import Data.Kind (Type)
-import Data.Maybe (isJust)
+-- import Data.Maybe (isJust)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Common (concatM)
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -69,14 +69,14 @@ import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Streamly.Internal.Data.Array.Generic as Array
-    (fromStream, length, read)
-import qualified Streamly.Data.Array.Mut as MA
+-- import qualified Streamly.Internal.Data.Array.Generic as Array
+--     (fromStream, length, read)
+-- import qualified Streamly.Data.Array.Mut as MA
 import qualified Streamly.Internal.Data.Fold as Fold
     (one, last, toStream, toStreamRev)
 import qualified Streamly.Internal.Data.Parser as Parser
     (groupByRollingEither)
-import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream
+-- import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Eliminate as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Generate as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Expand as Stream
@@ -386,6 +386,7 @@ joinInnerMap s1 s2 =
 joinInnerMerge :: (a -> b -> Ordering) -> t m a -> t m b -> t m (a, b)
 joinInnerMerge = undefined
 
+{-
 -- XXX We can do this concurrently.
 -- XXX If the second stream is sorted and passed as an Array or a seek capable
 -- stream then we could use binary search if we have an Ord instance or
@@ -433,6 +434,7 @@ joinLeft eq s1 s2 = Stream.evalStateT (return False) $ do
                 return (a, Just b1)
             else Stream.nil
         Nothing -> return (a, Nothing)
+-}
 
 -- | Like 'joinLeft' but uses a hashmap for efficiency.
 --
@@ -468,6 +470,7 @@ mergeLeftJoin :: -- Monad m =>
     (a -> b -> Ordering) -> t m a -> t m b -> t m (a, Maybe b)
 mergeLeftJoin _eq _s1 _s2 = undefined
 
+{-
 -- XXX We can do this concurrently.
 --
 -- | For all elements in @t m a@, for all elements in @t m b@ if @a@ and @b@
@@ -536,6 +539,7 @@ joinOuter eq s1 s =
                     return (Just a, Just b1)
                 else Stream.nil
             Nothing -> return (Just a, Nothing)
+-}
 
 -- Put the b's that have been paired, in another hash or mutate the hash to set
 -- a flag. At the end go through @t m b@ and find those that are not in that

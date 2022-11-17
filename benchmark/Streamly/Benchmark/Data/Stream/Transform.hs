@@ -174,13 +174,17 @@ foldrS n = composeN n $ Stream.foldrS Stream.cons Stream.nil
 foldrSMap :: MonadIO m => Int -> Stream m Int -> m ()
 foldrSMap n = composeN n $ Stream.foldrS (\x xs -> x + 1 `Stream.cons` xs) Stream.nil
 
+{-
 {-# INLINE foldrT #-}
 foldrT :: MonadIO m => Int -> Stream m Int -> m ()
-foldrT n = composeN n $ Stream.foldrT Stream.cons Stream.nil
+foldrT n = composeN n (getCrossStream . Stream.foldrT cns (CrossStream Stream.nil))
+
+    where cns x (CrossStream xs) = CrossStream (Stream.cons x xs)
 
 {-# INLINE foldrTMap #-}
 foldrTMap :: MonadIO m => Int -> Stream m Int -> m ()
 foldrTMap n = composeN n $ Stream.foldrT (\x xs -> x + 1 `Stream.cons` xs) Stream.nil
+-}
 
 {-# INLINE trace #-}
 trace :: MonadAsync m => Int -> Stream m Int -> m ()
@@ -194,8 +198,8 @@ o_1_space_mapping value =
         -- Right folds
           benchIOSink value "foldrS" (foldrS 1)
         , benchIOSink value "foldrSMap" (foldrSMap 1)
-        , benchIOSink value "foldrT" (foldrT 1)
-        , benchIOSink value "foldrTMap" (foldrTMap 1)
+        -- , benchIOSink value "foldrT" (foldrT 1)
+        -- , benchIOSink value "foldrTMap" (foldrTMap 1)
 
         -- Mapping
         , benchIOSink value "map" (mapN 1)

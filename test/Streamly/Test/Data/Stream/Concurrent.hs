@@ -122,17 +122,17 @@ exceptionPropagation ::
     (Stream IO Int -> Stream IO Int -> Stream IO Int) -> Spec
 exceptionPropagation f = do
     it "append throwM, nil" $
-        try (tl (throwM (ExampleException "E") `f` Stream.nil))
+        try (tl (Stream.fromEffect (throwM (ExampleException "E")) `f` Stream.nil))
         `shouldReturn`
             (Left (ExampleException "E") :: Either ExampleException [Int])
     it "append nil, throwM" $
-        try (tl (Stream.nil `f` throwM (ExampleException "E")))
+        try (tl (Stream.nil `f` Stream.fromEffect (throwM (ExampleException "E"))))
         `shouldReturn`
             (Left (ExampleException "E") :: Either ExampleException [Int])
     it "append nested throwM" $ do
         let nested =
                 Stream.fromFoldable [1..10]
-                    `f` throwM (ExampleException "E")
+                    `f` Stream.fromEffect (throwM (ExampleException "E"))
                     `f` Stream.fromFoldable [1..10]
         try (tl (Stream.nil `f` nested `f` Stream.fromFoldable [1..10]))
             `shouldReturn`
@@ -152,8 +152,8 @@ exceptionPropagation f = do
              in bind s1 $ \x ->
                 bind s2 $ \y ->
                     if x + y > 10
-                    then throwM (ExampleException "E")
-                    else return (x + y)
+                    then Stream.fromEffect (throwM (ExampleException "E"))
+                    else Stream.fromPure (x + y)
             )
         `shouldReturn`
             (Left (ExampleException "E") :: Either ExampleException [Int])
@@ -289,14 +289,14 @@ main = hspec
                in cmp stream (==) [1,2,3,4,5,6,7,8,9,10]
 
         prop1 "apply (async arg1)"
-            $ let s1 = Async.apply (pure (,)) (pure 1 `Async.append2` pure 2)
-                  s2 = Async.apply s1 (pure 3) :: Stream IO (Int, Int)
+            $ let s1 = Async.apply (Stream.fromPure (,)) (Stream.fromPure 1 `Async.append2` Stream.fromPure 2)
+                  s2 = Async.apply s1 (Stream.fromPure 3) :: Stream IO (Int, Int)
                   xs = Stream.fold Fold.toList s2
                in sort <$> xs `shouldReturn` [(1, 3), (2, 3)]
 
         prop1 "apply (async arg2)"
-            $ let s1 = pure (1,)
-                  s2 = Async.apply s1 (pure 2 `Async.append2` pure 3)
+            $ let s1 = Stream.fromPure (1,)
+                  s2 = Async.apply s1 (Stream.fromPure 2 `Async.append2` Stream.fromPure 3)
                   xs = Stream.fold Fold.toList s2 :: IO [(Int, Int)]
                in sort <$> xs `shouldReturn` [(1, 2), (1, 3)]
 

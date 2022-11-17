@@ -58,7 +58,7 @@ main = hspec $
 
         it "Monad comprehension" $ do
             [(x,y) | x <- [1..2], y <- [1..2]] `shouldBe`
-                ([(1,1), (1,2), (2,1), (2,2)] :: Stream Identity (Int, Int))
+                ([(1,1), (1,2), (2,1), (2,2)] :: List (Int, Int))
 
         it "Foldable (sum)" $ sum ([1..3] :: Stream Identity Int)
             `shouldBe` 6
@@ -110,7 +110,7 @@ main = hspec $
         it "Show instance" $ do
             show ([1..3] :: List Int) `shouldBe`
 #ifdef USE_STREAMLY_LIST
-                "List {toStream = fromList [1,2,3]}"
+                "fromList [1,2,3]"
 #else
                 "[1,2,3]"
 #endif
@@ -118,7 +118,7 @@ main = hspec $
         it "Read instance" $ do
             (read
 #ifdef USE_STREAMLY_LIST
-                "List {toStream = fromList [1,2,3]}"
+                "fromList [1,2,3]"
 #else
                 "[1,2,3]"
 #endif

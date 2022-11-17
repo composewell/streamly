@@ -44,12 +44,12 @@ where
 
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State.Strict (get, put)
 import Data.Function ((&))
 import Data.IORef (newIORef, readIORef, modifyIORef')
 import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream.Common ()
+import Streamly.Internal.Data.Stream.Cross (CrossStream (..))
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
 import qualified Data.List as List
@@ -163,10 +163,10 @@ sortBy cmp =
 -- /Pre-release/
 {-# INLINE crossJoin #-}
 crossJoin :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
-crossJoin s1 s2 = do
+crossJoin s1 s2 = getCrossStream $ do
     -- XXX use concatMap instead?
-    a <- s1
-    b <- s2
+    a <- CrossStream s1
+    b <- CrossStream s2
     return (a, b)
 
 -- XXX We can do this concurrently.
@@ -246,25 +246,25 @@ joinInnerMerge = undefined
 {-# INLINE joinLeft #-}
 joinLeft :: Monad m =>
     (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
-joinLeft eq s1 s2 = Stream.evalStateT (return False) $ do
-    a <- Stream.liftInner s1
+joinLeft eq s1 s2 = Stream.evalStateT (return False) $ getCrossStream $ do
+    a <- CrossStream (Stream.liftInner s1)
     -- XXX should we use StreamD monad here?
     -- XXX Is there a better way to perform some action at the end of a loop
     -- iteration?
-    lift $ put False
-    let final = do
-            r <- lift get
+    CrossStream (Stream.fromEffect $ put False)
+    let final = Stream.concatM $ do
+            r <- get
             if r
-            then Stream.nil
-            else Stream.fromPure Nothing
-    b <- fmap Just (Stream.liftInner s2) <> final
+            then pure Stream.nil
+            else pure (Stream.fromPure Nothing)
+    b <- CrossStream (fmap Just (Stream.liftInner s2) <> final)
     case b of
         Just b1 ->
             if a `eq` b1
             then do
-                lift $ put True
+                CrossStream (Stream.fromEffect $ put True)
                 return (a, Just b1)
-            else Stream.nil
+            else CrossStream Stream.nil
         Nothing -> return (a, Nothing)
 
 -- | Like 'joinLeft' but works only on sorted streams.
@@ -323,29 +323,32 @@ joinOuter eq s1 s =
                         ) stream1 stream2
                     ) & Stream.catMaybes
 
-    go inputArr foundArr = Stream.evalStateT (return False) $ do
-        a <- Stream.liftInner s1
+    evalState = Stream.evalStateT (return False) . getCrossStream
+
+    go inputArr foundArr = evalState $ do
+        a <- CrossStream (Stream.liftInner s1)
         -- XXX should we use StreamD monad here?
         -- XXX Is there a better way to perform some action at the end of a loop
         -- iteration?
-        lift $ put False
-        let final = do
-                r <- lift get
+        CrossStream (Stream.fromEffect $ put False)
+        let final = Stream.concatM $ do
+                r <- get
                 if r
-                then Stream.nil
-                else Stream.fromPure Nothing
+                then pure Stream.nil
+                else pure (Stream.fromPure Nothing)
         (i, b) <-
             let stream = Array.read inputArr
-             in Stream.indexed $ fmap Just (Stream.liftInner stream) <> final
+             in CrossStream
+                (Stream.indexed $ fmap Just (Stream.liftInner stream) <> final)
 
         case b of
             Just b1 ->
                 if a `eq` b1
                 then do
-                    lift $ put True
+                    CrossStream (Stream.fromEffect $ put True)
                     MA.putIndex i True foundArr
                     return (Just a, Just b1)
-                else Stream.nil
+                else CrossStream Stream.nil
             Nothing -> return (Just a, Nothing)
 
 -- | Like 'joinOuter' but works only on sorted streams.

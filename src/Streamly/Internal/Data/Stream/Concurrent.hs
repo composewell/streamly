@@ -606,7 +606,7 @@ parApply :: MonadAsync m =>
 parApply modifier stream1 stream2 =
     parConcatMap
         modifier
-        (\g -> parConcatMap modifier (pure . g) stream2)
+        (\g -> parConcatMap modifier (Stream.fromPure . g) stream2)
         stream1
 
 {-# INLINE apply #-}

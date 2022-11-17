@@ -96,6 +96,7 @@ import Prelude hiding (iterate, replicate, repeat, take)
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> import Data.Function (fix, (&))
 -- >>> import Data.Semigroup (cycle1)
+-- >>> import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Unfold as Unfold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
@@ -372,10 +373,10 @@ iterateM step = fromStreamD . D.iterateM step
 -- >>> :{
 -- main = Stream.fold (Fold.drainMapM print) $ Stream.mfix f
 --     where
---     f action = do
+--     f action = getCrossStream $ do
 --         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act
---         x <- Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action]
---         y <- Stream.fromList [4,5]
+--         x <- CrossStream (Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action])
+--         y <- CrossStream (Stream.fromList [4,5])
 --         return (x, y)
 -- :}
 --

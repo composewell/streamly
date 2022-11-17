@@ -25,8 +25,8 @@
 
 module Stream.Expand (benchmarks) where
 
-import Control.Monad.Trans.Class (lift)
 import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 
 import qualified Control.Applicative as AP
 
@@ -70,12 +70,13 @@ iterateN g initial count = f count initial
 
 -- Iterate a transformation over a singleton stream
 {-# INLINE iterateSingleton #-}
-iterateSingleton :: Monad m
-    => (Int -> Stream m Int -> Stream m Int)
+iterateSingleton ::
+       (Int -> CrossStream m Int -> CrossStream m Int)
     -> Int
     -> Int
     -> Stream m Int
-iterateSingleton g count n = iterateN g (return n) count
+iterateSingleton g count n =
+    getCrossStream $ iterateN g (CrossStream (S.fromPure n)) count
 
 {-
 -- XXX need to check why this is slower than the explicit recursion above, even
@@ -409,12 +410,12 @@ o_1_space_monad value =
 -- new prime we keep appending a division filter for all the future numbers.
 {-# INLINE sieve #-}
 sieve :: Monad m => Stream m Int -> Stream m Int
-sieve s = do
-    r <- lift $ S.uncons s
+sieve s = S.concatM $ do
+    r <- S.uncons s
     case r of
         Just (prime, rest) ->
-            prime `S.cons` sieve (S.filter (\n -> n `mod` prime /= 0) rest)
-        Nothing -> S.nil
+            pure $ prime `S.cons` sieve (S.filter (\n -> n `mod` prime /= 0) rest)
+        Nothing -> pure S.nil
 
 o_n_space_monad :: Int -> [Benchmark]
 o_n_space_monad value =

@@ -21,6 +21,7 @@ import Test.QuickCheck.Monadic (run, monadicIO, assert)
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Internal.Unicode.Array.Char as IUA
@@ -66,9 +67,8 @@ propDecodeEncodeIdArrays :: Property
 propDecodeEncodeIdArrays =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            let wrds = SS.encodeUtf8' $ S.fromList list
-            chrs <- S.toList $ IUS.decodeUtf8Arrays
-                                    (S.fold A.write wrds)
+            let wrds = S.arraysOf 8 $ SS.encodeUtf8' $ S.fromList list
+            chrs <- S.toList $ IUS.decodeUtf8Arrays wrds
             assert (chrs == list)
 
 unicodeTestData :: [Char]

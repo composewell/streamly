@@ -68,13 +68,14 @@ import Streamly.Data.Stream (Stream)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream as Stream (toStreamK, fromStreamK)
+import qualified Streamly.Internal.Data.Stream as Stream
+    (toStreamD, fromStreamD, toStreamK, fromStreamK)
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     (fromStreamK, toStreamK, mapM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (Stream, mkStream, foldStream, cons, consM, nil, concatMapWith, fromPure
-    , bindWith, interleave, interleaveFst, interleaveMin)
+    , bindWith, interleave, interleaveFst, interleaveMin, serial)
 
 import Prelude hiding (map, mapM, repeat, filter)
 
@@ -95,8 +96,83 @@ withLocal f m =
         in K.foldStream st yieldk single (local f stp) m
 
 ------------------------------------------------------------------------------
--- mtl orphan instances
+-- Applicative - orphan instances
 ------------------------------------------------------------------------------
+
+{-# INLINE apSerial #-}
+apSerial :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
+apSerial m1 m2 =
+    Stream.fromStreamD $ Stream.toStreamD m1 <*> Stream.toStreamD m2
+
+{-# INLINE apSequence #-}
+apSequence :: Monad m => Stream m a -> Stream m b -> Stream m b
+apSequence m1 m2 =
+    Stream.fromStreamD $ Stream.toStreamD m1 *> Stream.toStreamD m2
+
+{-# INLINE apDiscardSnd #-}
+apDiscardSnd :: Monad m => Stream m a -> Stream m b -> Stream m a
+apDiscardSnd m1 m2 =
+    Stream.fromStreamD $ Stream.toStreamD m1 <* Stream.toStreamD m2
+
+-- Note: we need to define all the typeclass operations because we want to
+-- INLINE them.
+instance Monad m => Applicative (Stream m) where
+    {-# INLINE pure #-}
+    pure = Stream.fromStreamK . K.fromPure
+
+    {-# INLINE (<*>) #-}
+    (<*>) = apSerial
+    -- (<*>) = K.apSerial
+
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+
+    {-# INLINE (*>) #-}
+    (*>)  = apSequence
+    -- (*>)  = K.apSerialDiscardFst
+
+    {-# INLINE (<*) #-}
+    (<*) = apDiscardSnd
+    -- (<*)  = K.apSerialDiscardSnd
+
+------------------------------------------------------------------------------
+-- Monad - orphan instances
+------------------------------------------------------------------------------
+
+instance Monad m => Monad (Stream m) where
+    return = pure
+
+    -- Benchmarks better with StreamD bind and pure:
+    -- toList, filterAllout, *>, *<, >> (~2x)
+    --
+    -- pure = Stream . D.fromStreamD . D.fromPure
+    -- m >>= f = D.fromStreamD $ D.concatMap (D.toStreamD . f) (D.toStreamD m)
+
+    -- Benchmarks better with CPS bind and pure:
+    -- Prime sieve (25x)
+    -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
+    --
+    {-# INLINE (>>=) #-}
+    (>>=) m f =
+        Stream.fromStreamK
+            $ K.bindWith K.serial (Stream.toStreamK m) (Stream.toStreamK . f)
+
+    {-# INLINE (>>) #-}
+    (>>) = (*>)
+
+------------------------------------------------------------------------------
+-- Transformers - orphan instances
+------------------------------------------------------------------------------
+
+instance (MonadIO m) => MonadIO (Stream m) where
+    liftIO = lift . liftIO
+
+instance (MonadThrow m) => MonadThrow (Stream m) where
+    throwM = lift . throwM
+
+instance MonadTrans Stream where
+    {-# INLINE lift #-}
+    lift = Stream.fromEffect
 
 instance (MonadReader r m) => MonadReader r (Stream m) where
     ask = lift ask

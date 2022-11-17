@@ -51,7 +51,10 @@
 --
 module Streamly.Internal.Data.List
     (
-    List (.., Nil, Cons)
+    List (Nil, Cons)
+
+    , toStream
+    , fromStream
 
     -- XXX we may want to use rebindable syntax for variants instead of using
     -- different types (applicative do and apWith).
@@ -64,36 +67,40 @@ where
 import Control.Arrow (second)
 import Data.Functor.Identity (Identity, runIdentity)
 import GHC.Exts (IsList(..), IsString(..))
+import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Stream.Zip (ZipStream(..))
+import Text.Read (readPrec)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
--- We implement list as a newtype instead of a type synonym to make type
--- inference easier when using -XOverloadedLists and -XOverloadedStrings. When
--- using a stream type the programmer needs to specify the Monad otherwise the
--- type remains ambiguous.
---
--- XXX once we separate consM from IsStream or remove the MonadIO and
--- MonadBaseControlIO dependency from it, then we can make this an instance of
--- IsStream and use the regular polymorphic functions on Lists as well. Once
--- that happens we can change the Show and Read instances as well to use "1 >:
--- 2 >: nil" etc. or should we use a separate constructor indicating the "List"
--- type ":>" for better inference?
---
+-- XXX Rename to PureStream.
+
 -- | @List a@ is a replacement for @[a]@.
 --
 -- /Pre-release/
-newtype List a = List { toStream :: Stream Identity a }
+newtype List a = List { toCrossStream :: CrossStream Identity a }
     deriving
-    ( Show, Read, Eq, Ord
+    ( Eq, Ord
     , Semigroup, Monoid, Functor, Foldable
     , Applicative, Traversable, Monad, IsList)
+
+toStream :: List a -> Stream Identity a
+toStream = getCrossStream . toCrossStream
+
+fromStream :: Stream Identity a -> List a
+fromStream xs = List (CrossStream xs)
 
 instance (a ~ Char) => IsString (List a) where
     {-# INLINE fromString #-}
     fromString = List . fromList
+
+instance Show a => Show (List a) where
+    show (List x) = show $ getCrossStream x
+
+instance Read a => Read (List a) where
+    readPrec = fromStream <$> readPrec
 
 ------------------------------------------------------------------------------
 -- Patterns
@@ -104,31 +111,32 @@ instance (a ~ Char) => IsString (List a) where
 -- perform the pattern match, it should not be too bad as it works lazily in
 -- the Identity monad. We need these patterns only when not using that
 -- extension.
---
+
 -- | An empty list constructor and pattern that matches an empty 'List'.
 -- Corresponds to '[]' for Haskell lists.
 --
--- @since 0.6.0
 pattern Nil :: List a
-pattern Nil <- (runIdentity . K.null . Stream.toStreamK . toStream -> True) where
-    Nil = List $ Stream.fromStreamK K.nil
+pattern Nil <- (runIdentity . K.null . Stream.toStreamK . toStream -> True)
+
+    where
+
+    Nil = List $ CrossStream (Stream.fromStreamK K.nil)
 
 infixr 5 `Cons`
 
 -- | A list constructor and pattern that deconstructs a 'List' into its head
 -- and tail. Corresponds to ':' for Haskell lists.
 --
--- @since 0.6.0
 pattern Cons :: a -> List a -> List a
 pattern Cons x xs <-
-    (fmap (second (List . Stream.fromStreamK))
+    (fmap (second (List . CrossStream . Stream.fromStreamK))
         . runIdentity . K.uncons . Stream.toStreamK . toStream
             -> Just (x, xs)
     )
 
     where
 
-    Cons x xs = List $ Stream.cons x (toStream xs)
+    Cons x xs = List $ CrossStream $ Stream.cons x (toStream xs)
 
 {-# COMPLETE Nil, Cons #-}
 
@@ -139,7 +147,6 @@ pattern Cons x xs <-
 -- | Just like 'List' except that it has a zipping 'Applicative' instance
 -- and no 'Monad' instance.
 --
--- @since 0.6.0
 newtype ZipList a = ZipList { toZipStream :: ZipStream Identity a }
     deriving
     ( Show, Read, Eq, Ord
@@ -153,12 +160,10 @@ instance (a ~ Char) => IsString (ZipList a) where
 
 -- | Convert a 'ZipList' to a regular 'List'
 --
--- @since 0.6.0
 fromZipList :: ZipList a -> List a
-fromZipList (ZipList zs) = List $ getZipStream zs
+fromZipList (ZipList zs) = List $ CrossStream (getZipStream zs)
 
 -- | Convert a regular 'List' to a 'ZipList'
 --
--- @since 0.6.0
 toZipList :: List a -> ZipList a
 toZipList = ZipList . ZipStream . toStream

@@ -36,11 +36,14 @@ source range = S.replicateM value $ do
 
 {-# INLINE run #-}
 run :: IsStream t => (Int, Int) -> (Int, Int) -> (t IO Int -> SerialT IO Int) -> IO ()
-run srange crange t = S.drain $ do
-    n <- t $ source srange
-    d <- liftIO (randomRIO crange)
-    when (d /= 0) $ liftIO $ threadDelay d
-    return n
+run srange crange t = S.drain $ S.mapM action (t $ source srange)
+
+    where
+
+    action x = liftIO $ do
+        d <- randomRIO crange
+        when (d /= 0) $ threadDelay d
+        return x
 
 low, medium, high :: Int
 low = 10

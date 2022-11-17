@@ -87,6 +87,7 @@ joinOuterList ls0 ls1 =
         v4 = filter (\(_, a2, _) -> isNothing a2)  v3
     in v2 ++ v4
 
+{-
 joinOuter :: Property
 joinOuter =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
@@ -103,6 +104,7 @@ joinOuter =
                          (map (\a -> (a, a)) ls1)
                     v3 = map (\(_, v10, v20) -> (v10, v20)) v2
                 assert (sort v1 == sort v3)
+-}
 
 
 joinOuterMap :: Property
@@ -133,6 +135,7 @@ joinLeftList ls0 ls1 =
             else return (fst i, fst i, Nothing)
     in v
 
+{-
 joinLeft :: Property
 joinLeft =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
@@ -150,6 +153,7 @@ joinLeft =
                 let v2 = joinLeftList (map (\a -> (a,a)) ls0) (map (\a -> (a,a)) ls1)
                     v3 = map (\ (_, x1, x2) -> (x1, x2)) v2
                 assert (v1 == v3)
+-}
 
 joinLeftMap :: Property
 joinLeftMap =
@@ -209,9 +213,9 @@ main = hspec $ do
         -- Joins
         prop "joinInner" Main.joinInner
         prop "joinInnerMap" Main.joinInnerMap
-        prop "joinOuter" Main.joinOuter
+        -- prop "joinOuter" Main.joinOuter
         prop "joinOuterMap" Main.joinOuterMap
-        prop "joinLeft" Main.joinLeft
+        -- prop "joinLeft" Main.joinLeft
         prop "joinLeftMap" Main.joinLeftMap
         -- intersect
         prop "intersectBy"

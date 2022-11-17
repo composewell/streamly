@@ -81,14 +81,18 @@ remoteAddr :: (Word8,Word8,Word8,Word8)
 remoteAddr = (127, 0, 0, 1)
 
 sender :: PortNumber -> MVar () -> Stream IO Char
-sender port sem = do
-    _ <- liftIO $ takeMVar sem
-    liftIO $ threadDelay 1000000                       -- wait for server
-    Stream.replicate 1000 testData                     -- Stream IO String
-        & Stream.concatMap Stream.fromList             -- Stream IO Char
-        & Unicode.encodeLatin1                         -- Stream IO Word8
-        & TCP.pipeBytes remoteAddr port                -- Stream IO Word8
-        & Unicode.decodeLatin1                         -- Stream IO Char
+sender port sem = Stream.before action stream
+
+    where
+
+    action = liftIO (takeMVar sem >> threadDelay 1000000)  -- wait for server
+
+    stream =
+        Stream.replicate 1000 testData                     -- Stream IO String
+            & Stream.concatMap Stream.fromList             -- Stream IO Char
+            & Unicode.encodeLatin1                         -- Stream IO Word8
+            & TCP.pipeBytes remoteAddr port                -- Stream IO Word8
+            & Unicode.decodeLatin1                         -- Stream IO Char
 
 execute
     :: Unfold.Unfold IO PortNumber Socket

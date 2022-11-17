@@ -318,7 +318,7 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 --
 -- Find if any element in the stream is 'True':
 --
--- >>> Stream.toList $ Stream.foldrS (\x xs -> if odd x then return True else xs) (return False) $ (Stream.fromList (2:4:5:undefined) :: Stream.SerialT IO Int)
+-- >>> Stream.toList $ Stream.foldrS (\x xs -> if odd x then (Stream.fromPure True) else xs) (Stream.fromPure False) $ (Stream.fromList (2:4:5:undefined) :: Stream.SerialT IO Int)
 -- [True]
 --
 -- Map (+2) on odd elements and filter out the even elements:

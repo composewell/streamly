@@ -71,6 +71,7 @@ import Control.DeepSeq (NFData)
 import Control.Exception (try)
 import GHC.Exception (ErrorCall)
 import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -227,9 +228,9 @@ sourceConcatMapId value n =
 {-# INLINE apDiscardFst #-}
 apDiscardFst :: MonadAsync m =>
     Int -> Int -> m ()
-apDiscardFst linearCount start = drain $
-    sourceUnfoldrM nestedCount2 start
-        *> sourceUnfoldrM nestedCount2 start
+apDiscardFst linearCount start = drain $ getCrossStream $
+    CrossStream (sourceUnfoldrM nestedCount2 start)
+        *> CrossStream (sourceUnfoldrM nestedCount2 start)
 
     where
 
@@ -237,9 +238,9 @@ apDiscardFst linearCount start = drain $
 
 {-# INLINE apDiscardSnd #-}
 apDiscardSnd :: MonadAsync m => Int -> Int -> m ()
-apDiscardSnd linearCount start = drain $
-    sourceUnfoldrM nestedCount2 start
-        <* sourceUnfoldrM nestedCount2 start
+apDiscardSnd linearCount start = drain $ getCrossStream $
+    CrossStream (sourceUnfoldrM nestedCount2 start)
+        <* CrossStream (sourceUnfoldrM nestedCount2 start)
 
     where
 
@@ -247,9 +248,9 @@ apDiscardSnd linearCount start = drain $
 
 {-# INLINE apLiftA2 #-}
 apLiftA2 :: MonadAsync m => Int -> Int -> m ()
-apLiftA2 linearCount start = drain $
-    liftA2 (+) (sourceUnfoldrM nestedCount2 start)
-        (sourceUnfoldrM nestedCount2 start)
+apLiftA2 linearCount start = drain $ getCrossStream $
+    liftA2 (+) (CrossStream (sourceUnfoldrM nestedCount2 start))
+        (CrossStream (sourceUnfoldrM nestedCount2 start))
 
     where
 
@@ -257,9 +258,9 @@ apLiftA2 linearCount start = drain $
 
 {-# INLINE toNullAp #-}
 toNullAp :: MonadAsync m => Int -> Int -> m ()
-toNullAp linearCount start = drain $
-    (+) <$> sourceUnfoldrM nestedCount2 start
-        <*> sourceUnfoldrM nestedCount2 start
+toNullAp linearCount start = drain $ getCrossStream $
+    (+) <$> CrossStream (sourceUnfoldrM nestedCount2 start)
+        <*> CrossStream (sourceUnfoldrM nestedCount2 start)
 
     where
 
@@ -267,9 +268,9 @@ toNullAp linearCount start = drain $
 
 {-# INLINE monadThen #-}
 monadThen :: MonadAsync m => Int -> Int -> m ()
-monadThen linearCount start = drain $ do
-    sourceUnfoldrM nestedCount2 start >>
-        sourceUnfoldrM nestedCount2 start
+monadThen linearCount start = drain $ getCrossStream $ do
+    CrossStream (sourceUnfoldrM nestedCount2 start) >>
+        CrossStream (sourceUnfoldrM nestedCount2 start)
 
     where
 
@@ -277,9 +278,9 @@ monadThen linearCount start = drain $ do
 
 {-# INLINE toNullM #-}
 toNullM :: MonadAsync m => Int -> Int -> m ()
-toNullM linearCount start = drain $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+toNullM linearCount start = drain $ getCrossStream $ do
+    x <- CrossStream (sourceUnfoldrM nestedCount2 start)
+    y <- CrossStream (sourceUnfoldrM nestedCount2 start)
     return $ x + y
 
     where
@@ -288,56 +289,56 @@ toNullM linearCount start = drain $ do
 
 {-# INLINE toNullM3 #-}
 toNullM3 :: MonadAsync m => Int -> Int -> m ()
-toNullM3 linearCount start = drain $ do
-    x <- sourceUnfoldrM nestedCount3 start
-    y <- sourceUnfoldrM nestedCount3 start
-    z <- sourceUnfoldrM nestedCount3 start
+toNullM3 linearCount start = drain $ getCrossStream $ do
+    x <- CrossStream (sourceUnfoldrM nestedCount3 start)
+    y <- CrossStream (sourceUnfoldrM nestedCount3 start)
+    z <- CrossStream (sourceUnfoldrM nestedCount3 start)
     return $ x + y + z
   where
     nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
 
 {-# INLINE filterAllOutM #-}
 filterAllOutM :: MonadAsync m => Int -> Int -> m ()
-filterAllOutM linearCount start = drain $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+filterAllOutM linearCount start = drain $ getCrossStream $ do
+    x <- CrossStream (sourceUnfoldrM nestedCount2 start)
+    y <- CrossStream (sourceUnfoldrM nestedCount2 start)
     let s = x + y
     if s < 0
     then return s
-    else Stream.nil
+    else CrossStream Stream.nil
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# INLINE filterAllInM #-}
 filterAllInM :: MonadAsync m => Int -> Int -> m ()
-filterAllInM linearCount start = drain $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+filterAllInM linearCount start = drain $ getCrossStream $ do
+    x <- CrossStream (sourceUnfoldrM nestedCount2 start)
+    y <- CrossStream (sourceUnfoldrM nestedCount2 start)
     let s = x + y
     if s > 0
     then return s
-    else Stream.nil
+    else CrossStream Stream.nil
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# INLINE filterSome #-}
 filterSome :: MonadAsync m => Int -> Int -> m ()
-filterSome linearCount start = drain $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+filterSome linearCount start = drain $ getCrossStream $ do
+    x <- CrossStream (sourceUnfoldrM nestedCount2 start)
+    y <- CrossStream (sourceUnfoldrM nestedCount2 start)
     let s = x + y
     if s > 1100000
     then return s
-    else Stream.nil
+    else CrossStream Stream.nil
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# INLINE breakAfterSome #-}
 breakAfterSome :: Int -> Int -> IO ()
 breakAfterSome linearCount start = do
-    (_ :: Either ErrorCall ()) <- try $ drain $ do
-        x <- sourceUnfoldrM nestedCount2 start
-        y <- sourceUnfoldrM nestedCount2 start
+    (_ :: Either ErrorCall ()) <- try $ drain $ getCrossStream $ do
+        x <- CrossStream (sourceUnfoldrM nestedCount2 start)
+        y <- CrossStream (sourceUnfoldrM nestedCount2 start)
         let s = x + y
         if s > 1100000
         then error "break"
@@ -348,9 +349,9 @@ breakAfterSome linearCount start = do
 
 {-# INLINE toListM #-}
 toListM :: MonadAsync m => Int -> Int -> m [Int]
-toListM linearCount start = Stream.fold Fold.toList $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+toListM linearCount start = Stream.fold Fold.toList $ getCrossStream $ do
+    x <- CrossStream (sourceUnfoldrM nestedCount2 start)
+    y <- CrossStream (sourceUnfoldrM nestedCount2 start)
     return $ x + y
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
@@ -360,9 +361,9 @@ toListM linearCount start = Stream.fold Fold.toList $ do
 {-# INLINE toListSome #-}
 toListSome :: MonadAsync m => Int -> Int -> m [Int]
 toListSome linearCount start =
-    Stream.fold Fold.toList $ Stream.take 10000 $ do
-        x <- sourceUnfoldrM nestedCount2 start
-        y <- sourceUnfoldrM nestedCount2 start
+    Stream.fold Fold.toList $ Stream.take 10000 $ getCrossStream $ do
+        x <- CrossStream (sourceUnfoldrM nestedCount2 start)
+        y <- CrossStream (sourceUnfoldrM nestedCount2 start)
         return $ x + y
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))

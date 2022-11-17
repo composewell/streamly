@@ -81,6 +81,7 @@ import Streamly.Internal.Data.Fold
 
 -- $setup
 -- >>> :m
+-- >>> :set -XFlexibleContexts
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Fold.Extra as Fold

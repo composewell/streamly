@@ -714,7 +714,7 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
 --     $ Stream.classifySessionsBy 1 False (const (return False)) 3 (Fold.take 3 Fold.toList)
 --     $ Stream.timestamped
 --     $ Stream.delay 0.1
---     $ (,) <$> Stream.fromList [1,2,3] <*> Stream.fromList ['a','b','c']
+--     $ Stream.fromList ((,) <$> [1,2,3] <*> ['a','b','c'])
 -- :}
 -- (1,"abc")
 -- (2,"abc")

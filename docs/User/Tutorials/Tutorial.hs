@@ -13,6 +13,9 @@
 
 module User.Tutorials.Tutorial
     (
+    -- * Imports
+    -- $setup
+
     -- * Stream Types
     -- $streams
 
@@ -86,22 +89,16 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- XXX This tutorial has to be re-written.
 
 -- $setup
+--
+-- In most of example snippets we do not repeat the imports. Where
+-- imports are not explicitly specified use the imports shown below.
+--
 -- >>> :m
 -- >>> :set -fno-warn-deprecations
 -- >>> import Data.Function ((&))
 -- >>> import Streamly.Prelude ((|:), (|&))
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
---
-
--- $imports
---
--- In most of example snippets we do not repeat the imports. Where imports are
--- not explicitly specified use the imports shown below.
---
--- >>> :m
--- >>> import Data.Function ((&))
--- >>> import Streamly.Prelude ((|:), (|&))
+-- >>> import Streamly.Data.Stream (Stream)
+-- >>> import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 -- >>> import qualified Streamly.Prelude as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
 --
@@ -134,13 +131,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- world
 -- ["hello","world"]
 --
--- To create a singleton stream from a pure value use 'fromPure' or 'pure' and to
--- create a singleton stream from a monadic action use 'fromEffect'. Note that in
--- case of Zip applicative streams "pure" repeats the value to generate an
--- infinite stream.
---
--- >>> Stream.toList $ pure 1
--- [1]
+-- To create a singleton stream from a pure value use 'fromPure' and to
+-- create a singleton stream from a monadic action use 'fromEffect'.
 --
 -- >>> Stream.toList $ Stream.fromPure 1
 -- [1]
@@ -354,11 +346,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $regularSerial
 --
--- The 'Monad' composition of the 'Serial' type behaves like a standard list
--- transformer. This is the default when we do not use an explicit type
--- combinator. However, the 'fromSerial' type combinator can be used to switch to
--- this style of composition. We will see how this style of composition works
--- in the following examples.
+-- The 'Monad' composition of the 'CrossStream' type behaves like a standard list
+-- transformer.
 --
 -- Let's start with an example with a simple @for@ loop without any nesting.
 -- For simplicity of illustration we are using streams of pure values in all
@@ -366,9 +355,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- instead.
 --
 -- >>> :{
--- Stream.drain $ do
---     x <- Stream.fromFoldable [3,2,1]
---     Stream.fromEffect $ print x
+-- Stream.drain $ getCrossStream $ do
+--     x <- CrossStream (Stream.fromFoldable [3,2,1])
+--     CrossStream (Stream.fromEffect $ print x)
 -- :}
 -- 3
 -- 2
@@ -384,19 +373,19 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- >>> :{
 -- main =
---     Stream.drain $ do
---         x <- Stream.repeatM getLine
---         Stream.fromEffect $ putStrLn x
+--     Stream.drain $ getCrossStream $ do
+--         x <- CrossStream (Stream.repeatM getLine)
+--         CrossStream (Stream.fromEffect $ putStrLn x)
 -- :}
 --
 -- When multiple streams are composed using this style they nest in a DFS
 -- manner:
 --
 -- >>> :{
--- Stream.drain $ do
---   x <- Stream.fromFoldable [1,2]
---   y <- Stream.fromFoldable [3,4]
---   Stream.fromEffect $ print (x, y)
+-- Stream.drain $ getCrossStream $ do
+--   x <- CrossStream (Stream.fromFoldable [1,2])
+--   y <- CrossStream (Stream.fromFoldable [3,4])
+--   CrossStream (Stream.fromEffect $ print (x, y))
 -- :}
 -- (1,3)
 -- (1,4)
@@ -412,14 +401,16 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $interleavedNesting
 --
+-- TBD: generate the WSerial type using the TH utils.
+--
 -- The 'Monad' composition of 'WSerial' type interleaves the iterations of
 -- outer and inner loops in a nested loop composition.
 --
--- >>> :{
--- Stream.drain $ Stream.fromWSerial $ do
---      x <- Stream.fromFoldable [1,2]
---      y <- Stream.fromFoldable [3,4]
---      Stream.fromEffect $ print (x, y)
+-- >> :{
+-- Stream.drain $ getWSerial $ do
+--      x <- WSerialStream (Stream.fromFoldable [1,2])
+--      y <- WSerialStream (Stream.fromFoldable [3,4])
+--      WSerialStream (Stream.fromEffect $ print (x, y))
 -- :}
 -- (1,3)
 -- (2,3)
@@ -436,36 +427,19 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $monadExercise
 --
--- Streamly code is usually written in a way that is agnostic of the
--- specific monadic composition type. We use a polymorphic type with a
--- 'IsStream' type class constraint. When running the stream we can choose the
--- specific mode of composition. For example take a look at the following code.
---
 -- >>> :{
--- composed :: (Stream.IsStream t, Monad (t IO)) => t IO ()
--- composed = do
---     sz <- sizes
---     cl <- colors
---     sh <- shapes
---     Stream.fromEffect $ print (sz, cl, sh)
+-- composed :: Stream IO ()
+-- composed = getCrossStream $ do
+--     sz <- CrossStream sizes
+--     cl <- CrossStream colors
+--     sh <- CrossStream shapes
+--     CrossStream (Stream.fromEffect $ print (sz, cl, sh))
 --     where
 --     sizes  = Stream.fromFoldable [1, 2, 3]
 --     colors = Stream.fromFoldable ["red", "green", "blue"]
 --     shapes = Stream.fromFoldable ["triangle", "square", "circle"]
 -- :}
 --
--- Now we can interpret this in whatever way we want:
---
--- @
--- main = Stream.'drain' $ Stream.'fromSerial'  $ composed
--- main = Stream.'drain' $ Stream.'fromWSerial' $ composed
--- main = Stream.'drain' $ Stream.'fromAsync'   $ composed
--- main = Stream.'drain' $ Stream.'fromWAsync'  $ composed
--- main = Stream.'drain' $ Stream.'fromParallel' $ composed
--- @
---
---  As an exercise try to figure out the output of this code for each mode of
---  composition.
 
 -- $functor
 --
@@ -482,17 +456,17 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $applicative
 --
 -- Applicative is precisely the same as the 'ap' operation of 'Monad'. For
--- zipping applicatives separate types 'ZipSerial' and 'ZipAsync' are
+-- zipping applicatives separate types 'ZipStream' and 'ZipAsync' are
 -- provided.
 --
--- The following is an example of 'Serial' applicative, it runs all iterations
+-- The following is an example of 'CrossStream' applicative, it runs all iterations
 -- serially:
 --
--- >>> p n = Stream.fromEffect (print n) >> return n
+-- >>> p n = Stream.fromEffect (print n >> pure n)
 -- >>> s1 = p 1 <> p 2
 -- >>> s2 = p 3 <> p 4
 --
--- >>> (Stream.toList $ Stream.fromSerial $ (,) <$> s1 <*> s2) >>= print
+-- >>> (Stream.toList $ getCrossStream $ (,) <$> CrossStream s1 <*> CrossStream s2) >>= print
 -- 1
 -- 3
 -- 4
@@ -504,7 +478,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Similarly, 'WSerial' applicative runs the iterations in an interleaved
 -- order but being serial it too takes a total of 17 seconds:
 --
--- >>> (Stream.toList $ Stream.fromWSerial $ (,) <$> s1 <*> s2) >>= print
+-- >> (Stream.toList $ Stream.WSerialStream $ (,) <$> WSerialStream s1 <*> WSerialStream s2) >>= print
 -- 1
 -- 3
 -- 2
@@ -528,7 +502,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'fromZipSerial' type combinator can be used to switch to serial applicative
 -- zip composition:
 --
--- >>> p n = Stream.fromEffect (print n) >> return n
+-- >>> p n = Stream.fromEffect (print n >> pure n)
 -- >>> s1 = Stream.fromSerial $ p 1 <> p 2
 -- >>> s2 = Stream.fromSerial $ p 3 <> p 4
 -- >>> (Stream.toList $ Stream.fromZipSerial $ (,) <$> s1 <*> s2) >>= print
