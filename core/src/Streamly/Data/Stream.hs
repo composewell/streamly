@@ -103,6 +103,7 @@ module Streamly.Data.Stream
     -- versions provided in this module can be much more efficient in most
     -- cases. Users can create custom combinators using these primitives.
     , nil
+    , nilM
     , cons
     , consM
     -- , cons2 -- fused version
