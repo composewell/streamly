@@ -11,7 +11,11 @@
 -- interconverted.
 --
 -- Note that these parsers do not report the error context (e.g. line number or
--- column). Though this can be supported in future.
+-- column). This may be supported in future.
+--
+-- mtl instances are not provided. If the 'Parser' type is the top most layer
+-- (which should be the case almost always) you can just use 'fromEffect' to
+-- execute the lower layer monad effects.
 --
 module Streamly.Data.Parser
     (

@@ -29,18 +29,17 @@
 -- allows high performance combinatorial programming even when using byte level
 -- streams.  Streamly API is similar to Haskell lists.
 --
--- Streams can be constructed
--- like lists, except that they use 'nil' instead of '[]' and 'cons' instead of
--- ':'.
+-- Streams can be constructed like lists, except that they use 'nil' instead of
+-- '[]' and 'cons' instead of ':'.
 --
--- `cons` constructs a pure stream which is more or less the same as a list:
+-- `cons` adds a pure value at the head of the stream:
 --
 -- >>> import Streamly.Data.Stream (Stream, cons, consM, nil)
 -- >>> stream = 1 `cons` 2 `cons` nil :: Stream IO Int
 -- >>> Stream.fold Fold.toList stream -- IO [Int]
 -- [1,2]
 --
--- 'consM' constructs a stream from effectful actions:
+-- `consM` adds an effect at the head of the stream:
 --
 -- >>> stream = effect 1 `consM` effect 2 `consM` nil
 -- >>> Stream.fold Fold.toList stream
@@ -60,8 +59,7 @@
 --
 -- >>> :{
 -- echo =
---  Stream.repeat getLine        -- Stream IO (IO String)
---      & Stream.sequence        -- Stream IO String
+--  Stream.repeatM getLine       -- Stream IO String
 --      & Stream.mapM putStrLn   -- Stream IO ()
 --      & Stream.fold Fold.drain -- IO ()
 -- :}
@@ -75,10 +73,8 @@
 -- "Data.List" like functions and many more powerful combinators to perform
 -- common programming tasks.
 --
--- Some common idioms:
+-- == Useful Idioms
 --
--- >>> repeatM = Stream.sequence . Stream.repeat
--- >>> replicateM n = Stream.sequence . Stream.replicate n
 -- >>> fromListM = Stream.sequence . Stream.fromList
 -- >>> fromFoldableM = Stream.sequence . Stream.fromFoldable
 -- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0
