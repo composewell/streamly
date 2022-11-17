@@ -6,16 +6,18 @@
 -- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Functor.Identity (Identity)
+import Data.Functor.Identity (Identity(..))
 import Data.Map.Strict (Map)
 import Data.Hashable (Hashable)
 import Data.HashMap.Strict (HashMap)
@@ -27,6 +29,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.IsMap.HashMap ()
 
+import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Extra as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
@@ -287,6 +290,14 @@ unfoldMany val =
 
 moduleName :: String
 moduleName = "Data.Fold"
+
+instance NFData (MArray.Array a) where
+    {-# INLINE rnf #-}
+    rnf _ = ()
+
+instance NFData a => NFData (Stream Identity a) where
+    {-# INLINE rnf #-}
+    rnf xs = runIdentity $ Stream.fold (FL.foldl' (\_ x -> rnf x) ()) xs
 
 o_1_space_serial_elimination :: Int -> [Benchmark]
 o_1_space_serial_elimination value =

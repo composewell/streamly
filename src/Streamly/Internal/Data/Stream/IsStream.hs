@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-deprecations -Wno-orphans #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream
@@ -25,6 +26,10 @@ module Streamly.Internal.Data.Stream.IsStream  {-# DEPRECATED "Please use \"Stre
     )
 where
 
+import Control.DeepSeq (NFData(..), NFData1(..))
+import Data.Functor.Identity (Identity(..))
+import Streamly.Internal.Data.Stream.Zip (ZipStream(..))
+
 import Streamly.Internal.Data.Stream.IsStream.Top
 import Streamly.Internal.Data.Stream.IsStream.Eliminate
 import Streamly.Internal.Data.Stream.IsStream.Exception
@@ -36,3 +41,6 @@ import Streamly.Internal.Data.Stream.IsStream.Transform
 import Streamly.Internal.Data.Stream.IsStream.Type
     hiding (cmpBy, drain, eqBy, foldl', fold, toList, toStream
         , fromEffect, fromPure, repeat)
+
+deriving instance NFData a => NFData (ZipStream Identity a)
+deriving instance NFData1 (ZipStream Identity)

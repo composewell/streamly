@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- |
 -- Module      : Streamly.Benchmark.Data.Array.Unboxed.Mut
@@ -52,6 +53,10 @@ import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)
 
 type Stream = MArray.Array
+
+instance NFData (MArray.Array a) where
+    {-# INLINE rnf #-}
+    rnf _ = ()
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers

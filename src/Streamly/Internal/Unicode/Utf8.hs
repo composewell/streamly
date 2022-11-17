@@ -27,7 +27,6 @@ where
 -- Imports
 --------------------------------------------------------------------------------
 
-import Control.DeepSeq (NFData)
 import Data.Word (Word8)
 import Streamly.Data.Array (Array)
 import System.IO.Unsafe (unsafePerformIO)
@@ -45,9 +44,7 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode
 --------------------------------------------------------------------------------
 
 -- | A space efficient, packed, unboxed Unicode container.
-newtype Utf8 =
-    Utf8 (Array Word8)
-    deriving (NFData)
+newtype Utf8 = Utf8 (Array Word8)
 
 --------------------------------------------------------------------------------
 -- Functions

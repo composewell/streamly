@@ -99,20 +99,18 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , interleaveMin
 
     -- * Reader
-    , withLocal
     , evalStateT
     , liftInner
     )
 where
 
 import Control.Monad (ap, (>=>))
-import Control.Monad.Reader.Class (MonadReader(..))
-import Control.Monad.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans(lift))
+import Control.Monad.Trans.State.Strict (StateT)
 import Data.Function (fix)
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 
-import qualified Control.Monad.State.Strict as State
+import qualified Control.Monad.Trans.State.Strict as State
 import qualified Prelude
 
 import Prelude hiding
@@ -1186,18 +1184,6 @@ interleaveMin m1 m2 = mkStream $ \st yld _ stp -> do
         single a   = yld a (interleaveMin m2 nil)
         yieldk a r = yld a (interleaveMin m2 r)
     foldStream st yieldk single stop m1
-
-------------------------------------------------------------------------------
--- MonadReader
-------------------------------------------------------------------------------
-
-{-# INLINABLE withLocal #-}
-withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
-withLocal f m =
-    mkStream $ \st yld sng stp ->
-        let single = local f . sng
-            yieldk a r = local f $ yld a (withLocal f r)
-        in foldStream st yieldk single (local f stp) m
 
 -------------------------------------------------------------------------------
 -- Generation

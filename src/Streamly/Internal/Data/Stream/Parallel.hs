@@ -71,7 +71,7 @@ import Streamly.Internal.Data.Stream.Type (Stream)
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (Stream, foldStreamShared, mkStream, foldStream, fromEffect
-    , nil, concatMapWith, fromPure, bindWith, withLocal)
+    , nil, concatMapWith, fromPure, bindWith)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), mapM, toStreamK, fromStreamK)
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
@@ -95,6 +95,14 @@ import Prelude hiding (map)
 --      putStrLn (show n ++ " sec") -- print "n sec"
 --      return n                    -- IO Int
 -- :}
+
+{-# INLINABLE withLocal #-}
+withLocal :: MonadReader r m => (r -> r) -> K.Stream m a -> K.Stream m a
+withLocal f m =
+    K.mkStream $ \st yld sng stp ->
+        let single = local f . sng
+            yieldk a r = local f $ yld a (withLocal f r)
+        in K.foldStream st yieldk single (local f stp) m
 
 -------------------------------------------------------------------------------
 -- Parallel

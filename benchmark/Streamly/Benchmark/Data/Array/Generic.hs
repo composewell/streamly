@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 {-# LANGUAGE CPP #-}
 
@@ -8,9 +9,14 @@ import Control.DeepSeq (deepseq)
 
 import qualified Streamly.Internal.Data.Array.Generic as IA
 import qualified Streamly.Internal.Data.Array.Generic as A
+
 type Stream = A.Array
 
 #include "Streamly/Benchmark/Data/Array/Common.hs"
+
+instance NFData a => NFData (A.Array a) where
+    {-# INLINE rnf #-}
+    rnf = A.foldl' (\_ x -> rnf x) ()
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers

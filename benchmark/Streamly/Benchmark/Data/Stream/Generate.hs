@@ -6,19 +6,23 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
 #ifdef USE_PRELUDE
 {-# OPTIONS_GHC -Wno-deprecations #-}
 #endif
 
 module Stream.Generate (benchmarks) where
 
-import Data.Functor.Identity (Identity)
+import Control.DeepSeq (NFData(..))
+import Data.Functor.Identity (Identity(..))
 
 import qualified GHC.Exts as GHC
 import qualified Stream.Common as Common
+import qualified Streamly.Internal.Data.Fold as Fold
 #ifdef USE_PRELUDE
 import Streamly.Benchmark.Prelude (sourceFromFoldableM, absTimes)
 import qualified Streamly.Prelude as S
@@ -223,6 +227,10 @@ o_1_space_generation value =
         , Common.benchIOSrc "mfix_1000" (mfixUnfold 1000)
         ]
     ]
+
+instance NFData a => NFData (Stream Identity a) where
+    {-# INLINE rnf #-}
+    rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
 
 o_n_heap_generation :: Int -> [Benchmark]
 o_n_heap_generation value =

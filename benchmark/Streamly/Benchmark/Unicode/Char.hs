@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-deprecations -Wno-orphans #-}
 
 --
 -- Module      : Streamly.Unicode.Char
@@ -12,7 +12,7 @@
 -- Imports
 --------------------------------------------------------------------------------
 
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData(..))
 import Streamly.Internal.Data.Array (Array)
 import System.FilePath (dropExtensions, takeFileName)
 import System.FilePath.Posix ((</>))
@@ -43,7 +43,13 @@ dataDir = "benchmark/Streamly/Benchmark/Unicode/data"
 dataSetSize :: Int
 dataSetSize = 1000000
 
-makeBench :: (NFData a) => (String, a -> IO ()) -> (String, IO a) -> Benchmark
+-- Unboxed arrays are fully evaluated.
+instance NFData (Array a) where
+    {-# INLINE rnf #-}
+    rnf _ = ()
+
+makeBench ::
+    (String, Array Char -> IO ()) -> (String, IO (Array Char)) -> Benchmark
 makeBench (implName, func) (dataName, setup) =
     env setup (bench (implName ++ "/" ++ dataName) . nfIO . func)
 

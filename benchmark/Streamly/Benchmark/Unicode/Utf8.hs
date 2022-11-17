@@ -49,7 +49,7 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
     allBenchmarks value =
         [ bgroup
               moduleName
-              [ bench "pack" $ nf pack value
-              , bench "pack + unpack" $ nf packUnpack value
+              [ bench "pack" $ whnf pack value
+              , bench "pack + unpack" $ whnf packUnpack value
               ]
         ]

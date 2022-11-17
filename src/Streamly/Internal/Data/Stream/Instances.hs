@@ -33,7 +33,7 @@ instance (MonadError e m CONSTRAINT) => MonadError e (STREAM m) where {       \
                                                                               \
 instance (MonadReader r m CONSTRAINT) => MonadReader r (STREAM m) where {     \
     ask = lift ask;                                                           \
-    local f (STREAM m) = STREAM $ K.withLocal f m };                          \
+    local f (STREAM m) = STREAM $ withLocal f m };                          \
                                                                               \
 instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
     {-# INLINE get #-}; \

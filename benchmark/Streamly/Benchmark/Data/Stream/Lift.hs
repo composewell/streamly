@@ -17,7 +17,7 @@ module Stream.Lift (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.State.Strict (StateT, get, put, MonadState)
+import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity)
 import Stream.Common
     (benchIO, sourceUnfoldr, sourceUnfoldrM, benchIOSrc, drain)
@@ -107,15 +107,14 @@ iterateStateT n = do
 
 {-# INLINE iterateState #-}
 {-# SPECIALIZE iterateState :: Int -> Stream (StateT Int IO) Int #-}
-iterateState ::
-       MonadState Int m
-    => Int
-    -> Stream m Int
+iterateState :: Monad m =>
+       Int
+    -> Stream (StateT Int m) Int
 iterateState n = do
-    x <- get
+    x <- Stream.fromEffect get
     if x > n
     then do
-        put (x - 1)
+        Stream.fromEffect $ put (x - 1)
         iterateState n
     else return x
 

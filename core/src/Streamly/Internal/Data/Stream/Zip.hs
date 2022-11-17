@@ -24,7 +24,6 @@ module Streamly.Internal.Data.Stream.Zip
     )
 where
 
-import Control.DeepSeq (NFData(..), NFData1(..))
 import Data.Functor.Identity (Identity(..))
 import GHC.Exts (IsList(..), IsString(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -62,8 +61,6 @@ import qualified Streamly.Internal.Data.Stream as Stream
 newtype ZipStream m a = ZipStream {getZipStream :: Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
-deriving instance NFData a => NFData (ZipStream Identity a)
-deriving instance NFData1 (ZipStream Identity)
 deriving instance IsList (ZipStream Identity a)
 deriving instance (a ~ Char) => IsString (ZipStream Identity a)
 deriving instance Eq a => Eq (ZipStream Identity a)

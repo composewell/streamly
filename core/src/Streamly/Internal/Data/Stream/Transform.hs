@@ -169,6 +169,7 @@ import Prelude hiding
 --
 -- $setup
 -- >>> :m
+-- >>> :set -package mtl
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> import Control.Monad.IO.Class (MonadIO (liftIO))
 -- >>> import Control.Monad.Trans (lift)

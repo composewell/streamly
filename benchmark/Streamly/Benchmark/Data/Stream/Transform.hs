@@ -6,9 +6,11 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
 #ifdef USE_PRELUDE
 {-# OPTIONS_GHC -Wno-deprecations #-}
 #endif
@@ -26,7 +28,7 @@ module Stream.Transform (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Functor.Identity (Identity)
+import Data.Functor.Identity (Identity(..))
 
 import System.Random (randomRIO)
 
@@ -34,6 +36,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 
 import qualified Prelude
 import qualified Stream.Common as Common
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as Unfold
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
@@ -83,6 +86,10 @@ benchPureSinkIO
     => Int -> String -> (Stream Identity Int -> IO b) -> Benchmark
 benchPureSinkIO value name f =
     bench name $ nfIO $ randomRIO (1, 1) >>= f . sourceUnfoldr value
+
+instance NFData a => NFData (Stream Identity a) where
+    {-# INLINE rnf #-}
+    rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
 
 o_n_space_traversable :: Int -> [Benchmark]
 o_n_space_traversable value =

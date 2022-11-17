@@ -70,6 +70,8 @@ cradle:
               component: "bench:Unicode.Char"
             - path: "./benchmark/Streamly/Benchmark/Unicode/Stream.hs"
               component: "bench:Unicode.Stream"
+            - path: "./benchmark/Streamly/Benchmark/Unicode/Utf8.hs"
+              component: "bench:Unicode.Utf8"
             - path: "./benchmark/lib/"
               component: "lib:streamly-benchmarks"
             - path: "./benchmark/Streamly/Benchmark/Data/Fold/Window.hs"

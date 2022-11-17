@@ -62,8 +62,6 @@ module Streamly.Internal.Data.List
 where
 
 import Control.Arrow (second)
-import Control.DeepSeq (NFData(..))
-import Control.DeepSeq (NFData1(..))
 import Data.Functor.Identity (Identity, runIdentity)
 import GHC.Exts (IsList(..), IsString(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -89,7 +87,7 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- /Pre-release/
 newtype List a = List { toStream :: Stream Identity a }
     deriving
-    ( Show, Read, Eq, Ord, NFData , NFData1
+    ( Show, Read, Eq, Ord
     , Semigroup, Monoid, Functor, Foldable
     , Applicative, Traversable, Monad, IsList)
 
@@ -144,7 +142,7 @@ pattern Cons x xs <-
 -- @since 0.6.0
 newtype ZipList a = ZipList { toZipStream :: ZipStream Identity a }
     deriving
-    ( Show, Read, Eq, Ord, NFData , NFData1
+    ( Show, Read, Eq, Ord
     , Semigroup, Monoid, Functor, Foldable
     , Applicative, Traversable, IsList
     )

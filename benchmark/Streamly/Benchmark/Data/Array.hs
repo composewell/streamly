@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 {-# LANGUAGE CPP #-}
 
@@ -11,9 +12,14 @@ import qualified GHC.Exts as GHC
 
 -- import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array as A
+
 type Stream = A.Array
 
 #include "Streamly/Benchmark/Data/Array/Common.hs"
+
+instance NFData (A.Array a) where
+    {-# INLINE rnf #-}
+    rnf _ = ()
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers

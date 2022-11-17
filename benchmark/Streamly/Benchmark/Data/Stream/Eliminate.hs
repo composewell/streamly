@@ -6,9 +6,11 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
 #ifdef USE_PRELUDE
 {-# OPTIONS_GHC -Wno-deprecations #-}
 #endif
@@ -251,6 +253,10 @@ o_n_space_elimination_foldable value =
 -------------------------------------------------------------------------------
 -- Stream folds
 -------------------------------------------------------------------------------
+
+instance NFData a => NFData (Stream Identity a) where
+    {-# INLINE rnf #-}
+    rnf xs = runIdentity $ S.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
 
 {-# INLINE benchPureSink #-}
 benchPureSink :: NFData b

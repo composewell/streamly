@@ -214,7 +214,6 @@ where
 #include "ArrayMacros.h"
 #include "MachDeps.h"
 
-import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, (.|.), (.&.))
@@ -2277,16 +2276,6 @@ cmp arr1 arr2 =
 -------------------------------------------------------------------------------
 -- NFData
 -------------------------------------------------------------------------------
-
--- This is an Unbox array, we cannot have unevaluated data in it so this is
--- just a no op.
-instance NFData (Array a) where
-    {-# INLINE rnf #-}
-    rnf Array {} = ()
-
-instance NFData1 Array where
-    {-# INLINE liftRnf #-}
-    liftRnf _ Array{} = ()
 
 -- | Strip elements which match with predicate from both ends.
 --

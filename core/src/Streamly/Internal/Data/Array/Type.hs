@@ -78,7 +78,6 @@ where
 #include "inline.hs"
 
 import Control.Exception (assert)
-import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad (replicateM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
@@ -514,15 +513,6 @@ instance (Unbox a, Eq a) => Eq (Array a) where
     {-# INLINE (==) #-}
     arr1 == arr2 =
         (==) EQ $ unsafeInlineIO $! unsafeThaw arr1 `MA.cmp` unsafeThaw arr2
-
--- Since this is an Unbox array we cannot have unevaluated data in it so
--- this is just a no op.
-instance NFData (Array a) where
-    {-# INLINE rnf #-}
-    rnf Array {} = ()
-
-instance NFData1 Array where
-    liftRnf _ Array{} = ()
 
 instance (Unbox a, Ord a) => Ord (Array a) where
     {-# INLINE compare #-}

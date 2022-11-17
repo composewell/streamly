@@ -211,8 +211,6 @@ import Control.Applicative (Alternative(..), liftA2)
 import Control.Exception (Exception(..))
 import Control.Monad (MonadPlus(..), (>=>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader.Class (MonadReader, ask, local)
-import Control.Monad.State.Class (MonadState, get, put)
 import Data.Bifunctor (Bifunctor(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..), toList)
@@ -1480,23 +1478,6 @@ instance Monad m => MonadPlus (Parser a m) where
 
     {-# INLINE mplus #-}
     mplus = alt
-
-instance (Monad m, MonadReader r m) => MonadReader r (Parser a m) where
-    {-# INLINE ask #-}
-    ask = fromEffect ask
-
-    {-# INLINE local #-}
-    local f (Parser step init' extract) =
-      Parser ((local f .) . step)
-             (local f init')
-             (local f . extract)
-
-instance (Monad m, MonadState s m) => MonadState s (Parser a m) where
-    {-# INLINE get #-}
-    get = fromEffect get
-
-    {-# INLINE put #-}
-    put = fromEffect . put
 
 instance (Monad m, MonadIO m) => MonadIO (Parser a m) where
     {-# INLINE liftIO #-}

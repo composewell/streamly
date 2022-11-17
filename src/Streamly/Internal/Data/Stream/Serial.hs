@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Serial
@@ -65,13 +66,15 @@ import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Data.Stream (Stream)
 
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream as Stream (toStreamK, fromStreamK)
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     (fromStreamK, toStreamK, mapM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (Stream, cons, consM, nil, concatMapWith, fromPure, bindWith
-    , withLocal, interleave, interleaveFst, interleaveMin)
+    (Stream, mkStream, foldStream, cons, consM, nil, concatMapWith, fromPure
+    , bindWith, interleave, interleaveFst, interleaveMin)
 
 import Prelude hiding (map, mapM, repeat, filter)
 
@@ -82,6 +85,45 @@ import Prelude hiding (map, mapM, repeat, filter)
 -- >>> :set -fno-warn-deprecations
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Prelude as IsStream
+
+{-# INLINABLE withLocal #-}
+withLocal :: MonadReader r m => (r -> r) -> K.Stream m a -> K.Stream m a
+withLocal f m =
+    K.mkStream $ \st yld sng stp ->
+        let single = local f . sng
+            yieldk a r = local f $ yld a (withLocal f r)
+        in K.foldStream st yieldk single (local f stp) m
+
+------------------------------------------------------------------------------
+-- mtl orphan instances
+------------------------------------------------------------------------------
+
+instance (MonadReader r m) => MonadReader r (Stream m) where
+    ask = lift ask
+
+    local f m = Stream.fromStreamK $ withLocal f (Stream.toStreamK m)
+
+instance (MonadState s m) => MonadState s (Stream m) where
+    {-# INLINE get #-}
+    get = lift get
+
+    {-# INLINE put #-}
+    put x = lift (put x)
+
+    {-# INLINE state #-}
+    state k = lift (state k)
+
+------------------------------------------------------------------------------
+-- NFData - orphan instances
+------------------------------------------------------------------------------
+
+instance NFData a => NFData (Stream Identity a) where
+    {-# INLINE rnf #-}
+    rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
+
+instance NFData1 (Stream Identity) where
+    {-# INLINE liftRnf #-}
+    liftRnf f xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> f x) ()) xs
 
 ------------------------------------------------------------------------------
 -- SerialT

@@ -63,7 +63,7 @@ import Streamly.Internal.Data.Stream.SVar.Generate (fromSVar, fromSVarD)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (foldStreamShared, mkStream, foldStream, fromEffect
-    , nil, concatMapWith, fromPure, bindWith, withLocal)
+    , nil, concatMapWith, fromPure, bindWith)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..), mapM, toStreamK, fromStreamK)
 import qualified Streamly.Internal.Data.Stream as Stream (toStreamK)
@@ -83,6 +83,14 @@ import Streamly.Internal.Data.SVar
 --      return n                    -- IO Int
 -- :}
 --
+
+{-# INLINABLE withLocal #-}
+withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
+withLocal f m =
+    K.mkStream $ \st yld sng stp ->
+        let single = local f . sng
+            yieldk a r = local f $ yld a (withLocal f r)
+        in K.foldStream st yieldk single (local f stp) m
 
 -------------------------------------------------------------------------------
 -- Async

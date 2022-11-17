@@ -171,7 +171,6 @@ module Streamly.Internal.Data.Stream.StreamK
 
     -- * Utilities
     , consM
-    , withLocal
     , mfix
     )
 where

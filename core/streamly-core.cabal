@@ -237,7 +237,6 @@ library
                      , Streamly.Internal.Control.Exception
                      , Streamly.Internal.Control.Monad
                      , Streamly.Internal.Control.ForkIO
-                     , Streamly.Internal.Data.Cont
                      , Streamly.Internal.System.IO
 
                      -- streamly-strict-data
@@ -410,10 +409,8 @@ library
                     -- depending on doctest is a common example) can
                     -- depend on streamly.
                        base              >= 4.12  && < 4.18
-                     , deepseq           >= 1.4.4 && < 1.5
                      , exceptions        >= 0.8.0 && < 0.11
                      , ghc-prim          >= 0.5.3 && < 0.10
-                     , mtl               >= 2.2.2 && < 2.4
                      , transformers      >= 0.5.5 && < 0.7
 
                     -- streamly-unicode-core

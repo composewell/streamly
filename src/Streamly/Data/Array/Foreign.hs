@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 #include "inline.hs"
 
 -- |
@@ -93,6 +94,7 @@ module Streamly.Data.Array.Foreign
     )
 where
 
+import Control.DeepSeq (NFData(..), NFData1(..))
 import Streamly.Internal.Data.Array as A
 
 -- $setup
@@ -104,3 +106,14 @@ import Streamly.Internal.Data.Array as A
 -- >>> import Streamly.Data.Array (Array)
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Data.Array as Array
+
+-- Orphan instances for backward compatibility
+-- Since this is an Unbox array we cannot have unevaluated data in it so
+-- this is just a no op.
+
+instance NFData (Array a) where
+    {-# INLINE rnf #-}
+    rnf _ = ()
+
+instance NFData1 Array where
+    liftRnf _ _ = ()

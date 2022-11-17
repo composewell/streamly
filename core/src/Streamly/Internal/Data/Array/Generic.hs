@@ -50,7 +50,6 @@ module Streamly.Internal.Data.Array.Generic
     )
 where
 
-import Control.DeepSeq (NFData(..))
 import Control.Monad (when, replicateM)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import GHC.Base (MutableArray#, RealWorld)
@@ -225,10 +224,6 @@ foldl' f z arr = unsafePerformIO $ D.foldl' f z $ readStreamD arr
 {-# INLINE_NORMAL foldr #-}
 foldr :: (a -> b -> b) -> b -> Array a -> b
 foldr f z arr = unsafePerformIO $ D.foldr f z $ readStreamD arr
-
-instance NFData a => NFData (Array a) where
-    {-# INLINE rnf #-}
-    rnf = foldl' (\_ x -> rnf x) ()
 
 {-# INLINE fold #-}
 fold :: MonadIO m => Fold m a b -> Array a -> m b

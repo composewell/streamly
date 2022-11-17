@@ -41,11 +41,8 @@ where
 #include "inline.hs"
 
 import Control.Applicative (liftA2)
-import Control.DeepSeq (NFData(..), NFData1(..))
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Reader.Class (MonadReader(..))
-import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Foldable (Foldable(foldl'), fold)
 import Data.Functor.Identity (Identity(..), runIdentity)
@@ -240,33 +237,6 @@ instance (MonadIO m) => MonadIO (Stream m) where
 
 instance (MonadThrow m) => MonadThrow (Stream m) where
     throwM = lift . throwM
-
-instance (MonadReader r m) => MonadReader r (Stream m) where
-    ask = lift ask
-
-    local f (Stream m) = Stream $ K.withLocal f m
-
-instance (MonadState s m) => MonadState s (Stream m) where
-    {-# INLINE get #-}
-    get = lift get
-
-    {-# INLINE put #-}
-    put x = lift (put x)
-
-    {-# INLINE state #-}
-    state k = lift (state k)
-
-------------------------------------------------------------------------------
--- NFData
-------------------------------------------------------------------------------
-
-instance NFData a => NFData (Stream Identity a) where
-    {-# INLINE rnf #-}
-    rnf (Stream xs) = runIdentity $ P.foldl' (\_ x -> rnf x) () xs
-
-instance NFData1 (Stream Identity) where
-    {-# INLINE liftRnf #-}
-    liftRnf f (Stream xs) = runIdentity $ P.foldl' (\_ x -> f x) () xs
 
 ------------------------------------------------------------------------------
 -- Lists
