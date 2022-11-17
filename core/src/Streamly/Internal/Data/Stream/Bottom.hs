@@ -590,11 +590,13 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 --
 -- See also: 'concat', 'sequence'
 --
---  /Internal/
+--  /Inhibits stream fusion/
 --
 {-# INLINE concatEffect #-}
 concatEffect :: Monad m => m (Stream m a) -> Stream m a
-concatEffect generator = concatMapM (\() -> generator) (fromPure ())
+-- concatEffect generator = concatMapM (\() -> generator) (fromPure ())
+concatEffect generator =
+    fromStreamK $ K.concatEffect $ fmap toStreamK generator
 
 -- XXX Need a more intuitive name, and need to reconcile the names
 -- foldMany/fold/parse/parseMany/parseManyPost etc.

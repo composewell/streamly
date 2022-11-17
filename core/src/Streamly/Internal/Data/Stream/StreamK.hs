@@ -159,6 +159,7 @@ module Streamly.Internal.Data.Stream.StreamK
 
     , concatMapWith
     , concatMap
+    , concatEffect
     , bindWith
     , concatPairsWith
 
