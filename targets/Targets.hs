@@ -108,18 +108,18 @@ targets =
       )
 
     -- Arrays
-    , ("Data.Array",
+    , ("Data.Array.Generic",
             [ "array_grp"
             , "array_cmp"
             ]
       )
-    , ("Data.Array.Unboxed",
+    , ("Data.Array",
             [ "array_grp"
             , "array_cmp"
             , "pinned_array_cmp"
             ]
       )
-    , ("Data.Array.Unboxed.Mut",
+    , ("Data.Array.Mut",
             [ "array_grp"
             , "array_cmp"
             , "noTest"

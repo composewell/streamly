@@ -78,7 +78,7 @@ o_1_space_generation value =
     [ bgroup
         "generation"
         [ benchIOSrc "write . intFromTo" (sourceIntFromToFromStream value)
-        , let testStr = mkListString value
+        , let testStr = "fromList " ++ mkListString value
            in testStr `deepseq` bench "read" (nf readInstance testStr)
         , benchPureSrc "writeN . IsList.fromList" (sourceIsList value)
         , benchPureSrc
