@@ -35,10 +35,7 @@ where
 
 import Control.Applicative (Alternative(..), liftA2)
 import Control.Monad (MonadPlus(..), ap)
-import Control.Monad.Catch (MonadCatch, MonadThrow(..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader.Class (MonadReader, ask, local)
-import Control.Monad.State.Class (MonadState, get, put)
 import Streamly.Internal.Data.Array (Array)
 import qualified Control.Monad.Fail as Fail
 
@@ -271,23 +268,7 @@ instance Monad m => Fail.MonadFail (ParserChunked a m) where
     {-# INLINE fail #-}
     fail = die
 
-instance (MonadThrow m, MonadReader r m, MonadCatch m) =>
-    MonadReader r (ParserChunked a m) where
-
-    {-# INLINE ask #-}
-    ask = fromEffect ask
-
-    {-# INLINE local #-}
-    local f p = MkParser $ \n st arr k -> local f $ runParser p n st arr k
-
-instance (MonadThrow m, MonadState s m) => MonadState s (ParserChunked a m) where
-    {-# INLINE get #-}
-    get = fromEffect get
-
-    {-# INLINE put #-}
-    put = fromEffect . put
-
-instance (MonadThrow m, MonadIO m) => MonadIO (ParserChunked a m) where
+instance MonadIO m => MonadIO (ParserChunked a m) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
 
