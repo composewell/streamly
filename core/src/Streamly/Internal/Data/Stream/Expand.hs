@@ -92,7 +92,7 @@ module Streamly.Internal.Data.Stream.Expand
     -- the binary append operation to append many streams.
     , concatMapM
     , concatMap
-    , concatM
+    , concatEffect
     , concat
 
     -- * ConcatMapWith
@@ -128,7 +128,7 @@ where
 #include "inline.hs"
 
 import Streamly.Internal.Data.Stream.Bottom
-    ( concatM, concatMapM, concatMap, smapM, fromPure, fromEffect
+    ( concatEffect, concatMapM, concatMap, smapM, fromPure, fromEffect
     , zipWith, zipWithM)
 import Streamly.Internal.Data.Stream.Type
     ( Stream, fromStreamD, fromStreamK, toStreamD, toStreamK

@@ -252,7 +252,7 @@ joinLeft eq s1 s2 = Stream.evalStateT (return False) $ getCrossStream $ do
     -- XXX Is there a better way to perform some action at the end of a loop
     -- iteration?
     CrossStream (Stream.fromEffect $ put False)
-    let final = Stream.concatM $ do
+    let final = Stream.concatEffect $ do
             r <- get
             if r
             then pure Stream.nil
@@ -300,7 +300,7 @@ joinOuter :: MonadIO m =>
     -> Stream m b
     -> Stream m (Maybe a, Maybe b)
 joinOuter eq s1 s =
-    Stream.concatM $ do
+    Stream.concatEffect $ do
         inputArr <- Array.fromStream s
         let len = Array.length inputArr
         foundArr <-
@@ -331,7 +331,7 @@ joinOuter eq s1 s =
         -- XXX Is there a better way to perform some action at the end of a loop
         -- iteration?
         CrossStream (Stream.fromEffect $ put False)
-        let final = Stream.concatM $ do
+        let final = Stream.concatEffect $ do
                 r <- get
                 if r
                 then pure Stream.nil
@@ -398,7 +398,7 @@ mergeOuterJoin _eq _s1 _s2 = undefined
 intersectBy :: Monad m =>
     (a -> a -> Bool) -> Stream m a -> Stream m a -> Stream m a
 intersectBy eq s1 s2 =
-    Stream.concatM
+    Stream.concatEffect
         $ do
             -- This may work well when s2 is small
             xs <- Stream.fold Fold.toListRev $ Stream.uniqBy eq  s2
@@ -447,7 +447,7 @@ intersectBySorted eq s1 =
 differenceBy :: (Monad m) =>
     (a -> a -> Bool) -> Stream m a -> Stream m a -> Stream m a
 differenceBy eq s1 s2 =
-    Stream.concatM
+    Stream.concatEffect
         $ do
             -- This may work well if s1 is small
             -- If s1 is big we can go through s1, deleting elements from s2 and
@@ -492,7 +492,7 @@ mergeDifferenceBy _eq _s1 _s2 = undefined
 unionBy :: MonadIO m =>
     (a -> a -> Bool) -> Stream m a -> Stream m a -> Stream m a
 unionBy eq s1 s2 =
-    Stream.concatM
+    Stream.concatEffect
         $ do
             xs <- Stream.fold Fold.toList  s2
             -- XXX we can use postscanlMAfter' instead of IORef
@@ -500,7 +500,7 @@ unionBy eq s1 s2 =
             let f x = do
                     liftIO $ modifyIORef' ref (List.deleteBy eq x)
                     return x
-                s3 = Stream.concatM
+                s3 = Stream.concatEffect
                         $ do
                             xs1 <- liftIO $ readIORef ref
                             return $ Stream.fromList xs1

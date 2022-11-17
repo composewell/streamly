@@ -410,7 +410,7 @@ o_1_space_monad value =
 -- new prime we keep appending a division filter for all the future numbers.
 {-# INLINE sieve #-}
 sieve :: Monad m => Stream m Int -> Stream m Int
-sieve s = S.concatM $ do
+sieve s = S.concatEffect $ do
     r <- S.uncons s
     case r of
         Just (prime, rest) ->

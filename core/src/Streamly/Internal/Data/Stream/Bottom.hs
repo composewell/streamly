@@ -52,7 +52,7 @@ module Streamly.Internal.Data.Stream.Bottom
     , reverse'
 
     -- * Expand
-    , concatM
+    , concatEffect
     , concatMapM
     , concatMap
 
@@ -580,20 +580,21 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 concatMap ::Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 
+-- >>> concatEffect = Stream.concat . lift    -- requires (MonadTrans t)
+-- >>> concatEffect = join . lift             -- requires (MonadTrans t, Monad (Stream m))
+
 -- | Given a stream value in the underlying monad, lift and join the underlying
 -- monad with the stream monad.
 --
--- >>> concatM = Stream.concat . Stream.fromEffect
--- >>> concatM = Stream.concat . lift    -- requires (MonadTrans t)
--- >>> concatM = join . lift             -- requires (MonadTrans t, Monad (Stream m))
+-- >>> concatEffect = Stream.concat . Stream.fromEffect
 --
 -- See also: 'concat', 'sequence'
 --
 --  /Internal/
 --
-{-# INLINE concatM #-}
-concatM :: Monad m => m (Stream m a) -> Stream m a
-concatM generator = concatMapM (\() -> generator) (fromPure ())
+{-# INLINE concatEffect #-}
+concatEffect :: Monad m => m (Stream m a) -> Stream m a
+concatEffect generator = concatMapM (\() -> generator) (fromPure ())
 
 -- XXX Need a more intuitive name, and need to reconcile the names
 -- foldMany/fold/parse/parseMany/parseManyPost etc.

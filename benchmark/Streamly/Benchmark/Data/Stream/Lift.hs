@@ -96,7 +96,7 @@ iterateStateIO n = do
 
 {-# INLINE iterateStateT #-}
 iterateStateT :: Int -> Stream (StateT Int IO) Int
-iterateStateT n = Stream.concatM $ do
+iterateStateT n = Stream.concatEffect $ do
     x <- get
     if x > n
     then do
@@ -109,7 +109,7 @@ iterateStateT n = Stream.concatM $ do
 iterateState :: Monad m =>
        Int
     -> Stream (StateT Int m) Int
-iterateState n = Stream.concatM $ do
+iterateState n = Stream.concatEffect $ do
     x <- get
     if x > n
     then do

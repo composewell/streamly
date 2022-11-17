@@ -401,6 +401,7 @@ module Streamly.Data.Stream
     -- > filter p m = S.concatMap (\x -> if p x then S.fromPure x else S.nil) m
     --
 
+    , concatEffect
     , concatMapWith
     , concatMap
     , concatMapM

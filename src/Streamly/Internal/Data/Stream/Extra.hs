@@ -25,7 +25,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream as Stream (concatM)
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -- $setup
@@ -79,7 +78,7 @@ toMap =
 joinInnerMap :: (Monad m, Ord k) =>
     Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, b)
 joinInnerMap s1 s2 =
-    Stream.concatM $ do
+    Stream.concatEffect $ do
         km <- toMap s2
         pure $ Stream.mapMaybe (joinAB km) s1
 
@@ -101,7 +100,7 @@ joinInnerMap s1 s2 =
 joinLeftMap :: (Ord k, Monad m) =>
     Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, Maybe b)
 joinLeftMap s1 s2 =
-    Stream.concatM $ do
+    Stream.concatEffect $ do
         km <- toMap s2
         return $ fmap (joinAB km) s1
 
@@ -128,7 +127,7 @@ joinOuterMap ::
     (Ord k, MonadIO m) =>
     Stream m (k, a) -> Stream m (k, b) -> Stream m (k, Maybe a, Maybe b)
 joinOuterMap s1 s2 =
-    Stream.concatM $ do
+    Stream.concatEffect $ do
         km1 <- kvFold s1
         km2 <- kvFold s2
 

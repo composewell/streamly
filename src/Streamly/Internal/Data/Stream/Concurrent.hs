@@ -789,7 +789,7 @@ newCallbackStream = do
 --
 {-# INLINE fromCallback #-}
 fromCallback :: MonadAsync m => ((a -> m ()) -> m ()) -> Stream m a
-fromCallback setCallback = Stream.concatM $ do
+fromCallback setCallback = Stream.concatEffect $ do
     (callback, stream) <- newCallbackStream
     setCallback callback
     return stream
