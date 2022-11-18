@@ -60,7 +60,7 @@ import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
-import Streamly.Internal.Data.Parser (Parser (..))
+import Streamly.Internal.Data.Parser (Parser (..), ParseError (ParseError))
 import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Stream.Bottom (foldManyPost)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
@@ -340,10 +340,10 @@ splitOnAny _subseq _f _m =
 --
 {-# INLINE parseMany #-}
 parseMany
-    :: MonadThrow m
+    :: Monad m
     => Parser a m b
     -> Stream m a
-    -> Stream m b
+    -> Stream m (Either ParseError b)
 parseMany p m =
     fromStreamD $ D.parseMany (ParserD.fromParserK p) (toStreamD m)
 
@@ -353,10 +353,10 @@ parseMany p m =
 --
 {-# INLINE parseManyD #-}
 parseManyD
-    :: MonadThrow m
+    :: Monad m
     => ParserD.Parser a m b
     -> Stream m a
-    -> Stream m b
+    -> Stream m (Either ParseError b)
 parseManyD p m =
     fromStreamD $ D.parseMany p (toStreamD m)
 

@@ -7,6 +7,7 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Main
   (
@@ -14,7 +15,6 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad.Catch (MonadThrow)
 import Data.Foldable (asum)
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
@@ -73,54 +73,54 @@ takeWhile :: Monad m => (a -> Bool) -> PR.Parser a m ()
 takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
-takeWhileK :: MonadThrow m => Int -> Stream m Int -> m ()
-takeWhileK value = PARSE_OP (takeWhile (<= value))
+takeWhileK :: Monad m => Int -> Stream m Int -> m (Either PRD.ParseError ())
+takeWhileK value = Stream.parseK (takeWhile (<= value))
 
 {-# INLINE splitApp #-}
-splitApp :: MonadThrow m
-    => Int -> Stream m Int -> m ((), ())
+splitApp :: Monad m
+    => Int -> Stream m Int -> m (Either PRD.ParseError ((), ()))
 splitApp value =
-    PARSE_OP ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
+    Stream.parseK ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
 
 {-# INLINE sequenceA #-}
-sequenceA :: MonadThrow m => Int -> Stream m Int -> m Int
+sequenceA :: Monad m => Int -> Stream m Int -> m Int
 sequenceA value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
-    x <- PARSE_OP (TR.sequenceA list) xs
+    x <- Stream.parseK (TR.sequenceA list) xs
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: MonadThrow m => Int -> Stream m Int -> m ()
+sequenceA_ :: Monad m => Int -> Stream m Int -> m (Either PRD.ParseError ())
 sequenceA_ value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
-    PARSE_OP (F.sequenceA_ list) xs
+    Stream.parseK (F.sequenceA_ list) xs
 
 {-# INLINE sequence #-}
-sequence :: MonadThrow m => Int -> Stream m Int -> m Int
+sequence :: Monad m => Int -> Stream m Int -> m Int
 sequence value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
-    x <- PARSE_OP (TR.sequence list) xs
+    x <- Stream.parseK (TR.sequence list) xs
     return $ Prelude.length x
 
 {-# INLINE manyAlt #-}
-manyAlt :: MonadThrow m => Stream m Int -> m Int
+manyAlt :: Monad m => Stream m Int -> m Int
 manyAlt xs = do
-    x <- PARSE_OP (AP.many (satisfy (> 0))) xs
+    x <- Stream.parseK (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
-someAlt :: MonadThrow m => Stream m Int -> m Int
+someAlt :: Monad m => Stream m Int -> m Int
 someAlt xs = do
-    x <- PARSE_OP (AP.some (satisfy (> 0))) xs
+    x <- Stream.parseK (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE choice #-}
-choice :: MonadThrow m => Int -> Stream m Int -> m Int
+choice :: Monad m => Int -> Stream m Int -> m (Either PRD.ParseError Int)
 choice value =
-    PARSE_OP (asum (replicate value (satisfy (< 0)))
+    Stream.parseK (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
 
 -------------------------------------------------------------------------------
@@ -129,6 +129,10 @@ choice value =
 
 moduleName :: String
 moduleName = "Data.Parser.ParserK"
+
+instance NFData PRD.ParseError where
+    {-# INLINE rnf #-}
+    rnf (PRD.ParseError x) = rnf x
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =

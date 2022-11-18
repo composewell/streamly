@@ -29,7 +29,6 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
-import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
 import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
 import Streamly.Internal.Data.Array.Mut.Type (Array(..))
@@ -298,8 +297,8 @@ compactGEFold n = Fold step initial extract
 -- maximum specified size in bytes.
 --
 -- /Internal/
-compactLE :: (MonadThrow m, MonadIO m, Unbox a) =>
-    Int -> Stream m (Array a) -> Stream m (Array a)
+compactLE :: (Monad m, MonadIO m, Unbox a) =>
+    Int -> Stream m (Array a) -> Stream m (Either ParserD.ParseError (Array a))
 compactLE n =
     Stream.fromStreamD . D.parseMany (compactLEParserD n) . Stream.toStreamD
 

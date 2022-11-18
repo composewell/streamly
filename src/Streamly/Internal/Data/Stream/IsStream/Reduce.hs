@@ -163,7 +163,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Refold.Type (Refold (..))
-import Streamly.Internal.Data.Parser (Parser (..))
+import Streamly.Internal.Data.Parser (Parser (..), ParseError)
 import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( fold
@@ -382,10 +382,10 @@ refoldIterateM c i m = fromStreamD $ D.refoldIterateM c i (toStreamD m)
 --
 {-# INLINE parseMany #-}
 parseMany
-    :: (IsStream t, MonadThrow m)
+    :: (IsStream t, Monad m)
     => Parser a m b
     -> t m a
-    -> t m b
+    -> t m (Either ParseError b)
 parseMany p m =
     fromStreamD $ D.parseMany (PRD.fromParserK p) (toStreamD m)
 
@@ -395,10 +395,10 @@ parseMany p m =
 --
 {-# INLINE parseManyD #-}
 parseManyD
-    :: (IsStream t, MonadThrow m)
+    :: (IsStream t, Monad m)
     => PRD.Parser a m b
     -> t m a
-    -> t m b
+    -> t m (Either ParseError b)
 parseManyD p m =
     fromStreamD $ D.parseMany p (toStreamD m)
 

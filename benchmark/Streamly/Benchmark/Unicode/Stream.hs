@@ -280,7 +280,7 @@ _copyStreamUtf8Parser :: Handle -> Handle -> IO ()
 _copyStreamUtf8Parser inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeUtf8
-     $ Stream.parseMany
+     $ Stream.rights $ Stream.parseMany
            (Unicode.parseCharUtf8With Unicode.TransliterateCodingFailure)
      $ Stream.unfold Handle.reader inh
 

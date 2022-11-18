@@ -111,7 +111,7 @@ sampleFromThen offset stride =
 -- /Pre-release/
 --
 {-# INLINE sortBy #-}
-sortBy :: MonadThrow m => (a -> a -> Ordering) -> Stream m a -> Stream m a
+sortBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> Stream m a
 -- sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
 sortBy cmp =
     let p =
@@ -120,7 +120,7 @@ sortBy cmp =
                 Fold.toStreamRev
                 Fold.toStream
      in   Stream.concatPairsWith (Stream.mergeBy cmp) id
-        . Stream.parseMany (fmap (either id id) p)
+        . Stream.rights . Stream.parseMany (fmap (either id id) p)
 
 ------------------------------------------------------------------------------
 -- SQL Joins

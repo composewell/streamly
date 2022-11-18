@@ -189,7 +189,7 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                         let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
                         gobuf SPEC s (List buf1) (List src) pst1
-                    PR.Done 0 b -> return $ (Right b, Stream step s)
+                    PR.Done 0 b -> return (Right b, Stream step s)
                     PR.Done n b -> do
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
