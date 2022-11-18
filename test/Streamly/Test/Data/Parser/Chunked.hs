@@ -1,17 +1,16 @@
 module Main (main) where
 
-import Control.Monad.Catch (MonadThrow)
 -- import Control.Exception (SomeException(..), displayException, try)
 -- import Data.Foldable (for_)
 -- import Data.Word (Word8, Word32, Word64)
+import Streamly.Internal.Data.Parser (ParseError)
 import Streamly.Internal.Data.Unboxed (Unbox)
-import Streamly.Test.Common (listEquals)
 import Test.Hspec (hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
        (forAll, Property, listOf,
        Gen)
-import Test.QuickCheck.Monadic (monadicIO, run)
+import Test.QuickCheck.Monadic (monadicIO)
 
 import Prelude hiding (sequence)
 
@@ -685,8 +684,8 @@ some =
 -- Instances
 -------------------------------------------------------------------------------
 
-parse :: (MonadThrow f, Unbox a) =>
-    P.ParserChunked a f b -> S.Stream f (A.Array a) -> f b
+parse :: (Monad f, Unbox a) =>
+    P.ParserChunked a f b -> S.Stream f (A.Array a) -> f (Either ParseError b)
 parse parser stream = fmap fst (P.parseBreak parser stream)
 
 applicative :: Property
@@ -699,10 +698,12 @@ applicative =
                         <*> ParserD.fromFold (FL.take (length list2) FL.toList)
              in monadicIO $ do
                     let arrays = [A.fromList list1, A.fromList list2]
-                    (olist1, olist2) <-
-                        run $ parse (P.fromParserD parser) (S.fromList arrays)
-                    listEquals (==) olist1 list1
-                    listEquals (==) olist2 list2
+                    s1 <- parse (P.fromParserD parser) (S.fromList arrays)
+                    return $
+                        case s1 of
+                            Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                            Left _ -> False
+
 
 {-
 sequence :: Property
@@ -727,10 +728,11 @@ monad =
                     return (olist1, olist2)
              in monadicIO $ do
                     let arrays = [A.fromList list1, A.fromList list2]
-                    (olist1, olist2) <-
-                        run $ parse (P.fromParserD parser) (S.fromList arrays)
-                    listEquals (==) olist1 list1
-                    listEquals (==) olist2 list2
+                    s1 <- parse (P.fromParserD parser) (S.fromList arrays)
+                    return $
+                        case s1 of
+                            Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                            Left _ -> False
 
 {-
 -------------------------------------------------------------------------------

@@ -56,11 +56,11 @@ module Streamly.Internal.Data.Stream.Reduce
     )
 where
 
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Parser (Parser (..))
+import  Streamly.Internal.Data.Parser.ParserD (ParseError)
 import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Stream.Bottom (foldManyPost)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
@@ -331,7 +331,7 @@ splitOnAny _subseq _f _m =
 -- >>> s = Stream.fromList [1..10]
 -- >>> parser = Parser.takeBetween 0 2 Fold.sum
 -- >>> Stream.fold Fold.toList $ Stream.parseMany parser s
--- [3,7,11,15,19]
+-- [Right 3,Right 7,Right 11,Right 15,Right 19]
 --
 -- foldMany f = Stream.parseMany (Parser.fromFold f)
 --
@@ -340,10 +340,10 @@ splitOnAny _subseq _f _m =
 --
 {-# INLINE parseMany #-}
 parseMany
-    :: MonadThrow m
+    :: Monad m
     => Parser a m b
     -> Stream m a
-    -> Stream m b
+    -> Stream m (Either ParseError b)
 parseMany p m =
     fromStreamD $ D.parseMany (ParserD.fromParserK p) (toStreamD m)
 
@@ -353,10 +353,10 @@ parseMany p m =
 --
 {-# INLINE parseManyD #-}
 parseManyD
-    :: MonadThrow m
+    :: Monad m
     => ParserD.Parser a m b
     -> Stream m a
-    -> Stream m b
+    -> Stream m (Either ParseError b)
 parseManyD p m =
     fromStreamD $ D.parseMany p (toStreamD m)
 
@@ -398,7 +398,7 @@ parseManyTill = undefined
 --
 -- >>> import Data.Monoid (Sum(..))
 -- >>> s = Stream.fromList [1..10]
--- >>> Stream.fold Fold.toList $ fmap getSum $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) 0 $ fmap Sum s
+-- >>> Stream.fold Fold.toList $ fmap getSum $ Stream.rights $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) (Sum 0) $ fmap Sum s
 -- [3,10,21,36,55,55]
 --
 -- This is the streaming equivalent of monad like sequenced application of
@@ -408,11 +408,11 @@ parseManyTill = undefined
 --
 {-# INLINE parseIterate #-}
 parseIterate
-    :: MonadThrow m
+    :: Monad m
     => (b -> Parser a m b)
     -> b
     -> Stream m a
-    -> Stream m b
+    -> Stream m (Either ParseError b)
 parseIterate f i m = fromStreamD $
     D.parseIterate (ParserD.fromParserK . f) i (toStreamD m)
 

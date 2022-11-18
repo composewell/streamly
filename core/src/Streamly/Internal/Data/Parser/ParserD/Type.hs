@@ -1295,7 +1295,7 @@ dieM err = Parser undefined (IError <$> err) undefined
 -- argument. The following code will fail:
 --
 -- >>> Stream.parse (Parser.satisfy (> 0) <|> undefined) $ Stream.fromList [1..10]
--- 1
+-- Right 1
 --
 instance Monad m => Alternative (Parser a m) where
     {-# INLINE empty #-}

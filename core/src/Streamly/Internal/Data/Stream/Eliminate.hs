@@ -77,9 +77,8 @@ where
 
 #include "inline.hs"
 
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Data.Parser (Parser (..))
+import Streamly.Internal.Data.Parser (Parser (..), ParseError (..))
 import Streamly.Internal.Data.Unboxed (Unbox)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
@@ -216,7 +215,7 @@ foldlS f z =
 -- /Internal/
 --
 {-# INLINE_NORMAL parseD #-}
-parseD :: MonadThrow m => PRD.Parser a m b -> Stream m a -> m b
+parseD :: Monad m => PRD.Parser a m b -> Stream m a -> m (Either ParseError b)
 parseD p = D.parse p . toStreamD
 
 -- XXX Drive directly as parserK rather than converting to parserD first.
@@ -225,7 +224,7 @@ parseD p = D.parse p . toStreamD
 --
 -- /Internal/
 {-# INLINE parseK #-}
-parseK :: MonadThrow m => PRK.Parser a m b -> Stream m a -> m b
+parseK :: Monad m => PRK.Parser a m b -> Stream m a -> m (Either ParseError b)
 parseK = parse
 
 -- | Parse a stream using the supplied 'Parser'.
@@ -236,17 +235,17 @@ parseK = parse
 -- error.  For example:
 --
 -- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
--- *** Exception: ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0"
+-- Left (ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0")
 --
 -- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --
 {-# INLINE [3] parse #-}
-parse :: MonadThrow m => Parser a m b -> Stream m a -> m b
+parse :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b)
 parse = parseD . PRD.fromParserK
 
 {-# INLINE_NORMAL parseBreakD #-}
-parseBreakD :: MonadThrow m =>
-    PRD.Parser a m b -> Stream m a -> m (b, Stream m a)
+parseBreakD :: Monad m =>
+    PRD.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
 parseBreakD parser strm = do
     (b, strmD) <- D.parseBreak parser (toStreamD strm)
     return $! (b, fromStreamD strmD)
@@ -256,7 +255,7 @@ parseBreakD parser strm = do
 -- /Not fused/
 --
 {-# INLINE parseBreak #-}
-parseBreak :: MonadThrow m => Parser a m b -> Stream m a -> m (b, Stream m a)
+parseBreak :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
 parseBreak p strm = fmap f $ K.parseBreak (PRD.fromParserK p) (toStreamK strm)
 
     where

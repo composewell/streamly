@@ -505,7 +505,7 @@ readOneEvent = do
 
 watchToStream :: Watch -> Stream IO Event
 watchToStream (Watch handle _ _) =
-    S.parseMany readOneEvent $ S.unfold FH.reader handle
+    S.rights $ S.parseMany readOneEvent $ S.unfold FH.reader handle
 
 -- XXX Write tests for all the points in macOS specific behavior.
 --

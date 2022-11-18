@@ -365,7 +365,7 @@ dieM = D.toParserK . D.dieM
 -- | @lmap f parser@ maps the function @f@ on the input of the parser.
 --
 -- >>> Stream.parse (Parser.lmap (\x -> x * x) (Parser.fromFold Fold.sum)) (Stream.enumerateFromTo 1 100)
--- 338350
+-- Right 338350
 --
 -- > lmap = Parser.lmapM return
 --
@@ -389,7 +389,7 @@ rmapM f p = D.toParserK $ D.rmapM f $ D.fromParserK p
 -- | Include only those elements that pass a predicate.
 --
 -- >>> Stream.parse (Parser.filter (> 5) (Parser.fromFold Fold.sum)) $ Stream.fromList [1..10]
--- 40
+-- Right 40
 --
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
@@ -403,7 +403,7 @@ filter f p = D.toParserK $ D.filter f $ D.fromParserK p
 -- encounters end of input.
 --
 -- >>> Stream.parse ((,) <$> Parser.peek <*> Parser.satisfy (> 0)) $ Stream.fromList [1]
--- (1,1)
+-- Right (1,1)
 --
 -- @
 -- peek = lookAhead (satisfy True)
@@ -416,7 +416,7 @@ peek = D.toParserK D.peek
 -- | Succeeds if we are at the end of input, fails otherwise.
 --
 -- >>> Stream.parse ((,) <$> Parser.satisfy (> 0) <*> Parser.eof) $ Stream.fromList [1]
--- (1,())
+-- Right (1,())
 --
 {-# INLINE eof #-}
 eof :: Monad m => Parser a m ()
@@ -425,7 +425,7 @@ eof = D.toParserK D.eof
 -- | Returns the next element if it passes the predicate, fails otherwise.
 --
 -- >>> Stream.parse (Parser.satisfy (== 1)) $ Stream.fromList [1,0,1]
--- 1
+-- Right 1
 --
 -- >>> toMaybe f x = if f x then Just x else Nothing
 -- >>> satisfy f = Parser.maybe (toMaybe f)
@@ -551,19 +551,19 @@ either = D.toParserK . D.either
 -- @
 --
 -- >>> takeBetween' 2 4 [1, 2, 3, 4, 5]
--- [1,2,3,4]
+-- Right [1,2,3,4]
 --
 -- >>> takeBetween' 2 4 [1, 2]
--- [1,2]
+-- Right [1,2]
 --
 -- >>> takeBetween' 2 4 [1]
--- *** Exception: ParseError "takeBetween: Expecting alteast 2 elements, got 1"
+-- Left (ParseError "takeBetween: Expecting alteast 2 elements, got 1")
 --
 -- >>> takeBetween' 0 0 [1, 2]
--- []
+-- Right []
 --
 -- >>> takeBetween' 0 1 []
--- []
+-- Right []
 --
 -- @takeBetween@ is the most general take operation, other take operations can
 -- be defined in terms of takeBetween. For example:
@@ -586,7 +586,7 @@ takeBetween m n = D.toParserK . D.takeBetween m n
 --           exactly @n@ elements.
 --
 -- >>> Stream.parse (Parser.takeEQ 4 Fold.toList) $ Stream.fromList [1,0,1]
--- *** Exception: ParseError "takeEQ: Expecting exactly 4 elements, input terminated on 3"
+-- Left (ParseError "takeEQ: Expecting exactly 4 elements, input terminated on 3")
 --
 {-# INLINE takeEQ #-}
 takeEQ :: Monad m => Int -> Fold m a b -> Parser a m b
@@ -599,10 +599,10 @@ takeEQ n = D.toParserK . D.takeEQ n
 --           elements.
 --
 -- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1]
--- *** Exception: ParseError "takeGE: Expecting at least 4 elements, input terminated on 3"
+-- Left (ParseError "takeGE: Expecting at least 4 elements, input terminated on 3")
 --
 -- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1,0,1]
--- [1,0,1,0,1]
+-- Right [1,0,1,0,1]
 --
 -- /Pre-release/
 --
@@ -644,7 +644,7 @@ takeWhileP cond p = D.toParserK $ D.takeWhileP cond (D.fromParserK p)
 -- * Fails - never.
 --
 -- >>> Stream.parse (Parser.takeWhile (== 0) Fold.toList) $ Stream.fromList [0,0,1,0,1]
--- [0,0]
+-- Right [0,0]
 --
 -- >>> takeWhile cond f = Parser.takeWhileP cond (Parser.fromFold f)
 --
@@ -752,14 +752,14 @@ takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
 -- >>> p = Parser.takeStartBy (== ',') Fold.toList
 -- >>> leadingComma = Stream.parse p . Stream.fromList
 -- >>> leadingComma "a,b"
--- *** Exception: ParseError "takeStartBy: missing frame start"
+-- Left (ParseError "takeStartBy: missing frame start")
 -- ...
 -- >>> leadingComma ",,"
--- ","
+-- Right ","
 -- >>> leadingComma ",a,b"
--- ",a"
+-- Right ",a"
 -- >>> leadingComma ""
--- ""
+-- Right ""
 --
 -- /Pre-release/
 --
@@ -802,13 +802,13 @@ takeEndByEsc isEsc isEnd p =
 --
 -- >>> p = Parser.takeFramedByEsc_ (== '\\') (== '{') (== '}') Fold.toList
 -- >>> Stream.parse p $ Stream.fromList "{hello}"
--- "hello"
+-- Right "hello"
 -- >>> Stream.parse p $ Stream.fromList "{hello {world}}"
--- "hello {world}"
+-- Right "hello {world}"
 -- >>> Stream.parse p $ Stream.fromList "{hello \\{world}"
--- "hello {world"
+-- Right "hello {world"
 -- >>> Stream.parse p $ Stream.fromList "{hello {world}"
--- *** Exception: ParseError "takeFramedByEsc_: missing frame end"
+-- Left (ParseError "takeFramedByEsc_: missing frame end")
 --
 -- /Pre-release/
 {-# INLINE takeFramedByEsc_ #-}
@@ -865,17 +865,17 @@ wordBy f = D.toParserK . D.wordBy f
 --
 -- >>> braces = Parser.wordFramedBy (== '\\') (== '{') (== '}') isSpace Fold.toList
 -- >>> Stream.parse braces $ Stream.fromList "{ab} cd"
--- "ab"
+-- Right "ab"
 -- >>> Stream.parse braces $ Stream.fromList "{ab}{cd}"
--- "abcd"
+-- Right "abcd"
 -- >>> Stream.parse braces $ Stream.fromList "a{b} cd"
--- "ab"
+-- Right "ab"
 -- >>> Stream.parse braces $ Stream.fromList "a{{b}} cd"
--- "a{b}"
+-- Right "a{b}"
 --
 -- >>> quotes = Parser.wordFramedBy (== '\\') (== '"') (== '"') isSpace Fold.toList
 -- >>> Stream.parse quotes $ Stream.fromList "\"a\"\"b\""
--- "ab"
+-- Right "ab"
 --
 {-# INLINE wordFramedBy #-}
 wordFramedBy :: Monad m =>
@@ -903,10 +903,10 @@ wordFramedBy isEsc isBegin isEnd isSpc =
 -- >>> p kQ = Parser.wordQuotedBy kQ (== '\\') q q id isSpace Fold.toList
 --
 -- >>> Stream.parse (p False) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
--- "ab'c;d\"ef"
+-- Right "ab'c;d\"ef"
 --
 -- >>> Stream.parse (p True) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
--- "a\"b'c\";'d\"e'f"
+-- Right "a\"b'c\";'d\"e'f"
 --
 {-# INLINE wordQuotedBy #-}
 wordQuotedBy :: (Monad m, Eq a) =>
@@ -942,10 +942,10 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSpc =
 -- []
 --
 -- >>> runGroupsBy (<) [1]
--- [[1]]
+-- [Right [1]]
 --
 -- >>> runGroupsBy (<) [3, 5, 4, 1, 2, 0]
--- [[3,5,4],[1,2],[0]]
+-- [Right [3,5,4],Right [1,2],Right [0]]
 --
 {-# INLINE groupBy #-}
 groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
@@ -974,10 +974,10 @@ groupBy eq = D.toParserK . D.groupBy eq
 -- []
 --
 -- >>> runGroupsByRolling (<) [1]
--- [[1]]
+-- [Right [1]]
 --
 -- >>> runGroupsByRolling (<) [3, 5, 4, 1, 2, 0]
--- [[3,5],[4],[1,2],[0]]
+-- [Right [3,5],Right [4],Right [1,2],Right [0]]
 --
 -- /Pre-release/
 --
@@ -1023,10 +1023,10 @@ eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
 -- Examples:
 --
 -- >>> Stream.parse (Parser.listEqBy (==) "string") $ Stream.fromList "string"
--- "string"
+-- Right "string"
 --
 -- >>> Stream.parse (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
--- *** Exception: ParseError "eqBy: mismtach occurred"
+-- Left (ParseError "eqBy: mismtach occurred")
 --
 {-# INLINE listEqBy #-}
 listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser a m [a]
@@ -1186,7 +1186,7 @@ teeWithMin f p1 p2 =
 -- will fail:
 --
 -- >>> Stream.parse (Parser.satisfy (> 0) `Parser.alt` undefined) $ Stream.fromList [1..10]
--- 1
+-- Right 1
 --
 -- Compare with 'Alternative' instance method '<|>'. This implementation allows
 -- stream fusion but has quadratic complexity. This can fuse with other
@@ -1235,10 +1235,10 @@ lookAhead p = D.toParserK $ D.lookAhead $ D.fromParserK p
 -- * Fails - when the collecting parser fails.
 --
 -- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 2 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
--- [1,2]
+-- Right [1,2]
 --
 -- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 5 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
--- *** Exception: ParseError "takeEQ: Expecting exactly 5 elements, input terminated on 4"
+-- Left (ParseError "takeEQ: Expecting exactly 5 elements, input terminated on 4")
 --
 -- /Internal/
 {-# INLINE takeP #-}

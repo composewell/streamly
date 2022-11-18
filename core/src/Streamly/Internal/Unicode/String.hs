@@ -34,7 +34,10 @@ module Streamly.Internal.Unicode.String
     ( str
     ) where
 
+
 import Control.Applicative (Alternative(..))
+import Control.Exception (displayException)
+import Data.Functor.Identity (runIdentity)
 import Streamly.Internal.Data.Parser (Parser)
 
 import Language.Haskell.TH
@@ -100,9 +103,11 @@ strExp xs = appE [| concat |] $ listE $ map strSegmentExp xs
 
 expandVars :: String -> Q Exp
 expandVars ln =
-    case Stream.parse strParser (Stream.fromList ln) of
-        Left _ -> fail "Parsing of str quoted string failed."
-        Right xs -> strExp xs
+    case runIdentity $ Stream.parse strParser (Stream.fromList ln) of
+        Left e ->
+            fail $ "str QuasiQuoter parse error: " ++ displayException e
+        Right x ->
+            strExp x
 
 -- | A QuasiQuoter that treats the input as a string literal:
 --

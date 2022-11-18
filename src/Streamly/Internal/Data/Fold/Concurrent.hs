@@ -44,6 +44,7 @@ import Streamly.Internal.Data.Fold.Concurrent.Channel
 -- Imports for example snippets in this module.
 --
 -- >>> :m
+-- >>> :set -XFlexibleContexts
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold

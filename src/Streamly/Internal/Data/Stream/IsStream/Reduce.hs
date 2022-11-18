@@ -152,7 +152,6 @@ where
 #include "inline.hs"
 
 import Control.Exception (assert)
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Heap (Entry(..))
 import Data.Kind (Type)
@@ -163,7 +162,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Refold.Type (Refold (..))
-import Streamly.Internal.Data.Parser (Parser (..))
+import Streamly.Internal.Data.Parser (Parser (..), ParseError)
 import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( fold
@@ -363,7 +362,7 @@ refoldIterateM c i m = fromStreamD $ D.refoldIterateM c i (toStreamD m)
 -- parse combinator.
 --
 -- >>> Stream.toList $ Stream.parseMany (Parser.takeBetween 0 2 Fold.sum) $ Stream.fromList [1..10]
--- [3,7,11,15,19]
+-- [Right 3,Right 7,Right 11,Right 15,Right 19]
 --
 -- @
 -- > Stream.toList $ Stream.parseMany (Parser.line Fold.toList) $ Stream.fromList "hello\\nworld"
@@ -382,10 +381,10 @@ refoldIterateM c i m = fromStreamD $ D.refoldIterateM c i (toStreamD m)
 --
 {-# INLINE parseMany #-}
 parseMany
-    :: (IsStream t, MonadThrow m)
+    :: (IsStream t, Monad m)
     => Parser a m b
     -> t m a
-    -> t m b
+    -> t m (Either ParseError b)
 parseMany p m =
     fromStreamD $ D.parseMany (PRD.fromParserK p) (toStreamD m)
 
@@ -395,10 +394,10 @@ parseMany p m =
 --
 {-# INLINE parseManyD #-}
 parseManyD
-    :: (IsStream t, MonadThrow m)
+    :: (IsStream t, Monad m)
     => PRD.Parser a m b
     -> t m a
-    -> t m b
+    -> t m (Either ParseError b)
 parseManyD p m =
     fromStreamD $ D.parseMany p (toStreamD m)
 
@@ -439,7 +438,7 @@ parseManyTill = undefined
 -- the result is used to generate the next parser and so on.
 --
 -- >>> import Data.Monoid (Sum(..))
--- >>> Stream.toList $ Stream.map getSum $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) 0 $ Stream.map Sum $ Stream.fromList [1..10]
+-- >>> Stream.toList $ fmap getSum $ Stream.rights $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) (Sum 0) $ fmap Sum $ Stream.fromList [1..10]
 -- [3,10,21,36,55,55]
 --
 -- This is the streaming equivalent of monad like sequenced application of
@@ -449,11 +448,11 @@ parseManyTill = undefined
 --
 {-# INLINE parseIterate #-}
 parseIterate
-    :: (IsStream t, MonadThrow m)
+    :: (IsStream t, Monad m)
     => (b -> Parser a m b)
     -> b
     -> t m a
-    -> t m b
+    -> t m (Either ParseError b)
 parseIterate f i m = fromStreamD $
     D.parseIterate (PRD.fromParserK . f) i (toStreamD m)
 
