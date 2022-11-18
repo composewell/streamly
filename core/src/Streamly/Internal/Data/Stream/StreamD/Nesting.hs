@@ -1147,14 +1147,15 @@ data ParseChunksState x inpBuf st pst =
     | ParseChunksExtract inpBuf inpBuf !pst
     | ParseChunksYield x (ParseChunksState x inpBuf st pst)
 
+-- XXX return the remaining stream as part of the error.
 -- XXX This is in fact parseMany1 (a la foldMany1). Do we need a parseMany as
 -- well?
 {-# INLINE_NORMAL parseMany #-}
 parseMany
-    :: MonadThrow m
+    :: Monad m
     => PRD.Parser a m b
     -> Stream m a
-    -> Stream m b
+    -> Stream m (Either ParseError b)
 parseMany (PRD.Parser pstep initial extract) (Stream step state) =
     Stream stepOuter (ParseChunksInit [] state)
 
@@ -1173,8 +1174,13 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                         return $ Skip $ ParseChunksBuf [x] s [] ps
                     PRD.IDone pb ->
                         let next = ParseChunksInit [x] s
-                         in return $ Skip $ ParseChunksYield pb next
-                    PRD.IError err -> throwM $ ParseError err
+                         in return $ Skip $ ParseChunksYield (Right pb) next
+                    PRD.IError err ->
+                        return
+                            $ Skip
+                            $ ParseChunksYield
+                                (Left (ParseError err))
+                                (ParseChunksInitLeftOver [])
             Skip s -> return $ Skip $ ParseChunksInit [] s
             Stop   -> return Stop
 
@@ -1186,8 +1192,13 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                 return $ Skip $ ParseChunksBuf src st [] ps
             PRD.IDone pb ->
                 let next = ParseChunksInit src st
-                 in return $ Skip $ ParseChunksYield pb next
-            PRD.IError err -> throwM $ ParseError err
+                 in return $ Skip $ ParseChunksYield (Right pb) next
+            PRD.IError err ->
+                return
+                    $ Skip
+                    $ ParseChunksYield
+                        (Left (ParseError err))
+                        (ParseChunksInitLeftOver [])
 
     -- This is simplified ParseChunksInit
     stepOuter _ (ParseChunksInitBuf src) = do
@@ -1197,8 +1208,13 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                 return $ Skip $ ParseChunksExtract src [] ps
             PRD.IDone pb ->
                 let next = ParseChunksInitBuf src
-                 in return $ Skip $ ParseChunksYield pb next
-            PRD.IError err -> throwM $ ParseError err
+                 in return $ Skip $ ParseChunksYield (Right pb) next
+            PRD.IError err ->
+                return
+                    $ Skip
+                    $ ParseChunksYield
+                        (Left (ParseError err))
+                        (ParseChunksInitLeftOver [])
 
     -- XXX we just discard any leftover input at the end
     stepOuter _ (ParseChunksInitLeftOver _) = return Stop
@@ -1226,13 +1242,18 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                         return $ Skip $ ParseChunksBuf src s buf1 pst1
                     PR.Done 0 b -> do
                         return $ Skip $
-                            ParseChunksYield b (ParseChunksInit [] s)
+                            ParseChunksYield (Right b) (ParseChunksInit [] s)
                     PR.Done n b -> do
                         assert (n <= length (x:buf)) (return ())
                         let src = Prelude.reverse (Prelude.take n (x:buf))
                         return $ Skip $
-                            ParseChunksYield b (ParseChunksInit src s)
-                    PR.Error err -> throwM $ ParseError err
+                            ParseChunksYield (Right b) (ParseChunksInit src s)
+                    PR.Error err ->
+                        return
+                            $ Skip
+                            $ ParseChunksYield
+                                (Left (ParseError err))
+                                (ParseChunksInitLeftOver [])
             Skip s -> return $ Skip $ ParseChunksStream s buf pst
             Stop -> return $ Skip $ ParseChunksStop buf pst
 
@@ -1259,12 +1280,20 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                     src  = Prelude.reverse src0 ++ xs
                 return $ Skip $ ParseChunksBuf src s buf1 pst1
             PR.Done 0 b ->
-                return $ Skip $ ParseChunksYield b (ParseChunksInit xs s)
+                return
+                    $ Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInit xs s)
             PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
-                return $ Skip $ ParseChunksYield b (ParseChunksInit src s)
-            PR.Error err -> throwM $ ParseError err
+                return $ Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInit src s)
+            PR.Error err ->
+                return
+                    $ Skip
+                    $ ParseChunksYield
+                        (Left (ParseError err))
+                        (ParseChunksInitLeftOver [])
 
     -- This is simplified ParseChunksBuf
     stepOuter _ (ParseChunksExtract [] buf pst) =
@@ -1288,12 +1317,21 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                     src  = Prelude.reverse src0 ++ xs
                 return $ Skip $ ParseChunksExtract src buf1 pst1
             PR.Done 0 b ->
-                return $ Skip $ ParseChunksYield b (ParseChunksInitBuf xs)
+                return
+                    $ Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInitBuf xs)
             PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
-                return $ Skip $ ParseChunksYield b (ParseChunksInitBuf src)
-            PR.Error err -> throwM $ ParseError err
+                return
+                    $ Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInitBuf src)
+            PR.Error err ->
+                return
+                    $ Skip
+                    $ ParseChunksYield
+                        (Left (ParseError err))
+                        (ParseChunksInitLeftOver [])
 
     -- This is simplified ParseChunksExtract
     stepOuter _ (ParseChunksStop buf pst) = do
@@ -1309,13 +1347,18 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                 return $ Skip $ ParseChunksExtract src buf1 pst1
             PR.Done 0 b -> do
                 return $ Skip $
-                    ParseChunksYield b (ParseChunksInitLeftOver [])
+                    ParseChunksYield (Right b) (ParseChunksInitLeftOver [])
             PR.Done n b -> do
                 assert (n <= length buf) (return ())
                 let src = Prelude.reverse (Prelude.take n buf)
                 return $ Skip $
-                    ParseChunksYield b (ParseChunksInitBuf src)
-            PR.Error err -> throwM $ ParseError err
+                    ParseChunksYield (Right b) (ParseChunksInitBuf src)
+            PR.Error err ->
+                return
+                    $ Skip
+                    $ ParseChunksYield
+                        (Left (ParseError err))
+                        (ParseChunksInitLeftOver [])
 
     stepOuter _ (ParseChunksYield a next) = return $ Yield a next
 
