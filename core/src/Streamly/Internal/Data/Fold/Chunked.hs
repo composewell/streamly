@@ -58,7 +58,6 @@ where
 
 import Control.Applicative (liftA2)
 import Control.Exception (assert)
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 import Streamly.Internal.Data.Unboxed (peekWith, sizeOf, Unbox)
@@ -187,9 +186,9 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
 -- /Pre-release/
 {-# INLINE fromParser #-}
 #ifdef DEVBUILD
-fromParser :: forall m a b. (MonadThrow m, MonadIO m) =>
+fromParser :: forall m a b. (MonadIO m) =>
 #else
-fromParser :: forall m a b. (MonadThrow m, MonadIO m, Unbox a) =>
+fromParser :: forall m a b. (MonadIO m, Unbox a) =>
 #endif
     Parser.Parser a m b -> ChunkFold m a b
 fromParser = fromParserD . ParserD.fromParserK
@@ -246,7 +245,7 @@ fromEffect = ChunkFold . ParserD.fromEffect
 --
 -- /Pre-release/
 {-# INLINE split_ #-}
-split_ :: MonadThrow m =>
+split_ :: Monad m =>
     ChunkFold m x a -> ChunkFold m x b -> ChunkFold m x b
 split_ (ChunkFold p1) (ChunkFold p2) =
     ChunkFold $ ParserD.noErrorUnsafeSplit_ p1 p2
@@ -256,14 +255,14 @@ split_ (ChunkFold p1) (ChunkFold p2) =
 --
 -- /Pre-release/
 {-# INLINE splitWith #-}
-splitWith :: MonadThrow m
+splitWith :: Monad m
     => (a -> b -> c) -> ChunkFold m x a -> ChunkFold m x b -> ChunkFold m x c
 splitWith f (ChunkFold p1) (ChunkFold p2) =
     ChunkFold $ ParserD.noErrorUnsafeSplitWith f p1 p2
 
 -- | 'Applicative' form of 'splitWith'.
 -- > (<*>) = splitWith id
-instance MonadThrow m => Applicative (ChunkFold m a) where
+instance Monad m => Applicative (ChunkFold m a) where
     {-# INLINE pure #-}
     pure = fromPure
 
@@ -288,7 +287,7 @@ instance MonadThrow m => Applicative (ChunkFold m a) where
 -- /Pre-release/
 --
 {-# INLINE concatMap #-}
-concatMap :: MonadThrow m =>
+concatMap :: Monad m =>
     (b -> ChunkFold m a c) -> ChunkFold m a b -> ChunkFold m a c
 concatMap func (ChunkFold p) =
     let f x = let ChunkFold y = func x in y
@@ -298,7 +297,7 @@ concatMap func (ChunkFold p) =
 -- output of the previous fold. See 'concatMap'.
 --
 -- > (>>=) = flip concatMap
-instance MonadThrow m => Monad (ChunkFold m a) where
+instance Monad m => Monad (ChunkFold m a) where
     {-# INLINE return #-}
     return = pure
 

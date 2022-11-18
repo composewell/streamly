@@ -85,7 +85,6 @@ where
 #include "inline.hs"
 
 import Control.Monad (void)
-import Control.Monad.Catch (MonadThrow(..), MonadCatch)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Char (chr, ord)
@@ -453,7 +452,7 @@ data UTF8CharDecodeState a
 
 {-# INLINE parseCharUtf8WithD #-}
 parseCharUtf8WithD ::
-       MonadThrow m => CodingFailureMode -> ParserD.Parser Word8 m Char
+       Monad m => CodingFailureMode -> ParserD.Parser Word8 m Char
 parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
 
     where
@@ -526,7 +525,7 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
 -- workflow requires backtracking 1 element. This can be revisited once "Fold"
 -- supports backtracking.
 {-# INLINE writeCharUtf8' #-}
-writeCharUtf8' :: MonadThrow m => Fold m Word8 Char
+writeCharUtf8' :: Monad m => Fold m Word8 Char
 writeCharUtf8' =  ParserD.toFold (parseCharUtf8WithD ErrorOnCodingFailure)
 
 -- XXX The initial idea was to have "parseCharUtf8" and offload the error
@@ -541,7 +540,7 @@ writeCharUtf8' =  ParserD.toFold (parseCharUtf8WithD ErrorOnCodingFailure)
 -- This needs to be investigated futher.
 {-# INLINE parseCharUtf8With #-}
 parseCharUtf8With ::
-       MonadCatch m => CodingFailureMode -> Parser.Parser Word8 m Char
+       Monad m => CodingFailureMode -> Parser.Parser Word8 m Char
 parseCharUtf8With = ParserD.toParserK . parseCharUtf8WithD
 
 -- XXX write it as a parser and use parseMany to decode a stream, need to check

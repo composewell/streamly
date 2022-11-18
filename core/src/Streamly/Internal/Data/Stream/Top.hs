@@ -42,7 +42,7 @@ where
 
 #include "inline.hs"
 
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State.Strict (get, put)
@@ -111,7 +111,7 @@ sampleFromThen offset stride =
 -- /Pre-release/
 --
 {-# INLINE sortBy #-}
-sortBy :: MonadCatch m => (a -> a -> Ordering) -> Stream m a -> Stream m a
+sortBy :: MonadThrow m => (a -> a -> Ordering) -> Stream m a -> Stream m a
 -- sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
 sortBy cmp =
     let p =

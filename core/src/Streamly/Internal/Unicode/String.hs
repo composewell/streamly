@@ -35,7 +35,6 @@ module Streamly.Internal.Unicode.String
     ) where
 
 import Control.Applicative (Alternative(..))
-import Control.Monad.Catch (MonadCatch)
 import Streamly.Internal.Data.Parser (Parser)
 
 import Language.Haskell.TH
@@ -61,12 +60,12 @@ data StrSegment
     | StrVar String
     deriving (Show, Eq)
 
-haskellIdentifier :: MonadCatch m => Parser Char m String
+haskellIdentifier :: Monad m => Parser Char m String
 haskellIdentifier =
     let p = Parser.alphaNum <|> Parser.char '\'' <|> Parser.char '_'
      in Parser.some p Fold.toList
 
-strParser :: MonadCatch m => Parser Char m [StrSegment]
+strParser :: Monad m => Parser Char m [StrSegment]
 strParser = Parser.many content Fold.toList
 
     where
