@@ -57,7 +57,7 @@ import qualified Streamly.Internal.Data.Array.Generic as Array
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
-import qualified Streamly.Internal.Data.Stream.Lift as Stream
+import qualified Streamly.Internal.Data.Stream.Transformer as Stream
 import qualified Streamly.Internal.Data.Stream.Eliminate as Stream
 import qualified Streamly.Internal.Data.Stream.Generate as Stream
 import qualified Streamly.Internal.Data.Stream.Expand as Stream

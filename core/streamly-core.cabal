@@ -286,6 +286,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Transform
                      , Streamly.Internal.Data.Stream.StreamD.Exception
                      , Streamly.Internal.Data.Stream.StreamD.Lift
+                     , Streamly.Internal.Data.Stream.StreamD.Transformer
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.Common
 
@@ -312,6 +313,7 @@ library
                      , Streamly.Internal.Data.Stream.Exception
                      , Streamly.Internal.Data.Stream.Expand
                      , Streamly.Internal.Data.Stream.Lift
+                     , Streamly.Internal.Data.Stream.Transformer
                      , Streamly.Internal.Data.Stream.Reduce
                      , Streamly.Internal.Data.Stream.Top
                      , Streamly.Internal.Data.Stream
@@ -344,6 +346,7 @@ library
                      , Streamly.Internal.Data.Ring
 
                      -- Only used for benchmarks
+                     , Streamly.Internal.Data.Stream.StreamK.Transformer
                      , Streamly.Internal.Data.Stream.StreamK
 
                      -- streamly-console
