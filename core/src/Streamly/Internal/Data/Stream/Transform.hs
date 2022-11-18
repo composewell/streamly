@@ -220,9 +220,9 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 --
 -- Find if any element in the stream is 'True':
 --
--- >>> step x xs = if odd x then return True else xs
+-- >>> step x xs = if odd x then Stream.fromPure True else xs
 -- >>> input = Stream.fromList (2:4:5:undefined) :: Stream IO Int
--- >>> Stream.fold Fold.toList $ Stream.foldrS step (return False) input
+-- >>> Stream.fold Fold.toList $ Stream.foldrS step (Stream.fromPure False) input
 -- [True]
 --
 -- Map (+2) on odd elements and filter out the even elements:

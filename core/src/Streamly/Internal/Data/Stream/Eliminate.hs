@@ -56,7 +56,6 @@ module Streamly.Internal.Data.Stream.Eliminate
     -- * Left Folds
     -- Lazy left folds are useful only for reversing the stream
     , foldlS
-    , foldlT
 
     -- * Multi-Stream folds
     -- Full equivalence
@@ -80,7 +79,6 @@ where
 
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Class (MonadTrans(..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unboxed (Unbox)
 
@@ -208,18 +206,6 @@ foldlS f z =
             (\xs x -> toStreamK $ f (fromStreamK xs) x)
             (toStreamK z)
         . toStreamK
-
--- | Lazy left fold to a transformer monad.
---
--- For example, to reverse a stream:
---
--- >>> input = Stream.fromList [1..5] :: Stream IO Int
--- >>> rev = Stream.fold Fold.toList $ Stream.foldlT (flip Stream.cons) Stream.nil input
---
-{-# INLINE foldlT #-}
-foldlT :: (Monad m, Monad (s m), MonadTrans s)
-    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
-foldlT f z s = D.foldlT f z (toStreamD s)
 
 ------------------------------------------------------------------------------
 -- Running a Parser

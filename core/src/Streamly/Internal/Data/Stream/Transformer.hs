@@ -8,7 +8,8 @@
 
 module Streamly.Internal.Data.Stream.Transformer
     (
-      foldrT
+      foldlT
+    , foldrT
 
     , liftInner
     , usingReaderT
@@ -31,6 +32,13 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Transformer as D
 -- >>> import Control.Monad.Trans (lift)
 -- >>> import Control.Monad.Trans.Identity (runIdentityT)
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
+
+-- | Lazy left fold to a transformer monad.
+--
+{-# INLINE foldlT #-}
+foldlT :: (Monad m, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
+foldlT f z s = D.foldlT f z (toStreamD s)
 
 -- | Right fold to a transformer monad.  This is the most general right fold
 -- function. 'foldrS' is a special case of 'foldrT', however 'foldrS'
