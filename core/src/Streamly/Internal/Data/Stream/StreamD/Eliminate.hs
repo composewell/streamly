@@ -77,7 +77,6 @@ where
 #include "inline.hs"
 
 import Control.Exception (assert)
-import Control.Monad.Catch (MonadThrow, throwM)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
@@ -141,10 +140,10 @@ newtype List a = List {getList :: [a]}
 -- | Run a 'Parse' over a stream.
 {-# INLINE_NORMAL parse #-}
 parse
-    :: MonadThrow m
+    :: Monad m
     => PRD.Parser a m b
     -> Stream m a
-    -> m b
+    -> m (Either ParseError b)
 parse parser strm = do
     (b, _) <- parseBreak parser strm
     return b
@@ -152,16 +151,16 @@ parse parser strm = do
 -- | Run a 'Parse' over a stream and return rest of the Stream.
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak
-    :: MonadThrow m
+    :: Monad m
     => PRD.Parser a m b
     -> Stream m a
-    -> m (b, Stream m a)
+    -> m (Either ParseError b, Stream m a)
 parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     res <- initial
     case res of
         PRD.IPartial s -> go SPEC state (List []) s
-        PRD.IDone b -> return (b, stream)
-        PRD.IError err -> throwM $ ParseError err
+        PRD.IDone b -> return (Right b, stream)
+        PRD.IError err -> return (Left (ParseError err), stream)
 
     where
 
@@ -190,15 +189,18 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                         let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
                         gobuf SPEC s (List buf1) (List src) pst1
-                    PR.Done 0 b -> return (b, Stream step st)
+                    PR.Done 0 b -> return $ (Right b, Stream step s)
                     PR.Done n b -> do
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
                         -- XXX This would make it quadratic. We should probably
                         -- use StreamK if we have to append many times.
-                        return (b, Nesting.append (fromList src) (Stream step s))
-                    PR.Error err -> throwM $ ParseError err
+                        return
+                            ( Right b,
+                              Nesting.append (fromList src) (Stream step s))
+                    PR.Error err ->
+                        return (Left (ParseError err), Stream step s)
             Skip s -> go SPEC s buf pst
             Stop -> goStop buf pst
 
@@ -218,13 +220,13 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
             PR.Continue n _ -> do
                 error $ "parseBreak: parser bug, go1: Continue n = " ++ show n
             PR.Done 0 b -> do
-                return (b, Stream step s)
+                return (Right b, Stream step s)
             PR.Done 1 b -> do
-                return (b, StreamD.cons x (Stream step s))
+                return (Right b, StreamD.cons x (Stream step s))
             PR.Done n _ -> do
                 error $ "parseBreak: parser bug, go1: Done n = " ++ show n
             PR.Error err ->
-                throwM $ ParseError err
+                return (Left (ParseError err), Stream step s)
 
     gobuf !_ s buf (List []) !pst = go SPEC s buf pst
     gobuf !_ s buf (List (x:xs)) !pst = do
@@ -248,8 +250,8 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
-                return (b, Nesting.append (fromList src) (Stream step s))
-            PR.Error err -> throwM $ ParseError err
+                return (Right b, Nesting.append (fromList src) (Stream step s))
+            PR.Error err -> return (Left (ParseError err), Stream step s)
 
     -- This is simplified gobuf
     goExtract !_ buf (List []) !pst = goStop buf pst
@@ -274,8 +276,8 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
-                return (b, fromList src)
-            PR.Error err -> throwM $ ParseError err
+                return (Right b, fromList src)
+            PR.Error err -> return (Left (ParseError err), fromList (x:xs))
 
     -- This is simplified goExtract
     -- XXX Use SPEC?
@@ -290,13 +292,13 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
                 goExtract SPEC (List buf1) (List src) pst1
-            PR.Done 0 b -> return (b, StreamD.nil)
+            PR.Done 0 b -> return (Right b, StreamD.nil)
             PR.Done n b -> do
                 assert (n <= length (getList buf)) (return ())
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0
-                return (b, fromList src)
-            PR.Error err -> throwM $ ParseError err
+                return (Right b, fromList src)
+            PR.Error err -> return (Left (ParseError err), fromList (getList buf))
 
 ------------------------------------------------------------------------------
 -- Specialized Folds
