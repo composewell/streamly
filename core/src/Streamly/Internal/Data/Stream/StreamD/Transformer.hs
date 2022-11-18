@@ -10,8 +10,11 @@
 
 module Streamly.Internal.Data.Stream.StreamD.Transformer
     (
+      foldlT
+    , foldrT
+
     -- * Transform Inner Monad
-      liftInner
+    , liftInner
     , runReaderT
     , evalStateT
     , runStateT
@@ -23,12 +26,41 @@ where
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
-import Streamly.Internal.Data.SVar.Type (adaptState)
+import GHC.Types (SPEC(..))
+import Streamly.Internal.Data.SVar.Type (defState, adaptState)
 
 import qualified Control.Monad.Trans.Reader as Reader
 import qualified Control.Monad.Trans.State.Strict as State
 
 import Streamly.Internal.Data.Stream.StreamD.Type
+
+{-# INLINE_NORMAL foldlT #-}
+foldlT :: (Monad m, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
+foldlT fstep begin (Stream step state) = go SPEC begin state
+  where
+    go !_ acc st = do
+        r <- lift $ step defState st
+        case r of
+            Yield x s -> go SPEC (fstep acc x) s
+            Skip s -> go SPEC acc s
+            Stop   -> acc
+
+-- Right fold to some transformer (T) monad.  This can be useful to implement
+-- stateless combinators like map, filtering, insertions, takeWhile, dropWhile.
+--
+{-# INLINE_NORMAL foldrT #-}
+foldrT :: (Monad m, Monad (t m), MonadTrans t)
+    => (a -> t m b -> t m b) -> t m b -> Stream m a -> t m b
+foldrT f final (Stream step state) = go SPEC state
+  where
+    {-# INLINE_LATE go #-}
+    go !_ st = do
+          r <- lift $ step defState st
+          case r of
+            Yield x s -> f x (go SPEC s)
+            Skip s    -> go SPEC s
+            Stop      -> final
 
 -------------------------------------------------------------------------------
 -- Transform Inner Monad

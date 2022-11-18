@@ -8,7 +8,9 @@
 
 module Streamly.Internal.Data.Stream.Transformer
     (
-      liftInner
+      foldrT
+
+    , liftInner
     , usingReaderT
     , runReaderT
     , evalStateT
@@ -17,16 +19,36 @@ module Streamly.Internal.Data.Stream.Transformer
     )
 where
 
+import Control.Monad.Trans.Class (MonadTrans)
 import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
-import Control.Monad.Trans.Class (MonadTrans(..))
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Transformer as D
 
 -- $setup
 -- >>> :m
--- >>> import Streamly.Internal.Data.Stream as Stream
+-- >>> import Control.Monad.Trans (lift)
+-- >>> import Control.Monad.Trans.Identity (runIdentityT)
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
+
+-- | Right fold to a transformer monad.  This is the most general right fold
+-- function. 'foldrS' is a special case of 'foldrT', however 'foldrS'
+-- implementation can be more efficient:
+--
+-- >>> foldrS = Stream.foldrT
+--
+-- >>> step f x xs = lift $ f x (runIdentityT xs)
+-- >>> foldrM f z s = runIdentityT $ Stream.foldrT (step f) (lift z) s
+--
+-- 'foldrT' can be used to translate streamly streams to other transformer
+-- monads e.g.  to a different streaming type.
+--
+-- /Pre-release/
+{-# INLINE foldrT #-}
+foldrT :: (Monad m, Monad (s m), MonadTrans s)
+    => (a -> s m b -> s m b) -> s m b -> Stream m a -> s m b
+foldrT f z s = D.foldrT f z (toStreamD s)
 
 ------------------------------------------------------------------------------
 -- Add and remove a monad transformer

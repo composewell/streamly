@@ -73,12 +73,10 @@ module Streamly.Internal.Data.Stream.StreamK
     , foldr
     , foldr1
     , foldrM
-    , foldrT
 
     , foldl'
     , foldlM'
     , foldlS
-    , foldlT
     , foldlx'
     , foldlMx'
     , fold
@@ -178,7 +176,6 @@ where
 #include "assert.hs"
 
 import Control.Monad.Catch (MonadThrow, throwM)
-import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad (void, join)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
@@ -274,18 +271,6 @@ fromList = fromFoldable
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
 foldr step acc = foldrM (\x xs -> xs >>= \b -> return (step x b)) (return acc)
 
--- | Right associative fold to an arbitrary transformer monad.
-{-# INLINE foldrT #-}
-foldrT :: (Monad m, Monad (s m), MonadTrans s)
-    => (a -> s m b -> s m b) -> s m b -> Stream m a -> s m b
-foldrT step final = go
-  where
-    go m1 = do
-        res <- lift $ uncons m1
-        case res of
-            Just (h, t) -> step h (go t)
-            Nothing -> final
-
 {-# INLINE foldr1 #-}
 foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
 foldr1 step m = do
@@ -378,18 +363,6 @@ foldBreak fld strm = do
 {-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> m b
 foldlM' step begin = foldlMx' step begin return
-
--- | Lazy left fold to an arbitrary transformer monad.
-{-# INLINE foldlT #-}
-foldlT :: (Monad m, Monad (s m), MonadTrans s)
-    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
-foldlT step = go
-  where
-    go acc m1 = do
-        res <- lift $ uncons m1
-        case res of
-            Just (h, t) -> go (step acc h) t
-            Nothing -> acc
 
 ------------------------------------------------------------------------------
 -- Specialized folds

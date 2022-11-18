@@ -30,9 +30,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
 
     -- * Folding
     , foldrS
-    , foldrT
     , foldlS
-    , foldlT
 
     -- * Scanning By 'Fold'
     , postscanOnce -- XXX rename to postscan
@@ -123,14 +121,12 @@ where
 #include "inline.hs"
 
 import Control.Monad (void)
-import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Maybe (fromJust, isJust)
 import Fusion.Plugin.Types (Fuse(..))
-import GHC.Types (SPEC(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
-import Streamly.Internal.Data.SVar.Type (defState, adaptState)
+import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
@@ -174,18 +170,6 @@ transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
 ------------------------------------------------------------------------------
 -- Transformation Folds
 ------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL foldlT #-}
-foldlT :: (Monad m, Monad (s m), MonadTrans s)
-    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
-foldlT fstep begin (Stream step state) = go SPEC begin state
-  where
-    go !_ acc st = do
-        r <- lift $ step defState st
-        case r of
-            Yield x s -> go SPEC (fstep acc x) s
-            Skip s -> go SPEC acc s
-            Stop   -> acc
 
 -- Note, this is going to have horrible performance, because of the nature of
 -- the stream type (i.e. direct stream vs CPS). Its only for reference, it is

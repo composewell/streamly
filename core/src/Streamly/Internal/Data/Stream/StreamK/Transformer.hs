@@ -8,7 +8,10 @@
 --
 module Streamly.Internal.Data.Stream.StreamK.Transformer
     (
-      liftInner
+      foldlT
+    , foldrT
+
+    , liftInner
     , evalStateT
     )
 where
@@ -19,6 +22,30 @@ import Streamly.Internal.Data.Stream.StreamK
     (Stream, nil, cons, uncons, fromEffect)
 
 import qualified Control.Monad.Trans.State.Strict as State
+
+-- | Lazy left fold to an arbitrary transformer monad.
+{-# INLINE foldlT #-}
+foldlT :: (Monad m, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
+foldlT step = go
+  where
+    go acc m1 = do
+        res <- lift $ uncons m1
+        case res of
+            Just (h, t) -> go (step acc h) t
+            Nothing -> acc
+
+-- | Right associative fold to an arbitrary transformer monad.
+{-# INLINE foldrT #-}
+foldrT :: (Monad m, Monad (s m), MonadTrans s)
+    => (a -> s m b -> s m b) -> s m b -> Stream m a -> s m b
+foldrT step final = go
+  where
+    go m1 = do
+        res <- lift $ uncons m1
+        case res of
+            Just (h, t) -> step h (go t)
+            Nothing -> final
 
 ------------------------------------------------------------------------------
 -- Lifting inner monad

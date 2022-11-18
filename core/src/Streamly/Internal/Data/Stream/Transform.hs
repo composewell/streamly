@@ -14,7 +14,6 @@ module Streamly.Internal.Data.Stream.Transform
 
     -- * Folding
     , foldrS
-    , foldrT
 
     -- * Mapping
     -- | Stateless one-to-one maps.
@@ -144,7 +143,6 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Either (fromLeft, isLeft, isRight, fromRight)
 import Data.Maybe (isJust, fromJust)
 
@@ -247,24 +245,6 @@ foldrS f z xs =
             (\y ys -> toStreamK $ f y (fromStreamK ys))
             (toStreamK z)
             (toStreamK xs)
-
--- | Right fold to a transformer monad.  This is the most general right fold
--- function. 'foldrS' is a special case of 'foldrT', however 'foldrS'
--- implementation can be more efficient:
---
--- >>> foldrS = foldrT
---
--- >>> step f x xs = lift $ f x (runIdentityT xs)
--- >>> foldrM f z s = runIdentityT $ foldrT (step f) (lift z) s
---
--- 'foldrT' can be used to translate streamly streams to other transformer
--- monads e.g.  to a different streaming type.
---
--- /Pre-release/
-{-# INLINE foldrT #-}
-foldrT :: (Monad m, Monad (s m), MonadTrans s)
-    => (a -> s m b -> s m b) -> s m b -> Stream m a -> s m b
-foldrT f z s = D.foldrT f z (toStreamD s)
 
 ------------------------------------------------------------------------------
 -- Transformation by Mapping

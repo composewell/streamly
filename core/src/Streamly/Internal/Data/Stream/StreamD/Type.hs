@@ -47,7 +47,6 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , foldEither
 
     -- * Right Folds
-    , foldrT
     , foldrM
     , foldrMx
     , foldr
@@ -429,22 +428,6 @@ foldrS f final (Stream step state) = go SPEC state
           Yield x s -> f x (go SPEC s)
           Skip s    -> go SPEC s
           Stop      -> final
-
--- Right fold to some transformer (T) monad.  This can be useful to implement
--- stateless combinators like map, filtering, insertions, takeWhile, dropWhile.
---
-{-# INLINE_NORMAL foldrT #-}
-foldrT :: (Monad m, Monad (t m), MonadTrans t)
-    => (a -> t m b -> t m b) -> t m b -> Stream m a -> t m b
-foldrT f final (Stream step state) = go SPEC state
-  where
-    {-# INLINE_LATE go #-}
-    go !_ st = do
-          r <- lift $ step defState st
-          case r of
-            Yield x s -> f x (go SPEC s)
-            Skip s    -> go SPEC s
-            Stop      -> final
 
 ------------------------------------------------------------------------------
 -- Left Folds
