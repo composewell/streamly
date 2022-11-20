@@ -436,7 +436,10 @@ tapAsyncF f (D.Stream step1 state1) = D.Stream step TapInit
 --
 -- @since 0.8.0
 newtype ParallelT m a = ParallelT {getParallelT :: K.Stream m a}
-    deriving (MonadTrans)
+
+instance MonadTrans ParallelT where
+    {-# INLINE lift #-}
+    lift = ParallelT . K.fromEffect
 
 -- | A parallely composing IO stream of elements of type @a@.
 -- See 'ParallelT' documentation for more details.
@@ -476,7 +479,7 @@ instance MonadAsync m => Monoid (ParallelT m a) where
 apParallel :: MonadAsync m =>
     ParallelT m (a -> b) -> ParallelT m a -> ParallelT m b
 apParallel (ParallelT m1) (ParallelT m2) =
-    let f x1 = K.concatMapWith parallelK (pure . x1) m2
+    let f x1 = K.concatMapWith parallelK (K.fromPure . x1) m2
     in ParallelT $ K.concatMapWith parallelK f m1
 
 instance (Monad m, MonadAsync m) => Applicative (ParallelT m) where

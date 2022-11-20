@@ -19,7 +19,7 @@ where
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.Trans.State.Strict (StateT)
 import Streamly.Internal.Data.Stream.StreamK
-    (Stream, nil, cons, uncons, fromEffect)
+    (Stream, nil, cons, uncons, concatEffect)
 
 import qualified Control.Monad.Trans.State.Strict as State
 
@@ -57,9 +57,9 @@ evalStateT = go
 
     where
 
-    -- XXX Do not use stream monad
-    go st m1 = do
-        (res, s1) <- lift $ st >>= State.runStateT (uncons m1)
+    go st m1 = concatEffect $ fmap f (st >>= State.runStateT (uncons m1))
+
+    f (res, s1) =
         case res of
             Just (h, t) -> cons h (go (return s1) t)
             Nothing -> nil
@@ -71,9 +71,9 @@ liftInner = go
 
     where
 
-    -- XXX Do not use stream monad
-    go m1 = do
-        res <- fromEffect $ lift $ uncons m1
+    go m1 = concatEffect $ fmap f $ lift $ uncons m1
+
+    f res =
         case res of
             Just (h, t) -> cons h (go t)
             Nothing -> nil

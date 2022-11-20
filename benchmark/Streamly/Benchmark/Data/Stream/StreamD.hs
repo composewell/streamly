@@ -9,6 +9,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -21,6 +22,7 @@
 
 module Main (main) where
 
+import Control.Applicative (liftA2)
 import Control.Monad (when)
 import Data.Maybe (isJust)
 import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)
@@ -321,6 +323,34 @@ filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
 -------------------------------------------------------------------------------
 -- Nested Composition
 -------------------------------------------------------------------------------
+
+instance Applicative f => Applicative (S.Stream f) where
+    {-# INLINE pure #-}
+    pure = S.fromPure
+
+    {-# INLINE (<*>) #-}
+    (<*>) = S.crossApply
+
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+
+    {-# INLINE (*>) #-}
+    (*>) = S.crossApplySnd
+
+    {-# INLINE (<*) #-}
+    (<*) = S.crossApplyFst
+
+-- NOTE: even though concatMap for StreamD is 4x faster compared to StreamK,
+-- the monad instance does not seem to be significantly faster.
+instance Monad m => Monad (S.Stream m) where
+    {-# INLINE return #-}
+    return = pure
+
+    {-# INLINE (>>=) #-}
+    (>>=) = flip S.concatMap
+
+    {-# INLINE (>>) #-}
+    (>>) = (*>)
 
 {-# INLINE toNullApNested #-}
 toNullApNested :: Monad m => Stream m Int -> m ()

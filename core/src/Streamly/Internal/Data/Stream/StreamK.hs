@@ -152,14 +152,15 @@ module Streamly.Internal.Data.Stream.StreamK
     , mergeByM
 
     -- ** Nesting
+    , crossApplyWith
+    , crossApply
+    , crossApplySnd
+    , crossApplyFst
+
     , concatMapWith
     , concatMap
     , bindWith
     , concatPairsWith
-    , apWith
-    , apSerial
-    , apSerialDiscardFst
-    , apSerialDiscardSnd
 
     -- ** Transformation comprehensions
     , the

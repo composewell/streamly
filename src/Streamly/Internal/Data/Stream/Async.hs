@@ -742,7 +742,10 @@ consMAsync m (AsyncT r) = AsyncT $ asyncK (K.fromEffect m) r
 --
 -- @since 0.8.0
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
-    deriving (MonadTrans)
+
+instance MonadTrans AsyncT where
+    {-# INLINE lift #-}
+    lift = AsyncT . K.fromEffect
 
 -- | A demand driven left biased parallely composing IO stream of elements of
 -- type @a@.  See 'AsyncT' documentation for more details.
@@ -782,7 +785,7 @@ instance MonadAsync m => Monoid (AsyncT m a) where
 {-# SPECIALIZE apAsync :: AsyncT IO (a -> b) -> AsyncT IO a -> AsyncT IO b #-}
 apAsync :: MonadAsync m => AsyncT m (a -> b) -> AsyncT m a -> AsyncT m b
 apAsync (AsyncT m1) (AsyncT m2) =
-    let f x1 = K.concatMapWith asyncK (pure . x1) m2
+    let f x1 = K.concatMapWith asyncK (K.fromPure . x1) m2
     in AsyncT $ K.concatMapWith asyncK f m1
 
 instance (Monad m, MonadAsync m) => Applicative (AsyncT m) where
@@ -965,7 +968,10 @@ consMWAsync m (WAsyncT r) = WAsyncT $ wAsyncK (K.fromEffect m) r
 -- @
 --
 newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
-    deriving (MonadTrans)
+
+instance MonadTrans WAsyncT where
+    {-# INLINE lift #-}
+    lift = WAsyncT . K.fromEffect
 
 -- | A round robin parallely composing IO stream of elements of type @a@.
 -- See 'WAsyncT' documentation for more details.
@@ -1004,7 +1010,7 @@ instance MonadAsync m => Monoid (WAsyncT m a) where
     WAsyncT IO (a -> b) -> WAsyncT IO a -> WAsyncT IO b #-}
 apWAsync :: MonadAsync m => WAsyncT m (a -> b) -> WAsyncT m a -> WAsyncT m b
 apWAsync (WAsyncT m1) (WAsyncT m2) =
-    let f x1 = K.concatMapWith wAsyncK (pure . x1) m2
+    let f x1 = K.concatMapWith wAsyncK (K.fromPure . x1) m2
     in WAsyncT $ K.concatMapWith wAsyncK f m1
 
 -- GHC: if we specify arguments in the definition of (<*>) we see a significant

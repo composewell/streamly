@@ -28,6 +28,11 @@ module Streamly.Internal.Data.Stream.Type
     , fromPure
     , fromEffect
 
+    -- * Applicative
+    , crossApply
+    , crossApplySnd
+    , crossApplyFst
+
     -- * Bind/Concat
     , bindWith
     , concatMapWith
@@ -379,9 +384,31 @@ fromEffect :: Monad m => m a -> Stream m a
 fromEffect = fromStreamK . K.fromEffect
 
 -------------------------------------------------------------------------------
+-- Applicative
+-------------------------------------------------------------------------------
+
+{-# INLINE crossApply #-}
+crossApply :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
+crossApply m1 m2 =
+    fromStreamD $ D.crossApply (toStreamD m1) (toStreamD m2)
+
+{-# INLINE crossApplySnd #-}
+crossApplySnd :: Monad m => Stream m a -> Stream m b -> Stream m b
+crossApplySnd m1 m2 =
+    fromStreamD $ D.crossApplySnd (toStreamD m1) (toStreamD m2)
+
+{-# INLINE crossApplyFst #-}
+crossApplyFst :: Monad m => Stream m a -> Stream m b -> Stream m a
+crossApplyFst m1 m2 =
+    fromStreamD $ D.crossApplyFst (toStreamD m1) (toStreamD m2)
+
+-------------------------------------------------------------------------------
 -- Bind/Concat
 -------------------------------------------------------------------------------
 
+-- |
+--
+-- /CPS/
 {-# INLINE bindWith #-}
 bindWith
     :: (Stream m b -> Stream m b -> Stream m b)
@@ -400,6 +427,7 @@ bindWith par m1 f =
 -- elements in the input @stream@ and the @mixer@ function is used to merge
 -- those streams.
 --
+-- /CPS/
 {-# INLINE concatMapWith #-}
 concatMapWith
     :: (Stream m b -> Stream m b -> Stream m b)

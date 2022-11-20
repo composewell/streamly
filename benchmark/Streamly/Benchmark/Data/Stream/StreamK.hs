@@ -8,6 +8,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -20,6 +21,7 @@
 
 module Main (main) where
 
+import Control.Applicative (liftA2)
 import Control.Monad (when)
 import Data.Maybe (isJust)
 import System.Random (randomRIO)
@@ -499,6 +501,32 @@ concatMapBySerial outer inner n =
 -------------------------------------------------------------------------------
 -- Nested Composition
 -------------------------------------------------------------------------------
+
+instance Monad m => Applicative (S.Stream m) where
+    {-# INLINE pure #-}
+    pure = S.fromPure
+
+    {-# INLINE (<*>) #-}
+    (<*>) = S.crossApply
+
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+
+    {-# INLINE (*>) #-}
+    (*>) = S.crossApplySnd
+
+    {-# INLINE (<*) #-}
+    (<*) = S.crossApplyFst
+
+-- NOTE: even though concatMap for StreamD is 3x faster compared to StreamK,
+-- the monad instance of StreamD is slower than StreamK after foldr/build
+-- fusion.
+instance Monad m => Monad (S.Stream m) where
+    {-# INLINE return #-}
+    return = pure
+
+    {-# INLINE (>>=) #-}
+    (>>=) = flip S.concatMap
 
 {-# INLINE drainApplicative #-}
 drainApplicative :: Monad m => Stream m Int -> m ()

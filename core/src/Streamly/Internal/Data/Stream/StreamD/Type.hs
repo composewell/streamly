@@ -78,22 +78,28 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , takeEndByM
 
     -- * Nesting
+    , crossApply
+    , crossApplyFst
+    , crossApplySnd
+
     , ConcatMapUState (..)
     , unfoldMany
+
     , concatMap
     , concatMapM
+    , concatEffect
+
     , FoldMany (..) -- for inspection testing
     , FoldManyPost (..)
     , foldMany
     , foldManyPost
-    , refoldMany
     , chunksOf
+
+    , refoldMany
     )
 where
 
 import Control.Applicative (liftA2)
-import Control.Monad.Catch (MonadThrow, throwM)
-import Control.Monad.Trans.Class (lift, MonadTrans)
 import Data.Functor (($>))
 import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -421,9 +427,9 @@ foldrS
 foldrS f final (Stream step state) = go SPEC state
   where
     {-# INLINE_LATE go #-}
-    go !_ st = do
-        -- defState??
-        r <- fromEffect $ step defState st
+    go !_ st = concatEffect $ fmap g $ step defState st
+
+    g r =
         case r of
           Yield x s -> f x (go SPEC s)
           Skip s    -> go SPEC s
@@ -681,9 +687,9 @@ takeEndBy f = takeEndByM (return . f)
 -- Combine N Streams - concatAp
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL concatAp #-}
-concatAp :: Functor f => Stream f (a -> b) -> Stream f a -> Stream f b
-concatAp (Stream stepa statea) (Stream stepb stateb) =
+{-# INLINE_NORMAL crossApply #-}
+crossApply :: Functor f => Stream f (a -> b) -> Stream f a -> Stream f b
+crossApply (Stream stepa statea) (Stream stepb stateb) =
     Stream step' (Left statea)
 
     where
@@ -702,9 +708,9 @@ concatAp (Stream stepa statea) (Stream stepb stateb) =
             Stop      -> Skip (Left os))
         (stepb (adaptState gst) st)
 
-{-# INLINE_NORMAL apSequence #-}
-apSequence :: Functor f => Stream f a -> Stream f b -> Stream f b
-apSequence (Stream stepa statea) (Stream stepb stateb) =
+{-# INLINE_NORMAL crossApplySnd #-}
+crossApplySnd :: Functor f => Stream f a -> Stream f b -> Stream f b
+crossApplySnd (Stream stepa statea) (Stream stepb stateb) =
     Stream step (Left statea)
 
     where
@@ -725,9 +731,9 @@ apSequence (Stream stepa statea) (Stream stepb stateb) =
                  Stop -> Skip (Left ostate))
             (stepb gst st)
 
-{-# INLINE_NORMAL apDiscardSnd #-}
-apDiscardSnd :: Functor f => Stream f a -> Stream f b -> Stream f a
-apDiscardSnd (Stream stepa statea) (Stream stepb stateb) =
+{-# INLINE_NORMAL crossApplyFst #-}
+crossApplyFst :: Functor f => Stream f a -> Stream f b -> Stream f a
+crossApplyFst (Stream stepa statea) (Stream stepb stateb) =
     Stream step (Left statea)
 
     where
@@ -748,21 +754,23 @@ apDiscardSnd (Stream stepa statea) (Stream stepb stateb) =
                  Stop -> Skip (Left ostate))
             (stepb (adaptState gst) st)
 
+{-
 instance Applicative f => Applicative (Stream f) where
     {-# INLINE pure #-}
     pure = fromPure
 
     {-# INLINE (<*>) #-}
-    (<*>) = concatAp
+    (<*>) = crossApply
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
     {-# INLINE (*>) #-}
-    (*>) = apSequence
+    (*>) = crossApplySnd
 
     {-# INLINE (<*) #-}
-    (<*) = apDiscardSnd
+    (<*) = crossApplyFst
+-}
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - unfoldMany
@@ -854,6 +862,16 @@ concatMap f = concatMapM (return . f)
 -- {-# RULES "concatMap Array.toStreamD"
 --      concatMap Array.toStreamD = Array.flattenArray #-}
 
+-- |
+-- Definition:
+--
+-- > concatEffect generator = concatMapM (\() -> generator) (fromPure ())
+--
+{-# INLINE concatEffect #-}
+concatEffect :: Monad m => m (Stream m a) -> Stream m a
+concatEffect generator = concatMapM (\() -> generator) (fromPure ())
+
+{-
 -- NOTE: even though concatMap for StreamD is 4x faster compared to StreamK,
 -- the monad instance does not seem to be significantly faster.
 instance Monad m => Monad (Stream m) where
@@ -865,6 +883,7 @@ instance Monad m => Monad (Stream m) where
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
+-}
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
@@ -1012,14 +1031,3 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
                 return $ Skip (FoldManyYield b FoldManyDone)
     step' _ (FoldManyYield b next) = return $ Yield b next
     step' _ FoldManyDone = return Stop
-
-------------------------------------------------------------------------------
--- Other instances
-------------------------------------------------------------------------------
-
-instance MonadTrans Stream where
-    {-# INLINE lift #-}
-    lift = fromEffect
-
-instance (MonadThrow m) => MonadThrow (Stream m) where
-    throwM = lift . throwM

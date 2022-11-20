@@ -17,7 +17,6 @@ module Streamly.Internal.Data.Stream.Cross
 where
 
 import Control.Applicative (liftA2)
-import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import GHC.Exts (IsList(..), IsString(..))
@@ -62,7 +61,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 newtype CrossStream m a = CrossStream {getCrossStream :: Stream m a}
         deriving (Functor, Semigroup, Monoid, Foldable)
 
--- deriving instance (Foldable m, Monad m) => Foldable (CrossStream m)
+-- Pure (Identity monad) stream instances
 deriving instance Traversable (CrossStream Identity)
 deriving instance IsList (CrossStream Identity a)
 deriving instance (a ~ Char) => IsString (CrossStream Identity a)
@@ -71,36 +70,9 @@ deriving instance Ord a => Ord (CrossStream Identity a)
 deriving instance Show a => Show (CrossStream Identity a)
 deriving instance Read a => Read (CrossStream Identity a)
 
-{-
-instance Show a => Show (CrossStream Identity a) where
-    showsPrec p dl = showParen (p > 10) $
-        showString "fromList " . shows (toList dl)
-
-instance Read a => Read (ZipStream Identity a) where
-    readPrec = parens $ prec 10 $ do
-        Ident "fromList" <- lexP
-        fromList <$> readPrec
-    readListPrec = readListPrecDefault
--}
-
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
-
-{-# INLINE apSerial #-}
-apSerial :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
-apSerial m1 m2 =
-    Stream.fromStreamD $ Stream.toStreamD m1 <*> Stream.toStreamD m2
-
-{-# INLINE apSequence #-}
-apSequence :: Monad m => Stream m a -> Stream m b -> Stream m b
-apSequence m1 m2 =
-    Stream.fromStreamD $ Stream.toStreamD m1 *> Stream.toStreamD m2
-
-{-# INLINE apDiscardSnd #-}
-apDiscardSnd :: Monad m => Stream m a -> Stream m b -> Stream m a
-apDiscardSnd m1 m2 =
-    Stream.fromStreamD $ Stream.toStreamD m1 <* Stream.toStreamD m2
 
 -- Note: we need to define all the typeclass operations because we want to
 -- INLINE them.
@@ -109,19 +81,22 @@ instance Monad m => Applicative (CrossStream m) where
     pure x = CrossStream (Stream.fromPure x)
 
     {-# INLINE (<*>) #-}
-    (CrossStream s1) <*> (CrossStream s2) = CrossStream (apSerial s1 s2)
-    -- (<*>) = K.apSerial
+    (CrossStream s1) <*> (CrossStream s2) =
+        CrossStream (Stream.crossApply s1 s2)
+    -- (<*>) = K.crossApply
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
     {-# INLINE (*>) #-}
-    (CrossStream s1) *> (CrossStream s2) = CrossStream (apSequence s1 s2)
-    -- (*>)  = K.apSerialDiscardFst
+    (CrossStream s1) *> (CrossStream s2) =
+        CrossStream (Stream.crossApplySnd s1 s2)
+    -- (*>)  = K.crossApplySnd
 
     {-# INLINE (<*) #-}
-    (CrossStream s1) <* (CrossStream s2) = CrossStream (apDiscardSnd s1 s2)
-    -- (<*)  = K.apSerialDiscardSnd
+    (CrossStream s1) <* (CrossStream s2) =
+        CrossStream (Stream.crossApplyFst s1 s2)
+    -- (<*)  = K.crossApplyFst
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -158,6 +133,3 @@ instance Monad m => Monad (CrossStream m) where
 
 instance (MonadIO m) => MonadIO (CrossStream m) where
     liftIO x = CrossStream (Stream.fromEffect $ liftIO x)
-
-instance (MonadThrow m) => MonadThrow (CrossStream m) where
-    throwM x = CrossStream (Stream.fromEffect $ throwM x)

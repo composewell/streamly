@@ -78,14 +78,17 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , mapMWith
     , mapMSerial
     , unShare
+
+    , crossApplyWith
+    , crossApply
+    , crossApplySnd
+    , crossApplyFst
+
     , concatMapWith
     , concatMap
     , bindWith
     , concatPairsWith
-    , apWith
-    , apSerial
-    , apSerialDiscardFst
-    , apSerialDiscardSnd
+
     , foldlS
     , reverse
 
@@ -97,20 +100,14 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , interleave
     , interleaveFst
     , interleaveMin
-
-    -- * Reader
-    , evalStateT
-    , liftInner
     )
 where
 
-import Control.Monad (ap, (>=>))
-import Control.Monad.Trans.Class (MonadTrans(lift))
-import Control.Monad.Trans.State.Strict (StateT)
+-- import Control.Applicative (liftA2)
+import Control.Monad ((>=>))
 import Data.Function (fix)
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 
-import qualified Control.Monad.Trans.State.Strict as State
 import qualified Prelude
 
 import Prelude hiding
@@ -867,14 +864,6 @@ instance Monad m => Functor (Stream m) where
     fmap = map
 
 -------------------------------------------------------------------------------
--- Transformers
--------------------------------------------------------------------------------
-
-instance MonadTrans Stream where
-    {-# INLINE lift #-}
-    lift = fromEffect
-
--------------------------------------------------------------------------------
 -- Nesting
 -------------------------------------------------------------------------------
 
@@ -885,13 +874,13 @@ unShare x = mkStream $ \st yld sng stp ->
     foldStream st yld sng stp x
 
 -- XXX the function stream and value stream can run in parallel
-{-# INLINE apWith #-}
-apWith ::
+{-# INLINE crossApplyWith #-}
+crossApplyWith ::
        (Stream m b -> Stream m b -> Stream m b)
     -> Stream m (a -> b)
     -> Stream m a
     -> Stream m b
-apWith par fstream stream = go1 fstream
+crossApplyWith par fstream stream = go1 fstream
 
     where
 
@@ -908,12 +897,12 @@ apWith par fstream stream = go1 fstream
                 yieldk a r = yld (f a) (go2 f r)
             in foldStream (adaptState st) yieldk single stp m
 
-{-# INLINE apSerial #-}
-apSerial ::
+{-# INLINE crossApply #-}
+crossApply ::
        Stream m (a -> b)
     -> Stream m a
     -> Stream m b
-apSerial fstream stream = go1 fstream
+crossApply fstream stream = go1 fstream
 
     where
 
@@ -938,12 +927,12 @@ apSerial fstream stream = go1 fstream
                 yieldk a r = yld (f a) (go3 f r)
             in foldStream (adaptState st) yieldk single stp m
 
-{-# INLINE apSerialDiscardFst #-}
-apSerialDiscardFst ::
+{-# INLINE crossApplySnd #-}
+crossApplySnd ::
        Stream m a
     -> Stream m b
     -> Stream m b
-apSerialDiscardFst fstream stream = go1 fstream
+crossApplySnd fstream stream = go1 fstream
 
     where
 
@@ -962,12 +951,12 @@ apSerialDiscardFst fstream stream = go1 fstream
                 yieldk a r = yld a (go2 r1 r)
             in foldStream st yieldk single stop m
 
-{-# INLINE apSerialDiscardSnd #-}
-apSerialDiscardSnd ::
+{-# INLINE crossApplyFst #-}
+crossApplyFst ::
        Stream m a
     -> Stream m b
     -> Stream m a
-apSerialDiscardSnd fstream stream = go1 fstream
+crossApplyFst fstream stream = go1 fstream
 
     where
 
@@ -1116,11 +1105,22 @@ concatPairsWith combine f str = go (leafPairs str)
                 yieldk a r = yld (a1 `combine` a) $ nonLeafPairs r
             in foldStream (adaptState st) yieldk single stop stream
 
+{-
 instance Monad m => Applicative (Stream m) where
     {-# INLINE pure #-}
     pure = fromPure
+
     {-# INLINE (<*>) #-}
-    (<*>) = ap
+    (<*>) = crossApply
+
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+
+    {-# INLINE (*>) #-}
+    (*>) = crossApplySnd
+
+    {-# INLINE (<*) #-}
+    (<*) = crossApplyFst
 
 -- NOTE: even though concatMap for StreamD is 3x faster compared to StreamK,
 -- the monad instance of StreamD is slower than StreamK after foldr/build
@@ -1128,8 +1128,10 @@ instance Monad m => Applicative (Stream m) where
 instance Monad m => Monad (Stream m) where
     {-# INLINE return #-}
     return = pure
+
     {-# INLINE (>>=) #-}
     (>>=) = flip concatMap
+-}
 
 {-
 -- Like concatMap but generates stream using an unfold function. Similar to
@@ -1386,34 +1388,3 @@ concatMapEffect :: Monad m => (b -> Stream m a) -> m b -> Stream m a
 concatMapEffect f action =
     mkStream $ \st yld sng stp ->
         action >>= foldStreamShared st yld sng stp . f
-
-------------------------------------------------------------------------------
--- Lifting inner monad
-------------------------------------------------------------------------------
-
-{-# INLINE evalStateT #-}
-evalStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m a
-evalStateT = go
-
-    where
-
-    -- XXX Do not use stream monad
-    go st m1 = do
-        (res, s1) <- lift $ st >>= State.runStateT (uncons m1)
-        case res of
-            Just (h, t) -> cons h (go (return s1) t)
-            Nothing -> nil
-
-{-# INLINE liftInner #-}
-liftInner :: (Monad m, MonadTrans t, Monad (t m)) =>
-    Stream m a -> Stream (t m) a
-liftInner = go
-
-    where
-
-    -- XXX Do not use stream monad
-    go m1 = do
-        res <- fromEffect $ lift $ uncons m1
-        case res of
-            Just (h, t) -> cons h (go t)
-            Nothing -> nil

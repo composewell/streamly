@@ -69,13 +69,13 @@ import Streamly.Data.Stream (Stream)
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream as Stream
-    (toStreamD, fromStreamD, toStreamK, fromStreamK)
+    (toStreamK, fromStreamK, crossApply, crossApplySnd, crossApplyFst)
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     (fromStreamK, toStreamK, mapM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (Stream, mkStream, foldStream, cons, consM, nil, concatMapWith, fromPure
-    , bindWith, interleave, interleaveFst, interleaveMin, serial)
+    , bindWith, interleave, interleaveFst, interleaveMin, serial, fromEffect)
 
 import Prelude hiding (map, mapM, repeat, filter)
 
@@ -99,21 +99,6 @@ withLocal f m =
 -- Applicative - orphan instances
 ------------------------------------------------------------------------------
 
-{-# INLINE apSerial #-}
-apSerial :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
-apSerial m1 m2 =
-    Stream.fromStreamD $ Stream.toStreamD m1 <*> Stream.toStreamD m2
-
-{-# INLINE apSequence #-}
-apSequence :: Monad m => Stream m a -> Stream m b -> Stream m b
-apSequence m1 m2 =
-    Stream.fromStreamD $ Stream.toStreamD m1 *> Stream.toStreamD m2
-
-{-# INLINE apDiscardSnd #-}
-apDiscardSnd :: Monad m => Stream m a -> Stream m b -> Stream m a
-apDiscardSnd m1 m2 =
-    Stream.fromStreamD $ Stream.toStreamD m1 <* Stream.toStreamD m2
-
 -- Note: we need to define all the typeclass operations because we want to
 -- INLINE them.
 instance Monad m => Applicative (Stream m) where
@@ -121,18 +106,18 @@ instance Monad m => Applicative (Stream m) where
     pure = Stream.fromStreamK . K.fromPure
 
     {-# INLINE (<*>) #-}
-    (<*>) = apSerial
+    (<*>) = Stream.crossApply
     -- (<*>) = K.apSerial
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
     {-# INLINE (*>) #-}
-    (*>)  = apSequence
+    (*>)  = Stream.crossApplySnd
     -- (*>)  = K.apSerialDiscardFst
 
     {-# INLINE (<*) #-}
-    (<*) = apDiscardSnd
+    (<*) = Stream.crossApplyFst
     -- (<*)  = K.apSerialDiscardSnd
 
 ------------------------------------------------------------------------------
@@ -288,7 +273,10 @@ map f = Stream.mapM (return . f)
 --
 -- @since 0.8.0
 newtype WSerialT m a = WSerialT {getWSerialT :: K.Stream m a}
-    deriving (MonadTrans)
+
+instance MonadTrans WSerialT where
+    {-# INLINE lift #-}
+    lift = WSerialT . K.fromEffect
 
 -- | An interleaving serial IO stream of elements of type @a@. See 'WSerialT'
 -- documentation for more details.
@@ -353,9 +341,9 @@ instance Monoid (WSerialT m a) where
     mappend = (<>)
 
 {-# INLINE apWSerial #-}
-apWSerial :: Monad m => WSerialT m (a -> b) -> WSerialT m a -> WSerialT m b
+apWSerial :: WSerialT m (a -> b) -> WSerialT m a -> WSerialT m b
 apWSerial (WSerialT m1) (WSerialT m2) =
-    let f x1 = K.concatMapWith K.interleave (pure . x1) m2
+    let f x1 = K.concatMapWith K.interleave (K.fromPure . x1) m2
     in WSerialT $ K.concatMapWith K.interleave f m1
 
 instance Monad m => Applicative (WSerialT m) where

@@ -690,7 +690,10 @@ consM m (AheadT r) = AheadT $ aheadK (K.fromEffect m) r
 --
 -- @since 0.8.0
 newtype AheadT m a = AheadT {getAheadT :: Stream m a}
-    deriving (MonadTrans)
+
+instance MonadTrans AheadT where
+    {-# INLINE lift #-}
+    lift = AheadT . K.fromEffect
 
 -- | A serial IO stream of elements of type @a@ with concurrent lookahead.  See
 -- 'AheadT' documentation for more details.
@@ -727,7 +730,7 @@ instance MonadAsync m => Monoid (AheadT m a) where
 {-# INLINE apAhead #-}
 apAhead :: MonadAsync m => AheadT m (a -> b) -> AheadT m a -> AheadT m b
 apAhead (AheadT m1) (AheadT m2) =
-    let f x1 = K.concatMapWith aheadK (pure . x1) m2
+    let f x1 = K.concatMapWith aheadK (K.fromPure . x1) m2
     in AheadT $ K.concatMapWith aheadK f m1
 
 instance (Monad m, MonadAsync m) => Applicative (AheadT m) where
