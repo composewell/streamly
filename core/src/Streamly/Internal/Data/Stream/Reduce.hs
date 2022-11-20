@@ -56,11 +56,11 @@ module Streamly.Internal.Data.Stream.Reduce
     )
 where
 
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
-import Streamly.Internal.Data.Parser (Parser (..), ParseError (ParseError))
+import Streamly.Internal.Data.Parser (Parser (..))
+import  Streamly.Internal.Data.Parser.ParserD (ParseError)
 import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Stream.Bottom (foldManyPost)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
@@ -408,11 +408,11 @@ parseManyTill = undefined
 --
 {-# INLINE parseIterate #-}
 parseIterate
-    :: MonadThrow m
+    :: Monad m
     => (b -> Parser a m b)
     -> b
     -> Stream m a
-    -> Stream m b
+    -> Stream m (Either ParseError b)
 parseIterate f i m = fromStreamD $
     D.parseIterate (ParserD.fromParserK . f) i (toStreamD m)
 

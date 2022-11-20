@@ -152,7 +152,6 @@ where
 #include "inline.hs"
 
 import Control.Exception (assert)
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Heap (Entry(..))
 import Data.Kind (Type)
@@ -449,11 +448,11 @@ parseManyTill = undefined
 --
 {-# INLINE parseIterate #-}
 parseIterate
-    :: (IsStream t, MonadThrow m)
+    :: (IsStream t, Monad m)
     => (b -> Parser a m b)
     -> b
     -> t m a
-    -> t m b
+    -> t m (Either ParseError b)
 parseIterate f i m = fromStreamD $
     D.parseIterate (PRD.fromParserK . f) i (toStreamD m)
 

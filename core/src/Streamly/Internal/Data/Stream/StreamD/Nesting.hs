@@ -150,7 +150,6 @@ where
 #include "ArrayMacros.h"
 
 import Control.Exception (assert)
-import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity ( Identity )
@@ -1363,7 +1362,7 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
     stepOuter _ (ParseChunksYield a next) = return $ Yield a next
 
 {-# ANN type ConcatParseState Fuse #-}
-data ConcatParseState b inpBuf st p m a =
+data ConcatParseState c b inpBuf st p m a =
       ConcatParseInit inpBuf st p
     | ConcatParseInitBuf inpBuf p
     | ConcatParseInitLeftOver inpBuf
@@ -1375,16 +1374,16 @@ data ConcatParseState b inpBuf st p m a =
         inpBuf st inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Step s b))
     | forall s. ConcatParseExtract
         inpBuf inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Step s b))
-    | ConcatParseYield b (ConcatParseState b inpBuf st p m a)
+    | ConcatParseYield c (ConcatParseState c b inpBuf st p m a)
 
 -- XXX Review the changes
 {-# INLINE_NORMAL parseIterate #-}
 parseIterate
-    :: MonadThrow m
+    :: Monad m
     => (b -> PRD.Parser a m b)
     -> b
     -> Stream m a
-    -> Stream m b
+    -> Stream m (Either ParseError b)
 parseIterate func seed (Stream step state) =
     Stream stepOuter (ConcatParseInit [] state (func seed))
 
@@ -1399,8 +1398,13 @@ parseIterate func seed (Stream step state) =
                 return $ Skip $ ConcatParseStream st [] pstep ps extract
             PRD.IDone pb ->
                 let next = ConcatParseInit [] st (func pb)
-                 in return $ Skip $ ConcatParseYield pb next
-            PRD.IError err -> throwM $ ParseError err
+                 in return $ Skip $ ConcatParseYield (Right pb) next
+            PRD.IError err ->
+                return
+                    $ Skip
+                    $ ConcatParseYield
+                        (Left (ParseError err))
+                        (ConcatParseInitLeftOver [])
 
     -- Buffer is not empty, go to buffered processing loop
     stepOuter _ (ConcatParseInit src st
@@ -1411,8 +1415,13 @@ parseIterate func seed (Stream step state) =
                 return $ Skip $ ConcatParseBuf src st [] pstep ps extract
             PRD.IDone pb ->
                 let next = ConcatParseInit src st (func pb)
-                 in return $ Skip $ ConcatParseYield pb next
-            PRD.IError err -> throwM $ ParseError err
+                 in return $ Skip $ ConcatParseYield (Right pb) next
+            PRD.IError err ->
+                return
+                    $ Skip
+                    $ ConcatParseYield
+                        (Left (ParseError err))
+                        (ConcatParseInitLeftOver [])
 
     -- This is simplified ConcatParseInit
     stepOuter _ (ConcatParseInitBuf src
@@ -1423,8 +1432,13 @@ parseIterate func seed (Stream step state) =
                 return $ Skip $ ConcatParseExtract src [] pstep ps extract
             PRD.IDone pb ->
                 let next = ConcatParseInitBuf src (func pb)
-                 in return $ Skip $ ConcatParseYield pb next
-            PRD.IError err -> throwM $ ParseError err
+                 in return $ Skip $ ConcatParseYield (Right pb) next
+            PRD.IError err ->
+                return
+                    $ Skip
+                    $ ConcatParseYield
+                        (Left (ParseError err))
+                        (ConcatParseInitLeftOver [])
 
     -- XXX we just discard any leftover input at the end
     stepOuter _ (ConcatParseInitLeftOver _) = return Stop
@@ -1455,8 +1469,13 @@ parseIterate func seed (Stream step state) =
                         assert (n <= length (x:buf)) (return ())
                         let src = Prelude.reverse (Prelude.take n (x:buf))
                         return $ Skip $
-                            ConcatParseYield b (ConcatParseInit src s (func b))
-                    PR.Error err -> throwM $ ParseError err
+                            ConcatParseYield (Right b) (ConcatParseInit src s (func b))
+                    PR.Error err ->
+                        return
+                            $ Skip
+                            $ ConcatParseYield
+                                (Left (ParseError err))
+                                (ConcatParseInitLeftOver [])
             Skip s -> return $ Skip $ ConcatParseStream s buf pstep pst extract
             Stop -> return $ Skip $ ConcatParseStop buf pstep pst extract
 
@@ -1485,9 +1504,14 @@ parseIterate func seed (Stream step state) =
             PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
-                return $ Skip $ ConcatParseYield b
+                return $ Skip $ ConcatParseYield (Right b)
                                     (ConcatParseInit src s (func b))
-            PR.Error err -> throwM $ ParseError err
+            PR.Error err ->
+                return
+                    $ Skip
+                    $ ConcatParseYield
+                        (Left (ParseError err))
+                        (ConcatParseInitLeftOver [])
 
     -- This is simplified ConcatParseBuf
     stepOuter _ (ConcatParseExtract [] buf pstep pst extract) =
@@ -1511,12 +1535,17 @@ parseIterate func seed (Stream step state) =
                     src  = Prelude.reverse src0 ++ xs
                 return $ Skip $ ConcatParseExtract src buf1 pstep pst1 extract
             PR.Done 0 b ->
-                 return $ Skip $ ConcatParseYield b (ConcatParseInitBuf xs (func b))
+                 return $ Skip $ ConcatParseYield (Right b) (ConcatParseInitBuf xs (func b))
             PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
-                return $ Skip $ ConcatParseYield b (ConcatParseInitBuf src (func b))
-            PR.Error err -> throwM $ ParseError err
+                return $ Skip $ ConcatParseYield (Right b) (ConcatParseInitBuf src (func b))
+            PR.Error err ->
+                return
+                    $ Skip
+                    $ ConcatParseYield
+                        (Left (ParseError err))
+                        (ConcatParseInitLeftOver [])
 
     -- This is simplified ConcatParseExtract
     stepOuter _ (ConcatParseStop buf pstep pst extract) = do
@@ -1532,13 +1561,18 @@ parseIterate func seed (Stream step state) =
                 return $ Skip $ ConcatParseExtract src buf1 pstep pst1 extract
             PR.Done 0 b -> do
                 return $ Skip $
-                    ConcatParseYield b (ConcatParseInitLeftOver [])
+                    ConcatParseYield (Right b) (ConcatParseInitLeftOver [])
             PR.Done n b -> do
                 assert (n <= length buf) (return ())
                 let src = Prelude.reverse (Prelude.take n buf)
                 return $ Skip $
-                    ConcatParseYield b (ConcatParseInitBuf src (func b))
-            PR.Error err -> throwM $ ParseError err
+                    ConcatParseYield (Right b) (ConcatParseInitBuf src (func b))
+            PR.Error err ->
+                return
+                    $ Skip
+                    $ ConcatParseYield
+                        (Left (ParseError err))
+                        (ConcatParseInitLeftOver [])
 
     stepOuter _ (ConcatParseYield a next) = return $ Yield a next
 

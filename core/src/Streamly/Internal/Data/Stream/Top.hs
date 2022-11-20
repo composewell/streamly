@@ -42,7 +42,6 @@ where
 
 #include "inline.hs"
 
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.State.Strict (get, put)
 import Data.Function ((&))

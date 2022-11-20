@@ -18,7 +18,7 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad.Catch (MonadCatch, try, SomeException, MonadThrow)
+import Control.Monad.Catch (MonadThrow)
 import Data.Foldable (asum)
 import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
@@ -141,7 +141,7 @@ dropWhile value = Stream.parse (PR.dropWhile (<= value))
 {-# INLINE takeStartBy #-}
 takeStartBy :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
 takeStartBy value stream = do
-    stream1 <- return.fromMaybe (Stream.fromPure (value + 1)) =<< IsStream.tail stream
+    stream1 <- return . fromMaybe (Stream.fromPure (value + 1)) =<< IsStream.tail stream
     let stream2 = value `Stream.cons` stream1
     Stream.parse (PR.takeStartBy (== value) Fold.drain) stream2
 
@@ -413,20 +413,22 @@ parseMany n =
     . fmap Sum
 
 {-# INLINE parseIterate #-}
-parseIterate :: MonadThrow m => Int -> Stream m Int -> m ()
+parseIterate :: MonadFail m => Int -> Stream m Int -> m ()
 parseIterate n =
       Stream.fold Fold.drain
     . fmap getSum
-    . Stream.parseIterate (PR.fromFold . Fold.take n . Fold.sconcat) (Sum 0)
+    . Stream.rights
+    . Stream.parseIterate
+        (PR.fromFold . Fold.take n . Fold.sconcat)
+        (Sum 0)
     . fmap Sum
 
 {-# INLINE parseBreak #-}
-parseBreak :: MonadCatch m => Stream m Int -> m ()
+parseBreak :: MonadThrow m => Stream m Int -> m ()
 parseBreak s = do
-    r <- try $ Stream.parseBreak PR.one s
+    r <- Stream.parseBreak PR.one s
     case r of
-        Left (_ :: SomeException) -> return ()
-        Right (_, s1) -> parseBreak s1
+         (_, s1) -> parseBreak s1
 
 {-# INLINE concatSequence #-}
 concatSequence :: Monad m => Stream m Int -> m (Either PR.ParseError ())
