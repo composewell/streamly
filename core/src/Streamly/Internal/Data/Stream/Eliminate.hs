@@ -256,7 +256,7 @@ parseBreakD parser strm = do
 -- /Not fused/
 --
 {-# INLINE parseBreak #-}
-parseBreak :: MonadThrow m => Parser a m b -> Stream m a -> m (b, Stream m a)
+parseBreak :: Monad m => Parser a m b -> Stream m a -> m (Either PRD.ParseError b, Stream m a)
 parseBreak p strm = fmap f $ K.parseBreak (PRD.fromParserK p) (toStreamK strm)
 
     where

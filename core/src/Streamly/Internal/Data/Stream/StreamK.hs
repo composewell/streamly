@@ -177,7 +177,7 @@ where
 
 #include "assert.hs"
 
-import Control.Monad.Catch (MonadThrow, throwM)
+import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad (void, join)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
@@ -193,6 +193,7 @@ import Prelude
                foldr1, (!!), replicate, reverse, concatMap, iterate, splitAt)
 
 import Streamly.Internal.Data.Stream.StreamK.Type
+import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
 -- $setup
 -- >>> :m
@@ -998,16 +999,16 @@ splitAt n ls
 -- | Run a 'Parser' over a stream and return rest of the Stream.
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak
-    :: MonadThrow m
+    :: Monad m
     => PR.Parser a m b
     -> Stream m a
-    -> m (b, Stream m a)
+    -> m (Either ParseError b, Stream m a)
 parseBreak (PR.Parser pstep initial extract) stream = do
     res <- initial
     case res of
         PR.IPartial s -> goStream stream [] s
-        PR.IDone b -> return (b, stream)
-        PR.IError err -> throwM $ PR.ParseError err
+        PR.IDone b -> return (Right b, stream)
+        PR.IError err -> return (Left (ParseError err), stream)
 
     where
 
@@ -1021,12 +1022,12 @@ parseBreak (PR.Parser pstep initial extract) stream = do
         let stop = do
                 r <- extract pst
                 case r of
-                    PR.Error err -> throwM $ PR.ParseError err
+                    PR.Error err -> return (Left (ParseError err), nil)
                     PR.Done n b -> do
                         assertM(n <= length buf)
                         let src0 = Prelude.take n buf
                             src  = Prelude.reverse src0
-                        return (b, fromList src)
+                        return (Right b, fromList src)
                     PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
                     PR.Continue 0 s -> goStream nil buf s
                     PR.Continue n s -> do
@@ -1050,13 +1051,13 @@ parseBreak (PR.Parser pstep initial extract) stream = do
                         let (src0, buf1) = splitAt n (x:buf)
                             src = Prelude.reverse src0
                         goBuf r buf1 src s
-                    PR.Done 0 b -> return (b, r)
+                    PR.Done 0 b -> return (Right b, r)
                     PR.Done n b -> do
                         assertM(n <= length (x:buf))
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
-                        return (b, serial (fromList src) r)
-                    PR.Error err -> throwM $ PR.ParseError err
+                        return (Right b, serial (fromList src) r)
+                    PR.Error err -> return (Left (ParseError err), r)
          in foldStream defState yieldk single stop st
 
     goBuf st buf [] !pst = goStream st buf pst
@@ -1079,5 +1080,5 @@ parseBreak (PR.Parser pstep initial extract) stream = do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0
-                return (b, serial (fromList src) st)
-            PR.Error err -> throwM $ PR.ParseError err
+                return (Right b, serial (fromList src) st)
+            PR.Error err -> return (Left (ParseError err), nil)
