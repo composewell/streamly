@@ -77,7 +77,6 @@ where
 
 #include "inline.hs"
 
-import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unboxed (Unbox)

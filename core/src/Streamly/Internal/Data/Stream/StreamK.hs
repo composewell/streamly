@@ -177,7 +177,6 @@ where
 
 #include "assert.hs"
 
-import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad (void, join)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)

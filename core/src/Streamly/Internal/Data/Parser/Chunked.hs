@@ -26,7 +26,6 @@ where
 #include "assert.hs"
 #include "inline.hs"
 
-import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
@@ -42,6 +41,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as D
     hiding (fromParserK, toParserK)
 import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
 -------------------------------------------------------------------------------
 -- Driver
@@ -84,10 +84,10 @@ parserDone (K.Failure n e) _ _ = return $ K.Error n e
 -- | Run a 'Parser' over a stream and return rest of the Stream.
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak
-    :: (MonadThrow m, Unbox a)
+    :: (Monad m, Unbox a)
     => ParserChunked a m b
     -> Stream m (Array a)
-    -> m (b, Stream m (Array a))
+    -> m (Either ParseError b, Stream m (Array a))
 parseBreak parser input = do
     let parserk = \arr -> K.runParser parser 0 0 arr parserDone
      in go [] parserk (Stream.toStreamK input)
@@ -116,13 +116,13 @@ parseBreak parser input = do
                 let (s1, backBuf1) = backTrack n1 backBuf StreamK.nil
                  in go backBuf1 cont1 s1
             K.Done 0 b ->
-                return (b, Stream.nil)
+                return (Right b, Stream.nil)
             K.Done n b -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (map Array.length backBuf))
                 let (s1, _) = backTrack n1 backBuf StreamK.nil
-                 in return (b, Stream.fromStreamK s1)
-            K.Error _ err -> throwM $ D.ParseError err
+                 in return (Right b, Stream.fromStreamK s1)
+            K.Error _ err -> return (Left (ParseError err), Stream.nil)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
@@ -164,8 +164,8 @@ parseBreak parser input = do
                 let n1 = len - n
                 assertM(n1 <= sum (map Array.length (arr:backBuf)))
                 let (s1, _) = backTrack n1 (arr:backBuf) stream
-                 in return (b, Stream.fromStreamK s1)
-            K.Error _ err -> throwM $ D.ParseError err
+                 in return (Right b, Stream.fromStreamK s1)
+            K.Error _ err -> return (Left (ParseError err), Stream.nil)
 
     go backBuf parserk stream = do
         let stop = goStop backBuf parserk
