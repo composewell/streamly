@@ -496,6 +496,16 @@ benchmark Data.Stream.StreamK
   else
     buildable: True
 
+benchmark Data.Stream.ToStreamK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: ToStreamK.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
 benchmark Data.Stream.StreamDK
   import: bench-options
   type: exitcode-stdio-1.0

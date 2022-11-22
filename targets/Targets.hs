@@ -19,6 +19,11 @@ targets =
             ]
       )
 
+    , ("Data.Stream.ToStreamK",
+            [ "noTest"
+            ]
+      )
+
     -- Streams
     , ("Data.Stream",
             [ "prelude_serial_grp"
