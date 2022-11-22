@@ -18,7 +18,6 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad.Catch (MonadThrow)
 import Data.Foldable (asum)
 import Data.Functor (($>))
 import Data.Maybe (fromMaybe)
@@ -413,7 +412,7 @@ parseMany n =
     . fmap Sum
 
 {-# INLINE parseIterate #-}
-parseIterate :: MonadFail m => Int -> Stream m Int -> m ()
+parseIterate :: Monad m => Int -> Stream m Int -> m ()
 parseIterate n =
       Stream.fold Fold.drain
     . fmap getSum
@@ -424,7 +423,7 @@ parseIterate n =
     . fmap Sum
 
 {-# INLINE parseBreak #-}
-parseBreak :: MonadThrow m => Stream m Int -> m ()
+parseBreak :: Monad m => Stream m Int -> m ()
 parseBreak s = do
     r <- Stream.parseBreak PR.one s
     case r of

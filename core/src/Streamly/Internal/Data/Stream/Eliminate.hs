@@ -235,7 +235,7 @@ parseK = parse
 -- error.  For example:
 --
 -- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
--- *** Exception: ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0"
+-- Left (ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0")
 --
 -- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --

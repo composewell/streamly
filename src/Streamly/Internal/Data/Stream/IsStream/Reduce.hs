@@ -362,7 +362,7 @@ refoldIterateM c i m = fromStreamD $ D.refoldIterateM c i (toStreamD m)
 -- parse combinator.
 --
 -- >>> Stream.toList $ Stream.parseMany (Parser.takeBetween 0 2 Fold.sum) $ Stream.fromList [1..10]
--- [3,7,11,15,19]
+-- [Right 3,Right 7,Right 11,Right 15,Right 19]
 --
 -- @
 -- > Stream.toList $ Stream.parseMany (Parser.line Fold.toList) $ Stream.fromList "hello\\nworld"
@@ -438,7 +438,7 @@ parseManyTill = undefined
 -- the result is used to generate the next parser and so on.
 --
 -- >>> import Data.Monoid (Sum(..))
--- >>> Stream.toList $ Stream.map getSum $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) 0 $ Stream.map Sum $ Stream.fromList [1..10]
+-- >>> Stream.toList $ fmap getSum $ Stream.rights $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) (Sum 0) $ fmap Sum $ Stream.fromList [1..10]
 -- [3,10,21,36,55,55]
 --
 -- This is the streaming equivalent of monad like sequenced application of

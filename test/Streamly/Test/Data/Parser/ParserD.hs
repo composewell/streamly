@@ -3,8 +3,8 @@ module Main (main) where
 import Control.Applicative ((<|>))
 import Control.Exception (SomeException(..), try)
 import Data.Word (Word8, Word32, Word64)
-import Streamly.Test.Common (listEquals, checkListEqual, chooseInt, equals)
-import Test.Hspec (Spec, hspec, describe, Expectation, it, shouldReturn)
+import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
+import Test.Hspec (Spec, hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property,
@@ -28,7 +28,7 @@ import Prelude hiding (sequence)
 #if MIN_VERSION_QuickCheck(2,14,0)
 
 import Test.QuickCheck (chooseAny)
-
+import Control.Monad.Identity (runIdentity, Identity (Identity))
 
 #else
 
@@ -64,37 +64,43 @@ toList = S.fold FL.toList
 fromFold :: Property
 fromFold =
     forAll (listOf $ chooseInt (min_value, max_value))
-      $ \ls ->
-            case (==) <$> (S.parseD (P.fromFold FL.sum) (S.fromList ls))
-                   <*> (S.fold FL.sum (S.fromList ls)) of
-                Right is_equal -> is_equal
-                Left _ -> False
+      $ \ls -> monadicIO $ do
+            s1 <- S.parseD (P.fromFold FL.sum) (S.fromList ls)
+            s2 <- S.fold FL.sum (S.fromList ls)
+            case s1 of
+                Left _ -> return False
+                Right x -> return ( x == s2)
 
 fromPure :: Property
 fromPure =
     forAll (chooseInt (min_value, max_value)) $ \x ->
-        case S.parseD (P.fromPure x) (S.fromList [1 :: Int]) of
-            Right r -> r == x
-            Left _ -> False
+        monadicIO $ do
+        s1 <- S.parseD (P.fromPure x) (S.fromList [1 :: Int])
+        case s1 of
+            Left _ -> return False
+            Right v -> return ( x == v)
 
 fromEffect :: Property
 fromEffect =
     forAll (chooseInt (min_value, max_value)) $ \x ->
-        case S.parseD (P.fromEffect $ return x) (S.fromList [1 :: Int]) of
-            Right r -> r == x
-            Left _ -> False
+        monadicIO $ do
+        s1 <- S.parseD (P.fromEffect $ return x) (S.fromList [1 :: Int])
+        return $
+            case s1 of
+                Right r -> r == x
+                Left _ -> False
 
 die :: Property
 die =
     property $
-    case S.parseD (P.die "die test") (S.fromList [0 :: Int]) of
+    case runIdentity (S.parseD (P.die "die test") (S.fromList [0 :: Int])) of
         Right _ -> False
         Left _ -> True
 
 dieM :: Property
 dieM =
     property $
-    case S.parseD (P.dieM (Right "die test")) (S.fromList [0 :: Int]) of
+    case runIdentity (S.parseD (P.dieM (Identity "die test")) (S.fromList [0 :: Int])) of
         Right _ -> False
         Left _ -> True
 
@@ -104,15 +110,18 @@ peekPass :: Property
 peekPass =
     forAll (chooseInt (1, max_length)) $ \list_length ->
         forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-            case S.parseD P.peek (S.fromList ls) of
-                Right head_value -> case ls of
-                    head_ls : _ -> head_value == head_ls
-                    _ -> False
-                Left _ -> False
+            monadicIO $ do
+            s1 <- S.parseD P.peek (S.fromList ls)
+            return $
+                case s1 of
+                    Right head_value -> case ls of
+                        head_ls : _ -> head_value == head_ls
+                        _ -> False
+                    Left _ -> False
 
 peekFail :: Property
 peekFail =
-    property (case S.parseD P.peek (S.fromList []) of
+    property (case runIdentity $ S.parseD P.peek (S.fromList []) of
         Right _ -> False
         Left _ -> True)
 
@@ -126,7 +135,7 @@ eofFail :: Property
 eofFail =
     forAll (chooseInt (1, max_length)) $ \list_length ->
         forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-            case S.parseD P.eof (S.fromList ls) of
+            case runIdentity $S.parseD P.eof (S.fromList ls) of
                 Right _ -> False
                 Left _ -> True
 
@@ -134,24 +143,29 @@ satisfyPass :: Property
 satisfyPass =
     forAll (chooseInt (mid_value, max_value)) $ \first_element ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls_tail ->
+            monadicIO $ do
             let
                 ls = first_element : ls_tail
                 predicate = (>= mid_value)
-            in
-                case S.parseD (P.satisfy predicate) (S.fromList ls) of
+            s1 <- S.parseD (P.satisfy predicate) (S.fromList ls)
+            return $
+                case s1 of
                     Right r -> r == first_element
                     Left _ -> False
 
 satisfy :: Property
 satisfy =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-        case S.parseD (P.satisfy predicate) (S.fromList ls) of
-            Right r -> case ls of
-                [] -> False
-                (x : _) -> predicate x && (r == x)
-            Left _ -> case ls of
-                [] -> True
-                (x : _) -> not $ predicate x
+        monadicIO $ do
+        s1 <- S.parseD (P.satisfy predicate) (S.fromList ls)
+        return $
+            case s1 of
+                Right r -> case ls of
+                    [] -> False
+                    (x : _) -> predicate x && (r == x)
+                Left _ -> case ls of
+                    [] -> True
+                    (x : _) -> not $ predicate x
         where
             predicate = (>= mid_value)
 
@@ -162,11 +176,14 @@ takeBetweenPass =
         forAll (chooseInt (m, max_value)) $ \n ->
             forAll (chooseInt (m, max_value)) $ \list_length ->
                 forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-                    case S.parseD (P.takeBetween m n FL.toList) (S.fromList ls) of
-                        Right parsed_list ->
-                            let lpl = Prelude.length parsed_list
-                            in checkListEqual parsed_list (Prelude.take lpl ls)
-                        Left _ -> property False
+                    monadicIO $ do
+                    s1 <- S.parseD (P.takeBetween m n FL.toList) (S.fromList ls)
+                    return $
+                        case s1 of
+                            Right parsed_list ->
+                                let lpl = Prelude.length parsed_list
+                                in checkListEqual parsed_list (Prelude.take lpl ls)
+                            Left _ -> property False
 
 
 takeBetween :: Property
@@ -180,13 +197,16 @@ takeBetween =
                     let p = P.takeBetween m n FL.toList
                     r <- run $ try $ S.parseD p (S.fromList ls)
                     return $ case r of
-                        Right parsed_list ->
-                            if m <= list_length && n >= m
-                            then
-                                let len = Prelude.length parsed_list
-                                in checkListEqual
-                                        parsed_list (Prelude.take len ls)
-                            else property False
+                        Right x -> case x of
+                            Right parsed_list ->
+                                if m <= list_length && n >= m
+                                then
+                                    let len = Prelude.length parsed_list
+                                    in checkListEqual
+                                            parsed_list (Prelude.take len ls)
+                                else property False
+                            Left _ ->
+                                property (m > n || list_length < m)
                         Left (_ :: SomeException) ->
                             property (m > n || list_length < m)
 
@@ -194,16 +214,22 @@ take :: Property
 take =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-            case S.parseD (P.fromFold $ FL.take n FL.toList) (S.fromList ls) of
-                Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
-                Left _ -> property False
+            monadicIO $ do
+            s1 <- S.parseD (P.fromFold $ FL.take n FL.toList) (S.fromList ls)
+            return $
+                case s1 of
+                    Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
+                    Left _ -> property False
 
 takeEQPass :: Property
 takeEQPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (chooseInt (n, max_value)) $ \list_length ->
             forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-                case S.parseD (P.takeEQ n FL.toList) (S.fromList ls) of
+                monadicIO $ do
+                s1 <- S.parseD (P.takeEQ n FL.toList) (S.fromList ls)
+                return $
+                    case s1 of
                     Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
                     Left _ -> property False
 
@@ -211,10 +237,11 @@ takeEQ :: Property
 takeEQ =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-            let
-                list_length = Prelude.length ls
-            in
-                case S.parseD (P.takeEQ n FL.toList) (S.fromList ls) of
+            monadicIO $ do
+            let list_length = Prelude.length ls
+            s1 <- S.parseD (P.takeEQ n FL.toList) (S.fromList ls)
+            return $
+                case s1 of
                     Right parsed_list ->
                         if (n <= list_length) then
                             checkListEqual parsed_list (Prelude.take n ls)
@@ -227,7 +254,10 @@ takeGEPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (chooseInt (n, max_value)) $ \list_length ->
             forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-                case S.parseD (P.takeGE n FL.toList) (S.fromList ls) of
+                monadicIO $ do
+                s1 <- S.parseD (P.takeGE n FL.toList) (S.fromList ls)
+                return $
+                    case s1 of
                     Right parsed_list -> checkListEqual parsed_list ls
                     Left _ -> property False
 
@@ -235,10 +265,11 @@ takeGE :: Property
 takeGE =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-            let
-                list_length = Prelude.length ls
-            in
-                case S.parseD (P.takeGE n FL.toList) (S.fromList ls) of
+            monadicIO $ do
+            let list_length = Prelude.length ls
+            s1 <- S.parseD (P.takeGE n FL.toList) (S.fromList ls)
+            return $
+                case s1 of
                     Right parsed_list ->
                         if (n <= list_length) then
                             checkListEqual parsed_list ls
@@ -257,8 +288,14 @@ nLessThanEqual0 tk ltk =
     forAll (elements [0, (-1)]) $ \n ->
         forAll (listOf arbitrary) $ \ls ->
             case S.parseD (tk n FL.toList) (S.fromList ls) of
-                Right parsed_list -> checkListEqual parsed_list (ltk n ls)
-                Left _ -> property False
+                Right x ->
+                    case x of
+                        Right parsed_list ->
+                            checkListEqual parsed_list (ltk n ls)
+                        Left _ ->
+                            property False
+                Left _ ->
+                    property False
 
 takeProperties :: Spec
 takeProperties =
@@ -283,7 +320,10 @@ lookAheadPass =
         in
             forAll (chooseInt (n+1, max_value)) $ \list_length ->
                 forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-                    case S.parseD parseTwice (S.fromList ls) of
+                    monadicIO $ do
+                    s1 <- S.parseD parseTwice (S.fromList ls)
+                    return $
+                        case s1 of
                         Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
                         Left _ -> property $ False
 
@@ -298,7 +338,10 @@ lookAhead =
                 return (parsed_list_1, parsed_list_2)
         in
             forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-                case S.parseD parseTwice (S.fromList ls) of
+                monadicIO $ do
+                s1 <- S.parseD parseTwice (S.fromList ls)
+                return $
+                    case s1 of
                     Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
                     Left _ -> property ((list_length < n) || (list_length == n && n == 0))
                         where
@@ -307,7 +350,10 @@ lookAhead =
 takeWhile :: Property
 takeWhile =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
-        case S.parseD (P.takeWhile predicate FL.toList) (S.fromList ls) of
+        monadicIO $ do
+        s1 <- S.parseD (P.takeWhile predicate FL.toList) (S.fromList ls)
+        return $
+            case s1 of
             Right parsed_list -> checkListEqual parsed_list (Prelude.takeWhile predicate ls)
             Left _ -> property False
         where
@@ -316,7 +362,10 @@ takeWhile =
 takeWhile1 :: Property
 takeWhile1 =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
-        case S.parseD (P.takeWhile1 predicate  FL.toList) (S.fromList ls) of
+        monadicIO $ do
+        s1 <- S.parseD (P.takeWhile1 predicate  FL.toList) (S.fromList ls)
+        return $
+            case s1 of
             Right parsed_list -> case ls of
                 [] -> property False
                 (x : _) ->
@@ -332,11 +381,13 @@ takeWhile1 =
 
 groupBy :: Property
 groupBy =
-    forAll (listOf (chooseInt (0, 1)))
-        $ \ls ->
-              case S.parseD parser (S.fromList ls) of
-                  Right parsed -> checkListEqual parsed (groupByLF ls)
-                  Left _ -> property False
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        monadicIO $ do
+        s1 <- S.parseD parser (S.fromList ls)
+        return $
+            case s1 of
+            Right parsed -> checkListEqual parsed (groupByLF ls)
+            Left _ -> property False
 
     where
 
@@ -348,11 +399,13 @@ groupBy =
 
 groupByRolling :: Property
 groupByRolling =
-    forAll (listOf (chooseInt (0, 1)))
-        $ \ls ->
-              case S.parseD parser (S.fromList ls) of
-                  Right parsed -> checkListEqual parsed (groupByLF Nothing ls)
-                  Left _ -> property False
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        monadicIO $ do
+        s1 <- S.parseD parser (S.fromList ls)
+        return $
+            case s1 of
+            Right parsed -> checkListEqual parsed (groupByLF Nothing ls)
+            Left _ -> property False
 
     where
 
@@ -369,7 +422,10 @@ takeEndByOrMax :: Property
 takeEndByOrMax =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
-            case S.parseD (P.fromFold $ FL.takeEndBy_ predicate (FL.take n FL.toList)) (S.fromList ls) of
+            monadicIO $ do
+            s1 <- S.parseD (P.fromFold $ FL.takeEndBy_ predicate (FL.take n FL.toList)) (S.fromList ls)
+            return $
+                case s1 of
                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
                 Left _ -> property False
             where
@@ -377,11 +433,13 @@ takeEndByOrMax =
 
 wordBy :: Property
 wordBy =
-    forAll (listOf (elements [' ', 's']))
-        $ \ls ->
-              case S.parseD parser (S.fromList ls) of
-                  Right parsed -> checkListEqual parsed (words' ls)
-                  Left _ -> property False
+    forAll (listOf (elements [' ', 's'])) $ \ls ->
+        monadicIO $ do
+        s1 <- S.parseD parser (S.fromList ls)
+        return $
+            case s1 of
+            Right parsed -> checkListEqual parsed (words' ls)
+            Left _ -> property False
 
     where
 
@@ -395,7 +453,10 @@ wordBy =
 splitWith :: Property
 splitWith =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case S.parseD (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
+        monadicIO $ do
+        s1 <- S.parseD (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls)
+        return $
+            case s1 of
             Right (result_first, result_second) -> case ls of
                 0 : 1 : _ -> (result_first == 0) && (result_second == 1)
                 _ -> False
@@ -405,19 +466,19 @@ splitWith =
 
 splitWithFailLeft :: Property
 splitWithFailLeft =
-    property (case S.parseD (P.splitWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+    property (case runIdentity $ S.parseD (P.splitWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
 splitWithFailRight :: Property
 splitWithFailRight =
-    property (case S.parseD (P.splitWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case runIdentity $ S.parseD (P.splitWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
 splitWithFailBoth :: Property
 splitWithFailBoth =
-    property (case S.parseD (P.splitWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case runIdentity $ S.parseD (P.splitWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
@@ -520,41 +581,48 @@ longestFailBoth =
 
 many :: Property
 many =
-    forAll (listOf (chooseInt (0, 1)))
-      $ \ls ->
-            let fldstp conL currL = return $ FL.Partial (conL ++ currL)
-                concatFold =
-                    FL.Fold fldstp (return (FL.Partial [])) return
-                prsr =
-                    flip P.many concatFold
-                        $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
-             in case S.parseD prsr (S.fromList ls) of
-                    Right res_list ->
-                        checkListEqual res_list (Prelude.filter (== 0) ls)
-                    Left _ -> property False
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        monadicIO $ do
+        let fldstp conL currL = return $ FL.Partial (conL ++ currL)
+            concatFold =
+                FL.Fold fldstp (return (FL.Partial [])) return
+            prsr =
+                flip P.many concatFold
+                    $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+        s1 <- S.parseD prsr (S.fromList ls)
+        return $
+            case s1 of
+            Right res_list ->
+                checkListEqual res_list (Prelude.filter (== 0) ls)
+            Left _ -> property False
 
 many_empty :: Property
-many_empty =
-    property (case S.parseD (flip P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+many_empty = property $
+    monadicIO $ do
+    s1 <- S.parseD (flip P.many FL.toList (P.die "die")) (S.fromList [1 :: Int])
+    return $
+        case s1 of
         Right res_list -> checkListEqual res_list ([] :: [Int])
-        Left _ -> property False)
+        Left _ -> property False
 
 some :: Property
 some =
-    forAll (listOf (chooseInt (0, 1)))
-      $ \ls ->
-            let fldstp conL currL = return $ FL.Partial $ conL ++ currL
-                concatFold = FL.Fold fldstp (return (FL.Partial [])) return
-                prsr =
-                    flip P.some concatFold
-                        $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
-             in case S.parseD prsr (S.fromList ls) of
-                    Right res_list -> res_list == Prelude.filter (== 0) ls
-                    Left _ -> False
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        monadicIO $ do
+        let fldstp conL currL = return $ FL.Partial $ conL ++ currL
+            concatFold = FL.Fold fldstp (return (FL.Partial [])) return
+            prsr =
+                flip P.some concatFold
+                    $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+        s1 <- S.parseD prsr (S.fromList ls)
+        return $
+            case s1 of
+            Right res_list -> res_list == Prelude.filter (== 0) ls
+            Left _ -> False
 
 someFail :: Property
 someFail =
-    property (case S.parseD (P.some (P.die "die") FL.toList) (S.fromList [1 :: Int]) of
+    property (case runIdentity $ S.parseD (P.some (P.die "die") FL.toList) (S.fromList [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
@@ -566,54 +634,66 @@ applicative :: Property
 applicative =
     forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
         forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
+            monadicIO $ do
             let parser =
                         (,)
                             <$> P.fromFold (FL.take (length list1) FL.toList)
                             <*> P.fromFold (FL.take (length list2) FL.toList)
-             in monadicIO $ do
-                    (olist1, olist2) <-
-                        run $ S.parseD parser (S.fromList $ list1 ++ list2)
-                    listEquals (==) olist1 list1
-                    listEquals (==) olist2 list2
+
+            s1 <- S.parseD parser (S.fromList $ list1 ++ list2)
+            return $
+                case s1 of
+                Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                Left _ -> False
 
 sequence :: Property
 sequence =
     forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ ins ->
+        monadicIO $ do
         let parsers = fmap (\xs -> P.fromFold $ FL.take (length xs) FL.toList) ins
-         in monadicIO $ do
-                outs <- run $
-                        S.parseD
-                            (Prelude.sequence parsers)
-                            (S.fromList $ concat ins)
-                listEquals (==) outs ins
+        outs <- S.parseD
+                    (Prelude.sequence parsers)
+                    (S.fromList $ concat ins)
+        return $ case outs of
+             Right x -> x == ins
+             Left _ -> False
 
-altEOF1 :: Expectation
+altEOF1 :: Property
 altEOF1 =
-    S.parseD
+    monadicIO $ do
+    s1 <- S.parseD
         (P.satisfy (> 0) <|> return 66)
         (S.fromList ([]::[Int]))
-    `shouldReturn` 66
+    return $
+        case s1 of
+            Right x -> x == 66
+            Left _ -> False
 
-altEOF2 :: Expectation
+altEOF2 :: Property
 altEOF2 =
-    S.parseD
+    monadicIO $ do
+    s1 <- S.parseD
         ((P.takeEQ 2 FL.toList) <|> (P.takeEQ 1 FL.toList))
         (S.fromList ([51]::[Int]))
-    `shouldReturn` [51]
+    return $
+        case s1 of
+            Right x -> x == [51]
+            Left _ -> False
 
 monad :: Property
 monad =
     forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
         forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
+            monadicIO $ do
             let parser = do
                             olist1 <- P.fromFold (FL.take (length list1) FL.toList)
                             olist2 <- P.fromFold (FL.take (length list2) FL.toList)
                             return (olist1, olist2)
-             in monadicIO $ do
-                    (olist1, olist2) <-
-                        run $ S.parseD parser (S.fromList $ list1 ++ list2)
-                    listEquals (==) olist1 list1
-                    listEquals (==) olist2 list2
+            s1 <- S.parseD parser (S.fromList $ list1 ++ list2)
+            return $
+                case s1 of
+                Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                Left _ -> False
 
 -------------------------------------------------------------------------------
 -- Stream parsing
@@ -624,13 +704,11 @@ parseMany =
     forAll (chooseInt (1,100)) $ \len ->
         forAll (listOf (vectorOf len (chooseAny :: Gen Int))) $ \ ins ->
             monadicIO $ do
-                outs <-
-                    ( run
-                    $ toList
-                    $ S.parseManyD
-                        (P.fromFold $ FL.take len FL.toList) (S.fromList $ concat ins)
-                    )
-                listEquals (==) outs ins
+            outs <-
+                (toList $ S.rights $ S.parseManyD
+                    (P.fromFold $ FL.take len FL.toList) (S.fromList $ concat ins)
+                )
+            return $ outs == ins
 
 -- basic sanity test for parsing from arrays
 parseUnfold :: Property
@@ -664,13 +742,15 @@ parserSequence :: Property
 parserSequence =
   forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ins ->
     monadicIO $ do
-      let parsers = D.fromList
-                $ fmap (\xs -> P.fromFold $ FL.take (length xs) FL.sum) ins
-      let sequencedParser = P.sequence parsers FL.sum
-      outs <-
-        run $
-          S.parseD sequencedParser $ S.concatMap S.fromList (S.fromList ins)
-      equals (==) outs (sum $ map sum ins)
+    let parsers = D.fromList
+            $ fmap (\xs -> P.fromFold $ FL.take (length xs) FL.sum) ins
+    let sequencedParser = P.sequence parsers FL.sum
+    outs <-
+        S.parseD sequencedParser $ S.concatMap S.fromList (S.fromList ins)
+    return $
+        case outs of
+            Right x -> x == sum (map sum ins)
+            Left _ -> False
 
 -------------------------------------------------------------------------------
 -- Test for a particular case hit during fs events testing
@@ -722,6 +802,7 @@ parseMany2Events =
         xs <-
             ( run
             $ toList
+            $ S.rights
             $ S.parseManyD readOneEvent
             $ S.fromList (concat (replicate 2 event))
             )
@@ -750,8 +831,8 @@ main =
 
     describe "Instances" $ do
         prop "applicative" applicative
-        it "Alternative: end of input 1" altEOF1
-        it "Alternative: end of input 2" altEOF2
+        prop "Alternative: end of input 1" altEOF1
+        prop "Alternative: end of input 2" altEOF2
         prop "monad" monad
         prop "sequence" sequence
 

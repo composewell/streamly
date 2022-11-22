@@ -331,7 +331,7 @@ splitOnAny _subseq _f _m =
 -- >>> s = Stream.fromList [1..10]
 -- >>> parser = Parser.takeBetween 0 2 Fold.sum
 -- >>> Stream.fold Fold.toList $ Stream.parseMany parser s
--- [3,7,11,15,19]
+-- [Right 3,Right 7,Right 11,Right 15,Right 19]
 --
 -- foldMany f = Stream.parseMany (Parser.fromFold f)
 --
@@ -398,7 +398,7 @@ parseManyTill = undefined
 --
 -- >>> import Data.Monoid (Sum(..))
 -- >>> s = Stream.fromList [1..10]
--- >>> Stream.fold Fold.toList $ fmap getSum $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) 0 $ fmap Sum s
+-- >>> Stream.fold Fold.toList $ fmap getSum $ Stream.rights $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) (Sum 0) $ fmap Sum s
 -- [3,10,21,36,55,55]
 --
 -- This is the streaming equivalent of monad like sequenced application of
