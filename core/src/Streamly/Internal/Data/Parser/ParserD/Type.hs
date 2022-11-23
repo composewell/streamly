@@ -1294,8 +1294,8 @@ dieM err = Parser undefined (IError <$> err) undefined
 -- Note: The implementation of '<|>' is not lazy in the second
 -- argument. The following code will fail:
 --
--- >>> Stream.parse (Parser.satisfy (> 0) <|> undefined) $ Stream.fromList [1..10]
--- Right 1
+-- >>> Stream.parse (ParserD.toParserK $ ParserD.satisfy (> 0) <|> undefined) $ Stream.fromList [1..10]
+-- *** Exception: Prelude.undefined
 --
 instance Monad m => Alternative (Parser a m) where
     {-# INLINE empty #-}
