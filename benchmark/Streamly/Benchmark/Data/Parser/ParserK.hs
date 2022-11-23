@@ -81,14 +81,14 @@ takeWhileK value = PARSE_OP (takeWhile (<= value))
 splitApp :: Monad m
     => Int -> Stream m Int -> m (Either ParseError ((), ()))
 splitApp value =
-    Stream.parseK ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
+    PARSE_OP ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
 
 {-# INLINE sequenceA #-}
 sequenceA :: Monad m => Int -> Stream m Int -> m Int
 sequenceA value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
-    x <- Stream.parseK (TR.sequenceA list) xs
+    x <- PARSE_OP (TR.sequenceA list) xs
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
@@ -96,32 +96,32 @@ sequenceA_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 sequenceA_ value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
-    Stream.parseK (F.sequenceA_ list) xs
+    PARSE_OP (F.sequenceA_ list) xs
 
 {-# INLINE sequence #-}
 sequence :: Monad m => Int -> Stream m Int -> m Int
 sequence value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
-    x <- Stream.parseK (TR.sequence list) xs
+    x <- PARSE_OP (TR.sequence list) xs
     return $ Prelude.length x
 
 {-# INLINE manyAlt #-}
 manyAlt :: Monad m => Stream m Int -> m Int
 manyAlt xs = do
-    x <- Stream.parseK (AP.many (satisfy (> 0))) xs
+    x <- PARSE_OP (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
 someAlt :: Monad m => Stream m Int -> m Int
 someAlt xs = do
-    x <- Stream.parseK (AP.some (satisfy (> 0))) xs
+    x <- PARSE_OP (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE choice #-}
 choice :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
 choice value =
-    Stream.parseK (asum (replicate value (satisfy (< 0)))
+    PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
 
 -------------------------------------------------------------------------------
