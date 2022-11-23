@@ -78,7 +78,7 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Data.Parser (Parser (..))
+import Streamly.Internal.Data.Parser (Parser (..), ParseError (..))
 import Streamly.Internal.Data.Unboxed (Unbox)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
@@ -215,7 +215,7 @@ foldlS f z =
 -- /Internal/
 --
 {-# INLINE_NORMAL parseD #-}
-parseD :: Monad m => PRD.Parser a m b -> Stream m a -> m (Either PRD.ParseError b)
+parseD :: Monad m => PRD.Parser a m b -> Stream m a -> m (Either ParseError b)
 parseD p = D.parse p . toStreamD
 
 -- XXX Drive directly as parserK rather than converting to parserD first.
@@ -224,7 +224,7 @@ parseD p = D.parse p . toStreamD
 --
 -- /Internal/
 {-# INLINE parseK #-}
-parseK :: Monad m => PRK.Parser a m b -> Stream m a -> m (Either PRD.ParseError b)
+parseK :: Monad m => PRK.Parser a m b -> Stream m a -> m (Either ParseError b)
 parseK = parse
 
 -- | Parse a stream using the supplied 'Parser'.
@@ -240,12 +240,12 @@ parseK = parse
 -- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --
 {-# INLINE [3] parse #-}
-parse :: Monad m => Parser a m b -> Stream m a -> m (Either PRD.ParseError b)
+parse :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b)
 parse = parseD . PRD.fromParserK
 
 {-# INLINE_NORMAL parseBreakD #-}
 parseBreakD :: Monad m =>
-    PRD.Parser a m b -> Stream m a -> m (Either PRD.ParseError b, Stream m a)
+    PRD.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
 parseBreakD parser strm = do
     (b, strmD) <- D.parseBreak parser (toStreamD strm)
     return $! (b, fromStreamD strmD)
@@ -255,7 +255,7 @@ parseBreakD parser strm = do
 -- /Not fused/
 --
 {-# INLINE parseBreak #-}
-parseBreak :: Monad m => Parser a m b -> Stream m a -> m (Either PRD.ParseError b, Stream m a)
+parseBreak :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
 parseBreak p strm = fmap f $ K.parseBreak (PRD.fromParserK p) (toStreamK strm)
 
     where

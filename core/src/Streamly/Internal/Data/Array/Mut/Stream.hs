@@ -33,6 +33,7 @@ import Data.Bifunctor (first)
 import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
 import Streamly.Internal.Data.Array.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Parser (ParseError)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
@@ -298,7 +299,7 @@ compactGEFold n = Fold step initial extract
 --
 -- /Internal/
 compactLE :: (Monad m, MonadIO m, Unbox a) =>
-    Int -> Stream m (Array a) -> Stream m (Either ParserD.ParseError (Array a))
+    Int -> Stream m (Array a) -> Stream m (Either ParseError (Array a))
 compactLE n =
     Stream.fromStreamD . D.parseMany (compactLEParserD n) . Stream.toStreamD
 

@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Control.Exception (SomeException(..), displayException, try)
+import Control.Exception (displayException)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
@@ -24,7 +24,7 @@ import qualified Test.Hspec as H
 #if MIN_VERSION_QuickCheck(2,14,0)
 
 import Test.QuickCheck (chooseAny)
-import Control.Monad.Identity (Identity(runIdentity))
+import Control.Monad.Identity (Identity(runIdentity, Identity))
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
 #else
@@ -90,22 +90,16 @@ die =
 dieM :: Property
 dieM =
     property $
-    case S.parse (P.dieM (Right "die test")) (S.fromList [0 :: Int]) of
-        Right x ->
-            case x of
-                Right _ -> False
-                Left _ -> True
+    case runIdentity $ S.parse (P.dieM (Identity "die test")) (S.fromList [0 :: Int]) of
+        Right _ -> False
         Left _ -> True
 
 parserFail :: Property
 parserFail =
     property $
-        case S.parse (fail err) (S.fromList [0 :: Int]) of
-            Right x ->
-                case x of
-                    Right _ -> False
-                    Left (ParseError e) -> err == e
-            Left (SomeException e) -> err == displayException e
+        case runIdentity $ S.parse (fail err) (S.fromList [0 :: Int]) of
+            Right _ -> False
+            Left (ParseError e) -> err == e
     where
     err = "Testing MonadFail.fail."
 
@@ -177,8 +171,8 @@ one :: Property
 one =
     property $
         case runIdentity $ S.parse P.one (S.fromList []) of
-        Left _ -> True
-        Right _ -> False
+            Left _ -> True
+            Right _ -> False
 
 -- Sequence Parsers Tests
 takeBetweenPass :: Property
@@ -207,21 +201,17 @@ takeBetween =
 
     go m n ls =
         let inputLen = Prelude.length ls
-         in monadicIO $ do
+         in do
             let p = P.takeBetween m n FL.toList
-            r <- run $ try $ S.parse p (S.fromList ls)
-            return $ case r of
-                Right s ->
-                    case s of
-                        Right xs ->
-                            let parsedLen = Prelude.length xs
-                            in if inputLen >= m && parsedLen >= m && parsedLen <= n
-                                then checkListEqual xs $ Prelude.take parsedLen ls
-                                else property False
-                        Left _ ->
-                            property ((m >= 0 && n >= 0 && m > n) || inputLen < m)
-                Left (_ :: SomeException) ->
-                            property ((m >= 0 && n >= 0 && m > n) || inputLen < m)
+            case runIdentity $ S.parse p (S.fromList ls) of
+                Right xs ->
+                    let parsedLen = Prelude.length xs
+                    in if inputLen >= m && parsedLen >= m && parsedLen <= n
+                        then checkListEqual xs $ Prelude.take parsedLen ls
+                        else property False
+                Left _ ->
+                    property ((m >= 0 && n >= 0 && m > n) || inputLen < m)
+
 
 takeEQPass :: Property
 takeEQPass =
@@ -275,19 +265,16 @@ takeGE =
 
 nLessThanEqual0 ::
        (  Int
-       -> FL.Fold (Either SomeException) Int [Int]
-       -> P.Parser Int (Either SomeException) [Int]
+       -> FL.Fold Identity Int [Int]
+       -> P.Parser Int Identity [Int]
        )
     -> (Int -> [Int] -> [Int])
     -> Property
 nLessThanEqual0 tk ltk =
     forAll (elements [0, (-1)]) $ \n ->
         forAll (listOf arbitrary) $ \ls ->
-            case S.parse (tk n FL.toList) (S.fromList ls) of
-                Right s ->
-                    case s of
-                        Right parsed_list -> checkListEqual parsed_list (ltk n ls)
-                        Left _ -> property False
+            case runIdentity $ S.parse (tk n FL.toList) (S.fromList ls) of
+                Right parsed_list -> checkListEqual parsed_list (ltk n ls)
                 Left _ -> property False
 
 takeProperties :: Spec
@@ -712,8 +699,8 @@ applicative =
                     s <- S.parse parser (S.fromList $ list1 ++ list2)
                     return $
                         case s of
-                        Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
-                        Left _ -> False
+                            Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                            Left _ -> False
 
 sequence :: Property
 sequence =
@@ -726,8 +713,8 @@ sequence =
                             (S.fromList $ concat ins)
                 return $
                     case outs of
-                    Right ls -> ls == ins
-                    Left _ -> False
+                        Right ls -> ls == ins
+                        Left _ -> False
 
 monad :: Property
 monad =
@@ -741,8 +728,8 @@ monad =
                     s <- S.parse parser (S.fromList $ list1 ++ list2)
                     return $
                         case s of
-                        Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
-                        Left _ -> False
+                            Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                            Left _ -> False
 
 -------------------------------------------------------------------------------
 -- Stream parsing
@@ -835,8 +822,8 @@ manyEqParseMany =
             r2 <- run $ S.fold FL.toList $ S.rights $ S.parseMany (split i) strm
             return $
                 case r1 of
-                Right o1 -> o1 == r2
-                Left _ -> False
+                    Right o1 -> o1 == r2
+                    Left _ -> False
 
     where
 

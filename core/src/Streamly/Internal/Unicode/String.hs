@@ -105,7 +105,7 @@ expandVars :: String -> Q Exp
 expandVars ln =
     case runIdentity $ Stream.parse strParser (Stream.fromList ln) of
         Left e ->
-            fail $ "str QuasiQuoter parse error:" ++ displayException e
+            fail $ "str QuasiQuoter parse error: " ++ displayException e
         Right x ->
             strExp x
 

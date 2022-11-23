@@ -16,6 +16,7 @@ module Main
 
 import Control.DeepSeq (NFData(..))
 import Data.Foldable (asum)
+import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
@@ -73,12 +74,12 @@ takeWhile :: Monad m => (a -> Bool) -> PR.Parser a m ()
 takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
-takeWhileK :: Monad m => Int -> Stream m Int -> m (Either PRD.ParseError ())
-takeWhileK value = Stream.parseK (takeWhile (<= value))
+takeWhileK :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+takeWhileK value = PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitApp #-}
 splitApp :: Monad m
-    => Int -> Stream m Int -> m (Either PRD.ParseError ((), ()))
+    => Int -> Stream m Int -> m (Either ParseError ((), ()))
 splitApp value =
     Stream.parseK ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
 
@@ -91,7 +92,7 @@ sequenceA value xs = do
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: Monad m => Int -> Stream m Int -> m (Either PRD.ParseError ())
+sequenceA_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 sequenceA_ value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -118,7 +119,7 @@ someAlt xs = do
     return $ Prelude.length x
 
 {-# INLINE choice #-}
-choice :: Monad m => Int -> Stream m Int -> m (Either PRD.ParseError Int)
+choice :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
 choice value =
     Stream.parseK (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
@@ -130,9 +131,9 @@ choice value =
 moduleName :: String
 moduleName = "Data.Parser.ParserK"
 
-instance NFData PRD.ParseError where
+instance NFData ParseError where
     {-# INLINE rnf #-}
-    rnf (PRD.ParseError x) = rnf x
+    rnf (ParseError x) = rnf x
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =

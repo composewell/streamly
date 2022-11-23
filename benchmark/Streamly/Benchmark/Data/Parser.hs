@@ -26,6 +26,7 @@ import GHC.Magic (inline)
 import GHC.Magic (noinline)
 import System.IO (Handle)
 import System.Random (randomRIO)
+import Streamly.Internal.Data.Parser (ParseError(..))
 import Prelude hiding
     (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile)
 
@@ -114,7 +115,7 @@ benchIOSink value name f =
 -------------------------------------------------------------------------------
 
 {-# INLINE one #-}
-one :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError (Maybe Int))
+one :: Monad m => Int -> Stream m Int -> m (Either ParseError (Maybe Int))
 one value = Stream.parse p
 
     where
@@ -126,25 +127,25 @@ one value = Stream.parse p
           Nothing -> pure Nothing
 
 {-# INLINE takeBetween #-}
-takeBetween :: Monad m => Int -> Stream m a -> m (Either PR.ParseError ())
+takeBetween :: Monad m => Int -> Stream m a -> m (Either ParseError ())
 takeBetween value =  Stream.parse (PR.takeBetween 0 value Fold.drain)
 
 {-# INLINE takeEQ #-}
-takeEQ :: Monad m => Int -> Stream m a -> m (Either PR.ParseError ())
+takeEQ :: Monad m => Int -> Stream m a -> m (Either ParseError ())
 takeEQ value = Stream.parse (PR.takeEQ value Fold.drain)
 
 {-# INLINE dropWhile #-}
-dropWhile :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+dropWhile :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 dropWhile value = Stream.parse (PR.dropWhile (<= value))
 
 {-# INLINE takeStartBy #-}
-takeStartBy :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+takeStartBy :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 takeStartBy value stream = do
     stream1 <- return . fromMaybe (Stream.fromPure (value + 1)) =<< IsStream.tail stream
     let stream2 = value `Stream.cons` stream1
     Stream.parse (PR.takeStartBy (== value) Fold.drain) stream2
 
-takeFramedByEsc_ :: Monad m => Int -> Stream m Char -> m (Either PR.ParseError ())
+takeFramedByEsc_ :: Monad m => Int -> Stream m Char -> m (Either ParseError ())
 takeFramedByEsc_ _ = Stream.parse parser
 
     where
@@ -156,45 +157,45 @@ takeFramedByEsc_ _ = Stream.parse parser
     parser = PR.takeFramedByEsc_ isEsc isBegin isEnd Fold.drain
 
 {-# INLINE listEqBy #-}
-listEqBy :: Int -> Stream IO Int -> IO (Either PR.ParseError [Int])
+listEqBy :: Int -> Stream IO Int -> IO (Either ParseError [Int])
 listEqBy len = Stream.parse (PR.listEqBy (==) [1 .. len])
 
 {-# INLINE eqBy #-}
-eqBy :: Int -> Stream IO Int -> IO (Either PR.ParseError ())
+eqBy :: Int -> Stream IO Int -> IO (Either ParseError ())
 eqBy len = Stream.parse (PR.eqBy (==) (Stream.enumerateFromTo 1 len))
 
 {-# INLINE takeWhile #-}
-takeWhile :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+takeWhile :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 takeWhile value = Stream.parse (PR.takeWhile (<= value) Fold.drain)
 
-takeWhileP :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+takeWhileP :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 takeWhileP value =
     Stream.parse (PR.takeWhileP (<= value) (PR.takeWhile (<= value - 1) Fold.drain))
 
 {-# INLINE takeP #-}
-takeP :: Monad m => Int -> Stream m a -> m (Either PR.ParseError ())
+takeP :: Monad m => Int -> Stream m a -> m (Either ParseError ())
 takeP value = Stream.parse (PR.takeP value (PR.fromFold Fold.drain))
 
 {-# INLINE groupBy #-}
-groupBy :: Monad m => Stream m Int -> m (Either PR.ParseError ())
+groupBy :: Monad m => Stream m Int -> m (Either ParseError ())
 groupBy = Stream.parse (PR.groupBy (<=) Fold.drain)
 
 {-# INLINE groupByRolling #-}
-groupByRolling :: Monad m => Stream m Int -> m (Either PR.ParseError ())
+groupByRolling :: Monad m => Stream m Int -> m (Either ParseError ())
 groupByRolling = Stream.parse (PR.groupByRolling (<=) Fold.drain)
 
 {-# INLINE wordBy #-}
-wordBy :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+wordBy :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 wordBy value = Stream.parse (PR.wordBy (>= value) Fold.drain)
 
 {-# INLINE sepByWords #-}
-sepByWords :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+sepByWords :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 sepByWords _ = Stream.parse (wrds even Fold.drain)
     where
     wrds p = PR.sepBy (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
 
 {-# INLINE deintercalate #-}
-deintercalate :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+deintercalate :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 deintercalate _ = Stream.parse (partition even)
 
     where
@@ -204,11 +205,11 @@ deintercalate _ = Stream.parse (partition even)
             (PR.takeWhile (not . p) Fold.sum) (PR.takeWhile p Fold.sum) Fold.drain
 
 {-# INLINE manyWordByEven #-}
-manyWordByEven :: Monad m => Stream m Int -> m (Either PR.ParseError ())
+manyWordByEven :: Monad m => Stream m Int -> m (Either ParseError ())
 manyWordByEven = Stream.parse (PR.many (PR.wordBy even Fold.drain) Fold.drain)
 
 {-# INLINE many #-}
-many :: Monad m => Stream m Int -> m (Either PR.ParseError Int)
+many :: Monad m => Stream m Int -> m (Either ParseError Int)
 many = Stream.parse (PR.many (PR.satisfy (> 0)) Fold.length)
 
 {-# INLINE manyAlt #-}
@@ -218,7 +219,7 @@ manyAlt xs = do
     return $ Prelude.length x
 
 {-# INLINE some #-}
-some :: Monad m => Stream m Int -> m (Either PR.ParseError Int)
+some :: Monad m => Stream m Int -> m (Either ParseError Int)
 some = Stream.parse (PR.some (PR.satisfy (> 0)) Fold.length)
 
 {-# INLINE someAlt #-}
@@ -228,13 +229,13 @@ someAlt xs = do
     return $ Prelude.length x
 
 {-# INLINE manyTill #-}
-manyTill :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError Int)
+manyTill :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
 manyTill value =
     Stream.parse (PR.manyTill (PR.satisfy (> 0)) (PR.satisfy (== value)) Fold.length)
 
 {-# INLINE splitAp #-}
 splitAp :: Monad m
-    => Int -> Stream m Int -> m (Either PR.ParseError ((), ()))
+    => Int -> Stream m Int -> m (Either ParseError ((), ()))
 splitAp value =
     Stream.parse
         ((,)
@@ -244,7 +245,7 @@ splitAp value =
 
 {-# INLINE splitApBefore #-}
 splitApBefore :: Monad m
-    => Int -> Stream m Int -> m (Either PR.ParseError ())
+    => Int -> Stream m Int -> m (Either ParseError ())
 splitApBefore value =
     Stream.parse
         (  PR.dropWhile (<= (value `div` 2))
@@ -253,7 +254,7 @@ splitApBefore value =
 
 {-# INLINE splitApAfter #-}
 splitApAfter :: Monad m
-    => Int -> Stream m Int -> m (Either PR.ParseError ())
+    => Int -> Stream m Int -> m (Either ParseError ())
 splitApAfter value =
     Stream.parse
         (  PR.dropWhile (<= (value `div` 2))
@@ -262,7 +263,7 @@ splitApAfter value =
 
 {-# INLINE splitWith #-}
 splitWith :: Monad m
-    => Int -> Stream m Int -> m (Either PR.ParseError ((), ()))
+    => Int -> Stream m Int -> m (Either ParseError ((), ()))
 splitWith value =
     Stream.parse
         (PR.splitWith (,)
@@ -272,7 +273,7 @@ splitWith value =
 
 {-# INLINE split_ #-}
 split_ :: Monad m
-    => Int -> Stream m Int -> m (Either PR.ParseError ())
+    => Int -> Stream m Int -> m (Either ParseError ())
 split_ value =
     Stream.parse
         (PR.split_
@@ -282,7 +283,7 @@ split_ value =
 
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m
-    => Int -> Stream m Int -> m (Either PR.ParseError ())
+    => Int -> Stream m Int -> m (Either ParseError ())
 takeEndBy_ value = Stream.parse (PR.takeEndBy_ (>= value) (PR.fromFold Fold.drain))
 
 {-
@@ -308,7 +309,7 @@ teeFstAllAny value =
 
 {-# INLINE shortestAllAny #-}
 shortestAllAny :: Monad m
-    => Int -> Stream m Int -> m (Either PR.ParseError ())
+    => Int -> Stream m Int -> m (Either ParseError ())
 shortestAllAny value =
     Stream.parse
         (PR.shortest
@@ -318,7 +319,7 @@ shortestAllAny value =
 
 {-# INLINE longestAllAny #-}
 longestAllAny :: Monad m
-    => Int -> Stream m Int -> m (Either PR.ParseError ())
+    => Int -> Stream m Int -> m (Either ParseError ())
 longestAllAny value =
     Stream.parse
         (PR.longest
@@ -359,7 +360,7 @@ parseManyUnfoldArrays count arrays = do
 -- not have to rely on it.
 --
 {-# INLINE lookAhead #-}
-lookAhead :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+lookAhead :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 lookAhead value =
     Stream.parse (PR.lookAhead (PR.takeWhile (<= value) Fold.drain) $> ())
 
@@ -370,7 +371,7 @@ sequenceA value xs = do
     return $ length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+sequenceA_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 sequenceA_ value =
     Stream.parse (F.sequenceA_ $ replicate value (PR.satisfy (> 0)))
 
@@ -381,19 +382,19 @@ sequence value xs = do
     return $ length x
 
 {-# INLINE sequence_ #-}
-sequence_ :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError ())
+sequence_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 sequence_ value =
     Stream.parse (F.sequence_ $ replicate value (PR.satisfy (> 0)))
 
 {-# INLINE choiceAsum #-}
-choiceAsum :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError Int)
+choiceAsum :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
 choiceAsum value =
     Stream.parse (asum (replicate value (PR.satisfy (< 0)))
         AP.<|> PR.satisfy (> 0))
 
 {-
 {-# INLINE choice #-}
-choice :: Monad m => Int -> Stream m Int -> m (Either PR.ParseError Int)
+choice :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
 choice value =
     Stream.parse
         (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
@@ -430,7 +431,7 @@ parseBreak s = do
          (_, s1) -> parseBreak s1
 
 {-# INLINE concatSequence #-}
-concatSequence :: Monad m => Stream m Int -> m (Either PR.ParseError ())
+concatSequence :: Monad m => Stream m Int -> m (Either ParseError ())
 concatSequence = Stream.parse $ PR.concatSequence Fold.drain $ Stream.repeat PR.one
 
 {-# INLINE parseManyGroupBy #-}
@@ -445,9 +446,9 @@ parseManyGroupBy cmp =
 moduleName :: String
 moduleName = "Data.Parser"
 
-instance NFData PR.ParseError where
+instance NFData ParseError where
     {-# INLINE rnf #-}
-    rnf (PR.ParseError x) = rnf x
+    rnf (ParseError x) = rnf x
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
