@@ -365,9 +365,9 @@ module Streamly.Internal.Data.Fold.Type
     , filter
     , filtering
     , filterM
-    , lefts
-    , rights
-    , both
+    , catLefts
+    , catRights
+    , catEithers
 
     -- ** Trimming
     , take
@@ -1290,17 +1290,17 @@ filterM f (Fold step begin done) = Fold step' begin done
 --
 -- /Pre-release/
 --
-{-# INLINE lefts #-}
-lefts :: (Monad m) => Fold m a c -> Fold m (Either a b) c
-lefts = filter isLeft . lmap (fromLeft undefined)
+{-# INLINE catLefts #-}
+catLefts :: (Monad m) => Fold m a c -> Fold m (Either a b) c
+catLefts = filter isLeft . lmap (fromLeft undefined)
 
 -- | Discard 'Left's and unwrap 'Right's in an 'Either' stream.
 --
 -- /Pre-release/
 --
-{-# INLINE rights #-}
-rights :: (Monad m) => Fold m b c -> Fold m (Either a b) c
-rights = filter isRight . lmap (fromRight undefined)
+{-# INLINE catRights #-}
+catRights :: (Monad m) => Fold m b c -> Fold m (Either a b) c
+catRights = filter isRight . lmap (fromRight undefined)
 
 -- | Remove the either wrapper and flatten both lefts and as well as rights in
 -- the output stream.
@@ -1311,9 +1311,9 @@ rights = filter isRight . lmap (fromRight undefined)
 --
 -- /Pre-release/
 --
-{-# INLINE both #-}
-both :: Fold m a b -> Fold m (Either a a) b
-both = lmap (either id id)
+{-# INLINE catEithers #-}
+catEithers :: Fold m a b -> Fold m (Either a a) b
+catEithers = lmap (either id id)
 
 ------------------------------------------------------------------------------
 -- Parsing

@@ -606,8 +606,8 @@ deintercalate =
             p1 = P.takeWhile even FL.toList
             p2 = P.takeWhile odd FL.toList
             partition =
-                FL.tee (fmap concat $ FL.lefts FL.toList)
-                       (fmap concat $ FL.rights FL.toList)
+                FL.tee (fmap concat $ FL.catLefts FL.toList)
+                       (fmap concat $ FL.catRights FL.toList)
             p = P.deintercalate p1 p2 partition
 
 -- shortestPass :: Property

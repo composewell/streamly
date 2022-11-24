@@ -1481,7 +1481,7 @@ sepBy1 p sep sink = do
 -- run, when it is done content parser is run again and so on. If none of the
 -- parsers consumes an input then parser returns a failure.
 --
--- >>> sepBy p1 p2 sink = Parser.deintercalate p1 p2 (Fold.lefts sink)
+-- >>> sepBy p1 p2 sink = Parser.deintercalate p1 p2 (Fold.catLefts sink)
 -- >>> sepBy content sep sink = Parser.sepBy1 content sep sink <|> return mempty
 --
 {-# INLINE sepBy #-}
@@ -1489,7 +1489,7 @@ sepBy :: Monad m =>
     Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
 sepBy content sep sink =
     D.toParserK $ D.sepBy (D.fromParserK content) (D.fromParserK sep) sink
--- sepBy sink = deintercalate (FL.lefts sink)
+-- sepBy sink = deintercalate (FL.catLefts sink)
 
 -------------------------------------------------------------------------------
 -- Interleaving a collection of parsers

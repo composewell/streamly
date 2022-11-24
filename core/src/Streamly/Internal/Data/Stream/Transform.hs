@@ -132,9 +132,9 @@ module Streamly.Internal.Data.Stream.Transform
 
     -- * Either Streams
     -- Move these to Streamly.Data.Either.Stream?
-    , lefts
-    , rights
-    , both
+    , catLefts
+    , catRights
+    , catEithers
     )
 where
 
@@ -998,31 +998,31 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
 -- | Discard 'Right's and unwrap 'Left's in an 'Either' stream.
 --
--- >>> lefts = fmap (fromLeft undefined) . Stream.filter isLeft
+-- >>> catLefts = fmap (fromLeft undefined) . Stream.filter isLeft
 --
 -- /Pre-release/
 --
-{-# INLINE lefts #-}
-lefts :: Monad m => Stream m (Either a b) -> Stream m a
-lefts = fmap (fromLeft undefined) . filter isLeft
+{-# INLINE catLefts #-}
+catLefts :: Monad m => Stream m (Either a b) -> Stream m a
+catLefts = fmap (fromLeft undefined) . filter isLeft
 
 -- | Discard 'Left's and unwrap 'Right's in an 'Either' stream.
 --
--- >>> rights = fmap (fromRight undefined) . Stream.filter isRight
+-- >>> catRights = fmap (fromRight undefined) . Stream.filter isRight
 --
 -- /Pre-release/
 --
-{-# INLINE rights #-}
-rights :: Monad m => Stream m (Either a b) -> Stream m b
-rights = fmap (fromRight undefined) . filter isRight
+{-# INLINE catRights #-}
+catRights :: Monad m => Stream m (Either a b) -> Stream m b
+catRights = fmap (fromRight undefined) . filter isRight
 
 -- | Remove the either wrapper and flatten both lefts and as well as rights in
 -- the output stream.
 --
--- >>> both = fmap (either id id)
+-- >>> catEithers = fmap (either id id)
 --
 -- /Pre-release/
 --
-{-# INLINE both #-}
-both :: Monad m => Stream m (Either a a) -> Stream m a
-both = fmap (either id id)
+{-# INLINE catEithers #-}
+catEithers :: Monad m => Stream m (Either a a) -> Stream m a
+catEithers = fmap (either id id)

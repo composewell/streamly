@@ -207,9 +207,9 @@ module Streamly.Internal.Data.Fold
     , sampleFromthen
 
     -- Either streams
-    , lefts
-    , rights
-    , both
+    , catLefts
+    , catRights
+    , catEithers
 
     {-
     -- ** Insertion
