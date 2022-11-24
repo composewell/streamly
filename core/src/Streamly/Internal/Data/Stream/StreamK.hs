@@ -1021,7 +1021,9 @@ parseBreak (PR.Parser pstep initial extract) stream = do
         let stop = do
                 r <- extract pst
                 case r of
-                    PR.Error err -> return (Left (ParseError err), nil)
+                    PR.Error err -> do
+                        let src  = Prelude.reverse buf
+                        return (Left (ParseError err), fromList src)
                     PR.Done n b -> do
                         assertM(n <= length buf)
                         let src0 = Prelude.take n buf
@@ -1080,4 +1082,4 @@ parseBreak (PR.Parser pstep initial extract) stream = do
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0
                 return (Right b, serial (fromList src) st)
-            PR.Error err -> return (Left (ParseError err), nil)
+            PR.Error err -> return (Left (ParseError err), fromList (x:xs))

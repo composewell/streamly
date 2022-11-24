@@ -122,7 +122,7 @@ parseBreak parser input = do
                 assertM(n1 >= 0 && n1 <= sum (map Array.length backBuf))
                 let (s1, _) = backTrack n1 backBuf StreamK.nil
                  in return (Right b, Stream.fromStreamK s1)
-            K.Error _ err -> return (Left (ParseError err), Stream.nil)
+            K.Error _ err -> return (Left (ParseError err), Stream.fromList backBuf)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
@@ -165,7 +165,7 @@ parseBreak parser input = do
                 assertM(n1 <= sum (map Array.length (arr:backBuf)))
                 let (s1, _) = backTrack n1 (arr:backBuf) stream
                  in return (Right b, Stream.fromStreamK s1)
-            K.Error _ err -> return (Left (ParseError err), Stream.nil)
+            K.Error _ err -> return (Left (ParseError err), Stream.fromStreamK stream)
 
     go backBuf parserk stream = do
         let stop = goStop backBuf parserk
