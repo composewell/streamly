@@ -585,7 +585,7 @@ consMZip m (Zip.ZipStream r) =
 fromZipSerial :: IsStream t => ZipSerialM m a -> t m a
 fromZipSerial = adapt
 instance IsStream ZipSerialM where
-    toStream = Stream.toStreamK . Zip.getZipStream
+    toStream = Stream.toStreamK . Zip.unZipStream
     fromStream = Zip.ZipStream . Stream.fromStreamK
 
     {-# INLINE consM #-}
