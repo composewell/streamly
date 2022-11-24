@@ -373,7 +373,7 @@ iterateM step = fromStreamD . D.iterateM step
 -- >>> :{
 -- main = Stream.fold (Fold.drainMapM print) $ Stream.mfix f
 --     where
---     f action = getCrossStream $ do
+--     f action = unCrossStream $ do
 --         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act
 --         x <- CrossStream (Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action])
 --         y <- CrossStream (Stream.fromList [4,5])

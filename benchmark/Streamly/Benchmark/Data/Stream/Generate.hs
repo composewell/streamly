@@ -179,7 +179,7 @@ fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
 mfixUnfold :: Int -> Int -> Stream IO (Int, Int)
 mfixUnfold count start = Stream.mfix f
     where
-    f action = getCrossStream $ do
+    f action = unCrossStream $ do
         let incr n act = fmap ((+n) . snd)  $ unsafeInterleaveIO act
         x <- CrossStream (Common.fromListM [incr 1 action, incr 2 action])
         y <- CrossStream (Common.sourceUnfoldr count start)

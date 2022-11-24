@@ -177,7 +177,7 @@ foldrSMap n = composeN n $ Stream.foldrS (\x xs -> x + 1 `Stream.cons` xs) Strea
 {-
 {-# INLINE foldrT #-}
 foldrT :: MonadIO m => Int -> Stream m Int -> m ()
-foldrT n = composeN n (getCrossStream . Stream.foldrT cns (CrossStream Stream.nil))
+foldrT n = composeN n (unCrossStream . Stream.foldrT cns (CrossStream Stream.nil))
 
     where cns x (CrossStream xs) = CrossStream (Stream.cons x xs)
 

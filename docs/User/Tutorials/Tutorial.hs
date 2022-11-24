@@ -355,7 +355,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- instead.
 --
 -- >>> :{
--- Stream.drain $ getCrossStream $ do
+-- Stream.drain $ unCrossStream $ do
 --     x <- CrossStream (Stream.fromFoldable [3,2,1])
 --     CrossStream (Stream.fromEffect $ print x)
 -- :}
@@ -373,7 +373,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- >>> :{
 -- main =
---     Stream.drain $ getCrossStream $ do
+--     Stream.drain $ unCrossStream $ do
 --         x <- CrossStream (Stream.repeatM getLine)
 --         CrossStream (Stream.fromEffect $ putStrLn x)
 -- :}
@@ -382,7 +382,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- manner:
 --
 -- >>> :{
--- Stream.drain $ getCrossStream $ do
+-- Stream.drain $ unCrossStream $ do
 --   x <- CrossStream (Stream.fromFoldable [1,2])
 --   y <- CrossStream (Stream.fromFoldable [3,4])
 --   CrossStream (Stream.fromEffect $ print (x, y))
@@ -429,7 +429,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- >>> :{
 -- composed :: Stream IO ()
--- composed = getCrossStream $ do
+-- composed = unCrossStream $ do
 --     sz <- CrossStream sizes
 --     cl <- CrossStream colors
 --     sh <- CrossStream shapes
@@ -466,7 +466,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- >>> s1 = p 1 <> p 2
 -- >>> s2 = p 3 <> p 4
 --
--- >>> (Stream.toList $ getCrossStream $ (,) <$> CrossStream s1 <*> CrossStream s2) >>= print
+-- >>> (Stream.toList $ unCrossStream $ (,) <$> CrossStream s1 <*> CrossStream s2) >>= print
 -- 1
 -- 3
 -- 4

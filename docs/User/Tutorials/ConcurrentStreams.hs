@@ -710,7 +710,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'fromZipAsync' type combinator can be used to switch to parallel applicative
 -- zip composition:
 --
--- >>> d n = getCrossStream (CrossStream (delay n) >> return n)
+-- >>> d n = unCrossStream (CrossStream (delay n) >> return n)
 -- >>> s1 = Stream.fromSerial $ d 2 <> d 4
 -- >>> s2 = Stream.fromSerial $ d 3 <> d 1
 -- >>> (Stream.toList $ Stream.fromZipAsync $ (,) <$> s1 <*> s2) >>= print
@@ -746,7 +746,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- main = do
 --     z <- Stream.toList
 --          $ Stream.fromSerial     -- Serial monadic processing (sqrt below)
---          $ getCrossStream $ do
+--          $ unCrossStream $ do
 --              -- Concurrent @"for"@ loop
 --              x2 <- CrossStream (Stream.concatForFoldableWith Stream.async [1..100] $
 --                          \x -> Stream.fromPure $ x * x)  -- body of the loop
