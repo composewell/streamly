@@ -52,7 +52,7 @@ where
 
 import Data.Bifunctor (second)
 import Control.Exception (assert)
-import Control.Monad.Catch (MonadThrow, throwM)
+-- import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unboxed (Unbox, peekWith, sizeOf)
@@ -634,7 +634,7 @@ parseBreakD
 
 {-# INLINE_NORMAL parseBreakK #-}
 parseBreakK ::
-       forall m a b. (MonadIO m, MonadThrow m, Unbox a)
+       forall m a b. (MonadIO m, Unbox a)
     => PRD.Parser a m b
     -> K.Stream m (Array.Array a)
     -> m (b, K.Stream m (Array.Array a))
@@ -769,7 +769,7 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
 --
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak ::
-       (MonadIO m, MonadThrow m, Unbox a)
+       (MonadIO m, Unbox a)
     => PR.Parser a m b
     -> Stream m (A.Array a)
     -> m (b, Stream m (A.Array a))
@@ -795,7 +795,7 @@ parseBreak p =
 --
 {-# INLINE_NORMAL runArrayParserDBreak #-}
 runArrayParserDBreak ::
-       forall m a b. (MonadIO m, MonadThrow m, Unbox a)
+       forall m a b. (MonadIO m, Unbox a)
     => PRD.Parser (Array a) m b
     -> D.Stream m (Array.Array a)
     -> m (b, D.Stream m (Array.Array a))
@@ -936,7 +936,7 @@ parseArr p s = fmap fromStreamD <$> parseBreakD p (toStreamD s)
 -- /Pre-release/
 --
 {-# INLINE runArrayFold #-}
-runArrayFold :: (MonadIO m, MonadThrow m, Unbox a) =>
+runArrayFold :: (MonadIO m, Unbox a) =>
     ChunkFold m a b -> Stream m (A.Array a) -> m b
 runArrayFold (ChunkFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 
@@ -945,7 +945,7 @@ runArrayFold (ChunkFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 -- /Pre-release/
 --
 {-# INLINE runArrayFoldBreak #-}
-runArrayFoldBreak :: (MonadIO m, MonadThrow m, Unbox a) =>
+runArrayFoldBreak :: (MonadIO m, Unbox a) =>
     ChunkFold m a b -> Stream m (A.Array a) -> m (b, Stream m (A.Array a))
 runArrayFoldBreak (ChunkFold p) s =
     second fromStreamD <$> runArrayParserDBreak p (toStreamD s)
@@ -963,7 +963,7 @@ data ParseChunksState x inpBuf st pst =
 
 {-# INLINE_NORMAL runArrayFoldManyD #-}
 runArrayFoldManyD
-    :: (MonadThrow m, Unbox a)
+    :: Unbox a
     => ChunkFold m a b
     -> D.Stream m (Array a)
     -> D.Stream m b
@@ -1149,7 +1149,7 @@ runArrayFoldManyD
 -- /Pre-release/
 {-# INLINE runArrayFoldMany #-}
 runArrayFoldMany
-    :: (MonadThrow m, Unbox a)
+    :: Unbox a
     => ChunkFold m a b
     -> Stream m (Array a)
     -> Stream m b

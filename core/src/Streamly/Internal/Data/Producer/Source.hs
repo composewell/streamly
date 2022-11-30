@@ -34,7 +34,7 @@ where
 #include "inline.hs"
 
 import Control.Exception (assert)
-import Control.Monad.Catch (MonadThrow, throwM)
+-- import Control.Monad.Catch (MonadThrow, throwM)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..), Step(..))
