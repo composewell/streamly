@@ -42,7 +42,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 -- A 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ getCrossStream $ do
+-- Stream.fold Fold.toList $ unCrossStream $ do
 --      x <- CrossStream (Stream.fromList [1,2]) -- foreach x in stream
 --      return x
 -- :}
@@ -51,14 +51,14 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 -- Nested monad binds behave like nested @for@ loops:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ getCrossStream $ do
+-- Stream.fold Fold.toList $ unCrossStream $ do
 --     x <- CrossStream (Stream.fromList [1,2]) -- foreach x in stream
 --     y <- CrossStream (Stream.fromList [3,4]) -- foreach y in stream
 --     return (x, y)
 -- :}
 -- [(1,3),(1,4),(2,3),(2,4)]
 --
-newtype CrossStream m a = CrossStream {getCrossStream :: Stream m a}
+newtype CrossStream m a = CrossStream {unCrossStream :: Stream m a}
         deriving (Functor, Semigroup, Monoid, Foldable)
 
 -- Pure (Identity monad) stream instances
@@ -122,7 +122,7 @@ instance Monad m => Monad (CrossStream m) where
                 $ K.bindWith
                     K.serial
                     (Stream.toStreamK m)
-                    (Stream.toStreamK . getCrossStream . f))
+                    (Stream.toStreamK . unCrossStream . f))
 
     {-# INLINE (>>) #-}
     (>>) = (*>)

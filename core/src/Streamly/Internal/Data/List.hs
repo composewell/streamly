@@ -87,7 +87,7 @@ newtype List a = List { toCrossStream :: CrossStream Identity a }
     , Applicative, Traversable, Monad, IsList)
 
 toStream :: List a -> Stream Identity a
-toStream = getCrossStream . toCrossStream
+toStream = unCrossStream . toCrossStream
 
 fromStream :: Stream Identity a -> List a
 fromStream xs = List (CrossStream xs)
@@ -97,7 +97,7 @@ instance (a ~ Char) => IsString (List a) where
     fromString = List . fromList
 
 instance Show a => Show (List a) where
-    show (List x) = show $ getCrossStream x
+    show (List x) = show $ unCrossStream x
 
 instance Read a => Read (List a) where
     readPrec = fromStream <$> readPrec

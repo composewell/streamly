@@ -162,7 +162,7 @@ sortBy cmp =
 -- /Pre-release/
 {-# INLINE crossJoin #-}
 crossJoin :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
-crossJoin s1 s2 = getCrossStream $ do
+crossJoin s1 s2 = unCrossStream $ do
     -- XXX use concatMap instead?
     a <- CrossStream s1
     b <- CrossStream s2
@@ -245,7 +245,7 @@ joinInnerMerge = undefined
 {-# INLINE joinLeft #-}
 joinLeft :: Monad m =>
     (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
-joinLeft eq s1 s2 = Stream.evalStateT (return False) $ getCrossStream $ do
+joinLeft eq s1 s2 = Stream.evalStateT (return False) $ unCrossStream $ do
     a <- CrossStream (Stream.liftInner s1)
     -- XXX should we use StreamD monad here?
     -- XXX Is there a better way to perform some action at the end of a loop
@@ -322,7 +322,7 @@ joinOuter eq s1 s =
                         ) stream1 stream2
                     ) & Stream.catMaybes
 
-    evalState = Stream.evalStateT (return False) . getCrossStream
+    evalState = Stream.evalStateT (return False) . unCrossStream
 
     go inputArr foundArr = evalState $ do
         a <- CrossStream (Stream.liftInner s1)

@@ -76,7 +76,7 @@ iterateSingleton ::
     -> Int
     -> Stream m Int
 iterateSingleton g count n =
-    getCrossStream $ iterateN g (CrossStream (S.fromPure n)) count
+    unCrossStream $ iterateN g (CrossStream (S.fromPure n)) count
 
 {-
 -- XXX need to check why this is slower than the explicit recursion above, even
