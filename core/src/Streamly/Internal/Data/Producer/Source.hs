@@ -112,11 +112,11 @@ newtype List a = List {getList :: [a]}
 
 {-# INLINE_NORMAL parseD #-}
 parseD
-    :: MonadThrow m
-    => ParserD.Parser a m b
+    :: Monad m =>
+    ParserD.Parser a m b
     -> Producer m (Source s a) a
     -> Source s a
-    -> m (b, Source s a)
+    -> m (Either ParseError b, Source s a)
 parseD
     (ParserD.Parser pstep initial extract)
     (Producer ustep uinject uextract)
@@ -127,8 +127,8 @@ parseD
         ParserD.IPartial s -> do
             state <- uinject seed
             go SPEC state (List []) s
-        ParserD.IDone b -> return (b, seed)
-        ParserD.IError err -> throwM $ ParseError err
+        ParserD.IDone b -> return (Right b, seed)
+        ParserD.IError err -> return (Left (ParseError err), seed)
 
     where
 
@@ -158,8 +158,10 @@ parseD
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
                         s1 <- uextract s
-                        return (b, unread src s1)
-                    Error err -> throwM $ ParseError err
+                        return (Right b, unread src s1)
+                    Error err -> do
+                        s1 <- uextract s
+                        return (Left (ParseError err), s1)
             Skip s -> go SPEC s buf pst
             Stop -> goStop buf pst
 
@@ -186,8 +188,10 @@ parseD
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
                 s1 <- uextract s
-                return (b, unread src s1)
-            Error err -> throwM $ ParseError err
+                return (Right b, unread src s1)
+            Error err -> do
+                    s1 <- uextract s
+                    return (Left (ParseError err), s1)
 
     -- This is a simplified gobuf
     goExtract !_ buf (List []) !pst = goStop buf pst
@@ -212,8 +216,10 @@ parseD
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
-                return (b, unread src (source Nothing))
-            Error err -> throwM $ ParseError err
+                return (Right b, unread src (source Nothing))
+            Error err -> do
+                    let src  = Prelude.reverse (getList buf)
+                    return (Left (ParseError err), unread src (source Nothing))
 
     -- This is a simplified goExtract
     {-# INLINE goStop #-}
@@ -228,25 +234,26 @@ parseD
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
                 goExtract SPEC (List buf1) (List src) pst1
-            Done 0 b -> return (b, source Nothing)
+            Done 0 b -> return (Right b, source Nothing)
             Done n b -> do
                 assert (n <= length (getList buf)) (return ())
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0
-                return (b, unread src (source Nothing))
-            Error err -> throwM $ ParseError err
+                return (Right b, unread src (source Nothing))
+            Error err -> do
+                let src  = Prelude.reverse (getList buf)
+                return (Left (ParseError err), unread src (source Nothing))
 
 -- | Parse a buffered source using a parser, returning the parsed value and the
 -- remaining source.
 --
 -- /Pre-release/
 {-# INLINE [3] parse #-}
-parse
-    :: MonadThrow m
-    => ParserK.Parser a m b
+parse :: Monad m =>
+       ParserK.Parser a m b
     -> Producer m (Source s a) a
     -> Source s a
-    -> m (b, Source s a)
+    -> m (Either ParseError b, Source s a)
 parse = parseD . ParserD.fromParserK
 
 -------------------------------------------------------------------------------
@@ -254,7 +261,7 @@ parse = parseD . ParserD.fromParserK
 -------------------------------------------------------------------------------
 
 {-# INLINE parseManyD #-}
-parseManyD :: MonadThrow m =>
+parseManyD :: Monad m =>
        ParserD.Parser a m b
     -> Producer m (Source x a) a
     -> Producer m (Source x a) b
@@ -268,14 +275,16 @@ parseManyD parser reader = Producer step return return
         then return Stop
         else do
             (b, s1) <- parseD parser reader src
-            return $ Yield b s1
+            case b of
+                Right b1 -> return $ Yield b1 s1
+                Left _ -> return Stop
 
 -- | Apply a parser repeatedly on a buffered source producer to generate a
 -- producer of parsed values.
 --
 -- /Pre-release/
 {-# INLINE parseMany #-}
-parseMany :: MonadThrow m =>
+parseMany :: Monad m =>
        ParserK.Parser a m b
     -> Producer m (Source x a) a
     -> Producer m (Source x a) b
