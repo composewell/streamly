@@ -409,7 +409,7 @@ parseMany :: Monad m => Int -> Stream m Int -> m ()
 parseMany n =
       Stream.fold Fold.drain
     . fmap getSum
-    . Stream.rights . Stream.parseMany (PR.fromFold $ Fold.take n Fold.mconcat)
+    . Stream.catRights . Stream.parseMany (PR.fromFold $ Fold.take n Fold.mconcat)
     . fmap Sum
 
 {-# INLINE parseIterate #-}
@@ -417,7 +417,7 @@ parseIterate :: Monad m => Int -> Stream m Int -> m ()
 parseIterate n =
       Stream.fold Fold.drain
     . fmap getSum
-    . Stream.rights
+    . Stream.catRights
     . Stream.parseIterate
         (PR.fromFold . Fold.take n . Fold.sconcat)
         (Sum 0)

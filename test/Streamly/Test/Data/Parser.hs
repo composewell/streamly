@@ -493,7 +493,7 @@ parseManyWordQuotedBy =
                   spc _ = False
 
                   parser = P.wordQuotedBy kQ esc lQ rQ fromLQ spc FL.toList
-              result <- H.runIO $ S.fold FL.toList $ S.rights $ S.parseMany parser inpStrm
+              result <- H.runIO $ S.fold FL.toList $ S.catRights $ S.parseMany parser inpStrm
               H.it (showCase c) $ result `H.shouldBe` expected
 
     where
@@ -744,7 +744,7 @@ parseMany =
                     let p = P.fromFold $ FL.take len FL.toList
                     run
                         $ S.fold FL.toList
-                        $ S.rights
+                        $ S.catRights
                         $ S.parseMany p (S.fromList $ concat ins)
                 listEquals (==) outs ins
 
@@ -799,7 +799,7 @@ parseMany2Events =
         xs <-
             ( run
             $ S.fold FL.toList
-            $ S.rights
+            $ S.catRights
             $ S.parseMany readOneEvent
             $ S.fromList (concat (replicate 2 event))
             )
@@ -819,7 +819,7 @@ manyEqParseMany =
         monadicIO $ do
             let strm = S.fromList lst
             r1 <- run $ S.parse (P.many (split i) FL.toList) strm
-            r2 <- run $ S.fold FL.toList $ S.rights $ S.parseMany (split i) strm
+            r2 <- run $ S.fold FL.toList $ S.catRights $ S.parseMany (split i) strm
             return $
                 case r1 of
                     Right o1 -> o1 == r2
@@ -865,7 +865,7 @@ takeEndBy2 =
 
             eitherParsedList =
                 S.fold FL.toList
-                    $ S.rights
+                    $ S.catRights
                     $ S.parseMany (P.takeEndBy predicate prsr) strm
 
                     where
