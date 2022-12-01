@@ -60,7 +60,7 @@ parseBreak = do
                                 clen (Array.writeN clen) (Stream.fromList ls)
                         parser = Parser.fromFold (Fold.take tlen Fold.toList)
                      in run $ ArrayStream.parseBreak parser input
-                ls2 <- run $ (Stream.fold Fold.toList) (ArrayStream.concat str)
+                ls2 <- run $ Stream.fold Fold.toList (ArrayStream.concat str)
                 case ls1 of
                     Right x -> listEquals (==) (x ++ ls2) ls
                     Left _ -> assert False
@@ -68,7 +68,7 @@ parseBreak = do
 splitOnSuffix :: Word8 -> [Word8] -> [[Word8]] -> IO ()
 splitOnSuffix sep inp out = do
     res <-
-        (Stream.fold Fold.toList)
+        Stream.fold Fold.toList
             $ ArrayStream.splitOnSuffix sep
             $ chunksOf 2 (Array.writeN 2) $ Stream.fromList inp
     fmap Array.toList res `shouldBe` out
@@ -88,7 +88,7 @@ concatArrayW8 =
     forAll (vectorOf 10000 (arbitrary :: Gen Word8))
         $ \w8List -> do
               let w8ArrList = Array.fromList . (: []) <$> w8List
-              f2 <- (Stream.fold Fold.toList) $ ArrayStream.concat $ Stream.fromList w8ArrList
+              f2 <- Stream.fold Fold.toList $ ArrayStream.concat $ Stream.fromList w8ArrList
               w8List `shouldBe` f2
 
 
