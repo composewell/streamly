@@ -640,7 +640,7 @@ parseMany =
         forAll (listOf (vectorOf len (chooseAny :: Gen Int))) $ \ ins ->
             monadicIO $ do
             outs <-
-                (toList $ S.rights $ S.parseManyD
+                (toList $ S.catRights $ S.parseManyD
                     (P.fromFold $ FL.take len FL.toList) (S.fromList $ concat ins)
                 )
             return $ outs == ins
@@ -737,7 +737,7 @@ parseMany2Events =
         xs <-
             ( run
             $ toList
-            $ S.rights
+            $ S.catRights
             $ S.parseManyD readOneEvent
             $ S.fromList (concat (replicate 2 event))
             )

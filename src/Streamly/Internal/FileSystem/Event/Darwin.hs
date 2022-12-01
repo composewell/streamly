@@ -180,8 +180,9 @@ import Streamly.Internal.Data.Array.Type (Array(..))
 import System.IO (Handle, hClose)
 
 import qualified Data.List.NonEmpty as NonEmpty
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Unicode.Stream as U
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array as A
@@ -505,7 +506,7 @@ readOneEvent = do
 
 watchToStream :: Watch -> Stream IO Event
 watchToStream (Watch handle _ _) =
-    S.rights $ S.parseMany readOneEvent $ S.unfold FH.reader handle
+    S.catRights $ S.parseMany readOneEvent $ S.unfold FH.reader handle
 
 -- XXX Write tests for all the points in macOS specific behavior.
 --
@@ -560,7 +561,7 @@ watchToStream (Watch handle _ _) =
 --
 watchWith ::
     (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
-watchWith f paths = S.bracket before after watchToStream
+watchWith f paths = S.bracketIO before after watchToStream
 
     where
 
@@ -1036,7 +1037,7 @@ isLastHardLink = getFlag kFSEventStreamEventFlagItemIsLastHardlink
 -- | Convert an 'Event' record to a String representation.
 showEvent :: Event -> String
 showEvent ev@Event{..} =
-    let path = runIdentity $ S.toList $ U.decodeUtf8' $ A.toStream eventAbsPath
+    let path = runIdentity $ S.fold FL.toList $ U.decodeUtf8' $ A.toStream eventAbsPath
     in "--------------------------"
         ++ "\nId = " ++ show eventId
         ++ "\nPath = " ++ show path

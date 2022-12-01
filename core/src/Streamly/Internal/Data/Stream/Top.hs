@@ -119,7 +119,7 @@ sortBy cmp =
                 Fold.toStreamRev
                 Fold.toStream
      in   Stream.concatPairsWith (Stream.mergeBy cmp) id
-        . Stream.rights . Stream.parseMany (fmap (either id id) p)
+        . Stream.catRights . Stream.parseMany (fmap (either id id) p)
 
 ------------------------------------------------------------------------------
 -- SQL Joins

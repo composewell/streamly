@@ -252,7 +252,6 @@ sortBy cmp =
      in   Stream.concatPairsWith (Stream.mergeBy cmp) id
         . Stream.rights . Stream.parseMany (fmap (either id id) p)
 
-
 ------------------------------------------------------------------------------
 -- SQL Joins
 ------------------------------------------------------------------------------
