@@ -49,7 +49,6 @@ import Data.IORef (newIORef, readIORef, modifyIORef')
 import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream.Common ()
 import Streamly.Internal.Data.Stream.Cross (CrossStream (..))
---import Streamly.Internal.Data.Stream (Stream, rights, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
 import qualified Data.List as List
