@@ -851,8 +851,7 @@ runArrayParserDBreak
                     src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC src s (List buf1) pst1
             PR.Done 0 b -> do
-                let ar = Prelude.reverse xs
-                    str = D.append (D.fromList ar) (D.Stream step s)
+                let str = D.append (D.fromList xs) (D.Stream step s)
                 return (Right b, str)
             PR.Done n b -> do
                 assert
@@ -862,8 +861,7 @@ runArrayParserDBreak
                     src = Prelude.reverse src0 ++ xs
                 return (Right b, D.append (D.fromList src) (D.Stream step s))
             PR.Error err -> do
-                let arr = Prelude.reverse (x:xs)
-                    strm = D.append (D.fromList arr) (D.Stream step s)
+                let strm = D.append (D.fromList (x:xs)) (D.Stream step s)
                 return (Left (ParseError err), strm)
 
     -- This is a simplified gobuf
@@ -898,9 +896,8 @@ runArrayParserDBreak
                 let src0 = takeArrayListRev n (x:getList backBuf)
                     src = Prelude.reverse src0 ++ xs
                 return (Right b, D.fromList src)
-            PR.Error err -> do
-                let arr = Prelude.reverse (x:xs)
-                return (Left (ParseError err), D.fromList arr)
+            PR.Error err ->
+                return (Left (ParseError err), D.fromList (x:xs))
 
     -- This is a simplified goExtract
     {-# INLINE goStop #-}
@@ -1112,8 +1109,8 @@ runArrayFoldManyD
                 return $ D.Skip $ ParseChunksBuf src s buf1 pst1
             PR.Done 0 b ->
                 return
-                $ D.Skip
-                $ ParseChunksYield (Right b) (ParseChunksInit xs s)
+                    $ D.Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInit xs s)
             PR.Done n b -> do
                 assert (n <= sum (map Array.length (x:backBuf))) (return ())
                 let src0 = takeArrayListRev n (x:backBuf)
