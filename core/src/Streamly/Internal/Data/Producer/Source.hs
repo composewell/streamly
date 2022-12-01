@@ -34,7 +34,6 @@ where
 #include "inline.hs"
 
 import Control.Exception (assert)
--- import Control.Monad.Catch (MonadThrow, throwM)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..), Step(..))
@@ -191,7 +190,7 @@ parseD
                 return (Right b, unread src s1)
             Error err -> do
                     s1 <- uextract s
-                    return (Left (ParseError err), s1)
+                    return (Left (ParseError err), unread (x:xs) s1)
 
     -- This is a simplified gobuf
     goExtract !_ buf (List []) !pst = goStop buf pst
@@ -217,9 +216,8 @@ parseD
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, unread src (source Nothing))
-            Error err -> do
-                    let src  = Prelude.reverse (getList buf)
-                    return (Left (ParseError err), unread src (source Nothing))
+            Error err ->
+                    return (Left (ParseError err), unread (x:xs) (source Nothing))
 
     -- This is a simplified goExtract
     {-# INLINE goStop #-}
@@ -240,9 +238,8 @@ parseD
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, unread src (source Nothing))
-            Error err -> do
-                let src  = Prelude.reverse (getList buf)
-                return (Left (ParseError err), unread src (source Nothing))
+            Error err ->
+                return (Left (ParseError err), source Nothing)
 
 -- | Parse a buffered source using a parser, returning the parsed value and the
 -- remaining source.
@@ -264,7 +261,7 @@ parse = parseD . ParserD.fromParserK
 parseManyD :: Monad m =>
        ParserD.Parser a m b
     -> Producer m (Source x a) a
-    -> Producer m (Source x a) b
+    -> Producer m (Source x a) (Either ParseError b)
 parseManyD parser reader = Producer step return return
 
     where
@@ -276,7 +273,7 @@ parseManyD parser reader = Producer step return return
         else do
             (b, s1) <- parseD parser reader src
             case b of
-                Right b1 -> return $ Yield b1 s1
+                Right b1 -> return $ Yield (Right b1) s1
                 Left _ -> return Stop
 
 -- | Apply a parser repeatedly on a buffered source producer to generate a
@@ -287,5 +284,5 @@ parseManyD parser reader = Producer step return return
 parseMany :: Monad m =>
        ParserK.Parser a m b
     -> Producer m (Source x a) a
-    -> Producer m (Source x a) b
+    -> Producer m (Source x a) (Either ParseError b)
 parseMany parser = parseManyD (ParserD.fromParserK parser)

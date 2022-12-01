@@ -52,7 +52,6 @@ where
 
 import Data.Bifunctor (second)
 import Control.Exception (assert)
--- import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unboxed (Unbox, peekWith, sizeOf)
@@ -696,7 +695,9 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
                     arr1 = Array contents next end
                     str = K.cons arr0 (K.cons arr1 st)
                 return (Right b, str)
-            PR.Error err -> return (Left (ParseError err), stream)
+            PR.Error err -> do
+                let str = K.cons (Array contents cur end) stream
+                return (Left (ParseError err), str)
 
     -- This is a simplified goArray
     goExtract !pst backBuf (Array _ cur end)
@@ -737,8 +738,8 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
                     str = K.cons arr0 (K.fromPure arr1)
                 return (Right b, str)
             PR.Error err -> do
-                let arr = A.fromList (Prelude.reverse backBuf)
-                return (Left (ParseError err), K.fromPure arr)
+                let str = K.fromPure (Array contents cur end)
+                return (Left (ParseError err), str)
 
     -- This is a simplified goExtract
     {-# INLINE goStop #-}
@@ -762,9 +763,8 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
                     -- arr0 = A.fromListRevN n src0
                     arr0 = A.fromListN n (Prelude.reverse src0)
                 return (Right b, K.fromPure arr0)
-            PR.Error err -> do
-                let arr = A.fromList (Prelude.reverse backBuf)
-                return (Left (ParseError err), K.fromPure arr)
+            PR.Error err ->
+                return (Left (ParseError err), K.nil)
 
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
 -- result and the unconsumed stream. Throws 'ParseError' if the parse fails.
@@ -850,8 +850,10 @@ runArrayParserDBreak
                 let (src0, buf1) = splitAtArrayListRev n (x:getList backBuf)
                     src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC src s (List buf1) pst1
-            PR.Done 0 b ->
-                return (Right b, D.Stream step s)
+            PR.Done 0 b -> do
+                let ar = Prelude.reverse xs
+                    str = D.append (D.fromList ar) (D.Stream step s)
+                return (Right b, str)
             PR.Done n b -> do
                 assert
                     (n <= sum (map Array.length (x:getList backBuf)))
@@ -860,8 +862,9 @@ runArrayParserDBreak
                     src = Prelude.reverse src0 ++ xs
                 return (Right b, D.append (D.fromList src) (D.Stream step s))
             PR.Error err -> do
-                let arr = Prelude.reverse (getList backBuf)
-                return (Left (ParseError err), D.fromList arr)
+                let arr = Prelude.reverse (x:xs)
+                    strm = D.append (D.fromList arr) (D.Stream step s)
+                return (Left (ParseError err), strm)
 
     -- This is a simplified gobuf
     goExtract _ [] backBuf !pst = goStop backBuf pst
@@ -896,7 +899,7 @@ runArrayParserDBreak
                     src = Prelude.reverse src0 ++ xs
                 return (Right b, D.fromList src)
             PR.Error err -> do
-                let arr = Prelude.reverse (getList backBuf)
+                let arr = Prelude.reverse (x:xs)
                 return (Left (ParseError err), D.fromList arr)
 
     -- This is a simplified goExtract
@@ -922,9 +925,8 @@ runArrayParserDBreak
                 let src0 = takeArrayListRev n (getList backBuf)
                     src = Prelude.reverse src0
                 return (Right b, D.fromList src)
-            PR.Error err -> do
-                let arr = Prelude.reverse (getList backBuf)
-                return (Left (ParseError err), D.fromList arr)
+            PR.Error err ->
+                return (Left (ParseError err), D.nil)
 
 {-
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
@@ -973,7 +975,7 @@ data ParseChunksState x inpBuf st pst =
 
 {-# INLINE_NORMAL runArrayFoldManyD #-}
 runArrayFoldManyD
-    :: (Unbox a, Monad m)
+    :: (Monad m, Unbox a)
     => ChunkFold m a b
     -> D.Stream m (Array a)
     -> D.Stream m (Either ParseError b)
@@ -995,13 +997,14 @@ runArrayFoldManyD
                 case res of
                     PRD.IPartial ps ->
                         return $ D.Skip $ ParseChunksBuf [x] s [] ps
-                    PRD.IDone pb ->
+                    PRD.IDone pb -> do
                         let next = ParseChunksInit [x] s
-                         in return $ D.Skip $ ParseChunksYield (Right pb) next
-                    PRD.IError err ->
-                        let next = ParseChunksInit [x] s
-                         in return $ D.Skip $ ParseChunksYield (Left (ParseError err)) next
-                        --throwM $ ParseError err
+                        return $ D.Skip $ ParseChunksYield (Right pb) next
+                    PRD.IError err -> do
+                        let next = ParseChunksInitLeftOver []
+                        return
+                            $ D.Skip
+                            $ ParseChunksYield (Left (ParseError err)) next
             D.Skip s -> return $ D.Skip $ ParseChunksInit [] s
             D.Stop   -> return D.Stop
 
@@ -1014,9 +1017,11 @@ runArrayFoldManyD
             PRD.IDone pb ->
                 let next = ParseChunksInit src st
                  in return $ D.Skip $ ParseChunksYield (Right pb) next
-            PRD.IError err ->
-                let next = ParseChunksInit src st
-                 in return $ D.Skip $ ParseChunksYield (Left (ParseError err)) next
+            PRD.IError err -> do
+                let next = ParseChunksInitLeftOver []
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Left (ParseError err)) next
 
     -- This is a simplified ParseChunksInit
     stepOuter _ (ParseChunksInitBuf src) = do
@@ -1027,9 +1032,11 @@ runArrayFoldManyD
             PRD.IDone pb ->
                 let next = ParseChunksInitBuf src
                  in return $ D.Skip $ ParseChunksYield (Right pb) next
-            PRD.IError err ->
-                let next = ParseChunksInitBuf src
-                 in return $ D.Skip $ ParseChunksYield (Left (ParseError err)) next
+            PRD.IError err -> do
+                let next = ParseChunksInitLeftOver []
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Left (ParseError err)) next
 
     -- XXX we just discard any leftover input at the end
     stepOuter _ (ParseChunksInitLeftOver _) = return D.Stop
@@ -1067,13 +1074,16 @@ runArrayFoldManyD
                             (n <= sum (map Array.length (x:backBuf)))
                             (return ())
                         let src0 = takeArrayListRev n (x:backBuf)
-                        let src = Prelude.reverse src0
-                        return $ D.Skip $
-                            ParseChunksYield (Right b) (ParseChunksInit src s)
-                    PR.Error err ->
-                        let src = Prelude.reverse backBuf
-                        in return $ D.Skip $
-                            ParseChunksYield (Left (ParseError err)) (ParseChunksInit src s)
+                            src = Prelude.reverse src0
+                            next = ParseChunksInit src s
+                        return
+                            $ D.Skip
+                            $ ParseChunksYield (Right b) next
+                    PR.Error err -> do
+                        let next = ParseChunksInitLeftOver []
+                        return
+                            $ D.Skip
+                            $ ParseChunksYield (Left (ParseError err)) next
 
             D.Skip s -> return $ D.Skip $ ParseChunksStream s backBuf pst
             D.Stop -> return $ D.Skip $ ParseChunksStop backBuf pst
@@ -1101,15 +1111,21 @@ runArrayFoldManyD
                     src  = Prelude.reverse src0 ++ xs
                 return $ D.Skip $ ParseChunksBuf src s buf1 pst1
             PR.Done 0 b ->
-                return $ D.Skip $ ParseChunksYield (Right b) (ParseChunksInit xs s)
+                return
+                $ D.Skip
+                $ ParseChunksYield (Right b) (ParseChunksInit xs s)
             PR.Done n b -> do
                 assert (n <= sum (map Array.length (x:backBuf))) (return ())
                 let src0 = takeArrayListRev n (x:backBuf)
                     src = Prelude.reverse src0 ++ xs
-                return $ D.Skip $ ParseChunksYield (Right b) (ParseChunksInit src s)
-            PR.Error err ->
-                let src = Prelude.reverse backBuf
-                in return $ D.Skip $ ParseChunksYield (Left (ParseError err)) (ParseChunksInit src s)
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInit src s)
+            PR.Error err -> do
+                let next = ParseChunksInitLeftOver []
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Left (ParseError err)) next
 
     -- This is a simplified ParseChunksBuf
     stepOuter _ (ParseChunksExtract [] buf pst) =
@@ -1133,16 +1149,22 @@ runArrayFoldManyD
                     src  = Prelude.reverse src0 ++ xs
                 return $ D.Skip $ ParseChunksExtract src buf1 pst1
             PR.Done 0 b ->
-                return $ D.Skip $ ParseChunksYield (Right b) (ParseChunksInitBuf xs)
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInitBuf xs)
             PR.Done n b -> do
                 assert (n <= sum (map Array.length (x:backBuf))) (return ())
                 let src0 = takeArrayListRev n (x:backBuf)
                     src = Prelude.reverse src0 ++ xs
-                return $ D.Skip $ ParseChunksYield (Right b) (ParseChunksInitBuf src)
-            PR.Error err ->
-                let src = Prelude.reverse backBuf
-                in return $ D.Skip $ ParseChunksYield (Left (ParseError err)) (ParseChunksInitBuf src)
-                --throwM $ ParseError err
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInitBuf src)
+            PR.Error err -> do
+                let next = ParseChunksInitLeftOver []
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Left (ParseError err)) next
+
 
     -- This is a simplified ParseChunksExtract
     stepOuter _ (ParseChunksStop backBuf pst) = do
@@ -1157,15 +1179,21 @@ runArrayFoldManyD
                     src  = Prelude.reverse src0
                 return $ D.Skip $ ParseChunksExtract src buf1 pst1
             PR.Done 0 b ->
-                return $ D.Skip $ ParseChunksYield (Right b) (ParseChunksInitLeftOver [])
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInitLeftOver [])
             PR.Done n b -> do
                 assert (n <= sum (map Array.length backBuf)) (return ())
                 let src0 = takeArrayListRev n backBuf
                     src = Prelude.reverse src0
-                return $ D.Skip $ ParseChunksYield (Right b) (ParseChunksInitBuf src)
-            PR.Error err ->do
-                let src = Prelude.reverse backBuf
-                return $ D.Skip $ ParseChunksYield (Left (ParseError err)) (ParseChunksInitBuf src)
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Right b) (ParseChunksInitBuf src)
+            PR.Error err -> do
+                let next = ParseChunksInitLeftOver []
+                return
+                    $ D.Skip
+                    $ ParseChunksYield (Left (ParseError err)) next
 
     stepOuter _ (ParseChunksYield a next) = return $ D.Yield a next
 
@@ -1177,7 +1205,7 @@ runArrayFoldManyD
 -- /Pre-release/
 {-# INLINE runArrayFoldMany #-}
 runArrayFoldMany
-    :: (Unbox a, Monad m)
+    :: (Monad m, Unbox a)
     => ChunkFold m a b
     -> Stream m (Array a)
     -> Stream m (Either ParseError b)
