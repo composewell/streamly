@@ -26,7 +26,7 @@
 -- >>> f = ChunkFold.fromFold (Fold.take 7 Fold.toList)
 -- >>> s = Stream.arraysOf 5 $ Stream.fromList "hello world"
 -- >>> ArrayStream.runArrayFold f s
--- "hello w"
+-- Right "hello w"
 --
 module Streamly.Internal.Data.Fold.Chunked
     (
