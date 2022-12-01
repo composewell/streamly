@@ -161,7 +161,7 @@ instance (a ~ Char) => IsString (ZipList a) where
 -- | Convert a 'ZipList' to a regular 'List'
 --
 fromZipList :: ZipList a -> List a
-fromZipList (ZipList zs) = List $ CrossStream (getZipStream zs)
+fromZipList (ZipList zs) = List $ CrossStream (unZipStream zs)
 
 -- | Convert a regular 'List' to a 'ZipList'
 --

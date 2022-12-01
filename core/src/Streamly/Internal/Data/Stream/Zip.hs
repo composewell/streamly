@@ -55,10 +55,10 @@ import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> s2 = Stream.ZipStream $ Stream.fromFoldable [3, 4]
 -- >>> s3 = Stream.ZipStream $ Stream.fromFoldable [5, 6]
 -- >>> s = (,,) <$> s1 <*> s2 <*> s3
--- >>> Stream.fold Fold.toList (Stream.getZipStream s)
+-- >>> Stream.fold Fold.toList (Stream.unZipStream s)
 -- [(1,3,5),(2,4,6)]
 --
-newtype ZipStream m a = ZipStream {getZipStream :: Stream m a}
+newtype ZipStream m a = ZipStream {unZipStream :: Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
 deriving instance IsList (ZipStream Identity a)
