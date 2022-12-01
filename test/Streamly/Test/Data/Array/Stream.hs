@@ -7,13 +7,14 @@ import Streamly.Test.Common (listEquals, chooseInt)
 import Test.Hspec (hspec, describe, shouldBe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, Property, vectorOf, Gen, Arbitrary (arbitrary))
-import Test.QuickCheck.Monadic (monadicIO, run)
+import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Test.Hspec as Hspec
 
 import Prelude hiding (sequence)
@@ -36,6 +37,10 @@ chooseAny = MkGen (\r _ -> let (x,_) = random r in x)
 maxTestCount :: Int
 maxTestCount = 100
 
+chunksOf :: Monad m
+    => Int -> Fold.Fold m a b -> Stream.Stream m a -> Stream.Stream m b
+chunksOf n f = Stream.fromStreamD . D.chunksOf n f . Stream.toStreamD
+
 parseBreak :: Property
 parseBreak = do
     let len = 200
@@ -51,19 +56,21 @@ parseBreak = do
             monadicIO $ do
                 (ls1, str) <-
                     let input =
-                            Stream.chunksOf
+                            chunksOf
                                 clen (Array.writeN clen) (Stream.fromList ls)
                         parser = Parser.fromFold (Fold.take tlen Fold.toList)
                      in run $ ArrayStream.parseBreak parser input
-                ls2 <- run $ Stream.toList $ ArrayStream.concat str
-                listEquals (==) (ls1 ++ ls2) ls
+                ls2 <- run $ (Stream.fold Fold.toList) (ArrayStream.concat str)
+                case ls1 of
+                    Right x -> listEquals (==) (x ++ ls2) ls
+                    Left _ -> assert False
 
 splitOnSuffix :: Word8 -> [Word8] -> [[Word8]] -> IO ()
 splitOnSuffix sep inp out = do
     res <-
-        Stream.toList
+        (Stream.fold Fold.toList)
             $ ArrayStream.splitOnSuffix sep
-            $ Stream.chunksOf 2 (Array.writeN 2) $ Stream.fromList inp
+            $ chunksOf 2 (Array.writeN 2) $ Stream.fromList inp
     fmap Array.toList res `shouldBe` out
 
 -------------------------------------------------------------------------------
@@ -81,7 +88,7 @@ concatArrayW8 =
     forAll (vectorOf 10000 (arbitrary :: Gen Word8))
         $ \w8List -> do
               let w8ArrList = Array.fromList . (: []) <$> w8List
-              f2 <- Stream.toList $ ArrayStream.concat $ Stream.fromList w8ArrList
+              f2 <- (Stream.fold Fold.toList) $ ArrayStream.concat $ Stream.fromList w8ArrList
               w8List `shouldBe` f2
 
 
