@@ -151,7 +151,7 @@ module Streamly.Internal.FileSystem.Event.Linux
 where
 
 import Control.Monad (void, when)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Data.Bits ((.|.), (.&.), complement)
 import Data.Char (ord)
 import Data.Foldable (foldlM)
@@ -912,8 +912,8 @@ watchWith f paths = S.bracketIO before after (watchToStream cfg)
     where
 
     cfg = f defaultConfig
-    before = liftIO $ openWatch cfg paths
-    after = liftIO . closeWatch
+    before = openWatch cfg paths
+    after = closeWatch
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
