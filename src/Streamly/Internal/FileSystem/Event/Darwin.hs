@@ -162,7 +162,6 @@ where
 
 import Control.Concurrent (MVar, newMVar, takeMVar, putMVar)
 import Control.Monad (when)
-import Control.Monad.IO.Class (liftIO)
 import Data.Bits ((.|.), (.&.), complement)
 import Data.Functor.Identity (runIdentity)
 import Data.List.NonEmpty (NonEmpty)
@@ -565,8 +564,8 @@ watchWith f paths = S.bracketIO before after watchToStream
 
     where
 
-    before = liftIO $ openWatch (f defaultConfig) paths
-    after = liftIO . closeWatch
+    before = openWatch (f defaultConfig) paths
+    after = closeWatch
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
 --
