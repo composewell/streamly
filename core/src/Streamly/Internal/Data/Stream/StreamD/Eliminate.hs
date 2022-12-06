@@ -226,7 +226,10 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
             PR.Done n _ -> do
                 error $ "parseBreak: parser bug, go1: Done n = " ++ show n
             PR.Error err ->
-                return (Left (ParseError err), Stream step s)
+                return
+                    ( Left (ParseError err)
+                    , Nesting.append (fromPure x) (Stream step s)
+                    )
 
     gobuf !_ s buf (List []) !pst = go SPEC s buf pst
     gobuf !_ s buf (List (x:xs)) !pst = do
@@ -251,7 +254,11 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, Nesting.append (fromList src) (Stream step s))
-            PR.Error err -> return (Left (ParseError err), Stream step s)
+            PR.Error err ->
+                return
+                    ( Left (ParseError err)
+                    , Nesting.append (fromList (x:xs)) (Stream step s)
+                    )
 
     -- This is simplified gobuf
     goExtract !_ buf (List []) !pst = goStop buf pst
@@ -298,7 +305,8 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, fromList src)
-            PR.Error err -> return (Left (ParseError err), fromList (getList buf))
+            PR.Error err ->
+                return (Left (ParseError err), StreamD.nil)
 
 ------------------------------------------------------------------------------
 -- Specialized Folds
