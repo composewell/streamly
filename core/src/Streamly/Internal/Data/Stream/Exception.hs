@@ -65,7 +65,7 @@ before action xs = fromStreamD $ D.before action $ toStreamD xs
 afterUnsafe :: Monad m => m b -> Stream m a -> Stream m a
 afterUnsafe action xs = fromStreamD $ D.after_ action $ toStreamD xs
 
--- | Run the action @IO b@ whenever the stream stream stops normally, or
+-- | Run the action @IO b@ whenever the stream is evaluated to completion, or
 -- if it is garbage collected after a partial lazy evaluation.
 --
 -- The semantics of the action @IO b@ are similar to the semantics of cleanup
@@ -77,8 +77,8 @@ afterUnsafe action xs = fromStreamD $ D.after_ action $ toStreamD xs
 afterIO :: MonadIO m => IO b -> Stream m a -> Stream m a
 afterIO action xs = fromStreamD $ D.after action $ toStreamD xs
 
--- | Run the action @m b@ if the stream aborts due to an exception. The
--- exception is not caught, simply rethrown.
+-- | Run the action @m b@ if the stream evaluation is aborted due to an
+-- exception. The exception is not caught, simply rethrown.
 --
 -- /Inhibits stream fusion/
 --
