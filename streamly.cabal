@@ -380,9 +380,7 @@ library
                      , Streamly.Internal.Network.Inet.TCP
 
                      -- Exposed modules
-                     , Streamly.Data.Stream.Exception
-                     , Streamly.Data.Stream.Concurrent
-                     , Streamly.Data.Stream.Time
+                     , Streamly.Data.Stream.Prelude
 
                      -- Network/IO
                      , Streamly.Network.Socket
@@ -443,7 +441,7 @@ library
                       , Streamly.Data.Fold
                       , Streamly.Data.Fold.Tee
                       , Streamly.Data.Parser
-                      , Streamly.Data.Stream
+                      -- , Streamly.Data.Stream
                       , Streamly.Data.Unfold
                       , Streamly.FileSystem.Handle
                       , Streamly.Unicode.Parser
@@ -468,6 +466,11 @@ library
 
     if os(linux) || os(darwin) || os(windows)
           exposed-modules: Streamly.Internal.FileSystem.Event
+
+    other-modules:
+           Streamly.Data.Stream.Exception
+         , Streamly.Data.Stream.Concurrent
+         , Streamly.Data.Stream.Time
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max

@@ -15,7 +15,7 @@ module Streamly.Data.Stream.Exception
     (
       after
     , bracket
-    , bracket3
+    -- , bracket3
     , finally
     )
 where
