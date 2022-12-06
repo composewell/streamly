@@ -25,38 +25,30 @@ module Streamly.Internal.Data.Stream.Top
     , intersectBy
     , intersectBySorted
     , differenceBy
-    , mergeDifferenceBy
+    , differenceBySorted
     , unionBy
-    , mergeUnionBy
+    , unionBySorted
 
     -- ** Join operations
-    , crossJoin
+    , joinCross
     , joinInner
-    , joinInnerMerge
-    , joinLeft
-    , mergeLeftJoin
-    , joinOuter
-    , mergeOuterJoin
+    , joinInnerSorted
+    , joinLeftSorted
+    , joinOuterSorted
     )
 where
 
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.State.Strict (get, put)
-import Data.Function ((&))
 import Data.IORef (newIORef, readIORef, modifyIORef')
-import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream.Common ()
 import Streamly.Internal.Data.Stream.Cross (CrossStream (..))
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
 import qualified Data.List as List
-import qualified Streamly.Internal.Data.Array.Generic as Array
-import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
-import qualified Streamly.Internal.Data.Stream.Transformer as Stream
 import qualified Streamly.Internal.Data.Stream.Eliminate as Stream
 import qualified Streamly.Internal.Data.Stream.Generate as Stream
 import qualified Streamly.Internal.Data.Stream.Expand as Stream
@@ -144,12 +136,15 @@ sortBy cmp =
 -- source changes during iterations. We can also use an Unfold instead of
 -- stream. We probably need a way to distinguish streams that can be read
 -- mutliple times without any interference (e.g. unfolding a stream using an
--- immutable handle would work i.e. using pread/pwrite instead of maintianing
+-- immutable handle would work i.e. using pread/pwrite instead of maintaining
 -- an offset in the handle).
 
 -- XXX We can do this concurrently.
+
+-- | Given a @Stream m a@ and @Stream m b@ generate a stream with all
+-- combinations of @(a, b)@.
 --
--- | This is the same as 'Streamly.Internal.Data.Unfold.outerProduct' but less
+-- Same as 'Streamly.Internal.Data.Unfold.outerProduct' but less
 -- efficient.
 --
 -- The second stream is evaluated multiple times. If the second stream is
@@ -160,9 +155,9 @@ sortBy cmp =
 -- Time: O(m x n)
 --
 -- /Pre-release/
-{-# INLINE crossJoin #-}
-crossJoin :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
-crossJoin s1 s2 = unCrossStream $ do
+{-# INLINE joinCross #-}
+joinCross :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
+joinCross s1 s2 = unCrossStream $ do
     -- XXX use concatMap instead?
     a <- CrossStream s1
     b <- CrossStream s2
@@ -172,9 +167,13 @@ crossJoin s1 s2 = unCrossStream $ do
 -- XXX If the second stream is sorted and passed as an Array we could use
 -- binary search if we have an Ord instance or Ordering returning function. The
 -- time complexity would then become (m x log n).
+
+-- | Like 'joinCross' but emitting only those tuples where @a == b@ using some
+-- equality predicate.
 --
--- | For all elements in @Stream m a@, for all elements in @Stream m b@ if @a@ and @b@
--- are equal by the given equality pedicate then return the tuple (a, b).
+-- Definition:
+--
+-- >>> joinInner eq s1 s2 = Stream.filter (\(a, b) -> a `eq` b) $ Stream.joinCross s1 s2
 --
 -- The second stream is evaluated multiple times. If the stream is a
 -- consume-once stream then the caller should cache it (e.g. in a
@@ -196,6 +195,8 @@ crossJoin s1 s2 = unCrossStream $ do
 {-# INLINE joinInner #-}
 joinInner :: Monad m =>
     (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, b)
+joinInner eq s1 s2 = Stream.filter (\(a, b) -> a `eq` b) $ joinCross s1 s2
+{-
 joinInner eq s1 s2 = do
     -- ConcatMap works faster than bind
     Stream.concatMap (\a ->
@@ -205,165 +206,46 @@ joinInner eq s1 s2 = do
             else Stream.nil
             ) s2
         ) s1
+-}
 
--- | Like 'joinInner' but works only on sorted streams.
+-- | A more efficient 'joinInner' for sorted streams.
 --
 -- Space: O(1)
 --
 -- Time: O(m + n)
 --
 -- /Unimplemented/
-{-# INLINE joinInnerMerge #-}
-joinInnerMerge ::
+{-# INLINE joinInnerSorted #-}
+joinInnerSorted ::
     (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (a, b)
-joinInnerMerge = undefined
+joinInnerSorted = undefined
 
--- XXX We can do this concurrently.
--- XXX If the second stream is sorted and passed as an Array or a seek capable
--- stream then we could use binary search if we have an Ord instance or
--- Ordering returning function. The time complexity would then become (m x log
--- n).
---
--- | For all elements in @Stream m a@, for all elements in @Stream m b@ if @a@ and @b@
--- are equal then return the tuple @(a, Just b)@.  If @a@ is not present in @t
--- m b@ then return @(a, Nothing)@.
---
--- The second stream is evaluated multiple times. If the stream is a
--- consume-once stream then the caller should cache it in an 'Data.Array.Array'
--- before calling this function. Caching may also improve performance if the
--- stream is expensive to evaluate.
---
--- @
--- rightJoin = flip joinLeft
--- @
---
--- Space: O(n) assuming the second stream is cached in memory.
---
--- Time: O(m x n)
---
--- /Unimplemented/
-{-# INLINE joinLeft #-}
-joinLeft :: Monad m =>
-    (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
-joinLeft eq s1 s2 = Stream.evalStateT (return False) $ unCrossStream $ do
-    a <- CrossStream (Stream.liftInner s1)
-    -- XXX should we use StreamD monad here?
-    -- XXX Is there a better way to perform some action at the end of a loop
-    -- iteration?
-    CrossStream (Stream.fromEffect $ put False)
-    let final = Stream.concatEffect $ do
-            r <- get
-            if r
-            then pure Stream.nil
-            else pure (Stream.fromPure Nothing)
-    b <- CrossStream (fmap Just (Stream.liftInner s2) <> final)
-    case b of
-        Just b1 ->
-            if a `eq` b1
-            then do
-                CrossStream (Stream.fromEffect $ put True)
-                return (a, Just b1)
-            else CrossStream Stream.nil
-        Nothing -> return (a, Nothing)
-
--- | Like 'joinLeft' but works only on sorted streams.
+-- | A more efficient 'joinLeft' for sorted streams.
 --
 -- Space: O(1)
 --
 -- Time: O(m + n)
 --
 -- /Unimplemented/
-{-# INLINE mergeLeftJoin #-}
-mergeLeftJoin :: -- Monad m =>
+{-# INLINE joinLeftSorted #-}
+joinLeftSorted :: -- Monad m =>
     (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
-mergeLeftJoin _eq _s1 _s2 = undefined
+joinLeftSorted _eq _s1 _s2 = undefined
 
--- XXX We can do this concurrently.
---
--- | For all elements in @t m a@, for all elements in @t m b@ if @a@ and @b@
--- are equal by the given equality pedicate then return the tuple (Just a, Just
--- b).  If @a@ is not found in @t m b@ then return (a, Nothing), return
--- (Nothing, b) for vice-versa.
---
--- For space efficiency use the smaller stream as the second stream.
---
--- Space: O(n)
---
--- Time: O(m x n)
---
--- /Pre-release/
-{-# INLINE joinOuter #-}
-joinOuter :: MonadIO m =>
-       (a -> b -> Bool)
-    -> Stream m a
-    -> Stream m b
-    -> Stream m (Maybe a, Maybe b)
-joinOuter eq s1 s =
-    Stream.concatEffect $ do
-        inputArr <- Array.fromStream s
-        let len = Array.length inputArr
-        foundArr <-
-            Stream.fold
-            (MA.writeN len)
-            (Stream.fromList (Prelude.replicate len False))
-        return $ go inputArr foundArr <> leftOver inputArr foundArr
-
-    where
-
-    leftOver inputArr foundArr =
-            let stream1 = Array.read inputArr
-                stream2 = Stream.unfold MA.reader foundArr
-            in Stream.filter
-                    isJust
-                    ( Stream.zipWith (\x y ->
-                        if y
-                        then Nothing
-                        else Just (Nothing, Just x)
-                        ) stream1 stream2
-                    ) & Stream.catMaybes
-
-    evalState = Stream.evalStateT (return False) . unCrossStream
-
-    go inputArr foundArr = evalState $ do
-        a <- CrossStream (Stream.liftInner s1)
-        -- XXX should we use StreamD monad here?
-        -- XXX Is there a better way to perform some action at the end of a loop
-        -- iteration?
-        CrossStream (Stream.fromEffect $ put False)
-        let final = Stream.concatEffect $ do
-                r <- get
-                if r
-                then pure Stream.nil
-                else pure (Stream.fromPure Nothing)
-        (i, b) <-
-            let stream = Array.read inputArr
-             in CrossStream
-                (Stream.indexed $ fmap Just (Stream.liftInner stream) <> final)
-
-        case b of
-            Just b1 ->
-                if a `eq` b1
-                then do
-                    CrossStream (Stream.fromEffect $ put True)
-                    MA.putIndex i True foundArr
-                    return (Just a, Just b1)
-                else CrossStream Stream.nil
-            Nothing -> return (Just a, Nothing)
-
--- | Like 'joinOuter' but works only on sorted streams.
+-- | A more efficient 'joinOuter' for sorted streams.
 --
 -- Space: O(1)
 --
 -- Time: O(m + n)
 --
 -- /Unimplemented/
-{-# INLINE mergeOuterJoin #-}
-mergeOuterJoin :: -- Monad m =>
+{-# INLINE joinOuterSorted #-}
+joinOuterSorted :: -- Monad m =>
        (a -> b -> Ordering)
     -> Stream m a
     -> Stream m b
     -> Stream m (Maybe a, Maybe b)
-mergeOuterJoin _eq _s1 _s2 = undefined
+joinOuterSorted _eq _s1 _s2 = undefined
 
 ------------------------------------------------------------------------------
 -- Set operations (special joins)
@@ -457,15 +339,15 @@ differenceBy eq s1 s2 =
             let f = Fold.foldl' (flip (List.deleteBy eq)) xs
             fmap Stream.fromList $ Stream.fold f s2
 
--- | Like 'differenceBy' but works only on sorted streams.
+-- | A more efficient 'differenceBy' for sorted streams.
 --
 -- Space: O(1)
 --
 -- /Unimplemented/
-{-# INLINE mergeDifferenceBy #-}
-mergeDifferenceBy :: -- (Monad m) =>
+{-# INLINE differenceBySorted #-}
+differenceBySorted :: -- (Monad m) =>
     (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeDifferenceBy _eq _s1 _s2 = undefined
+differenceBySorted _eq _s1 _s2 = undefined
 
 -- | This is essentially an append operation that appends all the extra
 -- occurrences of elements from the second stream that are not already present
@@ -505,12 +387,12 @@ unionBy eq s1 s2 =
                             return $ Stream.fromList xs1
             return $ Stream.mapM f s1 <> s3
 
--- | Like 'unionBy' but works only on sorted streams.
+-- | A more efficient 'unionBy' for sorted streams.
 --
 -- Space: O(1)
 --
 -- /Unimplemented/
-{-# INLINE mergeUnionBy #-}
-mergeUnionBy :: -- (Monad m) =>
+{-# INLINE unionBySorted #-}
+unionBySorted :: -- (Monad m) =>
     (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeUnionBy _eq _s1 _s2 = undefined
+unionBySorted _eq _s1 _s2 = undefined

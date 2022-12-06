@@ -22,7 +22,6 @@ module Streamly.Internal.Data.Stream.StreamD
     , module Streamly.Internal.Data.Stream.StreamD.Eliminate
     , module Streamly.Internal.Data.Stream.StreamD.Exception
     , module Streamly.Internal.Data.Stream.StreamD.Lift
-    , module Streamly.Internal.Data.Stream.StreamD.Transformer
     , module Streamly.Internal.Data.Stream.StreamD.Nesting
     , module Streamly.Internal.Data.Stream.StreamD.Transform
     )
@@ -33,6 +32,5 @@ import Streamly.Internal.Data.Stream.StreamD.Generate
 import Streamly.Internal.Data.Stream.StreamD.Eliminate
 import Streamly.Internal.Data.Stream.StreamD.Exception
 import Streamly.Internal.Data.Stream.StreamD.Lift
-import Streamly.Internal.Data.Stream.StreamD.Transformer
 import Streamly.Internal.Data.Stream.StreamD.Nesting
 import Streamly.Internal.Data.Stream.StreamD.Transform

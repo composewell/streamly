@@ -427,6 +427,10 @@ module Streamly.Data.Stream
     -- trimming sequences
     , stripPrefix
 
+    -- Exceptions and resource management depend on the "exceptions" package
+    -- XXX We can have IO Stream operations not depending on "exceptions"
+    -- in Exception.Base
+
     -- * Exceptions
     -- | Most of these combinators inhibit stream fusion, therefore, when
     -- possible, they should be called in an outer loop to mitigate the cost.
@@ -441,7 +445,10 @@ module Streamly.Data.Stream
 
     -- * Resource Management
     -- | 'bracket' is the most general resource management operation, all other
-    -- operations can be expressed using it.
+    -- operations can be expressed using it. These functions have IO suffix
+    -- because the allocation and cleanup functions are IO actions. For
+    -- generalized allocation and cleanup functions see the functions without
+    -- the IO suffix in the "streamly" package.
     , before
     , afterIO
     , finallyIO
@@ -452,9 +459,9 @@ module Streamly.Data.Stream
     -- | See also: "Streamly.Internal.Data.Stream.Lift" for
     -- @Pre-release@ functions.
 
-    , liftInner
-    , runReaderT
-    , runStateT
+    , liftInnerWith
+    , runInnerWith
+    , runInnerWithState
 
     -- -- * Stream Types
     -- $serial

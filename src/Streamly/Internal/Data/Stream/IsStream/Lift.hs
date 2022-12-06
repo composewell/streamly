@@ -34,8 +34,9 @@ import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-    (hoist, liftInner, runReaderT, evalStateT, runStateT)
+import qualified Streamly.Internal.Data.Stream.StreamD as D (hoist)
+import qualified Streamly.Internal.Data.Stream.StreamD.Transformer as D
+    (liftInner, runReaderT, evalStateT, runStateT)
 
 ------------------------------------------------------------------------------
 -- Generalize the underlying monad

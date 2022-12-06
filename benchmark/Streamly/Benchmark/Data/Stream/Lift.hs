@@ -25,6 +25,7 @@ import System.Random (randomRIO)
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
 import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.Transformer as Stream
 #endif
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Stream.Common as Common
