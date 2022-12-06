@@ -14,7 +14,6 @@ import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Test.Hspec as Hspec
 
 import Prelude hiding (sequence)
@@ -39,7 +38,7 @@ maxTestCount = 100
 
 chunksOf :: Monad m
     => Int -> Fold.Fold m a b -> Stream.Stream m a -> Stream.Stream m b
-chunksOf n f = Stream.fromStreamD . D.chunksOf n f . Stream.toStreamD
+chunksOf n f = Stream.foldMany (Fold.take n f)
 
 parseBreak :: Property
 parseBreak = do

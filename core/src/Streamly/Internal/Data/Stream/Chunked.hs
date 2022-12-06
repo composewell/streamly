@@ -888,7 +888,7 @@ runArrayParserDBreak
                     src  = Prelude.reverse src0 ++ xs
                 goExtract SPEC src (List buf1) pst1
             PR.Done 0 b ->
-                return (Right b, D.nil)
+                return (Right b, D.fromList xs)
             PR.Done n b -> do
                 assert
                     (n <= sum (map Array.length (x:getList backBuf)))

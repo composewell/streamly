@@ -160,7 +160,7 @@ parseD
                         return (Right b, unread src s1)
                     Error err -> do
                         s1 <- uextract s
-                        return (Left (ParseError err), s1)
+                        return (Left (ParseError err), unread [x] s1)
             Skip s -> go SPEC s buf pst
             Stop -> goStop buf pst
 
