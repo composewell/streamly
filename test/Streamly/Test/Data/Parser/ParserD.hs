@@ -669,6 +669,7 @@ parseUnfold = do
             xs <- run
                 $ toList
                 $ S.unfoldMany Unfold.fromList
+                $ S.catRights
                 $ S.unfold streamParser src
 
             listEquals (==) xs ls
