@@ -29,7 +29,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Transformer as D
 
 -- $setup
 -- >>> :m
--- >>> import Control.Monad.Trans (lift)
+-- >>> import Control.Monad.Trans.Class (lift)
 -- >>> import Control.Monad.Trans.Identity (runIdentityT)
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
