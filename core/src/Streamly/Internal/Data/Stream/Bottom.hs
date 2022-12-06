@@ -89,17 +89,15 @@ import Streamly.Internal.Data.Stream.Type
 -- $setup
 -- >>> :m
 -- >>> import Control.Monad (join, (>=>), (<=<))
--- >>> import Control.Monad.Trans.Class (lift)
 -- >>> import Data.Function (fix, (&))
 -- >>> import Data.Maybe (fromJust, isJust)
--- >>> import Data.Semigroup (cycle1)
 -- >>> import Prelude hiding (take, takeWhile, drop, reverse)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
--- >>> import Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Array as Array
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Parser as Parser
+-- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
 -- Generation - Time related

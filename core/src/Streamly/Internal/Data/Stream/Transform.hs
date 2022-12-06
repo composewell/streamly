@@ -167,20 +167,18 @@ import Prelude hiding
 --
 -- $setup
 -- >>> :m
--- >>> :set -package mtl
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> import Control.Monad.IO.Class (MonadIO (liftIO))
--- >>> import Control.Monad.Trans (lift)
--- >>> import Control.Monad.Trans.Identity (runIdentityT)
 -- >>> import Data.Either (fromLeft, fromRight, isLeft, isRight, either)
 -- >>> import Data.Function ((&))
 -- >>> import Data.Maybe (fromJust, isJust)
 -- >>> import Prelude hiding (filter, drop, dropWhile, take, takeWhile, foldr, map, mapM, sequence, reverse, foldr1 , scanl, scanl1)
--- >>> import Streamly.Internal.Data.Stream as Stream
+-- >>> import Streamly.Internal.Data.Stream (Stream)
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold (filtering)
 -- >>> import qualified Streamly.Internal.Data.Fold.Window as Window
--- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 --
 -- >>> hSetBuffering stdout LineBuffering
@@ -693,7 +691,7 @@ intersperseBySpan _n _f _xs = undefined
 -- | Insert an effect and its output after consuming an element of a stream.
 --
 -- >>> input = Stream.fromList "hello"
--- >>> Stream.fold Fold.toList $ Stream.trace putChar $ intersperseSuffix (putChar '.' >> return ',') input
+-- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseSuffix (putChar '.' >> return ',') input
 -- h.,e.,l.,l.,o.,"h,e,l,l,o,"
 --
 -- /Pre-release/

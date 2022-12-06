@@ -31,7 +31,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Transformer as D
 -- >>> :m
 -- >>> import Control.Monad.Trans (lift)
 -- >>> import Control.Monad.Trans.Identity (runIdentityT)
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.Transformer as Stream
 
 -- | Lazy left fold to a transformer monad.
 --
