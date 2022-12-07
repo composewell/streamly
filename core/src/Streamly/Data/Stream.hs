@@ -316,7 +316,12 @@ module Streamly.Data.Stream
     , mapMaybeM
     , filter
     , filterM
+
+    -- Filter and concat
     , catMaybes
+    , catLefts
+    , catRights
+    , catEithers
 
     -- ** Stateful Filters
     -- | 'scanMaybe' is the most general stateful filtering operation. The
@@ -332,11 +337,6 @@ module Streamly.Data.Stream
     , dropWhileM
     , deleteBy
     , uniq
-
-    -- * Either Streams
-    , catLefts
-    , catRights
-    , catEithers
 
     -- ** Searching
     -- Finding the presence or location of an element, a sequence of elements
