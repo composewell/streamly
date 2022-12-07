@@ -338,6 +338,9 @@ module Streamly.Data.Stream
     , deleteBy
     , uniq
 
+    -- ** Sampling
+    , strideFromThen
+
     -- ** Searching
     -- Finding the presence or location of an element, a sequence of elements
     -- or another stream within a stream.
