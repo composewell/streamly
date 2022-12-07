@@ -11,6 +11,7 @@
 --
 module Streamly.Internal.Data.Fold.Tee
     ( Tee(..)
+    , toFold
     )
 where
 
@@ -26,6 +27,10 @@ import qualified Streamly.Internal.Data.Fold.Type as Fold
 newtype Tee m a b =
     Tee { unTee :: Fold m a b }
     deriving (Functor)
+
+{-# DEPRECATED toFold "Please use 'unTee' instead." #-}
+toFold :: Tee m a b -> Fold m a b
+toFold = unTee
 
 -- | '<*>' distributes the input to both the argument 'Tee's and combines their
 -- outputs using function application.
