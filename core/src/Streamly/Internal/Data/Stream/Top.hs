@@ -85,8 +85,6 @@ import Prelude hiding (filter, zipWith, concatMap, concat)
 -- >>> Stream.fold Fold.toList $ Stream.strideFromThen 2 3 $ Stream.enumerateFromTo 0 10
 -- [2,5,8]
 --
--- /Pre-release/
---
 {-# INLINE strideFromThen #-}
 strideFromThen :: Monad m => Int -> Int -> Stream m a -> Stream m a
 strideFromThen offset stride =
