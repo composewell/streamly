@@ -432,22 +432,6 @@ library
                      , Streamly.Internal.FileSystem.FDIO
                      , Streamly.Internal.FileSystem.FD
 
-    reexported-modules:
-                      -- streamly-core exposed modules
-                      , Streamly.Console.Stdio
-                      , Streamly.Data.Array.Generic
-                      , Streamly.Data.Array
-                      , Streamly.Data.Array.Mut
-                      , Streamly.Data.Fold
-                      , Streamly.Data.Fold.Tee
-                      , Streamly.Data.Parser
-                      -- , Streamly.Data.Stream
-                      , Streamly.Data.Unfold
-                      , Streamly.FileSystem.Handle
-                      , Streamly.Unicode.Parser
-                      , Streamly.Unicode.Stream
-                      , Streamly.Unicode.String
-
     if flag(dev)
         exposed-modules:  Streamly.Data.SmallArray
                         , Streamly.Internal.Data.SmallArray
