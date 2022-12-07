@@ -325,15 +325,15 @@ splitOnAny _subseq _f _m =
 -- | Apply a 'Parser' repeatedly on a stream and emit the parsed values in the
 -- output stream.
 --
--- This is the streaming equivalent of the 'Streamly.Internal.Data.Parser.many'
--- parse combinator.
+-- Example:
 --
 -- >>> s = Stream.fromList [1..10]
 -- >>> parser = Parser.takeBetween 0 2 Fold.sum
 -- >>> Stream.fold Fold.toList $ Stream.parseMany parser s
 -- [Right 3,Right 7,Right 11,Right 15,Right 19]
 --
--- foldMany f = Stream.parseMany (Parser.fromFold f)
+-- This is the streaming equivalent of the 'Streamly.Data.Parser.many' parse
+-- combinator.
 --
 -- Known Issues: When the parser fails there is no way to get the remaining
 -- stream.
