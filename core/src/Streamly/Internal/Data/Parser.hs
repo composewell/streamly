@@ -104,7 +104,7 @@ module Streamly.Internal.Data.Parser
     -- ** Exact match
     , listEq
     , listEqBy
-    , eqBy
+    , streamEqBy
     , subsequenceBy
 
     -- ** By predicate
@@ -1000,25 +1000,21 @@ groupByRollingEither :: Monad m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (Either b c)
 groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 
--- XXX eqBy is not a good name because we are not matching the entire stream
--- unlike the eqBy in Stream module. matchStreamBy, matchStream, matchListBy,
--- matchList.
-
 -- | Like 'listEqBy' but uses a stream instead of a list and does not return
 -- the stream.
 --
--- See also: "Streamly.Data.Stream.eqBy"
+-- See also: "Streamly.Data.Stream.streamEqBy"
 --
-{-# INLINE eqBy #-}
-eqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser a m ()
-eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
+{-# INLINE streamEqBy #-}
+streamEqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser a m ()
+streamEqBy cmp = D.toParserK . D.streamEqBy cmp . Stream.toStreamD
 
 -- | Match the given sequence of elements using the given comparison function.
 -- Returns the original sequence if successful.
 --
 -- Definition:
 --
--- >>> listEqBy cmp xs = Parser.eqBy cmp (Stream.fromList xs) *> Parser.fromPure xs
+-- >>> listEqBy cmp xs = Parser.streamEqBy cmp (Stream.fromList xs) *> Parser.fromPure xs
 --
 -- Examples:
 --
@@ -1026,12 +1022,12 @@ eqBy cmp = D.toParserK . D.eqBy cmp . Stream.toStreamD
 -- Right "string"
 --
 -- >>> Stream.parse (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
--- Left (ParseError "eqBy: mismtach occurred")
+-- Left (ParseError "streamEqBy: mismtach occurred")
 --
 {-# INLINE listEqBy #-}
 listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser a m [a]
 -- listEqBy cmp xs = D.toParserK (D.listEqBy cmp xs)
-listEqBy cmp xs = eqBy cmp (Stream.fromList xs) *> fromPure xs
+listEqBy cmp xs = streamEqBy cmp (Stream.fromList xs) *> fromPure xs
 
 -- Rename to "list".
 -- | Match the input sequence with the supplied list and return it if

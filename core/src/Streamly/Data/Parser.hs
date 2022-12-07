@@ -51,7 +51,7 @@ module Streamly.Data.Parser
     -- , either
 
     -- ** Sequences
-    , eqBy
+    , streamEqBy
     , listEqBy
     , listEq
 
