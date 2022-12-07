@@ -7,6 +7,18 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : pre-release
 -- Portability : GHC
+--
+-- Differences from an item parser:
+--
+-- * Driver drives from a chunk stream
+-- * Backtrack buffer is a chunk stream instead of a list
+-- * Monad and Alternative can handle chunks
+-- * Parser takes stream position and returns new stream position
+--
+-- We can possibly use the same type for item and chunk parsers, but with
+-- different implementations for instances. So it could just be a newtype
+-- wrapper rather than a different type. And then we can even have the parser
+-- type and chunkedParseBreak in the Parser module itself.
 
 module Streamly.Internal.Data.Parser.Chunked
     (
