@@ -47,7 +47,7 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
     (some, many, takeWhile1)
 import qualified Streamly.Data.Stream as Stream  (fromList, parse)
-import qualified Streamly.Internal.Unicode.Char.Parser as Parser
+import qualified Streamly.Internal.Unicode.Parser as Parser
 
 -- $setup
 -- >>> :m

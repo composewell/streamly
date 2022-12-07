@@ -33,7 +33,7 @@
 - ignore: {name: "Use ++", within: Stream.Reduce}
 - ignore: {name: "Use ++", within: Stream.Split}
 - ignore: {name: "Redundant bracket", within: Stream.Split}
-- ignore: {name: "Use isDigit", within: Streamly.Internal.Unicode.Char.Parser}
+- ignore: {name: "Use isDigit", within: Streamly.Internal.Unicode.Parser}
 
 # Specify additional command line arguments
 #

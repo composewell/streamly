@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Unicode.Array.Char
+-- Module      : Streamly.Internal.Unicode.Array
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -12,7 +12,7 @@
 -- This provides random access and the length of the string in O(1). Also,
 -- better append performance.
 --
-module Streamly.Internal.Unicode.Array.Char
+module Streamly.Internal.Unicode.Array
     (
     -- * Streams of Strings
       lines

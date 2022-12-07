@@ -52,4 +52,4 @@ module Streamly.Unicode.Parser
     )
 where
 
-import Streamly.Internal.Unicode.Char.Parser
+import Streamly.Internal.Unicode.Parser
