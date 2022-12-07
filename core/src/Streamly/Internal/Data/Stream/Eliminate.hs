@@ -345,12 +345,10 @@ isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 -- suffix/infix was present or not along with the stripped stream then
 -- we need to buffer the whole input stream.
 
--- | @stripPrefix prefix stream@ strips @prefix@ from @stream@ if it is a
--- prefix of stream. Returns 'Nothing' if the stream does not start with the
--- given prefix, stripped stream otherwise. Returns @Just nil@ when the prefix
--- is the same as the stream.
---
--- See also "Streamly.Internal.Data.Stream.Nesting.dropPrefix".
+-- | @stripPrefix prefix input@ strips the @prefix@ stream from the @input@
+-- stream if it is a prefix of input. Returns 'Nothing' if the input does not
+-- start with the given prefix, stripped input otherwise. Returns @Just nil@
+-- when the prefix is the same as the input stream.
 --
 -- Space: @O(1)@
 --
