@@ -92,7 +92,7 @@ module Streamly.Internal.Data.Parser.ParserD
 
     -- Matching strings
     , listEqBy
-    , eqBy
+    , streamEqBy
     -- , prefixOf -- match any prefix of a given string
     -- , suffixOf -- match any suffix of a given string
     -- , infixOf -- match any substring of a given string
@@ -1469,7 +1469,7 @@ groupByRollingEither
 -- XXX custom combinators for matching list, array and stream?
 -- XXX rename to listBy?
 --
--- | See 'Streamly.Internal.Data.Parser.eqBy'.
+-- | See 'Streamly.Internal.Data.Parser.streamEqBy'.
 --
 -- /Pre-release/
 --
@@ -1503,9 +1503,9 @@ listEqBy cmp str = Parser step initial extract
             ++ show (length xs) ++ " elements"
 
 -- | Like 'listEqBy' but uses a stream instead of a list
-{-# INLINE eqBy #-}
-eqBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser a m ()
-eqBy cmp (D.Stream sstep state) = Parser step initial extract
+{-# INLINE streamEqBy #-}
+streamEqBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser a m ()
+streamEqBy cmp (D.Stream sstep state) = Parser step initial extract
 
     where
 
@@ -1526,7 +1526,7 @@ eqBy cmp (D.Stream sstep state) = Parser step initial extract
                     D.Yield x1 s -> Continue 0 (Just' x1, s)
                     D.Stop -> Done 0 ()
                     D.Skip s -> Continue 1 (Nothing', s)
-          else return $ Error "eqBy: mismtach occurred"
+          else return $ Error "streamEqBy: mismtach occurred"
     step (Nothing', st) a = do
         r <- sstep defState st
         return
@@ -1534,11 +1534,11 @@ eqBy cmp (D.Stream sstep state) = Parser step initial extract
                 D.Yield x s -> do
                     if x `cmp` a
                     then Continue 0 (Nothing', s)
-                    else Error "eqBy: mismatch occurred"
+                    else Error "streamEqBy: mismatch occurred"
                 D.Stop -> Done 1 ()
                 D.Skip s -> Continue 1 (Nothing', s)
 
-    extract _ = return $ Error "eqBy: end of input"
+    extract _ = return $ Error "streamEqBy: end of input"
 
 -------------------------------------------------------------------------------
 -- Transformations on input
