@@ -13,7 +13,7 @@ module Streamly.Internal.Data.Stream.Top
     -- * Transformation
     -- ** Sampling
     -- | Value agnostic filtering.
-      sampleFromThen
+      strideFromThen
 
     -- ** Reordering
     , sortBy
@@ -78,18 +78,18 @@ import Prelude hiding (filter, zipWith, concatMap, concat)
 
 -- XXX We can implement this using addition instead of "mod" to make it more
 -- efficient.
---
--- | @sampleFromthen offset stride@ samples the element at @offset@ index and
+
+-- | @strideFromthen offset stride@ takes the element at @offset@ index and
 -- then every element at strides of @stride@.
 --
--- >>> Stream.fold Fold.toList $ Stream.sampleFromThen 2 3 $ Stream.enumerateFromTo 0 10
+-- >>> Stream.fold Fold.toList $ Stream.strideFromThen 2 3 $ Stream.enumerateFromTo 0 10
 -- [2,5,8]
 --
 -- /Pre-release/
 --
-{-# INLINE sampleFromThen #-}
-sampleFromThen :: Monad m => Int -> Int -> Stream m a -> Stream m a
-sampleFromThen offset stride =
+{-# INLINE strideFromThen #-}
+strideFromThen :: Monad m => Int -> Int -> Stream m a -> Stream m a
+strideFromThen offset stride =
     Stream.with Stream.indexed Stream.filter
         (\(i, _) -> i >= offset && (i - offset) `mod` stride == 0)
 
