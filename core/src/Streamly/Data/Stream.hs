@@ -234,6 +234,7 @@ module Streamly.Data.Stream
     -- express all others.
     , fold -- XXX rename to run? We can have a Stream.run and Fold.run.
     -- XXX fold1 can be achieved using Monoids or Refolds.
+    -- XXX We can call this just "break" and parseBreak as "munch"
     , foldBreak
 
     -- * Builders
@@ -331,19 +332,25 @@ module Streamly.Data.Stream
     , drop
     , dropWhile
     , dropWhileM
-    , deleteBy
-    , uniq
 
-    -- ** Sampling
-    , strideFromThen
+    -- XXX These are available as scans in folds. We need to check the
+    -- performance though. If these are common and we need convenient stream
+    -- ops then we can expose these.
 
-    -- ** Searching
+    -- , deleteBy
+    -- , uniq
+    -- , uniqBy
+
+    -- -- ** Sampling
+    -- , strideFromThen
+
+    -- -- ** Searching
     -- Finding the presence or location of an element, a sequence of elements
     -- or another stream within a stream.
 
     -- -- ** Searching Elements
-    , findIndices
-    , elemIndices
+    -- , findIndices
+    -- , elemIndices
 
     -- * Combining Two Streams
     -- ** Appending
