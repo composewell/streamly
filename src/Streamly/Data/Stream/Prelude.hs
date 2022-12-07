@@ -13,12 +13,8 @@
 module Streamly.Data.Stream.Prelude
     ( module Streamly.Data.Stream
     , module Streamly.Data.Stream.Concurrent
-    , module Streamly.Data.Stream.Exception
     , module Streamly.Data.Stream.Time
-    , liftInner
-    , runReaderT
-    , runStateT
-    -- , module Streamly.Internal.Data.Stream.Extra
+    , module Streamly.Data.Stream.Exception
     )
 where
 
@@ -26,5 +22,3 @@ import Streamly.Data.Stream
 import Streamly.Data.Stream.Concurrent
 import Streamly.Data.Stream.Exception
 import Streamly.Data.Stream.Time
-import Streamly.Internal.Data.Stream.Transformer
-import Streamly.Internal.Data.Stream.Extra

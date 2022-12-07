@@ -15,17 +15,18 @@
 --
 module Streamly.Data.Stream.Time
     (
-    -- * Timers
+    -- * Time
+    -- ** Timers
       interject
 
-    -- * Trimming
+    -- ** Trimming
     , takeInterval
     , dropInterval
 
-    -- * Chunking
+    -- ** Chunking
     , intervalsOf
 
-    -- * Sampling
+    -- ** Sampling
     , sampleIntervalEnd
     , sampleIntervalStart
     , sampleBurstEnd

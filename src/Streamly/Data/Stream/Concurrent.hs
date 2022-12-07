@@ -90,16 +90,17 @@
 
 module Streamly.Data.Stream.Concurrent
     (
+    -- * Concurrency
       MonadAsync
 
-    -- * Configuration
+    -- ** Configuration
     , Config
 
-    -- ** Limits
+    -- *** Limits
     , maxThreads
     , maxBuffer
 
-    -- ** Rate Control
+    -- *** Rate Control
     , Rate(..)
     , rate
     , avgRate
@@ -107,33 +108,33 @@ module Streamly.Data.Stream.Concurrent
     , maxRate
     , constRate
 
-    -- ** Stop behavior
+    -- *** Stop behavior
     , StopWhen (..)
     , stopWhen
 
-    -- ** Scheduling behavior
+    -- *** Scheduling behavior
     , eager
     , ordered
     , interleaved
 
-    -- ** Diagnostics
+    -- *** Diagnostics
     , inspect
 
-    -- * Combinators
+    -- ** Combinators
     -- | Stream combinators using a concurrent channel.
 
-    -- ** Evaluate
+    -- *** Evaluate
     -- | Evaluates a stream concurrently using a channel.
 
     -- , eval
     , parEval
 
-    -- ** Generate
+    -- *** Generate
     -- | Uses a single channel to evaluate mapped actions concurrently.
     , parRepeatM
     , parReplicateM
 
-    -- ** Map
+    -- *** Map
     -- | Uses a single channel to evaluate mapped actions concurrently.
 
     -- , mapM
@@ -141,7 +142,7 @@ module Streamly.Data.Stream.Concurrent
     -- , sequence
     , parSequence
 
-    -- ** List of streams
+    -- *** List of streams
     -- | Shares a single channel across many streams.
 
     -- , append
@@ -153,13 +154,13 @@ module Streamly.Data.Stream.Concurrent
     -- , zipWithM
     -- , zipWith
 
-    -- ** Stream of streams
-    -- *** Apply
+    -- *** Stream of streams
+    -- **** Apply
 
     -- , apply
     , parApply
 
-    -- *** Concat
+    -- **** Concat
     -- | Shares a single channel across many streams.
 
     -- , concat
