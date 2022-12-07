@@ -390,6 +390,7 @@ library
                      , Streamly.Data.Stream
                      , Streamly.Data.Unfold
                      , Streamly.FileSystem.Dir
+                     , Streamly.FileSystem.File
                      , Streamly.FileSystem.Handle
                      , Streamly.Unicode.Parser
                      , Streamly.Unicode.Stream
