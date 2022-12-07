@@ -488,7 +488,7 @@ drop n m = fromStreamD $ D.drop n $ toStreamD m
 -- | Find all the indices where the element in the stream satisfies the given
 -- predicate.
 --
--- >>> findIndices p = Stream.fold (Fold.findIndices p)
+-- >>> findIndices p = Stream.scanMaybe (Fold.findIndices p)
 --
 {-# INLINE findIndices #-}
 findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
