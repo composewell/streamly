@@ -116,7 +116,7 @@ nil = unsafePerformIO $ do
 writeNPure :: Monad m => Int -> Fold m a (Array a)
 writeNPure n =
     let f = fmap unsafeFreeze (MArray.writeN n) :: Fold IO a (Array a)
-     in FL.hoist (\x -> return $! unsafeInlineIO x) f
+     in FL.morphInner (\x -> return $! unsafeInlineIO x) f
 
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (Array a)

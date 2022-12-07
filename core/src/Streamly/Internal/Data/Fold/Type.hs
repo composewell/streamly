@@ -410,9 +410,9 @@ module Streamly.Internal.Data.Fold.Type
     , close
     , isClosed
 
-    -- * Lifting inner monad
-    , hoist
-    , generally
+    -- * Transforming inner monad
+    , morphInner
+    , generalizeInner
 
     -- * Deprecated
     , foldr
@@ -440,6 +440,7 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- $setup
 -- >>> :m
 -- >>> :set -XFlexibleContexts
+-- >>> import Data.Functor.Identity (runIdentity)
 -- >>> import Data.Maybe (fromJust, isJust)
 -- >>> import Data.Monoid (Endo(..))
 -- >>> import Streamly.Data.Fold (Fold)
@@ -1824,20 +1825,20 @@ refold (Refold step inject extract) f =
     Fold step (extractM f >>= inject) extract
 
 ------------------------------------------------------------------------------
--- hoist
+-- morphInner
 ------------------------------------------------------------------------------
 
--- | Change the underlying monad of a fold
+-- | Change the underlying monad of a fold. Also known as hoist.
 --
 -- /Pre-release/
-hoist :: (forall x. m x -> n x) -> Fold m a b -> Fold n a b
-hoist f (Fold step initial extract) =
+morphInner :: (forall x. m x -> n x) -> Fold m a b -> Fold n a b
+morphInner f (Fold step initial extract) =
     Fold (\x a -> f $ step x a) (f initial) (f . extract)
 
--- | Adapt a pure fold to any monad
+-- | Adapt a pure fold to any monad.
 --
--- >>> generally = Fold.hoist (return . runIdentity)
+-- >>> generalizeInner = Fold.morphInner (return . runIdentity)
 --
 -- /Pre-release/
-generally :: Monad m => Fold Identity a b -> Fold m a b
-generally = hoist (return . runIdentity)
+generalizeInner :: Monad m => Fold Identity a b -> Fold m a b
+generalizeInner = morphInner (return . runIdentity)

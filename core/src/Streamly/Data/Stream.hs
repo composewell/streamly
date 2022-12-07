@@ -448,10 +448,9 @@ module Streamly.Data.Stream
     , bracketIO
     , bracket3IO
 
-    -- * Lifting Inner Monad
-    -- | See also: "Streamly.Internal.Data.Stream.Lift" for
-    -- @Pre-release@ functions.
+    -- * Transforming Inner Monad
 
+    , morphInner
     , liftInner
     , runReaderT
     , runStateT

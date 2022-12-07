@@ -457,7 +457,7 @@ writeN = fmap unsafeFreeze . MA.writeN
 writeNPure :: (Monad m, Unbox a) => Int -> Fold m a (Array a)
 writeNPure n =
     let f = fmap unsafeFreeze (MA.writeN n) -- :: Fold IO a (Array a)
-     in Fold.hoist (\x -> return $! unsafeInlineIO x) f
+     in Fold.morphInner (\x -> return $! unsafeInlineIO x) f
 
 -- | @writeNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.

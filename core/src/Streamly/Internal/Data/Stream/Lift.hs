@@ -9,8 +9,8 @@
 module Streamly.Internal.Data.Stream.Lift
     (
     -- * Generalize Inner Monad
-      hoist
-    , generally
+      morphInner
+    , generalizeInner
 
     -- * Transform Inner Monad
     , liftInnerWith
@@ -28,6 +28,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -- $setup
 -- >>> :m
+-- >>> import Data.Functor.Identity (runIdentity)
 -- >>> import Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
@@ -36,23 +37,30 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -- | Transform the inner monad of a stream using a natural transformation.
 --
--- / Internal/
+-- Example, generalize the inner monad from Identity to any other:
+--
+-- >>> generalizeInner = Stream.morphInner (return . runIdentity)
+--
+-- Also known as hoist.
 --
 -- /CPS/
-{-# INLINE hoist #-}
-hoist :: (Monad m, Monad n)
+{-# INLINE morphInner #-}
+morphInner :: (Monad m, Monad n)
     => (forall x. m x -> n x) -> Stream m a -> Stream n a
-hoist f xs = fromStreamK $ K.hoist f (toStreamK xs)
+morphInner f xs = fromStreamK $ K.hoist f (toStreamK xs)
 
 -- | Generalize the inner monad of the stream from 'Identity' to any monad.
 --
--- / Internal/
+-- Definition:
+--
+-- >>> generalizeInner = Stream.morphInner (return . runIdentity)
 --
 -- /CPS/
 --
-{-# INLINE generally #-}
-generally :: Monad m => Stream Identity a -> Stream m a
-generally xs = fromStreamK $ K.hoist (return . runIdentity) (toStreamK xs)
+{-# INLINE generalizeInner #-}
+generalizeInner :: Monad m => Stream Identity a -> Stream m a
+generalizeInner = morphInner (return . runIdentity)
+    -- fromStreamK $ K.hoist (return . runIdentity) (toStreamK xs)
 
 ------------------------------------------------------------------------------
 -- Add and remove a monad transformer

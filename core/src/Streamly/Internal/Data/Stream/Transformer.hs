@@ -62,12 +62,12 @@ foldrT f z s = D.foldrT f z (toStreamD s)
 -- Add and remove a monad transformer
 ------------------------------------------------------------------------------
 
--- | Lift the inner monad @m@ of a stream @Stream m a@ to @tr m@ using the monad
--- transformer @tr@.
+-- | Lift the inner monad @m@ of @Stream m a@ to @t m@ where @t@ is a monad
+-- transformer.
 --
 {-# INLINE liftInner #-}
-liftInner :: (Monad m, MonadTrans tr, Monad (tr m))
-    => Stream m a -> Stream (tr m) a
+liftInner :: (Monad m, MonadTrans t, Monad (t m))
+    => Stream m a -> Stream (t m) a
 liftInner xs = fromStreamD $ D.liftInner (toStreamD xs)
 
 ------------------------------------------------------------------------------
