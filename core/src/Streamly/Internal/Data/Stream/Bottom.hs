@@ -528,15 +528,14 @@ intersperseM m = fromStreamD . D.intersperseM m . toStreamD
 --
 -- /Note:/ 'reverse'' is much faster than this, use that when performance
 -- matters.
---
+
 -- | Returns the elements of the stream in reverse order.  The stream must be
 -- finite. Note that this necessarily buffers the entire stream in memory.
---
--- >>> reverse = Stream.foldlT (flip Stream.cons) Stream.nil
 --
 {-# INLINE reverse #-}
 reverse :: Monad m => Stream m a -> Stream m a
 reverse s = fromStreamD $ D.reverse $ toStreamD s
+-- reverse = Stream.foldlT (flip Stream.cons) Stream.nil
 
 -- | Like 'reverse' but several times faster, requires a 'Storable' instance.
 --
