@@ -37,7 +37,7 @@ import Prelude hiding (String, lines, words, unlines, unwords)
 -- >>> import Prelude hiding (String, lines, words, unlines, unwords)
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Unicode.Array.Char as Unicode
+-- >>> import qualified Streamly.Internal.Unicode.Array as Unicode
 
 -- | Break a string up into a stream of strings at newline characters.
 -- The resulting strings do not contain newlines.
