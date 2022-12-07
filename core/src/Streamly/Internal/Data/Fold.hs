@@ -172,8 +172,8 @@ module Streamly.Internal.Data.Fold
     , with
 
     -- ** Transforming the Monad
-    , hoist
-    , generally
+    , morphInner
+    , generalizeInner
 
     -- ** Mapping on output
     , rmapM

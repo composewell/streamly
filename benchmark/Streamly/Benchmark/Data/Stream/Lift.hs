@@ -76,8 +76,9 @@ o_1_space_hoisting value =
     [ bgroup "hoisting"
         [ benchIOSrc "evalState" (evalStateT value)
         , benchIOSrc "withState" (withState value)
-        , benchHoistSink value "generally"
-            ((\xs -> Stream.fold Fold.length xs :: IO Int) . Stream.generally)
+        , benchHoistSink value "generalizeInner"
+            ((\xs -> Stream.fold Fold.length xs :: IO Int)
+                . Stream.generalizeInner)
         ]
     ]
 

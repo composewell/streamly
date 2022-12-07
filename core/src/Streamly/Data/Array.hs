@@ -47,18 +47,18 @@
 --
 -- Array creation folds require 'MonadIO' because they need to sequence effects
 -- in IO streams. To operate on streams in pure Monads like 'Identity' you can
--- hoist it to IO monad as follows:
+-- morph it to IO monad as follows:
 --
--- The 'MonadIO' based folds can be hoisted to 'Identity' stream folds:
+-- The 'MonadIO' based folds can be morphed to 'Identity' stream folds:
 --
--- >>> purely = Fold.hoist (Identity . unsafePerformIO)
+-- >>> purely = Fold.morphInner (Identity . unsafePerformIO)
 -- >>> Stream.fold (purely Array.write) $ Stream.fromList [1,2,3::Int]
 -- Identity fromList [1,2,3]
 --
 -- Alternatively, 'Identity' streams can be generalized to IO streams:
 --
 -- >>> pure = Stream.fromList [1,2,3] :: Stream Identity Int
--- >>> generally = Stream.hoist (return . runIdentity)
+-- >>> generally = Stream.morphInner (return . runIdentity)
 -- >>> Stream.fold Array.write (generally pure :: Stream IO Int)
 -- fromList [1,2,3]
 --
@@ -146,9 +146,9 @@ import Prelude hiding (read)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold as Fold (hoist)
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold (morphInner)
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream as Stream (hoist)
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream (morphInner)
 
 -- | Same as 'reader'
 --

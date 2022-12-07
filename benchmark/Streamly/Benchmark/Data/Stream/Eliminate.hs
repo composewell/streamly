@@ -465,8 +465,8 @@ o_1_space_elimination_folds value =
 
         -- deconstruction
         , benchIOSink value "uncons" uncons
-        , benchHoistSink value "length . generally"
-              (S.fold Fold.length . S.generally)
+        , benchHoistSink value "length . generalizeInner"
+              (S.fold Fold.length . S.generalizeInner)
 #ifdef USE_PRELUDE
         , benchIOSink value "init" init
 

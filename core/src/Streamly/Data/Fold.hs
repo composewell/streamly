@@ -298,6 +298,9 @@ module Streamly.Data.Fold
     -- ** Nesting
     , concatMap
 
+    -- * Transforming the Monad
+    , morphInner
+
     -- * Deprecated
     , foldr
     , drainBy
