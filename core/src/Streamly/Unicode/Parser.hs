@@ -12,17 +12,13 @@
 
 module Streamly.Unicode.Parser
     (
-     -- * Generic
+     -- * Single Chars
+
+     -- Any char
       char
     , charIgnoreCase
 
-    -- * Sequences
-    , string
-    , stringIgnoreCase
-    , dropSpace
-    , dropSpace1
-
-    -- * Classes
+    -- Char classes
     , alpha
     , alphaNum
     , letter
@@ -39,16 +35,24 @@ module Streamly.Unicode.Parser
     , space
     , symbol
 
-    -- * Digits
+    -- Digits
     , digit
     , octDigit
     , hexDigit
     , numeric
 
-    -- * Numbers
-    , signed
+    -- * Char Sequences
+    , string
+    , stringIgnoreCase
+    , dropSpace
+    , dropSpace1
+
+    -- * Digit Sequences (Numbers)
     , decimal
     , hexadecimal
+
+    -- * Modifiers
+    , signed
     )
 where
 
