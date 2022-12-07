@@ -95,17 +95,15 @@ strideFromThen offset stride =
 -- Reordering
 ------------------------------------------------------------------------------
 --
+-- Note: this is not the fastest possible implementation as of now.
+--
 -- We could possibly choose different algorithms depending on whether the
 -- input stream is almost sorted (ascending/descending) or random. We could
 -- serialize the stream to an array and use quicksort.
---
+
 -- | Sort the input stream using a supplied comparison function.
 --
 -- /O(n) space/
---
--- Note: this is not the fastest possible implementation as of now.
---
--- /Pre-release/
 --
 {-# INLINE sortBy #-}
 sortBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> Stream m a
