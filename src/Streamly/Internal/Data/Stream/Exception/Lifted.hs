@@ -25,6 +25,8 @@ where
 
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Map.Strict (Map)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Concurrent
@@ -140,7 +142,7 @@ bracket3D bef aft onExc onGC =
 --
 -- /Pre-release/
 {-# INLINE bracket3 #-}
-bracket3 :: (MonadRunInIO m, MonadCatch m)
+bracket3 :: (MonadAsync m, MonadCatch m)
     => m b
     -> (b -> m c)
     -> (b -> m d)
@@ -172,7 +174,7 @@ bracket3 bef aft gc exc bet = fromStreamD $
 -- /Inhibits stream fusion/
 --
 {-# INLINE bracket #-}
-bracket :: (MonadRunInIO m, MonadCatch m)
+bracket :: (MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
 bracket bef aft = bracket3 bef aft aft aft
 
@@ -190,7 +192,7 @@ bracket bef aft = bracket3 bef aft aft aft
 -- /Inhibits stream fusion/
 --
 {-# INLINE finally #-}
-finally :: (MonadRunInIO m, MonadCatch m) =>
+finally :: (MonadAsync m, MonadCatch m) =>
     m b -> Stream m a -> Stream m a
 finally action xs = bracket (return ()) (const action) (const xs)
 
@@ -223,7 +225,13 @@ afterD action (D.Stream step state) = D.Stream step' Nothing
 -- /See also 'after_'/
 --
 {-# INLINE after #-}
-after :: MonadRunInIO m => m b -> Stream m a -> Stream m a
+after ::
+#ifdef USE_UNLIFTIO
+    MonadUnliftIO m
+#else
+    (MonadIO m, MonadBaseControl IO m)
+#endif
+    => m b -> Stream m a -> Stream m a
 after action xs = fromStreamD $ afterD action $ toStreamD xs
 
 data RetryState emap s1 s2
