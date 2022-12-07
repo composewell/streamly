@@ -49,7 +49,7 @@ module Streamly.Internal.Data.Stream.Bottom
 
     -- * Fold and Unfold
     , reverse
-    , reverse'
+    , reverseUnbox
 
     -- * Expand
     , concatEffect
@@ -537,13 +537,13 @@ reverse :: Monad m => Stream m a -> Stream m a
 reverse s = fromStreamD $ D.reverse $ toStreamD s
 -- reverse = Stream.foldlT (flip Stream.cons) Stream.nil
 
--- | Like 'reverse' but several times faster, requires a 'Storable' instance.
+-- | Like 'reverse' but several times faster, requires an 'Unbox' instance.
 --
 -- /Pre-release/
-{-# INLINE reverse' #-}
-reverse' :: (MonadIO m, Unbox a) => Stream m a -> Stream m a
--- reverse' s = fromStreamD $ D.reverse' $ toStreamD s
-reverse' =
+{-# INLINE reverseUnbox #-}
+reverseUnbox :: (MonadIO m, Unbox a) => Stream m a -> Stream m a
+-- reverseUnbox s = fromStreamD $ D.reverse' $ toStreamD s
+reverseUnbox =
         fromStreamD
         . A.flattenArraysRev -- unfoldMany A.readRev
         . D.fromStreamK

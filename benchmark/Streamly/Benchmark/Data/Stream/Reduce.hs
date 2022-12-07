@@ -227,9 +227,9 @@ o_1_space_grouping value =
 reverse :: MonadIO m => Int -> Stream m Int -> m ()
 reverse n = composeN n S.reverse
 
-{-# INLINE reverse' #-}
-reverse' :: MonadIO m => Int -> Stream m Int -> m ()
-reverse' n = composeN n S.reverse'
+{-# INLINE reverseUnbox #-}
+reverseUnbox :: MonadIO m => Int -> Stream m Int -> m ()
+reverseUnbox n = composeN n S.reverseUnbox
 
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
@@ -237,7 +237,7 @@ o_n_heap_buffering value =
         [
         -- Reversing a stream
           benchIOSink value "reverse" (reverse 1)
-        , benchIOSink value "reverse'" (reverse' 1)
+        , benchIOSink value "reverseUnbox" (reverseUnbox 1)
 
 #ifdef USE_PRELUDE
         , benchIOSink value "mkAsync" (mkAsync fromSerial)

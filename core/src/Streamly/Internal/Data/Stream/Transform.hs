@@ -127,7 +127,7 @@ module Streamly.Internal.Data.Stream.Transform
 
     -- * Reordering
     , reverse
-    , reverse'
+    , reverseUnbox
     , reassembleBy
 
     -- * Either Streams
