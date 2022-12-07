@@ -572,9 +572,9 @@ concatSmapMWith combine f initial =
 
 -- XXX Implement a StreamD version for fusion.
 
--- | Combine streams in pairs using a binary stream combinator, then combine
--- the resulting streams in pairs recursively until we get to a single combined
--- stream.
+-- | Combine streams in pairs using a binary combinator, the resulting streams
+-- are then combined again in pairs recursively until we get to a single
+-- combined stream. The composition would thus form a binary tree.
 --
 -- For example, you can sort a stream using merge sort like this:
 --
@@ -583,6 +583,10 @@ concatSmapMWith combine f initial =
 -- >>> combine = Stream.mergeBy compare
 -- >>> Stream.fold Fold.toList $ Stream.concatPairsWith combine generate s
 -- [1,2,5,7,9]
+--
+-- Note that if the stream length is not a power of 2, the binary tree composed
+-- by concatPairsWith would not be balanced, which may or may not be important
+-- depending on what you are trying to achieve.
 --
 -- /Caution: the stream of streams must be finite/
 --
