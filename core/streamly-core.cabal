@@ -388,6 +388,7 @@ library
                      , Streamly.Data.Parser
                      , Streamly.Data.Stream
                      , Streamly.Data.Unfold
+                     , Streamly.FileSystem.Dir
                      , Streamly.FileSystem.Handle
                      , Streamly.Unicode.Parser
                      , Streamly.Unicode.Stream
