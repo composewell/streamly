@@ -26,7 +26,7 @@ module Streamly.Internal.Data.Parser.Chunked.Type
     (
       Step (..)
     , ParseResult (..)
-    , ParserChunked (..)
+    , ChunkParser (..)
     , fromPure
     , fromEffect
     , die
@@ -98,7 +98,7 @@ instance Functor ParseResult where
 -- input without a result or return a result with no further input to be
 -- consumed.
 --
-newtype ParserChunked a m b = MkParser
+newtype ChunkParser a m b = MkParser
     { runParser :: forall r.
            -- XXX Maintain and pass the original position in the stream. that
            -- way we can also report better errors. Use a Context structure for
@@ -130,7 +130,7 @@ newtype ParserChunked a m b = MkParser
 -- XXX rewrite this using ParserD, expose rmapM from ParserD.
 -- | Maps a function over the output of the parser.
 --
-instance Functor m => Functor (ParserChunked a m) where
+instance Functor m => Functor (ChunkParser a m) where
     {-# INLINE fmap #-}
     fmap f parser = MkParser $ \n st arr pk ->
         let pk1 res = pk (fmap f res)
@@ -147,7 +147,7 @@ instance Functor m => Functor (ParserChunked a m) where
 -- /Pre-release/
 --
 {-# INLINE fromPure #-}
-fromPure :: b -> ParserChunked a m b
+fromPure :: b -> ChunkParser a m b
 fromPure b = MkParser $ \n st arr pk -> pk (Success n b) st arr
 
 -- | See 'Streamly.Internal.Data.Parser.fromEffect'.
@@ -155,7 +155,7 @@ fromPure b = MkParser $ \n st arr pk -> pk (Success n b) st arr
 -- /Pre-release/
 --
 {-# INLINE fromEffect #-}
-fromEffect :: Monad m => m b -> ParserChunked a m b
+fromEffect :: Monad m => m b -> ChunkParser a m b
 fromEffect eff =
     MkParser $ \n st arr pk -> eff >>= \b -> pk (Success n b) st arr
 
@@ -163,7 +163,7 @@ fromEffect eff =
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.serialWith'
 -- when fusion is important.
 --
-instance Monad m => Applicative (ParserChunked a m) where
+instance Monad m => Applicative (ChunkParser a m) where
     {-# INLINE pure #-}
     pure = fromPure
 
@@ -200,7 +200,7 @@ instance Monad m => Applicative (ParserChunked a m) where
 -- /Pre-release/
 --
 {-# INLINE die #-}
-die :: String -> ParserChunked a m b
+die :: String -> ChunkParser a m b
 die err = MkParser (\n st arr pk -> pk (Failure n err) st arr)
 
 -- | Monad composition can be used for lookbehind parsers, we can make the
@@ -245,7 +245,7 @@ die err = MkParser (\n st arr pk -> pk (Failure n err) st arr)
 -- does not fuse, use 'Streamly.Internal.Data.Parser.concatMap' when you need
 -- fusion.
 --
-instance Monad m => Monad (ParserChunked a m) where
+instance Monad m => Monad (ChunkParser a m) where
     {-# INLINE return #-}
     return = pure
 
@@ -264,11 +264,11 @@ instance Monad m => Monad (ParserChunked a m) where
     {-# INLINE fail #-}
     fail = die
 #endif
-instance Monad m => Fail.MonadFail (ParserChunked a m) where
+instance Monad m => Fail.MonadFail (ChunkParser a m) where
     {-# INLINE fail #-}
     fail = die
 
-instance MonadIO m => MonadIO (ParserChunked a m) where
+instance MonadIO m => MonadIO (ChunkParser a m) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
 
@@ -289,7 +289,7 @@ instance MonadIO m => MonadIO (ParserChunked a m) where
 -- does not fuse, use 'Streamly.Internal.Data.Parser.alt' when you need
 -- fusion.
 --
-instance Monad m => Alternative (ParserChunked a m) where
+instance Monad m => Alternative (ChunkParser a m) where
     {-# INLINE empty #-}
     empty = die "empty"
 
@@ -322,7 +322,7 @@ instance Monad m => Alternative (ParserChunked a m) where
 -- | 'mzero' is same as 'empty', it aborts the parser. 'mplus' is same as
 -- '<|>', it selects the first succeeding parser.
 --
-instance Monad m => MonadPlus (ParserChunked a m) where
+instance Monad m => MonadPlus (ChunkParser a m) where
     {-# INLINE mzero #-}
     mzero = die "mzero"
 

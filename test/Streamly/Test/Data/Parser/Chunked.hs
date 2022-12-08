@@ -685,7 +685,7 @@ some =
 -------------------------------------------------------------------------------
 
 parse :: (Monad f, Unbox a) =>
-    P.ParserChunked a f b -> S.Stream f (A.Array a) -> f (Either ParseError b)
+    P.ChunkParser a f b -> S.Stream f (A.Array a) -> f (Either ParseError b)
 parse parser stream = fmap fst (P.parseBreak parser stream)
 
 applicative :: Property
