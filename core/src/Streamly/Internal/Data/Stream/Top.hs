@@ -114,7 +114,7 @@ sortBy cmp =
                 (\x -> (< GT) . cmp x)
                 Fold.toStreamRev
                 Fold.toStream
-     in   Stream.concatPairsWith (Stream.mergeBy cmp) id
+     in   Stream.mergeMapWith (Stream.mergeBy cmp) id
         . Stream.catRights . Stream.parseMany (fmap (either id id) p)
 
 ------------------------------------------------------------------------------

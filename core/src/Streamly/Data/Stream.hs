@@ -359,10 +359,8 @@ module Streamly.Data.Stream
 
     -- ** Merging
     -- | Merging of @n@ streams can be performed by combining the streams pair
-    -- wise using
-    -- 'Streamly.Internal.Data.Stream.IsStream.Expand.concatPairsWith' to give
-    -- O(n * log n) time complexity.
-    -- If used with 'concatMapWith' it will have O(n^2) performance.
+    -- wise using 'mergeMapWith' to give O(n * log n) time complexity. If used
+    -- with 'concatMapWith' it will have O(n^2) performance.
 
     , mergeBy
     , mergeByM
@@ -371,10 +369,8 @@ module Streamly.Data.Stream
 
     -- ** Zipping
     -- | Zipping of @n@ streams can be performed by combining the streams pair
-    -- wise using
-    -- 'Streamly.Internal.Data.Stream.IsStream.Expand.concatPairsWith' with
-    -- O(n * log n) time complexity.
-    -- If used with 'concatMapWith' it will have O(n^2) performance.
+    -- wise using 'mergeMapWith' with O(n * log n) time complexity. If used
+    -- with 'concatMapWith' it will have O(n^2) performance.
     , zipWith
     , zipWithM
     -- , zipWith2
@@ -410,6 +406,7 @@ module Streamly.Data.Stream
     , concatMapWith
     , concatMap
     , concatMapM
+    , mergeMapWith
 
     -- * Repeated Fold
     , foldMany -- XXX Rename to foldRepeat

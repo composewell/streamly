@@ -246,15 +246,15 @@ inspect $ hasNoTypeClasses 'concatMapWithAppend
 inspect $ 'concatMapWithAppend `hasNoType` ''SPEC
 #endif
 
--- concatPairWith
+-- mergeMapWith
 
-{-# INLINE concatPairWithSerial #-}
-concatPairWithSerial :: Int -> Int -> Int -> IO ()
-concatPairWithSerial = concatPairsWith Common.append
+{-# INLINE mergeMapWithSerial #-}
+mergeMapWithSerial :: Int -> Int -> Int -> IO ()
+mergeMapWithSerial = mergeMapWith Common.append
 
-{-# INLINE concatPairWithAppend #-}
-concatPairWithAppend :: Int -> Int -> Int -> IO ()
-concatPairWithAppend = concatPairsWith Common.append2
+{-# INLINE mergeMapWithAppend #-}
+mergeMapWithAppend :: Int -> Int -> Int -> IO ()
+mergeMapWithAppend = mergeMapWith Common.append2
 
 -- unfoldMany
 
@@ -334,21 +334,21 @@ o_n_space_concat :: Int -> [Benchmark]
 o_n_space_concat value = sqrtVal `seq`
     [ bgroup "concat"
         [
-        -------------------concatPairsWith-----------------
+        -------------------mergeMapWith-----------------
 
         -- Use large number of streams to check scalability
 
-          benchIOSrc1 "concatPairWithSerial (n of 1)"
-            (concatPairWithSerial value 1)
-        , benchIOSrc1 "concatPairWithSerial (sqrtVal of sqrtVal)"
-            (concatPairWithSerial sqrtVal sqrtVal)
-        , benchIOSrc1 "concatPairWithSerial (2 of n/2)"
-            (concatPairWithSerial 2 (value `div` 2))
+          benchIOSrc1 "mergeMapWithSerial (n of 1)"
+            (mergeMapWithSerial value 1)
+        , benchIOSrc1 "mergeMapWithSerial (sqrtVal of sqrtVal)"
+            (mergeMapWithSerial sqrtVal sqrtVal)
+        , benchIOSrc1 "mergeMapWithSerial (2 of n/2)"
+            (mergeMapWithSerial 2 (value `div` 2))
 
-        , benchIOSrc1 "concatPairWithAppend (n of 1)"
-            (concatPairWithAppend value 1)
-        , benchIOSrc1 "concatPairWithAppend (sqrtVal of sqrtVal)"
-            (concatPairWithAppend sqrtVal sqrtVal)
+        , benchIOSrc1 "mergeMapWithAppend (n of 1)"
+            (mergeMapWithAppend value 1)
+        , benchIOSrc1 "mergeMapWithAppend (sqrtVal of sqrtVal)"
+            (mergeMapWithAppend sqrtVal sqrtVal)
         ]
     ]
 

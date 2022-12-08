@@ -22,7 +22,7 @@ module Streamly.Internal.Data.Stream.Expand
     -- complexity (instead O(n^2) for pair wise combinators described in the
     -- next section. These functions can be used efficiently with
     -- 'concatMapWith' et. al.  combinators that combine streams in a linear
-    -- fashion (contrast with 'concatPairsWith' which combines streams as a
+    -- fashion (contrast with 'mergeMapWith' which combines streams as a
     -- binary tree).
 
       append
@@ -30,7 +30,7 @@ module Streamly.Internal.Data.Stream.Expand
     -- | Like the functions in the section above these functions also combine
     -- two streams into a single stream but when used @n@ times linearly they
     -- exhibit O(n^2) complexity. They are best combined in a binary tree
-    -- fashion using 'concatPairsWith' giving a @n * log n@ complexity.  Avoid
+    -- fashion using 'mergeMapWith' giving a @n * log n@ complexity.  Avoid
     -- using these with 'concatMapWith' when combining a large or infinite
     -- number of streams.
 
@@ -104,7 +104,7 @@ module Streamly.Internal.Data.Stream.Expand
     -- simultaneously anyway.
     --
     -- However, in cases where the merging consumes streams in a round robin
-    -- fashion, a pair wise merging using 'concatPairsWith' would be more
+    -- fashion, a pair wise merging using 'mergeMapWith' would be more
     -- efficient. These cases include operations like 'mergeBy' or 'zipWith'.
 
     , concatMapWith
@@ -114,7 +114,7 @@ module Streamly.Internal.Data.Stream.Expand
     -- * ConcatPairsWith
     -- | See the notes about suitable merge functions in the 'concatMapWith'
     -- section.
-    , concatPairsWith
+    , mergeMapWith
 
     -- * IterateMap
     -- | Map and flatten Trees of Streams
@@ -165,7 +165,7 @@ infixr 6 `append2`
 -- 'append' when combining two fusible streams. However, it slows down
 -- quadratically with the number of streams being appended. Therefore, it is
 -- suitable for ad-hoc append of a few streams, and should not be used with
--- 'concatMapWith' or 'concatPairsWith'.
+-- 'concatMapWith' or 'mergeMapWith'.
 --
 -- /Fused/
 --
@@ -360,7 +360,7 @@ mergeByM f m1 m2 = fromStreamK $ K.mergeByM f (toStreamK m1) (toStreamK m2)
 -- | Like 'mergeByM' but much faster, works best when merging statically known
 -- number of streams. When merging more than two streams try to merge pairs and
 -- pair of pairs in a tree like structure.'mergeByM' works better with variable
--- number of streams being merged using 'concatPairsWith'.
+-- number of streams being merged using 'mergeMapWith'.
 --
 -- /Internal/
 {-# INLINE mergeByM2 #-}
@@ -400,7 +400,7 @@ mergeFstBy _f _m1 _m2 = undefined
 unfoldMany ::Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldMany u m = fromStreamD $ D.unfoldMany u (toStreamD m)
 
--- | This does not pair streams like concatPairsWith, instead, it goes through
+-- | This does not pair streams like mergeMapWith, instead, it goes through
 -- each stream one by one and yields one element from each stream. After it
 -- goes to the last stream it reverses the traversal to come back to the first
 -- stream yielding elements from each stream on its way back to the first
@@ -411,7 +411,7 @@ unfoldMany u m = fromStreamD $ D.unfoldMany u (toStreamD m)
 -- >>> Stream.fold Fold.toList interleaved
 -- [1,2,3,4,5,5,4,3,2,1]
 --
--- Note that this is order of magnitude more efficient than "concatPairsWith
+-- Note that this is order of magnitude more efficient than "mergeMapWith
 -- wSerial" because of fusion.
 --
 -- /Fused/
@@ -581,24 +581,24 @@ concatSmapMWith combine f initial =
 -- >>> s = Stream.fromList [5,1,7,9,2]
 -- >>> generate = Stream.fromPure
 -- >>> combine = Stream.mergeBy compare
--- >>> Stream.fold Fold.toList $ Stream.concatPairsWith combine generate s
+-- >>> Stream.fold Fold.toList $ Stream.mergeMapWith combine generate s
 -- [1,2,5,7,9]
 --
 -- Note that if the stream length is not a power of 2, the binary tree composed
--- by concatPairsWith would not be balanced, which may or may not be important
+-- by mergeMapWith would not be balanced, which may or may not be important
 -- depending on what you are trying to achieve.
 --
 -- /Caution: the stream of streams must be finite/
 --
 -- /Pre-release/
 --
-{-# INLINE concatPairsWith #-}
-concatPairsWith ::
+{-# INLINE mergeMapWith #-}
+mergeMapWith ::
        (Stream m b -> Stream m b -> Stream m b)
     -> (a -> Stream m b)
     -> Stream m a
     -> Stream m b
-concatPairsWith par f m =
+mergeMapWith par f m =
     fromStreamK
         $ K.concatPairsWith
             (\s1 s2 -> toStreamK $ fromStreamK s1 `par` fromStreamK s2)
