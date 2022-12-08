@@ -55,12 +55,12 @@ module Streamly.Internal.Data.Unfold.Type
     -- , manyInterleave2
 
     -- Applicative
-    , apSequence
-    , apDiscardSnd
+    , crossApplySnd
+    , crossApplyFst
     , crossWithM
     , crossWith
     , cross
-    , apply
+    , crossApply
 
     -- Monad
     , concatMapM
@@ -407,19 +407,19 @@ fromList = Unfold step pure
 --
 -- /Unimplemented/
 --
-{-# INLINE_NORMAL apSequence #-}
-apSequence :: -- Monad m =>
+{-# INLINE_NORMAL crossApplySnd #-}
+crossApplySnd :: -- Monad m =>
     Unfold m a b -> Unfold m a c -> Unfold m a c
-apSequence (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
+crossApplySnd (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 
 -- | Outer product discarding the second element.
 --
 -- /Unimplemented/
 --
-{-# INLINE_NORMAL apDiscardSnd #-}
-apDiscardSnd :: -- Monad m =>
+{-# INLINE_NORMAL crossApplyFst #-}
+crossApplyFst :: -- Monad m =>
     Unfold m a b -> Unfold m a c -> Unfold m a b
-apDiscardSnd (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
+crossApplyFst (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 
 {-# ANN type Many2State Fuse #-}
 data Many2State x s1 s2 = Many2Outer x s1 | Many2Inner x s1 s2
@@ -520,8 +520,8 @@ crossWith f = crossWithM (\b c -> return $ f b c)
 cross :: Monad m => Unfold m a b -> Unfold m a c -> Unfold m a (b, c)
 cross = crossWith (,)
 
-apply :: Monad m => Unfold m a (b -> c) -> Unfold m a b -> Unfold m a c
-apply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)
+crossApply :: Monad m => Unfold m a (b -> c) -> Unfold m a b -> Unfold m a c
+crossApply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)
 
 -- XXX Applicative makes sense for unfolds, but monad does not. Use streams for
 -- monad.

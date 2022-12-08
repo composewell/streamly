@@ -427,7 +427,7 @@ toNullAp value start =
     let end = start + nthRoot 2 value
         s = source end
     -- in UF.fold ((+) <$> s <*> s) FL.drain start
-    in UF.fold FL.drain ((+) `fmap` s `UF.apply` s) start
+    in UF.fold FL.drain ((+) `fmap` s `UF.crossApply` s) start
 
 {-# INLINE _apDiscardFst #-}
 _apDiscardFst :: Int -> Int -> m ()
