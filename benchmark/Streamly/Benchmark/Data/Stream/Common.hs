@@ -42,7 +42,7 @@ module Stream.Common
 
     -- Benchmarking functions
     , concatStreamsWith
-    , concatPairsWith
+    , mergeMapWith
     , apDiscardFst
     , apDiscardSnd
     , apLiftA2
@@ -83,7 +83,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Prelude as Stream
 import Streamly.Benchmark.Prelude
     ( composeN, sourceConcatMapId, benchIOSink
-    , concatStreamsWith, concatPairsWith
+    , concatStreamsWith, mergeMapWith
     )
 #else
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -206,15 +206,15 @@ concatStreamsWith op outer inner n =
         (sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
 
-{-# INLINE concatPairsWith #-}
-concatPairsWith
+{-# INLINE mergeMapWith #-}
+mergeMapWith
     :: (Stream IO Int -> Stream IO Int -> Stream IO Int)
     -> Int
     -> Int
     -> Int
     -> IO ()
-concatPairsWith op outer inner n =
-    drain $ Stream.concatPairsWith op
+mergeMapWith op outer inner n =
+    drain $ Stream.mergeMapWith op
         (sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
 
