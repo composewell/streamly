@@ -10,7 +10,7 @@
 
 module Streamly.Internal.Data.Parser.Chunked
     (
-      ParserChunked (..) -- XXX rename to ChunkParser
+      ChunkParser (..) -- XXX rename to ChunkParser
     , fromParserD
     , parseBreak
     , K.fromPure
@@ -29,7 +29,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.Parser.Chunked.Type (ParserChunked (..))
+import Streamly.Internal.Data.Parser.Chunked.Type (ChunkParser (..))
 import Streamly.Internal.Data.Parser.ParserD.Type (Initial(..), Step(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.SVar.Type (defState)
@@ -85,7 +85,7 @@ parserDone (K.Failure n e) _ _ = return $ K.Error n e
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak
     :: (Monad m, Unbox a)
-    => ParserChunked a m b
+    => ChunkParser a m b
     -> Stream m (Array a)
     -> m (Either ParseError b, Stream m (Array a))
 parseBreak parser input = do
@@ -312,6 +312,6 @@ parseDToK pstep initial extract offset usedCount input cont = do
 -- /Pre-release/
 --
 {-# INLINE_LATE fromParserD #-}
-fromParserD :: (MonadIO m, Unbox a) => D.Parser a m b -> ParserChunked a m b
+fromParserD :: (MonadIO m, Unbox a) => D.Parser a m b -> ChunkParser a m b
 fromParserD (D.Parser step initial extract) =
     K.MkParser $ parseDToK step initial extract
