@@ -247,6 +247,11 @@ module Streamly.Internal.Data.Unfold
     , bind
 
     -- ** Resource Management
+    -- | 'bracket' is the most general resource management operation, all other
+    -- operations can be expressed using it. These functions have IO suffix
+    -- because the allocation and cleanup functions are IO actions. For
+    -- generalized allocation and cleanup functions see the functions without
+    -- the IO suffix in the "streamly" package.
     , gbracket_
     , gbracketIO
     , before
@@ -258,6 +263,10 @@ module Streamly.Internal.Data.Unfold
     , bracket_
 
     -- ** Exceptions
+    -- | Most of these combinators inhibit stream fusion, therefore, when
+    -- possible, they should be called in an outer loop to mitigate the cost.
+    -- For example, instead of calling them on a stream of chars call them on a
+    -- stream of arrays before flattening it to a stream of chars.
     , onException
     , handle
     )

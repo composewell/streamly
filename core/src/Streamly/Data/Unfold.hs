@@ -205,6 +205,11 @@ module Streamly.Data.Unfold
 
     -- ** Nesting
     , many
+
+    -- Exception combinators are not exposed, we would like to encourage the
+    -- use of Stream type instead where exception handling is required. We can
+    -- consider exposing the unfold exception functions if there is a
+    -- compelling use case to use unfolds instead of stream.
     )
 where
 
