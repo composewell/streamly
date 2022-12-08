@@ -237,7 +237,7 @@ module Streamly.Internal.Data.Unfold
     , crossWithM
     , crossWith
     , cross
-    , apply
+    , crossApply
 
     -- ** Nesting
     , ConcatState (..)
