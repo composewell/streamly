@@ -42,8 +42,10 @@ module Streamly.Internal.Memory.Array.Types
     , flattenArraysRev
     , packArraysChunksOf
     , lpackArraysChunksOf
+#if __GLASGOW_HASKELL__ < 900
 #if !defined(mingw32_HOST_OS)
     , groupIOVecsOf
+#endif
 #endif
     , splitOn
     , breakOn
@@ -114,8 +116,10 @@ import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Strict (Tuple'(..))
 import Streamly.Internal.Data.SVar (adaptState)
 
+#if __GLASGOW_HASKELL__ < 900
 #if !defined(mingw32_HOST_OS)
 import Streamly.FileSystem.FDIO (IOVec(..))
+#endif
 #endif
 
 import qualified Streamly.Memory.Malloc as Malloc
@@ -1178,6 +1182,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 return (Tuple' Nothing r1')
             else return (Tuple' (Just buf'') r1)
 
+#if __GLASGOW_HASKELL__ < 900
 #if !defined(mingw32_HOST_OS)
 data GatherState s arr
     = GatherInitial s
@@ -1246,6 +1251,7 @@ groupIOVecsOf n maxIOVLen (D.Stream step state) =
     step' _ GatherFinish = return D.Stop
 
     step' _ (GatherYielding iov next) = return $ D.Yield iov next
+#endif
 #endif
 
 -- | Create two slices of an array without copying the original array. The
