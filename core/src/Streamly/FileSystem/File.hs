@@ -45,31 +45,15 @@ module Streamly.FileSystem.File
     , readChunksWith
     , readChunks
 
-    -- ** Unfolds
-    , readerWith
-    , reader
-    , chunkReaderWith
-    , chunkReaderFromToWith
-    , chunkReader
-
-    -- ** Write To File
-    , putChunk -- writeChunk?
-
     -- ** Folds
     , write
     , writeWith
     , writeChunks
 
-    -- ** Writing Streams
-    , fromBytes -- putBytes?
-    , fromBytesWith
-    , fromChunks
-
     -- ** Append To File
-    , append
-    , appendWith
-    , appendArray
-    , appendChunks
+    , writeAppend
+    , writeAppendWith
+    , writeAppendChunks
     )
 where
 
