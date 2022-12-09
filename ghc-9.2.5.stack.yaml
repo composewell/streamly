@@ -1,0 +1,19 @@
+resolver: lts-20.3
+packages:
+- '.'
+extra-deps:
+    - SDL-0.6.6.0
+    - Chart-1.9.1
+    - Chart-diagrams-1.9.2
+    - bench-show-0.2.2
+    - inspection-testing-0.4.2.1
+    - fusion-plugin-types-0.1.0
+    - fusion-plugin-0.2.0
+
+#allow-newer: true
+flags: {}
+extra-package-dbs: []
+rebuild-ghc-options: true
+# For mac ports installed SDL library on Mac OS X
+extra-include-dirs:
+- /opt/local/include
