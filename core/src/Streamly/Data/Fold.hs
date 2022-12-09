@@ -131,6 +131,7 @@ module Streamly.Data.Fold
     -- * Fold Type
 
       Fold -- (..)
+    , Tee (..)
 
     -- * Constructors
     , foldl'
