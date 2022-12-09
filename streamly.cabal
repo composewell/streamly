@@ -1,6 +1,6 @@
 cabal-version:      2.2
 name:               streamly
-version:            0.7.3
+version:            0.7.3.1
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
   Streamly is a framework for writing programs in a high level, declarative
@@ -289,9 +289,11 @@ library
                        Streamly.Memory.Malloc
                      , Streamly.Memory.Ring
 
-                     , Streamly.FileSystem.IOVec
-                     , Streamly.FileSystem.FDIO
-                     , Streamly.FileSystem.FD
+    if impl(ghc < 9)
+      other-modules:
+          Streamly.FileSystem.IOVec
+        , Streamly.FileSystem.FDIO
+        , Streamly.FileSystem.FD
 
     exposed-modules:
                        Streamly.Prelude
@@ -382,12 +384,12 @@ library
                      , deepseq           >= 1.4.1 && < 1.5
                      , directory         >= 1.2.2 && < 1.4
                      , exceptions        >= 0.8   && < 0.11
-                     , ghc-prim          >= 0.2   && < 0.7
+                     , ghc-prim          >= 0.2   && < 0.9
                      , mtl               >= 2.2   && < 3
                      , primitive         >= 0.5.4 && < 0.8
                      , transformers      >= 0.4   && < 0.6
 
-                     , heaps             >= 0.3     && < 0.4
+                     , heaps             >= 0.3     && < 0.5
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
