@@ -11,6 +11,7 @@
 --
 module Streamly.Internal.Data.Fold.Tee
     ( Tee(..)
+    , toFold
     )
 where
 
@@ -24,8 +25,12 @@ import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- instances.
 --
 newtype Tee m a b =
-    Tee { toFold :: Fold m a b }
+    Tee { unTee :: Fold m a b }
     deriving (Functor)
+
+{-# DEPRECATED toFold "Please use 'unTee' instead." #-}
+toFold :: Tee m a b -> Fold m a b
+toFold = unTee
 
 -- | '<*>' distributes the input to both the argument 'Tee's and combines their
 -- outputs using function application.
@@ -36,7 +41,7 @@ instance Monad m => Applicative (Tee m a) where
     pure a = Tee (Fold.fromPure a)
 
     {-# INLINE (<*>) #-}
-    (<*>) a b = Tee (Fold.teeWith ($) (toFold a) (toFold b))
+    (<*>) a b = Tee (Fold.teeWith ($) (unTee a) (unTee b))
 
 -- | '<>' distributes the input to both the argument 'Tee's and combines their
 -- outputs using the 'Semigroup' instance of the output type.

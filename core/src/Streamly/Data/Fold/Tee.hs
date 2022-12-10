@@ -19,7 +19,7 @@
 -- >>> import qualified Streamly.Data.Fold as Fold
 --
 -- >>> avg = (/) <$> (Tee Fold.sum) <*> (Tee $ fmap fromIntegral Fold.length)
--- >>> Stream.fold (toFold avg) $ Stream.fromList [1.0..100.0]
+-- >>> Stream.fold (unTee avg) $ Stream.fromList [1.0..100.0]
 -- 50.5
 --
 -- Similarly, the 'Semigroup' and 'Monoid' instances of 'Tee' distribute the
@@ -28,7 +28,7 @@
 --
 -- >>> import Data.Monoid (Sum(..))
 -- >>> t = Tee Fold.one <> Tee Fold.latest
--- >>> Stream.fold (toFold t) (fmap Sum $ Stream.enumerateFromTo 1.0 100.0)
+-- >>> Stream.fold (unTee t) (fmap Sum $ Stream.enumerateFromTo 1.0 100.0)
 -- Just (Sum {getSum = 101.0})
 --
 -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
