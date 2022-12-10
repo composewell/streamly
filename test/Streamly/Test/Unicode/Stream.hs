@@ -24,7 +24,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.Internal.Unicode.Stream as IUS
-import qualified Streamly.Internal.Unicode.Array.Char as IUA
+import qualified Streamly.Internal.Unicode.Array as IUA
 import qualified Test.Hspec as H
 
 import Test.Hspec.QuickCheck

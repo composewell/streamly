@@ -334,8 +334,8 @@ library
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream
                      , Streamly.Internal.Unicode.String
-                     , Streamly.Internal.Unicode.Char.Parser
-                     , Streamly.Internal.Unicode.Array.Char
+                     , Streamly.Internal.Unicode.Parser
+                     , Streamly.Internal.Unicode.Array
 
                      -- Filesystem/IO
                      , Streamly.Internal.FileSystem.Handle

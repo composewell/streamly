@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Unicode.Array.Char
+-- Module      : Streamly.Internal.Unicode.Array
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -12,7 +12,7 @@
 -- This provides random access and the length of the string in O(1). Also,
 -- better append performance.
 --
-module Streamly.Internal.Unicode.Array.Char
+module Streamly.Internal.Unicode.Array
     (
     -- * Streams of Strings
       lines
@@ -37,7 +37,7 @@ import Prelude hiding (String, lines, words, unlines, unwords)
 -- >>> import Prelude hiding (String, lines, words, unlines, unwords)
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Unicode.Array.Char as Unicode
+-- >>> import qualified Streamly.Internal.Unicode.Array as Unicode
 
 -- | Break a string up into a stream of strings at newline characters.
 -- The resulting strings do not contain newlines.

@@ -28,7 +28,7 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
-import qualified Streamly.Internal.Unicode.Array.Char as UnicodeArr
+import qualified Streamly.Internal.Unicode.Array as UnicodeArr
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
 import Gauge hiding (env)
