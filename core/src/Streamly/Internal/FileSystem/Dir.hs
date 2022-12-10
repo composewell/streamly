@@ -13,10 +13,33 @@ module Streamly.Internal.FileSystem.Dir
     (
     -- * Streams
       read
+
+    -- read not just the names but also the inode attrs of the children. This
+    -- abstraction makes sense because when we read the dir contents we also
+    -- get the inodes, and it is cheaper to get the attrs from the inodes
+    -- instead of resolving the paths and get those. This abstraction may be
+    -- less portable as different platforms may have different attrs. To
+    -- optimize, we can also add a filter/pattern/parser on the names of the
+    -- children that we want to read. We can call that readAttrsWith? Or just
+    -- have the default readAttrs do that? Usually we won't need that, so it
+    -- may be better to keep that a separate API.
+    -- , readAttrs
+
+    -- recursive read requires us to read the attributes of the children to
+    -- determine if something is a dirctory or not. Therefore, it may be a good
+    -- idea to have a low level routine that also spits out the attributes of
+    -- the files, we get that for free. We can also add a filter/pattern/parser
+    -- on the names of the children that we want to read.
+    --, readAttrsRecursive -- Options: acyclic, follow symlinks
     , readFiles
     , readDirs
     , readEither
-    -- , readWithBufferOf
+
+    -- We can implement this in terms of readAttrsRecursive without losing
+    -- perf.
+    -- , readEitherRecursive -- Options: acyclic, follow symlinks
+    -- , readAncestors -- read the parent chain using the .. entry.
+    -- , readAncestorsAttrs
 
     -- * Unfolds
     -- | Use the more convenient stream APIs instead of unfolds where possible.
@@ -165,7 +188,7 @@ readChunks :: MonadIO m => Unfold m Handle (Array Word8)
 readChunks = UF.first readChunksWithBufferOf defaultChunkSize
 
 -------------------------------------------------------------------------------
--- Read File to Stream
+-- Read a Directory to Stream
 -------------------------------------------------------------------------------
 
 -- TODO for concurrent streams implement readahead IO. We can send multiple
@@ -188,6 +211,19 @@ readWithBufferOf = UF.many readChunksWithBufferOf A.read
 toStreamWithBufferOf :: MonadIO m => Int -> Handle -> Stream m Word8
 toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 -}
+
+-- read child node names from a dir filtering out . and ..
+--
+-- . and .. are an implementation artifact, and should probably not be used in
+-- user level abstractions.
+--
+-- . does not seem to have any useful purpose. If we have the path of the dir
+-- then we will resolve it to get the inode of the dir so the . entry would be
+-- redundant. If we have the inode of the dir to read the dir then it is
+-- redundant. Is this for cross check when doing fsck?
+--
+-- For .. we have the readAncestors API, we should not have this in the
+-- readChildren API.
 
 -- XXX exception handling
 --  | Raw read of a directory
