@@ -251,8 +251,8 @@ newArray n@(I# n#) =
 --
 -- /Pre-release/
 {-# INLINE putIndexUnsafe #-}
-putIndexUnsafe :: forall m a. MonadIO m => Array a -> Int -> a -> m ()
-putIndexUnsafe Array {..} i x =
+putIndexUnsafe :: forall m a. MonadIO m => Int -> a -> Array a -> m ()
+putIndexUnsafe i x Array {..} =
     liftIO
         $ IO
         $ \s# ->
@@ -268,14 +268,14 @@ invalidIndex label i =
 -- | /O(1)/ Write the given element at the given index in the array.
 -- Performs in-place mutation of the array.
 --
--- >>> putIndex arr ix val = Array.modifyIndex arr ix (const (val, ()))
+-- >>> putIndex ix val arr = Array.modifyIndex ix (const (val, ())) arr
 --
 -- /Pre-release/
 {-# INLINE putIndex #-}
-putIndex :: MonadIO m => Array a -> Int -> a -> m ()
-putIndex arr@Array {..} i x =
+putIndex :: MonadIO m => Int -> a -> Array a -> m ()
+putIndex i x arr@Array {..} =
     if i >= 0 && i < arrLen
-    then putIndexUnsafe arr i x
+    then putIndexUnsafe i x arr
     else invalidIndex "putIndex" i
 
 -- | Modify a given index of an array using a modifier function without checking
@@ -284,8 +284,8 @@ putIndex arr@Array {..} i x =
 -- Unsafe because it does not check the bounds of the array.
 --
 -- /Pre-release/
-modifyIndexUnsafe :: MonadIO m => Array a -> Int -> (a -> (a, b)) -> m b
-modifyIndexUnsafe Array {..} i f = do
+modifyIndexUnsafe :: MonadIO m => Int -> (a -> (a, b)) -> Array a -> m b
+modifyIndexUnsafe i f Array {..} = do
     liftIO
         $ IO
         $ \s# ->
@@ -300,10 +300,10 @@ modifyIndexUnsafe Array {..} i f = do
 -- | Modify a given index of an array using a modifier function.
 --
 -- /Pre-release/
-modifyIndex :: MonadIO m => Array a -> Int -> (a -> (a, b)) -> m b
-modifyIndex arr@Array {..} i f = do
+modifyIndex :: MonadIO m => Int -> (a -> (a, b)) -> Array a -> m b
+modifyIndex i f arr@Array {..} = do
     if i >= 0 && i < arrLen
-    then modifyIndexUnsafe arr i f
+    then modifyIndexUnsafe i f arr
     else invalidIndex "modifyIndex" i
 
 -------------------------------------------------------------------------------
@@ -362,7 +362,7 @@ reallocWith label sizer reqSize arr = do
 snocUnsafe :: MonadIO m => Array a -> a -> m (Array a)
 snocUnsafe arr@Array {..} a = do
     assert (arrStart + arrLen < arrTrueLen) (return ())
-    putIndexUnsafe arr arrLen a
+    putIndexUnsafe arrLen a arr
     return $ arr {arrLen = arrLen + 1}
 
 -- NOINLINE to move it out of the way and not pollute the instruction cache.
@@ -417,8 +417,8 @@ snoc = snocWith (* 2)
 --
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL getIndexUnsafe #-}
-getIndexUnsafe :: MonadIO m => Array a -> Int -> m a
-getIndexUnsafe Array {..} n =
+getIndexUnsafe :: MonadIO m => Int -> Array a -> m a
+getIndexUnsafe n Array {..} =
     liftIO
         $ IO
         $ \s# ->
@@ -428,10 +428,10 @@ getIndexUnsafe Array {..} n =
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: MonadIO m => Array a -> Int -> m a
-getIndex arr@Array {..} i =
+getIndex :: MonadIO m => Int -> Array a -> m a
+getIndex i arr@Array {..} =
     if i >= 0 && i < arrLen
-    then getIndexUnsafe arr i
+    then getIndexUnsafe i arr
     else invalidIndex "getIndex" i
 
 -------------------------------------------------------------------------------
@@ -484,7 +484,7 @@ getSlice index len arr@Array{..} =
 -- /Pre-release/
 {-# INLINE toList #-}
 toList :: MonadIO m => Array a -> m [a]
-toList arr@Array{..} = mapM (getIndexUnsafe arr) [0 .. (arrLen - 1)]
+toList arr@Array{..} = mapM (`getIndexUnsafe` arr) [0 .. (arrLen - 1)]
 
 -- | Use the 'read' unfold instead.
 --
@@ -494,7 +494,7 @@ toList arr@Array{..} = mapM (getIndexUnsafe arr) [0 .. (arrLen - 1)]
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: MonadIO m => Array a -> D.Stream m a
 toStreamD arr@Array{..} =
-    D.mapM (getIndexUnsafe arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
+    D.mapM (`getIndexUnsafe` arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
 
 {-# INLINE toStreamK #-}
 toStreamK :: MonadIO m => Array a -> K.Stream m a
@@ -505,7 +505,7 @@ toStreamK arr@Array{..} = K.unfoldrM step 0
     step i
         | i == arrLen = return Nothing
         | otherwise = do
-            x <- getIndexUnsafe arr i
+            x <- getIndexUnsafe i arr
             return $ Just (x, i + 1)
 
 
@@ -563,7 +563,7 @@ producerWith liftio = Producer step inject extract
     step (arr, i)
         | assert (arrLen arr >= 0) (i == arrLen arr) = return D.Stop
     step (arr, i) = do
-        x <- liftio $ getIndexUnsafe arr i
+        x <- liftio $ getIndexUnsafe i arr
         return $ D.Yield x (arr, i + 1)
 
 -- | Resumable unfold of an array.
