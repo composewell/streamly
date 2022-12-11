@@ -16,7 +16,7 @@ module Streamly.Internal.Data.Ring
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef, IORef)
 import Streamly.Internal.Data.Array.Generic.Mut.Type
     ( Array(..)
-    , newArray
+    , new
     , putIndexUnsafe
     )
 
@@ -29,7 +29,7 @@ data Ring a = Ring
 {-# INLINE createRing #-}
 createRing :: Int -> IO (Ring a)
 createRing count = do
-    arr' <- newArray count
+    arr' <- new count
     head' <- newIORef 0
     return (Ring
         { arr = arr'
@@ -40,7 +40,7 @@ createRing count = do
 {-# INLINE unsafeInsertRing #-}
 unsafeInsertRing :: Ring a -> Int -> a -> IO ()
 unsafeInsertRing Ring{..} idx x = do
-    putIndexUnsafe arr (mod idx ringMax) x
+    putIndexUnsafe (mod idx ringMax) x arr
     ref <- readIORef ringHead
     if (ref+1) < ringMax
     then modifyIORef' ringHead ( + 1)

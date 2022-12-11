@@ -99,7 +99,7 @@ unsafeThaw (Array cont# arrS arrL) = MArray.Array cont# arrS arrL arrL
 {-# NOINLINE nil #-}
 nil :: Array a
 nil = unsafePerformIO $ do
-    marr <- MArray.newArray 0
+    marr <- MArray.new 0
     return $ unsafeFreeze marr
 
 -------------------------------------------------------------------------------
@@ -115,7 +115,7 @@ write :: MonadIO m => Fold m a (Array a)
 write = Fold step initial extract
   where
     initial = do
-        marr <- liftIO $ MArray.newArray 0
+        marr <- liftIO $ MArray.new 0
         return $ FL.Partial (Tuple3' marr 0 0)
     step (Tuple3' marr i capacity) x
         | i == capacity =
@@ -136,10 +136,10 @@ write = Fold step initial extract
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: MonadIO m => Int -> D.Stream m a -> m (Array a)
 fromStreamDN limit str = do
-    marr <- liftIO $ MArray.newArray (max limit 0)
+    marr <- liftIO $ MArray.new (max limit 0)
     i <-
         D.foldlM'
-            (\i x -> i `seq` liftIO $ MArray.putIndexUnsafe marr i x >> return (i + 1))
+            (\i x -> i `seq` liftIO $ MArray.putIndexUnsafe i x marr >> return (i + 1))
             (return 0) $
         D.take limit str
     return $ unsafeFreeze $ marr { MArray.arrLen = i }
@@ -244,7 +244,7 @@ streamFold f arr = f (read arr)
 {-# INLINE getIndexUnsafe #-}
 getIndexUnsafe :: Array a -> Int -> a
 getIndexUnsafe arr i =
-    unsafePerformIO $ MArray.getIndexUnsafe (unsafeThaw arr) i
+    unsafePerformIO $ MArray.getIndexUnsafe i (unsafeThaw arr)
 
 {-# INLINE writeLastN #-}
 writeLastN :: MonadIO m => Int -> Fold m a (Array a)
@@ -263,7 +263,7 @@ writeLastN n
         return $ FL.Partial $ Tuple' rb (rh + 1)
 
     done (Tuple' rb rh) = do
-        arr' <- liftIO $ MArray.newArray (min rh n)
+        arr' <- liftIO $ MArray.new (min rh n)
         ref <- liftIO $ readIORef $ RB.ringHead rb
         if rh < n
         then
@@ -322,7 +322,7 @@ putIndices arr = FL.rmapM (\ _ -> return ()) (FL.foldlM' step initial)
     initial = return $ unsafeThaw arr
 
     step marr (i, x) = do
-        MArray.putIndexUnsafe marr i x
+        MArray.putIndexUnsafe i x marr
         return marr
 
 -------------------------------------------------------------------------------
