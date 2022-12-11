@@ -40,7 +40,7 @@ createRing count = do
 {-# INLINE unsafeInsertRing #-}
 unsafeInsertRing :: Ring a -> Int -> a -> IO ()
 unsafeInsertRing Ring{..} idx x = do
-    putIndexUnsafe arr (mod idx ringMax) x
+    putIndexUnsafe (mod idx ringMax) x arr
     ref <- readIORef ringHead
     if (ref+1) < ringMax
     then modifyIORef' ringHead ( + 1)

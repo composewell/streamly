@@ -139,7 +139,7 @@ fromStreamDN limit str = do
     marr <- liftIO $ MArray.newArray (max limit 0)
     i <-
         D.foldlM'
-            (\i x -> i `seq` liftIO $ MArray.putIndexUnsafe marr i x >> return (i + 1))
+            (\i x -> i `seq` liftIO $ MArray.putIndexUnsafe i x marr >> return (i + 1))
             (return 0) $
         D.take limit str
     return $ unsafeFreeze $ marr { MArray.arrLen = i }
@@ -244,7 +244,7 @@ streamFold f arr = f (read arr)
 {-# INLINE getIndexUnsafe #-}
 getIndexUnsafe :: Array a -> Int -> a
 getIndexUnsafe arr i =
-    unsafePerformIO $ MArray.getIndexUnsafe (unsafeThaw arr) i
+    unsafePerformIO $ MArray.getIndexUnsafe i (unsafeThaw arr)
 
 {-# INLINE writeLastN #-}
 writeLastN :: MonadIO m => Int -> Fold m a (Array a)
@@ -322,7 +322,7 @@ putIndices arr = FL.rmapM (\ _ -> return ()) (FL.foldlM' step initial)
     initial = return $ unsafeThaw arr
 
     step marr (i, x) = do
-        MArray.putIndexUnsafe marr i x
+        MArray.putIndexUnsafe i x marr
         return marr
 
 -------------------------------------------------------------------------------
