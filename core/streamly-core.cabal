@@ -381,6 +381,7 @@ library
                      -- NOTE: these must be added to streamly.cabal as well
                      , Streamly.Console.Stdio
                      , Streamly.Data.Array.Generic
+                     , Streamly.Data.Array.Generic.Mut
                      , Streamly.Data.Array
                      , Streamly.Data.Array.Mut
                      , Streamly.Data.Fold
