@@ -11,15 +11,7 @@ module Streamly.FileSystem.Dir
     (
     -- * Streams
       read
-    , readFiles
-    , readDirs
     , readEither
-
-    -- * Unfolds
-    , reader
-    , fileReader
-    , dirReader
-    , eitherReader
     )
 where
 
