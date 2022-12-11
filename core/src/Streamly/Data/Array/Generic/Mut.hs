@@ -6,50 +6,32 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Generic mutable array type with an option to use
--- foreign (non-GHC) memory allocators. Fulfils the following goals:
+-- Mutable arrays for all types (unconstrained).
 --
--- * Random access (array)
--- * Performance - in-place operations (mutable)
--- * Fragmentation control (foreign allocators)
---
--- Stream and Fold APIs allow easy, efficient and convenient operations on
--- arrays.
 module Streamly.Data.Array.Generic.Mut
 (
     -- * Type
       Array
 
-    -- * Constructing and Writing
-    -- ** Construction
-    -- *** Uninitialized Arrays
-    , new
+    -- * Construction
+    , writeN
 
-    -- * Eliminating and Reading
-    -- ** Unfolds
+    -- * Appending elements
+    , new
+    , snoc
+
+    -- * Conversion
+    , toList
+
+    -- * Unfolds
     , reader
 
-    -- *** From streams
-    , writeN
+    -- * Random reads
+    , getIndex
 
     -- * Inplace mutation
     , putIndex
     , modifyIndex
-
-    -- * Growing and Shrinking
-    -- Arrays grow only at the end, though it is possible to grow on both sides
-    -- and therefore have a cons as well as snoc. But that will require two
-    -- bounds in the array representation.
-
-    -- ** Appending elements
-    , snoc
-
-    -- * Eliminating
-    , toList
-
-    -- ** Random reads
-    , getIndex
-
     )
 where
 
