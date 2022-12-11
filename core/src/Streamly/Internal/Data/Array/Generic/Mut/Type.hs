@@ -19,7 +19,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     -- , nil
 
     -- *** Uninitialized Arrays
-    , newArray
+    , new
     -- , newArrayWith
 
     -- *** From streams
@@ -228,12 +228,12 @@ bottomElement =
 
 -- XXX Would be nice if GHC can provide something like newUninitializedArray# so
 -- that we do not have to write undefined or error in the whole array.
--- | @newArray count@ allocates an empty array that can hold 'count' items.
+-- | @new count@ allocates an empty array that can hold 'count' items.
 --
 -- /Pre-release/
-{-# INLINE newArray #-}
-newArray :: forall m a. MonadIO m => Int -> m (Array a)
-newArray n@(I# n#) =
+{-# INLINE new #-}
+new :: forall m a. MonadIO m => Int -> m (Array a)
+new n@(I# n#) =
     liftIO
         $ IO
         $ \s# ->
@@ -317,7 +317,7 @@ modifyIndex i f arr@Array {..} = do
 --
 realloc :: MonadIO m => Int -> Array a -> m (Array a)
 realloc n arr = do
-    arr1 <- newArray n
+    arr1 <- new n
     let !newLen@(I# newLen#) = min n (arrLen arr)
         !(I# arrS#) = arrStart arr
         !(I# arr1S#) = arrStart arr1
@@ -526,7 +526,7 @@ writeNUnsafe n = Fold step initial return
 
     where
 
-    initial = FL.Partial <$> newArray (max n 0)
+    initial = FL.Partial <$> new (max n 0)
 
     step arr x = FL.Partial <$> snocUnsafe arr x
 
@@ -602,6 +602,6 @@ putSliceUnsafe src srcStart dst dstStart len = liftIO $ do
 clone :: MonadIO m => Array a -> m (Array a)
 clone src = liftIO $ do
     let len = arrLen src
-    dst <- newArray len
+    dst <- new len
     putSliceUnsafe src 0 dst 0 len
     return dst
