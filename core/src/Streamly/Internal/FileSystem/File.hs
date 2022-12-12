@@ -76,11 +76,11 @@ module Streamly.Internal.FileSystem.File
     , fromChunks
 
     -- ** Append To File
-    , writeAppend
-    , writeAppendWith
+    , append
+    , appendWith
     -- , appendShared
-    , writeAppendArray
-    , writeAppendChunks
+    , appendArray
+    , appendChunks
 
     -- * Deprecated
     , readWithBufferOf
@@ -212,9 +212,9 @@ putChunk file arr = SIO.withFile file WriteMode (`FH.putChunk` arr)
 --
 -- /Pre-release/
 --
-{-# INLINABLE writeAppendArray #-}
-writeAppendArray :: FilePath -> Array a -> IO ()
-writeAppendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
+{-# INLINABLE appendArray #-}
+appendArray :: FilePath -> Array a -> IO ()
+appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -484,21 +484,21 @@ write = writeWith defaultChunkSize
 --
 -- /Pre-release/
 --
-{-# INLINE writeAppendChunks #-}
-writeAppendChunks :: (MonadIO m, MonadCatch m)
+{-# INLINE appendChunks #-}
+appendChunks :: (MonadIO m, MonadCatch m)
     => FilePath -> Stream m (Array a) -> m ()
-writeAppendChunks = fromChunksMode AppendMode
+appendChunks = fromChunksMode AppendMode
 
--- | Like 'writeAppend' but provides control over the write buffer. Output will
+-- | Like 'append' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of
 -- input elements.
 --
 -- /Pre-release/
 --
-{-# INLINE writeAppendWith #-}
-writeAppendWith :: (MonadIO m, MonadCatch m)
+{-# INLINE appendWith #-}
+appendWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Stream m Word8 -> m ()
-writeAppendWith n file xs = writeAppendChunks file $ AS.arraysOf n xs
+appendWith n file xs = appendChunks file $ AS.arraysOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data
@@ -507,12 +507,12 @@ writeAppendWith n file xs = writeAppendChunks file $ AS.arraysOf n xs
 --
 -- /Pre-release/
 --
-{-# INLINE writeAppend #-}
-writeAppend :: (MonadIO m, MonadCatch m) => FilePath -> Stream m Word8 -> m ()
-writeAppend = writeAppendWith defaultChunkSize
+{-# INLINE append #-}
+append :: (MonadIO m, MonadCatch m) => FilePath -> Stream m Word8 -> m ()
+append = appendWith defaultChunkSize
 
 {-
--- | Like 'writeAppend' but the file is not locked for exclusive writes.
+-- | Like 'append' but the file is not locked for exclusive writes.
 --
 -- @since 0.7.0
 {-# INLINE appendShared #-}
