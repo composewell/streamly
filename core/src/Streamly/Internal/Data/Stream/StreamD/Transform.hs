@@ -923,8 +923,11 @@ intersperseSuffixBySpan n action (Stream step state) =
 -- list.
 --
 -- XXX Maybe we can use an Array instead of a list here?
+-- XXX Use toListRev fold instead.
 {-# INLINE_NORMAL reverse #-}
 reverse :: Monad m => Stream m a -> Stream m a
+reverse m = concatEffect (fmap fromList $ foldl' (flip (:)) [] m)
+{-
 reverse m = Stream step Nothing
     where
     {-# INLINE_LATE step #-}
@@ -933,6 +936,7 @@ reverse m = Stream step Nothing
         return $ Skip (Just xs)
     step _ (Just (x:xs)) = return $ Yield x (Just xs)
     step _ (Just []) = return Stop
+-}
 
 -- Much faster reverse for Storables
 {-
