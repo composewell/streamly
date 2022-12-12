@@ -1756,7 +1756,7 @@ writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
 --
 -- >>> writeN = Array.writeNWith Array.newPinned
 -- >>> writeN n = Fold.take n (Array.writeNUnsafe n)
--- >>> writeN n = Array.writeAppendN (Array.newPinned n) n
+-- >>> writeN n = Array.writeAppendN n (Array.newPinned n)
 --
 {-# INLINE_NORMAL writeN #-}
 writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
@@ -1802,7 +1802,7 @@ writeRevN = writeRevNWith newPinned
 -- stream to an 'Array' aligned to the given size.
 --
 -- >>> writeNAligned align = Array.writeNWith (Array.newAlignedPinned align)
--- >>> writeNAligned align n = Array.writeAppendN (Array.newAlignedPinned align n) n
+-- >>> writeNAligned align n = Array.writeAppendN n (Array.newAlignedPinned align n)
 --
 -- /Pre-release/
 --
