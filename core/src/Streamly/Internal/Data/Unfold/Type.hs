@@ -317,9 +317,16 @@ mapM f (Unfold ustep uinject) = Unfold step uinject
             Skip s    -> return $ Skip s
             Stop      -> return Stop
 
+-- XXX We can also introduce a withInput combinator which will output the input
+-- seed along with the output as a tuple.
+
 -- |
 --
 -- >>> map2 f = Unfold.mapM2 (\a b -> pure (f a b))
+--
+-- Note that the seed may mutate (e.g. if the seed is a Handle or IORef) as
+-- stream is generated from it, so we need to be careful when reusing the seed
+-- while the stream is being generated from it.
 --
 {-# INLINE_NORMAL map2 #-}
 map2 :: Functor m => (a -> b -> c) -> Unfold m a b -> Unfold m a c
