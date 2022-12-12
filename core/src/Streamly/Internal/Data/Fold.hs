@@ -304,7 +304,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 import Data.Bits (shiftL, shiftR, (.|.), (.&.))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
-import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.Word (Word32)
 import Foreign.Storable (peek, sizeOf)
@@ -407,25 +406,6 @@ driveBreak strm fl = fmap f $ K.foldBreak fl (Stream.toStreamK strm)
 --
 augment :: Monad m => Stream m a -> Fold m a b -> m (Fold m a b)
 augment stream = drive stream . duplicate
-
-------------------------------------------------------------------------------
--- hoist
-------------------------------------------------------------------------------
-
--- | Change the underlying monad of a fold
---
--- /Pre-release/
-hoist :: (forall x. m x -> n x) -> Fold m a b -> Fold n a b
-hoist f (Fold step initial extract) =
-    Fold (\x a -> f $ step x a) (f initial) (f . extract)
-
--- | Adapt a pure fold to any monad
---
--- >>> generally = Fold.hoist (return . runIdentity)
---
--- /Pre-release/
-generally :: Monad m => Fold Identity a b -> Fold m a b
-generally = hoist (return . runIdentity)
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
