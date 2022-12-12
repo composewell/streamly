@@ -170,17 +170,64 @@ unpin arr@(MutableByteArray marr#) =
 -- size and alignment. We can possibly write tests for checking compatibility
 -- with Storable.
 
--- | An 'Unbox' type supplies operations for reading and writing the type
--- from and to a byte array in memory. The read operation constructs the boxed
--- type from an unboxed byte representation in memory. The write operation
--- writes the boxed type to an unboxed byte representation in memory.
+-- | A type implementing the 'Unbox' interface supplies operations for reading
+-- and writing the type from and to a mutable byte array in memory. The read
+-- operation 'peekByteIndex' constructs the boxed type from an unboxed byte
+-- representation in memory. The write operation 'pokeByteIndex' writes the
+-- boxed type to an unboxed byte representation in memory.
 --
--- This type class dependes on Storable for size and alignment of the type. It
--- is similar to Storable in the sense that it has corresponding operations for
--- peekByteOff and pokeByteOff. While Storable allows writing to a Ptr, this
--- type class allows writing to a MutableByteArray#.
+-- This type class depends on the 'Storable' for 'sizeOf' and 'alignment'
+-- operations. While 'Storable' supplies the ability to serialize a type to a
+-- 'Ptr' type, 'Unbox' augments it by supplying the ability to serialize to a
+-- mutable byte array. The advantage is that we can use unpinned memory with
+-- 'Unbox'.
 --
--- Note: Enable @QuantifiedConstraints@ to simplify constraint specification.
+-- Here is an example, to write an instance for this type class.
+--
+-- >>> :{
+-- data Object = Object
+--     { _int0 :: Int
+--     , _int1 :: Int
+--     }
+-- :}
+--
+-- Note you can leave peek and poke undefined in 'Storable' if you are not
+-- using the Storable instance, Unbox does not need these operations.
+--
+-- >>> import Foreign.Ptr (plusPtr, castPtr)
+-- >>> import Foreign.Storable (Storable(..))
+-- >>> :{
+-- instance Storable Object where
+--     sizeOf _ = 16
+--     alignment _ = 8
+--     peek ptr = do
+--         let p = castPtr ptr
+--         x0 <- peek p
+--         x1 <- peek (p `plusPtr` 8)
+--         return $ Object x0 x1
+--     poke ptr (Object x0 x1) = do
+--         let p = castPtr ptr
+--         poke p x0
+--         poke (p `plusPtr` 8) x1
+-- :}
+--
+-- >>> import Streamly.Data.Array (Unbox(..))
+-- >>> import Streamly.Internal.Data.Unboxed (castContents)
+-- >>> :{
+-- instance Unbox Object where
+--     peekByteIndex arr i = do
+--         let p = castContents arr
+--         x0 <- peekByteIndex p i
+--         x1 <- peekByteIndex p (i + 8)
+--         return $ Object x0 x1
+--     pokeByteIndex arr i (Object x0 x1) = do
+--         let p = castContents arr
+--         pokeByteIndex p i x0
+--         pokeByteIndex p (i + 8)x1
+-- :}
+--
+-- Note: Use @QuantifiedConstraints@ to simplify constraint specification.
+--
 class Storable a => Unbox a where
     -- | Read an element of type "a" from a MutableByteArray given the byte
     -- index.
