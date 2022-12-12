@@ -356,6 +356,7 @@ library
                      , Streamly.Internal.Data.Fold.Concurrent.Channel.Type
                      , Streamly.Internal.Data.Fold.Concurrent.Channel
                      , Streamly.Internal.Data.Fold.Concurrent
+                     , Streamly.Data.Fold.Tee
 
                      , Streamly.Internal.Data.Stream.Concurrent.Channel.Type
                      , Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
