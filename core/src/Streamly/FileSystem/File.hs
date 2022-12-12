@@ -49,11 +49,6 @@ module Streamly.FileSystem.File
     , write
     , writeWith
     , writeChunks
-
-    -- ** Append To File
-    , writeAppend
-    , writeAppendWith
-    , writeAppendChunks
     )
 where
 
