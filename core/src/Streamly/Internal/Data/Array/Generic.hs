@@ -17,6 +17,7 @@ module Streamly.Internal.Data.Array.Generic
     -- * Construction
     , nil
     , writeN
+    , writeNPure
     , write
     , writeLastN
 
@@ -31,6 +32,7 @@ module Streamly.Internal.Data.Array.Generic
     -- * Elimination
     , length
     , reader
+    , readerRev
 
     , toList
     , readStreamD
@@ -47,6 +49,9 @@ module Streamly.Internal.Data.Array.Generic
     , getIndexUnsafe
     , strip
     , putIndices
+
+    -- * Array streams
+    , arraysOf
     )
 where
 
@@ -63,12 +68,13 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Array.Generic.Mut.Type as MArray
-import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
 import Data.IORef
@@ -106,9 +112,15 @@ nil = unsafePerformIO $ do
 -- Construction - Folds
 -------------------------------------------------------------------------------
 
+{-# INLINE_NORMAL writeNPure #-}
+writeNPure :: Monad m => Int -> Fold m a (Array a)
+writeNPure n =
+    let f = fmap unsafeFreeze (MArray.writeN n) :: Fold IO a (Array a)
+     in FL.hoist (\x -> return $! unsafeInlineIO x) f
+
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (Array a)
-writeN = fmap unsafeFreeze <$> MArray.writeN
+writeN = fmap unsafeFreeze . MArray.writeN
 
 {-# INLINE_NORMAL write #-}
 write :: MonadIO m => Fold m a (Array a)
@@ -174,6 +186,7 @@ fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
 length :: Array a -> Int
 length = arrLen
 
+-- XXX Should we implement it like readerRev?
 {-# INLINE_NORMAL reader #-}
 reader :: Monad m => Unfold m (Array a) a
 reader =
@@ -181,10 +194,22 @@ reader =
         $ Producer.translate unsafeThaw unsafeFreeze
         $ MArray.producerWith (return . unsafeInlineIO)
 
+{-# INLINE_NORMAL readerRev #-}
+readerRev :: Monad m => Unfold m (Array a) a
+readerRev =
+    let fromThenTo Array{..} = (arrLen - 1, arrLen - 2, 0)
+     in Unfold.map2 getIndexUnsafe
+        $ Unfold.lmap fromThenTo Unfold.enumerateFromThenToIntegral
+
+{-# INLINE_NORMAL arraysOf #-}
+arraysOf :: Monad m => Int -> D.Stream m a -> D.Stream m (Array a)
+arraysOf n str = D.map unsafeFreeze $ MArray.arraysOf n str
+
 -------------------------------------------------------------------------------
 -- Elimination - to streams
 -------------------------------------------------------------------------------
 
+-- XXX Should be implemented as a fold rather than using explicit recursion.
 {-# INLINE_NORMAL toList #-}
 toList :: Array a -> [a]
 toList arr = loop 0
@@ -195,6 +220,8 @@ toList arr = loop 0
     loop i | i == len = []
     loop i = getIndexUnsafe arr i : loop (i + 1)
 
+-- XXX This can be implemented like readRevStreamD without the MonadIO
+-- constraint.
 {-# INLINE_NORMAL readStreamD #-}
 readStreamD :: MonadIO m => Array a -> D.Stream m a
 readStreamD = MArray.toStreamD . unsafeThaw

@@ -170,6 +170,7 @@ module Streamly.Internal.Data.Array.Mut.Type
 
     -- ** Construct from streams
     , arraysOf
+    , arraysOfIO
     , arrayStreamKFromStreamD
     , writeChunks
 
@@ -241,13 +242,15 @@ import GHC.Base
 import GHC.Base (noinline)
 import GHC.Exts (unsafeCoerce#)
 import GHC.Ptr (Ptr(..))
+import System.IO.Unsafe (unsafePerformIO)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
+import Streamly.Internal.System.IO
+    (arrayPayloadSize, defaultChunkSize, unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -1280,14 +1283,14 @@ data GroupState s contents start end bound
 -- @arraysOf n = StreamD.foldMany (Array.writeN n)@
 --
 -- /Pre-release/
-{-# INLINE_NORMAL arraysOf #-}
-arraysOf :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL arraysOfIO #-}
+arraysOfIO :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
 -- XXX the idiomatic implementation leads to large regression in the D.reverse'
 -- benchmark. It seems it has difficulty producing optimized code when
 -- converting to StreamK. Investigate GHC optimizations.
 -- arraysOf n = D.foldMany (writeN n)
-arraysOf n (D.Stream step state) =
+arraysOfIO n (D.Stream step state) =
     D.Stream step' (GroupStart state)
 
     where
@@ -1309,6 +1312,53 @@ arraysOf n (D.Stream step state) =
                 liftIO $ pokeWith contents end x
                 let end1 = INDEX_NEXT(end,a)
                 return $
+                    if end1 >= bound
+                    then D.Skip
+                            (GroupYield
+                                contents start end1 bound (GroupStart s))
+                    else D.Skip (GroupBuffer s contents start end1 bound)
+            D.Skip s ->
+                return $ D.Skip (GroupBuffer s contents start end bound)
+            D.Stop ->
+                return
+                    $ D.Skip (GroupYield contents start end bound GroupFinish)
+
+    step' _ (GroupYield contents start end bound next) =
+        return $ D.Yield (Array contents start end bound) next
+
+    step' _ GroupFinish = return D.Stop
+
+-- XXX Duplicated code from arraysOfIO, we can just have arraysOf?
+
+{-# INLINE_NORMAL arraysOf #-}
+arraysOf :: forall m a. (Monad m, Unbox a)
+    => Int -> D.Stream m a -> D.Stream m (Array a)
+-- XXX the idiomatic implementation leads to large regression in the D.reverse'
+-- benchmark. It seems it has difficulty producing optimized code when
+-- converting to StreamK. Investigate GHC optimizations.
+-- arraysOf n = D.foldMany (writeN n)
+arraysOf n (D.Stream step state) =
+    D.Stream step' (GroupStart state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' _ (GroupStart st) = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Internal.Data.Array.Mut.Type.arraysOfPure: "
+                    ++ "the size of arrays [" ++ show n
+                    ++ "] must be a natural number"
+        let (Array contents start end bound) = unsafePerformIO $ newPinned n
+        return $ D.Skip (GroupBuffer st contents start end bound)
+
+    step' gst (GroupBuffer st contents start end bound) = do
+        r <- step (adaptState gst) st
+        case r of
+            D.Yield x s -> do
+                let !result = unsafeInlineIO $ pokeWith contents end x
+                let end1 = INDEX_NEXT(end,a)
+                result `seq` return $
                     if end1 >= bound
                     then D.Skip
                             (GroupYield

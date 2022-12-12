@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UnboxedTuples #-}
 
 -- |
@@ -126,7 +127,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     -- multidimensional array representations.
 
     -- ** Construct from streams
-    -- , arraysOf
+    , arraysOf
     -- , arrayStreamKFromStreamD
     -- , writeChunks
 
@@ -159,6 +160,7 @@ where
 #include "inline.hs"
 #include "assert.hs"
 
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Base
     ( MutableArray#
@@ -167,12 +169,16 @@ import GHC.Base
     , newArray#
     , readArray#
     , writeArray#
+    , UnliftedType
     )
 import GHC.IO (IO(..))
 import GHC.Int (Int(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
+import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.System.IO (unsafeInlineIO)
+import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -245,6 +251,15 @@ new n@(I# n#) =
 -------------------------------------------------------------------------------
 -- Random writes
 -------------------------------------------------------------------------------
+
+{-# INLINE snocContentsUnsafe #-}
+snocContentsUnsafe :: Int -> a -> MutableArray# RealWorld a -> IO ()
+snocContentsUnsafe i x contents# =
+    IO $ \s# ->
+          case i of
+              I# n# ->
+                  let s1# = writeArray# contents# n# x s#
+                   in (# s1#, () #)
 
 -- | Write the given element to the given index of the array. Does not check if
 -- the index is out of bounds of the array.
@@ -605,3 +620,54 @@ clone src = liftIO $ do
     dst <- new len
     putSliceUnsafe src 0 dst 0 len
     return dst
+
+data GroupState s (contents :: UnliftedType) start end bound
+    = GroupStart s
+    | GroupBuffer s contents start end bound
+    | GroupYield
+        contents start end bound (GroupState s contents start end bound)
+    | GroupFinish
+
+{-# INLINE_NORMAL arraysOf #-}
+arraysOf :: forall m a. Monad m => Int -> D.Stream m a -> D.Stream m (Array a)
+-- XXX the idiomatic implementation leads to large regression in the D.reverse'
+-- benchmark. It seems it has difficulty producing optimized code when
+-- converting to StreamK. Investigate GHC optimizations.
+-- arraysOf n = D.foldMany (writeN n)
+arraysOf n (D.Stream step state) =
+    D.Stream step1 (GroupStart state)
+
+    where
+
+    {-# INLINE_LATE step1 #-}
+    step1 _ (GroupStart st) = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Internal.Data.Array.Mut.Type.arraysOfPure: "
+                    ++ "the size of arrays [" ++ show n
+                    ++ "] must be a natural number"
+        let !(Array contents start end bound) = unsafePerformIO $ new n :: Array a
+        return $ D.Skip (GroupBuffer st contents start end bound)
+
+    step1 gst (GroupBuffer st contents start end bound) = do
+        r <- step (adaptState gst) st
+        case r of
+            D.Yield x s -> do
+                let !result = unsafeInlineIO $ snocContentsUnsafe end x contents
+                let end1 = end + 1
+                result `seq` return $
+                    if end1 >= bound
+                    then D.Skip
+                            (GroupYield
+                                contents start end1 bound (GroupStart s))
+                    else D.Skip (GroupBuffer s contents start end1 bound)
+            D.Skip s ->
+                return $ D.Skip (GroupBuffer s contents start end bound)
+            D.Stop ->
+                return
+                    $ D.Skip (GroupYield contents start end bound GroupFinish)
+
+    step1 _ (GroupYield contents start end bound next) =
+        return $ D.Yield (Array contents start end bound) next
+
+    step1 _ GroupFinish = return D.Stop

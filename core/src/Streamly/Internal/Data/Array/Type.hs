@@ -61,6 +61,7 @@ module Streamly.Internal.Data.Array.Type
     -- * Folds
     , writeWith
     , writeN
+    , writeNPure
     , writeNUnsafe
     , MA.ArrayUnsafe (..)
     , writeNAligned
@@ -68,6 +69,7 @@ module Streamly.Internal.Data.Array.Type
 
     -- * Streams of arrays
     , arraysOf
+    , arraysOfIO
     , bufferChunks
     , flattenArrays
     , flattenArraysRev
@@ -98,6 +100,7 @@ import Prelude hiding (length, foldr, read, unlines, splitAt)
 
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
@@ -268,8 +271,14 @@ bufferChunks m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
 
 -- | @arraysOf n stream@ groups the input stream into a stream of
 -- arrays of size n.
+{-# INLINE_NORMAL arraysOfIO #-}
+arraysOfIO :: forall m a. (MonadIO m, Unbox a)
+    => Int -> D.Stream m a -> D.Stream m (Array a)
+arraysOfIO n str = D.map unsafeFreeze $ MA.arraysOfIO n str
+
+-- XXX Duplicate of arraysOfIO, we can remove one?
 {-# INLINE_NORMAL arraysOf #-}
-arraysOf :: forall m a. (MonadIO m, Unbox a)
+arraysOf :: forall m a. (Monad m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
 arraysOf n str = D.map unsafeFreeze $ MA.arraysOf n str
 
@@ -441,6 +450,14 @@ toList s = build (\c n -> toListFB c n s)
 {-# INLINE_NORMAL writeN #-}
 writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
 writeN = fmap unsafeFreeze . MA.writeN
+
+-- XXX Rename writeN to writeNIO and this one to writeN? Is the unsafeInlineIO
+-- ok to use in IO monad?
+{-# INLINE_NORMAL writeNPure #-}
+writeNPure :: (Monad m, Unbox a) => Int -> Fold m a (Array a)
+writeNPure n =
+    let f = fmap unsafeFreeze (MA.writeN n) -- :: Fold IO a (Array a)
+     in Fold.hoist (\x -> return $! unsafeInlineIO x) f
 
 -- | @writeNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
