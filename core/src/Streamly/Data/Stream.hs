@@ -416,10 +416,9 @@ module Streamly.Data.Stream
     , parseMany
 
     -- * Buffered Operations
-    -- | Operations that require buffering of the stream.
-    -- Reverse is essentially a left fold followed by an unfold.
+    -- | Operations that require buffering of the entire stream.
     , reverse
-    , reverseUnbox
+    , reverseGeneric
     , sortBy
 
     -- * Multi-Stream folds

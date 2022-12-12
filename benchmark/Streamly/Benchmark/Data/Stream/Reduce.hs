@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 
 #ifdef USE_PRELUDE
@@ -21,7 +22,12 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
+import Foreign.Ptr (plusPtr, castPtr)
+import Foreign.Storable (Storable(..))
+import Streamly.Data.Array (Unbox(..))
 import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Unboxed (castContents)
+import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
@@ -223,13 +229,114 @@ o_1_space_grouping value =
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
 
+data LargeObject = LargeObject
+    { _int0 :: Int
+    , _int1 :: Int
+    , _int2 :: Int
+    , _int3 :: Int
+    , _int4 :: Int
+    , _int5 :: Int
+    , _int6 :: Int
+    , _int7 :: Int
+    , _int8 :: Int
+    , _int9 :: Int
+    }
+
+instance Storable LargeObject where
+    sizeOf _ = 80
+    alignment _ = 8
+    peek ptr = do
+        let p = castPtr ptr
+        x0 <- peek p
+        x1 <- peek (p `plusPtr` 8)
+        x2 <- peek (p `plusPtr` 16)
+        x3 <- peek (p `plusPtr` 24)
+        x4 <- peek (p `plusPtr` 32)
+        x5 <- peek (p `plusPtr` 40)
+        x6 <- peek (p `plusPtr` 48)
+        x7 <- peek (p `plusPtr` 56)
+        x8 <- peek (p `plusPtr` 64)
+        x9 <- peek (p `plusPtr` 72)
+        return $ LargeObject x0 x1 x2 x3 x4 x5 x6 x7 x8 x9
+
+    poke ptr (LargeObject x0 x1 x2 x3 x4 x5 x6 x7 x8 x9) = do
+        let p = castPtr ptr
+        poke p x0
+        poke (p `plusPtr` 8)   x1
+        poke (p `plusPtr` 16)  x2
+        poke (p `plusPtr` 24)  x3
+        poke (p `plusPtr` 32)  x4
+        poke (p `plusPtr` 40)  x5
+        poke (p `plusPtr` 48)  x6
+        poke (p `plusPtr` 56)  x7
+        poke (p `plusPtr` 64)  x8
+        poke (p `plusPtr` 72)  x9
+        return ()
+
+instance Unbox LargeObject where
+    peekByteIndex arr i = do
+        let p = castContents arr
+        x0 <- peekByteIndex p i
+        x1 <- peekByteIndex p (i + 8)
+        x2 <- peekByteIndex p (i + 16)
+        x3 <- peekByteIndex p (i + 24)
+        x4 <- peekByteIndex p (i + 32)
+        x5 <- peekByteIndex p (i + 40)
+        x6 <- peekByteIndex p (i + 48)
+        x7 <- peekByteIndex p (i + 56)
+        x8 <- peekByteIndex p (i + 64)
+        x9 <- peekByteIndex p (i + 72)
+        return $ LargeObject x0 x1 x2 x3 x4 x5 x6 x7 x8 x9
+
+    pokeByteIndex arr i (LargeObject x0 x1 x2 x3 x4 x5 x6 x7 x8 x9) = do
+        let p = castContents arr
+        pokeByteIndex p i           x0
+        pokeByteIndex p (i + 8)     x1
+        pokeByteIndex p (i + 16)    x2
+        pokeByteIndex p (i + 24)    x3
+        pokeByteIndex p (i + 32)    x4
+        pokeByteIndex p (i + 40)    x5
+        pokeByteIndex p (i + 48)    x6
+        pokeByteIndex p (i + 56)    x7
+        pokeByteIndex p (i + 64)    x8
+        pokeByteIndex p (i + 72)    x9
+        return ()
+
+{-# INLINE sourceUnfoldrMLarge #-}
+sourceUnfoldrMLarge :: MonadAsync m => Int -> Int -> Stream m LargeObject
+sourceUnfoldrMLarge count start = S.unfoldrM step start
+
+    where
+
+    obj x = LargeObject x 1 2 3 4 5 6 7 8 9
+
+    step cnt =
+        if cnt > start + count
+        then return Nothing
+        else return (Just (obj cnt, cnt + 1))
+
+{-# INLINE benchIOLarge #-}
+benchIOLarge
+    :: (NFData b)
+    => Int -> String -> (Stream IO LargeObject -> IO b) -> Benchmark
+benchIOLarge value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrMLarge value
+
 {-# INLINE reverse #-}
 reverse :: MonadIO m => Int -> Stream m Int -> m ()
 reverse n = composeN n S.reverse
 
-{-# INLINE reverseUnbox #-}
-reverseUnbox :: MonadIO m => Int -> Stream m Int -> m ()
-reverseUnbox n = composeN n S.reverseUnbox
+{-# INLINE reverseGeneric #-}
+reverseGeneric :: MonadIO m => Int -> Stream m Int -> m ()
+reverseGeneric n = composeN n S.reverseGeneric
+
+{-# INLINE reverseLarge #-}
+reverseLarge :: MonadIO m => Stream m LargeObject -> m ()
+reverseLarge = S.fold FL.drain . S.reverse
+
+{-# INLINE reverseGenericLarge #-}
+reverseGenericLarge :: MonadIO m => Stream m LargeObject -> m ()
+reverseGenericLarge = S.fold FL.drain . S.reverseGeneric
 
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
@@ -237,7 +344,9 @@ o_n_heap_buffering value =
         [
         -- Reversing a stream
           benchIOSink value "reverse" (reverse 1)
-        , benchIOSink value "reverseUnbox" (reverseUnbox 1)
+        , benchIOSink value "reverseGeneric" (reverseGeneric 1)
+        , benchIOLarge value "reverse large" reverseLarge
+        , benchIOLarge value "reverseGeneric large" reverseGenericLarge
 
 #ifdef USE_PRELUDE
         , benchIOSink value "mkAsync" (mkAsync fromSerial)

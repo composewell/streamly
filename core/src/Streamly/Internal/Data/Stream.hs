@@ -17,6 +17,7 @@ module Streamly.Internal.Data.Stream
     , module Streamly.Internal.Data.Stream.Reduce
     , module Streamly.Internal.Data.Stream.Transform
     , module Streamly.Internal.Data.Stream.Top
+    , module Streamly.Internal.Data.Stream.Bottom
     )
 where
 
@@ -30,3 +31,4 @@ import Streamly.Internal.Data.Stream.Reduce
 import Streamly.Internal.Data.Stream.Top
 import Streamly.Internal.Data.Stream.Transform
 import Streamly.Internal.Data.Stream.Type
+import Streamly.Internal.Data.Stream.Bottom

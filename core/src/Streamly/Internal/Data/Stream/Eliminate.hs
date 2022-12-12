@@ -312,7 +312,8 @@ isInfixOf infx stream = do
 -- such a way that it can be consumed multiple times without any problems.
 
 -- XXX Can be implemented with better space/time complexity.
--- Space: @O(n)@ worst case where @n@ is the length of the suffix.
+-- Space: @O(n)@ worst case where @n@ is the length of the suffix. Use unboxed
+-- ring buffer to store the suffix for efficiency.
 
 -- | Returns 'True' if the first stream is a suffix of the second. A stream is
 -- considered a suffix of itself.
@@ -328,7 +329,8 @@ isInfixOf infx stream = do
 --
 {-# INLINE isSuffixOf #-}
 isSuffixOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
-isSuffixOf suffix stream = reverse suffix `isPrefixOf` reverse stream
+isSuffixOf suffix stream =
+    reverseGeneric suffix `isPrefixOf` reverseGeneric stream
 
 -- | Returns 'True' if all the elements of the first stream occur, in order, in
 -- the second stream. The elements do not have to occur consecutively. A stream
@@ -359,13 +361,14 @@ stripPrefix
 stripPrefix m1 m2 = fmap fromStreamD <$>
     D.stripPrefix (toStreamD m1) (toStreamD m2)
 
+-- XXX Can be implemented more efficiently by buffering the stream to an
+-- array, check the suffix in the array and then convert the array to stream.
+-- Also, we may want to have a generic version and a version using unboxed
+-- array.
+
 -- | Drops the given suffix from a stream. Returns 'Nothing' if the stream does
 -- not end with the given suffix. Returns @Just nil@ when the suffix is the
 -- same as the stream.
---
--- It may be more efficient to convert the stream to an Array and use
--- stripSuffix on that especially if the elements have a Storable or Prim
--- instance.
 --
 -- See also "Streamly.Internal.Data.Stream.Reduce.dropSuffix".
 --
@@ -376,4 +379,5 @@ stripPrefix m1 m2 = fmap fromStreamD <$>
 stripSuffix
     :: (Monad m, Eq a)
     => Stream m a -> Stream m a -> m (Maybe (Stream m a))
-stripSuffix m1 m2 = fmap reverse <$> stripPrefix (reverse m1) (reverse m2)
+stripSuffix m1 m2 =
+    fmap reverseGeneric <$> stripPrefix (reverseGeneric m1) (reverseGeneric m2)

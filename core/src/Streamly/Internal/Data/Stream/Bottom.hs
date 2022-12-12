@@ -49,7 +49,7 @@ module Streamly.Internal.Data.Stream.Bottom
 
     -- * Fold and Unfold
     , reverse
-    , reverseUnbox
+    , reverseGeneric
 
     -- * Expand
     , concatEffect
@@ -76,6 +76,7 @@ import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.SVar.Type (defState)
 
+import qualified Streamly.Internal.Data.Array.Generic as GA
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.StreamK as K
@@ -524,32 +525,54 @@ intersperseM m = fromStreamD . D.intersperseM m . toStreamD
 ------------------------------------------------------------------------------
 
 -- XXX Use a compact region list to temporarily store the list, in both reverse
--- as well as in reverse'.
+-- as well as in reverseGeneric to avoid GC overhead.
+
+-- | Like 'reverse' but does not require an 'Unbox' instance. However, in most
+-- cases this could be many times slower than 'reverse'. This may work better
+-- for a stream of few large objects though. Also, if the stream being reversed
+-- is already buffered in memory, this will perform lesser allocations that
+-- 'reverse'.
 --
--- /Note:/ 'reverse'' is much faster than this, use that when performance
--- matters.
+{-# INLINE reverseGeneric #-}
+reverseGeneric :: Monad m => Stream m a -> Stream m a
+-- reverse m = fromStreamD $ D.concatEffect (fmap D.fromList $ fold Fold.toListRev m)
+-- reverse s = fromStreamD $ D.reverse $ toStreamD s
+-- reverse s = fromStreamK $ K.reverse $ toStreamK s -- very bad
+-- reverse = Stream.foldlT (flip Stream.cons) Stream.nil
+reverseGeneric =
+    -- XXX Use K.reverse and arraysOf like in reverseUnbox
+    fromStreamD
+    . D.unfoldMany GA.readerRev
+    -- . D.reverse
+    . D.fromStreamK
+    . K.reverse -- D.reverse is slightly worse in CPU cost
+    . D.toStreamK
+    . GA.arraysOf defaultChunkSize
+    -- . D.foldMany (GA.writeNPure defaultChunkSize)
+    . toStreamD
 
 -- | Returns the elements of the stream in reverse order.  The stream must be
 -- finite. Note that this necessarily buffers the entire stream in memory.
 --
-{-# INLINE reverse #-}
-reverse :: Monad m => Stream m a -> Stream m a
-reverse s = fromStreamD $ D.reverse $ toStreamD s
--- reverse = Stream.foldlT (flip Stream.cons) Stream.nil
-
--- | Like 'reverse' but several times faster, requires an 'Unbox' instance.
+-- See 'reverseGeneric' if you do not want to write an 'Unbox' instance for
+-- your data. 'reverseGeneric' may perform better if your stream consists of a
+-- small number of large objects or if the stream is already buffered in
+-- memory.
 --
 -- /Pre-release/
-{-# INLINE reverseUnbox #-}
-reverseUnbox :: (MonadIO m, Unbox a) => Stream m a -> Stream m a
+{-# INLINE reverse #-}
+reverse :: (Monad m, Unbox a) => Stream m a -> Stream m a
 -- reverseUnbox s = fromStreamD $ D.reverse' $ toStreamD s
-reverseUnbox =
+reverse =
         fromStreamD
-        . A.flattenArraysRev -- unfoldMany A.readRev
+        -- . A.flattenArraysRev -- unfoldMany A.readRev
+        . D.unfoldMany A.readerRev
+        -- . D.reverse
         . D.fromStreamK
-        . K.reverse
+        . K.reverse -- D.reverse is slightly worse in CPU cost
         . D.toStreamK
         . A.arraysOf defaultChunkSize
+        -- . D.foldMany (A.writeNPure defaultChunkSize)
         . toStreamD
 
 ------------------------------------------------------------------------------
