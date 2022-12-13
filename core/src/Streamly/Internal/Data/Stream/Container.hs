@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Extra
+-- Module      : Streamly.Internal.Data.Stream.Container
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -10,7 +10,7 @@
 
 -- Rename this to Stream.Container?
 
-module Streamly.Internal.Data.Stream.Extra
+module Streamly.Internal.Data.Stream.Container
     (
       nub
 
@@ -37,10 +37,13 @@ import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Generic as Array
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
-import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.Bottom as Stream
+import qualified Streamly.Internal.Data.Stream.Expand as Stream
+import qualified Streamly.Internal.Data.Stream.Generate as Stream
+import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Transformer as Stream
 
