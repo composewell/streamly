@@ -387,6 +387,7 @@ module Streamly.Data.Stream
     , zipWithM
     -- , zipWith2
     -- , zipWithM2
+    , ZipStream (..)
 
     -- ** Cross Product
     -- XXX The argument order in this operation is such that it seems we are
@@ -398,6 +399,7 @@ module Streamly.Data.Stream
     , crossWith
     -- , cross
     -- , joinInner
+    , CrossStream (..)
 
     -- * Unfold Each
     , unfoldMany

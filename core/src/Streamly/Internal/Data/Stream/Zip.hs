@@ -31,7 +31,8 @@ import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
 
-import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.Bottom as Stream
+import qualified Streamly.Internal.Data.Stream.Generate as Stream
 
 -- $setup
 -- >>> import qualified Streamly.Data.Fold as Fold
