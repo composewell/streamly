@@ -370,7 +370,6 @@ library
                      , Streamly.Internal.Data.Stream.Zip.Concurrent
                      , Streamly.Internal.Data.Stream.Time
                      , Streamly.Internal.Data.Stream.Exception.Lifted
-                     , Streamly.Internal.Data.Stream.Extra
 
                      -- streamly-unicode (depends on unicode-data)
                      , Streamly.Internal.Unicode.Utf8

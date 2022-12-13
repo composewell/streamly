@@ -321,6 +321,9 @@ library
                      , Streamly.Internal.Data.Stream.StreamK.Transformer
                      , Streamly.Internal.Data.Stream.Transformer
 
+                     -- streamly-containers (non-base)
+                     , Streamly.Internal.Data.Stream.Extra
+
                      , Streamly.Internal.Data.Stream
                      , Streamly.Internal.Data.Stream.Chunked
                      , Streamly.Internal.Data.Stream.Zip
