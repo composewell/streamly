@@ -54,7 +54,6 @@
 -- package.
 
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 #include "inline.hs"
 
