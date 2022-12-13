@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans  #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.Parser.Chunked
 -- Copyright   : (c) 2020 Composewell Technologies

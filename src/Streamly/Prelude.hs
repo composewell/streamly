@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 #include "inline.hs"
 

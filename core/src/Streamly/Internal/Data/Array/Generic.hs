@@ -1,7 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Array.Generic
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -54,6 +50,8 @@ module Streamly.Internal.Data.Array.Generic
     , arraysOf
     )
 where
+
+#include "inline.hs"
 
 import Control.Monad (when, replicateM)
 import Control.Monad.IO.Class (liftIO, MonadIO)

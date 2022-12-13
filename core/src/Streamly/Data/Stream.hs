@@ -1,7 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Data.Stream
 -- Copyright   : (c) 2017 Composewell Technologies

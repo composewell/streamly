@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE UnboxedTuples #-}
 
 module Streamly.Internal.Data.Unboxed
