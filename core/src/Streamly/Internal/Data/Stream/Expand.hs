@@ -39,10 +39,12 @@ module Streamly.Internal.Data.Stream.Expand
 
     -- ** Interleave
     , interleave
+    , interleave2
     , interleaveFst
-    , interleaveMin
-    , interleaveFstSuffix2
     , interleaveFst2
+    , interleaveFstSuffix2
+    , interleaveMin
+    , interleaveMin2
 
     -- ** Round Robin
     , roundrobin
@@ -187,8 +189,9 @@ infixr 6 `append`
 -- be used to efficiently fold an infinite lazy container of streams
 -- 'concatMapWith' et. al.
 --
--- /Not fused/
+-- See 'append2' for a fusible alternative.
 --
+-- /CPS/
 {-# INLINE append #-}
 append :: Stream m a -> Stream m a -> Stream m a
 append = (<>)
@@ -206,16 +209,23 @@ append = (<>)
 -- weighting it can be used with 'concatMapWith' even on a large number of
 -- streams.
 --
--- /Not fused/
+-- See 'interleave2' for a fusible alternative.
 --
+-- /CPS/
 {-# INLINE interleave #-}
 interleave :: Stream m a -> Stream m a -> Stream m a
 interleave s1 s2 = fromStreamK $ K.interleave (toStreamK s1) (toStreamK s2)
 
+{-# INLINE interleave2 #-}
+interleave2 :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleave2 s1 s2 = fromStreamD $ D.interleave (toStreamD s1) (toStreamD s2)
+
 -- | Like `interleave` but stops interleaving as soon as the first stream
 -- stops.
 --
--- /Not fused/
+-- See 'interleaveFst2' for a fusible alternative.
+--
+-- /CPS/
 {-# INLINE interleaveFst #-}
 interleaveFst :: Stream m a -> Stream m a -> Stream m a
 interleaveFst s1 s2 =
@@ -224,11 +234,18 @@ interleaveFst s1 s2 =
 -- | Like `interleave` but stops interleaving as soon as any of the two streams
 -- stops.
 --
--- /Not fused/
+-- See 'interleaveMin2' for a fusible alternative.
+--
+-- /CPS/
 {-# INLINE interleaveMin #-}
 interleaveMin :: Stream m a -> Stream m a -> Stream m a
 interleaveMin s1 s2 =
     fromStreamK $ K.interleaveMin (toStreamK s1) (toStreamK s2)
+
+{-# INLINE interleaveMin2 #-}
+interleaveMin2 :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveMin2 s1 s2 =
+    fromStreamD $ D.interleaveMin (toStreamD s1) (toStreamD s2)
 
 -- | Interleaves the outputs of two streams, yielding elements from each stream
 -- alternately, starting from the first stream. As soon as the first stream
@@ -315,8 +332,9 @@ roundrobin m1 m2 = fromStreamD $ D.roundRobin (toStreamD m1) (toStreamD m2)
 -- >>> Stream.fold Fold.toList $ Stream.mergeBy compare s1 s2
 -- [1,2,3,4,5,6,8]
 --
--- See also: 'mergeByM2'
+-- See 'mergeByM2' for a fusible alternative.
 --
+-- /CPS/
 {-# INLINE mergeBy #-}
 mergeBy :: (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeBy f m1 m2 = fromStreamK $ K.mergeBy f (toStreamK m1) (toStreamK m2)
@@ -349,8 +367,9 @@ mergeBy f m1 m2 = fromStreamK $ K.mergeBy f (toStreamK m1) (toStreamK m2)
 -- :}
 -- [1,1,2,1,1,2,1,1,2]
 --
--- See also: 'mergeByM2'
+-- See 'mergeByM2' for a fusible alternative.
 --
+-- /CPS/
 {-# INLINE mergeByM #-}
 mergeByM
     :: Monad m
@@ -589,6 +608,8 @@ concatSmapMWith combine f initial =
 -- depending on what you are trying to achieve.
 --
 -- /Caution: the stream of streams must be finite/
+--
+-- /CPS/
 --
 -- /Pre-release/
 --

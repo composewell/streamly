@@ -53,6 +53,7 @@ module Streamly.Internal.Data.Stream.Bottom
 
     -- * Expand
     , concatEffect
+    , concatEffect2
     , concatMapM
     , concatMap
 
@@ -229,7 +230,7 @@ fold fl strm = D.fold fl $ D.fromStreamK $ toStreamK strm
 -- | Like 'fold' but also returns the remaining stream. The resulting stream
 -- would be 'Stream.nil' if the stream finished before the fold.
 --
--- /Not fused/
+-- /CPS/
 --
 {-# INLINE foldBreak #-}
 foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
@@ -533,6 +534,7 @@ intersperseM m = fromStreamD . D.intersperseM m . toStreamD
 -- is already buffered in memory, this will perform lesser allocations that
 -- 'reverse'.
 --
+-- /O(n) space/
 {-# INLINE reverseGeneric #-}
 reverseGeneric :: Monad m => Stream m a -> Stream m a
 -- reverse m = fromStreamD $ D.concatEffect (fmap D.fromList $ fold Fold.toListRev m)
@@ -559,6 +561,8 @@ reverseGeneric =
 -- small number of large objects or if the stream is already buffered in
 -- memory.
 --
+-- /O(n) space/
+--
 -- /Pre-release/
 {-# INLINE reverse #-}
 reverse :: (Monad m, Unbox a) => Stream m a -> Stream m a
@@ -584,6 +588,8 @@ reverse =
 -- generation function is monadic, unlike 'concatMap', it can produce an
 -- effect at the beginning of each iteration of the inner loop.
 --
+-- See 'unfoldMany' for a fusible alternative.
+--
 {-# INLINE concatMapM #-}
 concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
 concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
@@ -595,6 +601,8 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 -- >>> concatMap f = Stream.concatMapWith Stream.append f
 -- >>> concatMap f = Stream.concat . fmap f
 -- >>> concatMap f = Stream.unfoldMany (Unfold.lmap f Unfold.fromStream)
+--
+-- See 'unfoldMany' for a fusible alternative.
 --
 {-# INLINE concatMap #-}
 concatMap ::Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
@@ -610,13 +618,20 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 --
 -- See also: 'concat', 'sequence'
 --
---  /Inhibits stream fusion/
+-- See 'concatEffect2' for a fusible alternative.
+--
+--  /CPS/
 --
 {-# INLINE concatEffect #-}
 concatEffect :: Monad m => m (Stream m a) -> Stream m a
--- concatEffect generator = concatMapM (\() -> generator) (fromPure ())
 concatEffect generator =
     fromStreamK $ K.concatEffect $ fmap toStreamK generator
+
+{-# INLINE concatEffect2 #-}
+concatEffect2 :: Monad m => m (Stream m a) -> Stream m a
+-- concatEffect generator = concatMapM (\() -> generator) (fromPure ())
+concatEffect2 generator =
+    fromStreamD $ D.concatEffect $ fmap toStreamD generator
 
 -- XXX Need a more intuitive name, and need to reconcile the names
 -- foldMany/fold/parse/parseMany/parseManyPost etc.

@@ -79,6 +79,15 @@
 -- combinators. See the <https://github.com/composewell/streamly-examples>
 -- repository for many more real world examples of stream programming.
 --
+-- == Performance Notes
+--
+-- Operations annotated as /CPS/ force the use of continuation passing style
+-- streams. Therefore, such operations are not subjected to stream fusion.
+-- However, for some of these operations you can find fusible alternatives in
+-- the internal modules, which are perfectly fine to use but you need to
+-- understand the implications especially the O(n^2) nature of those
+-- operations..
+--
 module Streamly.Data.Stream
     (
       Stream

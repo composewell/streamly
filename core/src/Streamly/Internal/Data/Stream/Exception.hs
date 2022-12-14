@@ -176,6 +176,8 @@ bracketIO bef aft = bracketIO3 bef aft aft aft
 -- stream is abandoned @onGC@ is executed, if the stream encounters an
 -- exception @onException@ is executed.
 --
+-- /Inhibits stream fusion/
+--
 -- /Pre-release/
 {-# INLINE bracketIO3 #-}
 bracketIO3 :: (MonadIO m, MonadCatch m)

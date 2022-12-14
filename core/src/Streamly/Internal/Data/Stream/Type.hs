@@ -309,7 +309,7 @@ infixr 5 `cons`
 --
 -- >>> cons x xs = return x `Stream.consM` xs
 --
--- /Not fused/
+-- /CPS/
 --
 {-# INLINE_NORMAL cons #-}
 cons ::  a -> Stream m a -> Stream m a
@@ -333,7 +333,7 @@ infixr 5 `consM`
 --
 -- >>> consM x xs = Stream.fromEffect x `Stream.append` xs
 --
--- /Not fused/
+-- /CPS/
 --
 {-# INLINE consM #-}
 {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
