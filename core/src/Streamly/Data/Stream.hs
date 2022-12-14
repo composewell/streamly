@@ -453,7 +453,7 @@ module Streamly.Data.Stream
     , afterIO
     , finallyIO
     , bracketIO
-    , bracket3IO
+    , bracketIO3
 
     -- * Transforming Inner Monad
 
