@@ -155,7 +155,7 @@ module Streamly.Internal.Data.Fold
 
     -- * Running A Fold
     , drive
-    , driveBreak
+    , breakStream
 
     -- * Building Incrementally
     , extractM
@@ -165,7 +165,9 @@ module Streamly.Internal.Data.Fold
     , snocl
     , snocM
     , snoclM
-    , augment
+
+    , addOne
+    , addStream
 
     -- * Combinators
     -- ** Utilities
@@ -337,9 +339,11 @@ import Streamly.Internal.Data.Fold.Type
 -- >>> :m
 -- >>> :set -package random
 -- >>> import Control.Monad (void)
--- >>> import Data.Functor.Identity (runIdentity)
+-- >>> import Data.Functor.Identity (Identity, runIdentity)
 -- >>> import Data.Maybe (isJust)
 -- >>> import Data.Monoid (Last(..), Sum(..))
+-- >>> import Streamly.Data.Array (Array)
+-- >>> import Streamly.Data.Fold (Fold)
 -- >>> import Streamly.Data.Stream (Stream)
 -- >>> import Data.IORef (newIORef, readIORef, writeIORef)
 -- >>> import qualified Streamly.Data.Array as Array
@@ -379,33 +383,82 @@ drive strm fl = StreamD.fold fl $ StreamD.fromStreamK $ Stream.toStreamK strm
 --
 -- Definition:
 --
--- >>> driveBreak = flip Stream.foldBreak
+-- >>> breakStream = flip Stream.foldBreak
 --
 -- /CPS/
 --
-{-# INLINE driveBreak #-}
-driveBreak :: Monad m => Stream m a -> Fold m a b -> m (b, Stream m a)
-driveBreak strm fl = fmap f $ K.foldBreak fl (Stream.toStreamK strm)
+{-# INLINE breakStream #-}
+breakStream :: Monad m => Stream m a -> Fold m a b -> m (b, Stream m a)
+breakStream strm fl = fmap f $ K.foldBreak fl (Stream.toStreamK strm)
 
     where
 
     f (b, str) = (b, Stream.fromStreamK str)
 
--- | Augment a fold strictly by adding a stream to it.
+-- | Append a stream to a fold to build the fold accumulator incrementally. We
+-- can repeatedly call 'addStream' on the same fold to continue building the
+-- fold and finally use 'drive' to finish the fold and extract the result. Also
+-- see the 'Streamly.Data.Fold.addOne' operation which is a singleton version
+-- of 'addStream'.
 --
 -- Definitions:
 --
--- >>> augment stream = Fold.drive stream . Fold.duplicate
+-- >>> addStream stream = Fold.drive stream . Fold.duplicate
+--
+-- Example, build a list incrementally:
 --
 -- >>> :{
---  Fold.augment (Stream.enumerateFromTo 1 10) Fold.sum
---      >>= Fold.augment (Stream.enumerateFromTo 11 20)
---      >>= Fold.drive (Stream.enumerateFromTo 21 30)
+-- pure (Fold.toList :: Fold IO Int [Int])
+--     >>= Fold.addOne 1
+--     >>= Fold.addStream (Stream.enumerateFromTo 2 4)
+--     >>= Fold.drive Stream.nil
+--     >>= print
 -- :}
--- 465
+-- [1,2,3,4]
 --
-augment :: Monad m => Stream m a -> Fold m a b -> m (Fold m a b)
-augment stream = drive stream . duplicate
+-- This can be used as an O(n) list append compared to the O(n^2) @++@ when
+-- used for incrementally building a list.
+--
+-- Example, build a stream incrementally:
+--
+-- >>> :{
+-- pure (Fold.toStream :: Fold IO Int (Stream Identity Int))
+--     >>= Fold.addOne 1
+--     >>= Fold.addStream (Stream.enumerateFromTo 2 4)
+--     >>= Fold.drive Stream.nil
+--     >>= print
+-- :}
+-- fromList [1,2,3,4]
+--
+-- This can be used as an O(n) stream append compared to the O(n^2) @<>@ when
+-- used for incrementally building a stream.
+--
+-- Example, build an array incrementally:
+--
+-- >>> :{
+-- pure (Array.write :: Fold IO Int (Array Int))
+--     >>= Fold.addOne 1
+--     >>= Fold.addStream (Stream.enumerateFromTo 2 4)
+--     >>= Fold.drive Stream.nil
+--     >>= print
+-- :}
+-- fromList [1,2,3,4]
+--
+-- Example, build an array stream incrementally:
+--
+-- >>> :{
+-- let f :: Fold IO Int (Stream Identity (Array Int))
+--     f = Fold.chunksOf 2 (Array.writeN 3) Fold.toStream
+-- in pure f
+--     >>= Fold.addOne 1
+--     >>= Fold.addStream (Stream.enumerateFromTo 2 4)
+--     >>= Fold.drive Stream.nil
+--     >>= print
+-- :}
+-- fromList [fromList [1,2],fromList [3,4]]
+--
+addStream :: Monad m => Stream m a -> Fold m a b -> m (Fold m a b)
+addStream stream = drive stream . duplicate
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs

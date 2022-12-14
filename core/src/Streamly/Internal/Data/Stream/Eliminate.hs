@@ -30,8 +30,8 @@ module Streamly.Internal.Data.Stream.Eliminate
     , foldConcat
 
     -- * Builders
-    , build
-    , buildl
+    , foldAdd
+    , foldAddLazy
 
     -- * Running a 'Parser'
     -- "Streamly.Internal.Data.Parser".

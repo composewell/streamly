@@ -28,8 +28,8 @@ module Streamly.Internal.Data.Stream.Bottom
     , foldConcat
 
     -- * Builders
-    , build
-    , buildl
+    , foldAdd
+    , foldAddLazy
 
     -- * Scans
     , smapM
@@ -92,13 +92,19 @@ import Streamly.Internal.Data.Stream.Type
 -- >>> :m
 -- >>> import Control.Monad (join, (>=>), (<=<))
 -- >>> import Data.Function (fix, (&))
+-- >>> import Data.Functor.Identity (Identity)
 -- >>> import Data.Maybe (fromJust, isJust)
 -- >>> import Prelude hiding (take, takeWhile, drop, reverse)
+-- >>> import Streamly.Data.Array (Array)
+-- >>> import Streamly.Data.Fold (Fold)
+-- >>> import Streamly.Data.Stream (Stream)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import qualified Streamly.Data.Array as Array
+-- >>> import qualified Streamly.Data.Array.Mut as MArray
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold (toStream)
 -- >>> import Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
@@ -175,33 +181,25 @@ relTimesWith = fmap snd . timesWith
 -- Example, to continue folding a list of streams on the same sum fold:
 --
 -- >>> streams = [Stream.fromList [1..5], Stream.fromList [6..10]]
--- >>> f = Prelude.foldl Stream.buildl Fold.sum streams
--- >>> Fold.extractM f
+-- >>> f = Prelude.foldl Stream.foldAddLazy Fold.sum streams
+-- >>> Stream.fold f Stream.nil
 -- 55
 --
-{-# INLINE buildl #-}
-buildl :: Monad m => Fold m a b -> Stream m a -> Fold m a b
-buildl f s = D.foldContinue f $ toStreamD s
+{-# INLINE foldAddLazy #-}
+foldAddLazy :: Monad m => Fold m a b -> Stream m a -> Fold m a b
+foldAddLazy f s = D.foldContinue f $ toStreamD s
 
--- | Append a stream to a fold strictly to build an accumulator incrementally.
+-- >>> foldAdd f = Stream.foldAddLazy f >=> Fold.reduce
+
+-- |
+-- >>> foldAdd = flip Fold.addStream
 --
--- Definitions:
---
--- >>> build f = Stream.fold (Fold.duplicate f)
--- >>> build f = Stream.buildl f >=> Fold.reduce
---
--- Example:
---
--- >>> :{
--- do
---  sum1 <- Stream.build Fold.sum (Stream.enumerateFromTo 1 10)
---  sum2 <- Stream.build sum1 (Stream.enumerateFromTo 11 20)
---  Stream.fold sum2 (Stream.enumerateFromTo 21 30)
--- :}
--- 465
---
-build :: Monad m => Fold m a b -> Stream m a -> m (Fold m a b)
-build f = fold (Fold.duplicate f)
+foldAdd :: Monad m => Fold m a b -> Stream m a -> m (Fold m a b)
+foldAdd f = fold (Fold.duplicate f)
+
+-- >>> fold f = Fold.extractM . Stream.foldAddLazy f
+-- >>> fold f = Stream.fold Fold.one . Stream.foldManyPost f
+-- >>> fold f = Fold.extractM <=< Stream.foldAdd f
 
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
 -- expression strictly at each step. The behavior is similar to 'foldl''. A
@@ -212,9 +210,6 @@ build f = fold (Fold.duplicate f)
 --
 -- >>> fold f = fmap fst . Stream.foldBreak f
 -- >>> fold f = Stream.parse (Parser.fromFold f)
--- >>> fold f = Stream.fold Fold.one . Stream.foldManyPost f
--- >>> fold f = Fold.extractM . Stream.buildl f
--- >>> fold f = Fold.extractM <=< Stream.build f
 --
 -- Example:
 --
