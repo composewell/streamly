@@ -206,16 +206,29 @@ module Streamly.Data.Fold
 
     -- * Running A Fold
     , drive
-    , driveBreak
+    -- XXX Should we have a stream returning function in fold module?
+    -- , breakStream
 
-    -- * Building Incrmentally
-    , extractM
-    , reduce
-    , snoc
+    -- * Incremental builders
+    -- | Mutable arrays ("Streamly.Data.Array.Mut") are basic builders. You can
+    -- use the 'Streamly.Data.Array.Mut.snoc' or
+    -- 'Streamly.Data.Array.Mut.writeAppend' operations to incrementally build
+    -- mutable arrays. The 'addOne' and 'addStream' combinators can be used to
+    -- incrementally build any type of structure using a fold, including arrays
+    -- or a stream of arrays.
+    --
+    -- Use pinned arrays if you are going to use the data for IO.
+
+    -- XXX should rename to "extract". can use "Fold.drive Stream.nil" instead,
+    -- for now.
+    -- , extractM
+    -- , reduce
+    , addOne
     -- , snocl
-    , snocM
+    -- XXX Can we use something like concatEffect to implement snocM?
+    -- , snocM
     -- , snoclM
-    , augment
+    , addStream
     , duplicate
     -- , isClosed
 

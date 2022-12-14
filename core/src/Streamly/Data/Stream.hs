@@ -246,8 +246,8 @@ module Streamly.Data.Stream
     -- XXX We can call this just "break" and parseBreak as "munch"
     , foldBreak
 
-    -- * Builders
-    , build
+    -- XXX should we have a Fold returning function in stream module?
+    -- , foldAdd
     -- , buildl
 
     -- ** Parsing

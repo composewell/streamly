@@ -122,7 +122,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (first, bracketIO)
 import qualified Streamly.Internal.Data.Stream.Chunked as AS
-import qualified Streamly.Internal.Data.Fold.Type as FL (Step(..))
+import qualified Streamly.Internal.Data.Fold.Type as FL (Step(..), reduce)
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S
 import qualified Streamly.Internal.Network.Socket as ISK
@@ -358,7 +358,7 @@ writeChunks addr port = Fold step initial extract
                     `MC.onException` liftIO (Net.close skt)
         return $ FL.Partial (Tuple' fld skt)
     step (Tuple' fld skt) x = do
-        r <- FL.snoc fld x `MC.onException` liftIO (Net.close skt)
+        r <- FL.addOne x fld `MC.onException` liftIO (Net.close skt)
         return $ FL.Partial (Tuple' r skt)
     extract (Tuple' (Fold _ initial1 extract1) skt) = do
         liftIO $ Net.close skt

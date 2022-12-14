@@ -404,6 +404,7 @@ module Streamly.Internal.Data.Fold.Type
     , extractM
     , reduce
     , snoc
+    , addOne
     , snocM
     , snocl
     , snoclM
@@ -1497,16 +1498,18 @@ snocM (Fold step initial extract) action = do
           Done _ -> return res
     return $ Fold step (return r) extract
 
--- | Append a singleton value to the fold, in other words run a single step of
--- the fold.
---
 -- Definitions:
 --
 -- >>> snoc f = Fold.reduce . Fold.snocl f
 -- >>> snoc f = Fold.snocM f . return
+
+-- | Append a singleton value to the fold, in other words run a single step of
+-- the fold.
+--
+-- Example:
 --
 -- >>> import qualified Data.Foldable as Foldable
--- >>> Foldable.foldlM Fold.snoc Fold.toList [1..3] >>= Fold.extractM
+-- >>> Foldable.foldlM Fold.snoc Fold.toList [1..3] >>= Fold.drive Stream.nil
 -- [1,2,3]
 --
 -- /Pre-release/
@@ -1518,6 +1521,15 @@ snoc (Fold step initial extract) a = do
           Partial fs -> step fs a
           Done _ -> return res
     return $ Fold step (return r) extract
+
+-- | Append a singleton value to the fold.
+--
+-- See examples under 'addStream'.
+--
+-- /Pre-release/
+{-# INLINE addOne #-}
+addOne :: Monad m => a -> Fold m a b -> m (Fold m a b)
+addOne = flip snoc
 
 -- Similar to the comonad "extract" operation.
 -- XXX rename to extract. We can use "extr" for the fold extract function.
