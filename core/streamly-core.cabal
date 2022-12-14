@@ -1,8 +1,15 @@
 cabal-version:      2.2
 name:               streamly-core
 version:            0.1.0
-synopsis:           Dataflow programming and declarative concurrency
-description:        Basic streaming and arrays functionality of streamly.
+synopsis:           Streaming, parsers, arrays and more
+description:
+    Streams, arrays, parsers, unicode text, file IO, console IO
+    functionality of the streamly library. The goal of "streamly-core"
+    package is to depend only on GHC boot libraries and yet provide
+    a rich functionality to build a wide array of applications using
+    streaming and dataflow programming. For concurrent streams, time,
+    networking, lifted exceptions and other high level functionality,
+    use the "streamly" package.
 
 homepage:            https://streamly.composewell.com
 bug-reports:         https://github.com/composewell/streamly/issues
