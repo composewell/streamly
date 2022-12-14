@@ -387,7 +387,7 @@ iterateM step = fromStreamD . D.iterateM step
 -- Note that the function @f@ must be lazy in its argument, that's why we use
 -- 'unsafeInterleaveIO' on @action@ because IO monad is strict.
 --
--- /Not fused/
+-- /CPS/
 --
 -- /Pre-release/
 {-# INLINE mfix #-}
@@ -403,7 +403,7 @@ mfix f = fromStreamK $ K.mfix (toStreamK . f)
 --
 -- Construct a stream from a 'Foldable' containing pure values:
 --
--- /Not fused/
+-- /CPS/
 --
 {-# INLINE fromFoldable #-}
 fromFoldable :: Foldable f => f a -> Stream m a

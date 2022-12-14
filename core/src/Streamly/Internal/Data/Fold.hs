@@ -381,7 +381,7 @@ drive strm fl = StreamD.fold fl $ StreamD.fromStreamK $ Stream.toStreamK strm
 --
 -- >>> driveBreak = flip Stream.foldBreak
 --
--- /Not fused/
+-- /CPS/
 --
 {-# INLINE driveBreak #-}
 driveBreak :: Monad m => Stream m a -> Fold m a b -> m (b, Stream m a)

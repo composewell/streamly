@@ -135,7 +135,7 @@ import Prelude hiding (foldr, init, reverse)
 --         (Just h, t) -> Just (h, t)
 -- :}
 --
--- /Not fused/
+-- /CPS/
 --
 {-# INLINE uncons #-}
 uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
@@ -252,7 +252,7 @@ parseBreakD parser strm = do
 
 -- | Parse a stream using the supplied 'Parser'.
 --
--- /Not fused/
+-- /CPS/
 --
 {-# INLINE parseBreak #-}
 parseBreak :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
