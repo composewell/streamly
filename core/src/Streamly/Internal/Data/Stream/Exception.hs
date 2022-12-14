@@ -13,7 +13,7 @@ module Streamly.Internal.Data.Stream.Exception
     , afterIO
     , bracketUnsafe
     , bracketIO
-    , bracket3IO
+    , bracketIO3
     , onException
     , finallyUnsafe
     , finallyIO
@@ -158,7 +158,7 @@ bracketUnsafe bef aft bet = fromStreamD $ D.bracket_ bef aft (toStreamD . bet)
 {-# INLINE bracketIO #-}
 bracketIO :: (MonadIO m, MonadCatch m)
     => IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
-bracketIO bef aft = bracket3IO bef aft aft aft
+bracketIO bef aft = bracketIO3 bef aft aft aft
 
 -- For a use case of this see the "streamly-process" package. It needs to kill
 -- the process in case of exception or garbage collection, but waits for the
@@ -171,21 +171,21 @@ bracketIO bef aft = bracket3IO bef aft aft aft
 -- 2. When the stream is garbage collected
 -- 3. When the stream encounters an exception
 --
--- @bracket3IO before onStop onGC onException action@ runs @action@ using the
+-- @bracketIO3 before onStop onGC onException action@ runs @action@ using the
 -- result of @before@. If the stream stops, @onStop@ action is executed, if the
 -- stream is abandoned @onGC@ is executed, if the stream encounters an
 -- exception @onException@ is executed.
 --
 -- /Pre-release/
-{-# INLINE bracket3IO #-}
-bracket3IO :: (MonadIO m, MonadCatch m)
+{-# INLINE bracketIO3 #-}
+bracketIO3 :: (MonadIO m, MonadCatch m)
     => IO b
     -> (b -> IO c)
     -> (b -> IO d)
     -> (b -> IO e)
     -> (b -> Stream m a)
     -> Stream m a
-bracket3IO bef aft gc exc bet = fromStreamD $
+bracketIO3 bef aft gc exc bet = fromStreamD $
     D.bracket' bef aft exc gc (toStreamD . bet)
 
 -- | Like 'handle' but the exception handler is also provided with the stream
