@@ -195,7 +195,7 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 --  /Internal/
 --
 {-# INLINE reader #-}
-reader :: MonadIO m => Unfold m String String
+reader :: MonadIO m => Unfold m FilePath FilePath
 reader =
     -- XXX use proper streaming read of the dir
     UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList
@@ -211,7 +211,7 @@ reader =
 --  /Internal/
 --
 {-# INLINE eitherReader #-}
-eitherReader :: MonadIO m => Unfold m String (Either String String)
+eitherReader :: MonadIO m => Unfold m FilePath (Either FilePath FilePath)
 eitherReader =
       UF.mapM2 classify
     $ UF.filter (\x -> x /= "." && x /= "..")
@@ -228,7 +228,7 @@ eitherReader =
 --  /Internal/
 --
 {-# INLINE fileReader #-}
-fileReader :: MonadIO m => Unfold m String String
+fileReader :: MonadIO m => Unfold m FilePath FilePath
 fileReader = fmap (fromRight undefined) $ UF.filter isRight eitherReader
 
 -- | Read directories only. Filter out "." and ".." entries.
@@ -236,14 +236,14 @@ fileReader = fmap (fromRight undefined) $ UF.filter isRight eitherReader
 --  /Internal/
 --
 {-# INLINE dirReader #-}
-dirReader :: MonadIO m => Unfold m String String
+dirReader :: MonadIO m => Unfold m FilePath FilePath
 dirReader = fmap (fromLeft undefined) $ UF.filter isLeft eitherReader
 
 -- | Raw read of a directory.
 --
 -- /Pre-release/
 {-# INLINE read #-}
-read :: MonadIO m => String -> Stream m String
+read :: MonadIO m => FilePath -> Stream m FilePath
 read = S.unfold reader
 
 {-# DEPRECATED toStream "Please use 'read' instead" #-}
@@ -256,12 +256,12 @@ toStream = read
 --
 -- /Pre-release/
 {-# INLINE readEither #-}
-readEither :: MonadIO m => String -> Stream m (Either String String)
+readEither :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
 readEither = S.unfold eitherReader
 
 {-# DEPRECATED toEither "Please use 'readEither' instead" #-}
 {-# INLINE toEither #-}
-toEither :: MonadIO m => String -> Stream m (Either String String)
+toEither :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
 toEither = readEither
 
 -- | Read files only.
@@ -269,12 +269,12 @@ toEither = readEither
 --  /Internal/
 --
 {-# INLINE readFiles #-}
-readFiles :: MonadIO m => String -> Stream m String
+readFiles :: MonadIO m => FilePath -> Stream m FilePath
 readFiles = S.unfold fileReader
 
 {-# DEPRECATED toFiles "Please use 'readFiles' instead" #-}
 {-# INLINE toFiles #-}
-toFiles :: MonadIO m => String -> Stream m String
+toFiles :: MonadIO m => FilePath -> Stream m FilePath
 toFiles = readFiles
 
 -- | Read directories only.
@@ -282,7 +282,7 @@ toFiles = readFiles
 --  /Internal/
 --
 {-# INLINE readDirs #-}
-readDirs :: MonadIO m => String -> Stream m String
+readDirs :: MonadIO m => FilePath -> Stream m FilePath
 readDirs = S.unfold dirReader
 
 {-# DEPRECATED toDirs "Please use 'readDirs' instead" #-}
