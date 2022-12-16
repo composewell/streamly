@@ -335,6 +335,7 @@ library
 
                      -- streamly-serde
                      , Streamly.Internal.Data.Binary.Decode
+                     , Streamly.Internal.Data.Binary.Encode
 
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream
