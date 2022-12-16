@@ -465,22 +465,22 @@ o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
     [ bgroup "buffered"
         [
-          benchIOSrc1 "joinInner (sqrtVal)"
-            $ joinWith S.joinInner sqrtVal
-        , benchIOSrc1 "joinInnerMap"
-            $ joinMapWith S.joinInnerMap halfVal
-        , benchIOSrc1 "joinLeft (sqrtVal)"
-            $ joinWith S.joinLeft sqrtVal
-        , benchIOSrc1 "joinLeftMap "
-            $ joinMapWith S.joinLeftMap halfVal
-        , benchIOSrc1 "joinOuter (sqrtVal)"
-            $ joinWith S.joinOuter sqrtVal
-        , benchIOSrc1 "joinOuterMap"
-            $ joinMapWith S.joinOuterMap halfVal
-        , benchIOSrc1 "intersectBy (sqrtVal)"
-            $ joinWith S.intersectBy sqrtVal
-        , benchIOSrc1 "intersectBySorted"
-            $ joinMapWith (S.intersectBySorted compare) halfVal
+          benchIOSrc1 "joinInnerGeneric (sqrtVal)"
+            $ joinWith S.joinInnerGeneric sqrtVal
+        , benchIOSrc1 "joinInner"
+            $ joinMapWith S.joinInner halfVal
+        , benchIOSrc1 "joinLeftGeneric (sqrtVal)"
+            $ joinWith S.joinLeftGeneric sqrtVal
+        , benchIOSrc1 "joinLeft "
+            $ joinMapWith S.joinLeft halfVal
+        , benchIOSrc1 "joinOuterGeneric (sqrtVal)"
+            $ joinWith S.joinOuterGeneric sqrtVal
+        , benchIOSrc1 "joinOuter"
+            $ joinMapWith S.joinOuter halfVal
+        , benchIOSrc1 "filterInStreamGenericBy (sqrtVal)"
+            $ joinWith S.filterInStreamGenericBy sqrtVal
+        , benchIOSrc1 "filterInStreamAscBy"
+            $ joinMapWith (S.filterInStreamAscBy compare) halfVal
         ]
     ]
 

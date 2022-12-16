@@ -237,6 +237,7 @@ module Streamly.Internal.Data.Unfold
     , crossWithM
     , crossWith
     , cross
+    , joinInnerGeneric
     , crossApply
 
     -- ** Nesting
@@ -828,6 +829,11 @@ dropWhileM f (Unfold step inject) = Unfold step' inject'
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => (b -> Bool) -> Unfold m a b -> Unfold m a b
 dropWhile f = dropWhileM (return . f)
+
+{-# INLINE_NORMAL joinInnerGeneric #-}
+joinInnerGeneric :: Monad m =>
+    (b -> c -> Bool) -> Unfold m a b -> Unfold m a c -> Unfold m a (b, c)
+joinInnerGeneric eq s1 s2 = filter (\(a, b) -> a `eq` b) $ cross s1 s2
 
 ------------------------------------------------------------------------------
 -- Exceptions

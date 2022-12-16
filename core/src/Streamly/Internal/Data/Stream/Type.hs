@@ -32,6 +32,8 @@ module Streamly.Internal.Data.Stream.Type
     , crossApply
     , crossApplySnd
     , crossApplyFst
+    , crossWith
+    , cross
 
     -- * Bind/Concat
     , bindWith
@@ -387,6 +389,10 @@ fromEffect = fromStreamK . K.fromEffect
 -- Applicative
 -------------------------------------------------------------------------------
 
+-- | Apply a stream of functions to a stream of values and flatten the results.
+--
+-- Note that the second stream is evaluated multiple times.
+--
 {-# INLINE crossApply #-}
 crossApply :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
 crossApply m1 m2 =
@@ -401,6 +407,39 @@ crossApplySnd m1 m2 =
 crossApplyFst :: Monad m => Stream m a -> Stream m b -> Stream m a
 crossApplyFst m1 m2 =
     fromStreamD $ D.crossApplyFst (toStreamD m1) (toStreamD m2)
+
+-- |
+-- Definition:
+--
+-- >>> crossWith f m1 m2 = fmap f m1 `Stream.crossApply` m2
+--
+-- Note that the second stream is evaluated multiple times.
+--
+{-# INLINE crossWith #-}
+crossWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+crossWith f m1 m2 = fmap f m1 `crossApply` m2
+
+-- | Given a @Stream m a@ and @Stream m b@ generate a stream with all possible
+-- combinations of the tuple @(a, b)@.
+--
+-- Definition:
+--
+-- >>> cross = Stream.crossWith (,)
+--
+-- The second stream is evaluated multiple times. If that is not desired it can
+-- be cached in an 'Data.Array.Array' and then generated from the array before
+-- calling this function. Caching may also improve performance if the stream is
+-- expensive to evaluate.
+--
+-- See 'Streamly.Internal.Data.Unfold.cross' for a much faster fused
+-- alternative.
+--
+-- Time: O(m x n)
+--
+-- /Pre-release/
+{-# INLINE cross #-}
+cross :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
+cross = crossWith (,)
 
 -------------------------------------------------------------------------------
 -- Bind/Concat

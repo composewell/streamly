@@ -5,27 +5,44 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- Stream operations that require transformers or containers like Set or Map.
+
+-- Rename this to Stream.Container?
 
 module Streamly.Internal.Data.Stream.Extra
     (
       nub
-    , joinInnerMap
-    , joinLeftMap
-    , joinOuterMap
+
+    -- * Joins for unconstrained types
+    , joinLeftGeneric
+    , joinOuterGeneric
+
+    -- * Joins with Ord constraint
+    , joinInner
+    , joinLeft
+    , joinOuter
     )
 where
 
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Trans.State.Strict (get, put)
+import Data.Function ((&))
+import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Streamly.Internal.Data.Array.Generic as Array
+import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.Transformer as Stream
 
 -- $setup
 -- >>> :m
@@ -74,10 +91,10 @@ toMap =
 -- Time: O(m + n)
 --
 -- /Pre-release/
-{-# INLINE joinInnerMap #-}
-joinInnerMap :: (Monad m, Ord k) =>
+{-# INLINE joinInner #-}
+joinInner :: (Monad m, Ord k) =>
     Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, b)
-joinInnerMap s1 s2 =
+joinInner s1 s2 =
     Stream.concatEffect $ do
         km <- toMap s2
         pure $ Stream.mapMaybe (joinAB km) s1
@@ -89,17 +106,64 @@ joinInnerMap s1 s2 =
             Just b -> Just (k, a, b)
             Nothing -> Nothing
 
--- | Like 'joinLeft' but uses a hashmap for efficiency.
+-- XXX We can do this concurrently.
+-- XXX If the second stream is sorted and passed as an Array or a seek capable
+-- stream then we could use binary search if we have an Ord instance or
+-- Ordering returning function. The time complexity would then become (m x log
+-- n).
+
+-- | Like 'joinInner' but emit @(a, Just b)@, and additionally, for those @a@'s
+-- that are not equal to any @b@ emit @(a, Nothing)@.
+--
+-- The second stream is evaluated multiple times. If the stream is a
+-- consume-once stream then the caller should cache it in an 'Data.Array.Array'
+-- before calling this function. Caching may also improve performance if the
+-- stream is expensive to evaluate.
+--
+-- >>> joinRightGeneric eq = flip (Stream.joinLeftGeneric eq)
+--
+-- Space: O(n) assuming the second stream is cached in memory.
+--
+-- Time: O(m x n)
+--
+-- /Unimplemented/
+{-# INLINE joinLeftGeneric #-}
+joinLeftGeneric :: Monad m =>
+    (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
+joinLeftGeneric eq s1 s2 = Stream.evalStateT (return False) $ unCrossStream $ do
+    a <- CrossStream (Stream.liftInner s1)
+    -- XXX should we use StreamD monad here?
+    -- XXX Is there a better way to perform some action at the end of a loop
+    -- iteration?
+    CrossStream (Stream.fromEffect $ put False)
+    let final = Stream.concatEffect $ do
+            r <- get
+            if r
+            then pure Stream.nil
+            else pure (Stream.fromPure Nothing)
+    b <- CrossStream (fmap Just (Stream.liftInner s2) <> final)
+    case b of
+        Just b1 ->
+            if a `eq` b1
+            then do
+                CrossStream (Stream.fromEffect $ put True)
+                return (a, Just b1)
+            else CrossStream Stream.nil
+        Nothing -> return (a, Nothing)
+
+-- XXX rename to joinLeftOrd?
+
+-- | A more efficient 'joinLeft' using a hashmap for efficiency.
 --
 -- Space: O(n)
 --
 -- Time: O(m + n)
 --
 -- /Pre-release/
-{-# INLINE joinLeftMap #-}
-joinLeftMap :: (Ord k, Monad m) =>
+{-# INLINE joinLeft #-}
+joinLeft :: (Ord k, Monad m) =>
     Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, Maybe b)
-joinLeftMap s1 s2 =
+joinLeft s1 s2 =
     Stream.concatEffect $ do
         km <- toMap s2
         return $ fmap (joinAB km) s1
@@ -111,10 +175,82 @@ joinLeftMap s1 s2 =
                     Just b -> (k, a, Just b)
                     Nothing -> (k, a, Nothing)
 
+-- XXX We can do this concurrently.
+
+-- | Like 'joinLeft' but emits a @(Just a, Just b)@. Like 'joinLeft', for those
+-- @a@'s that are not equal to any @b@ emit @(Just a, Nothing)@, but
+-- additionally, for those @b@'s that are not equal to any @a@ emit @(Nothing,
+-- Just b)@.
+--
+-- For space efficiency use the smaller stream as the second stream.
+--
+-- Space: O(n)
+--
+-- Time: O(m x n)
+--
+-- /Pre-release/
+{-# INLINE joinOuterGeneric #-}
+joinOuterGeneric :: MonadIO m =>
+       (a -> b -> Bool)
+    -> Stream m a
+    -> Stream m b
+    -> Stream m (Maybe a, Maybe b)
+joinOuterGeneric eq s1 s =
+    Stream.concatEffect $ do
+        inputArr <- Array.fromStream s
+        let len = Array.length inputArr
+        foundArr <-
+            Stream.fold
+            (MA.writeN len)
+            (Stream.fromList (Prelude.replicate len False))
+        return $ go inputArr foundArr <> leftOver inputArr foundArr
+
+    where
+
+    leftOver inputArr foundArr =
+            let stream1 = Array.read inputArr
+                stream2 = Stream.unfold MA.reader foundArr
+            in Stream.filter
+                    isJust
+                    ( Stream.zipWith (\x y ->
+                        if y
+                        then Nothing
+                        else Just (Nothing, Just x)
+                        ) stream1 stream2
+                    ) & Stream.catMaybes
+
+    evalState = Stream.evalStateT (return False) . unCrossStream
+
+    go inputArr foundArr = evalState $ do
+        a <- CrossStream (Stream.liftInner s1)
+        -- XXX should we use StreamD monad here?
+        -- XXX Is there a better way to perform some action at the end of a loop
+        -- iteration?
+        CrossStream (Stream.fromEffect $ put False)
+        let final = Stream.concatEffect $ do
+                r <- get
+                if r
+                then pure Stream.nil
+                else pure (Stream.fromPure Nothing)
+        (i, b) <-
+            let stream = Array.read inputArr
+             in CrossStream
+                (Stream.indexed $ fmap Just (Stream.liftInner stream) <> final)
+
+        case b of
+            Just b1 ->
+                if a `eq` b1
+                then do
+                    CrossStream (Stream.fromEffect $ put True)
+                    MA.putIndex i True foundArr
+                    return (Just a, Just b1)
+                else CrossStream Stream.nil
+            Nothing -> return (Just a, Nothing)
+
 -- Put the b's that have been paired, in another hash or mutate the hash to set
 -- a flag. At the end go through @Stream m b@ and find those that are not in that
 -- hash to return (Nothing, b).
---
+
 -- | Like 'joinOuter' but uses a 'Map' for efficiency.
 --
 -- Space: O(m + n)
@@ -122,11 +258,11 @@ joinLeftMap s1 s2 =
 -- Time: O(m + n)
 --
 -- /Pre-release/
-{-# INLINE joinOuterMap #-}
-joinOuterMap ::
+{-# INLINE joinOuter #-}
+joinOuter ::
     (Ord k, MonadIO m) =>
     Stream m (k, a) -> Stream m (k, b) -> Stream m (k, Maybe a, Maybe b)
-joinOuterMap s1 s2 =
+joinOuter s1 s2 =
     Stream.concatEffect $ do
         km1 <- kvFold s1
         km2 <- kvFold s2

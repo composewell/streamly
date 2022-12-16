@@ -388,6 +388,17 @@ module Streamly.Data.Stream
     -- , zipWith2
     -- , zipWithM2
 
+    -- ** Cross Product
+    -- XXX The argument order in this operation is such that it seems we are
+    -- transforming the first stream using the second stream because the second
+    -- stream is evaluated many times or buffered and better be finite, first
+    -- stream could potentially be infinite. In the tradition of using the
+    -- transformed stream at the end we can have a flipped version called
+    -- "crossMap" or "nestWith".
+    , crossWith
+    -- , cross
+    -- , joinInner
+
     -- * Unfold Each
     , unfoldMany
     , intercalate

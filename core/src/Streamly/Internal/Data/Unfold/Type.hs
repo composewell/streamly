@@ -513,14 +513,17 @@ crossWith f = crossWithM (\b c -> return $ f b c)
 
 -- | See 'crossWith'.
 --
--- > cross = crossWith (,)
+-- Definition:
 --
--- To cross the streams from a tuple we can write:
+-- >>> cross = Unfold.crossWith (,)
 --
--- @
--- crossProduct :: Monad m => Unfold m a b -> Unfold m c d -> Unfold m (a, c) (b, d)
--- crossProduct u1 u2 = cross (lmap fst u1) (lmap snd u2)
--- @
+-- To create a cross product of the streams generated from a tuple we can
+-- write:
+--
+-- >>> :{
+-- cross :: Monad m => Unfold m a b -> Unfold m c d -> Unfold m (a, c) (b, d)
+-- cross u1 u2 = Unfold.cross (Unfold.lmap fst u1) (Unfold.lmap snd u2)
+-- :}
 --
 -- /Pre-release/
 {-# INLINE_NORMAL cross #-}
