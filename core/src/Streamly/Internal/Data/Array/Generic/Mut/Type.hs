@@ -169,8 +169,9 @@ import GHC.Base
     , newArray#
     , readArray#
     , writeArray#
-    , UnliftedType
+    , RuntimeRep (..)
     )
+import GHC.Exts (TYPE)
 import GHC.IO (IO(..))
 import GHC.Int (Int(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -621,7 +622,7 @@ clone src = liftIO $ do
     putSliceUnsafe src 0 dst 0 len
     return dst
 
-data GroupState s (contents :: UnliftedType) start end bound
+data GroupState s (contents :: TYPE 'UnliftedRep) start end bound
     = GroupStart s
     | GroupBuffer s contents start end bound
     | GroupYield
