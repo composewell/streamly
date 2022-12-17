@@ -9,7 +9,8 @@
 -- Converting Haskell data types to byte streams.
 
 module Streamly.Internal.Serialize.ToBytes
-    ( unit
+    ( ToBytes (..)
+    , unit
     , bool
     , ordering
     , word8
@@ -259,3 +260,11 @@ word64host =
 #else
     word64le
 #endif
+
+-------------------------------------------------------------------------------
+-- Type class
+-------------------------------------------------------------------------------
+
+class ToBytes a where
+    -- | Convert a Haskell type to a byte stream.
+    toBytes :: a -> Stream m Word8

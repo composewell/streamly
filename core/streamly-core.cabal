@@ -336,7 +336,6 @@ library
                      -- streamly-serde
                      , Streamly.Internal.Serialize.FromBytes
                      , Streamly.Internal.Serialize.ToBytes
-                     , Streamly.Internal.Serialize
 
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream

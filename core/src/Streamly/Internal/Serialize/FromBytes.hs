@@ -9,7 +9,8 @@
 -- Parsers for binary encoded basic Haskell data types.
 
 module Streamly.Internal.Serialize.FromBytes
-    ( unit
+    ( FromBytes (..)
+    , unit
     , bool
     , ordering
     , eqWord8 -- XXX rename to word8Eq
@@ -278,3 +279,11 @@ word64le = PRD.toParserK word64leD
 word64host :: MonadIO m => Parser Word8 m Word64
 word64host =
     fmap (A.unsafeIndex 0 . A.castUnsafe) $ PR.takeEQ 8 (A.writeN 8)
+
+-------------------------------------------------------------------------------
+-- Type class
+-------------------------------------------------------------------------------
+
+class FromBytes a where
+    -- | Decode a byte stream to a Haskell type.
+    fromBytes :: Parser Word8 m a
