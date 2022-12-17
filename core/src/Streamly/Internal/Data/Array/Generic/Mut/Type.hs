@@ -169,7 +169,11 @@ import GHC.Base
     , newArray#
     , readArray#
     , writeArray#
+#if MIN_VERSION_base(4,16,0)
+    , UnliftedRep
+#else
     , RuntimeRep (..)
+#endif
     )
 import GHC.Exts (TYPE)
 import GHC.IO (IO(..))
@@ -622,7 +626,13 @@ clone src = liftIO $ do
     putSliceUnsafe src 0 dst 0 len
     return dst
 
-data GroupState s (contents :: TYPE 'UnliftedRep) start end bound
+data GroupState s
+#if MIN_VERSION_base(4,16,0)
+        (contents :: TYPE UnliftedRep)
+#else
+        (contents :: TYPE 'UnliftedRep)
+#endif
+        start end bound
     = GroupStart s
     | GroupBuffer s contents start end bound
     | GroupYield
