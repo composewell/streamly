@@ -6,10 +6,14 @@
 -- Stability   : pre-release
 -- Portability : GHC
 --
--- Parsers for binary encoded basic Haskell data types.
+-- Decode Haskell data types from byte streams.
 
 module Streamly.Internal.Serialize.FromBytes
-    ( FromBytes (..)
+    (
+    -- * Type class
+      FromBytes (..)
+
+    -- * Decoders
     , unit
     , bool
     , ordering
@@ -39,6 +43,11 @@ import qualified Streamly.Internal.Data.Parser as PR
     (fromPure, either, satisfy, takeEQ)
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
     (Parser(..), Initial(..), Step(..), toParserK)
+
+-- Note: The () type does not need to have an on-disk representation in theory.
+-- But we use a concrete representation for it so that we count how many ()
+-- types we have. Or when we have an array of units the array a concrete
+-- length.
 
 -- | A value of type '()' is encoded as @0@ in binary encoding.
 --

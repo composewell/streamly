@@ -6,10 +6,14 @@
 -- Stability   : pre-release
 -- Portability : GHC
 --
--- Converting Haskell data types to byte streams.
+-- Encode Haskell data types to byte streams.
 
 module Streamly.Internal.Serialize.ToBytes
-    ( ToBytes (..)
+    (
+    -- * Type class
+      ToBytes (..)
+
+    -- * Encoders
     , unit
     , bool
     , ordering
