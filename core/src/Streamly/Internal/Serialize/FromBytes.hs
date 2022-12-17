@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Serialize.Decode
+-- Module      : Streamly.Internal.Serialize.FromBytes
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Parsers for binary encoded basic Haskell data types.
 
-module Streamly.Internal.Serialize.Decode
+module Streamly.Internal.Serialize.FromBytes
     ( unit
     , bool
     , ordering

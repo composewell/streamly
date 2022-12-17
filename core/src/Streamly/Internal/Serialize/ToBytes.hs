@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Serialize.Encode
+-- Module      : Streamly.Internal.Serialize.ToBytes
 -- Copyright   : (c) 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Converting Haskell data types to byte streams.
 
-module Streamly.Internal.Serialize.Encode
+module Streamly.Internal.Serialize.ToBytes
     ( unit
     , bool
     , ordering
