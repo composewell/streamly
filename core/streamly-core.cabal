@@ -334,9 +334,9 @@ library
                      , Streamly.Internal.Data.Array.Mut.Stream
 
                      -- streamly-serde
-                     , Streamly.Internal.Data.Binary.Decode
-                     , Streamly.Internal.Data.Binary.Encode
-                     , Streamly.Internal.Data.Binary
+                     , Streamly.Internal.Serialize.Decode
+                     , Streamly.Internal.Serialize.Encode
+                     , Streamly.Internal.Serialize
 
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream

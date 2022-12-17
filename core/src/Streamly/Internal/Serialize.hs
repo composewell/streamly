@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Binary
+-- Module      : Streamly.Internal.Serialize
 -- Copyright   : (c) 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Convert Haskell data types to byte streams and vice-versa.
 
-module Streamly.Internal.Data.Binary
+module Streamly.Internal.Serialize
     ( ToBytes (..)
     , FromBytes (..)
     )
