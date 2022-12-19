@@ -33,6 +33,7 @@ module Streamly.Internal.Serialize.FromBytes
     , int32le
     , int64be
     , int64le
+    , floatbe
     )
 where
 
@@ -44,6 +45,7 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 
 import qualified Streamly.Data.Array as A
+import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array as A
     (unsafeIndex, castUnsafe)
 import qualified Streamly.Internal.Data.Parser as PR
@@ -451,6 +453,31 @@ int64leD = PRD.Parser step initial extract
 {-# INLINE int64le #-}
 int64le :: Monad m => Parser Word8 m Int64
 int64le = PRD.toParserK int64leD
+
+
+{-# INLINE floatbeD #-}
+floatbeD :: MonadIO m => PRD.Parser Word8 m Float
+floatbeD = PRD.Parser step initial extract
+
+    where
+
+    initial = do
+        arr0 <- MA.new 4
+        return $ PRD.IPartial (arr0, 1 :: Int)
+
+    step (arr0, i) a = do
+        arr1 <- MA.snoc arr0 a
+        if i < 4
+        then return $ PRD.Continue 0 (arr1, i + 1)
+        else do
+            ff <- MA.getIndex 0 (MA.castUnsafe arr1)
+            return $ PRD.Done 0 ff
+
+    extract _ = return $ PRD.Error "floatbeD: end of input"
+
+{-# INLINE floatbe #-}
+floatbe :: MonadIO m => Parser Word8 m Float
+floatbe = PRD.toParserK floatbeD
 -------------------------------------------------------------------------------
 -- Host byte order
 -------------------------------------------------------------------------------

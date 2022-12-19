@@ -32,11 +32,13 @@ module Streamly.Internal.Serialize.ToBytes
     , int32le
     , int64be
     , int64le
+    , floatbe
     )
 where
 
 #include "MachDeps.h"
 
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Bits (shiftR)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Streamly.Internal.Data.Stream (Stream, fromStreamD)
@@ -44,6 +46,8 @@ import Streamly.Internal.Data.Stream.StreamD (Step(..))
 
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Array.Mut.Type as MA
+
 import Data.Int (Int8, Int16, Int32, Int64)
 
 -- XXX Use StreamD directly?
@@ -397,6 +401,25 @@ int64leD w = D.Stream step W64B1
 {-# INLINE int64le #-}
 int64le :: Monad m => Int64 -> Stream m Word8
 int64le = fromStreamD . int64leD
+
+-- | Big endian (MSB first) Float
+{-# INLINE floatbeD #-}
+floatbeD :: MonadIO m => Float -> m (Stream m Word8)
+floatbeD w = do
+    arr0 <- liftIO $ MA.new 1
+    arr1 <- MA.snoc arr0 w
+    return
+        $ fromStreamD . MA.toStreamD
+        $ MA.asBytes arr1
+
+-- | Big endian (MSB first) Float
+{-# INLINE floatbe #-}
+floatbe :: MonadIO m => Float -> Stream m Word8
+floatbe w =
+    Stream.concatMap id
+        $ Stream.fromEffect
+        $ floatbeD w
+
 -------------------------------------------------------------------------------
 -- Host byte order
 -------------------------------------------------------------------------------
