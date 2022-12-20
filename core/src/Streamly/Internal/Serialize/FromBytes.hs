@@ -53,6 +53,7 @@ import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 import Streamly.Internal.Unicode.Stream
+    (decodeLatin1, decodeUtf8, decodeUtf8')
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array as A
