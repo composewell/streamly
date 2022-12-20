@@ -36,6 +36,13 @@ module Streamly.Internal.Serialize.ToBytes
     , floatle
     , doublebe
     , doublele
+
+    -- * Char encoders
+    , encodeLatin1
+    , encodeLatin1'
+    , encodeUtf8
+    , encodeUtf8'
+    , encodeStrings
     )
 where
 
@@ -45,6 +52,12 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Bits (shiftR)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Streamly.Internal.Data.Stream (Stream, fromStreamD)
+import Streamly.Internal.Unicode.Stream
+    ( encodeLatin1,
+      encodeLatin1',
+      encodeStrings,
+      encodeUtf8,
+      encodeUtf8' )
 import Streamly.Internal.Data.Stream.StreamD (Step(..))
 
 import qualified Streamly.Data.Stream as Stream
