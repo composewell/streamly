@@ -34,11 +34,15 @@ module Streamly.Internal.Serialize.FromBytes
     , int64be
     , int64le
     , floatbe
+    , floatle
+    , doublebe
+    , doublele
     )
 where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.Bits ((.|.), unsafeShiftL)
+import Data.Functor ((<&>))
 import Data.Word (Word8, Word16, Word32, Word64)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
@@ -478,6 +482,79 @@ floatbeD = PRD.Parser step initial extract
 {-# INLINE floatbe #-}
 floatbe :: MonadIO m => Parser Word8 m Float
 floatbe = PRD.toParserK floatbeD
+
+{-# INLINE floatleD #-}
+floatleD :: MonadIO m => PRD.Parser Word8 m Float
+floatleD = PRD.Parser step initial extract
+
+    where
+
+    initial = do
+        arr0 <- MA.new 4
+        return $ PRD.IPartial (arr0, 1 :: Int)
+
+    step (arr0, i) a = do
+        arr1 <- MA.snoc arr0 a
+        if i < 4
+        then return $ PRD.Continue 0 (arr1, i + 1)
+        else
+            (MA.reverse arr1 >>
+                MA.getIndex 0 (MA.castUnsafe arr1)) <&> PRD.Done 0
+
+    extract _ = return $ PRD.Error "floatleD: end of input"
+
+{-# INLINE floatle #-}
+floatle :: MonadIO m => Parser Word8 m Float
+floatle = PRD.toParserK floatleD
+
+
+{-# INLINE doublebeD #-}
+doublebeD :: MonadIO m => PRD.Parser Word8 m Double
+doublebeD = PRD.Parser step initial extract
+
+    where
+
+    initial = do
+        arr0 <- MA.new 8
+        return $ PRD.IPartial (arr0, 1 :: Int)
+
+    step (arr0, i) a = do
+        arr1 <- MA.snoc arr0 a
+        if i < 8
+        then return $ PRD.Continue 0 (arr1, i + 1)
+        else do
+            ff <- MA.getIndex 0 (MA.castUnsafe arr1)
+            return $ PRD.Done 0 ff
+
+    extract _ = return $ PRD.Error "doublebeD: end of input"
+
+{-# INLINE doublebe #-}
+doublebe :: MonadIO m => Parser Word8 m Double
+doublebe = PRD.toParserK doublebeD
+
+{-# INLINE doubleleD #-}
+doubleleD :: MonadIO m => PRD.Parser Word8 m Double
+doubleleD = PRD.Parser step initial extract
+
+    where
+
+    initial = do
+        arr0 <- MA.new 8
+        return $ PRD.IPartial (arr0, 1 :: Int)
+
+    step (arr0, i) a = do
+        arr1 <- MA.snoc arr0 a
+        if i < 8
+        then return $ PRD.Continue 0 (arr1, i + 1)
+        else
+            (MA.reverse arr1 >>
+                MA.getIndex 0 (MA.castUnsafe arr1)) <&> PRD.Done 0
+
+    extract _ = return $ PRD.Error "doubleleD: end of input"
+
+{-# INLINE doublele #-}
+doublele :: MonadIO m => Parser Word8 m Double
+doublele = PRD.toParserK doubleleD
 -------------------------------------------------------------------------------
 -- Host byte order
 -------------------------------------------------------------------------------

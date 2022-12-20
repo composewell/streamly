@@ -33,6 +33,9 @@ module Streamly.Internal.Serialize.ToBytes
     , int64be
     , int64le
     , floatbe
+    , floatle
+    , doublebe
+    , doublele
     )
 where
 
@@ -402,24 +405,72 @@ int64leD w = D.Stream step W64B1
 int64le :: Monad m => Int64 -> Stream m Word8
 int64le = fromStreamD . int64leD
 
--- | Big endian (MSB first) Float
-{-# INLINE floatbeD #-}
-floatbeD :: MonadIO m => Float -> m (Stream m Word8)
-floatbeD w = do
-    arr0 <- liftIO $ MA.new 1
-    arr1 <- MA.snoc arr0 w
-    return
-        $ fromStreamD . MA.toStreamD
-        $ MA.asBytes arr1
+concatM :: Monad m => m (Stream m a) -> Stream m a
+concatM = Stream.concatMap id . Stream.fromEffect
 
 -- | Big endian (MSB first) Float
 {-# INLINE floatbe #-}
 floatbe :: MonadIO m => Float -> Stream m Word8
-floatbe w =
-    Stream.concatMap id
-        $ Stream.fromEffect
-        $ floatbeD w
+floatbe = concatM . toMStream
 
+    where
+
+    {-# INLINE toMStream #-}
+    toMStream x = do
+        arr0 <- liftIO $ MA.new 1
+        arr1 <- MA.snoc arr0 x
+        return
+            $ fromStreamD . MA.toStreamD
+            $ MA.asBytes arr1
+
+-- | Little endian (LSB first) Float
+{-# INLINE floatle #-}
+floatle :: MonadIO m => Float -> Stream m Word8
+floatle  = concatM . toMStream
+
+    where
+
+    {-# INLINE toMStream #-}
+    toMStream x = do
+        arr0 <- liftIO $ MA.new 1
+        arr1 <- MA.snoc arr0 x
+        let arrBytes = MA.asBytes arr1
+        _ <- MA.reverse arrBytes
+        return
+            $ fromStreamD
+            $ MA.toStreamD arrBytes
+
+-- | Big endian (MSB first) Double
+{-# INLINE doublebe #-}
+doublebe :: MonadIO m => Double -> Stream m Word8
+doublebe = concatM . toMStream
+
+    where
+
+    {-# INLINE toMStream #-}
+    toMStream x = do
+        arr0 <- liftIO $ MA.new 1
+        arr1 <- MA.snoc arr0 x
+        return
+            $ fromStreamD . MA.toStreamD
+            $ MA.asBytes arr1
+
+-- | Little endian (LSB first) Double
+{-# INLINE doublele #-}
+doublele :: MonadIO m => Double -> Stream m Word8
+doublele = concatM . toMStream
+
+    where
+
+    {-# INLINE toMStream #-}
+    toMStream x = do
+        arr0 <- liftIO $ MA.new 1
+        arr1 <- MA.snoc arr0 x
+        let arrBytes = MA.asBytes arr1
+        _ <- MA.reverse arrBytes
+        return
+            $ fromStreamD
+            $ MA.toStreamD arrBytes
 -------------------------------------------------------------------------------
 -- Host byte order
 -------------------------------------------------------------------------------
