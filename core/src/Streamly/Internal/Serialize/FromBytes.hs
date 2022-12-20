@@ -292,33 +292,7 @@ word64le = PRD.toParserK word64leD
 
 {-# INLINE int8 #-}
 int8 :: Monad m => Parser Word8 m Int8
-int8 = PRD.toParserK $ PRD.Parser step initial extract
-
-    where
-
-    initial = return $ PRD.IPartial Nothing'
-
-    step _ a = return $ PRD.Done 0 (fromIntegral a :: Int8)
-
-    extract _ = return $ PRD.Error "int8: end of input"
-
--- | Big endian (MSB first) Int16
-{-# INLINE int16beD #-}
-int16beD :: Monad m => PRD.Parser Word8 m Int16
-int16beD = PRD.Parser step initial extract
-
-    where
-
-    initial = return $ PRD.IPartial Nothing'
-
-    step Nothing' a =
-        -- XXX We can use a non-failing parser or a fold so that we do not
-        -- have to buffer for backtracking which is inefficient.
-        return $ PRD.Continue 0 (Just' (fromIntegral a `unsafeShiftL` 8))
-    step (Just' w) a =
-        return $ PRD.Done 0 (w .|. fromIntegral a)
-
-    extract _ = return $ PRD.Error "int16beD: end of input"
+int8 = fromIntegral <$> word8
 
 -- | Parse two bytes as a 'Int16', the first byte is the MSB of the Int16 and
 -- second byte is the LSB (big endian representation).
@@ -327,23 +301,7 @@ int16beD = PRD.Parser step initial extract
 --
 {-# INLINE int16be #-}
 int16be :: Monad m => Parser Word8 m Int16
-int16be = PRD.toParserK int16beD
-
--- | Little endian (LSB first) Int16
-{-# INLINE int16leD #-}
-int16leD :: Monad m => PRD.Parser Word8 m Int16
-int16leD = PRD.Parser step initial extract
-
-    where
-
-    initial = return $ PRD.IPartial Nothing'
-
-    step Nothing' a =
-        return $ PRD.Continue 0 (Just' (fromIntegral a))
-    step (Just' w) a =
-        return $ PRD.Done 0 (w .|. fromIntegral a `unsafeShiftL` 8)
-
-    extract _ = return $ PRD.Error "int16le: end of input"
+int16be = fromIntegral <$> word16be
 
 -- | Parse two bytes as a 'Int16', the first byte is the LSB of the Int16 and
 -- second byte is the MSB (little endian representation).
@@ -352,24 +310,7 @@ int16leD = PRD.Parser step initial extract
 --
 {-# INLINE int16le #-}
 int16le :: Monad m => Parser Word8 m Int16
-int16le = PRD.toParserK int16leD
-
-{-# INLINE int32beD #-}
-int32beD :: Monad m => PRD.Parser Word8 m Int32
-int32beD = PRD.Parser step initial extract
-
-    where
-
-    initial = return $ PRD.IPartial $ Tuple' 0 24
-
-    step (Tuple' w sh) a = return $
-        if sh /= 0
-        then
-            let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
-             in PRD.Continue 0 (Tuple' w1 (sh - 8))
-        else PRD.Done 0 (w .|. fromIntegral a)
-
-    extract _ = return $ PRD.Error "int32beD: end of input"
+int16le = fromIntegral <$> word16le
 
 -- | Parse four bytes as a 'Int32', the first byte is the MSB of the Int32
 -- and last byte is the LSB (big endian representation).
@@ -378,24 +319,7 @@ int32beD = PRD.Parser step initial extract
 --
 {-# INLINE int32be #-}
 int32be :: Monad m => Parser Word8 m Int32
-int32be = PRD.toParserK int32beD
-
--- | Little endian (LSB first) Int32
-{-# INLINE int32leD #-}
-int32leD :: Monad m => PRD.Parser Word8 m Int32
-int32leD = PRD.Parser step initial extract
-
-    where
-
-    initial = return $ PRD.IPartial $ Tuple' 0 0
-
-    step (Tuple' w sh) a = return $
-        let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
-         in if sh /= 24
-            then PRD.Continue 0 (Tuple' w1 (sh + 8))
-            else PRD.Done 0 w1
-
-    extract _ = return $ PRD.Error "int32leD: end of input"
+int32be = fromIntegral <$> word32be
 
 -- | Parse four bytes as a 'Int32', the first byte is the MSB of the Int32
 -- and last byte is the LSB (big endian representation).
@@ -404,24 +328,7 @@ int32leD = PRD.Parser step initial extract
 --
 {-# INLINE int32le #-}
 int32le :: Monad m => Parser Word8 m Int32
-int32le = PRD.toParserK int32leD
-
-{-# INLINE int64beD #-}
-int64beD :: Monad m => PRD.Parser Word8 m Int64
-int64beD = PRD.Parser step initial extract
-
-    where
-
-    initial = return $ PRD.IPartial $ Tuple' 0 56
-
-    step (Tuple' w sh) a = return $
-        if sh /= 0
-        then
-            let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
-             in PRD.Continue 0 (Tuple' w1 (sh - 8))
-        else PRD.Done 0 (w .|. fromIntegral a)
-
-    extract _ = return $ PRD.Error "int64beD: end of input"
+int32le = fromIntegral <$> word32le
 
 -- | Parse eight bytes as a 'Int64', the first byte is the MSB of the Int64
 -- and last byte is the LSB (big endian representation).
@@ -430,24 +337,7 @@ int64beD = PRD.Parser step initial extract
 --
 {-# INLINE int64be #-}
 int64be :: Monad m => Parser Word8 m Int64
-int64be = PRD.toParserK int64beD
-
--- | Little endian (LSB first) Int64
-{-# INLINE int64leD #-}
-int64leD :: Monad m => PRD.Parser Word8 m Int64
-int64leD = PRD.Parser step initial extract
-
-    where
-
-    initial = return $ PRD.IPartial $ Tuple' 0 0
-
-    step (Tuple' w sh) a = return $
-        let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
-         in if sh /= 56
-            then PRD.Continue 0 (Tuple' w1 (sh + 8))
-            else PRD.Done 0 w1
-
-    extract _ = return $ PRD.Error "int64leD: end of input"
+int64be = fromIntegral <$> word64be
 
 -- | Parse eight bytes as a 'Int64', the first byte is the MSB of the Int64
 -- and last byte is the LSB (big endian representation).
@@ -456,8 +346,7 @@ int64leD = PRD.Parser step initial extract
 --
 {-# INLINE int64le #-}
 int64le :: Monad m => Parser Word8 m Int64
-int64le = PRD.toParserK int64leD
-
+int64le = fromIntegral <$> word64le
 
 {-# INLINE floatbeD #-}
 floatbeD :: MonadIO m => PRD.Parser Word8 m Float
