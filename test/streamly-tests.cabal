@@ -512,6 +512,11 @@ test-suite Unicode.Char
   if flag(use-streamly-core) || !flag(dev)
     buildable: False
 
+test-suite Serialize.Serializable
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Serialize/Serializable.hs
+
 test-suite version-bounds
   import: test-options
   type: exitcode-stdio-1.0

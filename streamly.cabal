@@ -121,6 +121,7 @@ extra-source-files:
     test/Streamly/Test/Prelude.hs
     test/Streamly/Test/Prelude/*.hs
     test/Streamly/Test/Unicode/*.hs
+    test/Streamly/Test/Serialize/*.hs
     test/Streamly/Test/Data/Fold/*.hs
     test/lib/Streamly/Test/Common.hs
     test/lib/Streamly/Test/Prelude/Common.hs

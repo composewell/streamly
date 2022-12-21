@@ -160,6 +160,8 @@ cradle:
               component: "test:Prelude.ZipSerial"
             - path: "./test/Streamly/Test/Unicode/Stream.hs"
               component: "test:Unicode.Stream"
+            - path: "./test/Streamly/Test/Serialize/Serializable.hs"
+              component: "test:Serialize.Serializable"
             - path: "./test/lib/"
               component: "lib:streamly-tests"
             - path: "./test/version-bounds.hs"
