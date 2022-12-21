@@ -32,37 +32,24 @@ module Streamly.Internal.Serialize.ToBytes
     , int32le
     , int64be
     , int64le
-    , floatbe
-    , floatle
-    , doublebe
-    , doublele
-
-    -- * Char encoders
-    , encodeLatin1
-    , encodeLatin1'
-    , encodeUtf8
-    , encodeUtf8'
-    , encodeStrings
+    , float32be
+    , float32le
+    , double64be
+    , double64le
     )
 where
 
 #include "MachDeps.h"
 
-import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Bits (shiftR)
 import Data.Word (Word8, Word16, Word32, Word64)
+import GHC.Float (castDoubleToWord64, castFloatToWord32)
 import Streamly.Internal.Data.Stream (Stream, fromStreamD)
-import Streamly.Internal.Unicode.Stream
-    ( encodeLatin1,
-      encodeLatin1',
-      encodeStrings,
-      encodeUtf8,
-      encodeUtf8' )
+
 import Streamly.Internal.Data.Stream.StreamD (Step(..))
 
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 
 import Data.Int (Int8, Int16, Int32, Int64)
 
@@ -329,72 +316,26 @@ int64be i = word64be (fromIntegral i :: Word64)
 int64le :: Monad m => Int64 -> Stream m Word8
 int64le i = word64le (fromIntegral i :: Word64)
 
-concatM :: Monad m => m (Stream m a) -> Stream m a
-concatM = Stream.concatMap id . Stream.fromEffect
-
 -- | Big endian (MSB first) Float
-{-# INLINE floatbe #-}
-floatbe :: MonadIO m => Float -> Stream m Word8
-floatbe = concatM . toMStream
-
-    where
-
-    {-# INLINE toMStream #-}
-    toMStream x = do
-        arr0 <- liftIO $ MA.new 1
-        arr1 <- MA.snoc arr0 x
-        return
-            $ fromStreamD . MA.toStreamD
-            $ MA.asBytes arr1
+{-# INLINE float32be #-}
+float32be :: Monad m => Float -> Stream m Word8
+float32be = fromStreamD . word32beD . castFloatToWord32
 
 -- | Little endian (LSB first) Float
-{-# INLINE floatle #-}
-floatle :: MonadIO m => Float -> Stream m Word8
-floatle  = concatM . toMStream
-
-    where
-
-    {-# INLINE toMStream #-}
-    toMStream x = do
-        arr0 <- liftIO $ MA.new 1
-        arr1 <- MA.snoc arr0 x
-        let arrBytes = MA.asBytes arr1
-        _ <- MA.reverse arrBytes
-        return
-            $ fromStreamD
-            $ MA.toStreamD arrBytes
+{-# INLINE float32le #-}
+float32le :: Monad m => Float -> Stream m Word8
+float32le = fromStreamD . word32leD . castFloatToWord32
 
 -- | Big endian (MSB first) Double
-{-# INLINE doublebe #-}
-doublebe :: MonadIO m => Double -> Stream m Word8
-doublebe = concatM . toMStream
-
-    where
-
-    {-# INLINE toMStream #-}
-    toMStream x = do
-        arr0 <- liftIO $ MA.new 1
-        arr1 <- MA.snoc arr0 x
-        return
-            $ fromStreamD . MA.toStreamD
-            $ MA.asBytes arr1
+{-# INLINE double64be #-}
+double64be :: Monad m => Double -> Stream m Word8
+double64be = fromStreamD . word64beD . castDoubleToWord64
 
 -- | Little endian (LSB first) Double
-{-# INLINE doublele #-}
-doublele :: MonadIO m => Double -> Stream m Word8
-doublele = concatM . toMStream
+{-# INLINE double64le #-}
+double64le :: Monad m => Double -> Stream m Word8
+double64le = fromStreamD . word64leD . castDoubleToWord64
 
-    where
-
-    {-# INLINE toMStream #-}
-    toMStream x = do
-        arr0 <- liftIO $ MA.new 1
-        arr1 <- MA.snoc arr0 x
-        let arrBytes = MA.asBytes arr1
-        _ <- MA.reverse arrBytes
-        return
-            $ fromStreamD
-            $ MA.toStreamD arrBytes
 -------------------------------------------------------------------------------
 -- Host byte order
 -------------------------------------------------------------------------------
