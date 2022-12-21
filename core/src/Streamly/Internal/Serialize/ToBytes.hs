@@ -45,7 +45,6 @@ import Data.Bits (shiftR)
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.Float (castDoubleToWord64, castFloatToWord32)
 import Streamly.Internal.Data.Stream (Stream, fromStreamD)
-
 import Streamly.Internal.Data.Stream.StreamD (Step(..))
 
 import qualified Streamly.Data.Stream as Stream
