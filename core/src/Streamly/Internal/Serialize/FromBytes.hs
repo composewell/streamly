@@ -37,11 +37,13 @@ module Streamly.Internal.Serialize.FromBytes
     , float32le
     , double64be
     , double64le
+    , charLatin1
     )
 where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.Bits ((.|.), unsafeShiftL)
+import Data.Char (chr)
 import Data.Int (Int8, Int16, Int32, Int64)
 import GHC.Float (castWord32ToFloat, castWord64ToDouble)
 import Data.Word (Word8, Word16, Word32, Word64)
@@ -361,6 +363,15 @@ double64be =  castWord64ToDouble <$> word64be
 {-# INLINE double64le #-}
 double64le :: MonadIO m => Parser Word8 m Double
 double64le = castWord64ToDouble <$> word64le
+
+-- | Accept any byte.
+--
+-- /Pre-release/
+--
+{-# INLINE charLatin1 #-}
+charLatin1 :: Monad m => Parser Word8 m Char
+charLatin1 = fmap (chr . fromIntegral) word8
+
 -------------------------------------------------------------------------------
 -- Host byte order
 -------------------------------------------------------------------------------
