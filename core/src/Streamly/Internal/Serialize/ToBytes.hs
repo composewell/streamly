@@ -36,21 +36,24 @@ module Streamly.Internal.Serialize.ToBytes
     , float32le
     , double64be
     , double64le
+    , charLatin1
+    , charUtf8
     )
 where
 
 #include "MachDeps.h"
 
 import Data.Bits (shiftR)
+import Data.Char (ord)
+import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.Float (castDoubleToWord64, castFloatToWord32)
 import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Stream.StreamD (Step(..))
+import Streamly.Internal.Unicode.Stream (readCharUtf8)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-
-import Data.Int (Int8, Int16, Int32, Int64)
 
 -- XXX Use StreamD directly?
 
@@ -334,6 +337,14 @@ double64be = word64beD . castDoubleToWord64
 {-# INLINE double64le #-}
 double64le :: Monad m => Double -> Stream m Word8
 double64le = word64leD . castDoubleToWord64
+
+{-# INLINE charLatin1 #-}
+charLatin1 :: Char -> Stream m Word8
+charLatin1 = Stream.fromPure . fromIntegral . ord
+
+{-# INLINE charUtf8 #-}
+charUtf8 :: Monad m => Char -> Stream m Word8
+charUtf8 = Stream.unfold readCharUtf8
 
 -------------------------------------------------------------------------------
 -- Host byte order

@@ -42,6 +42,8 @@ module Streamly.Internal.Unicode.Stream
 
     -- ** UTF-8 Encoding
     , readCharUtf8'
+    , readCharUtf8
+    , readCharUtf8_
     , encodeUtf8
     , encodeUtf8'
     , encodeUtf8_
