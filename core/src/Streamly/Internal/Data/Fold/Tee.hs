@@ -9,6 +9,21 @@
 -- A newtype wrapper over the 'Fold' type providing distributing 'Applicative',
 -- 'Semigroup', 'Monoid', 'Num', 'Floating' and 'Fractional' instances.
 --
+module Streamly.Internal.Data.Fold.Tee
+    ( Tee(..)
+    , toFold
+    )
+where
+
+import Control.Applicative (liftA2)
+import Streamly.Internal.Data.Fold.Type (Fold)
+
+import qualified Streamly.Internal.Data.Fold.Type as Fold
+
+-- | @Tee@ is a newtype wrapper over the 'Fold' type providing distributing
+-- 'Applicative', 'Semigroup', 'Monoid', 'Num', 'Floating' and 'Fractional'
+-- instances.
+--
 -- The input received by the
 -- composed 'Tee' is replicated and distributed to both the constituent Tees.
 --
@@ -33,21 +48,6 @@
 -- Just (Sum {getSum = 101.0})
 --
 -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
---
-module Streamly.Internal.Data.Fold.Tee
-    ( Tee(..)
-    , toFold
-    )
-where
-
-import Control.Applicative (liftA2)
-import Streamly.Internal.Data.Fold.Type (Fold)
-
-import qualified Streamly.Internal.Data.Fold.Type as Fold
-
--- | @Tee@ is a newtype wrapper over the 'Fold' type providing distributing
--- 'Applicative', 'Semigroup', 'Monoid', 'Num', 'Floating' and 'Fractional'
--- instances.
 --
 newtype Tee m a b =
     Tee { unTee :: Fold m a b }
