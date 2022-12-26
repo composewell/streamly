@@ -12,27 +12,38 @@ module Streamly.Internal.Data.Fold.Container
     -- * Imports
     -- $setup
 
-      countDistinct
+    -- * Set operations
+      toSet
+    , toIntSet
+    , countDistinct
     , countDistinctInt
-    , frequency
-    , toMap
     , nub
     , nubInt
+
+    -- * Map operations
+    , frequency
 
     -- ** Demultiplexing
     -- | Direct values in the input stream to different folds using an n-ary
     -- fold selector. 'demux' is a generalization of 'classify' (and
     -- 'partition') where each key of the classifier can use a different fold.
+    , demuxKvToContainer
+    , demuxKvToMap
+
+    , demuxToContainer
+    , demuxToContainerIO
+    , demuxToMap
+    , demuxToMapIO
+
+    , demuxGeneric
     , demux
-    , demuxWith
-    , demuxScanWith
-    , demuxScanMutWith
-    , demuxMutWith
+    , demuxGenericIO
+    , demuxIO
 
     -- TODO: These can be implemented using the above operations
-    -- , demuxWithSel -- Stop when the fold for the specified key stops
-    -- , demuxWithMin -- Stop when any of the folds stop
-    -- , demuxWithAll -- Stop when all the folds stop (run once)
+    -- , demuxSel -- Stop when the fold for the specified key stops
+    -- , demuxMin -- Stop when any of the folds stop
+    -- , demuxAll -- Stop when all the folds stop (run once)
 
     -- ** Classifying
     -- | In an input stream of key value pairs fold values for different keys
@@ -47,12 +58,19 @@ module Streamly.Internal.Data.Fold.Container
     -- and their meanings then trie Map would be better if we also want to
     -- display them in sorted order.
 
+    , kvToMap
+
+    , toContainer
+    , toContainerIO
+    , toMap
+    , toMapIO
+
+    , classifyGeneric
     , classify
-    , classifyWith
-    , classifyMutWith
-    , classifyScanWith
-    -- , classifyWithSel
-    -- , classifyWithMin
+    , classifyGenericIO
+    , classifyIO
+    -- , toContainerSel
+    -- , toContainerMin
     )
 where
 
@@ -62,29 +80,48 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Map.Strict (Map)
+import Data.IntSet (IntSet)
+import Data.Set (Set)
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 
 import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
-import qualified Prelude
 import qualified Streamly.Internal.Data.IsMap as IsMap
 
-import Prelude hiding
-       ( filter, foldl1, drop, dropWhile, take, takeWhile, zipWith
-       , foldl, foldr, map, mapM_, sequence, all, any, sum, product, elem
-       , notElem, maximum, minimum, head, last, tail, length, null
-       , reverse, iterate, init, and, or, lookup, (!!)
-       , scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip
-       , span, splitAt, break, mapM, zip, maybe)
+import Prelude hiding (length)
 import Streamly.Internal.Data.Fold
 
 -- $setup
 -- >>> :m
 -- >>> :set -XFlexibleContexts
+-- >>> import qualified Data.Map as Map
+-- >>> import qualified Data.Set as Set
+-- >>> import qualified Data.IntSet as IntSet
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Fold.Extra as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold.Container as Fold
+
+-- | Fold the input to a set.
+--
+-- Definition:
+--
+-- >>> toSet = Fold.foldl' (flip Set.insert) Set.empty
+--
+{-# INLINE toSet #-}
+toSet :: (Monad m, Ord a) => Fold m a (Set a)
+toSet = foldl' (flip Set.insert) Set.empty
+
+-- | Fold the input to an int set. For integer inputs this performs better than
+-- 'toSet'.
+--
+-- Definition:
+--
+-- >>> toIntSet = Fold.foldl' (flip IntSet.insert) IntSet.empty
+--
+{-# INLINE toIntSet #-}
+toIntSet :: Monad m => Fold m Int IntSet
+toIntSet = foldl' (flip IntSet.insert) IntSet.empty
 
 -- XXX Name as nubOrd? Or write a nubGeneric
 
@@ -113,10 +150,6 @@ nub = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 
 -- | Like 'nub' but specialized to a stream of 'Int', for better performance.
 --
--- Definition:
---
--- >>> nubInt = Fold.nub
---
 -- /Pre-release/
 {-# INLINE nubInt #-}
 nubInt :: Monad m => Fold m Int (Maybe Int)
@@ -139,6 +172,7 @@ nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 --
 -- Definition:
 --
+-- >>> countDistinct = fmap Set.size Fold.toSet
 -- >>> countDistinct = Fold.postscan Fold.nub $ Fold.catMaybes $ Fold.length
 --
 -- The memory used is proportional to the number of distinct elements in the
@@ -151,7 +185,8 @@ nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 --
 {-# INLINE countDistinct #-}
 countDistinct :: (Monad m, Ord a) => Fold m a Int
-countDistinct = postscan nub $ catMaybes length
+-- countDistinct = postscan nub $ catMaybes length
+countDistinct = fmap Set.size toSet
 {-
 countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 
@@ -173,12 +208,14 @@ countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 --
 -- Definition:
 --
+-- >>> countDistinctInt = fmap IntSet.size Fold.toIntSet
 -- >>> countDistinctInt = Fold.postscan Fold.nubInt $ Fold.catMaybes $ Fold.length
 --
 -- /Pre-release/
 {-# INLINE countDistinctInt #-}
 countDistinctInt :: Monad m => Fold m Int Int
-countDistinctInt = postscan nubInt $ catMaybes length
+-- countDistinctInt = postscan nubInt $ catMaybes length
+countDistinctInt = fmap IntSet.size toIntSet
 {-
 countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 
@@ -214,23 +251,12 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- because key is to be determined on each input whereas fold is to be
 -- determined only once for a key.
 
--- | In a key value stream, fold values corresponding to each key with a key
--- specific fold. The fold returns the fold result as the second component of
--- the output tuple whenever a fold terminates. The first component of the
--- tuple is a container of in-progress folds. If a fold terminates, another
--- instance of the fold is started upon receiving an input with that key.
---
--- This can be used to scan a stream and collect the results from the scan
--- output.
---
--- /Pre-release/
---
-{-# INLINE demuxScanWith #-}
-demuxScanWith :: (Monad m, IsMap f, Traversable f) =>
+{-# INLINE demuxGeneric #-}
+demuxGeneric :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
     -> (a -> m (Fold m a b))
     -> Fold m a (m (f b), Maybe (Key f, b))
-demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
+demuxGeneric getKey getFold = fmap extract $ foldlM' step initial
 
     where
 
@@ -268,19 +294,30 @@ demuxScanWith getKey getFold = fmap extract $ foldlM' step initial
                 Partial s -> e s
                 Done b -> return b
 
--- | This is specialized version of 'demuxScanWith' that uses mutable cells as
--- fold accumulators for better performance.
+-- | In a key value stream, fold values corresponding to each key with a key
+-- specific fold. The fold returns the fold result as the second component of
+-- the output tuple whenever a fold terminates. The first component of the
+-- tuple is a Map of in-progress folds. If a fold terminates, another
+-- instance of the fold is started upon receiving an input with that key.
 --
--- Definition:
+-- This can be used to scan a stream and collect the results from the scan
+-- output.
 --
--- >>> demuxScanMutWith = Fold.demuxScanWith
+-- /Pre-release/
 --
-{-# INLINE demuxScanMutWith #-}
-demuxScanMutWith :: (MonadIO m, IsMap f, Traversable f) =>
+{-# INLINE demux #-}
+demux :: (Monad m, Ord k) =>
+       (a -> k)
+    -> (a -> m (Fold m a b))
+    -> Fold m a (m (Map k b), Maybe (k, b))
+demux = demuxGeneric
+
+{-# INLINE demuxGenericIO #-}
+demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
     -> (a -> m (Fold m a b))
     -> Fold m a (m (f b), Maybe (Key f, b))
-demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
+demuxGenericIO getKey getFold = fmap extract $ foldlM' step initial
 
     where
 
@@ -314,7 +351,7 @@ demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
                         Done b ->
                             let kv1 = IsMap.mapDelete k kv
                              in return $ Tuple' kv1 (Just (k, b))
-            Done _ -> error "demuxScanMutWith: unreachable"
+            Done _ -> error "demuxGenericIO: unreachable"
 
     step (Tuple' kv _) a = do
         let k = getKey a
@@ -337,47 +374,68 @@ demuxScanMutWith getKey getFold = fmap extract $ foldlM' step initial
                 Partial s -> e s
                 Done b -> return b
 
--- | This collects all the results of 'demuxScanWith' in a container.
+-- | This is specialized version of 'demux' that uses mutable IO cells as
+-- fold accumulators for better performance.
 --
-{-# INLINE demuxWith #-}
-demuxWith :: (Monad m, IsMap f, Traversable f) =>
+{-# INLINE demuxIO #-}
+demuxIO :: (MonadIO m, Ord k) =>
+       (a -> k)
+    -> (a -> m (Fold m a b))
+    -> Fold m a (m (Map k b), Maybe (k, b))
+demuxIO = demuxGenericIO
+
+{-# INLINE demuxToContainer #-}
+demuxToContainer :: (Monad m, IsMap f, Traversable f) =>
     (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
-demuxWith getKey getFold =
+demuxToContainer getKey getFold =
     let
-        classifier = demuxScanWith getKey getFold
+        classifier = demuxGeneric getKey getFold
         getMap Nothing = pure IsMap.mapEmpty
         getMap (Just action) = action
         aggregator =
             teeWith IsMap.mapUnion
                 (rmapM getMap $ lmap fst latest)
-                (lmap snd $ catMaybes toMap)
+                (lmap snd $ catMaybes kvToMapOverwriteGeneric)
     in postscan classifier aggregator
 
--- | Same as 'demuxWith' but uses 'demuxScanMutWith' for better performance.
+-- | This collects all the results of 'demux' in a Map.
 --
--- Definition:
---
--- >>> demuxMutWith = Fold.demuxWith
---
-{-# INLINE demuxMutWith #-}
-demuxMutWith :: (MonadIO m, IsMap f, Traversable f) =>
+{-# INLINE demuxToMap #-}
+demuxToMap :: (Monad m, Ord k) =>
+    (a -> k) -> (a -> m (Fold m a b)) -> Fold m a (Map k b)
+demuxToMap = demuxToContainer
+
+{-# INLINE demuxToContainerIO #-}
+demuxToContainerIO :: (MonadIO m, IsMap f, Traversable f) =>
     (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
-demuxMutWith getKey getFold =
+demuxToContainerIO getKey getFold =
     let
-        classifier = demuxScanMutWith getKey getFold
+        classifier = demuxGenericIO getKey getFold
         getMap Nothing = pure IsMap.mapEmpty
         getMap (Just action) = action
         aggregator =
             teeWith IsMap.mapUnion
                 (rmapM getMap $ lmap fst latest)
-                (lmap snd $ catMaybes toMap)
+                (lmap snd $ catMaybes kvToMapOverwriteGeneric)
     in postscan classifier aggregator
+
+-- | Same as 'demuxToMap' but uses 'demuxIO' for better performance.
+--
+{-# INLINE demuxToMapIO #-}
+demuxToMapIO :: (MonadIO m, Ord k) =>
+    (a -> k) -> (a -> m (Fold m a b)) -> Fold m a (Map k b)
+demuxToMapIO = demuxToContainerIO
+
+{-# INLINE demuxKvToContainer #-}
+demuxKvToContainer :: (Monad m, IsMap f, Traversable f) =>
+    (Key f -> m (Fold m a b)) -> Fold m (Key f, a) (f b)
+demuxKvToContainer f = demuxToContainer fst (\(k, _) -> fmap (lmap snd) (f k))
 
 -- | Fold a stream of key value pairs using a function that maps keys to folds.
 --
 -- Definition:
 --
--- >>> demux f = Fold.demuxWith fst (Fold.lmap snd . f)
+-- >>> demuxKvToMap f = Fold.demuxToContainer fst (Fold.lmap snd . f)
 --
 -- Example:
 --
@@ -386,15 +444,15 @@ demuxMutWith getKey getFold =
 --  let f "SUM" = return Fold.sum
 --      f _ = return Fold.product
 --      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
---   in Stream.fold (Fold.demux f) input :: IO (Map String Int)
+--   in Stream.fold (Fold.demuxKvToMap f) input :: IO (Map String Int)
 -- :}
 -- fromList [("PRODUCT",8),("SUM",4)]
 --
 -- /Pre-release/
-{-# INLINE demux #-}
-demux :: (Monad m, IsMap f, Traversable f) =>
-    (Key f -> m (Fold m a b)) -> Fold m (Key f, a) (f b)
-demux f = demuxWith fst (\(k, _) -> fmap (lmap snd) (f k))
+{-# INLINE demuxKvToMap #-}
+demuxKvToMap :: (Monad m, Ord k) =>
+    (k -> m (Fold m a b)) -> Fold m (k, a) (Map k b)
+demuxKvToMap = demuxKvToContainer
 
 ------------------------------------------------------------------------------
 -- Classify: Like demux but uses the same fold for all keys.
@@ -406,25 +464,14 @@ demux f = demuxWith fst (\(k, _) -> fmap (lmap snd) (f k))
 -- done then initial would set a flag in the state to ignore the input or
 -- return an error.
 
--- | Folds the values for each key using the supplied fold. When scanning, as
--- soon as the fold is complete, its result is available in the second
--- component of the tuple.  The first component of the tuple is a snapshot of
--- the in-progress folds.
---
--- Once the fold for a key is done, any future values of the key are ignored.
---
--- Definition:
---
--- >>> classifyScanWith f fld = Fold.demuxScanWith f (const fld)
---
-{-# INLINE classifyScanWith #-}
-classifyScanWith :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
+{-# INLINE classifyGeneric #-}
+classifyGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
     -- Note: we need to return the Map itself to display the in-progress values
     -- e.g. to implement top. We could possibly create a separate abstraction
     -- for that use case. We return an action because we want it to be lazy so
     -- that the downstream consumers can choose to process or discard it.
     (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
-classifyScanWith f (Fold step1 initial1 extract1) =
+classifyGeneric f (Fold step1 initial1 extract1) =
     fmap extract $ foldlM' step initial
 
     where
@@ -464,23 +511,30 @@ classifyScanWith f (Fold step1 initial1 extract1) =
 
     extract (Tuple3' kv _ x) = (Prelude.mapM extract1 kv, x)
 
+-- | Folds the values for each key using the supplied fold. When scanning, as
+-- soon as the fold is complete, its result is available in the second
+-- component of the tuple.  The first component of the tuple is a snapshot of
+-- the in-progress folds.
+--
+-- Once the fold for a key is done, any future values of the key are ignored.
+--
+-- Definition:
+--
+-- >>> classify f fld = Fold.demux f (const fld)
+--
+{-# INLINE classify #-}
+classify :: (Monad m, Ord k) =>
+    (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
+classify = classifyGeneric
+
 -- XXX we can use a Prim IORef if we can constrain the state "s" to be Prim
 --
--- The code is almost the same as classifyScanWith except the IORef operations.
+-- The code is almost the same as classifyGeneric except the IORef operations.
 
--- | Same as classifyScanWith except that it uses mutable IORef cells in the
--- Map providing better performance. Be aware that if this is used as a scan,
--- the values in the intermediate Maps would be mutable.
---
--- Definitions:
---
--- >>> classifyScanMutWith = Fold.classifyScanWith
--- >>> classifyScanMutWith f fld = Fold.demuxScanMutWith f (const fld)
---
-{-# INLINE classifyScanMutWith #-}
-classifyScanMutWith :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
+{-# INLINE classifyGenericIO #-}
+classifyGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
-classifyScanMutWith f (Fold step1 initial1 extract1) =
+classifyGenericIO f (Fold step1 initial1 extract1) =
     fmap extract $ foldlM' step initial
 
     where
@@ -523,11 +577,39 @@ classifyScanMutWith f (Fold step1 initial1 extract1) =
     extract (Tuple3' kv _ x) =
         (Prelude.mapM (\ref -> liftIO (readIORef ref) >>= extract1) kv, x)
 
--- | Fold a key value stream to a key-value container. If the same key appears
+-- | Same as classify except that it uses mutable IORef cells in the
+-- Map providing better performance. Be aware that if this is used as a scan,
+-- the values in the intermediate Maps would be mutable.
+--
+-- Definitions:
+--
+-- >>> classifyIO f fld = Fold.demuxIO f (const fld)
+--
+{-# INLINE classifyIO #-}
+classifyIO :: (MonadIO m, Ord k) =>
+    (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
+classifyIO = classifyGenericIO
+
+-- | Fold a key value stream to a key-value Map. If the same key appears
 -- multiple times, only the last value is retained.
-{-# INLINE toMap #-}
-toMap :: (Monad m, IsMap f) => Fold m (Key f, a) (f a)
-toMap = foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
+{-# INLINE kvToMapOverwriteGeneric #-}
+kvToMapOverwriteGeneric :: (Monad m, IsMap f) => Fold m (Key f, a) (f a)
+kvToMapOverwriteGeneric =
+    foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
+
+{-# INLINE toContainer #-}
+toContainer :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
+    (a -> Key f) -> Fold m a b -> Fold m a (f b)
+toContainer f fld =
+    let
+        classifier = classifyGeneric f fld
+        getMap Nothing = pure IsMap.mapEmpty
+        getMap (Just action) = action
+        aggregator =
+            teeWith IsMap.mapUnion
+                (rmapM getMap $ lmap fst latest)
+                (lmap snd $ catMaybes kvToMapOverwriteGeneric)
+    in postscan classifier aggregator
 
 -- | Split the input stream based on a key field and fold each split using the
 -- given fold. Useful for map/reduce, bucketizing the input in different bins
@@ -538,7 +620,7 @@ toMap = foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 -- >>> import Data.Map.Strict (Map)
 -- >>> :{
 --  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
---      classify = Fold.classifyWith fst (Fold.lmap snd Fold.toList)
+--      classify = Fold.toMap fst (Fold.lmap snd Fold.toList)
 --   in Stream.fold classify input :: IO (Map String [Double])
 -- :}
 -- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
@@ -550,44 +632,42 @@ toMap = foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 -- monotonically increases because it stores whether a key has been seen or
 -- not.
 --
+-- See 'demuxToMap' for a more powerful version where you can use a different
+-- fold for each key. A simpler version of 'toMap' retaining only the last
+-- value for a key can be written as:
+--
+-- >>> toMap = Fold.foldl' (\kv (k, v) -> Map.insert k v kv) Map.empty
+--
 -- /Stops: never/
 --
 -- /Pre-release/
 --
-{-# INLINE classifyWith #-}
-classifyWith :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
+{-# INLINE toMap #-}
+toMap :: (Monad m, Ord k) =>
+    (a -> k) -> Fold m a b -> Fold m a (Map k b)
+toMap = toContainer
+
+{-# INLINE toContainerIO #-}
+toContainerIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Fold m a b -> Fold m a (f b)
-classifyWith f fld =
+toContainerIO f fld =
     let
-        classifier = classifyScanWith f fld
+        classifier = classifyGenericIO f fld
         getMap Nothing = pure IsMap.mapEmpty
         getMap (Just action) = action
         aggregator =
             teeWith IsMap.mapUnion
                 (rmapM getMap $ lmap fst latest)
-                (lmap snd $ catMaybes toMap)
+                (lmap snd $ catMaybes kvToMapOverwriteGeneric)
     in postscan classifier aggregator
 
--- | Same as 'classifyWith' but maybe faster because it uses mutable cells as
+-- | Same as 'toMap' but maybe faster because it uses mutable cells as
 -- fold accumulators in the Map.
 --
--- Definition:
---
--- >>> classifyMutWith = Fold.classifyWith
---
-{-# INLINE classifyMutWith #-}
-classifyMutWith :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
-    (a -> Key f) -> Fold m a b -> Fold m a (f b)
-classifyMutWith f fld =
-    let
-        classifier = classifyScanMutWith f fld
-        getMap Nothing = pure IsMap.mapEmpty
-        getMap (Just action) = action
-        aggregator =
-            teeWith IsMap.mapUnion
-                (rmapM getMap $ lmap fst latest)
-                (lmap snd $ catMaybes toMap)
-    in postscan classifier aggregator
+{-# INLINE toMapIO #-}
+toMapIO :: (MonadIO m, Ord k) =>
+    (a -> k) -> Fold m a b -> Fold m a (Map k b)
+toMapIO = toContainerIO
 
 -- | Given an input stream of key value pairs and a fold for values, fold all
 -- the values belonging to each key.  Useful for map/reduce, bucketizing the
@@ -595,20 +675,20 @@ classifyMutWith f fld =
 --
 -- Definition:
 --
--- >>> classify = Fold.classifyWith fst . Fold.lmap snd
+-- >>> kvToMap = Fold.toMap fst . Fold.lmap snd
 --
 -- Example:
 --
 -- >>> :{
 --  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
---   in Stream.fold (Fold.classify Fold.toList) input
+--   in Stream.fold (Fold.kvToMap Fold.toList) input
 -- :}
 -- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
 --
 -- /Pre-release/
-{-# INLINE classify #-}
-classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
-classify = classifyWith fst . lmap snd
+{-# INLINE kvToMap #-}
+kvToMap :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
+kvToMap = toMap fst . lmap snd
 
 -- | Determine the frequency of each element in the stream.
 --
@@ -617,8 +697,8 @@ classify = classifyWith fst . lmap snd
 --
 -- Definition:
 --
--- >>> frequency = Fold.classifyWith id Fold.length
+-- >>> frequency = Fold.toMap id Fold.length
 --
 {-# INLINE frequency #-}
 frequency :: (Monad m, Ord a) => Fold m a (Map a Int)
-frequency = classifyWith id length
+frequency = toMap id length

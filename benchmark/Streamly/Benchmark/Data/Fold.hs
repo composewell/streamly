@@ -31,7 +31,7 @@ import Streamly.Internal.Data.IsMap.HashMap ()
 
 import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Fold.Extra as FL
+import qualified Streamly.Internal.Data.Fold.Container as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -203,55 +203,55 @@ partitionByMinM :: Monad m => Stream m Int -> m (Int, Int)
 partitionByMinM =
     Stream.fold (FL.partitionByMinM (return . oddEven) FL.sum FL.length)
 
-{-# INLINE demuxWith  #-}
-demuxWith :: (Monad m, Ord k) =>
+{-# INLINE demuxToMap  #-}
+demuxToMap :: (Monad m, Ord k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
-demuxWith f g = Stream.fold (FL.demuxWith f g)
+demuxToMap f g = Stream.fold (FL.demuxToContainer f g)
 
-{-# INLINE demuxWithInt  #-}
-demuxWithInt :: Monad m =>
+{-# INLINE demuxToIntMap  #-}
+demuxToIntMap :: Monad m =>
     (a -> Int) -> (a -> m (Fold m a b)) -> Stream m a -> m (IntMap b)
-demuxWithInt f g = Stream.fold (FL.demuxWith f g)
+demuxToIntMap f g = Stream.fold (FL.demuxToContainer f g)
 
-{-# INLINE demuxWithHash  #-}
-demuxWithHash :: (Monad m, Ord k, Hashable k) =>
+{-# INLINE demuxToHashMap  #-}
+demuxToHashMap :: (Monad m, Ord k, Hashable k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
-demuxWithHash f g = Stream.fold (FL.demuxWith f g)
+demuxToHashMap f g = Stream.fold (FL.demuxToContainer f g)
 
-{-# INLINE demuxMutWith  #-}
-demuxMutWith :: (MonadIO m, Ord k) =>
+{-# INLINE demuxToMapIO  #-}
+demuxToMapIO :: (MonadIO m, Ord k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
-demuxMutWith f g = Stream.fold (FL.demuxMutWith f g)
+demuxToMapIO f g = Stream.fold (FL.demuxToContainerIO f g)
 
-{-# INLINE demuxMutWithHash  #-}
-demuxMutWithHash :: (MonadIO m, Ord k, Hashable k) =>
+{-# INLINE demuxToHashMapIO  #-}
+demuxToHashMapIO :: (MonadIO m, Ord k, Hashable k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
-demuxMutWithHash f g = Stream.fold (FL.demuxMutWith f g)
+demuxToHashMapIO f g = Stream.fold (FL.demuxToContainerIO f g)
 
-{-# INLINE classifyWith #-}
-classifyWith ::
+{-# INLINE toMap #-}
+toMap ::
        (Monad m, Ord k, Num a) => (a -> k) -> Stream m a -> m (Map k a)
-classifyWith f = Stream.fold (FL.classifyWith f FL.sum)
+toMap f = Stream.fold (FL.toContainer f FL.sum)
 
-{-# INLINE classifyWithInt #-}
-classifyWithInt ::
+{-# INLINE toIntMap #-}
+toIntMap ::
        (Monad m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
-classifyWithInt f = Stream.fold (FL.classifyWith f FL.sum)
+toIntMap f = Stream.fold (FL.toContainer f FL.sum)
 
-{-# INLINE classifyMutWith #-}
-classifyMutWith ::
+{-# INLINE toMapIO #-}
+toMapIO ::
        (MonadIO m, Ord k, Num a) => (a -> k) -> Stream m a -> m (Map k a)
-classifyMutWith f = Stream.fold (FL.classifyMutWith f FL.sum)
+toMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
 
-{-# INLINE classifyMutWithInt #-}
-classifyMutWithInt ::
+{-# INLINE toIntMapIO #-}
+toIntMapIO ::
        (MonadIO m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
-classifyMutWithInt f = Stream.fold (FL.classifyMutWith f FL.sum)
+toIntMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
 
-{-# INLINE classifyMutWithHash #-}
-classifyMutWithHash :: (MonadIO m, Ord k, Num a, Hashable k) =>
+{-# INLINE toHashMapIO #-}
+toHashMapIO :: (MonadIO m, Ord k, Num a, Hashable k) =>
     (a -> k) -> Stream m a -> m (HashMap k a)
-classifyMutWithHash f = Stream.fold (FL.classifyMutWith f FL.sum)
+toHashMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
 
 -------------------------------------------------------------------------------
 -- unzip
@@ -452,38 +452,38 @@ o_n_heap_serial value =
             ]
     , bgroup "key-value"
             [
-              benchIOSink value "demuxWith (64 buckets) [sum, length]"
-                $ demuxWith (getKey 64) (getFold . getKey 64)
-            , benchIOSink value "demuxWithInt (64 buckets) [sum, length]"
-                $ demuxWithInt (getKey 64) (getFold . getKey 64)
-            , benchIOSink value "demuxWithHash (64 buckets) [sum, length]"
-                $ demuxWithHash (getKey 64) (getFold . getKey 64)
-            , benchIOSink value "demuxMutWith (64 buckets) [sum, length]"
-                $ demuxMutWith (getKey 64) (getFold . getKey 64)
-            , benchIOSink value "demuxMutWithHash (64 buckets) [sum, length]"
-                $ demuxMutWithHash (getKey 64) (getFold . getKey 64)
+              benchIOSink value "demuxToMap (64 buckets) [sum, length]"
+                $ demuxToMap (getKey 64) (getFold . getKey 64)
+            , benchIOSink value "demuxToIntMap (64 buckets) [sum, length]"
+                $ demuxToIntMap (getKey 64) (getFold . getKey 64)
+            , benchIOSink value "demuxToHashMap (64 buckets) [sum, length]"
+                $ demuxToHashMap (getKey 64) (getFold . getKey 64)
+            , benchIOSink value "demuxToMapIO (64 buckets) [sum, length]"
+                $ demuxToMapIO (getKey 64) (getFold . getKey 64)
+            , benchIOSink value "demuxToHashMapIO (64 buckets) [sum, length]"
+                $ demuxToHashMapIO (getKey 64) (getFold . getKey 64)
 
             -- classify: immutable
-            , benchIOSink value "classifyWith (64 buckets) sum"
-                $ classifyWith (getKey 64)
-            , benchIOSink value "classifyWithInt (64 buckets) sum"
-                $ classifyWithInt (getKey 64)
+            , benchIOSink value "toMap (64 buckets) sum"
+                $ toMap (getKey 64)
+            , benchIOSink value "toIntMap (64 buckets) sum"
+                $ toIntMap (getKey 64)
 
             -- classify: mutable cells
-            , benchIOSink value "classifyMutWith (single bucket) sum"
-                $ classifyMutWith (getKey 1)
-            , benchIOSink value "classifyMutWith (64 buckets) sum"
-                $ classifyMutWith (getKey 64)
-            , benchIOSink value "classifyMutWith (max buckets) sum"
-                $ classifyMutWith (getKey value)
-            , benchIOSink value "classifyMutWithInt (64 buckets) sum"
-                $ classifyMutWithInt (getKey 64)
-            , benchIOSink value "classifyMutWithHash (single bucket) sum"
-                $ classifyMutWithHash (getKey 1)
-            , benchIOSink value "classifyMutWithHash (64 buckets) sum"
-                $ classifyMutWithHash (getKey 64)
-            , benchIOSink value "classifyMutWithHash (max buckets) sum"
-                $ classifyMutWithHash (getKey value)
+            , benchIOSink value "toMapIO (single bucket) sum"
+                $ toMapIO (getKey 1)
+            , benchIOSink value "toMapIO (64 buckets) sum"
+                $ toMapIO (getKey 64)
+            , benchIOSink value "toMapIO (max buckets) sum"
+                $ toMapIO (getKey value)
+            , benchIOSink value "toIntMapIO (64 buckets) sum"
+                $ toIntMapIO (getKey 64)
+            , benchIOSink value "toHashMapIO (single bucket) sum"
+                $ toHashMapIO (getKey 1)
+            , benchIOSink value "toHashMapIO (64 buckets) sum"
+                $ toHashMapIO (getKey 64)
+            , benchIOSink value "toHashMapIO (max buckets) sum"
+                $ toHashMapIO (getKey value)
             ]
     ]
 

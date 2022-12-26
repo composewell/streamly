@@ -156,6 +156,9 @@ module Streamly.Data.Fold
     , drain
     , drainMapM
     , length
+    , countDistinct
+    , countDistinctInt
+    , frequency
     , sum
     , product
     , mean
@@ -165,6 +168,12 @@ module Streamly.Data.Fold
     -- Collectors
     , toList
     , toListRev
+    , toSet
+    , toIntSet
+    , toMap
+    , toMapIO
+    , demuxToMap
+    , demuxToMapIO
 
     -- ** Non-Empty Accumulators
     -- | Accumulators that do not have a default value, therefore, return
@@ -178,11 +187,17 @@ module Streamly.Data.Fold
     -- ** Filtering Scanners
     -- | Accumulators that are usually run as a scan using the 'scanMaybe'
     -- combinator.
-    , uniq
-    , uniqBy
-    , deleteBy
     , findIndices
     , elemIndices
+    , deleteBy
+    -- , uniq
+    , uniqBy
+    , nub
+    , nubInt
+    , classify
+    , classifyIO
+    , demux
+    , demuxIO
 
     -- ** Terminating Folds
     -- | These are much like lazy right folds.
@@ -340,6 +355,7 @@ import Prelude
                span, splitAt, break, mapM, maybe)
 
 import Streamly.Internal.Data.Fold
+import Streamly.Internal.Data.Fold.Container
 
 -- $setup
 -- >>> import Data.Function ((&))

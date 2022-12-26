@@ -25,7 +25,7 @@ import qualified Data.Map
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array.Mut as MArray
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Fold.Extra as Fold
+import qualified Streamly.Internal.Data.Fold.Container as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding
@@ -611,7 +611,7 @@ demux =
                 , ("abc", 2)
                 ] :: [(String, Int)])
     in Stream.fold
-        (Fold.demux table)
+        (Fold.demuxKvToMap table)
         input
         `shouldReturn`
         Data.Map.fromList [("PRODUCT", 8),("SUM", 4),("abc",3),("xyz",2)]
@@ -628,7 +628,7 @@ demuxWith =
 
         input = Stream.fromList  [1, 2, 3, 4 :: Int]
     in Stream.fold
-        (Fold.demuxWith getKey (getFold . getKey))
+        (Fold.demuxToContainer getKey (getFold . getKey))
         input
         `shouldReturn`
         Data.Map.fromList  [("PRODUCT",3),("SUM",6)]
@@ -637,7 +637,7 @@ classifyWith :: Expectation
 classifyWith =
     let input = Stream.fromList  [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
     in Stream.fold
-        (Fold.classifyWith fst (Fold.lmap snd Fold.toList))
+        (Fold.toContainer fst (Fold.lmap snd Fold.toList))
         input
         `shouldReturn`
         Data.Map.fromList
@@ -654,7 +654,7 @@ classify =
             , ("TWO",(2, 2.2))
             ]
     in Stream.fold
-        (Fold.classify (Fold.lmap snd Fold.toList))
+        (Fold.kvToMap (Fold.lmap snd Fold.toList))
         input
         `shouldReturn`
         Data.Map.fromList
