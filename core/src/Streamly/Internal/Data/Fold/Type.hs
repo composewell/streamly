@@ -423,7 +423,7 @@ where
 
 #include "inline.hs"
 
-import Control.Applicative (liftA2)
+-- import Control.Applicative (liftA2)
 import Control.Monad ((>=>))
 import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
@@ -860,6 +860,11 @@ split_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
             Partial sR -> extractR sR
             Done rR -> return rR
 
+-- Disabled because this uses the non-CPS style splitWith operation. We should
+-- use a CPS style operation to be compatible with parsers. For fused
+-- applicative we can use a separate (Split) newtype instead.
+
+{-
 -- | 'Applicative' form of 'splitWith'. Split the input serially over two
 -- folds.
 instance Monad m => Applicative (Fold m a) where
@@ -874,6 +879,7 @@ instance Monad m => Applicative (Fold m a) where
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
+-}
 
 {-# ANN type TeeState Fuse #-}
 data TeeState sL sR bL bR
