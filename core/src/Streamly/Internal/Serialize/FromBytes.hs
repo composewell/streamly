@@ -42,20 +42,19 @@ where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.Bits ((.|.), unsafeShiftL)
-import Data.Functor ((<&>))
+import Data.Int (Int8, Int16, Int32, Int64)
+import GHC.Float (castWord32ToFloat, castWord64ToDouble)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 import qualified Streamly.Data.Array as A
-import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Array as A
     (unsafeIndex, castUnsafe)
 import qualified Streamly.Internal.Data.Parser as PR
     (fromPure, either, satisfy, takeEQ)
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
     (Parser(..), Initial(..), Step(..), toParserK)
-import GHC.Int (Int16, Int32, Int64, Int8)
 
 -- Note: The () type does not need to have an on-disk representation in theory.
 -- But we use a concrete representation for it so that we count how many ()
@@ -347,102 +346,21 @@ int64be = fromIntegral <$> word64be
 int64le :: Monad m => Parser Word8 m Int64
 int64le = fromIntegral <$> word64le
 
-
-{-# INLINE floatbeD #-}
-floatbeD :: MonadIO m => PRD.Parser Word8 m Float
-floatbeD = PRD.Parser step initial extract
-
-    where
-
-    initial = do
-        arr0 <- MA.new 4
-        return $ PRD.IPartial (arr0, 1 :: Int)
-
-    step (arr0, i) a = do
-        arr1 <- MA.snoc arr0 a
-        if i < 4
-        then return $ PRD.Continue 0 (arr1, i + 1)
-        else
-            (MA.reverse arr1 >>
-                MA.getIndex 0 (MA.castUnsafe arr1)) <&> PRD.Done 0
-
-    extract _ = return $ PRD.Error "floatbeD: end of input"
-
-{-# INLINE floatleD #-}
-floatleD :: MonadIO m => PRD.Parser Word8 m Float
-floatleD = PRD.Parser step initial extract
-
-    where
-
-    initial = do
-        arr0 <- MA.new 4
-        return $ PRD.IPartial (arr0, 1 :: Int)
-
-    step (arr0, i) a = do
-        arr1 <- MA.snoc arr0 a
-        if i < 4
-        then return $ PRD.Continue 0 (arr1, i + 1)
-        else do
-            ff <- MA.getIndex 0 (MA.castUnsafe arr1)
-            return $ PRD.Done 0 ff
-
-    extract _ = return $ PRD.Error "floatleD: end of input"
-
 {-# INLINE float32be #-}
 float32be :: MonadIO m => Parser Word8 m Float
-float32be = PRD.toParserK floatbeD
+float32be = castWord32ToFloat <$> word32be
 
 {-# INLINE float32le #-}
 float32le :: MonadIO m => Parser Word8 m Float
-float32le = PRD.toParserK floatleD
-
-{-# INLINE doubleleD #-}
-doubleleD :: MonadIO m => PRD.Parser Word8 m Double
-doubleleD = PRD.Parser step initial extract
-
-    where
-
-    initial = do
-        arr0 <- MA.new 8
-        return $ PRD.IPartial (arr0, 1 :: Int)
-
-    step (arr0, i) a = do
-        arr1 <- MA.snoc arr0 a
-        if i < 8
-        then return $ PRD.Continue 0 (arr1, i + 1)
-        else do
-            ff <- MA.getIndex 0 (MA.castUnsafe arr1)
-            return $ PRD.Done 0 ff
-
-    extract _ = return $ PRD.Error "doubleleD: end of input"
-
-{-# INLINE doublebeD #-}
-doublebeD :: MonadIO m => PRD.Parser Word8 m Double
-doublebeD = PRD.Parser step initial extract
-
-    where
-
-    initial = do
-        arr0 <- MA.new 8
-        return $ PRD.IPartial (arr0, 1 :: Int)
-
-    step (arr0, i) a = do
-        arr1 <- MA.snoc arr0 a
-        if i < 8
-        then return $ PRD.Continue 0 (arr1, i + 1)
-        else
-            (MA.reverse arr1 >>
-                MA.getIndex 0 (MA.castUnsafe arr1)) <&> PRD.Done 0
-
-    extract _ = return $ PRD.Error "doublebeD: end of input"
+float32le = castWord32ToFloat <$> word32le
 
 {-# INLINE double64be #-}
 double64be :: MonadIO m => Parser Word8 m Double
-double64be = PRD.toParserK doublebeD
+double64be =  castWord64ToDouble <$> word64be
 
 {-# INLINE double64le #-}
 double64le :: MonadIO m => Parser Word8 m Double
-double64le = PRD.toParserK doubleleD
+double64le = castWord64ToDouble <$> word64le
 -------------------------------------------------------------------------------
 -- Host byte order
 -------------------------------------------------------------------------------
