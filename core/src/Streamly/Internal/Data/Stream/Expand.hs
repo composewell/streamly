@@ -200,6 +200,8 @@ append = (<>)
 -- Interleaving
 ------------------------------------------------------------------------------
 
+infixr 6 `interleave`
+
 -- | Interleaves two streams, yielding one element from each stream
 -- alternately.  When one stream stops the rest of the other stream is used in
 -- the output stream.

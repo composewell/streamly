@@ -47,7 +47,7 @@ import qualified Streamly.Internal.Data.Stream.Generate as Stream
 --
 -- @
 -- (<>) = 'Streamly.Data.Stream.append'
--- (<*>) = 'Streamly.Data.Stream.zipWith' id
+-- (\<*>) = 'Streamly.Data.Stream.zipWith' id
 -- @
 --
 -- Applicative evaluates the streams being zipped serially:
