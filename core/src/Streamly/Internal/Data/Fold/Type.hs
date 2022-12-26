@@ -905,6 +905,8 @@ data TeeState sL sR bL bR
 --
 -- See also: "Streamly.Data.Fold.Tee"
 --
+-- Note that nested applications of teeWith do not fuse.
+--
 {-# INLINE teeWith #-}
 teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
 teeWith f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
@@ -1320,7 +1322,7 @@ catRights = filter isRight . lmap (fromRight undefined)
 --
 -- Definition:
 --
--- >>> both = Fold.lmap (either id id)
+-- >>> catEithers = Fold.lmap (either id id)
 --
 -- /Pre-release/
 --

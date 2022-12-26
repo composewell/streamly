@@ -119,7 +119,7 @@ module Streamly.Internal.Data.Fold
     -- | Folds that terminate after consuming exactly one input element. All
     -- these can be implemented in terms of the 'maybe' fold.
     , one
-    , null
+    , null -- XXX not very useful and could be problematic, remove it?
     , satisfy
     , maybe
 

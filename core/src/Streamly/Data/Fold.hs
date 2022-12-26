@@ -269,14 +269,17 @@ module Streamly.Data.Fold
     , filterM
 
     -- -- ** Mapping Filters
-    , catMaybes
     , mapMaybe
+    , catMaybes
+    , catLefts
+    , catRights
+    , catEithers
 
     -- ** Trimming
     , take
     -- , takeInterval
-    , takeEndBy_
     , takeEndBy
+    , takeEndBy_
 
     -- ** Serial Append
     , splitWith
