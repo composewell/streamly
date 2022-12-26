@@ -244,6 +244,7 @@ library
                      , Streamly.Internal.Control.Exception
                      , Streamly.Internal.Control.Monad
                      , Streamly.Internal.Control.ForkIO
+                       Streamly.Internal.Data.IsMap
                      , Streamly.Internal.System.IO
 
                      -- streamly-strict-data
@@ -308,6 +309,7 @@ library
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Fold.Chunked
                      , Streamly.Internal.Data.Fold.Window
+                     , Streamly.Internal.Data.Fold.Extra
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Parser.Chunked.Type
                      , Streamly.Internal.Data.Parser.Chunked
