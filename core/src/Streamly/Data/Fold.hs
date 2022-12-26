@@ -174,6 +174,7 @@ module Streamly.Data.Fold
     , toMapIO
     , demuxToMap
     , demuxToMapIO
+    , topBy
 
     -- ** Non-Empty Accumulators
     -- | Accumulators that do not have a default value, therefore, return

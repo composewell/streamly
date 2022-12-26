@@ -83,8 +83,9 @@ module Streamly.Internal.Data.Fold
     -- $toListRev
     , toStream
     , toStreamRev
-    , bottomBy
+    , topBy
     , top
+    , bottomBy
     , bottom
 
     -- *** Scanners
@@ -2468,11 +2469,32 @@ bottomBy cmp n = Fold step initial extract
 
     extract = return . fst
 
+-- | Get the top @n@ elements using the supplied comparison function.
+--
+-- To get bottom n elements instead:
+--
+-- >>> bottomBy cmp = Fold.topBy (flip cmp)
+--
+-- Example:
+--
+-- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
+-- >>> Stream.fold (Fold.topBy compare 3) stream >>= MA.toList
+-- [17,11,9]
+--
+-- /Pre-release/
+--
+{-# INLINE topBy #-}
+topBy :: (MonadIO m, Unbox a) =>
+       (a -> a -> Ordering)
+    -> Int
+    -> Fold m a (MA.Array a)
+topBy cmp = bottomBy (flip cmp)
+
 -- | Fold the input stream to top n elements.
 --
 -- Definition:
 --
--- >>> top = Fold.bottomBy $ flip compare
+-- >>> top = Fold.topBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
 -- >>> Stream.fold (Fold.top 3) stream >>= MA.toList
