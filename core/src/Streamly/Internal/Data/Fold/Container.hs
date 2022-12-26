@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Fold.Extra
+-- Module      : Streamly.Internal.Data.Fold.Container
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -7,7 +7,7 @@
 -- Portability : GHC
 --
 
-module Streamly.Internal.Data.Fold.Extra
+module Streamly.Internal.Data.Fold.Container
     (
     -- * Imports
     -- $setup
