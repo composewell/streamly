@@ -18,6 +18,7 @@ module Streamly.Internal.Data.Fold
     -- * Fold Type
       Step (..)
     , Fold (..)
+    , Tee (..)
 
     -- * Constructors
     -- | Which constructor to use?
@@ -334,6 +335,7 @@ import Prelude hiding
        , scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip
        , span, splitAt, break, mapM, zip, maybe)
 import Streamly.Internal.Data.Fold.Type
+import Streamly.Internal.Data.Fold.Tee
 
 -- $setup
 -- >>> :m
