@@ -477,8 +477,8 @@ withNewArrayUnsafe count f = do
 -- /Pre-release/
 {-# INLINE putIndexUnsafe #-}
 putIndexUnsafe :: forall m a. (MonadIO m, Unbox a)
-    => Int -> a -> Array a -> m ()
-putIndexUnsafe i x Array{..} = do
+    => Int -> Array a -> a -> m ()
+putIndexUnsafe i Array{..} x = do
     let index = INDEX_OF(arrStart, i, a)
     assert (i >= 0 && INDEX_VALID(index, arrEnd, a)) (return ())
     liftIO $ pokeWith arrContents index x
@@ -490,13 +490,13 @@ invalidIndex label i =
 -- | /O(1)/ Write the given element at the given index in the array.
 -- Performs in-place mutation of the array.
 --
--- >>> putIndex arr ix val = Array.modifyIndex ix (const (val, ())) arr
+-- >>> putIndex ix arr val = Array.modifyIndex ix arr (const (val, ()))
 -- >>> f = Array.putIndices
--- >>> putIndex ix val arr = Stream.fold (f arr) (Stream.fromPure (ix, val))
+-- >>> putIndex ix arr val = Stream.fold (f arr) (Stream.fromPure (ix, val))
 --
 {-# INLINE putIndex #-}
-putIndex :: forall m a. (MonadIO m, Unbox a) => Int -> a -> Array a -> m ()
-putIndex i x Array{..} = do
+putIndex :: forall m a. (MonadIO m, Unbox a) => Int -> Array a -> a -> m ()
+putIndex i Array{..} x = do
     let index = INDEX_OF(arrStart,i,a)
     if i >= 0 && INDEX_VALID(index,arrEnd,a)
     then liftIO $ pokeWith arrContents index x
@@ -513,14 +513,14 @@ putIndices arr = FL.foldlM' step (return ())
 
     where
 
-    step () (i, x) = liftIO (putIndex i x arr)
+    step () (i, x) = liftIO (putIndex i arr x)
 
 -- | Modify a given index of an array using a modifier function.
 --
 -- /Pre-release/
 modifyIndexUnsafe :: forall m a b. (MonadIO m, Unbox a) =>
-    Int -> (a -> (a, b)) -> Array a -> m b
-modifyIndexUnsafe i f Array{..} = liftIO $ do
+    Int -> Array a -> (a -> (a, b)) -> m b
+modifyIndexUnsafe i Array{..} f = liftIO $ do
         let index = INDEX_OF(arrStart,i,a)
         assert (i >= 0 && INDEX_NEXT(index,a) <= arrEnd) (return ())
         r <- peekWith arrContents index
@@ -532,8 +532,8 @@ modifyIndexUnsafe i f Array{..} = liftIO $ do
 --
 -- /Pre-release/
 modifyIndex :: forall m a b. (MonadIO m, Unbox a) =>
-    Int -> (a -> (a, b)) -> Array a -> m b
-modifyIndex i f Array{..} = do
+    Int -> Array a -> (a -> (a, b)) -> m b
+modifyIndex i Array{..} f = do
     let index = INDEX_OF(arrStart,i,a)
     if i >= 0 && INDEX_VALID(index,arrEnd,a)
     then liftIO $ do
@@ -549,8 +549,8 @@ modifyIndex i f Array{..} = do
 -- /Pre-release/
 {-# INLINE modifyIndices #-}
 modifyIndices :: forall m a . (MonadIO m, Unbox a)
-    => (Int -> a -> a) -> Array a -> Fold m Int ()
-modifyIndices f arr = FL.foldlM' step initial
+    => Array a -> (Int -> a -> a) -> Fold m Int ()
+modifyIndices arr f = FL.foldlM' step initial
 
     where
 
@@ -558,14 +558,14 @@ modifyIndices f arr = FL.foldlM' step initial
 
     step () i =
         let f1 x = (f i x, ())
-         in modifyIndex i f1 arr
+         in modifyIndex i arr f1
 
 -- | Modify each element of an array using the supplied modifier function.
 --
 -- /Pre-release/
 modify :: forall m a. (MonadIO m, Unbox a)
-    => (a -> a) -> Array a -> m ()
-modify f Array{..} = liftIO $
+    => Array a -> (a -> a) -> m ()
+modify Array{..} f = liftIO $
     go arrStart
 
     where
@@ -2341,7 +2341,7 @@ bubble cmp0 arr =
                 x1 <- getIndexUnsafe i arr
                 case x `cmp0` x1 of
                     LT -> do
-                        putIndexUnsafe (i + 1) x1 arr
+                        putIndexUnsafe (i + 1) arr x1
                         go x (i - 1)
-                    _ -> putIndexUnsafe (i + 1) x arr
-            else putIndexUnsafe (i + 1) x arr
+                    _ -> putIndexUnsafe (i + 1) arr x
+            else putIndexUnsafe (i + 1) arr x

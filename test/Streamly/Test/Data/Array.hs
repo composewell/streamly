@@ -59,7 +59,7 @@ testLengthFromStream = genericTestFrom (const A.fromStream)
 unsafeWriteIndex :: [Int] -> Int -> Int -> IO Bool
 unsafeWriteIndex xs i x = do
     arr <- MA.fromList xs
-    MA.putIndexUnsafe i x arr
+    MA.putIndexUnsafe i arr x
     x1 <- MA.getIndexUnsafe i arr
     return $ x1 == x
 

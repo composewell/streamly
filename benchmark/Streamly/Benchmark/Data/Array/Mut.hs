@@ -266,7 +266,7 @@ o_1_space_serial_marray value ~(array, indices) =
     , benchIO' "strip (> 0)" (const (return array))
         $ MArray.strip (> 0)
     , benchIO' "modifyIndices (+ 1)" (const (return indices))
-        $ Stream.fold (MArray.modifyIndices (\_idx val -> val + 1) array)
+        $ Stream.fold (MArray.modifyIndices array (\_idx val -> val + 1))
         . Stream.unfold Array.reader
     ]
 

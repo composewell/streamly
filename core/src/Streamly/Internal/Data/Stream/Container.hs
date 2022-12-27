@@ -245,7 +245,7 @@ joinOuterGeneric eq s1 s =
                 if a `eq` b1
                 then do
                     CrossStream (Stream.fromEffect $ put True)
-                    MA.putIndex i True foundArr
+                    MA.putIndex i foundArr True
                     return (Just a, Just b1)
                 else CrossStream Stream.nil
             Nothing -> return (Just a, Nothing)

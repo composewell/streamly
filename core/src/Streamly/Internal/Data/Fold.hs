@@ -2462,7 +2462,7 @@ bottomBy cmp n = Fold step initial extract
             x1 <- MA.getIndexUnsafe (i - 1) arr
             case x `cmp` x1 of
                 LT -> do
-                    MA.putIndexUnsafe (i - 1) x arr
+                    MA.putIndexUnsafe (i - 1) arr x
                     MA.bubble cmp arr
                     return $ Partial (arr, i)
                 _ -> return $ Partial (arr, i)
