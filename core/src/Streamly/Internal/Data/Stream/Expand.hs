@@ -113,16 +113,24 @@ module Streamly.Internal.Data.Stream.Expand
     , bindWith
     , concatSmapMWith
 
-    -- * ConcatPairsWith
+    -- * MergeMapWith
     -- | See the notes about suitable merge functions in the 'concatMapWith'
     -- section.
     , mergeMapWith
 
-    -- * IterateMap
+    -- * Iterate
     -- | Map and flatten Trees of Streams
-    , iterateMapWith
-    , iterateSmapMWith
-    , iterateMapLeftsWith
+    , iterateConcatMapWith
+    , iterateMergeMapWith
+
+    , iterateConcatMapDFS
+    , iterateConcatMapBFS
+
+    -- More experimental ops
+    , iterateConcatMapBFSRev
+    , iterateLeftsConcatMapWith
+    , iterateConcatScanWith
+    , iterateConcatScan
     , iterateUnfold
     )
 where
@@ -130,7 +138,7 @@ where
 #include "inline.hs"
 
 import Streamly.Internal.Data.Stream.Bottom
-    ( concatEffect, concatMapM, concatMap, smapM, fromPure, fromEffect
+    ( concatEffect, concatMapM, concatMap, smapM, fromPure
     , zipWith, zipWithM)
 import Streamly.Internal.Data.Stream.Type
     ( Stream, fromStreamD, fromStreamK, toStreamD, toStreamK
@@ -629,41 +637,128 @@ mergeMapWith par f m =
             (toStreamK m)
 
 ------------------------------------------------------------------------------
--- IterateMap - Map and flatten Trees of Streams
+-- iterateConcatMap - Map and flatten Trees of Streams
 ------------------------------------------------------------------------------
 
--- | Like 'iterateM' but iterates after mapping a stream generator on the
--- output.
+-- | Yield an input element in the output stream, map a stream generator on it
+-- and repeat the process on the resulting stream. Resulting streams are
+-- flattened using the 'concatMapWith' combinator. This can be used for a depth
+-- first style (DFS) traversal of a tree like structure.
 --
--- Yield an input element in the output stream, map a stream generator on it
--- and then do the same on the resulting stream. This can be used for a depth
--- first traversal of a tree like structure.
+-- Example, list a directory tree using DFS:
 --
--- Note that 'iterateM' is a special case of 'iterateMapWith':
---
--- >>> iterateM f = Stream.iterateMapWith Stream.append (Stream.fromEffect . f) . Stream.fromEffect
---
--- It can be used to traverse a tree structure.  For example, to list a
--- directory tree:
---
+-- >>> f = either Dir.readEitherPaths (const Stream.nil)
 -- >>> input = Stream.fromPure (Left ".")
--- >>> f = either Dir.readEither (const Stream.nil)
--- >>> ls = Stream.iterateMapWith Stream.append f input
+-- >>> ls = Stream.iterateConcatMapWith Stream.append f input
+--
+-- Note that 'iterateM' is a special case of 'iterateConcatMapWith':
+--
+-- >>> iterateM f = Stream.iterateConcatMapWith Stream.append (Stream.fromEffect . f) . Stream.fromEffect
+--
+-- /CPS/
 --
 -- /Pre-release/
 --
-{-# INLINE iterateMapWith #-}
-iterateMapWith ::
+{-# INLINE iterateConcatMapWith #-}
+iterateConcatMapWith ::
        (Stream m a -> Stream m a -> Stream m a)
     -> (a -> Stream m a)
     -> Stream m a
     -> Stream m a
-iterateMapWith combine f = concatMapWith combine go
-    where
-    go x = fromPure x `combine` concatMapWith combine go (f x)
+iterateConcatMapWith combine f = iterateStream
 
--- | Same as @iterateMapWith Stream.serial@ but more efficient due to stream
--- fusion.
+    where
+
+    iterateStream = concatMapWith combine generate
+
+    generate x = fromPure x `combine` iterateStream (f x)
+
+-- | Traverse the stream in depth first style (DFS). Map each element in the
+-- input stream to a stream and flatten, recursively map the resulting elements
+-- as well to a stream and flatten until no more streams are generated.
+--
+-- Example, list a directory tree using DFS:
+--
+-- >>> f = either (Just . Dir.readEitherPaths) (const Nothing)
+-- >>> input = Stream.fromPure (Left ".")
+-- >>> ls = Stream.iterateConcatMapDFS f input
+--
+-- This is equivalent to using @iterateConcatMapWith Stream.append@.
+--
+-- /Pre-release/
+{-# INLINE iterateConcatMapDFS #-}
+iterateConcatMapDFS :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+iterateConcatMapDFS f stream =
+    fromStreamD
+        $ D.iterateConcatMapDFS (fmap toStreamD . f ) (toStreamD stream)
+
+-- | Similar to 'iterateConcatMapDFS' except that it traverses the stream in
+-- breadth first style (BFS). First, all the elements in the input stream are
+-- emitted, and then their traversals are emitted.
+--
+-- Example, list a directory tree using BFS:
+--
+-- >>> f = either (Just . Dir.readEitherPaths) (const Nothing)
+-- >>> input = Stream.fromPure (Left ".")
+-- >>> ls = Stream.iterateConcatMapBFS f input
+--
+-- /Pre-release/
+{-# INLINE iterateConcatMapBFS #-}
+iterateConcatMapBFS :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+iterateConcatMapBFS f stream =
+    fromStreamD
+        $ D.iterateConcatMapBFS (fmap toStreamD . f ) (toStreamD stream)
+
+-- | Same as 'iterateConcatMapBFS' except that the traversal of the last
+-- element on a level is emitted first and then going backwards up to the first
+-- element (reversed ordering). This may be slightly faster than
+-- 'iterateConcatMapBFS'.
+--
+{-# INLINE iterateConcatMapBFSRev #-}
+iterateConcatMapBFSRev :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+iterateConcatMapBFSRev f stream =
+    fromStreamD
+        $ D.iterateConcatMapBFSRev (fmap toStreamD . f ) (toStreamD stream)
+
+-- | Like 'iterateConcatMapWith' but uses the pairwise flattening combinator
+-- 'mergeMapWith' for flattening the resulting streams. This can be used for a
+-- balanced traversal of a tree like structure.
+--
+-- Example, list a directory tree using balanced traversal:
+--
+-- >>> f = either Dir.readEitherPaths (const Stream.nil)
+-- >>> input = Stream.fromPure (Left ".")
+-- >>> ls = Stream.iterateMergeMapWith Stream.interleave f input
+--
+-- /CPS/
+--
+-- /Pre-release/
+--
+{-# INLINE iterateMergeMapWith #-}
+iterateMergeMapWith ::
+       (Stream m a -> Stream m a -> Stream m a)
+    -> (a -> Stream m a)
+    -> Stream m a
+    -> Stream m a
+iterateMergeMapWith combine f = iterateStream
+
+    where
+
+    iterateStream = mergeMapWith combine generate
+
+    generate x = fromPure x `combine` iterateStream (f x)
+
+-- | Same as @iterateConcatMapWith Stream.append@ but more efficient due to
+-- stream fusion.
 --
 -- /Unimplemented/
 {-# INLINE iterateUnfold #-}
@@ -689,27 +784,45 @@ iterateUnfold = undefined
 --
 -- /Pre-release/
 --
-{-# INLINE iterateSmapMWith #-}
-iterateSmapMWith
+{-# INLINE iterateConcatScanWith #-}
+iterateConcatScanWith
     :: Monad m
     => (Stream m a -> Stream m a -> Stream m a)
     -> (b -> a -> m (b, Stream m a))
     -> m b
     -> Stream m a
     -> Stream m a
-iterateSmapMWith combine f initial stream =
-    concatMap
-        (\b -> concatMapWith combine (go b) stream)
-        (fromEffect initial)
+iterateConcatScanWith combine f initial stream =
+    concatEffect $ do
+        b <- initial
+        iterateStream (b, stream)
 
     where
 
-    go b a = fromPure a `combine` feedback b a
+    iterateStream (b, s) = pure $ concatMapWith combine (generate b) s
 
-    feedback b a =
-        concatMap
-            (\(b1, s) -> concatMapWith combine (go b1) s)
-            (fromEffect $ f b a)
+    generate b a = fromPure a `combine` feedback b a
+
+    feedback b a = concatEffect $ f b a >>= iterateStream
+
+-- Next stream is to be generated by the return value of the previous stream. A
+-- general intuitive way of doing that could be to use an appending monad
+-- instance for streams where the result of the previous stream is used to
+-- generate the next one. In the first pass we can just emit the values in the
+-- stream and keep building a buffered list/stream, once done we can then
+-- process the buffered stream.
+
+{-# INLINE iterateConcatScan #-}
+iterateConcatScan
+    :: Monad m
+    => (b -> a -> m b)
+    -> (b -> m (Maybe (b, Stream m a)))
+    -> b
+    -> Stream m a
+iterateConcatScan scanner generate initial =
+    fromStreamD
+        $ D.iterateConcatScan
+            scanner (fmap (fmap (fmap toStreamD)) . generate) initial
 
 ------------------------------------------------------------------------------
 -- Either streams
@@ -731,24 +844,27 @@ concatMapEitherWith
 concatMapEitherWith = undefined
 -}
 
+-- XXX We should prefer using the Maybe stream returning signatures over this.
+-- This API should perhaps be removed in favor of those.
+
 -- | In an 'Either' stream iterate on 'Left's.  This is a special case of
--- 'iterateMapWith':
+-- 'iterateConcatMapWith':
 --
--- >>> iterateMapLeftsWith combine f = Stream.iterateMapWith combine (either f (const Stream.nil))
+-- >>> iterateLeftsConcatMapWith combine f = Stream.iterateConcatMapWith combine (either f (const Stream.nil))
 --
 -- To traverse a directory tree:
 --
 -- >>> input = Stream.fromPure (Left ".")
--- >>> ls = Stream.iterateMapLeftsWith Stream.append Dir.readEither input
+-- >>> ls = Stream.iterateLeftsConcatMapWith Stream.append Dir.readEither input
 --
 -- /Pre-release/
 --
-{-# INLINE iterateMapLeftsWith #-}
-iterateMapLeftsWith
+{-# INLINE iterateLeftsConcatMapWith #-}
+iterateLeftsConcatMapWith
     :: (b ~ Either a c)
     => (Stream m b -> Stream m b -> Stream m b)
     -> (a -> Stream m b)
     -> Stream m b
     -> Stream m b
-iterateMapLeftsWith combine f =
-    iterateMapWith combine (either f (const nil))
+iterateLeftsConcatMapWith combine f =
+    iterateConcatMapWith combine (either f (const nil))

@@ -89,6 +89,11 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , concatMapM
     , concatEffect
 
+    , iterateConcatScan
+    , iterateConcatMapDFS
+    , iterateConcatMapBFS
+    , iterateConcatMapBFSRev
+
     , FoldMany (..) -- for inspection testing
     , FoldManyPost (..)
     , foldMany
@@ -884,6 +889,122 @@ instance Monad m => Monad (Stream m) where
     {-# INLINE (>>) #-}
     (>>) = (*>)
 -}
+
+-- | Generate a stream from an initial state, scan and concat the stream,
+-- generate a stream again from the final state of the previous scan and repeat
+-- the process.
+{-# INLINE_NORMAL iterateConcatScan #-}
+iterateConcatScan :: Monad m =>
+       (b -> a -> m b)
+    -> (b -> m (Maybe (b, Stream m a)))
+    -> b
+    -> Stream m a
+iterateConcatScan scanner generate initial = Stream step (Left initial)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ (Left acc) = do
+        r <- generate acc
+        case r of
+            Nothing -> return Stop
+            Just v -> return $ Skip (Right v)
+
+    step gst (Right (st, UnStream inner_step inner_st)) = do
+        r <- inner_step (adaptState gst) inner_st
+        case r of
+            Yield b inner_s -> do
+                acc <- scanner st b
+                return $ Yield b (Right (acc, Stream inner_step inner_s))
+            Skip inner_s ->
+                return $ Skip (Right (st, Stream inner_step inner_s))
+            Stop -> return $ Skip (Left st)
+
+-- Note: The iterate function returns a Maybe Stream instead of returning a nil
+-- stream for indicating a leaf node. This is to optimize so that we do not
+-- have to store any state. This makes the stored state proportional to the
+-- number of non-leaf nodes rather than total number of nodes.
+
+-- | This function may be slightly faster than iterateConcatMapBFS because it
+-- traverses the elements on a level in reverse order, therefore, does not have
+-- to reverse the list stroing those.
+{-# INLINE_NORMAL iterateConcatMapBFSRev #-}
+iterateConcatMapBFSRev :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+iterateConcatMapBFSRev f stream = Stream step (stream, [])
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (UnStream step1 st, xs) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield a s -> do
+                let xs1 =
+                        case f a of
+                            Nothing -> xs
+                            Just x -> x:xs
+                return $ Yield a (Stream step1 s, xs1)
+            Skip s -> return $ Skip (Stream step1 s, xs)
+            Stop ->
+                case xs of
+                    (y:ys) -> return $ Skip (y, ys)
+                    [] -> return Stop
+
+{-# INLINE_NORMAL iterateConcatMapBFS #-}
+iterateConcatMapBFS :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+iterateConcatMapBFS f stream = Stream step (stream, [], [])
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (UnStream step1 st, xs, ys) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield a s -> do
+                let ys1 =
+                        case f a of
+                            Nothing -> ys
+                            Just y -> y:ys
+                return $ Yield a (Stream step1 s, xs, ys1)
+            Skip s -> return $ Skip (Stream step1 s, xs, ys)
+            Stop ->
+                case xs of
+                    (x:xs1) -> return $ Skip (x, xs1, ys)
+                    [] ->
+                        case reverse ys of
+                            (x:xs1) -> return $ Skip (x, xs1, [])
+                            [] -> return Stop
+
+{-# INLINE_NORMAL iterateConcatMapDFS #-}
+iterateConcatMapDFS :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+iterateConcatMapDFS f stream = Stream step (stream, [])
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (UnStream step1 st, xs) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield a s -> do
+                let st1 =
+                        case f a of
+                            Nothing -> (Stream step1 s, xs)
+                            Just x -> (x, Stream step1 s:xs)
+                return $ Yield a st1
+            Skip s -> return $ Skip (Stream step1 s, xs)
+            Stop ->
+                case xs of
+                    (y:ys) -> return $ Skip (y, ys)
+                    [] -> return Stop
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
