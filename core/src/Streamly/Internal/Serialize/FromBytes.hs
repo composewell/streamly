@@ -26,16 +26,28 @@ module Streamly.Internal.Serialize.FromBytes
     , word64be
     , word64le
     , word64host
+    , int8
+    , int16be
+    , int16le
+    , int32be
+    , int32le
+    , int64be
+    , int64le
+    , float32be
+    , float32le
+    , double64be
+    , double64le
     )
 where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.Bits ((.|.), unsafeShiftL)
+import Data.Int (Int8, Int16, Int32, Int64)
+import GHC.Float (castWord32ToFloat, castWord64ToDouble)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
-
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array as A
     (unsafeIndex, castUnsafe)
@@ -276,6 +288,79 @@ word64leD = PRD.Parser step initial extract
 word64le :: Monad m => Parser Word8 m Word64
 word64le = PRD.toParserK word64leD
 
+{-# INLINE int8 #-}
+int8 :: Monad m => Parser Word8 m Int8
+int8 = fromIntegral <$> word8
+
+-- | Parse two bytes as a 'Int16', the first byte is the MSB of the Int16 and
+-- second byte is the LSB (big endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int16be #-}
+int16be :: Monad m => Parser Word8 m Int16
+int16be = fromIntegral <$> word16be
+
+-- | Parse two bytes as a 'Int16', the first byte is the LSB of the Int16 and
+-- second byte is the MSB (little endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int16le #-}
+int16le :: Monad m => Parser Word8 m Int16
+int16le = fromIntegral <$> word16le
+
+-- | Parse four bytes as a 'Int32', the first byte is the MSB of the Int32
+-- and last byte is the LSB (big endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int32be #-}
+int32be :: Monad m => Parser Word8 m Int32
+int32be = fromIntegral <$> word32be
+
+-- | Parse four bytes as a 'Int32', the first byte is the MSB of the Int32
+-- and last byte is the LSB (big endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int32le #-}
+int32le :: Monad m => Parser Word8 m Int32
+int32le = fromIntegral <$> word32le
+
+-- | Parse eight bytes as a 'Int64', the first byte is the MSB of the Int64
+-- and last byte is the LSB (big endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int64be #-}
+int64be :: Monad m => Parser Word8 m Int64
+int64be = fromIntegral <$> word64be
+
+-- | Parse eight bytes as a 'Int64', the first byte is the MSB of the Int64
+-- and last byte is the LSB (big endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int64le #-}
+int64le :: Monad m => Parser Word8 m Int64
+int64le = fromIntegral <$> word64le
+
+{-# INLINE float32be #-}
+float32be :: MonadIO m => Parser Word8 m Float
+float32be = castWord32ToFloat <$> word32be
+
+{-# INLINE float32le #-}
+float32le :: MonadIO m => Parser Word8 m Float
+float32le = castWord32ToFloat <$> word32le
+
+{-# INLINE double64be #-}
+double64be :: MonadIO m => Parser Word8 m Double
+double64be =  castWord64ToDouble <$> word64be
+
+{-# INLINE double64le #-}
+double64le :: MonadIO m => Parser Word8 m Double
+double64le = castWord64ToDouble <$> word64le
 -------------------------------------------------------------------------------
 -- Host byte order
 -------------------------------------------------------------------------------

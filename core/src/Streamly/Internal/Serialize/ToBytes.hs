@@ -25,6 +25,17 @@ module Streamly.Internal.Serialize.ToBytes
     , word64be
     , word64le
     , word64host
+    , int8
+    , int16be
+    , int16le
+    , int32be
+    , int32le
+    , int64be
+    , int64le
+    , float32be
+    , float32le
+    , double64be
+    , double64le
     )
 where
 
@@ -32,11 +43,14 @@ where
 
 import Data.Bits (shiftR)
 import Data.Word (Word8, Word16, Word32, Word64)
+import GHC.Float (castDoubleToWord64, castFloatToWord32)
 import Streamly.Internal.Data.Stream (Stream, fromStreamD)
 import Streamly.Internal.Data.Stream.StreamD (Step(..))
 
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+
+import Data.Int (Int8, Int16, Int32, Int64)
 
 -- XXX Use StreamD directly?
 
@@ -247,6 +261,79 @@ word64leD w = D.Stream step W64B1
 {-# INLINE word64le #-}
 word64le :: Monad m => Word64 -> Stream m Word8
 word64le = fromStreamD . word64leD
+
+{-# INLINE int8 #-}
+int8 :: Int8 -> Stream m Word8
+int8 i = word8 (fromIntegral i :: Word8)
+
+-- | Stream a 'Int16' as two bytes, the first byte is the MSB of the Int16
+-- and second byte is the LSB (big endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int16be #-}
+int16be :: Monad m => Int16 -> Stream m Word8
+int16be i = word16be (fromIntegral i :: Word16)
+
+-- | Stream a 'Int16' as two bytes, the first byte is the LSB of the Int16
+-- and second byte is the MSB (little endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int16le #-}
+int16le :: Monad m => Int16 -> Stream m Word8
+int16le i = word16le (fromIntegral i :: Word16)
+
+-- | Stream a 'Int32' as four bytes, the first byte is the MSB of the Int32
+-- and last byte is the LSB (big endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int32be #-}
+int32be :: Monad m => Int32 -> Stream m Word8
+int32be i = word32be (fromIntegral i :: Word32)
+
+{-# INLINE int32le #-}
+int32le :: Monad m => Int32 -> Stream m Word8
+int32le i = word32le (fromIntegral i :: Word32)
+
+-- | Stream a 'Int64' as eight bytes, the first byte is the MSB of the Int64
+-- and last byte is the LSB (big endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int64be #-}
+int64be :: Monad m => Int64 -> Stream m Word8
+int64be i = word64be (fromIntegral i :: Word64)
+
+-- | Stream a 'Int64' as eight bytes, the first byte is the LSB of the Int64
+-- and last byte is the MSB (little endian representation).
+--
+-- /Pre-release/
+--
+{-# INLINE int64le #-}
+int64le :: Monad m => Int64 -> Stream m Word8
+int64le i = word64le (fromIntegral i :: Word64)
+
+-- | Big endian (MSB first) Float
+{-# INLINE float32be #-}
+float32be :: Monad m => Float -> Stream m Word8
+float32be = fromStreamD . word32beD . castFloatToWord32
+
+-- | Little endian (LSB first) Float
+{-# INLINE float32le #-}
+float32le :: Monad m => Float -> Stream m Word8
+float32le = fromStreamD . word32leD . castFloatToWord32
+
+-- | Big endian (MSB first) Double
+{-# INLINE double64be #-}
+double64be :: Monad m => Double -> Stream m Word8
+double64be = fromStreamD . word64beD . castDoubleToWord64
+
+-- | Little endian (LSB first) Double
+{-# INLINE double64le #-}
+double64le :: Monad m => Double -> Stream m Word8
+double64le = fromStreamD . word64leD . castDoubleToWord64
 
 -------------------------------------------------------------------------------
 -- Host byte order
