@@ -34,6 +34,7 @@ module Streamly.Internal.FileSystem.Dir
     , readFiles
     , readDirs
     , readEither
+    , readEitherPaths
 
     -- We can implement this in terms of readAttrsRecursive without losing
     -- perf.
@@ -82,9 +83,11 @@ module Streamly.Internal.FileSystem.Dir
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Bifunctor (bimap)
 import Data.Either (isRight, isLeft, fromLeft, fromRight)
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import System.FilePath ((</>))
 
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (mapM2)
@@ -288,12 +291,18 @@ toStream :: MonadIO m => String -> Stream m String
 toStream = read
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
--- entries.
+-- entries. The output contains the names of the directories and files.
 --
 -- /Pre-release/
 {-# INLINE readEither #-}
 readEither :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
 readEither = S.unfold eitherReader
+
+-- | Like 'readEither' but prefix the names of the files and directories with
+-- the supplied directory path.
+{-# INLINE readEitherPaths #-}
+readEitherPaths :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
+readEitherPaths dir = fmap (bimap (dir </>) (dir </>)) $ readEither dir
 
 {-# DEPRECATED toEither "Please use 'readEither' instead" #-}
 {-# INLINE toEither #-}

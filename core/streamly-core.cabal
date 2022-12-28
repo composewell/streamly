@@ -434,6 +434,7 @@ library
                      , base              >= 4.12  && < 4.18
                      , exceptions        >= 0.8.0 && < 0.11
                      , transformers      >= 0.5.5 && < 0.7
+                     , filepath          >= 1.4.2 && < 1.5
 
                     -- streamly-unicode-core
                      , template-haskell  >= 2.14  && < 2.20
