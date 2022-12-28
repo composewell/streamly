@@ -154,7 +154,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity ( Identity )
 import Data.Word (Word32)
-import Foreign.Storable (peek, sizeOf)
+import Foreign.Storable (Storable, peek)
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 
@@ -165,7 +165,7 @@ import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Array.Type as A
@@ -1900,7 +1900,7 @@ data SplitOnSeqState rb rh ck w fs s b x =
 
 {-# INLINE_NORMAL splitOnSeq #-}
 splitOnSeq
-    :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a)
     => Array a
     -> Fold m a b
     -> Stream m a
@@ -2213,7 +2213,7 @@ data SplitOnSuffixSeqState rb rh ck w fs s b x =
 
 {-# INLINE_NORMAL splitOnSuffixSeq #-}
 splitOnSuffixSeq
-    :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a)
     => Bool
     -> Array a
     -> Fold m a b

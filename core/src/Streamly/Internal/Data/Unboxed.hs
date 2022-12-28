@@ -6,10 +6,8 @@
 
 module Streamly.Internal.Data.Unboxed
     ( Unbox(..)
-    , alignment
     , peekWith
     , pokeWith
-    , sizeOf
     , MutableByteArray(..)
     , castContents
     , touch
@@ -17,6 +15,7 @@ module Streamly.Internal.Data.Unboxed
     , pin
     , unpin
     , newUnpinnedBytes
+    , newPinnedBytes
     , newAlignedPinnedBytes
     , nil
 
@@ -40,7 +39,6 @@ module Streamly.Internal.Data.Unboxed
     ) where
 
 #include "MachDeps.h"
-
 #include "ArrayMacros.h"
 
 import Control.Monad (void, when)
@@ -51,7 +49,6 @@ import Data.Functor.Identity (Identity(..))
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Foreign.Ptr (IntPtr(..), WordPtr(..))
-import Foreign.Storable (Storable(..))
 import GHC.Base (IO(..))
 import GHC.Fingerprint.Type (Fingerprint(..))
 import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
@@ -111,6 +108,16 @@ newUnpinnedBytes nbytes | nbytes < 0 =
   errorWithoutStackTrace "newUnpinnedBytes: size must be >= 0"
 newUnpinnedBytes (I# nbytes) = IO $ \s ->
     case newByteArray# nbytes s of
+        (# s', mbarr# #) ->
+           let c = MutableByteArray mbarr#
+            in (# s', c #)
+
+{-# INLINE newPinnedBytes #-}
+newPinnedBytes :: Int -> IO (MutableByteArray a)
+newPinnedBytes nbytes | nbytes < 0 =
+  errorWithoutStackTrace "newPinnedBytes: size must be >= 0"
+newPinnedBytes (I# nbytes) = IO $ \s ->
+    case newPinnedByteArray# nbytes s of
         (# s', mbarr# #) ->
            let c = MutableByteArray mbarr#
             in (# s', c #)
@@ -175,7 +182,6 @@ unpin arr@(MutableByteArray marr#) =
 -- The Unbox type class
 --------------------------------------------------------------------------------
 
--- XXX Remove dependency on Storable
 -- XXX Use Proxy type in sizeOf method.
 -- XXX generate error if the size is < 1
 -- XXX Remove the phantom parameter from MutableByteArray?
@@ -208,9 +214,6 @@ unpin arr@(MutableByteArray marr#) =
 -- anymore, see
 -- https://lemire.me/blog/2012/05/31/data-alignment-for-speed-myth-or-reality/
 --
--- We have to keep the instances compatible with Storable as we depend on it for
--- size and alignment. We can possibly write tests for checking compatibility
--- with Storable.
 
 -- The main goal of the Unbox type class is to be used in arrays. Invariants
 -- for the sizeOf value required for use in arrays:
@@ -230,16 +233,6 @@ unpin arr@(MutableByteArray marr#) =
 -- boxed type from the mutable byte array. The write operation 'pokeByteIndex'
 -- writes the boxed type to the mutable byte array.
 --
--- This type class depends on the 'Storable' for 'sizeOf' and 'alignment'
--- operations. While 'Storable' supplies the ability to serialize a type to a
--- 'Ptr' type, 'Unbox' augments it by supplying the ability to serialize to a
--- mutable byte array. The advantage of 'Unbox' over 'Storable' is that we can
--- use unpinned memory with 'Unbox'.
---
--- Note: Use the @QuantifiedConstraints@ language extension so that you can
--- just use a single 'Unbox' constraint in your code rather than using both
--- 'Storable' and 'Unbox'.
---
 -- Here is an example, to write an instance for this type class.
 --
 -- >>> :{
@@ -249,30 +242,11 @@ unpin arr@(MutableByteArray marr#) =
 --     }
 -- :}
 --
--- Note you can leave peek and poke undefined in 'Storable' if you are not
--- using the Storable instance, Unbox does not need these operations.
---
--- >>> import Foreign.Ptr (plusPtr, castPtr)
--- >>> import Foreign.Storable (Storable(..))
--- >>> :{
--- instance Storable Object where
---     sizeOf _ = 16
---     alignment _ = 8
---     peek ptr = do
---         let p = castPtr ptr
---         x0 <- peek p
---         x1 <- peek (p `plusPtr` 8)
---         return $ Object x0 x1
---     poke ptr (Object x0 x1) = do
---         let p = castPtr ptr
---         poke p x0
---         poke (p `plusPtr` 8) x1
--- :}
---
 -- >>> import Streamly.Data.Array (Unbox(..))
 -- >>> import Streamly.Internal.Data.Unboxed (castContents)
 -- >>> :{
 -- instance Unbox Object where
+--     sizeOf _ = 16
 --     peekByteIndex arr i = do
 --         let p = castContents arr
 --         x0 <- peekByteIndex p i
@@ -284,7 +258,9 @@ unpin arr@(MutableByteArray marr#) =
 --         pokeByteIndex p (i + 8) x1
 -- :}
 --
-class Storable a => Unbox a where
+class Unbox a where
+    -- | Get the size.
+    sizeOf :: a -> Int
     -- | Read an element of type "a" from a MutableByteArray given the byte
     -- index.
     --
@@ -298,7 +274,7 @@ class Storable a => Unbox a where
     -- of the array, the caller must not assume that.
     pokeByteIndex :: MutableByteArray a -> Int -> a -> IO ()
 
-#define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray) \
+#define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray, _sizeOf) \
 instance Unbox _type where {                                         \
 ; {-# INLINE peekByteIndex #-}                                       \
 ; peekByteIndex (MutableByteArray mbarr) (I# n) = IO $ \s ->         \
@@ -307,14 +283,18 @@ instance Unbox _type where {                                         \
 ; {-# INLINE pokeByteIndex #-}                                       \
 ; pokeByteIndex (MutableByteArray mbarr) (I# n) (_constructor val) = \
         IO $ \s -> (# _writeArray mbarr n val s, () #)               \
+; {-# INLINE sizeOf #-}                                              \
+; sizeOf _ = _sizeOf                                                 \
 }
 
-#define DERIVE_WRAPPED_UNBOX(_constraint, _type, _constructor) \
-instance _constraint Unbox _type where                        \
-; {-# INLINE peekByteIndex #-}                                          \
-; peekByteIndex arr i = _constructor <$> peekByteIndex (castContents arr) i \
-; {-# INLINE pokeByteIndex #-}                                        \
-; pokeByteIndex arr i (_constructor a) = pokeByteIndex (castContents arr) i a
+#define DERIVE_WRAPPED_UNBOX(_constraint, _type, _constructor, _innerType)    \
+instance _constraint Unbox _type where                                        \
+; {-# INLINE peekByteIndex #-}                                                \
+; peekByteIndex arr i = _constructor <$> peekByteIndex (castContents arr) i   \
+; {-# INLINE pokeByteIndex #-}                                                \
+; pokeByteIndex arr i (_constructor a) = pokeByteIndex (castContents arr) i a \
+; {-# INLINE sizeOf #-}                                                       \
+; sizeOf _ = SIZE_OF(_innerType)
 
 #define DERIVE_BINARY_UNBOX(_constraint, _type, _constructor, _innerType) \
 instance _constraint Unbox _type where {                                  \
@@ -329,100 +309,117 @@ instance _constraint Unbox _type where {                                  \
    let contents = castContents arr :: MutableByteArray _innerType         \
     in pokeByteIndex contents i p1 >>                                     \
        pokeByteIndex contents (i + SIZE_OF(_innerType)) p2                \
+; {-# INLINE sizeOf #-}                                                   \
+; sizeOf _ = 2 * SIZE_OF(_innerType)                                      \
 }
 
 DERIVE_UNBOXED( Char
               , C#
               , readWord8ArrayAsWideChar#
-              , writeWord8ArrayAsWideChar#)
+              , writeWord8ArrayAsWideChar#
+              , SIZEOF_HSCHAR)
 
 DERIVE_UNBOXED( Int8
               , I8#
               , readInt8Array#
-              , writeInt8Array#)
+              , writeInt8Array#
+              , 1)
 
 DERIVE_UNBOXED( Int16
               , I16#
               , readWord8ArrayAsInt16#
-              , writeWord8ArrayAsInt16#)
+              , writeWord8ArrayAsInt16#
+              , 2)
 
 DERIVE_UNBOXED( Int32
               , I32#
               , readWord8ArrayAsInt32#
-              , writeWord8ArrayAsInt32#)
+              , writeWord8ArrayAsInt32#
+              , 4)
 
 DERIVE_UNBOXED( Int
               , I#
               , readWord8ArrayAsInt#
-              , writeWord8ArrayAsInt#)
+              , writeWord8ArrayAsInt#
+              , SIZEOF_HSINT)
 
 DERIVE_UNBOXED( Int64
               , I64#
               , readWord8ArrayAsInt64#
-              , writeWord8ArrayAsInt64#)
+              , writeWord8ArrayAsInt64#
+              , 8)
 
 DERIVE_UNBOXED( Word
               , W#
               , readWord8ArrayAsWord#
-              , writeWord8ArrayAsWord#)
+              , writeWord8ArrayAsWord#
+              , SIZEOF_HSWORD)
 
 DERIVE_UNBOXED( Word8
               , W8#
               , readWord8Array#
-              , writeWord8Array#)
+              , writeWord8Array#
+              , 1)
 
 DERIVE_UNBOXED( Word16
               , W16#
               , readWord8ArrayAsWord16#
-              , writeWord8ArrayAsWord16#)
+              , writeWord8ArrayAsWord16#
+              , 2)
 
 DERIVE_UNBOXED( Word32
               , W32#
               , readWord8ArrayAsWord32#
-              , writeWord8ArrayAsWord32#)
+              , writeWord8ArrayAsWord32#
+              , 4)
 
 DERIVE_UNBOXED( Word64
               , W64#
               , readWord8ArrayAsWord64#
-              , writeWord8ArrayAsWord64#)
+              , writeWord8ArrayAsWord64#
+              , 8)
 
 DERIVE_UNBOXED( Double
               , D#
               , readWord8ArrayAsDouble#
-              , writeWord8ArrayAsDouble#)
+              , writeWord8ArrayAsDouble#
+              , SIZEOF_HSDOUBLE)
 
 DERIVE_UNBOXED( Float
               , F#
               , readWord8ArrayAsFloat#
-              , writeWord8ArrayAsFloat#)
+              , writeWord8ArrayAsFloat#
+              , SIZEOF_HSFLOAT)
 
 DERIVE_UNBOXED( (StablePtr a)
               , StablePtr
               , readWord8ArrayAsStablePtr#
-              , writeWord8ArrayAsStablePtr#)
+              , writeWord8ArrayAsStablePtr#
+              , SIZEOF_HSSTABLEPTR)
 
 DERIVE_UNBOXED( (Ptr a)
               , Ptr
               , readWord8ArrayAsAddr#
-              , writeWord8ArrayAsAddr#)
+              , writeWord8ArrayAsAddr#
+              , SIZEOF_HSPTR)
 
 DERIVE_UNBOXED( (FunPtr a)
               , FunPtr
               , readWord8ArrayAsAddr#
-              , writeWord8ArrayAsAddr#)
+              , writeWord8ArrayAsAddr#
+              , SIZEOF_HSFUNPTR)
 
-DERIVE_WRAPPED_UNBOX(,IntPtr,IntPtr)
-DERIVE_WRAPPED_UNBOX(,WordPtr,WordPtr)
-DERIVE_WRAPPED_UNBOX(Unbox a =>,(Identity a),Identity)
+DERIVE_WRAPPED_UNBOX(,IntPtr,IntPtr,Int)
+DERIVE_WRAPPED_UNBOX(,WordPtr,WordPtr,Word)
+DERIVE_WRAPPED_UNBOX(Unbox a =>,(Identity a),Identity,a)
 #if MIN_VERSION_base(4,14,0)
-DERIVE_WRAPPED_UNBOX(Unbox a =>,(Down a),Down)
+DERIVE_WRAPPED_UNBOX(Unbox a =>,(Down a),Down,a)
 #endif
-DERIVE_WRAPPED_UNBOX(Unbox a =>,(Const a b),Const)
+DERIVE_WRAPPED_UNBOX(Unbox a =>,(Const a b),Const,a)
 DERIVE_BINARY_UNBOX(forall a. Unbox a =>,(Complex a),(:+),a)
-DERIVE_BINARY_UNBOX(forall a. (Integral a, Unbox a) =>,(Ratio a),(:%),a)
+DERIVE_BINARY_UNBOX(forall a. Unbox a =>,(Ratio a),(:%),a)
 DERIVE_BINARY_UNBOX(,Fingerprint,Fingerprint,Word64)
 
--- XXX This should have a size 1.
 instance Unbox () where
 
     {-# INLINE peekByteIndex #-}
@@ -430,6 +427,9 @@ instance Unbox () where
 
     {-# INLINE pokeByteIndex #-}
     pokeByteIndex _ _ _ = return ()
+
+    {-# INLINE sizeOf #-}
+    sizeOf _ = 1
 
 #if MIN_VERSION_base(4,15,0)
 instance Unbox IoSubSystem where
@@ -439,6 +439,9 @@ instance Unbox IoSubSystem where
 
     {-# INLINE pokeByteIndex #-}
     pokeByteIndex arr i a = pokeByteIndex (castContents arr) i (fromEnum a)
+
+    {-# INLINE sizeOf #-}
+    sizeOf = sizeOf . fromEnum
 #endif
 
 instance Unbox Bool where
@@ -446,13 +449,16 @@ instance Unbox Bool where
     {-# INLINE peekByteIndex #-}
     peekByteIndex arr i = do
         res <- peekByteIndex (castContents arr) i
-        return $ res /= (0 :: Int32)
+        return $ res /= (0 :: Int8)
 
     {-# INLINE pokeByteIndex #-}
     pokeByteIndex arr i a =
         if a
-        then pokeByteIndex (castContents arr) i (1 :: Int32)
-        else pokeByteIndex (castContents arr) i (0 :: Int32)
+        then pokeByteIndex (castContents arr) i (1 :: Int8)
+        else pokeByteIndex (castContents arr) i (0 :: Int8)
+
+    {-# INLINE sizeOf #-}
+    sizeOf _ = 1
 
 --------------------------------------------------------------------------------
 -- Functions

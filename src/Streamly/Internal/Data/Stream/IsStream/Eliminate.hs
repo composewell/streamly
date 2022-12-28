@@ -158,6 +158,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
+import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.SVar (defState)
 import Streamly.Internal.Data.Stream.IsStream.Common
@@ -849,7 +850,7 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 -- /Requires 'Storable' constraint/
 --
 {-# INLINE isInfixOf #-}
-isInfixOf :: (MonadIO m, Eq a, Enum a, Unbox a)
+isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a, Unbox a)
     => SerialT m a -> SerialT m a -> m Bool
 isInfixOf infx stream = do
     arr <- fold A.write infx

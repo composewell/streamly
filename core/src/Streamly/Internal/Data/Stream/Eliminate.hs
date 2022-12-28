@@ -78,6 +78,7 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Parser (Parser (..), ParseError (..))
 import Streamly.Internal.Data.Unboxed (Unbox)
 
@@ -290,7 +291,7 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 -- /Requires 'Storable' constraint/
 --
 {-# INLINE isInfixOf #-}
-isInfixOf :: (MonadIO m, Eq a, Enum a, Unbox a)
+isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a, Unbox a)
     => Stream m a -> Stream m a -> m Bool
 isInfixOf infx stream = do
     arr <- fold Array.write infx
