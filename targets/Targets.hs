@@ -30,6 +30,7 @@ targets =
             , "infinite_grp"
             , "serial_wserial_cmp"
             , "serial_async_cmp"
+            , "noTest"
             ]
       )
     , ("Data.Stream.Concurrent",
@@ -43,18 +44,21 @@ targets =
             [ "prelude_concurrent_grp"
             , "infinite_grp"
             , "concurrent_cmp"
+            , "noTest"
             ]
       )
     , ("Data.Stream.ConcurrentOrdered",
             [ "prelude_concurrent_grp"
             , "infinite_grp"
             , "concurrent_cmp"
+            , "noTest"
             ]
       )
     , ("Data.Stream.ConcurrentInterleaved",
             [ "prelude_concurrent_grp"
             , "infinite_grp"
             , "concurrent_cmp"
+            , "noTest"
             ]
       )
     , ("Prelude.WSerial", ["serial_wserial_cmp"])
