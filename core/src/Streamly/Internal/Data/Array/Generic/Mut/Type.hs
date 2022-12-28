@@ -251,8 +251,8 @@ new n@(I# n#) =
 --
 -- /Pre-release/
 {-# INLINE putIndexUnsafe #-}
-putIndexUnsafe :: forall m a. MonadIO m => Int -> a -> Array a -> m ()
-putIndexUnsafe i x Array {..} =
+putIndexUnsafe :: forall m a. MonadIO m => Int -> Array a -> a -> m ()
+putIndexUnsafe i Array {..} x =
     liftIO
         $ IO
         $ \s# ->
@@ -268,14 +268,14 @@ invalidIndex label i =
 -- | /O(1)/ Write the given element at the given index in the array.
 -- Performs in-place mutation of the array.
 --
--- >>> putIndex ix val arr = Array.modifyIndex ix (const (val, ())) arr
+-- >>> putIndex ix arr val = Array.modifyIndex ix arr (const (val, ()))
 --
 -- /Pre-release/
 {-# INLINE putIndex #-}
-putIndex :: MonadIO m => Int -> a -> Array a -> m ()
-putIndex i x arr@Array {..} =
+putIndex :: MonadIO m => Int -> Array a -> a -> m ()
+putIndex i arr@Array {..} x =
     if i >= 0 && i < arrLen
-    then putIndexUnsafe i x arr
+    then putIndexUnsafe i arr x
     else invalidIndex "putIndex" i
 
 -- | Modify a given index of an array using a modifier function without checking
@@ -284,8 +284,8 @@ putIndex i x arr@Array {..} =
 -- Unsafe because it does not check the bounds of the array.
 --
 -- /Pre-release/
-modifyIndexUnsafe :: MonadIO m => Int -> (a -> (a, b)) -> Array a -> m b
-modifyIndexUnsafe i f Array {..} = do
+modifyIndexUnsafe :: MonadIO m => Int -> Array a -> (a -> (a, b)) -> m b
+modifyIndexUnsafe i Array {..} f = do
     liftIO
         $ IO
         $ \s# ->
@@ -300,10 +300,10 @@ modifyIndexUnsafe i f Array {..} = do
 -- | Modify a given index of an array using a modifier function.
 --
 -- /Pre-release/
-modifyIndex :: MonadIO m => Int -> (a -> (a, b)) -> Array a -> m b
-modifyIndex i f arr@Array {..} = do
+modifyIndex :: MonadIO m => Int -> Array a -> (a -> (a, b)) -> m b
+modifyIndex i arr@Array {..} f = do
     if i >= 0 && i < arrLen
-    then modifyIndexUnsafe i f arr
+    then modifyIndexUnsafe i arr f
     else invalidIndex "modifyIndex" i
 
 -------------------------------------------------------------------------------
@@ -362,7 +362,7 @@ reallocWith label sizer reqSize arr = do
 snocUnsafe :: MonadIO m => Array a -> a -> m (Array a)
 snocUnsafe arr@Array {..} a = do
     assert (arrStart + arrLen < arrTrueLen) (return ())
-    putIndexUnsafe arrLen a arr
+    putIndexUnsafe arrLen arr a
     return $ arr {arrLen = arrLen + 1}
 
 -- NOINLINE to move it out of the way and not pollute the instruction cache.
