@@ -20,6 +20,7 @@ import Data.List (sort, group, intercalate)
 import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
 import Data.Semigroup (Sum(..), getSum)
+import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Unboxed (Unbox)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -111,7 +112,7 @@ splitOnSuffixSeq = do
              $ IS.splitOnSuffixSeq (A.fromList pat) FL.toList (S.fromList xs)
 
 splitterProperties ::
-       forall a. (Arbitrary a, Eq a, Show a, Unbox a, Enum a)
+       forall a. (Arbitrary a, Eq a, Show a, Storable a, Unbox a, Enum a)
     => a
     -> String
     -> Spec

@@ -309,10 +309,10 @@ import Data.Bits (shiftL, shiftR, (.|.), (.&.))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Int (Int64)
 import Data.Word (Word32)
-import Foreign.Storable (peek, sizeOf)
+import Foreign.Storable (Storable, peek)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -1683,7 +1683,7 @@ data SplitOnSeqState acc a rb rh w ck =
 --
 -- /Pre-release/
 {-# INLINE takeEndBySeq #-}
-takeEndBySeq :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a) =>
+takeEndBySeq :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b
@@ -1819,7 +1819,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
 -- /Pre-release/
 --
 {-# INLINE takeEndBySeq_ #-}
-takeEndBySeq_ :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a) =>
+takeEndBySeq_ :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b

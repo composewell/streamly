@@ -223,7 +223,6 @@ import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Data.Unboxed
     ( MutableByteArray(..)
     , Unbox
-    , alignment
     , castContents
     , getMutableByteArray#
     , peekWith
@@ -414,11 +413,9 @@ nil = Array Unboxed.nil 0 0 0
 --
 -- /Pre-release/
 {-# INLINE newPinnedBytes #-}
-newPinnedBytes :: forall m a. (MonadIO m, Unbox a) => Int -> m (Array a)
+newPinnedBytes :: MonadIO m => Int -> m (Array a)
 newPinnedBytes bytes = do
-    contents <-
-        liftIO
-            $ Unboxed.newAlignedPinnedBytes bytes (alignment (undefined :: a))
+    contents <- liftIO $ Unboxed.newPinnedBytes bytes
     return $ Array
         { arrContents = contents
         , arrStart = 0
@@ -443,7 +440,10 @@ newAlignedPinned =
 --
 {-# INLINE newPinned #-}
 newPinned :: forall m a. (MonadIO m, Unbox a) => Int -> m (Array a)
-newPinned = newAlignedPinned (alignment (undefined :: a))
+newPinned =
+    newArrayWith
+        (\s _ -> liftIO $ Unboxed.newPinnedBytes s)
+        (error "newPinned: alignSize is not used")
 
 -- | Allocates an empty unpinned array that can hold 'count' items.  The memory
 -- of the array is uninitialized.
@@ -705,14 +705,14 @@ roundDownTo elemSize size = size - (size `mod` elemSize)
 -- Since this is not inlined Unboxed consrraint leads to dictionary passing
 -- which complicates some inspection tests.
 --
-{-# NOINLINE reallocAligned #-}
-reallocAligned :: Int -> Int -> Int -> Array a -> IO (Array a)
-reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
+{-# NOINLINE reallocExplicit #-}
+reallocExplicit :: Int -> Int -> Array a -> IO (Array a)
+reallocExplicit elemSize newCapacityInBytes Array{..} = do
     assertM(arrEnd <= arrBound)
 
     -- Allocate new array
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
-    contents <- Unboxed.newAlignedPinnedBytes newCapMaxInBytes alignSize
+    contents <- Unboxed.newPinnedBytes newCapMaxInBytes
     let !(MutableByteArray mbarrFrom#) = arrContents
         !(MutableByteArray mbarrTo#) = contents
 
@@ -745,8 +745,7 @@ reallocAligned elemSize alignSize newCapacityInBytes Array{..} = do
 --
 {-# INLINABLE realloc #-}
 realloc :: forall m a. (MonadIO m, Unbox a) => Int -> Array a -> m (Array a)
-realloc bytes arr =
-    liftIO $ reallocAligned (SIZE_OF(a)) (alignment (undefined :: a)) bytes arr
+realloc bytes arr = liftIO $ reallocExplicit (SIZE_OF(a)) bytes arr
 
 -- | @reallocWith label capSizer minIncrBytes array@. The label is used
 -- in error messages and the capSizer is used to determine the capacity of the
@@ -1872,18 +1871,12 @@ writeWith elemCount =
 
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
-        liftIO $ newAlignedPinned (alignment (undefined :: a)) elemCount
+        liftIO $ newPinned elemCount
     step arr@(Array _ start end bound) x
         | INDEX_NEXT(end,a) > bound = do
         let oldSize = end - start
             newSize = max (oldSize * 2) 1
-        arr1 <-
-            liftIO
-                $ reallocAligned
-                    (SIZE_OF(a))
-                    (alignment (undefined :: a))
-                    newSize
-                    arr
+        arr1 <- liftIO $ reallocExplicit (SIZE_OF(a)) newSize arr
         insertElem arr1 x
     step arr x = insertElem arr x
     extract = liftIO . rightSize
@@ -2008,18 +2001,14 @@ putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
 
 -- | Copy two arrays into a newly allocated array.
 {-# INLINE spliceCopy #-}
-spliceCopy :: forall m a. (MonadIO m, Unbox a) =>
+spliceCopy :: forall m a. MonadIO m =>
     Array a -> Array a -> m (Array a)
 spliceCopy arr1 arr2 = liftIO $ do
     let start1 = arrStart arr1
         start2 = arrStart arr2
         len1 = arrEnd arr1 - start1
         len2 = arrEnd arr2 - start2
-    newArrContents <-
-        liftIO
-            $ Unboxed.newAlignedPinnedBytes
-                  (len1 + len2)
-                  (alignment (undefined :: a))
+    newArrContents <- liftIO $ Unboxed.newPinnedBytes (len1 + len2)
     let len = len1 + len2
         newArr = Array newArrContents 0 len len
     putSliceUnsafe arr1 start1 newArr 0 len1
