@@ -89,6 +89,10 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , concatMapM
     , concatEffect
 
+    , iterateUnfoldManyDFS
+    , iterateUnfoldManyBFS
+    , iterateUnfoldManyBFSRev
+
     , iterateConcatScan
     , iterateConcatMapDFS
     , iterateConcatMapBFS
@@ -1005,6 +1009,126 @@ iterateConcatMapDFS f stream = Stream step (stream, [])
                 case xs of
                     (y:ys) -> return $ Skip (y, ys)
                     [] -> return Stop
+
+{-# ANN type IterateUnfoldState Fuse #-}
+data IterateUnfoldState o i =
+      IterateUnfoldOuter o
+    | IterateUnfoldInner o i [i]
+
+{-# INLINE_NORMAL iterateUnfoldManyDFS #-}
+iterateUnfoldManyDFS :: Monad m =>
+       Unfold m a a
+    -> Stream m a
+    -> Stream m a
+iterateUnfoldManyDFS (Unfold istep inject) (Stream ostep ost) =
+    Stream step (IterateUnfoldOuter ost)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (IterateUnfoldOuter o) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a s -> do
+                i <- inject a
+                i `seq` return (Yield a (IterateUnfoldInner s i []))
+            Skip s -> return $ Skip (IterateUnfoldOuter s)
+            Stop -> return Stop
+
+    step _ (IterateUnfoldInner o i ii) = do
+        r <- istep i
+        case r of
+            Yield x s -> do
+                i1 <- inject x
+                i1 `seq` return $ Yield x (IterateUnfoldInner o i1 (s:ii))
+            Skip s -> return $ Skip (IterateUnfoldInner o s ii)
+            Stop ->
+                case ii of
+                    (y:ys) -> return $ Skip (IterateUnfoldInner o y ys)
+                    [] -> return $ Skip (IterateUnfoldOuter o)
+
+{-# ANN type IterateUnfoldBFSRevState Fuse #-}
+data IterateUnfoldBFSRevState o i =
+      IterateUnfoldBFSRevOuter o [i]
+    | IterateUnfoldBFSRevInner i [i]
+
+{-# INLINE_NORMAL iterateUnfoldManyBFSRev #-}
+iterateUnfoldManyBFSRev :: Monad m =>
+       Unfold m a a
+    -> Stream m a
+    -> Stream m a
+iterateUnfoldManyBFSRev (Unfold istep inject) (Stream ostep ost) =
+    Stream step (IterateUnfoldBFSRevOuter ost [])
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (IterateUnfoldBFSRevOuter o ii) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a s -> do
+                i <- inject a
+                i `seq` return (Yield a (IterateUnfoldBFSRevOuter s (i:ii)))
+            Skip s -> return $ Skip (IterateUnfoldBFSRevOuter s ii)
+            Stop ->
+                case ii of
+                    (y:ys) -> return $ Skip (IterateUnfoldBFSRevInner y ys)
+                    [] -> return Stop
+
+    step _ (IterateUnfoldBFSRevInner i ii) = do
+        r <- istep i
+        case r of
+            Yield x s -> do
+                i1 <- inject x
+                i1 `seq` return $ Yield x (IterateUnfoldBFSRevInner s (i1:ii))
+            Skip s -> return $ Skip (IterateUnfoldBFSRevInner s ii)
+            Stop ->
+                case ii of
+                    (y:ys) -> return $ Skip (IterateUnfoldBFSRevInner y ys)
+                    [] -> return Stop
+
+{-# ANN type IterateUnfoldBFSState Fuse #-}
+data IterateUnfoldBFSState o i =
+      IterateUnfoldBFSOuter o [i]
+    | IterateUnfoldBFSInner i [i] [i]
+
+{-# INLINE_NORMAL iterateUnfoldManyBFS #-}
+iterateUnfoldManyBFS :: Monad m =>
+       Unfold m a a
+    -> Stream m a
+    -> Stream m a
+iterateUnfoldManyBFS (Unfold istep inject) (Stream ostep ost) =
+    Stream step (IterateUnfoldBFSOuter ost [])
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (IterateUnfoldBFSOuter o rii) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a s -> do
+                i <- inject a
+                i `seq` return (Yield a (IterateUnfoldBFSOuter s (i:rii)))
+            Skip s -> return $ Skip (IterateUnfoldBFSOuter s rii)
+            Stop ->
+                case reverse rii of
+                    (y:ys) -> return $ Skip (IterateUnfoldBFSInner y ys [])
+                    [] -> return Stop
+
+    step _ (IterateUnfoldBFSInner i ii rii) = do
+        r <- istep i
+        case r of
+            Yield x s -> do
+                i1 <- inject x
+                i1 `seq` return $ Yield x (IterateUnfoldBFSInner s ii (i1:rii))
+            Skip s -> return $ Skip (IterateUnfoldBFSInner s ii rii)
+            Stop ->
+                case ii of
+                    (y:ys) -> return $ Skip (IterateUnfoldBFSInner y ys rii)
+                    [] ->
+                        case reverse rii of
+                            (y:ys) -> return $ Skip (IterateUnfoldBFSInner y ys [])
+                            [] -> return Stop
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting

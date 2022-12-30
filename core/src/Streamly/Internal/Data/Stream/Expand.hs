@@ -120,6 +120,10 @@ module Streamly.Internal.Data.Stream.Expand
 
     -- * Iterate
     -- | Map and flatten Trees of Streams
+    , iterateUnfoldManyDFS
+    , iterateUnfoldManyBFS
+    , iterateUnfoldManyBFSRev
+
     , iterateConcatMapWith
     , iterateMergeMapWith
 
@@ -131,7 +135,6 @@ module Streamly.Internal.Data.Stream.Expand
     , iterateLeftsConcatMapWith
     , iterateConcatScanWith
     , iterateConcatScan
-    , iterateUnfold
     )
 where
 
@@ -757,13 +760,34 @@ iterateMergeMapWith combine f = iterateStream
 
     generate x = fromPure x `combine` iterateStream (f x)
 
--- | Same as @iterateConcatMapWith Stream.append@ but more efficient due to
--- stream fusion.
+-- | Same as @iterateConcatMapDFS@ but more efficient due to stream fusion.
 --
--- /Unimplemented/
-{-# INLINE iterateUnfold #-}
-iterateUnfold :: Unfold m a a -> Stream m a -> Stream m a
-iterateUnfold = undefined
+-- Example, list a directory tree using DFS:
+--
+-- >>> f = Unfold.either Dir.eitherReaderPaths Unfold.nil
+-- >>> input = Stream.fromPure (Left ".")
+-- >>> ls = Stream.iterateUnfoldManyDFS f input
+--
+-- /Pre-release/
+{-# INLINE iterateUnfoldManyDFS #-}
+iterateUnfoldManyDFS :: Monad m => Unfold m a a -> Stream m a -> Stream m a
+iterateUnfoldManyDFS u = fromStreamD . D.iterateUnfoldManyDFS u . toStreamD
+
+-- | Like 'iterateUnfoldManyDFS' but uses breadth first style traversal.
+--
+-- /Pre-release/
+{-# INLINE iterateUnfoldManyBFS #-}
+iterateUnfoldManyBFS :: Monad m => Unfold m a a -> Stream m a -> Stream m a
+iterateUnfoldManyBFS u = fromStreamD . D.iterateUnfoldManyBFS u . toStreamD
+
+-- | Like 'iterateUnfoldManyBFS' but processes the children in reverse order,
+-- therefore, may be slightly faster.
+--
+-- /Pre-release/
+{-# INLINE iterateUnfoldManyBFSRev #-}
+iterateUnfoldManyBFSRev :: Monad m => Unfold m a a -> Stream m a -> Stream m a
+iterateUnfoldManyBFSRev u =
+    fromStreamD . D.iterateUnfoldManyBFSRev u . toStreamD
 
 ------------------------------------------------------------------------------
 -- Flattening Graphs
