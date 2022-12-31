@@ -126,6 +126,7 @@ module Streamly.Internal.Data.Unfold
     , function
     , identity
     , nilM
+    , nil
     , consM
 
     -- ** From Values
@@ -292,6 +293,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Prelude
 
 import Streamly.Internal.Data.Unfold.Enumeration
 import Streamly.Internal.Data.Unfold.Type
@@ -448,25 +450,30 @@ foldMany (Fold fstep initial extract) (Unfold ustep inject1) =
 -- Either
 -------------------------------------------------------------------------------
 
--- | Make an unfold operate on values wrapped in an @Either a a@ type. 'Right
--- a' translates to 'Right b' and 'Left a' translates to 'Left b'.
+-- | Choose left or right unfold based on an either input.
 --
--- /Internal/
+-- /Pre-release/
 {-# INLINE_NORMAL either #-}
-either :: Applicative m => Unfold m a b -> Unfold m (Either a a) (Either b b)
-either (Unfold step1 inject1) = Unfold step inject
+either :: Applicative m =>
+    Unfold m a c -> Unfold m b c -> Unfold m (Either a b) c
+either (Unfold stepL injectL) (Unfold stepR injectR) = Unfold step inject
 
     where
 
-    inject (Left a) = (, Left) <$> inject1 a
-    inject (Right a) = (, Right) <$> inject1 a
+    inject (Left x) = Left <$> injectL x
+    inject (Right x) = Right <$> injectR x
 
     {-# INLINE_LATE step #-}
-    step (st, f) = do
+    step (Left st) = do
         (\case
-            Yield x s -> Yield (f x) (s, f)
-            Skip s -> Skip (s, f)
-            Stop -> Stop) <$> step1 st
+            Yield x s -> Yield x (Left s)
+            Skip s -> Skip (Left s)
+            Stop -> Stop) <$> stepL st
+    step (Right st) = do
+        (\case
+            Yield x s -> Yield x (Right s)
+            Skip s -> Skip (Right s)
+            Stop -> Stop) <$> stepR st
 
 -- postscan2 :: Monad m => Refold m a b c -> Unfold m a b -> Unfold m a c
 
@@ -615,6 +622,11 @@ nilM f = Unfold step pure
 
     {-# INLINE_LATE step #-}
     step x = f x $> Stop
+
+-- | An empty stream.
+{-# INLINE nil #-}
+nil :: Applicative m => Unfold m a b
+nil = Unfold (Prelude.const (pure Stop)) pure
 
 -- | Prepend a monadic single element generator function to an 'Unfold'. The
 -- same seed is used in the action as well as the unfold.
