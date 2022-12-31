@@ -48,6 +48,7 @@ module Streamly.Internal.FileSystem.Dir
     , fileReader
     , dirReader
     , eitherReader
+    , eitherReaderPaths
 
       {-
     , toStreamWithBufferOf
@@ -260,6 +261,11 @@ eitherReader =
     classify dir x = do
         r <- liftIO $ Dir.doesDirectoryExist (dir ++ "/" ++ x)
         return $ if r then Left x else Right x
+
+{-# INLINE eitherReaderPaths #-}
+eitherReaderPaths :: MonadIO m => Unfold m FilePath (Either FilePath FilePath)
+eitherReaderPaths =
+    UF.mapM2 (\dir -> return . bimap (dir </>) (dir </>)) eitherReader
 
 --
 -- | Read files only.
