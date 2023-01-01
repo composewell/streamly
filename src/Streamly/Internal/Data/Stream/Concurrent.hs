@@ -102,8 +102,8 @@ module Streamly.Internal.Data.Stream.Concurrent
     , concatMapInterleave
     , parConcatMap
 
-    -- *** Iterate
-    , parIterateConcatMap
+    -- *** ConcatIterate
+    , parConcatIterate
 
     -- ** Reactive
     , fromCallback
@@ -705,18 +705,19 @@ parZipWith :: MonadAsync m
 parZipWith cfg f = parZipWithM cfg (\a b -> return $ f a b)
 
 -------------------------------------------------------------------------------
--- iterateConcatMap
+-- concatIterate
 -------------------------------------------------------------------------------
 
--- | Same as 'iterateConcatMap' but concurrent.
+-- | Same as 'concatIterate' but concurrent.
 --
-{-# INLINE parIterateConcatMap #-}
-parIterateConcatMap :: MonadAsync m =>
+-- /Pre-release/
+{-# INLINE parConcatIterate #-}
+parConcatIterate :: MonadAsync m =>
        (Config -> Config)
     -> (a -> Stream m a)
     -> Stream m a
     -> Stream m a
-parIterateConcatMap modifier f input =
+parConcatIterate modifier f input =
      Stream.fromStreamK
         $ withChannelK modifier (Stream.toStreamK input) iterateStream
 

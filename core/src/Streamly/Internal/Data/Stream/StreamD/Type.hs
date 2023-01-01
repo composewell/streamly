@@ -89,14 +89,14 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , concatMapM
     , concatEffect
 
-    , iterateUnfoldManyDFS
-    , iterateUnfoldManyBFS
-    , iterateUnfoldManyBFSRev
+    , unfoldIterateDfs
+    , unfoldIterateBfs
+    , unfoldIterateBfsRev
 
-    , iterateConcatScan
-    , iterateConcatMapDFS
-    , iterateConcatMapBFS
-    , iterateConcatMapBFSRev
+    , concatIterateScan
+    , concatIterateDfs
+    , concatIterateBfs
+    , concatIterateBfsRev
 
     , FoldMany (..) -- for inspection testing
     , FoldManyPost (..)
@@ -897,13 +897,13 @@ instance Monad m => Monad (Stream m) where
 -- | Generate a stream from an initial state, scan and concat the stream,
 -- generate a stream again from the final state of the previous scan and repeat
 -- the process.
-{-# INLINE_NORMAL iterateConcatScan #-}
-iterateConcatScan :: Monad m =>
+{-# INLINE_NORMAL concatIterateScan #-}
+concatIterateScan :: Monad m =>
        (b -> a -> m b)
     -> (b -> m (Maybe (b, Stream m a)))
     -> b
     -> Stream m a
-iterateConcatScan scanner generate initial = Stream step (Left initial)
+concatIterateScan scanner generate initial = Stream step (Left initial)
 
     where
 
@@ -929,15 +929,15 @@ iterateConcatScan scanner generate initial = Stream step (Left initial)
 -- have to store any state. This makes the stored state proportional to the
 -- number of non-leaf nodes rather than total number of nodes.
 
--- | This function may be slightly faster than iterateConcatMapBFS because it
+-- | This function may be slightly faster than concatIterateBfs because it
 -- traverses the elements on a level in reverse order, therefore, does not have
 -- to reverse the list stroing those.
-{-# INLINE_NORMAL iterateConcatMapBFSRev #-}
-iterateConcatMapBFSRev :: Monad m =>
+{-# INLINE_NORMAL concatIterateBfsRev #-}
+concatIterateBfsRev :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-iterateConcatMapBFSRev f stream = Stream step (stream, [])
+concatIterateBfsRev f stream = Stream step (stream, [])
 
     where
 
@@ -957,12 +957,12 @@ iterateConcatMapBFSRev f stream = Stream step (stream, [])
                     (y:ys) -> return $ Skip (y, ys)
                     [] -> return Stop
 
-{-# INLINE_NORMAL iterateConcatMapBFS #-}
-iterateConcatMapBFS :: Monad m =>
+{-# INLINE_NORMAL concatIterateBfs #-}
+concatIterateBfs :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-iterateConcatMapBFS f stream = Stream step (stream, [], [])
+concatIterateBfs f stream = Stream step (stream, [], [])
 
     where
 
@@ -985,12 +985,12 @@ iterateConcatMapBFS f stream = Stream step (stream, [], [])
                             (x:xs1) -> return $ Skip (x, xs1, [])
                             [] -> return Stop
 
-{-# INLINE_NORMAL iterateConcatMapDFS #-}
-iterateConcatMapDFS :: Monad m =>
+{-# INLINE_NORMAL concatIterateDfs #-}
+concatIterateDfs :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-iterateConcatMapDFS f stream = Stream step (stream, [])
+concatIterateDfs f stream = Stream step (stream, [])
 
     where
 
@@ -1015,12 +1015,12 @@ data IterateUnfoldState o i =
       IterateUnfoldOuter o
     | IterateUnfoldInner o i [i]
 
-{-# INLINE_NORMAL iterateUnfoldManyDFS #-}
-iterateUnfoldManyDFS :: Monad m =>
+{-# INLINE_NORMAL unfoldIterateDfs #-}
+unfoldIterateDfs :: Monad m =>
        Unfold m a a
     -> Stream m a
     -> Stream m a
-iterateUnfoldManyDFS (Unfold istep inject) (Stream ostep ost) =
+unfoldIterateDfs (Unfold istep inject) (Stream ostep ost) =
     Stream step (IterateUnfoldOuter ost)
 
     where
@@ -1052,12 +1052,12 @@ data IterateUnfoldBFSRevState o i =
       IterateUnfoldBFSRevOuter o [i]
     | IterateUnfoldBFSRevInner i [i]
 
-{-# INLINE_NORMAL iterateUnfoldManyBFSRev #-}
-iterateUnfoldManyBFSRev :: Monad m =>
+{-# INLINE_NORMAL unfoldIterateBfsRev #-}
+unfoldIterateBfsRev :: Monad m =>
        Unfold m a a
     -> Stream m a
     -> Stream m a
-iterateUnfoldManyBFSRev (Unfold istep inject) (Stream ostep ost) =
+unfoldIterateBfsRev (Unfold istep inject) (Stream ostep ost) =
     Stream step (IterateUnfoldBFSRevOuter ost [])
 
     where
@@ -1092,12 +1092,12 @@ data IterateUnfoldBFSState o i =
       IterateUnfoldBFSOuter o [i]
     | IterateUnfoldBFSInner i [i] [i]
 
-{-# INLINE_NORMAL iterateUnfoldManyBFS #-}
-iterateUnfoldManyBFS :: Monad m =>
+{-# INLINE_NORMAL unfoldIterateBfs #-}
+unfoldIterateBfs :: Monad m =>
        Unfold m a a
     -> Stream m a
     -> Stream m a
-iterateUnfoldManyBFS (Unfold istep inject) (Stream ostep ost) =
+unfoldIterateBfs (Unfold istep inject) (Stream ostep ost) =
     Stream step (IterateUnfoldBFSOuter ost [])
 
     where

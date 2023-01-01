@@ -120,21 +120,21 @@ module Streamly.Internal.Data.Stream.Expand
 
     -- * Iterate
     -- | Map and flatten Trees of Streams
-    , iterateUnfoldManyDFS
-    , iterateUnfoldManyBFS
-    , iterateUnfoldManyBFSRev
+    , unfoldIterateDfs
+    , unfoldIterateBfs
+    , unfoldIterateBfsRev
 
-    , iterateConcatMapWith
-    , iterateMergeMapWith
+    , concatIterateWith
+    , mergeIterateWith
 
-    , iterateConcatMapDFS
-    , iterateConcatMapBFS
+    , concatIterateDfs
+    , concatIterateBfs
 
     -- More experimental ops
-    , iterateConcatMapBFSRev
-    , iterateLeftsConcatMapWith
-    , iterateConcatScanWith
-    , iterateConcatScan
+    , concatIterateBfsRev
+    , concatIterateLeftsWith
+    , concatIterateScanWith
+    , concatIterateScan
     )
 where
 
@@ -639,7 +639,7 @@ mergeMapWith par f m =
             (toStreamK m)
 
 ------------------------------------------------------------------------------
--- iterateConcatMap - Map and flatten Trees of Streams
+-- concatIterate - Map and flatten Trees of Streams
 ------------------------------------------------------------------------------
 
 -- | Yield an input element in the output stream, map a stream generator on it
@@ -651,23 +651,23 @@ mergeMapWith par f m =
 --
 -- >>> f = either Dir.readEitherPaths (const Stream.nil)
 -- >>> input = Stream.fromPure (Left ".")
--- >>> ls = Stream.iterateConcatMapWith Stream.append f input
+-- >>> ls = Stream.concatIterateWith Stream.append f input
 --
--- Note that 'iterateM' is a special case of 'iterateConcatMapWith':
+-- Note that 'iterateM' is a special case of 'concatIterateWith':
 --
--- >>> iterateM f = Stream.iterateConcatMapWith Stream.append (Stream.fromEffect . f) . Stream.fromEffect
+-- >>> iterateM f = Stream.concatIterateWith Stream.append (Stream.fromEffect . f) . Stream.fromEffect
 --
 -- /CPS/
 --
 -- /Pre-release/
 --
-{-# INLINE iterateConcatMapWith #-}
-iterateConcatMapWith ::
+{-# INLINE concatIterateWith #-}
+concatIterateWith ::
        (Stream m a -> Stream m a -> Stream m a)
     -> (a -> Stream m a)
     -> Stream m a
     -> Stream m a
-iterateConcatMapWith combine f = iterateStream
+concatIterateWith combine f = iterateStream
 
     where
 
@@ -683,21 +683,21 @@ iterateConcatMapWith combine f = iterateStream
 --
 -- >>> f = either (Just . Dir.readEitherPaths) (const Nothing)
 -- >>> input = Stream.fromPure (Left ".")
--- >>> ls = Stream.iterateConcatMapDFS f input
+-- >>> ls = Stream.concatIterateDfs f input
 --
--- This is equivalent to using @iterateConcatMapWith Stream.append@.
+-- This is equivalent to using @concatIterateWith Stream.append@.
 --
 -- /Pre-release/
-{-# INLINE iterateConcatMapDFS #-}
-iterateConcatMapDFS :: Monad m =>
+{-# INLINE concatIterateDfs #-}
+concatIterateDfs :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-iterateConcatMapDFS f stream =
+concatIterateDfs f stream =
     fromStreamD
-        $ D.iterateConcatMapDFS (fmap toStreamD . f ) (toStreamD stream)
+        $ D.concatIterateDfs (fmap toStreamD . f ) (toStreamD stream)
 
--- | Similar to 'iterateConcatMapDFS' except that it traverses the stream in
+-- | Similar to 'concatIterateDfs' except that it traverses the stream in
 -- breadth first style (BFS). First, all the elements in the input stream are
 -- emitted, and then their traversals are emitted.
 --
@@ -705,33 +705,33 @@ iterateConcatMapDFS f stream =
 --
 -- >>> f = either (Just . Dir.readEitherPaths) (const Nothing)
 -- >>> input = Stream.fromPure (Left ".")
--- >>> ls = Stream.iterateConcatMapBFS f input
+-- >>> ls = Stream.concatIterateBfs f input
 --
 -- /Pre-release/
-{-# INLINE iterateConcatMapBFS #-}
-iterateConcatMapBFS :: Monad m =>
+{-# INLINE concatIterateBfs #-}
+concatIterateBfs :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-iterateConcatMapBFS f stream =
+concatIterateBfs f stream =
     fromStreamD
-        $ D.iterateConcatMapBFS (fmap toStreamD . f ) (toStreamD stream)
+        $ D.concatIterateBfs (fmap toStreamD . f ) (toStreamD stream)
 
--- | Same as 'iterateConcatMapBFS' except that the traversal of the last
+-- | Same as 'concatIterateBfs' except that the traversal of the last
 -- element on a level is emitted first and then going backwards up to the first
 -- element (reversed ordering). This may be slightly faster than
--- 'iterateConcatMapBFS'.
+-- 'concatIterateBfs'.
 --
-{-# INLINE iterateConcatMapBFSRev #-}
-iterateConcatMapBFSRev :: Monad m =>
+{-# INLINE concatIterateBfsRev #-}
+concatIterateBfsRev :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-iterateConcatMapBFSRev f stream =
+concatIterateBfsRev f stream =
     fromStreamD
-        $ D.iterateConcatMapBFSRev (fmap toStreamD . f ) (toStreamD stream)
+        $ D.concatIterateBfsRev (fmap toStreamD . f ) (toStreamD stream)
 
--- | Like 'iterateConcatMapWith' but uses the pairwise flattening combinator
+-- | Like 'concatIterateWith' but uses the pairwise flattening combinator
 -- 'mergeMapWith' for flattening the resulting streams. This can be used for a
 -- balanced traversal of a tree like structure.
 --
@@ -739,19 +739,19 @@ iterateConcatMapBFSRev f stream =
 --
 -- >>> f = either Dir.readEitherPaths (const Stream.nil)
 -- >>> input = Stream.fromPure (Left ".")
--- >>> ls = Stream.iterateMergeMapWith Stream.interleave f input
+-- >>> ls = Stream.mergeIterateWith Stream.interleave f input
 --
 -- /CPS/
 --
 -- /Pre-release/
 --
-{-# INLINE iterateMergeMapWith #-}
-iterateMergeMapWith ::
+{-# INLINE mergeIterateWith #-}
+mergeIterateWith ::
        (Stream m a -> Stream m a -> Stream m a)
     -> (a -> Stream m a)
     -> Stream m a
     -> Stream m a
-iterateMergeMapWith combine f = iterateStream
+mergeIterateWith combine f = iterateStream
 
     where
 
@@ -759,34 +759,34 @@ iterateMergeMapWith combine f = iterateStream
 
     generate x = x `cons` iterateStream (f x)
 
--- | Same as @iterateConcatMapDFS@ but more efficient due to stream fusion.
+-- | Same as @concatIterateDfs@ but more efficient due to stream fusion.
 --
 -- Example, list a directory tree using DFS:
 --
 -- >>> f = Unfold.either Dir.eitherReaderPaths Unfold.nil
 -- >>> input = Stream.fromPure (Left ".")
--- >>> ls = Stream.iterateUnfoldManyDFS f input
+-- >>> ls = Stream.unfoldIterateDfs f input
 --
 -- /Pre-release/
-{-# INLINE iterateUnfoldManyDFS #-}
-iterateUnfoldManyDFS :: Monad m => Unfold m a a -> Stream m a -> Stream m a
-iterateUnfoldManyDFS u = fromStreamD . D.iterateUnfoldManyDFS u . toStreamD
+{-# INLINE unfoldIterateDfs #-}
+unfoldIterateDfs :: Monad m => Unfold m a a -> Stream m a -> Stream m a
+unfoldIterateDfs u = fromStreamD . D.unfoldIterateDfs u . toStreamD
 
--- | Like 'iterateUnfoldManyDFS' but uses breadth first style traversal.
+-- | Like 'unfoldIterateDfs' but uses breadth first style traversal.
 --
 -- /Pre-release/
-{-# INLINE iterateUnfoldManyBFS #-}
-iterateUnfoldManyBFS :: Monad m => Unfold m a a -> Stream m a -> Stream m a
-iterateUnfoldManyBFS u = fromStreamD . D.iterateUnfoldManyBFS u . toStreamD
+{-# INLINE unfoldIterateBfs #-}
+unfoldIterateBfs :: Monad m => Unfold m a a -> Stream m a -> Stream m a
+unfoldIterateBfs u = fromStreamD . D.unfoldIterateBfs u . toStreamD
 
--- | Like 'iterateUnfoldManyBFS' but processes the children in reverse order,
+-- | Like 'unfoldIterateBfs' but processes the children in reverse order,
 -- therefore, may be slightly faster.
 --
 -- /Pre-release/
-{-# INLINE iterateUnfoldManyBFSRev #-}
-iterateUnfoldManyBFSRev :: Monad m => Unfold m a a -> Stream m a -> Stream m a
-iterateUnfoldManyBFSRev u =
-    fromStreamD . D.iterateUnfoldManyBFSRev u . toStreamD
+{-# INLINE unfoldIterateBfsRev #-}
+unfoldIterateBfsRev :: Monad m => Unfold m a a -> Stream m a -> Stream m a
+unfoldIterateBfsRev u =
+    fromStreamD . D.unfoldIterateBfsRev u . toStreamD
 
 ------------------------------------------------------------------------------
 -- Flattening Graphs
@@ -807,15 +807,15 @@ iterateUnfoldManyBFSRev u =
 --
 -- /Pre-release/
 --
-{-# INLINE iterateConcatScanWith #-}
-iterateConcatScanWith
+{-# INLINE concatIterateScanWith #-}
+concatIterateScanWith
     :: Monad m
     => (Stream m a -> Stream m a -> Stream m a)
     -> (b -> a -> m (b, Stream m a))
     -> m b
     -> Stream m a
     -> Stream m a
-iterateConcatScanWith combine f initial stream =
+concatIterateScanWith combine f initial stream =
     concatEffect $ do
         b <- initial
         iterateStream (b, stream)
@@ -835,16 +835,16 @@ iterateConcatScanWith combine f initial stream =
 -- stream and keep building a buffered list/stream, once done we can then
 -- process the buffered stream.
 
-{-# INLINE iterateConcatScan #-}
-iterateConcatScan
+{-# INLINE concatIterateScan #-}
+concatIterateScan
     :: Monad m
     => (b -> a -> m b)
     -> (b -> m (Maybe (b, Stream m a)))
     -> b
     -> Stream m a
-iterateConcatScan scanner generate initial =
+concatIterateScan scanner generate initial =
     fromStreamD
-        $ D.iterateConcatScan
+        $ D.concatIterateScan
             scanner (fmap (fmap (fmap toStreamD)) . generate) initial
 
 ------------------------------------------------------------------------------
@@ -871,23 +871,23 @@ concatMapEitherWith = undefined
 -- This API should perhaps be removed in favor of those.
 
 -- | In an 'Either' stream iterate on 'Left's.  This is a special case of
--- 'iterateConcatMapWith':
+-- 'concatIterateWith':
 --
--- >>> iterateLeftsConcatMapWith combine f = Stream.iterateConcatMapWith combine (either f (const Stream.nil))
+-- >>> concatIterateLeftsWith combine f = Stream.concatIterateWith combine (either f (const Stream.nil))
 --
 -- To traverse a directory tree:
 --
 -- >>> input = Stream.fromPure (Left ".")
--- >>> ls = Stream.iterateLeftsConcatMapWith Stream.append Dir.readEither input
+-- >>> ls = Stream.concatIterateLeftsWith Stream.append Dir.readEither input
 --
 -- /Pre-release/
 --
-{-# INLINE iterateLeftsConcatMapWith #-}
-iterateLeftsConcatMapWith
+{-# INLINE concatIterateLeftsWith #-}
+concatIterateLeftsWith
     :: (b ~ Either a c)
     => (Stream m b -> Stream m b -> Stream m b)
     -> (a -> Stream m b)
     -> Stream m b
     -> Stream m b
-iterateLeftsConcatMapWith combine f =
-    iterateConcatMapWith combine (either f (const nil))
+concatIterateLeftsWith combine f =
+    concatIterateWith combine (either f (const nil))
