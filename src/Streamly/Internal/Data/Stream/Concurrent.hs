@@ -102,6 +102,9 @@ module Streamly.Internal.Data.Stream.Concurrent
     , concatMapInterleave
     , parConcatMap
 
+    -- *** Iterate
+    , parIterateConcatMap
+
     -- ** Reactive
     , fromCallback
     , pollCountsD
@@ -700,6 +703,31 @@ parZipWith :: MonadAsync m
     -> Stream m b
     -> Stream m c
 parZipWith cfg f = parZipWithM cfg (\a b -> return $ f a b)
+
+-------------------------------------------------------------------------------
+-- iterateConcatMap
+-------------------------------------------------------------------------------
+
+-- | Same as 'iterateConcatMap' but concurrent.
+--
+{-# INLINE parIterateConcatMap #-}
+parIterateConcatMap :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Stream m a)
+    -> Stream m a
+    -> Stream m a
+parIterateConcatMap modifier f input =
+     Stream.fromStreamK
+        $ withChannelK modifier (Stream.toStreamK input) iterateStream
+
+    where
+
+    iterateStream channel stream =
+        parConcatMapChanKGeneric modifier channel (generate channel) stream
+
+    generate channel x =
+        -- XXX The channel q should be FIFO for DFS, otherwise it is BFS
+        x `K.cons` iterateStream channel (Stream.toStreamK $ f x)
 
 -------------------------------------------------------------------------------
 -- Generate
