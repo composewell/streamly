@@ -219,7 +219,9 @@ workLoopLIFOLimited qref sv winfo = run
 -- XXX Left associated ahead expressions are expensive. We start a new SVar for
 -- each left associative expression. The queue is used only for right
 -- associated expression, we queue the right expression and execute the left.
--- Thererefore the queue never has more than one item in it.
+-- Therefore the queue never has more than one item in it. However, in case of
+-- parIterateConcatMap the iteration may add more items at the end of the
+-- queue.
 --
 -- XXX we can fix this. When we queue more than one item on the queue we can
 -- mark the previously queued item as not-runnable. The not-runnable item is
@@ -228,6 +230,7 @@ workLoopLIFOLimited qref sv winfo = run
 --
 -- we can even run the already queued items but they will have to be sorted in
 -- layers in the heap. We can use a list of heaps for that.
+{-# ANN enqueueAhead "HLint: ignore" #-}
 {-# INLINE enqueueAhead #-}
 enqueueAhead ::
        Channel m a
@@ -235,19 +238,11 @@ enqueueAhead ::
     -> (RunInIO m, K.Stream m a)
     -> IO ()
 enqueueAhead sv q m = do
-    atomicModifyIORefCAS_ q $ \ case
-        ([], n) -> ([snd m], n + 1)  -- increment sequence
-        _ -> error "enqueueAhead: queue is not empty"
-    ringDoorBell (doorBellOnWorkQ sv) (outputDoorBell sv)
-
--- enqueue without incrementing the sequence number
-{-# INLINE reEnqueueAhead #-}
-reEnqueueAhead ::
-    Channel m a -> IORef ([K.Stream m a], Int) -> K.Stream m a -> IO ()
-reEnqueueAhead sv q m = do
-    atomicModifyIORefCAS_ q $ \ case
-        ([], n) -> ([m], n)  -- DO NOT increment sequence
-        _ -> error "reEnqueueAhead: queue is not empty"
+    -- XXX The queue is LIFO. When parConcatIterate queues more than one items
+    -- to the queue it will perform a DFS style traversal. For BFS we will have
+    -- to use a FIFO data structure here. That would require another Config
+    -- option.
+    atomicModifyIORefCAS_ q $ \(xs, n) -> (snd m:xs, n)
     ringDoorBell (doorBellOnWorkQ sv) (outputDoorBell sv)
 
 -- Normally the thread that has the token should never go away. The token gets
@@ -276,8 +271,19 @@ dequeueAhead :: MonadIO m
 dequeueAhead q = liftIO $
     atomicModifyIORefCAS q $ \case
             ([], n) -> (([], n), Nothing)
-            (x : [], n) -> (([], n), Just (x, n))
-            _ -> error "more than one item on queue"
+            (x : xs, n) -> ((xs, n + 1), Just (x, n + 1))
+
+-- Dequeue only if the seq number matches the expected seq number.
+{-# INLINE dequeueAheadSeqCheck #-}
+dequeueAheadSeqCheck :: MonadIO m
+    => IORef ([t m a], Int) -> Int -> m (Maybe (t m a))
+dequeueAheadSeqCheck q seqNo = liftIO $
+    atomicModifyIORefCAS q $ \case
+            ([], n) -> (([], n), Nothing)
+            (x : xs, n) ->
+                if n + 1 == seqNo
+                then ((xs, n + 1), Just x)
+                else ((x : xs, n), Nothing)
 
 -------------------------------------------------------------------------------
 -- Heap manipulation
@@ -485,14 +491,8 @@ preStopCheck sv heap =
                     if rateOk then continue else stopping
         else stopping
 
-abortExecution ::
-       IORef ([K.Stream m a], Int)
-    -> Channel m a
-    -> Maybe WorkerInfo
-    -> K.Stream m a
-    -> IO ()
-abortExecution q sv winfo m = do
-    reEnqueueAhead sv q m
+abortExecution :: Channel m a -> Maybe WorkerInfo -> IO ()
+abortExecution sv winfo = do
     incrementYieldLimit (remainingWork sv)
     stop sv winfo
 
@@ -574,17 +574,17 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
                 else inline processWorkQueue prevSeqNo
 
     processWorkQueue prevSeqNo = do
-        work <- dequeueAhead q
-        case work of
-            Nothing -> liftIO $ stop sv winfo
-            Just (m, seqNo) -> do
-                yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
-                if yieldLimitOk
-                then
+        yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
+        if yieldLimitOk
+        then do
+            work <- dequeueAhead q
+            case work of
+                Nothing -> liftIO $ stop sv winfo
+                Just (m, seqNo) -> do
                     if seqNo == prevSeqNo + 1
                     then processWithToken q heap sv winfo m seqNo
                     else processWithoutToken q heap sv winfo m seqNo
-                else liftIO $ abortExecution q sv winfo m
+        else liftIO $ abortExecution sv winfo
 
     -- We do not stop the worker on buffer full here as we want to proceed to
     -- nextHeap anyway so that we can clear any subsequent entries. We stop
@@ -785,47 +785,42 @@ processWithToken q heap sv winfo action sno = do
             return TokenSuspend
 
     loopWithToken nextSeqNo = do
-        work <- dequeueAhead q
-        case work of
-            Nothing -> do
-                liftIO $ updateHeapSeq heap nextSeqNo
-                workLoopAhead q heap sv winfo
-
-            Just (m, seqNo) -> do
-                yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
-                let undo = liftIO $ do
-                        updateHeapSeq heap nextSeqNo
-                        reEnqueueAhead sv q m
-                        incrementYieldLimit (remainingWork sv)
-                if yieldLimitOk
-                then
-                    if seqNo == nextSeqNo
-                    then do
-                        let stopk = do
-                                liftIO (incrementYieldLimit (remainingWork sv))
-                                return $ TokenContinue (seqNo + 1)
-                            mrun = runInIO $ svarMrun sv
-                        r <- liftIO $ mrun $
-                            K.foldStreamShared undefined
-                                          (yieldOutput seqNo)
-                                          (singleOutput seqNo)
-                                          stopk
-                                          m
-                        res <- restoreM r
-                        case res of
-                            TokenContinue seqNo1 -> loopWithToken seqNo1
-                            TokenSuspend -> drainHeap q heap sv winfo
-
-                    else
-                        -- To avoid a race when another thread puts something
-                        -- on the heap and goes away, the consumer will not get
-                        -- a doorBell and we will not clear the heap before
-                        -- executing the next action. If the consumer depends
-                        -- on the output that is stuck in the heap then this
-                        -- will result in a deadlock. So we always clear the
-                        -- heap before executing the next action.
-                        undo >> workLoopAhead q heap sv winfo
-                else undo >> drainHeap q heap sv winfo
+        let preExit = liftIO $ do
+                updateHeapSeq heap nextSeqNo
+                incrementYieldLimit (remainingWork sv)
+        yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
+        -- To avoid a race when another thread puts something
+        -- on the heap and goes away, the consumer will not get
+        -- a doorBell and we will not clear the heap before
+        -- executing the next action. If the consumer depends
+        -- on the output that is stuck in the heap then this
+        -- will result in a deadlock. So we always clear the
+        -- heap before executing the next action.
+        if yieldLimitOk
+        then do
+            -- XXX Instead of checking seqno inside dequeue we can dequeue
+            -- unconditionally and if the seqNo is not the same as nextSeqNo
+            -- then release the token and call processWithoutToken. Need
+            -- to check the performance though.
+            work <- dequeueAheadSeqCheck q nextSeqNo
+            case work of
+                Nothing -> preExit >> workLoopAhead q heap sv winfo
+                Just m -> do
+                    let stopk = do
+                            liftIO (incrementYieldLimit (remainingWork sv))
+                            return $ TokenContinue (nextSeqNo + 1)
+                        mrun = runInIO $ svarMrun sv
+                    r <- liftIO $ mrun $
+                        K.foldStreamShared undefined
+                                      (yieldOutput nextSeqNo)
+                                      (singleOutput nextSeqNo)
+                                      stopk
+                                      m
+                    res <- restoreM r
+                    case res of
+                        TokenContinue seqNo -> loopWithToken seqNo
+                        TokenSuspend -> drainHeap q heap sv winfo
+        else preExit >> drainHeap q heap sv winfo
 
 -- XXX the yield limit changes increased the performance overhead by 30-40%.
 -- Just like AsyncT we can use an implementation without yeidlimit and even
@@ -867,23 +862,17 @@ workLoopAhead q heap sv winfo = do
                 -- output queue because it makes the code common to both async
                 -- and ahead streams.
                 --
-                work <- dequeueAhead q
-                case work of
-                    Nothing -> liftIO $ stop sv winfo
-                    Just (m, seqNo) -> do
-                        yieldLimitOk <-
-                            liftIO $ decrementYieldLimit (remainingWork sv)
-                        if yieldLimitOk
-                        then
+                yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
+                if yieldLimitOk
+                then do
+                    work <- dequeueAhead q
+                    case work of
+                        Nothing -> liftIO $ stop sv winfo
+                        Just (m, seqNo) -> do
                             if seqNo == 0
                             then processWithToken q heap sv winfo m seqNo
                             else processWithoutToken q heap sv winfo m seqNo
-                        -- If some worker decremented the yield limit but then
-                        -- did not yield anything and therefore incremented it
-                        -- later, then if we did not requeue m here we may find
-                        -- the work queue empty and therefore miss executing
-                        -- the remaining action.
-                        else liftIO $ abortExecution q sv winfo m
+                else liftIO $ abortExecution sv winfo
 
 -------------------------------------------------------------------------------
 -- SVar creation
@@ -911,8 +900,8 @@ getLifoSVar mrun cfg = do
                 ( [] :: [(RunInIO m, K.Stream m a)]
                 , [] :: [(RunInIO m, K.Stream m a)]
                 )
-    -- Sequence number is incremented whenever something is queued, therefore,
-    -- first sequence number would be 0
+    -- Sequence number is incremented whenever something is de-queued,
+    -- therefore, first sequence number would be 0
     aheadQ <- newIORef ([], -1)
     stopMVar <- newMVar ()
     yl <-
