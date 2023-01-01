@@ -141,11 +141,10 @@ where
 #include "inline.hs"
 
 import Streamly.Internal.Data.Stream.Bottom
-    ( concatEffect, concatMapM, concatMap, smapM, fromPure
-    , zipWith, zipWithM)
+    ( concatEffect, concatMapM, concatMap, smapM, zipWith, zipWithM)
 import Streamly.Internal.Data.Stream.Type
     ( Stream, fromStreamD, fromStreamK, toStreamD, toStreamK
-    , bindWith, concatMapWith, nil)
+    , bindWith, concatMapWith, cons, nil)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
@@ -674,7 +673,7 @@ iterateConcatMapWith combine f = iterateStream
 
     iterateStream = concatMapWith combine generate
 
-    generate x = fromPure x `combine` iterateStream (f x)
+    generate x = x `cons` iterateStream (f x)
 
 -- | Traverse the stream in depth first style (DFS). Map each element in the
 -- input stream to a stream and flatten, recursively map the resulting elements
@@ -758,7 +757,7 @@ iterateMergeMapWith combine f = iterateStream
 
     iterateStream = mergeMapWith combine generate
 
-    generate x = fromPure x `combine` iterateStream (f x)
+    generate x = x `cons` iterateStream (f x)
 
 -- | Same as @iterateConcatMapDFS@ but more efficient due to stream fusion.
 --
@@ -825,7 +824,7 @@ iterateConcatScanWith combine f initial stream =
 
     iterateStream (b, s) = pure $ concatMapWith combine (generate b) s
 
-    generate b a = fromPure a `combine` feedback b a
+    generate b a = a `cons` feedback b a
 
     feedback b a = concatEffect $ f b a >>= iterateStream
 
