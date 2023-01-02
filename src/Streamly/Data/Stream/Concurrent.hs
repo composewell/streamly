@@ -124,18 +124,19 @@ module Streamly.Data.Stream.Concurrent
     -- | Stream combinators using a concurrent channel.
 
     -- *** Evaluate
-    -- | Evaluates a stream concurrently using a channel.
+    -- | Evaluates a serial stream asynchronously using a concurency channel.
 
     -- , eval
     , parEval
 
     -- *** Generate
-    -- | Uses a single channel to evaluate mapped actions concurrently.
+    -- | Uses a concurrency channel to evaluate multiple actions concurrently.
     , parRepeatM
     , parReplicateM
 
     -- *** Map
-    -- | Uses a single channel to evaluate mapped actions concurrently.
+    -- | Uses a concurrency channel to evaluate multiple mapped actions
+    -- concurrently.
 
     -- , mapM
     , parMapM

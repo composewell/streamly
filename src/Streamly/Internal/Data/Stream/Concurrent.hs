@@ -181,10 +181,12 @@ parEvalD modifier m = D.Stream step Nothing
             D.Stop      -> D.Stop
 -}
 
--- | Evaluate a stream asynchronously using a channel and serve the consumer
--- from the evaluation buffer.
+-- | Evaluate a stream asynchronously. In a serial stream, each element of the
+-- stream is generated as it is demanded by the consumer. `parEval` evaluates
+-- multiple elements of the stream ahead of time and serves the results from a
+-- buffer.
 --
--- Note that the evaluation requires a single thread as only one stream needs
+-- Note that the evaluation requires only one thread as only one stream needs
 -- to be evaluated. Therefore, the concurrency options that are relevant to
 -- multiple streams won't apply here e.g. maxThreads, eager, interleaved,
 -- ordered, stopWhen options won't have any effect.
