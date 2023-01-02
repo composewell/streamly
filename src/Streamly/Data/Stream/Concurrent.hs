@@ -133,6 +133,7 @@ module Streamly.Data.Stream.Concurrent
     -- | Uses a concurrency channel to evaluate multiple actions concurrently.
     , parRepeatM
     , parReplicateM
+    , fromCallback
 
     -- *** Map
     -- | Uses a concurrency channel to evaluate multiple mapped actions
