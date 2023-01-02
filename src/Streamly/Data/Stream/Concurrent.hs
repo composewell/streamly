@@ -167,6 +167,9 @@ module Streamly.Data.Stream.Concurrent
     , parConcat
     -- , concatMap
     , parConcatMap
+
+    -- **** ConcatIterate
+    , parConcatIterate
     )
 where
 
