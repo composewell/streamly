@@ -18,7 +18,7 @@ type Array = A.SmallArray
 moduleName :: String
 moduleName = "Data.SmallArray"
 
-#include "Streamly/Test/Data/Array/Common.hs"
+#include "Streamly/Test/Data/Array/CommonSmallArray.hs"
 
 main :: IO ()
 main =

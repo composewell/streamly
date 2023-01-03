@@ -167,17 +167,25 @@ exceptionPropagation f = do
 ---------------------------------------------------------------------------
 
 #ifdef DEVBUILD
-timeOrdering :: (Stream IO Int -> Stream IO Int -> Stream IO Int) -> Spec
+timeOrdering :: ([Stream IO Int] -> Stream IO Int) -> Spec
 timeOrdering f = do
+    let ls43 = [event 4, event 3]
+        x1 = event 1
+        x2 = event 2
+
+        ls21 = [event 2, event 1]
+        x3 = event 3
+        x4 = event 4
+
     it "Parallel ordering left associated" $
-        Stream.fold Fold.toList (((event 4 `f` event 3) `f` event 2) `f` event 1)
+        Stream.fold Fold.toList (f [f [f ls43, x2], x1])
             `shouldReturn` [1..4]
 
     it "Parallel ordering right associated" $
-        Stream.fold Fold.toList (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
+        Stream.fold Fold.toList (f [x4, f [x3, f ls21]])
             `shouldReturn` [1..4]
 
-    where event n = Stream.fromEffect (threadDelay (n * 200000)) >> return n
+    where event n = Stream.fromEffect (threadDelay (n * 200000) >> return n)
 #endif
 
 -------------------------------------------------------------------------------
