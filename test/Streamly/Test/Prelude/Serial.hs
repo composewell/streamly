@@ -64,21 +64,34 @@ import Streamly.Test.Prelude.Common
 import Data.Void (Void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 
+toList :: IS.Stream IO a -> IO [a]
 toList = S.fold FL.toList
 
+splitOn :: Monad m =>
+    (a -> Bool) -> FL.Fold m a b -> IS.Stream m a -> IS.Stream m b
 splitOn predicate f = IS.foldManyPost (FL.takeEndBy_ predicate f)
 
+splitOnSuffix :: Monad m =>
+    (a -> Bool) -> FL.Fold m a b -> IS.Stream m a -> IS.Stream m b
 splitOnSuffix predicate f = IS.foldMany (FL.takeEndBy_ predicate f)
 
+splitOnSuffixSeq' :: (MonadIO m, Unbox a1, Enum a1, Eq a1) =>
+    A.Array a1 -> FL.Fold m a1 a2 -> IS.Stream m a1 -> IS.Stream m a2
 splitOnSuffixSeq' patt f m =
     IS.fromStreamD $ D.splitOnSuffixSeq False patt f (IS.toStreamD m)
 
+groupsBy :: Monad m =>
+    (a1 -> a1 -> Bool) -> FL.Fold m a1 a2 -> IS.Stream m a1 -> IS.Stream m a2
 groupsBy cmp f m = IS.fromStreamD $ D.groupsBy cmp f (IS.toStreamD m)
 
+groupsByRolling :: Monad m =>
+    (a1 -> a1 -> Bool) -> FL.Fold m a1 a2 -> IS.Stream m a1 -> IS.Stream m a2
 groupsByRolling cmp f m =  IS.fromStreamD $ D.groupsRollingBy cmp f (IS.toStreamD m)
 
+drainWhile :: Monad m => (a -> Bool) -> IS.Stream m a -> m ()
 drainWhile p = S.fold FL.drain . S.takeWhile p
 
+mapM'_ :: Monad m => (a -> m b) -> IS.Stream m a -> m ()
 mapM'_ f = S.fold (FL.drainBy f)
 
 splitOnSeq :: Spec
