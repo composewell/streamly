@@ -7,6 +7,10 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Unconstrained version of "Streamly.Data.Array" module.
+--
+-- See the "Streamly.Data.Array" module for documentation.
+--
 module Streamly.Data.Array.Generic
     ( Array
 
@@ -28,7 +32,7 @@ module Streamly.Data.Array.Generic
     -- * Random Access
     , A.length
 
-    -- * Folding Arrays
+    -- -- * Folding Arrays
     -- , A.streamFold
     -- , A.fold
     )

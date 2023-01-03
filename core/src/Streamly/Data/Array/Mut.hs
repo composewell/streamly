@@ -14,8 +14,7 @@
 module Streamly.Data.Array.Mut
     (
     -- * Types
-      Unbox (..)
-    , Array
+      Array
 
     -- * Construction
 
@@ -56,6 +55,9 @@ module Streamly.Data.Array.Mut
 
     -- * Size
     , length
+
+    -- * Unbox Type Class
+    , Unbox (..)
     )
 where
 

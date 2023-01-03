@@ -8,8 +8,8 @@
 -- Portability : GHC
 --
 -- This module provides APIs to create and use unboxed immutable arrays. Once
--- created their contents cannot be modified. Only types that are unboxable via
--- the 'Unbox' type class can be stored in these arrays.
+-- created, their contents cannot be modified. Only types that are unboxable
+-- via the 'Unbox' type class can be stored in these arrays.
 --
 -- = Folding Arrays
 --
@@ -146,9 +146,7 @@ import Prelude hiding (read)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold as Fold (morphInner)
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream as Stream (morphInner)
 
 -- | Same as 'reader'
 --

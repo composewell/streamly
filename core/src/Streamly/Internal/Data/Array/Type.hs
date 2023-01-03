@@ -120,12 +120,10 @@ import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 
 -- $arrayNotes
 --
--- We can use an 'Unboxed' constraint in the Array type and the constraint can
+-- We can use an 'Unbox' constraint in the Array type and the constraint can
 -- be automatically provided to a function that pattern matches on the Array
 -- type. However, it has huge performance cost, so we do not use it.
 -- Investigate a GHC improvement possiblity.
---
--- XXX Rename the fields to better names.
 --
 data Array a =
 #ifdef DEVBUILD
