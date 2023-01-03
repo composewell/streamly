@@ -172,6 +172,9 @@ module Streamly.Data.Stream.Concurrent
 
     -- **** ConcatIterate
     , parConcatIterate
+
+    -- *** Observation
+    , tapCount
     )
 where
 

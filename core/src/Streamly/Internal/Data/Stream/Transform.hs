@@ -168,6 +168,7 @@ import Prelude hiding
 -- $setup
 -- >>> :m
 -- >>> import Control.Concurrent (threadDelay)
+-- >>> import Control.Monad (void)
 -- >>> import Control.Monad.IO.Class (MonadIO (liftIO))
 -- >>> import Data.Either (fromLeft, fromRight, isLeft, isRight, either)
 -- >>> import Data.Function ((&))
@@ -730,6 +731,10 @@ intersperseSuffixBySpan n eff =
 
 -- | Insert a side effect before consuming an element of a stream.
 --
+-- Definition:
+--
+-- >>> interspersePrefix_ m = Stream.mapM (\x -> void m >> return x)
+--
 -- >>> input = Stream.fromList "hello"
 -- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.interspersePrefix_ (putChar '.' >> return ',') input
 -- .h.e.l.l.o"hello"
@@ -746,7 +751,21 @@ interspersePrefix_ m = mapM (\x -> void m >> return x)
 -- Inserting Time
 ------------------------------------------------------------------------------
 
+-- XXX This should be in Prelude, should we export this as a helper function?
+
+-- | Block the current thread for specified number of seconds.
+{-# INLINE sleep #-}
+sleep :: MonadIO m => Double -> m ()
+sleep n = liftIO $ threadDelay $ round $ n * 1000000
+
 -- | Introduce a delay of specified seconds between elements of the stream.
+--
+-- Definition:
+--
+-- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
+-- >>> delay = Stream.intersperseM_ . sleep
+--
+-- Example:
 --
 -- >>> input = Stream.enumerateFromTo 1 3
 -- >>> Stream.fold (Fold.drainMapM print) $ Stream.delay 1 input
@@ -754,15 +773,19 @@ interspersePrefix_ m = mapM (\x -> void m >> return x)
 -- 2
 -- 3
 --
--- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
--- >>> delay n = Stream.intersperseM_ $ sleep n
---
 {-# INLINE delay #-}
 delay :: MonadIO m => Double -> Stream m a -> Stream m a
-delay n = intersperseM_ $ liftIO $ threadDelay $ round $ n * 1000000
+delay = intersperseM_ . sleep
 
 -- | Introduce a delay of specified seconds after consuming an element of a
 -- stream.
+--
+-- Definition:
+--
+-- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
+-- >>> delayPost = Stream.intersperseSuffix_ . sleep
+--
+-- Example:
 --
 -- >>> input = Stream.enumerateFromTo 1 3
 -- >>> Stream.fold (Fold.drainMapM print) $ Stream.delayPost 1 input
@@ -774,10 +797,17 @@ delay n = intersperseM_ $ liftIO $ threadDelay $ round $ n * 1000000
 --
 {-# INLINE delayPost #-}
 delayPost :: MonadIO m => Double -> Stream m a -> Stream m a
-delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
+delayPost = intersperseSuffix_ . sleep
 
 -- | Introduce a delay of specified seconds before consuming an element of a
 -- stream.
+--
+-- Definition:
+--
+-- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
+-- >>> delayPre = Stream.interspersePrefix_ . sleep
+--
+-- Example:
 --
 -- >>> input = Stream.enumerateFromTo 1 3
 -- >>> Stream.fold (Fold.drainMapM print) $ Stream.delayPre 1 input
@@ -789,7 +819,7 @@ delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 --
 {-# INLINE delayPre #-}
 delayPre :: MonadIO m => Double -> Stream m a -> Stream m a
-delayPre n = trace_ $ liftIO $ threadDelay $ round $ n * 1000000
+delayPre = interspersePrefix_ . sleep
 
 ------------------------------------------------------------------------------
 -- Reorder in sequence

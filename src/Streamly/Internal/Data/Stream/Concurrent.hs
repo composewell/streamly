@@ -107,8 +107,8 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** Reactive
     , fromCallback
-    , pollCountsD
-    , pollCounts
+    , tapCountD
+    , tapCount
     )
 where
 
@@ -147,7 +147,7 @@ import Streamly.Internal.Data.Stream.Concurrent.Channel
 -- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
--- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream hiding (append2)
 -- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Stream
 -- >>> import Prelude hiding (concatMap, concat, zipWith)
 -- >>> :{
@@ -825,14 +825,14 @@ fromCallback setCallback = Stream.concatEffect $ do
     setCallback callback
     return stream
 
-{-# INLINE_NORMAL pollCountsD #-}
-pollCountsD
+{-# INLINE_NORMAL tapCountD #-}
+tapCountD
     :: MonadAsync m
     => (a -> Bool)
     -> (D.Stream m Int -> m b)
     -> D.Stream m a
     -> D.Stream m a
-pollCountsD predicate fld (D.Stream step state) = D.Stream step' Nothing
+tapCountD predicate fld (D.Stream step state) = D.Stream step' Nothing
   where
 
     {-# INLINE_LATE step' #-}
@@ -858,31 +858,30 @@ pollCountsD predicate fld (D.Stream step state) = D.Stream step' Nothing
                 liftIO $ killThread tid
                 return Stop
 
--- | @pollCounts predicate transform fold stream@ counts those elements in the
+-- | @tapCount predicate fold stream@ taps the count of those elements in the
 -- stream that pass the @predicate@. The resulting count stream is sent to
--- another thread which transforms it using @transform@ and then folds it using
--- @fold@.  The thread is automatically cleaned up if the stream stops or
--- aborts due to exception.
+-- another thread which folds it using @fold@.
 --
 -- For example, to print the count of elements processed every second:
 --
--- @
--- > Stream.drain $ Stream.pollCounts (const True) (Stream.rollingMap (-) . Stream.delayPost 1) (Fold.drainBy print)
---           $ Stream.enumerateFrom 0
--- @
+-- >>> rate = Stream.rollingMap2 (flip (-)) . Stream.delayPost 1
+-- >>> report = Stream.fold (Fold.drainMapM print) . rate
+-- >>> tap = Stream.tapCount (const True) report
+-- >>> go = Stream.fold Fold.drain $ tap $ Stream.enumerateFrom 0
 --
--- Note: This may not work correctly on 32-bit machines.
+-- Note: This may not work correctly on 32-bit machines because of Int
+-- overflow.
 --
 -- /Pre-release/
 --
-{-# INLINE pollCounts #-}
-pollCounts ::
+{-# INLINE tapCount #-}
+tapCount ::
        (MonadAsync m)
     => (a -> Bool)
     -> (Stream m Int -> m b)
     -> Stream m a
     -> Stream m a
-pollCounts predicate f xs =
+tapCount predicate f xs =
       Stream.fromStreamD
-    $ pollCountsD predicate (f . Stream.fromStreamD)
+    $ tapCountD predicate (f . Stream.fromStreamD)
     $ Stream.toStreamD xs
