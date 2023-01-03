@@ -7,15 +7,19 @@
 -- Stability   : pre-release
 -- Portability : GHC
 --
+-- Warning\: The API of this module is subject to change in future releases.
+-- Especially the type for representing paths may change from 'FilePath' to
+-- something else.
+--
 -- Read and write streams and arrays to and from files specified by their paths
 -- in the file system. Unlike the handle based APIs which can have a read/write
 -- session consisting of multiple reads and writes to the handle, these APIs
 -- are one shot read or write APIs. These APIs open the file handle, perform
--- the requested operation and close the handle. Thease are safer compared to
+-- the requested operation and close the handle. These are safer compared to
 -- the handle based APIs as there is no possibility of a file descriptor
 -- leakage.
 --
--- > import qualified Streamly.FileSystem.File as File
+-- >>> import qualified Streamly.FileSystem.File as File
 --
 module Streamly.FileSystem.File
     (

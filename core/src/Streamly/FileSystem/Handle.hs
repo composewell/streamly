@@ -15,8 +15,8 @@
 -- ('Handle').
 --
 -- The 'TextEncoding', 'NewLineMode', and 'Buffering' options of the underlying
--- GHC 'Handle' are ignored by these APIs. Please use @Streamly.Unicode.*@
--- modules for encoding and decoding a byte stream, use stream splitting
+-- GHC 'Handle' are ignored by these APIs. Please use "Streamly.Unicode.Stream"
+-- module for encoding and decoding a byte stream, use stream splitting
 -- operations in "Streamly.Data.Stream" to create a stream of lines or to split
 -- the input stream on any other type of boundaries.
 --
