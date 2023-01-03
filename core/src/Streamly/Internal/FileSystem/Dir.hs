@@ -230,7 +230,9 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 -- readChildren API.
 
 -- XXX exception handling
---  | Raw read of a directory
+
+--  | Read a directory emitting a stream with names of the children. Filter out
+--  "." and ".." entries.
 --
 --  /Internal/
 --
@@ -238,7 +240,8 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 reader :: MonadIO m => Unfold m FilePath FilePath
 reader =
     -- XXX use proper streaming read of the dir
-    UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList
+      UF.filter (\x -> x /= "." && x /= "..")
+    $ UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList
 
 -- XXX We can use a more general mechanism to filter the contents of a
 -- directory. We can just stat each child and pass on the stat information. We
@@ -252,12 +255,10 @@ reader =
 --
 {-# INLINE eitherReader #-}
 eitherReader :: MonadIO m => Unfold m FilePath (Either FilePath FilePath)
-eitherReader =
-      UF.mapM2 classify
-    $ UF.filter (\x -> x /= "." && x /= "..")
-    -- XXX use proper streaming read of the dir
-    $ UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList
+eitherReader = UF.mapM2 classify reader
+
     where
+
     classify dir x = do
         r <- liftIO $ Dir.doesDirectoryExist (dir ++ "/" ++ x)
         return $ if r then Left x else Right x
