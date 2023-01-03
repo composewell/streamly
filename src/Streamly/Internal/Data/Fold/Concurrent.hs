@@ -30,7 +30,7 @@ module Streamly.Internal.Data.Fold.Concurrent
     -- | Stream combinators using Async channel
 
     , eval
-    , evalWith
+    , parEval
     )
 where
 
@@ -62,8 +62,8 @@ import Streamly.Internal.Data.Fold.Concurrent.Channel
 -- | Evaluate a stream asynchronously using a channel and serve the consumer
 -- from the evaluation buffer.
 --
--- >>> eval = Fold.evalWith id
+-- >>> eval = Fold.parEval id
 --
 {-# INLINE eval #-}
 eval :: MonadAsync m => Fold m a b -> Fold m a b
-eval = evalWith id
+eval = parEval id

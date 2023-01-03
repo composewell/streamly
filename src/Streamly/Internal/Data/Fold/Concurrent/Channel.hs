@@ -17,7 +17,7 @@ module Streamly.Internal.Data.Fold.Concurrent.Channel
     , inspect
 
     -- * Fold operations
-    , evalWith
+    , parEval
     )
 where
 
@@ -42,9 +42,9 @@ import Streamly.Internal.Data.Stream.Channel.Types
 -- | Evaluate the fold asynchronously in a worker thread separate from the
 -- driver thread.
 --
-{-# INLINABLE evalWith #-}
-evalWith :: MonadAsync m => (Config -> Config) -> Fold m a b -> Fold m a b
-evalWith modifier f =
+{-# INLINABLE parEval #-}
+parEval :: MonadAsync m => (Config -> Config) -> Fold m a b -> Fold m a b
+parEval modifier f =
     Fold step initial extract
 
     where
@@ -79,7 +79,7 @@ evalWith modifier f =
                     $ withDiagMVar
                         (svarInspectMode chan)
                         (dumpSVar chan)
-                        "evalWith: waiting to drain"
+                        "parEval: waiting to drain"
                     $ takeMVar (outputDoorBellFromConsumer chan)
                 -- XXX remove recursion
                 extract chan
