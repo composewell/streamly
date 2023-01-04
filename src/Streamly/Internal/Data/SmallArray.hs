@@ -28,9 +28,9 @@ module Streamly.Internal.Data.SmallArray
   , toStreamD
   , toStreamDRev
 
-  , toStream
-  , toStreamRev
   , read
+  , readRev
+  , reader
 
   , fromListN
   , fromStreamDN
@@ -167,13 +167,13 @@ fromStreamN n m = do
     when (n < 0) $ error "fromStreamN: negative write count specified"
     fromStreamDN n $ D.fromStreamK $ Stream.toStreamK m
 
-{-# INLINE_EARLY toStream #-}
-toStream :: Monad m => SmallArray a -> Stream m a
-toStream = Stream.fromStreamK . D.toStreamK . toStreamD
+{-# INLINE_EARLY read #-}
+read :: Monad m => SmallArray a -> Stream m a
+read = Stream.fromStreamK . D.toStreamK . toStreamD
 
-{-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: Monad m => SmallArray a -> Stream m a
-toStreamRev = Stream.fromStreamK . D.toStreamK . toStreamDRev
+{-# INLINE_EARLY readRev #-}
+readRev :: Monad m => SmallArray a -> Stream m a
+readRev = Stream.fromStreamK . D.toStreamK . toStreamDRev
 
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> SmallArray a -> m b
@@ -181,11 +181,11 @@ fold f arr = D.fold f (toStreamD arr)
 
 {-# INLINE streamFold #-}
 streamFold :: Monad m => (Stream m a -> m b) -> SmallArray a -> m b
-streamFold f arr = f (toStream arr)
+streamFold f arr = f (read arr)
 
-{-# INLINE_NORMAL read #-}
-read :: Monad m => Unfold m (SmallArray a) a
-read = Unfold step inject
+{-# INLINE_NORMAL reader #-}
+reader :: Monad m => Unfold m (SmallArray a) a
+reader = Unfold step inject
   where
     inject arr = return (arr, 0)
     step (arr, i)

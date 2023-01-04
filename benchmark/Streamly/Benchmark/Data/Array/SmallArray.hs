@@ -9,7 +9,7 @@ import Control.DeepSeq (deepseq)
 import qualified Streamly.Internal.Data.SmallArray as A
 type Stream = A.SmallArray
 
-#include "Streamly/Benchmark/Data/Array/CommonSmallArray.hs"
+#include "Streamly/Benchmark/Data/Array/Common.hs"
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers
