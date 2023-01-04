@@ -7,6 +7,7 @@
 
 module Streamly.Internal.Data.Unboxed
     ( Unbox(..)
+    , SizeOfRep(..)
     , peekWith
     , pokeWith
     , MutableByteArray(..)
