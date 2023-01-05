@@ -733,7 +733,7 @@ intersperseMSuffixWith n eff =
 --
 -- Definition:
 --
--- >>> intersperseMPrefix_m = Stream.mapM (\x -> void m >> return x)
+-- >>> intersperseMPrefix_ m = Stream.mapM (\x -> void m >> return x)
 --
 -- >>> input = Stream.fromList "hello"
 -- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseMPrefix_ (putChar '.' >> return ',') input
@@ -783,7 +783,7 @@ delay = intersperseM_ . sleep
 -- Definition:
 --
 -- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
--- >>> delayPost = Stream.intersperseSuffix_ . sleep
+-- >>> delayPost = Stream.intersperseMSuffix_ . sleep
 --
 -- Example:
 --
