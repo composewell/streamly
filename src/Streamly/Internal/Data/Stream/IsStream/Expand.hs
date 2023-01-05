@@ -182,7 +182,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
     (append, interleave, interleaveSuffix, interleaveInfix, interleaveMin
     , roundRobin, mergeByM, unfoldMany, unfoldManyInterleave, intersperse
     , unfoldManyRoundRobin, interpose, interposeSuffix, gintercalate
-    , gintercalateSuffix, intersperseSuffix)
+    , gintercalateSuffix, intersperseMSuffix)
 import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy, mergeByM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (interleave, serial, concatPairsWith)
@@ -935,10 +935,10 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 
 -- > intercalateSuffix unf seed str = gintercalateSuffix unf str unf (repeatM seed)
 --
--- | 'intersperseSuffix' followed by unfold and concat.
+-- | 'intersperseMSuffix' followed by unfold and concat.
 --
--- > intercalateSuffix unf a str = unfoldMany unf $ intersperseSuffix a str
--- > intersperseSuffix = intercalateSuffix (Unfold.function id)
+-- > intercalateSuffix unf a str = unfoldMany unf $ intersperseMSuffix a str
+-- > intersperseMSuffix = intercalateSuffix (Unfold.function id)
 -- > unlines = intercalateSuffix Unfold.fromList "\n"
 --
 -- >>> Stream.toList $ Stream.intercalateSuffix Unfold.fromList "\n" $ Stream.fromList ["abc", "def", "ghi"]
@@ -949,7 +949,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 intercalateSuffix :: (IsStream t, Monad m)
     => Unfold m b c -> b -> t m b -> t m c
 intercalateSuffix unf seed str = fromStreamD $ D.unfoldMany unf
-    $ D.intersperseSuffix (return seed) (toStreamD str)
+    $ D.intersperseMSuffix (return seed) (toStreamD str)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap

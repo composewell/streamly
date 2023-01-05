@@ -437,7 +437,7 @@ findIndices p m = fromStreamD $ D.findIndices p (toStreamD m)
 -- Transformation by Inserting
 ------------------------------------------------------------------------------
 
--- intersperseM = intersperseBySpan 1
+-- intersperseM = intersperseMWith 1
 
 -- | Insert an effect and its output before consuming an element of a stream
 -- except the first one.
