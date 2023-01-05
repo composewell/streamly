@@ -6,104 +6,71 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Template Haskell macros to create useful stream types.
+-- Template Haskell macros to create custom newtype wrappers for the 'Stream'
+-- type, deriving all the usual instances.
 --
--- __Create a type with a serial zipping applicative property:__
+-- To use this module, "Streamly.Data.Stream" or "Streamly.Data.Stream.Prelude"
+-- must be imported as "Stream". Also, it is recommended to import this module
+-- unqualified to bring everything needed in scope without having to import
+-- several other modules.
 --
--- @
--- import Control.Monad.Catch (MonadThrow(..))
--- import Control.Monad.IO.Class (MonadIO(..))
--- import Control.Monad.Reader.Class (MonadReader(..))
--- import Control.Monad.Trans.Class (MonadTrans(..))
--- import Streamly.Data.Stream (Stream)
+-- >>> import Control.Monad.Reader.Class (MonadReader(..))
+-- >>> import qualified Streamly.Data.Stream.Prelude as Stream
+-- >>> import Streamly.Internal.Data.Stream.TypeGen
 --
--- import qualified Streamly.Data.Stream
--- import qualified Streamly.Data.Stream as Stream
--- import qualified Streamly.Internal.Data.Stream.TypeGen as StreamTypeGen
+-- Instead of using these macros directly you could use the generated code as
+-- well. Use these macros in ghci to generate the required code and paste it in
+-- your package, you can customize it as you want. See the docs of the macros
+-- below for examples of viewing the generated code.
 --
--- applySerial :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
--- applySerial = Stream.zipWith ($)
+-- Example, create an applicative type with zipping apply:
 --
--- \$(StreamTypeGen.mkZippingType \"ZipSerial\" "applySerial" False)
--- @
+-- >>> import Streamly.Data.Stream.Prelude (Stream)
+-- >>> :{
+-- zipApply :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
+-- zipApply = Stream.zipWith ($)
+-- :}
 --
--- __Create a type with a concurrent zipping applicative property:__
+-- > $(mkZipType "ZipStream" "zipApply" False)
 --
--- @
--- import Control.Monad.Catch (MonadThrow(..))
--- import Control.Monad.IO.Class (MonadIO(..))
--- import Control.Monad.Reader.Class (MonadReader(..))
--- import Control.Monad.Trans.Class (MonadTrans(..))
--- import Streamly.Data.Stream (Stream)
+-- Example, create an applicative type with concurrent zipping apply:
 --
--- import qualified Streamly.Data.Stream
--- import qualified Streamly.Data.Stream.Concurrent
--- import qualified Streamly.Data.Stream.Concurrent as Concur
--- import qualified Streamly.Internal.Data.Stream.TypeGen as StreamTypeGen
+-- > $(mkZipType "ParZipStream" "parApply" True)
 --
--- applyConcurrent :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
--- applyConcurrent = Concur.zipWith ($)
+-- Example, create a monad type with an interleaving cross product bind:
 --
--- \$(StreamTypeGen.mkZippingType \"ZipConcurrent\" "applyConcurrent" True)
--- @
+-- >>> :{
+-- interleaveBind :: Stream m a -> (a -> Stream m b) -> Stream m b
+-- interleaveBind = flip (Stream.concatMapWith Stream.interleave)
+-- :}
 --
--- __Create a type with serial interleave properties:__
+-- > $(mkCrossType "InterleaveStream" "interleaveBind" False)
 --
--- @
--- import Control.Monad.Catch (MonadThrow(..))
--- import Control.Monad.IO.Class (MonadIO(..))
--- import Control.Monad.Reader.Class (MonadReader(..))
--- import Control.Monad.Trans.Class (MonadTrans(..))
--- import Streamly.Data.Stream (Stream)
+-- Example, create a monad type with an eager concurrent cross product bind:
 --
--- import qualified Control.Monad
--- import qualified Streamly.Data.Stream
--- import qualified Streamly.Data.Stream as Stream
--- import qualified Streamly.Internal.Data.Stream.TypeGen as StreamTypeGen
+-- >>> :{
+-- parBind :: Stream.MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
+-- parBind = flip (Stream.parConcatMap (Stream.eager True))
+-- :}
 --
--- bindInterleave :: Stream m a -> (a -> Stream m b) -> Stream m b
--- bindInterleave = flip (Stream.concatMapWith Stream.interleave)
---
--- \$(StreamTypeGen.mkNestingType \"InterleaveSerial\" "bindInterleave" False)
--- @
---
--- __Create a type with eager concurrency properties:__
---
--- @
--- import Control.Monad.Catch (MonadThrow(..))
--- import Control.Monad.IO.Class (MonadIO(..))
--- import Control.Monad.Reader.Class (MonadReader(..))
--- import Control.Monad.Trans.Class (MonadTrans(..))
--- import Streamly.Data.Stream (Stream)
--- import Streamly.Data.Stream.Concurrent (MonadAsync)
---
--- import qualified Control.Monad
--- import qualified Streamly.Data.Stream
--- import qualified Streamly.Data.Stream.Concurrent
--- import qualified Streamly.Data.Stream.Concurrent as Concur
--- import qualified Streamly.Internal.Data.Stream.TypeGen as StreamTypeGen
---
--- bindConcurrent :: MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
--- bindConcurrent = flip (Concur.concatMapWith (Concur.eager True))
---
--- \$(StreamTypeGen.mkNestingType \"Parallel\" "bindConcurrent" True)
--- @
+-- > $(mkCrossType "ParEagerStream" "parBind" True)
 --
 module Streamly.Internal.Data.Stream.TypeGen
-    ( mkZippingType
-    , mkNestingType
+    (
+    -- * Imports for Examples
+    -- $setup
+
+    -- * Template Haskell Macros
+      mkZipType
+    , mkCrossType
+
+    -- * Re-exports
+    , MonadIO(..)
+    , MonadThrow(..)
+    -- , MonadReader(..)
+    , MonadTrans(..)
+    , ap
     ) where
-
---------------------------------------------------------------------------------
--- Developer notes
---------------------------------------------------------------------------------
-
--- Debugging helpers,
---
--- >>> import Language.Haskell.TH
--- >>> import Streamly.Internal.Data.Stream.TypeGen
--- >>> expr <- runQ (mkNestingType "Parallel" "bindConcurrent" True)
--- >>> putStrLn $ pprint expr
 
 --------------------------------------------------------------------------------
 -- Imports
@@ -112,9 +79,20 @@ module Streamly.Internal.Data.Stream.TypeGen
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax
 
+import Control.Monad (ap)
+import Control.Monad.Catch (MonadThrow(..))
+import Control.Monad.IO.Class (MonadIO(..))
+-- import Control.Monad.Reader.Class (MonadReader(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Prelude hiding (repeat)
+
 -- $setup
 -- >>> :m
+-- >>> :set -package mtl
+-- >>> :set -package streamly
 -- >>> import Language.Haskell.TH
+-- >>> import Control.Monad.Reader.Class (MonadReader(..))
+-- >>> import qualified Streamly.Data.Stream.Prelude as Stream
 -- >>> import Streamly.Internal.Data.Stream.TypeGen
 
 --------------------------------------------------------------------------------
@@ -141,7 +119,7 @@ _r :: Name
 _r = mkName "r"
 
 _Stream :: Name
-_Stream = mkName "Stream"
+_Stream = mkName "Stream.Stream"
 
 _fmap :: Name
 _fmap = mkName "fmap"
@@ -451,50 +429,50 @@ mkSimpleStreamInstances dtNameStr = do
 
 -- | Create a type with a zip-like applicative.
 --
--- >>> expr <- runQ (mkZippingType "ZipSerial" "apZipSerial" False)
+-- >>> expr <- runQ (mkZipType "ZipStream" "zipApply" False)
 -- >>> putStrLn $ pprint expr
--- newtype ZipSerial m a = ZipSerial (Stream m a)
--- mkZipSerial :: Stream m a -> ZipSerial m a
--- mkZipSerial = ZipSerial
--- unZipSerial :: ZipSerial m a -> Stream m a
--- unZipSerial (ZipSerial strm) = strm
--- instance Monad m => Functor (ZipSerial m)
+-- newtype ZipStream m a = ZipStream (Stream.Stream m a)
+-- mkZipStream :: Stream.Stream m a -> ZipStream m a
+-- mkZipStream = ZipStream
+-- unZipStream :: ZipStream m a -> Stream.Stream m a
+-- unZipStream (ZipStream strm) = strm
+-- instance Monad m => Functor (ZipStream m)
 --     where {-# INLINE fmap #-}
---           fmap f (ZipSerial strm) = ZipSerial (fmap f strm)
--- instance Monad m => Applicative (ZipSerial m)
+--           fmap f (ZipStream strm) = ZipStream (fmap f strm)
+-- instance Monad m => Applicative (ZipStream m)
 --     where {-# INLINE pure #-}
---           pure = ZipSerial . Streamly.Data.Stream.repeat
+--           pure = ZipStream . Stream.repeat
 --           {-# INLINE (<*>) #-}
---           (<*>) (ZipSerial strm1) (ZipSerial strm2) = ZipSerial (apZipSerial strm1 strm2)
--- instance MonadTrans ZipSerial
+--           (<*>) (ZipStream strm1) (ZipStream strm2) = ZipStream (zipApply strm1 strm2)
+-- instance MonadTrans ZipStream
 --     where {-# INLINE lift #-}
---           lift = ZipSerial . lift
--- instance (Monad (ZipSerial m), MonadIO m) => MonadIO (ZipSerial m)
+--           lift = ZipStream . lift
+-- instance (Monad (ZipStream m), MonadIO m) => MonadIO (ZipStream m)
 --     where {-# INLINE liftIO #-}
---           liftIO = ZipSerial . (lift . liftIO)
--- instance (Monad (ZipSerial m),
---           MonadThrow m) => MonadThrow (ZipSerial m)
+--           liftIO = ZipStream . (lift . liftIO)
+-- instance (Monad (ZipStream m),
+--           MonadThrow m) => MonadThrow (ZipStream m)
 --     where {-# INLINE throwM #-}
---           throwM = ZipSerial . (lift . throwM)
--- instance (Monad (ZipSerial m), MonadReader r m) => MonadReader r
---                                                                (ZipSerial m)
+--           throwM = ZipStream . (lift . throwM)
+-- instance (Monad (ZipStream m), MonadReader r m) => MonadReader r
+--                                                                (ZipStream m)
 --     where {-# INLINE ask #-}
 --           ask = lift ask
 --           {-# INLINE local #-}
---           local f (ZipSerial strm) = ZipSerial (local f strm)
-mkZippingType
+--           local f (ZipStream strm) = ZipStream (local f strm)
+mkZipType
     :: String -- ^ Name of the type
     -> String -- ^ Function to use for (\<*\>)
-    -> Bool   -- ^ 'True' if (\<*\>) has concurrent properties
+    -> Bool   -- ^ 'True' if (\<*\>) requires MonadAsync constraint (concurrent)
     -> Q [Dec]
-mkZippingType dtNameStr apOpStr isConcurrent = do
+mkZipType dtNameStr apOpStr isConcurrent = do
     typeDec <- makeTypeDec dtNameStr
     functorI <- makeStreamFunctor dtNameStr
     applicativeI <-
         mkStreamApplicative
             dtNameStr
             classConstraints
-            "Streamly.Data.Stream.repeat"
+            "Stream.repeat"
             apOpStr
     simpleInstances <- mkSimpleStreamInstances dtNameStr
     return $ typeDec ++ [functorI, applicativeI] ++ simpleInstances
@@ -503,30 +481,30 @@ mkZippingType dtNameStr apOpStr isConcurrent = do
 
     classConstraints =
         if isConcurrent
-        then ["Streamly.Data.Stream.Concurrent.MonadAsync"]
+        then ["Stream.MonadAsync"]
         else ["Monad"]
 
 -- | Create a type with specific stream combination properties.
 --
--- >>> expr <- runQ (mkNestingType "Parallel" "bindConcurrent" True)
+-- >>> expr <- runQ (mkCrossType "Parallel" "parBind" True)
 -- >>> putStrLn $ pprint expr
--- newtype Parallel m a = Parallel (Stream m a)
--- mkParallel :: Stream m a -> Parallel m a
+-- newtype Parallel m a = Parallel (Stream.Stream m a)
+-- mkParallel :: Stream.Stream m a -> Parallel m a
 -- mkParallel = Parallel
--- unParallel :: Parallel m a -> Stream m a
+-- unParallel :: Parallel m a -> Stream.Stream m a
 -- unParallel (Parallel strm) = strm
 -- instance Monad m => Functor (Parallel m)
 --     where {-# INLINE fmap #-}
 --           fmap f (Parallel strm) = Parallel (fmap f strm)
--- instance Streamly.Data.Stream.Concurrent.MonadAsync m => Monad (Parallel m)
+-- instance Stream.MonadAsync m => Monad (Parallel m)
 --     where {-# INLINE (>>=) #-}
 --           (>>=) (Parallel strm1) f = let f1 a = unParallel (f a)
---                                       in Parallel (bindConcurrent strm1 f1)
--- instance Streamly.Data.Stream.Concurrent.MonadAsync m => Applicative (Parallel m)
+--                                       in Parallel (parBind strm1 f1)
+-- instance Stream.MonadAsync m => Applicative (Parallel m)
 --     where {-# INLINE pure #-}
---           pure = Parallel . Streamly.Data.Stream.fromPure
+--           pure = Parallel . Stream.fromPure
 --           {-# INLINE (<*>) #-}
---           (<*>) (Parallel strm1) (Parallel strm2) = Parallel (Control.Monad.ap strm1 strm2)
+--           (<*>) (Parallel strm1) (Parallel strm2) = Parallel (ap strm1 strm2)
 -- instance MonadTrans Parallel
 --     where {-# INLINE lift #-}
 --           lift = Parallel . lift
@@ -543,12 +521,12 @@ mkZippingType dtNameStr apOpStr isConcurrent = do
 --           ask = lift ask
 --           {-# INLINE local #-}
 --           local f (Parallel strm) = Parallel (local f strm)
-mkNestingType
+mkCrossType
     :: String -- ^ Name of the type
     -> String -- ^ Function to use for (>>=)
-    -> Bool   -- ^ 'True' if (>>=) has concurrent properties
+    -> Bool   -- ^ 'True' if (>>=) requires MonadAsync constraint (concurrent)
     -> Q [Dec]
-mkNestingType dtNameStr bindOpStr isConcurrent = do
+mkCrossType dtNameStr bindOpStr isConcurrent = do
     typeDec <- makeTypeDec dtNameStr
     functorI <- makeStreamFunctor dtNameStr
     monadI <- mkStreamMonad dtNameStr classConstraints bindOpStr
@@ -556,8 +534,8 @@ mkNestingType dtNameStr bindOpStr isConcurrent = do
         mkStreamApplicative
             dtNameStr
             classConstraints
-            "Streamly.Data.Stream.fromPure"
-            "Control.Monad.ap"
+            "Stream.fromPure"
+            "ap"
     simpleInstances <- mkSimpleStreamInstances dtNameStr
     return $ typeDec ++ [functorI, monadI, applicativeI] ++ simpleInstances
 
@@ -565,5 +543,5 @@ mkNestingType dtNameStr bindOpStr isConcurrent = do
 
     classConstraints =
         if isConcurrent
-        then ["Streamly.Data.Stream.Concurrent.MonadAsync"]
+        then ["Stream.MonadAsync"]
         else ["Monad"]
