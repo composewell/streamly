@@ -381,6 +381,7 @@ library
                      , Streamly.Internal.Network.Inet.TCP
 
                      -- Exposed modules
+                     , Streamly.Data.Stream.MkType
                      , Streamly.Data.Stream.Prelude
 
                      -- Network/IO
