@@ -343,6 +343,7 @@ library
 
                        Streamly.Internal.Data.IsMap.HashMap
                      , Streamly.Internal.Data.Cont
+                     , Streamly.Internal.Data.Stream.TypeGen
 
                      -- streamly-concurrent
                      , Streamly.Internal.Control.Concurrent
@@ -469,6 +470,7 @@ library
                      , exceptions        >= 0.8.0 && < 0.11
                      , mtl               >= 2.2.2 && < 2.4
                      , transformers      >= 0.5.5 && < 0.7
+                     , template-haskell  >= 2.14  && < 2.20
 
                      -- The core streamly package
                      , streamly-core     == 0.1.0
