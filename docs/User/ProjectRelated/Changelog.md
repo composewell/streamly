@@ -17,45 +17,36 @@
 * Following APIs have been renamed in Streamly.Data.Fold module:
     head -> one
 
-* Moved Streamly.Data.Array from streamly to streamly-core package.
-* Moved Streamly.Data.Unfold from streamly to streamly-core package.
-* Moved Streamly.Console.Stdio from streamly to streamly-core package.
-* Moved Streamly.FileSystem.Handle from streamly to streamly-core package.
-* Moved Streamly.Unicode.Stream from streamly to streamly-core package.
-
-* Following internal modules moved from streamly to streamly-core:
+* Following modules and corresponding internal modules have been moved
+  from streamly package to streamly-core package:
+    Streamly.Data.Array
+    Streamly.Data.Unfold
+    Streamly.Console.Stdio
+    Streamly.FileSystem.Handle
+    Streamly.Unicode.Stream
     Streamly.Internal.Console.Stdio
     Streamly.Internal.Data.Array.Stream.Foreign
     Streamly.Internal.Data.Binary.Decode
     Streamly.Internal.FileSystem.Handle
-    Streamly.Internal.Unicode.Stream
-    Streamly.Internal.Unicode.String
-    Streamly.Internal.Unicode.Char.Parser
-    Streamly.Internal.Unicode.Array.Char
 
 * Following modules are renamed in streamly-core package:
     Streamly.Internal.Data.Array.Foreign -> Streamly.Internal.Data.Array
     Streamly.Internal.Data.Array.Foreign.Mut -> Streamly.Internal.Data.Array.Mut
     Streamly.Internal.Data.Array.Foreign.Mut.Type -> Streamly.Internal.Data.Array.Mut.Type
     Streamly.Internal.Data.Array.Foreign.Type -> Streamly.Internal.Data.Array.Type
-    Streamly.Internal.Data.Array.Stream.Foreign -> Streamly.Internal.Data.Array.Stream
+    Streamly.Internal.Data.Array.Stream.Foreign -> Streamly.Internal.Data.Stream.Chunked
     Streamly.Internal.Data.Array.Stream.Mut.Foreign ->  Streamly.Internal.Data.Array.Mut.Stream
-    Streamly.Internal.Data.Array.Stream.Fold.Foreign -> Streamly.Internal.Data.Array.Stream.Fold
-    Streamly.Internal.Data.Ring.Foreign -> Streamly.Internal.Data.Ring.Unboxed
 
-    Streamly.Internal.Data.IORef.Prim -> Streamly.Internal.Data.IORef.Unboxed
-
-
-* Exposed Streamly.Data.Parser module.
-* Exposed Streamly.Unicode.String module.
-* Exposed Streamly.Unicode.Parser module.
+* Added following new modules:
+    Streamly.Data.Parser
+    Streamly.Unicode.String
+    Streamly.Unicode.Parser
 
 * Signature changed: Streamly.Data.Unfold.fromStream
 
 * Add `Streamly.Data.Stream.Concurrent` that provide combinators for handling
   non-serial streams.
 * Remove the MonadBase instance of the SerialT type.
-* Add `rmapM` to module Streamly.Internal.Data.Parser.
 
 ### Deprecations
 
@@ -66,6 +57,10 @@
 * `Streamly.Data.Array.Foreign` is deprecated. Use `Streamly.Data.Array`
   instead.
 * The type of `replicateM` in `Streamly.Data.Unfold` is changed.
+
+### Notes:
+  If you cannot find an internal module, it may have been moved to streamly-core
+  package or may have been renamed.
 
 ## 0.8.2 (Mar 2022)
 
