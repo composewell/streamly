@@ -65,7 +65,7 @@
 -- lived strings in memory.
 --
 module Streamly.Data.Unicode.Stream
-    {-# DEPRECATED "Use \"Streamly.Unicode.Stream\" instead" #-}
+    {-# DEPRECATED "Please use Streamly.Unicode.Stream module from the streamly-core package." #-}
     (
     -- * Construction (Decoding)
       decodeLatin1

@@ -317,7 +317,8 @@
 -- documentation for illustration. The actual implementation may differ for
 -- performance reasons.
 
-module Streamly.Prelude {-# DEPRECATED "Please use \"Streamly.Data.Stream\", \"Streamly.Data.Stream.Concurrent\", & \"Streamly.Data.Stream.Time\" instead." #-}
+module Streamly.Prelude
+{-# DEPRECATED "Please use \"Streamly.Data.Stream.Prelude\" instead." #-}
     (
     -- * Construction
     -- | Functions ending in the general shape @b -> t m a@.

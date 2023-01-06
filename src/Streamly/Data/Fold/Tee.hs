@@ -7,7 +7,7 @@
 -- Portability : GHC
 --
 module Streamly.Data.Fold.Tee
-{-# DEPRECATED "Please use \"Streamly.Data.Fold\" instead." #-}
+{-# DEPRECATED "Please use Streamly.Data.Fold module from the streamly-core package." #-}
     ( Tee(..)
     )
 where

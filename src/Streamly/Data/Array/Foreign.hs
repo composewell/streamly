@@ -53,7 +53,7 @@
 -- For experimental APIs see "Streamly.Internal.Data.Array".
 
 module Streamly.Data.Array.Foreign
-    {-# DEPRECATED "Please use \"Streamly.Data.Array\" instead." #-}
+    {-# DEPRECATED "Please use Streamly.Data.Array module from the streamly-core package." #-}
     (
       A.Array
 
