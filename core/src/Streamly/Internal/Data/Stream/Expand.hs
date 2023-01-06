@@ -550,10 +550,10 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 
 -- > intercalateSuffix unf seed str = gintercalateSuffix unf str unf (repeatM seed)
 
--- | 'intersperseSuffix' followed by unfold and concat.
+-- | 'intersperseMSuffix' followed by unfold and concat.
 --
--- >>> intercalateSuffix u a = Stream.unfoldMany u . Stream.intersperseSuffix a
--- >>> intersperseSuffix = Stream.intercalateSuffix Unfold.identity
+-- >>> intercalateSuffix u a = Stream.unfoldMany u . Stream.intersperseMSuffix a
+-- >>> intersperseMSuffix = Stream.intercalateSuffix Unfold.identity
 -- >>> unlines = Stream.intercalateSuffix Unfold.fromList "\n"
 --
 -- >>> input = Stream.fromList ["abc", "def", "ghi"]
@@ -564,7 +564,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 intercalateSuffix :: Monad m
     => Unfold m b c -> b -> Stream m b -> Stream m c
 intercalateSuffix unf seed str = fromStreamD $ D.unfoldMany unf
-    $ D.intersperseSuffix (return seed) (toStreamD str)
+    $ D.intersperseMSuffix (return seed) (toStreamD str)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap

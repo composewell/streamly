@@ -85,12 +85,12 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , insertBy
     , intersperse
     , intersperseM
-    , intersperseSuffix
-    , intersperseSuffixBySpan
+    , intersperseMSuffix
+    , intersperseMSuffixWith
 
     -- * Inserting Side Effects
     , intersperseM_
-    , intersperseSuffix_
+    , intersperseMSuffix_
 
     -- * Reordering
     -- | Produce strictly the same set but reordered.
@@ -846,9 +846,9 @@ data SuffixState s a
     | SuffixSuffix s
     | SuffixYield a (SuffixState s a)
 
-{-# INLINE_NORMAL intersperseSuffix #-}
-intersperseSuffix :: forall m a. Monad m => m a -> Stream m a -> Stream m a
-intersperseSuffix action (Stream step state) = Stream step' (SuffixElem state)
+{-# INLINE_NORMAL intersperseMSuffix #-}
+intersperseMSuffix :: forall m a. Monad m => m a -> Stream m a -> Stream m a
+intersperseMSuffix action (Stream step state) = Stream step' (SuffixElem state)
     where
     {-# INLINE_LATE step' #-}
     step' gst (SuffixElem st) = do
@@ -863,9 +863,9 @@ intersperseSuffix action (Stream step state) = Stream step' (SuffixElem state)
 
     step' _ (SuffixYield x next) = return $ Yield x next
 
-{-# INLINE_NORMAL intersperseSuffix_ #-}
-intersperseSuffix_ :: Monad m => m b -> Stream m a -> Stream m a
-intersperseSuffix_ m (Stream step1 state1) = Stream step (Left state1)
+{-# INLINE_NORMAL intersperseMSuffix_ #-}
+intersperseMSuffix_ :: Monad m => m b -> Stream m a -> Stream m a
+intersperseMSuffix_ m (Stream step1 state1) = Stream step (Left state1)
   where
     {-# INLINE_LATE step #-}
     step gst (Left st) = do
@@ -885,10 +885,10 @@ data SuffixSpanState s a
     | SuffixSpanStop
 
 -- | intersperse after every n items
-{-# INLINE_NORMAL intersperseSuffixBySpan #-}
-intersperseSuffixBySpan :: forall m a. Monad m
+{-# INLINE_NORMAL intersperseMSuffixWith #-}
+intersperseMSuffixWith :: forall m a. Monad m
     => Int -> m a -> Stream m a -> Stream m a
-intersperseSuffixBySpan n action (Stream step state) =
+intersperseMSuffixWith n action (Stream step state) =
     Stream step' (SuffixSpanElem state n)
     where
     {-# INLINE_LATE step' #-}

@@ -109,10 +109,10 @@ module Streamly.Internal.Data.Stream.IsStream.Transform {-# DEPRECATED "Please u
     -- Element agnostic (Opposite of sampling)
     , intersperse
     , intersperseM -- XXX naming
-    , intersperseBySpan
+    , intersperseMWith
 
-    , intersperseSuffix
-    , intersperseSuffixBySpan
+    , intersperseMSuffix
+    , intersperseMSuffixWith
     , interjectSuffix
 
     -- , interspersePrefix
@@ -121,9 +121,9 @@ module Streamly.Internal.Data.Stream.IsStream.Transform {-# DEPRECATED "Please u
     -- * Inserting Side Effects/Time
     , intersperseM_ -- XXX naming
     , delay
-    , intersperseSuffix_
+    , intersperseMSuffix_
     , delayPost
-    , interspersePrefix_
+    , intersperseMPrefix_
     , delayPre
 
     -- * Element Aware Insertion
@@ -261,8 +261,8 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
     , scanMany, postscanOnce, scanlx', scanlM', scanl', postscanl', prescanl'
     , prescanlM', scanl1M', scanl1', filter, filterM, uniq, deleteBy, takeWhileM
     , dropWhile, dropWhileM, insertBy, intersperse
-    , intersperseM_, intersperseSuffix, intersperseSuffix_
-    , intersperseSuffixBySpan, indexed, indexedR, rollingMap, rollingMapM
+    , intersperseM_, intersperseMSuffix, intersperseMSuffix_
+    , intersperseMSuffixWith, indexed, indexedR, rollingMap, rollingMapM
     , rollingMap2, mapMaybe, mapMaybeM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (foldrS, foldrSShared, mapMWith)
@@ -610,7 +610,7 @@ trace f = mapM (\x -> void (f x) >> return x)
 --
 -- @
 --
--- Same as 'interspersePrefix_' but always serial.
+-- Same as 'intersperseMPrefix_' but always serial.
 --
 -- See also: 'trace'
 --
@@ -1165,60 +1165,60 @@ intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
 -- elements.
 --
 -- @
--- > Stream.toList $ Stream.intersperseBySpan 2 (return ',') $ Stream.fromList "hello"
+-- > Stream.toList $ Stream.intersperseMWith 2 (return ',') $ Stream.fromList "hello"
 -- "he,ll,o"
 --
 -- @
 --
 -- /Unimplemented/
-{-# INLINE intersperseBySpan #-}
-intersperseBySpan :: -- IsStream t =>
+{-# INLINE intersperseMWith #-}
+intersperseMWith :: -- IsStream t =>
     Int -> m a -> t m a -> t m a
-intersperseBySpan _n _f _xs = undefined
+intersperseMWith _n _f _xs = undefined
 
 -- | Insert an effect and its output after consuming an element of a stream.
 --
--- >>> Stream.toList $ Stream.trace putChar $ intersperseSuffix (putChar '.' >> return ',') $ Stream.fromList "hello"
+-- >>> Stream.toList $ Stream.trace putChar $ intersperseMSuffix (putChar '.' >> return ',') $ Stream.fromList "hello"
 -- h.,e.,l.,l.,o.,"h,e,l,l,o,"
 --
 -- /Pre-release/
-{-# INLINE intersperseSuffix #-}
-intersperseSuffix :: (IsStream t, Monad m) => m a -> t m a -> t m a
-intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
+{-# INLINE intersperseMSuffix #-}
+intersperseMSuffix :: (IsStream t, Monad m) => m a -> t m a -> t m a
+intersperseMSuffix m = fromStreamD . D.intersperseMSuffix m . toStreamD
 
 -- | Insert a side effect after consuming an element of a stream.
 --
 -- @
--- >>> Stream.mapM_ putChar $ Stream.intersperseSuffix_ (threadDelay 1000000) $ Stream.fromList "hello"
+-- >>> Stream.mapM_ putChar $ Stream.intersperseMSuffix_ (threadDelay 1000000) $ Stream.fromList "hello"
 -- hello
 --
 -- @
 --
 -- /Pre-release/
 --
-{-# INLINE intersperseSuffix_ #-}
-intersperseSuffix_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
-intersperseSuffix_ m = fromStreamD . D.intersperseSuffix_ m . toStreamD
+{-# INLINE intersperseMSuffix_ #-}
+intersperseMSuffix_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
+intersperseMSuffix_ m = fromStreamD . D.intersperseMSuffix_ m . toStreamD
 
 -- XXX Use an offset argument, like tapOffsetEvery
 --
--- | Like 'intersperseSuffix' but intersperses an effectful action into the
+-- | Like 'intersperseMSuffix' but intersperses an effectful action into the
 -- input stream after every @n@ elements and after the last element.
 --
--- >>> Stream.toList $ Stream.intersperseSuffixBySpan 2 (return ',') $ Stream.fromList "hello"
+-- >>> Stream.toList $ Stream.intersperseMSuffixWith 2 (return ',') $ Stream.fromList "hello"
 -- "he,ll,o,"
 --
 -- /Pre-release/
 --
-{-# INLINE intersperseSuffixBySpan #-}
-intersperseSuffixBySpan :: (IsStream t, Monad m)
+{-# INLINE intersperseMSuffixWith #-}
+intersperseMSuffixWith :: (IsStream t, Monad m)
     => Int -> m a -> t m a -> t m a
-intersperseSuffixBySpan n eff =
-    fromStreamD . D.intersperseSuffixBySpan n eff . toStreamD
+intersperseMSuffixWith n eff =
+    fromStreamD . D.intersperseMSuffixWith n eff . toStreamD
 
 -- | Insert a side effect before consuming an element of a stream.
 --
--- >>> Stream.toList $ Stream.trace putChar $ Stream.interspersePrefix_ (putChar '.' >> return ',') $ Stream.fromList "hello"
+-- >>> Stream.toList $ Stream.trace putChar $ Stream.intersperseMPrefix_ (putChar '.' >> return ',') $ Stream.fromList "hello"
 -- .h.e.l.l.o"hello"
 --
 -- Same as 'trace_' but may be concurrent.
@@ -1227,9 +1227,9 @@ intersperseSuffixBySpan n eff =
 --
 -- /Pre-release/
 --
-{-# INLINE interspersePrefix_ #-}
-interspersePrefix_ :: (IsStream t, MonadAsync m) => m b -> t m a -> t m a
-interspersePrefix_ m = mapM (\x -> void m >> return x)
+{-# INLINE intersperseMPrefix_ #-}
+intersperseMPrefix_ :: (IsStream t, MonadAsync m) => m b -> t m a -> t m a
+intersperseMPrefix_ m = mapM (\x -> void m >> return x)
 
 ------------------------------------------------------------------------------
 -- Inserting Time
@@ -1265,7 +1265,7 @@ delay n = intersperseM_ $ liftIO $ threadDelay $ round $ n * 1000000
 --
 {-# INLINE delayPost #-}
 delayPost :: (IsStream t, MonadIO m) => Double -> t m a -> t m a
-delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
+delayPost n = intersperseMSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 
 -- Note: delay must be serial, that's why 'trace_' is used.
 --

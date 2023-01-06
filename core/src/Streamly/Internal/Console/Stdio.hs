@@ -52,7 +52,7 @@ import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.Fold (Fold)
 
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Stream as Stream (intersperseSuffix)
+import qualified Streamly.Internal.Data.Stream as Stream (intersperseMSuffix)
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
@@ -223,5 +223,5 @@ putStrings = putStringsWith Unicode.encodeUtf8
 putStringsLn :: MonadIO m => Stream m String -> m ()
 putStringsLn =
       putChunks
-    . Stream.intersperseSuffix (return $ Array.fromList [10])
+    . Stream.intersperseMSuffix (return $ Array.fromList [10])
     . Unicode.encodeStrings Unicode.encodeUtf8
