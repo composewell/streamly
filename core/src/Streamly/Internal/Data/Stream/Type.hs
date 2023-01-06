@@ -393,6 +393,8 @@ fromEffect = fromStreamK . K.fromEffect
 --
 -- Note that the second stream is evaluated multiple times.
 --
+-- >>> crossApply = Stream.crossWith id
+--
 {-# INLINE crossApply #-}
 crossApply :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
 crossApply m1 m2 =
