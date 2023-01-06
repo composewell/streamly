@@ -101,7 +101,7 @@ import Data.Function ((&))
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.FileSystem.File as File
+import qualified Streamly.FileSystem.File as File
 
 wcb :: String -> IO Int
 wcb file =
@@ -165,12 +165,11 @@ then combines the outputs from the folds using the supplied combiner
 function (`(,,)`).
 
 ```haskell ghci
-import Streamly.Internal.Data.Fold.Tee (Tee(Tee))
-import qualified Streamly.Internal.Data.Fold.Tee as Tee
+import Streamly.Data.Fold (Tee(..))
 
 -- The fold accepts a stream of `Word8` and returns the three counts.
 countAll :: Fold IO Word8 (Int, Int, Int)
-countAll = Tee.toFold $ (,,) <$> Tee Fold.length <*> Tee nlines <*> Tee nwords
+countAll = unTee $ (,,) <$> Tee Fold.length <*> Tee nlines <*> Tee nwords
 
 wc :: String -> IO (Int, Int, Int)
 wc file =
@@ -296,31 +295,22 @@ from each chunk.
 ```haskell ghci
 {-# LANGUAGE FlexibleContexts #-}
 
-import qualified Streamly.Data.Stream.Concurrent as Concur
-
--- Number of threads we can afford
-numCapabilities :: Int
-numCapabilities = 10
+import GHC.Conc (numCapabilities)
+import qualified Streamly.Data.Stream.Prelude as Stream
 
 wc :: String -> IO (Bool, Counts)
 wc file = do
-      Stream.unfold File.chunkReader file
-    & Concur.mapMWith
-          ( Concur.maxThreads numCapabilities
-          . Concur.ordered True )
-          partialCounts
-    & Stream.fold
-          (Fold.foldl' addCounts (False, Counts 0 0 0 True))
+      File.readChunks file             -- Stream IO (Array Word8)
+    & Stream.parMapM cfg partialCounts -- Stream IO (Bool, Counts)
+    & Stream.fold add                  -- IO (Bool, Counts)
+
+    where
+
+    cfg = Stream.maxThreads numCapabilities . Stream.ordered True
+    add = Fold.foldl' addCounts (False, Counts 0 0 0 True)
 ```
 
-Please note that we use the mapping function from
-`Streamly.Data.Stream.Concurrent` module. We explicitly specify what parts of
-our stream are concurrent.
-
-If we replace `Concur.mapMWith (Concur.maxThreads numCapabilities
-. Concur.ordered True)` with `Stream.mapM`, we would still have a perfectly
-valid and performant serial program. Notice how succinctly and idiomatically we
-have expressed the concurrent word counting problem.
+We can replace `parMapM` with `mapM` to get a serial version of the program.
 
 A benchmark with 2 CPUs:
 
@@ -376,14 +366,19 @@ fetch w = threadDelay 1000000 >> return (w,w)
 -- connection is closed.
 lookupWords :: Socket -> IO ()
 lookupWords sk =
-      Stream.unfold Socket.reader sk
-    & Unicode.decodeLatin1
-    & Stream.parseMany (Parser.wordBy isSpace Fold.toList)
-    & Concur.mapMWith (Concur.ordered True) fetch
-    & fmap show
-    & Stream.intersperse "\n"
-    & Unicode.encodeStrings Unicode.encodeLatin1
+      Stream.unfold Socket.reader sk             -- Stream IO Word8
+    & Unicode.decodeLatin1                       -- Stream IO Char
+    & Stream.parseMany word                      -- Stream IO String
+    & Stream.parMapM cfg fetch                   -- Stream IO (String, String)
+    & fmap show                                  -- Stream IO String
+    & Stream.intersperse "\n"                    -- Stream IO String
+    & Unicode.encodeStrings Unicode.encodeLatin1 -- Stream IO (Array Word8)
     & Stream.fold (Socket.writeChunks sk)
+
+    where
+
+    word = Parser.wordBy isSpace Fold.toList
+    cfg = Stream.ordered True
 
 serve :: Socket -> IO ()
 serve sk = finally (lookupWords sk) (close sk)
@@ -393,9 +388,9 @@ serve sk = finally (lookupWords sk) (close sk)
 -- "nc" as a client to try it out.
 main :: IO ()
 main =
-      Stream.unfold TCP.acceptorOnPort 8091
-    & Concur.mapMWith id serve
-    & Stream.fold Fold.drain
+      Stream.unfold TCP.acceptorOnPort 8091 -- Stream IO Socket
+    & Stream.parMapM id serve               -- Stream IO ()
+    & Stream.fold Fold.drain                -- IO ()
 ```
 
 ### Merging Incoming Streams
@@ -424,9 +419,13 @@ import qualified Streamly.FileSystem.Handle as Handle
 -- buffering for safety.
 readLines :: Socket -> Stream IO (Array Char)
 readLines sk =
-    Stream.unfold Socket.reader sk
-  & Unicode.decodeLatin1
-  & Stream.foldMany (Fold.takeEndBy (== '\n') Array.write)
+    Stream.unfold Socket.reader sk -- Stream IO Word8
+  & Unicode.decodeLatin1           -- Stream IO Char
+  & Stream.foldMany line           -- Stream IO (Array Char)
+
+  where
+
+  line = Fold.takeEndBy (== '\n') Array.write
 
 recv :: Socket -> Stream IO (Array Char)
 recv sk = Stream.finallyIO (close sk) (readLines sk)
@@ -437,11 +436,11 @@ recv sk = Stream.finallyIO (close sk) (readLines sk)
 -- streams at line boundaries and writes the merged stream to a file.
 server :: Handle -> IO ()
 server file =
-      Stream.unfold TCP.acceptorOnPort 8090
-    & Concur.concatMapWith (Concur.eager True) recv
-    & Stream.unfoldMany Array.reader
-    & Unicode.encodeLatin1
-    & Stream.fold (Handle.write file)
+      Stream.unfold TCP.acceptorOnPort 8090        -- Stream IO Socket
+    & Stream.parConcatMap (Stream.eager True) recv -- Stream IO (Array Char)
+    & Stream.unfoldMany Array.reader               -- Stream IO Char
+    & Unicode.encodeLatin1                         -- Stream IO Word8
+    & Stream.fold (Handle.write file)              -- IO ()
 
 main :: IO ()
 main = withFile "output.txt" AppendMode server
@@ -449,63 +448,42 @@ main = withFile "output.txt" AppendMode server
 
 ### Listing Directories Recursively/Concurrently
 
-Our next example lists a directory tree recursively, reading
-multiple directories concurrently.
+Our next example lists a directory tree recursively, and concurrently.
 
-This example uses the tree traversing combinator `iterateMapLeftsWith`.  This
-combinator maps a stream generator on the `Left` values in its input stream
-(directory names in this case), feeding the resulting `Left` values back to the
-input, while it lets the `Right` values (file names in this case) pass through
-to the output. The joining combinator explicitly sends streams to a channel
-making it iterate on the directories concurrently.
+This example uses the tree traversing combinator `parConcatIterate`.  This
+combinator maps a stream generator function on the input stream and then
+recursively on the generated stream as well and flattens the results. We map a
+directory to a stream generating its children and a file to a nil stream. This
+results in a concurrent recursive depth first traversal of the directory tree.
 
-Please see the file [ListDir.hs][] for the complete working code,
-including the imports that we have omitted below.
+Please see [ListDir.hs][] for the complete working code.
 
 ```haskell ghci
-import Data.Bifunctor (bimap)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
-import qualified Streamly.Internal.Data.Stream as Stream (iterateMapLeftsWith)
-import qualified Streamly.Internal.FileSystem.Dir as Dir (readEither)
-import qualified Streamly.Internal.Data.Stream.Concurrent.Channel as Concur
+import qualified Streamly.Internal.FileSystem.Dir as Dir (readEitherPaths)
 
--- Lists a directory as a stream of (Either Dir File).
-listDir :: String -> Stream IO (Either String String)
-listDir dir =
-      Dir.readEither dir
-    & fmap (bimap mkAbs mkAbs)
-
-    where mkAbs x = dir ++ "/" ++ x
-
--- | List the current directory recursively using concurrent processing.
 main :: IO ()
 main = do
-    chan <- Concur.newChannel (Concur.ordered True)
-    let combineOrdered s1 s2 = do
-            Stream.fromEffect $ Concur.toChannel chan s1
-            Stream.fromEffect $ Concur.toChannel chan s2
-            Concur.fromChannel chan
     hSetBuffering stdout LineBuffering
     let start = Stream.fromPure (Left ".")
-    Stream.iterateMapLeftsWith combineOrdered listDir start
-        & Stream.fold (Fold.drainMapM print)
+        f = either Dir.readEitherPaths (const Stream.nil)
+        ls = Stream.parConcatIterate id f start
+     in Stream.fold (Fold.drainMapM print) ls
 ```
 
 ### Rate Limiting
 
-For bounded concurrent streams, a stream yield rate can be specified
-easily.  For example, to print "tick" once every second you can simply
-write:
+For concurrent streams, a stream evaluation rate can be specified.  For
+example, to print "tick" once every second you can simply write:
 
 ```haskell ghci
 import qualified Streamly.Internal.Data.Stream as Stream (timestamped)
 
 main :: IO ()
 main =
-      Stream.repeat (pure "tick")
-    & Concur.sequenceWith (Concur.avgRate 1)
-    & Stream.timestamped
-    & Stream.fold (Fold.drainMapM print)
+      Stream.parRepeatM (Stream.avgRate 1) (pure "tick") -- Stream IO String
+    & Stream.timestamped                                 -- Stream IO (AbsTime, String)
+    & Stream.fold (Fold.drainMapM print)                 -- IO ()
 ```
 
 Please see the file [Rate.hs][] for the complete working code.
@@ -520,7 +498,7 @@ documentation][Streamly].
 ### Reactive Programming
 
 Streamly supports reactive (time domain) programming because of its support for
-declarative concurrency. Please see the `Streamly.Internal.Data.Stream.Time`
+declarative concurrency. Please see the `Streamly.Data.Stream.Prelude`
 module for time-specific and sampling combinators.
 
 The examples [AcidRain.hs][] and [CirclingSquare.hs][] demonstrate
