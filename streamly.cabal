@@ -343,7 +343,7 @@ library
 
                        Streamly.Internal.Data.IsMap.HashMap
                      , Streamly.Internal.Data.Cont
-                     , Streamly.Internal.Data.Stream.TypeGen
+                     , Streamly.Internal.Data.Stream.MkType
 
                      -- streamly-concurrent
                      , Streamly.Internal.Control.Concurrent

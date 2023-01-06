@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.TypeGen
+-- Module      : Streamly.Internal.Data.Stream.MkType
 -- Copyright   : (c) 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -16,7 +16,7 @@
 --
 -- >>> import Control.Monad.Reader.Class (MonadReader(..))
 -- >>> import qualified Streamly.Data.Stream.Prelude as Stream
--- >>> import Streamly.Internal.Data.Stream.TypeGen
+-- >>> import Streamly.Internal.Data.Stream.MkType
 --
 -- Instead of using these macros directly you could use the generated code as
 -- well. Use these macros in ghci to generate the required code and paste it in
@@ -55,7 +55,7 @@
 --
 -- > $(mkCrossType "ParEagerStream" "parBind" True)
 --
-module Streamly.Internal.Data.Stream.TypeGen
+module Streamly.Internal.Data.Stream.MkType
     (
     -- * Imports for Examples
     -- $setup
@@ -93,7 +93,7 @@ import Prelude hiding (repeat)
 -- >>> import Language.Haskell.TH
 -- >>> import Control.Monad.Reader.Class (MonadReader(..))
 -- >>> import qualified Streamly.Data.Stream.Prelude as Stream
--- >>> import Streamly.Internal.Data.Stream.TypeGen
+-- >>> import Streamly.Internal.Data.Stream.MkType
 
 --------------------------------------------------------------------------------
 -- Helpers
