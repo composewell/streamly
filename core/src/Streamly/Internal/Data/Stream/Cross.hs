@@ -16,6 +16,8 @@ module Streamly.Internal.Data.Stream.Cross
     )
 where
 
+import Control.Monad.Catch (MonadThrow, throwM)
+import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Applicative (liftA2)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
@@ -133,3 +135,10 @@ instance Monad m => Monad (CrossStream m) where
 
 instance (MonadIO m) => MonadIO (CrossStream m) where
     liftIO x = CrossStream (Stream.fromEffect $ liftIO x)
+
+instance MonadTrans CrossStream where
+    {-# INLINE lift #-}
+    lift x = CrossStream (Stream.fromEffect x)
+
+instance (MonadThrow m) => MonadThrow (CrossStream m) where
+    throwM = lift . throwM
