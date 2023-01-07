@@ -118,6 +118,7 @@ extra-source-files:
     test/version-bounds.hs
     test/Streamly/Test/Unicode/ucd/NormalizationTest.txt
     test/Streamly/Test/Unicode/extra/NormalizationTest.txt
+    test/Streamly/Test/Data/Unbox.hs
     benchmark/Streamly/Benchmark/Unicode/data/AllChars.txt
     benchmark/Streamly/Benchmark/Unicode/data/Devanagari.txt
     benchmark/Streamly/Benchmark/Unicode/data/Japanese.txt

@@ -84,8 +84,8 @@ cradle:
           cabal:
             - path: "./test/Streamly/Test/Data/Array.hs"
               component: "test:Data.Array"
-            - path: "./test/Streamly/Test/Data/Array.hs"
-              component: "test:Data.Array"
+            - path: "./test/Streamly/Test/Data/Unbox.hs"
+              component: "test:Data.Unbox"
             - path: "./test/Streamly/Test/Data/Array/Mut.hs"
               component: "test:Data.Array.Mut"
             - path: "./test/Streamly/Test/Data/Array/Stream.hs"
