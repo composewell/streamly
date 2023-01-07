@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -Wno-missing-methods #-}
+{-# LANGUAGE DeriveAnyClass #-}
+
 -- |
 -- Module      : Streamly.Test.Data.Unbox
 -- Copyright   : (c) 2019 Composewell technologies
@@ -10,15 +11,8 @@
 module Streamly.Test.Data.Unbox (main) where
 
 import Data.Proxy
-import Foreign.Storable (Storable(..))
 import GHC.Generics hiding (moduleName)
-import Streamly.Internal.Data.Unboxed
-    ( SizeOfRep
-    , Unbox(..)
-    , genericPeekByteIndex
-    , genericPokeByteIndex
-    , genericSizeOf
-    )
+import Streamly.Internal.Data.Unboxed (SizeOfRep, Unbox, genericSizeOf)
 import qualified Streamly.Internal.Data.IORef.Unboxed as IORef
 
 import Test.Hspec as H
@@ -26,13 +20,21 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
-#define DERIVE_UNBOX(type) \
-instance Storable type where \
-    { sizeOf _ = genericSizeOf (Proxy :: Proxy type) }; \
-\
-instance Unbox type where { \
-    peekByteIndex = genericPeekByteIndex; \
-    pokeByteIndex = genericPokeByteIndex }
+data Unit = Unit deriving (Unbox, Show, Generic, Eq)
+
+data Single = Single Int deriving (Unbox, Show, Generic, Eq)
+
+data Product2 = Product2 Int Char deriving (Unbox, Show, Generic, Eq)
+
+data SumOfProducts =
+      SOP0
+    | SOP1 Int
+    | SOP2 Int Char
+    | SOP3 Int Int Int deriving (Unbox, Show, Generic, Eq)
+
+data NestedSOP =
+       NSOP0 SumOfProducts
+     | NSOP1 SumOfProducts deriving (Unbox, Show, Generic, Eq)
 
 test ::(Unbox a, Eq a) => a -> a -> Property
 test v1 v2 = monadicIO $ do
@@ -46,21 +48,6 @@ test v1 v2 = monadicIO $ do
 checkSizeOf :: (SizeOfRep (Rep a)) => Proxy a -> Int -> Property
 checkSizeOf v size = monadicIO $
     assert (genericSizeOf v == size)
-
-data Unit = Unit deriving (Show, Generic, Eq)
-DERIVE_UNBOX(Unit)
-
-data Single = Single Int deriving (Show, Generic, Eq)
-DERIVE_UNBOX(Single)
-
-data Product2 = Product2 Int Char deriving (Show, Generic, Eq)
-DERIVE_UNBOX(Product2)
-
-data SumOfProducts = SOP0 | SOP1 Int | SOP2 Int Char | SOP3 Int Int Int deriving (Show, Generic, Eq)
-DERIVE_UNBOX(SumOfProducts)
-
-data NestedSOP = NSOP0 SumOfProducts | NSOP1 SumOfProducts deriving (Show, Generic, Eq)
-DERIVE_UNBOX(NestedSOP)
 
 moduleName :: String
 moduleName = "Data.Unboxed"
