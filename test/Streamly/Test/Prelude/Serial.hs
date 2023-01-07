@@ -48,10 +48,8 @@ import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as IS
-import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
-    (parEager, fromCallback)
 import qualified Streamly.Data.Array as A
-import qualified Streamly.Internal.Data.Parser as PR
+import qualified Streamly.Internal.Data.Parser as Parser
 
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
@@ -64,63 +62,64 @@ import Streamly.Test.Common
 import Streamly.Test.Prelude.Common
 import Control.Monad.IO.Class (MonadIO)
 
-toList :: Monad m => IS.Stream m a -> m [a]
+toList :: Monad m => S.Stream m a -> m [a]
 toList = S.fold FL.toList
 
 splitOn :: Monad m =>
-    (a -> Bool) -> FL.Fold m a b -> IS.Stream m a -> IS.Stream m b
+    (a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
 splitOn predicate f = IS.foldManyPost (FL.takeEndBy_ predicate f)
 
 splitOnSuffix :: Monad m =>
-    (a -> Bool) -> FL.Fold m a b -> IS.Stream m a -> IS.Stream m b
-splitOnSuffix predicate f = IS.foldMany (FL.takeEndBy_ predicate f)
+    (a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+splitOnSuffix predicate f = S.foldMany (FL.takeEndBy_ predicate f)
 
-splitOnSuffixSeqPost :: (MonadIO m, Unbox a, Enum a, Eq a) =>
-    A.Array a -> FL.Fold m a b -> IS.Stream m a -> IS.Stream m b
-splitOnSuffixSeqPost patt f m = IS.foldManyPost (FL.takeEndBySeq_ patt f) m
+splitOnSeq' :: (MonadIO m, Unbox a, Storable a, Enum a, Eq a) =>
+    A.Array a -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+splitOnSeq' patt f m = IS.foldManyPost (FL.takeEndBySeq_ patt f) m
 
-splitOnSuffixSeq' :: (MonadIO m, Unbox a, Enum a, Eq a) =>
-    A.Array a -> FL.Fold m a b -> IS.Stream m a -> IS.Stream m b
-splitOnSuffixSeq' patt f m = IS.foldMany (FL.takeEndBySeq_ patt f) m
+splitOnSuffixSeq' :: (MonadIO m, Unbox a, Storable a, Enum a, Eq a) =>
+    A.Array a -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+splitOnSuffixSeq' patt f m = S.foldMany (FL.takeEndBySeq_ patt f) m
 
 groupsBy :: Monad m =>
-    (a -> a -> Bool) -> FL.Fold m a b -> IS.Stream m a -> IS.Stream m b
-groupsBy cmp f m = IS.catRights $ IS.parseMany (PR.groupBy cmp f) m
+    (a -> a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+groupsBy cmp f m = S.catRights $ S.parseMany (Parser.groupBy cmp f) m
 
 groupsByRolling :: Monad m =>
-    (a1 -> a1 -> Bool) -> FL.Fold m a1 a2 -> IS.Stream m a1 -> IS.Stream m a2
-groupsByRolling cmp f m = IS.catRights $ IS.parseMany (PR.groupByRolling cmp f) m
+    (a -> a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+groupsByRolling cmp f m =
+    S.catRights $ S.parseMany (Parser.groupByRolling cmp f) m
 
-drainWhile :: Monad m => (a -> Bool) -> IS.Stream m a -> m ()
+drainWhile :: Monad m => (a -> Bool) -> S.Stream m a -> m ()
 drainWhile p = S.fold FL.drain . S.takeWhile p
 
-drainMapM :: Monad m => (a -> m b) -> IS.Stream m a -> m ()
+drainMapM :: Monad m => (a -> m b) -> S.Stream m a -> m ()
 drainMapM f = S.fold (FL.drainMapM f)
 
 splitOnSeq :: Spec
 splitOnSeq = do
     describe "Tests for splitOnSeq" $ do
-        it "splitOnSeq' \"hello\" \"\" = [\"\"]"
-          $ splitOnSeq' "hello" "" `shouldReturn` [""]
-        it "splitOnSeq' \"hello\" \"hello\" = [\"\", \"\"]"
-          $ splitOnSeq' "hello" "hello" `shouldReturn` ["", ""]
-        it "splitOnSeq' \"x\" \"hello\" = [\"hello\"]"
-          $ splitOnSeq' "x" "hello" `shouldReturn` ["hello"]
-        it "splitOnSeq' \"h\" \"hello\" = [\"\", \"ello\"]"
-          $ splitOnSeq' "h" "hello" `shouldReturn` ["", "ello"]
-        it "splitOnSeq' \"o\" \"hello\" = [\"hell\", \"\"]"
-          $ splitOnSeq' "o" "hello" `shouldReturn` ["hell", ""]
-        it "splitOnSeq' \"e\" \"hello\" = [\"h\", \"llo\"]"
-          $ splitOnSeq' "e" "hello" `shouldReturn` ["h", "llo"]
-        it "splitOnSeq' \"l\" \"hello\" = [\"he\", \"\", \"o\"]"
-          $ splitOnSeq' "l" "hello" `shouldReturn` ["he", "", "o"]
-        it "splitOnSeq' \"ll\" \"hello\" = [\"he\", \"o\"]"
-          $ splitOnSeq' "ll" "hello" `shouldReturn` ["he", "o"]
+        it "splitOnSeq_ \"hello\" \"\" = [\"\"]"
+          $ splitOnSeq_ "hello" "" `shouldReturn` [""]
+        it "splitOnSeq_ \"hello\" \"hello\" = [\"\", \"\"]"
+          $ splitOnSeq_ "hello" "hello" `shouldReturn` ["", ""]
+        it "splitOnSeq_ \"x\" \"hello\" = [\"hello\"]"
+          $ splitOnSeq_ "x" "hello" `shouldReturn` ["hello"]
+        it "splitOnSeq_ \"h\" \"hello\" = [\"\", \"ello\"]"
+          $ splitOnSeq_ "h" "hello" `shouldReturn` ["", "ello"]
+        it "splitOnSeq_ \"o\" \"hello\" = [\"hell\", \"\"]"
+          $ splitOnSeq_ "o" "hello" `shouldReturn` ["hell", ""]
+        it "splitOnSeq_ \"e\" \"hello\" = [\"h\", \"llo\"]"
+          $ splitOnSeq_ "e" "hello" `shouldReturn` ["h", "llo"]
+        it "splitOnSeq_ \"l\" \"hello\" = [\"he\", \"\", \"o\"]"
+          $ splitOnSeq_ "l" "hello" `shouldReturn` ["he", "", "o"]
+        it "splitOnSeq_ \"ll\" \"hello\" = [\"he\", \"o\"]"
+          $ splitOnSeq_ "ll" "hello" `shouldReturn` ["he", "o"]
 
     where
 
-    splitOnSeq' pat xs = toList $
-        splitOnSuffixSeqPost (A.fromList pat) FL.toList (S.fromList xs)
+    splitOnSeq_ pat xs = toList $
+        splitOnSeq' (A.fromList pat) FL.toList (S.fromList xs)
 
 splitOnSuffixSeq :: Spec
 splitOnSuffixSeq = do
@@ -216,16 +215,13 @@ splitterProperties sep desc = do
     where
 
     splitOnSeq_ xs ys =
-        toList
-            $ splitOnSuffixSeqPost (A.fromList ys) FL.toList (S.fromList xs)
+        toList $ splitOnSeq' (A.fromList ys) FL.toList (S.fromList xs)
 
     splitOnSuffixSeq_ xs ys =
-        toList
-            $ splitOnSuffixSeq' (A.fromList ys) FL.toList (S.fromList xs)
+        toList $ splitOnSuffixSeq' (A.fromList ys) FL.toList (S.fromList xs)
 
     splitOn_ xs ys =
-        toList
-            $ splitOn (== (head ys)) FL.toList (S.fromList xs)
+        toList $ splitOn (== (head ys)) FL.toList (S.fromList xs)
 
     splitOnSuffix_ xs ys =
         toList $ splitOnSuffix (== (head ys)) FL.toList (S.fromList xs)
@@ -258,7 +254,7 @@ splitterProperties sep desc = do
         where
 
         testCase xs = do
-            ys <- run $ splitter xs (replicate i sep)
+            ys <- splitter xs (replicate i sep)
             szs <-
                 toList
                     $ sIntercalater UF.fromList (replicate i sep)
@@ -280,7 +276,7 @@ splitterProperties sep desc = do
         where
 
         testCase xs = do
-            ys <- run $ splitter xs (replicate i sep)
+            ys <- splitter xs (replicate i sep)
             szs <-
                 toList
                     $ sIntercalater UF.fromList (replicate i sep)
@@ -302,12 +298,12 @@ splitterProperties sep desc = do
 
         testCase xss = do
             let lxs = lIntercalater (replicate i sep) xss
-            lys <- run $ splitter lxs (replicate i sep)
+            lys <- splitter lxs (replicate i sep)
             sxs <-
                 toList
                     $ sIntercalater UF.fromList (replicate i sep)
                     $ S.fromList xss
-            sys <- run $ splitter sxs (replicate i sep)
+            sys <- splitter sxs (replicate i sep)
             listEquals (==) (concat lys) (concat xss)
             listEquals (==) (concat sys) (concat xss)
 
@@ -324,9 +320,9 @@ splitterProperties sep desc = do
 
         testCase xss = do
             let lxs = lIntercalater [sep] xss
-            lys <- run $ splitter lxs [sep]
+            lys <- splitter lxs [sep]
             sxs <- toList $ sIntercalater UF.fromList [sep] $ S.fromList xss
-            sys <- run $ splitter sxs [sep]
+            sys <- splitter sxs [sep]
             listEquals (==) lys xss
             listEquals (==) sys xss
 
@@ -475,7 +471,7 @@ testTakeInterval :: IO Bool
 testTakeInterval = do
     r <-
           S.fold (FL.tee FL.head FL.last)
-        $ S.takeInterval 5.0
+        $ S.takeInterval (toRelTime64 takeDropTime)
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime r
 
@@ -484,7 +480,7 @@ testDropInterval = do
     t0 <- getTime Monotonic
     mt1 <-
           S.fold FL.head
-        $ S.dropInterval 5.0
+        $ S.dropInterval (toRelTime64 takeDropTime)
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime (Just t0, mt1)
 #endif
@@ -500,9 +496,11 @@ unfold = monadicIO $ do
 testFromCallback :: IO Int
 testFromCallback = do
     ref <- newIORef Nothing
-    let stream = Concur.parEager
-                    [fmap Just (Concur.fromCallback (setCallback ref)),
-                     runCallback ref]
+    let stream =
+            S.parConcatList (S.eager True)
+                [ fmap Just (S.fromCallback (setCallback ref))
+                , runCallback ref
+                ]
     S.fold FL.sum $ fmap fromJust $ S.takeWhile isJust stream
 
     where
@@ -567,9 +565,11 @@ main = hspec
     describe "Runners" $ do
         -- XXX use an IORef to store and check the side effects
         it "simple serially" $
-            (S.fold FL.drain . fromSerial) (return (0 :: Int)) `shouldReturn` ()
+            (S.fold FL.drain . fromSerial)
+            (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
-            (S.fold FL.drain . fromSerial) (S.fromEffect $ putStrLn "hello") `shouldReturn` ()
+            (S.fold FL.drain . fromSerial)
+            (S.fromEffect $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $
         it "Monoid - mempty" $
@@ -678,9 +678,13 @@ main = hspec
     -- Just some basic sanity tests for now
     let input = [[1,1] :: [Int],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7],[8,8]]
         mustBe g inp out =
-            toList (IS.mergeMapWith g S.fromList (S.fromList inp))
+            toList (S.mergeMapWith g S.fromList (S.fromList inp))
                 `shouldReturn` out
      in do
+        it "concatPairsWith serial"
+            $ mustBe S.append input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
+        it "concatPairsWith wSerial"
+            $ mustBe S.interleave input [1,5,3,7,2,6,4,8,1,5,3,7,2,6,4,8]
         it "concatPairsWith mergeBy sorted"
             $ mustBe
                 (S.mergeBy compare) input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
@@ -707,7 +711,7 @@ main = hspec
                     ioRef <- run $ newIORef ([] :: [Int])
                     run $
                         drainWhile (> 0) . t $
-                        IS.mapM (\a -> modifyIORef' ioRef (a :) >> return a) $
+                        S.mapM (\a -> modifyIORef' ioRef (a :) >> return a) $
                         S.fromList xs
                     strm <- run $ readIORef ioRef
                     listEquals (==) (reverse strm) (takeWhile (> 0) xs)

@@ -13,7 +13,6 @@ test/Streamly/Test/Prelude/Fold.hs
 test/Streamly/Test/Prelude/Rate.hs
 test/Streamly/Test/Prelude/Serial.hs
 test/Streamly/Test/Unicode/Stream.hs
-test/Streamly/Test/Data/Array/CommonSmallArray.hs
 benchmark/lib/Streamly/Benchmark/Common.hs
 benchmark/lib/Streamly/Benchmark/Common/Handle.hs
 benchmark/lib/Streamly/Benchmark/Prelude.hs
@@ -32,4 +31,3 @@ benchmark/Streamly/Benchmark/Prelude/Rate.hs
 benchmark/Streamly/Benchmark/Prelude/WAsync.hs
 benchmark/Streamly/Benchmark/Prelude/ZipAsync.hs
 benchmark/Streamly/Benchmark/Prelude/ZipSerial.hs
-benchmark/Streamly/Benchmark/Data/Array/CommonSmallArray.hs
