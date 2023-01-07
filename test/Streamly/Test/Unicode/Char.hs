@@ -37,11 +37,13 @@ strToHex = unwords . map chrToHex
 
 type Text = Stream IO Char
 
+toList = S.fold FL.toList
+
 checkEqual :: String -> (Text -> Text) -> (Text, Text) -> IO Bool
 checkEqual opName op (mc1, mc2) = do
-    c1 <- S.toList mc1
-    c2 <- S.toList mc2
-    opc2 <- S.toList $ op mc2
+    c1 <- toList mc1
+    c2 <- toList mc2
+    opc2 <- toList $ op mc2
     if c1 /= opc2 then do
         putStrLn $ opName ++ " "            ++ strToHex c2
                           ++ " = "          ++ strToHex opc2
@@ -70,9 +72,11 @@ checkNFKD :: (Text, Text, Text, Text, Text) -> IO Bool
 checkNFKD (c1, c2, c3, c4, c5) =
     checkOp "toNFKD" NFKD $ map (c5,) [c1, c2, c3, c4, c5]
 
+splitOn predicate f = S.foldManyPost (FL.takeEndBy_ predicate f)
+
 checkAllTestCases :: Int -> String -> IO ()
 checkAllTestCases lineno line = do
-    cs <- S.toList $ S.splitOn (== ';') FL.toList $ S.fromList line
+    cs <- toList $ splitOn (== ';') FL.toList $ S.fromList line
     case cs of
         c1 : c2 : c3 : c4 : c5 : _ -> do
             let cps = map cpToText [c1, c2, c3, c4, c5]
@@ -85,7 +89,7 @@ checkAllTestCases lineno line = do
         checkOneTestCase cps f = do
             res <- f (tuplify cps)
             when (not res) $ do
-                strs <- mapM S.toList cps
+                strs <- mapM toList cps
                 let codes = intercalate ";" $ map strToHex strs
                     txt = intercalate "; " strs
                 putStrLn ("Failed at line: " ++ show lineno)

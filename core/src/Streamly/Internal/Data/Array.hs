@@ -503,7 +503,7 @@ streamTransform f arr =
 --
 castUnsafe ::
 #ifdef DEVBUILD
-    Unboxed b =>
+    Unbox b =>
 #endif
     Array a -> Array b
 castUnsafe (Array contents start end) =

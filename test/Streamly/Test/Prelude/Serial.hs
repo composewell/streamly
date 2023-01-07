@@ -44,11 +44,12 @@ import Streamly.Prelude (SerialT, IsStream, serial, fromSerial)
 #ifndef COVERAGE_BUILD
 import Streamly.Prelude (avgRate, maxBuffer)
 #endif
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Stream.IsStream as IS
+import qualified Streamly.Internal.Data.Stream as IS
 import qualified Streamly.Data.Array as A
+import qualified Streamly.Internal.Data.Parser as Parser
 
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
@@ -59,31 +60,66 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import Streamly.Test.Common
 import Streamly.Test.Prelude.Common
+import Control.Monad.IO.Class (MonadIO)
+
+toList :: Monad m => S.Stream m a -> m [a]
+toList = S.fold FL.toList
+
+splitOn :: Monad m =>
+    (a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+splitOn predicate f = IS.foldManyPost (FL.takeEndBy_ predicate f)
+
+splitOnSuffix :: Monad m =>
+    (a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+splitOnSuffix predicate f = S.foldMany (FL.takeEndBy_ predicate f)
+
+splitOnSeq' :: (MonadIO m, Unbox a, Storable a, Enum a, Eq a) =>
+    A.Array a -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+splitOnSeq' patt f m = IS.foldManyPost (FL.takeEndBySeq_ patt f) m
+
+splitOnSuffixSeq' :: (MonadIO m, Unbox a, Storable a, Enum a, Eq a) =>
+    A.Array a -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+splitOnSuffixSeq' patt f m = S.foldMany (FL.takeEndBySeq_ patt f) m
+
+groupsBy :: Monad m =>
+    (a -> a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+groupsBy cmp f m = S.catRights $ S.parseMany (Parser.groupBy cmp f) m
+
+groupsByRolling :: Monad m =>
+    (a -> a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
+groupsByRolling cmp f m =
+    S.catRights $ S.parseMany (Parser.groupByRolling cmp f) m
+
+drainWhile :: Monad m => (a -> Bool) -> S.Stream m a -> m ()
+drainWhile p = S.fold FL.drain . S.takeWhile p
+
+drainMapM :: Monad m => (a -> m b) -> S.Stream m a -> m ()
+drainMapM f = S.fold (FL.drainMapM f)
 
 splitOnSeq :: Spec
 splitOnSeq = do
     describe "Tests for splitOnSeq" $ do
-        it "splitOnSeq' \"hello\" \"\" = [\"\"]"
-          $ splitOnSeq' "hello" "" `shouldReturn` [""]
-        it "splitOnSeq' \"hello\" \"hello\" = [\"\", \"\"]"
-          $ splitOnSeq' "hello" "hello" `shouldReturn` ["", ""]
-        it "splitOnSeq' \"x\" \"hello\" = [\"hello\"]"
-          $ splitOnSeq' "x" "hello" `shouldReturn` ["hello"]
-        it "splitOnSeq' \"h\" \"hello\" = [\"\", \"ello\"]"
-          $ splitOnSeq' "h" "hello" `shouldReturn` ["", "ello"]
-        it "splitOnSeq' \"o\" \"hello\" = [\"hell\", \"\"]"
-          $ splitOnSeq' "o" "hello" `shouldReturn` ["hell", ""]
-        it "splitOnSeq' \"e\" \"hello\" = [\"h\", \"llo\"]"
-          $ splitOnSeq' "e" "hello" `shouldReturn` ["h", "llo"]
-        it "splitOnSeq' \"l\" \"hello\" = [\"he\", \"\", \"o\"]"
-          $ splitOnSeq' "l" "hello" `shouldReturn` ["he", "", "o"]
-        it "splitOnSeq' \"ll\" \"hello\" = [\"he\", \"o\"]"
-          $ splitOnSeq' "ll" "hello" `shouldReturn` ["he", "o"]
+        it "splitOnSeq_ \"hello\" \"\" = [\"\"]"
+          $ splitOnSeq_ "hello" "" `shouldReturn` [""]
+        it "splitOnSeq_ \"hello\" \"hello\" = [\"\", \"\"]"
+          $ splitOnSeq_ "hello" "hello" `shouldReturn` ["", ""]
+        it "splitOnSeq_ \"x\" \"hello\" = [\"hello\"]"
+          $ splitOnSeq_ "x" "hello" `shouldReturn` ["hello"]
+        it "splitOnSeq_ \"h\" \"hello\" = [\"\", \"ello\"]"
+          $ splitOnSeq_ "h" "hello" `shouldReturn` ["", "ello"]
+        it "splitOnSeq_ \"o\" \"hello\" = [\"hell\", \"\"]"
+          $ splitOnSeq_ "o" "hello" `shouldReturn` ["hell", ""]
+        it "splitOnSeq_ \"e\" \"hello\" = [\"h\", \"llo\"]"
+          $ splitOnSeq_ "e" "hello" `shouldReturn` ["h", "llo"]
+        it "splitOnSeq_ \"l\" \"hello\" = [\"he\", \"\", \"o\"]"
+          $ splitOnSeq_ "l" "hello" `shouldReturn` ["he", "", "o"]
+        it "splitOnSeq_ \"ll\" \"hello\" = [\"he\", \"o\"]"
+          $ splitOnSeq_ "ll" "hello" `shouldReturn` ["he", "o"]
 
     where
 
-    splitOnSeq' pat xs =
-        S.toList $ IS.splitOnSeq (A.fromList pat) FL.toList (S.fromList xs)
+    splitOnSeq_ pat xs = toList $
+        splitOnSeq' (A.fromList pat) FL.toList (S.fromList xs)
 
 splitOnSuffixSeq :: Spec
 splitOnSuffixSeq = do
@@ -107,9 +143,8 @@ splitOnSuffixSeq = do
 
     where
 
-    splitSuffixOn_ pat xs =
-        S.toList
-             $ IS.splitOnSuffixSeq (A.fromList pat) FL.toList (S.fromList xs)
+    splitSuffixOn_ pat xs = toList $
+        splitOnSuffixSeq' (A.fromList pat) FL.toList (S.fromList xs)
 
 splitterProperties ::
        forall a. (Arbitrary a, Eq a, Show a, Storable a, Unbox a, Enum a)
@@ -180,16 +215,16 @@ splitterProperties sep desc = do
     where
 
     splitOnSeq_ xs ys =
-        S.toList $ IS.splitOnSeq (A.fromList ys) FL.toList (S.fromList xs)
+        toList $ splitOnSeq' (A.fromList ys) FL.toList (S.fromList xs)
 
     splitOnSuffixSeq_ xs ys =
-        S.toList $ IS.splitOnSuffixSeq (A.fromList ys) FL.toList (S.fromList xs)
+        toList $ splitOnSuffixSeq' (A.fromList ys) FL.toList (S.fromList xs)
 
     splitOn_ xs ys =
-        S.toList $ IS.splitOn (== (head ys)) FL.toList (S.fromList xs)
+        toList $ splitOn (== (head ys)) FL.toList (S.fromList xs)
 
     splitOnSuffix_ xs ys =
-        S.toList $ IS.splitOnSuffix (== (head ys)) FL.toList (S.fromList xs)
+        toList $ splitOnSuffix (== (head ys)) FL.toList (S.fromList xs)
 
     intercalateSuffix xs yss = intercalate xs yss ++ xs
 
@@ -221,7 +256,7 @@ splitterProperties sep desc = do
         testCase xs = do
             ys <- splitter xs (replicate i sep)
             szs <-
-                IS.toList
+                toList
                     $ sIntercalater UF.fromList (replicate i sep)
                     $ IS.fromList ys
             let lzs = lIntercalater (replicate i sep) ys
@@ -243,7 +278,7 @@ splitterProperties sep desc = do
         testCase xs = do
             ys <- splitter xs (replicate i sep)
             szs <-
-                IS.toList
+                toList
                     $ sIntercalater UF.fromList (replicate i sep)
                     $ IS.fromList ys
             let lzs = lIntercalater (replicate i sep) ys
@@ -265,7 +300,7 @@ splitterProperties sep desc = do
             let lxs = lIntercalater (replicate i sep) xss
             lys <- splitter lxs (replicate i sep)
             sxs <-
-                S.toList
+                toList
                     $ sIntercalater UF.fromList (replicate i sep)
                     $ S.fromList xss
             sys <- splitter sxs (replicate i sep)
@@ -286,7 +321,7 @@ splitterProperties sep desc = do
         testCase xss = do
             let lxs = lIntercalater [sep] xss
             lys <- splitter lxs [sep]
-            sxs <- S.toList $ sIntercalater UF.fromList [sep] $ S.fromList xss
+            sxs <- toList $ sIntercalater UF.fromList [sep] $ S.fromList xss
             sys <- splitter sxs [sep]
             listEquals (==) lys xss
             listEquals (==) sys xss
@@ -299,7 +334,7 @@ intercalateSplitOnId x desc =
         forAll listWithZeroes $ \xs -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
-                    ys <- S.toList $ S.splitOn (== x) toListFL (S.fromList xs)
+                    ys <- toList $ splitOn (== x) toListFL (S.fromList xs)
                     listEquals (==) (intercalate [x] ys) xs
 
     where
@@ -320,17 +355,17 @@ groupSplitOps desc = do
     intercalateSplitOnId (0 :: Word8) desc
 
 -- |
--- After grouping (and folding) Int stream using @>@ operation,
+-- After grouping (and folding) Int stream using @<@ operation,
 -- the first @Int@ of every @[Int]@ in the @[Int]@ stream should be the minimum.
 testGroupsBy :: Property
 testGroupsBy =
     forAll (choose (0, maxStreamLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec -> monadicIO $ do
-            r <- run $ S.all (\ls ->
+            r <- run $ S.fold (FL.all (\ls ->
                 case ls of
                     [] -> True
-                    (x:_) -> x == minimum ls)
-                $ S.groupsBy (>) FL.toList
+                    (x:_) -> x == minimum ls))
+                $ groupsBy (<) FL.toList
                 $ S.fromList vec
             assert r
 
@@ -338,14 +373,14 @@ testGroups :: Property
 testGroups =
     forAll (choose (0, maxStreamLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec -> monadicIO $ do
-            r <- run $ S.toList $ S.groups FL.toList $ S.fromList vec
+            r <- toList $ groupsBy (==) FL.toList $ S.fromList vec
             assert $ r == group vec
 
 testGroupsByRolling :: Property
 testGroupsByRolling =
     forAll (choose (0, maxStreamLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec -> monadicIO $ do
-            r <- run $ S.toList $ S.groupsByRolling (==) FL.toList $ S.fromList vec
+            r <- toList $ groupsByRolling (==) FL.toList $ S.fromList vec
             assert $ r == group vec
 
 -- |
@@ -362,7 +397,7 @@ decreasing [] = True
 decreasing xs = all (== True) $ zipWith (<=) (tail xs) xs
 
 -- |
--- To check if the minimum elements (after grouping on @>@)
+-- To check if the minimum elements (after grouping on @<@)
 -- are non-increasing (either decrease or remain the same).
 -- Had an element been strictly greater, it would have been grouped
 -- with that element only.
@@ -370,10 +405,10 @@ testGroupsBySep :: Property
 testGroupsBySep =
     forAll (choose (0, maxStreamLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec -> monadicIO $ do
-            a <- run $ S.toList
-                $ S.map maybeMinimum
-                $ S.groupsBy (>) FL.toList
-                $ S.fromList vec
+            a <- toList
+                    $ fmap maybeMinimum
+                    $ groupsBy (<) FL.toList
+                    $ S.fromList vec
             assert $ decreasing a
 
 groupingOps :: Spec
@@ -396,8 +431,8 @@ associativityCheck desc t = prop desc assocCheckProp
                 yStream = S.fromList ys
                 zStream = S.fromList zs
             infixAssocstream <-
-                run $ S.toList $ t $ xStream `serial` yStream `serial` zStream
-            assocStream <- run $ S.toList $ t $ xStream <> yStream <> zStream
+                run $ toList $ t $ xStream `serial` yStream `serial` zStream
+            assocStream <- run $ toList $ t $ xStream <> yStream <> zStream
             listEquals (==) infixAssocstream assocStream
 
 max_length :: Int
@@ -436,7 +471,7 @@ testTakeInterval :: IO Bool
 testTakeInterval = do
     r <-
           S.fold (FL.tee FL.head FL.last)
-        $ IS.takeInterval takeDropTime
+        $ S.takeInterval (toRelTime64 takeDropTime)
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime r
 
@@ -444,8 +479,8 @@ testDropInterval :: IO Bool
 testDropInterval = do
     t0 <- getTime Monotonic
     mt1 <-
-          S.head
-        $ IS.dropInterval takeDropTime
+          S.fold FL.head
+        $ S.dropInterval (toRelTime64 takeDropTime)
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime (Just t0, mt1)
 #endif
@@ -455,23 +490,18 @@ unfold = monadicIO $ do
     a <- pick $ choose (0, max_length `div` 2)
     b <- pick $ choose (0, max_length)
     let unf = UF.second b UF.enumerateFromToIntegral
-    ls <- S.toList $ S.unfold unf a
-    return $ ls == [a..b]
-
-unfold0 :: Property
-unfold0 = monadicIO $ do
-    a <- pick $ choose (0, max_length `div` 2)
-    b <- pick $ choose (0, max_length)
-    let unf = UF.both a (UF.second b UF.enumerateFromToIntegral)
-    ls <- S.toList $ IS.unfold0 unf
+    ls <- toList $ S.unfold unf a
     return $ ls == [a..b]
 
 testFromCallback :: IO Int
 testFromCallback = do
     ref <- newIORef Nothing
-    let stream = S.map Just (IS.fromCallback (setCallback ref))
-                    `S.parallel` runCallback ref
-    S.sum $ S.map fromJust $ S.takeWhile isJust stream
+    let stream =
+            S.parConcatList (S.eager True)
+                [ fmap Just (S.fromCallback (setCallback ref))
+                , runCallback ref
+                ]
+    S.fold FL.sum $ fmap fromJust $ S.takeWhile isJust stream
 
     where
 
@@ -483,11 +513,11 @@ testFromCallback = do
               S.repeatM (readIORef ref)
                 & IS.delayPost 0.1
                 & S.mapMaybe id
-                & S.head
+                & S.fold FL.head
 
         S.fromList [1..100]
             & IS.delayPost 0.001
-            & S.mapM_ (fromJust cb)
+            & drainMapM (fromJust cb)
         threadDelay 100000
         return Nothing
 
@@ -497,12 +527,12 @@ foldIterateM =
         let s1 = Prelude.sum lst
             strm = S.fromList lst
         ms2 <-
-            S.last
-                $ S.map getSum
+            S.fold FL.last
+                $ fmap getSum
                 $ IS.foldIterateM
                       (return . FL.take 1 . FL.sconcat)
                       (return (Sum 0))
-                $ S.map Sum strm
+                $ fmap Sum strm
         case ms2 of
             Nothing -> assert $ s1 == 0
             Just s2 -> assert $ s1 == s2
@@ -510,7 +540,7 @@ foldIterateM =
 sortBy :: Property
 sortBy = forAll (listOf (chooseInt (0, max_length))) $ \lst -> monadicIO $ do
         let s1 = sort lst
-        s2 <- run $ S.toList $ IS.sortBy compare $ S.fromList lst
+        s2 <- toList $ IS.sortBy compare $ S.fromList lst
         assert $ s1 == s2
 
 moduleName :: String
@@ -530,14 +560,16 @@ main = hspec
             <> [("maxBuffer -1", fromSerial . maxBuffer (-1))]
 #endif
     let toListSerial :: SerialT IO a -> IO [a]
-        toListSerial = S.toList . fromSerial
+        toListSerial = toList . fromSerial
 
     describe "Runners" $ do
         -- XXX use an IORef to store and check the side effects
         it "simple serially" $
-            (S.drain . fromSerial) (return (0 :: Int)) `shouldReturn` ()
+            (S.fold FL.drain . fromSerial)
+            (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
-            (S.drain . fromSerial) (S.fromEffect $ putStrLn "hello") `shouldReturn` ()
+            (S.fold FL.drain . fromSerial)
+            (S.fromEffect $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $
         it "Monoid - mempty" $
@@ -571,12 +603,9 @@ main = hspec
         serialOps $ prop "serially fromEffect" . constructWithFromEffect id
         serialOps $ prop "serially cons" . constructWithCons S.cons
         serialOps $ prop "serially consM" . constructWithConsM S.consM id
-        serialOps $ prop "serially (.:)" . constructWithCons (S..:)
-        serialOps $ prop "serially (|:)" . constructWithConsM (S.|:) id
 
         describe "From Generators" $ do
             prop "unfold" unfold
-            prop "unfold0" unfold0
 
     describe "Simple Operations" $ serialOps simpleOps
 
@@ -649,13 +678,13 @@ main = hspec
     -- Just some basic sanity tests for now
     let input = [[1,1] :: [Int],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7],[8,8]]
         mustBe g inp out =
-            S.toList (IS.concatPairsWith g S.fromList (S.fromList inp))
+            toList (S.mergeMapWith g S.fromList (S.fromList inp))
                 `shouldReturn` out
      in do
         it "concatPairsWith serial"
-            $ mustBe S.serial input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
+            $ mustBe S.append input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
         it "concatPairsWith wSerial"
-            $ mustBe S.wSerial input [1,5,3,7,2,6,4,8,1,5,3,7,2,6,4,8]
+            $ mustBe S.interleave input [1,5,3,7,2,6,4,8,1,5,3,7,2,6,4,8]
         it "concatPairsWith mergeBy sorted"
             $ mustBe
                 (S.mergeBy compare) input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
@@ -681,7 +710,7 @@ main = hspec
                     let xs = [1..n]
                     ioRef <- run $ newIORef ([] :: [Int])
                     run $
-                        S.drainWhile (> 0) . t $
+                        drainWhile (> 0) . t $
                         S.mapM (\a -> modifyIORef' ioRef (a :) >> return a) $
                         S.fromList xs
                     strm <- run $ readIORef ioRef

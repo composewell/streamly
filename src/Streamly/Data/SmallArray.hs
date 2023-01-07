@@ -17,9 +17,9 @@ module Streamly.Data.SmallArray
   , A.writeN
 
   -- * Elimination
-  , A.toStream
-  , A.toStreamRev
   , A.read
+  , A.readRev
+  , A.reader
 
   -- * Folding Arrays
   , A.streamFold

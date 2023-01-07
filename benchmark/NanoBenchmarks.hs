@@ -117,7 +117,7 @@ main = do
                             $ map (fromIntegral . ord) "abcdefghijklmnopqrstuvwxyz"
                         )
                         FL.drain
-                        $ IFH.getBytes inText
+                        $ IFH.read inText
                     )
                     >>= print
                 ]

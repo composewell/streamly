@@ -413,7 +413,11 @@ nil = Array Unboxed.nil 0 0 0
 --
 -- /Pre-release/
 {-# INLINE newPinnedBytes #-}
-newPinnedBytes :: MonadIO m => Int -> m (Array a)
+newPinnedBytes :: MonadIO m =>
+#ifdef DEVBUILD
+    Unbox a =>
+#endif
+    Int -> m (Array a)
 newPinnedBytes bytes = do
     contents <- liftIO $ Unboxed.newPinnedBytes bytes
     return $ Array
@@ -2002,6 +2006,9 @@ putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
 -- | Copy two arrays into a newly allocated array.
 {-# INLINE spliceCopy #-}
 spliceCopy :: forall m a. MonadIO m =>
+#ifdef DEVBUILD
+    Unbox a =>
+#endif
     Array a -> Array a -> m (Array a)
 spliceCopy arr1 arr2 = liftIO $ do
     let start1 = arrStart arr1
@@ -2162,7 +2169,7 @@ splitAt i arr@Array{..} =
 --
 castUnsafe ::
 #ifdef DEVBUILD
-    Unboxed b =>
+    Unbox b =>
 #endif
     Array a -> Array b
 castUnsafe (Array contents start end bound) =
