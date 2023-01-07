@@ -1,31 +1,42 @@
 cabal-version:      2.2
 name:               streamly
 version:            0.9.0
-synopsis:           Dataflow programming and declarative concurrency
+synopsis:           Streaming, dataflow programming and declarative concurrency
 description:
-  Browse the documentation at https://streamly.composewell.com.
+  Streamly comprises two packages, the
+  <https://hackage.haskell.org/package/streamly-core streamly-core> package
+  provides functionality that depends only on boot libraries, and
+  the <https://hackage.haskell.org/package/streamly streamly> package
+  provides additional functionality like concurrency, time, lifted
+  exceptions, and networking.  For unified documentation visit
+  <https://streamly.composewell.com the streamly website>.
   .
-  Streamly is a streaming framework to build reliable and scalable
-  software systems from modular building blocks using dataflow
-  programming and declarative concurrency.  Stream fusion optimizations
-  in streamly result in high-performance, modular combinatorial
-  programming.
+  Streamly provides unified, modular building blocks to build 
+  high-performance, concurrent, scalable applications in Haskell.  Stream
+  fusion optimizations in streamly enable exceptional modularity with
+  high performance comparable to C. Streamly complements the Haskell
+  <https://hackage.haskell.org/package/base base> package, supplying the
+  missing functionality to quickly build general-purpose applications
+  in Haskell. For high-level functionality built over streamly like
+  streaming system processes, shell programming, GNU coreutils,
+  statistics, and compression libraries please see the
+  <https://streamly.composewell.com/ecosystem.html streamly ecosystem packages>.
   .
-  Performance with simplicity:
+  Performance with modularity:
   .
   * Performance on par with C (<https://github.com/composewell/streaming-benchmarks Benchmarks>)
   * API close to standard Haskell lists (<https://github.com/composewell/streamly-examples Examples>)
   * Declarative concurrency with automatic scaling
   * Filesystem, fsnotify, network, and Unicode support included
-  * More functionality provided via many ecosystem packages
+  * More functionality is provided via many (<https://streamly.composewell.com/ecosystem.html ecosystem packages>)
   .
   Unified and powerful abstractions:
   .
-  * Unifies unfolds, arrays, folds, and parsers with streaming
+  * Unifies streams, arrays, folds, and parsers
   * Unifies @Data.List@, @list-t@, and @logict@ with streaming
   * Unifies concurrency with standard streaming abstractions
-  * Provides time-domain combinators for reactive programming
-  * Interworks with bytestring and streaming libraries
+  * Unifies reactive, time-domain programming with streaming
+  * Interworks with other streaming libraries
 
 homepage:            https://streamly.composewell.com
 bug-reports:         https://github.com/composewell/streamly/issues
