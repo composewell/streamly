@@ -230,20 +230,26 @@ unpin arr@(MutableByteArray marr#) =
 
 -- | A type implementing the 'Unbox' interface supplies operations for reading
 -- and writing the type from and to a mutable byte array (an unboxed
--- representation) in memory. The read operation 'peekByteIndex' constructs the
--- boxed type from the mutable byte array. The write operation 'pokeByteIndex'
--- writes the boxed type to the mutable byte array.
+-- representation of the type) in memory. The read operation 'peekByteIndex'
+-- deserializes the boxed type from the mutable byte array. The write operation
+-- 'pokeByteIndex' serializes the boxed type to the mutable byte array.
 --
--- Here is an example, to write an instance for this type class.
+-- Instances can be derived via 'Generic'. Here is an example, for deriving an
+-- instance of this type class.
 --
+-- >>> import GHC.Generics (Generic)
 -- >>> :{
 -- data Object = Object
 --     { _int0 :: Int
 --     , _int1 :: Int
---     }
+--     } deriving Generic
 -- :}
 --
 -- >>> import Streamly.Data.Array (Unbox(..))
+-- >>> instance Unbox Object
+--
+-- If you want to write the instance manually:
+--
 -- >>> import Streamly.Internal.Data.Unboxed (castContents)
 -- >>> :{
 -- instance Unbox Object where
