@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -261,18 +262,31 @@ unpin arr@(MutableByteArray marr#) =
 class Unbox a where
     -- | Get the size.
     sizeOf :: a -> Int
+
+    default sizeOf :: (SizeOfRep (Rep a)) => a -> Int
+    sizeOf _ = genericSizeOf (Proxy :: Proxy a)
+
     -- | Read an element of type "a" from a MutableByteArray given the byte
     -- index.
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
     peekByteIndex :: MutableByteArray a -> Int -> IO a
+
+    default peekByteIndex :: (Generic a, PeekRep (Rep a)) =>
+        MutableByteArray a -> Int -> IO a
+    peekByteIndex = genericPeekByteIndex
+
     -- | Write an element of type "a" to a MutableByteArray given the byte
     -- index.
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
     pokeByteIndex :: MutableByteArray a -> Int -> a -> IO ()
+
+    default pokeByteIndex :: (Generic a, PokeRep (Rep a)) =>
+        MutableByteArray a -> Int -> a -> IO ()
+    pokeByteIndex = genericPokeByteIndex
 
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray, _sizeOf) \
 instance Unbox _type where {                                         \
