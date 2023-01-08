@@ -1,3 +1,7 @@
+## 0.7.3.1
+
+* Fix compilation with ghc-9.2.5
+
 ## 0.7.3
 
 ### Build Issues

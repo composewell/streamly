@@ -3,7 +3,7 @@
 # See https://www.gnu.org/software/autoconf/manual/autoconf.html for help on
 # the macros used in this file.
 
-AC_INIT([streamly], [0.7.3], [streamly@composewell.com], [streamly])
+AC_INIT([streamly], [0.7.3.1], [streamly@composewell.com], [streamly])
 
 # To suppress "WARNING: unrecognized options: --with-compiler"
 AC_ARG_WITH([compiler], [GHC])
