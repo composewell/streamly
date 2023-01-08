@@ -254,15 +254,15 @@ unpin arr@(MutableByteArray marr#) =
 -- >>> :{
 -- instance Unbox Object where
 --     sizeOf _ = 16
---     peekByteIndex arr i = do
+--     peekByteIndex i arr = do
 --         let p = castContents arr
---         x0 <- peekByteIndex p i
---         x1 <- peekByteIndex p (i + 8)
+--         x0 <- peekByteIndex i p
+--         x1 <- peekByteIndex (i + 8) p
 --         return $ Object x0 x1
---     pokeByteIndex arr i (Object x0 x1) = do
+--     pokeByteIndex i arr (Object x0 x1) = do
 --         let p = castContents arr
---         pokeByteIndex p i x0
---         pokeByteIndex p (i + 8) x1
+--         pokeByteIndex i p x0
+--         pokeByteIndex (i + 8) p x1
 -- :}
 --
 class Unbox a where
@@ -277,31 +277,31 @@ class Unbox a where
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
-    peekByteIndex :: MutableByteArray a -> Int -> IO a
+    peekByteIndex :: Int -> MutableByteArray a -> IO a
 
     default peekByteIndex :: (Generic a, PeekRep (Rep a)) =>
-        MutableByteArray a -> Int -> IO a
-    peekByteIndex = genericPeekByteIndex
+         Int -> MutableByteArray a -> IO a
+    peekByteIndex i arr = genericPeekByteIndex arr i
 
     -- | Write an element of type "a" to a MutableByteArray given the byte
     -- index.
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
-    pokeByteIndex :: MutableByteArray a -> Int -> a -> IO ()
+    pokeByteIndex :: Int -> MutableByteArray a -> a -> IO ()
 
     default pokeByteIndex :: (Generic a, PokeRep (Rep a)) =>
-        MutableByteArray a -> Int -> a -> IO ()
-    pokeByteIndex = genericPokeByteIndex
+        Int -> MutableByteArray a -> a -> IO ()
+    pokeByteIndex i arr = genericPokeByteIndex arr i
 
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray, _sizeOf) \
 instance Unbox _type where {                                         \
 ; {-# INLINE peekByteIndex #-}                                       \
-; peekByteIndex (MutableByteArray mbarr) (I# n) = IO $ \s ->         \
+; peekByteIndex (I# n) (MutableByteArray mbarr) = IO $ \s ->         \
       case _readArray mbarr n s of                                   \
           { (# s1, i #) -> (# s1, _constructor i #) }                \
 ; {-# INLINE pokeByteIndex #-}                                       \
-; pokeByteIndex (MutableByteArray mbarr) (I# n) (_constructor val) = \
+; pokeByteIndex (I# n) (MutableByteArray mbarr) (_constructor val) = \
         IO $ \s -> (# _writeArray mbarr n val s, () #)               \
 ; {-# INLINE sizeOf #-}                                              \
 ; sizeOf _ = _sizeOf                                                 \
@@ -310,25 +310,25 @@ instance Unbox _type where {                                         \
 #define DERIVE_WRAPPED_UNBOX(_constraint, _type, _constructor, _innerType)    \
 instance _constraint Unbox _type where                                        \
 ; {-# INLINE peekByteIndex #-}                                                \
-; peekByteIndex arr i = _constructor <$> peekByteIndex (castContents arr) i   \
+; peekByteIndex i arr = _constructor <$> peekByteIndex i (castContents arr)   \
 ; {-# INLINE pokeByteIndex #-}                                                \
-; pokeByteIndex arr i (_constructor a) = pokeByteIndex (castContents arr) i a \
+; pokeByteIndex i arr (_constructor a) = pokeByteIndex i (castContents arr) a \
 ; {-# INLINE sizeOf #-}                                                       \
 ; sizeOf _ = SIZE_OF(_innerType)
 
 #define DERIVE_BINARY_UNBOX(_constraint, _type, _constructor, _innerType) \
 instance _constraint Unbox _type where {                                  \
 ; {-# INLINE peekByteIndex #-}                                            \
-; peekByteIndex arr i =                                                   \
+; peekByteIndex i arr =                                                   \
    let contents = castContents arr :: MutableByteArray _innerType         \
-    in peekByteIndex contents i >>=                                       \
-         (\p1 -> peekByteIndex contents (i + SIZE_OF(_innerType))         \
+    in peekByteIndex i contents >>=                                       \
+         (\p1 -> peekByteIndex (i + SIZE_OF(_innerType)) contents         \
              <&> _constructor p1)                                         \
 ; {-# INLINE pokeByteIndex #-}                                            \
-; pokeByteIndex arr i (_constructor p1 p2) =                              \
+; pokeByteIndex i arr (_constructor p1 p2) =                              \
    let contents = castContents arr :: MutableByteArray _innerType         \
-    in pokeByteIndex contents i p1 >>                                     \
-       pokeByteIndex contents (i + SIZE_OF(_innerType)) p2                \
+    in pokeByteIndex i contents p1 >>                                     \
+       pokeByteIndex (i + SIZE_OF(_innerType)) contents p2                \
 ; {-# INLINE sizeOf #-}                                                   \
 ; sizeOf _ = 2 * SIZE_OF(_innerType)                                      \
 }
@@ -455,10 +455,10 @@ instance Unbox () where
 instance Unbox IoSubSystem where
 
     {-# INLINE peekByteIndex #-}
-    peekByteIndex arr i = toEnum <$> peekByteIndex (castContents arr) i
+    peekByteIndex i arr = toEnum <$> peekByteIndex i (castContents arr)
 
     {-# INLINE pokeByteIndex #-}
-    pokeByteIndex arr i a = pokeByteIndex (castContents arr) i (fromEnum a)
+    pokeByteIndex i arr a = pokeByteIndex i (castContents arr) (fromEnum a)
 
     {-# INLINE sizeOf #-}
     sizeOf = sizeOf . fromEnum
@@ -467,15 +467,15 @@ instance Unbox IoSubSystem where
 instance Unbox Bool where
 
     {-# INLINE peekByteIndex #-}
-    peekByteIndex arr i = do
-        res <- peekByteIndex (castContents arr) i
+    peekByteIndex i arr = do
+        res <- peekByteIndex i (castContents arr)
         return $ res /= (0 :: Int8)
 
     {-# INLINE pokeByteIndex #-}
-    pokeByteIndex arr i a =
+    pokeByteIndex i arr a =
         if a
-        then pokeByteIndex (castContents arr) i (1 :: Int8)
-        else pokeByteIndex (castContents arr) i (0 :: Int8)
+        then pokeByteIndex i (castContents arr) (1 :: Int8)
+        else pokeByteIndex i (castContents arr) (0 :: Int8)
 
     {-# INLINE sizeOf #-}
     sizeOf _ = 1
@@ -486,11 +486,11 @@ instance Unbox Bool where
 
 {-# INLINE peekWith #-}
 peekWith :: Unbox a => MutableByteArray a -> Int -> IO a
-peekWith = peekByteIndex
+peekWith arr i = peekByteIndex i arr
 
 {-# INLINE pokeWith #-}
 pokeWith :: Unbox a => MutableByteArray a -> Int -> a -> IO ()
-pokeWith = pokeByteIndex
+pokeWith arr i = pokeByteIndex i arr
 
 --------------------------------------------------------------------------------
 -- Generic deriving
@@ -524,7 +524,7 @@ readUnsafe = Peeker (Builder step)
     step :: forall a. Unbox a => BoundedPtr -> IO (BoundedPtr, a)
     step (BoundedPtr arr pos end) = do
         let next = pos + sizeOf (undefined :: a)
-        r <- peekByteIndex (castContents arr) pos
+        r <- peekByteIndex pos (castContents arr)
         return (BoundedPtr arr next end, r)
 
 {-# INLINE read #-}
@@ -538,7 +538,7 @@ read = Peeker (Builder step)
     step (BoundedPtr arr pos end) = do
         let next = pos + sizeOf (undefined :: a)
         when (next > end) $ error "peekObject reading beyond limit"
-        r <- peekByteIndex (castContents arr) pos
+        r <- peekByteIndex pos (castContents arr)
         return (BoundedPtr arr next end, r)
 
 {-# INLINE skipByte #-}
@@ -572,7 +572,7 @@ runPeeker (Peeker (Builder f)) ptr = fmap snd (f ptr)
 pokeBoundedPtrUnsafe :: Unbox a => a -> BoundedPtr -> IO BoundedPtr
 pokeBoundedPtrUnsafe a (BoundedPtr arr pos end) = do
     let next = pos + sizeOf a
-    pokeByteIndex (castContents arr) pos a
+    pokeByteIndex pos (castContents arr) a
     return (BoundedPtr arr next end)
 
 {-# INLINE pokeBoundedPtr #-}
@@ -580,7 +580,7 @@ pokeBoundedPtr :: Unbox a => a -> BoundedPtr -> IO BoundedPtr
 pokeBoundedPtr a (BoundedPtr arr pos end) = do
     let next = pos + sizeOf a
     when (next > end) $ error "pokeBoundedPtr writing beyond limit"
-    pokeByteIndex (castContents arr) pos a
+    pokeByteIndex pos (castContents arr) a
     return (BoundedPtr arr next end)
 
 --------------------------------------------------------------------------------
