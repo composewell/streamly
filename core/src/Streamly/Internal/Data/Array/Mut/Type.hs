@@ -217,13 +217,13 @@ where
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, (.|.), (.&.))
+import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Data.Unboxed
     ( MutableByteArray(..)
     , Unbox
-    , castContents
     , getMutableByteArray#
     , peekWith
     , pokeWith
@@ -336,7 +336,7 @@ data Array a =
     -- The array is a range into arrContents. arrContents may be a superset of
     -- the slice represented by the array. All offsets are in bytes.
     Array
-    { arrContents :: {-# UNPACK #-} !(MutableByteArray a)
+    { arrContents :: {-# UNPACK #-} !MutableByteArray
     , arrStart :: {-# UNPACK #-} !Int  -- ^ index into arrContents
     , arrEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
                                        -- Represents the first invalid index of
@@ -388,7 +388,7 @@ unpin arr@Array{..} = do
 -- /Pre-release/
 {-# INLINE newArrayWith #-}
 newArrayWith :: forall m a. (MonadIO m, Unbox a)
-    => (Int -> Int -> m (MutableByteArray a)) -> Int -> Int -> m (Array a)
+    => (Int -> Int -> m MutableByteArray) -> Int -> Int -> m (Array a)
 newArrayWith alloc alignSize count = do
     let size = max (count * SIZE_OF(a)) 0
     contents <- alloc size alignSize
@@ -581,12 +581,18 @@ modify Array{..} f = liftIO $
             go (INDEX_NEXT(i,a))
 
 {-# INLINE swapArrayByteIndices #-}
-swapArrayByteIndices :: Unbox a => MutableByteArray a -> Int -> Int -> IO ()
-swapArrayByteIndices arrContents i1 i2 = do
+swapArrayByteIndices ::
+       forall a. Unbox a
+    => Proxy a
+    -> MutableByteArray
+    -> Int
+    -> Int
+    -> IO ()
+swapArrayByteIndices _ arrContents i1 i2 = do
     r1 <- peekWith arrContents i1
     r2 <- peekWith arrContents i2
-    pokeWith arrContents i1 r2
-    pokeWith arrContents i2 r1
+    pokeWith arrContents i1 (r2 :: a)
+    pokeWith arrContents i2 (r1 :: a)
 
 -- | Swap the elements at two indices without validating the indices.
 --
@@ -599,7 +605,7 @@ unsafeSwapIndices :: forall m a. (MonadIO m, Unbox a)
 unsafeSwapIndices i1 i2 Array{..} = liftIO $ do
         let t1 = INDEX_OF(arrStart,i1,a)
             t2 = INDEX_OF(arrStart,i2,a)
-        swapArrayByteIndices arrContents t1 t2
+        swapArrayByteIndices (Proxy :: Proxy a) arrContents t1 t2
 
 -- | Swap the elements at two indices.
 --
@@ -613,7 +619,7 @@ swapIndices i1 i2 Array{..} = liftIO $ do
             $ invalidIndex "swapIndices" i1
         when (i2 < 0 || INDEX_INVALID(t2,arrEnd,a))
             $ invalidIndex "swapIndices" i2
-        swapArrayByteIndices arrContents t1 t2
+        swapArrayByteIndices (Proxy :: Proxy a) arrContents t1 t2
 
 -------------------------------------------------------------------------------
 -- Rounding
@@ -1101,7 +1107,7 @@ reverse Array{..} = liftIO $ do
 
     swap l h = do
         when (l < h) $ do
-            swapArrayByteIndices arrContents l h
+            swapArrayByteIndices (Proxy :: Proxy a) arrContents l h
             swap (INDEX_NEXT(l,a)) (INDEX_PREV(h,a))
 
 -- | Generate the next permutation of the sequence, returns False if this is
@@ -1302,7 +1308,7 @@ arraysOf n (D.Stream step state) =
             error $ "Streamly.Internal.Data.Array.Mut.Type.arraysOf: "
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
-        Array contents start end bound <- liftIO $ newPinned n
+        (Array contents start end bound :: Array a) <- liftIO $ newPinned n
         return $ D.Skip (GroupBuffer st contents start end bound)
 
     step' gst (GroupBuffer st contents start end bound) = do
@@ -1410,7 +1416,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 -------------------------------------------------------------------------------
 
 data ArrayUnsafe a = ArrayUnsafe
-    {-# UNPACK #-} !(MutableByteArray a)  -- contents
+    {-# UNPACK #-} !MutableByteArray   -- contents
     {-# UNPACK #-} !Int                -- index 1
     {-# UNPACK #-} !Int                -- index 2
 
@@ -1909,7 +1915,7 @@ fromStreamDN :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> m (Array a)
 -- fromStreamDN n = D.fold (writeN n)
 fromStreamDN limit str = do
-    arr <- liftIO $ newPinned limit
+    (arr :: Array a) <- liftIO $ newPinned limit
     end <- D.foldlM' (fwrite (arrContents arr)) (return $ arrEnd arr) $ D.take limit str
     return $ arr {arrEnd = end}
 
@@ -2173,7 +2179,7 @@ castUnsafe ::
 #endif
     Array a -> Array b
 castUnsafe (Array contents start end bound) =
-    Array (castContents contents) start end bound
+    Array contents start end bound
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --

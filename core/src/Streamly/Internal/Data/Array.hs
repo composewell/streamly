@@ -128,7 +128,6 @@ import Foreign.Ptr (castPtr)
 import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Unboxed
     ( Unbox
-    , castContents
     , peekWith
     , sizeOf
     )
@@ -507,7 +506,7 @@ castUnsafe ::
 #endif
     Array a -> Array b
 castUnsafe (Array contents start end) =
-    Array (castContents contents) start end
+    Array contents start end
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --

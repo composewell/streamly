@@ -131,7 +131,7 @@ data Array a =
 #endif
     -- All offsets are in terms of bytes from the start of arraycontents
     Array
-    { arrContents :: {-# UNPACK #-} !(MutableByteArray a)
+    { arrContents :: {-# UNPACK #-} !MutableByteArray
     , arrStart :: {-# UNPACK #-} !Int -- offset
     , arrEnd   :: {-# UNPACK #-} !Int   -- offset + len
     }

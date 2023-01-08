@@ -686,9 +686,9 @@ decodeUtf8Lax = decodeUtf8
 #endif
 data FlattenState s a
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
-    | InnerLoopDecodeInit s (MutableByteArray a) !Int !Int
-    | InnerLoopDecodeFirst s (MutableByteArray a) !Int !Int Word8
-    | InnerLoopDecoding s (MutableByteArray a) !Int !Int
+    | InnerLoopDecodeInit s MutableByteArray !Int !Int
+    | InnerLoopDecodeFirst s MutableByteArray !Int !Int Word8
+    | InnerLoopDecoding s MutableByteArray !Int !Int
         !DecodeState !CodePoint
     | YAndC !Char (FlattenState s a) -- These constructors can be
                                      -- encoded in the UTF8DecodeState
