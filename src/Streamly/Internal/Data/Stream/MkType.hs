@@ -1,3 +1,6 @@
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Stream.MkType
 -- Copyright   : (c) 2022 Composewell Technologies
@@ -35,6 +38,7 @@ import Control.Monad.Catch (MonadThrow(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
+import Data.List (singleton)
 import Prelude hiding (repeat)
 
 -- $setup
@@ -138,12 +142,232 @@ _apOp = mkName "<*>"
 _bindOp :: Name
 _bindOp = mkName ">>="
 
+_IsList :: Name
+_IsList = mkName "IsList"
+
+_IsString :: Name
+_IsString = mkName "IsString"
+
+_Eq :: Name
+_Eq = mkName "Eq"
+
+_Ord :: Name
+_Ord = mkName "Ord"
+
+_Traversable :: Name
+_Traversable = mkName "Traversable"
+
+_Identity :: Name
+_Identity = mkName "Identity"
+
+_Read :: Name
+_Read = mkName "Read"
+
+_Show :: Name
+_Show = mkName "Show"
+
+_show :: Name
+_show = mkName "show"
+
+_read :: Name
+_read = mkName "read"
+
+_Semigroup :: Name
+_Semigroup = mkName "Semigroup"
+
+_Monoid :: Name
+_Monoid = mkName "Monoid"
+
+_Foldable :: Name
+_Foldable = mkName "Foldable"
+
 --------------------------------------------------------------------------------
--- TH helpers
+-- Simple derivations
 --------------------------------------------------------------------------------
 
-makeTypeDec :: String -> Q [Dec]
-makeTypeDec dtNameStr = do
+derivIsListIdent :: Name -> Q Dec
+derivIsListIdent _Type =
+    standaloneDerivD
+        (pure [])
+        (appT (conT _IsList) (foldl1 appT [conT _Type, conT _Identity, varT _a]))
+
+derivIsStringIdent :: Name -> Q Dec
+derivIsStringIdent _Type =
+    standaloneDerivD
+        (singleton <$> [t|$(varT _a) ~ Char|])
+        (appT
+             (conT _IsString)
+             (foldl1 appT [conT _Type, conT _Identity, varT _a]))
+
+derivEqIdent :: Name -> Q Dec
+derivEqIdent _Type =
+    standaloneDerivD
+        (singleton <$> [t|Eq $(varT _a)|])
+        (appT (conT _Eq) (foldl1 appT [conT _Type, conT _Identity, varT _a]))
+
+derivOrdIdent :: Name -> Q Dec
+derivOrdIdent _Type =
+    standaloneDerivD
+        (singleton <$> [t|Ord $(varT _a)|])
+        (appT (conT _Ord) (foldl1 appT [conT _Type, conT _Identity, varT _a]))
+
+derivTraversableIdent :: Name -> Q Dec
+derivTraversableIdent _Type =
+    standaloneDerivD
+        (pure [])
+        (appT
+             (conT _Traversable)
+             (foldl1 appT [conT _Type, conT _Identity, varT _a]))
+
+showInstance :: Name -> Q Dec
+showInstance _Type =
+    instanceD
+        (singleton <$> appT (conT _Show) (varT _a))
+        (appT (conT _Show) (foldl1 appT [conT _Type, conT _Identity, varT _a]))
+        [ pragInlD _show Inline FunLike AllPhases
+        , funD
+              _show
+              [ clause
+                    [conP _Type [varP _strm]]
+                    (normalB (appE (varE _show) (varE _strm)))
+                    []
+              ]
+        ]
+
+readInstance :: Name -> Q Dec
+readInstance _Type =
+    instanceD
+        (singleton <$> appT (conT _Read) (varT _a))
+        (appT (conT _Read) (foldl1 appT [conT _Type, conT _Identity, varT _a]))
+        [ pragInlD _read Inline FunLike AllPhases
+        , funD
+              _read
+              [ clause
+                    []
+                    (normalB (foldl1 appE [varE _dotOp, conE _Type, varE _read]))
+                    []
+              ]
+        ]
+
+functorInstance :: Name -> Q Dec
+functorInstance _Type = do
+    instanceD
+        (pure <$> appT (conT _Monad) (varT _m))
+        (appT (conT _Functor) (appT (conT _Type) (varT _m)))
+        [ pragInlD _fmap Inline FunLike AllPhases
+        , funD
+              _fmap
+              [ clause
+                    [varP _f, conP _Type [varP _strm]]
+                    (normalB
+                         (appE
+                              (conE _Type)
+                              (appE (appE (varE _fmap) (varE _f)) (varE _strm))))
+                    []
+              ]
+        ]
+
+monadtransInstance :: Name -> Q Dec
+monadtransInstance _Type =
+    instanceD
+        (pure [])
+        (appT (conT _MonadTrans) (conT _Type))
+        [ pragInlD _lift Inline FunLike AllPhases
+        , funD
+              _lift
+              [ clause
+                    []
+                    (normalB
+                         (infixE
+                              (Just (conE _Type))
+                              (varE _dotOp)
+                              (Just (varE _lift))))
+                    []
+              ]
+        ]
+
+monadioInstance :: Name -> Q Dec
+monadioInstance _Type =
+    instanceD
+        (sequence
+             [ appT (conT _Monad) (appT (conT _Type) (varT _m))
+             , appT (conT _MonadIO) (varT _m)
+             ])
+        (appT (conT _MonadIO) (appT (conT _Type) (varT _m)))
+        [ pragInlD _liftIO Inline FunLike AllPhases
+        , funD
+              _liftIO
+              [ clause
+                    []
+                    (normalB
+                         (infixE
+                              (Just (conE _Type))
+                              (varE _dotOp)
+                              (Just
+                                   (infixE
+                                        (Just (varE _lift))
+                                        (varE _dotOp)
+                                        (Just (varE _liftIO))))))
+                    []
+              ]
+        ]
+
+monadthrowInstance :: Name -> Q Dec
+monadthrowInstance _Type =
+    instanceD
+        (sequence
+             [ appT (conT _Monad) (appT (conT _Type) (varT _m))
+             , appT (conT _MonadThrow) (varT _m)
+             ])
+        (appT (conT _MonadThrow) (appT (conT _Type) (varT _m)))
+        [ pragInlD _throwM Inline FunLike AllPhases
+        , funD
+              _throwM
+              [ clause
+                    []
+                    (normalB
+                         (infixE
+                              (Just (conE _Type))
+                              (varE _dotOp)
+                              (Just
+                                   (infixE
+                                        (Just (varE _lift))
+                                        (varE _dotOp)
+                                        (Just (varE _throwM))))))
+                    []
+              ]
+        ]
+
+monadreaderInstance :: Name -> Q Dec
+monadreaderInstance _Type =
+    instanceD
+        (sequence
+             [ appT (conT _Monad) (appT (conT _Type) (varT _m))
+             , appT (appT (conT _MonadReader) (varT _r)) (varT _m)
+             ])
+        (appT (appT (conT _MonadReader) (varT _r)) (appT (conT _Type) (varT _m)))
+        [ pragInlD _ask Inline FunLike AllPhases
+        , funD _ask [clause [] (normalB (appE (varE _lift) (varE _ask))) []]
+        , pragInlD _local Inline FunLike AllPhases
+        , funD
+              _local
+              [ clause
+                    [varP _f, conP _Type [varP _strm]]
+                    (normalB
+                         (appE
+                              (conE _Type)
+                              (appE (appE (varE _local) (varE _f)) (varE _strm))))
+                    []
+              ]
+        ]
+
+
+--------------------------------------------------------------------------------
+-- Type declaration
+--------------------------------------------------------------------------------
+
+typeDec :: String -> [Name] -> Q [Dec]
+typeDec dtNameStr toDerive = do
     typ <-
         newtypeD
             (return [])
@@ -156,7 +380,7 @@ makeTypeDec dtNameStr = do
                        (bang noSourceUnpackedness noSourceStrictness)
                        (appT (appT (conT _Stream) (varT _m)) (varT _a))
                  ])
-            []
+            [derivClause Nothing (conT <$> toDerive)]
     let streamType = appT (appT (conT _Stream) (varT _m)) (varT _a)
         nameType = appT (appT (conT _Type) (varT _m)) (varT _a)
     mkTypSig <- sigD _toType (appT (appT arrowT streamType) nameType)
@@ -174,27 +398,9 @@ makeTypeDec dtNameStr = do
     _toType = mkName (toTypeStr dtNameStr)
     _unType = mkName (unTypeStr dtNameStr)
 
-makeStreamFunctor :: String -> Q Dec
-makeStreamFunctor dtNameStr = do
-    instanceD
-        (pure <$> appT (conT _Monad) (varT _m))
-        (appT (conT _Functor) (appT (conT _Type) (varT _m)))
-        [ pragInlD _fmap Inline FunLike AllPhases
-        , funD
-              _fmap
-              [ clause
-                    [varP _f, conP _Type [varP _strm]]
-                    (normalB
-                         (appE
-                              (conE _Type)
-                              (appE (appE (varE _fmap) (varE _f)) (varE _strm))))
-                    []
-              ]
-        ]
-
-    where
-
-    _Type = mkName dtNameStr
+--------------------------------------------------------------------------------
+-- Main deivations
+--------------------------------------------------------------------------------
 
 mkStreamApplicative :: String -> [String] -> String -> String -> Q Dec
 mkStreamApplicative dtNameStr ctxM pureDefStr apDefStr =
@@ -272,118 +478,40 @@ mkStreamMonad dtNameStr ctxM bindDefStr =
     _unType = mkName (unTypeStr dtNameStr)
     _bindDef = mkName bindDefStr
 
-mkSimpleStreamInstances :: String -> Q [Dec]
-mkSimpleStreamInstances dtNameStr = do
-    trans <-
-        instanceD
-            (pure [])
-            (appT (conT _MonadTrans) (conT _Type))
-            [ pragInlD _lift Inline FunLike AllPhases
-            , funD
-                  _lift
-                  [ clause
-                        []
-                        (normalB
-                             (infixE
-                                  (Just (conE _Type))
-                                  (varE _dotOp)
-                                  (Just (varE _lift))))
-                        []
-                  ]
-            ]
-    io <-
-        instanceD
-            (sequence
-                 [ appT (conT _Monad) (appT (conT _Type) (varT _m))
-                 , appT (conT _MonadIO) (varT _m)
-                 ])
-            (appT (conT _MonadIO) (appT (conT _Type) (varT _m)))
-            [ pragInlD _liftIO Inline FunLike AllPhases
-            , funD
-                  _liftIO
-                  [ clause
-                        []
-                        (normalB
-                             (infixE
-                                  (Just (conE _Type))
-                                  (varE _dotOp)
-                                  (Just
-                                       (infixE
-                                            (Just (varE _lift))
-                                            (varE _dotOp)
-                                            (Just (varE _liftIO))))))
-                        []
-                  ]
-            ]
-    throw <-
-        instanceD
-            (sequence
-                 [ appT (conT _Monad) (appT (conT _Type) (varT _m))
-                 , appT (conT _MonadThrow) (varT _m)
-                 ])
-            (appT (conT _MonadThrow) (appT (conT _Type) (varT _m)))
-            [ pragInlD _throwM Inline FunLike AllPhases
-            , funD
-                  _throwM
-                  [ clause
-                        []
-                        (normalB
-                             (infixE
-                                  (Just (conE _Type))
-                                  (varE _dotOp)
-                                  (Just
-                                       (infixE
-                                            (Just (varE _lift))
-                                            (varE _dotOp)
-                                            (Just (varE _throwM))))))
-                        []
-                  ]
-            ]
-    rdr <-
-        instanceD
-            (sequence
-                 [ appT (conT _Monad) (appT (conT _Type) (varT _m))
-                 , appT (appT (conT _MonadReader) (varT _r)) (varT _m)
-                 ])
-            (appT
-                 (appT (conT _MonadReader) (varT _r))
-                 (appT (conT _Type) (varT _m)))
-            [ pragInlD _ask Inline FunLike AllPhases
-            , funD _ask [clause [] (normalB (appE (varE _lift) (varE _ask))) []]
-            , pragInlD _local Inline FunLike AllPhases
-            , funD
-                  _local
-                  [ clause
-                        [varP _f, conP _Type [varP _strm]]
-                        (normalB
-                             (appE
-                                  (conE _Type)
-                                  (appE
-                                       (appE (varE _local) (varE _f))
-                                       (varE _strm))))
-                        []
-                  ]
-            ]
-    return [trans, io, throw, rdr]
-
-    where
-
-    _Type = mkName dtNameStr
-    _unType = mkName (unTypeStr dtNameStr)
-
 --------------------------------------------------------------------------------
 -- Functions
 --------------------------------------------------------------------------------
+
+flattenDec :: [Q [Dec]] -> Q [Dec]
+flattenDec [] = pure []
+flattenDec (ma:mas) = do
+    a <- ma
+    as <- flattenDec mas
+    pure (a ++ as)
 
 -- | Create a type with a zip-like applicative.
 --
 -- >>> expr <- runQ (mkZipType "ZipStream" "zipApply" False)
 -- >>> putStrLn $ pprint expr
--- newtype ZipStream m a = ZipStream (Stream.Stream m a)
+-- newtype ZipStream m a
+--   = ZipStream (Stream.Stream m a)
+--     deriving (Semigroup, Monoid, Foldable)
 -- mkZipStream :: Stream.Stream m a -> ZipStream m a
 -- mkZipStream = ZipStream
 -- unZipStream :: ZipStream m a -> Stream.Stream m a
 -- unZipStream (ZipStream strm) = strm
+-- deriving instance IsList (ZipStream Identity a)
+-- deriving instance a ~
+--                   GHC.Types.Char => IsString (ZipStream Identity a)
+-- deriving instance GHC.Classes.Eq a => Eq (ZipStream Identity a)
+-- deriving instance GHC.Classes.Ord a => Ord (ZipStream Identity a)
+-- deriving instance Traversable (ZipStream Identity a)
+-- instance Show a => Show (ZipStream Identity a)
+--     where {-# INLINE show #-}
+--           show (ZipStream strm) = show strm
+-- instance Read a => Read (ZipStream Identity a)
+--     where {-# INLINE read #-}
+--           read = (.) ZipStream read
 -- instance Monad m => Functor (ZipStream m)
 --     where {-# INLINE fmap #-}
 --           fmap f (ZipStream strm) = ZipStream (fmap f strm)
@@ -392,41 +520,41 @@ mkSimpleStreamInstances dtNameStr = do
 --           pure = ZipStream . Stream.repeat
 --           {-# INLINE (<*>) #-}
 --           (<*>) (ZipStream strm1) (ZipStream strm2) = ZipStream (zipApply strm1 strm2)
--- instance MonadTrans ZipStream
---     where {-# INLINE lift #-}
---           lift = ZipStream . lift
--- instance (Monad (ZipStream m), MonadIO m) => MonadIO (ZipStream m)
---     where {-# INLINE liftIO #-}
---           liftIO = ZipStream . (lift . liftIO)
--- instance (Monad (ZipStream m),
---           MonadThrow m) => MonadThrow (ZipStream m)
---     where {-# INLINE throwM #-}
---           throwM = ZipStream . (lift . throwM)
--- instance (Monad (ZipStream m), MonadReader r m) => MonadReader r
---                                                                (ZipStream m)
---     where {-# INLINE ask #-}
---           ask = lift ask
---           {-# INLINE local #-}
---           local f (ZipStream strm) = ZipStream (local f strm)
 mkZipType
     :: String -- ^ Name of the type
     -> String -- ^ Function to use for (\<*\>)
     -> Bool   -- ^ 'True' if (\<*\>) requires MonadAsync constraint (concurrent)
     -> Q [Dec]
-mkZipType dtNameStr apOpStr isConcurrent = do
-    typeDec <- makeTypeDec dtNameStr
-    functorI <- makeStreamFunctor dtNameStr
-    applicativeI <-
-        mkStreamApplicative
-            dtNameStr
-            classConstraints
-            "Stream.repeat"
-            apOpStr
-    simpleInstances <- mkSimpleStreamInstances dtNameStr
-    return $ typeDec ++ [functorI, applicativeI] ++ simpleInstances
+mkZipType dtNameStr apOpStr isConcurrent =
+    flattenDec
+        [ typeDec dtNameStr
+              $ if (not isConcurrent)
+                then [_Semigroup, _Monoid, _Foldable]
+                else []
+        , sequence
+              $ if (not isConcurrent)
+                then [ derivIsListIdent _Type
+                     , derivIsStringIdent _Type
+                     , derivEqIdent _Type
+                     , derivOrdIdent _Type
+                     , derivTraversableIdent _Type
+                     , showInstance _Type
+                     , readInstance _Type
+                     ]
+                else []
+        , sequence
+              [ functorInstance _Type
+              , mkStreamApplicative
+                    dtNameStr
+                    classConstraints
+                    "Stream.repeat"
+                    apOpStr
+              ]
+        ]
 
     where
 
+    _Type = mkName dtNameStr
     classConstraints =
         if isConcurrent
         then ["Stream.MonadAsync"]
@@ -474,21 +602,41 @@ mkCrossType
     -> String -- ^ Function to use for (>>=)
     -> Bool   -- ^ 'True' if (>>=) requires MonadAsync constraint (concurrent)
     -> Q [Dec]
-mkCrossType dtNameStr bindOpStr isConcurrent = do
-    typeDec <- makeTypeDec dtNameStr
-    functorI <- makeStreamFunctor dtNameStr
-    monadI <- mkStreamMonad dtNameStr classConstraints bindOpStr
-    applicativeI <-
-        mkStreamApplicative
-            dtNameStr
-            classConstraints
-            "Stream.fromPure"
-            "ap"
-    simpleInstances <- mkSimpleStreamInstances dtNameStr
-    return $ typeDec ++ [functorI, monadI, applicativeI] ++ simpleInstances
+mkCrossType dtNameStr bindOpStr isConcurrent =
+    flattenDec
+        [ typeDec dtNameStr
+              $ if (not isConcurrent)
+                then [_Semigroup, _Monoid, _Foldable]
+                else []
+        , sequence
+              $ if (not isConcurrent)
+                then [ derivIsListIdent _Type
+                     , derivIsStringIdent _Type
+                     , derivEqIdent _Type
+                     , derivOrdIdent _Type
+                     , derivTraversableIdent _Type
+                     , showInstance _Type
+                     , readInstance _Type
+                     ]
+                else []
+        , sequence
+              [ functorInstance _Type
+              , mkStreamMonad dtNameStr classConstraints bindOpStr
+              , mkStreamApplicative
+                    dtNameStr
+                    classConstraints
+                    "Stream.fromPure"
+                    "ap"
+              , monadtransInstance _Type
+              , monadioInstance _Type
+              , monadthrowInstance _Type
+              , monadreaderInstance _Type
+              ]
+        ]
 
     where
 
+    _Type = mkName dtNameStr
     classConstraints =
         if isConcurrent
         then ["Stream.MonadAsync"]
