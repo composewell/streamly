@@ -8,7 +8,7 @@ maxTestCount = 10
 #endif
 
 allocOverhead :: Int
-allocOverhead = 2 * sizeOf (undefined :: Int)
+allocOverhead = 16
 
 -- XXX this should be in sync with the defaultChunkSize in Array code, or we
 -- should expose that and use that. For fast testing we could reduce the

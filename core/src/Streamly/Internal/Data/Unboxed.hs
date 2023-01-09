@@ -178,7 +178,6 @@ unpin arr@(MutableByteArray marr#) =
 -- The Unbox type class
 --------------------------------------------------------------------------------
 
--- XXX Use Proxy type in sizeOf method.
 -- XXX generate error if the size is < 1
 
 -- In theory we could convert a type to and from a byte stream and use that
@@ -257,10 +256,10 @@ unpin arr@(MutableByteArray marr#) =
 --
 class Unbox a where
     -- | Get the size.
-    sizeOf :: a -> Int
+    sizeOf :: Proxy a -> Int
 
-    default sizeOf :: (SizeOfRep (Rep a)) => a -> Int
-    sizeOf _ = genericSizeOf (Proxy :: Proxy a)
+    default sizeOf :: (SizeOfRep (Rep a)) => Proxy a -> Int
+    sizeOf = genericSizeOf
 
     -- | Read an element of type "a" from a MutableByteArray given the byte
     -- index.
@@ -449,7 +448,7 @@ instance Unbox IoSubSystem where
     pokeByteIndex i arr a = pokeByteIndex i arr (fromEnum a)
 
     {-# INLINE sizeOf #-}
-    sizeOf = sizeOf . fromEnum
+    sizeOf _ = sizeOf (Proxy :: Proxy Int)
 #endif
 
 instance Unbox Bool where
@@ -511,7 +510,7 @@ readUnsafe = Peeker (Builder step)
     {-# INLINE step #-}
     step :: forall a. Unbox a => BoundedPtr -> IO (BoundedPtr, a)
     step (BoundedPtr arr pos end) = do
-        let next = pos + sizeOf (undefined :: a)
+        let next = pos + sizeOf (Proxy :: Proxy a)
         r <- peekByteIndex pos arr
         return (BoundedPtr arr next end, r)
 
@@ -524,7 +523,7 @@ read = Peeker (Builder step)
     {-# INLINE step #-}
     step :: forall a. Unbox a => BoundedPtr -> IO (BoundedPtr, a)
     step (BoundedPtr arr pos end) = do
-        let next = pos + sizeOf (undefined :: a)
+        let next = pos + sizeOf (Proxy :: Proxy a)
         when (next > end) $ error "peekObject reading beyond limit"
         r <- peekByteIndex pos arr
         return (BoundedPtr arr next end, r)
@@ -557,16 +556,16 @@ runPeeker (Peeker (Builder f)) ptr = fmap snd (f ptr)
 
 -- Does not check writing beyond bound.
 {-# INLINE pokeBoundedPtrUnsafe #-}
-pokeBoundedPtrUnsafe :: Unbox a => a -> BoundedPtr -> IO BoundedPtr
+pokeBoundedPtrUnsafe :: forall a. Unbox a => a -> BoundedPtr -> IO BoundedPtr
 pokeBoundedPtrUnsafe a (BoundedPtr arr pos end) = do
-    let next = pos + sizeOf a
+    let next = pos + sizeOf (Proxy :: Proxy a)
     pokeByteIndex pos arr a
     return (BoundedPtr arr next end)
 
 {-# INLINE pokeBoundedPtr #-}
-pokeBoundedPtr :: Unbox a => a -> BoundedPtr -> IO BoundedPtr
+pokeBoundedPtr :: forall a. Unbox a => a -> BoundedPtr -> IO BoundedPtr
 pokeBoundedPtr a (BoundedPtr arr pos end) = do
-    let next = pos + sizeOf a
+    let next = pos + sizeOf (Proxy :: Proxy a)
     when (next > end) $ error "pokeBoundedPtr writing beyond limit"
     pokeByteIndex pos arr a
     return (BoundedPtr arr next end)
@@ -615,7 +614,7 @@ instance SizeOfRep f => SizeOfRep (M1 i c f) where
 -- Primitive type "a".
 instance Unbox a => SizeOfRep (K1 i a) where
     {-# INLINE sizeOfRep #-}
-    sizeOfRep _ = sizeOf (undefined :: a)
+    sizeOfRep _ = sizeOf (Proxy :: Proxy a)
 
 -- Void: data type without constructors. Values of this type cannot exist,
 -- therefore the size is undefined. We should never be serializing structures
@@ -671,7 +670,7 @@ instance (MaxArity256 (SumArity (f :+: g)), SizeOfRepSum f, SizeOfRepSum g) =>
     {-# INLINE sizeOfRep #-}
     sizeOfRep _ =
         -- One byte for the constructor id and then the constructor value.
-        sizeOf (undefined :: Word8) +
+        sizeOf (Proxy :: Proxy Word8) +
             max (sizeOfRepSum (undefined :: f x))
                 (sizeOfRepSum (undefined :: g x))
 

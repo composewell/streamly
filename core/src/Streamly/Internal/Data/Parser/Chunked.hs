@@ -37,6 +37,7 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Parser.Chunked.Type (ChunkParser (..))

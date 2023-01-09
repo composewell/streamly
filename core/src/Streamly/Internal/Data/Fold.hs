@@ -309,6 +309,7 @@ import Data.Bifunctor (first)
 import Data.Bits (shiftL, shiftR, (.|.), (.&.))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Int (Int64)
+import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
 import Foreign.Storable (Storable, peek)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
@@ -1707,7 +1708,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
                 | patLen == 1 -> do
                     pat <- liftIO $ Array.unsafeIndexIO 0 patArr
                     return $ Partial $ SplitOnSeqSingle acc pat
-                | SIZE_OF(a) * patLen <= sizeOf (undefined :: Word) ->
+                | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
                     (rb, rhead) <- liftIO $ Ring.new patLen
@@ -1844,7 +1845,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
                     pat <- liftIO $ Array.unsafeIndexIO 0 patArr
                     return $ Partial $ SplitOnSeqSingle acc pat
                 -- XXX Need to add tests for this case
-                | SIZE_OF(a) * patLen <= sizeOf (undefined :: Word) ->
+                | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
                     (rb, rhead) <- liftIO $ Ring.new patLen

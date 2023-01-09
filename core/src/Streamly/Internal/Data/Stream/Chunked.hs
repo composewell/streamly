@@ -53,6 +53,7 @@ where
 import Data.Bifunctor (second)
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unboxed (Unbox, peekWith, sizeOf)
 import Fusion.Plugin.Types (Fuse(..))

@@ -166,7 +166,7 @@ moveBy by Ring {..} ringHead = ringStartPtr `plusPtr` advanceFromHead
 
     where
 
-    elemSize = SIZE_OF(a)
+    elemSize = STORABLE_SIZE_OF(a)
     ringStartPtr = unsafeForeignPtrToPtr ringStart
     lenInBytes = ringBound `minusPtr` ringStartPtr
     offInBytes = ringHead `minusPtr` ringStartPtr
@@ -384,7 +384,7 @@ asBytes = castUnsafe
 cast :: forall a b. Storable b => Ring a -> Maybe (Ring b)
 cast arr =
     let len = byteLength arr
-        r = len `mod` SIZE_OF(b)
+        r = len `mod` STORABLE_SIZE_OF(b)
      in if r /= 0
         then Nothing
         else Just $ castUnsafe arr

@@ -48,7 +48,7 @@ test v1 v2 = monadicIO $ do
 
 checkSizeOf :: forall a. Unbox a => Proxy a -> Int -> Property
 checkSizeOf _ size = monadicIO $
-    assert (sizeOf (undefined :: a) == size)
+    assert (sizeOf (Proxy :: Proxy a) == size)
 
 moduleName :: String
 moduleName = "Data.Unbox"

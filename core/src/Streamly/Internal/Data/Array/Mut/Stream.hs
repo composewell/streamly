@@ -30,6 +30,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
 import Data.Bifunctor (first)
+import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
 import Streamly.Internal.Data.Array.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))

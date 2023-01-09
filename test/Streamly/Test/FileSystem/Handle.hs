@@ -9,6 +9,7 @@
 module Streamly.Test.FileSystem.Handle (main) where
 
 import Data.Functor.Identity (runIdentity)
+import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unboxed (sizeOf)
 import Streamly.Internal.Data.Stream (Stream)
@@ -36,7 +37,7 @@ import Test.Hspec as H
 import Test.Hspec.QuickCheck
 
 allocOverhead :: Int
-allocOverhead = 2 * sizeOf (undefined :: Int)
+allocOverhead = 2 * sizeOf (Proxy :: Proxy Int)
 
 defaultChunkSize :: Int
 defaultChunkSize = 32 * k - allocOverhead

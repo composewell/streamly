@@ -153,6 +153,7 @@ import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity ( Identity )
+import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
 import Foreign.Storable (Storable, peek)
 import Fusion.Plugin.Types (Fuse(..))
@@ -1961,7 +1962,7 @@ splitOnSeq patArr (Fold fstep initial done) (Stream step state) =
                          pat <- liftIO $ A.unsafeIndexIO 0 patArr
                          return $ Skip $ SplitOnSeqSingle acc state pat
                      else if SIZE_OF(a) * patLen
-                               <= sizeOf (undefined :: Word)
+                               <= sizeOf (Proxy :: Proxy Word)
                           then return $ Skip $ SplitOnSeqWordInit acc state
                           else do
                               (rb, rhead) <- liftIO $ RB.new patLen
@@ -2294,7 +2295,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial done) (Stream step state) =
                          pat <- liftIO $ A.unsafeIndexIO 0 patArr
                          skip $ SplitOnSuffixSeqSingleInit fs state pat
                      else if SIZE_OF(a) * patLen
-                               <= sizeOf (undefined :: Word)
+                               <= sizeOf (Proxy :: Proxy Word)
                           then skip $ SplitOnSuffixSeqWordInit fs state
                           else do
                               (rb, rhead) <- liftIO $ RB.new patLen

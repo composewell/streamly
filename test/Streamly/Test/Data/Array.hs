@@ -10,6 +10,7 @@ module Streamly.Test.Data.Array (main) where
 
 import Data.Char (isLower)
 import Data.List (sort)
+import Data.Proxy (Proxy(..))
 import Data.Word(Word8)
 import Foreign.Storable (peek)
 import GHC.Ptr (plusPtr)
@@ -196,7 +197,7 @@ testAsPtrUnsafeMA = do
 
     where
 
-    sizeOfInt = sizeOf (undefined :: Int)
+    sizeOfInt = sizeOf (Proxy :: Proxy Int)
 
     -- We need to be careful here. We assume Unboxed and Storable are compatible
     -- with each other. For Int, they are compatible.
@@ -210,7 +211,7 @@ testAsPtrUnsafeMA = do
 reallocMA :: Property
 reallocMA =
     let len = 10000
-        bSize = len * sizeOf (undefined :: Char)
+        bSize = len * sizeOf (Proxy :: Proxy Char)
     in forAll (vectorOf len (arbitrary :: Gen Char)) $ \vec ->
            forAll (chooseInt (bSize - 2000, bSize + 2000)) $ \newBLen -> do
                arr <- MA.fromList vec

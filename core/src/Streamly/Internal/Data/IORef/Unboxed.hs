@@ -38,6 +38,7 @@ where
 
 #include "inline.hs"
 
+import Data.Proxy (Proxy(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unboxed
     ( MutableByteArray(..)
@@ -59,7 +60,7 @@ newtype IORef a = IORef MutableByteArray
 {-# INLINE newIORef #-}
 newIORef :: forall a. Unbox a => a -> IO (IORef a)
 newIORef x = do
-    var <- newUnpinnedBytes (sizeOf (undefined :: a))
+    var <- newUnpinnedBytes (sizeOf (Proxy :: Proxy a))
     pokeWith var 0 x
     return $ IORef var
 
