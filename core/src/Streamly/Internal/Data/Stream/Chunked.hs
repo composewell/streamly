@@ -170,7 +170,7 @@ interposeSuffix :: (Monad m, Unbox a)
 -- interposeSuffix x = fromStreamD . A.unlines x . toStreamD
 interposeSuffix x = S.interposeSuffix x A.reader
 
-data FlattenState s a =
+data FlattenState s =
       OuterLoop s
     | InnerLoop s !MA.MutableByteArray !Int !Int
 

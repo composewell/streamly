@@ -580,6 +580,8 @@ modify Array{..} f = liftIO $
             pokeWith arrContents i (f r)
             go (INDEX_NEXT(i,a))
 
+-- XXX We could specify the number of bytes to swap instead of Proxy. Need
+-- to ensure that the memory does not overlap.
 {-# INLINE swapArrayByteIndices #-}
 swapArrayByteIndices ::
        forall a. Unbox a

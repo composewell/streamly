@@ -14,22 +14,14 @@ import Data.Proxy (Proxy(..))
 import Data.Word(Word8)
 import Foreign.Storable (peek)
 import GHC.Ptr (plusPtr)
-import Streamly.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
-import Streamly.Test.Common (listEquals)
+import Test.QuickCheck (chooseInt, listOf)
 
-import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
-import qualified Streamly.Internal.Data.Stream as S
 
-import Test.Hspec as H
-import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, chooseInt, listOf
-    , forAll, Gen, vectorOf, arbitrary, choose)
-import Test.QuickCheck.Monadic (monadicIO, assert, run)
+#include "Streamly/Test/Data/Array/CommonImports.hs"
 
 type Array = A.Array
 

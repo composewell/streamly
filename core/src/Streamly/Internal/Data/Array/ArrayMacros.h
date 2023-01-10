@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
--- Macros to access array pointers
+-- Macros to access Storable pointers
 -------------------------------------------------------------------------------
 
 -- The Storable instance of () has size 0. We ensure that the size is non-zero
@@ -8,7 +8,6 @@
 --
 -- XXX Check the core to see if max can be statically eliminated. llvm can
 -- eliminate the comparison, but not sure if GHC NCG can.
-#define SIZE_OF(a) max 1 (sizeOf (Proxy :: Proxy a))
 #define STORABLE_SIZE_OF(a) max 1 (sizeOf (undefined :: a))
 
 -- Move the pointer to ith element of specified type. Type is specified as the
@@ -27,8 +26,12 @@
 #define PTR_INVALID(ptr,end,a) ptr `plusPtr` STORABLE_SIZE_OF(a) > end
 
 -------------------------------------------------------------------------------
--- Macros to access array indices
+-- Macros to access array indices (using Unbox type class)
 -------------------------------------------------------------------------------
+
+-- This macro was originally defined as a wrapper to sizeOf so that we can
+-- avoid a sizeOf value of 0 and make it 1.
+#define SIZE_OF(a) sizeOf (Proxy :: Proxy a)
 
 #define INDEX_NEXT(i,a) i + SIZE_OF(a)
 #define INDEX_PREV(i,a) i - SIZE_OF(a)

@@ -13,6 +13,7 @@ module Streamly.Internal.System.IO
     ( defaultChunkSize
     , arrayPayloadSize
     , unsafeInlineIO
+    , byteArrayOverhead
     )
 
 where
@@ -21,7 +22,8 @@ where
 -- Imports
 -------------------------------------------------------------------------------
 
-import Foreign.Storable (Storable(sizeOf))
+#include "MachDeps.h"
+
 import GHC.Base (realWorld#)
 import GHC.IO (IO(IO))
 
@@ -40,7 +42,7 @@ unsafeInlineIO (IO m) = case m realWorld# of (# _, r #) -> r
 -- See https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/rts/storage/heap-objects#arrays
 --
 byteArrayOverhead :: Int
-byteArrayOverhead = 2 * sizeOf (undefined :: Word)
+byteArrayOverhead = 2 * SIZEOF_HSWORD
 
 -- | When we allocate a byte array of size @k@ the allocator actually allocates
 -- memory of size @k + byteArrayOverhead@. @arrayPayloadSize n@ returns the

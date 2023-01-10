@@ -684,13 +684,13 @@ decodeUtf8Lax = decodeUtf8
 #ifndef __GHCJS__
 {-# ANN type FlattenState Fuse #-}
 #endif
-data FlattenState s a
+data FlattenState s
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
     | InnerLoopDecodeInit s MutableByteArray !Int !Int
     | InnerLoopDecodeFirst s MutableByteArray !Int !Int Word8
     | InnerLoopDecoding s MutableByteArray !Int !Int
         !DecodeState !CodePoint
-    | YAndC !Char (FlattenState s a) -- These constructors can be
+    | YAndC !Char (FlattenState s)   -- These constructors can be
                                      -- encoded in the UTF8DecodeState
                                      -- type, I prefer to keep these
                                      -- flat even though that means

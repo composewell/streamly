@@ -9,10 +9,9 @@
 module Streamly.Test.FileSystem.Handle (main) where
 
 import Data.Functor.Identity (runIdentity)
-import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
-import Streamly.Internal.Data.Unboxed (sizeOf)
 import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.System.IO (defaultChunkSize)
 import System.FilePath ((</>))
 import System.IO
     ( Handle
@@ -35,13 +34,6 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode
 
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
-
-allocOverhead :: Int
-allocOverhead = 2 * sizeOf (Proxy :: Proxy Int)
-
-defaultChunkSize :: Int
-defaultChunkSize = 32 * k - allocOverhead
-   where k = 1024
 
 maxArrLen :: Int
 maxArrLen = defaultChunkSize * 8
