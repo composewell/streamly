@@ -38,7 +38,6 @@ import Control.Monad.Catch (MonadThrow(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Data.List (singleton)
 import Prelude hiding (repeat)
 
 -- $setup
@@ -50,6 +49,10 @@ import Prelude hiding (repeat)
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
+
+{-# INLINE singleton #-}
+singleton :: a -> [a]
+singleton x = [x]
 
 toTypeStr :: String -> String
 toTypeStr typ = "mk" ++ typ
@@ -169,8 +172,8 @@ _Show = mkName "Show"
 _show :: Name
 _show = mkName "show"
 
-_read :: Name
-_read = mkName "read"
+_readPrec :: Name
+_readPrec = mkName "readPrec"
 
 _Semigroup :: Name
 _Semigroup = mkName "Semigroup"
@@ -185,6 +188,7 @@ _Foldable = mkName "Foldable"
 -- Simple derivations
 --------------------------------------------------------------------------------
 
+-- Requires TypeFamilies and UndecidableInstances
 derivIsListIdent :: Name -> Q Dec
 derivIsListIdent _Type =
     standaloneDerivD
@@ -217,7 +221,7 @@ derivTraversableIdent _Type =
         (pure [])
         (appT
              (conT _Traversable)
-             (foldl1 appT [conT _Type, conT _Identity, varT _a]))
+             (foldl1 appT [conT _Type, conT _Identity]))
 
 showInstance :: Name -> Q Dec
 showInstance _Type =
@@ -239,12 +243,14 @@ readInstance _Type =
     instanceD
         (singleton <$> appT (conT _Read) (varT _a))
         (appT (conT _Read) (foldl1 appT [conT _Type, conT _Identity, varT _a]))
-        [ pragInlD _read Inline FunLike AllPhases
+        [ pragInlD _readPrec Inline FunLike AllPhases
         , funD
-              _read
+              _readPrec
               [ clause
                     []
-                    (normalB (foldl1 appE [varE _dotOp, conE _Type, varE _read]))
+                    (normalB
+                        (foldl1 appE [varE _fmap, conE _Type, varE _readPrec])
+                    )
                     []
               ]
         ]
@@ -281,7 +287,7 @@ monadtransInstance _Type =
                          (infixE
                               (Just (conE _Type))
                               (varE _dotOp)
-                              (Just (varE _lift))))
+                              (Just (varE (mkName "Stream.fromEffect")))))
                     []
               ]
         ]
@@ -305,7 +311,7 @@ monadioInstance _Type =
                               (varE _dotOp)
                               (Just
                                    (infixE
-                                        (Just (varE _lift))
+                                        (Just (varE (mkName "Stream.fromEffect")))
                                         (varE _dotOp)
                                         (Just (varE _liftIO))))))
                     []
@@ -326,18 +332,15 @@ monadthrowInstance _Type =
               [ clause
                     []
                     (normalB
-                         (infixE
-                              (Just (conE _Type))
-                              (varE _dotOp)
-                              (Just
-                                   (infixE
-                                        (Just (varE _lift))
-                                        (varE _dotOp)
-                                        (Just (varE _throwM))))))
+                       (infixE
+                            (Just (varE _lift))
+                            (varE _dotOp)
+                            (Just (varE _throwM))))
                     []
               ]
         ]
 
+{-
 monadreaderInstance :: Name -> Q Dec
 monadreaderInstance _Type =
     instanceD
@@ -360,7 +363,7 @@ monadreaderInstance _Type =
                     []
               ]
         ]
-
+-}
 
 --------------------------------------------------------------------------------
 -- Type declaration
@@ -380,7 +383,7 @@ typeDec dtNameStr toDerive = do
                        (bang noSourceUnpackedness noSourceStrictness)
                        (appT (appT (conT _Stream) (varT _m)) (varT _a))
                  ])
-            [derivClause Nothing (conT <$> toDerive)]
+            [derivClause Nothing (conT <$> toDerive) | not (null toDerive)]
     let streamType = appT (appT (conT _Stream) (varT _m)) (varT _a)
         nameType = appT (appT (conT _Type) (varT _m)) (varT _a)
     mkTypSig <- sigD _toType (appT (appT arrowT streamType) nameType)
@@ -402,8 +405,8 @@ typeDec dtNameStr toDerive = do
 -- Main deivations
 --------------------------------------------------------------------------------
 
-mkStreamApplicative :: String -> [String] -> String -> String -> Q Dec
-mkStreamApplicative dtNameStr ctxM pureDefStr apDefStr =
+mkStreamApplicative :: Bool -> String -> [String] -> String -> String -> Q Dec
+mkStreamApplicative isMonad dtNameStr ctxM pureDefStr apDefStr =
     instanceD
         (Prelude.mapM (\c -> appT (conT (mkName c)) (varT _m)) ctxM)
         (appT (conT _Applicative) (appT (conT _Type) (varT _m)))
@@ -422,15 +425,9 @@ mkStreamApplicative dtNameStr ctxM pureDefStr apDefStr =
         , pragInlD _apOp Inline FunLike AllPhases
         , funD
               _apOp
-              [ clause
-                    [conP _Type [varP _strm1], conP _Type [varP _strm2]]
-                    (normalB
-                         (appE
-                              (conE _Type)
-                              (appE
-                                   (appE (varE _apDef) (varE _strm1))
-                                   (varE _strm2))))
-                    []
+              [ if isMonad
+                then apClauseMonad
+                else apClauseApplicative
               ]
         ]
 
@@ -439,6 +436,17 @@ mkStreamApplicative dtNameStr ctxM pureDefStr apDefStr =
     _Type = mkName dtNameStr
     _pureDef = mkName pureDefStr
     _apDef = mkName apDefStr
+    apClauseMonad = clause [] (normalB (varE _apDef)) []
+    apClauseApplicative =
+        clause
+            [conP _Type [varP _strm1], conP _Type [varP _strm2]]
+            (normalB
+                 (appE
+                      (conE _Type)
+                      (appE
+                           (appE (varE _apDef) (varE _strm1))
+                           (varE _strm2))))
+            []
 
 mkStreamMonad :: String -> [String] -> String -> Q Dec
 mkStreamMonad dtNameStr ctxM bindDefStr =
@@ -505,13 +513,13 @@ flattenDec (ma:mas) = do
 --                   GHC.Types.Char => IsString (ZipStream Identity a)
 -- deriving instance GHC.Classes.Eq a => Eq (ZipStream Identity a)
 -- deriving instance GHC.Classes.Ord a => Ord (ZipStream Identity a)
--- deriving instance Traversable (ZipStream Identity a)
+-- deriving instance Traversable (ZipStream Identity)
 -- instance Show a => Show (ZipStream Identity a)
 --     where {-# INLINE show #-}
 --           show (ZipStream strm) = show strm
 -- instance Read a => Read (ZipStream Identity a)
---     where {-# INLINE read #-}
---           read = (.) ZipStream read
+--     where {-# INLINE readPrec #-}
+--           readPrec = fmap ZipStream readPrec
 -- instance Monad m => Functor (ZipStream m)
 --     where {-# INLINE fmap #-}
 --           fmap f (ZipStream strm) = ZipStream (fmap f strm)
@@ -528,11 +536,11 @@ mkZipType
 mkZipType dtNameStr apOpStr isConcurrent =
     flattenDec
         [ typeDec dtNameStr
-              $ if (not isConcurrent)
+              $ if not isConcurrent
                 then [_Semigroup, _Monoid, _Foldable]
                 else []
         , sequence
-              $ if (not isConcurrent)
+              $ if not isConcurrent
                 then [ derivIsListIdent _Type
                      , derivIsStringIdent _Type
                      , derivEqIdent _Type
@@ -545,6 +553,7 @@ mkZipType dtNameStr apOpStr isConcurrent =
         , sequence
               [ functorInstance _Type
               , mkStreamApplicative
+                    False
                     dtNameStr
                     classConstraints
                     "Stream.repeat"
@@ -580,23 +589,17 @@ mkZipType dtNameStr apOpStr isConcurrent =
 --     where {-# INLINE pure #-}
 --           pure = Parallel . Stream.fromPure
 --           {-# INLINE (<*>) #-}
---           (<*>) (Parallel strm1) (Parallel strm2) = Parallel (ap strm1 strm2)
--- instance MonadTrans Parallel
---     where {-# INLINE lift #-}
---           lift = Parallel . lift
+--           (<*>) = ap
 -- instance (Monad (Parallel m), MonadIO m) => MonadIO (Parallel m)
 --     where {-# INLINE liftIO #-}
---           liftIO = Parallel . (lift . liftIO)
+--           liftIO = Parallel . (Stream.fromEffect . liftIO)
+-- instance MonadTrans Parallel
+--     where {-# INLINE lift #-}
+--           lift = Parallel . Stream.fromEffect
 -- instance (Monad (Parallel m),
 --           MonadThrow m) => MonadThrow (Parallel m)
 --     where {-# INLINE throwM #-}
---           throwM = Parallel . (lift . throwM)
--- instance (Monad (Parallel m), MonadReader r m) => MonadReader r
---                                                               (Parallel m)
---     where {-# INLINE ask #-}
---           ask = lift ask
---           {-# INLINE local #-}
---           local f (Parallel strm) = Parallel (local f strm)
+--           throwM = lift . throwM
 mkCrossType
     :: String -- ^ Name of the type
     -> String -- ^ Function to use for (>>=)
@@ -605,11 +608,11 @@ mkCrossType
 mkCrossType dtNameStr bindOpStr isConcurrent =
     flattenDec
         [ typeDec dtNameStr
-              $ if (not isConcurrent)
+              $ if not isConcurrent
                 then [_Semigroup, _Monoid, _Foldable]
                 else []
         , sequence
-              $ if (not isConcurrent)
+              $ if not isConcurrent
                 then [ derivIsListIdent _Type
                      , derivIsStringIdent _Type
                      , derivEqIdent _Type
@@ -623,14 +626,15 @@ mkCrossType dtNameStr bindOpStr isConcurrent =
               [ functorInstance _Type
               , mkStreamMonad dtNameStr classConstraints bindOpStr
               , mkStreamApplicative
+                    True
                     dtNameStr
                     classConstraints
                     "Stream.fromPure"
                     "ap"
-              , monadtransInstance _Type
               , monadioInstance _Type
+              , monadtransInstance _Type
               , monadthrowInstance _Type
-              , monadreaderInstance _Type
+              -- , monadreaderInstance _Type
               ]
         ]
 
