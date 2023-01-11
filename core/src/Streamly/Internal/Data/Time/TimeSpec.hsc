@@ -1,6 +1,3 @@
-{-# LANGUAGE CPP                         #-}
-{-# LANGUAGE ScopedTypeVariables         #-}
-
 {-# OPTIONS_GHC -Wno-identities          #-}
 
 #ifndef __GHCJS__
