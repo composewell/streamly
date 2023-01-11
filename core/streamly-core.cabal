@@ -171,6 +171,7 @@ common default-extensions
         RankNTypes
         RecordWildCards
         ScopedTypeVariables
+        StandaloneDeriving
         TupleSections
         TypeApplications
         TypeFamilies
