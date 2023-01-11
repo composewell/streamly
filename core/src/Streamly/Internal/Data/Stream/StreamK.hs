@@ -1,7 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
-
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamK
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -175,6 +171,7 @@ module Streamly.Internal.Data.Stream.StreamK
     )
 where
 
+#include "inline.hs"
 #include "assert.hs"
 
 import Control.Monad (void, join)

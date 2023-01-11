@@ -1,7 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
-
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamK.Type
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -102,6 +98,8 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , interleaveMin
     )
 where
+
+#include "inline.hs"
 
 -- import Control.Applicative (liftA2)
 import Control.Monad ((>=>))

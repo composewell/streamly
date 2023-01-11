@@ -1,6 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Parser.Chunked.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -32,6 +29,8 @@ module Streamly.Internal.Data.Parser.Chunked.Type
     , die
     )
 where
+
+#include "inline.hs"
 
 import Control.Applicative (Alternative(..), liftA2)
 import Control.Monad (MonadPlus(..), ap)

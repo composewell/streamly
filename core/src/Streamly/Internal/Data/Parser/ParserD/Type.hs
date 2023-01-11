@@ -1,6 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserD.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -205,6 +202,7 @@ module Streamly.Internal.Data.Parser.ParserD.Type
     )
 where
 
+#include "inline.hs"
 #include "assert.hs"
 
 import Control.Applicative (Alternative(..), liftA2)
