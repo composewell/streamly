@@ -226,8 +226,9 @@ unpin arr@(MutableByteArray marr#) =
 -- deserializes the boxed type from the mutable byte array. The write operation
 -- 'pokeByteIndex' serializes the boxed type to the mutable byte array.
 --
--- Instances can be derived via 'Generic'. Here is an example, for deriving an
--- instance of this type class.
+-- Instances can be derived via 'Generic'. Note that the data type must be
+-- non-recursive. Here is an example, for deriving an instance of this type
+-- class.
 --
 -- >>> import GHC.Generics (Generic)
 -- >>> :{
@@ -236,6 +237,8 @@ unpin arr@(MutableByteArray marr#) =
 --     , _int1 :: Int
 --     } deriving Generic
 -- :}
+--
+-- WARNING! Generic deriving hangs for recursive data types.
 --
 -- >>> import Streamly.Data.Array (Unbox(..))
 -- >>> instance Unbox Object
@@ -255,7 +258,7 @@ unpin arr@(MutableByteArray marr#) =
 -- :}
 --
 class Unbox a where
-    -- | Get the size.
+    -- | Get the size. Size cannot be zero.
     sizeOf :: Proxy a -> Int
 
     default sizeOf :: (SizeOfRep (Rep a)) => Proxy a -> Int
