@@ -14,19 +14,19 @@ package bench-show
 source-repository-package
   type: git
   location: https://github.com/composewell/bench-report.git
-  tag: 0b7c260ce243d5504c45b229137cd59233308cae
+  tag: 11713fde39d9973d8210e84de801f250a05a6735
 
 source-repository-package
   type: git
   location: https://github.com/composewell/streamly-coreutils.git
-  tag: acf1ca79b964e7c92ddfc71ca77c1adcba7e2450
+  tag: 5dbb8bcefac3aefd5eb298dc410b11e36e79f35a
 
 source-repository-package
   type: git
   location: https://github.com/composewell/streamly-shell.git
-  tag: 1b3fea3239ebe47963955d81565b9d5e34567ab7
+  tag: b0c6318119d1cc5e2106343f17b5cff2ad94417f
 
 source-repository-package
   type: git
   location: https://github.com/composewell/streamly-process.git
-  tag: fb45eedcd1320d552fb49048e1d733cbf5d46711
+  tag: 9fec548b25a56c5496aaefdf34ddab3bc172bfa0
