@@ -19,6 +19,7 @@ jobs:
     env:
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
+        Data.Array.Generic
         Data.Fold
         Data.Parser
         Data.Parser.ParserD
