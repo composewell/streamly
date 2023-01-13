@@ -47,22 +47,17 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** Evaluate
     -- | Evaluates a stream concurrently using a channel.
-    , eval
     , parEval
     -- Add unfoldrM/iterateM?
 
     -- ** Generate
     -- | Uses a single channel to evaluate all actions.
-    , repeatM
     , parRepeatM
-    , replicateM
     , parReplicateM
 
     -- ** Map
     -- | Uses a single channel to evaluate all actions.
-    , mapM
     , parMapM
-    , sequence
     , parSequence
 
     -- ** Combine two
@@ -91,15 +86,11 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** Stream of streams
     -- *** Apply
-    , apply
     , parApply
 
     -- *** Concat
     -- | Shares a single channel across many streams.
-    , concat
     , parConcat
-    , concatMap
-    , concatMapInterleave
     , parConcatMap
 
     -- *** ConcatIterate
@@ -195,14 +186,6 @@ parEvalD modifier m = D.Stream step Nothing
 parEval :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
 parEval modifier input = withChannel modifier input (const id)
     -- Stream.fromStreamD $ parEvalD cfg $ Stream.toStreamD stream
-
--- | Definition:
---
--- >>> eval = Stream.parEval id
---
-{-# INLINE eval #-}
-eval :: MonadAsync m => Stream m a -> Stream m a
-eval = parEval id
 
 -------------------------------------------------------------------------------
 -- combining two streams
@@ -477,30 +460,7 @@ parConcatMapK modifier f input =
 -- >>> f (Stream.maxThreads 1) [stream1, stream2]
 -- [1,2,3,4,5,6]
 --
-{-# INLINE parConcatMap #-}
-parConcatMap :: MonadAsync m =>
-    (Config -> Config) -> (a -> Stream m b) -> Stream m a -> Stream m b
-parConcatMap modifier f stream =
-    Stream.fromStreamK
-        $ parConcatMapK
-            modifier (Stream.toStreamK . f) (Stream.toStreamK stream)
-
--- | Definition:
---
--- >>> concatMap = Stream.parConcatMap id
---
-{-# INLINE concatMap #-}
-concatMap :: MonadAsync m => (a -> Stream m b) -> Stream m a -> Stream m b
-concatMap = parConcatMap id
-
--- | Map each element of the input to a stream and then concurrently evaluate
--- and interleave the resulting streams. Unlike 'concatMap' which prefers to
--- evaluate the earlier stream first, this schedules all streams in a round
--- robin fashion over the available threads.
---
--- >>> concatMapInterleave = Stream.parConcatMap (Stream.interleaved True)
---
--- When used with a single thread it behaves like serial interleaving:
+-- Schedule all streams in a round robin fashion over the available threads:
 --
 -- >>> f cfg xs = Stream.fold Fold.toList $ Stream.parConcatMap (Stream.interleaved True . cfg) id $ Stream.fromList xs
 --
@@ -509,11 +469,13 @@ concatMap = parConcatMap id
 -- >>> f (Stream.maxThreads 1) [stream1, stream2]
 -- [1,4,2,5,3,6]
 --
--- /Works only on finite number of streams/
---
-{-# INLINE concatMapInterleave #-}
-concatMapInterleave :: MonadAsync m => (a -> Stream m b) -> Stream m a -> Stream m b
-concatMapInterleave = parConcatMap (interleaved True)
+{-# INLINE parConcatMap #-}
+parConcatMap :: MonadAsync m =>
+    (Config -> Config) -> (a -> Stream m b) -> Stream m a -> Stream m b
+parConcatMap modifier f stream =
+    Stream.fromStreamK
+        $ parConcatMapK
+            modifier (Stream.toStreamK . f) (Stream.toStreamK stream)
 
 -- | Evaluate the streams in the input stream concurrently and combine them.
 --
@@ -523,14 +485,6 @@ concatMapInterleave = parConcatMap (interleaved True)
 parConcat :: MonadAsync m =>
     (Config -> Config) -> Stream m (Stream m a) -> Stream m a
 parConcat modifier = parConcatMap modifier id
-
--- | Definition:
---
--- >>> concat = Stream.parConcat id
---
-{-# INLINE concat #-}
-concat :: MonadAsync m => Stream m (Stream m a) -> Stream m a
-concat = parConcat id
 
 -------------------------------------------------------------------------------
 -- concat Lists
@@ -614,11 +568,6 @@ parApply modifier stream1 stream2 =
         (\g -> parConcatMap modifier (Stream.fromPure . g) stream2)
         stream1
 
-{-# INLINE apply #-}
-{-# SPECIALIZE apply :: Stream IO (a -> b) -> Stream IO a -> Stream IO b #-}
-apply :: MonadAsync m => Stream m (a -> b) -> Stream m a -> Stream m b
-apply = parApply id
-
 -------------------------------------------------------------------------------
 -- Map
 -------------------------------------------------------------------------------
@@ -645,29 +594,12 @@ parMapM :: MonadAsync m =>
 parMapM modifier f = parConcatMap modifier (Stream.fromEffect . f)
 
 -- |
--- Definition:
---
--- >>> mapM = Stream.parMapM id
---
-{-# INLINE mapM #-}
-mapM :: MonadAsync m => (a -> m b) -> Stream m a -> Stream m b
-mapM = parMapM id
-
--- |
 -- >>> parSequence modifier = Stream.parMapM modifier id
 --
 {-# INLINE parSequence #-}
 parSequence :: MonadAsync m =>
     (Config -> Config) -> Stream m (m a) -> Stream m a
 parSequence modifier = parMapM modifier id
-
--- |
--- >>> sequence = Stream.parSequence id
---
-{-# INLINE sequence #-}
-sequence :: MonadAsync m =>
-    Stream m (m a) -> Stream m a
-sequence = parSequence id
 
 -- | Evaluates the streams being zipped in separate threads than the consumer.
 -- The zip function is evaluated in the consumer thread.
@@ -746,15 +678,6 @@ parConcatIterate modifier f input =
 parRepeatM :: MonadAsync m => (Config -> Config) -> m a -> Stream m a
 parRepeatM cfg = parSequence cfg . Stream.repeat
 
--- |
---  Definition:
---
--- >>> repeatM = Stream.parRepeatM id
---
-{-# INLINE repeatM #-}
-repeatM :: MonadAsync m => m a -> Stream m a
-repeatM = parRepeatM id
-
 -- | Generate a stream by concurrently performing a monadic action @n@ times.
 --
 --  Definition:
@@ -770,15 +693,6 @@ repeatM = parRepeatM id
 {-# INLINE parReplicateM #-}
 parReplicateM :: MonadAsync m => (Config -> Config) -> Int -> m a -> Stream m a
 parReplicateM cfg n = parSequence cfg . Stream.replicate n
-
--- |
---  Definition:
---
--- >>> replicateM n = Stream.parReplicateM id
---
-{-# INLINE replicateM #-}
-replicateM :: MonadAsync m => Int -> m a -> Stream m a
-replicateM = parReplicateM id
 
 -------------------------------------------------------------------------------
 -- Reactive
