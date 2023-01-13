@@ -62,14 +62,9 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** Combine two
     -- | Use a channel for each pair.
-    -- combine/concur/conjoin
-    , append2
-    , interleave2
-    , ahead2
-    , parallel2
-    , parallelFst2
-    , parallelMin2
-    , combineWith
+    , parTwo
+    , parZipWithM
+    , parZipWith
 
     -- ** List of streams
     -- | Shares a single channel across many streams.
@@ -80,9 +75,6 @@ module Streamly.Internal.Data.Stream.Concurrent
     , parListEagerFst
     , parListEagerMin
     , parList
-
-    , parZipWithM
-    , parZipWith
 
     -- ** Stream of streams
     -- *** Apply
@@ -246,85 +238,37 @@ _appendWithChanK :: MonadAsync m =>
 _appendWithChanK chan stream1 stream2 =
     K.before (toChannelK chan stream2) stream1
 
-
--- | Like 'append' but with a Config modifier.
-{-# INLINE combineWith #-}
-combineWith :: MonadAsync m =>
-    (Config -> Config) -> Stream m a -> Stream m a -> Stream m a
-combineWith modifier stream1 stream2 =
-    Stream.fromStreamK
-        $ appendWithK
-            modifier (Stream.toStreamK stream1) (Stream.toStreamK stream2)
-
--- | Binary operation to evaluate two streams concurrently prioritizing the
--- left stream.
+-- | Binary operation to evaluate two streams concurrently using a channel.
 --
 -- If you want to combine more than two streams you almost always want the
--- 'concat' operation instead. The performance of this operation degrades
--- rapidly when more streams are combined as each operation adds one more
--- concurrent channel. On the other hand, 'concat' uses a single channel for
--- all streams. However, with this operation you can precisely control the
--- scheduling by creating arbitrary shape expression trees.
+-- 'parList' or `parConcat` operation instead. The performance of this
+-- operation degrades rapidly when more streams are combined as each operation
+-- adds one more concurrent channel. On the other hand, 'parConcat' uses a
+-- single channel for all streams. However, with this operation you can
+-- precisely control the scheduling by creating arbitrary shape expression
+-- trees.
 --
--- >>> append2 = Stream.combineWith id
+-- Definition:
 --
--- The following code finishes in 4 seconds:
+-- >>> parTwo cfg x y = Stream.parList cfg [x, y]
 --
+-- Example, the following code finishes in 4 seconds:
+--
+-- >>> async = Stream.parTwo id
 -- >>> stream1 = Stream.fromEffect (delay 4)
 -- >>> stream2 = Stream.fromEffect (delay 2)
--- >>> Stream.fold Fold.toList $ stream1 `Stream.append2` stream2
+-- >>> Stream.fold Fold.toList $ stream1 `async` stream2
 -- 2 sec
 -- 4 sec
 -- [2,4]
 --
-{-# INLINE append2 #-}
-append2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-append2 = combineWith id
-
--- | Like 'append' but interleaves the streams fairly instead of prioritizing
--- the left stream. This schedules all streams in a round robin fashion over
--- limited number of threads.
---
--- >>> interleave2 = Stream.combineWith (Stream.interleaved True)
---
-{-# INLINE interleave2 #-}
-interleave2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-interleave2 = combineWith (interleaved True)
-
--- | Like 'append' but with 'ordered' on.
---
--- >>> ahead2 = Stream.combineWith (Stream.ordered True)
---
-{-# INLINE ahead2 #-}
-ahead2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-ahead2 = combineWith (ordered True)
-
--- | Like 'append2' but with 'eager' on.
---
--- >>> parallel2 = Stream.combineWith (Stream.eager True)
---
-{-# INLINE parallel2 #-}
-parallel2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallel2 = combineWith (eager True)
-
--- | Like 'parallel2' but stops the output as soon as the first stream stops.
---
--- >>> parallelFst2 = Stream.combineWith (Stream.eager True . Stream.stopWhen Stream.FirstStops)
---
--- /Pre-release/
-{-# INLINE parallelFst2 #-}
-parallelFst2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallelFst2 = combineWith (eager True . stopWhen FirstStops)
-
--- | Like 'parallel2' but stops the output as soon as any of the two streams
--- stops.
---
--- >>> parallelMin2 = Stream.combineWith (Stream.eager True . Stream.stopWhen Stream.AnyStops)
---
--- /Pre-release/
-{-# INLINE parallelMin2 #-}
-parallelMin2 :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallelMin2 = combineWith (eager True . stopWhen AnyStops)
+{-# INLINE parTwo #-}
+parTwo :: MonadAsync m =>
+    (Config -> Config) -> Stream m a -> Stream m a -> Stream m a
+parTwo modifier stream1 stream2 =
+    Stream.fromStreamK
+        $ appendWithK
+            modifier (Stream.toStreamK stream1) (Stream.toStreamK stream2)
 
 -------------------------------------------------------------------------------
 -- concat streams
