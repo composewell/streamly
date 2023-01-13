@@ -78,7 +78,7 @@ module Streamly.Data.Stream.Concurrent
     -- , append
     -- , ahead
     -- , parallel
-    , parConcatList
+    , parList
     -- , parallelFst
     -- , parallelMin
     -- , zipWithM

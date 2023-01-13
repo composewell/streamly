@@ -98,7 +98,7 @@ import Streamly.Internal.Data.Stream.Concurrent
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Stream.Prelude as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream (delayPost, timestamped)
--- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Stream (parEagerFst)
+-- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Stream (parListEagerFst)
 -- >>> import qualified Streamly.Internal.Data.Stream.Time as Stream
 -- >>> import Prelude hiding (concatMap, concat)
 -- >>> :{
@@ -154,7 +154,7 @@ ticksRate r = parEval (rate (Just r)) $ Stream.repeatM (return ())
 --
 -- Definition:
 --
--- >>> interject n f xs = Stream.parEagerFst [xs, Stream.periodic f n]
+-- >>> interject n f xs = Stream.parListEagerFst [xs, Stream.periodic f n]
 --
 -- Example:
 --
@@ -165,7 +165,7 @@ ticksRate r = parEval (rate (Just r)) $ Stream.repeatM (return ())
 --
 {-# INLINE interject #-}
 interject :: MonadAsync m => m a -> Double -> Stream m a -> Stream m a
-interject f n xs = parEagerFst [xs, periodic f n]
+interject f n xs = parListEagerFst [xs, periodic f n]
 
 -- XXX No element should be yielded if the duration is zero.
 

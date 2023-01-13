@@ -73,13 +73,13 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** List of streams
     -- | Shares a single channel across many streams.
-    , parLazy
-    , parLazyOrdered
-    , parLazyInterleaved
-    , parEager
-    , parEagerFst
-    , parEagerMin
-    , parConcatList
+    , parListLazy
+    , parListOrdered
+    , parListInterleaved
+    , parListEager
+    , parListEagerFst
+    , parListEagerMin
+    , parList
 
     , parZipWithM
     , parZipWith
@@ -492,64 +492,64 @@ parConcat modifier = parConcatMap modifier id
 
 -- | Like 'parConcat' but works on a list of streams.
 --
--- >>> parConcatList modifier = Stream.parConcat modifier . Stream.fromList
+-- >>> parList modifier = Stream.parConcat modifier . Stream.fromList
 --
-{-# INLINE parConcatList #-}
-parConcatList :: MonadAsync m => (Config -> Config) -> [Stream m a] -> Stream m a
-parConcatList modifier = parConcat modifier . Stream.fromList
+{-# INLINE parList #-}
+parList :: MonadAsync m => (Config -> Config) -> [Stream m a] -> Stream m a
+parList modifier = parConcat modifier . Stream.fromList
 
 -- | Like 'concat' but works on a list of streams.
 --
--- >>> parLazy = Stream.parConcatList id
+-- >>> parListLazy = Stream.parList id
 --
-{-# INLINE parLazy #-}
-parLazy :: MonadAsync m => [Stream m a] -> Stream m a
-parLazy = parConcatList id
+{-# INLINE parListLazy #-}
+parListLazy :: MonadAsync m => [Stream m a] -> Stream m a
+parListLazy = parList id
 
--- | Like 'parLazy' but interleaves the streams fairly instead of prioritizing
+-- | Like 'parListLazy' but interleaves the streams fairly instead of prioritizing
 -- the left stream. This schedules all streams in a round robin fashion over
 -- limited number of threads.
 --
--- >>> parLazyInterleaved = Stream.parConcatList (Stream.interleaved True)
+-- >>> parListInterleaved = Stream.parList (Stream.interleaved True)
 --
-{-# INLINE parLazyInterleaved #-}
-parLazyInterleaved :: MonadAsync m => [Stream m a] -> Stream m a
-parLazyInterleaved = parConcatList (interleaved True)
+{-# INLINE parListInterleaved #-}
+parListInterleaved :: MonadAsync m => [Stream m a] -> Stream m a
+parListInterleaved = parList (interleaved True)
 
--- | Like 'parLazy' but with 'ordered' on.
+-- | Like 'parListLazy' but with 'ordered' on.
 --
--- >>> parLazyOrdered = Stream.parConcatList (Stream.ordered True)
+-- >>> parListOrdered = Stream.parList (Stream.ordered True)
 --
-{-# INLINE parLazyOrdered #-}
-parLazyOrdered :: MonadAsync m => [Stream m a] -> Stream m a
-parLazyOrdered = parConcatList (ordered True)
+{-# INLINE parListOrdered #-}
+parListOrdered :: MonadAsync m => [Stream m a] -> Stream m a
+parListOrdered = parList (ordered True)
 
--- | Like 'parLazy' but with 'eager' on.
+-- | Like 'parListLazy' but with 'eager' on.
 --
--- >>> parEager = Stream.parConcatList (Stream.eager True)
+-- >>> parListEager = Stream.parList (Stream.eager True)
 --
-{-# INLINE parEager #-}
-parEager :: MonadAsync m => [Stream m a] -> Stream m a
-parEager = parConcatList (eager True)
+{-# INLINE parListEager #-}
+parListEager :: MonadAsync m => [Stream m a] -> Stream m a
+parListEager = parList (eager True)
 
--- | Like 'parEager' but stops the output as soon as the first stream stops.
+-- | Like 'parListEager' but stops the output as soon as the first stream stops.
 --
--- >>> parEagerFst = Stream.parConcatList (Stream.eager True . Stream.stopWhen Stream.FirstStops)
+-- >>> parListEagerFst = Stream.parList (Stream.eager True . Stream.stopWhen Stream.FirstStops)
 --
-{-# INLINE parEagerFst #-}
-parEagerFst :: MonadAsync m => [Stream m a] -> Stream m a
-parEagerFst = parConcatList (eager True . stopWhen FirstStops)
+{-# INLINE parListEagerFst #-}
+parListEagerFst :: MonadAsync m => [Stream m a] -> Stream m a
+parListEagerFst = parList (eager True . stopWhen FirstStops)
 
--- | Like 'parEager' but stops the output as soon as any of the two streams
+-- | Like 'parListEager' but stops the output as soon as any of the two streams
 -- stops.
 --
 -- Definition:
 --
--- >>> parEagerMin = Stream.parConcatList (Stream.eager True . Stream.stopWhen Stream.AnyStops)
+-- >>> parListEagerMin = Stream.parList (Stream.eager True . Stream.stopWhen Stream.AnyStops)
 --
-{-# INLINE parEagerMin #-}
-parEagerMin :: MonadAsync m => [Stream m a] -> Stream m a
-parEagerMin = parConcatList (eager True . stopWhen AnyStops)
+{-# INLINE parListEagerMin #-}
+parListEagerMin :: MonadAsync m => [Stream m a] -> Stream m a
+parListEagerMin = parList (eager True . stopWhen AnyStops)
 
 -------------------------------------------------------------------------------
 -- Applicative
