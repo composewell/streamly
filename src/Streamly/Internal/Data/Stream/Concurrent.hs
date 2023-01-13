@@ -65,6 +65,8 @@ module Streamly.Internal.Data.Stream.Concurrent
     , parTwo
     , parZipWithM
     , parZipWith
+    , parMergeByM
+    , parMergeBy
 
     -- ** List of streams
     -- | Shares a single channel across many streams.
@@ -581,6 +583,36 @@ parZipWith :: MonadAsync m
     -> Stream m b
     -> Stream m c
 parZipWith cfg f = parZipWithM cfg (\a b -> return $ f a b)
+
+-- | Like 'mergeByM' but evaluates both the streams concurrently.
+--
+-- Definition:
+--
+-- >>> parMergeByM cfg f m1 m2 = Stream.mergeByM f (Stream.parEval cfg m1) (Stream.parEval cfg m2)
+--
+{-# INLINE parMergeByM #-}
+parMergeByM :: MonadAsync m
+    => (Config -> Config)
+    -> (a -> a -> m Ordering)
+    -> Stream m a
+    -> Stream m a
+    -> Stream m a
+parMergeByM cfg f m1 m2 = Stream.mergeByM f (parEval cfg m1) (parEval cfg m2)
+
+-- | Like 'mergeBy' but evaluates both the streams concurrently.
+--
+-- Definition:
+--
+-- >>> parMergeBy cfg f = Stream.parMergeByM cfg (\a b -> return $ f a b)
+--
+{-# INLINE parMergeBy #-}
+parMergeBy :: MonadAsync m
+    => (Config -> Config)
+    -> (a -> a -> Ordering)
+    -> Stream m a
+    -> Stream m a
+    -> Stream m a
+parMergeBy cfg f = parMergeByM cfg (\a b -> return $ f a b)
 
 -------------------------------------------------------------------------------
 -- concatIterate
