@@ -68,7 +68,7 @@ o_n_heap_buffering value f =
 async2 :: (Config -> Config) -> Int -> Int -> IO ()
 async2 f count n =
     Stream.fold Fold.drain
-        $ Async.combineWith f
+        $ Async.parTwo f
             (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
 
 {-# INLINE concatAsync2 #-}

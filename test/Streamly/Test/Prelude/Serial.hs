@@ -497,7 +497,7 @@ testFromCallback :: IO Int
 testFromCallback = do
     ref <- newIORef Nothing
     let stream =
-            S.parConcatList (S.eager True)
+            S.parList (S.eager True)
                 [ fmap Just (S.fromCallback (setCallback ref))
                 , runCallback ref
                 ]

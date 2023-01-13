@@ -68,8 +68,8 @@ transformCombineFromList ::
 transformCombineFromList constr eq listOp op a b c =
     withMaxSuccess maxTestCount $
         monadicIO $ do
-            let s1 = op (Async.parLazy [constr b, constr c])
-            let s2 = Async.parLazy [constr a, s1]
+            let s1 = op (Async.parList id [constr b, constr c])
+            let s2 = Async.parList id [constr a, s1]
             stream <- run (Stream.fold Fold.toList s2)
             let list = a <> listOp (b <> c)
             listEquals eq stream list
@@ -140,15 +140,15 @@ exceptionPropagation f = do
                     :: Either ExampleException [Int])
     it "sequence throwM" $
         let stream = Stream.fromList [throwM (ExampleException "E")]
-         in try (tl (Stream.nil `f` Async.sequence stream))
+         in try (tl (Stream.nil `f` Async.parSequence id stream))
             `shouldReturn`
                 (Left (ExampleException "E") :: Either ExampleException [Int])
 
     it "concatMap throwM" $ do
-        let s1 = Async.parConcatList id $ fmap Stream.fromPure [1..4]
-            s2 = Async.parConcatList id $ fmap Stream.fromPure [5..8]
+        let s1 = Async.parList id $ fmap Stream.fromPure [1..4]
+            s2 = Async.parList id $ fmap Stream.fromPure [5..8]
         try $ tl (
-            let bind = flip Async.concatMap
+            let bind = flip (Async.parConcatMap id)
              in bind s1 $ \x ->
                 bind s2 $ \y ->
                     if x + y > 10
@@ -183,7 +183,7 @@ timeOrdering f = do
 takeCombined :: Int -> IO ()
 takeCombined n = do
     let constr = Stream.fromFoldable
-    let s = Async.parLazy [constr ([] :: [Int]), constr ([] :: [Int])]
+    let s = Async.parList id [constr ([] :: [Int]), constr ([] :: [Int])]
     r <- Stream.fold Fold.toList $ Stream.take n s
     r `shouldBe` []
 
@@ -229,77 +229,78 @@ main = hspec
         prop "eval" $
             transform
                 (fmap (+2))
-                (fmap (+1) . Async.eval . fmap (+1))
+                (fmap (+1) . Async.parEval id . fmap (+1))
 
         asyncSpec $ prop "parSequence" . sequenceReplicate
         -- XXX Need to use asyncSpec in all tests
         prop "mapM (+1)" $
-            transform (fmap (+1)) (Async.mapM (\x -> return (x + 1)))
+            transform (fmap (+1)) (Async.parMapM id (\x -> return (x + 1)))
 
         -- XXX Need to use eq instead of sortEq for ahead oeprations
         -- Binary append
         prop1 "append [] []"
-            $ cmp (Async.parLazy [Stream.nil, Stream.nil]) sortEq []
+            $ cmp (Async.parList id [Stream.nil, Stream.nil]) sortEq []
         prop1 "append [] [1]"
-            $ cmp (Async.parLazy [Stream.nil, Stream.fromPure 1]) sortEq [1]
+            $ cmp (Async.parList id [Stream.nil, Stream.fromPure 1]) sortEq [1]
         prop1 "append [1] []"
-            $ cmp (Async.parLazy [Stream.fromPure 1, Stream.nil]) sortEq [1]
+            $ cmp (Async.parList id [Stream.fromPure 1, Stream.nil]) sortEq [1]
         prop1 "append [0] [1]"
-            $ let stream = Async.parLazy [Stream.fromPure 0, Stream.fromPure 1]
+            $ let stream = Async.parList id [Stream.fromPure 0, Stream.fromPure 1]
                in cmp stream sortEq [0, 1]
 
         prop1 "append [0] [] [1]"
             $ let stream =
-                    Async.parLazy
+                    Async.parList id
                         [Stream.fromPure 0, Stream.nil, Stream.fromPure 1]
                in cmp stream sortEq [0, 1]
 
+        let async = Async.parTwo id
         prop1 "append2 left associated"
             $ let stream =
                     Stream.fromPure 0
-                        `Async.append2` Stream.fromPure 1
-                        `Async.append2` Stream.fromPure 2
-                        `Async.append2` Stream.fromPure 3
+                        `async` Stream.fromPure 1
+                        `async` Stream.fromPure 2
+                        `async` Stream.fromPure 3
                in cmp stream sortEq [0, 1, 2, 3]
 
         prop1 "append right associated"
             $ let stream =
                     Stream.fromPure 0
-                        `Async.append2` (Stream.fromPure 1
-                        `Async.append2` (Stream.fromPure 2
-                        `Async.append2` Stream.fromPure 3))
+                        `async` (Stream.fromPure 1
+                        `async` (Stream.fromPure 2
+                        `async` Stream.fromPure 3))
                in cmp stream sortEq [0, 1, 2, 3]
 
         prop1 "append balanced"
-            $ let leaf x y = Stream.fromPure x `Async.append2` Stream.fromPure y
-                  leaf11 = leaf 0 1 `Async.append2` leaf 2 (3 :: Int)
-                  leaf12 = leaf 4 5 `Async.append2` leaf 6 7
-                  stream = leaf11 `Async.append2` leaf12
+            $ let leaf x y = Stream.fromPure x `async` Stream.fromPure y
+                  leaf11 = leaf 0 1 `async` leaf 2 (3 :: Int)
+                  leaf12 = leaf 4 5 `async` leaf 6 7
+                  stream = leaf11 `async` leaf12
                in cmp stream sortEq [0, 1, 2, 3, 4, 5, 6,7]
 
         prop1 "combineWith (maxThreads 1)"
             $ let stream =
-                    Async.combineWith (Async.maxThreads 1)
+                    Async.parTwo (Async.maxThreads 1)
                         (Stream.fromList [1,2,3,4,5])
                         (Stream.fromList [6,7,8,9,10])
                in cmp stream (==) [1,2,3,4,5,6,7,8,9,10]
 
         prop1 "apply (async arg1)"
-            $ let s1 = Async.apply (Stream.fromPure (,)) (Stream.fromPure 1 `Async.append2` Stream.fromPure 2)
-                  s2 = Async.apply s1 (Stream.fromPure 3) :: Stream IO (Int, Int)
+            $ let s1 = Async.parApply id (Stream.fromPure (,)) (Stream.fromPure 1 `async` Stream.fromPure 2)
+                  s2 = Async.parApply id s1 (Stream.fromPure 3) :: Stream IO (Int, Int)
                   xs = Stream.fold Fold.toList s2
                in sort <$> xs `shouldReturn` [(1, 3), (2, 3)]
 
         prop1 "apply (async arg2)"
             $ let s1 = Stream.fromPure (1,)
-                  s2 = Async.apply s1 (Stream.fromPure 2 `Async.append2` Stream.fromPure 3)
+                  s2 = Async.parApply id s1 (Stream.fromPure 2 `async` Stream.fromPure 3)
                   xs = Stream.fold Fold.toList s2 :: IO [(Int, Int)]
                in sort <$> xs `shouldReturn` [(1, 2), (1, 3)]
 
         -- concat
         prop1 "concat"
             $ let stream =
-                    Async.concat
+                    Async.parConcat id
                         $ fmap Stream.fromPure
                         $ Stream.fromList [1..100]
                 in cmp stream sortEq [1..100]
@@ -308,11 +309,11 @@ main = hspec
             forAll (choose (0, 100)) $ \n ->
                 transform
                     (concatMap (const [1..n]))
-                    (Async.concatMap (const (Stream.fromList [1..n])))
+                    (Async.parConcatMap id (const (Stream.fromList [1..n])))
 
 #ifdef DEVBUILD
-        describe "Time ordering" $ timeOrdering Async.parLazy
+        describe "Time ordering" $ timeOrdering Async.parList id
 #endif
-        describe "Exception propagation" $ exceptionPropagation Async.append2
+        describe "Exception propagation" $ exceptionPropagation async
         -- Ad-hoc tests
         it "takes n from stream of streams" $ takeCombined 2
