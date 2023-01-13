@@ -284,18 +284,20 @@ main = do
 
     where
 
-    alloc value = do
-        let val = max value 1
-        small <- Stream.toList $ Stream.arraysOf 100 $ sourceUnfoldrM val 0
-        big <- Stream.toList $ Stream.arraysOf val $ sourceUnfoldrM val 0
-        return (small, big)
+    alloc value =
+        if value <= 0
+        then return  (undefined, undefined)
+        else
+            do
+            small <- Stream.toList $ Stream.arraysOf 100 $ sourceUnfoldrM value 0
+            big <- Stream.toList $ Stream.arraysOf value $ sourceUnfoldrM value 0
+            return (small, big)
 
     allBenchmarks env arrays value =
         let (arraysSmall, arraysBig) = arrays
-            val = max value 1
         in [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
           [ o_1_space_read_chunked env
-          , o_1_space_serial_array val arraysSmall arraysBig
+          , o_1_space_serial_array value arraysSmall arraysBig
           , o_1_space_copy_toChunks_group_ungroup env
           ]
         ]
