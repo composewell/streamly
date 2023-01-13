@@ -61,11 +61,34 @@ targets =
             , "noTest"
             ]
       )
-    , ("Prelude.WSerial", ["serial_wserial_cmp"])
+    , ("Data.Array.Stream",
+            [ "prelude_serial_grp"
+            , "infinite_grp"
+            ]
+      )
+    , ("Prelude.Serial",
+            [ "prelude_serial_grp"
+            , "infinite_grp"
+            , "serial_wserial_cmp"
+            , "noBench"
+            ]
+      )
+    , ("Prelude.Top",
+            [ "prelude_serial_grp"
+            , "infinite_grp"
+            , "noBench"
+            ]
+      )
     , ("Prelude.WSerial",
             [ "prelude_serial_grp"
             , "infinite_grp"
             , "serial_wserial_cmp"
+            ]
+      )
+    , ("Prelude.Merge",
+            [ "prelude_serial_grp"
+            , "infinite_grp"
+            , "noTest"
             ]
       )
     , ("Prelude.ZipSerial",
@@ -131,7 +154,6 @@ targets =
     , ("Data.Array.Mut",
             [ "array_grp"
             , "array_cmp"
-            , "noTest"
             ]
       )
 
@@ -151,8 +173,11 @@ targets =
             ]
       )
     , ("Data.Fold", [ "parser_grp" ])
+    , ("Data.Fold.Window", [ "parser_grp" ])
     , ("Data.Parser", [ "parser_grp" ])
+    , ("Data.Parser.Chunked", [ "parser_grp", "noBench" ])
 
+    , ("Data.Unbox", ["noBench"])
     , ("Data.Unfold", [])
     , ("FileSystem.Handle", [])
     , ("Unicode.Stream", [])
