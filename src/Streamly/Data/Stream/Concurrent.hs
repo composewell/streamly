@@ -54,7 +54,6 @@ module Streamly.Data.Stream.Concurrent
     -- *** Evaluate
     -- | Evaluates a serial stream asynchronously using a concurency channel.
 
-    -- , eval
     , parEval
 
     -- *** Generate
@@ -67,35 +66,25 @@ module Streamly.Data.Stream.Concurrent
     -- | Uses a concurrency channel to evaluate multiple mapped actions
     -- concurrently.
 
-    -- , mapM
     , parMapM
-    -- , sequence
     , parSequence
 
     -- *** List of streams
     -- | Shares a single channel across many streams.
 
-    -- , append
-    -- , ahead
-    -- , parallel
     , parList
-    -- , parallelFst
-    -- , parallelMin
     -- , zipWithM
     -- , zipWith
 
     -- *** Stream of streams
     -- **** Apply
 
-    -- , apply
     , parApply
 
     -- **** Concat
     -- | Shares a single channel across many streams.
 
-    -- , concat
     , parConcat
-    -- , concatMap
     , parConcatMap
 
     -- **** ConcatIterate
