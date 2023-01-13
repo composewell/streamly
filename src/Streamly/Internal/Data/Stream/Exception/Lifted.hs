@@ -25,8 +25,12 @@ where
 
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
+#ifdef USE_UNLIFTIO
+import Control.Monad.IO.Unlift (MonadUnliftIO)
+#else
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Control (MonadBaseControl)
+#endif
 import Data.Map.Strict (Map)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Concurrent
