@@ -21,11 +21,6 @@ import Control.Monad (void, when, forM_, replicateM_)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.State (MonadState, get, modify, runStateT
                            , StateT(..), evalStateT)
-
-#ifdef USE_UNLIFTIO
-import Control.Monad.IO.Unlift (MonadUnliftIO)
-#endif
-
 import Data.Foldable (fold)
 import Data.IORef (readIORef, modifyIORef, newIORef)
 import GHC.Word (Word8)
@@ -261,9 +256,6 @@ stateComp
        , MonadIO (t m)
        , MonadState Int m
        , MonadState Int (t m)
-#ifdef USE_UNLIFTIO
-       , MonadUnliftIO m
-#endif
        )
     => t m ()
 stateComp = do
@@ -280,22 +272,15 @@ monadicStateSnapshot
        , Semigroup (t (StateT Int IO) ())
        , MonadIO (t (StateT Int IO))
        , MonadState Int (t (StateT Int IO))
-#ifdef USE_UNLIFTIO
-       , MonadUnliftIO (StateT Int IO)
-#endif
        )
     => (t (StateT Int IO) () -> SerialT (StateT Int IO) ()) -> IO ()
 monadicStateSnapshot t = void $ runStateT (S.drain $ t stateComp) 0
 
 stateCompOp
-    ::
-#ifdef USE_UNLIFTIO
-        MonadUnliftIO (StateT Int IO) =>
-#endif
-    (   AsyncT (StateT Int IO) ()
-    -> AsyncT (StateT Int IO) ()
-    -> AsyncT (StateT Int IO) ()
-    )
+    :: (   AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+       )
     -> SerialT (StateT Int IO) ()
 stateCompOp op = do
     -- Each task in a concurrent composition inherits the state and maintains
@@ -307,12 +292,7 @@ stateCompOp op = do
     get >>= liftIO . (`shouldSatisfy` (== (0 :: Int)))
 
 checkMonadicStateTransfer
-    :: ( IsStream t1
-       , IsStream t2
-#ifdef USE_UNLIFTIO
-       , MonadUnliftIO (StateT Int IO)
-#endif
-       )
+    :: (IsStream t1, IsStream t2)
     => (    t1 (StateT Int IO) ()
         ->  t2 (StateT Int IO) ()
         ->  SerialT (StateT Int IO) a3 )
