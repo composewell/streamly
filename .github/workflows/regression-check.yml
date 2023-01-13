@@ -19,8 +19,12 @@ jobs:
     env:
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
+        Data.Array.Mut
+        Data.Array.Stream
         Data.Array.Generic
+        Data.Ring.Unboxed
         Data.Fold
+        Data.Fold.Window
         Data.Parser
         Data.Parser.ParserD
         Data.Parser.ParserK
@@ -29,14 +33,10 @@ jobs:
         Data.Unfold
         Data.Stream
         Data.Stream.Concurrent
+        Data.Stream.ConcurrentEager
+        Data.Stream.ConcurrentInterleaved
+        Data.Stream.ConcurrentOrdered
         FileSystem.Handle
-        Prelude.Ahead
-        Prelude.Async:12
-        Prelude.Parallel
-        Prelude.WAsync:6
-        Prelude.WSerial
-        Prelude.ZipAsync
-        Prelude.ZipSerial
         Unicode.Char
         Unicode.Stream
         Unicode.Utf8
