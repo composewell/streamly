@@ -33,6 +33,7 @@ module Streamly.Internal.Data.Stream.Reduce
     , foldSequence
     , foldIterateM
     , refoldIterateM
+    , reduceIterateBfs
 
     -- ** Chunking
     -- | Element unaware grouping.
@@ -60,7 +61,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.Parser (Parser (..))
-import  Streamly.Internal.Data.Parser.ParserD (ParseError)
+import Streamly.Internal.Data.Parser.ParserD (ParseError)
 import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Stream.Bottom (foldManyPost)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
@@ -210,6 +211,15 @@ foldIterateM f i m = fromStreamD $ D.foldIterateM f i (toStreamD m)
 refoldIterateM :: Monad m =>
     Refold m b a b -> m b -> Stream m a -> Stream m b
 refoldIterateM c i m = fromStreamD $ D.refoldIterateM c i (toStreamD m)
+
+-- | Binary BFS style reduce, folds a level entirely using the supplied fold
+-- function, collecting the outputs as next level of the tree, then repeats the
+-- same process on the next level. The last elements of a previously folded
+-- level are folded first.
+{-# INLINE reduceIterateBfs #-}
+reduceIterateBfs :: Monad m =>
+    (a -> a -> m a) -> Stream m a -> m (Maybe a)
+reduceIterateBfs f stream = D.reduceIterateBfs f (toStreamD stream)
 
 ------------------------------------------------------------------------------
 -- Splitting

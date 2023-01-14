@@ -89,6 +89,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , concatMapM
     , concatEffect
 
+    -- * Expanding trees top down
     , unfoldIterateDfs
     , unfoldIterateBfs
     , unfoldIterateBfsRev
@@ -105,6 +106,10 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , chunksOf
 
     , refoldMany
+
+    -- * Folding trees bottom up
+    , reduceIterateBfs
+    , foldIterateBfs
     )
 where
 
@@ -894,6 +899,10 @@ instance Monad m => Monad (Stream m) where
     (>>) = (*>)
 -}
 
+------------------------------------------------------------------------------
+-- Traversing a tree top down
+------------------------------------------------------------------------------
+
 -- | Generate a stream from an initial state, scan and concat the stream,
 -- generate a stream again from the final state of the previous scan and repeat
 -- the process.
@@ -1129,6 +1138,61 @@ unfoldIterateBfs (Unfold istep inject) (Stream ostep ost) =
                         case reverse rii of
                             (y:ys) -> return $ Skip (IterateUnfoldBFSInner y ys [])
                             [] -> return Stop
+
+------------------------------------------------------------------------------
+-- Folding a tree bottom up
+------------------------------------------------------------------------------
+
+-- | Binary BFS style reduce, folds a level entirely, before starting to fold
+-- the next level. The last elements of a previously folded level are folded
+-- first.
+{-# INLINE_NORMAL reduceIterateBfs #-}
+reduceIterateBfs :: Monad m =>
+    (a -> a -> m a) -> Stream m a -> m (Maybe a)
+reduceIterateBfs f (Stream step state) = go SPEC state [] Nothing
+
+    where
+
+    go _ st xs Nothing = do
+        r <- step defState st
+        case r of
+            Yield x1 s -> go SPEC s xs (Just x1)
+            Skip s -> go SPEC s xs Nothing
+            Stop ->
+                case xs of
+                    [] -> return Nothing
+                    _ -> goBuf SPEC xs []
+    go _ st xs (Just x1) = do
+        r2 <- step defState st
+        case r2 of
+            Yield x2 s -> do
+                x <- f x1 x2
+                go SPEC s (x:xs) Nothing
+            Skip s -> go SPEC s xs (Just x1)
+            Stop ->
+                case xs of
+                    [] -> return (Just x1)
+                    _ -> goBuf SPEC (x1:xs) []
+
+    goBuf _ [] ys = goBuf SPEC ys []
+    goBuf _ [x1] ys = do
+        case ys of
+            [] -> return (Just x1)
+            (x2:xs) -> do
+                y <- f x1 x2
+                goBuf SPEC xs [y]
+    goBuf _ (x1:x2:xs) ys = do
+        y <- f x1 x2
+        goBuf SPEC xs (y:ys)
+
+-- | N-Ary BFS style iterative fold, if the input stream finished before the
+-- fold then it returns Left otherwise Right. If the fold returns Left we
+-- terminate.
+--
+-- /Unimplemented/
+foldIterateBfs ::
+    Fold m a (Either a a) -> Stream m a -> m (Maybe a)
+foldIterateBfs = undefined
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
