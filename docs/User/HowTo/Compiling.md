@@ -4,18 +4,8 @@
 
 ### Compiler (GHC) Versions
 
-GHC 8.6 and above are recommended.  For best performance use GHC 8.8 or
-8.10 along with `fusion-plugin` (see below).  Benchmarks show that GHC
-8.8 has significantly better performance than GHC 8.6 in many cases.
-
-GHC 9.0 and GHC 9.2.1 have some performance issues, please see [this
-issue](https://github.com/composewell/streamly/issues/1061) for details.
-GHC 9.2.2 is expected to have the fixes that will bring the performance on par
-with previous versions.
-
-### Distributions
-
-Tested with stackage `lts-18.27` and `nix 21.05`.
+Do not use ghc 9.0.x and 9.2.1.  For best performance use
+`fusion-plugin` (see below) when compiling.
 
 ### Memory requirements
 
@@ -23,10 +13,10 @@ Building streamly itself may require upto 4GB memory. Depending on the
 size of the application you may require 1-16GB memory to build. For most
 applications up to 8GB of memory should be sufficient.
 
-To reduce the memory footprint you may want to break big modules into
-smaller ones and reduce unnecessary inlining on large functions. You can
-also use the `-Rghc-timing` GHC option to report the memory usage during
-compilation.
+To reduce the memory footprint you may want to break big modules
+into smaller ones and reduce unnecessary INLINE pragmas on large
+functions. You can also use the `-Rghc-timing` GHC option to report the
+memory usage during compilation.
 
 See the "Build times and space considerations" section below for more
 details.
@@ -46,23 +36,19 @@ the cabal file and use the following GHC options:
   -fplugin Fusion.Plugin
 ```
 
+See [Explanation](#explanation) section below for details about these flags.
+
 Important Notes:
 
 1. [fusion-plugin](https://hackage.haskell.org/package/fusion-plugin) can
-   improve performance significantly by better stream fusion, many
-   cases. If the perform regresses due to fusion-plugin please open
+   improve performance significantly by better stream fusion, in many
+   cases. If the performance regresses due to fusion-plugin please open
    an issue.  You may remove the `-fplugin` option for regular builds
    but it is recommended for deployment builds and performance
-   benchmarking. Note, for GHC 8.4 or lower fusion-plugin cannot be used.
+   benchmarking.
 2. In certain cases it is possible that GHC takes too long to compile
    with `-fspec-constr-recursive=16`, if that happens please reduce the
    value or remove that option.
-3. At the very least `-O -fdicts-strict` compilation options are
-   absolutely required to avoid issues in some cases. For example, the
-   program `main = S.drain $ S.concatMap S.fromList $ S.repeat []` may
-   hog memory without these options.
-
-See [Explanation](#explanation) for details about these flags.
 
 #### Explanation
 
@@ -70,19 +56,19 @@ See [Explanation](#explanation) for details about these flags.
 issue](https://gitlab.haskell.org/ghc/ghc/issues/17745) leading to
 memory leak in some cases.
 
-* `-fspec-constr-recursive` is needed for better stream fusion by enabling
-the `SpecConstr` optimization in more cases. Large values used with this flag
-may lead to huge compilation times and code bloat, if that happens please avoid
-it or use a lower value (e.g. 3 or 4).
+* `-fspec-constr-recursive` is needed for better stream fusion, it
+allows the `SpecConstr` optimization to occur in more cases. Large
+values used with this flag may lead to huge compilation times and code
+bloat, if that happens please avoid it or use a lower value (e.g. 3 or
+4).
 
-* `-fmax-worker-args` is needed for better stream fusion by enabling the
-`SpecConstr` optimization in some important cases.
+* `-fmax-worker-args` is needed for better stream fusion, it allows the
+`SpecConstr` optimization to occur in some important cases.
 
 * `-fplugin=Fusion.Plugin` enables predictable stream fusion
 optimization in certain cases by helping the compiler inline internal
-bindings and therefore enabling case-of-case optimization. In some
-cases, especially in some file IO benchmarks, it can make a difference of
-5-10x better performance.
+bindings, therefore, enabling case-of-case optimization. In some cases,
+it can make a difference of 5-10x better performance.
 
 ### Multi-core Parallelism
 
@@ -121,7 +107,7 @@ more details.
 
 ### Nix build
 
-Please note that cabal2nix may not always be able to generate a complete nix
+Please note that `cabal2nix` may not always be able to generate a complete nix
 expression on `macOS`. See [this
 issue](https://github.com/NixOS/cabal2nix/issues/470).
 
