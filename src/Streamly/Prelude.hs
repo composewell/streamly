@@ -318,7 +318,7 @@
 -- performance reasons.
 
 module Streamly.Prelude
-{-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream\", \"Streamly.Internal.Data.Stream.Concurrent\", \"Streamly.Internal.Data.Stream.Time\" & \"Streamly.Internal.Data.Stream.Exception\" from streamly-core package instead." #-}
+{-# DEPRECATED "Please use \"Streamly.Data.Stream.Prelude\" from streamly package and \"Streamly.Data.Fold\" from streamly-core package instead." #-}
     (
     -- * Construction
     -- | Functions ending in the general shape @b -> t m a@.
