@@ -3,64 +3,67 @@
 <!-- See rendered changelog at https://streamly.composewell.com -->
 ## 0.9.0 (Unreleased)
 
-* Remove support for GHC 8.4.*
-* New modules for unboxed mutable & unboxed immutable arrays are added.
+### Major Changes
+
+`streamly` package is split into two packages, (1) `streamly-core` that
+has only GHC boot library depdendecies, and (2) `streamly` that contains
+higher level operations with additional dependencies.
+
+### Breaking Changes
+
+* Moved the following modules to the `streamly-core` package:
+  * Streamly.Console.Stdio
+  * Streamly.Data.Fold
+  * Streamly.Data.Unfold
+  * Streamly.FileSystem.Handle
+  * Streamly.Unicode.Stream
 * The unboxed arrays now require `Unbox` instead of `Storable` for the stored
   type. The `Unbox` typeclass can be found in `Streamly.Data.Array`.
-
-* Following APIs have been renamed in Streamly.Network.Socket module:
-    readWithBufferOf -> readWith
-    readChunksWithBufferOf -> readChunksWith
-    writeWithBufferOf -> writeWith
-    writeChunksWithBufferOf -> writeChunksWith
-
-* Following APIs have been renamed in Streamly.Data.Fold module:
-    head -> one
-
-* Following modules and corresponding internal modules have been moved
-  from streamly package to streamly-core package:
-    Streamly.Data.Array
-    Streamly.Data.Unfold
-    Streamly.Console.Stdio
-    Streamly.FileSystem.Handle
-    Streamly.Unicode.Stream
-    Streamly.Internal.Console.Stdio
-    Streamly.Internal.Data.Array.Stream.Foreign
-    Streamly.Internal.Data.Binary.Decode
-    Streamly.Internal.FileSystem.Handle
-
-* Following modules are renamed in streamly-core package:
-    Streamly.Internal.Data.Array.Foreign -> Streamly.Internal.Data.Array
-    Streamly.Internal.Data.Array.Foreign.Mut -> Streamly.Internal.Data.Array.Mut
-    Streamly.Internal.Data.Array.Foreign.Mut.Type -> Streamly.Internal.Data.Array.Mut.Type
-    Streamly.Internal.Data.Array.Foreign.Type -> Streamly.Internal.Data.Array.Type
-    Streamly.Internal.Data.Array.Stream.Foreign -> Streamly.Internal.Data.Stream.Chunked
-    Streamly.Internal.Data.Array.Stream.Mut.Foreign ->  Streamly.Internal.Data.Array.Mut.Stream
-
-* Added following new modules:
-    Streamly.Data.Parser
-    Streamly.Unicode.String
-    Streamly.Unicode.Parser
-
-* Signature changed: Streamly.Data.Unfold.fromStream
-
-* Add `Streamly.Data.Stream.Concurrent` that provide combinators for handling
-  non-serial streams.
 * Remove the MonadBase instance of the SerialT type.
+* In `Streamly.Data.Unfold`, signatures changed:
+  * `fromStream`
+  * `replicateM`
+
+### Enhancements
+
+* Added the following new modules to the `streamly-core` package:
+  * Streamly.Data.Array.Mut
+  * Streamly.Data.Array.Generic
+  * Streamly.Data.Array.Generic.Mut
+  * Streamly.Data.Parser
+  * Streamly.FileSystem.Dir
+  * Streamly.FileSystem.File
+  * Streamly.Unicode.String
+  * Streamly.Unicode.Parser
+* Added the following new modules to the `streamly` package:
+  * Streamly.Data.Stream.MkType
+  * Streamly.Data.Stream.Prelude
 
 ### Deprecations
 
+* `Streamly.Data.Array.Foreign` renamed and moved to `Streamly.Data.Array` in
+  `streamly-core` package. Corresponding internal modules are renamed
+  accordingly.
 * In `Streamly.Data.Fold`:
-  * `variance`, and `stdDev` have been deprecated. Please use the
+  * `head` renamed to `one`.
+  * `serialWith` renamed to `splitWith`.
+  * `variance`, and `stdDev` deprecated. Please use the
     `streamly-statistics` package instead.
-  * `serialWith` is deprecated. Use `splitWith` instead.
-* `Streamly.Data.Array.Foreign` is deprecated. Use `Streamly.Data.Array`
-  instead.
-* The type of `replicateM` in `Streamly.Data.Unfold` is changed.
+* In `Streamly.Network.Socket`:
+  * `readWithBufferOf` renamed to `readWith`
+  * `readChunksWithBufferOf` renamed to `readChunksWith`
+  * `writeWithBufferOf` renamed to `writeWith`
+  * `writeChunksWithBufferOf` renamed to `writeChunksWith`
+* Remove support for GHC 8.4.*
 
-### Notes:
-  If you cannot find an internal module, it may have been moved to streamly-core
-  package or may have been renamed.
+### Internal module changes
+
+If you cannot find an internal module that you were using, it may have
+been moved to the `streamly-core` package or may have been renamed.
+
+Following modules are moved to `streamly-core` package and renamed:
+  * Streamly.Internal.Data.Array.Stream.Foreign -> Streamly.Internal.Data.Stream.Chunked
+  * Streamly.Internal.Data.Array.Stream.Mut.Foreign -> Streamly.Internal.Data.Array.Mut.Stream
 
 ## 0.8.2 (Mar 2022)
 
