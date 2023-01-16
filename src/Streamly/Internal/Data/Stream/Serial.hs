@@ -15,7 +15,7 @@
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Prelude as IsStream
 --
-module Streamly.Internal.Data.Stream.Serial {-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream\" instead." #-}
+module Streamly.Internal.Data.Stream.Serial {-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream\" from streamly-core package instead." #-}
     (
     -- * Serial appending stream
       SerialT
