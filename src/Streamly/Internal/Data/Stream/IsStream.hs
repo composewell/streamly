@@ -13,7 +13,7 @@
 -- module "Streamly.Prelude". It contains some additional unreleased or
 -- experimental APIs.
 
-module Streamly.Internal.Data.Stream.IsStream  {-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream from streamly-core package\", \"Streamly.Internal.Data.Stream.Concurrent\", \"Streamly.Internal.Data.Stream.Exception.Lifted\", & \"Streamly.Internal.Data.Stream.Time\" instead." #-}
+module Streamly.Internal.Data.Stream.IsStream  {-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream from streamly-core package\", \"Streamly.Internal.Data.Stream.Concurrent\", \"Streamly.Internal.Data.Stream.Exception.Lifted\", & \"Streamly.Internal.Data.Stream.Time\" from streamly package instead." #-}
     ( module Streamly.Internal.Data.Stream.IsStream.Type
     , module Streamly.Internal.Data.Stream.IsStream.Generate
     , module Streamly.Internal.Data.Stream.IsStream.Eliminate
