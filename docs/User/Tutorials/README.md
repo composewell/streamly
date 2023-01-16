@@ -13,10 +13,11 @@ safe, scalable, modular and high performance software.  Streamly offers:
 * Declarative, fearless concurrency.
 * Ecossytem libraries for quick development.
 
-Please read [Using Streamly](/docs/User/Tutorials/getting-started.md) and
-[Streamly Quick Tutorial](/docs/User/Tutorials/Introduction.md) to get a taste
-of the library. Streamly comes with comprehensive documentation, please
-visit the [Haskell Streamly website][Streamly] for documentation.
+Please read the [Streamly Setup and Usage
+Guide](/docs/User/Tutorials/setup-and-usage.md) and [Streamly Quick
+Tutorial](/docs/User/Tutorials/Introduction.md) to get a taste of the
+library. Streamly comes with comprehensive documentation, please visit
+the [Haskell Streamly website][Streamly] for documentation.
 
 ## Performance with Modularity
 

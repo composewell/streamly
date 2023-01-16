@@ -25,12 +25,13 @@ It [concludes](#further-reading) with suggestions for further reading.
 ### Installing Streamly
 
 If you wish to follow along with this guide, you will need to have
-[Streamly][] installed.
+the Haskell `streamly` package installed.
 
-Please see the [Getting Started With The Streamly Package](/docs/User/Tutorials/getting-started.md)
-guide for instructions on how to install [Streamly][].
+Please see the [Setup and
+Usage](/docs/User/Tutorials/setup-and-usage.md) guide for instructions
+on how to use the `streamly` package interactively or in a project.
 
-If you wish to run benchmarks, please be sure to build your
+If you wish to run performance benchmarks, please be sure to build your
 application using the instructions in the [Build Guide](/docs/User/HowTo/Compiling.md).
 
 ### An overview of the types used in these examples

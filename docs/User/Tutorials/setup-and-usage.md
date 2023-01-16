@@ -220,5 +220,3 @@ Overview](/docs/User/Tutorials/Introduction.md).
  [streamly-hackage]: https://hackage.haskell.org/package/streamly
  [streamly-github]: https://github.com/composewell/streamly
  [streamly-packages]: https://github.com/composewell/streamly-packages
- [streamly-examples]: https://github.com/composewell/streamly-examples
- [haskell-getting-started]: https://github.com/composewell/haskell-dev/blob/master/getting-started.rst
