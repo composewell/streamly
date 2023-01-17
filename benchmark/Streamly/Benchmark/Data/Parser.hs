@@ -194,6 +194,12 @@ sepByWords _ = Stream.parse (wrds even Fold.drain)
     where
     wrds p = PR.sepBy (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
 
+{-# INLINE sepByWords1 #-}
+sepByWords1 :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+sepByWords1 _ = Stream.parse (wrds even Fold.drain)
+    where
+    wrds p = PR.sepBy1 (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
+
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 deintercalate _ = Stream.parse (partition even)
@@ -467,6 +473,7 @@ o_1_space_serial value =
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
     , benchIOSink value "sepBy (words)" $ sepByWords value
+    , benchIOSink value "sepBy1 (words)" $ sepByWords1 value
     , benchIOSink value "deintercalate" $ deintercalate value
     , benchIOSink value "splitAp" $ splitAp value
     , benchIOSink value "splitApBefore" $ splitApBefore value
