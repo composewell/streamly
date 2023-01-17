@@ -260,8 +260,6 @@ test-suite Data.Unbox
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Unbox.hs
   ghc-options: -main-is Streamly.Test.Data.Unbox.main
-  if flag(use-streamly-core)
-    buildable: False
 
 test-suite Data.Array.Stream
   import: test-options
