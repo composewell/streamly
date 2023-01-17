@@ -36,6 +36,10 @@ module Streamly.Internal.Data.Unboxed
     , genericPeekByteIndex
     , genericPokeByteIndex
 
+    -- Classess used for generic deriving.
+    , PeekRep(..)
+    , PokeRep(..)
+    , SizeOfRep(..)
     ) where
 
 #include "MachDeps.h"
