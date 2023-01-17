@@ -20,7 +20,7 @@
 --      return n                    -- IO Int
 -- :}
 --
-module Streamly.Internal.Data.Stream.Ahead {-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream.Concurrent\" instead." #-}
+module Streamly.Internal.Data.Stream.Ahead {-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream.Concurrent\" from streamly package instead." #-}
     (
       AheadT(..)
     , Ahead
