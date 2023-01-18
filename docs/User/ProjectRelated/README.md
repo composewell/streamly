@@ -15,7 +15,7 @@ safe, scalable, modular and high performance software.  Streamly offers:
 
 Please read the [Streamly Setup and Usage
 Guide](/docs/User/Tutorials/setup-and-usage.md) and [Streamly Quick
-Tutorial](/docs/User/Tutorials/Introduction.md) to get a taste of the
+Overview](/docs/User/Tutorials/quick-overview.md) to get a taste of the
 library. Streamly comes with comprehensive documentation, please visit
 the [Haskell Streamly website][Streamly] for documentation.
 

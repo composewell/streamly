@@ -2,7 +2,7 @@
 
 This document provides idioms or examples to solve common programming
 problems using streamly. To start with please go through [Streamly Quick
-Overview](/docs/User/Tutorials/Introduction.md) and [`Streamly examples repository`][streamly-examples].
+Overview](/docs/User/Tutorials/quick-overview.md) and [`Streamly examples repository`][streamly-examples].
 This document provides additional examples.
 
 ## Distribute and Zip Concurrently
