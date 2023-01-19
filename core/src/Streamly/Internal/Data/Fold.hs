@@ -616,7 +616,6 @@ scanWith isMany (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- | Scan the input of a 'Fold' to change it in a stateful manner using another
 -- 'Fold'. The scan stops as soon as the fold terminates.
 --
--- /Pre-release/
 {-# INLINE scan #-}
 scan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 scan = scanWith False
@@ -688,8 +687,6 @@ slide2 (Fold step1 initial1 extract1) = Fold step initial extract
 -- "/a/b"
 --
 -- Space: @O(1)@
---
--- /Pre-release/
 --
 {-# INLINE uniqBy #-}
 uniqBy :: Monad m => (a -> a -> Bool) -> Fold m a (Maybe a)
@@ -2481,8 +2478,6 @@ bottomBy cmp n = Fold step initial extract
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
 -- >>> Stream.fold (Fold.topBy compare 3) stream >>= MA.toList
 -- [17,11,9]
---
--- /Pre-release/
 --
 {-# INLINE topBy #-}
 topBy :: (MonadIO m, Unbox a) =>

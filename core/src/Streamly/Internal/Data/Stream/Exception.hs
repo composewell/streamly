@@ -178,7 +178,6 @@ bracketIO bef aft = bracketIO3 bef aft aft aft
 --
 -- /Inhibits stream fusion/
 --
--- /Pre-release/
 {-# INLINE bracketIO3 #-}
 bracketIO3 :: (MonadIO m, MonadCatch m)
     => IO b

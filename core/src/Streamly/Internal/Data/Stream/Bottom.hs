@@ -432,8 +432,6 @@ smapM step initial stream =
 -- >>> catMaybes = Stream.mapMaybe id
 -- >>> catMaybes = fmap fromJust . Stream.filter isJust
 --
--- /Pre-release/
---
 {-# INLINE catMaybes #-}
 catMaybes :: Monad m => Stream m (Maybe a) -> Stream m a
 -- catMaybes = fmap fromJust . filter isJust

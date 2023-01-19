@@ -230,7 +230,6 @@ bottomElement =
 -- that we do not have to write undefined or error in the whole array.
 -- | @new count@ allocates an empty array that can hold 'count' items.
 --
--- /Pre-release/
 {-# INLINE new #-}
 new :: forall m a. MonadIO m => Int -> m (Array a)
 new n@(I# n#) =
@@ -270,7 +269,6 @@ invalidIndex label i =
 --
 -- >>> putIndex ix arr val = Array.modifyIndex ix arr (const (val, ()))
 --
--- /Pre-release/
 {-# INLINE putIndex #-}
 putIndex :: MonadIO m => Int -> Array a -> a -> m ()
 putIndex i arr@Array {..} x =
@@ -299,7 +297,6 @@ modifyIndexUnsafe i Array {..} f = do
 
 -- | Modify a given index of an array using a modifier function.
 --
--- /Pre-release/
 modifyIndex :: MonadIO m => Int -> Array a -> (a -> (a, b)) -> m b
 modifyIndex i arr@Array {..} f = do
     if i >= 0 && i < arrLen
@@ -404,7 +401,6 @@ snocWith sizer arr@Array {..} x = do
 --
 -- Performs O(n * log n) copies to grow, but is liberal with memory allocation.
 --
--- /Pre-release/
 {-# INLINE snoc #-}
 snoc :: MonadIO m => Array a -> a -> m (Array a)
 snoc = snocWith (* 2)
@@ -481,7 +477,6 @@ getSlice index len arr@Array{..} =
 
 -- | Convert an 'Array' into a list.
 --
--- /Pre-release/
 {-# INLINE toList #-}
 toList :: MonadIO m => Array a -> m [a]
 toList arr@Array{..} = mapM (`getIndexUnsafe` arr) [0 .. (arrLen - 1)]
@@ -535,7 +530,6 @@ writeNUnsafe n = Fold step initial return
 --
 -- >>> writeN n = Fold.take n (Array.writeNUnsafe n)
 --
--- /Pre-release/
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (Array a)
 writeN n = FL.take n $ writeNUnsafe n

@@ -134,7 +134,6 @@ toIntSet = foldl' (flip IntSet.insert) IntSet.empty
 -- >>> Stream.fold Fold.toList $ Stream.scanMaybe Fold.nub stream
 -- [1,2,3,4,5,7]
 --
--- /Pre-release/
 {-# INLINE nub #-}
 nub :: (Monad m, Ord a) => Fold m a (Maybe a)
 nub = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
@@ -150,7 +149,6 @@ nub = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 
 -- | Like 'nub' but specialized to a stream of 'Int', for better performance.
 --
--- /Pre-release/
 {-# INLINE nubInt #-}
 nubInt :: Monad m => Fold m Int (Maybe Int)
 nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
@@ -181,8 +179,6 @@ nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 --
 -- /Space/: \(\mathcal{O}(n)\)
 --
--- /Pre-release/
---
 {-# INLINE countDistinct #-}
 countDistinct :: (Monad m, Ord a) => Fold m a Int
 -- countDistinct = postscan nub $ catMaybes length
@@ -211,7 +207,6 @@ countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- >>> countDistinctInt = fmap IntSet.size Fold.toIntSet
 -- >>> countDistinctInt = Fold.postscan Fold.nubInt $ Fold.catMaybes $ Fold.length
 --
--- /Pre-release/
 {-# INLINE countDistinctInt #-}
 countDistinctInt :: Monad m => Fold m Int Int
 -- countDistinctInt = postscan nubInt $ catMaybes length
@@ -302,8 +297,6 @@ demuxGeneric getKey getFold = fmap extract $ foldlM' step initial
 --
 -- This can be used to scan a stream and collect the results from the scan
 -- output.
---
--- /Pre-release/
 --
 {-# INLINE demux #-}
 demux :: (Monad m, Ord k) =>
@@ -639,8 +632,6 @@ toContainer f fld =
 -- >>> toMap = Fold.foldl' (\kv (k, v) -> Map.insert k v kv) Map.empty
 --
 -- /Stops: never/
---
--- /Pre-release/
 --
 {-# INLINE toMap #-}
 toMap :: (Monad m, Ord k) =>

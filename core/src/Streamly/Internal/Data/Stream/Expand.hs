@@ -623,8 +623,6 @@ concatSmapMWith combine f initial =
 --
 -- /CPS/
 --
--- /Pre-release/
---
 {-# INLINE mergeMapWith #-}
 mergeMapWith ::
        (Stream m b -> Stream m b -> Stream m b)

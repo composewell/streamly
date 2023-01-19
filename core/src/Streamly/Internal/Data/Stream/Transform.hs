@@ -671,7 +671,6 @@ intersperse a = fromStreamD . D.intersperse a . toStreamD
 -- >>> Stream.fold Fold.drain $ Stream.trace putChar $ Stream.intersperseM_ (putChar '.') input
 -- h.e.l.l.o
 --
--- /Pre-release/
 {-# INLINE intersperseM_ #-}
 intersperseM_ :: Monad m => m b -> Stream m a -> Stream m a
 intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
@@ -1028,8 +1027,6 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 --
 -- >>> catLefts = fmap (fromLeft undefined) . Stream.filter isLeft
 --
--- /Pre-release/
---
 {-# INLINE catLefts #-}
 catLefts :: Monad m => Stream m (Either a b) -> Stream m a
 catLefts = fmap (fromLeft undefined) . filter isLeft
@@ -1037,8 +1034,6 @@ catLefts = fmap (fromLeft undefined) . filter isLeft
 -- | Discard 'Left's and unwrap 'Right's in an 'Either' stream.
 --
 -- >>> catRights = fmap (fromRight undefined) . Stream.filter isRight
---
--- /Pre-release/
 --
 {-# INLINE catRights #-}
 catRights :: Monad m => Stream m (Either a b) -> Stream m b
@@ -1048,8 +1043,6 @@ catRights = fmap (fromRight undefined) . filter isRight
 -- the output stream.
 --
 -- >>> catEithers = fmap (either id id)
---
--- /Pre-release/
 --
 {-# INLINE catEithers #-}
 catEithers :: Monad m => Stream m (Either a a) -> Stream m a

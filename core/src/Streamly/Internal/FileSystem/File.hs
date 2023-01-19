@@ -144,8 +144,6 @@ import qualified Streamly.Data.Stream as S (fold, bracketIO, mapM)
 -- this exception will be raised by 'withFile' rather than any exception
 -- raised by 'act'.
 --
--- /Pre-release/
---
 {-# INLINE withFile #-}
 withFile :: (MonadIO m, MonadCatch m)
     => FilePath -> IOMode -> (Handle -> Stream m a) -> Stream m a
@@ -224,8 +222,6 @@ appendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
 --
--- /Pre-release/
---
 {-# INLINE readChunksWith #-}
 readChunksWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Stream m (Array Word8)
@@ -245,8 +241,6 @@ toChunksWithBufferOf = readChunksWith
 -- actual size read may be less than @defaultChunkSize@.
 --
 -- > readChunks = readChunksWith defaultChunkSize
---
--- /Pre-release/
 --
 {-# INLINE readChunks #-}
 readChunks :: (MonadIO m, MonadCatch m)
@@ -343,8 +337,6 @@ reader = UF.many A.reader (usingFile FH.chunkReader)
 -- when EOF is encountered. File is locked using multiple reader and single
 -- writer locking mode.
 --
--- /Pre-release/
---
 {-# INLINE read #-}
 read :: (MonadIO m, MonadCatch m) => FilePath -> Stream m Word8
 read file = AS.concat $ withFile file ReadMode FH.readChunks
@@ -430,7 +422,6 @@ write = toHandleWith A.defaultChunkSize
 -- | Write a stream of chunks to a handle. Each chunk in the stream is written
 -- to the device as a separate IO request.
 --
--- /Pre-release/
 {-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, MonadCatch m)
     => FilePath -> Fold m (Array a) ()
@@ -455,7 +446,6 @@ writeChunks path = Fold step initial extract
 -- Bytes in the input stream are collected into a buffer until we have a chunk
 -- of size @chunkSize@ and then written to the IO device.
 --
--- /Pre-release/
 {-# INLINE writeWith #-}
 writeWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Fold m Word8 ()
@@ -473,8 +463,6 @@ writeWithBufferOf = writeWith
 -- | Write a byte stream to a file. Accumulates the input in chunks of up to
 -- 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing to
 -- the IO device.
---
--- /Pre-release/
 --
 {-# INLINE write #-}
 write :: (MonadIO m, MonadCatch m) => FilePath -> Fold m Word8 ()

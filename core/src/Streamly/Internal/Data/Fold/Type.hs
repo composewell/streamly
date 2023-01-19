@@ -540,7 +540,6 @@ foldlM' step initial =
 -- | Make a strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns Nothing if the stream is empty.
 --
--- /Pre-release/
 {-# INLINE foldl1' #-}
 foldl1' :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
 foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
@@ -1189,7 +1188,6 @@ lmapM f (Fold step begin done) = Fold step' begin done
 --
 -- @postscan scanner collector@
 --
--- /Pre-release/
 {-# INLINE postscan #-}
 postscan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
@@ -1253,7 +1251,6 @@ catMaybes (Fold step initial extract) = Fold step1 initial extract
 --
 -- >>> scanMaybe p f = Fold.postscan p (Fold.catMaybes f)
 --
--- /Pre-release/
 {-# INLINE scanMaybe #-}
 scanMaybe :: Monad m => Fold m a (Maybe b) -> Fold m b c -> Fold m a c
 scanMaybe f1 f2 = postscan f1 (catMaybes f2)
@@ -1303,15 +1300,11 @@ filterM f (Fold step begin done) = Fold step' begin done
 
 -- | Discard 'Right's and unwrap 'Left's in an 'Either' stream.
 --
--- /Pre-release/
---
 {-# INLINE catLefts #-}
 catLefts :: (Monad m) => Fold m a c -> Fold m (Either a b) c
 catLefts = filter isLeft . lmap (fromLeft undefined)
 
 -- | Discard 'Left's and unwrap 'Right's in an 'Either' stream.
---
--- /Pre-release/
 --
 {-# INLINE catRights #-}
 catRights :: (Monad m) => Fold m b c -> Fold m (Either a b) c
@@ -1323,8 +1316,6 @@ catRights = filter isRight . lmap (fromRight undefined)
 -- Definition:
 --
 -- >>> catEithers = Fold.lmap (either id id)
---
--- /Pre-release/
 --
 {-# INLINE catEithers #-}
 catEithers :: Fold m a b -> Fold m (Either a a) b
@@ -1417,7 +1408,6 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 --
 -- See also 'Streamly.Internal.Data.Stream.build'.
 --
--- /Pre-release/
 {-# INLINE duplicate #-}
 duplicate :: Monad m => Fold m a b -> Fold m a (Fold m a b)
 duplicate (Fold step1 initial1 extract1) =
@@ -1534,7 +1524,6 @@ snoc (Fold step initial extract) a = do
 --
 -- See examples under 'addStream'.
 --
--- /Pre-release/
 {-# INLINE addOne #-}
 addOne :: Monad m => a -> Fold m a b -> m (Fold m a b)
 addOne = flip snoc
@@ -1850,7 +1839,6 @@ refold (Refold step inject extract) f =
 
 -- | Change the underlying monad of a fold. Also known as hoist.
 --
--- /Pre-release/
 morphInner :: (forall x. m x -> n x) -> Fold m a b -> Fold n a b
 morphInner f (Fold step initial extract) =
     Fold (\x a -> f $ step x a) (f initial) (f . extract)

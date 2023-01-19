@@ -620,7 +620,6 @@ parMergeBy cfg f = parMergeByM cfg (\a b -> return $ f a b)
 
 -- | Same as 'concatIterate' but concurrent.
 --
--- /Pre-release/
 {-# INLINE parConcatIterate #-}
 parConcatIterate :: MonadAsync m =>
        (Config -> Config)
@@ -706,8 +705,6 @@ newCallbackStream = do
 -- invocation of the callback results in a value being generated in the
 -- resulting stream.
 --
--- /Pre-release/
---
 {-# INLINE fromCallback #-}
 fromCallback :: MonadAsync m => ((a -> m ()) -> m ()) -> Stream m a
 fromCallback setCallback = Stream.concatEffect $ do
@@ -761,8 +758,6 @@ tapCountD predicate fld (D.Stream step state) = D.Stream step' Nothing
 --
 -- Note: This may not work correctly on 32-bit machines because of Int
 -- overflow.
---
--- /Pre-release/
 --
 {-# INLINE tapCount #-}
 tapCount ::

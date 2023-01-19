@@ -358,7 +358,6 @@ nil = fromStreamK K.nil
 -- "nil"
 -- []
 --
--- /Pre-release/
 {-# INLINE_NORMAL nilM #-}
 nilM :: Monad m => m b -> Stream m a
 nilM = fromStreamK . K.nilM

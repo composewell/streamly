@@ -437,7 +437,6 @@ parseIterate f i m = fromStreamD $
 --
 -- >>> arraysOf n = Stream.foldMany (Array.writeN n)
 --
--- /Pre-release/
 {-# INLINE arraysOf #-}
 arraysOf :: (MonadIO m, Unbox a)
     => Int -> Stream m a -> Stream m (Array a)

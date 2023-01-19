@@ -287,7 +287,6 @@ dirReader = fmap (fromLeft undefined) $ UF.filter isLeft eitherReader
 
 -- | Raw read of a directory.
 --
--- /Pre-release/
 {-# INLINE read #-}
 read :: MonadIO m => FilePath -> Stream m FilePath
 read = S.unfold reader
@@ -300,7 +299,6 @@ toStream = read
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries. The output contains the names of the directories and files.
 --
--- /Pre-release/
 {-# INLINE readEither #-}
 readEither :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
 readEither = S.unfold eitherReader
