@@ -18,6 +18,7 @@ module Streamly.Internal.Data.Unboxed
     , newPinnedBytes
     , newAlignedPinnedBytes
     , nil
+    , sizeOfMutableByteArray
 
     -- * Type Parser and Builder
     , BoundedPtr (..)
