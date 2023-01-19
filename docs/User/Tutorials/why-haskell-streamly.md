@@ -1,3 +1,8 @@
+<!--
+(c) 2022, Composewell Technologies.
+SPDX-License-Identifer: BSD-3-Clause
+-->
+
 # Why Haskell Streamly?
 
 A computer programmer is faced with different types of programming tasks. A
