@@ -102,7 +102,6 @@ module Streamly.FileSystem.Handle
     , readWithBufferOf
     , readChunks
     , readChunksWithBufferOf
-    , writeChunksWithBufferOf
     , writeWithBufferOf
     )
 where

@@ -106,6 +106,10 @@ module Streamly.Data.Array
     -- list.
     , A.toList
 
+    -- * Streams
+    , A.read
+    , A.readRev
+
     -- * Unfolds
     , A.reader
     , A.readerRev
@@ -121,10 +125,6 @@ module Streamly.Data.Array
 
     -- * Unbox Type Class
     , Unbox (..)
-
-    -- * Deprecated
-    , read
-    , readRev
     )
 where
 
@@ -147,17 +147,3 @@ import Prelude hiding (read)
 -- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
-
--- | Same as 'reader'
---
-{-# DEPRECATED read "Please use 'reader' instead" #-}
-{-# INLINE_NORMAL read #-}
-read :: (Monad m, Unbox a) => Unfold m (Array a) a
-read = reader
-
--- | Same as 'readerRev'
---
-{-# DEPRECATED readRev "Please use 'readerRev' instead" #-}
-{-# INLINE_NORMAL readRev #-}
-readRev :: (Monad m, Unbox a) => Unfold m (Array a) a
-readRev = readerRev
