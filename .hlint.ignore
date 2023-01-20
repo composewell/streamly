@@ -9,6 +9,7 @@ test/Streamly/Test/Data/SmallArray.hs
 test/Streamly/Test/Data/Unfold.hs
 test/Streamly/Test/FileSystem/Event.hs
 test/Streamly/Test/Prelude/Concurrent.hs
+test/Streamly/Test/Prelude/ConcurrentChannel.hs
 test/Streamly/Test/Prelude/Fold.hs
 test/Streamly/Test/Prelude/Rate.hs
 test/Streamly/Test/Prelude/Serial.hs

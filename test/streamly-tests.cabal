@@ -422,6 +422,16 @@ test-suite Prelude.Concurrent
   if flag(use-streamly-core)
     buildable: False
 
+test-suite Prelude.ConcurrentChannel
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Prelude/ConcurrentChannel.hs
+  ghc-options: -main-is Streamly.Test.Prelude.ConcurrentChannel.main
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M2000M -RTS
+  if flag(use-streamly-core)
+    buildable: False
+
 test-suite Prelude.Fold
   import: test-options
   type: exitcode-stdio-1.0
