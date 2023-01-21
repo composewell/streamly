@@ -179,13 +179,13 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-    (append, interleave, interleaveSuffix, interleaveInfix, interleaveMin
-    , roundRobin, mergeByM, unfoldMany, unfoldManyInterleave, intersperse
-    , unfoldManyRoundRobin, interpose, interposeSuffix, gintercalate
+    (append, interleave, interleaveFstSuffix, interleaveFst, interleaveMin
+    , roundRobin, mergeByM, unfoldMany, unfoldInterleave, intersperse
+    , unfoldRoundRobin, interpose, interposeSuffix, gintercalate
     , gintercalateSuffix, intersperseMSuffix)
 import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy, mergeByM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (interleave, serial, concatPairsWith)
+    (interleave, append, mergeMapWith)
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
 import Prelude hiding (concat, concatMap, zipWith)
@@ -250,7 +250,7 @@ infixr 6 `serial`
 -- @since 0.8.0
 {-# INLINE serial #-}
 serial :: IsStream t => t m a -> t m a -> t m a
-serial m1 m2 = fromStream $ K.serial (toStream m1) (toStream m2)
+serial m1 m2 = fromStream $ K.append (toStream m1) (toStream m2)
 
 -------------------------------------------------------------------------------
 -- Interleaving
@@ -346,7 +346,7 @@ interleave m1 m2 = fromStreamD $ D.interleave (toStreamD m1) (toStreamD m2)
 {-# INLINE interleaveSuffix #-}
 interleaveSuffix ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleaveSuffix m1 m2 =
-    fromStreamD $ D.interleaveSuffix (toStreamD m1) (toStreamD m2)
+    fromStreamD $ D.interleaveFstSuffix (toStreamD m1) (toStreamD m2)
 
 -- | Interleaves the outputs of two streams, yielding elements from each stream
 -- alternately, starting from the first stream and ending at the first stream.
@@ -370,7 +370,7 @@ interleaveSuffix m1 m2 =
 {-# INLINE interleaveInfix #-}
 interleaveInfix ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleaveInfix m1 m2 =
-    fromStreamD $ D.interleaveInfix (toStreamD m1) (toStreamD m2)
+    fromStreamD $ D.interleaveFst (toStreamD m1) (toStreamD m2)
 
 -- | Interleaves the outputs of two streams, yielding elements from each stream
 -- alternately, starting from the first stream. The output stops as soon as any
@@ -835,7 +835,7 @@ unfoldMany u m = fromStreamD $ D.unfoldMany u (toStreamD m)
 unfoldManyInterleave ::(IsStream t, Monad m)
     => Unfold m a b -> t m a -> t m b
 unfoldManyInterleave u m =
-    fromStreamD $ D.unfoldManyInterleave u (toStreamD m)
+    fromStreamD $ D.unfoldInterleave u (toStreamD m)
 
 -- | Like 'unfoldMany' but executes the streams in the same way as
 -- 'roundrobin'.
@@ -845,7 +845,7 @@ unfoldManyInterleave u m =
 unfoldManyRoundRobin ::(IsStream t, Monad m)
     => Unfold m a b -> t m a -> t m b
 unfoldManyRoundRobin u m =
-    fromStreamD $ D.unfoldManyRoundRobin u (toStreamD m)
+    fromStreamD $ D.unfoldRoundRobin u (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose
@@ -863,7 +863,7 @@ unfoldManyRoundRobin u m =
 interpose :: (IsStream t, Monad m)
     => c -> Unfold m b c -> t m b -> t m c
 interpose x unf str =
-    fromStreamD $ D.interpose (return x) unf (toStreamD str)
+    fromStreamD $ D.interpose x unf (toStreamD str)
 
 -- interposeSuffix x unf str = gintercalateSuffix unf str UF.identity (repeat x)
 --
@@ -877,7 +877,7 @@ interpose x unf str =
 interposeSuffix :: (IsStream t, Monad m)
     => c -> Unfold m b c -> t m b -> t m c
 interposeSuffix x unf str =
-    fromStreamD $ D.interposeSuffix (return x) unf (toStreamD str)
+    fromStreamD $ D.interposeSuffix x unf (toStreamD str)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - intercalate
@@ -1013,7 +1013,7 @@ concatPairsWith :: IsStream t =>
     -> t m b
 concatPairsWith par f m =
     fromStream
-        $ K.concatPairsWith
+        $ K.mergeMapWith
             (\s1 s2 -> toStream $ fromStream s1 `par` fromStream s2)
             (toStream . f)
             (toStream m)

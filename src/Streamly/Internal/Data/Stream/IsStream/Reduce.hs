@@ -176,13 +176,14 @@ import Streamly.Internal.Data.Stream.IsStream.Common
     , fromPure)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD, cons)
+import Streamly.Internal.Data.Stream.Serial(toStreamK)
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
        , toAbsTime)
 import Streamly.Internal.Data.Unboxed (Unbox)
 
 import qualified Data.Heap as H
-import qualified Streamly.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array.Type as A
     (arraysOf, read)
 import qualified Streamly.Internal.Data.Fold as FL
@@ -197,8 +198,8 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
     , refoldMany
     , foldIterateM
     , refoldIterateM
-    , parseMany
-    , parseIterate
+    , parseManyD
+    , parseIterateD
     , groupsBy
     , groupsRollingBy
     , wordsBy
@@ -387,7 +388,7 @@ parseMany
     -> t m a
     -> t m (Either ParseError b)
 parseMany p m =
-    fromStreamD $ D.parseMany (PRD.fromParserK p) (toStreamD m)
+    fromStreamD $ D.parseManyD (PRD.fromParserK p) (toStreamD m)
 
 -- | Same as parseMany but for StreamD streams.
 --
@@ -400,7 +401,7 @@ parseManyD
     -> t m a
     -> t m (Either ParseError b)
 parseManyD p m =
-    fromStreamD $ D.parseMany p (toStreamD m)
+    fromStreamD $ D.parseManyD p (toStreamD m)
 
 -- | Apply a stream of parsers to an input stream and emit the results in the
 -- output stream.
@@ -455,7 +456,7 @@ parseIterate
     -> t m a
     -> t m (Either ParseError b)
 parseIterate f i m = fromStreamD $
-    D.parseIterate (PRD.fromParserK . f) i (toStreamD m)
+    D.parseIterateD (PRD.fromParserK . f) i (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouping
@@ -846,7 +847,7 @@ splitBySeq
     :: (IsStream t, MonadAsync m, Storable a, Unbox a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitBySeq patt f m =
-    intersperseM (fold f (A.read patt)) $ splitOnSeq patt f m
+    intersperseM (fold f (fromStreamD $ A.read patt)) $ splitOnSeq patt f m
 
 -- | Like 'splitSuffixBy' but the separator is a sequence of elements, instead
 -- of a predicate for a single element.
@@ -1322,7 +1323,8 @@ classifySessionsByGeneric
     -> t m (Key f, b) -- ^ session key, fold result
 classifySessionsByGeneric _ tick reset ejectPred tmout
     (Fold step initial extract) input =
-    Expand.unfoldMany (Unfold.lmap sessionOutputStream Unfold.fromStream)
+    Expand.unfoldMany
+        (Unfold.lmap (toStreamK . sessionOutputStream) Unfold.fromStreamK)
         $ scanlMAfter' sstep (return szero) (flush extract)
         $ interjectSuffix tick (return Nothing)
         $ map Just input

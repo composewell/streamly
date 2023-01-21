@@ -251,13 +251,19 @@ where
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
-import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Data.Foldable as Foldable
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+
+#ifdef USE_STREAMK
+import Streamly.Internal.Data.StreamK (Stream)
+import qualified Streamly.Internal.Data.StreamK as Stream
+#else
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
+#endif
 
 import Prelude hiding
     ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
@@ -1007,7 +1013,7 @@ groupByRollingEither eq f1 = D.toParserK . D.groupByRollingEither eq f1
 --
 {-# INLINE streamEqBy #-}
 streamEqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser a m ()
-streamEqBy cmp = D.toParserK . D.streamEqBy cmp . Stream.toStreamD
+streamEqBy cmp = D.toParserK . D.streamEqBy cmp
 
 -- | Match the given sequence of elements using the given comparison function.
 -- Returns the original sequence if successful.
@@ -1259,7 +1265,7 @@ concatSequence ::
     Monad m =>
     Fold m b c -> Stream m (Parser a m b) -> Parser a m c
 concatSequence f p =
-    let sp = fmap D.fromParserK $ Stream.toStreamD p
+    let sp = fmap D.fromParserK p
         in D.toParserK $ D.sequence sp f
 
 -- | Map a 'Parser' returning function on the result of a 'Parser'.

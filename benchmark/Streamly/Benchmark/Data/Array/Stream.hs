@@ -27,21 +27,23 @@ module Main
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (void, when)
-import Control.Monad.Catch (MonadCatch, try, SomeException)
+import Control.Monad.Catch (MonadCatch)
 import Data.Functor.Identity (runIdentity)
 import Data.Maybe (isJust)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream.StreamK (StreamK)
 import System.IO (Handle)
 import System.Random (randomRIO)
 import Prelude hiding ()
 
+import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
-import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
@@ -63,8 +65,8 @@ import Test.Inspection
 -- XXX these can be moved to the common module
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: MonadIO m => Int -> Int -> Stream m Int
-sourceUnfoldrM value n = S.unfoldrM step n
+sourceUnfoldrM :: MonadIO m => Int -> Int -> Stream.Stream m Int
+sourceUnfoldrM value n = Stream.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
@@ -100,7 +102,7 @@ inspect $ 'toChunksLast `hasNoType` ''Step
 toChunksSumLengths :: Handle -> IO Int
 toChunksSumLengths inh =
     let s = Handle.readChunks inh
-    in Stream.sum (Stream.map Array.length s)
+    in Stream.fold Fold.sum (Stream.map Array.length s)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksSumLengths
@@ -135,7 +137,9 @@ inspect $ hasNoTypeClasses 'toChunksDecodeUtf8Arrays
 -- | Count the number of lines in a file.
 toChunksSplitOnSuffix :: Handle -> IO Int
 toChunksSplitOnSuffix =
-    Stream.length . ArrayStream.splitOnSuffix 10 . Handle.readChunks
+    Stream.fold Fold.length
+        . ArrayStream.splitOnSuffix 10
+        . Handle.readChunks
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksSplitOnSuffix
@@ -145,7 +149,10 @@ inspect $ 'toChunksSplitOnSuffix `hasNoType` ''Step
 -- XXX use a word splitting combinator instead of splitOn and test it.
 -- | Count the number of words in a file.
 toChunksSplitOn :: Handle -> IO Int
-toChunksSplitOn = Stream.length . ArrayStream.splitOn 32 . Handle.readChunks
+toChunksSplitOn =
+    Stream.fold Fold.length
+        . ArrayStream.splitOn 32
+        . Handle.readChunks
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksSplitOn
@@ -183,8 +190,7 @@ o_1_space_read_chunked env =
 copyChunksSplitInterposeSuffix :: Handle -> Handle -> IO ()
 copyChunksSplitInterposeSuffix inh outh =
     Stream.fold (Handle.write outh)
-        $ ArrayStream.interposeSuffix 10
-        $ ArrayStream.splitOnSuffix 10
+        $ ArrayStream.interposeSuffix 10 . ArrayStream.splitOnSuffix 10
         $ Handle.readChunks inh
 
 #ifdef INSPECTION
@@ -197,9 +203,8 @@ inspect $ 'copyChunksSplitInterposeSuffix `hasNoType` ''Step
 copyChunksSplitInterpose :: Handle -> Handle -> IO ()
 copyChunksSplitInterpose inh outh =
     Stream.fold (Handle.write outh)
-        $ ArrayStream.interpose 32
         -- XXX this is not correct word splitting combinator
-        $ ArrayStream.splitOn 32
+        $ ArrayStream.interpose 32 . ArrayStream.splitOn 32
         $ Handle.readChunks inh
 
 #ifdef INSPECTION
@@ -231,25 +236,26 @@ drainWhile p = Parser.takeWhile p Fold.drain
 
 {-# INLINE fold #-}
 fold :: Stream IO (Array.Array Int) -> IO ()
-fold s = void $ ArrayStream.foldBreak Fold.drain s
+fold s = void $ ArrayStream.foldBreak Fold.drain $ StreamK.fromStream s
 
 {-# INLINE parse #-}
 parse :: Int -> Stream IO (Array.Array Int) -> IO ()
-parse value s = void $ ArrayStream.parseBreak (drainWhile (< value)) s
+parse value s =
+    void $ ArrayStream.parseBreak (drainWhile (< value)) $ StreamK.fromStream s
 
 {-# INLINE foldBreak #-}
-foldBreak :: Stream IO (Array.Array Int) -> IO ()
+foldBreak :: StreamK IO (Array.Array Int) -> IO ()
 foldBreak s = do
     (r, s1) <- ArrayStream.foldBreak Fold.one s
     when (isJust r) $ foldBreak s1
 
 {-# INLINE parseBreak #-}
-parseBreak :: Stream IO (Array.Array Int) -> IO ()
+parseBreak :: StreamK IO (Array.Array Int) -> IO ()
 parseBreak s = do
-    r <- try $ ArrayStream.parseBreak Parser.one s
+    r <- ArrayStream.parseBreak Parser.one s
     case r of
-        Left (_ :: SomeException) -> return ()
-        Right (_, s1) -> parseBreak s1
+        (Left _, _) -> return ()
+        (Right _, s1) -> parseBreak s1
 
 o_1_space_serial_array ::
     Int -> [Array.Array Int] -> [Array.Array Int] -> [Benchmark]
@@ -259,7 +265,7 @@ o_1_space_serial_array bound arraysSmall arraysBig =
     , benchIO
         "foldBreak (recursive, small arrays)"
         (\_ -> Stream.fromList arraysSmall)
-        foldBreak
+        (foldBreak . StreamK.fromStream)
     , benchIO "parse (of 100)" (\_ -> Stream.fromList arraysSmall)
         $ parse bound
     , benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
@@ -267,7 +273,7 @@ o_1_space_serial_array bound arraysSmall arraysBig =
     , benchIO
         "parseBreak (recursive, small arrays)"
         (\_ -> Stream.fromList arraysSmall)
-        parseBreak
+        (parseBreak . StreamK.fromStream)
     ]
 
 -------------------------------------------------------------------------------

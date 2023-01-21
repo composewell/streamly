@@ -4,25 +4,25 @@ module Main (main) where
 
 import Control.DeepSeq (NFData)
 import Streamly.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import System.Random (randomRIO)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
-import qualified Streamly.Prelude as Stream
 import qualified Streamly.Internal.Data.Fold.Window as Window
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 
 import Gauge
 
 {-# INLINE source #-}
-source :: (Monad m, Stream.IsStream t, Num a, Stream.Enumerable a) =>
-    Int -> a -> t m a
+source :: (Monad m, Num a, Stream.Enumerable a) =>
+    Int -> a -> Stream m a
 source len from =
     Stream.enumerateFromThenTo from (from + 1) (from + fromIntegral len)
 
 {-# INLINE sourceDescending #-}
-sourceDescending :: (Monad m, Stream.IsStream t, Num a, Stream.Enumerable a) =>
-    Int -> a -> t m a
+sourceDescending :: (Monad m, Num a, Stream.Enumerable a) =>
+    Int -> a -> Stream m a
 sourceDescending len from =
     Stream.enumerateFromThenTo
         (from + fromIntegral len)
@@ -30,7 +30,7 @@ sourceDescending len from =
         from
 
 {-# INLINE sourceDescendingInt #-}
-sourceDescendingInt :: (Monad m, Stream.IsStream t) => Int -> Int -> t m Int
+sourceDescendingInt :: Monad m => Int -> Int -> Stream m Int
 sourceDescendingInt = sourceDescending
 
 {-# INLINE benchWith #-}
@@ -56,7 +56,10 @@ benchScanWith src len name f =
     bench name
         $ nfIO
         $ randomRIO (1, 1 :: Int)
-            >>= Stream.drain . Stream.postscan f . src len . fromIntegral
+            >>= Stream.fold Fold.drain
+                . Stream.postscan f
+                . src len
+                . fromIntegral
 
 {-# INLINE benchWithPostscan #-}
 benchWithPostscan :: Int -> String -> Fold IO Double a -> Benchmark

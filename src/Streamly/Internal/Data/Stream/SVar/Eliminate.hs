@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.SVar.Eliminate
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -36,14 +37,14 @@ import Streamly.Internal.Control.ForkLifted (doFork)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Fold.SVar (write, writeLimited)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..), fold)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (Stream(..), mkStream, foldStream, foldStreamShared, nilM)
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.Serial as Stream
     (fromStreamK, toStreamK)
 
 import Streamly.Internal.Data.SVar
@@ -210,7 +211,7 @@ fromProducer sv = K.mkStream $ \st yld sng stp -> do
 --
 {-# INLINE newFoldSVar #-}
 newFoldSVar :: MonadAsync m
-    => State K.Stream m a -> (Stream m a -> m b) -> m (SVar K.Stream m a)
+    => State K.Stream m a -> (SerialT m a -> m b) -> m (SVar K.Stream m a)
 newFoldSVar stt f = do
     -- Buffer size for the SVar is derived from the current state
     sv <- newParallelVar StopAny (adaptState stt)
@@ -372,7 +373,7 @@ pushToFold sv a = do
 --
 {-# INLINE teeToSVar #-}
 teeToSVar :: MonadAsync m =>
-    SVar K.Stream m a -> Stream m a -> Stream m a
+    SVar K.Stream m a -> SerialT m a -> SerialT m a
 teeToSVar svr m = Stream.fromStreamK $ K.mkStream $ \st yld sng stp -> do
     K.foldStreamShared st yld sng stp (go False $ Stream.toStreamK m)
 

@@ -21,9 +21,8 @@ import Control.DeepSeq (NFData(..))
 import Data.Foldable (asum)
 import Data.Function ((&))
 import Data.Functor (($>))
-import Data.Maybe (fromMaybe)
-import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, sequence_, takeWhile, span)
 
@@ -35,9 +34,8 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser.ParserD as PR
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Producer.Source as Source
-import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.IsStream as IsStream (tail)
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 
 import Gauge
 import Streamly.Benchmark.Common
@@ -75,7 +73,7 @@ listEqBy len = Stream.parseD (PR.listEqBy (==) [1 .. len])
 
 {-# INLINE streamEqBy #-}
 streamEqBy :: Int -> Stream IO Int -> IO (Either ParseError ())
-streamEqBy len = Stream.parseD (PR.streamEqBy (==) (D.enumerateFromToIntegral 1 len))
+streamEqBy len = Stream.parseD (PR.streamEqBy (==) (Stream.enumerateFromToIntegral 1 len))
 
 {-# INLINE drainWhile #-}
 drainWhile :: Monad m => (a -> Bool) -> PR.Parser a m ()
@@ -84,8 +82,7 @@ drainWhile p = PR.takeWhile p Fold.drain
 {-# INLINE takeStartBy #-}
 takeStartBy :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 takeStartBy value stream = do
-    stream1 <- return . fromMaybe (Stream.fromPure (value + 1)) =<< IsStream.tail stream
-    let stream2 = value `Stream.cons` stream1
+    let stream2 = value `Stream.cons` stream
     Stream.parseD (PR.takeStartBy (== value) Fold.drain) stream2
 
 {-# INLINE takeWhile #-}
@@ -202,7 +199,9 @@ longestAllAny value =
 
 {-# INLINE sequenceParser #-}
 sequenceParser :: Monad m => Stream m Int -> m (Either ParseError ())
-sequenceParser = Stream.parseD (PR.sequence (D.repeat (PR.satisfy $ const True)) Fold.drain)
+sequenceParser =
+    Stream.parseD
+        (PR.sequence (Stream.repeat (PR.satisfy $ const True)) Fold.drain)
 
 -------------------------------------------------------------------------------
 -- Spanning

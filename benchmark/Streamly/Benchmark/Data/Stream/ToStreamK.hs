@@ -33,11 +33,9 @@ import Prelude hiding
 import qualified Prelude as P
 -- import qualified Data.List as List
 
-import qualified Streamly.Internal.Control.Concurrent as S
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
--- import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Fold as Fold
 
 import Gauge (bgroup, Benchmark, defaultMain)
@@ -64,7 +62,7 @@ unfoldrD streamLen n = D.toStreamK (D.unfoldr step n)
         else Just (cnt, cnt + 1)
 
 {-# INLINE unfoldrMD #-}
-unfoldrMD :: S.MonadAsync m => Int -> Int -> Stream m Int
+unfoldrMD :: Monad m => Int -> Int -> Stream m Int
 unfoldrMD streamLen n = D.toStreamK (D.unfoldrM step n)
     where
     step cnt =
@@ -84,7 +82,7 @@ unfoldrK streamLen n = S.unfoldr step n
 -}
 
 {-# INLINE unfoldrMK #-}
-unfoldrMK :: S.MonadAsync m => Int -> Int -> Stream m Int
+unfoldrMK :: Monad m => Int -> Int -> Stream m Int
 unfoldrMK streamLen n = S.unfoldrMWith S.consM step n
     where
     step cnt =
@@ -97,7 +95,7 @@ repeat :: Monad m => Int -> Int -> Stream m Int
 repeat streamLen = S.take streamLen . D.toStreamK . D.repeat
 
 {-# INLINE repeatM #-}
-repeatM :: S.MonadAsync m => Int -> Int -> Stream m Int
+repeatM :: Monad m => Int -> Int -> Stream m Int
 repeatM streamLen = S.take streamLen . D.toStreamK . D.repeatM . return
 
 {-# INLINE replicate #-}
@@ -105,7 +103,7 @@ replicate :: Monad m => Int -> Int -> Stream m Int
 replicate x y = D.toStreamK $ D.replicate x y
 
 {-# INLINE replicateM #-}
-replicateM :: S.MonadAsync m => Int -> Int -> Stream m Int
+replicateM :: Monad m => Int -> Int -> Stream m Int
 replicateM streamLen = D.toStreamK . D.replicateM streamLen . return
 
 {-# INLINE iterate #-}
@@ -113,7 +111,7 @@ iterate :: Monad m => Int -> Int -> Stream m Int
 iterate streamLen = S.take streamLen . D.toStreamK . D.iterate (+1)
 
 {-# INLINE iterateM #-}
-iterateM :: S.MonadAsync m => Int -> Int -> Stream m Int
+iterateM :: Monad m => Int -> Int -> Stream m Int
 iterateM streamLen = S.take streamLen . D.toStreamK . D.iterateM (return . (+1)) . return
 
 {-# INLINE fromFoldable #-}
@@ -121,7 +119,7 @@ fromFoldable :: Int -> Int -> Stream m Int
 fromFoldable streamLen n = S.fromFoldable [n..n+streamLen]
 
 {-# INLINE fromFoldableM #-}
-fromFoldableM :: S.MonadAsync m => Int -> Int -> Stream m Int
+fromFoldableM :: Monad m => Int -> Int -> Stream m Int
 fromFoldableM streamLen n =
     Prelude.foldr S.consM S.nil (Prelude.fmap return [n..n+streamLen])
 
@@ -225,7 +223,7 @@ composeN n f =
 {-# INLINE scanl' #-}
 scanl' :: Monad m => Int -> Stream m Int -> m ()
 scanl' n =
-    composeN n (D.toStreamK . D.scanOnce (Fold.foldl' (+) 0) . D.fromStreamK)
+    composeN n (D.toStreamK . D.scan (Fold.foldl' (+) 0) . D.fromStreamK)
 
 {-# INLINE map #-}
 map :: Monad m => Int -> Stream m Int -> m ()
@@ -238,7 +236,7 @@ fmapK n = composeN n $ P.fmap (+ 1)
 -}
 
 {-# INLINE mapM #-}
-mapM :: S.MonadAsync m => Int -> Stream m Int -> m ()
+mapM :: Monad m => Int -> Stream m Int -> m ()
 mapM n = composeN n (D.toStreamK . D.mapM return . D.fromStreamK)
 
 {-
@@ -620,6 +618,8 @@ filterAllInNestedList str = do
 moduleName :: String
 moduleName = "Data.Stream.ToStreamK"
 
+-- Generation of StreamK using StreamD generation functions and eleminating
+-- using StreamK drain.
 o_1_space_generation :: Int -> Benchmark
 o_1_space_generation streamLen =
     bgroup "generation"
@@ -640,6 +640,7 @@ o_1_space_generation streamLen =
         , benchFold "concatMapFoldableWithM" drain (concatMapFoldableSerialM streamLen)
         ]
 
+-- Generating using StreamK and eliminating using StreamD folds.
 o_1_space_elimination :: Int -> Benchmark
 o_1_space_elimination streamLen =
     bgroup "elimination"
@@ -671,6 +672,8 @@ o_1_space_nested streamLen =
     streamLen3 = round (P.fromIntegral streamLen**(1/3::P.Double)) -- triple nested loop
 -}
 
+-- Generate using StreamK and transform using StreamD transformation functions
+-- and then drain using StreamK.
 o_1_space_transformation :: Int -> Benchmark
 o_1_space_transformation streamLen =
     bgroup "transformation"
@@ -694,6 +697,7 @@ o_1_space_transformationX4 streamLen =
         -- , benchFold "concatMap" (concatMap 4) (unfoldrM streamLen16)
         ]
 
+-- Generate using K, fold using K, concat using D.concatMap
 o_1_space_concat :: Int -> Benchmark
 o_1_space_concat streamLen =
     bgroup "concat"

@@ -56,7 +56,6 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (Fold (..), Step (Done, Partial))
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Streamly.Internal.Data.SmallArray.Type
 
@@ -165,15 +164,15 @@ instance NFData a => NFData (SmallArray a) where
 fromStreamN :: MonadIO m => Int -> Stream m a -> m (SmallArray a)
 fromStreamN n m = do
     when (n < 0) $ error "fromStreamN: negative write count specified"
-    fromStreamDN n $ D.fromStreamK $ Stream.toStreamK m
+    fromStreamDN n m
 
 {-# INLINE_EARLY read #-}
 read :: Monad m => SmallArray a -> Stream m a
-read = Stream.fromStreamK . D.toStreamK . toStreamD
+read = toStreamD
 
 {-# INLINE_EARLY readRev #-}
 readRev :: Monad m => SmallArray a -> Stream m a
-readRev = Stream.fromStreamK . D.toStreamK . toStreamDRev
+readRev = toStreamDRev
 
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> SmallArray a -> m b

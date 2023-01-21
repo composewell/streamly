@@ -90,7 +90,7 @@ import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Mut.Type (MutableByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Unboxed (Unbox, peekWith, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec)
@@ -101,7 +101,6 @@ import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
@@ -113,6 +112,7 @@ import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 -- >>> :m
 -- >>> :set -XMagicHash
 -- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
+-- >>> import Streamly.Data.Stream as Stream
 -- >>> import Streamly.Internal.Data.Array as Array
 
 -------------------------------------------------------------------------------
@@ -265,8 +265,14 @@ bufferChunks :: (MonadIO m, Unbox a) =>
     D.Stream m a -> m (K.Stream m (Array a))
 bufferChunks m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
 
--- | @arraysOf n stream@ groups the input stream into a stream of
--- arrays of size n.
+-- | @arraysOf n stream@ groups the elements in the input stream into arrays of
+-- @n@ elements each.
+--
+-- Same as the following but may be more efficient:
+--
+-- >>> arraysOf n = Stream.foldMany (Array.writeN n)
+--
+-- /Pre-release/
 {-# INLINE_NORMAL arraysOf #-}
 arraysOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
@@ -360,7 +366,7 @@ toStreamKRev arr =
 -- /Pre-release/
 {-# INLINE_EARLY read #-}
 read :: (Monad m, Unbox a) => Array a -> Stream m a
-read = Stream.fromStreamD . toStreamD
+read = toStreamD
 
 -- | Same as 'read'
 --
@@ -377,7 +383,7 @@ toStream = read
 -- /Pre-release/
 {-# INLINE_EARLY readRev #-}
 readRev :: (Monad m, Unbox a) => Array a -> Stream m a
-readRev = Stream.fromStreamD . toStreamDRev
+readRev = toStreamDRev
 
 -- | Same as 'readRev'
 --

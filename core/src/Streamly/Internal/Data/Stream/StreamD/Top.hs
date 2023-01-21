@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Top
+-- Module      : Streamly.Internal.Data.Stream.StreamD.Top
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,15 +8,12 @@
 --
 -- Top level module that can depend on all other lower level Stream modules.
 
-module Streamly.Internal.Data.Stream.Top
+module Streamly.Internal.Data.Stream.StreamD.Top
     (
     -- * Transformation
     -- ** Sampling
     -- | Value agnostic filtering.
       strideFromThen
-
-    -- ** Reordering
-    , sortBy
 
     -- * Nesting
     -- ** Set like operations
@@ -51,18 +48,13 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.IORef (newIORef, readIORef, modifyIORef')
 import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Stream.Common ()
-import Streamly.Internal.Data.Stream.Type
-    (Stream, fromStreamD, toStreamD, cross)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream, cross)
 
 import qualified Data.List as List
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Parser as Parser
-import qualified Streamly.Internal.Data.Stream.Eliminate as Stream
-import qualified Streamly.Internal.Data.Stream.Generate as Stream
-import qualified Streamly.Internal.Data.Stream.Expand as Stream
-import qualified Streamly.Internal.Data.Stream.Reduce as Stream
-import qualified Streamly.Internal.Data.Stream.Transform as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Transform as Stream
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
 
@@ -90,32 +82,6 @@ strideFromThen :: Monad m => Int -> Int -> Stream m a -> Stream m a
 strideFromThen offset stride =
     Stream.with Stream.indexed Stream.filter
         (\(i, _) -> i >= offset && (i - offset) `mod` stride == 0)
-
-------------------------------------------------------------------------------
--- Reordering
-------------------------------------------------------------------------------
---
--- Note: this is not the fastest possible implementation as of now.
---
--- We could possibly choose different algorithms depending on whether the
--- input stream is almost sorted (ascending/descending) or random. We could
--- serialize the stream to an array and use quicksort.
-
--- | Sort the input stream using a supplied comparison function.
---
--- /O(n) space/
---
-{-# INLINE sortBy #-}
-sortBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> Stream m a
--- sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
-sortBy cmp =
-    let p =
-            Parser.groupByRollingEither
-                (\x -> (< GT) . cmp x)
-                Fold.toStreamRev
-                Fold.toStream
-     in   Stream.mergeMapWith (Stream.mergeBy cmp) id
-        . Stream.catRights . Stream.parseMany (fmap (either id id) p)
 
 ------------------------------------------------------------------------------
 -- SQL Joins
@@ -290,10 +256,7 @@ filterInStreamGenericBy eq =
 {-# INLINE filterInStreamAscBy #-}
 filterInStreamAscBy :: Monad m =>
     (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
-filterInStreamAscBy eq s1 s2 =
-      fromStreamD
-    $ StreamD.intersectBySorted eq (toStreamD s2)
-    $ toStreamD s1
+filterInStreamAscBy eq s1 s2 = Stream.intersectBySorted eq s2 s1
 
 -- | Delete all elements of the first stream from the seconds stream. If an
 -- element occurs multiple times in the first stream as many occurrences of it
@@ -380,7 +343,7 @@ unionWithStreamGenericBy eq s1 s2 =
                         $ do
                             xs1 <- liftIO $ readIORef ref
                             return $ Stream.fromList xs1
-            return $ Stream.mapM f s2 <> s3
+            return $ Stream.mapM f s2 `Stream.append` s3
 
 -- | A more efficient 'unionWithStreamGenericBy' for sorted streams.
 --

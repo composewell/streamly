@@ -11,13 +11,14 @@ module Streamly.Internal.Data.Stream.StreamD.Exception
       gbracket_
     , gbracket
     , before
-    , after_
-    , after
-    , bracket_
-    , bracket'
+    , afterUnsafe
+    , afterIO
+    , bracketUnsafe
+    , bracketIO3
+    , bracketIO
     , onException
-    , finally_
-    , finally
+    , finallyUnsafe
+    , finallyIO
     , ghandle
     , handle
     )
@@ -35,6 +36,10 @@ import Streamly.Internal.Data.IOFinalizer
 import qualified Control.Monad.Catch as MC
 
 import Streamly.Internal.Data.Stream.StreamD.Type
+
+-- $setup
+-- >>> :m
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 data GbracketState s1 s2 v
     = GBracketInit
@@ -169,7 +174,12 @@ gbracket bef aft onExc onGC ftry action =
             Skip s    -> return $ Skip (GBracketIOException (Stream step1 s))
             Stop      -> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.before'.
+-- | Run the action @m b@ before the stream yields its first element.
+--
+-- Same as the following but more efficient due to fusion:
+--
+-- >>> before action xs = Stream.nilM action <> xs
+-- >>> before action xs = Stream.concatMap (const xs) (Stream.fromEffect action)
 --
 {-# INLINE_NORMAL before #-}
 before :: Monad m => m b -> Stream m a -> Stream m a
@@ -187,11 +197,22 @@ before action (Stream step state) = Stream step' Nothing
             Skip s    -> return $ Skip (Just s)
             Stop      -> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.after_'.
+-- | Like 'after', with following differences:
 --
-{-# INLINE_NORMAL after_ #-}
-after_ :: Monad m => m b -> Stream m a -> Stream m a
-after_ action (Stream step state) = Stream step' state
+-- * action @m b@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * Monad @m@ does not require any other constraints.
+-- * has slightly better performance than 'after'.
+--
+-- Same as the following, but with stream fusion:
+--
+-- >>> afterUnsafe action xs = xs <> Stream.nilM action
+--
+-- /Pre-release/
+--
+{-# INLINE_NORMAL afterUnsafe #-}
+afterUnsafe :: Monad m => m b -> Stream m a -> Stream m a
+afterUnsafe action (Stream step state) = Stream step' state
 
     where
 
@@ -203,12 +224,18 @@ after_ action (Stream step state) = Stream step' state
             Skip s    -> return $ Skip s
             Stop      -> action >> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.after'.
+-- | Run the action @IO b@ whenever the stream is evaluated to completion, or
+-- if it is garbage collected after a partial lazy evaluation.
 --
-{-# INLINE_NORMAL after #-}
-after :: MonadIO m
+-- The semantics of the action @IO b@ are similar to the semantics of cleanup
+-- action in 'bracketIO'.
+--
+-- /See also 'afterUnsafe'/
+--
+{-# INLINE_NORMAL afterIO #-}
+afterIO :: MonadIO m
     => IO b -> Stream m a -> Stream m a
-after action (Stream step state) = Stream step' Nothing
+afterIO action (Stream step state) = Stream step' Nothing
 
     where
 
@@ -227,8 +254,11 @@ after action (Stream step state) = Stream step' Nothing
 
 -- XXX For high performance error checks in busy streams we may need another
 -- Error constructor in step.
+
+-- | Run the action @m b@ if the stream evaluation is aborted due to an
+-- exception. The exception is not caught, simply rethrown.
 --
--- | See 'Streamly.Internal.Data.Stream.onException'.
+-- /Inhibits stream fusion/
 --
 {-# INLINE_NORMAL onException #-}
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
@@ -254,35 +284,87 @@ _onException action (Stream step state) = Stream step' state
             Skip s    -> return $ Skip s
             Stop      -> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.bracket_'.
+-- | Like 'bracket' but with following differences:
 --
-{-# INLINE_NORMAL bracket_ #-}
-bracket_ :: MonadCatch m
+-- * alloc action @m b@ runs with async exceptions enabled
+-- * cleanup action @b -> m c@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * has slightly better performance than 'bracketIO'.
+--
+-- /Inhibits stream fusion/
+--
+-- /Pre-release/
+--
+{-# INLINE_NORMAL bracketUnsafe #-}
+bracketUnsafe :: MonadCatch m
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket_ bef aft =
+bracketUnsafe bef aft =
     gbracket_
         bef
         aft
         (\a (e :: SomeException) _ -> nilM (aft a >> MC.throwM e))
         (inline MC.try)
 
--- | See 'Streamly.Internal.Data.Stream.bracket'.
+-- For a use case of this see the "streamly-process" package. It needs to kill
+-- the process in case of exception or garbage collection, but waits for the
+-- process to terminate in normal cases.
+
+-- | Like 'bracketIO' but can use 3 separate cleanup actions depending on the
+-- mode of termination:
 --
-{-# INLINE_NORMAL bracket' #-}
-bracket' :: (MonadIO m, MonadCatch m) =>
+-- 1. When the stream stops normally
+-- 2. When the stream is garbage collected
+-- 3. When the stream encounters an exception
+--
+-- @bracketIO3 before onStop onGC onException action@ runs @action@ using the
+-- result of @before@. If the stream stops, @onStop@ action is executed, if the
+-- stream is abandoned @onGC@ is executed, if the stream encounters an
+-- exception @onException@ is executed.
+--
+-- /Inhibits stream fusion/
+--
+-- /Pre-release/
+{-# INLINE_NORMAL bracketIO3 #-}
+bracketIO3 :: (MonadIO m, MonadCatch m) =>
        IO b
     -> (b -> IO c)
     -> (b -> IO d)
     -> (b -> IO e)
     -> (b -> Stream m a)
     -> Stream m a
-bracket' bef aft onExc onGC =
+bracketIO3 bef aft onExc onGC =
     gbracket
         bef
         aft
         (\a (e :: SomeException) _ -> onExc a >> return (nilM (MC.throwM e)))
         onGC
         (inline MC.try)
+
+-- | Run the alloc action @IO b@ with async exceptions disabled but keeping
+-- blocking operations interruptible (see 'Control.Exception.mask').  Use the
+-- output @b@ as input to @b -> Stream m a@ to generate an output stream.
+--
+-- @b@ is usually a resource under the IO monad, e.g. a file handle, that
+-- requires a cleanup after use. The cleanup action @b -> IO c@, runs whenever
+-- the stream ends normally, due to a sync or async exception or if it gets
+-- garbage collected after a partial lazy evaluation.
+--
+-- 'bracketIO' only guarantees that the cleanup action runs, and it runs with
+-- async exceptions enabled. The action must ensure that it can successfully
+-- cleanup the resource in the face of sync or async exceptions.
+--
+-- When the stream ends normally or on a sync exception, cleanup action runs
+-- immediately in the current thread context, whereas in other cases it runs in
+-- the GC context, therefore, cleanup may be delayed until the GC gets to run.
+--
+-- /See also: 'bracketUnsafe'/
+--
+-- /Inhibits stream fusion/
+--
+{-# INLINE bracketIO #-}
+bracketIO :: (MonadIO m, MonadCatch m)
+    => IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
+bracketIO bef aft = bracketIO3 bef aft aft aft
 
 data BracketState s v = BracketInit | BracketRun s v
 
@@ -310,22 +392,49 @@ _bracket bef aft bet = Stream step' BracketInit
                 Skip s    -> return $ Skip (BracketRun (Stream step s) v)
                 Stop      -> aft v >> return Stop
 
--- | See 'Streamly.Internal.Data.Stream.finally_'.
+-- | Like 'finally' with following differences:
 --
-{-# INLINE finally_ #-}
-finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
-finally_ action xs = bracket_ (return ()) (const action) (const xs)
+-- * action @m b@ won't run if the stream is garbage collected
+--   after partial evaluation.
+-- * has slightly better performance than 'finallyIO'.
+--
+-- /Inhibits stream fusion/
+--
+-- /Pre-release/
+--
+{-# INLINE finallyUnsafe #-}
+finallyUnsafe :: MonadCatch m => m b -> Stream m a -> Stream m a
+finallyUnsafe action xs = bracketUnsafe (return ()) (const action) (const xs)
 
--- | See 'Streamly.Internal.Data.Stream.finally'.
+-- | Run the action @IO b@ whenever the stream stream stops normally, aborts
+-- due to an exception or if it is garbage collected after a partial lazy
+-- evaluation.
 --
--- finally action xs = after action $ onException action xs
+-- The semantics of running the action @IO b@ are similar to the cleanup action
+-- semantics described in 'bracketIO'.
 --
-{-# INLINE finally #-}
-finally :: (MonadIO m, MonadCatch m) => IO b -> Stream m a -> Stream m a
-finally action xs = bracket' (return ()) act act act (const xs)
+-- >>> finallyIO release = Stream.bracketIO (return ()) (const release)
+--
+-- /See also 'finallyUnsafe'/
+--
+-- /Inhibits stream fusion/
+--
+{-# INLINE finallyIO #-}
+finallyIO :: (MonadIO m, MonadCatch m) => IO b -> Stream m a -> Stream m a
+finallyIO action xs = bracketIO3 (return ()) act act act (const xs)
     where act _ = action
 
--- | See 'Streamly.Internal.Data.Stream.ghandle'.
+-- | Like 'handle' but the exception handler is also provided with the stream
+-- that generated the exception as input. The exception handler can thus
+-- re-evaluate the stream to retry the action that failed. The exception
+-- handler can again call 'ghandle' on it to retry the action multiple times.
+--
+-- This is highly experimental. In a stream of actions we can map the stream
+-- with a retry combinator to retry each action on failure.
+--
+-- /Inhibits stream fusion/
+--
+-- /Pre-release/
 --
 {-# INLINE_NORMAL ghandle #-}
 ghandle :: (MonadCatch m, Exception e)
@@ -333,7 +442,10 @@ ghandle :: (MonadCatch m, Exception e)
 ghandle f stream =
     gbracket_ (return ()) return (const f) (inline MC.try) (const stream)
 
--- | See 'Streamly.Internal.Data.Stream.handle'.
+-- | When evaluating a stream if an exception occurs, stream evaluation aborts
+-- and the specified exception handler is run with the exception as argument.
+--
+-- /Inhibits stream fusion/
 --
 {-# INLINE_NORMAL handle #-}
 handle :: (MonadCatch m, Exception e)

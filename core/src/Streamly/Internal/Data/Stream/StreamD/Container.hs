@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Container
+-- Module      : Streamly.Internal.Data.Stream.StreamD.Container
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,9 +8,7 @@
 --
 -- Stream operations that require transformers or containers like Set or Map.
 
--- Rename this to Stream.Container?
-
-module Streamly.Internal.Data.Stream.Container
+module Streamly.Internal.Data.Stream.StreamD.Container
     (
       nub
 
@@ -32,20 +30,19 @@ import Control.Monad.Trans.State.Strict (get, put)
 import Data.Function ((&))
 import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
+import Streamly.Internal.Data.Stream.StreamD.Type
+    (Stream(..), mkCross, unCross)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Generic as Array
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
-import qualified Streamly.Internal.Data.Stream.Bottom as Stream
-import qualified Streamly.Internal.Data.Stream.Expand as Stream
-import qualified Streamly.Internal.Data.Stream.Generate as Stream
-import qualified Streamly.Internal.Data.Stream.Transform as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.Transformer as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Transform as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Transformer as Stream
 
 -- $setup
 -- >>> :m
@@ -55,8 +52,8 @@ import qualified Streamly.Internal.Data.Stream.Transformer as Stream
 -- stream. If we want to limit the memory we can just use "take" to limit the
 -- uniq elements in the stream.
 {-# INLINE_NORMAL nub #-}
-nub :: (Monad m, Ord a) => D.Stream m a -> D.Stream m a
-nub (D.Stream step1 state1) = D.Stream step (Set.empty, state1)
+nub :: (Monad m, Ord a) => Stream m a -> Stream m a
+nub (Stream step1 state1) = Stream step (Set.empty, state1)
 
     where
 
@@ -115,6 +112,8 @@ joinInner s1 s2 =
 -- Ordering returning function. The time complexity would then become (m x log
 -- n).
 
+-- XXX Check performance of StreamD vs StreamK
+
 -- | Like 'joinInner' but emit @(a, Just b)@, and additionally, for those @a@'s
 -- that are not equal to any @b@ emit @(a, Nothing)@.
 --
@@ -133,25 +132,25 @@ joinInner s1 s2 =
 {-# INLINE joinLeftGeneric #-}
 joinLeftGeneric :: Monad m =>
     (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
-joinLeftGeneric eq s1 s2 = Stream.evalStateT (return False) $ unCrossStream $ do
-    a <- CrossStream (Stream.liftInner s1)
+joinLeftGeneric eq s1 s2 = Stream.evalStateT (return False) $ unCross $ do
+    a <- mkCross (Stream.liftInner s1)
     -- XXX should we use StreamD monad here?
     -- XXX Is there a better way to perform some action at the end of a loop
     -- iteration?
-    CrossStream (Stream.fromEffect $ put False)
+    mkCross (Stream.fromEffect $ put False)
     let final = Stream.concatEffect $ do
             r <- get
             if r
             then pure Stream.nil
             else pure (Stream.fromPure Nothing)
-    b <- CrossStream (fmap Just (Stream.liftInner s2) <> final)
+    b <- mkCross (fmap Just (Stream.liftInner s2) `Stream.append` final)
     case b of
         Just b1 ->
             if a `eq` b1
             then do
-                CrossStream (Stream.fromEffect $ put True)
+                mkCross (Stream.fromEffect $ put True)
                 return (a, Just b1)
-            else CrossStream Stream.nil
+            else mkCross Stream.nil
         Nothing -> return (a, Nothing)
 
 -- XXX rename to joinLeftOrd?
@@ -180,6 +179,8 @@ joinLeft s1 s2 =
 
 -- XXX We can do this concurrently.
 
+-- XXX Check performance of StreamD vs StreamK
+
 -- | Like 'joinLeft' but emits a @(Just a, Just b)@. Like 'joinLeft', for those
 -- @a@'s that are not equal to any @b@ emit @(Just a, Nothing)@, but
 -- additionally, for those @b@'s that are not equal to any @a@ emit @(Nothing,
@@ -206,7 +207,7 @@ joinOuterGeneric eq s1 s =
             Stream.fold
             (MA.writeN len)
             (Stream.fromList (Prelude.replicate len False))
-        return $ go inputArr foundArr <> leftOver inputArr foundArr
+        return $ go inputArr foundArr `Stream.append` leftOver inputArr foundArr
 
     where
 
@@ -222,14 +223,14 @@ joinOuterGeneric eq s1 s =
                         ) stream1 stream2
                     ) & Stream.catMaybes
 
-    evalState = Stream.evalStateT (return False) . unCrossStream
+    evalState = Stream.evalStateT (return False) . unCross
 
     go inputArr foundArr = evalState $ do
-        a <- CrossStream (Stream.liftInner s1)
+        a <- mkCross (Stream.liftInner s1)
         -- XXX should we use StreamD monad here?
         -- XXX Is there a better way to perform some action at the end of a loop
         -- iteration?
-        CrossStream (Stream.fromEffect $ put False)
+        mkCross (Stream.fromEffect $ put False)
         let final = Stream.concatEffect $ do
                 r <- get
                 if r
@@ -237,17 +238,17 @@ joinOuterGeneric eq s1 s =
                 else pure (Stream.fromPure Nothing)
         (i, b) <-
             let stream = Array.read inputArr
-             in CrossStream
-                (Stream.indexed $ fmap Just (Stream.liftInner stream) <> final)
+             in mkCross
+                (Stream.indexed $ fmap Just (Stream.liftInner stream) `Stream.append` final)
 
         case b of
             Just b1 ->
                 if a `eq` b1
                 then do
-                    CrossStream (Stream.fromEffect $ put True)
+                    mkCross (Stream.fromEffect $ put True)
                     MA.putIndex i foundArr True
                     return (Just a, Just b1)
-                else CrossStream Stream.nil
+                else mkCross Stream.nil
             Nothing -> return (Just a, Nothing)
 
 -- Put the b's that have been paired, in another hash or mutate the hash to set

@@ -124,7 +124,7 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Type
        (Array(..), writeNUnsafe, unsafeFreezeWithShrink, byteLength)
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Stream.Chunked (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -136,7 +136,7 @@ import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold.Type as FL(refoldMany)
-import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Unfold as UF
@@ -228,7 +228,7 @@ _getChunksWith size h = S.fromStreamK go
 --
 {-# INLINE_NORMAL readChunksWith #-}
 readChunksWith :: MonadIO m => Int -> Handle -> Stream m (Array Word8)
-readChunksWith size h = S.fromStreamD (D.Stream step ())
+readChunksWith size h = D.Stream step ()
   where
     {-# INLINE_LATE step #-}
     step _ _ = do
@@ -340,6 +340,10 @@ readerWith = UF.many A.reader chunkReaderWith
 readWithBufferOf :: MonadIO m => Unfold m (Int, Handle) Word8
 readWithBufferOf = readerWith
 
+{-# INLINE concatChunks #-}
+concatChunks :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
+concatChunks = S.unfoldMany A.reader
+
 -- | @readWith bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.
 --
@@ -348,7 +352,7 @@ readWithBufferOf = readerWith
 -- /Pre-release/
 {-# INLINE readWith #-}
 readWith :: MonadIO m => Int -> Handle -> Stream m Word8
-readWith size h = AS.concat $ readChunksWith size h
+readWith size h = concatChunks $ readChunksWith size h
 
 -- | Unfolds a file handle into a byte stream. IO requests to the device are
 -- performed in sizes of
@@ -367,7 +371,7 @@ reader = UF.many A.reader chunkReader
 -- /Pre-release/
 {-# INLINE read #-}
 read :: MonadIO m => Handle -> Stream m Word8
-read = AS.concat . readChunks
+read = concatChunks . readChunks
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -429,7 +433,7 @@ putChunksWith n h xs = putChunks h $ AS.compact n xs
 --
 {-# INLINE putBytesWith #-}
 putBytesWith :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
-putBytesWith n h m = putChunks h $ S.arraysOf n m
+putBytesWith n h m = putChunks h $ A.arraysOf n m
 
 -- putBytesWith n h m = putChunks h $ AS.arraysOf n m
 

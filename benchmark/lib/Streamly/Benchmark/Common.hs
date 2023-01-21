@@ -54,7 +54,7 @@ import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S
 
 import Gauge
 

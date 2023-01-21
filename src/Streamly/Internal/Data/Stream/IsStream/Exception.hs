@@ -34,10 +34,10 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Exception as D
     ( before
-    , after_
+    , afterUnsafe
     , onException
-    , bracket_
-    , finally_
+    , bracketUnsafe
+    , finallyUnsafe
     , ghandle
     , handle
     )
@@ -86,7 +86,7 @@ before action xs = fromStreamD $ D.before action $ toStreamD xs
 --
 {-# INLINE after_ #-}
 after_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
-after_ action xs = fromStreamD $ D.after_ action $ toStreamD xs
+after_ action xs = fromStreamD $ D.afterUnsafe action $ toStreamD xs
 
 -- | Run the action @m b@ whenever the stream @t m a@ stops normally, or if it
 -- is garbage collected after a partial lazy evaluation.
@@ -126,7 +126,7 @@ onException action xs = fromStreamD $ D.onException action $ toStreamD xs
 --
 {-# INLINE finally_ #-}
 finally_ :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
-finally_ action xs = fromStreamD $ D.finally_ action $ toStreamD xs
+finally_ action xs = fromStreamD $ D.finallyUnsafe action $ toStreamD xs
 
 -- | Run the action @m b@ whenever the stream @t m a@ stops normally, aborts
 -- due to an exception or if it is garbage collected after a partial lazy
@@ -161,7 +161,7 @@ finally action xs = bracket (return ()) (const action) (const xs)
 bracket_ :: (IsStream t, MonadCatch m)
     => m b -> (b -> m c) -> (b -> t m a) -> t m a
 bracket_ bef aft bet = fromStreamD $
-    D.bracket_ bef aft (toStreamD . bet)
+    D.bracketUnsafe bef aft (toStreamD . bet)
 
 -- | Run the alloc action @m b@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the

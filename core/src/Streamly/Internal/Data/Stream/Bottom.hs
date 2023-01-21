@@ -131,7 +131,7 @@ import Streamly.Internal.Data.Stream.Type
 --
 {-# INLINE timesWith #-}
 timesWith :: MonadIO m => Double -> Stream m (AbsTime, RelTime64)
-timesWith g = fromStreamD $ D.times g
+timesWith g = fromStreamD $ D.timesWith g
 
 -- | @absTimesWith g@ returns a stream of absolute timestamps using a clock of
 -- granularity @g@ specified in seconds. A low granularity clock is more
@@ -186,7 +186,7 @@ relTimesWith = fmap snd . timesWith
 --
 {-# INLINE foldAddLazy #-}
 foldAddLazy :: Monad m => Fold m a b -> Stream m a -> Fold m a b
-foldAddLazy f s = D.foldContinue f $ toStreamD s
+foldAddLazy f s = D.foldAddLazy f $ toStreamD s
 
 -- >>> foldAdd f = Stream.foldAddLazy f >=> Fold.reduce
 
@@ -385,7 +385,7 @@ map f = fromStreamD . D.map f . toStreamD
 --
 {-# INLINE postscan #-}
 postscan :: Monad m => Fold m a b -> Stream m a -> Stream m b
-postscan fld = fromStreamD . D.postscanOnce fld . toStreamD
+postscan fld = fromStreamD . D.postscan fld . toStreamD
 
 -- $smapM_Notes
 --
@@ -531,8 +531,8 @@ intersperseM m = fromStreamD . D.intersperseM m . toStreamD
 -- >>> reverse = Stream.foldlT (flip Stream.cons) Stream.nil
 --
 {-# INLINE reverse #-}
-reverse :: Monad m => Stream m a -> Stream m a
-reverse s = fromStreamD $ D.reverse $ toStreamD s
+reverse :: Stream m a -> Stream m a
+reverse s = fromStreamK $ K.reverse $ toStreamK s
 
 -- | Like 'reverse' but several times faster, requires a 'Storable' instance.
 --
@@ -651,7 +651,7 @@ foldManyPost f m = fromStreamD $ D.foldManyPost f (toStreamD m)
 {-# INLINE zipWithM #-}
 zipWithM :: Monad m =>
     (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipWithM f m1 m2 = fromStreamD $ D.zipWithM f (toStreamD m1) (toStreamD m2)
+zipWithM f m1 m2 = fromStreamK $ K.zipWithM f (toStreamK m1) (toStreamK m2)
 
 -- | Stream @a@ is evaluated first, followed by stream @b@, the resulting
 -- elements @a@ and @b@ are then zipped using the supplied zip function and the
@@ -667,4 +667,4 @@ zipWithM f m1 m2 = fromStreamD $ D.zipWithM f (toStreamD m1) (toStreamD m2)
 --
 {-# INLINE zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipWith f m1 m2 = fromStreamD $ D.zipWith f (toStreamD m1) (toStreamD m2)
+zipWith f m1 m2 = fromStreamK $ K.zipWith f (toStreamK m1) (toStreamK m2)

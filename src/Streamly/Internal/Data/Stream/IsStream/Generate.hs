@@ -102,7 +102,6 @@ import Streamly.Internal.Data.Stream.IsStream.Common
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream (..), fromSerial, consM, fromStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
-import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
 import Streamly.Internal.Data.Unboxed (Unbox)
 
@@ -118,7 +117,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (unfoldr, unfoldrMWith, replicateMWith, fromIndicesMWith, iterateMWith
     , mfix, fromFoldable, fromFoldableM)
-import qualified Streamly.Internal.Data.Stream.Type as Stream (fromStreamK)
+import qualified Streamly.Internal.Data.Stream.Serial as Stream (fromStreamK)
 import qualified System.IO as IO
 
 import Prelude hiding (iterate, replicate, repeat)
@@ -241,7 +240,7 @@ unfoldrMWSerial f = fromSerial . Serial.unfoldrM f
 {-# RULES "unfoldrM zipSerial" unfoldrM = unfoldrMZipSerial #-}
 {-# INLINE_EARLY unfoldrMZipSerial #-}
 unfoldrMZipSerial :: MonadAsync m =>
-    (b -> m (Maybe (a, b))) -> b -> ZipSerialM m a
+    (b -> m (Maybe (a, b))) -> b -> IsStream.ZipSerialM m a
 unfoldrMZipSerial f = fromSerial . Serial.unfoldrM f
 
 ------------------------------------------------------------------------------

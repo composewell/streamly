@@ -355,7 +355,7 @@ parseMany
     -> Stream m a
     -> Stream m (Either ParseError b)
 parseMany p m =
-    fromStreamD $ D.parseMany (ParserD.fromParserK p) (toStreamD m)
+    fromStreamD $ D.parseManyD (ParserD.fromParserK p) (toStreamD m)
 
 -- | Same as parseMany but for StreamD streams.
 --
@@ -368,7 +368,7 @@ parseManyD
     -> Stream m a
     -> Stream m (Either ParseError b)
 parseManyD p m =
-    fromStreamD $ D.parseMany p (toStreamD m)
+    fromStreamD $ D.parseManyD p (toStreamD m)
 
 -- | Apply a stream of parsers to an input stream and emit the results in the
 -- output stream.
@@ -424,7 +424,7 @@ parseIterate
     -> Stream m a
     -> Stream m (Either ParseError b)
 parseIterate f i m = fromStreamD $
-    D.parseIterate (ParserD.fromParserK . f) i (toStreamD m)
+    D.parseIterateD (ParserD.fromParserK . f) i (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Chunking

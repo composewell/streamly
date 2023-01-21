@@ -89,7 +89,7 @@ import qualified Network.Socket as Net
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Stream.Chunked (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -97,11 +97,10 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Data.Array as A (reader, length, writeN)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Type as A
-    (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe)
+    (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe, arraysOf)
 import qualified Streamly.Internal.Data.Array.Mut as MArray
     (Array(..), newPinnedBytes, asPtrUnsafe)
-import qualified Streamly.Internal.Data.Stream.Chunked as AS
-import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))
 import qualified Streamly.Data.Unfold as UF
@@ -345,7 +344,7 @@ _readChunksUptoWith f size h = S.fromStreamK go
 {-# INLINE_NORMAL readChunksWith #-}
 readChunksWith :: MonadIO m => Int -> Socket -> Stream m (Array Word8)
 -- readChunksWith = _readChunksUptoWith readChunk
-readChunksWith size h = S.fromStreamD (D.Stream step ())
+readChunksWith size h = D.Stream step ()
     where
     {-# INLINE_LATE step #-}
     step _ _ = do
@@ -403,12 +402,16 @@ chunkReader = UF.first defaultChunkSize chunkReaderWith
 -- Read File to Stream
 -------------------------------------------------------------------------------
 
+{-# INLINE concatChunks #-}
+concatChunks :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
+concatChunks = S.unfoldMany A.reader
+
 -- | Generate a byte stream from a socket using a buffer of the given size.
 --
 -- /Pre-release/
 {-# INLINE readWith #-}
 readWith :: MonadIO m => Int -> Socket -> Stream m Word8
-readWith size = AS.concat . readChunksWith size
+readWith size = concatChunks . readChunksWith size
 
 -- | Generate a byte stream from a socket.
 --
@@ -492,7 +495,7 @@ writeChunksWithBufferOf = writeChunksWith
 --
 {-# INLINE putBytesWith #-}
 putBytesWith :: MonadIO m => Int -> Socket -> Stream m Word8 -> m ()
-putBytesWith n h m = putChunks h $ AS.arraysOf n m
+putBytesWith n h m = putChunks h $ A.arraysOf n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes before writing.

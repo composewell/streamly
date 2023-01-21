@@ -35,7 +35,7 @@ import Data.Map.Strict (Map)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, withRunInIO)
-import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.IOFinalizer.Lifted
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.StreamD (Step(..))
@@ -153,8 +153,7 @@ bracket3 :: (MonadAsync m, MonadCatch m)
     -> (b -> m e)
     -> (b -> Stream m a)
     -> Stream m a
-bracket3 bef aft gc exc bet = fromStreamD $
-    bracket3D bef aft exc gc (toStreamD . bet)
+bracket3 = bracket3D
 
 -- | Run the alloc action @m b@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the
@@ -236,7 +235,7 @@ after ::
     (MonadIO m, MonadBaseControl IO m)
 #endif
     => m b -> Stream m a -> Stream m a
-after action xs = fromStreamD $ afterD action $ toStreamD xs
+after = afterD
 
 data RetryState emap s1 s2
     = RetryWithMap emap s1
@@ -329,5 +328,4 @@ retry :: (MonadCatch m, Exception e, Ord e)
        -- ^ default handler for those exceptions that are not in the map
     -> Stream m a
     -> Stream m a
-retry emap handler inp =
-    fromStreamD $ retryD emap (toStreamD . handler) $ toStreamD inp
+retry = retryD

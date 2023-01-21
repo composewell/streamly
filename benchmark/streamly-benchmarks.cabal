@@ -73,14 +73,48 @@ flag use-prelude
 -- Common stanzas
 -------------------------------------------------------------------------------
 
+common default-extensions
+    default-extensions:
+        BangPatterns
+        CApiFFI
+        CPP
+        ConstraintKinds
+        DeriveDataTypeable
+        DeriveGeneric
+        DeriveTraversable
+        ExistentialQuantification
+        FlexibleContexts
+        FlexibleInstances
+        GeneralizedNewtypeDeriving
+        InstanceSigs
+        KindSignatures
+        LambdaCase
+        MagicHash
+        MultiParamTypeClasses
+        PatternSynonyms
+        RankNTypes
+        RecordWildCards
+        ScopedTypeVariables
+        TupleSections
+        TypeApplications
+        TypeFamilies
+        TypeOperators
+        ViewPatterns
+
+        -- MonoLocalBinds, enabled by TypeFamilies, causes performance
+        -- regressions. Disable it. This must come after TypeFamilies,
+        -- otherwise TypeFamilies will enable it again.
+        NoMonoLocalBinds
+
+        -- UndecidableInstances -- Does not show any perf impact
+        -- UnboxedTuples        -- interferes with (#.)
+
 common compile-options
+    import: default-extensions
     default-language: Haskell2010
 
     if flag(use-streamly-core)
       cpp-options:    -DUSE_STREAMLY_CORE
-
-    if flag(use-prelude)
-      cpp-options:    -DUSE_PRELUDE
 
     if flag(dev)
       cpp-options:    -DDEVBUILD
@@ -191,7 +225,7 @@ library
     hs-source-dirs: lib
     exposed-modules: Streamly.Benchmark.Common
                     , Streamly.Benchmark.Common.Handle
-    if !flag(use-streamly-core)
+    if flag(use-prelude)
       exposed-modules: Streamly.Benchmark.Prelude
 
 
@@ -232,12 +266,37 @@ benchmark Data.Stream
       Stream.Transform
       Stream.Reduce
       Stream.Expand
-      Stream.Exceptions
       Stream.Lift
       Stream.Common
-  if flag(use-prelude)
+  if !flag(use-streamly-core)
     other-modules:
-      Stream.Split
+      Stream.Exceptions
+  if flag(limit-build-mem)
+    if flag(dev)
+      ghc-options: +RTS -M3500M -RTS
+    else
+      ghc-options: +RTS -M2500M -RTS
+
+benchmark Data.Stream.StreamDK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Stream.hs
+  other-modules:
+      Stream.Generate
+      Stream.Eliminate
+      Stream.Transform
+      Stream.Reduce
+      Stream.Expand
+      Stream.Lift
+      Stream.Common
+  if !flag(use-streamly-core)
+    other-modules:
+      Stream.Exceptions
+  -- Cannot use USE_STREAMK and USE_PRELUDE together
+  if flag(use-prelude)
+    buildable: False
+  cpp-options: -DUSE_STREAMK
   if flag(limit-build-mem)
     if flag(dev)
       ghc-options: +RTS -M3500M -RTS
@@ -295,92 +354,6 @@ benchmark Data.Stream.ConcurrentOrdered
     buildable: False
   else
     buildable: True
-
-benchmark Prelude.WSerial
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: WSerial.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M750M -RTS
-
-benchmark Prelude.Merge
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: Merge.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Prelude.ZipSerial
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: ZipSerial.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Prelude.ZipAsync
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: ZipAsync.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
-
-benchmark Prelude.Ahead
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: Ahead.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Prelude.Async
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: Async.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Prelude.WAsync
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: WAsync.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Prelude.Parallel
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: Parallel.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M2000M -RTS
 
 
 benchmark Data.Unfold
@@ -483,8 +456,6 @@ benchmark Data.Stream.StreamD
   main-is: StreamD.hs
   if impl(ghcjs)
     buildable: False
-  else
-    buildable: True
 
 benchmark Data.Stream.StreamK
   import: bench-options
@@ -493,20 +464,16 @@ benchmark Data.Stream.StreamK
   main-is: StreamK.hs
   if impl(ghcjs)
     buildable: False
-  else
-    buildable: True
 
 benchmark Data.Stream.ToStreamK
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: ToStreamK.hs
-  if impl(ghcjs)
+  if !flag(dev) || impl(ghcjs)
     buildable: False
-  else
-    buildable: True
 
-benchmark Data.Stream.StreamDK
+benchmark Data.Stream.StreamK.Alt
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream
@@ -518,10 +485,114 @@ executable nano-bench
   import: bench-options
   hs-source-dirs: .
   main-is: NanoBenchmarks.hs
-  if flag(dev)
-    buildable: True
-  else
+  if !flag(dev)
     buildable: False
+
+-------------------------------------------------------------------------------
+-- Streamly.Prelude
+-------------------------------------------------------------------------------
+
+benchmark Prelude
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Stream.hs
+  other-modules:
+      Stream.Generate
+      Stream.Eliminate
+      Stream.Transform
+      Stream.Reduce
+      Stream.Expand
+      Stream.Lift
+      Stream.Common
+      Stream.Split
+      Stream.Exceptions
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
+    buildable: False
+  if flag(limit-build-mem)
+    if flag(dev)
+      ghc-options: +RTS -M3500M -RTS
+    else
+      ghc-options: +RTS -M2500M -RTS
+
+benchmark Prelude.WSerial
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: WSerial.hs
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
+    buildable: False
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M750M -RTS
+
+benchmark Prelude.Merge
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: Merge.hs
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
+    buildable: False
+
+benchmark Prelude.ZipSerial
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: ZipSerial.hs
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
+    buildable: False
+
+benchmark Prelude.ZipAsync
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: ZipAsync.hs
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
+    buildable: False
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
+
+benchmark Prelude.Ahead
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: Ahead.hs
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
+    buildable: False
+
+benchmark Prelude.Async
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: Async.hs
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
+    buildable: False
+
+benchmark Prelude.WAsync
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: WAsync.hs
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
+    buildable: False
+
+benchmark Prelude.Parallel
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: Parallel.hs
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
+    buildable: False
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M2000M -RTS
 
 -------------------------------------------------------------------------------
 -- Concurrent Streams
@@ -532,30 +603,27 @@ benchmark Prelude.Concurrent
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Concurrent.hs
-  if flag(use-streamly-core)
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
     buildable: False
-  else
-    buildable: True
 
 benchmark Prelude.Adaptive
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Adaptive.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
     buildable: False
-  else
-    buildable: True
 
 benchmark Prelude.Rate
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Rate.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  cpp-options: -DUSE_PRELUDE
+  if !flag(use-prelude)
     buildable: False
-  else
-    buildable: True
 
 -------------------------------------------------------------------------------
 -- Array Benchmarks
@@ -564,8 +632,10 @@ benchmark Prelude.Rate
 benchmark Data.Array.Generic
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: .
+  hs-source-dirs: ., Streamly/Benchmark/Data
   main-is: Streamly/Benchmark/Data/Array/Generic.hs
+  other-modules:
+      Stream.Common
   if flag(use-streamly-core)
     buildable: False
   else
@@ -585,7 +655,10 @@ benchmark Data.SmallArray
 benchmark Data.Array
   import: bench-options
   type: exitcode-stdio-1.0
+  hs-source-dirs: ., Streamly/Benchmark/Data
   main-is: Streamly/Benchmark/Data/Array.hs
+  other-modules:
+      Stream.Common
   if flag(use-streamly-core)
     buildable: False
   else

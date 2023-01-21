@@ -110,6 +110,7 @@ import Streamly.Internal.Data.Array.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+import Streamly.Internal.Data.Unboxed (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, acceptor)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -120,10 +121,10 @@ import qualified Network.Socket as Net
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Unfold as UF (first, bracketIO)
-import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL (Step(..), reduce)
-import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S
 import qualified Streamly.Internal.Network.Socket as ISK
 
@@ -314,13 +315,17 @@ reader :: (MonadCatch m, MonadAsync m)
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
 reader = UF.many A.reader (usingConnection ISK.chunkReader)
 
+{-# INLINE concatChunks #-}
+concatChunks :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
+concatChunks = S.unfoldMany A.reader
+
 -- | Read a stream from the supplied IPv4 host address and port number.
 --
 -- /Pre-release/
 {-# INLINE read #-}
 read :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> Stream m Word8
-read addr port = AS.concat $ withConnection addr port ISK.readChunks
+read addr port = concatChunks $ withConnection addr port ISK.readChunks
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -380,7 +385,7 @@ putBytesWithBufferOf
     -> PortNumber
     -> Stream m Word8
     -> m ()
-putBytesWithBufferOf n addr port m = putChunks addr port $ AS.arraysOf n m
+putBytesWithBufferOf n addr port m = putChunks addr port $ A.arraysOf n m
 
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of

@@ -44,10 +44,10 @@ where
 import Data.Bits (shiftR)
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.Float (castDoubleToWord64, castFloatToWord32)
-import Streamly.Internal.Data.Stream (Stream, fromStreamD)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Stream.StreamD (Step(..))
 
-import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import Data.Int (Int8, Int16, Int32, Int64)
@@ -63,7 +63,7 @@ import Data.Int (Int8, Int16, Int32, Int64)
 -- /Pre-release/
 --
 {-# INLINE unit #-}
-unit :: Stream m Word8
+unit :: Applicative m => Stream m Word8
 unit = Stream.fromPure 0
 
 {-# INLINE boolToWord8 #-}
@@ -81,7 +81,7 @@ boolToWord8 True = 1
 -- /Pre-release/
 --
 {-# INLINE bool #-}
-bool :: Bool -> Stream m Word8
+bool :: Applicative m => Bool -> Stream m Word8
 bool = Stream.fromPure . boolToWord8
 
 {-# INLINE orderingToWord8 #-}
@@ -101,7 +101,7 @@ orderingToWord8 GT = 2
 -- /Pre-release/
 --
 {-# INLINE ordering #-}
-ordering :: Ordering -> Stream m Word8
+ordering :: Applicative m => Ordering -> Stream m Word8
 ordering = Stream.fromPure . orderingToWord8
 
 -- | Stream a 'Word8'.
@@ -109,7 +109,7 @@ ordering = Stream.fromPure . orderingToWord8
 -- /Pre-release/
 --
 {-# INLINE word8 #-}
-word8 :: Word8 -> Stream m Word8
+word8 :: Applicative m => Word8 -> Stream m Word8
 word8 = Stream.fromPure
 
 data W16State = W16B1 | W16B2 | W16Done
@@ -131,7 +131,7 @@ word16beD w = D.Stream step W16B1
 --
 {-# INLINE word16be #-}
 word16be :: Monad m => Word16 -> Stream m Word8
-word16be = fromStreamD . word16beD
+word16be = word16beD
 
 -- | Little endian (LSB first) Word16
 {-# INLINE word16leD #-}
@@ -151,7 +151,7 @@ word16leD w = D.Stream step W16B1
 --
 {-# INLINE word16le #-}
 word16le :: Monad m => Word16 -> Stream m Word8
-word16le = fromStreamD . word16leD
+word16le = word16leD
 
 data W32State = W32B1 | W32B2 | W32B3 | W32B4 | W32Done
 
@@ -177,7 +177,7 @@ word32beD w = D.Stream step W32B1
 --
 {-# INLINE word32be #-}
 word32be :: Monad m => Word32 -> Stream m Word8
-word32be = fromStreamD . word32beD
+word32be = word32beD
 
 -- | Little endian (LSB first) Word32
 {-# INLINE word32leD #-}
@@ -201,7 +201,7 @@ word32leD w = D.Stream step W32B1
 --
 {-# INLINE word32le #-}
 word32le :: Monad m => Word32 -> Stream m Word8
-word32le = fromStreamD . word32leD
+word32le = word32leD
 
 data W64State =
     W64B1 | W64B2 | W64B3 | W64B4 | W64B5 | W64B6 | W64B7 | W64B8 | W64Done
@@ -232,7 +232,7 @@ word64beD w = D.Stream step W64B1
 --
 {-# INLINE word64be #-}
 word64be :: Monad m => Word64 -> Stream m Word8
-word64be = fromStreamD . word64beD
+word64be = word64beD
 
 -- | Little endian (LSB first) Word64
 {-# INLINE word64leD #-}
@@ -260,10 +260,10 @@ word64leD w = D.Stream step W64B1
 --
 {-# INLINE word64le #-}
 word64le :: Monad m => Word64 -> Stream m Word8
-word64le = fromStreamD . word64leD
+word64le = word64leD
 
 {-# INLINE int8 #-}
-int8 :: Int8 -> Stream m Word8
+int8 :: Applicative m => Int8 -> Stream m Word8
 int8 i = word8 (fromIntegral i :: Word8)
 
 -- | Stream a 'Int16' as two bytes, the first byte is the MSB of the Int16
@@ -318,22 +318,22 @@ int64le i = word64le (fromIntegral i :: Word64)
 -- | Big endian (MSB first) Float
 {-# INLINE float32be #-}
 float32be :: Monad m => Float -> Stream m Word8
-float32be = fromStreamD . word32beD . castFloatToWord32
+float32be = word32beD . castFloatToWord32
 
 -- | Little endian (LSB first) Float
 {-# INLINE float32le #-}
 float32le :: Monad m => Float -> Stream m Word8
-float32le = fromStreamD . word32leD . castFloatToWord32
+float32le = word32leD . castFloatToWord32
 
 -- | Big endian (MSB first) Double
 {-# INLINE double64be #-}
 double64be :: Monad m => Double -> Stream m Word8
-double64be = fromStreamD . word64beD . castDoubleToWord64
+double64be = word64beD . castDoubleToWord64
 
 -- | Little endian (LSB first) Double
 {-# INLINE double64le #-}
 double64le :: Monad m => Double -> Stream m Word8
-double64le = fromStreamD . word64leD . castDoubleToWord64
+double64le = word64leD . castDoubleToWord64
 
 -------------------------------------------------------------------------------
 -- Host byte order

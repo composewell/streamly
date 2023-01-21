@@ -107,18 +107,18 @@ import Streamly.Data.Fold (chunksOf, drain)
 import Streamly.Internal.Data.Array.Type (Array(..), writeNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
+import Streamly.Internal.Data.Unboxed (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Data.Array as A
+import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (Step(..), snoc, reduce)
 import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Data.Stream.Chunked as AS
-import qualified Streamly.Data.Stream as S (fold, bracketIO, mapM)
 
 -------------------------------------------------------------------------------
 -- References
@@ -339,6 +339,10 @@ readWithBufferOf = readerWith
 reader :: (MonadIO m, MonadCatch m) => Unfold m FilePath Word8
 reader = UF.many A.reader (usingFile FH.chunkReader)
 
+{-# INLINE concatChunks #-}
+concatChunks :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
+concatChunks = S.unfoldMany A.reader
+
 -- | Generate a stream of bytes from a file specified by path. The stream ends
 -- when EOF is encountered. File is locked using multiple reader and single
 -- writer locking mode.
@@ -347,7 +351,7 @@ reader = UF.many A.reader (usingFile FH.chunkReader)
 --
 {-# INLINE read #-}
 read :: (MonadIO m, MonadCatch m) => FilePath -> Stream m Word8
-read file = AS.concat $ withFile file ReadMode FH.readChunks
+read file = concatChunks $ withFile file ReadMode FH.readChunks
 
 {-# DEPRECATED toBytes "Please use 'read' instead"  #-}
 {-# INLINE toBytes #-}
@@ -401,7 +405,7 @@ fromChunks = fromChunksMode WriteMode
 {-# INLINE fromBytesWith #-}
 fromBytesWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Stream m Word8 -> m ()
-fromBytesWith n file xs = fromChunks file $ AS.arraysOf n xs
+fromBytesWith n file xs = fromChunks file $ S.arraysOf n xs
 
 {-# DEPRECATED fromBytesWithBufferOf "Please use 'fromBytesWith' instead"  #-}
 {-# INLINE fromBytesWithBufferOf #-}
@@ -498,7 +502,7 @@ appendChunks = fromChunksMode AppendMode
 {-# INLINE appendWith #-}
 appendWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Stream m Word8 -> m ()
-appendWith n file xs = appendChunks file $ AS.arraysOf n xs
+appendWith n file xs = appendChunks file $ S.arraysOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data

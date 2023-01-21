@@ -1,6 +1,6 @@
 packages:   streamly.cabal
           , core/streamly-core.cabal
-          , docs/streamly-docs.cabal
+          -- , docs/streamly-docs.cabal
           -- for QuickCheck in property doctests
           , test/streamly-tests.cabal
 

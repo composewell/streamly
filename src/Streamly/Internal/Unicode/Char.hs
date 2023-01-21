@@ -35,10 +35,9 @@ where
 
 import Data.Char (isAsciiUpper, isAsciiLower, chr, ord)
 import Unicode.Char (DecomposeMode(..))
-import Streamly.Internal.Data.Stream (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
 
-import qualified Streamly.Internal.Data.Stream as Stream (Stream)
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream (Stream)
 
 import qualified Unicode.Char as Char
 
@@ -324,4 +323,4 @@ normalize ::
     => NormalizationMode
     -> Stream.Stream m Char
     -> Stream.Stream m Char
-normalize mode = fromStreamD . normalizeD mode  . toStreamD
+normalize = normalizeD

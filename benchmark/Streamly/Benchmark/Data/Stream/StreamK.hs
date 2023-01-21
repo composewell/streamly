@@ -33,7 +33,6 @@ import Prelude hiding
 import qualified Prelude as P
 import qualified Data.List as List
 
-import qualified Streamly.Internal.Control.Concurrent as S
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 
@@ -129,7 +128,7 @@ unfoldr streamLen n = S.unfoldr step n
         else Just (cnt, cnt + 1)
 
 {-# INLINE unfoldrM #-}
-unfoldrM :: S.MonadAsync m => Int -> Int -> Stream m Int
+unfoldrM :: Monad m => Int -> Int -> Stream m Int
 unfoldrM streamLen n = S.unfoldrMWith S.consM step n
     where
     step cnt =
@@ -142,7 +141,7 @@ repeat :: Int -> Int -> Stream m Int
 repeat streamLen = S.take streamLen . S.repeat
 
 {-# INLINE repeatM #-}
-repeatM :: S.MonadAsync m => Int -> Int -> Stream m Int
+repeatM :: Monad m => Int -> Int -> Stream m Int
 repeatM streamLen = S.take streamLen . S.repeatM . return
 
 {-# INLINE replicate #-}
@@ -150,7 +149,7 @@ replicate :: Int -> Int -> Stream m Int
 replicate = S.replicate
 
 {-# INLINE replicateM #-}
-replicateM :: S.MonadAsync m => Int -> Int -> Stream m Int
+replicateM :: Monad m => Int -> Int -> Stream m Int
 replicateM streamLen = S.replicateMWith S.consM streamLen . return
 
 {-# INLINE iterate #-}
@@ -158,7 +157,7 @@ iterate :: Int -> Int -> Stream m Int
 iterate streamLen = S.take streamLen . S.iterate (+1)
 
 {-# INLINE iterateM #-}
-iterateM :: S.MonadAsync m => Int -> Int -> Stream m Int
+iterateM :: Monad m => Int -> Int -> Stream m Int
 iterateM streamLen = S.take streamLen . S.iterateM (return . (+1)) . return
 
 {-# INLINE fromFoldable #-}
@@ -166,7 +165,7 @@ fromFoldable :: Int -> Int -> Stream m Int
 fromFoldable streamLen n = S.fromFoldable [n..n+streamLen]
 
 {-# INLINE fromFoldableM #-}
-fromFoldableM :: S.MonadAsync m => Int -> Int -> Stream m Int
+fromFoldableM :: Monad m => Int -> Int -> Stream m Int
 fromFoldableM streamLen n =
     Prelude.foldr S.consM S.nil (Prelude.fmap return [n..n+streamLen])
 
@@ -180,12 +179,13 @@ concatMapFoldableWith f g = Prelude.foldr (f . g) S.nil
 
 {-# INLINE concatMapFoldableSerial #-}
 concatMapFoldableSerial :: Int -> Int -> Stream m Int
-concatMapFoldableSerial streamLen n = concatMapFoldableWith S.serial S.fromPure [n..n+streamLen]
+concatMapFoldableSerial streamLen n =
+    concatMapFoldableWith S.append S.fromPure [n..n+streamLen]
 
 {-# INLINE concatMapFoldableSerialM #-}
 concatMapFoldableSerialM :: Monad m => Int -> Int -> Stream m Int
 concatMapFoldableSerialM streamLen n =
-    concatMapFoldableWith S.serial (S.fromEffect . return) [n..n+streamLen]
+    concatMapFoldableWith S.append (S.fromEffect . return) [n..n+streamLen]
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -270,11 +270,11 @@ fmapK :: Monad m => Int -> Stream m Int -> m ()
 fmapK n = composeN n $ P.fmap (+ 1)
 
 {-# INLINE mapM #-}
-mapM :: S.MonadAsync m => Int -> Stream m Int -> m ()
+mapM :: Monad m => Int -> Stream m Int -> m ()
 mapM n = composeN n $ S.mapMWith S.consM return
 
 {-# INLINE mapMSerial #-}
-mapMSerial :: S.MonadAsync m => Int -> Stream m Int -> m ()
+mapMSerial :: Monad m => Int -> Stream m Int -> m ()
 mapMSerial n = composeN n $ S.mapMSerial return
 
 {-# INLINE filterEven #-}
@@ -326,7 +326,7 @@ foldlS :: Monad m => Int -> Stream m Int -> m ()
 foldlS n = composeN n $ S.foldlS (flip S.cons) S.nil
 
 {-# INLINE intersperse #-}
-intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
+intersperse :: Monad m => Int -> Int -> Stream m Int -> m ()
 intersperse streamLen n = composeN n $ S.intersperse streamLen
 
 -------------------------------------------------------------------------------
@@ -335,8 +335,7 @@ intersperse streamLen n = composeN n $ S.intersperse streamLen
 
 {-# INLINE iterateSource #-}
 iterateSource
-    :: S.MonadAsync m
-    => Int -> (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
+    :: Monad m => Int -> (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
 iterateSource iterStreamLen g i n = f i (unfoldrM iterStreamLen n)
     where
         f (0 :: Int) m = g m
@@ -344,37 +343,37 @@ iterateSource iterStreamLen g i n = f i (unfoldrM iterStreamLen n)
 
 -- this is quadratic
 {-# INLINE iterateScan #-}
-iterateScan :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateScan :: Monad m => Int -> Int -> Int -> Stream m Int
 iterateScan iterStreamLen maxIters =
     iterateSource iterStreamLen (S.scanl' (+) 0) (maxIters `div` 10)
 
 -- this is quadratic
 {-# INLINE iterateDropWhileFalse #-}
-iterateDropWhileFalse :: S.MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
+iterateDropWhileFalse :: Monad m => Int -> Int -> Int -> Int -> Stream m Int
 iterateDropWhileFalse streamLen iterStreamLen maxIters =
     iterateSource iterStreamLen (S.dropWhile (> streamLen)) (maxIters `div` 10)
 
 {-# INLINE iterateMapM #-}
-iterateMapM :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateMapM :: Monad m => Int -> Int -> Int -> Stream m Int
 iterateMapM iterStreamLen =
     iterateSource iterStreamLen (S.mapMWith S.consM return)
 
 {-# INLINE iterateFilterEven #-}
-iterateFilterEven :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateFilterEven :: Monad m => Int -> Int -> Int -> Stream m Int
 iterateFilterEven iterStreamLen = iterateSource iterStreamLen (S.filter even)
 
 {-# INLINE iterateTakeAll #-}
-iterateTakeAll :: S.MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
+iterateTakeAll :: Monad m => Int -> Int -> Int -> Int -> Stream m Int
 iterateTakeAll streamLen iterStreamLen =
     iterateSource iterStreamLen (S.take streamLen)
 
 {-# INLINE iterateDropOne #-}
-iterateDropOne :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateDropOne :: Monad m => Int -> Int -> Int -> Stream m Int
 iterateDropOne iterStreamLen = iterateSource iterStreamLen (S.drop 1)
 
 {-# INLINE iterateDropWhileTrue #-}
-iterateDropWhileTrue :: S.MonadAsync m =>
-    Int -> Int -> Int -> Int -> Stream m Int
+iterateDropWhileTrue ::
+    Monad m => Int -> Int -> Int -> Int -> Stream m Int
 iterateDropWhileTrue streamLen iterStreamLen =
     iterateSource iterStreamLen (S.dropWhile (<= streamLen))
 
@@ -392,7 +391,7 @@ zipWithM src = drain $ S.zipWithM (curry return) src src
 
 {-# INLINE sortByK #-}
 sortByK :: (a -> a -> Ordering) -> Stream m a -> Stream m a
-sortByK f = S.concatPairsWith (S.mergeBy f) S.fromPure
+sortByK f = S.mergeMapWith (S.mergeBy f) S.fromPure
 
 {-# INLINE sortBy #-}
 sortBy :: Monad m => Stream m Int -> m ()
@@ -494,7 +493,7 @@ sourceConcatMapId val n =
 {-# INLINE concatMapBySerial #-}
 concatMapBySerial :: Int -> Int -> Int -> IO ()
 concatMapBySerial outer inner n =
-    S.drain $ S.concatMapWith S.serial
+    S.drain $ S.concatMapWith S.append
         (unfoldrM inner)
         (unfoldrM outer n)
 
@@ -731,7 +730,7 @@ o_1_space_concat streamLen =
         -- This is for comparison with concatMapFoldableWith
         , benchIOSrc1 "concatMapWithId (n of 1) (fromFoldable)"
             (S.drain
-                . S.concatMapWith S.serial id
+                . S.concatMapWith S.append id
                 . sourceConcatMapId streamLen)
 
         , benchIOSrc1 "concatMapBy serial (n of 1)"

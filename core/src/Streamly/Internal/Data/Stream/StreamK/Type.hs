@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamK.Type
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -13,12 +14,16 @@
 --
 module Streamly.Internal.Data.Stream.StreamK.Type
     (
-    -- * The stream type
-      Stream (..)
-    , toStreamK
-    , fromStreamK
+    -- * StreamK type
+      Stream (..)  -- XXX stop exporting this
+    , StreamK
 
-    -- * foldr/build
+    -- * CrossStreamK type wrapper
+    , CrossStreamK
+    , unCross
+    , mkCross
+
+    -- * foldr/build Fusion
     , mkStream
     , foldStream
     , foldStreamShared
@@ -32,8 +37,10 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , buildSM
     , augmentS
     , augmentSM
+    , unShare
 
     -- * Construction
+    -- ** Primitives
     , fromStopK
     , fromYieldK
     , consK
@@ -44,58 +51,89 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , nil
     , nilM
 
-    -- * Generation
-    , fromEffect
-    , fromPure
+    -- ** Unfolding
     , unfoldr
     , unfoldrMWith
+    , unfoldrM
+
+    -- ** From Values
+    , fromEffect
+    , fromPure
     , repeat
     , repeatMWith
     , replicateMWith
+
+    -- ** From Indices
     , fromIndicesMWith
+
+    -- ** Iteration
     , iterateMWith
+
+    -- ** From Containers
     , fromFoldable
     , fromFoldableM
+
+    -- ** Cyclic
     , mfix
 
     -- * Elimination
+    -- ** Primitives
     , uncons
-    , foldl'
+
+    -- ** Strict Left Folds
+    , Streamly.Internal.Data.Stream.StreamK.Type.foldl'
     , foldlx'
+
+    -- ** Lazy Right Folds
+    , Streamly.Internal.Data.Stream.StreamK.Type.foldr
+
+    -- ** Specific Folds
     , drain
     , null
     , tail
     , init
 
-    -- * Transformation
-    , conjoin
-    , serial
+    -- * Mapping
     , map
     , mapMWith
     , mapMSerial
-    , unShare
 
+    -- * Combining Two Streams
+    -- ** Appending
+    , conjoin
+    , append
+
+    -- ** Interleave
+    , interleave
+    , interleaveFst
+    , interleaveMin
+
+    -- ** Cross Product
     , crossApplyWith
     , crossApply
     , crossApplySnd
     , crossApplyFst
+    , crossWith
+    , cross
 
-    , concatMapWith
-    , concatMap
-    , bindWith
-    , concatPairsWith
-
-    , foldlS
-    , reverse
-
+    -- * Concat
     , before
     , concatEffect
     , concatMapEffect
+    , concatMapWith
+    , concatMap
+    , bindWith
+    , concatIterateWith
+    , concatIterateLeftsWith
+    , concatIterateScanWith
 
-    -- * Interleave
-    , interleave
-    , interleaveFst
-    , interleaveMin
+    -- * Merge
+    , mergeMapWith
+    , mergeIterateWith
+
+    -- * Buffered Operations
+    , foldlS
+    , reverse
     )
 where
 
@@ -103,21 +141,44 @@ where
 
 -- import Control.Applicative (liftA2)
 import Control.Monad ((>=>))
+import Control.Monad.Catch (MonadThrow, throwM)
+import Control.Monad.Trans.Class (MonadTrans(lift))
+import Control.Applicative (liftA2)
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.Foldable (Foldable(foldl'), fold, foldr)
 import Data.Function (fix)
+import Data.Functor.Identity (Identity(..))
+import Data.Maybe (fromMaybe)
+import Data.Semigroup (Endo(..))
+import GHC.Exts (IsList(..), IsString(..), oneShot)
+import Streamly.Internal.BaseCompat ((#.))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
+import Text.Read
+       ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
+       , readListPrecDefault)
 
 import qualified Prelude
 
 import Prelude hiding
     (map, mapM, concatMap, foldr, repeat, null, reverse, tail, init)
 
+-- $setup
+-- >>> import Data.Function (fix, (&))
+-- >>> import Data.Semigroup (cycle1)
+-- >>> import Streamly.Internal.Data.Stream.StreamK (CrossStreamK(..))
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
+-- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+-- >>> import qualified Streamly.Internal.FileSystem.Dir as Dir
+
 ------------------------------------------------------------------------------
 -- Basic stream type
 ------------------------------------------------------------------------------
 
--- | The type @Stream m a@ represents a monadic stream of values of type 'a'
--- constructed using actions in monad 'm'. It uses stop, singleton and yield
--- continuations equivalent to the following direct style type:
+-- It uses stop, singleton and yield continuations equivalent to the following
+-- direct style type:
 --
 -- @
 -- data Stream m a = Stop | Singleton a | Yield a (Stream m a)
@@ -132,8 +193,17 @@ import Prelude hiding
 -- single element.  We build singleton streams in the implementation of 'pure'
 -- for Applicative and Monad, and in 'lift' for MonadTrans.
 
--- XXX remove the Stream type parameter from State as it is always constant.
--- We can remove it from SVar as well
+-- XXX remove the State param.
+
+-- | Continuation Passing Style (CPS) version of "Streamly.Data.Stream.Stream".
+-- Unlike "Streamly.Data.Stream.Stream", 'StreamK' can be composed recursively
+-- without affecting performance.
+--
+-- Semigroup instance appends two streams:
+--
+-- >>> (<>) = Stream.append
+--
+type StreamK = Stream
 
 newtype Stream m a =
     MkStream (forall r.
@@ -143,14 +213,6 @@ newtype Stream m a =
             -> m r                      -- stop
             -> m r
             )
-
-{-# INLINE fromStreamK #-}
-fromStreamK :: Stream m a -> Stream m a
-fromStreamK = id
-
-{-# INLINE toStreamK #-}
-toStreamK :: Stream m a -> Stream m a
-toStreamK = id
 
 mkStream
     :: (forall r. State Stream m a
@@ -195,17 +257,22 @@ consK k r = mkStream $ \_ yld _ _ -> k (`yld` r)
 infixr 5 `cons`
 
 -- faster than consM because there is no bind.
--- | Construct a stream by adding a pure value at the head of an existing
--- stream. For serial streams this is the same as @(return a) \`consM` r@ but
--- more efficient. For concurrent streams this is not concurrent whereas
--- 'consM' is concurrent. For example:
+
+-- | A right associative prepend operation to add a pure value at the head of
+-- an existing stream::
 --
--- @
--- > toList $ 1 \`cons` 2 \`cons` 3 \`cons` nil
+-- >>> s = 1 `StreamK.cons` 2 `StreamK.cons` 3 `StreamK.cons` StreamK.nil
+-- >>> Stream.fold Fold.toList (StreamK.toStream s)
 -- [1,2,3]
--- @
 --
--- @since 0.1.0
+-- It can be used efficiently with 'Prelude.foldr':
+--
+-- >>> fromFoldable = Prelude.foldr StreamK.cons StreamK.nil
+--
+-- Same as the following but more efficient:
+--
+-- >>> cons x xs = return x `StreamK.consM` xs
+--
 {-# INLINE_NORMAL cons #-}
 cons :: a -> Stream m a -> Stream m a
 cons a r = mkStream $ \_ yield _ _ -> yield a r
@@ -224,35 +291,44 @@ infixr 5 .:
 (.:) :: a -> Stream m a -> Stream m a
 (.:) = cons
 
--- | An empty stream.
+-- | A stream that terminates without producing any output or side effect.
 --
--- @
--- > toList nil
+-- >>> Stream.fold Fold.toList (StreamK.toStream StreamK.nil)
 -- []
--- @
 --
--- @since 0.1.0
 {-# INLINE_NORMAL nil #-}
 nil :: Stream m a
 nil = mkStream $ \_ _ _ stp -> stp
 
--- | An empty stream producing a side effect.
+-- | A stream that terminates without producing any output, but produces a side
+-- effect.
 --
--- @
--- > toList (nilM (print "nil"))
+-- >>> Stream.fold Fold.toList (StreamK.toStream (StreamK.nilM (print "nil")))
 -- "nil"
 -- []
--- @
 --
 -- /Pre-release/
 {-# INLINE_NORMAL nilM #-}
 nilM :: Applicative m => m b -> Stream m a
 nilM m = mkStream $ \_ _ _ stp -> m *> stp
 
+-- | Create a singleton stream from a pure value.
+--
+-- >>> fromPure a = a `cons` StreamK.nil
+-- >>> fromPure = pure
+-- >>> fromPure = StreamK.fromEffect . pure
+--
 {-# INLINE_NORMAL fromPure #-}
 fromPure :: a -> Stream m a
 fromPure a = mkStream $ \_ _ single _ -> single a
 
+-- | Create a singleton stream from a monadic action.
+--
+-- >>> fromEffect m = m `consM` StreamK.nil
+--
+-- >>> Stream.fold Fold.drain $ StreamK.toStream $ StreamK.fromEffect (putStrLn "hello")
+-- hello
+--
 {-# INLINE_NORMAL fromEffect #-}
 fromEffect :: Monad m => m a -> Stream m a
 fromEffect m = mkStream $ \_ _ single _ -> m >>= single
@@ -262,6 +338,23 @@ infixr 5 `consM`
 -- NOTE: specializing the function outside the instance definition seems to
 -- improve performance quite a bit at times, even if we have the same
 -- SPECIALIZE in the instance definition.
+
+-- | A right associative prepend operation to add an effectful value at the
+-- head of an existing stream::
+--
+-- >>> s = putStrLn "hello" `consM` putStrLn "world" `consM` StreamK.nil
+-- >>> Stream.fold Fold.drain (StreamK.toStream s)
+-- hello
+-- world
+--
+-- It can be used efficiently with 'Prelude.foldr':
+--
+-- >>> fromFoldableM = Prelude.foldr StreamK.consM StreamK.nil
+--
+-- Same as the following but more efficient:
+--
+-- >>> consM x xs = StreamK.fromEffect x `StreamK.append` xs
+--
 {-# INLINE consM #-}
 {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
 consM :: Monad m => m a -> Stream m a -> Stream m a
@@ -361,7 +454,34 @@ foldrSShared = foldrSWith foldStreamShared
 -- {-# RULES "foldrSShared/app" [1]
 --     forall ys. foldrSShared consM ys = \xs -> xs `conjoin` ys #-}
 
--- | Lazy right associative fold to a stream.
+-- | Right fold to a streaming monad.
+--
+-- > foldrS StreamK.cons StreamK.nil === id
+--
+-- 'foldrS' can be used to perform stateless stream to stream transformations
+-- like map and filter in general. It can be coupled with a scan to perform
+-- stateful transformations. However, note that the custom map and filter
+-- routines can be much more efficient than this due to better stream fusion.
+--
+-- >>> input = StreamK.fromStream $ Stream.fromList [1..5]
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ StreamK.foldrS StreamK.cons StreamK.nil input
+-- [1,2,3,4,5]
+--
+-- Find if any element in the stream is 'True':
+--
+-- >>> step x xs = if odd x then StreamK.fromPure True else xs
+-- >>> input = StreamK.fromStream (Stream.fromList (2:4:5:undefined)) :: StreamK IO Int
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ StreamK.foldrS step (StreamK.fromPure False) input
+-- [True]
+--
+-- Map (+2) on odd elements and filter out the even elements:
+--
+-- >>> step x xs = if odd x then (x + 2) `StreamK.cons` xs else xs
+-- >>> input = StreamK.fromStream (Stream.fromList [1..5]) :: Stream IO Int
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ StreamK.foldrS step StreamK.nil input
+-- [3,5,7]
+--
+-- /Pre-release/
 {-# INLINE_NORMAL foldrS #-}
 foldrS ::
        (a -> Stream m b -> Stream m b)
@@ -741,16 +861,25 @@ null m =
 -- Semigroup
 ------------------------------------------------------------------------------
 
-infixr 6 `serial`
+infixr 6 `append`
 
 -- | Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
 --
-{-# INLINE serial #-}
-serial :: Stream m a -> Stream m a -> Stream m a
+-- >>> s1 = StreamK.fromStream $ Stream.fromList [1,2]
+-- >>> s2 = StreamK.fromStream $ Stream.fromList [3,4]
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ s1 `StreamK.append` s2
+-- [1,2,3,4]
+--
+-- This has O(n) append performance where @n@ is the number of streams. It can
+-- be used to efficiently fold an infinite lazy container of streams using
+-- 'concatMapWith' et. al.
+--
+{-# INLINE append #-}
+append :: Stream m a -> Stream m a -> Stream m a
 -- XXX This doubles the time of toNullAp benchmark, may not be fusing properly
 -- serial xs ys = augmentS (\c n -> foldrS c n xs) ys
-serial m1 m2 = go m1
+append m1 m2 = go m1
     where
     go m = mkStream $ \st yld sng stp ->
                let stop       = foldStream st yld sng stp m2
@@ -764,7 +893,7 @@ conjoin :: Monad m => Stream m a -> Stream m a -> Stream m a
 conjoin xs = augmentSM (\c n -> foldrSM c n xs)
 
 instance Semigroup (Stream m a) where
-    (<>) = serial
+    (<>) = append
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -861,6 +990,163 @@ mapMWith cns f = go
 instance Monad m => Functor (Stream m) where
     fmap = map
 
+------------------------------------------------------------------------------
+-- Lists
+------------------------------------------------------------------------------
+
+-- Serial streams can act like regular lists using the Identity monad
+
+-- XXX Show instance is 10x slower compared to read, we can do much better.
+-- The list show instance itself is really slow.
+
+-- XXX The default definitions of "<" in the Ord instance etc. do not perform
+-- well, because they do not get inlined. Need to add INLINE in Ord class in
+-- base?
+
+instance IsList (Stream Identity a) where
+    type (Item (Stream Identity a)) = a
+
+    {-# INLINE fromList #-}
+    fromList = fromFoldable
+
+    {-# INLINE toList #-}
+    toList = Data.Foldable.foldr (:) []
+
+-- XXX Fix these
+{-
+instance Eq a => Eq (Stream Identity a) where
+    {-# INLINE (==) #-}
+    (==) xs ys = runIdentity $ eqBy (==) xs ys
+
+instance Ord a => Ord (Stream Identity a) where
+    {-# INLINE compare #-}
+    compare xs ys = runIdentity $ cmpBy compare xs ys
+
+    {-# INLINE (<) #-}
+    x < y =
+        case compare x y of
+            LT -> True
+            _ -> False
+
+    {-# INLINE (<=) #-}
+    x <= y =
+        case compare x y of
+            GT -> False
+            _ -> True
+
+    {-# INLINE (>) #-}
+    x > y =
+        case compare x y of
+            GT -> True
+            _ -> False
+
+    {-# INLINE (>=) #-}
+    x >= y =
+        case compare x y of
+            LT -> False
+            _ -> True
+
+    {-# INLINE max #-}
+    max x y = if x <= y then y else x
+
+    {-# INLINE min #-}
+    min x y = if x <= y then x else y
+-}
+
+instance Show a => Show (Stream Identity a) where
+    showsPrec p dl = showParen (p > 10) $
+        showString "fromList " . shows (toList dl)
+
+instance Read a => Read (Stream Identity a) where
+    readPrec = parens $ prec 10 $ do
+        Ident "fromList" <- lexP
+        fromList <$> readPrec
+
+    readListPrec = readListPrecDefault
+
+instance (a ~ Char) => IsString (Stream Identity a) where
+    {-# INLINE fromString #-}
+    fromString = fromList
+
+-------------------------------------------------------------------------------
+-- Foldable
+-------------------------------------------------------------------------------
+
+-- | Lazy right associative fold.
+{-# INLINE foldr #-}
+foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
+foldr step acc = foldrM (\x xs -> xs >>= \b -> return (step x b)) (return acc)
+
+-- The default Foldable instance has several issues:
+-- 1) several definitions do not have INLINE on them, so we provide
+--    re-implementations with INLINE pragmas.
+-- 2) the definitions of sum/product/maximum/minimum are inefficient as they
+--    use right folds, they cannot run in constant memory. We provide
+--    implementations using strict left folds here.
+
+instance (Foldable m, Monad m) => Foldable (Stream m) where
+
+    {-# INLINE foldMap #-}
+    foldMap f =
+          fold
+        . Streamly.Internal.Data.Stream.StreamK.Type.foldr (mappend . f) mempty
+
+    {-# INLINE foldr #-}
+    foldr f z t = appEndo (foldMap (Endo #. f) t) z
+
+    {-# INLINE foldl' #-}
+    foldl' f z0 xs = Data.Foldable.foldr f' id xs z0
+        where f' x k = oneShot $ \z -> k $! f z x
+
+    {-# INLINE length #-}
+    length = Data.Foldable.foldl' (\n _ -> n + 1) 0
+
+    {-# INLINE elem #-}
+    elem = any . (==)
+
+    {-# INLINE maximum #-}
+    maximum =
+          fromMaybe (errorWithoutStackTrace "maximum: empty stream")
+        . toMaybe
+        . Data.Foldable.foldl' getMax Nothing'
+
+        where
+
+        getMax Nothing' x = Just' x
+        getMax (Just' mx) x = Just' $! max mx x
+
+    {-# INLINE minimum #-}
+    minimum =
+          fromMaybe (errorWithoutStackTrace "minimum: empty stream")
+        . toMaybe
+        . Data.Foldable.foldl' getMin Nothing'
+
+        where
+
+        getMin Nothing' x = Just' x
+        getMin (Just' mn) x = Just' $! min mn x
+
+    {-# INLINE sum #-}
+    sum = Data.Foldable.foldl' (+) 0
+
+    {-# INLINE product #-}
+    product = Data.Foldable.foldl' (*) 1
+
+-------------------------------------------------------------------------------
+-- Traversable
+-------------------------------------------------------------------------------
+
+instance Traversable (Stream Identity) where
+    {-# INLINE traverse #-}
+    traverse f xs =
+        runIdentity
+            $ Streamly.Internal.Data.Stream.StreamK.Type.foldr
+                consA (pure mempty) xs
+
+        where
+
+        consA x ys = liftA2 cons (f x) ys
+
 -------------------------------------------------------------------------------
 -- Nesting
 -------------------------------------------------------------------------------
@@ -895,6 +1181,15 @@ crossApplyWith par fstream stream = go1 fstream
                 yieldk a r = yld (f a) (go2 f r)
             in foldStream (adaptState st) yieldk single stp m
 
+-- | Apply a stream of functions to a stream of values and flatten the results.
+--
+-- Note that the second stream is evaluated multiple times.
+--
+-- Definition:
+--
+-- >>> crossApply = StreamK.crossApplyWith StreamK.append
+-- >>> crossApply = Stream.crossWith id
+--
 {-# INLINE crossApply #-}
 crossApply ::
        Stream m (a -> b)
@@ -979,6 +1274,39 @@ crossApplyFst fstream stream = go1 fstream
                 yieldk _ r = yld f (go3 f r)
             in foldStream (adaptState st) yieldk single stp m
 
+-- |
+-- Definition:
+--
+-- >>> crossWith f m1 m2 = fmap f m1 `StreamK.crossApply` m2
+--
+-- Note that the second stream is evaluated multiple times.
+--
+{-# INLINE crossWith #-}
+crossWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+crossWith f m1 m2 = fmap f m1 `crossApply` m2
+
+-- | Given a @Stream m a@ and @Stream m b@ generate a stream with all possible
+-- combinations of the tuple @(a, b)@.
+--
+-- Definition:
+--
+-- >>> cross = StreamK.crossWith (,)
+--
+-- The second stream is evaluated multiple times. If that is not desired it can
+-- be cached in an 'Data.Array.Array' and then generated from the array before
+-- calling this function. Caching may also improve performance if the stream is
+-- expensive to evaluate.
+--
+-- See 'Streamly.Internal.Data.Unfold.cross' for a much faster fused
+-- alternative.
+--
+-- Time: O(m x n)
+--
+-- /Pre-release/
+{-# INLINE cross #-}
+cross :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
+cross = crossWith (,)
+
 -- XXX This is just concatMapWith with arguments flipped. We need to keep this
 -- instead of using a concatMap style definition because the bind
 -- implementation in Async and WAsync streams show significant perf degradation
@@ -1010,7 +1338,6 @@ bindWith par m1 f = go m1
 -- argument specifies a merge or concat function that is used to merge the
 -- streams generated by the map function.
 --
--- @since 0.7.0
 {-# INLINE concatMapWith #-}
 concatMapWith
     ::
@@ -1022,7 +1349,7 @@ concatMapWith par f xs = bindWith par xs f
 
 {-# INLINE concatMap #-}
 concatMap :: (a -> Stream m b) -> Stream m a -> Stream m b
-concatMap = concatMapWith serial
+concatMap = concatMapWith append
 
 {-
 -- Fused version.
@@ -1042,17 +1369,34 @@ concatMap_ f xs = buildS
      (\c n -> foldrSShared (\x b -> foldrSShared c b (unShare $ f x)) n xs)
 -}
 
--- | See 'Streamly.Internal.Data.Stream.concatPairsWith' for
--- documentation.
+-- | Combine streams in pairs using a binary combinator, the resulting streams
+-- are then combined again in pairs recursively until we get to a single
+-- combined stream. The composition would thus form a binary tree.
 --
-{-# INLINE concatPairsWith #-}
-concatPairsWith
+-- For example, you can sort a stream using merge sort like this:
+--
+-- >>> s = StreamK.fromStream $ Stream.fromList [5,1,7,9,2]
+-- >>> generate = StreamK.fromPure
+-- >>> combine = StreamK.mergeBy compare
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ StreamK.mergeMapWith combine generate s
+-- [1,2,5,7,9]
+--
+-- Note that if the stream length is not a power of 2, the binary tree composed
+-- by mergeMapWith would not be balanced, which may or may not be important
+-- depending on what you are trying to achieve.
+--
+-- /Caution: the stream of streams must be finite/
+--
+-- /Pre-release/
+--
+{-# INLINE mergeMapWith #-}
+mergeMapWith
     ::
        (Stream m b -> Stream m b -> Stream m b)
     -> (a -> Stream m b)
     -> Stream m a
     -> Stream m b
-concatPairsWith combine f str = go (leafPairs str)
+mergeMapWith combine f str = go (leafPairs str)
 
     where
 
@@ -1140,16 +1484,171 @@ concatUnfoldr = undefined
 -}
 
 ------------------------------------------------------------------------------
+-- concatIterate - Map and flatten Trees of Streams
+------------------------------------------------------------------------------
+
+-- | Yield an input element in the output stream, map a stream generator on it
+-- and repeat the process on the resulting stream. Resulting streams are
+-- flattened using the 'concatMapWith' combinator. This can be used for a depth
+-- first style (DFS) traversal of a tree like structure.
+--
+-- Example, list a directory tree using DFS:
+--
+-- >>> f = StreamK.fromStream . either Dir.readEitherPaths (const Stream.nil)
+-- >>> input = StreamK.fromPure (Left ".")
+-- >>> ls = StreamK.concatIterateWith StreamK.append f input
+--
+-- Note that 'iterateM' is a special case of 'concatIterateWith':
+--
+-- >>> iterateM f = StreamK.concatIterateWith StreamK.append (StreamK.fromEffect . f) . StreamK.fromEffect
+--
+-- /Pre-release/
+--
+{-# INLINE concatIterateWith #-}
+concatIterateWith ::
+       (Stream m a -> Stream m a -> Stream m a)
+    -> (a -> Stream m a)
+    -> Stream m a
+    -> Stream m a
+concatIterateWith combine f = iterateStream
+
+    where
+
+    iterateStream = concatMapWith combine generate
+
+    generate x = x `cons` iterateStream (f x)
+
+-- | Like 'concatIterateWith' but uses the pairwise flattening combinator
+-- 'mergeMapWith' for flattening the resulting streams. This can be used for a
+-- balanced traversal of a tree like structure.
+--
+-- Example, list a directory tree using balanced traversal:
+--
+-- >>> f = StreamK.fromStream . either Dir.readEitherPaths (const Stream.nil)
+-- >>> input = StreamK.fromPure (Left ".")
+-- >>> ls = StreamK.mergeIterateWith StreamK.interleave f input
+--
+-- /Pre-release/
+--
+{-# INLINE mergeIterateWith #-}
+mergeIterateWith ::
+       (Stream m a -> Stream m a -> Stream m a)
+    -> (a -> Stream m a)
+    -> Stream m a
+    -> Stream m a
+mergeIterateWith combine f = iterateStream
+
+    where
+
+    iterateStream = mergeMapWith combine generate
+
+    generate x = x `cons` iterateStream (f x)
+
+------------------------------------------------------------------------------
+-- Flattening Graphs
+------------------------------------------------------------------------------
+
+-- To traverse graphs we need a state to be carried around in the traversal.
+-- For example, we can use a hashmap to store the visited status of nodes.
+
+-- | Like 'iterateMap' but carries a state in the stream generation function.
+-- This can be used to traverse graph like structures, we can remember the
+-- visited nodes in the state to avoid cycles.
+--
+-- Note that a combination of 'iterateMap' and 'usingState' can also be used to
+-- traverse graphs. However, this function provides a more localized state
+-- instead of using a global state.
+--
+-- See also: 'mfix'
+--
+-- /Pre-release/
+--
+{-# INLINE concatIterateScanWith #-}
+concatIterateScanWith
+    :: Monad m
+    => (Stream m a -> Stream m a -> Stream m a)
+    -> (b -> a -> m (b, Stream m a))
+    -> m b
+    -> Stream m a
+    -> Stream m a
+concatIterateScanWith combine f initial stream =
+    concatEffect $ do
+        b <- initial
+        iterateStream (b, stream)
+
+    where
+
+    iterateStream (b, s) = pure $ concatMapWith combine (generate b) s
+
+    generate b a = a `cons` feedback b a
+
+    feedback b a = concatEffect $ f b a >>= iterateStream
+
+------------------------------------------------------------------------------
+-- Either streams
+------------------------------------------------------------------------------
+
+-- Keep concating either streams as long as rights are generated, stop as soon
+-- as a left is generated and concat the left stream.
+--
+-- See also: 'handle'
+--
+-- /Unimplemented/
+--
+{-
+concatMapEitherWith
+    :: (forall x. t m x -> t m x -> t m x)
+    -> (a -> t m (Either (Stream m b) b))
+    -> Stream m a
+    -> Stream m b
+concatMapEitherWith = undefined
+-}
+
+-- XXX We should prefer using the Maybe stream returning signatures over this.
+-- This API should perhaps be removed in favor of those.
+
+-- | In an 'Either' stream iterate on 'Left's.  This is a special case of
+-- 'concatIterateWith':
+--
+-- >>> concatIterateLeftsWith combine f = StreamK.concatIterateWith combine (either f (const StreamK.nil))
+--
+-- To traverse a directory tree:
+--
+-- >>> input = StreamK.fromPure (Left ".")
+-- >>> ls = StreamK.concatIterateLeftsWith StreamK.append (StreamK.fromStream . Dir.readEither) input
+--
+-- /Pre-release/
+--
+{-# INLINE concatIterateLeftsWith #-}
+concatIterateLeftsWith
+    :: (b ~ Either a c)
+    => (Stream m b -> Stream m b -> Stream m b)
+    -> (a -> Stream m b)
+    -> Stream m b
+    -> Stream m b
+concatIterateLeftsWith combine f =
+    concatIterateWith combine (either f (const nil))
+
+------------------------------------------------------------------------------
 -- Interleaving
 ------------------------------------------------------------------------------
+
+infixr 6 `interleave`
 
 -- Additionally we can have m elements yield from the first stream and n
 -- elements yielding from the second stream. We can also have time slicing
 -- variants of positional interleaving, e.g. run first stream for m seconds and
 -- run the second stream for n seconds.
---
--- Similar combinators can be implemented using WAhead style.
 
+-- | Interleaves two streams, yielding one element from each stream
+-- alternately.  When one stream stops the rest of the other stream is used in
+-- the output stream.
+--
+-- When joining many streams in a left associative manner earlier streams will
+-- get exponential priority than the ones joining later. Because of exponential
+-- weighting it can be used with 'concatMapWith' even on a large number of
+-- streams.
+--
 {-# INLINE interleave #-}
 interleave :: Stream m a -> Stream m a -> Stream m a
 interleave m1 m2 = mkStream $ \st yld sng stp -> do
@@ -1158,7 +1657,9 @@ interleave m1 m2 = mkStream $ \st yld sng stp -> do
         yieldk a r = yld a (interleave m2 r)
     foldStream st yieldk single stop m1
 
--- | Like `interleaveK` but stops interleaving as soon as the first stream stops.
+infixr 6 `interleaveFst`
+
+-- | Like `interleave` but stops interleaving as soon as the first stream stops.
 --
 {-# INLINE interleaveFst #-}
 interleaveFst :: Stream m a -> Stream m a -> Stream m a
@@ -1174,6 +1675,11 @@ interleaveFst m1 m2 = mkStream $ \st yld sng stp -> do
                 yieldk a r = yld a (interleave s1 r)
              in foldStream st yieldk single stop s2
 
+infixr 6 `interleaveMin`
+
+-- | Like `interleave` but stops interleaving as soon as any of the two streams
+-- stops.
+--
 {-# INLINE interleaveMin #-}
 interleaveMin :: Stream m a -> Stream m a -> Stream m a
 interleaveMin m1 m2 = mkStream $ \st yld _ stp -> do
@@ -1213,6 +1719,10 @@ unfoldrMWith cns step = go
                 case r of
                     Just (a, b) -> yld a (go b)
                     Nothing -> stp
+
+{-# INLINE unfoldrM #-}
+unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> Stream m a
+unfoldrM = unfoldrMWith consM
 
 -- | Generate an infinite stream by repeating a pure value.
 --
@@ -1274,6 +1784,56 @@ tailPartial m = mkStream $ \st yld sng stp ->
         yieldk _ r = foldStream st yld sng stp r
     in foldStream st yieldk single stop m
 
+-- | We can define cyclic structures using @let@:
+--
+-- >>> let (a, b) = ([1, b], head a) in (a, b)
+-- ([1,1],1)
+--
+-- The function @fix@ defined as:
+--
+-- >>> fix f = let x = f x in x
+--
+-- ensures that the argument of a function and its output refer to the same
+-- lazy value @x@ i.e.  the same location in memory.  Thus @x@ can be defined
+-- in terms of itself, creating structures with cyclic references.
+--
+-- >>> f ~(a, b) = ([1, b], head a)
+-- >>> fix f
+-- ([1,1],1)
+--
+-- 'Control.Monad.mfix' is essentially the same as @fix@ but for monadic
+-- values.
+--
+-- Using 'mfix' for streams we can construct a stream in which each element of
+-- the stream is defined in a cyclic fashion. The argument of the function
+-- being fixed represents the current element of the stream which is being
+-- returned by the stream monad. Thus, we can use the argument to construct
+-- itself.
+--
+-- In the following example, the argument @action@ of the function @f@
+-- represents the tuple @(x,y)@ returned by it in a given iteration. We define
+-- the first element of the tuple in terms of the second.
+--
+-- >>> import System.IO.Unsafe (unsafeInterleaveIO)
+--
+-- >>> :{
+-- main = Stream.fold (Fold.drainMapM print) $ StreamK.toStream $ StreamK.mfix f
+--     where
+--     f action = StreamK.unCross $ do
+--         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act
+--         x <- StreamK.mkCross $ StreamK.fromStream $ Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action]
+--         y <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [4,5]
+--         return (x, y)
+-- :}
+--
+-- Note: you cannot achieve this by just changing the order of the monad
+-- statements because that would change the order in which the stream elements
+-- are generated.
+--
+-- Note that the function @f@ must be lazy in its argument, that's why we use
+-- 'unsafeInterleaveIO' on @action@ because IO monad is strict.
+--
+-- /Pre-release/
 {-# INLINE mfix #-}
 mfix :: Monad m => (m a -> Stream m a) -> Stream m a
 mfix f = mkStream $ \st yld sng stp ->
@@ -1329,6 +1889,11 @@ tail =
         yieldk _ r = pure $ Just r
     in foldStream defState yieldk single stop
 
+-- | Extract all but the last element of the stream, if any.
+--
+-- Note: This will end up buffering the entire stream.
+--
+-- /Pre-release/
 {-# INLINE init #-}
 init :: Applicative m => Stream m a -> m (Maybe (Stream m a))
 init = go1
@@ -1386,3 +1951,123 @@ concatMapEffect :: Monad m => (b -> Stream m a) -> m b -> Stream m a
 concatMapEffect f action =
     mkStream $ \st yld sng stp ->
         action >>= foldStreamShared st yld sng stp . f
+
+------------------------------------------------------------------------------
+-- Stream with a cross product style monad instance
+------------------------------------------------------------------------------
+
+-- | A newtype wrapper for the 'StreamK' type adding a cross product style
+-- monad instance.
+--
+-- A 'Monad' bind behaves like a @for@ loop:
+--
+-- >>> :{
+-- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.unCross $ do
+--     x <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [1,2]
+--     -- Perform the following actions for each x in the stream
+--     return x
+-- :}
+-- [1,2]
+--
+-- Nested monad binds behave like nested @for@ loops:
+--
+-- >>> :{
+-- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.unCross $ do
+--     x <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [1,2]
+--     y <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [3,4]
+--     -- Perform the following actions for each x, for each y
+--     return (x, y)
+-- :}
+-- [(1,3),(1,4),(2,3),(2,4)]
+--
+newtype CrossStreamK m a = CrossStreamK {unCrossStreamK :: Stream m a}
+        deriving (Functor, Semigroup, Monoid, Foldable)
+
+-- | Wrap the 'StreamK' type in a 'CrossStreamK' newtype to enable cross
+-- product style applicative and monad instances.
+--
+-- This is a type level operation with no runtime overhead.
+{-# INLINE mkCross #-}
+mkCross :: StreamK m a -> CrossStreamK m a
+mkCross = CrossStreamK
+
+-- | Unwrap the 'StreamK' type from 'CrossStreamK' newtype.
+--
+-- This is a type level operation with no runtime overhead.
+{-# INLINE unCross #-}
+unCross :: CrossStreamK m a -> StreamK m a
+unCross = unCrossStreamK
+
+-- Pure (Identity monad) stream instances
+deriving instance Traversable (CrossStreamK Identity)
+deriving instance IsList (CrossStreamK Identity a)
+deriving instance (a ~ Char) => IsString (CrossStreamK Identity a)
+-- deriving instance Eq a => Eq (CrossStreamK Identity a)
+-- deriving instance Ord a => Ord (CrossStreamK Identity a)
+
+-- Do not use automatic derivation for this to show as "fromList" rather than
+-- "fromList Identity".
+instance Show a => Show (CrossStreamK Identity a) where
+    {-# INLINE show #-}
+    show (CrossStreamK xs) = show xs
+
+instance Read a => Read (CrossStreamK Identity a) where
+    {-# INLINE readPrec #-}
+    readPrec = fmap CrossStreamK readPrec
+
+------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+-- Note: we need to define all the typeclass operations because we want to
+-- INLINE them.
+instance Monad m => Applicative (CrossStreamK m) where
+    {-# INLINE pure #-}
+    pure x = CrossStreamK (fromPure x)
+
+    {-# INLINE (<*>) #-}
+    (CrossStreamK s1) <*> (CrossStreamK s2) =
+        CrossStreamK (crossApply s1 s2)
+
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+
+    {-# INLINE (*>) #-}
+    (CrossStreamK s1) *> (CrossStreamK s2) =
+        CrossStreamK (crossApplySnd s1 s2)
+
+    {-# INLINE (<*) #-}
+    (CrossStreamK s1) <* (CrossStreamK s2) =
+        CrossStreamK (crossApplyFst s1 s2)
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
+instance Monad m => Monad (CrossStreamK m) where
+    return = pure
+
+    -- Benchmarks better with CPS bind and pure:
+    -- Prime sieve (25x)
+    -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
+    --
+    {-# INLINE (>>=) #-}
+    (>>=) (CrossStreamK m) f =
+        CrossStreamK (bindWith append m (unCrossStreamK . f))
+
+    {-# INLINE (>>) #-}
+    (>>) = (*>)
+
+------------------------------------------------------------------------------
+-- Transformers
+------------------------------------------------------------------------------
+
+instance (MonadIO m) => MonadIO (CrossStreamK m) where
+    liftIO x = CrossStreamK (fromEffect $ liftIO x)
+
+instance MonadTrans CrossStreamK where
+    {-# INLINE lift #-}
+    lift x = CrossStreamK (fromEffect x)
+
+instance (MonadThrow m) => MonadThrow (CrossStreamK m) where
+    throwM = lift . throwM

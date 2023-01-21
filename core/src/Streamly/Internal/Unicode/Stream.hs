@@ -105,7 +105,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Array.Mut.Type (MutableByteArray)
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream (Stream, fromStreamD, toStreamD)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Stream.StreamD (Step (..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -118,7 +118,7 @@ import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Parser as Parser (Parser)
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
-import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import Prelude hiding (lines, words, unlines, unwords)
@@ -417,7 +417,7 @@ decodeUtf8EitherD = resumeDecodeUtf8EitherD 0 0
 {-# INLINE decodeUtf8Either #-}
 decodeUtf8Either :: Monad m
     => Stream m Word8 -> Stream m (Either DecodeError Char)
-decodeUtf8Either = fromStreamD . decodeUtf8EitherD . toStreamD
+decodeUtf8Either = decodeUtf8EitherD
 
 -- |
 --
@@ -429,8 +429,7 @@ resumeDecodeUtf8Either
     -> CodePoint
     -> Stream m Word8
     -> Stream m (Either DecodeError Char)
-resumeDecodeUtf8Either st cp =
-    fromStreamD . resumeDecodeUtf8EitherD st cp . toStreamD
+resumeDecodeUtf8Either = resumeDecodeUtf8EitherD
 
 -------------------------------------------------------------------------------
 -- One shot decoding
@@ -646,7 +645,7 @@ decodeUtf8D = decodeUtf8WithD TransliterateCodingFailure
 --
 {-# INLINE decodeUtf8 #-}
 decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
-decodeUtf8 = fromStreamD . decodeUtf8D . toStreamD
+decodeUtf8 = decodeUtf8D
 
 {-# INLINE decodeUtf8D' #-}
 decodeUtf8D' :: Monad m => D.Stream m Word8 -> D.Stream m Char
@@ -657,7 +656,7 @@ decodeUtf8D' = decodeUtf8WithD ErrorOnCodingFailure
 --
 {-# INLINE decodeUtf8' #-}
 decodeUtf8' :: Monad m => Stream m Word8 -> Stream m Char
-decodeUtf8' = fromStreamD . decodeUtf8D' . toStreamD
+decodeUtf8' = decodeUtf8D'
 
 {-# INLINE decodeUtf8D_ #-}
 decodeUtf8D_ :: Monad m => D.Stream m Word8 -> D.Stream m Char
@@ -668,7 +667,7 @@ decodeUtf8D_ = decodeUtf8WithD DropOnCodingFailure
 --
 {-# INLINE decodeUtf8_ #-}
 decodeUtf8_ :: Monad m => Stream m Word8 -> Stream m Char
-decodeUtf8_ = fromStreamD . decodeUtf8D_ . toStreamD
+decodeUtf8_ = decodeUtf8D_
 
 -- | Same as 'decodeUtf8'
 --
@@ -817,8 +816,7 @@ decodeUtf8ArraysD = decodeUtf8ArraysWithD TransliterateCodingFailure
 -- /Pre-release/
 {-# INLINE decodeUtf8Arrays #-}
 decodeUtf8Arrays :: MonadIO m => Stream m (Array Word8) -> Stream m Char
-decodeUtf8Arrays =
-    fromStreamD . decodeUtf8ArraysD . toStreamD
+decodeUtf8Arrays = decodeUtf8ArraysD
 
 {-# INLINE decodeUtf8ArraysD' #-}
 decodeUtf8ArraysD' ::
@@ -832,7 +830,7 @@ decodeUtf8ArraysD' = decodeUtf8ArraysWithD ErrorOnCodingFailure
 -- /Pre-release/
 {-# INLINE decodeUtf8Arrays' #-}
 decodeUtf8Arrays' :: MonadIO m => Stream m (Array Word8) -> Stream m Char
-decodeUtf8Arrays' = fromStreamD . decodeUtf8ArraysD' . toStreamD
+decodeUtf8Arrays' = decodeUtf8ArraysD'
 
 {-# INLINE decodeUtf8ArraysD_ #-}
 decodeUtf8ArraysD_ ::
@@ -847,8 +845,7 @@ decodeUtf8ArraysD_ = decodeUtf8ArraysWithD DropOnCodingFailure
 {-# INLINE decodeUtf8Arrays_ #-}
 decodeUtf8Arrays_ ::
        MonadIO m => Stream m (Array Word8) -> Stream m Char
-decodeUtf8Arrays_ =
-    fromStreamD . decodeUtf8ArraysD_ . toStreamD
+decodeUtf8Arrays_ = decodeUtf8ArraysD_
 
 -------------------------------------------------------------------------------
 -- Encoding Unicode (UTF-8) Characters
@@ -922,7 +919,7 @@ encodeUtf8D' = D.unfoldMany readCharUtf8'
 --
 {-# INLINE encodeUtf8' #-}
 encodeUtf8' :: Monad m => Stream m Char -> Stream m Word8
-encodeUtf8' = fromStreamD . encodeUtf8D' . toStreamD
+encodeUtf8' = encodeUtf8D'
 
 {-# INLINE_NORMAL readCharUtf8 #-}
 readCharUtf8 :: Monad m => Unfold m Char Word8
@@ -941,7 +938,7 @@ encodeUtf8D = D.unfoldMany readCharUtf8
 --
 {-# INLINE encodeUtf8 #-}
 encodeUtf8 :: Monad m => Stream m Char -> Stream m Word8
-encodeUtf8 = fromStreamD . encodeUtf8D . toStreamD
+encodeUtf8 = encodeUtf8D
 
 {-# INLINE_NORMAL readCharUtf8_ #-}
 readCharUtf8_ :: Monad m => Unfold m Char Word8
@@ -956,7 +953,7 @@ encodeUtf8D_ = D.unfoldMany readCharUtf8_
 --
 {-# INLINE encodeUtf8_ #-}
 encodeUtf8_ :: Monad m => Stream m Char -> Stream m Word8
-encodeUtf8_ = fromStreamD . encodeUtf8D_ . toStreamD
+encodeUtf8_ = encodeUtf8D_
 
 -- | Same as 'encodeUtf8'
 --
@@ -1085,7 +1082,7 @@ isSpace c
 -- /Pre-release/
 {-# INLINE words #-}
 words :: Monad m => Fold m Char b -> Stream m Char -> Stream m b
-words f m =  Stream.fromStreamD $ D.wordsBy isSpace f (Stream.toStreamD m)
+words f = D.wordsBy isSpace f
 
 -- | Unfold a stream to character streams using the supplied 'Unfold'
 -- and concat the results suffixing a newline character @\\n@ to each stream.

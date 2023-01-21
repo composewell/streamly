@@ -131,7 +131,7 @@ import qualified GHC.IO.Device as RawIO
 import Streamly.Internal.Data.Array.Type
     (Array(..), byteLength, unsafeFreeze, asPtrUnsafe)
 import Streamly.Internal.System.IO (defaultChunkSize)
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 #if !defined(mingw32_HOST_OS)
 {-
 import Streamly.Internal.Data.Stream.IsStream.Type (toStreamD)
@@ -148,7 +148,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Mut as MArray
     (Array(..), newPinnedBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Stream.Chunked as AS
-import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
@@ -296,7 +296,7 @@ _readArraysOfUpto size h = S.fromStreamK go
 {-# INLINE_NORMAL readArraysOfUpto #-}
 readArraysOfUpto :: (MonadIO m)
     => Int -> Handle -> Stream m (Array Word8)
-readArraysOfUpto size h = S.fromStreamD (D.Stream step ())
+readArraysOfUpto size h = D.Stream step ()
   where
     {-# INLINE_LATE step #-}
     step _ _ = do
@@ -357,7 +357,7 @@ read = AS.concat . readArrays
 -- @since 0.7.0
 {-# INLINE writeArrays #-}
 writeArrays :: (MonadIO m, Unbox a) => Handle -> Stream m (Array a) -> m ()
-writeArrays h = S.fold (FL.drainBy (liftIO . writeArray h))
+writeArrays h = S.fold (FL.drainMapM (liftIO . writeArray h))
 
 -- | Write a stream of arrays to a handle after coalescing them in chunks of
 -- specified size. The chunk size is only a maximum and the actual writes could

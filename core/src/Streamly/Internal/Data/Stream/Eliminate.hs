@@ -217,7 +217,7 @@ foldlS f z =
 --
 {-# INLINE_NORMAL parseD #-}
 parseD :: Monad m => PRD.Parser a m b -> Stream m a -> m (Either ParseError b)
-parseD p = D.parse p . toStreamD
+parseD p = D.parseD p . toStreamD
 
 -- XXX Drive directly as parserK rather than converting to parserD first.
 
@@ -248,7 +248,7 @@ parse = parseD . PRD.fromParserK
 parseBreakD :: Monad m =>
     PRD.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
 parseBreakD parser strm = do
-    (b, strmD) <- D.parseBreak parser (toStreamD strm)
+    (b, strmD) <- D.parseBreakD parser (toStreamD strm)
     return $! (b, fromStreamD strmD)
 
 -- | Parse a stream using the supplied 'Parser'.
@@ -257,7 +257,7 @@ parseBreakD parser strm = do
 --
 {-# INLINE parseBreak #-}
 parseBreak :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
-parseBreak p strm = fmap f $ K.parseBreak (PRD.fromParserK p) (toStreamK strm)
+parseBreak p strm = fmap f $ K.parseBreak p (toStreamK strm)
 
     where
 

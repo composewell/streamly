@@ -46,8 +46,7 @@ import Prelude
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Array.Mut as MArray
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Prelude as IsStream (scanl1')
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 
 import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)
@@ -153,7 +152,7 @@ scanl' value n = composeN n $ onArray value $ Stream.scan (Fold.foldl' (+) 0)
 
 {-# INLINE scanl1' #-}
 scanl1' :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-scanl1' value n = composeN n $ onArray value $ IsStream.scanl1' (+)
+scanl1' value n = composeN n $ onArray value $ Stream.scanl1' (+)
 
 {-# INLINE map #-}
 map :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
@@ -181,12 +180,11 @@ unfoldReadRevDrain = drain . Stream.unfold MArray.readerRev
 
 {-# INLINE toStreamDRevDrain #-}
 toStreamDRevDrain :: MonadIO m => Stream Int -> m ()
-toStreamDRevDrain =
-    drain . Stream.fromStreamD . MArray.toStreamDRev
+toStreamDRevDrain = drain . MArray.toStreamDRev
 
 {-# INLINE toStreamDDrain #-}
 toStreamDDrain :: MonadIO m => Stream Int -> m ()
-toStreamDDrain = drain . Stream.fromStreamD . MArray.toStreamD
+toStreamDDrain = drain . MArray.toStreamD
 
 {-# INLINE unfoldFold #-}
 unfoldFold :: MonadIO m => Stream Int -> m Int

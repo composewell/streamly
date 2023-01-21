@@ -12,13 +12,14 @@
 --
 -- To run examples in this module:
 --
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Prelude as IsStream
+-- >>> import qualified Streamly.Prelude as Stream
 --
 module Streamly.Internal.Data.Stream.Serial {-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream\" from streamly-core package instead." #-}
     (
     -- * Serial appending stream
-      SerialT
+      SerialT(..)
+    , toStreamK
+    , fromStreamK
     , Serial
     , serial
 
@@ -31,10 +32,10 @@ module Streamly.Internal.Data.Stream.Serial {-# DEPRECATED "Please use \"Streaml
     , consMWSerial
 
     -- * Construction
-    , Stream.cons
-    , Stream.consM
-    , Stream.repeat
-    , Stream.unfoldrM
+    , cons
+    , consM
+    , repeat
+    , unfoldrM
     , fromList
 
     -- * Elimination
@@ -42,7 +43,7 @@ module Streamly.Internal.Data.Stream.Serial {-# DEPRECATED "Please use \"Streaml
 
     -- * Transformation
     , map
-    , Stream.mapM
+    , mapM
     )
 where
 
@@ -64,18 +65,13 @@ import Text.Read
        , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
-import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream as Stream
-    (toStreamK, fromStreamK, crossApply, crossApplySnd, crossApplyFst)
 import qualified Streamly.Internal.Data.Stream.Common as P
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-    (fromStreamK, toStreamK, mapM)
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Transform as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (Stream, mkStream, foldStream, cons, consM, nil, concatMapWith, fromPure
-    , bindWith, interleave, interleaveFst, interleaveMin, serial, fromEffect)
 
 import Prelude hiding (map, mapM, repeat, filter)
 
@@ -84,7 +80,6 @@ import Prelude hiding (map, mapM, repeat, filter)
 
 -- $setup
 -- >>> :set -fno-warn-deprecations
--- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Prelude as IsStream
 
 {-# INLINABLE withLocal #-}
@@ -96,101 +91,41 @@ withLocal f m =
         in K.foldStream st yieldk single (local f stp) m
 
 ------------------------------------------------------------------------------
--- Applicative - orphan instances
-------------------------------------------------------------------------------
-
--- Note: we need to define all the typeclass operations because we want to
--- INLINE them.
-instance Monad m => Applicative (Stream m) where
-    {-# INLINE pure #-}
-    pure = Stream.fromStreamK . K.fromPure
-
-    {-# INLINE (<*>) #-}
-    (<*>) = Stream.crossApply
-    -- (<*>) = K.apSerial
-
-    {-# INLINE liftA2 #-}
-    liftA2 f x = (<*>) (fmap f x)
-
-    {-# INLINE (*>) #-}
-    (*>)  = Stream.crossApplySnd
-    -- (*>)  = K.apSerialDiscardFst
-
-    {-# INLINE (<*) #-}
-    (<*) = Stream.crossApplyFst
-    -- (<*)  = K.apSerialDiscardSnd
-
-------------------------------------------------------------------------------
--- Monad - orphan instances
-------------------------------------------------------------------------------
-
-instance Monad m => Monad (Stream m) where
-    return = pure
-
-    -- Benchmarks better with StreamD bind and pure:
-    -- toList, filterAllout, *>, *<, >> (~2x)
-    --
-    -- pure = Stream . D.fromStreamD . D.fromPure
-    -- m >>= f = D.fromStreamD $ D.concatMap (D.toStreamD . f) (D.toStreamD m)
-
-    -- Benchmarks better with CPS bind and pure:
-    -- Prime sieve (25x)
-    -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
-    --
-    {-# INLINE (>>=) #-}
-    (>>=) m f =
-        Stream.fromStreamK
-            $ K.bindWith K.serial (Stream.toStreamK m) (Stream.toStreamK . f)
-
-    {-# INLINE (>>) #-}
-    (>>) = (*>)
-
-------------------------------------------------------------------------------
--- Transformers - orphan instances
-------------------------------------------------------------------------------
-
-instance (MonadIO m) => MonadIO (Stream m) where
-    liftIO = lift . liftIO
-
-instance (MonadThrow m) => MonadThrow (Stream m) where
-    throwM = lift . throwM
-
-instance MonadTrans Stream where
-    {-# INLINE lift #-}
-    lift = Stream.fromEffect
-
-instance (MonadReader r m) => MonadReader r (Stream m) where
-    ask = lift ask
-
-    local f m = Stream.fromStreamK $ withLocal f (Stream.toStreamK m)
-
-instance (MonadState s m) => MonadState s (Stream m) where
-    {-# INLINE get #-}
-    get = lift get
-
-    {-# INLINE put #-}
-    put x = lift (put x)
-
-    {-# INLINE state #-}
-    state k = lift (state k)
-
-------------------------------------------------------------------------------
--- NFData - orphan instances
-------------------------------------------------------------------------------
-
-instance NFData a => NFData (Stream Identity a) where
-    {-# INLINE rnf #-}
-    rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
-
-instance NFData1 (Stream Identity) where
-    {-# INLINE liftRnf #-}
-    liftRnf f xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> f x) ()) xs
-
-------------------------------------------------------------------------------
 -- SerialT
 ------------------------------------------------------------------------------
 
-type SerialT = Stream
+-- | For 'SerialT' streams:
+--
+-- @
+-- (<>) = 'Streamly.Prelude.serial'                       -- 'Semigroup'
+-- (>>=) = flip . 'Streamly.Prelude.concatMapWith' 'Streamly.Prelude.serial' -- 'Monad'
+-- @
+--
+-- A single 'Monad' bind behaves like a @for@ loop:
+--
+-- >>> :{
+-- IsStream.toList $ do
+--      x <- IsStream.fromList [1,2] -- foreach x in stream
+--      return x
+-- :}
+-- [1,2]
+--
+-- Nested monad binds behave like nested @for@ loops:
+--
+-- >>> :{
+-- IsStream.toList $ do
+--     x <- IsStream.fromList [1,2] -- foreach x in stream
+--     y <- IsStream.fromList [3,4] -- foreach y in stream
+--     return (x, y)
+-- :}
+-- [(1,3),(1,4),(2,3),(2,4)]
+--
+-- /Since: 0.2.0 ("Streamly")/
+--
+-- @since 0.8.0
+newtype SerialT m a = SerialT {getSerialT :: Stream m a}
+    -- XXX when deriving do we inherit an INLINE?
+    deriving (Semigroup, Monoid)
 
 -- | A serial IO stream of elements of type @a@. See 'SerialT' documentation
 -- for more details.
@@ -200,6 +135,36 @@ type SerialT = Stream
 -- @since 0.8.0
 type Serial = SerialT IO
 
+toStreamK :: SerialT m a -> Stream m a
+toStreamK = getSerialT
+
+fromStreamK :: Stream m a -> SerialT m a
+fromStreamK = SerialT
+
+------------------------------------------------------------------------------
+-- Generation
+------------------------------------------------------------------------------
+
+infixr 5 `cons`
+
+{-# INLINE cons #-}
+cons :: a -> SerialT m a -> SerialT m a
+cons x (SerialT ms) = SerialT $ K.cons x ms
+
+infixr 5 `consM`
+
+{-# INLINE consM #-}
+{-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
+consM :: Monad m => m a -> SerialT m a -> SerialT m a
+consM m (SerialT ms) = SerialT $ K.consM m ms
+
+-- |
+-- Generate an infinite stream by repeating a pure value.
+--
+{-# INLINE_NORMAL repeat #-}
+repeat :: Monad m => a -> SerialT m a
+repeat = SerialT . D.toStreamK . D.repeat
+
 ------------------------------------------------------------------------------
 -- Combining
 ------------------------------------------------------------------------------
@@ -207,6 +172,41 @@ type Serial = SerialT IO
 {-# INLINE serial #-}
 serial :: SerialT m a -> SerialT m a -> SerialT m a
 serial = (<>)
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
+instance Monad m => Monad (SerialT m) where
+    return = pure
+
+    -- Benchmarks better with StreamD bind and pure:
+    -- toList, filterAllout, *>, *<, >> (~2x)
+    --
+    -- pure = SerialT . D.fromStreamD . D.fromPure
+    -- m >>= f = D.fromStreamD $ D.concatMap (D.toStreamD . f) (D.toStreamD m)
+
+    -- Benchmarks better with CPS bind and pure:
+    -- Prime sieve (25x)
+    -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
+    --
+    {-# INLINE (>>=) #-}
+    (>>=) (SerialT m) f = SerialT $ K.bindWith K.append m (getSerialT . f)
+
+    {-# INLINE (>>) #-}
+    (>>) = (*>)
+
+instance MonadTrans SerialT where
+    {-# INLINE lift #-}
+    lift = SerialT . K.fromEffect
+
+------------------------------------------------------------------------------
+-- Other instances
+------------------------------------------------------------------------------
+
+{-# INLINE mapM #-}
+mapM :: Monad m => (a -> m b) -> SerialT m a -> SerialT m b
+mapM f (SerialT m) = SerialT $ D.toStreamK $ D.mapM f $ D.fromStreamK m
 
 -- |
 -- @
@@ -223,7 +223,49 @@ serial = (<>)
 -- @since 0.4.0
 {-# INLINE map #-}
 map :: Monad m => (a -> b) -> SerialT m a -> SerialT m b
-map f = Stream.mapM (return . f)
+map f = mapM (return . f)
+
+{-# INLINE apSerial #-}
+apSerial :: Monad m => SerialT m (a -> b) -> SerialT m a -> SerialT m b
+apSerial (SerialT m1) (SerialT m2) =
+    SerialT $ D.toStreamK $ D.fromStreamK m1 `D.crossApply` D.fromStreamK m2
+
+{-# INLINE apSequence #-}
+apSequence :: Monad m => SerialT m a -> SerialT m b -> SerialT m b
+apSequence (SerialT m1) (SerialT m2) =
+    SerialT $ D.toStreamK $ D.fromStreamK m1 `D.crossApplySnd` D.fromStreamK m2
+
+{-# INLINE apDiscardSnd #-}
+apDiscardSnd :: Monad m => SerialT m a -> SerialT m b -> SerialT m a
+apDiscardSnd (SerialT m1) (SerialT m2) =
+    SerialT $ D.toStreamK $ D.fromStreamK m1 `D.crossApplyFst` D.fromStreamK m2
+
+-- Note: we need to define all the typeclass operations because we want to
+-- INLINE them.
+instance Monad m => Applicative (SerialT m) where
+    {-# INLINE pure #-}
+    pure = SerialT . K.fromPure
+
+    {-# INLINE (<*>) #-}
+    (<*>) = apSerial
+    -- (<*>) = K.apSerial
+
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+
+    {-# INLINE (*>) #-}
+    (*>)  = apSequence
+    -- (*>)  = K.apSerialDiscardFst
+
+    {-# INLINE (<*) #-}
+    (<*) = apDiscardSnd
+    -- (<*)  = K.apSerialDiscardSnd
+
+MONAD_COMMON_INSTANCES(SerialT,)
+LIST_INSTANCES(SerialT)
+NFDATA1_INSTANCE(SerialT)
+FOLDABLE_INSTANCE(SerialT)
+TRAVERSABLE_INSTANCE(SerialT)
 
 ------------------------------------------------------------------------------
 -- WSerialT
@@ -267,12 +309,12 @@ map f = Stream.mapM (return . f)
 -- [(1,3),(2,3),(1,4),(2,4)]
 --
 -- The @W@ in the name stands for @wide@ or breadth wise scheduling in
--- contrast to the depth wise scheduling behavior of 'Stream'.
+-- contrast to the depth wise scheduling behavior of 'SerialT'.
 --
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-newtype WSerialT m a = WSerialT {getWSerialT :: K.Stream m a}
+newtype WSerialT m a = WSerialT {getWSerialT :: Stream m a}
 
 instance MonadTrans WSerialT where
     {-# INLINE lift #-}
@@ -370,3 +412,32 @@ LIST_INSTANCES(WSerialT)
 NFDATA1_INSTANCE(WSerialT)
 FOLDABLE_INSTANCE(WSerialT)
 TRAVERSABLE_INSTANCE(WSerialT)
+
+------------------------------------------------------------------------------
+-- Construction
+------------------------------------------------------------------------------
+
+-- | Build a stream by unfolding a /monadic/ step function starting from a
+-- seed.  The step function returns the next element in the stream and the next
+-- seed value. When it is done it returns 'Nothing' and the stream ends. For
+-- example,
+--
+-- @
+-- let f b =
+--         if b > 3
+--         then return Nothing
+--         else print b >> return (Just (b, b + 1))
+-- in drain $ unfoldrM f 0
+-- @
+-- @
+--  0
+--  1
+--  2
+--  3
+-- @
+--
+-- /Pre-release/
+--
+{-# INLINE unfoldrM #-}
+unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
+unfoldrM step seed = SerialT $ D.toStreamK (D.unfoldrM step seed)

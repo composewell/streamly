@@ -905,6 +905,12 @@ module Streamly.Prelude
     -- * Type Synonyms
     , MonadAsync
 
+    -- * Converting from/to Stream/StreamK types
+    , fromStream
+    , toStream
+    , fromStreamK
+    , toStreamK
+
     -- * Stream Type Adapters
     -- $adapters
     , IsStream ()

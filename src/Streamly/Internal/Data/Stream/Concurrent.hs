@@ -110,11 +110,11 @@ import Streamly.Internal.Data.Stream.Channel.Types
     , concatMapDivK
     )
 import Streamly.Internal.Data.Stream.Channel.Worker (sendWithDoorBell)
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Stream.StreamD (Step(..))
 
 import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
-import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
@@ -206,10 +206,10 @@ _appendGeneric newChan modifier stream1 stream2 = K.concatEffect action
                 toChannelK chan stream1
             FirstStops -> do
                 toChannelK chan stream2
-                toChannelK chan (K.serial stream1 done)
+                toChannelK chan (K.append stream1 done)
             AnyStops -> do
-                toChannelK chan (K.serial stream2 done)
-                toChannelK chan (K.serial stream1 done)
+                toChannelK chan (K.append stream2 done)
+                toChannelK chan (K.append stream1 done)
         return $ Stream.toStreamK $ fromChannel chan
 
 -- | Create a new channel and add both the streams to it for async evaluation.
@@ -319,7 +319,7 @@ parConcatMapChanKAny :: MonadAsync m =>
     Channel m b -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
 parConcatMapChanKAny chan f stream =
    let done = K.nilM (stopChannel chan)
-       run q = concatMapDivK q (\x -> K.serial (f x) done)
+       run q = concatMapDivK q (\x -> K.append (f x) done)
     in K.concatMapEffect (`run` stream) (mkEnqueue chan run)
 
 {-# INLINE parConcatMapChanKFirst #-}
@@ -335,7 +335,7 @@ parConcatMapChanKFirst chan f stream =
             Just (h, t) -> do
                 q <- mkEnqueue chan run
                 q t
-                return $ K.serial (f h) done
+                return $ K.append (f h) done
 
 {-# INLINE parConcatMapChanKGeneric #-}
 parConcatMapChanKGeneric :: MonadAsync m =>
@@ -771,7 +771,4 @@ tapCount ::
     -> (Stream m Int -> m b)
     -> Stream m a
     -> Stream m a
-tapCount predicate f xs =
-      Stream.fromStreamD
-    $ tapCountD predicate (f . Stream.fromStreamD)
-    $ Stream.toStreamD xs
+tapCount = tapCountD

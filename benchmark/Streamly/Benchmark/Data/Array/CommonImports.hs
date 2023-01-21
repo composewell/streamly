@@ -5,11 +5,12 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Functor ((<&>))
 import System.Random (randomRIO)
 
-import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.Stream  as Stream
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 
 import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)
-import qualified Streamly.Benchmark.Prelude as P
+import qualified Stream.Common as P
 
 import Prelude as P hiding (map)

@@ -281,7 +281,7 @@ interleaveMin2 s1 s2 =
 {-# INLINE interleaveFstSuffix2 #-}
 interleaveFstSuffix2 :: Monad m => Stream m b -> Stream m b -> Stream m b
 interleaveFstSuffix2 m1 m2 =
-    fromStreamD $ D.interleaveSuffix (toStreamD m1) (toStreamD m2)
+    fromStreamD $ D.interleaveFstSuffix (toStreamD m1) (toStreamD m2)
 
 -- | Interleaves the outputs of two streams, yielding elements from each stream
 -- alternately, starting from the first stream and ending at the first stream.
@@ -305,7 +305,7 @@ interleaveFstSuffix2 m1 m2 =
 {-# INLINE interleaveFst2 #-}
 interleaveFst2 :: Monad m => Stream m b -> Stream m b -> Stream m b
 interleaveFst2 m1 m2 =
-    fromStreamD $ D.interleaveInfix (toStreamD m1) (toStreamD m2)
+    fromStreamD $ D.interleaveFst (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
 -- Scheduling
@@ -449,7 +449,7 @@ unfoldMany u m = fromStreamD $ D.unfoldMany u (toStreamD m)
 {-# INLINE unfoldInterleave #-}
 unfoldInterleave ::Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldInterleave u m =
-    fromStreamD $ D.unfoldManyInterleave u (toStreamD m)
+    fromStreamD $ D.unfoldInterleave u (toStreamD m)
 
 -- | 'unfoldInterleave' switches to the next stream whenever a value from a
 -- stream is yielded, it does not switch on a 'Skip'. So if a stream keeps
@@ -460,7 +460,7 @@ unfoldInterleave u m =
 {-# INLINE unfoldRoundRobin #-}
 unfoldRoundRobin ::Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldRoundRobin u m =
-    fromStreamD $ D.unfoldManyRoundRobin u (toStreamD m)
+    fromStreamD $ D.unfoldRoundRobin u (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose
@@ -478,7 +478,7 @@ unfoldRoundRobin u m =
 interpose :: Monad m
     => c -> Unfold m b c -> Stream m b -> Stream m c
 interpose x unf str =
-    fromStreamD $ D.interpose (return x) unf (toStreamD str)
+    fromStreamD $ D.interpose x unf (toStreamD str)
 
 -- interposeSuffix x unf str = gintercalateSuffix unf str UF.identity (repeat x)
 
@@ -492,7 +492,7 @@ interpose x unf str =
 interposeSuffix :: Monad m
     => c -> Unfold m b c -> Stream m b -> Stream m c
 interposeSuffix x unf str =
-    fromStreamD $ D.interposeSuffix (return x) unf (toStreamD str)
+    fromStreamD $ D.interposeSuffix x unf (toStreamD str)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - intercalate
@@ -563,8 +563,8 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: Monad m
     => Unfold m b c -> b -> Stream m b -> Stream m c
-intercalateSuffix unf seed str = fromStreamD $ D.unfoldMany unf
-    $ D.intersperseMSuffix (return seed) (toStreamD str)
+intercalateSuffix unf seed =
+    fromStreamD . D.intercalateSuffix unf seed . toStreamD
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap
@@ -633,7 +633,7 @@ mergeMapWith ::
     -> Stream m b
 mergeMapWith par f m =
     fromStreamK
-        $ K.concatPairsWith
+        $ K.mergeMapWith
             (\s1 s2 -> toStreamK $ fromStreamK s1 `par` fromStreamK s2)
             (toStreamK . f)
             (toStreamK m)

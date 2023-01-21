@@ -419,6 +419,7 @@ library
                      , Streamly.Internal.Data.Stream.SVar.Eliminate
 
                      , Streamly.Internal.Data.Stream.Serial
+                     , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.Stream.Async
                      , Streamly.Internal.Data.Stream.Parallel
                      , Streamly.Internal.Data.Stream.Ahead

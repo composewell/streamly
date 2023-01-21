@@ -427,7 +427,7 @@ scanlMAfter' step initial done stream =
 --
 {-# INLINE scan #-}
 scan :: Monad m => Fold m a b -> Stream m a -> Stream m b
-scan fld m = fromStreamD $ D.scanOnce fld $ toStreamD m
+scan fld m = fromStreamD $ D.scan fld $ toStreamD m
 
 -- | Like 'scan' but restarts scanning afresh when the scanning fold
 -- terminates.

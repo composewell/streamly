@@ -71,9 +71,9 @@ onArray
     -> m (Stream Int)
 onArray value f arr = S.fold (A.writeN value) $ f $ S.unfold A.reader arr
 
-scanl'  value n = composeN n $ onArray value $ S.scanl' (+) 0
-scanl1' value n = composeN n $ onArray value $ S.scanl1' (+)
-map     value n = composeN n $ onArray value $ S.map (+1)
+scanl'  value n = composeN n $ onArray value $ S.scan (Fold.foldl' (+) 0)
+scanl1' value n = composeN n $ onArray value $ Stream.scanl1' (+)
+map     value n = composeN n $ onArray value $ fmap (+1)
 -- map           n = composeN n $ A.map (+1)
 
 {-# INLINE eqInstance #-}
@@ -98,7 +98,7 @@ showInstance = P.show
 
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: MonadIO m => Stream Int -> m Int
-pureFoldl' = S.foldl' (+) 0 . S.unfold A.reader
+pureFoldl' = S.fold (Fold.foldl' (+) 0) . S.unfold A.reader
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -106,11 +106,11 @@ pureFoldl' = S.foldl' (+) 0 . S.unfold A.reader
 
 {-# INLINE unfoldReadDrain #-}
 unfoldReadDrain :: MonadIO m => Stream Int -> m ()
-unfoldReadDrain = S.drain . S.unfold A.reader
+unfoldReadDrain = S.fold Fold.drain . S.unfold A.reader
 
 {-# INLINE toStreamRevDrain #-}
 toStreamRevDrain :: MonadIO m => Stream Int -> m ()
-toStreamRevDrain = S.drain . A.readRev
+toStreamRevDrain = S.fold Fold.drain . A.readRev
 
 -------------------------------------------------------------------------------
 -- Bench groups

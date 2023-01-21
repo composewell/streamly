@@ -6,6 +6,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Use "Streamly.Data.Parser.Chunked" instead.
+--
 -- Fold a stream of foreign arrays.  @Fold m a b@ in this module works
 -- on a stream of "Array a" and produces an output of type @b@.
 --
@@ -20,12 +22,12 @@
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 -- >>> import qualified Streamly.Internal.Data.Fold.Chunked as ChunkFold
--- >>> import qualified Streamly.Internal.Data.Stream as Stream (arraysOf)
 -- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
 --
 -- >>> f = ChunkFold.fromFold (Fold.take 7 Fold.toList)
 -- >>> s = Stream.arraysOf 5 $ Stream.fromList "hello world"
--- >>> ArrayStream.runArrayFold f s
+-- >>> ArrayStream.runArrayFold f (StreamK.fromStream s)
 -- Right "hello w"
 --
 module Streamly.Internal.Data.Fold.Chunked
@@ -98,11 +100,7 @@ newtype ChunkFold m a b = ChunkFold (ParserD.Parser (Array a) m b)
 --
 -- /Pre-release/
 {-# INLINE fromFold #-}
-#ifdef DEVBUILD
-fromFold :: forall m a b. (MonadIO m) =>
-#else
 fromFold :: forall m a b. (MonadIO m, Unbox a) =>
-#endif
     Fold.Fold m a b -> ChunkFold m a b
 fromFold (Fold.Fold fstep finitial fextract) =
     ChunkFold (ParserD.Parser step initial (fmap (Done 0) . fextract))
@@ -140,11 +138,7 @@ fromFold (Fold.Fold fstep finitial fextract) =
 --
 -- /Pre-release/
 {-# INLINE fromParserD #-}
-#ifdef DEVBUILD
-fromParserD :: forall m a b. (MonadIO m) =>
-#else
 fromParserD :: forall m a b. (MonadIO m, Unbox a) =>
-#endif
     ParserD.Parser a m b -> ChunkFold m a b
 fromParserD (ParserD.Parser step1 initial1 extract1) =
     ChunkFold (ParserD.Parser step initial1 extract1)
@@ -186,11 +180,7 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
 --
 -- /Pre-release/
 {-# INLINE fromParser #-}
-#ifdef DEVBUILD
-fromParser :: forall m a b. (MonadIO m) =>
-#else
 fromParser :: forall m a b. (MonadIO m, Unbox a) =>
-#endif
     Parser.Parser a m b -> ChunkFold m a b
 fromParser = fromParserD . ParserD.fromParserK
 

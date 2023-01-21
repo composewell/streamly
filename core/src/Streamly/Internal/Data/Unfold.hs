@@ -292,7 +292,6 @@ import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Prelude
 
 import Streamly.Internal.Data.Unfold.Enumeration
@@ -604,8 +603,8 @@ fromStreamK = Unfold step pure
             Nothing -> Stop) <$> K.uncons stream
 
 {-# INLINE fromStream #-}
-fromStream :: Applicative m => Unfold m (Stream.Stream m a) a
-fromStream = lmap Stream.toStreamK fromStreamK
+fromStream :: Applicative m => Unfold m (Stream m a) a
+fromStream = fromStreamD
 
 -------------------------------------------------------------------------------
 -- Unfolds

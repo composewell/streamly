@@ -16,6 +16,12 @@ cradle:
       config:
         cradle:
           cabal:
+            - path: "./benchmark/Streamly/Benchmark/Data/Array.hs"
+              component: "bench:Data.Array"
+            - path: "./benchmark/Streamly/Benchmark/Data/Array/Generic.hs"
+              component: "bench:Data.Array.Generic"
+            - path: "./benchmark/Streamly/Benchmark/Data/Array/Mut.hs"
+              component: "bench:Data.Array.Mut"
             - path: "./benchmark/Streamly/Benchmark/Data/Array/Stream.hs"
               component: "bench:Data.Array.Stream"
             - path: "./benchmark/Streamly/Benchmark/Data/Fold.hs"
@@ -34,11 +40,15 @@ cradle:
               component: "bench:Data.Stream.ToStreamK"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/Common.hs"
               component: "bench:Data.Stream"
+            - path: "./benchmark/Streamly/Benchmark/Data/Stream/Eliminate.hs"
+              component: "bench:Data.Stream"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/Expand.hs"
               component: "bench:Data.Stream"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/Exceptions.hs"
               component: "bench:Data.Stream"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/Generate.hs"
+              component: "bench:Data.Stream"
+            - path: "./benchmark/Streamly/Benchmark/Data/Stream/Lift.hs"
               component: "bench:Data.Stream"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/Reduce.hs"
               component: "bench:Data.Stream"

@@ -3,6 +3,10 @@ module Targets
     )
 where
 
+-- Special tags
+-- noTest
+-- noBench
+-- testDevOnly
 targets :: [(String, [String])]
 targets =
     [ -- Base streams
@@ -19,10 +23,14 @@ targets =
             ]
       )
 
+{-
+    -- XXX Need devOnly flag support in BenchRunner
     , ("Data.Stream.ToStreamK",
             [ "noTest"
+            , "devOnly"
             ]
       )
+-}
 
     -- Streams
     , ("Data.Stream",
@@ -30,6 +38,12 @@ targets =
             , "infinite_grp"
             , "serial_wserial_cmp"
             , "serial_async_cmp"
+            , "noTest"
+            ]
+      )
+    , ("Data.Stream.StreamDK",
+            [ "prelude_serial_grp"
+            , "infinite_grp"
             , "noTest"
             ]
       )
@@ -66,78 +80,79 @@ targets =
             , "infinite_grp"
             ]
       )
-    , ("Prelude.Serial",
-            [ "prelude_serial_grp"
-            , "infinite_grp"
-            , "serial_wserial_cmp"
-            , "noBench"
-            ]
-      )
-    , ("Prelude.Top",
-            [ "prelude_serial_grp"
-            , "infinite_grp"
-            , "noBench"
-            ]
-      )
-    , ("Prelude.WSerial",
-            [ "prelude_serial_grp"
-            , "infinite_grp"
-            , "serial_wserial_cmp"
-            ]
-      )
-    , ("Prelude.Merge",
-            [ "prelude_serial_grp"
-            , "infinite_grp"
-            , "noTest"
-            ]
-      )
-    , ("Prelude.ZipSerial",
-            [ "prelude_serial_grp"
-            , "infinite_grp"
-            ]
-      )
-    , ("Prelude.Async",
-            [ "prelude_concurrent_grp"
-            , "infinite_grp"
-            , "concurrent_cmp"
-            , "serial_async_cmp"
-            ]
-      )
-    , ("Prelude.WAsync",
-            [ "prelude_concurrent_grp"
-            , "infinite_grp"
-            , "concurrent_cmp"
-            ]
-      )
-    , ("Prelude.Ahead",
-            [ "prelude_concurrent_grp"
-            , "infinite_grp"
-            , "concurrent_cmp"
-            ]
-      )
-    , ("Prelude.Parallel",
-            [ "prelude_concurrent_grp"
-            , "infinite_grp"
-            , "concurrent_cmp"
-            ]
-      )
-    , ("Prelude.ZipAsync",
-            [ "prelude_concurrent_grp"
-            , "infinite_grp"
-            ]
-      )
-    , ("Prelude.Concurrent", [ "prelude_other_grp" ])
-    , ("Prelude.Rate",
-            [ "prelude_other_grp"
-            , "infinite_grp"
-            , "testDevOnly"
-            ]
-      )
-    , ("Prelude.Adaptive",
-            [ "prelude_other_grp"
-            , "noTest"
-            ]
-      )
+    -- Enabled only when use-prelude flag is set
+    -- , ("Prelude.Serial",
+    --         [ "prelude_serial_grp"
+    --         , "infinite_grp"
+    --         , "serial_wserial_cmp"
+    --         , "noBench"
+    --         ]
+    --   )
+    -- , ("Prelude.Top",
+    --         [ "prelude_serial_grp"
+    --         , "infinite_grp"
+    --         , "noBench"
+    --         ]
+    --   )
+    -- , ("Prelude.WSerial",
+    --         [ "prelude_serial_grp"
+    --         , "infinite_grp"
+    --         , "serial_wserial_cmp"
+    --         ]
+    --   )
+    -- , ("Prelude.Merge",
+    --         [ "prelude_serial_grp"
+    --         , "infinite_grp"
+    --         , "noTest"
+    --         ]
+    --   )
+    -- , ("Prelude.ZipSerial",
+    --         [ "prelude_serial_grp"
+    --         , "infinite_grp"
+    --         ]
+    --   )
+    -- , ("Prelude.Async",
+    --         [ "prelude_concurrent_grp"
+    --         , "infinite_grp"
+    --         , "concurrent_cmp"
+    --         , "serial_async_cmp"
+    --         ]
+    --   )
+    -- , ("Prelude.WAsync",
+    --         [ "prelude_concurrent_grp"
+    --         , "infinite_grp"
+    --         , "concurrent_cmp"
+    --         ]
+    --   )
+    -- , ("Prelude.Ahead",
+    --         [ "prelude_concurrent_grp"
+    --         , "infinite_grp"
+    --         , "concurrent_cmp"
+    --         ]
+    --   )
+    -- , ("Prelude.Parallel",
+    --         [ "prelude_concurrent_grp"
+    --         , "infinite_grp"
+    --         , "concurrent_cmp"
+    --         ]
+    --   )
+    -- , ("Prelude.ZipAsync",
+    --         [ "prelude_concurrent_grp"
+    --         , "infinite_grp"
+    --         ]
+    --   )
+    -- , ("Prelude.Concurrent", [ "prelude_other_grp" ])
+    -- , ("Prelude.Rate",
+    --         [ "prelude_other_grp"
+    --         , "infinite_grp"
+    --         , "testDevOnly"
+    --         ]
+    --   )
+    -- , ("Prelude.Adaptive",
+    --         [ "prelude_other_grp"
+    --         , "noTest"
+    --         ]
+    --   )
 
     -- Arrays
     , ("Data.Array.Generic",
@@ -185,8 +200,8 @@ targets =
     , ("Unicode.Char", ["testDevOnly"])
 
     -- test only, no benchmarks
-    , ("Prelude", ["prelude_other_grp", "noBench"])
-    , ("Prelude.Fold", ["prelude_other_grp", "noBench"])
+    -- , ("Prelude", ["prelude_other_grp", "noBench"])
+    -- , ("Prelude.Fold", ["prelude_other_grp", "noBench"])
     , ("FileSystem.Event", ["noBench"])
     , ("Network.Socket", ["noBench"])
     , ("Network.Inet.TCP", ["noBench"])

@@ -30,8 +30,8 @@
 -- it to IO monad as follows:
 --
 -- >>> import Data.Functor.Identity (Identity, runIdentity)
--- >>> s = Stream.fromList [1..10] :: Stream Identity Int
--- >>> s1 = Stream.hoist (return . runIdentity) s :: Stream IO Int
+-- >>> s = Stream.fromList [1..10] :: SerialT Identity Int
+-- >>> s1 = Stream.hoist (return . runIdentity) s :: SerialT IO Int
 -- >>> Stream.fold Array.write s1 :: IO (Array Int)
 -- fromList [1,2,3,4,5,6,7,8,9,10]
 --
@@ -102,7 +102,7 @@ import Streamly.Internal.Data.Array as A
 -- >>> :set -fno-warn-deprecations
 -- >>> :set -XFlexibleContexts
 -- >>> :set -package streamly
--- >>> import Streamly.Internal.Data.Stream (Stream)
+-- >>> import Streamly.Prelude (SerialT)
 -- >>> import Streamly.Data.Array (Array)
 -- >>> import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 -- >>> import qualified Streamly.Data.Array as Array
