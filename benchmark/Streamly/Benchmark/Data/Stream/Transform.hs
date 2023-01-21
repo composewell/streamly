@@ -26,31 +26,46 @@
 
 module Stream.Transform (benchmarks) where
 
-import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Functor.Identity (Identity(..))
 
 import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as FL
 
-import qualified Prelude
 import qualified Stream.Common as Common
-import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as Unfold
+
 #ifdef USE_PRELUDE
+import Control.DeepSeq (NFData(..))
+import Data.Functor.Identity (Identity(..))
+import qualified Prelude
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import Streamly.Internal.Data.Time.Units
 #else
+import Streamly.Internal.Data.Stream.StreamD (Stream)
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+#ifndef USE_STREAMLY_CORE
 import qualified Streamly.Internal.Data.Stream.Time as Stream
-import qualified Streamly.Internal.Data.Stream as Stream
+#endif
+#ifdef USE_STREAMK
+import Control.DeepSeq (NFData(..))
+import Data.Functor.Identity (Identity(..))
+import qualified Prelude
+import qualified Streamly.Internal.Data.Fold as Fold
+import Streamly.Internal.Data.Stream.StreamK (StreamK)
+import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+#endif
 #endif
 
 import Gauge
-import Streamly.Internal.Data.Stream (Stream)
 import Stream.Common hiding (scanl')
 import Streamly.Benchmark.Common
 import Prelude hiding (sequence, mapM)
+
+#ifdef USE_PRELUDE
+type Stream = Stream.SerialT
+#endif
 
 -------------------------------------------------------------------------------
 -- Pipelines (stream-to-stream transformations)
@@ -64,32 +79,36 @@ import Prelude hiding (sequence, mapM)
 -- Traversable Instance
 -------------------------------------------------------------------------------
 
+#ifdef USE_STREAMK
 {-# INLINE traversableTraverse #-}
-traversableTraverse :: Stream Identity Int -> IO (Stream Identity Int)
+traversableTraverse :: StreamK Identity Int -> IO (StreamK Identity Int)
 traversableTraverse = traverse return
 
 {-# INLINE traversableSequenceA #-}
-traversableSequenceA :: Stream Identity Int -> IO (Stream Identity Int)
+traversableSequenceA :: StreamK Identity Int -> IO (StreamK Identity Int)
 traversableSequenceA = sequenceA . Prelude.fmap return
 
 {-# INLINE traversableMapM #-}
-traversableMapM :: Stream Identity Int -> IO (Stream Identity Int)
+traversableMapM :: StreamK Identity Int -> IO (StreamK Identity Int)
 traversableMapM = Prelude.mapM return
 
 {-# INLINE traversableSequence #-}
-traversableSequence :: Stream Identity Int -> IO (Stream Identity Int)
+traversableSequence :: StreamK Identity Int -> IO (StreamK Identity Int)
 traversableSequence = Prelude.sequence . Prelude.fmap return
 
 {-# INLINE benchPureSinkIO #-}
 benchPureSinkIO
     :: NFData b
-    => Int -> String -> (Stream Identity Int -> IO b) -> Benchmark
+    => Int -> String -> (StreamK Identity Int -> IO b) -> Benchmark
 benchPureSinkIO value name f =
-    bench name $ nfIO $ randomRIO (1, 1) >>= f . sourceUnfoldr value
+    bench name
+        $ nfIO $ randomRIO (1, 1) >>= f . fromStream . sourceUnfoldr value
 
-instance NFData a => NFData (Stream Identity a) where
+instance NFData a => NFData (StreamK Identity a) where
     {-# INLINE rnf #-}
-    rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
+    rnf xs =
+        runIdentity
+            $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) (toStream xs)
 
 o_n_space_traversable :: Int -> [Benchmark]
 o_n_space_traversable value =
@@ -102,6 +121,7 @@ o_n_space_traversable value =
         , benchPureSinkIO value "sequence" traversableSequence
         ]
     ]
+#endif
 
 -------------------------------------------------------------------------------
 -- maps and scans
@@ -166,13 +186,21 @@ timestamped :: (MonadAsync m) => Stream m Int -> m ()
 timestamped = Stream.drain . Stream.timestamped
 #endif
 
+#ifdef USE_STREAMK
 {-# INLINE foldrS #-}
 foldrS :: MonadIO m => Int -> Stream m Int -> m ()
-foldrS n = composeN n $ Stream.foldrS Stream.cons Stream.nil
+foldrS n =
+    composeN n (toStream . StreamK.foldrS StreamK.cons StreamK.nil . fromStream)
 
 {-# INLINE foldrSMap #-}
 foldrSMap :: MonadIO m => Int -> Stream m Int -> m ()
-foldrSMap n = composeN n $ Stream.foldrS (\x xs -> x + 1 `Stream.cons` xs) Stream.nil
+foldrSMap n =
+    composeN n
+        ( toStream
+        . StreamK.foldrS (\x xs -> x + 1 `StreamK.cons` xs) StreamK.nil
+        . fromStream
+        )
+#endif
 
 {-
 {-# INLINE foldrT #-}
@@ -195,14 +223,17 @@ o_1_space_mapping value =
     [ bgroup
         "mapping"
         [
+#ifdef USE_STREAMK
         -- Right folds
           benchIOSink value "foldrS" (foldrS 1)
         , benchIOSink value "foldrSMap" (foldrSMap 1)
+        ,
+#endif
         -- , benchIOSink value "foldrT" (foldrT 1)
         -- , benchIOSink value "foldrTMap" (foldrTMap 1)
 
         -- Mapping
-        , benchIOSink value "map" (mapN 1)
+          benchIOSink value "map" (mapN 1)
         , bench "sequence" $ nfIO $ randomRIO (1, 1000) >>= \n ->
               sequence (sourceUnfoldrAction value n)
         , benchIOSink value "mapM" (mapM 1)
@@ -274,6 +305,73 @@ o_1_space_functor value =
     ]
 
 -------------------------------------------------------------------------------
+-- Iteration/looping utilities
+-------------------------------------------------------------------------------
+
+{-# INLINE iterateN #-}
+iterateN :: (Int -> a -> a) -> a -> Int -> a
+iterateN g initial count = f count initial
+
+    where
+
+    f (0 :: Int) x = x
+    f i x = f (i - 1) (g i x)
+
+#ifdef USE_STREAMK
+-- Iterate a transformation over a singleton stream
+{-# INLINE iterateSingleton #-}
+iterateSingleton :: Applicative m =>
+       (Int -> StreamK m Int -> StreamK m Int)
+    -> Int
+    -> Int
+    -> Stream m Int
+iterateSingleton g count n = toStream $ iterateN g (StreamK.fromPure n) count
+#else
+-- Iterate a transformation over a singleton stream
+{-# INLINE iterateSingleton #-}
+iterateSingleton :: Applicative m =>
+       (Int -> Stream m Int -> Stream m Int)
+    -> Int
+    -> Int
+    -> Stream m Int
+iterateSingleton g count n = iterateN g (Stream.fromPure n) count
+#endif
+
+{-
+-- XXX need to check why this is slower than the explicit recursion above, even
+-- if the above code is written in a foldr like head recursive way. We also
+-- need to try this with foldlM' once #150 is fixed.
+-- However, it is perhaps best to keep the iteration benchmarks independent of
+-- foldrM and any related fusion issues.
+{-# INLINE _iterateSingleton #-}
+_iterateSingleton ::
+       Monad m
+    => (Int -> Stream m Int -> Stream m Int)
+    -> Int
+    -> Int
+    -> Stream m Int
+_iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
+-}
+
+o_n_space_iterated :: Int -> [Benchmark]
+o_n_space_iterated value =
+    [ bgroup "iterated"
+        [ benchIO "(+) (n times) (baseline)" $ \i0 ->
+            iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
+        , benchIOSrc "(<$) (n times)" $
+            iterateSingleton (<$) value
+        , benchIOSrc "fmap (n times)" $
+            iterateSingleton (fmap . (+)) value
+        {-
+        , benchIOSrc fromSerial "_(<$) (n times)" $
+            _iterateSingleton (<$) value
+        , benchIOSrc fromSerial "_fmap (n times)" $
+            _iterateSingleton (fmap . (+)) value
+        -}
+        ]
+    ]
+
+-------------------------------------------------------------------------------
 -- Size reducing transformations (filtering)
 -------------------------------------------------------------------------------
 
@@ -317,6 +415,7 @@ takeWhileTrue value n = composeN n $ Stream.takeWhile (<= (value + 1))
 takeWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeWhileMTrue value n = composeN n $ Stream.takeWhileM (return . (<= (value + 1)))
 
+#if !defined(USE_STREAMLY_CORE) && !defined(USE_PRELUDE)
 {-# INLINE takeInterval #-}
 takeInterval :: Double -> Int -> Stream IO Int -> IO ()
 takeInterval i n = composeN n (Stream.takeInterval i)
@@ -327,6 +426,18 @@ takeInterval i n = composeN n (Stream.takeInterval i)
 -- inspect $ hasNoType 'takeInterval ''SPEC
 -- inspect $ hasNoTypeClasses 'takeInterval
 -- inspect $ 'takeInterval `hasNoType` ''D.Step
+#endif
+
+{-# INLINE dropInterval #-}
+dropInterval :: Double -> Int -> Stream IO Int -> IO ()
+dropInterval i n = composeN n (Stream.dropInterval i)
+
+-- Inspection testing is disabled for dropInterval
+-- Enable it when looking at it throughly
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'dropInterval
+-- inspect $ 'dropInterval `hasNoType` ''D.Step
+#endif
 #endif
 
 {-# INLINE dropOne #-}
@@ -354,17 +465,6 @@ dropWhileFalse value n = composeN n $ Stream.dropWhile (> (value + 1))
 {-# INLINE _intervalsOfSum #-}
 _intervalsOfSum :: MonadAsync m => Double -> Int -> Stream m Int -> m ()
 _intervalsOfSum i n = composeN n (Stream.intervalsOf i FL.sum)
-#endif
-
-{-# INLINE dropInterval #-}
-dropInterval :: Double -> Int -> Stream IO Int -> IO ()
-dropInterval i n = composeN n (Stream.dropInterval i)
-
--- Inspection testing is disabled for dropInterval
--- Enable it when looking at it throughly
-#ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'dropInterval
--- inspect $ 'dropInterval `hasNoType` ''D.Step
 #endif
 
 {-# INLINE findIndices #-}
@@ -421,8 +521,10 @@ o_1_space_filtering value =
      -- , benchIOSink value "takeWhileM-true" (_takeWhileMTrue value 1)
         , benchIOSink value "drop-one" (dropOne 1)
         , benchIOSink value "drop-all" (dropAll value 1)
+#if !defined(USE_STREAMLY_CORE) && !defined(USE_PRELUDE)
         , benchIOSink value "takeInterval-all" (takeInterval 10000 1)
         , benchIOSink value "dropInterval-all" (dropInterval 10000 1)
+#endif
         , benchIOSink value "dropWhile-true" (dropWhileTrue value 1)
      -- , benchIOSink value "dropWhileM-true" (_dropWhileMTrue value 1)
         , benchIOSink
@@ -574,7 +676,12 @@ benchmarks moduleName size =
             , o_1_space_indexingX4 size
             ]
         , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
-            [ o_n_space_traversable size
-            , o_n_space_mapping size
+            [
+#ifdef USE_STREAMK
+              o_n_space_traversable size
+            ,
+#endif
+              o_n_space_mapping size
+            , o_n_space_iterated size
             ]
         ]

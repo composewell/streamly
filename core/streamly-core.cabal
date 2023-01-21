@@ -317,32 +317,15 @@ library
                      , Streamly.Internal.Data.Parser.Chunked.Type
                      , Streamly.Internal.Data.Parser.Chunked
                      , Streamly.Internal.Data.Pipe
-                     , Streamly.Internal.Data.Stream.Type
-                     , Streamly.Internal.Data.Stream.Eliminate
-                     , Streamly.Internal.Data.Stream.Enumerate
-                     , Streamly.Internal.Data.Stream.Generate
-                     , Streamly.Internal.Data.Stream.Transform
-                     , Streamly.Internal.Data.Stream.Bottom
-                     , Streamly.Internal.Data.Stream.Exception
-                     , Streamly.Internal.Data.Stream.Expand
-                     , Streamly.Internal.Data.Stream.Lift
-                     , Streamly.Internal.Data.Stream.Reduce
-                     , Streamly.Internal.Data.Stream.Top
 
                      -- streamly-transformers (non-base)
                      , Streamly.Internal.Data.Stream.StreamD.Transformer
                      , Streamly.Internal.Data.Stream.StreamK.Transformer
-                     , Streamly.Internal.Data.Stream.Transformer
 
                      -- streamly-containers (non-base)
-                     , Streamly.Internal.Data.Stream.Container
                      , Streamly.Internal.Data.Fold.Container
 
-                     , Streamly.Internal.Data.Stream
                      , Streamly.Internal.Data.Stream.Chunked
-                     , Streamly.Internal.Data.Stream.Zip
-                     , Streamly.Internal.Data.Stream.Cross
-                     , Streamly.Internal.Data.List
 
                      -- streamly-core-data-arrays
                      , Streamly.Internal.Data.Array.Generic
@@ -405,6 +388,7 @@ library
                      , Streamly.Data.Fold
                      , Streamly.Data.Parser
                      , Streamly.Data.Stream
+                     , Streamly.Data.Stream.StreamK
                      , Streamly.Data.Unfold
                      , Streamly.FileSystem.Dir
                      , Streamly.FileSystem.File
@@ -413,12 +397,27 @@ library
                      , Streamly.Unicode.Stream
                      , Streamly.Unicode.String
 
-    other-modules: Streamly.Data.Stream.Zip
-
     if flag(dev)
       exposed-modules:
-                        Streamly.Internal.Data.Stream.StreamDK
-                      , Streamly.Internal.Data.Stream.StreamDK.Type
+                        Streamly.Internal.Data.Stream.StreamK.Alt
+                      , Streamly.Internal.Data.Stream.Type
+                      , Streamly.Internal.Data.Stream.Eliminate
+                      , Streamly.Internal.Data.Stream.Enumerate
+                      , Streamly.Internal.Data.Stream.Generate
+                      , Streamly.Internal.Data.Stream.Transform
+                      , Streamly.Internal.Data.Stream.Bottom
+                      , Streamly.Internal.Data.Stream.Exception
+                      , Streamly.Internal.Data.Stream.Expand
+                      , Streamly.Internal.Data.Stream.Lift
+                      , Streamly.Internal.Data.Stream.Reduce
+                      , Streamly.Internal.Data.Stream.Top
+                      , Streamly.Internal.Data.Stream.Transformer
+                      , Streamly.Internal.Data.Stream.Container
+                      , Streamly.Internal.Data.Stream.StreamDK
+                      , Streamly.Internal.Data.Stream.Zip
+                      , Streamly.Internal.Data.Stream.Cross
+                      , Streamly.Internal.Data.List
+                      , Streamly.Data.Stream.Zip
 
     build-depends:
                     -- streamly-base

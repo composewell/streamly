@@ -257,8 +257,8 @@ import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-    (transform, foldrT, tap, tapOffsetEvery, mapM, scanOnce
-    , scanMany, postscanOnce, scanlx', scanlM', scanl', postscanl', prescanl'
+    (transform, foldrT, tap, tapOffsetEvery, mapM, scan
+    , scanMany, postscan, scanlx', scanlM', scanl', postscanl', prescanl'
     , prescanlM', scanl1M', scanl1', filter, filterM, uniq, deleteBy, takeWhileM
     , dropWhile, dropWhileM, insertBy, intersperse
     , intersperseM_, intersperseMSuffix, intersperseMSuffix_
@@ -631,7 +631,7 @@ trace_ eff = fromStreamD . D.mapM (\x -> eff >> return x) . toStreamD
 -- @since 0.7.0
 {-# INLINE scan #-}
 scan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-scan fld m = fromStreamD $ D.scanOnce fld $ toStreamD m
+scan fld m = fromStreamD $ D.scan fld $ toStreamD m
 
 -- | Like 'scan' but restarts scanning afresh when the scanning fold
 -- terminates.
@@ -659,7 +659,7 @@ scanMany fld m = fromStreamD $ D.scanMany fld $ toStreamD m
 -- @since 0.7.0
 {-# INLINE postscan #-}
 postscan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-postscan fld = fromStreamD . D.postscanOnce fld . toStreamD
+postscan fld = fromStreamD . D.postscan fld . toStreamD
 
 ------------------------------------------------------------------------------
 -- Scanning - Transformation by Folding

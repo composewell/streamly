@@ -27,14 +27,15 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Mapping Effects
     , tap
     , tapOffsetEvery
+    , trace
 
     -- * Folding
     , foldrS
     , foldlS
 
     -- * Scanning By 'Fold'
-    , postscanOnce -- XXX rename to postscan
-    , scanOnce     -- XXX rename to scan
+    , postscan
+    , scan
     , scanMany
 
     -- * Scanning
@@ -91,18 +92,30 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- * Inserting Side Effects
     , intersperseM_
     , intersperseMSuffix_
+    , intersperseMPrefix_
+
+    , delay
+    , delayPre
+    , delayPost
 
     -- * Reordering
     -- | Produce strictly the same set but reordered.
     , reverse
-    -- , reverse'
+    , reverseUnbox
 
     -- * Position Indexing
     , indexed
     , indexedR
 
+    -- * Time Indexing
+    , timestampWith
+    , timestamped
+    , timeIndexWith
+    , timeIndexed
+
     -- * Searching
     , findIndices
+    , elemIndices
     , slicesBy
 
     -- * Rolling map
@@ -115,26 +128,42 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , mapMaybe
     , mapMaybeM
     , catMaybes
+
+    -- * Either Streams
+    , catLefts
+    , catRights
+    , catEithers
     )
 where
 
 #include "inline.hs"
 
+import Control.Concurrent (threadDelay)
 import Control.Monad (void)
+import Control.Monad.IO.Class (MonadIO (liftIO))
+import Data.Either (fromLeft, isLeft, isRight, fromRight)
 import Data.Maybe (fromJust, isJust)
 import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
+import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
+import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Internal.Data.Fold.Type as FL
+-- import qualified Data.List as List
+import qualified Streamly.Internal.Data.Array.Type as A
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding
        ( drop, dropWhile, filter, map, mapM, reverse
-       , scanl, scanl1, sequence, take, takeWhile)
+       , scanl, scanl1, sequence, take, takeWhile, zipWith)
 
+import Streamly.Internal.Data.Stream.StreamD.Generate
+    (absTimesWith, relTimesWith)
 import Streamly.Internal.Data.Stream.StreamD.Type
 
 ------------------------------------------------------------------------------
@@ -301,15 +330,29 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
                   Skip s -> Skip (TapOffDone s)
                   Stop -> Stop
 
+-- | Apply a monadic function to each element flowing through the stream and
+-- discard the results.
+--
+-- >>> s = Stream.enumerateFromTo 1 2
+-- >>> Stream.fold Fold.drain $ Stream.trace print s
+-- 1
+-- 2
+--
+-- Compare with 'tap'.
+--
+{-# INLINE trace #-}
+trace :: Monad m => (a -> m b) -> Stream m a -> Stream m a
+trace f = mapM (\x -> void (f x) >> return x)
+
 ------------------------------------------------------------------------------
 -- Scanning with a Fold
 ------------------------------------------------------------------------------
 
 data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 
-{-# INLINE_NORMAL postscanOnce #-}
-postscanOnce :: Monad m => FL.Fold m a b -> Stream m a -> Stream m b
-postscanOnce (FL.Fold fstep initial extract) (Stream sstep state) =
+{-# INLINE_NORMAL postscan #-}
+postscan :: Monad m => FL.Fold m a b -> Stream m a -> Stream m b
+postscan (FL.Fold fstep initial extract) (Stream sstep state) =
     Stream step (ScanInit state)
 
     where
@@ -364,10 +407,10 @@ scanWith restart (Fold fstep initial extract) (Stream sstep state) =
             Stop -> return Stop
     step _ ScanDone = return Stop
 
-{-# INLINE scanOnce #-}
-scanOnce :: Monad m
+{-# INLINE scan #-}
+scan :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
-scanOnce = scanWith False
+scan = scanWith False
 
 {-# INLINE scanMany #-}
 scanMany :: Monad m
@@ -910,21 +953,111 @@ intersperseMSuffixWith n action (Stream step state) =
 
     step' _ SuffixSpanStop = return Stop
 
+-- | Insert a side effect before consuming an element of a stream.
+--
+-- Definition:
+--
+-- >>> intersperseMPrefix_ m = Stream.mapM (\x -> void m >> return x)
+--
+-- >>> input = Stream.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseMPrefix_ (putChar '.' >> return ',') input
+-- .h.e.l.l.o"hello"
+--
+-- Same as 'trace_'.
+--
+-- /Pre-release/
+--
+{-# INLINE intersperseMPrefix_ #-}
+intersperseMPrefix_ :: Monad m => m b -> Stream m a -> Stream m a
+intersperseMPrefix_ m = mapM (\x -> void m >> return x)
+
+------------------------------------------------------------------------------
+-- Inserting Time
+------------------------------------------------------------------------------
+
+-- XXX This should be in Prelude, should we export this as a helper function?
+
+-- | Block the current thread for specified number of seconds.
+{-# INLINE sleep #-}
+sleep :: MonadIO m => Double -> m ()
+sleep n = liftIO $ threadDelay $ round $ n * 1000000
+
+-- | Introduce a delay of specified seconds between elements of the stream.
+--
+-- Definition:
+--
+-- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
+-- >>> delay = Stream.intersperseM_ . sleep
+--
+-- Example:
+--
+-- >>> input = Stream.enumerateFromTo 1 3
+-- >>> Stream.fold (Fold.drainMapM print) $ Stream.delay 1 input
+-- 1
+-- 2
+-- 3
+--
+{-# INLINE delay #-}
+delay :: MonadIO m => Double -> Stream m a -> Stream m a
+delay = intersperseM_ . sleep
+
+-- | Introduce a delay of specified seconds after consuming an element of a
+-- stream.
+--
+-- Definition:
+--
+-- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
+-- >>> delayPost = Stream.intersperseMSuffix_ . sleep
+--
+-- Example:
+--
+-- >>> input = Stream.enumerateFromTo 1 3
+-- >>> Stream.fold (Fold.drainMapM print) $ Stream.delayPost 1 input
+-- 1
+-- 2
+-- 3
+--
+-- /Pre-release/
+--
+{-# INLINE delayPost #-}
+delayPost :: MonadIO m => Double -> Stream m a -> Stream m a
+delayPost n = intersperseMSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
+
+-- | Introduce a delay of specified seconds before consuming an element of a
+-- stream.
+--
+-- Definition:
+--
+-- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
+-- >>> delayPre = Stream.intersperseMPrefix_. sleep
+--
+-- Example:
+--
+-- >>> input = Stream.enumerateFromTo 1 3
+-- >>> Stream.fold (Fold.drainMapM print) $ Stream.delayPre 1 input
+-- 1
+-- 2
+-- 3
+--
+-- /Pre-release/
+--
+{-# INLINE delayPre #-}
+delayPre :: MonadIO m => Double -> Stream m a -> Stream m a
+delayPre = intersperseMPrefix_. sleep
+
 ------------------------------------------------------------------------------
 -- Reordering
 ------------------------------------------------------------------------------
 
--- We can implement reverse as:
+-- |
 --
--- > reverse = foldlS (flip cons) nil
+-- Definition:
 --
--- However, this implementation is unusable because of the horrible performance
--- of cons. So we just convert it to a list first and then stream from the
--- list.
---
--- XXX Maybe we can use an Array instead of a list here?
+-- >>> reverse m = concatEffect $ fold FL.toListRev m >>= return . fromList
 {-# INLINE_NORMAL reverse #-}
 reverse :: Monad m => Stream m a -> Stream m a
+reverse m = concatEffect $ fold FL.toListRev m >>= return . fromList
+{-
 reverse m = Stream step Nothing
     where
     {-# INLINE_LATE step #-}
@@ -933,39 +1066,21 @@ reverse m = Stream step Nothing
         return $ Skip (Just xs)
     step _ (Just (x:xs)) = return $ Yield x (Just xs)
     step _ (Just []) = return Stop
-
--- Much faster reverse for Storables
-{-
-{-# INLINE_NORMAL reverse' #-}
-reverse' :: forall m a. (MonadIO m, Storable a) => Stream m a -> Stream m a
--- This commented implementation copies the whole stream into one single array
--- and then streams from that array, this has exactly the same performance as
--- the chunked code in IsStream.Common.reverse' .  Though this could be problematic due to
--- unbounded large allocations. However, if we use an idiomatic implementation
--- of arraysOf instead of the custom implementation then the chunked code
--- becomes worse by 6 times. Need to investigate if that can be improved.
-import Foreign.ForeignPtr (touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (Ptr, plusPtr)
-import Streamly.Internal.Data.Array.Mut.Type (sizeOfElem)
-reverse' m = Stream step Nothing
-    where
-    {-# INLINE_LATE step #-}
-    step _ Nothing = do
-        arr <- A.fromStreamD m
-        let p = A.arrEnd arr `plusPtr` negate (sizeOfElem (undefined :: a))
-        return $ Skip $ Just (A.aStart arr, p)
-
-    step _ (Just (start, p)) | p < unsafeForeignPtrToPtr start = return Stop
-
-    step _ (Just (start, p)) = do
-        let !x = A.unsafeInlineIO $ do
-                    r <- peek p
-                    touchForeignPtr start
-                    return r
-            next = p `plusPtr` negate (sizeOfElem (undefined :: a))
-        return $ Yield x (Just (start, next))
 -}
+
+-- | Like 'reverse' but several times faster, requires an 'Unbox' instance.
+--
+-- /O(n) space/
+--
+-- /Pre-release/
+{-# INLINE reverseUnbox #-}
+reverseUnbox :: (MonadIO m, Unbox a) => Stream m a -> Stream m a
+reverseUnbox =
+    A.flattenArraysRev -- unfoldMany A.readRev
+        . fromStreamK
+        . K.reverse
+        . toStreamK
+        . A.arraysOf defaultChunkSize
 
 ------------------------------------------------------------------------------
 -- Position Indexing
@@ -998,6 +1113,68 @@ indexedR m (Stream step state) = Stream step' (state, m)
              Skip    s -> return $ Skip (s, i)
              Stop      -> return Stop
 
+-------------------------------------------------------------------------------
+-- Time Indexing
+-------------------------------------------------------------------------------
+
+-- Note: The timestamp stream must be the second stream in the zip so that the
+-- timestamp is generated after generating the stream element and not before.
+-- If we do not do that then the following example will generate the same
+-- timestamp for first two elements:
+--
+-- Stream.fold Fold.toList $ Stream.timestamped $ Stream.delay $ Stream.enumerateFromTo 1 3
+--
+-- | Pair each element in a stream with an absolute timestamp, using a clock of
+-- specified granularity.  The timestamp is generated just before the element
+-- is consumed.
+--
+-- >>> Stream.fold Fold.toList $ Stream.timestampWith 0.01 $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- [(AbsTime (TimeSpec {sec = ..., nsec = ...}),1),(AbsTime (TimeSpec {sec = ..., nsec = ...}),2),(AbsTime (TimeSpec {sec = ..., nsec = ...}),3)]
+--
+-- /Pre-release/
+--
+{-# INLINE timestampWith #-}
+timestampWith :: (MonadIO m)
+    => Double -> Stream m a -> Stream m (AbsTime, a)
+timestampWith g stream = zipWith (flip (,)) stream (absTimesWith g)
+
+-- TBD: check performance vs a custom implementation without using zipWith.
+--
+-- /Pre-release/
+--
+{-# INLINE timestamped #-}
+timestamped :: (MonadIO m)
+    => Stream m a -> Stream m (AbsTime, a)
+timestamped = timestampWith 0.01
+
+-- | Pair each element in a stream with relative times starting from 0, using a
+-- clock with the specified granularity. The time is measured just before the
+-- element is consumed.
+--
+-- >>> Stream.fold Fold.toList $ Stream.timeIndexWith 0.01 $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- [(RelTime64 (NanoSecond64 ...),1),(RelTime64 (NanoSecond64 ...),2),(RelTime64 (NanoSecond64 ...),3)]
+--
+-- /Pre-release/Monad
+--
+{-# INLINE timeIndexWith #-}
+timeIndexWith :: (MonadIO m)
+    => Double -> Stream m a -> Stream m (RelTime64, a)
+timeIndexWith g stream = zipWith (flip (,)) stream (relTimesWith g)
+
+-- | Pair each element in a stream with relative times starting from 0, using a
+-- 10 ms granularity clock. The time is measured just before the element is
+-- consumed.
+--
+-- >>> Stream.fold Fold.toList $ Stream.timeIndexed $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
+-- [(RelTime64 (NanoSecond64 ...),1),(RelTime64 (NanoSecond64 ...),2),(RelTime64 (NanoSecond64 ...),3)]
+--
+-- /Pre-release/
+--
+{-# INLINE timeIndexed #-}
+timeIndexed :: (MonadIO m)
+    => Stream m a -> Stream m (RelTime64, a)
+timeIndexed = timeIndexWith 0.01
+
 ------------------------------------------------------------------------------
 -- Searching
 ------------------------------------------------------------------------------
@@ -1013,6 +1190,15 @@ findIndices p (Stream step state) = Stream step' (state, 0)
           Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
           Skip s -> Skip (s, i)
           Stop   -> Stop
+
+-- | Find all the indices where the value of the element in the stream is equal
+-- to the given value.
+--
+-- >>> elemIndices a = Stream.findIndices (== a)
+--
+{-# INLINE elemIndices #-}
+elemIndices :: (Monad m, Eq a) => a -> Stream m a -> Stream m Int
+elemIndices a = findIndices (== a)
 
 {-# INLINE_NORMAL slicesBy #-}
 slicesBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
@@ -1110,4 +1296,39 @@ catMaybes (Stream step state) = Stream step1 state
 -- /Pre-release/
 {-# INLINE scanMaybe #-}
 scanMaybe :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
-scanMaybe f = catMaybes . postscanOnce f
+scanMaybe f = catMaybes . postscan f
+
+------------------------------------------------------------------------------
+-- Either streams
+------------------------------------------------------------------------------
+
+-- | Discard 'Right's and unwrap 'Left's in an 'Either' stream.
+--
+-- >>> catLefts = fmap (fromLeft undefined) . Stream.filter isLeft
+--
+-- /Pre-release/
+--
+{-# INLINE catLefts #-}
+catLefts :: Monad m => Stream m (Either a b) -> Stream m a
+catLefts = fmap (fromLeft undefined) . filter isLeft
+
+-- | Discard 'Left's and unwrap 'Right's in an 'Either' stream.
+--
+-- >>> catRights = fmap (fromRight undefined) . Stream.filter isRight
+--
+-- /Pre-release/
+--
+{-# INLINE catRights #-}
+catRights :: Monad m => Stream m (Either a b) -> Stream m b
+catRights = fmap (fromRight undefined) . filter isRight
+
+-- | Remove the either wrapper and flatten both lefts and as well as rights in
+-- the output stream.
+--
+-- >>> catEithers = fmap (either id id)
+--
+-- /Pre-release/
+--
+{-# INLINE catEithers #-}
+catEithers :: Monad m => Stream m (Either a a) -> Stream m a
+catEithers = fmap (either id id)

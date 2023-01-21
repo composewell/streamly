@@ -7,7 +7,6 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
---
 -- Continuation passing style (CPS) stream implementation. The symbol 'K' below
 -- denotes a function as well as a Kontinuation.
 --
@@ -15,10 +14,36 @@
 -- import qualified Streamly.Internal.Data.Stream.StreamK as K
 -- @
 --
+-- Streams can be constructed like lists, except that they use 'nil' instead of
+-- '[]' and 'cons' instead of ':'.
+--
+-- `cons` adds a pure value at the head of the stream:
+--
+-- >>> import Streamly.Data.Stream (Stream, cons, consM, nil)
+-- >>> stream = 1 `cons` 2 `cons` nil :: Stream IO Int
+-- >>> Stream.fold Fold.toList stream -- IO [Int]
+-- [1,2]
+--
+-- `consM` adds an effect at the head of the stream:
+--
+-- >>> stream = effect 1 `consM` effect 2 `consM` nil
+-- >>> Stream.fold Fold.toList stream
+-- 1
+-- 2
+-- [1,2]
+--
 module Streamly.Internal.Data.Stream.StreamK
     (
     -- * The stream type
-      Stream(..)
+      Stream(..) -- XXX stop exporting this
+    , StreamK
+    , CrossStreamK(..)
+    , fromCross
+    , toCross
+    , fromStream
+    , toStream
+    , fromStreamK
+    , toStreamK
 
     -- * Construction Primitives
     , mkStream
@@ -135,6 +160,7 @@ module Streamly.Internal.Data.Stream.StreamK
 
     -- ** Reordering
     , reverse
+    , sortBy
 
     -- ** Map and Filter
     , mapMaybe
@@ -152,18 +178,20 @@ module Streamly.Internal.Data.Stream.StreamK
     , crossApply
     , crossApplySnd
     , crossApplyFst
+    , crossWith
 
     , concatMapWith
     , concatMap
     , concatEffect
     , bindWith
-    , concatPairsWith
+    , mergeMapWith
 
     -- ** Transformation comprehensions
     , the
 
     -- * Semigroup Style Composition
-    , serial
+    , append
+    , interleave
 
     -- * Utilities
     , consM
@@ -179,7 +207,9 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as PR
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Prelude
 
 import Prelude
@@ -193,6 +223,14 @@ import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
 -- $setup
 -- >>> :m
+
+{-# INLINE fromStream #-}
+fromStream :: Monad m => Stream.Stream m a -> StreamK m a
+fromStream = Stream.toStreamK
+
+{-# INLINE toStream #-}
+toStream :: Applicative m => StreamK m a -> Stream.Stream m a
+toStream = Stream.fromStreamK
 
 -------------------------------------------------------------------------------
 -- Generation
@@ -264,11 +302,6 @@ fromList = fromFoldable
 -------------------------------------------------------------------------------
 -- Elimination by Folding
 -------------------------------------------------------------------------------
-
--- | Lazy right associative fold.
-{-# INLINE foldr #-}
-foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
-foldr step acc = foldrM (\x xs -> xs >>= \b -> return (step x b)) (return acc)
 
 {-# INLINE foldr1 #-}
 foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
@@ -993,13 +1026,13 @@ splitAt n ls
             (xs', xs'') = splitAt' (m - 1) xs
 
 -- | Run a 'Parser' over a stream and return rest of the Stream.
-{-# INLINE_NORMAL parseBreak #-}
-parseBreak
+{-# INLINE_NORMAL parseBreakD #-}
+parseBreakD
     :: Monad m
     => PR.Parser a m b
     -> Stream m a
     -> m (Either ParseError b, Stream m a)
-parseBreak (PR.Parser pstep initial extract) stream = do
+parseBreakD (PR.Parser pstep initial extract) stream = do
     res <- initial
     case res of
         PR.IPartial s -> goStream stream [] s
@@ -1052,7 +1085,7 @@ parseBreak (PR.Parser pstep initial extract) stream = do
                         assertM(n <= length (x:buf))
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
-                        return (Right b, serial (fromList src) r)
+                        return (Right b, append (fromList src) r)
                     PR.Error err -> return (Left (ParseError err), r)
          in foldStream defState yieldk single stop st
 
@@ -1076,5 +1109,45 @@ parseBreak (PR.Parser pstep initial extract) stream = do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0
-                return (Right b, serial (fromList src) st)
+                return (Right b, append (fromList src) st)
             PR.Error err -> return (Left (ParseError err), nil)
+
+-- | Parse a stream using the supplied 'Parser'.
+--
+-- /CPS/
+--
+{-# INLINE parseBreak #-}
+parseBreak :: Monad m =>
+    Parser.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+parseBreak p strm = fmap f $ parseBreakD (PR.fromParserK p) (toStreamK strm)
+
+    where
+
+    f (b, str) = (b, fromStreamK str)
+
+-- | Sort the input stream using a supplied comparison function.
+--
+-- Sorting can be achieved by simply:
+--
+-- >>> sortBy cmp = Stream.mergeMapWith (Stream.mergeBy cmp) Stream.fromPure
+--
+-- However, this combinator uses a parser to first split the input stream into
+-- down and up sorted segments and then merges them to optimize sorting when
+-- pre-sorted sequences exist in the input stream..
+--
+-- /O(n) space/
+--
+{-# INLINE sortBy #-}
+sortBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> Stream m a
+-- sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
+sortBy cmp =
+    let p =
+            Parser.groupByRollingEither
+                (\x -> (< GT) . cmp x)
+                FL.toStreamKRev
+                FL.toStreamK
+     in   mergeMapWith (mergeBy cmp) id
+        . Stream.toStreamK
+        . Stream.catRights -- its a non-failing backtracking parser
+        . Stream.parseMany (fmap (either id id) p)
+        . Stream.fromStreamK

@@ -32,39 +32,41 @@ import System.Random (randomRIO)
 
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
+import qualified Streamly.Internal.Data.Fold as Fold
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
 import Test.Inspection
-
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
-import qualified Streamly.Internal.Data.Fold as Fold
-#ifdef USE_PRELUDE
-import qualified Streamly.Internal.Data.Stream.IsStream as S
-#else
-import qualified Streamly.Internal.Data.Stream as S
-#endif
 
-import Gauge
-import Streamly.Internal.Data.Stream (Stream)
 #ifdef USE_PRELUDE
 import Streamly.Prelude (fromSerial)
 import Streamly.Benchmark.Prelude
+import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream.IsStream as StreamK
 #else
 import Stream.Common
-    ( sourceUnfoldr
-    , sourceUnfoldrM
-    , sourceUnfoldrAction
-    , benchIOSink
-    )
+import Streamly.Internal.Data.Stream.StreamD (Stream)
+import qualified Streamly.Internal.Data.Stream.StreamD as S
+#ifdef USE_STREAMK
+import Streamly.Internal.Data.Stream.StreamK (StreamK)
+import qualified Streamly.Data.Stream.StreamK as StreamK
+#else
+import qualified Streamly.Internal.Data.Stream.StreamD as StreamK
 #endif
+#endif
+
+import Gauge
 import Streamly.Benchmark.Common
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
     lookup, repeat, minimum, maximum, product, last, mapM_, init)
 import qualified Prelude
 
 #ifdef USE_PRELUDE
+type Stream = S.SerialT
+fromStream = id
+
 {-# INLINE repeat #-}
 repeat :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
 repeat count = S.take count . S.repeat
@@ -213,6 +215,9 @@ o_1_space_elimination_foldable value =
         , bench "minimum" $ nf (foldableMin value) 1
         , benchPureSink value "min (ord)" ordInstanceMin
         , bench "maximum" $ nf (foldableMax value) 1
+        , bench "minimumBy" $ nf (`foldableMinBy` 1) value
+        , bench "maximumBy" $ nf (`foldableMaxBy` 1) value
+        , bench "minimumByList" $ nf (`foldableListMinBy` 1) value
         , bench "length . toList"
             $ nf (Prelude.length . foldableToList value) 1
         , bench "notElem" $ nf (foldableNotElem value) 1
@@ -235,28 +240,15 @@ o_1_space_elimination_foldable value =
         ]
     ]
 
-o_n_space_elimination_foldable :: Int -> [Benchmark]
-o_n_space_elimination_foldable value =
-    -- Head recursive strict right folds.
-    [ bgroup "foldl"
-        -- XXX the definitions of minimumBy and maximumBy in Data.Foldable use
-        -- foldl1 which does not work in constant memory for our
-        -- implementation.  It works in constant memory for lists but even for
-        -- lists it takes 15x more time compared to our foldl' based
-        -- implementation.
-        [ bench "minimumBy" $ nf (`foldableMinBy` 1) value
-        , bench "maximumBy" $ nf (`foldableMaxBy` 1) value
-        , bench "minimumByList" $ nf (`foldableListMinBy` 1) value
-        ]
-    ]
-
 -------------------------------------------------------------------------------
 -- Stream folds
 -------------------------------------------------------------------------------
 
+#ifndef USE_PRELUDE
 instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ S.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
+#endif
 
 {-# INLINE benchPureSink #-}
 benchPureSink :: NFData b
@@ -283,9 +275,13 @@ benchIdentitySink value name f = bench name $ nf (f . sourceUnfoldr value) 1
 -------------------------------------------------------------------------------
 
 {-# INLINE uncons #-}
+#ifdef USE_STREAMK
+uncons :: Monad m => StreamK m Int -> m ()
+#else
 uncons :: Monad m => Stream m Int -> m ()
+#endif
 uncons s = do
-    r <- S.uncons s
+    r <- StreamK.uncons s
     case r of
         Nothing -> return ()
         Just (_, t) -> uncons t
@@ -310,9 +306,15 @@ foldrMElem e =
                  else xs)
         (return False)
 
+#ifdef USE_STREAMK
 {-# INLINE foldrToStream #-}
-foldrToStream :: Monad m => Stream m Int -> m (Stream Identity Int)
-foldrToStream = S.foldr S.cons S.nil
+foldrToStream :: Monad m => Stream m Int -> m (StreamK Identity Int)
+foldrToStream = S.foldr StreamK.cons StreamK.nil
+#else
+-- {-# INLINE foldrToStream #-}
+-- foldrToStream :: Monad m => Stream m Int -> m (Stream Identity Int)
+-- foldrToStream = S.foldr S.cons S.nil
+#endif
 
 {-# INLINE foldrMBuild #-}
 foldrMBuild :: Monad m => Stream m Int -> m [Int]
@@ -456,17 +458,34 @@ o_1_space_elimination_folds value =
                   ]
             , bgroup "Identity"
                   [ benchIdentitySink value "foldrMElem" (foldrMElem value)
+#ifdef USE_STREAMK
                   , benchIdentitySink value "foldrToStreamLength"
+                        (S.fold Fold.length . toStream . runIdentity . foldrToStream)
+                  {-
+                  , benchIdentitySink 16 "foldrToStreamLength (16)"
+                        (S.fold Fold.length . toStream . runIdentity . foldrToStream)
+                  -}
+#else
+                  {-
+                  , benchIdentitySink 16 "foldrToStreamLength (16)"
                         (S.fold Fold.length . runIdentity . foldrToStream)
+                  -}
+#endif
+                  {-
+                  , benchPureSink 16 "foldrMToListLength (16)"
+                        (Prelude.length . runIdentity . foldrMBuild)
+                  -}
                   , benchPureSink value "foldrMToListLength"
                         (Prelude.length . runIdentity . foldrMBuild)
                   ]
             ]
 
         -- deconstruction
-        , benchIOSink value "uncons" uncons
+        , benchIOSink value "uncons" (uncons . fromStream)
+#ifndef USE_PRELUDE
         , benchHoistSink value "length . generalizeInner"
               (S.fold Fold.length . S.generalizeInner)
+#endif
 #ifdef USE_PRELUDE
         , benchIOSink value "init" init
 
@@ -587,8 +606,10 @@ o_n_space_elimination_toList value =
     [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toList" S.toList
+#ifndef USE_PRELUDE
         , benchIOSink value "toStream"
             (S.toStream :: (Stream IO Int -> IO (Stream Identity Int)))
+#endif
         ]
     ]
 #endif
@@ -718,11 +739,8 @@ benchmarks moduleName size =
 #ifdef USE_PRELUDE
             ++ o_n_heap_elimination_foldl size
             ++ o_n_heap_elimination_toList size
-#endif
-        , bgroup (o_n_space_prefix moduleName) $
-               o_n_space_elimination_foldable size
-#ifdef USE_PRELUDE
             ++ o_n_space_elimination_toList size
 #endif
-            ++ o_n_space_elimination_foldr size
+        , bgroup (o_n_space_prefix moduleName) $
+            o_n_space_elimination_foldr size
         ]

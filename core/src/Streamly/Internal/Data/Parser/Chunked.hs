@@ -42,7 +42,7 @@ import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Parser.Chunked.Type (ChunkParser (..))
 import Streamly.Internal.Data.Parser.ParserD.Type (Initial(..), Step(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
 import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Unboxed (peekWith, sizeOf, Unbox)
 
@@ -51,7 +51,7 @@ import qualified Streamly.Internal.Data.Parser.Chunked.Type as K
 import qualified Streamly.Internal.Data.Parser.ParserD as D
     hiding (fromParserK, toParserK)
 import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as Stream
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
 -------------------------------------------------------------------------------
@@ -97,11 +97,11 @@ parserDone (K.Failure n e) _ _ = return $ K.Error n e
 parseBreak
     :: (Monad m, Unbox a)
     => ChunkParser a m b
-    -> Stream m (Array a)
-    -> m (Either ParseError b, Stream m (Array a))
+    -> StreamK m (Array a)
+    -> m (Either ParseError b, StreamK m (Array a))
 parseBreak parser input = do
     let parserk = \arr -> K.runParser parser 0 0 arr parserDone
-     in go [] parserk (Stream.toStreamK input)
+     in go [] parserk input
 
     where
 

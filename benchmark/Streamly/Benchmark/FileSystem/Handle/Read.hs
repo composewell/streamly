@@ -29,14 +29,16 @@ import GHC.Magic (inline)
 import GHC.Magic (noinline)
 import System.IO (Handle)
 
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Array.Type as AT
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.IsStream as IP
+import qualified Streamly.Internal.Data.Stream.StreamD as IP
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Unicode.Stream as IUS
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Unicode.Stream as SS
 
 import Gauge hiding (env)
@@ -61,7 +63,7 @@ import Test.Inspection
 
 -- | Get the last byte from a file bytestream.
 readLast :: Handle -> IO (Maybe Word8)
-readLast = S.last . S.unfold FH.reader
+readLast = S.fold Fold.last . S.unfold FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readLast
@@ -73,7 +75,7 @@ inspect $ 'readLast `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 -- assert that flattenArrays constructors are not present
 -- | Count the number of bytes in a file.
 readCountBytes :: Handle -> IO Int
-readCountBytes = S.length . S.unfold FH.reader
+readCountBytes = S.fold Fold.length . S.unfold FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountBytes
@@ -85,7 +87,7 @@ inspect $ 'readCountBytes `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 -- | Count the number of lines in a file.
 readCountLines :: Handle -> IO Int
 readCountLines =
-    S.length
+    S.fold Fold.length
         . IUS.lines FL.drain
         . SS.decodeLatin1
         . S.unfold FH.reader
@@ -100,7 +102,7 @@ inspect $ 'readCountLines `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 -- | Count the number of words in a file.
 readCountWords :: Handle -> IO Int
 readCountWords =
-    S.length
+    S.fold Fold.length
         . IUS.words FL.drain
         . SS.decodeLatin1
         . S.unfold FH.reader
@@ -112,7 +114,7 @@ inspect $ hasNoTypeClasses 'readCountWords
 
 -- | Sum the bytes in a file.
 readSumBytes :: Handle -> IO Word8
-readSumBytes = S.sum . S.unfold FH.reader
+readSumBytes = S.fold Fold.sum . S.unfold FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readSumBytes
@@ -132,19 +134,19 @@ inspect $ 'readSumBytes `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 -- fusion-plugin to propagate INLINE phase information such that this problem
 -- does not occur.
 readDrain :: Handle -> IO ()
-readDrain inh = S.drain $ S.unfold FH.reader inh
+readDrain inh = S.fold Fold.drain $ S.unfold FH.reader inh
 
 -- XXX investigate why we need an INLINE in this case (GHC)
 {-# INLINE readDecodeLatin1 #-}
 readDecodeLatin1 :: Handle -> IO ()
 readDecodeLatin1 inh =
-   S.drain
+   S.fold Fold.drain
      $ SS.decodeLatin1
      $ S.unfold FH.reader inh
 
 readDecodeUtf8 :: Handle -> IO ()
 readDecodeUtf8 inh =
-   S.drain
+   S.fold Fold.drain
      $ SS.decodeUtf8
      $ S.unfold FH.reader inh
 
@@ -187,7 +189,7 @@ o_1_space_reduce_read env =
 -- | Count the number of lines in a file.
 getChunksConcatUnfoldCountLines :: Handle -> IO Int
 getChunksConcatUnfoldCountLines inh =
-    S.length
+    S.fold Fold.length
         $ IUS.lines FL.drain
         $ SS.decodeLatin1
         -- XXX replace with toBytes
@@ -212,15 +214,18 @@ o_1_space_reduce_toBytes env =
 -------------------------------------------------------------------------------
 
 chunksOfSum :: Int -> Handle -> IO Int
-chunksOfSum n inh = S.length $ S.chunksOf n FL.sum (S.unfold FH.reader inh)
+chunksOfSum n inh =
+    S.fold Fold.length $ IP.chunksOf n FL.sum (S.unfold FH.reader inh)
 
 foldManyPostChunksOfSum :: Int -> Handle -> IO Int
 foldManyPostChunksOfSum n inh =
-    S.length $ IP.foldManyPost (FL.take n FL.sum) (S.unfold FH.reader inh)
+    S.fold Fold.length
+        $ IP.foldManyPost (FL.take n FL.sum) (S.unfold FH.reader inh)
 
 foldManyChunksOfSum :: Int -> Handle -> IO Int
 foldManyChunksOfSum n inh =
-    S.length $ IP.foldMany (FL.take n FL.sum) (S.unfold FH.reader inh)
+    S.fold Fold.length
+        $ IP.foldMany (FL.take n FL.sum) (S.unfold FH.reader inh)
 
 -- XXX investigate why we need an INLINE in this case (GHC)
 -- Even though allocations remain the same in both cases inlining improves time
@@ -230,7 +235,8 @@ foldManyChunksOfSum n inh =
 chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
     -- writeNUnsafe gives 2.5x boost here over writeN.
-    S.length $ S.chunksOf n (AT.writeNUnsafe n) (S.unfold FH.reader inh)
+    S.fold Fold.length
+        $ IP.chunksOf n (AT.writeNUnsafe n) (S.unfold FH.reader inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'chunksOf
@@ -243,7 +249,8 @@ inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 
 {-# INLINE arraysOf #-}
 arraysOf :: Int -> Handle -> IO Int
-arraysOf n inh = S.length $ IP.arraysOf n (S.unfold FH.reader inh)
+arraysOf n inh =
+    S.fold Fold.length $ Stream.arraysOf n (S.unfold FH.reader inh)
 
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_grouped env =

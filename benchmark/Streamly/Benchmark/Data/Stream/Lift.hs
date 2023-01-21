@@ -18,23 +18,32 @@ module Stream.Lift (benchmarks) where
 import Control.DeepSeq (NFData(..))
 import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity)
-import Stream.Common
-    (benchIO, sourceUnfoldr, sourceUnfoldrM, benchIOSrc, drain)
+import Stream.Common (sourceUnfoldr, sourceUnfoldrM, benchIOSrc)
 import System.Random (randomRIO)
+
+import qualified Stream.Common as Common
+import qualified Streamly.Internal.Data.Fold as Fold
+
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
-import qualified Streamly.Internal.Data.Stream as Stream
-#endif
-import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Stream.Common as Common
+import Streamly.Internal.Data.Stream.StreamD (Stream)
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+#ifdef USE_STREAMK
+import Stream.Common (benchIO, drain)
+import Streamly.Internal.Data.Stream.StreamK (StreamK)
+import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 import qualified Control.Monad.State.Strict as State
+#endif
+#endif
 
 import Gauge
-import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Benchmark.Common
-
 import Prelude hiding (reverse, tail)
+
+#ifdef USE_PRELUDE
+type Stream = Stream.SerialT
+#endif
 
 -------------------------------------------------------------------------------
 -- Monad transformation (hoisting etc.)
@@ -76,12 +85,15 @@ o_1_space_hoisting value =
     [ bgroup "hoisting"
         [ benchIOSrc "evalState" (evalStateT value)
         , benchIOSrc "withState" (withState value)
+#ifndef USE_PRELUDE
         , benchHoistSink value "generalizeInner"
             ((\xs -> Stream.fold Fold.length xs :: IO Int)
                 . Stream.generalizeInner)
+#endif
         ]
     ]
 
+#ifdef USE_STREAMK
 {-# INLINE iterateStateIO #-}
 iterateStateIO ::
        Monad m
@@ -95,28 +107,17 @@ iterateStateIO n = do
         iterateStateIO n
     else return x
 
+-- XXX This is basically testing the perf of concatEffect, change it to just
+-- use concatEffect and move it along with other concatMap benchmarks.
 {-# INLINE iterateStateT #-}
-iterateStateT :: Int -> Stream (StateT Int IO) Int
-iterateStateT n = Stream.concatEffect $ do
+iterateStateT :: Int -> StreamK (StateT Int IO) Int
+iterateStateT n = StreamK.concatEffect $ do
     x <- get
     if x > n
     then do
         put (x - 1)
         return $ iterateStateT n
-    else return $ Stream.fromPure x
-
-{-# INLINE iterateState #-}
-{-# SPECIALIZE iterateState :: Int -> Stream (StateT Int IO) Int #-}
-iterateState :: Monad m =>
-       Int
-    -> Stream (StateT Int m) Int
-iterateState n = Stream.concatEffect $ do
-    x <- get
-    if x > n
-    then do
-        put (x - 1)
-        return $ iterateState n
-    else return $ Stream.fromPure x
+    else return $ StreamK.fromPure x
 
 o_n_heap_transformer :: Int -> [Benchmark]
 o_n_heap_transformer value =
@@ -124,11 +125,10 @@ o_n_heap_transformer value =
         [ benchIO "StateT Int IO (n times) (baseline)" $ \n ->
             State.evalStateT (iterateStateIO n) value
         , benchIO "Stream (StateT Int IO) (n times)" $ \n ->
-            State.evalStateT (drain (iterateStateT n)) value
-        , benchIO "MonadState Int m => Stream m Int" $ \n ->
-            State.evalStateT (drain (iterateState n)) value
+            State.evalStateT (drain $ Common.toStream (iterateStateT n)) value
         ]
     ]
+#endif
 
 -------------------------------------------------------------------------------
 -- Main
@@ -140,5 +140,7 @@ o_n_heap_transformer value =
 benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_hoisting size)
+#ifdef USE_STREAMK
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_transformer size)
+#endif
         ]

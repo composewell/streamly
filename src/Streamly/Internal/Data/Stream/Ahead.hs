@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Ahead
@@ -55,7 +56,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     , nil, concatMapWith, fromPure, bindWith)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (mapM, fromStreamK, toStreamK)
-import qualified Streamly.Internal.Data.Stream as Stream (toStreamK)
+import qualified Streamly.Internal.Data.Stream.Serial as Stream (toStreamK)
 
 import Streamly.Internal.Data.Stream.SVar.Generate
 import Streamly.Internal.Data.SVar

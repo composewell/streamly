@@ -20,12 +20,14 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
+import Streamly.Data.Stream (Stream)
+import Streamly.Data.Fold (Fold)
 import Prelude hiding (last, length)
 import System.IO (Handle)
 
 import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Array as UnicodeArr
@@ -75,13 +77,19 @@ o_1_space_decode_encode_chunked env =
 -- copy with group/ungroup transformations
 -------------------------------------------------------------------------------
 
+{-# INLINE splitOnSuffix #-}
+splitOnSuffix
+    :: (Monad m)
+    => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitOnSuffix predicate f = Stream.foldMany (Fold.takeEndBy_ predicate f)
+
 {-# NOINLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
     Stream.fold (Handle.write outh)
       $ Unicode.encodeLatin1'
       $ Unicode.unlines Unfold.fromList
-      $ Stream.splitOnSuffix (== '\n') Fold.toList
+      $ splitOnSuffix (== '\n') Fold.toList
       $ Unicode.decodeLatin1
       $ Stream.unfold Handle.reader inh
 
@@ -90,7 +98,7 @@ linesUnlinesArrayWord8Copy :: Handle -> Handle -> IO ()
 linesUnlinesArrayWord8Copy inh outh =
     Stream.fold (Handle.write outh)
       $ Stream.interposeSuffix 10 Array.reader
-      $ Stream.splitOnSuffix (== 10) Array.write
+      $ splitOnSuffix (== 10) Array.write
       $ Stream.unfold Handle.reader inh
 
 -- XXX splitSuffixOn requires -funfolding-use-threshold=150 for better fusion
@@ -280,7 +288,7 @@ _copyStreamUtf8Parser :: Handle -> Handle -> IO ()
 _copyStreamUtf8Parser inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeUtf8
-     $ Stream.rights $ Stream.parseMany
+     $ Stream.catRights $ Stream.parseMany
            (Unicode.parseCharUtf8With Unicode.TransliterateCodingFailure)
      $ Stream.unfold Handle.reader inh
 

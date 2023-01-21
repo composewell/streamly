@@ -24,7 +24,7 @@ import Streamly.Internal.Unicode.Char
 import Streamly.Benchmark.Common (o_1_space_prefix)
 
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Stream.IsStream as IsStream
+import qualified Streamly.Internal.Data.Stream.StreamD as IsStream
 import qualified System.Directory as Dir
 
 --------------------------------------------------------------------------------

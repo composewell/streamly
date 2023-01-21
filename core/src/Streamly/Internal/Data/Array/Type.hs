@@ -90,7 +90,7 @@ import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Mut.Type (MutableByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Unboxed (Unbox, peekWith, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec)
@@ -101,7 +101,6 @@ import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
@@ -360,7 +359,7 @@ toStreamKRev arr =
 -- /Pre-release/
 {-# INLINE_EARLY read #-}
 read :: (Monad m, Unbox a) => Array a -> Stream m a
-read = Stream.fromStreamD . toStreamD
+read = toStreamD
 
 -- | Same as 'read'
 --
@@ -377,7 +376,7 @@ toStream = read
 -- /Pre-release/
 {-# INLINE_EARLY readRev #-}
 readRev :: (Monad m, Unbox a) => Array a -> Stream m a
-readRev = Stream.fromStreamD . toStreamDRev
+readRev = toStreamDRev
 
 -- | Same as 'readRev'
 --

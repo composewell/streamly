@@ -51,7 +51,7 @@ module Streamly.Internal.Data.Stream.Concurrent.Channel
 where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Stream (Stream, fromStreamK, toStreamK)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
     (fromChannel, fromChannelK, toChannel, toChannelK)
 
@@ -59,7 +59,7 @@ import qualified Streamly.Internal.Data.Stream.Concurrent.Channel.Append
     as Append
 import qualified Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
     as Interleave
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
 import Streamly.Internal.Data.Stream.Channel.Types
@@ -102,5 +102,5 @@ withChannel :: MonadAsync m =>
     -> (Channel m b -> Stream m a -> Stream m b)
     -> Stream m b
 withChannel modifier input evaluator =
-    let f chan stream = toStreamK $ evaluator chan (fromStreamK stream)
-     in fromStreamK $ withChannelK modifier (toStreamK input) f
+    let f chan stream = K.fromStream $ evaluator chan (K.toStream stream)
+     in K.toStream $ withChannelK modifier (K.fromStream input) f

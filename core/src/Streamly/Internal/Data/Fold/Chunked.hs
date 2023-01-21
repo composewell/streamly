@@ -6,6 +6,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Use "Streamly.Data.Parser.Chunked" instead.
+--
 -- Fold a stream of foreign arrays.  @Fold m a b@ in this module works
 -- on a stream of "Array a" and produces an output of type @b@.
 --
@@ -98,11 +100,7 @@ newtype ChunkFold m a b = ChunkFold (ParserD.Parser (Array a) m b)
 --
 -- /Pre-release/
 {-# INLINE fromFold #-}
-#ifdef DEVBUILD
-fromFold :: forall m a b. (MonadIO m) =>
-#else
 fromFold :: forall m a b. (MonadIO m, Unbox a) =>
-#endif
     Fold.Fold m a b -> ChunkFold m a b
 fromFold (Fold.Fold fstep finitial fextract) =
     ChunkFold (ParserD.Parser step initial (fmap (Done 0) . fextract))
@@ -140,11 +138,7 @@ fromFold (Fold.Fold fstep finitial fextract) =
 --
 -- /Pre-release/
 {-# INLINE fromParserD #-}
-#ifdef DEVBUILD
-fromParserD :: forall m a b. (MonadIO m) =>
-#else
 fromParserD :: forall m a b. (MonadIO m, Unbox a) =>
-#endif
     ParserD.Parser a m b -> ChunkFold m a b
 fromParserD (ParserD.Parser step1 initial1 extract1) =
     ChunkFold (ParserD.Parser step initial1 extract1)
@@ -186,11 +180,7 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
 --
 -- /Pre-release/
 {-# INLINE fromParser #-}
-#ifdef DEVBUILD
-fromParser :: forall m a b. (MonadIO m) =>
-#else
 fromParser :: forall m a b. (MonadIO m, Unbox a) =>
-#endif
     Parser.Parser a m b -> ChunkFold m a b
 fromParser = fromParserD . ParserD.fromParserK
 

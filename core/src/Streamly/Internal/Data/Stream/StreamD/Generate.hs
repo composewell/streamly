@@ -58,8 +58,14 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
     , enumerateFromToFractional
     , enumerateFromThenToFractional
 
+    , enumerate
+    , enumerateTo
+    , Enumerable(..)
+
     -- * Time Enumeration
-    , times
+    , timesWith
+    , absTimesWith
+    , relTimesWith
 
     -- * From Generators
     -- | Generate a monadic stream from a seed.
@@ -75,12 +81,15 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
     -- * From Containers
     -- | Transform an input structure into a stream.
 
-    -- Note: Direct style stream does not support @fromFoldable@.
     , fromList
     , fromListM
+    , fromFoldable
+    , fromFoldableM
 
     -- * From Pointers
     , fromPtr
+    , fromPtrN
+    , fromByteStr#
 
     -- * Conversions
     , fromStreamK
@@ -92,19 +101,26 @@ where
 #include "ArrayMacros.h"
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Functor.Identity (Identity(..))
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (Storable (peek), sizeOf)
+import GHC.Exts (Addr#, Ptr (Ptr))
 import Streamly.Internal.Data.Time.Clock
     (Clock(Monotonic), asyncClock, readClock)
 import Streamly.Internal.Data.Time.Units
-    (toAbsTime, AbsTime, toRelTime64, RelTime64)
+    (toAbsTime, AbsTime, toRelTime64, RelTime64, addToAbsTime64)
 
 #ifdef USE_UNFOLDS_EVERYWHERE
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Unfold.Enumeration as Unfold
 #endif
 
-import Prelude hiding (iterate, repeat, replicate, takeWhile)
+import Data.Fixed
+import Data.Int
+import Data.Ratio
+import Data.Word
+import Numeric.Natural
+import Prelude hiding (iterate, repeat, replicate, take, takeWhile)
 import Streamly.Internal.Data.Stream.StreamD.Type
 
 ------------------------------------------------------------------------------
@@ -372,13 +388,313 @@ enumerateFromThenToFractional from next to =
     predicate | next >= from  = (<= to + mid)
               | otherwise     = (>= to + mid)
 
+-------------------------------------------------------------------------------
+-- Enumeration of Enum types not larger than Int
+-------------------------------------------------------------------------------
+--
+-- | 'enumerateFromTo' for 'Enum' types not larger than 'Int'.
+--
+{-# INLINE enumerateFromToSmall #-}
+enumerateFromToSmall :: (Monad m, Enum a) => a -> a -> Stream m a
+enumerateFromToSmall from to =
+      fmap toEnum
+    $ enumerateFromToIntegral (fromEnum from) (fromEnum to)
+
+-- | 'enumerateFromThenTo' for 'Enum' types not larger than 'Int'.
+--
+{-# INLINE enumerateFromThenToSmall #-}
+enumerateFromThenToSmall :: (Monad m, Enum a)
+    => a -> a -> a -> Stream m a
+enumerateFromThenToSmall from next to =
+          fmap toEnum
+        $ enumerateFromThenToIntegral
+            (fromEnum from) (fromEnum next) (fromEnum to)
+
+-- | 'enumerateFromThen' for 'Enum' types not larger than 'Int'.
+--
+-- Note: We convert the 'Enum' to 'Int' and enumerate the 'Int'. If a
+-- type is bounded but does not have a 'Bounded' instance then we can go on
+-- enumerating it beyond the legal values of the type, resulting in the failure
+-- of 'toEnum' when converting back to 'Enum'. Therefore we require a 'Bounded'
+-- instance for this function to be safely used.
+--
+{-# INLINE enumerateFromThenSmallBounded #-}
+enumerateFromThenSmallBounded :: (Monad m, Enumerable a, Bounded a)
+    => a -> a -> Stream m a
+enumerateFromThenSmallBounded from next =
+    if fromEnum next >= fromEnum from
+    then enumerateFromThenTo from next maxBound
+    else enumerateFromThenTo from next minBound
+
+-------------------------------------------------------------------------------
+-- Enumerable type class
+-------------------------------------------------------------------------------
+--
+-- NOTE: We would like to rewrite calls to fromList [1..] etc. to stream
+-- enumerations like this:
+--
+-- {-# RULES "fromList enumFrom" [1]
+--     forall (a :: Int). D.fromList (enumFrom a) = D.enumerateFromIntegral a #-}
+--
+-- But this does not work because enumFrom is a class method and GHC rewrites
+-- it quickly, so we do not get a chance to have our rule fired.
+
+-- | Types that can be enumerated as a stream. The operations in this type
+-- class are equivalent to those in the 'Enum' type class, except that these
+-- generate a stream instead of a list. Use the functions in
+-- "Streamly.Internal.Data.Stream.Enumeration" module to define new instances.
+--
+class Enum a => Enumerable a where
+    -- | @enumerateFrom from@ generates a stream starting with the element
+    -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
+    -- generating an infinite stream when the type is not 'Bounded'.
+    --
+    -- @
+    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFrom (0 :: Int)
+    -- [0,1,2,3]
+    --
+    -- @
+    --
+    -- For 'Fractional' types, enumeration is numerically stable. However, no
+    -- overflow or underflow checks are performed.
+    --
+    -- @
+    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFrom 1.1
+    -- [1.1,2.1,3.1,4.1]
+    --
+    -- @
+    --
+    enumerateFrom :: (Monad m) => a -> Stream m a
+
+    -- | Generate a finite stream starting with the element @from@, enumerating
+    -- the type up to the value @to@. If @to@ is smaller than @from@ then an
+    -- empty stream is returned.
+    --
+    -- @
+    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromTo 0 4
+    -- [0,1,2,3,4]
+    --
+    -- @
+    --
+    -- For 'Fractional' types, the last element is equal to the specified @to@
+    -- value after rounding to the nearest integral value.
+    --
+    -- @
+    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromTo 1.1 4
+    -- [1.1,2.1,3.1,4.1]
+    --
+    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromTo 1.1 4.6
+    -- [1.1,2.1,3.1,4.1,5.1]
+    --
+    -- @
+    --
+    enumerateFromTo :: (Monad m) => a -> a -> Stream m a
+
+    -- | @enumerateFromThen from then@ generates a stream whose first element
+    -- is @from@, the second element is @then@ and the successive elements are
+    -- in increments of @then - from@.  Enumeration can occur downwards or
+    -- upwards depending on whether @then@ comes before or after @from@. For
+    -- 'Bounded' types the stream ends when 'maxBound' is reached, for
+    -- unbounded types it keeps enumerating infinitely.
+    --
+    -- @
+    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 2
+    -- [0,2,4,6]
+    --
+    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 (-2)
+    -- [0,-2,-4,-6]
+    --
+    -- @
+    --
+    enumerateFromThen :: (Monad m) => a -> a -> Stream m a
+
+    -- | @enumerateFromThenTo from then to@ generates a finite stream whose
+    -- first element is @from@, the second element is @then@ and the successive
+    -- elements are in increments of @then - from@ up to @to@. Enumeration can
+    -- occur downwards or upwards depending on whether @then@ comes before or
+    -- after @from@.
+    --
+    -- @
+    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenTo 0 2 6
+    -- [0,2,4,6]
+    --
+    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenTo 0 (-2) (-6)
+    -- [0,-2,-4,-6]
+    --
+    -- @
+    --
+    enumerateFromThenTo :: (Monad m) => a -> a -> a -> Stream m a
+
+-- MAYBE: Sometimes it is more convenient to know the count rather then the
+-- ending or starting element. For those cases we can define the folllowing
+-- APIs. All of these will work only for bounded types if we represent the
+-- count by Int.
+--
+-- enumerateN
+-- enumerateFromN
+-- enumerateToN
+-- enumerateFromStep
+-- enumerateFromStepN
+
+-------------------------------------------------------------------------------
+-- Convenient functions for bounded types
+-------------------------------------------------------------------------------
+--
+-- |
+-- > enumerate = enumerateFrom minBound
+--
+-- Enumerate a 'Bounded' type from its 'minBound' to 'maxBound'
+--
+{-# INLINE enumerate #-}
+enumerate :: (Monad m, Bounded a, Enumerable a) => Stream m a
+enumerate = enumerateFrom minBound
+
+-- |
+-- > enumerateTo = enumerateFromTo minBound
+--
+-- Enumerate a 'Bounded' type from its 'minBound' to specified value.
+--
+{-# INLINE enumerateTo #-}
+enumerateTo :: (Monad m, Bounded a, Enumerable a) => a -> Stream m a
+enumerateTo = enumerateFromTo minBound
+
+-- |
+-- > enumerateFromBounded = enumerateFromTo from maxBound
+--
+-- 'enumerateFrom' for 'Bounded' 'Enum' types.
+--
+{-# INLINE enumerateFromBounded #-}
+enumerateFromBounded :: (Monad m, Enumerable a, Bounded a)
+    => a -> Stream m a
+enumerateFromBounded from = enumerateFromTo from maxBound
+
+-------------------------------------------------------------------------------
+-- Enumerable Instances
+-------------------------------------------------------------------------------
+--
+-- For Enum types smaller than or equal to Int size.
+#define ENUMERABLE_BOUNDED_SMALL(SMALL_TYPE)           \
+instance Enumerable SMALL_TYPE where {                 \
+    {-# INLINE enumerateFrom #-};                      \
+    enumerateFrom = enumerateFromBounded;              \
+    {-# INLINE enumerateFromThen #-};                  \
+    enumerateFromThen = enumerateFromThenSmallBounded; \
+    {-# INLINE enumerateFromTo #-};                    \
+    enumerateFromTo = enumerateFromToSmall;            \
+    {-# INLINE enumerateFromThenTo #-};                \
+    enumerateFromThenTo = enumerateFromThenToSmall }
+
+ENUMERABLE_BOUNDED_SMALL(())
+ENUMERABLE_BOUNDED_SMALL(Bool)
+ENUMERABLE_BOUNDED_SMALL(Ordering)
+ENUMERABLE_BOUNDED_SMALL(Char)
+
+-- For bounded Integral Enum types, may be larger than Int.
+#define ENUMERABLE_BOUNDED_INTEGRAL(INTEGRAL_TYPE)  \
+instance Enumerable INTEGRAL_TYPE where {           \
+    {-# INLINE enumerateFrom #-};                   \
+    enumerateFrom = enumerateFromIntegral;          \
+    {-# INLINE enumerateFromThen #-};               \
+    enumerateFromThen = enumerateFromThenIntegral;  \
+    {-# INLINE enumerateFromTo #-};                 \
+    enumerateFromTo = enumerateFromToIntegral;      \
+    {-# INLINE enumerateFromThenTo #-};             \
+    enumerateFromThenTo = enumerateFromThenToIntegral }
+
+ENUMERABLE_BOUNDED_INTEGRAL(Int)
+ENUMERABLE_BOUNDED_INTEGRAL(Int8)
+ENUMERABLE_BOUNDED_INTEGRAL(Int16)
+ENUMERABLE_BOUNDED_INTEGRAL(Int32)
+ENUMERABLE_BOUNDED_INTEGRAL(Int64)
+ENUMERABLE_BOUNDED_INTEGRAL(Word)
+ENUMERABLE_BOUNDED_INTEGRAL(Word8)
+ENUMERABLE_BOUNDED_INTEGRAL(Word16)
+ENUMERABLE_BOUNDED_INTEGRAL(Word32)
+ENUMERABLE_BOUNDED_INTEGRAL(Word64)
+
+-- For unbounded Integral Enum types.
+#define ENUMERABLE_UNBOUNDED_INTEGRAL(INTEGRAL_TYPE)              \
+instance Enumerable INTEGRAL_TYPE where {                         \
+    {-# INLINE enumerateFrom #-};                                 \
+    enumerateFrom from = enumerateFromStepIntegral from 1;        \
+    {-# INLINE enumerateFromThen #-};                             \
+    enumerateFromThen from next =                                 \
+        enumerateFromStepIntegral from (next - from);             \
+    {-# INLINE enumerateFromTo #-};                               \
+    enumerateFromTo = enumerateFromToIntegral;                    \
+    {-# INLINE enumerateFromThenTo #-};                           \
+    enumerateFromThenTo = enumerateFromThenToIntegral }
+
+ENUMERABLE_UNBOUNDED_INTEGRAL(Integer)
+ENUMERABLE_UNBOUNDED_INTEGRAL(Natural)
+
+#define ENUMERABLE_FRACTIONAL(FRACTIONAL_TYPE,CONSTRAINT)         \
+instance (CONSTRAINT) => Enumerable FRACTIONAL_TYPE where {     \
+    {-# INLINE enumerateFrom #-};                                 \
+    enumerateFrom = enumerateFromNum;                      \
+    {-# INLINE enumerateFromThen #-};                             \
+    enumerateFromThen = enumerateFromThenNum;              \
+    {-# INLINE enumerateFromTo #-};                               \
+    enumerateFromTo = enumerateFromToFractional;                  \
+    {-# INLINE enumerateFromThenTo #-};                           \
+    enumerateFromThenTo = enumerateFromThenToFractional }
+
+ENUMERABLE_FRACTIONAL(Float,)
+ENUMERABLE_FRACTIONAL(Double,)
+ENUMERABLE_FRACTIONAL((Fixed a),HasResolution a)
+ENUMERABLE_FRACTIONAL((Ratio a),Integral a)
+
+instance Enumerable a => Enumerable (Identity a) where
+    {-# INLINE enumerateFrom #-}
+    enumerateFrom (Identity from) =
+        fmap Identity $ enumerateFrom from
+    {-# INLINE enumerateFromThen #-}
+    enumerateFromThen (Identity from) (Identity next) =
+        fmap Identity $ enumerateFromThen from next
+    {-# INLINE enumerateFromTo #-}
+    enumerateFromTo (Identity from) (Identity to) =
+        fmap Identity $ enumerateFromTo from to
+    {-# INLINE enumerateFromThenTo #-}
+    enumerateFromThenTo (Identity from) (Identity next) (Identity to) =
+          fmap Identity
+        $ enumerateFromThenTo from next to
+
+-- TODO
+{-
+instance Enumerable a => Enumerable (Last a)
+instance Enumerable a => Enumerable (First a)
+instance Enumerable a => Enumerable (Max a)
+instance Enumerable a => Enumerable (Min a)
+instance Enumerable a => Enumerable (Const a b)
+instance Enumerable (f a) => Enumerable (Alt f a)
+instance Enumerable (f a) => Enumerable (Ap f a)
+-}
 ------------------------------------------------------------------------------
 -- Time Enumeration
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL times #-}
-times :: MonadIO m => Double -> Stream m (AbsTime, RelTime64)
-times g = Stream step Nothing
+-- | @timesWith g@ returns a stream of time value tuples. The first component
+-- of the tuple is an absolute time reference (epoch) denoting the start of the
+-- stream and the second component is a time relative to the reference.
+--
+-- The argument @g@ specifies the granularity of the relative time in seconds.
+-- A lower granularity clock gives higher precision but is more expensive in
+-- terms of CPU usage. Any granularity lower than 1 ms is treated as 1 ms.
+--
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> f = Fold.drainMapM (\x -> print x >> threadDelay 1000000)
+-- >>> Stream.fold f $ Stream.take 3 $ Stream.timesWith 0.01
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+-- (AbsTime (TimeSpec {sec = ..., nsec = ...}),RelTime64 (NanoSecond64 ...))
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE_NORMAL timesWith #-}
+timesWith :: MonadIO m => Double -> Stream m (AbsTime, RelTime64)
+timesWith g = Stream step Nothing
 
     where
 
@@ -394,6 +710,44 @@ times g = Stream step Nothing
         -- efficiency.  or maybe we can use a representation using Double for
         -- floating precision time
         return $ Yield (toAbsTime t0, toRelTime64 (a - t0)) s
+
+-- | @absTimesWith g@ returns a stream of absolute timestamps using a clock of
+-- granularity @g@ specified in seconds. A low granularity clock is more
+-- expensive in terms of CPU usage.  Any granularity lower than 1 ms is treated
+-- as 1 ms.
+--
+-- >>> f = Fold.drainMapM print
+-- >>> Stream.fold f $ Stream.delayPre 1 $ Stream.take 3 $ Stream.absTimesWith 0.01
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+-- AbsTime (TimeSpec {sec = ..., nsec = ...})
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE absTimesWith #-}
+absTimesWith :: MonadIO m => Double -> Stream m AbsTime
+absTimesWith = fmap (uncurry addToAbsTime64) . timesWith
+
+-- | @relTimesWith g@ returns a stream of relative time values starting from 0,
+-- using a clock of granularity @g@ specified in seconds. A low granularity
+-- clock is more expensive in terms of CPU usage.  Any granularity lower than 1
+-- ms is treated as 1 ms.
+--
+-- >>> f = Fold.drainMapM print
+-- >>> Stream.fold f $ Stream.delayPre 1 $ Stream.take 3 $ Stream.relTimesWith 0.01
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
+-- RelTime64 (NanoSecond64 ...)
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Pre-release/
+--
+{-# INLINE relTimesWith #-}
+relTimesWith :: MonadIO m => Double -> Stream m RelTime64
+relTimesWith = fmap snd . timesWith
 
 -------------------------------------------------------------------------------
 -- From Generators
@@ -464,6 +818,30 @@ fromListM = Stream step
     step _ []     = return Stop
 #endif
 
+-- |
+-- >>> fromFoldable = Prelude.foldr Stream.cons Stream.nil
+--
+-- Construct a stream from a 'Foldable' containing pure values:
+--
+-- /WARNING: O(n^2), suitable only for a small number of
+-- elements in the stream/
+--
+{-# INLINE fromFoldable #-}
+fromFoldable :: (Monad m, Foldable f) => f a -> Stream m a
+fromFoldable = Prelude.foldr cons nil
+
+-- |
+-- >>> fromFoldableM = Prelude.foldr Stream.consM Stream.nil
+--
+-- Construct a stream from a 'Foldable' containing pure values:
+--
+-- /WARNING: O(n^2), suitable only for a small number of
+-- elements in the stream/
+--
+{-# INLINE fromFoldableM #-}
+fromFoldableM :: (Monad m, Foldable f) => f (m a) -> Stream m a
+fromFoldableM = Prelude.foldr consM nil
+
 -------------------------------------------------------------------------------
 -- From pointers
 -------------------------------------------------------------------------------
@@ -480,3 +858,32 @@ fromPtr = Stream step
     step _ p = do
         x <- liftIO $ peek p
         return $ Yield x (PTR_NEXT(p, a))
+
+-- | Take @n@ 'Storable' elements starting from 'Ptr' onwards.
+--
+-- >>> fromPtrN n = Stream.take n . Stream.fromPtr
+--
+-- /Unsafe:/ The caller is responsible for safe addressing.
+--
+-- /Pre-release/
+{-# INLINE fromPtrN #-}
+fromPtrN :: (MonadIO m, Storable a) => Int -> Ptr a -> Stream m a
+fromPtrN n = take n . fromPtr
+
+-- | Read bytes from an 'Addr#' until a 0 byte is encountered, the 0 byte is
+-- not included in the stream.
+--
+-- >>> fromByteStr# addr = Stream.takeWhile (/= 0) $ Stream.fromPtr $ Ptr addr
+--
+-- /Unsafe:/ The caller is responsible for safe addressing.
+--
+-- Note that this is completely safe when reading from Haskell string
+-- literals because they are guaranteed to be NULL terminated:
+--
+-- >>> Stream.fold Fold.toList $ Stream.fromByteStr# "\1\2\3\0"#
+-- [1,2,3]
+--
+{-# INLINE fromByteStr# #-}
+fromByteStr# :: MonadIO m => Addr# -> Stream m Word8
+fromByteStr# addr =
+    takeWhile (/= 0) $ fromPtr $ Ptr addr

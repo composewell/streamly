@@ -121,7 +121,7 @@ instance Monad m => Monad (CrossStream m) where
         CrossStream
             (Stream.fromStreamK
                 $ K.bindWith
-                    K.serial
+                    K.append
                     (Stream.toStreamK m)
                     (Stream.toStreamK . unCrossStream . f))
 

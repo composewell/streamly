@@ -55,7 +55,7 @@ import GHC.IO (unsafePerformIO)
 import Text.Read (readPrec)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
@@ -66,7 +66,6 @@ import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
 import Data.IORef
@@ -150,11 +149,11 @@ fromStreamD = D.fold write
 fromStreamN :: MonadIO m => Int -> Stream m a -> m (Array a)
 fromStreamN n m = do
     when (n < 0) $ error "fromStreamN: negative write count specified"
-    fromStreamDN n $ Stream.toStreamD m
+    fromStreamDN n m
 
 {-# INLINE fromStream #-}
 fromStream :: MonadIO m => Stream m a -> m (Array a)
-fromStream = fromStreamD . Stream.toStreamD
+fromStream = fromStreamD
 
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> Array a
@@ -205,11 +204,11 @@ readRevStreamD arr@Array{..} =
 
 {-# INLINE_EARLY read #-}
 read :: MonadIO m => Array a -> Stream m a
-read = Stream.fromStreamD . readStreamD
+read = readStreamD
 
 {-# INLINE_EARLY readRev #-}
 readRev :: Monad m => Array a -> Stream m a
-readRev = Stream.fromStreamD . readRevStreamD
+readRev = readRevStreamD
 
 -------------------------------------------------------------------------------
 -- Elimination - using Folds

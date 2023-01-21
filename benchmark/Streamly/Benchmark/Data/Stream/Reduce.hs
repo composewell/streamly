@@ -21,17 +21,21 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
-import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Stream.Common as Common
+
+#ifndef USE_STREAMLY_CORE
+import Data.HashMap.Strict (HashMap)
+import Data.Proxy (Proxy(..))
+import Streamly.Internal.Data.IsMap.HashMap ()
+#endif
+
 #ifdef USE_PRELUDE
 import Control.Monad (when)
-import Data.Proxy (Proxy(..))
-import Data.HashMap.Strict (HashMap)
-import Streamly.Internal.Data.IsMap.HashMap ()
 import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Prelude as S
 import Streamly.Prelude (fromSerial)
 import Streamly.Benchmark.Prelude hiding
     ( benchIO, benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2
@@ -39,7 +43,22 @@ import Streamly.Benchmark.Prelude hiding
     , filterSome, breakAfterSome, toListM, toListSome, transformMapM
     , transformComposeMapM, transformTeeMapM, transformZipMapM)
 #else
-import qualified Streamly.Internal.Data.Stream as S
+
+import Streamly.Internal.Data.Stream.StreamD (Stream)
+import qualified Streamly.Internal.Data.Stream.StreamD as S
+#ifndef USE_STREAMLY_CORE
+import qualified Streamly.Data.Stream.Prelude as S
+import qualified Streamly.Internal.Data.Stream.Time as S
+#endif
+
+#ifdef USE_STREAMK
+import Streamly.Internal.Data.Stream.StreamK (StreamK)
+import qualified Streamly.Internal.Data.Parser as PR
+import qualified Streamly.Internal.Data.Stream.StreamK as K
+#else
+import qualified Streamly.Internal.Data.Stream.StreamD as K
+#endif
+
 #endif
 
 import Gauge
@@ -47,45 +66,27 @@ import Streamly.Benchmark.Common
 import Stream.Common
 import Prelude hiding (reverse, tail)
 
--------------------------------------------------------------------------------
--- Iteration/looping utilities
--------------------------------------------------------------------------------
+#ifdef USE_PRELUDE
+type Stream = S.SerialT
+#endif
 
-{-# INLINE iterateN #-}
-iterateN :: (Int -> a -> a) -> a -> Int -> a
-iterateN g initial count = f count initial
+-- Apply transformation g count times on a stream of length len
+#ifdef USE_STREAMK
+{-# INLINE iterateSource #-}
+iterateSource ::
+       MonadAsync m
+    => (StreamK m Int -> StreamK m Int)
+    -> Int
+    -> Int
+    -> Int
+    -> StreamK m Int
+iterateSource g count len n = f count (fromStream $ sourceUnfoldrM len n)
 
     where
 
-    f (0 :: Int) x = x
-    f i x = f (i - 1) (g i x)
-
--- Iterate a transformation over a singleton stream
-{-# INLINE iterateSingleton #-}
-iterateSingleton ::
-       (Int -> Stream m Int -> Stream m Int)
-    -> Int
-    -> Int
-    -> Stream m Int
-iterateSingleton g count n = iterateN g (S.fromPure n) count
-
-{-
--- XXX need to check why this is slower than the explicit recursion above, even
--- if the above code is written in a foldr like head recursive way. We also
--- need to try this with foldlM' once #150 is fixed.
--- However, it is perhaps best to keep the iteration benchmarks independent of
--- foldrM and any related fusion issues.
-{-# INLINE _iterateSingleton #-}
-_iterateSingleton ::
-       Monad m
-    => (Int -> Stream m Int -> Stream m Int)
-    -> Int
-    -> Int
-    -> Stream m Int
-_iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
--}
-
--- Apply transformation g count times on a stream of length len
+    f (0 :: Int) stream = stream
+    f i stream = f (i - 1) (g stream)
+#else
 {-# INLINE iterateSource #-}
 iterateSource ::
        MonadAsync m
@@ -100,28 +101,7 @@ iterateSource g count len n = f count (sourceUnfoldrM len n)
 
     f (0 :: Int) stream = stream
     f i stream = f (i - 1) (g stream)
-
--------------------------------------------------------------------------------
--- Functor
--------------------------------------------------------------------------------
-
-o_n_space_functor :: Int -> [Benchmark]
-o_n_space_functor value =
-    [ bgroup "Functor"
-        [ benchIO "(+) (n times) (baseline)" $ \i0 ->
-            iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
-        , benchIOSrc "(<$) (n times)" $
-            iterateSingleton (<$) value
-        , benchIOSrc "fmap (n times)" $
-            iterateSingleton (fmap . (+)) value
-        {-
-        , benchIOSrc fromSerial "_(<$) (n times)" $
-            _iterateSingleton (<$) value
-        , benchIOSrc fromSerial "_fmap (n times)" $
-            _iterateSingleton (fmap . (+)) value
-        -}
-        ]
-    ]
+#endif
 
 -------------------------------------------------------------------------------
 -- Grouping transformations
@@ -195,6 +175,16 @@ refoldIterateM =
             (Refold.take 2 Refold.sconcat) (return (Sum 0))
         . fmap Sum
 
+#ifdef USE_STREAMK
+{-# INLINE parseBreak #-}
+parseBreak :: Monad m => StreamK m Int -> m ()
+parseBreak s = do
+    r <- K.parseBreak PR.one s
+    case r of
+         (Left _, _) -> return ()
+         (Right _, s1) -> parseBreak s1
+#endif
+
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
@@ -216,31 +206,54 @@ o_1_space_grouping value =
         , benchIOSink value "refoldMany" refoldMany
         , benchIOSink value "foldIterateM" foldIterateM
         , benchIOSink value "refoldIterateM" refoldIterateM
+#ifdef USE_STREAMK
+        , benchIOSink value "parseBreak (recursive)" (parseBreak . fromStream)
+#endif
+
+#ifndef USE_STREAMLY_CORE
+        , benchIOSink value "classifySessionsOf (10000 buckets)"
+            (classifySessionsOf (getKey 10000))
+        , benchIOSink value "classifySessionsOf (64 buckets)"
+            (classifySessionsOf (getKey 64))
+        , benchIOSink value "classifySessionsOfHash (10000 buckets)"
+            (classifySessionsOfHash (getKey 10000))
+        , benchIOSink value "classifySessionsOfHash (64 buckets)"
+            (classifySessionsOfHash (getKey 64))
+#endif
         ]
     ]
+
+#ifndef USE_STREAMLY_CORE
+    where
+
+    getKey :: Int -> Int -> Int
+    getKey n = (`mod` n)
+#endif
 
 -------------------------------------------------------------------------------
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
 
+#ifndef USE_PRELUDE
 {-# INLINE reverse #-}
 reverse :: MonadIO m => Int -> Stream m Int -> m ()
-reverse n = composeN n S.reverse
+reverse n = composeN n (toStream . K.reverse . fromStream)
 
 {-# INLINE reverse' #-}
 reverse' :: MonadIO m => Int -> Stream m Int -> m ()
-reverse' n = composeN n S.reverse'
+reverse' n = composeN n S.reverseUnbox
+#endif
 
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
     [ bgroup "buffered"
         [
+#ifndef USE_PRELUDE
         -- Reversing a stream
           benchIOSink value "reverse" (reverse 1)
         , benchIOSink value "reverse'" (reverse' 1)
-
-#ifdef USE_PRELUDE
-        , benchIOSink value "mkAsync" (mkAsync fromSerial)
+#else
+          benchIOSink value "mkAsync" (mkAsync fromSerial)
 #endif
         ]
     ]
@@ -249,9 +262,9 @@ o_n_heap_buffering value =
 -- Grouping/Splitting
 -------------------------------------------------------------------------------
 
-#ifdef USE_PRELUDE
+#ifndef USE_STREAMLY_CORE
 {-# INLINE classifySessionsOf #-}
-classifySessionsOf :: MonadAsync m => (Int -> Int) -> Stream m Int -> m ()
+classifySessionsOf :: S.MonadAsync m => (Int -> Int) -> Stream m Int -> m ()
 classifySessionsOf getKey =
       Common.drain
     . S.classifySessionsOf
@@ -260,7 +273,7 @@ classifySessionsOf getKey =
     . fmap (\x -> (getKey x, x))
 
 {-# INLINE classifySessionsOfHash #-}
-classifySessionsOfHash :: MonadAsync m =>
+classifySessionsOfHash :: S.MonadAsync m =>
     (Int -> Int) -> Stream m Int -> m ()
 classifySessionsOfHash getKey =
       Common.drain
@@ -269,25 +282,6 @@ classifySessionsOfHash getKey =
         1 False (const (return False)) 3 (FL.take 10 FL.sum)
     . S.timestamped
     . fmap (\x -> (getKey x, x))
-
-o_n_space_grouping :: Int -> [Benchmark]
-o_n_space_grouping value =
-    -- Buffering operations using heap proportional to group/window sizes.
-    [ bgroup "grouping"
-        [ benchIOSink value "classifySessionsOf (10000 buckets)"
-            (classifySessionsOf (getKey 10000))
-        , benchIOSink value "classifySessionsOf (64 buckets)"
-            (classifySessionsOf (getKey 64))
-        , benchIOSink value "classifySessionsOfHash (10000 buckets)"
-            (classifySessionsOfHash (getKey 10000))
-        , benchIOSink value "classifySessionsOfHash (64 buckets)"
-            (classifySessionsOfHash (getKey 64))
-        ]
-    ]
-
-    where
-
-    getKey n = (`mod` n)
 #endif
 
 -------------------------------------------------------------------------------
@@ -349,8 +343,9 @@ data Pair a b =
     deriving (Generic, NFData)
 
 {-# INLINE sumProductFold #-}
-sumProductFold :: Monad m => Stream m Int -> m (Int, Int)
-sumProductFold = Common.foldl' (\(s, p) x -> (s + x, p * x)) (0, 1)
+sumProductFold :: Monad m => Stream m Int -> m (Pair Int Int)
+sumProductFold =
+    Common.foldl' (\(Pair s p) x -> Pair (s + x) (p * x)) (Pair 0 1)
 
 {-# INLINE sumProductScan #-}
 sumProductScan :: Monad m => Stream m Int -> m (Pair Int Int)
@@ -398,6 +393,46 @@ o_1_space_transformations_mixedX4 value =
 -- Iterating a transformation over and over again
 -------------------------------------------------------------------------------
 
+#ifdef USE_STREAMK
+{-
+-- this is quadratic
+{-# INLINE iterateScan #-}
+iterateScan :: MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateScan count len = toStream . iterateSource (K.scanl' (+) 0) count len
+-}
+
+{-# INLINE iterateMapM #-}
+iterateMapM :: MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateMapM count len = toStream . iterateSource (K.mapM return) count len
+
+{-# INLINE iterateFilterEven #-}
+iterateFilterEven :: MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateFilterEven count len =
+    toStream . iterateSource (K.filter even) count len
+
+{-# INLINE iterateTakeAll #-}
+iterateTakeAll :: MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
+iterateTakeAll value count len =
+    toStream . iterateSource (K.take (value + 1)) count len
+
+{-# INLINE iterateDropOne #-}
+iterateDropOne :: MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateDropOne count len = toStream . iterateSource (K.drop 1) count len
+
+{-# INLINE iterateDropWhileTrue #-}
+iterateDropWhileTrue :: MonadAsync m
+    => Int -> Int -> Int -> Int -> Stream m Int
+iterateDropWhileTrue value count len =
+    toStream . iterateSource (K.dropWhile (<= (value + 1))) count len
+
+{-# INLINE iterateDropWhileFalse #-}
+iterateDropWhileFalse :: MonadAsync m
+    => Int -> Int -> Int -> Int -> Stream m Int
+iterateDropWhileFalse value count len =
+    toStream . iterateSource (K.dropWhile (> (value + 1))) count len
+
+#else
+
 -- this is quadratic
 {-# INLINE iterateScan #-}
 iterateScan :: MonadAsync m => Int -> Int -> Int -> Stream m Int
@@ -426,15 +461,11 @@ iterateTakeAll value = iterateSource (S.take (value + 1))
 iterateDropOne :: MonadAsync m => Int -> Int -> Int -> Stream m Int
 iterateDropOne = iterateSource (S.drop 1)
 
-{-# INLINE iterateDropWhileFalse #-}
-iterateDropWhileFalse :: MonadAsync m
-    => Int -> Int -> Int -> Int -> Stream m Int
-iterateDropWhileFalse value = iterateSource (S.dropWhile (> (value + 1)))
-
 {-# INLINE iterateDropWhileTrue #-}
 iterateDropWhileTrue :: MonadAsync m
     => Int -> Int -> Int -> Int -> Stream m Int
 iterateDropWhileTrue value = iterateSource (S.dropWhile (<= (value + 1)))
+#endif
 
 #ifdef USE_PRELUDE
 {-# INLINE tail #-}
@@ -455,8 +486,10 @@ o_n_stack_iterated :: Int -> [Benchmark]
 o_n_stack_iterated value = by10 `seq` by100 `seq`
     [ bgroup "iterated"
         [ benchIOSrc "mapM (n/10 x 10)" $ iterateMapM by10 10
+#ifndef USE_STREAMK
         , benchIOSrc "scanl' (quadratic) (n/100 x 100)" $
             iterateScan by100 100
+#endif
 #ifdef USE_PRELUDE
         , benchIOSrc "scanl1' (n/10 x 10)" $ iterateScanl1 by10 10
 #endif
@@ -465,8 +498,10 @@ o_n_stack_iterated value = by10 `seq` by100 `seq`
         , benchIOSrc "takeAll (n/10 x 10)" $
             iterateTakeAll value by10 10
         , benchIOSrc "dropOne (n/10 x 10)" $ iterateDropOne by10 10
+#ifdef USE_STREAMK
         , benchIOSrc "dropWhileFalse (n/10 x 10)" $
             iterateDropWhileFalse value by10 10
+#endif
         , benchIOSrc "dropWhileTrue (n/10 x 10)" $
             iterateDropWhileTrue value by10 10
 #ifdef USE_PRELUDE
@@ -530,13 +565,5 @@ benchmarks moduleName size =
             , o_1_space_pipesX4 size
             ]
         , bgroup (o_n_stack_prefix moduleName) (o_n_stack_iterated size)
-        , bgroup (o_n_heap_prefix moduleName) $ Prelude.concat
-            [
-#ifdef USE_PRELUDE
-              o_n_space_grouping size
-             ,
-#endif
-              o_n_space_functor size
-            , o_n_heap_buffering size
-            ]
+        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_buffering size)
         ]

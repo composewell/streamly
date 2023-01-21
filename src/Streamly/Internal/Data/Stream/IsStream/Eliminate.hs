@@ -25,16 +25,12 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate {-# DEPRECATED "Please u
     -- * Running a 'Fold'
     --  See "Streamly.Internal.Data.Fold".
       fold
-    , foldBreak
-    , foldContinue
 
     -- * Running a 'Parser'
     -- "Streamly.Internal.Data.Parser".
-    , Stream.parse
-    , Stream.parseK
-    , Stream.parseD
-    , Stream.parseBreak
-    , Stream.parseBreakD
+    , parse
+    , parseK
+    , parseD
 
     -- * Stream Deconstruction
     -- | foldr and foldl do not provide the remaining stream.  'uncons' is more
@@ -44,8 +40,8 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate {-# DEPRECATED "Please u
     , uncons
 
     -- * Right Folds
-    , Stream.foldrM
-    , Stream.foldr
+    , foldrM
+    , foldr
 
     -- * Left Folds
     -- Lazy left folds are useful only for reversing the stream
@@ -141,7 +137,7 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate {-# DEPRECATED "Please u
     -- trimming sequences
     , stripPrefix
     -- , stripInfix
-    , Stream.stripSuffix
+    , stripSuffix
 
     -- * Deprecated
     , foldx
@@ -160,27 +156,29 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.SVar (defState)
 import Streamly.Internal.Data.Stream.IsStream.Common
-    ( fold, foldBreak, foldContinue, drop, findIndices, reverse, splitOnSeq
+    ( fold, drop, findIndices, reverse, splitOnSeq
     , take , takeWhile, mkParallel)
 import Streamly.Internal.Data.Stream.IsStream.Type
-    (IsStream, toStreamD, fromStreamD, toStreamD)
+    (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Unboxed (Unbox)
 
-import qualified Streamly.Data.Array as A
-import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Stream.Serial as Stream
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     (foldr1, foldlT, foldlM', mapM_, null, head, headElse, last, elem
     , notElem, all, any, minimum, minimumBy, maximum, maximumBy, the, lookup
-    , find, findM, toListRev, isPrefixOf, isSubsequenceOf, stripPrefix,  (!!))
+    , find, findM, toListRev, isPrefixOf, isSubsequenceOf, stripPrefix,  (!!)
+    , fromStreamK, foldrM, parseD)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (uncons, foldlS, tail, init)
-import qualified Streamly.Internal.Data.Stream as Stream
-    (foldr, toStreamK, parseK, parseD, parseBreakD, foldrM, stripSuffix)
 import qualified System.IO as IO
 
 import Prelude hiding
@@ -234,6 +232,46 @@ uncons = fmap (fmap (fmap IsStream.fromStream)) . K.uncons . Stream.toStreamK
 ------------------------------------------------------------------------------
 -- Right Folds
 ------------------------------------------------------------------------------
+
+-- | Right associative/lazy pull fold. @foldrM build final stream@ constructs
+-- an output structure using the step function @build@. @build@ is invoked with
+-- the next input element and the remaining (lazy) tail of the output
+-- structure. It builds a lazy output expression using the two. When the "tail
+-- structure" in the output expression is evaluated it calls @build@ again thus
+-- lazily consuming the input @stream@ until either the output expression built
+-- by @build@ is free of the "tail" or the input is exhausted in which case
+-- @final@ is used as the terminating case for the output structure. For more
+-- details see the description in the previous section.
+--
+-- Example, determine if any element is 'odd' in a stream:
+--
+-- >>> Stream.foldrM (\x xs -> if odd x then return True else xs) (return False) $ Stream.fromList (2:4:5:undefined)
+-- True
+--
+-- /Since: 0.7.0 (signature changed)/
+--
+-- /Since: 0.2.0 (signature changed)/
+--
+-- /Since: 0.1.0/
+{-# INLINE foldrM #-}
+foldrM :: Monad m => (a -> m b -> m b) -> m b -> SerialT m a -> m b
+foldrM step acc (Stream.SerialT m) = D.foldrM step acc $ D.fromStreamK m
+
+-- | Right fold, lazy for lazy monads and pure streams, and strict for strict
+-- monads.
+--
+-- Please avoid using this routine in strict monads like IO unless you need a
+-- strict right fold. This is provided only for use in lazy monads (e.g.
+-- Identity) or pure streams. Note that with this signature it is not possible
+-- to implement a lazy foldr when the monad @m@ is strict. In that case it
+-- would be strict in its accumulator and therefore would necessarily consume
+-- all its input.
+--
+-- @since 0.1.0
+{-# INLINE foldr #-}
+foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
+foldr f z = foldrM (\a b -> f a <$> b) (return z)
+
 -- XXX This seems to be of limited use as it cannot be used to construct
 -- recursive structures and for reduction foldl1' is better.
 --
@@ -336,6 +374,48 @@ foldlM' step begin = D.foldlM' step begin . IsStream.toStreamD
 runSink :: Monad m => Sink m a -> SerialT m a -> m ()
 runSink = fold . toFold
 -}
+
+------------------------------------------------------------------------------
+-- Running a Parser
+------------------------------------------------------------------------------
+
+-- | Parse a stream using the supplied ParserD 'PRD.Parser'.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL parseD #-}
+parseD :: Monad m => PRD.Parser a m b -> SerialT m a -> m (Either PRD.ParseError b)
+parseD p = D.parseD p . toStreamD
+
+-- | Parse a stream using the supplied ParserK 'PRK.Parser'.
+--
+-- /Internal/
+{-# INLINE parseK #-}
+parseK :: Monad m => PRK.Parser a m b -> SerialT m a -> m (Either PRD.ParseError b)
+parseK = parse
+
+-- | Parse a stream using the supplied 'Parser'.
+--
+-- Unlike folds, parsers may not always result in a valid output, they may
+-- result in an error.  For example:
+--
+-- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
+-- *** Exception: ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0"
+--
+-- Note:
+--
+-- @
+-- fold f = Stream.parse (Parser.fromFold f)
+-- @
+--
+-- @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
+--
+-- /Pre-release/
+--
+{-# INLINE [3] parse #-}
+parse :: Monad m => Parser a m b -> SerialT m a -> m (Either PRD.ParseError b)
+parse = parseD . PRD.fromParserK
+
 ------------------------------------------------------------------------------
 -- Specific Fold Functions
 ------------------------------------------------------------------------------
@@ -563,7 +643,7 @@ product = foldl' (*) 1
 -- /Pre-release/
 {-# INLINE mconcat #-}
 mconcat :: (Monad m, Monoid a) => SerialT m a -> m a
-mconcat = Stream.foldr mappend mempty
+mconcat = foldr mappend mempty
 
 -- |
 -- @
@@ -743,7 +823,7 @@ toHandle h = go
 --
 {-# INLINE toStream #-}
 toStream :: Monad m => SerialT m a -> m (SerialT n a)
-toStream = Stream.foldr IsStream.cons IsStream.nil
+toStream = foldr IsStream.cons IsStream.nil
 
 -- | Convert a stream to a pure stream in reverse order.
 --
@@ -922,6 +1002,25 @@ stripPrefix
     => t m a -> t m a -> m (Maybe (t m a))
 stripPrefix m1 m2 = fmap fromStreamD <$>
     D.stripPrefix (toStreamD m1) (toStreamD m2)
+
+-- | Drops the given suffix from a stream. Returns 'Nothing' if the stream does
+-- not end with the given suffix. Returns @Just nil@ when the suffix is the
+-- same as the stream.
+--
+-- It may be more efficient to convert the stream to an Array and use
+-- stripSuffix on that especially if the elements have a Storable or Prim
+-- instance.
+--
+-- See also "Streamly.Internal.Data.Stream.IsStream.Nesting.dropSuffix".
+--
+-- Space: @O(n)@, buffers the entire input stream as well as the suffix
+--
+-- /Pre-release/
+{-# INLINE stripSuffix #-}
+stripSuffix
+    :: (Monad m, Eq a)
+    => SerialT m a -> SerialT m a -> m (Maybe (SerialT m a))
+stripSuffix m1 m2 = fmap reverse <$> stripPrefix (reverse m1) (reverse m2)
 
 ------------------------------------------------------------------------------
 -- Comparison

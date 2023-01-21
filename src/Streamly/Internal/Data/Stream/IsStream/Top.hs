@@ -72,8 +72,8 @@ import qualified Data.Map.Strict as Map
 -- import qualified Streamly.Internal.Data.Array.Generic as Array
 --     (fromStream, length, read)
 -- import qualified Streamly.Data.Array.Mut as MA
-import qualified Streamly.Internal.Data.Fold as Fold
-    (one, last, toStream, toStreamRev)
+import qualified Streamly.Internal.Data.Fold as Fold (one, last)
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
     (groupByRollingEither)
 -- import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream
@@ -247,8 +247,8 @@ sortBy cmp =
     let p =
             Parser.groupByRollingEither
                 (\x -> (< GT) . cmp x)
-                Fold.toStreamRev
-                Fold.toStream
+                (fmap fromStream Fold.toStreamKRev)
+                (fmap fromStream Fold.toStreamK)
      in   Stream.concatPairsWith (Stream.mergeBy cmp) id
         . Stream.rights . Stream.parseMany (fmap (either id id) p)
 

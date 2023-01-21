@@ -11,13 +11,14 @@ module Streamly.Internal.Data.Stream.StreamD.Exception
       gbracket_
     , gbracket
     , before
-    , after_
-    , after
-    , bracket_
-    , bracket'
+    , afterUnsafe
+    , afterIO
+    , bracketUnsafe
+    , bracketIO3
+    , bracketIO
     , onException
-    , finally_
-    , finally
+    , finallyUnsafe
+    , finallyIO
     , ghandle
     , handle
     )
@@ -189,9 +190,9 @@ before action (Stream step state) = Stream step' Nothing
 
 -- | See 'Streamly.Internal.Data.Stream.after_'.
 --
-{-# INLINE_NORMAL after_ #-}
-after_ :: Monad m => m b -> Stream m a -> Stream m a
-after_ action (Stream step state) = Stream step' state
+{-# INLINE_NORMAL afterUnsafe #-}
+afterUnsafe :: Monad m => m b -> Stream m a -> Stream m a
+afterUnsafe action (Stream step state) = Stream step' state
 
     where
 
@@ -205,10 +206,10 @@ after_ action (Stream step state) = Stream step' state
 
 -- | See 'Streamly.Internal.Data.Stream.after'.
 --
-{-# INLINE_NORMAL after #-}
-after :: MonadIO m
+{-# INLINE_NORMAL afterIO #-}
+afterIO :: MonadIO m
     => IO b -> Stream m a -> Stream m a
-after action (Stream step state) = Stream step' Nothing
+afterIO action (Stream step state) = Stream step' Nothing
 
     where
 
@@ -256,10 +257,10 @@ _onException action (Stream step state) = Stream step' state
 
 -- | See 'Streamly.Internal.Data.Stream.bracket_'.
 --
-{-# INLINE_NORMAL bracket_ #-}
-bracket_ :: MonadCatch m
+{-# INLINE_NORMAL bracketUnsafe #-}
+bracketUnsafe :: MonadCatch m
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket_ bef aft =
+bracketUnsafe bef aft =
     gbracket_
         bef
         aft
@@ -268,21 +269,47 @@ bracket_ bef aft =
 
 -- | See 'Streamly.Internal.Data.Stream.bracket'.
 --
-{-# INLINE_NORMAL bracket' #-}
-bracket' :: (MonadIO m, MonadCatch m) =>
+{-# INLINE_NORMAL bracketIO3 #-}
+bracketIO3 :: (MonadIO m, MonadCatch m) =>
        IO b
     -> (b -> IO c)
     -> (b -> IO d)
     -> (b -> IO e)
     -> (b -> Stream m a)
     -> Stream m a
-bracket' bef aft onExc onGC =
+bracketIO3 bef aft onExc onGC =
     gbracket
         bef
         aft
         (\a (e :: SomeException) _ -> onExc a >> return (nilM (MC.throwM e)))
         onGC
         (inline MC.try)
+
+-- | Run the alloc action @IO b@ with async exceptions disabled but keeping
+-- blocking operations interruptible (see 'Control.Exception.mask').  Use the
+-- output @b@ as input to @b -> Stream m a@ to generate an output stream.
+--
+-- @b@ is usually a resource under the IO monad, e.g. a file handle, that
+-- requires a cleanup after use. The cleanup action @b -> IO c@, runs whenever
+-- the stream ends normally, due to a sync or async exception or if it gets
+-- garbage collected after a partial lazy evaluation.
+--
+-- 'bracketIO' only guarantees that the cleanup action runs, and it runs with
+-- async exceptions enabled. The action must ensure that it can successfully
+-- cleanup the resource in the face of sync or async exceptions.
+--
+-- When the stream ends normally or on a sync exception, cleanup action runs
+-- immediately in the current thread context, whereas in other cases it runs in
+-- the GC context, therefore, cleanup may be delayed until the GC gets to run.
+--
+-- /See also: 'bracketUnsafe'/
+--
+-- /Inhibits stream fusion/
+--
+{-# INLINE bracketIO #-}
+bracketIO :: (MonadIO m, MonadCatch m)
+    => IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
+bracketIO bef aft = bracketIO3 bef aft aft aft
 
 data BracketState s v = BracketInit | BracketRun s v
 
@@ -312,17 +339,17 @@ _bracket bef aft bet = Stream step' BracketInit
 
 -- | See 'Streamly.Internal.Data.Stream.finally_'.
 --
-{-# INLINE finally_ #-}
-finally_ :: MonadCatch m => m b -> Stream m a -> Stream m a
-finally_ action xs = bracket_ (return ()) (const action) (const xs)
+{-# INLINE finallyUnsafe #-}
+finallyUnsafe :: MonadCatch m => m b -> Stream m a -> Stream m a
+finallyUnsafe action xs = bracketUnsafe (return ()) (const action) (const xs)
 
 -- | See 'Streamly.Internal.Data.Stream.finally'.
 --
 -- finally action xs = after action $ onException action xs
 --
-{-# INLINE finally #-}
-finally :: (MonadIO m, MonadCatch m) => IO b -> Stream m a -> Stream m a
-finally action xs = bracket' (return ()) act act act (const xs)
+{-# INLINE finallyIO #-}
+finallyIO :: (MonadIO m, MonadCatch m) => IO b -> Stream m a -> Stream m a
+finallyIO action xs = bracketIO3 (return ()) act act act (const xs)
     where act _ = action
 
 -- | See 'Streamly.Internal.Data.Stream.ghandle'.

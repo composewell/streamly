@@ -11,8 +11,8 @@
 module Streamly.Internal.Data.Stream.StreamD.Lift
     (
     -- * Generalize Inner Monad
-      hoist
-    , generally -- XXX generalize
+      morphInner
+    , generalizeInner
 
     -- * Transform Inner Monad
     , liftInnerWith
@@ -32,9 +32,9 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 -- Generalize Inner Monad
 -------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL hoist #-}
-hoist :: Monad n => (forall x. m x -> n x) -> Stream m a -> Stream n a
-hoist f (Stream step state) = Stream step' state
+{-# INLINE_NORMAL morphInner #-}
+morphInner :: Monad n => (forall x. m x -> n x) -> Stream m a -> Stream n a
+morphInner f (Stream step state) = Stream step' state
     where
     {-# INLINE_LATE step' #-}
     step' gst st = do
@@ -44,9 +44,9 @@ hoist f (Stream step state) = Stream step' state
             Skip  s   -> Skip s
             Stop      -> Stop
 
-{-# INLINE generally #-}
-generally :: Monad m => Stream Identity a -> Stream m a
-generally = hoist (return . runIdentity)
+{-# INLINE generalizeInner #-}
+generalizeInner :: Monad m => Stream Identity a -> Stream m a
+generalizeInner = morphInner (return . runIdentity)
 
 -------------------------------------------------------------------------------
 -- Transform Inner Monad

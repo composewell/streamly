@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Stream
+-- Module      : Streamly.Data.Stream.StreamDK
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -10,7 +10,7 @@
 -- To run examples in this module:
 --
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Stream.StreamDK as Stream
 --
 -- We will add some more imports in the examples as needed.
 --
@@ -24,6 +24,24 @@
 -- declarative concurrency.  Powerful stream fusion framework in streamly
 -- allows high performance combinatorial programming even when using byte level
 -- streams.  Streamly API is similar to Haskell lists.
+--
+-- Streams can be constructed like lists, except that they use 'nil' instead of
+-- '[]' and 'cons' instead of ':'.
+--
+-- `cons` adds a pure value at the head of the stream:
+--
+-- >>> import Streamly.Data.Stream.StreamDK (Stream, cons, consM, nil)
+-- >>> stream = 1 `cons` 2 `cons` nil :: Stream IO Int
+-- >>> Stream.fold Fold.toList stream -- IO [Int]
+-- [1,2]
+--
+-- `consM` adds an effect at the head of the stream:
+--
+-- >>> stream = effect 1 `consM` effect 2 `consM` nil
+-- >>> Stream.fold Fold.toList stream
+-- 1
+-- 2
+-- [1,2]
 --
 -- == Console Echo Example
 --
@@ -51,42 +69,26 @@
 -- "Data.List" like functions and many more powerful combinators to perform
 -- common programming tasks.
 --
--- == Performance Notes
---
--- The 'Stream' type represents a stream by composing state as data which
--- enables stream fusion. Stream fusion generates a tight loop without any
--- constructor allocations between the stages, providing C like performance for
--- the loop. Stream fusion works when multiple functions are combined in a
--- pipeline statically. Therefore, the operations in this module must be
--- inlined and must not be used recursively to allow for stream fusion.
---
--- Using the 'Stream' type binary stream construction operations like 'cons',
--- 'append' etc. degrade quadratically (O(n^2)) when combined many times. If
--- you need to combine these operations, say more than 50 times in a single
--- loop, then you should use the continuation style stream type 'StreamK'
--- instead. Also, if you need to use these operations in a recursive loop you
--- should use 'StreamK' instead.
---
--- The 'StreamK' type represents a stream by composing function calls,
--- therefore, a function call overhead is incurred at each composition. It is
--- quite fast in general but may be a few times slower than a fused stream.
--- However, it allows for scalable dynamic composition and control flow
--- manipulation. Using the 'StreamK' type binary operations like 'cons' and
--- 'append' provide linear (O(n)) performance.
---
--- 'Stream' and 'StreamK' types can be interconverted.
---
 -- == Useful Idioms
 --
 -- >>> fromListM = Stream.sequence . Stream.fromList
 -- >>> fromFoldableM = Stream.sequence . Stream.fromFoldable
 -- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0
 --
--- Also see "Streamly.Internal.Data.Stream" module for many more @Pre-release@
+-- Also see "Streamly.Internal.Data.Stream.StreamDK" module for many more @Pre-release@
 -- combinators. See the <https://github.com/composewell/streamly-examples>
 -- repository for many more real world examples of stream programming.
 --
-module Streamly.Data.Stream
+-- == Performance Notes
+--
+-- Operations annotated as /CPS/ force the use of continuation passing style
+-- streams. Therefore, such operations are not subjected to stream fusion.
+-- However, for some of these operations you can find fusible alternatives in
+-- the internal modules, which are perfectly fine to use but you need to
+-- understand the implications especially the O(n^2) nature of those
+-- operations..
+--
+module Streamly.Data.Stream.StreamDK
     (
       Stream
     -- * Construction
@@ -105,6 +107,8 @@ module Streamly.Data.Stream
     , nilM
     , cons
     , consM
+    -- , cons2 -- fused version
+    -- , consM2 -- fused version
 
     -- ** Unfolding
     -- | 'unfoldrM' is the most general way of generating a stream efficiently.
@@ -148,6 +152,7 @@ module Streamly.Data.Stream
     -- | Convert an input structure, container or source into a stream. All of
     -- these can be expressed in terms of primitives.
     , fromList
+    , fromFoldable
 
     -- ** From Unfolds
     -- | Most of the above stream generation operations can also be expressed
@@ -361,31 +366,28 @@ module Streamly.Data.Stream
     , append
 
     -- ** Interleaving
-    -- | When interleaving more than two streams you may want to interleave
-    -- them pairwise creating a balanced binary merge tree.
     , interleave
+    -- , interleave2
 
     -- ** Merging
-    -- | When merging more than two streams you may want to merging them
-    -- pairwise creating a balanced binary merge tree.
-    --
-    -- Merging of @n@ streams can be performed by combining the streams pair
+    -- | Merging of @n@ streams can be performed by combining the streams pair
     -- wise using 'mergeMapWith' to give O(n * log n) time complexity. If used
     -- with 'concatMapWith' it will have O(n^2) performance.
 
     , mergeBy
     , mergeByM
+    -- , mergeBy2
+    -- , mergeByM2
 
     -- ** Zipping
-    -- | When zipping more than two streams you may want to zip them
-    -- pairwise creating a balanced binary tree.
-    --
-    -- Zipping of @n@ streams can be performed by combining the streams pair
+    -- | Zipping of @n@ streams can be performed by combining the streams pair
     -- wise using 'mergeMapWith' with O(n * log n) time complexity. If used
     -- with 'concatMapWith' it will have O(n^2) performance.
     , zipWith
     , zipWithM
-    -- , ZipStream (..)
+    -- , zipWith2
+    -- , zipWithM2
+    , ZipStream (..)
 
     -- ** Cross Product
     -- XXX The argument order in this operation is such that it seems we are
@@ -397,7 +399,7 @@ module Streamly.Data.Stream
     , crossWith
     -- , cross
     -- , joinInner
-    -- , CrossStream (..)
+    , CrossStream (..)
 
     -- * Unfold Each
     , unfoldMany
@@ -426,18 +428,21 @@ module Streamly.Data.Stream
     --
 
     , concatEffect
+    , concatMapWith
     , concatMap
     , concatMapM
+    , mergeMapWith
 
     -- * Repeated Fold
     , foldMany -- XXX Rename to foldRepeat
     , parseMany
-    , Array.arraysOf
+    , arraysOf
 
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.
     -- Reverse is essentially a left fold followed by an unfold.
     , reverse
+    , sortBy
 
     -- * Multi-Stream folds
     -- | Operations that consume multiple streams at the same time.
@@ -491,8 +496,7 @@ module Streamly.Data.Stream
     )
 where
 
-import qualified Streamly.Internal.Data.Array.Type as Array
-import Streamly.Internal.Data.Stream.StreamD
+import Streamly.Internal.Data.Stream.StreamDK
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,

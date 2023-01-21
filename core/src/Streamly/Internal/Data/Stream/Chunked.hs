@@ -23,27 +23,42 @@ module Streamly.Internal.Data.Stream.Chunked
 
     -- * Elimination
     -- ** Element Folds
-    , foldBreak
+    -- The byte level foldBreak can work as efficiently as the chunk level. We
+    -- can flatten the stream to byte stream and use that. But if we want the
+    -- remaining stream to be a chunk stream then this could be handy. But it
+    -- could also be implemented using parseBreak.
+    , foldBreak -- StreamK.foldBreakChunks
     , foldBreakD
-    , parseBreak
+    -- The byte level parseBreak cannot work efficiently. Because the stream
+    -- will have to be a StreamK for backtracking, StreamK at byte level would
+    -- not be efficient.
+    , parseBreak -- StreamK.parseBreakChunks
     -- , parseBreakD
+    -- , foldManyChunks
+    -- , parseManyChunks
 
     -- ** Array Folds
+    -- XXX Use Parser.Chunked instead, need only chunkedParseBreak,
+    -- foldBreak can be implemented using parseBreak. Use StreamK.
     , runArrayFold
     , runArrayFoldBreak
     -- , parseArr
-    , runArrayParserDBreak
-    , runArrayFoldMany
+    , runArrayParserDBreak -- StreamK.chunkedParseBreak
+    , runArrayFoldMany     -- StreamK.chunkedParseMany
 
     , toArray
 
     -- * Compaction
-    , lpackArraysChunksOf
-    , compact
+    -- We can use something like foldManyChunks, parseManyChunks with a take
+    -- fold.
+    , lpackArraysChunksOf -- Fold.compactChunks
+    , compact -- rechunk, compactChunks
 
     -- * Splitting
-    , splitOn
-    , splitOnSuffix
+    -- We can use something like foldManyChunks, parseManyChunks with an
+    -- appropriate splitting fold.
+    , splitOn       -- Stream.rechunkOn
+    , splitOnSuffix -- Stream.rechunkOnSuffix
     )
 where
 
@@ -62,12 +77,11 @@ import GHC.Types (SPEC(..))
 import Prelude hiding (null, last, (!!), read, concat, unlines)
 
 import Streamly.Data.Fold (Fold)
-import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Chunked (ChunkFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Stream
-    (fromStreamD, fromStreamK, toStreamD, toStreamK)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream.StreamK (StreamK, fromStream, toStream)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Array.Mut.Type
     (allocBytesToElemCount)
@@ -83,15 +97,8 @@ import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
     (Parser(..), Initial(..), fromParserK)
-import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-    ( fromList, nil, cons, map
-    , unfoldMany, append, splitInnerBy, splitInnerBySuffix, foldlM'
-    )
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-    (Step(Yield, Stop, Skip),  Stream(Stream))
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (Stream, cons, nil, fromPure, foldStream)
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -- XXX Since these are immutable arrays MonadIO constraint can be removed from
 -- most places.
@@ -109,7 +116,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 {-# INLINE arraysOf #-}
 arraysOf :: (MonadIO m, Unbox a)
     => Int -> Stream m a -> Stream m (Array a)
-arraysOf n str = fromStreamD $ A.arraysOf n (toStreamD str)
+arraysOf = A.arraysOf
 
 -------------------------------------------------------------------------------
 -- Append
@@ -130,7 +137,7 @@ arraysOf n str = fromStreamD $ A.arraysOf n (toStreamD str)
 concat :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
 -- concat m = fromStreamD $ A.flattenArrays (toStreamD m)
 -- concat m = fromStreamD $ D.concatMap A.toStreamD (toStreamD m)
-concat m = fromStreamD $ D.unfoldMany A.reader (toStreamD m)
+concat = D.unfoldMany A.reader
 
 -- | Convert a stream of arrays into a stream of their elements reversing the
 -- contents of each array before flattening.
@@ -141,7 +148,7 @@ concat m = fromStreamD $ D.unfoldMany A.reader (toStreamD m)
 {-# INLINE concatRev #-}
 concatRev :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
 -- concatRev m = fromStreamD $ A.flattenArraysRev (toStreamD m)
-concatRev m = fromStreamD $ D.unfoldMany A.readerRev (toStreamD m)
+concatRev = D.unfoldMany A.readerRev
 
 -------------------------------------------------------------------------------
 -- Intersperse and append
@@ -153,12 +160,12 @@ concatRev m = fromStreamD $ D.unfoldMany A.readerRev (toStreamD m)
 -- /Pre-release/
 {-# INLINE interpose #-}
 interpose :: (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
-interpose x = S.interpose x A.reader
+interpose x = D.interpose x A.reader
 
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (Monad m, Unbox a)
     => Array a -> Stream m (Array a) -> Stream m a
-intercalateSuffix = S.intercalateSuffix A.reader
+intercalateSuffix = D.intercalateSuffix A.reader
 
 -- | Flatten a stream of arrays appending the given element after each
 -- array.
@@ -168,12 +175,13 @@ intercalateSuffix = S.intercalateSuffix A.reader
 interposeSuffix :: (Monad m, Unbox a)
     => a -> Stream m (Array a) -> Stream m a
 -- interposeSuffix x = fromStreamD . A.unlines x . toStreamD
-interposeSuffix x = S.interposeSuffix x A.reader
+interposeSuffix x = D.interposeSuffix x A.reader
 
 data FlattenState s =
       OuterLoop s
     | InnerLoop s !MA.MutableByteArray !Int !Int
 
+-- XXX This is a special case of interposeSuffix, can be removed.
 -- XXX Remove monadIO constraint
 {-# INLINE_NORMAL unlines #-}
 unlines :: forall m a. (MonadIO m, Unbox a)
@@ -203,6 +211,11 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- XXX These would not be needed once we implement compactLEFold, see
 -- module Streamly.Internal.Data.Array.Mut.Stream
 --
+-- XXX Note that this thaws immutable arrays for appending, that may be
+-- problematic if multiple users do the same thing, however, immutable arrays
+-- would usually have no capacity to append, therefore, a copy will be forced
+-- anyway. Confirm this. We can forcefully trim the array capacity before thaw
+-- to ensure this.
 {-# INLINE_NORMAL packArraysChunksOf #-}
 packArraysChunksOf :: (MonadIO m, Unbox a)
     => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
@@ -211,6 +224,8 @@ packArraysChunksOf n str =
 
 -- XXX instead of writing two different versions of this operation, we should
 -- write it as a pipe.
+--
+-- XXX Confirm that immutable arrays won't be modified.
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf :: (MonadIO m, Unbox a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
@@ -224,7 +239,7 @@ lpackArraysChunksOf n fld =
 {-# INLINE compact #-}
 compact :: (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
-compact n xs = fromStreamD $ packArraysChunksOf n (toStreamD xs)
+compact n = packArraysChunksOf n
 
 -------------------------------------------------------------------------------
 -- Split
@@ -298,8 +313,7 @@ splitOn
     => Word8
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
-splitOn byte s =
-    fromStreamD $ D.splitInnerBy (A.breakOn byte) A.splice $ toStreamD s
+splitOn byte s = D.splitInnerBy (A.breakOn byte) A.splice s
 
 {-# INLINE splitOnSuffix #-}
 splitOnSuffix
@@ -308,8 +322,7 @@ splitOnSuffix
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
 -- splitOn byte s = fromStreamD $ A.splitOn byte $ toStreamD s
-splitOnSuffix byte s =
-    fromStreamD $ D.splitInnerBySuffix (A.breakOn byte) A.splice $ toStreamD s
+splitOnSuffix byte s = D.splitInnerBySuffix (A.breakOn byte) A.splice s
 
 -------------------------------------------------------------------------------
 -- Elimination - Running folds
@@ -395,13 +408,10 @@ foldBreakK (FL.Fold fstep initial extract) stream = do
 foldBreak ::
        (MonadIO m, Unbox a)
     => Fold m a b
-    -> Stream m (A.Array a)
-    -> m (b, Stream m (A.Array a))
+    -> StreamK m (A.Array a)
+    -> m (b, StreamK m (A.Array a))
 -- foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)
-foldBreak f =
-      fmap (fmap fromStreamK)
-    . foldBreakK f
-    . toStreamK
+foldBreak = foldBreakK
 -- If foldBreak performs better than runArrayFoldBreak we can use a rewrite
 -- rule to rewrite runArrayFoldBreak to fold.
 -- foldBreak f = runArrayFoldBreak (ChunkFold.fromFold f)
@@ -457,10 +467,6 @@ splitAtArrayListRev n ls
 -- Fold to a single Array
 -------------------------------------------------------------------------------
 
-{-# INLINE foldlM' #-}
-foldlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> m b
-foldlM' step begin = D.foldlM' step begin . S.toStreamD
-
 -- XXX Both of these implementations of splicing seem to perform equally well.
 -- We need to perform benchmarks over a range of sizes though.
 
@@ -471,16 +477,16 @@ spliceArraysLenUnsafe :: (MonadIO m, Unbox a)
     => Int -> Stream m (MA.Array a) -> m (MA.Array a)
 spliceArraysLenUnsafe len buffered = do
     arr <- liftIO $ MA.newPinned len
-    foldlM' MA.spliceUnsafe (return arr) buffered
+    D.foldlM' MA.spliceUnsafe (return arr) buffered
 
 {-# INLINE _spliceArrays #-}
 _spliceArrays :: (MonadIO m, Unbox a)
     => Stream m (Array a) -> m (Array a)
 _spliceArrays s = do
-    buffered <- S.foldr S.cons S.nil s
-    len <- S.fold FL.sum (fmap Array.length buffered)
+    buffered <- D.foldr K.cons K.nil s
+    len <- K.fold FL.sum (fmap Array.length buffered)
     arr <- liftIO $ MA.newPinned len
-    final <- foldlM' writeArr (return arr) s
+    final <- D.foldlM' writeArr (return arr) (toStream buffered)
     return $ A.unsafeFreeze final
 
     where
@@ -491,9 +497,10 @@ _spliceArrays s = do
 _spliceArraysBuffered :: (MonadIO m, Unbox a)
     => Stream m (Array a) -> m (Array a)
 _spliceArraysBuffered s = do
-    buffered <- S.foldr S.cons S.nil s
-    len <- S.fold FL.sum (fmap Array.length buffered)
-    A.unsafeFreeze <$> spliceArraysLenUnsafe len (fmap A.unsafeThaw s)
+    buffered <- D.foldr K.cons K.nil s
+    len <- K.fold FL.sum (fmap Array.length buffered)
+    A.unsafeFreeze <$>
+        spliceArraysLenUnsafe len (fmap A.unsafeThaw (toStream buffered))
 
 {-# INLINE spliceArraysRealloced #-}
 spliceArraysRealloced :: forall m a. (MonadIO m, Unbox a)
@@ -502,7 +509,7 @@ spliceArraysRealloced s = do
     let n = allocBytesToElemCount (undefined :: a) (4 * 1024)
         idst = liftIO $ MA.newPinned n
 
-    arr <- foldlM' MA.spliceExp idst (fmap A.unsafeThaw s)
+    arr <- D.foldlM' MA.spliceExp idst (fmap A.unsafeThaw s)
     liftIO $ A.unsafeFreeze <$> MA.rightSize arr
 
 -- XXX This should just be "fold A.write"
@@ -776,16 +783,13 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
 parseBreak ::
        (MonadIO m, Unbox a)
     => PR.Parser a m b
-    -> Stream m (A.Array a)
-    -> m (Either ParseError b, Stream m (A.Array a))
+    -> StreamK m (A.Array a)
+    -> m (Either ParseError b, StreamK m (A.Array a))
 {-
 parseBreak p s =
     fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
 -}
-parseBreak p =
-      fmap (fmap fromStreamK)
-    . parseBreakK (PRD.fromParserK p)
-    . toStreamK
+parseBreak p = parseBreakK (PRD.fromParserK p)
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers
@@ -947,8 +951,8 @@ parseArr p s = fmap fromStreamD <$> parseBreakD p (toStreamD s)
 --
 {-# INLINE runArrayFold #-}
 runArrayFold :: (MonadIO m, Unbox a) =>
-    ChunkFold m a b -> Stream m (A.Array a) -> m (Either ParseError b)
-runArrayFold (ChunkFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
+    ChunkFold m a b -> StreamK m (A.Array a) -> m (Either ParseError b)
+runArrayFold (ChunkFold p) s = fst <$> runArrayParserDBreak p (toStream s)
 
 -- | Like 'fold' but also returns the remaining stream.
 --
@@ -956,9 +960,9 @@ runArrayFold (ChunkFold p) s = fst <$> runArrayParserDBreak p (toStreamD s)
 --
 {-# INLINE runArrayFoldBreak #-}
 runArrayFoldBreak :: (MonadIO m, Unbox a) =>
-    ChunkFold m a b -> Stream m (A.Array a) -> m (Either ParseError b, Stream m (A.Array a))
+    ChunkFold m a b -> StreamK m (A.Array a) -> m (Either ParseError b, StreamK m (A.Array a))
 runArrayFoldBreak (ChunkFold p) s =
-    second fromStreamD <$> runArrayParserDBreak p (toStreamD s)
+    second fromStream <$> runArrayParserDBreak p (toStream s)
 
 {-# ANN type ParseChunksState Fuse #-}
 data ParseChunksState x inpBuf st pst =
@@ -1205,6 +1209,6 @@ runArrayFoldManyD
 runArrayFoldMany
     :: (Monad m, Unbox a)
     => ChunkFold m a b
-    -> Stream m (Array a)
-    -> Stream m (Either ParseError b)
-runArrayFoldMany p m = fromStreamD $ runArrayFoldManyD p (toStreamD m)
+    -> StreamK m (Array a)
+    -> StreamK m (Either ParseError b)
+runArrayFoldMany p m = fromStream $ runArrayFoldManyD p (toStream m)

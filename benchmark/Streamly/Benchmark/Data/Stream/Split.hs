@@ -143,7 +143,8 @@ splitOnSeq str inh =
 -- | Split on a word8 sequence.
 splitOnSeq100k :: Handle -> IO Int
 splitOnSeq100k inh = do
-    arr <- A.fromStream $ S.replicate 100000 123
+    arr <- A.fromStream
+            $ IP.toStream $ (S.replicate 100000 123 :: S.SerialT IO Word8)
     (S.length $ IP.splitOnSeq arr FL.drain
         $ S.unfold FH.read inh) -- >>= print
 
@@ -220,8 +221,9 @@ o_1_space_reduce_read_split env =
 splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
     (S.length $ IP.splitOnSeq (A.fromList str) FL.drain
+        $ IP.fromStream
         $ IUS.decodeUtf8Arrays
-        $ IFH.getChunks inh) -- >>= print
+        $ IFH.readChunks inh) -- >>= print
 
 o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_toChunks_split env =

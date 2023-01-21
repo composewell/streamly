@@ -23,15 +23,13 @@ module Streamly.Internal.Data.Stream.IsStream  {-# DEPRECATED "Please use \"Stre
     , module Streamly.Internal.Data.Stream.IsStream.Exception
     , module Streamly.Internal.Data.Stream.IsStream.Lift
     , module Streamly.Internal.Data.Stream.IsStream.Top
+    , fromStream
+    , toStream
     )
 where
 
-import Control.DeepSeq (NFData(..), NFData1(..))
-import Data.Functor.Identity (Identity(..))
-import Streamly.Internal.Data.Stream.Zip (ZipStream(..))
-
 import Streamly.Internal.Data.Stream.IsStream.Top
-import Streamly.Internal.Data.Stream.IsStream.Eliminate
+import Streamly.Internal.Data.Stream.IsStream.Eliminate hiding (toStream)
 import Streamly.Internal.Data.Stream.IsStream.Exception
 import Streamly.Internal.Data.Stream.IsStream.Generate
 import Streamly.Internal.Data.Stream.IsStream.Lift
@@ -40,7 +38,14 @@ import Streamly.Internal.Data.Stream.IsStream.Reduce
 import Streamly.Internal.Data.Stream.IsStream.Transform
 import Streamly.Internal.Data.Stream.IsStream.Type
     hiding (cmpBy, drain, eqBy, foldl', fold, toList, toStream
-        , fromEffect, fromPure, repeat)
+        , fromEffect, fromPure, repeat, fromStream)
 
-deriving instance NFData a => NFData (ZipStream Identity a)
-deriving instance NFData1 (ZipStream Identity)
+import Streamly.Internal.Data.Stream.StreamD as D
+
+{-# INLINE fromStream #-}
+fromStream :: (IsStream t, Monad m) => D.Stream m a -> t m a
+fromStream = fromStreamD
+
+{-# INLINE toStream #-}
+toStream :: (IsStream t, Monad m) => t m a -> D.Stream m a
+toStream = toStreamD

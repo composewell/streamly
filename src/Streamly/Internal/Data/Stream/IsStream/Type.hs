@@ -20,6 +20,8 @@ module Streamly.Internal.Data.Stream.IsStream.Type {-# DEPRECATED "Please use \"
     -- * Type Conversion
     , fromStreamD
     , toStreamD
+    , toStreamK
+    , fromStreamK
     , adapt
     , toConsK
 
@@ -124,9 +126,9 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (Stream(..), cons, fromEffect
     , nil, fromPure, bindWith, drain
-    , fromFoldable, consM, nilM, repeat)
-import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream as Stream
+    , fromFoldable, nilM, repeat)
+import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import qualified Streamly.Internal.Data.Stream.Serial as Stream
     (fromStreamK, toStreamK)
 import qualified Streamly.Internal.Data.Stream.Zip as Zip
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
@@ -200,6 +202,14 @@ class
 -------------------------------------------------------------------------------
 -- Type adapting combinators
 -------------------------------------------------------------------------------
+
+{-# INLINE toStreamK #-}
+toStreamK :: IsStream t => t m a -> StreamK.StreamK m a
+toStreamK = toStream
+
+{-# INLINE fromStreamK #-}
+fromStreamK :: IsStream t => StreamK.StreamK m a -> t m a
+fromStreamK = fromStream
 
 -- XXX Move/reset the State here by reconstructing the stream with cleared
 -- state. Can we make sure we do not do that when t1 = t2? If we do this then
@@ -443,7 +453,7 @@ foldStream st yld sng stp m =
 fromSerial :: IsStream t => SerialT m a -> t m a
 fromSerial = adapt
 
-instance IsStream Stream.Stream where
+instance IsStream SerialT where
     toStream = Stream.toStreamK
     fromStream = Stream.fromStreamK
 
@@ -574,8 +584,8 @@ instance IsStream ParallelT where
 -------------------------------------------------------------------------------
 
 consMZip :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
-consMZip m (Zip.ZipStream r) =
-    Zip.ZipStream $ Stream.fromStreamK $ K.consM m (Stream.toStreamK r)
+consMZip m (Zip.ZipSerialM r) =
+    Zip.ZipSerialM $ StreamK.consM m r
 
 -- | Fix the type of a polymorphic stream as 'ZipSerialM'.
 --
@@ -585,8 +595,8 @@ consMZip m (Zip.ZipStream r) =
 fromZipSerial :: IsStream t => ZipSerialM m a -> t m a
 fromZipSerial = adapt
 instance IsStream ZipSerialM where
-    toStream = Stream.toStreamK . Zip.unZipStream
-    fromStream = Zip.ZipStream . Stream.fromStreamK
+    toStream = Zip.getZipSerialM
+    fromStream = Zip.ZipSerialM
 
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}

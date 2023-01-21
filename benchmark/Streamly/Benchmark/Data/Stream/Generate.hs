@@ -21,35 +21,42 @@ import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity(..))
 
 import qualified GHC.Exts as GHC
-import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as Fold
+
 #ifdef USE_PRELUDE
+import Streamly.Prelude (MonadAsync)
+import Stream.Common hiding (MonadAsync)
 import Streamly.Benchmark.Prelude (sourceFromFoldableM, absTimes)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
-import qualified Streamly.Internal.Data.Stream as Stream
+import Stream.Common
+import Streamly.Internal.Data.Stream.StreamD (Stream)
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+#ifdef USE_STREAMK
+import System.IO.Unsafe (unsafeInterleaveIO)
+import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import qualified Stream.Common as Common
 #endif
-import qualified Prelude
+#endif
 
 import Gauge
 import Streamly.Benchmark.Common
-import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
-#ifdef USE_PRELUDE
-import Streamly.Prelude (MonadAsync)
-import Stream.Common hiding (MonadAsync)
-#else
-import Stream.Common
-#endif
-
-import System.IO.Unsafe (unsafeInterleaveIO)
+import qualified Prelude
 
 import Prelude hiding (repeat, replicate, iterate)
 
 -------------------------------------------------------------------------------
 -- Generation
 -------------------------------------------------------------------------------
+
+#ifdef USE_PRELUDE
+type Stream = Stream.SerialT
+toStreamD = Stream.toStream
+#else
+toStreamD :: a -> a
+toStreamD = id
+#endif
 
 -------------------------------------------------------------------------------
 -- fromList
@@ -157,15 +164,15 @@ iterate count = Stream.take count . Stream.iterate (+1)
 iterateM :: MonadAsync m => Int -> Int -> Stream m Int
 iterateM count = Stream.take count . Stream.iterateM (return . (+1)) . return
 
-#ifdef USE_PRELUDE
 {-# INLINE repeatM #-}
-repeatM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-repeatM count = S.take count . S.repeatM . return
+repeatM :: MonadAsync m => Int -> Int -> Stream m Int
+repeatM count = Stream.take count . Stream.repeatM . return
 
 {-# INLINE replicateM #-}
-replicateM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-replicateM count = S.replicateM count . return
+replicateM :: MonadAsync m => Int -> Int -> Stream m Int
+replicateM count = Stream.replicateM count . return
 
+#ifdef USE_PRELUDE
 {-# INLINE fromIndices #-}
 fromIndices :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
 fromIndices value n = S.take value $ S.fromIndices (+ n)
@@ -175,15 +182,17 @@ fromIndicesM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
 fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
 #endif
 
+#ifdef USE_STREAMK
 {-# INLINE mfixUnfold #-}
 mfixUnfold :: Int -> Int -> Stream IO (Int, Int)
-mfixUnfold count start = Stream.mfix f
+mfixUnfold count start = toStream $ StreamK.mfix f
     where
-    f action = unCrossStream $ do
+    f action = StreamK.fromCross $ do
         let incr n act = fmap ((+n) . snd)  $ unsafeInterleaveIO act
-        x <- CrossStream (Common.fromListM [incr 1 action, incr 2 action])
-        y <- CrossStream (Common.sourceUnfoldr count start)
+        x <- StreamK.toCross (fromStream $ Common.fromListM [incr 1 action, incr 2 action])
+        y <- StreamK.toCross (fromStream $ Common.sourceUnfoldr count start)
         return (x, y)
+#endif
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
@@ -201,37 +210,46 @@ o_1_space_generation value =
         , benchIOSrc "fracFromTo" (sourceFracFromTo value)
         , benchIOSrc "fromList" (sourceFromList value)
         , benchIOSrc "fromListM" (sourceFromListM value)
-        , benchPureSrc "IsList.fromList" (sourceIsList value)
-        , benchPureSrc "IsString.fromString" (sourceIsString value)
+        , benchPureSrc "IsList.fromList" (toStreamD . sourceIsList value)
+        , benchPureSrc "IsString.fromString" (toStreamD . sourceIsString value)
         , benchIOSrc "enumerateFrom" (enumerateFrom value)
         , benchIOSrc "enumerateFromTo" (enumerateFromTo value)
         , benchIOSrc "enumerateFromThen" (enumerateFromThen value)
         , benchIOSrc "enumerateFromThenTo" (enumerateFromThenTo value)
         , benchIOSrc "enumerate" (enumerate value)
         , benchIOSrc "enumerateTo" (enumerateTo value)
-#ifdef USE_PRELUDE
         , benchIOSrc "repeatM" (repeatM value)
         , benchIOSrc "replicateM" (replicateM value)
+#ifdef USE_PRELUDE
         , benchIOSrc "fromIndices" (fromIndices value)
         , benchIOSrc "fromIndicesM" (fromIndicesM value)
 #endif
 
           -- These essentially test cons and consM
+#ifdef USE_STREAMK
         , benchIOSrc "fromFoldable" (sourceFromFoldable value)
+        -- , benchIOSrc "fromFoldable 16" (sourceFromFoldable 16)
+#else
+        -- , benchIOSrc "fromFoldable 16" (sourceFromFoldable 16)
+#endif
 
 #ifdef USE_PRELUDE
         , benchIOSrc "fromFoldableM" (sourceFromFoldableM value)
         , benchIOSrc "absTimes" $ absTimes value
 #endif
+#ifdef USE_STREAMK
         , Common.benchIOSrc "mfix_10" (mfixUnfold 10)
         , Common.benchIOSrc "mfix_100" (mfixUnfold 100)
         , Common.benchIOSrc "mfix_1000" (mfixUnfold 1000)
+#endif
         ]
     ]
 
+#ifndef USE_PRELUDE
 instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
+#endif
 
 o_n_heap_generation :: Int -> [Benchmark]
 o_n_heap_generation value =

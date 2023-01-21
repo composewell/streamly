@@ -11,13 +11,16 @@
 module Streamly.Internal.Data.Stream.Type
     (
     -- * Stream Type
-      Stream
+      Stream -- XXX To be removed
+    , StreamK
 
     -- * Type Conversion
     , fromStreamK
     , toStreamK
     , fromStreamD
     , toStreamD
+    , fromStream
+    , toStream
     , Streamly.Internal.Data.Stream.Type.fromList
 
     -- * Construction
@@ -76,9 +79,11 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 --
 -- >>> (<>) = Stream.append
 --
-newtype Stream m a = Stream (K.Stream m a)
+newtype StreamK m a = StreamK (K.Stream m a)
     -- XXX when deriving do we inherit an INLINE?
     deriving (Semigroup, Monoid)
+
+type Stream = StreamK
 
 ------------------------------------------------------------------------------
 -- Conversions
@@ -86,11 +91,11 @@ newtype Stream m a = Stream (K.Stream m a)
 
 {-# INLINE_EARLY fromStreamK #-}
 fromStreamK :: K.Stream m a -> Stream m a
-fromStreamK = Stream
+fromStreamK = StreamK
 
 {-# INLINE_EARLY toStreamK #-}
 toStreamK :: Stream m a -> K.Stream m a
-toStreamK (Stream k) = k
+toStreamK (StreamK k) = k
 
 {-# INLINE_EARLY fromStreamD #-}
 fromStreamD :: Monad m => D.Stream m a -> Stream m a
@@ -99,6 +104,14 @@ fromStreamD = fromStreamK . D.toStreamK
 {-# INLINE_EARLY toStreamD #-}
 toStreamD :: Applicative m => Stream m a -> D.Stream m a
 toStreamD = D.fromStreamK . toStreamK
+
+{-# INLINE fromStream #-}
+fromStream :: Monad m => D.Stream m a -> Stream m a
+fromStream = fromStreamD
+
+{-# INLINE toStream #-}
+toStream :: Applicative m => Stream m a -> D.Stream m a
+toStream = toStreamD
 
 ------------------------------------------------------------------------------
 -- Generation
@@ -162,18 +175,18 @@ instance IsList (Stream Identity a) where
     type (Item (Stream Identity a)) = a
 
     {-# INLINE fromList #-}
-    fromList xs = Stream $ P.fromList xs
+    fromList xs = StreamK $ P.fromList xs
 
     {-# INLINE toList #-}
-    toList (Stream xs) = runIdentity $ P.toList xs
+    toList (StreamK xs) = runIdentity $ P.toList xs
 
 instance Eq a => Eq (Stream Identity a) where
     {-# INLINE (==) #-}
-    (==) (Stream xs) (Stream ys) = runIdentity $ P.eqBy (==) xs ys
+    (==) (StreamK xs) (StreamK ys) = runIdentity $ P.eqBy (==) xs ys
 
 instance Ord a => Ord (Stream Identity a) where
     {-# INLINE compare #-}
-    compare (Stream xs) (Stream ys) = runIdentity $ P.cmpBy compare xs ys
+    compare (StreamK xs) (StreamK ys) = runIdentity $ P.cmpBy compare xs ys
 
     {-# INLINE (<) #-}
     x < y =
@@ -218,7 +231,7 @@ instance Read a => Read (Stream Identity a) where
 
 instance (a ~ Char) => IsString (Stream Identity a) where
     {-# INLINE fromString #-}
-    fromString xs = Stream $ P.fromList xs
+    fromString xs = StreamK $ P.fromList xs
 
 -------------------------------------------------------------------------------
 -- Foldable
@@ -234,7 +247,7 @@ instance (a ~ Char) => IsString (Stream Identity a) where
 instance (Foldable m, Monad m) => Foldable (Stream m) where
 
     {-# INLINE foldMap #-}
-    foldMap f (Stream xs) = fold $ P.foldr (mappend . f) mempty xs
+    foldMap f (StreamK xs) = fold $ P.foldr (mappend . f) mempty xs
 
     {-# INLINE foldr #-}
     foldr f z t = appEndo (foldMap (Endo #. f) t) z
@@ -283,8 +296,8 @@ instance (Foldable m, Monad m) => Foldable (Stream m) where
 
 instance Traversable (Stream Identity) where
     {-# INLINE traverse #-}
-    traverse f (Stream xs) =
-        fmap Stream $ runIdentity $ P.foldr consA (pure mempty) xs
+    traverse f (StreamK xs) =
+        fmap StreamK $ runIdentity $ P.foldr consA (pure mempty) xs
 
         where
 
@@ -396,19 +409,19 @@ fromEffect = fromStreamK . K.fromEffect
 -- >>> crossApply = Stream.crossWith id
 --
 {-# INLINE crossApply #-}
-crossApply :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
+crossApply :: Stream m (a -> b) -> Stream m a -> Stream m b
 crossApply m1 m2 =
-    fromStreamD $ D.crossApply (toStreamD m1) (toStreamD m2)
+    fromStreamK $ K.crossApply (toStreamK m1) (toStreamK m2)
 
 {-# INLINE crossApplySnd #-}
-crossApplySnd :: Monad m => Stream m a -> Stream m b -> Stream m b
+crossApplySnd :: Stream m a -> Stream m b -> Stream m b
 crossApplySnd m1 m2 =
-    fromStreamD $ D.crossApplySnd (toStreamD m1) (toStreamD m2)
+    fromStreamK $ K.crossApplySnd (toStreamK m1) (toStreamK m2)
 
 {-# INLINE crossApplyFst #-}
-crossApplyFst :: Monad m => Stream m a -> Stream m b -> Stream m a
+crossApplyFst :: Stream m a -> Stream m b -> Stream m a
 crossApplyFst m1 m2 =
-    fromStreamD $ D.crossApplyFst (toStreamD m1) (toStreamD m2)
+    fromStreamK $ K.crossApplyFst (toStreamK m1) (toStreamK m2)
 
 -- |
 -- Definition:

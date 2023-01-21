@@ -34,13 +34,11 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unboxed (Unbox)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
--- import qualified Streamly.Internal.Data.Stream.Common as P
 
 import Prelude hiding (foldr, length, read, splitAt)
 import Streamly.Internal.Data.Array.Mut.Type
@@ -53,8 +51,7 @@ import Streamly.Internal.Data.Array.Mut.Type
 splitOn :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
 splitOn predicate arr =
-    Stream.fromStreamD
-        $ fmap (\(i, len) -> getSliceUnsafe i len arr)
+    fmap (\(i, len) -> getSliceUnsafe i len arr)
         $ D.sliceOnSuffix predicate (toStreamD arr)
 
 -- | Generate a stream of array slice descriptors ((index, len)) of specified
@@ -99,5 +96,5 @@ getSlicesFromLen from len =
 -- /Pre-release/
 {-# INLINE fromStream #-}
 fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (Array a)
-fromStream = fromStreamD . Stream.toStreamD
+fromStream = fromStreamD
 -- fromStream (Stream m) = P.fold write m

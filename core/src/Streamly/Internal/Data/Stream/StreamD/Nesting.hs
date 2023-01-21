@@ -92,13 +92,17 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- | Like unfoldMany but intersperses an effect between the streams. A
     -- special case of gintercalate.
     , interpose
+    , interposeM
     , interposeSuffix
+    , interposeSuffixM
 
     -- *** Intercalate
     -- | Like unfoldMany but intersperses streams from another source between
     -- the streams from the first source.
     , gintercalate
     , gintercalateSuffix
+    , intercalate
+    , intercalateSuffix
 
     -- * Eliminate
     -- | Folding and Parsing chunks of streams to eliminate nested streams.
@@ -123,7 +127,9 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- splitting the stream and then folds each such split to single value in
     -- the output stream.
     , parseMany
+    , parseManyD
     , parseIterate
+    , parseIterateD
 
     -- ** Grouping
     -- | Group segments of a stream and fold. Special case of parsing.
@@ -152,7 +158,6 @@ where
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
-import Data.Functor.Identity ( Identity )
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
 import Foreign.Storable (Storable, peek)
@@ -175,6 +180,8 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Ring.Unboxed as RB
 
+import Streamly.Internal.Data.Stream.StreamD.Transform
+    (intersperse, intersperseMSuffix)
 import Streamly.Internal.Data.Stream.StreamD.Type
 
 import Prelude hiding (concatMap, mapM, zipWith)
@@ -395,40 +402,6 @@ roundRobin (Stream step1 state1) (Stream step2 state2) =
             Yield a s -> Yield a (InterleaveFirstOnly s)
             Skip s -> Skip (InterleaveFirstOnly s)
             Stop -> Stop
-
-------------------------------------------------------------------------------
--- Zipping
-------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL zipWithM #-}
-zipWithM :: Monad m
-    => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
-  where
-    {-# INLINE_LATE step #-}
-    step gst (sa, sb, Nothing) = do
-        r <- stepa (adaptState gst) sa
-        return $
-          case r of
-            Yield x sa' -> Skip (sa', sb, Just x)
-            Skip sa'    -> Skip (sa', sb, Nothing)
-            Stop        -> Stop
-
-    step gst (sa, sb, Just x) = do
-        r <- stepb (adaptState gst) sb
-        case r of
-            Yield y sb' -> do
-                z <- f x y
-                return $ Yield z (sa, sb', Nothing)
-            Skip sb' -> return $ Skip (sa, sb', Just x)
-            Stop     -> return Stop
-
-{-# RULES "zipWithM xs xs"
-    forall f xs. zipWithM @Identity f xs xs = mapM (\x -> f x x) xs #-}
-
-{-# INLINE zipWith #-}
-zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipWith f = zipWithM (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
 -- Merging
@@ -677,11 +650,11 @@ data InterposeSuffixState s1 i1 =
 -- effect only if at least one element has been yielded by the unfolding.
 -- However, that becomes a bit complicated, so we have chosen the former
 -- behvaior for now.
-{-# INLINE_NORMAL interposeSuffix #-}
-interposeSuffix
+{-# INLINE_NORMAL interposeSuffixM #-}
+interposeSuffixM
     :: Monad m
     => m c -> Unfold m b c -> Stream m b -> Stream m c
-interposeSuffix
+interposeSuffixM
     action
     (Unfold istep1 inject1) (Stream step1 state1) =
     Stream step (InterposeSuffixFirst state1)
@@ -719,6 +692,17 @@ interposeSuffix
         r <- action
         return $ Yield r (InterposeSuffixFirst s1)
 
+-- | Unfold the elements of a stream, append the given element after each
+-- unfolded stream and then concat them into a single stream.
+--
+-- >>> unlines = Stream.interposeSuffix '\n'
+--
+-- /Pre-release/
+{-# INLINE interposeSuffix #-}
+interposeSuffix :: Monad m
+    => c -> Unfold m b c -> Stream m b -> Stream m c
+interposeSuffix x = interposeSuffixM (return x)
+
 {-# ANN type InterposeState Fuse #-}
 data InterposeState s1 i1 a =
       InterposeFirst s1
@@ -732,9 +716,9 @@ data InterposeState s1 i1 a =
 
 -- Note that this only interposes the pure values, we may run many effects to
 -- generate those values as some effects may not generate anything (Skip).
-{-# INLINE_NORMAL interpose #-}
-interpose :: Monad m => m c -> Unfold m b c -> Stream m b -> Stream m c
-interpose
+{-# INLINE_NORMAL interposeM #-}
+interposeM :: Monad m => m c -> Unfold m b c -> Stream m b -> Stream m c
+interposeM
     action
     (Unfold istep1 inject1) (Stream step1 state1) =
     Stream step (InterposeFirst state1)
@@ -800,6 +784,19 @@ interpose
     step _ (InterposeFirstResume s1 i1 v) = do
         return $ Yield v (InterposeFirstInner s1 i1)
     -}
+
+-- > interpose x unf str = gintercalate unf str UF.identity (repeat x)
+
+-- | Unfold the elements of a stream, intersperse the given element between the
+-- unfolded streams and then concat them into a single stream.
+--
+-- >>> unwords = Stream.interpose ' '
+--
+-- /Pre-release/
+{-# INLINE interpose #-}
+interpose :: Monad m
+    => c -> Unfold m b c -> Stream m b -> Stream m c
+interpose x = interposeM (return x)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - intercalate
@@ -1017,6 +1014,40 @@ gintercalate
         return $ Yield x (ICALFirstInner s1 s2 i1 i2)
     -}
 
+-- > intercalateSuffix unf seed str = gintercalateSuffix unf str unf (repeatM seed)
+
+-- | 'intersperseMSuffix' followed by unfold and concat.
+--
+-- >>> intercalateSuffix u a = Stream.unfoldMany u . Stream.intersperseMSuffix a
+-- >>> intersperseMSuffix = Stream.intercalateSuffix Unfold.identity
+-- >>> unlines = Stream.intercalateSuffix Unfold.fromList "\n"
+--
+-- >>> input = Stream.fromList ["abc", "def", "ghi"]
+-- >>> Stream.fold Fold.toList $ Stream.intercalateSuffix Unfold.fromList "\n" input
+-- "abc\ndef\nghi\n"
+--
+{-# INLINE intercalateSuffix #-}
+intercalateSuffix :: Monad m
+    => Unfold m b c -> b -> Stream m b -> Stream m c
+intercalateSuffix unf seed = unfoldMany unf . intersperseMSuffix (return seed)
+
+-- > intercalate unf seed str = gintercalate unf str unf (repeatM seed)
+
+-- | 'intersperse' followed by unfold and concat.
+--
+-- >>> intercalate u a = Stream.unfoldMany u . Stream.intersperse a
+-- >>> intersperse = Stream.intercalate Unfold.identity
+-- >>> unwords = Stream.intercalate Unfold.fromList " "
+--
+-- >>> input = Stream.fromList ["abc", "def", "ghi"]
+-- >>> Stream.fold Fold.toList $ Stream.intercalate Unfold.fromList " " input
+-- "abc def ghi"
+--
+{-# INLINE intercalate #-}
+intercalate :: Monad m
+    => Unfold m b c -> b -> Stream m b -> Stream m c
+intercalate unf seed str = unfoldMany unf $ intersperse seed str
+
 ------------------------------------------------------------------------------
 -- Folding
 ------------------------------------------------------------------------------
@@ -1150,13 +1181,13 @@ data ParseChunksState x inpBuf st pst =
 -- XXX return the remaining stream as part of the error.
 -- XXX This is in fact parseMany1 (a la foldMany1). Do we need a parseMany as
 -- well?
-{-# INLINE_NORMAL parseMany #-}
-parseMany
+{-# INLINE_NORMAL parseManyD #-}
+parseManyD
     :: Monad m
     => PRD.Parser a m b
     -> Stream m a
     -> Stream m (Either ParseError b)
-parseMany (PRD.Parser pstep initial extract) (Stream step state) =
+parseManyD (PRD.Parser pstep initial extract) (Stream step state) =
     Stream stepOuter (ParseChunksInit [] state)
 
     where
@@ -1362,6 +1393,30 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
 
     stepOuter _ (ParseChunksYield a next) = return $ Yield a next
 
+-- | Apply a 'Parser' repeatedly on a stream and emit the parsed values in the
+-- output stream.
+--
+-- Example:
+--
+-- >>> s = Stream.fromList [1..10]
+-- >>> parser = Parser.takeBetween 0 2 Fold.sum
+-- >>> Stream.fold Fold.toList $ Stream.parseMany parser s
+-- [Right 3,Right 7,Right 11,Right 15,Right 19]
+--
+-- This is the streaming equivalent of the 'Streamly.Data.Parser.many' parse
+-- combinator.
+--
+-- Known Issues: When the parser fails there is no way to get the remaining
+-- stream.
+--
+{-# INLINE parseMany #-}
+parseMany
+    :: Monad m
+    => PR.Parser a m b
+    -> Stream m a
+    -> Stream m (Either ParseError b)
+parseMany p = parseManyD (PRD.fromParserK p)
+
 {-# ANN type ConcatParseState Fuse #-}
 data ConcatParseState c b inpBuf st p m a =
       ConcatParseInit inpBuf st p
@@ -1378,14 +1433,14 @@ data ConcatParseState c b inpBuf st p m a =
     | ConcatParseYield c (ConcatParseState c b inpBuf st p m a)
 
 -- XXX Review the changes
-{-# INLINE_NORMAL parseIterate #-}
-parseIterate
+{-# INLINE_NORMAL parseIterateD #-}
+parseIterateD
     :: Monad m
     => (b -> PRD.Parser a m b)
     -> b
     -> Stream m a
     -> Stream m (Either ParseError b)
-parseIterate func seed (Stream step state) =
+parseIterateD func seed (Stream step state) =
     Stream stepOuter (ConcatParseInit [] state (func seed))
 
     where
@@ -1576,6 +1631,29 @@ parseIterate func seed (Stream step state) =
                         (ConcatParseInitLeftOver [])
 
     stepOuter _ (ConcatParseYield a next) = return $ Yield a next
+
+-- | Iterate a parser generating function on a stream. The initial value @b@ is
+-- used to generate the first parser, the parser is applied on the stream and
+-- the result is used to generate the next parser and so on.
+--
+-- >>> import Data.Monoid (Sum(..))
+-- >>> s = Stream.fromList [1..10]
+-- >>> Stream.fold Fold.toList $ fmap getSum $ Stream.catRights $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) (Sum 0) $ fmap Sum s
+-- [3,10,21,36,55,55]
+--
+-- This is the streaming equivalent of monad like sequenced application of
+-- parsers where next parser is dependent on the previous parser.
+--
+-- /Pre-release/
+--
+{-# INLINE parseIterate #-}
+parseIterate
+    :: Monad m
+    => (b -> PR.Parser a m b)
+    -> b
+    -> Stream m a
+    -> Stream m (Either ParseError b)
+parseIterate f = parseIterateD (PRD.fromParserK . f)
 
 ------------------------------------------------------------------------------
 -- Grouping

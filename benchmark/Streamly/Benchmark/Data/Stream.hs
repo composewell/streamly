@@ -14,7 +14,9 @@ module Main (main) where
 import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 
 import qualified Stream.Eliminate as Elimination
+#ifndef USE_STREAMLY_CORE
 import qualified Stream.Exceptions as Exceptions
+#endif
 import qualified Stream.Expand as NestedStream
 import qualified Stream.Generate as Generation
 import qualified Stream.Lift as Lift
@@ -27,7 +29,11 @@ import qualified Stream.Transform as Transformation
 import Streamly.Benchmark.Common
 
 moduleName :: String
+#ifdef USE_STREAMK
+moduleName = "Data.Stream.StreamDK"
+#else
 moduleName = "Data.Stream"
+#endif
 
 -------------------------------------------------------------------------------
 -- Main
@@ -46,7 +52,9 @@ main = do
     allBenchmarks env size = Prelude.concat
         [ Generation.benchmarks moduleName size
         , Elimination.benchmarks moduleName size
+#ifndef USE_STREAMLY_CORE
         , Exceptions.benchmarks moduleName env size
+#endif
 #ifdef USE_PRELUDE
         , Split.benchmarks moduleName env
 #endif

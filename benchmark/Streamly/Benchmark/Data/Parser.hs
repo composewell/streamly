@@ -20,13 +20,13 @@ module Main
 import Control.DeepSeq (NFData(..))
 import Data.Foldable (asum)
 import Data.Functor (($>))
-import Data.Maybe (fromMaybe)
 import Data.Monoid (Sum(..))
 import GHC.Magic (inline)
 import GHC.Magic (noinline)
 import System.IO (Handle)
 import System.Random (randomRIO)
 import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Prelude hiding
     (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile)
 
@@ -37,13 +37,12 @@ import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.IsStream as IsStream (tail)
+import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Producer.Source as Source
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 
 import Gauge hiding (env)
-import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
@@ -141,8 +140,7 @@ dropWhile value = Stream.parse (PR.dropWhile (<= value))
 {-# INLINE takeStartBy #-}
 takeStartBy :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 takeStartBy value stream = do
-    stream1 <- return . fromMaybe (Stream.fromPure (value + 1)) =<< IsStream.tail stream
-    let stream2 = value `Stream.cons` stream1
+    let stream2 = value `Stream.cons` stream
     Stream.parse (PR.takeStartBy (== value) Fold.drain) stream2
 
 takeFramedByEsc_ :: Monad m => Int -> Stream m Char -> m (Either ParseError ())
@@ -429,14 +427,6 @@ parseIterate n =
         (Sum 0)
     . fmap Sum
 
-{-# INLINE parseBreak #-}
-parseBreak :: Monad m => Stream m Int -> m ()
-parseBreak s = do
-    r <- Stream.parseBreak PR.one s
-    case r of
-         (Left _, _) -> return ()
-         (Right _, s1) -> parseBreak s1
-
 {-# INLINE concatSequence #-}
 concatSequence :: Monad m => Stream m Int -> m (Either ParseError ())
 concatSequence = Stream.parse $ PR.concatSequence Fold.drain $ Stream.repeat PR.one
@@ -490,7 +480,6 @@ o_1_space_serial value =
     , benchIOSink value "shortest" $ shortestAllAny value
     , benchIOSink value "longest" $ longestAllAny value
     -}
-    , benchIOSink value "parseBreak (recursive)" parseBreak
     , benchIOSink value "parseMany (take 1)" (parseMany 1)
     , benchIOSink value "parseMany (take all)" (parseMany value)
     , benchIOSink value "parseIterate (take 1)" (parseIterate 1)

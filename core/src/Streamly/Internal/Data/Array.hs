@@ -139,7 +139,7 @@ import Streamly.Internal.Data.Array.Type
     (Array(..), length, asPtrUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
@@ -151,9 +151,8 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Ring.Unboxed as RB
-import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
 -------------------------------------------------------------------------------
@@ -169,7 +168,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 fromStreamN :: (MonadIO m, Unbox a) => Int -> Stream m a -> m (Array a)
 fromStreamN n m = do
     when (n < 0) $ error "writeN: negative write count specified"
-    A.fromStreamDN n $ Stream.toStreamD m
+    A.fromStreamDN n m
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice
@@ -182,7 +181,7 @@ fromStreamN n m = do
 -- /Pre-release/
 {-# INLINE fromStream #-}
 fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (Array a)
-fromStream m = P.fold A.write $ Stream.toStreamK m
+fromStream m = Stream.fold A.write m
 -- write m = A.fromStreamD $ D.fromStreamK m
 
 -------------------------------------------------------------------------------
@@ -373,8 +372,7 @@ getSliceUnsafe index len (Array contents start e) =
 splitOn :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
 splitOn predicate arr =
-    Stream.fromStreamD
-        $ fmap (\(i, len) -> getSliceUnsafe i len arr)
+    fmap (\(i, len) -> getSliceUnsafe i len arr)
         $ D.sliceOnSuffix predicate (A.toStreamD arr)
 
 {-# INLINE genSlicesFromLen #-}
@@ -438,7 +436,7 @@ getIndex i arr =
 {-# INLINE getIndices #-}
 getIndices :: (Monad m, Unbox a) => Stream m Int -> Unfold m (Array a) a
 getIndices m =
-    let unf = MA.getIndicesD (return . unsafeInlineIO) $ D.fromStreamK $ Stream.toStreamK m
+    let unf = MA.getIndicesD (return . unsafeInlineIO) m
      in Unfold.lmap A.unsafeThaw unf
 
 -- | Unfolds @(from, then, to, array)@ generating a finite stream whose first
@@ -488,7 +486,7 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 streamTransform :: forall m a b. (MonadIO m, Unbox a, Unbox b)
     => (Stream m a -> Stream m b) -> Array a -> m (Array b)
 streamTransform f arr =
-    P.fold (A.writeWith (length arr)) $ Stream.toStreamK $ f (A.read arr)
+    Stream.fold (A.writeWith (length arr)) $ f (A.read arr)
 
 -------------------------------------------------------------------------------
 -- Casts
@@ -553,7 +551,7 @@ asCStringUnsafe arr act = do
 -- /Pre-release/
 {-# INLINE fold #-}
 fold :: forall m a b. (Monad m, Unbox a) => Fold m a b -> Array a -> m b
-fold f arr = P.fold f (Stream.toStreamK (A.read arr))
+fold f arr = Stream.fold f (A.read arr)
 
 -- | Fold an array using a stream fold operation.
 --

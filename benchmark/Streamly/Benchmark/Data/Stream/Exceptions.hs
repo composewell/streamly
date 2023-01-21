@@ -27,25 +27,21 @@ module Stream.Exceptions (benchmarks) where
 
 import Control.Exception (Exception, throwIO)
 import Stream.Common (drain)
-import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Data.IORef as Ref
 import qualified Data.Map.Strict as Map
-import qualified Stream.Common as Common
 
-#ifndef USE_STREAMLY_CORE
 import Control.Exception (SomeException)
 import System.IO (Handle, hClose, hPutChar)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Data.Unfold.Exception as IUF
-#endif
 
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
-import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as Stream
 #endif
 
@@ -60,17 +56,34 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
+#ifdef USE_PRELUDE
+type Stream = Stream.SerialT
+toStreamD = Stream.toStream
+fromStreamD = Stream.fromStream
+#else
+type Stream = Stream.Stream
+toStreamD :: a -> a
+toStreamD = id
+fromStreamD :: a -> a
+fromStreamD = id
+#endif
+
+afterUnsafe :: IO b -> Stream IO a -> Stream IO a
+finallyUnsafe :: IO b -> Stream IO a -> Stream IO a
+bracketUnsafe :: IO b -> (b -> IO c) -> (b -> Stream IO a) -> Stream IO a
+#ifdef USE_PRELUDE
+afterUnsafe = Stream.after_
+finallyUnsafe = Stream.finally_
+bracketUnsafe = Stream.bracket_
+#else
+afterUnsafe = Stream.afterUnsafe
+finallyUnsafe = Stream.finallyUnsafe
+bracketUnsafe = Stream.bracketUnsafe
+#endif
+
 -------------------------------------------------------------------------------
 -- stream exceptions
 -------------------------------------------------------------------------------
-
-{-# INLINE replicateM #-}
-replicateM :: Common.MonadAsync m => Int -> m a -> Stream m a
-#ifdef USE_PRELUDE
-replicateM = Stream.replicateM
-#else
-replicateM n = Stream.sequence . Stream.replicate n
-#endif
 
 data BenchException
     = BenchException1
@@ -101,7 +114,7 @@ retryNone length from = do
     where
 
     source ref =
-        replicateM (from + length)
+        Stream.replicateM (from + length)
             $ Ref.modifyIORef' ref (+ 1) >> Ref.readIORef ref
 
 retryAll :: Int -> Int -> IO ()
@@ -146,7 +159,6 @@ o_1_space_serial_exceptions length =
     ]
 
 -- XXX Move these to FileSystem.Handle benchmarks
-#ifndef USE_STREAMLY_CORE
 
 -------------------------------------------------------------------------------
 -- copy stream exceptions
@@ -177,7 +189,7 @@ inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
 readWriteFinally_Stream :: Handle -> Handle -> IO ()
 readWriteFinally_Stream inh devNull =
     let readEx =
-            Stream.finallyUnsafe (hClose inh) (Stream.unfold FH.reader inh)
+            finallyUnsafe (hClose inh) (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -192,9 +204,9 @@ readWriteFinallyStream inh devNull =
 -- | Send the file contents to /dev/null with exception handling
 fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
 fromToBytesBracket_Stream inh devNull =
-    let readEx = Stream.bracketUnsafe (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.read inh)
-    in IFH.putBytes devNull readEx
+    let readEx = bracketUnsafe (return ()) (\_ -> hClose inh)
+                    (\_ -> fromStreamD $ IFH.read inh)
+    in IFH.putBytes devNull (toStreamD readEx)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
@@ -203,8 +215,8 @@ inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
 fromToBytesBracketStream :: Handle -> Handle -> IO ()
 fromToBytesBracketStream inh devNull =
     let readEx = Stream.bracket (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.read inh)
-    in IFH.putBytes devNull readEx
+                    (\_ -> fromStreamD $ IFH.read inh)
+    in IFH.putBytes devNull (toStreamD readEx)
 
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
@@ -228,7 +240,7 @@ inspect $ 'readWriteAfterStream `hasNoType` ''D.Step
 
 readWriteAfter_Stream :: Handle -> Handle -> IO ()
 readWriteAfter_Stream inh devNull =
-    let readEx = Stream.afterUnsafe (hClose inh) (Stream.unfold FH.reader inh)
+    let readEx = afterUnsafe (hClose inh) (Stream.unfold FH.reader inh)
      in Stream.fold (FH.write devNull) readEx
 
 #ifdef INSPECTION
@@ -310,10 +322,10 @@ o_1_space_copy_exceptions_readChunks env =
 -- | Send the file contents to /dev/null with exception handling
 toChunksBracket_ :: Handle -> Handle -> IO ()
 toChunksBracket_ inh devNull =
-    let readEx = Stream.bracketUnsafe
+    let readEx = bracketUnsafe
             (return ())
             (\_ -> hClose inh)
-            (\_ -> IFH.readChunks inh)
+            (\_ -> fromStreamD $ IFH.readChunks inh)
     in Stream.fold (IFH.writeChunks devNull) readEx
 
 #ifdef INSPECTION
@@ -325,7 +337,7 @@ toChunksBracket inh devNull =
     let readEx = Stream.bracket
             (return ())
             (\_ -> hClose inh)
-            (\_ -> IFH.readChunks inh)
+            (\_ -> fromStreamD $ IFH.readChunks inh)
     in Stream.fold (IFH.writeChunks devNull) readEx
 
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
@@ -338,16 +350,12 @@ o_1_space_copy_exceptions_toChunks env =
         ]
     ]
 
-#endif
-
 benchmarks :: String -> BenchEnv -> Int -> [Benchmark]
 benchmarks moduleName _env size =
         [ bgroup (o_1_space_prefix moduleName) $ concat
             [ o_1_space_serial_exceptions size
-#ifndef USE_STREAMLY_CORE
             , o_1_space_copy_exceptions_readChunks _env
             , o_1_space_copy_exceptions_toChunks _env
             , o_1_space_copy_stream_exceptions _env
-#endif
             ]
         ]

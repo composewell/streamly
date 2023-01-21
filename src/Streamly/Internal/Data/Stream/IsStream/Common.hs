@@ -24,8 +24,7 @@ module Streamly.Internal.Data.Stream.IsStream.Common {-# DEPRECATED "Please use 
 
     -- * Elimination
     , foldContinue
-    , Stream.fold
-    , Stream.foldBreak
+    , fold
 
     -- * Transformation
     , map
@@ -82,7 +81,6 @@ import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Unboxed (Unbox)
 
-import qualified Streamly.Data.Stream as Stream (fold, foldBreak)
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
@@ -90,10 +88,10 @@ import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (fromPure, fromEffect, repeatMWith, reverse)
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-    (repeatM, times, foldContinue, map, scanlMAfter', postscanlMAfter'
+    (repeatM, timesWith, foldContinue, map, scanlMAfter', postscanlMAfter'
     , postscanlM', take,  takeWhile, takeEndBy, drop, findIndices
     , fromStreamK, toStreamK, concatMapM, concatMap, foldManyPost, splitOnSeq
-    , zipWithM, zipWith, intersperseM, reverse)
+    , zipWithM, zipWith, intersperseM, reverse, fold)
 
 import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
 
@@ -231,7 +229,7 @@ repeatMSerial = fromStreamD . D.repeatM
 --
 {-# INLINE timesWith #-}
 timesWith :: (IsStream t, MonadAsync m) => Double -> t m (AbsTime, RelTime64)
-timesWith g = fromStreamD $ D.times g
+timesWith g = fromStreamD $ D.timesWith g
 
 -- | @absTimesWith g@ returns a stream of absolute timestamps using a clock of
 -- granularity @g@ specified in seconds. A low granularity clock is more
@@ -287,6 +285,32 @@ relTimesWith = fmap snd . timesWith
 {-# INLINE foldContinue #-}
 foldContinue :: Monad m => Fold m a b -> SerialT m a -> Fold m a b
 foldContinue f s = D.foldContinue f $ IsStream.toStreamD s
+
+-- | Fold a stream using the supplied left 'Fold' and reducing the resulting
+-- expression strictly at each step. The behavior is similar to 'foldl''. A
+-- 'Fold' can terminate early without consuming the full stream. See the
+-- documentation of individual 'Fold's for termination behavior.
+--
+-- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
+-- 5050
+--
+-- Folds never fail, therefore, they produce a default value even when no input
+-- is provided. It means we can always fold an empty stream and get a valid
+-- result.  For example:
+--
+-- >>> Stream.fold Fold.sum Stream.nil
+-- 0
+--
+-- However, 'foldMany' on an empty stream results in an empty stream.
+-- Therefore, @Stream.fold f@ is not the same as @Stream.head . Stream.foldMany
+-- f@.
+--
+-- @fold f = Stream.parse (Parser.fromFold f)@
+--
+-- @since 0.7.0
+{-# INLINE fold #-}
+fold :: Monad m => Fold m a b -> SerialT m a -> m b
+fold fl strm = D.fold fl $ IsStream.toStreamD strm
 
 ------------------------------------------------------------------------------
 -- Transformation

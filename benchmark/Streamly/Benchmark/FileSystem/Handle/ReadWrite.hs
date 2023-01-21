@@ -32,7 +32,7 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Data.Array as A
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream.Prelude as S
 
 import Gauge hiding (env)
 import Streamly.Benchmark.Common.Handle

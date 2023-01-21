@@ -185,7 +185,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
     , gintercalateSuffix, intersperseMSuffix)
 import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy, mergeByM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (interleave, serial, concatPairsWith)
+    (interleave, append, mergeMapWith)
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
 import Prelude hiding (concat, concatMap, zipWith)
@@ -250,7 +250,7 @@ infixr 6 `serial`
 -- @since 0.8.0
 {-# INLINE serial #-}
 serial :: IsStream t => t m a -> t m a -> t m a
-serial m1 m2 = fromStream $ K.serial (toStream m1) (toStream m2)
+serial m1 m2 = fromStream $ K.append (toStream m1) (toStream m2)
 
 -------------------------------------------------------------------------------
 -- Interleaving
@@ -863,7 +863,7 @@ unfoldManyRoundRobin u m =
 interpose :: (IsStream t, Monad m)
     => c -> Unfold m b c -> t m b -> t m c
 interpose x unf str =
-    fromStreamD $ D.interpose (return x) unf (toStreamD str)
+    fromStreamD $ D.interpose x unf (toStreamD str)
 
 -- interposeSuffix x unf str = gintercalateSuffix unf str UF.identity (repeat x)
 --
@@ -877,7 +877,7 @@ interpose x unf str =
 interposeSuffix :: (IsStream t, Monad m)
     => c -> Unfold m b c -> t m b -> t m c
 interposeSuffix x unf str =
-    fromStreamD $ D.interposeSuffix (return x) unf (toStreamD str)
+    fromStreamD $ D.interposeSuffix x unf (toStreamD str)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - intercalate
@@ -1013,7 +1013,7 @@ concatPairsWith :: IsStream t =>
     -> t m b
 concatPairsWith par f m =
     fromStream
-        $ K.concatPairsWith
+        $ K.mergeMapWith
             (\s1 s2 -> toStream $ fromStream s1 `par` fromStream s2)
             (toStream . f)
             (toStream m)

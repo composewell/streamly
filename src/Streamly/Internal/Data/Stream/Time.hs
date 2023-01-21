@@ -62,7 +62,7 @@ import Data.Proxy (Proxy(..))
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Time.Units
     ( AbsTime
     , MilliSecond64(..)
@@ -78,7 +78,7 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Fold as Fold (Step(..))
 import qualified Streamly.Internal.Data.IsMap as IsMap
-import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
     ( scanlMAfter'
     , timeIndexed
     , timestamped
@@ -392,7 +392,7 @@ ejectEntry :: (Monad m, IsMap f) =>
     -> m (heap, f entry, Stream m (Key f, b), Int)
 ejectEntry extract hp mp out cnt acc key = do
     sess <- extract acc
-    let out1 = (key, sess) `Stream.cons` out
+    let out1 = Stream.cons (key, sess) out
     let mp1 = IsMap.mapDelete key mp
     return (hp, mp1, out1, cnt - 1)
 

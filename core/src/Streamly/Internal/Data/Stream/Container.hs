@@ -32,7 +32,7 @@ import Control.Monad.Trans.State.Strict (get, put)
 import Data.Function ((&))
 import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream, toStreamD, fromStreamD)
 import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
 
 import qualified Data.Map.Strict as Map
@@ -200,7 +200,7 @@ joinOuterGeneric :: MonadIO m =>
     -> Stream m (Maybe a, Maybe b)
 joinOuterGeneric eq s1 s =
     Stream.concatEffect $ do
-        inputArr <- Array.fromStream s
+        inputArr <- Array.fromStream (toStreamD s)
         let len = Array.length inputArr
         foundArr <-
             Stream.fold
@@ -211,7 +211,7 @@ joinOuterGeneric eq s1 s =
     where
 
     leftOver inputArr foundArr =
-            let stream1 = Array.read inputArr
+            let stream1 = fromStreamD $ Array.read inputArr
                 stream2 = Stream.unfold MA.reader foundArr
             in Stream.filter
                     isJust
@@ -236,7 +236,7 @@ joinOuterGeneric eq s1 s =
                 then pure Stream.nil
                 else pure (Stream.fromPure Nothing)
         (i, b) <-
-            let stream = Array.read inputArr
+            let stream = fromStreamD $ Array.read inputArr
              in CrossStream
                 (Stream.indexed $ fmap Just (Stream.liftInner stream) <> final)
 

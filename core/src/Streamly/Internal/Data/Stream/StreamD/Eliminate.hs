@@ -17,7 +17,9 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
 
     -- -- * Running a 'Parser'
     , parse
+    , parseD
     , parseBreak
+    , parseBreakD
 
     -- * Stream Deconstruction
     , uncons
@@ -138,24 +140,40 @@ splitAt n ls
 newtype List a = List {getList :: [a]}
 
 -- | Run a 'Parse' over a stream.
-{-# INLINE_NORMAL parse #-}
-parse
+{-# INLINE_NORMAL parseD #-}
+parseD
     :: Monad m
     => PRD.Parser a m b
     -> Stream m a
     -> m (Either ParseError b)
-parse parser strm = do
-    (b, _) <- parseBreak parser strm
+parseD parser strm = do
+    (b, _) <- parseBreakD parser strm
     return b
 
+-- | Parse a stream using the supplied 'Parser'.
+--
+-- Parsers (See "Streamly.Internal.Data.Parser") are more powerful folds that
+-- add backtracking and error functionality to terminating folds. Unlike folds,
+-- parsers may not always result in a valid output, they may result in an
+-- error.  For example:
+--
+-- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
+-- Left (ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0")
+--
+-- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
+--
+{-# INLINE [3] parse #-}
+parse :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
+parse = parseD . PRD.fromParserK
+
 -- | Run a 'Parse' over a stream and return rest of the Stream.
-{-# INLINE_NORMAL parseBreak #-}
-parseBreak
+{-# INLINE_NORMAL parseBreakD #-}
+parseBreakD
     :: Monad m
     => PRD.Parser a m b
     -> Stream m a
     -> m (Either ParseError b, Stream m a)
-parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
+parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     res <- initial
     case res of
         PRD.IPartial s -> go SPEC state (List []) s
@@ -307,6 +325,12 @@ parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 return (Right b, fromList src)
             PR.Error err ->
                 return (Left (ParseError err), StreamD.nil)
+
+-- | Parse a stream using the supplied 'Parser'.
+--
+{-# INLINE parseBreak #-}
+parseBreak :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+parseBreak p strm = parseBreakD (PRD.fromParserK p) strm
 
 ------------------------------------------------------------------------------
 -- Specialized Folds

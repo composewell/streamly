@@ -32,10 +32,9 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold.Exception as UF
-import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-
 
 import Gauge hiding (env)
 import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile)

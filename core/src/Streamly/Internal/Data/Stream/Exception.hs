@@ -63,7 +63,7 @@ before action xs = fromStreamD $ D.before action $ toStreamD xs
 --
 {-# INLINE afterUnsafe #-}
 afterUnsafe :: Monad m => m b -> Stream m a -> Stream m a
-afterUnsafe action xs = fromStreamD $ D.after_ action $ toStreamD xs
+afterUnsafe action xs = fromStreamD $ D.afterUnsafe action $ toStreamD xs
 
 -- | Run the action @IO b@ whenever the stream is evaluated to completion, or
 -- if it is garbage collected after a partial lazy evaluation.
@@ -75,7 +75,7 @@ afterUnsafe action xs = fromStreamD $ D.after_ action $ toStreamD xs
 --
 {-# INLINE afterIO #-}
 afterIO :: MonadIO m => IO b -> Stream m a -> Stream m a
-afterIO action xs = fromStreamD $ D.after action $ toStreamD xs
+afterIO action xs = fromStreamD $ D.afterIO action $ toStreamD xs
 
 -- | Run the action @m b@ if the stream evaluation is aborted due to an
 -- exception. The exception is not caught, simply rethrown.
@@ -98,7 +98,7 @@ onException action xs = fromStreamD $ D.onException action $ toStreamD xs
 --
 {-# INLINE finallyUnsafe #-}
 finallyUnsafe :: MonadCatch m => m b -> Stream m a -> Stream m a
-finallyUnsafe action xs = fromStreamD $ D.finally_ action $ toStreamD xs
+finallyUnsafe action xs = fromStreamD $ D.finallyUnsafe action $ toStreamD xs
 
 -- | Run the action @IO b@ whenever the stream stream stops normally, aborts
 -- due to an exception or if it is garbage collected after a partial lazy
@@ -116,7 +116,7 @@ finallyUnsafe action xs = fromStreamD $ D.finally_ action $ toStreamD xs
 {-# INLINE finallyIO #-}
 finallyIO :: (MonadIO m, MonadCatch m) =>
     IO b -> Stream m a -> Stream m a
-finallyIO action xs = fromStreamD $ D.finally action $ toStreamD xs
+finallyIO action xs = fromStreamD $ D.finallyIO action $ toStreamD xs
 
 -- | Like 'bracket' but with following differences:
 --
@@ -132,7 +132,7 @@ finallyIO action xs = fromStreamD $ D.finally action $ toStreamD xs
 {-# INLINE bracketUnsafe #-}
 bracketUnsafe :: MonadCatch m
     => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracketUnsafe bef aft bet = fromStreamD $ D.bracket_ bef aft (toStreamD . bet)
+bracketUnsafe bef aft bet = fromStreamD $ D.bracketUnsafe bef aft (toStreamD . bet)
 
 -- | Run the alloc action @IO b@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the
@@ -188,7 +188,7 @@ bracketIO3 :: (MonadIO m, MonadCatch m)
     -> (b -> Stream m a)
     -> Stream m a
 bracketIO3 bef aft gc exc bet = fromStreamD $
-    D.bracket' bef aft exc gc (toStreamD . bet)
+    D.bracketIO3 bef aft exc gc (toStreamD . bet)
 
 -- | Like 'handle' but the exception handler is also provided with the stream
 -- that generated the exception as input. The exception handler can thus

@@ -52,10 +52,11 @@ import Data.IORef (newIORef, readIORef, modifyIORef')
 import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Stream.Common ()
 import Streamly.Internal.Data.Stream.Type
-    (Stream, fromStreamD, toStreamD, cross)
+    (Stream, fromStreamD, toStreamD, fromStreamK, cross)
 
 import qualified Data.List as List
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream.Eliminate as Stream
 import qualified Streamly.Internal.Data.Stream.Generate as Stream
@@ -103,6 +104,14 @@ strideFromThen offset stride =
 
 -- | Sort the input stream using a supplied comparison function.
 --
+-- Sorting can be achieved by simply:
+--
+-- >>> sortBy cmp = Stream.mergeMapWith (Stream.mergeBy cmp) Stream.fromPure
+--
+-- However, this combinator uses a parser to first split the input stream into
+-- down and up sorted segments and then merges them to optimize sorting when
+-- pre-sorted sequences exist in the input stream..
+--
 -- /O(n) space/
 --
 {-# INLINE sortBy #-}
@@ -112,10 +121,11 @@ sortBy cmp =
     let p =
             Parser.groupByRollingEither
                 (\x -> (< GT) . cmp x)
-                Fold.toStreamRev
-                Fold.toStream
+                (fmap fromStreamK Fold.toStreamKRev)
+                (fmap fromStreamK Fold.toStreamK)
      in   Stream.mergeMapWith (Stream.mergeBy cmp) id
-        . Stream.catRights . Stream.parseMany (fmap (either id id) p)
+        . Stream.catRights -- its a non-failing backtracking parser
+        . Stream.parseMany (fmap (either id id) p)
 
 ------------------------------------------------------------------------------
 -- SQL Joins

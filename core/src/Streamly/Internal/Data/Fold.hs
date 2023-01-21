@@ -157,7 +157,7 @@ module Streamly.Internal.Data.Fold
 
     -- * Running A Fold
     , drive
-    , breakStream
+    -- , breakStream
 
     -- * Building Incrementally
     , extractM
@@ -317,7 +317,7 @@ import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
@@ -326,8 +326,6 @@ import qualified Streamly.Internal.Data.Fold.Window as FoldW
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Prelude hiding
        ( filter, foldl1, drop, dropWhile, take, takeWhile, zipWith
@@ -380,8 +378,9 @@ import Streamly.Internal.Data.Fold.Tee
 --
 {-# INLINE drive #-}
 drive :: Monad m => Stream m a -> Fold m a b -> m b
-drive strm fl = StreamD.fold fl $ StreamD.fromStreamK $ Stream.toStreamK strm
+drive = flip StreamD.fold
 
+{-
 -- | Like 'drive' but also returns the remaining stream. The resulting stream
 -- would be 'Stream.nil' if the stream finished before the fold.
 --
@@ -391,13 +390,14 @@ drive strm fl = StreamD.fold fl $ StreamD.fromStreamK $ Stream.toStreamK strm
 --
 -- /CPS/
 --
-{-# INLINE breakStream #-}
-breakStream :: Monad m => Stream m a -> Fold m a b -> m (b, Stream m a)
-breakStream strm fl = fmap f $ K.foldBreak fl (Stream.toStreamK strm)
+{-# INLINE breakStreamK #-}
+breakStreamK :: Monad m => StreamK m a -> Fold m a b -> m (b, StreamK m a)
+breakStreamK strm fl = fmap f $ K.foldBreak fl (Stream.toStreamK strm)
 
     where
 
     f (b, str) = (b, Stream.fromStreamK str)
+-}
 
 -- | Append a stream to a fold to build the fold accumulator incrementally. We
 -- can repeatedly call 'addStream' on the same fold to continue building the
@@ -2382,8 +2382,8 @@ chunksBetween _low _high _f1 _f2 = undefined
 --
 -- /Pre-release/
 {-# INLINE toStream #-}
-toStream :: Monad m => Fold m a (Stream n a)
-toStream = fmap Stream.fromStreamK toStreamK
+toStream :: (Monad m, Monad n) => Fold m a (Stream n a)
+toStream = fmap StreamD.fromList toList
 
 -- This is more efficient than 'toStream'. toStream is exactly the same as
 -- reversing the stream after toStreamRev.
@@ -2400,8 +2400,8 @@ toStream = fmap Stream.fromStreamK toStreamK
 
 --  xn : ... : x2 : x1 : []
 {-# INLINE toStreamRev #-}
-toStreamRev :: Monad m => Fold m a (Stream n a)
-toStreamRev = fmap Stream.fromStreamK toStreamKRev
+toStreamRev :: (Monad m, Monad n) => Fold m a (Stream n a)
+toStreamRev = fmap StreamD.fromList toListRev
 
 -- XXX This does not fuse. It contains a recursive step function. We will need
 -- a Skip input constructor in the fold type to make it fuse.

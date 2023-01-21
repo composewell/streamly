@@ -35,7 +35,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-    (hoist, liftInner, runReaderT, evalStateT, runStateT)
+    (morphInner, liftInner, runReaderT, evalStateT, runStateT)
 
 ------------------------------------------------------------------------------
 -- Generalize the underlying monad
@@ -48,7 +48,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 {-# INLINE hoist #-}
 hoist :: (Monad m, Monad n)
     => (forall x. m x -> n x) -> SerialT m a -> SerialT n a
-hoist f xs = fromStreamD $ D.hoist f (toStreamD xs)
+hoist f xs = fromStreamD $ D.morphInner f (toStreamD xs)
 
 -- | Generalize the inner monad of the stream from 'Identity' to any monad.
 --
@@ -56,7 +56,7 @@ hoist f xs = fromStreamD $ D.hoist f (toStreamD xs)
 --
 {-# INLINE generally #-}
 generally :: (IsStream t, Monad m) => t Identity a -> t m a
-generally xs = fromStreamD $ D.hoist (return . runIdentity) (toStreamD xs)
+generally xs = fromStreamD $ D.morphInner (return . runIdentity) (toStreamD xs)
 
 ------------------------------------------------------------------------------
 -- Add and remove a monad transformer

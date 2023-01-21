@@ -35,14 +35,13 @@ import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
 import Streamly.Internal.Data.Array.Mut.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError)
-import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
@@ -55,7 +54,7 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 {-# INLINE arraysOf #-}
 arraysOf :: (MonadIO m, Unbox a)
     => Int -> Stream m a -> Stream m (Array a)
-arraysOf n = Stream.fromStreamD . MArray.arraysOf n . Stream.toStreamD
+arraysOf n = MArray.arraysOf n
 
 -------------------------------------------------------------------------------
 -- Compact
@@ -194,7 +193,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 {-# INLINE compact #-}
 compact :: (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
-compact n = Stream.fromStreamD . packArraysChunksOf n . Stream.toStreamD
+compact n = packArraysChunksOf n
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size. Note that if a single array is bigger than the
@@ -299,10 +298,9 @@ compactGEFold n = Fold step initial extract
 -- maximum specified size in bytes.
 --
 -- /Internal/
-compactLE :: (Monad m, MonadIO m, Unbox a) =>
+compactLE :: (MonadIO m, Unbox a) =>
     Int -> Stream m (Array a) -> Stream m (Either ParseError (Array a))
-compactLE n =
-    Stream.fromStreamD . D.parseMany (compactLEParserD n) . Stream.toStreamD
+compactLE n = D.parseManyD (compactLEParserD n)
 
 -- | Like 'compactLE' but generates arrays of exactly equal to the size
 -- specified except for the last array in the stream which could be shorter.
@@ -322,5 +320,4 @@ compactEQ _n _xs = undefined
 compactGE ::
        (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
-compactGE n =
-    Stream.fromStreamD . D.foldMany (compactGEFold n) . Stream.toStreamD
+compactGE n = D.foldMany (compactGEFold n)

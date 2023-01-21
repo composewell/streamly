@@ -478,7 +478,7 @@ unfoldRoundRobin u m =
 interpose :: Monad m
     => c -> Unfold m b c -> Stream m b -> Stream m c
 interpose x unf str =
-    fromStreamD $ D.interpose (return x) unf (toStreamD str)
+    fromStreamD $ D.interpose x unf (toStreamD str)
 
 -- interposeSuffix x unf str = gintercalateSuffix unf str UF.identity (repeat x)
 
@@ -492,7 +492,7 @@ interpose x unf str =
 interposeSuffix :: Monad m
     => c -> Unfold m b c -> Stream m b -> Stream m c
 interposeSuffix x unf str =
-    fromStreamD $ D.interposeSuffix (return x) unf (toStreamD str)
+    fromStreamD $ D.interposeSuffix x unf (toStreamD str)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - intercalate
@@ -563,8 +563,8 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: Monad m
     => Unfold m b c -> b -> Stream m b -> Stream m c
-intercalateSuffix unf seed str = fromStreamD $ D.unfoldMany unf
-    $ D.intersperseMSuffix (return seed) (toStreamD str)
+intercalateSuffix unf seed =
+    fromStreamD . D.intercalateSuffix unf seed . toStreamD
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap
@@ -633,7 +633,7 @@ mergeMapWith ::
     -> Stream m b
 mergeMapWith par f m =
     fromStreamK
-        $ K.concatPairsWith
+        $ K.mergeMapWith
             (\s1 s2 -> toStreamK $ fromStreamK s1 `par` fromStreamK s2)
             (toStreamK . f)
             (toStreamK m)

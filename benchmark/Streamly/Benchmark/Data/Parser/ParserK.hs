@@ -17,7 +17,7 @@ module Main
 import Control.DeepSeq (NFData(..))
 import Data.Foldable (asum)
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.StreamD (Stream)
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 
@@ -27,7 +27,7 @@ import qualified Data.Traversable as TR
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 
 import Gauge
 import Streamly.Benchmark.Common
@@ -62,7 +62,7 @@ benchIOSink value name f =
 #ifdef FROM_PARSERK
 #define PARSE_OP (Stream.parseD . PRD.fromParserK)
 #else
-#define PARSE_OP Stream.parseK
+#define PARSE_OP Stream.parse
 #endif
 
 {-# INLINE satisfy #-}
