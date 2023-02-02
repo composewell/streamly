@@ -1339,6 +1339,8 @@ concatUnfoldr = undefined
 -- Interleaving
 ------------------------------------------------------------------------------
 
+infixr 6 `interleave`
+
 -- Additionally we can have m elements yield from the first stream and n
 -- elements yielding from the second stream. We can also have time slicing
 -- variants of positional interleaving, e.g. run first stream for m seconds and
@@ -1354,7 +1356,9 @@ interleave m1 m2 = mkStream $ \st yld sng stp -> do
         yieldk a r = yld a (interleave m2 r)
     foldStream st yieldk single stop m1
 
--- | Like `interleaveK` but stops interleaving as soon as the first stream stops.
+infixr 6 `interleaveFst`
+
+-- | Like `interleave` but stops interleaving as soon as the first stream stops.
 --
 {-# INLINE interleaveFst #-}
 interleaveFst :: Stream m a -> Stream m a -> Stream m a
@@ -1369,6 +1373,8 @@ interleaveFst m1 m2 = mkStream $ \st yld sng stp -> do
                 single a   = yld a s1
                 yieldk a r = yld a (interleave s1 r)
              in foldStream st yieldk single stop s2
+
+infixr 6 `interleaveMin`
 
 {-# INLINE interleaveMin #-}
 interleaveMin :: Stream m a -> Stream m a -> Stream m a

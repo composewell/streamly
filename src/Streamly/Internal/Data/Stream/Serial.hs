@@ -145,9 +145,13 @@ fromStreamK = SerialT
 -- Generation
 ------------------------------------------------------------------------------
 
+infixr 5 `cons`
+
 {-# INLINE cons #-}
 cons :: a -> SerialT m a -> SerialT m a
 cons x (SerialT ms) = SerialT $ K.cons x ms
+
+infixr 5 `consM`
 
 {-# INLINE consM #-}
 {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
