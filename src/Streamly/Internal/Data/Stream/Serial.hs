@@ -104,8 +104,8 @@ withLocal f m =
 -- A single 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.toList $ do
---      x <- Stream.fromList [1,2] -- foreach x in stream
+-- IsStream.toList $ do
+--      x <- IsStream.fromList [1,2] -- foreach x in stream
 --      return x
 -- :}
 -- [1,2]
@@ -113,9 +113,9 @@ withLocal f m =
 -- Nested monad binds behave like nested @for@ loops:
 --
 -- >>> :{
--- Stream.toList $ do
---     x <- Stream.fromList [1,2] -- foreach x in stream
---     y <- Stream.fromList [3,4] -- foreach y in stream
+-- IsStream.toList $ do
+--     x <- IsStream.fromList [1,2] -- foreach x in stream
+--     y <- IsStream.fromList [3,4] -- foreach y in stream
 --     return (x, y)
 -- :}
 -- [(1,3),(1,4),(2,3),(2,4)]

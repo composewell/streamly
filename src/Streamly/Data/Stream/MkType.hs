@@ -6,6 +6,8 @@
 -- Stability   : released
 -- Portability : GHC
 --
+-- XXX Need to fix.
+--
 -- Template Haskell macros to create custom newtype wrappers for the 'Stream'
 -- type, deriving all the usual instances.
 --
@@ -25,28 +27,28 @@
 --
 -- Example, create an applicative type with zipping apply:
 --
--- >>> :{
+-- >> :{
 --  zipApply = Stream.zipWith ($)
 --  $(mkZipType "ZipStream" "zipApply" False)
 -- :}
 --
 -- Example, create an applicative type with concurrent zipping apply:
 --
--- >>> :{
+-- >> :{
 --  parApply = Stream.parApply id
 --  $(mkZipType "ParZipStream" "parApply" True)
 -- :}
 --
 -- Example, create a monad type with an interleaving cross product bind:
 --
--- >>> :{
+-- >> :{
 --  interleaveBind = flip (Stream.concatMapWith Stream.interleave)
 --  $(mkCrossType "InterleaveStream" "interleaveBind" False)
 -- :}
 --
 -- Example, create a monad type with an eager concurrent cross product bind:
 --
--- >>> :{
+-- >> :{
 --  parBind = flip (Stream.parConcatMap (Stream.eager True))
 --  $(mkCrossType "ParEagerStream" "parBind" True)
 -- :}

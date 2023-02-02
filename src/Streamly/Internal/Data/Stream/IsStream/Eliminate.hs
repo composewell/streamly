@@ -214,16 +214,6 @@ import Prelude hiding
 -- the stream one element at a time, therefore, does not take adavantage of
 -- stream fusion.
 --
--- 'foldBreak' is a more general way of consuming a stream piecemeal.
---
--- >>> :{
--- uncons xs = do
---     r <- Stream.foldBreak Fold.one xs
---     return $ case r of
---         (Nothing, _) -> Nothing
---         (Just h, t) -> Just (h, Stream.fromSerial t)
--- :}
---
 -- @since 0.1.0
 {-# INLINE uncons #-}
 uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
@@ -400,7 +390,7 @@ parseK = parse
 -- result in an error.  For example:
 --
 -- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
--- *** Exception: ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0"
+-- Left (ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0")
 --
 -- Note:
 --

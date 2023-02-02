@@ -277,9 +277,9 @@ relTimesWith = fmap snd . timesWith
 -- number of streams to a given fold efficiently with full stream fusion. For
 -- example, to fold a list of streams on the same sum fold:
 --
--- >>> concatFold = Prelude.foldl Stream.foldContinue Fold.sum
+-- > concatFold = Prelude.foldl Stream.foldContinue Fold.sum
 --
--- >>> fold f = Fold.extractM . Stream.foldContinue f
+-- > fold f = Fold.extractM . Stream.foldContinue f
 --
 -- /Internal/
 {-# INLINE foldContinue #-}
