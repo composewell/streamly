@@ -626,7 +626,7 @@ mapM_ m = drain . mapM m
 ------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL isPrefixOf #-}
-isPrefixOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
+isPrefixOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
 isPrefixOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
 
     where
@@ -649,7 +649,7 @@ isPrefixOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
             Stop     -> return False
 
 {-# INLINE_NORMAL isSubsequenceOf #-}
-isSubsequenceOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
+isSubsequenceOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
 isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
 
     where
@@ -673,7 +673,7 @@ isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
 
 {-# INLINE_NORMAL stripPrefix #-}
 stripPrefix
-    :: (Eq a, Monad m)
+    :: (Monad m, Eq a)
     => Stream m a -> Stream m a -> m (Maybe (Stream m a))
 stripPrefix (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
 

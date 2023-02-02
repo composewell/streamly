@@ -127,28 +127,27 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 -- Primitives
 ------------------------------------------------------------------------------
 
+-- XXX implement in terms of nilM?
 -- | An empty 'Stream'.
 {-# INLINE_NORMAL nil #-}
-nil :: Monad m => Stream m a
-nil = Stream (\_ _ -> return Stop) ()
+nil :: Applicative m => Stream m a
+nil = Stream (\_ _ -> pure Stop) ()
 
 -- XXX implement in terms of consM?
 -- cons x = consM (return x)
 --
 -- | Can fuse but has O(n^2) complexity.
 {-# INLINE_NORMAL cons #-}
-cons :: Monad m => a -> Stream m a -> Stream m a
+cons :: Applicative m => a -> Stream m a -> Stream m a
 cons x (Stream step state) = Stream step1 Nothing
     where
     {-# INLINE_LATE step1 #-}
-    step1 _ Nothing   = return $ Yield x (Just state)
+    step1 _ Nothing = pure $ Yield x (Just state)
     step1 gst (Just st) = do
-        r <- step gst st
-        return $
-          case r of
+          (\case
             Yield a s -> Yield a (Just s)
             Skip  s   -> Skip (Just s)
-            Stop      -> Stop
+            Stop      -> Stop) <$> step gst st
 
 ------------------------------------------------------------------------------
 -- Unfolding
@@ -196,7 +195,7 @@ repeat x = Stream (\_ _ -> return $ Yield x ()) ()
 
 -- Adapted from the vector package
 {-# INLINE_NORMAL replicateM #-}
-replicateM :: forall m a. Monad m => Int -> m a -> Stream m a
+replicateM :: Monad m => Int -> m a -> Stream m a
 #ifdef USE_UNFOLDS_EVERYWHERE
 replicateM n p = unfold Unfold.replicateM (n, p)
 #else
