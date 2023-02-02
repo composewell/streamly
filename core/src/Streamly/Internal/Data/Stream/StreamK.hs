@@ -37,13 +37,12 @@ module Streamly.Internal.Data.Stream.StreamK
     -- * The stream type
       Stream(..) -- XXX stop exporting this
     , StreamK
+    , fromStream
+    , toStream
+
     , CrossStreamK(..)
     , fromCross
     , toCross
-    , fromStream
-    , toStream
-    , fromStreamK
-    , toStreamK
 
     -- * Construction Primitives
     , mkStream

@@ -166,6 +166,7 @@ import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 ------------------------------------------------------------------------------
 
 -- gst = global state
+
 -- | A stream consists of a step function that generates the next step given a
 -- current state, and the current state.
 data Stream m a =

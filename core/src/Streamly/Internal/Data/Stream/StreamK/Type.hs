@@ -17,11 +17,10 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     -- * The stream type
       Stream (..)  -- XXX stop exporting this
     , StreamK
+
     , CrossStreamK (..)
     , fromCross
     , toCross
-    , toStreamK
-    , fromStreamK
 
     -- * foldr/build
     , mkStream
@@ -136,14 +135,15 @@ import Prelude hiding
 -- >>> import Streamly.Internal.Data.Stream.StreamK (CrossStreamK(..))
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
+-- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK (crossApply, crossApplyWith, fromCross, toCross)
 
 ------------------------------------------------------------------------------
 -- Basic stream type
 ------------------------------------------------------------------------------
 
--- | The type @Stream m a@ represents a monadic stream of values of type 'a'
--- constructed using actions in monad 'm'. It uses stop, singleton and yield
--- continuations equivalent to the following direct style type:
+-- It uses stop, singleton and yield continuations equivalent to the following
+-- direct style type:
 --
 -- @
 -- data Stream m a = Stop | Singleton a | Yield a (Stream m a)
@@ -158,9 +158,11 @@ import Prelude hiding
 -- single element.  We build singleton streams in the implementation of 'pure'
 -- for Applicative and Monad, and in 'lift' for MonadTrans.
 
--- XXX remove the Stream type parameter from State as it is always constant.
--- We can remove it from SVar as well
+-- XXX remove the State param.
 
+-- | The type @Stream m a@ represents a monadic stream of values of type 'a'
+-- constructed using actions in monad 'm'. It is the Continuation Passing Style
+-- (CPS) version of "Streamly.Data.Stream.Stream".
 newtype Stream m a =
     MkStream (forall r.
                State Stream m a         -- state
@@ -171,14 +173,6 @@ newtype Stream m a =
             )
 
 type StreamK = Stream
-
-{-# INLINE fromStreamK #-}
-fromStreamK :: Stream m a -> Stream m a
-fromStreamK = id
-
-{-# INLINE toStreamK #-}
-toStreamK :: Stream m a -> Stream m a
-toStreamK = id
 
 mkStream
     :: (forall r. State Stream m a
@@ -1080,6 +1074,11 @@ crossApplyWith par fstream stream = go1 fstream
                 yieldk a r = yld (f a) (go2 f r)
             in foldStream (adaptState st) yieldk single stp m
 
+-- |
+-- Definition:
+--
+-- >>> crossApply = StreamK.crossApplyWith StreamK.append
+--
 {-# INLINE crossApply #-}
 crossApply ::
        Stream m (a -> b)
@@ -1167,7 +1166,7 @@ crossApplyFst fstream stream = go1 fstream
 -- |
 -- Definition:
 --
--- >>> crossWith f m1 m2 = fmap f m1 `Stream.crossApply` m2
+-- >>> crossWith f m1 m2 = fmap f m1 `StreamK.crossApply` m2
 --
 -- Note that the second stream is evaluated multiple times.
 --
@@ -1593,26 +1592,26 @@ concatMapEffect f action =
 -- Stream with a cross product style monad instance
 ------------------------------------------------------------------------------
 
--- | A newtype wrapper for the 'Stream' type with a cross product style monad
--- instance.
---
--- Semigroup instance appends two streams.
+-- | A newtype wrapper for the 'StreamK' type adding a cross product style
+-- monad instance.
 --
 -- A 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ unCrossStreamK $ do
---      x <- CrossStreamK (StreamK.fromList [1,2]) -- foreach x in stream
---      return x
+-- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.fromCross $ do
+--     x <- StreamK.toCross $ StreamK.fromStream $ Stream.fromList [1,2]
+--     -- Perform the following actions for each x in the stream
+--     return x
 -- :}
 -- [1,2]
 --
 -- Nested monad binds behave like nested @for@ loops:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ unCrossStreamK $ do
---     x <- CrossStreamK (StreamK.fromList [1,2]) -- foreach x in stream
---     y <- CrossStreamK (StreamK.fromList [3,4]) -- foreach y in stream
+-- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.fromCross $ do
+--     x <- StreamK.toCross $ StreamK.fromStream $ Stream.fromList [1,2]
+--     y <- StreamK.toCross $ StreamK.fromStream $ Stream.fromList [3,4]
+--     -- Perform the following actions for each x, for each y
 --     return (x, y)
 -- :}
 -- [(1,3),(1,4),(2,3),(2,4)]
