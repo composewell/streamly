@@ -239,7 +239,7 @@ lpackArraysChunksOf n fld =
 {-# INLINE compact #-}
 compact :: (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
-compact n = packArraysChunksOf n
+compact = packArraysChunksOf
 
 -------------------------------------------------------------------------------
 -- Split
@@ -313,7 +313,7 @@ splitOn
     => Word8
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
-splitOn byte s = D.splitInnerBy (A.breakOn byte) A.splice s
+splitOn byte = D.splitInnerBy (A.breakOn byte) A.splice
 
 {-# INLINE splitOnSuffix #-}
 splitOnSuffix
@@ -322,7 +322,7 @@ splitOnSuffix
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
 -- splitOn byte s = fromStreamD $ A.splitOn byte $ toStreamD s
-splitOnSuffix byte s = D.splitInnerBySuffix (A.breakOn byte) A.splice s
+splitOnSuffix byte = D.splitInnerBySuffix (A.breakOn byte) A.splice
 
 -------------------------------------------------------------------------------
 -- Elimination - Running folds

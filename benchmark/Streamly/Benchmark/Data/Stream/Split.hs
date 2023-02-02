@@ -143,8 +143,7 @@ splitOnSeq str inh =
 -- | Split on a word8 sequence.
 splitOnSeq100k :: Handle -> IO Int
 splitOnSeq100k inh = do
-    arr <- A.fromStream
-            $ IP.toStream $ (S.replicate 100000 123 :: S.SerialT IO Word8)
+    arr <- A.fromStream $ IP.toStream $ S.fromSerial $ S.replicate 100000 123
     (S.length $ IP.splitOnSeq arr FL.drain
         $ S.unfold FH.read inh) -- >>= print
 

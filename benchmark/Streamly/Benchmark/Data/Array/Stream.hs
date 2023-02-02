@@ -265,7 +265,7 @@ o_1_space_serial_array bound arraysSmall arraysBig =
     , benchIO
         "foldBreak (recursive, small arrays)"
         (\_ -> Stream.fromList arraysSmall)
-        (\xs -> foldBreak (StreamK.fromStream xs))
+        (foldBreak . StreamK.fromStream)
     , benchIO "parse (of 100)" (\_ -> Stream.fromList arraysSmall)
         $ parse bound
     , benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
@@ -273,7 +273,7 @@ o_1_space_serial_array bound arraysSmall arraysBig =
     , benchIO
         "parseBreak (recursive, small arrays)"
         (\_ -> Stream.fromList arraysSmall)
-        (\xs -> parseBreak (StreamK.fromStream xs))
+        (parseBreak . StreamK.fromStream)
     ]
 
 -------------------------------------------------------------------------------

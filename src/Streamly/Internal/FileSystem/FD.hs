@@ -296,7 +296,7 @@ _readArraysOfUpto size h = S.fromStreamK go
 {-# INLINE_NORMAL readArraysOfUpto #-}
 readArraysOfUpto :: (MonadIO m)
     => Int -> Handle -> Stream m (Array Word8)
-readArraysOfUpto size h = (D.Stream step ())
+readArraysOfUpto size h = D.Stream step ()
   where
     {-# INLINE_LATE step #-}
     step _ _ = do

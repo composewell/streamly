@@ -142,6 +142,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Either (fromLeft, isLeft, isRight, fromRight)
+import Data.Functor ((<&>))
 import Data.Maybe (fromJust, isJust)
 import Fusion.Plugin.Types (Fuse(..))
 
@@ -1056,7 +1057,7 @@ delayPre = intersperseMPrefix_. sleep
 -- >>> reverse m = concatEffect $ fold FL.toListRev m >>= return . fromList
 {-# INLINE_NORMAL reverse #-}
 reverse :: Monad m => Stream m a -> Stream m a
-reverse m = concatEffect $ fold FL.toListRev m >>= return . fromList
+reverse m = concatEffect $ fold FL.toListRev m <&> fromList
 {-
 reverse m = Stream step Nothing
     where

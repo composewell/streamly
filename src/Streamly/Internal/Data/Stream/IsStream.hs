@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-deprecations -Wno-orphans #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream

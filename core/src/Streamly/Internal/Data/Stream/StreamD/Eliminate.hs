@@ -330,7 +330,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
 --
 {-# INLINE parseBreak #-}
 parseBreak :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
-parseBreak p strm = parseBreakD (PRD.fromParserK p) strm
+parseBreak p = parseBreakD (PRD.fromParserK p)
 
 ------------------------------------------------------------------------------
 -- Specialized Folds

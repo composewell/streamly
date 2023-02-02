@@ -523,6 +523,7 @@ o_n_heap_buffering value =
 -- In addition to gauge options, the number of elements in the stream can be
 -- passed using the --stream-size option.
 --
+{-# ANN benchmarks "HLint: ignore" #-}
 benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
         [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat

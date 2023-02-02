@@ -54,7 +54,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 {-# INLINE arraysOf #-}
 arraysOf :: (MonadIO m, Unbox a)
     => Int -> Stream m a -> Stream m (Array a)
-arraysOf n = MArray.arraysOf n
+arraysOf = MArray.arraysOf
 
 -------------------------------------------------------------------------------
 -- Compact
@@ -193,7 +193,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
 {-# INLINE compact #-}
 compact :: (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
-compact n = packArraysChunksOf n
+compact = packArraysChunksOf
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size. Note that if a single array is bigger than the
