@@ -51,7 +51,6 @@ import qualified Streamly.Internal.Data.Parser.Chunked.Type as K
 import qualified Streamly.Internal.Data.Parser.ParserD as D
     hiding (fromParserK, toParserK)
 import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as Stream
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
 -------------------------------------------------------------------------------
@@ -127,13 +126,13 @@ parseBreak parser input = do
                 let (s1, backBuf1) = backTrack n1 backBuf StreamK.nil
                  in go backBuf1 cont1 s1
             K.Done 0 b ->
-                return (Right b, Stream.nil)
+                return (Right b, StreamK.nil)
             K.Done n b -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (map Array.length backBuf))
                 let (s1, _) = backTrack n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            K.Error _ err -> return (Left (ParseError err), Stream.nil)
+            K.Error _ err -> return (Left (ParseError err), StreamK.nil)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
@@ -176,7 +175,7 @@ parseBreak parser input = do
                 assertM(n1 <= sum (map Array.length (arr:backBuf)))
                 let (s1, _) = backTrack n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            K.Error _ err -> return (Left (ParseError err), Stream.nil)
+            K.Error _ err -> return (Left (ParseError err), StreamK.nil)
 
     go backBuf parserk stream = do
         let stop = goStop backBuf parserk
