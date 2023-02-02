@@ -301,6 +301,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Lift
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.Common
+                     , Streamly.Internal.Data.Stream
 
                      , Streamly.Internal.Data.Parser.ParserD.Tee
                      , Streamly.Internal.Data.Parser.ParserD
