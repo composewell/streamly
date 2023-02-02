@@ -181,7 +181,7 @@ fromStreamN n m = do
 -- /Pre-release/
 {-# INLINE fromStream #-}
 fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (Array a)
-fromStream m = Stream.fold A.write m
+fromStream = Stream.fold A.write
 -- write m = A.fromStreamD $ D.fromStreamK m
 
 -------------------------------------------------------------------------------
