@@ -7,27 +7,41 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Continuation passing style (CPS) stream implementation. The symbol 'K' below
--- denotes a function as well as a Kontinuation.
+-- To run examples in this module:
 --
--- @
--- import qualified Streamly.Internal.Data.Stream.StreamK as K
--- @
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
 --
--- Streams can be constructed like lists, except that they use 'nil' instead of
+-- We will add some more imports in the examples as needed.
+--
+-- For effectful streams we will use the following IO action:
+--
+-- >>> effect n = print n >> return n
+--
+-- = Overview
+--
+-- Continuation passing style (CPS) stream implementation. The 'K' in 'StreamK'
+-- stands for Kontinuation.
+--
+-- StreamK can be constructed like lists, except that they use 'nil' instead of
 -- '[]' and 'cons' instead of ':'.
 --
 -- `cons` adds a pure value at the head of the stream:
 --
--- >>> import Streamly.Data.Stream (Stream, cons, consM, nil)
--- >>> stream = 1 `cons` 2 `cons` nil :: Stream IO Int
--- >>> Stream.fold Fold.toList stream -- IO [Int]
+-- >>> import Streamly.Data.Stream.StreamK (StreamK, cons, consM, nil)
+-- >>> stream = 1 `cons` 2 `cons` nil :: StreamK IO Int
+--
+-- Convert 'StreamK' to 'Stream' to use functions from the
+-- "Streamly.Data.Stream" module:
+--
+-- >>> Stream.fold Fold.toList $ StreamK.toStream stream -- IO [Int]
 -- [1,2]
 --
 -- `consM` adds an effect at the head of the stream:
 --
 -- >>> stream = effect 1 `consM` effect 2 `consM` nil
--- >>> Stream.fold Fold.toList stream
+-- >>> Stream.fold Fold.toList $ StreamK.toStream stream
 -- 1
 -- 2
 -- [1,2]
@@ -222,6 +236,10 @@ import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
 -- $setup
 -- >>> :m
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
+--
 
 {-# INLINE fromStream #-}
 fromStream :: Monad m => Stream.Stream m a -> StreamK m a
@@ -1124,11 +1142,11 @@ parseBreak p = parseBreakD (PR.fromParserK p)
 --
 -- Sorting can be achieved by simply:
 --
--- >>> sortBy cmp = Stream.mergeMapWith (Stream.mergeBy cmp) Stream.fromPure
+-- >>> sortBy cmp = StreamK.mergeMapWith (StreamK.mergeBy cmp) StreamK.fromPure
 --
 -- However, this combinator uses a parser to first split the input stream into
 -- down and up sorted segments and then merges them to optimize sorting when
--- pre-sorted sequences exist in the input stream..
+-- pre-sorted sequences exist in the input stream.
 --
 -- /O(n) space/
 --

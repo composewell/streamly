@@ -98,6 +98,14 @@ import Prelude hiding
        , maximum, minimum, notElem, null, splitAt, tail, (!!))
 import Streamly.Internal.Data.Stream.StreamD.Type
 
+-- $setup
+-- >>> :m
+-- >>> import Streamly.Internal.Data.Stream (Stream)
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Parser as Parser
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+
 ------------------------------------------------------------------------------
 -- Elimination by Folds
 ------------------------------------------------------------------------------

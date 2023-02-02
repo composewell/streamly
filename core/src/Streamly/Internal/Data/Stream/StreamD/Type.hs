@@ -157,9 +157,10 @@ import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 #endif
 
 -- $setup
--- >>> import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
+-- >>> import Streamly.Internal.Data.Stream (CrossStream(..))
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream (crossApply, fromCross, toCross)
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -724,7 +725,7 @@ instance Ord a => Ord (Stream Identity a) where
 
 instance Show a => Show (Stream Identity a) where
     showsPrec p dl = showParen (p > 10) $
-        showString "fromList " . shows (Streamly.Internal.Data.Stream.StreamD.Type.toList dl)
+        showString "fromList " . shows (GHC.Exts.toList dl)
 
 instance Read a => Read (Stream Identity a) where
     readPrec = parens $ prec 10 $ do
@@ -1585,23 +1586,23 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
 -- | A newtype wrapper for the 'Stream' type with a cross product style monad
 -- instance.
 --
--- Semigroup instance appends two streams.
---
 -- A 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ unCrossStream $ do
---      x <- CrossStream (Stream.fromList [1,2]) -- foreach x in stream
---      return x
+-- Stream.fold Fold.toList $ Stream.fromCross $ do
+--     x <- Stream.toCross $ Stream.fromList [1,2]
+--     -- Perform the following actions for each x in the stream
+--     return x
 -- :}
 -- [1,2]
 --
 -- Nested monad binds behave like nested @for@ loops:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ unCrossStream $ do
---     x <- CrossStream (Stream.fromList [1,2]) -- foreach x in stream
---     y <- CrossStream (Stream.fromList [3,4]) -- foreach y in stream
+-- Stream.fold Fold.toList $ Stream.fromCross $ do
+--     x <- Stream.toCross $ Stream.fromList [1,2]
+--     y <- Stream.toCross $ Stream.fromList [3,4]
+--     -- Perform the following actions for each x, for each y
 --     return (x, y)
 -- :}
 -- [(1,3),(1,4),(2,3),(2,4)]

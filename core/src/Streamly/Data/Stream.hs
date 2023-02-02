@@ -79,7 +79,6 @@
 -- == Useful Idioms
 --
 -- >>> fromListM = Stream.sequence . Stream.fromList
--- >>> fromFoldableM = Stream.sequence . Stream.fromFoldable
 -- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0
 --
 -- Also see "Streamly.Internal.Data.Stream" module for many more @Pre-release@

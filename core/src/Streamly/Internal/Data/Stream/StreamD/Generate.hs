@@ -7,17 +7,6 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Prefer unfolds ("Streamly.Internal.Data.Unfold") over the combinators in
--- this module. They are more powerful and efficient as they can be transformed
--- and composed on the input side efficiently and they can fuse in nested
--- operations (e.g.  unfoldMany). All the combinators in this module can be
--- expressed using unfolds with the same efficiency.
---
--- Operations in this module that are not in "Streamly.Internal.Data.Unfold":
--- generate, times, fromPrimIORef.
---
--- We should plan to replace this module with "Streamly.Internal.Data.Unfold"
--- in future.
 
 -- A few combinators in this module have been adapted from the vector package
 -- (c) Roman Leshchinskiy. See the notes in specific combinators.
@@ -122,6 +111,14 @@ import Data.Word
 import Numeric.Natural
 import Prelude hiding (iterate, repeat, replicate, take, takeWhile)
 import Streamly.Internal.Data.Stream.StreamD.Type
+
+-- $setup
+-- >>> :m
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import GHC.Exts (Ptr (Ptr))
 
 ------------------------------------------------------------------------------
 -- Primitives

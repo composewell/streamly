@@ -445,7 +445,7 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- >>> import Data.Maybe (fromJust, isJust)
 -- >>> import Data.Monoid (Endo(..))
 -- >>> import Streamly.Data.Fold (Fold)
--- >>> import Streamly.Internal.Data.Stream.Type (Stream)
+-- >>> import Streamly.Data.Stream (Stream)
 -- >>> import qualified Data.Foldable as Foldable
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold

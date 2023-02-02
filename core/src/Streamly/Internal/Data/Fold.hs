@@ -356,7 +356,6 @@ import Streamly.Internal.Data.Fold.Tee
 -- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 -- >>> import Prelude hiding (break, map, span, splitAt)
 
@@ -2378,7 +2377,7 @@ chunksBetween _low _high _f1 _f2 = undefined
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
--- >>> toStream = fmap Stream.fromStreamK Fold.toStreamK
+-- >>> toStream = fmap Stream.fromList Fold.toList
 --
 -- /Pre-release/
 {-# INLINE toStream #-}
@@ -2391,7 +2390,7 @@ toStream = fmap StreamD.fromList toList
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
 --
--- >>> toStreamRev = fmap Stream.fromStreamK Fold.toStreamKRev
+-- >>> toStreamRev = fmap Stream.fromList Fold.toListRev
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.

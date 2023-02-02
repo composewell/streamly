@@ -167,6 +167,26 @@ import Streamly.Internal.Data.Stream.StreamD.Generate
     (absTimesWith, relTimesWith)
 import Streamly.Internal.Data.Stream.StreamD.Type
 
+--
+-- $setup
+-- >>> :m
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Control.Monad (void)
+-- >>> import Control.Monad.IO.Class (MonadIO (liftIO))
+-- >>> import Data.Either (fromLeft, fromRight, isLeft, isRight, either)
+-- >>> import Data.Function ((&))
+-- >>> import Data.Maybe (fromJust, isJust)
+-- >>> import Prelude hiding (filter, drop, dropWhile, take, takeWhile, foldr, map, mapM, sequence, reverse, foldr1 , scanl, scanl1)
+-- >>> import Streamly.Internal.Data.Stream (Stream)
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold (filtering)
+-- >>> import qualified Streamly.Internal.Data.Fold.Window as Window
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+--
+-- >>> hSetBuffering stdout LineBuffering
+
 ------------------------------------------------------------------------------
 -- Piping
 ------------------------------------------------------------------------------
@@ -1054,7 +1074,8 @@ delayPre = intersperseMPrefix_. sleep
 --
 -- Definition:
 --
--- >>> reverse m = concatEffect $ fold FL.toListRev m >>= return . fromList
+-- >>> reverse m = Stream.concatEffect $ Stream.fold Fold.toListRev m >>= return . Stream.fromList
+--
 {-# INLINE_NORMAL reverse #-}
 reverse :: Monad m => Stream m a -> Stream m a
 reverse m = concatEffect $ fold FL.toListRev m <&> fromList
