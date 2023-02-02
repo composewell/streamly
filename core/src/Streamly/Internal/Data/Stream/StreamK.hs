@@ -1118,11 +1118,7 @@ parseBreakD (PR.Parser pstep initial extract) stream = do
 {-# INLINE parseBreak #-}
 parseBreak :: Monad m =>
     Parser.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
-parseBreak p strm = fmap f $ parseBreakD (PR.fromParserK p) (toStreamK strm)
-
-    where
-
-    f (b, str) = (b, fromStreamK str)
+parseBreak p = parseBreakD (PR.fromParserK p)
 
 -- | Sort the input stream using a supplied comparison function.
 --

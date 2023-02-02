@@ -132,7 +132,7 @@ parseBreak parser input = do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (map Array.length backBuf))
                 let (s1, _) = backTrack n1 backBuf StreamK.nil
-                 in return (Right b, Stream.fromStreamK s1)
+                 in return (Right b, s1)
             K.Error _ err -> return (Left (ParseError err), Stream.nil)
 
     seekErr n len =
@@ -175,7 +175,7 @@ parseBreak parser input = do
                 let n1 = len - n
                 assertM(n1 <= sum (map Array.length (arr:backBuf)))
                 let (s1, _) = backTrack n1 (arr:backBuf) stream
-                 in return (Right b, Stream.fromStreamK s1)
+                 in return (Right b, s1)
             K.Error _ err -> return (Left (ParseError err), Stream.nil)
 
     go backBuf parserk stream = do
