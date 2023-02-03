@@ -207,6 +207,6 @@ targets =
     , ("Network.Inet.TCP", ["noBench"])
     , ("version-bounds", ["noBench"])
 
-    , ("Data.List", ["list_grp", "noBench"])
+    , ("Data.List", ["list_grp", "noBench", "testDevOnly"])
     , ("Data.List.Base", ["list_grp", "noBench"])
     ]

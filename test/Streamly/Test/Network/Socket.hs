@@ -22,10 +22,11 @@ import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Network.Inet.TCP as TCP
 import qualified Streamly.Internal.Network.Socket as Socket
 import qualified Streamly.Internal.Unicode.Stream as Unicode
-import qualified Streamly.Prelude as Stream
 
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -86,9 +87,9 @@ basePort = 64000
 server :: PortNumber -> MVar () -> (Socket -> IO ()) -> IO ()
 server port sem handler = do
     putMVar sem ()
-    Stream.fromSerial (Stream.unfold TCP.acceptorOnPort port)
-        & Stream.fromAsync . Stream.mapM (Socket.forSocketM handler)
-        & Stream.drain
+    Stream.unfold TCP.acceptorOnPort port
+        & Stream.mapM (Socket.forSocketM handler)
+        & Stream.fold Fold.drain
 
 remoteAddr :: (Word8,Word8,Word8,Word8)
 remoteAddr = (127, 0, 0, 1)

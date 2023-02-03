@@ -55,11 +55,12 @@ parseBreak = do
             monadicIO $ do
                 (ls1, str) <-
                     let input =
-                            chunksOf
+                            Stream.toStreamK
+                                $ chunksOf
                                 clen (Array.writeN clen) (Stream.fromList ls)
                         parser = Parser.fromFold (Fold.take tlen Fold.toList)
                      in run $ ArrayStream.parseBreak parser input
-                ls2 <- run $ Stream.fold Fold.toList (ArrayStream.concat str)
+                ls2 <- run $ Stream.fold Fold.toList (ArrayStream.concat $ Stream.fromStreamK str)
                 case ls1 of
                     Right x -> listEquals (==) (x ++ ls2) ls
                     Left _ -> assert False

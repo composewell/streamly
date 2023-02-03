@@ -19,9 +19,9 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic (run, monadicIO, assert)
 
 import qualified Streamly.Data.Array as A
+import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Chunked as AS
-import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Data.Stream.IsStream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Internal.Unicode.Array as IUA
@@ -50,8 +50,8 @@ propDecodeEncodeId' :: Property
 propDecodeEncodeId' =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            let wrds = SS.encodeUtf8' $ S.fromList list
-            chrs <- S.toList $ SS.decodeUtf8' wrds
+            let wrds = SS.encodeUtf8' $ Stream.fromList list
+            chrs <- run $ Stream.toList $ SS.decodeUtf8' wrds
             assert (chrs == list)
 
 -- XXX need to use invalid characters
@@ -59,16 +59,16 @@ propDecodeEncodeId :: Property
 propDecodeEncodeId =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            let wrds = SS.encodeUtf8 $ S.fromList list
-            chrs <- S.toList $ SS.decodeUtf8 wrds
+            let wrds = SS.encodeUtf8 $ Stream.fromList list
+            chrs <- Stream.toList $ SS.decodeUtf8 wrds
             assert (chrs == list)
 
 propDecodeEncodeIdArrays :: Property
 propDecodeEncodeIdArrays =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            let wrds = S.arraysOf 8 $ SS.encodeUtf8' $ S.fromList list
-            chrs <- S.toList $ IUS.decodeUtf8Arrays wrds
+            let wrds = Stream.arraysOf 8 $ SS.encodeUtf8' $ Stream.fromList list
+            chrs <- Stream.toList $ IUS.decodeUtf8Arrays wrds
             assert (chrs == list)
 
 unicodeTestData :: [Char]
@@ -82,8 +82,10 @@ propASCIIToLatin1 =
     forAll (choose (1, 1000)) $ \len ->
         forAll (vectorOf len arbitraryASCIIChar) $ \list ->
             monadicIO $ do
-                let wrds = SS.decodeLatin1 $ SS.encodeLatin1 $ S.fromList list
-                lst <- run $  S.toList wrds
+                let wrds = SS.decodeLatin1
+                            $ SS.encodeLatin1
+                            $ Stream.fromList list
+                lst <- run $  Stream.toList wrds
                 assert (list == lst)
 
 propUnicodeToLatin1 :: Property
@@ -92,8 +94,8 @@ propUnicodeToLatin1 =
         let wrds =
                 SS.decodeLatin1
                     $ SS.encodeLatin1
-                    $ S.fromList unicodeTestData
-        lst <- run $  S.toList wrds
+                    $ Stream.fromList unicodeTestData
+        lst <- run $ Stream.toList wrds
         assert (latin1TestData == lst)
 
 propUnicodeToLatin1' :: Property
@@ -102,28 +104,28 @@ propUnicodeToLatin1' =
         let wrds =
                 SS.decodeLatin1
                     $ SS.encodeLatin1'
-                    $ S.fromList unicodeTestData
-        lst <- run $  S.toList wrds
+                    $ Stream.fromList unicodeTestData
+        lst <- run $ Stream.toList wrds
         assert (latin1TestData == lst)
 
 testLines :: Property
 testLines =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            xs <- S.toList
-                $ S.map A.toList
+            xs <- Stream.toList
+                $ fmap A.toList
                 $ IUA.lines
-                $ S.fromList list
+                $ Stream.fromList list
             assert (xs == lines list)
 
 testLinesArray :: Property
 testLinesArray =
     forAll genWord8 $ \list ->
         monadicIO $ do
-            xs <- S.toList
-                    $ S.map A.toList
+            xs <- Stream.toList
+                    $ fmap A.toList
                     $ AS.splitOnSuffix 10
-                    $ S.fromPure (A.fromList list)
+                    $ Stream.fromPure (A.fromList list)
             assert (xs == map (map (fromIntegral . ord))
                               (lines (map (chr .  fromIntegral) list)))
 
@@ -131,20 +133,20 @@ testWords :: Property
 testWords =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            xs <- S.toList
-                $ S.map A.toList
+            xs <- Stream.toList
+                $ Stream.map A.toList
                 $ IUA.words
-                $ S.fromList list
+                $ Stream.fromList list
             assert (xs == words list)
 
 testUnlines :: Property
 testUnlines =
   forAll genUnicode $ \list ->
       monadicIO $ do
-          xs <- S.toList
+          xs <- Stream.toList
               $ IUA.unlines
               $ IUA.lines
-              $ S.fromList list
+              $ Stream.fromList list
           assert (xs == unlines (lines list))
 
 testUnwords :: Property
@@ -152,10 +154,10 @@ testUnwords =
   forAll genUnicode $ \list ->
       monadicIO $ do
           xs <- run
-              $ S.toList
+              $ Stream.toList
               $ IUA.unwords
               $ IUA.words
-              $ S.fromList list
+              $ Stream.fromList list
           assert (xs == unwords (words list))
 
 moduleName :: String

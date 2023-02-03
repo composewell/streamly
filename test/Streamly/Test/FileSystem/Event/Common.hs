@@ -66,7 +66,8 @@ import System.IO.Temp (withSystemTempDirectory)
 
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.Concurrent as Stream
 import qualified Streamly.Unicode.Stream as Unicode
 
 #if defined(FILESYSTEM_EVENT_LINUX)
@@ -95,7 +96,7 @@ type EventChecker =
     -> MVar ()   -- mvar to sync file system ops and the watch
     -> [(String, Event -> Bool)] -- expected events
     -> IO ()
-type EventWatcher = NonEmpty (Array Word8) -> Stream.SerialT IO Event.Event
+type EventWatcher = NonEmpty (Array Word8) -> Stream.Stream IO Event.Event
 
 eventMatches :: Event -> (String, Event -> Bool) -> Bool
 eventMatches ev (expectedPath, f) =
@@ -193,7 +194,8 @@ driver checker symlinkStyle (desc, pre, ops, expected) =
             -- with the events occurred after the watch is started.
             let check = checker root target sync expected
                 fsOps = Stream.fromEffect $ runFSOps root sync
-            Stream.drain $ Stream.fromEffect check `Stream.parallelFst` fsOps
+            Stream.drain
+                $ Stream.parListEagerFst [Stream.fromEffect check, fsOps]
 
     runFSOps fp sync = do
         -- We put the MVar before the event watcher starts to run but that does
