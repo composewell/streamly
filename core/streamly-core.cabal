@@ -299,6 +299,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Transform
                      , Streamly.Internal.Data.Stream.StreamD.Exception
                      , Streamly.Internal.Data.Stream.StreamD.Lift
+                     , Streamly.Internal.Data.Stream.StreamD.Top
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.Common
                      , Streamly.Internal.Data.Stream

@@ -25,6 +25,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , module Streamly.Internal.Data.Stream.StreamD.Transformer
     , module Streamly.Internal.Data.Stream.StreamD.Nesting
     , module Streamly.Internal.Data.Stream.StreamD.Transform
+    , module Streamly.Internal.Data.Stream.StreamD.Top
     )
 where
 
@@ -36,3 +37,4 @@ import Streamly.Internal.Data.Stream.StreamD.Lift
 import Streamly.Internal.Data.Stream.StreamD.Transformer
 import Streamly.Internal.Data.Stream.StreamD.Nesting
 import Streamly.Internal.Data.Stream.StreamD.Transform
+import Streamly.Internal.Data.Stream.StreamD.Top
