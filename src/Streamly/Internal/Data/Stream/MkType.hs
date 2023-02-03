@@ -215,6 +215,7 @@ derivOrdIdent _Type =
         (singleton <$> [t|Ord $(varT _a)|])
         (appT (conT _Ord) (foldl1 appT [conT _Type, conT _Identity, varT _a]))
 
+{-
 derivTraversableIdent :: Name -> Q Dec
 derivTraversableIdent _Type =
     standaloneDerivD
@@ -222,6 +223,7 @@ derivTraversableIdent _Type =
         (appT
              (conT _Traversable)
              (foldl1 appT [conT _Type, conT _Identity]))
+-}
 
 showInstance :: Name -> Q Dec
 showInstance _Type =
@@ -503,7 +505,7 @@ flattenDec (ma:mas) = do
 -- >>> putStrLn $ pprint expr
 -- newtype ZipStream m a
 --   = ZipStream (Stream.Stream m a)
---     deriving (Semigroup, Monoid, Foldable)
+--     deriving Foldable
 -- mkZipStream :: Stream.Stream m a -> ZipStream m a
 -- mkZipStream = ZipStream
 -- unZipStream :: ZipStream m a -> Stream.Stream m a
@@ -513,7 +515,6 @@ flattenDec (ma:mas) = do
 --                   GHC.Types.Char => IsString (ZipStream Identity a)
 -- deriving instance GHC.Classes.Eq a => Eq (ZipStream Identity a)
 -- deriving instance GHC.Classes.Ord a => Ord (ZipStream Identity a)
--- deriving instance Traversable (ZipStream Identity)
 -- instance Show a => Show (ZipStream Identity a)
 --     where {-# INLINE show #-}
 --           show (ZipStream strm) = show strm
@@ -537,7 +538,7 @@ mkZipType dtNameStr apOpStr isConcurrent =
     flattenDec
         [ typeDec dtNameStr
               $ if not isConcurrent
-                then [_Semigroup, _Monoid, _Foldable]
+                then [_Foldable]
                 else []
         , sequence
               $ if not isConcurrent
@@ -545,7 +546,7 @@ mkZipType dtNameStr apOpStr isConcurrent =
                      , derivIsStringIdent _Type
                      , derivEqIdent _Type
                      , derivOrdIdent _Type
-                     , derivTraversableIdent _Type
+                     -- , derivTraversableIdent _Type
                      , showInstance _Type
                      , readInstance _Type
                      ]
@@ -609,7 +610,7 @@ mkCrossType dtNameStr bindOpStr isConcurrent =
     flattenDec
         [ typeDec dtNameStr
               $ if not isConcurrent
-                then [_Semigroup, _Monoid, _Foldable]
+                then [_Foldable]
                 else []
         , sequence
               $ if not isConcurrent
@@ -617,7 +618,7 @@ mkCrossType dtNameStr bindOpStr isConcurrent =
                      , derivIsStringIdent _Type
                      , derivEqIdent _Type
                      , derivOrdIdent _Type
-                     , derivTraversableIdent _Type
+                     -- , derivTraversableIdent _Type
                      , showInstance _Type
                      , readInstance _Type
                      ]
