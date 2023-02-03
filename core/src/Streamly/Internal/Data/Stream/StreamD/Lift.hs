@@ -28,10 +28,23 @@ import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import Streamly.Internal.Data.Stream.StreamD.Type
 
+-- $setup
+-- >>> :m
+-- >>> import Data.Functor.Identity (runIdentity)
+-- >>> import Streamly.Internal.Data.Stream as Stream
+
 -------------------------------------------------------------------------------
 -- Generalize Inner Monad
 -------------------------------------------------------------------------------
 
+-- | Transform the inner monad of a stream using a natural transformation.
+--
+-- Example, generalize the inner monad from Identity to any other:
+--
+-- >>> generalizeInner = Stream.morphInner (return . runIdentity)
+--
+-- Also known as hoist.
+--
 {-# INLINE_NORMAL morphInner #-}
 morphInner :: Monad n => (forall x. m x -> n x) -> Stream m a -> Stream n a
 morphInner f (Stream step state) = Stream step' state
@@ -44,6 +57,12 @@ morphInner f (Stream step state) = Stream step' state
             Skip  s   -> Skip s
             Stop      -> Stop
 
+-- | Generalize the inner monad of the stream from 'Identity' to any monad.
+--
+-- Definition:
+--
+-- >>> generalizeInner = Stream.morphInner (return . runIdentity)
+--
 {-# INLINE generalizeInner #-}
 generalizeInner :: Monad m => Stream Identity a -> Stream m a
 generalizeInner = morphInner (return . runIdentity)
@@ -52,6 +71,9 @@ generalizeInner = morphInner (return . runIdentity)
 -- Transform Inner Monad
 -------------------------------------------------------------------------------
 
+-- | Lift the inner monad @m@ of a stream @Stream m a@ to @t m@ using the
+-- supplied lift function.
+--
 {-# INLINE_NORMAL liftInnerWith #-}
 liftInnerWith :: (Monad (t m)) =>
     (forall b. m b -> t m b) -> Stream m a -> Stream (t m) a
@@ -67,6 +89,8 @@ liftInnerWith lift (Stream step state) = Stream step1 state
             Skip s    -> Skip s
             Stop      -> Stop
 
+-- | Evaluate the inner monad of a stream using the supplied runner function.
+--
 {-# INLINE_NORMAL runInnerWith #-}
 runInnerWith :: Monad m =>
     (forall b. t m b -> m b) -> Stream (t m) a -> Stream m a
@@ -82,6 +106,10 @@ runInnerWith run (Stream step state) = Stream step1 state
             Skip s -> Skip s
             Stop -> Stop
 
+-- | Evaluate the inner monad of a stream using the supplied stateful runner
+-- function and the initial state. The state returned by an invocation of the
+-- runner is supplied as input state to the next invocation.
+--
 {-# INLINE_NORMAL runInnerWithState #-}
 runInnerWithState :: Monad m =>
     (forall b. s -> t m b -> m (b, s))
