@@ -71,27 +71,36 @@ module Streamly.Internal.Data.Stream.StreamD.Eliminate
     -- ** Substreams
     -- | These should probably be expressed using parsers.
     , isPrefixOf
+    , isInfixOf
+    , isSuffixOf
+    , isSuffixOfUnbox
     , isSubsequenceOf
     , stripPrefix
+    , stripSuffix
+    , stripSuffixUnbox
     )
 where
 
 #include "inline.hs"
 
 import Control.Exception (assert)
+import Control.Monad.IO.Class (MonadIO(..))
+import Foreign.Storable (Storable)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.SVar.Type (defState)
+import Streamly.Internal.Data.Unboxed (Unbox)
 
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
-#ifdef USE_FOLDS_EVERYWHERE
+
+import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
-#endif
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as StreamD
 import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
+import qualified Streamly.Internal.Data.Stream.StreamD.Transform as StreamD
 
 import Prelude hiding
        ( all, any, elem, foldr, foldr1, head, last, lookup, mapM, mapM_
@@ -633,6 +642,12 @@ mapM_ m = drain . mapM m
 -- Multi-stream folds
 ------------------------------------------------------------------------------
 
+-- | Returns 'True' if the first stream is the same as or a prefix of the
+-- second. A stream is a prefix of itself.
+--
+-- >>> Stream.isPrefixOf (Stream.fromList "hello") (Stream.fromList "hello" :: Stream IO Char)
+-- True
+--
 {-# INLINE_NORMAL isPrefixOf #-}
 isPrefixOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
 isPrefixOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
@@ -656,6 +671,13 @@ isPrefixOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
             Skip sb' -> go SPEC (Just' x) sa sb'
             Stop     -> return False
 
+-- | Returns 'True' if all the elements of the first stream occur, in order, in
+-- the second stream. The elements do not have to occur consecutively. A stream
+-- is a subsequence of itself.
+--
+-- >>> Stream.isSubsequenceOf (Stream.fromList "hlo") (Stream.fromList "hello" :: Stream IO Char)
+-- True
+--
 {-# INLINE_NORMAL isSubsequenceOf #-}
 isSubsequenceOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
 isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
@@ -679,6 +701,13 @@ isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
             Skip sb' -> go SPEC (Just' x) sa sb'
             Stop -> return False
 
+-- | @stripPrefix prefix input@ strips the @prefix@ stream from the @input@
+-- stream if it is a prefix of input. Returns 'Nothing' if the input does not
+-- start with the given prefix, stripped input otherwise. Returns @Just nil@
+-- when the prefix is the same as the input stream.
+--
+-- Space: @O(1)@
+--
 {-# INLINE_NORMAL stripPrefix #-}
 stripPrefix
     :: (Monad m, Eq a)
@@ -703,3 +732,95 @@ stripPrefix (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
                     else return Nothing
             Skip sb' -> go SPEC (Just' x) sa sb'
             Stop     -> return Nothing
+
+-- | Returns 'True' if the first stream is an infix of the second. A stream is
+-- considered an infix of itself.
+--
+-- >>> s = Stream.fromList "hello" :: Stream IO Char
+-- >>> Stream.isInfixOf s s
+-- True
+--
+-- Space: @O(n)@ worst case where @n@ is the length of the infix.
+--
+-- /Pre-release/
+--
+-- /Requires 'Storable' constraint/
+--
+{-# INLINE isInfixOf #-}
+isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a, Unbox a)
+    => Stream m a -> Stream m a -> m Bool
+isInfixOf infx stream = do
+    arr <- fold Array.write infx
+    -- XXX can use breakOnSeq instead (when available)
+    r <- null $ StreamD.drop 1 $ Nesting.splitOnSeq arr Fold.drain stream
+    return (not r)
+
+-- Note: isPrefixOf uses the prefix stream only once. In contrast, isSuffixOf
+-- may use the suffix stream many times. To run in optimal memory we do not
+-- want to buffer the suffix stream in memory therefore  we need an ability to
+-- clone (or consume it multiple times) the suffix stream without any side
+-- effects so that multiple potential suffix matches can proceed in parallel
+-- without buffering the suffix stream. For example, we may create the suffix
+-- stream from a file handle, however, if we evaluate the stream multiple
+-- times, once for each match, we will need a different file handle each time
+-- which may exhaust the file descriptors. Instead, we want to share the same
+-- underlying file descriptor, use pread on it to generate the stream and clone
+-- the stream for each match. Therefore the suffix stream should be built in
+-- such a way that it can be consumed multiple times without any problems.
+
+-- XXX Can be implemented with better space/time complexity.
+-- Space: @O(n)@ worst case where @n@ is the length of the suffix.
+
+-- | Returns 'True' if the first stream is a suffix of the second. A stream is
+-- considered a suffix of itself.
+--
+-- >>> Stream.isSuffixOf (Stream.fromList "hello") (Stream.fromList "hello" :: Stream IO Char)
+-- True
+--
+-- Space: @O(n)@, buffers entire input stream and the suffix.
+--
+-- /Pre-release/
+--
+-- /Suboptimal/ - Help wanted.
+--
+{-# INLINE isSuffixOf #-}
+isSuffixOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
+isSuffixOf suffix stream =
+    StreamD.reverse suffix `isPrefixOf` StreamD.reverse stream
+
+-- | Much faster than 'isSuffixOf'.
+{-# INLINE isSuffixOfUnbox #-}
+isSuffixOfUnbox :: (MonadIO m, Eq a, Unbox a) =>
+    Stream m a -> Stream m a -> m Bool
+isSuffixOfUnbox suffix stream =
+    StreamD.reverseUnbox suffix `isPrefixOf` StreamD.reverseUnbox stream
+
+-- | Drops the given suffix from a stream. Returns 'Nothing' if the stream does
+-- not end with the given suffix. Returns @Just nil@ when the suffix is the
+-- same as the stream.
+--
+-- It may be more efficient to convert the stream to an Array and use
+-- stripSuffix on that especially if the elements have a Storable or Prim
+-- instance.
+--
+-- See also "Streamly.Internal.Data.Stream.Reduce.dropSuffix".
+--
+-- Space: @O(n)@, buffers the entire input stream as well as the suffix
+--
+-- /Pre-release/
+{-# INLINE stripSuffix #-}
+stripSuffix
+    :: (Monad m, Eq a)
+    => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+stripSuffix m1 m2 =
+    fmap StreamD.reverse
+        <$> stripPrefix (StreamD.reverse m1) (StreamD.reverse m2)
+
+-- | Much faster than 'stripSuffix'.
+{-# INLINE stripSuffixUnbox #-}
+stripSuffixUnbox
+    :: (MonadIO m, Eq a, Unbox a)
+    => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+stripSuffixUnbox m1 m2 =
+    fmap StreamD.reverseUnbox
+        <$> stripPrefix (StreamD.reverseUnbox m1) (StreamD.reverseUnbox m2)

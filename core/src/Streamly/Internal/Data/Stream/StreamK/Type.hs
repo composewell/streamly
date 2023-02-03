@@ -1670,6 +1670,11 @@ tail =
         yieldk _ r = pure $ Just r
     in foldStream defState yieldk single stop
 
+-- | Extract all but the last element of the stream, if any.
+--
+-- Note: This will end up buffering the entire stream.
+--
+-- /Pre-release/
 {-# INLINE init #-}
 init :: Applicative m => Stream m a -> m (Maybe (Stream m a))
 init = go1

@@ -230,7 +230,35 @@ consM m (Stream step state) = Stream step1 Nothing
             Skip  s   -> Skip (Just s)
             Stop      -> Stop) <$> step gst st
 
--- | Does not fuse, has the same performance as the StreamK version.
+-- | Decompose a stream into its head and tail. If the stream is empty, returns
+-- 'Nothing'. If the stream is non-empty, returns @Just (a, ma)@, where @a@ is
+-- the head of the stream and @ma@ its tail.
+--
+-- Properties:
+--
+-- >>> Nothing <- Stream.uncons Stream.nil
+-- >>> Just ("a", t) <- Stream.uncons (Stream.cons "a" Stream.nil)
+--
+-- This can be used to consume the stream in an imperative manner one element
+-- at a time, as it just breaks down the stream into individual elements and we
+-- can loop over them as we deem fit. For example, this can be used to convert
+-- a streamly stream into other stream types.
+--
+-- All the folds in this module can be expressed in terms of 'uncons', however,
+-- this is generally less efficient than specific folds because it takes apart
+-- the stream one element at a time, therefore, does not take adavantage of
+-- stream fusion.
+--
+-- 'foldBreak' is a more general way of consuming a stream piecemeal.
+--
+-- >>> :{
+-- uncons xs = do
+--     r <- Stream.foldBreak Fold.one xs
+--     return $ case r of
+--         (Nothing, _) -> Nothing
+--         (Just h, t) -> Just (h, t)
+-- :}
+--
 {-# INLINE_NORMAL uncons #-}
 uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
 uncons (UnStream step state) = go SPEC state
@@ -502,6 +530,23 @@ foldAdd f =
 --
 -- S.foldrM (\x t -> if x then return t else return False) (return True)
 --  (S.fromList [False,undefined] :: Stream IO Bool)
+
+-- | Right associative/lazy pull fold. @foldrM build final stream@ constructs
+-- an output structure using the step function @build@. @build@ is invoked with
+-- the next input element and the remaining (lazy) tail of the output
+-- structure. It builds a lazy output expression using the two. When the "tail
+-- structure" in the output expression is evaluated it calls @build@ again thus
+-- lazily consuming the input @stream@ until either the output expression built
+-- by @build@ is free of the "tail" or the input is exhausted in which case
+-- @final@ is used as the terminating case for the output structure. For more
+-- details see the description in the previous section.
+--
+-- Example, determine if any element is 'odd' in a stream:
+--
+-- >>> s = Stream.fromList (2:4:5:undefined)
+-- >>> step x xs = if odd x then return True else xs
+-- >>> Stream.foldrM step (return False) s
+-- True
 --
 {-# INLINE_NORMAL foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
@@ -536,6 +581,18 @@ foldrMx fstep final convert (Stream step state) = convert $ go SPEC state
 -- monads. For example, if "any" is implemented using "foldr" instead of
 -- "foldrM" it performs the same with Identity monad but performs 1000x slower
 -- with IO monad.
+
+-- | Right fold, lazy for lazy monads and pure streams, and strict for strict
+-- monads.
+--
+-- Please avoid using this routine in strict monads like IO unless you need a
+-- strict right fold. This is provided only for use in lazy monads (e.g.
+-- Identity) or pure streams. Note that with this signature it is not possible
+-- to implement a lazy foldr when the monad @m@ is strict. In that case it
+-- would be strict in its accumulator and therefore would necessarily consume
+-- all its input.
+--
+-- >>> foldr f z = Stream.foldrM (\a b -> f a <$> b) (return z)
 --
 {-# INLINE_NORMAL foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
