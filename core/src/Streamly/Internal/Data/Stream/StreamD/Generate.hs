@@ -35,20 +35,39 @@ module Streamly.Internal.Data.Stream.StreamD.Generate
     , replicateM
 
     -- * Enumeration
-    , enumerateFromStepIntegral
-    , enumerateFromIntegral
-    , enumerateFromThenIntegral
-    , enumerateFromToIntegral
-    , enumerateFromThenToIntegral
-
+    -- ** Enumerating 'Num' Types
     , enumerateFromStepNum
     , enumerateFromNum
     , enumerateFromThenNum
-    , enumerateFromToFractional
-    , enumerateFromThenToFractional
 
+    -- ** Enumerating 'Bounded' 'Enum' Types
     , enumerate
     , enumerateTo
+    , enumerateFromBounded
+
+    -- ** Enumerating 'Enum' Types not larger than 'Int'
+    , enumerateFromToSmall
+    , enumerateFromThenToSmall
+    , enumerateFromThenSmallBounded
+
+    -- ** Enumerating 'Bounded' 'Integral' Types
+    , enumerateFromIntegral
+    , enumerateFromThenIntegral
+
+    -- ** Enumerating 'Integral' Types
+    , enumerateFromToIntegral
+    , enumerateFromThenToIntegral
+
+    -- ** Enumerating unbounded 'Integral' Types
+    , enumerateFromStepIntegral
+
+    -- ** Enumerating 'Fractional' Types
+    , enumerateFromFractional
+    , enumerateFromToFractional
+    , enumerateFromThenFractional
+    , enumerateFromThenToFractional
+
+    -- ** Enumerable Type Class
     , Enumerable(..)
 
     -- * Time Enumeration
@@ -327,8 +346,19 @@ enumerateFromThenToIntegralDn from next to = Stream step EnumInit
 #endif
 
 -- XXX This can perhaps be simplified and written in terms of
--- enumeratFromStepIntegral as we have done in unfolds. But anyway we should be
--- replacing the stream generation module with unfolds.
+-- enumeratFromStepIntegral as we have done in unfolds.
+
+-- | Enumerate an 'Integral' type in steps up to a given limit.
+-- @enumerateFromThenToIntegral from then to@ generates a finite stream whose
+-- first element is @from@, the second element is @then@ and the successive
+-- elements are in increments of @then - from@ up to @to@.
+--
+-- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenToIntegral 0 2 6
+-- [0,2,4,6]
+--
+-- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenToIntegral 0 (-2) (-6)
+-- [0,-2,-4,-6]
+--
 {-# INLINE_NORMAL enumerateFromThenToIntegral #-}
 enumerateFromThenToIntegral
     :: (Monad m, Integral a)
@@ -342,6 +372,17 @@ enumerateFromThenToIntegral from next to
     | otherwise    = enumerateFromThenToIntegralDn from next to
 #endif
 
+-- | Enumerate an 'Integral' type in steps. @enumerateFromThenIntegral from
+-- then@ generates a stream whose first element is @from@, the second element
+-- is @then@ and the successive elements are in increments of @then - from@.
+-- The stream is bounded by the size of the 'Integral' type.
+--
+-- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThenIntegral (0 :: Int) 2
+-- [0,2,4,6]
+--
+-- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThenIntegral (0 :: Int) (-2)
+-- [0,-2,-4,-6]
+--
 {-# INLINE_NORMAL enumerateFromThenIntegral #-}
 enumerateFromThenIntegral
     :: (Monad m, Integral a, Bounded a)
@@ -356,8 +397,18 @@ enumerateFromThenIntegral from next =
     else enumerateFromThenToIntegralDn from next minBound
 #endif
 
--- | Can be used to enumerate unbounded integrals. This does not check for
--- overflow or underflow for bounded integrals.
+-- | @enumerateFromStepIntegral from step@ generates an infinite stream whose
+-- first element is @from@ and the successive elements are in increments of
+-- @step@.
+--
+-- CAUTION: This function is not safe for finite integral types. It does not
+-- check for overflow, underflow or bounds.
+--
+-- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromStepIntegral 0 2
+-- [0,2,4,6]
+--
+-- >>> Stream.fold Fold.toList $ Stream.take 3 $ Stream.enumerateFromStepIntegral 0 (-2)
+-- [0,-2,-4]
 --
 {-# INLINE_NORMAL enumerateFromStepIntegral #-}
 enumerateFromStepIntegral :: (Integral a, Monad m) => a -> a -> Stream m a
@@ -372,13 +423,26 @@ enumerateFromStepIntegral from stride =
         step _ !x = return $ Yield x $! (x + stride)
 #endif
 
--- | Enumerate upwards from @from@ to @to@. We are assuming that "to" is
--- constrained by the type to be within max/min bounds.
+-- | Enumerate an 'Integral' type up to a given limit.
+-- @enumerateFromToIntegral from to@ generates a finite stream whose first
+-- element is @from@ and successive elements are in increments of @1@ up to
+-- @to@.
+--
+-- >>> Stream.fold Fold.toList $ Stream.enumerateFromToIntegral 0 4
+-- [0,1,2,3,4]
+--
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: (Monad m, Integral a) => a -> a -> Stream m a
 enumerateFromToIntegral from to =
     takeWhile (<= to) $ enumerateFromStepIntegral from 1
 
+-- | Enumerate an 'Integral' type. @enumerateFromIntegral from@ generates a
+-- stream whose first element is @from@ and the successive elements are in
+-- increments of @1@. The stream is bounded by the size of the 'Integral' type.
+--
+-- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromIntegral (0 :: Int)
+-- [0,1,2,3]
+--
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => a -> Stream m a
 enumerateFromIntegral from = enumerateFromToIntegral from maxBound
@@ -387,9 +451,67 @@ enumerateFromIntegral from = enumerateFromToIntegral from maxBound
 -- Enumeration of Fractionals
 ------------------------------------------------------------------------------
 
--- | We cannot write a general function for Num.  The only way to write code
+-- We cannot write a general function for Num.  The only way to write code
 -- portable between the two is to use a 'Real' constraint and convert between
 -- Fractional and Integral using fromRational which is horribly slow.
+
+-- Even though the underlying implementation of enumerateFromFractional and
+-- enumerateFromThenFractional works for any 'Num' we have restricted these to
+-- 'Fractional' because these do not perform any bounds check, in contrast to
+-- integral versions and are therefore not equivalent substitutes for those.
+
+-- | Numerically stable enumeration from a 'Fractional' number in steps of size
+-- @1@. @enumerateFromFractional from@ generates a stream whose first element
+-- is @from@ and the successive elements are in increments of @1@.  No overflow
+-- or underflow checks are performed.
+--
+-- This is the equivalent to 'enumFrom' for 'Fractional' types. For example:
+--
+-- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromFractional 1.1
+-- [1.1,2.1,3.1,4.1]
+--
+{-# INLINE enumerateFromFractional #-}
+enumerateFromFractional :: (Monad m, Fractional a) => a -> Stream m a
+enumerateFromFractional = enumerateFromNum
+
+-- | Numerically stable enumeration from a 'Fractional' number in steps.
+-- @enumerateFromThenFractional from then@ generates a stream whose first
+-- element is @from@, the second element is @then@ and the successive elements
+-- are in increments of @then - from@.  No overflow or underflow checks are
+-- performed.
+--
+-- This is the equivalent of 'enumFromThen' for 'Fractional' types. For
+-- example:
+--
+-- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThenFractional 1.1 2.1
+-- [1.1,2.1,3.1,4.1]
+--
+-- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThenFractional 1.1 (-2.1)
+-- [1.1,-2.1,-5.300000000000001,-8.500000000000002]
+--
+{-# INLINE enumerateFromThenFractional #-}
+enumerateFromThenFractional
+    :: (Monad m, Fractional a)
+    => a -> a -> Stream m a
+enumerateFromThenFractional = enumerateFromThenNum
+
+-- | Numerically stable enumeration from a 'Fractional' number to a given
+-- limit.  @enumerateFromToFractional from to@ generates a finite stream whose
+-- first element is @from@ and successive elements are in increments of @1@ up
+-- to @to@.
+--
+-- This is the equivalent of 'enumFromTo' for 'Fractional' types. For
+-- example:
+--
+-- >>> Stream.fold Fold.toList $ Stream.enumerateFromToFractional 1.1 4
+-- [1.1,2.1,3.1,4.1]
+--
+-- >>> Stream.fold Fold.toList $ Stream.enumerateFromToFractional 1.1 4.6
+-- [1.1,2.1,3.1,4.1,5.1]
+--
+-- Notice that the last element is equal to the specified @to@ value after
+-- rounding to the nearest integer.
+--
 {-# INLINE_NORMAL enumerateFromToFractional #-}
 enumerateFromToFractional
     :: (Monad m, Fractional a, Ord a)
@@ -397,12 +519,26 @@ enumerateFromToFractional
 enumerateFromToFractional from to =
     takeWhile (<= to + 1 / 2) $ enumerateFromStepNum from 1
 
+-- | Numerically stable enumeration from a 'Fractional' number in steps up to a
+-- given limit.  @enumerateFromThenToFractional from then to@ generates a
+-- finite stream whose first element is @from@, the second element is @then@
+-- and the successive elements are in increments of @then - from@ up to @to@.
+--
+-- This is the equivalent of 'enumFromThenTo' for 'Fractional' types. For
+-- example:
+--
+-- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenToFractional 0.1 2 6
+-- [0.1,2.0,3.9,5.799999999999999]
+--
+-- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenToFractional 0.1 (-2) (-6)
+-- [0.1,-2.0,-4.1000000000000005,-6.200000000000001]
+--
 {-# INLINE_NORMAL enumerateFromThenToFractional #-}
 enumerateFromThenToFractional
     :: (Monad m, Fractional a, Ord a)
     => a -> a -> a -> Stream m a
 enumerateFromThenToFractional from next to =
-    takeWhile predicate $ enumerateFromThenNum from next
+    takeWhile predicate $ enumerateFromThenFractional from next
     where
     mid = (next - from) / 2
     predicate | next >= from  = (<= to + mid)
@@ -469,20 +605,14 @@ class Enum a => Enumerable a where
     -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
     -- generating an infinite stream when the type is not 'Bounded'.
     --
-    -- @
     -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFrom (0 :: Int)
     -- [0,1,2,3]
-    --
-    -- @
     --
     -- For 'Fractional' types, enumeration is numerically stable. However, no
     -- overflow or underflow checks are performed.
     --
-    -- @
     -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFrom 1.1
     -- [1.1,2.1,3.1,4.1]
-    --
-    -- @
     --
     enumerateFrom :: (Monad m) => a -> Stream m a
 
@@ -490,23 +620,17 @@ class Enum a => Enumerable a where
     -- the type up to the value @to@. If @to@ is smaller than @from@ then an
     -- empty stream is returned.
     --
-    -- @
     -- >>> Stream.fold Fold.toList $ Stream.enumerateFromTo 0 4
     -- [0,1,2,3,4]
-    --
-    -- @
     --
     -- For 'Fractional' types, the last element is equal to the specified @to@
     -- value after rounding to the nearest integral value.
     --
-    -- @
     -- >>> Stream.fold Fold.toList $ Stream.enumerateFromTo 1.1 4
     -- [1.1,2.1,3.1,4.1]
     --
     -- >>> Stream.fold Fold.toList $ Stream.enumerateFromTo 1.1 4.6
     -- [1.1,2.1,3.1,4.1,5.1]
-    --
-    -- @
     --
     enumerateFromTo :: (Monad m) => a -> a -> Stream m a
 
@@ -517,14 +641,11 @@ class Enum a => Enumerable a where
     -- 'Bounded' types the stream ends when 'maxBound' is reached, for
     -- unbounded types it keeps enumerating infinitely.
     --
-    -- @
     -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 2
     -- [0,2,4,6]
     --
     -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 (-2)
     -- [0,-2,-4,-6]
-    --
-    -- @
     --
     enumerateFromThen :: (Monad m) => a -> a -> Stream m a
 
@@ -534,14 +655,11 @@ class Enum a => Enumerable a where
     -- occur downwards or upwards depending on whether @then@ comes before or
     -- after @from@.
     --
-    -- @
     -- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenTo 0 2 6
     -- [0,2,4,6]
     --
     -- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenTo 0 (-2) (-6)
     -- [0,-2,-4,-6]
-    --
-    -- @
     --
     enumerateFromThenTo :: (Monad m) => a -> a -> a -> Stream m a
 
@@ -570,7 +688,7 @@ enumerate :: (Monad m, Bounded a, Enumerable a) => Stream m a
 enumerate = enumerateFrom minBound
 
 -- |
--- > enumerateTo = enumerateFromTo minBound
+-- >>> enumerateTo = Stream.enumerateFromTo minBound
 --
 -- Enumerate a 'Bounded' type from its 'minBound' to specified value.
 --
@@ -579,7 +697,7 @@ enumerateTo :: (Monad m, Bounded a, Enumerable a) => a -> Stream m a
 enumerateTo = enumerateFromTo minBound
 
 -- |
--- > enumerateFromBounded = enumerateFromTo from maxBound
+-- >>> enumerateFromBounded = Stream.enumerateFromTo from maxBound
 --
 -- 'enumerateFrom' for 'Bounded' 'Enum' types.
 --
@@ -651,9 +769,9 @@ ENUMERABLE_UNBOUNDED_INTEGRAL(Natural)
 #define ENUMERABLE_FRACTIONAL(FRACTIONAL_TYPE,CONSTRAINT)         \
 instance (CONSTRAINT) => Enumerable FRACTIONAL_TYPE where {     \
     {-# INLINE enumerateFrom #-};                                 \
-    enumerateFrom = enumerateFromNum;                      \
+    enumerateFrom = enumerateFromFractional;                      \
     {-# INLINE enumerateFromThen #-};                             \
-    enumerateFromThen = enumerateFromThenNum;              \
+    enumerateFromThen = enumerateFromThenFractional;              \
     {-# INLINE enumerateFromTo #-};                               \
     enumerateFromTo = enumerateFromToFractional;                  \
     {-# INLINE enumerateFromThenTo #-};                           \
