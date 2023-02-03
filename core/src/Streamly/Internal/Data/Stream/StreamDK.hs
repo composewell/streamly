@@ -29,7 +29,6 @@ module Streamly.Internal.Data.Stream.StreamDK
     , module Streamly.Internal.Data.Stream.Lift
     , module Streamly.Internal.Data.Stream.Reduce
     , module Streamly.Internal.Data.Stream.Transform
-    , module Streamly.Internal.Data.Stream.Top
     , module Streamly.Internal.Data.Stream.Cross
     , module Streamly.Internal.Data.Stream.Zip
 
@@ -47,7 +46,6 @@ import Streamly.Internal.Data.Stream.Expand
 import Streamly.Internal.Data.Stream.Generate
 import Streamly.Internal.Data.Stream.Lift
 import Streamly.Internal.Data.Stream.Reduce
-import Streamly.Internal.Data.Stream.Top
 import Streamly.Internal.Data.Stream.Transform
 import Streamly.Internal.Data.Stream.Type
 import Streamly.Internal.Data.Stream.Zip
