@@ -1671,10 +1671,12 @@ concatMapEffect f action =
 newtype CrossStreamK m a = CrossStreamK {unCrossStreamK :: Stream m a}
         deriving (Functor, Semigroup, Monoid, Foldable)
 
+-- XXX Change to mkCross?
 {-# INLINE toCross #-}
 toCross :: Stream m a -> CrossStreamK m a
 toCross = CrossStreamK
 
+-- XXX Change to unCross?
 {-# INLINE fromCross #-}
 fromCross :: CrossStreamK m a -> Stream m a
 fromCross = unCrossStreamK
@@ -1685,8 +1687,18 @@ deriving instance IsList (CrossStreamK Identity a)
 deriving instance (a ~ Char) => IsString (CrossStreamK Identity a)
 -- deriving instance Eq a => Eq (CrossStreamK Identity a)
 -- deriving instance Ord a => Ord (CrossStreamK Identity a)
-deriving instance Show a => Show (CrossStreamK Identity a)
-deriving instance Read a => Read (CrossStreamK Identity a)
+
+-- Do not use automatic derivation for this to show as "fromList" rather than
+-- "fromList Identity".
+instance Show a => Show (CrossStreamK Identity a) where
+    showsPrec p dl = showParen (p > 10) $
+        showString "fromList " . shows (GHC.Exts.toList dl)
+
+instance Read a => Read (CrossStreamK Identity a) where
+    readPrec = parens $ prec 10 $ do
+        Ident "fromList" <- lexP
+        GHC.Exts.fromList <$> readPrec
+    readListPrec = readListPrecDefault
 
 ------------------------------------------------------------------------------
 -- Applicative

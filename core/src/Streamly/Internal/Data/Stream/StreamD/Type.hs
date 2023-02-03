@@ -1623,8 +1623,18 @@ deriving instance IsList (CrossStream Identity a)
 deriving instance (a ~ Char) => IsString (CrossStream Identity a)
 deriving instance Eq a => Eq (CrossStream Identity a)
 deriving instance Ord a => Ord (CrossStream Identity a)
-deriving instance Show a => Show (CrossStream Identity a)
-deriving instance Read a => Read (CrossStream Identity a)
+
+-- Do not use automatic derivation for this to show as "fromList" rather than
+-- "fromList Identity".
+instance Show a => Show (CrossStream Identity a) where
+    showsPrec p dl = showParen (p > 10) $
+        showString "fromList " . shows (GHC.Exts.toList dl)
+
+instance Read a => Read (CrossStream Identity a) where
+    readPrec = parens $ prec 10 $ do
+        Ident "fromList" <- lexP
+        GHC.Exts.fromList <$> readPrec
+    readListPrec = readListPrecDefault
 
 ------------------------------------------------------------------------------
 -- Applicative
