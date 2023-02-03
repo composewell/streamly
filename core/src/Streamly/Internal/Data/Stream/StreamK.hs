@@ -199,7 +199,12 @@ module Streamly.Internal.Data.Stream.StreamK
     , concatMap
     , concatEffect
     , bindWith
+    , concatIterateWith
+    , concatIterateLeftsWith
+    , concatIterateScanWith
+
     , mergeMapWith
+    , mergeIterateWith
 
     -- ** Transformation comprehensions
     , the

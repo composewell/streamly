@@ -122,9 +122,13 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , concatMapWith
     , concatMap
     , bindWith
+    , concatIterateWith
+    , concatIterateLeftsWith
+    , concatIterateScanWith
 
     -- * Merge
     , mergeMapWith
+    , mergeIterateWith
 
     -- * Buffered Operations
     , foldlS
@@ -166,6 +170,7 @@ import Prelude hiding
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
 -- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+-- >>> import qualified Streamly.Internal.FileSystem.Dir as Dir
 
 ------------------------------------------------------------------------------
 -- Basic stream type
@@ -860,6 +865,15 @@ infixr 6 `append`
 -- | Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
 --
+-- >>> s1 = StreamK.fromStream $ Stream.fromList [1,2]
+-- >>> s2 = StreamK.fromStream $ Stream.fromList [3,4]
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ s1 `StreamK.append` s2
+-- [1,2,3,4]
+--
+-- This has O(n) append performance where @n@ is the number of streams. It can
+-- be used to efficiently fold an infinite lazy container of streams using
+-- 'concatMapWith' et. al.
+--
 {-# INLINE append #-}
 append :: Stream m a -> Stream m a -> Stream m a
 -- XXX This doubles the time of toNullAp benchmark, may not be fusing properly
@@ -1354,8 +1368,25 @@ concatMap_ f xs = buildS
      (\c n -> foldrSShared (\x b -> foldrSShared c b (unShare $ f x)) n xs)
 -}
 
--- | See 'Streamly.Internal.Data.Stream.mergeMapWith' for
--- documentation.
+-- | Combine streams in pairs using a binary combinator, the resulting streams
+-- are then combined again in pairs recursively until we get to a single
+-- combined stream. The composition would thus form a binary tree.
+--
+-- For example, you can sort a stream using merge sort like this:
+--
+-- >>> s = StreamK.fromStream $ Stream.fromList [5,1,7,9,2]
+-- >>> generate = StreamK.fromPure
+-- >>> combine = StreamK.mergeBy compare
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ StreamK.mergeMapWith combine generate s
+-- [1,2,5,7,9]
+--
+-- Note that if the stream length is not a power of 2, the binary tree composed
+-- by mergeMapWith would not be balanced, which may or may not be important
+-- depending on what you are trying to achieve.
+--
+-- /Caution: the stream of streams must be finite/
+--
+-- /Pre-release/
 --
 {-# INLINE mergeMapWith #-}
 mergeMapWith
@@ -1452,6 +1483,152 @@ concatUnfoldr = undefined
 -}
 
 ------------------------------------------------------------------------------
+-- concatIterate - Map and flatten Trees of Streams
+------------------------------------------------------------------------------
+
+-- | Yield an input element in the output stream, map a stream generator on it
+-- and repeat the process on the resulting stream. Resulting streams are
+-- flattened using the 'concatMapWith' combinator. This can be used for a depth
+-- first style (DFS) traversal of a tree like structure.
+--
+-- Example, list a directory tree using DFS:
+--
+-- >>> f = StreamK.fromStream . either Dir.readEitherPaths (const Stream.nil)
+-- >>> input = StreamK.fromPure (Left ".")
+-- >>> ls = StreamK.concatIterateWith StreamK.append f input
+--
+-- Note that 'iterateM' is a special case of 'concatIterateWith':
+--
+-- >>> iterateM f = StreamK.concatIterateWith StreamK.append (StreamK.fromEffect . f) . StreamK.fromEffect
+--
+-- /Pre-release/
+--
+{-# INLINE concatIterateWith #-}
+concatIterateWith ::
+       (Stream m a -> Stream m a -> Stream m a)
+    -> (a -> Stream m a)
+    -> Stream m a
+    -> Stream m a
+concatIterateWith combine f = iterateStream
+
+    where
+
+    iterateStream = concatMapWith combine generate
+
+    generate x = x `cons` iterateStream (f x)
+
+-- | Like 'concatIterateWith' but uses the pairwise flattening combinator
+-- 'mergeMapWith' for flattening the resulting streams. This can be used for a
+-- balanced traversal of a tree like structure.
+--
+-- Example, list a directory tree using balanced traversal:
+--
+-- >>> f = StreamK.fromStream . either Dir.readEitherPaths (const Stream.nil)
+-- >>> input = StreamK.fromPure (Left ".")
+-- >>> ls = StreamK.mergeIterateWith StreamK.interleave f input
+--
+-- /Pre-release/
+--
+{-# INLINE mergeIterateWith #-}
+mergeIterateWith ::
+       (Stream m a -> Stream m a -> Stream m a)
+    -> (a -> Stream m a)
+    -> Stream m a
+    -> Stream m a
+mergeIterateWith combine f = iterateStream
+
+    where
+
+    iterateStream = mergeMapWith combine generate
+
+    generate x = x `cons` iterateStream (f x)
+
+------------------------------------------------------------------------------
+-- Flattening Graphs
+------------------------------------------------------------------------------
+
+-- To traverse graphs we need a state to be carried around in the traversal.
+-- For example, we can use a hashmap to store the visited status of nodes.
+
+-- | Like 'iterateMap' but carries a state in the stream generation function.
+-- This can be used to traverse graph like structures, we can remember the
+-- visited nodes in the state to avoid cycles.
+--
+-- Note that a combination of 'iterateMap' and 'usingState' can also be used to
+-- traverse graphs. However, this function provides a more localized state
+-- instead of using a global state.
+--
+-- See also: 'mfix'
+--
+-- /Pre-release/
+--
+{-# INLINE concatIterateScanWith #-}
+concatIterateScanWith
+    :: Monad m
+    => (Stream m a -> Stream m a -> Stream m a)
+    -> (b -> a -> m (b, Stream m a))
+    -> m b
+    -> Stream m a
+    -> Stream m a
+concatIterateScanWith combine f initial stream =
+    concatEffect $ do
+        b <- initial
+        iterateStream (b, stream)
+
+    where
+
+    iterateStream (b, s) = pure $ concatMapWith combine (generate b) s
+
+    generate b a = a `cons` feedback b a
+
+    feedback b a = concatEffect $ f b a >>= iterateStream
+
+------------------------------------------------------------------------------
+-- Either streams
+------------------------------------------------------------------------------
+
+-- Keep concating either streams as long as rights are generated, stop as soon
+-- as a left is generated and concat the left stream.
+--
+-- See also: 'handle'
+--
+-- /Unimplemented/
+--
+{-
+concatMapEitherWith
+    :: (forall x. t m x -> t m x -> t m x)
+    -> (a -> t m (Either (Stream m b) b))
+    -> Stream m a
+    -> Stream m b
+concatMapEitherWith = undefined
+-}
+
+-- XXX We should prefer using the Maybe stream returning signatures over this.
+-- This API should perhaps be removed in favor of those.
+
+-- | In an 'Either' stream iterate on 'Left's.  This is a special case of
+-- 'concatIterateWith':
+--
+-- >>> concatIterateLeftsWith combine f = StreamK.concatIterateWith combine (either f (const StreamK.nil))
+--
+-- To traverse a directory tree:
+--
+-- >>> input = StreamK.fromPure (Left ".")
+-- >>> ls = StreamK.concatIterateLeftsWith StreamK.append (StreamK.fromStream . Dir.readEither) input
+--
+-- /Pre-release/
+--
+{-# INLINE concatIterateLeftsWith #-}
+concatIterateLeftsWith
+    :: (b ~ Either a c)
+    => (Stream m b -> Stream m b -> Stream m b)
+    -> (a -> Stream m b)
+    -> Stream m b
+    -> Stream m b
+concatIterateLeftsWith combine f =
+    concatIterateWith combine (either f (const nil))
+
+------------------------------------------------------------------------------
 -- Interleaving
 ------------------------------------------------------------------------------
 
@@ -1461,9 +1638,16 @@ infixr 6 `interleave`
 -- elements yielding from the second stream. We can also have time slicing
 -- variants of positional interleaving, e.g. run first stream for m seconds and
 -- run the second stream for n seconds.
---
--- Similar combinators can be implemented using WAhead style.
 
+-- | Interleaves two streams, yielding one element from each stream
+-- alternately.  When one stream stops the rest of the other stream is used in
+-- the output stream.
+--
+-- When joining many streams in a left associative manner earlier streams will
+-- get exponential priority than the ones joining later. Because of exponential
+-- weighting it can be used with 'concatMapWith' even on a large number of
+-- streams.
+--
 {-# INLINE interleave #-}
 interleave :: Stream m a -> Stream m a -> Stream m a
 interleave m1 m2 = mkStream $ \st yld sng stp -> do
@@ -1492,6 +1676,9 @@ interleaveFst m1 m2 = mkStream $ \st yld sng stp -> do
 
 infixr 6 `interleaveMin`
 
+-- | Like `interleave` but stops interleaving as soon as any of the two streams
+-- stops.
+--
 {-# INLINE interleaveMin #-}
 interleaveMin :: Stream m a -> Stream m a -> Stream m a
 interleaveMin m1 m2 = mkStream $ \st yld _ stp -> do

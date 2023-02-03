@@ -281,7 +281,7 @@ interleaveMin2 s1 s2 =
 {-# INLINE interleaveFstSuffix2 #-}
 interleaveFstSuffix2 :: Monad m => Stream m b -> Stream m b -> Stream m b
 interleaveFstSuffix2 m1 m2 =
-    fromStreamD $ D.interleaveSuffix (toStreamD m1) (toStreamD m2)
+    fromStreamD $ D.interleaveFstSuffix (toStreamD m1) (toStreamD m2)
 
 -- | Interleaves the outputs of two streams, yielding elements from each stream
 -- alternately, starting from the first stream and ending at the first stream.
@@ -305,7 +305,7 @@ interleaveFstSuffix2 m1 m2 =
 {-# INLINE interleaveFst2 #-}
 interleaveFst2 :: Monad m => Stream m b -> Stream m b -> Stream m b
 interleaveFst2 m1 m2 =
-    fromStreamD $ D.interleaveInfix (toStreamD m1) (toStreamD m2)
+    fromStreamD $ D.interleaveFst (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
 -- Scheduling
@@ -449,7 +449,7 @@ unfoldMany u m = fromStreamD $ D.unfoldMany u (toStreamD m)
 {-# INLINE unfoldInterleave #-}
 unfoldInterleave ::Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldInterleave u m =
-    fromStreamD $ D.unfoldManyInterleave u (toStreamD m)
+    fromStreamD $ D.unfoldInterleave u (toStreamD m)
 
 -- | 'unfoldInterleave' switches to the next stream whenever a value from a
 -- stream is yielded, it does not switch on a 'Skip'. So if a stream keeps
@@ -460,7 +460,7 @@ unfoldInterleave u m =
 {-# INLINE unfoldRoundRobin #-}
 unfoldRoundRobin ::Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldRoundRobin u m =
-    fromStreamD $ D.unfoldManyRoundRobin u (toStreamD m)
+    fromStreamD $ D.unfoldRoundRobin u (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose

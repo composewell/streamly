@@ -41,17 +41,17 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
 
     -- *** Interleaving
     -- | Interleave elements from two streams alternately. A special case of
-    -- unfoldManyInterleave.
+    -- unfoldInterleave.
     , InterleaveState(..)
     , interleave
     , interleaveMin
-    , interleaveSuffix
-    , interleaveInfix
+    , interleaveFst
+    , interleaveFstSuffix
 
     -- *** Scheduling
     -- | Execute streams alternately irrespective of whether they generate
     -- elements or not. Note 'interleave' would execute a stream until it
-    -- yields an element. A special case of unfoldManyRoundRobin.
+    -- yields an element. A special case of unfoldRoundRobin.
     , roundRobin -- interleaveFair?/ParallelFair
 
     -- *** Zipping
@@ -63,6 +63,8 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- | Interleave elements from two streams based on a condition.
     , mergeBy
     , mergeByM
+    , mergeMinBy
+    , mergeFstBy
 
     -- ** Combine N Streams
     -- | Functions generally ending in these shapes:
@@ -85,8 +87,8 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- gintercalate.
     , unfoldMany
     , ConcatUnfoldInterleaveState (..)
-    , unfoldManyInterleave
-    , unfoldManyRoundRobin
+    , unfoldInterleave
+    , unfoldRoundRobin
 
     -- *** Interpose
     -- | Like unfoldMany but intersperses an effect between the streams. A
@@ -206,9 +208,23 @@ import Prelude hiding (concatMap, mapM, zipWith)
 
 data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
 
--- Note that this could be much faster compared to the CPS stream. However, as
--- the number of streams being composed increases this may become expensive.
--- Need to see where the breaking point is between the two.
+-- | Fuses two streams sequentially, yielding all elements from the first
+-- stream, and then all elements from the second stream.
+--
+-- >>> s1 = Stream.fromList [1,2]
+-- >>> s2 = Stream.fromList [3,4]
+-- >>> Stream.fold Fold.toList $ s1 `Stream.append` s2
+-- [1,2,3,4]
+--
+-- This function should not be used to dynamically construct a stream. If a
+-- stream is constructed by successive use of this function it would take
+-- quadratic time complexity to consume the stream.
+--
+-- This function should only be used to statically fuse a stream with another
+-- stream. Do not use this recursively or where it cannot be inlined.
+--
+-- See "Streamly.Data.Stream.StreamK" for an 'append' that can be used to
+-- construct a stream recursively.
 --
 {-# INLINE_NORMAL append #-}
 append :: Monad m => Stream m a -> Stream m a -> Stream m a
@@ -239,6 +255,15 @@ append (Stream step1 state1) (Stream step2 state2) =
 data InterleaveState s1 s2 = InterleaveFirst s1 s2 | InterleaveSecond s1 s2
     | InterleaveSecondOnly s2 | InterleaveFirstOnly s1
 
+-- | Interleaves two streams, yielding one element from each stream
+-- alternately.  When one stream stops the rest of the other stream is used in
+-- the output stream.
+--
+-- When joining many streams in a left associative manner earlier streams will
+-- get exponential priority than the ones joining later. Because of exponential
+-- weighting it can be used with 'concatMapWith' even on a large number of
+-- streams.
+--
 {-# INLINE_NORMAL interleave #-}
 interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleave (Stream step1 state1) (Stream step2 state2) =
@@ -275,6 +300,9 @@ interleave (Stream step1 state1) (Stream step2 state2) =
             Skip s -> Skip (InterleaveSecondOnly s)
             Stop -> Stop
 
+-- | Like `interleave` but stops interleaving as soon as any of the two streams
+-- stops.
+--
 {-# INLINE_NORMAL interleaveMin #-}
 interleaveMin :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleaveMin (Stream step1 state1) (Stream step2 state2) =
@@ -300,9 +328,28 @@ interleaveMin (Stream step1 state1) (Stream step2 state2) =
     step _ (InterleaveFirstOnly _) =  undefined
     step _ (InterleaveSecondOnly _) =  undefined
 
-{-# INLINE_NORMAL interleaveSuffix #-}
-interleaveSuffix :: Monad m => Stream m a -> Stream m a -> Stream m a
-interleaveSuffix (Stream step1 state1) (Stream step2 state2) =
+-- | Interleaves the outputs of two streams, yielding elements from each stream
+-- alternately, starting from the first stream. As soon as the first stream
+-- finishes, the output stops, discarding the remaining part of the second
+-- stream. In this case, the last element in the resulting stream would be from
+-- the second stream. If the second stream finishes early then the first stream
+-- still continues to yield elements until it finishes.
+--
+-- >>> :set -XOverloadedStrings
+-- >>> import Data.Functor.Identity (Identity)
+-- >>> Stream.interleaveFstSuffix "abc" ",,,," :: Stream Identity Char
+-- fromList "a,b,c,"
+-- >>> Stream.interleaveFstSuffix "abc" "," :: Stream Identity Char
+-- fromList "a,bc"
+--
+-- 'interleaveFstSuffix' is a dual of 'interleaveFst'.
+--
+-- Do not use dynamically.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL interleaveFstSuffix #-}
+interleaveFstSuffix :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveFstSuffix (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
@@ -338,9 +385,28 @@ data InterleaveInfixState s1 s2 a
     | InterleaveInfixFirstYield s1 s2 a
     | InterleaveInfixFirstOnly s1
 
-{-# INLINE_NORMAL interleaveInfix #-}
-interleaveInfix :: Monad m => Stream m a -> Stream m a -> Stream m a
-interleaveInfix (Stream step1 state1) (Stream step2 state2) =
+-- | Interleaves the outputs of two streams, yielding elements from each stream
+-- alternately, starting from the first stream and ending at the first stream.
+-- If the second stream is longer than the first, elements from the second
+-- stream are infixed with elements from the first stream. If the first stream
+-- is longer then it continues yielding elements even after the second stream
+-- has finished.
+--
+-- >>> :set -XOverloadedStrings
+-- >>> import Data.Functor.Identity (Identity)
+-- >>> Stream.interleaveFst "abc" ",,,," :: Stream Identity Char
+-- fromList "a,b,c"
+-- >>> Stream.interleaveFst "abc" "," :: Stream Identity Char
+-- fromList "a,bc"
+--
+-- 'interleaveFst' is a dual of 'interleaveFstSuffix'.
+--
+-- Do not use dynamically.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL interleaveFst #-}
+interleaveFst :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveFst (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveInfixFirst state1 state2)
 
     where
@@ -381,6 +447,18 @@ interleaveInfix (Stream step1 state1) (Stream step2 state2) =
 -- Scheduling
 ------------------------------------------------------------------------------
 
+-- | Schedule the execution of two streams in a fair round-robin manner,
+-- executing each stream once, alternately. Execution of a stream may not
+-- necessarily result in an output, a stream may choose to @Skip@ producing an
+-- element until later giving the other stream a chance to run. Therefore, this
+-- combinator fairly interleaves the execution of two streams rather than
+-- fairly interleaving the output of the two streams. This can be useful in
+-- co-operative multitasking without using explicit threads. This can be used
+-- as an alternative to `async`.
+--
+-- Do not use dynamically.
+--
+-- /Pre-release/
 {-# INLINE_NORMAL roundRobin #-}
 roundRobin :: Monad m => Stream m a -> Stream m a -> Stream m a
 roundRobin (Stream step1 state1) (Stream step2 state2) =
@@ -421,6 +499,34 @@ roundRobin (Stream step1 state1) (Stream step2 state2) =
 -- Merging
 ------------------------------------------------------------------------------
 
+-- | Like 'mergeBy' but with a monadic comparison function.
+--
+-- Merge two streams randomly:
+--
+-- @
+-- > randomly _ _ = randomIO >>= \x -> return $ if x then LT else GT
+-- > Stream.toList $ Stream.mergeByM randomly (Stream.fromList [1,1,1,1]) (Stream.fromList [2,2,2,2])
+-- [2,1,2,2,2,1,1,1]
+-- @
+--
+-- Merge two streams in a proportion of 2:1:
+--
+-- >>> :{
+-- do
+--  let s1 = Stream.fromList [1,1,1,1,1,1]
+--      s2 = Stream.fromList [2,2,2]
+--  let proportionately m n = do
+--       ref <- newIORef $ cycle $ Prelude.concat [Prelude.replicate m LT, Prelude.replicate n GT]
+--       return $ \_ _ -> do
+--          r <- readIORef ref
+--          writeIORef ref $ Prelude.tail r
+--          return $ Prelude.head r
+--  f <- proportionately 2 1
+--  xs <- Stream.fold Fold.toList $ Stream.mergeByM f s1 s2
+--  print xs
+-- :}
+-- [1,1,2,1,1,2,1,1,2]
+--
 {-# INLINE_NORMAL mergeByM #-}
 mergeByM
     :: (Monad m)
@@ -461,11 +567,42 @@ mergeByM cmp (Stream stepa ta) (Stream stepb tb) =
 
     step _ (Nothing, Nothing, Nothing, Nothing) = return Stop
 
+-- | Merge two streams using a comparison function. The head elements of both
+-- the streams are compared and the smaller of the two elements is emitted, if
+-- both elements are equal then the element from the first stream is used
+-- first.
+--
+-- If the streams are sorted in ascending order, the resulting stream would
+-- also remain sorted in ascending order.
+--
+-- >>> s1 = Stream.fromList [1,3,5]
+-- >>> s2 = Stream.fromList [2,4,6,8]
+-- >>> Stream.fold Fold.toList $ Stream.mergeBy compare s1 s2
+-- [1,2,3,4,5,6,8]
+--
 {-# INLINE mergeBy #-}
 mergeBy
     :: (Monad m)
     => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
+
+-- | Like 'mergeByM' but stops merging as soon as any of the two streams stops.
+--
+-- /Unimplemented/
+{-# INLINABLE mergeMinBy #-}
+mergeMinBy :: -- Monad m =>
+    (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeMinBy _f _m1 _m2 = undefined
+    -- fromStreamD $ D.mergeMinBy f (toStreamD m1) (toStreamD m2)
+
+-- | Like 'mergeByM' but stops merging as soon as the first stream stops.
+--
+-- /Unimplemented/
+{-# INLINABLE mergeFstBy #-}
+mergeFstBy :: -- Monad m =>
+    (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeFstBy _f _m1 _m2 = undefined
+    -- fromStreamK $ D.mergeFstBy f (toStreamD m1) (toStreamD m2)
 
 -------------------------------------------------------------------------------
 -- Intersection of sorted streams
@@ -538,17 +675,28 @@ data ConcatUnfoldInterleaveState o i =
 -- Maybe we can configure the behavior.
 --
 -- XXX Instead of using "concatPairsWith wSerial" we can implement an N-way
--- interleaving CPS combinator which behaves like unfoldManyInterleave. Instead
+-- interleaving CPS combinator which behaves like unfoldInterleave. Instead
 -- of pairing up the streams we just need to go yielding one element from each
 -- stream and storing the remaining streams and then keep doing rounds through
 -- those in a round robin fashion. This would be much like wAsync.
+
+-- | This does not pair streams like mergeMapWith, instead, it goes through
+-- each stream one by one and yields one element from each stream. After it
+-- goes to the last stream it reverses the traversal to come back to the first
+-- stream yielding elements from each stream on its way back to the first
+-- stream and so on.
 --
--- See 'Streamly.Internal.Data.Stream.unfoldInterleave' documentation for more
--- details.
+-- >>> lists = Stream.fromList [[1,1],[2,2],[3,3],[4,4],[5,5]]
+-- >>> interleaved = Stream.unfoldInterleave Unfold.fromList lists
+-- >>> Stream.fold Fold.toList interleaved
+-- [1,2,3,4,5,5,4,3,2,1]
 --
-{-# INLINE_NORMAL unfoldManyInterleave #-}
-unfoldManyInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =
+-- Note that this is order of magnitude more efficient than "mergeMapWith
+-- interleave" because of fusion.
+--
+{-# INLINE_NORMAL unfoldInterleave #-}
+unfoldInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+unfoldInterleave (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
 
     where
@@ -599,11 +747,17 @@ unfoldManyInterleave (Unfold istep inject) (Stream ostep ost) =
 --
 -- This could be inefficient if the tasks are too small.
 --
--- Compared to unfoldManyInterleave this one switches streams on Skips.
+-- Compared to unfoldInterleave this one switches streams on Skips.
+
+-- | 'unfoldInterleave' switches to the next stream whenever a value from a
+-- stream is yielded, it does not switch on a 'Skip'. So if a stream keeps
+-- skipping for long time other streams won't get a chance to run.
+-- 'unfoldRoundRobin' switches on Skip as well. So it basically schedules each
+-- stream fairly irrespective of whether it produces a value or not.
 --
-{-# INLINE_NORMAL unfoldManyRoundRobin #-}
-unfoldManyRoundRobin :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-unfoldManyRoundRobin (Unfold istep inject) (Stream ostep ost) =
+{-# INLINE_NORMAL unfoldRoundRobin #-}
+unfoldRoundRobin :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+unfoldRoundRobin (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
   where
     {-# INLINE_LATE step #-}
@@ -705,6 +859,8 @@ interposeSuffixM
     step _ (InterposeSuffixSecond s1) = do
         r <- action
         return $ Yield r (InterposeSuffixFirst s1)
+
+-- interposeSuffix x unf str = gintercalateSuffix unf str UF.identity (repeat x)
 
 -- | Unfold the elements of a stream, append the given element after each
 -- unfolded stream and then concat them into a single stream.
@@ -826,16 +982,9 @@ data ICUState s1 s2 i1 i2 =
     | ICUFirstOnlyInner s1 i1
     | ICUSecondOnlyInner s2 i2
 
--- | Interleave streams (full streams, not the elements) unfolded from two
--- input streams and concat. Stop when the first stream stops. If the second
--- stream ends before the first one then first stream still keeps running alone
--- without any interleaving with the second stream.
+-- | 'interleaveFstSuffix' followed by unfold and concat.
 --
---    [a1, a2, ... an]                   [b1, b2 ...]
--- => [streamA1, streamA2, ... streamAn] [streamB1, streamB2, ...]
--- => [streamA1, streamB1, streamA2...StreamAn, streamBn]
--- => [a11, a12, ...a1j, b11, b12, ...b1k, a21, a22, ...]
---
+-- /Pre-release/
 {-# INLINE_NORMAL gintercalateSuffix #-}
 gintercalateSuffix
     :: Monad m
@@ -912,16 +1061,17 @@ data ICALState s1 s2 i1 i2 a =
     -- -- | ICALSecondInner s1 s2 i1 i2 a
     -- -- | ICALFirstResume s1 s2 i1 i2 a
 
--- | Interleave streams (full streams, not the elements) unfolded from two
--- input streams and concat. Stop when the first stream stops. If the second
--- stream ends before the first one then first stream still keeps running alone
--- without any interleaving with the second stream.
+-- XXX we can swap the order of arguments to gintercalate so that the
+-- definition of unfoldMany becomes simpler? The first stream should be
+-- infixed inside the second one. However, if we change the order in
+-- "interleave" as well similarly, then that will make it a bit unintuitive.
 --
---    [a1, a2, ... an]                   [b1, b2 ...]
--- => [streamA1, streamA2, ... streamAn] [streamB1, streamB2, ...]
--- => [streamA1, streamB1, streamA2...StreamAn, streamBn]
--- => [a11, a12, ...a1j, b11, b12, ...b1k, a21, a22, ...]
+-- > unfoldMany unf str =
+-- >     gintercalate unf str (UF.nilM (\_ -> return ())) (repeat ())
+
+-- | 'interleaveFst' followed by unfold and concat.
 --
+-- /Pre-release/
 {-# INLINE_NORMAL gintercalate #-}
 gintercalate
     :: Monad m

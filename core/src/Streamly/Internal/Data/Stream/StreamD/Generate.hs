@@ -170,9 +170,9 @@ nil = Stream (\_ _ -> pure Stop) ()
 -- >>> Stream.fold Fold.toList s
 -- [1,2,3]
 --
--- This function should not be used to construct a stream. If a stream is
--- constructed by successive use of this function it would take O(n^2) time to
--- consume the stream.
+-- This function should not be used to dynamically construct a stream. If a
+-- stream is constructed by successive use of this function it would take
+-- O(n^2) time to consume the stream.
 --
 -- This function should only be used to statically fuse an element with a
 -- stream. Do not use this recursively or where it cannot be inlined.
