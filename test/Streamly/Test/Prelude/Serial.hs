@@ -42,6 +42,7 @@ import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import Test.Hspec as H
 
 import Streamly.Prelude (SerialT, IsStream, serial, fromSerial)
+import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IST
 #ifndef COVERAGE_BUILD
 import Streamly.Prelude (avgRate, maxBuffer)
@@ -93,8 +94,8 @@ groupsByRolling :: Monad m =>
 groupsByRolling cmp f m =
     S.catRights $ S.parseMany (Parser.groupByRolling cmp f) m
 
-drainWhile :: Monad m => (a -> Bool) -> S.Stream m a -> m ()
-drainWhile p = S.fold FL.drain . S.takeWhile p
+drainWhile :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m ()
+drainWhile p m = S.fold FL.drain $ S.takeWhile p (IST.toStreamD m)
 
 drainMapM :: Monad m => (a -> m b) -> S.Stream m a -> m ()
 drainMapM f = S.fold (FL.drainMapM f)
@@ -706,19 +707,19 @@ main = hspec
         serialOps    $ eliminationOps folded "serially folded"
         serialOps    $ eliminationOpsWord8 (IST.fromStream . K.fromFoldable) "serially"
         serialOps    $ eliminationOpsWord8 folded "serially folded"
-     {-   serialOps $ \t ->
+        serialOps    $ \t ->
             prop "drainWhile (> 0)" $ \n ->
                 withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = [1..n]
                     ioRef <- run $ newIORef ([] :: [Int])
                     run $
-                        drainWhile (> 0) . t $
-                        S.mapM (\a -> modifyIORef' ioRef (a :) >> return a) $
-                        S.fromList xs
+                        drainWhile @SerialT (> 0) . t . SerialT . K.fromStream $
+                            S.mapM (\a -> modifyIORef' ioRef (a :) >> return a) $
+                                S.fromList xs
                     strm <- run $ readIORef ioRef
                     listEquals (==) (reverse strm) (takeWhile (> 0) xs)
-                    -}
+
 
     -- XXX Add a test where we chain all transformation APIs and make sure that
     -- the state is being passed through all of them.
