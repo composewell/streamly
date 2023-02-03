@@ -218,7 +218,7 @@ test-suite Data.List
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/List.hs
-  cpp-options:  -DUSE_STREAMLY_LIST
+  --cpp-options:  -DUSE_STREAMLY_LIST
 
 test-suite Data.List.Base
   import: test-options
