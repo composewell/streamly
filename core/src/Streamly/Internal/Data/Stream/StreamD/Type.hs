@@ -276,7 +276,13 @@ uncons (UnStream step state) = go SPEC state
 
 data UnfoldState s = UnfoldNothing | UnfoldJust s
 
--- | Convert an 'Unfold' into a 'Stream' by supplying it a seed.
+-- | Convert an 'Unfold' into a stream by supplying it an input seed.
+--
+-- >>> s = Stream.unfold Unfold.replicateM (3, putStrLn "hello")
+-- >>> Stream.fold Fold.drain s
+-- hello
+-- hello
+-- hello
 --
 {-# INLINE_NORMAL unfold #-}
 unfold :: Applicative m => Unfold m a b -> a -> Stream m b
