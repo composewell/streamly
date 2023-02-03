@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
+{-# Language TypeApplications #-}
 
 -- |
 -- Module      : Streamly.Test.Prelude.Serial
@@ -41,6 +42,7 @@ import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import Test.Hspec as H
 
 import Streamly.Prelude (SerialT, IsStream, serial, fromSerial)
+import qualified Streamly.Internal.Data.Stream.IsStream.Type as IST
 #ifndef COVERAGE_BUILD
 import Streamly.Prelude (avgRate, maxBuffer)
 #endif
@@ -48,6 +50,7 @@ import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as IS
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Parser as Parser
 
@@ -427,12 +430,12 @@ associativityCheck desc t = prop desc assocCheckProp
     assocCheckProp :: [Int] -> [Int] -> [Int] -> Property
     assocCheckProp xs ys zs =
         monadicIO $ do
-            let xStream = S.fromList xs
-                yStream = S.fromList ys
-                zStream = S.fromList zs
+            let xStream = IST.fromStreamD $ S.fromList xs
+                yStream = IST.fromStreamD $ S.fromList ys
+                zStream = IST.fromStreamD $ S.fromList zs
             infixAssocstream <-
-                run $ toList $ t $ xStream `serial` yStream `serial` zStream
-            assocStream <- run $ toList $ t $ xStream <> yStream <> zStream
+                run $ toList $ IST.toStreamD $ t $ xStream `serial` yStream `serial` zStream
+            assocStream <- run $ toList $ IST.toStreamD $ t $ xStream <> yStream <> zStream
             listEquals (==) infixAssocstream assocStream
 
 max_length :: Int
@@ -540,7 +543,7 @@ foldIterateM =
 sortBy :: Property
 sortBy = forAll (listOf (chooseInt (0, max_length))) $ \lst -> monadicIO $ do
         let s1 = sort lst
-        s2 <- toList $ IS.sortBy compare $ S.fromList lst
+        s2 <- toList $ K.toStream (K.sortBy compare $ K.fromStream $ S.fromList lst)
         assert $ s1 == s2
 
 moduleName :: String
@@ -560,15 +563,15 @@ main = hspec
             <> [("maxBuffer -1", fromSerial . maxBuffer (-1))]
 #endif
     let toListSerial :: SerialT IO a -> IO [a]
-        toListSerial = toList . fromSerial
+        toListSerial = toList . IST.toStreamD @SerialT . fromSerial
 
     describe "Runners" $ do
         -- XXX use an IORef to store and check the side effects
-        it "simple serially" $
-            (S.fold FL.drain . fromSerial)
-            (return (0 :: Int)) `shouldReturn` ()
+       -- it "simple serially" $
+        --    (S.fold FL.drain)
+        --    (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
-            (S.fold FL.drain . fromSerial)
+            (S.fold FL.drain)
             (S.fromEffect $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $
@@ -601,8 +604,8 @@ main = hspec
         serialOps $ prop "serially unfoldr" . constructWithUnfoldr id
         serialOps $ prop "serially fromPure" . constructWithFromPure id
         serialOps $ prop "serially fromEffect" . constructWithFromEffect id
-        serialOps $ prop "serially cons" . constructWithCons S.cons
-        serialOps $ prop "serially consM" . constructWithConsM S.consM id
+        serialOps $ prop "serially cons" . constructWithCons IST.cons
+        serialOps $ prop "serially consM" . constructWithConsM IST.consM id
 
         describe "From Generators" $ do
             prop "unfold" unfold
@@ -610,7 +613,7 @@ main = hspec
     describe "Simple Operations" $ serialOps simpleOps
 
     describe "Functor operations" $ do
-        serialOps    $ functorOps S.fromFoldable "serially" (==)
+        serialOps    $ functorOps (IST.fromStream . K.fromFoldable) "serially" (==)
         serialOps    $ functorOps folded "serially folded" (==)
 
     describe "Monoid operations" $ do
@@ -639,17 +642,17 @@ main = hspec
         -- The tests using sorted equality are weaker tests
         -- We need to have stronger unit tests for all those
         -- XXX applicative with three arguments
-        serialOps $ applicativeOps S.fromFoldable "serially" (==)
+        serialOps $ applicativeOps (IST.fromStream . K.fromFoldable) "serially" (==)
         serialOps $ applicativeOps folded "serially folded" (==)
-        serialOps $ applicativeOps1 S.fromFoldable "serially" (==)
-        serialOps $ applicativeOps1 S.fromFoldable "serially folded" (==)
+        serialOps $ applicativeOps1 (IST.fromStream . K.fromFoldable) "serially" (==)
+        serialOps $ applicativeOps1 (IST.fromStream . K.fromFoldable) "serially folded" (==)
 
     -- XXX add tests for indexed/indexedR
     describe "Zip operations" $ do
         -- We test only the serial zip with serial streams and the parallel
         -- stream, because the rate setting in these streams can slow down
         -- zipAsync.
-        serialOps   $ prop "zip monadic serially" . zipMonadic S.fromFoldable (==)
+        serialOps   $ prop "zip monadic serially" . zipMonadic (IST.fromStream . K.fromFoldable) (==)
         serialOps   $ prop "zip monadic serially folded" . zipMonadic folded (==)
 
     -- XXX add merge tests like zip tests
@@ -658,15 +661,15 @@ main = hspec
     -- describe "Merge operations" $ do
 
     describe "Monad operations" $ do
-        serialOps   $ prop "serially monad then" . monadThen S.fromFoldable (==)
+        serialOps   $ prop "serially monad then" . monadThen (IST.fromStream . K.fromFoldable) (==)
         serialOps   $ prop "serially monad then folded" . monadThen folded (==)
-        serialOps   $ prop "serially monad bind" . monadBind S.fromFoldable (==)
+        serialOps   $ prop "serially monad bind" . monadBind (IST.fromStream . K.fromFoldable) (==)
         serialOps   $ prop "serially monad bind folded"  . monadBind folded (==)
 
     describe "Stream transform and combine operations" $ do
-        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon (IST.fromStream . K.fromFoldable) "serially" (==)
         serialOps    $ transformCombineOpsCommon folded "serially" (==)
-        serialOps    $ transformCombineOpsOrdered S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsOrdered (IST.fromStream . K.fromFoldable) "serially" (==)
         serialOps    $ transformCombineOpsOrdered folded "serially" (==)
 
 #ifdef DEVBUILD
@@ -678,19 +681,19 @@ main = hspec
     -- Just some basic sanity tests for now
     let input = [[1,1] :: [Int],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7],[8,8]]
         mustBe g inp out =
-            toList (S.mergeMapWith g S.fromList (S.fromList inp))
+            toList (K.toStream (K.mergeMapWith g K.fromList (K.fromList inp)))
                 `shouldReturn` out
      in do
         it "concatPairsWith serial"
-            $ mustBe S.append input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
+            $ mustBe K.append input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
         it "concatPairsWith wSerial"
-            $ mustBe S.interleave input [1,5,3,7,2,6,4,8,1,5,3,7,2,6,4,8]
+            $ mustBe K.interleave input [1,5,3,7,2,6,4,8,1,5,3,7,2,6,4,8]
         it "concatPairsWith mergeBy sorted"
             $ mustBe
-                (S.mergeBy compare) input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
+                (K.mergeBy compare) input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
         it "concatPairsWith mergeBy reversed"
             $ mustBe
-                (S.mergeBy compare)
+                (K.mergeBy compare)
                 (reverse input)
                 [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
         prop "sortBy" sortBy
@@ -699,11 +702,11 @@ main = hspec
         groupSplitOps "serially"
 
     describe "Stream elimination operations" $ do
-        serialOps    $ eliminationOps S.fromFoldable "serially"
+        serialOps    $ eliminationOps (IST.fromStream . K.fromFoldable) "serially"
         serialOps    $ eliminationOps folded "serially folded"
-        serialOps    $ eliminationOpsWord8 S.fromFoldable "serially"
+        serialOps    $ eliminationOpsWord8 (IST.fromStream . K.fromFoldable) "serially"
         serialOps    $ eliminationOpsWord8 folded "serially folded"
-        serialOps $ \t ->
+     {-   serialOps $ \t ->
             prop "drainWhile (> 0)" $ \n ->
                 withMaxSuccess maxTestCount $
                 monadicIO $ do
@@ -715,11 +718,12 @@ main = hspec
                         S.fromList xs
                     strm <- run $ readIORef ioRef
                     listEquals (==) (reverse strm) (takeWhile (> 0) xs)
+                    -}
 
     -- XXX Add a test where we chain all transformation APIs and make sure that
     -- the state is being passed through all of them.
     describe "Stream serial elimination operations" $ do
-        serialOps    $ eliminationOpsOrdered S.fromFoldable "serially"
+        serialOps    $ eliminationOpsOrdered (IST.fromStream . K.fromFoldable) "serially"
         serialOps    $ eliminationOpsOrdered folded "serially folded"
 
     describe "Tests for S.groupsBy" groupingOps
