@@ -784,7 +784,16 @@ cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
 
 -- Adapted from the vector package.
 
--- | Map a monadic function over a 'Stream'
+-- |
+-- >>> mapM f = Stream.sequence . fmap f
+--
+-- Apply a monadic function to each element of the stream and replace it with
+-- the output of the resulting action.
+--
+-- >>> s = Stream.fromList ["a", "b", "c"]
+-- >>> Stream.fold Fold.drain $ Stream.mapM putStr s
+-- abc
+--
 {-# INLINE_NORMAL mapM #-}
 mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
 mapM f (Stream step state) = Stream step' state
@@ -970,10 +979,11 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 
 -- Adapted from the vector package.
 
--- | End the stream as soon as the predicate fails on an element.
+-- | Same as 'takeWhile' but with a monadic predicate.
 --
 {-# INLINE_NORMAL takeWhileM #-}
 takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+-- takeWhileM p = scanMaybe (FL.takingEndByM_ (\x -> not <$> p x))
 takeWhileM f (Stream step state) = Stream step' state
   where
     {-# INLINE_LATE step' #-}

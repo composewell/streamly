@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , tap
     , tapOffsetEvery
     , trace
+    , trace_
 
     -- * Folding
     , foldrS
@@ -66,26 +67,36 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
 
     -- * Filtering
     -- | Produce a subset of the stream.
+    , with
     , scanMaybe
     , filter
     , filterM
     , deleteBy
+    , uniqBy
     , uniq
+    , prune
+    , repeated
 
     -- * Trimming
     -- | Produce a subset of the stream trimmed at ends.
     , take
     , takeWhile
     , takeWhileM
+    , takeWhileLast
+    , takeWhileAround
     , drop
     , dropWhile
     , dropWhileM
+    , dropLast
+    , dropWhileLast
+    , dropWhileAround
 
     -- * Inserting Elements
     -- | Produce a superset of the stream.
     , insertBy
     , intersperse
     , intersperseM
+    , intersperseMWith
     , intersperseMSuffix
     , intersperseMSuffixWith
 
@@ -102,6 +113,7 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     -- | Produce strictly the same set but reordered.
     , reverse
     , reverseUnbox
+    , reassembleBy
 
     -- * Position Indexing
     , indexed
@@ -191,6 +203,10 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 -- Piping
 ------------------------------------------------------------------------------
 
+-- | Use a 'Pipe' to transform a stream.
+--
+-- /Pre-release/
+--
 {-# INLINE_NORMAL transform #-}
 transform :: Monad m => Pipe m a b -> Stream m a -> Stream m b
 transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
@@ -247,6 +263,16 @@ foldlS fstep begin (Stream step state) = Stream step' (Left (state, begin))
 -- Transformation by Mapping
 ------------------------------------------------------------------------------
 
+-- |
+-- >>> sequence = Stream.mapM id
+--
+-- Replace the elements of a stream of monadic actions with the outputs of
+-- those actions.
+--
+-- >>> s = Stream.fromList [putStr "a", putStr "b", putStrLn "c"]
+-- >>> Stream.fold Fold.drain $ Stream.sequence s
+-- abc
+--
 {-# INLINE_NORMAL sequence #-}
 sequence :: Monad m => Stream m (m a) -> Stream m a
 sequence (Stream step state) = Stream step' state
@@ -267,6 +293,25 @@ data TapState fs st a
     = TapInit | Tapping !fs st | TapDone st
 
 -- XXX Multiple yield points
+
+-- | Tap the data flowing through a stream into a 'Fold'. For example, you may
+-- add a tap to log the contents flowing through the stream. The fold is used
+-- only for effects, its result is discarded.
+--
+-- @
+--                   Fold m a b
+--                       |
+-- -----stream m a ---------------stream m a-----
+--
+-- @
+--
+-- >>> s = Stream.enumerateFromTo 1 2
+-- >>> Stream.fold Fold.drain $ Stream.tap (Fold.drainMapM print) s
+-- 1
+-- 2
+--
+-- Compare with 'trace'.
+--
 {-# INLINE tap #-}
 tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
 tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
@@ -365,6 +410,23 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
 trace :: Monad m => (a -> m b) -> Stream m a -> Stream m a
 trace f = mapM (\x -> void (f x) >> return x)
 
+-- | Perform a side effect before yielding each element of the stream and
+-- discard the results.
+--
+-- >>> s = Stream.enumerateFromTo 1 2
+-- >>> Stream.fold Fold.drain $ Stream.trace_ (print "got here") s
+-- "got here"
+-- "got here"
+--
+-- Same as 'intersperseMPrefix_' but always serial.
+--
+-- See also: 'trace'
+--
+-- /Pre-release/
+{-# INLINE trace_ #-}
+trace_ :: Monad m => m b -> Stream m a -> Stream m a
+trace_ eff = mapM (\x -> eff >> return x)
+
 ------------------------------------------------------------------------------
 -- Scanning with a Fold
 ------------------------------------------------------------------------------
@@ -444,11 +506,75 @@ scanWith restart (Fold fstep initial extract) (Stream sstep state) =
             Stop -> return Stop
     step _ ScanDone = return Stop
 
+-- XXX It may be useful to have a version of scan where we can keep the
+-- accumulator independent of the value emitted. So that we do not necessarily
+-- have to keep a value in the accumulator which we are not using. We can pass
+-- an extraction function that will take the accumulator and the current value
+-- of the element and emit the next value in the stream. That will also make it
+-- possible to modify the accumulator after using it. In fact, the step function
+-- can return new accumulator and the value to be emitted. The signature would
+-- be more like mapAccumL.
+
+-- | Strict left scan. Scan a stream using the given monadic fold.
+--
+-- >>> s = Stream.fromList [1..10]
+-- >>> Stream.fold Fold.toList $ Stream.takeWhile (< 10) $ Stream.scan Fold.sum s
+-- [0,1,3,6]
+--
+-- See also: 'usingStateT'
+--
+
+-- EXPLANATION:
+-- >>> scanl' step z = Stream.scan (Fold.foldl' step z)
+--
+-- Like 'map', 'scanl'' too is a one to one transformation,
+-- however it adds an extra element.
+--
+-- >>> s = Stream.fromList [1,2,3,4]
+-- >>> Stream.fold Fold.toList $ scanl' (+) 0 s
+-- [0,1,3,6,10]
+--
+-- >>> Stream.fold Fold.toList $ scanl' (flip (:)) [] s
+-- [[],[1],[2,1],[3,2,1],[4,3,2,1]]
+--
+-- The output of 'scanl'' is the initial value of the accumulator followed by
+-- all the intermediate steps and the final result of 'foldl''.
+--
+-- By streaming the accumulated state after each fold step, we can share the
+-- state across multiple stages of stream composition. Each stage can modify or
+-- extend the state, do some processing with it and emit it for the next stage,
+-- thus modularizing the stream processing. This can be useful in
+-- stateful or event-driven programming.
+--
+-- Consider the following monolithic example, computing the sum and the product
+-- of the elements in a stream in one go using a @foldl'@:
+--
+-- >>> foldl' step z = Stream.fold (Fold.foldl' step z)
+-- >>> foldl' (\(s, p) x -> (s + x, p * x)) (0,1) s
+-- (10,24)
+--
+-- Using @scanl'@ we can make it modular by computing the sum in the first
+-- stage and passing it down to the next stage for computing the product:
+--
+-- >>> :{
+--   foldl' (\(_, p) (s, x) -> (s, p * x)) (0,1)
+--   $ scanl' (\(s, _) x -> (s + x, x)) (0,1)
+--   $ Stream.fromList [1,2,3,4]
+-- :}
+-- (10,24)
+--
+-- IMPORTANT: 'scanl'' evaluates the accumulator to WHNF.  To avoid building
+-- lazy expressions inside the accumulator, it is recommended that a strict
+-- data structure is used for accumulator.
+--
 {-# INLINE scan #-}
 scan :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
 scan = scanWith False
 
+-- | Like 'scan' but restarts scanning afresh when the scanning fold
+-- terminates.
+--
 {-# INLINE scanMany #-}
 scanMany :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
@@ -637,6 +763,17 @@ scanlM' fstep begin (Stream step state) = Stream step' Nothing
             Skip s -> return $ Skip (Just (s, acc))
             Stop   -> return Stop
 
+-- | @scanlMAfter' accumulate initial done stream@ is like 'scanlM'' except
+-- that it provides an additional @done@ function to be applied on the
+-- accumulator when the stream stops. The result of @done@ is also emitted in
+-- the stream.
+--
+-- This function can be used to allocate a resource in the beginning of the
+-- scan and release it when the stream ends or to flush the internal state of
+-- the scan at the end.
+--
+-- /Pre-release/
+--
 {-# INLINE scanlMAfter' #-}
 scanlMAfter' :: Monad m
     => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
@@ -724,7 +861,28 @@ scanl1' f = scanl1M' (\x y -> return (f x y))
 -- Filtering
 -------------------------------------------------------------------------------
 
+-- | Modify a @Stream m a -> Stream m a@ stream transformation that accepts a
+-- predicate @(a -> b)@ to accept @((s, a) -> b)@ instead, provided a
+-- transformation @Stream m a -> Stream m (s, a)@. Convenient to filter with
+-- index or time.
+--
+-- >>> filterWithIndex = Stream.with Stream.indexed Stream.filter
+--
+-- /Pre-release/
+{-# INLINE with #-}
+with :: Monad m =>
+       (Stream m a -> Stream m (s, a))
+    -> (((s, a) -> b) -> Stream m (s, a) -> Stream m (s, a))
+    -> (((s, a) -> b) -> Stream m a -> Stream m a)
+with f comb g = fmap snd . comb g . f
+
 -- Adapted from the vector package
+
+-- | Same as 'filter' but with a monadic predicate.
+--
+-- >>> f p x = p x >>= \r -> return $ if r then Just x else Nothing
+-- >>> filterM p = Stream.mapMaybeM (f p)
+--
 {-# INLINE_NORMAL filterM #-}
 filterM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 filterM f (Stream step state) = Stream step' state
@@ -741,13 +899,55 @@ filterM f (Stream step state) = Stream step' state
             Skip s -> return $ Skip s
             Stop   -> return Stop
 
+-- | Include only those elements that pass a predicate.
+--
+-- >>> filter p = Stream.filterM (return . p)
+-- >>> filter p = Stream.mapMaybe (\x -> if p x then Just x else Nothing)
+-- >>> filter p = Stream.scanMaybe (Fold.filtering p)
+--
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 filter f = filterM (return . f)
+-- filter p = scanMaybe (FL.filtering p)
+
+-- | Drop repeated elements that are adjacent to each other using the supplied
+-- comparison function.
+--
+-- >>> uniq = Stream.uniqBy (==)
+--
+-- To strip duplicate path separators:
+--
+-- >>> input = Stream.fromList "//a//b"
+-- >>> f x y = x == '/' && y == '/'
+-- >>> Stream.fold Fold.toList $ Stream.uniqBy f input
+-- "/a/b"
+--
+-- Space: @O(1)@
+--
+-- /Pre-release/
+--
+{-# INLINE uniqBy #-}
+uniqBy :: Monad m =>
+    (a -> a -> Bool) -> Stream m a -> Stream m a
+-- uniqBy eq = scanMaybe (FL.uniqBy eq)
+uniqBy eq = catMaybes . rollingMap f
+
+    where
+
+    f pre curr =
+        case pre of
+            Nothing -> Just curr
+            Just x -> if x `eq` curr then Nothing else Just curr
 
 -- Adapted from the vector package
+
+-- | Drop repeated elements that are adjacent to each other.
+--
+-- >>> uniq = Stream.uniqBy (==)
+--
 {-# INLINE_NORMAL uniq #-}
 uniq :: (Eq a, Monad m) => Stream m a -> Stream m a
+-- uniq = scanMaybe FL.uniq
 uniq (Stream step state) = Stream step' (Nothing, state)
   where
     {-# INLINE_LATE step' #-}
@@ -765,8 +965,16 @@ uniq (Stream step state) = Stream step' (Nothing, state)
              Skip  s   -> return $ Skip (Just x, s)
              Stop      -> return Stop
 
+-- | Deletes the first occurrence of the element in the stream that satisfies
+-- the given equality predicate.
+--
+-- >>> input = Stream.fromList [1,3,3,5]
+-- >>> Stream.fold Fold.toList $ Stream.deleteBy (==) 3 input
+-- [1,3,5]
+--
 {-# INLINE_NORMAL deleteBy #-}
 deleteBy :: Monad m => (a -> a -> Bool) -> a -> Stream m a -> Stream m a
+-- deleteBy cmp x = scanMaybe (FL.deleteBy cmp x)
 deleteBy eq x (Stream step state) = Stream step' (state, False)
   where
     {-# INLINE_LATE step' #-}
@@ -785,9 +993,64 @@ deleteBy eq x (Stream step state) = Stream step' (state, False)
             Skip s -> return $ Skip (s, True)
             Stop   -> return Stop
 
+-- | Strip all leading and trailing occurrences of an element passing a
+-- predicate and make all other consecutive occurrences uniq.
+--
+-- >> prune p = Stream.dropWhileAround p $ Stream.uniqBy (x y -> p x && p y)
+--
+-- @
+-- > Stream.prune isSpace (Stream.fromList "  hello      world!   ")
+-- "hello world!"
+--
+-- @
+--
+-- Space: @O(1)@
+--
+-- /Unimplemented/
+{-# INLINE prune #-}
+prune ::
+    -- (Monad m, Eq a) =>
+    (a -> Bool) -> Stream m a -> Stream m a
+prune = error "Not implemented yet!"
+
+-- Possible implementation:
+-- @repeated =
+--      Stream.catMaybes . Stream.parseMany (Parser.groupBy (==) Fold.repeated)@
+--
+-- 'Fold.repeated' should return 'Just' when repeated, and 'Nothing' for a
+-- single element.
+
+-- | Emit only repeated elements, once.
+--
+-- /Unimplemented/
+repeated :: -- (Monad m, Eq a) =>
+    Stream m a -> Stream m a
+repeated = undefined
+
 ------------------------------------------------------------------------------
 -- Trimming
 ------------------------------------------------------------------------------
+
+-- | Take all consecutive elements at the end of the stream for which the
+-- predicate is true.
+--
+-- O(n) space, where n is the number elements taken.
+--
+-- /Unimplemented/
+{-# INLINE takeWhileLast #-}
+takeWhileLast :: -- Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m a
+takeWhileLast = undefined -- fromStreamD $ D.takeWhileLast n $ toStreamD m
+
+-- | Like 'takeWhile' and 'takeWhileLast' combined.
+--
+-- O(n) space, where n is the number elements taken from the end.
+--
+-- /Unimplemented/
+{-# INLINE takeWhileAround #-}
+takeWhileAround :: -- Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m a
+takeWhileAround = undefined -- fromStreamD $ D.takeWhileAround n $ toStreamD m
 
 -- Adapted from the vector package
 
@@ -822,8 +1085,11 @@ data DropWhileState s a
     | DropWhileYield a s
     | DropWhileNext s
 
+-- | Same as 'dropWhile' but with a monadic predicate.
+--
 {-# INLINE_NORMAL dropWhileM #-}
 dropWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+-- dropWhileM p = scanMaybe (FL.droppingWhileM p)
 dropWhileM f (Stream step state) = Stream step' (DropWhileDrop state)
   where
     {-# INLINE_LATE step' #-}
@@ -847,14 +1113,58 @@ dropWhileM f (Stream step state) = Stream step' (DropWhileDrop state)
 
     step' _ (DropWhileYield x st) = return $ Yield x (DropWhileNext st)
 
+-- | Drop elements in the stream as long as the predicate succeeds and then
+-- take the rest of the stream.
+--
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+-- dropWhile p = scanMaybe (FL.droppingWhile p)
 dropWhile f = dropWhileM (return . f)
+
+-- | Drop @n@ elements at the end of the stream.
+--
+-- O(n) space, where n is the number elements dropped.
+--
+-- /Unimplemented/
+{-# INLINE dropLast #-}
+dropLast :: -- Monad m =>
+    Int -> Stream m a -> Stream m a
+dropLast = undefined -- fromStreamD $ D.dropLast n $ toStreamD m
+
+-- | Drop all consecutive elements at the end of the stream for which the
+-- predicate is true.
+--
+-- O(n) space, where n is the number elements dropped.
+--
+-- /Unimplemented/
+{-# INLINE dropWhileLast #-}
+dropWhileLast :: -- Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m a
+dropWhileLast = undefined -- fromStreamD $ D.dropWhileLast n $ toStreamD m
+
+-- | Like 'dropWhile' and 'dropWhileLast' combined.
+--
+-- O(n) space, where n is the number elements dropped from the end.
+--
+-- /Unimplemented/
+{-# INLINE dropWhileAround #-}
+dropWhileAround :: -- Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m a
+dropWhileAround = undefined -- fromStreamD $ D.dropWhileAround n $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Inserting Elements
 ------------------------------------------------------------------------------
 
+-- | @insertBy cmp elem stream@ inserts @elem@ before the first element in
+-- @stream@ that is less than @elem@ when compared using @cmp@.
+--
+-- >>> insertBy cmp x = Stream.mergeBy cmp (Stream.fromPure x)
+--
+-- >>> input = Stream.fromList [1,3,5]
+-- >>> Stream.fold Fold.toList $ Stream.insertBy compare 2 input
+-- [1,2,3,5]
+--
 {-# INLINE_NORMAL insertBy #-}
 insertBy :: Monad m => (a -> a -> Ordering) -> a -> Stream m a -> Stream m a
 insertBy cmp a (Stream step state) = Stream step' (state, False, Nothing)
@@ -922,10 +1232,24 @@ intersperseM m (Stream step state) = Stream step' (FirstYield state)
 
     step' _ (YieldAndCarry x st) = return $ Yield x (InterspersingYield st)
 
+-- | Insert a pure value between successive elements of a stream.
+--
+-- >>> input = Stream.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.intersperse ',' input
+-- "h,e,l,l,o"
+--
 {-# INLINE intersperse #-}
 intersperse :: Monad m => a -> Stream m a -> Stream m a
 intersperse a = intersperseM (return a)
 
+-- | Insert a side effect before consuming an element of a stream except the
+-- first one.
+--
+-- >>> input = Stream.fromList "hello"
+-- >>> Stream.fold Fold.drain $ Stream.trace putChar $ Stream.intersperseM_ (putChar '.') input
+-- h.e.l.l.o
+--
+-- /Pre-release/
 {-# INLINE_NORMAL intersperseM_ #-}
 intersperseM_ :: Monad m => m b -> Stream m a -> Stream m a
 intersperseM_ m (Stream step1 state1) = Stream step (Left (pure (), state1))
@@ -940,11 +1264,31 @@ intersperseM_ m (Stream step1 state1) = Stream step (Left (pure (), state1))
 
     step _ (Right st) = return $ Skip $ Left (void m, st)
 
+-- | Intersperse a monadic action into the input stream after every @n@
+-- elements.
+--
+-- >> input = Stream.fromList "hello"
+-- >> Stream.fold Fold.toList $ Stream.intersperseMWith 2 (return ',') input
+-- "he,ll,o"
+--
+-- /Unimplemented/
+{-# INLINE intersperseMWith #-}
+intersperseMWith :: -- Monad m =>
+    Int -> m a -> Stream m a -> Stream m a
+intersperseMWith _n _f _xs = undefined
+
 data SuffixState s a
     = SuffixElem s
     | SuffixSuffix s
     | SuffixYield a (SuffixState s a)
 
+-- | Insert an effect and its output after consuming an element of a stream.
+--
+-- >>> input = Stream.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseMSuffix (putChar '.' >> return ',') input
+-- h.,e.,l.,l.,o.,"h,e,l,l,o,"
+--
+-- /Pre-release/
 {-# INLINE_NORMAL intersperseMSuffix #-}
 intersperseMSuffix :: forall m a. Monad m => m a -> Stream m a -> Stream m a
 intersperseMSuffix action (Stream step state) = Stream step' (SuffixElem state)
@@ -962,6 +1306,14 @@ intersperseMSuffix action (Stream step state) = Stream step' (SuffixElem state)
 
     step' _ (SuffixYield x next) = return $ Yield x next
 
+-- | Insert a side effect after consuming an element of a stream.
+--
+-- >>> input = Stream.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.intersperseMSuffix_ (threadDelay 1000000) input
+-- "hello"
+--
+-- /Pre-release/
+--
 {-# INLINE_NORMAL intersperseMSuffix_ #-}
 intersperseMSuffix_ :: Monad m => m b -> Stream m a -> Stream m a
 intersperseMSuffix_ m (Stream step1 state1) = Stream step (Left state1)
@@ -983,7 +1335,15 @@ data SuffixSpanState s a
     | SuffixSpanLast
     | SuffixSpanStop
 
--- | intersperse after every n items
+-- | Like 'intersperseMSuffix' but intersperses an effectful action into the
+-- input stream after every @n@ elements and after the last element.
+--
+-- >>> input = Stream.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.intersperseMSuffixWith 2 (return ',') input
+-- "he,ll,o,"
+--
+-- /Pre-release/
+--
 {-# INLINE_NORMAL intersperseMSuffixWith #-}
 intersperseMSuffixWith :: forall m a. Monad m
     => Int -> m a -> Stream m a -> Stream m a
@@ -1140,13 +1500,41 @@ reverseUnbox =
         . toStreamK
         . A.arraysOf defaultChunkSize
 
+-- | Buffer until the next element in sequence arrives. The function argument
+-- determines the difference in sequence numbers. This could be useful in
+-- implementing sequenced streams, for example, TCP reassembly.
+--
+-- /Unimplemented/
+--
+{-# INLINE reassembleBy #-}
+reassembleBy
+    :: -- Monad m =>
+       Fold m a b
+    -> (a -> a -> Int)
+    -> Stream m a
+    -> Stream m b
+reassembleBy = undefined
+
 ------------------------------------------------------------------------------
 -- Position Indexing
 ------------------------------------------------------------------------------
 
 -- Adapted from the vector package
+
+-- |
+-- >>> f = Fold.foldl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
+-- >>> indexed = Stream.postscan f
+-- >>> indexed = Stream.zipWith (,) (Stream.enumerateFrom 0)
+-- >>> indexedR n = fmap (\(i, a) -> (n - i, a)) . indexed
+--
+-- Pair each element in a stream with its index, starting from index 0.
+--
+-- >>> Stream.fold Fold.toList $ Stream.indexed $ Stream.fromList "hello"
+-- [(0,'h'),(1,'e'),(2,'l'),(3,'l'),(4,'o')]
+--
 {-# INLINE_NORMAL indexed #-}
 indexed :: Monad m => Stream m a -> Stream m (Int, a)
+-- indexed = scanMaybe FL.indexing
 indexed (Stream step state) = Stream step' (state, 0)
   where
     {-# INLINE_LATE step' #-}
@@ -1158,8 +1546,23 @@ indexed (Stream step state) = Stream step' (state, 0)
              Stop      -> return Stop
 
 -- Adapted from the vector package
+
+-- |
+-- >>> f n = Fold.foldl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
+-- >>> indexedR n = Stream.postscan (f n)
+--
+-- >>> s n = Stream.enumerateFromThen n (n - 1)
+-- >>> indexedR n = Stream.zipWith (,) (s n)
+--
+-- Pair each element in a stream with its index, starting from the
+-- given index @n@ and counting down.
+--
+-- >>> Stream.fold Fold.toList $ Stream.indexedR 10 $ Stream.fromList "hello"
+-- [(10,'h'),(9,'e'),(8,'l'),(7,'l'),(6,'o')]
+--
 {-# INLINE_NORMAL indexedR #-}
 indexedR :: Monad m => Int -> Stream m a -> Stream m (Int, a)
+-- indexedR n = scanMaybe (FL.indexingRev n)
 indexedR m (Stream step state) = Stream step' (state, m)
   where
     {-# INLINE_LATE step' #-}
@@ -1181,7 +1584,7 @@ indexedR m (Stream step state) = Stream step' (state, m)
 -- timestamp for first two elements:
 --
 -- Stream.fold Fold.toList $ Stream.timestamped $ Stream.delay $ Stream.enumerateFromTo 1 3
---
+
 -- | Pair each element in a stream with an absolute timestamp, using a clock of
 -- specified granularity.  The timestamp is generated just before the element
 -- is consumed.
@@ -1212,7 +1615,7 @@ timestamped = timestampWith 0.01
 -- >>> Stream.fold Fold.toList $ Stream.timeIndexWith 0.01 $ Stream.delay 1 $ Stream.enumerateFromTo 1 3
 -- [(RelTime64 (NanoSecond64 ...),1),(RelTime64 (NanoSecond64 ...),2),(RelTime64 (NanoSecond64 ...),3)]
 --
--- /Pre-release/Monad
+-- /Pre-release/
 --
 {-# INLINE timeIndexWith #-}
 timeIndexWith :: (MonadIO m)
@@ -1288,8 +1691,13 @@ slicesBy p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
 
 data RollingMapState s a = RollingMapGo s a
 
+-- | Like 'rollingMap' but with an effectful map function.
+--
+-- /Pre-release/
+--
 {-# INLINE rollingMapM #-}
 rollingMapM :: Monad m => (Maybe a -> a -> m b) -> Stream m a -> Stream m b
+-- rollingMapM f = scanMaybe (FL.slide2 $ Window.rollingMapM f)
 rollingMapM f (Stream step1 state1) = Stream step (RollingMapGo state1 Nothing)
 
     where
@@ -1303,16 +1711,31 @@ rollingMapM f (Stream step1 state1) = Stream step (RollingMapGo state1 Nothing)
             Skip s -> return $ Skip $ RollingMapGo s curr
             Stop   -> return Stop
 
--- | rollingMap is a special case of an incremental sliding fold. It can be
+-- rollingMap is a special case of an incremental sliding fold. It can be
 -- written as:
 --
 -- > fld f = slidingWindow 1 (Fold.foldl' (\_ (x,y) -> f y x)
 -- > rollingMap f = Stream.postscan (fld f) undefined
+
+-- | Apply a function on every two successive elements of a stream. The first
+-- argument of the map function is the previous element and the second argument
+-- is the current element. When the current element is the first element, the
+-- previous element is 'Nothing'.
+--
+-- /Pre-release/
 --
 {-# INLINE rollingMap #-}
 rollingMap :: Monad m => (Maybe a -> a -> b) -> Stream m a -> Stream m b
+-- rollingMap f = scanMaybe (FL.slide2 $ Window.rollingMap f)
 rollingMap f = rollingMapM (\x y -> return $ f x y)
 
+-- | Like 'rollingMap' but requires at least two elements in the stream,
+-- returns an empty stream otherwise.
+--
+-- This is the stream equivalent of the list idiom @zipWith f xs (tail xs)@.
+--
+-- /Pre-release/
+--
 {-# INLINE rollingMap2 #-}
 rollingMap2 :: Monad m => (a -> a -> b) -> Stream m a -> Stream m b
 rollingMap2 f = catMaybes . rollingMap g
@@ -1327,10 +1750,26 @@ rollingMap2 f = catMaybes . rollingMap g
 ------------------------------------------------------------------------------
 
 -- XXX Will this always fuse properly?
+
+-- | Map a 'Maybe' returning function to a stream, filter out the 'Nothing'
+-- elements, and return a stream of values extracted from 'Just'.
+--
+-- Equivalent to:
+--
+-- >>> mapMaybe f = Stream.catMaybes . fmap f
+--
 {-# INLINE_NORMAL mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Stream m a -> Stream m b
 mapMaybe f = fmap fromJust . filter isJust . map f
 
+-- | Like 'mapMaybe' but maps a monadic function.
+--
+-- Equivalent to:
+--
+-- >>> mapMaybeM f = Stream.catMaybes . Stream.mapM f
+--
+-- >>> mapM f = Stream.mapMaybeM (\x -> Just <$> f x)
+--
 {-# INLINE_NORMAL mapMaybeM #-}
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f

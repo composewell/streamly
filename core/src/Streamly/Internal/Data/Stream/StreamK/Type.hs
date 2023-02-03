@@ -165,7 +165,7 @@ import Prelude hiding
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
--- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK (crossApply, crossApplyWith, fromCross, toCross, mfix)
+-- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 
 ------------------------------------------------------------------------------
 -- Basic stream type
@@ -448,7 +448,34 @@ foldrSShared = foldrSWith foldStreamShared
 -- {-# RULES "foldrSShared/app" [1]
 --     forall ys. foldrSShared consM ys = \xs -> xs `conjoin` ys #-}
 
--- | Lazy right associative fold to a stream.
+-- | Right fold to a streaming monad.
+--
+-- > foldrS StreamK.cons StreamK.nil === id
+--
+-- 'foldrS' can be used to perform stateless stream to stream transformations
+-- like map and filter in general. It can be coupled with a scan to perform
+-- stateful transformations. However, note that the custom map and filter
+-- routines can be much more efficient than this due to better stream fusion.
+--
+-- >>> input = StreamK.fromStream $ Stream.fromList [1..5]
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ StreamK.foldrS StreamK.cons StreamK.nil input
+-- [1,2,3,4,5]
+--
+-- Find if any element in the stream is 'True':
+--
+-- >>> step x xs = if odd x then StreamK.fromPure True else xs
+-- >>> input = StreamK.fromStream (Stream.fromList (2:4:5:undefined)) :: StreamK IO Int
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ StreamK.foldrS step (StreamK.fromPure False) input
+-- [True]
+--
+-- Map (+2) on odd elements and filter out the even elements:
+--
+-- >>> step x xs = if odd x then (x + 2) `StreamK.cons` xs else xs
+-- >>> input = StreamK.fromStream (Stream.fromList [1..5]) :: Stream IO Int
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ StreamK.foldrS step StreamK.nil input
+-- [3,5,7]
+--
+-- /Pre-release/
 {-# INLINE_NORMAL foldrS #-}
 foldrS ::
        (a -> Stream m b -> Stream m b)
