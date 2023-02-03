@@ -1691,14 +1691,12 @@ deriving instance (a ~ Char) => IsString (CrossStreamK Identity a)
 -- Do not use automatic derivation for this to show as "fromList" rather than
 -- "fromList Identity".
 instance Show a => Show (CrossStreamK Identity a) where
-    showsPrec p dl = showParen (p > 10) $
-        showString "fromList " . shows (GHC.Exts.toList dl)
+    {-# INLINE show #-}
+    show (CrossStreamK xs) = show xs
 
 instance Read a => Read (CrossStreamK Identity a) where
-    readPrec = parens $ prec 10 $ do
-        Ident "fromList" <- lexP
-        GHC.Exts.fromList <$> readPrec
-    readListPrec = readListPrecDefault
+    {-# INLINE readPrec #-}
+    readPrec = fmap CrossStreamK readPrec
 
 ------------------------------------------------------------------------------
 -- Applicative
