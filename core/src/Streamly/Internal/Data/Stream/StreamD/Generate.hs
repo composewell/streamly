@@ -125,15 +125,39 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 ------------------------------------------------------------------------------
 
 -- XXX implement in terms of nilM?
--- | An empty 'Stream'.
+
+-- | A stream that terminates without producing any output or side effect.
+--
+-- >>> Stream.fold Fold.toList Stream.nil
+-- []
+--
 {-# INLINE_NORMAL nil #-}
 nil :: Applicative m => Stream m a
 nil = Stream (\_ _ -> pure Stop) ()
 
 -- XXX implement in terms of consM?
 -- cons x = consM (return x)
+
+-- | Fuse a pure value at the head of an existing stream::
 --
--- | Can fuse but has O(n^2) complexity.
+-- >>> s = 1 `Stream.cons` Stream.fromList [2,3]
+-- >>> Stream.fold Fold.toList s
+-- [1,2,3]
+--
+-- This function should not be used to construct a stream. If a stream is
+-- constructed by successive use of this function it would take O(n^2) time to
+-- consume the stream.
+--
+-- This function should only be used to statically fuse an element with a
+-- stream. Do not use this recursively or where it cannot be inlined.
+--
+-- See "Streamly.Data.Stream.StreamK" for a 'cons' that can be used to
+-- construct a stream recursively.
+--
+-- Definition:
+--
+-- >>> cons x xs = return x `Stream.consM` xs
+--
 {-# INLINE_NORMAL cons #-}
 cons :: Applicative m => a -> Stream m a -> Stream m a
 cons x (Stream step state) = Stream step1 Nothing

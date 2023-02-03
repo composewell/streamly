@@ -17,108 +17,117 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     (
     -- * The stream type
       Step (..)
-    -- XXX UnStream is exported to avoid a performance issue in concatMap if we
-    -- use the pattern synonym "Stream".
+    -- XXX UnStream is exported to avoid a performance issue in some
+    -- combinators if we use the pattern synonym "Stream".
     , Stream (Stream, UnStream)
-    , CrossStream
 
+    -- * CrossStream type wrapper
+    , CrossStream
     , fromCross
     , toCross
 
-    -- * Primitives
-    , nilM
-    , consM
-    , uncons
+    -- * Conversion to StreamK
+    , fromStreamK
+    , toStreamK
 
     -- * From Unfold
     , unfold
 
-    -- * From Values
+    -- * Construction
+    -- ** Primitives
+    , nilM
+    , consM
+
+    -- ** From Values
     , fromPure
     , fromEffect
 
-    -- * From Containers
+    -- ** From Containers
     , Streamly.Internal.Data.Stream.StreamD.Type.fromList
 
-    -- * Conversions From/To
-    , fromStreamK
-    , toStreamK
+    -- * Elimination
+    -- ** Primitives
+    , uncons
 
-    -- * Running a 'Fold'
+    -- ** Strict Left Folds
     , Streamly.Internal.Data.Stream.StreamD.Type.fold
     , foldBreak
     , foldContinue
     , foldEither
 
-    -- * Right Folds
-    , foldrM
-    , foldrMx
-    , Streamly.Internal.Data.Stream.StreamD.Type.foldr
-    , foldrS
-
-    -- * Left Folds
     , Streamly.Internal.Data.Stream.StreamD.Type.foldl'
     , foldlM'
     , foldlx'
     , foldlMx'
 
-    -- * Special Folds
-    , drain
+    -- ** Lazy Right Folds
+    , foldrM
+    , foldrMx
+    , Streamly.Internal.Data.Stream.StreamD.Type.foldr
+    , foldrS
 
-    -- * To Containers
+    -- ** Specific Folds
+    , drain
     , Streamly.Internal.Data.Stream.StreamD.Type.toList
 
-    -- * Multi-stream folds
-    , eqBy
-    , cmpBy
-
-    -- * Transformations
+    -- * Mapping
     , map
     , mapM
+
+    -- * Stateful Filters
     , take
     , takeWhile
     , takeWhileM
     , takeEndBy
     , takeEndByM
 
+    -- * Combining Two Streams
+    -- ** Zipping
     , zipWithM
     , zipWith
 
-    -- * Nesting
+    -- ** Cross Product
     , crossApply
     , crossApplyFst
     , crossApplySnd
     , crossWith
     , cross
 
+    -- * Unfold Many
     , ConcatMapUState (..)
     , unfoldMany
 
+    -- * Concat
+    , concatEffect
     , concatMap
     , concatMapM
-    , concatEffect
 
-    -- * Expanding trees top down
+    -- * Unfold Iterate
     , unfoldIterateDfs
     , unfoldIterateBfs
     , unfoldIterateBfsRev
 
+    -- * Concat Iterate
     , concatIterateScan
     , concatIterateDfs
     , concatIterateBfs
     , concatIterateBfsRev
 
+    -- * Fold Many
     , FoldMany (..) -- for inspection testing
     , FoldManyPost (..)
     , foldMany
     , foldManyPost
     , chunksOf
-
     , refoldMany
 
-    -- * Folding trees bottom up
+    -- * Fold Iterate
     , reduceIterateBfs
     , foldIterateBfs
+
+    -- * Multi-stream folds
+    , eqBy
+    , cmpBy
     )
 where
 
@@ -190,11 +199,19 @@ pattern Stream step state <- (unShare -> UnStream step state)
 -- Primitives
 ------------------------------------------------------------------------------
 
--- | An empty 'Stream' with a side effect.
+-- | A stream that terminates without producing any output, but produces a side
+-- effect.
+--
+-- >>> Stream.fold Fold.toList (Stream.nilM (print "nil"))
+-- "nil"
+-- []
+--
+-- /Pre-release/
 {-# INLINE_NORMAL nilM #-}
 nilM :: Applicative m => m b -> Stream m a
 nilM m = Stream (\_ _ -> m $> Stop) ()
 
+-- | Like 'cons' but fuses an effect instead of a pure value.
 {-# INLINE_NORMAL consM #-}
 consM :: Applicative m => m a -> Stream m a -> Stream m a
 consM m (Stream step state) = Stream step1 Nothing
@@ -247,7 +264,12 @@ unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
 -- From Values
 ------------------------------------------------------------------------------
 
--- | Create a singleton 'Stream' from a pure value.
+-- | Create a singleton stream from a pure value.
+--
+-- >>> fromPure a = a `Stream.cons` Stream.nil
+-- >>> fromPure = pure
+-- >>> fromPure = fromEffect . pure
+--
 {-# INLINE_NORMAL fromPure #-}
 fromPure :: Applicative m => a -> Stream m a
 fromPure x = Stream (\_ s -> pure $ step undefined s) True
@@ -256,7 +278,14 @@ fromPure x = Stream (\_ s -> pure $ step undefined s) True
     step _ True  = Yield x False
     step _ False = Stop
 
--- | Create a singleton 'Stream' from a monadic action.
+-- | Create a singleton stream from a monadic action.
+--
+-- >>> fromEffect m = m `consM` Stream.nil
+-- >>> fromEffect = Stream.sequence . Stream.fromPure
+--
+-- >>> Stream.fold Fold.drain $ Stream.fromEffect (putStrLn "hello")
+-- hello
+--
 {-# INLINE_NORMAL fromEffect #-}
 fromEffect :: Applicative m => m a -> Stream m a
 fromEffect m = Stream step True
@@ -272,7 +301,8 @@ fromEffect m = Stream step True
 ------------------------------------------------------------------------------
 
 -- Adapted from the vector package.
--- | Convert a list of pure values to a 'Stream'
+
+-- | Construct a stream from a list of pure values.
 {-# INLINE_LATE fromList #-}
 fromList :: Applicative m => [a] -> Stream m a
 #ifdef USE_UNFOLDS_EVERYWHERE
@@ -573,6 +603,8 @@ toListId s = Identity $ build (\c n -> toListFB c n s)
 ------------------------------------------------------------------------------
 
 -- Adapted from the vector package.
+
+-- | Compare two streams for equality
 {-# INLINE_NORMAL eqBy #-}
 eqBy :: Monad m => (a -> b -> Bool) -> Stream m a -> Stream m b -> m Bool
 eqBy eq (Stream step1 t1) (Stream step2 t2) = eq_loop0 SPEC t1 t2
@@ -601,7 +633,8 @@ eqBy eq (Stream step1 t1) (Stream step2 t2) = eq_loop0 SPEC t1 t2
         Stop      -> return True
 
 -- Adapted from the vector package.
--- | Compare two streams lexicographically
+
+-- | Compare two streams lexicographically.
 {-# INLINE_NORMAL cmpBy #-}
 cmpBy
     :: Monad m
@@ -636,6 +669,7 @@ cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
 ------------------------------------------------------------------------------
 
 -- Adapted from the vector package.
+
 -- | Map a monadic function over a 'Stream'
 {-# INLINE_NORMAL mapM #-}
 mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
@@ -666,8 +700,6 @@ instance Functor m => Functor (Stream m) where
 ------------------------------------------------------------------------------
 -- Lists
 ------------------------------------------------------------------------------
-
--- Serial streams can act like regular lists using the Identity monad
 
 -- XXX Show instance is 10x slower compared to read, we can do much better.
 -- The list show instance itself is really slow.
@@ -902,6 +934,12 @@ zipWith f = zipWithM (\a b -> return (f a b))
 -- Combine N Streams - concatAp
 ------------------------------------------------------------------------------
 
+-- | Apply a stream of functions to a stream of values and flatten the results.
+--
+-- Note that the second stream is evaluated multiple times.
+--
+-- >>> crossApply = Stream.crossWith id
+--
 {-# INLINE_NORMAL crossApply #-}
 crossApply :: Functor f => Stream f (a -> b) -> Stream f a -> Stream f b
 crossApply (Stream stepa statea) (Stream stepb stateb) =
