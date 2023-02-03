@@ -116,7 +116,9 @@ module Streamly.Internal.Data.Stream.StreamK
     , fold
     , foldBreak
     , foldEither
+    , foldConcat
     , parseBreak
+    , parse
 
     -- ** Specialized Folds
     , drain
@@ -216,7 +218,9 @@ where
 #include "assert.hs"
 
 import Control.Monad (void, join)
+import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
@@ -237,8 +241,10 @@ import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 -- $setup
 -- >>> :m
 -- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
+-- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 --
 
 {-# INLINE fromStream #-}
@@ -347,6 +353,21 @@ foldlMx' step begin done = go begin
             yieldk a r = acc >>= \b -> step b a >>= \x -> go (return x) r
          in foldStream defState yieldk single stop m1
 
+-- | Fold a stream using the supplied left 'Fold' and reducing the resulting
+-- expression strictly at each step. The behavior is similar to 'foldl''. A
+-- 'Fold' can terminate early without consuming the full stream. See the
+-- documentation of individual 'Fold's for termination behavior.
+--
+-- Definitions:
+--
+-- >>> fold f = fmap fst . StreamK.foldBreak f
+-- >>> fold f = StreamK.parse (Parser.fromFold f)
+--
+-- Example:
+--
+-- >>> StreamK.fold Fold.sum $ StreamK.fromStream $ Stream.enumerateFromTo 1 100
+-- 5050
+--
 {-# INLINABLE fold #-}
 fold :: Monad m => FL.Fold m a b -> Stream m a -> m b
 fold (FL.Fold step begin done) m = do
@@ -368,6 +389,13 @@ fold (FL.Fold step begin done) m = do
                         FL.Done b1 -> return b1
          in foldStream defState yieldk single stop m1
 
+-- | Fold resulting in either breaking the stream or continuation of the fold.
+-- Instead of supplying the input stream in one go we can run the fold multiple
+-- times, each time supplying the next segment of the input stream. If the fold
+-- has not yet finished it returns a fold that can be run again otherwise it
+-- returns the fold result and the residual stream.
+--
+-- /Internal/
 {-# INLINE foldEither #-}
 foldEither :: Monad m =>
     Fold m a b -> Stream m a -> m (Either (Fold m a b) (b, Stream m a))
@@ -394,6 +422,9 @@ foldEither (FL.Fold step begin done) m = do
                     FL.Done b1 -> return $ Right (b1, r)
          in foldStream defState yieldk single stop m1
 
+-- | Like 'fold' but also returns the remaining stream. The resulting stream
+-- would be 'StreamK.nil' if the stream finished before the fold.
+--
 {-# INLINE foldBreak #-}
 foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
 foldBreak fld strm = do
@@ -407,6 +438,68 @@ foldBreak fld strm = do
                 FL.Partial s -> do
                     b <- extract s
                     return (b, nil)
+
+-- XXX Array folds can be implemented using this.
+-- foldContainers? Specialized to foldArrays.
+
+-- | Generate streams from individual elements of a stream and fold the
+-- concatenation of those streams using the supplied fold. Return the result of
+-- the fold and residual stream.
+--
+-- For example, this can be used to efficiently fold an Array Word8 stream
+-- using Word8 folds.
+--
+-- /Internal/
+{-# INLINE foldConcat #-}
+foldConcat :: Monad m =>
+    Producer m a b -> Fold m b c -> StreamK m a -> m (c, StreamK m a)
+foldConcat
+    (Producer pstep pinject pextract)
+    (Fold fstep begin done)
+    stream = do
+
+    res <- begin
+    case res of
+        FL.Partial fs -> go fs stream
+        FL.Done fb -> return (fb, stream)
+
+    where
+
+    go !acc m1 = do
+        let stop = do
+                r <- done acc
+                return (r, nil)
+            single a = do
+                st <- pinject a
+                res <- go1 SPEC acc st
+                case res of
+                    Left fs -> do
+                        r <- done fs
+                        return (r, nil)
+                    Right (b, s) -> do
+                        x <- pextract s
+                        return (b, fromPure x)
+            yieldk a r = do
+                st <- pinject a
+                res <- go1 SPEC acc st
+                case res of
+                    Left fs -> go fs r
+                    Right (b, s) -> do
+                        x <- pextract s
+                        return (b, x `cons` r)
+         in foldStream defState yieldk single stop m1
+
+    {-# INLINE go1 #-}
+    go1 !_ !fs st = do
+        r <- pstep st
+        case r of
+            Stream.Yield x s -> do
+                res <- fstep fs x
+                case res of
+                    FL.Done b -> return $ Right (b, s)
+                    FL.Partial fs1 -> go1 SPEC fs1 s
+            Stream.Skip s -> go1 SPEC fs s
+            Stream.Stop -> return $ Left fs
 
 -- | Like 'foldl'' but with a monadic step function.
 {-# INLINE foldlM' #-}
@@ -1137,6 +1230,11 @@ parseBreakD (PR.Parser pstep initial extract) stream = do
 parseBreak :: Monad m =>
     Parser.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
 parseBreak p = parseBreakD (PR.fromParserK p)
+
+{-# INLINE parse #-}
+parse :: Monad m =>
+    Parser.Parser a m b -> Stream m a -> m (Either ParseError b)
+parse f = fmap fst . parseBreak f
 
 -- | Sort the input stream using a supplied comparison function.
 --

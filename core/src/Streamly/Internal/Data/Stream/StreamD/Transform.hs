@@ -371,6 +371,22 @@ trace f = mapM (\x -> void (f x) >> return x)
 
 data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 
+-- | Postscan a stream using the given monadic fold.
+--
+-- The following example extracts the input stream up to a point where the
+-- running average of elements is no more than 10:
+--
+-- >>> import Data.Maybe (fromJust)
+-- >>> let avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
+-- >>> s = Stream.enumerateFromTo 1.0 100.0
+-- >>> :{
+--  Stream.fold Fold.toList
+--   $ fmap (fromJust . fst)
+--   $ Stream.takeWhile (\(_,x) -> x <= 10)
+--   $ Stream.postscan (Fold.tee Fold.latest avg) s
+-- :}
+-- [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
+--
 {-# INLINE_NORMAL postscan #-}
 postscan :: Monad m => FL.Fold m a b -> Stream m a -> Stream m b
 postscan (FL.Fold fstep initial extract) (Stream sstep state) =
@@ -774,6 +790,9 @@ deleteBy eq x (Stream step state) = Stream step' (state, False)
 ------------------------------------------------------------------------------
 
 -- Adapted from the vector package
+
+-- | Discard first 'n' elements from the stream and take the rest.
+--
 {-# INLINE_NORMAL drop #-}
 drop :: Monad m => Int -> Stream m a -> Stream m a
 drop n (Stream step state) = Stream step' (state, Just n)
@@ -863,6 +882,22 @@ data LoopState x s = FirstYield s
                    | InterspersingYield s
                    | YieldAndCarry x s
 
+-- intersperseM = intersperseMWith 1
+
+-- | Insert an effect and its output before consuming an element of a stream
+-- except the first one.
+--
+-- >>> input = Stream.fromList "hello"
+-- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseM (putChar '.' >> return ',') input
+-- h.,e.,l.,l.,o"h,e,l,l,o"
+--
+-- Be careful about the order of effects. In the above example we used trace
+-- after the intersperse, if we use it before the intersperse the output would
+-- be he.l.l.o."h,e,l,l,o".
+--
+-- >>> Stream.fold Fold.toList $ Stream.intersperseM (putChar '.' >> return ',') $ Stream.trace putChar input
+-- he.l.l.o."h,e,l,l,o"
+--
 {-# INLINE_NORMAL intersperseM #-}
 intersperseM :: Monad m => m a -> Stream m a -> Stream m a
 intersperseM m (Stream step state) = Stream step' (FirstYield state)
@@ -1070,7 +1105,8 @@ delayPre = intersperseMPrefix_. sleep
 -- Reordering
 ------------------------------------------------------------------------------
 
--- |
+-- | Returns the elements of the stream in reverse order.  The stream must be
+-- finite. Note that this necessarily buffers the entire stream in memory.
 --
 -- Definition:
 --
@@ -1201,6 +1237,11 @@ timeIndexed = timeIndexWith 0.01
 -- Searching
 ------------------------------------------------------------------------------
 
+-- | Find all the indices where the element in the stream satisfies the given
+-- predicate.
+--
+-- >>> findIndices p = Stream.scanMaybe (Fold.findIndices p)
+--
 {-# INLINE_NORMAL findIndices #-}
 findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
 findIndices p (Stream step state) = Stream step' (state, 0)
@@ -1294,6 +1335,13 @@ mapMaybe f = fmap fromJust . filter isJust . map f
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
+-- | In a stream of 'Maybe's, discard 'Nothing's and unwrap 'Just's.
+--
+-- >>> catMaybes = Stream.mapMaybe id
+-- >>> catMaybes = fmap fromJust . Stream.filter isJust
+--
+-- /Pre-release/
+--
 {-# INLINE catMaybes #-}
 catMaybes :: Monad m => Stream m (Maybe a) -> Stream m a
 -- catMaybes = fmap fromJust . filter isJust
@@ -1315,7 +1363,8 @@ catMaybes (Stream step state) = Stream step1 state
 
 -- | Use a filtering fold on a stream.
 --
--- /Pre-release/
+-- >>> scanMaybe f = Stream.catMaybes . Stream.postscan f
+--
 {-# INLINE scanMaybe #-}
 scanMaybe :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
 scanMaybe f = catMaybes . postscan f
