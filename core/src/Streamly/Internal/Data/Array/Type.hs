@@ -112,6 +112,7 @@ import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 -- >>> :m
 -- >>> :set -XMagicHash
 -- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
+-- >>> import Streamly.Data.Stream as Stream
 -- >>> import Streamly.Internal.Data.Array as Array
 
 -------------------------------------------------------------------------------
@@ -264,8 +265,14 @@ bufferChunks :: (MonadIO m, Unbox a) =>
     D.Stream m a -> m (K.Stream m (Array a))
 bufferChunks m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
 
--- | @arraysOf n stream@ groups the input stream into a stream of
--- arrays of size n.
+-- | @arraysOf n stream@ groups the elements in the input stream into arrays of
+-- @n@ elements each.
+--
+-- Same as the following but may be more efficient:
+--
+-- >>> arraysOf n = Stream.foldMany (Array.writeN n)
+--
+-- /Pre-release/
 {-# INLINE_NORMAL arraysOf #-}
 arraysOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)

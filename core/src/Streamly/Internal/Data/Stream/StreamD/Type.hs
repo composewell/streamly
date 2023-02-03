@@ -1648,9 +1648,10 @@ unfoldIterateBfs (Unfold istep inject) (Stream ostep ost) =
 -- Folding a tree bottom up
 ------------------------------------------------------------------------------
 
--- | Binary BFS style reduce, folds a level entirely, before starting to fold
--- the next level. The last elements of a previously folded level are folded
--- first.
+-- | Binary BFS style reduce, folds a level entirely using the supplied fold
+-- function, collecting the outputs as next level of the tree, then repeats the
+-- same process on the next level. The last elements of a previously folded
+-- level are folded first.
 {-# INLINE_NORMAL reduceIterateBfs #-}
 reduceIterateBfs :: Monad m =>
     (a -> a -> m a) -> Stream m a -> m (Maybe a)
@@ -1785,7 +1786,34 @@ data FoldMany s fs b a
 
 -- XXX Nested foldMany does not fuse.
 
--- | 'Streamly.Internal.Data.Stream.foldMany'.
+-- | Apply a 'Fold' repeatedly on a stream and emit the results in the
+-- output stream. Unlike 'foldManyPost' it evaluates the fold after the stream,
+-- therefore, an empty input stream results in an empty output stream.
+--
+-- Definition:
+--
+-- >>> foldMany f = Stream.parseMany (Parser.fromFold f)
+--
+-- Example, empty stream:
+--
+-- >>> f = Fold.take 2 Fold.sum
+-- >>> fmany = Stream.fold Fold.toList . Stream.foldMany f
+-- >>> fmany $ Stream.fromList []
+-- []
+--
+-- Example, last fold empty:
+--
+-- >>> fmany $ Stream.fromList [1..4]
+-- [3,7]
+--
+-- Example, last fold non-empty:
+--
+-- >>> fmany $ Stream.fromList [1..5]
+-- [3,7,5]
+--
+-- Note that using a closed fold e.g. @Fold.take 0@, would result in an
+-- infinite stream on a non-empty input stream.
+--
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
 foldMany (Fold fstep initial extract) (Stream step state) =
