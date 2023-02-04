@@ -34,7 +34,6 @@ module Streamly.Internal.Data.Stream.StreamDK
 
     -- modules having dependencies on libraries other than base
     , module Streamly.Internal.Data.Stream.Transformer
-    , module Streamly.Internal.Data.Stream.Container
     )
 where
 
@@ -50,5 +49,4 @@ import Streamly.Internal.Data.Stream.Transform
 import Streamly.Internal.Data.Stream.Type
 import Streamly.Internal.Data.Stream.Zip
 
-import Streamly.Internal.Data.Stream.Container
 import Streamly.Internal.Data.Stream.Transformer

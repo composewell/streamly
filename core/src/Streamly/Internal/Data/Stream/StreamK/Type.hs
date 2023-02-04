@@ -54,6 +54,7 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     -- ** Unfolding
     , unfoldr
     , unfoldrMWith
+    , unfoldrM
 
     -- ** From Values
     , fromEffect
@@ -1718,6 +1719,10 @@ unfoldrMWith cns step = go
                 case r of
                     Just (a, b) -> yld a (go b)
                     Nothing -> stp
+
+{-# INLINE unfoldrM #-}
+unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> Stream m a
+unfoldrM = unfoldrMWith consM
 
 -- | Generate an infinite stream by repeating a pure value.
 --

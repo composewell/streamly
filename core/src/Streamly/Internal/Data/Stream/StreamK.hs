@@ -264,9 +264,6 @@ toStream = Stream.fromStreamK
 -- Generation
 -------------------------------------------------------------------------------
 
-{-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> Stream m a
-unfoldrM = unfoldrMWith consM
 {-
 -- Generalization of concurrent streams/SVar via unfoldr.
 --

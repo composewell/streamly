@@ -325,6 +325,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamK.Transformer
 
                      -- streamly-containers (non-base)
+                     , Streamly.Internal.Data.Stream.StreamD.Container
                      , Streamly.Internal.Data.Fold.Container
 
                      , Streamly.Internal.Data.Stream.Chunked
@@ -414,7 +415,6 @@ library
                       , Streamly.Internal.Data.Stream.Reduce
                       , Streamly.Internal.Data.Stream.Top
                       , Streamly.Internal.Data.Stream.Transformer
-                      , Streamly.Internal.Data.Stream.Container
                       , Streamly.Internal.Data.Stream.StreamDK
                       , Streamly.Internal.Data.Stream.Zip
                       , Streamly.Internal.Data.Stream.Cross
