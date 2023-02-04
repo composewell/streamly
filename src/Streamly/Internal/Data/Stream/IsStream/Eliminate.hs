@@ -382,7 +382,7 @@ parseD p = D.parseD p . toStreamD
 -- /Internal/
 {-# INLINE parseK #-}
 parseK :: Monad m => PRK.Parser a m b -> SerialT m a -> m (Either PRD.ParseError b)
-parseK = parse
+parseK p = parse (PRD.fromParserK p)
 
 -- | Parse a stream using the supplied 'Parser'.
 --
@@ -404,7 +404,7 @@ parseK = parse
 --
 {-# INLINE [3] parse #-}
 parse :: Monad m => Parser a m b -> SerialT m a -> m (Either PRD.ParseError b)
-parse = parseD . PRD.fromParserK
+parse = parseD
 
 ------------------------------------------------------------------------------
 -- Specific Fold Functions

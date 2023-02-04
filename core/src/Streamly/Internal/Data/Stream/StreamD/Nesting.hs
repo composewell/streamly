@@ -1620,7 +1620,7 @@ parseMany
     => PR.Parser a m b
     -> Stream m a
     -> Stream m (Either ParseError b)
-parseMany p = parseManyD (PRD.fromParserK p)
+parseMany = parseManyD
 
 -- | Apply a stream of parsers to an input stream and emit the results in the
 -- output stream.
@@ -1890,7 +1890,7 @@ parseIterate
     -> b
     -> Stream m a
     -> Stream m (Either ParseError b)
-parseIterate f = parseIterateD (PRD.fromParserK . f)
+parseIterate = parseIterateD
 
 ------------------------------------------------------------------------------
 -- Grouping

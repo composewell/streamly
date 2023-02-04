@@ -54,7 +54,7 @@ import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Parser as PR
     (fromPure, either, satisfy, takeEQ)
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-    (Parser(..), Initial(..), Step(..), toParserK)
+    (Parser(..), Initial(..), Step(..))
 
 -- Note: The () type does not need to have an on-disk representation in theory.
 -- But we use a concrete representation for it so that we count how many ()
@@ -155,7 +155,7 @@ word16beD = PRD.Parser step initial extract
 --
 {-# INLINE word16be #-}
 word16be :: Monad m => Parser Word8 m Word16
-word16be = PRD.toParserK word16beD
+word16be = word16beD
 
 -- | Little endian (LSB first) Word16
 {-# INLINE word16leD #-}
@@ -180,7 +180,7 @@ word16leD = PRD.Parser step initial extract
 --
 {-# INLINE word16le #-}
 word16le :: Monad m => Parser Word8 m Word16
-word16le = PRD.toParserK word16leD
+word16le = word16leD
 
 -- | Big endian (MSB first) Word32
 {-# INLINE word32beD #-}
@@ -207,7 +207,7 @@ word32beD = PRD.Parser step initial extract
 --
 {-# INLINE word32be #-}
 word32be :: Monad m => Parser Word8 m Word32
-word32be = PRD.toParserK word32beD
+word32be = word32beD
 
 -- | Little endian (LSB first) Word32
 {-# INLINE word32leD #-}
@@ -233,7 +233,7 @@ word32leD = PRD.Parser step initial extract
 --
 {-# INLINE word32le #-}
 word32le :: Monad m => Parser Word8 m Word32
-word32le = PRD.toParserK word32leD
+word32le = word32leD
 
 -- | Big endian (MSB first) Word64
 {-# INLINE word64beD #-}
@@ -260,7 +260,7 @@ word64beD = PRD.Parser step initial extract
 --
 {-# INLINE word64be #-}
 word64be :: Monad m => Parser Word8 m Word64
-word64be = PRD.toParserK word64beD
+word64be = word64beD
 
 -- | Little endian (LSB first) Word64
 {-# INLINE word64leD #-}
@@ -286,7 +286,7 @@ word64leD = PRD.Parser step initial extract
 --
 {-# INLINE word64le #-}
 word64le :: Monad m => Parser Word8 m Word64
-word64le = PRD.toParserK word64leD
+word64le = word64leD
 
 {-# INLINE int8 #-}
 int8 :: Monad m => Parser Word8 m Int8

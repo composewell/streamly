@@ -13,6 +13,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Prelude hiding (sequence)
 
+import qualified Control.Monad.Fail as Fail
 import qualified Data.List as List
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array as A
@@ -97,7 +98,7 @@ dieM =
 parserFail :: Property
 parserFail =
     property $
-        case runIdentity $ S.parse (fail err) (S.fromList [0 :: Int]) of
+        case runIdentity $ S.parse (Fail.fail err) (S.fromList [0 :: Int]) of
             Right _ -> False
             Left (ParseError e) -> err == e
     where
@@ -255,7 +256,7 @@ takeGE =
             let
                 list_length = Prelude.length ls
             in
-                case runIdentity $S.parse (P.takeGE n FL.toList) (S.fromList ls) of
+                case runIdentity $ S.parse (P.takeGE n FL.toList) (S.fromList ls) of
                     Right parsed_list ->
                         if n <= list_length
                         then checkListEqual parsed_list ls

@@ -1,5 +1,3 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserD
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -8,7 +6,42 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Direct style parser implementation with stream fusion.
+-- Fast backtracking parsers with stream fusion and native streaming
+-- capability.
+--
+-- 'Applicative' and 'Control.Applicative.Alternative' type class based
+-- combinators from the
+-- <http://hackage.haskell.org/package/parser-combinators parser-combinators>
+-- package can also be used with the 'Parser' type. However, there are two
+-- important differences between @parser-combinators@ and the equivalent ones
+-- provided in this module in terms of performance:
+--
+-- 1) @parser-combinators@ use plain Haskell lists to collect the results, in a
+-- strict Monad like IO, the results are necessarily buffered before they can
+-- be consumed.  This may not perform optimally in streaming applications
+-- processing large amounts of data.  Equivalent combinators in this module can
+-- consume the results of parsing using a 'Fold', thus providing a scalability
+-- and a composable consumer.
+--
+-- 2) Several combinators in this module can be many times faster because of
+-- stream fusion. For example, 'Streamly.Internal.Data.Parser.many' combinator
+-- in this module is much faster than the 'Control.Applicative.many' combinator
+-- of 'Control.Applicative.Alternative' type class.
+--
+-- = Errors
+--
+-- Failing parsers in this module throw the 'D.ParseError' exception.
+--
+-- = Naming
+--
+-- As far as possible, try that the names of the combinators in this module are
+-- consistent with:
+--
+-- * <https://hackage.haskell.org/package/base/docs/Text-ParserCombinators-ReadP.html base/Text.ParserCombinators.ReadP>
+-- * <http://hackage.haskell.org/package/parser-combinators parser-combinators>
+-- * <http://hackage.haskell.org/package/megaparsec megaparsec>
+-- * <http://hackage.haskell.org/package/attoparsec attoparsec>
+-- * <http://hackage.haskell.org/package/parsec parsec>
 
 module Streamly.Internal.Data.Parser.ParserD
     (
@@ -16,7 +49,6 @@ module Streamly.Internal.Data.Parser.ParserD
     , ParseError (..)
     , Step (..)
     , Initial (..)
-    , rmapM
 
     -- * Conversion to/from ParserK
     , fromParserK
@@ -40,17 +72,26 @@ module Streamly.Internal.Data.Parser.ParserD
     , postscan
     , filter
 
+    -- * Map on output
+    , rmapM
+
     -- * Element parsers
     , peek
+
+    -- All of these can be expressed in terms of either
+    , one
+    , oneEq
+    , oneNotEq
+    , oneOf
+    , noneOf
     , eof
     , satisfy
-    , next
     , maybe
     , either
 
-    -- * Sequence parsers
+    -- * Sequence parsers (tokenizers)
     --
-    -- Parsers chained in series, if one parser terminates the composition
+    -- | Parsers chained in series, if one parser terminates the composition
     -- terminates. Currently we are using folds to collect the output of the
     -- parsers but we can use Parsers instead of folds to make the composition
     -- more powerful. For example, we can do:
@@ -58,41 +99,54 @@ module Streamly.Internal.Data.Parser.ParserD
     -- takeEndByOrMax cond n p = takeEndBy cond (take n p)
     -- takeEndByBetween cond m n p = takeEndBy cond (takeBetween m n p)
     -- takeWhileBetween cond m n p = takeWhile cond (takeBetween m n p)
+    , lookAhead
 
-    -- Grab a sequence of input elements without inspecting them
+    -- ** By length
+    -- | Grab a sequence of input elements without inspecting them
     , takeBetween
-    -- , take -- take   -- takeBetween 0 n
+    -- , take -- takeBetween 0 n
     , takeEQ -- takeBetween n n
     , takeGE -- takeBetween n maxBound
     -- , takeGE1 -- take1 -- takeBetween 1 n
     , takeP
 
     -- Grab a sequence of input elements by inspecting them
-    , lookAhead
+    -- ** Exact match
+    , listEq
+    , listEqBy
+    , streamEqBy
+    , subsequenceBy
+
+    -- ** By predicate
     , takeWhile
     , takeWhileP
     , takeWhile1
+    , dropWhile
 
-    -- Separators
+    -- ** Separators
     , takeEndBy
     , takeEndBy_
     , takeEndByEsc
+    -- , takeEndByEsc_
     , takeStartBy
-    , takeFramedBy_
-    , takeFramedByEsc_
-    , takeFramedByGeneric
-
-    -- Words and grouping
+    , takeStartBy_
+    , takeEitherSepBy
     , wordBy
-    , wordFramedBy
-    , wordQuotedBy
+
+    -- ** By comparing
     , groupBy
     , groupByRolling
     , groupByRollingEither
 
+    -- ** Framing
+    -- , takeFramedBy
+    , takeFramedBy_
+    , takeFramedByEsc_
+    , takeFramedByGeneric
+    , wordFramedBy
+    , wordQuotedBy
+
     -- Matching strings
-    , listEqBy
-    , streamEqBy
     -- , prefixOf -- match any prefix of a given string
     -- , suffixOf -- match any suffix of a given string
     -- , infixOf -- match any substring of a given string
@@ -121,6 +175,25 @@ module Streamly.Internal.Data.Parser.ParserD
     -- Use two folds, run a primary parser, its rejected values go to the
     -- secondary parser.
     , deintercalate
+    -- , deintercalatePrefix
+    -- , deintercalateSuffix
+
+    -- *** Special cases
+    -- | TODO: traditional implmentations of these may be of limited use. For
+    -- example, consider parsing lines separated by @\\r\\n@. The main parser
+    -- will have to detect and exclude the sequence @\\r\\n@ anyway so that we
+    -- can apply the "sep" parser.
+    --
+    -- We can instead implement these as special cases of deintercalate.
+    --
+    -- @
+    -- , endBy
+    -- , sepEndBy
+    -- , beginBy
+    -- , sepBeginBy
+    -- , sepAroundBy
+    -- @
+    , sepBy1
     , sepBy
 
     -- ** Sequential Alternative
@@ -132,6 +205,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , longest
     -- , fastest
     -}
+
     -- * N-ary Combinators
     -- ** Sequential Collection
     , sequence
@@ -142,25 +216,12 @@ module Streamly.Internal.Data.Parser.ParserD
     , countBetween
     -- , countBetweenTill
 
-    , many
     , manyP
+    , many
     , some
+    , manyTillP
     , manyTill
-
-    -- -- ** Special cases
-    -- XXX traditional implmentations of these may be of limited use. For
-    -- example, consider parsing lines separated by "\r\n". The main parser
-    -- will have to detect and exclude the sequence "\r\n" anyway so that we
-    -- can apply the "sep" parser.
-    --
-    -- We can instead implement these as special cases of deintercalate.
-    --
-    -- , endBy
-    -- , sepBy
-    -- , sepEndBy
-    -- , beginBy
-    -- , sepBeginBy
-    -- , sepAroundBy
+    , manyThen
 
     -- -- * Distribution
     --
@@ -171,24 +232,32 @@ module Streamly.Internal.Data.Parser.ParserD
     -- -- ** Distribute to collection
     -- -- ** Distribute to repetition
 
-    -- -- ** Interleaved collection
-    -- Round robin
-    -- Priority based
+    -- ** Interleaved collection
+    -- |
+    --
+    -- 1. Round robin
+    -- 2. Priority based
+    , roundRobin
+
     -- -- ** Interleaved repetition
     -- repeat one parser and when it fails run an error recovery parser
     -- e.g. to find a key frame in the stream after an error
 
     -- ** Collection of Alternatives
+    -- | Unimplemented
+    --
+    -- @
     -- , shortestN
     -- , longestN
     -- , fastestN -- first N successful in time
     -- , choiceN  -- first N successful in position
+    -- @
     -- , choice   -- first successful in position
 
-    -- -- ** Repeated Alternatives
-    -- , retryMax    -- try N times
-    -- , retryUntil  -- try until successful
-    -- , retryUntilN -- try until successful n times
+    -- ** Repeated Alternatives
+    , retryMaxTotal
+    , retryMaxSuccessive
+    , retry
 
     -- ** Zipping Input
     , zipWithM
@@ -196,9 +265,13 @@ module Streamly.Internal.Data.Parser.ParserD
     , indexed
     , makeIndexFilter
     , sampleFromthen
+
+     -- * Deprecated
+    , next
     )
 where
 
+#include "inline.hs"
 #include "assert.hs"
 
 import Control.Monad (when)
@@ -209,14 +282,16 @@ import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Either.Strict (Either'(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 
+import qualified Data.Foldable as Foldable
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either, span
-       , zip, filter)
+       , zip, filter, dropWhile)
 -- import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Type
 
@@ -224,19 +299,27 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- $setup
 -- >>> :m
 -- >>> import Prelude hiding ()
+-- >>> import Control.Applicative
+-- >>> import Data.Char (isSpace)
+-- >>> import qualified Data.Foldable as Foldable
 -- >>> import qualified Data.Maybe as Maybe
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
 
 -------------------------------------------------------------------------------
 -- Downgrade a parser to a Fold
 -------------------------------------------------------------------------------
 
--- | See 'Streamly.Internal.Data.Parser.toFold'.
+-- | Make a 'Fold' from a 'Parser'. The fold just throws an exception if the
+-- parser fails or tries to backtrack.
 --
--- /Internal/
+-- This can be useful in combinators that accept a Fold and we know that a
+-- Parser cannot fail or failure exception is acceptable as there is no way to
+-- recover.
+--
+-- /Pre-release/
 --
 {-# INLINE toFold #-}
 toFold :: Monad m => Parser a m b -> Fold m a b
@@ -280,10 +363,8 @@ toFold (Parser pstep pinitial pextract) = Fold step initial extract
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
 -------------------------------------------------------------------------------
---
--- | See 'Streamly.Internal.Data.Parser.fromFold'.
---
--- /Pre-release/
+
+-- | Make a 'Parser' from a 'Fold'.
 --
 {-# INLINE fromFold #-}
 fromFold :: Monad m => Fold m a b -> Parser a m b
@@ -307,7 +388,9 @@ fromFold (Fold fstep finitial fextract) = Parser step initial extract
 
     extract = fmap (Done 0) . fextract
 
--- | Convert Maybe returning folds to error returning parsers.
+-- | Convert a Maybe returning fold to an error returning parser. The first
+-- argument is the error message that the parser would return when the fold
+-- returns Nothing.
 --
 -- /Pre-release/
 --
@@ -348,9 +431,15 @@ fromFoldMaybe errMsg (Fold fstep finitial fextract) =
 -- Failing Parsers
 -------------------------------------------------------------------------------
 
--- | See 'Streamly.Internal.Data.Parser.peek'.
+-- | Peek the head element of a stream, without consuming it. Fails if it
+-- encounters end of input.
 --
--- /Pre-release/
+-- >>> Stream.parse ((,) <$> Parser.peek <*> Parser.satisfy (> 0)) $ Stream.fromList [1]
+-- Right (1,1)
+--
+-- @
+-- peek = lookAhead (satisfy True)
+-- @
 --
 {-# INLINE peek #-}
 peek :: Monad m => Parser a m a
@@ -364,9 +453,10 @@ peek = Parser step initial extract
 
     extract () = return $ Error "peek: end of input"
 
--- | See 'Streamly.Internal.Data.Parser.eof'.
+-- | Succeeds if we are at the end of input, fails otherwise.
 --
--- /Pre-release/
+-- >>> Stream.parse ((,) <$> Parser.satisfy (> 0) <*> Parser.eof) $ Stream.fromList [1]
+-- Right (1,())
 --
 {-# INLINE eof #-}
 eof :: Monad m => Parser a m ()
@@ -380,10 +470,12 @@ eof = Parser step initial extract
 
     extract () = return $ Done 0 ()
 
--- | See 'Streamly.Internal.Data.Parser.next'.
+-- | Return the next element of the input. Returns 'Nothing'
+-- on end of input. Also known as 'head'.
 --
 -- /Pre-release/
 --
+{-# DEPRECATED next "Please use \"fromFold Fold.one\" instead" #-}
 {-# INLINE next #-}
 next :: Monad m => Parser a m (Maybe a)
 next = Parser step initial extract
@@ -396,7 +488,9 @@ next = Parser step initial extract
 
   extract () = pure $ Done 0 Nothing
 
--- | See 'Streamly.Internal.Data.Parser.either'.
+-- | Map an 'Either' returning function on the next element in the stream.  If
+-- the function returns 'Left err', the parser fails with the error message
+-- @err@ otherwise returns the 'Right' value.
 --
 -- /Pre-release/
 --
@@ -415,10 +509,14 @@ either f = Parser step initial extract
 
     extract () = return $ Error "end of input"
 
--- | See 'Streamly.Internal.Data.Parser.maybe'.
+-- | Map a 'Maybe' returning function on the next element in the stream. The
+-- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
+-- value.
 --
 -- >>> toEither = Maybe.maybe (Left "maybe: predicate failed") Right
 -- >>> maybe f = Parser.either (toEither . f)
+--
+-- >>> maybe f = Parser.fromFoldMaybe "maybe: predicate failed" (Fold.maybe f)
 --
 -- /Pre-release/
 --
@@ -438,12 +536,13 @@ maybe parserF = Parser step initial extract
 
     extract () = return $ Error "maybe: end of input"
 
--- | See 'Streamly.Internal.Data.Parser.satisfy'.
+-- | Returns the next element if it passes the predicate, fails otherwise.
+--
+-- >>> Stream.parse (Parser.satisfy (== 1)) $ Stream.fromList [1,0,1]
+-- Right 1
 --
 -- >>> toMaybe f x = if f x then Just x else Nothing
 -- >>> satisfy f = Parser.maybe (toMaybe f)
---
--- /Pre-release/
 --
 {-# INLINE satisfy #-}
 satisfy :: Monad m => (a -> Bool) -> Parser a m a
@@ -461,6 +560,67 @@ satisfy predicate = Parser step initial extract
 
     extract () = return $ Error "satisfy: end of input"
 
+-- | Consume one element from the head of the stream.  Fails if it encounters
+-- end of input.
+--
+-- >>> one = Parser.satisfy $ const True
+--
+{-# INLINE one #-}
+one :: Monad m => Parser a m a
+one = satisfy $ const True
+
+-- Alternate names: "only", "onlyThis".
+
+-- | Match a specific element.
+--
+-- >>> oneEq x = Parser.satisfy (== x)
+--
+{-# INLINE oneEq #-}
+oneEq :: (Monad m, Eq a) => a -> Parser a m a
+oneEq x = satisfy (== x)
+
+-- Alternate names: "exclude", "notThis".
+
+-- | Match anything other than the supplied element.
+--
+-- >>> oneNotEq x = Parser.satisfy (/= x)
+--
+{-# INLINE oneNotEq #-}
+oneNotEq :: (Monad m, Eq a) => a -> Parser a m a
+oneNotEq x = satisfy (/= x)
+
+-- | Match any one of the elements in the supplied list.
+--
+-- >>> oneOf xs = Parser.satisfy (`Foldable.elem` xs)
+--
+-- When performance matters a pattern matching predicate could be more
+-- efficient than a 'Foldable' datatype:
+--
+-- @
+-- let p x =
+--    case x of
+--       'a' -> True
+--       'e' -> True
+--        _  -> False
+-- in satisfy p
+-- @
+--
+-- GHC may use a binary search instead of linear search in the list.
+-- Alternatively, you can also use an array instead of list for storage and
+-- search.
+--
+{-# INLINE oneOf #-}
+oneOf :: (Monad m, Eq a, Foldable f) => f a -> Parser a m a
+oneOf xs = satisfy (`Foldable.elem` xs)
+
+-- | See performance notes in 'oneOf'.
+--
+-- >>> noneOf xs = Parser.satisfy (`Foldable.notElem` xs)
+--
+{-# INLINE noneOf #-}
+noneOf :: (Monad m, Eq a, Foldable f) => f a -> Parser a m a
+noneOf xs = satisfy (`Foldable.notElem` xs)
+
 -------------------------------------------------------------------------------
 -- Taking elements
 -------------------------------------------------------------------------------
@@ -469,7 +629,43 @@ satisfy predicate = Parser step initial extract
 {-# ANN type Tuple'Fused Fuse #-}
 data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 
--- | See 'Streamly.Internal.Data.Parser.takeBetween'.
+-- | @takeBetween m n@ takes a minimum of @m@ and a maximum of @n@ input
+-- elements and folds them using the supplied fold.
+--
+-- Stops after @n@ elements.
+-- Fails if the stream ends before @m@ elements could be taken.
+--
+-- Examples: -
+--
+-- @
+-- >>> :{
+--   takeBetween' low high ls = Stream.parse prsr (Stream.fromList ls)
+--     where prsr = Parser.takeBetween low high Fold.toList
+-- :}
+--
+-- @
+--
+-- >>> takeBetween' 2 4 [1, 2, 3, 4, 5]
+-- Right [1,2,3,4]
+--
+-- >>> takeBetween' 2 4 [1, 2]
+-- Right [1,2]
+--
+-- >>> takeBetween' 2 4 [1]
+-- Left (ParseError "takeBetween: Expecting alteast 2 elements, got 1")
+--
+-- >>> takeBetween' 0 0 [1, 2]
+-- Right []
+--
+-- >>> takeBetween' 0 1 []
+-- Right []
+--
+-- @takeBetween@ is the most general take operation, other take operations can
+-- be defined in terms of takeBetween. For example:
+--
+-- >>> take n = Parser.takeBetween 0 n
+-- >>> takeEQ n = Parser.takeBetween n n
+-- >>> takeGE n = Parser.takeBetween n maxBound
 --
 -- /Pre-release/
 --
@@ -546,9 +742,14 @@ takeBetween low high (Fold fstep finitial fextract) =
         | i >= low && i <= high = fmap IDone (fextract s)
         | otherwise = return $ IError (f i)
 
--- | See 'Streamly.Internal.Data.Parser.takeEQ'.
+-- | Stops after taking exactly @n@ input elements.
 --
--- /Pre-release/
+-- * Stops - after consuming @n@ elements.
+-- * Fails - if the stream or the collecting fold ends before it can collect
+--           exactly @n@ elements.
+--
+-- >>> Stream.parse (Parser.takeEQ 4 Fold.toList) $ Stream.fromList [1,0,1]
+-- Left (ParseError "takeEQ: Expecting exactly 4 elements, input terminated on 3")
 --
 {-# INLINE takeEQ #-}
 takeEQ :: Monad m => Int -> Fold m a b -> Parser a m b
@@ -602,7 +803,17 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
                 $ "takeEQ: Expecting exactly " ++ show cnt
                     ++ " elements, input terminated on " ++ show i
 
--- | See 'Streamly.Internal.Data.Parser.takeGE'.
+-- | Take at least @n@ input elements, but can collect more.
+--
+-- * Stops - when the collecting fold stops.
+-- * Fails - if the stream or the collecting fold ends before producing @n@
+--           elements.
+--
+-- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1]
+-- Left (ParseError "takeGE: Expecting at least 4 elements, input terminated on 3")
+--
+-- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1,0,1]
+-- Right [1,0,1,0,1]
 --
 -- /Pre-release/
 --
@@ -659,7 +870,19 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 -- Conditional splitting
 -------------------------------------------------------------------------------
 
--- | See 'Streamly.Internal.Data.Parser.takeWhileP'.
+-- XXX We should perhaps use only takeWhileP and rename it to takeWhile.
+
+-- | Like 'takeWhile' but uses a 'Parser' instead of a 'Fold' to collect the
+-- input. The combinator stops when the condition fails or if the collecting
+-- parser stops.
+--
+-- Other interesting parsers can be implemented in terms of this parser:
+--
+-- >>> takeWhile1 cond p = Parser.takeWhileP cond (Parser.takeBetween 1 maxBound p)
+-- >>> takeWhileBetween cond m n p = Parser.takeWhileP cond (Parser.takeBetween m n p)
+--
+-- Stops: when the condition fails or the collecting parser stops.
+-- Fails: when the collecting parser fails.
 --
 -- /Pre-release/
 --
@@ -682,12 +905,26 @@ takeWhileP predicate (Parser pstep pinitial pextract) =
                 Partial _ _ -> error "Bug: takeWhileP: Partial in extract"
                 Continue n s1 -> return $ Continue (n + 1) s1
 
--- | See 'Streamly.Internal.Data.Parser.takeWhile'.
+-- | Collect stream elements until an element fails the predicate. The element
+-- on which the predicate fails is returned back to the input stream.
 --
--- /Pre-release/
+-- * Stops - when the predicate fails or the collecting fold stops.
+-- * Fails - never.
+--
+-- >>> Stream.parse (Parser.takeWhile (== 0) Fold.toList) $ Stream.fromList [0,0,1,0,1]
+-- Right [0,0]
+--
+-- >>> takeWhile cond f = Parser.takeWhileP cond (Parser.fromFold f)
+--
+-- We can implement a @breakOn@ using 'takeWhile':
+--
+-- @
+-- breakOn p = takeWhile (not p)
+-- @
 --
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+-- takeWhile cond f = takeWhileP cond (fromFold f)
 takeWhile predicate (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -711,12 +948,13 @@ takeWhile predicate (Fold fstep finitial fextract) =
 
     extract s = fmap (Done 0) (fextract s)
 
--- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
+-- | Like 'takeWhile' but takes at least one element otherwise fails.
 --
--- /Pre-release/
+-- >>> takeWhile1 cond p = Parser.takeWhileP cond (Parser.takeBetween 1 maxBound p)
 --
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+-- takeWhile1 cond f = takeWhileP cond (takeBetween 1 maxBound f)
 takeWhile1 predicate (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -753,6 +991,17 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
     extract (Left' _) = return $ Error "takeWhile1: end of input"
     extract (Right' s) = fmap (Done 0) (fextract s)
 
+-- | Drain the input as long as the predicate succeeds, running the effects and
+-- discarding the results.
+--
+-- This is also called @skipWhile@ in some parsing libraries.
+--
+-- >>> dropWhile p = Parser.takeWhile p Fold.drain
+--
+{-# INLINE dropWhile #-}
+dropWhile :: Monad m => (a -> Bool) -> Parser a m ()
+dropWhile p = takeWhile p FL.drain
+
 -------------------------------------------------------------------------------
 -- Separators
 -------------------------------------------------------------------------------
@@ -760,6 +1009,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 data FramedEscState s =
     FrameEscInit !s | FrameEscGo !s !Int | FrameEscEsc !s !Int
 
+-- XXX We can remove Maybe from esc
 {-# INLINE takeFramedByGeneric #-}
 takeFramedByGeneric :: Monad m =>
        Maybe (a -> Bool)
@@ -857,12 +1107,26 @@ takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
             Nothing -> err "takeFramedByGeneric: missing closing frame"
     extract (FrameEscEsc _ _) = err "takeFramedByGeneric: trailing escape"
 
--- | See 'Streamly.Internal.Data.Parser.takeEndBy'.
+-- | @takeEndBy cond parser@ parses a token that ends by a separator chosen by
+-- the supplied predicate. The separator is also taken with the token.
+--
+-- This can be combined with other parsers to implement other interesting
+-- parsers as follows:
+--
+-- >>> takeEndByLE cond n p = Parser.takeEndBy cond (Parser.fromFold $ Fold.take n p)
+-- >>> takeEndByBetween cond m n p = Parser.takeEndBy cond (Parser.takeBetween m n p)
+--
+-- >>> takeEndBy = Parser.takeEndByEsc (const False)
+--
+-- See also "Streamly.Data.Fold.takeEndBy". Unlike the fold, the collecting
+-- parser in the takeEndBy parser can decide whether to fail or not if the
+-- stream does not end with separator.
 --
 -- /Pre-release/
 --
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
+-- takeEndBy = takeEndByEsc (const False)
 takeEndBy cond (Parser pstep pinitial pextract) =
 
     Parser step initial pextract
@@ -877,10 +1141,11 @@ takeEndBy cond (Parser pstep pinitial pextract) =
         then return res
         else extractStep pextract res
 
--- | See 'Streamly.Internal.Data.Parser.takeEndByEsc'.
+-- | Like 'takeEndBy' but the separator elements can be escaped using an
+-- escape char determined by the first predicate. The escape characters are
+-- removed.
 --
--- /Pre-release/
---
+-- /pre-release/
 {-# INLINE takeEndByEsc #-}
 takeEndByEsc :: Monad m =>
     (a -> Bool) -> (a -> Bool) -> Parser a m b -> Parser a m b
@@ -909,12 +1174,18 @@ takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
     extract (Right' _) =
         return $ Error "takeEndByEsc: trailing escape"
 
--- | See 'Streamly.Internal.Data.Parser.takeEndBy_'.
+-- | Like 'takeEndBy' but the separator is dropped.
+--
+-- See also "Streamly.Data.Fold.takeEndBy_".
 --
 -- /Pre-release/
 --
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: (a -> Bool) -> Parser a m b -> Parser a m b
+{-
+takeEndBy_ isEnd p =
+    takeFramedByGeneric Nothing Nothing (Just isEnd) (toFold p)
+-}
 takeEndBy_ cond (Parser pstep pinitial pextract) =
 
     Parser step pinitial pextract
@@ -926,11 +1197,39 @@ takeEndBy_ cond (Parser pstep pinitial pextract) =
         then pextract s
         else pstep s a
 
--- | See 'Streamly.Internal.Data.Parser.takeStartBy'.
+-- | Take either the separator or the token. Separator is a Left value and
+-- token is Right value.
+--
+-- /Unimplemented/
+{-# INLINE takeEitherSepBy #-}
+takeEitherSepBy :: -- Monad m =>
+    (a -> Bool) -> Fold m (Either a b) c -> Parser a m c
+takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
+
+-- | Parse a token that starts with an element chosen by the predicate.  The
+-- parser fails if the input does not start with the selected element.
+--
+-- * Stops - when the predicate succeeds in non-leading position.
+-- * Fails - when the predicate fails in the leading position.
+--
+-- >>> splitWithPrefix p f = Stream.parseMany (Parser.takeStartBy p f)
+--
+-- Examples: -
+--
+-- >>> p = Parser.takeStartBy (== ',') Fold.toList
+-- >>> leadingComma = Stream.parse p . Stream.fromList
+-- >>> leadingComma "a,b"
+-- Left (ParseError "takeStartBy: missing frame start")
+-- ...
+-- >>> leadingComma ",,"
+-- Right ","
+-- >>> leadingComma ",a,b"
+-- Right ",a"
+-- >>> leadingComma ""
+-- Right ""
 --
 -- /Pre-release/
 --
-
 {-# INLINE takeStartBy #-}
 takeStartBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
 takeStartBy cond (Fold fstep finitial fextract) =
@@ -966,9 +1265,40 @@ takeStartBy cond (Fold fstep finitial fextract) =
     extract (Left' s) = fmap (Done 0) $ fextract s
     extract (Right' s) = fmap (Done 0) $ fextract s
 
+-- | Like 'takeStartBy' but drops the separator.
+--
+-- >>> takeStartBy_ isBegin = Parser.takeFramedByGeneric Nothing (Just isBegin) Nothing
+--
+{-# INLINE takeStartBy_ #-}
+takeStartBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+takeStartBy_ isBegin = takeFramedByGeneric Nothing (Just isBegin) Nothing
+
+-- | @takeFramedByEsc_ isEsc isBegin isEnd fold@ parses a token framed using a
+-- begin and end predicate, and an escape character. The frame begin and end
+-- characters lose their special meaning if preceded by the escape character.
+--
+-- Nested frames are allowed if begin and end markers are different, nested
+-- frames must be balanced unless escaped, nested frame markers are emitted as
+-- it is.
+--
+-- For example,
+--
+-- >>> p = Parser.takeFramedByEsc_ (== '\\') (== '{') (== '}') Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "{hello}"
+-- Right "hello"
+-- >>> Stream.parse p $ Stream.fromList "{hello {world}}"
+-- Right "hello {world}"
+-- >>> Stream.parse p $ Stream.fromList "{hello \\{world}"
+-- Right "hello {world"
+-- >>> Stream.parse p $ Stream.fromList "{hello {world}"
+-- Left (ParseError "takeFramedByEsc_: missing frame end")
+--
+-- /Pre-release/
 {-# INLINE takeFramedByEsc_ #-}
 takeFramedByEsc_ :: Monad m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser a m b
+-- takeFramedByEsc_ isEsc isEnd p =
+--    takeFramedByGeneric (Just isEsc) Nothing (Just isEnd) (toFold p)
 takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial fextract) =
 
     Parser step initial extract
@@ -1017,9 +1347,16 @@ takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial fextract) =
 
 data FramedState s = FrameInit !s | FrameGo !s Int
 
+-- | @takeFramedBy_ isBegin isEnd fold@ parses a token framed by a begin and an
+-- end predicate.
+--
+-- >>> takeFramedBy_ = Parser.takeFramedByEsc_ (const False)
+--
 {-# INLINE takeFramedBy_ #-}
 takeFramedBy_ :: Monad m =>
     (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser a m b
+-- takeFramedBy_ isBegin isEnd =
+--    takeFramedByGeneric (Just (const False)) (Just isBegin) (Just isEnd)
 takeFramedBy_ isBegin isEnd (Fold fstep finitial fextract) =
 
     Parser step initial extract
@@ -1064,8 +1401,24 @@ takeFramedBy_ isBegin isEnd (Fold fstep finitial fextract) =
 
 data WordByState s b = WBLeft !s | WBWord !s | WBRight !b
 
--- | See 'Streamly.Internal.Data.Parser.wordBy'.
+-- Note we can also get words using something like:
+-- sepBy FL.toList (takeWhile (not . p) Fold.toList) (dropWhile p)
 --
+-- But that won't be as efficient and ergonomic.
+
+-- | Like 'splitOn' but strips leading, trailing, and repeated separators.
+-- Therefore, @".a..b."@ having '.' as the separator would be parsed as
+-- @["a","b"]@.  In other words, its like parsing words from whitespace
+-- separated text.
+--
+-- * Stops - when it finds a word separator after a non-word element
+-- * Fails - never.
+--
+-- >>> wordBy = Parser.wordFramedBy (const False) (const False) (const False)
+--
+-- @
+-- S.wordsBy pred f = S.parseMany (PR.wordBy pred f)
+-- @
 --
 {-# INLINE wordBy #-}
 wordBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
@@ -1114,7 +1467,24 @@ data WordFramedState s b =
     | WordFramedEsc !s !Int
     | WordFramedSkipPost !b
 
--- | See 'Streamly.Internal.Data.Parser.wordFramedBy'
+-- | Like 'wordBy' but treats anything inside a pair of quotes as a single
+-- word, the quotes can be escaped by an escape character.  Recursive quotes
+-- are possible if quote begin and end characters are different, quotes must be
+-- balanced. Outermost quotes are stripped.
+--
+-- >>> braces = Parser.wordFramedBy (== '\\') (== '{') (== '}') isSpace Fold.toList
+-- >>> Stream.parse braces $ Stream.fromList "{ab} cd"
+-- Right "ab"
+-- >>> Stream.parse braces $ Stream.fromList "{ab}{cd}"
+-- Right "abcd"
+-- >>> Stream.parse braces $ Stream.fromList "a{b} cd"
+-- Right "ab"
+-- >>> Stream.parse braces $ Stream.fromList "a{{b}} cd"
+-- Right "a{b}"
+--
+-- >>> quotes = Parser.wordFramedBy (== '\\') (== '"') (== '"') isSpace Fold.toList
+-- >>> Stream.parse quotes $ Stream.fromList "\"a\"\"b\""
+-- Right "ab"
 --
 {-# INLINE wordFramedBy #-}
 wordFramedBy :: Monad m =>
@@ -1206,6 +1576,26 @@ data WordQuotedState s b a =
     | WordQuotedEsc !s !Int a
     | WordQuotedSkipPost !b
 
+-- | Like 'wordFramedBy' but the closing quote is determined by the opening
+-- quote. The first quote begin starts a quote that is closed by its
+-- corresponding closing quote.
+--
+-- 'wordFramedBy' and 'wordQuotedBy' both allow multiple quote characters based
+-- on the predicates but 'wordQuotedBy' always fixes the quote at the first
+-- occurrence and then it is closed only by the corresponding closing quote.
+-- Therefore, other quoting characters can be embedded inside it as normal
+-- characters. On the other hand, 'wordFramedBy' would close the quote as soon
+-- as it encounters any of the closing quotes.
+--
+-- >>> q = (`elem` ['"', '\''])
+-- >>> p kQ = Parser.wordQuotedBy kQ (== '\\') q q id isSpace Fold.toList
+--
+-- >>> Stream.parse (p False) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
+-- Right "ab'c;d\"ef"
+--
+-- >>> Stream.parse (p True) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
+-- Right "a\"b'c\";'d\"e'f"
+--
 {-# INLINE wordQuotedBy #-}
 wordQuotedBy :: (Monad m, Eq a) =>
        Bool         -- ^ keep the quotes in the output
@@ -1313,7 +1703,31 @@ data GroupByState a s
     = GroupByInit !s
     | GroupByGrouping !a !s
 
--- | See 'Streamly.Internal.Data.Parser.groupBy'.
+-- | Given an input stream @[a,b,c,...]@ and a comparison function @cmp@, the
+-- parser assigns the element @a@ to the first group, then if @a \`cmp` b@ is
+-- 'True' @b@ is also assigned to the same group.  If @a \`cmp` c@ is 'True'
+-- then @c@ is also assigned to the same group and so on. When the comparison
+-- fails the parser is terminated. Each group is folded using the 'Fold' @f@ and
+-- the result of the fold is the result of the parser.
+--
+-- * Stops - when the comparison fails.
+-- * Fails - never.
+--
+-- >>> :{
+--  runGroupsBy eq =
+--      Stream.fold Fold.toList
+--          . Stream.parseMany (Parser.groupBy eq Fold.toList)
+--          . Stream.fromList
+-- :}
+--
+-- >>> runGroupsBy (<) []
+-- []
+--
+-- >>> runGroupsBy (<) [1]
+-- [Right [1]]
+--
+-- >>> runGroupsBy (<) [3, 5, 4, 1, 2, 0]
+-- [Right [3,5,4],Right [1,2],Right [0]]
 --
 {-# INLINE groupBy #-}
 groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
@@ -1345,7 +1759,35 @@ groupBy eq (Fold fstep finitial fextract) = Parser step initial extract
     extract (GroupByInit s) = fmap (Done 0) $ fextract s
     extract (GroupByGrouping _ s) = fmap (Done 0) $ fextract s
 
--- | See 'Streamly.Internal.Data.Parser.groupByRolling'.
+-- | Unlike 'groupBy' this combinator performs a rolling comparison of two
+-- successive elements in the input stream.  Assuming the input stream
+-- is @[a,b,c,...]@ and the comparison function is @cmp@, the parser
+-- first assigns the element @a@ to the first group, then if @a \`cmp` b@ is
+-- 'True' @b@ is also assigned to the same group.  If @b \`cmp` c@ is 'True'
+-- then @c@ is also assigned to the same group and so on. When the comparison
+-- fails the parser is terminated. Each group is folded using the 'Fold' @f@ and
+-- the result of the fold is the result of the parser.
+--
+-- * Stops - when the comparison fails.
+-- * Fails - never.
+--
+-- >>> :{
+--  runGroupsByRolling eq =
+--      Stream.fold Fold.toList
+--          . Stream.parseMany (Parser.groupByRolling eq Fold.toList)
+--          . Stream.fromList
+-- :}
+--
+-- >>> runGroupsByRolling (<) []
+-- []
+--
+-- >>> runGroupsByRolling (<) [1]
+-- [Right [1]]
+--
+-- >>> runGroupsByRolling (<) [3, 5, 4, 1, 2, 0]
+-- [Right [3,5],Right [4],Right [1,2],Right [0]]
+--
+-- /Pre-release/
 --
 {-# INLINE groupByRolling #-}
 groupByRolling :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
@@ -1384,6 +1826,16 @@ data GroupByStatePair a s1 s2
     | GroupByGroupingPairL !a !s1 !s2
     | GroupByGroupingPairR !a !s1 !s2
 
+-- | Like 'groupByRolling', but if the predicate is 'True' then collects using
+-- the first fold as long as the predicate holds 'True', if the predicate is
+-- 'False' collects using the second fold as long as it remains 'False'.
+-- Returns 'Left' for the first case and 'Right' for the second case.
+--
+-- For example, if we want to detect sorted sequences in a stream, both
+-- ascending and descending cases we can use 'groupByRollingEither (<=)
+-- Fold.toList Fold.toList'.
+--
+-- /Pre-release/
 {-# INLINE groupByRollingEither #-}
 groupByRollingEither :: Monad m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (Either b c)
@@ -1468,13 +1920,26 @@ groupByRollingEither
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
 -- XXX rename to listBy?
+
+-- | Match the given sequence of elements using the given comparison function.
+-- Returns the original sequence if successful.
 --
--- | See 'Streamly.Internal.Data.Parser.streamEqBy'.
+-- Definition:
 --
--- /Pre-release/
+-- >>> listEqBy cmp xs = Parser.streamEqBy cmp (Stream.fromList xs) *> Parser.fromPure xs
+--
+-- Examples:
+--
+-- >>> Stream.parse (Parser.listEqBy (==) "string") $ Stream.fromList "string"
+-- Right "string"
+--
+-- >>> Stream.parse (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
+-- Left (ParseError "streamEqBy: mismtach occurred")
 --
 {-# INLINE listEqBy #-}
 listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser a m [a]
+listEqBy cmp xs = streamEqBy cmp (D.fromList xs) *> fromPure xs
+{-
 listEqBy cmp str = Parser step initial extract
 
     where
@@ -1501,8 +1966,13 @@ listEqBy cmp str = Parser step initial extract
             $ Error
             $ "listEqBy: end of input, yet to match "
             ++ show (length xs) ++ " elements"
+-}
 
--- | Like 'listEqBy' but uses a stream instead of a list
+-- | Like 'listEqBy' but uses a stream instead of a list and does not return
+-- the stream.
+--
+-- See also: "Streamly.Data.Stream.streamEqBy"
+--
 {-# INLINE streamEqBy #-}
 streamEqBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser a m ()
 streamEqBy cmp (D.Stream sstep state) = Parser step initial extract
@@ -1540,6 +2010,39 @@ streamEqBy cmp (D.Stream sstep state) = Parser step initial extract
 
     extract _ = return $ Error "streamEqBy: end of input"
 
+-- Rename to "list".
+-- | Match the input sequence with the supplied list and return it if
+-- successful.
+--
+-- >>> listEq = Parser.listEqBy (==)
+--
+{-# INLINE listEq #-}
+listEq :: (Monad m, Eq a) => [a] -> Parser a m [a]
+listEq = listEqBy (==)
+
+-- | Match if the input stream is a subsequence of the argument stream i.e. all
+-- the elements of the input stream occur, in order, in the argument stream.
+-- The elements do not have to occur consecutively. A sequence is considered a
+-- subsequence of itself.
+{-# INLINE subsequenceBy #-}
+subsequenceBy :: -- Monad m =>
+    (a -> a -> Bool) -> Stream m a -> Parser a m ()
+subsequenceBy = undefined
+
+{-
+-- Should go in Data.Parser.Regex in streamly package so that it can depend on
+-- regex backends.
+{-# INLINE regexPosix #-}
+regexPosix :: -- Monad m =>
+    Regex -> Parser m a (Maybe (Array (MatchOffset, MatchLength)))
+regexPosix = undefined
+
+{-# INLINE regexPCRE #-}
+regexPCRE :: -- Monad m =>
+    Regex -> Parser m a (Maybe (Array (MatchOffset, MatchLength)))
+regexPCRE = undefined
+-}
+
 -------------------------------------------------------------------------------
 -- Transformations on input
 -------------------------------------------------------------------------------
@@ -1548,7 +2051,7 @@ streamEqBy cmp (D.Stream sstep state) = Parser step initial extract
 -- parser can always return a Continue in initial when we feed the fold's
 -- initial result to it. We can work this around for postscan by introducing an
 -- initial state and calling "initial" only on the first input.
---
+
 -- | Stateful scan on the input of a parser using a Fold.
 --
 -- /Unimplemented/
@@ -1709,7 +2212,16 @@ spanByRolling eq f1 f2 =
 -- nested parsers
 -------------------------------------------------------------------------------
 
--- | See 'Streamly.Internal.Data.Parser.takeP'.
+-- | Takes at-most @n@ input elements.
+--
+-- * Stops - when the collecting parser stops.
+-- * Fails - when the collecting parser fails.
+--
+-- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 2 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
+-- Right [1,2]
+--
+-- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 5 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
+-- Left (ParseError "takeEQ: Expecting exactly 5 elements, input terminated on 4")
 --
 -- /Internal/
 {-# INLINE takeP #-}
@@ -1783,9 +2295,7 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
             Error err -> IError err
             _ -> error "Bug: takeP invalid state in initial"
 
--- | See 'Streamly.Internal.Data.Parser.lookahead'.
---
--- /Pre-release/
+-- | Run a parser without consuming the input.
 --
 {-# INLINE lookAhead #-}
 lookAhead :: Monad m => Parser a m b -> Parser a m b
@@ -1822,14 +2332,32 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 -------------------------------------------------------------------------------
 -- Interleaving
 -------------------------------------------------------------------------------
+--
+-- To deinterleave we can chain two parsers one behind the other. The input is
+-- given to the first parser and the input definitively rejected by the first
+-- parser is given to the second parser.
+--
+-- We can either have the parsers themselves buffer the input or use the shared
+-- global buffer to hold it until none of the parsers need it. When the first
+-- parser returns Skip (i.e. rewind) we let the second parser consume the
+-- rejected input and when it is done we move the cursor forward to the first
+-- parser again. This will require a "move forward" command as well.
+--
+-- To implement grep we can use three parsers, one to find the pattern, one
+-- to store the context behind the pattern and one to store the context in
+-- front of the pattern. When a match occurs we need to emit the accumulator of
+-- all the three parsers. One parser can count the line numbers to provide the
+-- line number info.
 
 data DeintercalateState fs sp ss =
       DeintercalateL !fs !sp
     | DeintercalateR !fs !ss !Bool
 
--- | See 'Streamly.Internal.Data.Parser.deintercalate'.
---
--- /Internal/
+-- XXX rename this to intercalate
+
+-- | Apply two parsers alternately to an input stream. The input stream is
+-- considered an interleaving of two patterns. The two parsers represent the
+-- two patterns.
 --
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>
@@ -1926,8 +2454,13 @@ data SepByState fs sp ss =
       SepByInit !fs !sp
     | SepBySeparator !fs !ss !Bool
 
--- This is a special case of deintercalate and can be easily implemented in
--- terms of deintercalate.
+-- | Run the content parser first, when it is done, the separator parser is
+-- run, when it is done content parser is run again and so on. If none of the
+-- parsers consumes an input then parser returns a failure.
+--
+-- >>> sepBy p1 p2 sink = Parser.deintercalate p1 p2 (Fold.catLefts sink)
+-- >>> sepBy content sep sink = Parser.sepBy1 content sep sink <|> return mempty
+--
 {-# INLINE sepBy #-}
 sepBy :: Monad m =>
     Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
@@ -2000,11 +2533,49 @@ sepBy
 
     extract (SepBySeparator fs _ _) = fmap (Done 0) $ fextract fs
 
+-- XXX This can be implemented using refold, parse one and then continue
+-- collecting the rest in that.
+
+-- | Parse items separated by a separator parsed by the supplied parser. At
+-- least one item must be present for the parser to succeed.
+--
+-- Note that this can go in infinite loop if both the parsers fail on some
+-- input. Detection of that would make the implementation more complex.
+--
+{-# INLINE sepBy1 #-}
+sepBy1 :: Monad m =>
+    Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+sepBy1 p sep sink = do
+    x <- p
+    f <- fromEffect $ FL.reduce sink
+    f1 <- fromEffect $ FL.snoc f x
+    many (sep >> p) f1
+
+-------------------------------------------------------------------------------
+-- Interleaving a collection of parsers
+-------------------------------------------------------------------------------
+--
+-- | Apply a collection of parsers to an input stream in a round robin fashion.
+-- Each parser is applied until it stops and then we repeat starting with the
+-- the first parser again.
+--
+-- /Unimplemented/
+--
+{-# INLINE roundRobin #-}
+roundRobin :: -- (Foldable t, Monad m) =>
+    t (Parser a m b) -> Fold m b c -> Parser a m c
+roundRobin _ps _f = undefined
+
 -------------------------------------------------------------------------------
 -- Sequential Collection
 -------------------------------------------------------------------------------
+
+-- | @sequence f p@ collects sequential parses of parsers in a
+-- serial stream @p@ using the fold @f@. Fails if the input ends or any
+-- of the parsers fail.
 --
--- | See 'Streamly.Internal.Data.Parser.sequence'.
+-- /Pre-release/
+--
 {-# INLINE sequence #-}
 sequence :: Monad m =>
     D.Stream m (Parser a m b) -> Fold m b c -> Parser a m c
@@ -2089,7 +2660,10 @@ sequence (D.Stream sstep sstate) (Fold fstep finitial fextract) =
 -------------------------------------------------------------------------------
 
 {-
--- | See 'Streamly.Internal.Data.Parser.choice'.
+-- | @choice parsers@ applies the @parsers@ in order and returns the first
+-- successful parse.
+--
+-- This is same as 'asum' but more efficient.
 --
 -- /Broken/
 --
@@ -2102,23 +2676,45 @@ choice = foldl1 shortest
 -- Sequential Repetition
 -------------------------------------------------------------------------------
 
+-- | Like 'many' but uses a 'Parser' instead of a 'Fold' to collect the
+-- results. Parsing stops or fails if the collecting parser stops or fails.
+--
+-- /Unimplemented/
+--
 {-# INLINE manyP #-}
 manyP :: -- MonadCatch m =>
     Parser a m b -> Parser b m c -> Parser a m c
 manyP _p _f = undefined
 
--- | See 'Streamly.Internal.Data.Parser.many'.
+-- | Collect zero or more parses. Apply the supplied parser repeatedly on the
+-- input stream and push the parse results to a downstream fold.
 --
--- /Pre-release/
+--  Stops: when the downstream fold stops or the parser fails.
+--  Fails: never, produces zero or more results.
+--
+-- >>> many = Parser.countBetween 0 maxBound
+--
+-- Compare with 'Control.Applicative.many'.
 --
 {-# INLINE many #-}
 many :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
 many = splitMany
 -- many = countBetween 0 maxBound
 
--- | See 'Streamly.Internal.Data.Parser.some'.
+-- Note: many1 would perhaps be a better name for this and consistent with
+-- other names like takeWhile1. But we retain the name "some" for
+-- compatibility.
+
+-- | Collect one or more parses. Apply the supplied parser repeatedly on the
+-- input stream and push the parse results to a downstream fold.
 --
--- /Pre-release/
+--  Stops: when the downstream fold stops or the parser fails.
+--  Fails: if it stops without producing a single result.
+--
+-- >>> some p f = Parser.manyP p (Parser.takeGE 1 f)
+-- >>> some = Parser.countBetween 1 maxBound
+--
+-- Compare with 'Control.Applicative.some'.
 --
 {-# INLINE some #-}
 some :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
@@ -2126,7 +2722,11 @@ some = splitSome
 -- some p f = manyP p (takeGE 1 f)
 -- some = countBetween 1 maxBound
 
--- | See 'Streamly.Internal.Data.Parser.countBetween'.
+-- | @countBetween m n f p@ collects between @m@ and @n@ sequential parses of
+-- parser @p@ using the fold @f@. Stop after collecting @n@ results. Fails if
+-- the input ends or the parser fails before @m@ results are collected.
+--
+-- >>> countBetween m n p f = Parser.manyP p (Parser.takeBetween m n f)
 --
 -- /Unimplemented/
 --
@@ -2136,7 +2736,12 @@ countBetween :: -- MonadCatch m =>
 countBetween _m _n _p = undefined
 -- countBetween m n p f = manyP p (takeBetween m n f)
 
--- | See 'Streamly.Internal.Data.Parser.count'.
+-- | @count n f p@ collects exactly @n@ sequential parses of parser @p@ using
+-- the fold @f@.  Fails if the input ends or the parser fails before @n@
+-- results are collected.
+--
+-- >>> count n = Parser.countBetween n n
+-- >>> count n p f = Parser.manyP p (Parser.takeEQ n f)
 --
 -- /Unimplemented/
 --
@@ -2146,13 +2751,34 @@ count :: -- MonadCatch m =>
 count n = countBetween n n
 -- count n p f = manyP p (takeEQ n f)
 
+-- | Like 'manyTill' but uses a 'Parser' to collect the results instead of a
+-- 'Fold'.  Parsing stops or fails if the collecting parser stops or fails.
+--
+-- We can implemnent parsers like the following using 'manyTillP':
+--
+-- @
+-- countBetweenTill m n f p = manyTillP (takeBetween m n f) p
+-- @
+--
+-- /Unimplemented/
+--
+{-# INLINE manyTillP #-}
+manyTillP :: -- Monad m =>
+    Parser a m b -> Parser a m x -> Parser b m c -> Parser a m c
+manyTillP _p1 _p2 _f = undefined
+    -- D.toParserK $ D.manyTillP (D.fromParserK p1) (D.fromParserK p2) f
+
 data ManyTillState fs sr sl
     = ManyTillR Int fs sr
     | ManyTillL Int fs sl
 
--- | See 'Streamly.Internal.Data.Parser.manyTill'.
+-- | @manyTill chunking test f@ tries the parser @test@ on the input, if @test@
+-- fails it backtracks and tries @chunking@, after @chunking@ succeeds @test@ is
+-- tried again and so on. The parser stops when @test@ succeeds.  The output of
+-- @test@ is discarded and the output of @chunking@ is accumulated by the
+-- supplied fold. The parser fails if @chunking@ fails.
 --
--- /Pre-release/
+-- Stops when the fold @f@ stops.
 --
 {-# INLINE manyTill #-}
 manyTill :: Monad m
@@ -2245,3 +2871,53 @@ manyTill (Parser stepL initialL extractL)
                 return $ Continue n (ManyTillL 0 fs s)
             Partial _ _ -> error "Partial in extract"
     extract (ManyTillR _ fs _) = fmap (Done 0) $ fextract fs
+
+-- | @manyThen f collect recover@ repeats the parser @collect@ on the input and
+-- collects the output in the supplied fold. If the the parser @collect@ fails,
+-- parser @recover@ is run until it stops and then we start repeating the
+-- parser @collect@ again. The parser fails if the recovery parser fails.
+--
+-- For example, this can be used to find a key frame in a video stream after an
+-- error.
+--
+-- /Unimplemented/
+--
+{-# INLINE manyThen #-}
+manyThen :: -- (Foldable t, Monad m) =>
+    Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+manyThen _parser _recover _f = undefined
+
+-------------------------------------------------------------------------------
+-- Repeated Alternatives
+-------------------------------------------------------------------------------
+
+-- | Keep trying a parser up to a maximum of @n@ failures.  When the parser
+-- fails the input consumed till now is dropped and the new instance is tried
+-- on the fresh input.
+--
+-- /Unimplemented/
+--
+{-# INLINE retryMaxTotal #-}
+retryMaxTotal :: -- (Monad m) =>
+    Int -> Parser a m b -> Fold m b c -> Parser a m c
+retryMaxTotal _n _p _f  = undefined
+
+-- | Like 'retryMaxTotal' but aborts after @n@ successive failures.
+--
+-- /Unimplemented/
+--
+{-# INLINE retryMaxSuccessive #-}
+retryMaxSuccessive :: -- (Monad m) =>
+    Int -> Parser a m b -> Fold m b c -> Parser a m c
+retryMaxSuccessive _n _p _f = undefined
+
+-- | Keep trying a parser until it succeeds.  When the parser fails the input
+-- consumed till now is dropped and the new instance is tried on the fresh
+-- input.
+--
+-- /Unimplemented/
+--
+{-# INLINE retry #-}
+retry :: -- (Monad m) =>
+    Parser a m b -> Parser a m b
+retry _p = undefined

@@ -96,7 +96,7 @@ import qualified Streamly.Internal.Data.Array.Mut.Stream as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-    (Parser(..), Initial(..), fromParserK)
+    (Parser(..), Initial(..))
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
@@ -789,7 +789,7 @@ parseBreak ::
 parseBreak p s =
     fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
 -}
-parseBreak p = parseBreakK (PRD.fromParserK p)
+parseBreak = parseBreakK
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers

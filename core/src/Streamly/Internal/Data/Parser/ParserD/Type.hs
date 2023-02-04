@@ -214,6 +214,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..), toList)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
+import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 
@@ -224,6 +225,7 @@ import Prelude hiding (concatMap, filter)
 -- >>> import Control.Applicative ((<|>))
 -- >>> import Data.Bifunctor (second)
 -- >>> import Prelude hiding (concatMap)
+-- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream (parse)
 -- >>> import qualified Streamly.Internal.Data.Parser as Parser
@@ -625,9 +627,9 @@ fromParserK parser = Parser step initial extract
 -- Mapping on the output
 ------------------------------------------------------------------------------
 
--- | Map a monadic function on the output of a parser.
+-- | @rmapM f parser@ maps the monadic function @f@ on the output of the parser.
 --
--- /Pre-release/
+-- >>> rmap = fmap
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Parser a m b -> Parser a m c
 rmapM f (Parser step initial extract) =
@@ -644,17 +646,14 @@ rmapM f (Parser step initial extract) =
             IError err -> return $ IError err
     step1 s a = step s a >>= mapMStep f
 
--- | See 'Streamly.Internal.Data.Parser.fromPure'.
---
--- /Pre-release/
+-- | A parser that always yields a pure value without consuming any input.
 --
 {-# INLINE_NORMAL fromPure #-}
 fromPure :: Monad m => b -> Parser a m b
 fromPure b = Parser undefined (pure $ IDone b) undefined
 
--- | See 'Streamly.Internal.Data.Parser.fromEffect'.
---
--- /Pre-release/
+-- | A parser that always yields the result of an effectful action without
+-- consuming any input.
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> Parser a m b
@@ -667,14 +666,52 @@ fromEffect b = Parser undefined (IDone <$> b) undefined
 {-# ANN type SeqParseState Fuse #-}
 data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 
--- | See 'Streamly.Internal.Data.Parser.splitWith'.
---
 -- Note: this implementation of splitWith is fast because of stream fusion but
 -- has quadratic time complexity, because each composition adds a new branch
 -- that each subsequent parse's input element has to go through, therefore, it
 -- cannot scale to a large number of compositions. After around 100
 -- compositions the performance starts dipping rapidly beyond a CPS style
 -- unfused implementation.
+
+-- | Sequential parser application. Apply two parsers sequentially to an input
+-- stream.  The input is provided to the first parser, when it is done the
+-- remaining input is provided to the second parser. If both the parsers
+-- succeed their outputs are combined using the supplied function. The
+-- operation fails if any of the parsers fail.
+--
+-- Note: This is a parsing dual of appending streams using
+-- 'Streamly.Data.Stream.append', it splits the streams using two parsers and zips
+-- the results.
+--
+-- This implementation is strict in the second argument, therefore, the
+-- following will fail:
+--
+-- >>> Stream.parse (Parser.splitWith const (Parser.satisfy (> 0)) undefined) $ Stream.fromList [1]
+-- *** Exception: Prelude.undefined
+-- ...
+--
+-- Compare with 'Applicative' instance method '<*>'. This implementation allows
+-- stream fusion but has quadratic complexity. This can fuse with other
+-- operations and can be faster than 'Applicative' instance for small number
+-- (less than 8) of compositions.
+--
+-- Many combinators can be expressed using @splitWith@ and other parser
+-- primitives. Some common idioms are described below,
+--
+-- @
+-- span :: (a -> Bool) -> Fold m a b -> Fold m a b -> Parser a m b
+-- span pred f1 f2 = splitWith (,) ('takeWhile' pred f1) ('fromFold' f2)
+-- @
+--
+-- @
+-- spanBy :: (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser a m b
+-- spanBy eq f1 f2 = splitWith (,) ('groupBy' eq f1) ('fromFold' f2)
+-- @
+--
+-- @
+-- spanByRolling :: (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser a m b
+-- spanByRolling eq f1 f2 = splitWith (,) ('groupByRolling' eq f1) ('fromFold' f2)
+-- @
 --
 -- /Pre-release/
 --
@@ -824,7 +861,24 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
 data SeqAState sl sr = SeqAL sl | SeqAR sr
 
 -- This turns out to be slightly faster than splitWith
--- | See 'Streamly.Internal.Data.Parser.split_'.
+
+-- | Sequential parser application ignoring the output of the first parser.
+-- Apply two parsers sequentially to an input stream.  The input is provided to
+-- the first parser, when it is done the remaining input is provided to the
+-- second parser. The output of the parser is the output of the second parser.
+-- The operation fails if any of the parsers fail.
+--
+-- This implementation is strict in the second argument, therefore, the
+-- following will fail:
+--
+-- >>> Stream.parse (Parser.split_ (Parser.satisfy (> 0)) undefined) $ Stream.fromList [1]
+-- *** Exception: Prelude.undefined
+-- ...
+--
+-- Compare with 'Applicative' instance method '*>'. This implementation allows
+-- stream fusion but has quadratic complexity. This can fuse with other
+-- operations, and can be faster than 'Applicative' instance for small
+-- number (less than 8) of compositions.
 --
 -- /Pre-release/
 --
@@ -962,7 +1016,20 @@ data AltParseState sl sr = AltParseL Int sl | AltParseR sr
 -- each subsequent alternative's input element has to go through, therefore, it
 -- cannot scale to a large number of compositions
 
--- | See 'Streamly.Internal.Data.Parser.alt'.
+-- | Sequential alternative. Apply the input to the first parser and return the
+-- result if the parser succeeds. If the first parser fails then backtrack and
+-- apply the same input to the second parser and return the result.
+--
+-- Note: This implementation is not lazy in the second argument. The following
+-- will fail:
+--
+-- >> Stream.parse (Parser.satisfy (> 0) `Parser.alt` undefined) $ Stream.fromList [1..10]
+-- *** Exception: Prelude.undefined
+--
+-- Compare with ParserK 'Alternative' instance method '<|>'. This
+-- implementation allows stream fusion but has quadratic complexity. This can
+-- fuse with other operations and can be much faster than 'Alternative'
+-- instance for small number (less than 8) of alternatives.
 --
 -- /Time Complexity:/ O(n^2) where n is the number of compositions.
 --
@@ -1263,15 +1330,15 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                 assertM(n == cnt)
                 return (Continue n (Tuple3' s1 0 (Right fs)))
 
--- | See 'Streamly.Internal.Data.Parser.die'.
---
--- /Pre-release/
+-- | A parser that always fails with an error message without consuming
+-- any input.
 --
 {-# INLINE_NORMAL die #-}
 die :: Monad m => String -> Parser a m b
 die err = Parser undefined (pure (IError err)) undefined
 
--- | See 'Streamly.Internal.Data.Parser.dieM'.
+-- | A parser that always fails with an effectful error message and without
+-- consuming any input.
 --
 -- /Pre-release/
 --
@@ -1292,7 +1359,7 @@ dieM err = Parser undefined (IError <$> err) undefined
 -- Note: The implementation of '<|>' is not lazy in the second
 -- argument. The following code will fail:
 --
--- >>> Stream.parse (ParserD.toParserK $ ParserD.satisfy (> 0) <|> undefined) $ Stream.fromList [1..10]
+-- >>> Stream.parse (ParserD.satisfy (> 0) <|> undefined) $ Stream.fromList [1..10]
 -- *** Exception: Prelude.undefined
 -- ...
 --
@@ -1314,7 +1381,7 @@ data ConcatParseState sl m a b =
       ConcatParseL sl
     | forall s. ConcatParseR (s -> a -> m (Step s b)) s (s -> m (Step s b))
 
--- | See 'Streamly.Internal.Data.Parser.concatMap'.
+-- | Map a 'Parser' returning function on the result of a 'Parser'.
 --
 -- /Pre-release/
 --
@@ -1469,6 +1536,10 @@ instance Monad m => Monad (Parser a m) where
     {-# INLINE (>>) #-}
     (>>) = (*>)
 
+instance Monad m => Fail.MonadFail (Parser a m) where
+    {-# INLINE fail #-}
+    fail = die
+
 -- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
 --
 instance Monad m => MonadPlus (Parser a m) where
@@ -1486,6 +1557,13 @@ instance (Monad m, MonadIO m) => MonadIO (Parser a m) where
 -- Mapping on input
 ------------------------------------------------------------------------------
 
+-- | @lmap f parser@ maps the function @f@ on the input of the parser.
+--
+-- >>> Stream.parse (Parser.lmap (\x -> x * x) (Parser.fromFold Fold.sum)) (Stream.enumerateFromTo 1 100)
+-- Right 338350
+--
+-- > lmap = Parser.lmapM return
+--
 {-# INLINE lmap #-}
 lmap :: (a -> b) -> Parser b m r -> Parser a m r
 lmap f (Parser step begin done) = Parser step1 begin done
@@ -1494,6 +1572,8 @@ lmap f (Parser step begin done) = Parser step1 begin done
 
     step1 x a = step x (f a)
 
+-- | @lmapM f parser@ maps the monadic function @f@ on the input of the parser.
+--
 {-# INLINE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Parser b m r -> Parser a m r
 lmapM f (Parser step begin done) = Parser step1 begin done
@@ -1502,6 +1582,11 @@ lmapM f (Parser step begin done) = Parser step1 begin done
 
     step1 x a = f a >>= step x
 
+-- | Include only those elements that pass a predicate.
+--
+-- >>> Stream.parse (Parser.filter (> 5) (Parser.fromFold Fold.sum)) $ Stream.fromList [1..10]
+-- Right 40
+--
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
 filter f (Parser step initial extract) = Parser step1 initial extract
