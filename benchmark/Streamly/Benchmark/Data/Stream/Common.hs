@@ -122,23 +122,23 @@ toStream = id
 #ifdef USE_PRELUDE
 type Stream = Stream.SerialT
 type MonadAsync m = Stream.MonadAsync m
-toCross = id
-fromCross = id
+mkCross = id
+unCross = id
 #else
 type MonadAsync = Monad
 
 #ifdef USE_STREAMK
-toCross :: StreamK.Stream m a -> StreamK.CrossStreamK m a
-toCross = StreamK.toCross
+mkCross :: StreamK.Stream m a -> StreamK.CrossStreamK m a
+mkCross = StreamK.mkCross
 
-fromCross :: StreamK.CrossStreamK m a -> StreamK.Stream m a
-fromCross = StreamK.fromCross
+unCross :: StreamK.CrossStreamK m a -> StreamK.Stream m a
+unCross = StreamK.unCross
 #else
-toCross :: Stream m a -> Stream.CrossStream m a
-toCross = Stream.toCross
+mkCross :: Stream m a -> Stream.CrossStream m a
+mkCross = Stream.mkCross
 
-fromCross :: Stream.CrossStream m a -> Stream m a
-fromCross = Stream.fromCross
+unCross :: Stream.CrossStream m a -> Stream m a
+unCross = Stream.unCross
 #endif
 #endif
 
@@ -288,9 +288,9 @@ sourceConcatMapId value n =
 {-# INLINE apDiscardFst #-}
 apDiscardFst :: MonadAsync m =>
     Int -> Int -> m ()
-apDiscardFst linearCount start = drain $ toStream $ fromCross $
-    toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-        *> toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+apDiscardFst linearCount start = drain $ toStream $ unCross $
+    mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+        *> mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
 
     where
 
@@ -298,9 +298,9 @@ apDiscardFst linearCount start = drain $ toStream $ fromCross $
 
 {-# INLINE apDiscardSnd #-}
 apDiscardSnd :: MonadAsync m => Int -> Int -> m ()
-apDiscardSnd linearCount start = drain $ toStream $ fromCross $
-    toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-        <* toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+apDiscardSnd linearCount start = drain $ toStream $ unCross $
+    mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+        <* mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
 
     where
 
@@ -308,9 +308,9 @@ apDiscardSnd linearCount start = drain $ toStream $ fromCross $
 
 {-# INLINE apLiftA2 #-}
 apLiftA2 :: MonadAsync m => Int -> Int -> m ()
-apLiftA2 linearCount start = drain $ toStream $ fromCross $
-    liftA2 (+) (toCross (fromStream $ sourceUnfoldrM nestedCount2 start))
-        (toCross (fromStream $ sourceUnfoldrM nestedCount2 start))
+apLiftA2 linearCount start = drain $ toStream $ unCross $
+    liftA2 (+) (mkCross (fromStream $ sourceUnfoldrM nestedCount2 start))
+        (mkCross (fromStream $ sourceUnfoldrM nestedCount2 start))
 
     where
 
@@ -318,9 +318,9 @@ apLiftA2 linearCount start = drain $ toStream $ fromCross $
 
 {-# INLINE toNullAp #-}
 toNullAp :: MonadAsync m => Int -> Int -> m ()
-toNullAp linearCount start = drain $ toStream $ fromCross $
-    (+) <$> toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-        <*> toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+toNullAp linearCount start = drain $ toStream $ unCross $
+    (+) <$> mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+        <*> mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
 
     where
 
@@ -328,9 +328,9 @@ toNullAp linearCount start = drain $ toStream $ fromCross $
 
 {-# INLINE monadThen #-}
 monadThen :: MonadAsync m => Int -> Int -> m ()
-monadThen linearCount start = drain $ toStream $ fromCross $ do
-    toCross (fromStream $ sourceUnfoldrM nestedCount2 start) >>
-        toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+monadThen linearCount start = drain $ toStream $ unCross $ do
+    mkCross (fromStream $ sourceUnfoldrM nestedCount2 start) >>
+        mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
 
     where
 
@@ -338,9 +338,9 @@ monadThen linearCount start = drain $ toStream $ fromCross $ do
 
 {-# INLINE toNullM #-}
 toNullM :: MonadAsync m => Int -> Int -> m ()
-toNullM linearCount start = drain $ toStream $ fromCross $ do
-    x <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-    y <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+toNullM linearCount start = drain $ toStream $ unCross $ do
+    x <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+    y <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
     return $ x + y
 
     where
@@ -349,56 +349,56 @@ toNullM linearCount start = drain $ toStream $ fromCross $ do
 
 {-# INLINE toNullM3 #-}
 toNullM3 :: MonadAsync m => Int -> Int -> m ()
-toNullM3 linearCount start = drain $ toStream $ fromCross $ do
-    x <- toCross (fromStream $ sourceUnfoldrM nestedCount3 start)
-    y <- toCross (fromStream $ sourceUnfoldrM nestedCount3 start)
-    z <- toCross (fromStream $ sourceUnfoldrM nestedCount3 start)
+toNullM3 linearCount start = drain $ toStream $ unCross $ do
+    x <- mkCross (fromStream $ sourceUnfoldrM nestedCount3 start)
+    y <- mkCross (fromStream $ sourceUnfoldrM nestedCount3 start)
+    z <- mkCross (fromStream $ sourceUnfoldrM nestedCount3 start)
     return $ x + y + z
   where
     nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
 
 {-# INLINE filterAllOutM #-}
 filterAllOutM :: MonadAsync m => Int -> Int -> m ()
-filterAllOutM linearCount start = drain $ toStream $ fromCross $ do
-    x <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-    y <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+filterAllOutM linearCount start = drain $ toStream $ unCross $ do
+    x <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+    y <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
     let s = x + y
     if s < 0
     then return s
-    else toCross StreamK.nil
+    else mkCross StreamK.nil
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# INLINE filterAllInM #-}
 filterAllInM :: MonadAsync m => Int -> Int -> m ()
-filterAllInM linearCount start = drain $ toStream $ fromCross $ do
-    x <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-    y <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+filterAllInM linearCount start = drain $ toStream $ unCross $ do
+    x <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+    y <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
     let s = x + y
     if s > 0
     then return s
-    else toCross StreamK.nil
+    else mkCross StreamK.nil
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# INLINE filterSome #-}
 filterSome :: MonadAsync m => Int -> Int -> m ()
-filterSome linearCount start = drain $ toStream $ fromCross $ do
-    x <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-    y <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+filterSome linearCount start = drain $ toStream $ unCross $ do
+    x <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+    y <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
     let s = x + y
     if s > 1100000
     then return s
-    else toCross StreamK.nil
+    else mkCross StreamK.nil
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# INLINE breakAfterSome #-}
 breakAfterSome :: Int -> Int -> IO ()
 breakAfterSome linearCount start = do
-    (_ :: Either ErrorCall ()) <- try $ drain $ toStream $ fromCross $ do
-        x <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-        y <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+    (_ :: Either ErrorCall ()) <- try $ drain $ toStream $ unCross $ do
+        x <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+        y <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
         let s = x + y
         if s > 1100000
         then error "break"
@@ -409,9 +409,9 @@ breakAfterSome linearCount start = do
 
 {-# INLINE toListM #-}
 toListM :: MonadAsync m => Int -> Int -> m [Int]
-toListM linearCount start = toList $ toStream $ fromCross $ do
-    x <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-    y <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+toListM linearCount start = toList $ toStream $ unCross $ do
+    x <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+    y <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
     return $ x + y
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
@@ -421,9 +421,9 @@ toListM linearCount start = toList $ toStream $ fromCross $ do
 {-# INLINE toListSome #-}
 toListSome :: MonadAsync m => Int -> Int -> m [Int]
 toListSome linearCount start =
-    toList $ Stream.take 10000 $ toStream $ fromCross $ do
-        x <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
-        y <- toCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+    toList $ Stream.take 10000 $ toStream $ unCross $ do
+        x <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
+        y <- mkCross (fromStream $ sourceUnfoldrM nestedCount2 start)
         return $ x + y
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))

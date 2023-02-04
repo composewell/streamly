@@ -82,8 +82,8 @@ iterateSingleton :: Applicative m =>
     -> Stream m Int
 iterateSingleton g count n =
     toStream
-        $ StreamK.fromCross
-        $ iterateN g (StreamK.toCross (StreamK.fromPure n)) count
+        $ StreamK.unCross
+        $ iterateN g (StreamK.mkCross (StreamK.fromPure n)) count
 #endif
 
 {-

@@ -54,9 +54,9 @@ module Streamly.Internal.Data.Stream.StreamK
     , fromStream
     , toStream
 
-    , CrossStreamK(..)
-    , fromCross
-    , toCross
+    , CrossStreamK
+    , unCross
+    , mkCross
 
     -- * Construction Primitives
     , mkStream

@@ -31,7 +31,7 @@ import Data.Function ((&))
 import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 import Streamly.Internal.Data.Stream.StreamD.Type
-    (Stream(..), toCross, fromCross)
+    (Stream(..), mkCross, unCross)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -132,25 +132,25 @@ joinInner s1 s2 =
 {-# INLINE joinLeftGeneric #-}
 joinLeftGeneric :: Monad m =>
     (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
-joinLeftGeneric eq s1 s2 = Stream.evalStateT (return False) $ fromCross $ do
-    a <- toCross (Stream.liftInner s1)
+joinLeftGeneric eq s1 s2 = Stream.evalStateT (return False) $ unCross $ do
+    a <- mkCross (Stream.liftInner s1)
     -- XXX should we use StreamD monad here?
     -- XXX Is there a better way to perform some action at the end of a loop
     -- iteration?
-    toCross (Stream.fromEffect $ put False)
+    mkCross (Stream.fromEffect $ put False)
     let final = Stream.concatEffect $ do
             r <- get
             if r
             then pure Stream.nil
             else pure (Stream.fromPure Nothing)
-    b <- toCross (fmap Just (Stream.liftInner s2) `Stream.append` final)
+    b <- mkCross (fmap Just (Stream.liftInner s2) `Stream.append` final)
     case b of
         Just b1 ->
             if a `eq` b1
             then do
-                toCross (Stream.fromEffect $ put True)
+                mkCross (Stream.fromEffect $ put True)
                 return (a, Just b1)
-            else toCross Stream.nil
+            else mkCross Stream.nil
         Nothing -> return (a, Nothing)
 
 -- XXX rename to joinLeftOrd?
@@ -223,14 +223,14 @@ joinOuterGeneric eq s1 s =
                         ) stream1 stream2
                     ) & Stream.catMaybes
 
-    evalState = Stream.evalStateT (return False) . fromCross
+    evalState = Stream.evalStateT (return False) . unCross
 
     go inputArr foundArr = evalState $ do
-        a <- toCross (Stream.liftInner s1)
+        a <- mkCross (Stream.liftInner s1)
         -- XXX should we use StreamD monad here?
         -- XXX Is there a better way to perform some action at the end of a loop
         -- iteration?
-        toCross (Stream.fromEffect $ put False)
+        mkCross (Stream.fromEffect $ put False)
         let final = Stream.concatEffect $ do
                 r <- get
                 if r
@@ -238,17 +238,17 @@ joinOuterGeneric eq s1 s =
                 else pure (Stream.fromPure Nothing)
         (i, b) <-
             let stream = Array.read inputArr
-             in toCross
+             in mkCross
                 (Stream.indexed $ fmap Just (Stream.liftInner stream) `Stream.append` final)
 
         case b of
             Just b1 ->
                 if a `eq` b1
                 then do
-                    toCross (Stream.fromEffect $ put True)
+                    mkCross (Stream.fromEffect $ put True)
                     MA.putIndex i foundArr True
                     return (Just a, Just b1)
-                else toCross Stream.nil
+                else mkCross Stream.nil
             Nothing -> return (Just a, Nothing)
 
 -- Put the b's that have been paired, in another hash or mutate the hash to set

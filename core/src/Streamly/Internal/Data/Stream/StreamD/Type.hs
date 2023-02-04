@@ -23,8 +23,8 @@ module Streamly.Internal.Data.Stream.StreamD.Type
 
     -- * CrossStream type wrapper
     , CrossStream
-    , fromCross
-    , toCross
+    , unCross
+    , mkCross
 
     -- * Conversion to StreamK
     , fromStreamK
@@ -1916,8 +1916,8 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
 -- A 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ Stream.fromCross $ do
---     x <- Stream.toCross $ Stream.fromList [1,2]
+-- Stream.fold Fold.toList $ Stream.unCross $ do
+--     x <- Stream.mkCross $ Stream.fromList [1,2]
 --     -- Perform the following actions for each x in the stream
 --     return x
 -- :}
@@ -1926,9 +1926,9 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
 -- Nested monad binds behave like nested @for@ loops:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ Stream.fromCross $ do
---     x <- Stream.toCross $ Stream.fromList [1,2]
---     y <- Stream.toCross $ Stream.fromList [3,4]
+-- Stream.fold Fold.toList $ Stream.unCross $ do
+--     x <- Stream.mkCross $ Stream.fromList [1,2]
+--     y <- Stream.mkCross $ Stream.fromList [3,4]
 --     -- Perform the following actions for each x, for each y
 --     return (x, y)
 -- :}
@@ -1937,13 +1937,13 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
 newtype CrossStream m a = CrossStream {unCrossStream :: Stream m a}
         deriving (Functor, Foldable)
 
-{-# INLINE toCross #-}
-toCross :: Stream m a -> CrossStream m a
-toCross = CrossStream
+{-# INLINE mkCross #-}
+mkCross :: Stream m a -> CrossStream m a
+mkCross = CrossStream
 
-{-# INLINE fromCross #-}
-fromCross :: CrossStream m a -> Stream m a
-fromCross = unCrossStream
+{-# INLINE unCross #-}
+unCross :: CrossStream m a -> Stream m a
+unCross = unCrossStream
 
 -- Pure (Identity monad) stream instances
 deriving instance IsList (CrossStream Identity a)

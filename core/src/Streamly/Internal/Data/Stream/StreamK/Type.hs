@@ -19,9 +19,9 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , StreamK
 
     -- * CrossStreamK type wrapper
-    , CrossStreamK (..)
-    , fromCross
-    , toCross
+    , CrossStreamK
+    , unCross
+    , mkCross
 
     -- * foldr/build Fusion
     , mkStream
@@ -1819,10 +1819,10 @@ tailPartial m = mkStream $ \st yld sng stp ->
 -- >>> :{
 -- main = Stream.fold (Fold.drainMapM print) $ StreamK.toStream $ StreamK.mfix f
 --     where
---     f action = StreamK.fromCross $ do
+--     f action = StreamK.unCross $ do
 --         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act
---         x <- StreamK.toCross $ StreamK.fromStream $ Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action]
---         y <- StreamK.toCross $ StreamK.fromStream $ Stream.fromList [4,5]
+--         x <- StreamK.mkCross $ StreamK.fromStream $ Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action]
+--         y <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [4,5]
 --         return (x, y)
 -- :}
 --
@@ -1962,8 +1962,8 @@ concatMapEffect f action =
 -- A 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.fromCross $ do
---     x <- StreamK.toCross $ StreamK.fromStream $ Stream.fromList [1,2]
+-- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.unCross $ do
+--     x <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [1,2]
 --     -- Perform the following actions for each x in the stream
 --     return x
 -- :}
@@ -1972,9 +1972,9 @@ concatMapEffect f action =
 -- Nested monad binds behave like nested @for@ loops:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.fromCross $ do
---     x <- StreamK.toCross $ StreamK.fromStream $ Stream.fromList [1,2]
---     y <- StreamK.toCross $ StreamK.fromStream $ Stream.fromList [3,4]
+-- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.unCross $ do
+--     x <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [1,2]
+--     y <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [3,4]
 --     -- Perform the following actions for each x, for each y
 --     return (x, y)
 -- :}
@@ -1983,15 +1983,20 @@ concatMapEffect f action =
 newtype CrossStreamK m a = CrossStreamK {unCrossStreamK :: Stream m a}
         deriving (Functor, Semigroup, Monoid, Foldable)
 
--- XXX Change to mkCross?
-{-# INLINE toCross #-}
-toCross :: Stream m a -> CrossStreamK m a
-toCross = CrossStreamK
+-- | Wrap the 'StreamK' type in a 'CrossStreamK' newtype to enable cross
+-- product style applicative and monad instances.
+--
+-- This is a type level operation with no runtime overhead.
+{-# INLINE mkCross #-}
+mkCross :: StreamK m a -> CrossStreamK m a
+mkCross = CrossStreamK
 
--- XXX Change to unCross?
-{-# INLINE fromCross #-}
-fromCross :: CrossStreamK m a -> Stream m a
-fromCross = unCrossStreamK
+-- | Unwrap the 'StreamK' type from 'CrossStreamK' newtype.
+--
+-- This is a type level operation with no runtime overhead.
+{-# INLINE unCross #-}
+unCross :: CrossStreamK m a -> StreamK m a
+unCross = unCrossStreamK
 
 -- Pure (Identity monad) stream instances
 deriving instance Traversable (CrossStreamK Identity)
