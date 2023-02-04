@@ -186,7 +186,7 @@ relTimesWith = fmap snd . timesWith
 --
 {-# INLINE foldAddLazy #-}
 foldAddLazy :: Monad m => Fold m a b -> Stream m a -> Fold m a b
-foldAddLazy f s = D.foldContinue f $ toStreamD s
+foldAddLazy f s = D.foldAddLazy f $ toStreamD s
 
 -- >>> foldAdd f = Stream.foldAddLazy f >=> Fold.reduce
 

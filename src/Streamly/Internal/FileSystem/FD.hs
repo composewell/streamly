@@ -357,7 +357,7 @@ read = AS.concat . readArrays
 -- @since 0.7.0
 {-# INLINE writeArrays #-}
 writeArrays :: (MonadIO m, Unbox a) => Handle -> Stream m (Array a) -> m ()
-writeArrays h = S.fold (FL.drainBy (liftIO . writeArray h))
+writeArrays h = S.fold (FL.drainMapM (liftIO . writeArray h))
 
 -- | Write a stream of arrays to a handle after coalescing them in chunks of
 -- specified size. The chunk size is only a maximum and the actual writes could

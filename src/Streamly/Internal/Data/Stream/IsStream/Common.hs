@@ -88,7 +88,7 @@ import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (fromPure, fromEffect, repeatMWith, reverse)
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-    (repeatM, timesWith, foldContinue, map, scanlMAfter', postscanlMAfter'
+    (repeatM, timesWith, foldAddLazy, map, scanlMAfter', postscanlMAfter'
     , postscanlM', take,  takeWhile, takeEndBy, drop, findIndices
     , fromStreamK, toStreamK, concatMapM, concatMap, foldManyPost, splitOnSeq
     , zipWithM, zipWith, intersperseM, reverse, fold)
@@ -284,7 +284,7 @@ relTimesWith = fmap snd . timesWith
 -- /Internal/
 {-# INLINE foldContinue #-}
 foldContinue :: Monad m => Fold m a b -> SerialT m a -> Fold m a b
-foldContinue f s = D.foldContinue f $ IsStream.toStreamD s
+foldContinue f s = D.foldAddLazy f $ IsStream.toStreamD s
 
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
 -- expression strictly at each step. The behavior is similar to 'foldl''. A

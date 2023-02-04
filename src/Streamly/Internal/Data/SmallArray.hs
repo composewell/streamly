@@ -56,7 +56,6 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (Fold (..), Step (Done, Partial))
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Streamly.Internal.Data.SmallArray.Type
 
