@@ -26,6 +26,7 @@ import Test.Hspec as H
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Concurrent as Async
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Streamly.Test.Common (listEquals)
 
@@ -131,10 +132,10 @@ exceptionPropagation f = do
             (Left (ExampleException "E") :: Either ExampleException [Int])
     it "append nested throwM" $ do
         let nested =
-                Stream.fromFoldable [1..10]
+                (K.toStream $ K.fromFoldable [1..10])
                     `f` Stream.fromEffect (throwM (ExampleException "E"))
-                    `f` Stream.fromFoldable [1..10]
-        try (tl (Stream.nil `f` nested `f` Stream.fromFoldable [1..10]))
+                    `f` (K.toStream $ K.fromFoldable [1..10])
+        try (tl (Stream.nil `f` nested `f` (K.toStream $ K.fromFoldable [1..10])))
             `shouldReturn`
                 (Left (ExampleException "E")
                     :: Either ExampleException [Int])
@@ -182,7 +183,7 @@ timeOrdering f = do
 
 takeCombined :: Int -> IO ()
 takeCombined n = do
-    let constr = Stream.fromFoldable
+    let constr = K.toStream . K.fromFoldable
     let s = Async.parList id [constr ([] :: [Int]), constr ([] :: [Int])]
     r <- Stream.fold Fold.toList $ Stream.take n s
     r `shouldBe` []
