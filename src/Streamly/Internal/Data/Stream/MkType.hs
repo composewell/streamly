@@ -536,10 +536,7 @@ mkZipType
     -> Q [Dec]
 mkZipType dtNameStr apOpStr isConcurrent =
     flattenDec
-        [ typeDec dtNameStr
-              $ if not isConcurrent
-                then [_Foldable]
-                else []
+        [ typeDec dtNameStr [_Foldable | not isConcurrent]
         , sequence
               $ if not isConcurrent
                 then [ derivIsListIdent _Type
@@ -608,10 +605,7 @@ mkCrossType
     -> Q [Dec]
 mkCrossType dtNameStr bindOpStr isConcurrent =
     flattenDec
-        [ typeDec dtNameStr
-              $ if not isConcurrent
-                then [_Foldable]
-                else []
+        [ typeDec dtNameStr [_Foldable | not isConcurrent]
         , sequence
               $ if not isConcurrent
                 then [ derivIsListIdent _Type
