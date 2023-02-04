@@ -18,7 +18,6 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Data.Foldable (asum)
 import Data.Functor (($>))
 import Data.Monoid (Sum(..))
 import GHC.Magic (inline)
@@ -30,8 +29,6 @@ import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Prelude hiding
     (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile)
 
-import qualified Data.Traversable as TR
-import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
 import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Array as Array
@@ -113,18 +110,6 @@ benchIOSink value name f =
 -- Parsers
 -------------------------------------------------------------------------------
 
-{-# INLINE one #-}
-one :: Monad m => Int -> Stream m Int -> m (Either ParseError (Maybe Int))
-one value = Stream.parse p
-
-    where
-
-    p = do
-        m <- PR.fromFold Fold.one
-        case m of
-          Just i -> if i >= value then pure m else p
-          Nothing -> pure Nothing
-
 {-# INLINE takeBetween #-}
 takeBetween :: Monad m => Int -> Stream m a -> m (Either ParseError ())
 takeBetween value = Stream.parse (PR.takeBetween 0 value Fold.drain)
@@ -187,14 +172,20 @@ wordBy :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 wordBy value = Stream.parse (PR.wordBy (>= value) Fold.drain)
 
 {-# INLINE sepByWords #-}
-sepByWords :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
-sepByWords _ = Stream.parse (wrds even Fold.drain)
+sepByWords :: Monad m => Stream m Int -> m (Either ParseError ())
+sepByWords = Stream.parse (wrds even Fold.drain)
     where
     wrds p = PR.sepBy (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
 
+-- Returning a list to compare with the sepBy1 in ParserK
+{-# INLINE sepBy1 #-}
+sepBy1 :: Monad m => Stream m Int -> m (Either ParseError [Int])
+sepBy1 xs = do
+    Stream.parse (PR.sepBy1 (PR.satisfy odd) (PR.satisfy even) Fold.toList) xs
+
 {-# INLINE sepByWords1 #-}
-sepByWords1 :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
-sepByWords1 _ = Stream.parse (wrds even Fold.drain)
+sepByWords1 :: Monad m => Stream m Int -> m (Either ParseError ())
+sepByWords1 = Stream.parse (wrds even Fold.drain)
     where
     wrds p = PR.sepBy1 (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
 
@@ -368,34 +359,6 @@ lookAhead :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 lookAhead value =
     Stream.parse (PR.lookAhead (PR.takeWhile (<= value) Fold.drain) $> ())
 
-{-# INLINE sequenceA #-}
-sequenceA :: Monad m => Int -> Stream m Int -> m Int
-sequenceA value xs = do
-    x <- Stream.parse (TR.sequenceA (replicate value (PR.satisfy (> 0)))) xs
-    return $ length x
-
-{-# INLINE sequenceA_ #-}
-sequenceA_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
-sequenceA_ value =
-    Stream.parse (F.sequenceA_ $ replicate value (PR.satisfy (> 0)))
-
-{-# INLINE sequence #-}
-sequence :: Monad m => Int -> Stream m Int -> m Int
-sequence value xs = do
-    x <- Stream.parse (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
-    return $ length x
-
-{-# INLINE sequence_ #-}
-sequence_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
-sequence_ value =
-    Stream.parse (F.sequence_ $ replicate value (PR.satisfy (> 0)))
-
-{-# INLINE choiceAsum #-}
-choiceAsum :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
-choiceAsum value =
-    Stream.parse (asum (replicate value (PR.satisfy (< 0)))
-        AP.<|> PR.satisfy (> 0))
-
 {-
 {-# INLINE choice #-}
 choice :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
@@ -429,7 +392,8 @@ parseIterate n =
 
 {-# INLINE concatSequence #-}
 concatSequence :: Monad m => Stream m Int -> m (Either ParseError ())
-concatSequence = Stream.parse $ PR.concatSequence Fold.drain $ Stream.repeat PR.one
+concatSequence =
+    Stream.parse $ PR.concatSequence (Stream.repeat PR.one) Fold.drain
 
 {-# INLINE parseManyGroupBy #-}
 parseManyGroupBy :: Monad m => (Int -> Int -> Bool) -> Stream m Int -> m ()
@@ -449,8 +413,7 @@ instance NFData ParseError where
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
-    [ benchIOSink value "one (fold)" $ one value
-    , benchIOSink value "takeBetween" $ takeBetween value
+    [ benchIOSink value "takeBetween" $ takeBetween value
     , benchIOSink value "takeEQ" $ takeEQ value
     , benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "takeWhileP" $ takeWhileP value
@@ -462,8 +425,9 @@ o_1_space_serial value =
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
-    , benchIOSink value "sepBy (words)" $ sepByWords value
-    , benchIOSink value "sepBy1 (words)" $ sepByWords1 value
+    , benchIOSink value "sepBy (words)" sepByWords
+    , benchIOSink value "sepBy1" sepBy1
+    , benchIOSink value "sepBy1 (words)" sepByWords1
     , benchIOSink value "deintercalate" $ deintercalate value
     , benchIOSink value "splitAp" $ splitAp value
     , benchIOSink value "splitApBefore" $ splitApBefore value
@@ -513,17 +477,9 @@ o_n_heap_serial value =
     -- lookahead benchmark holds the entire input till end
       benchIOSink value "lookAhead" $ lookAhead value
 
-    -- accumulates the results in a list
-    , benchIOSink value "sequence" $ sequence value
-    , benchIOSink value "sequenceA" $ sequenceA value
-
-    -- XXX why should this take O(n) heap, it discards the results?
-    , benchIOSink value "sequence_" $ sequence_ value
-    , benchIOSink value "sequenceA_" $ sequenceA_ value
     -- non-linear time complexity (parserD)
     , benchIOSink value "split_" $ split_ value
     -- XXX why O(n) heap?
-    , benchIOSink value "choice (asum)" $ choiceAsum value
     -- , benchIOSink value "choice" $ choice value
 
     -- These show non-linear time complexity.

@@ -57,6 +57,8 @@ data Step a m r =
       -- Array a -> m (Step a m r), m (Step a m r)
       -- XXX The Array is the only difference from element parser, we can pass
       -- this as parameter?
+      -- XXX Unify element and chunked parser, by using the argument as
+      -- None | Single a | Chunk (Array a).
     | Partial !Int (Maybe (Array a) -> m (Step a m r))
     | Continue !Int (Maybe (Array a) -> m (Step a m r))
     | Error !Int String

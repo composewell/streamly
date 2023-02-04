@@ -282,7 +282,7 @@ parseManyD parser reader = Producer step return return
 -- /Pre-release/
 {-# INLINE parseMany #-}
 parseMany :: Monad m =>
-       ParserK.Parser a m b
+       ParserD.Parser a m b
     -> Producer m (Source x a) a
     -> Producer m (Source x a) (Either ParseError b)
-parseMany parser = parseManyD (ParserD.fromParserK parser)
+parseMany = parseManyD

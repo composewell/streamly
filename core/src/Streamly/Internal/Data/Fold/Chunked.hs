@@ -182,7 +182,7 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
 {-# INLINE fromParser #-}
 fromParser :: forall m a b. (MonadIO m, Unbox a) =>
     Parser.Parser a m b -> ChunkFold m a b
-fromParser = fromParserD . ParserD.fromParserK
+fromParser = fromParserD
 
 -- | Adapt an array stream fold.
 --

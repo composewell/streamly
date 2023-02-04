@@ -540,7 +540,7 @@ writeCharUtf8' =  ParserD.toFold (parseCharUtf8WithD ErrorOnCodingFailure)
 {-# INLINE parseCharUtf8With #-}
 parseCharUtf8With ::
        Monad m => CodingFailureMode -> Parser.Parser Word8 m Char
-parseCharUtf8With = ParserD.toParserK . parseCharUtf8WithD
+parseCharUtf8With = parseCharUtf8WithD
 
 -- XXX write it as a parser and use parseMany to decode a stream, need to check
 -- if that preserves the same performance. Or we can use a resumable parser

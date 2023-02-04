@@ -1231,7 +1231,7 @@ parseBreakD (PR.Parser pstep initial extract) stream = do
 {-# INLINE parseBreak #-}
 parseBreak :: Monad m =>
     Parser.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
-parseBreak p = parseBreakD (PR.fromParserK p)
+parseBreak = parseBreakD
 
 {-# INLINE parse #-}
 parse :: Monad m =>

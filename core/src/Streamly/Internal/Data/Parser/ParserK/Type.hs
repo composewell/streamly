@@ -20,7 +20,8 @@ module Streamly.Internal.Data.Parser.ParserK.Type
     (
       Step (..)
     , Parse (..)
-    , Parser (..)
+    , Parser (..)  -- XXX Stop exporting this
+    , ParserK
     , fromPure
     , fromEffect
     , die
@@ -100,6 +101,8 @@ newtype Parser a m b = MkParser
         -> ((Int, Int) -> Parse b -> m (Step m a r))
         -> m (Step m a r)
     }
+
+type ParserK = Parser
 
 -------------------------------------------------------------------------------
 -- Functor

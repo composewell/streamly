@@ -189,8 +189,7 @@ import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
     (Fold, Step(..), takeEndBy_, takeEndBy, catMaybes, take)
 import qualified Streamly.Internal.Data.IsMap as IsMap
-import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-    (Parser(..), fromParserK)
+import qualified Streamly.Internal.Data.Parser.ParserD as PRD (Parser(..))
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     ( foldMany
@@ -388,7 +387,7 @@ parseMany
     -> t m a
     -> t m (Either ParseError b)
 parseMany p m =
-    fromStreamD $ D.parseManyD (PRD.fromParserK p) (toStreamD m)
+    fromStreamD $ D.parseManyD p (toStreamD m)
 
 -- | Same as parseMany but for StreamD streams.
 --
@@ -456,7 +455,7 @@ parseIterate
     -> t m a
     -> t m (Either ParseError b)
 parseIterate f i m = fromStreamD $
-    D.parseIterateD (PRD.fromParserK . f) i (toStreamD m)
+    D.parseIterateD f i (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouping
