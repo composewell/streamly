@@ -413,7 +413,6 @@ library
                       , Streamly.Internal.Data.Stream.Expand
                       , Streamly.Internal.Data.Stream.Lift
                       , Streamly.Internal.Data.Stream.Reduce
-                      , Streamly.Internal.Data.Stream.Top
                       , Streamly.Internal.Data.Stream.Transformer
                       , Streamly.Internal.Data.Stream.StreamDK
                       , Streamly.Internal.Data.Stream.Zip
