@@ -83,6 +83,8 @@ module Streamly.Internal.Data.Fold
     -- $toListRev
     , toStream
     , toStreamRev
+    , toStreamK
+    , toStreamKRev
     , topBy
     , top
     , bottomBy
@@ -115,6 +117,7 @@ module Streamly.Internal.Data.Fold
     -- | Folds that return a result without consuming any input.
     , fromPure
     , fromEffect
+    , fromRefold
 
     -- *** Singleton folds
     -- | Folds that terminate after consuming exactly one input element. All
@@ -162,6 +165,7 @@ module Streamly.Internal.Data.Fold
     -- * Building Incrementally
     , extractM
     , reduce
+    , close
     , isClosed
     , snoc
     , snocl
@@ -278,14 +282,18 @@ module Streamly.Internal.Data.Fold
 
     -- ** Splitting
     , many
+    , manyPost
     , chunksOf
     , chunksBetween
+    , refoldMany
+    , refoldMany1
 
     -- ** Nesting
     , unfoldMany
     , concatSequence
     , concatMap
     , duplicate
+    , refold
 
     -- * Deprecated
     , foldr
