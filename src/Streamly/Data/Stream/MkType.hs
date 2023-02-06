@@ -15,6 +15,9 @@
 -- >>> :set -XTemplateHaskell
 -- >>> :set -XTypeFamilies
 -- >>> :set -XUndecidableInstances
+-- >>> :set -XFlexibleInstances
+-- >>> :set -XDeriveFoldable
+-- >>> :set -XGeneralizedNewtypeDeriving
 --
 -- Import this module unqualified to bring everything needed in scope without
 -- having to import several other modules. Also, "Streamly.Data.Stream" or

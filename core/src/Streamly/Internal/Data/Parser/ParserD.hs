@@ -299,6 +299,7 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- $setup
 -- >>> :m
 -- >>> import Prelude hiding ()
+-- >>> import Control.Applicative
 -- >>> import Data.Char (isSpace)
 -- >>> import qualified Data.Foldable as Foldable
 -- >>> import qualified Data.Maybe as Maybe
