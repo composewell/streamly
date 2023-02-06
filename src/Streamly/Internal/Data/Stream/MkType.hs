@@ -527,7 +527,7 @@ flattenDec (ma:mas) = do
 -- instance Monad m => Applicative (ZipStream m)
 --     where {-# INLINE pure #-}
 --           pure = ZipStream . Stream.repeat
---           {-# INLINE <*> #-}
+--           {-# INLINE (<*>) #-}
 --           (<*>) (ZipStream strm1) (ZipStream strm2) = ZipStream (zipApply strm1 strm2)
 mkZipType
     :: String -- ^ Name of the type
@@ -580,13 +580,13 @@ mkZipType dtNameStr apOpStr isConcurrent =
 --     where {-# INLINE fmap #-}
 --           fmap f (Parallel strm) = Parallel (fmap f strm)
 -- instance Stream.MonadAsync m => Monad (Parallel m)
---     where {-# INLINE >>= #-}
+--     where {-# INLINE (>>=) #-}
 --           (>>=) (Parallel strm1) f = let f1 a = unParallel (f a)
 --                                       in Parallel (parBind strm1 f1)
 -- instance Stream.MonadAsync m => Applicative (Parallel m)
 --     where {-# INLINE pure #-}
 --           pure = Parallel . Stream.fromPure
---           {-# INLINE <*> #-}
+--           {-# INLINE (<*>) #-}
 --           (<*>) = ap
 -- instance (Monad (Parallel m), MonadIO m) => MonadIO (Parallel m)
 --     where {-# INLINE liftIO #-}
