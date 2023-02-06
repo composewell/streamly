@@ -230,8 +230,6 @@ unpin arr@(MutableByteArray marr#) =
 -- non-recursive. Here is an example, for deriving an instance of this type
 -- class.
 --
--- >>> :set -XDeriveGeneric
---
 -- >>> import GHC.Generics (Generic)
 -- >>> :{
 -- data Object = Object

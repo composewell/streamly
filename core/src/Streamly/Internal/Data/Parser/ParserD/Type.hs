@@ -1535,6 +1535,10 @@ instance Monad m => Monad (Parser a m) where
     {-# INLINE (>>) #-}
     (>>) = (*>)
 
+instance Monad m => MonadFail (Parser a m) where
+    {-# INLINE fail #-}
+    fail = die
+
 -- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
 --
 instance Monad m => MonadPlus (Parser a m) where

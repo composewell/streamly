@@ -20,6 +20,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
 
@@ -673,7 +674,7 @@ parseUnfold = do
                 $ S.unfold streamParser src
 
             listEquals (==) xs ls
-{-
+
 parserSequence :: Property
 parserSequence =
   forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ins ->
@@ -687,7 +688,7 @@ parserSequence =
         case outs of
             Right x -> x == sum (map sum ins)
             Left _ -> False
--}
+
 -------------------------------------------------------------------------------
 -- Test for a particular case hit during fs events testing
 -------------------------------------------------------------------------------
@@ -776,7 +777,7 @@ main =
         prop "parseMany" parseMany
         prop "parseMany2Events" parseMany2Events
         prop "parseUnfold" parseUnfold
-        --prop "parserSequence" parserSequence
+        prop "parserSequence" parserSequence
 
     describe "test for accumulator" $ do
         prop "P.fromFold FL.sum = FL.sum" fromFold

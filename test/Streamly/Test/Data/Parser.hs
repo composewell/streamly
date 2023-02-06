@@ -25,6 +25,7 @@ import qualified Test.Hspec as H
 
 import Test.QuickCheck (chooseAny)
 import Control.Monad.Identity (Identity(runIdentity, Identity))
+import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
 #else
 
@@ -92,7 +93,7 @@ dieM =
     case runIdentity $ S.parse (P.dieM (Identity "die test")) (S.fromList [0 :: Int]) of
         Right _ -> False
         Left _ -> True
-{-
+
 parserFail :: Property
 parserFail =
     property $
@@ -101,7 +102,7 @@ parserFail =
             Left (ParseError e) -> err == e
     where
     err = "Testing MonadFail.fail."
--}
+
 -- Element Parser Tests
 
 peekPass :: Property
@@ -1162,7 +1163,7 @@ main =
         prop "P.fromFold FL.sum = FL.sum" fromFold
         prop "fromPure value provided" fromPure
         prop "fromPure monadic value provided" fromEffect
-        --prop "fail err = Left (SomeException (ParseError err))" parserFail
+        prop "fail err = Left (SomeException (ParseError err))" parserFail
         prop "always fail" die
         prop "always fail but monadic" dieM
 

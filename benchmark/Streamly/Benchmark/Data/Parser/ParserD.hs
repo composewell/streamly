@@ -201,7 +201,7 @@ longestAllAny value =
 sequenceParser :: Monad m => Stream m Int -> m (Either ParseError ())
 sequenceParser =
     Stream.parseD
-        (PR.concatSequence (Stream.repeat (PR.satisfy $ const True)) Fold.drain)
+        (PR.sequence (Stream.repeat (PR.satisfy $ const True)) Fold.drain)
 
 -------------------------------------------------------------------------------
 -- Spanning

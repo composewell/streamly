@@ -208,7 +208,7 @@ module Streamly.Internal.Data.Parser.ParserD
 
     -- * N-ary Combinators
     -- ** Sequential Collection
-    , concatSequence
+    , sequence
     , concatMap
 
     -- ** Sequential Repetition
@@ -2570,19 +2570,16 @@ roundRobin _ps _f = undefined
 -- Sequential Collection
 -------------------------------------------------------------------------------
 
--- | @concatSequence f p@ collects sequential parses of parsers in a
+-- | @sequence f p@ collects sequential parses of parsers in a
 -- serial stream @p@ using the fold @f@. Fails if the input ends or any
 -- of the parsers fail.
 --
--- An even more efficient implementation can use ParserD type Parser in
--- the stream.
---
 -- /Pre-release/
 --
-{-# INLINE concatSequence #-}
-concatSequence :: Monad m =>
+{-# INLINE sequence #-}
+sequence :: Monad m =>
     D.Stream m (Parser a m b) -> Fold m b c -> Parser a m c
-concatSequence (D.Stream sstep sstate) (Fold fstep finitial fextract) =
+sequence (D.Stream sstep sstate) (Fold fstep finitial fextract) =
     Parser step initial extract
 
     where

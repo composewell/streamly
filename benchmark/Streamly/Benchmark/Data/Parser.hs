@@ -393,7 +393,7 @@ parseIterate n =
 {-# INLINE concatSequence #-}
 concatSequence :: Monad m => Stream m Int -> m (Either ParseError ())
 concatSequence =
-    Stream.parse $ PR.concatSequence (Stream.repeat PR.one) Fold.drain
+    Stream.parse $ PR.sequence (Stream.repeat PR.one) Fold.drain
 
 {-# INLINE parseManyGroupBy #-}
 parseManyGroupBy :: Monad m => (Int -> Int -> Bool) -> Stream m Int -> m ()
