@@ -20,7 +20,6 @@ import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
 

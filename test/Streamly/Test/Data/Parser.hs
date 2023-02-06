@@ -25,7 +25,6 @@ import qualified Test.Hspec as H
 
 import Test.QuickCheck (chooseAny)
 import Control.Monad.Identity (Identity(runIdentity, Identity))
-import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
 #else
 
