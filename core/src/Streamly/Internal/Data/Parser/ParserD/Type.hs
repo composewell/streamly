@@ -214,6 +214,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..), toList)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
+import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 
@@ -1535,7 +1536,7 @@ instance Monad m => Monad (Parser a m) where
     {-# INLINE (>>) #-}
     (>>) = (*>)
 
-instance Monad m => MonadFail (Parser a m) where
+instance Monad m => Fail.MonadFail (Parser a m) where
     {-# INLINE fail #-}
     fail = die
 
