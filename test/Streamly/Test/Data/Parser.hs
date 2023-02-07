@@ -15,6 +15,7 @@ import Prelude hiding (sequence)
 
 import qualified Data.List as List
 import qualified Prelude
+import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
@@ -94,16 +95,15 @@ dieM =
         Right _ -> False
         Left _ -> True
 
-{-
 parserFail :: Property
 parserFail =
     property $
-        case runIdentity $ S.parse (fail err) (S.fromList [0 :: Int]) of
+        case runIdentity $ S.parse (Fail.fail err) (S.fromList [0 :: Int]) of
             Right _ -> False
             Left (ParseError e) -> err == e
     where
     err = "Testing MonadFail.fail."
--}
+
 
 -- Element Parser Tests
 
@@ -1166,7 +1166,7 @@ main =
         prop "fromPure value provided" fromPure
         prop "fromPure monadic value provided" fromEffect
         -- XXX Seems to be failing on 8.6.5, need to check
-        -- prop "fail err = Left (SomeException (ParseError err))" parserFail
+        prop "fail err = Left (SomeException (ParseError err))" parserFail
         prop "always fail" die
         prop "always fail but monadic" dieM
 
