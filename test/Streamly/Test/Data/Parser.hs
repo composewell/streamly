@@ -13,9 +13,9 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Prelude hiding (sequence)
 
+import qualified Control.Monad.Fail as Fail
 import qualified Data.List as List
 import qualified Prelude
-import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
@@ -103,7 +103,6 @@ parserFail =
             Left (ParseError e) -> err == e
     where
     err = "Testing MonadFail.fail."
-
 
 -- Element Parser Tests
 
@@ -1165,7 +1164,6 @@ main =
         prop "P.fromFold FL.sum = FL.sum" fromFold
         prop "fromPure value provided" fromPure
         prop "fromPure monadic value provided" fromEffect
-        -- XXX Seems to be failing on 8.6.5, need to check
         prop "fail err = Left (SomeException (ParseError err))" parserFail
         prop "always fail" die
         prop "always fail but monadic" dieM
