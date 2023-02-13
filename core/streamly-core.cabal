@@ -323,6 +323,7 @@ library
                      -- streamly-transformers (non-base)
                      , Streamly.Internal.Data.Stream.StreamD.Transformer
                      , Streamly.Internal.Data.Stream.StreamK.Transformer
+                     , Streamly.Internal.Data.Stream.StreamDK
 
                      -- streamly-containers (non-base)
                      , Streamly.Internal.Data.Stream.StreamD.Container
