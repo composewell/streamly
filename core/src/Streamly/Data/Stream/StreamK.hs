@@ -52,7 +52,8 @@ module Streamly.Data.Stream.StreamK
     -- , foldBreak
 
     -- ** Parsing
-    , parseBreak
+    -- , parseBreak
+    , parseKBreakChunks
 
     -- * Combining Two Streams
     -- ** Appending

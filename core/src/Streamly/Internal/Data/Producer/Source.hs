@@ -41,7 +41,7 @@ import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
-import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
+-- import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
 
 import Prelude hiding (read)
 
@@ -109,14 +109,14 @@ producer (Producer step1 inject1 extract1) = Producer step inject extract
 {-# ANN type List NoSpecConstr #-}
 newtype List a = List {getList :: [a]}
 
-{-# INLINE_NORMAL parseD #-}
-parseD
+{-# INLINE_NORMAL parse #-}
+parse
     :: Monad m =>
     ParserD.Parser a m b
     -> Producer m (Source s a) a
     -> Source s a
     -> m (Either ParseError b, Source s a)
-parseD
+parse
     (ParserD.Parser pstep initial extract)
     (Producer ustep uinject uextract)
     seed = do
@@ -241,17 +241,19 @@ parseD
             Error err ->
                 return (Left (ParseError err), source Nothing)
 
+{-
 -- | Parse a buffered source using a parser, returning the parsed value and the
 -- remaining source.
 --
 -- /Pre-release/
-{-# INLINE [3] parse #-}
-parse :: Monad m =>
+{-# INLINE [3] parseK #-}
+parseK :: Monad m =>
        ParserK.Parser a m b
     -> Producer m (Source s a) a
     -> Source s a
     -> m (Either ParseError b, Source s a)
-parse = parseD . ParserD.fromParserK
+parseK = parse . ParserK.toParser
+-}
 
 -------------------------------------------------------------------------------
 -- Nested parsing
@@ -271,7 +273,7 @@ parseManyD parser reader = Producer step return return
         if isEmpty src
         then return Stop
         else do
-            (b, s1) <- parseD parser reader src
+            (b, s1) <- parse parser reader src
             case b of
                 Right b1 -> return $ Yield (Right b1) s1
                 Left _ -> return Stop

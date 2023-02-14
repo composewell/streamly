@@ -15,7 +15,10 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
+import Control.Monad.IO.Class (MonadIO)
 import Data.Foldable (asum)
+import Streamly.Data.Array (Array, Unbox)
+import Streamly.Data.Stream.StreamK (StreamK)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream.StreamD (Stream)
 import System.Random (randomRIO)
@@ -25,11 +28,11 @@ import Prelude hiding
 import qualified Control.Applicative as AP
 import qualified Data.Foldable as F
 import qualified Data.Traversable as TR
-import qualified Streamly.Data.Parser.ParserK as ParserK
-import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Parser.ParserK.Type as PR
-import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Data.Parser as PRD
+import qualified Streamly.Data.Parser.ParserK as PR
+import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 
 import Gauge
 import Streamly.Benchmark.Common
@@ -53,48 +56,48 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
 {-# INLINE benchIOSink #-}
 benchIOSink
     :: NFData b
-    => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
+    => Int -> String -> (StreamK IO (Array Int) -> IO b) -> Benchmark
 benchIOSink value name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
+    bench name $ nfIO $ randomRIO (1,1) >>= f . StreamK.fromStream . Stream.arraysOf 32000 . sourceUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
 
-#define PARSE_OP (Stream.parse . PRD.fromParserK)
+#define PARSE_OP StreamK.parseKChunks
 
 {-# INLINE one #-}
-one :: Monad m => Int -> Stream m Int -> m (Either ParseError (Maybe Int))
-one value = Stream.parse (ParserK.toParser p)
+one :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError (Maybe Int))
+one value = StreamK.parseKChunks p
 
     where
 
     p = do
-        m <- ParserK.fromFold FL.one
+        m <- PR.fromFold FL.one
         case m of
           Just i -> if i >= value then pure m else p
           Nothing -> pure Nothing
 
 {-# INLINE satisfy #-}
-satisfy :: Monad m => (a -> Bool) -> PR.Parser a m a
-satisfy = PRD.toParserK . PRD.satisfy
+satisfy :: (MonadIO m, Unbox a) => (a -> Bool) -> PR.Parser a m a
+satisfy = PR.fromParser . PRD.satisfy
 
 {-# INLINE takeWhile #-}
-takeWhile :: Monad m => (a -> Bool) -> PR.Parser a m ()
-takeWhile p = PRD.toParserK $ PRD.takeWhile p FL.drain
+takeWhile :: (MonadIO m, Unbox a) => (a -> Bool) -> PR.Parser a m ()
+takeWhile p = PR.fromParser $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
-takeWhileK :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+takeWhileK :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError ())
 takeWhileK value = PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitApp #-}
-splitApp :: Monad m
-    => Int -> Stream m Int -> m (Either ParseError ((), ()))
+splitApp :: MonadIO m
+    => Int -> StreamK m (Array Int) -> m (Either ParseError ((), ()))
 splitApp value =
     PARSE_OP ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
 
 {-# INLINE sequenceA #-}
-sequenceA :: Monad m => Int -> Stream m Int -> m Int
+sequenceA :: MonadIO m => Int -> StreamK m (Array Int) -> m Int
 sequenceA value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -102,14 +105,14 @@ sequenceA value xs = do
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+sequenceA_ :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError ())
 sequenceA_ value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     PARSE_OP (F.sequenceA_ list) xs
 
 {-# INLINE sequence #-}
-sequence :: Monad m => Int -> Stream m Int -> m Int
+sequence :: MonadIO m => Int -> StreamK m (Array Int) -> m Int
 sequence value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -117,26 +120,26 @@ sequence value xs = do
     return $ Prelude.length x
 
 {-# INLINE sequence_ #-}
-sequence_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+sequence_ :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError ())
 sequence_ value =
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
      in PARSE_OP (F.sequence_ list)
 
 {-# INLINE manyAlt #-}
-manyAlt :: Monad m => Stream m Int -> m Int
+manyAlt :: MonadIO m => StreamK m (Array Int) -> m Int
 manyAlt xs = do
     x <- PARSE_OP (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
-someAlt :: Monad m => Stream m Int -> m Int
+someAlt :: MonadIO m => StreamK m (Array Int) -> m Int
 someAlt xs = do
     x <- PARSE_OP (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE choice #-}
-choice :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
+choice :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError Int)
 choice value =
     PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
@@ -159,7 +162,7 @@ o_1_space_serial value =
     ]
 
 {-# INLINE sepBy1 #-}
-sepBy1 :: Monad m => Stream m Int -> m Int
+sepBy1 :: MonadIO m => StreamK m (Array Int) -> m Int
 sepBy1 xs = do
     x <- PARSE_OP (parser (satisfy odd) (satisfy even)) xs
     return $ Prelude.length x

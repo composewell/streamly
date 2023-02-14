@@ -31,24 +31,15 @@ module Streamly.Data.Parser.ParserK
 
 where
 
+import Control.Monad.IO.Class (MonadIO)
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Parser.ParserK.Type
+import Streamly.Internal.Data.Unboxed (Unbox)
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
+
+import Streamly.Internal.Data.Parser.ParserK.Type
 
 -- | Convert a 'Fold' to a 'ParserK'.
 --
 {-# INLINE fromFold #-}
-fromFold :: Monad m => Fold m a b -> ParserK a m b
-fromFold = ParserD.toParserK . ParserD.fromFold
-
--- | Convert a 'Parser' to a 'ParserK'.
---
-{-# INLINE fromParser #-}
-fromParser :: Monad m => ParserD.Parser a m b -> ParserK a m b
-fromParser = ParserD.toParserK
-
--- | Convert a 'ParserK' to a 'Parser'.
---
-{-# INLINE toParser #-}
-toParser :: Monad m => ParserK a m b -> ParserD.Parser a m b
-toParser = ParserD.fromParserK
+fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ParserK a m b
+fromFold = fromParser . ParserD.fromFold

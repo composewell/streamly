@@ -50,10 +50,6 @@ module Streamly.Internal.Data.Parser.ParserD
     , Step (..)
     , Initial (..)
 
-    -- * Conversion to/from ParserK
-    , fromParserK
-    , toParserK
-
     -- * Downgrade to Fold
     , toFold
 

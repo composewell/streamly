@@ -119,6 +119,8 @@ module Streamly.Internal.Data.Stream.StreamK
     , foldConcat
     , parseBreak
     , parse
+    , parseKBreakChunks
+    , parseKChunks
 
     -- ** Specialized Folds
     , drain
@@ -219,18 +221,24 @@ module Streamly.Internal.Data.Stream.StreamK
     )
 where
 
+#include "ArrayMacros.h"
 #include "inline.hs"
 #include "assert.hs"
 
 import Control.Monad (void, join)
+import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
+import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
+import Streamly.Internal.Data.Unboxed (sizeOf, Unbox)
 
+import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as PR
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
 import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Prelude
 
@@ -1233,10 +1241,153 @@ parseBreak :: Monad m =>
     Parser.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
 parseBreak = parseBreakD
 
+-- Using ParserD or ParserK on StreamK may not make much difference. We should
+-- perhaps use only chunked parsing on StreamK. We can always convert a stream
+-- to chunks before parsing. Or just have a ParserK element parser for StreamK
+-- and convert ParserD to ParserK for element parsing using StreamK.
 {-# INLINE parse #-}
 parse :: Monad m =>
     Parser.Parser a m b -> Stream m a -> m (Either ParseError b)
 parse f = fmap fst . parseBreak f
+
+-------------------------------------------------------------------------------
+-- Chunked parsing using ParserK
+-------------------------------------------------------------------------------
+
+-- The backracking buffer consists of arrays in the most-recent-first order. We
+-- want to take a total of n array elements from this buffer. Note: when we
+-- have to take an array partially, we must take the last part of the array.
+{-# INLINE backTrack #-}
+backTrack :: forall m a. Unbox a =>
+       Int
+    -> [Array a]
+    -> StreamK m (Array a)
+    -> (StreamK m (Array a), [Array a])
+backTrack = go
+
+    where
+
+    go _ [] stream = (stream, [])
+    go n xs stream | n <= 0 = (stream, xs)
+    go n (x:xs) stream =
+        let len = Array.length x
+        in if n > len
+           then go (n - len) xs (cons x stream)
+           else if n == len
+           then (cons x stream, xs)
+           else let !(Array contents start end) = x
+                    !start1 = end - (n * SIZE_OF(a))
+                    arr1 = Array contents start1 end
+                    arr2 = Array contents start start1
+                 in (cons arr1 stream, arr2:xs)
+
+-- | A continuation to extract the result when a CPS parser is done.
+{-# INLINE parserDone #-}
+parserDone :: Applicative m =>
+    ParserK.ParseResult b -> Int -> ParserK.Input a -> m (ParserK.Step a m b)
+parserDone (ParserK.Success n b) _ _ = pure $ ParserK.Done n b
+parserDone (ParserK.Failure n e) _ _ = pure $ ParserK.Error n e
+
+-- | Run a 'ParserK' over a chunked 'StreamK' and return the rest of the Stream.
+{-# INLINE_NORMAL parseKBreakChunks #-}
+parseKBreakChunks
+    :: (Monad m, Unbox a)
+    => ParserK.Parser a m b
+    -> StreamK m (Array a)
+    -> m (Either ParseError b, StreamK m (Array a))
+parseKBreakChunks parser input = do
+    let parserk = \arr -> ParserK.runParser parser 0 0 arr parserDone
+     in go [] parserk input
+
+    where
+
+    {-# INLINE goStop #-}
+    goStop backBuf parserk = do
+        pRes <- parserk ParserK.None
+        case pRes of
+            -- If we stop in an alternative, it will try calling the next
+            -- parser, the next parser may call initial returning Partial and
+            -- then immediately we have to call extract on it.
+            ParserK.Partial 0 cont1 ->
+                 go [] cont1 nil
+            ParserK.Partial n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
+                let (s1, backBuf1) = backTrack n1 backBuf nil
+                 in go backBuf1 cont1 s1
+            ParserK.Continue 0 cont1 ->
+                go backBuf cont1 nil
+            ParserK.Continue n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
+                let (s1, backBuf1) = backTrack n1 backBuf nil
+                 in go backBuf1 cont1 s1
+            ParserK.Done 0 b ->
+                return (Right b, nil)
+            ParserK.Done n b -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
+                let (s1, _) = backTrack n1 backBuf nil
+                 in return (Right b, s1)
+            ParserK.Error _ err -> return (Left (ParseError err), nil)
+
+    seekErr n len =
+        error $ "parseBreak: Partial: forward seek not implemented n = "
+            ++ show n ++ " len = " ++ show len
+
+    yieldk backBuf parserk arr stream = do
+        pRes <- parserk (ParserK.Chunk arr)
+        let len = Array.length arr
+        case pRes of
+            ParserK.Partial n cont1 ->
+                case compare n len of
+                    EQ -> go [] cont1 stream
+                    LT -> do
+                        if n >= 0
+                        then yieldk [] cont1 arr stream
+                        else do
+                            let n1 = negate n
+                                bufLen = sum (Prelude.map Array.length backBuf)
+                                s = cons arr stream
+                            assertM(n1 >= 0 && n1 <= bufLen)
+                            let (s1, _) = backTrack n1 backBuf s
+                            go [] cont1 s1
+                    GT -> seekErr n len
+            ParserK.Continue n cont1 ->
+                case compare n len of
+                    EQ -> go (arr:backBuf) cont1 stream
+                    LT -> do
+                        if n >= 0
+                        then yieldk backBuf cont1 arr stream
+                        else do
+                            let n1 = negate n
+                                bufLen = sum (Prelude.map Array.length backBuf)
+                                s = cons arr stream
+                            assertM(n1 >= 0 && n1 <= bufLen)
+                            let (s1, backBuf1) = backTrack n1 backBuf s
+                            go backBuf1 cont1 s1
+                    GT -> seekErr n len
+            ParserK.Done n b -> do
+                let n1 = len - n
+                assertM(n1 <= sum (Prelude.map Array.length (arr:backBuf)))
+                let (s1, _) = backTrack n1 (arr:backBuf) stream
+                 in return (Right b, s1)
+            ParserK.Error _ err -> return (Left (ParseError err), nil)
+
+    go backBuf parserk stream = do
+        let stop = goStop backBuf parserk
+            single a = yieldk backBuf parserk a nil
+         in foldStream
+                defState (yieldk backBuf parserk) single stop stream
+
+{-# INLINE parseKChunks #-}
+parseKChunks :: (Monad m, Unbox a) =>
+    ParserK.Parser a m b -> Stream m (Array a) -> m (Either ParseError b)
+parseKChunks f = fmap fst . parseKBreakChunks f
+
+-------------------------------------------------------------------------------
+-- Sorting
+-------------------------------------------------------------------------------
 
 -- | Sort the input stream using a supplied comparison function.
 --

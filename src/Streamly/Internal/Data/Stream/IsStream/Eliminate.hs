@@ -382,7 +382,7 @@ parseD p = D.parseD p . toStreamD
 -- /Internal/
 {-# INLINE parseK #-}
 parseK :: Monad m => PRK.Parser a m b -> SerialT m a -> m (Either PRD.ParseError b)
-parseK p = parse (PRD.fromParserK p)
+parseK p = parse (PRK.toParser p)
 
 -- | Parse a stream using the supplied 'Parser'.
 --

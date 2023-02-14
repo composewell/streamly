@@ -49,7 +49,6 @@ import Streamly.Internal.Data.Unboxed (peekWith, sizeOf, Unbox)
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Parser.Chunked.Type as K
 import qualified Streamly.Internal.Data.Parser.ParserD as D
-    hiding (fromParserK, toParserK)
 import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
