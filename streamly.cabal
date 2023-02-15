@@ -109,7 +109,6 @@ extra-source-files:
     test/Streamly/Test/Data/Ring/Unboxed.hs
     test/Streamly/Test/Data/Array/Stream.hs
     test/Streamly/Test/Data/Parser/ParserD.hs
-    test/Streamly/Test/Data/Parser/Chunked.hs
     test/Streamly/Test/Data/Stream/Concurrent.hs
     test/Streamly/Test/FileSystem/Event.hs
     test/Streamly/Test/FileSystem/Event/Common.hs

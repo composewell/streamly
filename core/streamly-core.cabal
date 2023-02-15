@@ -316,8 +316,6 @@ library
                      , Streamly.Internal.Data.Fold.Chunked
                      , Streamly.Internal.Data.Fold.Window
                      , Streamly.Internal.Data.Parser
-                     , Streamly.Internal.Data.Parser.Chunked.Type
-                     , Streamly.Internal.Data.Parser.Chunked
                      , Streamly.Internal.Data.Pipe
 
                      -- streamly-transformers (non-base)
