@@ -109,6 +109,7 @@ instance Functor ParseResult where
 --
 newtype Parser a m b = MkParser
     { runParser :: forall r.
+           (ParseResult b -> Int -> Input a -> m (Step a m r))
            -- XXX Maintain and pass the original position in the stream. that
            -- way we can also report better errors. Use a Context structure for
            -- passing the state.
@@ -120,7 +121,7 @@ newtype Parser a m b = MkParser
            -- backtrack buffer. Positive value cannot be beyond array length.
            -- If the parser needs to advance beyond the array length it should
            -- use "Continue +n".
-           Int
+        -> Int
            -- used elem count, a count of elements consumed by the parser. If
            -- an Alternative fails we need to backtrack by this amount.
         -> Int
@@ -129,7 +130,6 @@ newtype Parser a m b = MkParser
            -- constructor of 'ParseResult'.
            -- XXX Use Array a, determine eof by using a nil array
         -> Input a
-        -> (ParseResult b -> Int -> Input a -> m (Step a m r))
         -> m (Step a m r)
     }
 
@@ -144,9 +144,9 @@ type ParserK = Parser
 --
 instance Functor m => Functor (Parser a m) where
     {-# INLINE fmap #-}
-    fmap f parser = MkParser $ \n st arr pk ->
-        let pk1 res = pk (fmap f res)
-         in runParser parser n st arr pk1
+    fmap f parser = MkParser $ \k n st arr ->
+        let k1 res = k (fmap f res)
+         in runParser parser k1 n st arr
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -160,7 +160,7 @@ instance Functor m => Functor (Parser a m) where
 --
 {-# INLINE fromPure #-}
 fromPure :: b -> Parser a m b
-fromPure b = MkParser $ \n st arr pk -> pk (Success n b) st arr
+fromPure b = MkParser $ \k n st arr -> k (Success n b) st arr
 
 -- | See 'Streamly.Internal.Data.Parser.fromEffect'.
 --
@@ -169,7 +169,7 @@ fromPure b = MkParser $ \n st arr pk -> pk (Success n b) st arr
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> Parser a m b
 fromEffect eff =
-    MkParser $ \n st arr pk -> eff >>= \b -> pk (Success n b) st arr
+    MkParser $ \k n st arr -> eff >>= \b -> k (Success n b) st arr
 
 -- | 'Applicative' form of 'Streamly.Internal.Data.Parser.splitWith'. Note that
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.splitWith'
@@ -183,19 +183,19 @@ instance Monad m => Applicative (Parser a m) where
     (<*>) = ap
 
     {-# INLINE (*>) #-}
-    p1 *> p2 = MkParser $ \n st arr k ->
-        let k1 (Success n1 _) s input = runParser p2 n1 s input k
+    p1 *> p2 = MkParser $ \k n st arr ->
+        let k1 (Success n1 _) s input = runParser p2 k n1 s input
             k1 (Failure n1 e) s input = k (Failure n1 e) s input
-        in runParser p1 n st arr k1
+        in runParser p1 k1 n st arr
 
     {-# INLINE (<*) #-}
-    p1 <* p2 = MkParser $ \n st arr k ->
+    p1 <* p2 = MkParser $ \k n st arr ->
         let k1 (Success n1 b) s1 input =
                 let k2 (Success n2 _) = k (Success n2 b)
                     k2 (Failure n2 e) = k (Failure n2 e)
-                in runParser p2 n1 s1 input k2
+                in runParser p2 k2 n1 s1 input
             k1 (Failure n1 e) s1 input = k (Failure n1 e) s1 input
-        in runParser p1 n st arr k1
+        in runParser p1 k1 n st arr
 
     {-# INLINE liftA2 #-}
     liftA2 f p = (<*>) (fmap f p)
@@ -213,7 +213,7 @@ instance Monad m => Applicative (Parser a m) where
 --
 {-# INLINE die #-}
 die :: String -> Parser a m b
-die err = MkParser (\n st arr pk -> pk (Failure n err) st arr)
+die err = MkParser (\k n st arr -> k (Failure n err) st arr)
 
 -- | Monad composition can be used for lookbehind parsers, we can make the
 -- future parses depend on the previously parsed values.
@@ -262,10 +262,10 @@ instance Monad m => Monad (Parser a m) where
     return = pure
 
     {-# INLINE (>>=) #-}
-    p >>= f = MkParser $ \n st arr pk ->
-        let pk1 (Success n1 b) s1 inp = runParser (f b) n1 s1 inp pk
-            pk1 (Failure n1 e) s1 inp = pk (Failure n1 e) s1 inp
-         in runParser p n st arr pk1
+    p >>= f = MkParser $ \k n st arr ->
+        let k1 (Success n1 b) s1 inp = runParser (f b) k n1 s1 inp
+            k1 (Failure n1 e) s1 inp = k (Failure n1 e) s1 inp
+         in runParser p k1 n st arr
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
@@ -306,11 +306,11 @@ instance Monad m => Alternative (Parser a m) where
     empty = die "empty"
 
     {-# INLINE (<|>) #-}
-    p1 <|> p2 = MkParser $ \n _ arr k ->
+    p1 <|> p2 = MkParser $ \k n _ arr ->
         let
-            k1 (Failure pos _) used input = runParser p2 (pos - used) 0 input k
+            k1 (Failure pos _) used input = runParser p2 k (pos - used) 0 input
             k1 success _ input = k success 0 input
-        in runParser p1 n 0 arr k1
+        in runParser p1 k1 n 0 arr
 
     -- some and many are implemented here instead of using default definitions
     -- so that we can use INLINE on them. It gives 50% performance improvement.
@@ -422,12 +422,12 @@ parseDToK
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
     -> (s -> m (ParserD.Step s b))
+    -> (ParseResult b -> Int -> Input a -> m (Step a m r))
     -> Int
     -> Int
     -> Input a
-    -> (ParseResult b -> Int -> Input a -> m (Step a m r))
     -> m (Step a m r)
-parseDToK pstep initial extract !offset !usedCount !input cont = do
+parseDToK pstep initial extract cont !offset !usedCount !input = do
     res <- initial
     case res of
         ParserD.IPartial pst -> do
