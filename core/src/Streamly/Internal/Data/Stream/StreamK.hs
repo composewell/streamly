@@ -1287,7 +1287,7 @@ chunkParseBreak
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
 chunkParseBreak parser input = do
-    let parserk = \arr -> ParserK.runParser parser parserDone 0 0 arr
+    let parserk = ParserK.runParser parser parserDone 0 0
      in go [] parserk input
 
     where
