@@ -58,7 +58,11 @@ benchIOSink
     :: NFData b
     => Int -> String -> (StreamK IO (Array Int) -> IO b) -> Benchmark
 benchIOSink value name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= f . StreamK.fromStream . Stream.arraysOf 32000 . sourceUnfoldrM value
+    bench name $ nfIO $ randomRIO (1,1)
+        >>= f
+            . StreamK.fromStream
+            . Stream.arraysOf 4000
+            . sourceUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Parsers
@@ -67,7 +71,8 @@ benchIOSink value name f =
 #define PARSE_OP StreamK.parseKChunks
 
 {-# INLINE one #-}
-one :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError (Maybe Int))
+one :: MonadIO m =>
+    Int -> StreamK m (Array Int) -> m (Either ParseError (Maybe Int))
 one value = StreamK.parseKChunks p
 
     where
@@ -87,7 +92,8 @@ takeWhile :: (MonadIO m, Unbox a) => (a -> Bool) -> PR.Parser a m ()
 takeWhile p = PR.fromParser $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
-takeWhileK :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+takeWhileK :: MonadIO m =>
+    Int -> StreamK m (Array Int) -> m (Either ParseError ())
 takeWhileK value = PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitApp #-}
@@ -105,7 +111,8 @@ sequenceA value xs = do
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+sequenceA_ :: MonadIO m =>
+    Int -> StreamK m (Array Int) -> m (Either ParseError ())
 sequenceA_ value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -120,7 +127,8 @@ sequence value xs = do
     return $ Prelude.length x
 
 {-# INLINE sequence_ #-}
-sequence_ :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+sequence_ :: MonadIO m =>
+    Int -> StreamK m (Array Int) -> m (Either ParseError ())
 sequence_ value =
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -139,7 +147,8 @@ someAlt xs = do
     return $ Prelude.length x
 
 {-# INLINE choice #-}
-choice :: MonadIO m => Int -> StreamK m (Array Int) -> m (Either ParseError Int)
+choice :: MonadIO m =>
+    Int -> StreamK m (Array Int) -> m (Either ParseError Int)
 choice value =
     PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))

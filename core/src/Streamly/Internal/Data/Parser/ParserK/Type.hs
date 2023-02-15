@@ -366,7 +366,7 @@ parseChunk
     -> Array a
     -> Int
     -> m (ChunkResult s b)
-parseChunk pstep state (Array contents start end) offset = do
+parseChunk pstep !state (Array contents start end) !offset = do
      if offset >= 0
      then go SPEC (start + offset * SIZE_OF(a)) state
      else return $ ChunkContinue offset state
@@ -427,7 +427,7 @@ parseDToK
     -> Input a
     -> (ParseResult b -> Int -> Input a -> m (Step a m r))
     -> m (Step a m r)
-parseDToK pstep initial extract offset usedCount input cont = do
+parseDToK pstep initial extract !offset !usedCount !input cont = do
     res <- initial
     case res of
         ParserD.IPartial pst -> do
@@ -442,7 +442,7 @@ parseDToK pstep initial extract offset usedCount input cont = do
     -- XXX We can maintain an absolute position instead of relative that will
     -- help in reporting of error location in the stream.
     {-# NOINLINE parseContChunk #-}
-    parseContChunk count off pst arr = do
+    parseContChunk !count !off !pst !arr = do
         pRes <- parseChunk pstep pst arr off
         -- The "n" here is stream position index wrt the array start, and not
         -- the backtrack count as returned by byte stream parsers.
@@ -452,15 +452,15 @@ parseDToK pstep initial extract offset usedCount input cont = do
                     (cont (Success n b) (count + n - off) (Chunk arr))
             ChunkPartial n pst1 ->
                 assert (n < 0 || n >= Array.length arr)
-                    (return $ Partial n (parseCont (count + n - off) pst1))
+                    (return $ Partial n (parseCont SPEC (count + n - off) pst1))
             ChunkContinue n pst1 ->
                 assert (n < 0 || n >= Array.length arr)
-                    (return $ Continue n (parseCont (count + n - off) pst1))
+                    (return $ Continue n (parseCont SPEC (count + n - off) pst1))
             ChunkError n err ->
                 cont (Failure n err) (count + n - off) (Chunk arr)
 
     {-# NOINLINE parseContNothing #-}
-    parseContNothing count pst = do
+    parseContNothing !count !pst = do
         r <- extract pst
         case r of
             -- IMPORTANT: the n here is from the byte stream parser, that means
@@ -471,7 +471,7 @@ parseDToK pstep initial extract offset usedCount input cont = do
                     (cont (Success (- n) b) (count - n) None)
             ParserD.Continue n pst1 ->
                 assert (n >= 0)
-                    (return $ Continue (- n) (parseCont (count - n) pst1))
+                    (return $ Continue (- n) (parseCont SPEC (count - n) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
@@ -482,10 +482,10 @@ parseDToK pstep initial extract offset usedCount input cont = do
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
     -- function call.
     {-# INLINE parseCont #-}
-    parseCont cnt pst (Chunk arr) = parseContChunk cnt 0 pst arr
-    parseCont cnt pst None = parseContNothing cnt pst
+    parseCont _ !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
+    parseCont _ !cnt !pst None = parseContNothing cnt pst
 
--- | Convert a raw byte 'Parser' to a chunked parser.
+-- | Convert a raw byte 'Parser' to a chunked 'ParserK'.
 --
 -- /Pre-release/
 --
@@ -540,4 +540,4 @@ toParser parser = ParserD.Parser step initial extract
 {-# RULES "toParser/fromParser fusion" [2]
     forall s. fromParser (toParser s) = s #-}
 #endif
-    -}
+-}
