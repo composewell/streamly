@@ -179,7 +179,7 @@ refoldIterateM =
 {-# INLINE parseBreak #-}
 parseBreak :: Monad m => StreamK m Int -> m ()
 parseBreak s = do
-    r <- K.parseBreak PR.one s
+    r <- K.parseDBreak PR.one s
     case r of
          (Left _, _) -> return ()
          (Right _, s1) -> parseBreak s1

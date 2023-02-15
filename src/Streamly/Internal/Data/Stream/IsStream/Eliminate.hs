@@ -170,7 +170,7 @@ import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Stream.Serial as Stream
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
-import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
+-- import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     (foldr1, foldlT, foldlM', mapM_, null, head, headElse, last, elem

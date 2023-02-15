@@ -117,10 +117,10 @@ module Streamly.Internal.Data.Stream.StreamK
     , foldBreak
     , foldEither
     , foldConcat
-    , parseBreak
-    , parse
-    , parseKBreakChunks
-    , parseKChunks
+    , parseDBreak
+    , parseD
+    , chunkParseBreak
+    , chunkParse
 
     -- ** Specialized Folds
     , drain
@@ -371,7 +371,7 @@ foldlMx' step begin done = go begin
 -- Definitions:
 --
 -- >>> fold f = fmap fst . StreamK.foldBreak f
--- >>> fold f = StreamK.parse (Parser.fromFold f)
+-- >>> fold f = StreamK.parseD (Parser.fromFold f)
 --
 -- Example:
 --
@@ -1146,13 +1146,13 @@ splitAt n ls
             (xs', xs'') = splitAt' (m - 1) xs
 
 -- | Run a 'Parser' over a stream and return rest of the Stream.
-{-# INLINE_NORMAL parseBreakD #-}
-parseBreakD
+{-# INLINE_NORMAL parseDBreak #-}
+parseDBreak
     :: Monad m
     => PR.Parser a m b
     -> Stream m a
     -> m (Either ParseError b, Stream m a)
-parseBreakD (PR.Parser pstep initial extract) stream = do
+parseDBreak (PR.Parser pstep initial extract) stream = do
     res <- initial
     case res of
         PR.IPartial s -> goStream stream [] s
@@ -1232,23 +1232,14 @@ parseBreakD (PR.Parser pstep initial extract) stream = do
                 return (Right b, append (fromList src) st)
             PR.Error err -> return (Left (ParseError err), nil)
 
--- | Parse a stream using the supplied 'Parser'.
---
--- /CPS/
---
-{-# INLINE parseBreak #-}
-parseBreak :: Monad m =>
-    Parser.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
-parseBreak = parseBreakD
-
 -- Using ParserD or ParserK on StreamK may not make much difference. We should
 -- perhaps use only chunked parsing on StreamK. We can always convert a stream
 -- to chunks before parsing. Or just have a ParserK element parser for StreamK
 -- and convert ParserD to ParserK for element parsing using StreamK.
-{-# INLINE parse #-}
-parse :: Monad m =>
+{-# INLINE parseD #-}
+parseD :: Monad m =>
     Parser.Parser a m b -> Stream m a -> m (Either ParseError b)
-parse f = fmap fst . parseBreak f
+parseD f = fmap fst . parseDBreak f
 
 -------------------------------------------------------------------------------
 -- Chunked parsing using ParserK
@@ -1289,13 +1280,13 @@ parserDone (ParserK.Success n b) _ _ = pure $ ParserK.Done n b
 parserDone (ParserK.Failure n e) _ _ = pure $ ParserK.Error n e
 
 -- | Run a 'ParserK' over a chunked 'StreamK' and return the rest of the Stream.
-{-# INLINE_NORMAL parseKBreakChunks #-}
-parseKBreakChunks
+{-# INLINE_NORMAL chunkParseBreak #-}
+chunkParseBreak
     :: (Monad m, Unbox a)
     => ParserK.Parser a m b
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
-parseKBreakChunks parser input = do
+chunkParseBreak parser input = do
     let parserk = \arr -> ParserK.runParser parser parserDone 0 0 arr
      in go [] parserk input
 
@@ -1380,10 +1371,10 @@ parseKBreakChunks parser input = do
          in foldStream
                 defState (yieldk backBuf parserk) single stop stream
 
-{-# INLINE parseKChunks #-}
-parseKChunks :: (Monad m, Unbox a) =>
+{-# INLINE chunkParse #-}
+chunkParse :: (Monad m, Unbox a) =>
     ParserK.Parser a m b -> Stream m (Array a) -> m (Either ParseError b)
-parseKChunks f = fmap fst . parseKBreakChunks f
+chunkParse f = fmap fst . chunkParseBreak f
 
 -------------------------------------------------------------------------------
 -- Sorting
