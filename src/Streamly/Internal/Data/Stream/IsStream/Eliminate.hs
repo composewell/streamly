@@ -29,7 +29,7 @@ module Streamly.Internal.Data.Stream.IsStream.Eliminate {-# DEPRECATED "Please u
     -- * Running a 'Parser'
     -- "Streamly.Internal.Data.Parser".
     , parse
-    , parseK
+    -- , parseK
     , parseD
 
     -- * Stream Deconstruction
@@ -377,12 +377,14 @@ runSink = fold . toFold
 parseD :: Monad m => PRD.Parser a m b -> SerialT m a -> m (Either PRD.ParseError b)
 parseD p = D.parseD p . toStreamD
 
+{-
 -- | Parse a stream using the supplied ParserK 'PRK.Parser'.
 --
 -- /Internal/
 {-# INLINE parseK #-}
 parseK :: Monad m => PRK.Parser a m b -> SerialT m a -> m (Either PRD.ParseError b)
 parseK p = parse (PRK.toParser p)
+-}
 
 -- | Parse a stream using the supplied 'Parser'.
 --

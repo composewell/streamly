@@ -21,7 +21,7 @@ module Streamly.Data.Parser.ParserK
     -- ** Conversions
     , fromFold
     , fromParser
-    , toParser
+    -- , toParser
 
     -- ** Without Input
     , fromPure

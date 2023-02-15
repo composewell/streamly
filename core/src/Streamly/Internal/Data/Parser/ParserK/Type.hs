@@ -24,7 +24,7 @@ module Streamly.Internal.Data.Parser.ParserK.Type
     , Parser (..)
     , ParserK
     , fromParser
-    , toParser
+    -- , toParser
     , fromPure
     , fromEffect
     , die
@@ -48,7 +48,7 @@ import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
 
-data Input a = None | Single a | Chunk (Array a)
+data Input a = None | Chunk {-# UNPACK #-} !(Array a)
 
 -- | The intermediate result of running a parser step. The parser driver may
 -- stop with a final result, pause with a continuation to resume, or fail with
@@ -127,6 +127,7 @@ newtype Parser a m b = MkParser
            -- The second argument is the used count as described above. The
            -- current input position is carried as part of 'Success'
            -- constructor of 'ParseResult'.
+           -- XXX Use Array a, determine eof by using a nil array
         -> Input a
         -> (ParseResult b -> Int -> Input a -> m (Step a m r))
         -> m (Step a m r)
@@ -432,7 +433,6 @@ parseDToK pstep initial extract offset usedCount input cont = do
         ParserD.IPartial pst -> do
             case input of
                 Chunk arr -> parseContChunk usedCount offset pst arr
-                Single x -> parseContSingle usedCount offset pst x
                 None -> parseContNothing usedCount pst
         ParserD.IDone b -> cont (Success offset b) usedCount input
         ParserD.IError err -> cont (Failure offset err) usedCount input
@@ -459,15 +459,6 @@ parseDToK pstep initial extract offset usedCount input cont = do
             ChunkError n err ->
                 cont (Failure n err) (count + n - off) (Chunk arr)
 
-    -- XXX This is not yet finished
-    {-# NOINLINE parseContSingle #-}
-    parseContSingle _count off pst x = do
-        pRes <- pstep pst x
-        case pRes of
-            ParserD.Done _n b -> do
-                cont (Success (off + 1) b) undefined undefined
-            _ -> undefined
-
     {-# NOINLINE parseContNothing #-}
     parseContNothing count pst = do
         r <- extract pst
@@ -492,7 +483,6 @@ parseDToK pstep initial extract offset usedCount input cont = do
     -- function call.
     {-# INLINE parseCont #-}
     parseCont cnt pst (Chunk arr) = parseContChunk cnt 0 pst arr
-    parseCont cnt pst (Single x) = parseContSingle cnt 0 pst x
     parseCont cnt pst None = parseContNothing cnt pst
 
 -- | Convert a raw byte 'Parser' to a chunked parser.
@@ -504,6 +494,7 @@ fromParser :: (MonadIO m, Unbox a) => ParserD.Parser a m b -> ParserK a m b
 fromParser (ParserD.Parser step initial extract) =
     MkParser $ parseDToK step initial extract
 
+{-
 -------------------------------------------------------------------------------
 -- Convert CPS style 'Parser' to direct style 'D.Parser'
 -------------------------------------------------------------------------------
@@ -549,3 +540,4 @@ toParser parser = ParserD.Parser step initial extract
 {-# RULES "toParser/fromParser fusion" [2]
     forall s. fromParser (toParser s) = s #-}
 #endif
+    -}
