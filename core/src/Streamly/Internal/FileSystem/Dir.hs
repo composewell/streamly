@@ -82,15 +82,22 @@ module Streamly.Internal.FileSystem.Dir
     )
 where
 
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (bimap)
 import Data.Either (isRight, isLeft, fromLeft, fromRight)
+import Data.Function ((&))
 import Streamly.Data.Stream (Stream)
+import Streamly.Internal.Data.Unfold (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import System.FilePath ((</>))
-
+#if (defined linux_HOST_OS) || (defined darwin_HOST_OS)
+import System.Posix (openDirStream, readDirStream, closeDirStream)
+#elif defined(mingw32_HOST_OS)
+import qualified System.Win32 as Win32
+#endif
 import qualified Streamly.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Unfold as UF (mapM2)
+import qualified Streamly.Internal.Data.Unfold as UF (mapM2, bracketIO)
 import qualified Streamly.Data.Stream as S
 import qualified System.Directory as Dir
 
@@ -236,11 +243,50 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 --  /Internal/
 --
 {-# INLINE reader #-}
-reader :: MonadIO m => Unfold m FilePath FilePath
+reader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
 reader =
-    -- XXX use proper streaming read of the dir
-      UF.filter (\x -> x /= "." && x /= "..")
-    $ UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList
+#if (defined linux_HOST_OS) || (defined darwin_HOST_OS)
+    UF.bracketIO openDirStream closeDirStream childOf
+    & UF.filter (\x -> x /= "." && x /= "..")
+
+    where
+
+    {-# INLINABLE childOf #-}
+    childOf = Unfold step inject
+
+        where
+
+        inject = return
+
+        step strm = do
+            file <- liftIO $ readDirStream strm
+            case file of
+                [] -> return Stop
+                _ -> return $ Yield file strm
+#elif defined(mingw32_HOST_OS)
+    UF.bracketIO
+        Win32.findFirstFile
+        (\(h, _) -> liftIO $ Win32.findClose h)
+        childOf
+    & UF.filter (\x -> x /= "." && x /= "..")
+
+    where
+
+    {-# INLINABLE childOf #-}
+    childOf = Unfold step inject
+
+        where
+
+        inject = return
+
+        step (h, fdat) = do
+            more <- liftIO $ Win32.findNextFile h fdat
+            if more
+            then do
+                file <- liftIO $ Win32.getFindDataFileName fdat
+                return $ Yield file (h, fdat)
+            else return Stop
+#endif
 
 -- XXX We can use a more general mechanism to filter the contents of a
 -- directory. We can just stat each child and pass on the stat information. We
@@ -253,7 +299,7 @@ reader =
 --  /Internal/
 --
 {-# INLINE eitherReader #-}
-eitherReader :: MonadIO m => Unfold m FilePath (Either FilePath FilePath)
+eitherReader :: (MonadIO m, MonadCatch m) => Unfold m FilePath (Either FilePath FilePath)
 eitherReader = UF.mapM2 classify reader
 
     where
@@ -263,7 +309,7 @@ eitherReader = UF.mapM2 classify reader
         return $ if r then Left x else Right x
 
 {-# INLINE eitherReaderPaths #-}
-eitherReaderPaths :: MonadIO m => Unfold m FilePath (Either FilePath FilePath)
+eitherReaderPaths ::(MonadIO m, MonadCatch m) => Unfold m FilePath (Either FilePath FilePath)
 eitherReaderPaths =
     UF.mapM2 (\dir -> return . bimap (dir </>) (dir </>)) eitherReader
 
@@ -273,7 +319,7 @@ eitherReaderPaths =
 --  /Internal/
 --
 {-# INLINE fileReader #-}
-fileReader :: MonadIO m => Unfold m FilePath FilePath
+fileReader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
 fileReader = fmap (fromRight undefined) $ UF.filter isRight eitherReader
 
 -- | Read directories only. Filter out "." and ".." entries.
@@ -281,19 +327,19 @@ fileReader = fmap (fromRight undefined) $ UF.filter isRight eitherReader
 --  /Internal/
 --
 {-# INLINE dirReader #-}
-dirReader :: MonadIO m => Unfold m FilePath FilePath
+dirReader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
 dirReader = fmap (fromLeft undefined) $ UF.filter isLeft eitherReader
 
 -- | Raw read of a directory.
 --
 -- /Pre-release/
 {-# INLINE read #-}
-read :: MonadIO m => FilePath -> Stream m FilePath
+read :: (MonadIO m, MonadCatch m) => FilePath -> Stream m FilePath
 read = S.unfold reader
 
 {-# DEPRECATED toStream "Please use 'read' instead" #-}
 {-# INLINE toStream #-}
-toStream :: MonadIO m => String -> Stream m String
+toStream :: (MonadIO m, MonadCatch m) => String -> Stream m String
 toStream = read
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
@@ -301,18 +347,18 @@ toStream = read
 --
 -- /Pre-release/
 {-# INLINE readEither #-}
-readEither :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
+readEither :: (MonadIO m, MonadCatch m) => FilePath -> Stream m (Either FilePath FilePath)
 readEither = S.unfold eitherReader
 
 -- | Like 'readEither' but prefix the names of the files and directories with
 -- the supplied directory path.
 {-# INLINE readEitherPaths #-}
-readEitherPaths :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
+readEitherPaths :: (MonadIO m, MonadCatch m) => FilePath -> Stream m (Either FilePath FilePath)
 readEitherPaths dir = fmap (bimap (dir </>) (dir </>)) $ readEither dir
 
 {-# DEPRECATED toEither "Please use 'readEither' instead" #-}
 {-# INLINE toEither #-}
-toEither :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
+toEither :: (MonadIO m, MonadCatch m) => FilePath -> Stream m (Either FilePath FilePath)
 toEither = readEither
 
 -- | Read files only.
@@ -320,12 +366,12 @@ toEither = readEither
 --  /Internal/
 --
 {-# INLINE readFiles #-}
-readFiles :: MonadIO m => FilePath -> Stream m FilePath
+readFiles :: (MonadIO m, MonadCatch m) => FilePath -> Stream m FilePath
 readFiles = S.unfold fileReader
 
 {-# DEPRECATED toFiles "Please use 'readFiles' instead" #-}
 {-# INLINE toFiles #-}
-toFiles :: MonadIO m => FilePath -> Stream m FilePath
+toFiles :: (MonadIO m, MonadCatch m) => FilePath -> Stream m FilePath
 toFiles = readFiles
 
 -- | Read directories only.
@@ -333,12 +379,12 @@ toFiles = readFiles
 --  /Internal/
 --
 {-# INLINE readDirs #-}
-readDirs :: MonadIO m => FilePath -> Stream m FilePath
+readDirs :: (MonadIO m, MonadCatch m) => FilePath -> Stream m FilePath
 readDirs = S.unfold dirReader
 
 {-# DEPRECATED toDirs "Please use 'readDirs' instead" #-}
 {-# INLINE toDirs #-}
-toDirs :: MonadIO m => String -> Stream m String
+toDirs :: (MonadIO m, MonadCatch m) => String -> Stream m String
 toDirs = readDirs
 
 {-
