@@ -323,6 +323,10 @@ instance _constraint Unbox _type where {                                  \
 ; sizeOf _ = 2 * SIZE_OF(_innerType)                                      \
 }
 
+-------------------------------------------------------------------------------
+-- Unbox instances for primitive types
+-------------------------------------------------------------------------------
+
 DERIVE_UNBOXED( Char
               , C#
               , readWord8ArrayAsWideChar#
@@ -400,6 +404,10 @@ DERIVE_UNBOXED( Float
               , readWord8ArrayAsFloat#
               , writeWord8ArrayAsFloat#
               , SIZEOF_HSFLOAT)
+
+-------------------------------------------------------------------------------
+-- Unbox instances for derived types
+-------------------------------------------------------------------------------
 
 DERIVE_UNBOXED( (StablePtr a)
               , StablePtr
