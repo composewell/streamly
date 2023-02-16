@@ -78,6 +78,9 @@ instance Functor m => Functor (Step a m) where
     fmap f (Continue n k) = Continue n (fmap (fmap f) . k)
     fmap _ (Error n e) = Error n e
 
+-- Note: Passing position index separately instead of passing it with the
+-- result causes huge regression in expression parsing becnhmarks.
+
 -- | The parser's result.
 --
 -- Int is the position index into the current input array. Could be negative.
@@ -113,6 +116,8 @@ newtype Parser a m b = MkParser
            -- Using "Input" in runParser is not necessary but it avoids making
            -- one more function call to get the input. This could be helpful
            -- for cases where we process just one element per call.
+           --
+           -- Do not eta reduce the applications of this continuation.
            --
            (ParseResult b -> Int -> Input a -> m (Step a m r))
            -- XXX Maintain and pass the original position in the stream. that
@@ -196,8 +201,8 @@ instance Monad m => Applicative (Parser a m) where
     {-# INLINE (<*) #-}
     p1 <* p2 = MkParser $ \k n st arr ->
         let k1 (Success n1 b) s1 input =
-                let k2 (Success n2 _) = k (Success n2 b)
-                    k2 (Failure n2 e) = k (Failure n2 e)
+                let k2 (Success n2 _) s2 input2  = k (Success n2 b) s2 input2
+                    k2 (Failure n2 e) s2 input2  = k (Failure n2 e) s2 input2
                 in runParser p2 k2 n1 s1 input
             k1 (Failure n1 e) s1 input = k (Failure n1 e) s1 input
         in runParser p1 k1 n st arr
