@@ -43,6 +43,7 @@ import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Unboxed (peekWith, sizeOf, Unbox)
+import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Array.Type as Array
@@ -360,7 +361,7 @@ data ChunkResult s b =
 -- This is very similar to fromParserD in the Array/Unboxed/Fold module.
 {-# INLINE parseChunk #-}
 parseChunk
-    :: forall m a s b. (MonadIO m, Unbox a)
+    :: forall m a s b. (Monad m, Unbox a)
     => (s -> a -> m (ParserD.Step s b))
     -> s
     -> Array a
@@ -387,7 +388,7 @@ parseChunk pstep !state (Array contents start end) !offset = do
     go !_ !cur !pst | cur >= end =
         return $ ChunkContinue ((end - start) `div` SIZE_OF(a))  pst
     go !_ !cur !pst = do
-        x <- liftIO $ peekWith contents cur
+        let !x = unsafeInlineIO $ peekWith contents cur
         pRes <- pstep pst x
         let elemSize = SIZE_OF(a)
             next = INDEX_NEXT(cur,a)
@@ -418,7 +419,7 @@ parseChunk pstep !state (Array contents start end) !offset = do
 
 {-# INLINE parseDToK #-}
 parseDToK
-    :: forall m a s b r. (MonadIO m, Unbox a)
+    :: forall m a s b r. (Monad m, Unbox a)
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
     -> (s -> m (ParserD.Step s b))
@@ -490,7 +491,7 @@ parseDToK pstep initial extract cont !offset !usedCount !input = do
 -- /Pre-release/
 --
 {-# INLINE_LATE fromParser #-}
-fromParser :: (MonadIO m, Unbox a) => ParserD.Parser a m b -> ParserK a m b
+fromParser :: (Monad m, Unbox a) => ParserD.Parser a m b -> ParserK a m b
 fromParser (ParserD.Parser step initial extract) =
     MkParser $ parseDToK step initial extract
 
