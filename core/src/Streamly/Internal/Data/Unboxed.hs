@@ -687,7 +687,9 @@ instance (MaxArity256 (SumArity (f :+: g)), SizeOfRepSum f, SizeOfRepSum g) =>
 
 {-# INLINE genericSizeOf #-}
 genericSizeOf :: forall a. (SizeOfRep (Rep a)) => Proxy a -> Int
-genericSizeOf _ = sizeOfRep (undefined :: Rep a x)
+genericSizeOf _ =
+    let s = sizeOfRep (undefined :: Rep a x)
+      in if s == 0 then 1 else s
 
 --------------------------------------------------------------------------------
 -- Generic poke
