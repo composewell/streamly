@@ -110,6 +110,10 @@ instance Functor ParseResult where
 --
 newtype Parser a m b = MkParser
     { runParser :: forall r.
+           -- Using "Input" in runParser is not necessary but it avoids making
+           -- one more function call to get the input. This could be helpful
+           -- for cases where we process just one element per call.
+           --
            (ParseResult b -> Int -> Input a -> m (Step a m r))
            -- XXX Maintain and pass the original position in the stream. that
            -- way we can also report better errors. Use a Context structure for
@@ -453,10 +457,10 @@ parseDToK pstep initial extract cont !offset !usedCount !input = do
                     (cont (Success n b) (count + n - off) (Chunk arr))
             ChunkPartial n pst1 ->
                 assert (n < 0 || n >= Array.length arr)
-                    (return $ Partial n (parseCont SPEC (count + n - off) pst1))
+                    (return $ Partial n (parseCont (count + n - off) pst1))
             ChunkContinue n pst1 ->
                 assert (n < 0 || n >= Array.length arr)
-                    (return $ Continue n (parseCont SPEC (count + n - off) pst1))
+                    (return $ Continue n (parseCont (count + n - off) pst1))
             ChunkError n err ->
                 cont (Failure n err) (count + n - off) (Chunk arr)
 
@@ -472,7 +476,7 @@ parseDToK pstep initial extract cont !offset !usedCount !input = do
                     (cont (Success (- n) b) (count - n) None)
             ParserD.Continue n pst1 ->
                 assert (n >= 0)
-                    (return $ Continue (- n) (parseCont SPEC (count - n) pst1))
+                    (return $ Continue (- n) (parseCont (count - n) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
@@ -483,8 +487,8 @@ parseDToK pstep initial extract cont !offset !usedCount !input = do
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
     -- function call.
     {-# INLINE parseCont #-}
-    parseCont _ !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
-    parseCont _ !cnt !pst None = parseContNothing cnt pst
+    parseCont !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
+    parseCont !cnt !pst None = parseContNothing cnt pst
 
 -- | Convert a raw byte 'Parser' to a chunked 'ParserK'.
 --
