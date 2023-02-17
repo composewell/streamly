@@ -21,8 +21,7 @@ module Streamly.Internal.Data.Parser.ParserK.Type
       Step (..)
     , Input (..)
     , ParseResult (..)
-    , Parser (..)
-    , ParserK
+    , ParserK (..)
     , fromParser
     -- , toParser
     , fromPure
@@ -111,7 +110,7 @@ instance Functor ParseResult where
 -- input without a result or return a result with no further input to be
 -- consumed.
 --
-newtype Parser a m b = MkParser
+newtype ParserK a m b = MkParser
     { runParser :: forall r.
            -- Using "Input" in runParser is not necessary but it avoids making
            -- one more function call to get the input. This could be helpful
@@ -143,8 +142,6 @@ newtype Parser a m b = MkParser
         -> m (Step a m r)
     }
 
-type ParserK = Parser
-
 -------------------------------------------------------------------------------
 -- Functor
 -------------------------------------------------------------------------------
@@ -152,7 +149,7 @@ type ParserK = Parser
 -- XXX rewrite this using ParserD, expose rmapM from ParserD.
 -- | Maps a function over the output of the parser.
 --
-instance Functor m => Functor (Parser a m) where
+instance Functor m => Functor (ParserK a m) where
     {-# INLINE fmap #-}
     fmap f parser = MkParser $ \k n st arr ->
         let k1 res = k (fmap f res)
@@ -169,7 +166,7 @@ instance Functor m => Functor (Parser a m) where
 -- /Pre-release/
 --
 {-# INLINE fromPure #-}
-fromPure :: b -> Parser a m b
+fromPure :: b -> ParserK a m b
 fromPure b = MkParser $ \k n st arr -> k (Success n b) st arr
 
 -- | See 'Streamly.Internal.Data.Parser.fromEffect'.
@@ -177,7 +174,7 @@ fromPure b = MkParser $ \k n st arr -> k (Success n b) st arr
 -- /Pre-release/
 --
 {-# INLINE fromEffect #-}
-fromEffect :: Monad m => m b -> Parser a m b
+fromEffect :: Monad m => m b -> ParserK a m b
 fromEffect eff =
     MkParser $ \k n st arr -> eff >>= \b -> k (Success n b) st arr
 
@@ -185,7 +182,7 @@ fromEffect eff =
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.splitWith'
 -- when fusion is important.
 --
-instance Monad m => Applicative (Parser a m) where
+instance Monad m => Applicative (ParserK a m) where
     {-# INLINE pure #-}
     pure = fromPure
 
@@ -222,7 +219,7 @@ instance Monad m => Applicative (Parser a m) where
 -- /Pre-release/
 --
 {-# INLINE die #-}
-die :: String -> Parser a m b
+die :: String -> ParserK a m b
 die err = MkParser (\k n st arr -> k (Failure n err) st arr)
 
 -- | Monad composition can be used for lookbehind parsers, we can make the
@@ -267,7 +264,7 @@ die err = MkParser (\k n st arr -> k (Failure n err) st arr)
 -- does not fuse, use 'Streamly.Internal.Data.Parser.concatMap' when you need
 -- fusion.
 --
-instance Monad m => Monad (Parser a m) where
+instance Monad m => Monad (ParserK a m) where
     {-# INLINE return #-}
     return = pure
 
@@ -286,11 +283,11 @@ instance Monad m => Monad (Parser a m) where
     {-# INLINE fail #-}
     fail = die
 #endif
-instance Monad m => Fail.MonadFail (Parser a m) where
+instance Monad m => Fail.MonadFail (ParserK a m) where
     {-# INLINE fail #-}
     fail = die
 
-instance MonadIO m => MonadIO (Parser a m) where
+instance MonadIO m => MonadIO (ParserK a m) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
 
@@ -311,7 +308,7 @@ instance MonadIO m => MonadIO (Parser a m) where
 -- does not fuse, use 'Streamly.Internal.Data.Parser.alt' when you need
 -- fusion.
 --
-instance Monad m => Alternative (Parser a m) where
+instance Monad m => Alternative (ParserK a m) where
     {-# INLINE empty #-}
     empty = die "empty"
 
@@ -344,7 +341,7 @@ instance Monad m => Alternative (Parser a m) where
 -- | 'mzero' is same as 'empty', it aborts the parser. 'mplus' is same as
 -- '<|>', it selects the first succeeding parser.
 --
-instance Monad m => MonadPlus (Parser a m) where
+instance Monad m => MonadPlus (ParserK a m) where
     {-# INLINE mzero #-}
     mzero = die "mzero"
 
@@ -352,7 +349,7 @@ instance Monad m => MonadPlus (Parser a m) where
     mplus = (<|>)
 
 {-
-instance MonadTrans (Parser a) where
+instance MonadTrans (ParserK a) where
     {-# INLINE lift #-}
     lift = fromEffect
 -}
@@ -521,7 +518,7 @@ parserDone _ _ _ = error "Bug: toParser: called with input"
 -- /Pre-release/
 --
 {-# INLINE_LATE toParser #-}
-toParser :: Monad m => Parser a m b -> ParserD.Parser a m b
+toParser :: Monad m => ParserK a m b -> ParserD.Parser a m b
 toParser parser = ParserD.Parser step initial extract
 
     where
