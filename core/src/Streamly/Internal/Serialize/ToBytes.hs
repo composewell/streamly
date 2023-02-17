@@ -339,7 +339,7 @@ double64le :: Monad m => Double -> Stream m Word8
 double64le = word64leD . castDoubleToWord64
 
 {-# INLINE charLatin1 #-}
-charLatin1 :: Char -> Stream m Word8
+charLatin1 :: Monad m => Char -> Stream m Word8
 charLatin1 = Stream.fromPure . fromIntegral . ord
 
 {-# INLINE charUtf8 #-}
