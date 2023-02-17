@@ -15,8 +15,8 @@
 module Streamly.Internal.Data.Stream.StreamK.Type
     (
     -- * StreamK type
-    --  Stream (..)  -- XXX stop exporting this
-     StreamK (..)
+      Stream
+    , StreamK (..)
 
     -- * CrossStreamK type wrapper
     , CrossStreamK
@@ -203,7 +203,8 @@ import Prelude hiding
 --
 -- >>> (<>) = Stream.append
 --
---type StreamK = Stream
+{-# DEPRECATED Stream "Please use StreamK instead." #-}
+type Stream = StreamK
 
 newtype StreamK m a =
     MkStream (forall r.

@@ -65,7 +65,7 @@ import Text.Read
        , readListPrecDefault)
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
+import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
@@ -83,7 +83,7 @@ import Prelude hiding (map, mapM, repeat, filter)
 -- >>> import qualified Streamly.Prelude as IsStream
 
 {-# INLINABLE withLocal #-}
-withLocal :: MonadReader r m => (r -> r) -> K.StreamK m a -> K.StreamK m a
+withLocal :: MonadReader r m => (r -> r) -> K.Stream m a -> K.Stream m a
 withLocal f m =
     K.mkStream $ \st yld sng stp ->
         let single = local f . sng
@@ -123,7 +123,7 @@ withLocal f m =
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-newtype SerialT m a = SerialT {getSerialT :: StreamK m a}
+newtype SerialT m a = SerialT {getSerialT :: Stream m a}
     -- XXX when deriving do we inherit an INLINE?
     deriving (Semigroup, Monoid)
 
@@ -135,10 +135,10 @@ newtype SerialT m a = SerialT {getSerialT :: StreamK m a}
 -- @since 0.8.0
 type Serial = SerialT IO
 
-toStreamK :: SerialT m a -> StreamK m a
+toStreamK :: SerialT m a -> Stream m a
 toStreamK = getSerialT
 
-fromStreamK :: StreamK m a -> SerialT m a
+fromStreamK :: Stream m a -> SerialT m a
 fromStreamK = SerialT
 
 ------------------------------------------------------------------------------
@@ -314,7 +314,7 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-newtype WSerialT m a = WSerialT {getWSerialT :: StreamK m a}
+newtype WSerialT m a = WSerialT {getWSerialT :: Stream m a}
 
 instance MonadTrans WSerialT where
     {-# INLINE lift #-}

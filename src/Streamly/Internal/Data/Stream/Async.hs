@@ -59,7 +59,7 @@ import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, askRunInIO, restoreM)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
-import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
+import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 import Streamly.Internal.Data.Stream.SVar.Generate (fromSVar, fromSVarD)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
@@ -86,7 +86,7 @@ import Streamly.Internal.Data.SVar
 --
 
 {-# INLINABLE withLocal #-}
-withLocal :: MonadReader r m => (r -> r) -> StreamK m a -> StreamK m a
+withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
 withLocal f m =
     K.mkStream $ \st yld sng stp ->
         let single = local f . sng
@@ -113,9 +113,9 @@ data WorkerStatus = Continue | Suspend
 {-# INLINE workLoopLIFO #-}
 workLoopLIFO
     :: MonadRunInIO m
-    => IORef [(RunInIO m, StreamK m a)]
-    -> State StreamK m a
-    -> SVar StreamK m a
+    => IORef [(RunInIO m, Stream m a)]
+    -> State Stream m a
+    -> SVar Stream m a
     -> Maybe WorkerInfo
     -> m ()
 workLoopLIFO q st sv winfo = run
@@ -167,9 +167,9 @@ workLoopLIFO q st sv winfo = run
 {-# INLINE workLoopLIFOLimited #-}
 workLoopLIFOLimited
     :: forall m a. MonadRunInIO m
-    => IORef [(RunInIO m, StreamK m a)]
-    -> State StreamK m a
-    -> SVar StreamK m a
+    => IORef [(RunInIO m, Stream m a)]
+    -> State Stream m a
+    -> SVar Stream m a
     -> Maybe WorkerInfo
     -> m ()
 workLoopLIFOLimited q st sv winfo = run
@@ -249,9 +249,9 @@ enqueueFIFO sv q m = do
 {-# INLINE workLoopFIFO #-}
 workLoopFIFO
     :: MonadRunInIO m
-    => LinkedQueue (RunInIO m, StreamK m a)
-    -> State StreamK m a
-    -> SVar StreamK m a
+    => LinkedQueue (RunInIO m, Stream m a)
+    -> State Stream m a
+    -> SVar Stream m a
     -> Maybe WorkerInfo
     -> m ()
 workLoopFIFO q st sv winfo = run
@@ -288,9 +288,9 @@ workLoopFIFO q st sv winfo = run
 {-# INLINE workLoopFIFOLimited #-}
 workLoopFIFOLimited
     :: forall m a. MonadRunInIO m
-    => LinkedQueue (RunInIO m, StreamK m a)
-    -> State StreamK m a
-    -> SVar StreamK m a
+    => LinkedQueue (RunInIO m, Stream m a)
+    -> State Stream m a
+    -> SVar Stream m a
     -> Maybe WorkerInfo
     -> m ()
 workLoopFIFOLimited q st sv winfo = run
@@ -343,14 +343,14 @@ workLoopFIFOLimited q st sv winfo = run
 -- than 10%.  Need to investigate what the root cause is.
 -- Interestingly, the same thing does not make any difference for Ahead.
 getLifoSVar :: forall m a. MonadAsync m
-    => State StreamK m a -> RunInIO m -> IO (SVar StreamK m a)
+    => State Stream m a -> RunInIO m -> IO (SVar Stream m a)
 getLifoSVar st mrun = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
-    q       <- newIORef ([] :: [(RunInIO m, StreamK m a)])
+    q       <- newIORef ([] :: [(RunInIO m, Stream m a)])
     yl      <- case getYieldLimit st of
                 Nothing -> return Nothing
                 Just x -> Just <$> newIORef x
@@ -371,16 +371,16 @@ getLifoSVar st mrun = do
             qEmpty <- null <$> readIORef q
             return $ qEmpty || yieldsDone
 
-    let getSVar :: SVar StreamK m a
-            -> (SVar StreamK m a -> m [ChildEvent a])
-            -> (SVar StreamK m a -> m Bool)
-            -> (SVar StreamK m a -> IO Bool)
-            -> (IORef [(RunInIO m, StreamK m a)]
-                -> State StreamK m a
-                -> SVar StreamK m a
+    let getSVar :: SVar Stream m a
+            -> (SVar Stream m a -> m [ChildEvent a])
+            -> (SVar Stream m a -> m Bool)
+            -> (SVar Stream m a -> IO Bool)
+            -> (IORef [(RunInIO m, Stream m a)]
+                -> State Stream m a
+                -> SVar Stream m a
                 -> Maybe WorkerInfo
                 -> m())
-            -> SVar StreamK m a
+            -> SVar Stream m a
         getSVar sv readOutput postProc workDone wloop = SVar
             { outputQueue      = outQ
             , outputQueueFromConsumer = undefined
@@ -441,7 +441,7 @@ getLifoSVar st mrun = do
      in return sv
 
 getFifoSVar :: forall m a. MonadAsync m
-    => State StreamK m a -> RunInIO m -> IO (SVar StreamK m a)
+    => State Stream m a -> RunInIO m -> IO (SVar Stream m a)
 getFifoSVar st mrun = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
@@ -468,16 +468,16 @@ getFifoSVar st mrun = do
             qEmpty <- nullQ q
             return $ qEmpty || yieldsDone
 
-    let getSVar :: SVar StreamK m a
-            -> (SVar StreamK m a -> m [ChildEvent a])
-            -> (SVar StreamK m a -> m Bool)
-            -> (SVar StreamK m a -> IO Bool)
-            -> (LinkedQueue (RunInIO m, StreamK m a)
-                -> State StreamK m a
-                -> SVar StreamK m a
+    let getSVar :: SVar Stream m a
+            -> (SVar Stream m a -> m [ChildEvent a])
+            -> (SVar Stream m a -> m Bool)
+            -> (SVar Stream m a -> IO Bool)
+            -> (LinkedQueue (RunInIO m, Stream m a)
+                -> State Stream m a
+                -> SVar Stream m a
                 -> Maybe WorkerInfo
                 -> m())
-            -> SVar StreamK m a
+            -> SVar Stream m a
         getSVar sv readOutput postProc workDone wloop = SVar
             { outputQueue      = outQ
             , outputQueueFromConsumer = undefined
@@ -539,7 +539,7 @@ getFifoSVar st mrun = do
 
 {-# INLINABLE newAsyncVar #-}
 newAsyncVar :: MonadAsync m
-    => State StreamK m a -> StreamK m a -> m (SVar StreamK m a)
+    => State Stream m a -> Stream m a -> m (SVar Stream m a)
 newAsyncVar st m = do
     mrun <- askRunInIO
     sv <- liftIO $ getLifoSVar st mrun
@@ -551,7 +551,7 @@ newAsyncVar st m = do
 -- /Pre-release/
 --
 {-# INLINABLE mkAsyncK #-}
-mkAsyncK :: MonadAsync m => StreamK m a -> StreamK m a
+mkAsyncK :: MonadAsync m => Stream m a -> Stream m a
 mkAsyncK m = K.mkStream $ \st yld sng stp -> do
     sv <- newAsyncVar (adaptState st) m
     K.foldStream st yld sng stp $ Stream.toStreamK $ fromSVar sv
@@ -579,7 +579,7 @@ mkAsyncD m = D.Stream step Nothing
 -- | Create a new SVar and enqueue one stream computation on it.
 {-# INLINABLE newWAsyncVar #-}
 newWAsyncVar :: MonadAsync m
-    => State StreamK m a -> StreamK m a -> m (SVar StreamK m a)
+    => State Stream m a -> Stream m a -> m (SVar Stream m a)
 newWAsyncVar st m = do
     mrun <- askRunInIO
     sv <- liftIO $ getFifoSVar st mrun
@@ -652,7 +652,7 @@ newWAsyncVar st m = do
 --   of the two.
 
 forkSVarAsync :: MonadAsync m
-    => SVarStyle -> StreamK m a -> StreamK m a -> StreamK m a
+    => SVarStyle -> Stream m a -> Stream m a -> Stream m a
 forkSVarAsync style m1 m2 = K.mkStream $ \st yld sng stp -> do
     sv <- case style of
         AsyncVar -> newAsyncVar st (concurrently m1 m2)
@@ -667,7 +667,7 @@ forkSVarAsync style m1 m2 = K.mkStream $ \st yld sng stp -> do
 
 {-# INLINE joinStreamVarAsync #-}
 joinStreamVarAsync :: MonadAsync m
-    => SVarStyle -> StreamK m a -> StreamK m a -> StreamK m a
+    => SVarStyle -> Stream m a -> Stream m a -> Stream m a
 joinStreamVarAsync style m1 m2 = K.mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style -> do
@@ -681,7 +681,7 @@ joinStreamVarAsync style m1 m2 = K.mkStream $ \st yld sng stp ->
 ------------------------------------------------------------------------------
 
 {-# INLINE asyncK #-}
-asyncK :: MonadAsync m => StreamK m a -> StreamK m a -> StreamK m a
+asyncK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 asyncK = joinStreamVarAsync AsyncVar
 
 -- IMPORTANT: using a monomorphically typed and SPECIALIZED consMAsync makes a
@@ -742,7 +742,7 @@ consMAsync m (AsyncT r) = AsyncT $ asyncK (K.fromEffect m) r
 -- /Since: 0.1.0 ("Streamly")/
 --
 -- @since 0.8.0
-newtype AsyncT m a = AsyncT {getAsyncT :: StreamK m a}
+newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
 
 instance MonadTrans AsyncT where
     {-# INLINE lift #-}
@@ -825,7 +825,7 @@ MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 ------------------------------------------------------------------------------
 
 {-# INLINE wAsyncK #-}
-wAsyncK :: MonadAsync m => StreamK m a -> StreamK m a -> StreamK m a
+wAsyncK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 wAsyncK = joinStreamVarAsync WAsyncVar
 
 -- | XXX we can implement it more efficienty by directly implementing instead
@@ -968,7 +968,7 @@ consMWAsync m (WAsyncT r) = WAsyncT $ wAsyncK (K.fromEffect m) r
 -- ThreadId 38: Delay 3
 -- @
 --
-newtype WAsyncT m a = WAsyncT {getWAsyncT :: StreamK m a}
+newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
 
 instance MonadTrans WAsyncT where
     {-# INLINE lift #-}

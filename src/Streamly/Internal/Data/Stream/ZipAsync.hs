@@ -23,7 +23,7 @@ module Streamly.Internal.Data.Stream.ZipAsync {-# DEPRECATED "Please use \"Strea
 where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
+import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.StreamK as K
     (mkStream, foldStream, zipWithM, consM)
@@ -59,7 +59,7 @@ import Prelude hiding (map, repeat, zipWith, errorWithoutStackTrace)
 -- @since 0.4.0
 {-# INLINE zipAsyncWithMK #-}
 zipAsyncWithMK :: MonadAsync m
-    => (a -> b -> m c) -> StreamK m a -> StreamK m b -> StreamK m c
+    => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
 zipAsyncWithMK f m1 m2 = K.mkStream $ \st yld sng stp -> do
     sv <- newParallelVar StopNone (adaptState st)
     SVar.toSVarParallel (adaptState st) sv $ D.fromStreamK m2
@@ -83,7 +83,7 @@ zipAsyncWithMK f m1 m2 = K.mkStream $ \st yld sng stp -> do
 -- @since 0.1.0
 {-# INLINE zipAsyncWithK #-}
 zipAsyncWithK :: MonadAsync m
-    => (a -> b -> c) -> StreamK m a -> StreamK m b -> StreamK m c
+    => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipAsyncWithK f = zipAsyncWithMK (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ zipAsyncWithK f = zipAsyncWithMK (\a b -> return (f a b))
 -- /Since: 0.2.0 ("Streamly")/
 --
 -- @since 0.8.0
-newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: StreamK m a}
+newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: Stream m a}
         deriving (Semigroup, Monoid)
 
 -- | An IO stream whose applicative instance zips streams wAsyncly.
