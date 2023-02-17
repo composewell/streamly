@@ -116,7 +116,7 @@ Benchmarks that need to be added
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream m a = S.Stream m a
+type Stream m a = S.StreamK m a
 
 {-# INLINE unfoldr #-}
 unfoldr :: Int -> Int -> Stream m Int
@@ -501,7 +501,7 @@ concatMapBySerial outer inner n =
 -- Nested Composition
 -------------------------------------------------------------------------------
 
-instance Monad m => Applicative (S.Stream m) where
+instance Monad m => Applicative (S.StreamK m) where
     {-# INLINE pure #-}
     pure = S.fromPure
 
@@ -520,7 +520,7 @@ instance Monad m => Applicative (S.Stream m) where
 -- NOTE: even though concatMap for StreamD is 3x faster compared to StreamK,
 -- the monad instance of StreamD is slower than StreamK after foldr/build
 -- fusion.
-instance Monad m => Monad (S.Stream m) where
+instance Monad m => Monad (S.StreamK m) where
     {-# INLINE return #-}
     return = pure
 

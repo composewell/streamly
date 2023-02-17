@@ -186,7 +186,7 @@ import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 -- | A stream consists of a step function that generates the next step given a
 -- current state, and the current state.
 data Stream m a =
-    forall s. UnStream (State K.Stream m a -> s -> m (Step s a)) s
+    forall s. UnStream (State K.StreamK m a -> s -> m (Step s a)) s
 
 -- XXX This causes perf trouble when pattern matching with "Stream"  in a
 -- recursive way, e.g. in uncons, foldBreak, concatMap. We need to get rid of
@@ -195,7 +195,7 @@ unShare :: Stream m a -> Stream m a
 unShare (UnStream step state) = UnStream step' state
     where step' gst = step (adaptState gst)
 
-pattern Stream :: (State K.Stream m a -> s -> m (Step s a)) -> s -> Stream m a
+pattern Stream :: (State K.StreamK m a -> s -> m (Step s a)) -> s -> Stream m a
 pattern Stream step state <- (unShare -> UnStream step state)
     where Stream = UnStream
 
@@ -361,7 +361,7 @@ fromList = Stream step
 
 -- | Convert a CPS encoded StreamK to direct style step encoded StreamD
 {-# INLINE_LATE fromStreamK #-}
-fromStreamK :: Applicative m => K.Stream m a -> Stream m a
+fromStreamK :: Applicative m => K.StreamK m a -> Stream m a
 fromStreamK = Stream step
     where
     step gst m1 =
@@ -372,7 +372,7 @@ fromStreamK = Stream step
 
 -- | Convert a direct style step encoded StreamD to a CPS encoded StreamK
 {-# INLINE_LATE toStreamK #-}
-toStreamK :: Monad m => Stream m a -> K.Stream m a
+toStreamK :: Monad m => Stream m a -> K.StreamK m a
 toStreamK (Stream step state) = go state
     where
     go st = K.MkStream $ \gst yld _ stp ->

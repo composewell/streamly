@@ -89,7 +89,7 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
 {-# INLINE toChannelK #-}
-toChannelK :: MonadRunInIO m => Channel m a -> K.Stream m a -> m ()
+toChannelK :: MonadRunInIO m => Channel m a -> K.StreamK m a -> m ()
 toChannelK sv m = do
     runIn <- askRunInIO
     liftIO $ enqueue sv False (runIn, m)
@@ -114,7 +114,7 @@ joinChannel = undefined
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromChannelRaw #-}
-fromChannelRaw :: (MonadIO m, MonadThrow m) => Channel m a -> K.Stream m a
+fromChannelRaw :: (MonadIO m, MonadThrow m) => Channel m a -> K.StreamK m a
 fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
     list <- readOutputQ sv
     -- Reversing the output is important to guarantee that we process the
@@ -185,7 +185,7 @@ inspect $ hasNoTypeClassesExcept 'fromChannelRaw
 -- it to multiple consumers. or should we use an explicit dupChannel for that?
 
 {-# INLINE fromChannelK #-}
-fromChannelK :: MonadAsync m => Channel m a -> K.Stream m a
+fromChannelK :: MonadAsync m => Channel m a -> K.StreamK m a
 fromChannelK sv =
     K.mkStream $ \st yld sng stp -> do
         ref <- liftIO $ newIORef ()

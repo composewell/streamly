@@ -367,7 +367,7 @@ foldBreakD (FL.Fold fstep initial extract) stream@(D.Stream step state) = do
 
 {-# INLINE_NORMAL foldBreakK #-}
 foldBreakK :: forall m a b. (MonadIO m, Unbox a) =>
-    Fold m a b -> K.Stream m (Array a) -> m (b, K.Stream m (Array a))
+    Fold m a b -> K.StreamK m (Array a) -> m (b, K.StreamK m (Array a))
 foldBreakK (FL.Fold fstep initial extract) stream = do
     res <- initial
     case res of
@@ -644,8 +644,8 @@ parseBreakD
 parseBreakK ::
        forall m a b. (MonadIO m, Unbox a)
     => PRD.Parser a m b
-    -> K.Stream m (Array.Array a)
-    -> m (Either ParseError b, K.Stream m (Array.Array a))
+    -> K.StreamK m (Array.Array a)
+    -> m (Either ParseError b, K.StreamK m (Array.Array a))
 parseBreakK (PRD.Parser pstep initial extract) stream = do
     res <- initial
     case res of

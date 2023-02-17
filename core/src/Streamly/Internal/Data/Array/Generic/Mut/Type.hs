@@ -498,7 +498,7 @@ toStreamD arr@Array{..} =
     D.mapM (`getIndexUnsafe` arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
 
 {-# INLINE toStreamK #-}
-toStreamK :: MonadIO m => Array a -> K.Stream m a
+toStreamK :: MonadIO m => Array a -> K.StreamK m a
 toStreamK arr@Array{..} = K.unfoldrM step 0
 
     where

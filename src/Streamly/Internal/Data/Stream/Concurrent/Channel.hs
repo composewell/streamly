@@ -81,9 +81,9 @@ newChannel modifier =
 {-# INLINE withChannelK #-}
 withChannelK :: MonadAsync m =>
        (Config -> Config)
-    -> K.Stream m a
-    -> (Channel m b -> K.Stream m a -> K.Stream m b)
-    -> K.Stream m b
+    -> K.StreamK m a
+    -> (Channel m b -> K.StreamK m a -> K.StreamK m b)
+    -> K.StreamK m b
 withChannelK modifier input evaluator = K.concatEffect action
 
     where

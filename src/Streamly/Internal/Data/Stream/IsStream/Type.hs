@@ -15,7 +15,7 @@ module Streamly.Internal.Data.Stream.IsStream.Type {-# DEPRECATED "Please use \"
     (
     -- * IsStream Type Class
       IsStream (..)
-    , K.Stream (..)
+    , K.StreamK (..)
 
     -- * Type Conversion
     , fromStreamD
@@ -124,7 +124,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     , drain, eqBy, cmpBy, fromList, toList, foldrMx, foldlMx'
     , foldlx', foldl', fold)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (Stream(..), cons, fromEffect
+    (StreamK(..), cons, fromEffect
     , nil, fromPure, bindWith, drain
     , fromFoldable, nilM, repeat)
 import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
@@ -160,8 +160,8 @@ class
     , forall m. MonadAsync m => Applicative (t m)
     ) =>
       IsStream t where
-    toStream :: t m a -> K.Stream m a
-    fromStream :: K.Stream m a -> t m a
+    toStream :: t m a -> K.StreamK m a
+    fromStream :: K.StreamK m a -> t m a
     -- | Constructs a stream by adding a monadic action at the head of an
     -- existing stream. For example:
     --
@@ -231,7 +231,7 @@ fromStreamD = fromStream . D.toStreamK
 -- | Adapt a polymorphic consM operation to a StreamK cons operation
 {-# INLINE toConsK #-}
 toConsK :: IsStream t =>
-    (m a -> t m a -> t m a) -> m a -> K.Stream m a -> K.Stream m a
+    (m a -> t m a -> t m a) -> m a -> K.StreamK m a -> K.StreamK m a
 toConsK cns x xs = toStream $ x `cns` fromStream xs
 
 ------------------------------------------------------------------------------
@@ -317,7 +317,7 @@ toList m = D.toList $ toStreamD m
 -- continuation and a yield continuation.
 {-# INLINE_EARLY mkStream #-}
 mkStream :: IsStream t
-    => (forall r. State K.Stream m a
+    => (forall r. State K.StreamK m a
         -> (a -> t m a -> m r)
         -> (a -> m r)
         -> m r
@@ -329,8 +329,8 @@ mkStream k = fromStream $ K.MkStream $ \st yld sng stp ->
 
 {-# RULES "mkStream from stream" mkStream = mkStreamFromStream #-}
 mkStreamFromStream :: IsStream t
-    => (forall r. State K.Stream m a
-        -> (a -> K.Stream m a -> m r)
+    => (forall r. State K.StreamK m a
+        -> (a -> K.StreamK m a -> m r)
         -> (a -> m r)
         -> m r
         -> m r)
@@ -339,12 +339,12 @@ mkStreamFromStream k = fromStream $ K.MkStream k
 
 {-# RULES "mkStream stream" mkStream = mkStreamStream #-}
 mkStreamStream
-    :: (forall r. State K.Stream m a
-        -> (a -> K.Stream m a -> m r)
+    :: (forall r. State K.StreamK m a
+        -> (a -> K.StreamK m a -> m r)
         -> (a -> m r)
         -> m r
         -> m r)
-    -> K.Stream m a
+    -> K.StreamK m a
 mkStreamStream = K.MkStream
 
 ------------------------------------------------------------------------------
@@ -399,7 +399,7 @@ fold fld m = D.fold fld $ toStreamD m
 {-# INLINE_EARLY foldStreamShared #-}
 foldStreamShared
     :: IsStream t
-    => State K.Stream m a
+    => State K.StreamK m a
     -> (a -> t m a -> m r)
     -> (a -> m r)
     -> m r
@@ -414,11 +414,11 @@ foldStreamShared st yld sng stp m =
 {-# RULES "foldStreamShared from stream"
    foldStreamShared = foldStreamSharedStream #-}
 foldStreamSharedStream
-    :: State K.Stream m a
-    -> (a -> K.Stream m a -> m r)
+    :: State K.StreamK m a
+    -> (a -> K.StreamK m a -> m r)
     -> (a -> m r)
     -> m r
-    -> K.Stream m a
+    -> K.StreamK m a
     -> m r
 foldStreamSharedStream st yld sng stp m =
     let K.MkStream k = m
@@ -430,7 +430,7 @@ foldStreamSharedStream st yld sng stp m =
 {-# INLINE foldStream #-}
 foldStream
     :: IsStream t
-    => State K.Stream m a
+    => State K.StreamK m a
     -> (a -> t m a -> m r)
     -> (a -> m r)
     -> m r

@@ -50,7 +50,7 @@ import Prelude hiding (foldr, repeat)
 -- 'K.fromFoldable' for serial streams.
 --
 {-# INLINE_EARLY fromList #-}
-fromList :: Monad m => [a] -> K.Stream m a
+fromList :: Monad m => [a] -> K.StreamK m a
 fromList = D.toStreamK . D.fromList
 {-# RULES "fromList fallback to StreamK" [1]
     forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
@@ -58,7 +58,7 @@ fromList = D.toStreamK . D.fromList
 -- | Convert a stream into a list in the underlying monad.
 --
 {-# INLINE toList #-}
-toList :: Monad m => K.Stream m a -> m [a]
+toList :: Monad m => K.StreamK m a -> m [a]
 toList m = D.toList $ D.fromStreamK m
 
 ------------------------------------------------------------------------------
@@ -66,23 +66,23 @@ toList m = D.toList $ D.fromStreamK m
 ------------------------------------------------------------------------------
 
 {-# INLINE foldrM #-}
-foldrM :: Monad m => (a -> m b -> m b) -> m b -> K.Stream m a -> m b
+foldrM :: Monad m => (a -> m b -> m b) -> m b -> K.StreamK m a -> m b
 foldrM step acc m = D.foldrM step acc $ D.fromStreamK m
 
 {-# INLINE foldr #-}
-foldr :: Monad m => (a -> b -> b) -> b -> K.Stream m a -> m b
+foldr :: Monad m => (a -> b -> b) -> b -> K.StreamK m a -> m b
 foldr f z = foldrM (\a b -> f a <$> b) (return z)
 
 -- | Strict left associative fold.
 --
 {-# INLINE foldl' #-}
 foldl' ::
-    Monad m => (b -> a -> b) -> b -> K.Stream m a -> m b
+    Monad m => (b -> a -> b) -> b -> K.StreamK m a -> m b
 foldl' step begin m = D.foldl' step begin $ D.fromStreamK m
 
 
 {-# INLINE fold #-}
-fold :: Monad m => Fold m a b -> K.Stream m a -> m b
+fold :: Monad m => Fold m a b -> K.StreamK m a -> m b
 fold fld m = D.fold fld $ D.fromStreamK m
 
 ------------------------------------------------------------------------------
@@ -93,7 +93,7 @@ fold fld m = D.fold fld $ D.fromStreamK m
 --
 {-# INLINE eqBy #-}
 eqBy :: Monad m =>
-    (a -> b -> Bool) -> K.Stream m a -> K.Stream m b -> m Bool
+    (a -> b -> Bool) -> K.StreamK m a -> K.StreamK m b -> m Bool
 eqBy f m1 m2 = D.eqBy f (D.fromStreamK m1) (D.fromStreamK m2)
 
 -- | Compare two streams
@@ -101,5 +101,5 @@ eqBy f m1 m2 = D.eqBy f (D.fromStreamK m1) (D.fromStreamK m2)
 {-# INLINE cmpBy #-}
 cmpBy
     :: Monad m
-    => (a -> b -> Ordering) -> K.Stream m a -> K.Stream m b -> m Ordering
+    => (a -> b -> Ordering) -> K.StreamK m a -> K.StreamK m b -> m Ordering
 cmpBy f m1 m2 = D.cmpBy f (D.fromStreamK m1) (D.fromStreamK m2)

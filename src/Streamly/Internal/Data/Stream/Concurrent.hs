@@ -189,9 +189,9 @@ parEval modifier input = withChannel modifier input (const id)
 _appendGeneric :: MonadAsync m =>
        ((Config -> Config) -> m (Channel m a))
     -> (Config -> Config)
-    -> K.Stream m a
-    -> K.Stream m a
-    -> K.Stream m a
+    -> K.StreamK m a
+    -> K.StreamK m a
+    -> K.StreamK m a
 _appendGeneric newChan modifier stream1 stream2 = K.concatEffect action
 
     where
@@ -216,7 +216,7 @@ _appendGeneric newChan modifier stream1 stream2 = K.concatEffect action
 -- The output stream is the result of the evaluation.
 {-# INLINE appendWithK #-}
 appendWithK :: MonadAsync m =>
-    (Config -> Config) -> K.Stream m a -> K.Stream m a -> K.Stream m a
+    (Config -> Config) -> K.StreamK m a -> K.StreamK m a -> K.StreamK m a
 appendWithK modifier stream1 stream2 =
 {-
     if getOrdered (modifier defaultConfig)
@@ -236,7 +236,7 @@ appendWithK modifier stream1 stream2 =
 --
 {-# INLINE _appendWithChanK #-}
 _appendWithChanK :: MonadAsync m =>
-    Channel m a -> K.Stream m a -> K.Stream m a -> K.Stream m a
+    Channel m a -> K.StreamK m a -> K.StreamK m a -> K.StreamK m a
 _appendWithChanK chan stream1 stream2 =
     K.before (toChannelK chan stream2) stream1
 
@@ -284,8 +284,8 @@ parTwo modifier stream1 stream2 =
 {-# INLINE mkEnqueue #-}
 mkEnqueue :: MonadAsync m =>
     Channel m b
-    -> ((K.Stream m a -> m ()) -> K.Stream m a -> K.Stream m b)
-    -> m (K.Stream m a -> m ())
+    -> ((K.StreamK m a -> m ()) -> K.StreamK m a -> K.StreamK m b)
+    -> m (K.StreamK m a -> m ())
 mkEnqueue chan runner = do
     runInIO <- askRunInIO
     return
@@ -308,7 +308,7 @@ mkEnqueue chan runner = do
 -- concurrently map and evaluate a stream.
 {-# INLINE parConcatMapChanK #-}
 parConcatMapChanK :: MonadAsync m =>
-    Channel m b -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
+    Channel m b -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
 parConcatMapChanK chan f stream =
    let run q = concatMapDivK q f
     in K.concatMapEffect (`run` stream) (mkEnqueue chan run)
@@ -316,7 +316,7 @@ parConcatMapChanK chan f stream =
 
 {-# INLINE parConcatMapChanKAny #-}
 parConcatMapChanKAny :: MonadAsync m =>
-    Channel m b -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
+    Channel m b -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
 parConcatMapChanKAny chan f stream =
    let done = K.nilM (stopChannel chan)
        run q = concatMapDivK q (\x -> K.append (f x) done)
@@ -324,7 +324,7 @@ parConcatMapChanKAny chan f stream =
 
 {-# INLINE parConcatMapChanKFirst #-}
 parConcatMapChanKFirst :: MonadAsync m =>
-    Channel m b -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
+    Channel m b -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
 parConcatMapChanKFirst chan f stream =
    let done = K.nilM (stopChannel chan)
        run q = concatMapDivK q f
@@ -341,9 +341,9 @@ parConcatMapChanKFirst chan f stream =
 parConcatMapChanKGeneric :: MonadAsync m =>
        (Config -> Config)
     -> Channel m b
-    -> (a -> K.Stream m b)
-    -> K.Stream m a
-    -> K.Stream m b
+    -> (a -> K.StreamK m b)
+    -> K.StreamK m a
+    -> K.StreamK m b
 parConcatMapChanKGeneric modifier chan f stream = do
         let cfg = modifier defaultConfig
         case getStopWhen cfg of
@@ -359,7 +359,7 @@ parConcatMapChanKGeneric modifier chan f stream = do
 --
 {-# INLINE parConcatMapK #-}
 parConcatMapK :: MonadAsync m =>
-    (Config -> Config) -> (a -> K.Stream m b) -> K.Stream m a -> K.Stream m b
+    (Config -> Config) -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
 parConcatMapK modifier f input =
     let g = parConcatMapChanKGeneric modifier
      in withChannelK modifier input (`g` f)

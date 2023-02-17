@@ -79,7 +79,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 --
 -- >>> (<>) = Stream.append
 --
-newtype StreamK m a = StreamK (K.Stream m a)
+newtype StreamK m a = StreamK (K.StreamK m a)
     -- XXX when deriving do we inherit an INLINE?
     deriving (Semigroup, Monoid)
 
@@ -90,11 +90,11 @@ type Stream = StreamK
 ------------------------------------------------------------------------------
 
 {-# INLINE_EARLY fromStreamK #-}
-fromStreamK :: K.Stream m a -> Stream m a
+fromStreamK :: K.StreamK m a -> Stream m a
 fromStreamK = StreamK
 
 {-# INLINE_EARLY toStreamK #-}
-toStreamK :: Stream m a -> K.Stream m a
+toStreamK :: Stream m a -> K.StreamK m a
 toStreamK (StreamK k) = k
 
 {-# INLINE_EARLY fromStreamD #-}

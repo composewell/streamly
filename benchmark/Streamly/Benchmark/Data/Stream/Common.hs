@@ -128,10 +128,10 @@ unCross = id
 type MonadAsync = Monad
 
 #ifdef USE_STREAMK
-mkCross :: StreamK.Stream m a -> StreamK.CrossStreamK m a
+mkCross :: StreamK.StreamK m a -> StreamK.CrossStreamK m a
 mkCross = StreamK.mkCross
 
-unCross :: StreamK.CrossStreamK m a -> StreamK.Stream m a
+unCross :: StreamK.CrossStreamK m a -> StreamK.StreamK m a
 unCross = StreamK.unCross
 #else
 mkCross :: Stream m a -> Stream.CrossStream m a

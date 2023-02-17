@@ -49,7 +49,7 @@ import qualified Data.Heap as H
 
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, askRunInIO, restoreM)
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (foldStreamShared, cons, mkStream, foldStream, fromEffect
@@ -76,7 +76,7 @@ import Prelude hiding (map)
 -- :}
 
 {-# INLINABLE withLocal #-}
-withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
+withLocal :: MonadReader r m => (r -> r) -> StreamK m a -> StreamK m a
 withLocal f m =
     K.mkStream $ \st yld sng stp ->
         let single = local f . sng
@@ -160,8 +160,8 @@ withLocal f m =
 
 {-# INLINE underMaxHeap #-}
 underMaxHeap ::
-       SVar Stream m a
-    -> Heap (Entry Int (AheadHeapEntry Stream m a))
+       SVar StreamK m a
+    -> Heap (Entry Int (AheadHeapEntry StreamK m a))
     -> IO Bool
 underMaxHeap sv hp = do
     (_, len) <- readIORef (outputQueue sv)
@@ -182,8 +182,8 @@ underMaxHeap sv hp = do
 -- True => stop
 -- False => continue
 preStopCheck ::
-       SVar Stream m a
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Maybe Int)
+       SVar StreamK m a
+    -> IORef (Heap (Entry Int (AheadHeapEntry StreamK m a)) , Maybe Int)
     -> IO Bool
 preStopCheck sv heap =
     -- check the stop condition under a lock before actually
@@ -207,10 +207,10 @@ preStopCheck sv heap =
         else stop
 
 abortExecution ::
-       IORef ([Stream m a], Int)
-    -> SVar Stream m a
+       IORef ([StreamK m a], Int)
+    -> SVar StreamK m a
     -> Maybe WorkerInfo
-    -> Stream m a
+    -> StreamK m a
     -> IO ()
 abortExecution q sv winfo m = do
     reEnqueueAhead sv q m
@@ -239,12 +239,12 @@ abortExecution q sv winfo m = do
 --
 processHeap
     :: MonadRunInIO m
-    => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
-    -> State Stream m a
-    -> SVar Stream m a
+    => IORef ([StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry StreamK m a)), Maybe Int)
+    -> State StreamK m a
+    -> SVar StreamK m a
     -> Maybe WorkerInfo
-    -> AheadHeapEntry Stream m a
+    -> AheadHeapEntry StreamK m a
     -> Int
     -> Bool -- we are draining the heap before we stop
     -> m ()
@@ -349,10 +349,10 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
 {-# NOINLINE drainHeap #-}
 drainHeap
     :: MonadRunInIO m
-    => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
-    -> State Stream m a
-    -> SVar Stream m a
+    => IORef ([StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry StreamK m a)), Maybe Int)
+    -> State StreamK m a
+    -> SVar StreamK m a
     -> Maybe WorkerInfo
     -> m ()
 drainHeap q heap st sv winfo = do
@@ -367,12 +367,12 @@ data WorkerStatus = Continue | Suspend
 
 processWithoutToken
     :: MonadRunInIO m
-    => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
-    -> State Stream m a
-    -> SVar Stream m a
+    => IORef ([StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry StreamK m a)), Maybe Int)
+    -> State StreamK m a
+    -> SVar StreamK m a
     -> Maybe WorkerInfo
-    -> Stream m a
+    -> StreamK m a
     -> Int
     -> m ()
 processWithoutToken q heap st sv winfo m seqNo = do
@@ -442,12 +442,12 @@ data TokenWorkerStatus = TokenContinue Int | TokenSuspend
 
 processWithToken
     :: MonadRunInIO m
-    => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
-    -> State Stream m a
-    -> SVar Stream m a
+    => IORef ([StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry StreamK m a)), Maybe Int)
+    -> State StreamK m a
+    -> SVar StreamK m a
     -> Maybe WorkerInfo
-    -> Stream m a
+    -> StreamK m a
     -> Int
     -> m ()
 processWithToken q heap st sv winfo action sno = do
@@ -556,10 +556,10 @@ processWithToken q heap st sv winfo action sno = do
 
 workLoopAhead
     :: MonadRunInIO m
-    => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
-    -> State Stream m a
-    -> SVar Stream m a
+    => IORef ([StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry StreamK m a)), Maybe Int)
+    -> State StreamK m a
+    -> SVar StreamK m a
     -> Maybe WorkerInfo
     -> m ()
 workLoopAhead q heap st sv winfo = do
@@ -612,7 +612,7 @@ workLoopAhead q heap st sv winfo = do
 
 -- The only difference between forkSVarAsync and this is that we run the left
 -- computation without a shared SVar.
-forkSVarAhead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+forkSVarAhead :: MonadAsync m => StreamK m a -> StreamK m a -> StreamK m a
 forkSVarAhead m1 m2 = K.mkStream $ \st yld sng stp -> do
         sv <- newAheadVar st (concurrently m1 m2)
                           workLoopAhead
@@ -624,7 +624,7 @@ forkSVarAhead m1 m2 = K.mkStream $ \st yld sng stp -> do
         K.foldStream st yld sng stp ma
 
 {-# INLINE aheadK #-}
-aheadK :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+aheadK :: MonadAsync m => StreamK m a -> StreamK m a -> StreamK m a
 aheadK m1 m2 = K.mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == AheadVar -> do
@@ -690,7 +690,7 @@ consM m (AheadT r) = AheadT $ aheadK (K.fromEffect m) r
 -- /Since: 0.3.0 ("Streamly")/
 --
 -- @since 0.8.0
-newtype AheadT m a = AheadT {getAheadT :: Stream m a}
+newtype AheadT m a = AheadT {getAheadT :: StreamK m a}
 
 instance MonadTrans AheadT where
     {-# INLINE lift #-}

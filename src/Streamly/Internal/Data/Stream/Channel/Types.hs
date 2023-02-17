@@ -815,10 +815,10 @@ cleanupSVar workerSet = do
 -- Used for concurrent evaluation of streams using a Channel.
 {-# INLINE concatMapDivK #-}
 concatMapDivK :: Monad m =>
-       (K.Stream m a -> m ())
-    -> (a -> K.Stream m b)
-    -> K.Stream m a
-    -> K.Stream m b
+       (K.StreamK m a -> m ())
+    -> (a -> K.StreamK m b)
+    -> K.StreamK m a
+    -> K.StreamK m b
 concatMapDivK useTail useHead stream =
     K.mkStream $ \st yld sng stp -> do
         let foldShared = K.foldStreamShared st yld sng stp

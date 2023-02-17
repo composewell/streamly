@@ -19,14 +19,14 @@ where
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.Trans.State.Strict (StateT)
 import Streamly.Internal.Data.Stream.StreamK
-    (Stream, nil, cons, uncons, concatEffect)
+    (StreamK, nil, cons, uncons, concatEffect)
 
 import qualified Control.Monad.Trans.State.Strict as State
 
 -- | Lazy left fold to an arbitrary transformer monad.
 {-# INLINE foldlT #-}
 foldlT :: (Monad m, Monad (s m), MonadTrans s)
-    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
+    => (s m b -> a -> s m b) -> s m b -> StreamK m a -> s m b
 foldlT step = go
   where
     go acc m1 = do
@@ -38,7 +38,7 @@ foldlT step = go
 -- | Right associative fold to an arbitrary transformer monad.
 {-# INLINE foldrT #-}
 foldrT :: (Monad m, Monad (s m), MonadTrans s)
-    => (a -> s m b -> s m b) -> s m b -> Stream m a -> s m b
+    => (a -> s m b -> s m b) -> s m b -> StreamK m a -> s m b
 foldrT step final = go
   where
     go m1 = do
@@ -52,7 +52,7 @@ foldrT step final = go
 ------------------------------------------------------------------------------
 
 {-# INLINE evalStateT #-}
-evalStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m a
+evalStateT :: Monad m => m s -> StreamK (StateT s m) a -> StreamK m a
 evalStateT = go
 
     where
@@ -66,7 +66,7 @@ evalStateT = go
 
 {-# INLINE liftInner #-}
 liftInner :: (Monad m, MonadTrans t, Monad (t m)) =>
-    Stream m a -> Stream (t m) a
+    StreamK m a -> StreamK (t m) a
 liftInner = go
 
     where
