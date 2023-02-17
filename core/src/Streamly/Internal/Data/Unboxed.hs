@@ -647,7 +647,7 @@ instance SizeOfRep V1 where
 -- required to encode the type as only the constructor tag is stored.
 instance SizeOfRep U1 where
     {-# INLINE sizeOfRep #-}
-    sizeOfRep _ = 1
+    sizeOfRep _ = 0
 
 -- Product type
 instance (SizeOfRep f, SizeOfRep g) => SizeOfRep (f :*: g) where
