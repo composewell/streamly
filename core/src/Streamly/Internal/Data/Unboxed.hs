@@ -647,7 +647,7 @@ instance SizeOfRep V1 where
 -- required to encode the type as only the constructor tag is stored.
 instance SizeOfRep U1 where
     {-# INLINE sizeOfRep #-}
-    sizeOfRep _ = 1
+    sizeOfRep _ = 0
 
 -- Product type
 instance (SizeOfRep f, SizeOfRep g) => SizeOfRep (f :*: g) where
@@ -687,7 +687,9 @@ instance (MaxArity256 (SumArity (f :+: g)), SizeOfRepSum f, SizeOfRepSum g) =>
 
 {-# INLINE genericSizeOf #-}
 genericSizeOf :: forall a. (SizeOfRep (Rep a)) => Proxy a -> Int
-genericSizeOf _ = sizeOfRep (undefined :: Rep a x)
+genericSizeOf _ =
+    let s = sizeOfRep (undefined :: Rep a x)
+      in if s == 0 then 1 else s
 
 --------------------------------------------------------------------------------
 -- Generic poke
