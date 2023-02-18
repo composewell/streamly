@@ -119,8 +119,8 @@ module Streamly.Internal.Data.Stream.StreamK
     , foldConcat
     , parseDBreak
     , parseD
-    , chunkParseBreak
-    , chunkParse
+    , parseBreakChunks
+    , parseChunks
 
     -- ** Specialized Folds
     , drain
@@ -1280,13 +1280,13 @@ parserDone (ParserK.Success n b) _ _ = pure $ ParserK.Done n b
 parserDone (ParserK.Failure n e) _ _ = pure $ ParserK.Error n e
 
 -- | Run a 'ParserK' over a chunked 'StreamK' and return the rest of the Stream.
-{-# INLINE_NORMAL chunkParseBreak #-}
-chunkParseBreak
+{-# INLINE_NORMAL parseBreakChunks #-}
+parseBreakChunks
     :: (Monad m, Unbox a)
     => ParserK.Parser a m b
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
-chunkParseBreak parser input = do
+parseBreakChunks parser input = do
     let parserk = ParserK.runParser parser parserDone 0 0
      in go [] parserk input
 
@@ -1371,10 +1371,10 @@ chunkParseBreak parser input = do
          in foldStream
                 defState (yieldk backBuf parserk) single stop stream
 
-{-# INLINE chunkParse #-}
-chunkParse :: (Monad m, Unbox a) =>
+{-# INLINE parseChunks #-}
+parseChunks :: (Monad m, Unbox a) =>
     ParserK.Parser a m b -> Stream m (Array a) -> m (Either ParseError b)
-chunkParse f = fmap fst . chunkParseBreak f
+parseChunks f = fmap fst . parseBreakChunks f
 
 -------------------------------------------------------------------------------
 -- Sorting

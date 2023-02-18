@@ -68,12 +68,12 @@ benchIOSink value name f =
 -- Parsers
 -------------------------------------------------------------------------------
 
-#define PARSE_OP StreamK.chunkParse
+#define PARSE_OP StreamK.parseChunks
 
 {-# INLINE one #-}
 one :: MonadIO m =>
     Int -> StreamK m (Array Int) -> m (Either ParseError (Maybe Int))
-one value = StreamK.chunkParse p
+one value = StreamK.parseChunks p
 
     where
 

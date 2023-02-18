@@ -53,8 +53,8 @@ module Streamly.Data.Stream.StreamK
 
     -- ** Parsing
     -- , parseBreak
-    , chunkParseBreak
-    -- , chunkParse
+    , parseBreakChunks
+    , parseChunks
 
     -- * Combining Two Streams
     -- ** Appending
