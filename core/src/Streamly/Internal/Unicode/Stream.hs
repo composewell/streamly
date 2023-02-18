@@ -30,9 +30,9 @@ module Streamly.Internal.Unicode.Stream
     , resumeDecodeUtf8Either
 
     -- ** UTF-8 Array Stream Decoding
-    , decodeUtf8Arrays
-    , decodeUtf8Arrays'
-    , decodeUtf8Arrays_
+    , decodeUtf8Chunks
+    , decodeUtf8Chunks'
+    , decodeUtf8Chunks_
 
     -- * Elimination (Encoding)
     -- ** Latin1 Encoding
@@ -68,9 +68,6 @@ module Streamly.Internal.Unicode.Stream
     , encodeUtf8D_
     , decodeUtf8EitherD
     , resumeDecodeUtf8EitherD
-    , decodeUtf8ArraysD
-    , decodeUtf8ArraysD'
-    , decodeUtf8ArraysD_
 
     -- * Decoding String Literals
     , fromStr#
@@ -804,48 +801,32 @@ decodeUtf8ArraysWithD cfm (D.Stream step state) =
     step' _ _ (YAndC c s) = return $ Yield c s
     step' _ _ D = return Stop
 
-{-# INLINE decodeUtf8ArraysD #-}
-decodeUtf8ArraysD ::
+-- | Like 'decodeUtf8' but for a chunked stream. It may be slightly faster than
+-- flattening the stream and then decoding with 'decodeUtf8'.
+{-# INLINE decodeUtf8Chunks #-}
+decodeUtf8Chunks ::
        MonadIO m
     => D.Stream m (Array Word8)
     -> D.Stream m Char
-decodeUtf8ArraysD = decodeUtf8ArraysWithD TransliterateCodingFailure
+decodeUtf8Chunks = decodeUtf8ArraysWithD TransliterateCodingFailure
 
--- |
---
--- /Pre-release/
-{-# INLINE decodeUtf8Arrays #-}
-decodeUtf8Arrays :: MonadIO m => Stream m (Array Word8) -> Stream m Char
-decodeUtf8Arrays = decodeUtf8ArraysD
-
-{-# INLINE decodeUtf8ArraysD' #-}
-decodeUtf8ArraysD' ::
+-- | Like 'decodeUtf8\'' but for a chunked stream. It may be slightly faster
+-- than flattening the stream and then decoding with 'decodeUtf8\''.
+{-# INLINE decodeUtf8Chunks' #-}
+decodeUtf8Chunks' ::
        MonadIO m
     => D.Stream m (Array Word8)
     -> D.Stream m Char
-decodeUtf8ArraysD' = decodeUtf8ArraysWithD ErrorOnCodingFailure
+decodeUtf8Chunks' = decodeUtf8ArraysWithD ErrorOnCodingFailure
 
--- |
---
--- /Pre-release/
-{-# INLINE decodeUtf8Arrays' #-}
-decodeUtf8Arrays' :: MonadIO m => Stream m (Array Word8) -> Stream m Char
-decodeUtf8Arrays' = decodeUtf8ArraysD'
-
-{-# INLINE decodeUtf8ArraysD_ #-}
-decodeUtf8ArraysD_ ::
+-- | Like 'decodeUtf8_' but for a chunked stream. It may be slightly faster
+-- than flattening the stream and then decoding with 'decodeUtf8_'.
+{-# INLINE decodeUtf8Chunks_ #-}
+decodeUtf8Chunks_ ::
        MonadIO m
     => D.Stream m (Array Word8)
     -> D.Stream m Char
-decodeUtf8ArraysD_ = decodeUtf8ArraysWithD DropOnCodingFailure
-
--- |
---
--- /Pre-release/
-{-# INLINE decodeUtf8Arrays_ #-}
-decodeUtf8Arrays_ ::
-       MonadIO m => Stream m (Array Word8) -> Stream m Char
-decodeUtf8Arrays_ = decodeUtf8ArraysD_
+decodeUtf8Chunks_ = decodeUtf8ArraysWithD DropOnCodingFailure
 
 -------------------------------------------------------------------------------
 -- Encoding Unicode (UTF-8) Characters

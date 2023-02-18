@@ -123,7 +123,7 @@ inspect $ 'toChunksCountBytes `hasNoType` ''Step
 
 toChunksDecodeUtf8Arrays :: Handle -> IO ()
 toChunksDecodeUtf8Arrays =
-   Stream.drain . Unicode.decodeUtf8Arrays . Handle.readChunks
+   Stream.drain . Unicode.decodeUtf8Chunks . Handle.readChunks
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'toChunksDecodeUtf8Arrays

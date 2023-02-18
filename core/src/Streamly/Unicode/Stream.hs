@@ -79,6 +79,7 @@ module Streamly.Unicode.Stream
       decodeLatin1
     , decodeUtf8
     , decodeUtf8'
+    , decodeUtf8Chunks
 
     -- * Elimination (Encoding)
     , encodeLatin1

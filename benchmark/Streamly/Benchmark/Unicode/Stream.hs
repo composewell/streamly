@@ -56,7 +56,7 @@ copyCodecUtf8ArraysLenient :: Handle -> Handle -> IO ()
 copyCodecUtf8ArraysLenient inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeUtf8'
-     $ Unicode.decodeUtf8Arrays
+     $ Unicode.decodeUtf8Chunks
      $ Handle.readChunks inh
 
 #ifdef INSPECTION
