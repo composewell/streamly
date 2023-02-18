@@ -128,6 +128,9 @@ module Streamly.Data.Parser
     , wordFramedBy
     , wordQuotedBy
 
+    -- * Alternative
+    , alt
+
     -- ** Splitting
     , many
     , some
