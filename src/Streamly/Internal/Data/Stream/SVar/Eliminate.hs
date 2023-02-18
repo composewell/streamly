@@ -43,7 +43,7 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..), fold)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (StreamK(..), mkStream, foldStream, foldStreamShared, nilM)
+    (Stream, mkStream, foldStream, foldStreamShared, nilM)
 import qualified Streamly.Internal.Data.Stream.Serial as Stream
     (fromStreamK, toStreamK)
 
@@ -171,7 +171,7 @@ toSVarParallel st sv xs =
 -- pusher to the fold puller.
 --
 {-# NOINLINE fromProducer #-}
-fromProducer :: forall m a . MonadAsync m => SVar K.StreamK m a -> K.StreamK m a
+fromProducer :: forall m a . MonadAsync m => SVar K.Stream m a -> K.Stream m a
 fromProducer sv = K.mkStream $ \st yld sng stp -> do
     list <- readOutputQ sv
     -- Reversing the output is important to guarantee that we process the
@@ -191,7 +191,7 @@ fromProducer sv = K.mkStream $ \st yld sng stp -> do
         stp
 
     {-# INLINE processEvents #-}
-    processEvents :: [ChildEvent a] -> K.StreamK m a
+    processEvents :: [ChildEvent a] -> K.Stream m a
     processEvents [] = K.mkStream $ \st yld sng stp -> do
         K.foldStream st yld sng stp $ fromProducer sv
 
@@ -211,7 +211,7 @@ fromProducer sv = K.mkStream $ \st yld sng stp -> do
 --
 {-# INLINE newFoldSVar #-}
 newFoldSVar :: MonadAsync m
-    => State K.StreamK m a -> (SerialT m a -> m b) -> m (SVar K.StreamK m a)
+    => State K.Stream m a -> (SerialT m a -> m b) -> m (SVar K.Stream m a)
 newFoldSVar stt f = do
     -- Buffer size for the SVar is derived from the current state
     sv <- newParallelVar StopAny (adaptState stt)
@@ -300,7 +300,7 @@ newFoldSVarF stt f = do
 -- exception.
 --
 {-# NOINLINE fromConsumer #-}
-fromConsumer :: MonadAsync m => SVar K.StreamK m a -> m Bool
+fromConsumer :: MonadAsync m => SVar K.Stream m a -> m Bool
 fromConsumer sv = do
     (list, _) <- liftIO $ readOutputQBasic (outputQueueFromConsumer sv)
     -- Reversing the output is important to guarantee that we process the
@@ -326,7 +326,7 @@ fromConsumer sv = do
 -- exceptions received from the fold consumer.
 --
 {-# INLINE pushToFold #-}
-pushToFold :: MonadAsync m => SVar K.StreamK m a -> a -> m Bool
+pushToFold :: MonadAsync m => SVar K.Stream m a -> a -> m Bool
 pushToFold sv a = do
     -- Check for exceptions before decrement so that we do not
     -- block forever if the child already exited with an exception.
@@ -373,7 +373,7 @@ pushToFold sv a = do
 --
 {-# INLINE teeToSVar #-}
 teeToSVar :: MonadAsync m =>
-    SVar K.StreamK m a -> SerialT m a -> SerialT m a
+    SVar K.Stream m a -> SerialT m a -> SerialT m a
 teeToSVar svr m = Stream.fromStreamK $ K.mkStream $ \st yld sng stp -> do
     K.foldStreamShared st yld sng stp (go False $ Stream.toStreamK m)
 

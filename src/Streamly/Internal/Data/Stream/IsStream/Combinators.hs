@@ -31,7 +31,7 @@ import Data.Int (Int64)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, mkStream, foldStreamShared)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
+import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import Streamly.Internal.Data.SVar
 
@@ -220,7 +220,7 @@ maxYields n m = mkStream $ \st stp sng yld ->
 maxYieldsSerial :: Maybe Int64 -> SerialT m a -> SerialT m a
 maxYieldsSerial _ = id
 
-printState :: MonadIO m => State StreamK m a -> m ()
+printState :: MonadIO m => State Stream m a -> m ()
 printState st = liftIO $ do
     let msv = streamVar st
     case msv of

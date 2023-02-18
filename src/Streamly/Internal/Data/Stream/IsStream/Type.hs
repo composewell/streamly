@@ -104,7 +104,6 @@ where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
-import Streamly.Internal.Data.Stream.StreamK (StreamK)
 import Streamly.Internal.Data.Stream.Serial
     (SerialT, Serial, WSerialT(..), WSerial)
 import Streamly.Internal.Data.Stream.Async
@@ -205,11 +204,11 @@ class
 -------------------------------------------------------------------------------
 
 {-# INLINE toStreamK #-}
-toStreamK :: IsStream t => t m a -> StreamK m a
+toStreamK :: IsStream t => t m a -> StreamK.StreamK m a
 toStreamK = toStream
 
 {-# INLINE fromStreamK #-}
-fromStreamK :: IsStream t => StreamK m a -> t m a
+fromStreamK :: IsStream t => StreamK.StreamK m a -> t m a
 fromStreamK = fromStream
 
 -- XXX Move/reset the State here by reconstructing the stream with cleared

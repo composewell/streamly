@@ -49,7 +49,8 @@
 module Streamly.Internal.Data.Stream.StreamK
     (
     -- * The stream type
-      StreamK(..) -- XXX stop exporting this
+      Stream
+    , StreamK(..)
     , fromStream
     , toStream
 

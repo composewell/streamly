@@ -46,7 +46,7 @@ import System.Mem (performMajorGC)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (StreamK(..), foldStreamShared, mkStream, foldStream)
+    (Stream, StreamK(..), foldStreamShared, mkStream, foldStream)
 import qualified Streamly.Internal.Data.Stream.Serial as Stream (fromStreamK)
 
 import Streamly.Internal.Data.SVar
@@ -112,7 +112,7 @@ toSVar sv m = do
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
-fromStreamVar :: MonadAsync m => SVar K.StreamK m a -> K.StreamK m a
+fromStreamVar :: MonadAsync m => SVar K.Stream m a -> K.Stream m a
 fromStreamVar sv = K.MkStream $ \st yld sng stp -> do
     list <- readOutputQ sv
     -- Reversing the output is important to guarantee that we process the
@@ -186,7 +186,7 @@ inspect $ hasNoTypeClassesExcept 'fromStreamVar
 -- combinators.
 --
 {-# INLINE fromSVar #-}
-fromSVar :: MonadAsync m => SVar K.StreamK m a -> SerialT m a
+fromSVar :: MonadAsync m => SVar K.Stream m a -> SerialT m a
 fromSVar sv =
     Stream.fromStreamK $ K.mkStream $ \st yld sng stp -> do
         ref <- liftIO $ newIORef ()
