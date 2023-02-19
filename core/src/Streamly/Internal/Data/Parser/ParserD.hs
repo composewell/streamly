@@ -119,7 +119,12 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeWhile1
     , dropWhile
 
-    -- ** Separators
+    -- ** Single Element Separators
+    -- | Separator could be in prefix postion ('takeStartBy'), or suffix
+    -- position ('takeEndBy').
+
+    -- These can be implemented modularly with refolds, using takeWhile and
+    -- satisfy.
     , takeEndBy
     , takeEndBy_
     , takeEndByEsc
@@ -943,6 +948,17 @@ takeWhile predicate (Fold fstep finitial fextract) =
         else Done 1 <$> fextract s
 
     extract s = fmap (Done 0) (fextract s)
+
+{-
+-- XXX This may not be composable because of the b argument. We can instead
+-- return a "Reparse b a m b" so that those can be composed.
+{-# INLINE takeWhile1X #-}
+takeWhile1 :: Monad m => b -> (a -> Bool) -> Refold m b a b -> Parser a m b
+-- We can implement this using satisfy and takeWhile. We can use "satisfy
+-- p", fold the result with the refold and then use the "takeWhile p" and
+-- fold that using the refold.
+takeWhile1 acc cond f = undefined
+-}
 
 -- | Like 'takeWhile' but takes at least one element otherwise fails.
 --
