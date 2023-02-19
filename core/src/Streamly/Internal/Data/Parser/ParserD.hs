@@ -1583,9 +1583,9 @@ wordFramedBy isEsc isBegin isEnd isSep
 data WordQuotedState s b a =
       WordQuotedSkipPre !s
     | WordUnquotedWord !s
-    | WordQuotedWord !s !Int a
+    | WordQuotedWord !s !Int !a !a
     | WordUnquotedEsc !s
-    | WordQuotedEsc !s !Int a
+    | WordQuotedEsc !s !Int !a !a
     | WordQuotedSkipPost !b
 
 -- | Like 'wordFramedBy' but the closing quote is determined by the opening
@@ -1611,14 +1611,13 @@ data WordQuotedState s b a =
 {-# INLINE wordQuotedBy #-}
 wordQuotedBy :: (Monad m, Eq a) =>
        Bool         -- ^ keep the quotes in the output
-    -> (a -> Bool)  -- ^ Escape
-    -> (a -> Bool)  -- ^ left quote
-    -> (a -> Bool)  -- ^ right quote
-    -> (a -> a)     -- ^ get right quote from the left quote
-    -> (a -> Bool)  -- ^ word seperator
+    -> (a -> Bool)  -- ^ Matches an escape elem?
+    -> (a -> Maybe a)  -- ^ If left quote, return right quote, else nothing.
+    -> (a -> Bool)  -- ^ Matches a right quote?
+    -> (a -> Bool)  -- ^ Matches a word seperator?
     -> Fold m a b
     -> Parser a m b
-wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
+wordQuotedBy keepQuotes isEsc toRight isEnd isSep
     (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1633,11 +1632,11 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
                     error "wordQuotedBy: fold done without input"
 
     {-# INLINE process #-}
-    process s a n q = do
+    process s a n ql qr = do
         res <- fstep s a
         return
             $ case res of
-                FL.Partial s1 -> Continue 0 (WordQuotedWord s1 n q)
+                FL.Partial s1 -> Continue 0 (WordQuotedWord s1 n ql qr)
                 FL.Done b -> Done 0 b
 
     {-# INLINE processUnquoted #-}
@@ -1651,45 +1650,50 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
     step (WordQuotedSkipPre s) a
         | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
         | isSep a = return $ Partial 0 $ WordQuotedSkipPre s
-        | isBegin a =
-              if keepQuotes
-              then process s a 1 a
-              else return $ Continue 0 $ WordQuotedWord s 1 a
-        | isEnd a =
-            return $ Error "wordQuotedBy: missing frame start"
-        | otherwise = processUnquoted s a
+        | otherwise =
+            case toRight a of
+                Just qr ->
+                  if keepQuotes
+                  then process s a 1 a qr
+                  else return $ Continue 0 $ WordQuotedWord s 1 a qr
+                Nothing
+                    | isEnd a ->
+                        return $ Error "wordQuotedBy: missing frame start"
+                    | otherwise -> processUnquoted s a
     step (WordUnquotedWord s) a
         | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
         | isSep a = do
             b <- fextract s
             return $ Partial 0 $ WordQuotedSkipPost b
         | otherwise = do
-               if isBegin a
-               then if keepQuotes
-                    then process s a 1 a
-                    else return $ Continue 0 $ WordQuotedWord s 1 a
-               else if isEnd a
+            case toRight a of
+                Just qr ->
+                    if keepQuotes
+                    then process s a 1 a qr
+                    else return $ Continue 0 $ WordQuotedWord s 1 a qr
+                Nothing ->
+                    if isEnd a
                     then return $ Error "wordQuotedBy: missing frame start"
                     else processUnquoted s a
-    step (WordQuotedWord s n q) a
-        | isEsc a = return $ Continue 0 $ WordQuotedEsc s n q
+    step (WordQuotedWord s n ql qr) a
+        | isEsc a = return $ Continue 0 $ WordQuotedEsc s n ql qr
         -- XXX Will this ever occur? Will n ever be 0?
         | n == 0 && isSep a = do
             b <- fextract s
             return $ Partial 0 $ WordQuotedSkipPost b
         | otherwise = do
-                if a == toRight q
+                if a == qr
                 then
                    if n == 1
                    then if keepQuotes
                         then processUnquoted s a
                         else return $ Continue 0 $ WordUnquotedWord s
-                   else process s a (n - 1) q
-                else if a == q
-                     then process s a (n + 1) q
-                     else process s a n q
+                   else process s a (n - 1) ql qr
+                else if a == ql
+                     then process s a (n + 1) ql qr
+                     else process s a n ql qr
     step (WordUnquotedEsc s) a = processUnquoted s a
-    step (WordQuotedEsc s n q) a = process s a n q
+    step (WordQuotedEsc s n ql qr) a = process s a n ql qr
     step (WordQuotedSkipPost b) a =
         return
             $ if not (isSep a)
@@ -1700,7 +1704,7 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
 
     extract (WordQuotedSkipPre s) = fmap (Done 0) $ fextract s
     extract (WordUnquotedWord s) = fmap (Done 0) $ fextract s
-    extract (WordQuotedWord s n _) =
+    extract (WordQuotedWord s n _ _) =
         if n == 0
         then fmap (Done 0) $ fextract s
         else err "wordQuotedBy: missing frame end"
