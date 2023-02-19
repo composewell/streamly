@@ -1500,10 +1500,10 @@ data WordFramedState s b =
 --
 {-# INLINE wordFramedBy #-}
 wordFramedBy :: Monad m =>
-       (a -> Bool)  -- ^ Escape
-    -> (a -> Bool)  -- ^ left quote
-    -> (a -> Bool)  -- ^ right quote
-    -> (a -> Bool)  -- ^ word seperator
+       (a -> Bool)  -- ^ Matches escape elem?
+    -> (a -> Bool)  -- ^ Matches left quote?
+    -> (a -> Bool)  -- ^ matches right quote?
+    -> (a -> Bool)  -- ^ matches word seperator?
     -> Fold m a b
     -> Parser a m b
 wordFramedBy isEsc isBegin isEnd isSep
