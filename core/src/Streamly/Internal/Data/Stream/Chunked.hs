@@ -78,6 +78,7 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Array.Type (Array(..))
+import Streamly.Internal.Data.Array.Mut.Type (MutArray)
 import Streamly.Internal.Data.Fold.Chunked (ChunkFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream.StreamD (Stream)
@@ -474,7 +475,7 @@ splitAtArrayListRev n ls
 -- stream.
 {-# INLINE spliceArraysLenUnsafe #-}
 spliceArraysLenUnsafe :: (MonadIO m, Unbox a)
-    => Int -> Stream m (MA.Array a) -> m (MA.Array a)
+    => Int -> Stream m (MutArray a) -> m (MutArray a)
 spliceArraysLenUnsafe len buffered = do
     arr <- liftIO $ MA.newPinned len
     D.foldlM' MA.spliceUnsafe (return arr) buffered

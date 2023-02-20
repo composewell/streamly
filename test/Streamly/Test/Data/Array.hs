@@ -15,6 +15,7 @@ import Data.Word(Word8)
 import Foreign.Storable (peek)
 import GHC.Ptr (plusPtr)
 import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
+import Streamly.Internal.Data.Array.Mut.Type (MutArray)
 import Test.QuickCheck (chooseInt, listOf)
 
 import qualified Streamly.Internal.Data.Array as A
@@ -159,8 +160,8 @@ testBubbleDesc = testBubbleWith False
 
 testByteLengthWithMA :: forall a. Unbox a => a -> IO ()
 testByteLengthWithMA _ = do
-     arrA <- MA.newPinned 100 :: IO (MA.Array a)
-     let arrW8 = MA.castUnsafe arrA :: MA.Array Word8
+     arrA <- MA.newPinned 100 :: IO (MutArray a)
+     let arrW8 = MA.castUnsafe arrA :: MutArray Word8
      MA.byteLength arrA `shouldBe` MA.length arrW8
 
 testBreakOn :: [Word8] -> Word8 -> [Word8] -> Maybe [Word8] -> IO ()

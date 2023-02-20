@@ -99,7 +99,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Type as A
     (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe, arraysOf)
 import qualified Streamly.Internal.Data.Array.Mut as MArray
-    (Array(..), newPinnedBytes, asPtrUnsafe)
+    (MutArray(..), newPinnedBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))
