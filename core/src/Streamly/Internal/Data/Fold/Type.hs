@@ -382,7 +382,7 @@ module Streamly.Internal.Data.Fold.Type
     , ManyState
     , many
     , manyPost
-    , chunksOf
+    , groupsOf
     , refoldMany
     , refoldMany1
 
@@ -1334,7 +1334,7 @@ catEithers = lmap (either id id)
 -- Parsing
 ------------------------------------------------------------------------------
 
--- Required to fuse "take" with "many" in "chunksOf", for ghc-9.x
+-- Required to fuse "take" with "many" in "groupsOf", for ghc-9.x
 {-# ANN type Tuple'Fused Fuse #-}
 data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 
@@ -1712,25 +1712,25 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
             Partial s -> cextract s
             Done b -> return b
 
--- | @chunksOf n split collect@ repeatedly applies the @split@ fold to chunks
+-- | @groupsOf n split collect@ repeatedly applies the @split@ fold to chunks
 -- of @n@ items in the input stream and supplies the result to the @collect@
 -- fold.
 --
 -- Definition:
 --
--- >>> chunksOf n split = Fold.many (Fold.take n split)
+-- >>> groupsOf n split = Fold.many (Fold.take n split)
 --
 -- Example:
 --
--- >>> twos = Fold.chunksOf 2 Fold.toList Fold.toList
+-- >>> twos = Fold.groupsOf 2 Fold.toList Fold.toList
 -- >>> Stream.fold twos $ Stream.fromList [1..10]
 -- [[1,2],[3,4],[5,6],[7,8],[9,10]]
 --
 -- Stops when @collect@ stops.
 --
-{-# INLINE chunksOf #-}
-chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-chunksOf n split = many (take n split)
+{-# INLINE groupsOf #-}
+groupsOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
+groupsOf n split = many (take n split)
 
 ------------------------------------------------------------------------------
 -- Refold and Fold Combinators

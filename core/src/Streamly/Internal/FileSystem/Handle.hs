@@ -500,11 +500,11 @@ writeChunksWithBufferOf = writeChunksWith
 -- Bytes in the input stream are collected into a buffer until we have a chunk
 -- of @reqSize@ and then written to the IO device.
 --
--- >>> writeWith n h = Fold.chunksOf n (Array.writeNUnsafe n) (Handle.writeChunks h)
+-- >>> writeWith n h = Fold.groupsOf n (Array.writeNUnsafe n) (Handle.writeChunks h)
 --
 {-# INLINE writeWith #-}
 writeWith :: MonadIO m => Int -> Handle -> Fold m Word8 ()
-writeWith n h = FL.chunksOf n (writeNUnsafe n) (writeChunks h)
+writeWith n h = FL.groupsOf n (writeNUnsafe n) (writeChunks h)
 
 -- | Same as 'writeWith'
 --

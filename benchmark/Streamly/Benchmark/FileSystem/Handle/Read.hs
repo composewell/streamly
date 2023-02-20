@@ -215,7 +215,7 @@ o_1_space_reduce_toBytes env =
 
 chunksOfSum :: Int -> Handle -> IO Int
 chunksOfSum n inh =
-    S.fold Fold.length $ IP.chunksOf n FL.sum (S.unfold FH.reader inh)
+    S.fold Fold.length $ IP.groupsOf n FL.sum (S.unfold FH.reader inh)
 
 foldManyPostChunksOfSum :: Int -> Handle -> IO Int
 foldManyPostChunksOfSum n inh =
@@ -231,20 +231,20 @@ foldManyChunksOfSum n inh =
 -- Even though allocations remain the same in both cases inlining improves time
 -- by 4x.
 -- | Slice in chunks of size n and get the count of chunks.
-{-# INLINE chunksOf #-}
-chunksOf :: Int -> Handle -> IO Int
-chunksOf n inh =
+{-# INLINE groupsOf #-}
+groupsOf :: Int -> Handle -> IO Int
+groupsOf n inh =
     -- writeNUnsafe gives 2.5x boost here over writeN.
     S.fold Fold.length
-        $ IP.chunksOf n (AT.writeNUnsafe n) (S.unfold FH.reader inh)
+        $ IP.groupsOf n (AT.writeNUnsafe n) (S.unfold FH.reader inh)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'chunksOf
-inspect $ 'chunksOf `hasNoType` ''Step
-inspect $ 'chunksOf `hasNoType` ''FoldMany
-inspect $ 'chunksOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
+inspect $ hasNoTypeClasses 'groupsOf
+inspect $ 'groupsOf `hasNoType` ''Step
+inspect $ 'groupsOf `hasNoType` ''FoldMany
+inspect $ 'groupsOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
                                                  -- FH.read/A.read
-inspect $ 'chunksOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
+inspect $ 'groupsOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 #endif
 
 {-# INLINE arraysOf #-}
@@ -255,10 +255,10 @@ arraysOf n inh =
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_grouped env =
     [ bgroup "reduce/read/chunks"
-        [ mkBench ("S.chunksOf " ++ show (bigSize env) ++  " FL.sum") env $
+        [ mkBench ("S.groupsOf " ++ show (bigSize env) ++  " FL.sum") env $
             \inh _ ->
                 chunksOfSum (bigSize env) inh
-        , mkBench "S.chunksOf 1 FL.sum" env $ \inh _ ->
+        , mkBench "S.groupsOf 1 FL.sum" env $ \inh _ ->
             chunksOfSum 1 inh
 
         -- XXX investigate why we need inline/noinline in these cases (GHC)
@@ -281,14 +281,14 @@ o_1_space_reduce_read_grouped env =
             $ \inh _ -> inline foldManyChunksOfSum 1 inh
 
         -- folding chunks to arrays
-        , mkBenchSmall "S.chunksOf 1" env $ \inh _ ->
-            chunksOf 1 inh
-        , mkBench "S.chunksOf 10" env $ \inh _ ->
-            chunksOf 10 inh
-        , mkBench "S.chunksOf 1000" env $ \inh _ ->
-            chunksOf 1000 inh
+        , mkBenchSmall "S.groupsOf 1" env $ \inh _ ->
+            groupsOf 1 inh
+        , mkBench "S.groupsOf 10" env $ \inh _ ->
+            groupsOf 10 inh
+        , mkBench "S.groupsOf 1000" env $ \inh _ ->
+            groupsOf 1000 inh
 
-        -- arraysOf may use a different impl than chunksOf
+        -- arraysOf may use a different impl than groupsOf
         , mkBenchSmall "S.arraysOf 1" env $ \inh _ ->
             arraysOf 1 inh
         , mkBench "S.arraysOf 10" env $ \inh _ ->
