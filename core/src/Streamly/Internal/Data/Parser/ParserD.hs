@@ -146,6 +146,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeFramedByGeneric
     , wordFramedBy
     , wordQuotedBy
+    , blockQuotedBy
 
     -- Matching strings
     -- , prefixOf -- match any prefix of a given string
@@ -1588,6 +1589,11 @@ data WordQuotedState s b a =
     | WordQuotedEsc !s !Int !a !a
     | WordQuotedSkipPost !b
 
+-- XXX If quote start and end chars are different then quotes can be nested
+-- without escaping. However, is there a case for the use of nested quotes?
+
+-- XXX Simplify like blockQuotedBy
+
 -- | Like 'wordFramedBy' but the closing quote is determined by the opening
 -- quote. The first quote begin starts a quote that is closed by its
 -- corresponding closing quote.
@@ -1713,6 +1719,98 @@ wordQuotedBy keepQuotes isEsc toRight isEnd isSep
     extract (WordUnquotedEsc _) =
         err "wordQuotedBy: trailing escape"
     extract (WordQuotedSkipPost b) = return (Done 0 b)
+
+data BlockParseState s =
+      BlockInit !s
+    | BlockUnquoted !Int !s
+    | BlockQuoted !Int !s
+    | BlockQuotedEsc !Int !s
+
+-- Blocks can be of different types e.g. {} or (). We only parse from the
+-- perspective of the outermost block type. The nesting of that block are
+-- checked. Any other block types nested inside it are opaque to us and can be
+-- parsed when the contents of the block are parsed.
+
+-- XXX Put a limit on nest level to keep the API safe.
+
+-- | Parse a block using block enclosed by open, close identifiers, block
+-- identifiers inside quotes are ignored. Quoting characters can be escaped. A
+-- block can have a nested block inside it.
+--
+-- Block chars and quote chars must not overlap. Block start and end chars must
+-- not be the same for nesting without escaping.
+--
+-- >>> p = Parser.blockQuotedBy '{' '}' '"' '\\' Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "{msg: \"hello world\"}"
+-- Right "msg: \"hello world\""
+--
+{-# INLINE blockQuotedBy #-}
+blockQuotedBy :: (Monad m, Eq a) =>
+       a  -- ^ Block opening char
+    -> a  -- ^ Block closing char
+    -> a  -- ^ quote char
+    -> a  -- ^ escape char
+    -> Fold m a b
+    -> Parser a m b
+blockQuotedBy bopen bclose quote esc
+    (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (BlockInit s)
+                FL.Done _ ->
+                    error "wordQuotedBy: fold finished without input"
+
+    {-# INLINE process #-}
+    process s a nextState = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (nextState s1)
+                FL.Done b -> Done 0 b
+
+    step (BlockInit s) a =
+        return
+            $ if a == bopen
+              then Continue 0 $ BlockUnquoted 1 s
+              else Error "blockQuotedBy: missing block start"
+    step (BlockUnquoted level s) a =
+        if a == bopen
+        then process s a (BlockUnquoted (level + 1))
+        else
+            if a == bclose
+            then
+                if level == 1
+                then fmap (Done 0) (fextract s)
+                else process s a (BlockUnquoted (level - 1))
+             else
+                if a == quote
+                then process s a (BlockQuoted level)
+                else process s a (BlockUnquoted level)
+    step (BlockQuoted level s) a
+        | a == esc = process s a (BlockQuotedEsc level)
+        | otherwise =
+            if a == quote
+            then process s a (BlockUnquoted level)
+            else process s a (BlockQuoted level)
+    step (BlockQuotedEsc level s) a = process s a (BlockQuoted level)
+
+    err = return . Error
+
+    extract (BlockInit s) = fmap (Done 0) $ fextract s
+    extract (BlockUnquoted level _) =
+        err $ "blockQuotedBy: finished at block nest level " ++ show level
+    extract (BlockQuoted level _) =
+        err $ "blockQuotedBy: finished, inside an unfinished quote, "
+            ++ "at block nest level " ++ show level
+    extract (BlockQuotedEsc level _) =
+        err $ "blockQuotedBy: finished, inside an unfinished quote, "
+            ++ "after an escape char, at block nest level " ++ show level
 
 {-# ANN type GroupByState Fuse #-}
 data GroupByState a s
