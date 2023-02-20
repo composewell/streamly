@@ -325,7 +325,7 @@ module Streamly.Data.Fold
 
     -- ** Splitting
     , many
-    , chunksOf
+    , groupsOf
     -- , intervalsOf
 
     -- ** Nesting
@@ -335,6 +335,7 @@ module Streamly.Data.Fold
     , morphInner
 
     -- * Deprecated
+    , chunksOf
     , foldr
     , drainBy
     , last
@@ -362,3 +363,12 @@ import Streamly.Internal.Data.Fold.Container
 -- >>> import Data.Function ((&))
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
+
+--------------------------------------------------------------------------------
+-- Deprecated
+--------------------------------------------------------------------------------
+
+{-# DEPRECATED chunksOf "Please use 'groupsOf' instead" #-}
+{-# INLINE chunksOf #-}
+chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
+chunksOf = groupsOf

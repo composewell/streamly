@@ -49,6 +49,7 @@ higher level operations with additional dependencies.
   * `serialWith` renamed to `splitWith`.
   * `variance`, and `stdDev` deprecated. Please use the
     `streamly-statistics` package instead.
+  * `chunksOf` is renamed to `groupsOf`.
 * In `Streamly.Network.Socket`:
   * `readWithBufferOf` renamed to `readWith`
   * `readChunksWithBufferOf` renamed to `readChunksWith`

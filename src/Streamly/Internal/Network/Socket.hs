@@ -502,7 +502,7 @@ putBytesWith n h m = putChunks h $ A.arraysOf n m
 --
 {-# INLINE writeWith #-}
 writeWith :: MonadIO m => Int -> Socket -> Fold m Word8 ()
-writeWith n h = FL.chunksOf n (A.writeNUnsafe n) (writeChunks h)
+writeWith n h = FL.groupsOf n (A.writeNUnsafe n) (writeChunks h)
 
 -- | Same as 'writeWith'
 --

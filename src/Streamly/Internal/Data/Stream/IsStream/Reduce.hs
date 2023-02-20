@@ -193,7 +193,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as PRD (Parser(..))
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
     ( foldMany
-    , chunksOf
+    , groupsOf
     , refoldMany
     , foldIterateM
     , refoldIterateM
@@ -983,7 +983,7 @@ splitOnSuffixSeqAny _subseq _f _m = undefined
 chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
-chunksOf n f = fromStreamD . D.chunksOf n f . toStreamD
+chunksOf n f = fromStreamD . D.groupsOf n f . toStreamD
 
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.

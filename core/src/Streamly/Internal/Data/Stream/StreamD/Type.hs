@@ -120,7 +120,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , FoldManyPost (..)
     , foldMany
     , foldManyPost
-    , chunksOf
+    , groupsOf
     , refoldMany
 
     -- * Fold Iterate
@@ -1860,9 +1860,9 @@ foldMany (Fold fstep initial extract) (Stream step state) =
     step' _ (FoldManyYield b next) = return $ Yield b next
     step' _ FoldManyDone = return Stop
 
-{-# INLINE chunksOf #-}
-chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
-chunksOf n f = foldMany (FL.take n f)
+{-# INLINE groupsOf #-}
+groupsOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
+groupsOf n f = foldMany (FL.take n f)
 
 -- Keep the argument order consistent with refoldIterateM.
 

@@ -283,7 +283,7 @@ module Streamly.Internal.Data.Fold
     -- ** Splitting
     , many
     , manyPost
-    , chunksOf
+    , groupsOf
     , chunksBetween
     , refoldMany
     , refoldMany1
@@ -461,7 +461,7 @@ breakStreamK strm fl = fmap f $ K.foldBreak fl (Stream.toStreamK strm)
 --
 -- >>> :{
 -- let f :: Fold IO Int (Stream Identity (Array Int))
---     f = Fold.chunksOf 2 (Array.writeN 3) Fold.toStream
+--     f = Fold.groupsOf 2 (Array.writeN 3) Fold.toStream
 -- in pure f
 --     >>= Fold.addOne 1
 --     >>= Fold.addStream (Stream.enumerateFromTo 2 4)
