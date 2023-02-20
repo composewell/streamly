@@ -260,7 +260,7 @@ import Prelude hiding
 
 -- $setup
 -- >>> :m
--- >>> import qualified Streamly.Internal.Data.MutArray.Mut.Type as MutArray
+-- >>> import qualified Streamly.Internal.Data.Array.Mut.Type as MutArray
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
