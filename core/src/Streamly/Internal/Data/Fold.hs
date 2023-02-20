@@ -287,6 +287,7 @@ module Streamly.Internal.Data.Fold
     , chunksBetween
     , refoldMany
     , refoldMany1
+    , intersperseWithQuotes
 
     -- ** Nesting
     , unfoldMany
@@ -2527,3 +2528,87 @@ top = bottomBy $ flip compare
 {-# INLINE bottom #-}
 bottom :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (MA.Array a)
 bottom = bottomBy compare
+
+------------------------------------------------------------------------------
+-- Interspersed parsing
+------------------------------------------------------------------------------
+
+data IntersperseQState fs ps =
+      IntersperseQUnquoted !fs !ps
+    | IntersperseQQuoted !fs !ps
+    | IntersperseQQuotedEsc !fs !ps
+
+-- Useful for parsing CSV with quoting and escaping
+{-# INLINE intersperseWithQuotes #-}
+intersperseWithQuotes :: (Monad m, Eq a) =>
+    a -> a -> a -> Fold m a b -> Fold m b c -> Fold m a c
+intersperseWithQuotes
+    quote
+    esc
+    separator
+    (Fold stepL initialL extractL)
+    (Fold stepR initialR extractR) = Fold step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "intersperseWithQuotes: " ++ p ++ " parsing fold cannot "
+                ++ status ++ " without input"
+
+    {-# INLINE initL #-}
+    initL mkState = do
+        resL <- initialL
+        case resL of
+            Partial sL ->
+                return $ Partial $ mkState sL
+            Done _ ->
+                errMsg "content" "succeed"
+
+    initial = do
+        res <- initialR
+        case res of
+            Partial sR -> initL (IntersperseQUnquoted sR)
+            Done b -> return $ Done b
+
+    {-# INLINE collect #-}
+    collect nextS sR b = do
+        res <- stepR sR b
+        case res of
+            Partial s ->
+                initL (nextS s)
+            Done c -> return (Done c)
+
+    {-# INLINE process #-}
+    process a sL sR nextState = do
+        r <- stepL sL a
+        case r of
+            Partial s -> return $ Partial (nextState sR s)
+            Done b -> collect nextState sR b
+
+    {-# INLINE processQuoted #-}
+    processQuoted a sL sR nextState = do
+        r <- stepL sL a
+        case r of
+            Partial s -> return $ Partial (nextState sR s)
+            Done _ -> error "Collecting fold finished inside quote"
+
+    step (IntersperseQUnquoted sR sL) a
+        | a == separator = do
+            b <- extractL sL
+            collect IntersperseQUnquoted sR b
+        | a == quote = processQuoted a sL sR IntersperseQQuoted
+        | otherwise = process a sL sR IntersperseQUnquoted
+
+    step (IntersperseQQuoted sR sL) a
+        | a == esc = processQuoted a sL sR IntersperseQQuotedEsc
+        | a == quote = process a sL sR IntersperseQUnquoted
+        | otherwise = processQuoted a sL sR IntersperseQQuoted
+
+    step (IntersperseQQuotedEsc sR sL) a =
+        processQuoted a sL sR IntersperseQQuoted
+
+    extract (IntersperseQUnquoted sR _) = extractR sR
+    extract (IntersperseQQuoted _ _) =
+        error "intersperseWithQuotes: finished inside quote"
+    extract (IntersperseQQuotedEsc _ _) =
+        error "intersperseWithQuotes: finished inside quote, at escape char"
