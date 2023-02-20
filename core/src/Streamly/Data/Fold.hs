@@ -325,7 +325,7 @@ module Streamly.Data.Fold
 
     -- ** Splitting
     , many
-    , chunksOf
+    , groupsOf
     -- , intervalsOf
 
     -- ** Nesting
@@ -335,6 +335,7 @@ module Streamly.Data.Fold
     , morphInner
 
     -- * Deprecated
+    , chunksOf
     , foldr
     , drainBy
     , last

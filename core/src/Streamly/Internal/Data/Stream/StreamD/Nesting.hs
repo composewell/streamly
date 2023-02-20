@@ -138,7 +138,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
 
     -- ** Grouping
     -- | Group segments of a stream and fold. Special case of parsing.
-    , chunksOf
+    , groupsOf
     , groupsBy
     , groupsRollingBy
 

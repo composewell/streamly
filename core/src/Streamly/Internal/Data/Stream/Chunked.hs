@@ -111,7 +111,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
--- > arraysOf n = Stream.chunksOf n (Array.writeN n)
+-- > arraysOf n = Stream.arraysOf n (Array.writeN n)
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}
@@ -541,7 +541,7 @@ toArraysInRange low high (Fold step initial extract) =
 {-# INLINE _toArraysOf #-}
 _toArraysOf :: (MonadIO m, Unbox a)
     => Int -> Fold m a (Stream Identity (Array a))
-_toArraysOf n = FL.chunksOf n (A.writeNF n) FL.toStream
+_toArraysOf n = FL.groupsOf n (A.writeNF n) FL.toStream
 -}
 
 -------------------------------------------------------------------------------
