@@ -28,8 +28,8 @@ import System.Random (randomRIO)
 import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.IsMap.HashMap ()
+import Streamly.Internal.Data.Array.Mut (MutArray)
 
-import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Container as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
@@ -291,7 +291,7 @@ unfoldMany val =
 moduleName :: String
 moduleName = "Data.Fold"
 
-instance NFData (MArray.Array a) where
+instance NFData (MutArray a) where
     {-# INLINE rnf #-}
     rnf _ = ()
 

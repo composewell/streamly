@@ -42,6 +42,7 @@ import Prelude
     , id
     , undefined
     )
+import Streamly.Internal.Data.Array.Mut (MutArray)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Array.Mut as MArray
@@ -51,9 +52,9 @@ import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)
 
-type Stream = MArray.Array
+type Stream = MutArray
 
-instance NFData (MArray.Array a) where
+instance NFData (MutArray a) where
     {-# INLINE rnf #-}
     rnf _ = ()
 
@@ -249,7 +250,7 @@ o_1_space_transformationX4 value =
       ]
 
 o_1_space_serial_marray ::
-    Int -> (MArray.Array Int, Array.Array Int) -> [Benchmark]
+    Int -> (MutArray Int, Array.Array Int) -> [Benchmark]
 o_1_space_serial_marray value ~(array, indices) =
     [ benchIO' "partitionBy (< 0)" (const (return array))
         $ MArray.partitionBy (< 0)
