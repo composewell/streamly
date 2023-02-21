@@ -1687,14 +1687,15 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
     -- cb = collect done
     -- sb = split done
 
-    -- Caution! There is mutual recursion here, inlining the right functions is
-    -- important.
-
     {-# INLINE split #-}
     split cs sres =
         case sres of
             Partial ss1 -> return $ Partial $ Tuple' ss1 cs
-            Done sb -> cstep cs sb >>= collect
+            -- Caution! There is mutual recursion here, inlining the right
+            -- functions is important.
+            -- Done sb -> cstep cs sb >>= collect
+            Done _ ->
+                error "manyPost: first fold must not terminate without input"
 
     collect cres =
         case cres of
