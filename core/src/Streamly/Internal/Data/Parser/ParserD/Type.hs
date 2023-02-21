@@ -922,56 +922,64 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 assertM(n == cnt)
                 return $ Continue n (AltParseL 0 s)
 
+{-# ANN type ManyState Fuse #-}
+data ManyState s1 s2
+    = ManyInit !s2
+    | ManyLoop !Int !s1 !s2
+
 -- | See documentation of 'Streamly.Internal.Data.Parser.many'.
 --
 -- /Pre-release/
 --
 {-# INLINE splitMany #-}
-splitMany :: Monad m =>  Parser a m b -> Fold m b c -> Parser a m c
+splitMany :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
 splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     Parser step initial extract
 
     where
 
-    -- Caution! There is mutual recursion here, inlining the right functions is
-    -- important.
-
-    handleCollect partial done fres =
+    {-# INLINE reinit #-}
+    reinit n fres = do
         case fres of
-            FL.Partial fs -> do
-                pres <- initial1
-                case pres of
-                    IPartial ps -> return $ partial $ Tuple3' ps 0 fs
-                    IDone pb ->
-                        runCollectorWith (handleCollect partial done) fs pb
-                    IError _ -> done <$> fextract fs
-            FL.Done fb -> return $ done fb
+            FL.Partial fs -> return $ Partial n $ ManyInit fs
+            FL.Done fb -> return $ Done n fb
 
-    runCollectorWith cont fs pb = fstep fs pb >>= cont
+    initial = do
+        fres <- finitial
+        case fres of
+            FL.Partial fs -> return $ IPartial $ ManyInit fs
+            FL.Done fb -> return $ IDone fb
 
-    initial = finitial >>= handleCollect IPartial IDone
-
-    {-# INLINE step #-}
-    step (Tuple3' st cnt fs) a = do
-        r <- step1 st a
-        let cnt1 = cnt + 1
+    {-# INLINE step_ #-}
+    step_ cnt ps fs a = do
+        r <- step1 ps a
         case r of
             Partial n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+                assertM(cnt - n >= 0)
+                return $ Continue n (ManyLoop (cnt - n) s fs)
             Continue n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+                assertM(cnt - n >= 0)
+                return $ Continue n (ManyLoop (cnt - n) s fs)
             Done n b -> do
-                assertM(cnt1 - n >= 0)
-                fstep fs b >>= handleCollect (Partial n) (Done n)
+                assertM(cnt - n >= 0)
+                fstep fs b >>= reinit n
             Error _ -> do
                 xs <- fextract fs
-                return $ Done cnt1 xs
+                return $ Done cnt xs
 
-    extract (Tuple3' _ 0 fs) = fmap (Done 0) (fextract fs)
-    extract (Tuple3' s cnt fs) = do
-        r <- extract1 s
+    {-# INLINE step #-}
+    step (ManyInit fs) a = do
+        pres <- initial1
+        case pres of
+            IPartial ps -> step_ 1 ps fs a
+            IDone _ ->
+                error "many: parser must not terminate without input"
+            IError _ -> Done 1 <$> fextract fs
+    step (ManyLoop cnt ps fs) a = step_ (cnt + 1) ps fs a
+
+    extract (ManyInit fs) = fmap (Done 0) (fextract fs)
+    extract (ManyLoop cnt ps fs) = do
+        r <- extract1 ps
         case r of
             Error _ -> fmap (Done cnt) (fextract fs)
             Done n b -> do
@@ -983,7 +991,9 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             Partial _ _ -> error "splitMany: Partial in extract"
             Continue n s1 -> do
                 assertM(n == cnt)
-                return (Continue n (Tuple3' s1 0 fs))
+                return (Continue n (ManyLoop 0 s1 fs))
+
+-- XXX The parser is always extracted even when there is no input.
 
 -- | Like splitMany, but inner fold emits an output at the end even if no input
 -- is received.
