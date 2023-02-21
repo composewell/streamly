@@ -1598,7 +1598,7 @@ isClosed (Fold _ initial _) = do
 
 {-# ANN type ManyState Fuse #-}
 data ManyState s1 s2
-    = ManyFirst !s1 !s2
+    = ManyInit !s2
     | ManyLoop !s1 !s2
 
 -- | Collect zero or more applications of a fold.  @many first second@ applies
@@ -1628,38 +1628,31 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
     -- cb = collect done
     -- sb = split done
 
-    -- Caution! There is mutual recursion here, inlining the right functions is
-    -- important.
-
-    {-# INLINE split #-}
-    split f cs sres =
-        case sres of
-            Partial ss -> return $ Partial $ f ss cs
-            Done sb -> cstep cs sb >>= collect
-
-    collect cres =
+    {-# INLINE doInit #-}
+    doInit action = do
+        cres <- action
         case cres of
-            Partial cs -> sinitial >>= split ManyFirst cs
+            Partial cs -> return $ Partial $ ManyInit cs
             Done cb -> return $ Done cb
 
-    -- A fold may terminate even without accepting a single input.  So we run
-    -- the split fold's initial action even if no input is received.  However,
-    -- this means that if no input was ever received by "step" we discard the
-    -- fold's initial result which could have generated an effect. However,
-    -- note that if "sinitial" results in Done we do collect its output even
-    -- though the fold may not have received any input. XXX Is this
-    -- inconsistent?
-    initial = cinitial >>= collect
+    initial = doInit cinitial
 
     {-# INLINE step_ #-}
-    step_ ss cs a = sstep ss a >>= split ManyLoop cs
+    step_ ss cs a = do
+        sres <- sstep ss a
+        case sres of
+            Partial ss1 -> return $ Partial $ ManyLoop ss1 cs
+            Done sb -> doInit (cstep cs sb)
 
     {-# INLINE step #-}
-    step (ManyFirst ss cs) a = step_ ss cs a
+    step (ManyInit cs) a = do
+        sres <- sinitial
+        case sres of
+            Partial ss -> step_ ss cs a
+            Done _ -> error "many: first fold must not terminate without input"
     step (ManyLoop ss cs) a = step_ ss cs a
 
-    -- Do not extract the split fold if no item was consumed.
-    extract (ManyFirst _ cs) = cextract cs
+    extract (ManyInit cs) = cextract cs
     extract (ManyLoop ss cs) = do
         cres <- sextract ss >>= cstep cs
         case cres of
