@@ -1715,9 +1715,15 @@ data FoldManyPost s fs b a
 -- XXX Need a more intuitive name, and need to reconcile the names
 -- foldMany/fold/parse/parseMany/parseManyPost etc.
 
--- | Like 'foldMany' but evaluates the fold before the stream, and yields its
--- output even if the stream is empty, therefore, always results in a non-empty
--- output even on an empty stream (default result of the fold).
+-- XXX foldManyPost keeps the last fold always partial. if the last fold is
+-- complete then another fold is applied on empty input. This is used for
+-- applying folds like takeEndBy such that the last element is not the
+-- separator (infix style). But that looks like a hack. We should remove this
+-- and use a custom combinator for infix parsing.
+
+-- | Like 'foldMany' but evaluates the fold even if the fold did not receive
+-- any input, therefore, always results in a non-empty output even on an empty
+-- stream (default result of the fold).
 --
 -- Example, empty stream:
 --
@@ -1786,9 +1792,8 @@ data FoldMany s fs b a
 
 -- XXX Nested foldMany does not fuse.
 
--- | Apply a 'Fold' repeatedly on a stream and emit the results in the
--- output stream. Unlike 'foldManyPost' it evaluates the fold after the stream,
--- therefore, an empty input stream results in an empty output stream.
+-- | Apply a 'Fold' repeatedly on a stream and emit the results in the output
+-- stream.
 --
 -- Definition:
 --

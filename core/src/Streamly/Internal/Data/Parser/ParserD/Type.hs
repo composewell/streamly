@@ -208,7 +208,6 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor (Bifunctor(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..), toList)
-import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
 import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Fold.Type as FL
@@ -922,12 +921,15 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 assertM(n == cnt)
                 return $ Continue n (AltParseL 0 s)
 
+{-# ANN type Fused3 Fuse #-}
+data Fused3 a b c = Fused3 !a !b !c
+
 -- | See documentation of 'Streamly.Internal.Data.Parser.many'.
 --
 -- /Pre-release/
 --
 {-# INLINE splitMany #-}
-splitMany :: Monad m =>  Parser a m b -> Fold m b c -> Parser a m c
+splitMany :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
 splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -941,7 +943,7 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             FL.Partial fs -> do
                 pres <- initial1
                 case pres of
-                    IPartial ps -> return $ partial $ Tuple3' ps 0 fs
+                    IPartial ps -> return $ partial $ Fused3 ps 0 fs
                     IDone pb ->
                         runCollectorWith (handleCollect partial done) fs pb
                     IError _ -> done <$> fextract fs
@@ -949,28 +951,30 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
 
     runCollectorWith cont fs pb = fstep fs pb >>= cont
 
+    -- See notes in Fold.many for the reason why the parser must be initialized
+    -- right away instead of on first input.
     initial = finitial >>= handleCollect IPartial IDone
 
     {-# INLINE step #-}
-    step (Tuple3' st cnt fs) a = do
+    step (Fused3 st cnt fs) a = do
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
                 assertM(cnt1 - n >= 0)
-                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+                return $ Continue n (Fused3 s (cnt1 - n) fs)
             Continue n s -> do
                 assertM(cnt1 - n >= 0)
-                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+                return $ Continue n (Fused3 s (cnt1 - n) fs)
             Done n b -> do
                 assertM(cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
             Error _ -> do
                 xs <- fextract fs
-                return $ Done cnt1 xs
+                return $ Done cnt xs
 
-    extract (Tuple3' _ 0 fs) = fmap (Done 0) (fextract fs)
-    extract (Tuple3' s cnt fs) = do
+    extract (Fused3 _ 0 fs) = fmap (Done 0) (fextract fs)
+    extract (Fused3 s cnt fs) = do
         r <- extract1 s
         case r of
             Error _ -> fmap (Done cnt) (fextract fs)
@@ -983,7 +987,7 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             Partial _ _ -> error "splitMany: Partial in extract"
             Continue n s1 -> do
                 assertM(n == cnt)
-                return (Continue n (Tuple3' s1 0 fs))
+                return (Continue n (Fused3 s1 0 fs))
 
 -- | Like splitMany, but inner fold emits an output at the end even if no input
 -- is received.
@@ -1005,7 +1009,7 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             FL.Partial fs -> do
                 pres <- initial1
                 case pres of
-                    IPartial ps -> return $ partial $ Tuple3' ps 0 fs
+                    IPartial ps -> return $ partial $ Fused3 ps 0 fs
                     IDone pb ->
                         runCollectorWith (handleCollect partial done) fs pb
                     IError _ -> done <$> fextract fs
@@ -1016,16 +1020,16 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     initial = finitial >>= handleCollect IPartial IDone
 
     {-# INLINE step #-}
-    step (Tuple3' st cnt fs) a = do
+    step (Fused3 st cnt fs) a = do
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
                 assertM(cnt1 - n >= 0)
-                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+                return $ Continue n (Fused3 s (cnt1 - n) fs)
             Continue n s -> do
                 assertM(cnt1 - n >= 0)
-                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+                return $ Continue n (Fused3 s (cnt1 - n) fs)
             Done n b -> do
                 assertM(cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
@@ -1033,7 +1037,7 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                 xs <- fextract fs
                 return $ Done cnt1 xs
 
-    extract (Tuple3' s cnt fs) = do
+    extract (Fused3 s cnt fs) = do
         r <- extract1 s
         case r of
             Error _ -> fmap (Done cnt) (fextract fs)
@@ -1046,7 +1050,7 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             Partial _ _ -> error "splitMany: Partial in extract"
             Continue n s1 -> do
                 assertM(n == cnt)
-                return (Continue n (Tuple3' s1 0 fs))
+                return (Continue n (Fused3 s1 0 fs))
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.some'.
 --
@@ -1067,7 +1071,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             FL.Partial fs -> do
                 pres <- initial1
                 case pres of
-                    IPartial ps -> return $ partial $ Tuple3' ps 0 $ Right fs
+                    IPartial ps -> return $ partial $ Fused3 ps 0 $ Right fs
                     IDone pb ->
                         runCollectorWith (handleCollect partial done) fs pb
                     IError _ -> done <$> fextract fs
@@ -1081,7 +1085,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             FL.Partial fs -> do
                 pres <- initial1
                 case pres of
-                    IPartial ps -> return $ IPartial $ Tuple3' ps 0 $ Left fs
+                    IPartial ps -> return $ IPartial $ Fused3 ps 0 $ Left fs
                     IDone pb ->
                         runCollectorWith (handleCollect IPartial IDone) fs pb
                     IError err -> return $ IError err
@@ -1092,37 +1096,37 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                           ++ " consuming any elements."
 
     {-# INLINE step #-}
-    step (Tuple3' st cnt (Left fs)) a = do
+    step (Fused3 st cnt (Left fs)) a = do
         r <- step1 st a
         -- In the Left state, count is used only for the assert
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
                 assertM(cnt1 - n >= 0)
-                return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
+                return $ Continue n (Fused3 s (cnt1 - n) (Left fs))
             Continue n s -> do
                 assertM(cnt1 - n >= 0)
-                return $ Continue n (Tuple3' s (cnt1 - n) (Left fs))
+                return $ Continue n (Fused3 s (cnt1 - n) (Left fs))
             Done n b -> do
                 assertM(cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
             Error err -> return $ Error err
-    step (Tuple3' st cnt (Right fs)) a = do
+    step (Fused3 st cnt (Right fs)) a = do
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
             Partial n s -> do
                 assertM(cnt1 - n >= 0)
-                return $ Partial n (Tuple3' s (cnt1 - n) (Right fs))
+                return $ Partial n (Fused3 s (cnt1 - n) (Right fs))
             Continue n s -> do
                 assertM(cnt1 - n >= 0)
-                return $ Continue n (Tuple3' s (cnt1 - n) (Right fs))
+                return $ Continue n (Fused3 s (cnt1 - n) (Right fs))
             Done n b -> do
                 assertM(cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
             Error _ -> Done cnt1 <$> fextract fs
 
-    extract (Tuple3' s cnt (Left fs)) = do
+    extract (Fused3 s cnt (Left fs)) = do
         r <- extract1 s
         case r of
             Error err -> return (Error err)
@@ -1135,8 +1139,8 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             Partial _ _ -> error "splitSome: Partial in extract"
             Continue n s1 -> do
                 assertM(n == cnt)
-                return (Continue n (Tuple3' s1 0 (Left fs)))
-    extract (Tuple3' s cnt (Right fs)) = do
+                return (Continue n (Fused3 s1 0 (Left fs)))
+    extract (Fused3 s cnt (Right fs)) = do
         r <- extract1 s
         case r of
             Error _ -> fmap (Done cnt) (fextract fs)
@@ -1149,7 +1153,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             Partial _ _ -> error "splitSome: Partial in extract"
             Continue n s1 -> do
                 assertM(n == cnt)
-                return (Continue n (Tuple3' s1 0 (Right fs)))
+                return (Continue n (Fused3 s1 0 (Right fs)))
 
 -- | A parser that always fails with an error message without consuming
 -- any input.

@@ -1601,16 +1601,16 @@ data ManyState s1 s2
     = ManyFirst !s1 !s2
     | ManyLoop !s1 !s2
 
--- | Collect zero or more applications of a fold.  @many split collect@ applies
--- the @split@ fold repeatedly on the input stream and accumulates zero or more
--- fold results using @collect@.
+-- | Collect zero or more applications of a fold.  @many first second@ applies
+-- the @first@ fold repeatedly on the input stream and accumulates it's results
+-- using the @second@ fold.
 --
 -- >>> two = Fold.take 2 Fold.toList
 -- >>> twos = Fold.many two Fold.toList
 -- >>> Stream.fold twos $ Stream.fromList [1..10]
 -- [[1,2],[3,4],[5,6],[7,8],[9,10]]
 --
--- Stops when @collect@ stops.
+-- Stops when @second@ fold stops.
 --
 -- See also: 'Data.Stream.concatMap', 'Data.Stream.foldMany'
 --
@@ -1666,8 +1666,8 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
             Partial s -> cextract s
             Done b -> return b
 
--- | Like many, but inner fold emits an output at the end even if no input is
--- received.
+-- | Like many, but the "first" fold emits an output at the end even if no
+-- input is received.
 --
 -- /Internal/
 --

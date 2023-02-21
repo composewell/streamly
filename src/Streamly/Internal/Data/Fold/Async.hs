@@ -39,13 +39,20 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 -- XXX If n is 0 return immediately in initial.
 -- XXX we should probably discard the input received after the timeout like
 -- takeEndBy_.
---
+
+-- XXX The foldMany doctest is important for consistency with the "many" fold,
+-- and intervalsOf. We should put it in tests.
+
 -- | @takeInterval n fold@ uses @fold@ to fold the input items arriving within
 -- a window of first @n@ seconds.
 --
--- >>> input = Stream.delay 0.1 $ Stream.fromList [1..]
+-- >>> input = Stream.delay 0.2 $ Stream.fromList [1..10]
 -- >>> Stream.fold (Fold.takeInterval 1.0 Fold.toList) input
--- [1,2,3,4,5,6,7,8,9,10,11]
+-- [1,2,3,4,5,6]
+--
+-- >>> f = Fold.takeInterval 0.5 Fold.toList
+-- >>> Stream.fold Fold.toList $ Stream.foldMany f input
+-- [[1,2,3,4],[5,6,7],[8,9,10]]
 --
 -- Stops when @fold@ stops or when the timeout occurs. Note that the fold needs
 -- an input after the timeout to stop. For example, if no input is pushed to
@@ -104,6 +111,8 @@ takeInterval n (Fold step initial done) = Fold step' initial' done'
 -- For example, we can copy and distribute a stream to multiple folds where
 -- each fold can group the input differently e.g. by one second, one minute and
 -- one hour windows respectively and fold each resulting stream of folds.
+
+-- XXX This needs to be fixed like intervalsOf in Data.Stream.Time.
 
 -- | Group the input stream into windows of n second each using the first fold
 -- and then fold the resulting groups using the second fold.
