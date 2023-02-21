@@ -2522,13 +2522,19 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 
 data DeintercalateState fs sp ss =
       DeintercalateL !fs !sp
-    | DeintercalateR !fs !ss !Bool
+    | DeintercalateR !fs !ss
 
 -- XXX rename this to intercalate
 
 -- | Apply two parsers alternately to an input stream. The input stream is
 -- considered an interleaving of two patterns. The two parsers represent the
 -- two patterns.
+--
+-- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
+-- >>> p2 = Parser.satisfy (== '+')
+-- >>> p = Parser.deintercalate p1 p2 Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "1+2+3"
+-- Right [Left "1",Right '+',Left "2",Right '+',Left "3"]
 --
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>
@@ -2553,52 +2559,43 @@ deintercalate
             FL.Partial fs -> do
                 resL <- initialL
                 case resL of
-                    IPartial sL -> return $ IPartial $ DeintercalateL fs sL
+                    IPartial sL -> return $ IPartial $ (DeintercalateL fs sL)
                     IDone _ -> errMsg "left" "succeed"
                     IError _ -> errMsg "left" "fail"
             FL.Done c -> return $ IDone c
+
+    {-# INLINE process #-}
+    process foldAction initAction pid n nextState = do
+        fres <- foldAction
+        case fres of
+            FL.Partial fs1 -> do
+                res <- initAction
+                case res of
+                    IPartial ps ->
+                        return $ Partial n (nextState fs1 ps)
+                    IDone _ -> errMsg pid "succeed"
+                    IError _ -> errMsg pid "fail"
+            FL.Done c -> return $ Done n c
 
     step (DeintercalateL fs sL) a = do
         r <- stepL sL a
         case r of
             Partial n s -> return $ Partial n (DeintercalateL fs s)
             Continue n s -> return $ Continue n (DeintercalateL fs s)
-            Done n b -> do
-                fres <- fstep fs (Left b)
-                case fres of
-                    FL.Partial fs1 -> do
-                        resR <- initialR
-                        case resR of
-                            IPartial sR ->
-                                return
-                                    $ Partial n (DeintercalateR fs1 sR False)
-                            IDone _ -> errMsg "right" "succeed"
-                            IError _ -> errMsg "right" "fail"
-                    FL.Done c -> return $ Done n c
+            Done n b ->
+                process (fstep fs (Left b)) initialR "right" n DeintercalateR
             Error err -> return $ Error err
-    step (DeintercalateR fs sR consumed) a = do
+    step (DeintercalateR fs sR) a = do
         r <- stepR sR a
         case r of
-            Partial n s -> return $ Partial n (DeintercalateR fs s True)
-            Continue n s -> return $ Continue n (DeintercalateR fs s True)
+            Partial n s -> return $ Partial n (DeintercalateR fs s)
+            Continue n s -> return $ Continue n (DeintercalateR fs s)
             Done n b ->
-                if consumed
-                then do
-                    fres <- fstep fs (Right b)
-                    case fres of
-                        FL.Partial fs1 -> do
-                            resL <- initialL
-                            case resL of
-                                IPartial sL ->
-                                    return $ Partial n $ DeintercalateL fs1 sL
-                                IDone _ -> errMsg "left" "succeed"
-                                IError _ -> errMsg "left" "fail"
-                        FL.Done c -> return $ Done n c
-                else error "deintercalate: infinite loop"
+                process (fstep fs (Right b)) initialL "left" n DeintercalateL
             Error err -> return $ Error err
 
-    {-# INLINE processResult #-}
-    processResult n fs r = do
+    {-# INLINE extractResult #-}
+    extractResult n fs r = do
         res <- fstep fs r
         case res of
             FL.Partial fs1 -> fmap (Done n) $ fextract fs1
@@ -2607,18 +2604,17 @@ deintercalate
     extract (DeintercalateL fs sL) = do
         r <- extractL sL
         case r of
-            Done n b -> processResult n fs (Left b)
+            Done n b -> extractResult n fs (Left b)
             Error err -> return $ Error err
             Continue n s -> return $ Continue n (DeintercalateL fs s)
             Partial _ _ -> error "Partial in extract"
 
-    extract (DeintercalateR fs sR consumed) = do
+    extract (DeintercalateR fs sR) = do
         r <- extractR sR
         case r of
-            Done n b -> processResult n fs (Right b)
+            Done n b -> extractResult n fs (Right b)
             Error err -> return $ Error err
-            -- XXX Review consumed
-            Continue n s -> return $ Continue n (DeintercalateR fs s consumed)
+            Continue n s -> return $ Continue n (DeintercalateR fs s)
             Partial _ _ -> error "Partial in extract"
 
 data SepByState fs sp ss =
