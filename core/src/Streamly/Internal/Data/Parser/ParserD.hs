@@ -178,6 +178,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- Use two folds, run a primary parser, its rejected values go to the
     -- secondary parser.
     , deintercalate
+    , deintercalate1
     , deintercalateAll
     -- , deintercalatePrefix
     -- , deintercalateSuffix
@@ -2794,6 +2795,179 @@ deintercalate
                     FL.Partial fs1 -> extractResult n fs1 (Left bL)
                     FL.Done _ -> error "Fold terminated consuming partial input"
             Continue n s -> return $ Continue n (DeintercalateRL cnt bR fs s)
+            Partial _ _ -> error "Partial in extract"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt xs
+
+data Deintercalate1State b fs sp ss =
+      Deintercalate1InitL !Int !fs !sp
+    | Deintercalate1L !Int !fs !sp
+    | Deintercalate1InitR !fs
+    | Deintercalate1R !Int !fs !ss
+    | Deintercalate1RL !Int !b !fs !sp
+
+-- | Apply two parsers alternately to an input stream. The input stream is
+-- considered an interleaving of two patterns. The two parsers represent the
+-- two patterns. Parsing starts at the first parser and stops at the first
+-- parser. It can be used to parse a infix style pattern e.g. p1 p2 p1 . Empty
+-- input or single parse of the first parser is accepted.
+--
+-- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
+-- >>> p2 = Parser.satisfy (== '+')
+-- >>> p = Parser.deintercalate1 p1 p2 Fold.toList
+-- >>> Stream.parse p $ Stream.fromList ""
+-- Left (ParseError "takeWhile1: end of input")
+-- >>> Stream.parse p $ Stream.fromList "1"
+-- Right [Left "1"]
+-- >>> Stream.parse p $ Stream.fromList "1+"
+-- Right [Left "1"]
+-- >>> Stream.parse p $ Stream.fromList "1+2+3"
+-- Right [Left "1",Right '+',Left "2",Right '+',Left "3"]
+--
+{-# INLINE deintercalate1 #-}
+deintercalate1 :: Monad m =>
+       Parser a m x
+    -> Parser a m y
+    -> Fold m (Either x y) z
+    -> Parser a m z
+deintercalate1
+    (Parser stepL initialL extractL)
+    (Parser stepR initialR _)
+    (Fold fstep finitial fextract) = Parser step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "deintercalate: " ++ p ++ " parser cannot "
+                ++ status ++ " without input"
+
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial fs -> do
+                pres <- initialL
+                case pres of
+                    IPartial s -> return $ IPartial $ (Deintercalate1InitL 0 fs s)
+                    IDone _ -> errMsg "left" "succeed"
+                    IError _ -> errMsg "left" "fail"
+            FL.Done c -> return $ IDone c
+
+    {-# INLINE processL #-}
+    processL foldAction n nextState = do
+        fres <- foldAction
+        case fres of
+            FL.Partial fs1 -> return $ Partial n (nextState fs1)
+            FL.Done c -> return $ Done n c
+
+    {-# INLINE runStepInitL #-}
+    runStepInitL cnt fs sL a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Continue n (Deintercalate1InitL cnt1 fs s)
+            Continue n s -> return $ Continue n (Deintercalate1InitL cnt1 fs s)
+            Done n b ->
+                processL (fstep fs (Left b)) n Deintercalate1InitR
+            Error err -> return $ Error err
+
+    {-# INLINE runStepL #-}
+    runStepL cnt fs sL a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Continue n (Deintercalate1L cnt1 fs s)
+            Continue n s -> return $ Continue n (Deintercalate1L cnt1 fs s)
+            Done n b ->
+                processL (fstep fs (Left b)) n Deintercalate1InitR
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    {-# INLINE processR #-}
+    processR cnt b fs n = do
+        res <- initialL
+        case res of
+            IPartial ps -> return $ Continue n (Deintercalate1RL cnt b fs ps)
+            IDone _ -> errMsg "left" "succeed"
+            IError _ -> errMsg "left" "fail"
+
+    {-# INLINE runStepR #-}
+    runStepR cnt fs sR a = do
+        let cnt1 = cnt + 1
+        r <- stepR sR a
+        case r of
+            Partial n s -> return $ Continue n (Deintercalate1R cnt1 fs s)
+            Continue n s -> return $ Continue n (Deintercalate1R cnt1 fs s)
+            Done n b -> processR cnt1 b fs n
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    step (Deintercalate1InitL cnt fs sL) a = runStepInitL cnt fs sL a
+    step (Deintercalate1L cnt fs sL) a = runStepL cnt fs sL a
+    step (Deintercalate1InitR fs) a = do
+        res <- initialR
+        case res of
+            IPartial s -> runStepR 0 fs s a
+            IDone _ -> errMsg "right" "succeed"
+            IError _ -> errMsg "right" "fail"
+    step (Deintercalate1R cnt fs sR) a = runStepR cnt fs sR a
+    step (Deintercalate1RL cnt bR fs sL) a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Continue n (Deintercalate1RL cnt1 bR fs s)
+            Continue n s -> return $ Continue n (Deintercalate1RL cnt1 bR fs s)
+            Done n bL -> do
+                res <- fstep fs (Right bR)
+                case res of
+                    FL.Partial fs1 -> do
+                        fres <- fstep fs1 (Left bL)
+                        case fres of
+                            FL.Partial fs2 ->
+                                return $ Partial n (Deintercalate1InitR fs2)
+                            FL.Done c -> return $ Done n c
+                    -- XXX We could have the fold accept pairs of (bR, bL)
+                    FL.Done _ -> error "Fold terminated consuming partial input"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    {-# INLINE extractResult #-}
+    extractResult n fs r = do
+        res <- fstep fs r
+        case res of
+            FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+            FL.Done c -> return (Done n c)
+
+    extract (Deintercalate1InitL cnt fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n b -> extractResult n fs (Left b)
+            Continue n s -> return $ Continue n (Deintercalate1InitL cnt fs s)
+            Partial _ _ -> error "Partial in extract"
+            Error err -> return $ Error err
+    extract (Deintercalate1L cnt fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n b -> extractResult n fs (Left b)
+            Continue n s -> return $ Continue n (Deintercalate1L cnt fs s)
+            Partial _ _ -> error "Partial in extract"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt xs
+    extract (Deintercalate1InitR fs) = fmap (Done 0) $ fextract fs
+    extract (Deintercalate1R cnt fs _) = fmap (Done cnt) $ fextract fs
+    extract (Deintercalate1RL cnt bR fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n bL -> do
+                res <- fstep fs (Right bR)
+                case res of
+                    FL.Partial fs1 -> extractResult n fs1 (Left bL)
+                    FL.Done _ -> error "Fold terminated consuming partial input"
+            Continue n s -> return $ Continue n (Deintercalate1RL cnt bR fs s)
             Partial _ _ -> error "Partial in extract"
             Error _ -> do
                 xs <- fextract fs
