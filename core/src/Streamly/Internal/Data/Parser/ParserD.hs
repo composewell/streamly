@@ -145,8 +145,8 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeFramedByEsc_
     , takeFramedByGeneric
     , wordFramedBy
-    , wordQuotedBy
-    , blockQuotedBy
+    , wordWithQuotes
+    , blockWithQuotes
 
     -- Matching strings
     -- , prefixOf -- match any prefix of a given string
@@ -1504,7 +1504,7 @@ wordFramedBy :: Monad m =>
        (a -> Bool)  -- ^ Matches escape elem?
     -> (a -> Bool)  -- ^ Matches left quote?
     -> (a -> Bool)  -- ^ matches right quote?
-    -> (a -> Bool)  -- ^ matches word seperator?
+    -> (a -> Bool)  -- ^ matches word separator?
     -> Fold m a b
     -> Parser a m b
 wordFramedBy isEsc isBegin isEnd isSep
@@ -1592,38 +1592,48 @@ data WordQuotedState s b a =
 -- XXX If quote start and end chars are different then quotes can be nested
 -- without escaping. However, is there a case for the use of nested quotes?
 
--- XXX Simplify like blockQuotedBy
+-- XXX Simplify like blockWithQuotes
 
--- | Like 'wordFramedBy' but the closing quote is determined by the opening
--- quote. The first quote begin starts a quote that is closed by its
--- corresponding closing quote.
+-- | Like 'wordBy' but word separators within quotes are ignored. Quote
+-- character can be used within quotes if escaped using the supplied escape
+-- char. A different quoting character can be used inside quotes without
+-- escaping. Starting quote determines the ending quote.
 --
--- 'wordFramedBy' and 'wordQuotedBy' both allow multiple quote characters based
--- on the predicates but 'wordQuotedBy' always fixes the quote at the first
--- occurrence and then it is closed only by the corresponding closing quote.
--- Therefore, other quoting characters can be embedded inside it as normal
--- characters. On the other hand, 'wordFramedBy' would close the quote as soon
--- as it encounters any of the closing quotes.
+-- Example:
 --
--- >>> q = (`elem` ['"', '\''])
--- >>> p kQ = Parser.wordQuotedBy kQ (== '\\') q q id isSpace Fold.toList
+-- >>> :{
+-- >>> lq x =
+-- >>>     case x of
+-- >>>         '"' -> Just x
+-- >>>         '\'' -> Just x
+-- >>>         _ -> Nothing
+-- >>> :}
+--
+-- >>> rq = (`elem` ['"', '\''])
+-- >>> p keep = Parser.wordWithQuotes keep (== '\\') lq rq isSpace Fold.toList
 --
 -- >>> Stream.parse (p False) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
 -- Right "ab'c;d\"ef"
 --
+-- Outer quotes and backslashes from the input string are removed by Haskell,
+-- therefore, the actual input string looks like:
+-- a"b'c";'d"e'f ghi
+-- From this the outer quotes are stripped by the parser, double quotes inside
+-- single quotes or vice-versa are kept.
+--
 -- >>> Stream.parse (p True) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
 -- Right "a\"b'c\";'d\"e'f"
 --
-{-# INLINE wordQuotedBy #-}
-wordQuotedBy :: (Monad m, Eq a) =>
+{-# INLINE wordWithQuotes #-}
+wordWithQuotes :: (Monad m, Eq a) =>
        Bool         -- ^ keep the quotes in the output
     -> (a -> Bool)  -- ^ Matches an escape elem?
     -> (a -> Maybe a)  -- ^ If left quote, return right quote, else nothing.
     -> (a -> Bool)  -- ^ Matches a right quote?
-    -> (a -> Bool)  -- ^ Matches a word seperator?
+    -> (a -> Bool)  -- ^ Matches a word separator?
     -> Fold m a b
     -> Parser a m b
-wordQuotedBy keepQuotes isEsc toRight isEnd isSep
+wordWithQuotes keepQuotes isEsc toRight isEnd isSep
     (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1635,7 +1645,7 @@ wordQuotedBy keepQuotes isEsc toRight isEnd isSep
             case res of
                 FL.Partial s -> IPartial (WordQuotedSkipPre s)
                 FL.Done _ ->
-                    error "wordQuotedBy: fold done without input"
+                    error "wordWithQuotes: fold done without input"
 
     {-# INLINE process #-}
     process s a n ql qr = do
@@ -1664,7 +1674,7 @@ wordQuotedBy keepQuotes isEsc toRight isEnd isSep
                   else return $ Continue 0 $ WordQuotedWord s 1 a qr
                 Nothing
                     | isEnd a ->
-                        return $ Error "wordQuotedBy: missing frame start"
+                        return $ Error "wordWithQuotes: missing frame start"
                     | otherwise -> processUnquoted s a
     step (WordUnquotedWord s) a
         | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
@@ -1679,7 +1689,7 @@ wordQuotedBy keepQuotes isEsc toRight isEnd isSep
                     else return $ Continue 0 $ WordQuotedWord s 1 a qr
                 Nothing ->
                     if isEnd a
-                    then return $ Error "wordQuotedBy: missing frame start"
+                    then return $ Error "wordWithQuotes: missing frame start"
                     else processUnquoted s a
     step (WordQuotedWord s n ql qr) a
         | isEsc a = return $ Continue 0 $ WordQuotedEsc s n ql qr
@@ -1713,11 +1723,11 @@ wordQuotedBy keepQuotes isEsc toRight isEnd isSep
     extract (WordQuotedWord s n _ _) =
         if n == 0
         then fmap (Done 0) $ fextract s
-        else err "wordQuotedBy: missing frame end"
+        else err "wordWithQuotes: missing frame end"
     extract WordQuotedEsc {} =
-        err "wordQuotedBy: trailing escape"
+        err "wordWithQuotes: trailing escape"
     extract (WordUnquotedEsc _) =
-        err "wordQuotedBy: trailing escape"
+        err "wordWithQuotes: trailing escape"
     extract (WordQuotedSkipPost b) = return (Done 0 b)
 
 data BlockParseState s =
@@ -1733,26 +1743,27 @@ data BlockParseState s =
 
 -- XXX Put a limit on nest level to keep the API safe.
 
--- | Parse a block using block enclosed by open, close identifiers, block
--- identifiers inside quotes are ignored. Quoting characters can be escaped. A
--- block can have a nested block inside it.
+-- | Parse a block enclosed within open, close brackets. Block contents may be
+-- quoted, brackets inside quotes are ignored. Quoting characters can be used
+-- within quotes if escaped. A block can have a nested block inside it.
 --
--- Block chars and quote chars must not overlap. Block start and end chars must
--- not be the same for nesting without escaping.
+-- Quote begin and end chars are the same. Block brackets and quote chars must
+-- not overlap. Block start and end brackets must be different for nesting
+-- blocks within blocks.
 --
--- >>> p = Parser.blockQuotedBy '{' '}' '"' '\\' Fold.toList
+-- >>> p = Parser.blockWithQuotes '{' '}' '"' '\\' Fold.toList
 -- >>> Stream.parse p $ Stream.fromList "{msg: \"hello world\"}"
 -- Right "msg: \"hello world\""
 --
-{-# INLINE blockQuotedBy #-}
-blockQuotedBy :: (Monad m, Eq a) =>
-       a  -- ^ Block opening char
-    -> a  -- ^ Block closing char
+{-# INLINE blockWithQuotes #-}
+blockWithQuotes :: (Monad m, Eq a) =>
+       a  -- ^ Block opening bracket
+    -> a  -- ^ Block closing bracket
     -> a  -- ^ quote char
     -> a  -- ^ escape char
     -> Fold m a b
     -> Parser a m b
-blockQuotedBy bopen bclose quote esc
+blockWithQuotes bopen bclose quote esc
     (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1764,7 +1775,7 @@ blockQuotedBy bopen bclose quote esc
             case res of
                 FL.Partial s -> IPartial (BlockInit s)
                 FL.Done _ ->
-                    error "wordQuotedBy: fold finished without input"
+                    error "blockWithQuotes: fold finished without input"
 
     {-# INLINE process #-}
     process s a nextState = do
@@ -1778,7 +1789,7 @@ blockQuotedBy bopen bclose quote esc
         return
             $ if a == bopen
               then Continue 0 $ BlockUnquoted 1 s
-              else Error "blockQuotedBy: missing block start"
+              else Error "blockWithQuotes: missing block start"
     step (BlockUnquoted level s) a =
         if a == bopen
         then process s a (BlockUnquoted (level + 1))
@@ -1804,12 +1815,12 @@ blockQuotedBy bopen bclose quote esc
 
     extract (BlockInit s) = fmap (Done 0) $ fextract s
     extract (BlockUnquoted level _) =
-        err $ "blockQuotedBy: finished at block nest level " ++ show level
+        err $ "blockWithQuotes: finished at block nest level " ++ show level
     extract (BlockQuoted level _) =
-        err $ "blockQuotedBy: finished, inside an unfinished quote, "
+        err $ "blockWithQuotes: finished, inside an unfinished quote, "
             ++ "at block nest level " ++ show level
     extract (BlockQuotedEsc level _) =
-        err $ "blockQuotedBy: finished, inside an unfinished quote, "
+        err $ "blockWithQuotes: finished, inside an unfinished quote, "
             ++ "after an escape char, at block nest level " ++ show level
 
 {-# ANN type GroupByState Fuse #-}
