@@ -2847,7 +2847,7 @@ sepBy
     initial = do
         res <- finitial
         case res of
-            FL.Partial fs -> return $ IPartial $ (SepByInitL fs)
+            FL.Partial fs -> return $ IPartial $ SepByInitL fs
             FL.Done c -> return $ IDone c
 
     {-# INLINE processL #-}
@@ -2928,12 +2928,13 @@ sepBy
 -- XXX This can be implemented using refold, parse one and then continue
 -- collecting the rest in that.
 
--- | Parse items separated by a separator parsed by the supplied parser. At
--- least one item must be present for the parser to succeed.
---
--- Note that this can go in infinite loop if both the parsers fail on some
--- input. Detection of that would make the implementation more complex.
---
+data SepBy1State fs sp ss =
+      SepBy1InitL !Int !fs sp
+    | SepBy1L !Int !fs !sp
+    | SepBy1InitR !fs
+    | SepBy1R !Int !fs !ss
+
+{-
 {-# INLINE sepBy1 #-}
 sepBy1 :: Monad m =>
     Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
@@ -2942,6 +2943,135 @@ sepBy1 p sep sink = do
     f <- fromEffect $ FL.reduce sink
     f1 <- fromEffect $ FL.snoc f x
     many (sep >> p) f1
+-}
+
+-- | Like 'sepBy' but requires at least one successful parse.
+--
+-- Examples:
+--
+-- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
+-- >>> p2 = Parser.satisfy (== '+')
+-- >>> p = Parser.sepBy1 p1 p2 Fold.toList
+-- >>> Stream.parse p $ Stream.fromList ""
+-- Left (ParseError "takeWhile1: end of input")
+-- >>> Stream.parse p $ Stream.fromList "1"
+-- Right ["1"]
+-- >>> Stream.parse p $ Stream.fromList "1+"
+-- Right ["1"]
+-- >>> Stream.parse p $ Stream.fromList "1+2+3"
+-- Right ["1","2","3"]
+--
+{-# INLINE sepBy1 #-}
+sepBy1 :: Monad m =>
+    Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+sepBy1
+    (Parser stepL initialL extractL)
+    (Parser stepR initialR _)
+    (Fold fstep finitial fextract) = Parser step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "sepBy: " ++ p ++ " parser cannot "
+                ++ status ++ " without input"
+
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial fs -> do
+                pres <- initialL
+                case pres of
+                    IPartial s -> return $ IPartial $ SepBy1InitL 0 fs s
+                    IDone _ -> errMsg "left" "succeed"
+                    IError _ -> errMsg "left" "fail"
+            FL.Done c -> return $ IDone c
+
+    {-# INLINE processL #-}
+    processL foldAction n nextState = do
+        fres <- foldAction
+        case fres of
+            FL.Partial fs1 -> return $ Partial n (nextState fs1)
+            FL.Done c -> return $ Done n c
+
+    {-# INLINE runStepInitL #-}
+    runStepInitL cnt fs sL a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Continue n (SepBy1InitL cnt1 fs s)
+            Continue n s -> return $ Continue n (SepBy1InitL cnt1 fs s)
+            Done n b ->
+                processL (fstep fs b) n SepBy1InitR
+            Error err -> return $ Error err
+
+    {-# INLINE runStepL #-}
+    runStepL cnt fs sL a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Continue n (SepBy1L cnt1 fs s)
+            Continue n s -> return $ Continue n (SepBy1L cnt1 fs s)
+            Done n b ->
+                processL (fstep fs b) n SepBy1InitR
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    {-# INLINE processR #-}
+    processR cnt fs n = do
+        res <- initialL
+        case res of
+            IPartial ps -> return $ Continue n (SepBy1L cnt fs ps)
+            IDone _ -> errMsg "left" "succeed"
+            IError _ -> errMsg "left" "fail"
+
+    {-# INLINE runStepR #-}
+    runStepR cnt fs sR a = do
+        let cnt1 = cnt + 1
+        r <- stepR sR a
+        case r of
+            Partial n s -> return $ Continue n (SepBy1R cnt1 fs s)
+            Continue n s -> return $ Continue n (SepBy1R cnt1 fs s)
+            Done n _ -> processR cnt1 fs n
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    step (SepBy1InitL cnt fs sL) a = runStepInitL cnt fs sL a
+    step (SepBy1L cnt fs sL) a = runStepL cnt fs sL a
+    step (SepBy1InitR fs) a = do
+        res <- initialR
+        case res of
+            IPartial s -> runStepR 0 fs s a
+            IDone _ -> errMsg "right" "succeed"
+            IError _ -> errMsg "right" "fail"
+    step (SepBy1R cnt fs sR) a = runStepR cnt fs sR a
+
+    {-# INLINE extractResult #-}
+    extractResult n fs r = do
+        res <- fstep fs r
+        case res of
+            FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+            FL.Done c -> return (Done n c)
+
+    extract (SepBy1InitL cnt fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n b -> extractResult n fs b
+            Continue n s -> return $ Continue n (SepBy1InitL cnt fs s)
+            Partial _ _ -> error "Partial in extract"
+            Error err -> return $ Error err
+    extract (SepBy1L cnt fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n b -> extractResult n fs b
+            Continue n s -> return $ Continue n (SepBy1L cnt fs s)
+            Partial _ _ -> error "Partial in extract"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt xs
+    extract (SepBy1InitR fs) = fmap (Done 0) $ fextract fs
+    extract (SepBy1R cnt fs _) = fmap (Done cnt) $ fextract fs
 
 -------------------------------------------------------------------------------
 -- Interleaving a collection of parsers
