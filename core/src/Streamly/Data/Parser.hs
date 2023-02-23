@@ -127,6 +127,7 @@ module Streamly.Data.Parser
     -- ** Framing
     -- , wordFramedBy
     , wordWithQuotes
+    , wordStripQuotes
 
     -- * Alternative
     , alt

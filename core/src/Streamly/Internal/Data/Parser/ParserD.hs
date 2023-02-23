@@ -146,6 +146,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeFramedByGeneric
     , wordFramedBy
     , wordWithQuotes
+    , wordStripQuotes
     , blockWithQuotes
 
     -- Matching strings
@@ -1589,51 +1590,18 @@ data WordQuotedState s b a =
     | WordQuotedEsc !s !Int !a !a
     | WordQuotedSkipPost !b
 
--- XXX If quote start and end chars are different then quotes can be nested
--- without escaping. However, is there a case for the use of nested quotes?
-
--- XXX Simplify like blockWithQuotes
-
--- | Like 'wordBy' but word separators within quotes are ignored. Quote
--- character can be used within quotes if escaped using the supplied escape
--- char. A different quoting character can be used inside quotes without
--- escaping. Starting quote determines the ending quote.
---
--- Example:
---
--- >>> :{
--- >>> lq x =
--- >>>     case x of
--- >>>         '"' -> Just x
--- >>>         '\'' -> Just x
--- >>>         _ -> Nothing
--- >>> :}
---
--- >>> rq = (`elem` ['"', '\''])
--- >>> p keep = Parser.wordWithQuotes keep (== '\\') lq rq isSpace Fold.toList
---
--- >>> Stream.parse (p False) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
--- Right "ab'c;d\"ef"
---
--- Outer quotes and backslashes from the input string are removed by Haskell,
--- therefore, the actual input string looks like:
--- a"b'c";'d"e'f ghi
--- From this the outer quotes are stripped by the parser, double quotes inside
--- single quotes or vice-versa are kept.
---
--- >>> Stream.parse (p True) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
--- Right "a\"b'c\";'d\"e'f"
---
-{-# INLINE wordWithQuotes #-}
-wordWithQuotes :: (Monad m, Eq a) =>
-       Bool         -- ^ keep the quotes in the output
-    -> (a -> Bool)  -- ^ Matches an escape elem?
-    -> (a -> Maybe a)  -- ^ If left quote, return right quote, else nothing.
-    -> (a -> Bool)  -- ^ Matches a right quote?
-    -> (a -> Bool)  -- ^ Matches a word separator?
+-- The invalid unquoted char predicate can be used to generate parse error for
+-- a bracket end without a bracket begin.
+{-# INLINE wordWithQuotesWith #-}
+wordWithQuotesWith :: (Monad m, Eq a) =>
+       (a -> Bool)     -- ^ Matches an invalid unquoted char
+    -> Bool            -- ^ Retain the quotes and escape chars in the output
+    -> (a -> Bool)     -- ^ Matches an escape elem?
+    -> (a -> Maybe a)  -- ^ If left quote, return right quote, else Nothing.
+    -> (a -> Bool)     -- ^ Matches a word separator?
     -> Fold m a b
     -> Parser a m b
-wordWithQuotes keepQuotes isEsc toRight isEnd isSep
+wordWithQuotesWith isInvalid keepQuotes isEsc toRight isSep
     (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1673,8 +1641,8 @@ wordWithQuotes keepQuotes isEsc toRight isEnd isSep
                   then process s a 1 a qr
                   else return $ Continue 0 $ WordQuotedWord s 1 a qr
                 Nothing
-                    | isEnd a ->
-                        return $ Error "wordWithQuotes: missing frame start"
+                    | isInvalid a ->
+                        return $ Error "wordWithQuotes: invalid unquoted char"
                     | otherwise -> processUnquoted s a
     step (WordUnquotedWord s) a
         | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
@@ -1688,15 +1656,17 @@ wordWithQuotes keepQuotes isEsc toRight isEnd isSep
                     then process s a 1 a qr
                     else return $ Continue 0 $ WordQuotedWord s 1 a qr
                 Nothing ->
-                    if isEnd a
-                    then return $ Error "wordWithQuotes: missing frame start"
+                    if isInvalid a
+                    then return $ Error "wordWithQuotes: invalid unquoted char"
                     else processUnquoted s a
     step (WordQuotedWord s n ql qr) a
         | isEsc a = return $ Continue 0 $ WordQuotedEsc s n ql qr
+        {-
         -- XXX Will this ever occur? Will n ever be 0?
         | n == 0 && isSep a = do
             b <- fextract s
             return $ Partial 0 $ WordQuotedSkipPost b
+        -}
         | otherwise = do
                 if a == qr
                 then
@@ -1729,6 +1699,87 @@ wordWithQuotes keepQuotes isEsc toRight isEnd isSep
     extract (WordUnquotedEsc _) =
         err "wordWithQuotes: trailing escape"
     extract (WordQuotedSkipPost b) = return (Done 0 b)
+
+-- | Quote and bracket aware word splitting. Like 'wordBy' but word separators
+-- within specified quotes or brackets are ignored. If the end quote is
+-- different from the start quote it is called a bracket. The following quoting
+-- rules apply:
+--
+-- * A quoting or bracket character can be used within the same quote or
+-- bracket if escaped using the supplied escape char.
+-- * A quoting character other than the current quote can be used inside quotes
+-- without escaping e.g. "a single quote ' inside a double quote".
+-- * A starting quote or bracket char without an ending char generates a parse
+-- error.
+-- * An ending bracket char without a corresponding begin quote is ignored e.g.
+-- this parenthesis ) is ignored.
+-- * Brackets can be nested.
+--
+-- Examples of quotes - "double quotes", 'single quotes', (parens), {braces},
+-- ((nested) brackets).
+--
+-- Example:
+--
+-- >>> :{
+-- >>> q x =
+-- >>>     case x of
+-- >>>         '"' -> Just x
+-- >>>         '\'' -> Just x
+-- >>>         _ -> Nothing
+-- >>> :}
+--
+-- >>> p = Parser.wordWithQuotes (== '\\') q isSpace Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
+-- Right "a\"b'c\";'d\"e'f"
+--
+-- Note that outer quotes and backslashes from the input string are consumed by
+-- Haskell, therefore, the actual input string passed to the parser is:
+-- a"b'c";'d"e'f ghi
+--
+-- Similarly, when printing, double quotes are escaped by Haskell.
+--
+{-# INLINE wordWithQuotes #-}
+wordWithQuotes :: (Monad m, Eq a) =>
+       (a -> Bool)     -- ^ Matches an escape elem?
+    -> (a -> Maybe a)  -- ^ If left quote, return right quote, else Nothing.
+    -> (a -> Bool)     -- ^ Matches a word separator?
+    -> Fold m a b
+    -> Parser a m b
+wordWithQuotes = wordWithQuotesWith (const False) True
+
+-- | Like 'wordWithQuotes' but strips the quotes and escape chars.
+--
+-- Example:
+--
+-- >>> :{
+-- >>> q x =
+-- >>>     case x of
+-- >>>         '"' -> Just x
+-- >>>         '\'' -> Just x
+-- >>>         _ -> Nothing
+-- >>> :}
+--
+-- >>> p = Parser.wordStripQuotes (== '\\') q isSpace Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
+-- Right "ab'c;d\"ef"
+--
+-- Note that outer quotes and backslashes from the input string are consumed by
+-- Haskell, therefore, the actual input string passed to the parser is:
+-- a"b'c";'d"e'f ghi
+--
+-- From this the outermost quotes are stripped by the parser, double quotes inside
+-- single quotes or vice-versa are kept.
+--
+-- Similarly, when printing, double quotes are escaped by Haskell.
+--
+{-# INLINE wordStripQuotes #-}
+wordStripQuotes :: (Monad m, Eq a) =>
+       (a -> Bool)     -- ^ Matches an escape elem?
+    -> (a -> Maybe a)  -- ^ If left quote, return right quote, else Nothing.
+    -> (a -> Bool)     -- ^ Matches a word separator?
+    -> Fold m a b
+    -> Parser a m b
+wordStripQuotes = wordWithQuotesWith (const False) False
 
 data BlockParseState s =
       BlockInit !s
