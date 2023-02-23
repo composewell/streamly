@@ -1802,19 +1802,19 @@ data BlockParseState s =
 -- not overlap. Block start and end brackets must be different for nesting
 -- blocks within blocks.
 --
--- >>> p = Parser.blockWithQuotes '{' '}' '"' '\\' Fold.toList
+-- >>> p = Parser.blockWithQuotes (== '\\') (== '"') '{' '}' Fold.toList
 -- >>> Stream.parse p $ Stream.fromList "{msg: \"hello world\"}"
 -- Right "msg: \"hello world\""
 --
 {-# INLINE blockWithQuotes #-}
 blockWithQuotes :: (Monad m, Eq a) =>
-       a  -- ^ Block opening bracket
+       (a -> Bool)  -- ^ escape char
+    -> (a -> Bool)  -- ^ quote char, to quote inside brackets
+    -> a  -- ^ Block opening bracket
     -> a  -- ^ Block closing bracket
-    -> a  -- ^ quote char
-    -> a  -- ^ escape char
     -> Fold m a b
     -> Parser a m b
-blockWithQuotes bopen bclose quote esc
+blockWithQuotes isEsc isQuote bopen bclose
     (Fold fstep finitial fextract) =
     Parser step initial extract
 
@@ -1851,13 +1851,13 @@ blockWithQuotes bopen bclose quote esc
                 then fmap (Done 0) (fextract s)
                 else process s a (BlockUnquoted (level - 1))
              else
-                if a == quote
+                if isQuote a
                 then process s a (BlockQuoted level)
                 else process s a (BlockUnquoted level)
     step (BlockQuoted level s) a
-        | a == esc = process s a (BlockQuotedEsc level)
+        | isEsc a = process s a (BlockQuotedEsc level)
         | otherwise =
-            if a == quote
+            if isQuote a
             then process s a (BlockUnquoted level)
             else process s a (BlockQuoted level)
     step (BlockQuotedEsc level s) a = process s a (BlockQuoted level)
