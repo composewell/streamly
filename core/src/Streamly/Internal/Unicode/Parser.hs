@@ -68,6 +68,7 @@ import qualified Streamly.Internal.Data.Parser as Parser
     , takeWhile1
     , dropWhile
     )
+import Data.Ratio ((%))
 
 --------------------------------------------------------------------------------
 -- Character classification
@@ -294,5 +295,29 @@ signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 -- \"Infinity\".
 --
 -- /Unimplemented/
-double :: Parser Char m Double
-double = undefined
+-- A strict coeff and exp pair
+data CE = CE !Integer {-# UNPACK #-}!Int
+
+double :: (Monad m) => Parser Char m Double
+double = do
+    !positive <- ((== '+') <$>  Parser.satisfy (\c -> c == '-' || c == '+')) <|>
+                    pure True
+    n <- decimal
+    let f fracDigits = CE (foldl step n fracDigits)
+                    (negate $ length fracDigits)
+        step a c = a * 10 + fromIntegral (ord c - 48)
+    CE c e <-
+        Parser.satisfy (=='.')
+            *> (f <$> Parser.takeWhile1 Char.isDigit Fold.toList)
+        <|> pure (CE n 0)
+    let !signedCoeff | positive  =  c
+                     | otherwise = -c
+    expo <-
+        Parser.satisfy (\w -> w == 'e' || w == 'E')
+            *> ((e +) <$> (signed decimal))
+        <|> pure (e + 0)
+    let h sc ex = do
+            if (ex >= 0)
+            then fromIntegral (sc * 10 ^ ex)
+            else fromRational (sc % 10 ^ (-ex))
+    return $ h signedCoeff expo
