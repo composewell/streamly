@@ -2159,7 +2159,7 @@ groupByRollingEither
 --
 {-# INLINE listEqBy #-}
 listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser a m [a]
-listEqBy cmp xs = streamEqBy cmp (D.fromList xs) *> fromPure xs
+listEqBy cmp xs = streamEqByInternal cmp (D.fromList xs) *> fromPure xs
 {-
 listEqBy cmp str = Parser step initial extract
 
@@ -2189,14 +2189,9 @@ listEqBy cmp str = Parser step initial extract
             ++ show (length xs) ++ " elements"
 -}
 
--- | Like 'listEqBy' but uses a stream instead of a list and does not return
--- the stream.
---
--- See also: "Streamly.Data.Stream.streamEqBy"
---
-{-# INLINE streamEqBy #-}
-streamEqBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser a m ()
-streamEqBy cmp (D.Stream sstep state) = Parser step initial extract
+{-# INLINE streamEqByInternal #-}
+streamEqByInternal :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser a m ()
+streamEqByInternal cmp (D.Stream sstep state) = Parser step initial extract
 
     where
 
@@ -2230,6 +2225,15 @@ streamEqBy cmp (D.Stream sstep state) = Parser step initial extract
                 D.Skip s -> Continue 1 (Nothing', s)
 
     extract _ = return $ Error "streamEqBy: end of input"
+
+-- | Like 'listEqBy' but uses a stream instead of a list and does not return
+-- the stream.
+--
+{-# INLINE streamEqBy #-}
+streamEqBy :: Monad m => (a -> a -> Bool) -> D.Stream m a -> Parser a m ()
+-- XXX Somehow composing this with "*>" is much faster on the microbenchmark.
+-- Need to investigate why.
+streamEqBy cmp stream = streamEqByInternal cmp stream *> fromPure ()
 
 -- Rename to "list".
 -- | Match the input sequence with the supplied list and return it if
