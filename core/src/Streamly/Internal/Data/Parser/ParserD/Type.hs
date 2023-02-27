@@ -484,7 +484,7 @@ fromEffect b = Parser undefined (IDone <$> b) undefined
 -------------------------------------------------------------------------------
 
 {-# ANN type SeqParseState Fuse #-}
-data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
+data SeqParseState sl f sr = SeqParseL !sl | SeqParseR !f !sr
 
 -- Note: this implementation of splitWith is fast because of stream fusion but
 -- has quadratic time complexity, because each composition adds a new branch
@@ -678,7 +678,7 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
             Continue n s -> return $ Continue n (SeqParseL s)
 
 {-# ANN type SeqAState Fuse #-}
-data SeqAState sl sr = SeqAL sl | SeqAR sr
+data SeqAState sl sr = SeqAL !sl | SeqAR !sr
 
 -- This turns out to be slightly faster than splitWith
 
@@ -829,7 +829,7 @@ instance Monad m => Applicative (Parser a m) where
 -------------------------------------------------------------------------------
 
 {-# ANN type AltParseState Fuse #-}
-data AltParseState sl sr = AltParseL Int sl | AltParseR sr
+data AltParseState sl sr = AltParseL !Int !sl | AltParseR !sr
 
 -- Note: this implementation of alt is fast because of stream fusion but has
 -- quadratic time complexity, because each composition adds a new branch that
@@ -1203,7 +1203,7 @@ instance Monad m => Alternative (Parser a m) where
 
 {-# ANN type ConcatParseState Fuse #-}
 data ConcatParseState sl m a b =
-      ConcatParseL sl
+      ConcatParseL !sl
     | forall s. ConcatParseR (s -> a -> m (Step s b)) s (s -> m (Step s b))
 
 -- | Map a 'Parser' returning function on the result of a 'Parser'.
