@@ -407,7 +407,7 @@ benchmark Data.Parser.ParserK
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Parser
   main-is: ParserK.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  if impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -434,7 +434,7 @@ benchmark Data.Parser
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Parser.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  if impl(ghcjs)
     buildable: False
   else
     buildable: True
