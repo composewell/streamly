@@ -2522,6 +2522,7 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 -- all the three parsers. One parser can count the line numbers to provide the
 -- line number info.
 
+{-# ANN type DeintercalateAllState Fuse #-}
 data DeintercalateAllState fs sp ss =
       DeintercalateAllInitL !fs
     | DeintercalateAllL !fs !sp
@@ -2570,7 +2571,7 @@ deintercalateAll
     initial = do
         res <- finitial
         case res of
-            FL.Partial fs -> return $ IPartial $ (DeintercalateAllInitL fs)
+            FL.Partial fs -> return $ IPartial $ DeintercalateAllInitL fs
             FL.Done c -> return $ IDone c
 
     {-# INLINE processL #-}
@@ -2644,12 +2645,17 @@ deintercalateAll
     extract (DeintercalateAllR _ _) =
         return $ Error "deintercalateAll: input ended at 'Right' value"
 
+{-# ANN type DeintercalateState Fuse #-}
 data DeintercalateState b fs sp ss =
       DeintercalateInitL !fs
     | DeintercalateL !Int !fs !sp
     | DeintercalateInitR !fs
     | DeintercalateR !Int !fs !ss
     | DeintercalateRL !Int !b !fs !sp
+
+-- XXX Add tests that the next character that we take after running a parser is
+-- correct. Especially for the parsers that maintain a count. In the stream
+-- finished case (extract) as well as not finished case.
 
 -- | Apply two parsers alternately to an input stream. The input stream is
 -- considered an interleaving of two patterns. The two parsers represent the
@@ -2689,7 +2695,7 @@ deintercalate
     initial = do
         res <- finitial
         case res of
-            FL.Partial fs -> return $ IPartial $ (DeintercalateInitL fs)
+            FL.Partial fs -> return $ IPartial $ DeintercalateInitL fs
             FL.Done c -> return $ IDone c
 
     {-# INLINE processL #-}
@@ -2704,8 +2710,8 @@ deintercalate
         let cnt1 = cnt + 1
         r <- stepL sL a
         case r of
-            Partial n s -> return $ Continue n (DeintercalateL cnt1 fs s)
-            Continue n s -> return $ Continue n (DeintercalateL cnt1 fs s)
+            Partial n s -> return $ Continue n (DeintercalateL (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (DeintercalateL (cnt1 - n) fs s)
             Done n b ->
                 processL (fstep fs (Left b)) n DeintercalateInitR
             Error _ -> do
@@ -2725,9 +2731,9 @@ deintercalate
         let cnt1 = cnt + 1
         r <- stepR sR a
         case r of
-            Partial n s -> return $ Continue n (DeintercalateR cnt1 fs s)
-            Continue n s -> return $ Continue n (DeintercalateR cnt1 fs s)
-            Done n b -> processR cnt1 b fs n
+            Partial n s -> return $ Continue n (DeintercalateR (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (DeintercalateR (cnt1 - n) fs s)
+            Done n b -> processR (cnt1 - n) b fs n
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
@@ -2750,8 +2756,8 @@ deintercalate
         let cnt1 = cnt + 1
         r <- stepL sL a
         case r of
-            Partial n s -> return $ Continue n (DeintercalateRL cnt1 bR fs s)
-            Continue n s -> return $ Continue n (DeintercalateRL cnt1 bR fs s)
+            Partial n s -> return $ Continue n (DeintercalateRL (cnt1 - n) bR fs s)
+            Continue n s -> return $ Continue n (DeintercalateRL (cnt1 - n) bR fs s)
             Done n bL -> do
                 res <- fstep fs (Right bR)
                 case res of
@@ -2779,7 +2785,7 @@ deintercalate
         r <- extractL sL
         case r of
             Done n b -> extractResult n fs (Left b)
-            Continue n s -> return $ Continue n (DeintercalateL cnt fs s)
+            Continue n s -> return $ Continue n (DeintercalateL (cnt - n) fs s)
             Partial _ _ -> error "Partial in extract"
             Error _ -> do
                 xs <- fextract fs
@@ -2794,15 +2800,15 @@ deintercalate
                 case res of
                     FL.Partial fs1 -> extractResult n fs1 (Left bL)
                     FL.Done _ -> error "Fold terminated consuming partial input"
-            Continue n s -> return $ Continue n (DeintercalateRL cnt bR fs s)
+            Continue n s -> return $ Continue n (DeintercalateRL (cnt - n) bR fs s)
             Partial _ _ -> error "Partial in extract"
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt xs
 
+{-# ANN type Deintercalate1State Fuse #-}
 data Deintercalate1State b fs sp ss =
       Deintercalate1InitL !Int !fs !sp
-    | Deintercalate1L !Int !fs !sp
     | Deintercalate1InitR !fs
     | Deintercalate1R !Int !fs !ss
     | Deintercalate1RL !Int !b !fs !sp
@@ -2848,7 +2854,7 @@ deintercalate1
             FL.Partial fs -> do
                 pres <- initialL
                 case pres of
-                    IPartial s -> return $ IPartial $ (Deintercalate1InitL 0 fs s)
+                    IPartial s -> return $ IPartial $ Deintercalate1InitL 0 fs s
                     IDone _ -> errMsg "left" "succeed"
                     IError _ -> errMsg "left" "fail"
             FL.Done c -> return $ IDone c
@@ -2865,24 +2871,11 @@ deintercalate1
         let cnt1 = cnt + 1
         r <- stepL sL a
         case r of
-            Partial n s -> return $ Continue n (Deintercalate1InitL cnt1 fs s)
-            Continue n s -> return $ Continue n (Deintercalate1InitL cnt1 fs s)
+            Partial n s -> return $ Continue n (Deintercalate1InitL (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (Deintercalate1InitL (cnt1 - n) fs s)
             Done n b ->
                 processL (fstep fs (Left b)) n Deintercalate1InitR
             Error err -> return $ Error err
-
-    {-# INLINE runStepL #-}
-    runStepL cnt fs sL a = do
-        let cnt1 = cnt + 1
-        r <- stepL sL a
-        case r of
-            Partial n s -> return $ Continue n (Deintercalate1L cnt1 fs s)
-            Continue n s -> return $ Continue n (Deintercalate1L cnt1 fs s)
-            Done n b ->
-                processL (fstep fs (Left b)) n Deintercalate1InitR
-            Error _ -> do
-                xs <- fextract fs
-                return $ Done cnt1 xs
 
     {-# INLINE processR #-}
     processR cnt b fs n = do
@@ -2897,15 +2890,14 @@ deintercalate1
         let cnt1 = cnt + 1
         r <- stepR sR a
         case r of
-            Partial n s -> return $ Continue n (Deintercalate1R cnt1 fs s)
-            Continue n s -> return $ Continue n (Deintercalate1R cnt1 fs s)
-            Done n b -> processR cnt1 b fs n
+            Partial n s -> return $ Continue n (Deintercalate1R (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (Deintercalate1R (cnt1 - n) fs s)
+            Done n b -> processR (cnt1 - n) b fs n
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
 
     step (Deintercalate1InitL cnt fs sL) a = runStepInitL cnt fs sL a
-    step (Deintercalate1L cnt fs sL) a = runStepL cnt fs sL a
     step (Deintercalate1InitR fs) a = do
         res <- initialR
         case res of
@@ -2917,8 +2909,8 @@ deintercalate1
         let cnt1 = cnt + 1
         r <- stepL sL a
         case r of
-            Partial n s -> return $ Continue n (Deintercalate1RL cnt1 bR fs s)
-            Continue n s -> return $ Continue n (Deintercalate1RL cnt1 bR fs s)
+            Partial n s -> return $ Continue n (Deintercalate1RL (cnt1 - n) bR fs s)
+            Continue n s -> return $ Continue n (Deintercalate1RL (cnt1 - n) bR fs s)
             Done n bL -> do
                 res <- fstep fs (Right bR)
                 case res of
@@ -2945,18 +2937,9 @@ deintercalate1
         r <- extractL sL
         case r of
             Done n b -> extractResult n fs (Left b)
-            Continue n s -> return $ Continue n (Deintercalate1InitL cnt fs s)
+            Continue n s -> return $ Continue n (Deintercalate1InitL (cnt - n) fs s)
             Partial _ _ -> error "Partial in extract"
             Error err -> return $ Error err
-    extract (Deintercalate1L cnt fs sL) = do
-        r <- extractL sL
-        case r of
-            Done n b -> extractResult n fs (Left b)
-            Continue n s -> return $ Continue n (Deintercalate1L cnt fs s)
-            Partial _ _ -> error "Partial in extract"
-            Error _ -> do
-                xs <- fextract fs
-                return $ Done cnt xs
     extract (Deintercalate1InitR fs) = fmap (Done 0) $ fextract fs
     extract (Deintercalate1R cnt fs _) = fmap (Done cnt) $ fextract fs
     extract (Deintercalate1RL cnt bR fs sL) = do
@@ -2967,12 +2950,13 @@ deintercalate1
                 case res of
                     FL.Partial fs1 -> extractResult n fs1 (Left bL)
                     FL.Done _ -> error "Fold terminated consuming partial input"
-            Continue n s -> return $ Continue n (Deintercalate1RL cnt bR fs s)
+            Continue n s -> return $ Continue n (Deintercalate1RL (cnt - n) bR fs s)
             Partial _ _ -> error "Partial in extract"
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt xs
 
+{-# ANN type SepByState Fuse #-}
 data SepByState fs sp ss =
       SepByInitL !fs
     | SepByL !Int !fs !sp
@@ -3036,8 +3020,8 @@ sepBy
         let cnt1 = cnt + 1
         r <- stepL sL a
         case r of
-            Partial n s -> return $ Continue n (SepByL cnt1 fs s)
-            Continue n s -> return $ Continue n (SepByL cnt1 fs s)
+            Partial n s -> return $ Continue n (SepByL (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepByL (cnt1 - n) fs s)
             Done n b ->
                 processL (fstep fs b) n SepByInitR
             Error _ -> do
@@ -3057,9 +3041,9 @@ sepBy
         let cnt1 = cnt + 1
         r <- stepR sR a
         case r of
-            Partial n s -> return $ Continue n (SepByR cnt1 fs s)
-            Continue n s -> return $ Continue n (SepByR cnt1 fs s)
-            Done n _ -> processR cnt1 fs n
+            Partial n s -> return $ Continue n (SepByR (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepByR (cnt1 - n) fs s)
+            Done n _ -> processR (cnt1 - n) fs n
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
@@ -3091,7 +3075,7 @@ sepBy
         r <- extractL sL
         case r of
             Done n b -> extractResult n fs b
-            Continue n s -> return $ Continue n (SepByL cnt fs s)
+            Continue n s -> return $ Continue n (SepByL (cnt - n) fs s)
             Partial _ _ -> error "Partial in extract"
             Error _ -> do
                 xs <- fextract fs
@@ -3102,6 +3086,7 @@ sepBy
 -- XXX This can be implemented using refold, parse one and then continue
 -- collecting the rest in that.
 
+{-# ANN type SepBy1State Fuse #-}
 data SepBy1State fs sp ss =
       SepBy1InitL !Int !fs sp
     | SepBy1L !Int !fs !sp
@@ -3172,8 +3157,8 @@ sepBy1
         let cnt1 = cnt + 1
         r <- stepL sL a
         case r of
-            Partial n s -> return $ Continue n (SepBy1InitL cnt1 fs s)
-            Continue n s -> return $ Continue n (SepBy1InitL cnt1 fs s)
+            Partial n s -> return $ Continue n (SepBy1InitL (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepBy1InitL (cnt1 - n) fs s)
             Done n b ->
                 processL (fstep fs b) n SepBy1InitR
             Error err -> return $ Error err
@@ -3183,8 +3168,8 @@ sepBy1
         let cnt1 = cnt + 1
         r <- stepL sL a
         case r of
-            Partial n s -> return $ Continue n (SepBy1L cnt1 fs s)
-            Continue n s -> return $ Continue n (SepBy1L cnt1 fs s)
+            Partial n s -> return $ Continue n (SepBy1L (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepBy1L (cnt1 - n) fs s)
             Done n b ->
                 processL (fstep fs b) n SepBy1InitR
             Error _ -> do
@@ -3204,9 +3189,9 @@ sepBy1
         let cnt1 = cnt + 1
         r <- stepR sR a
         case r of
-            Partial n s -> return $ Continue n (SepBy1R cnt1 fs s)
-            Continue n s -> return $ Continue n (SepBy1R cnt1 fs s)
-            Done n _ -> processR cnt1 fs n
+            Partial n s -> return $ Continue n (SepBy1R (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepBy1R (cnt1 - n) fs s)
+            Done n _ -> processR (cnt1 - n) fs n
             Error _ -> do
                 xs <- fextract fs
                 return $ Done cnt1 xs
@@ -3232,14 +3217,14 @@ sepBy1
         r <- extractL sL
         case r of
             Done n b -> extractResult n fs b
-            Continue n s -> return $ Continue n (SepBy1InitL cnt fs s)
+            Continue n s -> return $ Continue n (SepBy1InitL (cnt - n) fs s)
             Partial _ _ -> error "Partial in extract"
             Error err -> return $ Error err
     extract (SepBy1L cnt fs sL) = do
         r <- extractL sL
         case r of
             Done n b -> extractResult n fs b
-            Continue n s -> return $ Continue n (SepBy1L cnt fs s)
+            Continue n s -> return $ Continue n (SepBy1L (cnt - n) fs s)
             Partial _ _ -> error "Partial in extract"
             Error _ -> do
                 xs <- fextract fs
