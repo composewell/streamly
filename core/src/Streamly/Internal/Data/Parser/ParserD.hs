@@ -2531,24 +2531,24 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
     initial = do
         res <- initial1
         return $ case res of
-            IPartial s -> IPartial (Tuple' 0 s)
+            IPartial s -> IPartial (Tuple'Fused 0 s)
             IDone b -> IDone b
             IError e -> IError e
 
-    step (Tuple' cnt st) a = do
+    step (Tuple'Fused cnt st) a = do
         r <- step1 st a
         let cnt1 = cnt + 1
         return
             $ case r of
-                  Partial n s -> Continue n (Tuple' (cnt1 - n) s)
-                  Continue n s -> Continue n (Tuple' (cnt1 - n) s)
+                  Partial n s -> Continue n (Tuple'Fused (cnt1 - n) s)
+                  Continue n s -> Continue n (Tuple'Fused (cnt1 - n) s)
                   Done _ b -> Done cnt1 b
                   Error err -> Error err
 
     -- XXX returning an error let's us backtrack.  To implement it in a way so
     -- that it terminates on eof without an error then we need a way to
     -- backtrack on eof, that will require extract to return 'Step' type.
-    extract (Tuple' n _) =
+    extract (Tuple'Fused n _) =
         return
             $ Error
             $ "lookAhead: end of input after consuming "
