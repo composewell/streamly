@@ -3506,9 +3506,10 @@ manyTillP :: -- Monad m =>
 manyTillP _p1 _p2 _f = undefined
     -- D.toParserK $ D.manyTillP (D.fromParserK p1) (D.fromParserK p2) f
 
+{-# ANN type ManyTillState Fuse #-}
 data ManyTillState fs sr sl
-    = ManyTillR Int fs sr
-    | ManyTillL Int fs sl
+    = ManyTillR !Int !fs !sr
+    | ManyTillL !fs !sl
 
 -- | @manyTill chunking test f@ tries the parser @test@ on the input, if @test@
 -- fails it backtracks and tries @chunking@, after @chunking@ succeeds @test@ is
@@ -3533,7 +3534,7 @@ manyTill (Parser stepL initialL extractL)
     scrutL fs p c d e = do
         resL <- initialL
         case resL of
-            IPartial sl -> return $ c (ManyTillL 0 fs sl)
+            IPartial sl -> return $ c (ManyTillL fs sl)
             IDone bl -> do
                 fr <- fstep fs bl
                 case fr of
@@ -3568,25 +3569,25 @@ manyTill (Parser stepL initialL extractL)
                 resL <- initialL
                 case resL of
                     IPartial sl ->
-                        return $ Continue (cnt + 1) (ManyTillL 0 fs sl)
+                        return $ Continue (cnt + 1) (ManyTillL fs sl)
                     IDone bl -> do
                         fr <- fstep fs bl
                         let cnt1 = cnt + 1
-                            p = Partial cnt
-                            c = Continue cnt
-                            d = Done cnt
                         case fr of
-                            FL.Partial fs1 -> scrutR fs1 p c d Error
+                            FL.Partial fs1 ->
+                                scrutR
+                                    fs1
+                                    (Partial cnt1)
+                                    (Continue cnt1)
+                                    (Done cnt1)
+                                    Error
                             FL.Done fb -> return $ Done cnt1 fb
                     IError err -> return $ Error err
-    -- XXX the cnt is being used only by the assert
-    step (ManyTillL cnt fs st) a = do
+    step (ManyTillL fs st) a = do
         r <- stepL st a
         case r of
-            Partial n s -> return $ Partial n (ManyTillL 0 fs s)
-            Continue n s -> do
-                assertM(cnt + 1 - n >= 0)
-                return $ Continue n (ManyTillL (cnt + 1 - n) fs s)
+            Partial n s -> return $ Partial n (ManyTillL fs s)
+            Continue n s -> return $ Continue n (ManyTillL fs s)
             Done n b -> do
                 fs1 <- fstep fs b
                 case fs1 of
@@ -3595,7 +3596,7 @@ manyTill (Parser stepL initialL extractL)
                     FL.Done b1 -> return $ Done n b1
             Error err -> return $ Error err
 
-    extract (ManyTillL cnt fs sR) = do
+    extract (ManyTillL fs sR) = do
         res <- extractL sR
         case res of
             Done n b -> do
@@ -3604,9 +3605,7 @@ manyTill (Parser stepL initialL extractL)
                     FL.Partial fs1 -> fmap (Done n) $ fextract fs1
                     FL.Done c -> return (Done n c)
             Error err -> return $ Error err
-            Continue n s -> do
-                assertM(n == cnt)
-                return $ Continue n (ManyTillL 0 fs s)
+            Continue n s -> return $ Continue n (ManyTillL fs s)
             Partial _ _ -> error "Partial in extract"
     extract (ManyTillR _ fs _) = fmap (Done 0) $ fextract fs
 
