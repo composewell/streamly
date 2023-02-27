@@ -174,7 +174,30 @@ module Streamly.Internal.Data.Parser.ParserD
     -- , teeTill -- like manyTill but parallel
     -}
 
-    -- ** Sequential Interleaving
+    -- ** Sequential Alternative
+    , alt
+
+    {-
+    -- ** Parallel Alternatives
+    , shortest
+    , longest
+    -- , fastest
+    -}
+
+    -- * N-ary Combinators
+    -- ** Sequential Collection
+    , sequence
+    , concatMap
+
+    -- ** Sequential Repetition
+    , count
+    , countBetween
+    -- , countBetweenTill
+    , manyP
+    , many
+    , some
+
+    -- ** Interleaved Repetition
     -- Use two folds, run a primary parser, its rejected values go to the
     -- secondary parser.
     , deintercalate
@@ -202,29 +225,6 @@ module Streamly.Internal.Data.Parser.ParserD
     , sepBy
     , sepByAll
 
-    -- ** Sequential Alternative
-    , alt
-
-    {-
-    -- ** Parallel Alternatives
-    , shortest
-    , longest
-    -- , fastest
-    -}
-
-    -- * N-ary Combinators
-    -- ** Sequential Collection
-    , sequence
-    , concatMap
-
-    -- ** Sequential Repetition
-    , count
-    , countBetween
-    -- , countBetweenTill
-
-    , manyP
-    , many
-    , some
     , manyTillP
     , manyTill
     , manyThen
