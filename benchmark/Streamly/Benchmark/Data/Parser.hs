@@ -306,6 +306,27 @@ split_ value =
             (PR.dropWhile (<= value))
         )
 
+{-# INLINE alt #-}
+alt :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+alt value =
+    Stream.parse
+        (PR.alt
+            (PR.dropWhile (<= (value `div` 2)) *> PR.die "alt")
+            (PR.dropWhile (<= value))
+        )
+
+{-# INLINE altSmall #-}
+altSmall :: Monad m
+    => Int -> Stream m Int -> m ()
+altSmall value =
+    Stream.fold Fold.drain .
+        Stream.parseMany
+            (PR.alt
+                (PR.satisfy (>= value) *> PR.die "alt")
+                (PR.satisfy (<= value))
+            )
+
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m
     => Int -> Stream m Int -> m (Either ParseError ())
@@ -513,6 +534,8 @@ o_n_heap_serial value =
 
     -- non-linear time complexity (parserD)
     , benchIOSink value "split_" $ split_ value
+    , benchIOSink value "altSmall (2 x parseMany)" $ altSmall value
+    , benchIOSink value "altBig (1/2 x 2)" $ alt value
     -- XXX why O(n) heap?
     -- , benchIOSink value "choice" $ choice value
 
