@@ -314,10 +314,10 @@ double = do
                      | otherwise = -c
     expo <-
         Parser.satisfy (\w -> w == 'e' || w == 'E')
-            *> ((e +) <$> (signed decimal))
+            *> ((e +) <$> signed decimal)
         <|> pure (e + 0)
     let h sc ex = do
-            if (ex >= 0)
+            if ex >= 0
             then fromIntegral (sc * 10 ^ ex)
             else fromRational (sc % 10 ^ (-ex))
     return $ h signedCoeff expo
