@@ -118,6 +118,10 @@ takeBetween value = Stream.parse (PR.takeBetween 0 value Fold.drain)
 takeEQ :: Monad m => Int -> Stream m a -> m (Either ParseError ())
 takeEQ value = Stream.parse (PR.takeEQ value Fold.drain)
 
+{-# INLINE takeGE #-}
+takeGE :: Monad m => Int -> Stream m a -> m (Either ParseError ())
+takeGE value = Stream.parse (PR.takeGE value Fold.drain)
+
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 dropWhile value = Stream.parse (PR.dropWhile (<= value))
@@ -441,6 +445,7 @@ o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
     [ benchIOSink value "takeBetween" $ takeBetween value
     , benchIOSink value "takeEQ" $ takeEQ value
+    , benchIOSink value "takeGE" $ takeGE value
     , benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "takeWhileP" $ takeWhileP value
     , benchIOSink value "takeP" $ takeP value

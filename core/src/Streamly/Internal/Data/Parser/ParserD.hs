@@ -817,6 +817,11 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
             $ "takeEQ: Expecting exactly " ++ show n
                 ++ " elements, input terminated on " ++ show (i - 1)
 
+{-# ANN type TakeGEState Fuse #-}
+data TakeGEState s =
+      TakeGELT !Int !s
+    | TakeGEGE !s
+
 -- | Take at least @n@ input elements, but can collect more.
 --
 -- * Stops - when the collecting fold stops.
@@ -837,48 +842,51 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
-    cnt = max n 0
-
     initial = do
         res <- finitial
-        return $ case res of
-            FL.Partial s -> IPartial $ Tuple' 0 s
-            FL.Done b ->
-                if cnt == 0
-                then IDone b
-                else IError
-                         $ "takeGE: Expecting at least " ++ show cnt
+        case res of
+            FL.Partial s ->
+                if n > 0
+                then return $ IPartial $ TakeGELT 1 s
+                else return $ IPartial $ TakeGEGE s
+            FL.Done b -> return $
+                if n > 0
+                then IError
+                         $ "takeGE: Expecting at least " ++ show n
                              ++ " elements, fold terminated without"
                              ++ " consuming any elements"
+                else IDone b
 
-    step (Tuple' i r) a
-        | i1 < cnt = do
-            res <- fstep r a
+    step (TakeGELT i1 r) a = do
+        res <- fstep r a
+        if n > i1
+        then
             return
                 $ case res of
-                      FL.Partial s -> Continue 0 $ Tuple' i1 s
+                      FL.Partial s -> Continue 0 $ TakeGELT (i1 + 1) s
                       FL.Done _ ->
                         Error
-                            $ "takeGE: Expecting at least " ++ show cnt
+                            $ "takeGE: Expecting at least " ++ show n
                                 ++ " elements, fold terminated on " ++ show i1
-        | otherwise = do
-            res <- fstep r a
+        else
+            -- assert (n <= i1)
             return
                 $ case res of
-                      FL.Partial s -> Partial 0 $ Tuple' i1 s
+                      FL.Partial s -> Partial 0 $ TakeGEGE s
                       FL.Done b -> Done 0 b
+    step (TakeGEGE r) a = do
+        res <- fstep r a
+        return
+            $ case res of
+                  FL.Partial s -> Partial 0 $ TakeGEGE s
+                  FL.Done b -> Done 0 b
 
-        where
-
-        i1 = i + 1
-
-    extract (Tuple' i r)
-        | i >= cnt = fmap (Done 0) $ fextract r
-        | otherwise =
-            return
-                $ Error
-                $ "takeGE: Expecting at least " ++ show cnt
-                    ++ " elements, input terminated on " ++ show i
+    extract (TakeGELT i _) =
+        return
+            $ Error
+            $ "takeGE: Expecting at least " ++ show n
+                ++ " elements, input terminated on " ++ show (i - 1)
+    extract (TakeGEGE r) = fmap (Done 0) $ fextract r
 
 -------------------------------------------------------------------------------
 -- Conditional splitting
