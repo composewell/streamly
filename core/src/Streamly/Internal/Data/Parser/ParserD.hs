@@ -200,6 +200,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- @
     , sepBy1
     , sepBy
+    , sepByAll
 
     -- ** Sequential Alternative
     , alt
@@ -2535,9 +2536,13 @@ data DeintercalateAllState fs sp ss =
 -- useful. For example, in case of JSON parsing we get an entire block of
 -- key-value pairs which we need to verify. This version may be simpler, more
 -- efficient. We could implement this as a stream operation like parseMany.
+--
+-- XXX Also, it may be a good idea to provide a parse driver for a fold. For
+-- example, in case of csv parsing as we are feeding a line to a fold we can
+-- parse it.
 
 -- | Like 'deintercalate' but the entire input must satisfy the pattern
--- otherwise the parser fails.
+-- otherwise the parser fails. This is many times faster than deintercalate.
 --
 -- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
 -- >>> p2 = Parser.satisfy (== '+')
@@ -2972,7 +2977,7 @@ data SepByState fs sp ss =
 -- Definitions:
 --
 -- >>> sepBy p1 p2 f = Parser.deintercalate p1 p2 (Fold.catLefts f)
--- >>> sepBy p1 p2 f = Parser.sepBy1 p1 p2 f <|> return mempty
+-- >>> sepBy p1 p2 f = Parser.sepBy1 p1 p2 f <|> Parser.fromEffect (Fold.extractM f)
 --
 -- Examples:
 --
@@ -2991,6 +2996,8 @@ data SepByState fs sp ss =
 {-# INLINE sepBy #-}
 sepBy :: Monad m =>
     Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+-- This has similar performance as the custom impl below.
+-- sepBy p1 p2 f = deintercalate p1 p2 (FL.catLefts f)
 sepBy
     (Parser stepL initialL extractL)
     (Parser stepR initialR _)
@@ -3083,6 +3090,12 @@ sepBy
     extract (SepByInitR fs) = fmap (Done 0) $ fextract fs
     extract (SepByR cnt fs _) = fmap (Done cnt) $ fextract fs
 
+-- | Non-backtracking version of sepBy. Several times faster.
+{-# INLINE sepByAll #-}
+sepByAll :: Monad m =>
+    Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+sepByAll p1 p2 f = deintercalateAll p1 p2 (FL.catLefts f)
+
 -- XXX This can be implemented using refold, parse one and then continue
 -- collecting the rest in that.
 
@@ -3105,6 +3118,10 @@ sepBy1 p sep sink = do
 -}
 
 -- | Like 'sepBy' but requires at least one successful parse.
+--
+-- Definition:
+--
+-- >>> sepBy1 p1 p2 f = Parser.deintercalate1 p1 p2 (Fold.catLefts f)
 --
 -- Examples:
 --
