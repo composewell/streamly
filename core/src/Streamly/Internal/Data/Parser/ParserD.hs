@@ -764,6 +764,9 @@ takeBetween low high (Fold fstep finitial fextract) =
 -- * Fails - if the stream or the collecting fold ends before it can collect
 --           exactly @n@ elements.
 --
+-- >>> Stream.parse (Parser.takeEQ 2 Fold.toList) $ Stream.fromList [1,0,1]
+-- Right [1,0]
+--
 -- >>> Stream.parse (Parser.takeEQ 4 Fold.toList) $ Stream.fromList [1,0,1]
 -- Left (ParseError "takeEQ: Expecting exactly 4 elements, input terminated on 3")
 --
@@ -773,51 +776,46 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
-    cnt = max n 0
-
     initial = do
         res <- finitial
-        return $ case res of
-            FL.Partial s -> IPartial $ Tuple' 0 s
-            FL.Done b ->
-                if cnt == 0
-                then IDone b
-                else IError
-                         $ "takeEQ: Expecting exactly " ++ show cnt
+        case res of
+            FL.Partial s ->
+                if n > 0
+                then return $ IPartial $ Tuple'Fused 1 s
+                else fmap IDone (fextract s)
+            FL.Done b -> return $
+                if n > 0
+                then IError
+                         $ "takeEQ: Expecting exactly " ++ show n
                              ++ " elements, fold terminated without"
                              ++ " consuming any elements"
+                else IDone b
 
-    step (Tuple' i r) a
-        | i1 < cnt = do
-            res <- fstep r a
+    step (Tuple'Fused i1 r) a = do
+        res <- fstep r a
+        if n > i1
+        then
             return
                 $ case res of
-                    FL.Partial s -> Continue 0 $ Tuple' i1 s
+                    FL.Partial s -> Continue 0 $ Tuple'Fused (i1 + 1) s
                     FL.Done _ ->
                         Error
-                            $ "takeEQ: Expecting exactly " ++ show cnt
+                            $ "takeEQ: Expecting exactly " ++ show n
                                 ++ " elements, fold terminated on " ++ show i1
-        | i1 == cnt = do
-            res <- fstep r a
+        else
+            -- assert (n == i1)
             Done 0
                 <$> case res of
                         FL.Partial s -> fextract s
                         FL.Done b -> return b
-        -- XXX we should not reach here when initial returns Step type
-        -- reachable only when n == 0
-        | otherwise = Done 1 <$> fextract r
 
-        where
-
-        i1 = i + 1
-
-    extract (Tuple' i r)
-        | i == 0 && cnt == 0 = fmap (Done 0) $ fextract r
-        | otherwise =
-            return
-                $ Error
-                $ "takeEQ: Expecting exactly " ++ show cnt
-                    ++ " elements, input terminated on " ++ show i
+    extract (Tuple'Fused i _) =
+        -- Using the count "i" in the message below causes large performance
+        -- regression unless we use Fuse annotation on Tuple.
+        return
+            $ Error
+            $ "takeEQ: Expecting exactly " ++ show n
+                ++ " elements, input terminated on " ++ show (i - 1)
 
 -- | Take at least @n@ input elements, but can collect more.
 --
