@@ -1039,6 +1039,7 @@ dropWhile p = takeWhile p FL.drain
 -- Separators
 -------------------------------------------------------------------------------
 
+{-# ANN type FramedEscState Fuse #-}
 data FramedEscState s =
     FrameEscInit !s | FrameEscGo !s !Int | FrameEscEsc !s !Int
 
