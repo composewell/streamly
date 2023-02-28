@@ -149,6 +149,9 @@ module Streamly.Internal.Data.Parser.ParserD
     , wordStripQuotes
 
     -- Framed by separate start and end characters, potentially nested.
+    -- blockWithQuotes allows quotes inside a block. However,
+    -- takeFramedByGeneric can be used to express takeStartBy, takeEndBy and
+    -- block with escaping.
     -- , takeFramedBy
     , takeFramedBy_
     , takeFramedByEsc_
