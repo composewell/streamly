@@ -358,71 +358,6 @@ instance MonadTrans (ParserK a) where
 -- Convert ParserD to ParserK
 -------------------------------------------------------------------------------
 
-data ChunkResult s b =
-      ChunkDone !Int !b
-    | ChunkPartial !Int !s
-    | ChunkContinue !Int !s
-    | ChunkError !Int String
-
--- This is very similar to fromParserD in the Array/Unboxed/Fold module.
-{-# INLINE parseChunk #-}
-parseChunk
-    :: forall m a s b. (Monad m, Unbox a)
-    => (s -> a -> m (ParserD.Step s b))
-    -> s
-    -> Array a
-    -> Int
-    -> m (ChunkResult s b)
-parseChunk pstep !state (Array contents start end) !offset = do
-     if offset >= 0
-     then go SPEC (start + offset * SIZE_OF(a)) state
-     else return $ ChunkContinue offset state
-
-    where
-
-    {-# INLINE onBack #-}
-    onBack offset1 elemSize constr pst = do
-        let pos = offset1 - start
-         in if pos >= 0
-            then go SPEC offset1 pst
-            else return $ constr (pos `div` elemSize) pst
-
-    -- Note: div may be expensive but the alternative is to maintain an element
-    -- offset in addition to a byte offset or just the element offset and use
-    -- multiplication to get the byte offset every time, both these options
-    -- turned out to be more expensive than using div.
-    go !_ !cur !pst | cur >= end =
-        return $ ChunkContinue ((end - start) `div` SIZE_OF(a))  pst
-    go !_ !cur !pst = do
-        let !x = unsafeInlineIO $ peekWith contents cur
-        pRes <- pstep pst x
-        let elemSize = SIZE_OF(a)
-            next = INDEX_NEXT(cur,a)
-            back n = next - n * elemSize
-            curOff = (cur - start) `div` elemSize
-            nextOff = (next - start) `div` elemSize
-        case pRes of
-            ParserD.Done 0 b ->
-                return $ ChunkDone nextOff b
-            ParserD.Done 1 b ->
-                return $ ChunkDone curOff b
-            ParserD.Done n b ->
-                return $ ChunkDone ((back n - start) `div` elemSize) b
-            ParserD.Partial 0 pst1 ->
-                go SPEC next pst1
-            ParserD.Partial 1 pst1 ->
-                go SPEC cur pst1
-            ParserD.Partial n pst1 ->
-                onBack (back n) elemSize ChunkPartial pst1
-            ParserD.Continue 0 pst1 ->
-                go SPEC next pst1
-            ParserD.Continue 1 pst1 ->
-                go SPEC cur pst1
-            ParserD.Continue n pst1 ->
-                onBack (back n) elemSize ChunkContinue pst1
-            ParserD.Error err ->
-                return $ ChunkError curOff err
-
 {-# INLINE parseDToK #-}
 parseDToK
     :: forall m a s b r. (Monad m, Unbox a)
@@ -434,37 +369,92 @@ parseDToK
     -> Int
     -> Input a
     -> m (Step a m r)
-parseDToK pstep initial extract cont !offset !usedCount !input = do
+parseDToK pstep initial extract cont !offset0 !usedCount !input = do
     res <- initial
     case res of
         ParserD.IPartial pst -> do
             case input of
-                Chunk arr -> parseContChunk usedCount offset pst arr
+                Chunk arr -> parseContChunk usedCount offset0 pst arr
                 None -> parseContNothing usedCount pst
-        ParserD.IDone b -> cont (Success offset b) usedCount input
-        ParserD.IError err -> cont (Failure offset err) usedCount input
+        ParserD.IDone b -> cont (Success offset0 b) usedCount input
+        ParserD.IError err -> cont (Failure offset0 err) usedCount input
 
     where
 
     -- XXX We can maintain an absolute position instead of relative that will
     -- help in reporting of error location in the stream.
     {-# NOINLINE parseContChunk #-}
-    parseContChunk !count !off !pst !arr = do
-        pRes <- parseChunk pstep pst arr off
-        -- The "n" here is stream position index wrt the array start, and not
-        -- the backtrack count as returned by byte stream parsers.
-        case pRes of
-            ChunkDone n b ->
-                assert (n <= Array.length arr)
-                    (cont (Success n b) (count + n - off) (Chunk arr))
-            ChunkPartial n pst1 ->
-                assert (n < 0 || n >= Array.length arr)
-                    (return $ Partial n (parseCont (count + n - off) pst1))
-            ChunkContinue n pst1 ->
-                assert (n < 0 || n >= Array.length arr)
-                    (return $ Continue n (parseCont (count + n - off) pst1))
-            ChunkError n err ->
-                cont (Failure n err) (count + n - off) (Chunk arr)
+    parseContChunk !count !offset !state arr@(Array contents start end) = do
+         if offset >= 0
+         then go SPEC (start + offset * SIZE_OF(a)) state
+         else return $ Continue offset (parseCont count state)
+
+        where
+
+        {-# INLINE onDone #-}
+        onDone n b =
+            assert (n <= Array.length arr)
+                (cont (Success n b) (count + n - offset) (Chunk arr))
+
+        {-# INLINE callParseCont #-}
+        callParseCont constr n pst1 =
+            assert (n < 0 || n >= Array.length arr)
+                (return $ constr n (parseCont (count + n - offset) pst1))
+
+        {-# INLINE onPartial #-}
+        onPartial = callParseCont Partial
+
+        {-# INLINE onContinue #-}
+        onContinue = callParseCont Continue
+
+        {-# INLINE onError #-}
+        onError n err =
+            cont (Failure n err) (count + n - offset) (Chunk arr)
+
+        {-# INLINE onBack #-}
+        onBack offset1 elemSize constr pst = do
+            let pos = offset1 - start
+             in if pos >= 0
+                then go SPEC offset1 pst
+                else constr (pos `div` elemSize) pst
+
+        -- Note: div may be expensive but the alternative is to maintain an element
+        -- offset in addition to a byte offset or just the element offset and use
+        -- multiplication to get the byte offset every time, both these options
+        -- turned out to be more expensive than using div.
+        go !_ !cur !pst | cur >= end =
+            onContinue ((end - start) `div` SIZE_OF(a))  pst
+        go !_ !cur !pst = do
+            let !x = unsafeInlineIO $ peekWith contents cur
+            pRes <- pstep pst x
+            let elemSize = SIZE_OF(a)
+                next = INDEX_NEXT(cur,a)
+                back n = next - n * elemSize
+                curOff = (cur - start) `div` elemSize
+                nextOff = (next - start) `div` elemSize
+            -- The "n" here is stream position index wrt the array start, and
+            -- not the backtrack count as returned by byte stream parsers.
+            case pRes of
+                ParserD.Done 0 b ->
+                    onDone nextOff b
+                ParserD.Done 1 b ->
+                    onDone curOff b
+                ParserD.Done n b ->
+                    onDone ((back n - start) `div` elemSize) b
+                ParserD.Partial 0 pst1 ->
+                    go SPEC next pst1
+                ParserD.Partial 1 pst1 ->
+                    go SPEC cur pst1
+                ParserD.Partial n pst1 ->
+                    onBack (back n) elemSize onPartial pst1
+                ParserD.Continue 0 pst1 ->
+                    go SPEC next pst1
+                ParserD.Continue 1 pst1 ->
+                    go SPEC cur pst1
+                ParserD.Continue n pst1 ->
+                    onBack (back n) elemSize onContinue pst1
+                ParserD.Error err ->
+                    onError curOff err
 
     {-# NOINLINE parseContNothing #-}
     parseContNothing !count !pst = do

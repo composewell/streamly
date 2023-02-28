@@ -183,6 +183,13 @@ parseD parser strm = do
 parse :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
 parse = parseD
 
+-- XXX It may be a good idea to use constant sized chunks for backtracking. We
+-- can take a byte stream but when we have to backtrack we create constant
+-- sized chunks. We maintain one forward list and one backward list of constant
+-- sized chunks, and a last backtracking offset. That way we just need lists of
+-- contents and no need to maintain start/end pointers for individual arrays,
+-- reducing bookkeeping work.
+
 -- | Run a 'Parse' over a stream and return rest of the Stream.
 {-# INLINE_NORMAL parseBreakD #-}
 parseBreakD
