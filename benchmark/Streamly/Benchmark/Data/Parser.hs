@@ -1,5 +1,10 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
+#undef FUSION_CHECK
+#ifdef FUSION_CHECK
+{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
+#endif
+
 -- |
 -- Module      : Streamly.Benchmark.Data.Parser
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -551,6 +556,7 @@ o_n_heap_serial value =
 
 main :: IO ()
 main = do
+#ifndef FUSION_CHECK
     env <- mkHandleBenchEnv
     runWithCLIOptsEnv defaultStreamSize alloc (allBenchmarks env)
 
@@ -567,3 +573,9 @@ main = do
             (o_1_space_serial_unfold value arrays)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
+#else
+    let value = 100000
+    let input = sourceUnfoldrM value 1
+    manyTill value input
+    return ()
+#endif
