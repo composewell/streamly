@@ -509,7 +509,7 @@ library
       build-depends:   monad-control     >= 1.0 && < 1.1
 
     if flag(dev)
-      build-depends: primitive >= 0.5.4 && < 0.8
+      build-depends: primitive >= 0.5.4 && < 0.9
 
     -- For FileSystem.Event module
     if os(linux)
