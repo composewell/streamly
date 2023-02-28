@@ -219,6 +219,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                             src  = Prelude.reverse src0
                         gobuf SPEC s (List []) (List src) pst1
                     PR.Continue 0 pst1 -> go SPEC s (List (x:getList buf)) pst1
+                    PR.Continue 1 pst1 -> gobuf SPEC s buf (List [x]) pst1
                     PR.Continue n pst1 -> do
                         assert (n <= length (x:getList buf)) (return ())
                         let (src0, buf1) = splitAt n (x:getList buf)
@@ -279,6 +280,8 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 gobuf SPEC s (List []) (List src) pst1
             PR.Continue 0 pst1 ->
                 gobuf SPEC s (List (x:getList buf)) (List xs) pst1
+            PR.Continue 1 pst1 ->
+                gobuf SPEC s buf (List (x:xs)) pst1
             PR.Continue n pst1 -> do
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
@@ -309,6 +312,8 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 goExtract SPEC (List []) (List src) pst1
             PR.Continue 0 pst1 ->
                 goExtract SPEC (List (x:getList buf)) (List xs) pst1
+            PR.Continue 1 pst1 ->
+                goExtract SPEC buf (List (x:xs)) pst1
             PR.Continue n pst1 -> do
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
