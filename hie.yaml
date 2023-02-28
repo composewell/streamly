@@ -88,6 +88,8 @@ cradle:
               component: "lib:streamly-benchmarks"
             - path: "./benchmark/Streamly/Benchmark/Data/Fold/Window.hs"
               component: "bench:Data.Fold.Window"
+            - path: ".benchmark/Streamly/Benchmark/Unicode/Parser.hs"
+              component: "bench:Unicode.Parser"
     - path: "./test"
       config:
         cradle:

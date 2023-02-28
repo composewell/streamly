@@ -48,6 +48,7 @@ module Streamly.Internal.Unicode.Parser
     -- * Numeric
     , signed
     , double
+    , double2
     , decimal
     , hexadecimal
     )
@@ -56,7 +57,7 @@ where
 import Control.Applicative (Alternative(..))
 import Data.Bits (Bits, (.|.), shiftL)
 import Data.Char (ord)
-import Streamly.Internal.Data.Parser (Parser)
+import Streamly.Internal.Data.Parser (Parser, Initial(..),  Step(..))
 
 import qualified Data.Char as Char
 import qualified Streamly.Data.Fold as Fold
@@ -69,6 +70,7 @@ import qualified Streamly.Internal.Data.Parser as Parser
     , dropWhile
     )
 import Data.Ratio ((%))
+import Streamly.Internal.Data.Parser.ParserD (Parser(..))
 
 --------------------------------------------------------------------------------
 -- Character classification
@@ -321,3 +323,55 @@ double = do
             then fromIntegral (sc * 10 ^ ex)
             else fromRational (sc % 10 ^ (-ex))
     return $ h signedCoeff expo
+
+data TE =
+    TE  {-# UNPACK #-}!Int
+        {-# UNPACK #-}!Int
+        {-# UNPACK #-}!Int
+        !Integer
+        {-# UNPACK #-}!Int
+
+double2 :: (Monad m) => Parser Char m Double
+double2 =  Parser step initial extract
+
+    where
+
+    initial = return $ IPartial (TE 0 0 0 0 0)
+
+    step (TE c p s m e) a = do
+        let stp = c + 1
+        return $
+            case a of
+            '-' -> Partial 0 (TE stp 0 (-1) m e)
+            '+' -> Partial 0 (TE stp 0 0 m e)
+            '.' -> Partial 0 (TE stp 1 s m e)
+            x | Char.isDigit x ->
+                    if (p > 0)
+                    then Partial 0 (TE stp (p+1) s (m * 10 + fromIntegral (ord x - 48)) (e + 1))
+                    else Partial 0 (TE stp p s (m * 10 + fromIntegral (ord x - 48)) e)
+            _ ->
+                if (c == 0)
+                then Error "Invalid double fromat"
+                else do
+                    case s < 0 of
+                        True ->
+                            if e >= 0
+                            then Done 0 (fromRational (-m % 10 ^ e))
+                            else Done 0 (fromRational (-m % 10 ^ (-e)))
+                        False ->
+                            if e >= 0
+                            then Done 0 (fromRational (m % 10 ^ e))
+                            else Done 0 (fromRational (m % 10 ^ (-e)))
+
+    extract (TE _stp _p s m ex) = return $ do
+            case s < 0 of
+                True ->
+                    if ex >= 0
+                    --then Done 0 (fromIntegral (m * 10 ^ ex))
+                    then Done 0 (fromRational (-m % 10 ^ ex))
+                    else Done 0 (fromRational (-m % 10 ^ (-ex)))
+                False ->
+                    if ex >= 0
+                    --then Done 0 (fromIntegral (m * 10 ^ ex))
+                    then Done 0 (fromRational (m % 10 ^ ex))
+                    else Done 0 (fromRational (m % 10 ^ (-ex)))
