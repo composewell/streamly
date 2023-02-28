@@ -574,8 +574,19 @@ main = do
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
 #else
+    -- Enable FUSION_CHECK macro at the beginning of the file
+    -- Enable one benchmark below, and run the benchmark
+    -- Check the .dump-simpl output
     let value = 100000
-    let input = sourceUnfoldrM value 1
-    manyTill value input
+    -- let input = sourceUnfoldrM value 1
+    -- manyTill value input
+    -- deintercalate value input
+    -- deintercalate1 value input
+    -- deintercalateAll value input
+    -- sepByWords input
+    -- sepByAllWords input
+    -- sepBy1 input
+    -- sepByWords1 input
+    takeFramedByEsc_ value (sourceEscapedFrames value 1)
     return ()
 #endif
