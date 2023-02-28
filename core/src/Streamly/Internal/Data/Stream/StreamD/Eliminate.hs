@@ -245,7 +245,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     PR.Error err ->
                         return (Left (ParseError err), Stream step s)
             Skip s -> go SPEC s buf pst
-            Stop -> goStop buf pst
+            Stop -> goStop SPEC buf pst
 
     go1 _ s x !pst = do
         pRes <- pstep pst x
@@ -306,7 +306,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     )
 
     -- This is simplified gobuf
-    goExtract !_ buf (List []) !pst = goStop buf pst
+    goExtract !_ buf (List []) !pst = goStop SPEC buf pst
     goExtract !_ buf (List (x:xs)) !pst = do
         pRes <- pstep pst x
         case pRes of
@@ -336,11 +336,11 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     -- This is simplified goExtract
     -- XXX Use SPEC?
     {-# INLINE goStop #-}
-    goStop buf pst = do
+    goStop _ buf pst = do
         pRes <- extract pst
         case pRes of
             PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
-            PR.Continue 0 pst1 -> goStop buf pst1
+            PR.Continue 0 pst1 -> goStop SPEC buf pst1
             PR.Continue n pst1 -> do
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)
