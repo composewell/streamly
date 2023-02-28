@@ -119,9 +119,10 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeWhile1
     , dropWhile
 
-    -- ** Single Element Separators
+    -- ** Separated by elements
     -- | Separator could be in prefix postion ('takeStartBy'), or suffix
-    -- position ('takeEndBy').
+    -- position ('takeEndBy'). See 'deintercalate', 'sepBy' etc for infix
+    -- separator parsing, also see 'intersperseQuotedBy' fold.
 
     -- These can be implemented modularly with refolds, using takeWhile and
     -- satisfy.
@@ -134,19 +135,24 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeEitherSepBy
     , wordBy
 
-    -- ** By comparing
+    -- ** Grouped by element comparison
     , groupBy
     , groupByRolling
     , groupByRollingEither
 
-    -- ** Framing
+    -- ** Framed by elements
+    -- | Also see 'intersperseQuotedBy' fold.
+    -- Framed by a one or more ocurrences of a separator around a word like
+    -- spaces or quotes. No nesting.
+    , wordFramedBy -- XXX Remove this? Covered by wordWithQuotes?
+    , wordWithQuotes
+    , wordStripQuotes
+
+    -- Framed by separate start and end characters, potentially nested.
     -- , takeFramedBy
     , takeFramedBy_
     , takeFramedByEsc_
     , takeFramedByGeneric
-    , wordFramedBy
-    , wordWithQuotes
-    , wordStripQuotes
     , blockWithQuotes
 
     -- Matching strings
@@ -1029,9 +1035,9 @@ data FramedEscState s =
 -- XXX We can remove Maybe from esc
 {-# INLINE takeFramedByGeneric #-}
 takeFramedByGeneric :: Monad m =>
-       Maybe (a -> Bool)
-    -> Maybe (a -> Bool)
-    -> Maybe (a -> Bool)
+       Maybe (a -> Bool) -- is escape char?
+    -> Maybe (a -> Bool) -- is frame begin?
+    -> Maybe (a -> Bool) -- is frame end?
     -> Fold m a b
     -> Parser a m b
 takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
