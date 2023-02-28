@@ -1121,6 +1121,99 @@ takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
             Nothing -> err "takeFramedByGeneric: missing closing frame"
     extract (FrameEscEsc _ _) = err "takeFramedByGeneric: trailing escape"
 
+data BlockParseState s =
+      BlockInit !s
+    | BlockUnquoted !Int !s
+    | BlockQuoted !Int !s
+    | BlockQuotedEsc !Int !s
+
+-- Blocks can be of different types e.g. {} or (). We only parse from the
+-- perspective of the outermost block type. The nesting of that block are
+-- checked. Any other block types nested inside it are opaque to us and can be
+-- parsed when the contents of the block are parsed.
+
+-- XXX Put a limit on nest level to keep the API safe.
+
+-- | Parse a block enclosed within open, close brackets. Block contents may be
+-- quoted, brackets inside quotes are ignored. Quoting characters can be used
+-- within quotes if escaped. A block can have a nested block inside it.
+--
+-- Quote begin and end chars are the same. Block brackets and quote chars must
+-- not overlap. Block start and end brackets must be different for nesting
+-- blocks within blocks.
+--
+-- >>> p = Parser.blockWithQuotes (== '\\') (== '"') '{' '}' Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "{msg: \"hello world\"}"
+-- Right "msg: \"hello world\""
+--
+{-# INLINE blockWithQuotes #-}
+blockWithQuotes :: (Monad m, Eq a) =>
+       (a -> Bool)  -- ^ escape char
+    -> (a -> Bool)  -- ^ quote char, to quote inside brackets
+    -> a  -- ^ Block opening bracket
+    -> a  -- ^ Block closing bracket
+    -> Fold m a b
+    -> Parser a m b
+blockWithQuotes isEsc isQuote bopen bclose
+    (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (BlockInit s)
+                FL.Done _ ->
+                    error "blockWithQuotes: fold finished without input"
+
+    {-# INLINE process #-}
+    process s a nextState = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (nextState s1)
+                FL.Done b -> Done 0 b
+
+    step (BlockInit s) a =
+        return
+            $ if a == bopen
+              then Continue 0 $ BlockUnquoted 1 s
+              else Error "blockWithQuotes: missing block start"
+    step (BlockUnquoted level s) a =
+        if a == bopen
+        then process s a (BlockUnquoted (level + 1))
+        else
+            if a == bclose
+            then
+                if level == 1
+                then fmap (Done 0) (fextract s)
+                else process s a (BlockUnquoted (level - 1))
+             else
+                if isQuote a
+                then process s a (BlockQuoted level)
+                else process s a (BlockUnquoted level)
+    step (BlockQuoted level s) a
+        | isEsc a = process s a (BlockQuotedEsc level)
+        | otherwise =
+            if isQuote a
+            then process s a (BlockUnquoted level)
+            else process s a (BlockQuoted level)
+    step (BlockQuotedEsc level s) a = process s a (BlockQuoted level)
+
+    err = return . Error
+
+    extract (BlockInit s) = fmap (Done 0) $ fextract s
+    extract (BlockUnquoted level _) =
+        err $ "blockWithQuotes: finished at block nest level " ++ show level
+    extract (BlockQuoted level _) =
+        err $ "blockWithQuotes: finished, inside an unfinished quote, "
+            ++ "at block nest level " ++ show level
+    extract (BlockQuotedEsc level _) =
+        err $ "blockWithQuotes: finished, inside an unfinished quote, "
+            ++ "after an escape char, at block nest level " ++ show level
+
 -- | @takeEndBy cond parser@ parses a token that ends by a separator chosen by
 -- the supplied predicate. The separator is also taken with the token.
 --
@@ -1780,99 +1873,6 @@ wordStripQuotes :: (Monad m, Eq a) =>
     -> Fold m a b
     -> Parser a m b
 wordStripQuotes = wordWithQuotesWith (const False) False
-
-data BlockParseState s =
-      BlockInit !s
-    | BlockUnquoted !Int !s
-    | BlockQuoted !Int !s
-    | BlockQuotedEsc !Int !s
-
--- Blocks can be of different types e.g. {} or (). We only parse from the
--- perspective of the outermost block type. The nesting of that block are
--- checked. Any other block types nested inside it are opaque to us and can be
--- parsed when the contents of the block are parsed.
-
--- XXX Put a limit on nest level to keep the API safe.
-
--- | Parse a block enclosed within open, close brackets. Block contents may be
--- quoted, brackets inside quotes are ignored. Quoting characters can be used
--- within quotes if escaped. A block can have a nested block inside it.
---
--- Quote begin and end chars are the same. Block brackets and quote chars must
--- not overlap. Block start and end brackets must be different for nesting
--- blocks within blocks.
---
--- >>> p = Parser.blockWithQuotes (== '\\') (== '"') '{' '}' Fold.toList
--- >>> Stream.parse p $ Stream.fromList "{msg: \"hello world\"}"
--- Right "msg: \"hello world\""
---
-{-# INLINE blockWithQuotes #-}
-blockWithQuotes :: (Monad m, Eq a) =>
-       (a -> Bool)  -- ^ escape char
-    -> (a -> Bool)  -- ^ quote char, to quote inside brackets
-    -> a  -- ^ Block opening bracket
-    -> a  -- ^ Block closing bracket
-    -> Fold m a b
-    -> Parser a m b
-blockWithQuotes isEsc isQuote bopen bclose
-    (Fold fstep finitial fextract) =
-    Parser step initial extract
-
-    where
-
-    initial = do
-        res <- finitial
-        return $
-            case res of
-                FL.Partial s -> IPartial (BlockInit s)
-                FL.Done _ ->
-                    error "blockWithQuotes: fold finished without input"
-
-    {-# INLINE process #-}
-    process s a nextState = do
-        res <- fstep s a
-        return
-            $ case res of
-                FL.Partial s1 -> Continue 0 (nextState s1)
-                FL.Done b -> Done 0 b
-
-    step (BlockInit s) a =
-        return
-            $ if a == bopen
-              then Continue 0 $ BlockUnquoted 1 s
-              else Error "blockWithQuotes: missing block start"
-    step (BlockUnquoted level s) a =
-        if a == bopen
-        then process s a (BlockUnquoted (level + 1))
-        else
-            if a == bclose
-            then
-                if level == 1
-                then fmap (Done 0) (fextract s)
-                else process s a (BlockUnquoted (level - 1))
-             else
-                if isQuote a
-                then process s a (BlockQuoted level)
-                else process s a (BlockUnquoted level)
-    step (BlockQuoted level s) a
-        | isEsc a = process s a (BlockQuotedEsc level)
-        | otherwise =
-            if isQuote a
-            then process s a (BlockUnquoted level)
-            else process s a (BlockQuoted level)
-    step (BlockQuotedEsc level s) a = process s a (BlockQuoted level)
-
-    err = return . Error
-
-    extract (BlockInit s) = fmap (Done 0) $ fextract s
-    extract (BlockUnquoted level _) =
-        err $ "blockWithQuotes: finished at block nest level " ++ show level
-    extract (BlockQuoted level _) =
-        err $ "blockWithQuotes: finished, inside an unfinished quote, "
-            ++ "at block nest level " ++ show level
-    extract (BlockQuotedEsc level _) =
-        err $ "blockWithQuotes: finished, inside an unfinished quote, "
-            ++ "after an escape char, at block nest level " ++ show level
 
 {-# ANN type GroupByState Fuse #-}
 data GroupByState a s
