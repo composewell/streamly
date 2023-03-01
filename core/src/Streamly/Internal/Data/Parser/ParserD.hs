@@ -1181,19 +1181,14 @@ blockWithQuotes isEsc isQuote bopen bclose
             $ if a == bopen
               then Continue 0 $ BlockUnquoted 1 s
               else Error "blockWithQuotes: missing block start"
-    step (BlockUnquoted level s) a =
-        if a == bopen
-        then process s a (BlockUnquoted (level + 1))
-        else
-            if a == bclose
-            then
-                if level == 1
-                then fmap (Done 0) (fextract s)
-                else process s a (BlockUnquoted (level - 1))
-             else
-                if isQuote a
-                then process s a (BlockQuoted level)
-                else process s a (BlockUnquoted level)
+    step (BlockUnquoted level s) a
+        | a == bopen = process s a (BlockUnquoted (level + 1))
+        | a == bclose =
+            if level == 1
+            then fmap (Done 0) (fextract s)
+            else process s a (BlockUnquoted (level - 1))
+        | isQuote a = process s a (BlockQuoted level)
+        | otherwise = process s a (BlockUnquoted level)
     step (BlockQuoted level s) a
         | isEsc a = process s a (BlockQuotedEsc level)
         | otherwise =
