@@ -262,7 +262,7 @@ fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
 
 {-# INLINE bufferChunks #-}
 bufferChunks :: (MonadIO m, Unbox a) =>
-    D.Stream m a -> m (K.Stream m (Array a))
+    D.Stream m a -> m (K.StreamK m (Array a))
 bufferChunks m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
 
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
@@ -348,7 +348,7 @@ toStreamD :: forall m a. (Monad m, Unbox a) => Array a -> D.Stream m a
 toStreamD arr = MA.toStreamDWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE toStreamK #-}
-toStreamK :: forall m a. (Monad m, Unbox a) => Array a -> K.Stream m a
+toStreamK :: forall m a. (Monad m, Unbox a) => Array a -> K.StreamK m a
 toStreamK arr = MA.toStreamKWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE_NORMAL toStreamDRev #-}
@@ -357,7 +357,7 @@ toStreamDRev arr =
     MA.toStreamDRevWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: forall m a. (Monad m, Unbox a) => Array a -> K.Stream m a
+toStreamKRev :: forall m a. (Monad m, Unbox a) => Array a -> K.StreamK m a
 toStreamKRev arr =
     MA.toStreamKRevWith (return . unsafeInlineIO) (unsafeThaw arr)
 

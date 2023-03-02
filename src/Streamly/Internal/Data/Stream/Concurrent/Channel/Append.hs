@@ -55,9 +55,9 @@ import Streamly.Internal.Data.Stream.Channel.Worker
 {-# INLINE enqueueLIFO #-}
 enqueueLIFO ::
       Channel m a
-   -> IORef ([(RunInIO m, K.Stream m a)], [(RunInIO m, K.Stream m a)])
+   -> IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
    -> Bool
-   -> (RunInIO m, K.Stream m a)
+   -> (RunInIO m, K.StreamK m a)
    -> IO ()
 enqueueLIFO sv q inner m = do
     atomicModifyIORefCAS_ q $ \(xs, ys) ->
@@ -68,8 +68,8 @@ data QResult a = QEmpty | QOuter a | QInner a
 
 {-# INLINE dequeue #-}
 dequeue :: MonadIO m =>
-       IORef ([(RunInIO m, K.Stream m a)], [(RunInIO m, K.Stream m a)])
-    -> m (QResult (RunInIO m, K.Stream m a))
+       IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
+    -> m (QResult (RunInIO m, K.StreamK m a))
 dequeue qref =
     liftIO
         $ atomicModifyIORefCAS qref
@@ -83,7 +83,7 @@ data WorkerStatus = Continue | Suspend
 {-# INLINE workLoopLIFO #-}
 workLoopLIFO
     :: MonadRunInIO m
-    => IORef ([(RunInIO m, K.Stream m a)], [(RunInIO m, K.Stream m a)])
+    => IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -144,7 +144,7 @@ workLoopLIFO qref sv winfo = run
 {-# INLINE workLoopLIFOLimited #-}
 workLoopLIFOLimited
     :: forall m a. MonadRunInIO m
-    => IORef ([(RunInIO m, K.Stream m a)], [(RunInIO m, K.Stream m a)])
+    => IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -234,8 +234,8 @@ workLoopLIFOLimited qref sv winfo = run
 {-# INLINE enqueueAhead #-}
 enqueueAhead ::
        Channel m a
-    -> IORef ([K.Stream m a], Int)
-    -> (RunInIO m, K.Stream m a)
+    -> IORef ([K.StreamK m a], Int)
+    -> (RunInIO m, K.StreamK m a)
     -> IO ()
 enqueueAhead sv q m = do
     -- XXX The queue is LIFO. When parConcatIterate queues more than one items
@@ -444,7 +444,7 @@ updateHeapSeq hpVar seqNo =
 {-# INLINE underMaxHeap #-}
 underMaxHeap ::
        Channel m a
-    -> Heap (Entry Int (AheadHeapEntry K.Stream m a))
+    -> Heap (Entry Int (AheadHeapEntry K.StreamK m a))
     -> IO Bool
 underMaxHeap sv hp = do
     (_, len) <- readIORef (outputQueue sv)
@@ -466,7 +466,7 @@ underMaxHeap sv hp = do
 -- False => continue
 preStopCheck ::
        Channel m a
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.Stream m a)) , Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)) , Maybe Int)
     -> IO Bool
 preStopCheck sv heap =
     -- check the stop condition under a lock before actually
@@ -518,11 +518,11 @@ abortExecution sv winfo = do
 --
 processHeap
     :: MonadRunInIO m
-    => IORef ([K.Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.Stream m a)), Maybe Int)
+    => IORef ([K.StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
-    -> AheadHeapEntry K.Stream m a
+    -> AheadHeapEntry K.StreamK m a
     -> Int
     -> Bool -- we are draining the heap before we stop
     -> m ()
@@ -629,8 +629,8 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
 {-# NOINLINE drainHeap #-}
 drainHeap
     :: MonadRunInIO m
-    => IORef ([K.Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.Stream m a)), Maybe Int)
+    => IORef ([K.StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -645,11 +645,11 @@ data HeapStatus = HContinue | HStop
 
 processWithoutToken
     :: MonadRunInIO m
-    => IORef ([K.Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.Stream m a)), Maybe Int)
+    => IORef ([K.StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
-    -> K.Stream m a
+    -> K.StreamK m a
     -> Int
     -> m ()
 processWithoutToken q heap sv winfo m seqNo = do
@@ -725,11 +725,11 @@ data TokenWorkerStatus = TokenContinue Int | TokenSuspend
 
 processWithToken
     :: MonadRunInIO m
-    => IORef ([K.Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.Stream m a)), Maybe Int)
+    => IORef ([K.StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
-    -> K.Stream m a
+    -> K.StreamK m a
     -> Int
     -> m ()
 processWithToken q heap sv winfo action sno = do
@@ -834,8 +834,8 @@ processWithToken q heap sv winfo action sno = do
 
 workLoopAhead
     :: MonadRunInIO m
-    => IORef ([K.Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.Stream m a)), Maybe Int)
+    => IORef ([K.StreamK m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -897,8 +897,8 @@ getLifoSVar mrun cfg = do
     wfw     <- newIORef False
     running <- newIORef Set.empty
     q       <- newIORef
-                ( [] :: [(RunInIO m, K.Stream m a)]
-                , [] :: [(RunInIO m, K.Stream m a)]
+                ( [] :: [(RunInIO m, K.StreamK m a)]
+                , [] :: [(RunInIO m, K.StreamK m a)]
                 )
     -- Sequence number is incremented whenever something is de-queued,
     -- therefore, first sequence number would be 0
@@ -936,7 +936,7 @@ getLifoSVar mrun cfg = do
             -> (Channel m a -> m [ChildEvent a])
             -> (Channel m a -> m Bool)
             -> (Channel m a -> IO Bool)
-            -> (IORef ([(RunInIO m, K.Stream m a)], [(RunInIO m, K.Stream m a)])
+            -> (IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
                 -> Channel m a
                 -> Maybe WorkerInfo
                 -> m())

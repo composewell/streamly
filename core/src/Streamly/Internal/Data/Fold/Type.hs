@@ -688,7 +688,7 @@ toList = foldr' (:) []
 
 --  xn : ... : x2 : x1 : []
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: Monad m => Fold m a (K.Stream n a)
+toStreamKRev :: Monad m => Fold m a (K.StreamK n a)
 toStreamKRev = foldl' (flip K.cons) K.nil
 
 -- | A fold that buffers its input to a pure stream.
@@ -698,7 +698,7 @@ toStreamKRev = foldl' (flip K.cons) K.nil
 --
 -- /Internal/
 {-# INLINE toStreamK #-}
-toStreamK :: Monad m => Fold m a (K.Stream n a)
+toStreamK :: Monad m => Fold m a (K.StreamK n a)
 toStreamK = foldr K.cons K.nil
 
 ------------------------------------------------------------------------------

@@ -591,7 +591,7 @@ fromStreamD = Unfold step pure
             Stop      -> Stop) <$> step1 defState state1
 
 {-# INLINE_NORMAL fromStreamK #-}
-fromStreamK :: Applicative m => Unfold m (K.Stream m a) a
+fromStreamK :: Applicative m => Unfold m (K.StreamK m a) a
 fromStreamK = Unfold step pure
 
     where

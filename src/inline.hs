@@ -16,7 +16,7 @@
 -- Then, fromStreamK/toStreamK are inlined in the last phase:
 --
 -- {-# INLINE_LATE toStreamK #-}
--- toStreamK :: Monad m => Stream m a -> K.Stream m a```
+-- toStreamK :: Monad m => Stream m a -> K.StreamK m a```
 --
 -- The fallback rules make sure that if we could not fuse the direct style
 -- operations then better use the CPS style operation, because unfused direct

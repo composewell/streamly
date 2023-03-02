@@ -65,7 +65,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (Stream, foldStreamShared, mkStream, foldStream, fromEffect
+    (StreamK, foldStreamShared, mkStream, foldStream, fromEffect
     , nil, concatMapWith, fromPure, bindWith)
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), mapM, toStreamK, fromStreamK)
@@ -91,7 +91,7 @@ import Prelude hiding (map)
 -- :}
 
 {-# INLINABLE withLocal #-}
-withLocal :: MonadReader r m => (r -> r) -> K.Stream m a -> K.Stream m a
+withLocal :: MonadReader r m => (r -> r) -> K.StreamK m a -> K.StreamK m a
 withLocal f m =
     K.mkStream $ \st yld sng stp ->
         let single = local f . sng
@@ -109,7 +109,7 @@ withLocal f m =
 {-# NOINLINE runOne #-}
 runOne
     :: MonadIO m
-    => State K.Stream m a -> K.Stream m a -> Maybe WorkerInfo -> m ()
+    => State K.StreamK m a -> K.StreamK m a -> Maybe WorkerInfo -> m ()
 runOne st m0 winfo =
     case getYieldLimit st of
         Nothing -> go m0
@@ -132,7 +132,7 @@ runOne st m0 winfo =
 
 runOneLimited
     :: MonadIO m
-    => State K.Stream m a -> K.Stream m a -> Maybe WorkerInfo -> m ()
+    => State K.StreamK m a -> K.StreamK m a -> Maybe WorkerInfo -> m ()
 runOneLimited st m0 winfo = go m0
 
     where
@@ -169,7 +169,7 @@ runOneLimited st m0 winfo = go m0
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: MonadAsync m
-    => SVarStopStyle -> K.Stream m a -> K.Stream m a -> K.Stream m a
+    => SVarStopStyle -> K.StreamK m a -> K.StreamK m a -> K.StreamK m a
 forkSVarPar ss m r = K.mkStream $ \st yld sng stp -> do
     sv <- newParallelVar ss st
     pushWorkerPar sv (runOne st{streamVar = Just sv} m)
@@ -186,9 +186,9 @@ joinStreamVarPar ::
        MonadAsync m
     => SVarStyle
     -> SVarStopStyle
-    -> K.Stream m a
-    -> K.Stream m a
-    -> K.Stream m a
+    -> K.StreamK m a
+    -> K.StreamK m a
+    -> K.StreamK m a
 joinStreamVarPar style ss m1 m2 = K.mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style && svarStopStyle sv == ss -> do
@@ -238,7 +238,7 @@ joinStreamVarPar style ss m1 m2 = K.mkStream $ \st yld sng stp ->
 -------------------------------------------------------------------------------
 
 {-# INLINE parallelK #-}
-parallelK :: MonadAsync m => K.Stream m a -> K.Stream m a -> K.Stream m a
+parallelK :: MonadAsync m => K.StreamK m a -> K.StreamK m a -> K.StreamK m a
 parallelK = joinStreamVarPar ParallelVar StopNone
 
 -- | XXX we can implement it more efficienty by directly implementing instead
@@ -256,7 +256,7 @@ consM m (ParallelT r) = ParallelT $ parallelK (K.fromEffect m) r
 --
 -- /Pre-release/
 {-# INLINE parallelFstK #-}
-parallelFstK :: MonadAsync m => K.Stream m a -> K.Stream m a -> K.Stream m a
+parallelFstK :: MonadAsync m => K.StreamK m a -> K.StreamK m a -> K.StreamK m a
 parallelFstK = joinStreamVarPar ParallelVar StopBy
 
 -- This is a race like combinator for streams.
@@ -266,7 +266,7 @@ parallelFstK = joinStreamVarPar ParallelVar StopBy
 --
 -- /Pre-release/
 {-# INLINE parallelMinK #-}
-parallelMinK :: MonadAsync m => K.Stream m a -> K.Stream m a -> K.Stream m a
+parallelMinK :: MonadAsync m => K.StreamK m a -> K.StreamK m a -> K.StreamK m a
 parallelMinK = joinStreamVarPar ParallelVar StopAny
 
 ------------------------------------------------------------------------------
@@ -277,7 +277,7 @@ parallelMinK = joinStreamVarPar ParallelVar StopAny
 --
 -- /Pre-release/
 --
-mkParallelK :: MonadAsync m => K.Stream m a -> K.Stream m a
+mkParallelK :: MonadAsync m => K.StreamK m a -> K.StreamK m a
 mkParallelK m = K.mkStream $ \st yld sng stp -> do
     sv <- newParallelVar StopNone (adaptState st)
     -- pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream m)
@@ -327,7 +327,7 @@ mkParallelD m = D.Stream step Nothing
 -- is determined by the prevailing 'Streamly.Prelude.maxBuffer' setting.
 --
 -- @
---               Stream m a -> m b
+--               StreamK m a -> m b
 --                       |
 -- -----stream m a ---------------stream m a-----
 --
@@ -351,7 +351,7 @@ mkParallelD m = D.Stream step Nothing
 -- /Pre-release/
 {-# INLINE tapAsyncK #-}
 tapAsyncK ::
-       MonadAsync m => (K.Stream m a -> m b) -> K.Stream m a -> K.Stream m a
+       MonadAsync m => (K.StreamK m a -> m b) -> K.StreamK m a -> K.StreamK m a
 tapAsyncK f m = K.mkStream $ \st yld sng stp -> do
     sv <- SVar.newFoldSVar st (f . Stream.toStreamK)
     K.foldStreamShared st yld sng stp
@@ -429,7 +429,7 @@ tapAsyncF f (D.Stream step1 state1) = D.Stream step TapInit
 -- /Since: 0.7.0 (maxBuffer applies to ParallelT streams)/
 --
 -- @since 0.8.0
-newtype ParallelT m a = ParallelT {getParallelT :: K.Stream m a}
+newtype ParallelT m a = ParallelT {getParallelT :: K.StreamK m a}
 
 instance MonadTrans ParallelT where
     {-# INLINE lift #-}
@@ -519,7 +519,7 @@ MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 -- /Pre-release/
 --
 {-# INLINE_NORMAL newCallbackStream #-}
-newCallbackStream :: MonadAsync m => m (a -> m (), K.Stream m a)
+newCallbackStream :: MonadAsync m => m (a -> m (), K.StreamK m a)
 newCallbackStream = do
     sv <- newParallelVar StopNone defState
 

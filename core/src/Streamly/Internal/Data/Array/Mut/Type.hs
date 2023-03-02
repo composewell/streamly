@@ -244,6 +244,7 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
@@ -1339,7 +1340,7 @@ arraysOf n (D.Stream step state) =
 -- | Buffer the stream into arrays in memory.
 {-# INLINE arrayStreamKFromStreamD #-}
 arrayStreamKFromStreamD :: forall m a. (MonadIO m, Unbox a) =>
-    D.Stream m a -> m (K.Stream m (MutArray a))
+    D.Stream m a -> m (StreamK m (MutArray a))
 arrayStreamKFromStreamD =
     let n = allocBytesToElemCount (undefined :: a) defaultChunkSize
      in D.foldr K.cons K.nil . arraysOf n
@@ -1554,7 +1555,7 @@ toStreamD = toStreamDWith liftIO
 {-# INLINE toStreamKWith #-}
 toStreamKWith ::
        forall m a. (Monad m, Unbox a)
-    => (forall b. IO b -> m b) -> MutArray a -> K.Stream m a
+    => (forall b. IO b -> m b) -> MutArray a -> StreamK m a
 toStreamKWith liftio MutArray{..} = go arrStart
 
     where
@@ -1565,7 +1566,7 @@ toStreamKWith liftio MutArray{..} = go arrStart
         in liftio elemM `K.consM` go (INDEX_NEXT(p,a))
 
 {-# INLINE toStreamK #-}
-toStreamK :: forall m a. (MonadIO m, Unbox a) => MutArray a -> K.Stream m a
+toStreamK :: forall m a. (MonadIO m, Unbox a) => MutArray a -> StreamK m a
 toStreamK = toStreamKWith liftIO
 
 {-# INLINE_NORMAL toStreamDRevWith #-}
@@ -1596,7 +1597,7 @@ toStreamDRev = toStreamDRevWith liftIO
 {-# INLINE toStreamKRevWith #-}
 toStreamKRevWith ::
        forall m a. (Monad m, Unbox a)
-    => (forall b. IO b -> m b) -> MutArray a -> K.Stream m a
+    => (forall b. IO b -> m b) -> MutArray a -> StreamK m a
 toStreamKRevWith liftio MutArray {..} =
     let p = INDEX_PREV(arrEnd,a)
     in go p
@@ -1609,7 +1610,7 @@ toStreamKRevWith liftio MutArray {..} =
         in liftio elemM `K.consM` go (INDEX_PREV(p,a))
 
 {-# INLINE toStreamKRev #-}
-toStreamKRev :: forall m a. (MonadIO m, Unbox a) => MutArray a -> K.Stream m a
+toStreamKRev :: forall m a. (MonadIO m, Unbox a) => MutArray a -> StreamK m a
 toStreamKRev = toStreamKRevWith liftIO
 
 -------------------------------------------------------------------------------
@@ -1836,7 +1837,7 @@ writeNAligned align = writeNWith (newAlignedPinned align)
 --
 {-# INLINE_NORMAL writeChunks #-}
 writeChunks :: (MonadIO m, Unbox a) =>
-    Int -> Fold m a (K.Stream n (MutArray a))
+    Int -> Fold m a (StreamK n (MutArray a))
 writeChunks n = FL.many (writeN n) FL.toStreamK
 
 -- XXX Compare writeWith with fromStreamD which uses an array of streams
@@ -1946,7 +1947,7 @@ fromListRevN n xs = D.fold (writeRevN n) $ D.fromList xs
 -------------------------------------------------------------------------------
 
 {-# INLINE arrayStreamKLength #-}
-arrayStreamKLength :: (Monad m, Unbox a) => K.Stream m (MutArray a) -> m Int
+arrayStreamKLength :: (Monad m, Unbox a) => StreamK m (MutArray a) -> m Int
 arrayStreamKLength as = K.foldl' (+) 0 (K.map length as)
 
 -- | Convert an array stream to an array. Note that this requires peak memory
@@ -1954,7 +1955,7 @@ arrayStreamKLength as = K.foldl' (+) 0 (K.map length as)
 --
 {-# INLINE fromArrayStreamK #-}
 fromArrayStreamK :: (Unbox a, MonadIO m) =>
-    K.Stream m (MutArray a) -> m (MutArray a)
+    StreamK m (MutArray a) -> m (MutArray a)
 fromArrayStreamK as = do
     len <- arrayStreamKLength as
     fromStreamDN len $ D.unfoldMany reader $ D.fromStreamK as

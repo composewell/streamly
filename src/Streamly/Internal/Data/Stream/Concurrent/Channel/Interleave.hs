@@ -44,8 +44,8 @@ data WorkerStatus = Continue | Suspend
 {-# INLINE enqueueFIFO #-}
 enqueueFIFO ::
        Channel m a
-    -> LinkedQueue (RunInIO m, K.Stream m a)
-    -> (RunInIO m, K.Stream m a)
+    -> LinkedQueue (RunInIO m, K.StreamK m a)
+    -> (RunInIO m, K.StreamK m a)
     -> IO ()
 enqueueFIFO sv q m = do
     pushL q m
@@ -54,7 +54,7 @@ enqueueFIFO sv q m = do
 {-# INLINE workLoopFIFO #-}
 workLoopFIFO
     :: MonadRunInIO m
-    => LinkedQueue (RunInIO m, K.Stream m a)
+    => LinkedQueue (RunInIO m, K.StreamK m a)
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -93,7 +93,7 @@ workLoopFIFO q sv winfo = run
 {-# INLINE workLoopFIFOLimited #-}
 workLoopFIFOLimited
     :: forall m a. MonadRunInIO m
-    => LinkedQueue (RunInIO m, K.Stream m a)
+    => LinkedQueue (RunInIO m, K.StreamK m a)
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -180,7 +180,7 @@ getFifoSVar mrun cfg = do
             -> (Channel m a -> m [ChildEvent a])
             -> (Channel m a -> m Bool)
             -> (Channel m a -> IO Bool)
-            -> (LinkedQueue (RunInIO m, K.Stream m a)
+            -> (LinkedQueue (RunInIO m, K.StreamK m a)
                 -> Channel m a
                 -> Maybe WorkerInfo
                 -> m())
