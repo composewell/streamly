@@ -43,12 +43,12 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 
--- | @chunksOf n stream@ groups the elements in the input stream into arrays of
+-- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
 -- Same as the following but may be more efficient:
 --
--- > chunksOf n = Stream.foldMany (MArray.writeN n)
+-- > arraysOf n = Stream.foldMany (MArray.writeN n)
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}
