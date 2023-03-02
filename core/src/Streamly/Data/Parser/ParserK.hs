@@ -15,7 +15,6 @@ module Streamly.Data.Parser.ParserK
     (
     -- * Parser Type
       ParserK
-    , Parser
 
     -- * Parsers
     -- ** Conversions

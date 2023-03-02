@@ -233,6 +233,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unboxed (sizeOf, Unbox)
+import Streamly.Internal.Data.Parser.ParserK.Type (ParserK)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Type as FL
@@ -1283,7 +1284,7 @@ parserDone (ParserK.Failure n e) _ _ = pure $ ParserK.Error n e
 {-# INLINE_NORMAL parseBreakChunks #-}
 parseBreakChunks
     :: (Monad m, Unbox a)
-    => ParserK.Parser a m b
+    => ParserK a m b
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
 parseBreakChunks parser input = do
@@ -1373,7 +1374,7 @@ parseBreakChunks parser input = do
 
 {-# INLINE parseChunks #-}
 parseChunks :: (Monad m, Unbox a) =>
-    ParserK.Parser a m b -> StreamK m (Array a) -> m (Either ParseError b)
+    ParserK a m b -> StreamK m (Array a) -> m (Either ParseError b)
 parseChunks f = fmap fst . parseBreakChunks f
 
 -------------------------------------------------------------------------------
