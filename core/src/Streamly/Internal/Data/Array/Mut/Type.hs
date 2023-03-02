@@ -1288,24 +1288,13 @@ data GroupState s contents start end bound
 -- | @arraysOf n stream@ groups the input stream into a stream of
 -- arrays of size n.
 --
-<<<<<<< HEAD
 -- @arraysOf n = StreamD.foldMany (MutArray.writeN n)@
-=======
--- @arraysOf n = StreamD.foldMany (Array.writeN n)@
->>>>>>> 1673db12 (Fix review comments)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL arraysOf #-}
 arraysOf :: forall m a. (MonadIO m, Unbox a)
-<<<<<<< HEAD
     => Int -> D.Stream m a -> D.Stream m (MutArray a)
-=======
-    => Int -> D.Stream m a -> D.Stream m (Array a)
->>>>>>> 1673db12 (Fix review comments)
 -- XXX the idiomatic implementation leads to large regression in the D.reverse'
--- benchmark. It seems it has difficulty producing optimized code when
--- converting to StreamK. Investigate GHC optimizations.
--- arraysOf n = D.foldMany (writeN n)
 arraysOf n (D.Stream step state) =
     D.Stream step' (GroupStart state)
 

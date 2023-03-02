@@ -11,7 +11,7 @@
 module Streamly.Internal.Data.Array.Mut.Stream
     (
     -- * Generation
-      chunksOf
+      arraysOf
 
     -- * Compaction
     , packArraysChunksOf
