@@ -1785,7 +1785,7 @@ foldManyPost (Fold fstep initial extract) (Stream step state) =
 {-# ANN type FoldMany Fuse #-}
 data FoldMany s fs b a
     = FoldManyStart s
-    | FoldManyFirst a s
+    | FoldManyFirst fs s
     | FoldManyLoop s fs
     | FoldManyYield b (FoldMany s fs b a)
     | FoldManyDone
@@ -1836,17 +1836,19 @@ foldMany (Fold fstep initial extract) (Stream step state) =
                   FL.Partial ps -> FoldManyLoop s ps
 
     {-# INLINE_LATE step' #-}
-    step' gst (FoldManyStart st) = do
+    step' _ (FoldManyStart st) = do
+        r <- initial
+        return
+            $ Skip
+            $ case r of
+                  FL.Done b -> FoldManyYield b (FoldManyStart st)
+                  FL.Partial fs -> FoldManyFirst fs st
+    step' gst (FoldManyFirst fs st) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip (FoldManyFirst x s)
-            Skip s -> return $ Skip (FoldManyStart s)
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldManyFirst fs s)
             Stop -> return Stop
-    step' _ (FoldManyFirst x st) = do
-        r <- initial
-        case r of
-            FL.Done b -> return $ Skip $ FoldManyYield b (FoldManyFirst x st)
-            FL.Partial fs -> consume x st fs
     step' gst (FoldManyLoop st fs) = do
         r <- step (adaptState gst) st
         case r of
@@ -1885,17 +1887,19 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
                   FL.Partial ps -> FoldManyLoop s ps
 
     {-# INLINE_LATE step' #-}
-    step' gst (FoldManyStart st) = do
+    step' _ (FoldManyStart st) = do
+        r <- action >>= inject
+        return
+            $ Skip
+            $ case r of
+                  FL.Done b -> FoldManyYield b (FoldManyStart st)
+                  FL.Partial fs -> FoldManyFirst fs st
+    step' gst (FoldManyFirst fs st) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> return $ Skip (FoldManyFirst x s)
-            Skip s -> return $ Skip (FoldManyStart s)
+            Yield x s -> consume x s fs
+            Skip s -> return $ Skip (FoldManyFirst fs s)
             Stop -> return Stop
-    step' _ (FoldManyFirst x st) = do
-        r <- action >>= inject
-        case r of
-            FL.Done b -> return $ Skip $ FoldManyYield b (FoldManyFirst x st)
-            FL.Partial fs -> consume x st fs
     step' gst (FoldManyLoop st fs) = do
         r <- step (adaptState gst) st
         case r of
