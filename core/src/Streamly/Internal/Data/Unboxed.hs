@@ -43,7 +43,7 @@ module Streamly.Internal.Data.Unboxed
 
 import Control.Monad (void, when)
 import Data.Complex (Complex((:+)))
-import Data.Functor ((<&>), ($>))
+import Data.Functor ((<&>))
 import Data.Functor.Const (Const(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Kind (Type)
@@ -549,7 +549,10 @@ skipByte = Peeker (Builder step)
     step :: BoundedPtr -> IO (BoundedPtr, ())
     step (BoundedPtr arr pos end) = do
         let next = pos + 1
-        when (next > end) $ error "skipByte: reading beyond limit"
+        when (next > end)
+            $ error $ "skipByte: reading beyond limit. next = "
+                ++ show next
+                ++ " end = " ++ show end
         return (BoundedPtr arr next end, ())
 
 {-# INLINE runPeeker #-}
@@ -634,15 +637,6 @@ instance SizeOfRep V1 where
     {-# INLINE sizeOfRep #-}
     sizeOfRep = error "sizeOfRep: a value of a Void type must not exist"
 
--- Unit: constructors without arguments.
--- Theoretically the size can be 0, but we use 1 to simplify the implementation
--- of an array of unit type elements. With a non-zero size we can count the number
--- of elements in the array based on the size of the array. Otherwise we will
--- have to store a virtual length in the array, but keep the physical size of
--- the array as 0. Or we will have to make a special handling for zero sized
--- elements to make the size as 1. Or we can disallow arrays with elements
--- having size 0.
---
 -- Note that when a sum type has many unit constructors only a single byte is
 -- required to encode the type as only the constructor tag is stored.
 instance SizeOfRep U1 where
@@ -685,6 +679,15 @@ instance (MaxArity256 (SumArity (f :+: g)), SizeOfRepSum f, SizeOfRepSum g) =>
             max (sizeOfRepSum (undefined :: f x))
                 (sizeOfRepSum (undefined :: g x))
 
+-- Unit: constructors without arguments.
+-- Theoretically the size can be 0, but we use 1 to simplify the implementation
+-- of an array of unit type elements. With a non-zero size we can count the number
+-- of elements in the array based on the size of the array. Otherwise we will
+-- have to store a virtual length in the array, but keep the physical size of
+-- the array as 0. Or we will have to make a special handling for zero sized
+-- elements to make the size as 1. Or we can disallow arrays with elements
+-- having size 0.
+--
 {-# INLINE genericSizeOf #-}
 genericSizeOf :: forall a. (SizeOfRep (Rep a)) => Proxy a -> Int
 genericSizeOf _ =
@@ -712,9 +715,7 @@ instance PokeRep V1 where
 
 instance PokeRep U1 where
     {-# INLINE pokeRep #-}
-    -- XXX Can we use sizeof U1 to determine the size?
-    pokeRep _ (BoundedPtr arr pos end) =
-        return (BoundedPtr arr (pos + 1) end)
+    pokeRep _ x = pure x
 
 instance (PokeRep f, PokeRep g) => PokeRep (f :*: g) where
     {-# INLINE pokeRep #-}
@@ -785,7 +786,7 @@ instance PeekRep V1 where
 
 instance PeekRep U1 where
     {-# INLINE peekRep #-}
-    peekRep = skipByte $> U1
+    peekRep = pure U1
 
 instance (PeekRep f, PeekRep g) => PeekRep (f :*: g) where
     {-# INLINE peekRep #-}
