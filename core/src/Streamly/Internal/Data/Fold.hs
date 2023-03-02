@@ -321,6 +321,7 @@ import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
 import Foreign.Storable (Storable, peek)
+import Streamly.Internal.Data.Array.Mut.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
@@ -2450,7 +2451,7 @@ unfoldMany (Unfold ustep inject) (Fold fstep initial extract) =
 bottomBy :: (MonadIO m, Unbox a) =>
        (a -> a -> Ordering)
     -> Int
-    -> Fold m a (MA.Array a)
+    -> Fold m a (MutArray a)
 bottomBy cmp n = Fold step initial extract
 
     where
@@ -2496,7 +2497,7 @@ bottomBy cmp n = Fold step initial extract
 topBy :: (MonadIO m, Unbox a) =>
        (a -> a -> Ordering)
     -> Int
-    -> Fold m a (MA.Array a)
+    -> Fold m a (MutArray a)
 topBy cmp = bottomBy (flip cmp)
 
 -- | Fold the input stream to top n elements.
@@ -2511,7 +2512,7 @@ topBy cmp = bottomBy (flip cmp)
 --
 -- /Pre-release/
 {-# INLINE top #-}
-top :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (MA.Array a)
+top :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (MutArray a)
 top = bottomBy $ flip compare
 
 -- | Fold the input stream to bottom n elements.
@@ -2526,7 +2527,7 @@ top = bottomBy $ flip compare
 --
 -- /Pre-release/
 {-# INLINE bottom #-}
-bottom :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (MA.Array a)
+bottom :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (MutArray a)
 bottom = bottomBy compare
 
 ------------------------------------------------------------------------------

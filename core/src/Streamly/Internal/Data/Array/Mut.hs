@@ -49,7 +49,7 @@ import Streamly.Internal.Data.Array.Mut.Type
 -- /Pre-release/
 {-# INLINE splitOn #-}
 splitOn :: (MonadIO m, Unbox a) =>
-    (a -> Bool) -> Array a -> Stream m (Array a)
+    (a -> Bool) -> MutArray a -> Stream m (MutArray a)
 splitOn predicate arr =
     fmap (\(i, len) -> getSliceUnsafe i len arr)
         $ D.sliceOnSuffix predicate (toStreamD arr)
@@ -63,7 +63,7 @@ splitOn predicate arr =
 genSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
-    -> Unfold m (Array a) (Int, Int)
+    -> Unfold m (MutArray a) (Int, Int)
 genSlicesFromLen from len =
     let fromThenTo n = (from, from + len, n - 1)
         mkSlice n i = return (i, min len (n - i))
@@ -80,7 +80,7 @@ genSlicesFromLen from len =
 getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
-    -> Unfold m (Array a) (Array a)
+    -> Unfold m (MutArray a) (MutArray a)
 getSlicesFromLen from len =
     let mkSlice arr (i, n) = return $ getSliceUnsafe i n arr
      in Unfold.mapM2 mkSlice (genSlicesFromLen from len)
@@ -95,6 +95,6 @@ getSlicesFromLen from len =
 --
 -- /Pre-release/
 {-# INLINE fromStream #-}
-fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (Array a)
+fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (MutArray a)
 fromStream = fromStreamD
 -- fromStream (Stream m) = P.fold write m

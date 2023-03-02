@@ -82,7 +82,7 @@ import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Streamly.Internal.Data.Unboxed as Unboxed (Unbox, peekWith)
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Mut.Type (Array)
+import Streamly.Internal.Data.Array.Mut.Type (MutArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..), lmap)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
@@ -190,7 +190,7 @@ writeN = undefined
 -------------------------------------------------------------------------------
 
 -- | Cast a mutable array to a ring array.
-fromArray :: Array a -> Ring a
+fromArray :: MutArray a -> Ring a
 fromArray = undefined
 
 -------------------------------------------------------------------------------
@@ -337,7 +337,7 @@ read = Unfold step return
 -- /Unimplemented/
 {-# INLINE_NORMAL readRev #-}
 readRev :: -- forall m a. (MonadIO m, Storable a) =>
-    Unfold m (Array a) a
+    Unfold m (MutArray a) a
 readRev = undefined
 
 -------------------------------------------------------------------------------
@@ -353,7 +353,7 @@ readRev = undefined
 -- /Unimplemented/
 {-# INLINE_NORMAL ringsOf #-}
 ringsOf :: -- forall m a. (MonadIO m, Storable a) =>
-    Int -> Stream m a -> Stream m (Array a)
+    Int -> Stream m a -> Stream m (MutArray a)
 ringsOf = undefined -- Stream.scan (writeN n)
 
 -------------------------------------------------------------------------------
@@ -557,7 +557,7 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 -- of the ring at a particular time.
 {-# INLINE slidingWindowWith #-}
 slidingWindowWith :: forall m a b. (MonadIO m, Storable a, Unbox a)
-    => Int -> Fold m ((a, Maybe a), m (Array a)) b -> Fold m a b
+    => Int -> Fold m ((a, Maybe a), m (MutArray a)) b -> Fold m a b
 slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
 
     where

@@ -88,7 +88,7 @@ import GHC.Exts (IsList, IsString(..))
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Mut.Type (MutableByteArray)
+import Streamly.Internal.Data.Array.Mut.Type (MutArray(..), MutableByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Unboxed (Unbox, peekWith, sizeOf)
@@ -170,15 +170,15 @@ asPtrUnsafe arr = MA.asPtrUnsafe (unsafeThaw arr)
 --
 -- /Pre-release/
 {-# INLINE unsafeFreeze #-}
-unsafeFreeze :: MA.Array a -> Array a
-unsafeFreeze (MA.Array ac as ae _) = Array ac as ae
+unsafeFreeze :: MutArray a -> Array a
+unsafeFreeze (MutArray ac as ae _) = Array ac as ae
 
 -- | Similar to 'unsafeFreeze' but uses 'MA.rightSize' on the mutable array
 -- first.
 {-# INLINE unsafeFreezeWithShrink #-}
-unsafeFreezeWithShrink :: Unbox a => MA.Array a -> Array a
+unsafeFreezeWithShrink :: Unbox a => MutArray a -> Array a
 unsafeFreezeWithShrink arr = unsafePerformIO $ do
-  MA.Array ac as ae _ <- MA.rightSize arr
+  MutArray ac as ae _ <- MA.rightSize arr
   return $ Array ac as ae
 
 -- | Makes a mutable array using the underlying memory of the immutable array.
@@ -190,8 +190,8 @@ unsafeFreezeWithShrink arr = unsafePerformIO $ do
 --
 -- /Pre-release/
 {-# INLINE unsafeThaw #-}
-unsafeThaw :: Array a -> MA.Array a
-unsafeThaw (Array ac as ae) = MA.Array ac as ae ae
+unsafeThaw :: Array a -> MutArray a
+unsafeThaw (Array ac as ae) = MutArray ac as ae ae
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
