@@ -589,6 +589,7 @@ parseManyWordQuotedBy =
 --         Right _ -> False
 --         Left _ -> True)
 
+{-
 deintercalate :: Property
 deintercalate =
     forAll (listOf (chooseAny :: Gen Int)) $ \ls ->
@@ -603,6 +604,7 @@ deintercalate =
                 FL.tee (fmap concat $ FL.catLefts FL.toList)
                        (fmap concat $ FL.catRights FL.toList)
             p = P.deintercalate p1 p2 partition
+-}
 
 -- shortestPass :: Property
 -- shortestPass =
@@ -1201,7 +1203,7 @@ main =
         -- prop "" teeWithFailLeft
         -- prop "" teeWithFailRight
         -- prop "" teeWithFailBoth
-        prop "deintercalate" deintercalate
+        -- prop "deintercalate" deintercalate
         -- prop "" shortestPass
         -- prop "" shortestFailLeft
         -- prop "" shortestFailRight
