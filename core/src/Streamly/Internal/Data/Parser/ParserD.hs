@@ -119,9 +119,10 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeWhile1
     , dropWhile
 
-    -- ** Single Element Separators
+    -- ** Separated by elements
     -- | Separator could be in prefix postion ('takeStartBy'), or suffix
-    -- position ('takeEndBy').
+    -- position ('takeEndBy'). See 'deintercalate', 'sepBy' etc for infix
+    -- separator parsing, also see 'intersperseQuotedBy' fold.
 
     -- These can be implemented modularly with refolds, using takeWhile and
     -- satisfy.
@@ -134,18 +135,29 @@ module Streamly.Internal.Data.Parser.ParserD
     , takeEitherSepBy
     , wordBy
 
-    -- ** By comparing
+    -- ** Grouped by element comparison
     , groupBy
     , groupByRolling
     , groupByRollingEither
 
-    -- ** Framing
+    -- ** Framed by elements
+    -- | Also see 'intersperseQuotedBy' fold.
+    -- Framed by a one or more ocurrences of a separator around a word like
+    -- spaces or quotes. No nesting.
+    , wordFramedBy -- XXX Remove this? Covered by wordWithQuotes?
+    , wordWithQuotes
+    , wordKeepQuotes
+    , wordProcessQuotes
+
+    -- Framed by separate start and end characters, potentially nested.
+    -- blockWithQuotes allows quotes inside a block. However,
+    -- takeFramedByGeneric can be used to express takeStartBy, takeEndBy and
+    -- block with escaping.
     -- , takeFramedBy
     , takeFramedBy_
     , takeFramedByEsc_
     , takeFramedByGeneric
-    , wordFramedBy
-    , wordQuotedBy
+    , blockWithQuotes
 
     -- Matching strings
     -- , prefixOf -- match any prefix of a given string
@@ -172,10 +184,35 @@ module Streamly.Internal.Data.Parser.ParserD
     -- , teeTill -- like manyTill but parallel
     -}
 
-    -- ** Sequential Interleaving
+    -- ** Sequential Alternative
+    , alt
+
+    {-
+    -- ** Parallel Alternatives
+    , shortest
+    , longest
+    -- , fastest
+    -}
+
+    -- * N-ary Combinators
+    -- ** Sequential Collection
+    , sequence
+    , concatMap
+
+    -- ** Sequential Repetition
+    , count
+    , countBetween
+    -- , countBetweenTill
+    , manyP
+    , many
+    , some
+
+    -- ** Interleaved Repetition
     -- Use two folds, run a primary parser, its rejected values go to the
     -- secondary parser.
     , deintercalate
+    , deintercalate1
+    , deintercalateAll
     -- , deintercalatePrefix
     -- , deintercalateSuffix
 
@@ -196,30 +233,8 @@ module Streamly.Internal.Data.Parser.ParserD
     -- @
     , sepBy1
     , sepBy
+    , sepByAll
 
-    -- ** Sequential Alternative
-    , alt
-
-    {-
-    -- ** Parallel Alternatives
-    , shortest
-    , longest
-    -- , fastest
-    -}
-
-    -- * N-ary Combinators
-    -- ** Sequential Collection
-    , sequence
-    , concatMap
-
-    -- ** Sequential Repetition
-    , count
-    , countBetween
-    -- , countBetweenTill
-
-    , manyP
-    , many
-    , some
     , manyTillP
     , manyTill
     , manyThen
@@ -1024,9 +1039,9 @@ data FramedEscState s =
 -- XXX We can remove Maybe from esc
 {-# INLINE takeFramedByGeneric #-}
 takeFramedByGeneric :: Monad m =>
-       Maybe (a -> Bool)
-    -> Maybe (a -> Bool)
-    -> Maybe (a -> Bool)
+       Maybe (a -> Bool) -- is escape char?
+    -> Maybe (a -> Bool) -- is frame begin?
+    -> Maybe (a -> Bool) -- is frame end?
     -> Fold m a b
     -> Parser a m b
 takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
@@ -1118,6 +1133,94 @@ takeFramedByGeneric esc begin end (Fold fstep finitial fextract) =
                     Just _ -> err "takeFramedByGeneric: missing frame end"
             Nothing -> err "takeFramedByGeneric: missing closing frame"
     extract (FrameEscEsc _ _) = err "takeFramedByGeneric: trailing escape"
+
+data BlockParseState s =
+      BlockInit !s
+    | BlockUnquoted !Int !s
+    | BlockQuoted !Int !s
+    | BlockQuotedEsc !Int !s
+
+-- Blocks can be of different types e.g. {} or (). We only parse from the
+-- perspective of the outermost block type. The nesting of that block are
+-- checked. Any other block types nested inside it are opaque to us and can be
+-- parsed when the contents of the block are parsed.
+
+-- XXX Put a limit on nest level to keep the API safe.
+
+-- | Parse a block enclosed within open, close brackets. Block contents may be
+-- quoted, brackets inside quotes are ignored. Quoting characters can be used
+-- within quotes if escaped. A block can have a nested block inside it.
+--
+-- Quote begin and end chars are the same. Block brackets and quote chars must
+-- not overlap. Block start and end brackets must be different for nesting
+-- blocks within blocks.
+--
+-- >>> p = Parser.blockWithQuotes (== '\\') (== '"') '{' '}' Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "{msg: \"hello world\"}"
+-- Right "msg: \"hello world\""
+--
+{-# INLINE blockWithQuotes #-}
+blockWithQuotes :: (Monad m, Eq a) =>
+       (a -> Bool)  -- ^ escape char
+    -> (a -> Bool)  -- ^ quote char, to quote inside brackets
+    -> a  -- ^ Block opening bracket
+    -> a  -- ^ Block closing bracket
+    -> Fold m a b
+    -> Parser a m b
+blockWithQuotes isEsc isQuote bopen bclose
+    (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        res <- finitial
+        return $
+            case res of
+                FL.Partial s -> IPartial (BlockInit s)
+                FL.Done _ ->
+                    error "blockWithQuotes: fold finished without input"
+
+    {-# INLINE process #-}
+    process s a nextState = do
+        res <- fstep s a
+        return
+            $ case res of
+                FL.Partial s1 -> Continue 0 (nextState s1)
+                FL.Done b -> Done 0 b
+
+    step (BlockInit s) a =
+        return
+            $ if a == bopen
+              then Continue 0 $ BlockUnquoted 1 s
+              else Error "blockWithQuotes: missing block start"
+    step (BlockUnquoted level s) a
+        | a == bopen = process s a (BlockUnquoted (level + 1))
+        | a == bclose =
+            if level == 1
+            then fmap (Done 0) (fextract s)
+            else process s a (BlockUnquoted (level - 1))
+        | isQuote a = process s a (BlockQuoted level)
+        | otherwise = process s a (BlockUnquoted level)
+    step (BlockQuoted level s) a
+        | isEsc a = process s a (BlockQuotedEsc level)
+        | otherwise =
+            if isQuote a
+            then process s a (BlockUnquoted level)
+            else process s a (BlockQuoted level)
+    step (BlockQuotedEsc level s) a = process s a (BlockQuoted level)
+
+    err = return . Error
+
+    extract (BlockInit s) = fmap (Done 0) $ fextract s
+    extract (BlockUnquoted level _) =
+        err $ "blockWithQuotes: finished at block nest level " ++ show level
+    extract (BlockQuoted level _) =
+        err $ "blockWithQuotes: finished, inside an unfinished quote, "
+            ++ "at block nest level " ++ show level
+    extract (BlockQuotedEsc level _) =
+        err $ "blockWithQuotes: finished, inside an unfinished quote, "
+            ++ "after an escape char, at block nest level " ++ show level
 
 -- | @takeEndBy cond parser@ parses a token that ends by a separator chosen by
 -- the supplied predicate. The separator is also taken with the token.
@@ -1500,10 +1603,10 @@ data WordFramedState s b =
 --
 {-# INLINE wordFramedBy #-}
 wordFramedBy :: Monad m =>
-       (a -> Bool)  -- ^ Escape
-    -> (a -> Bool)  -- ^ left quote
-    -> (a -> Bool)  -- ^ right quote
-    -> (a -> Bool)  -- ^ word seperator
+       (a -> Bool)  -- ^ Matches escape elem?
+    -> (a -> Bool)  -- ^ Matches left quote?
+    -> (a -> Bool)  -- ^ matches right quote?
+    -> (a -> Bool)  -- ^ matches word separator?
     -> Fold m a b
     -> Parser a m b
 wordFramedBy isEsc isBegin isEnd isSep
@@ -1583,46 +1686,94 @@ wordFramedBy isEsc isBegin isEnd isSep
 data WordQuotedState s b a =
       WordQuotedSkipPre !s
     | WordUnquotedWord !s
-    | WordQuotedWord !s !Int a
+    | WordQuotedWord !s !Int !a !a
     | WordUnquotedEsc !s
-    | WordQuotedEsc !s !Int a
+    | WordQuotedEsc !s !Int !a !a
     | WordQuotedSkipPost !b
 
--- | Like 'wordFramedBy' but the closing quote is determined by the opening
--- quote. The first quote begin starts a quote that is closed by its
--- corresponding closing quote.
+-- | Quote and bracket aware word splitting with escaping. Like 'wordBy' but
+-- word separators within specified quotes or brackets are ignored. Quotes and
+-- escape characters can be processed. If the end quote is different from the
+-- start quote it is called a bracket. The following quoting rules apply:
 --
--- 'wordFramedBy' and 'wordQuotedBy' both allow multiple quote characters based
--- on the predicates but 'wordQuotedBy' always fixes the quote at the first
--- occurrence and then it is closed only by the corresponding closing quote.
--- Therefore, other quoting characters can be embedded inside it as normal
--- characters. On the other hand, 'wordFramedBy' would close the quote as soon
--- as it encounters any of the closing quotes.
+-- * In an unquoted string a character may be preceded by an escape character.
+-- The escape character is removed and the character following it is treated
+-- literally with no special meaning e.g. e.g. h\ e\ l\ l\ o is a single word,
+-- \n is same as n.
+-- * Any part of the word can be placed within quotes. Inside quotes all
+-- characters are treated literally with no special meaning. Quoting character
+-- itself cannot be used within quotes unless escape processing within quotes
+-- is applied to allow it.
+-- * Optionally escape processing for quoted part can be specified. Escape
+-- character has no special meaning inside quotes unless it is followed by a
+-- character that has a escape translation specified, in that case the escape
+-- character is removed, and the specified translation is applied to the
+-- character following it. This can be used to escape the quoting character
+-- itself within quotes.
+-- * There can be multiple quoting characters, when a quote starts, all other
+-- quoting characters within that quote lose any special meaning until the
+-- quote is closed.
+-- * A starting quote char without an ending char generates a parse error. An
+-- ending bracket char without a corresponding bracket begin is ignored.
+-- * Brackets can be nested.
 --
--- >>> q = (`elem` ['"', '\''])
--- >>> p kQ = Parser.wordQuotedBy kQ (== '\\') q q id isSpace Fold.toList
+-- We should note that unquoted and quoted escape processing are different. In
+-- unquoted part escape character is always removed. In quoted part it is
+-- removed only if followed by a special meaning character. This is consistent
+-- with how shell performs escape processing.
+
+-- Examples of quotes - "double quotes", 'single quotes', (parens), {braces},
+-- ((nested) brackets).
 --
--- >>> Stream.parse (p False) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
--- Right "ab'c;d\"ef"
+-- Example:
 --
--- >>> Stream.parse (p True) $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
+-- >>> :{
+-- >>> q x =
+-- >>>     case x of
+-- >>>         '"' -> Just x
+-- >>>         '\'' -> Just x
+-- >>>         _ -> Nothing
+-- >>> :}
+--
+-- >>> p = Parser.wordKeepQuotes (== '\\') q isSpace Fold.toList
+-- >>> Stream.parse p $ Stream.fromList "a\"b'c\";'d\"e'f ghi"
 -- Right "a\"b'c\";'d\"e'f"
 --
-{-# INLINE wordQuotedBy #-}
-wordQuotedBy :: (Monad m, Eq a) =>
-       Bool         -- ^ keep the quotes in the output
-    -> (a -> Bool)  -- ^ Escape
-    -> (a -> Bool)  -- ^ left quote
-    -> (a -> Bool)  -- ^ right quote
-    -> (a -> a)     -- ^ get right quote from the left quote
-    -> (a -> Bool)  -- ^ word seperator
+-- Note that outer quotes and backslashes from the input string are consumed by
+-- Haskell, therefore, the actual input string passed to the parser is:
+-- a"b'c";'d"e'f ghi
+--
+-- Similarly, when printing, double quotes are escaped by Haskell.
+--
+-- Limitations:
+--
+-- Shell like quote processing can be performed by using quote char specific
+-- escape processing, single quotes with no escapes, and double quotes with
+-- escapes.
+--
+-- JSON string processing can also be achieved except the "\uXXXX" style
+-- escaping for Unicode characters.
+--
+{-# INLINE wordWithQuotes #-}
+wordWithQuotes :: (Monad m, Eq a) =>
+       Bool            -- ^ Retain the quotes and escape chars in the output
+    -> (a -> a -> Maybe a)  -- ^ quote char -> escaped char -> translated char
+    -> a               -- ^ Matches an escape elem?
+    -> (a -> Maybe a)  -- ^ If left quote, return right quote, else Nothing.
+    -> (a -> Bool)     -- ^ Matches a word separator?
     -> Fold m a b
     -> Parser a m b
-wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
+wordWithQuotes keepQuotes tr escChar toRight isSep
     (Fold fstep finitial fextract) =
     Parser step initial extract
 
     where
+
+    -- Can be used to generate parse error for a bracket end without a bracket
+    -- begin.
+    isInvalid = const False
+
+    isEsc = (== escChar)
 
     initial =  do
         res <- finitial
@@ -1630,14 +1781,14 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
             case res of
                 FL.Partial s -> IPartial (WordQuotedSkipPre s)
                 FL.Done _ ->
-                    error "wordQuotedBy: fold done without input"
+                    error "wordKeepQuotes: fold done without input"
 
-    {-# INLINE process #-}
-    process s a n q = do
+    {-# INLINE processQuoted #-}
+    processQuoted s a n ql qr = do
         res <- fstep s a
         return
             $ case res of
-                FL.Partial s1 -> Continue 0 (WordQuotedWord s1 n q)
+                FL.Partial s1 -> Continue 0 (WordQuotedWord s1 n ql qr)
                 FL.Done b -> Done 0 b
 
     {-# INLINE processUnquoted #-}
@@ -1651,45 +1802,59 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
     step (WordQuotedSkipPre s) a
         | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
         | isSep a = return $ Partial 0 $ WordQuotedSkipPre s
-        | isBegin a =
-              if keepQuotes
-              then process s a 1 a
-              else return $ Continue 0 $ WordQuotedWord s 1 a
-        | isEnd a =
-            return $ Error "wordQuotedBy: missing frame start"
-        | otherwise = processUnquoted s a
+        | otherwise =
+            case toRight a of
+                Just qr ->
+                  if keepQuotes
+                  then processQuoted s a 1 a qr
+                  else return $ Continue 0 $ WordQuotedWord s 1 a qr
+                Nothing
+                    | isInvalid a ->
+                        return $ Error "wordKeepQuotes: invalid unquoted char"
+                    | otherwise -> processUnquoted s a
     step (WordUnquotedWord s) a
         | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
         | isSep a = do
             b <- fextract s
             return $ Partial 0 $ WordQuotedSkipPost b
         | otherwise = do
-               if isBegin a
-               then if keepQuotes
-                    then process s a 1 a
-                    else return $ Continue 0 $ WordQuotedWord s 1 a
-               else if isEnd a
-                    then return $ Error "wordQuotedBy: missing frame start"
+            case toRight a of
+                Just qr ->
+                    if keepQuotes
+                    then processQuoted s a 1 a qr
+                    else return $ Continue 0 $ WordQuotedWord s 1 a qr
+                Nothing ->
+                    if isInvalid a
+                    then return $ Error "wordKeepQuotes: invalid unquoted char"
                     else processUnquoted s a
-    step (WordQuotedWord s n q) a
-        | isEsc a = return $ Continue 0 $ WordQuotedEsc s n q
+    step (WordQuotedWord s n ql qr) a
+        | isEsc a = return $ Continue 0 $ WordQuotedEsc s n ql qr
+        {-
         -- XXX Will this ever occur? Will n ever be 0?
         | n == 0 && isSep a = do
             b <- fextract s
             return $ Partial 0 $ WordQuotedSkipPost b
+        -}
         | otherwise = do
-                if a == toRight q
+                if a == qr
                 then
                    if n == 1
                    then if keepQuotes
                         then processUnquoted s a
                         else return $ Continue 0 $ WordUnquotedWord s
-                   else process s a (n - 1) q
-                else if a == q
-                     then process s a (n + 1) q
-                     else process s a n q
+                   else processQuoted s a (n - 1) ql qr
+                else if a == ql
+                     then processQuoted s a (n + 1) ql qr
+                     else processQuoted s a n ql qr
     step (WordUnquotedEsc s) a = processUnquoted s a
-    step (WordQuotedEsc s n q) a = process s a n q
+    step (WordQuotedEsc s n ql qr) a =
+        case tr ql a of
+            Nothing -> do
+                res <- fstep s escChar
+                case res of
+                    FL.Partial s1 -> processQuoted s1 a n ql qr
+                    FL.Done b -> return $ Done 0 b
+            Just x -> processQuoted s x n ql qr
     step (WordQuotedSkipPost b) a =
         return
             $ if not (isSep a)
@@ -1700,15 +1865,52 @@ wordQuotedBy keepQuotes isEsc isBegin isEnd toRight isSep
 
     extract (WordQuotedSkipPre s) = fmap (Done 0) $ fextract s
     extract (WordUnquotedWord s) = fmap (Done 0) $ fextract s
-    extract (WordQuotedWord s n _) =
+    extract (WordQuotedWord s n _ _) =
         if n == 0
         then fmap (Done 0) $ fextract s
-        else err "wordQuotedBy: missing frame end"
+        else err "wordWithQuotes: missing frame end"
     extract WordQuotedEsc {} =
-        err "wordQuotedBy: trailing escape"
+        err "wordWithQuotes: trailing escape"
     extract (WordUnquotedEsc _) =
-        err "wordQuotedBy: trailing escape"
+        err "wordWithQuotes: trailing escape"
     extract (WordQuotedSkipPost b) = return (Done 0 b)
+
+-- | 'wordWithQuotes' without processing the quotes and escape function
+-- supplied to escape the quote char within a quote. Can be used to parse words
+-- keeping the quotes and escapes intact.
+--
+-- >>> wordKeepQuotes = Parser.wordWithQuotes True (\_ _ -> Nothing)
+--
+{-# INLINE wordKeepQuotes #-}
+wordKeepQuotes :: (Monad m, Eq a) =>
+       a               -- ^ Escape char
+    -> (a -> Maybe a)  -- ^ If left quote, return right quote, else Nothing.
+    -> (a -> Bool)     -- ^ Matches a word separator?
+    -> Fold m a b
+    -> Parser a m b
+wordKeepQuotes =
+    -- Escape the quote char itself
+    wordWithQuotes True (\q x -> if q == x then Just x else Nothing)
+
+-- See the "Quoting Rules" section in the "bash" manual page for a primer on
+-- how quotes are used by shells.
+
+-- | 'wordWithQuotes' with quote processing applied and escape function
+-- supplied to escape the quote char within a quote. Can be ysed to parse words
+-- and processing the quoting and escaping at the same time.
+--
+-- >>> wordProcessQuotes = Parser.wordWithQuotes False (\_ _ -> Nothing)
+--
+{-# INLINE wordProcessQuotes #-}
+wordProcessQuotes :: (Monad m, Eq a) =>
+        a              -- ^ Escape char
+    -> (a -> Maybe a)  -- ^ If left quote, return right quote, else Nothing.
+    -> (a -> Bool)     -- ^ Matches a word separator?
+    -> Fold m a b
+    -> Parser a m b
+wordProcessQuotes =
+    -- Escape the quote char itself
+    wordWithQuotes False (\q x -> if q == x then Just x else Nothing)
 
 {-# ANN type GroupByState Fuse #-}
 data GroupByState a s
@@ -2361,15 +2563,162 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 -- all the three parsers. One parser can count the line numbers to provide the
 -- line number info.
 
-data DeintercalateState fs sp ss =
-      DeintercalateL !fs !sp
-    | DeintercalateR !fs !ss !Bool
+{-# ANN type DeintercalateAllState Fuse #-}
+data DeintercalateAllState fs sp ss =
+      DeintercalateAllInitL !fs
+    | DeintercalateAllL !fs !sp
+    | DeintercalateAllInitR !fs
+    | DeintercalateAllR !fs !ss
 
 -- XXX rename this to intercalate
 
+-- Having deintercalateAll for accepting or rejecting entire input could be
+-- useful. For example, in case of JSON parsing we get an entire block of
+-- key-value pairs which we need to verify. This version may be simpler, more
+-- efficient. We could implement this as a stream operation like parseMany.
+--
+-- XXX Also, it may be a good idea to provide a parse driver for a fold. For
+-- example, in case of csv parsing as we are feeding a line to a fold we can
+-- parse it.
+
+-- | Like 'deintercalate' but the entire input must satisfy the pattern
+-- otherwise the parser fails. This is many times faster than deintercalate.
+--
+-- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
+-- >>> p2 = Parser.satisfy (== '+')
+-- >>> p = Parser.deintercalateAll p1 p2 Fold.toList
+-- >>> Stream.parse p $ Stream.fromList ""
+-- Right []
+-- >>> Stream.parse p $ Stream.fromList "1"
+-- Right [Left "1"]
+-- >>> Stream.parse p $ Stream.fromList "1+"
+-- Left (ParseError "takeWhile1: end of input")
+-- >>> Stream.parse p $ Stream.fromList "1+2+3"
+-- Right [Left "1",Right '+',Left "2",Right '+',Left "3"]
+--
+{-# INLINE deintercalateAll #-}
+deintercalateAll :: Monad m =>
+       Parser a m x
+    -> Parser a m y
+    -> Fold m (Either x y) z
+    -> Parser a m z
+deintercalateAll
+    (Parser stepL initialL extractL)
+    (Parser stepR initialR _)
+    (Fold fstep finitial fextract) = Parser step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "deintercalate: " ++ p ++ " parser cannot "
+                ++ status ++ " without input"
+
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial fs -> return $ IPartial $ DeintercalateAllInitL fs
+            FL.Done c -> return $ IDone c
+
+    {-# INLINE processL #-}
+    processL foldAction n nextState = do
+        fres <- foldAction
+        case fres of
+            FL.Partial fs1 -> return $ Partial n (nextState fs1)
+            FL.Done c -> return $ Done n c
+
+    {-# INLINE runStepL #-}
+    runStepL fs sL a = do
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Partial n (DeintercalateAllL fs s)
+            Continue n s -> return $ Continue n (DeintercalateAllL fs s)
+            Done n b ->
+                processL (fstep fs (Left b)) n DeintercalateAllInitR
+            Error err -> return $ Error err
+
+    {-# INLINE processR #-}
+    processR foldAction n = do
+        fres <- foldAction
+        case fres of
+            FL.Partial fs1 -> do
+                res <- initialL
+                case res of
+                    IPartial ps -> return $ Partial n (DeintercalateAllL fs1 ps)
+                    IDone _ -> errMsg "left" "succeed"
+                    IError _ -> errMsg "left" "fail"
+            FL.Done c -> return $ Done n c
+
+    {-# INLINE runStepR #-}
+    runStepR fs sR a = do
+        r <- stepR sR a
+        case r of
+            Partial n s -> return $ Partial n (DeintercalateAllR fs s)
+            Continue n s -> return $ Continue n (DeintercalateAllR fs s)
+            Done n b -> processR (fstep fs (Right b)) n
+            Error err -> return $ Error err
+
+    step (DeintercalateAllInitL fs) a = do
+        res <- initialL
+        case res of
+            IPartial s -> runStepL fs s a
+            IDone _ -> errMsg "left" "succeed"
+            IError _ -> errMsg "left" "fail"
+    step (DeintercalateAllL fs sL) a = runStepL fs sL a
+    step (DeintercalateAllInitR fs) a = do
+        res <- initialR
+        case res of
+            IPartial s -> runStepR fs s a
+            IDone _ -> errMsg "right" "succeed"
+            IError _ -> errMsg "right" "fail"
+    step (DeintercalateAllR fs sR) a = runStepR fs sR a
+
+    {-# INLINE extractResult #-}
+    extractResult n fs r = do
+        res <- fstep fs r
+        case res of
+            FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+            FL.Done c -> return (Done n c)
+    extract (DeintercalateAllInitL fs) = fmap (Done 0) $ fextract fs
+    extract (DeintercalateAllL fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n b -> extractResult n fs (Left b)
+            Error err -> return $ Error err
+            Continue n s -> return $ Continue n (DeintercalateAllL fs s)
+            Partial _ _ -> error "Partial in extract"
+    extract (DeintercalateAllInitR fs) = fmap (Done 0) $ fextract fs
+    extract (DeintercalateAllR _ _) =
+        return $ Error "deintercalateAll: input ended at 'Right' value"
+
+{-# ANN type DeintercalateState Fuse #-}
+data DeintercalateState b fs sp ss =
+      DeintercalateInitL !fs
+    | DeintercalateL !Int !fs !sp
+    | DeintercalateInitR !fs
+    | DeintercalateR !Int !fs !ss
+    | DeintercalateRL !Int !b !fs !sp
+
+-- XXX Add tests that the next character that we take after running a parser is
+-- correct. Especially for the parsers that maintain a count. In the stream
+-- finished case (extract) as well as not finished case.
+
 -- | Apply two parsers alternately to an input stream. The input stream is
 -- considered an interleaving of two patterns. The two parsers represent the
--- two patterns.
+-- two patterns. Parsing starts at the first parser and stops at the first
+-- parser. It can be used to parse a infix style pattern e.g. p1 p2 p1 . Empty
+-- input or single parse of the first parser is accepted.
+--
+-- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
+-- >>> p2 = Parser.satisfy (== '+')
+-- >>> p = Parser.deintercalate p1 p2 Fold.toList
+-- >>> Stream.parse p $ Stream.fromList ""
+-- Right []
+-- >>> Stream.parse p $ Stream.fromList "1"
+-- Right [Left "1"]
+-- >>> Stream.parse p $ Stream.fromList "1+"
+-- Right [Left "1"]
+-- >>> Stream.parse p $ Stream.fromList "1+2+3"
+-- Right [Left "1",Right '+',Left "2",Right '+',Left "3"]
 --
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>
@@ -2379,7 +2728,163 @@ deintercalate :: Monad m =>
     -> Parser a m z
 deintercalate
     (Parser stepL initialL extractL)
-    (Parser stepR initialR extractR)
+    (Parser stepR initialR _)
+    (Fold fstep finitial fextract) = Parser step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "deintercalate: " ++ p ++ " parser cannot "
+                ++ status ++ " without input"
+
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial fs -> return $ IPartial $ DeintercalateInitL fs
+            FL.Done c -> return $ IDone c
+
+    {-# INLINE processL #-}
+    processL foldAction n nextState = do
+        fres <- foldAction
+        case fres of
+            FL.Partial fs1 -> return $ Partial n (nextState fs1)
+            FL.Done c -> return $ Done n c
+
+    {-# INLINE runStepL #-}
+    runStepL cnt fs sL a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Continue n (DeintercalateL (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (DeintercalateL (cnt1 - n) fs s)
+            Done n b ->
+                processL (fstep fs (Left b)) n DeintercalateInitR
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    {-# INLINE processR #-}
+    processR cnt b fs n = do
+        res <- initialL
+        case res of
+            IPartial ps -> return $ Continue n (DeintercalateRL cnt b fs ps)
+            IDone _ -> errMsg "left" "succeed"
+            IError _ -> errMsg "left" "fail"
+
+    {-# INLINE runStepR #-}
+    runStepR cnt fs sR a = do
+        let cnt1 = cnt + 1
+        r <- stepR sR a
+        case r of
+            Partial n s -> return $ Continue n (DeintercalateR (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (DeintercalateR (cnt1 - n) fs s)
+            Done n b -> processR (cnt1 - n) b fs n
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    step (DeintercalateInitL fs) a = do
+        res <- initialL
+        case res of
+            IPartial s -> runStepL 0 fs s a
+            IDone _ -> errMsg "left" "succeed"
+            IError _ -> errMsg "left" "fail"
+    step (DeintercalateL cnt fs sL) a = runStepL cnt fs sL a
+    step (DeintercalateInitR fs) a = do
+        res <- initialR
+        case res of
+            IPartial s -> runStepR 0 fs s a
+            IDone _ -> errMsg "right" "succeed"
+            IError _ -> errMsg "right" "fail"
+    step (DeintercalateR cnt fs sR) a = runStepR cnt fs sR a
+    step (DeintercalateRL cnt bR fs sL) a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Continue n (DeintercalateRL (cnt1 - n) bR fs s)
+            Continue n s -> return $ Continue n (DeintercalateRL (cnt1 - n) bR fs s)
+            Done n bL -> do
+                res <- fstep fs (Right bR)
+                case res of
+                    FL.Partial fs1 -> do
+                        fres <- fstep fs1 (Left bL)
+                        case fres of
+                            FL.Partial fs2 ->
+                                return $ Partial n (DeintercalateInitR fs2)
+                            FL.Done c -> return $ Done n c
+                    -- XXX We could have the fold accept pairs of (bR, bL)
+                    FL.Done _ -> error "Fold terminated consuming partial input"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    {-# INLINE extractResult #-}
+    extractResult n fs r = do
+        res <- fstep fs r
+        case res of
+            FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+            FL.Done c -> return (Done n c)
+
+    extract (DeintercalateInitL fs) = fmap (Done 0) $ fextract fs
+    extract (DeintercalateL cnt fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n b -> extractResult n fs (Left b)
+            Continue n s -> return $ Continue n (DeintercalateL (cnt - n) fs s)
+            Partial _ _ -> error "Partial in extract"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt xs
+    extract (DeintercalateInitR fs) = fmap (Done 0) $ fextract fs
+    extract (DeintercalateR cnt fs _) = fmap (Done cnt) $ fextract fs
+    extract (DeintercalateRL cnt bR fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n bL -> do
+                res <- fstep fs (Right bR)
+                case res of
+                    FL.Partial fs1 -> extractResult n fs1 (Left bL)
+                    FL.Done _ -> error "Fold terminated consuming partial input"
+            Continue n s -> return $ Continue n (DeintercalateRL (cnt - n) bR fs s)
+            Partial _ _ -> error "Partial in extract"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt xs
+
+{-# ANN type Deintercalate1State Fuse #-}
+data Deintercalate1State b fs sp ss =
+      Deintercalate1InitL !Int !fs !sp
+    | Deintercalate1InitR !fs
+    | Deintercalate1R !Int !fs !ss
+    | Deintercalate1RL !Int !b !fs !sp
+
+-- | Apply two parsers alternately to an input stream. The input stream is
+-- considered an interleaving of two patterns. The two parsers represent the
+-- two patterns. Parsing starts at the first parser and stops at the first
+-- parser. It can be used to parse a infix style pattern e.g. p1 p2 p1 . Empty
+-- input or single parse of the first parser is accepted.
+--
+-- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
+-- >>> p2 = Parser.satisfy (== '+')
+-- >>> p = Parser.deintercalate1 p1 p2 Fold.toList
+-- >>> Stream.parse p $ Stream.fromList ""
+-- Left (ParseError "takeWhile1: end of input")
+-- >>> Stream.parse p $ Stream.fromList "1"
+-- Right [Left "1"]
+-- >>> Stream.parse p $ Stream.fromList "1+"
+-- Right [Left "1"]
+-- >>> Stream.parse p $ Stream.fromList "1+2+3"
+-- Right [Left "1",Right '+',Left "2",Right '+',Left "3"]
+--
+{-# INLINE deintercalate1 #-}
+deintercalate1 :: Monad m =>
+       Parser a m x
+    -> Parser a m y
+    -> Fold m (Either x y) z
+    -> Parser a m z
+deintercalate1
+    (Parser stepL initialL extractL)
+    (Parser stepR initialR _)
     (Fold fstep finitial fextract) = Parser step initial extract
 
     where
@@ -2392,93 +2897,292 @@ deintercalate
         res <- finitial
         case res of
             FL.Partial fs -> do
-                resL <- initialL
-                case resL of
-                    IPartial sL -> return $ IPartial $ DeintercalateL fs sL
+                pres <- initialL
+                case pres of
+                    IPartial s -> return $ IPartial $ Deintercalate1InitL 0 fs s
                     IDone _ -> errMsg "left" "succeed"
                     IError _ -> errMsg "left" "fail"
             FL.Done c -> return $ IDone c
 
-    step (DeintercalateL fs sL) a = do
+    {-# INLINE processL #-}
+    processL foldAction n nextState = do
+        fres <- foldAction
+        case fres of
+            FL.Partial fs1 -> return $ Partial n (nextState fs1)
+            FL.Done c -> return $ Done n c
+
+    {-# INLINE runStepInitL #-}
+    runStepInitL cnt fs sL a = do
+        let cnt1 = cnt + 1
         r <- stepL sL a
         case r of
-            Partial n s -> return $ Partial n (DeintercalateL fs s)
-            Continue n s -> return $ Continue n (DeintercalateL fs s)
-            Done n b -> do
-                fres <- fstep fs (Left b)
-                case fres of
-                    FL.Partial fs1 -> do
-                        resR <- initialR
-                        case resR of
-                            IPartial sR ->
-                                return
-                                    $ Partial n (DeintercalateR fs1 sR False)
-                            IDone _ -> errMsg "right" "succeed"
-                            IError _ -> errMsg "right" "fail"
-                    FL.Done c -> return $ Done n c
-            Error err -> return $ Error err
-    step (DeintercalateR fs sR consumed) a = do
-        r <- stepR sR a
-        case r of
-            Partial n s -> return $ Partial n (DeintercalateR fs s True)
-            Continue n s -> return $ Continue n (DeintercalateR fs s True)
+            Partial n s -> return $ Continue n (Deintercalate1InitL (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (Deintercalate1InitL (cnt1 - n) fs s)
             Done n b ->
-                if consumed
-                then do
-                    fres <- fstep fs (Right b)
-                    case fres of
-                        FL.Partial fs1 -> do
-                            resL <- initialL
-                            case resL of
-                                IPartial sL ->
-                                    return $ Partial n $ DeintercalateL fs1 sL
-                                IDone _ -> errMsg "left" "succeed"
-                                IError _ -> errMsg "left" "fail"
-                        FL.Done c -> return $ Done n c
-                else error "deintercalate: infinite loop"
+                processL (fstep fs (Left b)) n Deintercalate1InitR
             Error err -> return $ Error err
 
-    {-# INLINE processResult #-}
-    processResult n fs r = do
+    {-# INLINE processR #-}
+    processR cnt b fs n = do
+        res <- initialL
+        case res of
+            IPartial ps -> return $ Continue n (Deintercalate1RL cnt b fs ps)
+            IDone _ -> errMsg "left" "succeed"
+            IError _ -> errMsg "left" "fail"
+
+    {-# INLINE runStepR #-}
+    runStepR cnt fs sR a = do
+        let cnt1 = cnt + 1
+        r <- stepR sR a
+        case r of
+            Partial n s -> return $ Continue n (Deintercalate1R (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (Deintercalate1R (cnt1 - n) fs s)
+            Done n b -> processR (cnt1 - n) b fs n
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    step (Deintercalate1InitL cnt fs sL) a = runStepInitL cnt fs sL a
+    step (Deintercalate1InitR fs) a = do
+        res <- initialR
+        case res of
+            IPartial s -> runStepR 0 fs s a
+            IDone _ -> errMsg "right" "succeed"
+            IError _ -> errMsg "right" "fail"
+    step (Deintercalate1R cnt fs sR) a = runStepR cnt fs sR a
+    step (Deintercalate1RL cnt bR fs sL) a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Continue n (Deintercalate1RL (cnt1 - n) bR fs s)
+            Continue n s -> return $ Continue n (Deintercalate1RL (cnt1 - n) bR fs s)
+            Done n bL -> do
+                res <- fstep fs (Right bR)
+                case res of
+                    FL.Partial fs1 -> do
+                        fres <- fstep fs1 (Left bL)
+                        case fres of
+                            FL.Partial fs2 ->
+                                return $ Partial n (Deintercalate1InitR fs2)
+                            FL.Done c -> return $ Done n c
+                    -- XXX We could have the fold accept pairs of (bR, bL)
+                    FL.Done _ -> error "Fold terminated consuming partial input"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    {-# INLINE extractResult #-}
+    extractResult n fs r = do
         res <- fstep fs r
         case res of
             FL.Partial fs1 -> fmap (Done n) $ fextract fs1
             FL.Done c -> return (Done n c)
 
-    extract (DeintercalateL fs sL) = do
+    extract (Deintercalate1InitL cnt fs sL) = do
         r <- extractL sL
         case r of
-            Done n b -> processResult n fs (Left b)
-            Error err -> return $ Error err
-            Continue n s -> return $ Continue n (DeintercalateL fs s)
+            Done n b -> extractResult n fs (Left b)
+            Continue n s -> return $ Continue n (Deintercalate1InitL (cnt - n) fs s)
             Partial _ _ -> error "Partial in extract"
-
-    extract (DeintercalateR fs sR consumed) = do
-        r <- extractR sR
+            Error err -> return $ Error err
+    extract (Deintercalate1InitR fs) = fmap (Done 0) $ fextract fs
+    extract (Deintercalate1R cnt fs _) = fmap (Done cnt) $ fextract fs
+    extract (Deintercalate1RL cnt bR fs sL) = do
+        r <- extractL sL
         case r of
-            Done n b -> processResult n fs (Right b)
-            Error err -> return $ Error err
-            -- XXX Review consumed
-            Continue n s -> return $ Continue n (DeintercalateR fs s consumed)
+            Done n bL -> do
+                res <- fstep fs (Right bR)
+                case res of
+                    FL.Partial fs1 -> extractResult n fs1 (Left bL)
+                    FL.Done _ -> error "Fold terminated consuming partial input"
+            Continue n s -> return $ Continue n (Deintercalate1RL (cnt - n) bR fs s)
             Partial _ _ -> error "Partial in extract"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt xs
 
+{-# ANN type SepByState Fuse #-}
 data SepByState fs sp ss =
-      SepByInit !fs !sp
-    | SepBySeparator !fs !ss !Bool
+      SepByInitL !fs
+    | SepByL !Int !fs !sp
+    | SepByInitR !fs
+    | SepByR !Int !fs !ss
 
--- | Run the content parser first, when it is done, the separator parser is
--- run, when it is done content parser is run again and so on. If none of the
--- parsers consumes an input then parser returns a failure.
+-- | Apply two parsers alternately to an input stream. Parsing starts at the
+-- first parser and stops at the first parser. The output of the first parser
+-- is emiited and the output of the second parser is discarded. It can be used
+-- to parse a infix style pattern e.g. p1 p2 p1 . Empty input or single parse
+-- of the first parser is accepted.
 --
--- >>> sepBy p1 p2 sink = Parser.deintercalate p1 p2 (Fold.catLefts sink)
--- >>> sepBy content sep sink = Parser.sepBy1 content sep sink <|> return mempty
+-- Definitions:
+--
+-- >>> sepBy p1 p2 f = Parser.deintercalate p1 p2 (Fold.catLefts f)
+-- >>> sepBy p1 p2 f = Parser.sepBy1 p1 p2 f <|> Parser.fromEffect (Fold.extractM f)
+--
+-- Examples:
+--
+-- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
+-- >>> p2 = Parser.satisfy (== '+')
+-- >>> p = Parser.sepBy p1 p2 Fold.toList
+-- >>> Stream.parse p $ Stream.fromList ""
+-- Right []
+-- >>> Stream.parse p $ Stream.fromList "1"
+-- Right ["1"]
+-- >>> Stream.parse p $ Stream.fromList "1+"
+-- Right ["1"]
+-- >>> Stream.parse p $ Stream.fromList "1+2+3"
+-- Right ["1","2","3"]
 --
 {-# INLINE sepBy #-}
 sepBy :: Monad m =>
     Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+-- This has similar performance as the custom impl below.
+-- sepBy p1 p2 f = deintercalate p1 p2 (FL.catLefts f)
 sepBy
-    (Parser pstep pinitial pextract)
-    (Parser sstep sinitial _)
+    (Parser stepL initialL extractL)
+    (Parser stepR initialR _)
+    (Fold fstep finitial fextract) = Parser step initial extract
+
+    where
+
+    errMsg p status =
+        error $ "sepBy: " ++ p ++ " parser cannot "
+                ++ status ++ " without input"
+
+    initial = do
+        res <- finitial
+        case res of
+            FL.Partial fs -> return $ IPartial $ SepByInitL fs
+            FL.Done c -> return $ IDone c
+
+    {-# INLINE processL #-}
+    processL foldAction n nextState = do
+        fres <- foldAction
+        case fres of
+            FL.Partial fs1 -> return $ Partial n (nextState fs1)
+            FL.Done c -> return $ Done n c
+
+    {-# INLINE runStepL #-}
+    runStepL cnt fs sL a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
+        case r of
+            Partial n s -> return $ Continue n (SepByL (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepByL (cnt1 - n) fs s)
+            Done n b ->
+                processL (fstep fs b) n SepByInitR
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    {-# INLINE processR #-}
+    processR cnt fs n = do
+        res <- initialL
+        case res of
+            IPartial ps -> return $ Continue n (SepByL cnt fs ps)
+            IDone _ -> errMsg "left" "succeed"
+            IError _ -> errMsg "left" "fail"
+
+    {-# INLINE runStepR #-}
+    runStepR cnt fs sR a = do
+        let cnt1 = cnt + 1
+        r <- stepR sR a
+        case r of
+            Partial n s -> return $ Continue n (SepByR (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepByR (cnt1 - n) fs s)
+            Done n _ -> processR (cnt1 - n) fs n
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    step (SepByInitL fs) a = do
+        res <- initialL
+        case res of
+            IPartial s -> runStepL 0 fs s a
+            IDone _ -> errMsg "left" "succeed"
+            IError _ -> errMsg "left" "fail"
+    step (SepByL cnt fs sL) a = runStepL cnt fs sL a
+    step (SepByInitR fs) a = do
+        res <- initialR
+        case res of
+            IPartial s -> runStepR 0 fs s a
+            IDone _ -> errMsg "right" "succeed"
+            IError _ -> errMsg "right" "fail"
+    step (SepByR cnt fs sR) a = runStepR cnt fs sR a
+
+    {-# INLINE extractResult #-}
+    extractResult n fs r = do
+        res <- fstep fs r
+        case res of
+            FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+            FL.Done c -> return (Done n c)
+
+    extract (SepByInitL fs) = fmap (Done 0) $ fextract fs
+    extract (SepByL cnt fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n b -> extractResult n fs b
+            Continue n s -> return $ Continue n (SepByL (cnt - n) fs s)
+            Partial _ _ -> error "Partial in extract"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt xs
+    extract (SepByInitR fs) = fmap (Done 0) $ fextract fs
+    extract (SepByR cnt fs _) = fmap (Done cnt) $ fextract fs
+
+-- | Non-backtracking version of sepBy. Several times faster.
+{-# INLINE sepByAll #-}
+sepByAll :: Monad m =>
+    Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+sepByAll p1 p2 f = deintercalateAll p1 p2 (FL.catLefts f)
+
+-- XXX This can be implemented using refold, parse one and then continue
+-- collecting the rest in that.
+
+{-# ANN type SepBy1State Fuse #-}
+data SepBy1State fs sp ss =
+      SepBy1InitL !Int !fs sp
+    | SepBy1L !Int !fs !sp
+    | SepBy1InitR !fs
+    | SepBy1R !Int !fs !ss
+
+{-
+{-# INLINE sepBy1 #-}
+sepBy1 :: Monad m =>
+    Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+sepBy1 p sep sink = do
+    x <- p
+    f <- fromEffect $ FL.reduce sink
+    f1 <- fromEffect $ FL.snoc f x
+    many (sep >> p) f1
+-}
+
+-- | Like 'sepBy' but requires at least one successful parse.
+--
+-- Definition:
+--
+-- >>> sepBy1 p1 p2 f = Parser.deintercalate1 p1 p2 (Fold.catLefts f)
+--
+-- Examples:
+--
+-- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
+-- >>> p2 = Parser.satisfy (== '+')
+-- >>> p = Parser.sepBy1 p1 p2 Fold.toList
+-- >>> Stream.parse p $ Stream.fromList ""
+-- Left (ParseError "takeWhile1: end of input")
+-- >>> Stream.parse p $ Stream.fromList "1"
+-- Right ["1"]
+-- >>> Stream.parse p $ Stream.fromList "1+"
+-- Right ["1"]
+-- >>> Stream.parse p $ Stream.fromList "1+2+3"
+-- Right ["1","2","3"]
+--
+{-# INLINE sepBy1 #-}
+sepBy1 :: Monad m =>
+    Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+sepBy1
+    (Parser stepL initialL extractL)
+    (Parser stepR initialR _)
     (Fold fstep finitial fextract) = Parser step initial extract
 
     where
@@ -2491,77 +3195,99 @@ sepBy
         res <- finitial
         case res of
             FL.Partial fs -> do
-                resP <- pinitial
-                case resP of
-                    IPartial sp -> return $ IPartial $ SepByInit fs sp
-                    IDone _ -> errMsg "content" "succeed"
-                    IError _ -> errMsg "content" "fail"
-            FL.Done b -> return $ IDone b
+                pres <- initialL
+                case pres of
+                    IPartial s -> return $ IPartial $ SepBy1InitL 0 fs s
+                    IDone _ -> errMsg "left" "succeed"
+                    IError _ -> errMsg "left" "fail"
+            FL.Done c -> return $ IDone c
 
-    step (SepByInit fs sp) a = do
-        r <- pstep sp a
+    {-# INLINE processL #-}
+    processL foldAction n nextState = do
+        fres <- foldAction
+        case fres of
+            FL.Partial fs1 -> return $ Partial n (nextState fs1)
+            FL.Done c -> return $ Done n c
+
+    {-# INLINE runStepInitL #-}
+    runStepInitL cnt fs sL a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
         case r of
-            Partial n s -> return $ Partial n (SepByInit fs s)
-            Continue n s -> return $ Continue n (SepByInit fs s)
-            Done n b -> do
-                fres <- fstep fs b
-                case fres of
-                    FL.Partial fs1 -> do
-                        resS <- sinitial
-                        case resS of
-                            IPartial ss ->
-                                return $ Partial n (SepBySeparator fs1 ss False)
-                            IDone _ -> errMsg "separator" "succeed"
-                            IError _ -> errMsg "separator" "fail"
-                    FL.Done c -> return $ Done n c
-            Error err -> return $ Error err
-    step (SepBySeparator fs ss consumed) a = do
-        r <- sstep ss a
-        case r of
-            Partial n s -> return $ Partial n (SepBySeparator fs s True)
-            Continue n s -> return $ Continue n (SepBySeparator fs s True)
-            Done n _ ->
-                if consumed
-                then do
-                    resP <- pinitial
-                    case resP of
-                        IPartial sp -> return $ Partial n $ SepByInit fs sp
-                        IDone _ -> errMsg "content" "succeed"
-                        IError _ -> errMsg "content" "fail"
-                else error "sepBy: infinite loop"
+            Partial n s -> return $ Continue n (SepBy1InitL (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepBy1InitL (cnt1 - n) fs s)
+            Done n b ->
+                processL (fstep fs b) n SepBy1InitR
             Error err -> return $ Error err
 
-    extract (SepByInit fs sp) = do
-        r <- pextract sp
+    {-# INLINE runStepL #-}
+    runStepL cnt fs sL a = do
+        let cnt1 = cnt + 1
+        r <- stepL sL a
         case r of
-            Done n b -> do
-                res <- fstep fs b
-                case res of
-                    FL.Partial fs1 -> fmap (Done n) $ fextract fs1
-                    FL.Done c -> return (Done n c)
-            Error err -> return $ Error err
-            Continue n s -> return $ Continue n (SepByInit fs s)
+            Partial n s -> return $ Continue n (SepBy1L (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepBy1L (cnt1 - n) fs s)
+            Done n b ->
+                processL (fstep fs b) n SepBy1InitR
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    {-# INLINE processR #-}
+    processR cnt fs n = do
+        res <- initialL
+        case res of
+            IPartial ps -> return $ Continue n (SepBy1L cnt fs ps)
+            IDone _ -> errMsg "left" "succeed"
+            IError _ -> errMsg "left" "fail"
+
+    {-# INLINE runStepR #-}
+    runStepR cnt fs sR a = do
+        let cnt1 = cnt + 1
+        r <- stepR sR a
+        case r of
+            Partial n s -> return $ Continue n (SepBy1R (cnt1 - n) fs s)
+            Continue n s -> return $ Continue n (SepBy1R (cnt1 - n) fs s)
+            Done n _ -> processR (cnt1 - n) fs n
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt1 xs
+
+    step (SepBy1InitL cnt fs sL) a = runStepInitL cnt fs sL a
+    step (SepBy1L cnt fs sL) a = runStepL cnt fs sL a
+    step (SepBy1InitR fs) a = do
+        res <- initialR
+        case res of
+            IPartial s -> runStepR 0 fs s a
+            IDone _ -> errMsg "right" "succeed"
+            IError _ -> errMsg "right" "fail"
+    step (SepBy1R cnt fs sR) a = runStepR cnt fs sR a
+
+    {-# INLINE extractResult #-}
+    extractResult n fs r = do
+        res <- fstep fs r
+        case res of
+            FL.Partial fs1 -> fmap (Done n) $ fextract fs1
+            FL.Done c -> return (Done n c)
+
+    extract (SepBy1InitL cnt fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n b -> extractResult n fs b
+            Continue n s -> return $ Continue n (SepBy1InitL (cnt - n) fs s)
             Partial _ _ -> error "Partial in extract"
-
-    extract (SepBySeparator fs _ _) = fmap (Done 0) $ fextract fs
-
--- XXX This can be implemented using refold, parse one and then continue
--- collecting the rest in that.
-
--- | Parse items separated by a separator parsed by the supplied parser. At
--- least one item must be present for the parser to succeed.
---
--- Note that this can go in infinite loop if both the parsers fail on some
--- input. Detection of that would make the implementation more complex.
---
-{-# INLINE sepBy1 #-}
-sepBy1 :: Monad m =>
-    Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
-sepBy1 p sep sink = do
-    x <- p
-    f <- fromEffect $ FL.reduce sink
-    f1 <- fromEffect $ FL.snoc f x
-    many (sep >> p) f1
+            Error err -> return $ Error err
+    extract (SepBy1L cnt fs sL) = do
+        r <- extractL sL
+        case r of
+            Done n b -> extractResult n fs b
+            Continue n s -> return $ Continue n (SepBy1L (cnt - n) fs s)
+            Partial _ _ -> error "Partial in extract"
+            Error _ -> do
+                xs <- fextract fs
+                return $ Done cnt xs
+    extract (SepBy1InitR fs) = fmap (Done 0) $ fextract fs
+    extract (SepBy1R cnt fs _) = fmap (Done cnt) $ fextract fs
 
 -------------------------------------------------------------------------------
 -- Interleaving a collection of parsers

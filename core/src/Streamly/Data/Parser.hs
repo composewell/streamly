@@ -125,8 +125,10 @@ module Streamly.Data.Parser
     -- , groupByRollingEither
 
     -- ** Framing
-    , wordFramedBy
-    , wordQuotedBy
+    -- , wordFramedBy
+    , wordWithQuotes
+    -- , wordProcessQuotes
+    -- , wordKeepQuotes
 
     -- * Alternative
     , alt

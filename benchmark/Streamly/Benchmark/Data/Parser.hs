@@ -177,6 +177,12 @@ sepByWords = Stream.parse (wrds even Fold.drain)
     where
     wrds p = PR.sepBy (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
 
+{-# INLINE sepByAllWords #-}
+sepByAllWords :: Monad m => Stream m Int -> m (Either ParseError ())
+sepByAllWords = Stream.parse (wrds even Fold.drain)
+    where
+    wrds p = PR.sepByAll (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
+
 -- Returning a list to compare with the sepBy1 in ParserK
 {-# INLINE sepBy1 #-}
 sepBy1 :: Monad m => Stream m Int -> m (Either ParseError [Int])
@@ -197,6 +203,26 @@ deintercalate _ = Stream.parse (partition even)
 
     partition p =
         PR.deintercalate
+            (PR.takeWhile (not . p) Fold.sum) (PR.takeWhile p Fold.sum) Fold.drain
+
+{-# INLINE deintercalate1 #-}
+deintercalate1 :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+deintercalate1 _ = Stream.parse (partition even)
+
+    where
+
+    partition p =
+        PR.deintercalate1
+            (PR.takeWhile (not . p) Fold.sum) (PR.takeWhile p Fold.sum) Fold.drain
+
+{-# INLINE deintercalateAll #-}
+deintercalateAll :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+deintercalateAll _ = Stream.parse (partition even)
+
+    where
+
+    partition p =
+        PR.deintercalateAll
             (PR.takeWhile (not . p) Fold.sum) (PR.takeWhile p Fold.sum) Fold.drain
 
 {-# INLINE manyWordByEven #-}
@@ -426,9 +452,12 @@ o_1_space_serial value =
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
     , benchIOSink value "sepBy (words)" sepByWords
+    , benchIOSink value "sepByAll (words)" sepByAllWords
     , benchIOSink value "sepBy1" sepBy1
     , benchIOSink value "sepBy1 (words)" sepByWords1
     , benchIOSink value "deintercalate" $ deintercalate value
+    , benchIOSink value "deintercalate1" $ deintercalate1 value
+    , benchIOSink value "deintercalateAll" $ deintercalateAll value
     , benchIOSink value "splitAp" $ splitAp value
     , benchIOSink value "splitApBefore" $ splitApBefore value
     , benchIOSink value "splitApAfter" $ splitApAfter value

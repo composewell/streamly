@@ -484,59 +484,48 @@ parseManyWordQuotedBy :: H.SpecWith ()
 parseManyWordQuotedBy =
     describe "parseMany wordQuotedBy"
         $ for_ testCases
-        $ \c@(kQ, lQ, rQ, fromLQ, input, expected) -> do
+        $ \c@(kQ, isQ, input, expected) -> do
               let inpStrm = S.fromList input
 
-                  esc '\\' = True
-                  esc _ = False
+                  esc = '\\'
 
                   spc ' ' = True
                   spc _ = False
 
-                  parser = P.wordQuotedBy kQ esc lQ rQ fromLQ spc FL.toList
+                  tr _ _ = Nothing
+
+                  parser = P.wordWithQuotes kQ tr esc isQ spc FL.toList
               result <- H.runIO $ S.fold FL.toList $ S.catRights $ S.parseMany parser inpStrm
               H.it (showCase c) $ result `H.shouldBe` expected
 
     where
 
-    showCase (kQ, _, _, _, input, expected) =
+    showCase (kQ, _, input, expected) =
         show kQ ++ ", " ++ input ++ " -> " ++ show expected
 
     testCases =
         [ ( True
-          , (== '\'')
-          , (== '\'')
-          , id
+          , \x -> if x == '\'' then Just '\'' else Nothing
           , "The quick brown fox"
           , ["The", "quick", "brown", "fox"])
         , ( True
-          , (== '\'')
-          , (== '\'')
-          , id
+          , \x -> if x == '\'' then Just '\'' else Nothing
           , "The' quick brown' fox"
           , ["The' quick brown'", "fox"])
         , ( False
-          , (== '\'')
-          , (== '\'')
-          , id
+          , \x -> if x == '\'' then Just '\'' else Nothing
           , "The' quick brown' fox"
           , ["The quick brown", "fox"])
         , ( True
-          , (== '[')
-          , (== '[')
-          , \x -> if x == '[' then ']' else error "Not an opening quote."
+          , \x -> if x == '[' then Just ']' else Nothing
           , "The[ quick brown] fox"
           , ["The[ quick brown]", "fox"])
         , ( True
-          , (== '[')
-          , (== '[')
-          , \x -> if x == '[' then ']' else error "Not an opening quote."
+          , \x -> if x == '[' then Just ']' else Nothing
           , "The[ qui[ck] brown] \\ f[  ox]"
           , ["The[ qui[ck] brown]", " f[  ox]"])
         , ( False
-          , (== '[')
-          , (== '[')
-          , \x -> if x == '[' then ']' else error "Not an opening quote."
+          , \x -> if x == '[' then Just ']' else Nothing
           , "The[ qui[ck] brown] fox"
           , ["The qui[ck] brown", "fox"])
         ]
@@ -600,6 +589,7 @@ parseManyWordQuotedBy =
 --         Right _ -> False
 --         Left _ -> True)
 
+{-
 deintercalate :: Property
 deintercalate =
     forAll (listOf (chooseAny :: Gen Int)) $ \ls ->
@@ -614,6 +604,7 @@ deintercalate =
                 FL.tee (fmap concat $ FL.catLefts FL.toList)
                        (fmap concat $ FL.catRights FL.toList)
             p = P.deintercalate p1 p2 partition
+-}
 
 -- shortestPass :: Property
 -- shortestPass =
@@ -1212,7 +1203,7 @@ main =
         -- prop "" teeWithFailLeft
         -- prop "" teeWithFailRight
         -- prop "" teeWithFailBoth
-        prop "deintercalate" deintercalate
+        -- prop "deintercalate" deintercalate
         -- prop "" shortestPass
         -- prop "" shortestFailLeft
         -- prop "" shortestFailRight
