@@ -6,10 +6,8 @@ SPDX-License-Identifer: BSD-3-Clause
 
 # Getting started with `Haskell Streamly`
 
-This guide shows you how to write a simple program that uses
-[Streamly][].
-
-## Pre-requisites
+This guide shows you how to install Haskell and the `streamly` package,
+and then use Streamly in a simple program.
 
 <!-- TODO: Add instructions for `stack` and `nix`.
 
@@ -22,14 +20,18 @@ running Windows&trade; then you may need to run a command-line shell
 under `msys` and some of the commands below may also need to be changed
 in small ways to make them work.
 
-### Installing Haskell
+## Installing Haskell
+
+You can choose one of the following options.
+
+### Installing the Haskell Toolchain
 
 To get started, you will need a fairly recent version (last three major
 versions will work) of the Haskell compiler `ghc` and the build tool
 `cabal` installed on your system.  Please see the install instructions
 at https://www.haskell.org/downloads/ .
 
-### Complete Development Environment
+### Development Environment using Nix
 
 If you use the nix package manager, a nix shell for complete
 development environment - including a consistent set of latest streamly
@@ -103,6 +105,8 @@ Create a project directory for our example project.
 $ mkdir streamly-project
 ```
 
+### Add `streamly` as project dependency
+
 Run `cabal init` in the project directory to create an initial set of
 project files:
 
@@ -127,7 +131,7 @@ on `.cabal` files.
 This invocation also creates a skeletal `app/Main.hs` file which we
 will now use to write our streamly based program.
 
-### Use `streamly` in the Project Code
+### Import `streamly` modules in the project code
 
 Let us now turn the single-line stanza we used in the REPL into a
 standalone program.
@@ -154,7 +158,7 @@ $ cabal run
 3
 ```
 
-### Running the project in GHCi REPL
+### Running GHCi REPL for the project code
 
 To start up the GHCi REPL for your project, please use:
 
