@@ -146,7 +146,7 @@ import qualified Streamly.Internal.System.IOVec.Type as RawIO
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Mut as MArray
-    (Array(..), newPinnedBytes, asPtrUnsafe)
+    (MutArray(..), newPinnedBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D

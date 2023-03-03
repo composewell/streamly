@@ -36,9 +36,9 @@ module Streamly.Internal.Data.Stream.Eliminate
     -- * Running a 'Parser'
     -- "Streamly.Internal.Data.Parser".
     , parse
-    , parseK
+    --, parseK
     , parseD
-    , parseBreak
+    --, parseBreak
     , parseBreakD
 
     -- * Stream Deconstruction
@@ -81,6 +81,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Parser (Parser (..), ParseError (..))
 import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -91,7 +92,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Streamly.Internal.Data.Stream.Bottom
-import Streamly.Internal.Data.Stream.Type
+import Streamly.Internal.Data.Stream.Type hiding (Stream)
 
 import Prelude hiding (foldr, init, reverse)
 
@@ -224,9 +225,9 @@ parseD p = D.parseD p . toStreamD
 -- | Parse a stream using the supplied ParserK 'PRK.Parser'.
 --
 -- /Internal/
-{-# INLINE parseK #-}
-parseK :: Monad m => PRK.Parser a m b -> Stream m a -> m (Either ParseError b)
-parseK = parse
+--{-# INLINE parseK #-}
+--parseK :: Monad m => PRK.Parser a m b -> Stream m a -> m (Either ParseError b)
+--parseK = parse
 
 -- | Parse a stream using the supplied 'Parser'.
 --
@@ -242,7 +243,7 @@ parseK = parse
 --
 {-# INLINE [3] parse #-}
 parse :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b)
-parse = parseD . PRD.fromParserK
+parse = parseD
 
 {-# INLINE_NORMAL parseBreakD #-}
 parseBreakD :: Monad m =>
@@ -255,13 +256,9 @@ parseBreakD parser strm = do
 --
 -- /CPS/
 --
-{-# INLINE parseBreak #-}
-parseBreak :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
-parseBreak p strm = fmap f $ K.parseBreak p (toStreamK strm)
-
-    where
-
-    f (b, str) = (b, fromStreamK str)
+--{-# INLINE parseBreak #-}
+--parseBreak :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+--parseBreak p strm = D.parseBreak p strm
 
 ------------------------------------------------------------------------------
 -- Multi-stream folds
