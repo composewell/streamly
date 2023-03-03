@@ -1,3 +1,8 @@
+<!--
+(c) 2017, Composewell Technologies and Contributors
+SPDX-License-Identifer: BSD-3-Clause
+-->
+
 # [Streamly][] Quick Tutorial
 ## About This Document
 
@@ -24,15 +29,10 @@ It [concludes](#further-reading) with suggestions for further reading.
 
 ### Installing Streamly
 
-If you wish to follow along with this guide, you will need to have
-the Haskell `streamly` package installed.
-
-Please see the [Setup and
-Usage](/docs/User/Tutorials/setup-and-usage.md) guide for instructions
-on how to use the `streamly` package interactively or in a project.
-
-If you wish to run performance benchmarks, please be sure to build your
-application using the instructions in the [Build Guide](/docs/User/HowTo/Compiling.md).
+If you wish to follow along and run examples in this guide, please see
+the [Before You Begin](/docs/User/Tutorials/before-you-begin.md) guide
+for instructions on how to use the `streamly` package interactively or
+in a project.
 
 ### An overview of the types used in these examples
 
@@ -42,29 +42,10 @@ The meaning of these types are:
 
 * A `Stream IO a` is a representation of a sequence of values of type
   `a` in the IO Monad.
-* An `Unfold IO a b` is a representation of a function that converts a seed
-  value of type `a` into a stream of values of type `b` in the IO Monad.
 * A `Fold IO a b` is a representation of a function that converts a stream of
   type `a` to a final accumulator of type `b` in the IO Monad.
-
-### A Note on Module Naming
-
-Some of the examples below use modules from the `Internal` Streamly package
-hierarchy.  These are not really internal to the library.  We classify
-`Streamly` modules into two categories:
-
-* _Released modules and APIs_: These modules and APIs are
-  stable. Significant changes to these modules and APIs will cause
-  Streamly's version number to change according to the package versioning
-  policy.
-* _Pre-release modules and APIs_: These modules and APIs have not been
-  formally released yet.  They may change in the near future, and such
-  changes will not necessarily be reflected in Streamly's package
-  version number.  As yet unreleased modules and APIs reside in the
-  `Internal` namespace.
-
-Please use a minor release upper bound to adhere to the Haskell PVP when
-using the pre-release (internal) modules.
+* An `Unfold IO a b` is a representation of a function that converts a seed
+  value of type `a` into a stream of values of type `b` in the IO Monad.
 
 ## The Examples
 
