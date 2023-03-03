@@ -55,6 +55,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 arraysOf :: (MonadIO m, Unbox a)
     => Int -> Stream m a -> Stream m (MutArray a)
 arraysOf = MArray.arraysOf
+
 -------------------------------------------------------------------------------
 -- Compact
 -------------------------------------------------------------------------------
