@@ -21,6 +21,15 @@ memory usage during compilation.
 See the "Build times and space considerations" section below for more
 details.
 
+### GHC Plugin for Stream Fusion
+
+Streamly usually performs very well without any compiler plugins.
+However, we have fixed some deficiencies in GHC's optimizer using a
+[compiler plugin](https://github.com/composewell/fusion-plugin).  We
+hope to fold these optimizations into GHC in the future; until then we
+recommend that you use this plugin for applications that are performance
+sensitive.
+
 ### Compilation Options
 
 #### Recommended Options

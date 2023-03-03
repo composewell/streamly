@@ -1,119 +1,83 @@
-# [Streamly][]: Idiomatic Haskell with the Performance of C
+# [Streamly][]: Idiomatic Haskell with C-Like Performance
 
 [![Gitter chat](https://badges.gitter.im/composewell/gitter.svg)](https://gitter.im/composewell/streamly)
 [![Hackage](https://img.shields.io/hackage/v/streamly.svg?style=flat)](https://hackage.haskell.org/package/streamly)
 
-Streamly is a Haskell library that provides building blocks to build
-safe, scalable, modular and high performance software.  Streamly offers:
+Streamly is a powerful Haskell library that provides developers with
+the essential building blocks to create safe, scalable, modular, and
+high-performance software. With Streamly, developers can enjoy the
+benefits of Haskell's type safety while leveraging C-like program
+performance.  Streamly offers a comprehensive range of features,
+comprising:
 
-* The type safety of Haskell.
-* The performance of C programs.
-* Powerful building blocks for modular code.
+* Haskell's strong type safety.
+* C-program-like performance capabilities.
+* Flexible, modular building blocks.
 * Idiomatic functional programming.
-* Declarative, fearless concurrency.
-* Ecossytem libraries for quick development.
+* Fearless, declarative concurrency for seamless parallel execution.
+* A collection of ecosystem libraries for fast and efficient development.
 
-Please read the [Streamly Setup and Usage
-Guide](/docs/User/Tutorials/setup-and-usage.md) and [Streamly Quick
-Overview](/docs/User/Tutorials/quick-overview.md) to get a taste of the
-library. Streamly comes with comprehensive documentation, please visit
-the [Haskell Streamly website][Streamly] for documentation.
+Check out the [Streamly Setup and Usage
+Guide](/docs/User/Tutorials/setup-and-usage.md) and [Quick
+Overview](/docs/User/Tutorials/quick-overview.md) for an introduction
+to the library. For more detailed documentation, visit the [Haskell
+Streamly website][Streamly].
 
-## Performance with Modularity
+## Blazing Fast
 
-Usually, you have to pick one of the two, performance or
-modularity. Using [Haskell Streamly][Streamly] you can write highly
-modular code and still achieve performance close to an equivalent
-(imperative) C program.  Streamly exploits GHC's stream fusion
-optimizations (`case-of-case` and `spec-constr`) aggressively to achieve
-both modularity and performance at the same time.
+Streamly delivers C-like speed in Haskell by fusing stream pipelines
+using the stream-fusion technique, resulting in compiled code that is
+equivalent to handwritten C code, eliminating intermediate allocations
+and function calls.
 
-Streamly offers excellent performance even for byte-at-a-time stream
-operations using efficient abstractions like `Unfold`s and
-`Fold`s.  Byte-at-a-time stream operations can simplify programming
-because the developer does not have to deal explicitly with chunking
-and re-combining data.
+For a comprehensive comparison of Streamly to other Haskell streaming
+libraries, check out our [streaming benchmarks][streaming-benchmarks]
+page. In fact, Streamly's fused loops can be up to 100 times faster than
+those of libraries without stream fusion.
 
-### GHC Plugin for Stream Fusion
+## Declarative Concurrency
 
-[Streamly][] usually performs very well without any compiler plugins.
-However, we have fixed some deficiencies in GHC's optimizer using a
-[compiler plugin](https://github.com/composewell/fusion-plugin).  We
-hope to fold these optimizations into GHC in the future; until then we
-recommend that you use this plugin for applications that are performance
-sensitive.
+Streamly introduces declarative concurrency to standard functional
+streaming abstractions.  Declarative concurrency abstracts away the
+low-level details of concurrency management, such as locks and threads,
+and allows for easier and safer parallelization of code.  For example,
+with Streamly you can do things like repeat actions concurrently to
+generate a stream of results, map functions concurrently on a stream,
+and combine multiple streams concurrently to create a single output
+stream.
 
-### Performance Benchmarks
+## Unified API
 
-We measured several Haskell streaming implementations
-using various micro-benchmarks. Please see the [streaming
-benchmarks][streaming-benchmarks] page for a detailed comparison of
-Streamly against other streaming libraries.
+Streamly provides a comprehensive and unified API for basic programming
+needs, covering a wide range of areas including streaming, concurrency,
+logic programming, reactive programming, pinned and unpinned arrays,
+serialization, builders, parsers, unicode processing, file-io, file
+system events, and network-io. By unifying functionality from disparate
+Haskell libraries, Streamly simplifies development while delivering
+equivalent or improved performance. Additionally, the complexity
+of handling combinations of lazy, strict, bytestring, and text is
+eliminated by using streams for lazy evaluation, and by generalizing
+bytestring and text to arrays.
 
-Our results show that [Streamly][] is the fastest effectful streaming
-implementation on almost all the measured microbenchmarks. In many cases
-it runs up to 100x faster, and in some cases even 1000x faster than
-some of the tested alternatives. In some composite operation benchmarks
-[Streamly][] turns out to be significantly faster than Haskell's list
-implementation.
-
-*Note*: If you can write a program in some other way or with some other
-language that runs significantly faster than what [Streamly][] offers,
-please let us know and we will improve.
-
-## Applications
-
-Streamly comes equipped with a very powerful set of abstractions to
-accomplish many kinds of programming tasks: it provides support for
-programming with streams and arrays, for reading and writing from the
-file system and from the network, for time domain programming (reactive
-programming), and for reacting to file system events using `fsnotify`.
-
-Please view [Streamly's documentation][Streamly] for more information
+Check out [Streamly's documentation][Streamly] for more information
 about Streamly's features.
 
-## Design
+## Batteries Included
 
-### Design Goals
+In addition to the fundamental programming constructs, Streamly also
+provides higher-level functionality through supporting packages such as
+[streamly-process][], [streamly-shell][], and [streamly-coreutils][]
+that are essential for general programming tasks. Check out the
+[streamly-examples][] repository for some program snippets.
 
-Our goals for [Streamly][] from the very beginning have been:
+## Highly Modular
 
-1. To achieve simplicity by unifying abstractions.
-2. To offer high performance.
-
-These goals are hard to achieve simultaneously because they are usually
-inversely related.  We have spent many years trying to get the abstractions
-right without compromising performance.
-
-`Unfold` is an example of an abstraction that we have created to achieve
-high performance when mapping streams on streams.  `Unfold` allows stream
-generation to be optimized well by the compiler through stream fusion.
-A `Fold` with termination capability is another example which modularizes
-stream elimination operations through stream fusion.  Terminating folds
-can perform many simple parsing tasks that do not require backtracking.
-In Streamly, `Parser`s are a natural extension to terminating `Fold`s;
-`Parser`s add the ability to backtrack to `Fold`s.  Unification leads
-to simpler abstractions and lower cognitive overheads while also not
-compromising performance.
-
-### Concurrency Design
-
-Streamly uses lock-free synchronization for achieving concurrent
-operation with low overheads.  The number of tasks performed concurrently
-are determined automatically based on the rate at which a consumer
-is consuming the results. In other words, you do not need to manage
-thread pools or decide how many threads to use for a particular task.
-For CPU-bound tasks Streamly will try to keep the number of threads
-close to the number of CPUs available; for IO-bound tasks it will utilize
-more threads.
-
-The parallelism available during program execution can be utilized with
-very little overhead even where the task size is very small, because
-Streamly will automatically switch between serial or batched execution
-of tasks on the same CPU depending on whichever is more efficient.
-Please see our [concurrency benchmarks][concurrency-benchmarks] for more
-detailed performance measurements, and for a comparison with the `async`
-package.
+Traditionally, you must choose between modularity and performance when
+writing code. However, with [Haskell Streamly][Streamly], you can have
+the best of both worlds. By taking advantage of GHC's stream fusion
+optimizations (such as `case-of-case` and `spec-constr`), Streamly achieves
+performance comparable to an equivalent C program while still allowing
+for highly modular code.
 
 ## Credits
 
@@ -154,6 +118,10 @@ Link References.
 [Streamly]: https://streamly.composewell.com/
 [streaming-benchmarks]: https://github.com/composewell/streaming-benchmarks
 [concurrency-benchmarks]: https://github.com/composewell/concurrency-benchmarks
+[streamly-examples]: https://github.com/composewell/streamly-examples
+[streamly-process]: https://github.com/composewell/streamly-process
+[streamly-shell]: https://github.com/composewell/streamly-shell
+[streamly-coreutils]: https://github.com/composewell/streamly-coreutils
 
 <!--
 Keep all the unstable links here so that they can be updated to stable
@@ -162,5 +130,5 @@ links (for online docs) before we release.
 
 <!-- local files -->
 [LICENSE]: /LICENSE
-[CONTRIBUTING.md]: /CONTRIBUTING.md
+[CONTRIBUTING.md]: /docs/Developer/Contributing.md
 [docs]: docs/
