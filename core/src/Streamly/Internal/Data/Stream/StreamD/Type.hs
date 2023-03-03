@@ -130,9 +130,6 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     -- * Multi-stream folds
     , eqBy
     , cmpBy
-
-    -- * Deprecated
-    , chunksOf
     )
 where
 
@@ -1862,11 +1859,6 @@ foldMany (Fold fstep initial extract) (Stream step state) =
                 return $ Skip (FoldManyYield b FoldManyDone)
     step' _ (FoldManyYield b next) = return $ Yield b next
     step' _ FoldManyDone = return Stop
-
-{-# DEPRECATED chunksOf "Please use 'groupsOf' instead" #-}
-{-# INLINE chunksOf #-}
-chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
-chunksOf = groupsOf
 
 {-# INLINE groupsOf #-}
 groupsOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b

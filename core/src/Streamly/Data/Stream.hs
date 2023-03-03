@@ -490,6 +490,7 @@ module Streamly.Data.Stream
     )
 where
 
+import Streamly.Internal.Data.Fold (Fold)
 import qualified Streamly.Internal.Data.Array.Type as Array
 import Streamly.Internal.Data.Stream.StreamD
 import Prelude
@@ -498,3 +499,12 @@ import Prelude
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, repeat, replicate, concatMap, span)
+
+--------------------------------------------------------------------------------
+-- Deprecated
+--------------------------------------------------------------------------------
+
+{-# DEPRECATED chunksOf "Please use 'groupsOf' instead" #-}
+{-# INLINE chunksOf #-}
+chunksOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
+chunksOf = groupsOf

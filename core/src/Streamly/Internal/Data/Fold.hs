@@ -297,7 +297,6 @@ module Streamly.Internal.Data.Fold
     , refold
 
     -- * Deprecated
-    , chunksOf
     , foldr
     , drainBy
     , last

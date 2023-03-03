@@ -416,7 +416,6 @@ module Streamly.Internal.Data.Fold.Type
     , generalizeInner
 
     -- * Deprecated
-    , chunksOf
     , foldr
     , serialWith
     )
@@ -1732,11 +1731,6 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 {-# INLINE groupsOf #-}
 groupsOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
 groupsOf n split = many (take n split)
-
-{-# DEPRECATED chunksOf "Please use 'groupsOf' instead" #-}
-{-# INLINE chunksOf #-}
-chunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-chunksOf = groupsOf
 
 ------------------------------------------------------------------------------
 -- Refold and Fold Combinators
