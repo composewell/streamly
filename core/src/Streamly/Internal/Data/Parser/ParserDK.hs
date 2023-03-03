@@ -297,7 +297,7 @@ import Prelude hiding
 --
 {-# INLINE toFold #-}
 toFold :: Monad m => Parser a m b -> Fold m a b
-toFold p = D.toFold p
+toFold = D.toFold
 
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
@@ -317,7 +317,7 @@ fromFold = D.fromFold
 --
 {-# INLINE fromFoldMaybe #-}
 fromFoldMaybe :: Monad m => String -> Fold m a (Maybe b) -> Parser a m b
-fromFoldMaybe err = D.fromFoldMaybe err
+fromFoldMaybe = D.fromFoldMaybe
 
 -------------------------------------------------------------------------------
 -- Terminating but not failing folds
@@ -373,20 +373,20 @@ dieM = D.dieM
 --
 {-# INLINE lmap #-}
 lmap :: Monad m => (a -> b) -> Parser b m r -> Parser a m r
-lmap f p = D.lmap f p
+lmap = D.lmap
 
 -- | @lmapM f parser@ maps the monadic function @f@ on the input of the parser.
 --
 {-# INLINE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Parser b m r -> Parser a m r
-lmapM f p = D.lmapM f p
+lmapM = D.lmapM
 
 -- | @rmapM f parser@ maps the monadic function @f@ on the output of the parser.
 --
 -- >>> rmap = fmap
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Parser a m b -> Parser a m c
-rmapM f p = D.rmapM f p
+rmapM = D.rmapM
 
 -- | Include only those elements that pass a predicate.
 --
@@ -395,7 +395,7 @@ rmapM f p = D.rmapM f p
 --
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
-filter f p = D.filter f p
+filter = D.filter
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -579,7 +579,7 @@ either = D.either
 {-# INLINE takeBetween #-}
 takeBetween ::  Monad m =>
     Int -> Int -> Fold m a b -> Parser a m b
-takeBetween m n = D.takeBetween m n
+takeBetween = D.takeBetween
 
 -- | Stops after taking exactly @n@ input elements.
 --
@@ -592,7 +592,7 @@ takeBetween m n = D.takeBetween m n
 --
 {-# INLINE takeEQ #-}
 takeEQ :: Monad m => Int -> Fold m a b -> Parser a m b
-takeEQ n = D.takeEQ n
+takeEQ = D.takeEQ
 
 -- | Take at least @n@ input elements, but can collect more.
 --
@@ -610,7 +610,7 @@ takeEQ n = D.takeEQ n
 --
 {-# INLINE takeGE #-}
 takeGE :: Monad m => Int -> Fold m a b -> Parser a m b
-takeGE n = D.takeGE n
+takeGE = D.takeGE
 
 -------------------------------------------------------------------------------
 -- Take until a condition
@@ -637,7 +637,7 @@ takeGE n = D.takeGE n
 --
 {-# INLINE takeWhileP #-}
 takeWhileP :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
-takeWhileP cond p = D.takeWhileP cond p
+takeWhileP = D.takeWhileP
 
 -- | Collect stream elements until an element fails the predicate. The element
 -- on which the predicate fails is returned back to the input stream.
@@ -658,7 +658,7 @@ takeWhileP cond p = D.takeWhileP cond p
 --
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-takeWhile cond = D.takeWhile cond
+takeWhile = D.takeWhile
 -- takeWhile cond f = takeWhileP cond (fromFold f)
 
 -- | Like 'takeWhile' but takes at least one element otherwise fails.
@@ -667,7 +667,7 @@ takeWhile cond = D.takeWhile cond
 --
 {-# INLINE takeWhile1 #-}
 takeWhile1 :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-takeWhile1 cond = D.takeWhile1 cond
+takeWhile1 = D.takeWhile1
 -- takeWhile1 cond f = takeWhileP cond (takeBetween 1 maxBound f)
 
 -- | Drain the input as long as the predicate succeeds, running the effects and
@@ -693,8 +693,7 @@ takeFramedByGeneric :: Monad m =>
     -> Maybe (a -> Bool)
     -> Fold m a b
     -> Parser a m b
-takeFramedByGeneric esc begin end f =
-    D.takeFramedByGeneric esc begin end f
+takeFramedByGeneric = D.takeFramedByGeneric
 
 -- | @takeEndBy cond parser@ parses a token that ends by a separator chosen by
 -- the supplied predicate. The separator is also taken with the token.
@@ -767,7 +766,7 @@ takeEitherSepBy _cond = undefined -- D.takeEitherSepBy cond
 --
 {-# INLINE takeStartBy #-}
 takeStartBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-takeStartBy cond = D.takeStartBy cond
+takeStartBy = D.takeStartBy
 
 -- | Like 'takeStartBy' but drops the separator.
 --
@@ -789,8 +788,7 @@ takeStartBy_ isBegin = takeFramedByGeneric Nothing (Just isBegin) Nothing
 {-# INLINE takeEndByEsc #-}
 takeEndByEsc :: Monad m =>
     (a -> Bool) -> (a -> Bool) -> Parser a m b -> Parser a m b
-takeEndByEsc isEsc isEnd p =
-    D.takeEndByEsc isEsc isEnd p
+takeEndByEsc = D.takeEndByEsc
 
 -- | @takeFramedByEsc_ isEsc isBegin isEnd fold@ parses a token framed using a
 -- begin and end predicate, and an escape character. The frame begin and end
@@ -816,8 +814,7 @@ takeEndByEsc isEsc isEnd p =
 {-# INLINE takeFramedByEsc_ #-}
 takeFramedByEsc_ :: Monad m =>
     (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser a m b
-takeFramedByEsc_ isEsc isBegin isEnd f =
-    D.takeFramedByEsc_ isEsc isBegin isEnd f
+takeFramedByEsc_ = D.takeFramedByEsc_
 -- takeEndByEsc_ isEsc isEnd p =
 --    takeFramedByGeneric (Just isEsc) Nothing (Just isEnd) (toFold p)
 
@@ -829,7 +826,7 @@ takeFramedByEsc_ isEsc isBegin isEnd f =
 {-# INLINE takeFramedBy_ #-}
 takeFramedBy_ :: Monad m =>
     (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser a m b
-takeFramedBy_ isBegin isEnd f = D.takeFramedBy_ isBegin isEnd f
+takeFramedBy_ = D.takeFramedBy_
 -- takeFramedBy_ isBegin isEnd =
 --    takeFramedByGeneric (Just (const False)) (Just isBegin) (Just isEnd)
 
@@ -858,7 +855,7 @@ takeFramedBy_ isBegin isEnd f = D.takeFramedBy_ isBegin isEnd f
 --
 {-# INLINE wordBy #-}
 wordBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-wordBy f = D.wordBy f
+wordBy = D.wordBy
 
 -- | Like 'wordBy' but treats anything inside a pair of quotes as a single
 -- word, the quotes can be escaped by an escape character.  Recursive quotes
@@ -887,9 +884,7 @@ wordFramedBy :: Monad m =>
     -> (a -> Bool)  -- ^ word seperator
     -> Fold m a b
     -> Parser a m b
-wordFramedBy isEsc isBegin isEnd isSpc =
-    D.wordFramedBy isEsc isBegin isEnd isSpc
-
+wordFramedBy = D.wordFramedBy
 -- | Like 'wordFramedBy' but the closing quote is determined by the opening
 -- quote. The first quote begin starts a quote that is closed by its
 -- corresponding closing quote.
@@ -949,7 +944,7 @@ wordQuotedBy = D.wordWithQuotes
 --
 {-# INLINE groupBy #-}
 groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
-groupBy eq = D.groupBy eq
+groupBy = D.groupBy
 
 -- | Unlike 'groupBy' this combinator performs a rolling comparison of two
 -- successive elements in the input stream.  Assuming the input stream
@@ -983,7 +978,7 @@ groupBy eq = D.groupBy eq
 --
 {-# INLINE groupByRolling #-}
 groupByRolling :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
-groupByRolling eq = D.groupByRolling eq
+groupByRolling = D.groupByRolling
 
 -- | Like 'groupByRolling', but if the predicate is 'True' then collects using
 -- the first fold as long as the predicate holds 'True', if the predicate is
@@ -998,7 +993,7 @@ groupByRolling eq = D.groupByRolling eq
 {-# INLINE groupByRollingEither #-}
 groupByRollingEither :: Monad m =>
     (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (Either b c)
-groupByRollingEither eq f1 = D.groupByRollingEither eq f1
+groupByRollingEither = D.groupByRollingEither
 
 -- | Like 'listEqBy' but uses a stream instead of a list and does not return
 -- the stream.
@@ -1007,7 +1002,7 @@ groupByRollingEither eq f1 = D.groupByRollingEither eq f1
 --
 {-# INLINE streamEqBy #-}
 streamEqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser a m ()
-streamEqBy cmp = D.streamEqBy cmp
+streamEqBy = D.streamEqBy
 
 -- | Match the given sequence of elements using the given comparison function.
 -- Returns the original sequence if successful.
@@ -1111,8 +1106,7 @@ regexPCRE = undefined
 {-# INLINE splitWith #-}
 splitWith :: Monad m
     => (a -> b -> c) -> Parser x m a -> Parser x m b -> Parser x m c
-splitWith f p1 p2 =
-    D.splitWith f p1 p2
+splitWith = D.splitWith
 
 -- | Sequential parser application ignoring the output of the first parser.
 -- Apply two parsers sequentially to an input stream.  The input is provided to
@@ -1136,7 +1130,7 @@ splitWith f p1 p2 =
 --
 {-# INLINE split_ #-}
 split_ :: Monad m => Parser x m a -> Parser x m b -> Parser x m b
-split_ p1 p2 = D.split_ p1 p2
+split_ = D.split_
 
 {-
 -- | @teeWith f p1 p2@ distributes its input to both @p1@ and @p2@ until both
@@ -1193,7 +1187,7 @@ teeWithMin f p1 p2 =
 --
 {-# INLINE alt #-}
 alt :: Monad m => Parser x m a -> Parser x m a -> Parser x m a
-alt p1 p2 = D.alt p1 p2
+alt = D.alt
 
 {-
 -- | Shortest alternative. Apply both parsers in parallel but choose the result
@@ -1223,7 +1217,7 @@ longest p1 p2 = D.longest p1 p2
 --
 {-# INLINE lookAhead #-}
 lookAhead :: Monad m => Parser a m b -> Parser a m b
-lookAhead p = D.lookAhead p
+lookAhead = D.lookAhead
 
 -- | Takes at-most @n@ input elements.
 --
@@ -1239,7 +1233,7 @@ lookAhead p = D.lookAhead p
 -- /Internal/
 {-# INLINE takeP #-}
 takeP :: Monad m => Int -> Parser a m b -> Parser a m b
-takeP i p = D.takeP i p
+takeP = D.takeP
 
 -------------------------------------------------------------------------------
 -- Sequential Collection
@@ -1258,7 +1252,7 @@ takeP i p = D.takeP i p
 concatSequence ::
     Monad m =>
     Fold m b c -> Stream m (Parser a m b) -> Parser a m c
-concatSequence f s = D.sequence s f
+concatSequence = D.sequence
 
         -- PR.sequence (Stream.repeat PR.one) Fold.drain
 
@@ -1274,7 +1268,7 @@ concatSequence f s = D.sequence s f
 {-# INLINE concatMap #-}
 concatMap :: Monad m
     => (b -> Parser a m c) -> Parser a m b -> Parser a m c
-concatMap f p = D.concatMap f p
+concatMap = D.concatMap
 
 {-
 -------------------------------------------------------------------------------
@@ -1320,7 +1314,7 @@ manyP _p _f = undefined -- D.manyP p f
 --
 {-# INLINE many #-}
 many :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
-many p f = D.many p f
+many = D.many
 
 -- Note: many1 would perhaps be a better name for this and consistent with
 -- other names like takeWhile1. But we retain the name "some" for
@@ -1339,7 +1333,7 @@ many p f = D.many p f
 --
 {-# INLINE some #-}
 some :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
-some p f = D.some p f
+some = D.some
 -- some p f = manyP p (takeGE 1 f)
 -- some = countBetween 1 maxBound
 
@@ -1404,8 +1398,7 @@ manyTill :: Monad m
                     -- else backtract and run the chunking parser.
     -> Fold m b c   -- ^ Folds the output of the chunking parser.
     -> Parser a m c
-manyTill collect test f =
-    D.manyTill ( collect) ( test) f
+manyTill = D.manyTill
 
 -- | @manyThen f collect recover@ repeats the parser @collect@ on the input and
 -- collects the output in the supplied fold. If the the parser @collect@ fails,
@@ -1453,9 +1446,7 @@ deintercalate :: Monad m =>
     -> Parser a m y
     -> Fold m (Either x y) z
     -> Parser a m z
-deintercalate contentL contentR sink =
-         D.deintercalate
-            ( contentL) ( contentR) sink
+deintercalate = D.deintercalate
 
 -- | Parse items separated by a separator parsed by the supplied parser. At
 -- least one item must be present for the parser to succeed.
@@ -1482,8 +1473,7 @@ sepBy1 p sep sink = do
 {-# INLINE sepBy #-}
 sepBy :: Monad m =>
     Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
-sepBy content sep sink =
-    D.sepBy content sep sink
+sepBy = D.sepBy
 -- sepBy sink = deintercalate (FL.catLefts sink)
 
 -------------------------------------------------------------------------------
