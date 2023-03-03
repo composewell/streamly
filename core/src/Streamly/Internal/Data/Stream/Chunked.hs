@@ -111,7 +111,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
--- > arraysOf n = Stream.arraysOf n (Array.writeN n)
+-- > arraysOf n = Stream.groupsOf n (Array.writeN n)
 --
 -- /Pre-release/
 {-# INLINE arraysOf #-}

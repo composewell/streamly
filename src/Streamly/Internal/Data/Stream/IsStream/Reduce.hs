@@ -970,7 +970,7 @@ splitOnSuffixSeqAny _subseq _f _m = undefined
 -- | Group the input stream into groups of @n@ elements each and then fold each
 -- group using the provided fold function.
 --
--- >>> Stream.toList $ Stream.arraysOf 2 Fold.sum (Stream.enumerateFromTo 1 10)
+-- >>> Stream.toList $ Stream.chunksOf 2 Fold.sum (Stream.enumerateFromTo 1 10)
 -- [3,7,11,15,19]
 --
 -- This can be considered as an n-fold version of 'take' where we apply

@@ -494,7 +494,7 @@ writeChunksWithBufferOf = writeChunksWith
 -- do not want buffering to occur at GHC level as well. Same thing applies to
 -- writes as well.
 
--- XXX Maybe we should have a Fold.groupsOf like we have Stream.groupsOf
+-- XXX Maybe we should have a Fold.arraysOf like we have Stream.arraysOf
 
 -- | @writeWith reqSize handle@ writes the input stream to @handle@.
 -- Bytes in the input stream are collected into a buffer until we have a chunk
