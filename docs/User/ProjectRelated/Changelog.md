@@ -3,59 +3,78 @@
 <!-- See rendered changelog at https://streamly.composewell.com -->
 ## 0.9.0 (Unreleased)
 
-### Major Changes
+### Package split
 
 `streamly` package is split into two packages, (1) `streamly-core` that
 has only GHC boot library depdendecies, and (2) `streamly` that contains
-higher level operations with additional dependencies.
+higher level operations (including concurrent ones) with additional
+dependencies. Make sure you add a dependency on `streamly-core` to keep old
+code working.
 
-### Breaking Changes
-
-* Moved the following modules to the `streamly-core` package:
+* Moved the following modules from `streamly` package to the
+  `streamly-core` package:
   * Streamly.Console.Stdio
   * Streamly.Data.Fold
   * Streamly.Data.Unfold
   * Streamly.FileSystem.Handle
   * Streamly.Unicode.Stream
-* The unboxed arrays now require `Unbox` instead of `Storable` for the stored
-  type. The `Unbox` typeclass can be found in `Streamly.Data.Array`.
-* Remove the MonadBase instance of the SerialT type.
-* In `Streamly.Data.Unfold`, signatures changed:
+
+### Breaking Changes
+
+* Unboxed arrays now require `Unbox` constraint instead of `Storable`.
+  The `Unbox` typeclass can be imported from `Streamly.Data.Array`. You
+  can use generic deriving to derive Unbox instances.
+* Stream type in all modules has been changed to the new `Stream` type
+  replacing the existing `IsStream t` or `SerialT` types. Use `fromStream`,
+  `toStream` from `Streamly.Prelude` module to adapt the types.
+* Signatures changed in `Streamly.Data.Unfold`:
   * `fromStream`
   * `replicateM`
+
+### Major Changes
+
+`Streamly.Prelude` module has been deprecated, equivalent
+functionality is covered by the `Streamly.Data.Stream`,
+`Streamly.Data.Stream.Prelude`, and `Streamly.Data.Fold` modules. The
+new modules use a monomorphic `Stream` type instead of the polymorphic
+`IsStream t` type.
+
+`Streamly.Data.Stream` module and the `Stream` type are meant for
+writing high-performance fused pipelines not involving explicit
+recursion. For writing code that may require recursive function calls,
+`Streamly.Data.Stream.StreamK` module and the `StreamK` type have been
+added which provide a CPS based stream implementation. `Stream` and
+`StreamK` types can be easily interconverted.
+
+The old code can be adapted to use the new modules with some changes.
+See the [upgrade guide](/docs/User/ProjectRelated/Upgrading.md) for more
+details on how to adapt your existing code to the new release.
 
 ### Enhancements
 
 * Added the following new modules to the `streamly-core` package:
+  * Streamly.Data.Array
   * Streamly.Data.Array.Generic
   * Streamly.Data.MutArray
   * Streamly.Data.MutArray.Generic
   * Streamly.Data.Parser
+  * Streamly.Data.ParserK
+  * Streamly.Data.Stream
+  * Streamly.Data.StreamK
   * Streamly.FileSystem.Dir
   * Streamly.FileSystem.File
-  * Streamly.Unicode.String
   * Streamly.Unicode.Parser
+  * Streamly.Unicode.String
 * Added the following new modules to the `streamly` package:
   * Streamly.Data.Stream.MkType
   * Streamly.Data.Stream.Prelude
 
 ### Deprecations
 
-* `Streamly.Data.Array.Foreign` renamed and moved to `Streamly.Data.Array` in
-  `streamly-core` package. Corresponding internal modules are renamed
-  accordingly.
-* In `Streamly.Data.Fold`:
-  * `head` renamed to `one`.
-  * `serialWith` renamed to `splitWith`.
-  * `variance`, and `stdDev` deprecated. Please use the
-    `streamly-statistics` package instead.
-  * `chunksOf` is renamed to `groupsOf`.
-* In `Streamly.Network.Socket`:
-  * `readWithBufferOf` renamed to `readWith`
-  * `readChunksWithBufferOf` renamed to `readChunksWith`
-  * `writeWithBufferOf` renamed to `writeWith`
-  * `writeChunksWithBufferOf` renamed to `writeChunksWith`
 * Remove support for GHC 8.4.*
+
+Several modules and functions have been deprecated, equivalent modules or
+functions are suggested in the deprecation warning messages by the compiler.
 
 ### Internal module changes
 
