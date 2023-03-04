@@ -22,19 +22,25 @@ module Main
     main
   ) where
 
+import Control.Applicative ((<|>))
 import Control.DeepSeq (NFData(..))
+import Data.Function ((&))
 import Data.Functor (($>))
 import Data.Monoid (Sum(..))
 import GHC.Magic (inline)
 import GHC.Magic (noinline)
 import System.IO (Handle)
 import System.Random (randomRIO)
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Internal.Data.Parser
+    (ParseError(..), Parser(..), Initial(..), Step(..))
 import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Prelude hiding
-    (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile)
+    (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile, span)
 
 import qualified Control.Applicative as AP
+import qualified Data.Foldable as F
+import qualified Data.Traversable as TR
 import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -263,13 +269,41 @@ manyTill :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
 manyTill value =
     Stream.parse (PR.manyTill (PR.satisfy (> 0)) (PR.satisfy (== value)) Fold.length)
 
-{-# INLINE splitAp #-}
-splitAp :: Monad m
+{-# INLINE splitAp2 #-}
+splitAp2 :: Monad m
     => Int -> Stream m Int -> m (Either ParseError ((), ()))
-splitAp value =
+splitAp2 value =
     Stream.parse
         ((,)
             <$> PR.dropWhile (<= (value `div` 2))
+            <*> PR.dropWhile (<= value)
+        )
+
+{-# INLINE splitAp4 #-}
+splitAp4 :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+splitAp4 value =
+    Stream.parse
+        (      (\() () () () -> ())
+            <$> PR.dropWhile (<= (value * 1 `div` 4))
+            <*> PR.dropWhile (<= (value * 2 `div` 4))
+            <*> PR.dropWhile (<= (value * 3 `div` 4))
+            <*> PR.dropWhile (<= value)
+        )
+
+{-# INLINE splitAp8 #-}
+splitAp8 :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+splitAp8 value =
+    Stream.parse
+        (      (\() () () () () () () () -> ())
+            <$> PR.dropWhile (<= (value * 1 `div` 8))
+            <*> PR.dropWhile (<= (value * 2 `div` 8))
+            <*> PR.dropWhile (<= (value * 3 `div` 8))
+            <*> PR.dropWhile (<= (value * 4 `div` 8))
+            <*> PR.dropWhile (<= (value * 5 `div` 8))
+            <*> PR.dropWhile (<= (value * 6 `div` 8))
+            <*> PR.dropWhile (<= (value * 7 `div` 8))
             <*> PR.dropWhile (<= value)
         )
 
@@ -291,10 +325,10 @@ splitApAfter value =
         <* PR.dropWhile (<= value)
         )
 
-{-# INLINE splitWith #-}
-splitWith :: Monad m
+{-# INLINE splitWith2 #-}
+splitWith2 :: Monad m
     => Int -> Stream m Int -> m (Either ParseError ((), ()))
-splitWith value =
+splitWith2 value =
     Stream.parse
         (PR.splitWith (,)
             (PR.dropWhile (<= (value `div` 2)))
@@ -311,14 +345,89 @@ split_ value =
             (PR.dropWhile (<= value))
         )
 
-{-# INLINE alt #-}
-alt :: Monad m
+-- XXX dropWhile with applicative does not fuse
+-- PR.dropWhile (<= (value * 1 `div` 4)) *> PR.die "alt"
+{-# INLINE takeWhileFail #-}
+takeWhileFail :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+takeWhileFail predicate (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        res <- finitial
+        return $ case res of
+            Fold.Partial s -> IPartial s
+            Fold.Done b -> IDone b
+
+    step s a =
+        if predicate a
+        then do
+            fres <- fstep s a
+            return
+                $ case fres of
+                      Fold.Partial s1 -> Partial 0 s1
+                      Fold.Done b -> Done 0 b
+        else return $ Error "fail"
+
+    extract s = fmap (Done 0) (fextract s)
+
+{-# INLINE alt2 #-}
+alt2 :: Monad m
     => Int -> Stream m Int -> m (Either ParseError ())
-alt value =
+alt2 value =
     Stream.parse
         (PR.alt
-            (PR.dropWhile (<= (value `div` 2)) *> PR.die "alt")
+            (takeWhileFail (<= (value `div` 2)) Fold.drain)
             (PR.dropWhile (<= value))
+        )
+
+{-# INLINE alt4 #-}
+alt4 :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+alt4 value =
+    Stream.parse
+        (   takeWhileFail (<= (value * 1 `div` 4)) Fold.drain
+        <|> takeWhileFail (<= (value * 2 `div` 4)) Fold.drain
+        <|> takeWhileFail (<= (value * 3 `div` 4)) Fold.drain
+        <|> PR.dropWhile (<= value)
+        )
+
+{-# INLINE alt8 #-}
+alt8 :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+alt8 value =
+    Stream.parse
+        (   takeWhileFail (<= (value * 1 `div` 8)) Fold.drain
+        <|> takeWhileFail (<= (value * 2 `div` 8)) Fold.drain
+        <|> takeWhileFail (<= (value * 3 `div` 8)) Fold.drain
+        <|> takeWhileFail (<= (value * 4 `div` 8)) Fold.drain
+        <|> takeWhileFail (<= (value * 5 `div` 8)) Fold.drain
+        <|> takeWhileFail (<= (value * 6 `div` 8)) Fold.drain
+        <|> takeWhileFail (<= (value * 7 `div` 8)) Fold.drain
+        <|> PR.dropWhile (<= value)
+        )
+
+{-# INLINE alt16 #-}
+alt16 :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+alt16 value =
+    Stream.parse
+        (   takeWhileFail (<= (value * 1 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 2 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 3 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 4 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 5 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 6 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 8 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 9 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 10 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 11 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 12 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 13 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 14 `div` 16)) Fold.drain
+        <|> takeWhileFail (<= (value * 15 `div` 16)) Fold.drain
+        <|> PR.dropWhile (<= value)
         )
 
 {-# INLINE altSmall #-}
@@ -331,6 +440,61 @@ altSmall value =
                 (PR.satisfy (>= value) *> PR.die "alt")
                 (PR.satisfy (<= value))
             )
+
+{-# INLINE monad #-}
+monad :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+monad value =
+    Stream.parse
+        $ do
+            PR.dropWhile (<= (value `div` 2))
+            PR.dropWhile (<= value)
+
+{-# INLINE monad4 #-}
+monad4 :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+monad4 value =
+    Stream.parse $ do
+        PR.dropWhile (<= (value `div` 4))
+        PR.dropWhile (<= (value `div` 2))
+        PR.dropWhile (<= (value * 3 `div` 4))
+        PR.dropWhile (<= value)
+
+{-# INLINE monad8 #-}
+monad8 :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+monad8 value =
+    Stream.parse $ do
+        PR.dropWhile (<= (value * 1 `div` 8))
+        PR.dropWhile (<= (value * 2 `div` 8))
+        PR.dropWhile (<= (value * 3 `div` 8))
+        PR.dropWhile (<= (value * 4 `div` 8))
+        PR.dropWhile (<= (value * 5 `div` 8))
+        PR.dropWhile (<= (value * 6 `div` 8))
+        PR.dropWhile (<= (value * 7 `div` 8))
+        PR.dropWhile (<= value)
+
+{-# INLINE monad16 #-}
+monad16 :: Monad m
+    => Int -> Stream m Int -> m (Either ParseError ())
+monad16 value =
+    Stream.parse $ do
+        PR.dropWhile (<= (value * 1 `div` 16))
+        PR.dropWhile (<= (value * 2 `div` 16))
+        PR.dropWhile (<= (value * 3 `div` 16))
+        PR.dropWhile (<= (value * 4 `div` 16))
+        PR.dropWhile (<= (value * 5 `div` 16))
+        PR.dropWhile (<= (value * 6 `div` 16))
+        PR.dropWhile (<= (value * 7 `div` 16))
+        PR.dropWhile (<= (value * 8 `div` 16))
+        PR.dropWhile (<= (value * 9 `div` 16))
+        PR.dropWhile (<= (value * 10 `div` 16))
+        PR.dropWhile (<= (value * 11 `div` 16))
+        PR.dropWhile (<= (value * 12 `div` 16))
+        PR.dropWhile (<= (value * 13 `div` 16))
+        PR.dropWhile (<= (value * 14 `div` 16))
+        PR.dropWhile (<= (value * 15 `div` 16))
+        PR.dropWhile (<= value)
 
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m
@@ -379,12 +543,90 @@ longestAllAny value =
         )
 -}
 
+-------------------------------------------------------------------------------
+-- Spanning
+-------------------------------------------------------------------------------
+
+{-# INLINE span #-}
+span :: Monad m => Int -> Stream m Int -> m (Either ParseError ((), ()))
+span value = Stream.parse (PR.span (<= (value `div` 2)) Fold.drain Fold.drain)
+
+{-# INLINE spanBy #-}
+spanBy :: Monad m => Int -> Stream m Int -> m (Either ParseError ((), ()))
+spanBy value =
+    Stream.parse (PR.spanBy (\_ i -> i <= (value `div` 2)) Fold.drain Fold.drain)
+
+{-# INLINE spanByRolling #-}
+spanByRolling :: Monad m => Int -> Stream m Int -> m (Either ParseError ((), ()))
+spanByRolling value =
+    Stream.parse (PR.spanByRolling (\_ i -> i <= value `div` 2) Fold.drain Fold.drain)
+
 parseManyChunksOfSum :: Int -> Handle -> IO Int
 parseManyChunksOfSum n inh =
     Stream.fold Fold.length
         $ Stream.parseMany
               (PR.fromFold $ Fold.take n Fold.sum)
               (Stream.unfold Handle.reader inh)
+
+-------------------------------------------------------------------------------
+-- Parsers in which -fspec-constr-recursive=16 is problematic
+-------------------------------------------------------------------------------
+
+-- XXX -fspec-constr-recursive=16 makes GHC go beserk when compiling these.
+-- We need to fix GHC so that we can have better control over that option or do
+-- not have to rely on it.
+--
+{-# INLINE lookAhead #-}
+lookAhead :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+lookAhead value =
+    Stream.parse (PR.lookAhead (PR.takeWhile (<= value) Fold.drain) $> ())
+
+-- XXX The timing of this increased 3x after the stepify extract changes.
+{-# INLINE sequenceA_ #-}
+sequenceA_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+sequenceA_ value =
+    Stream.parse (F.sequenceA_ $ replicate value (PR.satisfy (> 0)))
+
+-- quadratic complexity
+{-# INLINE sequenceA #-}
+sequenceA :: Monad m => Int -> Stream m Int -> m Int
+sequenceA value xs = do
+    x <- Stream.parse (TR.sequenceA (replicate value (PR.satisfy (> 0)))) xs
+    return $ length x
+
+-- quadratic complexity
+{-# INLINE sequence #-}
+sequence :: Monad m => Int -> Stream m Int -> m Int
+sequence value xs = do
+    x <- Stream.parse (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
+    return $ length x
+
+{-# INLINE sequence_ #-}
+sequence_ :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+sequence_ value xs =
+    Stream.parse (foldr f (return ()) (replicate value (PR.takeBetween 0 1 Fold.drain))) xs
+
+    where
+
+    {-# INLINE f #-}
+    f m k = m >>= (\_ -> k)
+
+-- choice using the "Alternative" instance with direct style parser type has
+-- quadratic performance complexity.
+--
+{-# INLINE choiceAsum #-}
+choiceAsum :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
+choiceAsum value =
+    Stream.parse (F.asum (replicate value (PR.satisfy (< 0)))
+        AP.<|> PR.satisfy (> 0))
+
+{-
+{-# INLINE choice #-}
+choice :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
+choice value =
+    Stream.parse
+        (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
+-}
 
 -------------------------------------------------------------------------------
 -- Parsing with unfolds
@@ -403,27 +645,6 @@ parseManyUnfoldArrays count arrays = do
     Stream.fold Fold.drain $ Stream.unfold streamParser src
 
 -------------------------------------------------------------------------------
--- Parsers in which -fspec-constr-recursive=16 is problematic
--------------------------------------------------------------------------------
-
--- XXX -fspec-constr-recursive=16 makes GHC go beserk when compiling these.
--- We need to fix GHC so that we can have better control over that option or do
--- not have to rely on it.
---
-{-# INLINE lookAhead #-}
-lookAhead :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
-lookAhead value =
-    Stream.parse (PR.lookAhead (PR.takeWhile (<= value) Fold.drain) $> ())
-
-{-
-{-# INLINE choice #-}
-choice :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
-choice value =
-    Stream.parse
-        (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
--}
-
--------------------------------------------------------------------------------
 -- Stream transformation
 -------------------------------------------------------------------------------
 
@@ -434,6 +655,35 @@ parseMany n =
     . fmap getSum
     . Stream.catRights . Stream.parseMany (PR.fromFold $ Fold.take n Fold.mconcat)
     . fmap Sum
+
+{-# INLINE parseManyGroupBy #-}
+parseManyGroupBy :: Monad m => (Int -> Int -> Bool) -> Stream m Int -> m ()
+parseManyGroupBy cmp =
+    Stream.fold Fold.drain . Stream.parseMany (PR.groupBy cmp Fold.drain)
+
+{-# INLINE parseManyGroupsRolling #-}
+parseManyGroupsRolling :: Monad m => Bool -> Stream m Int -> m ()
+parseManyGroupsRolling b =
+      Stream.fold Fold.drain
+    . Stream.parseMany (PR.groupByRolling (\_ _ -> b) Fold.drain)
+
+{-# INLINE parseManyGroupsRollingEither #-}
+parseManyGroupsRollingEither :: Monad m =>
+    (Int -> Int -> Bool) -> Int -> m ()
+parseManyGroupsRollingEither cmp value = do
+    sourceUnfoldrM value 1
+        & Stream.parseMany (PR.groupByRollingEither cmp Fold.drain Fold.drain)
+        & Stream.fold Fold.drain
+
+{-# INLINE parseManyGroupsRollingEitherAlt #-}
+parseManyGroupsRollingEitherAlt :: Monad m =>
+    (Int -> Int -> Bool) -> Int -> m ()
+parseManyGroupsRollingEitherAlt cmp value = do
+    sourceUnfoldrM value 1
+        -- Make the input unsorted.
+        & fmap (\x -> if even x then x + 2 else x)
+        & Stream.parseMany (PR.groupByRollingEither cmp Fold.drain Fold.drain)
+        & Stream.fold Fold.drain
 
 {-# INLINE parseIterate #-}
 parseIterate :: Monad m => Int -> Stream m Int -> m ()
@@ -450,11 +700,6 @@ parseIterate n =
 concatSequence :: Monad m => Stream m Int -> m (Either ParseError ())
 concatSequence =
     Stream.parse $ PR.sequence (Stream.repeat PR.one) Fold.drain
-
-{-# INLINE parseManyGroupBy #-}
-parseManyGroupBy :: Monad m => (Int -> Int -> Bool) -> Stream m Int -> m ()
-parseManyGroupBy cmp =
-    Stream.fold Fold.drain . Stream.parseMany (PR.groupBy cmp Fold.drain)
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -477,6 +722,7 @@ o_1_space_serial value =
     , benchIOSink value "takeP" $ takeP value
     , benchIOSink value "dropWhile" $ dropWhile value
     , benchIOSink value "takeStartBy" $ takeStartBy value
+    , benchIOSink value "takeEndBy_" $ takeEndBy_ value
     , benchIOSrc sourceEscapedFrames value "takeFramedByEsc_"
         $ takeFramedByEsc_ value
     , benchIOSink value "groupBy" $ groupBy
@@ -489,31 +735,69 @@ o_1_space_serial value =
     , benchIOSink value "deintercalate" $ deintercalate value
     , benchIOSink value "deintercalate1" $ deintercalate1 value
     , benchIOSink value "deintercalateAll" $ deintercalateAll value
-    , benchIOSink value "splitAp" $ splitAp value
+    -- Applicative and Monad
+    , benchIOSink value "splitAp2" $ splitAp2 value
+    , benchIOSink value "splitAp4" $ splitAp4 value
+    , benchIOSink value "splitAp8" $ splitAp8 value
     , benchIOSink value "splitApBefore" $ splitApBefore value
     , benchIOSink value "splitApAfter" $ splitApAfter value
-    , benchIOSink value "splitWith" $ splitWith value
-    , benchIOSink value "takeEndBy_" $ takeEndBy_ value
+    , benchIOSink value "splitWith2" $ splitWith2 value
+    , benchIOSink value "span" $ span value
+    , benchIOSink value "spanBy" $ spanBy value
+    , benchIOSink value "spanByRolling" $ spanByRolling value
+    , benchIOSink value "monad2" $ monad value
+    , benchIOSink value "monad4" $ monad4 value
+    , benchIOSink value "monad8" $ monad8 value
+    , benchIOSink value "monad16" $ monad16 value
+    -- Alternative
+    , benchIOSink value "alt2parseMany" $ altSmall value
+    , benchIOSink value "alt2" $ alt2 value
+    , benchIOSink value "alt4" $ alt4 value
+    , benchIOSink value "alt8" $ alt8 value
+    , benchIOSink value "alt16" $ alt16 value
     , benchIOSink value "many" many
     , benchIOSink value "many (wordBy even)" $ manyWordByEven
     , benchIOSink value "some" some
     , benchIOSink value "manyTill" $ manyTill value
+    , benchIOSink value "parseMany" $ parseMany value
+    , benchIOSink value "parseMany (take 1)" (parseMany 1)
+    , benchIOSink value "parseMany (take all)" (parseMany value)
+    , benchIOSink value "parseMany (groupBy (<))" (parseManyGroupBy (<))
+    , benchIOSink value "parseMany (groupBy (==))" (parseManyGroupBy (==))
+    , benchIOSink value "parseMany groupRollingBy (bound groups)"
+          $ parseManyGroupsRolling False
+    , benchIOSink value "parseMany groupRollingBy (1 group)"
+          $ parseManyGroupsRolling True
+    , bench "parseMany groupRollingByEither (Left)"
+        $ nfIO $ parseManyGroupsRollingEitherLeft
+    , bench "parseMany groupRollingByEither (Right)"
+        $ nfIO $ parseManyGroupsRollingEitherRight
+    , bench "parseMany groupRollingByEither (Alternating)"
+        $ nfIO $ parseManyGroupsRollingEitherAlt1
+    , benchIOSink value "parseIterate (take 1)" (parseIterate 1)
+    , benchIOSink value "parseIterate (take all)" (parseIterate value)
+    , benchIOSink value "concatSequence" concatSequence
     {-
     , benchIOSink value "tee" $ teeAllAny value
     , benchIOSink value "teeFst" $ teeFstAllAny value
     , benchIOSink value "shortest" $ shortestAllAny value
     , benchIOSink value "longest" $ longestAllAny value
     -}
-    , benchIOSink value "parseMany (take 1)" (parseMany 1)
-    , benchIOSink value "parseMany (take all)" (parseMany value)
-    , benchIOSink value "parseIterate (take 1)" (parseIterate 1)
-    , benchIOSink value "parseIterate (take all)" (parseIterate value)
-    , benchIOSink value "concatSequence" concatSequence
-    , benchIOSink value "parseMany (groupBy (<))" (parseManyGroupBy (<))
-    , benchIOSink value "parseMany (groupBy (==))" (parseManyGroupBy (==))
     , benchIOSink value "listEqBy" (listEqBy value)
     , benchIOSink value "streamEqBy" (streamEqBy value)
     ]
+
+    where
+
+    {-# NOINLINE parseManyGroupsRollingEitherLeft #-}
+    parseManyGroupsRollingEitherLeft = parseManyGroupsRollingEither (<) value
+
+    {-# NOINLINE parseManyGroupsRollingEitherRight #-}
+    parseManyGroupsRollingEitherRight = parseManyGroupsRollingEither (>) value
+
+    {-# NOINLINE parseManyGroupsRollingEitherAlt1 #-}
+    parseManyGroupsRollingEitherAlt1 =
+        parseManyGroupsRollingEitherAlt (>) value
 
 o_1_space_filesystem :: BenchEnv -> [Benchmark]
 o_1_space_filesystem env =
@@ -539,15 +823,22 @@ o_n_heap_serial value =
 
     -- non-linear time complexity (parserD)
     , benchIOSink value "split_" $ split_ value
-    , benchIOSink value "altSmall (2 x parseMany)" $ altSmall value
-    , benchIOSink value "altBig (1/2 x 2)" $ alt value
-    -- XXX why O(n) heap?
-    -- , benchIOSink value "choice" $ choice value
 
     -- These show non-linear time complexity.
     -- They accumulate the results in a list.
     , benchIOSink value "manyAlt" manyAlt
     , benchIOSink value "someAlt" someAlt
+    ]
+
+-- accumulate results in a list in IO
+o_n_space_serial :: Int -> [Benchmark]
+o_n_space_serial value =
+    [ benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100)
+    , benchIOSink value "sequenceA_/100" $ sequenceA_ (value `div` 100)
+    , benchIOSink value "sequence/100" $ sequence (value `div` 100)
+    , benchIOSink value "sequence_/100" $ sequence_ (value `div` 100)
+    , benchIOSink value "choice (asum)/100" $ choiceAsum (value `div` 100)
+    -- , benchIOSink value "choice/100" $ choice (value `div` 100)
     ]
 
 -------------------------------------------------------------------------------
@@ -572,6 +863,7 @@ main = do
         , bgroup (o_1_space_prefix moduleName)
             (o_1_space_serial_unfold value arrays)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
+        , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         ]
 #else
     -- Enable FUSION_CHECK macro at the beginning of the file

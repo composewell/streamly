@@ -386,12 +386,12 @@ benchmark Data.Fold.Window
   else
     buildable: True
 
-benchmark Data.Parser.ParserD
+benchmark Data.Parser
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Parser
-  main-is: ParserD.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Parser.hs
+  if impl(ghcjs)
     buildable: False
   else
     buildable: True
@@ -400,7 +400,7 @@ benchmark Data.Parser.ParserD
     if flag(dev)
       ghc-options: +RTS -M3000M -RTS
     else
-      ghc-options: +RTS -M750M -RTS
+      ghc-options: +RTS -M1000M -RTS
 
 benchmark Data.Parser.ParserK
   import: bench-options
@@ -428,22 +428,6 @@ benchmark Data.Parser.FromParserK
   else
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
-
-benchmark Data.Parser
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data
-  main-is: Parser.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-    build-depends: exceptions >= 0.8   && < 0.11
-  if flag(limit-build-mem)
-    if flag(dev)
-      ghc-options: +RTS -M3000M -RTS
-    else
-      ghc-options: +RTS -M1000M -RTS
 
 -------------------------------------------------------------------------------
 -- Raw Streams

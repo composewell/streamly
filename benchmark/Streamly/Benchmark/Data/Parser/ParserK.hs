@@ -14,12 +14,15 @@ module Main
     main
   ) where
 
+import Control.Applicative ((<|>))
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 import Data.Foldable (asum)
 import Streamly.Data.Array (Array, Unbox)
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream.StreamK (StreamK)
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser
+    (ParseError(..), Parser(..), Initial(..), Step(..))
 import Streamly.Internal.Data.Stream.StreamD (Stream)
 import System.Random (randomRIO)
 import Prelude hiding
@@ -30,6 +33,7 @@ import qualified Data.Foldable as F
 import qualified Data.Traversable as TR
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Data.Parser as PRD
 import qualified Streamly.Data.Parser.ParserK as PR
 import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
@@ -96,11 +100,31 @@ takeWhileK :: MonadIO m =>
     Int -> StreamK m (Array Int) -> m (Either ParseError ())
 takeWhileK value = PARSE_OP (takeWhile (<= value))
 
-{-# INLINE splitApp #-}
-splitApp :: MonadIO m
+{-# INLINE splitAp2 #-}
+splitAp2 :: MonadIO m
     => Int -> StreamK m (Array Int) -> m (Either ParseError ((), ()))
-splitApp value =
-    PARSE_OP ((,) <$> takeWhile (<= (value `div` 2)) <*> takeWhile (<= value))
+splitAp2 value =
+    PARSE_OP
+        ((,)
+            <$> takeWhile (<= (value `div` 2))
+            <*> takeWhile (<= value)
+        )
+
+{-# INLINE splitAp8 #-}
+splitAp8 :: MonadIO m
+    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+splitAp8 value =
+    PARSE_OP
+        (      (\() () () () () () () () -> ())
+            <$> takeWhile (<= ( value      `div` 8))
+            <*> takeWhile (<= ((value * 2) `div` 8))
+            <*> takeWhile (<= ((value * 3) `div` 8))
+            <*> takeWhile (<= ((value * 4) `div` 8))
+            <*> takeWhile (<= ((value * 5) `div` 8))
+            <*> takeWhile (<= ((value * 6) `div` 8))
+            <*> takeWhile (<= ((value * 7) `div` 8))
+            <*> takeWhile (<= value)
+        )
 
 {-# INLINE sequenceA #-}
 sequenceA :: MonadIO m => Int -> StreamK m (Array Int) -> m Int
@@ -134,6 +158,83 @@ sequence_ value =
         list = Prelude.replicate value parser
      in PARSE_OP (F.sequence_ list)
 
+{-# INLINE takeWhileFailD #-}
+takeWhileFailD :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+takeWhileFailD predicate (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        res <- finitial
+        return $ case res of
+            Fold.Partial s -> IPartial s
+            Fold.Done b -> IDone b
+
+    step s a =
+        if predicate a
+        then do
+            fres <- fstep s a
+            return
+                $ case fres of
+                      Fold.Partial s1 -> Partial 0 s1
+                      Fold.Done b -> Done 0 b
+        else return $ Error "fail"
+
+    extract s = fmap (Done 0) (fextract s)
+
+{-# INLINE takeWhileFail #-}
+takeWhileFail :: (Monad m, Unbox a) =>
+    (a -> Bool) -> Fold m a b -> PR.ParserK a m b
+takeWhileFail p f = PR.fromParser (takeWhileFailD p f)
+
+{-# INLINE alt2 #-}
+alt2 :: MonadIO m
+    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+alt2 value =
+    PARSE_OP
+        (   takeWhileFail (<= (value `div` 2)) Fold.drain
+        <|> takeWhile (<= value)
+        )
+
+{-# INLINE alt8 #-}
+alt8 :: MonadIO m
+    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+alt8 value =
+    PARSE_OP
+        (   takeWhileFail (<= ( value      `div` 8)) Fold.drain
+        <|> takeWhileFail (<= ((value * 2) `div` 8)) Fold.drain
+        <|> takeWhileFail (<= ((value * 3) `div` 8)) Fold.drain
+        <|> takeWhileFail (<= ((value * 4) `div` 8)) Fold.drain
+        <|> takeWhileFail (<= ((value * 5) `div` 8)) Fold.drain
+        <|> takeWhileFail (<= ((value * 6) `div` 8)) Fold.drain
+        <|> takeWhileFail (<= ((value * 7) `div` 8)) Fold.drain
+        <|> takeWhile (<= value)
+        )
+
+{-# INLINE alt16 #-}
+alt16 :: MonadIO m
+    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+alt16 value =
+    PARSE_OP
+        (   takeWhileFail (<= ( value      `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 2) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 3) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 4) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 5) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 6) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 7) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 8) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 9) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 10) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 11) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 12) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 13) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 14) `div` 16)) Fold.drain
+        <|> takeWhileFail (<= ((value * 15) `div` 16)) Fold.drain
+        <|> takeWhile (<= value)
+        )
+
 {-# INLINE manyAlt #-}
 manyAlt :: MonadIO m => StreamK m (Array Int) -> m Int
 manyAlt xs = do
@@ -153,6 +254,60 @@ choice value =
     PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
 
+{-# INLINE monad2 #-}
+monad2 :: MonadIO m
+    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+monad2 value =
+    PARSE_OP $ do
+        takeWhile (<= (value `div` 2))
+        takeWhile (<= value)
+
+{-# INLINE monad4 #-}
+monad4 :: MonadIO m
+    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+monad4 value =
+    PARSE_OP $ do
+        takeWhile (<= ( value      `div` 4))
+        takeWhile (<= ((value * 2) `div` 4))
+        takeWhile (<= ((value * 3) `div` 4))
+        takeWhile (<= value)
+
+{-# INLINE monad8 #-}
+monad8 :: MonadIO m
+    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+monad8 value =
+    PARSE_OP $ do
+        takeWhile (<= ( value      `div` 8))
+        takeWhile (<= ((value * 2) `div` 8))
+        takeWhile (<= ((value * 3) `div` 8))
+        takeWhile (<= ((value * 4) `div` 8))
+        takeWhile (<= ((value * 5) `div` 8))
+        takeWhile (<= ((value * 6) `div` 8))
+        takeWhile (<= ((value * 7) `div` 8))
+        takeWhile (<= value)
+
+{-# INLINE monad16 #-}
+monad16 :: MonadIO m
+    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+monad16 value =
+    PARSE_OP $ do
+        takeWhile (<= ( value      `div` 16))
+        takeWhile (<= ((value * 2) `div` 16))
+        takeWhile (<= ((value * 3) `div` 16))
+        takeWhile (<= ((value * 4) `div` 16))
+        takeWhile (<= ((value * 5) `div` 16))
+        takeWhile (<= ((value * 6) `div` 16))
+        takeWhile (<= ((value * 7) `div` 16))
+        takeWhile (<= ((value * 8) `div` 16))
+        takeWhile (<= ((value * 9) `div` 16))
+        takeWhile (<= ((value * 10) `div` 16))
+        takeWhile (<= ((value * 11) `div` 16))
+        takeWhile (<= ((value * 12) `div` 16))
+        takeWhile (<= ((value * 13) `div` 16))
+        takeWhile (<= ((value * 14) `div` 16))
+        takeWhile (<= ((value * 15) `div` 16))
+        takeWhile (<= value)
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -166,8 +321,17 @@ instance NFData ParseError where
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
-    [ benchIOSink value "takeWhile" $ takeWhileK value
-    , benchIOSink value "splitApp" $ splitApp value
+    [ benchIOSink value "drain" (Stream.fold Fold.drain . StreamK.toStream)
+    , benchIOSink value "takeWhile" $ takeWhileK value
+    , benchIOSink value "splitAp2" $ splitAp2 value
+    , benchIOSink value "splitAp8" $ splitAp8 value
+    , benchIOSink value "alt2" $ alt2 value
+    , benchIOSink value "alt8" $ alt8 value
+    , benchIOSink value "alt16" $ alt16 value
+    , benchIOSink value "monad2" $ monad2 value
+    , benchIOSink value "monad4" $ monad4 value
+    , benchIOSink value "monad8" $ monad8 value
+    , benchIOSink value "monad16" $ monad16 value
     ]
 
 {-# INLINE sepBy1 #-}
