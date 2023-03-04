@@ -88,11 +88,11 @@ data Array a =
           -- ^ The length of this slice.
         }
 
-unsafeFreeze :: MArray.Array a -> Array a
-unsafeFreeze (MArray.Array cont# arrS arrL _) = Array cont# arrS arrL
+unsafeFreeze :: MArray.MutArray a -> Array a
+unsafeFreeze (MArray.MutArray cont# arrS arrL _) = Array cont# arrS arrL
 
-unsafeThaw :: Array a -> MArray.Array a
-unsafeThaw (Array cont# arrS arrL) = MArray.Array cont# arrS arrL arrL
+unsafeThaw :: Array a -> MArray.MutArray a
+unsafeThaw (Array cont# arrS arrL) = MArray.MutArray cont# arrS arrL arrL
 
 {-# NOINLINE nil #-}
 nil :: Array a

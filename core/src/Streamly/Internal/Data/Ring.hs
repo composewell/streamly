@@ -15,13 +15,13 @@ module Streamly.Internal.Data.Ring
 
 import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef, IORef)
 import Streamly.Internal.Data.Array.Generic.Mut.Type
-    ( Array(..)
+    ( MutArray(..)
     , new
     , putIndexUnsafe
     )
 
 data Ring a = Ring
-    { arr :: Array a
+    { arr :: MutArray a
     , ringHead :: IORef Int -- current index to be over-written
     , ringMax :: !Int       -- first index beyond allocated memory
     }
