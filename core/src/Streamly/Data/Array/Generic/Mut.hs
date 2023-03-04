@@ -11,7 +11,7 @@
 module Streamly.Data.Array.Generic.Mut
 (
     -- * Type
-      Array
+      MutArray
 
     -- * Construction
     , writeN
