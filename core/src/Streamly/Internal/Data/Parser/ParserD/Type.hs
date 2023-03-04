@@ -203,7 +203,8 @@ where
 
 import Control.Applicative (Alternative(..), liftA2)
 import Control.Exception (Exception(..))
-import Control.Monad (MonadPlus(..), (>=>))
+-- import Control.Monad (MonadPlus(..), (>=>))
+import Control.Monad ((>=>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor (Bifunctor(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -218,7 +219,9 @@ import Prelude hiding (concatMap, filter)
 -- >>> :m
 -- >>> import Control.Applicative ((<|>))
 -- >>> import Data.Bifunctor (second)
--- >>> import Prelude hiding (concatMap)
+-- >>> import Prelude hiding (concatMap, span)
+-- >>> import Streamly.Data.Fold (Fold)
+-- >>> import Streamly.Data.Parser (Parser)
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream (parse)
@@ -492,16 +495,17 @@ data SeqParseState sl f sr = SeqParseL !sl | SeqParseR !f !sr
 -- cannot scale to a large number of compositions. After around 100
 -- compositions the performance starts dipping rapidly beyond a CPS style
 -- unfused implementation.
-
--- | Sequential parser application. Apply two parsers sequentially to an input
--- stream.  The input is provided to the first parser, when it is done the
--- remaining input is provided to the second parser. If both the parsers
--- succeed their outputs are combined using the supplied function. The
--- operation fails if any of the parsers fail.
 --
 -- Note: This is a parsing dual of appending streams using
--- 'Streamly.Data.Stream.append', it splits the streams using two parsers and zips
--- the results.
+-- 'Streamly.Data.Stream.append', it splits the streams using two parsers and
+-- zips the results.
+
+-- | Sequential parser application.
+--
+-- Apply two parsers sequentially to an input stream. The first parser runs and
+-- processes the input, the remaining input is then passed to the second
+-- parser. If both parsers succeed, their outputs are combined using the
+-- supplied function. If either parser fails, the operation fails.
 --
 -- This implementation is strict in the second argument, therefore, the
 -- following will fail:
@@ -510,28 +514,15 @@ data SeqParseState sl f sr = SeqParseL !sl | SeqParseR !f !sr
 -- *** Exception: Prelude.undefined
 -- ...
 --
--- Compare with 'Applicative' instance method '<*>'. This implementation allows
--- stream fusion but has quadratic complexity. This can fuse with other
--- operations and can be faster than 'Applicative' instance for small number
--- (less than 8) of compositions.
+-- Although this implementation allows stream fusion, it has quadratic
+-- complexity, making it suitable only for a small number of compositions.
+-- As a thumb rule use it for less than 8 compositions, use ParserK otherwise.
 --
--- Many combinators can be expressed using @splitWith@ and other parser
--- primitives. Some common idioms are described below,
+-- Below are some common idioms that can be expressed using 'splitWith' and
+-- other parser primitives:
 --
--- @
--- span :: (a -> Bool) -> Fold m a b -> Fold m a b -> Parser a m b
--- span pred f1 f2 = splitWith (,) ('takeWhile' pred f1) ('fromFold' f2)
--- @
---
--- @
--- spanBy :: (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser a m b
--- spanBy eq f1 f2 = splitWith (,) ('groupBy' eq f1) ('fromFold' f2)
--- @
---
--- @
--- spanByRolling :: (a -> a -> Bool) -> Fold m a b -> Fold m a b -> Parser a m b
--- spanByRolling eq f1 f2 = splitWith (,) ('groupByRolling' eq f1) ('fromFold' f2)
--- @
+-- >>> span p f1 f2 = Parser.splitWith (,) (Parser.takeWhile p f1) (Parser.fromFold f2)
+-- >>> spanBy eq f1 f2 = Parser.splitWith (,) (Parser.groupBy eq f1) (Parser.fromFold f2)
 --
 -- /Pre-release/
 --
@@ -695,10 +686,9 @@ data SeqAState sl sr = SeqAL !sl | SeqAR !sr
 -- *** Exception: Prelude.undefined
 -- ...
 --
--- Compare with 'Applicative' instance method '*>'. This implementation allows
--- stream fusion but has quadratic complexity. This can fuse with other
--- operations, and can be faster than 'Applicative' instance for small
--- number (less than 8) of compositions.
+-- Although this implementation allows stream fusion, it has quadratic
+-- complexity, making it suitable only for a small number of compositions.
+-- As a thumb rule use it for less than 8 compositions, use ParserK otherwise.
 --
 -- /Pre-release/
 --
@@ -836,9 +826,10 @@ data AltParseState sl sr = AltParseL !Int !sl | AltParseR !sr
 -- each subsequent alternative's input element has to go through, therefore, it
 -- cannot scale to a large number of compositions
 
--- | Sequential alternative. Apply the input to the first parser and return the
--- result if the parser succeeds. If the first parser fails then backtrack and
--- apply the same input to the second parser and return the result.
+-- | Sequential alternative. The input is first passed to the first parser, and
+-- if it succeeds, the result is returned. However, if the first parser fails,
+-- the parser driver backtracks and tries the same input on the second parser,
+-- returning the result if it succeeds.
 --
 -- Note: This implementation is not lazy in the second argument. The following
 -- will fail:
@@ -846,10 +837,9 @@ data AltParseState sl sr = AltParseL !Int !sl | AltParseR !sr
 -- >> Stream.parse (Parser.satisfy (> 0) `Parser.alt` undefined) $ Stream.fromList [1..10]
 -- *** Exception: Prelude.undefined
 --
--- Compare with ParserK 'Alternative' instance method '<|>'. This
--- implementation allows stream fusion but has quadratic complexity. This can
--- fuse with other operations and can be much faster than 'Alternative'
--- instance for small number (less than 8) of alternatives.
+-- Although this implementation allows stream fusion, it has quadratic
+-- complexity, making it suitable only for a small number of compositions.
+-- As a thumb rule use it for less than 8 compositions, use ParserK otherwise.
 --
 -- /Time Complexity:/ O(n^2) where n is the number of compositions.
 --
@@ -1179,7 +1169,10 @@ dieM err = Parser undefined (IError <$> err) undefined
 -- Note: With the direct style parser type, the list in "some" and "many" is
 -- accumulated strictly, it cannot be consumed lazily.
 
--- | 'Alternative' instance using 'alt'.
+-- | Sequential alternative. The input is first passed to the first parser, and
+-- if it succeeds, the result is returned. However, if the first parser fails,
+-- the parser driver backtracks and tries the same input on the second parser,
+-- returning the result if it succeeds.
 --
 -- Note: The implementation of '<|>' is not lazy in the second
 -- argument. The following code will fail:
@@ -1188,6 +1181,11 @@ dieM err = Parser undefined (IError <$> err) undefined
 -- *** Exception: Prelude.undefined
 -- ...
 --
+-- WARNING! this is not suitable for large scale use. As a thumb rule stream
+-- fusion works well for less than 8 compositions of this operation, otherwise
+-- consider using 'ParserK'. Do not use recursive parser implementations based
+-- on this Alternative instance.
+
 instance Monad m => Alternative (Parser a m) where
     {-# INLINE empty #-}
     empty = die "empty"
@@ -1351,6 +1349,10 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
 --
+-- Although this implementation allows stream fusion, it has quadratic
+-- complexity, making it suitable only for a small number of compositions. As a
+-- thumb rule use it for less than 8 compositions, use 'ParserK' otherwise.
+--
 instance Monad m => Monad (Parser a m) where
     {-# INLINE return #-}
     return = pure
@@ -1365,6 +1367,7 @@ instance Monad m => Fail.MonadFail (Parser a m) where
     {-# INLINE fail #-}
     fail = die
 
+{-
 -- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
 --
 instance Monad m => MonadPlus (Parser a m) where
@@ -1373,6 +1376,7 @@ instance Monad m => MonadPlus (Parser a m) where
 
     {-# INLINE mplus #-}
     mplus = alt
+-}
 
 instance (Monad m, MonadIO m) => MonadIO (Parser a m) where
     {-# INLINE liftIO #-}

@@ -1280,6 +1280,10 @@ parserDone :: Applicative m =>
 parserDone (ParserK.Success n b) _ _ = pure $ ParserK.Done n b
 parserDone (ParserK.Failure n e) _ _ = pure $ ParserK.Error n e
 
+-- XXX parseDBreakChunks may be faster than converting parserD to parserK and
+-- using parseBreakChunks. We can also use parseBreak as an alternative to the
+-- monad instance of ParserD.
+
 -- | Run a 'ParserK' over a chunked 'StreamK' and return the rest of the Stream.
 {-# INLINE_NORMAL parseBreakChunks #-}
 parseBreakChunks

@@ -380,7 +380,8 @@ toFold (Parser pstep pinitial pextract) = Fold step initial extract
 -- Upgrade folds to parses
 -------------------------------------------------------------------------------
 
--- | Make a 'Parser' from a 'Fold'.
+-- | Make a 'Parser' from a 'Fold'. This parser sends all of its input to the
+-- fold.
 --
 {-# INLINE fromFold #-}
 fromFold :: Monad m => Fold m a b -> Parser a m b
