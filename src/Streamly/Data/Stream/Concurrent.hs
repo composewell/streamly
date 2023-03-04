@@ -69,6 +69,13 @@ module Streamly.Data.Stream.Concurrent
     , parMapM
     , parSequence
 
+    -- *** Combine two
+    -- | Use a channel for each pair.
+    , parZipWithM
+    , parZipWith
+    , parMergeByM
+    , parMergeBy
+
     -- *** List of streams
     -- | Shares a single channel across many streams.
 
