@@ -212,6 +212,7 @@ module Streamly.Data.Fold
     , index
     , the
     , find
+    , findM
     , lookup
     , findIndex
     , elemIndex
