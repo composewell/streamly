@@ -477,7 +477,7 @@ library
                     -- packages depending on the "ghc" package (packages
                     -- depending on doctest is a common example) can
                     -- depend on streamly.
-                       base              >= 4.12  && < 4.18
+                       base              >= 4.12  && < 4.19
                      , containers        >= 0.6.0 && < 0.7
                      , deepseq           >= 1.4.4 && < 1.5
                      , exceptions        >= 0.8.0 && < 0.11
@@ -517,14 +517,14 @@ library
       build-depends: directory >= 1.2.2 && < 1.4
 
     if os(windows)
-      build-depends: Win32 >= 2.6 && < 2.13
+      build-depends: Win32 >= 2.6 && < 2.14
 
     if os(darwin)
       build-depends: directory >= 1.2.2 && < 1.4
       frameworks: Cocoa
 
     if flag(inspection)
-      build-depends:   inspection-testing >= 0.4   && < 0.5
+      build-depends:   inspection-testing >= 0.4   && < 0.6
 
     -- Array uses a Storable constraint in dev build making several inspection
     -- tests fail

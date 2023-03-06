@@ -433,7 +433,7 @@ library
                     -- depend on streamly.
                        ghc-prim          >= 0.5.3 && < 0.10
                      , fusion-plugin-types >= 0.1 && < 0.2
-                     , base              >= 4.12  && < 4.18
+                     , base              >= 4.12  && < 4.19
                      , exceptions        >= 0.8.0 && < 0.11
                      , transformers      >= 0.5.5 && < 0.7
                      , filepath          >= 1.4.2 && < 1.5
@@ -446,6 +446,6 @@ library
 
                      -- XXX to be removed
                      , containers        >= 0.6.0 && < 0.7
-                     , heaps             >= 0.3     && < 0.5
+                     , heaps             >= 0.3   && < 0.5
     if !flag(use-unliftio)
       build-depends:   monad-control     >= 1.0 && < 1.1
