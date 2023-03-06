@@ -56,6 +56,11 @@ module Streamly.Data.StreamK
     , parseBreakChunks
     , parseChunks
 
+    -- * Transformation
+    , mapM
+    , dropWhile
+    , take
+
     -- * Combining Two Streams
     -- ** Appending
     , append
@@ -92,4 +97,4 @@ module Streamly.Data.StreamK
 where
 
 import Streamly.Internal.Data.Stream.StreamK
-import Prelude hiding (reverse, zipWith)
+import Prelude hiding (reverse, zipWith, mapM, dropWhile, take)
