@@ -276,7 +276,7 @@ module Streamly.Data.Stream
     -- the stream, it can merely transform them.
     , sequence
     , mapM
-    -- , trace -- XXX Use "tracing" map instead?
+    , trace
     , tap
     , delay
 
