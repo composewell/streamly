@@ -130,8 +130,8 @@ module Streamly.Data.Parser
     -- , wordProcessQuotes
     -- , wordKeepQuotes
 
-    -- * Alternative
-    , alt
+    -- -- * Alternative
+    -- , alt
 
     -- ** Splitting
     , many
