@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Parser.ParserK
+-- Module      : Streamly.Data.ParserK
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -11,7 +11,7 @@
 --
 -- To run a 'ParserK' convert it to a 'Parser' and then run it.
 --
-module Streamly.Data.Parser.ParserK
+module Streamly.Data.ParserK
     (
     -- * Parser Type
       ParserK
