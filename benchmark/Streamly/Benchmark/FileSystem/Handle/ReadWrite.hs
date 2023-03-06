@@ -110,7 +110,7 @@ readFromBytesNull inh devNull = IFH.putBytes devNull $ S.unfold FH.reader inh
 inspect $ hasNoTypeClasses 'readFromBytesNull
 inspect $ 'readFromBytesNull `hasNoType` ''Step
 inspect $ 'readFromBytesNull `hasNoType` ''MAS.SpliceState
-inspect $ 'readFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.arraysOf
+inspect $ 'readFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.chunksOf
 inspect $ 'readFromBytesNull `hasNoType` ''D.FoldMany
 #endif
 
@@ -124,7 +124,7 @@ readWithFromBytesNull inh devNull =
 inspect $ hasNoTypeClasses 'readWithFromBytesNull
 inspect $ 'readWithFromBytesNull `hasNoType` ''Step
 inspect $ 'readWithFromBytesNull `hasNoType` ''MAS.SpliceState
-inspect $ 'readWithFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.arraysOf
+inspect $ 'readWithFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.chunksOf
 inspect $ 'readWithFromBytesNull `hasNoType` ''D.FoldMany
 #endif
 

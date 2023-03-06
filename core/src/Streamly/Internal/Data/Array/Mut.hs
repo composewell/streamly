@@ -90,7 +90,7 @@ getSlicesFromLen from len =
 -- as efficient when the size is already known.
 --
 -- Note that if the input stream is too large memory allocation for the array
--- may fail.  When the stream size is not known, `arraysOf` followed by
+-- may fail.  When the stream size is not known, `chunksOf` followed by
 -- processing of indvidual arrays in the resulting stream should be preferred.
 --
 -- /Pre-release/

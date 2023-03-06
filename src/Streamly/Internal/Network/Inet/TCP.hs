@@ -385,7 +385,7 @@ putBytesWithBufferOf
     -> PortNumber
     -> Stream m Word8
     -> m ()
-putBytesWithBufferOf n addr port m = putChunks addr port $ A.arraysOf n m
+putBytesWithBufferOf n addr port m = putChunks addr port $ A.chunksOf n m
 
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of

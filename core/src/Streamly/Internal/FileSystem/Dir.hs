@@ -397,8 +397,8 @@ fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
 -- @since 0.7.0
 {-# INLINE fromStreamWithBufferOf #-}
 fromStreamWithBufferOf :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
-fromStreamWithBufferOf n h m = fromChunks h $ S.arraysOf n m
--- fromStreamWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
+fromStreamWithBufferOf n h m = fromChunks h $ S.chunksOf n m
+-- fromStreamWithBufferOf n h m = fromChunks h $ AS.chunksOf n m
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --

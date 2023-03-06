@@ -185,7 +185,7 @@ import Streamly.Internal.Data.Unboxed (Unbox)
 import qualified Data.Heap as H
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array.Type as A
-    (arraysOf, read)
+    (chunksOf, read)
 import qualified Streamly.Internal.Data.Fold as FL
     (Fold, Step(..), takeEndBy_, takeEndBy, catMaybes, take)
 import qualified Streamly.Internal.Data.IsMap as IsMap
@@ -996,7 +996,7 @@ chunksOf n f = fromStreamD . D.groupsOf n f . toStreamD
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Unbox a)
     => Int -> t m a -> t m (Array a)
-arraysOf n = fromStreamD . A.arraysOf n . toStreamD
+arraysOf n = fromStreamD . A.chunksOf n . toStreamD
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control

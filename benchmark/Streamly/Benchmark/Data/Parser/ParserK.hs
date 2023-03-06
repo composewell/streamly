@@ -65,7 +65,7 @@ benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1)
         >>= f
             . StreamK.fromStream
-            . Stream.arraysOf 4000
+            . Stream.chunksOf 4000
             . sourceUnfoldrM value
 
 -------------------------------------------------------------------------------

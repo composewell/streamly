@@ -97,7 +97,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Data.Array as A (reader, length, writeN)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Type as A
-    (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe, arraysOf)
+    (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe, chunksOf)
 import qualified Streamly.Internal.Data.Array.Mut as MArray
     (MutArray(..), newPinnedBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Stream.StreamD as S
@@ -495,7 +495,7 @@ writeChunksWithBufferOf = writeChunksWith
 --
 {-# INLINE putBytesWith #-}
 putBytesWith :: MonadIO m => Int -> Socket -> Stream m Word8 -> m ()
-putBytesWith n h m = putChunks h $ A.arraysOf n m
+putBytesWith n h m = putChunks h $ A.chunksOf n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes before writing.

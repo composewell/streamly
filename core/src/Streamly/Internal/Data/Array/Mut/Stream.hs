@@ -11,7 +11,7 @@
 module Streamly.Internal.Data.Array.Mut.Stream
     (
     -- * Generation
-      arraysOf
+      chunksOf
 
     -- * Compaction
     , packArraysChunksOf
@@ -43,18 +43,18 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 
--- | @arraysOf n stream@ groups the elements in the input stream into arrays of
+-- | @chunksOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
 -- Same as the following but may be more efficient:
 --
--- > arraysOf n = Stream.foldMany (MArray.writeN n)
+-- > chunksOf n = Stream.foldMany (MArray.writeN n)
 --
 -- /Pre-release/
-{-# INLINE arraysOf #-}
-arraysOf :: (MonadIO m, Unbox a)
+{-# INLINE chunksOf #-}
+chunksOf :: (MonadIO m, Unbox a)
     => Int -> Stream m a -> Stream m (MutArray a)
-arraysOf = MArray.arraysOf
+chunksOf = MArray.chunksOf
 
 -------------------------------------------------------------------------------
 -- Compact

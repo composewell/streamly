@@ -37,7 +37,7 @@ module Streamly.Internal.Data.Stream.Reduce
 
     -- ** Chunking
     -- | Element unaware grouping.
-    , arraysOf
+    , chunksOf
 
     -- ** Splitting
     -- XXX Implement these as folds or parsers instead.
@@ -430,15 +430,15 @@ parseIterate f i m = fromStreamD $
 -- Chunking
 ------------------------------------------------------------------------------
 
--- | @arraysOf n stream@ groups the elements in the input stream into arrays of
+-- | @chunksOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
 -- Same as the following but may be more efficient:
 --
--- >>> arraysOf n = Stream.foldMany (Array.writeN n)
+-- >>> chunksOf n = Stream.foldMany (Array.writeN n)
 --
 -- /Pre-release/
-{-# INLINE arraysOf #-}
-arraysOf :: (MonadIO m, Unbox a)
+{-# INLINE chunksOf #-}
+chunksOf :: (MonadIO m, Unbox a)
     => Int -> Stream m a -> Stream m (Array a)
-arraysOf n = fromStreamD . Array.arraysOf n . toStreamD
+chunksOf n = fromStreamD . Array.chunksOf n . toStreamD

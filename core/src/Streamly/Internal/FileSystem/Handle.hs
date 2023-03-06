@@ -429,13 +429,11 @@ putChunksWith n h xs = putChunks h $ AS.compact n xs
 -- in chunks of @bufsize@.  A write is performed to the IO device as soon as we
 -- collect the required input size.
 --
--- >>> putBytesWith n h m = Handle.putChunks h $ Stream.arraysOf n m
+-- >>> putBytesWith n h m = Handle.putChunks h $ Stream.chunksOf n m
 --
 {-# INLINE putBytesWith #-}
 putBytesWith :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
-putBytesWith n h m = putChunks h $ A.arraysOf n m
-
--- putBytesWith n h m = putChunks h $ AS.arraysOf n m
+putBytesWith n h m = putChunks h $ A.chunksOf n m
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing.
@@ -494,7 +492,7 @@ writeChunksWithBufferOf = writeChunksWith
 -- do not want buffering to occur at GHC level as well. Same thing applies to
 -- writes as well.
 
--- XXX Maybe we should have a Fold.arraysOf like we have Stream.arraysOf
+-- XXX Maybe we should have a Fold.chunksOf like we have Stream.chunksOf
 
 -- | @writeWith reqSize handle@ writes the input stream to @handle@.
 -- Bytes in the input stream are collected into a buffer until we have a chunk

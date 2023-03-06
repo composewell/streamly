@@ -436,7 +436,7 @@ module Streamly.Data.Stream.StreamDK
     -- * Repeated Fold
     , foldMany -- XXX Rename to foldRepeat
     , parseMany
-    , arraysOf
+    , chunksOf
 
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.

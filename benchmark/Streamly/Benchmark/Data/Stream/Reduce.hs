@@ -199,7 +199,7 @@ o_1_space_grouping value =
         ,
 #endif
         -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
-        -- modules we can bring those here. arraysOf benchmarks are in
+        -- modules we can bring those here. chunksOf benchmarks are in
         -- Parser/ParserD/Array.Stream/FileSystem.Handle.
           benchIOSink value "foldMany" foldMany
         , benchIOSink value "foldManyPost" foldManyPost

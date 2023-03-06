@@ -853,7 +853,7 @@ main = do
 
     where
 
-    alloc value = Stream.fold Fold.toList $ Stream.arraysOf 100 $ sourceUnfoldrM value 0
+    alloc value = Stream.fold Fold.toList $ Stream.chunksOf 100 $ sourceUnfoldrM value 0
 
     allBenchmarks env arrays value =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
