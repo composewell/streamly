@@ -677,7 +677,16 @@ foldl' fstep begin = foldlM' (\b a -> return (fstep b a)) (return begin)
 -- Special folds
 ------------------------------------------------------------------------------
 
--- | Run a streaming composition, discard the results.
+-- >>> drain = mapM_ (\_ -> return ())
+
+-- |
+-- Definitions:
+--
+-- >>> drain = Stream.fold Fold.drain
+-- >>> drain = Stream.foldrM (\_ xs -> xs) (return ())
+--
+-- Run a stream, discarding the results.
+--
 {-# INLINE_LATE drain #-}
 drain :: Monad m => Stream m a -> m ()
 -- drain = foldrM (\_ xs -> xs) (return ())
@@ -694,6 +703,45 @@ drain (Stream step state) = go SPEC state
 -- To Containers
 ------------------------------------------------------------------------------
 
+-- This toList impl is faster (30% on streaming-benchmarks) than the
+-- corresponding left fold. The left fold retains an additional argument in the
+-- recursive loop.
+--
+-- Core for the right fold loop:
+--
+-- main_$s$wgo1
+--   = \ sc_s3e6 sc1_s3e5 ->
+--       case ># sc1_s3e5 100000# of {
+--         __DEFAULT ->
+--           case main_$s$wgo1 sc_s3e6 (+# sc1_s3e5 1#) of
+--
+-- Core for the left fold loop:
+--
+--  main_$s$wgo1
+--   = \ sc_s3oT sc1_s3oS sc2_s3oR ->
+--       case sc2_s3oR of fs2_a2lw { __DEFAULT ->
+--       case ># sc1_s3oS 100000# of {
+--         __DEFAULT ->
+--           let { wild_a2og = I# sc1_s3oS } in
+--           main_$s$wgo1
+--             sc_s3oT (+# sc1_s3oS 1#) (\ x_X9 -> fs2_a2lw (: wild_a2og x_X9));
+
+-- |
+-- Definitions:
+--
+-- >>> toList = Stream.foldr (:) []
+-- >>> toList = Stream.fold Fold.toList
+--
+-- Convert a stream into a list in the underlying monad. The list can be
+-- consumed lazily in a lazy monad (e.g. 'Identity'). In a strict monad (e.g.
+-- IO) the whole list is generated and buffered before it can be consumed.
+--
+-- /Warning!/ working on large lists accumulated as buffers in memory could be
+-- very inefficient, consider using "Streamly.Data.Array" instead.
+--
+-- Note that this could a bit more efficient compared to @Stream.fold
+-- Fold.toList@, and it can fuse with pure list consumers.
+--
 {-# INLINE_NORMAL toList #-}
 toList :: Monad m => Stream m a -> m [a]
 toList = Streamly.Internal.Data.Stream.StreamD.Type.foldr (:) []

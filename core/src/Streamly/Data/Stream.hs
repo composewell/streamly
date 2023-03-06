@@ -232,7 +232,7 @@ module Streamly.Data.Stream
     -- ending in the general shape @Stream m a -> m (b, Stream m a)@
     , uncons
 
-    -- ** Folding
+    -- ** Strict Left Folds
     -- XXX Need to have a general parse operation here which can be used to
     -- express all others.
     , fold -- XXX rename to run? We can have a Stream.run and Fold.run.
@@ -248,15 +248,22 @@ module Streamly.Data.Stream
     , parse
     -- , parseBreak
 
-    -- -- ** Lazy Right Folds
-    -- Consuming a stream to build a right associated expression, suitable
+    -- ** Lazy Right Folds
+    -- | Consuming a stream to build a right associated expression, suitable
     -- for lazy evaluation. Evaluation of the input happens when the output of
     -- the fold is evaluated, the fold output is a lazy thunk.
     --
     -- This is suitable for stream transformation operations, for example,
     -- operations like mapping a function over the stream.
-    -- , foldrM
-    -- , foldr
+    , foldrM
+    , foldr
+
+    -- ** Specific Folds
+    -- | Usually you can use the folds in "Streamly.Data.Fold". However, some
+    -- folds that may be commonly used or may have an edge in performance in
+    -- some cases are provided here.
+    -- , drain
+    , toList
 
     -- * Mapping
     -- | Stateless one-to-one transformations. Use 'fmap' for mapping a pure
