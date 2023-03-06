@@ -812,12 +812,11 @@ mapM f (Stream step state) = Stream step' state
 map :: Monad m => (a -> b) -> Stream m a -> Stream m b
 map f = mapM (return . f)
 
-instance Functor m => Functor (Stream m) where
+-- (Functor m) based implementation of fmap does not fuse well in
+-- streaming-benchmarks. XXX need to investigate why.
+instance Monad m => Functor (Stream m) where
     {-# INLINE fmap #-}
-    fmap f (Stream step state) = Stream step' state
-      where
-        {-# INLINE_LATE step' #-}
-        step' gst st = fmap (fmap f) (step (adaptState gst) st)
+    fmap = map
 
     {-# INLINE (<$) #-}
     (<$) = fmap . const

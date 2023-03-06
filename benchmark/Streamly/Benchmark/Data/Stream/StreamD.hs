@@ -324,7 +324,7 @@ filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
 -- Nested Composition
 -------------------------------------------------------------------------------
 
-instance Applicative f => Applicative (S.Stream f) where
+instance Monad f => Applicative (S.Stream f) where
     {-# INLINE pure #-}
     pure = S.fromPure
 
