@@ -749,6 +749,8 @@ postscanlM fstep begin (Stream step state) = Stream step' Nothing
 postscanl :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
 postscanl f seed = postscanlM (\a b -> return (f a b)) (return seed)
 
+-- | Like 'scanl'' but with a monadic step function and a monadic seed.
+--
 {-# INLINE_NORMAL scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
 scanlM' fstep begin (Stream step state) = Stream step' Nothing
@@ -783,6 +785,51 @@ scanlMAfter' :: Monad m
 scanlMAfter' fstep initial done s =
     initial `consM` postscanlMAfter' fstep initial done s
 
+-- >>> scanl' f z xs = z `Stream.cons` postscanl' f z xs
+
+-- | Strict left scan. Like 'map', 'scanl'' too is a one to one transformation,
+-- however it adds an extra element.
+--
+-- >>> Stream.toList $ Stream.scanl' (+) 0 $ Stream.fromList [1,2,3,4]
+-- [0,1,3,6,10]
+--
+-- >>> Stream.toList $ Stream.scanl' (flip (:)) [] $ Stream.fromList [1,2,3,4]
+-- [[],[1],[2,1],[3,2,1],[4,3,2,1]]
+--
+-- The output of 'scanl'' is the initial value of the accumulator followed by
+-- all the intermediate steps and the final result of 'foldl''.
+--
+-- By streaming the accumulated state after each fold step, we can share the
+-- state across multiple stages of stream composition. Each stage can modify or
+-- extend the state, do some processing with it and emit it for the next stage,
+-- thus modularizing the stream processing. This can be useful in
+-- stateful or event-driven programming.
+--
+-- Consider the following monolithic example, computing the sum and the product
+-- of the elements in a stream in one go using a @foldl'@:
+--
+-- >>> Stream.fold (Fold.foldl' (\(s, p) x -> (s + x, p * x)) (0,1)) $ Stream.fromList [1,2,3,4]
+-- (10,24)
+--
+-- Using @scanl'@ we can make it modular by computing the sum in the first
+-- stage and passing it down to the next stage for computing the product:
+--
+-- >>> :{
+--   Stream.fold (Fold.foldl' (\(_, p) (s, x) -> (s, p * x)) (0,1))
+--   $ Stream.scanl' (\(s, _) x -> (s + x, x)) (0,1)
+--   $ Stream.fromList [1,2,3,4]
+-- :}
+-- (10,24)
+--
+-- IMPORTANT: 'scanl'' evaluates the accumulator to WHNF.  To avoid building
+-- lazy expressions inside the accumulator, it is recommended that a strict
+-- data structure is used for accumulator.
+--
+-- >>> scanl' step z = Stream.scan (Fold.foldl' step z)
+-- >>> scanl' f z xs = Stream.scanlM' (\a b -> return (f a b)) (return z) xs
+--
+-- See also: 'usingStateT'
+--
 {-# INLINE scanl' #-}
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
 scanl' f seed = scanlM' (\a b -> return (f a b)) (return seed)
@@ -835,6 +882,9 @@ scanl1 :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
 scanl1 f = scanl1M (\x y -> return (f x y))
 
 -- Adapted from the vector package
+
+-- | Like 'scanl1'' but with a monadic step function.
+--
 {-# INLINE_NORMAL scanl1M' #-}
 scanl1M' :: Monad m => (a -> a -> m a) -> Stream m a -> Stream m a
 scanl1M' fstep (Stream step state) = Stream step' (state, Nothing)
@@ -856,6 +906,13 @@ scanl1M' fstep (Stream step state) = Stream step' (state, Nothing)
             Skip s -> return $ Skip (s, Just acc)
             Stop   -> return Stop
 
+-- | Like 'scanl'' but for a non-empty stream. The first element of the stream
+-- is used as the initial value of the accumulator. Does nothing if the stream
+-- is empty.
+--
+-- >>> Stream.toList $ Stream.scanl1' (+) $ Stream.fromList [1,2,3,4]
+-- [1,3,6,10]
+--
 {-# INLINE scanl1' #-}
 scanl1' :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
 scanl1' f = scanl1M' (\x y -> return (f x y))

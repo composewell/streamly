@@ -292,9 +292,26 @@ module Streamly.Data.Stream
     --
     -- See also: "Streamly.Internal.Data.Stream.Transform" for
     -- @Pre-release@ functions.
+
+    {-
+    -- ** Left scans
+    -- | We can perform scans using folds with the 'scan' combinator in the
+    -- next section. However, the combinators supplied in this section are
+    -- better amenable to stream fusion when combined with other operations.
+    -- Note that 'postscan' using folds fuses well and does not require custom
+    -- combinators like these.
+    , scanl'
+    , scanlM'
+    , scanl1'
+    , scanl1M'
+    -}
+
+    -- ** Scanning By 'Fold'
     , scan
     , postscan
     -- XXX postscan1 can be implemented using Monoids or Refolds.
+
+    -- ** Specific scans
     -- Indexing can be considered as a special type of zipping where we zip a
     -- stream with an index stream.
     , indexed
