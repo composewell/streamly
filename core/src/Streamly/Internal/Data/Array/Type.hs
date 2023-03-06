@@ -67,7 +67,7 @@ module Streamly.Internal.Data.Array.Type
     , write
 
     -- * Streams of arrays
-    , arraysOf
+    , chunksOf
     , bufferChunks
     , flattenArrays
     , flattenArraysRev
@@ -263,20 +263,20 @@ fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
 {-# INLINE bufferChunks #-}
 bufferChunks :: (MonadIO m, Unbox a) =>
     D.Stream m a -> m (K.StreamK m (Array a))
-bufferChunks m = D.foldr K.cons K.nil $ arraysOf defaultChunkSize m
+bufferChunks m = D.foldr K.cons K.nil $ chunksOf defaultChunkSize m
 
--- | @arraysOf n stream@ groups the elements in the input stream into arrays of
+-- | @chunksOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
 -- Same as the following but may be more efficient:
 --
--- >>> arraysOf n = Stream.foldMany (Array.writeN n)
+-- >>> chunksOf n = Stream.foldMany (Array.writeN n)
 --
 -- /Pre-release/
-{-# INLINE_NORMAL arraysOf #-}
-arraysOf :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL chunksOf #-}
+chunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
-arraysOf n str = D.map unsafeFreeze $ MA.arraysOf n str
+chunksOf n str = D.map unsafeFreeze $ MA.chunksOf n str
 
 -- | Use the "read" unfold instead.
 --

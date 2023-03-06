@@ -410,7 +410,7 @@ _writevArraysPackedUpto n h xs =
 -- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
 writeInChunksOf :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
-writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
+writeInChunksOf n h m = writeArrays h $ AS.chunksOf n m
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --

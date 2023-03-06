@@ -11,7 +11,7 @@
 module Streamly.Internal.Data.Stream.Chunked
     (
     -- * Creation
-      arraysOf
+      chunksOf
 
     -- * Flattening to elements
     , concat
@@ -108,16 +108,16 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 -- Generation
 -------------------------------------------------------------------------------
 
--- | @arraysOf n stream@ groups the elements in the input stream into arrays of
+-- | @chunksOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
--- > arraysOf n = Stream.groupsOf n (Array.writeN n)
+-- > chunksOf n = Stream.groupsOf n (Array.writeN n)
 --
 -- /Pre-release/
-{-# INLINE arraysOf #-}
-arraysOf :: (MonadIO m, Unbox a)
+{-# INLINE chunksOf #-}
+chunksOf :: (MonadIO m, Unbox a)
     => Int -> Stream m a -> Stream m (Array a)
-arraysOf = A.arraysOf
+chunksOf = A.chunksOf
 
 -------------------------------------------------------------------------------
 -- Append

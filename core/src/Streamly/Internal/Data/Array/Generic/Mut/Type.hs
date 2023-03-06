@@ -126,7 +126,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     -- multidimensional array representations.
 
     -- ** Construct from streams
-    -- , arraysOf
+    -- , chunksOf
     -- , arrayStreamKFromStreamD
     -- , writeChunks
 

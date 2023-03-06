@@ -431,7 +431,7 @@ module Streamly.Data.Stream
     -- * Repeated Fold
     , foldMany -- XXX Rename to foldRepeat
     , parseMany
-    , Array.arraysOf
+    , Array.chunksOf
 
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.

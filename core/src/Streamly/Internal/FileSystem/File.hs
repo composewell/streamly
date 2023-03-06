@@ -405,7 +405,7 @@ fromChunks = fromChunksMode WriteMode
 {-# INLINE fromBytesWith #-}
 fromBytesWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Stream m Word8 -> m ()
-fromBytesWith n file xs = fromChunks file $ S.arraysOf n xs
+fromBytesWith n file xs = fromChunks file $ S.chunksOf n xs
 
 {-# DEPRECATED fromBytesWithBufferOf "Please use 'fromBytesWith' instead"  #-}
 {-# INLINE fromBytesWithBufferOf #-}
@@ -502,7 +502,7 @@ appendChunks = fromChunksMode AppendMode
 {-# INLINE appendWith #-}
 appendWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Stream m Word8 -> m ()
-appendWith n file xs = appendChunks file $ S.arraysOf n xs
+appendWith n file xs = appendChunks file $ S.chunksOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data

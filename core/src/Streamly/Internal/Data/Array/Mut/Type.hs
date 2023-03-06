@@ -169,7 +169,7 @@ module Streamly.Internal.Data.Array.Mut.Type
     -- multidimensional array representations.
 
     -- ** Construct from streams
-    , arraysOf
+    , chunksOf
     , arrayStreamKFromStreamD
     , writeChunks
 
@@ -1285,20 +1285,20 @@ data GroupState s contents start end bound
         contents start end bound (GroupState s contents start end bound)
     | GroupFinish
 
--- | @arraysOf n stream@ groups the input stream into a stream of
+-- | @chunksOf n stream@ groups the input stream into a stream of
 -- arrays of size n.
 --
--- @arraysOf n = StreamD.foldMany (MutArray.writeN n)@
+-- @chunksOf n = StreamD.foldMany (MutArray.writeN n)@
 --
 -- /Pre-release/
-{-# INLINE_NORMAL arraysOf #-}
-arraysOf :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL chunksOf #-}
+chunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (MutArray a)
 -- XXX the idiomatic implementation leads to large regression in the D.reverse'
 -- benchmark. It seems it has difficulty producing optimized code when
 -- converting to StreamK. Investigate GHC optimizations.
--- arraysOf n = D.foldMany (writeN n)
-arraysOf n (D.Stream step state) =
+-- chunksOf n = D.foldMany (writeN n)
+chunksOf n (D.Stream step state) =
     D.Stream step' (GroupStart state)
 
     where
@@ -1307,7 +1307,7 @@ arraysOf n (D.Stream step state) =
     step' _ (GroupStart st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.MutArray.Mut.Type.arraysOf: "
+            error $ "Streamly.Internal.Data.MutArray.Mut.Type.chunksOf: "
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
         (MutArray contents start end bound :: MutArray a) <- liftIO $ newPinned n
@@ -1343,7 +1343,7 @@ arrayStreamKFromStreamD :: forall m a. (MonadIO m, Unbox a) =>
     D.Stream m a -> m (StreamK m (MutArray a))
 arrayStreamKFromStreamD =
     let n = allocBytesToElemCount (undefined :: a) defaultChunkSize
-     in D.foldr K.cons K.nil . arraysOf n
+     in D.foldr K.cons K.nil . chunksOf n
 
 -------------------------------------------------------------------------------
 -- Streams of arrays - Flattening

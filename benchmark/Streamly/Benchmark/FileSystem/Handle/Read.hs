@@ -247,10 +247,10 @@ inspect $ 'groupsOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
 inspect $ 'groupsOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 #endif
 
-{-# INLINE arraysOf #-}
-arraysOf :: Int -> Handle -> IO Int
-arraysOf n inh =
-    S.fold Fold.length $ Stream.arraysOf n (S.unfold FH.reader inh)
+{-# INLINE chunksOf #-}
+chunksOf :: Int -> Handle -> IO Int
+chunksOf n inh =
+    S.fold Fold.length $ Stream.chunksOf n (S.unfold FH.reader inh)
 
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_grouped env =
@@ -288,13 +288,13 @@ o_1_space_reduce_read_grouped env =
         , mkBench "S.groupsOf 1000" env $ \inh _ ->
             groupsOf 1000 inh
 
-        -- arraysOf may use a different impl than groupsOf
-        , mkBenchSmall "S.arraysOf 1" env $ \inh _ ->
-            arraysOf 1 inh
-        , mkBench "S.arraysOf 10" env $ \inh _ ->
-            arraysOf 10 inh
-        , mkBench "S.arraysOf 1000" env $ \inh _ ->
-            arraysOf 1000 inh
+        -- chunksOf may use a different impl than groupsOf
+        , mkBenchSmall "S.chunksOf 1" env $ \inh _ ->
+            chunksOf 1 inh
+        , mkBench "S.chunksOf 10" env $ \inh _ ->
+            chunksOf 10 inh
+        , mkBench "S.chunksOf 1000" env $ \inh _ ->
+            chunksOf 1000 inh
         ]
     ]
 

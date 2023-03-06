@@ -295,8 +295,8 @@ main = do
         then return  (undefined, undefined)
         else
             do
-            small <- Stream.toList $ Stream.arraysOf 100 $ sourceUnfoldrM value 0
-            big <- Stream.toList $ Stream.arraysOf value $ sourceUnfoldrM value 0
+            small <- Stream.toList $ Stream.chunksOf 100 $ sourceUnfoldrM value 0
+            big <- Stream.toList $ Stream.chunksOf value $ sourceUnfoldrM value 0
             return (small, big)
 
     allBenchmarks env arrays value =
