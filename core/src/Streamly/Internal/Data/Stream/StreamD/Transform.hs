@@ -39,6 +39,9 @@ module Streamly.Internal.Data.Stream.StreamD.Transform
     , scan
     , scanMany
 
+    -- * Splitting
+    , splitOn
+
     -- * Scanning
     -- | Left scans. Stateful, mostly one-to-one maps.
     , scanlM'
@@ -1842,3 +1845,61 @@ catRights = fmap (fromRight undefined) . filter isRight
 {-# INLINE catEithers #-}
 catEithers :: Monad m => Stream m (Either a a) -> Stream m a
 catEithers = fmap (either id id)
+
+------------------------------------------------------------------------------
+-- Splitting
+------------------------------------------------------------------------------
+
+-- | Split on an infixed separator element, dropping the separator.  The
+-- supplied 'Fold' is applied on the split segments.  Splits the stream on
+-- separator elements determined by the supplied predicate, separator is
+-- considered as infixed between two segments:
+--
+-- >>> splitOn' p xs = Stream.fold Fold.toList $ Stream.splitOn p Fold.toList (Stream.fromList xs)
+-- >>> splitOn' (== '.') "a.b"
+-- ["a","b"]
+--
+-- An empty stream is folded to the default value of the fold:
+--
+-- >>> splitOn' (== '.') ""
+-- [""]
+--
+-- If one or both sides of the separator are missing then the empty segment on
+-- that side is folded to the default output of the fold:
+--
+-- >>> splitOn' (== '.') "."
+-- ["",""]
+--
+-- >>> splitOn' (== '.') ".a"
+-- ["","a"]
+--
+-- >>> splitOn' (== '.') "a."
+-- ["a",""]
+--
+-- >>> splitOn' (== '.') "a..b"
+-- ["a","","b"]
+--
+-- splitOn is an inverse of intercalating single element:
+--
+-- > Stream.intercalate (Stream.fromPure '.') Unfold.fromList . Stream.splitOn (== '.') Fold.toList === id
+--
+-- Assuming the input stream does not contain the separator:
+--
+-- > Stream.splitOn (== '.') Fold.toList . Stream.intercalate (Stream.fromPure '.') Unfold.fromList === id
+--
+{-# INLINE splitOn #-}
+splitOn :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitOn predicate f =
+    -- We can express the infix splitting in terms of optional suffix split
+    -- fold.  After applying a suffix split fold repeatedly if the last segment
+    -- ends with a suffix then we need to return the default output of the fold
+    -- after that to make it an infix split.
+    --
+    -- Alternately, we can also express it using an optional prefix split fold.
+    -- If the first segment starts with a prefix then we need to emit the
+    -- default output of the fold before that to make it an infix split, and
+    -- then apply prefix split fold repeatedly.
+    --
+    -- Since a suffix split fold can be easily expressed using a
+    -- non-backtracking fold, we use that.
+    foldManyPost (FL.takeEndBy_ predicate f)
