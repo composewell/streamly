@@ -9,7 +9,13 @@
 --
 -- This module provides APIs to create and use unboxed immutable arrays. Once
 -- created, their contents cannot be modified. Only types that are unboxable
--- via the 'Unbox' type class can be stored in these arrays.
+-- via the 'Unbox' type class can be stored in these arrays. Note that the
+-- array memory grows automatically when creating a new array, therefore, an
+-- array can be created from a variable length stream.
+--
+-- See "Streamly.Data.Array.Generic" for arrays that work for boxed types i.e.
+-- not requiring the 'Unbox' constraint.
+-- See "Streamly.Data.MutArray" for arrays that can be mutated in-place..
 --
 -- = Folding Arrays
 --
@@ -55,15 +61,15 @@
 -- >>> Stream.fold (purely Array.write) $ Stream.fromList [1,2,3::Int]
 -- Identity fromList [1,2,3]
 --
+-- Since it is a pure stream we can use 'unsafePerformIO' to extract the result
+-- of fold from IO.
+--
 -- Alternatively, 'Identity' streams can be generalized to IO streams:
 --
 -- >>> pure = Stream.fromList [1,2,3] :: Stream Identity Int
 -- >>> generally = Stream.morphInner (return . runIdentity)
 -- >>> Stream.fold Array.write (generally pure :: Stream IO Int)
 -- fromList [1,2,3]
---
--- Since it is a pure stream we can use 'unsafePerformIO' to extract the result
--- of fold from IO.
 --
 -- = Programming Tips
 --

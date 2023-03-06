@@ -7,9 +7,12 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- This module provides mutable arrays suitable for long lived data storage,
--- random access, and mutation.
+-- Mutable version of "Streamly.Data.Array". Please refer to that module for
+-- general documentation. The contents of mutable ararys can be modified
+-- in-place.
 --
+-- See "Streamly.Data.MutArray.Generic" for mutable arrays that work for boxed
+-- types i.e. not requiring the 'Unbox' constraint.
 
 module Streamly.Data.MutArray
     (

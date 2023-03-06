@@ -6,7 +6,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Mutable variant of the "Streamly.Data.Array.Generic" module.
+-- Unconstrained version of "Streamly.Data.MutArray" module.
+--
+-- See the "Streamly.Data.MutArray" module for documentation.
 --
 module Streamly.Data.MutArray.Generic
 (
