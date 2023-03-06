@@ -99,7 +99,7 @@ import Streamly.Internal.Data.Stream.Type
 -- >>> import Streamly.Data.Stream (Stream)
 -- >>> import System.IO.Unsafe (unsafePerformIO)
 -- >>> import qualified Streamly.Data.Array as Array
--- >>> import qualified Streamly.Data.Array.Mut as MArray
+-- >>> import qualified Streamly.Data.MutArray as MArray
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Unfold as Unfold

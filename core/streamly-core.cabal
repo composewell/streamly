@@ -357,7 +357,6 @@ library
 
                      -- To be implemented
                      -- , Streamly.Data.Refold
-                     -- , Streamly.Data.Array.Mut
                      -- , Streamly.Data.Binary.Encode -- Stream types
 
                      -- Pre-release modules
@@ -382,10 +381,10 @@ library
                      -- streamly-core released modules in alphabetic order
                      -- NOTE: these must be added to streamly.cabal as well
                      , Streamly.Console.Stdio
-                     , Streamly.Data.Array.Generic
-                     , Streamly.Data.Array.Generic.Mut
                      , Streamly.Data.Array
-                     , Streamly.Data.Array.Mut
+                     , Streamly.Data.Array.Generic
+                     , Streamly.Data.MutArray
+                     , Streamly.Data.MutArray.Generic
                      , Streamly.Data.Fold
                      , Streamly.Data.Parser
                      , Streamly.Data.Parser.ParserK

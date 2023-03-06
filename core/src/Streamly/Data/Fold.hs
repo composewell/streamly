@@ -227,9 +227,9 @@ module Streamly.Data.Fold
     -- , breakStream
 
     -- * Incremental builders
-    -- | Mutable arrays ("Streamly.Data.Array.Mut") are basic builders. You can
-    -- use the 'Streamly.Data.Array.Mut.snoc' or
-    -- 'Streamly.Data.Array.Mut.writeAppend' operations to incrementally build
+    -- | Mutable arrays ("Streamly.Data.MutArray") are basic builders. You can
+    -- use the 'Streamly.Data.MutArray.snoc' or
+    -- 'Streamly.Data.MutArray.writeAppend' operations to incrementally build
     -- mutable arrays. The 'addOne' and 'addStream' combinators can be used to
     -- incrementally build any type of structure using a fold, including arrays
     -- or a stream of arrays.

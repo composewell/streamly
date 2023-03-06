@@ -27,9 +27,9 @@ higher level operations with additional dependencies.
 ### Enhancements
 
 * Added the following new modules to the `streamly-core` package:
-  * Streamly.Data.Array.Mut
   * Streamly.Data.Array.Generic
-  * Streamly.Data.Array.Generic.Mut
+  * Streamly.Data.MutArray
+  * Streamly.Data.MutArray.Generic
   * Streamly.Data.Parser
   * Streamly.FileSystem.Dir
   * Streamly.FileSystem.File

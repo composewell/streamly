@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Array.Generic.Mut
+-- Module      : Streamly.Data.MutArray.Generic
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Mutable variant of the "Streamly.Data.Array.Generic" module.
 --
-module Streamly.Data.Array.Generic.Mut
+module Streamly.Data.MutArray.Generic
 (
     -- * Type
       MutArray

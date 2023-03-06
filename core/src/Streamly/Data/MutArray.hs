@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Array.Mut
+-- Module      : Streamly.Data.MutArray
 -- Copyright   : (c) 2022 Composewell Technologies
 --
 -- License     : BSD3
@@ -11,7 +11,7 @@
 -- random access, and mutation.
 --
 
-module Streamly.Data.Array.Mut
+module Streamly.Data.MutArray
     (
     -- * Types
       MutArray
