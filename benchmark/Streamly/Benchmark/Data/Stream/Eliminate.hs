@@ -51,7 +51,7 @@ import Streamly.Internal.Data.Stream.StreamD (Stream)
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #ifdef USE_STREAMK
 import Streamly.Internal.Data.Stream.StreamK (StreamK)
-import qualified Streamly.Data.Stream.StreamK as StreamK
+import qualified Streamly.Data.StreamK as StreamK
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD as StreamK
 #endif

@@ -236,7 +236,7 @@ data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
 -- This function should only be used to statically fuse a stream with another
 -- stream. Do not use this recursively or where it cannot be inlined.
 --
--- See "Streamly.Data.Stream.StreamK" for an 'append' that can be used to
+-- See "Streamly.Data.StreamK" for an 'append' that can be used to
 -- construct a stream recursively.
 --
 {-# INLINE_NORMAL append #-}

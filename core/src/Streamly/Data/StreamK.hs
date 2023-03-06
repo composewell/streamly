@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Stream.StreamK
+-- Module      : Streamly.Data.StreamK
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -21,7 +21,7 @@
 -- rewritten to a K version of f.
 -- XXX Need to add rewrite rules for all missing StreamD operations.
 --
-module Streamly.Data.Stream.StreamK
+module Streamly.Data.StreamK
     (
       StreamK
 

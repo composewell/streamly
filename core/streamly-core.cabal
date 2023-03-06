@@ -389,7 +389,7 @@ library
                      , Streamly.Data.Parser
                      , Streamly.Data.ParserK
                      , Streamly.Data.Stream
-                     , Streamly.Data.Stream.StreamK
+                     , Streamly.Data.StreamK
                      , Streamly.Data.Unfold
                      , Streamly.FileSystem.Dir
                      , Streamly.FileSystem.File

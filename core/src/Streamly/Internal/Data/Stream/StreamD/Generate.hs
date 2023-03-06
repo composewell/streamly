@@ -177,7 +177,7 @@ nil = Stream (\_ _ -> pure Stop) ()
 -- This function should only be used to statically fuse an element with a
 -- stream. Do not use this recursively or where it cannot be inlined.
 --
--- See "Streamly.Data.Stream.StreamK" for a 'cons' that can be used to
+-- See "Streamly.Data.StreamK" for a 'cons' that can be used to
 -- construct a stream recursively.
 --
 -- Definition:

@@ -11,7 +11,7 @@
 --
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
+-- >>> import qualified Streamly.Data.StreamK as StreamK
 --
 -- We will add some more imports in the examples as needed.
 --
@@ -29,7 +29,7 @@
 --
 -- `cons` adds a pure value at the head of the stream:
 --
--- >>> import Streamly.Data.Stream.StreamK (StreamK, cons, consM, nil)
+-- >>> import Streamly.Data.StreamK (StreamK, cons, consM, nil)
 -- >>> stream = 1 `cons` 2 `cons` nil :: StreamK IO Int
 --
 -- Convert 'StreamK' to 'Stream' to use functions from the
@@ -257,7 +257,7 @@ import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Stream.StreamK as StreamK
+-- >>> import qualified Streamly.Data.StreamK as StreamK
 -- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 --
 
