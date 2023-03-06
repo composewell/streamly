@@ -31,6 +31,7 @@ module Streamly.Internal.Data.Fold
     , foldl'
     , foldlM'
     , foldl1'
+    , foldlM1'
     , foldt'
     , foldtM'
     , foldr'

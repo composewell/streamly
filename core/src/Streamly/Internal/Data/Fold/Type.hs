@@ -335,6 +335,7 @@ module Streamly.Internal.Data.Fold.Type
     , foldl'
     , foldlM'
     , foldl1'
+    , foldlM1'
     , foldt'
     , foldtM'
     , foldr'
@@ -549,6 +550,18 @@ foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
 
     step1 Nothing' a = Just' a
     step1 (Just' x) a = Just' $ step x a
+
+-- | Like 'foldl1\'' but with a monadic step function.
+--
+-- /Pre-release/
+{-# INLINE foldlM1' #-}
+foldlM1' :: Monad m => (a -> a -> m a) -> Fold m a (Maybe a)
+foldlM1' step = fmap toMaybe $ foldlM' step1 (return Nothing')
+
+    where
+
+    step1 Nothing' a = return $ Just' a
+    step1 (Just' x) a = Just' <$> step x a
 
 ------------------------------------------------------------------------------
 -- Right fold constructors
