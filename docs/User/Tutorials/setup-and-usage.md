@@ -92,7 +92,7 @@ You can also ask `cabal` to use a specific version of `streamly-core` by
 adding a version number constraint to the `--build-depends` flag:
 
 ```
-$ cabal repl --build-depends streamly-core==0.8.3
+$ cabal repl --build-depends streamly-core==0.1.0
 ...
 ghci>
 ```
