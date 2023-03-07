@@ -1,4 +1,4 @@
-resolver: lts-18.27
+resolver: lts-20.13
 packages:
 - '.'
 - './benchmark'
@@ -6,7 +6,6 @@ packages:
 - './core'
 
 extra-deps:
-  - unicode-data-0.2.0
   - tasty-bench-0.3.1
   - lockfree-queue-0.2.4
 

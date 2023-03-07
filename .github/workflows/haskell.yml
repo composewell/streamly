@@ -116,7 +116,7 @@ jobs:
           - name: 8.10.7-streamly-sdist-stack
             runner: ubuntu-latest
             build: stack
-            resolver: lts-18.23
+            resolver: lts-20.13
             stack_yaml: stack.yaml
             sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
