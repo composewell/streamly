@@ -602,6 +602,9 @@ foldrMx fstep final convert (Stream step state) = convert $ go SPEC state
 --
 -- >>> foldr f z = Stream.foldrM (\a b -> f a <$> b) (return z)
 --
+-- Note: This is similar to Fold.foldr' (the right fold via left fold), but
+-- could be more efficient.
+--
 {-# INLINE_NORMAL foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
 foldr f z = foldrM (liftA2 f . return) (return z)
