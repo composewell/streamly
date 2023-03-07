@@ -190,7 +190,6 @@ targets =
     , ("Data.Fold", [ "parser_grp" ])
     , ("Data.Fold.Window", [ "parser_grp" ])
     , ("Data.Parser", [ "parser_grp" ])
-    , ("Data.Parser.Chunked", [ "parser_grp", "noBench" ])
 
     , ("Data.Unbox", ["noBench"])
     , ("Data.Unfold", [])
