@@ -176,11 +176,6 @@ targets =
     , ("Data.Ring.Unboxed", [])
 
     -- Parsers
-    , ("Data.Parser.ParserD",
-            [ "base_parser_grp"
-            , "base_parser_cmp"
-            ]
-      )
     , ("Data.Parser.ParserK",
             [ "base_parser_grp"
             , "base_parser_cmp"

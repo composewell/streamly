@@ -110,8 +110,6 @@ cradle:
               component: "test:Data.Stream.Concurrent"
             - path: "./test/Streamly/Test/Data/Stream/Common.hs"
               component: "test:Data.Stream.Concurrent"
-            - path: "./test/Streamly/Test/Data/Parser/ParserD.hs"
-              component: "test:Data.Parser.ParserD"
             - path: "./test/Streamly/Test/Data/Unbox.hs"
               component: "test:Data.Unbox"
             - path: "./test/Streamly/Test/Data/Unfold.hs"
