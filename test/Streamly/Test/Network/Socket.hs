@@ -157,7 +157,7 @@ main = hspec $ do
       describe moduleName $ do
         describe "Read/Write" $ do
             prop "read/write" validateRW
-            
+
 #if defined(CABAL_OS_WINDOWS)
 #else
             prop "readWith/writeWith" validateWith
