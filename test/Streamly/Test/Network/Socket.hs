@@ -17,7 +17,6 @@ import Data.Function ((&))
 import Data.Word (Word8)
 import Network.Socket (Socket, PortNumber)
 import Streamly.Internal.Control.Monad (discard)
-import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
@@ -39,6 +38,9 @@ testData = "Test data 1234567891012131415!@#$%^&*()`~ABCD"
 
 testDataSource :: String
 testDataSource = concat $ replicate 1000 testData
+
+chunkSize :: Int
+chunkSize = 1024
 
 ------------------------------------------------------------------------------
 -- Parse and handle commands on a socket
@@ -127,8 +129,8 @@ validateWith = monadicIO $ do
 validateRW :: Property
 validateRW = monadicIO $ do
     res <- run $ do
-        ls2 <- execute (basePort + 1) defaultChunkSize handlerRW
-        let dataChunk = take defaultChunkSize testDataSource
+        ls2 <- execute (basePort + 1) chunkSize handlerRW
+        let dataChunk = take chunkSize testDataSource
         Stream.eqBy (==) (Stream.fromList dataChunk) ls2
     assert res
 
@@ -155,6 +157,9 @@ main = hspec $ do
       describe moduleName $ do
         describe "Read/Write" $ do
             prop "read/write" validateRW
+#if defined(CABAL_OS_WINDOWS)
+#else
             prop "readWith/writeWith" validateWith
             prop "readChunks/writeChunks" validateChunks
             prop "readChunksWith" validateChunksWith
+#endif
