@@ -11,7 +11,7 @@ description:
   exceptions, and networking.  For unified documentation visit
   <https://streamly.composewell.com the streamly website>.
   .
-  Streamly provides unified, modular building blocks to build 
+  Streamly provides unified, modular building blocks to build
   high-performance, concurrent, scalable applications in Haskell.  Stream
   fusion optimizations in streamly enable exceptional modularity with
   high performance comparable to C. Streamly complements the Haskell
