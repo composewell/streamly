@@ -47,6 +47,7 @@ module Streamly.Data.StreamK
 
     -- ** Primitives
     , uncons
+    , drain
 
     -- -- ** Folding
     -- , foldBreak
