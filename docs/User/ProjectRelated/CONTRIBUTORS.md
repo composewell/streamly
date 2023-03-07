@@ -6,11 +6,11 @@ contributors between two repository tags.
 
 ## 0.9.0
 
-* Harendra Kumar
-* Adithya Kumar
-* Ranjeet Kumar Ranjan
-* Francesco Gazzetta
-* Ishan Bhanuka
+Harendra Kumar
+Ranjeet Kumar Ranjan
+Adithya Kumar
+Francesco Gazzetta
+Ishan Bhanuka
 
 ## 0.8.2
 
