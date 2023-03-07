@@ -365,12 +365,22 @@ test-suite Network.Inet.TCP
   main-is: Streamly/Test/Network/Inet/TCP.hs
   if flag(use-streamly-core)
     buildable: False
+  -- XXX on Windows these test cases are hanging for ever
+  -- need to be investigated.
+  -- https://github.com/composewell/streamly/issues/2315
+  if os(windows)
+    buildable: False
 
 test-suite Network.Socket
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Network/Socket.hs
   if flag(use-streamly-core)
+    buildable: False
+  -- XXX on Windows these test cases are hanging for ever
+  -- need to be investigated.
+  -- https://github.com/composewell/streamly/issues/2315
+  if os(windows)
     buildable: False
 
 test-suite Prelude

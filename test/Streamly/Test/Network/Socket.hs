@@ -154,14 +154,7 @@ main = hspec $ do
     modifyMaxSuccess (const 1) $ do
       describe moduleName $ do
         describe "Read/Write" $ do
--- XXX on Windows these test cases are hanging for ever
--- need to be investigated.
--- https://github.com/composewell/streamly/issues/2315
-#if defined(CABAL_OS_WINDOWS)
-            pure ()
-#else
             prop "read/write" validateRW
             prop "readWith/writeWith" validateWith
             prop "readChunks/writeChunks" validateChunks
             prop "readChunksWith" validateChunksWith
-#endif

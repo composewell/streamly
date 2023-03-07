@@ -139,13 +139,6 @@ main = hspec $ do
     modifyMaxSuccess (const 1) $ do
       describe moduleName $ do
         describe "Accept Connections" $ do
--- XXX on Windows these test cases are hanging for ever
--- need to be investigated.
--- https://github.com/composewell/streamly/issues/2315
-#if defined(CABAL_OS_WINDOWS)
-            pure ()
-#else
             prop "acceptOnPort" validateOnPort
             prop "acceptOnPortLocal" validateOnPortLocal
         --  prop "acceptOnAddr/connect" Tested as part of above test cases
-#endif
