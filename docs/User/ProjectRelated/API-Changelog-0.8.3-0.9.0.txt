@@ -1,0 +1,175 @@
+---------------------------------
+Terminology
+---------------------------------
+
+[A]: Added
+[R]: Removed
+[C]: Changed
+[D]: Deprecated
+[O]: Old
+[N]: New
+
+---------------------------------
+Difference
+---------------------------------
+
+[R] Streamly.Unicode.Stream
+[D] Streamly.Prelude
+    [A] toStreamK :: IsStream t => t m a -> StreamK m a
+    [A] toStream :: (IsStream t, Monad m) => t m a -> Stream m a
+    [C] mergeBy
+        [O] mergeBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+        [N] mergeBy :: IsStream t => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+    [A] fromStreamK :: IsStream t => StreamK m a -> t m a
+    [A] fromStream :: (IsStream t, Monad m) => Stream m a -> t m a
+[C] Streamly.Network.Socket
+    [D] writeWithBufferOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
+    [A] writeWith :: MonadIO m => Int -> Socket -> Fold m Word8 ()
+    [D] writeChunksWithBufferOf :: (MonadIO m, Unbox a) => Int -> Socket -> Fold m (Array a) ()
+    [A] writeChunksWith :: (MonadIO m, Unbox a) => Int -> Socket -> Fold m (Array a) ()
+    [C] writeChunks
+        [O] writeChunks :: (MonadIO m, Storable a) => Socket -> Fold m (Array a) ()
+        [N] writeChunks :: (MonadIO m, Unbox a) => Socket -> Fold m (Array a) ()
+    [D] writeChunk :: Unbox a => Socket -> Array a -> IO ()
+    [A] readerWith :: MonadIO m => Unfold m (Int, Socket) Word8
+    [A] reader :: MonadIO m => Unfold m Socket Word8
+    [D] readWithBufferOf :: MonadIO m => Unfold m (Int, Socket) Word8
+    [D] readChunksWithBufferOf :: MonadIO m => Unfold m (Int, Socket) (Array Word8)
+    [D] readChunks :: MonadIO m => Unfold m Socket (Array Word8)
+    [D] readChunk :: Int -> Socket -> IO (Array Word8)
+    [D] read :: MonadIO m => Unfold m Socket Word8
+    [A] putChunk :: Unbox a => Socket -> Array a -> IO ()
+    [A] getChunk :: Int -> Socket -> IO (Array Word8)
+    [A] chunkReaderWith :: MonadIO m => Unfold m (Int, Socket) (Array Word8)
+    [A] chunkReader :: MonadIO m => Unfold m Socket (Array Word8)
+    [A] acceptor :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
+    [D] accept :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
+[C] Streamly.Network.Inet.TCP
+    [A] acceptorOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
+    [A] acceptorOnPort :: MonadIO m => Unfold m PortNumber Socket
+    [A] acceptorOnAddr :: MonadIO m => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
+    [D] acceptOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
+    [D] acceptOnPort :: MonadIO m => Unfold m PortNumber Socket
+    [D] acceptOnAddr :: MonadIO m => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
+[R] Streamly.FileSystem.Handle
+[R] Streamly.Data.Unfold
+[A] Streamly.Data.Stream.Prelude
+    [A] StopWhen
+        [A] FirstStops :: StopWhen
+        [A] AnyStops :: StopWhen
+        [A] AllStop :: StopWhen
+    [A] Rate
+        [A] [rateLow] :: Rate -> Double
+        [A] [rateHigh] :: Rate -> Double
+        [A] [rateGoal] :: Rate -> Double
+        [A] [rateBuffer] :: Rate -> Int
+        [A] Rate :: Double -> Double -> Double -> Int -> Rate
+    [A] Config
+    [A] type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    [A] tapCount :: MonadAsync m => (a -> Bool) -> (Stream m Int -> m b) -> Stream m a -> Stream m a
+    [A] takeInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] stopWhen :: StopWhen -> Config -> Config
+    [A] sampleIntervalStart :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] sampleIntervalEnd :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] sampleBurstStart :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] sampleBurstEnd :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] rate :: Maybe Rate -> Config -> Config
+    [A] parZipWithM :: MonadAsync m => (Config -> Config) -> (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
+    [A] parZipWith :: MonadAsync m => (Config -> Config) -> (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+    [A] parSequence :: MonadAsync m => (Config -> Config) -> Stream m (m a) -> Stream m a
+    [A] parReplicateM :: MonadAsync m => (Config -> Config) -> Int -> m a -> Stream m a
+    [A] parRepeatM :: MonadAsync m => (Config -> Config) -> m a -> Stream m a
+    [A] parMergeByM :: MonadAsync m => (Config -> Config) -> (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] parMergeBy :: MonadAsync m => (Config -> Config) -> (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] parMapM :: MonadAsync m => (Config -> Config) -> (a -> m b) -> Stream m a -> Stream m b
+    [A] parList :: MonadAsync m => (Config -> Config) -> [Stream m a] -> Stream m a
+    [A] parEval :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
+    [A] parConcatMap :: MonadAsync m => (Config -> Config) -> (a -> Stream m b) -> Stream m a -> Stream m b
+    [A] parConcatIterate :: MonadAsync m => (Config -> Config) -> (a -> Stream m a) -> Stream m a -> Stream m a
+    [A] parConcat :: MonadAsync m => (Config -> Config) -> Stream m (Stream m a) -> Stream m a
+    [A] parApply :: MonadAsync m => (Config -> Config) -> Stream m (a -> b) -> Stream m a -> Stream m b
+    [A] ordered :: Bool -> Config -> Config
+    [A] minRate :: Double -> Config -> Config
+    [A] maxThreads :: Int -> Config -> Config
+    [A] maxRate :: Double -> Config -> Config
+    [A] maxBuffer :: Int -> Config -> Config
+    [A] intervalsOf :: MonadAsync m => Double -> Fold m a b -> Stream m a -> Stream m b
+    [A] interleaved :: Bool -> Config -> Config
+    [A] interject :: MonadAsync m => m a -> Double -> Stream m a -> Stream m a
+    [A] inspect :: Bool -> Config -> Config
+    [A] fromCallback :: MonadAsync m => ((a -> m ()) -> m ()) -> Stream m a
+    [A] finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
+    [A] eager :: Bool -> Config -> Config
+    [A] dropInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] constRate :: Double -> Config -> Config
+    [A] bracket :: (MonadAsync m, MonadCatch m) => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
+    [A] avgRate :: Double -> Config -> Config
+    [A] after :: (MonadIO m, MonadBaseControl IO m) => m b -> Stream m a -> Stream m a
+[A] Streamly.Data.Stream.MkType
+    [A] class Monad m => MonadReader r (m :: Type -> Type) | m -> r
+    [A] class MonadTrans (t :: Type -> Type -> Type -> Type)
+    [A] class Read a
+    [A] class IsString a
+    [A] class IsList l
+    [A] Identity
+    [A] throwM :: (MonadThrow m, Exception e) => e -> m a
+    [A] readsPrec :: Read a => Int -> ReadS a
+    [A] reader :: MonadReader r m => (r -> a) -> m a
+    [A] readPrec :: Read a => ReadPrec a
+    [A] readListPrec :: Read a => ReadPrec [a]
+    [A] readList :: Read a => ReadS [a]
+    [A] mkZipType :: String -> String -> Bool -> Q [Dec]
+    [A] mkCrossType :: String -> String -> Bool -> Q [Dec]
+    [A] local :: MonadReader r m => (r -> r) -> m a -> m a
+    [A] liftIO :: MonadIO m => IO a -> m a
+    [A] lift :: (MonadTrans t, Monad m) => m a -> t m a
+    [A] ask :: MonadReader r m => m r
+    [A] ap :: Monad m => m (a -> b) -> m a -> m b
+[D] Streamly.Data.Fold.Tee
+    [C] Tee
+        [A] [unTee] :: Tee (m :: Type -> Type) a b -> Fold m a b
+        [R] [toFold] :: Tee m a b -> Fold m a b
+        [C] Tee
+            [O] Tee :: Fold m a b -> Tee m a b
+            [N] Tee :: Fold m a b -> Tee (m :: Type -> Type) a b
+    [A] toFold :: forall (m :: Type -> Type) a b. Tee m a b -> Fold m a b
+[R] Streamly.Data.Fold
+[D] Streamly.Data.Array.Foreign
+    [A] Control.DeepSeq.NFData1
+        [A] instance Control.DeepSeq.NFData1 Streamly.Internal.Data.Array.Type.Array
+    [A] Control.DeepSeq.NFData
+        [A] instance Control.DeepSeq.NFData (Streamly.Internal.Data.Array.Type.Array a)
+    [C] writeN
+        [O] writeN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
+        [N] writeN :: forall (m :: Type -> Type) a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [C] writeLastN
+        [O] writeLastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
+        [N] writeLastN :: forall a (m :: Type -> Type). (Storable a, Unbox a, MonadIO m) => Int -> Fold m a (Array a)
+    [C] write
+        [O] write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
+        [N] write :: forall (m :: Type -> Type) a. (MonadIO m, Unbox a) => Fold m a (Array a)
+    [C] toList
+        [O] toList :: Storable a => Array a -> [a]
+        [N] toList :: Unbox a => Array a -> [a]
+    [C] readRev
+        [O] readRev :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+        [N] readRev :: forall (m :: Type -> Type) a. (Monad m, Unbox a) => Array a -> Stream m a
+    [C] read
+        [O] read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+        [N] read :: forall (m :: Type -> Type) a. (Monad m, Unbox a) => Array a -> Stream m a
+    [C] length
+        [O] length :: forall a. Storable a => Array a -> Int
+        [N] length :: Unbox a => Array a -> Int
+    [C] getIndex
+        [O] getIndex :: forall a. Storable a => Array a -> Int -> Maybe a
+        [N] getIndex :: Unbox a => Int -> Array a -> Maybe a
+    [C] fromListN
+        [O] fromListN :: Storable a => Int -> [a] -> Array a
+        [N] fromListN :: Unbox a => Int -> [a] -> Array a
+    [C] fromList
+        [O] fromList :: Storable a => [a] -> Array a
+        [N] fromList :: Unbox a => [a] -> Array a
+    [C] cast
+        [O] cast :: forall a b. Storable b => Array a -> Maybe (Array b)
+        [N] cast :: forall a b. Unbox b => Array a -> Maybe (Array b)
+[R] Streamly.Console.Stdio
