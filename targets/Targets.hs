@@ -176,11 +176,6 @@ targets =
     , ("Data.Ring.Unboxed", [])
 
     -- Parsers
-    , ("Data.Parser.ParserD",
-            [ "base_parser_grp"
-            , "base_parser_cmp"
-            ]
-      )
     , ("Data.Parser.ParserK",
             [ "base_parser_grp"
             , "base_parser_cmp"
@@ -190,7 +185,6 @@ targets =
     , ("Data.Fold", [ "parser_grp" ])
     , ("Data.Fold.Window", [ "parser_grp" ])
     , ("Data.Parser", [ "parser_grp" ])
-    , ("Data.Parser.Chunked", [ "parser_grp", "noBench" ])
 
     , ("Data.Unbox", ["noBench"])
     , ("Data.Unfold", [])
