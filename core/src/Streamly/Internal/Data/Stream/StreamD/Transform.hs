@@ -570,7 +570,7 @@ scanWith restart (Fold fstep initial extract) (Stream sstep state) =
 -- lazy expressions inside the accumulator, it is recommended that a strict
 -- data structure is used for accumulator.
 --
-{-# INLINE scan #-}
+{-# INLINE_NORMAL scan #-}
 scan :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
 scan = scanWith False
@@ -578,7 +578,7 @@ scan = scanWith False
 -- | Like 'scan' but restarts scanning afresh when the scanning fold
 -- terminates.
 --
-{-# INLINE scanMany #-}
+{-# INLINE_NORMAL scanMany #-}
 scanMany :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
 scanMany = scanWith True
