@@ -16,6 +16,14 @@ description:
 
 homepage:            https://streamly.composewell.com
 bug-reports:         https://github.com/composewell/streamly/issues
+license:             BSD-3-Clause
+license-file:        LICENSE
+tested-with:         GHC==8.6.5
+                   , GHC==8.8.4
+                   , GHC==8.10.7
+                   , GHC==9.0.2
+                   , GHC==9.2.4
+                   , GHC==9.4.2
 author:              Composewell Technologies
 maintainer:          streamly@composewell.com
 copyright:           2017 Composewell Technologies
