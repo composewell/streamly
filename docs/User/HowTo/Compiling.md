@@ -45,7 +45,7 @@ the cabal file and use the following GHC options:
   -fplugin Fusion.Plugin
 ```
 
-See [Explanation](#explanation) section below for details about these flags.
+See [Explanation](#explanation) section for details about these flags.
 
 Important Notes:
 
@@ -57,7 +57,7 @@ Important Notes:
    benchmarking.
 2. In certain cases it is possible that GHC takes too long to compile
    with `-fspec-constr-recursive=16`, if that happens please reduce the
-   value or remove that option.
+   value or remove that option. This may happen especially when using Parsers.
 
 #### Explanation
 
