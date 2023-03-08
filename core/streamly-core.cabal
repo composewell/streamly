@@ -51,6 +51,10 @@ extra-tmp-files:
     autom4te.cache
     src/config.h
 
+extra-doc-files:
+    Changelog.md
+    docs/*.md
+
 source-repository head
     type: git
     location: https://github.com/composewell/streamly
