@@ -162,8 +162,8 @@ extra-doc-files:
     docs/User/Explanatory/streaming-pradigms.rst
     docs/User/ProjectRelated/*.md
     docs/User/ProjectRelated/*.link
-    docs/User/ProjectRelated/API-Changelog-0.8.3-0.9.0.txt
-    docs/User/ProjectRelated/API-changelog.txt
+    docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt
+    docs/User/ProjectRelated/ApiChangelogs/0.8.3.txt
     test/README.md
     docs/Developer/Tests.md
 

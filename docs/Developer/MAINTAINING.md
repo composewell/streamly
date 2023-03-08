@@ -119,8 +119,8 @@
 
 * _Update changelog & Version_:
 
-    * Find API changes using `cabal-diff streamly <previous-release-version> .`
-      and record them in docs/API-changelog.txt.
+    * Find API changes using `./packdiff streamly ver1 streamly ver2`
+      and record them in `docs/User/ProjectRelated/ApiChangelogs/ver1-ver2.txt`.
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
       they want.
