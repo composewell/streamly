@@ -9,6 +9,7 @@
 module Streamly.Data.Fold.Tee
 {-# DEPRECATED "Please use Streamly.Data.Fold module from the streamly-core package." #-}
     ( Tee(..)
+    , toFold
     )
 where
 
