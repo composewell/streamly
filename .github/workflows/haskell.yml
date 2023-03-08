@@ -59,7 +59,7 @@ jobs:
         # The order is important to optimize fail-fast.
         name:
           - 8.10.7-Werror
-          - 9.2.4-docspec
+          - 9.2.7-docspec
         # - 8.10.7-coverage
 
         # Note: if cabal.project is not specified benchmarks and tests won't
@@ -74,8 +74,8 @@ jobs:
             cabal_project: cabal.project.ghc-head
             disable_sdist_build: "y"
             ignore_error: true
-          - name: 9.4.2-fusion-inspection
-            ghc_version: 9.4.2
+          - name: 9.4.4-fusion-inspection
+            ghc_version: 9.4.4
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.8.1.0
@@ -83,16 +83,16 @@ jobs:
             cabal_project: cabal.project
             cabal_build_options: "--flag fusion-plugin --flag inspection"
             ignore_error: false
-          - name: 9.2.4
-            ghc_version: 9.2.4
+          - name: 9.2.7
+            ghc_version: 9.2.7
             runner: ubuntu-latest
             build: cabal
             cabal_project: cabal.project
             cabal_version: 3.6.2.0
             disable_sdist_build: "y"
             ignore_error: false
-          - name: 9.2.4-docspec
-            ghc_version: 9.2.4
+          - name: 9.2.7-docspec
+            ghc_version: 9.2.7
             runner: ubuntu-latest
             doctest: "y"
             cabal_version: 3.6.2.0
