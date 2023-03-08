@@ -417,7 +417,7 @@ library
                       , Streamly.Internal.Data.Stream.Cross
                       , Streamly.Internal.Data.List
                       , Streamly.Data.Stream.Zip
-                      , Streamly.Internal.Data.Parser.ParserDK
+                      --, Streamly.Internal.Data.Parser.ParserDK
 
     build-depends:
                     -- streamly-base
