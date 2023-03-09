@@ -127,7 +127,7 @@ eofFail :: Property
 eofFail =
     forAll (chooseInt (1, max_length)) $ \list_length ->
         forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-            case runIdentity $S.parseD P.eof (S.fromList ls) of
+            case runIdentity $ S.parseD P.eof (S.fromList ls) of
                 Right _ -> False
                 Left _ -> True
 
