@@ -277,6 +277,7 @@ benchmark Data.Stream
     else
       ghc-options: +RTS -M2500M -RTS
 
+-- Use StreamK functions where possible, converting to StreaK to StreamD
 benchmark Data.Stream.StreamDK
   import: bench-options
   type: exitcode-stdio-1.0
