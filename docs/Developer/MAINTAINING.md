@@ -70,7 +70,7 @@
 * _Benchmarks_:
 
     * Check regressions from previous release
-    * Run benchmarks with large stream size (`bench.sh --long`) to
+    * Run benchmarks with large stream size (`bench-runner --long --quick`) to
       check for space leaks and to ensure constant memory usage for streaming
       operations.
     * Run benchmarks with `dev` flag on. Some `fileio` benchmarks are disabled
