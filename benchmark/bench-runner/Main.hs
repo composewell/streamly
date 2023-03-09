@@ -54,8 +54,9 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
             `isPrefixOf` benchName = "-K4M"
         | "Data.Stream.StreamDK/o-n-space.iterated."
             `isPrefixOf` benchName = "-K4M -M64M"
+        -- GHC 9.4.4 requires 4M
         | "Data.Stream.StreamDK/o-n-space.traversable."
-            `isPrefixOf` benchName = "-K2M"
+            `isPrefixOf` benchName = "-K4M"
 
         -----------------------------------------------------------------------
 
