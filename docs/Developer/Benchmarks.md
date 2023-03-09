@@ -51,6 +51,14 @@ $ cabal run bench-runner --project-file=cabal.project.report -- <bench-runner-ar
 Assuming `bench-runner` is the executable. You can replace `./bench-runner` with
 `cabal run bench-runner --project-file=cabal.project.report --`
 
+Note, you need to pass two mandatory arguments to bench-runner,
+`package-version` and `package-name`. For the streamly-benchmarks package, pass
+these as below:
+
+```
+bin/bench-runner --package-version 0.0.0 --package-name streamly-benchmarks
+```
+
 Useful commands:
 
 ```
