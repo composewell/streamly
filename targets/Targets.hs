@@ -179,15 +179,16 @@ targets =
     , ("Data.Parser.ParserK",
             [ "base_parser_grp"
             , "base_parser_cmp"
+            , "infinite_grp"
             , "noTest"
             ]
       )
-    , ("Data.Fold", [ "parser_grp" ])
-    , ("Data.Fold.Window", [ "parser_grp" ])
-    , ("Data.Parser", [ "parser_grp" ])
+    , ("Data.Fold", [ "parser_grp", "infinite_grp" ])
+    , ("Data.Fold.Window", [ "parser_grp", "infinite_grp" ])
+    , ("Data.Parser", [ "parser_grp", "infinite_grp" ])
 
     , ("Data.Unbox", ["noBench"])
-    , ("Data.Unfold", [])
+    , ("Data.Unfold", ["infinite_grp"])
     , ("FileSystem.Handle", [])
     , ("Unicode.Stream", [])
     , ("Unicode.Utf8", ["noTest"])
