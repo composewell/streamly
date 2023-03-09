@@ -752,7 +752,7 @@ readWriteOnExceptionUnfold inh devNull =
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
+-- inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
 -- inspect $ 'readWriteOnExceptionUnfold `hasNoType` ''Step
 #endif
 
@@ -764,7 +764,8 @@ readWriteHandleExceptionUnfold inh devNull =
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
+-- hasNoTypeClasses started failing in GHC 9.4.4
+-- inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
 -- inspect $ 'readWriteHandleExceptionUnfold `hasNoType` ''Step
 #endif
 
