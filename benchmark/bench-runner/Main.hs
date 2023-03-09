@@ -73,8 +73,8 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.Stream/o-n-space.iterated."
             `isPrefixOf` benchName = "-K4M"
 
-        | "Data.Stream.ConcurrentEager/o-n-space.monad-outer-product.toNullAp"
-            `isPrefixOf` benchName = "-M768M"
+        | "Data.Stream.ConcurrentEager/o-n-heap.monad-outer-product.toNullAp"
+            `isPrefixOf` benchName = "-M1024M"
         | "Data.Stream.ConcurrentEager/o-1-space."
             `isPrefixOf` benchName = "-M128M"
 
