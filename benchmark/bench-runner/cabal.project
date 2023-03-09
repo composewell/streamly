@@ -1,1 +1,4 @@
 packages: . ../../targets
+
+package bench-report
+  flags: +no-charts
