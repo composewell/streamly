@@ -459,8 +459,11 @@ new =
         (\s _ -> liftIO $ Unboxed.newUnpinnedBytes s)
         (error "new: alignment is not used in unpinned arrays.")
 
--- | Allocate an MutArray of the given size and run an IO action passing the array
--- start pointer.
+-- XXX This should create a full length uninitialzed array so that the pointer
+-- can be used.
+
+-- | Allocate a pinned MutArray of the given size and run an IO action passing
+-- the array start pointer.
 --
 -- /Internal/
 {-# INLINE withNewArrayUnsafe #-}

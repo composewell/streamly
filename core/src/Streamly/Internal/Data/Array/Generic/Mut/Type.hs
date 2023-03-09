@@ -61,6 +61,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
 
     -- ** Reallocation
     , realloc
+    , uninit
 
     -- ** Appending elements
     , snocWith
@@ -229,7 +230,9 @@ bottomElement =
 
 -- XXX Would be nice if GHC can provide something like newUninitializedArray# so
 -- that we do not have to write undefined or error in the whole array.
--- | @new count@ allocates an empty array that can hold 'count' items.
+
+-- | @new count@ allocates a zero length array that can be extended to hold
+-- up to 'count' items without reallocating.
 --
 -- /Pre-release/
 {-# INLINE new #-}
@@ -254,13 +257,14 @@ new n@(I# n#) =
 {-# INLINE putIndexUnsafe #-}
 putIndexUnsafe :: forall m a. MonadIO m => Int -> MutArray a -> a -> m ()
 putIndexUnsafe i MutArray {..} x =
-    liftIO
+    assert (i >= 0 && i < arrLen)
+    (liftIO
         $ IO
         $ \s# ->
               case i + arrStart of
                   I# n# ->
                       let s1# = writeArray# arrContents# n# x s#
-                       in (# s1#, () #)
+                       in (# s1#, () #))
 
 invalidIndex :: String -> Int -> a
 invalidIndex label i =
@@ -409,6 +413,17 @@ snocWith sizer arr@MutArray {..} x = do
 {-# INLINE snoc #-}
 snoc :: MonadIO m => MutArray a -> a -> m (MutArray a)
 snoc = snocWith (* 2)
+
+-- | Make the uninitialized memory in the array available for use extending it
+-- by the supplied length beyond the current length of the array. The array may
+-- be reallocated.
+--
+{-# INLINE uninit #-}
+uninit :: MonadIO m => MutArray a -> Int -> m (MutArray a)
+uninit arr@MutArray{..} len =
+    if arrStart + arrLen + len <= arrTrueLen
+    then return $ arr {arrLen = arrLen + len}
+    else realloc (arrLen + len) arr
 
 -------------------------------------------------------------------------------
 -- Random reads
@@ -586,7 +601,8 @@ reader = Producer.simplify producer
 -- | Put a sub range of a source array into a subrange of a destination array.
 -- This is not safe as it does not check the bounds.
 {-# INLINE putSliceUnsafe #-}
-putSliceUnsafe :: MonadIO m => MutArray a -> Int -> MutArray a -> Int -> Int -> m ()
+putSliceUnsafe :: MonadIO m =>
+    MutArray a -> Int -> MutArray a -> Int -> Int -> m ()
 putSliceUnsafe src srcStart dst dstStart len = liftIO $ do
     assertM(len <= arrLen dst)
     assertM(len <= arrLen src)

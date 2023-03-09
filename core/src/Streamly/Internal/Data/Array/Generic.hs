@@ -256,20 +256,23 @@ writeLastN n
         rb <- liftIO $ RB.createRing n
         return $ FL.Partial $ Tuple' rb (0 :: Int)
 
-    step (Tuple' rb rh) x = do
-        liftIO $ RB.unsafeInsertRing rb rh x
-        return $ FL.Partial $ Tuple' rb (rh + 1)
+    step (Tuple' rb cnt) x = do
+        liftIO $ RB.unsafeInsertRing rb x
+        return $ FL.Partial $ Tuple' rb (cnt + 1)
 
-    done (Tuple' rb rh) = do
-        arr' <- liftIO $ MArray.new (min rh n)
-        ref <- liftIO $ readIORef $ RB.ringHead rb
-        if rh < n
-        then
-            MArray.putSliceUnsafe (RB.arr rb) 0 arr' 0 ref
+    done (Tuple' rb cnt) = do
+        let len = min cnt n
+        arr <- liftIO $ MArray.new len
+        arr1 <- MArray.uninit arr len
+        -- XXX Should use an API for retrieving the ring head
+        rhead <- liftIO $ readIORef $ RB.ringHead rb
+        if cnt <= n
+        then do
+            MArray.putSliceUnsafe (RB.ringArr rb) 0 arr1 0 cnt
         else do
-            MArray.putSliceUnsafe (RB.arr rb) ref arr' 0 (n - ref)
-            MArray.putSliceUnsafe (RB.arr rb) 0 arr' (n - ref) ref
-        return $ unsafeFreeze arr'
+            MArray.putSliceUnsafe (RB.ringArr rb) rhead arr1 0 (n - rhead)
+            MArray.putSliceUnsafe (RB.ringArr rb) 0 arr1 (n - rhead) rhead
+        return $ unsafeFreeze arr1
 
 sliceUnsafe :: Int -> Int -> Array a -> Array a
 sliceUnsafe offset len (Array cont off1 _) = Array cont (off1 + offset) len
