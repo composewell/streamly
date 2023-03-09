@@ -128,9 +128,14 @@
 
 module Streamly.Data.Fold
     (
+    -- * Running A Fold
+      drive
+    -- XXX Should we have a stream returning function in fold module?
+    -- , breakStream
+
     -- * Fold Type
 
-      Fold -- (..)
+    , Fold -- (..)
     , Tee (..)
 
     -- * Constructors
@@ -222,11 +227,6 @@ module Streamly.Data.Fold
     , any
     , and
     , or
-
-    -- * Running A Fold
-    , drive
-    -- XXX Should we have a stream returning function in fold module?
-    -- , breakStream
 
     -- * Incremental builders
     -- | Mutable arrays ("Streamly.Data.MutArray") are basic builders. You can
