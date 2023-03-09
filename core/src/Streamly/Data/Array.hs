@@ -13,9 +13,10 @@
 -- array memory grows automatically when creating a new array, therefore, an
 -- array can be created from a variable length stream.
 --
--- See "Streamly.Data.Array.Generic" for arrays that work for boxed types i.e.
--- not requiring the 'Unbox' constraint.
--- See "Streamly.Data.MutArray" for arrays that can be mutated in-place..
+-- See "Streamly.Internal.Data.Array" for more, unreleased APIs. See
+-- "Streamly.Data.Array.Generic" for arrays that work for boxed types i.e. not
+-- requiring the 'Unbox' constraint. See "Streamly.Data.MutArray" for arrays
+-- that can be mutated in-place.
 --
 -- = Folding Arrays
 --
@@ -76,9 +77,6 @@
 -- This module is designed to be imported qualified:
 --
 -- >>> import qualified Streamly.Data.Array as Array
---
--- Use @QuantifiedConstraints@ extension to avoid the 'Storable' constraint
--- when using the 'Unbox' constraint.
 --
 -- For experimental APIs see "Streamly.Internal.Data.Array".
 
