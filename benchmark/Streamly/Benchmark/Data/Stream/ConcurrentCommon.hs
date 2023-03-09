@@ -193,15 +193,16 @@ o_1_space_outerProduct value f =
 -- Benchmark sets
 -------------------------------------------------------------------------------
 
-allBenchmarks :: String -> (Config -> Config) -> Int -> [Benchmark]
-allBenchmarks moduleName modifier value =
+allBenchmarks :: String -> Bool -> (Config -> Config) -> Int -> [Benchmark]
+allBenchmarks moduleName wide modifier value =
     [ bgroup (o_1_space_prefix moduleName) $ concat
         [ o_1_space_mapping value modifier
         , o_1_space_concatFoldable value modifier
         , o_1_space_concatMap value modifier
-        , o_1_space_outerProduct value modifier
         , o_1_space_joining value modifier
+        ] ++ if wide then [] else o_1_space_outerProduct value modifier
+    , bgroup (o_n_heap_prefix moduleName) $ concat
+        [ if wide then o_1_space_outerProduct value modifier else []
+        , o_n_heap_buffering value modifier
         ]
-    , bgroup (o_n_heap_prefix moduleName)
-        (o_n_heap_buffering value modifier)
     ]

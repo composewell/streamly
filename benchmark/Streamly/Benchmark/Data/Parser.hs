@@ -723,14 +723,11 @@ o_1_space_serial value =
     , benchIOSink value "dropWhile" $ dropWhile value
     , benchIOSink value "takeStartBy" $ takeStartBy value
     , benchIOSink value "takeEndBy_" $ takeEndBy_ value
-    , benchIOSrc sourceEscapedFrames value "takeFramedByEsc_"
-        $ takeFramedByEsc_ value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling
     , benchIOSink value "wordBy" $ wordBy value
     , benchIOSink value "sepBy (words)" sepByWords
     , benchIOSink value "sepByAll (words)" sepByAllWords
-    , benchIOSink value "sepBy1" sepBy1
     , benchIOSink value "sepBy1 (words)" sepByWords1
     , benchIOSink value "deintercalate" $ deintercalate value
     , benchIOSink value "deintercalate1" $ deintercalate1 value
@@ -748,7 +745,6 @@ o_1_space_serial value =
     , benchIOSink value "monad2" $ monad value
     , benchIOSink value "monad4" $ monad4 value
     , benchIOSink value "monad8" $ monad8 value
-    , benchIOSink value "monad16" $ monad16 value
     -- Alternative
     , benchIOSink value "alt2parseMany" $ altSmall value
     , benchIOSink value "alt2" $ alt2 value
@@ -783,7 +779,6 @@ o_1_space_serial value =
     , benchIOSink value "shortest" $ shortestAllAny value
     , benchIOSink value "longest" $ longestAllAny value
     -}
-    , benchIOSink value "listEqBy" (listEqBy value)
     , benchIOSink value "streamEqBy" (streamEqBy value)
     ]
 
@@ -821,13 +816,21 @@ o_n_heap_serial value =
     -- lookahead benchmark holds the entire input till end
       benchIOSink value "lookAhead" $ lookAhead value
 
+    -- o-n-heap because of backtracking
+    , benchIOSrc sourceEscapedFrames value "takeFramedByEsc_"
+        $ takeFramedByEsc_ value
+
     -- non-linear time complexity (parserD)
     , benchIOSink value "split_" $ split_ value
+    -- XXX Takes lot of space when run on a long stream, why?
+    , benchIOSink value "monad16" $ monad16 value
 
     -- These show non-linear time complexity.
     -- They accumulate the results in a list.
+    , benchIOSink value "sepBy1" sepBy1
     , benchIOSink value "manyAlt" manyAlt
     , benchIOSink value "someAlt" someAlt
+    , benchIOSink value "listEqBy" (listEqBy value)
     ]
 
 -- accumulate results in a list in IO

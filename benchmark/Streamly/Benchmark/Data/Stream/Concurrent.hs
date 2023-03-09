@@ -17,4 +17,4 @@ moduleName = "Data.Stream.Concurrent"
 -------------------------------------------------------------------------------
 
 main :: IO ()
-main = runWithCLIOpts defaultStreamSize (allBenchmarks moduleName id)
+main = runWithCLIOpts defaultStreamSize (allBenchmarks moduleName False id)

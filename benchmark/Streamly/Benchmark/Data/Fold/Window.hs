@@ -12,6 +12,7 @@ import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 import qualified Streamly.Internal.Data.Fold.Window as Window
 import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 
+import Streamly.Benchmark.Common
 import Gauge
 
 {-# INLINE source #-}
@@ -65,15 +66,9 @@ benchScanWith src len name f =
 benchWithPostscan :: Int -> String -> Fold IO Double a -> Benchmark
 benchWithPostscan = benchScanWith source
 
-{-# INLINE numElements #-}
-numElements :: Int
-numElements = 100000
-
-main :: IO ()
-main =
-  defaultMain
-    [ bgroup
-        "fold"
+o_1_space_folds :: Int -> [Benchmark]
+o_1_space_folds numElements =
+    [ bgroup "fold"
         [ benchWithFold numElements "minimum (window size 100)"
             (Window.minimum 100)
         , benchWithFold numElements "minimum (window size 1000)"
@@ -126,8 +121,11 @@ main =
             (Window.cumulative (Window.powerSum 2))
 
         ]
-    , bgroup
-        "scan"
+    ]
+
+o_1_space_scans :: Int -> [Benchmark]
+o_1_space_scans numElements =
+    [ bgroup "scan"
         [ benchWithPostscan numElements "minimum (window size 10)"
             (Window.minimum 10)
         -- Below window size 30 the linear search based impl performs better
@@ -176,3 +174,18 @@ main =
             (Ring.slidingWindow 1000 (Window.powerSum 2))
         ]
     ]
+
+moduleName :: String
+moduleName = "Data.Fold.Window"
+
+main :: IO ()
+main = runWithCLIOpts defaultStreamSize allBenchmarks
+
+    where
+
+    allBenchmarks value =
+        [ bgroup (o_1_space_prefix moduleName) $ concat
+            [ o_1_space_folds value
+            , o_1_space_scans value
+            ]
+        ]

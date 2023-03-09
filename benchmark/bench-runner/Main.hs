@@ -47,6 +47,16 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Prelude.WAsync/o-n-space.monad-outer-product." `isPrefixOf` benchName =
             "-K4M"
 
+        -- This module is dev only now, and can be removed at some point
+        | "Data.Stream.StreamDK/o-1-space.grouping.classifySessionsOf"
+            `isPrefixOf` benchName = "-K512K"
+        | "Data.Stream.StreamDK/o-n-space.foldr.foldrM/"
+            `isPrefixOf` benchName = "-K4M"
+        | "Data.Stream.StreamDK/o-n-space.iterated."
+            `isPrefixOf` benchName = "-K4M -M64M"
+        | "Data.Stream.StreamDK/o-n-space.traversable."
+            `isPrefixOf` benchName = "-K2M"
+
         -----------------------------------------------------------------------
 
         | "Data.Stream.StreamD/o-n-space.elimination.toList" == benchName =
@@ -63,19 +73,7 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.Stream/o-n-space.iterated."
             `isPrefixOf` benchName = "-K4M"
 
-        | "Data.Stream.StreamDK/o-1-space.grouping.classifySessionsOf"
-            `isPrefixOf` benchName = "-K512K"
-        | "Data.Stream.StreamDK/o-n-space.foldr.foldrM/"
-            `isPrefixOf` benchName = "-K4M"
-        | "Data.Stream.StreamDK/o-n-space.iterated."
-            `isPrefixOf` benchName = "-K4M -M64M"
-        | "Data.Stream.StreamDK/o-n-space.traversable."
-            `isPrefixOf` benchName = "-K2M"
-
-        | "Data.Stream.ConcurrentInterleaved/o-1-space.monad-outer-product.toNullAp"
-            `isPrefixOf` benchName = "-M32M"
-
-        | "Data.Stream.ConcurrentEager/o-1-space.monad-outer-product.toNullAp"
+        | "Data.Stream.ConcurrentEager/o-n-space.monad-outer-product.toNullAp"
             `isPrefixOf` benchName = "-M768M"
         | "Data.Stream.ConcurrentEager/o-1-space."
             `isPrefixOf` benchName = "-M128M"
@@ -88,6 +86,16 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
              && "/o-1-space.generation.show" `isSuffixOf` benchName = "-M32M"
         | "Data.Array.Generic/o-1-space.transformationX4.map"
             `isPrefixOf` benchName = "-M32M"
+
+        -- XXX For --long option, need to check why so much heap is required.
+        -- Note, if we remove the chunked stream module we need to keep the
+        -- chunked stream benchmarks in the stream module.
+        | "Data.Array.Stream/o-1-space"
+            `isPrefixOf` benchName = "-K4M -M512M"
+        -- XXX Takes up to 160MB heap for --long, we use chunked stream for
+        -- this, so the reason may be related to chunked streams.
+        | "Data.Parser.ParserK/o-1-space"
+            `isPrefixOf` benchName = "-K4M -M256M"
 
         -----------------------------------------------------------------------
 

@@ -306,7 +306,6 @@ o_1_space_serial_elimination value =
         , benchIOSink value "drainBy" (Stream.fold (FL.drainBy return))
         , benchIOSink value "drainN" (Stream.fold (FL.drainN value))
         , benchIOSink value "last" (Stream.fold FL.last)
-        , benchIOSink value "nub" (Stream.fold FL.nub)
         , benchIOSink value "length" (Stream.fold FL.length)
         , benchIOSink value "top" (Stream.fold $ FL.top 10)
         , benchIOSink value "bottom" (Stream.fold $ FL.bottom 10)
@@ -449,6 +448,7 @@ o_n_heap_serial value =
             , benchIOSink value "toStreamRev"
                 (Stream.fold FL.toStreamRev
                     :: Stream IO a -> IO (Stream Identity a))
+            , benchIOSink value "nub" (Stream.fold FL.nub)
             ]
     , bgroup "key-value"
             [

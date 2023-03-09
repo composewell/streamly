@@ -24,14 +24,12 @@
 - ignore: {name: "Use uncurry"}
 - ignore: {name: "Redundant $!"}
 - ignore: {name: "Use fmap"}
+- ignore: {name: "Use ++"}
 
 # Warnings ignored in specific places
-- ignore: {name: "Use ++", within: Stream.Transform}
 - ignore: {name: "Use mapM", within: Stream.Transform}
 - ignore: {name: "Use traverse", within: Stream.Transform}
 - ignore: {name: "Redundant <*", within: Stream.Expand}
-- ignore: {name: "Use ++", within: Stream.Reduce}
-- ignore: {name: "Use ++", within: Stream.Split}
 - ignore: {name: "Redundant bracket", within: Stream.Split}
 - ignore: {name: "Use isDigit", within: Streamly.Internal.Unicode.Parser}
 

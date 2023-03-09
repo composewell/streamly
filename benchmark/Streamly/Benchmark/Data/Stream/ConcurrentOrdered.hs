@@ -22,4 +22,4 @@ main :: IO ()
 main =
     runWithCLIOpts
         defaultStreamSize
-        (allBenchmarks moduleName (Async.ordered True))
+        (allBenchmarks moduleName False (Async.ordered True))
