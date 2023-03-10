@@ -17,8 +17,6 @@ module Streamly.Internal.Data.Array.Generic
     , writeWith
     , writeLastN
 
-    , fromStreamDN
-    , fromStreamD
     , fromStreamN
     , fromStream
 
@@ -30,8 +28,6 @@ module Streamly.Internal.Data.Array.Generic
     , reader
 
     , toList
-    , readStreamD
-    , readRevStreamD
     , read
     , readRev
 
@@ -48,7 +44,7 @@ where
 
 #include "inline.hs"
 
-import Control.Monad (when, replicateM)
+import Control.Monad (replicateM)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import GHC.Base (MutableArray#, RealWorld)
 import GHC.IO (unsafePerformIO)
@@ -122,38 +118,23 @@ write = fmap unsafeFreeze MArray.write
 -- Construction - from streams
 -------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL fromStreamDN #-}
-fromStreamDN :: MonadIO m => Int -> D.Stream m a -> m (Array a)
-fromStreamDN limit str = do
-    marr <- liftIO $ MArray.new (max limit 0)
-    i <-
-        D.foldlM'
-            (\i x -> i `seq` liftIO $ MArray.putIndexUnsafe i marr x >> return (i + 1))
-            (return 0) $
-        D.take limit str
-    return $ unsafeFreeze $ marr { MArray.arrLen = i }
-
-{-# INLINE fromStreamD #-}
-fromStreamD :: MonadIO m => D.Stream m a -> m (Array a)
-fromStreamD = D.fold write
-
 {-# INLINE fromStreamN #-}
 fromStreamN :: MonadIO m => Int -> Stream m a -> m (Array a)
-fromStreamN n m = do
-    when (n < 0) $ error "fromStreamN: negative write count specified"
-    fromStreamDN n m
+fromStreamN n = D.fold (writeN n)
 
 {-# INLINE fromStream #-}
 fromStream :: MonadIO m => Stream m a -> m (Array a)
-fromStream = fromStreamD
+fromStream = D.fold write
+
+-- XXX Consider foldr/build fusion in toList/fromList
 
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> Array a
-fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
+fromListN n xs = unsafePerformIO $ fromStreamN n $ D.fromList xs
 
 {-# INLINABLE fromList #-}
 fromList :: [a] -> Array a
-fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
+fromList xs = unsafePerformIO $ fromStream $ D.fromList xs
 
 -------------------------------------------------------------------------------
 -- Elimination - Unfolds
@@ -184,23 +165,15 @@ toList arr = loop 0
     loop i | i == len = []
     loop i = getIndexUnsafe arr i : loop (i + 1)
 
-{-# INLINE_NORMAL readStreamD #-}
-readStreamD :: MonadIO m => Array a -> D.Stream m a
-readStreamD = MArray.toStreamD . unsafeThaw
+{-# INLINE_NORMAL read #-}
+read :: MonadIO m => Array a -> Stream m a
+read = MArray.toStreamD . unsafeThaw
 
-{-# INLINE_NORMAL readRevStreamD #-}
-readRevStreamD :: Monad m => Array a -> D.Stream m a
-readRevStreamD arr@Array{..} =
+{-# INLINE_NORMAL readRev #-}
+readRev :: Monad m => Array a -> Stream m a
+readRev arr@Array{..} =
     D.map (getIndexUnsafe arr)
         $ D.enumerateFromThenToIntegral (arrLen - 1) (arrLen - 2) 0
-
-{-# INLINE_EARLY read #-}
-read :: MonadIO m => Array a -> Stream m a
-read = readStreamD
-
-{-# INLINE_EARLY readRev #-}
-readRev :: Monad m => Array a -> Stream m a
-readRev = readRevStreamD
 
 -------------------------------------------------------------------------------
 -- Elimination - using Folds
@@ -208,15 +181,15 @@ readRev = readRevStreamD
 
 {-# INLINE_NORMAL foldl' #-}
 foldl' :: (b -> a -> b) -> b -> Array a -> b
-foldl' f z arr = unsafePerformIO $ D.foldl' f z $ readStreamD arr
+foldl' f z arr = unsafePerformIO $ D.foldl' f z $ read arr
 
 {-# INLINE_NORMAL foldr #-}
 foldr :: (a -> b -> b) -> b -> Array a -> b
-foldr f z arr = unsafePerformIO $ D.foldr f z $ readStreamD arr
+foldr f z arr = unsafePerformIO $ D.foldr f z $ read arr
 
 {-# INLINE fold #-}
 fold :: MonadIO m => Fold m a b -> Array a -> m b
-fold f arr = D.fold f (readStreamD arr)
+fold f arr = D.fold f (read arr)
 
 {-# INLINE streamFold #-}
 streamFold :: MonadIO m => (Stream m a -> m b) -> Array a -> m b
