@@ -223,34 +223,36 @@ sliceUnsafe offset len (Array cont off1 _) = Array cont (off1 + offset) len
 -- XXX This is not efficient as it copies the array. We should support array
 -- slicing so that we can just refer to the underlying array memory instead of
 -- copying.
---
+
 -- | Truncate the array at the beginning and end as long as the predicate
--- holds true.
+-- holds true. Returns a slice of the original array.
 strip :: (a -> Bool) -> Array a -> Array a
 strip p arr =
     let lastIndex = length arr - 1
         indexR = getIndexR lastIndex -- last predicate failing index
-    in if indexR == -1
+    in if indexR < 0
        then nil
        else
             let indexL = getIndexL 0 -- first predicate failing index
             in if indexL == 0 && indexR == lastIndex
                then arr
-               else unsafeFreeze $ unsafePerformIO $ do
+               else
                    let newLen = indexR - indexL + 1
-                       arrThawed = unsafeThaw (sliceUnsafe indexL newLen arr)
-                   MArray.clone arrThawed
+                    in sliceUnsafe indexL newLen arr
 
     where
 
     getIndexR idx
         | idx < 0 = idx
         | otherwise =
-            if p (getIndexUnsafe idx arr) then getIndexR (idx - 1) else idx
+            if p (getIndexUnsafe idx arr)
+            then getIndexR (idx - 1)
+            else idx
 
-    getIndexL idx = if p (getIndexUnsafe idx arr)
-                    then getIndexL (idx + 1)
-                    else idx
+    getIndexL idx =
+        if p (getIndexUnsafe idx arr)
+        then getIndexL (idx + 1)
+        else idx
 
 -------------------------------------------------------------------------------
 -- Instances
