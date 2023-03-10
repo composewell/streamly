@@ -163,17 +163,17 @@ toList arr = loop 0
 
     len = length arr
     loop i | i == len = []
-    loop i = getIndexUnsafe arr i : loop (i + 1)
+    loop i = getIndexUnsafe i arr : loop (i + 1)
 
 {-# INLINE_NORMAL read #-}
 read :: Monad m => Array a -> Stream m a
 read arr@Array{..} =
-    D.map (getIndexUnsafe arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
+    D.map (`getIndexUnsafe` arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
 
 {-# INLINE_NORMAL readRev #-}
 readRev :: Monad m => Array a -> Stream m a
 readRev arr@Array{..} =
-    D.map (getIndexUnsafe arr)
+    D.map (`getIndexUnsafe` arr)
         $ D.enumerateFromThenToIntegral (arrLen - 1) (arrLen - 2) 0
 
 -------------------------------------------------------------------------------
@@ -205,8 +205,8 @@ streamFold f arr = f (read arr)
 --
 -- @since 0.8.0
 {-# INLINE getIndexUnsafe #-}
-getIndexUnsafe :: Array a -> Int -> a
-getIndexUnsafe arr i =
+getIndexUnsafe :: Int -> Array a -> a
+getIndexUnsafe i arr =
     unsafePerformIO $ MArray.getIndexUnsafe i (unsafeThaw arr)
 
 {-# INLINE writeLastN #-}
@@ -268,9 +268,9 @@ strip p arr =
     getIndexR idx
         | idx < 0 = idx
         | otherwise =
-            if p (getIndexUnsafe arr idx) then getIndexR (idx - 1) else idx
+            if p (getIndexUnsafe idx arr) then getIndexR (idx - 1) else idx
 
-    getIndexL idx = if p (getIndexUnsafe arr idx)
+    getIndexL idx = if p (getIndexUnsafe idx arr)
                     then getIndexL (idx + 1)
                     else idx
 
@@ -289,8 +289,8 @@ instance Eq a => Eq (Array a) where
         loop i
             | i < 0 = True
             | otherwise =
-                let v1 = getIndexUnsafe a1 i
-                    v2 = getIndexUnsafe a2 i
+                let v1 = getIndexUnsafe i a1
+                    v2 = getIndexUnsafe i a2
                  in v1 == v2 && loop (i - 1)
 
 instance Ord a => Ord (Array a) where
@@ -308,8 +308,8 @@ instance Ord a => Ord (Array a) where
         loop i
             | i >= lenA1 = EQ
             | otherwise =
-                let v1 = getIndexUnsafe a1 i
-                    v2 = getIndexUnsafe a2 i
+                let v1 = getIndexUnsafe i a1
+                    v2 = getIndexUnsafe i a2
                  in case compare v1 v2 of
                         LT -> LT
                         GT -> GT
