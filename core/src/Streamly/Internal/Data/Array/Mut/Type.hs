@@ -1880,20 +1880,18 @@ writeWith elemCount =
 
     where
 
-    insertElem (MutArray contents start end bound) x = do
-        liftIO $ pokeWith contents end x
-        return $ MutArray contents start (INDEX_NEXT(end,a)) bound
-
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
         liftIO $ newPinned elemCount
+
     step arr@(MutArray _ start end bound) x
         | INDEX_NEXT(end,a) > bound = do
         let oldSize = end - start
             newSize = max (oldSize * 2) 1
         arr1 <- liftIO $ reallocExplicit (SIZE_OF(a)) newSize arr
-        insertElem arr1 x
-    step arr x = insertElem arr x
+        snocUnsafe arr1 x
+    step arr x = snocUnsafe arr x
+
     extract = liftIO . rightSize
 
 -- | Fold the whole input to a single array.
