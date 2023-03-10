@@ -42,7 +42,6 @@ module Streamly.Internal.Data.Array.Generic
     -- * Random Access
     , getIndexUnsafe
     , strip
-    , putIndices
     )
 where
 
@@ -308,23 +307,6 @@ strip p arr =
     getIndexL idx = if p (getIndexUnsafe arr idx)
                     then getIndexL (idx + 1)
                     else idx
-
--- | Write an input stream of (index, value) pairs to an array. Throws an
--- error if any index is out of bounds.
---
--- /Pre-release/
-{-# INLINE putIndices #-}
-putIndices :: MonadIO m
-    => Array a -> Fold m (Int, a) ()
-putIndices arr = FL.rmapM (\ _ -> return ()) (FL.foldlM' step initial)
-
-    where
-
-    initial = return $ unsafeThaw arr
-
-    step marr (i, x) = do
-        MArray.putIndexUnsafe i marr x
-        return marr
 
 -------------------------------------------------------------------------------
 -- Instances

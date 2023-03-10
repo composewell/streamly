@@ -41,7 +41,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     -- * Random writes
     , putIndex
     , putIndexUnsafe
-    -- , putIndices
+    , putIndices
     -- , putFromThenTo
     -- , putFrom -- start writing at the given position
     -- , putUpto -- write from beginning up to the given position
@@ -283,6 +283,19 @@ putIndex i arr@MutArray {..} x =
     then putIndexUnsafe i arr x
     else invalidIndex "putIndex" i
 
+-- | Write an input stream of (index, value) pairs to an array. Throws an
+-- error if any index is out of bounds.
+--
+-- /Pre-release/
+{-# INLINE putIndices #-}
+putIndices :: MonadIO m
+    => MutArray a -> Fold m (Int, a) ()
+putIndices arr = FL.foldlM' step (return ())
+
+    where
+
+    step () (i, x) = liftIO (putIndex i arr x)
+
 -- | Modify a given index of an array using a modifier function without checking
 -- the bounds.
 --
@@ -367,8 +380,9 @@ reallocWith label sizer reqSize arr = do
 snocUnsafe :: MonadIO m => MutArray a -> a -> m (MutArray a)
 snocUnsafe arr@MutArray {..} a = do
     assert (arrStart + arrLen < arrTrueLen) (return ())
-    putIndexUnsafe arrLen arr a
-    return $ arr {arrLen = arrLen + 1}
+    let arr1 = arr {arrLen = arrLen + 1}
+    putIndexUnsafe arrLen arr1 a
+    return arr1
 
 -- NOINLINE to move it out of the way and not pollute the instruction cache.
 {-# NOINLINE snocWithRealloc #-}
