@@ -16,7 +16,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
 
     -- * Constructing and Writing
     -- ** Construction
-    -- , nil
+    , nil
 
     -- *** Uninitialized Arrays
     , new
@@ -236,7 +236,7 @@ bottomElement =
 --
 -- /Pre-release/
 {-# INLINE new #-}
-new :: forall m a. MonadIO m => Int -> m (MutArray a)
+new :: MonadIO m => Int -> m (MutArray a)
 new n@(I# n#) =
     liftIO
         $ IO
@@ -245,6 +245,14 @@ new n@(I# n#) =
                   (# s1#, arr# #) ->
                       let ma = MutArray arr# 0 0 n
                        in (# s1#, ma #)
+
+-- |
+-- Definition:
+--
+-- >>> nil = Array.new 0
+{-# INLINE nil #-}
+nil :: MonadIO m => m (MutArray a)
+nil = new 0
 
 -------------------------------------------------------------------------------
 -- Random writes

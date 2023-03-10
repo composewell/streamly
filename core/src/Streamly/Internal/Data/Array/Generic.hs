@@ -96,9 +96,7 @@ unsafeThaw (Array cont# arrS arrL) = MArray.MutArray cont# arrS arrL arrL
 
 {-# NOINLINE nil #-}
 nil :: Array a
-nil = unsafePerformIO $ do
-    marr <- MArray.new 0
-    return $ unsafeFreeze marr
+nil = unsafePerformIO $ unsafeFreeze <$> MArray.nil
 
 -------------------------------------------------------------------------------
 -- Construction - Folds
