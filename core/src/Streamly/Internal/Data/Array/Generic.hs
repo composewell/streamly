@@ -14,6 +14,7 @@ module Streamly.Internal.Data.Array.Generic
     , nil
     , writeN
     , write
+    , writeWith
     , writeLastN
 
     , fromStreamDN
@@ -55,7 +56,7 @@ import Text.Read (readPrec)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
@@ -107,24 +108,17 @@ nil = unsafePerformIO $ do
 writeN :: MonadIO m => Int -> Fold m a (Array a)
 writeN = fmap unsafeFreeze <$> MArray.writeN
 
-{-# INLINE_NORMAL write #-}
+{-# INLINE_NORMAL writeWith #-}
+writeWith :: MonadIO m => Int -> Fold m a (Array a)
+writeWith elemCount = unsafeFreeze <$> MArray.writeWith elemCount
+
+-- | Fold the whole input to a single array.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+{-# INLINE write #-}
 write :: MonadIO m => Fold m a (Array a)
-write = Fold step initial extract
-  where
-    initial = do
-        marr <- liftIO $ MArray.new 0
-        return $ FL.Partial (Tuple3' marr 0 0)
-    step (Tuple3' marr i capacity) x
-        | i == capacity =
-            let newCapacity = max (capacity * 2) 1
-             in do newMarr <- liftIO $ MArray.realloc newCapacity marr
-                   marr1 <- liftIO $ MArray.snocUnsafe newMarr x
-                   return $ FL.Partial $ Tuple3' marr1 (i + 1) newCapacity
-        | otherwise = do
-            marr1 <- liftIO $ MArray.snocUnsafe marr x
-            return $ FL.Partial $ Tuple3' marr1 (i + 1) capacity
-    extract (Tuple3' marr _ _) =
-        return $ unsafeFreeze marr
+write = fmap unsafeFreeze MArray.write
 
 -------------------------------------------------------------------------------
 -- Construction - from streams

@@ -25,9 +25,8 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     -- *** From streams
     , writeNUnsafe
     , writeN
-
-    -- , writeWith
-    -- , write
+    , writeWith
+    , write
 
     -- , writeRevN
     -- , writeRev
@@ -160,6 +159,7 @@ where
 #include "inline.hs"
 #include "assert.hs"
 
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Base
     ( MutableArray#
@@ -329,8 +329,8 @@ modifyIndex i arr@MutArray {..} f = do
 -------------------------------------------------------------------------------
 
 -- | Reallocates the array according to the new size. This is a safe function
--- that always creates a new array and copies the old array into the new one. If
--- the reallocated size is less than the original array it results in a
+-- that always creates a new array and copies the old array into the new one.
+-- If the reallocated size is less than the original array it results in a
 -- truncated version of the original array.
 --
 realloc :: MonadIO m => Int -> MutArray a -> m (MutArray a)
@@ -409,7 +409,7 @@ snocWith sizer arr@MutArray {..} x = do
     else snocWithRealloc sizer arr x
 
 -- XXX round it to next power of 2.
---
+
 -- | The array is mutated to append an additional element to it. If there is no
 -- reserved space available in the array then it is reallocated to double the
 -- original size.
@@ -487,7 +487,6 @@ getSliceUnsafe index len arr@MutArray {..} =
     assert (index >= 0 && len >= 0 && index + len <= arrLen)
         $ arr {arrStart = arrStart + index, arrLen = len}
 
-
 -- | /O(1)/ Slice an array in constant time. Throws an error if the slice
 -- extends out of the array bounds.
 --
@@ -508,6 +507,9 @@ getSlice index len arr@MutArray{..} =
 -------------------------------------------------------------------------------
 -- to Lists and streams
 -------------------------------------------------------------------------------
+
+-- XXX Maybe faster to create a list explicitly instead of mapM, if list fusion
+-- does not work well.
 
 -- | Convert an 'Array' into a list.
 --
@@ -538,10 +540,16 @@ toStreamK arr@MutArray{..} = K.unfoldrM step 0
             x <- getIndexUnsafe i arr
             return $ Just (x, i + 1)
 
-
 -------------------------------------------------------------------------------
 -- Folds
 -------------------------------------------------------------------------------
+
+-- XXX deduplicate this across unboxed array and this module?
+
+-- | The default chunk size by which the array creation routines increase the
+-- size of the array when the array is grown linearly.
+arrayChunkSize :: Int
+arrayChunkSize = 1024
 
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
@@ -569,6 +577,50 @@ writeNUnsafe n = Fold step initial return
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (MutArray a)
 writeN n = FL.take n $ writeNUnsafe n
+
+-- >>> f n = MutArray.writeAppendWith (* 2) (MutArray.newPinned n)
+-- >>> writeWith n = Fold.rmapM MutArray.rightSize (f n)
+-- >>> writeWith n = Fold.rmapM MutArray.fromArrayStreamK (MutArray.writeChunks n)
+
+-- | @writeWith minCount@ folds the whole input to a single array. The array
+-- starts at a size big enough to hold minCount elements, the size is doubled
+-- every time the array needs to be grown.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+-- /Pre-release/
+{-# INLINE_NORMAL writeWith #-}
+writeWith :: MonadIO m => Int -> Fold m a (MutArray a)
+-- writeWith n = FL.rmapM rightSize $ writeAppendWith (* 2) (newPinned n)
+writeWith elemCount = FL.rmapM extract $ FL.foldlM' step initial
+
+    where
+
+    initial = do
+        when (elemCount < 0) $ error "writeWith: elemCount is negative"
+        liftIO $ new elemCount
+
+    step arr@(MutArray _ start end bound) x
+        | end == bound = do
+        let oldSize = end - start
+            newSize = max (oldSize * 2) 1
+        arr1 <- liftIO $ realloc newSize arr
+        snocUnsafe arr1 x
+    step arr x = snocUnsafe arr x
+
+    -- extract = liftIO . rightSize
+    extract = return
+
+-- | Fold the whole input to a single array.
+--
+-- Same as 'writeWith' using an initial array size of 'arrayChunkSize' bytes
+-- rounded up to the element size.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+{-# INLINE write #-}
+write :: MonadIO m => Fold m a (MutArray a)
+write = writeWith arrayChunkSize
 
 -------------------------------------------------------------------------------
 -- Unfolds
