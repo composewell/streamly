@@ -2250,7 +2250,8 @@ asPtrUnsafe arr f = do
 -------------------------------------------------------------------------------
 
 -- | Compare the length of the arrays. If the length is equal, compare the
--- lexicographical ordering of two underlying byte arrays
+-- lexicographical ordering of two underlying byte arrays otherwise return the
+-- result of length comparison.
 --
 -- /Pre-release/
 {-# INLINE cmp #-}

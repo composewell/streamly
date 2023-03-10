@@ -217,6 +217,7 @@ writeLastN n = FL.rmapM f (RB.writeLastN n)
         arr <- RB.toMutArray 0 n rb
         return $ unsafeFreeze arr
 
+{-# INLINE sliceUnsafe #-}
 sliceUnsafe :: Int -> Int -> Array a -> Array a
 sliceUnsafe offset len (Array cont off1 _) = Array cont (off1 + offset) len
 
@@ -226,6 +227,7 @@ sliceUnsafe offset len (Array cont off1 _) = Array cont (off1 + offset) len
 
 -- | Truncate the array at the beginning and end as long as the predicate
 -- holds true. Returns a slice of the original array.
+{-# INLINE strip #-}
 strip :: (a -> Bool) -> Array a -> Array a
 strip p arr =
     let lastIndex = length arr - 1
@@ -259,46 +261,43 @@ strip p arr =
 -------------------------------------------------------------------------------
 
 instance Eq a => Eq (Array a) where
-    a1 == a2 = lenA1 == lenA2 && loop (lenA1 - 1)
-
-        where
-
-        lenA1 = length a1
-        lenA2 = length a2
-
-        loop i
-            | i < 0 = True
-            | otherwise =
-                let v1 = getIndexUnsafe i a1
-                    v2 = getIndexUnsafe i a2
-                 in v1 == v2 && loop (i - 1)
+    {-# INLINE (==) #-}
+    arr1 == arr2 =
+        unsafeInlineIO $! unsafeThaw arr1 `MArray.eq` unsafeThaw arr2
 
 instance Ord a => Ord (Array a) where
-    compare a1 a2 =
-        case compare lenA1 lenA2 of
-            LT -> LT
-            GT -> GT
-            EQ -> loop 0
+    {-# INLINE compare #-}
+    compare arr1 arr2 =
+        unsafeInlineIO $! unsafeThaw arr1 `MArray.cmp` unsafeThaw arr2
 
-        where
+    -- Default definitions defined in base do not have an INLINE on them, so we
+    -- replicate them here with an INLINE.
+    {-# INLINE (<) #-}
+    x <  y = case compare x y of { LT -> True;  _ -> False }
 
-        lenA1 = length a1
-        lenA2 = length a2
+    {-# INLINE (<=) #-}
+    x <= y = case compare x y of { GT -> False; _ -> True }
 
-        loop i
-            | i >= lenA1 = EQ
-            | otherwise =
-                let v1 = getIndexUnsafe i a1
-                    v2 = getIndexUnsafe i a2
-                 in case compare v1 v2 of
-                        LT -> LT
-                        GT -> GT
-                        EQ -> loop (i + 1)
+    {-# INLINE (>) #-}
+    x >  y = case compare x y of { GT -> True;  _ -> False }
+
+    {-# INLINE (>=) #-}
+    x >= y = case compare x y of { LT -> False; _ -> True }
+
+    -- These two default methods use '<=' rather than 'compare'
+    -- because the latter is often more expensive
+    {-# INLINE max #-}
+    max x y = if x <= y then y else x
+
+    {-# INLINE min #-}
+    min x y = if x <= y then x else y
 
 instance Show a => Show (Array a) where
+    {-# INLINE show #-}
     show arr = "fromList " ++ show (toList arr)
 
 instance Read a => Read (Array a) where
+    {-# INLINE readPrec #-}
     readPrec = do
         fromListWord <- replicateM 9 ReadPrec.get
         if fromListWord == "fromList "

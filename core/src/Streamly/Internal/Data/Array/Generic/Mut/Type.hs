@@ -104,6 +104,9 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     -- , getFromThenTo
     -- , getIndexRev
 
+    -- * Size
+    , length
+
     -- * In-place Mutation Algorithms
     -- , reverse
     -- , permute
@@ -115,7 +118,8 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     -- * Folding
     -- , foldl'
     -- , foldr
-    -- , cmp
+    , cmp
+    , eq
 
     -- * Arrays of arrays
     --  We can add dimensionality parameter to the array type to get
@@ -181,7 +185,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Prelude hiding (read)
+import Prelude hiding (read, length)
 
 -- $setup
 -- >>> :m
@@ -703,3 +707,62 @@ clone src = liftIO $ do
     dst <- new len
     putSliceUnsafe src 0 dst 0 len
     return dst
+
+-------------------------------------------------------------------------------
+-- Size
+-------------------------------------------------------------------------------
+
+{-# INLINE length #-}
+length :: MutArray a -> Int
+length = arrLen
+
+-------------------------------------------------------------------------------
+-- Equality
+-------------------------------------------------------------------------------
+
+-- | Compare the length of the arrays. If the length is equal, compare the
+-- lexicographical ordering of two underlying byte arrays otherwise return the
+-- result of length comparison.
+--
+-- /Pre-release/
+{-# INLINE cmp #-}
+cmp :: (MonadIO m, Ord a) => MutArray a -> MutArray a -> m Ordering
+cmp a1 a2 =
+    case compare lenA1 lenA2 of
+        EQ -> loop (lenA1 - 1)
+        x -> return x
+
+    where
+
+    lenA1 = length a1
+    lenA2 = length a2
+
+    loop i
+        | i < 0 = return EQ
+        | otherwise = do
+            v1 <- getIndexUnsafe i a1
+            v2 <- getIndexUnsafe i a2
+            case compare v1 v2 of
+                EQ -> loop (i - 1)
+                x -> return x
+
+{-# INLINE eq #-}
+eq :: (MonadIO m, Eq a) => MutArray a -> MutArray a -> m Bool
+eq a1 a2 =
+    if lenA1 == lenA2
+    then loop (lenA1 - 1)
+    else return False
+
+    where
+
+    lenA1 = length a1
+    lenA2 = length a2
+
+    loop i
+        | i < 0 = return True
+        | otherwise = do
+            v1 <- getIndexUnsafe i a1
+            v2 <- getIndexUnsafe i a2
+            if v1 == v2
+            then loop (i - 1)
+            else return False
