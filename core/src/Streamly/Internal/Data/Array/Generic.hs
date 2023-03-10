@@ -45,14 +45,13 @@ where
 #include "inline.hs"
 
 import Control.Monad (replicateM)
-import Control.Monad.IO.Class (liftIO, MonadIO)
+import Control.Monad.IO.Class (MonadIO)
 import GHC.Base (MutableArray#, RealWorld)
 import GHC.IO (unsafePerformIO)
 import Text.Read (readPrec)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
@@ -65,7 +64,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
-import Data.IORef
 import Prelude hiding (foldr, length, read)
 
 -------------------------------------------------------------------------------
@@ -211,33 +209,13 @@ getIndexUnsafe i arr =
 
 {-# INLINE writeLastN #-}
 writeLastN :: MonadIO m => Int -> Fold m a (Array a)
-writeLastN n
-    | n <= 0 = fmap (const nil) FL.drain
-    | otherwise = Fold step initial done
+writeLastN n = FL.rmapM f (RB.writeLastN n)
 
     where
 
-    initial = do
-        rb <- liftIO $ RB.createRing n
-        return $ FL.Partial $ Tuple' rb (0 :: Int)
-
-    step (Tuple' rb cnt) x = do
-        liftIO $ RB.unsafeInsertRing rb x
-        return $ FL.Partial $ Tuple' rb (cnt + 1)
-
-    done (Tuple' rb cnt) = do
-        let len = min cnt n
-        arr <- liftIO $ MArray.new len
-        arr1 <- MArray.uninit arr len
-        -- XXX Should use an API for retrieving the ring head
-        rhead <- liftIO $ readIORef $ RB.ringHead rb
-        if cnt <= n
-        then do
-            MArray.putSliceUnsafe (RB.ringArr rb) 0 arr1 0 cnt
-        else do
-            MArray.putSliceUnsafe (RB.ringArr rb) rhead arr1 0 (n - rhead)
-            MArray.putSliceUnsafe (RB.ringArr rb) 0 arr1 (n - rhead) rhead
-        return $ unsafeFreeze arr1
+    f rb = do
+        arr <- RB.toMutArray 0 n rb
+        return $ unsafeFreeze arr
 
 sliceUnsafe :: Int -> Int -> Array a -> Array a
 sliceUnsafe offset len (Array cont off1 _) = Array cont (off1 + offset) len
