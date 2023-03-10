@@ -166,8 +166,9 @@ toList arr = loop 0
     loop i = getIndexUnsafe arr i : loop (i + 1)
 
 {-# INLINE_NORMAL read #-}
-read :: MonadIO m => Array a -> Stream m a
-read = MArray.toStreamD . unsafeThaw
+read :: Monad m => Array a -> Stream m a
+read arr@Array{..} =
+    D.map (getIndexUnsafe arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
 
 {-# INLINE_NORMAL readRev #-}
 readRev :: Monad m => Array a -> Stream m a
@@ -188,11 +189,11 @@ foldr :: (a -> b -> b) -> b -> Array a -> b
 foldr f z arr = unsafePerformIO $ D.foldr f z $ read arr
 
 {-# INLINE fold #-}
-fold :: MonadIO m => Fold m a b -> Array a -> m b
+fold :: Monad m => Fold m a b -> Array a -> m b
 fold f arr = D.fold f (read arr)
 
 {-# INLINE streamFold #-}
-streamFold :: MonadIO m => (Stream m a -> m b) -> Array a -> m b
+streamFold :: Monad m => (Stream m a -> m b) -> Array a -> m b
 streamFold f arr = f (read arr)
 
 -------------------------------------------------------------------------------
