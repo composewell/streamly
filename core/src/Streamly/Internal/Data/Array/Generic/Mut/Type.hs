@@ -92,7 +92,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
 
     -- ** To containers
     , toStreamD
-    -- , toStreamDRev
+    , readRev
     , toStreamK
     -- , toStreamKRev
     , toList
@@ -536,6 +536,7 @@ toStreamD :: MonadIO m => MutArray a -> D.Stream m a
 toStreamD arr@MutArray{..} =
     D.mapM (`getIndexUnsafe` arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
 
+-- Check equivalence with StreamK.fromStream . toStreamD and remove
 {-# INLINE toStreamK #-}
 toStreamK :: MonadIO m => MutArray a -> K.StreamK m a
 toStreamK arr@MutArray{..} = K.unfoldrM step 0
@@ -547,6 +548,12 @@ toStreamK arr@MutArray{..} = K.unfoldrM step 0
         | otherwise = do
             x <- getIndexUnsafe i arr
             return $ Just (x, i + 1)
+
+{-# INLINE_NORMAL readRev #-}
+readRev :: MonadIO m => MutArray a -> D.Stream m a
+readRev arr@MutArray{..} =
+    D.mapM (`getIndexUnsafe` arr)
+        $ D.enumerateFromThenToIntegral (arrLen - 1) (arrLen - 2) 0
 
 -------------------------------------------------------------------------------
 -- Folds
