@@ -38,6 +38,7 @@ module Streamly.Internal.Data.Array.Generic
 
     -- * Random Access
     , getIndexUnsafe
+    , getSliceUnsafe
     , strip
     )
 where
@@ -217,9 +218,9 @@ writeLastN n = FL.rmapM f (RB.writeLastN n)
         arr <- RB.toMutArray 0 n rb
         return $ unsafeFreeze arr
 
-{-# INLINE sliceUnsafe #-}
-sliceUnsafe :: Int -> Int -> Array a -> Array a
-sliceUnsafe offset len (Array cont off1 _) = Array cont (off1 + offset) len
+{-# INLINE getSliceUnsafe #-}
+getSliceUnsafe :: Int -> Int -> Array a -> Array a
+getSliceUnsafe offset len (Array cont off1 _) = Array cont (off1 + offset) len
 
 -- XXX This is not efficient as it copies the array. We should support array
 -- slicing so that we can just refer to the underlying array memory instead of
@@ -229,32 +230,7 @@ sliceUnsafe offset len (Array cont off1 _) = Array cont (off1 + offset) len
 -- holds true. Returns a slice of the original array.
 {-# INLINE strip #-}
 strip :: (a -> Bool) -> Array a -> Array a
-strip p arr =
-    let lastIndex = length arr - 1
-        indexR = getIndexR lastIndex -- last predicate failing index
-    in if indexR < 0
-       then nil
-       else
-            let indexL = getIndexL 0 -- first predicate failing index
-            in if indexL == 0 && indexR == lastIndex
-               then arr
-               else
-                   let newLen = indexR - indexL + 1
-                    in sliceUnsafe indexL newLen arr
-
-    where
-
-    getIndexR idx
-        | idx < 0 = idx
-        | otherwise =
-            if p (getIndexUnsafe idx arr)
-            then getIndexR (idx - 1)
-            else idx
-
-    getIndexL idx =
-        if p (getIndexUnsafe idx arr)
-        then getIndexL (idx + 1)
-        else idx
+strip p arr = unsafeFreeze $ unsafePerformIO $ MArray.strip p (unsafeThaw arr)
 
 -------------------------------------------------------------------------------
 -- Instances

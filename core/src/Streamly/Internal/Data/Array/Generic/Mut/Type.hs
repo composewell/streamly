@@ -108,6 +108,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     , length
 
     -- * In-place Mutation Algorithms
+    , strip
     -- , reverse
     -- , permute
     -- , partitionBy
@@ -249,6 +250,8 @@ new n@(I# n#) =
                   (# s1#, arr# #) ->
                       let ma = MutArray arr# 0 0 n
                        in (# s1#, ma #)
+
+-- XXX This could be pure?
 
 -- |
 -- Definition:
@@ -766,3 +769,34 @@ eq a1 a2 =
             if v1 == v2
             then loop (i - 1)
             else return False
+
+{-# INLINE strip #-}
+strip :: MonadIO m => (a -> Bool) -> MutArray a -> m (MutArray a)
+strip p arr = liftIO $ do
+    let lastIndex = length arr - 1
+    indexR <- getIndexR lastIndex -- last predicate failing index
+    if indexR < 0
+    then nil
+    else do
+        indexL <- getIndexL 0 -- first predicate failing index
+        if indexL == 0 && indexR == lastIndex
+        then return arr
+        else
+           let newLen = indexR - indexL + 1
+            in return $ getSliceUnsafe indexL newLen arr
+
+    where
+
+    getIndexR idx
+        | idx < 0 = return idx
+        | otherwise = do
+            r <- getIndexUnsafe idx arr
+            if p r
+            then getIndexR (idx - 1)
+            else return idx
+
+    getIndexL idx = do
+        r <- getIndexUnsafe idx arr
+        if p r
+        then getIndexL (idx + 1)
+        else return idx
