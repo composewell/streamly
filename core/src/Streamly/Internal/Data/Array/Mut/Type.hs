@@ -1,11 +1,25 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE UnboxedTuples #-}
 -- |
--- Module      : Streamly.Internal.Data.MutArray.Mut.Type
+-- Module      : Streamly.Internal.Data.Array.Mut.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- Pinned and unpinned mutable array for 'Unboxed' types. Fulfils the following
+-- goals:
+--
+-- * Random access (array)
+-- * Efficient storage (unboxed)
+-- * Performance (unboxed access)
+-- * Performance - in-place operations (mutable)
+-- * Performance - GC (pinned, mutable)
+-- * interfacing with OS (pinned)
+--
+-- Stream and Fold APIs allow easy, efficient and convenient operations on
+-- arrays.
 --
 -- Mutable arrays and file system files are quite similar, they can grow and
 -- their content is mutable. Therefore, both have similar APIs as well. We
@@ -205,10 +219,6 @@ module Streamly.Internal.Data.Array.Mut.Type
     )
 where
 
--- Notes:
--- When we use a purely lazy Monad like Identity, we need to force ordering of
--- some actions for correctness.
-
 #include "assert.hs"
 #include "inline.hs"
 #include "ArrayMacros.h"
@@ -259,13 +269,7 @@ import qualified Prelude
 import Prelude hiding
     (length, foldr, read, unlines, splitAt, reverse, truncate)
 
--- $setup
--- >>> :m
--- >>> import qualified Streamly.Internal.Data.Array.Mut.Type as MutArray
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
+#include "DocTestDataMutArray.hs"
 
 -------------------------------------------------------------------------------
 -- Foreign helpers
@@ -305,14 +309,12 @@ memcmp p1 p2 len = do
 
 -- $arrayNotes
 --
--- We can use an 'Unboxed' constraint in the MutArray type and the constraint can
--- be automatically provided to a function that pattern matches on the MutArray
--- type. However, it has huge performance cost, so we do not use it.
+-- We can use an 'Unboxed' constraint in the MutArray type and the constraint
+-- can be automatically provided to a function that pattern matches on the
+-- MutArray type. However, it has huge performance cost, so we do not use it.
 -- Investigate a GHC improvement possiblity.
 
--- XXX Rename the fields to better names.
-
--- | An unboxed, pinned mutable array. An array is created with a given length
+-- | An unboxed mutable array. An array is created with a given length
 -- and capacity. Length is the number of valid elements in the array.  Capacity
 -- is the maximum number of elements that the array can be expanded to without
 -- having to reallocate the memory.
@@ -1520,7 +1522,8 @@ toListFB c n MutArray{..} = go arrStart
 
 -- XXX Monadic foldr/build fusion?
 -- Reference: https://www.researchgate.net/publication/220676509_Monadic_augment_and_generalised_short_cut_fusion
--- | Convert an 'MutArray' into a list.
+
+-- | Convert a 'MutArray' into a list.
 --
 {-# INLINE toList #-}
 toList :: forall m a. (MonadIO m, Unbox a) => MutArray a -> m [a]
@@ -1813,7 +1816,7 @@ writeRevN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
 writeRevN = writeRevNWith newPinned
 
 -- | @writeNAligned align n@ folds a maximum of @n@ elements from the input
--- stream to an 'MutArray' aligned to the given size.
+-- stream to a 'MutArray' aligned to the given size.
 --
 -- >>> writeNAligned align = MutArray.writeNWith (MutArray.newAlignedPinned align)
 -- >>> writeNAligned align n = MutArray.writeAppendN n (MutArray.newAlignedPinned align n)
@@ -1911,7 +1914,7 @@ write = writeWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
 
 -- | Use the 'writeN' fold instead.
 --
--- >>> fromStreamDN n = StreamD.fold (MutArray.writeN n)
+-- >>> fromStreamDN n = Stream.fold (MutArray.writeN n)
 --
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Unbox a)
@@ -1928,7 +1931,7 @@ fromStreamDN limit str = do
         liftIO $ pokeWith arrContents ptr x
         return $ INDEX_NEXT(ptr,a)
 
--- | Create an 'MutArray' from the first N elements of a list. The array is
+-- | Create a 'MutArray' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
 -- array may hold less than N elements.
 --
@@ -1978,7 +1981,7 @@ fromArrayStreamK as = do
 fromStreamD :: (MonadIO m, Unbox a) => D.Stream m a -> m (MutArray a)
 fromStreamD m = arrayStreamKFromStreamD m >>= fromArrayStreamK
 
--- | Create an 'MutArray' from a list. The list must be of finite size.
+-- | Create a 'MutArray' from a list. The list must be of finite size.
 --
 {-# INLINE fromList #-}
 fromList :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)

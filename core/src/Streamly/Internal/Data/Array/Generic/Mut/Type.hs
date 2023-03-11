@@ -1,5 +1,5 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE UnboxedTuples #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.Array.Generic.Mut.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -188,13 +188,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding (read, length)
 
--- $setup
--- >>> :m
--- >>> import qualified Streamly.Internal.Data.Array.Generic.Mut.Type as Array
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
+#include "DocTestDataMutArrayGeneric.hs"
 
 -------------------------------------------------------------------------------
 -- MutArray Data Type
@@ -256,7 +250,7 @@ new n@(I# n#) =
 -- |
 -- Definition:
 --
--- >>> nil = Array.new 0
+-- >>> nil = MutArray.new 0
 {-# INLINE nil #-}
 nil :: MonadIO m => m (MutArray a)
 nil = new 0
@@ -288,7 +282,7 @@ invalidIndex label i =
 -- | /O(1)/ Write the given element at the given index in the array.
 -- Performs in-place mutation of the array.
 --
--- >>> putIndex ix arr val = Array.modifyIndex ix arr (const (val, ()))
+-- >>> putIndex ix arr val = MutArray.modifyIndex ix arr (const (val, ()))
 --
 -- /Pre-release/
 {-# INLINE putIndex #-}
@@ -434,7 +428,7 @@ snocWith sizer arr@MutArray {..} x = do
 --
 -- Note that the returned array may be a mutated version of the original array.
 --
--- >>> snoc = Array.snocWith (* 2)
+-- >>> snoc = MutArray.snocWith (* 2)
 --
 -- Performs O(n * log n) copies to grow, but is liberal with memory allocation.
 --
@@ -593,7 +587,7 @@ writeNUnsafe n = Fold step initial return
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
--- >>> writeN n = Fold.take n (Array.writeNUnsafe n)
+-- >>> writeN n = Fold.take n (MutArray.writeNUnsafe n)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL writeN #-}

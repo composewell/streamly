@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Data.MutArray
 -- Copyright   : (c) 2022 Composewell Technologies
@@ -7,16 +8,25 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- Mutable version of "Streamly.Data.Array". Please refer to that module for
--- general documentation. The contents of mutable ararys can be modified
--- in-place.
+-- This module provides a mutable version of "Streamly.Data.Array". The
+-- contents of a mutable array can be modified in-place. For general
+-- documentation, please refer to the original module.
 --
--- See "Streamly.Data.MutArray.Generic" for mutable arrays that work for boxed
--- types i.e. not requiring the 'Unbox' constraint.
+-- Please refer to "Streamly.Internal.Data.Array.Mut" for functions that have
+-- not yet been released.
+--
+-- For mutable arrays that work on boxed types, not requiring the 'Unbox'
+-- constraint, please refer to "Streamly.Data.MutArray.Generic".
 
 module Streamly.Data.MutArray
     (
-    -- * Types
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
+    -- * Mutable Array Type
       MutArray
 
     -- * Construction
@@ -67,3 +77,5 @@ where
 import Prelude hiding (length, read)
 import Streamly.Internal.Data.Array.Mut
 import Streamly.Internal.Data.Unboxed (Unbox (..))
+
+#include "DocTestDataMutArray.hs"

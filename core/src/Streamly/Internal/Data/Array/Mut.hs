@@ -1,5 +1,3 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Array.Mut
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -8,20 +6,6 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Unboxed pinned mutable array type for 'Unboxed' types with an option to use
--- foreign (non-GHC) memory allocators. Fulfils the following goals:
---
--- * Random access (array)
--- * Efficient storage (unboxed)
--- * Performance (unboxed access)
--- * Performance - in-place operations (mutable)
--- * Performance - GC (pinned, mutable)
--- * interfacing with OS (pinned)
--- * Fragmentation control (foreign allocators)
---
--- Stream and Fold APIs allow easy, efficient and convenient operations on
--- arrays.
-
 module Streamly.Internal.Data.Array.Mut
     (
       module Streamly.Internal.Data.Array.Mut.Type
@@ -31,6 +15,8 @@ module Streamly.Internal.Data.Array.Mut
     , fromStream
     )
 where
+
+#include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unboxed (Unbox)

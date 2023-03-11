@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Data.MutArray.Generic
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -12,6 +13,12 @@
 --
 module Streamly.Data.MutArray.Generic
 (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * Type
       MutArray
 
@@ -38,3 +45,5 @@ module Streamly.Data.MutArray.Generic
 where
 
 import Streamly.Internal.Data.Array.Generic.Mut.Type
+
+#include "DocTestDataMutArrayGeneric.hs"

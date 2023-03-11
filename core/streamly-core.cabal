@@ -40,6 +40,8 @@ extra-source-files:
    -- doctest include files
     src/DocTestDataArray.hs
     src/DocTestDataFold.hs
+    src/DocTestDataMutArray.hs
+    src/DocTestDataMutArrayGeneric.hs
 
     -- This is duplicated
     src/Streamly/Internal/Data/Array/ArrayMacros.h
