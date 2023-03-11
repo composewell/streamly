@@ -7,7 +7,8 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- Composable stream consumers.
+-- Fast, composable stream consumers with ability to terminate, supporting
+-- stream fusion.
 --
 -- Please refer to "Streamly.Internal.Data.Fold" for more functions that have
 -- not yet been released.

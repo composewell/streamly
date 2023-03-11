@@ -8,13 +8,18 @@
 --
 -- CPS style implementation of parsers.
 --
--- The CPS representation allows linear performance for Applicative, sequenceA,
--- Monad, sequence, and Alternative, choice operations compared to the
--- quadratic complexity of the corresponding direct style operations. However,
--- direct style operations allow fusion with ~10x better performance than CPS.
+-- The CPS representation allows linear performance for Applicative, sequence,
+-- Monad, Alternative, and choice operations compared to the quadratic
+-- complexity of the corresponding direct style operations. However, direct
+-- style operations allow fusion with ~10x better performance than CPS.
 --
 -- The direct style representation does not allow for recursive definitions of
 -- "some" and "many" whereas CPS allows that.
+--
+-- 'Applicative' and 'Control.Applicative.Alternative' type class based
+-- combinators from the
+-- <http://hackage.haskell.org/package/parser-combinators parser-combinators>
+-- package can also be used with the 'ParserK' type.
 
 module Streamly.Internal.Data.Parser.ParserK.Type
     (

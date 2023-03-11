@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserD.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -160,9 +161,23 @@
 -- We can distribute and scan/parse a stream using both folds and parsers and
 -- merge the resulting streams using different merge strategies (e.g.
 -- interleaving or serial).
+--
+-- == Naming
+--
+-- As far as possible, try that the names of the combinators in this module are
+-- consistent with:
+--
+-- * <https://hackage.haskell.org/package/base/docs/Text-ParserCombinators-ReadP.html base/Text.ParserCombinators.ReadP>
+-- * <http://hackage.haskell.org/package/parser-combinators parser-combinators>
+-- * <http://hackage.haskell.org/package/megaparsec megaparsec>
+-- * <http://hackage.haskell.org/package/attoparsec attoparsec>
+-- * <http://hackage.haskell.org/package/parsec parsec>
 
 module Streamly.Internal.Data.Parser.ParserD.Type
     (
+    -- * Setup
+    -- $setup
+
     -- * Types
       Initial (..)
     , Step (..)
@@ -214,19 +229,8 @@ import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Fold.Type as FL
 
 import Prelude hiding (concatMap, filter)
---
--- $setup
--- >>> :m
--- >>> import Control.Applicative ((<|>))
--- >>> import Data.Bifunctor (second)
--- >>> import Prelude hiding (concatMap, span)
--- >>> import Streamly.Data.Fold (Fold)
--- >>> import Streamly.Data.Parser (Parser)
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream as Stream (parse)
--- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
+
+#include "DocTestDataParser.hs"
 
 -- XXX The only differences between Initial and Step types are:
 --
@@ -240,7 +244,7 @@ import Prelude hiding (concatMap, filter)
 -- Step itself. That will also simplify the implementation of various parsers
 -- where the processing in intiial is just a sepcial case of step, see
 -- takeBetween for example.
---
+
 -- | The type of a 'Parser''s initial action.
 --
 -- /Internal/
@@ -1177,7 +1181,7 @@ dieM err = Parser undefined (IError <$> err) undefined
 -- Note: The implementation of '<|>' is not lazy in the second
 -- argument. The following code will fail:
 --
--- >>> Stream.parse (ParserD.satisfy (> 0) <|> undefined) $ Stream.fromList [1..10]
+-- >>> Stream.parse (Parser.satisfy (> 0) <|> undefined) $ Stream.fromList [1..10]
 -- *** Exception: Prelude.undefined
 -- ...
 --

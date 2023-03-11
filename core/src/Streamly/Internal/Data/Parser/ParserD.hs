@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserD
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -5,46 +6,13 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
---
--- Fast backtracking parsers with stream fusion and native streaming
--- capability.
---
--- 'Applicative' and 'Control.Applicative.Alternative' type class based
--- combinators from the
--- <http://hackage.haskell.org/package/parser-combinators parser-combinators>
--- package can also be used with the 'Parser' type. However, there are two
--- important differences between @parser-combinators@ and the equivalent ones
--- provided in this module in terms of performance:
---
--- 1) @parser-combinators@ use plain Haskell lists to collect the results, in a
--- strict Monad like IO, the results are necessarily buffered before they can
--- be consumed.  This may not perform optimally in streaming applications
--- processing large amounts of data.  Equivalent combinators in this module can
--- consume the results of parsing using a 'Fold', thus providing a scalability
--- and a composable consumer.
---
--- 2) Several combinators in this module can be many times faster because of
--- stream fusion. For example, 'Streamly.Internal.Data.Parser.many' combinator
--- in this module is much faster than the 'Control.Applicative.many' combinator
--- of 'Control.Applicative.Alternative' type class.
---
--- = Errors
---
--- Failing parsers in this module throw the 'D.ParseError' exception.
---
--- = Naming
---
--- As far as possible, try that the names of the combinators in this module are
--- consistent with:
---
--- * <https://hackage.haskell.org/package/base/docs/Text-ParserCombinators-ReadP.html base/Text.ParserCombinators.ReadP>
--- * <http://hackage.haskell.org/package/parser-combinators parser-combinators>
--- * <http://hackage.haskell.org/package/megaparsec megaparsec>
--- * <http://hackage.haskell.org/package/attoparsec attoparsec>
--- * <http://hackage.haskell.org/package/parsec parsec>
 
 module Streamly.Internal.Data.Parser.ParserD
     (
+    -- * Setup
+    -- $setup
+
+    -- * Types
       Parser (..)
     , ParseError (..)
     , Step (..)
@@ -311,18 +279,7 @@ import Prelude hiding
 -- import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Type
 
---
--- $setup
--- >>> :m
--- >>> import Prelude hiding ()
--- >>> import Control.Applicative
--- >>> import Data.Char (isSpace)
--- >>> import qualified Data.Foldable as Foldable
--- >>> import qualified Data.Maybe as Maybe
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Parser as Parser
+#include "DocTestDataParser.hs"
 
 -------------------------------------------------------------------------------
 -- Downgrade a parser to a Fold
