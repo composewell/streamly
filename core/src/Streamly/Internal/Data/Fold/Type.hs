@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -optP-P #-}
 -- |
 -- Module      : Streamly.Internal.Data.Fold.Type
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -439,21 +441,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding (concatMap, filter, foldr, map, take)
 
--- $setup
--- >>> :m
--- >>> :set -XFlexibleContexts
--- >>> import Data.Functor.Identity (runIdentity)
--- >>> import Data.Maybe (fromJust, isJust)
--- >>> import Data.Monoid (Endo(..))
--- >>> import Streamly.Data.Fold (Fold)
--- >>> import Streamly.Data.Stream (Stream)
--- >>> import qualified Data.Foldable as Foldable
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
--- >>> import Prelude hiding (concatMap, filter, map)
+#include "DocTestDataFold.hs"
 
 ------------------------------------------------------------------------------
 -- The Fold type

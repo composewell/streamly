@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -optP-P #-}
 -- |
 -- Module      : Streamly.Internal.Data.Fold
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -348,27 +350,7 @@ import Prelude hiding
 import Streamly.Internal.Data.Fold.Type
 import Streamly.Internal.Data.Fold.Tee
 
--- $setup
--- >>> :m
--- >>> :set -package random
--- >>> import Control.Monad (void)
--- >>> import Data.Functor.Identity (Identity, runIdentity)
--- >>> import Data.Maybe (isJust)
--- >>> import Data.Monoid (Last(..), Sum(..))
--- >>> import Streamly.Data.Array (Array)
--- >>> import Streamly.Data.Fold (Fold)
--- >>> import Streamly.Data.Stream (Stream)
--- >>> import Data.IORef (newIORef, readIORef, writeIORef)
--- >>> import qualified Streamly.Data.Array as Array
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Array.Mut.Type as MA
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
--- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
--- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
--- >>> import Prelude hiding (break, map, span, splitAt)
+#include "DocTestDataFold.hs"
 
 ------------------------------------------------------------------------------
 -- Running
@@ -2070,6 +2052,7 @@ partitionByMUsing t f fld1 fld2 =
 --
 -- Example, send input to either fold randomly:
 --
+-- >>> :set -package random
 -- >>> import System.Random (randomIO)
 -- >>> randomly a = randomIO >>= \x -> return $ if x then Left a else Right a
 -- >>> f = Fold.partitionByM randomly Fold.length Fold.length
@@ -2489,7 +2472,7 @@ bottomBy cmp n = Fold step initial extract
 -- Example:
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.fold (Fold.topBy compare 3) stream >>= MA.toList
+-- >>> Stream.fold (Fold.topBy compare 3) stream >>= MutArray.toList
 -- [17,11,9]
 --
 -- /Pre-release/
@@ -2508,7 +2491,7 @@ topBy cmp = bottomBy (flip cmp)
 -- >>> top = Fold.topBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.fold (Fold.top 3) stream >>= MA.toList
+-- >>> Stream.fold (Fold.top 3) stream >>= MutArray.toList
 -- [17,11,9]
 --
 -- /Pre-release/
@@ -2523,7 +2506,7 @@ top = bottomBy $ flip compare
 -- >>> bottom = Fold.bottomBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.fold (Fold.bottom 3) stream >>= MA.toList
+-- >>> Stream.fold (Fold.bottom 3) stream >>= MutArray.toList
 -- [1,2,3]
 --
 -- /Pre-release/

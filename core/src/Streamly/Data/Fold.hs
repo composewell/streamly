@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -optP-P #-}
 -- |
 -- Module      : Streamly.Data.Fold
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -6,13 +8,12 @@
 -- Stability   : released
 -- Portability : GHC
 --
+-- Please refer to the "Setup for Examples" section below for the ghci commands
+-- required to be run prior to executing the code snippets in this module.
+--
 -- A 'Fold' is a sink or a consumer of a stream of values.  The 'Fold' type
 -- consists of an accumulator and an effectful action that absorbs a value into
 -- the accumulator.
---
--- >>> import Data.Function ((&))
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
 --
 -- For example, a 'sum' Fold represents adding the input to the accumulated
 -- sum.  A fold driver pushes values from a stream to the 'Fold' one at a time,
@@ -128,6 +129,9 @@
 
 module Streamly.Data.Fold
     (
+    -- * Setup for Examples
+    -- $setup
+
     -- * Running A Fold
       drive
     -- XXX Should we have a stream returning function in fold module?
@@ -361,10 +365,9 @@ import Prelude
 import Streamly.Internal.Data.Fold
 import Streamly.Internal.Data.Fold.Container
 
--- $setup
--- >>> import Data.Function ((&))
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
+#define RELEASED_MODULE
+
+#include "DocTestDataFold.hs"
 
 --------------------------------------------------------------------------------
 -- Deprecated
