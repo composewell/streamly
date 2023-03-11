@@ -1195,6 +1195,7 @@ fromPtrN n = take n . fromPtr
 -- | Read bytes from an 'Addr#' until a 0 byte is encountered, the 0 byte is
 -- not included in the stream.
 --
+-- >>> :set -XMagicHash
 -- >>> fromByteStr# addr = Stream.takeWhile (/= 0) $ Stream.fromPtr $ Ptr addr
 --
 -- /Unsafe:/ The caller is responsible for safe addressing.

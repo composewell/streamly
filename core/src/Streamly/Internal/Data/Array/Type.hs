@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Array.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -107,13 +108,7 @@ import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
 import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 
---
--- $setup
--- >>> :m
--- >>> :set -XMagicHash
--- >>> import Prelude hiding (length, foldr, read, unlines, splitAt)
--- >>> import Streamly.Data.Stream as Stream
--- >>> import Streamly.Internal.Data.Array as Array
+#include "DocTestDataArray.hs"
 
 -------------------------------------------------------------------------------
 -- Array Data Type

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Array
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -7,29 +8,15 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- To summarize:
---
---  * Arrays are finite and fixed in size
---  * provide /O(1)/ access to elements
---  * store only data and not functions
---  * provide efficient IO interfacing
---
--- 'Foldable' instance is not provided because the implementation would be much
--- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
--- instances should be used with care; concatenating arrays using binary
--- operations can be highly inefficient.  Instead, use
--- 'Streamly.Internal.Data.Stream.Chunked.toArray' to concatenate N
--- arrays at once.
---
--- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
--- single byte) are only as good as holding those elements in a Haskell list.
--- However, small arrays can be compacted into large ones to reduce the
--- overhead. To hold 32GB memory in 32k sized buffers we need 1 million arrays
--- if we use one array for each chunk. This is still significant to add
--- pressure to GC.
-
 module Streamly.Internal.Data.Array
     (
+    -- * Setup
+    -- $setup
+
+    -- * Design Notes
+    -- $design
+
+    -- * The Array Type
       Array
 
     -- * Construction
@@ -154,6 +141,31 @@ import qualified Streamly.Internal.Data.Ring.Unboxed as RB
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
+
+#include "DocTestDataArray.hs"
+
+-- $design
+--
+-- To summarize:
+--
+--  * Arrays are finite and fixed in size
+--  * provide /O(1)/ access to elements
+--  * store only data and not functions
+--  * provide efficient IO interfacing
+--
+-- 'Foldable' instance is not provided because the implementation would be much
+-- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
+-- instances should be used with care; concatenating arrays using binary
+-- operations can be highly inefficient.  Instead, use
+-- 'Streamly.Internal.Data.Stream.Chunked.toArray' to concatenate N
+-- arrays at once.
+--
+-- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
+-- single byte) are only as good as holding those elements in a Haskell list.
+-- However, small arrays can be compacted into large ones to reduce the
+-- overhead. To hold 32GB memory in 32k sized buffers we need 1 million arrays
+-- if we use one array for each chunk. This is still significant to add
+-- pressure to GC.
 
 -------------------------------------------------------------------------------
 -- Construction

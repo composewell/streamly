@@ -38,13 +38,13 @@ extra-source-files:
     configure.ac
 
    -- doctest include files
+    src/DocTestDataArray.hs
     src/DocTestDataFold.hs
 
     -- This is duplicated
     src/Streamly/Internal/Data/Array/ArrayMacros.h
     src/assert.hs
     src/inline.hs
-    src/DocTestDataArray.hs
 
     src/Streamly/Internal/Data/Time/Clock/config-clock.h
     src/config.h.in
