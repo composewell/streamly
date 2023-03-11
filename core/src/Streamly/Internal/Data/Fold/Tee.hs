@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Fold.Tee
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -20,19 +21,17 @@ import Streamly.Internal.Data.Fold.Type (Fold)
 
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 
+#include "DocTestDataFold.hs"
+
 -- | @Tee@ is a newtype wrapper over the 'Fold' type providing distributing
 -- 'Applicative', 'Semigroup', 'Monoid', 'Num', 'Floating' and 'Fractional'
 -- instances.
 --
--- The input received by the
--- composed 'Tee' is replicated and distributed to both the constituent Tees.
+-- The input received by the composed 'Tee' is replicated and distributed to
+-- the constituent folds of the 'Tee'.
 --
 -- For example, to compute the average of numbers in a stream without going
 -- through the stream twice:
---
--- >>> import Streamly.Internal.Data.Fold.Tee (Tee(..))
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
 --
 -- >>> avg = (/) <$> (Tee Fold.sum) <*> (Tee $ fmap fromIntegral Fold.length)
 -- >>> Stream.fold (unTee avg) $ Stream.fromList [1.0..100.0]

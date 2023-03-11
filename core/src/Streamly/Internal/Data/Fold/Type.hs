@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Fold.Type
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -424,7 +425,7 @@ where
 
 #include "inline.hs"
 
--- import Control.Applicative (liftA2)
+import Control.Applicative (liftA2)
 import Control.Monad ((>=>))
 import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
@@ -439,21 +440,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding (concatMap, filter, foldr, map, take)
 
--- $setup
--- >>> :m
--- >>> :set -XFlexibleContexts
--- >>> import Data.Functor.Identity (runIdentity)
--- >>> import Data.Maybe (fromJust, isJust)
--- >>> import Data.Monoid (Endo(..))
--- >>> import Streamly.Data.Fold (Fold)
--- >>> import Streamly.Data.Stream (Stream)
--- >>> import qualified Data.Foldable as Foldable
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
--- >>> import Prelude hiding (concatMap, filter, map)
+#include "DocTestDataFold.hs"
 
 ------------------------------------------------------------------------------
 -- The Fold type
@@ -474,10 +461,8 @@ import Prelude hiding (concatMap, filter, foldr, map, take)
 -- intermediate state (see 'Step'). At any point the fold driver can extract
 -- the result from the intermediate state using the @extract@ function.
 --
--- NOTE: The constructor is not yet exposed via exposed modules, smart
--- constructors are provided to create folds.  If you think you need the
--- constructor of this type please consider using the smart constructors in
--- "Streamly.Internal.Data.Fold" instead.
+-- NOTE: The constructor is not yet released, smart constructors are provided
+-- to create folds.
 --
 data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
@@ -873,13 +858,10 @@ split_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
             Partial sR -> extractR sR
             Done rR -> return rR
 
--- Disabled because this uses the non-CPS style splitWith operation. We should
--- use a CPS style operation to be compatible with parsers. For fused
--- applicative we can use a separate (Split) newtype instead.
-
-{-
 -- | 'Applicative' form of 'splitWith'. Split the input serially over two
--- folds.
+-- folds. Note that this fuses but performance degrades quadratically with
+-- respect to the number of compositions. It should be good to use for less
+-- than 8 compositions.
 instance Monad m => Applicative (Fold m a) where
     {-# INLINE pure #-}
     pure = fromPure
@@ -892,7 +874,6 @@ instance Monad m => Applicative (Fold m a) where
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
--}
 
 {-# ANN type TeeState Fuse #-}
 data TeeState sL sR bL bR
@@ -1427,8 +1408,6 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 --
 -- 'duplicate' essentially appends a stream to the fold without finishing the
 -- fold.  Compare with 'snoc' which appends a singleton value to the fold.
---
--- See also 'Streamly.Internal.Data.Stream.build'.
 --
 -- /Pre-release/
 {-# INLINE duplicate #-}
