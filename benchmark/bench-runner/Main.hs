@@ -79,6 +79,9 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.Stream.ConcurrentEager/o-1-space."
             `isPrefixOf` benchName = "-M128M"
 
+        | "Data.Stream.ConcurrentOrdered/o-1-space.concat-foldable.foldMapWith"
+            `isPrefixOf` benchName = "-K128K"
+
         ----------------------------------------------------------------------
 
         | "Data.Array" `isPrefixOf` benchName

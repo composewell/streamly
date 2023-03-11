@@ -25,7 +25,6 @@ jobs:
         Data.Fold
         Data.Fold.Window
         Data.Parser
-        Data.Parser.ParserD
         Data.Parser.ParserK
         Data.Stream.StreamD
         Data.Stream.StreamK:6
@@ -118,7 +117,7 @@ jobs:
     - name: Run benchmarks
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
       run: |
-        ./bench-runner --targets "$CI_BENCHMARKS" --raw
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw
 
     - name: Move charts to charts-master
       if: steps.cache-charts-master.outputs.cache-hit != 'true'
@@ -138,7 +137,7 @@ jobs:
 
     - name: Run benchmarks and append
       run: |
-        ./bench-runner --targets "$CI_BENCHMARKS" --raw --append
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
     # -- Compare
@@ -146,7 +145,7 @@ jobs:
 
     - name: List all benchmarks
       run: |
-        ./bench-runner --targets "$CI_BENCHMARKS" --no-measure
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --no-measure
 
     - name: Compare benchmarks
       run: |
@@ -164,11 +163,13 @@ jobs:
 
           echo
           echo "Checking $bname for regressions greater than $cutoff percent"
-          ! ./bench-runner \
-                      --targets "$bname" \
-                      --fields "$CI_FIELDS" \
-                      --no-measure --silent \
-                      --diff-cutoff-percent $cutoff \
+          ! ./bench-runner  \
+                    --package-name streamly-benchmarks \
+                    --package-version 0.0.0 \
+                    --targets "$bname" \
+                    --fields "$CI_FIELDS" \
+                    --no-measure --silent \
+                    --diff-cutoff-percent $cutoff \
                 | grep -v "^$"
           test $? -eq 1 && EXIT_STATUS=1
         done
