@@ -1,7 +1,15 @@
 # Changelog
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
+
 ## 0.9.0 (Mar 2023)
+
+Also see the following:
+
+* [0.9.0 Upgrade Guide](/docs/User/ProjectRelated/Upgrading.md) or
+  https://hackage.haskell.org/package/streamly-0.9.0/docs/docs/User/ProjectRelated/Upgrading.md
+* [0.9.0 API Changelog](/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt) or
+  https://hackage.haskell.org/package/streamly-0.9.0/docs/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt
 
 ### Package split
 
