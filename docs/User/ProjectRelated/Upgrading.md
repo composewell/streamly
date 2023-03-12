@@ -25,8 +25,11 @@ programmers to control concurrent behavior in a more robust way and
 reduce pitfalls.
 
 The old code can be adapted to use the new modules with some
-changes. More details about this is supplied in the following
-sections. Assume the following imports in the code snippets below:
+changes. More details about this is supplied in the following sections.
+Please open an issue if you cannot find a way to adapt the code to the new
+release.
+
+Assume the following imports in the code snippets below:
 
 ```haskell docspec
 >>> import qualified Streamly.Data.Stream as Stream
@@ -55,9 +58,9 @@ you will use most of the time. You can think of it as a replacement for
 the `SerialT` type. However, it does not provide an Applicative or Monad
 instance.
 
-The `CrossStream` type in `Streamly.Internal.Data.Stream.StreamD` is a
+The `CrossStream` type in `Streamly.Internal.Data.Stream` is a
 wrapper over `Stream` type supplying the Monad instance. However, see
-the "Performance Notes" section in the `Streamly.Data.Stream` module for
+the "Stream Fusion" section in the `Streamly.Data.Stream` module for
 limitations of the `Stream` type. The `StreamK` type and `CrossStreamK`
 (in Streamly.Internal.Data.Stream.StreamK) could be used to overcome the
 limitations of `Stream` type.
@@ -88,7 +91,6 @@ Explicit stream fold functions have been omitted from the new stream
 module. You can use the following equivalent definitions:
 
 ```haskell docspec
->>> toList = Stream.fold Fold.toList
 >>> the = Stream.fold Fold.the
 >>> sum = Stream.fold Fold.sum
 >>> product = Stream.fold Fold.product
@@ -106,23 +108,21 @@ module. You can use the following equivalent definitions:
 >>> length = Stream.fold Fold.length
 >>> last = Stream.fold Fold.latest
 >>> head = Stream.fold Fold.one
->>> foldr f a = Stream.fold (Fold.foldr' f a)
 >>> foldlM' f a = Stream.fold (Fold.foldlM' f a)
 >>> foldl1 f = Stream.fold (Fold.foldl1' f)
 >>> foldl' f a = Stream.fold (Fold.foldl' f a)
 >>> findIndex eq = Stream.fold (Fold.findIndex eq)
 >>> find eq = Stream.fold (Fold.find eq)
 >>> findM eq = Stream.fold (Fold.findM eq)
->>> drainWhile predicate = Stream.fold Fold.drain . Stream.takeWhile predicate
+>>> drainWhile p = Stream.fold Fold.drain . Stream.takeWhile p
 >>> drainN i = Stream.fold Fold.drain . Stream.take i
 >>> drain = Stream.fold Fold.drain
->>> any predicate = Stream.fold (Fold.any predicate)
+>>> any p = Stream.fold (Fold.any p)
 >>> and = Stream.fold Fold.and
->>> all predicate = Stream.fold (Fold.all predicate)
+>>> all p = Stream.fold (Fold.all p)
 >>> (!!) i = Stream.fold (Fold.index i)
 >>> tail = Streamly.Internal.Data.Stream.StreamK.tail
 >>> init = Streamly.Internal.Data.Stream.StreamK.init
->>> foldrM = Streamly.Internal.Data.Stream.StreamD.foldrM
 ```
 
 Mapping functions:
@@ -155,33 +155,32 @@ Filters:
 >>> elemIndices a = findIndices (== a)
 ```
 
-Direct implementations of most of these folds, scans and filters are also
-available in the `Streamly.Internal.Data.Stream.StreamD` module. Those may in
-fact be better fusible in some situations.
+Custom implementations of most of these folds, scans and filters are also
+available in the `Streamly.Internal.Data.Stream` module.
 
 ## Stream splitting and grouping functions
 
 Stream splitting and grouping functions like `splitOn`, `wordsBy`, and
 `groupsBy` have been omitted from the new stream module as these can
 now be implemented using `foldMany` and an appropriate fold from the
-`Streamly.Data.Fold` module or using `parseMany` and an appropriate
+`Streamly.Data.Fold` module, or using `parseMany` and an appropriate
 parser from the `Streamly.Data.Parser` module.
 
 ```haskell docspec
 >>> uniq = Stream.scanMaybe (Fold.uniqBy (==))
->>> splitWithSuffix predicate f = Stream.foldMany (Fold.takeEndBy predicate f)
->>> splitOn = Streamly.Internal.Data.Stream.StreamD.splitOn
->>> splitOnSuffix predicate f = Stream.foldMany (Fold.takeEndBy_ predicate f)
->>> indexedR = Streamly.Internal.Data.Stream.StreamD.indexedR
+>>> splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
+>>> splitOn = Streamly.Internal.Data.Stream.splitOn
+>>> splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
+>>> indexedR = Streamly.Internal.Data.Stream.indexedR
 >>> groupsBy eq fld = Stream.parseMany (Parser.groupBy eq fld)
 >>> groups = groupsBy (==)
->>> groupsByRolling = Streamly.Internal.Data.Stream.StreamD.groupsRollingBy
+>>> groupsByRolling = Streamly.Internal.Data.Stream.groupsRollingBy
 >>> wordsBy p f = Stream.parseMany (Parser.wordBy p f)
 >>> chunksOf n f = Stream.foldMany (Fold.take n f)
 ```
 
 Direct implementation of these are also available in
-`Streamly.Internal.Data.Stream.StreamD`.
+`Streamly.Internal.Data.Stream`.
 
 ## Concurrency
 
