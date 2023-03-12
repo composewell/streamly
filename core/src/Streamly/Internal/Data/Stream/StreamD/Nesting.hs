@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Nesting
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -201,19 +202,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 
 import Prelude hiding (concatMap, mapM, zipWith)
 
--- $setup
--- >>> :m
--- >>> import Data.Either (either)
--- >>> import Data.IORef
--- >>> import Streamly.Internal.Data.Stream (Stream)
--- >>> import Prelude hiding (zipWith, concatMap, concat)
--- >>> import qualified Streamly.Data.Array as Array
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
--- >>> import qualified Streamly.Internal.Data.Parser as Parser
--- >>> import qualified Streamly.Internal.FileSystem.Dir as Dir
---
+#include "DocTestDataStream.hs"
 
 ------------------------------------------------------------------------------
 -- Appending

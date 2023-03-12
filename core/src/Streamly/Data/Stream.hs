@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Data.Stream
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -7,87 +8,29 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- To run examples in this module:
+-- Fast, composable stream producers with ability to terminate, supporting
+-- stream fusion.
 --
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
+-- Please refer to "Streamly.Internal.Data.Stream" for more functions that have
+-- not yet been released.
 --
--- We will add some more imports in the examples as needed.
---
--- For effectful streams we will use the following IO action:
---
--- >>> effect n = print n >> return n
---
--- = Overview
---
--- Streamly is a framework for modular data flow based programming and
--- declarative concurrency.  Powerful stream fusion framework in streamly
--- allows high performance combinatorial programming even when using byte level
--- streams.  Streamly API is similar to Haskell lists.
---
--- == Console Echo Example
---
--- In the following example, 'repeatM' generates an infinite stream of 'String'
--- by repeatedly performing the 'getLine' IO action. 'mapM' then applies
--- 'putStrLn' on each element in the stream converting it to stream of '()'.
--- Finally, 'drain' folds the stream to IO discarding the () values, thus
--- producing only effects.
---
--- >>> import Data.Function ((&))
---
--- >>> :{
--- echo =
---  Stream.repeatM getLine       -- Stream IO String
---      & Stream.mapM putStrLn   -- Stream IO ()
---      & Stream.fold Fold.drain -- IO ()
--- :}
---
--- This is a console echo program. It is an example of a declarative loop
--- written using streaming combinators.  Compare it with an imperative @while@
--- loop.
---
--- Hopefully, this gives you an idea how we can program declaratively by
--- representing loops using streams. In this module, you can find all
--- "Data.List" like functions and many more powerful combinators to perform
--- common programming tasks.
---
--- == Performance Notes
---
--- The 'Stream' type represents a stream by composing state as data which
--- enables stream fusion. Stream fusion generates a tight loop without any
--- constructor allocations between the stages, providing C like performance for
--- the loop. Stream fusion works when multiple functions are combined in a
--- pipeline statically. Therefore, the operations in this module must be
--- inlined and must not be used recursively to allow for stream fusion.
---
--- Using the 'Stream' type binary stream construction operations like 'cons',
--- 'append' etc. degrade quadratically (O(n^2)) when combined many times. If
--- you need to combine these operations, say more than 50 times in a single
--- loop, then you should use the continuation style stream type 'StreamK'
--- instead. Also, if you need to use these operations in a recursive loop you
--- should use 'StreamK' instead.
---
--- The 'StreamK' type represents a stream by composing function calls,
--- therefore, a function call overhead is incurred at each composition. It is
--- quite fast in general but may be a few times slower than a fused stream.
--- However, it allows for scalable dynamic composition and control flow
--- manipulation. Using the 'StreamK' type binary operations like 'cons' and
--- 'append' provide linear (O(n)) performance.
---
--- 'Stream' and 'StreamK' types can be interconverted.
---
--- == Useful Idioms
---
--- >>> fromListM = Stream.sequence . Stream.fromList
--- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0
---
--- Also see "Streamly.Internal.Data.Stream" module for many more @Pre-release@
--- combinators. See the <https://github.com/composewell/streamly-examples>
+-- Checkout the <https://github.com/composewell/streamly-examples>
 -- repository for many more real world examples of stream programming.
---
+
 module Streamly.Data.Stream
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
+    -- * Overview
+    -- $overview
+
+    -- * The Stream Type
       Stream
+
     -- * Construction
     -- | Functions ending in the general shape @b -> Stream m a@.
     --
@@ -522,3 +465,68 @@ import Prelude
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, repeat, replicate, concatMap, span)
+
+#include "DocTestDataStream.hs"
+
+-- $overview
+--
+-- Streamly is a framework for modular data flow based programming and
+-- declarative concurrency.  Powerful stream fusion framework in streamly
+-- allows high performance combinatorial programming even when using byte level
+-- streams.  Streamly API is similar to Haskell lists.
+--
+-- == Console Echo Example
+--
+-- In the following example, 'repeatM' generates an infinite stream of 'String'
+-- by repeatedly performing the 'getLine' IO action. 'mapM' then applies
+-- 'putStrLn' on each element in the stream converting it to stream of '()'.
+-- Finally, 'drain' folds the stream to IO discarding the () values, thus
+-- producing only effects.
+--
+-- >>> import Data.Function ((&))
+--
+-- >>> :{
+-- echo =
+--  Stream.repeatM getLine       -- Stream IO String
+--      & Stream.mapM putStrLn   -- Stream IO ()
+--      & Stream.fold Fold.drain -- IO ()
+-- :}
+--
+-- This is a console echo program. It is an example of a declarative loop
+-- written using streaming combinators.  Compare it with an imperative @while@
+-- loop.
+--
+-- Hopefully, this gives you an idea how we can program declaratively by
+-- representing loops using streams. In this module, you can find all
+-- "Data.List" like functions and many more powerful combinators to perform
+-- common programming tasks.
+--
+-- == Performance Notes
+--
+-- The 'Stream' type represents a stream by composing state as data which
+-- enables stream fusion. Stream fusion generates a tight loop without any
+-- constructor allocations between the stages, providing C like performance for
+-- the loop. Stream fusion works when multiple functions are combined in a
+-- pipeline statically. Therefore, the operations in this module must be
+-- inlined and must not be used recursively to allow for stream fusion.
+--
+-- Using the 'Stream' type binary stream construction operations like 'cons',
+-- 'append' etc. degrade quadratically (O(n^2)) when combined many times. If
+-- you need to combine these operations, say more than 50 times in a single
+-- loop, then you should use the continuation style stream type 'StreamK'
+-- instead. Also, if you need to use these operations in a recursive loop you
+-- should use 'StreamK' instead.
+--
+-- The 'StreamK' type represents a stream by composing function calls,
+-- therefore, a function call overhead is incurred at each composition. It is
+-- quite fast in general but may be a few times slower than a fused stream.
+-- However, it allows for scalable dynamic composition and control flow
+-- manipulation. Using the 'StreamK' type binary operations like 'cons' and
+-- 'append' provide linear (O(n)) performance.
+--
+-- 'Stream' and 'StreamK' types can be interconverted.
+--
+-- == Useful Idioms
+--
+-- >>> fromListM = Stream.sequence . Stream.fromList
+-- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0

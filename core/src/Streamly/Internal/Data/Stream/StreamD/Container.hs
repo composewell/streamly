@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Container
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -44,9 +45,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Generate as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD.Transformer as Stream
 
--- $setup
--- >>> :m
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
+#include "DocTestDataStream.hs"
 
 -- | The memory used is proportional to the number of unique elements in the
 -- stream. If we want to limit the memory we can just use "take" to limit the

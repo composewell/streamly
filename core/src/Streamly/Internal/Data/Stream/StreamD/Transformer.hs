@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Transformer
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -36,11 +37,7 @@ import qualified Control.Monad.Trans.State.Strict as State
 
 import Streamly.Internal.Data.Stream.StreamD.Type
 
--- $setup
--- >>> :m
--- >>> import Control.Monad.Trans.Class (lift)
--- >>> import Control.Monad.Trans.Identity (runIdentityT)
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
+#include "DocTestDataStream.hs"
 
 -- | Lazy left fold to a transformer monad.
 --

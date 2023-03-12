@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- |
@@ -167,15 +168,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 #endif
 
--- $setup
--- >>> import Streamly.Internal.Data.Stream (CrossStream(..))
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Parser as Parser
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Unfold as Unfold
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.FileSystem.Dir as Dir
--- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+#include "DocTestDataStream.hs"
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -308,7 +301,7 @@ unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
 --
 -- >>> fromPure a = a `Stream.cons` Stream.nil
 -- >>> fromPure = pure
--- >>> fromPure = fromEffect . pure
+-- >>> fromPure = Stream.fromEffect . pure
 --
 {-# INLINE_NORMAL fromPure #-}
 fromPure :: Applicative m => a -> Stream m a
@@ -320,7 +313,7 @@ fromPure x = Stream (\_ s -> pure $ step undefined s) True
 
 -- | Create a singleton stream from a monadic action.
 --
--- >>> fromEffect m = m `consM` Stream.nil
+-- >>> fromEffect m = m `Stream.consM` Stream.nil
 -- >>> fromEffect = Stream.sequence . Stream.fromPure
 --
 -- >>> Stream.fold Fold.drain $ Stream.fromEffect (putStrLn "hello")
@@ -1383,7 +1376,7 @@ concat = concatMap id
 -- monad with the stream monad.
 --
 -- >>> concatEffect = Stream.concat . Stream.fromEffect
--- >>> concatEffect eff = Stream.concatMapM (\() -> eff) (fromPure ())
+-- >>> concatEffect eff = Stream.concatMapM (\() -> eff) (Stream.fromPure ())
 --
 -- See also: 'concat', 'sequence'
 --

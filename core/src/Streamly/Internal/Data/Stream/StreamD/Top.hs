@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Top
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -58,11 +59,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Transform as Stream
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
 
--- $setup
--- >>> :m
--- >>> import Prelude hiding (filter, zipWith, concatMap, concat)
--- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
+#include "DocTestDataStream.hs"
 
 ------------------------------------------------------------------------------
 -- Sampling

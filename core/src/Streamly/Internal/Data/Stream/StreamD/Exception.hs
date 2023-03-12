@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Exception
 -- Copyright   : (c) 2020 Composewell Technologies and Contributors
@@ -37,9 +38,7 @@ import qualified Control.Monad.Catch as MC
 
 import Streamly.Internal.Data.Stream.StreamD.Type
 
--- $setup
--- >>> :m
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
+#include "DocTestDataStream.hs"
 
 data GbracketState s1 s2 v
     = GBracketInit

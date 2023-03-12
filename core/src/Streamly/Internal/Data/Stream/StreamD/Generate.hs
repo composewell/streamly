@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Generate
 -- Copyright   : (c) 2020 Composewell Technologies and Contributors
@@ -136,15 +137,7 @@ import Numeric.Natural
 import Prelude hiding (iterate, repeat, replicate, take, takeWhile)
 import Streamly.Internal.Data.Stream.StreamD.Type
 
--- $setup
--- >>> :m
--- >>> import Control.Concurrent (threadDelay)
--- >>> import Data.Function (fix, (&))
--- >>> import Data.Semigroup (cycle1)
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Unfold as Unfold
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import GHC.Exts (Ptr (Ptr))
+#include "DocTestDataStream.hs"
 
 ------------------------------------------------------------------------------
 -- Primitives

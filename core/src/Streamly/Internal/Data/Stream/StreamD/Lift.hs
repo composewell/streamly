@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Lift
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -28,10 +29,7 @@ import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import Streamly.Internal.Data.Stream.StreamD.Type
 
--- $setup
--- >>> :m
--- >>> import Data.Functor.Identity (runIdentity)
--- >>> import Streamly.Internal.Data.Stream as Stream
+#include "DocTestDataStream.hs"
 
 -------------------------------------------------------------------------------
 -- Generalize Inner Monad
