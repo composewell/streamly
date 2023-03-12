@@ -1,5 +1,7 @@
 # Streamly
 
+THIS TUTORIAL IS OBSOLETE.
+
 Streamly is a library to make concurrent programming a joy. The venerable
 `async` package is the go to package for concurrent programming for most
 Haskellers. Streamly is a higher level library than `async` and provides a lot

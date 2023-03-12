@@ -1,5 +1,7 @@
 # Streams are concurrent monadic lists
 
+THIS TUTORIAL IS OBSOLETE.
+
 Streamly streams are a generalization of Haskell lists with a similar API with
 two crucial additions:
 

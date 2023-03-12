@@ -6,6 +6,8 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 --
+-- THIS TUTORIAL IS OBSOLETE.
+--
 -- In this tutorial we will show how streamly can be used for idiomatic and
 -- declarative concurrent programming.  Before you go through this tutorial we
 -- recommend that you take a look at the Streamly serial streams tutorial.
