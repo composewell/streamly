@@ -280,7 +280,6 @@ infixr 5 .:
 -- [1,2,3]
 -- @
 --
--- @since 0.1.1
 {-# INLINE (.:) #-}
 (.:) :: a -> StreamK m a -> StreamK m a
 (.:) = cons
@@ -1848,13 +1847,10 @@ mfix f = mkStream $ \st yld sng stp ->
 -------------------------------------------------------------------------------
 
 -- |
--- @
--- fromFoldable = 'Prelude.foldr' 'cons' 'nil'
--- @
+-- >>> fromFoldable = Prelude.foldr StreamK.cons StreamK.nil
 --
 -- Construct a stream from a 'Foldable' containing pure values:
 --
--- @since 0.2.0
 {-# INLINE fromFoldable #-}
 fromFoldable :: Foldable f => f a -> StreamK m a
 fromFoldable = Prelude.foldr cons nil

@@ -4,6 +4,8 @@
 >>> import Data.Function (fix, (&))
 >>> import Data.Semigroup (cycle1)
 
+>>> effect n = print n >> return n
+
 >>> import Streamly.Data.StreamK (StreamK)
 >>> import qualified Streamly.Data.Fold as Fold
 >>> import qualified Streamly.Data.Parser as Parser

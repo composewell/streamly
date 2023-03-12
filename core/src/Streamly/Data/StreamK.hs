@@ -8,29 +8,15 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- Streams using Continuation Passing Style (CPS). See notes in "Data.Stream"
--- module to know when to use this module.
+-- Streams using Continuation Passing Style (CPS). See the @Stream vs StreamK@
+-- section in the "Streamly.Data.Stream" module to know when to use this
+-- module.
 --
--- 'StreamK' operations have more overhead than 'Stream' operations, however,
--- 'Stream' operations fuse only when the pipeline is statically composed, is
--- not too large, and does not involve recursion. For such cases, a typical
--- example is creating a large or infinite stream by appending, 'StreamK'
--- should be used.
---
--- You can use operations from "Streamly.Data.Stream" for StreamK as well by
--- converting StreamK to Stream, and vice-versa. Most of the time converting to
--- 'Stream' is better than using native StreamK operations, however in certain
--- cases using native StreamK operations may work better. Using 'Stream'
--- operations are especially when multiple contiguous operations can fuse
--- together.
---
--- There are no native exception handling operations in the StreamK module,
--- please use 'toStream' to convert to 'Stream' type and use exception
--- handling operations from "Streamly.Data.Stream".
---
--- See "Streamly.Internal.Data.Stream.StreamK" for more native StreamK
--- operations.
+-- Please refer to "Streamly.Internal.Data.Stream.StreamK" for more functions
+-- that have not yet been released.
 
+-- Notes:
+--
 -- primitive/open loop operations that can be used recursively e.g. uncons,
 -- foldBreak, parseBreak should not be converted from StreamD for use in
 -- StreamK, instead native StreamK impl should be used.
@@ -44,6 +30,16 @@
 --
 module Streamly.Data.StreamK
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
+    -- * Overview
+    -- $overview
+
+    -- * Type
       StreamK
 
     -- * Construction
@@ -122,3 +118,36 @@ import Streamly.Internal.Data.Stream.StreamK
 import Prelude hiding (reverse, zipWith, mapM, dropWhile, take)
 
 #include "DocTestDataStreamK.hs"
+
+-- $overview
+--
+-- Continuation passing style (CPS) stream implementation. The 'K' in 'StreamK'
+-- stands for Kontinuation.
+--
+-- StreamK can be constructed like lists, except that they use 'nil' instead of
+-- '[]' and 'cons' instead of ':'.
+--
+-- `cons` adds a pure value at the head of the stream:
+--
+-- >>> import Streamly.Data.StreamK (StreamK, cons, consM, nil)
+-- >>> stream = 1 `cons` 2 `cons` nil :: StreamK IO Int
+--
+-- You can use operations from "Streamly.Data.Stream" for StreamK as well by
+-- converting StreamK to Stream ('toStream'), and vice-versa ('fromStream').
+--
+-- >>> Stream.fold Fold.toList $ StreamK.toStream stream -- IO [Int]
+-- [1,2]
+--
+-- `consM` adds an effect at the head of the stream:
+--
+-- >>> stream = effect 1 `consM` effect 2 `consM` nil
+-- >>> Stream.fold Fold.toList $ StreamK.toStream stream
+-- 1
+-- 2
+-- [1,2]
+--
+-- == Exception Handling
+--
+-- There are no native exception handling operations in the StreamK module,
+-- please convert to 'Stream' type and use exception handling operations from
+-- "Streamly.Data.Stream".

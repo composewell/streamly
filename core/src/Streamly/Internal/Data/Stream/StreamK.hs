@@ -8,47 +8,14 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- To run examples in this module:
---
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.StreamK as StreamK
---
--- We will add some more imports in the examples as needed.
---
--- For effectful streams we will use the following IO action:
---
--- >>> effect n = print n >> return n
---
--- = Overview
---
--- Continuation passing style (CPS) stream implementation. The 'K' in 'StreamK'
--- stands for Kontinuation.
---
--- StreamK can be constructed like lists, except that they use 'nil' instead of
--- '[]' and 'cons' instead of ':'.
---
--- `cons` adds a pure value at the head of the stream:
---
--- >>> import Streamly.Data.StreamK (StreamK, cons, consM, nil)
--- >>> stream = 1 `cons` 2 `cons` nil :: StreamK IO Int
---
--- Convert 'StreamK' to 'Stream' to use functions from the
--- "Streamly.Data.Stream" module:
---
--- >>> Stream.fold Fold.toList $ StreamK.toStream stream -- IO [Int]
--- [1,2]
---
--- `consM` adds an effect at the head of the stream:
---
--- >>> stream = effect 1 `consM` effect 2 `consM` nil
--- >>> Stream.fold Fold.toList $ StreamK.toStream stream
--- 1
--- 2
--- [1,2]
---
 module Streamly.Internal.Data.Stream.StreamK
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * The stream type
       Stream
     , StreamK(..)
@@ -916,14 +883,12 @@ mapMaybe f = go
 
 -- | Zip two streams serially using a pure zipping function.
 --
--- @since 0.1.0
 {-# INLINE zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> StreamK m a -> StreamK m b -> StreamK m c
 zipWith f = zipWithM (\a b -> return (f a b))
 
 -- | Zip two streams serially using a monadic zipping function.
 --
--- @since 0.1.0
 {-# INLINE zipWithM #-}
 zipWithM :: Monad m =>
     (a -> b -> m c) -> StreamK m a -> StreamK m b -> StreamK m c

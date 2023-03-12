@@ -14,6 +14,9 @@
 -- Please refer to "Streamly.Internal.Data.Stream" for more functions that have
 -- not yet been released.
 --
+-- For continuation passing style (CPS) stream type, please refer to
+-- the "Streamly.Data.StreamK" module.
+--
 -- Checkout the <https://github.com/composewell/streamly-examples>
 -- repository for many more real world examples of stream programming.
 
@@ -501,30 +504,76 @@ import Prelude
 -- "Data.List" like functions and many more powerful combinators to perform
 -- common programming tasks.
 --
--- == Performance Notes
+-- == Stream Fusion
 --
--- The 'Stream' type represents a stream by composing state as data which
--- enables stream fusion. Stream fusion generates a tight loop without any
--- constructor allocations between the stages, providing C like performance for
--- the loop. Stream fusion works when multiple functions are combined in a
--- pipeline statically. Therefore, the operations in this module must be
--- inlined and must not be used recursively to allow for stream fusion.
+-- The fused 'Stream' type employs stream fusion for C-like performance when
+-- looping over data. It represents a stream source or transformation by
+-- defining a state machine with explicit state, and a step function working on
+-- the state. A typical stream operation consumes elements from the previous
+-- state machine in the pipeline, transforms them and yields new values for the
+-- next stage to consume. The stream operations are modular and represent a
+-- single task, they have no knowledge of previous or next operation on the
+-- elements.
 --
--- Using the 'Stream' type binary stream construction operations like 'cons',
--- 'append' etc. degrade quadratically (O(n^2)) when combined many times. If
--- you need to combine these operations, say more than 50 times in a single
--- loop, then you should use the continuation style stream type 'StreamK'
--- instead. Also, if you need to use these operations in a recursive loop you
--- should use 'StreamK' instead.
+-- A typical stream pipeline consists of a stream producer, several stream
+-- transformation operations and a stream consumer. All these operations taken
+-- together form a closed loop processing the stream elements. Elements are
+-- transferred between stages using a boxed data constructor. However, all the
+-- stages of the pipeline are fused together by GHC, eliminating the
+-- intermediate constructors, and thus forming a tight C like loop without any
+-- boxed data being used in the loop.
 --
--- The 'StreamK' type represents a stream by composing function calls,
--- therefore, a function call overhead is incurred at each composition. It is
--- quite fast in general but may be a few times slower than a fused stream.
--- However, it allows for scalable dynamic composition and control flow
--- manipulation. Using the 'StreamK' type binary operations like 'cons' and
--- 'append' provide linear (O(n)) performance.
+-- Stream fusion works effectively when:
 --
--- 'Stream' and 'StreamK' types can be interconverted.
+-- * the stream pipeline is composed statically (known at compile time)
+-- * all the operations forming the loop are inlined
+-- * the loop is not recursively defined, recursion breaks inlining
+--
+-- If these conditions cannot be met, the CPS style stream type 'StreamK' may
+-- turn out to be a better choice than the fused stream type 'Stream'.
+--
+-- == Stream vs StreamK
+--
+-- The fused stream model avoids constructor allocations or function call
+-- overheads. However, the stream is represented as a state machine and to
+-- generate elements it has to navigate the decision tree of the state machine.
+-- Moreover, the state machine is cranked for each element in the stream. This
+-- performs extremely well when the number of states are limited. The state
+-- machine starts getting expensive as the number of states increase. For
+-- example, generating a million element stream from a list requires a single
+-- state and is very efficient. However, using fused 'cons' to generate a
+-- million element stream would be a disaster.
+--
+-- A typical worst case scenario for fused stream model is a large number of
+-- `cons` or `append` operations. A few static `cons` or `append` operations
+-- are very fast and much faster than a CPS style stream. However, if we
+-- construct a large stream using `cons` it introduces as many states in the
+-- state machine as the number of elements. If we compose the `cons` as a
+-- binary tree it will take @n * log n@ time to navigate the tree, and @n * n@
+-- if it is a right associative composition.
+--
+-- For quadratic cases of fused stream, after a certain threshold the CPS
+-- stream would perform much better and exhibit linear performance behavior.
+-- Operations like 'cons' or 'append'; are typically recursively called to
+-- construct a lazy infinite stream. For such use cases the CPS style 'StreamK'
+-- type is provided. CPS streams do not have a state machine that needs to be
+-- cranked for each element, past state has no effect on the future element
+-- processing. However, it incurs a function call overhead for each operation
+-- for each element, which could be very large overhead compared to fused state
+-- machines even if it has many states and cranks it for each element. But in
+-- some cases scales tip in favor of the CPS stream. In those cases even though
+-- CPS has a large constant overhead, it has a linear performance rather than
+-- quadratic.
+--
+-- As a general guideline, if you have to use 'cons' or 'append' or operations
+-- of similar nature, at a large scale, then 'StreamK' should be used. When you
+-- need to compose the stream dynamically or recursively, then 'StreamK' should
+-- be used. Typically you would use a dynamically generated 'StreamK' with
+-- chunks of data which can then be processed by statically fused stream
+-- pipeline operations.
+--
+-- 'Stream' and 'StreamK' types can be interconverted. See
+-- "Streamly.Data.StreamK" module for conversion operations.
 --
 -- == Useful Idioms
 --
