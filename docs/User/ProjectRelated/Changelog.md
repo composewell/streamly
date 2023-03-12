@@ -1,7 +1,7 @@
 # Changelog
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
-## 0.9.0
+## 0.9.0 (Mar 2023)
 
 ### Package split
 
