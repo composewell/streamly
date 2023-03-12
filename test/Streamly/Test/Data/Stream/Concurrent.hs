@@ -312,7 +312,7 @@ main = hspec
                     (Async.parConcatMap id (const (Stream.fromList [1..n])))
 
 #ifdef DEVBUILD
-        describe "Time ordering" $ timeOrdering Async.parList id
+        describe "Time ordering" $ timeOrdering (Async.parList id)
 #endif
         describe "Exception propagation" $ exceptionPropagation async
         -- Ad-hoc tests
