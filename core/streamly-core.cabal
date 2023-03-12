@@ -44,6 +44,7 @@ extra-source-files:
     src/DocTestDataMutArrayGeneric.hs
     src/DocTestDataParser.hs
     src/DocTestDataStream.hs
+    src/DocTestDataStreamK.hs
 
     -- This is duplicated
     src/Streamly/Internal/Data/Array/ArrayMacros.h

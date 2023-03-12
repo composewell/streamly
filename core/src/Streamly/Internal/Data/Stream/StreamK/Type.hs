@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE UndecidableInstances #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamK.Type
@@ -163,15 +164,7 @@ import qualified Prelude
 import Prelude hiding
     (map, mapM, concatMap, foldr, repeat, null, reverse, tail, init)
 
--- $setup
--- >>> import Data.Function (fix, (&))
--- >>> import Data.Semigroup (cycle1)
--- >>> import Streamly.Internal.Data.Stream.StreamK (CrossStreamK(..))
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.StreamK as StreamK
--- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
--- >>> import qualified Streamly.Internal.FileSystem.Dir as Dir
+#include "DocTestDataStreamK.hs"
 
 ------------------------------------------------------------------------------
 -- Basic stream type
@@ -315,7 +308,7 @@ nilM m = mkStream $ \_ _ _ stp -> m *> stp
 
 -- | Create a singleton stream from a pure value.
 --
--- >>> fromPure a = a `cons` StreamK.nil
+-- >>> fromPure a = a `StreamK.cons` StreamK.nil
 -- >>> fromPure = pure
 -- >>> fromPure = StreamK.fromEffect . pure
 --
@@ -325,7 +318,7 @@ fromPure a = mkStream $ \_ _ single _ -> single a
 
 -- | Create a singleton stream from a monadic action.
 --
--- >>> fromEffect m = m `consM` StreamK.nil
+-- >>> fromEffect m = m `StreamK.consM` StreamK.nil
 --
 -- >>> Stream.fold Fold.drain $ StreamK.toStream $ StreamK.fromEffect (putStrLn "hello")
 -- hello
@@ -343,7 +336,7 @@ infixr 5 `consM`
 -- | A right associative prepend operation to add an effectful value at the
 -- head of an existing stream::
 --
--- >>> s = putStrLn "hello" `consM` putStrLn "world" `consM` StreamK.nil
+-- >>> s = putStrLn "hello" `StreamK.consM` putStrLn "world" `StreamK.consM` StreamK.nil
 -- >>> Stream.fold Fold.drain (StreamK.toStream s)
 -- hello
 -- world

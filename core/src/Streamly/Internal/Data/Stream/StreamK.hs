@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamK
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -252,14 +253,7 @@ import Prelude
 import Streamly.Internal.Data.Stream.StreamK.Type
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 
--- $setup
--- >>> :m
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Parser as Parser
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.StreamK as StreamK
--- >>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
---
+#include "DocTestDataStreamK.hs"
 
 {-# INLINE fromStream #-}
 fromStream :: Monad m => Stream.Stream m a -> StreamK m a

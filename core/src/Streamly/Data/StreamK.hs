@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Data.StreamK
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -119,3 +120,5 @@ where
 
 import Streamly.Internal.Data.Stream.StreamK
 import Prelude hiding (reverse, zipWith, mapM, dropWhile, take)
+
+#include "DocTestDataStreamK.hs"
