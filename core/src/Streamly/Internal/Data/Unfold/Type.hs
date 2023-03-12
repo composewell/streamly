@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Unfold.Type
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -6,14 +7,49 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- To run the examples in this module:
+-- An unfold is akin to a reader. It is the streaming equivalent of a reader.
+-- The argument @a@ is the environment of the reader. That's the reason the
+-- default unfolds in various modules are named "reader".
+
+-- = Performance Notes
 --
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+-- 'Unfold' representation is more efficient than using streams when combining
+-- streams.  'Unfold' type allows multiple unfold actions to be composed into a
+-- single unfold function in an efficient manner by enabling the compiler to
+-- perform stream fusion optimization.
+-- @Unfold m a b@ can be considered roughly equivalent to an action @a -> t m
+-- b@ (where @t@ is a stream type). Instead of using an 'Unfold' one could just
+-- use a function of the shape @a -> t m b@. However, working with stream types
+-- like t'Streamly.SerialT' does not allow the compiler to perform stream fusion
+-- optimization when merging, appending or concatenating multiple streams.
+-- Even though stream based combinator have excellent performance, they are
+-- much less efficient when compared to combinators using 'Unfold'.  For
+-- example, the 'Streamly.Data.Stream.concatMap' combinator which uses @a -> t m b@
+-- (where @t@ is a stream type) to generate streams is much less efficient
+-- compared to 'Streamly.Data.Stream.unfoldMany'.
+--
+-- On the other hand, transformation operations on stream types are as
+-- efficient as transformations on 'Unfold'.
+--
+-- We should note that in some cases working with stream types may be more
+-- convenient compared to working with the 'Unfold' type.  However, if extra
+-- performance boost is important then 'Unfold' based composition should be
+-- preferred compared to stream based composition when merging or concatenating
+-- streams.
 
 module Streamly.Internal.Data.Unfold.Type
-    ( Unfold (..)
+    (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
+    -- * General Notes
+    -- $notes
+
+    -- * Type
+      Unfold (..)
 
     -- * Basic Constructors
     , mkUnfoldM
@@ -84,22 +120,96 @@ import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
 import Prelude hiding (map, mapM, concatMap, zipWith, takeWhile)
 
--- $setup
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+#include "DocTestDataUnfold.hs"
+
+-- $notes
+--
+-- What makes streams less efficient is also what makes them more convenient to
+-- use and powerful. The stream data type (Stream m a) bundles the state along
+-- with the stream generator function making it opaque, whereas an unfold
+-- exposes the state (Unfold m s a) to the user. This allows the Unfold to be
+-- unfolded (inlined) inside a nested loop without having to bundle the state
+-- and the generator together, the stream state can be saved and passed
+-- independent of the generator function. On the other hand in a stream type we
+-- have to bundle the stream state and the generator function together to save
+-- the stream. This makes it inefficient because it requires boxing and
+-- constructor allocation. However, this makes streams more convenient as we do
+-- not need to pass around the state/seed separately.
+--
+-- Unfold Type:
+--
+-- The order of arguments allows 'Category' and 'Arrow' instances but precludes
+-- contravariant and contra-applicative.
+--
+-- = Unfolds and Streams
+--
+-- An 'Unfold' type is the same as the direct style 'Stream' type except that
+-- it uses an inject function to determine the initial state of the stream
+-- based on an input.  A stream is a special case of Unfold when the static
+-- input is unit or Void.
+--
+-- This allows an important optimization to occur in several cases, making the
+-- 'Unfold' a more efficient abstraction. Consider the 'concatMap' and
+-- 'unfoldMany' operations, the latter is more efficient.  'concatMap'
+-- generates a new stream object from each element in the stream by applying
+-- the supplied function to the element, the stream object includes the "step"
+-- function as well as the initial "state" of the stream.  Since the stream is
+-- generated dynamically the compiler does not know the step function or the
+-- state type statically at compile time, therefore, it cannot inline it. On
+-- the other hand in case of 'unfoldMany' the compiler has visibility into
+-- the unfold's state generation function, therefore, the compiler knows all
+-- the types statically and it can inline the inject as well as the step
+-- functions, generating efficient code. Essentially, the stream is not opaque
+-- to the consumer in case of unfolds, the consumer knows how to generate the
+-- stream from a seed using a known "inject" and "step" functions.
+--
+-- A Stream is like a data object whereas unfold is like a function.  Being
+-- function like, an Unfold is an instance of 'Category' and 'Arrow' type
+-- classes.
+--
+-- = Unfolds and Folds
+--
+-- Streams forcing a closed control flow loop can be categorized under
+-- two types, unfolds and folds, both of these are duals of each other.
+--
+-- Unfold streams are really generators of a sequence of elements, we can also
+-- call them pull style streams. These are lazy producers of streams. On each
+-- evaluation the producer generates the next element.  A consumer can
+-- therefore pull elements from the stream whenever it wants to.  A stream
+-- consumer can multiplex pull streams by pulling elements from the chosen
+-- streams, therefore, pull streams allow merging or multiplexing.  On the
+-- other hand, with this representation we cannot split or demultiplex a
+-- stream.  So really these are stream sources that can be generated from a
+-- seed and can be merged or zipped into a single stream.
+--
+-- The dual of Unfolds are Folds. Folds can also be called as push style
+-- streams or reducers. These are strict consumers of streams. We keep pushing
+-- elements to a fold and we can extract the result at any point. A driver can
+-- choose which fold to push to and can also push the same element to multiple
+-- folds. Therefore, folds allow splitting or demultiplexing a stream. On the
+-- other hand, we cannot merge streams using this representation. So really
+-- these are stream consumers that reduce the stream to a single value, these
+-- consumers can be composed such that a stream can be split over multiple
+-- consumers.
+--
+-- Performance:
+--
+-- Composing a tree or graph of computations with unfolds can be much more
+-- efficient compared to composing with the Monad instance.  The reason is that
+-- unfolds allow the compiler to statically know the state and optimize it
+-- using stream fusion whereas it is not possible with the monad bind because
+-- the state is determined dynamically.
+--
+-- Reader:
+--
+-- An unfold acts as a reader (see 'Reader' monad). The input to an unfold acts
+-- as the read-only environment. The environment can be extracted using the
+-- 'identity' unfold (equivalent to 'ask') and transformed using 'lmap'.
 
 ------------------------------------------------------------------------------
 -- Monadic Unfolds
 ------------------------------------------------------------------------------
 
--- The order of arguments allows 'Category' and 'Arrow' instances but precludes
--- contravariant and contra-applicative.
---
--- An unfold is akin to a reader. It is the streaming equivalent of a reader.
--- The argument @a@ is the environment of the reader. That's the reason the
--- default unfolds in various modules are called "read".
---
 -- | An @Unfold m a b@ is a generator of a stream of values of type @b@ from a
 -- seed of type 'a' in 'Monad' @m@.
 --
@@ -130,7 +240,7 @@ mkUnfoldrM step = Unfold step pure
 -- The type 'Step' is isomorphic to 'Maybe'. Ideally unfoldrM should be the
 -- same as mkUnfoldrM, this is for compatibility with traditional Maybe based
 -- unfold step functions.
---
+
 -- | Build a stream by unfolding a /monadic/ step function starting from a seed.
 -- The step function returns the next element in the stream and the next seed
 -- value. When it is done it returns 'Nothing' and the stream ends.
@@ -369,6 +479,7 @@ instance Functor m => Functor (Unfold m a) where
 ------------------------------------------------------------------------------
 
 -- XXX Shouldn't this be Unfold m (m a) a ?
+
 -- | The unfold discards its input and generates a function stream using the
 -- supplied monadic action.
 --
@@ -386,7 +497,7 @@ fromEffect m = Unfold step inject
 
 -- XXX Shouldn't this be Unfold m a a ? Which is identity. Should this function
 -- even exist for Unfolds. Should we have applicative/Monad for unfolds?
---
+
 -- | Discards the unfold input and always returns the argument of 'fromPure'.
 --
 -- > fromPure = fromEffect . pure
