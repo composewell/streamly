@@ -165,6 +165,7 @@ The moved modules have been compared with their version in streamly v0.8.3
     [A] unfold :: Applicative m => Unfold m a b -> a -> Stream m b
     [A] uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
     [A] trace :: Monad m => (a -> m b) -> Stream m a -> Stream m a
+    [A] toList :: Monad m => Stream m a -> m [a]
     [A] tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
     [A] takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
     [A] takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
@@ -209,6 +210,8 @@ The moved modules have been compared with their version in streamly v0.8.3
     [A] fromPure :: Applicative m => a -> Stream m a
     [A] fromList :: Applicative m => [a] -> Stream m a
     [A] fromEffect :: Applicative m => m a -> Stream m a
+    [A] foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
+    [A] foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
     [A] foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
     [A] foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
     [A] fold :: Monad m => Fold m a b -> Stream m a -> m b

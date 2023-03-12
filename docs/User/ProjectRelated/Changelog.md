@@ -6,10 +6,12 @@
 
 Also see the following:
 
-* [0.9.0 Upgrade Guide](/docs/User/ProjectRelated/Upgrading.md) or
+* [streamly-0.9.0 Upgrade Guide](/docs/User/ProjectRelated/Upgrading.md) or
   https://hackage.haskell.org/package/streamly-0.9.0/docs/docs/User/ProjectRelated/Upgrading.md
-* [0.9.0 API Changelog](/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt) or
+* [streamly-0.9.0 API Changelog](/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt) or
   https://hackage.haskell.org/package/streamly-0.9.0/docs/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt
+* [streamly-core-0.1.0 API Changelog](/core/docs/ApiChangelogs/0.1.0.txt) or
+  https://hackage.haskell.org/package/streamly-core-0.1.0/docs/docs/ApiChangelogs/0.1.0.txt
 
 ### Package split
 
@@ -60,6 +62,9 @@ details on how to adapt your existing code to the new release.
 
 ### Enhancements
 
+* Added the following new modules to the `streamly` package:
+  * Streamly.Data.Stream.MkType
+  * Streamly.Data.Stream.Prelude
 * Added the following new modules to the `streamly-core` package:
   * Streamly.Data.Array
   * Streamly.Data.Array.Generic
@@ -73,9 +78,6 @@ details on how to adapt your existing code to the new release.
   * Streamly.FileSystem.File
   * Streamly.Unicode.Parser
   * Streamly.Unicode.String
-* Added the following new modules to the `streamly` package:
-  * Streamly.Data.Stream.MkType
-  * Streamly.Data.Stream.Prelude
 
 ### Deprecations
 
