@@ -93,6 +93,10 @@ Following modules are moved to `streamly-core` package and renamed:
   * Streamly.Internal.Data.Array.Stream.Foreign -> Streamly.Internal.Data.Stream.Chunked
   * Streamly.Internal.Data.Array.Stream.Mut.Foreign -> Streamly.Internal.Data.Array.Mut.Stream
 
+## 0.8.3 (September 2022)
+
+* Fix build with GHC 9.4
+
 ## 0.8.2 (Mar 2022)
 
 * Fix performance issues for GHC-9. These changes coupled with GHC changes
