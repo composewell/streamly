@@ -158,14 +158,11 @@
             * Run packcheck on the uploaded package. To get the latest uploaded
               version from hackage, run `cabal unpack <package-name>`. You might
               have to run `cabal update`.
-        * Create a git tag corresponding to the release where X.Y.Z is the new
-          package version (`git tag vX.Y.Z && git push -f origin vX.Y.Z`).
+        * Create a git tag of the form P-X.Y.Z corresponding to the release
+          where X.Y.Z is the new package version and P is the package name (`git
+          tag P-X.Y.Z && git push -f origin P-X.Y.Z`). If the package name is
+          implicit, P can be omitted and the tag can be of the form vX.Y.Z
         * Add to stackage (`build-constraints.yaml` in Stackage repo) if needed
-        * Optionally upload `package-X.Y.Z-sdist.tar.gz` to github release page
-            * `gh release create vX.Y.Z --title "vX.Y.Z"`
-            * `gh release upload vX.Y.Z package-X.Y.Z-sdist.tar.gz`
-            * Update release contributors on github release page
-              (`git shortlog -s prev_tag..new_tag | sed $'s/^[0-9 \t]*/* /' | sort -f`)
         * Update and if needed release streaming-benchmarks package
         * Check https://matrix.hackage.haskell.org/package/streamly
         * Check haddocks on Hackage, upload if not built
