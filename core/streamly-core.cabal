@@ -3,16 +3,21 @@ name:               streamly-core
 version:            0.1.0
 synopsis:           Streaming, parsers, arrays and more
 description:
-  Streamly comprises two packages, the
-  <https://hackage.haskell.org/package/streamly-core streamly-core> package
-  provides functionality that depends only on boot libraries, and
-  the <https://hackage.haskell.org/package/streamly streamly> package
-  provides additional functionality like concurrency, time, lifted
-  exceptions, and networking.  For unified documentation visit
-  <https://streamly.composewell.com the streamly website>.
+  Streamly consists of two packages: "streamly-core" and "streamly".
+  <https://hackage.haskell.org/package/streamly-core streamly-core>
+  provides basic features, and depends only on GHC boot libraries (see
+  note below), while
+  <https://hackage.haskell.org/package/streamly streamly> provides
+  higher-level features like concurrency, time, lifted exceptions,
+  and networking. For documentation, visit the
+  <https://streamly.composewell.com Streamly website>.
   .
   This package provides streams, arrays, parsers, unicode text, file
-  IO, console IO functionality of the streamly library.
+  IO, and console IO functionality.
+  .
+  Note: The dependencies "heaps" and "monad-control" are included in
+  the package solely for backward compatibility, and will be removed in
+  future versions.
 
 homepage:            https://streamly.composewell.com
 bug-reports:         https://github.com/composewell/streamly/issues
