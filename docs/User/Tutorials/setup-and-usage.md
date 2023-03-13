@@ -112,7 +112,7 @@ project files:
 
 ```
 $ cd streamly-project
-$ cabal init --minimal --dependency base --dependency streamly-core
+$ cabal init --non-interactive --minimal --dependency base --dependency streamly-core
 
 ...
 Generating app/Main.hs...
@@ -128,8 +128,21 @@ cabal file `streamly-project.cabal`.  Please see the [Cabal User
 Guide](https://www.haskell.org/cabal/users-guide/) for more information
 on `.cabal` files.
 
-This invocation also creates a skeletal `app/Main.hs` file which we
-will now use to write our streamly based program.
+IMPORTANT: Because of a bug in cabal 3.8, which is fixed in cabal 3.10,
+this does not generate a dependency on `base`, please edit the generated
+cabal file and add `base` in the `build-depends` section:
+
+```
+    build-depends: base, streamly-core
+```
+
+This invocation also creates a skeletal `app/Main.hs`, therefore, we can
+compile and run it right away:
+
+```
+$ cabal run
+Hello, Haskell!
+```
 
 ### Import `streamly` modules in the project code
 
@@ -165,6 +178,11 @@ To start up the GHCi REPL for your project, please use:
 ```
 $ cabal repl
 ...
+Ok, one module loaded.
+ghci> main
+1
+2
+3
 ghci>
 ```
 
