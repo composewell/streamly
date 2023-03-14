@@ -151,7 +151,7 @@ standalone program.
 
 Edit `app/Main.hs` to contain the following:
 
-```haskell
+```{.haskell}
 module Main where
 
 import qualified Streamly.Data.Stream as Stream

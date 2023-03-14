@@ -36,7 +36,7 @@ release.
 
 Assume the following imports in the code snippets below:
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> import qualified Streamly.Data.Stream as Stream
 >>> import qualified Streamly.Data.StreamK as StreamK
 >>> import qualified Streamly.Data.Stream.Prelude as Stream
@@ -78,7 +78,7 @@ from the stream module.
 
 `adapt` is not needed anymore.
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> (.:) = StreamK.cons
 >>> cons = StreamK.cons
 >>> wSerial = StreamK.interleave
@@ -95,7 +95,7 @@ from the stream module.
 Explicit stream fold functions have been omitted from the new stream
 module. You can use the following equivalent definitions:
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> the = Stream.fold Fold.the
 >>> sum = Stream.fold Fold.sum
 >>> product = Stream.fold Fold.product
@@ -132,14 +132,14 @@ module. You can use the following equivalent definitions:
 
 Mapping functions:
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> map = fmap
 ```
 
 Similarly for scanning use `Stream.scan` or `Stream.postscan`
 with an appropriate fold.
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> scanl' f z = Stream.scan (Fold.foldl' f z)
 >>> scanlM' f z = Stream.scan (Fold.foldlM' f z)
 >>> postscanl' f z = Stream.postscan (Fold.foldl' f z)
@@ -154,7 +154,7 @@ with an appropriate fold.
 
 Filters:
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> deleteBy cmp x = Stream.scanMaybe (Fold.deleteBy cmp x)
 >>> findIndices p = Stream.scanMaybe (Fold.findIndices p)
 >>> elemIndices a = findIndices (== a)
@@ -171,7 +171,7 @@ now be implemented using `foldMany` and an appropriate fold from the
 `Streamly.Data.Fold` module, or using `parseMany` and an appropriate
 parser from the `Streamly.Data.Parser` module.
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> uniq = Stream.scanMaybe (Fold.uniqBy (==))
 >>> splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
 >>> splitOn = Streamly.Internal.Data.Stream.splitOn
@@ -212,7 +212,7 @@ instead of being applied on the stream.
 
 A stream is evaluated asynchronously using `parEval`:
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> :set -XFlexibleContexts
 >>> mkAsync = Stream.parEval id
 ```
@@ -222,7 +222,7 @@ actions. In the new release, an equivalent effect is achieved by using
 a serial `consM` to create a stream of actions and then explicitly using
 `Stream.parEval` on it to evaluate it concurrently.
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> consM = StreamK.consM
 >>> (|:) = consM
 ```
@@ -232,7 +232,7 @@ before using `parEval` on it.
 
 Existing generation combinators that can be implemented using new primitives:
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> repeatM = Stream.parRepeatM
 >>> replicateM = Stream.parReplicateM
 >>> unfoldrM step = Stream.parEval id . Stream.unfoldrM step
@@ -244,7 +244,7 @@ Existing generation combinators that can be implemented using new primitives:
 
 Existing transformation combinators that can be implemented using `parEval`:
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> (|$.) f = f . Stream.parEval id
 >>> (|&.) = flip (|$.)
 >>> (|$) f = f . Stream.parEval id
@@ -256,7 +256,7 @@ Existing transformation combinators that can be implemented using `parEval`:
 `parList` is used to evaluate multiple streams concurrently and combine the
 outputs. Existing combinators that can be implemented using `parList`:
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> async x y = Stream.parList id [x, y]
 >>> wAsync x y = Stream.parList (Stream.interleaved True) [x, y]
 >>> parallel x y = Stream.parList (Stream.eager True) [x, y]
@@ -265,7 +265,7 @@ outputs. Existing combinators that can be implemented using `parList`:
 
 Concurrent zipping and merging combinators:
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> zipAsyncWithM = Stream.parZipWith id
 >>> zipAsyncWith = Stream.parZipWith id
 >>> mergeAsyncByM = Stream.parMergeByM id

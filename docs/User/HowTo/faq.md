@@ -13,7 +13,7 @@ together to create a single transformed stream.
 
 Distributing a value to a stream of consumers concurrently:
 
-```haskell ghci
+```{.haskell mode=ghci}
 {-# LANGUAGE FlexibleContexts #-}
 
 import Data.Function ((&))
@@ -30,7 +30,7 @@ f1 x =
 Use `parApply` to zip streams concurrently. Here, we zip three singleton
 streams:
 
-```haskell ghci
+```{.haskell mode=ghci}
 
 f2 x =
   let app = Stream.parApply id
@@ -43,7 +43,7 @@ f2 x =
 
 Applying a function concurrently to your input stream:
 
-```haskell ghci
+```{.haskell mode=ghci}
 g f xs =
   Stream.fromList xs
     & Stream.parMapM (Stream.ordered True) f
@@ -53,7 +53,7 @@ g f xs =
 You can now use the concurrent map to pipe each element through multiple
 transformations using the distribute/zip operations.
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> g f1 [1,2,3,4::Int]
 [[2,3],[3,4],[4,5],[5,6]]
 
@@ -65,7 +65,7 @@ Instead of using `parApply` directly, you can use `mkZipType` to
 create a zip Applicative newtype so that you can use the `Applicative`
 instance.
 
-```haskell
+```{.haskell}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -81,7 +81,7 @@ $(mkZippingType "ZipConcurrent" "app" True)
 
 The `writeLastN` fold can be used to create a stream of sliding windows.
 
-```haskell docspec
+```{.haskell mode=docspec}
 >>> import qualified Streamly.Data.Array as Array
 >>> :{
   Stream.fromList [1,2,3,4,5::Int]

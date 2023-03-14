@@ -67,7 +67,7 @@ program.
 
 We start with a code fragment that counts the number of bytes in a file:
 
-```haskell ghci
+```{.haskell mode=ghci}
 import Data.Function ((&))
 
 import qualified Streamly.Data.Fold as Fold
@@ -84,7 +84,7 @@ wcb file =
 
 The next code fragment shows how to count the number of lines in a file:
 
-```haskell ghci
+```{.haskell mode=ghci}
 import Data.Word (Word8)
 import Streamly.Data.Fold (Fold)
 
@@ -107,7 +107,7 @@ wcl file =
 Our final code fragment counts the number of whitespace-separated words
 in a stream:
 
-```haskell ghci
+```{.haskell mode=ghci}
 import Data.Char (chr, isSpace)
 
 countw :: (Int, Bool) -> Word8 -> (Int, Bool)
@@ -135,7 +135,7 @@ to all the supplied folds (`Fold.length`, `nlines`, and `nwords`) and
 then combines the outputs from the folds using the supplied combiner
 function (`(,,)`).
 
-```haskell ghci
+```{.haskell mode=ghci}
 import Streamly.Data.Fold (Tee(..))
 
 -- The fold accepts a stream of `Word8` and returns the three counts.
@@ -194,7 +194,7 @@ code for this example, including the imports that we have omitted below.
 
 First we create a new data type `Counts` that holds all the context.
 
-```haskell ghci
+```{.haskell mode=ghci}
 -- Counts lines words chars lastCharWasSpace
 data Counts = Counts !Int !Int !Int !Bool deriving Show
 
@@ -211,7 +211,7 @@ count (Counts l w c wasSpace) ch =
 
 The `countArray` function counts the line, word, char counts in one chunk:
 
-```haskell ghci
+```{.haskell mode=ghci}
 import Streamly.Data.Array (Array)
 
 import qualified Streamly.Data.Array as Array
@@ -234,7 +234,7 @@ whether the chunk starts with a new word. The `partialCounts` function
 adds a `Bool` flag to `Counts` returned by `countArray` to indicate
 whether the first character in the chunk is a space.
 
-```haskell ghci
+```{.haskell mode=ghci}
 partialCounts :: Array Word8 -> IO (Bool, Counts)
 partialCounts arr = do
     let r = Array.getIndex 0 arr
@@ -247,7 +247,7 @@ partialCounts arr = do
 
 `addCounts` then adds the counts from two consecutive chunks:
 
-```haskell ghci
+```{.haskell mode=ghci}
 addCounts :: (Bool, Counts) -> (Bool, Counts) -> (Bool, Counts)
 addCounts (sp1, Counts l1 w1 c1 ws1) (sp2, Counts l2 w2 c2 ws2) =
     let wcount =
@@ -261,7 +261,7 @@ To count in parallel we now only need to divide the stream into arrays,
 apply our counting function to each array, and then combine the counts
 from each chunk.
 
-```haskell ghci
+```{.haskell mode=ghci}
 {-# LANGUAGE FlexibleContexts #-}
 
 import GHC.Conc (numCapabilities)
@@ -315,7 +315,7 @@ clients concurrently.
 Please see the file [WordServer.hs][] for the complete code for this
 example.
 
-```haskell ghci
+```{.haskell mode=ghci}
 import Control.Concurrent (threadDelay)
 import Control.Exception (finally)
 import Network.Socket (Socket, close)
@@ -373,7 +373,7 @@ streams concurrently.
 Please see the file [MergeServer.hs][] for the complete working code,
 including the imports that we have omitted below.
 
-```haskell ghci
+```{.haskell mode=ghci}
 {-# LANGUAGE FlexibleContexts #-}
 
 import Streamly.Data.Stream (Stream)
@@ -427,7 +427,7 @@ results in a concurrent recursive depth first traversal of the directory tree.
 
 Please see [ListDir.hs][] for the complete working code.
 
-```haskell ghci
+```{.haskell mode=ghci}
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import qualified Streamly.Internal.FileSystem.Dir as Dir (readEitherPaths)
 
@@ -445,7 +445,7 @@ main = do
 For concurrent streams, a stream evaluation rate can be specified.  For
 example, to print "tick" once every second you can simply write:
 
-```haskell ghci
+```{.haskell mode=ghci}
 import qualified Streamly.Internal.Data.Stream as Stream (timestamped)
 
 main :: IO ()

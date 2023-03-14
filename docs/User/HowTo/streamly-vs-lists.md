@@ -199,7 +199,7 @@ modifying combinator, without any other change to the code.
 
 The following code prints one element every second:
 
-```haskell
+```{.haskell}
 import Control.Concurrent
 import Streamly
 import qualified Streamly.Prelude as S
@@ -210,7 +210,7 @@ main = runStream func
 
 To run it concurrently, just run the same code with `fromAsync` combinator:
 
-```haskell
+```{.haskell}
 main = runStream $ fromAsync func
 ```
 
