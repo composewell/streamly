@@ -16,6 +16,7 @@ build-type:         Simple
 -------------------------------------------------------------------------------
 
 extra-doc-files:
+  *.md
   User/*.md
   User/Tutorials/*.md
   User/Tutorials/*.link
