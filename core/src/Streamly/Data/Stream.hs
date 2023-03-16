@@ -39,6 +39,14 @@ module Streamly.Data.Stream
     --
     -- See also: "Streamly.Internal.Data.Stream.Generate" for
     -- @Pre-release@ functions.
+    --
+    -- Useful Idioms:
+    --
+    -- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0
+    -- >>> fromIndicesM f = Stream.mapM f $ Stream.enumerateFrom 0
+    -- >>> fromListM = Stream.sequence . Stream.fromList
+    -- >>> fromFoldable = StreamK.toStream . StreamK.fromFoldable
+    -- >>> fromFoldableM = Stream.sequence . fromFoldable
 
     -- ** Primitives
     -- | Primitives to construct a stream from pure values or monadic actions.
@@ -253,6 +261,14 @@ module Streamly.Data.Stream
     -}
 
     -- ** Scanning By 'Fold'
+    -- | Useful idioms:
+    --
+    -- >>> scanl' f z = Stream.scan (Fold.foldl' f z)
+    -- >>> scanlM' f z = Stream.scan (Fold.foldlM' f z)
+    -- >>> postscanl' f z = Stream.postscan (Fold.foldl' f z)
+    -- >>> postscanlM' f z = Stream.postscan (Fold.foldlM' f z)
+    -- >>> scanl1' f = Stream.catMaybes . Stream.scan (Fold.foldl1' f)
+    -- >>> scanl1M' f = Stream.catMaybes . Stream.scan (Fold.foldlM1' f)
     , scan
     , postscan
     -- XXX postscan1 can be implemented using Monoids or Refolds.
@@ -298,6 +314,13 @@ module Streamly.Data.Stream
     -- filtering folds (folds returning a 'Maybe' type) in
     -- "Streamly.Internal.Data.Fold" can be used along with 'scanMaybe' to
     -- perform stateful filtering operations in general.
+    --
+    -- Useful idioms:
+    --
+    -- >>> deleteBy cmp x = Stream.scanMaybe (Fold.deleteBy cmp x)
+    -- >>> findIndices p = Stream.scanMaybe (Fold.findIndices p)
+    -- >>> elemIndices a = findIndices (== a)
+    -- >>> uniq = Stream.scanMaybe (Fold.uniqBy (==))
     , scanMaybe
     , take
     , takeWhile
@@ -399,6 +422,14 @@ module Streamly.Data.Stream
     , concatMapM
 
     -- * Repeated Fold
+    -- | Useful idioms:
+    --
+    -- >>> splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
+    -- >>> splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
+    -- >>> groupsBy eq f = Stream.parseMany (Parser.groupBy eq f)
+    -- >>> groupsByRolling eq f = Stream.parseMany (Parser.groupByRolling eq f)
+    -- >>> wordsBy p f = Stream.parseMany (Parser.wordBy p f)
+    -- >>> groupsOf n f = Stream.foldMany (Fold.take n f)
     , foldMany -- XXX Rename to foldRepeat
     , parseMany
     , Array.chunksOf
@@ -574,8 +605,3 @@ import Prelude
 --
 -- 'Stream' and 'StreamK' types can be interconverted. See
 -- "Streamly.Data.StreamK" module for conversion operations.
---
--- == Useful Idioms
---
--- >>> fromListM = Stream.sequence . Stream.fromList
--- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0

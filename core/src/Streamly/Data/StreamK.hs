@@ -14,6 +14,12 @@
 --
 -- Please refer to "Streamly.Internal.Data.Stream.StreamK" for more functions
 -- that have not yet been released.
+--
+-- Some useful idioms:
+--
+-- >>> concatFoldableWith f = Prelude.foldr f StreamK.nil
+-- >>> concatMapFoldableWith f g = Prelude.foldr (f . g) StreamK.nil
+-- >>> concatForFoldableWith f xs g = Prelude.foldr (f . g) StreamK.nil xs
 
 -- Notes:
 --

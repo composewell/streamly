@@ -132,6 +132,7 @@ import Streamly.Internal.Data.Stream.Concurrent.Channel
 -- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
+-- >>> import qualified Streamly.Data.StreamK as StreamK
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream hiding (append2)
 -- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Stream
 -- >>> import Prelude hiding (concatMap, concat, zipWith)
@@ -176,6 +177,10 @@ parEvalD modifier m = D.Stream step Nothing
 -- multiple streams won't apply here e.g. maxThreads, eager, interleaved,
 -- ordered, stopWhen options won't have any effect.
 --
+-- Useful idioms:
+--
+-- >>> parUnfoldrM step = Stream.parEval id . Stream.unfoldrM step
+-- >>> parIterateM step = Stream.parEval id . Stream.iterateM step
 {-# INLINE parEval #-}
 parEval :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
 parEval modifier input = withChannel modifier input (const id)
@@ -539,8 +544,14 @@ parMapM :: MonadAsync m =>
     (Config -> Config) -> (a -> m b) -> Stream m a -> Stream m b
 parMapM modifier f = parConcatMap modifier (Stream.fromEffect . f)
 
--- |
+-- | Definition:
+--
 -- >>> parSequence modifier = Stream.parMapM modifier id
+--
+-- Useful idioms:
+--
+-- >>> parFromListM = Stream.parSequence id . Stream.fromList
+-- >>> parFromFoldableM = Stream.parSequence id . StreamK.toStream . StreamK.fromFoldable
 --
 {-# INLINE parSequence #-}
 parSequence :: MonadAsync m =>
