@@ -9,10 +9,29 @@ In this tutorial, we assume basic knowledge of Haskell syntax, constructs and
 lazy evaluation. The [Haskell wikibook](https://en.wikibooks.org/wiki/Haskell)
 may be a good place to start and get familiar with Haskell.
 
+## Installing Haskell
+
 If you wish to follow along and run the examples in this tutorial, you will
-need to have [Streamly][] installed.  Please see the [Setup and
-Usage](/docs/User/Tutorials/setup-and-usage.md) guide for instructions
-on how to install and use [Streamly][].
+need to have Haskell tool chain installed.
+
+You can choose one of the following sections.
+
+### Haskell Toolchain
+
+To get started, you will need a fairly recent version (last three major
+versions will work) of the Haskell compiler `ghc` and the build tool
+`cabal` installed on your system.  Please see the install instructions
+at https://www.haskell.org/downloads/ .
+
+### Development Environment using Nix
+
+If you use the nix package manager, a nix shell for complete
+development environment - including a consistent set of latest streamly
+ecosystem packages, hoogle documentation, vim and vscode editors,
+Haskell language server (HLS) and other tools - is available at
+[streamly-packages][streamly-packages].
+
+## Building for Performance
 
 If you wish to run benchmarks, please be sure to build your
 application using the instructions in the [Build Guide](/docs/User/HowTo/Compiling.md).

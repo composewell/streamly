@@ -6,8 +6,8 @@ SPDX-License-Identifer: BSD-3-Clause
 
 # Getting started with `Haskell Streamly`
 
-This guide shows you how to install Haskell and the `streamly` package,
-and then use Streamly in a simple program.
+This guide shows you how to use Streamly in `ghci` REPL, a simple
+program or a Haskell project.
 
 <!-- TODO: Add instructions for `stack` and `nix`.
 
@@ -19,25 +19,6 @@ are using a command-line shell on a POSIX operating system.  If you are
 running Windows&trade; then you may need to run a command-line shell
 under `msys` and some of the commands below may also need to be changed
 in small ways to make them work.
-
-## Installing Haskell
-
-You can choose one of the following options.
-
-### Installing the Haskell Toolchain
-
-To get started, you will need a fairly recent version (last three major
-versions will work) of the Haskell compiler `ghc` and the build tool
-`cabal` installed on your system.  Please see the install instructions
-at https://www.haskell.org/downloads/ .
-
-### Development Environment using Nix
-
-If you use the nix package manager, a nix shell for complete
-development environment - including a consistent set of latest streamly
-ecosystem packages, hoogle documentation, vim and vscode editors,
-Haskell language server (HLS) and other tools - is available at
-[streamly-packages][streamly-packages].
 
 ## Using `streamly` Interactively in REPL
 
