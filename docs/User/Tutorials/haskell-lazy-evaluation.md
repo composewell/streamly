@@ -62,7 +62,7 @@ we have to print something, or write it to a file or to network.
 Let us illustrate expression evaluation in Haskell with an example. Write
 this little program in a file `example.hs`:
 
-```haskell
+```{.haskell}
 main =
     let largeList = [1..1000000::Int]
         n = length largeList
@@ -98,7 +98,7 @@ references to it in the entire program.
 
 Let's try this program instead:
 
-```haskell
+```{.haskell}
 main = do
     let largeList = [1..1000000::Int]
         x1 = last largeList
@@ -137,7 +137,7 @@ Even if there is no explicit dependency in the program forcing
 evaluation of an expression, the programmer can force the evaluation of
 an expression using `seq`:
 
-```haskell
+```{.haskell}
 main = do
     let largeList = [1..1000000::Int]
         x1 = last largeList
@@ -158,7 +158,7 @@ retention in the above program.
 
 Let's first write it using streamly and reproduce the same problem:
 
-```haskell
+```{.haskell}
 import Data.Functor.Identity (runIdentity)
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
@@ -186,7 +186,7 @@ However, we can compose the two folds using the `teeWith` combinator
 such that we distribute a each element of the list to both the folds
 simultaneously, thus avoiding the retainment of the entire list:
 
-```haskell
+```{.haskell}
 import Data.Functor.Identity (runIdentity)
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold

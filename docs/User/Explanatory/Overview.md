@@ -118,7 +118,7 @@ The following snippet provides a simple stream composition example that reads
 numbers from stdin, prints the squares of even numbers and exits if an even
 number more than 9 is entered.
 
-``` haskell
+```{.haskell}
 import qualified Streamly.Prelude as S
 import Data.Function ((&))
 
@@ -149,7 +149,7 @@ The following code finishes in 3 seconds (6 seconds when serial), note the
 order of elements in the resulting output, the outputs are consumed as soon as
 each action is finished (asyncly):
 
-``` haskell
+```{.haskell}
 > let p n = threadDelay (n * 1000000) >> return n
 > S.toList $ S.fromAsync $ p 3 |: p 2 |: p 1 |: S.nil
 [1,2,3]
@@ -158,7 +158,7 @@ each action is finished (asyncly):
 Use `fromAhead` if you want speculative concurrency i.e. execute the actions in
 the stream concurrently but consume the results in the specified order:
 
-``` haskell
+```{.haskell}
 > S.toList $ S.fromAhead $ p 3 |: p 2 |: p 1 |: S.nil
 [3,2,1]
 ```
@@ -168,7 +168,7 @@ Monadic stream generation functions e.g. `unfoldrM`, `replicateM`, `repeatM`,
 
 The following finishes in 10 seconds (100 seconds when serial):
 
-``` haskell
+```{.haskell}
 S.drain $ S.fromAsync $ S.replicateM 10 $ p 10
 ```
 
@@ -179,7 +179,7 @@ following example prints a "hello" every second; if you use `&` instead of
 `|&` you will see that the delay doubles to 2 seconds instead because of serial
 application.
 
-``` haskell
+```{.haskell}
 main = S.drain $
       S.repeatM (threadDelay 1000000 >> return "hello")
    |& S.mapM (\x -> threadDelay 1000000 >> putStrLn x)
@@ -189,7 +189,7 @@ main = S.drain $
 
 We can use `mapM` or `sequence` functions concurrently on a stream.
 
-``` haskell
+```{.haskell}
 > let p n = threadDelay (n * 1000000) >> return n
 > S.drain $ S.fromAhead $ S.mapM (\x -> p 1 >> print x) (S.fromSerial $ S.repeatM (p 1))
 ```
@@ -201,7 +201,7 @@ concurrently. In the following example we compose ten actions in the
 stream, each with a delay of 1 to 10 seconds, respectively. Since all the
 actions are concurrent we see one output printed every second:
 
-``` haskell
+```{.haskell}
 import qualified Streamly.Prelude as S
 import Control.Concurrent (threadDelay)
 
@@ -213,7 +213,7 @@ Streams can be combined together in many ways. We provide some examples
 below, see the tutorial for more ways. We use the following `delay`
 function in the examples to demonstrate the concurrency aspects:
 
-``` haskell
+```{.haskell}
 import qualified Streamly.Prelude as S
 import Control.Concurrent
 
@@ -224,7 +224,7 @@ delay n = S.fromEffect $ do
 ```
 ### Serial
 
-``` haskell
+```{.haskell}
 main = S.drain $ delay 3 <> delay 2 <> delay 1
 ```
 ```
@@ -235,7 +235,7 @@ ThreadId 36: Delay 1
 
 ### Parallel
 
-``` haskell
+```{.haskell}
 main = S.drain . S.fromParallel $ delay 3 <> delay 2 <> delay 1
 ```
 ```
@@ -248,7 +248,7 @@ ThreadId 40: Delay 3
 
 The monad instance composes like a list monad.
 
-``` haskell
+```{.haskell}
 import qualified Streamly.Prelude as S
 
 loops = do
@@ -271,7 +271,7 @@ To run the above code with speculative concurrency i.e. each iteration in the
 loop can run concurrently but the results are presented to the consumer of the
 output in the same order as serial execution:
 
-``` haskell
+```{.haskell}
 main = S.drain $ S.fromAhead $ loops
 ```
 
@@ -287,7 +287,7 @@ concurrently using combinators like `fromAsync`, `parallelly`. For example,
 to concurrently generate squares of a stream of numbers and then concurrently
 sum the square roots of all combinations of two streams:
 
-``` haskell
+```{.haskell}
 import qualified Streamly.Prelude as S
 
 main = do
@@ -305,7 +305,7 @@ main = do
 For bounded concurrent streams, stream yield rate can be specified. For
 example, to print hello once every second you can simply write this:
 
-``` haskell
+```{.haskell}
 import Streamly.Prelude as S
 
 main = S.drain $ S.fromAsync $ S.avgRate 1 $ S.repeatM $ putStrLn "hello"
@@ -372,7 +372,7 @@ to keep them short and elegant. Source file
 [CoreUtilsHandle.hs](https://github.com/composewell/streamly-examples/blob/master/examples/CoreUtilsHandle.hs)
 in the examples directory includes these examples.
 
-``` haskell
+```{.haskell}
 module Main where
 
 import qualified Streamly.Prelude as S
@@ -399,28 +399,28 @@ withArg2 f = do
 
 ### cat
 
-``` haskell
+```{.haskell}
 cat = S.fold (FH.writeChunks stdout) . S.unfold FH.readChunks
 main = withArg cat
 ```
 
 ### cp
 
-``` haskell
+```{.haskell}
 cp src dst = S.fold (FH.writeChunks dst) $ S.unfold FH.readChunks src
 main = withArg2 cp
 ```
 
 ### wc -l
 
-``` haskell
+```{.haskell}
 wcl = S.length . S.splitOn (== 10) FL.drain . S.unfold FH.read
 main = withArg wcl >>= print
 ```
 
 ### Average Line Length
 
-``` haskell
+```{.haskell}
 avgll =
       S.fold avg
     . S.splitOn (== 10) FL.length
@@ -437,7 +437,7 @@ main = withArg avgll >>= print
 `classify` is not released yet, and is available in
 `Streamly.Internal.Data.Fold`
 
-``` haskell
+```{.haskell}
 llhisto =
       S.fold (FL.classify FL.length)
     . S.map bucket

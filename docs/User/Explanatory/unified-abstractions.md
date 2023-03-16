@@ -79,7 +79,7 @@ API.
 This simple console echo program shows the simplicity of Streamly API
 and its similarity with the list API:
 
-```haskell
+```{.haskell}
 echo =
       Stream.repeatM getLine
     & Stream.mapM putStrLn
@@ -110,7 +110,7 @@ to the list monad. It provides the functionality provided by `list-t` or
 `logict` packages for free.  Here is an example of nested looping using
 the serial stream monad:
 
-```haskell
+```{.haskell}
 import qualified Streamly.Prelude as S
 
 loops = do
@@ -146,7 +146,7 @@ scheduling behavior.  The example from the previous section can be run
 with interleaved scheduling behavior as follows, without changing the
 code at all:
 
-```haskell
+```{.haskell}
 main = Stream.drain $ Stream.fromWserial loops
 ```
 
@@ -171,14 +171,14 @@ style.  The list transformer example can be run with concurrent
 execution of loop iterations as follows, without changing the code at
 all:
 
-```haskell
+```{.haskell}
 main = Stream.drain $ Stream.fromAhead loops
 ```
 
 And interleaving with concurrent execution of the loop iterations can be
 written like this:
 
-```haskell
+```{.haskell}
 main = Stream.drain $ Stream.fromWAsync loops
 ```
 
