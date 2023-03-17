@@ -478,6 +478,7 @@ reactive programming using [Streamly][].
 If you would like to view more examples, please visit the [Streamly
 Examples][streamly-examples] web page.
 
+<!--
 ### Further Reading
 
 * [Streaming Benchmarks][streaming-benchmarks]
@@ -485,6 +486,7 @@ Examples][streamly-examples] web page.
 * Functional Conf 2019 [Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
 * [Other Guides](/)
 * [Streamly Homepage][Streamly]
+-->
 
 <!--
 Link References.
