@@ -218,15 +218,18 @@ data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
 -- >>> Stream.fold Fold.toList $ s1 `Stream.append` s2
 -- [1,2,3,4]
 --
--- This function should not be used to dynamically construct a stream. If a
--- stream is constructed by successive use of this function it would take
--- quadratic time complexity to consume the stream.
+-- From an implementation perspective, StreamK.'Streamly.Data.StreamK.append'
+-- translates into a function call whereas Stream.'append' translates into a
+-- conditional branch (jump). However, the overhead of the function call in
+-- StreamK.append is incurred only once, while the overhead of the conditional
+-- branch in fused append is incurred for each element in the stream. As a
+-- result, StreamK.append has a linear time complexity of O(n), while fused
+-- append has a quadratic time complexity of O(n^2), where @n@ represents the
+-- number of 'append's used.
 --
 -- This function should only be used to statically fuse a stream with another
--- stream. Do not use this recursively or where it cannot be inlined.
---
--- See "Streamly.Data.StreamK" for an 'append' that can be used to
--- construct a stream recursively.
+-- stream. Do not use it recursively or where it cannot be inlined. Use
+-- StreamK.'Streamly.Data.StreamK.append' for those cases.
 --
 {-# INLINE_NORMAL append #-}
 append :: Monad m => Stream m a -> Stream m a -> Stream m a
