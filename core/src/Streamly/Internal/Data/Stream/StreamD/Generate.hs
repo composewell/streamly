@@ -147,7 +147,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 
 -- | A stream that terminates without producing any output or side effect.
 --
--- >>> Stream.fold Fold.toList Stream.nil
+-- >>> Stream.toList Stream.nil
 -- []
 --
 {-# INLINE_NORMAL nil #-}
@@ -157,21 +157,22 @@ nil = Stream (\_ _ -> pure Stop) ()
 -- XXX implement in terms of consM?
 -- cons x = consM (return x)
 
--- | Fuse a pure value at the head of an existing stream::
+-- | WARNING! You almost always need StreamK.'Streamly.Data.StreamK.cons'
+-- instead.
+--
+-- Fuse a pure value at the head of an existing stream::
 --
 -- >>> s = 1 `Stream.cons` Stream.fromList [2,3]
--- >>> Stream.fold Fold.toList s
+-- >>> Stream.toList s
 -- [1,2,3]
 --
--- This function should not be used to dynamically construct a stream. If a
--- stream is constructed by successive use of this function it would take
--- O(n^2) time to consume the stream.
---
--- This function should only be used to statically fuse an element with a
--- stream. Do not use this recursively or where it cannot be inlined.
---
--- See "Streamly.Data.StreamK" for a 'cons' that can be used to
--- construct a stream recursively.
+-- From an implementation perspective, StreamK.cons translates into a
+-- functional call whereas fused cons translates into a conditional branch
+-- (jump). However, the overhead of the function call in StreamK.cons only
+-- occurs once, while the overhead of the conditional branch in fused cons is
+-- incurred for each subsequent element in the stream. As a result,
+-- StreamK.cons has a time complexity of O(n), while fused cons has a time
+-- complexity of O(n^2), where @n@ represents the number of 'cons' used.
 --
 -- Definition:
 --
@@ -205,7 +206,7 @@ cons x (Stream step state) = Stream step1 Nothing
 --         if b > 2
 --         then return Nothing
 --         else return (Just (b, b + 1))
--- in Stream.fold Fold.toList $ Stream.unfoldrM f 0
+-- in Stream.toList $ Stream.unfoldrM f 0
 -- :}
 -- [0,1,2]
 --
@@ -224,15 +225,7 @@ unfoldrM next = Stream step
             Nothing     -> Stop
 #endif
 
--- |
--- >>> :{
--- unfoldr step s =
---     case step s of
---         Nothing -> Stream.nil
---         Just (a, b) -> a `Stream.cons` unfoldr step b
--- :}
---
--- Build a stream by unfolding a /pure/ step function @step@ starting from a
+-- | Build a stream by unfolding a /pure/ step function @step@ starting from a
 -- seed @s@.  The step function returns the next element in the stream and the
 -- next seed value. When it is done it returns 'Nothing' and the stream ends.
 -- For example,
@@ -242,7 +235,7 @@ unfoldrM next = Stream step
 --         if b > 2
 --         then Nothing
 --         else Just (b, b + 1)
--- in Stream.fold Fold.toList $ Stream.unfoldr f 0
+-- in Stream.toList $ Stream.unfoldr f 0
 -- :}
 -- [0,1,2]
 --
@@ -256,8 +249,6 @@ unfoldr f = unfoldrM (return . f)
 
 -- |
 -- >>> repeatM = Stream.sequence . Stream.repeat
--- >>> repeatM = fix . Stream.consM
--- >>> repeatM = cycle1 . Stream.fromEffect
 --
 -- Generate a stream by repeatedly executing a monadic action forever.
 --
@@ -420,10 +411,10 @@ enumerateFromThenToIntegralDn from next to = Stream step EnumInit
 -- first element is @from@, the second element is @then@ and the successive
 -- elements are in increments of @then - from@ up to @to@.
 --
--- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenToIntegral 0 2 6
+-- >>> Stream.toList $ Stream.enumerateFromThenToIntegral 0 2 6
 -- [0,2,4,6]
 --
--- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenToIntegral 0 (-2) (-6)
+-- >>> Stream.toList $ Stream.enumerateFromThenToIntegral 0 (-2) (-6)
 -- [0,-2,-4,-6]
 --
 {-# INLINE_NORMAL enumerateFromThenToIntegral #-}
@@ -444,10 +435,10 @@ enumerateFromThenToIntegral from next to
 -- is @then@ and the successive elements are in increments of @then - from@.
 -- The stream is bounded by the size of the 'Integral' type.
 --
--- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThenIntegral (0 :: Int) 2
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThenIntegral (0 :: Int) 2
 -- [0,2,4,6]
 --
--- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThenIntegral (0 :: Int) (-2)
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThenIntegral (0 :: Int) (-2)
 -- [0,-2,-4,-6]
 --
 {-# INLINE_NORMAL enumerateFromThenIntegral #-}
@@ -471,10 +462,10 @@ enumerateFromThenIntegral from next =
 -- CAUTION: This function is not safe for finite integral types. It does not
 -- check for overflow, underflow or bounds.
 --
--- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromStepIntegral 0 2
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromStepIntegral 0 2
 -- [0,2,4,6]
 --
--- >>> Stream.fold Fold.toList $ Stream.take 3 $ Stream.enumerateFromStepIntegral 0 (-2)
+-- >>> Stream.toList $ Stream.take 3 $ Stream.enumerateFromStepIntegral 0 (-2)
 -- [0,-2,-4]
 --
 {-# INLINE_NORMAL enumerateFromStepIntegral #-}
@@ -495,7 +486,7 @@ enumerateFromStepIntegral from stride =
 -- element is @from@ and successive elements are in increments of @1@ up to
 -- @to@.
 --
--- >>> Stream.fold Fold.toList $ Stream.enumerateFromToIntegral 0 4
+-- >>> Stream.toList $ Stream.enumerateFromToIntegral 0 4
 -- [0,1,2,3,4]
 --
 {-# INLINE enumerateFromToIntegral #-}
@@ -507,7 +498,7 @@ enumerateFromToIntegral from to =
 -- stream whose first element is @from@ and the successive elements are in
 -- increments of @1@. The stream is bounded by the size of the 'Integral' type.
 --
--- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromIntegral (0 :: Int)
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromIntegral (0 :: Int)
 -- [0,1,2,3]
 --
 {-# INLINE enumerateFromIntegral #-}
@@ -534,7 +525,7 @@ enumerateFromIntegral from = enumerateFromToIntegral from maxBound
 --
 -- This is the equivalent to 'enumFrom' for 'Fractional' types. For example:
 --
--- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromFractional 1.1
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromFractional 1.1
 -- [1.1,2.1,3.1,4.1]
 --
 {-# INLINE enumerateFromFractional #-}
@@ -550,10 +541,10 @@ enumerateFromFractional = enumerateFromNum
 -- This is the equivalent of 'enumFromThen' for 'Fractional' types. For
 -- example:
 --
--- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThenFractional 1.1 2.1
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThenFractional 1.1 2.1
 -- [1.1,2.1,3.1,4.1]
 --
--- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThenFractional 1.1 (-2.1)
+-- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThenFractional 1.1 (-2.1)
 -- [1.1,-2.1,-5.300000000000001,-8.500000000000002]
 --
 {-# INLINE enumerateFromThenFractional #-}
@@ -570,10 +561,10 @@ enumerateFromThenFractional = enumerateFromThenNum
 -- This is the equivalent of 'enumFromTo' for 'Fractional' types. For
 -- example:
 --
--- >>> Stream.fold Fold.toList $ Stream.enumerateFromToFractional 1.1 4
+-- >>> Stream.toList $ Stream.enumerateFromToFractional 1.1 4
 -- [1.1,2.1,3.1,4.1]
 --
--- >>> Stream.fold Fold.toList $ Stream.enumerateFromToFractional 1.1 4.6
+-- >>> Stream.toList $ Stream.enumerateFromToFractional 1.1 4.6
 -- [1.1,2.1,3.1,4.1,5.1]
 --
 -- Notice that the last element is equal to the specified @to@ value after
@@ -594,10 +585,10 @@ enumerateFromToFractional from to =
 -- This is the equivalent of 'enumFromThenTo' for 'Fractional' types. For
 -- example:
 --
--- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenToFractional 0.1 2 6
+-- >>> Stream.toList $ Stream.enumerateFromThenToFractional 0.1 2 6
 -- [0.1,2.0,3.9,5.799999999999999]
 --
--- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenToFractional 0.1 (-2) (-6)
+-- >>> Stream.toList $ Stream.enumerateFromThenToFractional 0.1 (-2) (-6)
 -- [0.1,-2.0,-4.1000000000000005,-6.200000000000001]
 --
 {-# INLINE_NORMAL enumerateFromThenToFractional #-}
@@ -672,13 +663,13 @@ class Enum a => Enumerable a where
     -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
     -- generating an infinite stream when the type is not 'Bounded'.
     --
-    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFrom (0 :: Int)
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFrom (0 :: Int)
     -- [0,1,2,3]
     --
     -- For 'Fractional' types, enumeration is numerically stable. However, no
     -- overflow or underflow checks are performed.
     --
-    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFrom 1.1
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFrom 1.1
     -- [1.1,2.1,3.1,4.1]
     --
     enumerateFrom :: (Monad m) => a -> Stream m a
@@ -687,16 +678,16 @@ class Enum a => Enumerable a where
     -- the type up to the value @to@. If @to@ is smaller than @from@ then an
     -- empty stream is returned.
     --
-    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromTo 0 4
+    -- >>> Stream.toList $ Stream.enumerateFromTo 0 4
     -- [0,1,2,3,4]
     --
     -- For 'Fractional' types, the last element is equal to the specified @to@
     -- value after rounding to the nearest integral value.
     --
-    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromTo 1.1 4
+    -- >>> Stream.toList $ Stream.enumerateFromTo 1.1 4
     -- [1.1,2.1,3.1,4.1]
     --
-    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromTo 1.1 4.6
+    -- >>> Stream.toList $ Stream.enumerateFromTo 1.1 4.6
     -- [1.1,2.1,3.1,4.1,5.1]
     --
     enumerateFromTo :: (Monad m) => a -> a -> Stream m a
@@ -708,10 +699,10 @@ class Enum a => Enumerable a where
     -- 'Bounded' types the stream ends when 'maxBound' is reached, for
     -- unbounded types it keeps enumerating infinitely.
     --
-    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 2
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 2
     -- [0,2,4,6]
     --
-    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 (-2)
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.enumerateFromThen 0 (-2)
     -- [0,-2,-4,-6]
     --
     enumerateFromThen :: (Monad m) => a -> a -> Stream m a
@@ -722,10 +713,10 @@ class Enum a => Enumerable a where
     -- occur downwards or upwards depending on whether @then@ comes before or
     -- after @from@.
     --
-    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenTo 0 2 6
+    -- >>> Stream.toList $ Stream.enumerateFromThenTo 0 2 6
     -- [0,2,4,6]
     --
-    -- >>> Stream.fold Fold.toList $ Stream.enumerateFromThenTo 0 (-2) (-6)
+    -- >>> Stream.toList $ Stream.enumerateFromThenTo 0 (-2) (-6)
     -- [0,-2,-4,-6]
     --
     enumerateFromThenTo :: (Monad m) => a -> a -> a -> Stream m a
@@ -1075,17 +1066,14 @@ generate n gen = generateM n (return . gen)
 -- Iteration
 -------------------------------------------------------------------------------
 
--- |
--- >>> iterateM f m = m >>= \a -> return a `Stream.consM` iterateM f (f a)
---
--- Generate an infinite stream with the first element generated by the action
--- @m@ and each successive element derived by applying the monadic function
--- @f@ on the previous element.
+-- | Generate an infinite stream with the first element generated by the action
+-- @m@ and each successive element derived by applying the monadic function @f@
+-- on the previous element.
 --
 -- >>> :{
 -- Stream.iterateM (\x -> print x >> return (x + 1)) (return 0)
 --     & Stream.take 3
---     & Stream.fold Fold.toList
+--     & Stream.toList
 -- :}
 -- 0
 -- 1
@@ -1099,14 +1087,11 @@ iterateM step = unfold (Unfold.iterateM step)
 iterateM step = Stream (\_ st -> st >>= \(!x) -> return $ Yield x (step x))
 #endif
 
--- |
--- >>> iterate f x = x `Stream.cons` iterate f x
---
--- Generate an infinite stream with @x@ as the first element and each
+-- | Generate an infinite stream with @x@ as the first element and each
 -- successive element derived by applying the function @f@ on the previous
 -- element.
 --
--- >>> Stream.fold Fold.toList $ Stream.take 5 $ Stream.iterate (+1) 1
+-- >>> Stream.toList $ Stream.take 5 $ Stream.iterate (+1) 1
 -- [1,2,3,4,5]
 --
 {-# INLINE_NORMAL iterate #-}
@@ -1196,7 +1181,7 @@ fromPtrN n = take n . fromPtr
 -- Note that this is completely safe when reading from Haskell string
 -- literals because they are guaranteed to be NULL terminated:
 --
--- >>> Stream.fold Fold.toList $ Stream.fromByteStr# "\1\2\3\0"#
+-- >>> Stream.toList $ Stream.fromByteStr# "\1\2\3\0"#
 -- [1,2,3]
 --
 {-# INLINE fromByteStr# #-}

@@ -50,6 +50,11 @@ module Streamly.Data.StreamK
 
     -- * Construction
     -- ** Primitives
+    -- | Primitives to construct a stream from pure values or monadic actions.
+    -- All other stream construction and generation combinators described later
+    -- can be expressed in terms of these primitives. However, the special
+    -- versions provided in this module can be much more efficient in some
+    -- cases. Users can create custom combinators using these primitives.
     , nil
     , nilM
     , cons

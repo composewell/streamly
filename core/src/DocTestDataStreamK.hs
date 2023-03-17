@@ -1,6 +1,7 @@
 {- $setup
 
 >>> :m
+>>> import Control.Concurrent (threadDelay)
 >>> import Data.Function (fix, (&))
 >>> import Data.Semigroup (cycle1)
 

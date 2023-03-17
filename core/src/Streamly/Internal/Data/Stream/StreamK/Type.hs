@@ -1688,6 +1688,28 @@ interleaveMin m1 m2 = mkStream $ \st yld _ stp -> do
 -- Generation
 -------------------------------------------------------------------------------
 
+-- |
+-- >>> :{
+-- unfoldr step s =
+--     case step s of
+--         Nothing -> StreamK.nil
+--         Just (a, b) -> a `StreamK.cons` unfoldr step b
+-- :}
+--
+-- Build a stream by unfolding a /pure/ step function @step@ starting from a
+-- seed @s@.  The step function returns the next element in the stream and the
+-- next seed value. When it is done it returns 'Nothing' and the stream ends.
+-- For example,
+--
+-- >>> :{
+-- let f b =
+--         if b > 2
+--         then Nothing
+--         else Just (b, b + 1)
+-- in StreamK.toList $ StreamK.unfoldr f 0
+-- :}
+-- [0,1,2]
+--
 {-# INLINE unfoldr #-}
 unfoldr :: (b -> Maybe (a, b)) -> b -> StreamK m a
 unfoldr next s0 = build $ \yld stp ->
@@ -1713,6 +1735,20 @@ unfoldrMWith cns step = go
                     Just (a, b) -> yld a (go b)
                     Nothing -> stp
 
+-- | Build a stream by unfolding a /monadic/ step function starting from a
+-- seed.  The step function returns the next element in the stream and the next
+-- seed value. When it is done it returns 'Nothing' and the stream ends. For
+-- example,
+--
+-- >>> :{
+-- let f b =
+--         if b > 2
+--         then return Nothing
+--         else return (Just (b, b + 1))
+-- in StreamK.toList $ StreamK.unfoldrM f 0
+-- :}
+-- [0,1,2]
+--
 {-# INLINE unfoldrM #-}
 unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> StreamK m a
 unfoldrM = unfoldrMWith consM

@@ -49,11 +49,11 @@ module Streamly.Data.Stream
     -- >>> fromFoldableM = Stream.sequence . fromFoldable
 
     -- ** Primitives
-    -- | Primitives to construct a stream from pure values or monadic actions.
-    -- All other stream construction and generation combinators described later
-    -- can be expressed in terms of these primitives. However, the special
-    -- versions provided in this module can be much more efficient in most
-    -- cases. Users can create custom combinators using these primitives.
+    -- | A fused 'Stream' is never constructed using 'cons', we always convert
+    -- other type of containers like list into streams, or generate it using
+    -- custom functions provided in this module. The 'cons' primitive has a
+    -- rare use in fusing a small number of elements. On the other hand, it is
+    -- common to construct 'StreamK' stream using the 'StreamK.cons' primitive.
     , nil
     , nilM
     , cons
