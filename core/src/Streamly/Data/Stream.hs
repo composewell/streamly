@@ -436,6 +436,10 @@ module Streamly.Data.Stream
     , parseMany
     , Array.chunksOf
 
+    -- * Splitting
+    , splitOn
+    , chunksSplitOn
+
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.
     -- Reverse is essentially a left fold followed by an unfold.
@@ -493,7 +497,12 @@ module Streamly.Data.Stream
     )
 where
 
+import Control.Monad.IO.Class (MonadIO)
+import Data.Word (Word8)
+import Streamly.Data.Array (Array)
+
 import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 import Streamly.Internal.Data.Stream.StreamD
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
@@ -607,3 +616,14 @@ import Prelude
 --
 -- 'Stream' and 'StreamK' types can be interconverted. See
 -- "Streamly.Data.StreamK" module for conversion operations.
+
+-- | Split a stream of arrays on a given separator byte, dropping the separator
+-- and coalescing all the arrays between two separators into a single array.
+--
+{-# INLINE chunksSplitOn #-}
+chunksSplitOn
+    :: (MonadIO m)
+    => Word8
+    -> Stream m (Array Word8)
+    -> Stream m (Array Word8)
+chunksSplitOn = ArrayStream.splitOn
