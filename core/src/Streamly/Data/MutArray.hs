@@ -69,6 +69,12 @@ module Streamly.Data.MutArray
     -- * Size
     , length
 
+    -- * Unsafe functions
+    , getIndexUnsafe
+    , putIndexUnsafe
+    , modifyIndexUnsafe
+    , writeAppendNUnsafe
+
     -- * Unbox Type Class
     , Unbox (..)
     )
