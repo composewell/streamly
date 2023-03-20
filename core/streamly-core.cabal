@@ -95,11 +95,6 @@ flag no-fusion
   manual: True
   default: False
 
-flag use-c-malloc
-  description: Use C malloc instead of GHC malloc
-  manual: True
-  default: False
-
 flag opt
   description: off=GHC default, on=-O2
   manual: True
@@ -144,8 +139,6 @@ common compile-options
     if flag(use-folds)
       cpp-options:    -DUSE_FOLDS_EVERYWHERE
 
-    if flag(use-c-malloc)
-      cpp-options:    -DUSE_C_MALLOC
 
     ghc-options:    -Weverything
                     -Wno-implicit-prelude
