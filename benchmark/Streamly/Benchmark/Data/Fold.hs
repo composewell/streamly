@@ -214,7 +214,7 @@ demuxToIntMap :: Monad m =>
 demuxToIntMap f g = Stream.fold (FL.demuxToContainer f g)
 
 {-# INLINE demuxToHashMap  #-}
-demuxToHashMap :: (Monad m, Ord k, Hashable k) =>
+demuxToHashMap :: (Monad m, Hashable k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
 demuxToHashMap f g = Stream.fold (FL.demuxToContainer f g)
 
@@ -224,7 +224,7 @@ demuxToMapIO :: (MonadIO m, Ord k) =>
 demuxToMapIO f g = Stream.fold (FL.demuxToContainerIO f g)
 
 {-# INLINE demuxToHashMapIO  #-}
-demuxToHashMapIO :: (MonadIO m, Ord k, Hashable k) =>
+demuxToHashMapIO :: (MonadIO m, Hashable k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
 demuxToHashMapIO f g = Stream.fold (FL.demuxToContainerIO f g)
 
