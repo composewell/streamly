@@ -85,6 +85,37 @@ module Streamly.Data.Unfold
     -- ** Nesting
     , many
 
+     -- ** Enumerating 'Num' Types
+    , enumerateFromStepNum
+    , enumerateFromNum
+    , enumerateFromThenNum
+
+    -- ** Enumerating unbounded 'Integral' Types
+    , enumerateFromIntegral
+    , enumerateFromThenIntegral
+    , enumerateFromToIntegral
+    , enumerateFromThenToIntegral
+
+    -- ** Enumerating 'Bounded' 'Integral' Types
+    , enumerateFromIntegralBounded
+    , enumerateFromThenIntegralBounded
+    , enumerateFromToIntegralBounded
+    , enumerateFromThenToIntegralBounded
+
+    -- ** Enumerating small 'Integral' Types
+    -- | Small types are always bounded.
+    , enumerateFromSmallBounded
+    , enumerateFromThenSmallBounded
+    , enumerateFromToSmall
+    , enumerateFromThenToSmall
+
+    -- ** Enumerating 'Fractional' Types
+    -- | Enumeration of 'Num' specialized to 'Fractional' types.
+    , enumerateFromFractional
+    , enumerateFromThenFractional
+    , enumerateFromToFractional
+    , enumerateFromThenToFractional
+
     )
 where
 
