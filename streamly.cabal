@@ -396,6 +396,7 @@ library
                      -- Exposed modules
                      , Streamly.Data.Stream.MkType
                      , Streamly.Data.Stream.Prelude
+                     , Streamly.Data.Fold.Prelude
 
                      -- Network/IO
                      , Streamly.Network.Socket

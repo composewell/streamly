@@ -31,6 +31,7 @@ import Streamly.Internal.Data.IsMap.HashMap ()
 import Streamly.Internal.Data.Array.Mut (MutArray)
 
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Data.Fold.Prelude as Fold
 import qualified Streamly.Internal.Data.Fold.Container as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
@@ -251,7 +252,7 @@ toIntMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
 {-# INLINE toHashMapIO #-}
 toHashMapIO :: (MonadIO m, Ord k, Num a, Hashable k) =>
     (a -> k) -> Stream m a -> m (HashMap k a)
-toHashMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
+toHashMapIO f = Stream.fold (Fold.toHashMapIO f FL.sum)
 
 -------------------------------------------------------------------------------
 -- unzip
