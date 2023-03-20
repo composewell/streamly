@@ -96,8 +96,8 @@ module Streamly.Data.Parser
 
     -- ** Grouping
     , groupBy
-    -- , groupByRolling
-    -- , groupByRollingEither
+    , groupByRolling
+    , groupByRollingEither
 
     -- ** Framing
     -- , wordFramedBy
