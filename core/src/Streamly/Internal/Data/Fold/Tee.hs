@@ -77,7 +77,7 @@ instance (Semigroup b, Monad m) => Semigroup (Tee m a b) where
 -- | '<>' distributes the input to both the argument 'Tee's and combines their
 -- outputs using the 'Monoid' instance of the output type.
 --
-instance (Semigroup b, Monoid b, Monad m) => Monoid (Tee m a b) where
+instance (Monoid b, Monad m) => Monoid (Tee m a b) where
     {-# INLINE mempty #-}
     mempty = pure mempty
 

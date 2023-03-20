@@ -20,7 +20,7 @@ import Streamly.Internal.Data.IsMap (IsMap(..))
 
 import qualified Data.HashMap.Strict as HashMap
 
-instance (Hashable k, Eq k) => IsMap (HashMap.HashMap k) where
+instance (Hashable k) => IsMap (HashMap.HashMap k) where
     type Key (HashMap.HashMap k) = k
 
     mapEmpty = HashMap.empty

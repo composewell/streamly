@@ -737,7 +737,7 @@ instance (KnownNat n, PokeRep a) => PokeRepSum n (C1 c a) where
         pokeBoundedPtr (fromInteger (natVal (Proxy :: Proxy n)) :: Word8) ptr
             >>= pokeRep x
 
-instance (KnownNat n, PokeRepSum n f, PokeRepSum (n + SumArity f) g)
+instance (PokeRepSum n f, PokeRepSum (n + SumArity f) g)
          => PokeRepSum n (f :+: g) where
     {-# INLINE pokeRepSum #-}
     pokeRepSum _ (L1 x) ptr =
@@ -816,7 +816,7 @@ instance (KnownNat n, PeekRep a) => PeekRepSum n (C1 c a) where
 
         curTag = fromInteger (natVal (Proxy :: Proxy n))
 
-instance (KnownNat n, PeekRepSum n f, PeekRepSum (n + SumArity f) g)
+instance (PeekRepSum n f, PeekRepSum (n + SumArity f) g)
          => PeekRepSum n (f :+: g) where
     {-# INLINE peekRepSum #-}
     peekRepSum curProxy tag
