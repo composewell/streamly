@@ -200,6 +200,7 @@ module Streamly.Data.Stream
 
     -- ** Parsing
     , parse
+    , wordsBy
     -- , parseBreak
 
     -- ** Lazy Right Folds
