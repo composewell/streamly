@@ -23,11 +23,10 @@ module Streamly.Network.Inet.TCP
     -- * Connect to Servers
     , connect
 
-    {-
-    -- XXX Expose this as a pipe when we have pipes.
     -- * Transformation
-    -- , pipeBytes
+    , pipeBytes
 
+    {-
     -- ** Sink Servers
 
     -- These abstractions can be applied to any setting where we need to do a
