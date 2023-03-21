@@ -44,6 +44,33 @@ Assume the following imports in the code snippets below:
 >>> import qualified Streamly.Data.Parser as Parser
 ```
 
+## Dependencies in cabal file
+
+If you allow streamly < 0.9 in version bounds then you may not be able
+to build if you:
+
+* also depend on the new `streamly-core` package (module name conflicts)
+* depend on `streamly-bytestring` >= 0.2 (type conflict)
+
+You can use a build flag to allow older streamly versions:
+
+```
+flag old-streamly
+  description: Allow streamly versions lower than 0.9
+  manual: True
+  default: False
+```
+
+```
+  if flag(old-streamly)
+    build-depends:
+      streamly >=0.8.3 && < 0.9
+  else
+    build-depends:
+      streamly-core >= 0.1.0 && < 0.2,
+      streamly >=0.9.0 && < 0.10
+```
+
 ## The `Stream` and `StreamK` types
 
 The following types are removed:
