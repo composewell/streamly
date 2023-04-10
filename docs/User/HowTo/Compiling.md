@@ -108,13 +108,13 @@ SDK.  If ``Cocoa`` is not installed, you may see an error like this:
 error: ld: framework not found Cocoa
 ```
 
-### Native build
+#### cabal build
 
 Usually, if you have a working GHC you would already have the SDK
 installed. See the documentation of `Xcode` or `xcode-select` tool for
 more details.
 
-### Nix build
+#### Nix build
 
 Please note that `cabal2nix` may not always be able to generate a complete nix
 expression on `macOS`. See [this
