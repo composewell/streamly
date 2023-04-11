@@ -120,13 +120,24 @@ Please note that `cabal2nix` may not always be able to generate a complete nix
 expression on `macOS`. See [this
 issue](https://github.com/NixOS/cabal2nix/issues/470).
 
-You may need to add ``nixpkgs.darwin.apple_sdk.frameworks.Cocoa`` to
-your ``buildInputs`` or ``executableFrameworkDepends``. Something like
-this:
+You may need to add ``nixpkgs.darwin.apple_sdk.frameworks.Cocoa``
+to ``librarySystemDepends``. For example, to create a streamly-0.9.0
+derivation from Hackage:
 
 ```
-executableFrameworkDepends =
-    if builtins.currentSystem == "x86_64-darwin"
-    then [nixpkgs.darwin.apple_sdk.frameworks.Cocoa]
-    else [];
+  streamly =
+    nixpkgs.haskell.lib.overrideCabal
+        (
+          super.callHackageDirect
+            { pkg = "streamly";
+              ver = "0.9.0";
+              sha256 = "sha256-eOxVb8qQjZDo1+S7CStqYSExOg2QHWkMY+zlOYqwZak=";
+            } {}
+        )
+        (old:
+          { librarySystemDepends =
+              if nixpkgs.lib.strings.hasInfix "darwin" builtins.currentSystem
+              then [nixpkgs.darwin.apple_sdk.frameworks.Cocoa]
+              else [];
+          });
 ```
