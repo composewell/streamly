@@ -37,6 +37,7 @@ module Streamly.Internal.Data.Array.Generic
 
     -- * Random Access
     , getIndexUnsafe
+    , getIndex
     , getSliceUnsafe
     , strip
     )
@@ -206,6 +207,14 @@ streamFold f arr = f (read arr)
 getIndexUnsafe :: Int -> Array a -> a
 getIndexUnsafe i arr =
     unsafePerformIO $ MArray.getIndexUnsafe i (unsafeThaw arr)
+
+-- | Lookup the element at the given index. Index starts from 0.
+--
+getIndex :: Int -> Array a -> Maybe a
+getIndex i arr@Array {..} =
+    if i >= 0 && i < arrLen
+    then Just $ getIndexUnsafe i arr
+    else Nothing
 
 {-# INLINE writeLastN #-}
 writeLastN :: MonadIO m => Int -> Fold m a (Array a)

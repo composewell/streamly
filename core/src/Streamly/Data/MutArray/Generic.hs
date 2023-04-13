@@ -35,15 +35,22 @@ module Streamly.Data.MutArray.Generic
     -- * Unfolds
     , reader
 
+     -- * Streams
+    , read
+
     -- * Random reads
     , getIndex
 
     -- * Inplace mutation
     , putIndex
     , modifyIndex
+
+    -- * Size
+    , length
     )
 where
 
 import Streamly.Internal.Data.Array.Generic.Mut.Type
+import  Prelude hiding (read, length)
 
 #include "DocTestDataMutArrayGeneric.hs"

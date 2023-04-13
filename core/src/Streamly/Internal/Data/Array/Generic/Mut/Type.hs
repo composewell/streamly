@@ -27,6 +27,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     , writeN
     , writeWith
     , write
+    , fromStreamN
 
     -- , writeRevN
     -- , writeRev
@@ -91,7 +92,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     , producer -- experimental
 
     -- ** To containers
-    , toStreamD
+    , read
     , readRev
     , toStreamK
     -- , toStreamKRev
@@ -179,6 +180,7 @@ import GHC.Int (Int(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -527,14 +529,13 @@ getSlice index len arr@MutArray{..} =
 toList :: MonadIO m => MutArray a -> m [a]
 toList arr@MutArray{..} = mapM (`getIndexUnsafe` arr) [0 .. (arrLen - 1)]
 
--- | Use the 'read' unfold instead.
+-- | Generates a stream from the elements of @MutArray@
 --
--- @toStreamD = D.unfold read@
---
--- We can try this if the unfold has any performance issues.
-{-# INLINE_NORMAL toStreamD #-}
-toStreamD :: MonadIO m => MutArray a -> D.Stream m a
-toStreamD arr@MutArray{..} =
+-- @read = D.unfold reader@
+-- /Pre-release/
+{-# INLINE_NORMAL read #-}
+read :: MonadIO m => MutArray a -> D.Stream m a
+read arr@MutArray{..} =
     D.mapM (`getIndexUnsafe` arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
 
 -- Check equivalence with StreamK.fromStream . toStreamD and remove
@@ -794,3 +795,11 @@ strip p arr = liftIO $ do
         if p r
         then getIndexL (idx + 1)
         else return idx
+
+-- | Create a 'MutArray' from the first @n@ elements of a stream. The
+-- array is allocated to size @n@, if the stream terminates before @n@
+-- elements then the array may hold less than @n@ elements.
+--
+{-# INLINE fromStreamN #-}
+fromStreamN :: MonadIO m => Int -> Stream m a -> m (MutArray a)
+fromStreamN n = D.fold (writeN n)

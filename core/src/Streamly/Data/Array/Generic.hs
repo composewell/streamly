@@ -31,6 +31,7 @@ module Streamly.Data.Array.Generic
 
     -- * Random Access
     , A.length
+    , A.getIndex
 
     -- -- * Folding Arrays
     -- , A.streamFold
