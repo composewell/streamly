@@ -528,9 +528,9 @@ parApply modifier stream1 stream2 =
 --
 -- >>> parMapM modifier f = Stream.parConcatMap modifier (Stream.fromEffect . f)
 --
--- Example, the following example finishes in 1 second as all actions run in
--- parallel. Even though results are available out of order they are ordered
--- due to the config option::
+-- For example, the following finishes in 3 seconds (as opposed to 6 seconds)
+-- because all actions run in parallel. Even though results are available out
+-- of order they are ordered due to the config option:
 --
 -- >>> f x = delay x >> return x
 -- >>> Stream.fold Fold.toList $ Stream.parMapM (Stream.ordered True) f $ Stream.fromList [3,2,1]
