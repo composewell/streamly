@@ -7,6 +7,11 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UnboxedTuples             #-}
 {-# LANGUAGE FlexibleContexts          #-}
+
+#if MIN_VERSION_base(4,17,0)
+{-# LANGUAGE TypeOperators             #-}
+#endif
+
 #include "inline.hs"
 
 -- |

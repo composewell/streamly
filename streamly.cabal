@@ -1,6 +1,6 @@
 cabal-version:      2.2
 name:               streamly
-version:            0.7.3.1
+version:            0.7.3.2
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
   Streamly is a framework for writing programs in a high level, declarative
@@ -384,7 +384,7 @@ library
                      , deepseq           >= 1.4.1 && < 1.5
                      , directory         >= 1.2.2 && < 1.4
                      , exceptions        >= 0.8   && < 0.11
-                     , ghc-prim          >= 0.2   && < 0.9
+                     , ghc-prim          >= 0.2   && < 0.10
                      , mtl               >= 2.2   && < 3
                      , primitive         >= 0.5.4 && < 0.8
                      , transformers      >= 0.4   && < 0.6
