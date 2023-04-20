@@ -940,8 +940,12 @@ captureMonadState = control $ \run -> run (return $ RunInIO run)
 -- exception handler.
 {-# INLINE rawForkIO #-}
 rawForkIO :: IO () -> IO ThreadId
-rawForkIO action = IO $ \ s ->
-   case fork# action s of (# s1, tid #) -> (# s1, ThreadId tid #)
+#if MIN_VERSION_base(4,17,0)
+rawForkIO (IO action) =
+#else
+rawForkIO action =
+#endif
+   IO $ \ s -> case fork# action s of (# s1, tid #) -> (# s1, ThreadId tid #)
 
 {-# INLINE doFork #-}
 doFork :: MonadBaseControl IO m
