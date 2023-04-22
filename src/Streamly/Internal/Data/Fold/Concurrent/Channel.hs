@@ -40,8 +40,9 @@ import Streamly.Internal.Data.Stream.Channel.Types
 
 -- XXX Cleanup the fold if the stream is interrupted. Add a GC hook.
 
--- | Evaluate the fold asynchronously in a worker thread separate from the
--- driver thread.
+-- | Evaluate a fold asynchronously using a concurrent channel. The driver just
+-- queues the input stream values to the fold channel buffer and returns. The
+-- fold evaluates the queued values asynchronously.
 --
 {-# INLINABLE parEval #-}
 parEval :: MonadAsync m => (Config -> Config) -> Fold m a b -> Fold m a b

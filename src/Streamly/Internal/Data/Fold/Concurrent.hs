@@ -18,9 +18,6 @@
 
 module Streamly.Internal.Data.Fold.Concurrent
     (
-    -- * Imports
-    -- $setup
-
     -- * Configuration
       Config
     , maxBuffer
@@ -30,13 +27,12 @@ module Streamly.Internal.Data.Fold.Concurrent
     -- * Combinators
     -- | Stream combinators using Async channel
 
-    , eval
     , parEval
     )
 where
 
-import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Fold (Fold)
+-- import Streamly.Internal.Control.Concurrent (MonadAsync)
+-- import Streamly.Internal.Data.Fold (Fold)
 
 import Streamly.Internal.Data.Fold.Concurrent.Channel
 
@@ -60,6 +56,7 @@ import Streamly.Internal.Data.Fold.Concurrent.Channel
 --      return n                    -- IO Int
 -- :}
 
+{-
 -- | Evaluate a stream asynchronously using a channel and serve the consumer
 -- from the evaluation buffer.
 --
@@ -68,3 +65,4 @@ import Streamly.Internal.Data.Fold.Concurrent.Channel
 {-# INLINE eval #-}
 eval :: MonadAsync m => Fold m a b -> Fold m a b
 eval = parEval id
+-}
