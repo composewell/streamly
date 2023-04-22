@@ -5,7 +5,7 @@
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : pre-release
+-- Stability   : experimental
 -- Portability : GHC
 --
 -- This is an internal module which is a superset of the corresponding released
