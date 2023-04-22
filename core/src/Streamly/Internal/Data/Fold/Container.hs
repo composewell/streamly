@@ -27,14 +27,27 @@ module Streamly.Internal.Data.Fold.Container
     -- | Direct values in the input stream to different folds using an n-ary
     -- fold selector. 'demux' is a generalization of 'classify' (and
     -- 'partition') where each key of the classifier can use a different fold.
-    , demuxKvToContainer
-    , demuxKvToMap
+    --
+    -- You need to see only 'demux' if you are looking to find the capabilities
+    -- of these combinators, all others are variants of that.
 
+    -- *** Output is a container
+    -- | The fold state snapshot returns the key-value container of in-progress
+    -- folds.
     , demuxToContainer
     , demuxToContainerIO
     , demuxToMap
     , demuxToMapIO
 
+    -- *** Input is explicit key-value tuple
+    -- | Like above but inputs are in explicit key-value pair form.
+    , demuxKvToContainer
+    , demuxKvToMap
+
+    -- *** Scan of finished fold results
+    -- | Like above, but the resulting fold state snapshot contains the key
+    -- value container as well as the finished key result if a fold in the
+    -- container finished.
     , demuxGeneric
     , demux
     , demuxGenericIO
@@ -251,6 +264,9 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- because key is to be determined on each input whereas fold is to be
 -- determined only once for a key.
 
+-- | This is the most general of all demux, classify operations.
+--
+-- See 'demux' for documentation.
 {-# INLINE demuxGeneric #-}
 demuxGeneric :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
@@ -294,11 +310,18 @@ demuxGeneric getKey getFold = fmap extract $ foldlM' step initial
                 Partial s -> e s
                 Done b -> return b
 
--- | In a key value stream, fold values corresponding to each key with a key
--- specific fold. The fold returns the fold result as the second component of
--- the output tuple whenever a fold terminates. The first component of the
--- tuple is a Map of in-progress folds. If a fold terminates, another
--- instance of the fold is started upon receiving an input with that key.
+-- | @demux getKey getFold@: In a key value stream, fold values corresponding
+-- to each key using a key specific fold. @getFold@ is invoked to generate a
+-- key specific fold when a key is encountered for the first time in the
+-- stream.
+--
+-- The first component of the output tuple is a key-value Map of in-progress
+-- folds. The fold returns the fold result as the second component of the
+-- output tuple whenever a fold terminates.
+--
+-- If a fold terminates, another instance of the fold is started upon receiving
+-- an input with that key, @getFold@ is invoked again whenever the key is
+-- encountered again.
 --
 -- This can be used to scan a stream and collect the results from the scan
 -- output.
@@ -312,6 +335,8 @@ demux :: (Monad m, Ord k) =>
     -> Fold m a (m (Map k b), Maybe (k, b))
 demux = demuxGeneric
 
+-- | This is specialized version of 'demuxGeneric' that uses mutable IO cells
+-- as fold accumulators for better performance.
 {-# INLINE demuxGenericIO #-}
 demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
@@ -376,6 +401,9 @@ demuxGenericIO getKey getFold = fmap extract $ foldlM' step initial
 
 -- | This is specialized version of 'demux' that uses mutable IO cells as
 -- fold accumulators for better performance.
+--
+-- Keep in mind that the values in the returned Map may be changed by the
+-- ongoing fold if you are using those concurrently in another thread.
 --
 {-# INLINE demuxIO #-}
 demuxIO :: (MonadIO m, Ord k) =>
