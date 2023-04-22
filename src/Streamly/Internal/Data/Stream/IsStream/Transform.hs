@@ -583,7 +583,7 @@ pollCounts ::
     -> t m a
 pollCounts predicate f xs =
       fromStreamD
-    $ Concur.tapCountD predicate (f . fromStreamD)
+    $ Concur.parTapCount predicate (f . fromStreamD)
     $ toStreamD xs
 
 -- | Apply a monadic function to each element flowing through the stream and

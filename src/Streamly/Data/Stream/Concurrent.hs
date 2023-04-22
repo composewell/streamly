@@ -98,6 +98,9 @@ module Streamly.Data.Stream.Concurrent
     , parConcatIterate
 
     -- *** Observation
+    , parTapCount
+
+    -- ** Deprecated
     , tapCount
     )
 where

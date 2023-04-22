@@ -92,7 +92,7 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** Reactive
     , fromCallback
-    , tapCountD
+    , parTapCount
     , tapCount
     )
 where
@@ -726,14 +726,30 @@ fromCallback setCallback = Stream.concatEffect $ do
     setCallback callback
     return stream
 
-{-# INLINE_NORMAL tapCountD #-}
-tapCountD
+-- | @parTapCount predicate fold stream@ taps the count of those elements in
+-- the stream that pass the @predicate@. The resulting count stream is sent to
+-- a @fold@ running concurrently in another thread.
+--
+-- For example, to print the count of elements processed every second:
+--
+-- >>> rate = Stream.rollingMap2 (flip (-)) . Stream.delayPost 1
+-- >>> report = Stream.fold (Fold.drainMapM print) . rate
+-- >>> tap = Stream.parTapCount (const True) report
+-- >>> go = Stream.fold Fold.drain $ tap $ Stream.enumerateFrom 0
+--
+-- Note: This may not work correctly on 32-bit machines because of Int
+-- overflow.
+--
+-- /Pre-release/
+--
+{-# INLINE_NORMAL parTapCount #-}
+parTapCount
     :: MonadAsync m
     => (a -> Bool)
     -> (D.Stream m Int -> m b)
     -> D.Stream m a
     -> D.Stream m a
-tapCountD predicate fld (D.Stream step state) = D.Stream step' Nothing
+parTapCount predicate fld (D.Stream step state) = D.Stream step' Nothing
   where
 
     {-# INLINE_LATE step' #-}
@@ -759,22 +775,9 @@ tapCountD predicate fld (D.Stream step state) = D.Stream step' Nothing
                 liftIO $ killThread tid
                 return Stop
 
--- | @tapCount predicate fold stream@ taps the count of those elements in the
--- stream that pass the @predicate@. The resulting count stream is sent to
--- another thread which folds it using @fold@.
---
--- For example, to print the count of elements processed every second:
---
--- >>> rate = Stream.rollingMap2 (flip (-)) . Stream.delayPost 1
--- >>> report = Stream.fold (Fold.drainMapM print) . rate
--- >>> tap = Stream.tapCount (const True) report
--- >>> go = Stream.fold Fold.drain $ tap $ Stream.enumerateFrom 0
---
--- Note: This may not work correctly on 32-bit machines because of Int
--- overflow.
---
--- /Pre-release/
---
+-- Deprecate in a major release.
+-- {-# DEPRECATED tapCount "Please use parTapCount instead." #-}
+-- | Same as 'parTapCount'. Deprecated.
 {-# INLINE tapCount #-}
 tapCount ::
        (MonadAsync m)
@@ -782,4 +785,4 @@ tapCount ::
     -> (Stream m Int -> m b)
     -> Stream m a
     -> Stream m a
-tapCount = tapCountD
+tapCount = parTapCount
