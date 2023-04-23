@@ -686,11 +686,17 @@ parReplicateM cfg n = parSequence cfg . Stream.replicate n
 -------------------------------------------------------------------------------
 
 -- Note: we can use another API with two callbacks stop and yield if we want
--- the callback to be able to indicate end of stream.
+-- the callback to be able to indicate end of stream. Or we can use a Maybe
+-- stream where Nothing indicates end of stream.
+
+-- XXX Rename to parNewCallback
+
+-- | Returns an entangled pair of a callback and a stream i.e. whenever the
+-- callback is called a value appears in the stream. The stream is infinite,
+-- there is no way for the callback to indicate that it is done now.
 --
--- | Generates a callback and a stream pair. The callback returned is used to
--- queue values to the stream.  The stream is infinite, there is no way for the
--- callback to indicate that it is done now.
+-- The callback queues a value to a concurrent channel associated with the
+-- stream. The stream can be evaluated safely in any thread.
 --
 -- /Pre-release/
 --
@@ -701,10 +707,13 @@ newCallbackStream = do
 
     -- XXX Add our own thread-id to the SVar as we can not know the callback's
     -- thread-id and the callback is not run in a managed worker. We need to
-    -- handle this better.
+    -- handle this better. The caller thread might be killed by the Channel if
+    -- the stream evaluator dies.
+    --
     liftIO myThreadId
         >>= modifyThread (workerThreads chan) (outputDoorBell chan)
 
+    -- XXX We can use a "Maybe a" here. Use Nothing to send a Stop event.
     let callback a =
             liftIO
                 $ void
@@ -713,9 +722,22 @@ newCallbackStream = do
     -- XXX Use fromChannelD?
     return (callback, fromChannel chan)
 
--- | Supplies a stream generating callback to a callback setter function. Each
--- invocation of the callback results in a value being generated in the
--- resulting stream.
+-- XXX Rename this to parSetCallback. Also take the Channel config as argument.
+-- What config can be set by user here?
+--
+-- XXX What happens if an exception occurs when evaluating the stream? The
+-- result of callback can be used to communicate that. But we can only know
+-- about the exception on the next callback call. For better handling the user
+-- can supply an exception sender function as argument to fromCallback.
+
+-- | @fromCallback f@ creates an entangled pair of a callback and a stream i.e.
+-- whenever the callback is called a value appears in the stream. The function
+-- @f@ is invoked with the callback as argument, and the stream is returned.
+-- @f@ would store the callback for calling it later for generating values in
+-- the stream.
+--
+-- The callback queues a value to a concurrent channel associated with the
+-- stream. The stream can be evaluated safely in any thread.
 --
 -- /Pre-release/
 --
