@@ -72,10 +72,6 @@ module Streamly.Data.Fold
     , toListRev
     , toSet
     , toIntSet
-    , toMap
-    , toMapIO
-    , demuxToMap
-    , demuxToMapIO
     , topBy
 
     -- ** Non-Empty Accumulators
@@ -97,10 +93,6 @@ module Streamly.Data.Fold
     , uniqBy
     , nub
     , nubInt
-    , classify
-    , classifyIO
-    , demux
-    , demuxIO
 
     -- ** Terminating Folds
     , one
@@ -216,13 +208,25 @@ module Streamly.Data.Fold
     --, partitionByMinM
     --, partitionBy
 
-    -- ** Unzipping
-    , unzip
+    -- ** Key-value Collectors
+    , toMap
+    , toMapIO
+    , demuxToMap
+    , demuxToMapIO
+
+    -- ** Key-value Scanners
+    , classify
+    , classifyIO
+    , demux
+    , demuxIO
 
     -- ** Splitting
     , many
     , groupsOf
     -- , intervalsOf
+
+    -- ** Unzipping
+    , unzip
 
     -- ** Nesting
     , concatMap
