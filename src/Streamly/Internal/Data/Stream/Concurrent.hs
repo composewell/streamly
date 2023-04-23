@@ -808,3 +808,87 @@ tapCount ::
     -> Stream m a
     -> Stream m a
 tapCount = parTapCount
+
+-------------------------------------------------------------------------------
+-- Stream cloning
+-------------------------------------------------------------------------------
+
+-- Clone a stream into n streams, perform some processing on them and then zip
+-- or merge the results in different ways?
+--
+-- For serial processing combining n scans into a single scan on the source
+-- stream would be the most efficient way of doing this. But this has a
+-- limitation that we process one element at a time through the combined scan.
+-- This is a way to combine the states of different scans in a modular way.
+-- This works well for cases where each scan consumes and produces one element
+-- at a time. If different scans produce elements by consuming different number
+-- of elements then this may become complicated, inconvenient to use.
+--
+-- It does not make much sense to clone a stream to multiple free streams
+-- unless we enforce processing those streams in independent threads. If
+-- we are anyway running them in the same thread then there is not much point
+-- of cloning, we can just map a function on the stream to do multiple tasks in
+-- tandem.
+--
+-- Cloning a stream to multiple free streams can provide independent buffering
+-- and speed of evaluation to each cloned stream pipeline. For example, we can
+-- parseBreak each stream independently using a different parser. The
+-- evaluation would be push driven. The source stream would be evaluated in a
+-- separate thread and we would push the generated elements to all the cloned
+-- streams.
+--
+-- 1. If the cloned streams have infinite buffers then this can lead to the
+-- source stream getting evaluated faster than consumers and buffering the
+-- entire source stream in cloned streams.
+--
+-- 2. If the cloned streams have limited buffers, then they will all go at the
+-- speed of the slowest stream if they are run concurrently.
+--
+-- 3. If the cloned streams have limited buffers and are evaluated serially
+-- then we may run into deadlock if we are deep evaluating one stream and the
+-- source gets blocked because other stream's buffer are full.
+--
+-- This is somewhat like list sharing. And it will have the same space leak
+-- issues if used incorrectly. In fact, we can evaluate the source stream to
+-- generate a lazy list using unsafePerformIO and share that lazy list among
+-- multiple consumers. The evaluation of the list would drive the stream. And
+-- the list would be naturally shared across consumers which can use different
+-- buffering. This would be more like the lazy IO model. However, it may be
+-- better to use streams instead of lists because streams use a monad and lists
+-- are pure - pure lists can lead to the same issues as lazy IO when used in
+-- pure functions.
+--
+-- Therefore, for safety, it makes better sense to use consumers (Stream m a ->
+-- m b) rather than generating free streams as results. Each such consumer can
+-- be enforced to run in its own thread. We can also pass a result collector
+-- callback in a ReaderT env to collect the results from all these consumers
+-- into a single stream.
+--
+-- parTap -- tap the stream to a single consumer
+-- parDistribute -- a finite list of consumers is specified. all consumers
+-- are guaranteed to get the entire stream from beginning. Run each consumer in
+-- a separate thread.
+-- parDistributeStream -- consumers can join the distribution channel
+-- dynamically, they will get the source stream from now onwards.
+
+-- XXX We could use Stream or StreamK, what are the pros and cons? The StreamK
+-- version can be used to implement parDistribute using foldr?
+{-
+{-# INLINE parTap #-}
+parTap :: MonadAsync m => (Stream m a -> m b) -> Stream m a -> Stream m a
+parTap f m = undefined
+
+-- Can we just use a parEval fold in tap?
+-- We can easily convert the Fold to "Stream m a -> m b" form. Check if this
+-- provides the same perf as above.
+{-# INLINE parTap #-}
+parTap :: MonadAsync m => Fold m a b -> Stream m a -> Stream m a
+parTap f xs = undefined
+
+-- Can we just use a parallel distribute fold in tap?
+-- Maybe better to use a custom impl of distribute?
+{-# INLINE parDistribute #-}
+parDistribute :: (Foldable f, , MonadAsync m)
+    => f (Stream m a -> m b) -> Stream m a -> Stream m a
+parDistribute = flip (Prelude.foldr parTap)
+-}
