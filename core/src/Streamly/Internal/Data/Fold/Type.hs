@@ -126,6 +126,25 @@
 -- or to not be able to use `take 0` if we have it. Also, applicative and
 -- monadic composition of folds would not be possible.
 --
+-- == Cleanup Action
+--
+-- Fold may use other folds in the downstream pipeline. When a fold is done and
+-- it wants to terminate it needs to wait for the downstream folds before it
+-- returns. For example, if the downstream fold is an async fold we need to
+-- wait for the async fold to finish and return the final result.
+--
+-- To be able to support this use case we need a cleanup action in the fold.
+-- The fold gets finalized once the cleanup is called and we can use extract to
+-- get the final state/result of the fold.
+--
+-- Similar to folds we may have a cleanup action in streams as well. Currently,
+-- we rely on GC to cleanup the streams, if we use a cleanup action then we can
+-- perform cleanup quickly. Also, similar to folds we can also have an
+-- "initial" action in streams as well to generate the initial state. It could
+-- decouple the initialization of the stream from the first element being
+-- pulled. For example, you may want to start a timer at initialization rather
+-- than at the first element pull of the stream.
+--
 -- == Terminating Folds with backtracking
 --
 -- Consider the example of @takeWhile@ operation, it needs to inspect an
