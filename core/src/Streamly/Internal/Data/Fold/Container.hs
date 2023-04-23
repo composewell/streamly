@@ -326,6 +326,14 @@ demuxGeneric getKey getFold = fmap extract $ foldlM' step initial
 -- This can be used to scan a stream and collect the results from the scan
 -- output.
 --
+-- Since the fold generator function is monadic we can add folds dynamically.
+-- For example, we can maintain a Map of keys to folds in an IORef and lookup
+-- the fold from that corresponding to a key. This Map can be changed
+-- dynamically, folds for new keys can be added or folds for old keys can be
+-- deleted or modified.
+--
+-- Compare with 'classify', the fold in 'classify' is a static fold.
+--
 -- /Pre-release/
 --
 {-# INLINE demux #-}
