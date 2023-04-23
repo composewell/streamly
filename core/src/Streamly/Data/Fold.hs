@@ -185,8 +185,11 @@ module Streamly.Data.Fold
     , takeEndBy
     , takeEndBy_
 
-    -- ** Serial Append
+    -- ** Splitting
     , splitWith
+    , many
+    , groupsOf
+    -- , intervalsOf
 
     -- ** Parallel Distribution
     -- | For applicative composition using distribution see
@@ -219,11 +222,6 @@ module Streamly.Data.Fold
     , classifyIO
     , demux
     , demuxIO
-
-    -- ** Splitting
-    , many
-    , groupsOf
-    -- , intervalsOf
 
     -- ** Unzipping
     , unzip
