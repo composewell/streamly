@@ -28,7 +28,7 @@ import Data.IORef (IORef, newIORef, readIORef)
 import Data.List (intersperse)
 import Streamly.Internal.Control.Concurrent
     (MonadAsync, MonadRunInIO, askRunInIO)
-import Streamly.Internal.Control.ForkLifted (doFork)
+import Streamly.Internal.Control.ForkLifted (doFork')
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Stream.Channel.Worker (sendWithDoorBell)
@@ -236,9 +236,10 @@ mkNewChannel cfg = do
 newChannel :: (MonadRunInIO m) =>
     (Config -> Config) -> Fold m a b -> m (Channel m a b)
 newChannel modifier f = do
-    sv <- liftIO $ mkNewChannel (modifier defaultConfig)
+    let config = modifier defaultConfig
+    sv <- liftIO $ mkNewChannel config
     mrun <- askRunInIO
-    void $ doFork (work sv) mrun (sendExceptionToDriver sv)
+    void $ doFork' (getBound config) (work sv) mrun (sendExceptionToDriver sv)
     return sv
 
     where
