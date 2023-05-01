@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Fold.Concurrent
     -- * Configuration
       Config
     , maxBuffer
+    , bound
     , inspect
 
     -- * Combinators

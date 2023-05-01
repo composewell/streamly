@@ -76,6 +76,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , stopWhen
     , ordered
     , interleaved
+    , bound
 
     , rate
     , avgRate
@@ -95,6 +96,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , getStopWhen
     , getOrdered
     , getInterleaved
+    , getBound
 
     -- * Cleanup
     , cleanupSVar
@@ -340,6 +342,7 @@ data Config = Config
     , _stopWhen :: StopWhen
     , _ordered :: Bool
     , _interleaved :: Bool
+    , _bound :: Bool
     }
 
 -------------------------------------------------------------------------------
@@ -374,6 +377,7 @@ defaultConfig = Config
     , _stopWhen = AllStop
     , _ordered = False
     , _interleaved = False
+    , _bound = False
     }
 
 -------------------------------------------------------------------------------
@@ -541,6 +545,14 @@ interleaved flag st = st { _interleaved = flag }
 
 getInterleaved :: Config -> Bool
 getInterleaved = _interleaved
+
+-- | Spawn bound threads (i.e., spawn threads using 'forkOS' instead of
+-- 'forkIO'). The default value is 'False'.
+bound :: Bool -> Config -> Config
+bound flag st = st { _bound = flag }
+
+getBound :: Config -> Bool
+getBound = _bound
 
 -------------------------------------------------------------------------------
 -- Initialization

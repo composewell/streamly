@@ -9,12 +9,13 @@
 module Streamly.Internal.Control.ForkLifted
     (
       doFork
+    , doFork'
     , fork
     , forkManaged
     )
 where
 
-import Control.Concurrent (ThreadId, forkIO)
+import Control.Concurrent (ThreadId, forkIO, forkOS)
 import Control.Exception (SomeException(..), catch, mask)
 import Data.Functor (void)
 import Streamly.Internal.Control.Concurrent (MonadRunInIO, RunInIO(..), withRunInIO, withRunInIONoRestore)
@@ -32,11 +33,23 @@ doFork :: MonadRunInIO m
     -> RunInIO m
     -> (SomeException -> IO ())
     -> m ThreadId
-doFork action (RunInIO mrun) exHandler =
+doFork = doFork' False
+
+-- | Similar to 'doFork', but has a "bound" boolean parameter for specifying
+-- whether 'forkOS' should be used instead of 'rawForkIO'.
+{-# INLINE doFork' #-}
+doFork' :: MonadRunInIO m
+    => Bool
+    -> m ()
+    -> RunInIO m
+    -> (SomeException -> IO ())
+    -> m ThreadId
+doFork' bound action (RunInIO mrun) exHandler =
     withRunInIO $ \run ->
         mask $ \restore -> do
-                tid <- rawForkIO $ catch (restore $ void $ mrun action)
-                                         exHandler
+                tid <- (if bound then forkOS else rawForkIO) $
+                    catch (restore $ void $ mrun action)
+                          exHandler
                 run (return tid)
 
 -- | 'fork' lifted to any monad with 'MonadBaseControl IO m' capability.
