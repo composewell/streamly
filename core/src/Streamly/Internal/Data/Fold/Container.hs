@@ -326,6 +326,10 @@ demuxGeneric getKey getFold = fmap extract $ foldlM' step initial
 -- This can be used to scan a stream and collect the results from the scan
 -- output.
 --
+-- /Warning/: One should call the returned monadic action to make sure the
+-- folds fully complete—even if the action returns nothing useful (e.g., a map
+-- of @()@ values).
+--
 -- /Pre-release/
 --
 {-# INLINE demux #-}
