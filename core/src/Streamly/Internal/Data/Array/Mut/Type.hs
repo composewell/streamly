@@ -239,6 +239,7 @@ import Streamly.Internal.Data.Unboxed
     , pokeWith
     , sizeOf
     , touch
+    , sizeOfMutableByteArray
     )
 import GHC.Base
     ( IO(..)
@@ -268,6 +269,8 @@ import qualified Prelude
 
 import Prelude hiding
     (Foldable(..), read, unlines, splitAt, reverse, truncate)
+
+import System.IO.Unsafe
 
 #include "DocTestDataMutArray.hs"
 
@@ -343,7 +346,6 @@ data MutArray a =
     , arrEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
                                        -- Represents the first invalid index of
                                        -- the array.
-    , arrBound :: {-# UNPACK #-} !Int    -- ^ first invalid index of arrContents.
     }
 
 -------------------------------------------------------------------------------
@@ -398,7 +400,6 @@ newArrayWith alloc alignSize count = do
         { arrContents = contents
         , arrStart = 0
         , arrEnd   = 0
-        , arrBound = size
         }
 
 nil ::
@@ -406,7 +407,7 @@ nil ::
     Unbox a =>
 #endif
     MutArray a
-nil = MutArray Unboxed.nil 0 0 0
+nil = MutArray Unboxed.nil 0 0
 
 
 -- | Allocates a pinned empty array that can hold 'count' items.  The memory of
@@ -426,7 +427,6 @@ newPinnedBytes bytes = do
         { arrContents = contents
         , arrStart = 0
         , arrEnd   = 0
-        , arrBound = bytes
         }
 
 -- | Like 'newArrayWith' but using an allocator is a pinned memory allocator and
@@ -725,6 +725,7 @@ roundDownTo elemSize size = size - (size `mod` elemSize)
 {-# NOINLINE reallocExplicit #-}
 reallocExplicit :: Int -> Int -> MutArray a -> IO (MutArray a)
 reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
+    arrBound <- sizeOfMutableByteArray arrContents
     assertM(arrEnd <= arrBound)
 
     -- Allocate new array
@@ -749,7 +750,6 @@ reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
         { arrStart = 0
         , arrContents = contents
         , arrEnd   = newLenInBytes
-        , arrBound = newCapInBytes
         }
 
 -- | @realloc newCapacity array@ reallocates the array to the specified
@@ -839,6 +839,7 @@ resizeExp nElems arr@MutArray{..} = do
 {-# INLINE rightSize #-}
 rightSize :: forall m a. (MonadIO m, Unbox a) => MutArray a -> m (MutArray a)
 rightSize arr@MutArray{..} = do
+    arrBound <- liftIO $ sizeOfMutableByteArray arrContents
     assert (arrEnd <= arrBound) (return ())
     let start = arrStart
         len = arrEnd - start
@@ -871,6 +872,7 @@ rightSize arr@MutArray{..} = do
 {-# INLINE snocNewEnd #-}
 snocNewEnd :: (MonadIO m, Unbox a) => Int -> MutArray a -> a -> m (MutArray a)
 snocNewEnd newEnd arr@MutArray{..} x = liftIO $ do
+    arrBound <- liftIO $ sizeOfMutableByteArray arrContents
     assert (newEnd <= arrBound) (return ())
     pokeWith arrContents arrEnd x
     return $ arr {arrEnd = newEnd}
@@ -894,6 +896,7 @@ snocMay :: forall m a. (MonadIO m, Unbox a) =>
     MutArray a -> a -> m (Maybe (MutArray a))
 snocMay arr@MutArray{..} x = liftIO $ do
     let newEnd = INDEX_NEXT(arrEnd,a)
+    arrBound <- sizeOfMutableByteArray arrContents
     if newEnd <= arrBound
     then Just <$> snocNewEnd newEnd arr x
     else return Nothing
@@ -930,7 +933,8 @@ snocWith :: forall m a. (MonadIO m, Unbox a) =>
     -> m (MutArray a)
 snocWith allocSize arr x = liftIO $ do
     let newEnd = INDEX_NEXT(arrEnd arr,a)
-    if newEnd <= arrBound arr
+    arrBound <- sizeOfMutableByteArray (arrContents arr)
+    if newEnd <= arrBound
     then snocNewEnd newEnd arr x
     else snocWithRealloc allocSize arr x
 
@@ -1026,7 +1030,7 @@ getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
 
     where
 
-    inject (MutArray contents start end _) =
+    inject (MutArray contents start end) =
         return $ GetIndicesState contents start end sti
 
     {-# INLINE_LATE step #-}
@@ -1034,7 +1038,7 @@ getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
         r <- stepi defState st
         case r of
             D.Yield i s -> do
-                x <- liftio $ getIndex i (MutArray contents start end undefined)
+                x <- liftio $ getIndex i (MutArray contents start end)
                 return $ D.Yield x (GetIndicesState contents start end s)
             D.Skip s -> return $ D.Skip (GetIndicesState contents start end s)
             D.Stop -> return D.Stop
@@ -1062,14 +1066,14 @@ getSliceUnsafe :: forall a. Unbox a
     -> Int -- ^ length of the slice
     -> MutArray a
     -> MutArray a
-getSliceUnsafe index len (MutArray contents start e _) =
+getSliceUnsafe index len (MutArray contents start e) =
     let fp1 = INDEX_OF(start,index,a)
         end = fp1 + (len * SIZE_OF(a))
      in assert
             (index >= 0 && len >= 0 && end <= e)
             -- Note: In a slice we always use bound = end so that the slice
             -- user cannot overwrite elements beyond the end of the slice.
-            (MutArray contents fp1 end end)
+            (MutArray contents fp1 end)
 
 -- | /O(1)/ Slice an array in constant time. Throws an error if the slice
 -- extends out of the array bounds.
@@ -1081,13 +1085,13 @@ getSlice :: forall a. Unbox a =>
     -> Int -- ^ length of the slice
     -> MutArray a
     -> MutArray a
-getSlice index len (MutArray contents start e _) =
+getSlice index len (MutArray contents start e) =
     let fp1 = INDEX_OF(start,index,a)
         end = fp1 + (len * SIZE_OF(a))
      in if index >= 0 && len >= 0 && end <= e
         -- Note: In a slice we always use bound = end so that the slice user
         -- cannot overwrite elements beyond the end of the slice.
-        then MutArray contents fp1 end end
+        then MutArray contents fp1 end
         else error
                 $ "getSlice: invalid slice, index "
                 ++ show index ++ " length " ++ show len
@@ -1138,8 +1142,8 @@ partitionBy f arr@MutArray{..} = liftIO $ do
     then return (arr, arr)
     else do
         ptr <- go arrStart (INDEX_PREV(arrEnd,a))
-        let pl = MutArray arrContents arrStart ptr ptr
-            pr = MutArray arrContents ptr arrEnd arrEnd
+        let pl = MutArray arrContents arrStart ptr
+            pr = MutArray arrContents ptr arrEnd
         return (pl, pr)
 
     where
@@ -1259,6 +1263,10 @@ length arr =
         blen = byteLength arr
      in assert (blen `mod` elemSize == 0) (blen `div` elemSize)
 
+{-# INLINE getArrSizeUnsafe #-}
+getArrSizeUnsafe :: MutableByteArray -> Int
+getArrSizeUnsafe = unsafePerformIO . sizeOfMutableByteArray
+
 -- | Get the total capacity of an array. An array may have space reserved
 -- beyond the current used length of the array.
 --
@@ -1266,7 +1274,8 @@ length arr =
 {-# INLINE byteCapacity #-}
 byteCapacity :: MutArray a -> Int
 byteCapacity MutArray{..} =
-    let len = arrBound - arrStart
+    let arrBound = getArrSizeUnsafe arrContents
+        len = arrBound - arrStart
     in assert (len >= 0) len
 
 -- | The remaining capacity in the array for appending more elements without
@@ -1276,7 +1285,8 @@ byteCapacity MutArray{..} =
 {-# INLINE bytesFree #-}
 bytesFree :: MutArray a -> Int
 bytesFree MutArray{..} =
-    let n = arrBound - arrEnd
+    let arrBound = getArrSizeUnsafe arrContents
+        n = arrBound - arrEnd
     in assert (n >= 0) n
 
 -------------------------------------------------------------------------------
@@ -1315,7 +1325,8 @@ chunksOf n (D.Stream step state) =
             error $ "Streamly.Internal.Data.MutArray.Mut.Type.chunksOf: "
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
-        (MutArray contents start end bound :: MutArray a) <- liftIO $ newPinned n
+        (MutArray contents start end :: MutArray a) <- liftIO $ newPinned n
+        bound <- liftIO $ sizeOfMutableByteArray contents
         return $ D.Skip (GroupBuffer st contents start end bound)
 
     step' gst (GroupBuffer st contents start end bound) = do
@@ -1329,15 +1340,15 @@ chunksOf n (D.Stream step state) =
                     then D.Skip
                             (GroupYield
                                 contents start end1 bound (GroupStart s))
-                    else D.Skip (GroupBuffer s contents start end1 bound)
+                     else D.Skip (GroupBuffer s contents start end1 bound)
             D.Skip s ->
                 return $ D.Skip (GroupBuffer s contents start end bound)
             D.Stop ->
                 return
                     $ D.Skip (GroupYield contents start end bound GroupFinish)
 
-    step' _ (GroupYield contents start end bound next) =
-        return $ D.Yield (MutArray contents start end bound) next
+    step' _ (GroupYield contents start end _bound next) =
+        return $ D.Yield (MutArray contents start end) next
 
     step' _ GroupFinish = return D.Stop
 
@@ -1428,7 +1439,7 @@ data ArrayUnsafe a = ArrayUnsafe
     {-# UNPACK #-} !Int                -- index 2
 
 toArrayUnsafe :: MutArray a -> ArrayUnsafe a
-toArrayUnsafe (MutArray contents start end _) = ArrayUnsafe contents start end
+toArrayUnsafe (MutArray contents start end) = ArrayUnsafe contents start end
 
 fromArrayUnsafe ::
 #ifdef DEVBUILD
@@ -1436,7 +1447,7 @@ fromArrayUnsafe ::
 #endif
     ArrayUnsafe a -> MutArray a
 fromArrayUnsafe (ArrayUnsafe contents start end) =
-         MutArray contents start end end
+         MutArray contents start end
 
 {-# INLINE_NORMAL producerWith #-}
 producerWith ::
@@ -1477,7 +1488,7 @@ readerRevWith ::
 readerRevWith liftio = Unfold step inject
     where
 
-    inject (MutArray contents start end _) =
+    inject (MutArray contents start end) =
         let p = INDEX_PREV(end,a)
          in return $ ArrayUnsafe contents start p
 
@@ -1668,7 +1679,8 @@ writeAppendNUnsafe n action =
 
     initial = do
         assert (n >= 0) (return ())
-        arr@(MutArray _ _ end bound) <- action
+        arr@(MutArray _ _ end) <- action
+        bound <- liftIO $ sizeOfMutableByteArray (arrContents arr)
         let free = bound - end
             needed = n * SIZE_OF(a)
         -- XXX We can also reallocate if the array has too much free space,
@@ -1789,8 +1801,9 @@ writeRevNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 
     where
 
-    toArrayUnsafeRev (MutArray contents _ _ bound) =
-         ArrayUnsafe contents bound bound
+    toArrayUnsafeRev arr@(MutArray contents _ _) =
+        let bound = getArrSizeUnsafe (arrContents arr)
+         in ArrayUnsafe contents bound bound
 
     initial = toArrayUnsafeRev <$> alloc (max n 0)
 
@@ -1887,8 +1900,8 @@ writeWith elemCount =
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
         liftIO $ newPinned elemCount
 
-    step arr@(MutArray _ start end bound) x
-        | INDEX_NEXT(end,a) > bound = do
+    step arr@(MutArray _ start end) x
+        | INDEX_NEXT(end,a) > getArrSizeUnsafe (arrContents arr) = do
         let oldSize = end - start
             newSize = max (oldSize * 2) 1
         arr1 <- liftIO $ reallocExplicit (SIZE_OF(a)) newSize arr
@@ -2004,7 +2017,8 @@ fromListRev xs = fromListRevN (Prelude.length xs) xs
 {-# INLINE putSliceUnsafe #-}
 putSliceUnsafe :: MonadIO m => MutArray a -> Int -> MutArray a -> Int -> Int -> m ()
 putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
-    assertM(lenBytes <= arrBound dst - dstStartBytes)
+    arrBound <- sizeOfMutableByteArray (arrContents dst)
+    assertM(lenBytes <= arrBound - dstStartBytes)
     assertM(lenBytes <= arrEnd src - srcStartBytes)
     let !(I# srcStartBytes#) = srcStartBytes
         !(I# dstStartBytes#) = dstStartBytes
@@ -2029,7 +2043,7 @@ spliceCopy arr1 arr2 = liftIO $ do
         len2 = arrEnd arr2 - start2
     newArrContents <- liftIO $ Unboxed.newPinnedBytes (len1 + len2)
     let len = len1 + len2
-        newArr = MutArray newArrContents 0 len len
+        newArr = MutArray newArrContents 0 len
     putSliceUnsafe arr1 start1 newArr 0 len1
     putSliceUnsafe arr2 start2 newArr len1 len2
     return newArr
@@ -2045,7 +2059,8 @@ spliceUnsafe dst src =
          let startSrc = arrStart src
              srcLen = arrEnd src - startSrc
              endDst = arrEnd dst
-         assertM(endDst + srcLen <= arrBound dst)
+         arrBound <- sizeOfMutableByteArray (arrContents dst)
+         assertM(endDst + srcLen <= arrBound)
          putSliceUnsafe src startSrc dst endDst srcLen
          return $ dst {arrEnd = endDst + srcLen}
 
@@ -2060,11 +2075,12 @@ spliceUnsafe dst src =
 {-# INLINE spliceWith #-}
 spliceWith :: forall m a. (MonadIO m, Unbox a) =>
     (Int -> Int -> Int) -> MutArray a -> MutArray a -> m (MutArray a)
-spliceWith sizer dst@(MutArray _ start end bound) src = do
+spliceWith sizer dst@(MutArray _ start end) src = do
 {-
     let f = writeAppendWith (`sizer` byteLength src) (return dst)
      in D.fold f (toStreamD src)
 -}
+    bound <- liftIO $ sizeOfMutableByteArray (arrContents dst)
     assert (end <= bound) (return ())
     let srcBytes = arrEnd src - arrStart src
 
@@ -2131,13 +2147,11 @@ breakOn sep arr@MutArray{..} = asPtrUnsafe arr $ \p -> liftIO $ do
                 { arrContents = arrContents
                 , arrStart = arrStart
                 , arrEnd = arrStart + sepIndex -- exclude the separator
-                , arrBound = arrStart + sepIndex
                 }
             , Just $ MutArray
                     { arrContents = arrContents
                     , arrStart = arrStart + (sepIndex + 1)
                     , arrEnd = arrEnd
-                    , arrBound = arrBound
                     }
             )
 
@@ -2158,13 +2172,11 @@ splitAt i arr@MutArray{..} =
                   { arrContents = arrContents
                   , arrStart = arrStart
                   , arrEnd = p
-                  , arrBound = p
                   }
                 , MutArray
                   { arrContents = arrContents
                   , arrStart = p
                   , arrEnd = arrEnd
-                  , arrBound = arrBound
                   }
                 )
 
@@ -2184,8 +2196,8 @@ castUnsafe ::
     Unbox b =>
 #endif
     MutArray a -> MutArray b
-castUnsafe (MutArray contents start end bound) =
-    MutArray contents start end bound
+castUnsafe (MutArray contents start end) =
+    MutArray contents start end
 
 -- | Cast an @MutArray a@ into an @MutArray Word8@.
 --
@@ -2295,7 +2307,7 @@ strip :: forall a m. (Unbox a, MonadIO m) =>
 strip eq arr@MutArray{..} = liftIO $ do
     st <- getStart arrStart
     end <- getLast arrEnd st
-    return arr {arrStart = st, arrEnd = end, arrBound = end}
+    return arr {arrStart = st, arrEnd = end}
 
     where
 

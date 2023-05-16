@@ -187,7 +187,7 @@ getChunk size h = liftIO $ do
         -- XXX shrink only if the diff is significant
         return $
             unsafeFreezeWithShrink $
-            arr { MArray.arrEnd = n, MArray.arrBound = size }
+            arr { MArray.arrEnd = n }
 
 -- This could be useful in implementing the "reverse" read APIs or if you want
 -- to read arrays of exact size instead of compacting them later. Compacting
