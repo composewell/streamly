@@ -74,6 +74,14 @@ jobs:
             cabal_project: cabal.project.ghc-head
             disable_sdist_build: "y"
             ignore_error: true
+          - name: 9.4.4-Werror
+            ghc_version: 9.4.4
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.8.1.0
+            disable_sdist_build: "y"
+            cabal_project: cabal.project.Werror
+            ignore_error: true
           - name: 9.4.4-fusion-inspection
             ghc_version: 9.4.4
             runner: ubuntu-latest
@@ -136,14 +144,6 @@ jobs:
         #   coverage: "y"
         #   cabal_version: 3.6.2.0
         #   ignore_error: false
-          - name: 8.10.7-Werror
-            ghc_version: 8.10.7
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project.Werror
-            disable_sdist_build: "y"
-            ignore_error: false
           - name: 8.8.4
             ghc_version: 8.8.4
             runner: ubuntu-latest

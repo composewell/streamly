@@ -1382,7 +1382,7 @@ instance Monad m => MonadPlus (Parser a m) where
     mplus = alt
 -}
 
-instance (Monad m, MonadIO m) => MonadIO (Parser a m) where
+instance (MonadIO m) => MonadIO (Parser a m) where
     {-# INLINE liftIO #-}
     liftIO = fromEffect . liftIO
 
