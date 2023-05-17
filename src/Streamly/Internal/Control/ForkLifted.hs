@@ -9,7 +9,7 @@
 module Streamly.Internal.Control.ForkLifted
     (
       doFork
-    , doFork'
+    , doForkWith
     , fork
     , forkManaged
     )
@@ -33,18 +33,18 @@ doFork :: MonadRunInIO m
     -> RunInIO m
     -> (SomeException -> IO ())
     -> m ThreadId
-doFork = doFork' False
+doFork = doForkWith False
 
--- | Similar to 'doFork', but has a "bound" boolean parameter for specifying
+-- | Similar to 'doFork', but has a \"bound\" boolean parameter for specifying
 -- whether 'forkOS' should be used instead of 'rawForkIO'.
-{-# INLINE doFork' #-}
-doFork' :: MonadRunInIO m
+{-# INLINE doForkWith #-}
+doForkWith :: MonadRunInIO m
     => Bool
     -> m ()
     -> RunInIO m
     -> (SomeException -> IO ())
     -> m ThreadId
-doFork' bound action (RunInIO mrun) exHandler =
+doForkWith bound action (RunInIO mrun) exHandler =
     withRunInIO $ \run ->
         mask $ \restore -> do
                 tid <- (if bound then forkOS else rawForkIO) $

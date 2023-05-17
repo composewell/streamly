@@ -548,6 +548,9 @@ getInterleaved = _interleaved
 
 -- | Spawn bound threads (i.e., spawn threads using 'forkOS' instead of
 -- 'forkIO'). The default value is 'False'.
+--
+-- Currently, this only takes effect for concurrent folds. TODO: Make it
+-- consistently take effect everywhere.
 bound :: Bool -> Config -> Config
 bound flag st = st { _bound = flag }
 
