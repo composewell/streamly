@@ -94,6 +94,8 @@ cradle:
           cabal:
             - path: "./test/Streamly/Test/Data/Array.hs"
               component: "test:Data.Array"
+            - path: "./test/Streamly/Test/Data/Stream.hs"
+              component: "test:Data.Array"
             - path: "./test/Streamly/Test/Data/Array/Generic.hs"
               component: "test:Data.Array.Generic"
             - path: "./test/Streamly/Test/Data/Array/Mut.hs"

@@ -241,6 +241,12 @@ test-suite Data.Array
   main-is: Streamly/Test/Data/Array.hs
   ghc-options: -main-is Streamly.Test.Data.Array.main
 
+test-suite Data.Stream
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Stream.hs
+  ghc-options: -main-is Streamly.Test.Data.Stream.main
+
 test-suite Data.Array.Mut
   import: test-options
   type: exitcode-stdio-1.0
