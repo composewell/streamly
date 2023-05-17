@@ -47,13 +47,17 @@ module Streamly.Data.MutArray
 
     -- * Appending streams
     , writeAppendN
+    , writeAppendNUnsafe
     , writeAppend
 
     -- * Inplace mutation
     , putIndex
+    , putIndexUnsafe
+    , modifyIndexUnsafe
 
     -- * Random access
     , getIndex
+    , getIndexUnsafe
 
     -- * Conversion
     , toList
@@ -68,13 +72,7 @@ module Streamly.Data.MutArray
 
     -- * Size
     , length
-
-    -- * Unsafe functions
-    , getIndexUnsafe
-    , putIndexUnsafe
-    , modifyIndexUnsafe
-    , writeAppendNUnsafe
-
+    
     -- * Unbox Type Class
     , Unbox (..)
     )
