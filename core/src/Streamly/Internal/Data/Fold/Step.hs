@@ -40,7 +40,7 @@ data Step s b
     = Partial !s
     | Done !b
 
--- | 'first' maps over 'Partial' and 'second' maps over 'Done'.
+-- | 'first' maps over the fold state and 'second' maps over the fold result.
 --
 instance Bifunctor Step where
     {-# INLINE bimap #-}

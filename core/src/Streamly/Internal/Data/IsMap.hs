@@ -28,6 +28,8 @@ class IsMap f where
     mapDelete :: Key f -> f a -> f a
     mapUnion :: f a -> f a -> f a
     mapNull :: f a -> Bool
+    mapTraverseWithKey ::
+        Applicative t => (Key f -> a -> t b) -> f a -> t (f b)
 
 instance Ord k => IsMap (Map k) where
     type Key (Map k) = k
@@ -39,6 +41,7 @@ instance Ord k => IsMap (Map k) where
     mapDelete = Map.delete
     mapUnion = Map.union
     mapNull = Map.null
+    mapTraverseWithKey = Map.traverseWithKey
 
 instance IsMap IntMap.IntMap where
     type Key IntMap.IntMap = Int
@@ -50,3 +53,4 @@ instance IsMap IntMap.IntMap where
     mapDelete = IntMap.delete
     mapUnion = IntMap.union
     mapNull = IntMap.null
+    mapTraverseWithKey = IntMap.traverseWithKey

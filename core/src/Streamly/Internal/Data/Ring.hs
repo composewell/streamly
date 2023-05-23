@@ -558,7 +558,8 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 {-# INLINE slidingWindowWith #-}
 slidingWindowWith :: forall m a b. (MonadIO m, Storable a, Unbox a)
     => Int -> Fold m ((a, Maybe a), m (MutArray a)) b -> Fold m a b
-slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
+slidingWindowWith n (Fold step1 initial1 extract1 final1) =
+    Fold step initial extract final
 
     where
 
@@ -600,6 +601,8 @@ slidingWindowWith n (Fold step1 initial1 extract1) = Fold step initial extract
                     Done b -> Done b
 
     extract (Tuple4' _ _ _ st) = extract1 st
+
+    final (Tuple4' _ _ _ st) = final1 st
 
 -- | @slidingWindow collector@ is an incremental sliding window
 -- fold that does not require all the intermediate elements in a computation.

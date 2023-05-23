@@ -33,7 +33,7 @@ import Streamly.Internal.Data.SVar
 --
 {-# INLINE write #-}
 write :: MonadIO m => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
-write svar winfo = Fold step initial extract
+write svar winfo = Fold step initial return final
 
     where
 
@@ -47,14 +47,14 @@ write svar winfo = Fold step initial extract
             void $ send svar (ChildYield x)
             return $ FL.Partial ()
 
-    extract () = liftIO $ sendStop svar winfo
+    final () = liftIO $ sendStop svar winfo
 
 -- | Like write, but applies a yield limit.
 --
 {-# INLINE writeLimited #-}
 writeLimited :: MonadIO m
     => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
-writeLimited svar winfo = Fold step initial extract
+writeLimited svar winfo = Fold step initial (const (return ())) final
 
     where
 
@@ -74,5 +74,5 @@ writeLimited svar winfo = Fold step initial extract
                 return $ FL.Done ()
     step False _ = return $ FL.Done ()
 
-    extract True = liftIO $ sendStop svar winfo
-    extract False = return ()
+    final True = liftIO $ sendStop svar winfo
+    final False = return ()

@@ -63,7 +63,8 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 --
 {-# INLINE takeInterval #-}
 takeInterval :: MonadAsync m => Double -> Fold m a b -> Fold m a b
-takeInterval n (Fold step initial done) = Fold step' initial' done'
+takeInterval n (Fold step initial done final) =
+    Fold step' initial' done' final'
 
     where
 
@@ -90,7 +91,7 @@ takeInterval n (Fold step initial done) = Fold step' initial' done'
         then do
             res <- step s a
             case res of
-                Partial sres -> Done <$> done sres
+                Partial sres -> Done <$> final sres
                 Done bres -> return $ Done bres
         else do
             res <- step s a
@@ -99,6 +100,8 @@ takeInterval n (Fold step initial done) = Fold step' initial' done'
                 Done b -> liftIO (killThread t) >> return (Done b)
 
     done' (Tuple3' s _ _) = done s
+
+    final' (Tuple3' s _ _) = final s
 
     timerThread mv = do
         liftIO $ threadDelay (round $ n * 1000000)

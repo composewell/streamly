@@ -42,12 +42,13 @@ import Streamly.Internal.Data.Stream.Channel.Types
 
 -- | Evaluate a fold asynchronously using a concurrent channel. The driver just
 -- queues the input stream values to the fold channel buffer and returns. The
--- fold evaluates the queued values asynchronously.
+-- fold evaluates the queued values asynchronously. On finalization, 'parEval'
+-- waits for the asynchronous fold to complete before it returns.
 --
 {-# INLINABLE parEval #-}
 parEval :: MonadAsync m => (Config -> Config) -> Fold m a b -> Fold m a b
 parEval modifier f =
-    Fold step initial extract
+    Fold step initial extract final
 
     where
 
@@ -62,13 +63,33 @@ parEval modifier f =
     --
     -- A polled stream abstraction may be useful, it would consist of normal
     -- events and tick events, latter are guaranteed to arrive.
+    --
+    -- XXX We can use the config to indicate if the fold is a scanning type or
+    -- one-shot, or use a separate parEvalScan for scanning. For a scanning
+    -- type fold the worker would always send the intermediate values back to
+    -- the driver. An intermediate value can be returned on an input, or the
+    -- driver can poll even without input, if we have the Skip input support.
+    -- When the buffer is full we can return "Skip" and then the next step
+    -- without input can wait for an output to arrive. Similarly, when "final"
+    -- is called it can return "Skip" to continue or "Done" to indicate
+    -- termination.
     step chan a = do
         status <- sendToWorker chan a
         return $ case status of
             Nothing -> Partial chan
             Just b -> Done b
 
-    extract chan = do
+    -- XXX We can use a separate type for non-scanning folds that will
+    -- introduce a lot of complexity. Are there combinators that rely on the
+    -- "extract" function even in non-scanning use cases?
+    -- Instead of making such folds partial we can also make them return a
+    -- Maybe type.
+    extract _ = error "Concurrent folds do not support scanning"
+
+    -- XXX depending on the use case we may want to either wait for the result
+    -- or cancel the ongoing work. We can use the config to control that?
+    -- Currently it waits for the work to complete.
+    final chan = do
         liftIO $ void
             $ sendWithDoorBell
                 (outputQueue chan)
@@ -84,7 +105,7 @@ parEval modifier f =
                         "parEval: waiting to drain"
                     $ takeMVar (outputDoorBellFromConsumer chan)
                 -- XXX remove recursion
-                extract chan
+                final chan
             Just b -> do
                 when (svarInspectMode chan) $ liftIO $ do
                     t <- getTime Monotonic

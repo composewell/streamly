@@ -1321,10 +1321,10 @@ classifySessionsByGeneric
     -> t m (AbsTime, (Key f, a)) -- ^ timestamp, (session key, session data)
     -> t m (Key f, b) -- ^ session key, fold result
 classifySessionsByGeneric _ tick reset ejectPred tmout
-    (Fold step initial extract) input =
+    (Fold step initial extract final) input =
     Expand.unfoldMany
         (Unfold.lmap (toStreamK . sessionOutputStream) Unfold.fromStreamK)
-        $ scanlMAfter' sstep (return szero) (flush extract)
+        $ scanlMAfter' sstep (return szero) (flush final)
         $ interjectSuffix tick (return Nothing)
         $ map Just input
 

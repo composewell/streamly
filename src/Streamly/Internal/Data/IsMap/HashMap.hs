@@ -34,3 +34,4 @@ instance (Hashable k, Eq k) => IsMap (HashMap.HashMap k) where
     mapDelete = HashMap.delete
     mapUnion = HashMap.union
     mapNull = HashMap.null
+    mapTraverseWithKey = HashMap.traverseWithKey

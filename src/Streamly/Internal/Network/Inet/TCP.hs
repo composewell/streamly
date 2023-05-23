@@ -358,7 +358,7 @@ writeChunks
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Fold m (Array Word8) ()
-writeChunks addr port = Fold step initial extract
+writeChunks addr port = Fold step initial extract final
     where
     initial = do
         skt <- liftIO (connect addr port)
@@ -368,12 +368,15 @@ writeChunks addr port = Fold step initial extract
     step (Tuple' fld skt) x = do
         r <- FL.addOne x fld `MC.onException` liftIO (Net.close skt)
         return $ FL.Partial (Tuple' r skt)
-    extract (Tuple' (Fold _ initial1 extract1) skt) = do
+
+    extract _ = return ()
+
+    final (Tuple' (Fold _ initial1 _ final1) skt) = do
         liftIO $ Net.close skt
         res <- initial1
         case res of
-            FL.Partial fs -> extract1 fs
-            FL.Done fb -> return fb
+            FL.Partial fs -> final1 fs
+            FL.Done () -> return ()
 
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of

@@ -596,10 +596,11 @@ pinnedWrite = fmap unsafeFreeze MA.pinnedWrite
 --
 {-# INLINE unsafeMakePure #-}
 unsafeMakePure :: Monad m => Fold IO a b -> Fold m a b
-unsafeMakePure (Fold step initial extract) =
+unsafeMakePure (Fold step initial extract final) =
     Fold (\x a -> return $! unsafeInlineIO (step x a))
          (return $! unsafePerformIO initial)
          (\s -> return $! unsafeInlineIO $ extract s)
+         (\s -> return $! unsafeInlineIO $ final s)
 
 -- | Convert a pure stream in Identity monad to an immutable array.
 --

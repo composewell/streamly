@@ -270,14 +270,15 @@ demuxGeneric :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
     -> (a -> m (Fold m a b))
     -> Fold m a (m (f b), Maybe (Key f, b))
-demuxGeneric getKey getFold = fmap extract $ foldlM' step initial
+demuxGeneric getKey getFold =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
 
     where
 
     initial = return $ Tuple' IsMap.mapEmpty Nothing
 
     {-# INLINE runFold #-}
-    runFold kv (Fold step1 initial1 extract1) (k, a) = do
+    runFold kv (Fold step1 initial1 extract1 final1) (k, a) = do
          res <- initial1
          case res of
             Partial s -> do
@@ -285,7 +286,7 @@ demuxGeneric getKey getFold = fmap extract $ foldlM' step initial
                 return
                     $ case res1 of
                         Partial _ ->
-                            let fld = Fold step1 (return res1) extract1
+                            let fld = Fold step1 (return res1) extract1 final1
                              in Tuple' (IsMap.mapInsert k fld kv) Nothing
                         Done b -> Tuple' (IsMap.mapDelete k kv) (Just (k, b))
             Done b -> return $ Tuple' kv (Just (k, b))
@@ -298,15 +299,25 @@ demuxGeneric getKey getFold = fmap extract $ foldlM' step initial
                 runFold kv fld (k, a)
             Just f -> runFold kv f (k, a)
 
-    extract (Tuple' kv x) = (Prelude.mapM f kv, x)
+    extract (Tuple' kv x) = return (Prelude.mapM f kv, x)
 
         where
 
-        f (Fold _ i e) = do
+        f (Fold _ i e _) = do
             r <- i
             case r of
                 Partial s -> e s
-                Done b -> return b
+                _ -> error "demuxGeneric: unreachable code"
+
+    final (Tuple' kv x) = return (Prelude.mapM f kv, x)
+
+        where
+
+        f (Fold _ i _ fin) = do
+            r <- i
+            case r of
+                Partial s -> fin s
+                _ -> error "demuxGeneric: unreachable code"
 
 -- | @demux getKey getFold@: In a key value stream, fold values corresponding
 -- to each key using a key specific fold. @getFold@ is invoked to generate a
@@ -348,35 +359,36 @@ demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
     -> (a -> m (Fold m a b))
     -> Fold m a (m (f b), Maybe (Key f, b))
-demuxGenericIO getKey getFold = fmap extract $ foldlM' step initial
+demuxGenericIO getKey getFold =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
 
     where
 
     initial = return $ Tuple' IsMap.mapEmpty Nothing
 
     {-# INLINE initFold #-}
-    initFold kv (Fold step1 initial1 extract1) (k, a) = do
+    initFold kv (Fold step1 initial1 extract1 final1) (k, a) = do
          res <- initial1
          case res of
             Partial s -> do
                 res1 <- step1 s a
                 case res1 of
                     Partial _ -> do
-                        let fld = Fold step1 (return res1) extract1
+                        let fld = Fold step1 (return res1) extract1 final1
                         ref <- liftIO $ newIORef fld
                         return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
                     Done b -> return $ Tuple' kv (Just (k, b))
             Done b -> return $ Tuple' kv (Just (k, b))
 
     {-# INLINE runFold #-}
-    runFold kv ref (Fold step1 initial1 extract1) (k, a) = do
+    runFold kv ref (Fold step1 initial1 extract1 final1) (k, a) = do
          res <- initial1
          case res of
             Partial s -> do
                 res1 <- step1 s a
                 case res1 of
                         Partial _ -> do
-                            let fld = Fold step1 (return res1) extract1
+                            let fld = Fold step1 (return res1) extract1 final1
                             liftIO $ writeIORef ref fld
                             return $ Tuple' kv Nothing
                         Done b ->
@@ -394,16 +406,27 @@ demuxGenericIO getKey getFold = fmap extract $ foldlM' step initial
                 f <- liftIO $ readIORef ref
                 runFold kv ref f (k, a)
 
-    extract (Tuple' kv x) = (Prelude.mapM f kv, x)
+    extract (Tuple' kv x) = return (Prelude.mapM f kv, x)
 
         where
 
         f ref = do
-            (Fold _ i e) <- liftIO $ readIORef ref
+            Fold _ i e _ <- liftIO $ readIORef ref
             r <- i
             case r of
                 Partial s -> e s
-                Done b -> return b
+                _ -> error "demuxGenericIO: unreachable code"
+
+    final (Tuple' kv x) = return (Prelude.mapM f kv, x)
+
+        where
+
+        f ref = do
+            Fold _ i _ fin <- liftIO $ readIORef ref
+            r <- i
+            case r of
+                Partial s -> fin s
+                _ -> error "demuxGenericIO: unreachable code"
 
 -- | This is specialized version of 'demux' that uses mutable IO cells as
 -- fold accumulators for better performance.
@@ -417,6 +440,13 @@ demuxIO :: (MonadIO m, Ord k) =>
     -> (a -> m (Fold m a b))
     -> Fold m a (m (Map k b), Maybe (k, b))
 demuxIO = demuxGenericIO
+
+-- | Fold a key value stream to a key-value Map. If the same key appears
+-- multiple times, only the last value is retained.
+{-# INLINE kvToMapOverwriteGeneric #-}
+kvToMapOverwriteGeneric :: (Monad m, IsMap f) => Fold m (Key f, a) (f a)
+kvToMapOverwriteGeneric =
+    foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 
 {-# INLINE demuxToContainer #-}
 demuxToContainer :: (Monad m, IsMap f, Traversable f) =>
@@ -505,8 +535,8 @@ classifyGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
     -- for that use case. We return an action because we want it to be lazy so
     -- that the downstream consumers can choose to process or discard it.
     (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
-classifyGeneric f (Fold step1 initial1 extract1) =
-    fmap extract $ foldlM' step initial
+classifyGeneric f (Fold step1 initial1 extract1 final1) =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
 
     where
 
@@ -543,7 +573,16 @@ classifyGeneric f (Fold step1 initial1 extract1) =
                             let kv1 = IsMap.mapDelete k kv
                              in Tuple3' kv1 (Set.insert k set) (Just (k, b))
 
-    extract (Tuple3' kv _ x) = (Prelude.mapM extract1 kv, x)
+    extract (Tuple3' kv _ x) = return (Prelude.mapM extract1 kv, x)
+
+    final (Tuple3' kv set x) = return (IsMap.mapTraverseWithKey f1 kv, x)
+
+        where
+
+        f1 k s = do
+            if Set.member k set
+            then extract1 s
+            else final1 s
 
 -- | Folds the values for each key using the supplied fold. When scanning, as
 -- soon as the fold is complete, its result is available in the second
@@ -568,8 +607,8 @@ classify = classifyGeneric
 {-# INLINE classifyGenericIO #-}
 classifyGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
-classifyGenericIO f (Fold step1 initial1 extract1) =
-    fmap extract $ foldlM' step initial
+classifyGenericIO f (Fold step1 initial1 extract1 final1) =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
 
     where
 
@@ -608,8 +647,21 @@ classifyGenericIO f (Fold step1 initial1 extract1) =
                          in return
                                 $ Tuple3' kv1 (Set.insert k set) (Just (k, b))
 
-    extract (Tuple3' kv _ x) =
-        (Prelude.mapM (\ref -> liftIO (readIORef ref) >>= extract1) kv, x)
+    extract (Tuple3' kv _ x) = return (Prelude.mapM g kv, x)
+
+        where
+
+        g ref = liftIO (readIORef ref) >>= extract1
+
+    final (Tuple3' kv set x) = return (IsMap.mapTraverseWithKey g kv, x)
+
+        where
+
+        g k ref = do
+            s <- liftIO $ readIORef ref
+            if Set.member k set
+            then extract1 s
+            else final1 s
 
 -- | Same as classify except that it uses mutable IORef cells in the
 -- Map providing better performance. Be aware that if this is used as a scan,
@@ -623,13 +675,6 @@ classifyGenericIO f (Fold step1 initial1 extract1) =
 classifyIO :: (MonadIO m, Ord k) =>
     (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
 classifyIO = classifyGenericIO
-
--- | Fold a key value stream to a key-value Map. If the same key appears
--- multiple times, only the last value is retained.
-{-# INLINE kvToMapOverwriteGeneric #-}
-kvToMapOverwriteGeneric :: (Monad m, IsMap f) => Fold m (Key f, a) (f a)
-kvToMapOverwriteGeneric =
-    foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 
 {-# INLINE toContainer #-}
 toContainer :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>

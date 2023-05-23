@@ -69,7 +69,7 @@ createRing count = liftIO $ do
 -- the Ring.
 {-# INLINE writeLastN #-}
 writeLastN :: MonadIO m => Int -> Fold m a (Ring a)
-writeLastN n = Fold step initial extract
+writeLastN n = Fold step initial extract extract
 
     where
 

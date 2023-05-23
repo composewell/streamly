@@ -111,6 +111,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.MutArray.Type (MutableByteArray)
 import Streamly.Internal.Data.Fold (Fold)
+import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream (Step (..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
@@ -523,8 +524,8 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
 -- workflow requires backtracking 1 element. This can be revisited once "Fold"
 -- supports backtracking.
 {-# INLINE writeCharUtf8' #-}
-writeCharUtf8' :: Monad m => Fold m Word8 Char
-writeCharUtf8' =  ParserD.toFold (parseCharUtf8WithD ErrorOnCodingFailure)
+writeCharUtf8' :: Monad m => Parser Word8 m Char
+writeCharUtf8' =  parseCharUtf8WithD ErrorOnCodingFailure
 
 -- XXX The initial idea was to have "parseCharUtf8" and offload the error
 -- handling to another parser. So, say we had "parseCharUtf8'",

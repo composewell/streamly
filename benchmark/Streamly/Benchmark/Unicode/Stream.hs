@@ -11,6 +11,11 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+#undef FUSION_CHECK
+#ifdef FUSION_CHECK
+{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
+#endif
+
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
 #endif
@@ -280,7 +285,8 @@ _copyStreamUtf8'Fold :: Handle -> Handle -> IO ()
 _copyStreamUtf8'Fold inh outh =
    Stream.fold (Handle.write outh)
      $ Unicode.encodeUtf8
-     $ Stream.foldMany Unicode.writeCharUtf8'
+     $ Stream.catRights
+     $ Stream.parseMany Unicode.writeCharUtf8'
      $ Stream.unfold Handle.reader inh
 
 {-# NOINLINE _copyStreamUtf8Parser #-}
@@ -317,6 +323,7 @@ o_1_space_decode_encode_read env =
 
 main :: IO ()
 main = do
+#ifndef FUSION_CHECK
     env <- mkHandleBenchEnv
     defaultMain (allBenchmarks env)
 
@@ -329,3 +336,13 @@ main = do
             , o_1_space_decode_encode_read env
             ]
         ]
+#else
+    -- Enable FUSION_CHECK macro at the beginning of the file
+    -- Enable one benchmark below, and run the benchmark
+    -- Check the .dump-simpl output
+    env <- mkHandleBenchEnv
+    let mkHandles (RefHandles {bigInH = inh, outputH = outh}) = Handles inh outh
+    (Handles inh outh) <- getHandles env mkHandles
+    copyStreamLatin1' inh outh
+    return ()
+#endif

@@ -348,7 +348,7 @@ split_ value =
 -- PR.dropWhile (<= (value * 1 `div` 4)) *> PR.die "alt"
 {-# INLINE takeWhileFail #-}
 takeWhileFail :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-takeWhileFail predicate (Fold fstep finitial fextract) =
+takeWhileFail predicate (Fold fstep finitial _ ffinal) =
     Parser step initial extract
 
     where
@@ -369,7 +369,7 @@ takeWhileFail predicate (Fold fstep finitial fextract) =
                       Fold.Done b -> Done 0 b
         else return $ Error "fail"
 
-    extract s = fmap (Done 0) (fextract s)
+    extract s = fmap (Done 0) (ffinal s)
 
 {-# INLINE alt2 #-}
 alt2 :: Monad m

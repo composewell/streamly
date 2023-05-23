@@ -719,7 +719,7 @@ many :: Property
 many =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         let fldstp conL currL = return $ FL.Partial (conL ++ currL)
-            concatFold = FL.Fold fldstp (return (FL.Partial [])) return
+            concatFold = FL.Fold fldstp (return (FL.Partial [])) return return
             prsr =
                 flip P.many concatFold
                     $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
@@ -740,7 +740,7 @@ some =
         let
             ls = 0 : genLs
             fldstp conL currL = return $ FL.Partial $ conL ++ currL
-            concatFold = FL.Fold fldstp (return (FL.Partial [])) return
+            concatFold = FL.Fold fldstp (return (FL.Partial [])) return return
             prsr =
                 flip P.some concatFold
                     $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList

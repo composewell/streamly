@@ -536,9 +536,9 @@ classifySessionsByGeneric
                                       -- data)
     -> Stream m (Key f, b) -- ^ session key, fold result
 classifySessionsByGeneric _ tick reset ejectPred tmout
-    (Fold step initial extract) input =
+    (Fold step initial extract final) input =
     Stream.unfoldMany (Unfold.lmap sessionOutputStream Unfold.fromStream)
-        $ Stream.scanlMAfter' sstep (return szero) (flush extract)
+        $ Stream.scanlMAfter' sstep (return szero) (flush final)
         $ interject (return Nothing) tick
         $ fmap Just input
 

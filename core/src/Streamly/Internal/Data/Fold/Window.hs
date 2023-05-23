@@ -148,7 +148,7 @@ windowRollingMap f = Fold.foldl' f1 initial
 --
 {-# INLINE windowSumInt #-}
 windowSumInt :: forall m a. (Monad m, Integral a) => Fold m (a, Maybe a) a
-windowSumInt = Fold step initial extract
+windowSumInt = Fold step initial extract extract
 
     where
 
@@ -182,7 +182,7 @@ windowSumInt = Fold step initial extract
 --
 {-# INLINE windowSum #-}
 windowSum :: forall m a. (Monad m, Num a) => Fold m (a, Maybe a) a
-windowSum = Fold step initial extract
+windowSum = Fold step initial extract extract
 
     where
 
@@ -267,7 +267,7 @@ windowPowerSumFrac p = windowLmap (** p) windowSum
 --
 {-# INLINE windowRange #-}
 windowRange :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe (a, a))
-windowRange n = Fold step initial extract
+windowRange n = Fold step initial extract extract
 
     where
 

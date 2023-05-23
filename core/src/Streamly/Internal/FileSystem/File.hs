@@ -438,7 +438,7 @@ write = toHandleWith A.defaultChunkSize
 {-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, MonadCatch m)
     => FilePath -> Fold m (Array a) ()
-writeChunks path = Fold step initial extract
+writeChunks path = Fold step initial extract final
     where
     initial = do
         h <- liftIO (openFile path WriteMode)
@@ -448,12 +448,15 @@ writeChunks path = Fold step initial extract
     step (fld, h) x = do
         r <- FL.snoc fld x `MC.onException` liftIO (hClose h)
         return $ FL.Partial (r, h)
-    extract (Fold _ initial1 extract1, h) = do
+
+    extract _ = return ()
+
+    final (Fold _ initial1 _ final1, h) = do
         liftIO $ hClose h
         res <- initial1
         case res of
-            FL.Partial fs -> extract1 fs
-            FL.Done fb -> return fb
+            FL.Partial fs -> final1 fs
+            FL.Done () -> return ()
 
 -- | @writeWith chunkSize handle@ writes the input stream to @handle@.
 -- Bytes in the input stream are collected into a buffer until we have a chunk

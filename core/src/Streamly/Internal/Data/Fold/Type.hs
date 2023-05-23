@@ -445,7 +445,7 @@ where
 #if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
 #endif
-import Control.Monad ((>=>))
+import Control.Monad ((>=>), void)
 import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
@@ -471,23 +471,49 @@ import Streamly.Internal.Data.Fold.Step
 -- The type @b@ is the accumulator of the writer. That's the reason the
 -- default folds in various modules are called "write".
 
--- | The type @Fold m a b@ having constructor @Fold step initial extract@
--- represents a fold over an input stream of values of type @a@ to a final
--- value of type @b@ in 'Monad' @m@.
+-- An alternative to using an "extract" function is to use "Partial s b" style
+-- partial value so that we always emit the output value and there is no need
+-- to extract. Then extract can be used for cleanup purposes. But in this case
+-- in some cases we may need a "Continue" constructor where an output value is
+-- not available, this was implicit earlier. Also, "b" should be lazy here so
+-- that we do not always compute it even if we do not need it.
+--
+-- Partial s b  --> extract :: s -> b
+-- Continue     --> extract :: s -> Maybe b
+--
+-- But keeping 'b' lazy does not let the fold optimize well. It leads to
+-- significant regressions in the key-value folds.
+--
+-- The "final" function complicates combinators that take other folds as
+-- argument because we need to call their finalizers at right places. An
+-- alternative to reduce this complexity where it is not required is to use a
+-- separate type for bracketed folds but then we need to manage the complexity
+-- of two different fold types.
+
+-- The "final" function could be (s -> m (Step s b)), like in parsers so that
+-- it can be called in a loop to drain the fold.
+
+-- | The type @Fold m a b@ having constructor @Fold step initial extract
+-- final@ represents a fold over an input stream of values of type @a@ to a
+-- final value of type @b@ in 'Monad' @m@.
 --
 -- The fold uses an intermediate state @s@ as accumulator, the type @s@ is
 -- internal to the specific fold definition. The initial value of the fold
 -- state @s@ is returned by @initial@. The @step@ function consumes an input
 -- and either returns the final result @b@ if the fold is done or the next
 -- intermediate state (see 'Step'). At any point the fold driver can extract
--- the result from the intermediate state using the @extract@ function.
+-- the result from the intermediate state using the @extract@ function. The
+-- "final" function is used to finalize the fold, the driver can call it
+-- whenever it holds a valid fold state which it will not be using anymore. The
+-- state should not be used after finalization. Note that if the fold
+-- terminates itself we won't have a valid fold state.
 --
 -- NOTE: The constructor is not yet released, smart constructors are provided
 -- to create folds.
 --
 data Fold m a b =
-  -- | @Fold @ @ step @ @ initial @ @ extract@
-  forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b)
+  -- | @Fold@ @step@ @initial@ @extract@ @final@
+  forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b) (s -> m b)
 
 ------------------------------------------------------------------------------
 -- Mapping on the output
@@ -497,7 +523,8 @@ data Fold m a b =
 --
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
-rmapM f (Fold step initial extract) = Fold step1 initial1 (extract >=> f)
+rmapM f (Fold step initial extract final) =
+    Fold step1 initial1 (extract >=> f) (final >=> f)
 
     where
 
@@ -528,6 +555,7 @@ foldl' step initial =
         (\s a -> return $ Partial $ step s a)
         (return (Partial initial))
         return
+        return
 
 -- | Make a fold from a left fold style monadic step function and initial value
 -- of the accumulator.
@@ -542,7 +570,7 @@ foldl' step initial =
 {-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
 foldlM' step initial =
-    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) return
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) return return
 
 -- | Make a strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns Nothing if the stream is empty.
@@ -640,7 +668,11 @@ foldrM' g z =
 {-# INLINE foldt' #-}
 foldt' :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
 foldt' step initial extract =
-    Fold (\s a -> return $ step s a) (return initial) (return . extract)
+    Fold
+        (\s a -> return $ step s a)
+        (return initial)
+        (return . extract)
+        (return . extract)
 
 -- | Make a terminating fold with an effectful step function and initial state,
 -- and a state extraction function.
@@ -653,7 +685,7 @@ foldt' step initial extract =
 --
 {-# INLINE foldtM' #-}
 foldtM' :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Fold m a b
-foldtM' = Fold
+foldtM' step initial extract = Fold step initial extract extract
 
 ------------------------------------------------------------------------------
 -- Refold
@@ -667,7 +699,7 @@ foldtM' = Fold
 -- /Internal/
 fromRefold :: Refold m c a b -> c -> Fold m a b
 fromRefold (Refold step inject extract) c =
-    Fold step (inject c) extract
+    Fold step (inject c) extract extract
 
 ------------------------------------------------------------------------------
 -- Basic Folds
@@ -727,7 +759,8 @@ toStreamK = foldr K.cons K.nil
 -- | Maps a function on the output of the fold (the type @b@).
 instance Functor m => Functor (Fold m a) where
     {-# INLINE fmap #-}
-    fmap f (Fold step1 initial1 extract) = Fold step initial (fmap2 f extract)
+    fmap f (Fold step1 initial1 extract final) =
+        Fold step initial (fmap2 f extract) (fmap2 f final)
 
         where
 
@@ -762,7 +795,7 @@ instance Functor m => Functor (Fold m a) where
 --
 {-# INLINE fromPure #-}
 fromPure :: Applicative m => b -> Fold m a b
-fromPure b = Fold undefined (pure $ Done b) pure
+fromPure b = Fold undefined (pure $ Done b) pure pure
 
 -- | Make a fold that yields the result of the supplied effectful action
 -- without consuming any further input.
@@ -771,7 +804,7 @@ fromPure b = Fold undefined (pure $ Done b) pure
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Applicative m => m b -> Fold m a b
-fromEffect b = Fold undefined (Done <$> b) pure
+fromEffect b = Fold undefined (Done <$> b) pure pure
 
 {-# ANN type SeqFoldState Fuse #-}
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
@@ -804,8 +837,10 @@ data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 {-# INLINE splitWith #-}
 splitWith :: Monad m =>
     (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
-splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+splitWith func
+    (Fold stepL initialL _ finalL)
+    (Fold stepR initialR _ finalR) =
+    Fold step initial extract final
 
     where
 
@@ -822,13 +857,18 @@ splitWith func (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     step (SeqFoldL st) a = runL (stepL st a)
     step (SeqFoldR f st) a = runR (stepR st a) f
 
-    extract (SeqFoldR f sR) = fmap f (extractR sR)
-    extract (SeqFoldL sL) = do
-        rL <- extractL sL
+    -- XXX splitWith should not be used for scanning
+    -- It would rarely make sense and resource cleanup would be expensive.
+    -- especially when multiple splitWith are chained.
+    extract _ = error "splitWith: cannot be used for scanning"
+
+    final (SeqFoldR f sR) = fmap f (finalR sR)
+    final (SeqFoldL sL) = do
+        rL <- finalL sL
         res <- initialR
         fmap (func rL)
             $ case res of
-                Partial sR -> extractR sR
+                Partial sR -> finalR sR
                 Done rR -> return rR
 
 {-# DEPRECATED serialWith "Please use \"splitWith\" instead" #-}
@@ -848,8 +888,8 @@ data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
 --
 {-# INLINE split_ #-}
 split_ :: Monad m => Fold m x a -> Fold m x b -> Fold m x b
-split_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
-    Fold step initial extract
+split_ (Fold stepL initialL _ finalL) (Fold stepR initialR _ finalR) =
+    Fold step initial extract final
 
     where
 
@@ -872,11 +912,16 @@ split_ (Fold stepL initialL _) (Fold stepR initialR extractR) =
         resR <- stepR st a
         return $ first SeqFoldR_ resR
 
-    extract (SeqFoldR_ sR) = extractR sR
-    extract (SeqFoldL_ _) = do
+    -- XXX split_ should not be used for scanning
+    -- See splitWith for more details.
+    extract _ = error "split_: cannot be used for scanning"
+
+    final (SeqFoldR_ sR) = finalR sR
+    final (SeqFoldL_ sL) = do
+        _ <- finalL sL
         res <- initialR
         case res of
-            Partial sR -> extractR sR
+            Partial sR -> finalR sR
             Done rR -> return rR
 
 -- | 'Applicative' form of 'splitWith'. Split the input serially over two
@@ -924,8 +969,10 @@ data TeeState sL sR bL bR
 --
 {-# INLINE teeWith #-}
 teeWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
-teeWith f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+teeWith f
+    (Fold stepL initialL extractL finalL)
+    (Fold stepR initialR extractR finalR) =
+    Fold step initial extract final
 
     where
 
@@ -952,6 +999,10 @@ teeWith f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     extract (TeeLeft bR sL) = (`f` bR) <$> extractL sL
     extract (TeeRight bL sR) = f bL <$> extractR sR
 
+    final (TeeBoth sL sR) = f <$> finalL sL <*> finalR sR
+    final (TeeLeft bR sL) = (`f` bR) <$> finalL sL
+    final (TeeRight bL sR) = f bL <$> finalR sR
+
 {-# ANN type TeeFstState Fuse #-}
 data TeeFstState sL sR b
     = TeeFstBoth !sL !sR
@@ -964,8 +1015,10 @@ data TeeFstState sL sR b
 {-# INLINE teeWithFst #-}
 teeWithFst :: Monad m =>
     (b -> c -> d) -> Fold m a b -> Fold m a c -> Fold m a d
-teeWithFst f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+teeWithFst f
+    (Fold stepL initialL extractL finalL)
+    (Fold stepR initialR extractR finalR) =
+    Fold step initial extract final
 
     where
 
@@ -984,7 +1037,7 @@ teeWithFst f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
             Done bl -> do
                 Done . f bl <$>
                     case resR of
-                        Partial sr -> extractR sr
+                        Partial sr -> finalR sr
                         Done br -> return br
 
     initial = runBoth initialL initialR
@@ -995,6 +1048,9 @@ teeWithFst f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     extract (TeeFstBoth sL sR) = f <$> extractL sL <*> extractR sR
     extract (TeeFstLeft bR sL) = (`f` bR) <$> extractL sL
 
+    final (TeeFstBoth sL sR) = f <$> finalL sL <*> finalR sR
+    final (TeeFstLeft bR sL) = (`f` bR) <$> finalL sL
+
 -- | Like 'teeWith' but terminates as soon as any one of the two folds
 -- terminates.
 --
@@ -1003,8 +1059,10 @@ teeWithFst f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 {-# INLINE teeWithMin #-}
 teeWithMin :: Monad m =>
     (b -> c -> d) -> Fold m a b -> Fold m a c -> Fold m a d
-teeWithMin f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+teeWithMin f
+    (Fold stepL initialL extractL finalL)
+    (Fold stepR initialR extractR finalR) =
+    Fold step initial extract final
 
     where
 
@@ -1016,12 +1074,12 @@ teeWithMin f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
             Partial sl -> do
                 case resR of
                     Partial sr -> return $ Partial $ Tuple' sl sr
-                    Done br -> Done . (`f` br) <$> extractL sl
+                    Done br -> Done . (`f` br) <$> finalL sl
 
             Done bl -> do
                 Done . f bl <$>
                     case resR of
-                        Partial sr -> extractR sr
+                        Partial sr -> finalR sr
                         Done br -> return br
 
     initial = runBoth initialL initialR
@@ -1029,6 +1087,8 @@ teeWithMin f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     step (Tuple' sL sR) a = runBoth (stepL sL a) (stepR sR a)
 
     extract (Tuple' sL sR) = f <$> extractL sL <*> extractR sR
+
+    final (Tuple' sL sR) = f <$> finalL sL <*> finalR sR
 
 -- | Shortest alternative. Apply both folds in parallel but choose the result
 -- from the one which consumed least input i.e. take the shortest succeeding
@@ -1041,8 +1101,8 @@ teeWithMin f (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 --
 {-# INLINE shortest #-}
 shortest :: Monad m => Fold m x a -> Fold m x b -> Fold m x (Either a b)
-shortest (Fold stepL initialL extractL) (Fold stepR initialR _) =
-    Fold step initial extract
+shortest (Fold stepL initialL extractL finalL) (Fold stepR initialR _ finalR) =
+    Fold step initial extract final
 
     where
 
@@ -1050,16 +1110,24 @@ shortest (Fold stepL initialL extractL) (Fold stepR initialR _) =
     runBoth actionL actionR = do
         resL <- actionL
         resR <- actionR
-        return $
-            case resL of
-                Partial sL -> bimap (Tuple' sL) Right resR
-                Done bL -> Done $ Left bL
+        case resL of
+            Partial sL ->
+                case resR of
+                    Partial sR -> return $ Partial $ Tuple' sL sR
+                    Done bR -> finalL sL >> return (Done (Right bR))
+            Done bL -> do
+                case resR of
+                    Partial sR -> void (finalR sR)
+                    Done _ -> return ()
+                return (Done (Left bL))
 
     initial = runBoth initialL initialR
 
     step (Tuple' sL sR) a = runBoth (stepL sL a) (stepR sR a)
 
     extract (Tuple' sL _) = Left <$> extractL sL
+
+    final (Tuple' sL sR) = Left <$> finalL sL <* finalR sR
 
 {-# ANN type LongestState Fuse #-}
 data LongestState sL sR
@@ -1078,8 +1146,10 @@ data LongestState sL sR
 --
 {-# INLINE longest #-}
 longest :: Monad m => Fold m x a -> Fold m x b -> Fold m x (Either a b)
-longest (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+longest
+    (Fold stepL initialL _ finalL)
+    (Fold stepR initialR _ finalR) =
+    Fold step initial extract final
 
     where
 
@@ -1102,14 +1172,18 @@ longest (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     step (LongestLeft sL) a = bimap LongestLeft Left <$> stepL sL a
     step (LongestRight sR) a = bimap LongestRight Right <$> stepR sR a
 
-    left sL = Left <$> extractL sL
-    extract (LongestLeft sL) = left sL
-    extract (LongestRight sR) = Right <$> extractR sR
-    extract (LongestBoth sL _) = left sL
+    -- XXX Scan with this may not make sense as we cannot determine the longest
+    -- until one of them have exhausted.
+    extract _ = error $ "longest: scan is not allowed as longest cannot be "
+        ++ "determined until one fold has exhausted."
 
-data ConcatMapState m sa a c
-    = B !sa
-    | forall s. C (s -> a -> m (Step s c)) !s (s -> m c)
+    final (LongestLeft sL) = Left <$> finalL sL
+    final (LongestRight sR) = Right <$> finalR sR
+    final (LongestBoth sL sR) = Left <$> finalL sL <* finalR sR
+
+data ConcatMapState m sa a b c
+    = B !sa (sa -> m b)
+    | forall s. C (s -> a -> m (Step s c)) !s (s -> m c) (s -> m c)
 
 -- | Map a 'Fold' returning function on the result of a 'Fold' and run the
 -- returned fold. This operation can be used to express data dependencies
@@ -1132,42 +1206,46 @@ data ConcatMapState m sa a c
 --
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (b -> Fold m a c) -> Fold m a b -> Fold m a c
-concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
+concatMap f (Fold stepa initiala _ finala) =
+    Fold stepc initialc extractc finalc
   where
     initialc = do
         r <- initiala
         case r of
-            Partial s -> return $ Partial (B s)
+            Partial s -> return $ Partial (B s finala)
             Done b -> initInnerFold (f b)
 
-    stepc (B s) a = do
+    stepc (B s fin) a = do
         r <- stepa s a
         case r of
-            Partial s1 -> return $ Partial (B s1)
+            Partial s1 -> return $ Partial (B s1 fin)
             Done b -> initInnerFold (f b)
 
-    stepc (C stepInner s extractInner) a = do
+    stepc (C stepInner s extractInner fin) a = do
         r <- stepInner s a
         return $ case r of
-            Partial sc -> Partial (C stepInner sc extractInner)
+            Partial sc -> Partial (C stepInner sc extractInner fin)
             Done c -> Done c
 
-    extractc (B s) = do
-        r <- extracta s
-        initExtract (f r)
-    extractc (C _ sInner extractInner) = extractInner sInner
+    -- XXX Cannot use for scanning
+    extractc _ = error "concatMap: cannot be used for scanning"
 
-    initInnerFold (Fold step i e) = do
+    initInnerFold (Fold step i e fin) = do
         r <- i
         return $ case r of
-            Partial s -> Partial (C step s e)
+            Partial s -> Partial (C step s e fin)
             Done c -> Done c
 
-    initExtract (Fold _ i e) = do
+    initFinalize (Fold _ i _ fin) = do
         r <- i
         case r of
-            Partial s -> e s
+            Partial s -> fin s
             Done c -> return c
+
+    finalc (B s fin) = do
+        r <- fin s
+        initFinalize (f r)
+    finalc (C _ sInner _ fin) = fin sInner
 
 ------------------------------------------------------------------------------
 -- Mapping on input
@@ -1187,7 +1265,7 @@ concatMap f (Fold stepa initiala extracta) = Fold stepc initialc extractc
 --
 {-# INLINE lmap #-}
 lmap :: (a -> b) -> Fold m b r -> Fold m a r
-lmap f (Fold step begin done) = Fold step' begin done
+lmap f (Fold step begin done final) = Fold step' begin done final
     where
     step' x a = step x (f a)
 
@@ -1195,7 +1273,7 @@ lmap f (Fold step begin done) = Fold step' begin done
 --
 {-# INLINE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Fold m b r -> Fold m a r
-lmapM f (Fold step begin done) = Fold step' begin done
+lmapM f (Fold step begin done final) = Fold step' begin done final
     where
     step' x a = f a >>= step x
 
@@ -1207,8 +1285,10 @@ lmapM f (Fold step begin done) = Fold step' begin done
 -- /Pre-release/
 {-# INLINE postscan #-}
 postscan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
-postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+postscan
+    (Fold stepL initialL extractL finalL)
+    (Fold stepR initialR extractR finalR) =
+    Fold step initial extract final
 
     where
 
@@ -1219,29 +1299,31 @@ postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
             Done bL -> do
                 rR <- stepR sR bL
                 case rR of
-                    Partial sR1 -> Done <$> extractR sR1
+                    Partial sR1 -> Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
-                return
-                    $ case rR of
-                        Partial sR1 -> Partial (sL, sR1)
-                        Done bR -> Done bR
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
 
     initial = do
-        r <- initialR
-        rL <- initialL
-        case r of
-            Partial sR ->
+        rR <- initialR
+        case rR of
+            Partial sR -> do
+                rL <- initialL
                 case rL of
-                    Done _ -> Done <$> extractR sR
+                    Done _ -> Done <$> finalR sR
                     Partial sL -> return $ Partial (sL, sR)
             Done b -> return $ Done b
 
+    -- XXX should use Tuple'
     step (sL, sR) x = runStep (stepL sL x) sR
 
     extract = extractR . snd
+
+    final (sL, sR) = finalL sL *> finalR sR
 
 ------------------------------------------------------------------------------
 -- Filtering
@@ -1255,7 +1337,7 @@ postscan (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 --
 {-# INLINE_NORMAL catMaybes #-}
 catMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
-catMaybes (Fold step initial extract) = Fold step1 initial extract
+catMaybes (Fold step initial extract final) = Fold step1 initial extract final
 
     where
 
@@ -1295,7 +1377,7 @@ filtering f = foldl' step Nothing
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
 -- filter p = scanMaybe (filtering p)
-filter f (Fold step begin done) = Fold step' begin done
+filter f (Fold step begin extract final) = Fold step' begin extract final
     where
     step' x a = if f a then step x a else return $ Partial x
 
@@ -1306,7 +1388,7 @@ filter f (Fold step begin done) = Fold step' begin done
 --
 {-# INLINE filterM #-}
 filterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
-filterM f (Fold step begin done) = Fold step' begin done
+filterM f (Fold step begin extract final) = Fold step' begin extract final
     where
     step' x a = do
       use <- f a
@@ -1395,7 +1477,7 @@ dropping n = foldt' step initial extract
 {-# INLINE take #-}
 take :: Monad m => Int -> Fold m a b -> Fold m a b
 -- take n = scanMaybe (taking n)
-take n (Fold fstep finitial fextract) = Fold step initial extract
+take n (Fold fstep finitial fextract ffinal) = Fold step initial extract final
 
     where
 
@@ -1407,7 +1489,7 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
                     s1 = Tuple'Fused i1 s
                 if i1 < n
                 then return $ Partial s1
-                else Done <$> fextract s
+                else Done <$> ffinal s
             Done b -> return $ Done b
 
     initial = finitial >>= next (-1)
@@ -1415,6 +1497,8 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
     step (Tuple'Fused i r) a = fstep r a >>= next i
 
     extract (Tuple'Fused _ r) = fextract r
+
+    final (Tuple'Fused _ r) = ffinal r
 
 ------------------------------------------------------------------------------
 -- Nesting
@@ -1433,14 +1517,19 @@ take n (Fold fstep finitial fextract) = Fold step initial extract
 -- /Pre-release/
 {-# INLINE duplicate #-}
 duplicate :: Monad m => Fold m a b -> Fold m a (Fold m a b)
-duplicate (Fold step1 initial1 extract1) =
-    Fold step initial (\s -> pure $ Fold step1 (pure $ Partial s) extract1)
+duplicate (Fold step1 initial1 extract1 final1) =
+    Fold step initial extract final
 
     where
 
     initial = second fromPure <$> initial1
 
     step s a = second fromPure <$> step1 s a
+
+    -- Scanning may be problematic due to multiple finalizations.
+    extract = error "duplicate: scanning may be problematic"
+
+    final s = pure $ Fold step1 (pure $ Partial s) extract1 final1
 
 -- If there were a finalize/flushing action in the stream type that would be
 -- equivalent to running initialize in Fold. But we do not have a flushing
@@ -1453,9 +1542,9 @@ duplicate (Fold step1 initial1 extract1) =
 -- /Pre-release/
 {-# INLINE reduce #-}
 reduce :: Monad m => Fold m a b -> m (Fold m a b)
-reduce (Fold step initial extract) = do
+reduce (Fold step initial extract final) = do
     i <- initial
-    return $ Fold step (return i) extract
+    return $ Fold step (return i) extract final
 
 -- This is the dual of Stream @cons@.
 
@@ -1465,7 +1554,8 @@ reduce (Fold step initial extract) = do
 -- /Pre-release/
 {-# INLINE snoclM #-}
 snoclM :: Monad m => Fold m a b -> m a -> Fold m a b
-snoclM (Fold fstep finitial fextract) action = Fold fstep initial fextract
+snoclM (Fold fstep finitial fextract ffinal) action =
+    Fold fstep initial fextract ffinal
 
     where
 
@@ -1492,7 +1582,8 @@ snoclM (Fold fstep finitial fextract) action = Fold fstep initial fextract
 {-# INLINE snocl #-}
 snocl :: Monad m => Fold m a b -> a -> Fold m a b
 -- snocl f = snoclM f . return
-snocl (Fold fstep finitial fextract) a = Fold fstep initial fextract
+snocl (Fold fstep finitial fextract ffinal) a =
+    Fold fstep initial fextract ffinal
 
     where
 
@@ -1512,12 +1603,12 @@ snocl (Fold fstep finitial fextract) a = Fold fstep initial fextract
 -- /Pre-release/
 {-# INLINE snocM #-}
 snocM :: Monad m => Fold m a b -> m a -> m (Fold m a b)
-snocM (Fold step initial extract) action = do
+snocM (Fold step initial extract final) action = do
     res <- initial
     r <- case res of
           Partial fs -> action >>= step fs
           Done _ -> return res
-    return $ Fold step (return r) extract
+    return $ Fold step (return r) extract final
 
 -- Definitions:
 --
@@ -1536,12 +1627,12 @@ snocM (Fold step initial extract) action = do
 -- /Pre-release/
 {-# INLINE snoc #-}
 snoc :: Monad m => Fold m a b -> a -> m (Fold m a b)
-snoc (Fold step initial extract) a = do
+snoc (Fold step initial extract final) a = do
     res <- initial
     r <- case res of
           Partial fs -> step fs a
           Done _ -> return res
-    return $ Fold step (return r) extract
+    return $ Fold step (return r) extract final
 
 -- | Append a singleton value to the fold.
 --
@@ -1569,7 +1660,7 @@ addOne = flip snoc
 -- /Pre-release/
 {-# INLINE extractM #-}
 extractM :: Monad m => Fold m a b -> m b
-extractM (Fold _ initial extract) = do
+extractM (Fold _ initial extract _) = do
     res <- initial
     case res of
           Partial fs -> extract fs
@@ -1578,14 +1669,15 @@ extractM (Fold _ initial extract) = do
 -- | Close a fold so that it does not accept any more input.
 {-# INLINE close #-}
 close :: Monad m => Fold m a b -> Fold m a b
-close (Fold _ initial1 extract1) = Fold undefined initial undefined
+close (Fold _ initial1 _ final1) =
+    Fold undefined initial undefined undefined
 
     where
 
     initial = do
         res <- initial1
         case res of
-              Partial s -> Done <$> extract1 s
+              Partial s -> Done <$> final1 s
               Done b -> return $ Done b
 
 -- Corresponds to the null check for streams.
@@ -1595,7 +1687,7 @@ close (Fold _ initial1 extract1) = Fold undefined initial undefined
 -- /Pre-release/
 {-# INLINE isClosed #-}
 isClosed :: Monad m => Fold m a b -> m Bool
-isClosed (Fold _ initial _) = do
+isClosed (Fold _ initial _ _) = do
     res <- initial
     return $ case res of
           Partial _ -> False
@@ -1629,8 +1721,10 @@ data ManyState s1 s2
 --
 {-# INLINE many #-}
 many :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
-many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
-    Fold step initial extract
+many
+    (Fold sstep sinitial sextract sfinal)
+    (Fold cstep cinitial cextract cfinal) =
+    Fold step initial extract final
 
     where
 
@@ -1679,6 +1773,13 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
             Partial s -> cextract s
             Done b -> return b
 
+    final (ManyFirst ss cs) = sfinal ss *> cfinal cs
+    final (ManyLoop ss cs) = do
+        cres <- sfinal ss >>= cstep cs
+        case cres of
+            Partial s -> cfinal s
+            Done b -> return b
+
 -- | Like many, but the "first" fold emits an output at the end even if no
 -- input is received.
 --
@@ -1688,8 +1789,10 @@ many (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
 --
 {-# INLINE manyPost #-}
 manyPost :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
-manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
-    Fold step initial extract
+manyPost
+    (Fold sstep sinitial sextract sfinal)
+    (Fold cstep cinitial cextract cfinal) =
+    Fold step initial extract final
 
     where
 
@@ -1725,6 +1828,12 @@ manyPost (Fold sstep sinitial sextract) (Fold cstep cinitial cextract) =
             Partial s -> cextract s
             Done b -> return b
 
+    final (Tuple' ss cs) = do
+        cres <- sfinal ss >>= cstep cs
+        case cres of
+            Partial s -> cfinal s
+            Done b -> return b
+
 -- | @groupsOf n split collect@ repeatedly applies the @split@ fold to chunks
 -- of @n@ items in the input stream and supplies the result to the @collect@
 -- fold.
@@ -1753,7 +1862,10 @@ groupsOf n split = many (take n split)
 --
 {-# INLINE refoldMany #-}
 refoldMany :: Monad m => Fold m a b -> Refold m x b c -> Refold m x a c
-refoldMany (Fold sstep sinitial sextract) (Refold cstep cinject cextract) =
+refoldMany
+    (Fold sstep sinitial sextract _sfinal)
+    -- XXX We will need a "final" in refold as well
+    (Refold cstep cinject cextract) =
     Refold step inject extract
 
     where
@@ -1804,7 +1916,9 @@ data ConsumeManyState x cs ss = ConsumeMany x cs (Either ss ss)
 -- /Internal/
 {-# INLINE refoldMany1 #-}
 refoldMany1 :: Monad m => Refold m x a b -> Fold m b c -> Refold m x a c
-refoldMany1 (Refold sstep sinject sextract) (Fold cstep cinitial cextract) =
+refoldMany1
+    (Refold sstep sinject sextract)
+    (Fold cstep cinitial cextract _cfinal) =
     Refold step inject extract
 
     where
@@ -1855,7 +1969,7 @@ refoldMany1 (Refold sstep sinject sextract) (Fold cstep cinitial cextract) =
 {-# INLINE refold #-}
 refold :: Monad m => Refold m b a c -> Fold m a b -> Fold m a c
 refold (Refold step inject extract) f =
-    Fold step (extractM f >>= inject) extract
+    Fold step (extractM f >>= inject) extract extract
 
 ------------------------------------------------------------------------------
 -- morphInner
@@ -1865,8 +1979,8 @@ refold (Refold step inject extract) f =
 --
 -- /Pre-release/
 morphInner :: (forall x. m x -> n x) -> Fold m a b -> Fold n a b
-morphInner f (Fold step initial extract) =
-    Fold (\x a -> f $ step x a) (f initial) (f . extract)
+morphInner f (Fold step initial extract final) =
+    Fold (\x a -> f $ step x a) (f initial) (f . extract) (f . final)
 
 -- | Adapt a pure fold to any monad.
 --

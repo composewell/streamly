@@ -30,6 +30,8 @@ module Streamly.Benchmark.Common.Handle
     , isSpace
     , isSp
     , mkHandleBenchEnv
+    , Handles(..)
+    , getHandles
     )
 where
 

@@ -327,7 +327,7 @@ splitOnSuffix byte = D.splitInnerBySuffix (A.breakOn byte) A.splice
 {-# INLINE_NORMAL foldBreakD #-}
 foldBreakD :: forall m a b. (MonadIO m, Unbox a) =>
     Fold m a b -> D.Stream m (Array a) -> m (b, D.Stream m (Array a))
-foldBreakD (FL.Fold fstep initial extract) stream@(D.Stream step state) = do
+foldBreakD (FL.Fold fstep initial _ final) stream@(D.Stream step state) = do
     res <- initial
     case res of
         FL.Partial fs -> go SPEC state fs
@@ -344,7 +344,7 @@ foldBreakD (FL.Fold fstep initial extract) stream@(D.Stream step state) = do
                  in goArray SPEC s fp start fs
             D.Skip s -> go SPEC s fs
             D.Stop -> do
-                b <- extract fs
+                b <- final fs
                 return (b, D.nil)
 
     goArray !_ s (Tuple' end _) !cur !fs
@@ -363,7 +363,7 @@ foldBreakD (FL.Fold fstep initial extract) stream@(D.Stream step state) = do
 {-# INLINE_NORMAL foldBreakK #-}
 foldBreakK :: forall m a b. (MonadIO m, Unbox a) =>
     Fold m a b -> K.StreamK m (Array a) -> m (b, K.StreamK m (Array a))
-foldBreakK (FL.Fold fstep initial extract) stream = do
+foldBreakK (FL.Fold fstep initial _ final) stream = do
     res <- initial
     case res of
         FL.Partial fs -> go fs stream
@@ -373,7 +373,7 @@ foldBreakK (FL.Fold fstep initial extract) stream = do
 
     {-# INLINE go #-}
     go !fs st = do
-        let stop = (, K.nil) <$> extract fs
+        let stop = (, K.nil) <$> final fs
             single a = yieldk a K.nil
             yieldk (Array contents start end) r =
                 let fp = Tuple' end contents

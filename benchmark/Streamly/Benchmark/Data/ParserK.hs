@@ -213,7 +213,7 @@ sequence_ value =
 
 {-# INLINE takeWhileFailD #-}
 takeWhileFailD :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-takeWhileFailD predicate (Fold fstep finitial fextract) =
+takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
     Parser step initial extract
 
     where
@@ -234,7 +234,7 @@ takeWhileFailD predicate (Fold fstep finitial fextract) =
                       Fold.Done b -> Done 0 b
         else return $ Error "fail"
 
-    extract s = fmap (Done 0) (fextract s)
+    extract s = fmap (Done 0) (ffinal s)
 
 {-# INLINE takeWhileFail #-}
 takeWhileFail :: CONSTRAINT =>

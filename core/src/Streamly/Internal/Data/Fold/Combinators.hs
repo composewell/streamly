@@ -443,8 +443,8 @@ trace f = lmapM (tracing f)
 -- /Pre-release/
 {-# INLINE transform #-}
 transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
-transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
-    Fold step initial extract
+transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract ffinal) =
+    Fold step initial extract final
 
     where
 
@@ -477,10 +477,14 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 
     extract (Tuple' _ fs) = fextract fs
 
+    final (Tuple' _ fs) = ffinal fs
+
 {-# INLINE scanWith #-}
 scanWith :: Monad m => Bool -> Fold m a b -> Fold m b c -> Fold m a c
-scanWith isMany (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step initial extract
+scanWith isMany
+    (Fold stepL initialL extractL finalL)
+    (Fold stepR initialR extractR finalR) =
+    Fold step initial extract final
 
     where
 
@@ -494,15 +498,14 @@ scanWith isMany (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
                     Partial sR1 ->
                         if isMany
                         then runStep initialL sR1
-                        else Done <$> extractR sR1
+                        else Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
-                return
-                    $ case rR of
-                        Partial sR1 -> Partial (sL, sR1)
-                        Done bR -> Done bR
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
 
     initial = do
         r <- initialR
@@ -513,6 +516,8 @@ scanWith isMany (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     step (sL, sR) x = runStep (stepL sL x) sR
 
     extract = extractR . snd
+
+    final (sL, sR) = finalL sL *> finalR sR
 
 -- | Scan the input of a 'Fold' to change it in a stateful manner using another
 -- 'Fold'. The scan stops as soon as the fold terminates.
@@ -565,7 +570,7 @@ deleteBy eq x0 = fmap extract $ foldl' step (Tuple' False Nothing)
 --
 {-# INLINE slide2 #-}
 slide2 :: Monad m => Fold m (a, Maybe a) b -> Fold m a b
-slide2 (Fold step1 initial1 extract1) = Fold step initial extract
+slide2 (Fold step1 initial1 extract1 final1) = Fold step initial extract final
 
     where
 
@@ -576,6 +581,8 @@ slide2 (Fold step1 initial1 extract1) = Fold step initial extract
         first (Tuple' (Just cur)) <$> step1 s (cur, prev)
 
     extract (Tuple' _ s) = extract1 s
+
+    final (Tuple' _ s) = final1 s
 
 -- | Return the latest unique element using the supplied comparison function.
 -- Returns 'Nothing' if the current element is same as the last element
@@ -932,7 +939,7 @@ rollingHashFirstN n = take n rollingHash
 --
 {-# INLINE rollingMapM #-}
 rollingMapM :: Monad m => (Maybe a -> a -> m b) -> Fold m a b
-rollingMapM f = Fold step initial extract
+rollingMapM f = Fold step initial extract extract
 
     where
 
@@ -1173,7 +1180,8 @@ head = one
 -- /Pre-release/
 {-# INLINE findM #-}
 findM :: Monad m => (a -> m Bool) -> Fold m a (Maybe a)
-findM predicate = Fold step (return $ Partial ()) (const $ return Nothing)
+findM predicate =
+    Fold step (return $ Partial ()) extract extract
 
     where
 
@@ -1183,6 +1191,8 @@ findM predicate = Fold step (return $ Partial ()) (const $ return Nothing)
                 then Done (Just a)
                 else Partial ()
          in f <$> predicate a
+
+    extract = const $ return Nothing
 
 -- | Returns the first element that satisfies the given predicate.
 --
@@ -1426,7 +1436,7 @@ splitAt n fld = splitWith (,) (take n fld)
 
 {-# INLINE takingEndByM #-}
 takingEndByM :: Monad m => (a -> m Bool) -> Fold m a (Maybe a)
-takingEndByM p = Fold step initial (return . toMaybe)
+takingEndByM p = Fold step initial extract extract
 
     where
 
@@ -1439,6 +1449,8 @@ takingEndByM p = Fold step initial (return . toMaybe)
               then Done $ Just a
               else Partial $ Just' a
 
+    extract = return . toMaybe
+
 -- |
 --
 -- >>> takingEndBy p = Fold.takingEndByM (return . p)
@@ -1449,7 +1461,7 @@ takingEndBy p = takingEndByM (return . p)
 
 {-# INLINE takingEndByM_ #-}
 takingEndByM_ :: Monad m => (a -> m Bool) -> Fold m a (Maybe a)
-takingEndByM_ p = Fold step initial (return . toMaybe)
+takingEndByM_ p = Fold step initial extract extract
 
     where
 
@@ -1462,6 +1474,8 @@ takingEndByM_ p = Fold step initial (return . toMaybe)
               then Done Nothing
               else Partial $ Just' a
 
+    extract = return . toMaybe
+
 -- |
 --
 -- >>> takingEndBy_ p = Fold.takingEndByM_ (return . p)
@@ -1472,7 +1486,7 @@ takingEndBy_ p = takingEndByM_ (return . p)
 
 {-# INLINE droppingWhileM #-}
 droppingWhileM :: Monad m => (a -> m Bool) -> Fold m a (Maybe a)
-droppingWhileM p = Fold step initial (return . toMaybe)
+droppingWhileM p = Fold step initial extract extract
 
     where
 
@@ -1486,6 +1500,8 @@ droppingWhileM p = Fold step initial (return . toMaybe)
               then Nothing'
               else Just' a
     step _ a = return $ Partial $ Just' a
+
+    extract = return . toMaybe
 
 -- |
 -- >>> droppingWhile p = Fold.droppingWhileM (return . p)
@@ -1515,15 +1531,15 @@ droppingWhile p = droppingWhileM (return . p)
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 -- takeEndBy_ predicate = scanMaybe (takingEndBy_ predicate)
-takeEndBy_ predicate (Fold fstep finitial fextract) =
-    Fold step finitial fextract
+takeEndBy_ predicate (Fold fstep finitial fextract ffinal) =
+    Fold step finitial fextract ffinal
 
     where
 
     step s a =
         if not (predicate a)
         then fstep s a
-        else Done <$> fextract s
+        else Done <$> ffinal s
 
 -- Note:
 -- > Stream.splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
@@ -1544,8 +1560,8 @@ takeEndBy_ predicate (Fold fstep finitial fextract) =
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 -- takeEndBy predicate = scanMaybe (takingEndBy predicate)
-takeEndBy predicate (Fold fstep finitial fextract) =
-    Fold step finitial fextract
+takeEndBy predicate (Fold fstep finitial fextract ffinal) =
+    Fold step finitial fextract ffinal
 
     where
 
@@ -1555,7 +1571,7 @@ takeEndBy predicate (Fold fstep finitial fextract) =
         then return res
         else do
             case res of
-                Partial s1 -> Done <$> fextract s1
+                Partial s1 -> Done <$> ffinal s1
                 Done b -> return $ Done b
 
 ------------------------------------------------------------------------------
@@ -1590,8 +1606,8 @@ takeEndBySeq :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b
-takeEndBySeq patArr (Fold fstep finitial fextract) =
-    Fold step initial extract
+takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
+    Fold step initial extract final
 
     where
 
@@ -1604,7 +1620,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
                 | patLen == 0 ->
                     -- XXX Should we match nothing or everything on empty
                     -- pattern?
-                    -- Done <$> fextract acc
+                    -- Done <$> ffinal acc
                     return $ Partial $ SplitOnSeqEmpty acc
                 | patLen == 1 -> do
                     pat <- liftIO $ Array.unsafeIndexIO 0 patArr
@@ -1655,7 +1671,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
         case res of
             Partial s1
                 | pat /= x -> return $ Partial $ SplitOnSeqSingle s1 pat
-                | otherwise -> Done <$> fextract s1
+                | otherwise -> Done <$> ffinal s1
             Done b -> return $ Done b
     step (SplitOnSeqWord s idx wrd) x = do
         res <- fstep s x
@@ -1664,7 +1680,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
             Partial s1
                 | idx == maxIndex -> do
                     if wrd1 .&. wordMask == wordPat
-                    then Done <$> fextract s1
+                    then Done <$> ffinal s1
                     else return $ Partial $ SplitOnSeqWordLoop s1 wrd1
                 | otherwise ->
                     return $ Partial $ SplitOnSeqWord s1 (idx + 1) wrd1
@@ -1675,7 +1691,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
         case res of
             Partial s1
                 | wrd1 .&. wordMask == wordPat ->
-                    Done <$> fextract s1
+                    Done <$> ffinal s1
                 | otherwise ->
                     return $ Partial $ SplitOnSeqWordLoop s1 wrd1
             Done b -> return $ Done b
@@ -1689,7 +1705,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
                     let fld = Ring.unsafeFoldRing (Ring.ringBound rb)
                     let !ringHash = fld addCksum 0 rb
                     if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
-                    then Done <$> fextract s1
+                    then Done <$> ffinal s1
                     else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
                 else
                     return $ Partial $ SplitOnSeqKR s1 (idx + 1) rb rh1
@@ -1702,11 +1718,11 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
                 rh1 <- liftIO $ Ring.unsafeInsert rb rh x
                 let ringHash = deltaCksum cksum old x
                 if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
-                then Done <$> fextract s1
+                then Done <$> ffinal s1
                 else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
             Done b -> return $ Done b
 
-    extract state =
+    extractFunc fex state =
         let st =
                 case state of
                     SplitOnSeqEmpty s -> s
@@ -1715,7 +1731,11 @@ takeEndBySeq patArr (Fold fstep finitial fextract) =
                     SplitOnSeqWordLoop s _ -> s
                     SplitOnSeqKR s _ _ _ -> s
                     SplitOnSeqKRLoop s _ _ _ -> s
-         in fextract st
+        in fex st
+
+    extract state = extractFunc fextract state
+
+    final state = extractFunc ffinal state
 
 -- | Like 'takeEndBySeq' but discards the matched sequence.
 --
@@ -1726,8 +1746,8 @@ takeEndBySeq_ :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b
-takeEndBySeq_ patArr (Fold fstep finitial fextract) =
-    Fold step initial extract
+takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
+    Fold step initial extract final
 
     where
 
@@ -1740,7 +1760,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
                 | patLen == 0 ->
                     -- XXX Should we match nothing or everything on empty
                     -- pattern?
-                    -- Done <$> fextract acc
+                    -- Done <$> ffinal acc
                     return $ Partial $ SplitOnSeqEmpty acc
                 | patLen == 1 -> do
                     pat <- liftIO $ Array.unsafeIndexIO 0 patArr
@@ -1797,13 +1817,13 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
             case res of
                 Partial s1 -> return $ Partial $ SplitOnSeqSingle s1 pat
                 Done b -> return $ Done b
-        else Done <$> fextract s
+        else Done <$> ffinal s
     step (SplitOnSeqWord s idx wrd) x = do
         let wrd1 = addToWord wrd x
         if idx == maxIndex
         then do
             if wrd1 .&. wordMask == wordPat
-            then Done <$> fextract s
+            then Done <$> ffinal s
             else return $ Partial $ SplitOnSeqWordLoop s wrd1
         else return $ Partial $ SplitOnSeqWord s (idx + 1) wrd1
     step (SplitOnSeqWordLoop s wrd) x = do
@@ -1814,7 +1834,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
         case res of
             Partial s1
                 | wrd1 .&. wordMask == wordPat ->
-                    Done <$> fextract s1
+                    Done <$> ffinal s1
                 | otherwise ->
                     return $ Partial $ SplitOnSeqWordLoop s1 wrd1
             Done b -> return $ Done b
@@ -1825,7 +1845,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
             let fld = Ring.unsafeFoldRing (Ring.ringBound rb)
             let !ringHash = fld addCksum 0 rb
             if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
-            then Done <$> fextract s
+            then Done <$> ffinal s
             else return $ Partial $ SplitOnSeqKRLoop s ringHash rb rh1
         else return $ Partial $ SplitOnSeqKR s (idx + 1) rb rh1
     step (SplitOnSeqKRLoop s cksum rb rh) x = do
@@ -1836,7 +1856,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
                 rh1 <- liftIO $ Ring.unsafeInsert rb rh x
                 let ringHash = deltaCksum cksum old x
                 if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
-                then Done <$> fextract s1
+                then Done <$> ffinal s1
                 else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
             Done b -> return $ Done b
 
@@ -1844,10 +1864,10 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
     -- terminates early inside extract, we may still have buffered data
     -- remaining which will be lost if we do not communicate that to the
     -- driver.
-    extract state = do
+    extractFunc fex state = do
         let consumeWord s n wrd = do
                 if n == 0
-                then fextract s
+                then fex s
                 else do
                     let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
                     r <- fstep s (toEnum $ fromIntegral old)
@@ -1857,7 +1877,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
 
         let consumeRing s n rb rh =
                 if n == 0
-                then fextract s
+                then fex s
                 else do
                     old <- liftIO $ peek rh
                     let rh1 = Ring.advance rb rh
@@ -1867,12 +1887,16 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract) =
                         Done b -> return b
 
         case state of
-            SplitOnSeqEmpty s -> fextract s
-            SplitOnSeqSingle s _ -> fextract s
+            SplitOnSeqEmpty s -> fex s
+            SplitOnSeqSingle s _ -> fex s
             SplitOnSeqWord s idx wrd -> consumeWord s idx wrd
             SplitOnSeqWordLoop s wrd -> consumeWord s patLen wrd
             SplitOnSeqKR s idx rb _ -> consumeRing s idx rb (Ring.startOf rb)
             SplitOnSeqKRLoop s _ rb rh -> consumeRing s patLen rb rh
+
+    extract state = extractFunc fextract state
+
+    final state = extractFunc ffinal state
 
 ------------------------------------------------------------------------------
 -- Distributing
@@ -2317,8 +2341,8 @@ toStreamRev = fmap StreamD.fromList toListRev
 -- /Pre-release/
 {-# INLINE unfoldMany #-}
 unfoldMany :: Monad m => Unfold m a b -> Fold m b c -> Fold m a c
-unfoldMany (Unfold ustep inject) (Fold fstep initial extract) =
-    Fold consume initial extract
+unfoldMany (Unfold ustep inject) (Fold fstep initial extract final) =
+    Fold consume initial extract final
 
     where
 
@@ -2345,7 +2369,7 @@ bottomBy :: (MonadIO m, Unbox a) =>
        (a -> a -> Ordering)
     -> Int
     -> Fold m a (MutArray a)
-bottomBy cmp n = Fold step initial extract
+bottomBy cmp n = Fold step initial extract extract
 
     where
 
@@ -2440,8 +2464,8 @@ intersperseWithQuotes
     quote
     esc
     separator
-    (Fold stepL initialL extractL)
-    (Fold stepR initialR extractR) = Fold step initial extract
+    (Fold stepL initialL _ finalL)
+    (Fold stepR initialR extractR finalR) = Fold step initial extract final
 
     where
 
@@ -2484,11 +2508,13 @@ intersperseWithQuotes
         r <- stepL sL a
         case r of
             Partial s -> return $ Partial (nextState sR s)
-            Done _ -> error "Collecting fold finished inside quote"
+            Done _ -> do
+                _ <- finalR sR
+                error "Collecting fold finished inside quote"
 
     step (IntersperseQUnquoted sR sL) a
         | a == separator = do
-            b <- extractL sL
+            b <- finalL sL
             collect IntersperseQUnquoted sR b
         | a == quote = processQuoted a sL sR IntersperseQQuoted
         | otherwise = process a sL sR IntersperseQUnquoted
@@ -2505,4 +2531,14 @@ intersperseWithQuotes
     extract (IntersperseQQuoted _ _) =
         error "intersperseWithQuotes: finished inside quote"
     extract (IntersperseQQuotedEsc _ _) =
+        error "intersperseWithQuotes: finished inside quote, at escape char"
+
+    final (IntersperseQUnquoted sR sL) = finalL sL *> finalR sR
+    final (IntersperseQQuoted sR sL) = do
+        _ <- finalR sR
+        _ <- finalL sL
+        error "intersperseWithQuotes: finished inside quote"
+    final (IntersperseQQuotedEsc sR sL) = do
+        _ <- finalR sR
+        _ <- finalL sL
         error "intersperseWithQuotes: finished inside quote, at escape char"

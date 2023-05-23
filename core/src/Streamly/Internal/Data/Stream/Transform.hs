@@ -300,7 +300,7 @@ data TapState fs st a
 --
 {-# INLINE tap #-}
 tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
-tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
+tap (Fold fstep initial _ final) (Stream step state) = Stream step' TapInit
 
     where
 
@@ -323,7 +323,7 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' TapInit
                           FL.Done _ -> TapDone s
             Skip s -> return $ Skip (Tapping acc s)
             Stop -> do
-                void $ extract acc
+                void $ final acc
                 return Stop
     step' gst (TapDone st) = do
         r <- step gst st
@@ -342,7 +342,7 @@ data TapOffState fs s a
 {-# INLINE_NORMAL tapOffsetEvery #-}
 tapOffsetEvery :: Monad m
     => Int -> Int -> Fold m a b -> Stream m a -> Stream m a
-tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
+tapOffsetEvery offset n (Fold fstep initial _ final) (Stream step state) =
     Stream step' TapOffInit
 
     where
@@ -372,7 +372,7 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
                 return $ Yield x next
             Skip s -> return $ Skip (TapOffTapping acc s count)
             Stop -> do
-                void $ extract acc
+                void $ final acc
                 return Stop
     step' gst (TapOffDone st) = do
         r <- step gst st
@@ -437,7 +437,7 @@ data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 --
 {-# INLINE_NORMAL postscan #-}
 postscan :: Monad m => FL.Fold m a b -> Stream m a -> Stream m b
-postscan (FL.Fold fstep initial extract) (Stream sstep state) =
+postscan (FL.Fold fstep initial extract final) (Stream sstep state) =
     Stream step (ScanInit state)
 
     where
@@ -460,13 +460,13 @@ postscan (FL.Fold fstep initial extract) (Stream sstep state) =
                         return $ Yield b $ ScanDo s fs1
                     FL.Done b -> return $ Yield b ScanDone
             Skip s -> return $ Skip $ ScanDo s fs
-            Stop -> return Stop
+            Stop -> final fs >> return Stop
     step _ ScanDone = return Stop
 
 {-# INLINE scanWith #-}
 scanWith :: Monad m
     => Bool -> Fold m a b -> Stream m a -> Stream m b
-scanWith restart (Fold fstep initial extract) (Stream sstep state) =
+scanWith restart (Fold fstep initial extract final) (Stream sstep state) =
     Stream step (ScanInit state)
 
     where
@@ -489,7 +489,7 @@ scanWith restart (Fold fstep initial extract) (Stream sstep state) =
         case res of
             Yield x s -> runStep s (fstep fs x)
             Skip s -> return $ Skip $ ScanDo s fs
-            Stop -> return Stop
+            Stop -> final fs >> return Stop
     step _ ScanDone = return Stop
 
 -- XXX It may be useful to have a version of scan where we can keep the

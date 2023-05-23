@@ -927,7 +927,7 @@ data Fused3 a b c = Fused3 !a !b !c
 --
 {-# INLINE splitMany #-}
 splitMany :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
-splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
+splitMany (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
     Parser step initial extract
 
     where
@@ -943,7 +943,7 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                     IPartial ps -> return $ partial $ Fused3 ps 0 fs
                     IDone pb ->
                         runCollectorWith (handleCollect partial done) fs pb
-                    IError _ -> done <$> fextract fs
+                    IError _ -> done <$> ffinal fs
             FL.Done fb -> return $ done fb
 
     runCollectorWith cont fs pb = fstep fs pb >>= cont
@@ -967,19 +967,19 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                 assertM(cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
             Error _ -> do
-                xs <- fextract fs
+                xs <- ffinal fs
                 return $ Done cnt xs
 
-    extract (Fused3 _ 0 fs) = fmap (Done 0) (fextract fs)
+    extract (Fused3 _ 0 fs) = fmap (Done 0) (ffinal fs)
     extract (Fused3 s cnt fs) = do
         r <- extract1 s
         case r of
-            Error _ -> fmap (Done cnt) (fextract fs)
+            Error _ -> fmap (Done cnt) (ffinal fs)
             Done n b -> do
                 assertM(n <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
-                    FL.Partial s1 -> fmap (Done n) (fextract s1)
+                    FL.Partial s1 -> fmap (Done n) (ffinal s1)
                     FL.Done b1 -> return (Done n b1)
             Partial _ _ -> error "splitMany: Partial in extract"
             Continue n s1 -> do
@@ -993,7 +993,7 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
 --
 {-# INLINE splitManyPost #-}
 splitManyPost :: Monad m =>  Parser a m b -> Fold m b c -> Parser a m c
-splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
+splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
     Parser step initial extract
 
     where
@@ -1009,7 +1009,7 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                     IPartial ps -> return $ partial $ Fused3 ps 0 fs
                     IDone pb ->
                         runCollectorWith (handleCollect partial done) fs pb
-                    IError _ -> done <$> fextract fs
+                    IError _ -> done <$> ffinal fs
             FL.Done fb -> return $ done fb
 
     runCollectorWith cont fs pb = fstep fs pb >>= cont
@@ -1031,18 +1031,18 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                 assertM(cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
             Error _ -> do
-                xs <- fextract fs
+                xs <- ffinal fs
                 return $ Done cnt1 xs
 
     extract (Fused3 s cnt fs) = do
         r <- extract1 s
         case r of
-            Error _ -> fmap (Done cnt) (fextract fs)
+            Error _ -> fmap (Done cnt) (ffinal fs)
             Done n b -> do
                 assertM(n <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
-                    FL.Partial s1 -> fmap (Done n) (fextract s1)
+                    FL.Partial s1 -> fmap (Done n) (ffinal s1)
                     FL.Done b1 -> return (Done n b1)
             Partial _ _ -> error "splitMany: Partial in extract"
             Continue n s1 -> do
@@ -1055,7 +1055,7 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
 --
 {-# INLINE splitSome #-}
 splitSome :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
-splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
+splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
     Parser step initial extract
 
     where
@@ -1071,7 +1071,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                     IPartial ps -> return $ partial $ Fused3 ps 0 $ Right fs
                     IDone pb ->
                         runCollectorWith (handleCollect partial done) fs pb
-                    IError _ -> done <$> fextract fs
+                    IError _ -> done <$> ffinal fs
             FL.Done fb -> return $ done fb
 
     runCollectorWith cont fs pb = fstep fs pb >>= cont
@@ -1121,7 +1121,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
             Done n b -> do
                 assertM(cnt1 - n >= 0)
                 fstep fs b >>= handleCollect (Partial n) (Done n)
-            Error _ -> Done cnt1 <$> fextract fs
+            Error _ -> Done cnt1 <$> ffinal fs
 
     extract (Fused3 s cnt (Left fs)) = do
         r <- extract1 s
@@ -1131,7 +1131,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
                 assertM(n <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
-                    FL.Partial s1 -> fmap (Done n) (fextract s1)
+                    FL.Partial s1 -> fmap (Done n) (ffinal s1)
                     FL.Done b1 -> return (Done n b1)
             Partial _ _ -> error "splitSome: Partial in extract"
             Continue n s1 -> do
@@ -1140,12 +1140,12 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial fextract) =
     extract (Fused3 s cnt (Right fs)) = do
         r <- extract1 s
         case r of
-            Error _ -> fmap (Done cnt) (fextract fs)
+            Error _ -> fmap (Done cnt) (ffinal fs)
             Done n b -> do
                 assertM(n <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
-                    FL.Partial s1 -> fmap (Done n) (fextract s1)
+                    FL.Partial s1 -> fmap (Done n) (ffinal s1)
                     FL.Done b1 -> return (Done n b1)
             Partial _ _ -> error "splitSome: Partial in extract"
             Continue n s1 -> do

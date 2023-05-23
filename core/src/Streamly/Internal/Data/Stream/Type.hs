@@ -398,7 +398,7 @@ toStreamK (Stream step state) = go state
 {-# INLINE_NORMAL foldEither #-}
 foldEither :: Monad m =>
     Fold m a b -> Stream m a -> m (Either (Fold m a b) (b, Stream m a))
-foldEither (Fold fstep begin done) (UnStream step state) = do
+foldEither (Fold fstep begin done final) (UnStream step state) = do
     res <- begin
     case res of
         FL.Partial fs -> go SPEC fs state
@@ -416,7 +416,9 @@ foldEither (Fold fstep begin done) (UnStream step state) = do
                     FL.Done b -> return $! Right (b, Stream step s)
                     FL.Partial fs1 -> go SPEC fs1 s
             Skip s -> go SPEC fs s
-            Stop -> return $! Left (Fold fstep (return $ FL.Partial fs) done)
+            Stop ->
+                let f = Fold fstep (return $ FL.Partial fs) done final
+                 in return $! Left f
 
 -- | Like 'fold' but also returns the remaining stream. The resulting stream
 -- would be 'Stream.nil' if the stream finished before the fold.
@@ -427,12 +429,12 @@ foldBreak fld strm = do
     r <- foldEither fld strm
     case r of
         Right res -> return res
-        Left (Fold _ initial extract) -> do
+        Left (Fold _ initial _ final) -> do
             res <- initial
             case res of
                 FL.Done _ -> error "foldBreak: unreachable state"
                 FL.Partial s -> do
-                    b <- extract s
+                    b <- final s
                     return (b, nil)
 
     where
@@ -475,8 +477,8 @@ fold fld strm = do
 --
 {-# INLINE_NORMAL foldAddLazy #-}
 foldAddLazy :: Monad m => Fold m a b -> Stream m a -> Fold m a b
-foldAddLazy (Fold fstep finitial fextract) (Stream sstep state) =
-    Fold fstep initial fextract
+foldAddLazy (Fold fstep finitial fextract ffinal) (Stream sstep state) =
+    Fold fstep initial fextract ffinal
 
     where
 
@@ -1796,7 +1798,7 @@ data FoldManyPost s fs b a
 --
 {-# INLINE_NORMAL foldManyPost #-}
 foldManyPost :: Monad m => Fold m a b -> Stream m a -> Stream m b
-foldManyPost (Fold fstep initial extract) (Stream step state) =
+foldManyPost (Fold fstep initial _ final) (Stream step state) =
     Stream step' (FoldManyPostStart state)
 
     where
@@ -1824,7 +1826,7 @@ foldManyPost (Fold fstep initial extract) (Stream step state) =
             Yield x s -> consume x s fs
             Skip s -> return $ Skip (FoldManyPostLoop s fs)
             Stop -> do
-                b <- extract fs
+                b <- final fs
                 return $ Skip (FoldManyPostYield b FoldManyPostDone)
     step' _ (FoldManyPostYield b next) = return $ Yield b next
     step' _ FoldManyPostDone = return Stop
@@ -1868,7 +1870,7 @@ data FoldMany s fs b a
 --
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
-foldMany (Fold fstep initial extract) (Stream step state) =
+foldMany (Fold fstep initial _ final) (Stream step state) =
     Stream step' (FoldManyStart state)
 
     where
@@ -1895,14 +1897,14 @@ foldMany (Fold fstep initial extract) (Stream step state) =
         case r of
             Yield x s -> consume x s fs
             Skip s -> return $ Skip (FoldManyFirst fs s)
-            Stop -> return Stop
+            Stop -> final fs >> return Stop
     step' gst (FoldManyLoop st fs) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> consume x s fs
             Skip s -> return $ Skip (FoldManyLoop s fs)
             Stop -> do
-                b <- extract fs
+                b <- final fs
                 return $ Skip (FoldManyYield b FoldManyDone)
     step' _ (FoldManyYield b next) = return $ Yield b next
     step' _ FoldManyDone = return Stop

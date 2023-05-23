@@ -103,8 +103,8 @@ newtype ChunkFold m a b = ChunkFold (ParserD.Parser (Array a) m b)
 {-# INLINE fromFold #-}
 fromFold :: forall m a b. (MonadIO m, Unbox a) =>
     Fold.Fold m a b -> ChunkFold m a b
-fromFold (Fold.Fold fstep finitial fextract) =
-    ChunkFold (ParserD.Parser step initial (fmap (Done 0) . fextract))
+fromFold (Fold.Fold fstep finitial _ ffinal) =
+    ChunkFold (ParserD.Parser step initial extract)
 
     where
 
@@ -133,6 +133,8 @@ fromFold (Fold.Fold fstep finitial fextract) =
                     return $ Done ((end - next) `div` elemSize) b
                 Fold.Partial fs1 ->
                     goArray SPEC next fs1
+
+    extract = fmap (Done 0) . ffinal
 
 -- | Convert an element 'ParserD.Parser' into an array stream fold. If the
 -- parser fails the fold would throw an exception.

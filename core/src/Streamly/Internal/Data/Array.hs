@@ -258,7 +258,7 @@ writeLastN ::
        (Storable a, Unbox a, MonadIO m) => Int -> Fold m a (Array a)
 writeLastN n
     | n <= 0 = fmap (const mempty) FL.drain
-    | otherwise = A.unsafeFreeze <$> Fold step initial done
+    | otherwise = A.unsafeFreeze <$> Fold step initial done done
 
     where
 

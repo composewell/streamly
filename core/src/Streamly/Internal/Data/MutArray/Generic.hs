@@ -598,7 +598,7 @@ arrayChunkSize = 1024
 -- /Pre-release/
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: MonadIO m => Int -> Fold m a (MutArray a)
-writeNUnsafe n = Fold step initial return
+writeNUnsafe n = Fold step initial return return
 
     where
 

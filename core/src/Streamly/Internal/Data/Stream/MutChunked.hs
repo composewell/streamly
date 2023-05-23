@@ -131,8 +131,8 @@ packArraysChunksOf n (D.Stream step state) =
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf :: (MonadIO m, Unbox a)
     => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
-lpackArraysChunksOf n (Fold step1 initial1 extract1) =
-    Fold step initial extract
+lpackArraysChunksOf n (Fold step1 initial1 _ final1) =
+    Fold step initial extract final
 
     where
 
@@ -145,13 +145,6 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
         r <- initial1
         return $ first (Tuple' Nothing) r
 
-    extract (Tuple' Nothing r1) = extract1 r1
-    extract (Tuple' (Just buf) r1) = do
-        r <- step1 r1 buf
-        case r of
-            FL.Partial rr -> extract1 rr
-            FL.Done _ -> return ()
-
     step (Tuple' Nothing r1) arr =
             let len = MArray.byteLength arr
              in if len >= n
@@ -160,7 +153,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                     case r of
                         FL.Done _ -> return $ FL.Done ()
                         FL.Partial s -> do
-                            extract1 s
+                            _ <- final1 s
                             res <- initial1
                             return $ first (Tuple' Nothing) res
                 else return $ FL.Partial $ Tuple' (Just arr) r1
@@ -179,10 +172,25 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 case r of
                     FL.Done _ -> return $ FL.Done ()
                     FL.Partial s -> do
-                        extract1 s
+                        _ <- final1 s
                         res <- initial1
                         return $ first (Tuple' Nothing) res
             else return $ FL.Partial $ Tuple' (Just buf'') r1
+
+    -- XXX Several folds do extract >=> final, therefore, we need to make final
+    -- return  "m b" rather than using extract post it if we want extract to be
+    -- partial.
+    --
+    -- extract forces the pending buffer to be sent to the fold which is not
+    -- what we want.
+    extract _ = error "lpackArraysChunksOf: not designed for scanning"
+
+    final (Tuple' Nothing r1) = final1 r1
+    final (Tuple' (Just buf) r1) = do
+        r <- step1 r1 buf
+        case r of
+            FL.Partial rr -> final1 rr
+            FL.Done _ -> return ()
 
 -- XXX Same as compactLE, to be removed once that is implemented.
 --
@@ -256,7 +264,7 @@ compactLEParserD n = ParserD.Parser step initial extract
 compactGEFold ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> FL.Fold m (MutArray a) (MutArray a)
-compactGEFold n = Fold step initial extract
+compactGEFold n = Fold step initial extract extract
 
     where
 

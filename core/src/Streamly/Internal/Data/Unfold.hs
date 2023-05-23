@@ -205,7 +205,7 @@ swap = lmap Tuple.swap
 --
 {-# INLINE_NORMAL fold #-}
 fold :: Monad m => Fold m b c -> Unfold m a b -> a -> m c
-fold (Fold fstep initial extract) (Unfold ustep inject) a = do
+fold (Fold fstep initial _ final) (Unfold ustep inject) a = do
     res <- initial
     case res of
         FL.Partial x -> inject a >>= go SPEC x
@@ -223,7 +223,7 @@ fold (Fold fstep initial extract) (Unfold ustep inject) a = do
                     FL.Partial fs1 -> go SPEC fs1 s
                     FL.Done c -> return c
             Skip s -> go SPEC fs s
-            Stop -> extract fs
+            Stop -> final fs
 
 -- {-# ANN type FoldMany Fuse #-}
 data FoldMany s fs b a
@@ -238,7 +238,7 @@ data FoldMany s fs b a
 -- /Pre-release/
 {-# INLINE_NORMAL foldMany #-}
 foldMany :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-foldMany (Fold fstep initial extract) (Unfold ustep inject1) =
+foldMany (Fold fstep initial _ final) (Unfold ustep inject1) =
     Unfold step inject
 
     where
@@ -269,14 +269,14 @@ foldMany (Fold fstep initial extract) (Unfold ustep inject1) =
         case r of
             Yield x s -> consume x s fs
             Skip s -> return $ Skip (FoldManyFirst fs s)
-            Stop -> return Stop
+            Stop -> final fs >> return Stop
     step (FoldManyLoop st fs) = do
         r <- ustep st
         case r of
             Yield x s -> consume x s fs
             Skip s -> return $ Skip (FoldManyLoop s fs)
             Stop -> do
-                b <- extract fs
+                b <- final fs
                 return $ Skip (FoldManyYield b FoldManyDone)
     step (FoldManyYield b next) = return $ Yield b next
     step FoldManyDone = return Stop
@@ -317,7 +317,7 @@ either (Unfold stepL injectL) (Unfold stepR injectR) = Unfold step inject
 -- /Pre-release/
 {-# INLINE_NORMAL postscan #-}
 postscan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-postscan (Fold stepF initial extract) (Unfold stepU injectU) =
+postscan (Fold stepF initial extract final) (Unfold stepU injectU) =
     Unfold step inject
 
     where
@@ -340,7 +340,7 @@ postscan (Fold stepF initial extract) (Unfold stepU injectU) =
                         v <- extract fs1
                         return $ Yield v (Just (fs1, s))
             Skip s -> return $ Skip (Just (fs, s))
-            Stop -> return Stop
+            Stop -> final fs >> return Stop
 
     step Nothing = return Stop
 
@@ -348,7 +348,7 @@ data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 
 {-# INLINE_NORMAL scanWith #-}
 scanWith :: Monad m => Bool -> Fold m b c -> Unfold m a b -> Unfold m a c
-scanWith restart (Fold fstep initial extract) (Unfold stepU injectU) =
+scanWith restart (Fold fstep initial extract final) (Unfold stepU injectU) =
     Unfold step inject
 
     where
@@ -373,7 +373,7 @@ scanWith restart (Fold fstep initial extract) (Unfold stepU injectU) =
         case res of
             Yield x s -> runStep s (fstep fs x)
             Skip s -> return $ Skip $ ScanDo s fs
-            Stop -> return Stop
+            Stop -> final fs >> return Stop
     step ScanDone = return Stop
 
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.

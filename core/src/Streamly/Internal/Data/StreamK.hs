@@ -336,7 +336,7 @@ foldlMx' step begin done = go begin
 --
 {-# INLINABLE fold #-}
 fold :: Monad m => FL.Fold m a b -> StreamK m a -> m b
-fold (FL.Fold step begin done) m = do
+fold (FL.Fold step begin _ final) m = do
     res <- begin
     case res of
         FL.Partial fs -> go fs m
@@ -344,10 +344,10 @@ fold (FL.Fold step begin done) m = do
 
     where
     go !acc m1 =
-        let stop = done acc
+        let stop = final acc
             single a = step acc a
               >>= \case
-                        FL.Partial s -> done s
+                        FL.Partial s -> final s
                         FL.Done b1 -> return b1
             yieldk a r = step acc a
               >>= \case
@@ -365,7 +365,7 @@ fold (FL.Fold step begin done) m = do
 {-# INLINE foldEither #-}
 foldEither :: Monad m =>
     Fold m a b -> StreamK m a -> m (Either (Fold m a b) (b, StreamK m a))
-foldEither (FL.Fold step begin done) m = do
+foldEither (FL.Fold step begin done final) m = do
     res <- begin
     case res of
         FL.Partial fs -> go fs m
@@ -374,12 +374,15 @@ foldEither (FL.Fold step begin done) m = do
     where
 
     go !acc m1 =
-        let stop = return $ Left (Fold step (return $ FL.Partial acc) done)
+        let stop =
+                let f = Fold step (return $ FL.Partial acc) done final
+                 in return $ Left f
             single a =
                 step acc a
                   >>= \case
                     FL.Partial s ->
-                        return $ Left (Fold step (return $ FL.Partial s) done)
+                        let f = Fold step (return $ FL.Partial s) done final
+                         in return $ Left f
                     FL.Done b1 -> return $ Right (b1, nil)
             yieldk a r =
                 step acc a
@@ -397,12 +400,12 @@ foldBreak fld strm = do
     r <- foldEither fld strm
     case r of
         Right res -> return res
-        Left (Fold _ initial extract) -> do
+        Left (Fold _ initial _ final) -> do
             res <- initial
             case res of
                 FL.Done _ -> error "foldBreak: unreachable state"
                 FL.Partial s -> do
-                    b <- extract s
+                    b <- final s
                     return (b, nil)
 
 -- XXX Array folds can be implemented using this.
@@ -421,7 +424,7 @@ foldConcat :: Monad m =>
     Producer m a b -> Fold m b c -> StreamK m a -> m (c, StreamK m a)
 foldConcat
     (Producer pstep pinject pextract)
-    (Fold fstep begin done)
+    (Fold fstep begin _ final)
     stream = do
 
     res <- begin
@@ -433,14 +436,14 @@ foldConcat
 
     go !acc m1 = do
         let stop = do
-                r <- done acc
+                r <- final acc
                 return (r, nil)
             single a = do
                 st <- pinject a
                 res <- go1 SPEC acc st
                 case res of
                     Left fs -> do
-                        r <- done fs
+                        r <- final fs
                         return (r, nil)
                     Right (b, s) -> do
                         x <- pextract s
