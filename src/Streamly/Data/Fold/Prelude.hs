@@ -7,15 +7,15 @@
 -- Portability : GHC
 --
 module Streamly.Data.Fold.Prelude
-    (
-        toHashMapIO
+    ( module Streamly.Data.Fold
+    , toHashMapIO
     )
 where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
-import Streamly.Internal.Data.Fold
+import Streamly.Data.Fold
 import Streamly.Internal.Data.Fold.Container (toContainerIO)
 
 {-# INLINE toHashMapIO #-}
