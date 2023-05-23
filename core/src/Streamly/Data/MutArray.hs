@@ -47,7 +47,6 @@ module Streamly.Data.MutArray
 
     -- * Appending streams
     , writeAppendN
-    , writeAppendNUnsafe
     , writeAppend
 
     -- * Inplace mutation
@@ -72,7 +71,7 @@ module Streamly.Data.MutArray
 
     -- * Size
     , length
-    
+
     -- * Unbox Type Class
     , Unbox (..)
     )
