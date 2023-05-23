@@ -1906,13 +1906,13 @@ foldMany (Fold fstep initial extract) (Stream step state) =
 -- | Group the input stream into groups of @n@ elements each and then fold each
 -- group using the provided fold function.
 --
+-- | @groupsOf n f = foldMany (FL.take n f)@
+--
 -- >>> Stream.toList $ Stream.groupsOf 2 Fold.sum (Stream.enumerateFromTo 1 10)
 -- [3,7,11,15,19]
 --
 -- This can be considered as an n-fold version of 'take' where we apply
 -- 'take' repeatedly on the leftover stream until the stream exhausts.
---
--- @groupsOf n f = foldMany (FL.take n f)@
 --
 -- @since 0.9.0
 {-# INLINE groupsOf #-}
