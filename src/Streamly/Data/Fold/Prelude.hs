@@ -18,6 +18,26 @@ import Data.Hashable (Hashable)
 import Streamly.Data.Fold
 import Streamly.Internal.Data.Fold.Container (toContainerIO)
 
+-- | Split the input stream based on a hashable component of the key field and
+-- fold each split using the given fold. Useful for map/reduce, bucketizing
+-- the input in different bins or for generating histograms.
+--
+-- Example:
+--
+-- >>> import Data.HashMap.Strict (HashMap)
+-- >>> import qualified Streamly.Data.Fold.Prelude as Fold
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import Streamly.Data.Fold.Prelude (toHashMapIO)
+-- >>> :{
+--  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
+--      classify = toHashMapIO fst (Fold.lmap snd Fold.toList)
+--   in Stream.fold classify input :: IO (HashMap String [Double])
+-- :}
+-- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
+--
+-- /Pre-release/
+--
+
 {-# INLINE toHashMapIO #-}
 toHashMapIO :: (MonadIO m, Hashable k, Ord k) =>
     (a -> k) -> Fold m a b -> Fold m a (HashMap k b)
