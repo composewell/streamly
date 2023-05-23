@@ -18,6 +18,8 @@ module Streamly.Internal.Data.Array.Generic
 
     , fromStreamN
     , fromStream
+    , fromPureStream
+    , fromByteStr#
 
     , fromListN
     , fromList
@@ -47,7 +49,10 @@ where
 
 import Control.Monad (replicateM)
 import Control.Monad.IO.Class (MonadIO)
+import Data.Functor.Identity (Identity(..))
+import Data.Word (Word8)
 import GHC.Base (MutableArray#, RealWorld)
+import GHC.Exts (Addr#)
 import GHC.IO (unsafePerformIO)
 import Text.Read (readPrec)
 
@@ -112,6 +117,15 @@ writeWith elemCount = unsafeFreeze <$> MArray.writeWith elemCount
 {-# INLINE write #-}
 write :: MonadIO m => Fold m a (Array a)
 write = fmap unsafeFreeze MArray.write
+
+fromPureStream :: Stream Identity a -> Array a
+fromPureStream x =
+    unsafePerformIO $ fmap (unsafeFreeze) (MArray.fromPureStream x)
+-- fromPureStream = runIdentity . D.fold (unsafeMakePure write)
+-- fromPureStream = fromList . runIdentity . D.toList
+
+fromByteStr# :: Addr# -> Array Word8
+fromByteStr# addr = fromPureStream (D.fromByteStr# addr)
 
 -------------------------------------------------------------------------------
 -- Construction - from streams

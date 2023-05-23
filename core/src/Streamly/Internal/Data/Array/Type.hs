@@ -34,6 +34,8 @@ module Streamly.Internal.Data.Array.Type
     , fromListRevN
     , fromStreamDN
     , fromStreamD
+    , fromPureStream
+    , fromByteStr#
 
     -- * Split
     , breakOn
@@ -66,6 +68,7 @@ module Streamly.Internal.Data.Array.Type
     , MA.ArrayUnsafe (..)
     , writeNAligned
     , write
+    , unsafeMakePure
 
     -- * Streams of arrays
     , chunksOf
@@ -85,7 +88,7 @@ import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import GHC.Base (build)
-import GHC.Exts (IsList, IsString(..))
+import GHC.Exts (IsList, IsString(..), Addr#)
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
@@ -101,6 +104,7 @@ import Prelude hiding (Foldable(..), read, unlines, splitAt)
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Unbox as Unboxed
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
@@ -494,6 +498,62 @@ writeWith elemCount = unsafeFreeze <$> MA.writeWith elemCount
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
 write = fmap unsafeFreeze MA.write
+
+-- | Fold "step" has a dependency on "initial", and each step is dependent on
+-- the previous invocation of step due to state passing, finally extract
+-- depends on the result of step, therefore, as long as the fold is driven in
+-- the correct order the operations would be correctly ordered. We need to
+-- ensure that we strictly evaluate the previous step completely before the
+-- next step.
+--
+-- To not share the same array we need to make sure that the result of
+-- "initial" is not shared. Existential type ensures that it does not get
+-- shared across different folds. However, if we invoke "initial" multiple
+-- times for the same fold, there is a possiblity of sharing the two because
+-- the compiler would consider it as a pure value. One such example is the
+-- chunksOf combinator, or using an array creation fold with foldMany
+-- combinator. Is there a proper way in GHC to tell it to not share a pure
+-- expression in a particular case?
+--
+-- For this reason array creation folds have a MonadIO constraint. Pure folds
+-- could be unsafe and dangerous. This is dangerous especially when used with
+-- foldMany like operations.
+--
+-- >>> import qualified Streamly.Internal.Data.Array.Type as Array
+-- >>> unsafePureWrite = Array.unsafeMakePure Array.write
+--
+{-# INLINE unsafeMakePure #-}
+unsafeMakePure :: Monad m => Fold IO a b -> Fold m a b
+unsafeMakePure (Fold step initial extract) =
+    Fold (\x a -> return $! unsafeInlineIO (step x a))
+         (return $! unsafePerformIO initial)
+         (\s -> return $! unsafeInlineIO $ extract s)
+
+-- | Convert a pure stream in Identity monad to an immutable array.
+--
+-- Same as the following but with better performance:
+--
+-- >>> fromPureStream = Array.fromList . runIdentity . Stream.toList
+--
+fromPureStream :: Unbox a => Stream Identity a -> Array a
+fromPureStream x = unsafePerformIO $ fmap (unsafeFreeze) (MA.fromPureStream x)
+-- fromPureStream = runIdentity . D.fold (unsafeMakePure write)
+-- fromPureStream = fromList . runIdentity . D.toList
+
+-- | Copy a null terminated immutable 'Addr#' Word8 sequence into an array.
+--
+-- /Unsafe:/ The caller is responsible for safe addressing.
+--
+-- Note that this is completely safe when reading from Haskell string
+-- literals because they are guaranteed to be NULL terminated:
+--
+-- >>> :set -XMagicHash
+-- >>> import qualified Streamly.Internal.Data.Array.Type as Array
+-- >>> Array.toList $ Array.fromByteStr# "\1\2\3\0"#
+-- [1,2,3]
+--
+fromByteStr# :: Addr# -> Array Word8
+fromByteStr# addr = fromPureStream (D.fromByteStr# addr)
 
 -------------------------------------------------------------------------------
 -- Instances

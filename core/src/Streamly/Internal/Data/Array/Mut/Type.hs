@@ -71,6 +71,7 @@ module Streamly.Internal.Data.Array.Mut.Type
     , fromListRev
     , fromStreamDN
     , fromStreamD
+    , fromPureStream
 
     -- * Random writes
     , putIndex
@@ -227,6 +228,7 @@ where
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, (.|.), (.&.))
+import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
@@ -262,6 +264,7 @@ import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Lift as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Unbox as Unboxed
 import qualified Prelude
@@ -1948,6 +1951,12 @@ fromListN n xs = fromStreamDN n $ D.fromList xs
 {-# INLINE fromListRevN #-}
 fromListRevN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
 fromListRevN n xs = D.fold (writeRevN n) $ D.fromList xs
+
+-- | Convert a pure stream in Identity monad to a mutable array.
+{-# INLINABLE fromPureStream #-}
+fromPureStream :: (MonadIO m, Unbox a) => Stream Identity a -> m (MutArray a)
+fromPureStream xs =
+    liftIO $ D.fold write $ D.morphInner (return . runIdentity) xs
 
 -------------------------------------------------------------------------------
 -- convert stream to a single array

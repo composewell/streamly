@@ -29,6 +29,7 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     , write
     , fromStreamN
     , fromStream
+    , fromPureStream
 
     -- , writeRevN
     -- , writeRev
@@ -166,6 +167,7 @@ where
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Functor.Identity (Identity(..))
 import GHC.Base
     ( MutableArray#
     , RealWorld
@@ -185,6 +187,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Lift as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding (read, length)
@@ -657,6 +660,11 @@ fromListN n xs = fromStreamN n $ D.fromList xs
 {-# INLINABLE fromList #-}
 fromList :: MonadIO m => [a] -> m (MutArray a)
 fromList xs = fromStream $ D.fromList xs
+
+{-# INLINABLE fromPureStream #-}
+fromPureStream :: MonadIO m => Stream Identity a -> m (MutArray a)
+fromPureStream xs =
+    liftIO $ D.fold write $ D.morphInner (return . runIdentity) xs
 
 -------------------------------------------------------------------------------
 -- Unfolds
