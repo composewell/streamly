@@ -354,8 +354,7 @@ library
                      -- dependency order To view dependency graph:
                      -- graphmod | dot -Tps > deps.ps
 
-                       Streamly.Internal.Data.IsMap.HashMap
-                     , Streamly.Internal.Data.Cont
+                       Streamly.Internal.Data.Cont
                      , Streamly.Internal.Data.Stream.MkType
 
                      -- streamly-concurrent

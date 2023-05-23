@@ -14,12 +14,11 @@ where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.HashMap.Strict (HashMap)
-
+import Data.Hashable (Hashable)
 import Streamly.Internal.Data.Fold
 import Streamly.Internal.Data.Fold.Container (toContainerIO)
-import Streamly.Internal.Data.IsMap (IsMap(..))
 
 {-# INLINE toHashMapIO #-}
-toHashMapIO :: (MonadIO m, Ord (Key (HashMap k)), IsMap (HashMap k)) =>
-    (a -> Key (HashMap k)) -> Fold m a b -> Fold m a (HashMap k b)
+toHashMapIO :: (MonadIO m, Hashable k, Ord k) =>
+    (a -> k) -> Fold m a b -> Fold m a (HashMap k b)
 toHashMapIO = toContainerIO
