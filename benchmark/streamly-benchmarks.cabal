@@ -392,6 +392,7 @@ benchmark Data.Parser
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Parser.hs
+  ghc-options: +RTS -M3000M -RTS
   if impl(ghcjs)
     buildable: False
   else
