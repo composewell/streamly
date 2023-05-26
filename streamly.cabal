@@ -401,6 +401,9 @@ library
                      , Streamly.Network.Socket
                      , Streamly.Network.Inet.TCP
 
+                    -- Unicode parser
+                     , Streamly.Data.Unicode.Parser.Extra
+
                      -- Deprecated
                      , Streamly
                      , Streamly.Data.Unicode.Stream
@@ -502,6 +505,9 @@ library
 
                     -- Network
                      , network           >= 2.6   && < 3.2
+
+                    -- External
+                     , scientific        >= 0.0   && < 0.4
 
     if impl(ghc < 9.6)
       build-depends:   transformers-base >= 0.4   && < 0.5
