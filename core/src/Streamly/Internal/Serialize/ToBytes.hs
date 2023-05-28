@@ -3,7 +3,6 @@
 -- Copyright   : (c) 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : pre-release
 -- Portability : GHC
 --
 -- Encode Haskell data types to byte streams.

@@ -6,7 +6,6 @@
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
--- Stability   : pre-release
 -- Portability : GHC
 --
 -- Read and write streams and arrays to and from files specified by their paths
