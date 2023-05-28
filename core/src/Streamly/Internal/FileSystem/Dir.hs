@@ -6,7 +6,6 @@
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
--- Stability   : pre-release
 -- Portability : GHC
 
 module Streamly.Internal.FileSystem.Dir

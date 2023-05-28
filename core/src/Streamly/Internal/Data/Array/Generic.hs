@@ -4,7 +4,6 @@
 --
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : pre-release
 -- Portability : GHC
 --
 module Streamly.Internal.Data.Array.Generic
