@@ -401,7 +401,7 @@ benchmark Data.Parser
     if flag(dev)
       ghc-options: +RTS -M3000M -RTS
     else
-      ghc-options: +RTS -M1000M -RTS
+      ghc-options: +RTS -M2000M -RTS
 
 benchmark Data.Parser.ParserK
   import: bench-options
