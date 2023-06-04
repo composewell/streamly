@@ -47,7 +47,7 @@ import Control.Monad ((>=>))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep)
 
-import Prelude hiding (take, iterate)
+import Prelude hiding (Foldable(..), take, iterate)
 
 -- $setup
 -- >>> :m

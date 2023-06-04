@@ -247,11 +247,11 @@ module Streamly.Data.Fold
 where
 
 import Prelude
-       hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
-               foldl, map, mapM_, sequence, all, any, sum, product, elem,
-               notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
+       hiding (Foldable(..), filter, drop, dropWhile, take, takeWhile, zipWith,
+               map, mapM_, sequence, all, any,
+               notElem, head, last, tail,
+               reverse, iterate, init, and, or, lookup, (!!),
+               scanl, scanl1, replicate, concatMap, mconcat, unzip,
                span, splitAt, break, mapM, maybe)
 
 import Streamly.Internal.Data.Fold

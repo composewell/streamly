@@ -104,8 +104,9 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
 import qualified Streamly.Internal.Data.Stream.StreamD.Transform as StreamD
 
 import Prelude hiding
-       ( all, any, elem, foldr, foldr1, head, last, lookup, mapM, mapM_
-       , maximum, minimum, notElem, null, splitAt, tail, (!!))
+       ( Foldable(..), all, any, head, last, lookup, mapM, mapM_
+       , notElem, splitAt, tail, (!!))
+import Data.Foldable (length)
 import Streamly.Internal.Data.Stream.StreamD.Type
 
 #include "DocTestDataStream.hs"

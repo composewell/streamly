@@ -96,7 +96,7 @@ import Streamly.Internal.Data.Unboxed (Unbox, peekWith, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec)
 
-import Prelude hiding (length, foldr, read, unlines, splitAt)
+import Prelude hiding (Foldable(..), read, unlines, splitAt)
 
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA

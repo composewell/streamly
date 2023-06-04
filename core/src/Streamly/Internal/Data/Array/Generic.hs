@@ -65,7 +65,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
-import Prelude hiding (foldr, length, read)
+import Prelude hiding (Foldable(..), read)
 
 -------------------------------------------------------------------------------
 -- Array Data Type
