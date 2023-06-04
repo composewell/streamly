@@ -457,7 +457,7 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
-import Prelude hiding (concatMap, filter, foldr, map, take)
+import Prelude hiding (Foldable(..), concatMap, filter, map, take)
 
 #include "DocTestDataFold.hs"
 

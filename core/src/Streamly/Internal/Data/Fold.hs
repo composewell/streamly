@@ -340,11 +340,11 @@ import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
 
 import Prelude hiding
-       ( filter, foldl1, drop, dropWhile, take, takeWhile, zipWith
-       , foldl, foldr, map, mapM_, sequence, all, any, sum, product, elem
-       , notElem, maximum, minimum, head, last, tail, length, null
+       ( Foldable(..), filter, drop, dropWhile, take, takeWhile, zipWith
+       , map, mapM_, sequence, all, any
+       , notElem, head, last, tail
        , reverse, iterate, init, and, or, lookup, (!!)
-       , scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip
+       , scanl, scanl1, replicate, concatMap, mconcat, unzip
        , span, splitAt, break, mapM, zip, maybe)
 import Streamly.Internal.Data.Fold.Type
 import Streamly.Internal.Data.Fold.Tee

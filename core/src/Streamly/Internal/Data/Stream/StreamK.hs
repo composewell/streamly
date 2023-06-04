@@ -212,11 +212,11 @@ import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Prelude
 
 import Prelude
-       hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
-               take, filter, all, any, takeWhile, drop, dropWhile, minimum,
-               maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
-               foldr1, (!!), replicate, reverse, concatMap, iterate, splitAt)
-
+       hiding (Foldable(..), last, map, mapM, mapM_, repeat, sequence,
+               take, filter, all, any, takeWhile, drop, dropWhile,
+               notElem, head, tail, init, zipWith, lookup,
+               (!!), replicate, reverse, concatMap, iterate, splitAt)
+import Data.Foldable (sum, length)
 import Streamly.Internal.Data.Stream.StreamK.Type
 import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
 

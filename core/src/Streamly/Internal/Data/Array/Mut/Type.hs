@@ -267,7 +267,7 @@ import qualified Streamly.Internal.Data.Unboxed as Unboxed
 import qualified Prelude
 
 import Prelude hiding
-    (length, foldr, read, unlines, splitAt, reverse, truncate)
+    (Foldable(..), read, unlines, splitAt, reverse, truncate)
 
 #include "DocTestDataMutArray.hs"
 

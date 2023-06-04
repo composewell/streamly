@@ -102,7 +102,7 @@ import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.IsMap as IsMap
 
-import Prelude hiding (length)
+import Prelude hiding (Foldable(..))
 import Streamly.Internal.Data.Fold
 
 -- $setup
