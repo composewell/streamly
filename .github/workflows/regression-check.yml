@@ -60,7 +60,7 @@ jobs:
         GHCUP_VER=0.1.18.0
         curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
         chmod +x ./ghcup
-        GHCVER=8.10.7
+        GHCVER=9.2.7
         ./ghcup install ghc $GHCVER
         ./ghcup set ghc $GHCVER
         cabal update
