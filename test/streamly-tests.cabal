@@ -145,12 +145,12 @@ common optimization-options
 common test-dependencies
   build-depends:
         streamly-core
-      , base              >= 4.9   && < 4.18
+      , base              >= 4.9   && < 4.19
       , containers        >= 0.5   && < 0.7
       , exceptions        >= 0.8   && < 0.11
       , ghc
       , hspec             >= 2.0   && < 2.10
-      , mtl               >= 2.2   && < 2.3
+      , mtl               >= 2.2   && < 2.3.2
       , random            >= 1.0.0 && < 1.3
       , transformers      >= 0.4   && < 0.7
       , QuickCheck        >= 2.13  && < 2.15
@@ -180,7 +180,7 @@ library
     import: lib-options, test-dependencies
     hs-source-dirs: lib
     exposed-modules: Streamly.Test.Common
-    if !flag(use-streamly-core)
+    if !flag(use-streamly-core) && impl(ghc < 9.4.5)
       exposed-modules: Streamly.Test.Prelude.Common
     if flag(limit-build-mem)
       ghc-options: +RTS -M1500M -RTS
@@ -386,7 +386,7 @@ test-suite Prelude
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude.hs
   ghc-options: -main-is Streamly.Test.Prelude.main
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.Ahead
@@ -394,7 +394,7 @@ test-suite Prelude.Ahead
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Ahead.hs
   ghc-options: -main-is Streamly.Test.Prelude.Ahead.main
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.Async
@@ -402,7 +402,7 @@ test-suite Prelude.Async
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Async.hs
   ghc-options: -main-is Streamly.Test.Prelude.Async.main
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Data.Stream.Concurrent
@@ -420,7 +420,7 @@ test-suite Prelude.Concurrent
   ghc-options: -main-is Streamly.Test.Prelude.Concurrent.main
   if flag(limit-build-mem)
     ghc-options: +RTS -M2000M -RTS
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.Fold
@@ -428,7 +428,7 @@ test-suite Prelude.Fold
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Fold.hs
   ghc-options: -main-is Streamly.Test.Prelude.Fold.main
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.Parallel
@@ -436,7 +436,7 @@ test-suite Prelude.Parallel
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Parallel.hs
   ghc-options: -main-is Streamly.Test.Prelude.Parallel.main
-  if flag(use-streamly-core)
+  if flag(use-streamly-core)  || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.Rate
@@ -458,14 +458,14 @@ test-suite Prelude.Serial
   ghc-options: -main-is Streamly.Test.Prelude.Serial.main
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.Top
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Top.hs
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.WAsync
@@ -473,7 +473,7 @@ test-suite Prelude.WAsync
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/WAsync.hs
   ghc-options: -main-is Streamly.Test.Prelude.WAsync.main
-  if flag(use-streamly-core)
+  if flag(use-streamly-core)  || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.WSerial
@@ -481,7 +481,7 @@ test-suite Prelude.WSerial
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/WSerial.hs
   ghc-options: -main-is Streamly.Test.Prelude.WSerial.main
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.ZipAsync
@@ -491,7 +491,7 @@ test-suite Prelude.ZipAsync
   ghc-options: -main-is Streamly.Test.Prelude.ZipAsync.main
   if flag(limit-build-mem)
     ghc-options: +RTS -M750M -RTS
-  if flag(use-streamly-core)
+  if flag(use-streamly-core)  || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Prelude.ZipSerial
@@ -499,7 +499,7 @@ test-suite Prelude.ZipSerial
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/ZipSerial.hs
   ghc-options: -main-is Streamly.Test.Prelude.ZipSerial.main
-  if flag(use-streamly-core)
+  if flag(use-streamly-core)  || impl(ghc >= 9.6)
     buildable: False
 
 test-suite Unicode.Stream

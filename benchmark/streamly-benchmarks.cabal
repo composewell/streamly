@@ -174,9 +174,9 @@ common bench-depends
     -- Core libraries shipped with ghc, the min and max
     -- constraints of these libraries should match with
     -- the GHC versions we support
-      base                >= 4.9   && < 4.18
+      base                >= 4.9   && < 4.19
     , deepseq             >= 1.4.1 && < 1.5
-    , mtl                 >= 2.2   && < 2.3
+    , mtl                 >= 2.2   && < 2.3.2
 
     -- other libraries
     , random              >= 1.0   && < 2.0
@@ -187,7 +187,7 @@ common bench-depends
     , process             >= 1.4 && < 1.7
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.5
-    , ghc-prim          >= 0.4   && < 0.10
+    , ghc-prim          >= 0.4   && < 0.11
 
   if flag(use-streamly-core)
     build-depends: streamly-core
