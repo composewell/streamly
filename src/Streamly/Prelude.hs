@@ -943,10 +943,10 @@ where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Prelude
-       hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
-               foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
-               notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, foldr1, (!!),
+       hiding (Foldable(..), filter, drop, dropWhile, take, takeWhile, zipWith,
+               map, mapM, mapM_, sequence, all, any,
+               notElem, head, last, tail,
+               reverse, iterate, init, and, or, lookup, (!!),
                scanl, scanl1, repeat, replicate, concatMap, span)
 
 import Streamly.Internal.Data.Stream.IsStream

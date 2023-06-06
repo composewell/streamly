@@ -182,9 +182,9 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified System.IO as IO
 
 import Prelude hiding
-       ( drop, take, takeWhile, foldr , foldl, mapM_, sequence, all, any, sum
-       , product, elem, notElem, maximum, minimum, head, last, tail, length
-       , null , reverse, init, and, or, lookup, foldr1, (!!) , splitAt, break
+       ( Foldable(..), drop, take, takeWhile, mapM_, sequence, all, any
+       , notElem, head, last, tail
+       , reverse, init, and, or, lookup, (!!), splitAt, break
        , mconcat)
 
 -- $setup

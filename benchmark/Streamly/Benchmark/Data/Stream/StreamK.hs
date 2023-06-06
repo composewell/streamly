@@ -26,7 +26,7 @@ import Control.Monad (when)
 import Data.Maybe (isJust)
 import System.Random (randomRIO)
 import Prelude hiding
-    ( tail, mapM_, foldl, last, map, mapM, concatMap, zipWith, init, iterate
+    ( Foldable(..), tail, mapM_, last, map, mapM, concatMap, zipWith, init, iterate
     , repeat, replicate
     )
 
@@ -167,15 +167,15 @@ fromFoldable streamLen n = S.fromFoldable [n..n+streamLen]
 {-# INLINE fromFoldableM #-}
 fromFoldableM :: Monad m => Int -> Int -> Stream m Int
 fromFoldableM streamLen n =
-    Prelude.foldr S.consM S.nil (Prelude.fmap return [n..n+streamLen])
+    List.foldr S.consM S.nil (Prelude.fmap return [n..n+streamLen])
 
 {-# INLINABLE concatMapFoldableWith #-}
-concatMapFoldableWith :: Foldable f
+concatMapFoldableWith :: P.Foldable f
     => (Stream m b -> Stream m b -> Stream m b)
     -> (a -> Stream m b)
     -> f a
     -> Stream m b
-concatMapFoldableWith f g = Prelude.foldr (f . g) S.nil
+concatMapFoldableWith f g = P.foldr (f . g) S.nil
 
 {-# INLINE concatMapFoldableSerial #-}
 concatMapFoldableSerial :: Int -> Int -> Stream m Int

@@ -103,7 +103,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as StreamK
 #endif
 
 import Gauge
-import Prelude hiding (mapM, replicate)
+import Prelude hiding (Foldable(..), mapM, replicate)
 
 #ifdef USE_STREAMK
 toStream :: Applicative m => StreamK m a -> Stream m a
