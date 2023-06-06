@@ -133,7 +133,8 @@ import qualified Streamly.Internal.Data.Stream.Serial as Stream
 import qualified Streamly.Internal.Data.Stream.Zip as Zip
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
-import Prelude hiding (foldr, repeat)
+import Prelude hiding (Foldable(..), repeat)
+import Data.Foldable (Foldable)
 
 #include "inline.hs"
 

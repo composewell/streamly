@@ -85,7 +85,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.StreamD as StreamD
 
-import Prelude hiding (filter, zipWith, concatMap, concat)
+import Prelude hiding (Foldable(..), filter, zipWith, concatMap, concat)
 
 -- $setup
 -- >>> :m
