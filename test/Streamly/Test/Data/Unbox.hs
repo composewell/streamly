@@ -40,6 +40,8 @@ import Streamly.Internal.Data.Unbox
 
 import Test.Hspec as H
 
+import qualified Streamly.Internal.Data.Serialize as Serialize
+
 --------------------------------------------------------------------------------
 -- Types
 --------------------------------------------------------------------------------
@@ -146,6 +148,27 @@ testGenericConsistency val = do
 checkSizeOf :: forall a. Unbox a => Proxy a -> Int -> IO ()
 checkSizeOf _ size = sizeOf (Proxy :: Proxy a) `shouldBe` size
 
+testSerializeList
+    :: forall a. (Eq a, Show a, Serialize.Serialize a)
+    => Int
+    -> a
+    -> IO ()
+testSerializeList sizeOfA val = do
+
+    let sz =
+          case Serialize.size :: Serialize.Size a of
+              Serialize.VarSize f -> f val
+              Serialize.ConstSize csz -> csz
+
+    sz `shouldBe` sizeOfA
+
+    arr <- newUnpinnedBytes sz
+
+    off1 <- Serialize.serialize 0 arr val
+    (off2, val2) <- Serialize.deserialize 0 arr
+    val2 `shouldBe` val
+    off2 `shouldBe` off1
+
 --------------------------------------------------------------------------------
 -- CPP helpers
 --------------------------------------------------------------------------------
@@ -202,6 +225,13 @@ testCases = do
         $ testGenericConsistency (Const 333.5678 :: Const Float Int)
     it "GenericConsistency (Identity Int)"
         $ testGenericConsistency (Identity 56760 :: Identity Int)
+
+    it "Serialize [Int]"
+        $ testSerializeList (8 + 4 * 8) ([1, 2, 3, 4] :: [Int])
+    it "Serialize [[Int]]"
+        $ testSerializeList
+              (8 + 3 * 8 + 6 * 8)
+              ([[1], [1, 2], [1, 2, 3]] :: [[Int]])
 
     -- Fingerprint does not work for GHC 8.6.5
     -- it "Fingerprint" $ testSerialization (Fingerprint 123456 876588)
