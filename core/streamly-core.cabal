@@ -302,6 +302,8 @@ library
 
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.Unbox
+                     , Streamly.Internal.Data.Serialize
+
                     -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream
