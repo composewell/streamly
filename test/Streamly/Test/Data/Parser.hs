@@ -3,7 +3,7 @@ module Main (main) where
 import Control.Exception (displayException)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
-import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
+import Streamly.Test.Common (listEquals, checkListEqual, chooseInt, chooseDouble)
 import Test.Hspec (Spec, hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -15,12 +15,15 @@ import Prelude hiding (sequence)
 
 import qualified Control.Monad.Fail as Fail
 import qualified Data.List as List
+import qualified Data.Scientific as Scientific
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Test.Hspec as H
+import qualified Streamly.Internal.Data.Unicode.Parser.Extra as Parser
+
 
 #if MIN_VERSION_QuickCheck(2,14,0)
 
@@ -1129,6 +1132,29 @@ takeStartBy_ =
             where
                 predicate = odd
                 parser = P.takeStartBy_ predicate FL.toList
+
+-- Scientific notation
+scientificExpFP :: Property
+scientificExpFP =  forAll (chooseDouble (-99.99e-12, 1234.4567e+234)) $ \ls ->
+                case runIdentity $ S.parse parser (S.fromList (show ls)) of
+                     Right val -> property (val == show ls)
+                     Left _ -> property False
+
+                    where
+                    formatter = Scientific.formatScientific Scientific.Exponent Nothing
+                    parser = formatter <$> Parser.scientific
+
+-- Standard decimal notation.
+scientificFixFP :: Property
+scientificFixFP =  forAll (chooseDouble (-0.00099, 123445.67998)) $ \ls ->
+                case runIdentity $ S.parse parser (S.fromList (show ls)) of
+                     Right val -> property (val == show ls)
+                     Left _ -> property False
+
+                    where
+                    formatter = Scientific.formatScientific Scientific.Fixed Nothing
+                    parser = formatter <$> Parser.scientific
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1142,6 +1168,9 @@ main =
   H.parallel $
   modifyMaxSuccess (const maxTestCount) $ do
   describe moduleName $ do
+    describe "Scientific parser" $ do
+        prop "Exponent format" scientificExpFP
+        prop "Decimal format" scientificFixFP
 
     describe "Instances" $ do
         prop "applicative" applicative

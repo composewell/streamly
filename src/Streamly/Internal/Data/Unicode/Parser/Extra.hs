@@ -53,6 +53,9 @@ data ScientificParseState
 -- >>> scientificParser "3.1e4"
 -- Right "31000.0"
 --
+-- >>> scientificParser "31e+3"
+-- Right "31000.0"
+--
 -- >>> scientificParser "-3.1e4"
 -- Right "-31000.0"
 --
