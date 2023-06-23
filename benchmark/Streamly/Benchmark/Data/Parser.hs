@@ -40,6 +40,7 @@ import Prelude hiding
 
 import qualified Control.Applicative as AP
 import qualified Data.Foldable as F
+import qualified Data.Scientific as Scientific
 import qualified Data.Traversable as TR
 import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Array as Array
@@ -49,6 +50,7 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Unicode.Parser.Extra as Parser
 
 import Gauge hiding (env)
 import Streamly.Benchmark.Common
@@ -628,6 +630,27 @@ choice value =
         (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
 -}
 
+{-# INLINE sourceUnfoldrMc #-}
+sourceUnfoldrMc :: Monad m => Int -> Int -> Stream m Char
+sourceUnfoldrMc value n = Stream.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + value
+        then return Nothing
+        else return (Just ('1', cnt + 1))
+
+-- | Takes a fold method, and uses it with a default source.
+{-# INLINE benchIOSinkc #-}
+benchIOSinkc
+    :: NFData b
+    => Int -> String -> (Stream IO Char -> IO b) -> Benchmark
+benchIOSinkc value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrMc value
+
+{-# INLINE scientific #-}
+scientific :: Monad m => Stream m Char -> m (Either ParseError Scientific.Scientific)
+scientific = Stream.parse Parser.scientific
+
 -------------------------------------------------------------------------------
 -- Parsing with unfolds
 -------------------------------------------------------------------------------
@@ -831,6 +854,7 @@ o_n_heap_serial value =
     , benchIOSink value "manyAlt" manyAlt
     , benchIOSink value "someAlt" someAlt
     , benchIOSink value "listEqBy" (listEqBy value)
+    , benchIOSinkc value "scientific" scientific
     ]
 
 -- accumulate results in a list in IO
