@@ -300,6 +300,7 @@ signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 -- A strict coeff and exp pair
 data CE = CE !Integer {-# UNPACK #-}!Int
 
+{-# INLINE double #-}
 double :: (Monad m) => Parser Char m Double
 double = do
     !positive <- ((== '+') <$>  Parser.satisfy (\c -> c == '-' || c == '+')) <|>
@@ -331,6 +332,7 @@ data TE =
         !Integer
         {-# UNPACK #-}!Int
 
+{-# INLINE double2 #-}
 double2 :: (Monad m) => Parser Char m Double
 double2 =  Parser step initial extract
 

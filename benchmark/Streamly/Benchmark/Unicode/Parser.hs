@@ -21,7 +21,7 @@ import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Prelude hiding
     (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile)
-    
+
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Unicode.Parser as PRU
@@ -94,9 +94,9 @@ main = do
 
     where
 
-    alloc value = Stream.fold Fold.toList $ Stream.arraysOf 100 $ sourceUnfoldrM value 0
+    alloc value = Stream.fold Fold.toList $ Stream.chunksOf 100 $ sourceUnfoldrM value 0
 
-    allBenchmarks env arrays value =
+    allBenchmarks _ _ value =
         [ bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
 

@@ -741,3 +741,13 @@ benchmark Unicode.Utf8
     buildable: False
   else
     buildable: True
+
+benchmark Unicode.Parser
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Unicode
+  main-is: Parser.hs
+  if flag(use-streamly-core)
+    buildable: False
+  else
+    buildable: True
