@@ -1,11 +1,11 @@
 -- |
--- Module      : Streamly.Data.Unicode.Parser.Extra
+-- Module      : Streamly.Internal.Data.Unicode.Parser.Extra
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
-module Streamly.Data.Unicode.Parser.Extra
+module Streamly.Internal.Data.Unicode.Parser.Extra
   ( scientific
   )
 where
@@ -36,7 +36,7 @@ data ScientificParseState
 --
 -- >>> import qualified Data.Scientific as Scientific
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Unicode.Parser.Extra as Parser
+-- >>> import qualified Streamly.Internal.Data.Unicode.Parser.Extra as Parser
 --
 -- >>> formatter = Scientific.formatScientific Scientific.Fixed Nothing
 -- >>> scientificParser = Stream.parse (formatter <$> Parser.scientific) . Stream.fromList
