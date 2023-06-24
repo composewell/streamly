@@ -49,7 +49,7 @@ let haskellPackages =
                       nixpkgs.haskell.lib.overrideCabal
                         (let src = fetchGit {
                             url = "git@github.com:composewell/bench-report.git";
-                            rev = "ca3872acd4b817731b951c6ed91bfa6c58f26c5a";
+                            rev = "3b50bf0ad06f746bca42f30c8d40a0426e159af3";
                         }; in super.callCabal2nix "bench-report" src {})
                         (old:
                           { enableLibraryProfiling = false;
