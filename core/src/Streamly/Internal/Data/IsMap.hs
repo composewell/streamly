@@ -10,10 +10,7 @@ module Streamly.Internal.Data.IsMap (IsMap(..)) where
 
 import Data.Kind (Type)
 import Data.Map.Strict (Map)
-import Data.Hashable (Hashable)
-import Data.HashMap.Strict (HashMap)
 
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
 
@@ -42,17 +39,6 @@ instance Ord k => IsMap (Map k) where
     mapDelete = Map.delete
     mapUnion = Map.union
     mapNull = Map.null
-
-instance (Hashable k) => IsMap (HashMap k) where
-    type Key (HashMap k) = k
-
-    mapEmpty = HashMap.empty
-    mapAlterF = HashMap.alterF
-    mapLookup = HashMap.lookup
-    mapInsert = HashMap.insert
-    mapDelete = HashMap.delete
-    mapUnion = HashMap.union
-    mapNull = HashMap.null
 
 instance IsMap IntMap.IntMap where
     type Key IntMap.IntMap = Int

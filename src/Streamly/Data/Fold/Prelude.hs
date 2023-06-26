@@ -17,6 +17,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
 import Streamly.Data.Fold
 import Streamly.Internal.Data.Fold.Container (toContainerIO)
+import Streamly.Internal.Data.IsMap.HashMap
 
 -- | Split the input stream based on a hashable component of the key field and
 -- fold each split using the given fold. Useful for map/reduce, bucketizing
@@ -37,7 +38,6 @@ import Streamly.Internal.Data.Fold.Container (toContainerIO)
 --
 -- /Pre-release/
 --
-
 {-# INLINE toHashMapIO #-}
 toHashMapIO :: (MonadIO m, Hashable k, Ord k) =>
     (a -> k) -> Fold m a b -> Fold m a (HashMap k b)

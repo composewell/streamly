@@ -467,8 +467,6 @@ library
 
                      -- XXX to be removed
                      , containers        >= 0.6.0 && < 0.7
-                     , unordered-containers >= 0.2 && < 0.3
-                     , hashable           >= 1.4.2 && < 1.5
                      , heaps             >= 0.3   && < 0.5
     if !flag(use-unliftio)
       build-depends:   monad-control     >= 1.0 && < 1.1
