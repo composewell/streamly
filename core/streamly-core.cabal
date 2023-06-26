@@ -303,8 +303,9 @@ library
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.Unbox
                      , Streamly.Internal.Data.Serialize
+                     , Streamly.Internal.Data.Unbox.TH
 
-                    -- Unboxed IORef
+                     -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.Array.Mut.Type
