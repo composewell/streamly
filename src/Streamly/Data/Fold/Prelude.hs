@@ -17,7 +17,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
 import Streamly.Data.Fold
 import Streamly.Internal.Data.Fold.Container (toContainerIO)
-import Streamly.Internal.Data.IsMap.HashMap
+import Streamly.Internal.Data.IsMap.HashMap ()
 
 -- | Split the input stream based on a hashable component of the key field and
 -- fold each split using the given fold. Useful for map/reduce, bucketizing
@@ -25,16 +25,19 @@ import Streamly.Internal.Data.IsMap.HashMap
 --
 -- Example:
 --
--- >>> import Data.HashMap.Strict (HashMap)
+-- >>> import Data.HashMap.Strict (HashMap, fromList)
 -- >>> import qualified Streamly.Data.Fold.Prelude as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import Streamly.Data.Fold.Prelude (toHashMapIO)
 -- >>> :{
+--  do
 --  let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
 --      classify = toHashMapIO fst (Fold.lmap snd Fold.toList)
---   in Stream.fold classify input :: IO (HashMap String [Double])
+--  x <- Stream.fold classify input :: IO (HashMap String [Double])
+--  let y = fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
+--  return (x == y)
 -- :}
--- fromList [("ONE",[1.0,1.1]),("TWO",[2.0,2.2])]
+-- True
 --
 -- /Pre-release/
 --
