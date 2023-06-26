@@ -1293,11 +1293,11 @@ bytesFree MutArray{..} =
 -- Streams of arrays - Creation
 -------------------------------------------------------------------------------
 
-data GroupState s contents start end bound
+data GroupState s contents start end
     = GroupStart s
-    | GroupBuffer s contents start end bound
+    | GroupBuffer s contents start end
     | GroupYield
-        contents start end bound (GroupState s contents start end bound)
+        contents start end (GroupState s contents start end)
     | GroupFinish
 
 -- | @chunksOf n stream@ groups the input stream into a stream of
@@ -1326,28 +1326,28 @@ chunksOf n (D.Stream step state) =
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
         (MutArray contents start end :: MutArray a) <- liftIO $ newPinned n
-        bound <- liftIO $ sizeOfMutableByteArray contents
-        return $ D.Skip (GroupBuffer st contents start end bound)
+        return $ D.Skip (GroupBuffer st contents start end)
 
-    step' gst (GroupBuffer st contents start end bound) = do
+    step' gst (GroupBuffer st contents start end) = do
         r <- step (adaptState gst) st
         case r of
             D.Yield x s -> do
                 liftIO $ pokeWith contents end x
                 let end1 = INDEX_NEXT(end,a)
+                bound <- liftIO $ sizeOfMutableByteArray contents
                 return $
                     if end1 >= bound
                     then D.Skip
                             (GroupYield
-                                contents start end1 bound (GroupStart s))
-                     else D.Skip (GroupBuffer s contents start end1 bound)
+                                contents start end1 (GroupStart s))
+                    else D.Skip (GroupBuffer s contents start end1)
             D.Skip s ->
-                return $ D.Skip (GroupBuffer s contents start end bound)
+                return $ D.Skip (GroupBuffer s contents start end)
             D.Stop ->
                 return
-                    $ D.Skip (GroupYield contents start end bound GroupFinish)
+                    $ D.Skip (GroupYield contents start end GroupFinish)
 
-    step' _ (GroupYield contents start end _bound next) =
+    step' _ (GroupYield contents start end next) =
         return $ D.Yield (MutArray contents start end) next
 
     step' _ GroupFinish = return D.Stop
