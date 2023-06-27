@@ -235,7 +235,7 @@ import Streamly.Internal.Data.Unfold
   -- generating an infinite stream when the type is not 'Bounded'.
   --
   -- >>> import qualified Streamly.Data.Stream as Stream
-  -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+  -- >>> import qualified Streamly.Data.Unfold as Unfold
   --
   -- @
   -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom (0 :: Int)
@@ -261,7 +261,7 @@ enumerate = enumerateFrom
   -- @from@ then an empty stream is returned.
   --
   -- >>> import qualified Streamly.Data.Stream as Stream
-  -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+  -- >>> import qualified Streamly.Data.Unfold as Unfold
   --
   -- @
   -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (0, 4)
