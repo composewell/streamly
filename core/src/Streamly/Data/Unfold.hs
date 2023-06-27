@@ -85,37 +85,9 @@ module Streamly.Data.Unfold
     -- ** Nesting
     , many
 
-     -- ** Enumerating 'Num' Types
-    , enumerateFromStepNum
-    , enumerateFromNum
-    , enumerateFromThenNum
-
-    -- ** Enumerating unbounded 'Integral' Types
-    , enumerateFromIntegral
-    , enumerateFromThenIntegral
-    , enumerateFromToIntegral
-    , enumerateFromThenToIntegral
-
-    -- ** Enumerating 'Bounded' 'Integral' Types
-    , enumerateFromIntegralBounded
-    , enumerateFromThenIntegralBounded
-    , enumerateFromToIntegralBounded
-    , enumerateFromThenToIntegralBounded
-
-    -- ** Enumerating small 'Integral' Types
-    -- | Small types are always bounded.
-    , enumerateFromSmallBounded
-    , enumerateFromThenSmallBounded
-    , enumerateFromToSmall
-    , enumerateFromThenToSmall
-
-    -- ** Enumerating 'Fractional' Types
-    -- | Enumeration of 'Num' specialized to 'Fractional' types.
-    , enumerateFromFractional
-    , enumerateFromThenFractional
-    , enumerateFromToFractional
-    , enumerateFromThenToFractional
-
+    -- ** Enumerating 'Num' Types
+    , enumerate
+    , enumerateTo
     )
 where
 
@@ -257,3 +229,58 @@ import Streamly.Internal.Data.Unfold
 -- streams are written, it is easy to adapt a stream to an unfold. If you are
 -- writing an unfold you can convert it to stream for free using
 -- 'Stream.unfold'.
+
+-- | Unfolds @from@ generating a stream starting with the element
+  -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
+  -- generating an infinite stream when the type is not 'Bounded'.
+  --
+  -- >>> import qualified Streamly.Data.Stream as Stream
+  -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+  --
+  -- @
+  -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom (0 :: Int)
+  -- [0,1,2,3]
+  --
+  -- @
+  --
+  -- For 'Fractional' types, enumeration is numerically stable. However, no
+  -- overflow or underflow checks are performed.
+  --
+  -- @
+  -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom 1.1
+  -- [1.1,2.1,3.1,4.1]
+  --
+  -- @
+  --
+{-# INLINE enumerate #-}
+enumerate :: (Monad m, Enumerable a) => Unfold m a a
+enumerate = enumerateFrom
+
+-- | Unfolds @(from, to)@ generating a finite stream starting with the element
+  -- @from@, enumerating the type up to the value @to@. If @to@ is smaller than
+  -- @from@ then an empty stream is returned.
+  --
+  -- >>> import qualified Streamly.Data.Stream as Stream
+  -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
+  --
+  -- @
+  -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (0, 4)
+  -- [0,1,2,3,4]
+  --
+  -- @
+  --
+  -- For 'Fractional' types, the last element is equal to the specified @to@
+  -- value after rounding to the nearest integral value.
+  --
+  -- @
+  -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4)
+  -- [1.1,2.1,3.1,4.1]
+  --
+  -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4.6)
+  -- [1.1,2.1,3.1,4.1,5.1]
+  --
+  -- @
+  --
+{-# INLINE enumerateTo #-}
+enumerateTo :: (Monad m, Enumerable a) => Unfold m (a, a) a
+enumerateTo = enumerateFromTo
