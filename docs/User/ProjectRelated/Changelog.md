@@ -2,6 +2,15 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
+## Unreleased
+
+### Breaking Changes
+
+* MonadTrans and MonadBase instances has been removed for `AsyncT`,
+  `ParallelT`, `AheadT` for GHC versions 9.6 onwards. This is due to a
+  breaking change in `transformers` 0.6. You can replace `lift` with
+  `fromEffect` when using these as top level monads in a monad stack.
+
 ## 0.9.0 (Mar 2023)
 
 Also see the following:

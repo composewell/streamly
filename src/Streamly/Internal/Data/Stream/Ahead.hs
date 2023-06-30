@@ -34,13 +34,17 @@ where
 import Control.Concurrent.MVar (putMVar, takeMVar)
 import Control.Exception (assert)
 import Control.Monad (void, when)
+#if !(MIN_VERSION_transformers(0,6,0))
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
+#endif
 import Control.Monad.Catch (MonadThrow, throwM)
 -- import Control.Monad.Error.Class   (MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
+#if !(MIN_VERSION_transformers(0,6,0))
 import Control.Monad.Trans.Class (MonadTrans(lift))
+#endif
 import Data.Heap (Heap, Entry(..))
 import Data.IORef (IORef, readIORef, atomicModifyIORef, writeIORef)
 import Data.Maybe (fromJust)
@@ -693,9 +697,11 @@ consM m (AheadT r) = AheadT $ aheadK (K.fromEffect m) r
 -- @since 0.8.0
 newtype AheadT m a = AheadT {getAheadT :: Stream m a}
 
+#if !(MIN_VERSION_transformers(0,6,0))
 instance MonadTrans AheadT where
     {-# INLINE lift #-}
     lift = AheadT . K.fromEffect
+#endif
 
 -- | A serial IO stream of elements of type @a@ with concurrent lookahead.  See
 -- 'AheadT' documentation for more details.
@@ -761,5 +767,10 @@ instance MonadAsync m => Monad (AheadT m) where
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
+
+#if !(MIN_VERSION_transformers(0,6,0))
+instance (MonadBase b m, Monad m, MonadAsync m) => MonadBase b (AheadT m) where
+    liftBase = liftBaseDefault
+#endif
 
 MONAD_COMMON_INSTANCES(AheadT, MONADPARALLEL)

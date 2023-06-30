@@ -41,14 +41,18 @@ module Streamly.Internal.Data.Stream.Async {-# DEPRECATED "Please use \"Streamly
 where
 
 import Control.Concurrent (myThreadId)
+#if !(MIN_VERSION_transformers(0,6,0))
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
+#endif
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Concurrent.MVar (newEmptyMVar)
 -- import Control.Monad.Error.Class   (MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
+#if !(MIN_VERSION_transformers(0,6,0))
 import Control.Monad.Trans.Class (MonadTrans(lift))
+#endif
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pushL)
 import Data.IORef (IORef, newIORef, readIORef)
 import Data.Maybe (fromJust)
@@ -745,9 +749,11 @@ consMAsync m (AsyncT r) = AsyncT $ asyncK (K.fromEffect m) r
 -- @since 0.8.0
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
 
+#if !(MIN_VERSION_transformers(0,6,0))
 instance MonadTrans AsyncT where
     {-# INLINE lift #-}
     lift = AsyncT . K.fromEffect
+#endif
 
 -- | A demand driven left biased parallely composing IO stream of elements of
 -- type @a@.  See 'AsyncT' documentation for more details.
@@ -818,6 +824,11 @@ instance MonadAsync m => Monad (AsyncT m) where
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
+
+#if !(MIN_VERSION_transformers(0,6,0))
+instance (MonadBase b m, Monad m, MonadAsync m) => MonadBase b (AsyncT m) where
+    liftBase = liftBaseDefault
+#endif
 
 MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 
@@ -971,9 +982,11 @@ consMWAsync m (WAsyncT r) = WAsyncT $ wAsyncK (K.fromEffect m) r
 --
 newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
 
+#if !(MIN_VERSION_transformers(0,6,0))
 instance MonadTrans WAsyncT where
     {-# INLINE lift #-}
     lift = WAsyncT . K.fromEffect
+#endif
 
 -- | A round robin parallely composing IO stream of elements of type @a@.
 -- See 'WAsyncT' documentation for more details.
@@ -1042,5 +1055,10 @@ instance MonadAsync m => Monad (WAsyncT m) where
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
+
+#if !(MIN_VERSION_transformers(0,6,0))
+instance (MonadBase b m, Monad m, MonadAsync m) => MonadBase b (WAsyncT m) where
+    liftBase = liftBaseDefault
+#endif
 
 MONAD_COMMON_INSTANCES(WAsyncT, MONADPARALLEL)

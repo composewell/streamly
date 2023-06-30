@@ -49,13 +49,17 @@ where
 
 import Control.Concurrent (myThreadId, takeMVar)
 import Control.Monad (when)
+#if !(MIN_VERSION_transformers(0,6,0))
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
+#endif
 import Control.Monad.Catch (MonadThrow, throwM)
 -- import Control.Monad.Error.Class   (MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
+#if !(MIN_VERSION_transformers(0,6,0))
 import Control.Monad.Trans.Class (MonadTrans(lift))
+#endif
 import Data.Functor (void)
 import Data.IORef (readIORef, writeIORef)
 import Data.Maybe (fromJust)
@@ -432,9 +436,11 @@ tapAsyncF f (D.Stream step1 state1) = D.Stream step TapInit
 -- @since 0.8.0
 newtype ParallelT m a = ParallelT {getParallelT :: K.StreamK m a}
 
+#if !(MIN_VERSION_transformers(0,6,0))
 instance MonadTrans ParallelT where
     {-# INLINE lift #-}
     lift = ParallelT . K.fromEffect
+#endif
 
 -- | A parallely composing IO stream of elements of type @a@.
 -- See 'ParallelT' documentation for more details.
@@ -503,6 +509,11 @@ instance MonadAsync m => Monad (ParallelT m) where
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
+
+#if !(MIN_VERSION_transformers(0,6,0))
+instance (MonadBase b m, Monad m, MonadAsync m) => MonadBase b (ParallelT m) where
+    liftBase = liftBaseDefault
+#endif
 
 MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 

@@ -48,9 +48,13 @@ module Streamly.Internal.Data.Stream.Serial {-# DEPRECATED "Please use \"Streaml
     )
 where
 
+#if !(MIN_VERSION_base(4,18,0))
 import Control.Applicative (liftA2)
+#endif
 import Control.DeepSeq (NFData(..), NFData1(..))
+#if !(MIN_VERSION_transformers(0,6,0))
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
+#endif
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
@@ -407,6 +411,11 @@ instance Monad m => Monad (WSerialT m) where
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
+
+#if !(MIN_VERSION_transformers(0,6,0))
+instance (MonadBase b m, Monad m) => MonadBase b (SerialT m) where
+    liftBase = liftBaseDefault
+#endif
 
 MONAD_COMMON_INSTANCES(WSerialT,)
 LIST_INSTANCES(WSerialT)

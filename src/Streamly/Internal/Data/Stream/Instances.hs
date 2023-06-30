@@ -15,14 +15,11 @@ instance Monad m => Functor (STREAM m) where {                                \
     {-# INLINE (<$) #-};                                                      \
     (<$) =  fmap . const };                                                   \
                                                                               \
-instance (MonadBase b m, Monad m CONSTRAINT) => MonadBase b (STREAM m) where {\
-    liftBase = liftBaseDefault };                                             \
-                                                                              \
 instance (MonadIO m CONSTRAINT) => MonadIO (STREAM m) where {                 \
-    liftIO = lift . liftIO };                                                 \
+    liftIO x = STREAM $ K.fromEffect $ liftIO x };                            \
                                                                               \
 instance (MonadThrow m CONSTRAINT) => MonadThrow (STREAM m) where {           \
-    throwM = lift . throwM };                                                 \
+    throwM x = STREAM $ K.fromEffect $ throwM x };                            \
                                                                               \
 {- \
 instance (MonadError e m CONSTRAINT) => MonadError e (STREAM m) where {       \
@@ -32,16 +29,16 @@ instance (MonadError e m CONSTRAINT) => MonadError e (STREAM m) where {       \
 -} \
                                                                               \
 instance (MonadReader r m CONSTRAINT) => MonadReader r (STREAM m) where {     \
-    ask = lift ask;                                                           \
+    ask = STREAM $ K.fromEffect ask;                                          \
     local f (STREAM m) = STREAM $ withLocal f m };                          \
                                                                               \
 instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
     {-# INLINE get #-}; \
-    get     = lift get;                                                       \
+    get = STREAM $ K.fromEffect get;                                          \
     {-# INLINE put #-}; \
-    put x   = lift (put x);                                                   \
+    put x = STREAM $ K.fromEffect $ put x;                                    \
     {-# INLINE state #-}; \
-    state k = lift (state k) }
+    state k = STREAM $ K.fromEffect $ state k }
 
 ------------------------------------------------------------------------------
 -- Lists

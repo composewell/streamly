@@ -401,25 +401,12 @@ library
                      , Streamly.Network.Socket
                      , Streamly.Network.Inet.TCP
 
-                     -- Deprecated modules
+                     -- Deprecated
+                     , Streamly
+                     , Streamly.Data.Unicode.Stream
                      , Streamly.Memory.Array
                      , Streamly.Data.Array.Foreign
-
-    if !impl(ghcjs) && flag(dev)
-        exposed-modules:
-                       Streamly.Internal.System.IOVec.Type
-                     , Streamly.Internal.System.IOVec
-                     , Streamly.Internal.FileSystem.FDIO
-                     , Streamly.Internal.FileSystem.FD
-
-    if impl(ghc <= 9.4.5)
-        exposed-modules:
-                        Streamly
-                     , Streamly.Data.Unicode.Stream
                      , Streamly.Prelude
-                     , Streamly.Internal.Data.Stream.Async
-                     , Streamly.Internal.Data.Stream.Parallel
-                     , Streamly.Internal.Data.Stream.Ahead
 
                      -- Deprecated Internal modules
                      , Streamly.Internal.Data.SVar.Worker
@@ -435,6 +422,9 @@ library
 
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Zip
+                     , Streamly.Internal.Data.Stream.Async
+                     , Streamly.Internal.Data.Stream.Parallel
+                     , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.ZipAsync
 
                      , Streamly.Internal.Data.Stream.IsStream.Type
@@ -450,6 +440,13 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Lift
                      , Streamly.Internal.Data.Stream.IsStream.Top
                      , Streamly.Internal.Data.Stream.IsStream
+
+    if !impl(ghcjs) && flag(dev)
+        exposed-modules:
+                       Streamly.Internal.System.IOVec.Type
+                     , Streamly.Internal.System.IOVec
+                     , Streamly.Internal.FileSystem.FDIO
+                     , Streamly.Internal.FileSystem.FD
 
     if flag(dev)
         exposed-modules:  Streamly.Data.SmallArray
@@ -506,7 +503,7 @@ library
                     -- Network
                      , network           >= 2.6   && < 3.2
 
-    if impl(ghc <= 9.4.5)
+    if impl(ghc < 9.6)
       build-depends:   transformers-base >= 0.4   && < 0.5
 
     if flag(use-unliftio)
