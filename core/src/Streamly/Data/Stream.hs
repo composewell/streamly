@@ -431,6 +431,7 @@ module Streamly.Data.Stream
     -- >>> wordsBy p f = Stream.parseMany (Parser.wordBy p f)
     -- >>> groupsOf n f = Stream.foldMany (Fold.take n f)
     , foldMany -- XXX Rename to foldRepeat
+    , groupsOf
     , parseMany
     , Array.chunksOf
 
