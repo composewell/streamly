@@ -1,2 +1,0 @@
-import: streamly.config
-with-compiler: ghc-8.10.7
