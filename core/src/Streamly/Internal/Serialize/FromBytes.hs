@@ -3,7 +3,6 @@
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : pre-release
 -- Portability : GHC
 --
 -- Decode Haskell data types from byte streams.

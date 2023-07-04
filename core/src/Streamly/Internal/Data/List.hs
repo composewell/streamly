@@ -6,7 +6,6 @@
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
--- Stability   : pre-release
 -- Portability : GHC
 --
 -- Lists are just a special case of monadic streams. The stream type @Stream
