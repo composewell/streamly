@@ -3,12 +3,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-} -- XXX
 {-# LANGUAGE ViewPatterns               #-}
-
-#if MIN_VERSION_base(4,17,0)
-{-# LANGUAGE TypeOperators             #-}
-#endif
 
 -- |
 -- Module      : Streamly.Internal.Data.List
