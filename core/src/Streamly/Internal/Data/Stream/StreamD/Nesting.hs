@@ -2091,6 +2091,12 @@ data WordsByState st fs b
     | WordsByDone
     | WordsByYield !b (WordsByState st fs b)
 
+-- | Split the stream after stripping leading, trailing, and repeated separators
+-- as per the fold supplied.
+-- Therefore, @".a..b."@ with '.' as the separator would be parsed as
+-- @["a","b"]@.  In other words, its like parsing words from whitespace
+-- separated text.
+
 {-# INLINE_NORMAL wordsBy #-}
 wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 wordsBy predicate (Fold fstep initial done) (Stream step state) =
