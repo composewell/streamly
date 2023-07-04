@@ -1647,7 +1647,7 @@ foldr f z arr = D.foldr f z $ toStreamD arr
 
 -- XXX Keep the bound intact to not lose any free space? Perf impact?
 
--- | @writeAppendNUnsafe n alloc@ appends up to @n@ input items to the supplied
+-- | @writeAppendNUnsafe n arr@ appends up to @n@ input items to the supplied
 -- array.
 --
 -- Unsafe: Do not drive the fold beyond @n@ elements, it will lead to memory

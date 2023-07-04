@@ -51,9 +51,12 @@ module Streamly.Data.MutArray
 
     -- * Inplace mutation
     , putIndex
+    , putIndexUnsafe
+    , modifyIndexUnsafe
 
     -- * Random access
     , getIndex
+    , getIndexUnsafe
 
     -- * Conversion
     , toList
