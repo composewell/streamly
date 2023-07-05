@@ -12,6 +12,11 @@
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+#undef FUSION_CHECK
+#ifdef FUSION_CHECK
+{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
+#endif
+
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
@@ -502,7 +507,9 @@ o_n_heap_serial value =
 -------------------------------------------------------------------------------
 
 main :: IO ()
-main = runWithCLIOpts defaultStreamSize allBenchmarks
+main = do
+#ifndef FUSION_CHECK
+    runWithCLIOpts defaultStreamSize allBenchmarks
 
     where
 
@@ -515,3 +522,20 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
         , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
+#else
+    -- Enable FUSION_CHECK macro at the beginning of the file
+    -- Enable one benchmark below, and run the benchmark
+    -- Check the .dump-simpl output
+    let value = 100000
+    let input = source value 1
+    let getKey buckets = (`mod` buckets)
+    let getFold k =
+            return $ case k of
+                0 -> FL.sum
+                1 -> FL.length
+                _ -> FL.length
+
+    -- demuxToMap (getKey 64) (getFold . getKey 64) input
+    toIntMapIO (getKey 64) input
+    return ()
+#endif
