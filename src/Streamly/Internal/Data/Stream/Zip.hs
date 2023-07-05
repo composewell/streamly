@@ -6,8 +6,11 @@
 {-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE TypeFamilies              #-}
-{-# LANGUAGE TypeOperators             #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
+
+#if MIN_VERSION_base(4,17,0)
+{-# LANGUAGE TypeOperators             #-}
+#endif
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Zip
