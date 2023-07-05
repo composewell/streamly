@@ -56,27 +56,27 @@ jobs:
         include:
           - name: 9.4.5
             ghc_version: 9.4.5
-            build: cabal
+            build: cabal-v2
             cabal_version: 3.8.1.0
             disable_sdist_build: "y"
             ignore_error: false
             runner: ubuntu-latest
           - name: 9.2.8
             ghc_version: 9.2.8
-            build: cabal
+            build: cabal-v2
             cabal_version: 3.6.2.0
             disable_sdist_build: "y"
             ignore_error: false
             runner: ubuntu-latest
           - name: 8.10.2+macOS
             ghc_version: 8.10.2
-            build: cabal
+            build: cabal-v2
             cabal_version: 3.6.2.0
             disable_sdist_build: "y"
             runner: macos-latest
           - name: 8.8.3+inspection+no-fusion-plugin+Werror
             ghc_version: 8.8.3
-            build: cabal
+            build: cabal-v2
             cabal_version: 3.6.2.0
             cabal_project: cabal.project.ci
             cabal_build_options: "--flag inspection"
@@ -91,13 +91,13 @@ jobs:
             runner: ubuntu-latest
           - name: 8.6.5+streamk
             ghc_version: 8.6.5
-            build: cabal
+            build: cabal-v2
             cabal_version: 3.6.2.0
             cabal_build_options: "--flag streamk"
             runner: ubuntu-latest
           - name: 8.6.5+no-fusion-flag
             ghc_version: 8.6.5
-            build: cabal
+            build: cabal-v2
             cabal_version: 3.6.2.0
             runner: ubuntu-latest
           - name: 8.4.4+debug
