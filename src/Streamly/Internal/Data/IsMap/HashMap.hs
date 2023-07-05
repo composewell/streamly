@@ -20,10 +20,10 @@ import Streamly.Internal.Data.IsMap (IsMap(..))
 
 import qualified Data.HashMap.Strict as HashMap
 
-#if __GLASGOW_HASKELL__ < 902
-instance (Hashable k, Eq k) => IsMap (HashMap.HashMap k) where
-#else
+#if MIN_VERSION_hashable(1,4,0)
 instance (Hashable k) => IsMap (HashMap.HashMap k) where
+#else
+instance (Hashable k, Eq k) => IsMap (HashMap.HashMap k) where
 #endif
     type Key (HashMap.HashMap k) = k
 
