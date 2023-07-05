@@ -20,7 +20,11 @@ import Streamly.Internal.Data.IsMap (IsMap(..))
 
 import qualified Data.HashMap.Strict as HashMap
 
+#if MIN_VERSION_hashable(1,4,0)
 instance (Hashable k) => IsMap (HashMap.HashMap k) where
+#else
+instance (Hashable k, Eq k) => IsMap (HashMap.HashMap k) where
+#endif
     type Key (HashMap.HashMap k) = k
 
     mapEmpty = HashMap.empty
