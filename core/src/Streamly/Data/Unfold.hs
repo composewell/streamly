@@ -86,6 +86,7 @@ module Streamly.Data.Unfold
     , many
 
     -- ** Enumerating 'Num' Types
+    , Enumerable (..)
     , enumerate
     , enumerateTo
     )
