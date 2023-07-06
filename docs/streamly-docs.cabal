@@ -24,10 +24,10 @@ extra-doc-files:
   User/HowTo/*.link
   User/Explanatory/*.md
   User/Explanatory/streaming-pradigms.rst
-  User/ProjectRelated/*.md
-  User/ProjectRelated/*.link
-  User/ProjectRelated/ApiChangelogs/0.8.3.txt
-  User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt
+  User/Project/*.md
+  User/Project/*.link
+  User/Project/ApiChangelogs/0.8.3.txt
+  User/Project/ApiChangelogs/0.8.3-0.9.0.txt
   Developer/*.png
   Developer/*.md
   Developer/*.link

@@ -1,1 +1,1 @@
-docs/User/ProjectRelated/Changelog.md
+docs/User/Project/Changelog.md
