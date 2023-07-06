@@ -61,6 +61,8 @@ data ScientificParseState
 --
 -- >>> scientificParser "-3.1e-4"
 -- Right "-0.00031"
+--
+{-# INLINE scientific #-}
 scientific :: (Monad m) => Parser Char m Scientific
 scientific = Parser step initial extract
     where
