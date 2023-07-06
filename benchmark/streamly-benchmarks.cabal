@@ -187,7 +187,7 @@ common bench-depends
     , process             >= 1.4 && < 1.7
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.5
-    , ghc-prim          >= 0.4   && < 0.10
+    , ghc-prim          >= 0.4   && < 0.11
     , scientific        >= 0.0   && < 0.4
 
   if flag(use-streamly-core)
