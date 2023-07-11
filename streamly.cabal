@@ -402,9 +402,6 @@ library
                      , Streamly.Network.Inet.TCP
 
                      -- Deprecated
-                     , Streamly
-                     , Streamly.Data.Unicode.Stream
-                     , Streamly.Memory.Array
                      , Streamly.Data.Array.Foreign
                      , Streamly.Prelude
 
