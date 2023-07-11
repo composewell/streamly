@@ -174,4 +174,4 @@ import Prelude hiding (dropWhile, takeWhile, filter)
 -- 'splitWith' provide linear (O(n)) performance with respect to the number of
 -- compositions..
 --
--- 'Parser' and 'ParserK' types can be interconverted.
+-- 'Parser' can be converted to 'ParserK' but not the other way around.
