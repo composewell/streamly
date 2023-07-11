@@ -402,7 +402,7 @@ library
                      , Streamly.Network.Inet.TCP
 
                     -- Unicode parser
-                     , Streamly.Internal.Data.Unicode.Parser.Extra
+                     , Streamly.Internal.Unicode.Parser.Extra
 
                      -- Deprecated
                      , Streamly

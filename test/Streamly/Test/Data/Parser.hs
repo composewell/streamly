@@ -22,7 +22,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Test.Hspec as H
-import qualified Streamly.Internal.Data.Unicode.Parser.Extra as Parser
+import qualified Streamly.Internal.Unicode.Parser.Extra as Parser
 
 
 #if MIN_VERSION_QuickCheck(2,14,0)
@@ -1135,25 +1135,29 @@ takeStartBy_ =
 
 -- Scientific notation
 scientificExpFP :: Property
-scientificExpFP =  forAll (chooseDouble (-99.99e-12, 1234.4567e+234)) $ \ls ->
-                case runIdentity $ S.parse parser (S.fromList (show ls)) of
-                     Right val -> property (val == show ls)
-                     Left _ -> property False
+scientificExpFP =
+    forAll (chooseDouble (-99.99e-12, 1234.4567e+234)) $ \ls ->
+        case runIdentity $ S.parse parser (S.fromList (show ls)) of
+                Right val -> property (val == show ls)
+                Left _ -> property False
 
-                    where
-                    formatter = Scientific.formatScientific Scientific.Exponent Nothing
-                    parser = formatter <$> Parser.scientific
+        where
+
+        formatter = Scientific.formatScientific Scientific.Exponent Nothing
+        parser = formatter <$> Parser.scientific
 
 -- Standard decimal notation.
 scientificFixFP :: Property
-scientificFixFP =  forAll (chooseDouble (-0.00099, 123445.67998)) $ \ls ->
-                case runIdentity $ S.parse parser (S.fromList (show ls)) of
-                     Right val -> property (val == show ls)
-                     Left _ -> property False
+scientificFixFP =
+    forAll (chooseDouble (-0.00099, 123445.67998)) $ \ls ->
+        case runIdentity $ S.parse parser (S.fromList (show ls)) of
+                Right val -> property (val == show ls)
+                Left _ -> property False
 
-                    where
-                    formatter = Scientific.formatScientific Scientific.Fixed Nothing
-                    parser = formatter <$> Parser.scientific
+        where
+
+        formatter = Scientific.formatScientific Scientific.Fixed Nothing
+        parser = formatter <$> Parser.scientific
 
 -------------------------------------------------------------------------------
 -- Main

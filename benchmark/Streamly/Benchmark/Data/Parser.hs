@@ -50,7 +50,7 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Stream.StreamD as Stream
-import qualified Streamly.Internal.Data.Unicode.Parser.Extra as Parser
+import qualified Streamly.Internal.Unicode.Parser.Extra as Parser
 
 import Gauge hiding (env)
 import Streamly.Benchmark.Common
@@ -630,14 +630,9 @@ choice value =
         (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
 -}
 
-{-# INLINE sourceUnfoldrMc #-}
-sourceUnfoldrMc :: Monad m => Int -> Int -> Stream m Char
-sourceUnfoldrMc value n = Stream.unfoldrM step n
-    where
-    step cnt =
-        if cnt > n + value
-        then return Nothing
-        else return (Just ('1', cnt + 1))
+{-# INLINE sourceUnfoldrMC #-}
+sourceUnfoldrMC :: Monad m => Int -> Int -> Stream m Char
+sourceUnfoldrMC value n = '1' <$ sourceUnfoldrM value n
 
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSinkc #-}
@@ -645,10 +640,13 @@ benchIOSinkc
     :: NFData b
     => Int -> String -> (Stream IO Char -> IO b) -> Benchmark
 benchIOSinkc value name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrMc value
+    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrMC value
 
 {-# INLINE scientific #-}
-scientific :: Monad m => Stream m Char -> m (Either ParseError Scientific.Scientific)
+scientific ::
+       Monad m
+    => Stream m Char
+    -> m (Either ParseError Scientific.Scientific)
 scientific = Stream.parse Parser.scientific
 
 -------------------------------------------------------------------------------

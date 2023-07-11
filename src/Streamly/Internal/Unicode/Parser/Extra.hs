@@ -1,14 +1,13 @@
 -- |
--- Module      : Streamly.Internal.Data.Unicode.Parser.Extra
+-- Module      : Streamly.Internal.Unicode.Parser.Extra
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
-module Streamly.Internal.Data.Unicode.Parser.Extra
-  ( scientific
-  )
-where
+module Streamly.Internal.Unicode.Parser.Extra
+    ( scientific
+    ) where
 
 import Streamly.Internal.Data.Parser.ParserD (Step(..), Initial(..), Parser(..))
 import Data.Scientific (Scientific)
@@ -36,7 +35,7 @@ data ScientificParseState
 --
 -- >>> import qualified Data.Scientific as Scientific
 -- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Unicode.Parser.Extra as Parser
+-- >>> import qualified Streamly.Internal.Unicode.Parser.Extra as Parser
 --
 -- >>> formatter = Scientific.formatScientific Scientific.Fixed Nothing
 -- >>> scientificParser = Stream.parse (formatter <$> Parser.scientific) . Stream.fromList
@@ -72,8 +71,10 @@ scientific = Parser step initial extract
 
     combineNum buf num = buf * 10 + num
 
+    {-# INLINE initial #-}
     initial = pure $ IPartial SPInitial
 
+    {-# INLINE step #-}
     step SPInitial val =
         case val of
           '+' -> pure $ Continue 0 $ SPSign 1
@@ -169,6 +170,7 @@ scientific = Parser step initial extract
                       (intToInteger (mult * number))
                       (powerMult * buf - decimalPlaces)
 
+    {-# INLINE extract #-}
     extract SPInitial = pure $ Error "Failed with no input"
     extract (SPSign _) = pure $ Error "No number found after sign"
     extract (SPAfterSign mult buf) =
