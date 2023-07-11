@@ -231,7 +231,7 @@ import Streamly.Internal.Data.Unfold
 -- writing an unfold you can convert it to stream for free using
 -- 'Stream.unfold'.
 
--- | Unfolds @from@ generating a stream starting with the element
+-- | Enumerates @from@ generating a stream starting with the element
   -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
   -- generating an infinite stream when the type is not 'Bounded'.
   --
@@ -257,7 +257,7 @@ import Streamly.Internal.Data.Unfold
 enumerate :: (Monad m, Enumerable a) => Unfold m a a
 enumerate = enumerateFrom
 
--- | Unfolds @(from, to)@ generating a finite stream starting with the element
+-- | Enumerates @(from, to)@ generating a finite stream starting with the element
   -- @from@, enumerating the type up to the value @to@. If @to@ is smaller than
   -- @from@ then an empty stream is returned.
   --
