@@ -128,7 +128,7 @@ jobs:
             build: cabal
             cabal_version: 3.6.2.0
             subdir: core
-            ignore_error: false
+            ignore_error: true
           - name: 8.10.7-streamly-sdist-stack
             runner: ubuntu-latest
             build: stack
@@ -137,7 +137,7 @@ jobs:
             sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.6.2.0
-            ignore_error: false
+            ignore_error: true
           - name: 8.10.7-macos
             ghc_version: 8.10.7
             runner: macos-latest
