@@ -420,15 +420,19 @@ parseDToK pstep initial extract cont !offset0 !usedCount !input = do
         onBack offset1 elemSize constr pst = do
             let pos = offset1 - start
              in if pos >= 0
-                then go SPEC offset1 pst
+                then goCheck offset1 pst constr
                 else constr (pos `div` elemSize) pst
+
+        {-# INLINE goCheck #-}
+        goCheck !cur !pst constr =
+            if cur >= end
+            then constr ((end - start) `div` SIZE_OF(a))  pst
+            else go SPEC cur pst
 
         -- Note: div may be expensive but the alternative is to maintain an element
         -- offset in addition to a byte offset or just the element offset and use
         -- multiplication to get the byte offset every time, both these options
         -- turned out to be more expensive than using div.
-        go !_ !cur !pst | cur >= end =
-            onContinue ((end - start) `div` SIZE_OF(a))  pst
         go !_ !cur !pst = do
             let !x = unsafeInlineIO $ peekWith contents cur
             pRes <- pstep pst x
@@ -447,15 +451,15 @@ parseDToK pstep initial extract cont !offset0 !usedCount !input = do
                 ParserD.Done n b ->
                     onDone ((back n - start) `div` elemSize) b
                 ParserD.Partial 0 pst1 ->
-                    go SPEC next pst1
+                    goCheck next pst1 onPartial
                 ParserD.Partial 1 pst1 ->
-                    go SPEC cur pst1
+                    goCheck cur pst1 onPartial
                 ParserD.Partial n pst1 ->
                     onBack (back n) elemSize onPartial pst1
                 ParserD.Continue 0 pst1 ->
-                    go SPEC next pst1
+                    goCheck next pst1 onContinue
                 ParserD.Continue 1 pst1 ->
-                    go SPEC cur pst1
+                    goCheck cur pst1 onContinue
                 ParserD.Continue n pst1 ->
                     onBack (back n) elemSize onContinue pst1
                 ParserD.Error err ->
