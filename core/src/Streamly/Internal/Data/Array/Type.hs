@@ -166,14 +166,14 @@ asPtrUnsafe arr = MA.asPtrUnsafe (unsafeThaw arr)
 -- /Pre-release/
 {-# INLINE unsafeFreeze #-}
 unsafeFreeze :: MutArray a -> Array a
-unsafeFreeze (MutArray ac as ae _) = Array ac as ae
+unsafeFreeze (MutArray ac as ae) = Array ac as ae
 
 -- | Similar to 'unsafeFreeze' but uses 'MA.rightSize' on the mutable array
 -- first.
 {-# INLINE unsafeFreezeWithShrink #-}
 unsafeFreezeWithShrink :: Unbox a => MutArray a -> Array a
 unsafeFreezeWithShrink arr = unsafePerformIO $ do
-  MutArray ac as ae _ <- MA.rightSize arr
+  MutArray ac as ae <- MA.rightSize arr
   return $ Array ac as ae
 
 -- | Makes a mutable array using the underlying memory of the immutable array.
@@ -186,7 +186,7 @@ unsafeFreezeWithShrink arr = unsafePerformIO $ do
 -- /Pre-release/
 {-# INLINE unsafeThaw #-}
 unsafeThaw :: Array a -> MutArray a
-unsafeThaw (Array ac as ae) = MutArray ac as ae ae
+unsafeThaw (Array ac as ae) = MutArray ac as ae
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning

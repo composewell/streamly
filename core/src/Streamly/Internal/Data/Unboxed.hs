@@ -35,6 +35,7 @@ module Streamly.Internal.Data.Unboxed
     , genericSizeOf
     , genericPeekByteIndex
     , genericPokeByteIndex
+    , sizeOfMutableByteArray
 
     -- Classess used for generic deriving.
     , PeekRep(..)

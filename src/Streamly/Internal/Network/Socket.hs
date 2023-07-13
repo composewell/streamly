@@ -263,7 +263,7 @@ readArrayUptoWith f size h = do
     MArray.asPtrUnsafe arr $ \p -> do
         n <- f h p size
         let v = A.unsafeFreeze
-                $ arr { MArray.arrEnd = n, MArray.arrBound = size }
+                $ arr { MArray.arrEnd = n }
 
         -- XXX shrink only if the diff is significant
         -- A.shrinkToFit v
