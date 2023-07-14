@@ -183,6 +183,13 @@ targets =
             , "noTest"
             ]
       )
+    , ("Data.Parser.ParserK.Chunked",
+            [ "base_parser_grp"
+            , "base_parser_cmp"
+            , "infinite_grp"
+            , "noTest"
+            ]
+      )
     , ("Data.Fold", [ "parser_grp", "infinite_grp" ])
     , ("Data.Fold.Window", [ "parser_grp", "infinite_grp" ])
     , ("Data.Parser", [ "parser_grp", "infinite_grp" ])

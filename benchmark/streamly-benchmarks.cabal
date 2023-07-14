@@ -414,6 +414,18 @@ benchmark Data.Parser.ParserK
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
+benchmark Data.Parser.ParserK.Chunked
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Parser
+  cpp-options: -DBENCH_CHUNKED
+  main-is: ParserK.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+    build-depends: exceptions >= 0.8   && < 0.11
+
 -- Note: to use this we have to set DISABLE_FUSION in ParserD.hs so that
 -- the rewrite rules are disabled. We can also use the "no-fusion" build
 -- flag but we need to keep in mind that it disables fusion for streams
