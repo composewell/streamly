@@ -88,11 +88,11 @@ one value = StreamK.parseChunks p
           Nothing -> pure Nothing
 
 {-# INLINE satisfy #-}
-satisfy :: (MonadIO m, Unbox a) => (a -> Bool) -> PR.ParserK a m a
+satisfy :: (MonadIO m, Unbox a) => (a -> Bool) -> PR.ChunkParserK a m a
 satisfy = PR.fromParser . PRD.satisfy
 
 {-# INLINE takeWhile #-}
-takeWhile :: (MonadIO m, Unbox a) => (a -> Bool) -> PR.ParserK a m ()
+takeWhile :: (MonadIO m, Unbox a) => (a -> Bool) -> PR.ChunkParserK a m ()
 takeWhile p = PR.fromParser $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
@@ -185,7 +185,7 @@ takeWhileFailD predicate (Fold fstep finitial fextract) =
 
 {-# INLINE takeWhileFail #-}
 takeWhileFail :: (Monad m, Unbox a) =>
-    (a -> Bool) -> Fold m a b -> PR.ParserK a m b
+    (a -> Bool) -> Fold m a b -> PR.ChunkParserK a m b
 takeWhileFail p f = PR.fromParser (takeWhileFailD p f)
 
 {-# INLINE alt2 #-}

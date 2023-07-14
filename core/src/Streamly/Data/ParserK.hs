@@ -14,7 +14,7 @@
 module Streamly.Data.ParserK
     (
     -- * Parser Type
-      ParserK
+      ChunkParserK
 
     -- * Parsers
     -- ** Conversions
@@ -37,8 +37,8 @@ import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 
 import Streamly.Internal.Data.Parser.ParserK.Chunked
 
--- | Convert a 'Fold' to a 'ParserK'.
+-- | Convert a 'Fold' to a 'ChunkParserK'.
 --
 {-# INLINE fromFold #-}
-fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ParserK a m b
+fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ChunkParserK a m b
 fromFold = fromParser . ParserD.fromFold

@@ -201,7 +201,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unboxed (sizeOf, Unbox)
-import Streamly.Internal.Data.Parser.ParserK.Chunked (ParserK)
+import Streamly.Internal.Data.Parser.ParserK.Chunked (ChunkParserK)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Type as FL
@@ -1283,11 +1283,11 @@ parserDone (ParserK.Failure n e) _ _ = pure $ ParserK.Error n e
 -- using parseBreakChunks. We can also use parseBreak as an alternative to the
 -- monad instance of ParserD.
 
--- | Run a 'ParserK' over a chunked 'StreamK' and return the rest of the Stream.
+-- | Run a 'ChunkParserK' over a chunked 'StreamK' and return the rest of the Stream.
 {-# INLINE_NORMAL parseBreakChunks #-}
 parseBreakChunks
     :: (Monad m, Unbox a)
-    => ParserK a m b
+    => ChunkParserK a m b
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
 parseBreakChunks parser input = do
@@ -1377,7 +1377,7 @@ parseBreakChunks parser input = do
 
 {-# INLINE parseChunks #-}
 parseChunks :: (Monad m, Unbox a) =>
-    ParserK a m b -> StreamK m (Array a) -> m (Either ParseError b)
+    ChunkParserK a m b -> StreamK m (Array a) -> m (Either ParseError b)
 parseChunks f = fmap fst . parseBreakChunks f
 
 -------------------------------------------------------------------------------
