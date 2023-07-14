@@ -15,7 +15,14 @@
 ### Deprecations
 
 * `Streamly.Data.MutArray.newUnpinned` is renamed to
-  `Streamly.Data.MutArray.pinnedNew`
+  `Streamly.Data.MutArray.pinnedNew`.
+
+* `Streamly.Data.ParserK` and the type `ParserK` are deprecated.  Use
+  `Streamly.Data.ChunkParserK` and `ChunkParserK` instead.
+  To adapt to the new code,
+  - Replace the import `Streamly.Data.ParserK` with
+    `Streamly.Data.ChunkParserK`.
+  - Replace the type `ParserK` with `ChunkParserK`.
 
 ## 0.1.0 (March 2023)
 
