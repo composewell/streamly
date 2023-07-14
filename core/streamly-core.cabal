@@ -297,7 +297,7 @@ library
                      , Streamly.Internal.Data.Producer.Type
                      , Streamly.Internal.Data.Producer
                      , Streamly.Internal.Data.Producer.Source
-                     , Streamly.Internal.Data.Parser.ParserK.Type
+                     , Streamly.Internal.Data.Parser.ParserK.Chunked
                      , Streamly.Internal.Data.Parser.ParserD.Type
                      , Streamly.Internal.Data.Pipe.Type
 

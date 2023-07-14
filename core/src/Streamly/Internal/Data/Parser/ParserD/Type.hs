@@ -1351,7 +1351,7 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
 -- for small number of compositions but for a scalable implementation we need a
 -- CPS version.
 
--- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
+-- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Chunked.Parser'.
 --
 -- Although this implementation allows stream fusion, it has quadratic
 -- complexity, making it suitable only for a small number of compositions. As a
@@ -1372,7 +1372,7 @@ instance Monad m => Fail.MonadFail (Parser a m) where
     fail = die
 
 {-
--- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Type.Parser'.
+-- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Chunked.Parser'.
 --
 instance Monad m => MonadPlus (Parser a m) where
     {-# INLINE mzero #-}

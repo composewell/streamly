@@ -201,13 +201,13 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unboxed (sizeOf, Unbox)
-import Streamly.Internal.Data.Parser.ParserK.Type (ParserK)
+import Streamly.Internal.Data.Parser.ParserK.Chunked (ParserK)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as PR
-import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
+import qualified Streamly.Internal.Data.Parser.ParserK.Chunked as ParserK
 import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Prelude
 

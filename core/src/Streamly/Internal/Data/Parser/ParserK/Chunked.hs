@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Parser.ParserK.Type
+-- Module      : Streamly.Internal.Data.Parser.ParserK.Chunked
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -21,7 +21,7 @@
 -- <http://hackage.haskell.org/package/parser-combinators parser-combinators>
 -- package can also be used with the 'ParserK' type.
 
-module Streamly.Internal.Data.Parser.ParserK.Type
+module Streamly.Internal.Data.Parser.ParserK.Chunked
     (
       Step (..)
     , Input (..)

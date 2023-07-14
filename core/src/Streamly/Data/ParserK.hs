@@ -35,7 +35,7 @@ import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Unboxed (Unbox)
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
 
-import Streamly.Internal.Data.Parser.ParserK.Type
+import Streamly.Internal.Data.Parser.ParserK.Chunked
 
 -- | Convert a 'Fold' to a 'ParserK'.
 --
