@@ -110,7 +110,7 @@ import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
     (unfold, unfoldr, toStreamK, unfoldr, repeat, replicate, replicateM
     , fromIndices, fromIndicesM, iterate, iterateM, toStreamK, fromListM
     , fromListM)

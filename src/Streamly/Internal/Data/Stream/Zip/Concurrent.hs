@@ -18,10 +18,10 @@ module Streamly.Internal.Data.Stream.Zip.Concurrent
     )
 where
 
-import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.Concurrent (MonadAsync, parZipWith)
 
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream (repeat)
+import qualified Streamly.Internal.Data.Stream as Stream (repeat)
 import Prelude hiding (map, repeat, zipWith)
 
 -- $setup

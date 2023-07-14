@@ -244,7 +244,7 @@ We also use INLINE [3] in some cases.
 
 The combinators in `Streamly.Prelude` are defined in terms of combinators in
 `Streamly.Internal.Data.Stream.StreamD` (Direct style streams) or
-`Streamly.Internal.Data.Stream.StreamK` (CPS style streams). We convert the
+`Streamly.Internal.Data.StreamK` (CPS style streams). We convert the
 stream from `StreamD` to `StreamK` representation or vice versa in some cases.
 
 Most operations use the StreamD representation, however, stream append

@@ -31,11 +31,11 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
 import Stream.Common
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import Streamly.Internal.Data.Stream (Stream)
+import qualified Streamly.Internal.Data.Stream as Stream
 #ifdef USE_STREAMK
 import System.IO.Unsafe (unsafeInterleaveIO)
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Stream.Common as Common
 #endif
 #endif

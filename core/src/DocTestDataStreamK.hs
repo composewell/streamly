@@ -16,6 +16,6 @@
 
 For APIs that have not been released yet.
 
->>> import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+>>> import qualified Streamly.Internal.Data.StreamK as StreamK
 >>> import qualified Streamly.Internal.FileSystem.Dir as Dir
 -}

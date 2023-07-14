@@ -44,19 +44,19 @@ import Streamly.Benchmark.Prelude hiding
     , transformComposeMapM, transformTeeMapM, transformZipMapM)
 #else
 
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import qualified Streamly.Internal.Data.Stream.StreamD as S
+import Streamly.Internal.Data.Stream (Stream)
+import qualified Streamly.Internal.Data.Stream as S
 #ifndef USE_STREAMLY_CORE
 import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Internal.Data.Stream.Time as S
 #endif
 
 #ifdef USE_STREAMK
-import Streamly.Internal.Data.Stream.StreamK (StreamK)
+import Streamly.Internal.Data.StreamK (StreamK)
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.StreamK as K
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD as K
+import qualified Streamly.Internal.Data.Stream as K
 #endif
 
 #endif

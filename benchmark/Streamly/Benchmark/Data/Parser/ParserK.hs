@@ -23,7 +23,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.StreamK (StreamK)
 import Streamly.Internal.Data.Parser
     (ParseError(..), Parser(..), Initial(..), Step(..))
-import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 import Prelude hiding
     (any, all, take, sequence, sequence_, sequenceA, takeWhile)
@@ -36,7 +36,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Data.Parser as PRD
 import qualified Streamly.Data.ParserK as PR
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import qualified Streamly.Internal.Data.StreamK as StreamK
 
 import Gauge
 import Streamly.Benchmark.Common

@@ -90,15 +90,15 @@ import Streamly.Benchmark.Prelude
     , concatStreamsWith
     )
 #else
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import Streamly.Internal.Data.Stream (Stream)
+import qualified Streamly.Internal.Data.Stream as D
 #ifdef USE_STREAMK
-import Streamly.Internal.Data.Stream.StreamK (StreamK)
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import Streamly.Internal.Data.StreamK (StreamK)
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.StreamK as StreamK
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD as StreamK
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream as StreamK
 #endif
 #endif
 

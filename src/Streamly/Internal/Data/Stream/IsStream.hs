@@ -39,7 +39,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
     hiding (cmpBy, drain, eqBy, foldl', fold, toList, toStream
         , fromEffect, fromPure, repeat, fromStream)
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 
 {-# INLINE fromStream #-}
 fromStream :: (IsStream t, Monad m) => D.Stream m a -> t m a

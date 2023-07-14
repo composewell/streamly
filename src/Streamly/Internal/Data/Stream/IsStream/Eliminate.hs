@@ -172,7 +172,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PRD
 -- import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
     (foldr1, foldlT, foldlM', mapM_, null, head, headElse, last, elem
     , notElem, all, any, minimum, minimumBy, maximum, maximumBy, the, lookup
     , find, findM, toListRev, isPrefixOf, isSubsequenceOf, stripPrefix,  (!!)

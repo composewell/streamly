@@ -497,16 +497,16 @@ where
 import Control.Monad.IO.Class (MonadIO)
 import Data.Word (Word8)
 import Streamly.Data.Array (Array)
-
-import qualified Streamly.Internal.Data.Array.Type as Array
-import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
-import Streamly.Internal.Data.Stream.StreamD
+import Streamly.Internal.Data.Stream
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, repeat, replicate, concatMap, span)
+
+import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 
 #include "DocTestDataStream.hs"
 

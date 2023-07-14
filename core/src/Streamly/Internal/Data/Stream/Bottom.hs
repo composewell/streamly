@@ -79,8 +79,8 @@ import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.StreamK as K
+import qualified Streamly.Internal.Data.Stream as D
 
 import Prelude hiding (take, takeWhile, drop, reverse, concatMap, map, zipWith)
 

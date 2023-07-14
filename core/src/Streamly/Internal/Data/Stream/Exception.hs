@@ -27,7 +27,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 
 -- $setup
 -- >>> :m

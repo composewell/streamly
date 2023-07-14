@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamK
+-- Module      : Streamly.Internal.Data.StreamK
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -8,7 +8,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Stream.StreamK
+module Streamly.Internal.Data.StreamK
     (
     -- * Setup
     -- | To execute the code examples provided in this module in ghci, please
@@ -208,7 +208,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as PR
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Prelude
 
 import Prelude

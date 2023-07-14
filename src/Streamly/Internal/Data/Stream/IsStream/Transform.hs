@@ -256,7 +256,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
     (transform, foldrT, tap, tapOffsetEvery, mapM, scan
     , scanMany, postscan, scanlx', scanlM', scanl', postscanl', prescanl'
     , prescanlM', scanl1M', scanl1', filter, filterM, uniq, deleteBy, takeWhileM

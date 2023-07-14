@@ -18,7 +18,7 @@ where
 
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.Trans.State.Strict (StateT)
-import Streamly.Internal.Data.Stream.StreamK
+import Streamly.Internal.Data.StreamK
     (StreamK, nil, cons, uncons, concatEffect)
 
 import qualified Control.Monad.Trans.State.Strict as State

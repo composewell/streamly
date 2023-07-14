@@ -124,7 +124,7 @@ import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Unfold as UF (first, bracketIO)
 import qualified Streamly.Internal.Data.Fold.Type as FL (Step(..), reduce)
-import qualified Streamly.Internal.Data.Stream.StreamD as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S
 import qualified Streamly.Internal.Network.Socket as ISK
 

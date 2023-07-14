@@ -29,7 +29,7 @@ module Stream.Expand (benchmarks) where
 import GHC.Types (SPEC(..))
 import Test.Inspection
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 #endif
 
 import qualified Stream.Common as Common
@@ -42,15 +42,15 @@ import Streamly.Benchmark.Prelude
     ( sourceFoldMapM, sourceFoldMapWith, sourceFoldMapWithM
     , sourceFoldMapWithStream, concatFoldableWith, concatForFoldableWith)
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD as S
+import qualified Streamly.Internal.Data.Stream as S
 #ifdef USE_STREAMK
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import Streamly.Internal.Data.Stream.StreamK (StreamK, CrossStreamK)
+import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.StreamK (StreamK, CrossStreamK)
 import qualified Control.Applicative as AP
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import qualified Streamly.Internal.Data.StreamK as StreamK
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD as StreamK
+import qualified Streamly.Internal.Data.Stream as StreamK
 #endif
 #endif
 

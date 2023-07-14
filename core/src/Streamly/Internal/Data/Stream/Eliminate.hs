@@ -87,9 +87,9 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PRD
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as PRK
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.StreamK as K
 
 import Streamly.Internal.Data.Stream.Bottom
 import Streamly.Internal.Data.Stream.Type hiding (Stream)

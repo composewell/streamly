@@ -30,7 +30,7 @@ import System.Random (randomRIO)
 import Prelude hiding (tail, mapM_, foldl, last, map, mapM, concatMap, zip)
 
 import qualified Prelude as P
-import qualified Streamly.Internal.Data.Stream.StreamD as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold as FL
 

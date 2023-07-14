@@ -41,7 +41,7 @@ import qualified Streamly.Internal.Data.Unfold.Exception as IUF
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as Stream
 #endif
 
@@ -53,7 +53,7 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Test.Inspection
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 #endif
 
 #ifdef USE_PRELUDE

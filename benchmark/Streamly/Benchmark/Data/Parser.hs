@@ -34,7 +34,7 @@ import System.Random (randomRIO)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Parser
     (ParseError(..), Parser(..), Initial(..), Step(..))
-import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Prelude hiding
     (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile, span)
 
@@ -48,7 +48,7 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Producer.Source as Source
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Gauge hiding (env)
 import Streamly.Benchmark.Common

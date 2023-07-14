@@ -25,7 +25,7 @@ import Data.IntMap.Strict (IntMap)
 import Data.Monoid (Last(..), Sum(..))
 import System.Random (randomRIO)
 
-import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.IsMap.HashMap ()
 import Streamly.Internal.Data.Array.Mut (MutArray)
@@ -35,7 +35,7 @@ import qualified Streamly.Data.Fold.Prelude as Fold
 import qualified Streamly.Internal.Data.Fold.Container as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Gauge
 import Streamly.Benchmark.Common

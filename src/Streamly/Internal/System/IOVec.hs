@@ -36,7 +36,7 @@ import Streamly.Internal.Data.Array.Mut.Type (Array(..))
 
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 -}
 #endif
 

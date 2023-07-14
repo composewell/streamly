@@ -36,7 +36,7 @@ import Streamly.Benchmark.Common
 #ifdef FUSION_CHECK
 import Data.Function ((&))
 import Streamly.Data.Stream (Stream)
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Data.Foldable as Foldable
 import Stream.Common

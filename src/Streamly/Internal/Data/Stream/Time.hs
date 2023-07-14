@@ -78,7 +78,7 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Fold as Fold (Step(..))
 import qualified Streamly.Internal.Data.IsMap as IsMap
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
     ( scanlMAfter'
     , timeIndexed
     , timestamped

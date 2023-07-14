@@ -35,7 +35,7 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Array.Type as AT
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.StreamD as IP
+import qualified Streamly.Internal.Data.Stream as IP
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Data.Stream.Prelude as S
@@ -49,7 +49,7 @@ import Streamly.Benchmark.Common.Handle
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), FoldMany)
 
 import qualified Streamly.Internal.Data.Array.Mut.Type as MA
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Unfold as IUF
 
 import Test.Inspection

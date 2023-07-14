@@ -16,8 +16,8 @@ import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream as D
+import qualified Streamly.Internal.Data.StreamK as K
 
 import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity

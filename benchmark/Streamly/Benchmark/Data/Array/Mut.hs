@@ -47,7 +47,7 @@ import Streamly.Internal.Data.Array.Mut (MutArray)
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Array.Mut as MArray
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Gauge
 import Streamly.Benchmark.Common hiding (benchPureSrc)

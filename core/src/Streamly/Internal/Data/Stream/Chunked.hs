@@ -80,8 +80,8 @@ import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Array.Mut.Type (MutArray)
 import Streamly.Internal.Data.Fold.Chunked (ChunkFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import Streamly.Internal.Data.Stream.StreamK (StreamK, fromStream, toStream)
+import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.StreamK (StreamK, fromStream, toStream)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Array.Mut.Type
     (allocBytesToElemCount)
@@ -97,8 +97,8 @@ import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
     (Parser(..), Initial(..))
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream as D
+import qualified Streamly.Internal.Data.StreamK as K
 
 -- XXX Since these are immutable arrays MonadIO constraint can be removed from
 -- most places.

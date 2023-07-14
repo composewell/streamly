@@ -47,12 +47,12 @@ import System.IO (stdin, stdout, stderr)
 import Prelude hiding (read)
 
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.Fold (Fold)
 
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
     (intersperseMSuffix)
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as Handle

@@ -35,7 +35,7 @@ import Gauge
 import GHC.Types (SPEC(..))
 import Test.Inspection
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 #endif
 
 moduleName :: String
