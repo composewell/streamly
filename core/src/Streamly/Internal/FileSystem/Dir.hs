@@ -92,9 +92,11 @@ import Streamly.Internal.Data.Unfold (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import System.FilePath ((</>))
 #if (defined linux_HOST_OS) || (defined darwin_HOST_OS)
-import System.Posix (openDirStream, readDirStream, closeDirStream)
+import System.Posix (DirStream, openDirStream, readDirStream, closeDirStream)
 #elif defined(mingw32_HOST_OS)
 import qualified System.Win32 as Win32
+#else
+#error "Unsupported architecture"
 #endif
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (mapM2, bracketIO)
@@ -237,6 +239,42 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 
 -- XXX exception handling
 
+#if (defined linux_HOST_OS) || (defined darwin_HOST_OS)
+{-# INLINE streamReader #-}
+streamReader :: MonadIO m => Unfold m DirStream FilePath
+streamReader = Unfold step return
+
+    where
+
+    step strm = do
+        -- XXX Use readDirStreamMaybe
+        file <- liftIO $ readDirStream strm
+        case file of
+            [] -> return Stop
+            _ -> return $ Yield file strm
+
+#elif defined(mingw32_HOST_OS)
+openDirStream :: String -> IO (Win32.HANDLE, Win32.FindData)
+openDirStream = Win32.findFirstFile
+
+closeDirStream :: (Win32.HANDLE, Win32.FindData) -> IO ()
+closeDirStream (h, _) = Win32.findClose h
+
+{-# INLINE streamReader #-}
+streamReader :: MonadIO m => Unfold m (Win32.HANDLE, Win32.FindData) FilePath
+streamReader = Unfold step return
+
+    where
+
+    step (h, fdat) = do
+        more <- liftIO $ Win32.findNextFile h fdat
+        if more
+        then do
+            file <- liftIO $ Win32.getFindDataFileName fdat
+            return $ Yield file (h, fdat)
+        else return Stop
+#endif
+
 --  | Read a directory emitting a stream with names of the children. Filter out
 --  "." and ".." entries.
 --
@@ -245,48 +283,12 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 {-# INLINE reader #-}
 reader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
 reader =
-#if (defined linux_HOST_OS) || (defined darwin_HOST_OS)
-    UF.bracketIO openDirStream closeDirStream childOf
+-- XXX Instead of using bracketIO for each iteration of the loop we should
+-- instead yield a buffer of dir entries in each iteration and then use an
+-- unfold and concat to flatten those entries. That should improve the
+-- performance.
+      UF.bracketIO openDirStream closeDirStream streamReader
     & UF.filter (\x -> x /= "." && x /= "..")
-
-    where
-
-    {-# INLINABLE childOf #-}
-    childOf = Unfold step inject
-
-        where
-
-        inject = return
-
-        step strm = do
-            file <- liftIO $ readDirStream strm
-            case file of
-                [] -> return Stop
-                _ -> return $ Yield file strm
-#elif defined(mingw32_HOST_OS)
-    UF.bracketIO
-        Win32.findFirstFile
-        (\(h, _) -> liftIO $ Win32.findClose h)
-        childOf
-    & UF.filter (\x -> x /= "." && x /= "..")
-
-    where
-
-    {-# INLINABLE childOf #-}
-    childOf = Unfold step inject
-
-        where
-
-        inject = return
-
-        step (h, fdat) = do
-            more <- liftIO $ Win32.findNextFile h fdat
-            if more
-            then do
-                file <- liftIO $ Win32.getFindDataFileName fdat
-                return $ Yield file (h, fdat)
-            else return Stop
-#endif
 
 -- XXX We can use a more general mechanism to filter the contents of a
 -- directory. We can just stat each child and pass on the stat information. We
