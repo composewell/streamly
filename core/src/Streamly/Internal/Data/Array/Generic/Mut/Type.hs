@@ -468,11 +468,11 @@ getIndexUnsafe n MutArray {..} =
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: MonadIO m => Int -> MutArray a -> m a
+getIndex :: MonadIO m => Int -> MutArray a -> m (Maybe a)
 getIndex i arr@MutArray {..} =
     if i >= 0 && i < arrLen
-    then getIndexUnsafe i arr
-    else invalidIndex "getIndex" i
+    then Just <$> getIndexUnsafe i arr
+    else return Nothing
 
 -------------------------------------------------------------------------------
 -- Subarrays

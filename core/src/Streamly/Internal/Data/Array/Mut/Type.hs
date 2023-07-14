@@ -994,12 +994,12 @@ getIndexUnsafe i MutArray{..} = do
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m a
+getIndex :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (Maybe a)
 getIndex i MutArray{..} = do
     let index = INDEX_OF(arrStart,i,a)
     if i >= 0 && INDEX_VALID(index,arrEnd,a)
-    then liftIO $ peekWith arrContents index
-    else invalidIndex "getIndex" i
+    then liftIO $ Just <$> peekWith arrContents index
+    else return Nothing
 
 -- | /O(1)/ Lookup the element at the given index from the end of the array.
 -- Index starts from 0.
@@ -1038,7 +1038,9 @@ getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
         case r of
             D.Yield i s -> do
                 x <- liftio $ getIndex i (MutArray contents start end undefined)
-                return $ D.Yield x (GetIndicesState contents start end s)
+                case x of
+                    Just v -> return $ D.Yield v (GetIndicesState contents start end s)
+                    Nothing -> error "Invalid Index"
             D.Skip s -> return $ D.Skip (GetIndicesState contents start end s)
             D.Stop -> return D.Stop
 
