@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.ParserK
+-- Module      : Streamly.Data.ParserK.Chunked
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -9,9 +9,9 @@
 -- Parsers using Continuation Passing Style (CPS). See notes in
 -- "Streamly.Data.Parser" module to know when to use this module.
 --
--- To run a 'ParserK' use 'Streamly.Data.StreamK.parseChunks'.
+-- To run a 'ChunkParserK' use 'Streamly.Data.StreamK.parseChunks'.
 --
-module Streamly.Data.ParserK
+module Streamly.Data.ParserK.Chunked
     (
     -- * Parser Type
       ChunkParserK

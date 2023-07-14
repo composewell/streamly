@@ -408,7 +408,7 @@ library
                      , Streamly.Data.MutArray.Generic
                      , Streamly.Data.Fold
                      , Streamly.Data.Parser
-                     , Streamly.Data.ParserK
+                     , Streamly.Data.ParserK.Chunked
                      , Streamly.Data.Stream
                      , Streamly.Data.StreamK
                      , Streamly.Data.Unfold
