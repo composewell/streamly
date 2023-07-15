@@ -274,7 +274,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 
 import Prelude hiding
-       (any, all, take, takeWhile, sequence, concatMap, liftMaybe, liftEither, span
+       (any, all, take, takeWhile, sequence, concatMap, span
        , zip, filter, dropWhile)
 -- import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Type
