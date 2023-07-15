@@ -53,8 +53,8 @@ module Streamly.Data.Parser
     , oneOf
     , noneOf
     , satisfy
-    -- , maybe
-    -- , either
+    , liftMaybe
+    , liftEither
 
     -- ** Sequences
     , streamEqBy

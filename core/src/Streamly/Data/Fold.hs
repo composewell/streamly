@@ -98,7 +98,7 @@ module Streamly.Data.Fold
     , one
     , null
     -- , satisfy
-    -- , maybe
+    , liftMaybe
 
     , index
     , the
@@ -252,7 +252,7 @@ import Prelude
                notElem, head, last, tail,
                reverse, iterate, init, and, or, lookup, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, unzip,
-               span, splitAt, break, mapM, maybe)
+               span, splitAt, break, mapM)
 
 import Streamly.Internal.Data.Fold
 import Streamly.Internal.Data.Fold.Container

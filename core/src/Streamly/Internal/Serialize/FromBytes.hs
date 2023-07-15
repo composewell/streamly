@@ -53,7 +53,7 @@ import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array as A
     (unsafeIndex, castUnsafe)
 import qualified Streamly.Internal.Data.Parser as PR
-    (fromPure, either, satisfy, takeEQ)
+    (fromPure, liftEither, satisfy, takeEQ)
 import qualified Streamly.Internal.Data.Parser.ParserD as PRD
     (Parser(..), Initial(..), Step(..))
 
@@ -91,7 +91,7 @@ word8ToBool w = Left ("Invalid Bool encoding " ++ Prelude.show w)
 --
 {-# INLINE bool #-}
 bool :: Monad m => Parser Word8 m Bool
-bool = PR.either word8ToBool
+bool = PR.liftEither word8ToBool
 
 {-# INLINE word8ToOrdering #-}
 word8ToOrdering :: Word8 -> Either String Ordering
@@ -112,7 +112,7 @@ word8ToOrdering w = Left ("Invalid Ordering encoding " ++ Prelude.show w)
 --
 {-# INLINE ordering #-}
 ordering :: Monad m => Parser Word8 m Ordering
-ordering = PR.either word8ToOrdering
+ordering = PR.liftEither word8ToOrdering
 
 -- XXX should go in a Word8 parser module?
 -- | Accept the input byte only if it is equal to the specified value.

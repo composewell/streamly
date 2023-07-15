@@ -82,8 +82,8 @@ module Streamly.Internal.Data.Parser
     , noneOf
     , eof
     , satisfy
-    , maybe
-    , either
+    , litMaybe
+    , liftEither
 
     -- * Sequence parsers (tokenizers)
     --
@@ -266,13 +266,12 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
 #endif
 
 import Prelude hiding
-    ( any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either
-    , filter )
+    ( any, all, dropWhile, take, takeWhile, sequence, concatMap, filter )
 
 --
 -- $setup
 -- >>> :m
--- >>> import Prelude hiding (any, all, dropWhile, take, takeWhile, sequence, concatMap, maybe, either, filter)
+-- >>> import Prelude hiding (any, all, dropWhile, take, takeWhile, sequence, concatMap, filter)
 -- >>> import Control.Applicative ((<|>))
 -- >>> import Data.Char (isSpace)
 -- >>> import qualified Data.Maybe as Maybe

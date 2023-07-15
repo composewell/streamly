@@ -42,7 +42,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- * Element parsers
     , peek
 
-    -- All of these can be expressed in terms of either
+    -- All of these can be expressed in terms of liftEither
     , one
     , oneEq
     , oneNotEq
@@ -50,8 +50,8 @@ module Streamly.Internal.Data.Parser.ParserD
     , noneOf
     , eof
     , satisfy
-    , maybe
-    , either
+    , liftMaybe
+    , liftEither
 
     -- * Sequence parsers (tokenizers)
     --
@@ -274,7 +274,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 
 import Prelude hiding
-       (any, all, take, takeWhile, sequence, concatMap, maybe, either, span
+       (any, all, take, takeWhile, sequence, concatMap, liftMaybe, liftEither, span
        , zip, filter, dropWhile)
 -- import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Type
@@ -468,9 +468,9 @@ next = Parser step initial extract
 --
 -- /Pre-release/
 --
-{-# INLINE either #-}
-either :: Monad m => (a -> Either String b) -> Parser a m b
-either f = Parser step initial extract
+{-# INLINE liftEither #-}
+liftEither :: Monad m => (a -> Either String b) -> Parser a m b
+liftEither f = Parser step initial extract
 
     where
 
@@ -487,17 +487,17 @@ either f = Parser step initial extract
 -- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
 -- value.
 --
--- >>> toEither = Maybe.maybe (Left "maybe: predicate failed") Right
--- >>> maybe f = Parser.either (toEither . f)
+-- >>> toEither = Maybe.liftMaybe (Left "liftMaybe: predicate failed") Right
+-- >>> liftMaybe f = Parser.liftEither (toEither . f)
 --
--- >>> maybe f = Parser.fromFoldMaybe "maybe: predicate failed" (Fold.maybe f)
+-- >>> liftMaybe f = Parser.fromFoldMaybe "liftMaybe: predicate failed" (Fold.liftMaybe f)
 --
 -- /Pre-release/
 --
-{-# INLINE maybe #-}
-maybe :: Monad m => (a -> Maybe b) -> Parser a m b
--- maybe f = either (Maybe.maybe (Left "maybe: predicate failed") Right . f)
-maybe parserF = Parser step initial extract
+{-# INLINE liftMaybe #-}
+liftMaybe :: Monad m => (a -> Maybe b) -> Parser a m b
+-- liftMaybe f = liftEither (Maybe.liftMaybe (Left "liftMaybe: predicate failed") Right . f)
+liftMaybe parserF = Parser step initial extract
 
     where
 
@@ -506,9 +506,9 @@ maybe parserF = Parser step initial extract
     step () a = return $
         case parserF a of
             Just b -> Done 0 b
-            Nothing -> Error "maybe: predicate failed"
+            Nothing -> Error "liftMaybe: predicate failed"
 
-    extract () = return $ Error "maybe: end of input"
+    extract () = return $ Error "liftMaybe: end of input"
 
 -- | Returns the next element if it passes the predicate, fails otherwise.
 --
@@ -516,11 +516,11 @@ maybe parserF = Parser step initial extract
 -- Right 1
 --
 -- >>> toMaybe f x = if f x then Just x else Nothing
--- >>> satisfy f = Parser.maybe (toMaybe f)
+-- >>> satisfy f = Parser.liftMaybe (toMaybe f)
 --
 {-# INLINE satisfy #-}
 satisfy :: Monad m => (a -> Bool) -> Parser a m a
--- satisfy predicate = maybe (\a -> if predicate a then Just a else Nothing)
+-- satisfy predicate = liftMaybe (\a -> if predicate a then Just a else Nothing)
 satisfy predicate = Parser step initial extract
 
     where
@@ -1277,7 +1277,7 @@ takeEndBy_ cond (Parser pstep pinitial pextract) =
         then pextract s
         else pstep s a
 
--- | Take either the separator or the token. Separator is a Left value and
+-- | Take liftEither the separator or the token. Separator is a Left value and
 -- token is Right value.
 --
 -- /Unimplemented/
@@ -2520,7 +2520,7 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 -- given to the first parser and the input definitively rejected by the first
 -- parser is given to the second parser.
 --
--- We can either have the parsers themselves buffer the input or use the shared
+-- We can liftEither have the parsers themselves buffer the input or use the shared
 -- global buffer to hold it until none of the parsers need it. When the first
 -- parser returns Skip (i.e. rewind) we let the second parser consume the
 -- rejected input and when it is done we move the cursor forward to the first

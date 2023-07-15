@@ -345,7 +345,7 @@ import Prelude hiding
        , notElem, head, last, tail
        , reverse, iterate, init, and, or, lookup, (!!)
        , scanl, scanl1, replicate, concatMap, mconcat, unzip
-       , span, splitAt, break, mapM, zip, maybe)
+       , span, splitAt, break, mapM, zip)
 import Streamly.Internal.Data.Fold.Type
 import Streamly.Internal.Data.Fold.Tee
 
