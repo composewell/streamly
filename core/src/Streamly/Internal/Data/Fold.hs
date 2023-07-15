@@ -127,7 +127,7 @@ module Streamly.Internal.Data.Fold
     , one
     , null -- XXX not very useful and could be problematic, remove it?
     , satisfy
-    , maybe
+    , liftMaybe
 
     -- *** Multi folds
     -- | Terminate after consuming one or more elements.
@@ -1189,9 +1189,9 @@ index = indexGeneric
 --
 -- /Pre-release/
 --
-{-# INLINE maybe #-}
-maybe :: Monad m => (a -> Maybe b) -> Fold m a (Maybe b)
-maybe f = foldt' (const (Done . f)) (Partial Nothing) id
+{-# INLINE liftMaybe #-}
+liftMaybe :: Monad m => (a -> Maybe b) -> Fold m a (Maybe b)
+liftMaybe f = foldt' (const (Done . f)) (Partial Nothing) id
 
 -- | Consume a single element and return it if it passes the predicate else
 -- return 'Nothing'.
@@ -1203,7 +1203,7 @@ maybe f = foldt' (const (Done . f)) (Partial Nothing) id
 -- /Pre-release/
 {-# INLINE satisfy #-}
 satisfy :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
-satisfy f = maybe (\a -> if f a then Just a else Nothing)
+satisfy f = liftMaybe (\a -> if f a then Just a else Nothing)
 {-
 satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
 
@@ -1247,7 +1247,7 @@ satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
 --
 {-# INLINE one #-}
 one :: Monad m => Fold m a (Maybe a)
-one = maybe Just
+one = liftMaybe Just
 
 -- | Extract the first element of the stream, if any.
 --

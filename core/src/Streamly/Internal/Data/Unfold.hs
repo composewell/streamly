@@ -123,7 +123,7 @@ module Streamly.Internal.Data.Unfold
     -- pipe
 
     -- ** Either Wrapped Input
-    , either
+    , liftEither
 
     -- ** Filtering
     , takeWhileM
@@ -353,10 +353,10 @@ foldMany (Fold fstep initial extract) (Unfold ustep inject1) =
 -- | Choose left or right unfold based on an either input.
 --
 -- /Pre-release/
-{-# INLINE_NORMAL either #-}
-either :: Applicative m =>
+{-# INLINE_NORMAL liftEither #-}
+liftEither :: Applicative m =>
     Unfold m a c -> Unfold m b c -> Unfold m (Either a b) c
-either (Unfold stepL injectL) (Unfold stepR injectR) = Unfold step inject
+liftEither (Unfold stepL injectL) (Unfold stepR injectR) = Unfold step inject
 
     where
 
