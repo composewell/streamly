@@ -35,7 +35,6 @@ module Streamly.Internal.Data.Parser.ParserK.Type
     )
 where
 
-#include "ArrayMacros.h"
 #include "assert.hs"
 #include "inline.hs"
 
@@ -48,7 +47,7 @@ import GHC.Types (SPEC(..))
 import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
 
-data Input a = None | Chunk a
+data Input a = None | Single a
 
 -- | The intermediate result of running a parser step. The parser driver may
 -- stop with a final result, pause with a continuation to resume, or fail with
@@ -61,12 +60,14 @@ data Input a = None | Chunk a
 -- /Pre-release/
 --
 data Step a m r =
-    -- The Int is the current stream position index wrt to the start of the
-    -- array.
+    -- The Int is the relative stream position to move to.
+    -- 0 means try the current element again
+    -- 1 means try the next element
+    -- -1 backtrack by 1 element
       Done !Int r
       -- XXX we can use a "resume" and a "stop" continuations instead of Maybe.
       -- measure if that works any better.
-      -- Array a -> m (Step a m r), m (Step a m r)
+      -- a -> m (Step a m r), m (Step a m r)
     | Partial !Int (Input a -> m (Step a m r))
     | Continue !Int (Input a -> m (Step a m r))
     | Error String
@@ -82,13 +83,12 @@ instance Functor m => Functor (Step a m) where
 
 -- | The parser's result.
 --
--- Int is the position index into the current input array. Could be negative.
--- Cannot be beyond the input array max bound.
+-- Int is the relative stream position to move to. Could be negative.
 --
 -- /Pre-release/
 --
 data ParseResult b =
-      Success !Int !b     -- Leftover count, result
+      Success !Int !b     -- Relative stream position, result
     | Failure !String     -- Error
 
 -- | Map a function over 'Success'.
@@ -98,7 +98,7 @@ instance Functor ParseResult where
 
 -- XXX Change the type to the shape (a -> m r -> m r) -> (m r -> m r) -> m r
 --
--- The parse continuation would be: Array a -> m (Step a m r) -> m (Step a m r)
+-- The parse continuation would be: a -> m (Step a m r) -> m (Step a m r)
 -- The extract continuation would be: m (Step a m r) -> m (Step a m r)
 --
 -- Use Step itself in place of ParseResult.
@@ -123,21 +123,19 @@ newtype ParserK a m b = MkParser
            -- way we can also report better errors. Use a Context structure for
            -- passing the state.
 
-           -- Stream position index wrt to the current input array start. If
-           -- negative then backtracking is required before using the array.
+           -- Relative stream position. If
+           -- negative then backtracking is required.
            -- The parser should use "Continue -n" in this case if it needs to
-           -- consume input. Negative value cannot be beyond the current
-           -- backtrack buffer. Positive value cannot be beyond array 1gth.
-           -- If the parser needs to advance beyond the array 1gth it should
-           -- use "Continue +n".
+           -- backtrack. Negative value cannot be beyond the current
+           -- backtrack buffer. Positive value cannot be beyond 1.
+           -- Only single element forward tracking is possible now.
         -> Int
-           -- used elem count, a count of elements consumed by the parser. If
+           -- Used elem count, a count of elements consumed by the parser. If
            -- an Alternative fails we need to backtrack by this amount.
         -> Int
            -- The second argument is the used count as described above. The
            -- current input position is carried as part of 'Success'
            -- constructor of 'ParseResult'.
-           -- XXX Use Array a, determine eof by using a nil array
         -> Input a
         -> m (Step a m r)
     }
@@ -376,7 +374,7 @@ parseDToK pstep initial extract cont !relPos !usedCount !input = do
             if relPos == 0
             then
                 case input of
-                    Chunk x -> parseContChunk usedCount pst x
+                    Single x -> parseContSingle usedCount pst x
                     None -> parseContNothing usedCount pst
             else pure $ Partial relPos (parseCont usedCount pst)
         ParserD.IDone b -> cont (Success 0 b) usedCount input
@@ -386,8 +384,8 @@ parseDToK pstep initial extract cont !relPos !usedCount !input = do
 
     -- XXX We can maintain an absolute position instead of relative that will
     -- help in reporting of error location in the stream.
-    {-# NOINLINE parseContChunk #-}
-    parseContChunk !count !state !x =
+    {-# NOINLINE parseContSingle #-}
+    parseContSingle !count !state !x =
         go SPEC state
 
         where
@@ -396,11 +394,11 @@ parseDToK pstep initial extract cont !relPos !usedCount !input = do
             pRes <- pstep pst x
             case pRes of
                 ParserD.Done 0 b ->
-                    cont (Success 1 b) (count + 1) (Chunk x)
+                    cont (Success 1 b) (count + 1) (Single x)
                 ParserD.Done 1 b ->
-                    cont (Success 0 b) count (Chunk x)
+                    cont (Success 0 b) count (Single x)
                 ParserD.Done n b ->
-                    cont (Success (1 - n) b) (count + 1 - n) (Chunk x)
+                    cont (Success (1 - n) b) (count + 1 - n) (Single x)
                 ParserD.Partial 0 pst1 ->
                     pure $ Partial 1 (parseCont (count + 1) pst1)
                 ParserD.Partial 1 pst1 ->
@@ -414,15 +412,15 @@ parseDToK pstep initial extract cont !relPos !usedCount !input = do
                 ParserD.Continue n pst1 ->
                     pure $ Continue (1 - n) (parseCont (count + 1 - n) pst1)
                 ParserD.Error err ->
-                    cont (Failure err) count (Chunk x)
+                    cont (Failure err) count (Single x)
 
     {-# NOINLINE parseContNothing #-}
     parseContNothing !count !pst = do
         r <- extract pst
         case r of
             -- IMPORTANT: the n here is from the byte stream parser, that means
-            -- it is the backtrack element count and not the stream position
-            -- index into the current input array.
+            -- it is the backtrack element count and not the relative stream
+            -- position.
             ParserD.Done n b ->
                 assert (n >= 0)
                     (cont (Success (- n) b) (count - n) None)
@@ -430,8 +428,6 @@ parseDToK pstep initial extract cont !relPos !usedCount !input = do
                 assert (n >= 0)
                     (return $ Continue (- n) (parseCont (count - n) pst1))
             ParserD.Error err ->
-                -- XXX It is called only when there is no input arr. So using 0
-                -- as the position is correct?
                 cont (Failure err) count None
             ParserD.Partial _ _ -> error "Bug: parseDToK Partial unreachable"
 
@@ -439,10 +435,10 @@ parseDToK pstep initial extract cont !relPos !usedCount !input = do
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
     -- function call.
     {-# INLINE parseCont #-}
-    parseCont !cnt !pst (Chunk x) = parseContChunk cnt pst x
+    parseCont !cnt !pst (Single x) = parseContSingle cnt pst x
     parseCont !cnt !pst None = parseContNothing cnt pst
 
--- | Convert a raw byte 'Parser' to a chunked 'ParserK'.
+-- | Convert a raw byte 'Parser' to a 'ParserK'.
 --
 -- /Pre-release/
 --

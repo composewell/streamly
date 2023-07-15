@@ -1406,7 +1406,8 @@ parseChunks :: (Monad m, Unbox a) =>
     ChunkParserK a m b -> StreamK m (Array a) -> m (Either ParseError b)
 parseChunks f = fmap fst . parseBreakChunks f
 
--- | Run a 'ParserK' over a chunked 'StreamK' and return the rest of the Stream.
+-- | Run a 'ParserK' over a 'StreamK' and return the rest of the Stream. Please
+-- use 'parseBreakChunks' where possible, for better performance.
 {-# INLINE_NORMAL parseBreak #-}
 parseBreak
     :: forall m a b. Monad m
@@ -1464,7 +1465,7 @@ parseBreak parser input = do
         -> StreamK m a
         -> m (Either ParseError b, StreamK m a)
     yieldk backBuf parserk arr stream = do
-        pRes <- parserk (ParserK.Chunk arr)
+        pRes <- parserk (ParserK.Single arr)
         case pRes of
             ParserK.Partial 1 cont1 -> go [] cont1 stream
             ParserK.Partial 0 cont1 -> go [] cont1 (cons arr stream)
@@ -1510,6 +1511,8 @@ parseBreak parser input = do
          in foldStream
                 defState (yieldk backBuf parserk) single stop stream
 
+-- | Run a 'ParserK' over a 'StreamK'. Please use 'parseChunks' where possible,
+-- for better performance.
 {-# INLINE parse #-}
 parse :: Monad m =>
     ParserK a m b -> StreamK m a -> m (Either ParseError b)

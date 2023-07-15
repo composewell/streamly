@@ -9,7 +9,7 @@
 -- Parsers using Continuation Passing Style (CPS). See notes in
 -- "Streamly.Data.Parser" module to know when to use this module.
 --
--- To run a 'ParserK' use 'Streamly.Data.StreamK.parseBreak'.
+-- To run a 'ParserK' use 'Streamly.Data.StreamK.parse'.
 --
 module Streamly.Data.ParserK
     (
