@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+* `Streamly.Data.ParserK` is now a non-chunked parser.
+  * The chunked parser is moved to `Streamly.Data.ParserK.Chunked`
+  * `ParserK` now represente the non-chunked parser. `ChunkParserK` represents
+    the chunked parser.
+
 ## 0.1.0 (March 2023)
 
 Also see [streamly-core-0.1.0 API Changelog](/core/docs/ApiChangelogs/0.1.0.txt) or

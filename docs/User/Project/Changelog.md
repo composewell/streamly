@@ -10,7 +10,6 @@
   `ParallelT`, `AheadT` for GHC versions 9.6 onwards. This is due to a
   breaking change in `transformers` 0.6. You can replace `lift` with
   `fromEffect` when using these as top level monads in a monad stack.
-* Streamly.Data.ParserK is renamed to Streamly.Data.ParserK.Chunked
 
 ## 0.9.0 (Mar 2023)
 
