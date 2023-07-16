@@ -487,7 +487,7 @@ liftEither f = Parser step initial extract
 -- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
 -- value.
 --
--- >>> toEither = Maybe.liftMaybe (Left "liftMaybe: predicate failed") Right
+-- >>> toEither = Maybe.maybe (Left "liftMaybe: predicate failed") Right
 -- >>> liftMaybe f = Parser.liftEither (toEither . f)
 --
 -- >>> liftMaybe f = Parser.fromFoldMaybe "liftMaybe: predicate failed" (Fold.liftMaybe f)
@@ -496,7 +496,7 @@ liftEither f = Parser step initial extract
 --
 {-# INLINE liftMaybe #-}
 liftMaybe :: Monad m => (a -> Maybe b) -> Parser a m b
--- liftMaybe f = liftEither (Maybe.liftMaybe (Left "liftMaybe: predicate failed") Right . f)
+-- liftMaybe f = liftEither (Maybe.maybe (Left "liftMaybe: predicate failed") Right . f)
 liftMaybe parserF = Parser step initial extract
 
     where

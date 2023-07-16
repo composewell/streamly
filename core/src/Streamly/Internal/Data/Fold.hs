@@ -1198,7 +1198,7 @@ liftMaybe f = foldt' (const (Done . f)) (Partial Nothing) id
 --
 -- Definition:
 --
--- >>> satisfy f = Fold.maybe (\a -> if f a then Just a else Nothing)
+-- >>> satisfy f = Fold.liftMaybe (\a -> if f a then Just a else Nothing)
 --
 -- /Pre-release/
 {-# INLINE satisfy #-}
@@ -1241,7 +1241,7 @@ satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
 --
 -- Definition:
 --
--- >>> one = Fold.maybe Just
+-- >>> one = Fold.liftMaybe Just
 --
 -- This is similar to the stream 'Stream.uncons' operation.
 --

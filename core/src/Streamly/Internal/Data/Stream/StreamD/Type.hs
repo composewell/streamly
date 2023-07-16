@@ -1560,7 +1560,7 @@ data IterateUnfoldState o i =
 --
 -- Example, list a directory tree using DFS:
 --
--- >>> f = Unfold.either Dir.eitherReaderPaths Unfold.nil
+-- >>> f = Unfold.liftEither Dir.eitherReaderPaths Unfold.nil
 -- >>> input = Stream.fromPure (Left ".")
 -- >>> ls = Stream.unfoldIterateDfs f input
 --
