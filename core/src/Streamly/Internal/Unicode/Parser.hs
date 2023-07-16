@@ -344,26 +344,26 @@ double2 =  Parser step initial extract
         let stp = c + 1
         return $
             case a of
-            '-' -> Partial 0 (TE stp 0 (-1) m e)
-            '+' -> Partial 0 (TE stp 0 0 m e)
-            '.' -> Partial 0 (TE stp 1 s m e)
-            x | Char.isDigit x ->
-                    if (p > 0)
-                    then Partial 0 (TE stp (p+1) s (m * 10 + fromIntegral (ord x - 48)) (e + 1))
-                    else Partial 0 (TE stp p s (m * 10 + fromIntegral (ord x - 48)) e)
-            _ ->
-                if (c == 0)
-                then Error "Invalid double fromat"
-                else do
-                    case s < 0 of
-                        True ->
-                            if e >= 0
-                            then Done 0 (fromRational (-m % 10 ^ e))
-                            else Done 0 (fromRational (-m % 10 ^ (-e)))
-                        False ->
-                            if e >= 0
-                            then Done 0 (fromRational (m % 10 ^ e))
-                            else Done 0 (fromRational (m % 10 ^ (-e)))
+                '-' -> Partial 0 (TE stp 0 (-1) m e)
+                '+' -> Partial 0 (TE stp 0 0 m e)
+                '.' -> Partial 0 (TE stp 1 s m e)
+                x | Char.isDigit x ->
+                        if (p > 0)
+                        then Partial 0 (TE stp (p+1) s (m * 10 + fromIntegral (ord x - 48)) (e + 1))
+                        else Partial 0 (TE stp p s (m * 10 + fromIntegral (ord x - 48)) e)
+                _ ->
+                    if (c == 0)
+                    then Error "Invalid double fromat"
+                    else do
+                        case s < 0 of
+                            True ->
+                                if e >= 0
+                                then Done 0 (fromRational (-m % 10 ^ e))
+                                else Done 0 (fromRational (-m % 10 ^ (-e)))
+                            False ->
+                                if e >= 0
+                                then Done 0 (fromRational (m % 10 ^ e))
+                                else Done 0 (fromRational (m % 10 ^ (-e)))
 
     extract (TE _stp _p s m ex) = return $ do
             case s < 0 of

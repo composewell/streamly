@@ -16,7 +16,7 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
-import System.Random (randomRIO)
+import Control.Monad (replicateM_)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Prelude hiding
@@ -24,6 +24,7 @@ import Prelude hiding
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Unicode.Parser as PRU
 
 import Gauge hiding (env)
@@ -39,23 +40,17 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
-{-# INLINE sourceUnfoldrMc #-}
-sourceUnfoldrMc :: Monad m => Int -> Int -> Stream m Char
-sourceUnfoldrMc value n = Stream.unfoldrM step n
-    where
-    step cnt =
-        if cnt > n + value
-        then return Nothing
-        else return (Just ('1', cnt + 1))
-
+runParser :: Int -> (Stream IO Char -> IO a) -> IO ()
+runParser count p = do
+    let v = "123456789.123456789"
+    let s = Stream.unfold Unfold.fromList v
+    replicateM_ count (p s)
 
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSinkc #-}
-benchIOSinkc
-    :: NFData b
-    => Int -> String -> (Stream IO Char -> IO b) -> Benchmark
+benchIOSinkc :: Int -> String -> (Stream IO Char -> IO b) -> Benchmark
 benchIOSinkc value name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrMc value
+    bench name $ nfIO $ runParser value f
 
 {-# INLINE double #-}
 double :: Monad m => Stream m Char -> m (Either ParseError Double)
@@ -99,4 +94,3 @@ main = do
     allBenchmarks _ _ value =
         [ bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
-
