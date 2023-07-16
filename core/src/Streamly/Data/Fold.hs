@@ -98,7 +98,7 @@ module Streamly.Data.Fold
     , one
     , null
     -- , satisfy
-    , liftMaybe
+    --, liftMaybe
 
     , index
     , the
