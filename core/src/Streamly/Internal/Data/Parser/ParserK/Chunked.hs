@@ -123,6 +123,8 @@ newtype ChunkParserK a m b = MkParser
            --
            -- Do not eta reduce the applications of this continuation.
            --
+           -- The second argument is the used count. The current input position
+           -- is carried as part of 'Success' constructor of 'ParseResult'.
            (ParseResult b -> Int -> Input a -> m (Step a m r))
            -- XXX Maintain and pass the original position in the stream. that
            -- way we can also report better errors. Use a Context structure for
@@ -139,9 +141,6 @@ newtype ChunkParserK a m b = MkParser
            -- used elem count, a count of elements consumed by the parser. If
            -- an Alternative fails we need to backtrack by this amount.
         -> Int
-           -- The second argument is the used count as described above. The
-           -- current input position is carried as part of 'Success'
-           -- constructor of 'ParseResult'.
            -- XXX Use Array a, determine eof by using a nil array
         -> Input a
         -> m (Step a m r)
