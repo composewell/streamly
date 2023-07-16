@@ -279,7 +279,7 @@ module Streamly.Internal.Data.Fold
     , partitionByM
     , partitionByFstM
     , partitionByMinM
-    , partitionBy
+    , partitionWith
     , partition
 
     -- ** Splitting
@@ -2119,7 +2119,7 @@ partitionByMinM = partitionByMUsing teeWithMin
 -- Example, count even and odd numbers in a stream:
 --
 -- >>> :{
---  let f = Fold.partitionBy (\n -> if even n then Left n else Right n)
+--  let f = Fold.partitionWith (\n -> if even n then Left n else Right n)
 --                      (fmap (("Even " ++) . show) Fold.length)
 --                      (fmap (("Odd "  ++) . show) Fold.length)
 --   in Stream.fold f (Stream.enumerateFromTo 1 100)
@@ -2127,10 +2127,10 @@ partitionByMinM = partitionByMUsing teeWithMin
 -- ("Even 50","Odd 50")
 --
 -- /Pre-release/
-{-# INLINE partitionBy #-}
-partitionBy :: Monad m
+{-# INLINE partitionWith #-}
+partitionWith :: Monad m
     => (a -> Either b c) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
-partitionBy f = partitionByM (return . f)
+partitionWith f = partitionByM (return . f)
 
 -- | Compose two folds such that the combined fold accepts a stream of 'Either'
 -- and routes the 'Left' values to the first fold and 'Right' values to the
@@ -2138,12 +2138,12 @@ partitionBy f = partitionByM (return . f)
 --
 -- Definition:
 --
--- >>> partition = Fold.partitionBy id
+-- >>> partition = Fold.partitionWith id
 --
 {-# INLINE partition #-}
 partition :: Monad m
     => Fold m b x -> Fold m c y -> Fold m (Either b c) (x, y)
-partition = partitionBy id
+partition = partitionWith id
 
 {-
 -- | Send one item to each fold in a round-robin fashion. This is the consumer
