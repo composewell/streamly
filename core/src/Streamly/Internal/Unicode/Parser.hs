@@ -48,7 +48,6 @@ module Streamly.Internal.Unicode.Parser
     -- * Numeric
     , signed
     , double
-    , double2
     , decimal
     , hexadecimal
     )
@@ -266,93 +265,108 @@ hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
 signed :: (Num a, Monad m) => Parser Char m a -> Parser Char m a
 signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 
+data TE =
+    TE  {-# UNPACK #-}!Int      -- ^ Total number of digits
+        {-# UNPACK #-}!Int      -- ^ Decimal point exsistence
+        {-# UNPACK #-}!Int      -- ^ The sign positive or negative
+        !Integer                -- ^ The coefficient of a scientific number.
+        {-# UNPACK #-}!Int      -- ^ The base-10 exponent of a scientific number.
+
 -- | Parse a 'Double'.
---
--- This parser accepts an optional leading sign character, followed by
--- at most one decimal digit.  The syntax is similar to that accepted by
+-- This parser accepts an optional sign (+ or -) followed by
+-- at least one decimal digit.  The syntax is similar to that accepted by
 -- the 'read' function, with the exception that a trailing @\'.\'@ is
 -- consumed.
---
--- === Examples
---
--- Examples with behaviour identical to 'read', if you feed an empty
--- continuation to the first result:
---
--- > IS.parse double (IS.fromList "3")     == 3.0
--- > IS.parse double (IS.fromList "3.1")   == 3.1
--- > IS.parse double (IS.fromList "3e4")   == 30000.0
--- > IS.parse double (IS.fromList "3.1e4") == 31000.0
--- > IS.parse double (IS.fromList "3e")    == 30
---
--- Examples with behaviour identical to 'read':
---
--- > IS.parse (IS.fromList ".3")    == error "Parse failed"
--- > IS.parse (IS.fromList "e3")    == error "Parse failed"
---
--- Example of difference from 'read':
---
--- > IS.parse double (IS.fromList "3.foo") == 3.0
---
 -- This function does not accept string representations of \"NaN\" or
 -- \"Infinity\".
---
--- /Unimplemented/
--- A strict coeff and exp pair
-data CE = CE !Integer {-# UNPACK #-}!Int
 
+-- >>> import qualified Streamly.Internal.Data.Stream as S
+--
+-- >>> doubleParser = S.parse double . S.fromList
+--
+-- >>> doubleParser "3"
+-- Right 3.0
+--
+-- >>> doubleParser ".3"
+-- Right 0.3
+--
+-- >>> doubleParser "00.3"
+-- Right 0.3
+--
+-- >>> doubleParser "0.003"
+-- Right 3.0e-3
+--
+-- >>> doubleParser "1000.003"
+-- Right 1000.003
+--
+-- >>> doubleParser "+123.345"
+-- Right 123.345
+--
+-- >>> doubleParser "-123.345"
+-- Right (-123.345)
+--
+-- >>> doubleParser "0.0.00"
+-- Right 0.0
+--
+-- >>> doubleParser "44.56.67"
+-- Right 44.56
+--
+-- >>> doubleParser "44.56.67-9"
+-- Right 44.56
+--
+-- >>> doubleParser "44-6008"
+-- Right 44.0
+--
+-- >>> doubleParser "44+36008"
+-- Right 44.0
+--
+-- >>> doubleParser "447u"
+-- Right 447.0
+--
+-- >>> doubleParser "+"
+-- Right 0.0
+--
+-- >>> doubleParser "-"
+-- Right 0.0
+--
+-- >>> doubleParser ""
+-- Right 0.0
+--
+-- >>> doubleParser "+."
+-- Right 0.0
+--
+-- >>> doubleParser "-."
+-- Right 0.0
+--
+-- >>> doubleParser "4."
+-- Right 4.0
+--
+-- >>> doubleParser "a."
+-- Left (ParseError "Invalid double fromat")
+--
 {-# INLINE double #-}
 double :: (Monad m) => Parser Char m Double
-double = do
-    !positive <- ((== '+') <$>  Parser.satisfy (\c -> c == '-' || c == '+')) <|>
-                    pure True
-    n <- decimal
-    let f fracDigits = CE (foldl step n fracDigits)
-                    (negate $ length fracDigits)
-        step a c = a * 10 + fromIntegral (ord c - 48)
-    CE c e <-
-        Parser.satisfy (=='.')
-            *> (f <$> Parser.takeWhile1 Char.isDigit Fold.toList)
-        <|> pure (CE n 0)
-    let !signedCoeff | positive  =  c
-                     | otherwise = -c
-    expo <-
-        Parser.satisfy (\w -> w == 'e' || w == 'E')
-            *> ((e +) <$> signed decimal)
-        <|> pure (e + 0)
-    let h sc ex = do
-            if ex >= 0
-            then fromIntegral (sc * 10 ^ ex)
-            else fromRational (sc % 10 ^ (-ex))
-    return $ h signedCoeff expo
-
-data TE =
-    TE  {-# UNPACK #-}!Int
-        {-# UNPACK #-}!Int
-        {-# UNPACK #-}!Int
-        !Integer
-        {-# UNPACK #-}!Int
-
-{-# INLINE double2 #-}
-double2 :: (Monad m) => Parser Char m Double
-double2 =  Parser step initial extract
+double =  Parser step initial extract
 
     where
 
     initial = return $ IPartial (TE 0 0 0 0 0)
 
+    calc m x = m * 10 + fromIntegral (ord x - 48)
+
     step (TE c p s m e) a = do
         let stp = c + 1
         return $
             case a of
-                '-' -> Partial 0 (TE stp 0 (-1) m e)
-                '+' -> Partial 0 (TE stp 0 0 m e)
-                '.' -> Partial 0 (TE stp 1 s m e)
+                '-' | c == 0 -> Partial 0 (TE stp 0 (-1) m e)
+                '+' | c == 0 -> Partial 0 (TE stp 0 0 m e)
+                '.' | e == 0 -> Partial 0 (TE stp 1 s m e)
                 x | Char.isDigit x ->
-                        if (p > 0)
-                        then Partial 0 (TE stp (p+1) s (m * 10 + fromIntegral (ord x - 48)) (e + 1))
-                        else Partial 0 (TE stp p s (m * 10 + fromIntegral (ord x - 48)) e)
+                        if (p > 0)      -- parsing after decimal point?
+                        then Partial 0 (TE stp (p+1) s (calc m x) (e + 1))
+                        else Partial 0 (TE stp p s (calc m x) e)
                 _ ->
-                    if (c == 0)
+                    if (c == 0) -- No digit found
                     then Error "Invalid double fromat"
                     else do
                         case s < 0 of
@@ -369,11 +383,9 @@ double2 =  Parser step initial extract
             case s < 0 of
                 True ->
                     if ex >= 0
-                    --then Done 0 (fromIntegral (m * 10 ^ ex))
                     then Done 0 (fromRational (-m % 10 ^ ex))
                     else Done 0 (fromRational (-m % 10 ^ (-ex)))
                 False ->
                     if ex >= 0
-                    --then Done 0 (fromIntegral (m * 10 ^ ex))
                     then Done 0 (fromRational (m % 10 ^ ex))
                     else Done 0 (fromRational (m % 10 ^ (-ex)))

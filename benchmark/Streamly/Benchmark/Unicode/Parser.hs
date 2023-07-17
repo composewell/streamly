@@ -56,10 +56,6 @@ benchIOSinkc value name f =
 double :: Monad m => Stream m Char -> m (Either ParseError Double)
 double = Stream.parse PRU.double
 
-{-# INLINE double2 #-}
-double2 :: Monad m => Stream m Char -> m (Either ParseError Double)
-double2 = Stream.parse PRU.double2
-
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -75,7 +71,6 @@ o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
       benchIOSinkc value "double" double
-    , benchIOSinkc value "double2" double2
     ]
 
 -------------------------------------------------------------------------------
