@@ -19,7 +19,7 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 

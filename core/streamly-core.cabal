@@ -301,7 +301,7 @@ library
                      , Streamly.Internal.Data.Pipe.Type
 
                      -- streamly-core-array-types
-                     , Streamly.Internal.Data.Unboxed
+                     , Streamly.Internal.Data.Unbox
                     -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream

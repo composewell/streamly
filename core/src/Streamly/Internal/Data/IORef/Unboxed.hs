@@ -40,7 +40,7 @@ where
 
 import Data.Proxy (Proxy(..))
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Data.Unboxed
+import Streamly.Internal.Data.Unbox
     ( MutableByteArray(..)
     , Unbox
     , sizeOf

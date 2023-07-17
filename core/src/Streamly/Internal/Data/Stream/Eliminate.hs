@@ -80,7 +80,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Parser (Parser (..), ParseError (..))
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Streamly.Internal.Data.Array.Type as Array

@@ -46,7 +46,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.Unboxed (peekWith, sizeOf, Unbox)
+import Streamly.Internal.Data.Unbox (peekWith, sizeOf, Unbox)
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Control.Monad.Fail as Fail

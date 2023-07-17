@@ -22,7 +22,7 @@ import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
 import Data.Semigroup (Sum(..), getSum)
 import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
     ( Gen

@@ -85,6 +85,6 @@ where
 
 import Prelude hiding (length, read)
 import Streamly.Internal.Data.Array.Mut
-import Streamly.Internal.Data.Unboxed (Unbox (..))
+import Streamly.Internal.Data.Unbox (Unbox (..))
 
 #include "DocTestDataMutArray.hs"

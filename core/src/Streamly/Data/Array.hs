@@ -80,7 +80,7 @@ where
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.Array as A hiding (read, readRev)
 
-import Streamly.Internal.Data.Unboxed (Unbox (..))
+import Streamly.Internal.Data.Unbox (Unbox (..))
 import Prelude hiding (read)
 
 #include "DocTestDataArray.hs"

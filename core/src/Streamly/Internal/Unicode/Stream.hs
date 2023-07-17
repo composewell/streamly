@@ -108,7 +108,7 @@ import Streamly.Internal.Data.Stream.StreamD (Stream)
 import Streamly.Internal.Data.Stream.StreamD (Step (..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Unboxed (peekWith)
+import Streamly.Internal.Data.Unbox (peekWith)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 

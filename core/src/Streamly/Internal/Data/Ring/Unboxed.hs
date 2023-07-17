@@ -79,7 +79,7 @@ import Foreign.Storable
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
-import Streamly.Internal.Data.Unboxed as Unboxed (Unbox, peekWith)
+import Streamly.Internal.Data.Unbox as Unboxed (Unbox, peekWith)
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Mut.Type (MutArray)

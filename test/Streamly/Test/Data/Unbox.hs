@@ -26,7 +26,7 @@ import Data.Functor.Identity (Identity (..))
 import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic, Rep(..))
 import GHC.Real (Ratio(..))
-import Streamly.Internal.Data.Unboxed
+import Streamly.Internal.Data.Unbox
     ( PeekRep(..)
     , PokeRep(..)
     , SizeOfRep(..)

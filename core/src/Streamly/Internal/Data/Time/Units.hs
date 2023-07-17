@@ -52,7 +52,7 @@ import Text.Printf (printf)
 
 import Data.Int
 import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Time.TimeSpec
 
 -------------------------------------------------------------------------------
