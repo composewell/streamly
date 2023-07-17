@@ -53,7 +53,7 @@ import Streamly.Benchmark.Common.Handle
 import Control.Monad.IO.Class (MonadIO)
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Test.Inspection
 #endif

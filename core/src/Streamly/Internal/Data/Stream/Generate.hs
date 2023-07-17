@@ -79,7 +79,7 @@ import Streamly.Internal.Data.Stream.Enumerate
 import Streamly.Internal.Data.Stream.Type
     (Stream, fromStreamD, fromStreamK, toStreamK)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 
 import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed

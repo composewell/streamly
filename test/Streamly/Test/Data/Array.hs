@@ -14,7 +14,7 @@ import Data.Proxy (Proxy(..))
 import Data.Word(Word8)
 import Foreign.Storable (peek)
 import GHC.Ptr (plusPtr)
-import Streamly.Internal.Data.Unboxed (Unbox, sizeOf)
+import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.Array.Mut.Type (MutArray)
 import Test.QuickCheck (chooseInt, listOf)
 

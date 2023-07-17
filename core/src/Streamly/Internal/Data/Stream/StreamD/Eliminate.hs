@@ -91,7 +91,7 @@ import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.SVar.Type (defState)
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 

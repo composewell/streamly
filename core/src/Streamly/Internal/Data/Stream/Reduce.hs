@@ -65,7 +65,7 @@ import Streamly.Internal.Data.Parser.ParserD (ParseError)
 import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Stream.Bottom (foldManyPost)
 import Streamly.Internal.Data.Stream.Type (Stream, fromStreamD, toStreamD)
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Parser.ParserD as ParserD

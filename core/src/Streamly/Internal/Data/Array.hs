@@ -114,7 +114,7 @@ import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.Ptr (castPtr)
 import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Unboxed
+import Streamly.Internal.Data.Unbox
     ( Unbox
     , peekWith
     , sizeOf

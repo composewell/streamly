@@ -231,7 +231,7 @@ import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
-import Streamly.Internal.Data.Unboxed
+import Streamly.Internal.Data.Unbox
     ( MutableByteArray(..)
     , Unbox
     , getMutableByteArray#
@@ -263,7 +263,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Unboxed as Unboxed
+import qualified Streamly.Internal.Data.Unbox as Unboxed
 import qualified Prelude
 
 import Prelude hiding

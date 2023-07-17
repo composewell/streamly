@@ -5,7 +5,7 @@
 
 -- | TODO: Implement TH based instance derivation for better performance.
 
-module Streamly.Internal.Data.Unboxed
+module Streamly.Internal.Data.Unbox
     ( Unbox(..)
     , peekWith
     , pokeWith

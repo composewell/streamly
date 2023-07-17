@@ -115,7 +115,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Function ((&))
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 

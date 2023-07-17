@@ -103,7 +103,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream (..), fromSerial, consM, fromStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
 import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
-import Streamly.Internal.Data.Unboxed (Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 
 import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
     (toStreamD, IORef)
