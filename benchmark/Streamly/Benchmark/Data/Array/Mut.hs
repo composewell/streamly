@@ -181,11 +181,11 @@ unfoldReadRevDrain = drain . Stream.unfold MArray.readerRev
 
 {-# INLINE toStreamDRevDrain #-}
 toStreamDRevDrain :: MonadIO m => Stream Int -> m ()
-toStreamDRevDrain = drain . MArray.toStreamDRev
+toStreamDRevDrain = drain . MArray.readRev
 
 {-# INLINE toStreamDDrain #-}
 toStreamDDrain :: MonadIO m => Stream Int -> m ()
-toStreamDDrain = drain . MArray.toStreamD
+toStreamDDrain = drain . MArray.read
 
 {-# INLINE unfoldFold #-}
 unfoldFold :: MonadIO m => Stream Int -> m Int

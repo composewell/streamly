@@ -46,13 +46,15 @@ module Streamly.Data.MutArray
     , snoc
 
     -- * Appending streams
-    , writeAppendN
-    , writeAppend
+    , writeAppendN -- XXX Rename to writeSnocN?
+    , writeAppend -- XXX Rename to writeSnoc?
 
     -- * Inplace mutation
     , putIndex
     , putIndexUnsafe
+    , modifyIndex
     , modifyIndexUnsafe
+    , modify
 
     -- * Random access
     , getIndex
@@ -60,6 +62,10 @@ module Streamly.Data.MutArray
 
     -- * Conversion
     , toList
+
+    -- * Streams
+    , read
+    , readRev
 
     -- * Unfolds
     , reader

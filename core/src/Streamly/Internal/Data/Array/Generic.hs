@@ -210,6 +210,7 @@ getIndexUnsafe i arr =
 
 -- | Lookup the element at the given index. Index starts from 0.
 --
+{-# INLINE getIndex #-}
 getIndex :: Int -> Array a -> Maybe a
 getIndex i arr@Array {..} =
     if i >= 0 && i < arrLen

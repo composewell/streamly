@@ -28,15 +28,14 @@ module Streamly.Internal.Data.Array.Generic.Mut.Type
     , writeWith
     , write
     , fromStreamN
+    , fromStream
 
     -- , writeRevN
     -- , writeRev
 
     -- ** From containers
-    -- , fromListN
-    -- , fromList
-    -- , fromStreamDN
-    -- , fromStreamD
+    , fromListN
+    , fromList
 
     -- * Random writes
     , putIndex
@@ -529,10 +528,10 @@ getSlice index len arr@MutArray{..} =
 toList :: MonadIO m => MutArray a -> m [a]
 toList arr@MutArray{..} = mapM (`getIndexUnsafe` arr) [0 .. (arrLen - 1)]
 
--- | Generates a stream from the elements of @MutArray@
+-- | Generates a stream from the elements of a @MutArray@.
 --
--- @read = D.unfold reader@
--- /Pre-release/
+-- >>> read = Stream.unfold MutArray.reader
+--
 {-# INLINE_NORMAL read #-}
 read :: MonadIO m => MutArray a -> D.Stream m a
 read arr@MutArray{..} =
@@ -638,6 +637,26 @@ writeWith elemCount = FL.rmapM extract $ FL.foldlM' step initial
 {-# INLINE write #-}
 write :: MonadIO m => Fold m a (MutArray a)
 write = writeWith arrayChunkSize
+
+-- | Create a 'MutArray' from the first @n@ elements of a stream. The
+-- array is allocated to size @n@, if the stream terminates before @n@
+-- elements then the array may hold less than @n@ elements.
+--
+{-# INLINE fromStreamN #-}
+fromStreamN :: MonadIO m => Int -> Stream m a -> m (MutArray a)
+fromStreamN n = D.fold (writeN n)
+
+{-# INLINE fromStream #-}
+fromStream :: MonadIO m => Stream m a -> m (MutArray a)
+fromStream = D.fold write
+
+{-# INLINABLE fromListN #-}
+fromListN :: MonadIO m => Int -> [a] -> m (MutArray a)
+fromListN n xs = fromStreamN n $ D.fromList xs
+
+{-# INLINABLE fromList #-}
+fromList :: MonadIO m => [a] -> m (MutArray a)
+fromList xs = fromStream $ D.fromList xs
 
 -------------------------------------------------------------------------------
 -- Unfolds
@@ -795,11 +814,3 @@ strip p arr = liftIO $ do
         if p r
         then getIndexL (idx + 1)
         else return idx
-
--- | Create a 'MutArray' from the first @n@ elements of a stream. The
--- array is allocated to size @n@, if the stream terminates before @n@
--- elements then the array may hold less than @n@ elements.
---
-{-# INLINE fromStreamN #-}
-fromStreamN :: MonadIO m => Int -> Stream m a -> m (MutArray a)
-fromStreamN n = D.fold (writeN n)

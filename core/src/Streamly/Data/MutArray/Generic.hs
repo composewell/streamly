@@ -23,27 +23,36 @@ module Streamly.Data.MutArray.Generic
       MutArray
 
     -- * Construction
+    , new
+    , fromListN
+    , fromList
     , writeN
+    , write
 
     -- * Appending elements
-    , new
     , snoc
+
+    -- * Inplace mutation
+    , putIndex
+    , putIndexUnsafe
+    , modifyIndex
+    , modifyIndexUnsafe
+    -- , modify
+
+    -- * Random reads
+    , getIndex
+    , getIndexUnsafe
 
     -- * Conversion
     , toList
 
+    -- * Streams
+    , read
+    , readRev
+
     -- * Unfolds
     , reader
-
-     -- * Streams
-    , read
-
-    -- * Random reads
-    , getIndex
-
-    -- * Inplace mutation
-    , putIndex
-    , modifyIndex
+    -- , readerRev
 
     -- * Size
     , length

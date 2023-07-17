@@ -22,12 +22,16 @@ module Streamly.Data.Array.Generic
     , A.writeN
     , A.write
 
+    -- * Conversion
+    , A.toList
+
     -- * Streams
     , A.read
     , A.readRev
 
     -- * Unfolds
     , A.reader
+    -- , A.readerRev
 
     -- * Random Access
     , A.length

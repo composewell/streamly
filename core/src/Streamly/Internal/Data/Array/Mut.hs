@@ -38,7 +38,7 @@ splitOn :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> Stream m (MutArray a)
 splitOn predicate arr =
     fmap (\(i, len) -> getSliceUnsafe i len arr)
-        $ D.sliceOnSuffix predicate (toStreamD arr)
+        $ D.sliceOnSuffix predicate (read arr)
 
 -- | Generate a stream of array slice descriptors ((index, len)) of specified
 -- length from an array, starting from the supplied array index. The last slice
