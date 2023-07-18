@@ -31,7 +31,7 @@ module Streamly.Internal.Data.Array
 
     -- Monadic Folds
     , A.writeN      -- drop new
-    , A.writeNAligned
+    , A.pinnedWriteNAligned
     , A.write       -- full buffer
     , writeLastN
 
@@ -297,7 +297,7 @@ writeLastN n
          in fmap f $ liftIO $ RB.new n
 
     done (Tuple3Fused' rb rh i) = do
-        arr <- liftIO $ MA.newPinned n
+        arr <- liftIO $ MA.new n
         foldFunc i rh snoc' arr rb
 
     -- XXX We should write a read unfold for ring.
@@ -534,7 +534,9 @@ cast arr =
         then Nothing
         else Just $ castUnsafe arr
 
--- | Convert an array of any type into a null terminated CString Ptr.
+-- | Convert an array of any type into a null terminated CString Ptr.  If the
+-- array is unpinned it is first converted to a pinned array which requires a
+-- copy.
 --
 -- /Unsafe/
 --
@@ -544,8 +546,8 @@ cast arr =
 --
 asCStringUnsafe :: Array a -> (CString -> IO b) -> IO b
 asCStringUnsafe arr act = do
-    -- XXX Ensure a pinned allocation here.
     let arr1 = asBytes arr <> A.fromList [0]
+    -- asPtrUnsafe makes sure the array is pinned
     asPtrUnsafe arr1 $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* Arrays can now be pinned or unpinned. They were always pinned earlier.
+
 ## 0.1.0 (March 2023)
 
 Also see [streamly-core-0.1.0 API Changelog](/core/docs/ApiChangelogs/0.1.0.txt) or

@@ -116,12 +116,9 @@ import Prelude hiding (read)
 --
 -- == Pinned and Unpinned Arrays
 --
--- The array type can use both pinned and unpinned memory under the hood.
--- Currently the array creation APIs create arrays in pinned memory but it will
--- change to unpinned in future releases. The change should not affect users
--- functionally unless they are directly accessing the internal memory of the
--- array via internal APIs. As of now unpinned arrays can be created using
--- unreleased APIs.
+-- The array type can use both pinned and unpinned memory under the hood.  The
+-- arrays are unpinned by default and are only pinned while doing any I/O
+-- operations.
 --
 -- Unpinned arrays have the advantage of allowing automatic defragmentation of
 -- the memory by GC. Whereas pinned arrays have the advantage of not requiring

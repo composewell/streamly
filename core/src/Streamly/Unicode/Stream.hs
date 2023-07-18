@@ -24,14 +24,11 @@
 -- routines in this module and then written to IO devices or to arrays in
 -- memory.
 --
--- If you have to store a 'Char' stream in memory you can convert it into a
--- 'String' using 'Streamly.Data.Fold.toList' fold. The 'String' type can be
--- more efficient than pinned arrays for short and short lived strings.
---
--- For longer or long lived streams you can 'Streamly.Data.Stream.fold' the
+-- If you have to store a 'Char' stream in memory you can
+-- 'Streamly.Data.Stream.fold' the
 -- 'Char' stream as @Array Char@ using the array 'Streamly.Data.Array.write'
--- fold.  The 'Array' type provides a more compact representation and pinned
--- memory reducing GC overhead. If space efficiency is a concern you can use
+-- fold.  The 'Array' type provides a more compact representation
+-- reducing GC overhead. If space efficiency is a concern you can use
 -- 'encodeUtf8'' on the 'Char' stream before writing it to an 'Array' providing
 -- an even more compact representation.
 --
@@ -69,9 +66,6 @@
 -- Some experimental APIs to conveniently process text using the
 -- @Array Char@ represenation directly can be found in
 -- "Streamly.Internal.Unicode.Array".
-
--- XXX an unpinned array representation can be useful to store short and short
--- lived strings in memory.
 --
 module Streamly.Unicode.Stream
     (
