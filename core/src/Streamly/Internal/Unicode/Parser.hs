@@ -266,8 +266,8 @@ signed :: (Num a, Monad m) => Parser Char m a -> Parser Char m a
 signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 
 data TE =
-    TE  {-# UNPACK #-}!Bool     -- ^ Found digits
-        {-# UNPACK #-}!Bool     -- ^ Decimal point exsistence
+    TE  !Bool     -- ^ Found digits
+        !Bool     -- ^ Decimal point exsistence
         {-# UNPACK #-}!Int      -- ^ The sign positive or negative
         !Integer                -- ^ The coefficient of a scientific number.
         {-# UNPACK #-}!Int      -- ^ The base-10 exponent of a scientific number.
@@ -382,7 +382,7 @@ double =  Parser step initial extract
             case s < 0 of
                 True -> Done 0 (fromRational (-m % 10 ^ e))
                 False -> Done 0 (fromRational (m % 10 ^ e))
-                
+
     initial = return $ IPartial (TE False False 0 0 0)
 
     calc m x = m * 10 + fromIntegral (ord x - 48)
