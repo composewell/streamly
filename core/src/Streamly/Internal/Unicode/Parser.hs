@@ -266,29 +266,30 @@ signed :: (Num a, Monad m) => Parser Char m a -> Parser Char m a
 signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 
 data TE =
-    TE  {-# UNPACK #-}!Int      -- ^ Total number of digits
-        {-# UNPACK #-}!Int      -- ^ Decimal point exsistence
+    TE  {-# UNPACK #-}!Bool     -- ^ Found digits
+        {-# UNPACK #-}!Bool     -- ^ Decimal point exsistence
         {-# UNPACK #-}!Int      -- ^ The sign positive or negative
         !Integer                -- ^ The coefficient of a scientific number.
         {-# UNPACK #-}!Int      -- ^ The base-10 exponent of a scientific number.
 
 -- | Parse a 'Double'.
 -- This parser accepts an optional sign (+ or -) followed by
--- at least one decimal digit.  The syntax is similar to that accepted by
+-- at most one decimal digit.  The syntax is similar to that accepted by
 -- the 'read' function, with the exception that a trailing @\'.\'@ is
 -- consumed.
 -- This function does not accept string representations of \"NaN\" or
 -- \"Infinity\".
 
--- >>> import qualified Streamly.Internal.Data.Stream as S
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Unicode.Parser as Unicode
 --
--- >>> doubleParser = S.parse double . S.fromList
+-- >>> doubleParser = Stream.parse Unicode.double . Stream.fromList
 --
 -- >>> doubleParser "3"
 -- Right 3.0
 --
--- >>> doubleParser ".3"
--- Right 0.3
+-- >>> doubleParser "4."
+-- Right 4.0
 --
 -- >>> doubleParser "00.3"
 -- Right 0.3
@@ -296,11 +297,26 @@ data TE =
 -- >>> doubleParser "0.003"
 -- Right 3.0e-3
 --
+-- >>> doubleParser "0.0.00"
+-- Right 0.0
+--
+-- >>> doubleParser "44.56.67"
+-- Right 44.56
+--
 -- >>> doubleParser "1000.003"
 -- Right 1000.003
 --
+-- >>> doubleParser "44.56.67-9"
+-- Right 44.56
+--
+-- >>> doubleParser "44-6008"
+-- Right 44.0
+--
 -- >>> doubleParser "+123.345"
 -- Right 123.345
+--
+-- >>> doubleParser "447u"
+-- Right 447.0
 --
 -- >>> doubleParser "-123.345"
 -- Right (-123.345)
@@ -323,26 +339,35 @@ data TE =
 -- >>> doubleParser "447u"
 -- Right 447.0
 --
--- >>> doubleParser "+"
--- Right 0.0
---
--- >>> doubleParser "-"
--- Right 0.0
+---- >>> doubleParser ".3"
+-- Left (ParseError "Not enough input")
 --
 -- >>> doubleParser ""
--- Right 0.0
+-- Left (ParseError "Not enough input")
+--
+-- >>> doubleParser "."
+-- Left (ParseError "Not enough input")
+--
+-- >>> doubleParser "+"
+-- Left (ParseError "Not enough input")
+--
+-- >>> doubleParser "-"
+-- Left (ParseError "Not enough input")
+--
+-- >>> doubleParser ""
+-- Left (ParseError "Not enough input")
+--
+-- >>> doubleParser "."
+-- Left (ParseError "Not enough input")
 --
 -- >>> doubleParser "+."
--- Right 0.0
+-- Left (ParseError "Not enough input")
 --
 -- >>> doubleParser "-."
--- Right 0.0
---
--- >>> doubleParser "4."
--- Right 4.0
+-- Left (ParseError "Not enough input")
 --
 -- >>> doubleParser "a."
--- Left (ParseError "Invalid double fromat")
+-- Left (ParseError "Not enough input")
 --
 {-# INLINE double #-}
 double :: (Monad m) => Parser Char m Double
@@ -350,42 +375,29 @@ double =  Parser step initial extract
 
     where
 
-    initial = return $ IPartial (TE 0 0 0 0 0)
+    extract' c s m e =
+        if (c == False) -- No digit found
+        then Error "Not enough input"
+        else do
+            case s < 0 of
+                True -> Done 0 (fromRational (-m % 10 ^ e))
+                False -> Done 0 (fromRational (m % 10 ^ e))
+                
+    initial = return $ IPartial (TE False False 0 0 0)
 
     calc m x = m * 10 + fromIntegral (ord x - 48)
 
     step (TE c p s m e) a = do
-        let stp = c + 1
+        let c1 = True
         return $
             case a of
-                '-' | c == 0 -> Partial 0 (TE stp 0 (-1) m e)
-                '+' | c == 0 -> Partial 0 (TE stp 0 0 m e)
-                '.' | e == 0 -> Partial 0 (TE stp 1 s m e)
                 x | Char.isDigit x ->
-                        if (p > 0)      -- parsing after decimal point?
-                        then Partial 0 (TE stp (p+1) s (calc m x) (e + 1))
-                        else Partial 0 (TE stp p s (calc m x) e)
-                _ ->
-                    if (c == 0) -- No digit found
-                    then Error "Invalid double fromat"
-                    else do
-                        case s < 0 of
-                            True ->
-                                if e >= 0
-                                then Done 0 (fromRational (-m % 10 ^ e))
-                                else Done 0 (fromRational (-m % 10 ^ (-e)))
-                            False ->
-                                if e >= 0
-                                then Done 0 (fromRational (m % 10 ^ e))
-                                else Done 0 (fromRational (m % 10 ^ (-e)))
+                        if p       -- parsing after decimal point?
+                        then Partial 0 (TE c1 p s (calc m x) (e + 1))
+                        else Partial 0 (TE c1 p s (calc m x) e)
+                '-' | c == False -> Partial 0 (TE c p (-1) m e)
+                '+' | c == False -> Partial 0 (TE c p 0 m e)
+                '.' | c && e == 0 -> Partial 0 (TE c True s m e)
+                _ -> extract' c s m e
 
-    extract (TE _stp _p s m ex) = return $ do
-            case s < 0 of
-                True ->
-                    if ex >= 0
-                    then Done 0 (fromRational (-m % 10 ^ ex))
-                    else Done 0 (fromRational (-m % 10 ^ (-ex)))
-                False ->
-                    if ex >= 0
-                    then Done 0 (fromRational (m % 10 ^ ex))
-                    else Done 0 (fromRational (m % 10 ^ (-ex)))
+    extract (TE c _p s m e) = return $ extract' c s m e
