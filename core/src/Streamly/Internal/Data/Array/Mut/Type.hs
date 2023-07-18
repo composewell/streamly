@@ -35,6 +35,7 @@ module Streamly.Internal.Data.Array.Mut.Type
     , touch
     , pin
     , unpin
+    , isPinned
 
     -- * Constructing and Writing
     -- ** Construction
@@ -48,15 +49,17 @@ module Streamly.Internal.Data.Array.Mut.Type
     , newArrayWith
 
     -- *** Initialized Arrays
-    , withNewArrayUnsafe
+    , withNewArrayUnsafePinned
 
     -- *** From streams
     , ArrayUnsafe (..)
     , writeNWithUnsafe
     , writeNWith
     , writeNUnsafe
+    , writeNUnsafeAs
     , writeN
-    , writeNAligned
+    , writeNAs
+    , pinnedWriteNAligned
 
     , writeWith
     , write
@@ -185,6 +188,7 @@ module Streamly.Internal.Data.Array.Mut.Type
 
     -- ** Construct from streams
     , chunksOf
+    , chunksOfAs
     , arrayStreamKFromStreamD
     , writeChunks
 
@@ -236,6 +240,7 @@ import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Data.Unbox
     ( MutableByteArray(..)
     , Unbox(..)
+    , PinnedState(..)
     , getMutableByteArray#
     , touch
     )
@@ -366,6 +371,10 @@ unpin arr@MutArray{..} = do
     contents <- Unboxed.unpin arrContents
     return $ arr {arrContents = contents}
 
+{-# INLINE isPinned #-}
+isPinned :: MutArray a -> Bool
+isPinned MutArray{..} = Unboxed.isPinned arrContents
+
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
@@ -412,6 +421,20 @@ nil ::
     MutArray a
 nil = MutArray Unboxed.nil 0 0 0
 
+{-# INLINE newBytesAs #-}
+newBytesAs :: MonadIO m =>
+#ifdef DEVBUILD
+    Unbox a =>
+#endif
+    PinnedState -> Int -> m (MutArray a)
+newBytesAs ps bytes = do
+    contents <- liftIO $ Unboxed.newBytes ps bytes
+    return $ MutArray
+        { arrContents = contents
+        , arrStart = 0
+        , arrEnd   = 0
+        , arrBound = bytes
+        }
 
 -- | Allocates a pinned empty array that can hold 'count' items.  The memory of
 -- the array is uninitialized and the allocation is aligned as per the
@@ -424,14 +447,7 @@ newPinnedBytes :: MonadIO m =>
     Unbox a =>
 #endif
     Int -> m (MutArray a)
-newPinnedBytes bytes = do
-    contents <- liftIO $ Unboxed.newPinnedBytes bytes
-    return $ MutArray
-        { arrContents = contents
-        , arrStart = 0
-        , arrEnd   = 0
-        , arrBound = bytes
-        }
+newPinnedBytes = newBytesAs Pinned
 
 -- | Like 'newArrayWith' but using an allocator is a pinned memory allocator and
 -- the alignment is dictated by the 'Unboxed' instance of the type.
@@ -442,6 +458,13 @@ newAlignedPinned :: (MonadIO m, Unbox a) => Int -> Int -> m (MutArray a)
 newAlignedPinned =
     newArrayWith (\s a -> liftIO $ Unboxed.newAlignedPinnedBytes s a)
 
+{-# INLINE newAs #-}
+newAs :: (MonadIO m, Unbox a) => PinnedState -> Int -> m (MutArray a)
+newAs ps =
+    newArrayWith
+        (\s _ -> liftIO $ Unboxed.newBytes ps s)
+        (error "new: alignment is not used in unpinned arrays.")
+
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 --
 -- | Allocates an empty pinned array that can hold 'count' items.  The memory of
@@ -450,20 +473,14 @@ newAlignedPinned =
 --
 {-# INLINE newPinned #-}
 newPinned :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
-newPinned =
-    newArrayWith
-        (\s _ -> liftIO $ Unboxed.newPinnedBytes s)
-        (error "newPinned: alignSize is not used")
+newPinned = newAs Pinned
 
 -- | Allocates an empty unpinned array that can hold 'count' items.  The memory
 -- of the array is uninitialized.
 --
 {-# INLINE new #-}
 new :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
-new =
-    newArrayWith
-        (\s _ -> liftIO $ Unboxed.newUnpinnedBytes s)
-        (error "new: alignment is not used in unpinned arrays.")
+new = newAs Unpinned
 
 -- XXX This should create a full length uninitialzed array so that the pointer
 -- can be used.
@@ -472,10 +489,10 @@ new =
 -- the array start pointer.
 --
 -- /Internal/
-{-# INLINE withNewArrayUnsafe #-}
-withNewArrayUnsafe ::
+{-# INLINE withNewArrayUnsafePinned #-}
+withNewArrayUnsafePinned ::
        (MonadIO m, Unbox a) => Int -> (Ptr a -> m ()) -> m (MutArray a)
-withNewArrayUnsafe count f = do
+withNewArrayUnsafePinned count f = do
     arr <- newPinned count
     asPtrUnsafe arr
         $ \p -> f p >> return arr
@@ -736,7 +753,10 @@ reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
 
     -- Allocate new array
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
-    contents <- Unboxed.newPinnedBytes newCapMaxInBytes
+    contents <-
+        if Unboxed.isPinned arrContents
+        then Unboxed.newPinnedBytes newCapMaxInBytes
+        else Unboxed.newUnpinnedBytes newCapMaxInBytes
     let !(MutableByteArray mbarrFrom#) = arrContents
         !(MutableByteArray mbarrTo#) = contents
 
@@ -1299,20 +1319,10 @@ data GroupState s contents start end bound
         contents start end bound (GroupState s contents start end bound)
     | GroupFinish
 
--- | @chunksOf n stream@ groups the input stream into a stream of
--- arrays of size n.
---
--- @chunksOf n = StreamD.foldMany (MutArray.writeN n)@
---
--- /Pre-release/
-{-# INLINE_NORMAL chunksOf #-}
-chunksOf :: forall m a. (MonadIO m, Unbox a)
-    => Int -> D.Stream m a -> D.Stream m (MutArray a)
--- XXX the idiomatic implementation leads to large regression in the D.reverse'
--- benchmark. It seems it has difficulty producing optimized code when
--- converting to StreamK. Investigate GHC optimizations.
--- chunksOf n = D.foldMany (writeN n)
-chunksOf n (D.Stream step state) =
+{-# INLINE_NORMAL chunksOfAs #-}
+chunksOfAs :: forall m a. (MonadIO m, Unbox a)
+    => PinnedState -> Int -> D.Stream m a -> D.Stream m (MutArray a)
+chunksOfAs ps n (D.Stream step state) =
     D.Stream step' (GroupStart state)
 
     where
@@ -1324,7 +1334,7 @@ chunksOf n (D.Stream step state) =
             error $ "Streamly.Internal.Data.MutArray.Mut.Type.chunksOf: "
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
-        (MutArray contents start end bound :: MutArray a) <- liftIO $ newPinned n
+        (MutArray contents start end bound :: MutArray a) <- newAs ps n
         return $ D.Skip (GroupBuffer st contents start end bound)
 
     step' gst (GroupBuffer st contents start end bound) = do
@@ -1350,6 +1360,22 @@ chunksOf n (D.Stream step state) =
 
     step' _ GroupFinish = return D.Stop
 
+-- | @chunksOf n stream@ groups the input stream into a stream of
+-- arrays of size n.
+--
+-- @chunksOf n = StreamD.foldMany (MutArray.writeN n)@
+--
+-- /Pre-release/
+{-# INLINE_NORMAL chunksOf #-}
+chunksOf :: forall m a. (MonadIO m, Unbox a)
+    => Int -> D.Stream m a -> D.Stream m (MutArray a)
+-- XXX the idiomatic implementation leads to large regression in the D.reverse'
+-- benchmark. It seems it has difficulty producing optimized code when
+-- converting to StreamK. Investigate GHC optimizations.
+-- chunksOf n = D.foldMany (writeN n)
+chunksOf = chunksOfAs Unpinned
+
+-- XXX This should take a PinnedState
 -- XXX buffer to a list instead?
 -- | Buffer the stream into arrays in memory.
 {-# INLINE arrayStreamKFromStreamD #-}
@@ -1751,18 +1777,23 @@ writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
         return
           $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
+{-# INLINE_NORMAL writeNUnsafeAs #-}
+writeNUnsafeAs :: forall m a. (MonadIO m, Unbox a)
+    => PinnedState -> Int -> Fold m a (MutArray a)
+writeNUnsafeAs ps = writeNWithUnsafe (newAs ps)
+
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
 -- corrupt the memory and crash. This function exists mainly because any
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
--- >>> writeNUnsafe = MutArray.writeNWithUnsafe MutArray.newPinned
+-- >>> writeNUnsafe = MutArray.writeNWithUnsafe MutArray.new
 --
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
-writeNUnsafe = writeNWithUnsafe newPinned
+writeNUnsafe = writeNUnsafeAs Unpinned
 
 -- | @writeNWith alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
@@ -1775,16 +1806,24 @@ writeNWith :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
 writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
 
+{-# INLINE_NORMAL writeNAs #-}
+writeNAs ::
+       forall m a. (MonadIO m, Unbox a)
+    => PinnedState
+    -> Int
+    -> Fold m a (MutArray a)
+writeNAs ps = writeNWith (newAs ps)
+
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'MutArray'.
 --
--- >>> writeN = MutArray.writeNWith MutArray.newPinned
+-- >>> writeN = MutArray.writeNWith MutArray.new
 -- >>> writeN n = Fold.take n (MutArray.writeNUnsafe n)
--- >>> writeN n = MutArray.writeAppendN n (MutArray.newPinned n)
+-- >>> writeN n = MutArray.writeAppendN n (MutArray.new n)
 --
 {-# INLINE_NORMAL writeN #-}
 writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
-writeN = writeNWith newPinned
+writeN = writeNAs Unpinned
 
 -- | Like writeNWithUnsafe but writes the array in reverse order.
 --
@@ -1820,20 +1859,20 @@ writeRevNWith alloc n = FL.take n (writeRevNWithUnsafe alloc n)
 -- /Pre-release/
 {-# INLINE_NORMAL writeRevN #-}
 writeRevN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
-writeRevN = writeRevNWith newPinned
+writeRevN = writeRevNWith new
 
--- | @writeNAligned align n@ folds a maximum of @n@ elements from the input
--- stream to a 'MutArray' aligned to the given size.
+-- | @pinnedWriteNAligned align n@ folds a maximum of @n@ elements from the
+-- input stream to a 'MutArray' aligned to the given size.
 --
--- >>> writeNAligned align = MutArray.writeNWith (MutArray.newAlignedPinned align)
--- >>> writeNAligned align n = MutArray.writeAppendN n (MutArray.newAlignedPinned align n)
+-- >>> pinnedWriteNAligned align = MutArray.writeNWith (MutArray.newAlignedPinned align)
+-- >>> pinnedWriteNAligned align n = MutArray.writeAppendN n (MutArray.newAlignedPinned align n)
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL writeNAligned #-}
-writeNAligned :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL pinnedWriteNAligned #-}
+pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a)
     => Int -> Int -> Fold m a (MutArray a)
-writeNAligned align = writeNWith (newAlignedPinned align)
+pinnedWriteNAligned align = writeNWith (newAlignedPinned align)
 
 -- XXX Buffer to a list instead?
 --
@@ -1876,7 +1915,7 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 --
 -- /Caution! Do not use this on infinite streams./
 --
--- >>> f n = MutArray.writeAppendWith (* 2) (MutArray.newPinned n)
+-- >>> f n = MutArray.writeAppendWith (* 2) (MutArray.new n)
 -- >>> writeWith n = Fold.rmapM MutArray.rightSize (f n)
 -- >>> writeWith n = Fold.rmapM MutArray.fromArrayStreamK (MutArray.writeChunks n)
 --
@@ -1884,7 +1923,7 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
--- writeWith n = FL.rmapM rightSize $ writeAppendWith (* 2) (newPinned n)
+-- writeWith n = FL.rmapM rightSize $ writeAppendWith (* 2) (new n)
 writeWith elemCount =
     FL.rmapM extract $ FL.foldlM' step initial
 
@@ -1892,7 +1931,7 @@ writeWith elemCount =
 
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
-        liftIO $ newPinned elemCount
+        liftIO $ new elemCount
 
     step arr@(MutArray _ start end bound) x
         | INDEX_NEXT(end,a) > bound = do
@@ -1928,7 +1967,7 @@ fromStreamDN :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> m (MutArray a)
 -- fromStreamDN n = D.fold (writeN n)
 fromStreamDN limit str = do
-    (arr :: MutArray a) <- liftIO $ newPinned limit
+    (arr :: MutArray a) <- liftIO $ new limit
     end <- D.foldlM' (fwrite (arrContents arr)) (return $ arrEnd arr) $ D.take limit str
     return $ arr {arrEnd = end}
 
@@ -2040,7 +2079,7 @@ spliceCopy arr1 arr2 = liftIO $ do
         start2 = arrStart arr2
         len1 = arrEnd arr1 - start1
         len2 = arrEnd arr2 - start2
-    newArrContents <- liftIO $ Unboxed.newPinnedBytes (len1 + len2)
+    newArrContents <- liftIO $ Unboxed.newUnpinnedBytes (len1 + len2)
     let len = len1 + len2
         newArr = MutArray newArrContents 0 len len
     putSliceUnsafe arr1 start1 newArr 0 len1
@@ -2251,12 +2290,10 @@ cast arr =
 --
 asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
 asPtrUnsafe arr f = do
-  let contents = arrContents arr
-      !ptr = Ptr (byteArrayContents#
+  contents <- liftIO $ Unboxed.pin $ arrContents arr
+  let !ptr = Ptr (byteArrayContents#
                      (unsafeCoerce# (getMutableByteArray# contents)))
-  -- XXX Check if the array is pinned, if not, copy it to a pinned array
-  -- XXX We should probably pass to the IO action the byte length of the array
-  -- as well so that bounds can be checked.
+
   r <- f (ptr `plusPtr` arrStart arr)
   liftIO $ touch contents
   return r

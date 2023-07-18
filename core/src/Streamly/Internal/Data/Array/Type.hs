@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Array.Type
     -- * Pinning and Unpinning
     , pin
     , unpin
+    , isPinned
 
     -- * Construction
     , splice
@@ -64,14 +65,17 @@ module Streamly.Internal.Data.Array.Type
     -- * Folds
     , writeWith
     , writeN
+    , writeNAs
     , writeNUnsafe
+    , writeNUnsafeAs
     , MA.ArrayUnsafe (..)
-    , writeNAligned
+    , pinnedWriteNAligned
     , write
     , unsafeMakePure
 
     -- * Streams of arrays
     , chunksOf
+    , chunksOfAs
     , bufferChunks
     , flattenArrays
     , flattenArraysRev
@@ -95,7 +99,7 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Mut.Type (MutArray(..), MutableByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
-import Streamly.Internal.Data.Unbox (Unbox(..))
+import Streamly.Internal.Data.Unbox (PinnedState, Unbox(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec)
 
@@ -226,6 +230,10 @@ pin = fmap unsafeFreeze . MA.pin . unsafeThaw
 unpin :: Array a -> IO (Array a)
 unpin = fmap unsafeFreeze . MA.unpin . unsafeThaw
 
+{-# INLINE isPinned #-}
+isPinned :: Array a -> Bool
+isPinned = MA.isPinned . unsafeThaw
+
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
@@ -285,6 +293,11 @@ fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
 bufferChunks :: (MonadIO m, Unbox a) =>
     D.Stream m a -> m (K.StreamK m (Array a))
 bufferChunks m = D.foldr K.cons K.nil $ chunksOf defaultChunkSize m
+
+{-# INLINE_NORMAL chunksOfAs #-}
+chunksOfAs :: forall m a. (MonadIO m, Unbox a)
+    => PinnedState -> Int -> D.Stream m a -> D.Stream m (Array a)
+chunksOfAs ps n str = D.map unsafeFreeze $ MA.chunksOfAs ps n str
 
 -- | @chunksOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
@@ -461,6 +474,14 @@ toList s = build (\c n -> toListFB c n s)
 -- Folds
 -------------------------------------------------------------------------------
 
+{-# INLINE_NORMAL writeNAs #-}
+writeNAs ::
+       forall m a. (MonadIO m, Unbox a)
+    => PinnedState
+    -> Int
+    -> Fold m a (Array a)
+writeNAs ps = fmap unsafeFreeze . MA.writeNAs ps
+
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
@@ -468,15 +489,20 @@ toList s = build (\c n -> toListFB c n s)
 writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
 writeN = fmap unsafeFreeze . MA.writeN
 
--- | @writeNAligned alignment n@ folds a maximum of @n@ elements from the input
+-- | @pinnedWriteNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL writeNAligned #-}
-writeNAligned :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL pinnedWriteNAligned #-}
+pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a)
     => Int -> Int -> Fold m a (Array a)
-writeNAligned alignSize = fmap unsafeFreeze . MA.writeNAligned alignSize
+pinnedWriteNAligned alignSize = fmap unsafeFreeze . MA.pinnedWriteNAligned alignSize
+
+{-# INLINE_NORMAL writeNUnsafeAs #-}
+writeNUnsafeAs :: forall m a. (MonadIO m, Unbox a)
+    => PinnedState -> Int -> Fold m a (Array a)
+writeNUnsafeAs ps n = unsafeFreeze <$> MA.writeNUnsafeAs ps n
 
 -- | Like 'writeN' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will

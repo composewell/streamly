@@ -72,7 +72,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, Ptr, castPtr)
-import Streamly.Internal.Data.Unbox (Unbox)
+import Streamly.Internal.Data.Unbox (PinnedState(..), Unbox)
 import Network.Socket
        (Socket, SocketOption(..), Family(..), SockAddr(..),
         ProtocolNumber, withSocketsDo, SocketType(..), socket, bind,
@@ -94,10 +94,12 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Data.Array as A (reader, length, writeN)
+import qualified Streamly.Data.Array as A (reader, length)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Type as A
-    (unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafe, chunksOf)
+    ( unsafeFreeze, asPtrUnsafe, byteLength, writeNUnsafeAs, chunksOfAs
+    , writeNAs
+    )
 import qualified Streamly.Internal.Data.Array.Mut as MArray
     (MutArray(..), newPinnedBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Stream as S
@@ -495,14 +497,14 @@ writeChunksWithBufferOf = writeChunksWith
 --
 {-# INLINE putBytesWith #-}
 putBytesWith :: MonadIO m => Int -> Socket -> Stream m Word8 -> m ()
-putBytesWith n h m = putChunks h $ A.chunksOf n m
+putBytesWith n h m = putChunks h $ A.chunksOfAs Pinned n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes before writing.
 --
 {-# INLINE writeWith #-}
 writeWith :: MonadIO m => Int -> Socket -> Fold m Word8 ()
-writeWith n h = FL.groupsOf n (A.writeNUnsafe n) (writeChunks h)
+writeWith n h = FL.groupsOf n (A.writeNUnsafeAs Pinned n) (writeChunks h)
 
 -- | Same as 'writeWith'
 --
@@ -520,7 +522,7 @@ writeWithBufferOf = writeWith
 writeMaybesWith :: (MonadIO m )
     => Int -> Socket -> Fold m (Maybe Word8) ()
 writeMaybesWith n h =
-    let writeNJusts = FL.lmap fromJust $ A.writeN n
+    let writeNJusts = FL.lmap fromJust $ A.writeNAs Pinned n
         writeOnNothing = FL.takeEndBy_ isNothing writeNJusts
     in FL.many writeOnNothing (writeChunks h)
 

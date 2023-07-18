@@ -7,11 +7,14 @@
 
 module Streamly.Internal.Data.Unbox
     ( Unbox(..)
+    , PinnedState(..)
     , MutableByteArray(..)
     , touch
     , getMutableByteArray#
+    , isPinned
     , pin
     , unpin
+    , newBytes
     , newUnpinnedBytes
     , newPinnedBytes
     , newAlignedPinnedBytes
@@ -72,6 +75,10 @@ import Prelude hiding (read)
 -- The ArrayContents type
 --------------------------------------------------------------------------------
 
+data PinnedState
+    = Pinned
+    | Unpinned
+
 -- XXX can use UnliftedNewtypes
 data MutableByteArray = MutableByteArray (MutableByteArray# RealWorld)
 
@@ -129,6 +136,11 @@ newAlignedPinnedBytes (I# nbytes) (I# align) = IO $ \s ->
         (# s', mbarr# #) ->
            let c = MutableByteArray mbarr#
             in (# s', c #)
+
+{-# INLINE newBytes #-}
+newBytes :: PinnedState -> Int -> IO MutableByteArray
+newBytes Unpinned = newUnpinnedBytes
+newBytes Pinned = newPinnedBytes
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
