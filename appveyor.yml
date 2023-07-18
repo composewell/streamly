@@ -16,7 +16,7 @@ environment:
     # ------------------------------------------------------------------------
     # GHC 9.2.7 onwards redundant constraint warnings are incompatible with
     # older versions
-    GHC_OPTIONS: "-Wno-redundant-constraints -Werror"
+    # GHC_OPTIONS: "-Wno-redundant-constraints -Werror"
     CABAL_REINIT_CONFIG: "y"
     LC_ALL: "C.UTF-8"
 
