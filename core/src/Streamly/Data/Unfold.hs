@@ -235,10 +235,6 @@ import Streamly.Internal.Data.Unfold
   -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
   -- generating an infinite stream when the type is not 'Bounded'.
   --
-  -- >>> import qualified Streamly.Data.Stream as Stream
-  -- >>> import qualified Streamly.Data.Unfold as Unfold
-  --
-  -- @
   -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom (0 :: Int)
   -- [0,1,2,3]
   --
@@ -251,8 +247,6 @@ import Streamly.Internal.Data.Unfold
   -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom 1.1
   -- [1.1,2.1,3.1,4.1]
   --
-  -- @
-  --
 {-# INLINE enumerate #-}
 enumerate :: (Monad m, Enumerable a) => Unfold m a a
 enumerate = enumerateFrom
@@ -261,10 +255,6 @@ enumerate = enumerateFrom
   -- @from@, enumerating the type up to the value @to@. If @to@ is smaller than
   -- @from@ then an empty stream is returned.
   --
-  -- >>> import qualified Streamly.Data.Stream as Stream
-  -- >>> import qualified Streamly.Data.Unfold as Unfold
-  --
-  -- @
   -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (0, 4)
   -- [0,1,2,3,4]
   --
@@ -279,8 +269,6 @@ enumerate = enumerateFrom
   --
   -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4.6)
   -- [1.1,2.1,3.1,4.1,5.1]
-  --
-  -- @
   --
 {-# INLINE enumerateTo #-}
 enumerateTo :: (Monad m, Enumerable a) => Unfold m (a, a) a
