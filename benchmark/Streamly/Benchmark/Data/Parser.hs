@@ -55,6 +55,7 @@ import qualified Streamly.Internal.Unicode.Parser.Extra as Parser
 import Gauge hiding (env)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
+import Control.Monad (replicateM_)
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -630,17 +631,17 @@ choice value =
         (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
 -}
 
-{-# INLINE sourceUnfoldrMC #-}
-sourceUnfoldrMC :: Monad m => Int -> Int -> Stream m Char
-sourceUnfoldrMC value n = '1' <$ sourceUnfoldrM value n
+runParser :: Int -> (Stream IO Char -> IO a) -> IO ()
+runParser count p = do
+    let v = "123456789.123456789"
+    let s = Stream.fromList v
+    replicateM_ count (p s)
 
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSinkc #-}
-benchIOSinkc
-    :: NFData b
-    => Int -> String -> (Stream IO Char -> IO b) -> Benchmark
+benchIOSinkc :: Int -> String -> (Stream IO Char -> IO b) -> Benchmark
 benchIOSinkc value name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrMC value
+    bench name $ nfIO $ runParser value f
 
 {-# INLINE scientific #-}
 scientific ::
