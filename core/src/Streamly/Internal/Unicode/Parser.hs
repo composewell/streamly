@@ -81,8 +81,8 @@ import Streamly.Internal.Data.Parser.ParserD (Parser(..))
 --
 #define CHAR_PARSER_SIG(NAME)         NAME :: Monad m => Parser Char m Char
 -- XXX Need to use the predicates from Unicode.Char module/unicode-data package
-#define CHAR_PARSER(NAME, PREDICATE)  NAME = Parser.satisfy Char.PREDICATE
-#define CHAR_PARSER_DOC(PREDICATE) -- | Match any character that satisfies 'Char.PREDICATE'
+#define CHAR_PARSER(NAME, PREDICADoubleState)  NAME = Parser.satisfy Char.PREDICADoubleState
+#define CHAR_PARSER_DOC(PREDICADoubleState) -- | Match any character that satisfies 'Char.PREDICADoubleState'
 #define CHAR_PARSER_INLINE(NAME)      {-# INLINE NAME #-}
 
 CHAR_PARSER_DOC(isSpace)
@@ -265,14 +265,17 @@ hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
 signed :: (Num a, Monad m) => Parser Char m a -> Parser Char m a
 signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 
-data TE =
-    TE  !Bool     -- ^ Found digits
+data DoubleState =
+    DoubleState
+        !Bool     -- ^ Discard
+        !Bool     -- ^ Found digits
         !Bool     -- ^ Decimal point exsistence
         {-# UNPACK #-}!Int      -- ^ The sign positive or negative
         !Integer                -- ^ The coefficient of a scientific number.
         {-# UNPACK #-}!Int      -- ^ The base-10 exponent of a scientific number.
 
--- | Parse a 'Double'.
+
+-- | Parse a decimal 'Double'.
 -- This parser accepts an optional sign (+ or -) followed by
 -- at most one decimal digit.  The syntax is similar to that accepted by
 -- the 'read' function, with the exception that a trailing @\'.\'@ is
@@ -280,8 +283,8 @@ data TE =
 -- This function does not accept string representations of \"NaN\" or
 -- \"Infinity\".
 
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Unicode.Parser as Unicode
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Unicode.Parser as Unicode
 --
 -- >>> doubleParser = Stream.parse Unicode.double . Stream.fromList
 --
@@ -375,29 +378,32 @@ double =  Parser step initial extract
 
     where
 
-    extract' c s m e =
+    extract' n c s m e =
         if (c == False) -- No digit found
         then Error "Not enough input"
         else do
             case s < 0 of
-                True -> Done 0 (fromRational (-m % 10 ^ e))
-                False -> Done 0 (fromRational (m % 10 ^ e))
+                True -> Done n (fromRational (-m % 10 ^ e))
+                False -> Done n (fromRational (m % 10 ^ e))
 
-    initial = return $ IPartial (TE False False 0 0 0)
+    initial = return $ IPartial (DoubleState False False False 0 0 0)
 
     calc m x = m * 10 + fromIntegral (ord x - 48)
 
-    step (TE c p s m e) a = do
+    step (DoubleState d c p s m e) a = do
         let c1 = True
         return $
             case a of
                 x | Char.isDigit x ->
                         if p       -- parsing after decimal point?
-                        then Partial 0 (TE c1 p s (calc m x) (e + 1))
-                        else Partial 0 (TE c1 p s (calc m x) e)
-                '-' | c == False -> Partial 0 (TE c p (-1) m e)
-                '+' | c == False -> Partial 0 (TE c p 0 m e)
-                '.' | c && e == 0 -> Partial 0 (TE c True s m e)
-                _ -> extract' c s m e
+                        then Partial 0 (DoubleState False c1 p s (calc m x) (e + 1))
+                        else Partial 0 (DoubleState False c1 p s (calc m x) e)
+                '-' | c == False && not d -> Continue 0 (DoubleState True c p (-1) m e)
+                '+' | c == False && not d -> Continue 0 (DoubleState True c p 0 m e)
+                '.' | c && not d && e == 0 -> Partial 1 (DoubleState True c True s m e)
+                _ -> extract' 1 c s m e
 
-    extract (TE c _p s m e) = return $ extract' c s m e
+    extract (DoubleState d c _p s m e) =
+        if d
+        then return $ extract' 1 c s m e
+        else return $ extract' 0 c s m e
