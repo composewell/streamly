@@ -78,6 +78,8 @@ module Streamly.Internal.Data.Parser.ParserD
     -- ** Exact match
     , listEq
     , listEqBy
+    , chunkEq
+    , chunkEqBy
     , streamEqBy
     , subsequenceBy
 
@@ -2202,6 +2204,37 @@ streamEqBy cmp stream = streamEqByInternal cmp stream *> fromPure ()
 {-# INLINE listEq #-}
 listEq :: (Monad m, Eq a) => [a] -> Parser a m [a]
 listEq = listEqBy (==)
+
+-- | Match the given sequence of elements using the given comparison function.
+-- Returns the original sequence if successful.
+--
+-- Definition:
+--
+-- >>> chunkEqBy cmp xs = Parser.streamEqBy cmp (Stream.fromFoldable xs) *> Parser.fromPure xs
+--
+-- Examples:
+--
+-- >>> Stream.parse (Parser.chunkEqBy (==) "string") $ Stream.fromList "string"
+-- Right "string"
+--
+-- >>> Stream.parse (Parser.chunkEqBy (==) "mismatch") $ Stream.fromList "match"
+-- Left (ParseError "streamEqBy: mismtach occurred")
+--
+{-# INLINE chunkEqBy #-}
+chunkEqBy
+    :: (Foldable f, Monad m) => (a -> a -> Bool) -> f a -> Parser a m (f a)
+chunkEqBy cmp xs = streamEqByInternal cmp (D.fromFoldable xs) *> fromPure xs
+
+-- | Match the input sequence with the supplied Foldable and return it if
+-- successful.
+--
+-- >>> chunkEq = Parser.chunkEqBy (==)
+--
+{-# INLINE chunkEq #-}
+chunkEq
+    :: (Eq a, Foldable f, Monad m)
+    => f a -> Parser a m (f a)
+chunkEq = chunkEqBy (==)
 
 -- | Match if the input stream is a subsequence of the argument stream i.e. all
 -- the elements of the input stream occur, in order, in the argument stream.
