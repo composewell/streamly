@@ -238,8 +238,8 @@ main = hspec
                 (fmap (+2))
                 (fmap (+1) . Async.parEval id . fmap (+1))
 
-        asyncSpec $ prop "sequenceWith" . sequenceReplicate
-        asyncSpec $ prop "mapM all configs mapM (+1)"
+        asyncSpec $ prop "parSequence" . sequenceReplicate
+        asyncSpec $ prop "mapM (+1)"
                     . transform (fmap (+1))
                     . (`Async.parMapM` (\x -> return (x + 1)))
 
