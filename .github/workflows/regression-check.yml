@@ -73,14 +73,6 @@ jobs:
         # Bump the key version to clear the cache
         key: cache-v2
 
-    - name: Cache charts from master
-      id: cache-charts-master
-      uses: actions/cache@v2
-      with:
-        path: charts-master
-        # Bump the key version to clear the cache
-        key: charts-master-v1
-
     - name: Cache bench-runner from pr
       id: cache-bench-runner-pr
       uses: actions/cache@v2
@@ -99,7 +91,6 @@ jobs:
         clean: false
 
     - name: Install bench-runner
-      if: steps.cache-bench-runner-pr.outputs.cache-hit != 'true'
       run: |
         cabal install bench-runner --project-file=cabal.project.report --installdir=./
 
@@ -108,19 +99,16 @@ jobs:
     # -----------------------------------------------------------------
 
     - name: Checkout the base branch
-      if: steps.cache-charts-master.outputs.cache-hit != 'true'
       uses: actions/checkout@v2
       with:
         ref: master
         clean: false
 
     - name: Run benchmarks
-      if: steps.cache-charts-master.outputs.cache-hit != 'true'
       run: |
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw
 
     - name: Move charts to charts-master
-      if: steps.cache-charts-master.outputs.cache-hit != 'true'
       run: mv charts charts-master
 
     # -----------------------------------------------------------------
