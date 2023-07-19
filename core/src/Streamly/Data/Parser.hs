@@ -60,8 +60,6 @@ module Streamly.Data.Parser
     , streamEqBy
     , listEqBy
     , listEq
-    , chunkEqBy
-    , chunkEq
 
     -- * Combinators
     -- Mapping on output
