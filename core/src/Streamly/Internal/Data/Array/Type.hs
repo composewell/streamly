@@ -111,6 +111,24 @@ import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 #include "DocTestDataArray.hs"
 
 -------------------------------------------------------------------------------
+-- Notes
+-------------------------------------------------------------------------------
+
+-- IMPORTANT:
+
+-- We need to be careful while using unsafePerformIO when array creation is
+-- involved.
+--
+-- * We need to make sure the unsafe IO line does not float out of the binding.
+-- * The order of the IO actions should be sane. For example, `touch` after `f`.
+--
+-- Assume the unsafe IO action floats up. If it makes sense given this
+-- assumption, it's probably OK to use usafe IO.
+--
+-- A general approach should be never to use unsafe IO where Array creation is
+-- involved or touch is involved.
+
+-------------------------------------------------------------------------------
 -- Array Data Type
 -------------------------------------------------------------------------------
 
