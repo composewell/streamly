@@ -158,14 +158,6 @@ takeFramedByEsc_ _ = Stream.parse parser
 listEqBy :: Int -> Stream IO Int -> IO (Either ParseError [Int])
 listEqBy len = Stream.parse (PR.listEqBy (==) [1 .. len])
 
-{-# INLINE chunkEqBy #-}
-chunkEqBy :: Int -> Stream IO Int -> IO (Either ParseError [Int])
-chunkEqBy len = Stream.parse (PR.chunkEqBy (==) [1 .. len])
-
-{-# INLINE chunkEq #-}
-chunkEq :: Int -> Stream IO Int -> IO (Either ParseError [Int])
-chunkEq len = Stream.parse (PR.chunkEq [1 .. len])
-
 {-# INLINE streamEqBy #-}
 streamEqBy :: Int -> Stream IO Int -> IO (Either ParseError ())
 streamEqBy len = Stream.parse (PR.streamEqBy (==) (Stream.enumerateFromTo 1 len))
@@ -839,8 +831,6 @@ o_n_heap_serial value =
     , benchIOSink value "manyAlt" manyAlt
     , benchIOSink value "someAlt" someAlt
     , benchIOSink value "listEqBy" (listEqBy value)
-    , benchIOSink value "chunkEqBy" (chunkEqBy value)
-    , benchIOSink value "chunkEq" (chunkEq value)
     ]
 
 -- accumulate results in a list in IO
