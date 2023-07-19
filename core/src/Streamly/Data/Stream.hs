@@ -200,7 +200,6 @@ module Streamly.Data.Stream
 
     -- ** Parsing
     , parse
-    , wordsBy
     -- , parseBreak
 
     -- ** Lazy Right Folds
@@ -434,11 +433,10 @@ module Streamly.Data.Stream
     , foldMany -- XXX Rename to foldRepeat
     , groupsOf
     , parseMany
-    , Array.chunksOf
 
     -- * Splitting
     , splitOn
-    , chunksSplitOn
+    , wordsBy
 
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.
@@ -490,10 +488,9 @@ module Streamly.Data.Stream
     , runReaderT
     , runStateT
 
-    -- -- * Stream Types
-    -- $serial
-    -- , Interleave
-    -- , Zip
+    -- * Stream of Arrays
+    , Array.chunksOf
+    , chunksSplitOn
     )
 where
 
