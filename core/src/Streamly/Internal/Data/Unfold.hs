@@ -48,35 +48,6 @@ module Streamly.Internal.Data.Unfold
     -- ** Enumerations
     , Enumerable (..)
 
-    -- ** Enumerate Num
-    , enumerateFromNum
-    , enumerateFromThenNum
-    , enumerateFromStepNum
-
-    -- ** Enumerating 'Bounded 'Integral' Types
-    , enumerateFromIntegralBounded
-    , enumerateFromThenIntegralBounded
-    , enumerateFromToIntegralBounded
-    , enumerateFromThenToIntegralBounded
-
-    -- ** Enumerating 'Unounded Integral' Types
-    , enumerateFromIntegral
-    , enumerateFromThenIntegral
-    , enumerateFromToIntegral
-    , enumerateFromThenToIntegral
-
-    -- ** Enumerating 'Small Integral' Types
-    , enumerateFromSmallBounded
-    , enumerateFromThenSmallBounded
-    , enumerateFromToSmall
-    , enumerateFromThenToSmall
-
-    -- ** Enumerating 'Fractional' Types
-    , enumerateFromFractional
-    , enumerateFromThenFractional
-    , enumerateFromToFractional
-    , enumerateFromThenToFractional
-
     -- ** From Containers
     , fromList
     , fromListM
@@ -209,6 +180,10 @@ import Foreign (Storable, peek, sizeOf)
 import Foreign.Ptr
 
 #include "DocTestDataUnfold.hs"
+
+-------------------------------------------------------------------------------
+-- Input operations
+-------------------------------------------------------------------------------
 
 -- | Convert an 'Unfold' into an unfold accepting a tuple as an argument,
 -- using the argument of the original fold as the second element of tuple and

@@ -53,6 +53,9 @@ module Streamly.Data.Unfold
     , replicateM
     , iterateM
 
+    -- ** Enumeration
+    , Enumerable (..)
+
     -- ** From Containers
     , fromList
     , fromListM
@@ -85,10 +88,6 @@ module Streamly.Data.Unfold
     -- ** Nesting
     , many
 
-    -- ** Enumerating 'Num' Types
-    , Enumerable (..)
-    , enumerate
-    , enumerateTo
     )
 where
 
@@ -230,46 +229,3 @@ import Streamly.Internal.Data.Unfold
 -- streams are written, it is easy to adapt a stream to an unfold. If you are
 -- writing an unfold you can convert it to stream for free using
 -- 'Stream.unfold'.
-
--- | Enumerates @from@ generating a stream starting with the element
-  -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
-  -- generating an infinite stream when the type is not 'Bounded'.
-  --
-  -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom (0 :: Int)
-  -- [0,1,2,3]
-  --
-  -- @
-  --
-  -- For 'Fractional' types, enumeration is numerically stable. However, no
-  -- overflow or underflow checks are performed.
-  --
-  -- @
-  -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom 1.1
-  -- [1.1,2.1,3.1,4.1]
-  --
-{-# INLINE enumerate #-}
-enumerate :: (Monad m, Enumerable a) => Unfold m a a
-enumerate = enumerateFrom
-
--- | Enumerates @(from, to)@ generating a finite stream starting with the element
-  -- @from@, enumerating the type up to the value @to@. If @to@ is smaller than
-  -- @from@ then an empty stream is returned.
-  --
-  -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (0, 4)
-  -- [0,1,2,3,4]
-  --
-  -- @
-  --
-  -- For 'Fractional' types, the last element is equal to the specified @to@
-  -- value after rounding to the nearest integral value.
-  --
-  -- @
-  -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4)
-  -- [1.1,2.1,3.1,4.1]
-  --
-  -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4.6)
-  -- [1.1,2.1,3.1,4.1,5.1]
-  --
-{-# INLINE enumerateTo #-}
-enumerateTo :: (Monad m, Enumerable a) => Unfold m (a, a) a
-enumerateTo = enumerateFromTo
