@@ -141,6 +141,7 @@ module Streamly.Internal.Data.Stream.StreamD.Nesting
     -- | Group segments of a stream and fold. Special case of parsing.
     , groupsOf
     , groupsBy
+    , groupsWhile
     , groupsRollingBy
 
     -- ** Splitting
@@ -1896,16 +1897,23 @@ data GroupByState st fs a b
     | GroupingYield !b (GroupByState st fs a b)
     | GroupingDone
 
-{-# INLINE_NORMAL groupsBy #-}
-groupsBy :: Monad m
+-- | The argument order of the comparison function in `groupsWhile` is
+-- different than that of `groupsBy`.
+--
+-- In `groupsBy` the comparison function takes the next element as the first
+-- argument and the previous element as the second argument. In `groupsWhile`
+-- the first argument is the previous element and second argument is the next
+-- element.
+{-# INLINE_NORMAL groupsWhile #-}
+groupsWhile :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
     -> Stream m a
     -> Stream m b
 {-
-groupsBy eq fld = parseMany (PRD.groupBy eq fld)
+groupsWhile eq fld = parseMany (PRD.groupBy eq fld)
 -}
-groupsBy cmp (Fold fstep initial done) (Stream step state) =
+groupsWhile cmp (Fold fstep initial done) (Stream step state) =
     Stream stepOuter (GroupingInit state)
 
     where
@@ -1936,7 +1944,7 @@ groupsBy cmp (Fold fstep initial done) (Stream step state) =
             res <- step (adaptState gst) stt
             case res of
                 Yield x s -> do
-                    if cmp x prev
+                    if cmp prev x
                     then do
                         r <- fstep acc x
                         case r of
@@ -1966,7 +1974,7 @@ groupsBy cmp (Fold fstep initial done) (Stream step state) =
             res <- step (adaptState gst) stt
             case res of
                 Yield x s -> do
-                    if cmp x prev
+                    if cmp prev x
                     then do
                         r <- fstep acc x
                         case r of
@@ -1977,8 +1985,17 @@ groupsBy cmp (Fold fstep initial done) (Stream step state) =
                         return $ Yield r (GroupingInitWith s x)
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \r -> return $ Yield r GroupingDone
-    stepOuter _ (GroupingYield _ _) = error "groupsBy: Unreachable"
+    stepOuter _ (GroupingYield _ _) = error "groupsWhile: Unreachable"
     stepOuter _ GroupingDone = return Stop
+
+{-# DEPRECATED groupsBy "Please use groupsWhile instead. Please note the change in the argument order of the comparison function." #-}
+{-# INLINE_NORMAL groupsBy #-}
+groupsBy :: Monad m
+    => (a -> a -> Bool)
+    -> Fold m a b
+    -> Stream m a
+    -> Stream m b
+groupsBy cmp = groupsWhile (flip cmp)
 
 {-# INLINE_NORMAL groupsRollingBy #-}
 groupsRollingBy :: Monad m
@@ -2045,7 +2062,7 @@ groupsRollingBy cmp (Fold fstep initial done) (Stream step state) =
 
         where
 
-        -- XXX GHC: groupsBy has one less parameter in this go loop and it
+        -- XXX GHC: groupsWhile has one less parameter in this go loop and it
         -- fuses. However, groupsRollingBy does not fuse, removing the prev
         -- parameter makes it fuse. Something needs to be fixed in GHC. The
         -- workaround for this is noted in the comments below.

@@ -107,30 +107,50 @@ iterateSource g count len n = f count (sourceUnfoldrM len n)
 -- Grouping transformations
 -------------------------------------------------------------------------------
 
-#ifdef USE_PRELUDE
 {-# INLINE groups #-}
 groups :: MonadIO m => Stream m Int -> m ()
-groups = Common.drain . S.groups FL.drain
+groups =
+#ifdef USE_PRELUDE
+    Common.drain . S.groups FL.drain
+#else
+    Common.drain . S.groupsWhile (==) FL.drain
+#endif
 
--- XXX Change this test when the order of comparison is later changed
-{-# INLINE groupsByGT #-}
-groupsByGT :: MonadIO m => Stream m Int -> m ()
-groupsByGT = Common.drain . S.groupsBy (>) FL.drain
+{-# INLINE groupsWhileLT #-}
+groupsWhileLT :: MonadIO m => Stream m Int -> m ()
+groupsWhileLT =
+#ifdef USE_PRELUDE
+    Common.drain . S.groupsBy (>) FL.drain
+#else
+    Common.drain . S.groupsWhile (<) FL.drain
+#endif
 
-{-# INLINE groupsByEq #-}
-groupsByEq :: MonadIO m => Stream m Int -> m ()
-groupsByEq = Common.drain . S.groupsBy (==) FL.drain
+{-# INLINE groupsWhileEq #-}
+groupsWhileEq :: MonadIO m => Stream m Int -> m ()
+groupsWhileEq =
+#ifdef USE_PRELUDE
+    Common.drain . S.groupsBy (==) FL.drain
+#else
+    Common.drain . S.groupsWhile (==) FL.drain
+#endif
 
--- XXX Change this test when the order of comparison is later changed
+
 {-# INLINE groupsByRollingLT #-}
 groupsByRollingLT :: MonadIO m => Stream m Int -> m ()
 groupsByRollingLT =
+#ifdef USE_PRELUDE
     Common.drain . S.groupsByRolling (<) FL.drain
+#else
+    Common.drain . S.groupsRollingBy (<) FL.drain
+#endif
 
 {-# INLINE groupsByRollingEq #-}
 groupsByRollingEq :: MonadIO m => Stream m Int -> m ()
 groupsByRollingEq =
+#ifdef USE_PRELUDE
     Common.drain . S.groupsByRolling (==) FL.drain
+#else
+    Common.drain . S.groupsRollingBy (==) FL.drain
 #endif
 
 {-# INLINE foldMany #-}
@@ -190,14 +210,13 @@ o_1_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
     [ bgroup "grouping"
         [
-#ifdef USE_PRELUDE
           benchIOSink value "groups" groups
-        , benchIOSink value "groupsByGT" groupsByGT
-        , benchIOSink value "groupsByEq" groupsByEq
+        , benchIOSink value "groupsWhileLT" groupsWhileLT
+        , benchIOSink value "groupsWhileEq" groupsWhileEq
         , benchIOSink value "groupsByRollingLT" groupsByRollingLT
         , benchIOSink value "groupsByRollingEq" groupsByRollingEq
         ,
-#endif
+
         -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
         -- modules we can bring those here. chunksOf benchmarks are in
         -- Parser/ParserD/Array.Stream/FileSystem.Handle.
