@@ -31,7 +31,6 @@ import qualified Prelude
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Unfold.Enumeration as UF
 import qualified Streamly.Internal.Data.Unfold.Exception as UF
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D

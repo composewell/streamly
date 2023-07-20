@@ -76,7 +76,6 @@ import Prelude
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
--- >>> import qualified Streamly.Internal.Data.Unfold.Enumeration as Unfold
 -- >>> import Streamly.Internal.Data.Unfold.Type
 -- >>> import Data.Word
 

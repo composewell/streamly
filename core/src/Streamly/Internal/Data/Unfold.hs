@@ -46,7 +46,7 @@ module Streamly.Internal.Data.Unfold
     , iterateM
 
     -- ** Enumerations
-    , Enumerable (..)
+    , module Streamly.Internal.Data.Unfold.Enumeration
 
     -- ** From Containers
     , fromList
