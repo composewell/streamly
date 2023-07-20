@@ -48,6 +48,7 @@ import Streamly.Prelude (avgRate, maxBuffer)
 import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Unfold.Enumeration as UF
 import qualified Streamly.Internal.Data.Stream as IS
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Data.Array as A
