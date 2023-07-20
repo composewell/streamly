@@ -88,7 +88,7 @@ import Prelude
 -- the value overflows it keeps enumerating in a cycle:
 --
 -- @
--- >>> Stream.fold Fold.toList $ Stream.take 10 $ Stream.unfold Unfold.enumerateFromStepNum (255::Word8,1)
+-- >>> Stream.toList $ Stream.take 10 $ Stream.unfold Unfold.enumerateFromStepNum (255::Word8,1)
 -- [255,0,1,2,3,4,5,6,7,8]
 --
 -- @
@@ -125,7 +125,7 @@ enumerateFromStepNum = Unfold step inject
 --
 -- Example:
 -- @
--- >>> Stream.fold Fold.toList $ Stream.take 10 $ Stream.unfold enumerateFromThenNum (255::Word8,0)
+-- >>> Stream.toList $ Stream.take 10 $ Stream.unfold enumerateFromThenNum (255::Word8,0)
 -- [255,0,1,2,3,4,5,6,7,8]
 --
 -- @
@@ -152,7 +152,7 @@ enumerateFromThenNum =
 --
 -- @
 -- >>> enumerateFromNum = lmap (\from -> (from, 1)) Unfold.enumerateFromStepNum
--- >>> Stream.fold Fold.toList $ Stream.take 6 $ Stream.unfold enumerateFromNum (0.9)
+-- >>> Stream.toList $ Stream.take 6 $ Stream.unfold enumerateFromNum (0.9)
 -- [0.9,1.9,2.9,3.9,4.9,5.9]
 --
 -- @
@@ -162,7 +162,7 @@ enumerateFromThenNum =
 --
 -- @
 -- >>> enumerateFromNum = lmap (\from -> (from, from + 1)) Unfold.enumerateFromThenNum
--- >>> Stream.fold Fold.toList $ Stream.take 6 $ Stream.unfold enumerateFromNum (0.9)
+-- >>> Stream.toList $ Stream.take 6 $ Stream.unfold enumerateFromNum (0.9)
 -- [0.9,1.9,2.9,3.8999999999999995,4.8999999999999995,5.8999999999999995]
 --
 -- @
@@ -284,7 +284,7 @@ enumerateFromThenFractional = enumerateFromThenNum
 -- specified upper limit rounded to the nearest integral value:
 --
 -- @
--- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromToFractional (0.1, 6.3)
+-- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromToFractional (0.1, 6.3)
 -- [0.1,1.1,2.1,3.1,4.1,5.1,6.1]
 --
 -- @
@@ -389,23 +389,14 @@ class Enum a => Enumerable a where
     -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
     -- generating an infinite stream when the type is not 'Bounded'.
     --
-    -- >>> import qualified Streamly.Data.Stream as Stream
-    -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
-    --
-    -- @
-    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom (0 :: Int)
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom (0 :: Int)
     -- [0,1,2,3]
-    --
-    -- @
     --
     -- For 'Fractional' types, enumeration is numerically stable. However, no
     -- overflow or underflow checks are performed.
     --
-    -- @
-    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom 1.1
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom 1.1
     -- [1.1,2.1,3.1,4.1]
-    --
-    -- @
     --
     -- /Pre-release/
     --
@@ -415,26 +406,17 @@ class Enum a => Enumerable a where
     -- @from@, enumerating the type up to the value @to@. If @to@ is smaller than
     -- @from@ then an empty stream is returned.
     --
-    -- >>> import qualified Streamly.Data.Stream as Stream
-    -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
-    --
-    -- @
-    -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (0, 4)
+    -- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromTo (0, 4)
     -- [0,1,2,3,4]
-    --
-    -- @
     --
     -- For 'Fractional' types, the last element is equal to the specified @to@
     -- value after rounding to the nearest integral value.
     --
-    -- @
-    -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4)
+    -- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4)
     -- [1.1,2.1,3.1,4.1]
     --
-    -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4.6)
+    -- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4.6)
     -- [1.1,2.1,3.1,4.1,5.1]
-    --
-    -- @
     --
     -- /Pre-release/
     enumerateFromTo :: Monad m => Unfold m (a, a) a
@@ -445,17 +427,11 @@ class Enum a => Enumerable a where
     -- after @from@. For 'Bounded' types the stream ends when 'maxBound' is
     -- reached, for unbounded types it keeps enumerating infinitely.
     --
-    -- >>> import qualified Streamly.Data.Stream as Stream
-    -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
-    --
-    -- @
-    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFromThen (0, 2)
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFromThen (0, 2)
     -- [0,2,4,6]
     --
-    -- >>> Stream.fold Fold.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFromThen (0,(-2))
+    -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFromThen (0,(-2))
     -- [0,-2,-4,-6]
-    --
-    -- @
     --
     -- /Pre-release/
     enumerateFromThen :: Monad m => Unfold m (a, a) a
@@ -465,17 +441,11 @@ class Enum a => Enumerable a where
     -- @to@. Enumeration can occur downwards or upwards depending on whether @then@
     -- comes before or after @from@.
     --
-    -- >>> import qualified Streamly.Data.Stream as Stream
-    -- >>> import qualified Streamly.Internal.Data.Unfold as Unfold
-    --
-    -- @
-    -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromThenTo (0, 2, 6)
+    -- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromThenTo (0, 2, 6)
     -- [0,2,4,6]
     --
-    -- >>> Stream.fold Fold.toList $ Stream.unfold Unfold.enumerateFromThenTo (0, (-2), (-6))
+    -- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromThenTo (0, (-2), (-6))
     -- [0,-2,-4,-6]
-    --
-    -- @
     --
     -- /Pre-release/
     enumerateFromThenTo :: Monad m => Unfold m (a, a, a) a

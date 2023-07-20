@@ -53,6 +53,9 @@ module Streamly.Data.Unfold
     , replicateM
     , iterateM
 
+    -- ** Enumeration
+    , Enumerable (..)
+
     -- ** From Containers
     , fromList
     , fromListM
