@@ -1,11 +1,11 @@
-packages: 
+packages:
   ./
   benchmark
 
 package streamly
   ghc-options: -Werror
-  flags: inspection
+  flags: +inspection
 
 package streamly-benchmarks
   ghc-options: -Werror
-  flags: inspection
+  flags: +inspection
