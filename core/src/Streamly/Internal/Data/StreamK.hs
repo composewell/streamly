@@ -1171,7 +1171,9 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
         let stop = do
                 r <- extract pst
                 case r of
-                    PR.Error err -> return (Left (ParseError err), nil)
+                    PR.Error err -> do
+                        let src  = Prelude.reverse buf
+                        return (Left (ParseError err), fromList src)
                     PR.Done n b -> do
                         assertM(n <= length buf)
                         let src0 = Prelude.take n buf
@@ -1206,7 +1208,9 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
                         return (Right b, append (fromList src) r)
-                    PR.Error err -> return (Left (ParseError err), r)
+                    PR.Error err -> do
+                        let src  = Prelude.reverse (x:buf)
+                        return (Left (ParseError err), append (fromList src) r)
          in foldStream defState yieldk single stop st
 
     goBuf st buf [] !pst = goStream st buf pst
@@ -1230,7 +1234,9 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0
                 return (Right b, append (fromList src) st)
-            PR.Error err -> return (Left (ParseError err), nil)
+            PR.Error err -> do
+                let src  = Prelude.reverse (x:buf)
+                return (Left (ParseError err), append (fromList src) st)
 
 -- Using ParserD or ParserK on StreamK may not make much difference. We should
 -- perhaps use only chunked parsing on StreamK. We can always convert a stream
@@ -1324,7 +1330,10 @@ parseBreakChunks parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
                 let (s1, _) = backTrack n1 backBuf nil
                  in return (Right b, s1)
-            ParserK.Error _ err -> return (Left (ParseError err), nil)
+            ParserK.Error _ err -> do
+                let n1 = length backBuf
+                    (s1, _) = backTrack n1 backBuf nil
+                return (Left (ParseError err), s1)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
@@ -1367,7 +1376,10 @@ parseBreakChunks parser input = do
                 assertM(n1 <= sum (Prelude.map Array.length (arr:backBuf)))
                 let (s1, _) = backTrack n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.Error _ err -> return (Left (ParseError err), nil)
+            ParserK.Error _ err -> do
+                let n1 = length (arr:backBuf)
+                let (s1, _) = backTrack n1 (arr:backBuf) stream
+                return (Left (ParseError err), s1)
 
     go backBuf parserk stream = do
         let stop = goStop backBuf parserk

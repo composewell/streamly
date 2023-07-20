@@ -238,8 +238,11 @@ parse
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, unread src (source Nothing))
-            Error err ->
-                return (Left (ParseError err), source Nothing)
+            Error err -> do
+                let n = length (getList buf)
+                    src0 = Prelude.take n (getList buf)
+                    src  = Prelude.reverse src0
+                return (Left (ParseError err), unread src (source Nothing))
 
 {-
 -- | Parse a buffered source using a parser, returning the parsed value and the

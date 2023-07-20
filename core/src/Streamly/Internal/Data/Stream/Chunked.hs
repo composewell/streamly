@@ -771,8 +771,9 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
                     -- arr0 = A.fromListRevN n src0
                     arr0 = A.fromListN n (Prelude.reverse src0)
                 return (Right b, K.fromPure arr0)
-            PR.Error err ->
-                return (Left (ParseError err), K.nil)
+            PR.Error err -> do
+                let arr = A.fromList (Prelude.reverse backBuf)
+                return (Left (ParseError err), K.fromPure arr)
 
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
 -- result and the unconsumed stream. Throws 'ParseError' if the parse fails.
@@ -901,8 +902,10 @@ runArrayParserDBreak
                 let src0 = takeArrayListRev n (x:getList backBuf)
                     src = Prelude.reverse src0 ++ xs
                 return (Right b, D.fromList src)
-            PR.Error err ->
-                return (Left (ParseError err), D.fromList (x:xs))
+            PR.Error err -> do
+                let src0 = x:getList backBuf
+                    src = Prelude.reverse src0 ++ xs
+                return (Left (ParseError err), D.fromList src)
 
     -- This is a simplified goExtract
     {-# INLINE goStop #-}
@@ -927,8 +930,10 @@ runArrayParserDBreak
                 let src0 = takeArrayListRev n (getList backBuf)
                     src = Prelude.reverse src0
                 return (Right b, D.fromList src)
-            PR.Error err ->
-                return (Left (ParseError err), D.nil)
+            PR.Error err -> do
+                let src0 = getList backBuf
+                    src = Prelude.reverse src0
+                return (Left (ParseError err), D.fromList src)
 
 {-
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
