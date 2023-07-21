@@ -516,6 +516,14 @@ test-suite Unicode.Stream
   if flag(use-streamly-core)
     buildable: False
 
+test-suite Unicode.Parser
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Unicode/Parser.hs
+  ghc-options: -main-is Streamly.Test.Unicode.Parser.main
+  if flag(use-streamly-core)
+    buildable: False
+
 test-suite Unicode.Char
   import: test-options
   type: exitcode-stdio-1.0

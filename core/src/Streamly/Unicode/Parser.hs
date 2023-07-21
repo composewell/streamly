@@ -50,6 +50,7 @@ module Streamly.Unicode.Parser
     -- * Digit Sequences (Numbers)
     , decimal
     , hexadecimal
+    , double
 
     -- * Modifiers
     , signed
