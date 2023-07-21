@@ -357,7 +357,9 @@ double =  Parser step initial extract
                 '-' | c == False && not d -> Continue 0 (DoubleState True c p (-1) m e)
                 '+' | c == False && not d -> Continue 0 (DoubleState True c p 0 m e)
                 '.' | c && not d && e == 0 -> Continue 0 (DoubleState True c True s m e)
-                _ -> extract' 2 c s m e
+                _ -> if d
+                     then return $ extract' 2 c s m e
+                     else return $ extract' 0 c s m e
 
     extract (DoubleState d c _p s m e) =
         if d
