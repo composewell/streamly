@@ -16,7 +16,7 @@ import qualified Prelude
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Parser.ParserD as P
+import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as S

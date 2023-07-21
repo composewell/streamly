@@ -194,7 +194,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Streamly.Internal.Data.Parser as PRD
 import qualified Streamly.Internal.Data.Ring.Unboxed as RB
 
 import Streamly.Internal.Data.Stream.StreamD.Transform

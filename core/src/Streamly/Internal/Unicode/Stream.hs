@@ -116,7 +116,7 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Parser as Parser (Parser)
-import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
+import qualified Streamly.Internal.Data.Parser as ParserD
 import qualified Streamly.Internal.Data.Stream.StreamD as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 

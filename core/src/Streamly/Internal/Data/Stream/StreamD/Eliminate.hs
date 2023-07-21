@@ -98,7 +98,7 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Streamly.Internal.Data.Parser as PRD
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as StreamD
 import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
 import qualified Streamly.Internal.Data.Stream.StreamD.Transform as StreamD
