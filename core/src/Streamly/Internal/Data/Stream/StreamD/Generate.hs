@@ -123,6 +123,7 @@ import Streamly.Internal.Data.Time.Clock
     (Clock(Monotonic), asyncClock, readClock)
 import Streamly.Internal.Data.Time.Units
     (toAbsTime, AbsTime, toRelTime64, RelTime64, addToAbsTime64)
+import Streamly.Internal.System.IO (unsafeInlineIO)
 
 #ifdef USE_UNFOLDS_EVERYWHERE
 import qualified Streamly.Internal.Data.Unfold as Unfold
@@ -1143,23 +1144,23 @@ fromFoldableM = Prelude.foldr consM nil
 -- From pointers
 -------------------------------------------------------------------------------
 
--- | Keep reading 'Storable' elements from 'Ptr' onwards.
+-- | Keep reading 'Storable' elements from an immutable 'Ptr' onwards.
 --
 -- /Unsafe:/ The caller is responsible for safe addressing.
 --
 -- /Pre-release/
 {-# INLINE fromPtr #-}
-fromPtr :: forall m a. (MonadIO m, Storable a) => Ptr a -> Stream m a
+fromPtr :: forall m a. (Monad m, Storable a) => Ptr a -> Stream m a
 fromPtr = Stream step
 
     where
 
     {-# INLINE_LATE step #-}
     step _ p = do
-        x <- liftIO $ peek p
+        let !x = unsafeInlineIO $ peek p
         return $ Yield x (PTR_NEXT(p, a))
 
--- | Take @n@ 'Storable' elements starting from 'Ptr' onwards.
+-- | Take @n@ 'Storable' elements starting from an immutable 'Ptr' onwards.
 --
 -- >>> fromPtrN n = Stream.take n . Stream.fromPtr
 --
@@ -1167,11 +1168,11 @@ fromPtr = Stream step
 --
 -- /Pre-release/
 {-# INLINE fromPtrN #-}
-fromPtrN :: (MonadIO m, Storable a) => Int -> Ptr a -> Stream m a
+fromPtrN :: (Monad m, Storable a) => Int -> Ptr a -> Stream m a
 fromPtrN n = take n . fromPtr
 
--- | Read bytes from an 'Addr#' until a 0 byte is encountered, the 0 byte is
--- not included in the stream.
+-- | Read bytes from an immutable 'Addr#' until a 0 byte is encountered, the 0
+-- byte is not included in the stream.
 --
 -- >>> :set -XMagicHash
 -- >>> fromByteStr# addr = Stream.takeWhile (/= 0) $ Stream.fromPtr $ Ptr addr
@@ -1185,6 +1186,5 @@ fromPtrN n = take n . fromPtr
 -- [1,2,3]
 --
 {-# INLINE fromByteStr# #-}
-fromByteStr# :: MonadIO m => Addr# -> Stream m Word8
-fromByteStr# addr =
-    takeWhile (/= 0) $ fromPtr $ Ptr addr
+fromByteStr# :: Monad m => Addr# -> Stream m Word8
+fromByteStr# addr = takeWhile (/= 0) $ fromPtr $ Ptr addr
