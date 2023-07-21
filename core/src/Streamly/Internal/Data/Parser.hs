@@ -1,13 +1,13 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Parser.ParserD
+-- Module      : Streamly.Internal.Data.Parser
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Parser.ParserD
+module Streamly.Internal.Data.Parser
     (
     -- * Setup
     -- $setup

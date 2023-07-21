@@ -325,7 +325,6 @@ library
                      , Streamly.Internal.Data.Stream
 
                      , Streamly.Internal.Data.Parser.ParserD.Tee
-                     , Streamly.Internal.Data.Parser.ParserD
 
                      -- streamly-core-data
                      , Streamly.Internal.Data.Builder
