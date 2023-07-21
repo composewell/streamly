@@ -704,7 +704,10 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
                     str = K.cons arr0 (K.cons arr1 st)
                 return (Right b, str)
             PR.Error err -> do
-                let str = K.cons (Array contents cur end) stream
+                let n = Prelude.length backBuf
+                    arr0 = A.fromListN n (Prelude.reverse backBuf)
+                    arr1 = Array contents cur end
+                    str = K.cons arr0 (K.cons arr1 stream)
                 return (Left (ParseError err), str)
 
     -- This is a simplified goArray
@@ -746,7 +749,10 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
                     str = K.cons arr0 (K.fromPure arr1)
                 return (Right b, str)
             PR.Error err -> do
-                let str = K.fromPure (Array contents cur end)
+                let n = Prelude.length backBuf
+                    arr0 = A.fromListN n (Prelude.reverse backBuf)
+                    arr1 = Array contents cur end
+                    str = K.cons arr0 (K.cons arr1 stream)
                 return (Left (ParseError err), str)
 
     -- This is a simplified goExtract
@@ -772,8 +778,9 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
                     arr0 = A.fromListN n (Prelude.reverse src0)
                 return (Right b, K.fromPure arr0)
             PR.Error err -> do
-                let arr = A.fromList (Prelude.reverse backBuf)
-                return (Left (ParseError err), K.fromPure arr)
+                let n = Prelude.length backBuf
+                    arr0 = A.fromListN n (Prelude.reverse backBuf)
+                return (Left (ParseError err), K.fromPure arr0)
 
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
 -- result and the unconsumed stream. Throws 'ParseError' if the parse fails.
@@ -867,7 +874,9 @@ runArrayParserDBreak
                     src = Prelude.reverse src0 ++ xs
                 return (Right b, D.append (D.fromList src) (D.Stream step s))
             PR.Error err -> do
-                let strm = D.append (D.fromList (x:xs)) (D.Stream step s)
+                let src0 = x:getList backBuf
+                    src = Prelude.reverse src0 ++ x:xs
+                    strm = D.append (D.fromList src) (D.Stream step s)
                 return (Left (ParseError err), strm)
 
     -- This is a simplified gobuf
@@ -903,8 +912,8 @@ runArrayParserDBreak
                     src = Prelude.reverse src0 ++ xs
                 return (Right b, D.fromList src)
             PR.Error err -> do
-                let src0 = x:getList backBuf
-                    src = Prelude.reverse src0 ++ xs
+                let src0 = getList backBuf
+                    src = Prelude.reverse src0 ++ x:xs
                 return (Left (ParseError err), D.fromList src)
 
     -- This is a simplified goExtract

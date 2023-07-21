@@ -240,7 +240,10 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                               Nesting.append (fromList src) (Stream step s))
                     PR.Error err -> do
                         let src = Prelude.reverse $ x:getList buf
-                        return (Left (ParseError err), Nesting.append (fromList src) (Stream step s))
+                        return
+                            ( Left (ParseError err)
+                            , Nesting.append (fromList src) (Stream step s)
+                            )
 
             Skip s -> go SPEC s buf pst
             Stop -> goStop SPEC buf pst
@@ -297,10 +300,11 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, Nesting.append (fromList src) (Stream step s))
-            PR.Error err ->
+            PR.Error err -> do
+                let src = (Prelude.reverse $ getList buf) ++ x:xs
                 return
                     ( Left (ParseError err)
-                    , Nesting.append (fromList (x:xs)) (Stream step s)
+                    , Nesting.append (fromList src) (Stream step s)
                     )
 
     -- This is simplified gobuf
@@ -330,8 +334,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     src  = Prelude.reverse src0
                 return (Right b, fromList src)
             PR.Error err -> do
-                let src0 = x:getList buf
-                    src = Prelude.reverse src0
+                let src = (Prelude.reverse $ getList buf) ++ x:xs
                 return (Left (ParseError err), fromList src)
 
     -- This is simplified goExtract
@@ -356,7 +359,6 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
             PR.Error err -> do
                 let src  = Prelude.reverse $ getList buf
                 return (Left (ParseError err), fromList src)
-
 
 -- | Parse a stream using the supplied 'Parser'.
 --
