@@ -36,11 +36,11 @@ where
 import Control.Exception (assert)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Parser.ParserD (ParseError(..), Step(..))
+import Streamly.Internal.Data.Parser (ParseError(..), Step(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 
-import qualified Streamly.Internal.Data.Parser.ParserD as ParserD
+import qualified Streamly.Internal.Data.Parser as ParserD
 -- import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK
 
 import Prelude hiding (read)

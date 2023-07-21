@@ -54,7 +54,7 @@ import qualified Streamly.Internal.Data.Array as A
     (unsafeIndex, castUnsafe)
 import qualified Streamly.Internal.Data.Parser as PR
     (fromPure, either, satisfy, takeEQ)
-import qualified Streamly.Internal.Data.Parser.ParserD as PRD
+import qualified Streamly.Internal.Data.Parser as PRD
     (Parser(..), Initial(..), Step(..))
 
 -- Note: The () type does not need to have an on-disk representation in theory.

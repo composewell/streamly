@@ -218,7 +218,7 @@ import Prelude
                (!!), replicate, reverse, concatMap, iterate, splitAt)
 import Data.Foldable (sum, length)
 import Streamly.Internal.Data.Stream.StreamK.Type
-import Streamly.Internal.Data.Parser.ParserD (ParseError(..))
+import Streamly.Internal.Data.Parser (ParseError(..))
 
 #include "DocTestDataStreamK.hs"
 

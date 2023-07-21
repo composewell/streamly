@@ -254,7 +254,7 @@ import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
 
 import qualified Data.Foldable as Foldable
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.Parser.ParserD as D
+import qualified Streamly.Internal.Data.Parser as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 
 #ifdef USE_STREAMK
