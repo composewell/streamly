@@ -311,7 +311,7 @@ library
                      , Streamly.Internal.Data.Array.Generic.Mut.Type
 
                      -- streamly-core-streams
-                     , Streamly.Internal.Data.Stream.StreamK
+                     , Streamly.Internal.Data.StreamK
                      -- StreamD depends on streamly-array-types
                      , Streamly.Internal.Data.Stream.StreamD.Generate
                      , Streamly.Internal.Data.Stream.StreamD.Eliminate

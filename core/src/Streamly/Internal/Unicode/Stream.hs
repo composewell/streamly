@@ -104,8 +104,8 @@ import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Array.Mut.Type (MutableByteArray)
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import Streamly.Internal.Data.Stream.StreamD (Step (..))
+import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Step (..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unbox (peekWith)
@@ -117,8 +117,8 @@ import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Parser as Parser (Parser)
 import qualified Streamly.Internal.Data.Parser as ParserD
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream as D
 
 import Prelude hiding (lines, words, unlines, unwords)
 

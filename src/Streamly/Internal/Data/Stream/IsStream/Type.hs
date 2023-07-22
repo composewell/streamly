@@ -127,7 +127,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (StreamK(..), cons, fromEffect
     , nil, fromPure, bindWith, drain
     , fromFoldable, nilM, repeat)
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Streamly.Internal.Data.Stream.Serial as Stream
     (fromStreamK, toStreamK)
 import qualified Streamly.Internal.Data.Stream.Zip as Zip

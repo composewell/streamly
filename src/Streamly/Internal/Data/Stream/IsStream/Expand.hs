@@ -178,12 +178,12 @@ import Streamly.Data.Unfold (Unfold)
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
     (append, interleave, interleaveFstSuffix, interleaveFst, interleaveMin
     , roundRobin, mergeByM, unfoldMany, unfoldInterleave, intersperse
     , unfoldRoundRobin, interpose, interposeSuffix, gintercalate
     , gintercalateSuffix, intersperseMSuffix)
-import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy, mergeByM)
+import qualified Streamly.Internal.Data.StreamK as K (mergeBy, mergeByM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (interleave, append, mergeMapWith)
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync

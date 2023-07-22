@@ -12,7 +12,7 @@
 -- section in the "Streamly.Data.Stream" module to know when to use this
 -- module.
 --
--- Please refer to "Streamly.Internal.Data.Stream.StreamK" for more functions
+-- Please refer to "Streamly.Internal.Data.StreamK" for more functions
 -- that have not yet been released.
 --
 -- Some useful idioms:
@@ -125,7 +125,7 @@ module Streamly.Data.StreamK
     )
 where
 
-import Streamly.Internal.Data.Stream.StreamK
+import Streamly.Internal.Data.StreamK
 import Prelude hiding (reverse, zipWith, mapM, dropWhile, take)
 
 #include "DocTestDataStreamK.hs"

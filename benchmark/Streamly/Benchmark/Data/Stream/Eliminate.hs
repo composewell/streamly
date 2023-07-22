@@ -37,7 +37,7 @@ import qualified Streamly.Internal.Data.Fold as Fold
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
 import Test.Inspection
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 #endif
 
 #ifdef USE_PRELUDE
@@ -47,13 +47,13 @@ import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Internal.Data.Stream.IsStream as StreamK
 #else
 import Stream.Common
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import qualified Streamly.Internal.Data.Stream.StreamD as S
+import Streamly.Internal.Data.Stream (Stream)
+import qualified Streamly.Internal.Data.Stream as S
 #ifdef USE_STREAMK
-import Streamly.Internal.Data.Stream.StreamK (StreamK)
+import Streamly.Internal.Data.StreamK (StreamK)
 import qualified Streamly.Data.StreamK as StreamK
 #else
-import qualified Streamly.Internal.Data.Stream.StreamD as StreamK
+import qualified Streamly.Internal.Data.Stream as StreamK
 #endif
 #endif
 

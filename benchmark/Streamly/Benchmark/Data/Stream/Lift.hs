@@ -27,12 +27,12 @@ import qualified Streamly.Internal.Data.Fold as Fold
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import Streamly.Internal.Data.Stream (Stream)
+import qualified Streamly.Internal.Data.Stream as Stream
 #ifdef USE_STREAMK
 import Stream.Common (benchIO, drain)
-import Streamly.Internal.Data.Stream.StreamK (StreamK)
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import Streamly.Internal.Data.StreamK (StreamK)
+import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Control.Monad.State.Strict as State
 #endif
 #endif

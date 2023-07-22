@@ -50,7 +50,7 @@ import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
 import Prelude hiding (map, repeat, zipWith)

@@ -153,8 +153,8 @@ module. You can use the following equivalent definitions:
 >>> and = Stream.fold Fold.and
 >>> all p = Stream.fold (Fold.all p)
 >>> (!!) i = Stream.fold (Fold.index i)
->>> tail = Streamly.Internal.Data.Stream.StreamK.tail
->>> init = Streamly.Internal.Data.Stream.StreamK.init
+>>> tail = Streamly.Internal.Data.StreamK.tail
+>>> init = Streamly.Internal.Data.StreamK.init
 ```
 
 Mapping functions:

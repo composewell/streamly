@@ -65,7 +65,7 @@ import Data.Functor.Identity (Identity(..))
 import Streamly.Internal.Data.Stream.IsStream.Type (IsStream(..), fromStreamD)
 
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
     ( enumerateFromNum
     , enumerateFromThenNum
     , enumerateFromThenToIntegral

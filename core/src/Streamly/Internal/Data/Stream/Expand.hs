@@ -147,8 +147,8 @@ import Streamly.Internal.Data.Stream.Type
     , bindWith, concatMapWith, cons, nil)
 import Streamly.Internal.Data.Unfold.Type (Unfold)
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K (mergeBy, mergeByM)
+import qualified Streamly.Internal.Data.Stream as D
+import qualified Streamly.Internal.Data.StreamK as K (mergeBy, mergeByM)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding (concat, concatMap, zipWith)

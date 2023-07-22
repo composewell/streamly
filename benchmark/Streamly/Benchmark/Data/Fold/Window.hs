@@ -4,13 +4,13 @@ module Main (main) where
 
 import Control.DeepSeq (NFData)
 import Streamly.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 import qualified Streamly.Internal.Data.Fold.Window as Window
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Streamly.Benchmark.Common
 import Gauge

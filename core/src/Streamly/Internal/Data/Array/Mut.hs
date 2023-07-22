@@ -20,10 +20,10 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unbox (Unbox)
-import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Prelude hiding (foldr, length, read, splitAt)

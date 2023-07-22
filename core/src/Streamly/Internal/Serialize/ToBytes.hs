@@ -47,12 +47,12 @@ import Data.Char (ord)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.Float (castDoubleToWord64, castFloatToWord32)
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import Streamly.Internal.Data.Stream.StreamD (Step(..))
+import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Step(..))
 import Streamly.Internal.Unicode.Stream (readCharUtf8)
 
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream as D
 
 -- XXX Use StreamD directly?
 

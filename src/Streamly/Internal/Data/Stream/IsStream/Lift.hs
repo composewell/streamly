@@ -34,7 +34,7 @@ import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
     (morphInner, liftInner, runReaderT, evalStateT, runStateT)
 
 ------------------------------------------------------------------------------

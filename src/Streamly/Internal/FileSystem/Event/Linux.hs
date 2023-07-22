@@ -171,7 +171,7 @@ import Foreign.Storable (peek, peekByteOff, sizeOf)
 import GHC.IO.Device (IODeviceType(Stream))
 import GHC.IO.FD (fdFD, mkFD)
 import GHC.IO.Handle.FD (mkHandleFromFD)
-import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Array.Type (Array(..), byteLength)
 import System.Directory (doesDirectoryExist)
@@ -184,7 +184,7 @@ import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
     (takeEQ, fromEffect, fromFold)
-import qualified Streamly.Internal.Data.Stream.StreamD as S
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.FileSystem.Dir as Dir
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Unicode.Stream as U

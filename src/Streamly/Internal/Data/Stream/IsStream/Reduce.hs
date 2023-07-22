@@ -191,7 +191,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Parser as PRD (Parser(..))
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
     ( foldMany
     , groupsOf
     , refoldMany

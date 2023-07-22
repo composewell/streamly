@@ -38,11 +38,11 @@ import Streamly.Internal.Control.Concurrent
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.IOFinalizer.Lifted
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
-import Streamly.Internal.Data.Stream.StreamD (Step(..))
+import Streamly.Internal.Data.Stream (Step(..))
 
 import qualified Control.Monad.Catch as MC
 import qualified Data.Map.Strict as Map
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 
 -- $setup
 -- >>> :m

@@ -34,8 +34,8 @@ import qualified Prelude as P
 -- import qualified Data.List as List
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
-import qualified Streamly.Internal.Data.Stream.StreamK as S
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.StreamK as S
+import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Fold as Fold
 
 import Gauge (bgroup, Benchmark, defaultMain)

@@ -23,8 +23,8 @@ import Data.Functor.Identity (Identity (..))
 import Streamly.Internal.Data.Stream.Type
     (Stream, fromStreamD, toStreamD, fromStreamK, toStreamK)
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream as D
+import qualified Streamly.Internal.Data.StreamK as K
 
 -- $setup
 -- >>> :m

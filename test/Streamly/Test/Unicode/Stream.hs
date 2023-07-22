@@ -21,7 +21,7 @@ import Test.QuickCheck.Monadic (run, monadicIO, assert)
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Chunked as AS
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Unicode.Stream as SS
 import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Internal.Unicode.Array as IUA

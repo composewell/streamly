@@ -43,8 +43,8 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import Streamly.Internal.Data.Time.Units
 #else
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import Streamly.Internal.Data.Stream (Stream)
+import qualified Streamly.Internal.Data.Stream as Stream
 #ifndef USE_STREAMLY_CORE
 import qualified Streamly.Internal.Data.Stream.Time as Stream
 #endif
@@ -53,8 +53,8 @@ import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity(..))
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as Fold
-import Streamly.Internal.Data.Stream.StreamK (StreamK)
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import Streamly.Internal.Data.StreamK (StreamK)
+import qualified Streamly.Internal.Data.StreamK as StreamK
 #endif
 #endif
 

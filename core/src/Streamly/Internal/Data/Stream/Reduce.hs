@@ -69,7 +69,7 @@ import Streamly.Internal.Data.Unbox (Unbox)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Parser as ParserD
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream as D
 
 import Prelude hiding (concatMap, map)
 

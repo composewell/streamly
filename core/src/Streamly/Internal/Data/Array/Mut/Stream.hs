@@ -40,8 +40,8 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Parser as ParserD
+import qualified Streamly.Internal.Data.Stream as D
 
 -- | @chunksOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.

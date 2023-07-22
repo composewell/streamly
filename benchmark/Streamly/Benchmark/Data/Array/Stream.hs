@@ -31,8 +31,8 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Functor.Identity (runIdentity)
 import Data.Maybe (isJust)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Stream.StreamD (Stream)
-import Streamly.Internal.Data.Stream.StreamK (StreamK)
+import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.StreamK (StreamK)
 import System.IO (Handle)
 import System.Random (randomRIO)
 import Prelude hiding ()
@@ -42,8 +42,8 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
