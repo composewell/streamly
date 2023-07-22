@@ -47,6 +47,7 @@ module Streamly.Internal.Unicode.Parser
 
     -- * Numeric
     , signed
+    , number
     , double
     , decimal
     , hexadecimal
@@ -56,7 +57,9 @@ where
 import Control.Applicative (Alternative(..))
 import Data.Bits (Bits, (.|.), shiftL)
 import Data.Char (ord)
-import Streamly.Internal.Data.Parser (Parser, Initial(..),  Step(..))
+import Data.Ratio ((%))
+import Fusion.Plugin.Types (Fuse(..))
+import Streamly.Internal.Data.Parser (Parser(..), Initial(..),  Step(..))
 
 import qualified Data.Char as Char
 import qualified Streamly.Data.Fold as Fold
@@ -68,8 +71,6 @@ import qualified Streamly.Internal.Data.Parser as Parser
     , takeWhile1
     , dropWhile
     )
-import Data.Ratio ((%))
-import Streamly.Internal.Data.Parser.ParserD (Parser(..))
 
 --------------------------------------------------------------------------------
 -- Character classification
@@ -81,8 +82,8 @@ import Streamly.Internal.Data.Parser.ParserD (Parser(..))
 --
 #define CHAR_PARSER_SIG(NAME)         NAME :: Monad m => Parser Char m Char
 -- XXX Need to use the predicates from Unicode.Char module/unicode-data package
-#define CHAR_PARSER(NAME, PREDICADoubleState)  NAME = Parser.satisfy Char.PREDICADoubleState
-#define CHAR_PARSER_DOC(PREDICADoubleState) -- | Match any character that satisfies 'Char.PREDICADoubleState'
+#define CHAR_PARSER(NAME, PREDICATE)  NAME = Parser.satisfy Char.PREDICATE
+#define CHAR_PARSER_DOC(PREDICATE) -- | Match any character that satisfies 'Char.PREDICATE'
 #define CHAR_PARSER_INLINE(NAME)      {-# INLINE NAME #-}
 
 CHAR_PARSER_DOC(isSpace)
@@ -265,103 +266,191 @@ hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
 signed :: (Num a, Monad m) => Parser Char m a -> Parser Char m a
 signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 
-data DoubleState =
-    DoubleState
-        !Bool     -- ^ Discard
-        !Bool     -- ^ Found digits
-        !Bool     -- ^ Decimal point exsistence
-        {-# UNPACK #-}!Int      -- ^ The sign positive or negative
-        !Integer                -- ^ The coefficient of a scientific number.
-        {-# UNPACK #-}!Int      -- ^ The base-10 exponent of a scientific number.
+type Multiplier = Int
 
+-- XXX We can use Int instead of Integer to make it twice as fast. But then we
+-- will have to truncate the significant digits before overflow occurs.
+type Number = Integer
+type DecimalPlaces = Int
+type PowerMultiplier = Int
+type Power = Int
 
--- | Parse a decimal 'Double'.
--- This parser accepts an optional sign (+ or -) followed by
--- at most one decimal digit.  The syntax is similar to that accepted by
--- the 'read' function, with the exception that a trailing @\'.\'@ is
--- consumed.
--- This function does not accept string representations of \"NaN\" or
--- \"Infinity\".
+{-# ANN type ScientificParseState Fuse #-}
+data ScientificParseState
+  = SPInitial
+  | SPSign !Multiplier
+  | SPAfterSign !Multiplier !Number
+  | SPDot !Multiplier !Number
+  | SPAfterDot !Multiplier !Number !DecimalPlaces
+  | SPExponent !Multiplier !Number !DecimalPlaces
+  | SPExponentWithSign !Multiplier !Number !DecimalPlaces !PowerMultiplier
+  | SPAfterExponent !Multiplier !Number !DecimalPlaces !PowerMultiplier !Power
 
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Unicode.Parser as Unicode
+-- | A generic parser for scientific notation of numbers. Returns (mantissa,
+-- exponent) tuple. The result can be mapped to 'Double' or any other number
+-- representation e.g. @Scientific@.
 --
--- >>> doubleParser = Stream.parse Unicode.double . Stream.fromList
---
--- >>> doubleParser "3"
--- Right 3.0
---
--- >>> doubleParser "4."
--- Right 4.0
---
--- >>> doubleParser "00.3"
--- Right 0.3
---
--- >>> doubleParser "0.003"
--- Right 3.0e-3
---
--- >>> doubleParser "0.0.00"
--- Right 0.0
---
--- >>> doubleParser "44.56.67"
--- Right 44.56
---
--- >>> doubleParser "-123.345"
--- Right (-123.345)
---
--- >>> doubleParser "44+36008"
--- Right 44.0
---
--- >>> doubleParser "447u"
--- Right 447.0
---
----- >>> doubleParser ".3"
--- Left (ParseError "Not enough input")
---
--- >>> doubleParser ""
--- Left (ParseError "Not enough input")
---
--- >>> doubleParser "."
--- Left (ParseError "Not enough input")
---
--- >>> doubleParser "+"
--- Left (ParseError "Not enough input")
---
-
-{-# INLINE double #-}
-double :: (Monad m) => Parser Char m Double
-double =  Parser step initial extract
+{-# INLINE number #-}
+number :: Monad m => Parser Char m (Integer, Int)
+number =  Parser (\s a -> return $ step s a) initial (return . extract)
 
     where
 
-    extract' n c s m e =
-        if (c == False) -- No digit found
-        then Error "Not enough input"
-        else do
-            case s < 0 of
-                True -> Done n (fromRational (-m % 10 ^ e))
-                False -> Done n (fromRational (m % 10 ^ e))
+    intToInteger :: Int -> Integer
+    intToInteger = fromIntegral
 
-    initial = return $ IPartial (DoubleState False False False 0 0 0)
+    combineNum buf num = buf * 10 + num
 
-    calc m x = m * 10 + fromIntegral (ord x - 48)
+    {-# INLINE initial #-}
+    initial = pure $ IPartial SPInitial
 
-    step (DoubleState d c p s m e) a = do
-        let c1 = True
-        return $
-            case a of
-                x | Char.isDigit x ->
-                        if p       -- parsing after decimal point?
-                        then Partial 0 (DoubleState False c1 p s (calc m x) (e + 1))
-                        else Partial 0 (DoubleState False c1 p s (calc m x) e)
-                '-' | c == False && not d -> Continue 0 (DoubleState True c p (-1) m e)
-                '+' | c == False && not d -> Continue 0 (DoubleState True c p 0 m e)
-                '.' | c && not d && e == 0 -> Continue 0 (DoubleState True c True s m e)
-                _ -> if d
-                     then extract' 2 c s m e
-                     else extract' 1 c s m e
+    exitSPInitial msg =
+        "number: expecting sign or decimal digit, got " ++ msg
+    exitSPSign msg =
+        "number: expecting decimal digit, got " ++ msg
+    exitSPAfterSign multiplier num = (intToInteger multiplier * num, 0)
+    exitSPAfterDot multiplier num decimalPlaces =
+        ( intToInteger multiplier * num
+        , -decimalPlaces
+        )
+    exitSPAfterExponent mult num decimalPlaces powerMult powerNum =
+        let e = powerMult * powerNum - decimalPlaces
+         in (intToInteger mult * num, e)
 
-    extract (DoubleState d c _p s m e) =
-        if d
-        then return $ extract' 1 c s m e
-        else return $ extract' 0 c s m e
+    {-# INLINE step #-}
+    step SPInitial val =
+        case val of
+          '+' -> Continue 0 (SPSign 1)
+          '-' -> Continue 0 $ (SPSign (-1))
+          _ -> do
+              let num = ord val - 48
+              if num >= 0 && num <= 9
+              then Partial 0 $ SPAfterSign 1 (intToInteger num)
+              else Error $ exitSPInitial $ show val
+    step (SPSign multiplier) val =
+        let num = ord val - 48
+         in if num >= 0 && num <= 9
+            then Partial 0 $ SPAfterSign multiplier (intToInteger num)
+            else Error $ exitSPSign $ show val
+    step (SPAfterSign multiplier buf) val =
+        case val of
+            '.' -> Continue 0 $ SPDot multiplier buf
+            'e' -> Continue 0 $ SPExponent multiplier buf 0
+            _ ->
+                let num = ord val - 48
+                 in if num >= 0 && num <= 9
+                    then
+                        Partial 0
+                            $ SPAfterSign multiplier (combineNum buf (intToInteger num))
+                    else Done 1 $ exitSPAfterSign multiplier buf
+    step (SPDot multiplier buf) val =
+        let num = ord val - 48
+         in if num >= 0 && num <= 9
+            then Partial 0 $ SPAfterDot multiplier (combineNum buf (intToInteger num)) 1
+            else Done 1 $ exitSPAfterSign multiplier buf
+    step (SPAfterDot multiplier buf decimalPlaces) val =
+        case val of
+            'e' -> Continue 0 $ SPExponent multiplier buf decimalPlaces
+            _ ->
+                let num = ord val - 48
+                 in if num >= 0 && num <= 9
+                    then
+                        Partial 0
+                            $ SPAfterDot
+                                  multiplier
+                                  (combineNum buf (intToInteger num))
+                                  (decimalPlaces + 1)
+                    else Done 1 $ exitSPAfterDot multiplier buf decimalPlaces
+    step (SPExponent multiplier buf decimalPlaces) val =
+        case val of
+          '+' -> Continue 0 (SPExponentWithSign multiplier buf decimalPlaces 1)
+          '-' -> Continue 0 (SPExponentWithSign multiplier buf decimalPlaces (-1))
+          _ -> do
+              let num = ord val - 48
+              if num >= 0 && num <= 9
+              then Partial 0 $ SPAfterExponent multiplier buf decimalPlaces 1 num
+              else Error $ exitSPInitial $ show val
+    step (SPExponentWithSign mult buf decimalPlaces powerMult) val =
+        let num = ord val - 48
+         in if num >= 0 && num <= 9
+            then Partial 0 $ SPAfterExponent mult buf decimalPlaces powerMult num
+            else Error $ exitSPSign $ show val
+    step (SPAfterExponent mult num decimalPlaces powerMult buf) val =
+        let n = ord val - 48
+         in if n >= 0 && n <= 9
+            then
+                Partial 0
+                    $ SPAfterExponent
+                          mult num decimalPlaces powerMult (combineNum buf n)
+            else
+                Done 1
+                    $ exitSPAfterExponent mult num decimalPlaces powerMult buf
+
+    {-# INLINE extract #-}
+    extract SPInitial = Error $ exitSPInitial "end of input"
+    extract (SPSign _) = Error $ exitSPSign "end of input"
+    extract (SPAfterSign mult num) = Done 0 $ exitSPAfterSign mult num
+    extract (SPDot mult num) = Done 1 $ exitSPAfterSign mult num
+    extract (SPAfterDot mult num decimalPlaces) =
+        Done 0 $ exitSPAfterDot mult num decimalPlaces
+    extract (SPExponent mult num decimalPlaces) =
+        Done 1 $ exitSPAfterDot mult num decimalPlaces
+    extract (SPExponentWithSign mult num decimalPlaces _) =
+        Done 2 $ exitSPAfterDot mult num decimalPlaces
+    extract (SPAfterExponent mult num decimalPlaces powerMult powerNum) =
+        Done 0 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
+
+-- | Parse a decimal 'Double' value. This parser accepts an optional sign (+ or
+-- -) followed by at least one decimal digit. Decimal digits are optionally
+-- followed by a decimal point and at least one decimal digit after the point.
+-- This parser accepts the maximal valid input as long as it gives a valid
+-- number. Specifcally a trailing decimal point is allowed but not consumed.
+-- This function does not accept \"NaN\" or \"Infinity\" string representations
+-- of double values.
+--
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Unicode.Parser as Unicode
+--
+-- >>> p = Stream.parse Unicode.double . Stream.fromList
+--
+-- >>> p "-1.23e-123"
+-- Right -1.23e-123
+--
+-- Trailing input examples:
+--
+-- >>> p "1."
+-- Right 1.0
+--
+-- >>> p "1.2.3"
+-- Right 1.2
+--
+-- >>> p "1e"
+-- Right 1.0
+--
+-- >>> p "1e2.3"
+-- Right 100.0
+--
+-- >>> p "1+2"
+-- Right 1.0
+--
+-- Error cases:
+--
+-- >>> p ""
+-- Left (ParseError "number: expecting sign or decimal digit, got end of input")
+--
+-- >>> p ".1"
+-- Left (ParseError "number: expecting sign or decimal digit, got '.'")
+--
+-- >>> p "+"
+-- Left (ParseError "number: expecting decimal digit, got end of input")
+--
+{-# INLINE double #-}
+double :: Monad m => Parser Char m Double
+double = fmap f number
+
+    where
+
+    f (m, e) =
+        if e > 0
+        then fromIntegral (m * 10 ^ e)
+        else fromRational (m % 10 ^ (-e))

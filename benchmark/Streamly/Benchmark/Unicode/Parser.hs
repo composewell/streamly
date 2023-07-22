@@ -42,15 +42,14 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
 
 runParser :: Int -> (Stream IO Char -> IO a) -> IO ()
 runParser count p = do
-    let v = "123456789.123456789"
+    let v = "+123456789.123456789e-123"
     let s = Stream.unfold Unfold.fromList v
     replicateM_ count (p s)
 
 -- | Takes a fold method, and uses it with a default source.
-{-# INLINE benchIOSinkc #-}
-benchIOSinkc :: Int -> String -> (Stream IO Char -> IO b) -> Benchmark
-benchIOSinkc value name f =
-    bench name $ nfIO $ runParser value f
+{-# INLINE benchIOSink #-}
+benchIOSink :: Int -> String -> (Stream IO Char -> IO b) -> Benchmark
+benchIOSink value name f = bench name $ nfIO $ runParser value f
 
 {-# INLINE double #-}
 double :: Monad m => Stream m Char -> m (Either ParseError Double)
@@ -70,7 +69,7 @@ instance NFData ParseError where
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
-      benchIOSinkc value "double" double
+      benchIOSink value "double" double
     ]
 
 -------------------------------------------------------------------------------
