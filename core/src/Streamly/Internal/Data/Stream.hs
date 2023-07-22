@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD
+-- Module      : Streamly.Internal.Data.Stream
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -7,15 +7,15 @@
 -- Portability : GHC
 --
 -- Direct style re-implementation of CPS stream in
--- "Streamly.Internal.Data.Stream.StreamK".  The symbol or suffix 'D' in this
+-- "Streamly.Internal.Data.StreamK".  The symbol or suffix 'D' in this
 -- module denotes the "Direct" style.  GHC is able to INLINE and fuse direct
 -- style better, providing better performance than CPS implementation.
 --
 -- @
--- import qualified Streamly.Internal.Data.Stream.StreamD as D
+-- import qualified Streamly.Internal.Data.Stream as D
 -- @
 
-module Streamly.Internal.Data.Stream.StreamD
+module Streamly.Internal.Data.Stream
     (
       module Streamly.Internal.Data.Stream.StreamD.Type
     , module Streamly.Internal.Data.Stream.StreamD.Generate
