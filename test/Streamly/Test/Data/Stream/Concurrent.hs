@@ -17,14 +17,14 @@ import Control.Monad (replicateM)
 import Control.Monad.Catch (throwM)
 import Data.List (sort)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Stream.StreamD ( Stream )
+import Streamly.Internal.Data.Stream ( Stream )
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Testable, Property, choose, forAll, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
 import qualified Streamly.Internal.Data.Fold as Fold ( toList )
-import qualified Streamly.Internal.Data.Stream.StreamD as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
     ( replicate, fromEffect, fromPure, fromList, fold, take, nil )
 import qualified Streamly.Internal.Data.Stream.Concurrent as Async
 
