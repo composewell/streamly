@@ -77,11 +77,14 @@ main = do
         prop "double \"1.0e1+\"" $ double "1.0e1+" 10.0
         prop "double \"1.0e1-\"" $ double "1.0e1-" 10.0
         prop "double \"1.0e1e\"" $ double "1.0e1e" 10.0
+        prop "double \"1.0E+1\"" $ double "1.0E+1" 10.0
 
         prop "double \"\" Error"
             $ doubleErr "" "number: expecting sign or decimal digit, got end of input"
         prop "double \"a\" Error"
             $ doubleErr "a" "number: expecting sign or decimal digit, got 'a'"
+        prop "double \".4\" Error"
+            $ doubleErr ".4" "number: expecting sign or decimal digit, got '.'"
         prop "double \".\" Error"
             $ doubleErr "." "number: expecting sign or decimal digit, got '.'"
         prop "double \"..\" Error"
@@ -93,19 +96,23 @@ main = do
         prop "double \"++\" Error"
             $ doubleErr "++" "number: expecting decimal digit, got '+'"
 
+        prop "afterParse \"4.\" \".\"" $ afterParse "4." "."
+        prop "afterParse \"4..\" \"..\"" $ afterParse "4.." ".."
+        prop "afterParse \"4-\" \"-\"" $ afterParse "4-" "-"
+        prop "afterParse \"4--\" \"--\"" $ afterParse "4--" "--"
         prop "afterParse \"4.9abc\" \"abc\"" $ afterParse "4.9abc" "abc"
         prop "afterParse \"4.9\" \"\"" $ afterParse "4.9" ""
         prop "afterParse \"+4.9\" \"\"" $ afterParse "+4.9" ""
         prop "afterParse \"-4.9\" \"\"" $ afterParse "-4.9" ""
-        prop "afterParse \"4.9.\" \"\"" $ afterParse "4.9." "."
-        prop "afterParse \"4.9..\" \"\"" $ afterParse "4.9.." ".."
-        prop "afterParse \"4.9...\" \"\"" $ afterParse "4.9..." "..."
-        prop "afterParse \"4.9+\" \"\"" $ afterParse "4.9+" "+"
-        prop "afterParse \"4.9++\" \"\"" $ afterParse "4.9++" "++"
-        prop "afterParse \"4.9+++\" \"\"" $ afterParse "4.9+++" "+++"
-        prop "afterParse \"4.9-\" \"\"" $ afterParse "4.9-" "-"
-        prop "afterParse \"4.9--\" \"\"" $ afterParse "4.9--" "--"
-        prop "afterParse \"4.9---\" \"\"" $ afterParse "4.9---" "---"
+        prop "afterParse \"4.9.\" \".\"" $ afterParse "4.9." "."
+        prop "afterParse \"4.9..\" \"..\"" $ afterParse "4.9.." ".."
+        prop "afterParse \"4.9...\" \"...\"" $ afterParse "4.9..." "..."
+        prop "afterParse \"4.9+\" \"+\"" $ afterParse "4.9+" "+"
+        prop "afterParse \"4.9++\" \"++\"" $ afterParse "4.9++" "++"
+        prop "afterParse \"4.9+++\" \"+++\"" $ afterParse "4.9+++" "+++"
+        prop "afterParse \"4.9-\" \"-\"" $ afterParse "4.9-" "-"
+        prop "afterParse \"4.9--\" \"--\"" $ afterParse "4.9--" "--"
+        prop "afterParse \"4.9---\" \"---\"" $ afterParse "4.9---" "---"
         prop "afterParse \"\" \"\"" $ afterParse "" ""
         -- XX depened on PR https://github.com/composewell/streamly/pull/2453
         {-
@@ -114,3 +121,4 @@ main = do
         prop "afterParse \"+\" \"+\"" $ afterParse "+" "+"
         prop "afterParse \"++\" \"++\"" $ afterParse "++" "++"
         -}
+        

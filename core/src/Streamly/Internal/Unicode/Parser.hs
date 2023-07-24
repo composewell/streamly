@@ -336,6 +336,7 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
         case val of
             '.' -> Continue 0 $ SPDot multiplier buf
             'e' -> Continue 0 $ SPExponent multiplier buf 0
+            'E' -> Continue 0 $ SPExponent multiplier buf 0
             _ ->
                 let num = ord val - 48
                  in if num >= 0 && num <= 9
@@ -347,10 +348,11 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
         let num = ord val - 48
          in if num >= 0 && num <= 9
             then Partial 0 $ SPAfterDot multiplier (combineNum buf (intToInteger num)) 1
-            else Done 1 $ exitSPAfterSign multiplier buf
+            else Done 2 $ exitSPAfterSign multiplier buf
     step (SPAfterDot multiplier buf decimalPlaces) val =
         case val of
             'e' -> Continue 0 $ SPExponent multiplier buf decimalPlaces
+            'E' -> Continue 0 $ SPExponent multiplier buf decimalPlaces
             _ ->
                 let num = ord val - 48
                  in if num >= 0 && num <= 9
