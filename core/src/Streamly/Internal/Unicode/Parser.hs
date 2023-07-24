@@ -290,6 +290,8 @@ data ScientificParseState
 -- exponent) tuple. The result can be mapped to 'Double' or any other number
 -- representation e.g. @Scientific@.
 --
+-- For example, using the @scientific@ package:
+-- >> parserScientific = uncurry Data.Scientific.scientific <$> 'number'
 {-# INLINE number #-}
 number :: Monad m => Parser Char m (Integer, Int)
 number =  Parser (\s a -> return $ step s a) initial (return . extract)
