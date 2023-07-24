@@ -7,8 +7,6 @@
 
 module Streamly.Internal.Data.Unbox
     ( Unbox(..)
-    , peekWith
-    , pokeWith
     , MutableByteArray(..)
     , touch
     , getMutableByteArray#
@@ -481,18 +479,6 @@ instance Unbox Bool where
 
     {-# INLINE sizeOf #-}
     sizeOf _ = 1
-
---------------------------------------------------------------------------------
--- Functions
---------------------------------------------------------------------------------
-
-{-# INLINE peekWith #-}
-peekWith :: Unbox a => MutableByteArray -> Int -> IO a
-peekWith arr i = peekByteIndex i arr
-
-{-# INLINE pokeWith #-}
-pokeWith :: Unbox a => MutableByteArray -> Int -> a -> IO ()
-pokeWith arr i = pokeByteIndex i arr
 
 --------------------------------------------------------------------------------
 -- Generic deriving

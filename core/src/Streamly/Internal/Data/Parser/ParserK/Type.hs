@@ -46,7 +46,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.Unbox (peekWith, sizeOf, Unbox)
+import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Control.Monad.Fail as Fail
@@ -430,7 +430,7 @@ parseDToK pstep initial extract cont !offset0 !usedCount !input = do
         go !_ !cur !pst | cur >= end =
             onContinue ((end - start) `div` SIZE_OF(a))  pst
         go !_ !cur !pst = do
-            let !x = unsafeInlineIO $ peekWith contents cur
+            let !x = unsafeInlineIO $ peekByteIndex cur contents
             pRes <- pstep pst x
             let elemSize = SIZE_OF(a)
                 next = INDEX_NEXT(cur,a)

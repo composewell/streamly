@@ -114,11 +114,7 @@ import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.Ptr (castPtr)
 import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Unbox
-    ( Unbox
-    , peekWith
-    , sizeOf
-    )
+import Streamly.Internal.Data.Unbox (Unbox(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import Streamly.Internal.Data.Array.Mut.Type (ArrayUnsafe(..))
@@ -239,7 +235,7 @@ readerUnsafe = Unfold step inject
             --
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peekWith contents p
+            let !x = unsafeInlineIO $ peekByteIndex p contents
             let !p1 = INDEX_NEXT(p,a)
             return $ D.Yield x (ArrayUnsafe contents end p1)
 
@@ -263,7 +259,7 @@ getIndexRev i arr =
         $ do
                 let elemPtr = RINDEX_OF(arrEnd arr, i, a)
                 if i >= 0 && elemPtr >= arrStart arr
-                then Just <$> peekWith (arrContents arr) elemPtr
+                then Just <$> peekByteIndex elemPtr (arrContents arr)
                 else return Nothing
 
 -- |
@@ -425,7 +421,7 @@ getIndex i arr =
         $ do
                 let elemPtr = INDEX_OF(arrStart arr, i, a)
                 if i >= 0 && INDEX_VALID(elemPtr, arrEnd arr, a)
-                then Just <$> peekWith (arrContents arr) elemPtr
+                then Just <$> peekByteIndex elemPtr (arrContents arr)
                 else return Nothing
 
 -- | Given a stream of array indices, read the elements on those indices from

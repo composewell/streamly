@@ -108,7 +108,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream (Step (..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Unbox (peekWith)
+import Streamly.Internal.Data.Unbox (Unbox(peekByteIndex))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
@@ -745,7 +745,7 @@ decodeUtf8ArraysWithD cfm (D.Stream step state) =
         | p == end = do
             return $ Skip $ OuterLoop st Nothing
     step' _ _ (InnerLoopDecodeInit st contents p end) = do
-        x <- liftIO $ peekWith contents p
+        x <- liftIO $ peekByteIndex p contents
         -- Note: It is important to use a ">" instead of a "<=" test here for
         -- GHC to generate code layout for default branch prediction for the
         -- common case. This is fragile and might change with the compiler
@@ -779,7 +779,7 @@ decodeUtf8ArraysWithD cfm (D.Stream step state) =
     step' _ _ (InnerLoopDecoding st _ p end sv cp)
         | p == end = return $ Skip $ OuterLoop st (Just (sv, cp))
     step' table _ (InnerLoopDecoding st contents p end statePtr codepointPtr) = do
-        x <- liftIO $ peekWith contents p
+        x <- liftIO $ peekByteIndex p contents
         let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
         return $
             case sv of
