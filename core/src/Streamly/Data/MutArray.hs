@@ -80,6 +80,10 @@ module Streamly.Data.MutArray
 
     -- * Unbox Type Class
     , Unbox (..)
+
+    -- * Pinning & Unpinning
+    , pin
+    , unpin
     )
 where
 

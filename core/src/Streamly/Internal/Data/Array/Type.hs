@@ -214,10 +214,14 @@ unsafeThaw (Array ac as ae) = MutArray ac as ae ae
 -- Pinning & Unpinning
 -------------------------------------------------------------------------------
 
+-- | Copy the 'Array' to pinned memory if unpinned, else do nothing. The
+-- overhead is a copy if the input array is unpinned.
 {-# INLINE pin #-}
 pin :: Array a -> IO (Array a)
 pin = fmap unsafeFreeze . MA.pin . unsafeThaw
 
+-- | Copy the 'Array' to unpinned memory if pinned, else do nothing. The
+-- overhead is a copy if the input array is pinned.
 {-# INLINE unpin #-}
 unpin :: Array a -> IO (Array a)
 unpin = fmap unsafeFreeze . MA.unpin . unsafeThaw
