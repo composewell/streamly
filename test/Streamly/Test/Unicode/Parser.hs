@@ -114,11 +114,7 @@ main = do
         prop "afterParse \"4.9--\" \"--\"" $ afterParse "4.9--" "--"
         prop "afterParse \"4.9---\" \"---\"" $ afterParse "4.9---" "---"
         prop "afterParse \"\" \"\"" $ afterParse "" ""
-        -- XX depened on PR https://github.com/composewell/streamly/pull/2453
-        {-
         prop "afterParse \".\" \".\"" $ afterParse "." "."
         prop "afterParse \"..\" \"..\"" $ afterParse ".." ".."
         prop "afterParse \"+\" \"+\"" $ afterParse "+" "+"
         prop "afterParse \"++\" \"++\"" $ afterParse "++" "++"
-        -}
-        
