@@ -18,7 +18,7 @@ module Main
 import Control.DeepSeq (NFData(..))
 import Control.Monad (replicateM_)
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Stream.StreamD (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Prelude hiding
     (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile)
 
