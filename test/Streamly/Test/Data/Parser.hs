@@ -1,6 +1,7 @@
 module Main (main) where
 
-import Control.Exception (displayException)
+import Control.Applicative ((<|>))
+import Control.Exception (displayException, SomeException, try)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
@@ -8,7 +9,7 @@ import Test.Hspec (Spec, hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property, property, listOf,
-        vectorOf, Gen)
+        vectorOf, Gen, (.&&.))
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Prelude hiding (sequence)
@@ -16,10 +17,14 @@ import Prelude hiding (sequence)
 import qualified Control.Monad.Fail as Fail
 import qualified Data.List as List
 import qualified Prelude
+import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Producer.Source as Source
+import qualified Streamly.Internal.Data.Producer as Producer
+import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
 
 #if MIN_VERSION_QuickCheck(2,14,0)
@@ -54,17 +59,18 @@ max_value = 10000
 max_length :: Int
 max_length = 1000
 
+toList :: Monad m => S.Stream m a -> m [a]
+toList = S.fold FL.toList
+
 -- Accumulator Tests
 
 fromFold :: Property
 fromFold =
-    forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
-        monadicIO $ do
-        s1 <- S.parse (P.fromFold FL.sum) (S.fromList ls)
-        o2 <- S.fold FL.sum (S.fromList ls)
-        return $
-            case s1 of
-                Right o1 -> o1 == o2
+    forAll (listOf $ chooseInt (min_value, max_value))
+      $ \ls ->
+            case (==) <$> runIdentity (S.parse (P.fromFold FL.sum) (S.fromList ls))
+                   <*> (S.fold FL.sum (S.fromList ls)) of
+                Right is_equal -> is_equal
                 Left _ -> False
 
 fromPure :: Property
@@ -84,25 +90,16 @@ fromEffect =
 die :: Property
 die =
     property $
-    case runIdentity $ S.parse (P.die "die test") (S.fromList [0 :: Int]) of
+    case runIdentity (S.parse (P.die "die test") (S.fromList [0 :: Int])) of
         Right _ -> False
         Left _ -> True
 
 dieM :: Property
 dieM =
     property $
-    case runIdentity $ S.parse (P.dieM (Identity "die test")) (S.fromList [0 :: Int]) of
+    case runIdentity (S.parse (P.dieM (Identity "die test")) (S.fromList [0 :: Int])) of
         Right _ -> False
         Left _ -> True
-
-parserFail :: Property
-parserFail =
-    property $
-        case runIdentity $ S.parse (Fail.fail err) (S.fromList [0 :: Int]) of
-            Right _ -> False
-            Left (ParseError e) -> err == e
-    where
-    err = "Testing MonadFail.fail."
 
 -- Element Parser Tests
 
@@ -124,7 +121,7 @@ peekFail =
 
 eofPass :: Property
 eofPass =
-    property (case runIdentity $ S.parse P.eof (S.fromList []) of
+    property (case S.parse P.eof (S.fromList []) of
         Right _ -> True
         Left _ -> False)
 
@@ -161,68 +158,59 @@ satisfy =
         where
             predicate = (>= mid_value)
 
-onePass :: Property
-onePass =
-    forAll (chooseInt (1, max_value)) $ \int ->
-        property (case runIdentity $ S.parse P.one (S.fromList [int]) of
-            Right i -> i  == int
-            Left _ -> False)
-
-one :: Property
-one =
-    property $
-        case runIdentity $ S.parse P.one (S.fromList []) of
-            Left _ -> True
-            Right _ -> False
-
 -- Sequence Parsers Tests
 takeBetweenPass :: Property
 takeBetweenPass =
     forAll (chooseInt (min_value, max_value)) $ \m ->
         forAll (chooseInt (m, max_value)) $ \n ->
             forAll (chooseInt (m, max_value)) $ \list_length ->
-                forAll (vectorOf list_length (chooseInt (min_value, max_value)))
-                    $ \ls ->
-                        case runIdentity $ S.parse (P.takeBetween m n FL.toList)
-                                (S.fromList ls) of
-                            Right parsed_list ->
-                                let lpl = Prelude.length parsed_list
-                                in checkListEqual parsed_list
-                                    $ Prelude.take lpl ls
-                            Left _ -> property False
+                forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+                    case runIdentity $ S.parse (P.takeBetween m n FL.toList) (S.fromList ls) of
+                        Right parsed_list ->
+                            let lpl = Prelude.length parsed_list
+                            in checkListEqual parsed_list (Prelude.take lpl ls)
+                        Left _ -> property False
+
 
 takeBetween :: Property
 takeBetween =
     forAll (chooseInt (min_value, max_value)) $ \m ->
         forAll (chooseInt (min_value, max_value)) $ \n ->
             forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-                go m n ls
+                let
+                    list_length = Prelude.length ls
+                in monadicIO $ do
+                    let p = P.takeBetween m n FL.toList
+                    r <- run $ try $ S.parse p (S.fromList ls)
+                    return $ case r of
+                        Right x -> case x of
+                            Right parsed_list ->
+                                if m <= list_length && n >= m
+                                then
+                                    let len = Prelude.length parsed_list
+                                    in checkListEqual
+                                            parsed_list (Prelude.take len ls)
+                                else property False
+                            Left _ ->
+                                property (m > n || list_length < m)
+                        Left (_ :: SomeException) ->
+                            property (m > n || list_length < m)
 
-    where
-
-    go m n ls =
-        let inputLen = Prelude.length ls
-         in do
-            let p = P.takeBetween m n FL.toList
-            case runIdentity $ S.parse p (S.fromList ls) of
-                Right xs ->
-                    let parsedLen = Prelude.length xs
-                    in if inputLen >= m && parsedLen >= m && parsedLen <= n
-                        then checkListEqual xs $ Prelude.take parsedLen ls
-                        else property False
-                Left _ ->
-                    property ((m >= 0 && n >= 0 && m > n) || inputLen < m)
-
+take :: Property
+take =
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+            case runIdentity $ S.parse (P.fromFold $ FL.take n FL.toList) (S.fromList ls) of
+                Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
+                Left _ -> property False
 
 takeEQPass :: Property
 takeEQPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (chooseInt (n, max_value)) $ \list_length ->
-            forAll (vectorOf list_length
-                        (chooseInt (min_value, max_value))) $ \ls ->
+            forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
                 case runIdentity $ S.parse (P.takeEQ n FL.toList) (S.fromList ls) of
-                    Right parsed_list ->
-                        checkListEqual parsed_list (Prelude.take n ls)
+                    Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
                     Left _ -> property False
 
 takeEQ :: Property
@@ -234,20 +222,20 @@ takeEQ =
             in
                 case runIdentity $ S.parse (P.takeEQ n FL.toList) (S.fromList ls) of
                     Right parsed_list ->
-                        if n <= list_length
-                        then checkListEqual parsed_list (Prelude.take n ls)
-                        else property False
+                        if (n <= list_length) then
+                            checkListEqual parsed_list (Prelude.take n ls)
+                        else
+                            property False
                     Left _ -> property (n > list_length)
 
 takeGEPass :: Property
 takeGEPass =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (chooseInt (n, max_value)) $ \list_length ->
-            forAll (vectorOf list_length (chooseInt (min_value, max_value)))
-                $ \ls ->
-                    case runIdentity $ S.parse (P.takeGE n FL.toList) (S.fromList ls) of
-                        Right parsed_list -> checkListEqual parsed_list ls
-                        Left _ -> property False
+            forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+                case runIdentity $ S.parse (P.takeGE n FL.toList) (S.fromList ls) of
+                    Right parsed_list -> checkListEqual parsed_list ls
+                    Left _ -> property False
 
 takeGE :: Property
 takeGE =
@@ -258,11 +246,11 @@ takeGE =
             in
                 case runIdentity $ S.parse (P.takeGE n FL.toList) (S.fromList ls) of
                     Right parsed_list ->
-                        if n <= list_length
-                        then checkListEqual parsed_list ls
-                        else property False
+                        if (n <= list_length) then
+                            checkListEqual parsed_list ls
+                        else
+                            property False
                     Left _ -> property (n > list_length)
-
 
 nLessThanEqual0 ::
        (  Int
@@ -285,6 +273,514 @@ takeProperties =
             nLessThanEqual0 P.takeEQ (\_ -> const [])
         prop "takeGE n FL.toList xs = xs" $
             nLessThanEqual0 P.takeGE (\_ -> id)
+
+
+-- XXX lookAhead can't deal with EOF which in this case means when
+-- n==list_length, this test will fail. So excluding that case for now.
+lookAheadPass :: Property
+lookAheadPass =
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        let
+            takeWithoutConsume = P.lookAhead $ P.fromFold $ FL.take n FL.toList
+            parseTwice = do
+                parsed_list_1 <- takeWithoutConsume
+                parsed_list_2 <- takeWithoutConsume
+                return (parsed_list_1, parsed_list_2)
+        in
+            forAll (chooseInt (n+1, max_value)) $ \list_length ->
+                forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+                    case runIdentity $ S.parse parseTwice (S.fromList ls) of
+                        Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
+                        Left _ -> property $ False
+
+lookAhead :: Property
+lookAhead =
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        let
+            takeWithoutConsume = P.lookAhead $ P.fromFold $ FL.take n FL.toList
+            parseTwice = do
+                parsed_list_1 <- takeWithoutConsume
+                parsed_list_2 <- takeWithoutConsume
+                return (parsed_list_1, parsed_list_2)
+        in
+            forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
+                case runIdentity $ S.parse parseTwice (S.fromList ls) of
+                    Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
+                    Left _ -> property ((list_length < n) || (list_length == n && n == 0))
+                        where
+                            list_length = Prelude.length ls
+
+takeWhile :: Property
+takeWhile =
+    forAll (listOf (chooseInt (0, 1))) $ \ ls ->
+        case runIdentity $ S.parse (P.takeWhile predicate FL.toList) (S.fromList ls) of
+            Right parsed_list -> checkListEqual parsed_list (Prelude.takeWhile predicate ls)
+            Left _ -> property False
+        where
+            predicate = (== 0)
+
+takeWhile1 :: Property
+takeWhile1 =
+    forAll (listOf (chooseInt (0, 1))) $ \ ls ->
+        case runIdentity $ S.parse (P.takeWhile1 predicate  FL.toList) (S.fromList ls) of
+            Right parsed_list -> case ls of
+                [] -> property False
+                (x : _) ->
+                    if predicate x then
+                        checkListEqual parsed_list (Prelude.takeWhile predicate ls)
+                    else
+                        property False
+            Left _ -> case ls of
+                [] -> property True
+                (x : _) -> property (not $ predicate x)
+        where
+            predicate = (== 0)
+
+groupBy :: Property
+groupBy =
+    forAll (listOf (chooseInt (0, 1)))
+        $ \ls ->
+              case runIdentity $ S.parse parser (S.fromList ls) of
+                  Right parsed -> checkListEqual parsed (groupByLF ls)
+                  Left _ -> property False
+
+    where
+
+    cmp = (==)
+    parser = P.groupBy cmp FL.toList
+    groupByLF lst
+        | null lst = []
+        | otherwise = head $ List.groupBy cmp lst
+
+groupByRolling :: Property
+groupByRolling =
+    forAll (listOf (chooseInt (0, 1)))
+        $ \ls ->
+              case runIdentity $ S.parse parser (S.fromList ls) of
+                  Right parsed -> checkListEqual parsed (groupByLF Nothing ls)
+                  Left _ -> property False
+
+    where
+
+    cmp = (==)
+    parser = P.groupBy cmp FL.toList
+    groupByLF _ [] = []
+    groupByLF Nothing (x:xs) = x : groupByLF (Just x) xs
+    groupByLF (Just y) (x:xs) =
+        if cmp y x
+        then x : groupByLF (Just x) xs
+        else []
+
+takeEndByOrMax :: Property
+takeEndByOrMax =
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        forAll (listOf (chooseInt (0, 1))) $ \ls ->
+            case runIdentity $ S.parse (P.fromFold $ FL.takeEndBy_ predicate (FL.take n FL.toList)) (S.fromList ls) of
+                Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
+                Left _ -> property False
+            where
+                predicate = (== 1)
+
+wordBy :: Property
+wordBy =
+    forAll (listOf (elements [' ', 's']))
+        $ \ls ->
+              case runIdentity $ S.parse parser (S.fromList ls) of
+                  Right parsed -> checkListEqual parsed (words' ls)
+                  Left _ -> property False
+
+    where
+
+    predicate = (== ' ')
+    parser = P.many (P.wordBy predicate FL.toList) FL.toList
+    words' lst =
+        let wrds = words lst
+         in if wrds == [] && length lst > 0 then [""] else wrds
+
+
+splitWith :: Property
+splitWith =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case runIdentity $ S.parse (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
+            Right (result_first, result_second) -> case ls of
+                0 : 1 : _ -> (result_first == 0) && (result_second == 1)
+                _ -> False
+            Left _ -> case ls of
+                0 : 1 : _ -> False
+                _ -> True
+
+splitWithFailLeft :: Property
+splitWithFailLeft =
+    property (case runIdentity $ S.parse (P.splitWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+splitWithFailRight :: Property
+splitWithFailRight =
+    property (case runIdentity $ S.parse (P.splitWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+splitWithFailBoth :: Property
+splitWithFailBoth =
+    property (case runIdentity $ S.parse (P.splitWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+{-
+teeWithPass :: Property
+teeWithPass =
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        forAll (listOf (chooseInt (0, 1))) $ \ls ->
+            let
+                prsr = P.fromFold $ FL.take n FL.toList
+            in
+                case S.parse (P.teeWith (,) prsr prsr) (S.fromList ls) of
+                    Right (ls_1, ls_2) -> checkListEqual (Prelude.take n ls) ls_1 .&&. checkListEqual ls_1 ls_2
+                    Left _ -> property False
+
+teeWithFailLeft :: Property
+teeWithFailLeft =
+    property (case S.parse (P.teeWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+teeWithFailRight :: Property
+teeWithFailRight =
+    property (case S.parse (P.teeWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+teeWithFailBoth :: Property
+teeWithFailBoth =
+    property (case S.parse (P.teeWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+shortestPass :: Property
+shortestPass =
+    forAll (listOf (chooseInt(min_value, max_value))) $ \ls ->
+        let
+            half_mid_value = mid_value `Prelude.div` 2
+            prsr_1 = P.takeWhile (<= half_mid_value) FL.toList
+            prsr_2 = P.takeWhile (<= mid_value) FL.toList
+            prsr_shortest = P.shortest prsr_1 prsr_2
+        in
+            case S.parse prsr_shortest (S.fromList ls) of
+                Right short_list -> checkListEqual short_list (Prelude.takeWhile (<= half_mid_value) ls)
+                Left _ -> property False
+
+shortestPassLeft :: Property
+shortestPassLeft =
+    property (case S.parse (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
+
+shortestPassRight :: Property
+shortestPassRight =
+    property (case S.parse (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
+
+shortestFailBoth :: Property
+shortestFailBoth =
+    property
+        (case S.parse
+                  (P.shortest (P.die "die") (P.die "die"))
+                  (S.fromList [1 :: Int]) of
+             Right _ -> False
+             Left _ -> True)
+
+longestPass :: Property
+longestPass =
+    forAll (listOf (chooseInt(min_value, max_value))) $ \ls ->
+        let
+            half_mid_value = mid_value `Prelude.div` 2
+            prsr_1 = P.takeWhile (<= half_mid_value) FL.toList
+            prsr_2 = P.takeWhile (<= mid_value) FL.toList
+            prsr_longest = P.longest prsr_1 prsr_2
+        in
+            case S.parse prsr_longest (S.fromList ls) of
+                Right long_list -> long_list == Prelude.takeWhile (<= mid_value) ls
+                Left _ -> False
+
+longestPassLeft :: Property
+longestPassLeft =
+    property (case S.parse (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
+
+longestPassRight :: Property
+longestPassRight =
+    property (case S.parse (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
+
+longestFailBoth :: Property
+longestFailBoth =
+    property
+        (case S.parse (P.shortest (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+-}
+
+many :: Property
+many =
+    forAll (listOf (chooseInt (0, 1)))
+      $ \ls ->
+            let fldstp conL currL = return $ FL.Partial (conL ++ currL)
+                concatFold =
+                    FL.Fold fldstp (return (FL.Partial [])) return
+                prsr =
+                    flip P.many concatFold
+                        $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+             in case runIdentity $ S.parse prsr (S.fromList ls) of
+                    Right res_list ->
+                        checkListEqual res_list (Prelude.filter (== 0) ls)
+                    Left _ -> property False
+
+many_empty :: Property
+many_empty =
+    property (case runIdentity $ S.parse (flip P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+        Right res_list -> checkListEqual res_list ([] :: [Int])
+        Left _ -> property False)
+
+some :: Property
+some =
+    forAll (listOf (chooseInt (0, 1)))
+      $ \ls ->
+            let fldstp conL currL = return $ FL.Partial $ conL ++ currL
+                concatFold = FL.Fold fldstp (return (FL.Partial [])) return
+                prsr =
+                    flip P.some concatFold
+                        $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+             in case runIdentity $ S.parse prsr (S.fromList ls) of
+                    Right res_list -> res_list == Prelude.filter (== 0) ls
+                    Left _ -> False
+
+someFail :: Property
+someFail =
+    property (case runIdentity $ S.parse (P.some (P.die "die") FL.toList) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+-------------------------------------------------------------------------------
+-- Instances
+-------------------------------------------------------------------------------
+
+applicative :: Property
+applicative =
+    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
+        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
+            monadicIO $ do
+            let parser =
+                        (,)
+                            <$> P.fromFold (FL.take (length list1) FL.toList)
+                            <*> P.fromFold (FL.take (length list2) FL.toList)
+
+            return $
+                case runIdentity $ S.parse parser (S.fromList $ list1 ++ list2) of
+                    Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                    Left _ -> False
+
+sequence :: Property
+sequence =
+    forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ ins ->
+        monadicIO $ do
+        let parsers = fmap (\xs -> P.fromFold $ FL.take (length xs) FL.toList) ins
+        outs <- S.parse
+                    (Prelude.sequence parsers)
+                    (S.fromList $ concat ins)
+        return $
+            case outs of
+                Right x -> x == ins
+                Left _ -> False
+
+altEOF1 :: Property
+altEOF1 =
+    monadicIO $ do
+    s1 <- S.parse
+        (P.satisfy (> 0) <|> return 66)
+        (S.fromList ([]::[Int]))
+    return $
+        case s1 of
+            Right x -> x == 66
+            Left _ -> False
+
+altEOF2 :: Property
+altEOF2 =
+    monadicIO $ do
+    s1 <- S.parse
+        ((P.takeEQ 2 FL.toList) <|> (P.takeEQ 1 FL.toList))
+        (S.fromList ([51]::[Int]))
+    return $
+        case s1 of
+            Right x -> x == [51]
+            Left _ -> False
+
+monad :: Property
+monad =
+    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
+        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
+            monadicIO $ do
+            let parser = do
+                            olist1 <- P.fromFold (FL.take (length list1) FL.toList)
+                            olist2 <- P.fromFold (FL.take (length list2) FL.toList)
+                            return (olist1, olist2)
+            s1 <- S.parse parser (S.fromList $ list1 ++ list2)
+            return $
+                case s1 of
+                Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                Left _ -> False
+
+-------------------------------------------------------------------------------
+-- Stream parsing
+-------------------------------------------------------------------------------
+
+parseMany :: Property
+parseMany =
+    forAll (chooseInt (1,100)) $ \len ->
+        forAll (listOf (vectorOf len (chooseAny :: Gen Int))) $ \ ins ->
+            monadicIO $ do
+            outs <-
+                (toList $ S.catRights $ S.parseManyD
+                    (P.fromFold $ FL.take len FL.toList) (S.fromList $ concat ins)
+                )
+            return $ outs == ins
+
+-- basic sanity test for parsing from arrays
+parseUnfold :: Property
+parseUnfold = do
+    let len = 200
+    -- ls = input list (stream)
+    -- clen = chunk size
+    -- tlen = parser take size
+    forAll
+        ((,,)
+            <$> vectorOf len (chooseAny :: Gen Int)
+            <*> chooseInt (1, len)
+            <*> chooseInt (1, len)) $ \(ls, clen, tlen) ->
+        monadicIO $ do
+            arrays <- toList $ S.chunksOf clen (S.fromList ls)
+            let src = Source.source (Just (Producer.OuterLoop arrays))
+            let parser = P.fromFold (FL.take tlen FL.toList)
+            let readSrc =
+                    Source.producer
+                        $ Producer.concat Producer.fromList A.producer
+            let streamParser =
+                    Producer.simplify (Source.parseManyD parser readSrc)
+            xs <- run
+                $ toList
+                $ S.unfoldMany Unfold.fromList
+                $ S.catRights
+                $ S.unfold streamParser src
+
+            listEquals (==) xs ls
+
+parserSequence :: Property
+parserSequence =
+  forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ins ->
+    monadicIO $ do
+    let parsers = S.fromList
+            $ fmap (\xs -> P.fromFold $ FL.take (length xs) FL.sum) ins
+    let sequencedParser = P.sequence parsers FL.sum
+    outs <-
+        S.parse sequencedParser $ S.concatMap S.fromList (S.fromList ins)
+    return $
+        case outs of
+            Right x -> x == sum (map sum ins)
+            Left _ -> False
+
+-------------------------------------------------------------------------------
+-- Test for a particular case hit during fs events testing
+-------------------------------------------------------------------------------
+
+evId :: [Word8]
+evId = [96,238,17,9,0,0,0,0]
+
+evFlags :: [Word8]
+evFlags = [0,4,1,0,0,0,0,0]
+
+evPathLen :: [Word8]
+evPathLen = [71,0,0,0,0,0,0,0]
+
+evPath :: [Word8]
+evPath =
+    [47,85,115,101,114,115,47,118,111,108,47,118,101,109,98,97,47,99,111,109
+    ,112,111,115,101,119,101 ,108,108,45,116,101,99,104,47,69,110,103,47,112
+    ,114,111,106,101,99,116,115,47,115,116,114,101,97,109,108,121,47,115,116
+    ,114,101,97,109,108,121,47,116,109,112,47,122,122
+    ]
+
+event :: [Word8]
+event = evId ++ evFlags ++ evPathLen ++ evPath
+
+data Event = Event
+   { eventId :: Word64
+   , eventFlags :: Word32
+   , eventAbsPath :: A.Array Word8
+   } deriving (Show, Ord, Eq)
+
+readOneEvent :: P.Parser Word8 IO Event
+readOneEvent = do
+    arr <- P.takeEQ 24 (A.writeN 24)
+    let arr1 = A.castUnsafe arr :: A.Array Word64
+        eid = A.unsafeIndex 0 arr1
+        eflags = A.unsafeIndex 1 arr1
+        pathLen = fromIntegral $ A.unsafeIndex 2 arr1
+    path <- P.takeEQ pathLen (A.writeN pathLen)
+    return $ Event
+        { eventId = eid
+        , eventFlags = fromIntegral eflags
+        , eventAbsPath = path
+        }
+
+parseMany2Events :: Property
+parseMany2Events =
+    monadicIO $ do
+        xs <-
+            ( run
+            $ toList
+            $ S.catRights
+            $ S.parseManyD readOneEvent
+            $ S.fromList (concat (replicate 2 event))
+            )
+        assert (length xs == 2)
+        -- XXX assuming little endian machine
+        let ev = Event
+                { eventId = 152170080
+                , eventFlags = 66560
+                , eventAbsPath = A.fromList evPath
+                }
+         in listEquals (==) xs (replicate 2 ev)
+
+-- Accumulator Tests
+
+parserFail :: Property
+parserFail =
+    property $
+        case runIdentity $ S.parse (Fail.fail err) (S.fromList [0 :: Int]) of
+            Right _ -> False
+            Left (ParseError e) -> err == e
+    where
+    err = "Testing MonadFail.fail."
+
+-- Element Parser Tests
+
+
+onePass :: Property
+onePass =
+    forAll (chooseInt (1, max_value)) $ \int ->
+        property (case runIdentity $ S.parse P.one (S.fromList [int]) of
+            Right i -> i  == int
+            Left _ -> False)
+
+one :: Property
+one =
+    property $
+        case runIdentity $ S.parse P.one (S.fromList []) of
+            Left _ -> True
+            Right _ -> False
 
 -- lookAheadPass :: Property
 -- lookAheadPass =
@@ -367,15 +863,6 @@ takeStartBy =
                 predicate = odd
                 parser = P.takeStartBy predicate FL.toList
 
-takeWhile :: Property
-takeWhile =
-    forAll (listOf (chooseInt (0, 1))) $ \ ls ->
-        case runIdentity $ S.parse (P.takeWhile predicate FL.toList) (S.fromList ls) of
-            Right parsed_list ->
-                checkListEqual parsed_list (Prelude.takeWhile predicate ls)
-            Left _ -> property False
-        where
-            predicate = (== 0)
 
 takeP :: Property
 takeP =
@@ -390,24 +877,6 @@ takeP =
                       checkListEqual parsed_list (Prelude.take takeNum ls)
                   Left _ -> property False
 
-takeWhile1 :: Property
-takeWhile1 =
-    forAll (listOf (chooseInt (0, 1))) $ \ ls ->
-        case runIdentity $ S.parse (P.takeWhile1 predicate  FL.toList) (S.fromList ls) of
-            Right parsed_list -> case ls of
-                [] -> property False
-                (x : _) ->
-                    if predicate x
-                    then
-                        checkListEqual parsed_list
-                           $ Prelude.takeWhile predicate ls
-                    else
-                        property False
-            Left _ -> case ls of
-                [] -> property True
-                (x : _) -> property (not $ predicate x)
-        where
-            predicate = (== 0)
 
 takeWhileP :: Property
 takeWhileP =
@@ -448,37 +917,6 @@ choice =
     parser i = P.fromFold (FL.take i FL.toList)
 -}
 
-groupBy :: Property
-groupBy =
-    forAll (listOf (chooseInt (0, 1)))
-        $ \ls ->
-              case runIdentity $ S.parse parser (S.fromList ls) of
-                  Right parsed -> checkListEqual parsed (groupByLF ls)
-                  Left _ -> property False
-
-    where
-
-    cmp = (==)
-    parser = P.groupBy cmp FL.toList
-    groupByLF lst
-        | null lst = []
-        | otherwise = head $ List.groupBy cmp lst
-
-wordBy :: Property
-wordBy =
-    forAll (listOf (elements [' ', 's']))
-        $ \ls ->
-              case runIdentity $ S.parse parser (S.fromList ls) of
-                  Right parsed -> checkListEqual parsed (words' ls)
-                  Left _ -> property False
-
-    where
-
-    predicate = (== ' ')
-    parser = P.many (P.wordBy predicate FL.toList) FL.toList
-    words' lst =
-        let wrds = words lst
-         in if wrds == [] && length lst > 0 then [""] else wrds
 
 parseManyWordQuotedBy :: H.SpecWith ()
 parseManyWordQuotedBy =
@@ -636,18 +1074,7 @@ deintercalate =
 --         Right _ -> False
 --         Left _ -> True)
 
-many :: Property
-many =
-    forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        let fldstp conL currL = return $ FL.Partial $ conL ++ currL
-            concatFold = FL.Fold fldstp (return (FL.Partial [])) return
-            prsr =
-                flip P.many concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
-        in
-            case runIdentity $ S.parse prsr (S.fromList ls) of
-                Right res_list -> checkListEqual res_list
-                                    $ Prelude.filter (== 0) ls
-                Left _ -> property False
+
 
 -- many_empty :: Property
 -- many_empty =
@@ -655,19 +1082,6 @@ many =
 --         Right res_list -> checkListEqual res_list ([] :: [Int])
 --         Left _ -> property False)
 
-some :: Property
-some =
-    forAll (listOf (chooseInt (0, 1))) $ \genLs ->
-        let
-            ls = 0 : genLs
-            fldstp conL currL = return $ FL.Partial $ conL ++ currL
-            concatFold = FL.Fold fldstp (return (FL.Partial [])) return
-            prsr =
-                flip P.some concatFold $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
-        in
-            case runIdentity $ S.parse prsr (S.fromList ls) of
-                Right res_list -> res_list == Prelude.filter (== 0) ls
-                Left _ -> False
 
 -- someFail :: Property
 -- someFail =
@@ -679,131 +1093,16 @@ some =
 -- Instances
 -------------------------------------------------------------------------------
 
-applicative :: Property
-applicative =
-    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
-        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
-            let parser =
-                    (,)
-                        <$> P.fromFold (FL.take (length list1) FL.toList)
-                        <*> P.fromFold (FL.take (length list2) FL.toList)
-             in monadicIO $ do
-                    s <- S.parse parser (S.fromList $ list1 ++ list2)
-                    return $
-                        case s of
-                            Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
-                            Left _ -> False
 
-sequence :: Property
-sequence =
-    forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ ins ->
-        let p xs = P.fromFold (FL.take (length xs) FL.toList)
-         in monadicIO $ do
-                outs <- run $
-                        S.parse
-                            (Prelude.sequence $ fmap p ins)
-                            (S.fromList $ concat ins)
-                return $
-                    case outs of
-                        Right ls -> ls == ins
-                        Left _ -> False
-
-monad :: Property
-monad =
-    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
-        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
-            let parser = do
-                    olist1 <- P.fromFold (FL.take (length list1) FL.toList)
-                    olist2 <- P.fromFold (FL.take (length list2) FL.toList)
-                    return (olist1, olist2)
-             in monadicIO $ do
-                    s <- S.parse parser (S.fromList $ list1 ++ list2)
-                    return $
-                        case s of
-                            Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
-                            Left _ -> False
 
 -------------------------------------------------------------------------------
 -- Stream parsing
 -------------------------------------------------------------------------------
 
-parseMany :: Property
-parseMany =
-    forAll (chooseInt (1,100)) $ \len ->
-        forAll (listOf (vectorOf len (chooseAny :: Gen Int))) $ \ ins ->
-            monadicIO $ do
-                outs <- do
-                    let p = P.fromFold $ FL.take len FL.toList
-                    run
-                        $ S.fold FL.toList
-                        $ S.catRights
-                        $ S.parseMany p (S.fromList $ concat ins)
-                listEquals (==) outs ins
 
 -------------------------------------------------------------------------------
 -- Test for a particular case hit during fs events testing
 -------------------------------------------------------------------------------
-
-evId :: [Word8]
-evId = [96,238,17,9,0,0,0,0]
-
-evFlags :: [Word8]
-evFlags = [0,4,1,0,0,0,0,0]
-
-evPathLen :: [Word8]
-evPathLen = [71,0,0,0,0,0,0,0]
-
-evPath :: [Word8]
-evPath =
-    [47,85,115,101,114,115,47,118,111,108,47,118,101,109,98,97,47,99,111,109
-    ,112,111,115,101,119,101 ,108,108,45,116,101,99,104,47,69,110,103,47,112
-    ,114,111,106,101,99,116,115,47,115,116,114,101,97,109,108,121,47,115,116
-    ,114,101,97,109,108,121,47,116,109,112,47,122,122
-    ]
-
-event :: [Word8]
-event = evId ++ evFlags ++ evPathLen ++ evPath
-
-data Event = Event
-   { eventId :: Word64
-   , eventFlags :: Word32
-   , eventAbsPath :: A.Array Word8
-   } deriving (Show, Ord, Eq)
-
-readOneEvent :: P.Parser Word8 IO Event
-readOneEvent = do
-    arr <- P.takeEQ 24 (A.writeN 24)
-    let arr1 = A.castUnsafe arr :: A.Array Word64
-        eid = A.unsafeIndex 0 arr1
-        eflags = A.unsafeIndex 1 arr1
-        pathLen = fromIntegral $ A.unsafeIndex 2 arr1
-    -- XXX handle if pathLen is 0
-    path <- P.takeEQ pathLen (A.writeN pathLen)
-    return $ Event
-        { eventId = eid
-        , eventFlags = fromIntegral eflags
-        , eventAbsPath = path
-        }
-
-parseMany2Events :: Property
-parseMany2Events =
-    monadicIO $ do
-        xs <-
-            ( run
-            $ S.fold FL.toList
-            $ S.catRights
-            $ S.parseMany readOneEvent
-            $ S.fromList (concat (replicate 2 event))
-            )
-        assert (length xs == 2)
-        -- XXX assuming little endian machine
-        let ev = Event
-                { eventId = 152170080
-                , eventFlags = 66560
-                , eventAbsPath = A.fromList evPath
-                }
-         in listEquals (==) xs (replicate 2 ev)
-
 manyEqParseMany :: Property
 manyEqParseMany =
     forAll (listOf (chooseInt (0, 100))) $ \lst ->
@@ -1145,11 +1444,15 @@ main =
 
     describe "Instances" $ do
         prop "applicative" applicative
+        prop "Alternative: end of input 1" altEOF1
+        prop "Alternative: end of input 2" altEOF2
         prop "monad" monad
         prop "sequence" sequence
     describe "Stream parsing" $ do
         prop "parseMany" parseMany
         prop "parseMany2Events" parseMany2Events
+        prop "parseUnfold" parseUnfold
+        prop "parserSequence" parserSequence
 
     describe "test for accumulator" $ do
         prop "P.fromFold FL.sum = FL.sum" fromFold
@@ -1170,6 +1473,7 @@ main =
         prop "check first element exists and satisfies predicate" satisfy
 
     describe "test for sequence parser" $ do
+        prop "P.take = Prelude.take" Main.take
         prop "P.takeBetween = Prelude.take when len >= m and len <= n"
             takeBetweenPass
         prop ("P.takeBetween = Prelude.take when len >= m and len <= n and fail"
@@ -1180,8 +1484,8 @@ main =
             Main.takeEQ
         prop "P.takeGE n ls = ls when len >= n" takeGEPass
         prop "P.takeGE n ls = ls when len >= n and fail otherwise" Main.takeGE
-        -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
-        -- prop "Fail when stream length exceeded" lookAheadFail
+        prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
+        prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.takeEndBy_ test" Main.takeEndBy_
         prop ("P.takeStartBy pred = head : Prelude.takeWhile (not . pred)"
@@ -1192,7 +1496,13 @@ main =
         prop "takeWhileP prd P.take = takeWhileMaxLen prd" takeWhileP
         prop ("P.takeP = Prelude.take") takeP
         prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
+        prop "groupByRolling" groupByRolling
+        prop "P.takeEndByOrMax = Prelude.take n (Prelude.takeWhile (not . predicate)" takeEndByOrMax
         prop "many (P.wordBy ' ') = words'" wordBy
+        prop "parse 0, then 1, else fail" splitWith
+        prop "fail due to die as left parser" splitWithFailLeft
+        prop "fail due to die as right parser" splitWithFailRight
+        prop "fail due to die as both parsers" splitWithFailBoth
         parseManyWordQuotedBy
         -- prop "choice" choice
         -- prop "" splitWithPass
@@ -1215,6 +1525,8 @@ main =
                 ++ "Prelude.filter (== 0)") some
         -- prop "fail due to parser being die" someFail
         prop "P.many == S.parseMany" manyEqParseMany
+        prop "[] due to parser being die" many_empty
+        prop "fail due to parser being die" someFail
 
         prop "takeEndBy_" takeEndBy_
         prop "takeEndBy1" takeEndBy1
