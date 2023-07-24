@@ -418,10 +418,10 @@ benchmark Data.ParserK
 -- the rewrite rules are disabled. We can also use the "no-fusion" build
 -- flag but we need to keep in mind that it disables fusion for streams
 -- as well.
-benchmark Data.Parser.FromParserK
+benchmark Data.FromParserK
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Parser
+  hs-source-dirs: Streamly/Benchmark/Data
   cpp-options: -DFROM_PARSERK
   main-is: ParserK.hs
   if flag(use-streamly-core) || impl(ghcjs)
