@@ -416,7 +416,7 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
 -- >>> p = Stream.parse Unicode.double . Stream.fromList
 --
 -- >>> p "-1.23e-123"
--- Right -1.23e-123
+-- Right (-1.23e-123)
 --
 -- Trailing input examples:
 --
