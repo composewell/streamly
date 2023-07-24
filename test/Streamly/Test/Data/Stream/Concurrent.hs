@@ -17,14 +17,14 @@ import Control.Monad (replicateM)
 import Control.Monad.Catch (throwM)
 import Data.List (sort)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Stream ( Stream )
+import Streamly.Data.Stream (Stream)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Testable, Property, choose, forAll, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
-import qualified Streamly.Internal.Data.Fold as Fold ( toList )
-import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Data.Fold as Fold ( toList )
+import qualified Streamly.Data.Stream as Stream
     ( replicate, fromEffect, fromPure, fromList, fold, take, nil )
 import qualified Streamly.Internal.Data.Stream.Concurrent as Async
 
@@ -40,14 +40,8 @@ moduleName = "Data.Stream.Concurrent"
 sortEq :: Ord a => [a] -> [a] -> Bool
 sortEq a b = sort a == sort b
 
-cmp :: ([Int] -> [Int] -> Bool) -> [Int] -> Stream IO Int -> Property
+cmp :: (Show a, Ord a) => ([a] -> [a] -> Bool) -> [a] -> Stream IO a -> Property
 cmp eq list s =
-    monadicIO $ do
-        stream <- run $ sort <$> Stream.fold Fold.toList  s
-        listEquals eq stream list
-
-cmpPair :: ([(Int, Int)] -> [(Int, Int)] -> Bool) -> [(Int, Int)] -> Stream IO (Int, Int) -> Property
-cmpPair eq list s =
     monadicIO $ do
         stream <- run $ sort <$> Stream.fold Fold.toList  s
         listEquals eq stream list
@@ -233,42 +227,42 @@ main = hspec
   $ describe moduleName $ do
         let transform = transformCombineFromList Stream.fromList sortEq
 
-        prop "eval" $
+        prop "parEval" $
             transform
                 (fmap (+2))
                 (fmap (+1) . Async.parEval id . fmap (+1))
 
         asyncSpec $ prop "parSequence" . sequenceReplicate
-        asyncSpec $ prop "mapM (+1)"
-                    . transform (fmap (+1))
-                    . (`Async.parMapM` (\x -> return (x + 1)))
 
-        let async = Async.parTwo id
+        asyncSpec $
+            prop "parMapM (+1)"
+                . transform (fmap (+1))
+                . (`Async.parMapM` (\x -> return (x + 1)))
 
         -- XXX Need to use eq instead of sortEq for ahead oeprations
         -- Binary append
         asyncSpec $
             let appWith cfg = Async.parList cfg [Stream.nil, Stream.nil]
-            in prop1 "append [] []" . cmp sortEq [] . appWith
+            in prop1 "parList [] []" . cmp sortEq ([] :: [Int]) . appWith
 
         asyncSpec $
             let appWith cfg = Async.parList cfg [Stream.nil, Stream.fromPure 1]
-            in prop1 "append [] [1]" . cmp sortEq [1] . appWith
+            in prop1 "parList [] [1]" . cmp sortEq [1 :: Int] . appWith
 
         asyncSpec $
             let appWith cfg = Async.parList cfg [Stream.fromPure 1, Stream.nil]
-            in prop1 "append [1] []" . cmp sortEq [1] . appWith
+            in prop1 "parList [1] []" . cmp sortEq [1 :: Int] . appWith
 
         asyncSpec $
             let appWith cfg =
                     Async.parList cfg [Stream.fromPure 0, Stream.fromPure 1]
-            in prop1 "append [0] [1]" . cmp sortEq [0, 1] . appWith
+            in prop1 "parList [0] [1]" . cmp sortEq [0, 1 :: Int] . appWith
 
         asyncSpec $
             let appWith cfg =
                     Async.parList
                         cfg [Stream.fromPure 0, Stream.nil, Stream.fromPure 1]
-            in prop1 "append [0] [] [1]" . cmp sortEq [0, 1] . appWith
+            in prop1 "parList [0] [] [1]" . cmp sortEq [0, 1 :: Int] . appWith
 
         asyncSpec $
             let appWith cfg =
@@ -278,8 +272,8 @@ main = hspec
                                 (Stream.fromPure 0) (Stream.fromPure 1))
                             (Stream.fromPure 2))
                         (Stream.fromPure 3)
-            in prop1 "append left associated"
-                    . cmp sortEq [0, 1, 2, 3] . appWith
+            in prop1 "parTwo left associated"
+                    . cmp sortEq [0, 1, 2, 3 :: Int] . appWith
 
         asyncSpec $
             let appWith cfg =
@@ -290,8 +284,8 @@ main = hspec
                             (Async.parTwo cfg
                                 (Stream.fromPure 2) (Stream.fromPure 3))
                         )
-            in prop1 "append right associated"
-                    . cmp sortEq [0, 1, 2, 3] . appWith
+            in prop1 "parTwo right associated"
+                    . cmp sortEq [0, 1, 2, 3 :: Int] . appWith
 
         asyncSpec $
             let leaf x y cfg =
@@ -303,16 +297,15 @@ main = hspec
                     Async.parTwo cfg (leaf 4 5 cfg) $ leaf 6 7 cfg
                 appWith cfg =
                     Async.parTwo cfg (leaf11 cfg) (leaf12 cfg)
-            in prop1 "append balanced"
+            in prop1 "parTwo balanced"
                     . cmp sortEq [0, 1, 2, 3, 4, 5, 6,7] . appWith
 
         asyncSpec $
             let appWith cfg =
                     Async.parTwo cfg
-                        (Stream.fromList [1,2,3,4,5])
+                        (Stream.fromList [1,2,3,4,5 :: Int])
                         (Stream.fromList [6,7,8,9,10])
-            in prop1 "combineWith"
-                    . cmp (==) [1,2,3,4,5,6,7,8,9,10] . appWith
+            in prop1 "parTwo" . cmp (==) [1,2,3,4,5,6,7,8,9,10] . appWith
 
         asyncSpec $
             let par2 cfg =
@@ -331,43 +324,40 @@ main = hspec
                         (s1 cfg)
                         (Stream.fromPure 3) :: Stream IO (Int, Int)
             in prop1
-                "apply (async arg1)" . cmpPair (==) ( [(1, 3), (2, 3)]) . s2
+                "parApply (async arg1)" . cmp (==) ( [(1, 3), (2, 3)]) . s2
 
         asyncSpec $
             let par2 cfg =
                     Async.parTwo
                         cfg
-                        (Stream.fromPure 2)
+                        (Stream.fromPure (2 :: Int))
                         (Stream.fromPure 3)
-                s1 =
-                    Stream.fromPure (1,)
-                s2 cfg =
-                    Async.parApply cfg s1 (par2 cfg)
-            in prop1
-                "apply (async arg2)" . cmpPair (==) ([(1, 2), (1, 3)]) . s2
-
+                s1 = Stream.fromPure (1 :: Int,)
+                s2 cfg = Async.parApply cfg s1 (par2 cfg)
+            in prop1 "apply (async arg2)" . cmp (==) ([(1, 2), (1, 3)]) . s2
 
         -- concat
         asyncSpec $
             let stream cfg =
                     Async.parConcat cfg
                         $ fmap Stream.fromPure
-                        $ Stream.fromList [1..100]
-            in prop1 "concat" . cmp sortEq [1..100] . stream
+                        $ Stream.fromList [1..100 :: Int]
+            in prop1 "parConcat" . cmp sortEq [1..100] . stream
 
         asyncSpec $
-            let cc cfg = prop "concatMap" $
+            let f cfg =
                     forAll (choose (0, 100)) $ \n ->
                         transform
                             (concatMap (const [1..n]))
                             (Async.parConcatMap
                                 cfg (const (Stream.fromList [1..n]))
                             )
-            in cc
+             in prop "parConcatMap" . f
 
 #ifdef DEVBUILD
         describe "Time ordering" $ timeOrdering (Async.parList id)
 #endif
+        let async = Async.parTwo id
         describe "Exception propagation" $ exceptionPropagation async
         -- Ad-hoc tests
         it "takes n from stream of streams" $ takeCombined 2
