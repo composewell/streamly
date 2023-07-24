@@ -41,7 +41,7 @@ module Streamly.Internal.Data.Stream.IsStream.Reduce {-# DEPRECATED "Please use 
     , chunksOf
     , arraysOf
     , intervalsOf
-    , groupsOfTimeout
+    , chunksOfTimeout
 
     -- ** Splitting
     -- | Streams can be sliced into segments in space or in time. We use the
@@ -1025,13 +1025,13 @@ intervalsOf n f xs =
 -- is 100 ms.
 --
 -- >>> s = Stream.delayPost 0.3 $ Stream.fromList [1..1000]
--- >>> f = Stream.mapM_ print $ Stream.groupsOfTimeout 5 1 Fold.toList s
+-- >>> f = Stream.mapM_ print $ Stream.chunksOfTimeout 5 1 Fold.toList s
 --
 -- /Pre-release/
-{-# INLINE groupsOfTimeout #-}
-groupsOfTimeout :: (IsStream t, MonadAsync m, Functor (t m))
+{-# INLINE chunksOfTimeout #-}
+chunksOfTimeout :: (IsStream t, MonadAsync m, Functor (t m))
     => Int -> Double -> FL.Fold m a b -> t m a -> t m b
-groupsOfTimeout n timeout f =
+chunksOfTimeout n timeout f =
       map snd
     . classifySessionsBy
         0.1 False (const (return False)) timeout (FL.take n f)
