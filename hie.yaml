@@ -86,6 +86,8 @@ cradle:
               component: "lib:streamly-benchmarks"
             - path: "./benchmark/Streamly/Benchmark/Data/Fold/Window.hs"
               component: "bench:Data.Fold.Window"
+            - path: "./benchmark/Streamly/Benchmark/Unicode/Parser.hs"
+              component: "bench:Unicode.Parser"
     - path: "./test"
       config:
         cradle:
@@ -156,6 +158,8 @@ cradle:
               component: "test:Prelude.ZipSerial"
             - path: "./test/Streamly/Test/Unicode/Stream.hs"
               component: "test:Unicode.Stream"
+            - path: "./test/Streamly/Test/Unicode/Parser.hs"
+              component: "test:Unicode.Parser"
             - path: "./test/Streamly/Test/Serialize/Serializable.hs"
               component: "test:Serialize.Serializable"
             - path: "./test/lib/"
