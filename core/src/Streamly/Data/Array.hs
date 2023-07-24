@@ -69,6 +69,10 @@ module Streamly.Data.Array
     -- * Unbox Type Class
     , Unbox (..)
 
+    -- * Pinning & Unpinning
+    , pin
+    , unpin
+
     -- * Deprecated
     , read
     , readRev
@@ -79,6 +83,7 @@ where
 
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.Array as A hiding (read, readRev)
+import Streamly.Internal.Data.Array.Type (pin, unpin)
 
 import Streamly.Internal.Data.Unbox (Unbox (..))
 import Prelude hiding (read)
