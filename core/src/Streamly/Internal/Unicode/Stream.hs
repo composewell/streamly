@@ -190,8 +190,23 @@ encodeLatin1Lax = encodeLatin1
 -- UTF-8 decoding
 -------------------------------------------------------------------------------
 
--- Int helps in cheaper conversion from Int to Char
+-- | CodePoint represents a specific character in the Unicode standard.
+--
+-- It is meant to be used with the resumable decoding APIs such as
+-- 'resumeDecodeUtf8Either'.
+--
+-- On decoding failure we return the current 'CodePoint' and the 'DecodeState'
+-- in 'DecodeError'.
 type CodePoint = Int
+
+-- | DecodeState refers to the number of bytes remaining to complete the current
+-- UTF-8 character decoding.
+--
+-- It is meant to be used with the resumable decoding APIs such as
+-- 'resumeDecodeUtf8Either'.
+--
+-- On decoding failure we return the current 'CodePoint' and the 'DecodeState'
+-- in 'DecodeError'.
 type DecodeState = Word8
 
 -- We can divide the errors in three general categories:
@@ -410,17 +425,24 @@ decodeUtf8EitherD :: Monad m
     => D.Stream m Word8 -> D.Stream m (Either DecodeError Char)
 decodeUtf8EitherD = resumeDecodeUtf8EitherD 0 0
 
--- |
+-- | Decode a bytestream as UTF-8 encoded characters, returning an 'Either'
+-- stream.
 --
--- /Pre-release/
+-- This function is similar to 'decodeUtf8', but instead of replacing the
+-- invalid codepoint encountered, it returns a 'Left' 'DecodeError'.
+--
+-- When decoding is successful and a valid character is encountered, the
+-- function returns 'Right Char'.
+--
 {-# INLINE decodeUtf8Either #-}
 decodeUtf8Either :: Monad m
     => Stream m Word8 -> Stream m (Either DecodeError Char)
 decodeUtf8Either = decodeUtf8EitherD
 
--- |
+-- | Resuming the decoding of a bytestream given a 'DecodeState' and a
+-- 'CodePoint'.
 --
--- /Pre-release/
+-- >>> decodeUtf8Either = resumeDecodeUtf8Either 0 0
 {-# INLINE resumeDecodeUtf8Either #-}
 resumeDecodeUtf8Either
     :: Monad m
