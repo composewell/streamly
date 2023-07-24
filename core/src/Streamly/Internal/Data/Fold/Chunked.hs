@@ -63,7 +63,7 @@ import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 import Data.Proxy (Proxy(..))
-import Streamly.Internal.Data.Unbox (peekWith, sizeOf, Unbox)
+import Streamly.Internal.Data.Unbox (Unbox(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Mut.Type (touch)
 import Streamly.Internal.Data.Array.Type (Array(..))
@@ -123,7 +123,7 @@ fromFold (Fold.Fold fstep finitial fextract) =
             assert (cur == end) (return ())
             return $ Partial 0 fs
         goArray !_ !cur !fs = do
-            x <- liftIO $ peekWith contents cur
+            x <- liftIO $ peekByteIndex cur contents
             res <- fstep fs x
             let elemSize = SIZE_OF(a)
                 next = INDEX_NEXT(cur,a)
@@ -160,7 +160,7 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
             else return $ st (arrRem + n) fs1
 
         goArray !_ !cur !fs = do
-            x <- liftIO $ peekWith contents cur
+            x <- liftIO $ peekByteIndex cur contents
             liftIO $ touch contents
             res <- step1 fs x
             let elemSize = SIZE_OF(a)

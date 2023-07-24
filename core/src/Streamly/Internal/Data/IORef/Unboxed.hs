@@ -42,11 +42,9 @@ import Data.Proxy (Proxy(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unbox
     ( MutableByteArray(..)
-    , Unbox
-    , sizeOf
-    , peekWith
-    , pokeWith
+    , Unbox(..)
     , newUnpinnedBytes
+    , sizeOf
     )
 
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
@@ -61,7 +59,7 @@ newtype IORef a = IORef MutableByteArray
 newIORef :: forall a. Unbox a => a -> IO (IORef a)
 newIORef x = do
     var <- newUnpinnedBytes (sizeOf (Proxy :: Proxy a))
-    pokeWith var 0 x
+    pokeByteIndex 0 var x
     return $ IORef var
 
 -- | Write a value to an 'IORef'.
@@ -69,14 +67,14 @@ newIORef x = do
 -- /Pre-release/
 {-# INLINE writeIORef #-}
 writeIORef :: Unbox a => IORef a -> a -> IO ()
-writeIORef (IORef var) = pokeWith var 0
+writeIORef (IORef var) = pokeByteIndex 0 var
 
 -- | Read a value from an 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE readIORef #-}
 readIORef :: Unbox a => IORef a -> IO a
-readIORef (IORef var) = peekWith var 0
+readIORef (IORef var) = peekByteIndex 0 var
 
 -- | Modify the value of an 'IORef' using a function with strict application.
 --

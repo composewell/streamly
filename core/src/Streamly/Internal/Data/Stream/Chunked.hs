@@ -69,7 +69,7 @@ import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
-import Streamly.Internal.Data.Unbox (Unbox, peekWith, sizeOf)
+import Streamly.Internal.Data.Unbox (Unbox(..))
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
@@ -201,7 +201,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Yield sep $ OuterLoop st
 
     step' _ (InnerLoop st contents p end) = do
-        x <- liftIO $ peekWith contents p
+        x <- liftIO $ peekByteIndex p contents
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
 -------------------------------------------------------------------------------
@@ -355,7 +355,7 @@ foldBreakD (FL.Fold fstep initial extract) stream@(D.Stream step state) = do
         | cur == end = do
             go SPEC s fs
     goArray !_ st fp@(Tuple' end contents) !cur !fs = do
-        x <- liftIO $ peekWith contents cur
+        x <- liftIO $ peekByteIndex cur contents
         res <- fstep fs x
         let next = INDEX_NEXT(cur,a)
         case res of
@@ -388,7 +388,7 @@ foldBreakK (FL.Fold fstep initial extract) stream = do
         | cur == end = do
             go fs st
     goArray !fs st fp@(Tuple' end contents) !cur = do
-        x <- liftIO $ peekWith contents cur
+        x <- liftIO $ peekByteIndex cur contents
         res <- fstep fs x
         let next = INDEX_NEXT(cur,a)
         case res of
@@ -597,7 +597,7 @@ parseBreakD
         | cur == end = do
             go SPEC s backBuf pst
     gobuf !_ s backBuf fp@(Tuple' end contents) !cur !pst = do
-        x <- liftIO $ peekWith contents cur
+        x <- liftIO $ peekByteIndex contents cur
         pRes <- pstep pst x
         let next = INDEX_NEXT(cur,a)
         case pRes of
@@ -669,7 +669,7 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
     -- Use strictness on "cur" to keep it unboxed
     goArray !pst backBuf st (Array _ cur end) | cur == end = go pst st backBuf
     goArray !pst backBuf st (Array contents cur end) = do
-        x <- liftIO $ peekWith contents cur
+        x <- liftIO $ peekByteIndex cur contents
         pRes <- pstep pst x
         let next = INDEX_NEXT(cur,a)
         case pRes of
@@ -714,7 +714,7 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
     goExtract !pst backBuf (Array _ cur end)
         | cur == end = goStop pst backBuf
     goExtract !pst backBuf (Array contents cur end) = do
-        x <- liftIO $ peekWith contents cur
+        x <- liftIO $ peekByteIndex cur contents
         pRes <- pstep pst x
         let next = INDEX_NEXT(cur,a)
         case pRes of

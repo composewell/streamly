@@ -233,11 +233,8 @@ import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Data.Unbox
     ( MutableByteArray(..)
-    , Unbox
+    , Unbox(..)
     , getMutableByteArray#
-    , peekWith
-    , pokeWith
-    , sizeOf
     , touch
     )
 import GHC.Base
@@ -490,7 +487,7 @@ putIndexUnsafe :: forall m a. (MonadIO m, Unbox a)
 putIndexUnsafe i MutArray{..} x = do
     let index = INDEX_OF(arrStart, i, a)
     assert (i >= 0 && INDEX_VALID(index, arrEnd, a)) (return ())
-    liftIO $ pokeWith arrContents index x
+    liftIO $ pokeByteIndex index arrContents  x
 
 invalidIndex :: String -> Int -> a
 invalidIndex label i =
@@ -508,7 +505,7 @@ putIndex :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> a -> m ()
 putIndex i MutArray{..} x = do
     let index = INDEX_OF(arrStart,i,a)
     if i >= 0 && INDEX_VALID(index,arrEnd,a)
-    then liftIO $ pokeWith arrContents index x
+    then liftIO $ pokeByteIndex index arrContents  x
     else invalidIndex "putIndex" i
 
 -- | Write an input stream of (index, value) pairs to an array. Throws an
@@ -534,9 +531,9 @@ modifyIndexUnsafe :: forall m a b. (MonadIO m, Unbox a) =>
 modifyIndexUnsafe i MutArray{..} f = liftIO $ do
         let index = INDEX_OF(arrStart,i,a)
         assert (i >= 0 && INDEX_NEXT(index,a) <= arrEnd) (return ())
-        r <- peekWith arrContents index
+        r <- peekByteIndex index arrContents
         let (x, res) = f r
-        pokeWith arrContents index x
+        pokeByteIndex index arrContents  x
         return res
 
 -- | Modify a given index of an array using a modifier function.
@@ -548,9 +545,9 @@ modifyIndex i MutArray{..} f = do
     let index = INDEX_OF(arrStart,i,a)
     if i >= 0 && INDEX_VALID(index,arrEnd,a)
     then liftIO $ do
-        r <- peekWith arrContents index
+        r <- peekByteIndex index arrContents
         let (x, res) = f r
-        pokeWith arrContents index x
+        pokeByteIndex index arrContents  x
         return res
     else invalidIndex "modifyIndex" i
 
@@ -584,8 +581,8 @@ modify MutArray{..} f = liftIO $
 
     go i =
         when (INDEX_VALID(i,arrEnd,a)) $ do
-            r <- peekWith arrContents i
-            pokeWith arrContents i (f r)
+            r <- peekByteIndex i arrContents
+            pokeByteIndex i arrContents (f r)
             go (INDEX_NEXT(i,a))
 
 -- XXX We could specify the number of bytes to swap instead of Proxy. Need
@@ -599,10 +596,10 @@ swapArrayByteIndices ::
     -> Int
     -> IO ()
 swapArrayByteIndices _ arrContents i1 i2 = do
-    r1 <- peekWith arrContents i1
-    r2 <- peekWith arrContents i2
-    pokeWith arrContents i1 (r2 :: a)
-    pokeWith arrContents i2 (r1 :: a)
+    r1 <- peekByteIndex i1 arrContents
+    r2 <- peekByteIndex i2 arrContents
+    pokeByteIndex i1 arrContents (r2 :: a)
+    pokeByteIndex i2 arrContents (r1 :: a)
 
 -- | Swap the elements at two indices without validating the indices.
 --
@@ -875,7 +872,7 @@ rightSize arr@MutArray{..} = do
 snocNewEnd :: (MonadIO m, Unbox a) => Int -> MutArray a -> a -> m (MutArray a)
 snocNewEnd newEnd arr@MutArray{..} x = liftIO $ do
     assert (newEnd <= arrBound) (return ())
-    pokeWith arrContents arrEnd x
+    pokeByteIndex arrEnd arrContents x
     return $ arr {arrEnd = newEnd}
 
 -- | Really really unsafe, appends the element into the first array, may
@@ -989,7 +986,7 @@ getIndexUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m a
 getIndexUnsafe i MutArray{..} = do
     let index = INDEX_OF(arrStart,i,a)
     assert (i >= 0 && INDEX_VALID(index,arrEnd,a)) (return ())
-    liftIO $ peekWith arrContents index
+    liftIO $ peekByteIndex index arrContents
 
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
@@ -998,7 +995,7 @@ getIndex :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (Maybe a)
 getIndex i MutArray{..} = do
     let index = INDEX_OF(arrStart,i,a)
     if i >= 0 && INDEX_VALID(index,arrEnd,a)
-    then liftIO $ Just <$> peekWith arrContents index
+    then liftIO $ Just <$> peekByteIndex index arrContents
     else return Nothing
 
 -- | /O(1)/ Lookup the element at the given index from the end of the array.
@@ -1011,7 +1008,7 @@ getIndexRev :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m a
 getIndexRev i MutArray{..} = do
     let index = RINDEX_OF(arrEnd,i,a)
     if i >= 0 && index >= arrStart
-    then liftIO $ peekWith arrContents index
+    then liftIO $ peekByteIndex index arrContents
     else invalidIndex "getIndexRev" i
 
 data GetIndicesState contents start end st =
@@ -1151,7 +1148,7 @@ partitionBy f arr@MutArray{..} = liftIO $ do
 
     -- Invariant low < high on entry, and on return as well
     moveHigh low high = do
-        h <- peekWith arrContents high
+        h <- peekByteIndex high arrContents
         if f h
         then
             -- Correctly classified, continue the loop
@@ -1171,7 +1168,7 @@ partitionBy f arr@MutArray{..} = liftIO $ do
     -- low <= high
     -- Both low and high are valid locations within the array
     go low high = do
-        l <- peekWith arrContents low
+        l <- peekByteIndex low arrContents
         if f l
         then
             -- low is wrongly classified
@@ -1182,8 +1179,8 @@ partitionBy f arr@MutArray{..} = liftIO $ do
                 case r of
                     Nothing -> return low
                     Just (high1, h) -> do -- low < high1
-                        pokeWith arrContents low h
-                        pokeWith arrContents high1 l
+                        pokeByteIndex low arrContents h
+                        pokeByteIndex high1 arrContents l
                         let low1 = INDEX_NEXT(low,a)
                             high2 = INDEX_PREV(high1,a)
                         if low1 <= high2
@@ -1327,7 +1324,7 @@ chunksOf n (D.Stream step state) =
         r <- step (adaptState gst) st
         case r of
             D.Yield x s -> do
-                liftIO $ pokeWith contents end x
+                liftIO $ pokeByteIndex end contents  x
                 let end1 = INDEX_NEXT(end,a)
                 return $
                     if end1 >= bound
@@ -1389,7 +1386,7 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st contents p end) = do
-        x <- liftIO $ peekWith contents p
+        x <- liftIO $ peekByteIndex p contents
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
 -- | Use the "readerRev" unfold instead.
@@ -1419,7 +1416,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st contents p start) = do
-        x <- liftIO $ peekWith contents p
+        x <- liftIO $ peekByteIndex p contents
         let cur = INDEX_PREV(p,a)
         return $ D.Yield x (InnerLoop st contents cur start)
 
@@ -1458,7 +1455,7 @@ producerWith liftio = Producer step (return . toArrayUnsafe) extract
             -- few actions for correctness and execution order sanity. We want
             -- the peek to occur right here and not lazily at some later point
             -- because we want the peek to be ordered with respect to the touch.
-            !x <- liftio $ peekWith contents cur
+            !x <- liftio $ peekByteIndex cur contents
             return $ D.Yield x (ArrayUnsafe contents (INDEX_NEXT(cur,a)) end)
 
     extract = return . fromArrayUnsafe
@@ -1489,7 +1486,7 @@ readerRevWith liftio = Unfold step inject
     {-# INLINE_LATE step #-}
     step (ArrayUnsafe _ start p) | p < start = return D.Stop
     step (ArrayUnsafe contents start p) = do
-        !x <- liftio $ peekWith contents p
+        !x <- liftio $ peekByteIndex p contents
         return $ D.Yield x (ArrayUnsafe contents start (INDEX_PREV(p,a)))
 
 -- | Unfold an array into a stream in reverse order.
@@ -1520,7 +1517,7 @@ toListFB c n MutArray{..} = go arrStart
         -- evaluated/written to before we peek at them.
         -- XXX
         let !x = unsafeInlineIO $ do
-                    r <- peekWith arrContents p
+                    r <- peekByteIndex arrContents p
                     return r
         in c x (go (PTR_NEXT(p,a)))
 -}
@@ -1537,7 +1534,7 @@ toList MutArray{..} = liftIO $ go arrStart
 
     go p | assert (p <= arrEnd) (p == arrEnd) = return []
     go p = do
-        x <- peekWith arrContents p
+        x <- peekByteIndex p arrContents
         (:) x <$> go (INDEX_NEXT(p,a))
 
 {-# INLINE_NORMAL toStreamDWith #-}
@@ -1551,7 +1548,7 @@ toStreamDWith liftio MutArray{..} = D.Stream step arrStart
     {-# INLINE_LATE step #-}
     step _ p | assert (p <= arrEnd) (p == arrEnd) = return D.Stop
     step _ p = liftio $ do
-        r <- peekWith arrContents p
+        r <- peekByteIndex p arrContents
         return $ D.Yield r (INDEX_NEXT(p,a))
 
 -- | Convert a 'MutArray' into a stream.
@@ -1572,7 +1569,7 @@ toStreamKWith liftio MutArray{..} = go arrStart
 
     go p | assert (p <= arrEnd) (p == arrEnd) = K.nil
          | otherwise =
-        let elemM = peekWith arrContents p
+        let elemM = peekByteIndex p arrContents
         in liftio elemM `K.consM` go (INDEX_NEXT(p,a))
 
 {-# INLINE toStreamK #-}
@@ -1592,7 +1589,7 @@ toStreamDRevWith liftio MutArray{..} =
     {-# INLINE_LATE step #-}
     step _ p | p < arrStart = return D.Stop
     step _ p = liftio $ do
-        r <- peekWith arrContents p
+        r <- peekByteIndex p arrContents
         return $ D.Yield r (INDEX_PREV(p,a))
 
 -- | Convert a 'MutArray' into a stream in reverse order.
@@ -1615,7 +1612,7 @@ toStreamKRevWith liftio MutArray {..} =
 
     go p | p < arrStart = K.nil
          | otherwise =
-        let elemM = peekWith arrContents p
+        let elemM = peekByteIndex p arrContents
         in liftio elemM `K.consM` go (INDEX_PREV(p,a))
 
 {-# INLINE toStreamKRev #-}
@@ -1683,7 +1680,7 @@ writeAppendNUnsafe n action =
         return $ toArrayUnsafe arr1
 
     step (ArrayUnsafe contents start end) x = do
-        liftIO $ pokeWith contents end x
+        liftIO $ pokeByteIndex end contents x
         return $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
 -- | Append @n@ elements to an existing array. Any free space left in the array
@@ -1743,7 +1740,7 @@ writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
     initial = toArrayUnsafe <$> alloc (max n 0)
 
     step (ArrayUnsafe contents start end) x = do
-        liftIO $ pokeWith contents end x
+        liftIO $ pokeByteIndex end contents x
         return
           $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
@@ -1799,7 +1796,7 @@ writeRevNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 
     step (ArrayUnsafe contents start end) x = do
         let ptr = INDEX_PREV(start,a)
-        liftIO $ pokeWith contents ptr x
+        liftIO $ pokeByteIndex ptr contents x
         return
           $ ArrayUnsafe contents ptr end
 
@@ -1931,7 +1928,7 @@ fromStreamDN limit str = do
     where
 
     fwrite arrContents ptr x = do
-        liftIO $ pokeWith arrContents ptr x
+        liftIO $ pokeByteIndex ptr arrContents  x
         return $ INDEX_NEXT(ptr,a)
 
 -- | Create a 'MutArray' from the first N elements of a list. The array is
@@ -2315,7 +2312,7 @@ strip eq arr@MutArray{..} = liftIO $ do
     getStart cur = do
         if cur < arrEnd
         then do
-            r <- peekWith arrContents cur
+            r <- peekByteIndex cur arrContents
             if eq r
             then getStart (INDEX_NEXT(cur,a))
             else return cur
@@ -2325,7 +2322,7 @@ strip eq arr@MutArray{..} = liftIO $ do
         if cur > low
         then do
             let prev = INDEX_PREV(cur,a)
-            r <- peekWith arrContents prev
+            r <- peekByteIndex prev arrContents
             if eq r
             then getLast prev low
             else return cur
