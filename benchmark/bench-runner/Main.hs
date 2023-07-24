@@ -98,7 +98,7 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
             `isPrefixOf` benchName = "-K4M -M512M"
         -- XXX Takes up to 160MB heap for --long, we use chunked stream for
         -- this, so the reason may be related to chunked streams.
-        | "Data.Parser.ParserK/o-1-space"
+        | "Data.ParserK/o-1-space"
             `isPrefixOf` benchName = "-K4M -M256M"
 
         -----------------------------------------------------------------------

@@ -72,7 +72,6 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Array/Mut.hs
     benchmark/Streamly/Benchmark/Data/Array/Stream.hs
     benchmark/Streamly/Benchmark/Data/Fold/Window.hs
-    benchmark/Streamly/Benchmark/Data/Parser/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
     benchmark/Streamly/Benchmark/FileSystem/*.hs
     benchmark/Streamly/Benchmark/FileSystem/Handle/*.hs

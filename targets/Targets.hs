@@ -176,7 +176,7 @@ targets =
     , ("Data.Ring.Unboxed", [])
 
     -- Parsers
-    , ("Data.Parser.ParserK",
+    , ("Data.ParserK",
             [ "base_parser_grp"
             , "base_parser_cmp"
             , "infinite_grp"
