@@ -313,7 +313,7 @@ monad16 value =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Parser.ParserK"
+moduleName = "Data.ParserK"
 
 instance NFData ParseError where
     {-# INLINE rnf #-}

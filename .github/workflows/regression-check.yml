@@ -25,7 +25,7 @@ jobs:
         Data.Fold
         Data.Fold.Window
         Data.Parser
-        Data.Parser.ParserK
+        Data.ParserK
         Data.Stream.StreamD
         Data.Stream.StreamK:6
         Data.Unfold

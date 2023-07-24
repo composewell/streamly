@@ -403,10 +403,10 @@ benchmark Data.Parser
     else
       ghc-options: +RTS -M2000M -RTS
 
-benchmark Data.Parser.ParserK
+benchmark Data.ParserK
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Parser
+  hs-source-dirs: Streamly/Benchmark/Data
   main-is: ParserK.hs
   if impl(ghcjs)
     buildable: False
