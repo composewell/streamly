@@ -160,7 +160,11 @@ parse
                         return (Right b, unread src s1)
                     Error err -> do
                         s1 <- uextract s
-                        return (Left (ParseError err), unread [x] s1)
+                        let src  = Prelude.reverse (getList buf)
+                        return
+                            ( Left (ParseError err)
+                            , unread (src ++ [x]) s1
+                            )
             Skip s -> go SPEC s buf pst
             Stop -> goStop buf pst
 
@@ -190,7 +194,11 @@ parse
                 return (Right b, unread src s1)
             Error err -> do
                     s1 <- uextract s
-                    return (Left (ParseError err), unread (x:xs) s1)
+                    let src  = Prelude.reverse (getList buf)
+                    return
+                        ( Left (ParseError err)
+                        , unread (src ++ (x:xs)) s1
+                        )
 
     -- This is a simplified gobuf
     goExtract !_ buf (List []) !pst = goStop buf pst
@@ -216,8 +224,12 @@ parse
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, unread src (source Nothing))
-            Error err ->
-                    return (Left (ParseError err), unread (x:xs) (source Nothing))
+            Error err -> do
+                    let src  = Prelude.reverse (getList buf)
+                    return
+                        ( Left (ParseError err)
+                        , unread (src ++ (x:xs)) (source Nothing)
+                        )
 
     -- This is a simplified goExtract
     {-# INLINE goStop #-}
@@ -238,8 +250,9 @@ parse
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, unread src (source Nothing))
-            Error err ->
-                return (Left (ParseError err), source Nothing)
+            Error err -> do
+                let src  = Prelude.reverse (getList buf)
+                return (Left (ParseError err), unread src (source Nothing))
 
 {-
 -- | Parse a buffered source using a parser, returning the parsed value and the
