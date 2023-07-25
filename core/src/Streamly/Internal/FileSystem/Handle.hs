@@ -425,11 +425,11 @@ putChunksWith :: (MonadIO m, Unbox a)
     => Int -> Handle -> Stream m (Array a) -> m ()
 putChunksWith n h xs = putChunks h $ AS.compact n xs
 
+-- > putBytesWith n h m = Handle.putChunks h $ A.chunksOfWith Pinned n m
+
 -- | @putBytesWith bufsize handle stream@ writes @stream@ to @handle@
 -- in chunks of @bufsize@.  A write is performed to the IO device as soon as we
 -- collect the required input size.
---
--- >>> putBytesWith n h m = Handle.putChunks h $ Stream.chunksOf n m
 --
 {-# INLINE putBytesWith #-}
 putBytesWith :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()

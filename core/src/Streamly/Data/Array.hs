@@ -117,9 +117,11 @@ import Prelude hiding (read)
 --
 -- == Pinned and Unpinned Arrays
 --
--- The array type can use both pinned and unpinned memory under the hood.  The
--- arrays are unpinned by default and are only pinned while doing any I/O
--- operations.
+-- The array type can use both pinned and unpinned memory under the hood. The
+-- default array creation operations create unpinned arrays. IO operations
+-- automatically copy an array to pinned memory if the array passed to it is
+-- unpinned. Programmers can use appropriate pinned array generation APIs to
+-- reduce the copying if it happens.
 --
 -- Unpinned arrays have the advantage of allowing automatic defragmentation of
 -- the memory by GC. Whereas pinned arrays have the advantage of not requiring
@@ -130,20 +132,14 @@ import Prelude hiding (read)
 --
 -- == Creating Arrays from Non-IO Streams
 --
--- Array creation folds require 'MonadIO' because they need to sequence effects
--- in IO streams. To operate on streams in pure Monads like 'Identity' you can
--- morph it to IO monad as follows:
+-- Array creation folds require 'MonadIO' otherwise the compiler may
+-- incorrectly share the array memory thinking it is pure.
 --
--- The 'MonadIO' based folds can be morphed to 'Identity' stream folds:
+-- See the 'fromPureStream' unreleased API to generate an array from an
+-- Identity stream safely without using MonadIO constraint.
 --
--- >>> purely = Fold.morphInner (Identity . unsafePerformIO)
--- >>> Stream.fold (purely Array.write) $ Stream.fromList [1,2,3::Int]
--- Identity fromList [1,2,3]
 --
--- Since it is a pure stream we can use 'unsafePerformIO' to extract the result
--- of fold from IO.
---
--- Alternatively, 'Identity' streams can be generalized to IO streams:
+-- Note that 'Identity' streams can be generalized to IO streams:
 --
 -- >>> pure = Stream.fromList [1,2,3] :: Stream Identity Int
 -- >>> generally = Stream.morphInner (return . runIdentity)

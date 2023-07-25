@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-* Array creation APIs now return unpinned arrays. To create pinned arrays, use
-  the internal APIs with the `pinned*` prefix.
+* Arrays are now created unpinned by default, they were created pinned
+  earlier. During IO operations unpinned arrays are automatically copied
+  to pinned memory. When arrays are directly passed to IO operations
+  programmers can choose to create them pinned to avoid a copy.  To
+  create pinned arrays, use the internal APIs with the `pinned*` prefix.
 
 ### Deprecations
 

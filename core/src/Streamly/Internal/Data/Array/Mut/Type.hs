@@ -773,6 +773,7 @@ reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
 -- down to multiples of array size.  If the new size is more than
 -- 'largeObjectThreshold' then it is rounded up to the block size (4K).
 --
+-- If the original array is pinned, the newly allocated array is also pinned.
 {-# INLINABLE realloc #-}
 realloc :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (MutArray a)
 realloc bytes arr = liftIO $ reallocExplicit (SIZE_OF(a)) bytes arr
@@ -2094,7 +2095,8 @@ putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
                     arrS# srcStartBytes# arrD# dstStartBytes# lenBytes# s#
                 , () #)
 
--- | Copy two arrays into a newly allocated array.
+-- | Copy two arrays into a newly allocated array. If the first array is pinned
+-- the spliced array is also pinned.
 {-# INLINE spliceCopy #-}
 spliceCopy :: forall m a. MonadIO m =>
 #ifdef DEVBUILD
@@ -2106,7 +2108,11 @@ spliceCopy arr1 arr2 = liftIO $ do
         start2 = arrStart arr2
         len1 = arrEnd arr1 - start1
         len2 = arrEnd arr2 - start2
-    newArrContents <- liftIO $ Unboxed.newUnpinnedBytes (len1 + len2)
+    let newLen = len1 + len2
+    newArrContents <-
+        if Unboxed.isPinned (arrContents arr1)
+        then Unboxed.newPinnedBytes newLen
+        else Unboxed.newUnpinnedBytes newLen
     let len = len1 + len2
         newArr = MutArray newArrContents 0 len len
     putSliceUnsafe arr1 start1 newArr 0 len1
@@ -2168,6 +2174,8 @@ spliceWith sizer dst@(MutArray _ start end bound) src = do
 -- Note that the returned array may be a mutated version of first array.
 --
 -- >>> splice = MutArray.spliceWith (+)
+--
+-- If the original array is pinned the spliced array is also pinned.
 --
 -- /Pre-release/
 {-# INLINE splice #-}
