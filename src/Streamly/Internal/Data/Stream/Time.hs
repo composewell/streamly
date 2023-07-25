@@ -25,7 +25,7 @@ module Streamly.Internal.Data.Stream.Time
 
     -- * Chunking
     , intervalsOf
-    , chunksOfTimeout
+    , groupsOfTimeout
 
     -- * Sampling
     , sampleIntervalEnd
@@ -239,13 +239,13 @@ intervalsOf n f xs =
 -- is 100 ms.
 --
 -- >>> s = Stream.delayPost 0.3 $ Stream.fromList [1..1000]
--- >>> f = Stream.fold (Fold.drainMapM print) $ Stream.chunksOfTimeout 5 1 Fold.toList s
+-- >>> f = Stream.fold (Fold.drainMapM print) $ Stream.groupsOfTimeout 5 1 Fold.toList s
 --
 -- /Pre-release/
-{-# INLINE chunksOfTimeout #-}
-chunksOfTimeout :: MonadAsync m
+{-# INLINE groupsOfTimeout #-}
+groupsOfTimeout :: MonadAsync m
     => Int -> Double -> Fold m a b -> Stream m a -> Stream m b
-chunksOfTimeout n timeout f =
+groupsOfTimeout n timeout f =
       fmap snd
     . classifySessionsBy
         0.1 False (const (return False)) timeout (Fold.take n f)
