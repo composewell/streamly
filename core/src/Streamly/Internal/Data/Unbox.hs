@@ -53,6 +53,9 @@ import Data.Functor.Const (Const(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
+#ifdef DEBUG
+import Debug.Trace (trace)
+#endif
 import Foreign.Ptr (IntPtr(..), WordPtr(..))
 import GHC.Base (IO(..))
 import GHC.Fingerprint.Type (Fingerprint(..))
@@ -150,6 +153,7 @@ newBytes Pinned = pinnedNewBytes
 isPinned :: MutableByteArray -> Bool
 isPinned (MutableByteArray arr#) =
     let pinnedInt = I# (isMutableByteArrayPinned# arr#)
+     -- XXX /= 0 would be safer
      in pinnedInt == 1
 
 
@@ -173,7 +177,13 @@ pin :: MutableByteArray -> IO MutableByteArray
 pin arr@(MutableByteArray marr#) =
     if isPinned arr
     then return arr
-    else IO
+    else
+#ifdef DEBUG
+        do
+        -- XXX dump stack trace
+        trace ("pin: Copying array") (return ())
+#endif
+        IO
              $ \s# ->
                    case cloneMutableArrayWith# newPinnedByteArray# marr# s# of
                        (# s1#, marr1# #) -> (# s1#, MutableByteArray marr1# #)
@@ -183,7 +193,13 @@ unpin :: MutableByteArray -> IO MutableByteArray
 unpin arr@(MutableByteArray marr#) =
     if not (isPinned arr)
     then return arr
-    else IO
+    else
+#ifdef DEBUG
+        do
+        -- XXX dump stack trace
+        trace ("unpin: Copying array") (return ())
+#endif
+        IO
              $ \s# ->
                    case cloneMutableArrayWith# newByteArray# marr# s# of
                        (# s1#, marr1# #) -> (# s1#, MutableByteArray marr1# #)
