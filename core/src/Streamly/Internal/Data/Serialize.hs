@@ -36,6 +36,11 @@ data Size a
 -- deserializes the boxed type from the mutable byte array. The write operation
 -- 'serialize' serializes the boxed type to the mutable byte array.
 --
+-- IMPORTANT: The serialized data's byte ordering is not normalized, which means
+-- it remains the same as the machine's byte order where the function is
+-- executed. Consequently, it may not be compatible across machines with
+-- different byte ordering.
+--
 -- 'Serialize' contains enough information to serialize and deserialize variable
 -- length types.
 --
