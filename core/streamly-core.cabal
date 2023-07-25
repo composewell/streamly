@@ -475,4 +475,4 @@ library
       build-depends: unix              >= 2.7.0 && < 2.9
 
     if os(windows)
-      build-depends: Win32            >= 2.6 && < 2.13
+      build-depends: Win32            >= 2.6 && < 2.14
