@@ -51,6 +51,9 @@ module Streamly.Internal.Unicode.Parser
     , double
     , decimal
     , hexadecimal
+
+    -- * Utilities
+    , mkDouble
     )
 where
 
@@ -404,6 +407,19 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
     extract (SPAfterExponent mult num decimalPlaces powerMult powerNum) =
         Done 0 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
 
+-- XXX We can have a `realFloat` parser instead to parse any RealFloat value.
+-- And a integral parser to read any integral value.
+
+-- | @mkDouble mantissa exponent@ converts a mantissa and exponent to a
+-- 'Double' value equivalent to @mantissa * 10^exponent@. It does not check for
+-- overflow, powers more than 308 will overflow.
+{-# INLINE mkDouble #-}
+mkDouble :: Integer -> Int -> Double
+mkDouble mantissa power =
+    if power > 0
+    then fromRational (fromIntegral (mantissa * 10 ^ power))
+    else fromRational (mantissa % 10 ^ (-power))
+
 -- | Parse a decimal 'Double' value. This parser accepts an optional sign (+ or
 -- -) followed by at least one decimal digit. Decimal digits are optionally
 -- followed by a decimal point and at least one decimal digit after the point.
@@ -414,6 +430,13 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
 --
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Unicode.Parser as Unicode
+-- >>> import qualified Streamly.Internal.Unicode.Parser as Unicode (number, mkDouble)
+--
+-- Definition:
+--
+-- >>> double = uncurry Unicode.mkDouble <$> Unicode.number
+--
+-- Examples:
 --
 -- >>> p = Stream.parse Unicode.double . Stream.fromList
 --
@@ -450,11 +473,4 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
 --
 {-# INLINE double #-}
 double :: Monad m => Parser Char m Double
-double = fmap f number
-
-    where
-
-    f (m, e) =
-        if e > 0
-        then fromIntegral (m * 10 ^ e)
-        else fromRational (m % 10 ^ (-e))
+double = uncurry mkDouble <$> number
