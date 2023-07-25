@@ -12,6 +12,7 @@ module Streamly.Test.Common
     , listEquals
     , checkListEqual
     , chooseInt
+    , chooseDouble
     ) where
 
 import Control.Monad (when)
@@ -60,3 +61,6 @@ checkListEqual ls_1 ls_2 = monadicIO (listEquals (==) ls_1 ls_2)
 
 chooseInt :: (Int, Int) -> Gen Int
 chooseInt = choose
+
+chooseDouble :: (Double, Double) -> Gen Double
+chooseDouble = choose
