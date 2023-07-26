@@ -216,7 +216,16 @@ module Streamly.Data.Stream
     -- | Usually you can use the folds in "Streamly.Data.Fold". However, some
     -- folds that may be commonly used or may have an edge in performance in
     -- some cases are provided here.
-    -- , drain
+    --
+    -- Useful idioms:
+    --
+    -- >>> foldlM' f a = Stream.fold (Fold.foldlM' f a)
+    -- >>> foldl1 f = Stream.fold (Fold.foldl1' f)
+    -- >>> foldl' f a = Stream.fold (Fold.foldl' f a)
+    -- >>> drain = Stream.fold Fold.drain
+    -- >>> mapM_ f = Stream.fold (Fold.drainMapM f)
+    -- >>> length = Stream.fold Fold.length
+    -- >>> head = Stream.fold Fold.one
     , toList
 
     -- * Mapping
@@ -428,7 +437,6 @@ module Streamly.Data.Stream
     -- >>> splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
     -- >>> groupsBy eq f = Stream.parseMany (Parser.groupBy eq f)
     -- >>> groupsByRolling eq f = Stream.parseMany (Parser.groupByRolling eq f)
-    -- >>> wordsBy p f = Stream.parseMany (Parser.wordBy p f)
     -- >>> groupsOf n f = Stream.foldMany (Fold.take n f)
     , foldMany -- XXX Rename to foldRepeat
     , groupsOf
