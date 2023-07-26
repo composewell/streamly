@@ -444,7 +444,7 @@ fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
 -- @since 0.7.0
 {-# INLINE fromStreamWithBufferOf #-}
 fromStreamWithBufferOf :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
-fromStreamWithBufferOf n h m = fromChunks h $ S.chunksOfWith Pinned n m
+fromStreamWithBufferOf n h m = fromChunks h $ S.pinnedChunksOf n m
 -- fromStreamWithBufferOf n h m = fromChunks h $ AS.chunksOf n m
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
@@ -495,7 +495,7 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 -- @since 0.7.0
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
-writeWithBufferOf n h = FL.groupsOf n (writeNUnsafeUsing Pinned n) (writeChunks h)
+writeWithBufferOf n h = FL.groupsOf n (pinnedWriteNUnsafe n) (writeChunks h)
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --

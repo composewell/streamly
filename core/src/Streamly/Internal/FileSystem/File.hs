@@ -103,10 +103,10 @@ import qualified Control.Monad.Catch as MC
 import qualified System.IO as SIO
 
 import Streamly.Data.Fold (groupsOf, drain)
-import Streamly.Internal.Data.Array.Type (Array(..), writeNUnsafeAs)
+import Streamly.Internal.Data.Array.Type (Array(..), pinnedWriteNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
-import Streamly.Internal.Data.Unbox (PinnedState(..), Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -114,7 +114,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array.Type as IA (chunksOfAs)
+import qualified Streamly.Internal.Data.Array.Type as IA (pinnedChunksOf)
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (Step(..), snoc, reduce)
@@ -405,7 +405,7 @@ fromChunks = fromChunksMode WriteMode
 {-# INLINE fromBytesWith #-}
 fromBytesWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Stream m Word8 -> m ()
-fromBytesWith n file xs = fromChunks file $ IA.chunksOfAs Pinned n xs
+fromBytesWith n file xs = fromChunks file $ IA.pinnedChunksOf n xs
 
 {-# DEPRECATED fromBytesWithBufferOf "Please use 'fromBytesWith' instead"  #-}
 {-# INLINE fromBytesWithBufferOf #-}
@@ -464,7 +464,7 @@ writeChunks path = Fold step initial extract
 writeWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Fold m Word8 ()
 writeWith n path =
-    groupsOf n (writeNUnsafeAs Pinned n) (writeChunks path)
+    groupsOf n (pinnedWriteNUnsafe n) (writeChunks path)
 
 {-# DEPRECATED writeWithBufferOf "Please use 'writeWith' instead"  #-}
 {-# INLINE writeWithBufferOf #-}
@@ -503,7 +503,7 @@ writeAppendChunks = fromChunksMode AppendMode
 writeAppendWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Stream m Word8 -> m ()
 writeAppendWith n file xs =
-    writeAppendChunks file $ IA.chunksOfAs Pinned n xs
+    writeAppendChunks file $ IA.pinnedChunksOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data
