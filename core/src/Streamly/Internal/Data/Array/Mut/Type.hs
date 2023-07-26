@@ -42,14 +42,11 @@ module Streamly.Internal.Data.Array.Mut.Type
     , nil
 
     -- *** Uninitialized Arrays
-    , newPinned
-    , newPinnedBytes
-    , newAlignedPinned
+    , pinnedNew
+    , pinnedNewBytes
+    , pinnedNewAligned
     , new
     , newArrayWith
-
-    -- *** Initialized Arrays
-    , withNewArrayUnsafePinned
 
     -- *** From streams
     , ArrayUnsafe (..)
@@ -388,7 +385,7 @@ isPinned MutArray{..} = Unboxed.isPinned arrContents
 -- files and arrays.
 
 -- GHC always guarantees word-aligned memory, alignment is important only when
--- we need more than that.  See stg_newAlignedPinnedByteArrayzh and
+-- we need more than that.  See stg_pinnedNewAlignedByteArrayzh and
 -- allocatePinned in GHC source.
 
 -- | @newArrayWith allocator alignment count@ allocates a new array of zero
@@ -441,22 +438,22 @@ newBytesAs ps bytes = do
 -- 'Unboxed' instance of the type.
 --
 -- /Pre-release/
-{-# INLINE newPinnedBytes #-}
-newPinnedBytes :: MonadIO m =>
+{-# INLINE pinnedNewBytes #-}
+pinnedNewBytes :: MonadIO m =>
 #ifdef DEVBUILD
     Unbox a =>
 #endif
     Int -> m (MutArray a)
-newPinnedBytes = newBytesAs Pinned
+pinnedNewBytes = newBytesAs Pinned
 
 -- | Like 'newArrayWith' but using an allocator is a pinned memory allocator and
 -- the alignment is dictated by the 'Unboxed' instance of the type.
 --
 -- /Internal/
-{-# INLINE newAlignedPinned #-}
-newAlignedPinned :: (MonadIO m, Unbox a) => Int -> Int -> m (MutArray a)
-newAlignedPinned =
-    newArrayWith (\s a -> liftIO $ Unboxed.newAlignedPinnedBytes s a)
+{-# INLINE pinnedNewAligned #-}
+pinnedNewAligned :: (MonadIO m, Unbox a) => Int -> Int -> m (MutArray a)
+pinnedNewAligned =
+    newArrayWith (\s a -> liftIO $ Unboxed.pinnedNewAlignedBytes s a)
 
 {-# INLINE newAs #-}
 newAs :: (MonadIO m, Unbox a) => PinnedState -> Int -> m (MutArray a)
@@ -471,9 +468,9 @@ newAs ps =
 -- the array is uninitialized and the allocation is aligned as per the 'Unboxed'
 -- instance of the type.
 --
-{-# INLINE newPinned #-}
-newPinned :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
-newPinned = newAs Pinned
+{-# INLINE pinnedNew #-}
+pinnedNew :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
+pinnedNew = newAs Pinned
 
 -- | Allocates an empty unpinned array that can hold 'count' items.  The memory
 -- of the array is uninitialized.
@@ -481,21 +478,6 @@ newPinned = newAs Pinned
 {-# INLINE new #-}
 new :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
 new = newAs Unpinned
-
--- XXX This should create a full length uninitialzed array so that the pointer
--- can be used.
-
--- | Allocate a pinned MutArray of the given size and run an IO action passing
--- the array start pointer.
---
--- /Internal/
-{-# INLINE withNewArrayUnsafePinned #-}
-withNewArrayUnsafePinned ::
-       (MonadIO m, Unbox a) => Int -> (Ptr a -> m ()) -> m (MutArray a)
-withNewArrayUnsafePinned count f = do
-    arr <- newPinned count
-    asPtrUnsafe arr
-        $ \p -> f p >> return arr
 
 -------------------------------------------------------------------------------
 -- Random writes
@@ -755,7 +737,7 @@ reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
     contents <-
         if Unboxed.isPinned arrContents
-        then Unboxed.newPinnedBytes newCapMaxInBytes
+        then Unboxed.pinnedNewBytes newCapMaxInBytes
         else Unboxed.newUnpinnedBytes newCapMaxInBytes
     let !(MutableByteArray mbarrFrom#) = arrContents
         !(MutableByteArray mbarrTo#) = contents
@@ -1864,15 +1846,15 @@ writeRevN = writeRevNWith new
 -- | @pinnedWriteNAligned align n@ folds a maximum of @n@ elements from the
 -- input stream to a 'MutArray' aligned to the given size.
 --
--- >>> pinnedWriteNAligned align = MutArray.writeNWith (MutArray.newAlignedPinned align)
--- >>> pinnedWriteNAligned align n = MutArray.writeAppendN n (MutArray.newAlignedPinned align n)
+-- >>> pinnedWriteNAligned align = MutArray.writeNWith (MutArray.pinnedNewAligned align)
+-- >>> pinnedWriteNAligned align n = MutArray.writeAppendN n (MutArray.pinnedNewAligned align n)
 --
 -- /Pre-release/
 --
 {-# INLINE_NORMAL pinnedWriteNAligned #-}
 pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a)
     => Int -> Int -> Fold m a (MutArray a)
-pinnedWriteNAligned align = writeNWith (newAlignedPinned align)
+pinnedWriteNAligned align = writeNWith (pinnedNewAligned align)
 
 -- XXX Buffer to a list instead?
 --

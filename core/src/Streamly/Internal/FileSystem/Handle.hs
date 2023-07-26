@@ -180,7 +180,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 {-# INLINABLE getChunk #-}
 getChunk :: MonadIO m => Int -> Handle -> m (Array Word8)
 getChunk size h = liftIO $ do
-    arr <- MArray.newPinnedBytes size
+    arr <- MArray.pinnedNewBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     MArray.asPtrUnsafe arr $ \p -> do
         n <- hGetBufSome h p size

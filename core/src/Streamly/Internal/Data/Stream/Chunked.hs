@@ -476,7 +476,7 @@ splitAtArrayListRev n ls
 spliceArraysLenUnsafe :: (MonadIO m, Unbox a)
     => Int -> Stream m (MutArray a) -> m (MutArray a)
 spliceArraysLenUnsafe len buffered = do
-    arr <- liftIO $ MA.newPinned len
+    arr <- liftIO $ MA.pinnedNew len
     D.foldlM' MA.spliceUnsafe (return arr) buffered
 
 {-# INLINE _spliceArrays #-}
@@ -485,7 +485,7 @@ _spliceArrays :: (MonadIO m, Unbox a)
 _spliceArrays s = do
     buffered <- D.foldr K.cons K.nil s
     len <- K.fold FL.sum (fmap Array.length buffered)
-    arr <- liftIO $ MA.newPinned len
+    arr <- liftIO $ MA.pinnedNew len
     final <- D.foldlM' writeArr (return arr) (toStream buffered)
     return $ A.unsafeFreeze final
 
@@ -507,7 +507,7 @@ spliceArraysRealloced :: forall m a. (MonadIO m, Unbox a)
     => Stream m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
     let n = allocBytesToElemCount (undefined :: a) (4 * 1024)
-        idst = liftIO $ MA.newPinned n
+        idst = liftIO $ MA.pinnedNew n
 
     arr <- D.foldlM' MA.spliceExp idst (fmap A.unsafeThaw s)
     liftIO $ A.unsafeFreeze <$> MA.rightSize arr

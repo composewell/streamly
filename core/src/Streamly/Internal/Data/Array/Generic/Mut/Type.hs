@@ -597,7 +597,7 @@ writeNUnsafe n = Fold step initial return
 writeN :: MonadIO m => Int -> Fold m a (MutArray a)
 writeN n = FL.take n $ writeNUnsafe n
 
--- >>> f n = MutArray.writeAppendWith (* 2) (MutArray.newPinned n)
+-- >>> f n = MutArray.writeAppendWith (* 2) (MutArray.pinnedNew n)
 -- >>> writeWith n = Fold.rmapM MutArray.rightSize (f n)
 -- >>> writeWith n = Fold.rmapM MutArray.fromArrayStreamK (MutArray.writeChunks n)
 
@@ -610,7 +610,7 @@ writeN n = FL.take n $ writeNUnsafe n
 -- /Pre-release/
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: MonadIO m => Int -> Fold m a (MutArray a)
--- writeWith n = FL.rmapM rightSize $ writeAppendWith (* 2) (newPinned n)
+-- writeWith n = FL.rmapM rightSize $ writeAppendWith (* 2) (pinnedNew n)
 writeWith elemCount = FL.rmapM extract $ FL.foldlM' step initial
 
     where

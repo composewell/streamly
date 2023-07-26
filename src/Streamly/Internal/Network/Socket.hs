@@ -101,7 +101,7 @@ import qualified Streamly.Internal.Data.Array.Type as A
     , writeNAs
     )
 import qualified Streamly.Internal.Data.Array.Mut as MArray
-    (MutArray(..), newPinnedBytes, asPtrUnsafe)
+    (MutArray(..), pinnedNewBytes, asPtrUnsafe)
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))
@@ -260,7 +260,7 @@ readArrayUptoWith
     -> h
     -> IO (Array Word8)
 readArrayUptoWith f size h = do
-    arr <- MArray.newPinnedBytes size
+    arr <- MArray.pinnedNewBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     MArray.asPtrUnsafe arr $ \p -> do
         n <- f h p size
