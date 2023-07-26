@@ -53,10 +53,9 @@ module Streamly.Internal.Data.Array.Mut.Type
     , writeNWithUnsafe
     , writeNWith
     , writeNUnsafe
-    , writeNUnsafeAs
+    , pinnedWriteNUnsafe
     , writeN
     , pinnedWriteN
-    , writeNAs
     , pinnedWriteNAligned
 
     , writeWith
@@ -189,8 +188,7 @@ module Streamly.Internal.Data.Array.Mut.Type
 
     -- ** Construct from streams
     , chunksOf
-    , chunksOfAs
-    , arrayStreamKFromStreamD
+    , pinnedChunksOf
     , writeChunks
 
     -- ** Eliminate to streams
@@ -429,7 +427,7 @@ newBytesAs :: MonadIO m =>
 #endif
     PinnedState -> Int -> m (MutArray a)
 newBytesAs ps bytes = do
-    contents <- liftIO $ Unboxed.newBytes ps bytes
+    contents <- liftIO $ Unboxed.newBytesAs ps bytes
     return $ MutArray
         { arrContents = contents
         , arrStart = 0
@@ -463,7 +461,7 @@ pinnedNewAligned =
 newAs :: (MonadIO m, Unbox a) => PinnedState -> Int -> m (MutArray a)
 newAs ps =
     newArrayWith
-        (\s _ -> liftIO $ Unboxed.newBytes ps s)
+        (\s _ -> liftIO $ Unboxed.newBytesAs ps s)
         (error "new: alignment is not used in unpinned arrays.")
 
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
@@ -742,7 +740,7 @@ reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
     contents <-
         if Unboxed.isPinned arrContents
         then Unboxed.pinnedNewBytes newCapMaxInBytes
-        else Unboxed.newUnpinnedBytes newCapMaxInBytes
+        else Unboxed.newBytes newCapMaxInBytes
     let !(MutableByteArray mbarrFrom#) = arrContents
         !(MutableByteArray mbarrTo#) = contents
 
@@ -1362,20 +1360,22 @@ chunksOf :: forall m a. (MonadIO m, Unbox a)
 -- chunksOf n = D.foldMany (writeN n)
 chunksOf = chunksOfAs Unpinned
 
+-- | Like 'chunksOf' but creates pinned arrays.
+{-# INLINE_NORMAL pinnedChunksOf #-}
+pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
+    => Int -> D.Stream m a -> D.Stream m (MutArray a)
+-- pinnedChunksOf n = D.foldMany (pinnedWriteN n)
+pinnedChunksOf = chunksOfAs Pinned
+
+-- XXX This should take a PinnedState
+-- XXX buffer to a list instead?
+-- | Buffer the stream into arrays in memory.
 {-# INLINE arrayStreamKFromStreamDAs #-}
 arrayStreamKFromStreamDAs :: forall m a. (MonadIO m, Unbox a) =>
     PinnedState -> D.Stream m a -> m (StreamK m (MutArray a))
 arrayStreamKFromStreamDAs ps =
     let n = allocBytesToElemCount (undefined :: a) defaultChunkSize
      in D.foldr K.cons K.nil . chunksOfAs ps n
-
--- XXX This should take a PinnedState
--- XXX buffer to a list instead?
--- | Buffer the stream into arrays in memory.
-{-# INLINE arrayStreamKFromStreamD #-}
-arrayStreamKFromStreamD :: forall m a. (MonadIO m, Unbox a) =>
-    D.Stream m a -> m (StreamK m (MutArray a))
-arrayStreamKFromStreamD = arrayStreamKFromStreamDAs Pinned
 
 -------------------------------------------------------------------------------
 -- Streams of arrays - Flattening
@@ -1787,6 +1787,12 @@ writeNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
 writeNUnsafe = writeNUnsafeAs Unpinned
 
+-- | Like 'writeNUnsafe' but creates a pinned array.
+{-# INLINE_NORMAL pinnedWriteNUnsafe #-}
+pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Fold m a (MutArray a)
+pinnedWriteNUnsafe = writeNUnsafeAs Pinned
+
 -- | @writeNWith alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
 --
@@ -1817,6 +1823,7 @@ writeNAs ps = writeNWith (newAs ps)
 writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
 writeN = writeNAs Unpinned
 
+-- | Like 'writeN' but creates a pinned array.
 {-# INLINE_NORMAL pinnedWriteN #-}
 pinnedWriteN ::
        forall m a. (MonadIO m, Unbox a)
@@ -1959,6 +1966,7 @@ writeWith = writeWithAs Unpinned
 write :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
 write = writeWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
 
+-- | Like 'write' but creates a pinned array.
 {-# INLINE pinnedWrite #-}
 pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
 pinnedWrite =
@@ -2000,6 +2008,7 @@ fromStreamDN = fromStreamDNAs Unpinned
 fromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
 fromListN n xs = fromStreamDN n $ D.fromList xs
 
+-- | Like 'fromListN' but creates a pinned array.
 {-# INLINABLE pinnedFromListN #-}
 pinnedFromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
 pinnedFromListN n xs = fromStreamDNAs Pinned n $ D.fromList xs
@@ -2063,6 +2072,7 @@ fromStreamD = fromStreamDAs Unpinned
 fromList :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
 fromList xs = fromStreamD $ D.fromList xs
 
+-- | Like 'fromList' but creates a pinned array.
 {-# INLINE pinnedFromList #-}
 pinnedFromList :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
 pinnedFromList xs = fromStreamDAs Pinned $ D.fromList xs
@@ -2111,8 +2121,8 @@ spliceCopy arr1 arr2 = liftIO $ do
     let newLen = len1 + len2
     newArrContents <-
         if Unboxed.isPinned (arrContents arr1)
-        then Unboxed.newPinnedBytes newLen
-        else Unboxed.newUnpinnedBytes newLen
+        then Unboxed.pinnedNewBytes newLen
+        else Unboxed.newBytes newLen
     let len = len1 + len2
         newArr = MutArray newArrContents 0 len len
     putSliceUnsafe arr1 start1 newArr 0 len1

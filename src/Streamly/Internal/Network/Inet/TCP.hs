@@ -106,11 +106,11 @@ import Prelude hiding (read)
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (fork)
-import Streamly.Internal.Data.Array.Type (Array(..), writeNUnsafeAs)
+import Streamly.Internal.Data.Array.Type (Array(..), pinnedWriteNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Unbox (PinnedState(..), Unbox)
+import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, acceptor)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -386,7 +386,7 @@ putBytesWithBufferOf
     -> Stream m Word8
     -> m ()
 putBytesWithBufferOf n addr port m =
-    putChunks addr port $ A.chunksOfAs Pinned n m
+    putChunks addr port $ A.pinnedChunksOf n m
 
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of
@@ -400,7 +400,7 @@ writeWithBufferOf
     -> PortNumber
     -> Fold m Word8 ()
 writeWithBufferOf n addr port =
-    FL.groupsOf n (writeNUnsafeAs Pinned n) (writeChunks addr port)
+    FL.groupsOf n (pinnedWriteNUnsafe n) (writeChunks addr port)
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
