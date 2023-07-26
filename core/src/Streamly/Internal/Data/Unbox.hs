@@ -153,8 +153,7 @@ newBytes Pinned = pinnedNewBytes
 isPinned :: MutableByteArray -> Bool
 isPinned (MutableByteArray arr#) =
     let pinnedInt = I# (isMutableByteArrayPinned# arr#)
-     -- XXX /= 0 would be safer
-     in pinnedInt == 1
+     in pinnedInt /= 0
 
 
 {-# INLINE cloneMutableArrayWith# #-}
