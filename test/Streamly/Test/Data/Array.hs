@@ -150,7 +150,7 @@ testBubbleWith asc =
                     else MA.bubble (flip compare) arr
                     return arr
                 )
-                (MA.newPinned $ length ls)
+                (MA.pinnedNew $ length ls)
 
 testBubbleAsc ::  Property
 testBubbleAsc = testBubbleWith True
@@ -160,7 +160,7 @@ testBubbleDesc = testBubbleWith False
 
 testByteLengthWithMA :: forall a. Unbox a => a -> IO ()
 testByteLengthWithMA _ = do
-     arrA <- MA.newPinned 100 :: IO (MutArray a)
+     arrA <- MA.pinnedNew 100 :: IO (MutArray a)
      let arrW8 = MA.castUnsafe arrA :: MutArray Word8
      MA.byteLength arrA `shouldBe` MA.length arrW8
 

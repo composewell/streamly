@@ -16,8 +16,8 @@ module Streamly.Internal.Data.Unbox
     , unpin
     , newBytes
     , newUnpinnedBytes
-    , newPinnedBytes
-    , newAlignedPinnedBytes
+    , pinnedNewBytes
+    , pinnedNewAlignedBytes
     , nil
 
     -- * Type Parser and Builder
@@ -117,21 +117,21 @@ newUnpinnedBytes (I# nbytes) = IO $ \s ->
            let c = MutableByteArray mbarr#
             in (# s', c #)
 
-{-# INLINE newPinnedBytes #-}
-newPinnedBytes :: Int -> IO MutableByteArray
-newPinnedBytes nbytes | nbytes < 0 =
-  errorWithoutStackTrace "newPinnedBytes: size must be >= 0"
-newPinnedBytes (I# nbytes) = IO $ \s ->
+{-# INLINE pinnedNewBytes #-}
+pinnedNewBytes :: Int -> IO MutableByteArray
+pinnedNewBytes nbytes | nbytes < 0 =
+  errorWithoutStackTrace "pinnedNewBytes: size must be >= 0"
+pinnedNewBytes (I# nbytes) = IO $ \s ->
     case newPinnedByteArray# nbytes s of
         (# s', mbarr# #) ->
            let c = MutableByteArray mbarr#
             in (# s', c #)
 
-{-# INLINE newAlignedPinnedBytes #-}
-newAlignedPinnedBytes :: Int -> Int -> IO MutableByteArray
-newAlignedPinnedBytes nbytes _align | nbytes < 0 =
-  errorWithoutStackTrace "newAlignedPinnedBytes: size must be >= 0"
-newAlignedPinnedBytes (I# nbytes) (I# align) = IO $ \s ->
+{-# INLINE pinnedNewAlignedBytes #-}
+pinnedNewAlignedBytes :: Int -> Int -> IO MutableByteArray
+pinnedNewAlignedBytes nbytes _align | nbytes < 0 =
+  errorWithoutStackTrace "pinnedNewAlignedBytes: size must be >= 0"
+pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
     case newAlignedPinnedByteArray# nbytes align s of
         (# s', mbarr# #) ->
            let c = MutableByteArray mbarr#
@@ -140,7 +140,7 @@ newAlignedPinnedBytes (I# nbytes) (I# align) = IO $ \s ->
 {-# INLINE newBytes #-}
 newBytes :: PinnedState -> Int -> IO MutableByteArray
 newBytes Unpinned = newUnpinnedBytes
-newBytes Pinned = newPinnedBytes
+newBytes Pinned = pinnedNewBytes
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning

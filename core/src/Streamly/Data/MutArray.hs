@@ -33,7 +33,7 @@ module Streamly.Data.MutArray
 
     -- Uninitialized Arrays
     , new
-    , newPinned
+    , pinnedNew
 
     -- From containers
     , fromListN
@@ -84,11 +84,20 @@ module Streamly.Data.MutArray
     -- * Pinning & Unpinning
     , pin
     , unpin
+
+    -- * Deprecated
+    , newPinned
     )
 where
 
 import Prelude hiding (length, read)
 import Streamly.Internal.Data.Array.Mut
 import Streamly.Internal.Data.Unbox (Unbox (..))
+import Control.Monad.IO.Class (MonadIO)
 
 #include "DocTestDataMutArray.hs"
+
+{-# DEPRECATED newPinned "Please use pinnedNew instead." #-}
+{-# INLINE newPinned #-}
+newPinned :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
+newPinned = pinnedNew
