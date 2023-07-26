@@ -34,7 +34,7 @@ import Streamly.Internal.Data.Unbox
     , genericPeekByteIndex
     , genericPokeByteIndex
     , genericSizeOf
-    , newUnpinnedBytes
+    , newBytes
     , pokeByteIndex
     )
 
@@ -114,7 +114,7 @@ testSerialization ::
     => a
     -> IO ()
 testSerialization val = do
-    arr <- newUnpinnedBytes (sizeOf (Proxy :: Proxy a))
+    arr <- newBytes (sizeOf (Proxy :: Proxy a))
     pokeByteIndex 0 arr val
     peekByteIndex 0 arr `shouldReturn` val
 
@@ -136,7 +136,7 @@ testGenericConsistency val = do
     sizeOf (Proxy :: Proxy a) `shouldBe` genericSizeOf (Proxy :: Proxy a)
 
     -- Test the serialization and deserialization
-    arr <- newUnpinnedBytes (sizeOf (Proxy :: Proxy a))
+    arr <- newBytes (sizeOf (Proxy :: Proxy a))
 
     pokeByteIndex 0 arr val
     genericPeekByteIndex arr 0 `shouldReturn` val
@@ -162,7 +162,7 @@ testSerializeList sizeOfA val = do
 
     sz `shouldBe` sizeOfA
 
-    arr <- newUnpinnedBytes sz
+    arr <- newBytes sz
 
     off1 <- Serialize.serialize 0 arr val
     (off2, val2) <- Serialize.deserialize 0 arr

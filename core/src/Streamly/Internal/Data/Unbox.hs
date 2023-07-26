@@ -14,8 +14,8 @@ module Streamly.Internal.Data.Unbox
     , isPinned
     , pin
     , unpin
+    , newBytesAs
     , newBytes
-    , newUnpinnedBytes
     , pinnedNewBytes
     , pinnedNewAlignedBytes
     , nil
@@ -108,13 +108,13 @@ sizeOfMutableByteArray (MutableByteArray arr) =
 
 {-# NOINLINE nil #-}
 nil :: MutableByteArray
-nil = unsafePerformIO $ newUnpinnedBytes 0
+nil = unsafePerformIO $ newBytes 0
 
-{-# INLINE newUnpinnedBytes #-}
-newUnpinnedBytes :: Int -> IO MutableByteArray
-newUnpinnedBytes nbytes | nbytes < 0 =
-  errorWithoutStackTrace "newUnpinnedBytes: size must be >= 0"
-newUnpinnedBytes (I# nbytes) = IO $ \s ->
+{-# INLINE newBytes #-}
+newBytes :: Int -> IO MutableByteArray
+newBytes nbytes | nbytes < 0 =
+  errorWithoutStackTrace "newBytes: size must be >= 0"
+newBytes (I# nbytes) = IO $ \s ->
     case newByteArray# nbytes s of
         (# s', mbarr# #) ->
            let c = MutableByteArray mbarr#
@@ -140,10 +140,10 @@ pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
            let c = MutableByteArray mbarr#
             in (# s', c #)
 
-{-# INLINE newBytes #-}
-newBytes :: PinnedState -> Int -> IO MutableByteArray
-newBytes Unpinned = newUnpinnedBytes
-newBytes Pinned = pinnedNewBytes
+{-# INLINE newBytesAs #-}
+newBytesAs :: PinnedState -> Int -> IO MutableByteArray
+newBytesAs Unpinned = newBytes
+newBytesAs Pinned = pinnedNewBytes
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
@@ -178,7 +178,7 @@ pin arr@(MutableByteArray marr#) =
     then return arr
     else
 #ifdef DEBUG
-        do
+      do
         -- XXX dump stack trace
         trace ("pin: Copying array") (return ())
 #endif
@@ -194,7 +194,7 @@ unpin arr@(MutableByteArray marr#) =
     then return arr
     else
 #ifdef DEBUG
-        do
+      do
         -- XXX dump stack trace
         trace ("unpin: Copying array") (return ())
 #endif
