@@ -84,6 +84,7 @@ module Streamly.Data.MutArray
     -- * Pinning & Unpinning
     , pin
     , unpin
+    , isPinned
 
     -- * Deprecated
     , newPinned
