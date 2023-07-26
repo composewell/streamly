@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-* Arrays can now be pinned or unpinned. They were always pinned earlier.
+* Array creation APIs now return unpinned arrays. To create pinned arrays, use
+  the internal APIs with the `pinned*` prefix.
 
 ### Deprecations
 
