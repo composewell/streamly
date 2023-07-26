@@ -55,18 +55,22 @@ module Streamly.Internal.Data.Array.Mut.Type
     , writeNUnsafe
     , writeNUnsafeAs
     , writeN
+    , pinnedWriteN
     , writeNAs
     , pinnedWriteNAligned
 
     , writeWith
     , write
+    , pinnedWrite
 
     , writeRevN
     -- , writeRev
 
     -- ** From containers
     , fromListN
+    , pinnedFromListN
     , fromList
+    , pinnedFromList
     , fromListRevN
     , fromListRev
     , fromStreamDN
@@ -1357,15 +1361,20 @@ chunksOf :: forall m a. (MonadIO m, Unbox a)
 -- chunksOf n = D.foldMany (writeN n)
 chunksOf = chunksOfAs Unpinned
 
+{-# INLINE arrayStreamKFromStreamDAs #-}
+arrayStreamKFromStreamDAs :: forall m a. (MonadIO m, Unbox a) =>
+    PinnedState -> D.Stream m a -> m (StreamK m (MutArray a))
+arrayStreamKFromStreamDAs ps =
+    let n = allocBytesToElemCount (undefined :: a) defaultChunkSize
+     in D.foldr K.cons K.nil . chunksOfAs ps n
+
 -- XXX This should take a PinnedState
 -- XXX buffer to a list instead?
 -- | Buffer the stream into arrays in memory.
 {-# INLINE arrayStreamKFromStreamD #-}
 arrayStreamKFromStreamD :: forall m a. (MonadIO m, Unbox a) =>
     D.Stream m a -> m (StreamK m (MutArray a))
-arrayStreamKFromStreamD =
-    let n = allocBytesToElemCount (undefined :: a) defaultChunkSize
-     in D.foldr K.cons K.nil . chunksOf n
+arrayStreamKFromStreamD = arrayStreamKFromStreamDAs Pinned
 
 -------------------------------------------------------------------------------
 -- Streams of arrays - Flattening
@@ -1807,6 +1816,13 @@ writeNAs ps = writeNWith (newAs ps)
 writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
 writeN = writeNAs Unpinned
 
+{-# INLINE_NORMAL pinnedWriteN #-}
+pinnedWriteN ::
+       forall m a. (MonadIO m, Unbox a)
+    => Int
+    -> Fold m a (MutArray a)
+pinnedWriteN = writeNAs Pinned
+
 -- | Like writeNWithUnsafe but writes the array in reverse order.
 --
 -- /Internal/
@@ -1874,6 +1890,29 @@ writeChunks :: (MonadIO m, Unbox a) =>
     Int -> Fold m a (StreamK n (MutArray a))
 writeChunks n = FL.many (writeN n) FL.toStreamK
 
+{-# INLINE_NORMAL writeWithAs #-}
+writeWithAs :: forall m a. (MonadIO m, Unbox a)
+    => PinnedState -> Int -> Fold m a (MutArray a)
+-- writeWithAs ps n = FL.rmapM rightSize $ writeAppendWith (* 2) (newAs ps n)
+writeWithAs ps elemCount =
+    FL.rmapM extract $ FL.foldlM' step initial
+
+    where
+
+    initial = do
+        when (elemCount < 0) $ error "writeWith: elemCount is negative"
+        liftIO $ newAs ps elemCount
+
+    step arr@(MutArray _ start end bound) x
+        | INDEX_NEXT(end,a) > bound = do
+        let oldSize = end - start
+            newSize = max (oldSize * 2) 1
+        arr1 <- liftIO $ reallocExplicit (SIZE_OF(a)) newSize arr
+        snocUnsafe arr1 x
+    step arr x = snocUnsafe arr x
+
+    extract = liftIO . rightSize
+
 -- XXX Compare writeWith with fromStreamD which uses an array of streams
 -- implementation. We can write this using writeChunks above if that is faster.
 -- If writeWith is faster then we should use that to implement
@@ -1906,24 +1945,7 @@ writeChunks n = FL.many (writeN n) FL.toStreamK
 writeWith :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
 -- writeWith n = FL.rmapM rightSize $ writeAppendWith (* 2) (new n)
-writeWith elemCount =
-    FL.rmapM extract $ FL.foldlM' step initial
-
-    where
-
-    initial = do
-        when (elemCount < 0) $ error "writeWith: elemCount is negative"
-        liftIO $ new elemCount
-
-    step arr@(MutArray _ start end bound) x
-        | INDEX_NEXT(end,a) > bound = do
-        let oldSize = end - start
-            newSize = max (oldSize * 2) 1
-        arr1 <- liftIO $ reallocExplicit (SIZE_OF(a)) newSize arr
-        snocUnsafe arr1 x
-    step arr x = snocUnsafe arr x
-
-    extract = liftIO . rightSize
+writeWith = writeWithAs Unpinned
 
 -- | Fold the whole input to a single array.
 --
@@ -1936,20 +1958,20 @@ writeWith elemCount =
 write :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
 write = writeWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
 
+{-# INLINE pinnedWrite #-}
+pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
+pinnedWrite =
+    writeWithAs Pinned (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
+
 -------------------------------------------------------------------------------
 -- construct from streams, known size
 -------------------------------------------------------------------------------
 
--- | Use the 'writeN' fold instead.
---
--- >>> fromStreamDN n = Stream.fold (MutArray.writeN n)
---
-{-# INLINE_NORMAL fromStreamDN #-}
-fromStreamDN :: forall m a. (MonadIO m, Unbox a)
-    => Int -> D.Stream m a -> m (MutArray a)
--- fromStreamDN n = D.fold (writeN n)
-fromStreamDN limit str = do
-    (arr :: MutArray a) <- liftIO $ new limit
+{-# INLINE_NORMAL fromStreamDNAs #-}
+fromStreamDNAs :: forall m a. (MonadIO m, Unbox a)
+    => PinnedState -> Int -> D.Stream m a -> m (MutArray a)
+fromStreamDNAs ps limit str = do
+    (arr :: MutArray a) <- liftIO $ newAs ps limit
     end <- D.foldlM' (fwrite (arrContents arr)) (return $ arrEnd arr) $ D.take limit str
     return $ arr {arrEnd = end}
 
@@ -1959,6 +1981,16 @@ fromStreamDN limit str = do
         liftIO $ pokeByteIndex ptr arrContents  x
         return $ INDEX_NEXT(ptr,a)
 
+-- | Use the 'writeN' fold instead.
+--
+-- >>> fromStreamDN n = Stream.fold (MutArray.writeN n)
+--
+{-# INLINE_NORMAL fromStreamDN #-}
+fromStreamDN :: forall m a. (MonadIO m, Unbox a)
+    => Int -> D.Stream m a -> m (MutArray a)
+-- fromStreamDN n = D.fold (writeN n)
+fromStreamDN = fromStreamDNAs Unpinned
+
 -- | Create a 'MutArray' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
 -- array may hold less than N elements.
@@ -1966,6 +1998,10 @@ fromStreamDN limit str = do
 {-# INLINABLE fromListN #-}
 fromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
 fromListN n xs = fromStreamDN n $ D.fromList xs
+
+{-# INLINABLE pinnedFromListN #-}
+pinnedFromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
+pinnedFromListN n xs = fromStreamDNAs Pinned n $ D.fromList xs
 
 -- | Like fromListN but writes the array in reverse order.
 --
@@ -1998,6 +2034,11 @@ fromArrayStreamK as = do
     len <- arrayStreamKLength as
     fromStreamDN len $ D.unfoldMany reader $ D.fromStreamK as
 
+{-# INLINE fromStreamDAs #-}
+fromStreamDAs ::
+       (MonadIO m, Unbox a) => PinnedState -> D.Stream m a -> m (MutArray a)
+fromStreamDAs ps m = arrayStreamKFromStreamDAs ps m >>= fromArrayStreamK
+
 -- CAUTION: a very large number (millions) of arrays can degrade performance
 -- due to GC overhead because we need to buffer the arrays before we flatten
 -- all the arrays.
@@ -2013,13 +2054,17 @@ fromArrayStreamK as = do
 --
 {-# INLINE fromStreamD #-}
 fromStreamD :: (MonadIO m, Unbox a) => D.Stream m a -> m (MutArray a)
-fromStreamD m = arrayStreamKFromStreamD m >>= fromArrayStreamK
+fromStreamD = fromStreamDAs Unpinned
 
 -- | Create a 'MutArray' from a list. The list must be of finite size.
 --
 {-# INLINE fromList #-}
 fromList :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
 fromList xs = fromStreamD $ D.fromList xs
+
+{-# INLINE pinnedFromList #-}
+pinnedFromList :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
+pinnedFromList xs = fromStreamDAs Pinned $ D.fromList xs
 
 -- XXX We are materializing the whole list first for getting the length. Check
 -- if the 'fromList' like chunked implementation would fare better.

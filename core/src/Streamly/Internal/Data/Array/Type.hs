@@ -30,7 +30,9 @@ module Streamly.Internal.Data.Array.Type
     , splice
 
     , fromList
+    , pinnedFromList
     , fromListN
+    , pinnedFromListN
     , fromListRev
     , fromListRevN
     , fromStreamDN
@@ -65,12 +67,14 @@ module Streamly.Internal.Data.Array.Type
     -- * Folds
     , writeWith
     , writeN
+    , pinnedWriteN
     , writeNAs
     , writeNUnsafe
     , writeNUnsafeAs
     , MA.ArrayUnsafe (..)
     , pinnedWriteNAligned
     , write
+    , pinnedWrite
     , unsafeMakePure
 
     -- * Streams of arrays
@@ -252,6 +256,12 @@ splice arr1 arr2 =
 fromListN :: Unbox a => Int -> [a] -> Array a
 fromListN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListN n xs
 
+-- | Like 'fromListN' but creates a pinned 'Array'
+{-# INLINABLE pinnedFromListN #-}
+pinnedFromListN :: Unbox a => Int -> [a] -> Array a
+pinnedFromListN n xs =
+    unsafePerformIO $ unsafeFreeze <$> MA.pinnedFromListN n xs
+
 -- | Create an 'Array' from the first N elements of a list in reverse order.
 -- The array is allocated to size N, if the list terminates before N elements
 -- then the array may hold less than N elements.
@@ -266,6 +276,10 @@ fromListRevN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRevN n xs
 {-# INLINE fromList #-}
 fromList :: Unbox a => [a] -> Array a
 fromList xs = unsafePerformIO $ unsafeFreeze <$> MA.fromList xs
+
+{-# INLINE pinnedFromList #-}
+pinnedFromList :: Unbox a => [a] -> Array a
+pinnedFromList xs = unsafePerformIO $ unsafeFreeze <$> MA.pinnedFromList xs
 
 -- | Create an 'Array' from a list in reverse order. The list must be of finite
 -- size.
@@ -489,6 +503,10 @@ writeNAs ps = fmap unsafeFreeze . MA.writeNAs ps
 writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
 writeN = fmap unsafeFreeze . MA.writeN
 
+{-# INLINE_NORMAL pinnedWriteN #-}
+pinnedWriteN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+pinnedWriteN = fmap unsafeFreeze . MA.pinnedWriteN
+
 -- | @pinnedWriteNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
 --
@@ -528,6 +546,10 @@ writeWith elemCount = unsafeFreeze <$> MA.writeWith elemCount
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
 write = fmap unsafeFreeze MA.write
+
+{-# INLINE pinnedWrite #-}
+pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
+pinnedWrite = fmap unsafeFreeze MA.write
 
 -- | Fold "step" has a dependency on "initial", and each step is dependent on
 -- the previous invocation of step due to state passing, finally extract
