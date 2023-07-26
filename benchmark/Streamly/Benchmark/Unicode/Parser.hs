@@ -10,6 +10,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+#undef FUSION_CHECK
+#ifdef FUSION_CHECK
+{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
+#endif
+
 module Main
   (
     main
@@ -22,28 +27,18 @@ import Streamly.Internal.Data.Stream (Stream)
 import Prelude hiding
     (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile)
 
-import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Unicode.Parser as PRU
 
 import Gauge hiding (env)
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Common.Handle
-
-{-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: Monad m => Int -> Int -> Stream m Int
-sourceUnfoldrM value n = Stream.unfoldrM step n
-    where
-    step cnt =
-        if cnt > n + value
-        then return Nothing
-        else return (Just (cnt, cnt + 1))
 
 runParser :: Int -> (Stream IO Char -> IO a) -> IO ()
 runParser count p = do
     let v = "+123456789.123456789e-123"
-    let s = Stream.unfold Unfold.fromList v
+    let !(arr :: Array.Array Char) = Array.fromListN (length v) v
+    let s = Stream.unfold Array.reader arr
     replicateM_ count (p s)
 
 -- | Takes a fold method, and uses it with a default source.
@@ -51,9 +46,22 @@ runParser count p = do
 benchIOSink :: Int -> String -> (Stream IO Char -> IO b) -> Benchmark
 benchIOSink value name f = bench name $ nfIO $ runParser value f
 
+{-# INLINE doubleParser #-}
+doubleParser :: Monad m => Stream m Char -> m (Either ParseError (Int, Int))
+doubleParser = Stream.parse PRU.doubleParser
+
+{-# INLINE number #-}
+number :: Monad m => Stream m Char -> m (Either ParseError (Integer, Int))
+number = Stream.parse PRU.number
+
 {-# INLINE double #-}
 double :: Monad m => Stream m Char -> m (Either ParseError Double)
 double = Stream.parse PRU.double
+
+{-# INLINE numberDouble #-}
+numberDouble :: Monad m => Stream m Char -> m (Either ParseError Double)
+numberDouble = Stream.parse p
+    where p = uncurry PRU.mkDouble <$> PRU.number
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -69,7 +77,10 @@ instance NFData ParseError where
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
-      benchIOSink value "double" double
+      benchIOSink value "doubleParser" doubleParser
+    , benchIOSink value "number" number
+    , benchIOSink value "double (doubleParser)" double
+    , benchIOSink value "double (number)" numberDouble
     ]
 
 -------------------------------------------------------------------------------
@@ -78,13 +89,19 @@ o_n_heap_serial value =
 
 main :: IO ()
 main = do
-    env <- mkHandleBenchEnv
-    runWithCLIOptsEnv defaultStreamSize alloc (allBenchmarks env)
+#ifndef FUSION_CHECK
+    runWithCLIOpts defaultStreamSize allBenchmarks
 
     where
 
-    alloc value = Stream.fold Fold.toList $ Stream.chunksOf 100 $ sourceUnfoldrM value 0
-
-    allBenchmarks _ _ value =
+    allBenchmarks value =
         [ bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
         ]
+#else
+    -- Enable FUSION_CHECK macro at the beginning of the file
+    -- Enable one benchmark below, and run the benchmark
+    -- Check the .dump-simpl output
+    let value = 100000
+    runParser value double
+    return ()
+#endif

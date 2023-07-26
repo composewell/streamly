@@ -48,6 +48,7 @@ module Streamly.Internal.Unicode.Parser
     -- * Numeric
     , signed
     , number
+    , doubleParser
     , double
     , decimal
     , hexadecimal
@@ -58,7 +59,7 @@ module Streamly.Internal.Unicode.Parser
 where
 
 import Control.Applicative (Alternative(..))
-import Data.Bits (Bits, (.|.), shiftL)
+import Data.Bits (Bits, (.|.), shiftL, (.&.))
 import Data.Char (ord)
 import Data.Ratio ((%))
 import Fusion.Plugin.Types (Fuse(..))
@@ -269,6 +270,7 @@ hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
 signed :: (Num a, Monad m) => Parser Char m a -> Parser Char m a
 signed p = (negate <$> (char '-' *> p)) <|> (char '+' *> p) <|> p
 
+-- XXX Change Multiplier to Sign
 type Multiplier = Int
 
 -- XXX We can use Int instead of Integer to make it twice as fast. But then we
@@ -376,12 +378,12 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
               let num = ord val - 48
               if num >= 0 && num <= 9
               then Partial 0 $ SPAfterExponent multiplier buf decimalPlaces 1 num
-              else Error $ exitSPInitial $ show val
+              else Done 2 $ exitSPAfterDot multiplier buf decimalPlaces
     step (SPExponentWithSign mult buf decimalPlaces powerMult) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
             then Partial 0 $ SPAfterExponent mult buf decimalPlaces powerMult num
-            else Error $ exitSPSign $ show val
+            else Done 3 $ exitSPAfterDot mult buf decimalPlaces
     step (SPAfterExponent mult num decimalPlaces powerMult buf) val =
         let n = ord val - 48
          in if n >= 0 && n <= 9
@@ -407,8 +409,149 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
     extract (SPAfterExponent mult num decimalPlaces powerMult powerNum) =
         Done 0 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
 
+type MantissaInt = Int
+type OverflowPower = Int
+
+{-# ANN type DoubleParseState Fuse #-}
+data DoubleParseState
+  = DPInitial
+  | DPSign !Multiplier
+  | DPAfterSign !Multiplier !MantissaInt !OverflowPower
+  | DPDot !Multiplier !MantissaInt !OverflowPower
+  | DPAfterDot !Multiplier !MantissaInt !OverflowPower
+  | DPExponent !Multiplier !MantissaInt !OverflowPower
+  | DPExponentWithSign !Multiplier !MantissaInt !OverflowPower !PowerMultiplier
+  | DPAfterExponent !Multiplier !MantissaInt !OverflowPower !PowerMultiplier !Power
+
+-- | A fast, custom parser for double precision flaoting point numbers. Returns
+-- (mantissa, exponent) tuple. This is much faster than 'number' because it
+-- assumes the number will fit in a 'Double' type and uses 'Int' representation
+-- to store mantissa.
+--
+-- Number larger than 'Double' may overflow. Int overflow is not checked in the
+-- exponent.
+--
+{-# INLINE doubleParser #-}
+doubleParser :: Monad m => Parser Char m (Int, Int)
+doubleParser =  Parser (\s a -> return $ step s a) initial (return . extract)
+
+    where
+
+    -- XXX Assuming Int = Int64
+
+    -- Up to 58 bits Int won't overflow
+    -- ghci> (2^59-1)*10+9 :: Int
+    -- 5764607523034234879
+    mask :: Word
+    mask = 0x7c00000000000000 -- 58 bits, ignore the sign bit
+
+    {-# INLINE combineNum #-}
+    combineNum :: Int -> Int -> Int -> (Int, Int)
+    combineNum mantissa power num =
+         if fromIntegral mantissa .&. mask == 0
+         then (mantissa * 10 + num, power)
+         else (mantissa, power + 1)
+
+    {-# INLINE initial #-}
+    initial = pure $ IPartial DPInitial
+
+    exitDPInitial msg =
+        "number: expecting sign or decimal digit, got " ++ msg
+    exitDPSign msg =
+        "number: expecting decimal digit, got " ++ msg
+    exitDPAfterSign multiplier num opower = (fromIntegral multiplier * num, opower)
+    exitDPAfterDot multiplier num opow =
+        (fromIntegral multiplier * num , opow)
+    exitDPAfterExponent mult num opow powerMult powerNum =
+        (fromIntegral mult * num, opow + powerMult * powerNum)
+
+    {-# INLINE step #-}
+    step DPInitial val =
+        case val of
+          '+' -> Continue 0 (DPSign 1)
+          '-' -> Continue 0 $ (DPSign (-1))
+          _ -> do
+              let num = ord val - 48
+              if num >= 0 && num <= 9
+              then Partial 0 $ DPAfterSign 1 num 0
+              else Error $ exitDPInitial $ show val
+    step (DPSign multiplier) val =
+        let num = ord val - 48
+         in if num >= 0 && num <= 9
+            then Partial 0 $ DPAfterSign multiplier num 0
+            else Error $ exitDPSign $ show val
+    step (DPAfterSign multiplier buf opower) val =
+        case val of
+            '.' -> Continue 0 $ DPDot multiplier buf opower
+            'e' -> Continue 0 $ DPExponent multiplier buf opower
+            'E' -> Continue 0 $ DPExponent multiplier buf opower
+            _ ->
+                let num = ord val - 48
+                 in if num >= 0 && num <= 9
+                    then
+                        let (buf1, power1) = combineNum buf opower num
+                         in Partial 0
+                            $ DPAfterSign multiplier buf1 power1
+                    else Done 1 $ exitDPAfterSign multiplier buf opower
+    step (DPDot multiplier buf opower) val =
+        let num = ord val - 48
+         in if num >= 0 && num <= 9
+            then
+                let (buf1, power1) = combineNum buf opower num
+                 in Partial 0 $ DPAfterDot multiplier buf1 (power1 - 1)
+            else Done 2 $ exitDPAfterSign multiplier buf opower
+    step (DPAfterDot multiplier buf opower) val =
+        case val of
+            'e' -> Continue 0 $ DPExponent multiplier buf opower
+            'E' -> Continue 0 $ DPExponent multiplier buf opower
+            _ ->
+                let num = ord val - 48
+                 in if num >= 0 && num <= 9
+                    then
+                        let (buf1, power1) = combineNum buf opower num
+                         in Partial 0 $ DPAfterDot multiplier buf1 (power1 - 1)
+                    else Done 1 $ exitDPAfterDot multiplier buf opower
+    step (DPExponent multiplier buf opower) val =
+        case val of
+          '+' -> Continue 0 (DPExponentWithSign multiplier buf opower 1)
+          '-' -> Continue 0 (DPExponentWithSign multiplier buf opower (-1))
+          _ -> do
+              let num = ord val - 48
+              if num >= 0 && num <= 9
+              then Partial 0 $ DPAfterExponent multiplier buf opower 1 num
+              else Done 2 $ exitDPAfterDot multiplier buf opower
+    step (DPExponentWithSign mult buf opower powerMult) val =
+        let num = ord val - 48
+         in if num >= 0 && num <= 9
+            then Partial 0 $ DPAfterExponent mult buf opower powerMult num
+            else Done 3 $ exitDPAfterDot mult buf opower
+    step (DPAfterExponent mult num opower powerMult buf) val =
+        let n = ord val - 48
+         in if n >= 0 && n <= 9
+            then
+                Partial 0
+                    $ DPAfterExponent mult num opower powerMult (buf * 10 + n)
+            else Done 1 $ exitDPAfterExponent mult num opower powerMult buf
+
+    {-# INLINE extract #-}
+    extract DPInitial = Error $ exitDPInitial "end of input"
+    extract (DPSign _) = Error $ exitDPSign "end of input"
+    extract (DPAfterSign mult num opow) = Done 0 $ exitDPAfterSign mult num opow
+    extract (DPDot mult num opow) = Done 1 $ exitDPAfterSign mult num opow
+    extract (DPAfterDot mult num opow) =
+        Done 0 $ exitDPAfterDot mult num opow
+    extract (DPExponent mult num opow) =
+        Done 1 $ exitDPAfterDot mult num opow
+    extract (DPExponentWithSign mult num opow _) =
+        Done 2 $ exitDPAfterDot mult num opow
+    extract (DPAfterExponent mult num opow powerMult powerNum) =
+        Done 0 $ exitDPAfterExponent mult num opow powerMult powerNum
+
 -- XXX We can have a `realFloat` parser instead to parse any RealFloat value.
 -- And a integral parser to read any integral value.
+
+-- XXX This is very expensive, takes much more time than the rest of the
+-- parsing. Need to look into fromRational.
 
 -- | @mkDouble mantissa exponent@ converts a mantissa and exponent to a
 -- 'Double' value equivalent to @mantissa * 10^exponent@. It does not check for
@@ -417,7 +560,7 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
 mkDouble :: Integer -> Int -> Double
 mkDouble mantissa power =
     if power > 0
-    then fromRational (fromIntegral (mantissa * 10 ^ power))
+    then fromRational ((mantissa * 10 ^ power) % 1)
     else fromRational (mantissa % 10 ^ (-power))
 
 -- | Parse a decimal 'Double' value. This parser accepts an optional sign (+ or
@@ -473,4 +616,4 @@ mkDouble mantissa power =
 --
 {-# INLINE double #-}
 double :: Monad m => Parser Char m Double
-double = uncurry mkDouble <$> number
+double = fmap (\(m,e) -> mkDouble (fromIntegral m) e) doubleParser
