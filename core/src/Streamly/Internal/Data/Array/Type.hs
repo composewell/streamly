@@ -15,6 +15,7 @@ module Streamly.Internal.Data.Array.Type
     -- $arrayNotes
       Array (..)
     , asPtrUnsafe
+    , nil
 
     -- * Freezing and Thawing
     , unsafeFreeze

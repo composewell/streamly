@@ -77,14 +77,11 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.Array.Mut.Type (MutArray)
 import Streamly.Internal.Data.Fold.Chunked (ChunkFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.StreamK (StreamK, fromStream, toStream)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
-import Streamly.Internal.Data.Array.Mut.Type
-    (allocBytesToElemCount)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Data.Fold as FL
@@ -467,6 +464,8 @@ splitAtArrayListRev n ls
 -- Fold to a single Array
 -------------------------------------------------------------------------------
 
+{-
+
 -- XXX Both of these implementations of splicing seem to perform equally well.
 -- We need to perform benchmarks over a range of sizes though.
 
@@ -476,7 +475,9 @@ splitAtArrayListRev n ls
 spliceArraysLenUnsafe :: (MonadIO m, Unbox a)
     => Int -> Stream m (MutArray a) -> m (MutArray a)
 spliceArraysLenUnsafe len buffered = do
-    arr <- liftIO $ MA.pinnedNew len
+    -- XXX The new array's pinned state should depend on the first element
+    -- of the stream. We should uncons the stream and do the required.
+    arr <- undefined
     D.foldlM' MA.spliceUnsafe (return arr) buffered
 
 {-# INLINE _spliceArrays #-}
@@ -485,7 +486,9 @@ _spliceArrays :: (MonadIO m, Unbox a)
 _spliceArrays s = do
     buffered <- D.foldr K.cons K.nil s
     len <- K.fold FL.sum (fmap Array.length buffered)
-    arr <- liftIO $ MA.pinnedNew len
+    -- XXX The new array's pinned state should depend on the first element
+    -- of the stream. We should uncons the stream and do the required.
+    arr <- undefined
     final <- D.foldlM' writeArr (return arr) (toStream buffered)
     return $ A.unsafeFreeze final
 
@@ -502,15 +505,22 @@ _spliceArraysBuffered s = do
     A.unsafeFreeze <$>
         spliceArraysLenUnsafe len (fmap A.unsafeThaw (toStream buffered))
 
+-}
+
 {-# INLINE spliceArraysRealloced #-}
 spliceArraysRealloced :: forall m a. (MonadIO m, Unbox a)
     => Stream m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
-    let n = allocBytesToElemCount (undefined :: a) (4 * 1024)
-        idst = liftIO $ MA.pinnedNew n
-
-    arr <- D.foldlM' MA.spliceExp idst (fmap A.unsafeThaw s)
-    liftIO $ A.unsafeFreeze <$> MA.rightSize arr
+    res <- D.uncons s
+    case res of
+        Just (a, strm) -> do
+            arr <-
+                D.foldlM'
+                    MA.spliceExp
+                    (pure (A.unsafeThaw a))
+                    (fmap A.unsafeThaw strm)
+            liftIO $ A.unsafeFreeze <$> MA.rightSize arr
+        Nothing -> pure A.nil
 
 -- XXX This should just be "fold A.write"
 --
