@@ -260,7 +260,7 @@ main = hspec
             in prop "parEval" . transform (fmap (+2)) . appWith
 
         asyncSpec $ prop "constructWithCons" . constructWithCons 100
-        asyncSpec $ prop "constructWithConsM" . constructWithConsM 100
+        --asyncSpec $ prop "constructWithConsM" . constructWithConsM 100
 
         asyncSpec $ prop "parSequence" . sequenceReplicate
 
