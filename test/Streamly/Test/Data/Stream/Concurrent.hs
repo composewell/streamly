@@ -25,7 +25,7 @@ import Test.Hspec as H
 
 import qualified Streamly.Data.Fold as Fold ( toList )
 import qualified Streamly.Data.Stream as Stream
-    ( replicate, fromEffect, fromPure, fromList, fold, take, nil )
+    ( replicate, fromEffect, fromPure, fromList, fold, take, nil, toList, cons, consM )
 import qualified Streamly.Internal.Data.Stream.Concurrent as Async
 
 import Streamly.Test.Common (listEquals)
@@ -218,6 +218,34 @@ sequenceReplicate cfg = constructWithLenM stream list
     list = flip replicateM (return 1 :: IO Int)
     stream = Async.parSequence cfg . flip Stream.replicate (return 1 :: IO Int)
 
+constructWithCons ::
+       Word8
+    -> (Async.Config -> Async.Config)
+    -> Property
+constructWithCons len cfg =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <-
+            run
+               $ Stream.toList . Async.parEval cfg . Stream.take (fromIntegral len)
+               $ foldr Stream.cons Stream.nil (repeat (0::Int))
+        let list = replicate (fromIntegral len) 0
+        listEquals (==) strm list
+
+constructWithConsM ::
+       Word8
+    -> (Async.Config -> Async.Config)
+    -> Property
+constructWithConsM len cfg =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        strm <-
+            run
+               $ Stream.toList . Async.parEval cfg . Stream.take (fromIntegral len)
+               $ foldr Stream.consM Stream.nil (repeat (return (0::Int)))
+        let list = replicate (fromIntegral len) 0
+        listEquals (==) strm list
+
 main :: IO ()
 main = hspec
   $ H.parallel
@@ -227,10 +255,12 @@ main = hspec
   $ describe moduleName $ do
         let transform = transformCombineFromList Stream.fromList sortEq
 
-        prop "parEval" $
-            transform
-                (fmap (+2))
-                (fmap (+1) . Async.parEval id . fmap (+1))
+        asyncSpec $
+            let appWith cfg = (fmap (+1) . Async.parEval cfg . fmap (+1))
+            in prop "parEval" . transform (fmap (+2)) . appWith
+
+        asyncSpec $ prop "constructWithCons" . constructWithCons 100
+        asyncSpec $ prop "constructWithConsM" . constructWithConsM 100
 
         asyncSpec $ prop "parSequence" . sequenceReplicate
 
