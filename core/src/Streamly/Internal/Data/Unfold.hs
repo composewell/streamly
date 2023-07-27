@@ -21,7 +21,7 @@ module Streamly.Internal.Data.Unfold
 
     -- * Unfolds
     -- One to one correspondence with
-    -- "Streamly.Internal.Data.Stream.Generate"
+    -- "Streamly.Internal.Data.Stream.StreamD.Generate"
     -- ** Basic Constructors
     , mkUnfoldM
     , mkUnfoldrM

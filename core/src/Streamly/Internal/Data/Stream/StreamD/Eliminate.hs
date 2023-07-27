@@ -820,7 +820,7 @@ isSuffixOfUnbox suffix stream =
 -- stripSuffix on that especially if the elements have a Storable or Prim
 -- instance.
 --
--- See also "Streamly.Internal.Data.Stream.Reduce.dropSuffix".
+-- See also "Streamly.Internal.Data.Stream.StreamD.Reduce.dropSuffix".
 --
 -- Space: @O(n)@, buffers the entire input stream as well as the suffix
 --

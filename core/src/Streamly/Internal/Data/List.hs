@@ -66,13 +66,19 @@ where
 import Control.Arrow (second)
 import Data.Functor.Identity (Identity, runIdentity)
 import GHC.Exts (IsList(..), IsString(..))
-import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Stream.Zip (ZipStream(..))
-import Text.Read (readPrec)
+import Streamly.Internal.Data.Stream.StreamD.Type
+    ( CrossStream
+    , mkCross
+    , unCross
+    )
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Text.Read
+       ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
+       , readListPrecDefault)
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
+import qualified Streamly.Internal.Data.Stream.StreamD.Generate as Stream
 
 -- XXX Rename to PureStream.
 
@@ -82,21 +88,21 @@ import qualified Streamly.Internal.Data.Stream.Type as Stream
 newtype List a = List { toCrossStream :: CrossStream Identity a }
     deriving
     ( Eq, Ord
-    , Semigroup, Monoid, Functor, Foldable
-    , Applicative, Traversable, Monad, IsList)
+    , Functor, Foldable
+    , Applicative, Monad, IsList)
 
 toStream :: List a -> Stream Identity a
-toStream = unCrossStream . toCrossStream
+toStream = unCross . toCrossStream
 
 fromStream :: Stream Identity a -> List a
-fromStream xs = List (CrossStream xs)
+fromStream xs = List (mkCross xs)
 
 instance (a ~ Char) => IsString (List a) where
     {-# INLINE fromString #-}
     fromString = List . fromList
 
 instance Show a => Show (List a) where
-    show (List x) = show $ unCrossStream x
+    show (List x) = show $ unCross x
 
 instance Read a => Read (List a) where
     readPrec = fromStream <$> readPrec
@@ -119,7 +125,7 @@ pattern Nil <- (runIdentity . K.null . Stream.toStreamK . toStream -> True)
 
     where
 
-    Nil = List $ CrossStream (Stream.fromStreamK K.nil)
+    Nil = List $ mkCross (Stream.fromStreamK K.nil)
 
 infixr 5 `Cons`
 
@@ -128,16 +134,76 @@ infixr 5 `Cons`
 --
 pattern Cons :: a -> List a -> List a
 pattern Cons x xs <-
-    (fmap (second (List . CrossStream . Stream.fromStreamK))
+    (fmap (second (List . mkCross . Stream.fromStreamK))
         . runIdentity . K.uncons . Stream.toStreamK . toStream
             -> Just (x, xs)
     )
 
     where
 
-    Cons x xs = List $ CrossStream $ Stream.cons x (toStream xs)
+    Cons x xs = List $ mkCross $ Stream.cons x (toStream xs)
 
 {-# COMPLETE Nil, Cons #-}
+
+------------------------------------------------------------------------------
+-- ZipStream
+------------------------------------------------------------------------------
+
+-- $setup
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.Zip as Stream
+
+------------------------------------------------------------------------------
+-- Serially Zipping Streams
+------------------------------------------------------------------------------
+
+-- | For 'ZipStream':
+--
+-- @
+-- (<>) = 'Streamly.Data.Stream.append'
+-- (\<*>) = 'Streamly.Data.Stream.zipWith' id
+-- @
+--
+-- Applicative evaluates the streams being zipped serially:
+--
+-- >>> s1 = Stream.ZipStream $ Stream.fromFoldable [1, 2]
+-- >>> s2 = Stream.ZipStream $ Stream.fromFoldable [3, 4]
+-- >>> s3 = Stream.ZipStream $ Stream.fromFoldable [5, 6]
+-- >>> s = (,,) <$> s1 <*> s2 <*> s3
+-- >>> Stream.fold Fold.toList (Stream.unZipStream s)
+-- [(1,3,5),(2,4,6)]
+--
+newtype ZipStream m a = ZipStream {unZipStream :: Stream m a}
+        deriving (Functor)
+
+deriving instance IsList (ZipStream Identity a)
+deriving instance (a ~ Char) => IsString (ZipStream Identity a)
+deriving instance Eq a => Eq (ZipStream Identity a)
+deriving instance Ord a => Ord (ZipStream Identity a)
+deriving instance (Foldable m, Monad m) => Foldable (ZipStream m)
+
+instance Show a => Show (ZipStream Identity a) where
+    showsPrec p dl = showParen (p > 10) $
+        showString "fromList " . shows (toList dl)
+
+instance Read a => Read (ZipStream Identity a) where
+    readPrec = parens $ prec 10 $ do
+        Ident "fromList" <- lexP
+        fromList <$> readPrec
+    readListPrec = readListPrecDefault
+
+type ZipSerialM = ZipStream
+
+-- | An IO stream whose applicative instance zips streams serially.
+--
+type ZipSerial = ZipSerialM IO
+
+instance Monad m => Applicative (ZipStream m) where
+    pure = ZipStream . Stream.repeat
+
+    {-# INLINE (<*>) #-}
+    ZipStream m1 <*> ZipStream m2 = ZipStream $ Stream.zipWith id m1 m2
 
 ------------------------------------------------------------------------------
 -- ZipList
@@ -149,8 +215,8 @@ pattern Cons x xs <-
 newtype ZipList a = ZipList { toZipStream :: ZipStream Identity a }
     deriving
     ( Show, Read, Eq, Ord
-    , Semigroup, Monoid, Functor, Foldable
-    , Applicative, Traversable, IsList
+    , Functor, Foldable
+    , Applicative, IsList
     )
 
 instance (a ~ Char) => IsString (ZipList a) where
@@ -160,7 +226,7 @@ instance (a ~ Char) => IsString (ZipList a) where
 -- | Convert a 'ZipList' to a regular 'List'
 --
 fromZipList :: ZipList a -> List a
-fromZipList (ZipList zs) = List $ CrossStream (unZipStream zs)
+fromZipList (ZipList zs) = List $ mkCross (unZipStream zs)
 
 -- | Convert a regular 'List' to a 'ZipList'
 --

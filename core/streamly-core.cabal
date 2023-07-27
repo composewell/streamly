@@ -422,23 +422,7 @@ library
     if flag(dev)
       exposed-modules:
                         Streamly.Internal.Data.Stream.StreamK.Alt
-                      , Streamly.Internal.Data.Stream.Type
-                      , Streamly.Internal.Data.Stream.Eliminate
-                      , Streamly.Internal.Data.Stream.Enumerate
-                      , Streamly.Internal.Data.Stream.Generate
-                      , Streamly.Internal.Data.Stream.Transform
-                      , Streamly.Internal.Data.Stream.Bottom
-                      , Streamly.Internal.Data.Stream.Exception
-                      , Streamly.Internal.Data.Stream.Expand
-                      , Streamly.Internal.Data.Stream.Lift
-                      , Streamly.Internal.Data.Stream.Reduce
-                      , Streamly.Internal.Data.Stream.Transformer
-                      , Streamly.Internal.Data.Stream.StreamDK
-                      , Streamly.Internal.Data.Stream.Zip
-                      , Streamly.Internal.Data.Stream.Cross
                       , Streamly.Internal.Data.List
-                      , Streamly.Data.Stream.Zip
-                      --, Streamly.Internal.Data.Parser.ParserDK
 
     build-depends:
                     -- streamly-base
