@@ -462,7 +462,7 @@ benchmark Data.Stream.StreamK.Alt
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: StreamDK.hs
+  main-is: StreamKAlt.hs
   if !flag(dev) || impl(ghcjs)
     buildable: False
 
