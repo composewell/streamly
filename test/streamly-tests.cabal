@@ -268,6 +268,12 @@ test-suite Data.Unbox
   main-is: Streamly/Test/Data/Unbox.hs
   ghc-options: -main-is Streamly.Test.Data.Unbox.main
 
+test-suite Data.Serialize
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Serialize.hs
+  ghc-options: -main-is Streamly.Test.Data.Serialize.main
+
 test-suite Data.Array.Stream
   import: test-options
   type: exitcode-stdio-1.0
