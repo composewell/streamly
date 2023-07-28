@@ -26,6 +26,13 @@ import Data.Functor.Identity (Identity (..))
 import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic, Rep(..))
 import GHC.Real (Ratio(..))
+
+{-
+XXX Will be added in the future
+import Streamly.Internal.Data.Unbox.TH
+import Language.Haskell.TH
+-}
+
 import Streamly.Internal.Data.Unbox
     ( PeekRep(..)
     , PokeRep(..)
@@ -44,57 +51,83 @@ import Test.Hspec as H
 -- Types
 --------------------------------------------------------------------------------
 
+-- #define USE_TH
+
+#ifdef USE_TH
+#define MODULE_NAME "Data.Unbox.Deriving.TH"
+#define DERIVE_UNBOX(typ) $(makeUnbox ''typ)
+#else
+#define MODULE_NAME "Data.Unbox.Deriving.Generic"
+#define DERIVE_UNBOX(typ) deriving instance Unbox (typ)
+#endif
+
+--------------------------------------------------------------------------------
+-- Types
+--------------------------------------------------------------------------------
+
 -- Unit instance uses a hack, so test all cases
 data Unit =
     Unit
-    deriving (Unbox, Show, Generic, Eq)
+    deriving (Show, Generic, Eq)
+DERIVE_UNBOX(Unit)
 
 data UnarySum
     = Sum1
     | Sum2
-    deriving (Unbox, Show, Generic, Eq)
+    deriving (Show, Generic, Eq)
+DERIVE_UNBOX(UnarySum)
+
 
 data UnarySum2
     = UnitSum1 Unit
     | UnitSum2 Unit
-    deriving (Generic, Unbox, Eq, Show)
+    deriving (Generic, Eq, Show)
+DERIVE_UNBOX(UnarySum2)
 
 data Unit1 =
     Unit1 Unit
-    deriving (Generic, Unbox, Eq, Show)
+    deriving (Generic, Eq, Show)
+DERIVE_UNBOX(Unit1)
 
 data Unit2 =
     Unit2 Unit Unit
-    deriving (Generic, Unbox, Eq, Show)
+    deriving (Generic, Eq, Show)
+DERIVE_UNBOX(Unit2)
 
 data Unit3 =
     Unit3 Int Unit Int
-    deriving (Generic, Unbox, Eq, Show)
+    deriving (Generic, Eq, Show)
+DERIVE_UNBOX(Unit3)
 
 data Unit4 =
     Unit4 Int Unit1 Int
-    deriving (Generic, Unbox, Eq, Show)
+    deriving (Generic,  Eq, Show)
+DERIVE_UNBOX(Unit4)
 
 {-# ANN Single "HLint: ignore" #-}
 data Single =
     Single Int
-    deriving (Unbox, Show, Generic, Eq)
+    deriving (Show, Generic, Eq)
+DERIVE_UNBOX(Single)
 
 data Product2 =
     Product2 Int Char
-    deriving (Unbox, Show, Generic, Eq)
+    deriving (Show, Generic, Eq)
+DERIVE_UNBOX(Product2)
 
 data SumOfProducts
     = SOP0
     | SOP1 Int
     | SOP2 Int Char
     | SOP3 Int Int Int
-    deriving (Unbox, Show, Generic, Eq)
+    deriving (Show, Generic, Eq)
+DERIVE_UNBOX(SumOfProducts)
 
 data NestedSOP
     = NSOP0 SumOfProducts
     | NSOP1 SumOfProducts
-    deriving (Unbox, Show, Generic, Eq)
+    deriving (Show, Generic, Eq)
+DERIVE_UNBOX(NestedSOP)
 
 --------------------------------------------------------------------------------
 -- Standalone derivations
@@ -213,7 +246,7 @@ testCases = do
 --------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Unboxed"
+moduleName = MODULE_NAME
 
 main :: IO ()
 main = hspec $ H.parallel $ describe moduleName testCases
