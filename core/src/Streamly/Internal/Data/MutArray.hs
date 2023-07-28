@@ -1,14 +1,14 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Mut
+-- Module      : Streamly.Internal.Data.MutArray
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Array.Mut
+module Streamly.Internal.Data.MutArray
     (
-      module Streamly.Internal.Data.Array.Mut.Type
+      module Streamly.Internal.Data.MutArray.Type
     , splitOn
     , genSlicesFromLen
     , getSlicesFromLen
@@ -27,7 +27,7 @@ import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Prelude hiding (foldr, length, read, splitAt)
-import Streamly.Internal.Data.Array.Mut.Type
+import Streamly.Internal.Data.MutArray.Type
 
 -- | Split the array into a stream of slices using a predicate. The element
 -- matching the predicate is dropped.

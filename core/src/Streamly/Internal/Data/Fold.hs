@@ -323,7 +323,7 @@ import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
 import Foreign.Storable (Storable, peek)
-import Streamly.Internal.Data.Array.Mut.Type (MutArray(..))
+import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
@@ -332,7 +332,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 
 import qualified Prelude
-import qualified Streamly.Internal.Data.Array.Mut.Type as MA
+import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as FoldW
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe

@@ -19,7 +19,7 @@ jobs:
     env:
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
-        Data.Array.Mut
+        Data.Array.MutArray
         Data.Array.Generic
         Data.Ring.Unboxed
         Data.Fold

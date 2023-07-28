@@ -248,11 +248,11 @@ test-suite Data.Stream
   main-is: Streamly/Test/Data/Stream.hs
   ghc-options: -main-is Streamly.Test.Data.Stream.main
 
-test-suite Data.Array.Mut
+test-suite Data.Array.MutArray
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Mut.hs
-  ghc-options: -main-is Streamly.Test.Data.Array.Mut.main
+  main-is: Streamly/Test/Data/Array/MutArray.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.MutArray.main
 
 test-suite Data.Ring.Unboxed
   import: test-options

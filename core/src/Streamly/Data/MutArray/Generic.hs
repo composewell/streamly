@@ -59,7 +59,7 @@ module Streamly.Data.MutArray.Generic
     )
 where
 
-import Streamly.Internal.Data.Array.Generic.Mut.Type
+import Streamly.Internal.Data.MutArray.Generic
 import  Prelude hiding (read, length)
 
 #include "DocTestDataMutArrayGeneric.hs"

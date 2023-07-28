@@ -1,4 +1,4 @@
-module Streamly.Test.Data.Array.Mut (main) where
+module Streamly.Test.Data.Array.MutArray (main) where
 
 import Test.QuickCheck (listOf)
 
@@ -23,7 +23,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert)
 import GHC.RTS.Flags (IoSubSystem(..))
 #endif
 
-import qualified Streamly.Internal.Data.Array.Mut as MArray
+import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Test.Hspec as Hspec
 
@@ -31,7 +31,7 @@ maxTestCount :: Int
 maxTestCount = 100
 
 moduleName :: String
-moduleName = "Data.Array.Mut"
+moduleName = "Data.Array.MutArray"
 
 testAppend ::  Property
 testAppend =

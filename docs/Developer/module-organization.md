@@ -225,7 +225,7 @@ Unboxed arrays, based on `Prim` type class:
 
 Mutable arrays are a generalization of immutable arrays:
 
-* `Streamly.Data.Array.Mut`
+* `Streamly.Data.Array.MutArray`
 * `Streamly.Data.Array.Storable.Mut`
 * `Streamly.Data.Array.Storable.Pinned.Mut`
 * ...
