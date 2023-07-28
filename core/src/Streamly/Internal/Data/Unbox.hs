@@ -3,8 +3,14 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | TODO: Implement TH based instance derivation for better performance.
-
+-- |
+-- Module      : Streamly.Internal.Data.Unbox
+-- Copyright   : (c) 2023 Composewell Technologies
+-- License     : BSD3-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
+--
 module Streamly.Internal.Data.Unbox
     ( Unbox(..)
     , PinnedState(..)
