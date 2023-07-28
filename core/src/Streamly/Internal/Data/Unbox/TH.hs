@@ -1,5 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+-- |
+-- Module      : Streamly.Internal.Data.Unbox.TH
+-- Copyright   : (c) 2023 Composewell Technologies
+-- License     : BSD3-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
+--
 module Streamly.Internal.Data.Unbox.TH
     ( deriveUnbox
     , deriveUnboxWith
