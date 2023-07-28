@@ -261,9 +261,11 @@ unpin arr@(MutableByteArray marr#) =
 -- deserializes the boxed type from the mutable byte array. The write operation
 -- 'pokeByteIndex' serializes the boxed type to the mutable byte array.
 --
--- Instances can be derived via 'Generic'. Note that the data type must be
--- non-recursive. Here is an example, for deriving an instance of this type
--- class.
+-- Instances can be derived via Generics or Template Haskell. Note that the data
+-- type must be non-recursive.
+--
+-- Here is an example, for deriving an instance of this type class using
+-- generics:
 --
 -- >>> import GHC.Generics (Generic)
 -- >>> :{
@@ -273,7 +275,24 @@ unpin arr@(MutableByteArray marr#) =
 --     } deriving Generic
 -- :}
 --
--- WARNING! Generic deriving hangs for recursive data types.
+-- To derive the instance via Template Haskell:
+--
+-- @
+-- import Streamly.Data.Unbox (deriveUnbox)
+-- $(deriveUnbox ''Object)
+-- @
+--
+-- See 'Streamly.Data.Unbox.deriveUnbox' and
+-- 'Streamly.Data.Unbox.deriveUnboxWith' for more information on deriving using
+-- Template Haskell.
+--
+-- Deriving via Template Haskell should be preferred for the following reasons:
+-- 1. Instances derived via Template Haskell have more performant routines.
+-- 2. Template Haskell deriving can handle (maxBound :: Word64) number of
+-- constructors whereas the Generic deriving can only handle 256.
+--
+-- WARNING! Generic and Template Haskell deriving, both hang for recursive data
+-- types.
 --
 -- >>> import Streamly.Data.Array (Unbox(..))
 -- >>> instance Unbox Object
