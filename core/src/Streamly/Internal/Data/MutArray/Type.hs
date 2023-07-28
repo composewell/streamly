@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE UnboxedTuples #-}
 -- |
--- Module      : Streamly.Internal.Data.Array.Mut.Type
+-- Module      : Streamly.Internal.Data.MutArray.Type
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -26,7 +26,7 @@
 -- strive to keep the API consistent for both. Ideally, you should be able to
 -- replace one with another with little changes to the code.
 
-module Streamly.Internal.Data.Array.Mut.Type
+module Streamly.Internal.Data.MutArray.Type
     (
     -- * Type
     -- $arrayNotes

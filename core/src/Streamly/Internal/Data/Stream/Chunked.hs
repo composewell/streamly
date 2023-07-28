@@ -88,8 +88,8 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Array.Type as A
-import qualified Streamly.Internal.Data.Array.Mut.Type as MA
-import qualified Streamly.Internal.Data.Array.Mut.Stream as AS
+import qualified Streamly.Internal.Data.MutArray.Type as MA
+import qualified Streamly.Internal.Data.Stream.MutChunked as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
@@ -206,7 +206,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 -------------------------------------------------------------------------------
 
 -- XXX These would not be needed once we implement compactLEFold, see
--- module Streamly.Internal.Data.Array.Mut.Stream
+-- module Streamly.Internal.Data.Stream.MutChunked
 --
 -- XXX Note that this thaws immutable arrays for appending, that may be
 -- problematic if multiple users do the same thing, however, immutable arrays

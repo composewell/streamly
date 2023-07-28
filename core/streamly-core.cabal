@@ -307,10 +307,10 @@ library
                     -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream
-                     , Streamly.Internal.Data.Array.Mut.Type
-                     , Streamly.Internal.Data.Array.Mut
+                     , Streamly.Internal.Data.MutArray.Type
+                     , Streamly.Internal.Data.MutArray
                      , Streamly.Internal.Data.Array.Type
-                     , Streamly.Internal.Data.Array.Generic.Mut.Type
+                     , Streamly.Internal.Data.MutArray.Generic
 
                      -- streamly-core-streams
                      , Streamly.Internal.Data.StreamK
@@ -352,7 +352,7 @@ library
                      -- streamly-core-data-arrays
                      , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.Array.Mut.Stream
+                     , Streamly.Internal.Data.Stream.MutChunked
 
                      -- streamly-serde
                      , Streamly.Internal.Serialize.FromBytes

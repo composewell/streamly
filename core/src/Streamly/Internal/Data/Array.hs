@@ -117,7 +117,7 @@ import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import Streamly.Internal.Data.Array.Mut.Type (ArrayUnsafe(..))
+import Streamly.Internal.Data.MutArray.Type (ArrayUnsafe(..))
 import Streamly.Internal.Data.Array.Type
     (Array(..), length, asPtrUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -127,8 +127,8 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
-import qualified Streamly.Internal.Data.Array.Mut.Type as MA
-import qualified Streamly.Internal.Data.Array.Mut as MA
+import qualified Streamly.Internal.Data.MutArray.Type as MA
+import qualified Streamly.Internal.Data.MutArray as MA
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Producer.Type as Producer

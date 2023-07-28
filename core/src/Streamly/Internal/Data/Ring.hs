@@ -29,7 +29,7 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Array.Generic.Mut.Type
+import Streamly.Internal.Data.MutArray.Generic
     ( MutArray(..)
     , new
     , uninit

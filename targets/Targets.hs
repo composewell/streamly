@@ -166,7 +166,7 @@ targets =
             , "pinned_array_cmp"
             ]
       )
-    , ("Data.Array.Mut",
+    , ("Data.MutArray",
             [ "array_grp"
             , "array_cmp"
             ]

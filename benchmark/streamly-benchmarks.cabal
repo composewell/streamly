@@ -651,10 +651,10 @@ benchmark Data.Array
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
-benchmark Data.Array.Mut
+benchmark Data.MutArray
   import: bench-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Array/Mut.hs
+  main-is: Streamly/Benchmark/Data/MutArray.hs
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
   if flag(use-streamly-core)

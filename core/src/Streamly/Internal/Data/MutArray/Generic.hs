@@ -1,14 +1,14 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE UnboxedTuples #-}
 -- |
--- Module      : Streamly.Internal.Data.Array.Generic.Mut.Type
+-- Module      : Streamly.Internal.Data.MutArray.Generic
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Array.Generic.Mut.Type
+module Streamly.Internal.Data.MutArray.Generic
 (
     -- * Type
     -- $arrayNotes
@@ -229,7 +229,7 @@ bottomElement =
 
     where
 
-    funcName = "Streamly.Internal.Data.Array.Generic.Mut.Type.bottomElement:"
+    funcName = "Streamly.Internal.Data.MutArray.Generic.bottomElement:"
 
 -- XXX Would be nice if GHC can provide something like newUninitializedArray# so
 -- that we do not have to write undefined or error in the whole array.

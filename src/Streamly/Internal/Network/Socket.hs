@@ -97,11 +97,9 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Data.Array as A (reader, length)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array.Type as A
-    ( unsafeFreeze, asPtrUnsafe, byteLength, pinnedWriteNUnsafe, pinnedChunksOf
-    , pinnedWriteN
-    )
-import qualified Streamly.Internal.Data.Array.Mut as MArray
-    (MutArray(..), pinnedNewBytes, asPtrUnsafe)
+    (unsafeFreeze, asPtrUnsafe, byteLength, pinnedChunksOf, pinnedWriteN, pinnedWriteNUnsafe)
+import qualified Streamly.Internal.Data.MutArray as MArray
+    (MutArray(..), asPtrUnsafe, pinnedNewBytes)
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
     (Stream(..), Step(..))

@@ -8,7 +8,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- See notes in "Streamly.Internal.Data.Array.Mut.Type"
+-- See notes in "Streamly.Internal.Data.MutArray.Type"
 --
 module Streamly.Internal.Data.Array.Type
     (
@@ -100,7 +100,7 @@ import GHC.Exts (IsList, IsString(..), Addr#)
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Mut.Type (MutArray(..), MutableByteArray)
+import Streamly.Internal.Data.MutArray.Type (MutArray(..), MutableByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Unbox (Unbox(..))
@@ -110,7 +110,7 @@ import Text.Read (readPrec)
 import Prelude hiding (Foldable(..), read, unlines, splitAt)
 
 import qualified GHC.Exts as Exts
-import qualified Streamly.Internal.Data.Array.Mut.Type as MA
+import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K

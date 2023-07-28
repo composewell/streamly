@@ -12,7 +12,7 @@
 -- contents of a mutable array can be modified in-place. For general
 -- documentation, please refer to the original module.
 --
--- Please refer to "Streamly.Internal.Data.Array.Mut" for functions that have
+-- Please refer to "Streamly.Internal.Data.MutArray" for functions that have
 -- not yet been released.
 --
 -- For mutable arrays that work on boxed types, not requiring the 'Unbox'
@@ -92,7 +92,7 @@ module Streamly.Data.MutArray
 where
 
 import Prelude hiding (length, read)
-import Streamly.Internal.Data.Array.Mut
+import Streamly.Internal.Data.MutArray
 import Streamly.Internal.Data.Unbox (Unbox (..))
 import Control.Monad.IO.Class (MonadIO)
 

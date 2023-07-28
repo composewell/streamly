@@ -82,14 +82,14 @@ import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Streamly.Internal.Data.Unbox as Unboxed (Unbox(peekByteIndex))
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
-import Streamly.Internal.Data.Array.Mut.Type (MutArray)
+import Streamly.Internal.Data.MutArray.Type (MutArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..), lmap)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
-import qualified Streamly.Internal.Data.Array.Mut.Type as MA
+import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Array.Type as A
 
 import Prelude hiding (length, concat, read)

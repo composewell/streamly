@@ -6,5 +6,5 @@
 
 For APIs that have not been released yet.
 
->>> import Streamly.Internal.Data.Array.Generic.Mut.Type as MutArray
+>>> import Streamly.Internal.Data.MutArray.Generic as MutArray
 -}

@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Array.Mut.Stream
+-- Module      : Streamly.Internal.Data.Stream.MutChunked
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Combinators to efficiently manipulate streams of mutable arrays.
 --
-module Streamly.Internal.Data.Array.Mut.Stream
+module Streamly.Internal.Data.Stream.MutChunked
     (
     -- * Generation
       chunksOf
@@ -32,13 +32,13 @@ import Control.Monad (when)
 import Data.Bifunctor (first)
 import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
-import Streamly.Internal.Data.Array.Mut.Type (MutArray(..))
+import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Array.Mut.Type as MArray
+import qualified Streamly.Internal.Data.MutArray.Type as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as ParserD
 import qualified Streamly.Internal.Data.Stream as D
@@ -92,7 +92,7 @@ packArraysChunksOf n (D.Stream step state) =
     step' gst (SpliceInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Mut.Type.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.MutArray.Type.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r <- step gst st
         case r of
@@ -139,7 +139,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
     initial = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Array.Mut.Type.packArraysChunksOf: the size of "
+            error $ "Streamly.Internal.Data.MutArray.Type.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
 
         r <- initial1
@@ -243,7 +243,7 @@ compactLEParserD n = ParserD.Parser step initial extract
     extract (Just buf) = return $ ParserD.Done 0 buf
 
     functionPath =
-        "Streamly.Internal.Data.Array.Mut.Stream.compactLEParserD"
+        "Streamly.Internal.Data.Stream.MutChunked.compactLEParserD"
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- minimum specified size. Note that if all the arrays in the stream together
@@ -292,7 +292,7 @@ compactGEFold n = Fold step initial extract
     extract (Just buf) = return buf
 
     functionPath =
-        "Streamly.Internal.Data.Array.Mut.Stream.compactGEFold"
+        "Streamly.Internal.Data.Stream.MutChunked.compactGEFold"
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.

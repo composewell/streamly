@@ -28,7 +28,7 @@ import System.Random (randomRIO)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.IsMap.HashMap ()
-import Streamly.Internal.Data.Array.Mut (MutArray)
+import Streamly.Internal.Data.MutArray (MutArray)
 
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Data.Fold.Prelude as Fold
