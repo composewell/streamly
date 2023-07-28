@@ -263,9 +263,16 @@ test-suite Data.Ring.Unboxed
   if flag(use-streamly-core)
     buildable: False
 
-test-suite Data.Unbox
+test-suite Data.Unbox.Derive.Generic
   import: test-options
   type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Unbox.hs
+  ghc-options: -main-is Streamly.Test.Data.Unbox.main
+
+test-suite Data.Unbox.Derive.TH
+  import: test-options
+  type: exitcode-stdio-1.0
+  cpp-options: -DUSE_TH
   main-is: Streamly/Test/Data/Unbox.hs
   ghc-options: -main-is Streamly.Test.Data.Unbox.main
 

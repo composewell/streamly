@@ -27,11 +27,9 @@ import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic, Rep(..))
 import GHC.Real (Ratio(..))
 
-{-
-XXX Will be added in the future
+#ifdef USE_TH
 import Streamly.Internal.Data.Unbox.TH
-import Language.Haskell.TH
--}
+#endif
 
 import Streamly.Internal.Data.Unbox
     ( PeekRep(..)
@@ -51,11 +49,9 @@ import Test.Hspec as H
 -- Types
 --------------------------------------------------------------------------------
 
--- #define USE_TH
-
 #ifdef USE_TH
 #define MODULE_NAME "Data.Unbox.Deriving.TH"
-#define DERIVE_UNBOX(typ) $(makeUnbox ''typ)
+#define DERIVE_UNBOX(typ) $(deriveUnbox ''typ)
 #else
 #define MODULE_NAME "Data.Unbox.Deriving.Generic"
 #define DERIVE_UNBOX(typ) deriving instance Unbox (typ)
