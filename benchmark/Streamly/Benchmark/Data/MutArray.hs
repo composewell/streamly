@@ -274,7 +274,7 @@ o_1_space_serial_marray value ~(array, indices) =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Array.MutArray"
+moduleName = "Data.MutArray"
 
 main :: IO ()
 main = do

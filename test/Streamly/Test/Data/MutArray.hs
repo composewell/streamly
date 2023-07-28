@@ -1,4 +1,4 @@
-module Streamly.Test.Data.Array.MutArray (main) where
+module Streamly.Test.Data.MutArray (main) where
 
 import Test.QuickCheck (listOf)
 
@@ -31,7 +31,7 @@ maxTestCount :: Int
 maxTestCount = 100
 
 moduleName :: String
-moduleName = "Data.Array.MutArray"
+moduleName = "Data.MutArray"
 
 testAppend ::  Property
 testAppend =
