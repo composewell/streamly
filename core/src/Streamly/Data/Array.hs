@@ -53,6 +53,10 @@ module Streamly.Data.Array
     -- list.
     , toList
 
+    -- * Stream of Arrays
+    , streamChunksOf
+    , streamSplitOn
+
     -- * Unfolds
     , reader
     , readerRev

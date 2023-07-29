@@ -511,15 +511,13 @@ module Streamly.Data.Stream
     , runReaderT
     , runStateT
 
-    -- * Stream of Arrays
-    , Array.chunksOf
-    , chunksSplitOn
+    -- * Deprecated
+    , chunksOf
     )
 where
 
 import Control.Monad.IO.Class (MonadIO)
-import Data.Word (Word8)
-import Streamly.Data.Array (Array)
+import Streamly.Data.Array (Array, Unbox)
 import Streamly.Internal.Data.Stream
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
@@ -529,7 +527,6 @@ import Prelude
                scanl, scanl1, repeat, replicate, concatMap, span)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
-import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 
 #include "DocTestDataStream.hs"
 
@@ -639,13 +636,8 @@ import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 -- 'Stream' and 'StreamK' types can be interconverted. See
 -- "Streamly.Data.StreamK" module for conversion operations.
 
--- | Split a stream of arrays on a given separator byte, dropping the separator
--- and coalescing all the arrays between two separators into a single array.
---
-{-# INLINE chunksSplitOn #-}
-chunksSplitOn
-    :: (MonadIO m)
-    => Word8
-    -> Stream m (Array Word8)
-    -> Stream m (Array Word8)
-chunksSplitOn = ArrayStream.splitOn
+{-# DEPRECATED chunksOf "Please use 'Streamly.Data.Array.streamChunksOf' instead" #-}
+{-# INLINE chunksOf #-}
+chunksOf :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Stream m a -> Stream m (Array a)
+chunksOf = Array.streamChunksOf

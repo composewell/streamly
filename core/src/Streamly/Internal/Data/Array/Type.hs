@@ -78,7 +78,7 @@ module Streamly.Internal.Data.Array.Type
     , unsafeMakePure
 
     -- * Streams of arrays
-    , chunksOf
+    , streamChunksOf
     , pinnedChunksOf
     , bufferChunks
     , flattenArrays
@@ -310,22 +310,22 @@ fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
 {-# INLINE bufferChunks #-}
 bufferChunks :: (MonadIO m, Unbox a) =>
     D.Stream m a -> m (K.StreamK m (Array a))
-bufferChunks m = D.foldr K.cons K.nil $ chunksOf defaultChunkSize m
+bufferChunks m = D.foldr K.cons K.nil $ streamChunksOf defaultChunkSize m
 
--- | @chunksOf n stream@ groups the elements in the input stream into arrays of
+-- | @streamChunksOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
 -- Same as the following but may be more efficient:
 --
--- >>> chunksOf n = Stream.foldMany (Array.writeN n)
+-- >>> streamChunksOf n = Stream.foldMany (Array.writeN n)
 --
 -- /Pre-release/
-{-# INLINE_NORMAL chunksOf #-}
-chunksOf :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL streamChunksOf #-}
+streamChunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
-chunksOf n str = D.map unsafeFreeze $ MA.chunksOf n str
+streamChunksOf n str = D.map unsafeFreeze $ MA.chunksOf n str
 
--- | Like 'chunksOf' but creates pinned arrays.
+-- | Like 'streamChunksOf' but creates pinned arrays.
 {-# INLINE_NORMAL pinnedChunksOf #-}
 pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
@@ -567,7 +567,7 @@ pinnedWrite = fmap unsafeFreeze MA.pinnedWrite
 -- shared across different folds. However, if we invoke "initial" multiple
 -- times for the same fold, there is a possiblity of sharing the two because
 -- the compiler would consider it as a pure value. One such example is the
--- chunksOf combinator, or using an array creation fold with foldMany
+-- streamChunksOf combinator, or using an array creation fold with foldMany
 -- combinator. Is there a proper way in GHC to tell it to not share a pure
 -- expression in a particular case?
 --

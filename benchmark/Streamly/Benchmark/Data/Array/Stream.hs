@@ -38,7 +38,8 @@ import System.Random (randomRIO)
 import Prelude hiding ()
 
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Data.Array as Array
+import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
@@ -112,7 +113,7 @@ inspect $ 'toChunksSumLengths `hasNoType` ''Step
 -- | Sum the bytes in a file.
 toChunksCountBytes :: Handle -> IO Word8
 toChunksCountBytes inh = do
-    let foldlArr' f z = runIdentity . Stream.foldl' f z . Array.read
+    let foldlArr' f z = runIdentity . Stream.foldl' f z . A.read
     let s = Handle.readChunks inh
     Stream.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
 
@@ -295,8 +296,8 @@ main = do
         then return  (undefined, undefined)
         else
             do
-            small <- Stream.toList $ Stream.chunksOf 100 $ sourceUnfoldrM value 0
-            big <- Stream.toList $ Stream.chunksOf value $ sourceUnfoldrM value 0
+            small <- Stream.toList $ Array.streamChunksOf 100 $ sourceUnfoldrM value 0
+            big <- Stream.toList $ Array.streamChunksOf value $ sourceUnfoldrM value 0
             return (small, big)
 
     allBenchmarks env arrays value =

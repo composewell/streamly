@@ -9,11 +9,8 @@
 --
 module Streamly.Internal.Data.Stream.Chunked
     (
-    -- * Creation
-      chunksOf
-
     -- * Flattening to elements
-    , concat
+      concat
     , concatRev
     , interpose
     , interposeSuffix
@@ -98,22 +95,6 @@ import qualified Streamly.Internal.Data.StreamK as K
 
 -- XXX Since these are immutable arrays MonadIO constraint can be removed from
 -- most places.
-
--------------------------------------------------------------------------------
--- Generation
--------------------------------------------------------------------------------
-
--- | @chunksOf n stream@ groups the elements in the input stream into arrays of
--- @n@ elements each.
---
--- > chunksOf n = Stream.groupsOf n (Array.writeN n)
---
--- /Pre-release/
-{-# INLINE chunksOf #-}
-chunksOf :: (MonadIO m, Unbox a)
-    => Int -> Stream m a -> Stream m (Array a)
-chunksOf = A.chunksOf
-
 -------------------------------------------------------------------------------
 -- Append
 -------------------------------------------------------------------------------

@@ -67,6 +67,9 @@ module Streamly.Data.MutArray
     , read
     , readRev
 
+    -- * Stream of Arrays
+    , chunksOf
+
     -- * Unfolds
     , reader
     , readerRev

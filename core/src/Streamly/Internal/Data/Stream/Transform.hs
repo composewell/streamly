@@ -1541,7 +1541,7 @@ reverseUnbox =
         . fromStreamK
         . K.reverse
         . toStreamK
-        . A.chunksOf defaultChunkSize
+        . A.streamChunksOf defaultChunkSize
 
 -- | Buffer until the next element in sequence arrives. The function argument
 -- determines the difference in sequence numbers. This could be useful in

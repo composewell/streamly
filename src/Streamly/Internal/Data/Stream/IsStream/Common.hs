@@ -533,7 +533,7 @@ reverse' =
         . D.fromStreamK
         . K.reverse
         . D.toStreamK
-        . A.chunksOf defaultChunkSize
+        . A.streamChunksOf defaultChunkSize
         . toStreamD
 
 ------------------------------------------------------------------------------

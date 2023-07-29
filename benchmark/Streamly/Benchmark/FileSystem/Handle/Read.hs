@@ -29,9 +29,9 @@ import GHC.Magic (inline)
 import GHC.Magic (noinline)
 import System.IO (Handle)
 
-import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Data.Array as Array
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Array as AT
 import qualified Streamly.Internal.Data.Fold as FL
@@ -250,7 +250,7 @@ inspect $ 'groupsOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 {-# INLINE chunksOf #-}
 chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
-    S.fold Fold.length $ Stream.chunksOf n (S.unfold FH.reader inh)
+    S.fold Fold.length $ Array.streamChunksOf n (S.unfold FH.reader inh)
 
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_grouped env =

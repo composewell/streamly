@@ -996,7 +996,7 @@ chunksOf n f = fromStreamD . D.groupsOf n f . toStreamD
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Unbox a)
     => Int -> t m a -> t m (Array a)
-arraysOf n = fromStreamD . A.chunksOf n . toStreamD
+arraysOf n = fromStreamD . A.streamChunksOf n . toStreamD
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control

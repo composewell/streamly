@@ -67,7 +67,7 @@ propDecodeEncodeIdArrays :: Property
 propDecodeEncodeIdArrays =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            let wrds = Stream.chunksOf 8 $ SS.encodeUtf8' $ Stream.fromList list
+            let wrds = A.streamChunksOf 8 $ SS.encodeUtf8' $ Stream.fromList list
             chrs <- Stream.toList $ IUS.decodeUtf8Chunks wrds
             assert (chrs == list)
 

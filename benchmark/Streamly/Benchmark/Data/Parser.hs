@@ -42,6 +42,7 @@ import qualified Control.Applicative as AP
 import qualified Data.Foldable as F
 import qualified Data.Traversable as TR
 import qualified Streamly.FileSystem.Handle as Handle
+import qualified Streamly.Data.Array as Array
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
@@ -855,7 +856,7 @@ main = do
 
     where
 
-    alloc value = Stream.fold Fold.toList $ Stream.chunksOf 100 $ sourceUnfoldrM value 0
+    alloc value = Stream.fold Fold.toList $ Array.streamChunksOf 100 $ sourceUnfoldrM value 0
 
     allBenchmarks env arrays value =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)

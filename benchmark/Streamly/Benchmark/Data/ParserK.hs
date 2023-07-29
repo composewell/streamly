@@ -41,6 +41,7 @@ import Prelude hiding
 import qualified Control.Applicative as AP
 import qualified Data.Foldable as F
 import qualified Data.Traversable as TR
+import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -116,7 +117,7 @@ benchIOSink value name f =
         >>= f
             . StreamK.fromStream
 #ifdef BENCH_CHUNKED
-            . Stream.chunksOf 4000
+            . Array.streamChunksOf 4000
 #endif
 #ifdef BENCH_CHUNKED_GENERIC
             . GenArr.chunksOf 4000
