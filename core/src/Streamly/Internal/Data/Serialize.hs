@@ -104,6 +104,7 @@ instance Serialize _type where \
             >> let sz = Unbox.sizeOf (Proxy :: Proxy _type) \
                 in pure (off + sz)
 
+DERIVE_SERIALIZE_FROM_UNBOX(Bool)
 DERIVE_SERIALIZE_FROM_UNBOX(Char)
 DERIVE_SERIALIZE_FROM_UNBOX(Int8)
 DERIVE_SERIALIZE_FROM_UNBOX(Int16)

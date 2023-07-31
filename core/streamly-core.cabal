@@ -299,6 +299,7 @@ library
                      , Streamly.Internal.Data.Unbox
                      , Streamly.Internal.Data.Serialize
                      , Streamly.Internal.Data.Unbox.TH
+                     , Streamly.Internal.Data.Serialize.TH
 
                      -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Unboxed

@@ -11,6 +11,13 @@
 module Streamly.Internal.Data.Unbox.TH
     ( deriveUnbox
     , deriveUnboxWith
+
+    -- th-helpers
+    , DataCon(..)
+    , DataType(..)
+    , reifyDataType
+    , appsT
+    , plainInstanceD
     ) where
 
 --------------------------------------------------------------------------------
