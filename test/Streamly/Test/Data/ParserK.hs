@@ -835,4 +835,3 @@ main =
         prop "P.some concatFold $ P.takeEndBy_ (== 1) FL.toList = Prelude.filter (== 0)" some
         prop "fail due to parser being die" someFail
     takeProperties
-    
