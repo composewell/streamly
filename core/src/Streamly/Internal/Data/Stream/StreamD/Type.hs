@@ -388,31 +388,6 @@ toStreamK (Stream step state) = go state
 -- Running a 'Fold'
 ------------------------------------------------------------------------------
 
--- >>> fold f = Fold.extractM . Stream.foldAddLazy f
--- >>> fold f = Stream.fold Fold.one . Stream.foldManyPost f
--- >>> fold f = Fold.extractM <=< Stream.foldAdd f
-
--- | Fold a stream using the supplied left 'Fold' and reducing the resulting
--- expression strictly at each step. The behavior is similar to 'foldl''. A
--- 'Fold' can terminate early without consuming the full stream. See the
--- documentation of individual 'Fold's for termination behavior.
---
--- Definitions:
---
--- >>> fold f = fmap fst . Stream.foldBreak f
--- >>> fold f = Stream.parse (Parser.fromFold f)
---
--- Example:
---
--- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
--- 5050
---
-{-# INLINE_NORMAL fold #-}
-fold :: Monad m => Fold m a b -> Stream m a -> m b
-fold fld strm = do
-    (b, _) <- foldBreak fld strm
-    return b
-
 -- | Fold resulting in either breaking the stream or continuation of the fold.
 -- Instead of supplying the input stream in one go we can run the fold multiple
 -- times, each time supplying the next segment of the input stream. If the fold
@@ -463,6 +438,31 @@ foldBreak fld strm = do
     where
 
     nil = Stream (\_ _ -> return Stop) ()
+
+-- >>> fold f = Fold.extractM . Stream.foldAddLazy f
+-- >>> fold f = Stream.fold Fold.one . Stream.foldManyPost f
+-- >>> fold f = Fold.extractM <=< Stream.foldAdd f
+
+-- | Fold a stream using the supplied left 'Fold' and reducing the resulting
+-- expression strictly at each step. The behavior is similar to 'foldl''. A
+-- 'Fold' can terminate early without consuming the full stream. See the
+-- documentation of individual 'Fold's for termination behavior.
+--
+-- Definitions:
+--
+-- >>> fold f = fmap fst . Stream.foldBreak f
+-- >>> fold f = Stream.parse (Parser.fromFold f)
+--
+-- Example:
+--
+-- >>> Stream.fold Fold.sum (Stream.enumerateFromTo 1 100)
+-- 5050
+--
+{-# INLINE_NORMAL fold #-}
+fold :: Monad m => Fold m a b -> Stream m a -> m b
+fold fld strm = do
+    (b, _) <- foldBreak fld strm
+    return b
 
 -- | Append a stream to a fold lazily to build an accumulator incrementally.
 --
