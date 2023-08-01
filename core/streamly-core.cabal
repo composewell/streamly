@@ -312,6 +312,8 @@ library
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.Common
                      , Streamly.Internal.Data.Stream
+                     , Streamly.Internal.Data.Stream.Cross
+                     , Streamly.Internal.Data.Stream.Type
 
                      , Streamly.Internal.Data.Parser.ParserD.Tee
 

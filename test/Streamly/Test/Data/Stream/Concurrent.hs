@@ -17,16 +17,20 @@ import Control.Monad (replicateM)
 import Control.Monad.Catch (throwM)
 import Data.List (sort)
 import Data.Word (Word8)
-import Streamly.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream ( Stream )
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Testable, Property, choose, forAll, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
 import qualified Streamly.Data.Fold as Fold ( toList )
-import qualified Streamly.Data.Stream as Stream
-    ( replicate, fromEffect, fromPure, fromList, fold, take, nil, toList, cons, consM )
+import qualified Streamly.Internal.Data.Stream as Stream
+    ( replicate, fromEffect, fromPure, fromList, fold, take, nil, toList, cons, consM, toStreamK, fromStreamK )
 import qualified Streamly.Internal.Data.Stream.Concurrent as Async
+import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as Stream
+import qualified  Streamly.Internal.Data.Stream.Type as IS
 
 import Streamly.Test.Common (listEquals)
 
@@ -246,6 +250,39 @@ constructWithConsM len cfg =
         let list = replicate (fromIntegral len) 0
         listEquals (==) strm list
 
+monadBind ::
+       ([Int], [Int])
+    -> (Async.Config -> Async.Config)
+    -> Property
+monadBind (a, b) cfg =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+
+        let st =  (CrossStream  $ (IS.fromStream (Stream.fromList a) :: IS.Stream IO Int))
+                    >>= \x -> (+ x) <$> (CrossStream  $ (IS.fromStream (Stream.fromList b)))
+        strm <- run
+                ((Stream.toList . Async.parEval cfg . IS.toStreamD . unCrossStream ) st)
+
+        let list = a >>= \x -> (+ x) <$> b
+        listEquals (==) strm list
+
+monadThen ::
+       ([Int], [Int])
+    -> (Async.Config -> Async.Config)
+    -> Property
+monadThen (a, b) cfg =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+
+        let st =  (CrossStream  $ (IS.fromStream (Stream.fromList a) :: IS.Stream IO Int))
+                    >> (CrossStream  $ (IS.fromStream (Stream.fromList b)))
+        strm <- run
+                ((Stream.toList . Async.parEval cfg . IS.toStreamD . unCrossStream ) st)
+
+        let list = a >> b
+        listEquals (==) strm list
+
+
 main :: IO ()
 main = hspec
   $ H.parallel
@@ -261,6 +298,8 @@ main = hspec
 
         asyncSpec $ prop "constructWithCons" . constructWithCons 100
         --asyncSpec $ prop "constructWithConsM" . constructWithConsM 100
+        asyncSpec $ prop "monadBind" . monadBind ([1..100] , [1..100])
+        asyncSpec $ prop "monadThen" . monadThen ([1..100] , [1..100])
 
         asyncSpec $ prop "parSequence" . sequenceReplicate
 
