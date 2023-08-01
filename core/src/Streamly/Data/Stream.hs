@@ -466,7 +466,16 @@ module Streamly.Data.Stream
     -- in Exception.Base
 
     -- * Exceptions
-    -- | Most of these combinators inhibit stream fusion, therefore, when
+    -- | Note that the stream exception handling routines catch and handle
+    -- exceptions only in the stream generation steps and not in the consumer
+    -- of the stream. For example, if we are folding or parsing a stream - any
+    -- exceptions in the fold or parse steps won't be observed by the stream
+    -- exception handlers. Exceptions in the fold or parse steps can be handled
+    -- using the fold or parse exception handling routines. You can wrap the
+    -- stream elimination function in the monad exception handler to observe
+    -- exceptions in the stream as well as the consumer.
+    --
+    -- Most of these combinators inhibit stream fusion, therefore, when
     -- possible, they should be called in an outer loop to mitigate the cost.
     -- For example, instead of calling them on a stream of chars call them on a
     -- stream of arrays before flattening it to a stream of chars.
@@ -481,8 +490,19 @@ module Streamly.Data.Stream
     -- | 'bracket' is the most general resource management operation, all other
     -- operations can be expressed using it. These functions have IO suffix
     -- because the allocation and cleanup functions are IO actions. For
-    -- generalized allocation and cleanup functions see the functions without
+    -- generalized allocation and cleanup functions, see the functions without
     -- the IO suffix in the "streamly" package.
+    --
+    -- Note that these operations bracket the stream generation only, they do
+    -- not cover the stream consumer. This means if an exception occurs in
+    -- the consumer of the stream (e.g. in a fold or parse step) then the
+    -- exception won't be observed by the stream resource handlers, in that
+    -- case the resource cleanup handler runs when the stream is garbage
+    -- collected.
+    --
+    -- Monad level resource management can always be used around the stream
+    -- elimination functions, such a function can observe exceptions in both
+    -- the stream and its consumer.
     , before
     , afterIO
     , finallyIO

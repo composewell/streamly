@@ -124,7 +124,7 @@ bracket3D bef aft onExc onGC =
     gbracket
         bef
         aft
-        (\a (e :: SomeException) _ -> onExc a >> return (D.nilM (MC.throwM e)))
+        (\a (e :: SomeException) _ -> onExc a >> MC.throwM e)
         onGC
         (inline MC.try)
 
@@ -144,6 +144,8 @@ bracket3D bef aft onExc onGC =
 -- stream is abandoned @onGC@ is executed, if the stream encounters an
 -- exception @onException@ is executed.
 --
+-- The exception is not caught, it is rethrown.
+--
 -- /Pre-release/
 {-# INLINE bracket3 #-}
 bracket3 :: (MonadAsync m, MonadCatch m)
@@ -155,14 +157,16 @@ bracket3 :: (MonadAsync m, MonadCatch m)
     -> Stream m a
 bracket3 = bracket3D
 
--- | Run the alloc action @m b@ with async exceptions disabled but keeping
+-- | Run the alloc action @IO b@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the
--- output @b@ as input to @b -> Stream m a@ to generate an output stream.
+-- output @b@ of the IO action as input to the function @b -> Stream m a@ to
+-- generate an output stream.
 --
--- @b@ is usually a resource under the state of monad @m@, e.g. a file
--- handle, that requires a cleanup after use. The cleanup action @b -> m c@,
--- runs whenever the stream ends normally, due to a sync or async exception or
--- if it gets garbage collected after a partial lazy evaluation.
+-- @b@ is usually a resource under the IO monad, e.g. a file handle, that
+-- requires a cleanup after use. The cleanup action @b -> m c@, runs whenever
+-- (1) the stream ends normally, (2) due to a sync or async exception or, (3)
+-- if it gets garbage collected after a partial lazy evaluation. The exception
+-- is not caught, it is rethrown.
 --
 -- 'bracket' only guarantees that the cleanup action runs, and it runs with
 -- async exceptions enabled. The action must ensure that it can successfully

@@ -257,6 +257,9 @@ afterIO action (Stream step state) = Stream step' Nothing
 -- | Run the action @m b@ if the stream evaluation is aborted due to an
 -- exception. The exception is not caught, simply rethrown.
 --
+-- Observes exceptions only in the stream generation, and not in stream
+-- consumers.
+--
 -- /Inhibits stream fusion/
 --
 {-# INLINE_NORMAL onException #-}
@@ -320,6 +323,8 @@ bracketUnsafe bef aft =
 -- stream is abandoned @onGC@ is executed, if the stream encounters an
 -- exception @onException@ is executed.
 --
+-- The exception is not caught, it is rethrown.
+--
 -- /Inhibits stream fusion/
 --
 -- /Pre-release/
@@ -335,18 +340,20 @@ bracketIO3 bef aft onExc onGC =
     gbracket
         bef
         aft
-        (\a (e :: SomeException) _ -> onExc a >> return (nilM (MC.throwM e)))
+        (\a (e :: SomeException) _ -> onExc a >> MC.throwM e)
         onGC
         (inline MC.try)
 
 -- | Run the alloc action @IO b@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the
--- output @b@ as input to @b -> Stream m a@ to generate an output stream.
+-- output @b@ of the IO action as input to the function @b -> Stream m a@ to
+-- generate an output stream.
 --
 -- @b@ is usually a resource under the IO monad, e.g. a file handle, that
 -- requires a cleanup after use. The cleanup action @b -> IO c@, runs whenever
--- the stream ends normally, due to a sync or async exception or if it gets
--- garbage collected after a partial lazy evaluation.
+-- (1) the stream ends normally, (2) due to a sync or async exception or, (3)
+-- if it gets garbage collected after a partial lazy evaluation. The exception
+-- is not caught, it is rethrown.
 --
 -- 'bracketIO' only guarantees that the cleanup action runs, and it runs with
 -- async exceptions enabled. The action must ensure that it can successfully
@@ -355,6 +362,12 @@ bracketIO3 bef aft onExc onGC =
 -- When the stream ends normally or on a sync exception, cleanup action runs
 -- immediately in the current thread context, whereas in other cases it runs in
 -- the GC context, therefore, cleanup may be delayed until the GC gets to run.
+-- An example where GC based cleanup happens is when a stream is being folded
+-- but the fold terminates without draining the entire stream or if the
+-- consumer of the stream encounters an exception.
+--
+-- Observes exceptions only in the stream generation, and not in stream
+-- consumers.
 --
 -- /See also: 'bracketUnsafe'/
 --
@@ -443,6 +456,12 @@ ghandle f stream =
 
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
 -- and the specified exception handler is run with the exception as argument.
+-- The exception is caught and handled unless the handler decides to rethrow
+-- it. Note that exception handling is not applied to the stream returned by
+-- the exception handler.
+--
+-- Observes exceptions only in the stream generation, and not in stream
+-- consumers.
 --
 -- /Inhibits stream fusion/
 --

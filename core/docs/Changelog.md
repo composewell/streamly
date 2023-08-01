@@ -10,6 +10,7 @@
 
 * Changed the signature of 'Streamly.Data.Stream.handle' to make the exception
   handler monadic.
+* Rethrow the exception promptly in bracketIO.
 
 ### Deprecations
 

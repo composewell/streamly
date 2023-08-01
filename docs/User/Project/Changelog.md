@@ -11,6 +11,8 @@
   breaking change in `transformers` 0.6. You can replace `lift` with
   `fromEffect` when using these as top level monads in a monad stack.
 
+* Rethrow the exception promptly in bracketIO.
+
 ## 0.9.0 (Mar 2023)
 
 Also see the following:
