@@ -60,7 +60,7 @@ gbracket_
     :: Monad m
     => m c                                  -- ^ before
     -> (c -> m d)                           -- ^ after, on normal stop
-    -> (c -> e -> Stream m b -> Stream m b) -- ^ on exception
+    -> (c -> e -> Stream m b -> m (Stream m b)) -- ^ on exception
     -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
     -> (c -> Stream m b)                    -- ^ stream generator
     -> Stream m b
@@ -83,9 +83,9 @@ gbracket_ bef aft onExc ftry action =
                 Skip s -> return $ Skip (GBracketNormal (Stream step1 s) v)
                 Stop -> aft v >> return Stop
             -- XXX Do not handle async exceptions, just rethrow them.
-            Left e ->
-                return
-                    $ Skip (GBracketException (onExc v e (UnStream step1 st)))
+            Left e -> do
+                strm <- onExc v e (UnStream step1 st)
+                return $ Skip (GBracketException strm)
     step gst (GBracketException (UnStream step1 st)) = do
         res <- step1 gst st
         case res of
@@ -265,7 +265,7 @@ onException action stream =
     gbracket_
         (return ()) -- before
         return      -- after
-        (\_ (e :: MC.SomeException) _ -> nilM (action >> MC.throwM e))
+        (\_ (e :: MC.SomeException) _ -> action >> MC.throwM e)
         (inline MC.try)
         (const stream)
 
@@ -301,7 +301,7 @@ bracketUnsafe bef aft =
     gbracket_
         bef
         aft
-        (\a (e :: SomeException) _ -> nilM (aft a >> MC.throwM e))
+        (\a (e :: SomeException) _ -> aft a >> MC.throwM e)
         (inline MC.try)
 
 -- For a use case of this see the "streamly-process" package. It needs to kill
@@ -437,7 +437,7 @@ finallyIO action xs = bracketIO3 (return ()) act act act (const xs)
 --
 {-# INLINE_NORMAL ghandle #-}
 ghandle :: (MonadCatch m, Exception e)
-    => (e -> Stream m a -> Stream m a) -> Stream m a -> Stream m a
+    => (e -> Stream m a -> m (Stream m a)) -> Stream m a -> Stream m a
 ghandle f stream =
     gbracket_ (return ()) return (const f) (inline MC.try) (const stream)
 
@@ -448,7 +448,7 @@ ghandle f stream =
 --
 {-# INLINE_NORMAL handle #-}
 handle :: (MonadCatch m, Exception e)
-    => (e -> Stream m a) -> Stream m a -> Stream m a
+    => (e -> m (Stream m a)) -> Stream m a -> Stream m a
 handle f stream =
     gbracket_ (return ()) return (\_ e _ -> f e) (inline MC.try) (const stream)
 

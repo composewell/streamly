@@ -225,7 +225,7 @@ ghandle :: (IsStream t, MonadCatch m, Exception e)
     => (e -> t m a -> t m a) -> t m a -> t m a
 ghandle handler =
       fromStreamD
-    . D.ghandle (\e xs -> toStreamD $ handler e (fromStreamD xs))
+    . D.ghandle (\e xs -> return $ toStreamD $ handler e (fromStreamD xs))
     . toStreamD
 
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
@@ -238,7 +238,7 @@ ghandle handler =
 handle :: (IsStream t, MonadCatch m, Exception e)
     => (e -> t m a) -> t m a -> t m a
 handle handler xs =
-    fromStreamD $ D.handle (toStreamD . handler) $ toStreamD xs
+    fromStreamD $ D.handle (return . toStreamD . handler) $ toStreamD xs
 
 
 -- | @retry@ takes 3 arguments

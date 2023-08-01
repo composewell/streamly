@@ -8,6 +8,9 @@
   programmers can choose to create them pinned to avoid a copy.  To
   create pinned arrays, use the internal APIs with the `pinned*` prefix.
 
+* Changed the signature of 'Streamly.Data.Stream.handle' to make the exception
+  handler monadic.
+
 ### Deprecations
 
 * `Streamly.Data.MutArray.newUnpinned` is renamed to

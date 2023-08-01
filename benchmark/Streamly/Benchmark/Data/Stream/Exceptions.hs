@@ -177,7 +177,8 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
 -- | Send the file contents to /dev/null with exception handling
 readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
 readWriteHandleExceptionStream inh devNull =
-    let handler (_e :: SomeException) = Stream.fromEffect (hClose inh >> return 10)
+    let handler (_e :: SomeException) =
+            return $ Stream.fromEffect (hClose inh >> return 10)
         readEx = Stream.handle handler (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
