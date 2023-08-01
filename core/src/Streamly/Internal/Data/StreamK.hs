@@ -183,6 +183,9 @@ module Streamly.Internal.Data.StreamK
     , append
     , interleave
 
+    -- * Resource Management
+    , bracketIO
+
     -- * Utilities
     , consM
     , mfix
@@ -193,7 +196,10 @@ where
 #include "inline.hs"
 #include "assert.hs"
 
+import Control.Exception (mask_)
 import Control.Monad (void, join)
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Catch (MonadCatch)
 import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
@@ -202,7 +208,10 @@ import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (sizeOf, Unbox)
 import Streamly.Internal.Data.Parser.ParserK.Type (ParserK)
+import Streamly.Internal.Data.IOFinalizer
+    (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
+import qualified Control.Monad.Catch as MC
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as Parser
@@ -916,6 +925,50 @@ mapMaybe f = go
                 Just b  -> yld b $ go r
                 Nothing -> foldStream (adaptState st) yieldk single stp r
         in foldStream (adaptState st) yieldk single stp m1
+
+
+-- If we are folding the stream and we do not drain the entire stream (e.g. if
+-- the fold terminates before the stream) then the finalizer will run on GC.
+--
+-- XXX To implement a prompt cleanup, we will have to yield a cleanup function
+-- via the yield continuation. A chain of cleanup functions can be built and
+-- the entire chain can be invoked when the stream ends voluntarily or if
+-- someone decides to abandon the stream.
+
+{-
+bracketIO :: (MonadIO m, MonadCatch m)
+    => IO b -> (b -> IO c) -> (b -> StreamK m a) -> StreamK m a
+bracketIO bef aft bet =
+    fromStream $ Stream.bracketIO bef aft (\x -> toStream $ bet x)
+-}
+
+{-# INLINABLE bracketIO #-}
+bracketIO :: (MonadIO m, MonadCatch m)
+    => IO b -> (b -> IO c) -> (b -> StreamK m a) -> StreamK m a
+bracketIO bef aft bet =
+    concatEffect $ do
+        (r, ref) <- liftIO $ mask_ $ do
+            r <- bef
+            ref <- newIOFinalizer (aft r)
+            return (r, ref)
+        return $ go ref (bet r)
+
+    where
+
+    go ref m1 = mkStream $ \st yld sng stp ->
+        let
+            stop = liftIO (runIOFinalizer ref) >> stp
+            single a = liftIO (runIOFinalizer ref) >> sng a
+            yieldk a r = yld a $ go ref r
+        in do
+            -- Do not call the finalizer twice if it has already been
+            -- called via stop continuation and stop continuation itself
+            -- generated an exception. runIOFinalizer takes care of that.
+            res <- MC.try (foldStream (adaptState st) yieldk single stop m1)
+            case res of
+                Right r -> return r
+                Left (e :: MC.SomeException) ->
+                    liftIO (runIOFinalizer ref) >> MC.throwM e
 
 ------------------------------------------------------------------------------
 -- Serial Zipping

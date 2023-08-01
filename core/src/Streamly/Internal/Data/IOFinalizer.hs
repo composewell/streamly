@@ -66,6 +66,9 @@ newIOFinalizer finalizer = liftIO $ do
 -- never runs again.  Note, the finalizing action runs with async exceptions
 -- masked.
 --
+-- If this function is called multiple times, the action is guaranteed to run
+-- once and only once.
+--
 -- /Pre-release/
 runIOFinalizer :: MonadIO m => IOFinalizer -> m ()
 runIOFinalizer (IOFinalizer ref) = liftIO $ do
@@ -83,9 +86,16 @@ runIOFinalizer (IOFinalizer ref) = liftIO $ do
 -- | Run an action clearing the finalizer atomically wrt async exceptions. The
 -- action is run with async exceptions masked.
 --
+-- This function can be called at most once after setting the finalizer. If the
+-- finalizer is not set it is considered a bug.
+--
 -- /Pre-release/
 clearingIOFinalizer :: MonadIO m => IOFinalizer -> IO a -> m a
 clearingIOFinalizer (IOFinalizer ref) action = do
     liftIO $ mask_ $ do
-        writeIORef ref Nothing
-        action
+        res <- readIORef ref
+        case res of
+            Just _ -> do
+                writeIORef ref Nothing
+                action
+            Nothing -> error "clearingIOFinalizer: finalizer not set"
