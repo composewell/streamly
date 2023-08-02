@@ -300,6 +300,13 @@ test-suite Data.Parser.ParserD
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
+test-suite Data.Parser.ParserK
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Parser/ParserK.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
+
 test-suite Data.SmallArray
   import: test-options
   type: exitcode-stdio-1.0
