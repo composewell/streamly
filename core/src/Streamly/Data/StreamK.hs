@@ -65,6 +65,8 @@ module Streamly.Data.StreamK
     , fromEffect
 
     -- ** From Stream
+    -- | Please note that 'Stream' type does not observe any exceptions from
+    -- the consumer of the stream whereas 'StreamK' does.
     , fromStream
     , toStream
 
@@ -122,6 +124,16 @@ module Streamly.Data.StreamK
     -- * Buffered Operations
     , reverse
     , sortBy
+
+    -- * Exceptions
+    -- | Please note that 'Stream' type does not observe any exceptions from
+    -- the consumer of the stream whereas 'StreamK' does.
+    , handle
+
+    -- * Resource Management
+    -- | Please note that 'Stream' type does not observe any exceptions from
+    -- the consumer of the stream whereas 'StreamK' does.
+    , bracketIO
     )
 where
 

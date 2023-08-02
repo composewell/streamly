@@ -183,6 +183,9 @@ module Streamly.Internal.Data.StreamK
     , append
     , interleave
 
+    -- * Exceptions
+    , handle
+
     -- * Resource Management
     , bracketIO
 
@@ -196,20 +199,19 @@ where
 #include "inline.hs"
 #include "assert.hs"
 
-import Control.Exception (mask_)
+import Control.Exception (mask_, Exception)
 import Control.Monad (void, join)
-import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Catch (MonadCatch)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.IOFinalizer (newIOFinalizer, runIOFinalizer)
+import Streamly.Internal.Data.Parser.ParserK.Type (ParserK)
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (sizeOf, Unbox)
-import Streamly.Internal.Data.Parser.ParserK.Type (ParserK)
-import Streamly.Internal.Data.IOFinalizer
-    (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
 import qualified Control.Monad.Catch as MC
 import qualified Streamly.Internal.Data.Array.Type as Array
@@ -926,6 +928,38 @@ mapMaybe f = go
                 Nothing -> foldStream (adaptState st) yieldk single stp r
         in foldStream (adaptState st) yieldk single stp m1
 
+-------------------------------------------------------------------------------
+-- Exception Handling
+-------------------------------------------------------------------------------
+
+-- | Like 'Streamly.Data.Stream.handle' but with one significant difference,
+-- this function observes exceptions from the consumer of the stream as well.
+--
+-- You can also convert 'StreamK' to 'Stream' and use exception handling from
+-- 'Stream' module:
+--
+-- >>> handle f s = StreamK.fromStream $ Stream.handle (\e -> StreamK.toStream (f e)) (StreamK.toStream s)
+--
+{-# INLINABLE handle #-}
+handle :: (MonadCatch m, Exception e)
+    => (e -> m (StreamK m a)) -> StreamK m a -> StreamK m a
+handle f stream = go stream
+
+    where
+
+    go m1 = mkStream $ \st yld sng stp ->
+        let yieldk a r = yld a $ go r
+        in do
+            res <- MC.try (foldStream (adaptState st) yieldk sng stp m1)
+            case res of
+                Right r -> return r
+                Left e -> do
+                    r <- f e
+                    foldStream (adaptState st) yld sng stp r
+
+-------------------------------------------------------------------------------
+-- Resource Management
+-------------------------------------------------------------------------------
 
 -- If we are folding the stream and we do not drain the entire stream (e.g. if
 -- the fold terminates before the stream) then the finalizer will run on GC.
@@ -935,13 +969,16 @@ mapMaybe f = go
 -- the entire chain can be invoked when the stream ends voluntarily or if
 -- someone decides to abandon the stream.
 
-{-
-bracketIO :: (MonadIO m, MonadCatch m)
-    => IO b -> (b -> IO c) -> (b -> StreamK m a) -> StreamK m a
-bracketIO bef aft bet =
-    fromStream $ Stream.bracketIO bef aft (\x -> toStream $ bet x)
--}
-
+-- | Like 'Streamly.Data.Stream.bracketIO' but with one significant difference,
+-- this function observes exceptions from the consumer of the stream as well.
+-- Therefore, it cleans up the resource promptly when the consumer encounters
+-- an exception.
+--
+-- You can also convert 'StreamK' to 'Stream' and use resource handling from
+-- 'Stream' module:
+--
+-- >>> bracketIO bef aft bet = StreamK.fromStream $ Stream.bracketIO bef aft (StreamK.toStream . bet)
+--
 {-# INLINABLE bracketIO #-}
 bracketIO :: (MonadIO m, MonadCatch m)
     => IO b -> (b -> IO c) -> (b -> StreamK m a) -> StreamK m a
@@ -957,6 +994,8 @@ bracketIO bef aft bet =
 
     go ref m1 = mkStream $ \st yld sng stp ->
         let
+            -- We can discard exceptions on continuations to make it equivalent
+            -- to StreamD, but it seems like a desirable behavior.
             stop = liftIO (runIOFinalizer ref) >> stp
             single a = liftIO (runIOFinalizer ref) >> sng a
             yieldk a r = yld a $ go ref r
