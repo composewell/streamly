@@ -53,6 +53,9 @@ import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
 
+-- Note: We cannot use an Array directly as input because we need to identify
+-- the end of input case using None. We cannot do that using nil Array as nil
+-- Arrays can be encountered in normal input as well.
 data Input a = None | Chunk {-# UNPACK #-} !(Array a)
 
 -- | The intermediate result of running a parser step. The parser driver may
@@ -142,7 +145,6 @@ newtype ParserK a m b = MkParser
            -- The second argument is the used count as described above. The
            -- current input position is carried as part of 'Success'
            -- constructor of 'ParseResult'.
-           -- XXX Use Array a, determine eof by using a nil array
         -> Input a
         -> m (Step a m r)
     }
