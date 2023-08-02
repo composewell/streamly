@@ -4,7 +4,7 @@ core/src/Streamly/Internal/Unicode/Stream.hs
 src/Streamly/Internal/Data/SmallArray/Type.hs
 test/Streamly/Test/Data/Array.hs
 test/Streamly/Test/Data/Parser.hs
-test/Streamly/Test/Data/Parser/ParserD.hs
+test/Streamly/Test/Data/ParserK.hs
 test/Streamly/Test/Data/SmallArray.hs
 test/Streamly/Test/Data/Unfold.hs
 test/Streamly/Test/FileSystem/Event.hs
@@ -21,7 +21,7 @@ benchmark/lib/Streamly/Benchmark/Prelude.hs
 benchmark/NanoBenchmarks.hs
 benchmark/Streamly/Benchmark/Data/Array.hs
 benchmark/Streamly/Benchmark/Data/Parser.hs
-benchmark/Streamly/Benchmark/Data/Parser/ParserD.hs
+benchmark/Streamly/Benchmark/Data/ParserK.hs
 benchmark/Streamly/Benchmark/Data/Stream/StreamDK.hs
 benchmark/Streamly/Benchmark/Data/Stream/StreamK.hs
 benchmark/Streamly/Benchmark/Data/Unfold.hs

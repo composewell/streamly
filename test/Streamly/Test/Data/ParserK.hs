@@ -757,7 +757,7 @@ parseMany2Events =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Parser.ParserD"
+moduleName = "Data.ParserK"
 
 main :: IO ()
 main =
