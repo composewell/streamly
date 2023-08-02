@@ -20,6 +20,9 @@ module Streamly.Test.Data.Unbox (main) where
 -- Imports
 --------------------------------------------------------------------------------
 
+#ifdef USE_SERIALIZE
+import Control.Monad (void)
+#endif
 import Data.Complex (Complex ((:+)))
 import Data.Functor.Const (Const (..))
 import Data.Functor.Identity (Identity (..))
@@ -27,8 +30,17 @@ import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic, Rep(..))
 import GHC.Real (Ratio(..))
 
+#ifdef USE_SERIALIZE
+
+import Streamly.Internal.Data.Serialize (Serialize(..), Size(..))
+import Streamly.Internal.Data.Serialize.TH
+
+#else
+
 #ifdef USE_TH
 import Streamly.Internal.Data.Unbox.TH
+#endif
+
 #endif
 
 import Streamly.Internal.Data.Unbox
@@ -40,7 +52,6 @@ import Streamly.Internal.Data.Unbox
     , genericPokeByteIndex
     , genericSizeOf
     , newBytes
-    , pokeByteIndex
     )
 
 import Test.Hspec as H
@@ -49,12 +60,32 @@ import Test.Hspec as H
 -- Types
 --------------------------------------------------------------------------------
 
+#ifdef USE_SERIALIZE
+
+#define MODULE_NAME "Data.Serialize.Deriving.TH"
+#define DERIVE_UNBOX(typ) $(deriveSerialize ''typ)
+#define PEEK(i, arr) fmap snd (deserialize i arr)
+#define POKE(i, arr, val) void (serialize i arr val)
+#define TYPE_CLASS Serialize
+
+#else
+
+#define PEEK(i, arr) peekByteIndex i arr
+#define POKE(i, arr, val) pokeByteIndex i arr val
+#define TYPE_CLASS Unbox
+
 #ifdef USE_TH
+
 #define MODULE_NAME "Data.Unbox.Deriving.TH"
 #define DERIVE_UNBOX(typ) $(deriveUnbox ''typ)
+
 #else
+
 #define MODULE_NAME "Data.Unbox.Deriving.Generic"
 #define DERIVE_UNBOX(typ) deriving instance Unbox (typ)
+
+#endif
+
 #endif
 
 --------------------------------------------------------------------------------
@@ -132,24 +163,42 @@ DERIVE_UNBOX(NestedSOP)
 -- Ratio does not have a Generic instance by default
 deriving instance Generic (Ratio Int)
 
+#if defined(USE_SERIALIZE)
+$(deriveSerialize ''Complex)
+$(deriveSerialize ''Ratio)
+$(deriveSerializeWith ["a"] ''Const)
+$(deriveSerialize ''Identity)
+#endif
+
 --------------------------------------------------------------------------------
 -- Test helpers
 --------------------------------------------------------------------------------
 
 testSerialization ::
-       forall a. (Eq a, Show a, Unbox a)
+       forall a. (Eq a, Show a, TYPE_CLASS a)
     => a
     -> IO ()
 testSerialization val = do
-    arr <- newBytes (sizeOf (Proxy :: Proxy a))
-    pokeByteIndex 0 arr val
-    peekByteIndex 0 arr `shouldReturn` val
+    arr <- newBytes
+#ifdef USE_SERIALIZE
+               (case size :: Size a of
+                    ConstSize x -> x
+                    VarSize f -> f val)
+#else
+               (sizeOf (Proxy :: Proxy a))
+#endif
+    POKE(0, arr, val)
+    PEEK(0, arr) `shouldReturn` val
 
 testGenericConsistency ::
        forall a.
        ( Eq a
        , Show a
+#ifdef USE_SERIALIZE
+       , Serialize a,  Unbox a
+#else
        , Unbox a
+#endif
        , Generic a
        , SizeOfRep (Rep a)
        , PeekRep (Rep a)
@@ -160,20 +209,31 @@ testGenericConsistency ::
 testGenericConsistency val = do
 
     -- Test the generic sizeOf
-    sizeOf (Proxy :: Proxy a) `shouldBe` genericSizeOf (Proxy :: Proxy a)
+#ifdef USE_SERIALIZE
+    (case size :: Size a of
+         ConstSize x -> x
+         VarSize f -> f val)
+#else
+    sizeOf (Proxy :: Proxy a)
+#endif
+               `shouldBe` genericSizeOf (Proxy :: Proxy a)
 
     -- Test the serialization and deserialization
     arr <- newBytes (sizeOf (Proxy :: Proxy a))
 
-    pokeByteIndex 0 arr val
+    POKE(0, arr, val)
     genericPeekByteIndex arr 0 `shouldReturn` val
 
     genericPokeByteIndex arr 0 val
-    peekByteIndex 0 arr `shouldReturn` val
+    PEEK(0, arr) `shouldReturn` val
 
+
+#ifndef USE_SERIALIZE
 -- Size is also implicitly tested while serializing and deserializing.
 checkSizeOf :: forall a. Unbox a => Proxy a -> Int -> IO ()
 checkSizeOf _ size = sizeOf (Proxy :: Proxy a) `shouldBe` size
+
+#endif
 
 --------------------------------------------------------------------------------
 -- CPP helpers
@@ -204,6 +264,7 @@ testCases = do
     it "SumOfProducts SOP2" $ testSerialization (SOP2 1 'a')
     it "SumOfProducts SOP3" $ testSerialization (SOP3 1 2 3)
 
+#ifndef USE_SERIALIZE
     CHECK_SIZE(Unit, 1)
     CHECK_SIZE(Unit1, 1)
     CHECK_SIZE(Unit2, 2)
@@ -215,6 +276,7 @@ testCases = do
     CHECK_SIZE(Product2, 12)
     CHECK_SIZE(SumOfProducts, 25)
     CHECK_SIZE(NestedSOP, 26)
+#endif
 
     it "Bool" $ testSerialization True
     it "Complex Int" $ testSerialization (5 :+ 3 :: Complex Int)
