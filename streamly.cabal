@@ -131,6 +131,8 @@ extra-source-files:
     test/Streamly/Test/Unicode/extra/NormalizationTest.txt
     test/Streamly/Test/Data/Unbox.hs
     test/Streamly/Test/Data/Unbox/*.hs
+    test/Streamly/Test/Data/Serialize.hs
+    test/Streamly/Test/Data/Serialize/*.hs
     benchmark/Streamly/Benchmark/Unicode/data/AllChars.txt
     benchmark/Streamly/Benchmark/Unicode/data/Devanagari.txt
     benchmark/Streamly/Benchmark/Unicode/data/Japanese.txt

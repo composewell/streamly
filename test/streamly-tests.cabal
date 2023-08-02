@@ -286,6 +286,7 @@ test-suite Data.Serialize
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Serialize.hs
+  other-modules: Streamly.Test.Data.Serialize.TH
   ghc-options: -main-is Streamly.Test.Data.Serialize.main
 
 test-suite Data.Array.Stream
