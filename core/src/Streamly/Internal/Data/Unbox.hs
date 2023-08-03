@@ -305,13 +305,13 @@ unpin arr@(MutableByteArray marr#) =
 -- To derive the instance via Template Haskell:
 --
 -- @
--- import Streamly.Data.Unbox (deriveUnbox)
+-- import Streamly.Data.Serialize (deriveUnbox)
 -- $(deriveUnbox ''Object)
 -- @
 --
--- See 'Streamly.Data.Unbox.deriveUnbox' and
--- 'Streamly.Data.Unbox.deriveUnboxWith' for more information on deriving using
--- Template Haskell.
+-- See 'Streamly.Data.Serialize.deriveUnbox' and
+-- 'Streamly.Data.Serialize.deriveUnboxWith' for more information on deriving
+-- using Template Haskell.
 --
 -- Deriving via Template Haskell should be preferred for the following reasons:
 -- 1. Instances derived via Template Haskell have more performant routines.
