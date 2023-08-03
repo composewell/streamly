@@ -356,7 +356,7 @@ readWith size h = concatChunks $ readChunksWith size h
 -- performed in sizes of
 -- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
--- >>> reader = Unfold.many Array.reader chunkReader
+-- >>> reader = Unfold.many Array.reader Handle.chunkReader
 --
 {-# INLINE reader #-}
 reader :: MonadIO m => Unfold m Handle Word8
