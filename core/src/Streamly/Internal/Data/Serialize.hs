@@ -1,3 +1,11 @@
+-- |
+-- Module      : Streamly.Internal.Data.Serialize
+-- Copyright   : (c) 2023 Composewell Technologies
+-- License     : BSD3-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Portability : GHC
+--
+
 module Streamly.Internal.Data.Serialize
     ( Size(..)
     , Serialize(..)
