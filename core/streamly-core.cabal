@@ -296,6 +296,7 @@ library
                      , Streamly.Internal.Data.Producer.Source
                      , Streamly.Internal.Data.ChunkParserK
                      , Streamly.Internal.Data.ChunkParserK.Generic
+                     , Streamly.Internal.Data.ParserK.Generic
                      , Streamly.Internal.Data.Parser.ParserD.Type
                      , Streamly.Internal.Data.Pipe.Type
 
