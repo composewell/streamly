@@ -13,4 +13,6 @@
 >>> import qualified Streamly.Internal.Unicode.Stream as Unicode
 >>> import qualified Streamly.Unicode.Parser as Unicode
 >>> import qualified Streamly.Internal.Unicode.Parser as Unicode (number, mkDouble)
+
+>>> import Prelude hiding (String, lines, words, unlines, unwords)
 -}
