@@ -17,7 +17,7 @@ module Streamly.Internal.Unicode.Parser
     -- run the following commands first.
     --
     -- $setup
-    --
+    
     -- * Generic
       char
     , charIgnoreCase

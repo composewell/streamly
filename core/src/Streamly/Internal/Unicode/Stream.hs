@@ -16,7 +16,7 @@ module Streamly.Internal.Unicode.Stream
     -- run the following commands first.
     --
     -- $setup
-    --
+    
     -- * Construction (Decoding)
       decodeLatin1
 

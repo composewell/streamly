@@ -37,7 +37,7 @@ module Streamly.Internal.Unicode.String
     -- run the following commands first.
     --
     -- $setup
-    --
+    
     str
     ) where
 

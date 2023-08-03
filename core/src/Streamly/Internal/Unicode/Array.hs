@@ -19,7 +19,7 @@ module Streamly.Internal.Unicode.Array
     -- run the following commands first.
     --
     -- $setup
-    --
+
     -- * Streams of Strings
       lines
     , words

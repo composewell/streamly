@@ -30,7 +30,7 @@ module Streamly.Internal.FileSystem.Handle
     -- run the following commands first.
     --
     -- $setup
-    --
+    
     -- * Singleton APIs
       getChunk
     , getChunkOf
