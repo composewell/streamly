@@ -408,10 +408,35 @@ benchmark Data.Parser
     else
       ghc-options: +RTS -M2000M -RTS
 
-benchmark Data.ParserK
+benchmark Data.ParserK.Generic
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
+  cpp-options: -DBENCH_NON_CHUNKED_GENERIC
+  main-is: ParserK.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+    build-depends: exceptions >= 0.8   && < 0.11
+
+benchmark Data.ChunkParserK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  cpp-options: -DBENCH_CHUNKED
+  main-is: ParserK.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+    build-depends: exceptions >= 0.8   && < 0.11
+
+benchmark Data.ChunkParserK.Generic
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  cpp-options: -DBENCH_CHUNKED_GENERIC
   main-is: ParserK.hs
   if impl(ghcjs)
     buildable: False

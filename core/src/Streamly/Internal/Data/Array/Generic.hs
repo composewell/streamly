@@ -24,6 +24,8 @@ module Streamly.Internal.Data.Array.Generic
     , fromListN
     , fromList
 
+    , chunksOf
+
     -- * Elimination
     , length
     , reader
@@ -126,6 +128,15 @@ fromPureStream x =
 
 fromByteStr# :: Addr# -> Array Word8
 fromByteStr# addr = fromPureStream (D.fromByteStr# addr)
+
+-------------------------------------------------------------------------------
+-- Stream Ops
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL chunksOf #-}
+chunksOf :: forall m a. MonadIO m
+    => Int -> Stream m a -> Stream m (Array a)
+chunksOf n strm = fmap unsafeFreeze $ MArray.chunksOf n strm
 
 -------------------------------------------------------------------------------
 -- Construction - from streams
