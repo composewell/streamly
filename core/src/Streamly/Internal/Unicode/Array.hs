@@ -14,6 +14,12 @@
 --
 module Streamly.Internal.Unicode.Array
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+    --
     -- * Streams of Strings
       lines
     , words
@@ -31,13 +37,7 @@ import qualified Streamly.Internal.Unicode.Stream as S
 
 import Prelude hiding (String, lines, words, unlines, unwords)
 
--- $setup
--- >>> :m
--- >>> :set -XOverloadedStrings
--- >>> import Prelude hiding (String, lines, words, unlines, unwords)
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Unicode.Array as Unicode
+#include "DocTestDataUnicode.hs"
 
 -- | Break a string up into a stream of strings at newline characters.
 -- The resulting strings do not contain newlines.

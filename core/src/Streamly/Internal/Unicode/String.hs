@@ -31,7 +31,14 @@
 -- using Haskell functions.
 
 module Streamly.Internal.Unicode.String
-    ( str
+    (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+    --
+    str
     ) where
 
 
@@ -49,11 +56,8 @@ import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Data.Stream as Stream  (fromList, parse)
 import qualified Streamly.Internal.Unicode.Parser as Parser
 
--- $setup
--- >>> :m
--- >>> :set -XQuasiQuotes
--- >>> import Streamly.Internal.Unicode.String
---
+#include "DocTestDataUnicode.hs"
+
 --------------------------------------------------------------------------------
 -- Parsing
 --------------------------------------------------------------------------------

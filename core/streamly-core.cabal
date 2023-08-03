@@ -51,6 +51,7 @@ extra-source-files:
     src/DocTestDataStream.hs
     src/DocTestDataStreamK.hs
     src/DocTestDataUnfold.hs
+    src/DocTestDataUnicode.hs
 
     -- This is duplicated
     src/Streamly/Internal/Data/Array/ArrayMacros.h

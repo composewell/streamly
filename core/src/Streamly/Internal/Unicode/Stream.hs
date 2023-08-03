@@ -11,6 +11,12 @@
 
 module Streamly.Internal.Unicode.Stream
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+    --
     -- * Construction (Decoding)
       decodeLatin1
 
@@ -122,14 +128,7 @@ import qualified Streamly.Internal.Data.Stream as D
 
 import Prelude hiding (lines, words, unlines, unwords)
 
--- $setup
--- >>> :m
--- >>> :set -XMagicHash
--- >>> import Prelude hiding (lines, words, unlines, unwords)
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Unicode.Stream as Unicode
--- >>> import Streamly.Internal.Unicode.Stream
+#include "DocTestDataUnicode.hs"
 
 -------------------------------------------------------------------------------
 -- Latin1 decoding
