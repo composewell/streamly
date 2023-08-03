@@ -215,12 +215,40 @@ unpin arr@(MutableByteArray marr#) =
 
 -- XXX generate error if the size is < 1
 
--- In theory we could convert a type to and from a byte stream and use that
--- to implement boxing, unboxing. But that would be inefficient. This type
--- class allows each primitive type to have its own specific efficient
--- implementation to read and write the type to memory.
+-- = Design notes =
 --
--- This is a typeclass that uses MutableByteArray but could use ForeignPtr or
+-- == Fixed length data types ==
+--
+-- The main goal of the Unbox type class is to be used in arrays. Invariants
+-- for the sizeOf value required for use in arrays:
+--
+-- * size is independent of the value, it is determined by the type only. So
+-- that we can store values of the same type in fixed length array cells.
+-- * recursive data types cannot be fixed length, therefore, cannot be
+-- serialized using this type class.
+-- * size cannot be zero. So that the length of an array storing the element
+-- and the number of elements can be related.
+--
+-- Note, for general serializable types the size cannot be fixed e.g. we may
+-- want to serialize a list. This type class can be considered a special case
+-- of a more general serialization type class.
+--
+-- == Stream vs Array ==
+--
+-- In theory we could convert a type to and from a byte stream and use that
+-- to implement boxing, unboxing. But composing a stream from parts of the
+-- structure is much more inefficient than writing them to a memory location.
+-- However, it should be possible to efficiently parse a Haskell type from an
+-- array using chunk folds.
+--
+-- Also, this type class allows each primitive type to have its own specific
+-- efficient implementation to read and write the type to the mutable byte
+-- array using special GHC byte array operations. For example, see the Unbox
+-- instances of Char, Int, Word types.
+--
+-- == MutableByteArray vs ForeignPtr ==
+--
+-- The Unbox typeclass uses MutableByteArray but could use ForeignPtr or
 -- any other representation of memory. We could make this a multiparameter type
 -- class if necessary.
 --
@@ -231,38 +259,33 @@ unpin arr@(MutableByteArray marr#) =
 -- ArrayContents, though it would require all instances to support reading from
 -- a Ptr.
 --
+-- == Byte Offset vs Element Index ==
+--
 -- There is a reason for using byte offset instead of element index in read and
--- write operations in the type class. If we use element index slicing of the
+-- write operations in the type class. If we use element index, slicing of the
 -- array becomes rigid. We can only slice the array at addresses that are
 -- aligned with the type, therefore, we cannot slice at misaligned location and
--- then cast the slice into another type which does not ncessarily align with
+-- then cast the slice into another type which does not necessarily align with
 -- the original type.
+--
+-- == Alignment ==
 --
 -- As a side note, there seem to be no performance advantage of alignment
 -- anymore, see
 -- https://lemire.me/blog/2012/05/31/data-alignment-for-speed-myth-or-reality/
 --
 
--- The main goal of the Unbox type class is to be used in arrays. Invariants
--- for the sizeOf value required for use in arrays:
+-- | The 'Unbox' type class provides operations for serialization (unboxing)
+-- and deserialization (boxing) of a fixed-length, non-recursive Haskell data
+-- type to and from its unboxed byte representation in a mutable byte array.
 --
--- * size is independent of the value, it is determined by the type only. So
--- that we can store values of the same type in fixed length array cells.
--- * size cannot be zero. So that the length of an array storing the element
--- and the number of elements can be related.
+-- The 'peekByteIndex' read operation converts a Haskell type from its unboxed
+-- representation stored in a mutable byte array, while the 'pokeByteIndex'
+-- write operation serializes a Haskell data type to its byte representation in
+-- the mutable byte array.
 --
--- Note, for general serializable types the size cannot be fixed e.g. we may
--- want to serialize a list. This type class can be considered a special case
--- of a more general serialization type class.
-
--- | A type implementing the 'Unbox' interface supplies operations for reading
--- and writing the type from and to a mutable byte array (an unboxed
--- representation of the type) in memory. The read operation 'peekByteIndex'
--- deserializes the boxed type from the mutable byte array. The write operation
--- 'pokeByteIndex' serializes the boxed type to the mutable byte array.
---
--- Instances can be derived via Generics or Template Haskell. Note that the data
--- type must be non-recursive.
+-- Instances can be derived via Generics or Template Haskell. Note that the
+-- data type must be non-recursive.
 --
 -- Here is an example, for deriving an instance of this type class using
 -- generics:
