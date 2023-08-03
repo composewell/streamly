@@ -89,6 +89,8 @@ module Streamly.Internal.Data.StreamK
     , parseD
     , parseBreakChunks
     , parseChunks
+    , parseBreakGenericChunks
+    , parseGenericChunks
 
     -- ** Specialized Folds
     , drain
@@ -208,17 +210,18 @@ import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer (newIOFinalizer, runIOFinalizer)
-import Streamly.Internal.Data.ChunkParserK (ChunkParserK)
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (sizeOf, Unbox)
 
 import qualified Control.Monad.Catch as MC
+import qualified Streamly.Internal.Data.Array.Generic as GenericArr
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as PR
 import qualified Streamly.Internal.Data.ChunkParserK as ParserK
+import qualified Streamly.Internal.Data.ChunkParserK.Generic as GCPK
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Prelude
 
@@ -1340,7 +1343,7 @@ parseD :: Monad m =>
 parseD f = fmap fst . parseDBreak f
 
 -------------------------------------------------------------------------------
--- Chunked parsing using ParserK
+-- Parsing using ChunkParserK
 -------------------------------------------------------------------------------
 
 -- The backracking buffer consists of arrays in the most-recent-first order. We
@@ -1381,11 +1384,12 @@ parserDone (ParserK.Failure n e) _ _ = pure $ ParserK.Error n e
 -- using parseBreakChunks. We can also use parseBreak as an alternative to the
 -- monad instance of ParserD.
 
--- | Run a 'ChunkParserK' over a chunked 'StreamK' and return the rest of the Stream.
+-- | Run a 'ParserK.ChunkParserK' over a chunked 'StreamK' and return the rest
+-- of the Stream.
 {-# INLINE_NORMAL parseBreakChunks #-}
 parseBreakChunks
     :: (Monad m, Unbox a)
-    => ChunkParserK a m b
+    => ParserK.ChunkParserK a m b
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
 parseBreakChunks parser input = do
@@ -1479,8 +1483,157 @@ parseBreakChunks parser input = do
 
 {-# INLINE parseChunks #-}
 parseChunks :: (Monad m, Unbox a) =>
-    ChunkParserK a m b -> StreamK m (Array a) -> m (Either ParseError b)
+    ParserK.ChunkParserK a m b -> StreamK m (Array a) -> m (Either ParseError b)
 parseChunks f = fmap fst . parseBreakChunks f
+
+-------------------------------------------------------------------------------
+-- Parsing using ChunkParserK.Generic
+-------------------------------------------------------------------------------
+
+{-# INLINE backTrackGenericChunks #-}
+backTrackGenericChunks ::
+       Int
+    -> [GenericArr.Array a]
+    -> StreamK m (GenericArr.Array a)
+    -> (StreamK m (GenericArr.Array a), [GenericArr.Array a])
+backTrackGenericChunks = go
+
+    where
+
+    go _ [] stream = (stream, [])
+    go n xs stream | n <= 0 = (stream, xs)
+    go n (x:xs) stream =
+        let len = GenericArr.length x
+        in if n > len
+           then go (n - len) xs (cons x stream)
+           else if n == len
+           then (cons x stream, xs)
+           else let arr1 = GenericArr.getSliceUnsafe (len - n) n x
+                    arr2 = GenericArr.getSliceUnsafe 0 (len - n) x
+                 in (cons arr1 stream, arr2:xs)
+
+-- | A continuation to extract the result when a CPS parser is done.
+{-# INLINE parserDoneGenericChunks #-}
+parserDoneGenericChunks :: Applicative m =>
+    GCPK.ParseResult b -> Int -> GCPK.Input a -> m (GCPK.Step a m b)
+parserDoneGenericChunks (GCPK.Success n b) _ _ = pure $ GCPK.Done n b
+parserDoneGenericChunks (GCPK.Failure n e) _ _ = pure $ GCPK.Error n e
+
+-- | Run a 'GCPK.ChunkParserK' over a chunked 'StreamK' and return the rest of
+-- the Stream.
+{-# INLINE_NORMAL parseBreakGenericChunks #-}
+parseBreakGenericChunks
+    :: forall m a b. Monad m
+    => GCPK.ChunkParserK a m b
+    -> StreamK m (GenericArr.Array a)
+    -> m (Either ParseError b, StreamK m (GenericArr.Array a))
+parseBreakGenericChunks parser input = do
+    let parserk = GCPK.runParser parser parserDoneGenericChunks 0 0
+     in go [] parserk input
+
+    where
+
+    {-# INLINE goStop #-}
+    goStop
+        :: [GenericArr.Array a]
+        -> (GCPK.Input a -> m (GCPK.Step a m b))
+        -> m (Either ParseError b, StreamK m (GenericArr.Array a))
+    goStop backBuf parserk = do
+        pRes <- parserk GCPK.None
+        case pRes of
+            -- If we stop in an alternative, it will try calling the next
+            -- parser, the next parser may call initial returning Partial and
+            -- then immediately we have to call extract on it.
+            GCPK.Partial 0 cont1 ->
+                 go [] cont1 nil
+            GCPK.Partial n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map GenericArr.length backBuf))
+                let (s1, backBuf1) = backTrackGenericChunks n1 backBuf nil
+                 in go backBuf1 cont1 s1
+            GCPK.Continue 0 cont1 ->
+                go backBuf cont1 nil
+            GCPK.Continue n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map GenericArr.length backBuf))
+                let (s1, backBuf1) = backTrackGenericChunks n1 backBuf nil
+                 in go backBuf1 cont1 s1
+            GCPK.Done 0 b ->
+                return (Right b, nil)
+            GCPK.Done n b -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map GenericArr.length backBuf))
+                let (s1, _) = backTrackGenericChunks n1 backBuf nil
+                 in return (Right b, s1)
+            GCPK.Error _ err -> return (Left (ParseError err), nil)
+
+    seekErr n len =
+        error $ "parseBreak: Partial: forward seek not implemented n = "
+            ++ show n ++ " len = " ++ show len
+
+    yieldk
+        :: [GenericArr.Array a]
+        -> (GCPK.Input a -> m (GCPK.Step a m b))
+        -> GenericArr.Array a
+        -> StreamK m (GenericArr.Array a)
+        -> m (Either ParseError b, StreamK m (GenericArr.Array a))
+    yieldk backBuf parserk arr stream = do
+        pRes <- parserk (GCPK.Chunk arr)
+        let len = GenericArr.length arr
+        case pRes of
+            GCPK.Partial n cont1 ->
+                case compare n len of
+                    EQ -> go [] cont1 stream
+                    LT -> do
+                        if n >= 0
+                        then yieldk [] cont1 arr stream
+                        else do
+                            let n1 = negate n
+                                bufLen = sum (Prelude.map GenericArr.length backBuf)
+                                s = cons arr stream
+                            assertM(n1 >= 0 && n1 <= bufLen)
+                            let (s1, _) = backTrackGenericChunks n1 backBuf s
+                            go [] cont1 s1
+                    GT -> seekErr n len
+            GCPK.Continue n cont1 ->
+                case compare n len of
+                    EQ -> go (arr:backBuf) cont1 stream
+                    LT -> do
+                        if n >= 0
+                        then yieldk backBuf cont1 arr stream
+                        else do
+                            let n1 = negate n
+                                bufLen = sum (Prelude.map GenericArr.length backBuf)
+                                s = cons arr stream
+                            assertM(n1 >= 0 && n1 <= bufLen)
+                            let (s1, backBuf1) = backTrackGenericChunks n1 backBuf s
+                            go backBuf1 cont1 s1
+                    GT -> seekErr n len
+            GCPK.Done n b -> do
+                let n1 = len - n
+                assertM(n1 <= sum (Prelude.map GenericArr.length (arr:backBuf)))
+                let (s1, _) = backTrackGenericChunks n1 (arr:backBuf) stream
+                 in return (Right b, s1)
+            GCPK.Error _ err -> return (Left (ParseError err), nil)
+
+    go
+        :: [GenericArr.Array a]
+        -> (GCPK.Input a -> m (GCPK.Step a m b))
+        -> StreamK m (GenericArr.Array a)
+        -> m (Either ParseError b, StreamK m (GenericArr.Array a))
+    go backBuf parserk stream = do
+        let stop = goStop backBuf parserk
+            single a = yieldk backBuf parserk a nil
+         in foldStream
+                defState (yieldk backBuf parserk) single stop stream
+
+{-# INLINE parseGenericChunks #-}
+parseGenericChunks ::
+       (Monad m)
+    => GCPK.ChunkParserK a m b
+    -> StreamK m (GenericArr.Array a)
+    -> m (Either ParseError b)
+parseGenericChunks f = fmap fst . parseBreakGenericChunks f
 
 -------------------------------------------------------------------------------
 -- Sorting
