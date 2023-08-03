@@ -34,12 +34,12 @@ import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Streamly.Internal.Control.Concurrent
     (MonadAsync, MonadRunInIO, askRunInIO)
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher

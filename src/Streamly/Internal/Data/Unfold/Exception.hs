@@ -25,7 +25,7 @@ import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, withRunInIO)
 import Streamly.Internal.Data.IOFinalizer.Lifted
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
+import Streamly.Internal.Data.Stream (Step(..))
 
 import qualified Control.Monad.Catch as MC
 

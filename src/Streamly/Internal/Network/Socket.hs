@@ -89,7 +89,7 @@ import qualified Network.Socket as Net
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Stream.Chunked (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -101,7 +101,7 @@ import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.MutArray as MArray
     (MutArray(..), asPtrUnsafe, pinnedNewBytes)
 import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), Step(..))
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (first, map)

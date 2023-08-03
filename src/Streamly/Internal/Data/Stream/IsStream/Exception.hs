@@ -32,7 +32,7 @@ import Streamly.Internal.Control.Concurrent (MonadRunInIO, MonadAsync)
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream(..), fromStreamD, toStreamD)
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Exception as D
+import qualified Streamly.Internal.Data.Stream as D
     ( before
     , afterUnsafe
     , onException

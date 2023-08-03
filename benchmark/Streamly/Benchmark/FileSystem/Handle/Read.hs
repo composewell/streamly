@@ -46,7 +46,7 @@ import Prelude hiding (last, length)
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), FoldMany)
+import Streamly.Internal.Data.Stream (Step(..), FoldMany)
 
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream as D

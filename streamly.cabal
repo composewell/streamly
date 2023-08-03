@@ -410,9 +410,6 @@ library
                      , Streamly.Prelude
 
                      -- Deprecated Internal modules
-                     , Streamly.Internal.Data.SVar.Worker
-                     , Streamly.Internal.Data.SVar.Dispatch
-                     , Streamly.Internal.Data.SVar.Pull
                      , Streamly.Internal.Data.SVar
 
                      , Streamly.Internal.Data.Unfold.SVar
@@ -428,19 +425,10 @@ library
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.ZipAsync
 
-                     , Streamly.Internal.Data.Stream.IsStream.Type
+                     , Streamly.Internal.Data.Stream.IsStream
                      , Streamly.Internal.Data.Stream.IsStream.Combinators
                      , Streamly.Internal.Data.Stream.IsStream.Common
                      , Streamly.Internal.Data.Stream.IsStream.Enumeration
-                     , Streamly.Internal.Data.Stream.IsStream.Generate
-                     , Streamly.Internal.Data.Stream.IsStream.Eliminate
-                     , Streamly.Internal.Data.Stream.IsStream.Transform
-                     , Streamly.Internal.Data.Stream.IsStream.Expand
-                     , Streamly.Internal.Data.Stream.IsStream.Reduce
-                     , Streamly.Internal.Data.Stream.IsStream.Exception
-                     , Streamly.Internal.Data.Stream.IsStream.Lift
-                     , Streamly.Internal.Data.Stream.IsStream.Top
-                     , Streamly.Internal.Data.Stream.IsStream
 
     if !impl(ghcjs) && flag(dev)
         exposed-modules:
@@ -472,6 +460,20 @@ library
            Streamly.Data.Stream.Exception
          , Streamly.Data.Stream.Concurrent
          , Streamly.Data.Stream.Time
+
+         , Streamly.Internal.Data.Stream.IsStream.Type
+         , Streamly.Internal.Data.Stream.IsStream.Generate
+         , Streamly.Internal.Data.Stream.IsStream.Eliminate
+         , Streamly.Internal.Data.Stream.IsStream.Transform
+         , Streamly.Internal.Data.Stream.IsStream.Expand
+         , Streamly.Internal.Data.Stream.IsStream.Reduce
+         , Streamly.Internal.Data.Stream.IsStream.Exception
+         , Streamly.Internal.Data.Stream.IsStream.Lift
+         , Streamly.Internal.Data.Stream.IsStream.Top
+
+         , Streamly.Internal.Data.SVar.Worker
+         , Streamly.Internal.Data.SVar.Dispatch
+         , Streamly.Internal.Data.SVar.Pull
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max

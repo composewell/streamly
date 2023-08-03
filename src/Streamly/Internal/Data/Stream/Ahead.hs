@@ -59,7 +59,7 @@ import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (foldStreamShared, cons, mkStream, foldStream, fromEffect
     , nil, concatMapWith, fromPure, bindWith)
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream as D
     (mapM, fromStreamK, toStreamK)
 import qualified Streamly.Internal.Data.Stream.Serial as Stream (toStreamK)
 

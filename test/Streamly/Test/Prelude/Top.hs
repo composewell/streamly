@@ -14,7 +14,7 @@ import Test.QuickCheck
     )
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Data.Stream.IsStream.Top as Top
+import qualified Streamly.Internal.Data.Stream.IsStream as Top
 
 import Prelude hiding
     (maximum, minimum, elem, notElem, null, product, sum, head, last, take)

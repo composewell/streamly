@@ -131,7 +131,7 @@ import qualified GHC.IO.Device as RawIO
 import Streamly.Internal.Data.Array.Type
     (Array(..), byteLength, unsafeFreeze, asPtrUnsafe)
 import Streamly.Internal.System.IO (defaultChunkSize)
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 #if !defined(mingw32_HOST_OS)
 {-
 import Streamly.Internal.Data.Stream.IsStream.Type (toStreamD)
@@ -149,7 +149,7 @@ import qualified Streamly.Internal.Data.MutArray as MArray
     (MutArray(..), asPtrUnsafe)
 import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 

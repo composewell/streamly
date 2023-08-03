@@ -54,7 +54,7 @@ import Control.Monad.IO.Class (MonadIO)
 
 #ifdef INSPECTION
 import Streamly.Internal.Data.Unbox (Unbox)
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
+import Streamly.Internal.Data.Stream (Step(..))
 import Test.Inspection
 #endif
 

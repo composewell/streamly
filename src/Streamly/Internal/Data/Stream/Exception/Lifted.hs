@@ -35,7 +35,7 @@ import Data.Map.Strict (Map)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, withRunInIO)
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.IOFinalizer.Lifted
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream (Step(..))

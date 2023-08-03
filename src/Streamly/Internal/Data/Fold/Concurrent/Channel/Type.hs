@@ -34,7 +34,7 @@ import Streamly.Internal.Data.Stream.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Stream.Channel.Worker (sendWithDoorBell)
 
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream as D
 
 import Streamly.Internal.Data.Stream.Channel.Types
 

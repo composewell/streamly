@@ -62,7 +62,7 @@ import Data.Proxy (Proxy(..))
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Time.Units
     ( AbsTime
     , MilliSecond64(..)

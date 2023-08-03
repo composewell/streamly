@@ -290,8 +290,6 @@ library
                      , Streamly.Internal.Data.Fold.Step
                      , Streamly.Internal.Data.Refold.Type
                      , Streamly.Internal.Data.Fold.Type
-                     , Streamly.Internal.Data.Stream.StreamD.Step
-                     , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.Unfold.Type
                      , Streamly.Internal.Data.Producer.Type
                      , Streamly.Internal.Data.Producer
@@ -316,13 +314,6 @@ library
                      -- streamly-core-streams
                      , Streamly.Internal.Data.StreamK
                      -- StreamD depends on streamly-array-types
-                     , Streamly.Internal.Data.Stream.StreamD.Generate
-                     , Streamly.Internal.Data.Stream.StreamD.Eliminate
-                     , Streamly.Internal.Data.Stream.StreamD.Nesting
-                     , Streamly.Internal.Data.Stream.StreamD.Transform
-                     , Streamly.Internal.Data.Stream.StreamD.Exception
-                     , Streamly.Internal.Data.Stream.StreamD.Lift
-                     , Streamly.Internal.Data.Stream.StreamD.Top
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.Common
                      , Streamly.Internal.Data.Stream
@@ -332,7 +323,6 @@ library
                      -- streamly-core-data
                      , Streamly.Internal.Data.Builder
                      , Streamly.Internal.Data.Unfold
-                     , Streamly.Internal.Data.Unfold.Enumeration
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Fold.Chunked
@@ -341,13 +331,11 @@ library
                      , Streamly.Internal.Data.Pipe
 
                      -- streamly-transformers (non-base)
-                     , Streamly.Internal.Data.Stream.StreamD.Transformer
                      , Streamly.Internal.Data.Stream.StreamK.Transformer
 
                      -- streamly-containers (non-base)
-                     , Streamly.Internal.Data.Stream.StreamD.Container
-                     , Streamly.Internal.Data.Fold.Container
 
+                     , Streamly.Internal.Data.Fold.Container
                      , Streamly.Internal.Data.Stream.Chunked
 
                      -- streamly-core-data-arrays
@@ -420,6 +408,20 @@ library
                      , Streamly.Unicode.Parser
                      , Streamly.Unicode.Stream
                      , Streamly.Unicode.String
+    other-modules:
+                      Streamly.Internal.Data.Stream.StreamD.Container
+                    , Streamly.Internal.Data.Stream.StreamD.Eliminate
+                    , Streamly.Internal.Data.Stream.StreamD.Exception
+                    , Streamly.Internal.Data.Stream.StreamD.Generate
+                    , Streamly.Internal.Data.Stream.StreamD.Lift
+                    , Streamly.Internal.Data.Stream.StreamD.Nesting
+                    , Streamly.Internal.Data.Stream.StreamD.Step
+                    , Streamly.Internal.Data.Stream.StreamD.Top
+                    , Streamly.Internal.Data.Stream.StreamD.Transform
+                    , Streamly.Internal.Data.Stream.StreamD.Transformer
+                    , Streamly.Internal.Data.Stream.StreamD.Type
+
+                    , Streamly.Internal.Data.Unfold.Enumeration
 
     if flag(dev)
       exposed-modules:

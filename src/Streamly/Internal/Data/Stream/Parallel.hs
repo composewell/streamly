@@ -66,13 +66,13 @@ import Data.Maybe (fromJust)
 
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
+import Streamly.Internal.Data.Stream (Step(..))
 
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
     (StreamK, foldStreamShared, mkStream, foldStream, fromEffect
     , nil, concatMapWith, fromPure, bindWith)
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), mapM, toStreamK, fromStreamK)
 import qualified Streamly.Internal.Data.Stream.SVar.Generate as SVar
 import qualified Streamly.Internal.Data.Stream.SVar.Eliminate as SVar

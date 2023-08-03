@@ -137,7 +137,7 @@ import qualified Streamly.Internal.Data.MutArray.Type as MArray
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold.Type as FL(refoldMany)
 import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)

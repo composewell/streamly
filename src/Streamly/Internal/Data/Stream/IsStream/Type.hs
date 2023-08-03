@@ -119,7 +119,7 @@ import qualified Streamly.Internal.Data.Stream.Ahead as Ahead
 import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.Parallel as Parallel
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), toStreamK, fromStreamK
     , drain, eqBy, cmpBy, fromList, toList, foldrMx, foldlMx'
     , foldlx', foldl', fold)

@@ -110,7 +110,7 @@ import Streamly.Internal.Data.Stream.Channel.Types
     , concatMapDivK
     )
 import Streamly.Internal.Data.Stream.Channel.Worker (sendWithDoorBell)
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream (Step(..))
 
 import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
