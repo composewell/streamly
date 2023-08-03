@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Unicode.String
 -- Copyright   : (c) 2022 Composewell Technologies
@@ -37,7 +38,7 @@ module Streamly.Internal.Unicode.String
     -- run the following commands first.
     --
     -- $setup
-    
+
     str
     ) where
 

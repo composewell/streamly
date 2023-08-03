@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Unicode.Array
 -- Copyright   : (c) 2018 Composewell Technologies

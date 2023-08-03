@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Unicode.Parser
 -- Copyright   : (c) 2021 Composewell Technologies
@@ -17,7 +18,7 @@ module Streamly.Internal.Unicode.Parser
     -- run the following commands first.
     --
     -- $setup
-    
+
     -- * Generic
       char
     , charIgnoreCase

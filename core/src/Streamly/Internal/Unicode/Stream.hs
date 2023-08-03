@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Unicode.Stream
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -16,7 +17,7 @@ module Streamly.Internal.Unicode.Stream
     -- run the following commands first.
     --
     -- $setup
-    
+
     -- * Construction (Decoding)
       decodeLatin1
 
