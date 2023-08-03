@@ -32,6 +32,7 @@ module Streamly.Data.Serialize
 
 #include "assert.hs"
 
+import Data.Int (Int64)
 import Data.Word (Word8)
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Serialize (Serialize(..), Size(..))
@@ -62,9 +63,12 @@ encodeAs ps a =
               case size :: Size a of
                   ConstSize sz -> sz
                   VarSize f -> f a
-        mbarr <- Unbox.newBytesAs ps len
-        nextOff <- serialize 0 mbarr a
-        assertM(nextOff == len)
+        -- We encode the length of the encoding as a header hence the 8 extra
+        -- bytes to encode Int64
+        mbarr <- Unbox.newBytesAs ps (8  +  len)
+        off1 <- serialize 0 mbarr (fromIntegral len :: Int64)
+        off2 <- serialize off1 mbarr a
+        assertM(off2 == len + off1)
         pure $ Array mbarr 0 len
 
 {-# INLINE encode #-}
@@ -82,7 +86,9 @@ pinnedEncode = encodeAs Pinned
 {-# INLINE decode #-}
 decode :: Serialize a => Array Word8 -> a
 decode arr@(Array {..}) = unsafeInlineIO $ do
-    let len = Array.length arr
-    (nextOff, val) <- deserialize 0 arrContents
-    assertM(nextOff == len)
+    let lenArr = Array.length arr
+    (off1, lenEncoding :: Int64) <- deserialize 0 arrContents
+    (off2, val) <- deserialize off1 arrContents
+    assertM(fromIntegral lenEncoding + off1 == off2)
+    assertM(lenArr == off2)
     pure val
