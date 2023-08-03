@@ -408,6 +408,10 @@ library
                      , Streamly.Unicode.Parser
                      , Streamly.Unicode.Stream
                      , Streamly.Unicode.String
+
+                     -- Deprecated
+                     , Streamly.Data.ParserK
+
     other-modules:
                       Streamly.Internal.Data.Stream.StreamD.Container
                     , Streamly.Internal.Data.Stream.StreamD.Eliminate
