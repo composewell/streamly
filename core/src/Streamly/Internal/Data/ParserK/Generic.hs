@@ -6,21 +6,12 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- CPS style implementation of parsers.
+-- Unconstrained and single element version of
+-- "Streamly.Internal.Data.ChunkParserK" module.
 --
--- The CPS representation allows linear performance for Applicative, sequence,
--- Monad, Alternative, and choice operations compared to the quadratic
--- complexity of the corresponding direct style operations. However, direct
--- style operations allow fusion with ~10x better performance than CPS.
+-- See the "Streamly.Internal.Data.ChunkParserK" module for documentation.
 --
--- The direct style representation does not allow for recursive definitions of
--- "some" and "many" whereas CPS allows that.
 --
--- 'Applicative' and 'Control.Applicative.Alternative' type class based
--- combinators from the
--- <http://hackage.haskell.org/package/parser-combinators parser-combinators>
--- package can also be used with the 'ParserK' type.
-
 module Streamly.Internal.Data.ParserK.Generic
     (
       Step (..)
@@ -49,15 +40,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
 
 data Input a = None | Single a
 
--- | The intermediate result of running a parser step. The parser driver may
--- stop with a final result, pause with a continuation to resume, or fail with
--- an error.
---
--- See ParserD docs. This is the same as the ParserD Step except that it uses a
--- continuation in Partial and Continue constructors instead of a state in case
--- of ParserD.
---
--- /Pre-release/
+-- | Similar to "Streamly.Internal.Data.ChunkParserK.Step".
 --
 data Step a m r =
     -- The Int is the relative stream position to move to.
@@ -65,9 +48,6 @@ data Step a m r =
     -- 1 means try the next element
     -- -1 backtrack by 1 element
       Done !Int r
-      -- XXX we can use a "resume" and a "stop" continuations instead of Maybe.
-      -- measure if that works any better.
-      -- a -> m (Step a m r), m (Step a m r)
     | Partial !Int (Input a -> m (Step a m r))
     | Continue !Int (Input a -> m (Step a m r))
     | Error String
@@ -78,14 +58,7 @@ instance Functor m => Functor (Step a m) where
     fmap f (Continue n k) = Continue n (fmap (fmap f) . k)
     fmap _ (Error e) = Error e
 
--- Note: Passing position index separately instead of passing it with the
--- result causes huge regression in expression parsing becnhmarks.
-
--- | The parser's result.
---
--- Int is the relative stream position to move to. Could be negative.
---
--- /Pre-release/
+-- | Similar to "Streamly.Internal.Data.ChunkParserK.ParseResult".
 --
 data ParseResult b =
       Success !Int !b     -- Relative stream position, result
@@ -96,44 +69,12 @@ instance Functor ParseResult where
     fmap f (Success n b) = Success n (f b)
     fmap _ (Failure e) = Failure e
 
--- XXX Change the type to the shape (a -> m r -> m r) -> (m r -> m r) -> m r
---
--- The parse continuation would be: a -> m (Step a m r) -> m (Step a m r)
--- The extract continuation would be: m (Step a m r) -> m (Step a m r)
---
--- Use Step itself in place of ParseResult.
-
--- | A continuation passing style parser representation. A continuation of
--- 'Step's, each step passes a state and a parse result to the next 'Step'. The
--- resulting 'Step' may carry a continuation that consumes input 'a' and
--- results in another 'Step'. Essentially, the continuation may either consume
--- input without a result or return a result with no further input to be
--- consumed.
+-- | Similar to "Streamly.Internal.Data.ChunkParserK.ChunkParserK".
 --
 newtype ParserK a m b = MkParser
     { runParser :: forall r.
-           -- Using "Input" in runParser is not necessary but it avoids making
-           -- one more function call to get the input. This could be helpful
-           -- for cases where we process just one element per call.
-           --
-           -- Do not eta reduce the applications of this continuation.
-           --
-           -- The second argument is the used count. The current input position
-           -- is carried as part of 'Success' constructor of 'ParseResult'.
            (ParseResult b -> Int -> Input a -> m (Step a m r))
-           -- XXX Maintain and pass the original position in the stream. that
-           -- way we can also report better errors. Use a Context structure for
-           -- passing the state.
-
-           -- Relative stream position. If
-           -- negative then backtracking is required.
-           -- The parser should use "Continue -n" in this case if it needs to
-           -- backtrack. Negative value cannot be beyond the current
-           -- backtrack buffer. Positive value cannot be beyond 1.
-           -- Only single element forward tracking is possible now.
         -> Int
-           -- Used elem count, a count of elements consumed by the parser. If
-           -- an Alternative fails we need to backtrack by this amount.
         -> Int
         -> Input a
         -> m (Step a m r)
@@ -143,9 +84,6 @@ newtype ParserK a m b = MkParser
 -- Functor
 -------------------------------------------------------------------------------
 
--- XXX rewrite this using ParserD, expose rmapM from ParserD.
--- | Maps a function over the output of the parser.
---
 instance Functor m => Functor (ParserK a m) where
     {-# INLINE fmap #-}
     fmap f parser = MkParser $ \k n st arr ->
@@ -156,29 +94,19 @@ instance Functor m => Functor (ParserK a m) where
 -- Sequential applicative
 -------------------------------------------------------------------------------
 
--- This is the dual of stream "fromPure".
---
--- | A parser that always yields a pure value without consuming any input.
---
--- /Pre-release/
+-- | Similar to "Streamly.Internal.Data.ChunkParserK.fromPure".
 --
 {-# INLINE fromPure #-}
 fromPure :: b -> ParserK a m b
 fromPure b = MkParser $ \k n st arr -> k (Success n b) st arr
 
--- | See 'Streamly.Internal.Data.Parser.fromEffect'.
---
--- /Pre-release/
+-- | Similar to "Streamly.Internal.Data.ChunkParserK.fromEffect".
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> ParserK a m b
 fromEffect eff =
     MkParser $ \k n st arr -> eff >>= \b -> k (Success n b) st arr
 
--- | 'Applicative' form of 'Streamly.Internal.Data.Parser.splitWith'. Note that
--- this operation does not fuse, use 'Streamly.Internal.Data.Parser.splitWith'
--- when fusion is important.
---
 instance Monad m => Applicative (ParserK a m) where
     {-# INLINE pure #-}
     pure = fromPure
@@ -208,59 +136,12 @@ instance Monad m => Applicative (ParserK a m) where
 -- Monad
 -------------------------------------------------------------------------------
 
--- This is the dual of "nil".
---
--- | A parser that always fails with an error message without consuming
--- any input.
---
--- /Pre-release/
+-- | Similar to "Streamly.Internal.Data.ChunkParserK.die".
 --
 {-# INLINE die #-}
 die :: String -> ParserK a m b
 die err = MkParser (\k _ st arr -> k (Failure err) st arr)
 
--- | Monad composition can be used for lookbehind parsers, we can make the
--- future parses depend on the previously parsed values.
---
--- If we have to parse "a9" or "9a" but not "99" or "aa" we can use the
--- following parser:
---
--- @
--- backtracking :: MonadCatch m => PR.Parser Char m String
--- backtracking =
---     sequence [PR.satisfy isDigit, PR.satisfy isAlpha]
---     '<|>'
---     sequence [PR.satisfy isAlpha, PR.satisfy isDigit]
--- @
---
--- We know that if the first parse resulted in a digit at the first place then
--- the second parse is going to fail.  However, we waste that information and
--- parse the first character again in the second parse only to know that it is
--- not an alphabetic char.  By using lookbehind in a 'Monad' composition we can
--- avoid redundant work:
---
--- @
--- data DigitOrAlpha = Digit Char | Alpha Char
---
--- lookbehind :: MonadCatch m => PR.Parser Char m String
--- lookbehind = do
---     x1 \<-    Digit '<$>' PR.satisfy isDigit
---          '<|>' Alpha '<$>' PR.satisfy isAlpha
---
---     -- Note: the parse depends on what we parsed already
---     x2 <- case x1 of
---         Digit _ -> PR.satisfy isAlpha
---         Alpha _ -> PR.satisfy isDigit
---
---     return $ case x1 of
---         Digit x -> [x,x2]
---         Alpha x -> [x,x2]
--- @
---
--- See also 'Streamly.Internal.Data.Parser.concatMap'. This monad instance
--- does not fuse, use 'Streamly.Internal.Data.Parser.concatMap' when you need
--- fusion.
---
 instance Monad m => Monad (ParserK a m) where
     {-# INLINE return #-}
     return = pure
@@ -292,19 +173,6 @@ instance MonadIO m => MonadIO (ParserK a m) where
 -- Alternative
 -------------------------------------------------------------------------------
 
--- | 'Alternative' form of 'Streamly.Internal.Data.Parser.alt'. Backtrack and
--- run the second parser if the first one fails.
---
--- The "some" and "many" operations of alternative accumulate results in a pure
--- list which is not scalable and streaming. Instead use
--- 'Streamly.Internal.Data.Parser.some' and
--- 'Streamly.Internal.Data.Parser.many' for fusible operations with composable
--- accumulation of results.
---
--- See also 'Streamly.Internal.Data.Parser.alt'. This 'Alternative' instance
--- does not fuse, use 'Streamly.Internal.Data.Parser.alt' when you need
--- fusion.
---
 instance Monad m => Alternative (ParserK a m) where
     {-# INLINE empty #-}
     empty = die "empty"
@@ -335,21 +203,12 @@ instance Monad m => Alternative (ParserK a m) where
         many_v = some_v <|> pure []
         some_v = (:) <$> v <*> many_v
 
--- | 'mzero' is same as 'empty', it aborts the parser. 'mplus' is same as
--- '<|>', it selects the first succeeding parser.
---
 instance Monad m => MonadPlus (ParserK a m) where
     {-# INLINE mzero #-}
     mzero = die "mzero"
 
     {-# INLINE mplus #-}
     mplus = (<|>)
-
-{-
-instance MonadTrans (ParserK a) where
-    {-# INLINE lift #-}
-    lift = fromEffect
--}
 
 -------------------------------------------------------------------------------
 -- Convert ParserD to ParserK
@@ -381,8 +240,6 @@ parseDToK pstep initial extract cont !relPos !usedCount !input = do
 
     where
 
-    -- XXX We can maintain an absolute position instead of relative that will
-    -- help in reporting of error location in the stream.
     {-# NOINLINE parseContSingle #-}
     parseContSingle !count !state !x =
         go SPEC state
@@ -430,66 +287,13 @@ parseDToK pstep initial extract cont !relPos !usedCount !input = do
                 cont (Failure err) count None
             ParserD.Partial _ _ -> error "Bug: parseDToK Partial unreachable"
 
-    -- XXX Maybe we can use two separate continuations instead of using
-    -- Just/Nothing cases here. That may help in avoiding the parseContJust
-    -- function call.
     {-# INLINE parseCont #-}
     parseCont !cnt !pst (Single x) = parseContSingle cnt pst x
     parseCont !cnt !pst None = parseContNothing cnt pst
 
--- | Convert a raw byte 'Parser' to a 'ParserK'.
---
--- /Pre-release/
+-- | Similar to "Streamly.Internal.Data.ChunkParserK.fromParser".
 --
 {-# INLINE_LATE fromParser #-}
 fromParser :: Monad m => ParserD.Parser a m b -> ParserK a m b
 fromParser (ParserD.Parser step initial extract) =
     MkParser $ parseDToK step initial extract
-
-{-
--------------------------------------------------------------------------------
--- Convert CPS style 'Parser' to direct style 'D.Parser'
--------------------------------------------------------------------------------
-
--- | A continuation to extract the result when a CPS parser is done.
-{-# INLINE parserDone #-}
-parserDone :: Monad m => ParseResult b -> Int -> Input a -> m (Step a m b)
-parserDone (Success n b) _ None = return $ Done n b
-parserDone (Failure n e) _ None = return $ Error n e
-parserDone _ _ _ = error "Bug: toParser: called with input"
-
--- | Convert a CPS style 'ParserK' to a direct style 'ParserD.Parser'.
---
--- /Pre-release/
---
-{-# INLINE_LATE toParser #-}
-toParser :: Monad m => ParserK a m b -> ParserD.Parser a m b
-toParser parser = ParserD.Parser step initial extract
-
-    where
-
-    initial = pure (ParserD.IPartial (\x -> runParser parser 0 0 x parserDone))
-
-    step cont a = do
-        r <- cont (Single a)
-        return $ case r of
-            Done n b -> ParserD.Done n b
-            Error _ e -> ParserD.Error e
-            Partial n cont1 -> ParserD.Partial n cont1
-            Continue n cont1 -> ParserD.Continue n cont1
-
-    extract cont = do
-        r <- cont None
-        case r of
-            Done n b -> return $ ParserD.Done n b
-            Error _ e -> return $ ParserD.Error e
-            Partial _ cont1 -> extract cont1
-            Continue n cont1 -> return $ ParserD.Continue n cont1
-
-#ifndef DISABLE_FUSION
-{-# RULES "fromParser/toParser fusion" [2]
-    forall s. toParser (fromParser s) = s #-}
-{-# RULES "toParser/fromParser fusion" [2]
-    forall s. fromParser (toParser s) = s #-}
-#endif
--}
