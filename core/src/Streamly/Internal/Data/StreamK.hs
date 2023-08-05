@@ -224,7 +224,6 @@ import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as PR
 import qualified Streamly.Internal.Data.ChunkParserK as CPK
 import qualified Streamly.Internal.Data.ChunkParserK.Generic as GCPK
-import qualified Streamly.Internal.Data.ParserK.Generic as GPK
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Prelude
 
@@ -1392,7 +1391,7 @@ parserDoneChunks (CPK.Failure n e) _ _ = pure $ CPK.Error n e
 {-# INLINE_NORMAL parseBreakChunks #-}
 parseBreakChunks
     :: (Monad m, Unbox a)
-    => CPK.ChunkParserK a m b
+    => CPK.ChunkParserK (Array a) m b
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
 parseBreakChunks parser input = do
@@ -1486,7 +1485,7 @@ parseBreakChunks parser input = do
 
 {-# INLINE parseChunks #-}
 parseChunks :: (Monad m, Unbox a) =>
-    CPK.ChunkParserK a m b -> StreamK m (Array a) -> m (Either ParseError b)
+    CPK.ChunkParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
 parseChunks f = fmap fst . parseBreakChunks f
 
 -------------------------------------------------------------------------------
@@ -1657,9 +1656,9 @@ backTrackGeneric = go
 -- | A continuation to extract the result when a CPS parser is done.
 {-# INLINE parserDoneGeneric #-}
 parserDoneGeneric :: Applicative m =>
-    GPK.ParseResult b -> Int -> GPK.Input a -> m (GPK.Step a m b)
-parserDoneGeneric (GPK.Success n b) _ _ = pure $ GPK.Done n b
-parserDoneGeneric (GPK.Failure e) _ _ = pure $ GPK.Error e
+    CPK.ParseResult b -> Int -> CPK.Input a -> m (CPK.Step a m b)
+parserDoneGeneric (CPK.Success n b) _ _ = pure $ CPK.Done n b
+parserDoneGeneric (CPK.Failure n e) _ _ = pure $ CPK.Error n e
 
 
 -- | Run a 'ParserK' over a 'StreamK' and return the rest of the Stream. Please
@@ -1667,11 +1666,11 @@ parserDoneGeneric (GPK.Failure e) _ _ = pure $ GPK.Error e
 {-# INLINE_NORMAL parseBreakGeneric #-}
 parseBreakGeneric
     :: forall m a b. Monad m
-    => GPK.ParserK a m b
+    => CPK.ChunkParserK a m b
     -> StreamK m a
     -> m (Either ParseError b, StreamK m a)
 parseBreakGeneric parser input = do
-    let parserk = GPK.runParser parser parserDoneGeneric 0 0
+    let parserk = CPK.runParser parser parserDoneGeneric 0 0
      in go [] parserk input
 
     where
@@ -1679,36 +1678,36 @@ parseBreakGeneric parser input = do
     {-# INLINE goStop #-}
     goStop
         :: [a]
-        -> (GPK.Input a -> m (GPK.Step a m b))
+        -> (CPK.Input a -> m (CPK.Step a m b))
         -> m (Either ParseError b, StreamK m a)
     goStop backBuf parserk = do
-        pRes <- parserk GPK.None
+        pRes <- parserk CPK.None
         case pRes of
             -- If we stop in an alternative, it will try calling the next
             -- parser, the next parser may call initial returning Partial and
             -- then immediately we have to call extract on it.
-            GPK.Partial 0 cont1 ->
+            CPK.Partial 0 cont1 ->
                  go [] cont1 nil
-            GPK.Partial n cont1 -> do
+            CPK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, backBuf1) = backTrackGeneric n1 backBuf nil
                  in go backBuf1 cont1 s1
-            GPK.Continue 0 cont1 ->
+            CPK.Continue 0 cont1 ->
                 go backBuf cont1 nil
-            GPK.Continue n cont1 -> do
+            CPK.Continue n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, backBuf1) = backTrackGeneric n1 backBuf nil
                  in go backBuf1 cont1 s1
-            GPK.Done 0 b ->
+            CPK.Done 0 b ->
                 return (Right b, nil)
-            GPK.Done n b -> do
+            CPK.Done n b -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, _) = backTrackGeneric n1 backBuf nil
                  in return (Right b, s1)
-            GPK.Error err -> return (Left (ParseError err), nil)
+            CPK.Error _ err -> return (Left (ParseError err), nil)
 
     seekErr n =
         error $ "parseBreakGeneric: Partial: forward seek not implemented n = "
@@ -1716,49 +1715,49 @@ parseBreakGeneric parser input = do
 
     yieldk
         :: [a]
-        -> (GPK.Input a -> m (GPK.Step a m b))
+        -> (CPK.Input a -> m (CPK.Step a m b))
         -> a
         -> StreamK m a
         -> m (Either ParseError b, StreamK m a)
     yieldk backBuf parserk arr stream = do
-        pRes <- parserk (GPK.Single arr)
+        pRes <- parserk (CPK.Chunk arr)
         case pRes of
-            GPK.Partial 1 cont1 -> go [] cont1 stream
-            GPK.Partial 0 cont1 -> go [] cont1 (cons arr stream)
-            GPK.Partial n _ | n > 1 -> seekErr n
-            GPK.Partial n cont1 -> do
+            CPK.Partial 1 cont1 -> go [] cont1 stream
+            CPK.Partial 0 cont1 -> go [] cont1 (cons arr stream)
+            CPK.Partial n _ | n > 1 -> seekErr n
+            CPK.Partial n cont1 -> do
                 let n1 = negate n
                     bufLen = length backBuf
                     s = cons arr stream
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backTrackGeneric n1 backBuf s
                 go [] cont1 s1
-            GPK.Continue 1 cont1 -> go (arr:backBuf) cont1 stream
-            GPK.Continue 0 cont1 ->
+            CPK.Continue 1 cont1 -> go (arr:backBuf) cont1 stream
+            CPK.Continue 0 cont1 ->
                 go backBuf cont1 (cons arr stream)
-            GPK.Continue n _ | n > 1 -> seekErr n
-            GPK.Continue n cont1 -> do
+            CPK.Continue n _ | n > 1 -> seekErr n
+            CPK.Continue n cont1 -> do
                 let n1 = negate n
                     bufLen = length backBuf
                     s = cons arr stream
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, backBuf1) = backTrackGeneric n1 backBuf s
                 go backBuf1 cont1 s1
-            GPK.Done 1 b -> pure (Right b, stream)
-            GPK.Done 0 b -> pure (Right b, cons arr stream)
-            GPK.Done n _ | n > 1 -> seekErr n
-            GPK.Done n b -> do
+            CPK.Done 1 b -> pure (Right b, stream)
+            CPK.Done 0 b -> pure (Right b, cons arr stream)
+            CPK.Done n _ | n > 1 -> seekErr n
+            CPK.Done n b -> do
                 let n1 = negate n
                     bufLen = length backBuf
                     s = cons arr stream
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backTrackGeneric n1 backBuf s
                 pure (Right b, s1)
-            GPK.Error err -> return (Left (ParseError err), nil)
+            CPK.Error _ err -> return (Left (ParseError err), nil)
 
     go
         :: [a]
-        -> (GPK.Input a -> m (GPK.Step a m b))
+        -> (CPK.Input a -> m (CPK.Step a m b))
         -> StreamK m a
         -> m (Either ParseError b, StreamK m a)
     go backBuf parserk stream = do
@@ -1771,7 +1770,7 @@ parseBreakGeneric parser input = do
 -- for better performance.
 {-# INLINE parseGeneric #-}
 parseGeneric :: Monad m =>
-    GPK.ParserK a m b -> StreamK m a -> m (Either ParseError b)
+    CPK.ChunkParserK a m b -> StreamK m a -> m (Either ParseError b)
 parseGeneric f = fmap fst . parseBreakGeneric f
 
 -------------------------------------------------------------------------------

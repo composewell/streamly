@@ -28,6 +28,7 @@ module Streamly.Internal.Data.ChunkParserK
     , ParseResult (..)
     , ChunkParserK (..)
     , fromParser
+    , toK
     -- , toParser
     , fromPure
     , fromEffect
@@ -56,7 +57,15 @@ import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
 -- Note: We cannot use an Array directly as input because we need to identify
 -- the end of input case using None. We cannot do that using nil Array as nil
 -- Arrays can be encountered in normal input as well.
-data Input a = None | Chunk {-# UNPACK #-} !(Array a)
+--
+-- We could specialize the ParserK type to use an Array directly, that provides
+-- some performance improvement. The best advantage of that is when we consume
+-- one element at a time from the array. If we really want that perf
+-- improvement we can use a special ChunkParserK type with the following Input.
+--
+-- data Input a = None | Chunk {-# UNPACK #-} !(Array a)
+--
+data Input a = None | Chunk a
 
 -- | The intermediate result of running a parser step. The parser driver may
 -- stop with a final result, pause with a continuation to resume, or fail with
@@ -72,9 +81,6 @@ data Step a m r =
     -- The Int is the current stream position index wrt to the start of the
     -- array.
       Done !Int r
-      -- XXX we can use a "resume" and a "stop" continuations instead of Maybe.
-      -- measure if that works any better.
-      -- Array a -> m (Step a m r), m (Step a m r)
     | Partial !Int (Input a -> m (Step a m r))
     | Continue !Int (Input a -> m (Step a m r))
     | Error !Int String
@@ -371,11 +377,11 @@ parseDToK
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
     -> (s -> m (ParserD.Step s b))
-    -> (ParseResult b -> Int -> Input a -> m (Step a m r))
+    -> (ParseResult b -> Int -> Input (Array a) -> m (Step (Array a) m r))
     -> Int
     -> Int
-    -> Input a
-    -> m (Step a m r)
+    -> Input (Array a)
+    -> m (Step (Array a) m r)
 parseDToK pstep initial extract cont !offset0 !usedCount !input = do
     res <- initial
     case res of
@@ -494,9 +500,107 @@ parseDToK pstep initial extract cont !offset0 !usedCount !input = do
 -- /Pre-release/
 --
 {-# INLINE_LATE fromParser #-}
-fromParser :: (Monad m, Unbox a) => ParserD.Parser a m b -> ChunkParserK a m b
+fromParser :: (Monad m, Unbox a) => ParserD.Parser a m b -> ChunkParserK (Array a) m b
 fromParser (ParserD.Parser step initial extract) =
     MkParser $ parseDToK step initial extract
+
+{-# INLINE parseDToSingleK #-}
+parseDToSingleK
+    :: forall m a s b r. (Monad m)
+    => (s -> a -> m (ParserD.Step s b))
+    -> m (ParserD.Initial s b)
+    -> (s -> m (ParserD.Step s b))
+    -> (ParseResult b -> Int -> Input a -> m (Step a m r))
+    -> Int
+    -> Int
+    -> Input a
+    -> m (Step a m r)
+parseDToSingleK pstep initial extract cont !relPos !usedCount !input = do
+    res <- initial
+    case res of
+        ParserD.IPartial pst -> do
+            -- XXX can we come here with relPos 1?
+            if relPos == 0
+            then
+                case input of
+                    Chunk arr -> parseContChunk usedCount pst arr
+                    None -> parseContNothing usedCount pst
+            -- XXX Previous code was using Continue in this case
+            else pure $ Partial relPos (parseCont usedCount pst)
+        ParserD.IDone b -> cont (Success relPos b) usedCount input
+        ParserD.IError err -> cont (Failure relPos err) usedCount input
+
+    where
+
+    -- XXX We can maintain an absolute position instead of relative that will
+    -- help in reporting of error location in the stream.
+    {-# NOINLINE parseContChunk #-}
+    parseContChunk !count !state x = do
+         go SPEC state
+
+        where
+
+        go !_ !pst = do
+            pRes <- pstep pst x
+            case pRes of
+                ParserD.Done 0 b ->
+                    cont (Success 1 b) (count + 1) (Chunk x)
+                ParserD.Done 1 b ->
+                    cont (Success 0 b) count (Chunk x)
+                ParserD.Done n b ->
+                    cont (Success (1 - n) b) (count + 1 - n) (Chunk x)
+                ParserD.Partial 0 pst1 ->
+                    pure $ Partial 1 (parseCont (count + 1) pst1)
+                ParserD.Partial 1 pst1 ->
+                    -- XXX Since we got Partial, the driver should drop the
+                    -- buffer, we should call the driver here?
+                    go SPEC pst1
+                ParserD.Partial n pst1 ->
+                    pure $ Partial (1 - n) (parseCont (count + 1 - n) pst1)
+                ParserD.Continue 0 pst1 ->
+                    pure $ Continue 1 (parseCont (count + 1) pst1)
+                ParserD.Continue 1 pst1 ->
+                    go SPEC pst1
+                ParserD.Continue n pst1 ->
+                    pure $ Continue (1 - n) (parseCont (count + 1 - n) pst1)
+                ParserD.Error err ->
+                    -- XXX fix undefined
+                    cont (Failure 0 err) count (Chunk x)
+
+    {-# NOINLINE parseContNothing #-}
+    parseContNothing !count !pst = do
+        r <- extract pst
+        case r of
+            -- IMPORTANT: the n here is from the byte stream parser, that means
+            -- it is the backtrack element count and not the stream position
+            -- index into the current input array.
+            ParserD.Done n b ->
+                assert (n >= 0)
+                    (cont (Success (- n) b) (count - n) None)
+            ParserD.Continue n pst1 ->
+                assert (n >= 0)
+                    (return $ Continue (- n) (parseCont (count - n) pst1))
+            ParserD.Error err ->
+                -- XXX It is called only when there is no input arr. So using 0
+                -- as the position is correct?
+                cont (Failure 0 err) count None
+            ParserD.Partial _ _ -> error "Bug: parseDToK Partial unreachable"
+
+    -- XXX Maybe we can use two separate continuations instead of using
+    -- Just/Nothing cases here. That may help in avoiding the parseContJust
+    -- function call.
+    {-# INLINE parseCont #-}
+    parseCont !cnt !pst (Chunk arr) = parseContChunk cnt pst arr
+    parseCont !cnt !pst None = parseContNothing cnt pst
+
+-- | Convert a raw byte 'Parser' to a chunked 'ParserK'.
+--
+-- /Pre-release/
+--
+{-# INLINE_LATE toK #-}
+toK :: Monad m => ParserD.Parser a m b -> ChunkParserK a m b
+toK (ParserD.Parser step initial extract) =
+    MkParser $ parseDToSingleK step initial extract
 
 {-
 -------------------------------------------------------------------------------

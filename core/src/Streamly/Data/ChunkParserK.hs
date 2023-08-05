@@ -25,6 +25,7 @@ module Streamly.Data.ChunkParserK
     -- ** Conversions
     , fromFold
     , fromParser
+    , toK
     -- , toParser
 
     -- ** Without Input
@@ -36,6 +37,7 @@ module Streamly.Data.ChunkParserK
 where
 
 import Control.Monad.IO.Class (MonadIO)
+import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Unbox (Unbox)
 import qualified Streamly.Internal.Data.Parser as ParserD
@@ -45,5 +47,5 @@ import Streamly.Internal.Data.ChunkParserK
 -- | Convert a 'Fold' to a 'ChunkParserK'.
 --
 {-# INLINE fromFold #-}
-fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ChunkParserK a m b
+fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ChunkParserK (Array a) m b
 fromFold = fromParser . ParserD.fromFold

@@ -45,15 +45,7 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Data.Parser as PRD
-#ifdef BENCH_CHUNKED
 import qualified Streamly.Data.ChunkParserK as PR
-#endif
-#ifdef BENCH_CHUNKED_GENERIC
-import qualified Streamly.Internal.Data.ChunkParserK.Generic as PR
-#endif
-#ifdef BENCH_NON_CHUNKED_GENERIC
-import qualified Streamly.Internal.Data.ParserK.Generic as PR
-#endif
 import qualified Streamly.Internal.Data.StreamK as StreamK
 
 import Gauge
@@ -66,6 +58,7 @@ import Streamly.Benchmark.Common
 #ifdef BENCH_CHUNKED
 
 #define PARSE_OP StreamK.parseChunks
+#define INPUT (Array a)
 #define PARSE_ELEM (Array Int)
 #define CONSTRAINT_IO (MonadIO m, Unbox a)
 #define CONSTRAINT (Monad m, Unbox a)
@@ -88,10 +81,12 @@ import Streamly.Benchmark.Common
 #ifdef BENCH_NON_CHUNKED_GENERIC
 
 #define PARSE_OP StreamK.parseGeneric
+#define fromParser toK
+#define INPUT a
 #define PARSE_ELEM Int
 #define CONSTRAINT_IO (MonadIO m)
 #define CONSTRAINT (Monad m)
-#define PARSER_TYPE PR.ParserK
+#define PARSER_TYPE PR.ChunkParserK
 #define MODULE_NAME "Data.ParserK.Generic"
 
 #endif
@@ -146,11 +141,11 @@ one value = PARSE_OP p
           Nothing -> pure Nothing
 
 {-# INLINE satisfy #-}
-satisfy :: CONSTRAINT_IO => (a -> Bool) -> PARSER_TYPE a m a
+satisfy :: CONSTRAINT_IO => (a -> Bool) -> PARSER_TYPE INPUT m a
 satisfy = PR.fromParser . PRD.satisfy
 
 {-# INLINE takeWhile #-}
-takeWhile :: CONSTRAINT_IO => (a -> Bool) -> PARSER_TYPE a m ()
+takeWhile :: CONSTRAINT_IO => (a -> Bool) -> PARSER_TYPE INPUT m ()
 takeWhile p = PR.fromParser $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
@@ -243,7 +238,7 @@ takeWhileFailD predicate (Fold fstep finitial fextract) =
 
 {-# INLINE takeWhileFail #-}
 takeWhileFail :: CONSTRAINT =>
-    (a -> Bool) -> Fold m a b -> PARSER_TYPE a m b
+    (a -> Bool) -> Fold m a b -> PARSER_TYPE INPUT m b
 takeWhileFail p f = PR.fromParser (takeWhileFailD p f)
 
 {-# INLINE alt2 #-}
