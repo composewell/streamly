@@ -33,6 +33,7 @@ where
 import Control.Monad.IO.Class (MonadIO)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Unbox (Unbox)
+import Streamly.Internal.Data.Array (Array)
 import qualified Streamly.Internal.Data.Parser as ParserD
 
 import Streamly.Internal.Data.Parser.ParserK.Type
@@ -40,5 +41,5 @@ import Streamly.Internal.Data.Parser.ParserK.Type
 -- | Convert a 'Fold' to a 'ParserK'.
 --
 {-# INLINE fromFold #-}
-fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ParserK a m b
+fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ParserK (Array a) m b
 fromFold = fromParser . ParserD.fromFold

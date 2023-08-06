@@ -56,7 +56,15 @@ import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
 -- Note: We cannot use an Array directly as input because we need to identify
 -- the end of input case using None. We cannot do that using nil Array as nil
 -- Arrays can be encountered in normal input as well.
-data Input a = None | Chunk {-# UNPACK #-} !(Array a)
+--
+-- We could specialize the ParserK type to use an Array directly, that provides
+-- some performance improvement. The best advantage of that is when we consume
+-- one element at a time from the array. If we really want that perf
+-- improvement we can use a special ParserK type with the following Input.
+--
+-- data Input a = None | Chunk {-# UNPACK #-} !(Array a)
+--
+data Input a = None | Chunk a
 
 -- | The intermediate result of running a parser step. The parser driver may
 -- stop with a final result, pause with a continuation to resume, or fail with
@@ -72,9 +80,6 @@ data Step a m r =
     -- The Int is the current stream position index wrt to the start of the
     -- array.
       Done !Int r
-      -- XXX we can use a "resume" and a "stop" continuations instead of Maybe.
-      -- measure if that works any better.
-      -- Array a -> m (Step a m r), m (Step a m r)
     | Partial !Int (Input a -> m (Step a m r))
     | Continue !Int (Input a -> m (Step a m r))
     | Error !Int String
@@ -371,11 +376,11 @@ parseDToK
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
     -> (s -> m (ParserD.Step s b))
-    -> (ParseResult b -> Int -> Input a -> m (Step a m r))
+    -> (ParseResult b -> Int -> Input (Array a) -> m (Step (Array a) m r))
     -> Int
     -> Int
-    -> Input a
-    -> m (Step a m r)
+    -> Input (Array a)
+    -> m (Step (Array a) m r)
 parseDToK pstep initial extract cont !offset0 !usedCount !input = do
     res <- initial
     case res of
@@ -494,7 +499,7 @@ parseDToK pstep initial extract cont !offset0 !usedCount !input = do
 -- /Pre-release/
 --
 {-# INLINE_LATE fromParser #-}
-fromParser :: (Monad m, Unbox a) => ParserD.Parser a m b -> ParserK a m b
+fromParser :: (Monad m, Unbox a) => ParserD.Parser a m b -> ParserK (Array a) m b
 fromParser (ParserD.Parser step initial extract) =
     MkParser $ parseDToK step initial extract
 
