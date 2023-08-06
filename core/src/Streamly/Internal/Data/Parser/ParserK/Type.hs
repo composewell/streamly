@@ -29,6 +29,7 @@ module Streamly.Internal.Data.Parser.ParserK.Type
     , ParserK (..)
     , fromParser
     , fromParserSingular
+    , fromParserGeneric
     -- , toParser
     , fromPure
     , fromEffect
@@ -52,6 +53,10 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.MutArray.Generic as GenArr
+    ( getIndexUnsafeWith
+    )
+import qualified Streamly.Internal.Data.Array.Generic as GenArr
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
 
 -- Note: We cannot use an Array directly as input because we need to identify
@@ -371,6 +376,10 @@ instance MonadTrans (ParserK a) where
 -- Convert ParserD to ParserK
 -------------------------------------------------------------------------------
 
+--------------------------------------------------------------------------------
+-- Chunked
+--------------------------------------------------------------------------------
+
 {-# INLINE parseDToK #-}
 parseDToK
     :: forall m a s b r. (Monad m, Unbox a)
@@ -504,6 +513,10 @@ fromParser :: (Monad m, Unbox a) => ParserD.Parser a m b -> ParserK (Array a) m 
 fromParser (ParserD.Parser step initial extract) =
     MkParser $ parseDToK step initial extract
 
+--------------------------------------------------------------------------------
+-- Singular
+--------------------------------------------------------------------------------
+
 {-# INLINE parseDToKSingular #-}
 parseDToKSingular
     :: forall m a s b r. (Monad m)
@@ -599,6 +612,135 @@ parseDToKSingular pstep initial extract cont !relPos !usedCount !input = do
 fromParserSingular :: Monad m => ParserD.Parser a m b -> ParserK a m b
 fromParserSingular (ParserD.Parser step initial extract) =
     MkParser $ parseDToKSingular step initial extract
+
+--------------------------------------------------------------------------------
+-- Chunked Generic
+--------------------------------------------------------------------------------
+
+{-# INLINE parseDToKGeneric #-}
+parseDToKGeneric
+    :: forall m a s b r. (Monad m)
+    => (s -> a -> m (ParserD.Step s b))
+    -> m (ParserD.Initial s b)
+    -> (s -> m (ParserD.Step s b))
+    -> (ParseResult b -> Int -> Input (GenArr.Array a) -> m (Step (GenArr.Array a) m r))
+    -> Int
+    -> Int
+    -> Input (GenArr.Array a)
+    -> m (Step (GenArr.Array a) m r)
+parseDToKGeneric pstep initial extract cont !offset0 !usedCount !input = do
+    res <- initial
+    case res of
+        ParserD.IPartial pst -> do
+            case input of
+                Chunk arr -> parseContChunk usedCount offset0 pst arr
+                None -> parseContNothing usedCount pst
+        ParserD.IDone b -> cont (Success offset0 b) usedCount input
+        ParserD.IError err -> cont (Failure offset0 err) usedCount input
+
+    where
+
+    {-# NOINLINE parseContChunk #-}
+    parseContChunk !count !offset !state arr@(GenArr.Array contents start len) = do
+         if offset >= 0
+         then go SPEC (start + offset) state
+         else return $ Continue offset (parseCont count state)
+
+        where
+
+        {-# INLINE end #-}
+        end = start + len
+
+        {-# INLINE onDone #-}
+        onDone n b =
+            assert (n <= GenArr.length arr)
+                (cont (Success n b) (count + n - offset) (Chunk arr))
+
+        {-# INLINE callParseCont #-}
+        callParseCont constr n pst1 =
+            assert (n < 0 || n >= GenArr.length arr)
+                (return $ constr n (parseCont (count + n - offset) pst1))
+
+        {-# INLINE onPartial #-}
+        onPartial = callParseCont Partial
+
+        {-# INLINE onContinue #-}
+        onContinue = callParseCont Continue
+
+        {-# INLINE onError #-}
+        onError n err =
+            cont (Failure n err) (count + n - offset) (Chunk arr)
+
+        {-# INLINE onBack #-}
+        onBack offset1 constr pst = do
+            let pos = offset1 - start
+             in if pos >= 0
+                then go SPEC offset1 pst
+                else constr pos pst
+
+        go !_ !cur !pst | cur >= end =
+            onContinue len  pst
+        go !_ !cur !pst = do
+            let !x = unsafeInlineIO $ GenArr.getIndexUnsafeWith contents cur
+            pRes <- pstep pst x
+            let next = cur + 1
+                back n = next - n
+                curOff = cur - start
+                nextOff = next - start
+            -- The "n" here is stream position index wrt the array start, and
+            -- not the backtrack count as returned by byte stream parsers.
+            case pRes of
+                ParserD.Done 0 b ->
+                    onDone nextOff b
+                ParserD.Done 1 b ->
+                    onDone curOff b
+                ParserD.Done n b ->
+                    onDone (back n - start) b
+                ParserD.Partial 0 pst1 ->
+                    go SPEC next pst1
+                ParserD.Partial 1 pst1 ->
+                    go SPEC cur pst1
+                ParserD.Partial n pst1 ->
+                    onBack (back n) onPartial pst1
+                ParserD.Continue 0 pst1 ->
+                    go SPEC next pst1
+                ParserD.Continue 1 pst1 ->
+                    go SPEC cur pst1
+                ParserD.Continue n pst1 ->
+                    onBack (back n) onContinue pst1
+                ParserD.Error err ->
+                    onError curOff err
+
+    {-# NOINLINE parseContNothing #-}
+    parseContNothing !count !pst = do
+        r <- extract pst
+        case r of
+            -- IMPORTANT: the n here is from the byte stream parser, that means
+            -- it is the backtrack element count and not the stream position
+            -- index into the current input array.
+            ParserD.Done n b ->
+                assert (n >= 0)
+                    (cont (Success (- n) b) (count - n) None)
+            ParserD.Continue n pst1 ->
+                assert (n >= 0)
+                    (return $ Continue (- n) (parseCont (count - n) pst1))
+            ParserD.Error err ->
+                -- XXX It is called only when there is no input arr. So using 0
+                -- as the position is correct?
+                cont (Failure 0 err) count None
+            ParserD.Partial _ _ -> error "Bug: parseDToKGeneric Partial unreachable"
+
+    {-# INLINE parseCont #-}
+    parseCont !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
+    parseCont !cnt !pst None = parseContNothing cnt pst
+
+-- | Similar to "fromParser" but is not constrained.
+--
+{-# INLINE_LATE fromParserGeneric #-}
+fromParserGeneric ::
+       Monad m => ParserD.Parser a m b -> ParserK (GenArr.Array a) m b
+fromParserGeneric (ParserD.Parser step initial extract) =
+    MkParser $ parseDToKGeneric step initial extract
 
 {-
 -------------------------------------------------------------------------------

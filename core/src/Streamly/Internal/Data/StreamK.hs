@@ -49,6 +49,8 @@ module Streamly.Internal.Data.StreamK
     , parseChunks
     , parseBreakSingular
     , parseSingular
+    , parseBreakGenericChunks
+    , parseGenericChunks
 
     -- ** Specialized Folds
     , head
@@ -143,6 +145,7 @@ import Streamly.Internal.Data.Unbox (sizeOf, Unbox)
 
 import qualified Control.Monad.Catch as MC
 import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Array.Generic as GenArr
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as PR
@@ -1284,7 +1287,7 @@ parseD :: Monad m =>
 parseD f = fmap fst . parseDBreak f
 
 -------------------------------------------------------------------------------
--- Chunked parsing using ParserK
+-- ParserK Chunked
 -------------------------------------------------------------------------------
 
 -- The backracking buffer consists of arrays in the most-recent-first order. We
@@ -1427,7 +1430,7 @@ parseChunks :: (Monad m, Unbox a) =>
 parseChunks f = fmap fst . parseBreakChunks f
 
 -------------------------------------------------------------------------------
--- Parsing using ParserK.Generic
+-- ParserK Singular
 -------------------------------------------------------------------------------
 
 {-# INLINE backTrackSingular #-}
@@ -1554,6 +1557,151 @@ parseBreakSingular parser input = do
 parseSingular :: Monad m =>
     ParserK.ParserK a m b -> StreamK m a -> m (Either ParseError b)
 parseSingular f = fmap fst . parseBreakSingular f
+
+-------------------------------------------------------------------------------
+-- ParserK Chunked Generic
+-------------------------------------------------------------------------------
+
+{-# INLINE backTrackGenericChunks #-}
+backTrackGenericChunks ::
+       Int
+    -> [GenArr.Array a]
+    -> StreamK m (GenArr.Array a)
+    -> (StreamK m (GenArr.Array a), [GenArr.Array a])
+backTrackGenericChunks = go
+
+    where
+
+    go _ [] stream = (stream, [])
+    go n xs stream | n <= 0 = (stream, xs)
+    go n (x:xs) stream =
+        let len = GenArr.length x
+        in if n > len
+           then go (n - len) xs (cons x stream)
+           else if n == len
+           then (cons x stream, xs)
+           else let arr1 = GenArr.getSliceUnsafe (len - n) n x
+                    arr2 = GenArr.getSliceUnsafe 0 (len - n) x
+                 in (cons arr1 stream, arr2:xs)
+
+-- | Similar to 'parseBreak' but works on generic arrays
+--
+{-# INLINE_NORMAL parseBreakGenericChunks #-}
+parseBreakGenericChunks
+    :: forall m a b. Monad m
+    => ParserK.ParserK (GenArr.Array a) m b
+    -> StreamK m (GenArr.Array a)
+    -> m (Either ParseError b, StreamK m (GenArr.Array a))
+parseBreakGenericChunks parser input = do
+    let parserk = ParserK.runParser parser parserDone 0 0
+     in go [] parserk input
+
+    where
+
+    {-# INLINE goStop #-}
+    goStop
+        :: [GenArr.Array a]
+        -> (ParserK.Input (GenArr.Array a)
+                -> m (ParserK.Step (GenArr.Array a) m b))
+        -> m (Either ParseError b, StreamK m (GenArr.Array a))
+    goStop backBuf parserk = do
+        pRes <- parserk ParserK.None
+        case pRes of
+            -- If we stop in an alternative, it will try calling the next
+            -- parser, the next parser may call initial returning Partial and
+            -- then immediately we have to call extract on it.
+            ParserK.Partial 0 cont1 ->
+                 go [] cont1 nil
+            ParserK.Partial n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map GenArr.length backBuf))
+                let (s1, backBuf1) = backTrackGenericChunks n1 backBuf nil
+                 in go backBuf1 cont1 s1
+            ParserK.Continue 0 cont1 ->
+                go backBuf cont1 nil
+            ParserK.Continue n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map GenArr.length backBuf))
+                let (s1, backBuf1) = backTrackGenericChunks n1 backBuf nil
+                 in go backBuf1 cont1 s1
+            ParserK.Done 0 b ->
+                return (Right b, nil)
+            ParserK.Done n b -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map GenArr.length backBuf))
+                let (s1, _) = backTrackGenericChunks n1 backBuf nil
+                 in return (Right b, s1)
+            ParserK.Error _ err -> return (Left (ParseError err), nil)
+
+    seekErr n len =
+        error $ "parseBreak: Partial: forward seek not implemented n = "
+            ++ show n ++ " len = " ++ show len
+
+    yieldk
+        :: [GenArr.Array a]
+        -> (ParserK.Input (GenArr.Array a)
+                -> m (ParserK.Step (GenArr.Array a) m b))
+        -> GenArr.Array a
+        -> StreamK m (GenArr.Array a)
+        -> m (Either ParseError b, StreamK m (GenArr.Array a))
+    yieldk backBuf parserk arr stream = do
+        pRes <- parserk (ParserK.Chunk arr)
+        let len = GenArr.length arr
+        case pRes of
+            ParserK.Partial n cont1 ->
+                case compare n len of
+                    EQ -> go [] cont1 stream
+                    LT -> do
+                        if n >= 0
+                        then yieldk [] cont1 arr stream
+                        else do
+                            let n1 = negate n
+                                bufLen = sum (Prelude.map GenArr.length backBuf)
+                                s = cons arr stream
+                            assertM(n1 >= 0 && n1 <= bufLen)
+                            let (s1, _) = backTrackGenericChunks n1 backBuf s
+                            go [] cont1 s1
+                    GT -> seekErr n len
+            ParserK.Continue n cont1 ->
+                case compare n len of
+                    EQ -> go (arr:backBuf) cont1 stream
+                    LT -> do
+                        if n >= 0
+                        then yieldk backBuf cont1 arr stream
+                        else do
+                            let n1 = negate n
+                                bufLen = sum (Prelude.map GenArr.length backBuf)
+                                s = cons arr stream
+                            assertM(n1 >= 0 && n1 <= bufLen)
+                            let (s1, backBuf1) = backTrackGenericChunks n1 backBuf s
+                            go backBuf1 cont1 s1
+                    GT -> seekErr n len
+            ParserK.Done n b -> do
+                let n1 = len - n
+                assertM(n1 <= sum (Prelude.map GenArr.length (arr:backBuf)))
+                let (s1, _) = backTrackGenericChunks n1 (arr:backBuf) stream
+                 in return (Right b, s1)
+            ParserK.Error _ err -> return (Left (ParseError err), nil)
+
+    go
+        :: [GenArr.Array a]
+        -> (ParserK.Input (GenArr.Array a)
+                -> m (ParserK.Step (GenArr.Array a) m b))
+        -> StreamK m (GenArr.Array a)
+        -> m (Either ParseError b, StreamK m (GenArr.Array a))
+    go backBuf parserk stream = do
+        let stop = goStop backBuf parserk
+            single a = yieldk backBuf parserk a nil
+         in foldStream
+                defState (yieldk backBuf parserk) single stop stream
+
+{-# INLINE parseGenericChunks #-}
+parseGenericChunks ::
+       (Monad m)
+    => ParserK.ParserK (GenArr.Array a) m b
+    -> StreamK m (GenArr.Array a)
+    -> m (Either ParseError b)
+parseGenericChunks f = fmap fst . parseBreakGenericChunks f
 
 -------------------------------------------------------------------------------
 -- Sorting

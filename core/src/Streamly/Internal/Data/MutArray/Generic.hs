@@ -101,6 +101,7 @@ module Streamly.Internal.Data.MutArray.Generic
     -- ** Random reads
     , getIndex
     , getIndexUnsafe
+    , getIndexUnsafeWith
     -- , getIndices
     -- , getFromThenTo
     -- , getIndexRev
@@ -466,17 +467,25 @@ uninit arr@MutArray{..} len =
 -- Random reads
 -------------------------------------------------------------------------------
 
+-- | Return the element at the specified index without checking the bounds from
+-- a @MutableArray# RealWorld@.
+--
+-- Unsafe because it does not check the bounds of the array.
+{-# INLINE getIndexUnsafeWith #-}
+getIndexUnsafeWith :: MonadIO m => MutableArray# RealWorld a -> Int -> m a
+getIndexUnsafeWith _arrContents# n =
+    liftIO
+        $ IO
+        $ \s# ->
+              let !(I# i#) = n
+               in readArray# _arrContents# i# s#
+
 -- | Return the element at the specified index without checking the bounds.
 --
 -- Unsafe because it does not check the bounds of the array.
 {-# INLINE_NORMAL getIndexUnsafe #-}
 getIndexUnsafe :: MonadIO m => Int -> MutArray a -> m a
-getIndexUnsafe n MutArray {..} =
-    liftIO
-        $ IO
-        $ \s# ->
-              let !(I# i#) = arrStart + n
-               in readArray# arrContents# i# s#
+getIndexUnsafe n MutArray {..} = getIndexUnsafeWith arrContents# (n + arrStart)
 
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
