@@ -1,5 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+#undef FUSION_CHECK
+#ifdef FUSION_CHECK
+{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
+#endif
+
+
 -- |
 -- Module      : Streamly.Benchmark.Data.Unbox
 -- Copyright   : (c) 2023 Composewell
@@ -20,7 +26,9 @@ import GHC.Generics (Generic)
 import System.Random (randomRIO)
 
 import Streamly.Internal.Data.Unbox
+#ifdef USE_TH
 import Streamly.Internal.Data.Unbox.TH
+#endif
 
 import Gauge
 import Streamly.Benchmark.Common
@@ -29,30 +37,41 @@ import Streamly.Benchmark.Common
 -- Types
 -------------------------------------------------------------------------------
 
-data CustomDT1 a b
+data CustomDT1
     = CDT1C1
-    | CDT1C2 a
-    | CDT1C3 a b
+    | CDT1C2 Int
+    | CDT1C3 Int Bool
     deriving (Generic, Show, Eq)
-type CustomDT1_ = CustomDT1 Int Bool
 
-instance (Unbox a, Unbox b) => Unbox (CustomDT1 a b)
-
-data CustomDT2 a b
-    = CDT2C1
-    | CDT2C2 a
-    | CDT2C3 a b
-    deriving (Show, Eq)
-type CustomDT2_ = CustomDT2 Int Bool
-
-$(deriveUnbox ''CustomDT2)
+#ifndef USE_TH
+instance Unbox CustomDT1
+#else
+$(deriveUnbox ''CustomDT1)
+#endif
 
 -------------------------------------------------------------------------------
 -- Helpers
 -------------------------------------------------------------------------------
 
-serializeDeserializeTimes :: forall a. (Eq a, Unbox a) => a -> Int -> IO ()
-serializeDeserializeTimes val times = do
+{-# INLINE pokeTimes #-}
+pokeTimes :: forall a. Unbox a => a -> Int -> IO ()
+pokeTimes val times = do
+    arr <- newBytes (sizeOf (Proxy :: Proxy a))
+    replicateM_ times $ do
+        pokeByteIndex 0 arr val
+
+{-# INLINE peekTimes #-}
+peekTimes :: forall a. Unbox a => a -> Int -> IO ()
+peekTimes val times = do
+    arr <- newBytes (sizeOf (Proxy :: Proxy a))
+    pokeByteIndex 0 arr val
+    replicateM_ times $ do
+        (_ :: a) <- peekByteIndex 0 arr
+        return ()
+
+{-# INLINE roundtrip #-}
+roundtrip :: forall a. (Eq a, Unbox a) => a -> Int -> IO ()
+roundtrip val times = do
     arr <- newBytes (sizeOf (Proxy :: Proxy a))
     replicateM_ times $ do
         pokeByteIndex 0 arr val
@@ -68,30 +87,30 @@ benchSink name times f = bench name (nfIO (randomRIO (times, times) >>= f))
 
 allBenchmarks :: Int -> [Benchmark]
 allBenchmarks times =
-    [ benchSink
-          "serializeDeserializeTimes CDT1C1 (Generic)"
-          times
-          (serializeDeserializeTimes (CDT1C1 :: CustomDT1_))
-    , benchSink
-          "serializeDeserializeTimes CDT2C1 (TH)"
-          times
-          (serializeDeserializeTimes (CDT2C1 :: CustomDT2_))
-    , benchSink
-          "serializeDeserializeTimes CDT1C2 (Generic)"
-          times
-          (serializeDeserializeTimes ((CDT1C2 (5 :: Int)) :: CustomDT1_))
-    , benchSink
-          "serializeDeserializeTimes CDT2C2 (TH)"
-          times
-          (serializeDeserializeTimes ((CDT2C2 (5 :: Int)) :: CustomDT2_))
-    , benchSink
-          "serializeDeserializeTimes CDT1C3 (Generic)"
-          times
-          (serializeDeserializeTimes ((CDT1C3 (5 :: Int) True) :: CustomDT1_))
-    , benchSink
-          "serializeDeserializeTimes CDT2C3 (TH)"
-          times
-          (serializeDeserializeTimes ((CDT2C3 (5 :: Int) True) :: CustomDT2_))
+    [ bgroup "poke"
+        [ benchSink "C1" times
+            (pokeTimes (CDT1C1 :: CustomDT1))
+        , benchSink "C2" times
+            (pokeTimes ((CDT1C2 (5 :: Int)) :: CustomDT1))
+        , benchSink "C3" times
+            (pokeTimes ((CDT1C3 (5 :: Int) True) :: CustomDT1))
+        ]
+    , bgroup "peek"
+        [ benchSink "C1" times
+            (peekTimes (CDT1C1 :: CustomDT1))
+        , benchSink "C2" times
+            (peekTimes ((CDT1C2 (5 :: Int)) :: CustomDT1))
+        , benchSink "C3" times
+            (peekTimes ((CDT1C3 (5 :: Int) True) :: CustomDT1))
+        ]
+    , bgroup "roundtrip"
+        [ benchSink "C1" times
+            (roundtrip (CDT1C1 :: CustomDT1))
+        , benchSink "C2" times
+            (roundtrip ((CDT1C2 (5 :: Int)) :: CustomDT1))
+        , benchSink "C3" times
+            (roundtrip ((CDT1C3 (5 :: Int) True) :: CustomDT1))
+        ]
     ]
 
 -------------------------------------------------------------------------------
@@ -99,4 +118,15 @@ allBenchmarks times =
 -------------------------------------------------------------------------------
 
 main :: IO ()
-main = runWithCLIOpts defaultStreamSize allBenchmarks
+main = do
+#ifndef FUSION_CHECK
+    runWithCLIOpts defaultStreamSize allBenchmarks
+#else
+    -- Enable FUSION_CHECK macro at the beginning of the file
+    -- Enable one benchmark below, and run the benchmark
+    -- Check the .dump-simpl output
+    let value = 100000
+    -- peekTimes ((CDT1C2 (5 :: Int)) :: CustomDT1) value
+    roundtrip ((CDT1C2 (5 :: Int)) :: CustomDT1) value
+    return ()
+#endif

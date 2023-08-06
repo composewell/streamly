@@ -187,7 +187,8 @@ targets =
     , ("Data.Fold.Window", [ "parser_grp", "infinite_grp" ])
     , ("Data.Parser", [ "parser_grp", "infinite_grp" ])
 
-    , ("Data.Unbox", ["noBench"])
+    , ("Data.Unbox", [])
+    , ("Data.Unbox.Derive.TH", [])
     , ("Data.Unfold", ["infinite_grp"])
     , ("FileSystem.Handle", [])
     , ("Unicode.Stream", [])

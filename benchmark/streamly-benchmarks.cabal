@@ -362,6 +362,13 @@ benchmark Data.Unbox
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Unbox.hs
 
+benchmark Data.Unbox.Derive.TH
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_TH
+  main-is: Streamly/Benchmark/Data/Unbox.hs
+
 benchmark Data.Unfold
   import: bench-options
   type: exitcode-stdio-1.0
