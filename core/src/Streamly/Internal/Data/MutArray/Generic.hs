@@ -132,7 +132,7 @@ module Streamly.Internal.Data.MutArray.Generic
     -- multidimensional array representations.
 
     -- ** Construct from streams
-    -- , chunksOf
+    , chunksOf
     -- , arrayStreamKFromStreamD
     -- , writeChunks
 
@@ -182,6 +182,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -263,6 +264,21 @@ nil = new 0
 -- Random writes
 -------------------------------------------------------------------------------
 
+-- | Write the given element to the given index of the 'MutableArray#'. Does not
+-- check if the index is out of bounds of the array.
+--
+-- /Pre-release/
+{-# INLINE putIndexUnsafeWith #-}
+putIndexUnsafeWith :: MonadIO m => Int -> MutableArray# RealWorld a -> a -> m ()
+putIndexUnsafeWith n _arrContents# x =
+    liftIO
+        $ IO
+        $ \s# ->
+              case n of
+                  I# n# ->
+                      let s1# = writeArray# _arrContents# n# x s#
+                       in (# s1#, () #)
+
 -- | Write the given element to the given index of the array. Does not check if
 -- the index is out of bounds of the array.
 --
@@ -271,13 +287,7 @@ nil = new 0
 putIndexUnsafe :: forall m a. MonadIO m => Int -> MutArray a -> a -> m ()
 putIndexUnsafe i MutArray {..} x =
     assert (i >= 0 && i < arrLen)
-    (liftIO
-        $ IO
-        $ \s# ->
-              case i + arrStart of
-                  I# n# ->
-                      let s1# = writeArray# arrContents# n# x s#
-                       in (# s1#, () #))
+    putIndexUnsafeWith (i + arrStart) arrContents# x
 
 invalidIndex :: String -> Int -> a
 invalidIndex label i =
@@ -665,6 +675,75 @@ fromList xs = fromStream $ D.fromList xs
 fromPureStream :: MonadIO m => Stream Identity a -> m (MutArray a)
 fromPureStream xs =
     liftIO $ D.fold write $ D.morphInner (return . runIdentity) xs
+
+-------------------------------------------------------------------------------
+-- Chunking
+-------------------------------------------------------------------------------
+
+data GroupState s a start end bound
+    = GroupStart s
+    | GroupBuffer s (MutableArray# RealWorld a) start end bound
+    | GroupYield
+          (MutableArray# RealWorld a)
+          start
+          end
+          bound
+          (GroupState s a start end bound)
+    | GroupFinish
+
+-- | @chunksOf n stream@ groups the input stream into a stream of
+-- arrays of size n.
+--
+-- @chunksOf n = foldMany (MutArray.writeN n)@
+--
+-- /Pre-release/
+{-# INLINE_NORMAL chunksOf #-}
+chunksOf :: forall m a. MonadIO m
+    => Int -> D.Stream m a -> D.Stream m (MutArray a)
+-- XXX the idiomatic implementation leads to large regression in the D.reverse'
+-- benchmark. It seems it has difficulty producing optimized code when
+-- converting to StreamK. Investigate GHC optimizations.
+-- chunksOf n = D.foldMany (writeN n)
+chunksOf n (D.Stream step state) =
+    D.Stream step' (GroupStart state)
+
+    where
+
+    -- start is always 0
+    -- end and len are always equal
+
+    {-# INLINE_LATE step' #-}
+    step' _ (GroupStart st) = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Internal.Data.Array.Generic.Mut.Type.chunksOf: "
+                    ++ "the size of arrays [" ++ show n
+                    ++ "] must be a natural number"
+        (MutArray contents start end bound :: MutArray a) <- new n
+        return $ D.Skip (GroupBuffer st contents start end bound)
+
+    step' gst (GroupBuffer st contents start end bound) = do
+        r <- step (adaptState gst) st
+        case r of
+            D.Yield x s -> do
+                putIndexUnsafeWith end contents x
+                let end1 = end + 1
+                return $
+                    if end1 >= bound
+                    then D.Skip
+                            (GroupYield
+                                contents start end1 bound (GroupStart s))
+                    else D.Skip (GroupBuffer s contents start end1 bound)
+            D.Skip s ->
+                return $ D.Skip (GroupBuffer s contents start end bound)
+            D.Stop ->
+                return
+                    $ D.Skip (GroupYield contents start end bound GroupFinish)
+
+    step' _ (GroupYield contents start end bound next) =
+         return $ D.Yield (MutArray contents start end bound) next
+
+    step' _ GroupFinish = return D.Stop
 
 -------------------------------------------------------------------------------
 -- Unfolds
