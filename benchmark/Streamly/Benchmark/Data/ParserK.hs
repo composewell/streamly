@@ -5,6 +5,10 @@
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
+-- BENCH_CHUNKED             -> fromParser
+-- BENCH_CHUNKED_GENERIC     -> fromParserGeneric
+-- BENCH_SINGULAR            -> fromParserSingular
+
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -18,7 +22,13 @@ import Control.Applicative ((<|>))
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 import Data.Foldable (asum)
+#ifdef BENCH_CHUNKED
 import Streamly.Data.Array (Array, Unbox)
+#endif
+#ifdef BENCH_CHUNKED_GENERIC
+import Streamly.Data.Array.Generic (Array)
+import qualified Streamly.Internal.Data.Array.Generic as GenArr (chunksOf)
+#endif
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Data.StreamK (StreamK)
 import Streamly.Internal.Data.Parser
@@ -35,11 +45,51 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Data.Parser as PRD
-import qualified Streamly.Data.ParserK as PR
+import qualified Streamly.Internal.Data.Parser.ParserK.Type as PR
 import qualified Streamly.Internal.Data.StreamK as StreamK
 
 import Gauge
 import Streamly.Benchmark.Common
+
+-------------------------------------------------------------------------------
+-- CPP Helpers
+-------------------------------------------------------------------------------
+
+#ifdef BENCH_CHUNKED
+
+#define PARSE_OP StreamK.parseChunks
+#define FROM_PARSER fromParser
+#define INPUT (Array a)
+#define PARSE_ELEM (Array Int)
+#define CONSTRAINT_IO (MonadIO m, Unbox a)
+#define CONSTRAINT (Monad m, Unbox a)
+#define MODULE_NAME "ParserK.Chunked"
+
+#endif
+
+#ifdef BENCH_CHUNKED_GENERIC
+
+#define PARSE_OP StreamK.parseGenericChunks
+#define FROM_PARSER fromParserGeneric
+#define INPUT (Array a)
+#define PARSE_ELEM (Array Int)
+#define CONSTRAINT_IO (MonadIO m)
+#define CONSTRAINT (Monad m)
+#define MODULE_NAME "ParserK.Chunked.Generic"
+
+#endif
+
+#ifdef BENCH_SINGULAR
+
+#define PARSE_OP StreamK.parseSingular
+#define FROM_PARSER fromParserSingular
+#define INPUT a
+#define PARSE_ELEM Int
+#define CONSTRAINT_IO (MonadIO m)
+#define CONSTRAINT (Monad m)
+#define MODULE_NAME "ParserK.Singular"
+
+#endif
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -60,49 +110,52 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
 {-# INLINE benchIOSink #-}
 benchIOSink
     :: NFData b
-    => Int -> String -> (StreamK IO (Array Int) -> IO b) -> Benchmark
+    => Int -> String -> (StreamK IO PARSE_ELEM -> IO b) -> Benchmark
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1)
         >>= f
             . StreamK.fromStream
+#ifdef BENCH_CHUNKED
             . Stream.chunksOf 4000
+#endif
+#ifdef BENCH_CHUNKED_GENERIC
+            . GenArr.chunksOf 4000
+#endif
             . sourceUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
 
-#define PARSE_OP StreamK.parseChunks
-
 {-# INLINE one #-}
 one :: MonadIO m =>
-    Int -> StreamK m (Array Int) -> m (Either ParseError (Maybe Int))
-one value = StreamK.parseChunks p
+    Int -> StreamK m PARSE_ELEM -> m (Either ParseError (Maybe Int))
+one value = PARSE_OP p
 
     where
 
     p = do
-        m <- PR.fromFold FL.one
+        m <- PR.FROM_PARSER (PRD.fromFold FL.one)
         case m of
           Just i -> if i >= value then pure m else p
           Nothing -> pure Nothing
 
 {-# INLINE satisfy #-}
-satisfy :: (MonadIO m, Unbox a) => (a -> Bool) -> PR.ParserK a m a
-satisfy = PR.fromParser . PRD.satisfy
+satisfy :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m a
+satisfy = PR.FROM_PARSER . PRD.satisfy
 
 {-# INLINE takeWhile #-}
-takeWhile :: (MonadIO m, Unbox a) => (a -> Bool) -> PR.ParserK a m ()
-takeWhile p = PR.fromParser $ PRD.takeWhile p FL.drain
+takeWhile :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m ()
+takeWhile p = PR.FROM_PARSER $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
 takeWhileK :: MonadIO m =>
-    Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 takeWhileK value = PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitAp2 #-}
 splitAp2 :: MonadIO m
-    => Int -> StreamK m (Array Int) -> m (Either ParseError ((), ()))
+    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ((), ()))
 splitAp2 value =
     PARSE_OP
         ((,)
@@ -112,7 +165,7 @@ splitAp2 value =
 
 {-# INLINE splitAp8 #-}
 splitAp8 :: MonadIO m
-    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 splitAp8 value =
     PARSE_OP
         (      (\() () () () () () () () -> ())
@@ -127,7 +180,7 @@ splitAp8 value =
         )
 
 {-# INLINE sequenceA #-}
-sequenceA :: MonadIO m => Int -> StreamK m (Array Int) -> m Int
+sequenceA :: MonadIO m => Int -> StreamK m PARSE_ELEM -> m Int
 sequenceA value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -136,14 +189,14 @@ sequenceA value xs = do
 
 {-# INLINE sequenceA_ #-}
 sequenceA_ :: MonadIO m =>
-    Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 sequenceA_ value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     PARSE_OP (F.sequenceA_ list) xs
 
 {-# INLINE sequence #-}
-sequence :: MonadIO m => Int -> StreamK m (Array Int) -> m Int
+sequence :: MonadIO m => Int -> StreamK m PARSE_ELEM -> m Int
 sequence value xs = do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -152,7 +205,7 @@ sequence value xs = do
 
 {-# INLINE sequence_ #-}
 sequence_ :: MonadIO m =>
-    Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 sequence_ value =
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -184,13 +237,13 @@ takeWhileFailD predicate (Fold fstep finitial fextract) =
     extract s = fmap (Done 0) (fextract s)
 
 {-# INLINE takeWhileFail #-}
-takeWhileFail :: (Monad m, Unbox a) =>
-    (a -> Bool) -> Fold m a b -> PR.ParserK a m b
-takeWhileFail p f = PR.fromParser (takeWhileFailD p f)
+takeWhileFail :: CONSTRAINT =>
+    (a -> Bool) -> Fold m a b -> PR.ParserK INPUT m b
+takeWhileFail p f = PR.FROM_PARSER (takeWhileFailD p f)
 
 {-# INLINE alt2 #-}
 alt2 :: MonadIO m
-    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 alt2 value =
     PARSE_OP
         (   takeWhileFail (<= (value `div` 2)) Fold.drain
@@ -199,7 +252,7 @@ alt2 value =
 
 {-# INLINE alt8 #-}
 alt8 :: MonadIO m
-    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 alt8 value =
     PARSE_OP
         (   takeWhileFail (<= ( value      `div` 8)) Fold.drain
@@ -214,7 +267,7 @@ alt8 value =
 
 {-# INLINE alt16 #-}
 alt16 :: MonadIO m
-    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 alt16 value =
     PARSE_OP
         (   takeWhileFail (<= ( value      `div` 16)) Fold.drain
@@ -236,27 +289,27 @@ alt16 value =
         )
 
 {-# INLINE manyAlt #-}
-manyAlt :: MonadIO m => StreamK m (Array Int) -> m Int
+manyAlt :: MonadIO m => StreamK m PARSE_ELEM -> m Int
 manyAlt xs = do
     x <- PARSE_OP (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
-someAlt :: MonadIO m => StreamK m (Array Int) -> m Int
+someAlt :: MonadIO m => StreamK m PARSE_ELEM -> m Int
 someAlt xs = do
     x <- PARSE_OP (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE choice #-}
 choice :: MonadIO m =>
-    Int -> StreamK m (Array Int) -> m (Either ParseError Int)
+    Int -> StreamK m PARSE_ELEM -> m (Either ParseError Int)
 choice value =
     PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
 
 {-# INLINE monad2 #-}
 monad2 :: MonadIO m
-    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 monad2 value =
     PARSE_OP $ do
         takeWhile (<= (value `div` 2))
@@ -264,7 +317,7 @@ monad2 value =
 
 {-# INLINE monad4 #-}
 monad4 :: MonadIO m
-    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 monad4 value =
     PARSE_OP $ do
         takeWhile (<= ( value      `div` 4))
@@ -274,7 +327,7 @@ monad4 value =
 
 {-# INLINE monad8 #-}
 monad8 :: MonadIO m
-    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 monad8 value =
     PARSE_OP $ do
         takeWhile (<= ( value      `div` 8))
@@ -288,7 +341,7 @@ monad8 value =
 
 {-# INLINE monad16 #-}
 monad16 :: MonadIO m
-    => Int -> StreamK m (Array Int) -> m (Either ParseError ())
+    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
 monad16 value =
     PARSE_OP $ do
         takeWhile (<= ( value      `div` 16))
@@ -313,7 +366,7 @@ monad16 value =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.ParserK"
+moduleName = MODULE_NAME
 
 instance NFData ParseError where
     {-# INLINE rnf #-}
@@ -335,7 +388,7 @@ o_1_space_serial value =
     ]
 
 {-# INLINE sepBy1 #-}
-sepBy1 :: MonadIO m => StreamK m (Array Int) -> m Int
+sepBy1 :: MonadIO m => StreamK m PARSE_ELEM -> m Int
 sepBy1 xs = do
     x <- PARSE_OP (parser (satisfy odd) (satisfy even)) xs
     return $ Prelude.length x
