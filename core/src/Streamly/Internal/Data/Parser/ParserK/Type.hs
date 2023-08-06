@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Parser.ParserK.Type
     , ParseResult (..)
     , ParserK (..)
     , fromParser
+    , fromParserSingular
     -- , toParser
     , fromPure
     , fromEffect
@@ -502,6 +503,102 @@ parseDToK pstep initial extract cont !offset0 !usedCount !input = do
 fromParser :: (Monad m, Unbox a) => ParserD.Parser a m b -> ParserK (Array a) m b
 fromParser (ParserD.Parser step initial extract) =
     MkParser $ parseDToK step initial extract
+
+{-# INLINE parseDToKSingular #-}
+parseDToKSingular
+    :: forall m a s b r. (Monad m)
+    => (s -> a -> m (ParserD.Step s b))
+    -> m (ParserD.Initial s b)
+    -> (s -> m (ParserD.Step s b))
+    -> (ParseResult b -> Int -> Input a -> m (Step a m r))
+    -> Int
+    -> Int
+    -> Input a
+    -> m (Step a m r)
+parseDToKSingular pstep initial extract cont !relPos !usedCount !input = do
+    res <- initial
+    case res of
+        ParserD.IPartial pst -> do
+            -- XXX can we come here with relPos 1?
+            if relPos == 0
+            then
+                case input of
+                    Chunk arr -> parseContChunk usedCount pst arr
+                    None -> parseContNothing usedCount pst
+            -- XXX Previous code was using Continue in this case
+            else pure $ Partial relPos (parseCont usedCount pst)
+        ParserD.IDone b -> cont (Success relPos b) usedCount input
+        ParserD.IError err -> cont (Failure relPos err) usedCount input
+
+    where
+
+    -- XXX We can maintain an absolute position instead of relative that will
+    -- help in reporting of error location in the stream.
+    {-# NOINLINE parseContChunk #-}
+    parseContChunk !count !state x = do
+         go SPEC state
+
+        where
+
+        go !_ !pst = do
+            pRes <- pstep pst x
+            case pRes of
+                ParserD.Done 0 b ->
+                    cont (Success 1 b) (count + 1) (Chunk x)
+                ParserD.Done 1 b ->
+                    cont (Success 0 b) count (Chunk x)
+                ParserD.Done n b ->
+                    cont (Success (1 - n) b) (count + 1 - n) (Chunk x)
+                ParserD.Partial 0 pst1 ->
+                    pure $ Partial 1 (parseCont (count + 1) pst1)
+                ParserD.Partial 1 pst1 ->
+                    -- XXX Since we got Partial, the driver should drop the
+                    -- buffer, we should call the driver here?
+                    go SPEC pst1
+                ParserD.Partial n pst1 ->
+                    pure $ Partial (1 - n) (parseCont (count + 1 - n) pst1)
+                ParserD.Continue 0 pst1 ->
+                    pure $ Continue 1 (parseCont (count + 1) pst1)
+                ParserD.Continue 1 pst1 ->
+                    go SPEC pst1
+                ParserD.Continue n pst1 ->
+                    pure $ Continue (1 - n) (parseCont (count + 1 - n) pst1)
+                ParserD.Error err ->
+                    -- XXX fix undefined
+                    cont (Failure 0 err) count (Chunk x)
+
+    {-# NOINLINE parseContNothing #-}
+    parseContNothing !count !pst = do
+        r <- extract pst
+        case r of
+            -- IMPORTANT: the n here is from the byte stream parser, that means
+            -- it is the backtrack element count and not the stream position
+            -- index into the current input array.
+            ParserD.Done n b ->
+                assert (n >= 0)
+                    (cont (Success (- n) b) (count - n) None)
+            ParserD.Continue n pst1 ->
+                assert (n >= 0)
+                    (return $ Continue (- n) (parseCont (count - n) pst1))
+            ParserD.Error err ->
+                -- XXX It is called only when there is no input arr. So using 0
+                -- as the position is correct?
+                cont (Failure 0 err) count None
+            ParserD.Partial _ _ -> error "Bug: parseDToK Partial unreachable"
+
+    -- XXX Maybe we can use two separate continuations instead of using
+    -- Just/Nothing cases here. That may help in avoiding the parseContJust
+    -- function call.
+    {-# INLINE parseCont #-}
+    parseCont !cnt !pst (Chunk arr) = parseContChunk cnt pst arr
+    parseCont !cnt !pst None = parseContNothing cnt pst
+
+-- | Similar to "fromParser" but for singular elements.
+--
+{-# INLINE_LATE fromParserSingular #-}
+fromParserSingular :: Monad m => ParserD.Parser a m b -> ParserK a m b
+fromParserSingular (ParserD.Parser step initial extract) =
+    MkParser $ parseDToKSingular step initial extract
 
 {-
 -------------------------------------------------------------------------------

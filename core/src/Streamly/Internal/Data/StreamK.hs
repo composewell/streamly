@@ -47,6 +47,8 @@ module Streamly.Internal.Data.StreamK
     , parseD
     , parseBreakChunks
     , parseChunks
+    , parseBreakSingular
+    , parseSingular
 
     -- ** Specialized Folds
     , head
@@ -1423,6 +1425,135 @@ parseBreakChunks parser input = do
 parseChunks :: (Monad m, Unbox a) =>
     ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
 parseChunks f = fmap fst . parseBreakChunks f
+
+-------------------------------------------------------------------------------
+-- Parsing using ParserK.Generic
+-------------------------------------------------------------------------------
+
+{-# INLINE backTrackSingular #-}
+backTrackSingular :: Int -> [a] -> StreamK m a -> (StreamK m a, [a])
+backTrackSingular = go
+
+    where
+
+    go _ [] stream = (stream, [])
+    go n xs stream | n <= 0 = (stream, xs)
+    go n xs stream =
+        let (appendBuf, newBTBuf) = splitAt n xs
+         in (append (fromList (Prelude.reverse appendBuf)) stream, newBTBuf)
+
+
+-- | Similar to 'parseBreak' but works on singular elements.
+--
+{-# INLINE_NORMAL parseBreakSingular #-}
+parseBreakSingular
+    :: forall m a b. Monad m
+    => ParserK.ParserK a m b
+    -> StreamK m a
+    -> m (Either ParseError b, StreamK m a)
+parseBreakSingular parser input = do
+    let parserk = ParserK.runParser parser parserDone 0 0
+     in go [] parserk input
+
+    where
+
+    {-# INLINE goStop #-}
+    goStop
+        :: [a]
+        -> (ParserK.Input a -> m (ParserK.Step a m b))
+        -> m (Either ParseError b, StreamK m a)
+    goStop backBuf parserk = do
+        pRes <- parserk ParserK.None
+        case pRes of
+            -- If we stop in an alternative, it will try calling the next
+            -- parser, the next parser may call initial returning Partial and
+            -- then immediately we have to call extract on it.
+            ParserK.Partial 0 cont1 ->
+                 go [] cont1 nil
+            ParserK.Partial n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= length backBuf)
+                let (s1, backBuf1) = backTrackSingular n1 backBuf nil
+                 in go backBuf1 cont1 s1
+            ParserK.Continue 0 cont1 ->
+                go backBuf cont1 nil
+            ParserK.Continue n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= length backBuf)
+                let (s1, backBuf1) = backTrackSingular n1 backBuf nil
+                 in go backBuf1 cont1 s1
+            ParserK.Done 0 b ->
+                return (Right b, nil)
+            ParserK.Done n b -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= length backBuf)
+                let (s1, _) = backTrackSingular n1 backBuf nil
+                 in return (Right b, s1)
+            ParserK.Error _ err -> return (Left (ParseError err), nil)
+
+    seekErr n =
+        error $ "parseBreakSingular: Partial: forward seek not implemented n = "
+            ++ show n
+
+    yieldk
+        :: [a]
+        -> (ParserK.Input a -> m (ParserK.Step a m b))
+        -> a
+        -> StreamK m a
+        -> m (Either ParseError b, StreamK m a)
+    yieldk backBuf parserk arr stream = do
+        pRes <- parserk (ParserK.Chunk arr)
+        case pRes of
+            ParserK.Partial 1 cont1 -> go [] cont1 stream
+            ParserK.Partial 0 cont1 -> go [] cont1 (cons arr stream)
+            ParserK.Partial n _ | n > 1 -> seekErr n
+            ParserK.Partial n cont1 -> do
+                let n1 = negate n
+                    bufLen = length backBuf
+                    s = cons arr stream
+                assertM(n1 >= 0 && n1 <= bufLen)
+                let (s1, _) = backTrackSingular n1 backBuf s
+                go [] cont1 s1
+            ParserK.Continue 1 cont1 -> go (arr:backBuf) cont1 stream
+            ParserK.Continue 0 cont1 ->
+                go backBuf cont1 (cons arr stream)
+            ParserK.Continue n _ | n > 1 -> seekErr n
+            ParserK.Continue n cont1 -> do
+                let n1 = negate n
+                    bufLen = length backBuf
+                    s = cons arr stream
+                assertM(n1 >= 0 && n1 <= bufLen)
+                let (s1, backBuf1) = backTrackSingular n1 backBuf s
+                go backBuf1 cont1 s1
+            ParserK.Done 1 b -> pure (Right b, stream)
+            ParserK.Done 0 b -> pure (Right b, cons arr stream)
+            ParserK.Done n _ | n > 1 -> seekErr n
+            ParserK.Done n b -> do
+                let n1 = negate n
+                    bufLen = length backBuf
+                    s = cons arr stream
+                assertM(n1 >= 0 && n1 <= bufLen)
+                let (s1, _) = backTrackSingular n1 backBuf s
+                pure (Right b, s1)
+            ParserK.Error _ err -> return (Left (ParseError err), nil)
+
+    go
+        :: [a]
+        -> (ParserK.Input a -> m (ParserK.Step a m b))
+        -> StreamK m a
+        -> m (Either ParseError b, StreamK m a)
+    go backBuf parserk stream = do
+        let stop = goStop backBuf parserk
+            single a = yieldk backBuf parserk a nil
+         in foldStream
+                defState (yieldk backBuf parserk) single stop stream
+
+-- | Run a 'ParserK' over a 'StreamK'. Please use 'parseChunks' where possible,
+-- for better performance.
+{-# INLINE parseSingular #-}
+parseSingular :: Monad m =>
+    ParserK.ParserK a m b -> StreamK m a -> m (Either ParseError b)
+parseSingular f = fmap fst . parseBreakSingular f
 
 -------------------------------------------------------------------------------
 -- Sorting
