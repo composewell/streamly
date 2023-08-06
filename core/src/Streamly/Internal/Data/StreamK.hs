@@ -1327,7 +1327,7 @@ parserDone (ParserK.Failure n e) _ _ = pure $ ParserK.Error n e
 {-# INLINE_NORMAL parseBreakChunks #-}
 parseBreakChunks
     :: (Monad m, Unbox a)
-    => ParserK a m b
+    => ParserK (Array a) m b
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
 parseBreakChunks parser input = do
@@ -1421,7 +1421,7 @@ parseBreakChunks parser input = do
 
 {-# INLINE parseChunks #-}
 parseChunks :: (Monad m, Unbox a) =>
-    ParserK a m b -> StreamK m (Array a) -> m (Either ParseError b)
+    ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
 parseChunks f = fmap fst . parseBreakChunks f
 
 -------------------------------------------------------------------------------
