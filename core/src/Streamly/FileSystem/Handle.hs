@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 #include "inline.hs"
 
 -- |
@@ -40,6 +41,12 @@
 --
 module Streamly.FileSystem.Handle
     (
+     -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * Singleton IO
     -- | Read or write a single buffer.
       getChunk
@@ -115,6 +122,8 @@ import System.IO (Handle)
 
 import Streamly.Internal.FileSystem.Handle hiding (read, readChunks)
 import Prelude hiding (read)
+
+#include "DocTestDataFileSystem.hs"
 
 -- | Same as 'reader'
 --

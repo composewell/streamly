@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Unicode.Stream
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -69,6 +70,12 @@
 --
 module Streamly.Unicode.Stream
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * Construction (Decoding)
       decodeLatin1
     , decodeUtf8
@@ -99,3 +106,5 @@ where
 
 import Streamly.Internal.Unicode.Stream
 import Prelude hiding (lines, words, unlines, unwords)
+
+#include "DocTestDataUnicode.hs"
