@@ -12,6 +12,12 @@
   handler monadic.
 * Rethrow the exception promptly in bracketIO.
 
+### Breaking
+
+* `ParserK` in `Streamly.Data.ParserK` is not specialized to arrays anymore. To
+  adapt to the new code, change `ParserK a m b` to `ParserK (Array a) m b` where
+  `Array` comes from `Streamly.Data.Array`.
+
 ### Deprecations
 
 * `Streamly.Data.MutArray.newUnpinned` is renamed to
