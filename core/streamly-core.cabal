@@ -424,7 +424,7 @@ library
                     , Streamly.Internal.Data.Unfold.Enumeration
 
     if flag(dev)
-      exposed-modules:
+      other-modules:
                         Streamly.Internal.Data.Stream.StreamK.Alt
                       , Streamly.Internal.Data.List
 
