@@ -336,6 +336,7 @@ library
                      -- streamly-containers (non-base)
 
                      , Streamly.Internal.Data.Fold.Container
+                     , Streamly.Internal.Data.Fold.Generate
                      , Streamly.Internal.Data.Stream.Chunked
 
                      -- streamly-core-data-arrays
