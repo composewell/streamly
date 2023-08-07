@@ -431,14 +431,14 @@ library
                      , Streamly.Internal.Data.Stream.IsStream.Enumeration
 
     if !impl(ghcjs) && flag(dev)
-        exposed-modules:
+        other-modules:
                        Streamly.Internal.System.IOVec.Type
                      , Streamly.Internal.System.IOVec
                      , Streamly.Internal.FileSystem.FDIO
                      , Streamly.Internal.FileSystem.FD
 
     if flag(dev)
-        exposed-modules:  Streamly.Data.SmallArray
+        other-modules:  Streamly.Data.SmallArray
                         , Streamly.Internal.Data.SmallArray
                         , Streamly.Internal.Data.SmallArray.Type
 
