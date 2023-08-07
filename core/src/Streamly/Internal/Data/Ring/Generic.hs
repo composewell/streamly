@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Ring
+-- Module      : Streamly.Internal.Data.Ring.Generic
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -7,7 +7,7 @@
 -- Portability : GHC
 --
 
-module Streamly.Internal.Data.Ring
+module Streamly.Internal.Data.Ring.Generic
     ( Ring(..)
 
     -- * Generation
