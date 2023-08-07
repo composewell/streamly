@@ -57,7 +57,8 @@
 
 #include "inline.hs"
 
-module Streamly {-# DEPRECATED "Please use \"Streamly.Prelude\" instead." #-}
+module Streamly
+{-# DEPRECATED "Please use \"Streamly.Data.Stream.Prelude\" from streamly package and \"Streamly.Data.Fold\" from streamly-core package instead." #-}
     (
     -- -- * Concepts Overview
     -- -- ** Streams
