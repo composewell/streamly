@@ -33,13 +33,13 @@ import Data.Bifunctor (first)
 import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
-import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.MutArray.Type as MArray
-import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as ParserD
 import qualified Streamly.Internal.Data.Stream as D
 

@@ -22,7 +22,7 @@ import Control.Exception (SomeException(..), catch, mask)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Data.Fold (many)
-import Streamly.Internal.Data.Fold.Type (Fold(..), Step (..))
+import Streamly.Internal.Data.Fold (Fold(..), Step (..))
 import Streamly.Internal.Control.Concurrent (MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 

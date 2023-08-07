@@ -73,7 +73,7 @@ import qualified Data.Map.Strict as Map
 --     (fromStream, length, read)
 -- import qualified Streamly.Data.Array.Mut as MA
 import qualified Streamly.Internal.Data.Fold as Fold (one, last)
-import qualified Streamly.Internal.Data.Fold.Type as Fold
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
     (groupByRollingEither)
 -- import qualified Streamly.Internal.Data.Stream.IsStream.Lift as Stream

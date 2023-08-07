@@ -120,7 +120,7 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 import Streamly.Internal.Data.MutArray.Type (ArrayUnsafe(..))
 import Streamly.Internal.Data.Array.Type
     (Array(..), length, asPtrUnsafe)
-import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))

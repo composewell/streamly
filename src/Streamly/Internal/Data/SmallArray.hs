@@ -54,7 +54,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Stream as D
-import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Fold as FL
     (Fold (..), Step (Done, Partial))
 
 import Streamly.Internal.Data.SmallArray.Type

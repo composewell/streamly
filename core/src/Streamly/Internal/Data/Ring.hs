@@ -28,7 +28,7 @@ module Streamly.Internal.Data.Ring
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.MutArray.Generic
     ( MutArray(..)
     , new
@@ -37,7 +37,7 @@ import Streamly.Internal.Data.MutArray.Generic
     , putSliceUnsafe
     )
 -- import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
-import qualified Streamly.Internal.Data.Fold.Type as Fold
+import qualified Streamly.Internal.Data.Fold as Fold
 
 -- XXX Use MutableArray rather than keeping a MutArray here.
 data Ring a = Ring

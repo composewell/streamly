@@ -90,7 +90,7 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream.MutChunked as AS
-import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))
+import qualified Streamly.Internal.Data.Fold as FL (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
     (Parser(..), Initial(..))

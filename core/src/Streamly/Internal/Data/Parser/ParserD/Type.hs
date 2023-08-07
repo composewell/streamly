@@ -223,10 +223,10 @@ import Control.Monad ((>=>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor (Bifunctor(..))
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Fold.Type (Fold(..), toList)
+import Streamly.Internal.Data.Fold (Fold(..), toList)
 
 import qualified Control.Monad.Fail as Fail
-import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Fold as FL
 
 import Prelude hiding (concatMap, filter)
 

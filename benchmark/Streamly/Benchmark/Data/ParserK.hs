@@ -19,7 +19,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 import Data.Foldable (asum)
 import Streamly.Data.Array (Array, Unbox)
-import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Data.StreamK (StreamK)
 import Streamly.Internal.Data.Parser
     (ParseError(..), Parser(..), Initial(..), Step(..))

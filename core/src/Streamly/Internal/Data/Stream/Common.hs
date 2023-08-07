@@ -30,7 +30,7 @@ where
 
 #include "inline.hs"
 
-import Streamly.Internal.Data.Fold.Type (Fold (..))
+import Streamly.Internal.Data.Fold (Fold (..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
