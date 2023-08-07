@@ -47,10 +47,10 @@ module Streamly.Internal.Data.StreamK
     , parseD
     , parseBreakChunks
     , parseChunks
-    , parseBreakSingular
-    , parseSingular
-    , parseBreakGenericChunks
-    , parseGenericChunks
+    , parseBreak
+    , parse
+    , parseBreakChunksGeneric
+    , parseChunksGeneric
 
     -- ** Specialized Folds
     , head
@@ -1448,13 +1448,13 @@ backTrackSingular = go
 
 -- | Similar to 'parseBreak' but works on singular elements.
 --
-{-# INLINE_NORMAL parseBreakSingular #-}
-parseBreakSingular
+{-# INLINE_NORMAL parseBreak #-}
+parseBreak
     :: forall m a b. Monad m
     => ParserK.ParserK a m b
     -> StreamK m a
     -> m (Either ParseError b, StreamK m a)
-parseBreakSingular parser input = do
+parseBreak parser input = do
     let parserk = ParserK.runParser parser parserDone 0 0
      in go [] parserk input
 
@@ -1495,7 +1495,7 @@ parseBreakSingular parser input = do
             ParserK.Error _ err -> return (Left (ParseError err), nil)
 
     seekErr n =
-        error $ "parseBreakSingular: Partial: forward seek not implemented n = "
+        error $ "parseBreak: Partial: forward seek not implemented n = "
             ++ show n
 
     yieldk
@@ -1553,10 +1553,10 @@ parseBreakSingular parser input = do
 
 -- | Run a 'ParserK' over a 'StreamK'. Please use 'parseChunks' where possible,
 -- for better performance.
-{-# INLINE parseSingular #-}
-parseSingular :: Monad m =>
+{-# INLINE parse #-}
+parse :: Monad m =>
     ParserK.ParserK a m b -> StreamK m a -> m (Either ParseError b)
-parseSingular f = fmap fst . parseBreakSingular f
+parse f = fmap fst . parseBreak f
 
 -------------------------------------------------------------------------------
 -- ParserK Chunked Generic
@@ -1586,13 +1586,13 @@ backTrackGenericChunks = go
 
 -- | Similar to 'parseBreak' but works on generic arrays
 --
-{-# INLINE_NORMAL parseBreakGenericChunks #-}
-parseBreakGenericChunks
+{-# INLINE_NORMAL parseBreakChunksGeneric #-}
+parseBreakChunksGeneric
     :: forall m a b. Monad m
     => ParserK.ParserK (GenArr.Array a) m b
     -> StreamK m (GenArr.Array a)
     -> m (Either ParseError b, StreamK m (GenArr.Array a))
-parseBreakGenericChunks parser input = do
+parseBreakChunksGeneric parser input = do
     let parserk = ParserK.runParser parser parserDone 0 0
      in go [] parserk input
 
@@ -1695,13 +1695,13 @@ parseBreakGenericChunks parser input = do
          in foldStream
                 defState (yieldk backBuf parserk) single stop stream
 
-{-# INLINE parseGenericChunks #-}
-parseGenericChunks ::
+{-# INLINE parseChunksGeneric #-}
+parseChunksGeneric ::
        (Monad m)
     => ParserK.ParserK (GenArr.Array a) m b
     -> StreamK m (GenArr.Array a)
     -> m (Either ParseError b)
-parseGenericChunks f = fmap fst . parseBreakGenericChunks f
+parseChunksGeneric f = fmap fst . parseBreakChunksGeneric f
 
 -------------------------------------------------------------------------------
 -- Sorting

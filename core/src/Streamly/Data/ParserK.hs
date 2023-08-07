@@ -18,14 +18,17 @@ module Streamly.Data.ParserK
 
     -- * Parsers
     -- ** Conversions
-    , fromFold
-    , fromParser
+    , adaptC
     -- , toParser
 
     -- ** Without Input
     , fromPure
     , fromEffect
     , die
+
+    -- * Deprecated
+    , fromFold
+    , fromParser
     )
 
 where
@@ -38,8 +41,13 @@ import qualified Streamly.Internal.Data.Parser as ParserD
 
 import Streamly.Internal.Data.Parser.ParserK.Type
 
--- | Convert a 'Fold' to a 'ParserK'.
---
+{-# DEPRECATED fromFold "Please use \"ParserK.adaptC . Parser.fromFold\" instead." #-}
 {-# INLINE fromFold #-}
 fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ParserK (Array a) m b
-fromFold = fromParser . ParserD.fromFold
+fromFold = adaptC . ParserD.fromFold
+
+{-# DEPRECATED fromParser "Please use \"adaptC\" instead." #-}
+{-# INLINE fromParser #-}
+fromParser ::
+       (MonadIO m, Unbox a) => ParserD.Parser a m b -> ParserK (Array a) m b
+fromParser = adaptC
