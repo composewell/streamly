@@ -90,7 +90,7 @@ import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Stream.Chunked (lpackArraysChunksOf)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Unfold (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 

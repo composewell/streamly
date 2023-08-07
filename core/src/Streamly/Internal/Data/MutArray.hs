@@ -21,7 +21,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Unfold (Unfold(..))
 
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Unfold as Unfold

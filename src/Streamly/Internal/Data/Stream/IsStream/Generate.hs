@@ -92,7 +92,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Void (Void)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Unfold.Type (Unfold)
+import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.SVar (Rate (..))
 import Streamly.Internal.Data.Stream.IsStream.Enumeration
     (Enumerable(..), enumerate, enumerateTo)
