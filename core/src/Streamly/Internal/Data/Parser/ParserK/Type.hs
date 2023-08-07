@@ -27,9 +27,9 @@ module Streamly.Internal.Data.Parser.ParserK.Type
     , Input (..)
     , ParseResult (..)
     , ParserK (..)
-    , fromParser
-    , fromParserSingular
-    , fromParserGeneric
+    , adaptC
+    , adapt
+    , adaptCG
     -- , toParser
     , fromPure
     , fromEffect
@@ -380,8 +380,8 @@ instance MonadTrans (ParserK a) where
 -- Chunked
 --------------------------------------------------------------------------------
 
-{-# INLINE parseDToK #-}
-parseDToK
+{-# INLINE adaptCWith #-}
+adaptCWith
     :: forall m a s b r. (Monad m, Unbox a)
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
@@ -391,7 +391,7 @@ parseDToK
     -> Int
     -> Input (Array a)
     -> m (Step (Array a) m r)
-parseDToK pstep initial extract cont !offset0 !usedCount !input = do
+adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
     res <- initial
     case res of
         ParserD.IPartial pst -> do
@@ -495,7 +495,7 @@ parseDToK pstep initial extract cont !offset0 !usedCount !input = do
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.Partial _ _ -> error "Bug: parseDToK Partial unreachable"
+            ParserD.Partial _ _ -> error "Bug: adaptCWith Partial unreachable"
 
     -- XXX Maybe we can use two separate continuations instead of using
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
@@ -508,17 +508,17 @@ parseDToK pstep initial extract cont !offset0 !usedCount !input = do
 --
 -- /Pre-release/
 --
-{-# INLINE_LATE fromParser #-}
-fromParser :: (Monad m, Unbox a) => ParserD.Parser a m b -> ParserK (Array a) m b
-fromParser (ParserD.Parser step initial extract) =
-    MkParser $ parseDToK step initial extract
+{-# INLINE_LATE adaptC #-}
+adaptC :: (Monad m, Unbox a) => ParserD.Parser a m b -> ParserK (Array a) m b
+adaptC (ParserD.Parser step initial extract) =
+    MkParser $ adaptCWith step initial extract
 
 --------------------------------------------------------------------------------
 -- Singular
 --------------------------------------------------------------------------------
 
-{-# INLINE parseDToKSingular #-}
-parseDToKSingular
+{-# INLINE adaptWith #-}
+adaptWith
     :: forall m a s b r. (Monad m)
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
@@ -528,7 +528,7 @@ parseDToKSingular
     -> Int
     -> Input a
     -> m (Step a m r)
-parseDToKSingular pstep initial extract cont !relPos !usedCount !input = do
+adaptWith pstep initial extract cont !relPos !usedCount !input = do
     res <- initial
     case res of
         ParserD.IPartial pst -> do
@@ -597,7 +597,7 @@ parseDToKSingular pstep initial extract cont !relPos !usedCount !input = do
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.Partial _ _ -> error "Bug: parseDToK Partial unreachable"
+            ParserD.Partial _ _ -> error "Bug: adaptCWith Partial unreachable"
 
     -- XXX Maybe we can use two separate continuations instead of using
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
@@ -606,19 +606,19 @@ parseDToKSingular pstep initial extract cont !relPos !usedCount !input = do
     parseCont !cnt !pst (Chunk arr) = parseContChunk cnt pst arr
     parseCont !cnt !pst None = parseContNothing cnt pst
 
--- | Similar to "fromParser" but for singular elements.
+-- | Similar to "adaptC" but for non-chunked input.
 --
-{-# INLINE_LATE fromParserSingular #-}
-fromParserSingular :: Monad m => ParserD.Parser a m b -> ParserK a m b
-fromParserSingular (ParserD.Parser step initial extract) =
-    MkParser $ parseDToKSingular step initial extract
+{-# INLINE_LATE adapt #-}
+adapt :: Monad m => ParserD.Parser a m b -> ParserK a m b
+adapt (ParserD.Parser step initial extract) =
+    MkParser $ adaptWith step initial extract
 
 --------------------------------------------------------------------------------
 -- Chunked Generic
 --------------------------------------------------------------------------------
 
-{-# INLINE parseDToKGeneric #-}
-parseDToKGeneric
+{-# INLINE adaptCGWith #-}
+adaptCGWith
     :: forall m a s b r. (Monad m)
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
@@ -628,7 +628,7 @@ parseDToKGeneric
     -> Int
     -> Input (GenArr.Array a)
     -> m (Step (GenArr.Array a) m r)
-parseDToKGeneric pstep initial extract cont !offset0 !usedCount !input = do
+adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
     res <- initial
     case res of
         ParserD.IPartial pst -> do
@@ -728,19 +728,19 @@ parseDToKGeneric pstep initial extract cont !offset0 !usedCount !input = do
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.Partial _ _ -> error "Bug: parseDToKGeneric Partial unreachable"
+            ParserD.Partial _ _ -> error "Bug: adaptCGWith Partial unreachable"
 
     {-# INLINE parseCont #-}
     parseCont !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
     parseCont !cnt !pst None = parseContNothing cnt pst
 
--- | Similar to "fromParser" but is not constrained.
+-- | Similar to "adaptC" but is not constrained.
 --
-{-# INLINE_LATE fromParserGeneric #-}
-fromParserGeneric ::
+{-# INLINE_LATE adaptCG #-}
+adaptCG ::
        Monad m => ParserD.Parser a m b -> ParserK (GenArr.Array a) m b
-fromParserGeneric (ParserD.Parser step initial extract) =
-    MkParser $ parseDToKGeneric step initial extract
+adaptCG (ParserD.Parser step initial extract) =
+    MkParser $ adaptCGWith step initial extract
 
 {-
 -------------------------------------------------------------------------------

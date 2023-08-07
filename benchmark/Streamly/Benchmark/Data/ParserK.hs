@@ -5,9 +5,9 @@
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
--- BENCH_CHUNKED             -> fromParser
--- BENCH_CHUNKED_GENERIC     -> fromParserGeneric
--- BENCH_SINGULAR            -> fromParserSingular
+-- BENCH_CHUNKED             -> adaptC
+-- BENCH_CHUNKED_GENERIC     -> adaptCG
+-- BENCH_SINGULAR            -> adapt
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -58,7 +58,7 @@ import Streamly.Benchmark.Common
 #ifdef BENCH_CHUNKED
 
 #define PARSE_OP StreamK.parseChunks
-#define FROM_PARSER fromParser
+#define FROM_PARSER adaptC
 #define INPUT (Array a)
 #define PARSE_ELEM (Array Int)
 #define CONSTRAINT_IO (MonadIO m, Unbox a)
@@ -69,8 +69,8 @@ import Streamly.Benchmark.Common
 
 #ifdef BENCH_CHUNKED_GENERIC
 
-#define PARSE_OP StreamK.parseGenericChunks
-#define FROM_PARSER fromParserGeneric
+#define PARSE_OP StreamK.parseChunksGeneric
+#define FROM_PARSER adaptCG
 #define INPUT (Array a)
 #define PARSE_ELEM (Array Int)
 #define CONSTRAINT_IO (MonadIO m)
@@ -81,13 +81,13 @@ import Streamly.Benchmark.Common
 
 #ifdef BENCH_SINGULAR
 
-#define PARSE_OP StreamK.parseSingular
-#define FROM_PARSER fromParserSingular
+#define PARSE_OP StreamK.parse
+#define FROM_PARSER adapt
 #define INPUT a
 #define PARSE_ELEM Int
 #define CONSTRAINT_IO (MonadIO m)
 #define CONSTRAINT (Monad m)
-#define MODULE_NAME "ParserK.Singular"
+#define MODULE_NAME "ParserK"
 
 #endif
 
