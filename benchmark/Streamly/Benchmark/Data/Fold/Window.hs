@@ -8,7 +8,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 
 import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
+import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Streamly.Internal.Data.Fold.Window as Window
 import qualified Streamly.Internal.Data.Stream as Stream
 

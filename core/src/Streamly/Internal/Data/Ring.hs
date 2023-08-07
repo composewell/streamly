@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Ring.Unboxed
+-- Module      : Streamly.Internal.Data.Ring
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -12,7 +12,7 @@
 -- XXX Make the implementation similar to mutable array
 -- XXX Rename this module to Data.RingArray.Storable
 
-module Streamly.Internal.Data.Ring.Unboxed
+module Streamly.Internal.Data.Ring
     ( Ring(..)
 
     -- * Construction
@@ -96,7 +96,7 @@ import Prelude hiding (length, concat, read)
 
 -- $setup
 -- >>> :m
--- >>> import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
+-- >>> import qualified Streamly.Internal.Data.Ring as Ring
 
 -- | A ring buffer is a mutable array of fixed size. Initially the array is
 -- empty, with ringStart pointing at the start of allocated memory. We call the

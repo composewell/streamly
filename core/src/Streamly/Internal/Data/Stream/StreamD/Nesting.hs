@@ -195,7 +195,7 @@ import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
-import qualified Streamly.Internal.Data.Ring.Unboxed as RB
+import qualified Streamly.Internal.Data.Ring as RB
 
 import Streamly.Internal.Data.Stream.StreamD.Transform
     (intersperse, intersperseMSuffix)

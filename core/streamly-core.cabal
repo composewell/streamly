@@ -359,7 +359,7 @@ library
                      , Streamly.Internal.FileSystem.Dir
 
                     -- Ring Arrays
-                     , Streamly.Internal.Data.Ring.Unboxed
+                     , Streamly.Internal.Data.Ring
                      , Streamly.Internal.Data.Ring.Generic
 
                      -- streamly-console

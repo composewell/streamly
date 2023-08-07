@@ -11,7 +11,7 @@ module Streamly.Test.Data.Ring.Unboxed (main) where
 import Control.Monad (void)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
-import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
+import qualified Streamly.Internal.Data.Ring as Ring
 
 import Prelude as P
 import qualified Data.Foldable as P
