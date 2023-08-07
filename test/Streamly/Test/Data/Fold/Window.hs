@@ -2,7 +2,7 @@ module Streamly.Test.Data.Fold.Window (main) where
 
 import Streamly.Internal.Data.Fold.Window
 import Test.Hspec (hspec, describe, it, runIO)
-import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
+import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Fold as Fold
 

@@ -247,7 +247,7 @@ import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as FoldW
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
+import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
 
 import Prelude hiding

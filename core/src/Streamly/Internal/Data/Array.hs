@@ -133,7 +133,7 @@ import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
-import qualified Streamly.Internal.Data.Ring.Unboxed as RB
+import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
