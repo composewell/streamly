@@ -179,7 +179,7 @@ import GHC.Base
 import GHC.IO (IO(..))
 import GHC.Int (Int(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Producer.Type (Producer (..))
+import Streamly.Internal.Data.Producer (Producer (..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 

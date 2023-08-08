@@ -121,7 +121,7 @@ import Streamly.Internal.Data.MutArray.Type (ArrayUnsafe(..))
 import Streamly.Internal.Data.Array.Type
     (Array(..), length, asPtrUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Producer.Type (Producer(..))
+import Streamly.Internal.Data.Producer (Producer(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -131,7 +131,6 @@ import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.MutArray as MA
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Ring.Unboxed as RB
 import qualified Streamly.Internal.Data.Stream as D

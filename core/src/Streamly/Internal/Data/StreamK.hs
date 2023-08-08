@@ -209,7 +209,7 @@ import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer (newIOFinalizer, runIOFinalizer)
 import Streamly.Internal.Data.Parser.ParserK.Type (ParserK)
-import Streamly.Internal.Data.Producer.Type (Producer(..))
+import Streamly.Internal.Data.Producer (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (sizeOf, Unbox)
 

@@ -24,21 +24,13 @@
 -- unecessary function calls can be avoided.
 
 module Streamly.Internal.Data.Producer
-    ( Producer (..)
+    (
+      module Streamly.Internal.Data.Producer.Source
+    , module Streamly.Internal.Data.Producer.Type
 
     -- * Converting
     , simplify
-
-    -- * Producers
-    , nil
-    , nilM
-    , unfoldrM
     , fromStreamD
-    , fromList
-
-    -- * Combinators
-    , NestedLoop (..)
-    , concat
     )
 where
 
@@ -49,6 +41,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
+import Streamly.Internal.Data.Producer.Source
 import Streamly.Internal.Data.Producer.Type
 import Prelude hiding (concat)
 
