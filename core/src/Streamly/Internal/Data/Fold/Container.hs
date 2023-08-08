@@ -9,9 +9,6 @@
 
 module Streamly.Internal.Data.Fold.Container
     (
-    -- * Imports
-    -- $setup
-
     -- * Set operations
       toSet
     , toIntSet

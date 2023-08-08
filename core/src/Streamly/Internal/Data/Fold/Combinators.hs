@@ -13,34 +13,9 @@
 
 module Streamly.Internal.Data.Fold.Combinators
     (
-    -- * Imports
-    -- $setup
-
-    -- * Fold Type
-      Step (..)
-    , Fold (..)
-    , Tee (..)
-
-    -- * Constructors
-    -- | Which constructor to use?
-    --
-    -- * @foldl*@: If the fold never terminates i.e. does not use the 'Done'
-    -- constructor otherwise use the @foldt*@ variants.
-    -- * @*M@: Use the @M@ suffix variants if any of the step, initial, or
-    -- extract function is monadic, otherwise use the pure variants.
-    --
-    , foldl'
-    , foldlM'
-    , foldl1'
-    , foldlM1'
-    , foldt'
-    , foldtM'
-    , foldr'
-    , foldrM'
-
     -- * Mappers
     -- | Monadic functions useful with mapM/lmapM on folds or streams.
-    , tracing
+      tracing
     , trace
 
     -- * Folds
@@ -53,7 +28,6 @@ module Streamly.Internal.Data.Fold.Combinators
     , foldMapM
 
     -- *** Reducers
-    , drain
     , drainMapM
     , the
     , length
@@ -80,13 +54,10 @@ module Streamly.Internal.Data.Fold.Combinators
     -- | Avoid using these folds in scalable or performance critical
     -- applications, they buffer all the input in GC memory which can be
     -- detrimental to performance if the input is large.
-    , toList
     , toListRev
     -- $toListRev
     , toStream
     , toStreamRev
-    , toStreamK
-    , toStreamKRev
     , topBy
     , top
     , bottomBy
@@ -106,20 +77,12 @@ module Streamly.Internal.Data.Fold.Combinators
 
     -- *** Filters
     -- | Useful in combination with the 'scanMaybe' combinator.
-    , filtering
     , deleteBy
     , uniqBy
     , uniq
     , repeated
     , findIndices
     , elemIndices
-
-    -- ** Terminating Folds
-    -- *** Empty folds
-    -- | Folds that return a result without consuming any input.
-    , fromPure
-    , fromEffect
-    , fromRefold
 
     -- *** Singleton folds
     -- | Folds that terminate after consuming exactly one input element. All
@@ -150,8 +113,6 @@ module Streamly.Internal.Data.Fold.Combinators
 
     -- ** Trimmers
     -- | Useful in combination with the 'scanMaybe' combinator.
-    , taking
-    , dropping
     , takingEndByM
     , takingEndBy
     , takingEndByM_
@@ -165,34 +126,14 @@ module Streamly.Internal.Data.Fold.Combinators
     -- , breakStream
 
     -- * Building Incrementally
-    , extractM
-    , reduce
-    , close
-    , isClosed
-    , snoc
-    , snocl
-    , snocM
-    , snoclM
-
-    , addOne
     , addStream
 
     -- * Combinators
     -- ** Utilities
     , with
 
-    -- ** Transforming the Monad
-    , morphInner
-    , generalizeInner
-
-    -- ** Mapping on output
-    , rmapM
-
     -- ** Mapping on Input
     , transform
-    , lmap
-    --, lsequence
-    , lmapM
 
     -- ** Sliding Window
     , slide2
@@ -200,7 +141,6 @@ module Streamly.Internal.Data.Fold.Combinators
     -- ** Scanning Input
     , scan
     , scanMany
-    , postscan
     , indexed
 
     -- ** Zipping Input
@@ -208,18 +148,9 @@ module Streamly.Internal.Data.Fold.Combinators
     , zipStream
 
     -- ** Filtering Input
-    , catMaybes
     , mapMaybeM
     , mapMaybe
-    , scanMaybe
-    , filter
-    , filterM
     , sampleFromthen
-
-    -- Either streams
-    , catLefts
-    , catRights
-    , catEithers
 
     {-
     -- ** Insertion
@@ -233,7 +164,6 @@ module Streamly.Internal.Data.Fold.Combinators
     -}
 
     -- ** Trimming
-    , take
 
     -- By elements
     , takeEndBy
@@ -247,18 +177,13 @@ module Streamly.Internal.Data.Fold.Combinators
     -}
 
     -- ** Serial Append
-    , splitWith
-    , split_
     -- , tail
     -- , init
     , splitAt -- spanN
     -- , splitIn -- sessionN
 
     -- ** Parallel Distribution
-    , teeWith
     , tee
-    , teeWithFst
-    , teeWithMin
     , distribute
     -- , distributeFst
     -- , distributeMin
@@ -271,10 +196,6 @@ module Streamly.Internal.Data.Fold.Combinators
     , unzipWithFstM
     , unzipWithMinM
 
-    -- ** Parallel Alternative
-    , shortest
-    , longest
-
     -- ** Partitioning
     , partitionByM
     , partitionByFstM
@@ -283,23 +204,14 @@ module Streamly.Internal.Data.Fold.Combinators
     , partition
 
     -- ** Splitting
-    , many
-    , manyPost
-    , groupsOf
     , chunksBetween
-    , refoldMany
-    , refoldMany1
     , intersperseWithQuotes
 
     -- ** Nesting
     , unfoldMany
     , concatSequence
-    , concatMap
-    , duplicate
-    , refold
 
     -- * Deprecated
-    , foldr
     , drainBy
     , last
     , head
@@ -307,7 +219,6 @@ module Streamly.Internal.Data.Fold.Combinators
     , mapM
     , variance
     , stdDev
-    , serialWith
     )
 where
 
@@ -347,7 +258,6 @@ import Prelude hiding
        , scanl, scanl1, replicate, concatMap, mconcat, unzip
        , span, splitAt, break, mapM, zip, maybe)
 import Streamly.Internal.Data.Fold.Type
-import Streamly.Internal.Data.Fold.Tee
 
 #include "DocTestDataFold.hs"
 

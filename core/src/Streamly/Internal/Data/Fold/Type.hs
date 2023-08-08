@@ -344,11 +344,9 @@
 --
 module Streamly.Internal.Data.Fold.Type
     (
-    -- * Imports
-    -- $setup
+      module Streamly.Internal.Data.Fold.Step
 
-    -- * Types
-      Step (..)
+    -- * Fold Type
     , Fold (..)
 
     -- * Constructors
@@ -450,7 +448,6 @@ import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep, chainStepM)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Refold.Type (Refold(..))
@@ -458,6 +455,9 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding (Foldable(..), concatMap, filter, map, take)
+
+-- Entire module is exported, do not import selectively
+import Streamly.Internal.Data.Fold.Step
 
 #include "DocTestDataFold.hs"
 

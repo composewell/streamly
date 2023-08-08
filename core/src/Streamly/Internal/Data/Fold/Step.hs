@@ -8,7 +8,7 @@
 --
 module Streamly.Internal.Data.Fold.Step
     (
-    -- * Types
+    -- * Step Type
       Step (..)
 
     , mapMStep
