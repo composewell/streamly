@@ -8,5 +8,5 @@
 For APIs that have not been released yet.
 
 >>> :set -XMagicHash
->>> import qualified Streamly.Internal.Unicode.Stream as Unicode (fromStr#)
+>>> import qualified Streamly.Internal.Unicode.Stream as Unicode
 -}

@@ -1026,7 +1026,7 @@ stripHead = Stream.dropWhile isSpace
 -- | Fold each line of the stream using the supplied 'Fold'
 -- and stream the result.
 --
--- >>> Stream.fold Fold.toList $ lines Fold.toList (Stream.fromList "lines\nthis\nstring\n\n\n")
+-- >>> Stream.fold Fold.toList $ Unicode.lines Fold.toList (Stream.fromList "lines\nthis\nstring\n\n\n")
 -- ["lines","this","string","",""]
 --
 -- > lines = Stream.splitOnSuffix (== '\n')
@@ -1057,7 +1057,7 @@ isSpace c
 -- | Fold each word of the stream using the supplied 'Fold'
 -- and stream the result.
 --
--- >>>  Stream.fold Fold.toList $ words Fold.toList (Stream.fromList "fold these     words")
+-- >>>  Stream.fold Fold.toList $ Unicode.words Fold.toList (Stream.fromList "fold these     words")
 -- ["fold","these","words"]
 --
 -- > words = Stream.wordsBy isSpace

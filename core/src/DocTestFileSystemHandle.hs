@@ -1,7 +1,7 @@
 {- $setup
 >>> :m
 >>> import qualified Streamly.Data.Array as Array
->>> import qualified Streamly.FileSystem.Handle as Handle
+>>> import qualified Streamly.FileSystem.Handle as Handle hiding (readChunks)
 >>> import qualified Streamly.Data.Fold as Fold
 >>> import qualified Streamly.Data.Stream as Stream
 >>> import qualified Streamly.Data.Unfold as Unfold
