@@ -157,7 +157,7 @@ import Text.Read
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Refold.Type (Refold(..))
+import Streamly.Internal.Data.Refold (Refold(..))
 import Streamly.Internal.Data.Stream.StreamD.Step (Step (..))
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))

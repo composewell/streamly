@@ -22,7 +22,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
 
-import qualified Streamly.Internal.Data.Refold.Type as Refold
+import qualified Streamly.Internal.Data.Refold as Refold
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Stream.Common as Common
 

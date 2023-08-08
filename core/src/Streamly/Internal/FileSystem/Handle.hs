@@ -128,7 +128,7 @@ import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Refold.Type (Refold(..))
+import Streamly.Internal.Data.Refold (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Type
        (Array(..), pinnedWriteNUnsafe, unsafeFreezeWithShrink, byteLength)
@@ -142,7 +142,7 @@ import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import qualified Streamly.Internal.Data.MutArray.Type as MArray
-import qualified Streamly.Internal.Data.Refold.Type as Refold
+import qualified Streamly.Internal.Data.Refold as Refold
 import qualified Streamly.Internal.Data.Fold.Type as FL(refoldMany)
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D

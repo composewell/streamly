@@ -291,6 +291,7 @@ library
                      -- streamly-core-stream-types
                      , Streamly.Internal.Data.SVar.Type
                      , Streamly.Internal.Data.Stream.StreamK.Type
+                     , Streamly.Internal.Data.Refold
                      , Streamly.Internal.Data.Refold.Type
                      , Streamly.Internal.Data.Unfold.Type
                      , Streamly.Internal.Data.Producer.Type

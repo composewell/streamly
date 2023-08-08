@@ -162,7 +162,7 @@ import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
-import Streamly.Internal.Data.Refold.Type (Refold (..))
+import Streamly.Internal.Data.Refold (Refold (..))
 import Streamly.Internal.Data.Parser (Parser (..), ParseError)
 import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.Stream.IsStream.Common
