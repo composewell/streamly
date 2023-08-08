@@ -151,7 +151,7 @@ import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), Step(..))
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
+import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
 
 -------------------------------------------------------------------------------

@@ -69,7 +69,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream (Step(..))
 
 import qualified Data.Set as Set
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
     (StreamK, foldStreamShared, mkStream, foldStream, fromEffect
     , nil, concatMapWith, fromPure, bindWith)
 import qualified Streamly.Internal.Data.Stream as D

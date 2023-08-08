@@ -28,7 +28,7 @@ import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Stream.Channel.Worker
     (sendYield, sendStop, sendWithDoorBell)
-import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
+import Streamly.Internal.Data.StreamK (StreamK)
 
 import Streamly.Internal.Data.Stream.Channel.Types
 

@@ -40,7 +40,7 @@ import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type

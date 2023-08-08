@@ -23,7 +23,7 @@ module Streamly.Internal.Data.Stream.ZipAsync {-# DEPRECATED "Please use \"Strea
 where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.StreamK (Stream)
 
 import qualified Streamly.Internal.Data.StreamK as K
     (mkStream, foldStream, zipWithM, consM)

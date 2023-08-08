@@ -264,7 +264,7 @@ import qualified Streamly.Internal.Data.Stream as D
     , intersperseM_, intersperseMSuffix, intersperseMSuffix_
     , intersperseMSuffixWith, indexed, indexedR, rollingMap, rollingMapM
     , rollingMap2, mapMaybe, mapMaybeM)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
     (foldrS, foldrSShared, mapMWith)
 import qualified Prelude
 

@@ -105,7 +105,7 @@ import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), Step(..))
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (first, map)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
+import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
 -- $setup
 -- >>> :m

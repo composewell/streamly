@@ -85,7 +85,7 @@ import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
     (fromPure, fromEffect, repeatMWith, reverse)
 import qualified Streamly.Internal.Data.Stream as D
     (repeatM, timesWith, foldAddLazy, map, scanlMAfter', postscanlMAfter'
