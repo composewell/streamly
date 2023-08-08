@@ -290,7 +290,6 @@ library
 
                      -- streamly-core-stream-types
                      , Streamly.Internal.Data.SVar.Type
-                     , Streamly.Internal.Data.Stream.StreamK.Type
                      , Streamly.Internal.Data.Refold.Type
                      , Streamly.Internal.Data.Producer.Type
                      , Streamly.Internal.Data.Producer
@@ -425,6 +424,8 @@ library
                     , Streamly.Internal.Data.Stream.StreamD.Transform
                     , Streamly.Internal.Data.Stream.StreamD.Transformer
                     , Streamly.Internal.Data.Stream.StreamD.Type
+
+                    , Streamly.Internal.Data.Stream.StreamK.Type
 
                     , Streamly.Internal.Data.Unfold.Type
                     , Streamly.Internal.Data.Unfold.Enumeration

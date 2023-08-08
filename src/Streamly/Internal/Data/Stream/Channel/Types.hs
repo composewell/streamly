@@ -133,7 +133,7 @@ import Streamly.Internal.Data.Time.Units (AbsTime, NanoSecond64(..))
 import System.IO (hPutStrLn, stderr)
 
 import qualified Data.Set as Set
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
 
 ------------------------------------------------------------------------------
 -- Common types

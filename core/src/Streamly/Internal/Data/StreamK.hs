@@ -17,39 +17,14 @@ module Streamly.Internal.Data.StreamK
     -- $setup
 
     -- * The stream type
-      Stream
+      module Streamly.Internal.Data.Stream.StreamK.Type
+
     , StreamK(..)
+    , fromList
     , fromStream
     , toStream
 
-    , CrossStreamK
-    , unCross
-    , mkCross
-
-    -- * Construction Primitives
-    , mkStream
-    , nil
-    , nilM
-    , cons
-    , (.:)
-
-    -- * Elimination Primitives
-    , foldStream
-    , foldStreamShared
-
-    -- * Transformation Primitives
-    , unShare
-
-    -- * Deconstruction
-    , uncons
-
-    -- * Generation
-    -- ** Unfolds
-    , unfoldr
-    , unfoldrM
-
     -- ** Specialized Generation
-    , repeat
     , repeatM
     , replicate
     , replicateM
@@ -58,28 +33,10 @@ module Streamly.Internal.Data.StreamK
     , iterate
     , iterateM
 
-    -- ** Conversions
-    , fromPure
-    , fromEffect
-    , fromFoldable
-    , fromList
-
-    -- * foldr/build
-    , foldrS
-    , foldrSM
-    , buildS
-    , augmentS
-
     -- * Elimination
     -- ** General Folds
-    , foldr
     , foldr1
-    , foldrM
-
-    , foldl'
     , foldlM'
-    , foldlS
-    , foldlx'
     , foldlMx'
     , fold
     , foldBreak
@@ -91,11 +48,7 @@ module Streamly.Internal.Data.StreamK
     , parseChunks
 
     -- ** Specialized Folds
-    , drain
-    , null
     , head
-    , tail
-    , init
     , elem
     , notElem
     , all
@@ -131,7 +84,6 @@ module Streamly.Internal.Data.StreamK
     , dropWhile
 
     -- ** Mapping
-    , map
     , mapM
     , sequence
 
@@ -144,7 +96,6 @@ module Streamly.Internal.Data.StreamK
     , deleteBy
 
     -- ** Reordering
-    , reverse
     , sortBy
 
     -- ** Map and Filter
@@ -158,40 +109,14 @@ module Streamly.Internal.Data.StreamK
     , mergeBy
     , mergeByM
 
-    -- ** Nesting
-    , crossApplyWith
-    , crossApply
-    , crossApplySnd
-    , crossApplyFst
-    , crossWith
-
-    , concatMapWith
-    , concatMap
-    , concatEffect
-    , bindWith
-    , concatIterateWith
-    , concatIterateLeftsWith
-    , concatIterateScanWith
-
-    , mergeMapWith
-    , mergeIterateWith
-
     -- ** Transformation comprehensions
     , the
-
-    -- * Semigroup Style Composition
-    , append
-    , interleave
 
     -- * Exceptions
     , handle
 
     -- * Resource Management
     , bracketIO
-
-    -- * Utilities
-    , consM
-    , mfix
     )
 where
 

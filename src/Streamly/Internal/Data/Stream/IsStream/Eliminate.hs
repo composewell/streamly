@@ -177,7 +177,7 @@ import qualified Streamly.Internal.Data.Stream as D
     , notElem, all, any, minimum, minimumBy, maximum, maximumBy, the, lookup
     , find, findM, toListRev, isPrefixOf, isSubsequenceOf, stripPrefix,  (!!)
     , fromStreamK, foldrM, parseD)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
     (uncons, foldlS, tail, init)
 import qualified System.IO as IO
 

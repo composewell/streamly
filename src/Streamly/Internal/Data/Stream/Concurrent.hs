@@ -110,14 +110,12 @@ import Streamly.Internal.Data.Stream.Channel.Types
     , concatMapDivK
     )
 import Streamly.Internal.Data.Stream.Channel.Worker (sendWithDoorBell)
-import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.Stream (Step(..))
+import Streamly.Internal.Data.Stream (Stream, Step(..))
 
 import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 import Streamly.Internal.Data.Stream.Concurrent.Channel

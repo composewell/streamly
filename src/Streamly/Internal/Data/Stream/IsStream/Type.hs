@@ -123,7 +123,7 @@ import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), toStreamK, fromStreamK
     , drain, eqBy, cmpBy, fromList, toList, foldrMx, foldlMx'
     , foldlx', foldl', fold)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
     (StreamK(..), cons, fromEffect
     , nil, fromPure, bindWith, drain
     , fromFoldable, nilM, repeat)

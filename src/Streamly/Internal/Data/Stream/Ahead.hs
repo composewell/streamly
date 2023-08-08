@@ -54,9 +54,9 @@ import qualified Data.Heap as H
 
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, askRunInIO, restoreM)
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.StreamK (Stream)
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
     (foldStreamShared, cons, mkStream, foldStream, fromEffect
     , nil, concatMapWith, fromPure, bindWith)
 import qualified Streamly.Internal.Data.Stream as D

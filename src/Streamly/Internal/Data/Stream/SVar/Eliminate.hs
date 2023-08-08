@@ -42,7 +42,7 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), Step(..), fold)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
     (Stream, mkStream, foldStream, foldStreamShared, nilM)
 import qualified Streamly.Internal.Data.Stream.Serial as Stream
     (fromStreamK, toStreamK)

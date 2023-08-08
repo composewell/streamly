@@ -183,9 +183,8 @@ import qualified Streamly.Internal.Data.Stream as D
     , roundRobin, mergeByM, unfoldMany, unfoldInterleave, intersperse
     , unfoldRoundRobin, interpose, interposeSuffix, gintercalate
     , gintercalateSuffix, intersperseMSuffix)
-import qualified Streamly.Internal.Data.StreamK as K (mergeBy, mergeByM)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-    (interleave, append, mergeMapWith)
+import qualified Streamly.Internal.Data.StreamK as K
+    (interleave, append, mergeMapWith, mergeBy, mergeByM)
 import qualified Streamly.Internal.Data.Stream.ZipAsync as ZipAsync
 
 import Prelude hiding (concat, concatMap, zipWith)

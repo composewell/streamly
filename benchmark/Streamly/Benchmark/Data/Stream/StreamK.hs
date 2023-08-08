@@ -33,7 +33,6 @@ import Prelude hiding
 import qualified Prelude as P
 import qualified Data.List as List
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as S
 import qualified Streamly.Internal.Data.StreamK as S
 
 import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)

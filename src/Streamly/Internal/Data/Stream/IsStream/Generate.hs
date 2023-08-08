@@ -114,7 +114,7 @@ import qualified Streamly.Internal.Data.Stream as D
     (unfold, unfoldr, toStreamK, unfoldr, repeat, replicate, replicateM
     , fromIndices, fromIndicesM, iterate, iterateM, toStreamK, fromListM
     , fromListM)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
     (unfoldr, unfoldrMWith, replicateMWith, fromIndicesMWith, iterateMWith
     , mfix, fromFoldable, fromFoldableM)
 import qualified Streamly.Internal.Data.Stream.Serial as Stream (fromStreamK)

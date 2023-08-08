@@ -64,10 +64,10 @@ import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, askRunInIO, restoreM)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
-import Streamly.Internal.Data.Stream.StreamK.Type (Stream)
+import Streamly.Internal.Data.StreamK (Stream)
 import Streamly.Internal.Data.Stream.SVar.Generate (fromSVar, fromSVarD)
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
     (foldStreamShared, mkStream, foldStream, fromEffect
     , nil, concatMapWith, fromPure, bindWith)
 import qualified Streamly.Internal.Data.Stream as D

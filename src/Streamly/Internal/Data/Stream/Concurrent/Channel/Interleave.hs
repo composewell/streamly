@@ -24,7 +24,7 @@ import Streamly.Internal.Control.Concurrent
 import Streamly.Internal.Data.Stream.Channel.Dispatcher (delThread)
 
 import qualified Data.Set as Set
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type

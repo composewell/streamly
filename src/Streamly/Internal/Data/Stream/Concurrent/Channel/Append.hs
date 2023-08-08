@@ -36,7 +36,7 @@ import Streamly.Internal.Data.Stream.Channel.Dispatcher (modifyThread)
 
 import qualified Data.Heap as H
 import qualified Data.Set as Set
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK as K
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
