@@ -12,8 +12,7 @@ module Main (main) where
 
 import Control.Monad (void)
 import GHC.Ptr (Ptr(..))
-
-import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Data.Foldable as P
 

@@ -567,7 +567,6 @@ pinnedWrite = fmap unsafeFreeze MA.pinnedWrite
 -- could be unsafe and dangerous. This is dangerous especially when used with
 -- foldMany like operations.
 --
--- >>> import qualified Streamly.Internal.Data.Array.Type as Array
 -- >>> unsafePureWrite = Array.unsafeMakePure Array.write
 --
 {-# INLINE unsafeMakePure #-}
@@ -595,8 +594,6 @@ fromPureStream x = unsafePerformIO $ fmap (unsafeFreeze) (MA.fromPureStream x)
 -- Note that this is completely safe when reading from Haskell string
 -- literals because they are guaranteed to be NULL terminated:
 --
--- >>> :set -XMagicHash
--- >>> import qualified Streamly.Internal.Data.Array.Type as Array
 -- >>> Array.toList $ Array.fromByteStr# "\1\2\3\0"#
 -- [1,2,3]
 --

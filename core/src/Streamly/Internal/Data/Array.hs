@@ -17,42 +17,27 @@ module Streamly.Internal.Data.Array
     -- $design
 
     -- * The Array Type
-      Array
+      module Streamly.Internal.Data.Array.Type
 
     -- * Construction
-
-    -- Pure List APIs
-    , A.fromListN
-    , A.fromList
-
     -- Stream Folds
     , fromStreamN
     , fromStream
 
     -- Monadic Folds
-    , A.writeN      -- drop new
-    , A.pinnedWriteNAligned
-    , A.write       -- full buffer
     , writeLastN
 
     -- * Elimination
     -- ** Conversion
-    , A.toList
-
-    -- ** Streams
-    , A.read
-    , A.readRev
 
     -- ** Unfolds
     , reader
     , readerUnsafe
-    , A.readerRev
     , producer -- experimental
 
     -- * Random Access
     -- , (!!)
     , getIndex
-    , A.unsafeIndex -- XXX Rename to getIndexUnsafe??
     , getIndexRev
     , last           -- XXX getIndexLast?
     , getIndices
@@ -64,7 +49,6 @@ module Streamly.Internal.Data.Array
     -- , getIndicesUptoRev  -- read from end to the given position in file
 
     -- * Size
-    , length
     , null
 
     -- * Search
@@ -77,10 +61,7 @@ module Streamly.Internal.Data.Array
     , cast
     , asBytes
     , castUnsafe
-    , asPtrUnsafe
     , asCStringUnsafe
-    , A.unsafeFreeze -- asImmutableUnsafe?
-    , A.unsafeThaw   -- asMutableUnsafe?
 
     -- * Subarrays
     , getSliceUnsafe
@@ -95,10 +76,6 @@ module Streamly.Internal.Data.Array
     -- ** Folding
     , streamFold
     , fold
-
-    -- * Deprecated
-    , A.toStream
-    , A.toStreamRev
     )
 where
 
@@ -117,9 +94,6 @@ import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import Streamly.Internal.Data.MutArray.Type (ArrayUnsafe(..))
-import Streamly.Internal.Data.Array.Type
-    (Array(..), length, asPtrUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream (Stream)
@@ -137,6 +111,8 @@ import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
+
+import Streamly.Internal.Data.Array.Type
 
 #include "DocTestDataArray.hs"
 
@@ -241,7 +217,6 @@ readerUnsafe = Unfold step inject
 
 -- |
 --
--- >>> import qualified Streamly.Internal.Data.Array.Type as Array
 -- >>> null arr = Array.byteLength arr == 0
 --
 -- /Pre-release/
@@ -264,7 +239,6 @@ getIndexRev i arr =
 
 -- |
 --
--- >>> import qualified Streamly.Internal.Data.Array as Array
 -- >>> last arr = Array.getIndexRev arr 0
 --
 -- /Pre-release/

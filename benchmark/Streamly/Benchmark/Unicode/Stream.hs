@@ -42,7 +42,7 @@ import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Stream.StreamD (Step(..))
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Array as Array
 
 import Test.Inspection
 #endif

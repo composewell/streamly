@@ -1,6 +1,7 @@
 {- $setup
 >>> :m
 >>> :set -XFlexibleContexts
+>>> :set -XMagicHash
 >>> import Data.Function ((&))
 >>> import Data.Functor.Identity (Identity(..))
 >>> import System.IO.Unsafe (unsafePerformIO)

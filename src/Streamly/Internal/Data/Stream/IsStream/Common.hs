@@ -71,7 +71,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Storable (Storable)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Array.Type (Array)
+import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators (maxYields)
 import Streamly.Internal.Data.Stream.IsStream.Type
@@ -81,7 +81,7 @@ import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64, addToAbsTime64)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Unbox (Unbox)
 
-import qualified Streamly.Internal.Data.Array.Type as A
+import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par

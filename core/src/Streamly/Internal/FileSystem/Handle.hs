@@ -130,7 +130,7 @@ import Prelude hiding (read)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Array.Type
+import Streamly.Internal.Data.Array
        (Array(..), pinnedWriteNUnsafe, unsafeFreezeWithShrink, byteLength)
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Stream.Chunked (lpackArraysChunksOf)

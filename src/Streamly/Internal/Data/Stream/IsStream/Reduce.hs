@@ -164,7 +164,7 @@ import Streamly.Internal.Data.Fold (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Refold.Type (Refold (..))
 import Streamly.Internal.Data.Parser (Parser (..), ParseError)
-import Streamly.Internal.Data.Array.Type (Array)
+import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Stream.IsStream.Common
     ( fold
     , interjectSuffix
@@ -184,7 +184,7 @@ import Streamly.Internal.Data.Unbox (Unbox)
 
 import qualified Data.Heap as H
 import qualified Streamly.Internal.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Array.Type as A
+import qualified Streamly.Internal.Data.Array as A
     (chunksOf, read)
 import qualified Streamly.Internal.Data.Fold as FL
     (Fold, Step(..), takeEndBy_, takeEndBy, catMaybes, take)
