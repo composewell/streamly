@@ -104,7 +104,7 @@ import qualified System.IO as SIO
 
 import Streamly.Data.Fold (groupsOf, drain)
 import Streamly.Internal.Data.Array.Type (Array(..), pinnedWriteNUnsafe)
-import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -116,7 +116,7 @@ import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array.Type as IA (pinnedChunksOf)
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
-import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
     (Step(..), snoc, reduce)
 import qualified Streamly.Internal.FileSystem.Handle as FH
 

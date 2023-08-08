@@ -261,7 +261,7 @@ where
 import Control.Monad (when)
 import Data.Bifunctor (first)
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Either.Strict (Either'(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
@@ -269,7 +269,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 
 import qualified Data.Foldable as Foldable
-import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 

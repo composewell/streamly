@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Fold.Generate
+-- Module      : Streamly.Internal.Data.Fold.Combinators
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2013 Gabriel Gonzalez
 -- License     : BSD3
@@ -11,7 +11,7 @@
 -- See "Streamly.Data.Fold" for an overview and
 -- "Streamly.Internal.Data.Fold.Type" for design notes.
 
-module Streamly.Internal.Data.Fold.Generate
+module Streamly.Internal.Data.Fold.Combinators
     (
     -- * Imports
     -- $setup
@@ -346,10 +346,8 @@ import Prelude hiding
        , reverse, iterate, init, and, or, lookup, (!!)
        , scanl, scanl1, replicate, concatMap, mconcat, unzip
        , span, splitAt, break, mapM, zip, maybe)
-
 import Streamly.Internal.Data.Fold.Type
 import Streamly.Internal.Data.Fold.Tee
-
 
 #include "DocTestDataFold.hs"
 

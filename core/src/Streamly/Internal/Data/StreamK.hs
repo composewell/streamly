@@ -206,7 +206,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer (newIOFinalizer, runIOFinalizer)
 import Streamly.Internal.Data.Parser.ParserK.Type (ParserK)
 import Streamly.Internal.Data.Producer.Type (Producer(..))
@@ -215,7 +215,7 @@ import Streamly.Internal.Data.Unbox (sizeOf, Unbox)
 
 import qualified Control.Monad.Catch as MC
 import qualified Streamly.Internal.Data.Array.Type as Array
-import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as PR
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK

@@ -249,11 +249,11 @@ module Streamly.Internal.Data.Parser
     )
 where
 
-import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser.ParserK.Type (Parser)
 
 import qualified Data.Foldable as Foldable
-import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as D
 import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 

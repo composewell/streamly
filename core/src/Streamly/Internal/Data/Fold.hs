@@ -16,18 +16,20 @@ module Streamly.Internal.Data.Fold
     -- * Imports
     -- $setup
 
-      module Streamly.Internal.Data.Fold.Container
-    , module Streamly.Internal.Data.Fold.Step
-    , module Streamly.Internal.Data.Fold.Tee
+      module Streamly.Internal.Data.Fold.Step
     , module Streamly.Internal.Data.Fold.Type
-    , module Streamly.Internal.Data.Fold.Generate
+    , module Streamly.Internal.Data.Fold.Tee
+    , module Streamly.Internal.Data.Fold.Combinators
+    , module Streamly.Internal.Data.Fold.Container
+    -- , module Streamly.Internal.Data.Fold.Window
     )
 where
 
+import Streamly.Internal.Data.Fold.Combinators
 import Streamly.Internal.Data.Fold.Container
 import Streamly.Internal.Data.Fold.Step
-import Streamly.Internal.Data.Fold.Type
 import Streamly.Internal.Data.Fold.Tee
-import Streamly.Internal.Data.Fold.Generate
+import Streamly.Internal.Data.Fold.Type
+-- import Streamly.Internal.Data.Fold.Window
 
 #include "DocTestDataFold.hs"
