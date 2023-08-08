@@ -163,7 +163,7 @@ import Data.Maybe (fromJust, isJust)
 import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
+import Streamly.Internal.Data.Pipe (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
 import Streamly.Internal.Data.Unbox (Unbox)
@@ -172,7 +172,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 -- import qualified Data.List as List
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 
 import Prelude hiding
