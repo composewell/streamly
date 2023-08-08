@@ -150,7 +150,7 @@ import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
 
-#include "DocTestDataFileSystem.hs"
+#include "DocTestFileSystemHandle.hs"
 
 -------------------------------------------------------------------------------
 -- References

@@ -129,7 +129,7 @@ import qualified Streamly.Internal.Data.Stream as D
 
 import Prelude hiding (lines, words, unlines, unwords)
 
-#include "DocTestDataUnicode.hs"
+#include "DocTestUnicodeStream.hs"
 
 -------------------------------------------------------------------------------
 -- Latin1 decoding

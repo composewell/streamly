@@ -83,7 +83,7 @@ import qualified Streamly.Internal.Data.Parser as Parser
     , dropWhile
     )
 
-#include "DocTestDataUnicode.hs"
+#include "DocTestUnicodeParser.hs"
 
 --------------------------------------------------------------------------------
 -- Character classification

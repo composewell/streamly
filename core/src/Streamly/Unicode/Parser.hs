@@ -66,4 +66,4 @@ where
 
 import Streamly.Internal.Unicode.Parser
 
-#include "DocTestDataUnicode.hs"
+#include "DocTestUnicodeParser.hs"

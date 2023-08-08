@@ -57,7 +57,7 @@ import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Data.Stream as Stream  (fromList, parse)
 import qualified Streamly.Internal.Unicode.Parser as Parser
 
-#include "DocTestDataUnicode.hs"
+#include "DocTestUnicodeString.hs"
 
 --------------------------------------------------------------------------------
 -- Parsing

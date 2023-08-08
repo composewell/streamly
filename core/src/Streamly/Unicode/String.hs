@@ -27,4 +27,4 @@ where
 
 import Streamly.Internal.Unicode.String
 
-#include "DocTestDataUnicode.hs"
+#include "DocTestUnicodeString.hs"

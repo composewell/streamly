@@ -123,7 +123,7 @@ import System.IO (Handle)
 import Streamly.Internal.FileSystem.Handle hiding (read, readChunks)
 import Prelude hiding (read)
 
-#include "DocTestDataFileSystem.hs"
+#include "DocTestFileSystemHandle.hs"
 
 -- | Same as 'reader'
 --

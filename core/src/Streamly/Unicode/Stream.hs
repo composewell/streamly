@@ -107,4 +107,4 @@ where
 import Streamly.Internal.Unicode.Stream
 import Prelude hiding (lines, words, unlines, unwords)
 
-#include "DocTestDataUnicode.hs"
+#include "DocTestUnicodeStream.hs"

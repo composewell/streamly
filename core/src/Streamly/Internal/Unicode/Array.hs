@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Unicode.Array
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -38,14 +37,20 @@ import qualified Streamly.Internal.Unicode.Stream as S
 
 import Prelude hiding (String, lines, words, unlines, unwords)
 
-#include "DocTestDataUnicode.hs"
+-- $setup
+-- >>> :m
+-- >>> :set -XOverloadedStrings
+-- >>> import Prelude hiding (String, lines, words, unlines, unwords)
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Unicode.Array as Unicode
 
 -- | Break a string up into a stream of strings at newline characters.
 -- The resulting strings do not contain newlines.
 --
 -- > lines = S.lines A.write
 --
--- >>> Stream.fold Fold.toList $ Array.lines $ Stream.fromList "lines\nthis\nstring\n\n\n"
+-- >>> Stream.fold Fold.toList $ Unicode.lines $ Stream.fromList "lines\nthis\nstring\n\n\n"
 -- [fromList "lines",fromList "this",fromList "string",fromList "",fromList ""]
 --
 {-# INLINE lines #-}
@@ -57,7 +62,7 @@ lines = S.lines A.write
 --
 -- > words = S.words A.write
 --
--- >>> Stream.fold Fold.toList $ Array.words $ Stream.fromList "A  newline\nis considered white space?"
+-- >>> Stream.fold Fold.toList $ Unicode.words $ Stream.fromList "A  newline\nis considered white space?"
 -- [fromList "A",fromList "newline",fromList "is",fromList "considered",fromList "white",fromList "space?"]
 --
 {-# INLINE words #-}
@@ -69,7 +74,7 @@ words = S.words A.write
 --
 -- 'unlines' is an inverse operation to 'lines'.
 --
--- >>> Stream.fold Fold.toList $ Array.unlines $ Stream.fromList ["lines", "this", "string"]
+-- >>> Stream.fold Fold.toList $ Unicode.unlines $ Stream.fromList ["lines", "this", "string"]
 -- "lines\nthis\nstring\n"
 --
 -- > unlines = S.unlines A.read
@@ -86,7 +91,7 @@ unlines = S.unlines A.reader
 --
 -- 'unwords' is an inverse operation to 'words'.
 --
--- >>> Stream.fold Fold.toList $ Array.unwords $ Stream.fromList ["unwords", "this", "string"]
+-- >>> Stream.fold Fold.toList $ Unicode.unwords $ Stream.fromList ["unwords", "this", "string"]
 -- "unwords this string"
 --
 -- > unwords = S.unwords A.read
