@@ -321,7 +321,8 @@ library
                      -- streamly-core-data
                      , Streamly.Internal.Data.Builder
                      , Streamly.Internal.Data.Unfold
-                    , Streamly.Internal.Data.Fold.Chunked
+                     , Streamly.Internal.Data.Fold.Tee
+                     , Streamly.Internal.Data.Fold.Chunked
                      , Streamly.Internal.Data.Fold.Window
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
@@ -407,7 +408,6 @@ library
     other-modules:
                       Streamly.Internal.Data.Fold.Step
                     , Streamly.Internal.Data.Fold.Type
-                    , Streamly.Internal.Data.Fold.Tee
                     , Streamly.Internal.Data.Fold.Combinators
                     , Streamly.Internal.Data.Fold.Container
 

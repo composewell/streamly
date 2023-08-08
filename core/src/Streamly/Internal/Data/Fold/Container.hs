@@ -103,6 +103,7 @@ import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.IsMap as IsMap
 
 import Prelude hiding (Foldable(..))
+import Streamly.Internal.Data.Fold.Type
 import Streamly.Internal.Data.Fold.Combinators
 
 -- $setup
