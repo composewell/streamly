@@ -103,7 +103,7 @@ module Streamly.Internal.Data.Stream.IsStream.Type {-# DEPRECATED "Please use \"
 where
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Fold.Type (Fold (..))
+import Streamly.Internal.Data.Fold (Fold (..))
 import Streamly.Internal.Data.Stream.Serial
     (SerialT, Serial, WSerialT(..), WSerial)
 import Streamly.Internal.Data.Stream.Async

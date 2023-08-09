@@ -220,7 +220,7 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Kind (Type)
 import Data.Maybe (isJust, fromJust)
-import Streamly.Internal.Data.Fold.Type (Fold (..))
+import Streamly.Internal.Data.Fold (Fold (..))
 import Streamly.Internal.Data.Pipe.Type (Pipe (..))
 import Streamly.Internal.Data.Stream.IsStream.Combinators
       ( inspectMode, maxBuffer, maxThreads, rate, avgRate, minRate

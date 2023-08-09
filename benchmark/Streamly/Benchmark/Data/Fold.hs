@@ -32,7 +32,6 @@ import Streamly.Internal.Data.MutArray (MutArray)
 
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Data.Fold.Prelude as Fold
-import qualified Streamly.Internal.Data.Fold.Container as FL
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream as Stream

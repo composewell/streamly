@@ -287,9 +287,7 @@ library
                      -- streamly-core-stream-types
                      , Streamly.Internal.Data.SVar.Type
                      , Streamly.Internal.Data.Stream.StreamK.Type
-                     , Streamly.Internal.Data.Fold.Step
                      , Streamly.Internal.Data.Refold.Type
-                     , Streamly.Internal.Data.Fold.Type
                      , Streamly.Internal.Data.Unfold.Type
                      , Streamly.Internal.Data.Producer.Type
                      , Streamly.Internal.Data.Producer
@@ -324,7 +322,6 @@ library
                      , Streamly.Internal.Data.Builder
                      , Streamly.Internal.Data.Unfold
                      , Streamly.Internal.Data.Fold.Tee
-                     , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Fold.Chunked
                      , Streamly.Internal.Data.Fold.Window
                      , Streamly.Internal.Data.Parser
@@ -335,7 +332,7 @@ library
 
                      -- streamly-containers (non-base)
 
-                     , Streamly.Internal.Data.Fold.Container
+                     , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Stream.Chunked
 
                      -- streamly-core-data-arrays
@@ -409,7 +406,12 @@ library
                      , Streamly.Unicode.Stream
                      , Streamly.Unicode.String
     other-modules:
-                      Streamly.Internal.Data.Stream.StreamD.Container
+                      Streamly.Internal.Data.Fold.Step
+                    , Streamly.Internal.Data.Fold.Type
+                    , Streamly.Internal.Data.Fold.Combinators
+                    , Streamly.Internal.Data.Fold.Container
+
+                    , Streamly.Internal.Data.Stream.StreamD.Container
                     , Streamly.Internal.Data.Stream.StreamD.Eliminate
                     , Streamly.Internal.Data.Stream.StreamD.Exception
                     , Streamly.Internal.Data.Stream.StreamD.Generate

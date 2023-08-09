@@ -255,7 +255,6 @@ import Prelude
                span, splitAt, break, mapM, maybe)
 
 import Streamly.Internal.Data.Fold
-import Streamly.Internal.Data.Fold.Container
 
 #include "DocTestDataFold.hs"
 

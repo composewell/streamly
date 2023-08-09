@@ -52,7 +52,7 @@ import Prelude hiding (Foldable(..), take, iterate)
 -- $setup
 -- >>> :m
 -- >>> import qualified Streamly.Internal.Data.Refold.Type as Refold
--- >>> import qualified Streamly.Internal.Data.Fold.Type as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 -- All folds in the Fold module should be implemented using Refolds.
