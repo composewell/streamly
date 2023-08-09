@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Unicode.Parser
 -- Copyright   : (c) 2021 Composewell Technologies
@@ -12,6 +13,12 @@
 
 module Streamly.Internal.Unicode.Parser
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * Generic
       char
     , charIgnoreCase
@@ -75,6 +82,8 @@ import qualified Streamly.Internal.Data.Parser as Parser
     , takeWhile1
     , dropWhile
     )
+
+#include "DocTestUnicodeParser.hs"
 
 --------------------------------------------------------------------------------
 -- Character classification
@@ -570,10 +579,6 @@ mkDouble mantissa power =
 -- number. Specifcally a trailing decimal point is allowed but not consumed.
 -- This function does not accept \"NaN\" or \"Infinity\" string representations
 -- of double values.
---
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Unicode.Parser as Unicode
--- >>> import qualified Streamly.Internal.Unicode.Parser as Unicode (number, mkDouble)
 --
 -- Definition:
 --

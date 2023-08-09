@@ -14,6 +14,12 @@
 --
 module Streamly.Internal.Unicode.Array
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * Streams of Strings
       lines
     , words

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Unicode.String
 -- Copyright   : (c) 2022 Composewell Technologies
@@ -13,8 +14,17 @@
 -- resulting string to collapse it into a single line.
 
 module Streamly.Unicode.String
-    ( str
+    (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
+    str
     )
 where
 
 import Streamly.Internal.Unicode.String
+
+#include "DocTestUnicodeString.hs"

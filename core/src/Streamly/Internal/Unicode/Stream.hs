@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Unicode.Stream
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -11,6 +12,12 @@
 
 module Streamly.Internal.Unicode.Stream
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * Construction (Decoding)
       decodeLatin1
 
@@ -122,14 +129,7 @@ import qualified Streamly.Internal.Data.Stream as D
 
 import Prelude hiding (lines, words, unlines, unwords)
 
--- $setup
--- >>> :m
--- >>> :set -XMagicHash
--- >>> import Prelude hiding (lines, words, unlines, unwords)
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Unicode.Stream as Unicode
--- >>> import Streamly.Internal.Unicode.Stream
+#include "DocTestUnicodeStream.hs"
 
 -------------------------------------------------------------------------------
 -- Latin1 decoding
@@ -1026,7 +1026,7 @@ stripHead = Stream.dropWhile isSpace
 -- | Fold each line of the stream using the supplied 'Fold'
 -- and stream the result.
 --
--- >>> Stream.fold Fold.toList $ lines Fold.toList (Stream.fromList "lines\nthis\nstring\n\n\n")
+-- >>> Stream.fold Fold.toList $ Unicode.lines Fold.toList (Stream.fromList "lines\nthis\nstring\n\n\n")
 -- ["lines","this","string","",""]
 --
 -- > lines = Stream.splitOnSuffix (== '\n')
@@ -1057,7 +1057,7 @@ isSpace c
 -- | Fold each word of the stream using the supplied 'Fold'
 -- and stream the result.
 --
--- >>>  Stream.fold Fold.toList $ words Fold.toList (Stream.fromList "fold these     words")
+-- >>>  Stream.fold Fold.toList $ Unicode.words Fold.toList (Stream.fromList "fold these     words")
 -- ["fold","these","words"]
 --
 -- > words = Stream.wordsBy isSpace

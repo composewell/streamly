@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Unicode.Parser
 -- Copyright   : (c) 2021 Composewell Technologies
@@ -12,9 +13,15 @@
 
 module Streamly.Unicode.Parser
     (
-     -- * Single Chars
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
 
-     -- Any char
+    -- * Single Chars
+
+    -- Any char
       char
     , charIgnoreCase
 
@@ -58,3 +65,5 @@ module Streamly.Unicode.Parser
 where
 
 import Streamly.Internal.Unicode.Parser
+
+#include "DocTestUnicodeParser.hs"
