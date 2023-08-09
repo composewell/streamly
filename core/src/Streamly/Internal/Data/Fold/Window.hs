@@ -118,7 +118,7 @@ windowRollingMapM f = Fold.foldlM' f1 initial
 
 -- | Apply a pure function on the latest and the oldest element of the window.
 --
--- >>> rollingMap f = FoldW.rollingMapM (\x y -> return $ f x y)
+-- >>> windowRollingMap f = FoldW.windowRollingMapM (\x y -> return $ f x y)
 --
 {-# INLINE windowRollingMap #-}
 windowRollingMap :: Monad m =>
