@@ -820,7 +820,7 @@ length = lengthGeneric
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
 --
--- >>> sum = FoldW.cumulative FoldW.sum
+-- >>> sum = FoldW.cumulative FoldW.windowSum
 --
 -- Same as following but numerically stable:
 --
@@ -829,7 +829,7 @@ length = lengthGeneric
 --
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Fold m a a
-sum = FoldW.cumulative FoldW.sum
+sum = FoldW.cumulative FoldW.windowSum
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates
