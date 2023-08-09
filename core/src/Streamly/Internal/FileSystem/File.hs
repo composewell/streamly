@@ -107,7 +107,7 @@ import Streamly.Internal.Data.Array.Type (Array(..), pinnedWriteNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unbox (Unbox)
-import Streamly.Internal.Data.Unfold (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 

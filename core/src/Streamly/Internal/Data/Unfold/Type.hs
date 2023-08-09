@@ -39,17 +39,13 @@
 
 module Streamly.Internal.Data.Unfold.Type
     (
-    -- * Setup
-    -- | To execute the code examples provided in this module in ghci, please
-    -- run the following commands first.
-    --
-    -- $setup
-
     -- * General Notes
     -- $notes
 
     -- * Type
-      Unfold (..)
+    -- StreamD Step type re-exported
+      Step(..)
+    , Unfold (..)
 
     -- * Basic Constructors
     , mkUnfoldM

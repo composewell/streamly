@@ -189,7 +189,7 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
-import Streamly.Internal.Data.Unfold (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL

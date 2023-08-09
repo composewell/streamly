@@ -17,10 +17,6 @@ module Streamly.Internal.Data.Unfold
 
     -- * Unfold Type
       module Streamly.Internal.Data.Unfold.Type
-    , Step(..)
-
-    -- * Enumerations
-    , module Streamly.Internal.Data.Unfold.Enumeration
 
     -- * Unfolds
     -- One to one correspondence with
@@ -36,6 +32,9 @@ module Streamly.Internal.Data.Unfold
     , replicateM
     , fromIndicesM
     , iterateM
+
+    -- ** Enumerations
+    , module Streamly.Internal.Data.Unfold.Enumeration
 
     -- ** From Containers
     , fromListM
@@ -85,9 +84,6 @@ module Streamly.Internal.Data.Unfold
     -- ** Cross product
     , joinInnerGeneric
 
-    -- ** Nesting
-    , ConcatState (..)
-
     -- ** Resource Management
     -- | 'bracket' is the most general resource management operation, all other
     -- operations can be expressed using it. These functions have IO suffix
@@ -124,7 +120,7 @@ import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Control.Monad.Catch as MC

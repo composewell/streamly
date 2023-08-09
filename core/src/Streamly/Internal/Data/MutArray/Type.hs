@@ -259,7 +259,7 @@ import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
-import Streamly.Internal.Data.Unfold (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL

@@ -47,7 +47,7 @@ where
 import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..))
 import Streamly.Internal.Data.SVar.Type (defState)
-import Streamly.Internal.Data.Unfold (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import Streamly.Internal.Data.Producer.Type
 import Prelude hiding (concat)
