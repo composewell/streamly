@@ -453,7 +453,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep, chainStepM)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Refold (Refold(..))
+import Streamly.Internal.Data.Refold.Type (Refold(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
 

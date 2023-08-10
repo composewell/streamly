@@ -128,7 +128,7 @@ import System.IO (Handle, SeekMode(..), hGetBufSome, hPutBuf, hSeek)
 import Prelude hiding (read)
 
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Refold (Refold(..))
+import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Type
        (Array(..), pinnedWriteNUnsafe, unsafeFreezeWithShrink, byteLength)
