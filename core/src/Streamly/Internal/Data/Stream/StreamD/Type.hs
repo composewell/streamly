@@ -1105,7 +1105,11 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
 {-# RULES "zipWithM xs xs"
     forall f xs. zipWithM @Identity f xs xs = mapM (\x -> f x x) xs #-}
 
--- | Stream @a@ is evaluated first, followed by stream @b@, the resulting
+-- | WARNING! O(n^2) time complexity wrt number of streams. Suitable for
+-- statically fusing a small number of streams. Use the O(n) complexity
+-- StreamK.'Streamly.Data.StreamK.zipWith' otherwise.
+--
+-- Stream @a@ is evaluated first, followed by stream @b@, the resulting
 -- elements @a@ and @b@ are then zipped using the supplied zip function and the
 -- result @c@ is yielded to the consumer.
 --

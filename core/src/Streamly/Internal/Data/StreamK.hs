@@ -233,10 +233,21 @@ import Streamly.Internal.Data.Parser (ParseError(..))
 
 #include "DocTestDataStreamK.hs"
 
+-- | Convert a fused 'Stream' to 'StreamK'.
+--
+-- For example:
+--
+-- >>> s1 = StreamK.fromStream $ Stream.fromList [1,2]
+-- >>> s2 = StreamK.fromStream $ Stream.fromList [3,4]
+-- >>> Stream.fold Fold.toList $ StreamK.toStream $ s1 `StreamK.append` s2
+-- [1,2,3,4]
+--
 {-# INLINE fromStream #-}
 fromStream :: Monad m => Stream.Stream m a -> StreamK m a
 fromStream = Stream.toStreamK
 
+-- | Convert a 'StreamK' to a fused 'Stream'.
+--
 {-# INLINE toStream #-}
 toStream :: Applicative m => StreamK m a -> Stream.Stream m a
 toStream = Stream.fromStreamK
@@ -932,8 +943,9 @@ mapMaybe f = go
 -- Exception Handling
 -------------------------------------------------------------------------------
 
--- | Like 'Streamly.Data.Stream.handle' but with one significant difference,
--- this function observes exceptions from the consumer of the stream as well.
+-- | Like Streamly.Data.Stream.'Streamly.Data.Stream.handle' but with one
+-- significant difference, this function observes exceptions from the consumer
+-- of the stream as well.
 --
 -- You can also convert 'StreamK' to 'Stream' and use exception handling from
 -- 'Stream' module:
@@ -969,10 +981,10 @@ handle f stream = go stream
 -- the entire chain can be invoked when the stream ends voluntarily or if
 -- someone decides to abandon the stream.
 
--- | Like 'Streamly.Data.Stream.bracketIO' but with one significant difference,
--- this function observes exceptions from the consumer of the stream as well.
--- Therefore, it cleans up the resource promptly when the consumer encounters
--- an exception.
+-- | Like Streamly.Data.Stream.'Streamly.Data.Stream.bracketIO' but with one
+-- significant difference, this function observes exceptions from the consumer
+-- of the stream as well. Therefore, it cleans up the resource promptly when
+-- the consumer encounters an exception.
 --
 -- You can also convert 'StreamK' to 'Stream' and use resource handling from
 -- 'Stream' module:
@@ -1013,14 +1025,13 @@ bracketIO bef aft bet =
 -- Serial Zipping
 ------------------------------------------------------------------------------
 
--- | Zip two streams serially using a pure zipping function.
---
+-- | Zipping of @n@ streams can be performed by combining the streams pair
+-- wise using 'mergeMapWith' with O(n * log n) time complexity. If used
+-- with 'concatMapWith' it will have O(n^2) performance.
 {-# INLINE zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> StreamK m a -> StreamK m b -> StreamK m c
 zipWith f = zipWithM (\a b -> return (f a b))
 
--- | Zip two streams serially using a monadic zipping function.
---
 {-# INLINE zipWithM #-}
 zipWithM :: Monad m =>
     (a -> b -> m c) -> StreamK m a -> StreamK m b -> StreamK m c
@@ -1110,6 +1121,10 @@ mergeByM cmp = go
                     _  -> yld x (goY rx y my)
          in foldStream st yield single stop mx
 
+-- | Merging of @n@ streams can be performed by combining the streams pair
+-- wise using 'mergeMapWith' to give O(n * log n) time complexity. If used
+-- with 'concatMapWith' it will have O(n^2) performance.
+--
 {-# INLINE mergeBy #-}
 mergeBy :: (a -> a -> Ordering) -> StreamK m a -> StreamK m a -> StreamK m a
 -- XXX GHC: This has slightly worse performance than replacing "r <- cmp x y"

@@ -305,7 +305,7 @@ nil = mkStream $ \_ _ _ stp -> stp
 nilM :: Applicative m => m b -> StreamK m a
 nilM m = mkStream $ \_ _ _ stp -> m *> stp
 
--- | Create a singleton stream from a pure value.
+-- Create a singleton stream from a pure value.
 --
 -- >>> fromPure a = a `StreamK.cons` StreamK.nil
 -- >>> fromPure = pure
@@ -315,7 +315,7 @@ nilM m = mkStream $ \_ _ _ stp -> m *> stp
 fromPure :: a -> StreamK m a
 fromPure a = mkStream $ \_ _ single _ -> single a
 
--- | Create a singleton stream from a monadic action.
+-- Create a singleton stream from a monadic action.
 --
 -- >>> fromEffect m = m `StreamK.consM` StreamK.nil
 --
@@ -825,7 +825,7 @@ foldl' step begin = foldlx' step begin id
 -- an optimization opportunity that we can exploit.
 -- drain = foldrM (\_ xs -> return () >> xs) (return ())
 
--- |
+--
 -- > drain = foldl' (\_ _ -> ()) ()
 -- > drain = mapM_ (\_ -> return ())
 {-# INLINE drain #-}
@@ -856,18 +856,6 @@ null m =
 
 infixr 6 `append`
 
--- | Appends two streams sequentially, yielding all elements from the first
--- stream, and then all elements from the second stream.
---
--- >>> s1 = StreamK.fromStream $ Stream.fromList [1,2]
--- >>> s2 = StreamK.fromStream $ Stream.fromList [3,4]
--- >>> Stream.fold Fold.toList $ StreamK.toStream $ s1 `StreamK.append` s2
--- [1,2,3,4]
---
--- This has O(n) append performance where @n@ is the number of streams. It can
--- be used to efficiently fold an infinite lazy container of streams using
--- 'concatMapWith' et. al.
---
 {-# INLINE append #-}
 append :: StreamK m a -> StreamK m a -> StreamK m a
 -- XXX This doubles the time of toNullAp benchmark, may not be fusing properly
@@ -1633,14 +1621,10 @@ infixr 6 `interleave`
 -- variants of positional interleaving, e.g. run first stream for m seconds and
 -- run the second stream for n seconds.
 
--- | Interleaves two streams, yielding one element from each stream
--- alternately.  When one stream stops the rest of the other stream is used in
--- the output stream.
---
--- When joining many streams in a left associative manner earlier streams will
--- get exponential priority than the ones joining later. Because of exponential
--- weighting it can be used with 'concatMapWith' even on a large number of
--- streams.
+-- | Note: When joining many streams in a left associative manner earlier
+-- streams will get exponential priority than the ones joining later. Because
+-- of exponentially high weighting of left streams it can be used with
+-- 'concatMapWith' even on a large number of streams.
 --
 {-# INLINE interleave #-}
 interleave :: StreamK m a -> StreamK m a -> StreamK m a
@@ -1965,7 +1949,6 @@ before action stream =
     mkStream $ \st yld sng stp ->
         action >> foldStreamShared st yld sng stp stream
 
--- | concat . fromEffect
 {-# INLINE concatEffect #-}
 concatEffect :: Monad m => m (StreamK m a) -> StreamK m a
 concatEffect action =

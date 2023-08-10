@@ -156,16 +156,6 @@ nil = Stream (\_ _ -> pure Stop) ()
 
 -- XXX implement in terms of consM?
 -- cons x = consM (return x)
-
--- | WARNING! You almost always need StreamK.'Streamly.Data.StreamK.cons'
--- instead.
---
--- Fuse a pure value at the head of an existing stream::
---
--- >>> s = 1 `Stream.cons` Stream.fromList [2,3]
--- >>> Stream.toList s
--- [1,2,3]
---
 -- From an implementation perspective, StreamK.cons translates into a
 -- functional call whereas fused cons translates into a conditional branch
 -- (jump). However, the overhead of the function call in StreamK.cons only
@@ -173,6 +163,28 @@ nil = Stream (\_ _ -> pure Stop) ()
 -- incurred for each subsequent element in the stream. As a result,
 -- StreamK.cons has a time complexity of O(n), while fused cons has a time
 -- complexity of O(n^2), where @n@ represents the number of 'cons' used.
+
+-- When composing a few elements together statically, a balanced tree composed
+-- using 'cons' and 'append' is more efficient than a right associated one
+-- composed using 'cons':
+--
+-- >>> s1 = 1 `Stream.cons` 2 `Stream.cons` Stream.nil
+-- >>> s2 = 2 `Stream.cons` 3 `Stream.cons` Stream.nil
+-- >>> s = s1 `Stream.append` s2
+--
+-- However, generating a stream using a case statement or indexing into a
+-- static literal array would be the best. Check if the case statement
+-- translates to a look up table or a binary search.
+
+-- | WARNING! O(n^2) time complexity wrt number of elements. Use the O(n)
+-- complexity StreamK.'Streamly.Data.StreamK.cons' unless you want to
+-- statically fuse just a few elements.
+--
+-- Fuse a pure value at the head of an existing stream::
+--
+-- >>> s = 1 `Stream.cons` Stream.fromList [2,3]
+-- >>> Stream.toList s
+-- [1,2,3]
 --
 -- Definition:
 --

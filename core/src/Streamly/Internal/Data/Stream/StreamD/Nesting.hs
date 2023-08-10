@@ -211,14 +211,6 @@ import Prelude hiding (concatMap, mapM, zipWith)
 
 data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
 
--- | Fuses two streams sequentially, yielding all elements from the first
--- stream, and then all elements from the second stream.
---
--- >>> s1 = Stream.fromList [1,2]
--- >>> s2 = Stream.fromList [3,4]
--- >>> Stream.fold Fold.toList $ s1 `Stream.append` s2
--- [1,2,3,4]
---
 -- From an implementation perspective, StreamK.'Streamly.Data.StreamK.append'
 -- translates into a function call whereas Stream.'append' translates into a
 -- conditional branch (jump). However, the overhead of the function call in
@@ -227,10 +219,18 @@ data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
 -- result, StreamK.append has a linear time complexity of O(n), while fused
 -- append has a quadratic time complexity of O(n^2), where @n@ represents the
 -- number of 'append's used.
+
+-- | WARNING! O(n^2) time complexity wrt number of streams. Suitable for
+-- statically fusing a small number of streams. Use the O(n) complexity
+-- StreamK.'Streamly.Data.StreamK.append' otherwise.
 --
--- This function should only be used to statically fuse a stream with another
--- stream. Do not use it recursively or where it cannot be inlined. Use
--- StreamK.'Streamly.Data.StreamK.append' for those cases.
+-- Fuses two streams sequentially, yielding all elements from the first
+-- stream, and then all elements from the second stream.
+--
+-- >>> s1 = Stream.fromList [1,2]
+-- >>> s2 = Stream.fromList [3,4]
+-- >>> Stream.fold Fold.toList $ s1 `Stream.append` s2
+-- [1,2,3,4]
 --
 {-# INLINE_NORMAL append #-}
 append :: Monad m => Stream m a -> Stream m a -> Stream m a
@@ -261,14 +261,13 @@ append (Stream step1 state1) (Stream step2 state2) =
 data InterleaveState s1 s2 = InterleaveFirst s1 s2 | InterleaveSecond s1 s2
     | InterleaveSecondOnly s2 | InterleaveFirstOnly s1
 
--- | Interleaves two streams, yielding one element from each stream
--- alternately.  When one stream stops the rest of the other stream is used in
--- the output stream.
+-- | WARNING! O(n^2) time complexity wrt number of streams. Suitable for
+-- statically fusing a small number of streams. Use the O(n) complexity
+-- StreamK.'Streamly.Data.StreamK.interleave' otherwise.
 --
--- When joining many streams in a left associative manner earlier streams will
--- get exponential priority than the ones joining later. Because of exponential
--- weighting it can be used with 'concatMapWith' even on a large number of
--- streams.
+-- Interleaves two streams, yielding one element from each stream alternately.
+-- When one stream stops the rest of the other stream is used in the output
+-- stream.
 --
 {-# INLINE_NORMAL interleave #-}
 interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
@@ -507,7 +506,7 @@ roundRobin (Stream step1 state1) (Stream step2 state2) =
 
 -- | Like 'mergeBy' but with a monadic comparison function.
 --
--- Merge two streams randomly:
+-- Example, to merge two streams randomly:
 --
 -- @
 -- > randomly _ _ = randomIO >>= \x -> return $ if x then LT else GT
@@ -515,7 +514,7 @@ roundRobin (Stream step1 state1) (Stream step2 state2) =
 -- [2,1,2,2,2,1,1,1]
 -- @
 --
--- Merge two streams in a proportion of 2:1:
+-- Example, merge two streams in a proportion of 2:1:
 --
 -- >>> :{
 -- do
@@ -573,7 +572,11 @@ mergeByM cmp (Stream stepa ta) (Stream stepb tb) =
 
     step _ (Nothing, Nothing, Nothing, Nothing) = return Stop
 
--- | Merge two streams using a comparison function. The head elements of both
+-- | WARNING! O(n^2) time complexity wrt number of streams. Suitable for
+-- statically fusing a small number of streams. Use the O(n) complexity
+-- StreamK.'Streamly.Data.StreamK.mergeBy' otherwise.
+--
+-- Merge two streams using a comparison function. The head elements of both
 -- the streams are compared and the smaller of the two elements is emitted, if
 -- both elements are equal then the element from the first stream is used
 -- first.

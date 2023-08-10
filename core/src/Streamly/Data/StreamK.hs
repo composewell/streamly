@@ -8,18 +8,30 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- Streams using Continuation Passing Style (CPS). See the @Stream vs StreamK@
--- section in the "Streamly.Data.Stream" module to know when to use this
--- module.
+-- Streams represented as chains of functions calls using Continuation Passing
+-- Style (CPS), suitable for dynamically composing potentially large number of
+-- streams.
 --
--- Please refer to "Streamly.Internal.Data.StreamK" for more functions
--- that have not yet been released.
+-- Unlike the statically fused operations in "Streamly.Data.Stream", StreamK
+-- operations are less efficient, involving a function call overhead for each
+-- element, but they exhibit linear O(n) time complexity wrt to the number of
+-- stream compositions. Therefore, they are suitable for dynamically composing
+-- streams e.g. appending potentially infinite streams in recursive loops.
+-- While fused streams can be used to efficiently process elements as small as
+-- a single byte, CPS streams are typically used on bigger chunks of data to
+-- avoid the larger overhead per element. For more details See the @Stream vs
+-- StreamK@ section in the "Streamly.Data.Stream" module.
 --
--- Some useful idioms:
+-- In addition to the combinators in this module, you can use operations from
+-- "Streamly.Data.Stream" for StreamK as well by converting StreamK to Stream
+-- ('toStream'), and vice-versa ('fromStream'). Please refer to
+-- "Streamly.Internal.Data.StreamK" for more functions that have not yet been
+-- released.
 --
--- >>> concatFoldableWith f = Prelude.foldr f StreamK.nil
--- >>> concatMapFoldableWith f g = Prelude.foldr (f . g) StreamK.nil
--- >>> concatForFoldableWith f xs g = Prelude.foldr (f . g) StreamK.nil xs
+-- For documentation see the corresponding combinators in
+-- "Streamly.Data.Stream". Documentation has been omitted in this module unless
+-- there is a difference worth mentioning or if the combinator does not exist
+-- in "Streamly.Data.Stream".
 
 -- Notes:
 --
@@ -93,6 +105,11 @@ module Streamly.Data.StreamK
     , take
 
     -- * Combining Two Streams
+    -- | Unlike the operations in "Streamly.Data.Stream", these operations can
+    -- be used to dynamically compose large number of streams e.g. using the
+    -- 'concatMapWith' and 'mergeMapWith' operations. They have a linear O(n)
+    -- time complexity wrt to the number of streams being composed.
+
     -- ** Appending
     , append
 
@@ -116,6 +133,12 @@ module Streamly.Data.StreamK
     -- , CrossStreamK (..)
 
     -- * Stream of streams
+    -- | Some useful idioms:
+    --
+    -- >>> concatFoldableWith f = Prelude.foldr f StreamK.nil
+    -- >>> concatMapFoldableWith f g = Prelude.foldr (f . g) StreamK.nil
+    -- >>> concatForFoldableWith f xs g = Prelude.foldr (f . g) StreamK.nil xs
+    --
     , concatEffect
     -- , concatMap
     , concatMapWith
@@ -168,9 +191,3 @@ import Prelude hiding (reverse, zipWith, mapM, dropWhile, take)
 -- 1
 -- 2
 -- [1,2]
---
--- == Exception Handling
---
--- There are no native exception handling operations in the StreamK module,
--- please convert to 'Stream' type and use exception handling operations from
--- "Streamly.Data.Stream".
