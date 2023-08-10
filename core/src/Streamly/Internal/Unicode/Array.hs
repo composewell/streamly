@@ -30,7 +30,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO)
 import Streamly.Data.Stream (Stream)
-import Streamly.Internal.Data.Array.Type (Array)
+import Streamly.Internal.Data.Array (Array)
 
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Unicode.Stream as S
