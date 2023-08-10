@@ -374,6 +374,7 @@ benchmark Data.Serialize
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Serialize.hs
+  build-depends: QuickCheck
 
 benchmark Data.Unfold
   import: bench-options
