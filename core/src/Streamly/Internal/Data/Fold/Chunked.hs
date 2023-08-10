@@ -66,7 +66,7 @@ import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.MutArray.Type (touch)
-import Streamly.Internal.Data.Array.Type (Array(..))
+import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Parser (Initial(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 

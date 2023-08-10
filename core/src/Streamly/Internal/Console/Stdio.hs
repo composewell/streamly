@@ -51,7 +51,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.Fold (Fold)
 
-import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream as Stream
     (intersperseMSuffix)
 import qualified Streamly.Internal.Data.Unfold as Unfold
