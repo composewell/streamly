@@ -255,7 +255,7 @@ import GHC.Exts (unsafeCoerce#)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Producer (Producer (..))
+import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import Streamly.Internal.Data.Stream.StreamK.Type (StreamK)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
