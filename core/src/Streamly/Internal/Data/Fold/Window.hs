@@ -73,7 +73,7 @@ import Prelude hiding (length, sum, minimum, maximum)
 -- $setup
 -- >>> import Data.Bifunctor(bimap)
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
+-- >>> import qualified Streamly.Internal.Data.Fold.Window as Fold
 -- >>> import qualified Streamly.Internal.Data.Ring.Unboxed as Ring
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import Prelude hiding (length, sum, minimum, maximum)
@@ -118,7 +118,7 @@ windowRollingMapM f = Fold.foldlM' f1 initial
 
 -- | Apply a pure function on the latest and the oldest element of the window.
 --
--- >>> windowRollingMap f = FoldW.windowRollingMapM (\x y -> return $ f x y)
+-- >>> windowRollingMap f = Fold.windowRollingMapM (\x y -> return $ f x y)
 --
 {-# INLINE windowRollingMap #-}
 windowRollingMap :: Monad m =>
