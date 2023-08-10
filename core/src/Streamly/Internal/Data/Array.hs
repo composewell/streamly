@@ -131,6 +131,7 @@ import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.MutArray as MA
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Ring.Unboxed as RB
 import qualified Streamly.Internal.Data.Stream as D

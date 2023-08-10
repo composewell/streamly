@@ -63,6 +63,7 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Internal.Data.MutArray.Generic as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Ring.Generic as RB
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
