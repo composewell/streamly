@@ -25,11 +25,9 @@ import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, withRunInIO)
 import Streamly.Internal.Data.IOFinalizer.Lifted
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
-import Streamly.Internal.Data.Stream (Step(..))
-
 import qualified Control.Monad.Catch as MC
 
-import Streamly.Internal.Data.Unfold.Type
+import Streamly.Internal.Data.Unfold
 
 -- | Run the alloc action @a -> m c@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the

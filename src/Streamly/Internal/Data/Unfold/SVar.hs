@@ -24,7 +24,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream (Step(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.SVar (printSVar, cleanupSVar, sendStopToProducer)
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Unfold (Unfold(..))
 import System.Mem (performMajorGC)
 
 import qualified Control.Monad.Catch as MC

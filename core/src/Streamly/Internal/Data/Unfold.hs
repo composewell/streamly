@@ -16,27 +16,15 @@ module Streamly.Internal.Data.Unfold
     -- $setup
 
     -- * Unfold Type
-      Step(..)
-    , Unfold
+      module Streamly.Internal.Data.Unfold.Type
 
     -- * Unfolds
     -- One to one correspondence with
     -- "Streamly.Internal.Data.Stream.StreamD.Generate"
     -- ** Basic Constructors
-    , mkUnfoldM
-    , mkUnfoldrM
-    , unfoldrM
-    , unfoldr
-    , functionM
-    , function
-    , identity
     , nilM
     , nil
     , consM
-
-    -- ** From Values
-    , fromEffect
-    , fromPure
 
     -- ** Generators
     -- | Generate a monadic stream from a seed.
@@ -49,7 +37,6 @@ module Streamly.Internal.Data.Unfold
     , module Streamly.Internal.Data.Unfold.Enumeration
 
     -- ** From Containers
-    , fromList
     , fromListM
 
     -- ** From Memory
@@ -62,11 +49,6 @@ module Streamly.Internal.Data.Unfold
 
     -- * Combinators
     -- ** Mapping on Input
-    , lmap
-    , lmapM
-    , both
-    , first
-    , second
     , discardFirst
     , discardSecond
     , swap
@@ -81,11 +63,6 @@ module Streamly.Internal.Data.Unfold
     -- input, but that might make the common case more inconvenient.
 
     -- ** Mapping on Output
-    , map
-    , map2
-    , mapM
-    , mapM2
-
     , postscanlM'
     , postscan
     , scan
@@ -97,8 +74,6 @@ module Streamly.Internal.Data.Unfold
     , either
 
     -- ** Filtering
-    , takeWhileM
-    , takeWhile
     , take
     , filter
     , filterM
@@ -106,23 +81,8 @@ module Streamly.Internal.Data.Unfold
     , dropWhile
     , dropWhileM
 
-    -- ** Zipping
-    , zipWithM
-    , zipWith
-
     -- ** Cross product
-    , crossWithM
-    , crossWith
-    , cross
     , joinInnerGeneric
-    , crossApply
-
-    -- ** Nesting
-    , ConcatState (..)
-    , many
-    , many2
-    , concatMapM
-    , bind
 
     -- ** Resource Management
     -- | 'bracket' is the most general resource management operation, all other
@@ -160,7 +120,7 @@ import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Control.Monad.Catch as MC

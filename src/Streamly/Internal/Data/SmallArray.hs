@@ -51,7 +51,7 @@ import Data.Functor.Identity (runIdentity)
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Unfold (Unfold(..))
 
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Fold as FL

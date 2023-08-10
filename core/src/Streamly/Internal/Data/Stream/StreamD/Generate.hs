@@ -127,7 +127,6 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 
 #ifdef USE_UNFOLDS_EVERYWHERE
 import qualified Streamly.Internal.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Unfold.Enumeration as Unfold
 #endif
 
 import Data.Fixed

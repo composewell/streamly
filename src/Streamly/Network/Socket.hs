@@ -136,7 +136,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Network.Socket (Socket, SockAddr)
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Unfold (Unfold(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Unbox (Unbox)
 
