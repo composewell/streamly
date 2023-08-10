@@ -8,8 +8,8 @@ import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 
 import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Fold as Window
 import qualified Streamly.Internal.Data.Ring as Ring
-import qualified Streamly.Internal.Data.Fold.Window as Window
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Streamly.Benchmark.Common
@@ -70,55 +70,55 @@ o_1_space_folds :: Int -> [Benchmark]
 o_1_space_folds numElements =
     [ bgroup "fold"
         [ benchWithFold numElements "minimum (window size 100)"
-            (Window.minimum 100)
+            (Window.windowMinimum 100)
         , benchWithFold numElements "minimum (window size 1000)"
-            (Window.minimum 1000)
+            (Window.windowMinimum 1000)
         , benchWith sourceDescendingInt numElements
             "minimum descending (window size 1000)"
-            (Window.minimum 1000)
+            (Window.windowMinimum 1000)
 
         , benchWithFold numElements "maximum (window size 100)"
-            (Window.maximum 100)
+            (Window.windowMaximum 100)
         , benchWithFold numElements "maximum (window size 1000)"
-            (Window.maximum 1000)
+            (Window.windowMaximum 1000)
         , benchWith sourceDescendingInt numElements
             "maximum descending (window size 1000)"
-            (Window.maximum 1000)
+            (Window.windowMaximum 1000)
 
         , benchWithFold numElements "range (window size 100)"
-            (Window.range 100)
+            (Window.windowRange 100)
         , benchWithFold numElements "range (window size 1000)"
-            (Window.range 1000)
+            (Window.windowRange 1000)
         , benchWith sourceDescendingInt numElements
             "range descending (window size 1000)"
-            (Window.range 1000)
+            (Window.windowRange 1000)
 
         , benchWithFoldInt numElements "sumInt (window size 100)"
-            (Ring.slidingWindow 100 Window.sumInt)
+            (Ring.slidingWindow 100 Window.windowSumInt)
         , benchWithFoldInt numElements "sum for Int (window size 100)"
-            (Ring.slidingWindow 100 Window.sum)
+            (Ring.slidingWindow 100 Window.windowSum)
         , benchWithFold numElements "sum (window size 100)"
-            (Ring.slidingWindow 100 Window.sum)
+            (Ring.slidingWindow 100 Window.windowSum)
         , benchWithFold numElements "sum (window size 1000)"
-            (Ring.slidingWindow 1000 Window.sum)
+            (Ring.slidingWindow 1000 Window.windowSum)
         , benchWithFold numElements "sum (entire stream)"
-            (Window.cumulative Window.sum)
+            (Window.cumulative Window.windowSum)
         , benchWithFold numElements "sum (Data.Fold)"
             Fold.sum
 
         , benchWithFold numElements "mean (window size 100)"
-            (Ring.slidingWindow 100 Window.mean)
+            (Ring.slidingWindow 100 Window.windowMean)
         , benchWithFold numElements "mean (window size 1000)"
-            (Ring.slidingWindow 1000 Window.mean)
+            (Ring.slidingWindow 1000 Window.windowMean)
         , benchWithFold numElements "mean (entire stream)"
-            (Window.cumulative Window.mean)
+            (Window.cumulative Window.windowMean)
         , benchWithFold numElements "mean (Data.Fold)"
             Fold.mean
 
         , benchWithFold numElements "powerSum 2 (window size 100)"
-            (Ring.slidingWindow 100 (Window.powerSum 2))
+            (Ring.slidingWindow 100 (Window.windowPowerSum 2))
         , benchWithFold numElements "powerSum 2 (entire stream)"
-            (Window.cumulative (Window.powerSum 2))
+            (Window.cumulative (Window.windowPowerSum 2))
 
         ]
     ]
@@ -127,51 +127,51 @@ o_1_space_scans :: Int -> [Benchmark]
 o_1_space_scans numElements =
     [ bgroup "scan"
         [ benchWithPostscan numElements "minimum (window size 10)"
-            (Window.minimum 10)
+            (Window.windowMinimum 10)
         -- Below window size 30 the linear search based impl performs better
         -- than the dequeue based implementation.
         , benchWithPostscan numElements "minimum (window size 30)"
-            (Window.minimum 30)
+            (Window.windowMinimum 30)
         , benchWithPostscan numElements "minimum (window size 1000)"
-            (Window.minimum 1000)
+            (Window.windowMinimum 1000)
         , benchScanWith sourceDescendingInt numElements
             "minimum descending (window size 1000)"
-            (Window.minimum 1000)
+            (Window.windowMinimum 1000)
 
         , benchWithPostscan numElements "maximum (window size 10)"
-            (Window.maximum 10)
+            (Window.windowMaximum 10)
         , benchWithPostscan numElements "maximum (window size 30)"
-            (Window.maximum 30)
+            (Window.windowMaximum 30)
         , benchWithPostscan numElements "maximum (window size 1000)"
-            (Window.maximum 1000)
+            (Window.windowMaximum 1000)
         , benchScanWith sourceDescendingInt numElements
             "maximum descending (window size 1000)"
-            (Window.maximum 1000)
+            (Window.windowMaximum 1000)
 
         , benchWithPostscan numElements "range (window size 10)"
-            (Window.range 10)
+            (Window.windowRange 10)
         , benchWithPostscan numElements "range (window size 30)"
-            (Window.range 30)
+            (Window.windowRange 30)
         , benchWithPostscan numElements "range (window size 1000)"
-            (Window.range 1000)
+            (Window.windowRange 1000)
         , benchScanWith sourceDescendingInt numElements
             "range descending (window size 1000)"
-            (Window.range 1000)
+            (Window.windowRange 1000)
 
         , benchWithPostscan numElements "sum (window size 100)"
-            (Ring.slidingWindow 100 Window.sum)
+            (Ring.slidingWindow 100 Window.windowSum)
         , benchWithPostscan numElements "sum (window size 1000)"
-            (Ring.slidingWindow 1000 Window.sum)
+            (Ring.slidingWindow 1000 Window.windowSum)
 
         , benchWithPostscan numElements "mean (window size 100)"
-            (Ring.slidingWindow 100 Window.mean)
+            (Ring.slidingWindow 100 Window.windowMean)
         , benchWithPostscan numElements "mean (window size 1000)"
-            (Ring.slidingWindow 1000 Window.mean)
+            (Ring.slidingWindow 1000 Window.windowMean)
 
         , benchWithPostscan numElements "powerSum 2 (window size 100)"
-            (Ring.slidingWindow 100 (Window.powerSum 2))
+            (Ring.slidingWindow 100 (Window.windowPowerSum 2))
         , benchWithPostscan numElements "powerSum 2 (window size 1000)"
-            (Ring.slidingWindow 1000 (Window.powerSum 2))
+            (Ring.slidingWindow 1000 (Window.windowPowerSum 2))
         ]
     ]
 

@@ -36,24 +36,24 @@ module Streamly.Internal.Data.Fold.Window
     -- window folds by keeping the second element of the input tuple as
     -- @Nothing@.
     --
-      lmap
+      windowLmap
     , cumulative
 
-    , rollingMap
-    , rollingMapM
+    , windowRollingMap
+    , windowRollingMapM
 
     -- ** Sums
-    , length
-    , sum
-    , sumInt
-    , powerSum
-    , powerSumFrac
+    , windowLength
+    , windowSum
+    , windowSumInt
+    , windowPowerSum
+    , windowPowerSumFrac
 
     -- ** Location
-    , minimum
-    , maximum
-    , range
-    , mean
+    , windowMinimum
+    , windowMaximum
+    , windowRange
+    , windowMean
     )
 where
 
@@ -73,7 +73,7 @@ import Prelude hiding (length, sum, minimum, maximum)
 -- $setup
 -- >>> import Data.Bifunctor(bimap)
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold.Window as FoldW
+-- >>> import qualified Streamly.Internal.Data.Fold.Window as Fold
 -- >>> import qualified Streamly.Internal.Data.Ring as Ring
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import Prelude hiding (length, sum, minimum, maximum)
@@ -87,9 +87,9 @@ import Prelude hiding (length, sum, minimum, maximum)
 --
 -- >>> lmap f = Fold.lmap (bimap f (f <$>))
 --
-{-# INLINE lmap #-}
-lmap :: (c -> a) -> Fold m (a, Maybe a) b -> Fold m (c, Maybe c) b
-lmap f = Fold.lmap (bimap f (f <$>))
+{-# INLINE windowLmap #-}
+windowLmap :: (c -> a) -> Fold m (a, Maybe a) b -> Fold m (c, Maybe c) b
+windowLmap f = Fold.lmap (bimap f (f <$>))
 
 -- | Convert an incremental fold to a cumulative fold using the entire input
 -- stream as a single window.
@@ -105,10 +105,10 @@ cumulative = Fold.lmap (, Nothing)
 
 -- | Apply an effectful function on the latest and the oldest element of the
 -- window.
-{-# INLINE rollingMapM #-}
-rollingMapM :: Monad m =>
+{-# INLINE windowRollingMapM #-}
+windowRollingMapM :: Monad m =>
     (Maybe a -> a -> m (Maybe b)) -> Fold m (a, Maybe a) (Maybe b)
-rollingMapM f = Fold.foldlM' f1 initial
+windowRollingMapM f = Fold.foldlM' f1 initial
 
     where
 
@@ -118,12 +118,12 @@ rollingMapM f = Fold.foldlM' f1 initial
 
 -- | Apply a pure function on the latest and the oldest element of the window.
 --
--- >>> rollingMap f = FoldW.rollingMapM (\x y -> return $ f x y)
+-- >>> windowRollingMap f = Fold.windowRollingMapM (\x y -> return $ f x y)
 --
-{-# INLINE rollingMap #-}
-rollingMap :: Monad m =>
+{-# INLINE windowRollingMap #-}
+windowRollingMap :: Monad m =>
     (Maybe a -> a -> Maybe b) -> Fold m (a, Maybe a) (Maybe b)
-rollingMap f = Fold.foldl' f1 initial
+windowRollingMap f = Fold.foldl' f1 initial
 
     where
 
@@ -146,9 +146,9 @@ rollingMap f = Fold.foldl' f1 initial
 --
 -- /Internal/
 --
-{-# INLINE sumInt #-}
-sumInt :: forall m a. (Monad m, Integral a) => Fold m (a, Maybe a) a
-sumInt = Fold step initial extract
+{-# INLINE windowSumInt #-}
+windowSumInt :: forall m a. (Monad m, Integral a) => Fold m (a, Maybe a) a
+windowSumInt = Fold step initial extract
 
     where
 
@@ -180,9 +180,9 @@ sumInt = Fold step initial extract
 --
 -- /Time/: \(\mathcal{O}(n)\)
 --
-{-# INLINE sum #-}
-sum :: forall m a. (Monad m, Num a) => Fold m (a, Maybe a) a
-sum = Fold step initial extract
+{-# INLINE windowSum #-}
+windowSum :: forall m a. (Monad m, Num a) => Fold m (a, Maybe a) a
+windowSum = Fold step initial extract
 
     where
 
@@ -219,9 +219,9 @@ sum = Fold step initial extract
 --
 -- >>> length = powerSum 0
 --
-{-# INLINE length #-}
-length :: (Monad m, Num b) => Fold m (a, Maybe a) b
-length = Fold.foldl' step 0
+{-# INLINE windowLength #-}
+windowLength :: (Monad m, Num b) => Fold m (a, Maybe a) b
+windowLength = Fold.foldl' step 0
 
     where
 
@@ -237,18 +237,18 @@ length = Fold.foldl' step 0
 -- /Space/: \(\mathcal{O}(1)\)
 --
 -- /Time/: \(\mathcal{O}(n)\)
-{-# INLINE powerSum #-}
-powerSum :: (Monad m, Num a) => Int -> Fold m (a, Maybe a) a
-powerSum k = lmap (^ k) sum
+{-# INLINE windowPowerSum #-}
+windowPowerSum :: (Monad m, Num a) => Int -> Fold m (a, Maybe a) a
+windowPowerSum k = windowLmap (^ k) windowSum
 
 -- | Like 'powerSum' but powers can be negative or fractional. This is slower
 -- than 'powerSum' for positive intergal powers.
 --
 -- >>> powerSumFrac p = lmap (** p) sum
 --
-{-# INLINE powerSumFrac #-}
-powerSumFrac :: (Monad m, Floating a) => a -> Fold m (a, Maybe a) a
-powerSumFrac p = lmap (** p) sum
+{-# INLINE windowPowerSumFrac #-}
+windowPowerSumFrac :: (Monad m, Floating a) => a -> Fold m (a, Maybe a) a
+windowPowerSumFrac p = windowLmap (** p) windowSum
 
 -------------------------------------------------------------------------------
 -- Location
@@ -265,9 +265,9 @@ powerSumFrac p = lmap (** p) sum
 --
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
-{-# INLINE range #-}
-range :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe (a, a))
-range n = Fold step initial extract
+{-# INLINE windowRange #-}
+windowRange :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe (a, a))
+windowRange n = Fold step initial extract
 
     where
 
@@ -316,9 +316,9 @@ range n = Fold step initial extract
 --
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
-{-# INLINE minimum #-}
-minimum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
-minimum n = fmap (fmap fst) $ range n
+{-# INLINE windowMinimum #-}
+windowMinimum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
+windowMinimum n = fmap (fmap fst) $ windowRange n
 
 -- | The maximum element in a rolling window.
 --
@@ -329,9 +329,9 @@ minimum n = fmap (fmap fst) $ range n
 --
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
-{-# INLINE maximum #-}
-maximum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
-maximum n = fmap (fmap snd) $ range n
+{-# INLINE windowMaximum #-}
+windowMaximum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
+windowMaximum n = fmap (fmap snd) $ windowRange n
 
 -- | Arithmetic mean of elements in a sliding window:
 --
@@ -346,6 +346,6 @@ maximum n = fmap (fmap snd) $ range n
 -- /Space/: \(\mathcal{O}(1)\)
 --
 -- /Time/: \(\mathcal{O}(n)\)
-{-# INLINE mean #-}
-mean :: forall m a. (Monad m, Fractional a) => Fold m (a, Maybe a) a
-mean = Fold.teeWith (/) sum length
+{-# INLINE windowMean #-}
+windowMean :: forall m a. (Monad m, Fractional a) => Fold m (a, Maybe a) a
+windowMean = Fold.teeWith (/) windowSum windowLength

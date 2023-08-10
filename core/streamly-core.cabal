@@ -324,7 +324,6 @@ library
                      , Streamly.Internal.Data.Unfold
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold.Chunked
-                     , Streamly.Internal.Data.Fold.Window
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
 
@@ -411,6 +410,7 @@ library
                     , Streamly.Internal.Data.Fold.Type
                     , Streamly.Internal.Data.Fold.Combinators
                     , Streamly.Internal.Data.Fold.Container
+                    , Streamly.Internal.Data.Fold.Window
 
                     , Streamly.Internal.Data.Stream.StreamD.Container
                     , Streamly.Internal.Data.Stream.StreamD.Eliminate

@@ -1,6 +1,5 @@
 module Streamly.Test.Data.Fold.Window (main) where
 
-import Streamly.Internal.Data.Fold.Window
 import Test.Hspec (hspec, describe, it, runIO)
 import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Streamly.Internal.Data.Stream as S
@@ -29,8 +28,8 @@ main = hspec $ do
                 it ("should not deviate more than " ++ show deviationLimit)
                     $ c1 >= -1 * deviationLimit && c1 <= deviationLimit
 
-        describe "Sum" $ testFunc sum
-        describe "mean" $ testFunc mean
+        describe "Sum" $ testFunc Fold.windowSum
+        describe "mean" $ testFunc Fold.windowMean
 
     describe "Correctness" $ do
         let winSize = 3
@@ -53,16 +52,16 @@ main = hspec $ do
                 it (show tc) $ a == expec
 
         describe "minimum" $ do
-            testFunc2 testCase1 (Just (-2.5)) minimum
+            testFunc2 testCase1 (Just (-2.5)) Fold.windowMinimum
         describe "maximum" $ do
-            testFunc2 testCase1 (Just 7.0) maximum
+            testFunc2 testCase1 (Just 7.0) Fold.windowMaximum
         describe "range" $ do
-            testFunc2 testCase1 (Just (-2.5, 7.0)) range
+            testFunc2 testCase1 (Just (-2.5, 7.0)) Fold.windowRange
         describe "sum" $ do
             let scanInf = [1, 2, 3, 4, 5, 12] :: [Double]
                 scanWin = [1, 2, 3, 3, 3, 9] :: [Double]
-            testFunc testCase2 sum scanInf scanWin
+            testFunc testCase2 Fold.windowSum scanInf scanWin
         describe "mean" $ do
             let scanInf = [1, 1, 1, 1, 1, 2] :: [Double]
                 scanWin = [1, 1, 1, 1, 1, 3] :: [Double]
-            testFunc testCase2 mean scanInf scanWin
+            testFunc testCase2 Fold.windowMean scanInf scanWin
