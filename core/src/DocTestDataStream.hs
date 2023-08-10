@@ -30,7 +30,6 @@
 For APIs that have not been released yet.
 
 >>> import qualified Streamly.Internal.Data.Fold as Fold
->>> import qualified Streamly.Internal.Data.Fold.Window as Window
 >>> import qualified Streamly.Internal.Data.Parser as Parser
 >>> import qualified Streamly.Internal.Data.Stream as Stream
 >>> import qualified Streamly.Internal.Data.Unfold as Unfold

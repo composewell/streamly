@@ -245,7 +245,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
 import qualified Prelude
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Array.Type as Array
-import qualified Streamly.Internal.Data.Fold.Window as FoldW
+import qualified Streamly.Internal.Data.Fold.Window as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
@@ -730,7 +730,7 @@ length = lengthGeneric
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
 --
--- >>> sum = FoldW.cumulative FoldW.sum
+-- >>> sum = Fold.cumulative Fold.windowSum
 --
 -- Same as following but numerically stable:
 --
@@ -739,7 +739,7 @@ length = lengthGeneric
 --
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Fold m a a
-sum = FoldW.cumulative FoldW.sum
+sum = Fold.cumulative Fold.windowSum
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates
