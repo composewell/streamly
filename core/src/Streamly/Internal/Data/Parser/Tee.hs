@@ -24,7 +24,7 @@
 -- some legit warnings, therefore, we have segregated only the code that uses
 -- uni-pattern matches in this module.
 
-module Streamly.Internal.Data.Parser.ParserD.Tee
+module Streamly.Internal.Data.Parser.Tee
     (
     {-
     -- Parallel zipped

@@ -292,8 +292,6 @@ library
                      , Streamly.Internal.Data.SVar.Type
                      , Streamly.Internal.Data.Refold.Type
                      , Streamly.Internal.Data.Producer
-                     , Streamly.Internal.Data.Parser.ParserK.Type
-                     , Streamly.Internal.Data.Parser.ParserD.Type
 
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.Unbox
@@ -314,14 +312,13 @@ library
                      , Streamly.Internal.Data.Stream.Common
                      , Streamly.Internal.Data.Stream
 
-                     , Streamly.Internal.Data.Parser.ParserD.Tee
-
                      -- streamly-core-data
                      , Streamly.Internal.Data.Builder
                      , Streamly.Internal.Data.Unfold
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold.Chunked
                      , Streamly.Internal.Data.Parser
+                     , Streamly.Internal.Data.ParserK
                      , Streamly.Internal.Data.Pipe
 
                      -- streamly-containers (non-base)
@@ -405,17 +402,21 @@ library
                     , Streamly.Internal.Data.Fold.Container
                     , Streamly.Internal.Data.Fold.Window
 
-                    , Streamly.Internal.Data.Stream.Container
-                    , Streamly.Internal.Data.Stream.Eliminate
-                    , Streamly.Internal.Data.Stream.Exception
-                    , Streamly.Internal.Data.Stream.Generate
-                    , Streamly.Internal.Data.Stream.Lift
-                    , Streamly.Internal.Data.Stream.Nesting
-                    , Streamly.Internal.Data.Stream.Step
-                    , Streamly.Internal.Data.Stream.Top
-                    , Streamly.Internal.Data.Stream.Transform
-                    , Streamly.Internal.Data.Stream.Transformer
-                    , Streamly.Internal.Data.Stream.Type
+                    , Streamly.Internal.Data.Parser.Type
+                    , Streamly.Internal.Data.Parser.Tee
+                    , Streamly.Internal.Data.ParserK.Type
+
+                    , Streamly.Internal.Data.Stream.StreamD.Container
+                    , Streamly.Internal.Data.Stream.StreamD.Eliminate
+                    , Streamly.Internal.Data.Stream.StreamD.Exception
+                    , Streamly.Internal.Data.Stream.StreamD.Generate
+                    , Streamly.Internal.Data.Stream.StreamD.Lift
+                    , Streamly.Internal.Data.Stream.StreamD.Nesting
+                    , Streamly.Internal.Data.Stream.StreamD.Step
+                    , Streamly.Internal.Data.Stream.StreamD.Top
+                    , Streamly.Internal.Data.Stream.StreamD.Transform
+                    , Streamly.Internal.Data.Stream.StreamD.Transformer
+                    , Streamly.Internal.Data.Stream.StreamD.Type
 
                     , Streamly.Internal.Data.StreamK.Type
                     , Streamly.Internal.Data.StreamK.Transformer

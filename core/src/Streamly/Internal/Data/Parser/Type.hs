@@ -173,7 +173,7 @@
 -- * <http://hackage.haskell.org/package/attoparsec attoparsec>
 -- * <http://hackage.haskell.org/package/parsec parsec>
 
-module Streamly.Internal.Data.Parser.ParserD.Type
+module Streamly.Internal.Data.Parser.Type
     (
     -- * Setup
     -- $setup
