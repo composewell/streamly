@@ -29,7 +29,7 @@ module Streamly.Data.Array
     -- $overview
 
     -- * The Array Type
-      A.Array
+      Array
 
     -- * Construction
     -- | When performance matters, the fastest way to generate an array is
@@ -40,31 +40,31 @@ module Streamly.Data.Array
     -- 'fromList' can be used to construct an array from a string literal.
 
     -- Pure List APIs
-    , A.fromListN
-    , A.fromList
+    , fromListN
+    , fromList
 
     -- Monadic APIs
-    , A.writeN      -- drop new
-    , A.write       -- full buffer
+    , writeN      -- drop new
+    , write       -- full buffer
     , writeLastN    -- drop old (ring buffer)
 
     -- * Conversion
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
     -- list.
-    , A.toList
+    , toList
 
     -- * Unfolds
-    , A.reader
-    , A.readerRev
+    , reader
+    , readerRev
 
     -- * Casting
     , cast
     , asBytes
 
     -- * Random Access
-    , A.length
+    , length
     -- , (!!)
-    , A.getIndex
+    , getIndex
 
     -- * Unbox Type Class
     , Unbox (..)
@@ -82,12 +82,11 @@ where
 
 #include "inline.hs"
 
-import Streamly.Internal.Data.Unfold (Unfold)
-import Streamly.Internal.Data.Array as A hiding (read, readRev)
-import Streamly.Internal.Data.Array.Type (pin, unpin, isPinned)
-
+import Streamly.Internal.Data.Array hiding (read, readRev)
 import Streamly.Internal.Data.Unbox (Unbox (..))
-import Prelude hiding (read)
+import Streamly.Internal.Data.Unfold (Unfold)
+
+import Prelude hiding (read, length)
 
 #include "DocTestDataArray.hs"
 

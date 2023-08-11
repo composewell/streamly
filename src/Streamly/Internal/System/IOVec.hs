@@ -34,7 +34,7 @@ import Streamly.Internal.Data.MutArray.Type (length)
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.MutArray.Type (Array(..))
 
-import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray.Type as MArray
 import qualified Streamly.Internal.Data.Stream as D
 -}

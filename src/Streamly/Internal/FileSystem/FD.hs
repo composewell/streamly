@@ -128,7 +128,7 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
-import Streamly.Internal.Data.Array.Type
+import Streamly.Internal.Data.Array
     (Array(..), byteLength, unsafeFreeze, asPtrUnsafe)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Stream (Stream)

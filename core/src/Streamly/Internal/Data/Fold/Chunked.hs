@@ -66,11 +66,11 @@ import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.MutArray.Type (touch)
-import Streamly.Internal.Data.Array.Type (Array(..))
+import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Parser (Initial(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as ParserD
 import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD

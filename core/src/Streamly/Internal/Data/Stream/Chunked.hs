@@ -87,7 +87,6 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream.MutChunked as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))

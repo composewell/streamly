@@ -33,7 +33,7 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Internal.Data.Array.Type as AT
+import qualified Streamly.Internal.Data.Array as AT
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream as IP
 import qualified Streamly.Internal.FileSystem.Handle as IFH

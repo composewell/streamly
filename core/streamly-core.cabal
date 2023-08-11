@@ -308,7 +308,6 @@ library
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.MutArray.Type
                      , Streamly.Internal.Data.MutArray
-                     , Streamly.Internal.Data.Array.Type
                      , Streamly.Internal.Data.MutArray.Generic
 
                      -- streamly-core-streams
@@ -429,6 +428,8 @@ library
 
                     , Streamly.Internal.Data.Unfold.Type
                     , Streamly.Internal.Data.Unfold.Enumeration
+
+                    , Streamly.Internal.Data.Array.Type
 
     if flag(dev)
       other-modules:
