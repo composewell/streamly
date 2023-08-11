@@ -24,11 +24,10 @@
 module Streamly.Internal.Data.Pipe
     (
     -- * Pipe Type
-      Pipe
+      module Streamly.Internal.Data.Pipe.Type
 
     -- * Pipes
     -- ** Mapping
-    , map
     , mapM
 
     {-
@@ -112,10 +111,8 @@ module Streamly.Internal.Data.Pipe
     , groupsRollingBy
     -}
 
-    -- * Composing Pipes
-    , tee
-    , zipWith
-    , compose
+
+
 
     {-
     -- * Distributing
@@ -244,7 +241,7 @@ import Prelude
 
 -- import Streamly.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Type
-       (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
+
 -- import Streamly.Internal.Data.Array.Type (Array)
 -- import Streamly.Internal.Data.Ring (Ring)
 -- import Streamly.Internal.Data.Stream (Stream)

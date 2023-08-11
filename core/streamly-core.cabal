@@ -294,7 +294,6 @@ library
                      , Streamly.Internal.Data.Producer
                      , Streamly.Internal.Data.Parser.ParserK.Type
                      , Streamly.Internal.Data.Parser.ParserD.Type
-                     , Streamly.Internal.Data.Pipe.Type
 
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.Unbox
@@ -422,6 +421,8 @@ library
                     , Streamly.Internal.Data.Stream.StreamD.Type
 
                     , Streamly.Internal.Data.Stream.StreamK.Type
+
+                    , Streamly.Internal.Data.Pipe.Type
 
                     , Streamly.Internal.Data.Unfold.Type
                     , Streamly.Internal.Data.Unfold.Enumeration
