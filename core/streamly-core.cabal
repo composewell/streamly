@@ -306,7 +306,6 @@ library
                      -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream
-                     , Streamly.Internal.Data.MutArray.Type
                      , Streamly.Internal.Data.MutArray
                      , Streamly.Internal.Data.MutArray.Generic
 
@@ -428,6 +427,8 @@ library
 
                     , Streamly.Internal.Data.Unfold.Type
                     , Streamly.Internal.Data.Unfold.Enumeration
+                    
+                    , Streamly.Internal.Data.MutArray.Type
 
                     , Streamly.Internal.Data.Array.Type
 

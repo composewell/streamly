@@ -30,9 +30,9 @@ where
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Ptr (castPtr)
-import Streamly.Internal.Data.MutArray.Type (length)
+import Streamly.Internal.Data.MutArray (length)
 import Streamly.Internal.Data.SVar.Type (adaptState)
-import Streamly.Internal.Data.MutArray.Type (Array(..))
+import Streamly.Internal.Data.MutArray (Array(..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray.Type as MArray

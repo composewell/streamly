@@ -15,11 +15,11 @@ import Data.Word(Word8)
 import Foreign.Storable (peek)
 import GHC.Ptr (plusPtr)
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
-import Streamly.Internal.Data.MutArray.Type (MutArray)
+import Streamly.Internal.Data.MutArray (MutArray)
 import Test.QuickCheck (chooseInt, listOf)
 
 import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Internal.Data.MutArray.Type as MA
+import qualified Streamly.Internal.Data.MutArray as MA
 
 #include "Streamly/Test/Data/Array/CommonImports.hs"
 
