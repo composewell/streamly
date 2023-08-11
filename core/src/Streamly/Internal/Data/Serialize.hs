@@ -102,11 +102,14 @@ class Serialize a where
 
 #define DERIVE_SERIALIZE_FROM_UNBOX(_type) \
 instance Serialize _type where \
+; {-# INLINE size #-} \
 ;    size = ConstSize $ Unbox.sizeOf (Proxy :: Proxy _type) \
+; {-# INLINE deserialize #-} \
 ;    deserialize off arr = \
         Unbox.peekByteIndex off arr >>= \
             \val -> let sz = Unbox.sizeOf (Proxy :: Proxy _type) \
                      in pure (off + sz, val) \
+; {-# INLINE serialize #-} \
 ;    serialize off arr val = \
         Unbox.pokeByteIndex off arr val \
             >> let sz = Unbox.sizeOf (Proxy :: Proxy _type) \
