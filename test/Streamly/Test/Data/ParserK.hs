@@ -17,7 +17,6 @@ import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
-import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
@@ -660,13 +659,13 @@ parseUnfold = do
             <*> chooseInt (1, len)) $ \(ls, clen, tlen) ->
         monadicIO $ do
             arrays <- toList $ S.chunksOf clen (S.fromList ls)
-            let src = Source.source (Just (Producer.OuterLoop arrays))
+            let src = Producer.source (Just (Producer.OuterLoop arrays))
             let parser = P.fromFold (FL.take tlen FL.toList)
             let readSrc =
-                    Source.producer
+                    Producer.producer
                         $ Producer.concat Producer.fromList A.producer
             let streamParser =
-                    Producer.simplify (Source.parseManyD parser readSrc)
+                    Producer.simplify (Producer.parseManyD parser readSrc)
             xs <- run
                 $ toList
                 $ S.unfoldMany Unfold.fromList

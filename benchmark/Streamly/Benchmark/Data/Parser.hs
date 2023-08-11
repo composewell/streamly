@@ -47,7 +47,6 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Producer as Producer
-import qualified Streamly.Internal.Data.Producer.Source as Source
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Gauge hiding (env)
@@ -635,13 +634,13 @@ choice value =
 {-# INLINE parseManyUnfoldArrays #-}
 parseManyUnfoldArrays :: Int -> [Array.Array Int] -> IO ()
 parseManyUnfoldArrays count arrays = do
-    let src = Source.source (Just (Producer.OuterLoop arrays))
+    let src = Producer.source (Just (Producer.OuterLoop arrays))
     let parser = PR.fromFold (Fold.take count Fold.drain)
     let readSrc =
-            Source.producer
+            Producer.producer
                 $ Producer.concat Producer.fromList Array.producer
     let streamParser =
-            Producer.simplify (Source.parseMany parser readSrc)
+            Producer.simplify (Producer.parseMany parser readSrc)
     Stream.fold Fold.drain $ Stream.unfold streamParser src
 
 -------------------------------------------------------------------------------
