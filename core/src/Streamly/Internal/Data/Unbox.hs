@@ -344,6 +344,7 @@ class Unbox a where
     -- | Get the size. Size cannot be zero.
     sizeOf :: Proxy a -> Int
 
+    {-# INLINE sizeOf #-}
     default sizeOf :: (SizeOfRep (Rep a)) => Proxy a -> Int
     sizeOf = genericSizeOf
 
@@ -354,6 +355,7 @@ class Unbox a where
     -- of the array, the caller must not assume that.
     peekByteIndex :: Int -> MutableByteArray -> IO a
 
+    {-# INLINE peekByteIndex #-}
     default peekByteIndex :: (Generic a, PeekRep (Rep a)) =>
          Int -> MutableByteArray -> IO a
     peekByteIndex i arr = genericPeekByteIndex arr i
@@ -365,6 +367,7 @@ class Unbox a where
     -- of the array, the caller must not assume that.
     pokeByteIndex :: Int -> MutableByteArray -> a -> IO ()
 
+    {-# INLINE pokeByteIndex #-}
     default pokeByteIndex :: (Generic a, PokeRep (Rep a)) =>
         Int -> MutableByteArray -> a -> IO ()
     pokeByteIndex i arr = genericPokeByteIndex arr i
