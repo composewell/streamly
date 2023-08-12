@@ -323,11 +323,7 @@ library
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Pipe
 
-                     -- streamly-transformers (non-base)
-                     , Streamly.Internal.Data.Stream.StreamK.Transformer
-
                      -- streamly-containers (non-base)
-
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Stream.Chunked
 
@@ -421,12 +417,13 @@ library
                     , Streamly.Internal.Data.Stream.StreamD.Type
 
                     , Streamly.Internal.Data.Stream.StreamK.Type
+                    , Streamly.Internal.Data.Stream.StreamK.Transformer
 
                     , Streamly.Internal.Data.Pipe.Type
 
                     , Streamly.Internal.Data.Unfold.Type
                     , Streamly.Internal.Data.Unfold.Enumeration
-                    
+
                     , Streamly.Internal.Data.MutArray.Type
 
                     , Streamly.Internal.Data.Array.Type

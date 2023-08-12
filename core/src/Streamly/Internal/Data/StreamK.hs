@@ -18,6 +18,7 @@ module Streamly.Internal.Data.StreamK
 
     -- * The stream type
       module Streamly.Internal.Data.Stream.StreamK.Type
+    , module Streamly.Internal.Data.Stream.StreamK.Transformer
 
     , StreamK(..)
     , fromList
@@ -154,6 +155,7 @@ import Prelude
                (!!), replicate, reverse, concatMap, iterate, splitAt)
 import Data.Foldable (sum, length)
 import Streamly.Internal.Data.Stream.StreamK.Type
+import Streamly.Internal.Data.Stream.StreamK.Transformer
 import Streamly.Internal.Data.Parser (ParseError(..))
 
 #include "DocTestDataStreamK.hs"
