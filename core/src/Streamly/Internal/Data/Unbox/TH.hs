@@ -412,7 +412,11 @@ deriveUnboxInternal preds headTy cons = do
     peekMethod <- mkPeekExpr headTy cons
     pokeMethod <- mkPokeExpr headTy cons
     let methods =
-            [ FunD 'sizeOf [Clause [WildP] (NormalB sizeOfMethod) []]
+            -- INLINE on sizeOf actually worsens some benchmarks, and improves
+            -- none
+            [ -- PragmaD (InlineP 'sizeOf Inline FunLike AllPhases)
+              FunD 'sizeOf [Clause [WildP] (NormalB sizeOfMethod) []]
+            , PragmaD (InlineP 'peekByteIndex Inline FunLike AllPhases)
             , FunD
                   'peekByteIndex
                   [ Clause
@@ -422,6 +426,7 @@ deriveUnboxInternal preds headTy cons = do
                         (NormalB peekMethod)
                         []
                   ]
+            , PragmaD (InlineP 'pokeByteIndex Inline FunLike AllPhases)
             , FunD
                   'pokeByteIndex
                   [ Clause
