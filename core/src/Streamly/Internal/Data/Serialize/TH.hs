@@ -326,7 +326,11 @@ deriveSerializeInternal preds headTy cons = do
     peekMethod <- mkDeserializeExpr headTy cons
     pokeMethod <- mkSerializeExpr headTy cons
     let methods =
-            [ FunD 'size [Clause [] (NormalB sizeOfMethod) []]
+            -- INLINE on sizeOf actually worsens some benchmarks, and improves
+            -- none
+            [ -- PragmaD (InlineP 'size Inline FunLike AllPhases)
+              FunD 'size [Clause [] (NormalB sizeOfMethod) []]
+            , PragmaD (InlineP 'deserialize Inline FunLike AllPhases)
             , FunD
                   'deserialize
                   [ Clause
@@ -336,6 +340,7 @@ deriveSerializeInternal preds headTy cons = do
                         (NormalB peekMethod)
                         []
                   ]
+            , PragmaD (InlineP 'serialize Inline FunLike AllPhases)
             , FunD
                   'serialize
                   [ Clause
