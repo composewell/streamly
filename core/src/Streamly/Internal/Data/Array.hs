@@ -69,6 +69,7 @@ module Streamly.Internal.Data.Array
     , genSlicesFromLen
     , getSlicesFromLen
     , splitOn
+    , streamSplitOn
 
     -- * Streaming Operations
     , streamTransform
@@ -356,6 +357,17 @@ splitOn :: (Monad m, Unbox a) =>
 splitOn predicate arr =
     fmap (\(i, len) -> getSliceUnsafe i len arr)
         $ D.sliceOnSuffix predicate (A.toStreamD arr)
+
+-- | Split a stream of arrays on a given separator byte, dropping the separator
+-- and coalescing all the arrays between two separators into a single array.
+--
+{-# INLINE streamSplitOn #-}
+streamSplitOn
+    :: (MonadIO m)
+    => Word8
+    -> Stream m (Array Word8)
+    -> Stream m (Array Word8)
+streamSplitOn byte = Stream.splitInnerBy (breakOn byte) splice
 
 {-# INLINE genSlicesFromLen #-}
 genSlicesFromLen :: forall m a. (Monad m, Unbox a)

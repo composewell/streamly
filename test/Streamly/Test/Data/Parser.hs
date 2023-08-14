@@ -850,7 +850,7 @@ parseUnfold = do
             <*> chooseInt (1, len)) $ \(ls, clen, tlen) ->
         monadicIO $ do
             arrays <- S.toList $ Array.streamChunksOf clen (S.fromList ls)
-            let src = Source.source (Just (Producer.OuterLoop arrays))
+            let src = Producer.source (Just (Producer.OuterLoop arrays))
             let parser = P.fromFold (FL.take tlen FL.toList)
             let readSrc =
                     Producer.producer

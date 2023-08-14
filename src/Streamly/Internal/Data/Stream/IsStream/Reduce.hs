@@ -185,7 +185,7 @@ import Streamly.Internal.Data.Unbox (Unbox)
 import qualified Data.Heap as H
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Array as A
-    (chunksOf, read)
+    (streamChunksOf, read)
 import qualified Streamly.Internal.Data.Fold as FL
     (Fold, Step(..), takeEndBy_, takeEndBy, catMaybes, take)
 import qualified Streamly.Internal.Data.IsMap as IsMap
