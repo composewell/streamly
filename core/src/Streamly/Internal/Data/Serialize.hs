@@ -39,11 +39,10 @@ import GHC.Exts
 -- Types
 --------------------------------------------------------------------------------
 
--- | Info about the length of a serializable type. Length can depend on the
--- value or can be independent.
-data Size a
-    = VarSize (a -> Int)
-    | ConstSize !Int
+-- XXX Use (a -> Sum Int) instead, remove the Size type
+
+-- | A left fold step to fold a generic structure to its serializable size.
+newtype Size a = Size (Int -> a -> Int) -- a left fold or Sum monoid
 
 -- | A type implementing the 'Serialize' interface supplies operations for
 -- reading and writing the type from and to a mutable byte array (an unboxed
@@ -63,8 +62,8 @@ data Size a
 --
 -- >>> :{
 -- data Object = Object
---     { _varLen :: [Int]
---     , _constLen :: Int
+--     { _obj1 :: [Int]
+--     , _obj2 :: Int
 --     }
 -- :}
 --
@@ -72,10 +71,9 @@ data Size a
 -- instance Serialize Object where
 --     size =
 --         case (size :: Size [Int], size :: Size Int) of
---             (VarSize f, ConstSize g) ->
---                 VarSize $ \obj ->
---                     f (_varLen obj) + g
---             _ -> error "size is not defined properly"
+--             (Size f, Size g) ->
+--                 Size $ \acc obj ->
+--                     acc + f 0 (_obj1 obj) + g 0 (_obj2 obj)
 --     deserialize i arr = do
 --         (i1, x0) <- deserialize i arr
 --         (i2, x1) <- deserialize i1 arr
@@ -110,7 +108,7 @@ class Serialize a where
 #define DERIVE_SERIALIZE_FROM_UNBOX(_type) \
 instance Serialize _type where \
 ; {-# INLINE size #-} \
-;    size = ConstSize $ Unbox.sizeOf (Proxy :: Proxy _type) \
+;    size = Size (\acc _ -> acc +  Unbox.sizeOf (Proxy :: Proxy _type)) \
 ; {-# INLINE deserialize #-} \
 ;    deserialize off arr = \
         Unbox.peekByteIndex off arr >>= \
@@ -142,18 +140,10 @@ DERIVE_SERIALIZE_FROM_UNBOX((FunPtr a))
 
 instance forall a. Serialize a => Serialize [a] where
 
-    {-# INLINE size #-}
-    size = VarSize $ \lst ->
+    -- {-# INLINE size #-}
+    size = Size $ \acc xs ->
         case size :: Size a of
-            VarSize f ->
-                foldl'
-                    (\acc x -> acc + f x)
-                    (Unbox.sizeOf (Proxy :: Proxy Int))
-                    lst
-            ConstSize sz ->
-                length lst
-                    * sz
-                    + Unbox.sizeOf (Proxy :: Proxy Int)
+            Size f -> foldl' f (acc + (Unbox.sizeOf (Proxy :: Proxy Int))) xs
 
     {-# INLINE deserialize #-}
     deserialize off arr = do
@@ -185,8 +175,7 @@ encodeAs ps a =
     unsafeInlineIO $ do
         let len =
               case size :: Size a of
-                  ConstSize sz -> sz
-                  VarSize f -> f a
+                  Size f -> f 0 a
         -- We encode the length of the encoding as a header hence the 8 extra
         -- bytes to encode Int64
         mbarr <- Unbox.newBytesAs ps (8  +  len)

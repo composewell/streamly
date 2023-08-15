@@ -208,8 +208,7 @@ getSize _ = sizeOf (Proxy :: Proxy a)
 #else
 getSize val =
     case size :: Size a of
-        ConstSize x -> x
-        VarSize f -> f val
+        Size f -> f 0 val
 #endif
 
 #ifndef USE_UNBOX
@@ -422,7 +421,7 @@ main = do
     -- Approximately 100000 constructors
     -- Assuming Leaf nodes constitute two constructors (Leaf, Int) and internal
     -- nodes 1 level = log_2 (100001/3) + 1 = 16
-    !tInt <- force <$> mkBinTree 16
+    !(tInt :: BinTree Int) <- force <$> mkBinTree 16
 
     -- Approximately 100000 constructors, assuming two constructors (Cons, Int)
     -- per element.
@@ -442,14 +441,14 @@ main = do
     -- Enable one benchmark below, and run the benchmark
     -- Check the .dump-simpl output
     let value = 100000
+    -- print $ getSize (CDT1C3 4 2)
     -- peekTimes ((CDT1C2 (5 :: Int)) :: CustomDT1) value
     -- peekTimes (Sum2525) value
     -- peekTimes (Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25) value
     -- !(tInt :: BinTree Int) <- force <$> mkBinTree 16
     -- print $ sizeOfOnce tInt
+    print $ sizeOfOnce lInt
     -- peekTimes tInt 1
     -- roundtrip ((CDT1C2 (5 :: Int)) :: CustomDT1) value
-    let !n = getSize lEnum
-     in peekTimes n lEnum 1
     return ()
 #endif
