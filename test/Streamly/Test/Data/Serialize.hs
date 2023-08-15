@@ -59,9 +59,12 @@ roundtrip val = do
 
     let sz =
           case Serialize.size :: Serialize.Size a of
-              Serialize.VarSize f -> f val
-              Serialize.ConstSize csz -> csz
+              Serialize.Size f -> f 0 val
 
+    -- putStrLn "----------------------------------------------------------------"
+    -- putStrLn $ show val
+    -- putStrLn $ "Size is: " ++ show sz
+    -- putStrLn "----------------------------------------------------------------"
     arr <- newBytes sz
 
     off1 <- Serialize.serialize 0 arr val
@@ -78,8 +81,7 @@ testSerializeList sizeOfA val = do
 
     let sz =
           case Serialize.size :: Serialize.Size a of
-              Serialize.VarSize f -> f val
-              Serialize.ConstSize csz -> csz
+              Serialize.Size f -> f 0 val
 
     sz `shouldBe` sizeOfA
 

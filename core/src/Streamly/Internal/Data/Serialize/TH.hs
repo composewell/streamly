@@ -17,6 +17,7 @@ module Streamly.Internal.Data.Serialize.TH
 -- Imports
 --------------------------------------------------------------------------------
 
+import Data.List (foldl')
 import Data.Word (Word16, Word32, Word64, Word8)
 
 import Language.Haskell.TH
@@ -39,6 +40,9 @@ type Field = (Maybe Name, Type)
 
 _x :: Name
 _x = mkName "x"
+
+_acc :: Name
+_acc = mkName "acc"
 
 _arr :: Name
 _arr = mkName "arr"
@@ -72,15 +76,14 @@ matchConstructor cname numFields exp0 =
         (normalB exp0)
         []
 
-exprGetSize :: Int -> Type -> Q Exp
-exprGetSize i ty =
+exprGetSize :: Q Exp -> (Int, Type) -> Q Exp
+exprGetSize acc (i, ty) =
     caseE
         (sigE (varE 'size) (appT (conT ''Size) (pure ty)))
         [ match
-              (conP 'VarSize [varP _f])
-              (normalB (appE (varE _f) (varE (mkFieldName i))))
+              (conP 'Size [varP _f])
+              (normalB (appsE [(varE _f), acc, (varE (mkFieldName i))]))
               []
-        , match (conP 'ConstSize [varP _sz]) (normalB (varE _sz)) []
         ]
 
     where
@@ -123,16 +126,23 @@ mkSizeOfExpr headTy constructors =
                   ("Attempting to get size with no constructors (" ++
                    $(lift (pprint headTy)) ++ ")")|]
         -- One constructor with no fields is a unit type. Size of a unit type is
-        -- 1.
+        -- 1. XXX Use isUnitType?
         [constructor@(DataCon _ _ _ fields)] ->
             case fields of
-                [] -> appE (conE 'ConstSize) (litE (IntegerL 1))
+                -- Unit type
+                [] ->
+                    appE
+                        (conE 'Size)
+                        (lamE [varP _acc, varP _x] [| $(varE _acc) + 1 |])
+                -- Product type
                 _ ->
                     appE
-                        (conE 'VarSize)
+                        (conE 'Size)
                         (lamE
-                             [varP _x]
-                             (caseE (varE _x) [matchCons constructor]))
+                             [varP _acc, varP _x]
+                             (caseE (varE _x)
+                                [matchCons (varE _acc) constructor]))
+        -- Sum type
         _ -> sizeOfHeadDt
 
     where
@@ -140,22 +150,29 @@ mkSizeOfExpr headTy constructors =
     tagSizeExp =
         litE (IntegerL (fromIntegral (getTagSize (length constructors))))
 
-    sizeOfField (i, (_, ty)) = exprGetSize i ty
+    -- XXX fields of the same type can be folded together, will reduce the code
+    -- size when there are many fields of the same type.
+    -- XXX const size fields can be calculated statically.
+    -- XXX This can result in large compilation times due to nesting when there
+    -- are many constructors. We can create a list and sum the list at run time
+    -- to avoid that depending on the number of constructors.
+    -- appE (varE 'sum) (listE (acc : map (exprGetSize (litE (IntegerL 0))) (zip [0..] fields)))
+    sizeOfFields acc fields =
+        foldl' exprGetSize acc $ zip [0..] fields
 
-    sizeOfFields fields =
-        appE (varE 'sum) (listE (map sizeOfField (zip [0..] fields)))
-
-    matchCons (DataCon cname _ _ fields) =
-        matchConstructor cname (length fields) (sizeOfFields fields)
+    matchCons acc (DataCon cname _ _ fields) =
+        let expr = sizeOfFields acc (map snd fields)
+         in matchConstructor cname (length fields) expr
 
     -- XXX We fix VarSize for simplicity. Should be changed later.
     sizeOfHeadDt =
-        appE
-            (conE 'VarSize)
-            (lamE
-                 [varP _x]
-                 [|$(tagSizeExp)
-                    + $(caseE (varE _x) (fmap matchCons constructors))|])
+        let acc = [|$(varE _acc) + $(tagSizeExp)|]
+            f =
+                (lamE
+                     [varP _acc, varP _x]
+                     (caseE (varE _x) (fmap (matchCons acc) constructors))
+                )
+         in appE (conE 'Size) f
 
 --------------------------------------------------------------------------------
 -- Peek
@@ -328,7 +345,7 @@ deriveSerializeInternal preds headTy cons = do
     let methods =
             -- INLINE on sizeOf actually worsens some benchmarks, and improves
             -- none
-            [ -- PragmaD (InlineP 'size Inline FunLike AllPhases)
+            [ -- PragmaD (InlineP 'size Inlinable FunLike AllPhases)
               FunD 'size [Clause [] (NormalB sizeOfMethod) []]
             , PragmaD (InlineP 'deserialize Inline FunLike AllPhases)
             , FunD
