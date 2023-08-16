@@ -17,6 +17,7 @@ module Streamly.Internal.Data.Unbox
     , MutableByteArray(..)
     , touch
     , getMutableByteArray#
+    , sizeOfMutableByteArray
     , isPinned
     , pin
     , unpin
@@ -100,7 +101,6 @@ touch :: MutableByteArray -> IO ()
 touch (MutableByteArray contents) =
     IO $ \s -> case touch# contents s of s' -> (# s', () #)
 
-{-
 -- | Return the size of the array in bytes.
 {-# INLINE sizeOfMutableByteArray #-}
 sizeOfMutableByteArray :: MutableByteArray -> IO Int
@@ -108,7 +108,6 @@ sizeOfMutableByteArray (MutableByteArray arr) =
     IO $ \s ->
         case getSizeofMutableByteArray# arr s of
             (# s1, i #) -> (# s1, I# i #)
--}
 
 --------------------------------------------------------------------------------
 -- Creation
