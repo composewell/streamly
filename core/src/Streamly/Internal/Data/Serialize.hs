@@ -39,10 +39,32 @@ import GHC.Exts
 -- Types
 --------------------------------------------------------------------------------
 
+-- XXX Should it be something like the following?
+-- newtype Acc = Acc (Int -> Int)
+--
+-- instance Monoid Acc
+--     (<>) f1 f2 = \inp -> f2 (f1 inp)
+--     mempty = \_ -> 0
+--
+-- liftAcc i = Acc $ \j -> j + i
+--
+-- We can then do things like:
+-- @
+--         case (size :: Size [Int], size :: Size Int) of
+--             (Size f, Size g) -> Size $  (f <> g)
+--                 Size $ \acc obj ->
+--                            liftAcc acc <> f (_obj1 obj) <> g (_obj2 obj)
+-- @
+
 -- XXX Use (a -> Sum Int) instead, remove the Size type
 
 -- | A left fold step to fold a generic structure to its serializable size.
 newtype Size a = Size (Int -> a -> Int) -- a left fold or Sum monoid
+
+
+-- XXX In the below example, instead of using `f 0` we need to make an
+-- abstraction. It is easy to go wrong like this. See the review comment on
+-- `Acc` above.
 
 -- | A type implementing the 'Serialize' interface supplies operations for
 -- reading and writing the type from and to a mutable byte array (an unboxed
