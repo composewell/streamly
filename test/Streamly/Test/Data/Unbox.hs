@@ -174,6 +174,17 @@ $(deriveSerialize ''Identity)
 -- Test helpers
 --------------------------------------------------------------------------------
 
+#ifdef USE_SERIALIZE
+variableSizeOf ::
+       forall a. Serialize a
+    => a
+    -> Int
+variableSizeOf val =
+    case size :: Size a of
+        ConstSize x -> x
+        VarSize f -> f val
+#endif
+
 testSerialization ::
        forall a. (Eq a, Show a, TYPE_CLASS a)
     => a
@@ -181,9 +192,7 @@ testSerialization ::
 testSerialization val = do
     arr <- newBytes
 #ifdef USE_SERIALIZE
-               (case size :: Size a of
-                    ConstSize x -> x
-                    VarSize f -> f val)
+               (variableSizeOf val)
 #else
                (sizeOf (Proxy :: Proxy a))
 #endif
@@ -195,10 +204,9 @@ testGenericConsistency ::
        ( Eq a
        , Show a
 #ifdef USE_SERIALIZE
-       , Serialize a,  Unbox a
-#else
-       , Unbox a
+       , Serialize a
 #endif
+       , Unbox a
        , Generic a
        , SizeOfRep (Rep a)
        , PeekRep (Rep a)
@@ -210,9 +218,7 @@ testGenericConsistency val = do
 
     -- Test the generic sizeOf
 #ifdef USE_SERIALIZE
-    (case size :: Size a of
-         ConstSize x -> x
-         VarSize f -> f val)
+    variableSizeOf val
 #else
     sizeOf (Proxy :: Proxy a)
 #endif
