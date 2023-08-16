@@ -20,6 +20,11 @@ module Streamly.Internal.Data.Serialize
 
 #include "assert.hs"
 
+#ifdef DEBUG
+import Control.Exception (assert)
+import Streamly.Internal.Data.Unbox (Unbox(..), sizeOfMutableByteArray)
+#endif
+
 import Control.Monad (void)
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
@@ -105,20 +110,41 @@ class Serialize a where
 -- Instances
 --------------------------------------------------------------------------------
 
+{-# INLINE checkBounds #-}
+checkBounds :: String -> Int -> MutableByteArray -> IO ()
+checkBounds _label _off _arr = do
+#ifdef DEBUG
+    sz <- sizeOfMutableByteArray _arr
+    if (_off > sz)
+    then error
+        $ _label
+            ++ ": accessing array at offset = "
+            ++ show (_off - 1)
+            ++ " max valid offset = " ++ show (sz - 1)
+    else return ()
+#else
+    return ()
+#endif
+
 #define DERIVE_SERIALIZE_FROM_UNBOX(_type) \
 instance Serialize _type where \
 ; {-# INLINE size #-} \
 ;    size = Size (\acc _ -> acc +  Unbox.sizeOf (Proxy :: Proxy _type)) \
 ; {-# INLINE deserialize #-} \
 ;    deserialize off arr = \
-        Unbox.peekByteIndex off arr >>= \
-            \val -> let sz = Unbox.sizeOf (Proxy :: Proxy _type) \
-                     in pure (off + sz, val) \
+        let next = off + Unbox.sizeOf (Proxy :: Proxy _type) \
+         in do { \
+            checkBounds "deserialize" next arr; \
+            Unbox.peekByteIndex off arr >>= \val -> pure (next, val); \
+         } \
 ; {-# INLINE serialize #-} \
 ;    serialize off arr val = \
-        Unbox.pokeByteIndex off arr val \
-            >> let sz = Unbox.sizeOf (Proxy :: Proxy _type) \
-                in pure (off + sz)
+        let next = off + Unbox.sizeOf (Proxy :: Proxy _type) \
+         in do { \
+            checkBounds "serialize" next arr; \
+            Unbox.pokeByteIndex off arr val; \
+            pure next \
+         }
 
 DERIVE_SERIALIZE_FROM_UNBOX(Bool)
 DERIVE_SERIALIZE_FROM_UNBOX(Char)
