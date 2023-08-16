@@ -155,7 +155,8 @@ mkSizeOfExpr headTy constructors =
     -- XXX const size fields can be calculated statically.
     -- XXX This can result in large compilation times due to nesting when there
     -- are many constructors. We can create a list and sum the list at run time
-    -- to avoid that depending on the number of constructors.
+    -- to avoid that depending on the number of constructors. Or using a let
+    -- statement for each case may help?
     -- appE (varE 'sum) (listE (acc : map (exprGetSize (litE (IntegerL 0))) (zip [0..] fields)))
     sizeOfFields acc fields =
         foldl' exprGetSize acc $ zip [0..] fields
