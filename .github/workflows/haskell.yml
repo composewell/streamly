@@ -67,7 +67,7 @@ jobs:
         # cabal.project because that is how hackage would build it.
         include:
           - name: head
-            ghc_version: head
+            ghc_version: latest-nightly
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.8.1.0
@@ -208,14 +208,15 @@ jobs:
         GHCUP_VER=0.1.18.0
         $CURL -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/${GHCUP_ARCH}-ghcup-$GHCUP_VER
         chmod +x ./ghcup
-        if test "$GHCVER" = "head"
+        if test "$GHCVER" = "latest-nightly"
         then
           # The URL may change, to find a working URL go to https://gitlab.haskell.org/ghc/ghc/-/jobs/
           # Find a debian10 job, click on a passed/failed job, at the
           # end of the output you will find the tar.xz name, put that after
           # "raw/", and put the job name after "job=".
           # Also see https://github.com/mpickering/ghc-artefact-nix/blob/master/gitlab-artifact.nix
-          ./ghcup install ghc -u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate head
+          #./ghcup install ghc -u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate head
+          ./ghcup install ghc latest-nightly
         else
           ./ghcup install ghc $GHCVER
         fi
