@@ -73,7 +73,7 @@ newtype Size a = Size (Int -> a -> Int) -- a left fold or Sum monoid
 --         case (size :: Size [Int], size :: Size Int) of
 --             (Size f, Size g) ->
 --                 Size $ \acc obj ->
---                     acc + f (_obj1 obj) + g (_obj2 obj)
+--                     acc + f 0 (_obj1 obj) + g 0 (_obj2 obj)
 --             _ -> error "size is not defined properly"
 --     deserialize i arr = do
 --         (i1, x0) <- deserialize i arr
