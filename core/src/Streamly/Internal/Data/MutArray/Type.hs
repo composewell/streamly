@@ -105,6 +105,12 @@ module Streamly.Internal.Data.MutArray.Type
     , snocMay
     , snocUnsafe
 
+    -- ** Serialization
+    , unbox
+    , unboxMay
+    , unboxUnsafe
+    , unboxSkipUnsafe
+
     -- ** Appending streams
     , writeAppendNUnsafe
     , writeAppendN
@@ -112,6 +118,11 @@ module Streamly.Internal.Data.MutArray.Type
     , writeAppend
 
     -- * Eliminating and Reading
+
+    -- ** Deserialization
+    , box
+    , boxUnsafe
+    , boxSkipUnsafe
 
     -- ** To streams
     , reader
@@ -887,15 +898,40 @@ snocNewEnd newEnd arr@MutArray{..} x = liftIO $ do
     pokeByteIndex arrEnd arrContents x
     return $ arr {arrEnd = newEnd}
 
--- | Really really unsafe, appends the element into the first array, may
--- cause silent data corruption or if you are lucky a segfault if the first
--- array does not have enough space to append the element.
+-- | Really really unsafe, appends the element to the array, may cause silent
+-- data corruption or if you are lucky a segfault if the array does not have
+-- enough space to append the element.
 --
 -- /Internal/
 {-# INLINE snocUnsafe #-}
 snocUnsafe :: forall m a. (MonadIO m, Unbox a) =>
     MutArray a -> a -> m (MutArray a)
 snocUnsafe arr@MutArray{..} = snocNewEnd (INDEX_NEXT(arrEnd,a)) arr
+
+{-# INLINE unboxNewEnd #-}
+unboxNewEnd :: (MonadIO m, Unbox a) =>
+    Int -> MutArray Word8 -> a -> m (MutArray Word8)
+unboxNewEnd newEnd arr@MutArray{..} x = liftIO $ do
+    assert (newEnd <= arrBound) (return ())
+    liftIO $ pokeByteIndex arrEnd arrContents x
+    return $ arr {arrEnd = newEnd}
+
+-- | Really really unsafe, unboxes a Haskell type and appends the resulting
+-- bytes to the byte array, may cause silent data corruption or if you are
+-- lucky a segfault if the array does not have enough space to append the
+-- element.
+--
+-- /Internal/
+{-# INLINE unboxUnsafe #-}
+unboxUnsafe :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> a -> m (MutArray Word8)
+unboxUnsafe arr@MutArray{..} = unboxNewEnd (arrEnd + SIZE_OF(a)) arr
+
+{-# INLINE unboxSkipUnsafe #-}
+unboxSkipUnsafe :: MutArray Word8 -> MutArray Word8
+unboxSkipUnsafe arr@MutArray{..} =  do
+    let newEnd = arrEnd + 1
+     in assert (newEnd <= arrBound) (arr {arrEnd = newEnd})
 
 -- | Like 'snoc' but does not reallocate when pre-allocated array capacity
 -- becomes full.
@@ -910,6 +946,19 @@ snocMay arr@MutArray{..} x = liftIO $ do
     then Just <$> snocNewEnd newEnd arr x
     else return Nothing
 
+-- | Like 'unbox' but does not reallocate when pre-allocated array capacity
+-- becomes full.
+--
+-- /Internal/
+{-# INLINE unboxMay #-}
+unboxMay :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> a -> m (Maybe (MutArray Word8))
+unboxMay arr@MutArray{..} x = liftIO $ do
+    let newEnd = arrEnd + SIZE_OF(a)
+    if newEnd <= arrBound
+    then Just <$> unboxNewEnd newEnd arr x
+    else return Nothing
+
 -- NOINLINE to move it out of the way and not pollute the instruction cache.
 {-# NOINLINE snocWithRealloc #-}
 snocWithRealloc :: forall m a. (MonadIO m, Unbox a) =>
@@ -920,6 +969,16 @@ snocWithRealloc :: forall m a. (MonadIO m, Unbox a) =>
 snocWithRealloc sizer arr x = do
     arr1 <- liftIO $ reallocWith "snocWith" sizer (SIZE_OF(a)) arr
     snocUnsafe arr1 x
+
+{-# NOINLINE unboxWithRealloc #-}
+unboxWithRealloc :: forall m a. (MonadIO m, Unbox a) =>
+       (Int -> Int)
+    -> MutArray Word8
+    -> a
+    -> m (MutArray Word8)
+unboxWithRealloc sizer arr x = do
+    arr1 <- liftIO $ reallocWith "snocWith" sizer (SIZE_OF(a)) arr
+    unboxUnsafe arr1 x
 
 -- | @snocWith sizer arr elem@ mutates @arr@ to append @elem@. The length of
 -- the array increases by 1.
@@ -945,6 +1004,18 @@ snocWith allocSize arr x = liftIO $ do
     if newEnd <= arrBound arr
     then snocNewEnd newEnd arr x
     else snocWithRealloc allocSize arr x
+
+{-# INLINE unboxWith #-}
+unboxWith :: forall m a. (MonadIO m, Unbox a) =>
+       (Int -> Int)
+    -> MutArray Word8
+    -> a
+    -> m (MutArray Word8)
+unboxWith allocSize arr x = liftIO $ do
+    let newEnd = arrEnd arr + SIZE_OF(a)
+    if newEnd <= arrBound arr
+    then unboxNewEnd newEnd arr x
+    else unboxWithRealloc allocSize arr x
 
 -- | The array is mutated to append an additional element to it. If there
 -- is no reserved space available in the array then it is reallocated to grow
@@ -983,6 +1054,62 @@ snoc = snocWith f
         if isPower2 oldSize
         then oldSize * 2
         else roundUpToPower2 oldSize * 2
+
+-- | Unbox a Haskell type and append the resulting bytes to a byte array.
+--
+-- Definition:
+--
+-- >>> unbox arr x = MutArray.castUnsafe <$> MutArray.snoc (MutArray.castUnsafe arr) x
+--
+{-# INLINE unbox #-}
+unbox :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> a -> m (MutArray Word8)
+unbox = unboxWith f
+
+    where
+
+    f oldSize =
+        if isPower2 oldSize
+        then oldSize * 2
+        else roundUpToPower2 oldSize * 2
+
+-- XXX We can copy the array to release memory if array becomes half filled.
+-- XXX We can have boxRev as well.
+
+-- | Really really unsafe, create an element from an unboxed byte array, does
+-- not check if the array is big enough, may return garbage or if you are lucky
+-- may cause a segfault.
+--
+-- /Internal/
+{-# INLINE boxUnsafe #-}
+boxUnsafe :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> m (a, MutArray Word8)
+boxUnsafe MutArray{..} = do
+    let start1 = arrStart + SIZE_OF(a)
+    assert (start1 <= arrEnd) (return ())
+    liftIO $ do
+        r <- peekByteIndex arrStart arrContents
+        return (r, MutArray arrContents start1 arrEnd arrBound)
+
+{-# INLINE boxSkipUnsafe #-}
+boxSkipUnsafe :: MutArray Word8 -> MutArray Word8
+boxSkipUnsafe MutArray{..} =
+    let start1 = arrStart + 1
+     in assert (start1 <= arrEnd) (MutArray arrContents start1 arrEnd arrBound)
+
+-- | Create a Haskell type from its unboxed representation in a byte array.
+-- Boxes the bytes at the beginning of the array and returns the boxed value
+-- and the remaining array. This is an uncons like operation.
+{-# INLINE box #-}
+box :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> m (Maybe a, MutArray Word8)
+box arr@MutArray{..} = do
+    let start1 = arrStart + SIZE_OF(a)
+    if (start1 > arrEnd)
+    then return (Nothing, arr)
+    else liftIO $ do
+        r <- peekByteIndex arrStart arrContents
+        return (Just r, MutArray arrContents start1 arrEnd arrBound)
 
 -------------------------------------------------------------------------------
 -- Random reads
@@ -1881,7 +2008,7 @@ pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a)
 pinnedWriteNAligned align = writeNWith (pinnedNewAligned align)
 
 -- XXX Buffer to a list instead?
---
+
 -- | Buffer a stream into a stream of arrays.
 --
 -- >>> writeChunks n = Fold.many (MutArray.writeN n) Fold.toStreamK
@@ -2054,7 +2181,7 @@ fromStreamDAs ps m = arrayStreamKFromStreamDAs ps m >>= fromArrayStreamK
 -- all the arrays.
 --
 -- XXX Compare if this is faster or "fold write".
---
+
 -- | We could take the approach of doubling the memory allocation on each
 -- overflow. This would result in more or less the same amount of copying as in
 -- the chunking approach. However, if we have to shrink in the end then it may
