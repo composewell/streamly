@@ -181,7 +181,7 @@ variableSizeOf ::
     -> Int
 variableSizeOf val =
     case size :: Size a of
-        VarSize f -> f 0 val
+        Size f -> f 0 val
 #endif
 
 testSerialization ::
