@@ -122,7 +122,7 @@ mkSizeOfExpr headTy constructors =
                 [] ->
                     appE
                         (conE 'Size)
-                        (lamE [varP _acc, varP _x] [| $(varE _acc) + 1 |])
+                        (lamE [varP _acc, wildP] [| $(varE _acc) + 1 |])
                 -- Product type
                 _ ->
                     appE
