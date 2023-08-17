@@ -19,7 +19,6 @@ module Main (main) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Exception (assert)
-import Control.Monad (replicateM_)
 import GHC.Generics (Generic)
 import System.Random (randomRIO)
 #ifndef USE_UNBOX
@@ -32,7 +31,7 @@ import Streamly.Internal.Data.Unbox
 #else
 import Control.DeepSeq (force)
 import Test.QuickCheck (oneof, generate)
-import Streamly.Internal.Data.Unbox (newBytes)
+import Streamly.Internal.Data.Unbox (newBytes, MutableByteArray)
 import Streamly.Internal.Data.Serialize
 #endif
 
@@ -271,22 +270,32 @@ runQC = quickCheckWith stdArgs {maxSuccess = 100} prop
 -- Helpers
 -------------------------------------------------------------------------------
 
-{-# INLINE pokeTimes #-}
-pokeTimes :: forall a. SERIALIZE_CLASS a => a -> Int -> IO ()
-pokeTimes val times = do
-    -- XXX Size computation should also be part of the loop measuring
-    -- serialization cost.
+
+-- Parts of "f" that are dependent on val will not be optimized out.
+{-# INLINE loop #-}
+loop :: Int -> (a -> IO b) -> a -> IO ()
+loop count f val = go count val
+    where
+
+    go n x = do
+        if n > 0
+        then f x >> go (n-1) x
+        else return ()
+
+{-# INLINE poke #-}
+poke :: SERIALIZE_CLASS a => a -> IO ()
+poke val = do
     let n = getSize val
     arr <- newBytes n
-    replicateM_ times $ do
-        SERIALIZE_OP 0 arr val
+    SERIALIZE_OP 0 arr val >> return ()
 
-{-# INLINE peekTimes #-}
-peekTimes :: forall a. (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
-peekTimes n val times = do
-    arr <- newBytes n
-    _ <- SERIALIZE_OP 0 arr val
-    replicateM_ times $ do
+{-# INLINE pokeTimes #-}
+pokeTimes :: SERIALIZE_CLASS a => a -> Int -> IO ()
+pokeTimes val times = loop times poke val
+
+{-# INLINE peek #-}
+peek :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> MutableByteArray -> IO ()
+peek val arr = do
 #ifdef USE_UNBOX
         val1
 #else
@@ -301,26 +310,34 @@ peekTimes n val times = do
         then error "peek: no match"
         else return ()
 
-{-# INLINE roundtrip #-}
-roundtrip :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> Int -> IO ()
-roundtrip val times = do
-    -- XXX Size computation should also be part of the loop measuring
-    -- serialization cost.
+{-# INLINE peekTimes #-}
+peekTimes :: (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
+peekTimes n val times = do
+    arr <- newBytes n
+    _ <- SERIALIZE_OP 0 arr val
+    loop times (peek val) arr
+
+{-# INLINE trip #-}
+trip :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> IO ()
+trip val = do
     let n = getSize val
     arr <- newBytes n
-    replicateM_ times $ do
-        _ <- SERIALIZE_OP 0 arr val
+    _ <- SERIALIZE_OP 0 arr val
 #ifdef USE_UNBOX
-        val1
+    val1
 #else
-        (_, val1)
+    (_, val1)
 #endif
-            <- DESERIALIZE_OP 0 arr
-        assert (val == val1) (pure ())
-        -- So that the compiler does not optimize it out
-        if (val1 /= val)
-        then error "roundtrip: no match"
-        else return ()
+        <- DESERIALIZE_OP 0 arr
+    assert (val == val1) (pure ())
+    -- So that the compiler does not optimize it out
+    if (val1 /= val)
+    then error "roundtrip: no match"
+    else return ()
+
+{-# INLINE roundtrip #-}
+roundtrip :: (Eq a, SERIALIZE_CLASS a) => a -> Int -> IO ()
+roundtrip val times = loop times trip val
 
 benchSink :: NFData b => String -> Int -> (Int -> IO b) -> Benchmark
 benchSink name times f = bench name (nfIO (randomRIO (times, times) >>= f))
@@ -447,7 +464,8 @@ main = do
     -- peekTimes (Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25) value
     -- !(tInt :: BinTree Int) <- force <$> mkBinTree 16
     -- print $ sizeOfOnce tInt
-    print $ sizeOfOnce lInt
+    -- print $ sizeOfOnce lInt
+    pokeTimes tInt 1
     -- peekTimes tInt 1
     -- roundtrip ((CDT1C2 (5 :: Int)) :: CustomDT1) value
     return ()
