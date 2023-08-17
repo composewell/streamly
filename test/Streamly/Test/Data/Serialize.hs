@@ -15,17 +15,15 @@ module Streamly.Test.Data.Serialize (main) where
 --------------------------------------------------------------------------------
 
 import Streamly.Internal.Data.Unbox (newBytes)
-
-import Test.Hspec as H
-
+import GHC.Generics (Generic)
+import Streamly.Test.Data.Serialize.TH (genDatatype)
 import Streamly.Internal.Data.Serialize.TH (deriveSerialize)
--- import Streamly.Internal.Data.Serialize (Serialize(..))
 
 import qualified Streamly.Internal.Data.Serialize as Serialize
 
-import Streamly.Test.Data.Serialize.TH (genDatatype)
-
 import Test.Hspec.QuickCheck
+import Test.QuickCheck
+import Test.Hspec as H
 
 --------------------------------------------------------------------------------
 -- Generated types
@@ -33,6 +31,21 @@ import Test.Hspec.QuickCheck
 
 $(genDatatype "CustomDatatype" 15)
 $(deriveSerialize ''CustomDatatype)
+
+--------------------------------------------------------------------------------
+-- Recursive type
+--------------------------------------------------------------------------------
+
+-- Recursive ADT
+data BinTree a
+  = Tree (BinTree a) (BinTree a)
+  | Leaf a
+  deriving (Show, Read, Eq, Generic)
+
+$(deriveSerialize ''BinTree)
+
+instance Arbitrary a => Arbitrary (BinTree a) where
+  arbitrary = oneof [Leaf <$> arbitrary, Tree <$> arbitrary <*> arbitrary]
 
 --------------------------------------------------------------------------------
 -- Test helpers
@@ -91,12 +104,14 @@ testCases = do
     prop "[CustomDatatype]"
         $ \(x :: [CustomDatatype]) -> roundtrip x
 
+    prop "BinTree" $ \(x :: BinTree Int) -> roundtrip x
+
 --------------------------------------------------------------------------------
 -- Main function
 --------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Unboxed"
+moduleName = "Data.Serialize"
 
 main :: IO ()
 main = hspec $ H.parallel $ describe moduleName testCases
