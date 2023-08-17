@@ -78,19 +78,8 @@ matchConstructor cname numFields exp0 =
 
 exprGetSize :: Q Exp -> (Int, Type) -> Q Exp
 exprGetSize acc (i, ty) =
-    caseE
-        (sigE (varE 'size) (appT (conT ''Size) (pure ty)))
-        [ match
-              (conP 'Size [varP _f])
-              (normalB (appsE [(varE _f), acc, (varE (mkFieldName i))]))
-              []
-        ]
-
-    where
-
-    _f = mkName $ "f"
-    _sz = mkName $ "sz"
-
+    [|case size :: Size $(pure ty) of
+          Size f -> f $(acc) $(varE (mkFieldName i))|]
 
 getTagSize :: Int -> Int
 getTagSize numConstructors
