@@ -371,6 +371,8 @@ class Unbox a where
         Int -> MutableByteArray -> a -> IO ()
     pokeByteIndex i arr = genericPokeByteIndex arr i
 
+-- XXX Add asserts to check bounds
+
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray, _sizeOf) \
 instance Unbox _type where {                                         \
 ; {-# INLINE peekByteIndex #-}                                       \
