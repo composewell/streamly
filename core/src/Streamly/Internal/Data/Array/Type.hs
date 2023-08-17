@@ -46,7 +46,7 @@ module Streamly.Internal.Data.Array.Type
 
     -- * Elimination
     , unsafeIndexIO
-    , getIndexUnsafe -- getIndexUnsafe
+    , getIndexUnsafe
     , byteLength
     , length
 
