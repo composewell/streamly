@@ -17,20 +17,19 @@ import Control.Monad (replicateM)
 import Control.Monad.Catch (throwM)
 import Data.List (sort)
 import Data.Word (Word8)
-import Streamly.Internal.Data.Stream ( Stream )
+import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (mkCross, unCross)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Testable, Property, choose, forAll, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
-import qualified Streamly.Data.Fold as Fold ( toList )
-import qualified Streamly.Internal.Data.Stream as Stream
-    ( replicate, fromEffect, fromPure, fromList, fold, take, nil, toList, cons, consM, toStreamK, fromStreamK )
 import qualified Streamly.Internal.Data.Stream.Concurrent as Async
-import Streamly.Internal.Data.Stream.Cross (CrossStream(..))
+
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified  Streamly.Internal.Data.Stream.Type as IS
+import qualified Streamly.Internal.Data.Stream as IS
+import qualified Streamly.Internal.Data.StreamK as K
 
 import Streamly.Test.Common (listEquals)
 
@@ -232,7 +231,8 @@ constructWithCons len cfg =
         strm <-
             run
                $ Stream.toList . Async.parEval cfg . Stream.take (fromIntegral len)
-               $ foldr Stream.cons Stream.nil (repeat (0::Int))
+               $ IS.fromStreamK
+               $ foldr K.cons K.nil (repeat (0::Int))
         let list = replicate (fromIntegral len) 0
         listEquals (==) strm list
 
@@ -246,7 +246,8 @@ constructWithConsM len cfg =
         strm <-
             run
                $ Stream.toList . Async.parEval cfg . Stream.take (fromIntegral len)
-               $ foldr Stream.consM Stream.nil (repeat (return (0::Int)))
+               $ IS.fromStreamK
+               $ foldr K.consM K.nil (repeat (return (0::Int)))
         let list = replicate (fromIntegral len) 0
         listEquals (==) strm list
 
@@ -257,11 +258,10 @@ monadBind ::
 monadBind (a, b) cfg =
     withMaxSuccess maxTestCount $
     monadicIO $ do
-
-        let st =  (CrossStream  $ (IS.fromStream (Stream.fromList a) :: IS.Stream IO Int))
-                    >>= \x -> (+ x) <$> (CrossStream  $ (IS.fromStream (Stream.fromList b)))
+        let st =  (mkCross $ Stream.fromList a)
+                    >>= \x -> (+ x) <$> (mkCross $ Stream.fromList b)
         strm <- run
-                ((Stream.toList . Async.parEval cfg . IS.toStreamD . unCrossStream ) st)
+                ((Stream.toList . Async.parEval cfg . unCross ) st)
 
         let list = a >>= \x -> (+ x) <$> b
         listEquals (==) strm list
@@ -274,10 +274,10 @@ monadThen (a, b) cfg =
     withMaxSuccess maxTestCount $
     monadicIO $ do
 
-        let st =  (CrossStream  $ (IS.fromStream (Stream.fromList a) :: IS.Stream IO Int))
-                    >> (CrossStream  $ (IS.fromStream (Stream.fromList b)))
+        let st =  (mkCross $ (Stream.fromList a :: IS.Stream IO Int))
+                    >> (mkCross $ Stream.fromList b)
         strm <- run
-                ((Stream.toList . Async.parEval cfg . IS.toStreamD . unCrossStream ) st)
+                ((Stream.toList . Async.parEval cfg . unCross ) st)
 
         let list = a >> b
         listEquals (==) strm list
@@ -297,7 +297,7 @@ main = hspec
             in prop "parEval" . transform (fmap (+2)) . appWith
 
         asyncSpec $ prop "constructWithCons" . constructWithCons 100
-        --asyncSpec $ prop "constructWithConsM" . constructWithConsM 100
+        asyncSpec $ prop "constructWithConsM" . constructWithConsM 100
         asyncSpec $ prop "monadBind" . monadBind ([1..100] , [1..100])
         asyncSpec $ prop "monadThen" . monadThen ([1..100] , [1..100])
 
