@@ -722,9 +722,9 @@ readOneEvent :: P.Parser Word8 IO Event
 readOneEvent = do
     arr <- P.takeEQ 24 (A.writeN 24)
     let arr1 = A.castUnsafe arr :: A.Array Word64
-        eid = A.unsafeIndex 0 arr1
-        eflags = A.unsafeIndex 1 arr1
-        pathLen = fromIntegral $ A.unsafeIndex 2 arr1
+        eid = A.getIndexUnsafe 0 arr1
+        eflags = A.getIndexUnsafe 1 arr1
+        pathLen = fromIntegral $ A.getIndexUnsafe 2 arr1
     path <- P.takeEQ pathLen (A.writeN pathLen)
     return $ Event
         { eventId = eid

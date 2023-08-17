@@ -46,7 +46,7 @@ module Streamly.Internal.Data.Array.Type
 
     -- * Elimination
     , unsafeIndexIO
-    , unsafeIndex -- getIndexUnsafe
+    , getIndexUnsafe -- getIndexUnsafe
     , byteLength
     , length
 
@@ -370,9 +370,9 @@ unsafeIndexIO :: forall a. Unbox a => Int -> Array a -> IO a
 unsafeIndexIO i arr = MA.getIndexUnsafe i (unsafeThaw arr)
 
 -- | Return element at the specified index without checking the bounds.
-{-# INLINE_NORMAL unsafeIndex #-}
-unsafeIndex :: forall a. Unbox a => Int -> Array a -> a
-unsafeIndex i arr = let !r = unsafeInlineIO $ unsafeIndexIO i arr in r
+{-# INLINE_NORMAL getIndexUnsafe #-}
+getIndexUnsafe :: forall a. Unbox a => Int -> Array a -> a
+getIndexUnsafe i arr = let !r = unsafeInlineIO $ unsafeIndexIO i arr in r
 
 -- | /O(1)/ Get the byte length of the array.
 --
