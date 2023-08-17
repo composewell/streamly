@@ -28,7 +28,11 @@ import Streamly.Internal.Data.Unbox (Unbox(..), sizeOfMutableByteArray)
 import Control.Monad (void)
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
-import Streamly.Internal.Data.Unbox (MutableByteArray(..), PinnedState(..))
+import Streamly.Internal.Data.Unbox
+    ( MutableByteArray(..)
+    , PinnedState(..)
+    , Unbox
+    )
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
@@ -148,25 +152,32 @@ checkBounds _label _off _arr = do
     return ()
 #endif
 
+{-# INLINE deserializeUnsafe #-}
+deserializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> IO (Int, a)
+deserializeUnsafe off arr =
+    let next = off + Unbox.sizeOf (Proxy :: Proxy a)
+     in do
+        checkBounds "deserialize" next arr
+        Unbox.peekByteIndex off arr >>= \val -> pure (next, val)
+
+{-# INLINE serializeUnsafe #-}
+serializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> a -> IO Int
+serializeUnsafe off arr val =
+    let next = off + Unbox.sizeOf (Proxy :: Proxy a)
+     in do
+        checkBounds "serialize" next arr
+        Unbox.pokeByteIndex off arr val
+        pure next
+
 #define DERIVE_SERIALIZE_FROM_UNBOX(_type) \
 instance Serialize _type where \
 ; {-# INLINE size #-} \
 ;    size = Size (\acc _ -> acc +  Unbox.sizeOf (Proxy :: Proxy _type)) \
 ; {-# INLINE deserialize #-} \
-;    deserialize off arr = \
-        let next = off + Unbox.sizeOf (Proxy :: Proxy _type) \
-         in do { \
-            checkBounds "deserialize" next arr; \
-            Unbox.peekByteIndex off arr >>= \val -> pure (next, val); \
-         } \
+;    deserialize off arr = deserializeUnsafe off arr :: IO (Int, _type) \
 ; {-# INLINE serialize #-} \
-;    serialize off arr val = \
-        let next = off + Unbox.sizeOf (Proxy :: Proxy _type) \
-         in do { \
-            checkBounds "serialize" next arr; \
-            Unbox.pokeByteIndex off arr val; \
-            pure next \
-         }
+;    serialize =  \
+        serializeUnsafe :: Int -> MutableByteArray -> _type -> IO Int
 
 DERIVE_SERIALIZE_FROM_UNBOX(Bool)
 DERIVE_SERIALIZE_FROM_UNBOX(Char)
