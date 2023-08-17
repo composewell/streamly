@@ -9,22 +9,29 @@
 module Streamly.Internal.Data.Serialize
     ( Size(..)
     , Serialize(..)
+    , encode
+    , pinnedEncode
+    , decode
     ) where
 
 --------------------------------------------------------------------------------
 -- Imports
 --------------------------------------------------------------------------------
 
+#include "assert.hs"
+
 import Control.Monad (void)
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
-import Streamly.Internal.Data.Unbox (MutableByteArray(..))
-
+import Streamly.Internal.Data.Unbox (MutableByteArray(..), PinnedState(..))
+import Streamly.Internal.Data.Array.Type (Array(..))
+import Streamly.Internal.System.IO (unsafeInlineIO)
 import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
 import GHC.Stable (StablePtr(..))
 
 import qualified Streamly.Internal.Data.Unbox as Unbox
+import qualified Streamly.Internal.Data.Array as Array
 
 import GHC.Exts
 
@@ -167,3 +174,41 @@ instance forall a. Serialize a => Serialize [a] where
               o1 <- serialize o arr x
               pokeList o1 xs
         pokeList off1 val
+
+--------------------------------------------------------------------------------
+-- High level functions
+--------------------------------------------------------------------------------
+
+{-# INLINE encodeAs #-}
+encodeAs :: forall a. Serialize a => PinnedState -> a -> Array Word8
+encodeAs ps a =
+    unsafeInlineIO $ do
+        let len =
+              case size :: Size a of
+                  ConstSize sz -> sz
+                  VarSize f -> f a
+        -- We encode the length of the encoding as a header hence the 8 extra
+        -- bytes to encode Int64
+        mbarr <- Unbox.newBytesAs ps (8  +  len)
+        off1 <- serialize 0 mbarr (fromIntegral len :: Int64)
+        off2 <- serialize off1 mbarr a
+        assertM(off2 == len + off1)
+        pure $ Array mbarr 0 len
+
+{-# INLINE encode #-}
+encode :: Serialize a => a -> Array Word8
+encode = encodeAs Unpinned
+
+{-# INLINE pinnedEncode #-}
+pinnedEncode :: Serialize a => a -> Array Word8
+pinnedEncode = encodeAs Pinned
+
+{-# INLINE decode #-}
+decode :: Serialize a => Array Word8 -> a
+decode arr@(Array {..}) = unsafeInlineIO $ do
+    let lenArr = Array.length arr
+    (off1, lenEncoding :: Int64) <- deserialize 0 arrContents
+    (off2, val) <- deserialize off1 arrContents
+    assertM(fromIntegral lenEncoding + off1 == off2)
+    assertM(lenArr == off2)
+    pure val
