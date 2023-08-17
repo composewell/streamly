@@ -171,6 +171,7 @@ mkSizeOfExpr headTy constructors =
 mkDeserializeExprOne :: DataCon -> Q Exp
 mkDeserializeExprOne (DataCon cname _ _ fields) =
     case fields of
+        -- Only tag is serialized for unit fields, no actual value
         [] -> [|pure ($(varE (mkName "i0")), $(conE cname))|]
         _ ->
             doE
@@ -203,12 +204,15 @@ mkDeserializeExpr headTy cons =
             [|error
                   ("Attempting to peek type with no constructors (" ++
                    $(lift (pprint headTy)) ++ ")")|]
+        -- Unit constructor
         [(DataCon cname _ _ [])] ->
             [|pure ($(varE _initialOffset) + 1, $(conE cname))|]
+        -- Product type
         [con] ->
             letE
                 [valD (varP (mkName "i0")) (normalB (varE _initialOffset)) []]
                 (mkDeserializeExprOne con)
+        -- Sum type
         _ ->
             doE
                 [ bindS
@@ -228,6 +232,7 @@ mkDeserializeExpr headTy cons =
         match
             wildP
             (normalB
+                -- XXX Print the tag
                  [|error
                        ("Found invalid tag while peeking (" ++
                         $(lift (pprint headTy)) ++ ")")|])
@@ -247,6 +252,7 @@ mkSerializeExprTag tagType tagVal =
 mkSerializeExprFields :: [Field] -> Q Exp
 mkSerializeExprFields fields =
     case fields of
+        -- Unit constructor, do nothing just tag is enough
         [] -> [|pure ($(varE (mkName "i0")))|]
         _ ->
             doE
@@ -266,7 +272,9 @@ mkSerializeExpr headTy cons =
             [|error
                   ("Attempting to poke type with no constructors (" ++
                    $(lift (pprint headTy)) ++ ")")|]
+        -- Unit type
         [(DataCon _ _ _ [])] -> [|pure ($(varE _initialOffset) + 1)|]
+        -- Product type
         [(DataCon cname _ _ fields)] ->
             letE
                 [valD (varP (mkName "i0")) (normalB (varE _initialOffset)) []]
@@ -277,6 +285,7 @@ mkSerializeExpr headTy cons =
                            (length fields)
                            (mkSerializeExprFields fields)
                      ])
+        -- Sum type
         _ ->
             caseE
                 (varE _val)
