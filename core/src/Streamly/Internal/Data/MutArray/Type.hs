@@ -204,6 +204,10 @@ module Streamly.Internal.Data.MutArray.Type
     , splitAt -- XXX should be able to express using getSlice
     , breakOn
 
+    -- ** Cloning arrays
+    , clone
+    , pinnedClone
+
     -- ** Appending arrays
     , spliceCopy
     , spliceWith
@@ -2086,8 +2090,35 @@ fromListRev :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
 fromListRev xs = fromListRevN (Prelude.length xs) xs
 
 -------------------------------------------------------------------------------
+-- Cloning
+-------------------------------------------------------------------------------
+
+{-# INLINE cloneAs #-}
+cloneAs :: MonadIO m => PinnedState -> MutArray a -> m (MutArray a)
+cloneAs ps src =
+    liftIO $ do
+        let startSrc = arrStart src
+            srcLen = arrEnd src - startSrc
+            newArrDst = srcLen
+        newArr <- newBytesAs ps srcLen
+        putSliceUnsafe src startSrc newArr 0 srcLen
+        return $ newArr {arrEnd = newArrDst}
+
+{-# INLINE clone #-}
+clone :: MonadIO m => MutArray a -> m (MutArray a)
+clone = cloneAs Unpinned
+
+{-# INLINE pinnedClone #-}
+pinnedClone :: MonadIO m => MutArray a -> m (MutArray a)
+pinnedClone = cloneAs Pinned
+
+-------------------------------------------------------------------------------
 -- Combining
 -------------------------------------------------------------------------------
+
+-- XXX Change the signature of this function to
+-- putSliceUnsafe :: MonadIO m => MutableByteArray -> Int -> MutableByteArray -> Int -> Int -> m ()
+-- We don't use the relative indexes but the absolute ones. So we should MutableByteArray to remove any confusion.
 
 -- | Put a sub range of a source array into a subrange of a destination array.
 -- This is not safe as it does not check the bounds.
