@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Data.Stream.StreamK
+-- Module      : Streamly.Benchmark.Data.StreamK
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
@@ -632,7 +632,7 @@ filterAllInNestedList str = do
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Stream.StreamK"
+moduleName = "Data.StreamK"
 
 o_1_space_generation :: Int -> Benchmark
 o_1_space_generation streamLen =

@@ -18,7 +18,7 @@ import Prelude hiding ()
 -- import qualified Prelude as P
 -- import qualified Data.List as List
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Alt as S
+import qualified Streamly.Internal.Data.StreamK.Alt as S
 -- import qualified Streamly.Internal.Data.Stream.Common as SP
 -- import qualified Streamly.Internal.Data.SVar as S
 

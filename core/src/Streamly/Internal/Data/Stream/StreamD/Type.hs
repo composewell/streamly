@@ -163,7 +163,7 @@ import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL hiding (foldr)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 #ifdef USE_UNFOLDS_EVERYWHERE
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 #endif

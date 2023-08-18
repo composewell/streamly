@@ -32,7 +32,7 @@ where
 
 import Streamly.Internal.Data.Fold.Type (Fold (..))
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 import Prelude hiding (Foldable(..), repeat)

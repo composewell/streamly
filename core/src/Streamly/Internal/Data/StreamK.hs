@@ -17,8 +17,8 @@ module Streamly.Internal.Data.StreamK
     -- $setup
 
     -- * The stream type
-      module Streamly.Internal.Data.Stream.StreamK.Type
-    , module Streamly.Internal.Data.Stream.StreamK.Transformer
+      module Streamly.Internal.Data.StreamK.Type
+    , module Streamly.Internal.Data.StreamK.Transformer
 
     , StreamK(..)
     , fromList
@@ -159,8 +159,8 @@ import Prelude
                notElem, head, tail, init, zipWith, lookup,
                (!!), replicate, reverse, concatMap, iterate, splitAt)
 import Data.Foldable (sum, length)
-import Streamly.Internal.Data.Stream.StreamK.Type
-import Streamly.Internal.Data.Stream.StreamK.Transformer
+import Streamly.Internal.Data.StreamK.Type
+import Streamly.Internal.Data.StreamK.Transformer
 import Streamly.Internal.Data.Parser (ParseError(..))
 
 #include "DocTestDataStreamK.hs"

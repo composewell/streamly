@@ -127,7 +127,7 @@ import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Prelude
 
 import Streamly.Internal.Data.Unfold.Enumeration

@@ -16,7 +16,7 @@ targets =
             , "noTest"
             ]
       )
-    , ("Data.Stream.StreamK",
+    , ("Data.StreamK",
             [ "base_stream_grp"
             , "base_stream_cmp"
             , "noTest"

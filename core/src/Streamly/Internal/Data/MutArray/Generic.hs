@@ -190,7 +190,7 @@ import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Lift as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding (read, length)
 

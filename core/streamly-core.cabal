@@ -416,8 +416,8 @@ library
                     , Streamly.Internal.Data.Stream.StreamD.Transformer
                     , Streamly.Internal.Data.Stream.StreamD.Type
 
-                    , Streamly.Internal.Data.Stream.StreamK.Type
-                    , Streamly.Internal.Data.Stream.StreamK.Transformer
+                    , Streamly.Internal.Data.StreamK.Type
+                    , Streamly.Internal.Data.StreamK.Transformer
 
                     , Streamly.Internal.Data.Pipe.Type
 
@@ -433,7 +433,7 @@ library
 
     if flag(dev)
       other-modules:
-                        Streamly.Internal.Data.Stream.StreamK.Alt
+                        Streamly.Internal.Data.StreamK.Alt
                       , Streamly.Internal.Data.List
 
     build-depends:

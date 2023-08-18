@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Data.Stream.StreamK
+-- Module      : Streamly.Benchmark.Data.StreamK
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3

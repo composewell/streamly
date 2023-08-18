@@ -148,7 +148,7 @@ import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
+import qualified Streamly.Internal.Data.StreamK.Type as K (mkStream)
 
 #include "DocTestFileSystemHandle.hs"
 

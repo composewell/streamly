@@ -173,7 +173,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding
        ( drop, dropWhile, filter, map, mapM, reverse

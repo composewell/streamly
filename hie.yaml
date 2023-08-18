@@ -33,7 +33,7 @@ cradle:
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/StreamD.hs"
               component: "bench:Data.Stream.StreamD"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/StreamK.hs"
-              component: "bench:Data.Stream.StreamK"
+              component: "bench:Data.StreamK"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/ToStreamK.hs"
               component: "bench:Data.Stream.ToStreamK"
             - path: "./benchmark/Streamly/Benchmark/Data/Stream/Common.hs"

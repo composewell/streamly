@@ -76,7 +76,7 @@ import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as Stream
 

@@ -113,7 +113,7 @@ import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Unbox as Unboxed
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec

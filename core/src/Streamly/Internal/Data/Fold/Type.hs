@@ -452,7 +452,7 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding (Foldable(..), concatMap, filter, map, take)
 

@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamK.Transformer
+-- Module      : Streamly.Internal.Data.StreamK.Transformer
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Stream.StreamK.Transformer
+module Streamly.Internal.Data.StreamK.Transformer
     (
       foldlT
     , foldrT
@@ -18,7 +18,7 @@ where
 
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.Trans.State.Strict (StateT)
-import Streamly.Internal.Data.Stream.StreamK.Type
+import Streamly.Internal.Data.StreamK.Type
     (StreamK, nil, cons, uncons, concatEffect)
 
 import qualified Control.Monad.Trans.State.Strict as State

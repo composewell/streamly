@@ -463,7 +463,7 @@ benchmark Data.Stream.StreamD
   if impl(ghcjs)
     buildable: False
 
-benchmark Data.Stream.StreamK
+benchmark Data.StreamK
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream
@@ -479,7 +479,7 @@ benchmark Data.Stream.ToStreamK
   if !flag(dev) || impl(ghcjs)
     buildable: False
 
-benchmark Data.Stream.StreamK.Alt
+benchmark Data.StreamK.Alt
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream
