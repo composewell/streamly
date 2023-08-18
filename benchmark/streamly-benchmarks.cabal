@@ -152,15 +152,17 @@ common compile-options
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
 
-    if flag(dev) || flag(debug)
-      ghc-options:    -fno-ignore-asserts
-
 common optimization-options
   if flag(opt)
     ghc-options: -O2
                  -fdicts-strict
                  -fspec-constr-recursive=16
                  -fmax-worker-args=16
+
+    -- For this to be effective it must come after the -O2 option
+    if flag(dev) || flag(debug)
+      ghc-options: -fno-ignore-asserts
+
     if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
       ghc-options: -fplugin Fusion.Plugin
   else
