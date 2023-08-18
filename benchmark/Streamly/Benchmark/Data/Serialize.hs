@@ -17,6 +17,7 @@ module Main (main) where
 -- Imports
 -------------------------------------------------------------------------------
 
+import Data.Word (Word8)
 import Control.DeepSeq (NFData(..))
 import Control.Exception (assert)
 import GHC.Generics (Generic)
@@ -32,17 +33,19 @@ import Streamly.Internal.Data.Unbox
 import Control.DeepSeq (force)
 import Test.QuickCheck (oneof, generate)
 import Streamly.Internal.Data.Unbox (newBytes, MutableByteArray)
-import Streamly.Internal.Data.Serialize
+import Streamly.Internal.Data.MutArray.Serialize
 #endif
 
 #ifdef USE_TH
 #ifdef USE_UNBOX
 import Streamly.Internal.Data.Unbox.TH
 #else
-import Streamly.Internal.Data.Serialize.TH
+import Streamly.Internal.Data.MutArray.TH
 #endif
 #endif
 
+import Streamly.Internal.Data.MutArray (MutArray)
+import qualified Streamly.Internal.Data.MutArray as MutArray
 import Gauge
 import Streamly.Benchmark.Common
 
@@ -61,6 +64,8 @@ import Streamly.Benchmark.Common
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
+
+$(deriveSerialize ''[])
 
 data Unit = Unit
     deriving (Generic, Show, Eq)
@@ -290,38 +295,38 @@ benchSink name times f = bench name (nfIO (randomRIO (times, times) >>= f))
 -------------------------------------------------------------------------------
 
 {-# INLINE pokeWithSize #-}
-pokeWithSize :: SERIALIZE_CLASS a => MutableByteArray -> a -> IO ()
+pokeWithSize :: SERIALIZE_CLASS a => MutArray Word8 -> a -> IO ()
 pokeWithSize arr val = do
     let n = getSize val
-    n `seq` SERIALIZE_OP 0 arr val >> return ()
+    n `seq` SERIALIZE_OP arr val >> return ()
 
 {-# INLINE pokeTimesWithSize #-}
 pokeTimesWithSize :: SERIALIZE_CLASS a => a -> Int -> IO ()
 pokeTimesWithSize val times = do
     let n = getSize val
-    arr <- newBytes n
+    arr <- MutArray.new n
     loopWith times pokeWithSize arr val
 
 {-# INLINE poke #-}
-poke :: SERIALIZE_CLASS a => MutableByteArray -> a -> IO ()
-poke arr val = SERIALIZE_OP 0 arr val >> return ()
+poke :: SERIALIZE_CLASS a => MutArray Word8 -> a -> IO ()
+poke arr val = SERIALIZE_OP arr val >> return ()
 
 {-# INLINE pokeTimes #-}
 pokeTimes :: SERIALIZE_CLASS a => a -> Int -> IO ()
 pokeTimes val times = do
     let n = getSize val
-    arr <- newBytes n
+    arr <- MutArray.new n
     loopWith times poke arr val
 
 {-# INLINE peek #-}
-peek :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> MutableByteArray -> IO ()
+peek :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> MutArray Word8 -> IO ()
 peek val arr = do
 #ifdef USE_UNBOX
         (val1 :: a)
 #else
-        (_, val1 :: a)
+        (val1 :: a, _)
 #endif
-            <- DESERIALIZE_OP 0 arr
+            <- DESERIALIZE_OP arr
         -- XXX We assert in trip but we don't assert here?
         -- Ensure that we are actually constructing the type and using it.
         -- Otherwise we may just read the values and discard them.
@@ -337,22 +342,23 @@ peek val arr = do
 {-# INLINE peekTimes #-}
 peekTimes :: (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
 peekTimes n val times = do
-    arr <- newBytes n
-    _ <- SERIALIZE_OP 0 arr val
+    arr0 <- MutArray.new n
+    arr <- SERIALIZE_OP arr0 val
     loopWith times peek val arr
 
 {-# INLINE trip #-}
-trip :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> IO ()
-trip val = do
-    let n = getSize val
-    arr <- newBytes n
-    _ <- SERIALIZE_OP 0 arr val
+trip :: forall a. (Eq a, SERIALIZE_CLASS a) => Int -> a -> IO ()
+trip n val = do
+    -- We do not need getSize, because we realloc
+    -- let n = getSize val
+    arr0 <- MutArray.new n
+    arr <- SERIALIZE_OP arr0 val
 #ifdef USE_UNBOX
     val1
 #else
-    (_, val1)
+    (val1, _)
 #endif
-        <- DESERIALIZE_OP 0 arr
+        <- DESERIALIZE_OP arr
     assert (val == val1) (pure ())
     -- So that the compiler does not optimize it out
     {-
@@ -363,8 +369,8 @@ trip val = do
     return ()
 
 {-# INLINE roundtrip #-}
-roundtrip :: (Eq a, SERIALIZE_CLASS a) => a -> Int -> IO ()
-roundtrip val times = loop times trip val
+roundtrip :: (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
+roundtrip n val times = loopWith times trip n val
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -433,12 +439,12 @@ allBenchmarks tInt lInt times =
     , benchConst "poke" (const pokeTimes) times
     , benchConst "pokeWithSize" (const pokeTimesWithSize) times
     , benchConst "peek" peekTimes times
-    , benchConst "roundtrip" (const roundtrip) times
+    , benchConst "roundtrip" roundtrip times
 #ifndef USE_UNBOX
     , benchVar "poke" (const pokeTimes) tInt lInt 1
     , benchVar "pokeWithSize" (const pokeTimesWithSize) tInt lInt 1
     , benchVar "peek" peekTimes tInt lInt 1
-    , benchVar "roundtrip" (const roundtrip) tInt lInt 1
+    , benchVar "roundtrip" roundtrip tInt lInt 1
 #endif
     ]
 
