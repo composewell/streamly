@@ -295,6 +295,8 @@ test-suite Data.Serialize
   main-is: Streamly/Test/Data/Serialize.hs
   other-modules: Streamly.Test.Data.Serialize.TH
   ghc-options: -main-is Streamly.Test.Data.Serialize.main
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
 
 test-suite Data.Array.Stream
   import: test-options
