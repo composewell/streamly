@@ -308,6 +308,8 @@ library
                      , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.MutArray.Type
+                     , Streamly.Internal.Data.MutArray.Serialize
+                     , Streamly.Internal.Data.MutArray.TH
                      , Streamly.Internal.Data.MutArray
                      , Streamly.Internal.Data.Array.Type
                      , Streamly.Internal.Data.MutArray.Generic
