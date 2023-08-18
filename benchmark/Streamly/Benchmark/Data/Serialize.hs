@@ -270,7 +270,6 @@ runQC = quickCheckWith stdArgs {maxSuccess = 100} prop
 -- Helpers
 -------------------------------------------------------------------------------
 
-
 -- Parts of "f" that are dependent on val will not be optimized out.
 {-# INLINE loop #-}
 loop :: Int -> (a -> IO b) -> a -> IO ()
@@ -282,16 +281,41 @@ loop count f val = go count val
         then f x >> go (n-1) x
         else return ()
 
-{-# INLINE poke #-}
-poke :: SERIALIZE_CLASS a => a -> IO ()
-poke val = do
+-- The first arg of "f" is the environment which is not threaded around in the
+-- loop.
+{-# INLINE loopWith #-}
+loopWith :: Int -> (env -> a -> IO b) -> env -> a -> IO ()
+loopWith count f e val = go count val
+    where
+
+    go n x = do
+        if n > 0
+        then f e x >> go (n-1) x
+        else return ()
+
+{-# INLINE pokeWithSize #-}
+pokeWithSize :: SERIALIZE_CLASS a => MutableByteArray -> a -> IO ()
+pokeWithSize arr val = do
+    let n = getSize val
+    n `seq` SERIALIZE_OP 0 arr val >> return ()
+
+{-# INLINE pokeTimesWithSize #-}
+pokeTimesWithSize :: SERIALIZE_CLASS a => a -> Int -> IO ()
+pokeTimesWithSize val times = do
     let n = getSize val
     arr <- newBytes n
-    SERIALIZE_OP 0 arr val >> return ()
+    loopWith times pokeWithSize arr val
+
+{-# INLINE poke #-}
+poke :: SERIALIZE_CLASS a => MutableByteArray -> a -> IO ()
+poke arr val = SERIALIZE_OP 0 arr val >> return ()
 
 {-# INLINE pokeTimes #-}
 pokeTimes :: SERIALIZE_CLASS a => a -> Int -> IO ()
-pokeTimes val times = loop times poke val
+pokeTimes val times = do
+    let n = getSize val
+    arr <- newBytes n
+    loopWith times poke arr val
 
 {-# INLINE peek #-}
 peek :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> MutableByteArray -> IO ()
@@ -299,23 +323,26 @@ peek val arr = do
 #ifdef USE_UNBOX
         val1
 #else
-        (_, val1)
+        (_, val1 :: a)
 #endif
             <- DESERIALIZE_OP 0 arr
         -- Ensure that we are actually constructing the type and using it.
         -- Otherwise we may just read the values and discard them.
         -- The comparison adds to the cost though.
         --
+        {-
         if (val1 /= val)
         then error "peek: no match"
         else return ()
+        -}
+        return ()
 
 {-# INLINE peekTimes #-}
 peekTimes :: (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
 peekTimes n val times = do
     arr <- newBytes n
     _ <- SERIALIZE_OP 0 arr val
-    loop times (peek val) arr
+    loopWith times peek val arr
 
 {-# INLINE trip #-}
 trip :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> IO ()
@@ -331,9 +358,12 @@ trip val = do
         <- DESERIALIZE_OP 0 arr
     assert (val == val1) (pure ())
     -- So that the compiler does not optimize it out
+    {-
     if (val1 /= val)
     then error "roundtrip: no match"
     else return ()
+    -}
+    return ()
 
 {-# INLINE roundtrip #-}
 roundtrip :: (Eq a, SERIALIZE_CLASS a) => a -> Int -> IO ()
@@ -345,6 +375,31 @@ benchSink name times f = bench name (nfIO (randomRIO (times, times) >>= f))
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
+
+{-# INLINE benchPoke #-}
+benchPoke :: String -> (forall a. SERIALIZE_CLASS a =>
+    a -> Int -> IO ()) -> BinTree Int -> [Int] -> Int -> Benchmark
+benchPoke gname f tInt lInt times =
+    bgroup gname
+        [ benchSink "C1" times
+            (f CDT1C1)
+        , benchSink "C2" (times `div` 2)
+            (f (CDT1C2 5))
+        , benchSink "C3" (times `div` 3)
+            (f (CDT1C3 5 2))
+        , benchSink "Sum2" times
+            (f Sum21)
+        , benchSink "Sum25" times
+            (f Sum2525)
+        , benchSink "Product25" (times `div` 26)
+            (f (Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25))
+#ifndef USE_UNBOX
+        , benchSink "bintree-int" 1
+            (f tInt)
+        , benchSink "list-int" 1
+            (f lInt)
+#endif
+        ]
 
 -- Times is scaled by the number of constructors to normalize
 #ifdef USE_UNBOX
@@ -361,26 +416,8 @@ allBenchmarks tInt lInt times =
         , bench "list-int" $ nf sizeOfOnce lInt
 #endif
         ]
-    , bgroup "poke"
-        [ benchSink "C1" times
-            (pokeTimes CDT1C1)
-        , benchSink "C2" (times `div` 2)
-            (pokeTimes (CDT1C2 5))
-        , benchSink "C3" (times `div` 3)
-            (pokeTimes (CDT1C3 5 2))
-        , benchSink "Sum2" times
-            (pokeTimes Sum21)
-        , benchSink "Sum25" times
-            (pokeTimes Sum2525)
-        , benchSink "Product25" (times `div` 26)
-            (pokeTimes (Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25))
-#ifndef USE_UNBOX
-        , benchSink "bintree-int" 1
-            (pokeTimes tInt)
-        , benchSink "list-int" 1
-            (pokeTimes lInt)
-#endif
-        ]
+    , benchPoke "poke" pokeTimes tInt lInt times
+    , benchPoke "pokeWithSize" pokeTimesWithSize tInt lInt times
     , bgroup "peek"
         [ let !n = getSize Unit
            in benchSink "Unit" times (peekTimes n Unit)
@@ -459,14 +496,16 @@ main = do
     -- Check the .dump-simpl output
     let value = 100000
     -- print $ getSize (CDT1C3 4 2)
+    -- print $ sizeOfOnce tInt
+    -- print $ sizeOfOnce lInt
+
+    -- pokeTimes tInt 1
+
     -- peekTimes ((CDT1C2 (5 :: Int)) :: CustomDT1) value
     -- peekTimes (Sum2525) value
     -- peekTimes (Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25) value
-    -- !(tInt :: BinTree Int) <- force <$> mkBinTree 16
-    -- print $ sizeOfOnce tInt
-    -- print $ sizeOfOnce lInt
-    pokeTimes tInt 1
     -- peekTimes tInt 1
+
     -- roundtrip ((CDT1C2 (5 :: Int)) :: CustomDT1) value
     return ()
 #endif
