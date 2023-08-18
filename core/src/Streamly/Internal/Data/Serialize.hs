@@ -234,8 +234,7 @@ encodeAs ps a =
     unsafeInlineIO $ do
         let len =
               case size :: Size a of
-                  ConstSize sz -> sz
-                  VarSize f -> f a
+                  Size f -> f 0 a
         -- We encode the length of the encoding as a header hence the 8 extra
         -- bytes to encode Int64
         mbarr <- Unbox.newBytesAs ps (8  +  len)
