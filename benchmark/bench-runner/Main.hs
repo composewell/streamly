@@ -60,7 +60,7 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
 
         -----------------------------------------------------------------------
 
-        | "Data.Stream/o-n-space.elimination.toList" == benchName =
+        | "Data.StreamD/o-n-space.elimination.toList" == benchName =
             "-K2M"
         | "Data.StreamK/o-n-space.elimination.toList" == benchName =
             "-K2M"

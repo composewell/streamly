@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Data.Stream
+-- Module      : Streamly.Benchmark.Data.Stream.StreamD
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
@@ -461,7 +461,7 @@ inspect $ 'unfoldManyRepl `hasNoType` ''SPEC
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Stream"
+moduleName = "Data.StreamD"
 
 o_1_space :: [Benchmark]
 o_1_space =
