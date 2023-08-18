@@ -184,8 +184,9 @@ instance Eq Product25 where
             && a25 == b25
 
 -------------------------------------------------------------------------------
-
 -- Simple non-recursive ADT
+-------------------------------------------------------------------------------
+
 data CustomDT1
     = CDT1C1
     | CDT1C2 Int
@@ -199,30 +200,15 @@ $(DERIVE_CLASS ''CustomDT1)
 #endif
 
 -------------------------------------------------------------------------------
-
-{-# INLINE getSize #-}
-getSize :: forall a. SERIALIZE_CLASS a => a -> Int
-#ifdef USE_UNBOX
-getSize _ = sizeOf (Proxy :: Proxy a)
-#else
-getSize val =
-    case size :: Size a of
-        Size f -> f 0 val
-#endif
+-- Recursive ADT
+-------------------------------------------------------------------------------
 
 #ifndef USE_UNBOX
-{-# INLINE sizeOfOnce #-}
-sizeOfOnce :: forall a. Serialize a => a -> Int
-sizeOfOnce val = getSize val
-
--- Recursive ADT
 data BinTree a
   = Tree (BinTree a) (BinTree a)
   | Leaf a
   deriving (Show, Read, Eq, Generic)
 
--- XXX If a is ConstSize we can use an array to represent the binary tree. If
--- the tree is balanced space wastage would be minimum.
 #ifndef USE_TH
 instance Serialize (BinTree a)
 #else
@@ -244,30 +230,24 @@ mkBinTree = go (generate $ arbitrary)
     go r 0 = Leaf <$> r
     go r n = Tree <$> go r (n - 1) <*> go r (n - 1)
 
-{-
-prop :: Property
-prop = forAll arbitrary (ioProperty . test)
-
-    where
-
-    test :: BinTree Int -> IO Bool
-    test t = do
-        let n =
-                case size :: Size (BinTree Int) of
-                    ConstSize x -> x
-                    VarSize f -> f t
-        arr <- newBytes n
-        _ <- serialize 0 arr t
-        (_, t1) <- deserialize 0 arr
-        return $ t1 == t
-
-runQC :: IO ()
-runQC = quickCheckWith stdArgs {maxSuccess = 100} prop
--}
 #endif
 
 -------------------------------------------------------------------------------
--- Helpers
+-- Size helpers
+-------------------------------------------------------------------------------
+
+{-# INLINE getSize #-}
+getSize :: forall a. SERIALIZE_CLASS a => a -> Int
+#ifdef USE_UNBOX
+getSize _ = sizeOf (Proxy :: Proxy a)
+#else
+getSize val =
+    case size :: Size a of
+        Size f -> f 0 val
+#endif
+
+-------------------------------------------------------------------------------
+-- Common helpers
 -------------------------------------------------------------------------------
 
 -- Parts of "f" that are dependent on val will not be optimized out.
@@ -292,6 +272,13 @@ loopWith count f e val = go count val
         if n > 0
         then f e x >> go (n-1) x
         else return ()
+
+benchSink :: NFData b => String -> Int -> (Int -> IO b) -> Benchmark
+benchSink name times f = bench name (nfIO (randomRIO (times, times) >>= f))
+
+-------------------------------------------------------------------------------
+-- Serialization Helpers
+-------------------------------------------------------------------------------
 
 {-# INLINE pokeWithSize #-}
 pokeWithSize :: SERIALIZE_CLASS a => MutableByteArray -> a -> IO ()
@@ -321,11 +308,12 @@ pokeTimes val times = do
 peek :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> MutableByteArray -> IO ()
 peek val arr = do
 #ifdef USE_UNBOX
-        val1
+        (val1 :: a)
 #else
         (_, val1 :: a)
 #endif
             <- DESERIALIZE_OP 0 arr
+        assert (val == val1) (pure ())
         -- Ensure that we are actually constructing the type and using it.
         -- Otherwise we may just read the values and discard them.
         -- The comparison adds to the cost though.
@@ -369,37 +357,54 @@ trip val = do
 roundtrip :: (Eq a, SERIALIZE_CLASS a) => a -> Int -> IO ()
 roundtrip val times = loop times trip val
 
-benchSink :: NFData b => String -> Int -> (Int -> IO b) -> Benchmark
-benchSink name times f = bench name (nfIO (randomRIO (times, times) >>= f))
-
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
 
-{-# INLINE benchPoke #-}
-benchPoke :: String -> (forall a. SERIALIZE_CLASS a =>
-    a -> Int -> IO ()) -> BinTree Int -> [Int] -> Int -> Benchmark
-benchPoke gname f tInt lInt times =
+{-# INLINE benchConst #-}
+benchConst ::
+       String
+    -> (forall a. (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ())
+    -> Int
+    -> Benchmark
+benchConst gname f times =
     bgroup gname
-        [ benchSink "C1" times
-            (f CDT1C1)
-        , benchSink "C2" (times `div` 2)
-            (f (CDT1C2 5))
-        , benchSink "C3" (times `div` 3)
-            (f (CDT1C3 5 2))
-        , benchSink "Sum2" times
-            (f Sum21)
-        , benchSink "Sum25" times
-            (f Sum2525)
-        , benchSink "Product25" (times `div` 26)
-            (f (Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25))
-#ifndef USE_UNBOX
-        , benchSink "bintree-int" 1
-            (f tInt)
-        , benchSink "list-int" 1
-            (f lInt)
-#endif
+       [ let !n = getSize Unit
+          in benchSink "Unit" times (f n Unit)
+       , let !n = getSize CDT1C1
+          in benchSink "C1" times (f n CDT1C1)
+       , let val = CDT1C2 5
+             !n = getSize val
+          in benchSink "C2" (times `div` 2) (f n val)
+       , let val = CDT1C3 5 2
+             !n = getSize val
+          in benchSink "C3" (times `div` 3) (f n val)
+       , let !n = getSize Sum21
+          in benchSink "Sum2" times (f n Sum21)
+       , let !n = getSize Sum2525
+          in benchSink "Sum25" times (f n Sum2525)
+       , let val = Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+             !n = getSize val
+          in benchSink "Product25" (times `div` 26) (f n val)
         ]
+
+#ifndef USE_UNBOX
+{-# INLINE benchVar #-}
+benchVar ::
+       String
+    -> (forall a. (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ())
+    -> BinTree Int
+    -> [Int]
+    -> Int
+    -> Benchmark
+benchVar gname f tInt lInt times =
+    bgroup gname
+       [ let !n = getSize tInt
+           in benchSink "bintree-int" times (f n tInt)
+        , let !n = getSize lInt
+           in benchSink "list-int" times (f n lInt)
+        ]
+#endif
 
 -- Times is scaled by the number of constructors to normalize
 #ifdef USE_UNBOX
@@ -412,57 +417,20 @@ allBenchmarks tInt lInt times =
     [ bgroup "sizeOf"
         [
 #ifndef USE_UNBOX
-          bench "bintree-int" $ nf sizeOfOnce tInt
-        , bench "list-int" $ nf sizeOfOnce lInt
+          bench "bintree-int" $ nf getSize tInt
+        , bench "list-int" $ nf getSize lInt
 #endif
         ]
-    , benchPoke "poke" pokeTimes tInt lInt times
-    , benchPoke "pokeWithSize" pokeTimesWithSize tInt lInt times
-    , bgroup "peek"
-        [ let !n = getSize Unit
-           in benchSink "Unit" times (peekTimes n Unit)
-        , let !n = getSize CDT1C1
-           in benchSink "C1" times (peekTimes n CDT1C1)
-        , let val = CDT1C2 5
-              !n = getSize val
-           in benchSink "C2" (times `div` 2) (peekTimes n val)
-        , let val = CDT1C3 5 2
-              !n = getSize val
-           in benchSink "C3" (times `div` 3) (peekTimes n val)
-        , let !n = getSize Sum21
-           in benchSink "Sum2" times (peekTimes n Sum21)
-        , let !n = getSize Sum2525
-           in benchSink "Sum25" times (peekTimes n Sum2525)
-        , let val = Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
-              !n = getSize val
-           in benchSink "Product25" (times `div` 26) (peekTimes n val)
+    , benchConst "poke" (const pokeTimes) times
+    , benchConst "pokeWithSize" (const pokeTimesWithSize) times
+    , benchConst "peek" peekTimes times
+    , benchConst "roundtrip" (const roundtrip) times
 #ifndef USE_UNBOX
-        , let !n = getSize tInt
-           in benchSink "bintree-int" 1 (peekTimes n tInt)
-        , let !n = getSize lInt
-           in benchSink "list-int" 1 (peekTimes n lInt)
+    , benchVar "poke" (const pokeTimes) tInt lInt 1
+    , benchVar "pokeWithSize" (const pokeTimesWithSize) tInt lInt 1
+    , benchVar "peek" peekTimes tInt lInt 1
+    , benchVar "roundtrip" (const roundtrip) tInt lInt 1
 #endif
-        ]
-    , bgroup "roundtrip"
-        [ benchSink "C1" times
-            (roundtrip CDT1C1)
-        , benchSink "C2" (times `div` 2)
-            (roundtrip (CDT1C2 5))
-        , benchSink "C3" (times `div` 3)
-            (roundtrip (CDT1C3 5 2))
-        , benchSink "Sum2" times
-            (roundtrip Sum21)
-        , benchSink "Sum25" times
-            (roundtrip Sum2525)
-        , benchSink "Product25" (times `div` 26)
-            (roundtrip (Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25))
-#ifndef USE_UNBOX
-        , benchSink "bintree-int" 1
-            (roundtrip tInt)
-        , benchSink "list-int" 1
-            (roundtrip lInt)
-#endif
-        ]
     ]
 
 -------------------------------------------------------------------------------
@@ -496,8 +464,8 @@ main = do
     -- Check the .dump-simpl output
     let value = 100000
     -- print $ getSize (CDT1C3 4 2)
-    -- print $ sizeOfOnce tInt
-    -- print $ sizeOfOnce lInt
+    -- print $ getSize tInt
+    -- print $ getSize lInt
 
     -- pokeTimes tInt 1
 
