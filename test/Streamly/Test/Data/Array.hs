@@ -180,7 +180,7 @@ testFromToList inp = A.toList (A.fromList inp) `shouldBe` inp
 testUnsafeIndxedFromList :: [Char] -> IO ()
 testUnsafeIndxedFromList inp =
     let arr = A.fromList inp
-     in fmap (`A.unsafeIndex` arr) [0 .. (length inp - 1)] `shouldBe` inp
+     in fmap (`A.getIndexUnsafe` arr) [0 .. (length inp - 1)] `shouldBe` inp
 
 testAsPtrUnsafeMA :: IO ()
 testAsPtrUnsafeMA = do
@@ -267,7 +267,7 @@ main =
         describe "toList . fromList" $ do
             it "testFromToList abc" (testFromToList "abc")
             it "testFromToList \\22407" (testFromToList "\22407")
-        describe "unsafeIndex . fromList" $ do
+        describe "getIndexUnsafe . fromList" $ do
             it "testUnsafeIndxedFromList abc" (testUnsafeIndxedFromList "abc")
             it "testUnsafeIndxedFromList \\22407"
                    (testUnsafeIndxedFromList "\22407")

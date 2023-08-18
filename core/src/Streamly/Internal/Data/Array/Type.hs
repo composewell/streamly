@@ -46,7 +46,7 @@ module Streamly.Internal.Data.Array.Type
 
     -- * Elimination
     , unsafeIndexIO
-    , unsafeIndex -- getIndexUnsafe
+    , getIndexUnsafe
     , byteLength
     , length
 
@@ -83,6 +83,9 @@ module Streamly.Internal.Data.Array.Type
     , bufferChunks
     , flattenArrays
     , flattenArraysRev
+
+    -- * Deprecated
+    , unsafeIndex
     )
 where
 
@@ -370,9 +373,14 @@ unsafeIndexIO :: forall a. Unbox a => Int -> Array a -> IO a
 unsafeIndexIO i arr = MA.getIndexUnsafe i (unsafeThaw arr)
 
 -- | Return element at the specified index without checking the bounds.
+{-# INLINE_NORMAL getIndexUnsafe #-}
+getIndexUnsafe :: forall a. Unbox a => Int -> Array a -> a
+getIndexUnsafe i arr = let !r = unsafeInlineIO $ unsafeIndexIO i arr in r
+
+{-# DEPRECATED unsafeIndex "Please use 'getIndexUnsafe' instead" #-}
 {-# INLINE_NORMAL unsafeIndex #-}
 unsafeIndex :: forall a. Unbox a => Int -> Array a -> a
-unsafeIndex i arr = let !r = unsafeInlineIO $ unsafeIndexIO i arr in r
+unsafeIndex = getIndexUnsafe
 
 -- | /O(1)/ Get the byte length of the array.
 --
