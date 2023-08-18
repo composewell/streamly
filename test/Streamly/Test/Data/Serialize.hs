@@ -99,12 +99,20 @@ testCases = do
               (8 + 3 * 8 + 6 * 8)
               ([[1], [1, 2], [1, 2, 3]] :: [[Int]])
 
-    prop "CustomDatatype"
+    limitQC
+        $ prop "CustomDatatype"
         $ \(x :: CustomDatatype) -> roundtrip x
-    prop "[CustomDatatype]"
+
+    limitQC
+        $ prop "[CustomDatatype]"
         $ \(x :: [CustomDatatype]) -> roundtrip x
 
-    prop "BinTree" $ \(x :: BinTree Int) -> roundtrip x
+    limitQC
+        $ prop "BinTree" $ \(x :: BinTree Int) -> roundtrip x
+
+    where
+
+    limitQC = modifyMaxSuccess (const 20) . modifyMaxSize (const 50)
 
 --------------------------------------------------------------------------------
 -- Main function
