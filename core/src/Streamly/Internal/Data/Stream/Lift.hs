@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Lift
+-- Module      : Streamly.Internal.Data.Stream.Lift
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -9,7 +9,7 @@
 --
 -- Transform the underlying monad of a stream.
 
-module Streamly.Internal.Data.Stream.StreamD.Lift
+module Streamly.Internal.Data.Stream.Lift
     (
     -- * Generalize Inner Monad
       morphInner
@@ -27,7 +27,7 @@ where
 import Data.Functor.Identity (Identity(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.Stream.Type
 
 #include "DocTestDataStream.hs"
 

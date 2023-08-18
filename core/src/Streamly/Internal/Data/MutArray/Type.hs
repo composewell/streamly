@@ -256,7 +256,7 @@ import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.StreamK.Type (StreamK)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -264,8 +264,8 @@ import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Producer as Producer
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Lift as D
+import qualified Streamly.Internal.Data.Stream.Type as D
+import qualified Streamly.Internal.Data.Stream.Lift as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Unbox as Unboxed
 import qualified Prelude

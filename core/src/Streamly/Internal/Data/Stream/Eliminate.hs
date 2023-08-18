@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Eliminate
+-- Module      : Streamly.Internal.Data.Stream.Eliminate
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
@@ -11,7 +11,7 @@
 -- A few functions in this module have been adapted from the vector package
 -- (c) Roman Leshchinskiy.
 --
-module Streamly.Internal.Data.Stream.StreamD.Eliminate
+module Streamly.Internal.Data.Stream.Eliminate
     (
     -- * Running a 'Fold'
       fold
@@ -99,15 +99,15 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as StreamD
-import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Nesting
-import qualified Streamly.Internal.Data.Stream.StreamD.Transform as StreamD
+import qualified Streamly.Internal.Data.Stream.Generate as StreamD
+import qualified Streamly.Internal.Data.Stream.Nesting as Nesting
+import qualified Streamly.Internal.Data.Stream.Transform as StreamD
 
 import Prelude hiding
        ( Foldable(..), all, any, head, last, lookup, mapM, mapM_
        , notElem, splitAt, tail, (!!))
 import Data.Foldable (length)
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.Stream.Type
 
 #include "DocTestDataStream.hs"
 
@@ -820,7 +820,7 @@ isSuffixOfUnbox suffix stream =
 -- stripSuffix on that especially if the elements have a Storable or Prim
 -- instance.
 --
--- See also "Streamly.Internal.Data.Stream.StreamD.Reduce.dropSuffix".
+-- See also "Streamly.Internal.Data.Stream.Reduce.dropSuffix".
 --
 -- Space: @O(n)@, buffers the entire input stream as well as the suffix
 --

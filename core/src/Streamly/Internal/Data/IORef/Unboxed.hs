@@ -47,7 +47,7 @@ import Streamly.Internal.Data.Unbox
     , sizeOf
     )
 
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.Type as D
 
 -- | An 'IORef' holds a single 'Unbox'-able value.
 newtype IORef a = IORef MutableByteArray

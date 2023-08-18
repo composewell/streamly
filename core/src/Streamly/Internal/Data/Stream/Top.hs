@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Top
+-- Module      : Streamly.Internal.Data.Stream.Top
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -9,7 +9,7 @@
 --
 -- Top level module that can depend on all other lower level Stream modules.
 
-module Streamly.Internal.Data.Stream.StreamD.Top
+module Streamly.Internal.Data.Stream.Top
     (
     -- * Transformation
     -- ** Sampling
@@ -49,13 +49,13 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.IORef (newIORef, readIORef, modifyIORef')
 import Streamly.Internal.Data.Fold.Type (Fold)
 import Streamly.Internal.Data.Stream.Common ()
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream, cross)
+import Streamly.Internal.Data.Stream.Type (Stream, cross)
 
 import qualified Data.List as List
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD.Transform as Stream
+import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.Nesting as Stream
+import qualified Streamly.Internal.Data.Stream.Transform as Stream
 
 import Prelude hiding (filter, zipWith, concatMap, concat)
 

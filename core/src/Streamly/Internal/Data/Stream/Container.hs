@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Container
+-- Module      : Streamly.Internal.Data.Stream.Container
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -9,7 +9,7 @@
 --
 -- Stream operations that require transformers or containers like Set or Map.
 
-module Streamly.Internal.Data.Stream.StreamD.Container
+module Streamly.Internal.Data.Stream.Container
     (
       nub
 
@@ -30,8 +30,8 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.State.Strict (get, put)
 import Data.Function ((&))
 import Data.Maybe (isJust)
-import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.Stream.Step (Step(..))
+import Streamly.Internal.Data.Stream.Type
     (Stream(..), mkCross, unCross)
 
 import qualified Data.Map.Strict as Map
@@ -39,11 +39,11 @@ import qualified Data.Set as Set
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Generic as Array
 import qualified Streamly.Internal.Data.MutArray.Type as MA
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD.Nesting as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD.Transform as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD.Transformer as Stream
+import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.Nesting as Stream
+import qualified Streamly.Internal.Data.Stream.Generate as Stream
+import qualified Streamly.Internal.Data.Stream.Transform as Stream
+import qualified Streamly.Internal.Data.Stream.Transformer as Stream
 
 #include "DocTestDataStream.hs"
 

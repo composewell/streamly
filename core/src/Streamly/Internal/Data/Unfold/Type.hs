@@ -112,7 +112,7 @@ import Control.Monad ((>=>))
 import Data.Void (Void)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
+import Streamly.Internal.Data.Stream.Step (Step(..))
 
 import Prelude hiding (map, mapM, concatMap, zipWith, takeWhile)
 

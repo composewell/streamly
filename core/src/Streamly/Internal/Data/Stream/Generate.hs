@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Generate
+-- Module      : Streamly.Internal.Data.Stream.Generate
 -- Copyright   : (c) 2020 Composewell Technologies and Contributors
 --               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
@@ -12,7 +12,7 @@
 -- A few combinators in this module have been adapted from the vector package
 -- (c) Roman Leshchinskiy. See the notes in specific combinators.
 --
-module Streamly.Internal.Data.Stream.StreamD.Generate
+module Streamly.Internal.Data.Stream.Generate
   (
     -- * Primitives
       nil
@@ -135,7 +135,7 @@ import Data.Ratio
 import Data.Word
 import Numeric.Natural
 import Prelude hiding (iterate, repeat, replicate, take, takeWhile)
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.Stream.Type
 
 #include "DocTestDataStream.hs"
 

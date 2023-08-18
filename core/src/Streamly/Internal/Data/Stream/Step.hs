@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Step
+-- Module      : Streamly.Internal.Data.Stream.Step
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.StreamD.Step
+module Streamly.Internal.Data.Stream.Step
     (
     -- * The stream type
       Step (..)

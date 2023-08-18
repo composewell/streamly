@@ -39,7 +39,7 @@ import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Streamly.Internal.Data.Unbox (Unbox)
-import Streamly.Internal.Data.Stream.StreamD (Step(..))
+import Streamly.Internal.Data.Stream (Step(..))
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
 import qualified Streamly.Internal.Data.Array as Array
