@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE UndecidableInstances #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamK.Type
+-- Module      : Streamly.Internal.Data.StreamK.Type
 -- Copyright   : (c) 2017 Composewell Technologies
 --
 -- License     : BSD3
@@ -13,7 +13,7 @@
 -- Continuation passing style (CPS) stream implementation. The symbol 'K' below
 -- denotes a function as well as a Kontinuation.
 --
-module Streamly.Internal.Data.Stream.StreamK.Type
+module Streamly.Internal.Data.StreamK.Type
     (
     -- * StreamK type
       Stream
@@ -82,11 +82,11 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , uncons
 
     -- ** Strict Left Folds
-    , Streamly.Internal.Data.Stream.StreamK.Type.foldl'
+    , Streamly.Internal.Data.StreamK.Type.foldl'
     , foldlx'
 
     -- ** Lazy Right Folds
-    , Streamly.Internal.Data.Stream.StreamK.Type.foldr
+    , Streamly.Internal.Data.StreamK.Type.foldr
 
     -- ** Specific Folds
     , drain
@@ -1070,7 +1070,7 @@ instance (Foldable m, Monad m) => Foldable (StreamK m) where
     {-# INLINE foldMap #-}
     foldMap f =
           fold
-        . Streamly.Internal.Data.Stream.StreamK.Type.foldr (mappend . f) mempty
+        . Streamly.Internal.Data.StreamK.Type.foldr (mappend . f) mempty
 
     {-# INLINE foldr #-}
     foldr f z t = appEndo (foldMap (Endo #. f) t) z
@@ -1121,7 +1121,7 @@ instance Traversable (StreamK Identity) where
     {-# INLINE traverse #-}
     traverse f xs =
         runIdentity
-            $ Streamly.Internal.Data.Stream.StreamK.Type.foldr
+            $ Streamly.Internal.Data.StreamK.Type.foldr
                 consA (pure mempty) xs
 
         where

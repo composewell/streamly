@@ -35,7 +35,7 @@ import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError)
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.MutArray.Type as MArray

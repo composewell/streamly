@@ -405,20 +405,20 @@ library
                     , Streamly.Internal.Data.Fold.Container
                     , Streamly.Internal.Data.Fold.Window
 
-                    , Streamly.Internal.Data.Stream.StreamD.Container
-                    , Streamly.Internal.Data.Stream.StreamD.Eliminate
-                    , Streamly.Internal.Data.Stream.StreamD.Exception
-                    , Streamly.Internal.Data.Stream.StreamD.Generate
-                    , Streamly.Internal.Data.Stream.StreamD.Lift
-                    , Streamly.Internal.Data.Stream.StreamD.Nesting
-                    , Streamly.Internal.Data.Stream.StreamD.Step
-                    , Streamly.Internal.Data.Stream.StreamD.Top
-                    , Streamly.Internal.Data.Stream.StreamD.Transform
-                    , Streamly.Internal.Data.Stream.StreamD.Transformer
-                    , Streamly.Internal.Data.Stream.StreamD.Type
+                    , Streamly.Internal.Data.Stream.Container
+                    , Streamly.Internal.Data.Stream.Eliminate
+                    , Streamly.Internal.Data.Stream.Exception
+                    , Streamly.Internal.Data.Stream.Generate
+                    , Streamly.Internal.Data.Stream.Lift
+                    , Streamly.Internal.Data.Stream.Nesting
+                    , Streamly.Internal.Data.Stream.Step
+                    , Streamly.Internal.Data.Stream.Top
+                    , Streamly.Internal.Data.Stream.Transform
+                    , Streamly.Internal.Data.Stream.Transformer
+                    , Streamly.Internal.Data.Stream.Type
 
-                    , Streamly.Internal.Data.Stream.StreamK.Type
-                    , Streamly.Internal.Data.Stream.StreamK.Transformer
+                    , Streamly.Internal.Data.StreamK.Type
+                    , Streamly.Internal.Data.StreamK.Transformer
 
                     , Streamly.Internal.Data.Pipe.Type
 
@@ -434,7 +434,7 @@ library
 
     if flag(dev)
       other-modules:
-                        Streamly.Internal.Data.Stream.StreamK.Alt
+                        Streamly.Internal.Data.StreamK.Alt
                       , Streamly.Internal.Data.List
 
     build-depends:

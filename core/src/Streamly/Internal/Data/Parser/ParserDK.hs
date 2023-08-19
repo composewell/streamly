@@ -261,8 +261,8 @@ import qualified Streamly.Internal.Data.Parser.ParserK.Type as K
 import Streamly.Internal.Data.StreamK (Stream)
 import qualified Streamly.Internal.Data.StreamK as Stream
 #else
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
+import Streamly.Internal.Data.Stream.Type (Stream)
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 #endif
 
 import Prelude hiding

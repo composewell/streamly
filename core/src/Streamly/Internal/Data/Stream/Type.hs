@@ -2,7 +2,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Type
+-- Module      : Streamly.Internal.Data.Stream.Type
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
@@ -14,7 +14,7 @@
 -- module have been originally adapted from the vector package (c) Roman
 -- Leshchinskiy. See the notes in specific functions.
 
-module Streamly.Internal.Data.Stream.StreamD.Type
+module Streamly.Internal.Data.Stream.Type
     (
     -- * The stream type
       Step (..)
@@ -44,20 +44,20 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , fromEffect
 
     -- ** From Containers
-    , Streamly.Internal.Data.Stream.StreamD.Type.fromList
+    , Streamly.Internal.Data.Stream.Type.fromList
 
     -- * Elimination
     -- ** Primitives
     , uncons
 
     -- ** Strict Left Folds
-    , Streamly.Internal.Data.Stream.StreamD.Type.fold
+    , Streamly.Internal.Data.Stream.Type.fold
     , foldBreak
     , foldAddLazy
     , foldAdd
     , foldEither
 
-    , Streamly.Internal.Data.Stream.StreamD.Type.foldl'
+    , Streamly.Internal.Data.Stream.Type.foldl'
     , foldlM'
     , foldlx'
     , foldlMx'
@@ -65,12 +65,12 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     -- ** Lazy Right Folds
     , foldrM
     , foldrMx
-    , Streamly.Internal.Data.Stream.StreamD.Type.foldr
+    , Streamly.Internal.Data.Stream.Type.foldr
     , foldrS
 
     -- ** Specific Folds
     , drain
-    , Streamly.Internal.Data.Stream.StreamD.Type.toList
+    , Streamly.Internal.Data.Stream.Type.toList
 
     -- * Mapping
     , map
@@ -158,12 +158,12 @@ import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
-import Streamly.Internal.Data.Stream.StreamD.Step (Step (..))
+import Streamly.Internal.Data.Stream.Step (Step (..))
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL hiding (foldr)
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 #ifdef USE_UNFOLDS_EVERYWHERE
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 #endif
@@ -505,7 +505,7 @@ foldAddLazy (Fold fstep finitial fextract) (Stream sstep state) =
 --
 foldAdd :: Monad m => Fold m a b -> Stream m a -> m (Fold m a b)
 foldAdd f =
-    Streamly.Internal.Data.Stream.StreamD.Type.fold (FL.duplicate f)
+    Streamly.Internal.Data.Stream.Type.fold (FL.duplicate f)
 
 ------------------------------------------------------------------------------
 -- Right Folds
@@ -740,7 +740,7 @@ drain (Stream step state) = go SPEC state
 --
 {-# INLINE_NORMAL toList #-}
 toList :: Monad m => Stream m a -> m [a]
-toList = Streamly.Internal.Data.Stream.StreamD.Type.foldr (:) []
+toList = Streamly.Internal.Data.Stream.Type.foldr (:) []
 
 -- Use foldr/build fusion to fuse with list consumers
 -- This can be useful when using the IsList instance
@@ -753,7 +753,7 @@ toListFB c n (Stream step state) = go state
              Skip s    -> go s
              Stop      -> n
 
-{-# RULES "toList Identity" Streamly.Internal.Data.Stream.StreamD.Type.toList = toListId #-}
+{-# RULES "toList Identity" Streamly.Internal.Data.Stream.Type.toList = toListId #-}
 {-# INLINE_EARLY toListId #-}
 toListId :: Stream Identity a -> Identity [a]
 toListId s = Identity $ build (\c n -> toListFB c n s)
@@ -880,10 +880,10 @@ instance IsList (Stream Identity a) where
     type (Item (Stream Identity a)) = a
 
     {-# INLINE fromList #-}
-    fromList = Streamly.Internal.Data.Stream.StreamD.Type.fromList
+    fromList = Streamly.Internal.Data.Stream.Type.fromList
 
     {-# INLINE toList #-}
-    toList = runIdentity . Streamly.Internal.Data.Stream.StreamD.Type.toList
+    toList = runIdentity . Streamly.Internal.Data.Stream.Type.toList
 
 instance Eq a => Eq (Stream Identity a) where
     {-# INLINE (==) #-}
@@ -930,13 +930,13 @@ instance Show a => Show (Stream Identity a) where
 instance Read a => Read (Stream Identity a) where
     readPrec = parens $ prec 10 $ do
         Ident "fromList" <- lexP
-        Streamly.Internal.Data.Stream.StreamD.Type.fromList <$> readPrec
+        Streamly.Internal.Data.Stream.Type.fromList <$> readPrec
 
     readListPrec = readListPrecDefault
 
 instance (a ~ Char) => IsString (Stream Identity a) where
     {-# INLINE fromString #-}
-    fromString = Streamly.Internal.Data.Stream.StreamD.Type.fromList
+    fromString = Streamly.Internal.Data.Stream.Type.fromList
 
 -------------------------------------------------------------------------------
 -- Foldable
@@ -957,7 +957,7 @@ instance (Foldable m, Monad m) => Foldable (Stream m) where
     {-# INLINE foldMap #-}
     foldMap f =
         Data.Foldable.fold
-            . Streamly.Internal.Data.Stream.StreamD.Type.foldr (mappend . f) mempty
+            . Streamly.Internal.Data.Stream.Type.foldr (mappend . f) mempty
 
     {-# INLINE foldr #-}
     foldr f z t = appEndo (foldMap (Endo #. f) t) z

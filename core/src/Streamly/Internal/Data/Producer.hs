@@ -36,8 +36,8 @@ where
 
 #include "inline.hs"
 
-import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..))
+import Streamly.Internal.Data.Stream.Step (Step(..))
+import Streamly.Internal.Data.Stream.Type (Stream(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 

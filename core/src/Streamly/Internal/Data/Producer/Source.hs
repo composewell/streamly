@@ -38,7 +38,7 @@ import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..), Step(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
-import Streamly.Internal.Data.Stream.StreamD.Step (Step(..))
+import Streamly.Internal.Data.Stream.Step (Step(..))
 
 import qualified Streamly.Internal.Data.Parser as ParserD
 -- import qualified Streamly.Internal.Data.Parser.ParserK.Type as ParserK

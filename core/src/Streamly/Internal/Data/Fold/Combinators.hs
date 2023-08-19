@@ -240,7 +240,7 @@ import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.MutArray.Type as MA
@@ -248,7 +248,7 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring as Ring
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as StreamD
+import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
 import Prelude hiding
        ( Foldable(..), filter, drop, dropWhile, take, takeWhile, zipWith

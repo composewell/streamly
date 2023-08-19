@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Transform
+-- Module      : Streamly.Internal.Data.Stream.Transform
 -- Copyright   : (c) 2018 Composewell Technologies
 --               (c) Roman Leshchinskiy 2008-2010
 -- License     : BSD-3-Clause
@@ -13,7 +13,7 @@
 -- A few functions in this module have been adapted from the vector package
 -- (c) Roman Leshchinskiy. See the notes in specific combinators.
 
-module Streamly.Internal.Data.Stream.StreamD.Transform
+module Streamly.Internal.Data.Stream.Transform
     (
     -- * Piping
     -- | Pass through a 'Pipe'.
@@ -173,15 +173,15 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding
        ( drop, dropWhile, filter, map, mapM, reverse
        , scanl, scanl1, sequence, take, takeWhile, zipWith)
 
-import Streamly.Internal.Data.Stream.StreamD.Generate
+import Streamly.Internal.Data.Stream.Generate
     (absTimesWith, relTimesWith)
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.Stream.Type
 
 #include "DocTestDataStream.hs"
 

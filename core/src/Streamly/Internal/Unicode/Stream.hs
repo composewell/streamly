@@ -556,7 +556,7 @@ decodeUtf8WithD cfm (D.Stream step state) =
 
     where
 
-    prefix = "Streamly.Internal.Data.Stream.StreamD.decodeUtf8With: "
+    prefix = "Streamly.Internal.Data.Stream.decodeUtf8With: "
 
     {-# INLINE handleError #-}
     handleError e s =
@@ -720,7 +720,7 @@ decodeUtf8ArraysWithD cfm (D.Stream step state) =
         case cfm of
             ErrorOnCodingFailure ->
                 error $
-                show "Streamly.Internal.Data.Stream.StreamD."
+                show "Streamly.Internal.Data.Stream."
                 ++ "decodeUtf8ArraysWith: Input Underflow"
             TransliterateCodingFailure -> YAndC replacementChar D
             DropOnCodingFailure -> D
@@ -769,7 +769,7 @@ decodeUtf8ArraysWithD cfm (D.Stream step state) =
                     Skip $
                     transliterateOrError
                         (
-                           "Streamly.Internal.Data.Stream.StreamD."
+                           "Streamly.Internal.Data.Stream."
                         ++ "decodeUtf8ArraysWith: Invalid UTF8"
                         ++ " codepoint encountered"
                         )
@@ -792,7 +792,7 @@ decodeUtf8ArraysWithD cfm (D.Stream step state) =
                     Skip $
                     transliterateOrError
                         (
-                           "Streamly.Internal.Data.Stream.StreamD."
+                           "Streamly.Internal.Data.Stream."
                         ++ "decodeUtf8ArraysWith: Invalid UTF8"
                         ++ " codepoint encountered"
                         )

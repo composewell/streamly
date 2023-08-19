@@ -10,13 +10,13 @@ where
 targets :: [(String, [String])]
 targets =
     [ -- Base streams
-      ("Data.Stream.StreamD",
+      ("Data.Stream",
             [ "base_stream_grp"
             , "base_stream_cmp"
             , "noTest"
             ]
       )
-    , ("Data.Stream.StreamK",
+    , ("Data.StreamK",
             [ "base_stream_grp"
             , "base_stream_cmp"
             , "noTest"

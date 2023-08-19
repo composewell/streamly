@@ -105,7 +105,7 @@ import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..), MutableByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec)
@@ -114,9 +114,9 @@ import Prelude hiding (Foldable(..), read, unlines, splitAt)
 
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.MutArray.Type as MA
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.Type as D
+import qualified Streamly.Internal.Data.Stream.Generate as D
+import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Unbox as Unboxed
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec

@@ -461,7 +461,7 @@ inspect $ 'unfoldManyRepl `hasNoType` ''SPEC
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Stream.StreamD"
+moduleName = "Data.StreamD"
 
 o_1_space :: [Benchmark]
 o_1_space =

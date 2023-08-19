@@ -132,7 +132,7 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Type
        (Array(..), pinnedWriteNUnsafe, unsafeFreezeWithShrink, byteLength)
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Stream.Chunked (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
@@ -148,7 +148,7 @@ import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K (mkStream)
+import qualified Streamly.Internal.Data.StreamK.Type as K (mkStream)
 
 #include "DocTestFileSystemHandle.hs"
 

@@ -632,7 +632,7 @@ filterAllInNestedList str = do
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Stream.StreamK"
+moduleName = "Data.StreamK"
 
 o_1_space_generation :: Int -> Benchmark
 o_1_space_generation streamLen =

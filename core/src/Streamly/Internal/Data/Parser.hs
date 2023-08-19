@@ -266,12 +266,12 @@ import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Either.Strict (Either'(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Data.Foldable as Foldable
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as D
+import qualified Streamly.Internal.Data.Stream.Type as D
+import qualified Streamly.Internal.Data.Stream.Generate as D
 
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either, span

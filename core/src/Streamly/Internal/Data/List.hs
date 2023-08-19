@@ -66,19 +66,19 @@ where
 import Control.Arrow (second)
 import Data.Functor.Identity (Identity, runIdentity)
 import GHC.Exts (IsList(..), IsString(..))
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.Stream.Type
     ( CrossStream
     , mkCross
     , unCross
     )
-import Streamly.Internal.Data.Stream.StreamD.Type (Stream)
+import Streamly.Internal.Data.Stream.Type (Stream)
 import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
 
-import qualified Streamly.Internal.Data.Stream.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.StreamD.Type as Stream
-import qualified Streamly.Internal.Data.Stream.StreamD.Generate as Stream
+import qualified Streamly.Internal.Data.StreamK.Type as K
+import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.Generate as Stream
 
 -- XXX Rename to PureStream.
 

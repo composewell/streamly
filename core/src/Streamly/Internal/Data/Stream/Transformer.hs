@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Transformer
+-- Module      : Streamly.Internal.Data.Stream.Transformer
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -9,7 +9,7 @@
 --
 -- Transform the underlying monad of a stream using a monad transfomer.
 
-module Streamly.Internal.Data.Stream.StreamD.Transformer
+module Streamly.Internal.Data.Stream.Transformer
     (
       foldlT
     , foldrT
@@ -35,7 +35,7 @@ import Streamly.Internal.Data.SVar.Type (defState, adaptState)
 import qualified Control.Monad.Trans.Reader as Reader
 import qualified Control.Monad.Trans.State.Strict as State
 
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.Stream.Type
 
 #include "DocTestDataStream.hs"
 

@@ -1,13 +1,13 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.StreamD.Exception
+-- Module      : Streamly.Internal.Data.Stream.Exception
 -- Copyright   : (c) 2020 Composewell Technologies and Contributors
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.StreamD.Exception
+module Streamly.Internal.Data.Stream.Exception
     (
       gbracket_
     , gbracket
@@ -36,7 +36,7 @@ import Streamly.Internal.Data.IOFinalizer
 
 import qualified Control.Monad.Catch as MC
 
-import Streamly.Internal.Data.Stream.StreamD.Type
+import Streamly.Internal.Data.Stream.Type
 
 #include "DocTestDataStream.hs"
 
