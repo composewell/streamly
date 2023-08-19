@@ -309,8 +309,9 @@ library
                      -- streamly-core-streams
                      , Streamly.Internal.Data.StreamK
                      -- StreamD depends on streamly-array-types
-                     , Streamly.Internal.Data.Stream
+                     , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.Common
+                     , Streamly.Internal.Data.Stream
 
                      , Streamly.Internal.Data.Parser.ParserD.Tee
 

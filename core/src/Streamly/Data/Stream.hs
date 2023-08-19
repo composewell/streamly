@@ -42,9 +42,6 @@ module Streamly.Data.Stream
     -- * Construction
     -- | Functions ending in the general shape @b -> Stream m a@.
     --
-    -- See also: "Streamly.Internal.Data.Stream.Generate" for
-    -- @Pre-release@ functions.
-    --
     -- Useful Idioms:
     --
     -- >>> fromIndices f = fmap f $ Stream.enumerateFrom 0
@@ -117,8 +114,6 @@ module Streamly.Data.Stream
     -- | Functions ending in the general shape @Stream m a -> m b@ or @Stream m
     -- a -> m (b, Stream m a)@
     --
-    -- See also: "Streamly.Internal.Data.Stream.Eliminate" for @Pre-release@
-    -- functions.
 
 -- EXPLANATION: In imperative terms a fold can be considered as a loop over the stream
 -- that reduces the stream to a single value.
@@ -259,8 +254,6 @@ module Streamly.Data.Stream
     -- * Scanning
     -- | Stateful one-to-one transformations.
     --
-    -- See also: "Streamly.Internal.Data.Stream.Transform" for
-    -- @Pre-release@ functions.
 
     {-
     -- ** Left scans
@@ -485,9 +478,6 @@ module Streamly.Data.Stream
     -- For example, instead of calling them on a stream of chars call them on a
     -- stream of arrays before flattening it to a stream of chars.
     --
-    -- See also: "Streamly.Internal.Data.Stream.Exception" for
-    -- @Pre-release@ functions.
-
     , onException
     , handle
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Main (main) where
 
 import Control.Applicative ((<|>))
@@ -24,6 +26,12 @@ import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
+
+#define PARSER_K
+
+#ifdef PARSER_K
+import qualified Streamly.Internal.Data.StreamK as SK
+#endif
 
 #if MIN_VERSION_QuickCheck(2,14,0)
 
@@ -59,12 +67,23 @@ max_length = 1000
 
 -- Accumulator Tests
 
+
+
+#ifdef PARSER_K
+streamOfArray :: [Int] -> SK.StreamK m (A.Array Int)
+streamOfArray = SK.fromPure . A.fromList
+
+#define INPUT_FROM_LIST streamOfArray
+#else
+#define INPUT_FROM_LIST S.fromList
+#endif
+
 fromFold :: Property
 fromFold =
     forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
         monadicIO $ do
-        s1 <- S.parse (P.fromFold FL.sum) (S.fromList ls)
-        o2 <- S.fold FL.sum (S.fromList ls)
+        s1 <- S.parse (P.fromFold FL.sum) (INPUT_FROM_LIST ls)
+        o2 <- S.fold FL.sum (INPUT_FROM_LIST ls)
         return $
             case s1 of
                 Right o1 -> o1 == o2
