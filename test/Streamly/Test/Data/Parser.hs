@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Main (main) where
 
 import Control.Applicative ((<|>))
@@ -24,6 +26,11 @@ import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
+
+#ifdef PARSER_K
+import qualified Streamly.Internal.Data.StreamK as SK
+import qualified Streamly.Data.ParserK as PR
+#endif
 
 #if MIN_VERSION_QuickCheck(2,14,0)
 
@@ -59,11 +66,26 @@ max_length = 1000
 
 -- Accumulator Tests
 
+#ifdef PARSER_K
+streamOfArray :: [Int] -> SK.StreamK m (A.Array Int)
+streamOfArray = SK.fromPure . A.fromList
+
+#define INPUT_FROM_LIST streamOfArray
+#define PARSER_RUNNER SK.parseChunks
+#define FROM_PARSER_D PR.adaptC
+#else
+#define INPUT_FROM_LIST S.fromList
+#define PARSER_RUNNER S.parse
+#define FROM_PARSER_D
+#endif
+
 fromFold :: Property
 fromFold =
     forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
         monadicIO $ do
-        s1 <- S.parse (P.fromFold FL.sum) (S.fromList ls)
+        s1 <- PARSER_RUNNER
+                (FROM_PARSER_D (P.fromFold FL.sum))
+                (INPUT_FROM_LIST ls)
         o2 <- S.fold FL.sum (S.fromList ls)
         return $
             case s1 of
@@ -73,35 +95,45 @@ fromFold =
 fromPure :: Property
 fromPure =
     forAll (chooseInt (min_value, max_value)) $ \x ->
-        case runIdentity $ S.parse (P.fromPure x) (S.fromList [1 :: Int]) of
+        case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D (P.fromPure x))
+                (INPUT_FROM_LIST [1 :: Int]) of
             Right r -> r == x
             Left _ -> False
 
 fromEffect :: Property
 fromEffect =
     forAll (chooseInt (min_value, max_value)) $ \x ->
-        case runIdentity $ S.parse (P.fromEffect $ return x) (S.fromList [1 :: Int]) of
+        case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D (P.fromEffect $ return x))
+                (INPUT_FROM_LIST [1 :: Int]) of
             Right r -> r == x
             Left _ -> False
 
 die :: Property
 die =
     property $
-    case runIdentity $ S.parse (P.die "die test") (S.fromList [0 :: Int]) of
+    case runIdentity $ PARSER_RUNNER
+            (FROM_PARSER_D (P.die "die test"))
+            (INPUT_FROM_LIST [0 :: Int]) of
         Right _ -> False
         Left _ -> True
 
 dieM :: Property
 dieM =
     property $
-    case runIdentity $ S.parse (P.dieM (Identity "die test")) (S.fromList [0 :: Int]) of
+    case runIdentity $ PARSER_RUNNER
+            (FROM_PARSER_D (P.dieM (Identity "die test")))
+            (INPUT_FROM_LIST [0 :: Int]) of
         Right _ -> False
         Left _ -> True
 
 parserFail :: Property
 parserFail =
     property $
-        case runIdentity $ S.parse (Fail.fail err) (S.fromList [0 :: Int]) of
+        case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D (Fail.fail err))
+                (INPUT_FROM_LIST [0 :: Int]) of
             Right _ -> False
             Left (ParseError e) -> err == e
     where
@@ -113,7 +145,9 @@ peekPass :: Property
 peekPass =
     forAll (chooseInt (1, max_length)) $ \list_length ->
         forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-            case runIdentity $ S.parse P.peek (S.fromList ls) of
+            case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D P.peek)
+                    (INPUT_FROM_LIST ls) of
                 Right head_value -> case ls of
                     head_ls : _ -> head_value == head_ls
                     _ -> False
@@ -121,13 +155,17 @@ peekPass =
 
 peekFail :: Property
 peekFail =
-    property (case runIdentity $ S.parse P.peek (S.fromList []) of
+    property (case runIdentity $ PARSER_RUNNER
+            (FROM_PARSER_D P.peek)
+            (INPUT_FROM_LIST []) of
         Right _ -> False
         Left _ -> True)
 
 eofPass :: Property
 eofPass =
-    property (case runIdentity $ S.parse P.eof (S.fromList []) of
+    property (case runIdentity $ PARSER_RUNNER
+            (FROM_PARSER_D P.eof)
+            (INPUT_FROM_LIST []) of
         Right _ -> True
         Left _ -> False)
 
@@ -135,7 +173,9 @@ eofFail :: Property
 eofFail =
     forAll (chooseInt (1, max_length)) $ \list_length ->
         forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-            case runIdentity $ S.parse P.eof (S.fromList ls) of
+            case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D P.eof)
+                    (INPUT_FROM_LIST ls) of
                 Right _ -> False
                 Left _ -> True
 
@@ -147,14 +187,18 @@ satisfyPass =
                 ls = first_element : ls_tail
                 predicate = (>= mid_value)
             in
-                case runIdentity $ S.parse (P.satisfy predicate) (S.fromList ls) of
+                case runIdentity $ PARSER_RUNNER
+                        (FROM_PARSER_D (P.satisfy predicate))
+                        (INPUT_FROM_LIST ls) of
                     Right r -> r == first_element
                     Left _ -> False
 
 satisfy :: Property
 satisfy =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-        case runIdentity $ S.parse (P.satisfy predicate) (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D (P.satisfy predicate))
+                (INPUT_FROM_LIST ls) of
             Right r -> case ls of
                 [] -> False
                 (x : _) -> predicate x && (r == x)
@@ -167,14 +211,16 @@ satisfy =
 onePass :: Property
 onePass =
     forAll (chooseInt (1, max_value)) $ \int ->
-        property (case runIdentity $ S.parse P.one (S.fromList [int]) of
+        property (case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D P.one) (INPUT_FROM_LIST [int]) of
             Right i -> i  == int
             Left _ -> False)
 
 one :: Property
 one =
     property $
-        case runIdentity $ S.parse P.one (S.fromList []) of
+        case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D P.one) (INPUT_FROM_LIST []) of
             Left _ -> True
             Right _ -> False
 
@@ -186,8 +232,9 @@ takeBetweenPass =
             forAll (chooseInt (m, max_value)) $ \list_length ->
                 forAll (vectorOf list_length (chooseInt (min_value, max_value)))
                     $ \ls ->
-                        case runIdentity $ S.parse (P.takeBetween m n FL.toList)
-                                (S.fromList ls) of
+                        case runIdentity $ PARSER_RUNNER
+                                (FROM_PARSER_D (P.takeBetween m n FL.toList))
+                                (INPUT_FROM_LIST ls) of
                             Right parsed_list ->
                                 let lpl = Prelude.length parsed_list
                                 in checkListEqual parsed_list
@@ -207,7 +254,9 @@ takeBetween =
         let inputLen = Prelude.length ls
          in do
             let p = P.takeBetween m n FL.toList
-            case runIdentity $ S.parse p (S.fromList ls) of
+            case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D p)
+                    (INPUT_FROM_LIST ls) of
                 Right xs ->
                     let parsedLen = Prelude.length xs
                     in if inputLen >= m && parsedLen >= m && parsedLen <= n
@@ -220,7 +269,9 @@ take :: Property
 take =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-            case runIdentity $ S.parse (P.fromFold $ FL.take n FL.toList) (S.fromList ls) of
+            case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D (P.fromFold $ FL.take n FL.toList))
+                    (INPUT_FROM_LIST ls) of
                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
                 Left _ -> property False
 
@@ -230,7 +281,9 @@ takeEQPass =
         forAll (chooseInt (n, max_value)) $ \list_length ->
             forAll (vectorOf list_length
                         (chooseInt (min_value, max_value))) $ \ls ->
-                case runIdentity $ S.parse (P.takeEQ n FL.toList) (S.fromList ls) of
+                case runIdentity $ PARSER_RUNNER
+                        (FROM_PARSER_D (P.takeEQ n FL.toList))
+                        (INPUT_FROM_LIST ls) of
                     Right parsed_list ->
                         checkListEqual parsed_list (Prelude.take n ls)
                     Left _ -> property False
@@ -242,7 +295,9 @@ takeEQ =
             let
                 list_length = Prelude.length ls
             in
-                case runIdentity $ S.parse (P.takeEQ n FL.toList) (S.fromList ls) of
+                case runIdentity $ PARSER_RUNNER
+                        (FROM_PARSER_D (P.takeEQ n FL.toList))
+                        (INPUT_FROM_LIST ls) of
                     Right parsed_list ->
                         if n <= list_length
                         then checkListEqual parsed_list (Prelude.take n ls)
@@ -255,7 +310,9 @@ takeGEPass =
         forAll (chooseInt (n, max_value)) $ \list_length ->
             forAll (vectorOf list_length (chooseInt (min_value, max_value)))
                 $ \ls ->
-                    case runIdentity $ S.parse (P.takeGE n FL.toList) (S.fromList ls) of
+                    case runIdentity $ PARSER_RUNNER
+                            (FROM_PARSER_D (P.takeGE n FL.toList))
+                            (INPUT_FROM_LIST ls) of
                         Right parsed_list -> checkListEqual parsed_list ls
                         Left _ -> property False
 
@@ -266,7 +323,9 @@ takeGE =
             let
                 list_length = Prelude.length ls
             in
-                case runIdentity $ S.parse (P.takeGE n FL.toList) (S.fromList ls) of
+                case runIdentity $ PARSER_RUNNER
+                        (FROM_PARSER_D (P.takeGE n FL.toList))
+                        (INPUT_FROM_LIST ls) of
                     Right parsed_list ->
                         if n <= list_length
                         then checkListEqual parsed_list ls
@@ -283,7 +342,8 @@ nLessThanEqual0 ::
 nLessThanEqual0 tk ltk =
     forAll (elements [0, (-1)]) $ \n ->
         forAll (listOf arbitrary) $ \ls ->
-            case runIdentity $ S.parse (tk n FL.toList) (S.fromList ls) of
+            case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D (tk n FL.toList)) (INPUT_FROM_LIST ls) of
                 Right parsed_list -> checkListEqual parsed_list (ltk n ls)
                 Left _ -> property False
 
@@ -309,7 +369,8 @@ lookAheadPass =
         in
             forAll (chooseInt (n+1, max_value)) $ \list_length ->
                 forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-                    case runIdentity $ S.parse parseTwice (S.fromList ls) of
+                    case runIdentity $ PARSER_RUNNER
+                            (FROM_PARSER_D parseTwice) (INPUT_FROM_LIST ls) of
                         Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
                         Left _ -> property $ False
 
@@ -325,7 +386,7 @@ lookAheadPass =
 --         in
 --             forAll (chooseInt (min_value, n - 1)) $ \list_length ->
 --                 forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
---                     case S.parse parseTwice (S.fromList ls) of
+--                     case PARSER_RUNNER parseTwice (INPUT_FROM_LIST ls) of
 --                         Right _ -> False
 --                         Left _ -> True
 
@@ -340,7 +401,8 @@ lookAhead =
                 return (parsed_list_1, parsed_list_2)
         in
             forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-                case runIdentity $ S.parse parseTwice (S.fromList ls) of
+                case runIdentity $ PARSER_RUNNER
+                        (FROM_PARSER_D parseTwice) (INPUT_FROM_LIST ls) of
                     Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
                     Left _ -> property ((list_length < n) || (list_length == n && n == 0))
                         where
@@ -349,7 +411,8 @@ lookAhead =
 takeEndBy_ :: Property
 takeEndBy_ =
     forAll (listOf (chooseInt (min_value, max_value )))  $ \ls ->
-        case runIdentity $ S.parse (P.takeEndBy_ predicate prsr) (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D (P.takeEndBy_ predicate prsr)) (INPUT_FROM_LIST ls) of
             Right parsed_list ->
                 checkListEqual parsed_list (tkwhl ls)
             Left _ -> property False
@@ -362,7 +425,9 @@ takeEndByOrMax_ :: Property
 takeEndByOrMax_ =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
-            case runIdentity $ S.parse (P.fromFold $ FL.takeEndBy_ predicate (FL.take n FL.toList)) (S.fromList ls) of
+            case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D (P.fromFold $ FL.takeEndBy_ predicate (FL.take n FL.toList)))
+                    (INPUT_FROM_LIST ls) of
                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
                 Left _ -> property False
             where
@@ -373,7 +438,8 @@ takeStartBy =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
         let ls1 = 1:ls
         in
-            case runIdentity $ S.parse parser (S.fromList ls1) of
+            case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D parser) (INPUT_FROM_LIST ls1) of
                 Right parsed_list ->
                   if not $ Prelude.null ls1
                   then
@@ -391,7 +457,8 @@ takeStartBy =
 takeWhile :: Property
 takeWhile =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
-        case runIdentity $ S.parse (P.takeWhile predicate FL.toList) (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D (P.takeWhile predicate FL.toList)) (INPUT_FROM_LIST ls) of
             Right parsed_list ->
                 checkListEqual parsed_list (Prelude.takeWhile predicate ls)
             Left _ -> property False
@@ -404,9 +471,10 @@ takeP =
         ((,) <$> chooseInt (min_value, max_value)
              <*> listOf (chooseInt (0, 1)))
         $ \(takeNum, ls) ->
-              case runIdentity $ S.parse
-                       (P.takeP takeNum (P.fromFold FL.toList))
-                       (S.fromList ls) of
+              case runIdentity $
+                        PARSER_RUNNER
+                        (FROM_PARSER_D (P.takeP takeNum (P.fromFold FL.toList)))
+                        (INPUT_FROM_LIST ls) of
                   Right parsed_list ->
                       checkListEqual parsed_list (Prelude.take takeNum ls)
                   Left _ -> property False
@@ -414,7 +482,8 @@ takeP =
 takeWhile1 :: Property
 takeWhile1 =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
-        case runIdentity $ S.parse (P.takeWhile1 predicate  FL.toList) (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D (P.takeWhile1 predicate  FL.toList)) (INPUT_FROM_LIST ls) of
             Right parsed_list -> case ls of
                 [] -> property False
                 (x : _) ->
@@ -444,7 +513,8 @@ takeWhileP =
                 takeWhileTillLen maxLen prd list =
                     Prelude.take maxLen $ Prelude.takeWhile prd list
             in
-                case runIdentity $ S.parse prsr (S.fromList ls) of
+                case runIdentity $ PARSER_RUNNER
+                        (FROM_PARSER_D prsr) (INPUT_FROM_LIST ls) of
                     Right parsed_list ->
                         checkListEqual
                         parsed_list
@@ -459,7 +529,7 @@ choice =
              <*> chooseInt (min_value, max_value)
              <*> listOf (chooseInt (0, 1)))
         $ \(i, j, ls) ->
-              case S.parse (P.choice [parser i, parser j]) (S.fromList ls) of
+              case PARSER_RUNNER (FROM_PARSER_D (P.choice [parser i, parser j])) (INPUT_FROM_LIST ls) of
                   Right parsed_list ->
                       checkListEqual parsed_list $ take (min i j) ls
                   Left _ -> property False
@@ -473,7 +543,8 @@ groupBy :: Property
 groupBy =
     forAll (listOf (chooseInt (0, 1)))
         $ \ls ->
-              case runIdentity $ S.parse parser (S.fromList ls) of
+              case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D parser) (INPUT_FROM_LIST ls) of
                   Right parsed -> checkListEqual parsed (groupByLF ls)
                   Left _ -> property False
 
@@ -489,7 +560,8 @@ groupByRolling :: Property
 groupByRolling =
     forAll (listOf (chooseInt (0, 1)))
         $ \ls ->
-              case runIdentity $ S.parse parser (S.fromList ls) of
+              case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D parser) (INPUT_FROM_LIST ls) of
                   Right parsed -> checkListEqual parsed (groupByLF Nothing ls)
                   Left _ -> property False
 
@@ -508,12 +580,18 @@ wordBy :: Property
 wordBy =
     forAll (listOf (elements [' ', 's']))
         $ \ls ->
-              case runIdentity $ S.parse parser (S.fromList ls) of
+              case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D parser) (strm ls) of
                   Right parsed -> checkListEqual parsed (words' ls)
                   Left _ -> property False
 
     where
 
+#ifdef PARSER_K
+    strm = SK.fromPure . A.fromList
+#else
+    strm = S.fromList
+#endif
     predicate = (== ' ')
     parser = P.many (P.wordBy predicate FL.toList) FL.toList
     words' lst =
@@ -573,7 +651,9 @@ parseManyWordQuotedBy =
 splitWith :: Property
 splitWith =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case runIdentity $ S.parse (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER
+                (FROM_PARSER_D (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))))
+                (INPUT_FROM_LIST ls) of
             Right (result_first, result_second) -> case ls of
                 0 : 1 : _ -> (result_first == 0) && (result_second == 1)
                 _ -> False
@@ -583,19 +663,25 @@ splitWith =
 
 splitWithFailLeft :: Property
 splitWithFailLeft =
-    property (case runIdentity $ S.parse (P.splitWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+    property (case runIdentity $ PARSER_RUNNER
+            (FROM_PARSER_D (P.splitWith (,) (P.die "die") (P.fromPure (1 :: Int))))
+            (INPUT_FROM_LIST [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
 splitWithFailRight :: Property
 splitWithFailRight =
-    property (case runIdentity $ S.parse (P.splitWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case runIdentity $ PARSER_RUNNER
+            (FROM_PARSER_D (P.splitWith (,) (P.fromPure (1 :: Int)) (P.die "die")))
+            (INPUT_FROM_LIST [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
 splitWithFailBoth :: Property
 splitWithFailBoth =
-    property (case runIdentity $ S.parse (P.splitWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case runIdentity $ PARSER_RUNNER
+            (FROM_PARSER_D (P.splitWith (,) (P.die "die") (P.die "die")))
+            (INPUT_FROM_LIST [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
@@ -606,25 +692,25 @@ splitWithFailBoth =
 --             let
 --                 prsr = P.fromFold $ FL.take n FL.toList
 --             in
---                 case S.parse (P.teeWith (,) prsr prsr) (S.fromList ls) of
+--                 case PARSER_RUNNER (FROM_PARSER_D (P.teeWith (,) prsr prsr)) (INPUT_FROM_LIST ls) of
 --                     Right (ls_1, ls_2) -> checkListEqual (Prelude.take n ls) ls_1 .&&. checkListEqual ls_1 ls_2
 --                     Left _ -> property False
 
 -- teeWithFailLeft :: Property
 -- teeWithFailLeft =
---     property (case S.parse (P.teeWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+--     property (case PARSER_RUNNER (FROM_PARSER_D (P.teeWith (,) (P.die "die") (P.fromPure (1 :: Int)))) (INPUT_FROM_LIST [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
 
 -- teeWithFailRight :: Property
 -- teeWithFailRight =
---     property (case S.parse (P.teeWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+--     property (case PARSER_RUNNER (FROM_PARSER_D (P.teeWith (,) (P.fromPure (1 :: Int)) (P.die "die"))) (INPUT_FROM_LIST [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
 
 -- teeWithFailBoth :: Property
 -- teeWithFailBoth =
---     property (case S.parse (P.teeWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+--     property (case PARSER_RUNNER (FROM_PARSER_D (P.teeWith (,) (P.die "die") (P.die "die"))) (INPUT_FROM_LIST [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
 
@@ -632,7 +718,7 @@ splitWithFailBoth =
 deintercalate :: Property
 deintercalate =
     forAll (listOf (chooseAny :: Gen Int)) $ \ls ->
-        case runIdentity $ S.parse p (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER p (INPUT_FROM_LIST ls) of
             Right evenOdd -> evenOdd == List.partition even ls
             Left _ -> False
 
@@ -654,28 +740,28 @@ deintercalate =
 --             prsr_2 = P.takeWhile (<= mid_value) FL.toList
 --             prsr_shortest = P.shortest prsr_1 prsr_2
 --         in
---             case S.parse prsr_shortest (S.fromList ls) of
+--             case PARSER_RUNNER prsr_shortest (INPUT_FROM_LIST ls) of
 --                 Right short_list -> checkListEqual short_list (Prelude.takeWhile (<= half_mid_value) ls)
 --                 Left _ -> property False
 
 -- shortestPassLeft :: Property
 -- shortestPassLeft =
---     property (case S.parse (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+--     property (case PARSER_RUNNER (FROM_PARSER_D (P.shortest (P.die "die") (P.fromPure (1 :: Int)))) (INPUT_FROM_LIST [1 :: Int]) of
 --         Right r -> r == 1
 --         Left _ -> False)
 --
 -- shortestPassRight :: Property
 -- shortestPassRight =
---     property (case S.parse (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+--     property (case PARSER_RUNNER (FROM_PARSER_D (P.shortest (P.fromPure (1 :: Int)) (P.die "die"))) (INPUT_FROM_LIST [1 :: Int]) of
 --         Right r -> r == 1
 --         Left _ -> False)
 
 -- shortestFailBoth :: Property
 -- shortestFailBoth =
 --     property
---         (case S.parse
+--         (case PARSER_RUNNER
 --                   (P.shortest (P.die "die") (P.die "die"))
---                   (S.fromList [1 :: Int]) of
+--                   (INPUT_FROM_LIST [1 :: Int]) of
 --              Right _ -> False
 --              Left _ -> True)
 --
@@ -688,26 +774,26 @@ deintercalate =
 --             prsr_2 = P.takeWhile (<= mid_value) FL.toList
 --             prsr_longest = P.longest prsr_1 prsr_2
 --         in
---             case S.parse prsr_longest (S.fromList ls) of
+--             case PARSER_RUNNER prsr_longest (INPUT_FROM_LIST ls) of
 --                 Right long_list -> long_list == Prelude.takeWhile (<= mid_value) ls
 --                 Left _ -> False
 --
 -- longestPassLeft :: Property
 -- longestPassLeft =
---     property (case S.parse (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
+--     property (case PARSER_RUNNER (FROM_PARSER_D (P.shortest (P.die "die") (P.fromPure (1 :: Int)))) (INPUT_FROM_LIST [1 :: Int]) of
 --         Right r -> r == 1
 --         Left _ -> False)
 --
 -- longestPassRight :: Property
 -- longestPassRight =
---     property (case S.parse (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+--     property (case PARSER_RUNNER (FROM_PARSER_D (P.shortest (P.fromPure (1 :: Int)) (P.die "die"))) (INPUT_FROM_LIST [1 :: Int]) of
 --         Right r -> r == 1
 --         Left _ -> False)
 --
 -- longestFailBoth :: Property
 -- longestFailBoth =
 --     property
---         (case S.parse (P.shortest (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+--         (case PARSER_RUNNER (FROM_PARSER_D (P.shortest (P.die "die") (P.die "die"))) (INPUT_FROM_LIST [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
 
@@ -719,14 +805,17 @@ many =
             prsr =
                 flip P.many concatFold
                     $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
-         in case runIdentity $ S.parse prsr (S.fromList ls) of
+         in case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D prsr) (INPUT_FROM_LIST ls) of
                 Right res_list ->
                     checkListEqual res_list (Prelude.filter (== 0) ls)
                 Left _ -> property False
 
 many_empty :: Property
 many_empty =
-    property (case runIdentity $ S.parse (flip P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
+    property (case runIdentity $ PARSER_RUNNER
+            (FROM_PARSER_D (flip P.many FL.toList (P.die "die")))
+            (INPUT_FROM_LIST [1 :: Int]) of
         Right res_list -> checkListEqual res_list ([] :: [Int])
         Left _ -> property False)
 
@@ -740,13 +829,16 @@ some =
             prsr =
                 flip P.some concatFold
                     $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
-         in case runIdentity $ S.parse prsr (S.fromList ls) of
+         in case runIdentity $ PARSER_RUNNER
+                    (FROM_PARSER_D prsr) (INPUT_FROM_LIST ls) of
                 Right res_list -> res_list == Prelude.filter (== 0) ls
                 Left _ -> False
 
 someFail :: Property
 someFail =
-    property (case runIdentity $ S.parse (P.some (P.die "die") FL.toList) (S.fromList [1 :: Int]) of
+    property (case runIdentity $ PARSER_RUNNER
+            (FROM_PARSER_D (P.some (P.die "die") FL.toList))
+            (INPUT_FROM_LIST [1 :: Int]) of
         Right _ -> False
         Left _ -> True)
 
@@ -763,7 +855,9 @@ applicative =
                         <$> P.fromFold (FL.take (length list1) FL.toList)
                         <*> P.fromFold (FL.take (length list2) FL.toList)
              in
-                case runIdentity $ S.parse parser (S.fromList $ list1 ++ list2) of
+                case runIdentity $ PARSER_RUNNER
+                        (FROM_PARSER_D parser)
+                        (INPUT_FROM_LIST $ list1 ++ list2) of
                     Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
                     Left _ -> False
 
@@ -773,9 +867,9 @@ sequence =
         let p xs = P.fromFold (FL.take (length xs) FL.toList)
          in monadicIO $ do
                 outs <- run $
-                        S.parse
-                            (Prelude.sequence $ fmap p ins)
-                            (S.fromList $ concat ins)
+                        PARSER_RUNNER
+                            (FROM_PARSER_D (Prelude.sequence $ fmap p ins))
+                            (INPUT_FROM_LIST $ concat ins)
                 return $
                     case outs of
                         Right ls -> ls == ins
@@ -784,9 +878,9 @@ sequence =
 altEOF1 :: Property
 altEOF1 =
     monadicIO $ do
-    s1 <- S.parse
-        (P.satisfy (> 0) <|> return 66)
-        (S.fromList ([]::[Int]))
+    s1 <- PARSER_RUNNER
+        (FROM_PARSER_D (P.satisfy (> 0) <|> return 66))
+        (INPUT_FROM_LIST ([]::[Int]))
     return $
         case s1 of
             Right x -> x == 66
@@ -795,9 +889,9 @@ altEOF1 =
 altEOF2 :: Property
 altEOF2 =
     monadicIO $ do
-    s1 <- S.parse
-        ((P.takeEQ 2 FL.toList) <|> (P.takeEQ 1 FL.toList))
-        (S.fromList ([51]::[Int]))
+    s1 <- PARSER_RUNNER
+        (FROM_PARSER_D ((P.takeEQ 2 FL.toList) <|> (P.takeEQ 1 FL.toList)))
+        (INPUT_FROM_LIST ([51]::[Int]))
     return $
         case s1 of
             Right x -> x == [51]
@@ -812,7 +906,9 @@ monad =
                     olist2 <- P.fromFold (FL.take (length list2) FL.toList)
                     return (olist1, olist2)
              in monadicIO $ do
-                    s <- S.parse parser (S.fromList $ list1 ++ list2)
+                    s <- PARSER_RUNNER
+                            (FROM_PARSER_D parser)
+                            (INPUT_FROM_LIST $ list1 ++ list2)
                     return $
                         case s of
                             Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
@@ -868,15 +964,19 @@ parserSequence :: Property
 parserSequence =
   forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ins ->
     monadicIO $ do
-    let parsers = S.fromList
-            $ fmap (\xs -> P.fromFold $ FL.take (length xs) FL.sum) ins
-    let sequencedParser = P.sequence parsers FL.sum
-    outs <-
-        S.parse sequencedParser $ S.concatMap S.fromList (S.fromList ins)
-    return $
-        case outs of
-            Right x -> x == sum (map sum ins)
-            Left _ -> False
+        let parsers = S.fromList
+                $ fmap (\xs -> P.fromFold $ FL.take (length xs) FL.sum) ins
+        let sequencedParser = FROM_PARSER_D (P.sequence parsers FL.sum)
+#ifdef PARSER_K
+            strm = SK.map A.fromList (SK.fromList ins)
+#else
+            strm = S.concatMap S.fromList (S.fromList ins)
+#endif
+        outs <- PARSER_RUNNER sequencedParser strm
+        return $
+            case outs of
+                Right x -> x == sum (map sum ins)
+                Left _ -> False
 
 -------------------------------------------------------------------------------
 -- Test for a particular case hit during fs events testing
@@ -947,9 +1047,9 @@ manyEqParseMany =
     forAll (listOf (chooseInt (0, 100))) $ \lst ->
     forAll (chooseInt (1, 100)) $ \i ->
         monadicIO $ do
-            let strm = S.fromList lst
-            r1 <- run $ S.parse (P.many (split i) FL.toList) strm
-            r2 <- run $ S.fold FL.toList $ S.catRights $ S.parseMany (split i) strm
+            let strm = INPUT_FROM_LIST lst
+            r1 <- run $ PARSER_RUNNER (FROM_PARSER_D (P.many (split i) FL.toList)) strm
+            r2 <- run $ S.fold FL.toList $ S.catRights $ S.parseMany (split i) (S.fromList lst)
             return $
                 case r1 of
                     Right o1 -> o1 == r2
@@ -963,7 +1063,7 @@ manyEqParseMany =
 takeEndBy1 :: Property
 takeEndBy1 =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case runIdentity $ S.parse (P.takeEndBy predicate prsr) (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER (FROM_PARSER_D (P.takeEndBy predicate prsr)) (INPUT_FROM_LIST ls) of
             Right parsed_list ->
                 checkListEqual
                 parsed_list
@@ -1053,7 +1153,7 @@ takeEndByEsc =
                     Just _ ->
                             x : escapeSep Nothing xs
         in
-            case runIdentity $ S.parse prsr (S.fromList ls) of
+            case runIdentity $ PARSER_RUNNER (FROM_PARSER_D prsr) (INPUT_FROM_LIST ls) of
                 Right parsed_list -> checkListEqual parsed_list $ escapeSep Nothing ls
                 Left err -> property (displayException err == msg)
 
@@ -1129,7 +1229,7 @@ takeFramedByEsc_ =
                 in
                     helper l Nothing (0 :: Int)
         in
-            case runIdentity $ S.parse prsr (S.fromList ls) of
+            case runIdentity $ PARSER_RUNNER (FROM_PARSER_D prsr) (INPUT_FROM_LIST ls) of
                 Right parsed_list ->
                     if checkPassBeg ls
                     then checkListEqual parsed_list $
@@ -1186,7 +1286,7 @@ takeFramedByEsc_Pass =
                 in
                     helper l Nothing (0 :: Int)
         in
-            case runIdentity $ S.parse prsr (S.fromList ls) of
+            case runIdentity $ PARSER_RUNNER (FROM_PARSER_D prsr) (INPUT_FROM_LIST ls) of
                 Right parsed_list -> checkListEqual parsed_list $ escapeFrame isBegin isEnd isEsc ls
                 _ -> property False
 
@@ -1205,7 +1305,7 @@ takeFramedByEsc_Fail1 =
 
         ls = [0 :: Int]
     in
-        case runIdentity $ S.parse prsr (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER (FROM_PARSER_D prsr) (INPUT_FROM_LIST ls) of
             Right _ -> property False
             Left err -> property (displayException err == msg)
 
@@ -1224,7 +1324,7 @@ takeFramedByEsc_Fail2 =
 
         ls = [1 :: Int]
     in
-        case runIdentity $ S.parse prsr (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER (FROM_PARSER_D prsr) (INPUT_FROM_LIST ls) of
             Right _ -> property False
             Left err -> property (displayException err == msg)
 
@@ -1243,7 +1343,7 @@ takeFramedByEsc_Fail3 =
 
         ls = [2 :: Int]
     in
-        case runIdentity $ S.parse prsr (S.fromList ls) of
+        case runIdentity $ PARSER_RUNNER (FROM_PARSER_D prsr) (INPUT_FROM_LIST ls) of
             Right _ -> property False
             Left err -> property $ (displayException err == msg)
 
@@ -1253,7 +1353,7 @@ takeStartBy_ =
         let ls1 = 1:ls
             msg = "takeFramedByGeneric: empty token"
         in
-            case runIdentity $ S.parse parser (S.fromList ls1) of
+            case runIdentity $ PARSER_RUNNER (FROM_PARSER_D parser) (INPUT_FROM_LIST ls1) of
                 Right parsed_list ->
                   if not $ Prelude.null ls1
                   then

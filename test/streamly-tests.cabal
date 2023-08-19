@@ -326,7 +326,8 @@ test-suite Data.Parser
 test-suite Data.ParserK
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/ParserK.hs
+  main-is: Streamly/Test/Data/Parser.hs
+  cpp-options: -DPARSER_K
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
