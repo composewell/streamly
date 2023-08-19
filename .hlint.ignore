@@ -4,7 +4,6 @@ core/src/Streamly/Internal/Unicode/Stream.hs
 src/Streamly/Internal/Data/SmallArray/Type.hs
 test/Streamly/Test/Data/Array.hs
 test/Streamly/Test/Data/Parser.hs
-test/Streamly/Test/Data/ParserK.hs
 test/Streamly/Test/Data/SmallArray.hs
 test/Streamly/Test/Data/Unfold.hs
 test/Streamly/Test/FileSystem/Event.hs
