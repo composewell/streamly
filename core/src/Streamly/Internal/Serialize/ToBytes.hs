@@ -6,6 +6,16 @@
 -- Portability : GHC
 --
 -- Encode Haskell data types to byte streams.
+--
+-- The primary purpose of this module is to serialize primitive Haskell types
+-- to streams for convenient byte by byte processing when such a need arises.
+--
+-- It would be inefficient to use this to build byte streams from algebraic
+-- data types. For general serialization of ADTs please use the Serialize type
+-- class instances. The fastest way to convert general Haskell types to byte
+-- streams is to serialize them to an array and then stream the array.
+
+-- XXX remove unit, bool, ordering, and the type class as well
 
 module Streamly.Internal.Serialize.ToBytes
     (
