@@ -22,7 +22,6 @@ module Streamly.Internal.Data.Serialize
 
 #ifdef DEBUG
 import Control.Exception (assert)
-import Streamly.Internal.Data.Unbox (Unbox(..), sizeOfMutableByteArray)
 #endif
 
 import Control.Monad (void)
@@ -32,6 +31,7 @@ import Streamly.Internal.Data.Unbox
     ( MutableByteArray(..)
     , PinnedState(..)
     , Unbox
+    , sizeOfMutableByteArray
     )
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
@@ -114,10 +114,12 @@ class Serialize a where
 -- Instances
 --------------------------------------------------------------------------------
 
+-- XXX We do not need to pass the end of data offset, we can just check the
+-- mutable array end here to avoid a crash, and when we return from deserialize
+-- we can check if the offset returned is beyond the bound or not.
 {-# INLINE checkBounds #-}
 checkBounds :: String -> Int -> MutableByteArray -> IO ()
 checkBounds _label _off _arr = do
-#ifdef DEBUG
     sz <- sizeOfMutableByteArray _arr
     if (_off > sz)
     then error
@@ -126,9 +128,6 @@ checkBounds _label _off _arr = do
             ++ show (_off - 1)
             ++ " max valid offset = " ++ show (sz - 1)
     else return ()
-#else
-    return ()
-#endif
 
 {-# INLINE deserializeUnsafe #-}
 deserializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> IO (Int, a)
@@ -143,7 +142,9 @@ serializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> a -> IO Int
 serializeUnsafe off arr val =
     let next = off + Unbox.sizeOf (Proxy :: Proxy a)
      in do
+#ifdef DEBUG
         checkBounds "serialize" next arr
+#endif
         Unbox.pokeByteIndex off arr val
         pure next
 
