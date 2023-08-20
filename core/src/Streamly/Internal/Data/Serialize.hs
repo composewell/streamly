@@ -196,11 +196,18 @@ instance forall a. Serialize a => Serialize [a] where
     deserialize off arr = do
         len <- Unbox.peekByteIndex off arr :: IO Int
         let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int)
-        let peekList buf o 0 = pure (o, reverse buf)
-            peekList buf o i = do
+        let
+            peekList f o i | i >= 3 = do
+              -- Unfold the loop three times
+              (o1, x1) <- deserialize o arr
+              (o2, x2) <- deserialize o1 arr
+              (o3, x3) <- deserialize o2 arr
+              peekList (f . (\xs -> x1:x2:x3:xs)) o3 (i - 3)
+            peekList f o 0 = pure (o, f [])
+            peekList f o i = do
               (o1, x) <- deserialize o arr
-              peekList (x:buf) o1 (i - 1)
-        peekList [] off1 len
+              peekList (f . (x:)) o1 (i - 1)
+        peekList id off1 len
 
     {-# INLINE serialize #-}
     serialize off arr val = do
