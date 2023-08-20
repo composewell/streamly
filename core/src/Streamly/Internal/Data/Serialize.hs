@@ -117,6 +117,8 @@ class Serialize a where
 -- XXX We do not need to pass the end of data offset, we can just check the
 -- mutable array end here to avoid a crash, and when we return from deserialize
 -- we can check if the offset returned is beyond the bound or not.
+--
+#ifdef DEBUG
 {-# INLINE checkBounds #-}
 checkBounds :: String -> Int -> MutableByteArray -> IO ()
 checkBounds _label _off _arr = do
@@ -128,14 +130,21 @@ checkBounds _label _off _arr = do
             ++ show (_off - 1)
             ++ " max valid offset = " ++ show (sz - 1)
     else return ()
+#endif
 
 {-# INLINE deserializeUnsafe #-}
 deserializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> IO (Int, a)
 deserializeUnsafe off arr =
     let next = off + Unbox.sizeOf (Proxy :: Proxy a)
      in do
-        checkBounds "deserialize" next arr
-        Unbox.peekByteIndex off arr >>= \val -> pure (next, val)
+        sz <- sizeOfMutableByteArray arr
+        -- Keep likely path in the straight branch.
+        if (next <= sz)
+        then Unbox.peekByteIndex off arr >>= \val -> pure (next, val)
+        else error
+            $ "deserialize: accessing array at offset = "
+                ++ show (next - 1)
+                ++ " max valid offset = " ++ show (sz - 1)
 
 {-# INLINE serializeUnsafe #-}
 serializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> a -> IO Int
