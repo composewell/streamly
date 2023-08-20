@@ -18,7 +18,6 @@ module Main (main) where
 -------------------------------------------------------------------------------
 
 import Control.DeepSeq (NFData(..))
-import Control.Exception (assert)
 import GHC.Generics (Generic)
 import System.Random (randomRIO)
 #ifndef USE_UNBOX
@@ -313,17 +312,16 @@ peek val arr = do
         (_, val1 :: a)
 #endif
             <- DESERIALIZE_OP 0 arr
-        assert (val == val1) (pure ())
-        -- Ensure that we are actually constructing the type and using it.
-        -- Otherwise we may just read the values and discard them.
-        -- The comparison adds to the cost though.
-        --
-        {-
+        -- Ensure that we are actually constructing the type and using it. This
+        -- is important, otherwise the structure is created and discarded, the
+        -- cost of creation of the structure is not accounted. Otherwise we may
+        -- just read the values and discard them. The comparison adds to the
+        -- cost though. We could use deepseq but then we need to write
+        -- instances of NFData and ensure that they are correct and perform
+        -- well. Equality check also ensures correctness.
         if (val1 /= val)
         then error "peek: no match"
         else return ()
-        -}
-        return ()
 
 {-# INLINE peekTimes #-}
 peekTimes :: (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
@@ -344,14 +342,10 @@ trip val = do
     (_, val1)
 #endif
         <- DESERIALIZE_OP 0 arr
-    assert (val == val1) (pure ())
-    -- So that the compiler does not optimize it out
-    {-
+    -- Do not remove this, see the comments in peek.
     if (val1 /= val)
     then error "roundtrip: no match"
     else return ()
-    -}
-    return ()
 
 {-# INLINE roundtrip #-}
 roundtrip :: (Eq a, SERIALIZE_CLASS a) => a -> Int -> IO ()
@@ -473,6 +467,8 @@ main = do
     -- peekTimes (Sum2525) value
     -- peekTimes (Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25) value
     -- peekTimes tInt 1
+    let !n = getSize lInt
+    peekTimes n lInt 1
 
     -- roundtrip ((CDT1C2 (5 :: Int)) :: CustomDT1) value
     return ()
