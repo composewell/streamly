@@ -31,7 +31,6 @@ import Streamly.Internal.Data.Unbox
     ( MutableByteArray(..)
     , PinnedState(..)
     , Unbox
-    , sizeOfMutableByteArray
     )
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
@@ -83,9 +82,9 @@ newtype Size a = Size (Int -> a -> Int) -- a left fold or Sum monoid
 --             (Size f, Size g) ->
 --                 Size $ \acc obj ->
 --                     acc + f 0 (_obj1 obj) + g 0 (_obj2 obj)
---     deserialize i arr = do
---         (i1, x0) <- deserialize i arr
---         (i2, x1) <- deserialize i1 arr
+--     deserialize i arr len = do
+--         (i1, x0) <- deserialize i arr len
+--         (i2, x1) <- deserialize i1 arr len
 --         pure (i2, Object x0 x1)
 --     serialize i arr (Object x0 x1) = do
 --         i1 <- serialize i arr x0
@@ -102,12 +101,16 @@ class Serialize a where
     -- offset but that may require traversing the Haskell structure again to get
     -- the size. Therefore, this is a performance optimization.
 
-    -- | Deserialize a value from the given byte-index in the array. Returns a
-    -- tuple of the next byte-index and the deserialized value.
-    deserialize :: Int -> MutableByteArray -> IO (Int, a)
+    -- | @deserialize offset array arrayLen@ deserializes a value from the
+    -- given byte-index in the array. Returns a tuple of the next byte-index
+    -- and the deserialized value.
+    deserialize :: Int -> MutableByteArray -> Int -> IO (Int, a)
 
     -- | Write the serialized representation of the value in the array at the
-    -- given byte-index. Returns the next byte-index.
+    -- given byte-index. Returns the next byte-index. This is an unsafe
+    -- operation, the programmer must ensure that the array has enough space
+    -- available in the array to serialize the value as determined by the
+    -- @size@ operation.
     serialize :: Int -> MutableByteArray -> a -> IO Int
 
 --------------------------------------------------------------------------------
@@ -132,12 +135,29 @@ checkBounds _label _off _arr = do
     else return ()
 #endif
 
+-- Note: Instead of passing around the size parameter, we can use
+-- (sizeOfMutableByteArray arr) for checking the array bound, but that turns
+-- out to be more expensive.
+--
+-- Another way to optimize this is to avoid the check for fixed size
+-- structures. For fixed size structures we can do a check at the top level and
+-- then use checkless deserialization using the Unbox type class. That will
+-- require ConstSize and VarSize constructors in size. The programmer can
+-- bundle all const size fields in a newtype to make serialization faster. This
+-- can speed up the computation of size when serializing and checking size when
+-- deserialing.
+--
+-- For variable size non-recursive structures a separate size validation method
+-- could be used to validate the size before deserializing. "validate" can also
+-- be used to collpase multiple chunks of arrays coming from network into a
+-- single array for deserializing. But that can also be done by framing the
+-- serialized value with a size header.
+--
 {-# INLINE deserializeUnsafe #-}
-deserializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> IO (Int, a)
-deserializeUnsafe off arr =
+deserializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> Int -> IO (Int, a)
+deserializeUnsafe off arr sz =
     let next = off + Unbox.sizeOf (Proxy :: Proxy a)
      in do
-        sz <- sizeOfMutableByteArray arr
         -- Keep likely path in the straight branch.
         if (next <= sz)
         then Unbox.peekByteIndex off arr >>= \val -> pure (next, val)
@@ -162,7 +182,7 @@ instance Serialize _type where \
 ; {-# INLINE size #-} \
 ;    size = Size (\acc _ -> acc +  Unbox.sizeOf (Proxy :: Proxy _type)) \
 ; {-# INLINE deserialize #-} \
-;    deserialize off arr = deserializeUnsafe off arr :: IO (Int, _type) \
+;    deserialize off arr end = deserializeUnsafe off arr end :: IO (Int, _type) \
 ; {-# INLINE serialize #-} \
 ;    serialize =  \
         serializeUnsafe :: Int -> MutableByteArray -> _type -> IO Int
@@ -193,19 +213,19 @@ instance forall a. Serialize a => Serialize [a] where
             Size f -> foldl' f (acc + (Unbox.sizeOf (Proxy :: Proxy Int))) xs
 
     {-# INLINE deserialize #-}
-    deserialize off arr = do
+    deserialize off arr sz = do
         len <- Unbox.peekByteIndex off arr :: IO Int
         let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int)
         let
             peekList f o i | i >= 3 = do
               -- Unfold the loop three times
-              (o1, x1) <- deserialize o arr
-              (o2, x2) <- deserialize o1 arr
-              (o3, x3) <- deserialize o2 arr
+              (o1, x1) <- deserialize o arr sz
+              (o2, x2) <- deserialize o1 arr sz
+              (o3, x3) <- deserialize o2 arr sz
               peekList (f . (\xs -> x1:x2:x3:xs)) o3 (i - 3)
             peekList f o 0 = pure (o, f [])
             peekList f o i = do
-              (o1, x) <- deserialize o arr
+              (o1, x) <- deserialize o arr sz
               peekList (f . (x:)) o1 (i - 1)
         peekList id off1 len
 
@@ -250,8 +270,8 @@ pinnedEncode = encodeAs Pinned
 decode :: Serialize a => Array Word8 -> a
 decode arr@(Array {..}) = unsafeInlineIO $ do
     let lenArr = Array.length arr
-    (off1, lenEncoding :: Int64) <- deserialize 0 arrContents
-    (off2, val) <- deserialize off1 arrContents
+    (off1, lenEncoding :: Int64) <- deserialize 0 arrContents lenArr
+    (off2, val) <- deserialize off1 arrContents lenArr
     assertM(fromIntegral lenEncoding + off1 == off2)
     assertM(lenArr == off2)
     pure val

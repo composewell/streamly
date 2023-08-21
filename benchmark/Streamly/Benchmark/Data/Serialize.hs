@@ -304,14 +304,14 @@ pokeTimes val times = do
     loopWith times poke arr val
 
 {-# INLINE peek #-}
-peek :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> MutableByteArray -> IO ()
-peek val arr = do
+peek :: forall a. (Eq a, SERIALIZE_CLASS a) => (a, Int) -> MutableByteArray -> IO ()
 #ifdef USE_UNBOX
-        (val1 :: a)
+peek (val, _) arr = do
+        (val1 :: a) <- DESERIALIZE_OP 0 arr
 #else
-        (_, val1 :: a)
+peek (val, n) arr = do
+        (_, val1 :: a) <- DESERIALIZE_OP 0 arr n
 #endif
-            <- DESERIALIZE_OP 0 arr
         -- Ensure that we are actually constructing the type and using it. This
         -- is important, otherwise the structure is created and discarded, the
         -- cost of creation of the structure is not accounted. Otherwise we may
@@ -328,7 +328,7 @@ peekTimes :: (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
 peekTimes n val times = do
     arr <- newBytes n
     _ <- SERIALIZE_OP 0 arr val
-    loopWith times peek val arr
+    loopWith times peek (val, n) arr
 
 {-# INLINE trip #-}
 trip :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> IO ()
@@ -337,11 +337,10 @@ trip val = do
     arr <- newBytes n
     _ <- SERIALIZE_OP 0 arr val
 #ifdef USE_UNBOX
-    val1
+    val1 <- DESERIALIZE_OP 0 arr
 #else
-    (_, val1)
+    (_, val1) <- DESERIALIZE_OP 0 arr n
 #endif
-        <- DESERIALIZE_OP 0 arr
     -- Do not remove this, see the comments in peek.
     if (val1 /= val)
     then error "roundtrip: no match"

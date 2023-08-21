@@ -68,7 +68,7 @@ roundtrip val = do
     arr <- newBytes sz
 
     off1 <- Serialize.serialize 0 arr val
-    (off2, val2) <- Serialize.deserialize 0 arr
+    (off2, val2) <- Serialize.deserialize 0 arr sz
     val2 `shouldBe` val
     off2 `shouldBe` off1
 

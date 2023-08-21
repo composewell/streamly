@@ -64,13 +64,13 @@ import Test.Hspec as H
 
 #define MODULE_NAME "Data.Serialize.Deriving.TH"
 #define DERIVE_UNBOX(typ) $(deriveSerialize ''typ)
-#define PEEK(i, arr) fmap snd (deserialize i arr)
+#define PEEK(i, arr, sz) fmap snd (deserialize i arr sz)
 #define POKE(i, arr, val) void (serialize i arr val)
 #define TYPE_CLASS Serialize
 
 #else
 
-#define PEEK(i, arr) peekByteIndex i arr
+#define PEEK(i, arr, sz) peekByteIndex i arr
 #define POKE(i, arr, val) pokeByteIndex i arr val
 #define TYPE_CLASS Unbox
 
@@ -189,14 +189,15 @@ testSerialization ::
     => a
     -> IO ()
 testSerialization val = do
-    arr <- newBytes
+    let len =
 #ifdef USE_SERIALIZE
                (variableSizeOf val)
 #else
                (sizeOf (Proxy :: Proxy a))
 #endif
+    arr <- newBytes len
     POKE(0, arr, val)
-    PEEK(0, arr) `shouldReturn` val
+    PEEK(0, arr, len) `shouldReturn` val
 
 testGenericConsistency ::
        forall a.
@@ -216,12 +217,13 @@ testGenericConsistency ::
 testGenericConsistency val = do
 
     -- Test the generic sizeOf
+    let len =
 #ifdef USE_SERIALIZE
-    variableSizeOf val
+            variableSizeOf val
 #else
-    sizeOf (Proxy :: Proxy a)
+            sizeOf (Proxy :: Proxy a)
 #endif
-               `shouldBe` genericSizeOf (Proxy :: Proxy a)
+    len  `shouldBe` genericSizeOf (Proxy :: Proxy a)
 
     -- Test the serialization and deserialization
     arr <- newBytes (sizeOf (Proxy :: Proxy a))
@@ -230,7 +232,7 @@ testGenericConsistency val = do
     genericPeekByteIndex arr 0 `shouldReturn` val
 
     genericPokeByteIndex arr 0 val
-    PEEK(0, arr) `shouldReturn` val
+    PEEK(0, arr, len) `shouldReturn` val
 
 
 #ifndef USE_SERIALIZE

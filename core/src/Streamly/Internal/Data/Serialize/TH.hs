@@ -53,6 +53,9 @@ _tag = mkName "tag"
 _initialOffset :: Name
 _initialOffset = mkName "initialOffset"
 
+_endOffset :: Name
+_endOffset = mkName "endOffset"
+
 _val :: Name
 _val = mkName "val"
 
@@ -194,7 +197,7 @@ mkDeserializeExprOne (DataCon cname _ _ fields) =
     makeBind i =
         bindS
             (tupP [varP (makeI (i + 1)), varP (makeA i)])
-            [|deserialize $(varE (makeI i)) $(varE _arr)|]
+            [|deserialize $(varE (makeI i)) $(varE _arr) $(varE _endOffset)|]
 
 
 mkDeserializeExpr :: Type -> [DataCon] -> Q Exp
@@ -217,7 +220,7 @@ mkDeserializeExpr headTy cons =
             doE
                 [ bindS
                       (tupP [varP (mkName "i0"), varP _tag])
-                      [|deserialize $(varE _initialOffset) $(varE _arr)|]
+                      [|deserialize $(varE _initialOffset) $(varE _arr) $(varE _endOffset)|]
                 , noBindS
                       (caseE
                            (sigE (varE _tag) (conT tagType))
@@ -351,8 +354,8 @@ deriveSerializeInternal preds headTy cons = do
                   'deserialize
                   [ Clause
                         (if isUnitType cons
-                             then [VarP _initialOffset, WildP]
-                             else [VarP _initialOffset, VarP _arr])
+                             then [VarP _initialOffset, WildP, WildP]
+                             else [VarP _initialOffset, VarP _arr, VarP _endOffset])
                         (NormalB peekMethod)
                         []
                   ]
