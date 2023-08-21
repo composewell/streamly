@@ -275,10 +275,32 @@ unpin arr@(MutableByteArray marr#) =
 -- anymore, see
 -- https://lemire.me/blog/2012/05/31/data-alignment-for-speed-myth-or-reality/
 --
+-- = Unboxed Records =
+--
+-- Unboxed types can be treated as unboxed records. We can provide a more
+-- convenient API to access different parts from the Unboxed representation
+-- without having to unbox the entire type. The type can have nested parts
+-- therefore, we will need a general way (some sort of lenses) to address the
+-- parts.
+--
+-- = Lazy Boxing =
+--
+-- When converting an unboxed representation to a boxed representation we can
+-- use lazy construction. Each constructor of the constructed computation may
+-- just hold a lazy computation to actually construct it on demand. This could
+-- be useful for larger structures where we may need only small parts of it.
+--
+-- Same thing can be done for serialize type class as well but it will require
+-- size fields at each nesting level, aggregating the size upwards.
 
 -- | The 'Unbox' type class provides operations for serialization (unboxing)
 -- and deserialization (boxing) of a fixed-length, non-recursive Haskell data
 -- type to and from its unboxed byte representation in a mutable byte array.
+-- Unbox uses fixed size encoding, therefore, size is independent of the value,
+-- it can be determined solely by the type. This makes types with 'Unbox'
+-- instances suitable for storing in arrays. Note that sum types may have
+-- multiple constructors of different sizes, the size of the sum type is
+-- computed as the maximum required by any constructor.
 --
 -- The 'peekByteIndex' read operation converts a Haskell type from its unboxed
 -- representation stored in a mutable byte array, while the 'pokeByteIndex'
