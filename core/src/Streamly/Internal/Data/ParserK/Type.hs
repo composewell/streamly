@@ -21,7 +21,7 @@
 -- <http://hackage.haskell.org/package/parser-combinators parser-combinators>
 -- package can also be used with the 'ParserK' type.
 
-module Streamly.Internal.Data.Parser.ParserK.Type
+module Streamly.Internal.Data.ParserK.Type
     (
       Step (..)
     , Input (..)
@@ -57,7 +57,7 @@ import qualified Streamly.Internal.Data.MutArray.Generic as GenArr
     ( getIndexUnsafeWith
     )
 import qualified Streamly.Internal.Data.Array.Generic as GenArr
-import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
+import qualified Streamly.Internal.Data.Parser.Type as ParserD
 
 -- Note: We cannot use an Array directly as input because we need to identify
 -- the end of input case using None. We cannot do that using nil Array as nil

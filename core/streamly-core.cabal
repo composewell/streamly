@@ -292,8 +292,6 @@ library
                      , Streamly.Internal.Data.SVar.Type
                      , Streamly.Internal.Data.Refold.Type
                      , Streamly.Internal.Data.Producer
-                     , Streamly.Internal.Data.Parser.ParserK.Type
-                     , Streamly.Internal.Data.Parser.ParserD.Type
 
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.Unbox
@@ -314,14 +312,13 @@ library
                      , Streamly.Internal.Data.Stream.Common
                      , Streamly.Internal.Data.Stream
 
-                     , Streamly.Internal.Data.Parser.ParserD.Tee
-
                      -- streamly-core-data
                      , Streamly.Internal.Data.Builder
                      , Streamly.Internal.Data.Unfold
                      , Streamly.Internal.Data.Fold.Tee
                      , Streamly.Internal.Data.Fold.Chunked
                      , Streamly.Internal.Data.Parser
+                     , Streamly.Internal.Data.ParserK
                      , Streamly.Internal.Data.Pipe
 
                      -- streamly-containers (non-base)
@@ -404,6 +401,10 @@ library
                     , Streamly.Internal.Data.Fold.Combinators
                     , Streamly.Internal.Data.Fold.Container
                     , Streamly.Internal.Data.Fold.Window
+
+                    , Streamly.Internal.Data.Parser.Type
+                    , Streamly.Internal.Data.Parser.Tee
+                    , Streamly.Internal.Data.ParserK.Type
 
                     , Streamly.Internal.Data.Stream.Container
                     , Streamly.Internal.Data.Stream.Eliminate

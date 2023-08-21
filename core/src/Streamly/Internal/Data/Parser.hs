@@ -12,8 +12,11 @@ module Streamly.Internal.Data.Parser
     -- * Setup
     -- $setup
 
+      module Streamly.Internal.Data.Parser.Type
+    --, module Streamly.Internal.Data.Parser.Tee 
+
     -- * Types
-      Parser (..)
+    , Parser (..)
     , ParseError (..)
     , Step (..)
     , Initial (..)
@@ -25,19 +28,9 @@ module Streamly.Internal.Data.Parser
     -- * Accumulators
     , fromFold
     , fromFoldMaybe
-    , fromPure
-    , fromEffect
-    , die
-    , dieM
 
     -- * Map on input
-    , lmap
-    , lmapM
     , postscan
-    , filter
-
-    -- * Map on output
-    , rmapM
 
     -- * Element parsers
     , peek
@@ -139,11 +132,6 @@ module Streamly.Internal.Data.Parser
 
     -- Second order parsers (parsers using parsers)
     -- * Binary Combinators
-
-    -- ** Sequential Applicative
-    , splitWith
-    , split_
-
     {-
     -- ** Parallel Applicatives
     , teeWith
@@ -151,9 +139,6 @@ module Streamly.Internal.Data.Parser
     , teeWithMin
     -- , teeTill -- like manyTill but parallel
     -}
-
-    -- ** Sequential Alternative
-    , alt
 
     {-
     -- ** Parallel Alternatives
@@ -165,7 +150,6 @@ module Streamly.Internal.Data.Parser
     -- * N-ary Combinators
     -- ** Sequential Collection
     , sequence
-    , concatMap
 
     -- ** Sequential Repetition
     , count
@@ -273,11 +257,12 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Generate as D
 
+import Streamly.Internal.Data.Parser.Type
+--import Streamly.Internal.Data.Parser.Tee -- It's empty
+
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either, span
        , zip, filter, dropWhile)
--- import Streamly.Internal.Data.Parser.ParserD.Tee
-import Streamly.Internal.Data.Parser.ParserD.Type
 
 #include "DocTestDataParser.hs"
 

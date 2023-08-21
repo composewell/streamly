@@ -73,7 +73,6 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as ParserD
-import qualified Streamly.Internal.Data.Parser.ParserD.Type as ParserD
 import qualified Streamly.Internal.Data.Parser as Parser
 
 import Prelude hiding (concatMap, take)

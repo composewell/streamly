@@ -39,7 +39,7 @@ import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Array (Array)
 import qualified Streamly.Internal.Data.Parser as ParserD
 
-import Streamly.Internal.Data.Parser.ParserK.Type
+import Streamly.Internal.Data.ParserK.Type
 
 {-# DEPRECATED fromFold "Please use \"ParserK.adaptC . Parser.fromFold\" instead." #-}
 {-# INLINE fromFold #-}

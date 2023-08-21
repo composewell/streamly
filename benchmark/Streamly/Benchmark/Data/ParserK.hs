@@ -45,7 +45,7 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Data.Parser as PRD
-import qualified Streamly.Internal.Data.Parser.ParserK.Type as PR
+import qualified Streamly.Internal.Data.ParserK as PR
 import qualified Streamly.Internal.Data.StreamK as StreamK
 
 import Gauge
