@@ -212,7 +212,8 @@ instance forall a. Serialize a => Serialize [a] where
         case size :: Size a of
             Size f -> foldl' f (acc + (Unbox.sizeOf (Proxy :: Proxy Int))) xs
 
-    {-# INLINE deserialize #-}
+    -- Inlining this causes large compilation times for tests
+    {-# INLINABLE deserialize #-}
     deserialize off arr sz = do
         len <- Unbox.peekByteIndex off arr :: IO Int
         let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int)
@@ -229,7 +230,8 @@ instance forall a. Serialize a => Serialize [a] where
               peekList (f . (x:)) o1 (i - 1)
         peekList id off1 len
 
-    {-# INLINE serialize #-}
+    -- Inlining this causes large compilation times for tests
+    {-# INLINABLE serialize #-}
     serialize off arr val = do
         void $ serialize off arr (length val)
         let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int)
