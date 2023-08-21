@@ -362,17 +362,19 @@ data MutArray a =
 -- overhead is a copy if the input array is unpinned.
 {-# INLINE pin #-}
 pin :: MutArray a -> IO (MutArray a)
-pin arr@MutArray{..} = do
-    contents <- Unboxed.pin arrContents
-    return $ arr {arrContents = contents}
+pin arr@MutArray{..} =
+    if Unboxed.isPinned arrContents
+    then pure arr
+    else pinnedClone arr
 
 -- | Copy the 'MutArray' to unpinned memory if pinned, else do nothing. The
 -- overhead is a copy if the input array is pinned.
 {-# INLINE unpin #-}
 unpin :: MutArray a -> IO (MutArray a)
-unpin arr@MutArray{..} = do
-    contents <- Unboxed.unpin arrContents
-    return $ arr {arrContents = contents}
+unpin arr@MutArray{..} =
+    if Unboxed.isPinned arrContents
+    then clone arr
+    else pure arr
 
 {-# INLINE isPinned #-}
 isPinned :: MutArray a -> Bool
