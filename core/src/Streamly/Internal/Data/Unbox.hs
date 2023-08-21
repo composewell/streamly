@@ -47,9 +47,6 @@ import Data.Functor.Const (Const(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
-#ifdef DEBUG
-import Debug.Trace (trace)
-#endif
 import Foreign.Ptr (IntPtr(..), WordPtr(..))
 import GHC.Base (IO(..))
 import GHC.Fingerprint.Type (Fingerprint(..))
@@ -68,6 +65,9 @@ import GHC.TypeLits
 import Prelude hiding (read)
 
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray(..))
+#ifdef DEBUG
+import Streamly.Internal.Data.MutByteArray.Type (sizeOfMutableByteArray)
+#endif
 
 --------------------------------------------------------------------------------
 -- The Unbox type class
@@ -266,43 +266,66 @@ class Unbox a where
 {-# DEPRECATED peekByteIndex "Use peekAt." #-}
 {-# DEPRECATED pokeByteIndex "Use pokeAt." #-}
 
--- XXX Add asserts to check bounds
+-- _size is the length from array start to the last accessed byte.
+{-# INLINE checkBounds #-}
+checkBounds :: String -> Int -> MutByteArray -> IO ()
+checkBounds _label _size _arr = do
+#ifdef DEBUG
+    sz <- sizeOfMutableByteArray _arr
+    if (_size > sz)
+    then error
+        $ _label
+            ++ ": accessing array at offset = "
+            ++ show (_size - 1)
+            ++ " max valid offset = " ++ show (sz - 1)
+    else return ()
+#else
+    return ()
+#endif
 
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray, _sizeOf) \
-instance Unbox _type where {                                         \
-; {-# INLINE peekAt #-}                                       \
-; peekAt (I# n) (MutByteArray mbarr) = IO $ \s ->         \
-      case _readArray mbarr n s of                                   \
-          { (# s1, i #) -> (# s1, _constructor i #) }                \
-; {-# INLINE pokeAt #-}                                       \
-; pokeAt (I# n) (MutByteArray mbarr) (_constructor val) = \
-        IO $ \s -> (# _writeArray mbarr n val s, () #)               \
-; {-# INLINE sizeOf #-}                                              \
-; sizeOf _ = _sizeOf                                                 \
+instance Unbox _type where {                                                  \
+; {-# INLINE peekAt #-}                                                       \
+; peekAt off@(I# n) arr@(MutByteArray mbarr) =                                \
+    checkBounds "peek" (off + sizeOf (Proxy :: Proxy _type)) arr              \
+    >> (IO $ \s ->                                                            \
+      case _readArray mbarr n s of                                            \
+          { (# s1, i #) -> (# s1, _constructor i #) })                        \
+; {-# INLINE pokeAt #-}                                                       \
+; pokeAt off@(I# n) arr@(MutByteArray mbarr) (_constructor val) =             \
+    checkBounds "poke" (off + sizeOf (Proxy :: Proxy _type)) arr              \
+    >> (IO $ \s -> (# _writeArray mbarr n val s, () #))                       \
+; {-# INLINE sizeOf #-}                                                       \
+; sizeOf _ = _sizeOf                                                          \
 }
 
 #define DERIVE_WRAPPED_UNBOX(_constraint, _type, _constructor, _innerType)    \
 instance _constraint Unbox _type where                                        \
-; {-# INLINE peekAt #-}                                                \
-; peekAt i arr = _constructor <$> peekAt i arr                  \
-; {-# INLINE pokeAt #-}                                                \
-; pokeAt i arr (_constructor a) = pokeAt i arr a                \
+; {-# INLINE peekAt #-}                                                       \
+; peekAt i arr =                                                              \
+    checkBounds "peek" (i + sizeOf (Proxy :: Proxy _type)) arr                \
+    >> _constructor <$> peekAt i arr                                          \
+; {-# INLINE pokeAt #-}                                                       \
+; pokeAt i arr (_constructor a) =                                             \
+    checkBounds "poke" (i + sizeOf (Proxy :: Proxy _type)) arr                \
+    >> pokeAt i arr a                                                         \
 ; {-# INLINE sizeOf #-}                                                       \
 ; sizeOf _ = SIZE_OF(_innerType)
 
-#define DERIVE_BINARY_UNBOX(_constraint, _type, _constructor, _innerType) \
-instance _constraint Unbox _type where {                                  \
-; {-# INLINE peekAt #-}                                            \
-; peekAt i arr =                                                   \
-      peekAt i arr >>=                                             \
-        (\p1 -> peekAt (i + SIZE_OF(_innerType)) arr               \
-            <&> _constructor p1)                                          \
-; {-# INLINE pokeAt #-}                                            \
-; pokeAt i arr (_constructor p1 p2) =                              \
-      pokeAt i arr p1 >>                                           \
-        pokeAt (i + SIZE_OF(_innerType)) arr p2                    \
-; {-# INLINE sizeOf #-}                                                   \
-; sizeOf _ = 2 * SIZE_OF(_innerType)                                      \
+#define DERIVE_BINARY_UNBOX(_constraint, _type, _constructor, _innerType)     \
+instance _constraint Unbox _type where {                                      \
+; {-# INLINE peekAt #-}                                                       \
+; peekAt i arr =                                                              \
+      checkBounds "peek" (i + sizeOf (Proxy :: Proxy _type)) arr >>           \
+      peekAt i arr >>=                                                        \
+        (\p1 -> peekAt (i + SIZE_OF(_innerType)) arr <&> _constructor p1)     \
+; {-# INLINE pokeAt #-}                                                       \
+; pokeAt i arr (_constructor p1 p2) =                                         \
+      checkBounds "poke" (i + sizeOf (Proxy :: Proxy _type)) arr >>           \
+      pokeAt i arr p1 >>                                                      \
+        pokeAt (i + SIZE_OF(_innerType)) arr p2                               \
+; {-# INLINE sizeOf #-}                                                       \
+; sizeOf _ = 2 * SIZE_OF(_innerType)                                          \
 }
 
 -------------------------------------------------------------------------------
@@ -423,10 +446,12 @@ DERIVE_BINARY_UNBOX(,Fingerprint,Fingerprint,Word64)
 instance Unbox () where
 
     {-# INLINE peekAt #-}
-    peekAt _ _ = return ()
+    peekAt i arr =
+      checkBounds "peek ()" (i + sizeOf (Proxy :: Proxy ())) arr >> return ()
 
     {-# INLINE pokeAt #-}
-    pokeAt _ _ _ = return ()
+    pokeAt i arr _ =
+      checkBounds "poke ()" (i + sizeOf (Proxy :: Proxy ())) arr >> return ()
 
     {-# INLINE sizeOf #-}
     sizeOf _ = 1
@@ -435,10 +460,16 @@ instance Unbox () where
 instance Unbox IoSubSystem where
 
     {-# INLINE peekAt #-}
-    peekAt i arr = toEnum <$> peekAt i arr
+    peekAt i arr =
+        checkBounds
+            "peek IoSubSystem" (i + sizeOf (Proxy :: Proxy IoSubSystem)) arr
+        >> toEnum <$> peekAt i arr
 
     {-# INLINE pokeAt #-}
-    pokeAt i arr a = pokeAt i arr (fromEnum a)
+    pokeAt i arr a =
+        checkBounds
+            "poke IoSubSystem" (i + sizeOf (Proxy :: Proxy IoSubSystem)) arr
+        >> pokeAt i arr (fromEnum a)
 
     {-# INLINE sizeOf #-}
     sizeOf _ = sizeOf (Proxy :: Proxy Int)
@@ -448,14 +479,16 @@ instance Unbox Bool where
 
     {-# INLINE peekAt #-}
     peekAt i arr = do
+        checkBounds "peek Bool" (i + sizeOf (Proxy :: Proxy Bool)) arr
         res <- peekAt i arr
         return $ res /= (0 :: Int8)
 
     {-# INLINE pokeAt #-}
     pokeAt i arr a =
-        if a
-        then pokeAt i arr (1 :: Int8)
-        else pokeAt i arr (0 :: Int8)
+        checkBounds "poke Bool" (i + sizeOf (Proxy :: Proxy Bool)) arr
+        >> if a
+           then pokeAt i arr (1 :: Int8)
+           else pokeAt i arr (0 :: Int8)
 
     {-# INLINE sizeOf #-}
     sizeOf _ = 1

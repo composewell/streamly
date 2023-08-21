@@ -151,20 +151,17 @@ class Serialize a where
 -- Instances
 --------------------------------------------------------------------------------
 
--- XXX We do not need to pass the end of data offset, we can just check the
--- mutable array end here to avoid a crash, and when we return from deserialize
--- we can check if the offset returned is beyond the bound or not.
---
+-- _size is the length from array start to the last accessed byte.
 #ifdef DEBUG
 {-# INLINE checkBounds #-}
 checkBounds :: String -> Int -> MutByteArray -> IO ()
-checkBounds _label _off _arr = do
-    sz <- sizeOfMutableByteArray _arr
-    if (_off > sz)
+checkBounds _label _size _arr = do
+    sz <- MBA.sizeOfMutableByteArray _arr
+    if (_size > sz)
     then error
         $ _label
             ++ ": accessing array at offset = "
-            ++ show (_off - 1)
+            ++ show (_size - 1)
             ++ " max valid offset = " ++ show (sz - 1)
     else return ()
 #endif
