@@ -9,8 +9,7 @@
 module Streamly.Internal.Data.Time.Clock
     (
     -- * System clock
-      Clock(..)
-    , getTime
+      module Streamly.Internal.Data.Time.Clock.Type
 
     -- * Async clock
     , asyncClock
@@ -30,12 +29,13 @@ where
 import Control.Concurrent (threadDelay, ThreadId)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, tryPutMVar)
 import Control.Monad (forever, when, void)
-import Streamly.Internal.Data.Time.Clock.Type (Clock(..), getTime)
 import Streamly.Internal.Data.Time.Units
     (MicroSecond64(..), fromAbsTime, addToAbsTime, toRelTime)
 import Streamly.Internal.Control.ForkIO (forkIOManaged)
 
 import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
+
+import Streamly.Internal.Data.Time.Clock.Type
 
 ------------------------------------------------------------------------------
 -- Async clock

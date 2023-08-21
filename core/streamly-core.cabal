@@ -285,7 +285,6 @@ library
                      -- streamly-time
                      , Streamly.Internal.Data.Time.TimeSpec
                      , Streamly.Internal.Data.Time.Units
-                     , Streamly.Internal.Data.Time.Clock.Type
                      , Streamly.Internal.Data.Time.Clock
 
                      -- streamly-core-stream-types
@@ -432,6 +431,8 @@ library
 
                     , Streamly.Internal.Data.Producer.Type
                     , Streamly.Internal.Data.Producer.Source
+
+                    , Streamly.Internal.Data.Time.Clock.Type
 
     if flag(dev)
       other-modules:
