@@ -224,6 +224,7 @@ common optimization-options
 
   -- For this to be effective it must come after the -O2 option
   if flag(dev) || flag(debug) || !flag(opt)
+    cpp-options: -DDEBUG
     ghc-options: -fno-ignore-asserts
 
 common threading-options

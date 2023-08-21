@@ -39,6 +39,7 @@ module Streamly.Internal.Data.MutByteArray.Type
 
 import Control.Monad.IO.Class (MonadIO(..))
 #ifdef DEBUG
+import Control.Monad (when)
 import Debug.Trace (trace)
 #endif
 import GHC.Base (IO(..))

@@ -332,6 +332,7 @@ common optimization-options
   -- For this to be effective it must come after the -O2 option
   if flag(dev) || flag(debug) || !flag(opt)
     ghc-options: -fno-ignore-asserts
+    cpp-options: -DDEBUG
 
 common threading-options
   ghc-options:  -threaded
