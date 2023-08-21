@@ -53,6 +53,10 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.MutArray.Generic as GenArr
+    ( getIndexUnsafeWith
+    )
+import qualified Streamly.Internal.Data.Array.Generic as GenArr
 import qualified Streamly.Internal.Data.Parser.Type as ParserD
 
 -- Note: We cannot use an Array directly as input because we need to identify

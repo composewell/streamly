@@ -406,17 +406,17 @@ library
                     , Streamly.Internal.Data.Parser.Tee
                     , Streamly.Internal.Data.ParserK.Type
 
-                    , Streamly.Internal.Data.Stream.StreamD.Container
-                    , Streamly.Internal.Data.Stream.StreamD.Eliminate
-                    , Streamly.Internal.Data.Stream.StreamD.Exception
-                    , Streamly.Internal.Data.Stream.StreamD.Generate
-                    , Streamly.Internal.Data.Stream.StreamD.Lift
-                    , Streamly.Internal.Data.Stream.StreamD.Nesting
-                    , Streamly.Internal.Data.Stream.StreamD.Step
-                    , Streamly.Internal.Data.Stream.StreamD.Top
-                    , Streamly.Internal.Data.Stream.StreamD.Transform
-                    , Streamly.Internal.Data.Stream.StreamD.Transformer
-                    , Streamly.Internal.Data.Stream.StreamD.Type
+                    , Streamly.Internal.Data.Stream.Container
+                    , Streamly.Internal.Data.Stream.Eliminate
+                    , Streamly.Internal.Data.Stream.Exception
+                    , Streamly.Internal.Data.Stream.Generate
+                    , Streamly.Internal.Data.Stream.Lift
+                    , Streamly.Internal.Data.Stream.Nesting
+                    , Streamly.Internal.Data.Stream.Step
+                    , Streamly.Internal.Data.Stream.Top
+                    , Streamly.Internal.Data.Stream.Transform
+                    , Streamly.Internal.Data.Stream.Transformer
+                    , Streamly.Internal.Data.Stream.Type
 
                     , Streamly.Internal.Data.StreamK.Type
                     , Streamly.Internal.Data.StreamK.Transformer
