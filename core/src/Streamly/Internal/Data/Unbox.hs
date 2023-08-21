@@ -26,6 +26,7 @@ module Streamly.Internal.Data.Unbox
     , pinnedNewBytes
     , pinnedNewAlignedBytes
     , nil
+    , putSliceUnsafe
 
     -- * Type Parser and Builder
     , BoundedPtr (..)
@@ -53,6 +54,7 @@ module Streamly.Internal.Data.Unbox
 #include "MachDeps.h"
 #include "ArrayMacros.h"
 
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (void, when)
 import Data.Complex (Complex((:+)))
 import Data.Functor ((<&>))
@@ -151,6 +153,37 @@ pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
 newBytesAs :: PinnedState -> Int -> IO MutableByteArray
 newBytesAs Unpinned = newBytes
 newBytesAs Pinned = pinnedNewBytes
+
+-------------------------------------------------------------------------------
+-- Copying
+-------------------------------------------------------------------------------
+
+-- | Put a sub range of a source array into a subrange of a destination array.
+-- This is not safe as it does not check the bounds.
+{-# INLINE putSliceUnsafe #-}
+putSliceUnsafe ::
+       MonadIO m
+    => MutableByteArray
+    -> Int
+    -> MutableByteArray
+    -> Int
+    -> Int
+    -> m ()
+putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
+#ifdef DEBUG
+    srcLen <- sizeOfMutableByteArray src
+    dstLen <- sizeOfMutableByteArray src
+    when (srcLen - srcStartBytes < lenBytes) $ error "SRC: Insufficient length."
+    when (dstLen - dstStartBytes < lenBytes) $ error "DST: Insufficient length."
+#endif
+    let !(I# srcStartBytes#) = srcStartBytes
+        !(I# dstStartBytes#) = dstStartBytes
+        !(I# lenBytes#) = lenBytes
+    let arrS# = getMutableByteArray# src
+        arrD# = getMutableByteArray# dst
+    IO $ \s# -> (# copyMutableByteArray#
+                    arrS# srcStartBytes# arrD# dstStartBytes# lenBytes# s#
+                , () #)
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning

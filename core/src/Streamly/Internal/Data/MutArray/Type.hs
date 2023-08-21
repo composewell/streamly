@@ -214,7 +214,6 @@ module Streamly.Internal.Data.MutArray.Type
     , splice
     , spliceExp
     , spliceUnsafe
-    , putSliceUnsafe
     -- , putSlice
     -- , appendSlice
     -- , appendSliceFrom
@@ -246,6 +245,7 @@ import Streamly.Internal.Data.Unbox
     , PinnedState(..)
     , getMutableByteArray#
     , touch
+    , putSliceUnsafe
     )
 import GHC.Base
     ( IO(..)
@@ -2099,10 +2099,9 @@ cloneAs ps src =
     liftIO $ do
         let startSrc = arrStart src
             srcLen = arrEnd src - startSrc
-            newArrDst = srcLen
-        newArr <- newBytesAs ps srcLen
-        putSliceUnsafe src startSrc newArr 0 srcLen
-        return $ newArr {arrEnd = newArrDst}
+        newArrContents <- Unboxed.newBytesAs ps srcLen
+        putSliceUnsafe (arrContents src) startSrc newArrContents 0 srcLen
+        return $ MutArray newArrContents 0 srcLen srcLen
 
 {-# INLINE clone #-}
 clone :: MonadIO m => MutArray a -> m (MutArray a)
@@ -2115,26 +2114,6 @@ pinnedClone = cloneAs Pinned
 -------------------------------------------------------------------------------
 -- Combining
 -------------------------------------------------------------------------------
-
--- XXX Change the signature of this function to
--- putSliceUnsafe :: MonadIO m => MutableByteArray -> Int -> MutableByteArray -> Int -> Int -> m ()
--- We don't use the relative indexes but the absolute ones. So we should MutableByteArray to remove any confusion.
-
--- | Put a sub range of a source array into a subrange of a destination array.
--- This is not safe as it does not check the bounds.
-{-# INLINE putSliceUnsafe #-}
-putSliceUnsafe :: MonadIO m => MutArray a -> Int -> MutArray a -> Int -> Int -> m ()
-putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
-    assertM(lenBytes <= arrBound dst - dstStartBytes)
-    assertM(lenBytes <= arrEnd src - srcStartBytes)
-    let !(I# srcStartBytes#) = srcStartBytes
-        !(I# dstStartBytes#) = dstStartBytes
-        !(I# lenBytes#) = lenBytes
-    let arrS# = getMutableByteArray# (arrContents src)
-        arrD# = getMutableByteArray# (arrContents dst)
-    IO $ \s# -> (# copyMutableByteArray#
-                    arrS# srcStartBytes# arrD# dstStartBytes# lenBytes# s#
-                , () #)
 
 -- | Copy two arrays into a newly allocated array. If the first array is pinned
 -- the spliced array is also pinned.
@@ -2155,10 +2134,9 @@ spliceCopy arr1 arr2 = liftIO $ do
         then Unboxed.pinnedNewBytes newLen
         else Unboxed.newBytes newLen
     let len = len1 + len2
-        newArr = MutArray newArrContents 0 len len
-    putSliceUnsafe arr1 start1 newArr 0 len1
-    putSliceUnsafe arr2 start2 newArr len1 len2
-    return newArr
+    putSliceUnsafe (arrContents arr1) start1 newArrContents 0 len1
+    putSliceUnsafe (arrContents arr2) start2 newArrContents len1 len2
+    return $ MutArray newArrContents 0 len len
 
 -- | Really really unsafe, appends the second array into the first array. If
 -- the first array does not have enough space it may cause silent data
@@ -2172,7 +2150,8 @@ spliceUnsafe dst src =
              srcLen = arrEnd src - startSrc
              endDst = arrEnd dst
          assertM(endDst + srcLen <= arrBound dst)
-         putSliceUnsafe src startSrc dst endDst srcLen
+         putSliceUnsafe
+             (arrContents src) startSrc (arrContents dst) endDst srcLen
          return $ dst {arrEnd = endDst + srcLen}
 
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
