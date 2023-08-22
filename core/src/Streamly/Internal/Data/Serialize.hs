@@ -215,8 +215,7 @@ instance forall a. Serialize a => Serialize [a] where
     -- Inlining this causes large compilation times for tests
     {-# INLINABLE deserialize #-}
     deserialize off arr sz = do
-        len <- Unbox.peekByteIndex off arr :: IO Int
-        let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int)
+        (off1, len) <- deserialize off arr sz :: IO (Int, Int)
         let
             peekList f o i | i >= 3 = do
               -- Unfold the loop three times
