@@ -25,14 +25,19 @@ module Streamly.Internal.Data.IORef.Unboxed
 
     -- * Construction
     , newIORef
+    , newIORefWithIndex
 
     -- * Write
     , writeIORef
+    , writeIORefWithIndex
     , modifyIORef'
+    , modifyIORefWithIndex'
 
     -- * Read
     , readIORef
+    , readIORefWithIndex
     , toStreamD
+    , toStreamDWithIndex
     )
 where
 
@@ -52,38 +57,78 @@ import qualified Streamly.Internal.Data.Stream.Type as D
 -- | An 'IORef' holds a single 'Unbox'-able value with offset.
 data IORef a = IORef !MutableByteArray !Int
 
--- | Create a new 'IORef'.
+-- | Create a new 'IORef' at index 'i'.
+--
+-- /Pre-release/
+{-# INLINE newIORefWithIndex #-}
+newIORefWithIndex :: forall a. Unbox a => Int -> a -> IO (IORef a)
+newIORefWithIndex i x = do
+    var <- newBytes (sizeOf (Proxy :: Proxy a))
+    pokeByteIndex i var x
+    return $ IORef var i
+
+-- | Create a new 'IORef' starting at index '0'.
 --
 -- /Pre-release/
 {-# INLINE newIORef #-}
 newIORef :: forall a. Unbox a => a -> IO (IORef a)
-newIORef x = do
-    var <- newBytes (sizeOf (Proxy :: Proxy a))
-    pokeByteIndex 0 var x
-    return $ IORef var 0
+newIORef = newIORefWithIndex 0
+
+-- | Write a value to an 'IORef' at index 'i'.
+--
+-- /Pre-release/
+{-# INLINE writeIORefWithIndex #-}
+writeIORefWithIndex :: Unbox a => Int -> IORef a -> a -> IO ()
+writeIORefWithIndex i (IORef var _) = pokeByteIndex i var
 
 -- | Write a value to an 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE writeIORef #-}
 writeIORef :: Unbox a => IORef a -> a -> IO ()
-writeIORef (IORef var _o) = pokeByteIndex 0 var
+writeIORef arr@(IORef _ o) = writeIORefWithIndex o arr
+
+-- | Read a value from an 'IORef' at index 'i'.
+--
+-- /Pre-release/
+{-# INLINE readIORefWithIndex #-}
+readIORefWithIndex :: Unbox a => Int -> IORef a -> IO a
+readIORefWithIndex i (IORef var _) = peekByteIndex i var
 
 -- | Read a value from an 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE readIORef #-}
 readIORef :: Unbox a => IORef a -> IO a
-readIORef (IORef var _o) = peekByteIndex 0 var
+readIORef arr@(IORef _ o) = readIORefWithIndex o arr
+
+-- | Modify the value of an 'IORef' at index 'i' using a function with strict application.
+--
+-- /Pre-release/
+{-# INLINE modifyIORefWithIndex' #-}
+modifyIORefWithIndex' :: Unbox a => Int -> IORef a -> (a -> a) -> IO ()
+modifyIORefWithIndex' i var g = do
+  x <- readIORefWithIndex i var
+  writeIORefWithIndex i var (g x)
 
 -- | Modify the value of an 'IORef' using a function with strict application.
 --
 -- /Pre-release/
 {-# INLINE modifyIORef' #-}
 modifyIORef' :: Unbox a => IORef a -> (a -> a) -> IO ()
-modifyIORef' var g = do
-  x <- readIORef var
-  writeIORef var (g x)
+modifyIORef' arr@(IORef _ o) = modifyIORefWithIndex' o arr
+
+-- | Generate a stream by continuously reading the IORef at index 'i'.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL toStreamDWithIndex #-}
+toStreamDWithIndex :: (MonadIO m, Unbox a) => Int -> IORef a -> D.Stream m a
+toStreamDWithIndex i var = D.Stream step ()
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ () = liftIO (readIORefWithIndex i var) >>= \x -> return $ D.Yield x ()
 
 -- | Generate a stream by continuously reading the IORef.
 --
