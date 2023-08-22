@@ -17,7 +17,7 @@ module Main (main) where
 -- Imports
 -------------------------------------------------------------------------------
 
-import Control.DeepSeq (NFData(..))
+import Control.DeepSeq (NFData(..), deepseq)
 import GHC.Generics (Generic)
 import System.Random (randomRIO)
 #ifndef USE_UNBOX
@@ -70,6 +70,10 @@ instance SERIALIZE_CLASS Unit
 $(DERIVE_CLASS ''Unit)
 #endif
 
+instance NFData Unit where
+    {-# INLINE rnf #-}
+    rnf _ = ()
+
 data Sum2
     = Sum21
     | Sum22
@@ -80,6 +84,10 @@ instance SERIALIZE_CLASS Sum2
 #else
 $(DERIVE_CLASS ''Sum2)
 #endif
+
+instance NFData Sum2 where
+    {-# INLINE rnf #-}
+    rnf _ = ()
 
 data Sum25
     = Sum251
@@ -115,6 +123,10 @@ instance SERIALIZE_CLASS Sum25
 $(DERIVE_CLASS ''Sum25)
 #endif
 
+instance NFData Sum25 where
+    {-# INLINE rnf #-}
+    rnf _ = ()
+
 data Product25
     = Product25
         Int
@@ -149,6 +161,37 @@ instance SERIALIZE_CLASS Product25
 #else
 $(DERIVE_CLASS ''Product25)
 #endif
+
+instance NFData Product25 where
+    {-# INLINE rnf #-}
+    rnf
+        (Product25 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20 a21 a22 a23 a24 a25)
+           =   a1
+            `seq` a2
+            `seq` a3
+            `seq` a4
+            `seq` a5
+            `seq` a6
+            `seq` a7
+            `seq` a8
+            `seq` a9
+            `seq` a10
+            `seq` a11
+            `seq` a12
+            `seq` a13
+            `seq` a14
+            `seq` a15
+            `seq` a16
+            `seq` a17
+            `seq` a18
+            `seq` a19
+            `seq` a20
+            `seq` a21
+            `seq` a22
+            `seq` a23
+            `seq` a24
+            `seq` a25
+            `seq` ()
 
 -- XXX derived Eq instance is not inlined
 instance Eq Product25 where
@@ -198,6 +241,12 @@ instance SERIALIZE_CLASS CustomDT1
 $(DERIVE_CLASS ''CustomDT1)
 #endif
 
+instance NFData CustomDT1 where
+    {-# INLINE rnf #-}
+    rnf CDT1C1 = ()
+    rnf (CDT1C2 i) = i `seq` ()
+    rnf (CDT1C3 i1 i2) = i1 `seq` i2 `seq` ()
+
 -------------------------------------------------------------------------------
 -- Recursive ADT
 -------------------------------------------------------------------------------
@@ -215,6 +264,7 @@ $(deriveSerialize ''BinTree)
 #endif
 
 instance NFData a => NFData (BinTree a) where
+  {-# INLINE rnf #-}
   rnf (Leaf a) = rnf a `seq` ()
   rnf (Tree l r) = rnf l `seq` rnf r `seq` ()
 
@@ -304,14 +354,17 @@ pokeTimes val times = do
     loopWith times poke arr val
 
 {-# INLINE peek #-}
-peek :: forall a. (Eq a, SERIALIZE_CLASS a) => (a, Int) -> MutableByteArray -> IO ()
+peek :: forall a. (NFData a, SERIALIZE_CLASS a) =>
+    (a, Int) -> MutableByteArray -> IO ()
 #ifdef USE_UNBOX
-peek (val, _) arr = do
+peek (_val, _) arr = do
         (val1 :: a) <- DESERIALIZE_OP 0 arr
 #else
-peek (val, n) arr = do
+peek (_val, n) arr = do
         (_, val1 :: a) <- DESERIALIZE_OP 0 arr n
 #endif
+        -- If the datatype is not deeply strict or deepseq is not used then use
+        -- Equality.
         -- Ensure that we are actually constructing the type and using it. This
         -- is important, otherwise the structure is created and discarded, the
         -- cost of creation of the structure is not accounted. Otherwise we may
@@ -319,35 +372,42 @@ peek (val, n) arr = do
         -- cost though. We could use deepseq but then we need to write
         -- instances of NFData and ensure that they are correct and perform
         -- well. Equality check also ensures correctness.
+        {-
         if (val1 /= val)
         then error "peek: no match"
         else return ()
+        -}
+        val1 `deepseq` return ()
 
 {-# INLINE peekTimes #-}
-peekTimes :: (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
+peekTimes :: (NFData a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
 peekTimes n val times = do
     arr <- newBytes n
     _ <- SERIALIZE_OP 0 arr val
     loopWith times peek (val, n) arr
 
 {-# INLINE trip #-}
-trip :: forall a. (Eq a, SERIALIZE_CLASS a) => a -> IO ()
+trip :: forall a. (NFData a, SERIALIZE_CLASS a) => a -> IO ()
 trip val = do
     let n = getSize val
     arr <- newBytes n
     _ <- SERIALIZE_OP 0 arr val
 #ifdef USE_UNBOX
-    val1 <- DESERIALIZE_OP 0 arr
+    (val1 :: a) <- DESERIALIZE_OP 0 arr
 #else
-    (_, val1) <- DESERIALIZE_OP 0 arr n
+    (_, val1 :: a) <- DESERIALIZE_OP 0 arr n
 #endif
-    -- Do not remove this, see the comments in peek.
+    -- Do not remove this or use deepseq, see the comments in peek.
+    {-
     if (val1 /= val)
     then error "roundtrip: no match"
     else return ()
+    -}
+    -- Note: deepseq is not needed if the datatype is strict
+    val1 `deepseq` return ()
 
 {-# INLINE roundtrip #-}
-roundtrip :: (Eq a, SERIALIZE_CLASS a) => a -> Int -> IO ()
+roundtrip :: (NFData a, SERIALIZE_CLASS a) => a -> Int -> IO ()
 roundtrip val times = loop times trip val
 
 -------------------------------------------------------------------------------
@@ -357,7 +417,8 @@ roundtrip val times = loop times trip val
 {-# INLINE benchConst #-}
 benchConst ::
        String
-    -> (forall a. (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ())
+    -> (forall a. (NFData a, SERIALIZE_CLASS a) =>
+        Int -> a -> Int -> IO ())
     -> Int
     -> Benchmark
 benchConst gname f times =
@@ -385,7 +446,8 @@ benchConst gname f times =
 {-# INLINE benchVar #-}
 benchVar ::
        String
-    -> (forall a. (Eq a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ())
+    -> (forall a. (NFData a, SERIALIZE_CLASS a) =>
+        Int -> a -> Int -> IO ())
     -> BinTree Int
     -> [Int]
     -> Int
