@@ -31,7 +31,7 @@ import Streamly.Internal.Data.Unbox
 import Control.DeepSeq (force)
 import Test.QuickCheck (oneof, generate)
 import Streamly.Internal.Data.Unbox (newBytes, MutableByteArray)
-import Streamly.Internal.Data.Serialize
+import Streamly.Internal.Data.Serialize hiding (encode)
 #endif
 
 #ifdef USE_TH
@@ -353,6 +353,17 @@ pokeTimes val times = do
     arr <- newBytes n
     loopWith times poke arr val
 
+{-# INLINE encode #-}
+encode :: SERIALIZE_CLASS a => a -> IO ()
+encode val = do
+    let n = getSize val
+    arr <- newBytes n
+    SERIALIZE_OP 0 arr val >> return ()
+
+{-# INLINE encodeTimes #-}
+encodeTimes :: SERIALIZE_CLASS a => a -> Int -> IO ()
+encodeTimes val times = loop times encode val
+
 {-# INLINE peek #-}
 peek :: forall a. (NFData a, SERIALIZE_CLASS a) =>
     (a, Int) -> MutableByteArray -> IO ()
@@ -478,11 +489,13 @@ allBenchmarks tInt lInt times =
         ]
     , benchConst "poke" (const pokeTimes) times
     , benchConst "pokeWithSize" (const pokeTimesWithSize) times
+    , benchConst "encode" (const encodeTimes) times
     , benchConst "peek" peekTimes times
     , benchConst "roundtrip" (const roundtrip) times
 #ifndef USE_UNBOX
     , benchVar "poke" (const pokeTimes) tInt lInt 1
     , benchVar "pokeWithSize" (const pokeTimesWithSize) tInt lInt 1
+    , benchVar "encode" (const encodeTimes) tInt lInt 1
     , benchVar "peek" peekTimes tInt lInt 1
     , benchVar "roundtrip" (const roundtrip) tInt lInt 1
 #endif
