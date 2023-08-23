@@ -242,6 +242,17 @@ getIndex i arr@Array {..} =
     then Just $ getIndexUnsafe i arr
     else Nothing
 
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Array.Generic as Array
+-- >>> import Data.Function ((&))
+-- >>> :{
+--  Stream.fromList [1,2,3,4,5::Int]
+--      & Stream.scan (Array.writeLastN 2)
+--      & Stream.fold Fold.toList
+--  :}
+-- [fromList [],fromList [1],fromList [1,2],fromList [2,3],fromList [3,4],fromList [4,5]]
+--
 {-# INLINE writeLastN #-}
 writeLastN :: MonadIO m => Int -> Fold m a (Array a)
 writeLastN n = FL.rmapM f (RB.writeLastN n)

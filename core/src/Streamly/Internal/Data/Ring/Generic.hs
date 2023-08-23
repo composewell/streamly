@@ -32,6 +32,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.MutArray.Generic
     ( MutArray(..)
     , new
+    , nil
     , uninit
     , putIndexUnsafe
     , putSliceUnsafe
@@ -127,18 +128,24 @@ seek adj rng@Ring{..}
 -- may share the same underlying memory as the Ring.
 {-# INLINE toMutArray #-}
 toMutArray :: MonadIO m => Int -> Int -> Ring a -> m (MutArray a)
-toMutArray adj n Ring{..} = do
-    let len = min ringMax n
-    let idx = mod (ringHead + adj) ringMax
-        end = idx + len
-    if end <= ringMax
-    then
-        -- putSliceUnsafe ringArr idx arr1 0 len
-        return $ ringArr { arrStart = idx, arrLen = len }
+toMutArray adj n Ring{..} =
+    if ringMax <= 0
+    then nil
     else do
-        -- XXX Just swap the elements in the existing ring and return the
-        -- same array without reallocation.
-        arr <- liftIO $ new len
+    -- XXX returning same underlying memory as the Ring for (ringMax < n)
+    -- corrupts the data as below for ex:
+    -- :{
+    --    Stream.fromList [1,2,3,4,5::Int]
+    -- & Stream.scan (Array.writeLastN 2)
+    -- & Stream.fold Fold.toList
+    -- :}
+    -- returns [fromList [],fromList [5,4],fromList [1,2],fromList [2,3],fromList [3,4],fromList [4,5]]
+    -- expected is [fromList [],fromList [1],fromList [1,2],fromList [2,3],fromList [3,4],fromList [4,5]]
+    --
+        let len = min ringMax n
+        let idx = mod (ringHead + adj) ringMax
+            end = idx + len
+        arr <- new len
         arr1 <- uninit arr len
         putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
         putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
