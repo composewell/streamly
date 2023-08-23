@@ -377,12 +377,10 @@ toStreamK (Stream step state) = go state
                Stop      -> stp
       in go' st
 
-#ifndef DISABLE_FUSION
 {-# RULES "fromStreamK/toStreamK fusion"
     forall s. toStreamK (fromStreamK s) = s #-}
 {-# RULES "toStreamK/fromStreamK fusion"
     forall s. fromStreamK (toStreamK s) = s #-}
-#endif
 
 ------------------------------------------------------------------------------
 -- Running a 'Fold'

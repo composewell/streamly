@@ -94,11 +94,6 @@ flag has-llvm
   manual: True
   default: False
 
-flag no-fusion
-  description: Disable rewrite rules for stream fusion
-  manual: True
-  default: False
-
 flag opt
   description: off=GHC default, on=-O2
   manual: True
@@ -130,9 +125,6 @@ flag use-folds
 
 common compile-options
     default-language: Haskell2010
-
-    if flag(no-fusion)
-      cpp-options:    -DDISABLE_FUSION
 
     if flag(dev)
       cpp-options:    -DDEVBUILD
