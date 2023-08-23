@@ -229,6 +229,7 @@ instance Eq Product25 where
 -- Simple non-recursive ADT
 -------------------------------------------------------------------------------
 
+{-
 data CustomDT1
     = CDT1C1
     | CDT1C2 Int
@@ -246,6 +247,7 @@ instance NFData CustomDT1 where
     rnf CDT1C1 = ()
     rnf (CDT1C2 i) = i `seq` ()
     rnf (CDT1C3 i1 i2) = i1 `seq` i2 `seq` ()
+-}
 
 -------------------------------------------------------------------------------
 -- Recursive ADT
@@ -329,6 +331,7 @@ benchSink name times f = bench name (nfIO (randomRIO (times, times) >>= f))
 -- Serialization Helpers
 -------------------------------------------------------------------------------
 
+{-
 {-# INLINE pokeWithSize #-}
 pokeWithSize :: SERIALIZE_CLASS a => MutableByteArray -> a -> IO ()
 pokeWithSize arr val = do
@@ -341,6 +344,7 @@ pokeTimesWithSize val times = do
     let n = getSize val
     arr <- newBytes n
     loopWith times pokeWithSize arr val
+-}
 
 {-# INLINE poke #-}
 poke :: SERIALIZE_CLASS a => MutableByteArray -> a -> IO ()
@@ -436,6 +440,7 @@ benchConst gname f times =
     bgroup gname
        [ let !n = getSize Unit
           in benchSink "Unit" times (f n Unit)
+       {-
        , let !n = getSize CDT1C1
           in benchSink "C1" times (f n CDT1C1)
        , let val = CDT1C2 5
@@ -444,6 +449,7 @@ benchConst gname f times =
        , let val = CDT1C3 5 2
              !n = getSize val
           in benchSink "C3" (times `div` 3) (f n val)
+       -}
        , let !n = getSize Sum21
           in benchSink "Sum2" times (f n Sum21)
        , let !n = getSize Sum2525
@@ -488,13 +494,13 @@ allBenchmarks tInt lInt times =
 #endif
         ]
     , benchConst "poke" (const pokeTimes) times
-    , benchConst "pokeWithSize" (const pokeTimesWithSize) times
+    -- , benchConst "pokeWithSize" (const pokeTimesWithSize) times
     , benchConst "encode" (const encodeTimes) times
     , benchConst "peek" peekTimes times
     , benchConst "roundtrip" (const roundtrip) times
 #ifndef USE_UNBOX
     , benchVar "poke" (const pokeTimes) tInt lInt 1
-    , benchVar "pokeWithSize" (const pokeTimesWithSize) tInt lInt 1
+    -- , benchVar "pokeWithSize" (const pokeTimesWithSize) tInt lInt 1
     , benchVar "encode" (const encodeTimes) tInt lInt 1
     , benchVar "peek" peekTimes tInt lInt 1
     , benchVar "roundtrip" (const roundtrip) tInt lInt 1
