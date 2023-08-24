@@ -182,13 +182,14 @@ import Streamly.Internal.Data.Array (Array(..), byteLength)
 import qualified Data.IntMap.Lazy as Map
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Data.Array as A (fromList, writeN, getIndex)
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Unicode.Stream as U
 
 import qualified Streamly.Internal.Data.Array as A
     ( fromStream, asCStringUnsafe, asPtrUnsafe
-    , fromList, writeN, getIndex, getSliceUnsafe, read
+    , getSliceUnsafe, read
     )
 import qualified Streamly.Internal.FileSystem.Dir as Dir (readDirs)
 import qualified Streamly.Internal.Data.Parser as PR
