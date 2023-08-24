@@ -88,22 +88,22 @@ import qualified Network.Socket as Net
 
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Stream.Chunked (lpackArraysChunksOf)
-import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Data.Fold (Fold)
+import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Data.Array as A (reader, length)
+import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Data.Stream as S
+import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array as A
-    (unsafeFreeze, asPtrUnsafe, byteLength, pinnedChunksOf, pinnedWriteN, pinnedWriteNUnsafe)
+    ( unsafeFreeze, asPtrUnsafe, byteLength, pinnedChunksOf,
+      pinnedWriteN, pinnedWriteNUnsafe )
 import qualified Streamly.Internal.Data.MutArray as MArray
     (MutArray(..), asPtrUnsafe, pinnedNewBytes)
-import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream as D
-    (Stream(..), Step(..))
-import qualified Streamly.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Unfold as UF (first, map)
 import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
@@ -173,7 +173,7 @@ listenTuples = Unfold step inject
 
     step listener = do
         r <- liftIO (Net.accept listener `onException` Net.close listener)
-        return $ D.Yield r listener
+        return $ S.Yield r listener
 
 -- | Unfold a three tuple @(listenQLen, spec, addr)@ into a stream of connected
 -- protocol sockets corresponding to incoming connections. @listenQLen@ is the
@@ -344,15 +344,15 @@ _readChunksUptoWith f size h = S.fromStreamK go
 {-# INLINE_NORMAL readChunksWith #-}
 readChunksWith :: MonadIO m => Int -> Socket -> Stream m (Array Word8)
 -- readChunksWith = _readChunksUptoWith readChunk
-readChunksWith size h = D.Stream step ()
+readChunksWith size h = S.Stream step ()
     where
     {-# INLINE_LATE step #-}
     step _ _ = do
         arr <- liftIO $ getChunk size h
         return $
             case A.length arr of
-                0 -> D.Stop
-                _ -> D.Yield arr ()
+                0 -> S.Stop
+                _ -> S.Yield arr ()
 
 -- | Read a stream of byte arrays from a socket. The maximum size of a single
 -- array is limited to @defaultChunkSize@.
@@ -378,8 +378,8 @@ chunkReaderWith = Unfold step return
         arr <- liftIO $ getChunk size h
         return $
             case A.length arr of
-                0 -> D.Stop
-                _ -> D.Yield arr (size, h)
+                0 -> S.Stop
+                _ -> S.Yield arr (size, h)
 
 -- | Same as 'chunkReaderWith'
 --
