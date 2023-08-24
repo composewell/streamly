@@ -98,8 +98,6 @@ import Foreign.C.String (peekCWStringLen)
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Storable (peekByteOff)
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr, nullFunPtr, plusPtr)
-import Streamly.Data.Stream (Stream)
-import Streamly.Internal.Data.Stream.Concurrent (eager)
 import System.Win32.File
     ( FileNotificationFlag
     , LPOVERLAPPED
@@ -118,14 +116,18 @@ import System.Win32.File
     , oPEN_EXISTING
     )
 import System.Win32.Types (BOOL, DWORD, HANDLE, LPVOID, LPDWORD, failIfFalse_)
+
+import Streamly.Data.Array (Array)
+import Streamly.Data.Stream (Stream)
+import Streamly.Data.Stream.Concurrent (eager)
+
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream.Concurrent as S (parConcatMap)
-import qualified Streamly.Internal.Unicode.Stream as U
-import qualified Streamly.Internal.Unicode.Utf8 as UTF8
-import qualified Streamly.Internal.Data.Array as A
-import Streamly.Internal.Data.Array (Array)
+import qualified Streamly.Data.Stream as S
+import qualified Streamly.Data.Stream.Concurrent as S
+import qualified Streamly.Unicode.Stream as U
+import qualified Streamly.Internal.Unicode.Utf8 as UTF8 (pack, toArray)
+import qualified Streamly.Internal.Data.Array as A (read, fromList)
 
 -- | Watch configuration, used to specify the events of interest and the
 -- behavior of the watch.
