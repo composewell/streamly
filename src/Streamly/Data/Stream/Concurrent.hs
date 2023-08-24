@@ -106,40 +106,6 @@ module Streamly.Data.Stream.Concurrent
 where
 
 import Streamly.Internal.Data.Stream.Concurrent
-  ( MonadAsync
-  , Config
-  , StopWhen(..)
-  , Rate(..)
-  , maxThreads
-  , maxBuffer
-  , rate
-  , inspect
-  , eager
-  , stopWhen
-  , ordered
-  , interleaved
-  , avgRate
-  , minRate
-  , maxRate
-  , constRate
-  , fromCallback
-  , parApply
-  , parConcat
-  , parConcatIterate
-  , parConcatMap
-  , parEval
-  , parList
-  , parMapM
-  , parMergeBy
-  , parMergeByM
-  , parRepeatM
-  , parReplicateM
-  , parSequence
-  , parTapCount
-  , parZipWith
-  , parZipWithM
-  , tapCount
-  )
 import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 
 -- $concurrency
