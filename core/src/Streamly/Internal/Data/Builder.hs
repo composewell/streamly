@@ -27,16 +27,16 @@ import Control.Applicative (liftA2)
 -- or even a Fold. Unlike fold the step function is one-shot and not called in
 -- a loop.
 newtype Builder s m a =
-  Builder (s -> m (s, a))
+  Builder (s -> m (a, s))
 
 -- | Maps a function on the output of the fold (the type @b@).
 instance Functor m => Functor (Builder s m) where
     {-# INLINE fmap #-}
-    fmap f (Builder step1) = Builder (fmap (fmap f) . step1)
+    fmap f (Builder step1) = Builder (fmap (\ (a, s) -> (f a, s)) . step1)
 
 {-# INLINE fromPure #-}
 fromPure :: Applicative m => b -> Builder s m b
-fromPure b = Builder (\s -> pure (s, b))
+fromPure b = Builder (\s -> pure (b, s))
 
 -- | Chain the actions and zip the outputs.
 {-# INLINE sequenceWith #-}
@@ -47,9 +47,9 @@ sequenceWith func (Builder stepL) (Builder stepR) = Builder step
     where
 
     step s = do
-        (s1, x) <- stepL s
-        (s2, y) <- stepR s1
-        pure (s2, func x y)
+        (x, s1) <- stepL s
+        (y, s2) <- stepR s1
+        pure (func x y, s2)
 
 instance Monad m => Applicative (Builder a m) where
     {-# INLINE pure #-}
@@ -74,7 +74,7 @@ instance Monad m => Monad (Builder a m) where
         where
 
         step s = do
-            (s1, x) <- stepL s
+            (x, s1) <- stepL s
             let Builder stepR = f x
-            (s2, y) <- stepR s1
-            pure (s2, y)
+            (y, s2) <- stepR s1
+            pure (y, s2)

@@ -616,7 +616,7 @@ readUnsafe = Peeker (Builder step)
     where
 
     {-# INLINE step #-}
-    step :: forall a. Unbox a => BoundedPtr -> IO (BoundedPtr, a)
+    step :: forall a. Unbox a => BoundedPtr -> IO (a, BoundedPtr)
     step (BoundedPtr arr pos end) = do
         let next = pos + sizeOf (Proxy :: Proxy a)
 #ifdef DEBUG
@@ -626,7 +626,7 @@ readUnsafe = Peeker (Builder step)
                 ++ " end = " ++ show end
 #endif
         r <- peekByteIndex pos arr
-        return (BoundedPtr arr next end, r)
+        return (r, BoundedPtr arr next end)
 
 {-# INLINE read #-}
 read :: Unbox a => Peeker a
@@ -635,7 +635,7 @@ read = Peeker (Builder step)
     where
 
     {-# INLINE step #-}
-    step :: forall a. Unbox a => BoundedPtr -> IO (BoundedPtr, a)
+    step :: forall a. Unbox a => BoundedPtr -> IO (a, BoundedPtr)
     step (BoundedPtr arr pos end) = do
         let next = pos + sizeOf (Proxy :: Proxy a)
         when (next > end)
@@ -643,7 +643,7 @@ read = Peeker (Builder step)
                 ++ show next
                 ++ " end = " ++ show end
         r <- peekByteIndex pos arr
-        return (BoundedPtr arr next end, r)
+        return (r, BoundedPtr arr next end)
 
 {-# INLINE skipByte #-}
 skipByte :: Peeker ()
@@ -652,7 +652,7 @@ skipByte = Peeker (Builder step)
     where
 
     {-# INLINE step #-}
-    step :: BoundedPtr -> IO (BoundedPtr, ())
+    step :: BoundedPtr -> IO ((), BoundedPtr)
     step (BoundedPtr arr pos end) = do
         let next = pos + 1
 #ifdef DEBUG
@@ -661,11 +661,11 @@ skipByte = Peeker (Builder step)
                 ++ show next
                 ++ " end = " ++ show end
 #endif
-        return (BoundedPtr arr next end, ())
+        return ((), BoundedPtr arr next end)
 
 {-# INLINE runPeeker #-}
 runPeeker :: Peeker a -> BoundedPtr -> IO a
-runPeeker (Peeker (Builder f)) ptr = fmap snd (f ptr)
+runPeeker (Peeker (Builder f)) ptr = fmap fst (f ptr)
 
 --------------------------------------------------------------------------------
 -- Poke utilities
