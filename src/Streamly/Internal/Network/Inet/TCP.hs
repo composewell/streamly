@@ -106,12 +106,13 @@ import Prelude hiding (read)
 
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (fork)
-import Streamly.Internal.Data.Array (Array(..), pinnedWriteNUnsafe)
-import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Data.Array (Array)
+import Streamly.Internal.Data.Array (pinnedWriteNUnsafe)
+import Streamly.Internal.Data.Fold ( Fold(..) )
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unbox (Unbox)
-import Streamly.Internal.Data.Unfold (Unfold(..))
+import Streamly.Data.Unfold (Unfold)
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, acceptor)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
@@ -120,13 +121,15 @@ import qualified Network.Socket as Net
 
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Array as A (pinnedChunksOf)
 import qualified Streamly.Internal.Data.Unfold as UF (first, bracketIO)
 import qualified Streamly.Internal.Data.Fold as FL (Step(..), reduce)
-import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S
+
+import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S (bracket)
 import qualified Streamly.Internal.Network.Socket as ISK
+    (chunkReader, putBytes, putChunks, read, readChunks, writeChunks)
 
 -------------------------------------------------------------------------------
 -- Accept (unfolds)

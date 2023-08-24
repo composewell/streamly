@@ -171,23 +171,29 @@ import Foreign.Storable (peek, peekByteOff, sizeOf)
 import GHC.IO.Device (IODeviceType(Stream))
 import GHC.IO.FD (fdFD, mkFD)
 import GHC.IO.Handle.FD (mkHandleFromFD)
-import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.Parser (Parser)
-import Streamly.Internal.Data.Array (Array(..), byteLength)
+import Streamly.Data.Stream (Stream)
+import Streamly.Data.Parser (Parser)
 import System.Directory (doesDirectoryExist)
 import System.IO (Handle, hClose, IOMode(ReadMode))
 import GHC.IO.Handle.FD (handleToFd)
 
+import Streamly.Internal.Data.Array (Array(..), byteLength)
+
 import qualified Data.IntMap.Lazy as Map
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Data.Array as A (fromList, writeN, getIndex)
+import qualified Streamly.Data.Stream as S
+import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Unicode.Stream as U
+
+import qualified Streamly.Internal.Data.Array as A
+    ( fromStream, asCStringUnsafe, asPtrUnsafe
+    , getSliceUnsafe, read
+    )
+import qualified Streamly.Internal.FileSystem.Dir as Dir (readDirs)
 import qualified Streamly.Internal.Data.Parser as PR
     (takeEQ, fromEffect, fromFold)
-import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.FileSystem.Dir as Dir
-import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.Unicode.Stream as U
 
 -------------------------------------------------------------------------------
 -- Subscription to events
