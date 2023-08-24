@@ -126,23 +126,28 @@ seek adj rng@Ring{..}
 -- Convert the ring into a boxed mutable array. Note that the returned MutArray
 -- shares the same underlying memory as the Ring, the user of this API needs to
 -- ensure that the ring is not mutated during and after the conversion.
+--
 {-# INLINE toMutArray #-}
 toMutArray :: MonadIO m => Int -> Int -> Ring a -> m (MutArray a)
-toMutArray adj n Ring{..} = do
-    let len = min ringMax n
-    let idx = mod (ringHead + adj) ringMax
-        end = idx + len
-    if end <= ringMax
-    then
-        return $ ringArr { arrStart = idx, arrLen = len }
+toMutArray adj n Ring{..} =
+    -- XXX for empty Ring it will raise an Exception: divide by zero
+    if ringMax <= 0
+    then MutArray.nil
     else do
-        -- XXX Just swap the elements in the existing ring and return the
-        -- same array without reallocation.
-        arr <- liftIO $ MutArray.new len
-        arr1 <- MutArray.uninit arr len
-        MutArray.putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
-        MutArray.putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
-        return arr1
+        let len = min ringMax n
+        let idx = mod (ringHead + adj) ringMax
+            end = idx + len
+        if end <= ringMax
+        then
+            return $ ringArr { arrStart = idx, arrLen = len }
+        else do
+            -- XXX Just swap the elements in the existing ring and return the
+            -- same array without reallocation.
+            arr <- liftIO $ MutArray.new len
+            arr1 <- MutArray.uninit arr len
+            MutArray.putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
+            MutArray.putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
+            return arr1
 
 -- | Copy out the mutable ring to a mutable Array.
 {-# INLINE copyToMutArray #-}
