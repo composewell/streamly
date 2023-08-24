@@ -782,10 +782,8 @@ toParser parser = ParserD.Parser step initial extract
             Partial _ cont1 -> extract cont1
             Continue n cont1 -> return $ ParserD.Continue n cont1
 
-#ifndef DISABLE_FUSION
 {-# RULES "fromParser/toParser fusion" [2]
     forall s. toParser (fromParser s) = s #-}
 {-# RULES "toParser/fromParser fusion" [2]
     forall s. fromParser (toParser s) = s #-}
-#endif
 -}
