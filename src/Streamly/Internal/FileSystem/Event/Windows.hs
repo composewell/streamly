@@ -98,7 +98,7 @@ import Foreign.C.String (peekCWStringLen)
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Storable (peekByteOff)
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr, nullFunPtr, plusPtr)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.Concurrent (eager)
 import System.Win32.File
     ( FileNotificationFlag
