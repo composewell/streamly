@@ -20,6 +20,7 @@ module Streamly.Internal.Data.Ring.Generic
 
     -- * Conversion
     , toMutArray
+    , copyToMutArray
     , toStreamWith
     ) where
 
@@ -29,16 +30,11 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.MutArray.Generic
-    ( MutArray(..)
-    , new
-    , nil
-    , uninit
-    , putIndexUnsafe
-    , putSliceUnsafe
-    )
+import Streamly.Internal.Data.MutArray.Generic (MutArray(..))
+
 -- import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Fold.Type as Fold
+import qualified Streamly.Internal.Data.MutArray.Generic as MutArray
 
 -- XXX Use MutableArray rather than keeping a MutArray here.
 data Ring a = Ring
@@ -59,8 +55,8 @@ data Ring a = Ring
 {-# INLINE createRing #-}
 createRing :: MonadIO m => Int -> m (Ring a)
 createRing count = liftIO $ do
-    arr <- new count
-    arr1 <- uninit arr count
+    arr <- MutArray.new count
+    arr1 <- MutArray.uninit arr count
     return (Ring
         { ringArr = arr1
         , ringHead = 0
@@ -68,6 +64,9 @@ createRing count = liftIO $ do
         })
 
 
+-- | Note that it is not safe to return a reference to the mutable Ring using a
+-- scan as the Ring is continuously getting mutated. You could however copy out
+-- the Ring.
 {-# INLINE writeLastN #-}
 writeLastN :: MonadIO m => Int -> Fold m a (Ring a)
 writeLastN n = Fold step initial extract
@@ -102,7 +101,7 @@ unsafeInsertRingWith :: Ring a -> a -> IO Int
 unsafeInsertRingWith Ring{..} x = do
     assertM(ringMax >= 1)
     assertM(ringHead < ringMax)
-    putIndexUnsafe ringHead ringArr x
+    MutArray.putIndexUnsafe ringHead ringArr x
     let rh1 = ringHead + 1
         next = if rh1 == ringMax then 0 else rh1
     return next
@@ -125,30 +124,40 @@ seek adj rng@Ring{..}
 
 -- | @toMutArray rignHeadAdjustment lengthToRead ring@.
 -- Convert the ring into a boxed mutable array. Note that the returned MutArray
--- may share the same underlying memory as the Ring.
+-- shares the same underlying memory as the Ring, the user of this API needs to
+-- ensure that the ring is not mutated during and after the conversion.
 {-# INLINE toMutArray #-}
 toMutArray :: MonadIO m => Int -> Int -> Ring a -> m (MutArray a)
-toMutArray adj n Ring{..} =
-    if ringMax <= 0
-    then nil
+toMutArray adj n Ring{..} = do
+    let len = min ringMax n
+    let idx = mod (ringHead + adj) ringMax
+        end = idx + len
+    if end <= ringMax
+    then
+        return $ ringArr { arrStart = idx, arrLen = len }
     else do
-    -- XXX returning same underlying memory as the Ring for (ringMax < n)
-    -- corrupts the data as below for ex:
-    -- :{
-    --    Stream.fromList [1,2,3,4,5::Int]
-    -- & Stream.scan (Array.writeLastN 2)
-    -- & Stream.fold Fold.toList
-    -- :}
-    -- returns [fromList [],fromList [5,4],fromList [1,2],fromList [2,3],fromList [3,4],fromList [4,5]]
-    -- expected is [fromList [],fromList [1],fromList [1,2],fromList [2,3],fromList [3,4],fromList [4,5]]
-    --
+        -- XXX Just swap the elements in the existing ring and return the
+        -- same array without reallocation.
+        arr <- liftIO $ MutArray.new len
+        arr1 <- MutArray.uninit arr len
+        MutArray.putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
+        MutArray.putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
+        return arr1
+
+-- | Copy out the mutable ring to a mutable Array.
+{-# INLINE copyToMutArray #-}
+copyToMutArray :: MonadIO m => Int -> Int -> Ring a -> m (MutArray a)
+copyToMutArray adj n Ring{..} = do
+    if ringMax <= 0
+    then MutArray.nil
+    else do
         let len = min ringMax n
         let idx = mod (ringHead + adj) ringMax
             end = idx + len
-        arr <- new len
-        arr1 <- uninit arr len
-        putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
-        putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
+        arr <- MutArray.new len
+        arr1 <- MutArray.uninit arr len
+        MutArray.putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
+        MutArray.putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
         return arr1
 
 -- This would be theoretically slower than toMutArray because of a branch

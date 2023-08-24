@@ -260,7 +260,7 @@ writeLastN n = FL.rmapM f (RB.writeLastN n)
     where
 
     f rb = do
-        arr <- RB.toMutArray 0 n rb
+        arr <- RB.copyToMutArray 0 n rb
         return $ unsafeFreeze arr
 
 {-# INLINE getSliceUnsafe #-}
