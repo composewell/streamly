@@ -57,9 +57,7 @@ roundtrip
     -> IO ()
 roundtrip val = do
 
-    let sz =
-          case Serialize.size :: Serialize.Size a of
-              Serialize.Size f -> f 0 val
+    let sz = Serialize.size 0 val
 
     -- putStrLn "----------------------------------------------------------------"
     -- putStrLn $ show val
@@ -79,9 +77,7 @@ testSerializeList
     -> IO ()
 testSerializeList sizeOfA val = do
 
-    let sz =
-          case Serialize.size :: Serialize.Size a of
-              Serialize.Size f -> f 0 val
+    let sz = Serialize.size 0 val
 
     sz `shouldBe` sizeOfA
 

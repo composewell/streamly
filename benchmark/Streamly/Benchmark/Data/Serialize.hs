@@ -292,9 +292,7 @@ getSize :: forall a. SERIALIZE_CLASS a => a -> Int
 #ifdef USE_UNBOX
 getSize _ = sizeOf (Proxy :: Proxy a)
 #else
-getSize val =
-    case size :: Size a of
-        Size f -> f 0 val
+getSize = size 0
 #endif
 
 -------------------------------------------------------------------------------
