@@ -17,7 +17,6 @@ module Streamly.Data.Serialize
     , deriveUnboxWith
 
     -- * Serialize
-    , Size(..)
     , Serialize(..)
     , deriveSerialize
     , deriveSerializeWith
@@ -36,7 +35,6 @@ module Streamly.Data.Serialize
 
 import Streamly.Internal.Data.Serialize
     ( Serialize(..)
-    , Size(..)
     , decode
     , encode
     , pinnedEncode

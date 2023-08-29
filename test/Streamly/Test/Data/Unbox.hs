@@ -32,7 +32,7 @@ import GHC.Real (Ratio(..))
 
 #ifdef USE_SERIALIZE
 
-import Streamly.Internal.Data.Serialize (Serialize(..), Size(..))
+import Streamly.Internal.Data.Serialize (Serialize(..))
 import Streamly.Internal.Data.Serialize.TH
 
 #else
@@ -179,9 +179,7 @@ variableSizeOf ::
        forall a. Serialize a
     => a
     -> Int
-variableSizeOf val =
-    case size :: Size a of
-        Size f -> f 0 val
+variableSizeOf = size 0
 #endif
 
 testSerialization ::

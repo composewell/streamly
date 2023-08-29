@@ -80,9 +80,7 @@ matchConstructor cname numFields exp0 =
         []
 
 exprGetSize :: Q Exp -> (Int, Type) -> Q Exp
-exprGetSize acc (i, ty) =
-    [|case size :: Size $(pure ty) of
-          Size f -> f $(acc) $(varE (mkFieldName i))|]
+exprGetSize acc (i, _) = [|size $(acc) $(varE (mkFieldName i))|]
 
 getTagSize :: Int -> Int
 getTagSize numConstructors
@@ -122,18 +120,13 @@ mkSizeOfExpr headTy constructors =
         [constructor@(DataCon _ _ _ fields)] ->
             case fields of
                 -- Unit type
-                [] ->
-                    appE
-                        (conE 'Size)
-                        (lamE [varP _acc, wildP] [| $(varE _acc) + 1 |])
+                [] -> lamE [varP _acc, wildP] [| $(varE _acc) + 1 |]
                 -- Product type
                 _ ->
-                    appE
-                        (conE 'Size)
-                        (lamE
-                             [varP _acc, varP _x]
-                             (caseE (varE _x)
-                                [matchCons (varE _acc) constructor]))
+                    lamE
+                        [varP _acc, varP _x]
+                        (caseE (varE _x)
+                             [matchCons (varE _acc) constructor])
         -- Sum type
         _ -> sizeOfHeadDt
 
@@ -160,12 +153,9 @@ mkSizeOfExpr headTy constructors =
     -- XXX We fix VarSize for simplicity. Should be changed later.
     sizeOfHeadDt =
         let acc = [|$(varE _acc) + $(tagSizeExp)|]
-            f =
-                (lamE
-                     [varP _acc, varP _x]
-                     (caseE (varE _x) (fmap (matchCons acc) constructors))
-                )
-         in appE (conE 'Size) f
+         in lamE
+                [varP _acc, varP _x]
+                (caseE (varE _x) (fmap (matchCons acc) constructors))
 
 --------------------------------------------------------------------------------
 -- Peek

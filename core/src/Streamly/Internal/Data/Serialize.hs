@@ -7,8 +7,7 @@
 --
 
 module Streamly.Internal.Data.Serialize
-    ( Size(..)
-    , Serialize(..)
+    ( Serialize(..)
     , encode
     , pinnedEncode
     , decode
@@ -47,11 +46,6 @@ import GHC.Exts
 -- Types
 --------------------------------------------------------------------------------
 
--- XXX Use (a -> Sum Int) instead, remove the Size type
-
--- | A left fold step to fold a generic structure to its serializable size.
-newtype Size a = Size (Int -> a -> Int) -- a left fold or Sum monoid
-
 -- | A type implementing the 'Serialize' interface supplies operations for
 -- reading and writing the type from and to a mutable byte array (an unboxed
 -- representation of the type) in memory. The read operation 'deserialize'
@@ -66,7 +60,7 @@ newtype Size a = Size (Int -> a -> Int) -- a left fold or Sum monoid
 -- 'Serialize' contains enough information to serialize and deserialize variable
 -- length types.
 --
--- >>> import Streamly.Internal.Data.Serialize (Serialize(..), Size(..))
+-- >>> import Streamly.Internal.Data.Serialize (Serialize(..))
 --
 -- >>> :{
 -- data Object = Object
@@ -77,11 +71,7 @@ newtype Size a = Size (Int -> a -> Int) -- a left fold or Sum monoid
 --
 -- >>> :{
 -- instance Serialize Object where
---     size =
---         case (size :: Size [Int], size :: Size Int) of
---             (Size f, Size g) ->
---                 Size $ \acc obj ->
---                     acc + f 0 (_obj1 obj) + g 0 (_obj2 obj)
+--     size acc obj = size (size acc (_obj1 obj)) (_obj2 obj)
 --     deserialize i arr len = do
 --         (i1, x0) <- deserialize i arr len
 --         (i2, x1) <- deserialize i1 arr len
@@ -93,9 +83,15 @@ newtype Size a = Size (Int -> a -> Int) -- a left fold or Sum monoid
 -- :}
 --
 class Serialize a where
-    -- | Get the 'Size', in bytes, reqired to store the serialized
+    -- XXX Use (a -> Sum Int) instead, remove the Size type
+
+    -- A left fold step to fold a generic structure to its serializable size.
+    -- It is of the form @Int -> a -> Int@ because you can have tail-recursive
+    -- traversal of the structures.
+
+    -- | Get the size, in bytes, reqired to store the serialized
     -- representation of the type. Size cannot be zero.
-    size :: Size a
+    size :: Int -> a -> Int
 
     -- We can implement the following functions without returning the `Int`
     -- offset but that may require traversing the Haskell structure again to get
@@ -180,7 +176,7 @@ serializeUnsafe off arr val =
 #define DERIVE_SERIALIZE_FROM_UNBOX(_type) \
 instance Serialize _type where \
 ; {-# INLINE size #-} \
-;    size = Size (\acc _ -> acc +  Unbox.sizeOf (Proxy :: Proxy _type)) \
+;    size acc _ = acc +  Unbox.sizeOf (Proxy :: Proxy _type) \
 ; {-# INLINE deserialize #-} \
 ;    deserialize off arr end = deserializeUnsafe off arr end :: IO (Int, _type) \
 ; {-# INLINE serialize #-} \
@@ -208,9 +204,7 @@ DERIVE_SERIALIZE_FROM_UNBOX((FunPtr a))
 instance forall a. Serialize a => Serialize [a] where
 
     -- {-# INLINE size #-}
-    size = Size $ \acc xs ->
-        case size :: Size a of
-            Size f -> foldl' f (acc + (Unbox.sizeOf (Proxy :: Proxy Int))) xs
+    size acc xs = foldl' size (acc + (Unbox.sizeOf (Proxy :: Proxy Int))) xs
 
     -- Inlining this causes large compilation times for tests
     {-# INLINABLE deserialize #-}
@@ -248,9 +242,7 @@ instance forall a. Serialize a => Serialize [a] where
 encodeAs :: forall a. Serialize a => PinnedState -> a -> Array Word8
 encodeAs ps a =
     unsafeInlineIO $ do
-        let len =
-              case size :: Size a of
-                  Size f -> f 0 a
+        let len = size 0 a
         -- We encode the length of the encoding as a header hence the 8 extra
         -- bytes to encode Int64
         mbarr <- Unbox.newBytesAs ps (8  +  len)
