@@ -69,6 +69,7 @@ roundtrip val = do
     (off2, val2) <- Serialize.deserialize 0 arr sz
     val2 `shouldBe` val
     off2 `shouldBe` off1
+    off2 `shouldBe` sz
 
 testSerializeList
     :: forall a. (Eq a, Show a, Serialize.Serialize a)
