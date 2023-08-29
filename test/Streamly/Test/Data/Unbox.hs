@@ -20,9 +20,6 @@ module Streamly.Test.Data.Unbox (main) where
 -- Imports
 --------------------------------------------------------------------------------
 
-#ifdef USE_SERIALIZE
-import Control.Monad (void)
-#endif
 import Data.Complex (Complex ((:+)))
 import Data.Functor.Const (Const (..))
 import Data.Functor.Identity (Identity (..))
@@ -52,6 +49,9 @@ import Streamly.Internal.Data.Unbox
     , genericPokeByteIndex
     , genericSizeOf
     , newBytes
+#ifndef USE_SERIALIZE
+    , MutableByteArray
+#endif
     )
 
 import Test.Hspec as H
@@ -64,14 +64,14 @@ import Test.Hspec as H
 
 #define MODULE_NAME "Data.Serialize.Deriving.TH"
 #define DERIVE_UNBOX(typ) $(deriveSerialize ''typ)
-#define PEEK(i, arr, sz) fmap snd (deserialize i arr sz)
-#define POKE(i, arr, val) void (serialize i arr val)
+#define PEEK(i, arr, sz) (deserialize i arr sz)
+#define POKE(i, arr, val) (serialize i arr val)
 #define TYPE_CLASS Serialize
 
 #else
 
-#define PEEK(i, arr, sz) peekByteIndex i arr
-#define POKE(i, arr, val) pokeByteIndex i arr val
+#define PEEK(i, arr, sz) peekByteIndexWithNextOff i arr
+#define POKE(i, arr, val) pokeByteIndexWithNextOff i arr val
 #define TYPE_CLASS Unbox
 
 #ifdef USE_TH
@@ -85,6 +85,33 @@ import Test.Hspec as H
 #define DERIVE_UNBOX(typ) deriving instance Unbox (typ)
 
 #endif
+
+#endif
+
+--------------------------------------------------------------------------------
+-- Helpers
+--------------------------------------------------------------------------------
+
+#ifndef USE_SERIALIZE
+
+peekByteIndexWithNextOff ::
+       forall a. Unbox a
+    => Int
+    -> MutableByteArray
+    -> IO (Int, a)
+peekByteIndexWithNextOff i arr = do
+    val <- peekByteIndex i arr
+    pure (i + sizeOf (Proxy :: Proxy a), val)
+
+pokeByteIndexWithNextOff ::
+       forall a. Unbox a
+    => Int
+    -> MutableByteArray
+    -> a
+    -> IO Int
+pokeByteIndexWithNextOff i arr val = do
+    pokeByteIndex i arr val
+    pure $ i + sizeOf (Proxy :: Proxy a)
 
 #endif
 
@@ -194,8 +221,11 @@ testSerialization val = do
                (sizeOf (Proxy :: Proxy a))
 #endif
     arr <- newBytes len
-    POKE(0, arr, val)
-    PEEK(0, arr, len) `shouldReturn` val
+    nextOff <- POKE(0, arr, val)
+    (nextOff1, val1) <- PEEK(0, arr, len)
+    val1 `shouldBe` val
+    nextOff1 `shouldBe` len
+    nextOff `shouldBe` len
 
 testGenericConsistency ::
        forall a.
@@ -226,11 +256,15 @@ testGenericConsistency val = do
     -- Test the serialization and deserialization
     arr <- newBytes (sizeOf (Proxy :: Proxy a))
 
-    POKE(0, arr, val)
+    nextOff <- POKE(0, arr, val)
     genericPeekByteIndex arr 0 `shouldReturn` val
 
     genericPokeByteIndex arr 0 val
-    PEEK(0, arr, len) `shouldReturn` val
+    (nextOff1, val1) <- PEEK(0, arr, len)
+    val1 `shouldBe` val
+
+    nextOff1 `shouldBe` len
+    nextOff `shouldBe` len
 
 
 #ifndef USE_SERIALIZE
