@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
 
 -- |
 -- Module      : Streamly.Test.Data.Serialize
@@ -18,6 +19,7 @@ import Streamly.Internal.Data.Unbox (newBytes)
 import GHC.Generics (Generic)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
 import Streamly.Internal.Data.Serialize.TH (deriveSerialize)
+import Streamly.Internal.Data.Serialize (VLWord64)
 
 import qualified Streamly.Internal.Data.Serialize as Serialize
 
@@ -85,6 +87,14 @@ testSerializeList sizeOfA val = do
     roundtrip val
 
 --------------------------------------------------------------------------------
+-- VLWord64 helper
+--------------------------------------------------------------------------------
+
+#define VLWord64Test(LOW, UP, EXP_SZ) prop "[LOW, UP]" \
+     $ forAll (chooseBoundedIntegral (LOW, UP)) \
+     $ \(x :: VLWord64) -> roundtrip x >> (Serialize.size 0 x `shouldBe` EXP_SZ)
+
+--------------------------------------------------------------------------------
 -- Tests
 --------------------------------------------------------------------------------
 
@@ -97,6 +107,17 @@ testCases = do
         $ testSerializeList
               (8 + 3 * 8 + 6 * 8)
               ([[1], [1, 2], [1, 2, 3]] :: [[Int]])
+
+    describe "VLWord64" $ do
+        VLWord64Test(0,240,1)
+        VLWord64Test(241,2287,2)
+        VLWord64Test(2288,67823,3)
+        VLWord64Test(67824,16777215,4)
+        VLWord64Test(16777216,4294967295,5)
+        VLWord64Test(4294967296,1099511627775,6)
+        VLWord64Test(1099511627776,281474976710655,7)
+        VLWord64Test(281474976710656,72057594037927935,8)
+        VLWord64Test(72057594037927936,maxBound,9)
 
     limitQC
         $ prop "CustomDatatype"
