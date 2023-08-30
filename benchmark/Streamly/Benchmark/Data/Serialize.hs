@@ -5,6 +5,8 @@
 {-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
 #endif
 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 -- |
 -- Module      : Streamly.Benchmark.Data.Serialize
 -- Copyright   : (c) 2023 Composewell
@@ -17,6 +19,7 @@ module Main (main) where
 -- Imports
 -------------------------------------------------------------------------------
 
+import Data.Word (Word64)
 import Control.DeepSeq (NFData(..), deepseq)
 import GHC.Generics (Generic)
 import System.Random (randomRIO)
@@ -60,6 +63,12 @@ import Streamly.Benchmark.Common
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
+
+#ifndef USE_UNBOX
+instance NFData VLWord64 where
+    {-# INLINE rnf #-}
+    rnf (VLWord64 w) = rnf w
+#endif
 
 data Unit = Unit
     deriving (Generic, Show, Eq)
@@ -455,7 +464,10 @@ benchConst gname f times =
        , let val = Product25 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
              !n = getSize val
           in benchSink "Product25" (times `div` 26) (f n val)
-        ]
+       , let val = 54321 :: Word64
+             !n = getSize val
+         in benchSink "Word64" times (f n val)
+       ]
 
 #ifndef USE_UNBOX
 {-# INLINE benchVar #-}
@@ -474,6 +486,34 @@ benchVar gname f tInt lInt times =
         , let !n = getSize lInt
            in benchSink "list-int" times (f n lInt)
         ]
+
+{-# INLINE benchVLWord64 #-}
+benchVLWord64 ::
+       String
+    -> (forall a. (NFData a, SERIALIZE_CLASS a) =>
+        Int -> a -> Int -> IO ())
+    -> Int
+    -> Benchmark
+benchVLWord64 gname f times =
+    bgroup gname
+       [ bgroup "VLWord64"
+            [ bencher 239
+            , bencher 2286
+            , bencher 67822
+            , bencher 16777214
+            , bencher 4294967294
+            , bencher 1099511627774
+            , bencher 281474976710654
+            , bencher 72057594037927934
+            , bencher 72057594037927936
+            ]
+       ]
+    where
+    {-# INLINE bencher #-}
+    bencher :: VLWord64 -> Benchmark
+    bencher val =
+        let !n = getSize val
+         in benchSink (show val) times (f n val)
 #endif
 
 -- Times is scaled by the number of constructors to normalize
@@ -502,6 +542,10 @@ allBenchmarks tInt lInt times =
     , benchVar "encode" (const encodeTimes) tInt lInt 1
     , benchVar "peek" peekTimes tInt lInt 1
     , benchVar "roundtrip" (const roundtrip) tInt lInt 1
+    , benchVLWord64 "poke" (const pokeTimes) times
+    , benchVLWord64 "encode" (const encodeTimes) times
+    , benchVLWord64 "peek" peekTimes times
+    , benchVLWord64 "roundtrip" (const roundtrip) times
 #endif
     ]
 
