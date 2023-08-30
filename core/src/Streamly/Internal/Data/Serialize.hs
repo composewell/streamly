@@ -8,6 +8,7 @@
 
 module Streamly.Internal.Data.Serialize
     ( Serialize(..)
+    , VLWord64(..)
     , encode
     , pinnedEncode
     , decode
@@ -36,6 +37,7 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
 import GHC.Stable (StablePtr(..))
+import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 
 import qualified Streamly.Internal.Data.Unbox as Unbox
 import qualified Streamly.Internal.Data.Array as Array
@@ -233,6 +235,165 @@ instance forall a. Serialize a => Serialize [a] where
               o1 <- serialize o arr x
               pokeList o1 xs
         pokeList off1 val
+
+--------------------------------------------------------------------------------
+-- Variable length encoding for unsigned 64 bit integer
+--------------------------------------------------------------------------------
+
+-- See https://sqlite.org/src4/doc/trunk/www/varint.wiki
+newtype VLWord64 =
+    VLWord64 Word64
+    deriving (Num, Enum, Real, Integral, Show, Eq, Ord, Bounded)
+
+-- | div256 x = x `div` 256
+div256 :: Word64 -> Word64
+div256 x = x `shiftR` 8
+
+-- | mult256 x = x * 256
+mult256 :: Word64 -> Word64
+mult256 x = x `shiftL` 8
+
+-- | mod256 x = x % 256
+mod256 :: Word64 -> Word64
+mod256 x = x .&. 0xFF
+
+w64_w8 :: Word64 -> Word8
+w64_w8 = fromIntegral
+
+w64_w16 :: Word64 -> Word16
+w64_w16 = fromIntegral
+
+w64_w32 :: Word64 -> Word32
+w64_w32 = fromIntegral
+
+w8_64 :: Word8 -> Word64
+w8_64 = fromIntegral
+
+w16_64 :: Word16 -> Word64
+w16_64 = fromIntegral
+
+w32_64 :: Word32 -> Word64
+w32_64 = fromIntegral
+
+instance Serialize VLWord64 where
+
+    {-# INLINE size #-}
+    size acc (VLWord64 x)
+         | x <= 240 = 1 + acc
+         | x <= 2287 = 2 + acc
+         | x <= 67823 = 3 + acc
+         | x <= 16777215 = 4 + acc
+         | x <= 4294967295 = 5 + acc
+         | x <= 1099511627775 = 6 + acc
+         | x <= 281474976710655 = 7 + acc
+         | x <= 72057594037927935 = 8 + acc
+         | otherwise = 9 + acc
+
+    -- Inlining this causes large compilation times for tests
+    {-# INLINE deserialize #-}
+    deserialize off arr sz = do
+        (off1, b0 :: Word8) <- deserialize off arr sz
+        if b0 <= 240
+        then pure (off1, VLWord64 (w8_64 b0))
+        else if b0 >= 241 && b0 <= 248
+        then do
+            (off2, b1 :: Word8) <- deserialize off1 arr sz
+            pure (off2, VLWord64 (240 + mult256 (w8_64 (b0 - 241)) + w8_64 b1))
+        else if b0 == 249
+        then do
+            (off2, b1 :: Word8) <- deserialize off1 arr sz
+            (off3, b2 :: Word8) <- deserialize off2 arr sz
+            pure (off3, VLWord64 (2288 + mult256 (w8_64 b1) + w8_64 b2))
+        else if b0 == 250
+        then do
+            (off2, b1 :: Word8) <- deserialize off1 arr sz
+            (off3, b2_3 :: Word16) <- deserialize off2 arr sz
+            pure (off3, VLWord64 ((w8_64 b1 `shiftL` 16) .|. w16_64 b2_3))
+        else if b0 == 251
+        then do
+            (off2, b1_4 :: Word32) <- deserialize off1 arr sz
+            pure (off2, VLWord64 (w32_64 b1_4))
+        else if b0 == 252
+        then do
+            (off2, b1 :: Word8) <- deserialize off1 arr sz
+            (off3, b2_5 :: Word32) <- deserialize off2 arr sz
+            pure (off3, VLWord64 ((w8_64 b1 `shiftL` 32) .|. w32_64 b2_5))
+        else if b0 == 253
+        then do
+            (off2, b1_2 :: Word16) <- deserialize off1 arr sz
+            (off3, b3_6 :: Word32) <- deserialize off2 arr sz
+            pure (off3, VLWord64 ((w16_64 b1_2 `shiftL` 32) .|. w32_64 b3_6))
+        else if b0 == 254
+        then do
+            (off2, b1 :: Word8) <- deserialize off1 arr sz
+            (off3, b2_3 :: Word16) <- deserialize off2 arr sz
+            (off4, b4_7 :: Word32) <- deserialize off3 arr sz
+            pure
+                ( off4
+                , VLWord64
+                      ((w8_64 b1 `shiftL` 48)
+                           .|. (w16_64 b2_3 `shiftL` 32)
+                           .|. w32_64 b4_7))
+        else do
+            (off2, b1_8 :: Word64) <- deserialize off1 arr sz
+            pure (off2, VLWord64 b1_8)
+
+    -- Inlining this causes large compilation times for tests
+    {-# INLINE serialize #-}
+    serialize off arr (VLWord64 v)
+         | v <= 240 = serialize off arr (fromIntegral v :: Word8)
+         | v <= 2287 = do
+               let b0 = w64_w8 $ div256 (v - 240) + 241
+                   b1 = w64_w8 $ mod256 (v - 240)
+               off1 <- serialize off arr b0
+               serialize off1 arr b1
+         | v <= 67823 = do
+               let b0 = 249 :: Word8
+                   b1 = w64_w8 $ div256 (v - 2288)
+                   b2 = w64_w8 $ mod256 (v - 2288)
+               off1 <- serialize off arr b0
+               off2 <- serialize off1 arr b1
+               serialize off2 arr b2
+         | v <= 16777215 = do
+               let b0 = 250 :: Word8
+                   b1 = w64_w8 $ v `shiftR` 16
+                   b2_3 = w64_w16 v
+               off1 <- serialize off arr b0
+               off2 <- serialize off1 arr b1
+               serialize off2 arr b2_3
+         | v <= 4294967295 = do
+               let b0 = 251 :: Word8
+                   b1_4 = w64_w32 v
+               off1 <- serialize off arr b0
+               serialize off1 arr b1_4
+         | v <= 1099511627775 = do
+               let b0 = 252 :: Word8
+                   b1 = w64_w8 $ v `shiftR` 32
+                   b2_5 = w64_w32 v
+               off1 <- serialize off arr b0
+               off2 <- serialize off1 arr b1
+               serialize off2 arr b2_5
+         | v <= 281474976710655 = do
+               let b0 = 253 :: Word8
+                   b1_2 = w64_w16 $ v `shiftR` 32
+                   b3_6 = w64_w32 v
+               off1 <- serialize off arr b0
+               off2 <- serialize off1 arr b1_2
+               serialize off2 arr b3_6
+         | v <= 72057594037927935 = do
+               let b0 = 254 :: Word8
+                   b1 = w64_w8 $ v `shiftR` 48
+                   b2_3 = w64_w16 $ v `shiftR` 32
+                   b4_7 = w64_w32 v
+               off1 <- serialize off arr b0
+               off2 <- serialize off1 arr b1
+               off3 <- serialize off2 arr b2_3
+               serialize off3 arr b4_7
+         | otherwise = do
+               let b0 = 255 :: Word8
+                   b1_8 = v
+               off1 <- serialize off arr b0
+               serialize off1 arr b1_8
 
 --------------------------------------------------------------------------------
 -- High level functions
