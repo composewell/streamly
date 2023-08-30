@@ -27,6 +27,7 @@ import Control.Exception (assert)
 import Control.Monad (void)
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
+import GHC.Generics (Generic)
 import Streamly.Internal.Data.Unbox
     ( MutableByteArray(..)
     , PinnedState(..)
@@ -243,7 +244,7 @@ instance forall a. Serialize a => Serialize [a] where
 -- See https://sqlite.org/src4/doc/trunk/www/varint.wiki
 newtype VLWord64 =
     VLWord64 Word64
-    deriving (Num, Enum, Real, Integral, Show, Eq, Ord, Bounded)
+    deriving (Num, Enum, Real, Integral, Show, Eq, Ord, Bounded, Generic)
 
 -- | div256 x = x `div` 256
 div256 :: Word64 -> Word64
