@@ -131,7 +131,6 @@ data UnarySum
     deriving (Show, Generic, Eq)
 DERIVE_UNBOX(UnarySum)
 
-
 data UnarySum2
     = UnitSum1 Unit
     | UnitSum2 Unit
@@ -193,7 +192,7 @@ deriving instance Generic (Ratio Int)
 #if defined(USE_SERIALIZE)
 $(deriveSerialize ''Complex)
 $(deriveSerialize ''Ratio)
-$(deriveSerializeWith ["a"] ''Const)
+$(deriveSerializeWith ["b"] [] ''Const)
 $(deriveSerialize ''Identity)
 #endif
 
