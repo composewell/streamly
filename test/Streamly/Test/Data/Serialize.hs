@@ -26,6 +26,8 @@ import Streamly.Test.Data.Serialize.TH (genDatatype)
 import Streamly.Internal.Data.Serialize.TH
     ( deriveSerialize
     , deriveSerializeWith
+    , defaultSerializeTHConfig
+    , SerializeTHConfig(..)
     )
 import Data.Functor.Identity (Identity (..))
 
@@ -60,7 +62,10 @@ instance (Show (f Int), Show (f Char)) => Show (HigherOrderType f) where
     show a = "HigherOrderType " ++ show (field0 a) ++ " " ++ show (field1 a)
 
 $(deriveSerialize ''Identity)
-$(deriveSerializeWith ["f"] [("f", ConT ''Identity)] ''HigherOrderType)
+$(deriveSerializeWith
+      (defaultSerializeTHConfig
+           {typeVarSubstitutions = [("f", ConT ''Identity)]})
+      ''HigherOrderType)
 
 --------------------------------------------------------------------------------
 -- Recursive type

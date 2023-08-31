@@ -10,6 +10,8 @@
 --
 module Streamly.Internal.Data.Serialize.TH
     ( deriveSerialize
+    , SerializeTHConfig(..)
+    , defaultSerializeTHConfig
     , deriveSerializeWith
     ) where
 
@@ -362,28 +364,72 @@ deriveSerializeInternal preds headTy cons = do
             ]
     return [plainInstanceD preds (AppT (ConT ''Serialize) headTy) methods]
 
--- | Similar to 'deriveSerialize,' but with the ability to specify which type
--- variables should not be subjected to the 'Serialize' constraint and how to
--- replace these variables when defining the 'Serialize' instance for the
--- primary data type.
+-- | Config to control how the 'Serialize' instance is generated.
+data SerializeTHConfig =
+    SerializeTHConfig
+        { unconstrainedTypeVars :: [String]
+          -- ^ Type variables that should not have the 'Serialize' constraint.
+          --
+          -- @
+          -- data CustomDataType a b c d = CustomDataType a c
+          -- @
+          --
+          -- @
+          -- conf = defaultConf {unconstrainedTypeVars = ["b", "d"]}
+          -- $(deriveSerializeWith conf ''CustomDataType)
+          -- @
+          --
+          -- @
+          -- instance (Serialize a, Serialize c) => Serialize (CustomDataType a b c d) where
+          -- ...
+          -- @
+        , typeVarSubstitutions :: [(String, Type)]
+          -- ^ Substitute the type variable with the given type. All type
+          -- variables listed here will not have the 'Serialize' constriant as
+          -- they are replaced.
+          --
+          -- @
+          -- data CustomDataType f a = CustomDataType (f a)
+          -- @
+          --
+          -- @
+          -- conf = defaultConf {typeVarSubstitutions = [("f", ''Identity)]}
+          -- $(deriveSerializeWith conf ''CustomDataType)
+          -- @
+          --
+          -- @
+          -- instance (Serialize a) => Serialize (CustomDataType Identity a) where
+          -- ...
+          -- @
+          --
+          -- @f@ is replaced with 'Identity' and becomes unconstrained.
+{-
+        , inlineSize :: Inline
+          -- ^ Inline value for 'size'.
+        , inlineSerialize :: Inline
+          -- ^ Inline value for 'serialize'.
+        , inlineDeserialize :: Inline
+          -- ^ Inline value for 'deserialize'.
+        , constructorTagAsString :: Bool
+          -- ^ If True, encode constructors as Latin-1 byte sequence. This
+          -- allows addition, removal, and reordering of constructors. If False
+          -- encode them as numbers. The default value is 'False'.
+        , recordSyntaxWithHeader :: Bool
+          -- ^ If True, constructors with record syntax will be encoded in a
+          -- more compatible way. Allows addition, removal, and reordering of
+          -- fields. The default value is 'False'.
+-}
+        }
+
+defaultSerializeTHConfig :: SerializeTHConfig
+defaultSerializeTHConfig = SerializeTHConfig {unconstrainedTypeVars = [], typeVarSubstitutions = []}
+
+-- | Similar to 'deriveSerialize,' but take a 'SerializeTHConfig' to control how
+-- the instance is generated.
 --
--- Consider the datatype:
--- @
--- data CustomDataType a f c = CDT a (f Int)
--- @
---
--- Usage: @$(deriveSerializeWith ["c", "f"] [("f", ConT ''Identity)] ''CustomDataType)@
---
--- @
--- instance (Serialize a) => Serialize (CustomDataType a Identity c) where
--- ...
--- @
---
--- In the above example, 'Serialize' constraint is omitted for @f@ and @c@, and
--- @f@ is replaced with 'Identity' when defining the 'Serialize' instance for
--- the primary data type.
-deriveSerializeWith :: [String] -> [(String, Type)] -> Name -> Q [Dec]
-deriveSerializeWith ignoring substitutions name = do
+-- Usage: @$(deriveSerializeWith config ''CustomDataType)@
+deriveSerializeWith :: SerializeTHConfig -> Name -> Q [Dec]
+deriveSerializeWith (SerializeTHConfig {..}) name = do
     dt <- reifyDataType name
     let preds = map (unboxPred . VarT) (filterOutVars (dtTvs dt))
         headTy = appsT (ConT name) (map substituteVar (dtTvs dt))
@@ -391,11 +437,14 @@ deriveSerializeWith ignoring substitutions name = do
     deriveSerializeInternal preds headTy cons
 
     where
-
+    allUnconstrainedTypeVars =
+        unconstrainedTypeVars ++ map fst typeVarSubstitutions
     filterOutVars vs =
-        map mkName $ filter (not . flip elem ignoring) $ map nameBase vs
+        map mkName
+            $ filter (not . flip elem allUnconstrainedTypeVars)
+            $ map nameBase vs
     substituteVar v =
-        case lookup (nameBase v) substitutions of
+        case lookup (nameBase v) typeVarSubstitutions of
             Nothing -> VarT v
             Just ty -> ty
 
@@ -425,6 +474,6 @@ deriveSerializeWith ignoring substitutions name = do
 -- To control which type variables don't get the Serialize constraint, use
 -- 'deriveSerializeWith'.
 --
--- >>> deriveSerialize = deriveSerializeWith [] []
+-- >>> deriveSerialize = deriveSerializeWith 'defaultSerializeTHConfig'
 deriveSerialize :: Name -> Q [Dec]
-deriveSerialize name = deriveSerializeWith [] [] name
+deriveSerialize name = deriveSerializeWith defaultSerializeTHConfig name
