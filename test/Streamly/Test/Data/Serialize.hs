@@ -1,5 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+-- Required for Eq instance declaration of HigherOrderType
+{-# LANGUAGE UndecidableInstances #-}
+
+-- We are generating an orphan instance of Serialize for Identity.
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 -- |
 -- Module      : Streamly.Test.Data.Serialize
 -- Copyright   : (c) 2022 Composewell technologies
@@ -17,10 +23,15 @@ module Streamly.Test.Data.Serialize (main) where
 import Streamly.Internal.Data.Unbox (newBytes)
 import GHC.Generics (Generic)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
-import Streamly.Internal.Data.Serialize.TH (deriveSerialize)
+import Streamly.Internal.Data.Serialize.TH
+    ( deriveSerialize
+    , deriveSerializeWith
+    )
+import Data.Functor.Identity (Identity (..))
 
 import qualified Streamly.Internal.Data.Serialize as Serialize
 
+import Language.Haskell.TH
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Test.Hspec as H
@@ -31,6 +42,25 @@ import Test.Hspec as H
 
 $(genDatatype "CustomDatatype" 15)
 $(deriveSerialize ''CustomDatatype)
+
+--------------------------------------------------------------------------------
+-- Types with functional parameters
+--------------------------------------------------------------------------------
+
+data HigherOrderType f =
+    HigherOrderType
+        { field0 :: f Int
+        , field1 :: f Char
+        }
+
+instance (Eq (f Int), Eq (f Char)) => Eq (HigherOrderType f) where
+    (==) a b = (field0 a == field0 b) && (field1 a == field1 b)
+
+instance (Show (f Int), Show (f Char)) => Show (HigherOrderType f) where
+    show a = "HigherOrderType " ++ show (field0 a) ++ " " ++ show (field1 a)
+
+$(deriveSerialize ''Identity)
+$(deriveSerializeWith ["f"] [("f", ConT ''Identity)] ''HigherOrderType)
 
 --------------------------------------------------------------------------------
 -- Recursive type
@@ -97,6 +127,9 @@ testCases = do
         $ testSerializeList
               (8 + 3 * 8 + 6 * 8)
               ([[1], [1, 2], [1, 2, 3]] :: [[Int]])
+
+    it "HigherOrderType"
+        $ roundtrip $ HigherOrderType (Identity 5) (Identity 'e')
 
     limitQC
         $ prop "CustomDatatype"
