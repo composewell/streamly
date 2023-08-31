@@ -362,6 +362,50 @@ deriveSerializeInternal preds headTy cons = do
             ]
     return [plainInstanceD preds (AppT (ConT ''Serialize) headTy) methods]
 
+-- | Similar to 'deriveSerialize,' but with the ability to specify which type
+-- variables should not be subjected to the 'Serialize' constraint and how to
+-- replace these variables when defining the 'Serialize' instance for the
+-- primary data type.
+--
+-- Consider the datatype:
+-- @
+-- data CustomDataType a f c = CDT a (f Int)
+-- @
+--
+-- Usage: @$(deriveSerializeWith ["c", "f"] [("f", ConT ''Identity)] ''CustomDataType)@
+--
+-- @
+-- instance (Serialize a) => Serialize (CustomDataType a Identity c) where
+-- ...
+-- @
+--
+-- In the above example, 'Serialize' constraint is omitted for @f@ and @c@, and
+-- @f@ is replaced with 'Identity' when defining the 'Serialize' instance for
+-- the primary data type.
+deriveSerializeWith :: [String] -> [(String, Type)] -> Name -> Q [Dec]
+deriveSerializeWith ignoring substitutions name = do
+    dt <- reifyDataType name
+    let preds = map (unboxPred . VarT) (filterOutVars (dtTvs dt))
+        headTy = appsT (ConT name) (map substituteVar (dtTvs dt))
+        cons = dtCons dt
+    deriveSerializeInternal preds headTy cons
+
+    where
+
+    filterOutVars vs =
+        map mkName $ filter (not . flip elem ignoring) $ map nameBase vs
+    substituteVar v =
+        case lookup (nameBase v) substitutions of
+            Nothing -> VarT v
+            Just ty -> ty
+
+    unboxPred ty =
+#if MIN_VERSION_template_haskell(2,10,0)
+        AppT (ConT ''Serialize) ty
+#else
+        ClassP ''Serialize [ty]
+#endif
+
 -- | Template haskell helper to create instances of 'Serialize' automatically.
 --
 -- Consider the datatype:
@@ -378,53 +422,9 @@ deriveSerializeInternal preds headTy cons = do
 -- ...
 -- @
 --
--- To control which type variables get the Serialize constraint, use
+-- To control which type variables don't get the Serialize constraint, use
 -- 'deriveSerializeWith'.
+--
+-- >>> deriveSerialize = deriveSerializeWith [] []
 deriveSerialize :: Name -> Q [Dec]
-deriveSerialize name = do
-    dt <- reifyDataType name
-    let preds = map (unboxPred . VarT) (dtTvs dt)
-        headTy = appsT (ConT name) (map VarT (dtTvs dt))
-        cons = dtCons dt
-    deriveSerializeInternal preds headTy cons
-
-    where
-
-    unboxPred ty =
-#if MIN_VERSION_template_haskell(2,10,0)
-        AppT (ConT ''Serialize) ty
-#else
-        ClassP ''Serialize [ty]
-#endif
-
--- | Like 'deriveSerialize' but control which types variables get the 'Serialize'
--- constraint.
---
--- Consider the datatype:
--- @
--- data CustomDataType a b c = ...
--- @
---
--- Usage: @$(deriveSerializeWith ["a", "c"] ''CustomDataType)@
---
--- @
--- instance (Serialize a, Serialize c) => Serialize (CustomDataType a b c) where
--- ...
--- @
---
-deriveSerializeWith :: [String] -> Name -> Q [Dec]
-deriveSerializeWith vars name = do
-    dt <- reifyDataType name
-    let preds = map (unboxPred . VarT) (fmap mkName vars)
-        headTy = appsT (ConT name) (map VarT (dtTvs dt))
-        cons = dtCons dt
-    deriveSerializeInternal preds headTy cons
-
-    where
-
-    unboxPred ty =
-#if MIN_VERSION_template_haskell(2,10,0)
-        AppT (ConT ''Serialize) ty
-#else
-        ClassP ''Serialize [ty]
-#endif
+deriveSerialize name = deriveSerializeWith [] [] name
