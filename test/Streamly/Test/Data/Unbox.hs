@@ -192,7 +192,9 @@ deriving instance Generic (Ratio Int)
 #if defined(USE_SERIALIZE)
 $(deriveSerialize ''Complex)
 $(deriveSerialize ''Ratio)
-$(deriveSerializeWith ["b"] [] ''Const)
+$(deriveSerializeWith
+      (defaultSerializeTHConfig {unconstrainedTypeVars = ["b"]})
+      ''Const)
 $(deriveSerialize ''Identity)
 #endif
 
