@@ -103,39 +103,53 @@ getTagType numConstructors
     | otherwise = error "Too many constructors"
 
 --------------------------------------------------------------------------------
--- Size
+-- Constructor types
 --------------------------------------------------------------------------------
+
+data SimpleDataCon =
+    SimpleDataCon Name [Field]
+    deriving (Eq)
+
+simplifyDataCon :: DataCon -> SimpleDataCon
+simplifyDataCon (DataCon cname _ _ fields) = SimpleDataCon cname fields
+
+data TypeOfType
+    = UnitType Name             -- 1 constructor and 1 field
+    | TheType SimpleDataCon      -- 1 constructor and 1+ fields
+    | MultiType [SimpleDataCon] -- 1+ constructors
+    deriving (Eq)
+
+typeOfType :: Type -> [DataCon] -> TypeOfType
+typeOfType headTy [] =
+    error
+        ("Attempting to get size with no constructors (" ++
+         (pprint headTy) ++ ")")
+typeOfType _ [DataCon cname _ _ []] = UnitType cname
+typeOfType _ [con@(DataCon _ _ _ _)] = TheType $ simplifyDataCon con
+typeOfType _ cons = MultiType $ map simplifyDataCon cons
 
 isUnitType :: [DataCon] -> Bool
 isUnitType [DataCon _ _ _ []] = True
 isUnitType _ = False
 
-mkSizeOfExpr :: Type -> [DataCon] -> Q Exp
-mkSizeOfExpr headTy constructors =
-    case constructors of
-        [] ->
-            [|error
-                  ("Attempting to get size with no constructors (" ++
-                   $(lift (pprint headTy)) ++ ")")|]
-        -- One constructor with no fields is a unit type. Size of a unit type is
-        -- 1. XXX Use isUnitType?
-        [constructor@(DataCon _ _ _ fields)] ->
-            case fields of
-                -- Unit type
-                [] -> lamE [varP _acc, wildP] [| $(varE _acc) + 1 |]
-                -- Product type
-                _ ->
-                    lamE
-                        [varP _acc, varP _x]
-                        (caseE (varE _x)
-                             [matchCons (varE _acc) constructor])
-        -- Sum type
-        _ -> sizeOfHeadDt
+--------------------------------------------------------------------------------
+-- Size
+--------------------------------------------------------------------------------
+
+mkSizeOfExpr :: TypeOfType -> Q Exp
+mkSizeOfExpr tyOfTy =
+    case tyOfTy of
+        UnitType _ -> lamE [varP _acc, wildP] [|$(varE _acc) + 1|]
+        TheType con ->
+            lamE
+                [varP _acc, varP _x]
+                (caseE (varE _x) [matchCons (varE _acc) con])
+        MultiType constructors -> sizeOfHeadDt constructors
 
     where
 
-    tagSizeExp =
-        litE (IntegerL (fromIntegral (getTagSize (length constructors))))
+    tagSizeExp numConstructors =
+        litE (IntegerL (fromIntegral (getTagSize numConstructors)))
 
     -- XXX fields of the same type can be folded together, will reduce the code
     -- size when there are many fields of the same type.
@@ -148,23 +162,24 @@ mkSizeOfExpr headTy constructors =
     sizeOfFields acc fields =
         foldl' exprGetSize acc $ zip [0..] fields
 
-    matchCons acc (DataCon cname _ _ fields) =
+    matchCons acc (SimpleDataCon cname fields) =
         let expr = sizeOfFields acc (map snd fields)
          in matchConstructor cname (length fields) expr
 
     -- XXX We fix VarSize for simplicity. Should be changed later.
-    sizeOfHeadDt =
-        let acc = [|$(varE _acc) + $(tagSizeExp)|]
+    sizeOfHeadDt cons =
+        let numCons = length cons
+            acc = [|$(varE _acc) + $(tagSizeExp numCons)|]
          in lamE
                 [varP _acc, varP _x]
-                (caseE (varE _x) (fmap (matchCons acc) constructors))
+                (caseE (varE _x) (fmap (matchCons acc) cons))
 
 --------------------------------------------------------------------------------
 -- Peek
 --------------------------------------------------------------------------------
 
-mkDeserializeExprOne :: DataCon -> Q Exp
-mkDeserializeExprOne (DataCon cname _ _ fields) =
+mkDeserializeExprOne :: SimpleDataCon -> Q Exp
+mkDeserializeExprOne (SimpleDataCon cname fields) =
     case fields of
         -- Only tag is serialized for unit fields, no actual value
         [] -> [|pure ($(varE (mkName "i0")), $(conE cname))|]
@@ -192,23 +207,21 @@ mkDeserializeExprOne (DataCon cname _ _ fields) =
             [|deserialize $(varE (makeI i)) $(varE _arr) $(varE _endOffset)|]
 
 
-mkDeserializeExpr :: Type -> [DataCon] -> Q Exp
-mkDeserializeExpr headTy cons =
-    case cons of
-        [] ->
-            [|error
-                  ("Attempting to peek type with no constructors (" ++
-                   $(lift (pprint headTy)) ++ ")")|]
+mkDeserializeExpr :: Type -> TypeOfType -> Q Exp
+mkDeserializeExpr headTy tyOfTy =
+    case tyOfTy of
         -- Unit constructor
-        [(DataCon cname _ _ [])] ->
+        UnitType cname ->
             [|pure ($(varE _initialOffset) + 1, $(conE cname))|]
         -- Product type
-        [con] ->
+        TheType con ->
             letE
                 [valD (varP (mkName "i0")) (normalB (varE _initialOffset)) []]
                 (mkDeserializeExprOne con)
         -- Sum type
-        _ ->
+        MultiType cons -> do
+            let lenCons = length cons
+                tagType = getTagType lenCons
             doE
                 [ bindS
                       (tupP [varP (mkName "i0"), varP _tag])
@@ -219,8 +232,6 @@ mkDeserializeExpr headTy cons =
                            (map peekMatch (zip [0 ..] cons) ++ [peekErr]))
                 ]
   where
-    lenCons = length cons
-    tagType = getTagType lenCons
     peekMatch (i, con) =
         match (litP (IntegerL i)) (normalB (mkDeserializeExprOne con)) []
     peekErr =
@@ -260,17 +271,13 @@ mkSerializeExprFields fields =
             (varP (makeI (i + 1)))
             [|serialize $(varE (makeI i)) $(varE _arr) $(varE (mkFieldName i))|]
 
-mkSerializeExpr :: Type -> [DataCon] -> Q Exp
-mkSerializeExpr headTy cons =
-    case cons of
-        [] ->
-            [|error
-                  ("Attempting to poke type with no constructors (" ++
-                   $(lift (pprint headTy)) ++ ")")|]
+mkSerializeExpr :: TypeOfType -> Q Exp
+mkSerializeExpr tyOfTy =
+    case tyOfTy of
         -- Unit type
-        [(DataCon _ _ _ [])] -> [|pure ($(varE _initialOffset) + 1)|]
+        UnitType _ -> [|pure ($(varE _initialOffset) + 1)|]
         -- Product type
-        [(DataCon cname _ _ fields)] ->
+        (TheType (SimpleDataCon cname fields)) ->
             letE
                 [valD (varP (mkName "i0")) (normalB (varE _initialOffset)) []]
                 (caseE
@@ -281,10 +288,12 @@ mkSerializeExpr headTy cons =
                            (mkSerializeExprFields fields)
                      ])
         -- Sum type
-        _ ->
+        (MultiType cons) -> do
+            let lenCons = length cons
+                tagType = getTagType lenCons
             caseE
                 (varE _val)
-                (map (\(tagVal, (DataCon cname _ _ fields)) ->
+                (map (\(tagVal, (SimpleDataCon cname fields)) ->
                           matchConstructor
                               cname
                               (length fields)
@@ -294,9 +303,6 @@ mkSerializeExpr headTy cons =
                                    , noBindS (mkSerializeExprFields fields)
                                    ]))
                      (zip [0 ..] cons))
-  where
-    lenCons = length cons
-    tagType = getTagType lenCons
 
 --------------------------------------------------------------------------------
 -- Main
@@ -335,9 +341,9 @@ mkSerializeExpr headTy cons =
 deriveSerializeInternal ::
        SerializeTHConfig -> Cxt -> Type -> [DataCon] -> Q [Dec]
 deriveSerializeInternal (SerializeTHConfig{..}) preds headTy cons = do
-    sizeOfMethod <- mkSizeOfExpr headTy cons
-    peekMethod <- mkDeserializeExpr headTy cons
-    pokeMethod <- mkSerializeExpr headTy cons
+    sizeOfMethod <- mkSizeOfExpr (typeOfType headTy cons)
+    peekMethod <- mkDeserializeExpr headTy (typeOfType headTy cons)
+    pokeMethod <- mkSerializeExpr (typeOfType headTy cons)
     let methods =
             -- INLINE on sizeOf actually worsens some benchmarks, and improves
             -- none
