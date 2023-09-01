@@ -318,6 +318,7 @@ mkSerializeExpr headTy cons =
 -- Usage:
 -- @
 -- $(deriveSerializeInternal
+--       defaultSerializeTHConfig
 --       [AppT (ConT ''Serialize) (VarT (mkName "b"))]
 --       (AppT
 --            (AppT (ConT ''CustomDataType) (VarT (mkName "a")))
@@ -331,17 +332,18 @@ mkSerializeExpr headTy cons =
 --             [(Nothing, (ConT ''Bool)), (Nothing, (VarT (mkName "b")))]
 --       ])
 -- @
-deriveSerializeInternal :: Cxt -> Type -> [DataCon] -> Q [Dec]
-deriveSerializeInternal preds headTy cons = do
+deriveSerializeInternal ::
+       SerializeTHConfig -> Cxt -> Type -> [DataCon] -> Q [Dec]
+deriveSerializeInternal (SerializeTHConfig{..}) preds headTy cons = do
     sizeOfMethod <- mkSizeOfExpr headTy cons
     peekMethod <- mkDeserializeExpr headTy cons
     pokeMethod <- mkSerializeExpr headTy cons
     let methods =
             -- INLINE on sizeOf actually worsens some benchmarks, and improves
             -- none
-            [ -- PragmaD (InlineP 'size Inlinable FunLike AllPhases)
-              FunD 'size [Clause [] (NormalB sizeOfMethod) []]
-            , PragmaD (InlineP 'deserialize Inline FunLike AllPhases)
+            [ PragmaD (InlineP 'size inlineSize FunLike AllPhases)
+            , FunD 'size [Clause [] (NormalB sizeOfMethod) []]
+            , PragmaD (InlineP 'deserialize inlineDeserialize FunLike AllPhases)
             , FunD
                   'deserialize
                   [ Clause
@@ -351,7 +353,7 @@ deriveSerializeInternal preds headTy cons = do
                         (NormalB peekMethod)
                         []
                   ]
-            , PragmaD (InlineP 'serialize Inline FunLike AllPhases)
+            , PragmaD (InlineP 'serialize inlineSerialize FunLike AllPhases)
             , FunD
                   'serialize
                   [ Clause
@@ -403,13 +405,13 @@ data SerializeTHConfig =
           -- @
           --
           -- @f@ is replaced with 'Identity' and becomes unconstrained.
-{-
         , inlineSize :: Inline
-          -- ^ Inline value for 'size'.
+          -- ^ Inline value for 'size'. Default is Inline.
         , inlineSerialize :: Inline
-          -- ^ Inline value for 'serialize'.
+          -- ^ Inline value for 'serialize'. Default is Inline.
         , inlineDeserialize :: Inline
-          -- ^ Inline value for 'deserialize'.
+          -- ^ Inline value for 'deserialize'. Default is Inline.
+{-
         , constructorTagAsString :: Bool
           -- ^ If True, encode constructors as Latin-1 byte sequence. This
           -- allows addition, removal, and reordering of constructors. If False
@@ -422,19 +424,26 @@ data SerializeTHConfig =
         }
 
 defaultSerializeTHConfig :: SerializeTHConfig
-defaultSerializeTHConfig = SerializeTHConfig {unconstrainedTypeVars = [], typeVarSubstitutions = []}
+defaultSerializeTHConfig =
+    SerializeTHConfig
+        { unconstrainedTypeVars = []
+        , typeVarSubstitutions = []
+        , inlineSize = Inline
+        , inlineSerialize = Inline
+        , inlineDeserialize = Inline
+        }
 
 -- | Similar to 'deriveSerialize,' but take a 'SerializeTHConfig' to control how
 -- the instance is generated.
 --
 -- Usage: @$(deriveSerializeWith config ''CustomDataType)@
 deriveSerializeWith :: SerializeTHConfig -> Name -> Q [Dec]
-deriveSerializeWith (SerializeTHConfig {..}) name = do
+deriveSerializeWith conf@(SerializeTHConfig {..}) name = do
     dt <- reifyDataType name
     let preds = map (unboxPred . VarT) (filterOutVars (dtTvs dt))
         headTy = appsT (ConT name) (map substituteVar (dtTvs dt))
         cons = dtCons dt
-    deriveSerializeInternal preds headTy cons
+    deriveSerializeInternal conf preds headTy cons
 
     where
     allUnconstrainedTypeVars =
