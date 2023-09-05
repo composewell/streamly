@@ -417,7 +417,6 @@ data SerializeTHConfig =
           -- ^ Inline value for 'serialize'. Default is Inline.
         , inlineDeserialize :: Inline
           -- ^ Inline value for 'deserialize'. Default is Inline.
-{-
         , constructorTagAsString :: Bool
           -- ^ If True, encode constructors as Latin-1 byte sequence. This
           -- allows addition, removal, and reordering of constructors. If False
@@ -426,7 +425,6 @@ data SerializeTHConfig =
           -- ^ If True, constructors with record syntax will be encoded in a
           -- more compatible way. Allows addition, removal, and reordering of
           -- fields. The default value is 'False'.
--}
         }
 
 defaultSerializeTHConfig :: SerializeTHConfig
@@ -437,6 +435,8 @@ defaultSerializeTHConfig =
         , inlineSize = Inline
         , inlineSerialize = Inline
         , inlineDeserialize = Inline
+        , constructorTagAsString = False
+        , recordSyntaxWithHeader = False
         }
 
 -- | Similar to 'deriveSerialize,' but take a 'SerializeTHConfig' to control how
