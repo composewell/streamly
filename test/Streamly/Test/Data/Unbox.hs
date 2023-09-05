@@ -30,7 +30,7 @@ import GHC.Real (Ratio(..))
 #ifdef USE_SERIALIZE
 
 import Streamly.Internal.Data.Serialize (Serialize(..))
-import Streamly.Internal.Data.Serialize.TH
+import qualified Streamly.Internal.Data.Serialize.TH as Serialize
 
 #else
 
@@ -63,7 +63,7 @@ import Test.Hspec as H
 #ifdef USE_SERIALIZE
 
 #define MODULE_NAME "Data.Serialize.Deriving.TH"
-#define DERIVE_UNBOX(typ) $(deriveSerialize ''typ)
+#define DERIVE_UNBOX(typ) $(Serialize.deriveSerialize ''typ)
 #define PEEK(i, arr, sz) (deserialize i arr sz)
 #define POKE(i, arr, val) (serialize i arr val)
 #define TYPE_CLASS Serialize
@@ -190,12 +190,12 @@ DERIVE_UNBOX(NestedSOP)
 deriving instance Generic (Ratio Int)
 
 #if defined(USE_SERIALIZE)
-$(deriveSerialize ''Complex)
-$(deriveSerialize ''Ratio)
-$(deriveSerializeWith
-      (defaultSerializeTHConfig {unconstrainedTypeVars = ["b"]})
+$(Serialize.deriveSerialize ''Complex)
+$(Serialize.deriveSerialize ''Ratio)
+$(Serialize.deriveSerializeWith
+      (Serialize.defaultConfig {Serialize.unconstrained = ["b"]})
       ''Const)
-$(deriveSerialize ''Identity)
+$(Serialize.deriveSerialize ''Identity)
 #endif
 
 --------------------------------------------------------------------------------

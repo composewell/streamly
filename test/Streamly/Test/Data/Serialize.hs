@@ -23,11 +23,11 @@ module Streamly.Test.Data.Serialize (main) where
 import Streamly.Internal.Data.Unbox (newBytes)
 import GHC.Generics (Generic)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
-import Streamly.Internal.Data.Serialize.TH
+import qualified Streamly.Internal.Data.Serialize.TH as Serialize
     ( deriveSerialize
     , deriveSerializeWith
-    , defaultSerializeTHConfig
-    , SerializeTHConfig(..)
+    , defaultConfig
+    , Config(..)
     )
 import Data.Functor.Identity (Identity (..))
 
@@ -43,7 +43,7 @@ import Test.Hspec as H
 --------------------------------------------------------------------------------
 
 $(genDatatype "CustomDatatype" 15)
-$(deriveSerialize ''CustomDatatype)
+$(Serialize.deriveSerialize ''CustomDatatype)
 
 --------------------------------------------------------------------------------
 -- Types with functional parameters
@@ -61,10 +61,10 @@ instance (Eq (f Int), Eq (f Char)) => Eq (HigherOrderType f) where
 instance (Show (f Int), Show (f Char)) => Show (HigherOrderType f) where
     show a = "HigherOrderType " ++ show (field0 a) ++ " " ++ show (field1 a)
 
-$(deriveSerialize ''Identity)
-$(deriveSerializeWith
-      (defaultSerializeTHConfig
-           {typeVarSubstitutions = [("f", ConT ''Identity)]})
+$(Serialize.deriveSerialize ''Identity)
+$(Serialize.deriveSerializeWith
+      (Serialize.defaultConfig
+           {Serialize.specializations = [("f", ConT ''Identity)]})
       ''HigherOrderType)
 
 --------------------------------------------------------------------------------
@@ -77,7 +77,7 @@ data BinTree a
   | Leaf a
   deriving (Show, Read, Eq, Generic)
 
-$(deriveSerialize ''BinTree)
+$(Serialize.deriveSerialize ''BinTree)
 
 instance Arbitrary a => Arbitrary (BinTree a) where
   arbitrary = oneof [Leaf <$> arbitrary, Tree <$> arbitrary <*> arbitrary]

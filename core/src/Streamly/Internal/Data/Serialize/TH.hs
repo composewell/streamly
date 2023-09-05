@@ -10,8 +10,8 @@
 --
 module Streamly.Internal.Data.Serialize.TH
     ( deriveSerialize
-    , SerializeTHConfig(..)
-    , defaultSerializeTHConfig
+    , Config(..)
+    , defaultConfig
     , deriveSerializeWith
     ) where
 
@@ -324,7 +324,7 @@ mkSerializeExpr tyOfTy =
 -- Usage:
 -- @
 -- $(deriveSerializeInternal
---       defaultSerializeTHConfig
+--       defaultConfig
 --       [AppT (ConT ''Serialize) (VarT (mkName "b"))]
 --       (AppT
 --            (AppT (ConT ''CustomDataType) (VarT (mkName "a")))
@@ -339,8 +339,8 @@ mkSerializeExpr tyOfTy =
 --       ])
 -- @
 deriveSerializeInternal ::
-       SerializeTHConfig -> Cxt -> Type -> [DataCon] -> Q [Dec]
-deriveSerializeInternal (SerializeTHConfig{..}) preds headTy cons = do
+       Config -> Cxt -> Type -> [DataCon] -> Q [Dec]
+deriveSerializeInternal (Config{..}) preds headTy cons = do
     sizeOfMethod <- mkSizeOfExpr (typeOfType headTy cons)
     peekMethod <- mkDeserializeExpr headTy (typeOfType headTy cons)
     pokeMethod <- mkSerializeExpr (typeOfType headTy cons)
@@ -373,9 +373,9 @@ deriveSerializeInternal (SerializeTHConfig{..}) preds headTy cons = do
     return [plainInstanceD preds (AppT (ConT ''Serialize) headTy) methods]
 
 -- | Config to control how the 'Serialize' instance is generated.
-data SerializeTHConfig =
-    SerializeTHConfig
-        { unconstrainedTypeVars :: [String]
+data Config =
+    Config
+        { unconstrained :: [String]
           -- ^ Type variables that should not have the 'Serialize' constraint.
           --
           -- @
@@ -383,26 +383,26 @@ data SerializeTHConfig =
           -- @
           --
           -- @
-          -- conf = defaultConf {unconstrainedTypeVars = ["b", "d"]}
-          -- $(deriveSerializeWith conf ''CustomDataType)
+          -- conf = defaultConf {unconstrained = ["b", "d"]}
+          -- \$(deriveSerializeWith conf ''CustomDataType)
           -- @
           --
           -- @
           -- instance (Serialize a, Serialize c) => Serialize (CustomDataType a b c d) where
           -- ...
           -- @
-        , typeVarSubstitutions :: [(String, Type)]
-          -- ^ Substitute the type variable with the given type. All type
+        , specializations :: [(String, Type)]
+          -- ^ Specialize the type variable with the given type. All type
           -- variables listed here will not have the 'Serialize' constriant as
-          -- they are replaced.
+          -- they are specialized.
           --
           -- @
           -- data CustomDataType f a = CustomDataType (f a)
           -- @
           --
           -- @
-          -- conf = defaultConf {typeVarSubstitutions = [("f", ''Identity)]}
-          -- $(deriveSerializeWith conf ''CustomDataType)
+          -- conf = defaultConf {specializations = [("f", ''Identity)]}
+          -- \$(deriveSerializeWith conf ''CustomDataType)
           -- @
           --
           -- @
@@ -418,20 +418,22 @@ data SerializeTHConfig =
         , inlineDeserialize :: Inline
           -- ^ Inline value for 'deserialize'. Default is Inline.
         , constructorTagAsString :: Bool
-          -- ^ If True, encode constructors as Latin-1 byte sequence. This
-          -- allows addition, removal, and reordering of constructors. If False
-          -- encode them as numbers. The default value is 'False'.
+          -- ^ __Experimental__
+          --
+          -- If True, encode constructors using the constructor names as Latin-1
+          -- byte sequence.
         , recordSyntaxWithHeader :: Bool
-          -- ^ If True, constructors with record syntax will be encoded in a
-          -- more compatible way. Allows addition, removal, and reordering of
-          -- fields. The default value is 'False'.
+          -- ^ __Experimental__
+          --
+          -- If True, encode the keys of the record as a header and then
+          -- serialize the data.
         }
 
-defaultSerializeTHConfig :: SerializeTHConfig
-defaultSerializeTHConfig =
-    SerializeTHConfig
-        { unconstrainedTypeVars = []
-        , typeVarSubstitutions = []
+defaultConfig :: Config
+defaultConfig =
+    Config
+        { unconstrained = []
+        , specializations = []
         , inlineSize = Inline
         , inlineSerialize = Inline
         , inlineDeserialize = Inline
@@ -439,12 +441,12 @@ defaultSerializeTHConfig =
         , recordSyntaxWithHeader = False
         }
 
--- | Similar to 'deriveSerialize,' but take a 'SerializeTHConfig' to control how
+-- | Similar to 'deriveSerialize,' but take a 'Config' to control how
 -- the instance is generated.
 --
 -- Usage: @$(deriveSerializeWith config ''CustomDataType)@
-deriveSerializeWith :: SerializeTHConfig -> Name -> Q [Dec]
-deriveSerializeWith conf@(SerializeTHConfig {..}) name = do
+deriveSerializeWith :: Config -> Name -> Q [Dec]
+deriveSerializeWith conf@(Config {..}) name = do
     dt <- reifyDataType name
     let preds = map (unboxPred . VarT) (filterOutVars (dtTvs dt))
         headTy = appsT (ConT name) (map substituteVar (dtTvs dt))
@@ -453,13 +455,13 @@ deriveSerializeWith conf@(SerializeTHConfig {..}) name = do
 
     where
     allUnconstrainedTypeVars =
-        unconstrainedTypeVars ++ map fst typeVarSubstitutions
+        unconstrained ++ map fst specializations
     filterOutVars vs =
         map mkName
             $ filter (not . flip elem allUnconstrainedTypeVars)
             $ map nameBase vs
     substituteVar v =
-        case lookup (nameBase v) typeVarSubstitutions of
+        case lookup (nameBase v) specializations of
             Nothing -> VarT v
             Just ty -> ty
 
@@ -489,6 +491,7 @@ deriveSerializeWith conf@(SerializeTHConfig {..}) name = do
 -- To control which type variables don't get the Serialize constraint, use
 -- 'deriveSerializeWith'.
 --
--- >>> deriveSerialize = deriveSerializeWith 'defaultSerializeTHConfig'
+-- >>> import qualified Streamly.Internal.Data.Serialize.TH as Serialize
+-- >>> deriveSerialize = Serialize.deriveSerializeWith Serialize.defaultConfig
 deriveSerialize :: Name -> Q [Dec]
-deriveSerialize name = deriveSerializeWith defaultSerializeTHConfig name
+deriveSerialize name = deriveSerializeWith defaultConfig name
