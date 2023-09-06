@@ -19,12 +19,17 @@ module Streamly.Internal.Data.Serialize.TH
 -- Imports
 --------------------------------------------------------------------------------
 
+import Data.Char (ord)
 import Data.List (foldl')
 import Data.Word (Word16, Word32, Word64, Word8)
+import Data.Bits (Bits, (.|.), shiftL, zeroBits, xor)
+import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 import Streamly.Internal.Data.Serialize
+
+import qualified Streamly.Internal.Data.Unbox as Unbox
 
 import Streamly.Internal.Data.Unbox.TH
     ( DataCon(..)
@@ -66,6 +71,9 @@ mkFieldName i = mkName ("field" ++ show i)
 
 makeI :: Int -> Name
 makeI i = mkName $ "i" ++ show i
+
+makeN :: Int -> Name
+makeN i = mkName $ "n" ++ show i
 
 makeA :: Int -> Name
 makeA i = mkName $ "a" ++ show i
@@ -136,8 +144,185 @@ isUnitType _ = False
 -- Size
 --------------------------------------------------------------------------------
 
-mkSizeOfExpr :: TypeOfType -> Q Exp
-mkSizeOfExpr tyOfTy =
+{-
+int_w8 :: Int -> Word8
+int_w8 = fromIntegral
+-}
+
+w8_w16 :: Word8 -> Word16
+w8_w16 = fromIntegral
+
+w8_w32 :: Word8 -> Word32
+w8_w32 = fromIntegral
+
+w8_w64 :: Word8 -> Word64
+w8_w64 = fromIntegral
+
+{-
+w32_int :: Word32 -> Int
+w32_int = fromIntegral
+-}
+
+c2w :: Char -> Word8
+c2w = fromIntegral . ord
+
+shiftAdd :: Bits a => (b -> a) -> [b] -> a
+shiftAdd conv xs =
+    foldl' (.|.) zeroBits $
+    map (\(j, x) -> shiftL x (j * 8)) $ zip [0 ..] $ map conv xs
+
+-- Note: This only works in little endian machines
+xorCmp :: [Word8] -> Name -> Name -> Q Exp
+xorCmp tag off arr =
+    case tagLen of
+        x | x < 2 -> [|$(go8 0) == zeroBits|]
+        x | x < 4 -> [|$(go16 0) == zeroBits|]
+        x | x < 8 -> [|$(go32 0) == zeroBits|]
+        _ -> [|$(go64 0) == zeroBits|]
+  where
+    tagLen = length tag
+    go8 i | i >= tagLen = [|zeroBits|]
+    go8 i = do
+        let wIntegral = litIntegral i
+        [|xor (unsafeInlineIO
+                   (Unbox.peekByteIndex
+                        ($(varE off) + $(litIntegral i))
+                        $(varE arr)))
+              ($(wIntegral) :: Word8) .|.
+          $(go8 (i + 1))|]
+    go16 i
+        | i >= tagLen = [|zeroBits|]
+    go16 i
+        | tagLen - i < 2 = go16 (tagLen - 2)
+    go16 i = do
+        let wIntegral =
+                litIntegral
+                    (shiftAdd w8_w16 [tag !! i, tag !! (i + 1)] :: Word16)
+        [|xor (unsafeInlineIO
+                   (Unbox.peekByteIndex
+                        ($(varE off) + $(litIntegral i))
+                        $(varE arr)))
+              ($(wIntegral) :: Word16) .|.
+          $(go16 (i + 2))|]
+    go32 i
+        | i >= tagLen = [|zeroBits|]
+    go32 i
+        | tagLen - i < 4 = go32 (tagLen - 4)
+    go32 i = do
+        let wIntegral =
+                litIntegral
+                    (shiftAdd
+                         w8_w32
+                         [ tag !! i
+                         , tag !! (i + 1)
+                         , tag !! (i + 2)
+                         , tag !! (i + 3)
+                         ] :: Word32)
+        [|xor (unsafeInlineIO
+                   (Unbox.peekByteIndex
+                        ($(varE off) + $(litIntegral i))
+                        $(varE arr)))
+              ($(wIntegral) :: Word32) .|.
+          $(go32 (i + 4))|]
+    go64 i
+        | i >= tagLen = [|zeroBits|]
+    go64 i
+        | tagLen - i < 8 = go64 (tagLen - 8)
+    go64 i = do
+        let wIntegral =
+                litIntegral
+                    (shiftAdd
+                         w8_w64
+                         [ tag !! i
+                         , tag !! (i + 1)
+                         , tag !! (i + 2)
+                         , tag !! (i + 3)
+                         , tag !! (i + 4)
+                         , tag !! (i + 5)
+                         , tag !! (i + 6)
+                         , tag !! (i + 7)
+                         ])
+        [|xor (unsafeInlineIO
+                   (Unbox.peekByteIndex
+                        ($(varE off) + $(litIntegral i))
+                        $(varE arr)))
+              ($(wIntegral) :: Word64) .|.
+          $(go64 (i + 8))|]
+
+--------------------------------------------------------------------------------
+-- Primitive serialization
+--------------------------------------------------------------------------------
+
+-- XXX Batch serialize? See xorCmp
+serializeW8List :: Name -> Name -> [Word8] -> Q Exp
+serializeW8List off arr w8List = do
+    [|let $(varP (makeN 0)) = $(varE off)
+       in $(doE (fmap makeBind [0 .. (lenW8List - 1)] ++
+                 [noBindS ([|pure $(varE (makeN lenW8List))|])]))|]
+
+    where
+
+    lenW8List = length w8List
+    makeBind i =
+        bindS
+            (varP (makeN (i + 1)))
+            [|$(varE 'serialize)
+                  $(varE (makeN i))
+                  $(varE arr)
+                  ($(litIntegral (w8List !! i)) :: Word8)|]
+
+--------------------------------------------------------------------------------
+-- Size
+--------------------------------------------------------------------------------
+
+litIntegral :: Integral a => a -> Q Exp
+litIntegral = litE . IntegerL . fromIntegral
+
+getNameBaseLen :: Name -> Word8
+getNameBaseLen cname =
+    let x = length (nameBase cname)
+     in if x > 63
+        then error "Max Constructor Len: 63 characters"
+        else fromIntegral x
+
+conEncLen :: Name -> Word8
+conEncLen cname = getNameBaseLen cname + 1
+
+--------------------------------------------------------------------------------
+-- Size
+--------------------------------------------------------------------------------
+
+mkSizeOfExpr :: Bool -> TypeOfType -> Q Exp
+mkSizeOfExpr True tyOfTy =
+    case tyOfTy of
+        UnitType cname ->
+            lamE
+                [varP _acc, wildP]
+                [|$(varE _acc) + $(litIntegral (conEncLen cname))|]
+        TheType con ->
+            lamE
+                [varP _acc, varP _x]
+                (caseE (varE _x) [matchCons (varE _acc) con])
+        MultiType constructors -> sizeOfHeadDt constructors
+
+    where
+
+    sizeOfFields acc fields =
+        foldl' exprGetSize acc $ zip [0..] fields
+
+    matchCons acc (SimpleDataCon cname fields) =
+        let a = litIntegral (conEncLen cname)
+            b = sizeOfFields acc (map snd fields)
+            expr = [|$(a) + $(b)|]
+         in matchConstructor cname (length fields) expr
+
+    sizeOfHeadDt cons =
+        let acc = [|$(varE _acc)|]
+         in lamE
+                [varP _acc, varP _x]
+                (caseE (varE _x) (fmap (matchCons acc) cons))
+
+mkSizeOfExpr False tyOfTy =
     case tyOfTy of
         UnitType _ -> lamE [varP _acc, wildP] [|$(varE _acc) + 1|]
         TheType con ->
@@ -207,8 +392,42 @@ mkDeserializeExprOne (SimpleDataCon cname fields) =
             [|deserialize $(varE (makeI i)) $(varE _arr) $(varE _endOffset)|]
 
 
-mkDeserializeExpr :: Type -> TypeOfType -> Q Exp
-mkDeserializeExpr headTy tyOfTy =
+mkDeserializeExpr :: Bool -> Type -> TypeOfType -> Q Exp
+mkDeserializeExpr True headTy tyOfTy =
+    case tyOfTy of
+        UnitType cname -> deserializeConsExpr [SimpleDataCon cname []]
+        TheType con -> deserializeConsExpr [con]
+        MultiType cons -> deserializeConsExpr cons
+
+  where
+
+    deserializeConsExpr cons = do
+        conLen <- newName "conLen"
+        off1 <- newName "off1"
+        [|do ($(varP off1), $(varP conLen) :: Word8) <-
+                 deserialize
+                     $(varE _initialOffset)
+                     $(varE _arr)
+                     $(varE _endOffset)
+             $(multiIfE (map (guardCon conLen off1) cons ++ [catchAll]))|]
+
+    catchAll =
+        normalGE
+            [|True|]
+            [|error
+               ("Found invalid tag while peeking (" ++
+                   $(lift (pprint headTy)) ++ ")")|]
+
+    guardCon conLen off con@(SimpleDataCon cname _) = do
+        let lenCname = getNameBaseLen cname
+            tag = map c2w (nameBase cname)
+        normalGE
+            [|($(litIntegral lenCname) == $(varE conLen))
+                   && $(xorCmp tag off _arr)|]
+            [|let $(varP (makeI 0)) = $(varE off) + $(litIntegral lenCname)
+               in $(mkDeserializeExprOne con)|]
+
+mkDeserializeExpr False headTy tyOfTy =
     case tyOfTy of
         -- Unit constructor
         UnitType cname ->
@@ -271,8 +490,40 @@ mkSerializeExprFields fields =
             (varP (makeI (i + 1)))
             [|serialize $(varE (makeI i)) $(varE _arr) $(varE (mkFieldName i))|]
 
-mkSerializeExpr :: TypeOfType -> Q Exp
-mkSerializeExpr tyOfTy =
+mkSerializeExpr :: Bool -> TypeOfType -> Q Exp
+mkSerializeExpr True tyOfTy =
+    case tyOfTy of
+        -- Unit type
+        UnitType cname ->
+            caseE
+                (varE _val)
+                [serializeDataCon (SimpleDataCon cname [])]
+        -- Product type
+        (TheType con) ->
+            caseE
+                (varE _val)
+                [serializeDataCon con]
+        -- Sum type
+        (MultiType cons) ->
+            caseE
+                (varE _val)
+                (map serializeDataCon cons)
+
+    where
+
+    serializeDataCon (SimpleDataCon cname fields) = do
+        let tagLen8 = getNameBaseLen cname
+            conEnc = tagLen8 : map c2w (nameBase cname)
+        matchConstructor
+            cname
+            (length fields)
+            (doE [ bindS
+                       (varP (mkName "i0"))
+                       (serializeW8List _initialOffset _arr conEnc)
+                 , noBindS (mkSerializeExprFields fields)
+                 ])
+
+mkSerializeExpr False tyOfTy =
     case tyOfTy of
         -- Unit type
         UnitType _ -> [|pure ($(varE _initialOffset) + 1)|]
@@ -341,9 +592,11 @@ mkSerializeExpr tyOfTy =
 deriveSerializeInternal ::
        Config -> Cxt -> Type -> [DataCon] -> Q [Dec]
 deriveSerializeInternal (Config{..}) preds headTy cons = do
-    sizeOfMethod <- mkSizeOfExpr (typeOfType headTy cons)
-    peekMethod <- mkDeserializeExpr headTy (typeOfType headTy cons)
-    pokeMethod <- mkSerializeExpr (typeOfType headTy cons)
+    sizeOfMethod <- mkSizeOfExpr constructorTagAsString (typeOfType headTy cons)
+    peekMethod <-
+        mkDeserializeExpr constructorTagAsString headTy (typeOfType headTy cons)
+    pokeMethod <-
+        mkSerializeExpr constructorTagAsString (typeOfType headTy cons)
     let methods =
             -- INLINE on sizeOf actually worsens some benchmarks, and improves
             -- none
@@ -353,7 +606,7 @@ deriveSerializeInternal (Config{..}) preds headTy cons = do
             , FunD
                   'deserialize
                   [ Clause
-                        (if isUnitType cons
+                        (if isUnitType cons && not constructorTagAsString
                              then [VarP _initialOffset, WildP, WildP]
                              else [VarP _initialOffset, VarP _arr, VarP _endOffset])
                         (NormalB peekMethod)
@@ -363,7 +616,7 @@ deriveSerializeInternal (Config{..}) preds headTy cons = do
             , FunD
                   'serialize
                   [ Clause
-                        (if isUnitType cons
+                        (if isUnitType cons && not constructorTagAsString
                              then [VarP _initialOffset, WildP, WildP]
                              else [VarP _initialOffset, VarP _arr, VarP _val])
                         (NormalB pokeMethod)
