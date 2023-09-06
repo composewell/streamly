@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- Required for Eq instance declaration of HigherOrderType
@@ -24,10 +25,9 @@ import Streamly.Internal.Data.Unbox (newBytes)
 import GHC.Generics (Generic)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
 import qualified Streamly.Internal.Data.Serialize.TH as Serialize
-    ( deriveSerialize
-    , deriveSerializeWith
+    ( Config(..)
     , defaultConfig
-    , Config(..)
+    , deriveSerializeWith
     )
 import Data.Functor.Identity (Identity (..))
 
@@ -39,11 +39,37 @@ import Test.QuickCheck
 import Test.Hspec as H
 
 --------------------------------------------------------------------------------
+-- Serialize configuration
+--------------------------------------------------------------------------------
+
+#ifdef ENABLE_constructorTagAsString
+#define CONF_NAME  "ENABLE_constructorTagAsString"
+#define CONF (Serialize.defaultConfig {Serialize.constructorTagAsString = True})
+#else
+#define CONF_NAME  "DEFAULT"
+#define CONF Serialize.defaultConfig
+#endif
+
+--------------------------------------------------------------------------------
+-- Edge case types
+--------------------------------------------------------------------------------
+
+data Unit =
+    Unit
+    deriving (Eq, Show)
+$(Serialize.deriveSerializeWith CONF ''Unit)
+
+data The =
+    The Unit Int Char
+    deriving (Eq, Show)
+$(Serialize.deriveSerializeWith CONF ''The)
+
+--------------------------------------------------------------------------------
 -- Generated types
 --------------------------------------------------------------------------------
 
 $(genDatatype "CustomDatatype" 15)
-$(Serialize.deriveSerialize ''CustomDatatype)
+$(Serialize.deriveSerializeWith CONF ''CustomDatatype)
 
 --------------------------------------------------------------------------------
 -- Types with functional parameters
@@ -61,9 +87,9 @@ instance (Eq (f Int), Eq (f Char)) => Eq (HigherOrderType f) where
 instance (Show (f Int), Show (f Char)) => Show (HigherOrderType f) where
     show a = "HigherOrderType " ++ show (field0 a) ++ " " ++ show (field1 a)
 
-$(Serialize.deriveSerialize ''Identity)
+$(Serialize.deriveSerializeWith CONF ''Identity)
 $(Serialize.deriveSerializeWith
-      (Serialize.defaultConfig
+      (CONF
            {Serialize.specializations = [("f", ConT ''Identity)]})
       ''HigherOrderType)
 
@@ -77,7 +103,7 @@ data BinTree a
   | Leaf a
   deriving (Show, Read, Eq, Generic)
 
-$(Serialize.deriveSerialize ''BinTree)
+$(Serialize.deriveSerializeWith CONF ''BinTree)
 
 instance Arbitrary a => Arbitrary (BinTree a) where
   arbitrary = oneof [Leaf <$> arbitrary, Tree <$> arbitrary <*> arbitrary]
@@ -133,6 +159,10 @@ testCases = do
               (8 + 3 * 8 + 6 * 8)
               ([[1], [1, 2], [1, 2, 3]] :: [[Int]])
 
+    describe "Edge Cases" $ do
+        it "Unit" $ roundtrip Unit
+        it "The" $ roundtrip $ The Unit 1 'a'
+
     it "HigherOrderType"
         $ roundtrip $ HigherOrderType (Identity 5) (Identity 'e')
 
@@ -156,7 +186,7 @@ testCases = do
 --------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Serialize"
+moduleName = "Data.Serialize." ++ CONF_NAME
 
 main :: IO ()
 main = hspec $ H.parallel $ describe moduleName testCases
