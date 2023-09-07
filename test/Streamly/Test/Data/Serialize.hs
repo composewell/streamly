@@ -31,6 +31,7 @@ import qualified Streamly.Internal.Data.Serialize.TH as Serialize
     )
 import Data.Functor.Identity (Identity (..))
 
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Serialize as Serialize
 
 import Language.Haskell.TH
@@ -120,17 +121,20 @@ roundtrip val = do
 
     let sz = Serialize.size 0 val
 
-    -- putStrLn "----------------------------------------------------------------"
-    -- putStrLn $ show val
-    -- putStrLn $ "Size is: " ++ show sz
-    -- putStrLn "----------------------------------------------------------------"
-    arr <- newBytes sz
+    -- Use a proper slice to test instead of the array directly. This will catch
+    -- any hardcoded 0 offsets
+    let arrSize = sz + 100
+        serStartOff = 50
+        serEndOff = 50 + sz
+    arr <- newBytes arrSize
 
-    off1 <- Serialize.serialize 0 arr val
-    (off2, val2) <- Serialize.deserialize 0 arr sz
+    off1 <- Serialize.serialize serStartOff arr val
+    (off2, val2) <- Serialize.deserialize serStartOff arr serEndOff
     val2 `shouldBe` val
     off2 `shouldBe` off1
-    off2 `shouldBe` sz
+    off2 `shouldBe` serEndOff
+    val `shouldBe` Serialize.decode (Serialize.encode val)
+    val `shouldBe` Serialize.decode (Array.Array arr serStartOff serEndOff)
 
 testSerializeList
     :: forall a. (Eq a, Show a, Serialize.Serialize a)
