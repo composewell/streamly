@@ -260,6 +260,6 @@ pinnedEncode = encodeAs Pinned
 decode :: Serialize a => Array Word8 -> a
 decode arr@(Array {..}) = unsafeInlineIO $ do
     let lenArr = Array.length arr
-    (off, val) <- deserialize 0 arrContents lenArr
-    assertM(lenArr == off)
+    (off, val) <- deserialize arrStart arrContents (arrStart + lenArr)
+    assertM(off == arrStart + lenArr)
     pure val
