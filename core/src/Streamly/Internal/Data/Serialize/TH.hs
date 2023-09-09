@@ -172,6 +172,11 @@ shiftAdd conv xs =
     map (\(j, x) -> shiftL x (j * 8)) $ zip [0 ..] $ map conv xs
 
 -- Note: This only works in little endian machines
+-- TODO:
+-- Instead of generating this via TH can't we write it directly in Haskell and
+-- use that? Creating one comparison function for each deserialization may be
+-- too much code and may not be necessary.
+-- Benchmark both the implementations and check.
 xorCmp :: [Word8] -> Name -> Name -> Q Exp
 xorCmp tag off arr =
     case tagLen of
@@ -253,7 +258,10 @@ xorCmp tag off arr =
 -- Primitive serialization
 --------------------------------------------------------------------------------
 
--- XXX Batch serialize? See xorCmp
+-- TODO:
+-- Will this be too much of a code bloat?
+-- Loop with the loop body unrolled?
+-- Serialize this in batches similar to batch comparision in xorCmp?
 serializeW8List :: Name -> Name -> [Word8] -> Q Exp
 serializeW8List off arr w8List = do
     [|let $(varP (makeN 0)) = $(varE off)
