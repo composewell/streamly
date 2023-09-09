@@ -27,7 +27,7 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
-import Streamly.Internal.Data.Serialize
+import Streamly.Internal.Data.Serialize.Type
 
 import qualified Streamly.Internal.Data.Unbox as Unbox
 
