@@ -421,6 +421,8 @@ library
 
                     , Streamly.Internal.Data.Array.Type
 
+                    , Streamly.Internal.Data.Serialize.Type
+
                     , Streamly.Internal.Data.Producer.Type
                     , Streamly.Internal.Data.Producer.Source
 
