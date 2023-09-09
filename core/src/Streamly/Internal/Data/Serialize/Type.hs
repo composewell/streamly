@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Serialize
+-- Module      : Streamly.Internal.Data.Serialize.Type
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
 
-module Streamly.Internal.Data.Serialize
+module Streamly.Internal.Data.Serialize.Type
     ( Serialize(..)
     , encode
     , pinnedEncode
@@ -73,7 +73,7 @@ import GHC.Exts
 -- 'Serialize' contains enough information to serialize and deserialize variable
 -- length types.
 --
--- >>> import Streamly.Internal.Data.Serialize (Serialize(..))
+-- >>> import Streamly.Internal.Data.Serialize.Type (Serialize(..))
 --
 -- >>> :{
 -- data Object = Object
