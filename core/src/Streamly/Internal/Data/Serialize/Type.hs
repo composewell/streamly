@@ -39,6 +39,7 @@ import GHC.Stable (StablePtr(..))
 
 import qualified Streamly.Internal.Data.Unbox as Unbox
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.MutArray as MutArray
 
 import GHC.Exts
 
@@ -246,6 +247,25 @@ instance forall a. Serialize a => Serialize [a] where
               o1 <- serialize o arr x
               pokeList o1 xs
         pokeList off1 val
+
+instance Serialize (Array a) where
+    {-# INLINE size #-}
+    size i (Array {..}) = i + (arrEnd - arrStart) + 8
+
+    {-# INLINE deserialize #-}
+    deserialize off arr end = do
+        (off1, byteLen) <- deserialize off arr end :: IO (Int, Int)
+        let off2 = off1 + byteLen
+        let slice = MutArray.MutArray arr off1 off2 off2
+        newArr <- MutArray.clone slice
+        pure (off2, Array.unsafeFreeze newArr)
+
+    {-# INLINE serialize #-}
+    serialize off arr (Array {..}) = do
+        let arrLen = arrEnd - arrStart
+        off1 <- serialize off arr arrLen
+        Unbox.putSliceUnsafe arrContents arrStart arr off1 arrLen
+        pure (off1 + arrLen)
 
 --------------------------------------------------------------------------------
 -- High level functions
