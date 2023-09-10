@@ -20,8 +20,19 @@ module Streamly.Internal.Data.Serialize
 --------------------------------------------------------------------------------
 
 import Data.Proxy (Proxy)
-import Streamly.Internal.Data.Serialize.Type
+import Streamly.Internal.Data.Array (Array(..))
+import Streamly.Internal.Data.Unbox (MutableByteArray(..))
+import GHC.Exts (Int(..), sizeofByteArray#, unsafeCoerce#)
+
 import qualified Streamly.Internal.Data.Serialize.TH as Serialize
+
+#if __GLASGOW_HASKELL__ >= 900
+import GHC.Num.Integer (Integer(..))
+#else
+import GHC.Integer.GMP.Internals (Integer(..), BigNat(..))
+#endif
+
+import Streamly.Internal.Data.Serialize.Type
 
 --------------------------------------------------------------------------------
 -- Common instances
@@ -52,3 +63,56 @@ $(Serialize.deriveSerialize ''Either)
 $(Serialize.deriveSerializeWith
       (Serialize.defaultConfig {Serialize.unconstrained = ["t"]})
       ''Proxy)
+
+--------------------------------------------------------------------------------
+-- Integer
+--------------------------------------------------------------------------------
+
+data LiftedInteger
+    = LIS Int
+    | LIP (Array Word)
+    | LIN (Array Word)
+
+$(Serialize.deriveSerialize ''LiftedInteger)
+
+#if __GLASGOW_HASKELL__ >= 900
+
+liftInteger :: Integer -> LiftedInteger
+liftInteger (IS x) = LIS (I# x)
+liftInteger (IP x) =
+    LIP (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+liftInteger (IN x) =
+    LIN (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+
+unliftInteger :: LiftedInteger -> Integer
+unliftInteger (LIS (I# x)) = IS x
+unliftInteger (LIP (Array (MutableByteArray x) _ _)) = IP (unsafeCoerce# x)
+unliftInteger (LIN (Array (MutableByteArray x) _ _)) = IN (unsafeCoerce# x)
+
+#else
+
+liftInteger :: Integer -> LiftedInteger
+liftInteger (S# x) = LIS (I# x)
+liftInteger (Jp# (BN# x)) =
+    LIP (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+liftInteger (Jn# (BN# x)) =
+    LIN (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+
+unliftInteger :: LiftedInteger -> Integer
+unliftInteger (LIS (I# x)) = S# x
+unliftInteger (LIP (Array (MutableByteArray x) _ _)) =
+    Jp# (BN# (unsafeCoerce# x))
+unliftInteger (LIN (Array (MutableByteArray x) _ _)) =
+    Jn# (BN# (unsafeCoerce# x))
+
+#endif
+
+instance Serialize Integer where
+    {-# INLINE size #-}
+    size i a = size i (liftInteger a)
+
+    {-# INLINE deserialize #-}
+    deserialize off arr end = fmap unliftInteger <$> deserialize off arr end
+
+    {-# INLINE serialize #-}
+    serialize off arr val = serialize off arr (liftInteger val)
