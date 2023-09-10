@@ -170,6 +170,9 @@ testCases = do
     it "HigherOrderType"
         $ roundtrip $ HigherOrderType (Identity 5) (Identity 'e')
 
+    prop "Integer"
+        $ \(x :: Integer) -> roundtrip x
+
     prop "Array Int"
         $ \(x :: [Int]) -> roundtrip (Array.fromList x)
 
