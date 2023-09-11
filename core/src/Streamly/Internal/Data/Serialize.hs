@@ -77,6 +77,7 @@ $(Serialize.deriveSerialize ''LiftedInteger)
 
 #if __GLASGOW_HASKELL__ >= 900
 
+{-# INLINE liftInteger #-}
 liftInteger :: Integer -> LiftedInteger
 liftInteger (IS x) = LIS (I# x)
 liftInteger (IP x) =
@@ -84,6 +85,7 @@ liftInteger (IP x) =
 liftInteger (IN x) =
     LIN (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
 
+{-# INLINE unliftInteger #-}
 unliftInteger :: LiftedInteger -> Integer
 unliftInteger (LIS (I# x)) = IS x
 unliftInteger (LIP (Array (MutableByteArray x) _ _)) = IP (unsafeCoerce# x)
@@ -91,6 +93,7 @@ unliftInteger (LIN (Array (MutableByteArray x) _ _)) = IN (unsafeCoerce# x)
 
 #else
 
+{-# INLINE liftInteger #-}
 liftInteger :: Integer -> LiftedInteger
 liftInteger (S# x) = LIS (I# x)
 liftInteger (Jp# (BN# x)) =
@@ -98,6 +101,7 @@ liftInteger (Jp# (BN# x)) =
 liftInteger (Jn# (BN# x)) =
     LIN (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
 
+{-# INLINE unliftInteger #-}
 unliftInteger :: LiftedInteger -> Integer
 unliftInteger (LIS (I# x)) = S# x
 unliftInteger (LIP (Array (MutableByteArray x) _ _)) =
