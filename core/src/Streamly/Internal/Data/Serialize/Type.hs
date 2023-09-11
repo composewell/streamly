@@ -50,8 +50,8 @@ import GHC.Exts
 -- IMPORTANT
 -- =========
 --
--- Don't ever serialize the offsets in the encoding. Serialize length instead.
--- Offsets are NOT stable.
+-- Don't ever serialize the absolute offsets in the encoding. Serialize length
+-- instead. Absolute offsets are NOT stable.
 --
 -- They will only work if the start offset of the Array when encoding and
 -- decoding is the same. This is almost never the case.
