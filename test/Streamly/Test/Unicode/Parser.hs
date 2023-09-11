@@ -25,36 +25,26 @@ scientificExpFP :: Property
 scientificExpFP =
     forAll (chooseDouble (-99.99e-12, 1234.4567e+234)) $ \ls ->
         case runIdentity $ Stream.parse parser (Stream.fromList (show ls)) of
-                Right val -> if val == show ls
-                             then property (val == show ls)
-                             else trace
-                                    ("Expected = " ++ show ls ++ " Got = " ++ val)
-                                    property (val == show ls)
-                Left _ -> property False
+                Right val -> val `H.shouldBe` read (show ls)
+                Left _ -> error "Parsing failed."
 
         where
 
-        formatter = Scientific.formatScientific Scientific.Exponent Nothing
         toScientific (c, m) = Scientific.scientific c m
-        parser = formatter . toScientific <$> Parser.number
+        parser = toScientific <$> Parser.number
 
 -- Standard decimal notation.
 scientificFixFP :: Property
 scientificFixFP =
     forAll (chooseDouble (-0.00099, 123445.67998)) $ \ls ->
         case runIdentity $ Stream.parse parser (Stream.fromList (show ls)) of
-                Right val -> if val == show ls
-                             then property (val == show ls)
-                             else trace
-                                    ("Expected = " ++ show ls ++ " Got = " ++ val)
-                                    property (val == show ls)
-                Left _ -> property False
+                Right val -> val `H.shouldBe` read (show ls)
+                Left _ -> error "Parsing failed."
 
         where
 
-        formatter = Scientific.formatScientific Scientific.Fixed Nothing
         toScientific (c, m) = Scientific.scientific c m
-        parser = formatter . toScientific <$> Parser.number
+        parser = toScientific <$> Parser.number
 
 doubleExpFP :: Property
 doubleExpFP =
