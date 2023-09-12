@@ -33,6 +33,8 @@ import Streamly.Internal.Data.Unbox.TH
     , reifyDataType
     )
 
+import qualified Streamly.Internal.Data.Serialize.TH.RecHeader as RecHeader
+
 import Streamly.Internal.Data.Serialize.TH.Bottom
 import Streamly.Internal.Data.Serialize.TH.Common
 
@@ -146,6 +148,8 @@ mkSizeOfExpr False False tyOfTy =
                 [varP _acc, varP _x]
                 (caseE (varE _x) (fmap (matchCons acc) cons))
 
+mkSizeOfExpr False True (TheType con) = RecHeader.mkSizeOfExpr con
+
 mkSizeOfExpr _ _ _ = errorUnimplemented
 
 mkSizeDec :: Config -> Type -> [DataCon] -> Q [Dec]
@@ -237,6 +241,30 @@ mkDeserializeExpr False False headTy tyOfTy =
                        ("Found invalid tag while peeking (" ++
                         $(lift (pprint headTy)) ++ ")")|])
             []
+
+mkDeserializeExpr False True headTy (TheType con@(SimpleDataCon _ fields)) = do
+    deserializeWithKeys <- newName "deserializeWithKeys"
+    updateFunc <- newName "updateFunc"
+    hOff <- newName "hOff"
+    finalOff <- newName "finalOff"
+    deserializeWithKeysMethod <-
+        RecHeader.mkDeserializeKeysExpr
+            hOff finalOff _arr _endOffset updateFunc con
+    updateFuncDec <- RecHeader.conUpdateFuncExpr updateFunc headTy fields
+    letE
+        ([ pure $ FunD
+              deserializeWithKeys
+              [ Clause
+                [VarP hOff, VarP finalOff]
+                (NormalB deserializeWithKeysMethod)
+                []
+              ]
+         ] ++ (pure <$> updateFuncDec))
+        (RecHeader.mkDeserializeExpr
+             _initialOffset
+             _endOffset
+             deserializeWithKeys
+             con)
 
 mkDeserializeExpr _ _ _ _ = errorUnimplemented
 
@@ -340,6 +368,9 @@ mkSerializeExpr False False tyOfTy =
                                    ]))
                      (zip [0 ..] cons))
 
+mkSerializeExpr False True (TheType con) =
+    RecHeader.mkSerializeExpr _initialOffset con
+
 mkSerializeExpr _ _ _ = errorUnimplemented
 
 mkSerializeDec :: Config -> Type -> [DataCon] -> Q [Dec]
@@ -418,15 +449,16 @@ deriveSerializeWith :: Config -> Q [Dec] -> Q [Dec]
 deriveSerializeWith conf mDecs = do
     dec <- mDecs
     case dec of
-        [inst@(InstanceD _ _ headTy [])] -> do
+        [inst@(InstanceD _ _ headTyWC [])] -> do
+            let headTy = unwrap dec headTyWC
             dt <- reifyDataType (getMainTypeName dec headTy)
             let cons = dtCons dt
             deriveSerializeInternal conf headTy cons (next inst)
         _ -> errorUnsupported
   where
 
-    next (InstanceD mo preds headTy []) methods =
-        pure [InstanceD mo preds headTy methods]
+    next (InstanceD mo preds headTyWC []) methods =
+        pure [InstanceD mo preds headTyWC methods]
     next _ _ = errorUnsupported
 
     errorMessage dec =
@@ -444,12 +476,12 @@ deriveSerializeWith conf mDecs = do
             , "instance Serialize (TableT Identity)"
             ]
 
-    getMainTypeName dec = go . unwrap
+    unwrap _ (AppT (ConT _) r) = r
+    unwrap dec _ = errorMessage dec
+
+    getMainTypeName dec = go
 
         where
-
-        unwrap (AppT (ConT _) r) = r
-        unwrap _ = errorMessage dec
 
         go (ConT nm) = nm
         go (AppT l _) = go l
