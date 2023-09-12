@@ -18,6 +18,7 @@ module Streamly.Internal.Data.Serialize.TH.Bottom
     , Field
     , mkFieldName
     , isUnitType
+    , isRecordSyntax
     , c2w
     , wListToString
     , xorCmp
@@ -32,6 +33,7 @@ module Streamly.Internal.Data.Serialize.TH.Bottom
     , int_w8
     , int_w32
     , w32_int
+    , w8_int
     , _acc
     , _arr
     , _endOffset
@@ -43,6 +45,7 @@ module Streamly.Internal.Data.Serialize.TH.Bottom
     , errorUnimplemented
     ) where
 
+import Data.Maybe (isJust)
 import Data.Char (chr, ord)
 import Data.List (foldl')
 import Data.Word (Word16, Word32, Word64, Word8)
@@ -174,6 +177,9 @@ isUnitType :: [DataCon] -> Bool
 isUnitType [DataCon _ _ _ []] = True
 isUnitType _ = False
 
+isRecordSyntax :: SimpleDataCon -> Bool
+isRecordSyntax (SimpleDataCon _ fields) = and (isJust . fst <$> fields)
+
 --------------------------------------------------------------------------------
 -- Type casting
 --------------------------------------------------------------------------------
@@ -192,6 +198,9 @@ w8_w32 = fromIntegral
 
 w8_w64 :: Word8 -> Word64
 w8_w64 = fromIntegral
+
+w8_int :: Word8 -> Int
+w8_int = fromIntegral
 
 w32_int :: Word32 -> Int
 w32_int = fromIntegral
