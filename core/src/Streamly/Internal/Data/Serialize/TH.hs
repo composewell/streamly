@@ -440,6 +440,15 @@ mkSizeOfExpr False tyOfTy =
                 [varP _acc, varP _x]
                 (caseE (varE _x) (fmap (matchCons acc) cons))
 
+mkSizeDec :: Config -> Type -> [DataCon] -> Q [Dec]
+mkSizeDec (Config {..}) headTy cons = do
+    -- INLINE on sizeOf actually worsens some benchmarks, and improves none
+    sizeOfMethod <- mkSizeOfExpr constructorTagAsString (typeOfType headTy cons)
+    pure
+        [ PragmaD (InlineP 'size inlineSize FunLike AllPhases)
+        , FunD 'size [Clause [] (NormalB sizeOfMethod) []]
+        ]
+
 --------------------------------------------------------------------------------
 -- Peek
 --------------------------------------------------------------------------------
@@ -544,6 +553,23 @@ mkDeserializeExpr False headTy tyOfTy =
                         $(lift (pprint headTy)) ++ ")")|])
             []
 
+mkDeserializeDec :: Config -> Type -> [DataCon] -> Q [Dec]
+mkDeserializeDec (Config {..}) headTy cons = do
+    peekMethod <-
+        mkDeserializeExpr constructorTagAsString headTy (typeOfType headTy cons)
+    pure
+        [ PragmaD (InlineP 'deserialize inlineDeserialize FunLike AllPhases)
+        , FunD
+              'deserialize
+              [ Clause
+                    (if isUnitType cons && not constructorTagAsString
+                         then [VarP _initialOffset, WildP, WildP]
+                         else [VarP _initialOffset, VarP _arr, VarP _endOffset])
+                    (NormalB peekMethod)
+                    []
+              ]
+        ]
+
 --------------------------------------------------------------------------------
 -- Poke
 --------------------------------------------------------------------------------
@@ -636,6 +662,23 @@ mkSerializeExpr False tyOfTy =
                                    ]))
                      (zip [0 ..] cons))
 
+mkSerializeDec :: Config -> Type -> [DataCon] -> Q [Dec]
+mkSerializeDec (Config {..}) headTy cons = do
+    pokeMethod <-
+        mkSerializeExpr constructorTagAsString (typeOfType headTy cons)
+    pure
+        [ PragmaD (InlineP 'serialize inlineSerialize FunLike AllPhases)
+        , FunD
+              'serialize
+              [ Clause
+                    (if isUnitType cons && not constructorTagAsString
+                         then [VarP _initialOffset, WildP, WildP]
+                         else [VarP _initialOffset, VarP _arr, VarP _val])
+                    (NormalB pokeMethod)
+                    []
+              ]
+        ]
+
 --------------------------------------------------------------------------------
 -- Main
 --------------------------------------------------------------------------------
@@ -672,38 +715,11 @@ mkSerializeExpr False tyOfTy =
 -- @
 deriveSerializeInternal ::
        Config -> Cxt -> Type -> [DataCon] -> Q [Dec]
-deriveSerializeInternal (Config{..}) preds headTy cons = do
-    sizeOfMethod <- mkSizeOfExpr constructorTagAsString (typeOfType headTy cons)
-    peekMethod <-
-        mkDeserializeExpr constructorTagAsString headTy (typeOfType headTy cons)
-    pokeMethod <-
-        mkSerializeExpr constructorTagAsString (typeOfType headTy cons)
-    let methods =
-            -- INLINE on sizeOf actually worsens some benchmarks, and improves
-            -- none
-            [ PragmaD (InlineP 'size inlineSize FunLike AllPhases)
-            , FunD 'size [Clause [] (NormalB sizeOfMethod) []]
-            , PragmaD (InlineP 'deserialize inlineDeserialize FunLike AllPhases)
-            , FunD
-                  'deserialize
-                  [ Clause
-                        (if isUnitType cons && not constructorTagAsString
-                             then [VarP _initialOffset, WildP, WildP]
-                             else [VarP _initialOffset, VarP _arr, VarP _endOffset])
-                        (NormalB peekMethod)
-                        []
-                  ]
-            , PragmaD (InlineP 'serialize inlineSerialize FunLike AllPhases)
-            , FunD
-                  'serialize
-                  [ Clause
-                        (if isUnitType cons && not constructorTagAsString
-                             then [VarP _initialOffset, WildP, WildP]
-                             else [VarP _initialOffset, VarP _arr, VarP _val])
-                        (NormalB pokeMethod)
-                        []
-                  ]
-            ]
+deriveSerializeInternal conf preds headTy cons = do
+    sizeDec <- mkSizeDec conf headTy cons
+    peekDec <- mkDeserializeDec conf headTy cons
+    pokeDec <- mkSerializeDec conf headTy cons
+    let methods = concat [sizeDec, peekDec, pokeDec]
     return [plainInstanceD preds (AppT (ConT ''Serialize) headTy) methods]
 
 -- | Similar to 'deriveSerialize,' but take a 'Config' to control how
