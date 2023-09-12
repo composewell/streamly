@@ -193,7 +193,7 @@ mkDeserializeExpr True headTy tyOfTy =
             [|($(litIntegral lenCname) == $(varE conLen))
                    && $(xorCmp tag off _arr)|]
             [|let $(varP (makeI 0)) = $(varE off) + $(litIntegral lenCname)
-               in $(mkDeserializeExprOne con)|]
+               in $(mkDeserializeExprOne 'deserialize con)|]
 
 mkDeserializeExpr False headTy tyOfTy =
     case tyOfTy of
@@ -204,7 +204,7 @@ mkDeserializeExpr False headTy tyOfTy =
         TheType con ->
             letE
                 [valD (varP (mkName "i0")) (normalB (varE _initialOffset)) []]
-                (mkDeserializeExprOne con)
+                (mkDeserializeExprOne 'deserialize con)
         -- Sum type
         MultiType cons -> do
             let lenCons = length cons
@@ -220,7 +220,9 @@ mkDeserializeExpr False headTy tyOfTy =
                 ]
   where
     peekMatch (i, con) =
-        match (litP (IntegerL i)) (normalB (mkDeserializeExprOne con)) []
+        match
+            (litP (IntegerL i))
+            (normalB (mkDeserializeExprOne 'deserialize con)) []
     peekErr =
         match
             wildP
@@ -289,7 +291,7 @@ mkSerializeExpr True tyOfTy =
             (doE [ bindS
                        (varP (mkName "i0"))
                        (serializeW8List _initialOffset _arr conEnc)
-                 , noBindS (mkSerializeExprFields fields)
+                 , noBindS (mkSerializeExprFields 'serialize fields)
                  ])
 
 mkSerializeExpr False tyOfTy =
@@ -305,7 +307,7 @@ mkSerializeExpr False tyOfTy =
                      [ matchConstructor
                            cname
                            (length fields)
-                           (mkSerializeExprFields fields)
+                           (mkSerializeExprFields 'serialize fields)
                      ])
         -- Sum type
         (MultiType cons) -> do
@@ -320,7 +322,10 @@ mkSerializeExpr False tyOfTy =
                               (doE [ bindS
                                          (varP (mkName "i0"))
                                          (mkSerializeExprTag tagType tagVal)
-                                   , noBindS (mkSerializeExprFields fields)
+                                   , noBindS
+                                         (mkSerializeExprFields
+                                              'serialize
+                                              fields)
                                    ]))
                      (zip [0 ..] cons))
 
