@@ -14,6 +14,7 @@ module Streamly.Internal.Data.Serialize.TH.Bottom
     , TypeOfType(..)
     , typeOfType
     , SimpleDataCon(..)
+    , simplifyDataCon
     , Field
     , mkFieldName
     , isUnitType
@@ -22,6 +23,7 @@ module Streamly.Internal.Data.Serialize.TH.Bottom
     , serializeW8List
     , litIntegral
     , matchConstructor
+    , openConstructor
     , makeI
     , makeA
     , int_w8
@@ -164,12 +166,13 @@ makeA i = mkName $ "a" ++ show i
 -- Domain specific helpers
 --------------------------------------------------------------------------------
 
+openConstructor :: Name -> Int -> Q Pat
+openConstructor cname numFields =
+    conP cname (map varP (map mkFieldName [0 .. (numFields - 1)]))
+
 matchConstructor :: Name -> Int -> Q Exp -> Q Match
 matchConstructor cname numFields exp0 =
-    match
-        (conP cname (map varP (map mkFieldName [0 .. (numFields - 1)])))
-        (normalB exp0)
-        []
+    match (openConstructor cname numFields) (normalB exp0) []
 
 --------------------------------------------------------------------------------
 -- Constructor types
