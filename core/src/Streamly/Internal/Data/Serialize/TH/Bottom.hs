@@ -19,14 +19,18 @@ module Streamly.Internal.Data.Serialize.TH.Bottom
     , mkFieldName
     , isUnitType
     , c2w
+    , wListToString
     , xorCmp
     , serializeW8List
     , litIntegral
+    , litProxy
     , matchConstructor
     , openConstructor
     , makeI
+    , makeN
     , makeA
     , int_w8
+    , int_w32
     , w32_int
     , _acc
     , _arr
@@ -35,13 +39,17 @@ module Streamly.Internal.Data.Serialize.TH.Bottom
     , _x
     , _tag
     , _val
+    , errorUnsupported
+    , errorUnimplemented
     ) where
 
-import Data.Char (ord)
+import Data.Char (chr, ord)
 import Data.List (foldl')
 import Data.Word (Word16, Word32, Word64, Word8)
 import Data.Bits (Bits, (.|.), shiftL, zeroBits, xor)
 import Streamly.Internal.System.IO (unsafeInlineIO)
+import Streamly.Internal.Data.Unbox (Unbox)
+import Data.Proxy (Proxy)
 
 import Language.Haskell.TH
 import Streamly.Internal.Data.Serialize.Type
@@ -211,6 +219,9 @@ isUnitType _ = False
 int_w8 :: Int -> Word8
 int_w8 = fromIntegral
 
+int_w32 :: Int -> Word32
+int_w32 = fromIntegral
+
 w8_w16 :: Word8 -> Word16
 w8_w16 = fromIntegral
 
@@ -225,6 +236,9 @@ w32_int = fromIntegral
 
 c2w :: Char -> Word8
 c2w = fromIntegral . ord
+
+wListToString :: [Word8] -> String
+wListToString = fmap (chr . fromIntegral)
 
 --------------------------------------------------------------------------------
 -- Bit manipulation
@@ -349,3 +363,28 @@ serializeW8List off arr w8List = do
 
 litIntegral :: Integral a => a -> Q Exp
 litIntegral = litE . IntegerL . fromIntegral
+
+litProxy :: Unbox a => Proxy a -> Q Exp
+litProxy = litE . IntegerL . fromIntegral . Unbox.sizeOf
+
+--------------------------------------------------------------------------------
+-- Error codes
+--------------------------------------------------------------------------------
+
+errorUnsupported :: a
+errorUnsupported =
+    error
+        $ unlines
+              [ "Unsupported."
+              , "There is improper use of the library."
+              , "This case is unsupported."
+              , "Please contact the developer if this case is of interest."
+              ]
+
+errorUnimplemented :: a
+errorUnimplemented =
+    error
+        $ unlines
+              [ "Unimplemented."
+              , "Please contact the developer if this case is of interest."
+              ]
