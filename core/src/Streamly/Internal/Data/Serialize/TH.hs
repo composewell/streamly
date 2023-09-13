@@ -79,8 +79,8 @@ conEncLen cname = getNameBaseLen cname + 1
 -- Size
 --------------------------------------------------------------------------------
 
-mkSizeOfExpr :: Bool -> TypeOfType -> Q Exp
-mkSizeOfExpr True tyOfTy =
+mkSizeOfExpr :: Bool -> Bool -> TypeOfType -> Q Exp
+mkSizeOfExpr True False tyOfTy =
     case tyOfTy of
         UnitType cname ->
             lamE
@@ -109,7 +109,7 @@ mkSizeOfExpr True tyOfTy =
                 [varP _acc, varP _x]
                 (caseE (varE _x) (fmap (matchCons acc) cons))
 
-mkSizeOfExpr False tyOfTy =
+mkSizeOfExpr False False tyOfTy =
     case tyOfTy of
         UnitType _ -> lamE [varP _acc, wildP] [|$(varE _acc) + 1|]
         TheType con ->
@@ -146,10 +146,16 @@ mkSizeOfExpr False tyOfTy =
                 [varP _acc, varP _x]
                 (caseE (varE _x) (fmap (matchCons acc) cons))
 
+mkSizeOfExpr _ _ _ = errorUnimplemented
+
 mkSizeDec :: Config -> Type -> [DataCon] -> Q [Dec]
 mkSizeDec (Config {..}) headTy cons = do
     -- INLINE on sizeOf actually worsens some benchmarks, and improves none
-    sizeOfMethod <- mkSizeOfExpr constructorTagAsString (typeOfType headTy cons)
+    sizeOfMethod <-
+        mkSizeOfExpr
+            constructorTagAsString
+            recordSyntaxWithHeader
+            (typeOfType headTy cons)
     pure
         [ PragmaD (InlineP 'size inlineSize FunLike AllPhases)
         , FunD 'size [Clause [] (NormalB sizeOfMethod) []]
@@ -159,8 +165,8 @@ mkSizeDec (Config {..}) headTy cons = do
 -- Peek
 --------------------------------------------------------------------------------
 
-mkDeserializeExpr :: Bool -> Type -> TypeOfType -> Q Exp
-mkDeserializeExpr True headTy tyOfTy =
+mkDeserializeExpr :: Bool -> Bool -> Type -> TypeOfType -> Q Exp
+mkDeserializeExpr True False headTy tyOfTy =
     case tyOfTy of
         UnitType cname -> deserializeConsExpr [SimpleDataCon cname []]
         TheType con -> deserializeConsExpr [con]
@@ -194,7 +200,7 @@ mkDeserializeExpr True headTy tyOfTy =
             [|let $(varP (makeI 0)) = $(varE off) + $(litIntegral lenCname)
                in $(mkDeserializeExprOne 'deserialize con)|]
 
-mkDeserializeExpr False headTy tyOfTy =
+mkDeserializeExpr False False headTy tyOfTy =
     case tyOfTy of
         -- Unit constructor
         UnitType cname ->
@@ -232,10 +238,16 @@ mkDeserializeExpr False headTy tyOfTy =
                         $(lift (pprint headTy)) ++ ")")|])
             []
 
+mkDeserializeExpr _ _ _ _ = errorUnimplemented
+
 mkDeserializeDec :: Config -> Type -> [DataCon] -> Q [Dec]
 mkDeserializeDec (Config {..}) headTy cons = do
     peekMethod <-
-        mkDeserializeExpr constructorTagAsString headTy (typeOfType headTy cons)
+        mkDeserializeExpr
+            constructorTagAsString
+            recordSyntaxWithHeader
+            headTy
+            (typeOfType headTy cons)
     pure
         [ PragmaD (InlineP 'deserialize inlineDeserialize FunLike AllPhases)
         , FunD
@@ -260,8 +272,8 @@ mkSerializeExprTag tagType tagVal =
           $(varE _arr)
           $((sigE (litE (IntegerL (fromIntegral tagVal))) (conT tagType)))|]
 
-mkSerializeExpr :: Bool -> TypeOfType -> Q Exp
-mkSerializeExpr True tyOfTy =
+mkSerializeExpr :: Bool -> Bool -> TypeOfType -> Q Exp
+mkSerializeExpr True False tyOfTy =
     case tyOfTy of
         -- Unit type
         UnitType cname ->
@@ -293,7 +305,7 @@ mkSerializeExpr True tyOfTy =
                  , noBindS (mkSerializeExprFields 'serialize fields)
                  ])
 
-mkSerializeExpr False tyOfTy =
+mkSerializeExpr False False tyOfTy =
     case tyOfTy of
         -- Unit type
         UnitType _ -> [|pure ($(varE _initialOffset) + 1)|]
@@ -328,10 +340,15 @@ mkSerializeExpr False tyOfTy =
                                    ]))
                      (zip [0 ..] cons))
 
+mkSerializeExpr _ _ _ = errorUnimplemented
+
 mkSerializeDec :: Config -> Type -> [DataCon] -> Q [Dec]
 mkSerializeDec (Config {..}) headTy cons = do
     pokeMethod <-
-        mkSerializeExpr constructorTagAsString (typeOfType headTy cons)
+        mkSerializeExpr
+            constructorTagAsString
+            recordSyntaxWithHeader
+            (typeOfType headTy cons)
     pure
         [ PragmaD (InlineP 'serialize inlineSerialize FunLike AllPhases)
         , FunD
