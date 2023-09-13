@@ -22,7 +22,7 @@ module Streamly.Test.Data.Serialize (main) where
 --------------------------------------------------------------------------------
 
 import System.Random (randomRIO)
-import Streamly.Internal.Data.Unbox (newBytes)
+import Streamly.Internal.Data.Unbox (MutableByteArray, newBytes)
 import GHC.Generics (Generic)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
 import qualified Streamly.Internal.Data.Serialize.TH as Serialize
@@ -114,12 +114,11 @@ instance Arbitrary a => Arbitrary (BinTree a) where
 -- Test helpers
 --------------------------------------------------------------------------------
 
-roundtrip
-    :: forall a. (Eq a, Show a, Serialize.Serialize a)
+poke ::
+       forall a. Serialize.Serialize a
     => a
-    -> IO ()
-roundtrip val = do
-
+    -> IO (MutableByteArray, Int, Int)
+poke val = do
     let sz = Serialize.size 0 val
 
     let excessSize = 100
@@ -132,15 +131,33 @@ roundtrip val = do
     arr <- newBytes arrSize
 
     off1 <- Serialize.serialize serStartOff arr val
+    off1 `shouldBe` serEndOff
+    pure (arr, serStartOff, serEndOff)
+
+peekAndVerify ::
+       forall a. (Eq a, Show a, Serialize.Serialize a)
+    => (MutableByteArray, Int, Int)
+    -> a
+    -> IO ()
+peekAndVerify (arr, serStartOff, serEndOff) val = do
     (off2, val2) <- Serialize.deserialize serStartOff arr serEndOff
     val2 `shouldBe` val
-    off2 `shouldBe` off1
     off2 `shouldBe` serEndOff
-    val `shouldBe` Serialize.decode (Serialize.encode val)
     let slice = Array.Array arr serStartOff serEndOff
     val `shouldBe` Serialize.decode slice
     clonedSlice <- Array.clone slice
     val `shouldBe` Serialize.decode clonedSlice
+
+roundtrip
+    :: forall a. (Eq a, Show a, Serialize.Serialize a)
+    => a
+    -> IO ()
+roundtrip val = do
+
+    val `shouldBe` Serialize.decode (Serialize.encode val)
+
+    res <- poke val
+    peekAndVerify res val
 
 testSerializeList
     :: forall a. (Eq a, Show a, Serialize.Serialize a)
