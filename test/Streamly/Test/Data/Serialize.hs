@@ -21,6 +21,7 @@ module Streamly.Test.Data.Serialize (main) where
 -- Imports
 --------------------------------------------------------------------------------
 
+import System.Random (randomRIO)
 import Streamly.Internal.Data.Unbox (newBytes)
 import GHC.Generics (Generic)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
@@ -121,11 +122,13 @@ roundtrip val = do
 
     let sz = Serialize.size 0 val
 
+    let excessSize = 100
+    randomOff <- randomRIO (10, excessSize)
     -- Use a proper slice to test instead of the array directly. This will catch
     -- any hardcoded 0 offsets
-    let arrSize = sz + 100
-        serStartOff = 50
-        serEndOff = 50 + sz
+    let arrSize = sz + excessSize
+        serStartOff = randomOff
+        serEndOff = randomOff + sz
     arr <- newBytes arrSize
 
     off1 <- Serialize.serialize serStartOff arr val
@@ -134,7 +137,10 @@ roundtrip val = do
     off2 `shouldBe` off1
     off2 `shouldBe` serEndOff
     val `shouldBe` Serialize.decode (Serialize.encode val)
-    val `shouldBe` Serialize.decode (Array.Array arr serStartOff serEndOff)
+    let slice = Array.Array arr serStartOff serEndOff
+    val `shouldBe` Serialize.decode slice
+    clonedSlice <- Array.clone slice
+    val `shouldBe` Serialize.decode clonedSlice
 
 testSerializeList
     :: forall a. (Eq a, Show a, Serialize.Serialize a)
