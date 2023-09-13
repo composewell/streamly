@@ -293,7 +293,10 @@ test-suite Data.Serialize
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Serialize.hs
-  other-modules: Streamly.Test.Data.Serialize.TH
+  other-modules:
+      Streamly.Test.Data.Serialize.TH
+      Streamly.Test.Data.Serialize.CompatV0
+      Streamly.Test.Data.Serialize.CompatV1
   ghc-options: -main-is Streamly.Test.Data.Serialize.main
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
@@ -302,7 +305,10 @@ test-suite Data.Serialize.ENABLE_constructorTagAsString
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Serialize.hs
-  other-modules: Streamly.Test.Data.Serialize.TH
+  other-modules:
+      Streamly.Test.Data.Serialize.TH
+      Streamly.Test.Data.Serialize.CompatV0
+      Streamly.Test.Data.Serialize.CompatV1
   cpp-options: -DENABLE_constructorTagAsString
   ghc-options: -main-is Streamly.Test.Data.Serialize.main
   if flag(limit-build-mem)
