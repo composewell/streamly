@@ -28,17 +28,14 @@ import Streamly.Data.Serialize (Serialize)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
 
 import qualified Streamly.Internal.Data.Serialize.TH as Serialize
-    ( deriveSerializeWith
-#ifdef ENABLE_constructorTagAsString
-    , Config(..)
-#endif
-    , defaultConfig
-    )
 
 import Data.Functor.Identity (Identity (..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Serialize as Serialize
+
+import qualified Streamly.Test.Data.Serialize.CompatV0 as CompatV0
+import qualified Streamly.Test.Data.Serialize.CompatV1 as CompatV1
 
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -114,6 +111,47 @@ $(Serialize.deriveSerializeWith
 
 instance Arbitrary a => Arbitrary (BinTree a) where
   arbitrary = oneof [Leaf <$> arbitrary, Tree <$> arbitrary <*> arbitrary]
+
+--------------------------------------------------------------------------------
+-- Record syntax type
+--------------------------------------------------------------------------------
+
+upgradeRec :: (a -> b) -> CompatV0.Rec a -> CompatV1.Rec b
+upgradeRec f val =
+    CompatV1.Rec
+        { CompatV1.initialField = CompatV0.initialField val
+        , CompatV1.otherField = f (CompatV0.otherField val)
+        , CompatV1.theLastField = CompatV0.theLastField val
+        , CompatV1.aNewField = Nothing
+        }
+
+upgradeRiver :: CompatV0.River -> CompatV1.River
+upgradeRiver = read . show
+
+downgradeRec  :: (a -> b) -> CompatV1.Rec a -> CompatV0.Rec b
+downgradeRec f val =
+    CompatV0.Rec
+        { CompatV0.initialField = CompatV1.initialField val
+        , CompatV0.otherField = f (CompatV1.otherField val)
+        , CompatV0.theLastField = CompatV1.theLastField val
+        }
+
+downgradeRiver :: CompatV1.River -> CompatV0.River
+downgradeRiver = read . show
+
+testCompatibility ::
+       CompatV0.Rec (CompatV0.Rec CompatV0.River)
+    -> CompatV1.Rec (CompatV1.Rec CompatV1.River)
+    -> IO ()
+testCompatibility v0 v1 = do
+    let upgradedV0 = upgradeRec (upgradeRec upgradeRiver) v0
+        downgradedV1 = downgradeRec (downgradeRec downgradeRiver) v1
+
+    res <- poke v0
+    peekAndVerify res upgradedV0
+
+    res1 <- poke v1
+    peekAndVerify res1 downgradedV1
 
 --------------------------------------------------------------------------------
 -- Test helpers
@@ -203,6 +241,12 @@ testCases = do
 
     prop "Array Int"
         $ \(x :: [Int]) -> roundtrip (Array.fromList x)
+
+    prop "Compatible Record"
+        $ \(a :: CompatV1.Rec (CompatV0.Rec CompatV1.River)) -> roundtrip a
+
+    prop "Compatibility"
+        $ \a b -> testCompatibility a b
 
     limitQC
         $ prop "CustomDatatype"
