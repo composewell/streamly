@@ -61,8 +61,8 @@ import Streamly.Internal.Data.Serialize.Type
 $(Serialize.deriveSerialize ''Maybe)
 $(Serialize.deriveSerialize ''Either)
 $(Serialize.deriveSerializeWith
-      (Serialize.defaultConfig {Serialize.unconstrained = ["t"]})
-      ''Proxy)
+      Serialize.defaultConfig
+      [d|instance Serialize (Proxy a)|])
 
 --------------------------------------------------------------------------------
 -- Integer

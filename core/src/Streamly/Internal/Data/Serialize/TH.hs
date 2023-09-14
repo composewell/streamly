@@ -30,7 +30,6 @@ import Streamly.Internal.Data.Unbox.TH
     ( DataCon(..)
     , DataType(..)
     , appsT
-    , plainInstanceD
     , reifyDataType
     )
 
@@ -381,44 +380,47 @@ mkSerializeDec (Config {..}) headTy cons = do
 --       ])
 -- @
 deriveSerializeInternal ::
-       Config -> Cxt -> Type -> [DataCon] -> Q [Dec]
-deriveSerializeInternal conf preds headTy cons = do
+       Config -> Type -> [DataCon] -> ([Dec] -> Q [Dec]) -> Q [Dec]
+deriveSerializeInternal conf headTy cons next = do
     sizeDec <- mkSizeDec conf headTy cons
     peekDec <- mkDeserializeDec conf headTy cons
     pokeDec <- mkSerializeDec conf headTy cons
     let methods = concat [sizeDec, peekDec, pokeDec]
-    return [plainInstanceD preds (AppT (ConT ''Serialize) headTy) methods]
+    next methods
 
--- | Similar to 'deriveSerialize,' but take a 'Config' to control how
--- the instance is generated.
+-- | Similar to 'deriveSerialize' but take a 'Config' to control how the
+-- instance is generated.
 --
--- Usage: @$(deriveSerializeWith config ''CustomDataType)@
-deriveSerializeWith :: Config -> Name -> Q [Dec]
-deriveSerializeWith conf@(Config {..}) name = do
-    dt <- reifyDataType name
-    let preds = map (unboxPred . VarT) (filterOutVars (dtTvs dt))
-        headTy = appsT (ConT name) (map substituteVar (dtTvs dt))
-        cons = dtCons dt
-    deriveSerializeInternal conf preds headTy cons
+-- Usage:
+-- @
+-- $(deriveSerializeWith
+--       config
+--       [d|instance Serialize a => Serialize (Maybe a)|])
+-- @
+deriveSerializeWith :: Config -> Q [Dec] -> Q [Dec]
+deriveSerializeWith conf mDecs = do
+    dec <- mDecs
+    case dec of
+        [inst@(InstanceD _ _ headTy [])] -> do
+            dt <- reifyDataType (getMainTypeName headTy)
+            let cons = dtCons dt
+            deriveSerializeInternal conf headTy cons (next inst)
+        _ -> errorUnsupported
+  where
 
-    where
-    allUnconstrainedTypeVars =
-        unconstrained ++ map fst specializations
-    filterOutVars vs =
-        map mkName
-            $ filter (not . flip elem allUnconstrainedTypeVars)
-            $ map nameBase vs
-    substituteVar v =
-        case lookup (nameBase v) specializations of
-            Nothing -> VarT v
-            Just ty -> ty
+    next (InstanceD mo preds headTy []) methods =
+        pure [InstanceD mo preds headTy methods]
+    next _ _ = errorUnsupported
 
-    unboxPred ty =
-#if MIN_VERSION_template_haskell(2,10,0)
-        AppT (ConT ''Serialize) ty
-#else
-        ClassP ''Serialize [ty]
-#endif
+    getMainTypeName = go . unwrap
+
+    unwrap (AppT (ConT _) r) = r
+    unwrap _ = error "getMainTypeName.unwrap: Undefined instance declaration."
+
+    go (ConT nm) = nm
+    go (AppT l _) = go l
+    go _ = error "getMainTypeName.go: Undefined instance declaration."
+
 
 -- | Template haskell helper to create instances of 'Serialize' automatically.
 --
@@ -438,8 +440,18 @@ deriveSerializeWith conf@(Config {..}) name = do
 --
 -- To control which type variables don't get the Serialize constraint, use
 -- 'deriveSerializeWith'.
---
--- >>> import qualified Streamly.Internal.Data.Serialize.TH as Serialize
--- >>> deriveSerialize = Serialize.deriveSerializeWith Serialize.defaultConfig
 deriveSerialize :: Name -> Q [Dec]
-deriveSerialize name = deriveSerializeWith defaultConfig name
+deriveSerialize name = do
+    dt <- reifyDataType name
+    let preds = map (unboxPred . VarT) (dtTvs dt)
+        headTy = appsT (ConT name) (map VarT (dtTvs dt))
+        cons = dtCons dt
+    deriveSerializeInternal defaultConfig headTy cons (next preds headTy)
+
+
+    where
+
+    next preds headTy methods =
+        pure [InstanceD Nothing preds (AppT (ConT ''Serialize) headTy) methods]
+
+    unboxPred ty = AppT (ConT ''Serialize) ty

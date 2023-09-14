@@ -17,7 +17,6 @@ module Streamly.Internal.Data.Unbox.TH
     , DataType(..)
     , reifyDataType
     , appsT
-    , plainInstanceD
     ) where
 
 --------------------------------------------------------------------------------
@@ -34,6 +33,8 @@ import Streamly.Internal.Data.Unbox
 --------------------------------------------------------------------------------
 -- th-utilities
 --------------------------------------------------------------------------------
+
+-- Note: We don't support template-haskell < 2.14 (GHC < 8.6)
 
 -- The following are copied to remove the dependency on th-utilities.
 -- The code has been copied from th-abstraction and th-utilities.
@@ -71,16 +72,6 @@ tyVarBndrName = tvName
 appsT :: Type -> [Type] -> Type
 appsT x [] = x
 appsT x (y:xs) = appsT (AppT x y) xs
-
--- | Utility to conveniently handle change to 'InstanceD' API in
--- template-haskell-2.11.0
-plainInstanceD :: Cxt -> Type -> [Dec] -> Dec
-plainInstanceD =
-#if MIN_VERSION_template_haskell(2,11,0)
-    InstanceD Nothing
-#else
-    InstanceD
-#endif
 
 -- | Simplified info about a 'DataD'. Omits deriving, strictness,
 -- kind info, and whether it's @data@ or @newtype@.
@@ -437,7 +428,7 @@ deriveUnboxInternal preds headTy cons = do
                         []
                   ]
             ]
-    return [plainInstanceD preds (AppT (ConT ''Unbox) headTy) methods]
+    return [InstanceD Nothing preds (AppT (ConT ''Unbox) headTy) methods]
 
 -- | Template haskell helper to create instances of 'Unbox' automatically.
 --
