@@ -65,43 +65,7 @@ import Streamly.Internal.Data.Unbox.TH (DataCon(..))
 -- | Config to control how the 'Serialize' instance is generated.
 data Config =
     Config
-        { unconstrained :: [String]
-          -- ^ Type variables that should not have the 'Serialize' constraint.
-          --
-          -- @
-          -- data CustomDataType a b c d = CustomDataType a c
-          -- @
-          --
-          -- @
-          -- conf = defaultConf {unconstrained = ["b", "d"]}
-          -- \$(deriveSerializeWith conf ''CustomDataType)
-          -- @
-          --
-          -- @
-          -- instance (Serialize a, Serialize c) => Serialize (CustomDataType a b c d) where
-          -- ...
-          -- @
-        , specializations :: [(String, Type)]
-          -- ^ Specialize the type variable with the given type. All type
-          -- variables listed here will not have the 'Serialize' constriant as
-          -- they are specialized.
-          --
-          -- @
-          -- data CustomDataType f a = CustomDataType (f a)
-          -- @
-          --
-          -- @
-          -- conf = defaultConf {specializations = [("f", ''Identity)]}
-          -- \$(deriveSerializeWith conf ''CustomDataType)
-          -- @
-          --
-          -- @
-          -- instance (Serialize a) => Serialize (CustomDataType Identity a) where
-          -- ...
-          -- @
-          --
-          -- @f@ is replaced with 'Identity' and becomes unconstrained.
-        , inlineSize :: Inline
+        { inlineSize :: Inline
           -- ^ Inline value for 'size'. Default is Inline.
         , inlineSerialize :: Inline
           -- ^ Inline value for 'serialize'. Default is Inline.
@@ -122,9 +86,7 @@ data Config =
 defaultConfig :: Config
 defaultConfig =
     Config
-        { unconstrained = []
-        , specializations = []
-        , inlineSize = Inline
+        { inlineSize = Inline
         , inlineSerialize = Inline
         , inlineDeserialize = Inline
         , constructorTagAsString = False
