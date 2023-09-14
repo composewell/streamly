@@ -63,6 +63,7 @@ extra-source-files:
     benchmark/bench-runner/Main.hs
     benchmark/bench-runner/bench-runner.cabal
     benchmark/Streamly/Benchmark/Data/*.hs
+    benchmark/Streamly/Benchmark/Data/Serialize/*.hs
     benchmark/Streamly/Benchmark/Data/Array/Common.hs
     benchmark/Streamly/Benchmark/Data/Array/CommonImports.hs
     benchmark/Streamly/Benchmark/Data/Array/Generic.hs
