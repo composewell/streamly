@@ -83,7 +83,20 @@ data Config =
           -- ^ __Experimental__
           --
           -- If True, encode the keys of the record as a header and then
-          -- serialize the data.
+          -- serialize the data. Multiple constructors are not supported with
+          -- @recordSyntaxWithHeader@ enabled.
+          --
+          -- __Performance Notes:__
+          --
+          -- There is a constant regression proportional to
+          -- @sum (map length keyList) + length keyList@ where @keyList@ is the
+          -- list of keys of that record as strings.
+          --
+          -- As an example, @keyList@ of,
+          -- @
+          -- data RecordType = RecordType { field0 :: Int, field2 :: Char }
+          -- @
+          -- is @["field0", "field1"]@
         }
 
 defaultConfig :: Config
