@@ -197,6 +197,7 @@ instance Serialize _type where \
 ;    serialize =  \
         serializeUnsafe :: Int -> MutableByteArray -> _type -> IO Int
 
+DERIVE_SERIALIZE_FROM_UNBOX(())
 DERIVE_SERIALIZE_FROM_UNBOX(Bool)
 DERIVE_SERIALIZE_FROM_UNBOX(Char)
 DERIVE_SERIALIZE_FROM_UNBOX(Int8)
