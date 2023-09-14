@@ -39,9 +39,49 @@ import Streamly.Internal.Data.Serialize.TH.Common
 -- Notes
 --------------------------------------------------------------------------------
 
--- Encoding the header length is required to check if we want to compare the
--- header. We should not compare the headers if the lengths of the headers are
--- not equal as this might lead to a runtime error.
+-- Compatibility Algorithm
+-- =======================
+--
+-- The algorithm is written without any low level implementation details. See
+-- the code for any low level implementation details.
+--
+-- Serialization:
+-- --------------
+--
+-- To serialize the data,
+--
+-- * Get the list of keys for the record as @keyList@.
+-- * Serialize the @keyList@.
+-- * Serialize the @fields@ one-by-one after serializing the @keyList@.
+--
+-- Deserialization:
+-- ----------------
+--
+-- To deserialize the data to type @T@,
+--
+-- __Checking for type match__:
+--
+-- * Get the list of keys for type @T@ as @targetKeyList@.
+-- * Get the list of keys encoded as @encodedKeyList@.
+-- * If @targetKeyList == encodedKeyList@ see the __Type Match__ section else
+--   see the __No Type Match__ section.
+--
+-- __Type Match__:
+--
+-- * Decode the fields one-by-one and construct the type @T@ in the end.
+--
+-- __No Type Match__:
+--
+-- * Decode the list of keys encoded into @encodedKeyList@.
+-- * Get the list of keys for type @T@ as @targetKeyList@.
+-- * Loop through @encodedKeyList@ and start deserializing the encoded data.
+-- * If the key is present in @encodedKeyList@ and not in @targetKeyList@
+--   then skip parsing the corresponding value.
+-- * If the key is present in @targetKeyList@ and not in @encodedKeyList@
+--   then set the value for that key as @Nothing@.
+-- * If the key is present in both @encodedKeyList@ and in @targetKeyList@
+--   parse the value.
+-- * Construct @T@ after parsing all the data.
 
 --------------------------------------------------------------------------------
 -- Compact lists
@@ -170,8 +210,9 @@ headerValue (SimpleDataCon _ fields) =
 -- Peek
 --------------------------------------------------------------------------------
 
--- Encoding the size is required if we want to skip the field.
--- We encode the size as 'Word32' hence there is a 4 bytes increase in size.
+-- Encoding the size is required if we want to skip the field without knowing
+-- its type. We encode the size as 'Word32' hence there is a 4 bytes increase
+-- in size.
 {-# INLINE serializeWithSize #-}
 serializeWithSize :: Serialize a => Int -> MutableByteArray -> a -> IO Int
 serializeWithSize off arr val = do
@@ -182,6 +223,9 @@ serializeWithSize off arr val = do
 mkSerializeExpr :: Name -> SimpleDataCon -> Q Exp
 mkSerializeExpr initialOffset (con@(SimpleDataCon cname fields)) = do
     afterHLen <- newName "afterHLen"
+    -- Encoding the header length is required.
+    -- We first compare the header length encoded and the current header
+    -- length. Only if the header lengths match, we compare the headers.
     [|do $(varP afterHLen) <-
              serialize
                  ($(varE initialOffset) + 4)
