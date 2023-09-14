@@ -402,7 +402,7 @@ deriveSerializeWith conf mDecs = do
     dec <- mDecs
     case dec of
         [inst@(InstanceD _ _ headTy [])] -> do
-            dt <- reifyDataType (getMainTypeName headTy)
+            dt <- reifyDataType (getMainTypeName dec headTy)
             let cons = dtCons dt
             deriveSerializeInternal conf headTy cons (next inst)
         _ -> errorUnsupported
@@ -412,14 +412,31 @@ deriveSerializeWith conf mDecs = do
         pure [InstanceD mo preds headTy methods]
     next _ _ = errorUnsupported
 
-    getMainTypeName = go . unwrap
+    errorMessage dec =
+        error $ unlines
+            [ "Error: deriveSerializeWith:"
+            , ""
+            , ">> " ++ pprint dec
+            , ""
+            , "The above is not a valid instance declaration."
+            , "Any haskell instance declaration without a body is valid."
+            , ""
+            , "Examples:"
+            , "instance Serialize (Proxy a)"
+            , "instance Serialize a => Serialize (Identity a)"
+            , "instance Serialize (TableT Identity)"
+            ]
 
-    unwrap (AppT (ConT _) r) = r
-    unwrap _ = error "getMainTypeName.unwrap: Undefined instance declaration."
+    getMainTypeName dec = go . unwrap
 
-    go (ConT nm) = nm
-    go (AppT l _) = go l
-    go _ = error "getMainTypeName.go: Undefined instance declaration."
+        where
+
+        unwrap (AppT (ConT _) r) = r
+        unwrap _ = errorMessage dec
+
+        go (ConT nm) = nm
+        go (AppT l _) = go l
+        go _ = errorMessage dec
 
 
 -- | Template haskell helper to create instances of 'Serialize' automatically.
