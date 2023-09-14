@@ -193,8 +193,8 @@ deriving instance Generic (Ratio Int)
 $(Serialize.deriveSerialize ''Complex)
 $(Serialize.deriveSerialize ''Ratio)
 $(Serialize.deriveSerializeWith
-      (Serialize.defaultConfig {Serialize.unconstrained = ["b"]})
-      ''Const)
+      Serialize.defaultConfig
+      [d|instance Serialize a => Serialize (Const a b)|])
 $(Serialize.deriveSerialize ''Identity)
 #endif
 

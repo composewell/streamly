@@ -24,18 +24,22 @@ module Streamly.Test.Data.Serialize (main) where
 import System.Random (randomRIO)
 import Streamly.Internal.Data.Unbox (MutableByteArray, newBytes)
 import GHC.Generics (Generic)
+import Streamly.Data.Serialize (Serialize)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
+
 import qualified Streamly.Internal.Data.Serialize.TH as Serialize
-    ( Config(..)
+    ( deriveSerializeWith
+#ifdef ENABLE_constructorTagAsString
+    , Config(..)
+#endif
     , defaultConfig
-    , deriveSerializeWith
     )
+
 import Data.Functor.Identity (Identity (..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Serialize as Serialize
 
-import Language.Haskell.TH
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Test.Hspec as H
@@ -59,19 +63,19 @@ import Test.Hspec as H
 data Unit =
     Unit
     deriving (Eq, Show)
-$(Serialize.deriveSerializeWith CONF ''Unit)
+$(Serialize.deriveSerializeWith CONF [d|instance Serialize Unit|])
 
 data The =
     The Unit Int Char
     deriving (Eq, Show)
-$(Serialize.deriveSerializeWith CONF ''The)
+$(Serialize.deriveSerializeWith CONF [d|instance Serialize The|])
 
 --------------------------------------------------------------------------------
 -- Generated types
 --------------------------------------------------------------------------------
 
 $(genDatatype "CustomDatatype" 15)
-$(Serialize.deriveSerializeWith CONF ''CustomDatatype)
+$(Serialize.deriveSerializeWith CONF [d|instance Serialize CustomDatatype|])
 
 --------------------------------------------------------------------------------
 -- Types with functional parameters
@@ -89,11 +93,10 @@ instance (Eq (f Int), Eq (f Char)) => Eq (HigherOrderType f) where
 instance (Show (f Int), Show (f Char)) => Show (HigherOrderType f) where
     show a = "HigherOrderType " ++ show (field0 a) ++ " " ++ show (field1 a)
 
-$(Serialize.deriveSerializeWith CONF ''Identity)
-$(Serialize.deriveSerializeWith
-      (CONF
-           {Serialize.specializations = [("f", ConT ''Identity)]})
-      ''HigherOrderType)
+$(Serialize.deriveSerializeWith CONF
+      [d|instance Serialize a => Serialize (Identity a)|])
+$(Serialize.deriveSerializeWith CONF
+      [d|instance Serialize (HigherOrderType Identity)|])
 
 --------------------------------------------------------------------------------
 -- Recursive type
@@ -105,7 +108,9 @@ data BinTree a
   | Leaf a
   deriving (Show, Read, Eq, Generic)
 
-$(Serialize.deriveSerializeWith CONF ''BinTree)
+$(Serialize.deriveSerializeWith
+      CONF
+      [d|instance Serialize a => Serialize (BinTree a)|])
 
 instance Arbitrary a => Arbitrary (BinTree a) where
   arbitrary = oneof [Leaf <$> arbitrary, Tree <$> arbitrary <*> arbitrary]
