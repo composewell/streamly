@@ -245,21 +245,11 @@ mkDeserializeExpr False False headTy tyOfTy =
 mkDeserializeExpr False True headTy (TheType con@(SimpleDataCon _ fields)) = do
     deserializeWithKeys <- newName "deserializeWithKeys"
     updateFunc <- newName "updateFunc"
-    hOff <- newName "hOff"
-    finalOff <- newName "finalOff"
-    deserializeWithKeysMethod <-
-        RecHeader.mkDeserializeKeysExpr
-            hOff finalOff _arr _endOffset updateFunc con
-    updateFuncDec <- RecHeader.conUpdateFuncExpr updateFunc headTy fields
+    updateFuncDec <- RecHeader.conUpdateFuncDec updateFunc headTy fields
+    deserializeWithKeysDec <-
+        RecHeader.mkDeserializeKeysDec deserializeWithKeys updateFunc con
     letE
-        ([ pure $ FunD
-              deserializeWithKeys
-              [ Clause
-                [VarP hOff, VarP finalOff]
-                (NormalB deserializeWithKeysMethod)
-                []
-              ]
-         ] ++ (pure <$> updateFuncDec))
+        (pure <$> (deserializeWithKeysDec ++ updateFuncDec))
         (RecHeader.mkDeserializeExpr
              _initialOffset
              _endOffset

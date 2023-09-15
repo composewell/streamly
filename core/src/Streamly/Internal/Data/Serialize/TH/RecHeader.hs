@@ -12,8 +12,8 @@ module Streamly.Internal.Data.Serialize.TH.RecHeader
     ( mkSerializeExpr
     , mkDeserializeExpr
     , mkSizeOfExpr
-    , conUpdateFuncExpr
-    , mkDeserializeKeysExpr
+    , conUpdateFuncDec
+    , mkDeserializeKeysDec
     ) where
 
 --------------------------------------------------------------------------------
@@ -255,8 +255,8 @@ deserializeWithSize ::
        Serialize a => Int -> MutableByteArray -> Int -> IO (Int, a)
 deserializeWithSize off arr endOff = deserialize (off + 4) arr endOff
 
-conUpdateFuncExpr :: Name -> Type -> [Field] -> Q [Dec]
-conUpdateFuncExpr funcName headTy fields = do
+conUpdateFuncDec :: Name -> Type -> [Field] -> Q [Dec]
+conUpdateFuncDec funcName headTy fields = do
     prevRec <- newName "prevRec"
     curOff <- newName "curOff"
     endOff <- newName "endOff"
@@ -317,20 +317,36 @@ conUpdateFuncExpr funcName headTy fields = do
                           , $(varE newOff))|])
             []
 
-mkDeserializeKeysExpr ::
-       Name -> Name -> Name -> Name -> Name -> SimpleDataCon -> Q Exp
-mkDeserializeKeysExpr
-    hOff finalOff arr endOff updateFunc (SimpleDataCon cname fields) = do
-
-    [|do (dataOff, hlist :: CompactList (CompactList Word8)) <-
-             deserialize $(varE hOff) $(varE arr) $(varE endOff)
-         let keys = wListToString . unCompactList <$> unCompactList hlist
-         (finalRec, _) <-
-             foldlM
-                 ($(varE updateFunc) $(varE arr) $(varE endOff))
-                 ($(emptyConExpr), dataOff)
-                 keys
-         pure ($(varE finalOff), finalRec)|]
+mkDeserializeKeysDec :: Name -> Name -> SimpleDataCon -> Q [Dec]
+mkDeserializeKeysDec funcName updateFunc (SimpleDataCon cname fields) = do
+    hOff <- newName "hOff"
+    finalOff <- newName "finalOff"
+    arr <- newName "arr"
+    endOff <- newName "endOff"
+    method <-
+        [|do (dataOff, hlist :: CompactList (CompactList Word8)) <-
+                 deserialize $(varE hOff) $(varE arr) $(varE endOff)
+             let keys = wListToString . unCompactList <$> unCompactList hlist
+             (finalRec, _) <-
+                 foldlM
+                     ($(varE updateFunc) $(varE arr) $(varE endOff))
+                     ($(emptyConExpr), dataOff)
+                     keys
+             pure ($(varE finalOff), finalRec)|]
+    pure
+        [ PragmaD (InlineP funcName NoInline FunLike AllPhases)
+        , FunD
+              funcName
+              [ Clause
+                    [ VarP hOff
+                    , VarP finalOff
+                    , VarP arr
+                    , VarP endOff
+                    ]
+                    (NormalB method)
+                    []
+              ]
+        ]
 
     where
 
@@ -362,9 +378,13 @@ mkDeserializeExpr initialOff endOff deserializeWithKeys con = do
                       else $(varE deserializeWithKeys)
                                $(varE hOff)
                                ($(varE initialOff) + w32_int encLen)
+                               $(varE _arr)
+                               $(varE endOff)
              else $(varE deserializeWithKeys)
                       $(varE hOff)
-                      ($(varE initialOff) + w32_int encLen)|]
+                      ($(varE initialOff) + w32_int encLen)
+                      $(varE _arr)
+                      $(varE endOff)|]
 
     where
 
