@@ -83,6 +83,12 @@ import Streamly.Internal.Data.Serialize.TH.Common
 --   parse the value.
 -- * Construct @T@ after parsing all the data.
 
+-- Developer Notes
+-- ===============
+--
+-- * Record update syntax is not robust across language extensions and common
+--   record plugins (like record-dot-processor, large-records, etc.).
+
 --------------------------------------------------------------------------------
 -- Compact lists
 --------------------------------------------------------------------------------
@@ -255,9 +261,9 @@ deserializeWithSize ::
        Serialize a => Int -> MutableByteArray -> Int -> IO (Int, a)
 deserializeWithSize off arr endOff = deserialize (off + 4) arr endOff
 
-conUpdateFuncDec :: Name -> Type -> [Field] -> Q [Dec]
-conUpdateFuncDec funcName headTy fields = do
-    prevRec <- newName "prevRec"
+conUpdateFuncDec :: Name -> [Field] -> Q [Dec]
+conUpdateFuncDec funcName fields = do
+    prevAcc <- newName "prevAcc"
     curOff <- newName "curOff"
     endOff <- newName "endOff"
     arr <- newName "arr"
@@ -266,7 +272,7 @@ conUpdateFuncDec funcName headTy fields = do
         (caseE
              (varE key)
              (concat
-                  [ map (matchField arr endOff (prevRec, curOff)) fnames
+                  [ map (matchField arr endOff (prevAcc, curOff)) fnames
                   , [ match
                           wildP
                           (normalB
@@ -276,7 +282,7 @@ conUpdateFuncDec funcName headTy fields = do
                                             $(varE arr)
                                             $(varE endOff)
                                     pure
-                                        ( $(varE prevRec)
+                                        ( $(varE prevAcc)
                                         , valOff + w32_int valLen)|])
                           []
                     ]
@@ -288,7 +294,7 @@ conUpdateFuncDec funcName headTy fields = do
               [ Clause
                     [ VarP arr
                     , VarP endOff
-                    , TupP [VarP prevRec, VarP curOff]
+                    , TupP [VarP prevAcc, VarP curOff]
                     , VarP key
                     ]
                     (NormalB method)
@@ -300,21 +306,19 @@ conUpdateFuncDec funcName headTy fields = do
 
     fnames = fmap (fromJust . fst) fields
     matchField :: Name -> Name -> (Name, Name) -> Name -> Q Match
-    matchField arr endOff (prevRec, currOff) fname = do
-        val <- newName "val"
-        newOff <- newName "newOff"
+    matchField arr endOff (acc, currOff) fname = do
+        let fnameLit = StringL (nameBase fname)
         match
-            (litP (StringL (nameBase fname)))
+            (litP fnameLit)
             (normalB
-                 [|do ($(varP newOff), $(varP val)) <-
-                          deserializeWithSize
-                              $(varE currOff)
-                              $(varE arr)
-                              $(varE endOff)
+                 [|do (valOff, valLen :: Word32) <-
+                        deserialize
+                            $(varE currOff)
+                            $(varE arr)
+                            $(varE endOff)
                       pure
-                          ( $(recUpdE (varE prevRec) [pure (fname, VarE val)])
-                                :: $(pure headTy)
-                          , $(varE newOff))|])
+                          ( ($(litE fnameLit), $(varE currOff)) : $(varE acc)
+                          , valOff + w32_int valLen)|])
             []
 
 mkDeserializeKeysDec :: Name -> Name -> SimpleDataCon -> Q [Dec]
@@ -323,16 +327,33 @@ mkDeserializeKeysDec funcName updateFunc (SimpleDataCon cname fields) = do
     finalOff <- newName "finalOff"
     arr <- newName "arr"
     endOff <- newName "endOff"
+    kvEncoded <- newName "kvEncoded"
+    finalRec <- newName "finalRec"
+    let deserializeFieldExpr (Just name, ty) = do
+            let nameLit = litE (StringL (nameBase name))
+            [|case lookup $(nameLit) $(varE kvEncoded) of
+                  Nothing -> $(emptyTy name ty)
+                  Just off -> do
+                      val <- deserializeWithSize off $(varE arr) $(varE endOff)
+                      pure $ snd val|]
+        deserializeFieldExpr _ = errorUnsupported
     method <-
         [|do (dataOff, hlist :: CompactList (CompactList Word8)) <-
                  deserialize $(varE hOff) $(varE arr) $(varE endOff)
              let keys = wListToString . unCompactList <$> unCompactList hlist
-             (finalRec, _) <-
+             ($(varP kvEncoded), _) <-
                  foldlM
                      ($(varE updateFunc) $(varE arr) $(varE endOff))
-                     ($(emptyConExpr), dataOff)
+                     ([], dataOff)
                      keys
-             pure ($(varE finalOff), finalRec)|]
+             $(varP finalRec) <-
+                 $(foldl
+                       (\acc i ->
+                            [|$(acc) <*>
+                              $(deserializeFieldExpr i)|])
+                       [|pure $(conE cname)|]
+                       fields)
+             pure ($(varE finalOff), $(varE finalRec))|]
     pure
         [ PragmaD (InlineP funcName NoInline FunLike AllPhases)
         , FunD
@@ -352,11 +373,9 @@ mkDeserializeKeysDec funcName updateFunc (SimpleDataCon cname fields) = do
 
     emptyTy k ty =
         if isMaybeType ty
-            then [|Nothing|]
+            then [|pure Nothing|]
             else [|error $(litE (StringL (nameBase k ++ " is not found.")))|]
-    fieldToEmptyRecC (Just name, ty) = (name, ) <$> emptyTy name ty
-    fieldToEmptyRecC _ = errorUnsupported
-    emptyConExpr = recConE cname (fmap fieldToEmptyRecC fields)
+
 
 mkDeserializeExpr :: Name -> Name -> Name -> SimpleDataCon -> Q Exp
 mkDeserializeExpr initialOff endOff deserializeWithKeys con = do
