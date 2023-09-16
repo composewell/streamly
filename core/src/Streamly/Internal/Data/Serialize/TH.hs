@@ -242,10 +242,10 @@ mkDeserializeExpr False False headTy tyOfTy =
                         $(lift (pprint headTy)) ++ ")")|])
             []
 
-mkDeserializeExpr False True headTy (TheType con@(SimpleDataCon _ fields)) = do
+mkDeserializeExpr False True _ (TheType con@(SimpleDataCon _ fields)) = do
     deserializeWithKeys <- newName "deserializeWithKeys"
     updateFunc <- newName "updateFunc"
-    updateFuncDec <- RecHeader.conUpdateFuncDec updateFunc headTy fields
+    updateFuncDec <- RecHeader.conUpdateFuncDec updateFunc fields
     deserializeWithKeysDec <-
         RecHeader.mkDeserializeKeysDec deserializeWithKeys updateFunc con
     letE
