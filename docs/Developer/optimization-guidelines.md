@@ -191,6 +191,18 @@ the stages of a loop, it is often not useful to inline the whole loop
 itself, in fact we may have to occasionally use a `NOINLINE` so that the
 compiler does not inline it.
 
+We need to be careful about NOINLINE on polymorphic functions. When
+NOINLINE is used, the function cannot be specialized causing huge
+performance degradation.  To avoid that we can either make the
+function monomorphic or sometimes using `NOINLINE [0]` can do the
+trick. `NOINLINE [0]` blocks inlining in earlier phases but lets it
+specialize in the last phase, inlining in the last phase is left to
+the compiler. `INLINE [0]` may sound the same as `NOINLINE [0]`,
+however, it behaves differently because we ask the compiler to INLINE
+it compulsorily and it may not give us the desired results. The
+Data.Fold.writeLastN benchmark is one such case where `NOINLINE [0]`
+provides much better performance than `INLINE [0]`.
+
 ### NoSpecConstr
 
 It is not always useful to specialize function calls for all constructors, some
