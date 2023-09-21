@@ -223,8 +223,8 @@ instance forall a. Serialize a => Serialize [a] where
     -- Inlining this causes large compilation times for tests
     {-# INLINABLE deserialize #-}
     deserialize off arr sz = do
-        (off1, len) <- deserialize off arr sz :: IO (Int, Int)
-        let
+        (off1, len64) <- deserialize off arr sz :: IO (Int, Int64)
+        let len = (fromIntegral :: Int64 -> Int) len64
             peekList f o i | i >= 3 = do
               -- Unfold the loop three times
               (o1, x1) <- deserialize o arr sz
@@ -240,7 +240,7 @@ instance forall a. Serialize a => Serialize [a] where
     -- Inlining this causes large compilation times for tests
     {-# INLINABLE serialize #-}
     serialize off arr val = do
-        void $ serialize off arr (length val)
+        void $ serialize off arr ((fromIntegral :: Int -> Int64) (length val))
         let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int)
         let pokeList o [] = pure o
             pokeList o (x:xs) = do
