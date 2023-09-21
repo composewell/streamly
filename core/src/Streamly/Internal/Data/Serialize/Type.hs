@@ -23,7 +23,6 @@ module Streamly.Internal.Data.Serialize.Type
 import Control.Exception (assert)
 #endif
 
-import Control.Monad (void)
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
 import Streamly.Internal.Data.Unbox
@@ -240,13 +239,13 @@ instance forall a. Serialize a => Serialize [a] where
     -- Inlining this causes large compilation times for tests
     {-# INLINABLE serialize #-}
     serialize off arr val = do
-        void $ serialize off arr ((fromIntegral :: Int -> Int64) (length val))
-        let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int)
-        let pokeList o [] = pure o
-            pokeList o (x:xs) = do
+        let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int64)
+        let pokeList acc o [] =
+              Unbox.pokeByteIndex off arr (acc :: Int64) >> pure o
+            pokeList acc o (x:xs) = do
               o1 <- serialize o arr x
-              pokeList o1 xs
-        pokeList off1 val
+              pokeList (acc + 1) o1 xs
+        pokeList 0 off1 val
 
 instance Serialize (Array a) where
     {-# INLINE size #-}
