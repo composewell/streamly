@@ -391,23 +391,17 @@ mkDeserializeExpr initialOff endOff deserializeWithKeys con = do
              deserialize $(varE initialOff) $(varE _arr) $(varE endOff)
          ($(varP hOff), hlen1 :: Word16) <-
              deserialize hlenOff $(varE _arr) $(varE endOff)
-         if hlen1 == $(litIntegral hlen)
-             then if $(xorCmp hval hOff _arr)
-                      then do
-                          let $(varP (makeI 0)) =
-                                  $(varE initialOff) +
-                                  $(litIntegral sizePreData)
-                          $(mkDeserializeExprOne 'deserializeWithSize con)
-                      else $(varE deserializeWithKeys)
-                               $(varE hOff)
-                               ($(varE initialOff) + w32_int encLen)
-                               $(varE _arr)
-                               $(varE endOff)
-             else $(varE deserializeWithKeys)
-                      $(varE hOff)
-                      ($(varE initialOff) + w32_int encLen)
-                      $(varE _arr)
-                      $(varE endOff)|]
+         if (hlen1 == $(litIntegral hlen)) && $(xorCmp hval hOff _arr)
+         then do
+             let $(varP (makeI 0)) =
+                     $(varE initialOff) +
+                     $(litIntegral sizePreData)
+             $(mkDeserializeExprOne 'deserializeWithSize con)
+         else $(varE deserializeWithKeys)
+                  $(varE hOff)
+                  ($(varE initialOff) + w32_int encLen)
+                  $(varE _arr)
+                  $(varE endOff)|]
 
     where
 
