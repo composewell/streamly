@@ -203,13 +203,16 @@ headerValue (SimpleDataCon _ fields) =
          in if lenFields <= 255
             then lenFields
             else errorUnsupported
+                     "Number of fields in the record should be <= 255."
     lengthPrependedFieldEncoding field =
         let fEnc =
                 let fEnc_ = map c2w (fieldToNameBase field)
                     lenFEnc = length fEnc_
                  in if lenFEnc <= 255
                     then fEnc_
-                    else errorUnsupported
+                    else
+                        errorUnsupported
+                            "Length of any key should be <= 255."
          in (int_w8 (length fEnc)) : fEnc
 
 --------------------------------------------------------------------------------
@@ -336,7 +339,8 @@ mkDeserializeKeysDec funcName updateFunc (SimpleDataCon cname fields) = do
                   Just off -> do
                       val <- deserializeWithSize off $(varE arr) $(varE endOff)
                       pure $ snd val|]
-        deserializeFieldExpr _ = errorUnsupported
+        deserializeFieldExpr _ =
+            errorUnsupported "The datatype should use record syntax."
     method <-
         [|do (dataOff, hlist :: CompactList (CompactList Word8)) <-
                  deserialize $(varE hOff) $(varE arr) $(varE endOff)
