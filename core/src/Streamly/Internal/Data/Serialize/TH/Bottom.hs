@@ -355,20 +355,26 @@ litProxy = litE . IntegerL . fromIntegral . Unbox.sizeOf
 -- Error codes
 --------------------------------------------------------------------------------
 
-errorUnsupported :: a
-errorUnsupported =
+errorUnsupported :: String -> a
+errorUnsupported err =
     error
         $ unlines
-              [ "Unsupported."
+              [ "Unsupported"
+              , "==========="
               , "There is improper use of the library."
               , "This case is unsupported."
               , "Please contact the developer if this case is of interest."
+              , ""
+              , "Message"
+              , "-------"
+              , err
               ]
 
 errorUnimplemented :: a
 errorUnimplemented =
     error
         $ unlines
-              [ "Unimplemented."
+              [ "Unimplemented"
+              , "============="
               , "Please contact the developer if this case is of interest."
               ]

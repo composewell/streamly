@@ -444,12 +444,12 @@ deriveSerializeWith conf mDecs = do
             dt <- reifyDataType (getMainTypeName dec headTy)
             let cons = dtCons dt
             deriveSerializeInternal conf headTy cons (next inst)
-        _ -> errorUnsupported
+        _ -> errorUnsupported (errorMessage dec)
   where
 
     next (InstanceD mo preds headTyWC []) methods =
         pure [InstanceD mo preds headTyWC methods]
-    next _ _ = errorUnsupported
+    next dec _ = errorUnsupported (errorMessage dec)
 
     errorMessage dec =
         error $ unlines
