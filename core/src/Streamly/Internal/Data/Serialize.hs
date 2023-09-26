@@ -19,6 +19,7 @@ module Streamly.Internal.Data.Serialize
 -- Imports
 --------------------------------------------------------------------------------
 
+{-
 import Data.Proxy (Proxy)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Unbox (MutableByteArray(..))
@@ -31,8 +32,11 @@ import GHC.Num.Integer (Integer(..))
 #else
 import GHC.Integer.GMP.Internals (Integer(..), BigNat(..))
 #endif
+-}
 
 import Streamly.Internal.Data.Serialize.Type
+
+{-
 
 --------------------------------------------------------------------------------
 -- Common instances
@@ -120,3 +124,4 @@ instance Serialize Integer where
 
     {-# INLINE serialize #-}
     serialize off arr val = serialize off arr (liftInteger val)
+-}
