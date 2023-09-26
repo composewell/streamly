@@ -63,11 +63,13 @@ import Streamly.Internal.Data.Serialize.Type
 -- constructors, for example, Enum.
 
 $(Serialize.deriveSerialize ''Maybe)
+
+{-
 $(Serialize.deriveSerialize ''Either)
 $(Serialize.deriveSerializeWith
       Serialize.defaultConfig
       [d|instance Serialize (Proxy a)|])
-
+-}
 {-
 
 --------------------------------------------------------------------------------
