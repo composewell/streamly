@@ -36,8 +36,6 @@ import GHC.Integer.GMP.Internals (Integer(..), BigNat(..))
 
 import Streamly.Internal.Data.Serialize.Type
 
-{-
-
 --------------------------------------------------------------------------------
 -- Common instances
 --------------------------------------------------------------------------------
@@ -67,6 +65,8 @@ $(Serialize.deriveSerialize ''Either)
 $(Serialize.deriveSerializeWith
       Serialize.defaultConfig
       [d|instance Serialize (Proxy a)|])
+
+{-
 
 --------------------------------------------------------------------------------
 -- Integer
