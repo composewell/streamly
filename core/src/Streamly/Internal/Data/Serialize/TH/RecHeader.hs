@@ -22,7 +22,7 @@ module Streamly.Internal.Data.Serialize.TH.RecHeader
 
 import Control.Monad (void)
 import Data.List (foldl')
-import Data.Word (Word16, Word32, Word8)
+import Data.Word (Word32, Word8)
 import Data.Maybe (fromJust)
 import Language.Haskell.TH
 import Streamly.Internal.Data.Serialize.Type (Serialize(..))
@@ -164,8 +164,10 @@ sizeOfHeader (SimpleDataCon _ fields) =
     where
 
     sizeForFinalOff = 4
-    sizeForHeaderLength = 2 -- Max header length is (255 * (255 + 1) + 1) and
-                            -- hence 2 bytes is enough to store it.
+    sizeForHeaderLength = 4 -- Max header length is (255 * (255 + 1) + 1) and
+                            -- hence 2 bytes is enough to store it. But we still
+                            -- use 4 bytes as using 2 bytes introduces
+                            -- regression.
     sizeForNumFields = 1 -- At max 255 fields in the record constructor
     sizeForFieldLen = 1  -- At max 255 letters in the key
 
@@ -239,7 +241,7 @@ mkSerializeExpr initialOffset (con@(SimpleDataCon cname fields)) = do
              serialize
                  ($(varE initialOffset) + 4)
                  $(varE _arr)
-                 ($(litIntegral hlen) :: Word16)
+                 ($(litIntegral hlen) :: Word32)
          $(varP (makeI 0)) <- $(serializeW8List afterHLen _arr hval)
          let $(openConstructor cname (length fields)) = $(varE _val)
          finalOff <- $(mkSerializeExprFields 'serializeWithSize fields)
@@ -385,11 +387,11 @@ mkDeserializeExpr :: Name -> Name -> Name -> SimpleDataCon -> Q Exp
 mkDeserializeExpr initialOff endOff deserializeWithKeys con = do
     hOff <- newName "hOff"
     let  sizeForFinalOff = 4     -- Word32
-         sizeForHeaderLength = 2 -- Word16
+         sizeForHeaderLength = 4 -- Word32
          sizePreData = sizeForFinalOff + sizeForHeaderLength + hlen
     [|do (hlenOff, encLen :: Word32) <-
              deserialize $(varE initialOff) $(varE _arr) $(varE endOff)
-         ($(varP hOff), hlen1 :: Word16) <-
+         ($(varP hOff), hlen1 :: Word32) <-
              deserialize hlenOff $(varE _arr) $(varE endOff)
          if (hlen1 == $(litIntegral hlen)) && $(xorCmp hval hOff _arr)
          then do
