@@ -464,11 +464,6 @@ library
                      , containers        >= 0.6.0 && < 0.7
                      , heaps             >= 0.3   && < 0.5
 
-    if impl(ghc >= 9.0)
-      build-depends:  ghc-bignum >= 1.0  && < 2
-    else
-      build-depends:  integer-gmp >= 1.0 && < 1.2
-
     if !flag(use-unliftio)
       build-depends:   monad-control     >= 1.0 && < 1.1
 
