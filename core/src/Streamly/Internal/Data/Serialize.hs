@@ -24,9 +24,11 @@ import Data.Proxy (Proxy)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Unbox (MutableByteArray(..))
 import GHC.Exts (Int(..), sizeofByteArray#, unsafeCoerce#)
+-}
 
 import qualified Streamly.Internal.Data.Serialize.TH as Serialize
 
+{-
 #if __GLASGOW_HASKELL__ >= 900
 import GHC.Num.Integer (Integer(..))
 #else
