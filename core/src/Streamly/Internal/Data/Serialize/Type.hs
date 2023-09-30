@@ -267,6 +267,22 @@ instance Serialize (Array a) where
         Unbox.putSliceUnsafe arrContents arrStart arr off1 arrLen
         pure (off1 + arrLen)
 
+instance (Serialize a, Serialize b) => Serialize (a, b) where
+
+    {-# INLINE size #-}
+    size acc (a, b) = size (size acc a) b
+
+    {-# INLINE serialize #-}
+    serialize off arr (a, b) = do
+        off1 <- serialize off arr a
+        serialize off1 arr b
+
+    {-# INLINE deserialize #-}
+    deserialize off arr end = do
+        (off1, a) <- deserialize off arr end
+        (off2, b) <- deserialize off1 arr end
+        pure (off2, (a, b))
+
 --------------------------------------------------------------------------------
 -- High level functions
 --------------------------------------------------------------------------------

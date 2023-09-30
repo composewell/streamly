@@ -239,6 +239,9 @@ testCases = do
     prop "Integer"
         $ \(x :: Integer) -> roundtrip x
 
+    prop "([Integer], [Int])"
+        $ \(x :: ([Integer], [Int])) -> roundtrip x
+
     prop "Array Int"
         $ \(x :: [Int]) -> roundtrip (Array.fromList x)
 
