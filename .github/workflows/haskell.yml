@@ -58,8 +58,8 @@ jobs:
       matrix:
         # The order is important to optimize fail-fast.
         name:
-          - 9.4.4-Werror
-          - 9.2.7-docspec
+          - 9.4.7-Werror
+          - 9.2.8-docspec
         # - 8.10.7-coverage
 
         # Note: if cabal.project is not specified benchmarks and tests won't
@@ -70,45 +70,46 @@ jobs:
             ghc_version: head
             runner: ubuntu-latest
             build: cabal
-            cabal_version: 3.8.1.0
+            cabal_version: 3.10.1.0
             cabal_project: cabal.project.ghc-head
             disable_sdist_build: "y"
             ignore_error: true
-          - name: 9.6.1
-            ghc_version: 9.6.1
+          - name: 9.8.1-fusion-inspection
+            ghc_version: 9.8.1
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.10.1.0
             disable_sdist_build: "y"
             cabal_project: cabal.project
-            ignore_error: true
-          - name: 9.4.4-Werror
-            ghc_version: 9.4.4
+            cabal_build_options: "--flag fusion-plugin --flag inspection"
+            ignore_error: false
+          - name: 9.6.3-fusion-inspection
+            ghc_version: 9.4.7
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.10.1.0
+            disable_sdist_build: "y"
+            cabal_project: cabal.project
+            cabal_build_options: "--flag fusion-plugin --flag inspection"
+            ignore_error: false
+          - name: 9.4.7-Werror
+            ghc_version: 9.4.7
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.8.1.0
             disable_sdist_build: "y"
             cabal_project: cabal.project.Werror
             ignore_error: false
-          - name: 9.4.4-fusion-inspection
-            ghc_version: 9.4.4
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.8.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            cabal_build_options: "--flag fusion-plugin --flag inspection"
-            ignore_error: false
-          - name: 9.2.7
-            ghc_version: 9.2.7
+          - name: 9.2.8
+            ghc_version: 9.2.8
             runner: ubuntu-latest
             build: cabal
             cabal_project: cabal.project
             cabal_version: 3.6.2.0
             disable_sdist_build: "y"
             ignore_error: false
-          - name: 9.2.7-docspec
-            ghc_version: 9.2.7
+          - name: 9.2.8-docspec
+            ghc_version: 9.2.8
             runner: ubuntu-latest
             doctest: "y"
             cabal_version: 3.6.2.0
@@ -158,15 +159,6 @@ jobs:
             build: cabal
             cabal_version: 3.6.2.0
             cabal_project: cabal.project
-            disable_sdist_build: "y"
-            ignore_error: false
-          - name: 8.6.5-no-fusion-unoptimized
-            ghc_version: 8.6.5
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project
-            cabal_build_options: "--flag no-fusion --flag -opt"
             disable_sdist_build: "y"
             ignore_error: false
           - name: 8.6.5-debug-unoptimized
