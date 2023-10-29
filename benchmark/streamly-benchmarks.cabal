@@ -176,20 +176,20 @@ common bench-depends
     -- Core libraries shipped with ghc, the min and max
     -- constraints of these libraries should match with
     -- the GHC versions we support
-      base                >= 4.9   && < 4.19
-    , deepseq             >= 1.4.1 && < 1.5
+      base                >= 4.9   && < 4.20
+    , deepseq             >= 1.4.1 && < 1.6
     , mtl                 >= 2.2   && < 2.3.2
 
     -- other libraries
     , random              >= 1.0   && < 2.0
     , transformers        >= 0.4   && < 0.7
-    , containers          >= 0.5   && < 0.7
+    , containers          >= 0.5   && < 0.8
     , hashable            >= 1.3   && < 1.5
     , unordered-containers >= 0.2 && < 0.3
     , process             >= 1.4 && < 1.7
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.5
-    , ghc-prim          >= 0.4   && < 0.11
+    , ghc-prim          >= 0.4   && < 0.12
 
   if flag(use-streamly-core)
     build-depends: streamly-core
@@ -201,7 +201,7 @@ common bench-depends
     build-depends:  gauge >= 0.2.4 && < 0.3
   else
     build-depends:    tasty-bench >= 0.3 && < 0.4
-                    , tasty     >= 1.4.1 && < 1.5
+                    , tasty     >= 1.4.1 && < 1.6
     mixins: tasty-bench
       (Test.Tasty.Bench as Gauge
       , Test.Tasty.Bench as Gauge.Main
@@ -211,8 +211,8 @@ common bench-depends
     build-depends:
         fusion-plugin     >= 0.2   && < 0.3
   if flag(inspection)
-    build-depends:     template-haskell   >= 2.14  && < 2.21
-                     , inspection-testing >= 0.4   && < 0.5
+    build-depends:     template-haskell   >= 2.14  && < 2.22
+                     , inspection-testing >= 0.4   && < 0.6
   -- Array uses a Storable constraint in dev build making several inspection
   -- tests fail
   if flag(dev) && flag(inspection)

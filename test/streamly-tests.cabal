@@ -145,11 +145,11 @@ common optimization-options
 common test-dependencies
   build-depends:
         streamly-core
-      , base              >= 4.9   && < 4.19
-      , containers        >= 0.5   && < 0.7
+      , base              >= 4.9   && < 4.20
+      , containers        >= 0.5   && < 0.8
       , exceptions        >= 0.8   && < 0.11
       , ghc
-      , hspec             >= 2.0   && < 2.10
+      , hspec             >= 2.0   && < 2.12
       , mtl               >= 2.2   && < 2.3.2
       , random            >= 1.0.0 && < 1.3
       , transformers      >= 0.4   && < 0.7
@@ -159,7 +159,7 @@ common test-dependencies
       , temporary         >= 1.3   && < 1.4
       , network           >= 3.1   && < 3.2
       , scientific        >= 0.0   && < 0.4
-      , template-haskell  >= 2.12  && < 2.21
+      , template-haskell  >= 2.12  && < 2.22
 
   if !flag(use-streamly-core)
     build-depends: streamly
