@@ -42,6 +42,7 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
+import Control.Monad.Catch (MonadCatch)
 import Test.Inspection
 #endif
 
@@ -776,7 +777,11 @@ readWriteFinally_Unfold inh devNull =
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'readWriteFinally_Unfold [''MonadCatch]
+#else
 inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
+#endif
 -- inspect $ 'readWriteFinallyUnfold `hasNoType` ''Step
 #endif
 
@@ -792,7 +797,11 @@ readWriteBracket_Unfold inh devNull =
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'readWriteBracket_Unfold [''MonadCatch]
+#else
 inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
+#endif
 -- inspect $ 'readWriteBracketUnfold `hasNoType` ''Step
 #endif
 

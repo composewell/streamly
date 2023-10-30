@@ -51,6 +51,7 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
+import Control.Monad.Catch (MonadCatch)
 import Test.Inspection
 
 import qualified Streamly.Internal.Data.Stream as D
@@ -286,7 +287,11 @@ readChunksOnException inh devNull =
     in IUF.fold (IFH.writeChunks devNull) readEx inh
 
 #ifdef INSPECTION
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'readChunksOnException [''MonadCatch]
+#else
 inspect $ hasNoTypeClasses 'readChunksOnException
+#endif
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
@@ -296,7 +301,11 @@ readChunksBracket_ inh devNull =
     in IUF.fold (IFH.writeChunks devNull) readEx inh
 
 #ifdef INSPECTION
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'readChunksBracket_ [''MonadCatch]
+#else
 inspect $ hasNoTypeClasses 'readChunksBracket_
+#endif
 #endif
 
 readChunksBracket :: Handle -> Handle -> IO ()

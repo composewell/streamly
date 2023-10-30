@@ -162,6 +162,7 @@ fromStreamVar sv = K.mkStream $ \st yld sng stp -> do
                 return $ tid == sid
 
 #ifdef INSPECTION
+#if __GLASGOW_HASKELL__ != 906
 -- Use of GHC constraint tuple (GHC.Classes.(%,,%)) in fromStreamVar leads to
 -- space leak because the tuple gets allocated in every recursive call and each
 -- allocation holds on to the previous allocation. This test is to make sure
@@ -177,6 +178,7 @@ inspect $ hasNoTypeClassesExcept 'fromStreamVar
     , ''Typeable
     , ''Functor
     ]
+#endif
 #endif
 
 -- | Generate a stream from an SVar.  An unevaluated stream can be pushed to an

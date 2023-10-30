@@ -198,7 +198,11 @@ concatMapPure outer inner n =
         (fromStream $ sourceUnfoldr outer n)
 
 #ifdef INSPECTION
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'concatMapPure [''Applicative]
+#else
 inspect $ hasNoTypeClasses 'concatMapPure
+#endif
 inspect $ 'concatMapPure `hasNoType` ''SPEC
 #endif
 
@@ -211,7 +215,11 @@ concatMapRepl outer inner n =
         (fromStream . S.replicate inner) (fromStream $ sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'concatMapRepl [''Applicative]
+#else
 inspect $ hasNoTypeClasses 'concatMapRepl
+#endif
 inspect $ 'concatMapRepl `hasNoType` ''SPEC
 #endif
 
