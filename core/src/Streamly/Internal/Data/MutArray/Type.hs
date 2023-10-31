@@ -2345,6 +2345,7 @@ cast arr =
 --
 -- /Pre-release/
 --
+{-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
 asPtrUnsafe arr f = do
   contents <- liftIO $ Unboxed.pin $ arrContents arr

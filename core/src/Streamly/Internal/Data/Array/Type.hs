@@ -181,6 +181,7 @@ data Array a =
 --
 -- /Pre-release/
 --
+{-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
 asPtrUnsafe arr = MA.asPtrUnsafe (unsafeThaw arr)
 
