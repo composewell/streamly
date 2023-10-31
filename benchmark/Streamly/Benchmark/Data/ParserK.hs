@@ -63,7 +63,7 @@ import Streamly.Benchmark.Common
 #define PARSE_ELEM (Array Int)
 #define CONSTRAINT_IO (MonadIO m, Unbox a)
 #define CONSTRAINT (Monad m, Unbox a)
-#define MODULE_NAME "ParserK.Chunked"
+#define MODULE_NAME "Data.ParserK.Chunked"
 
 #endif
 
@@ -75,7 +75,7 @@ import Streamly.Benchmark.Common
 #define PARSE_ELEM (Array Int)
 #define CONSTRAINT_IO (MonadIO m)
 #define CONSTRAINT (Monad m)
-#define MODULE_NAME "ParserK.Chunked.Generic"
+#define MODULE_NAME "Data.ParserK.Chunked.Generic"
 
 #endif
 
@@ -87,7 +87,7 @@ import Streamly.Benchmark.Common
 #define PARSE_ELEM Int
 #define CONSTRAINT_IO (MonadIO m)
 #define CONSTRAINT (Monad m)
-#define MODULE_NAME "ParserK"
+#define MODULE_NAME "Data.ParserK"
 
 #endif
 
