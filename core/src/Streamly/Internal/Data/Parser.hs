@@ -13,7 +13,7 @@ module Streamly.Internal.Data.Parser
     -- $setup
 
       module Streamly.Internal.Data.Parser.Type
-    --, module Streamly.Internal.Data.Parser.Tee 
+    --, module Streamly.Internal.Data.Parser.Tee
 
     -- * Types
     , Parser (..)
@@ -681,9 +681,11 @@ takeBetween low high (Fold fstep finitial fextract) =
         in case res of
             FL.Partial s -> do
                 let s1 = Tuple'Fused i1 s
-                if i1 < high
+                if i1 < low
                 then return $ Continue 0 s1
-                else extract foldErr s1
+                else if i1 < high
+                then return $ Partial 0 s1
+                else fmap (Done 0) (fextract s)
             FL.Done b ->
                 return
                     $ if i1 >= low
