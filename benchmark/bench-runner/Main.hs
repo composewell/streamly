@@ -16,9 +16,11 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
     benchName = drop 4 benchName0
 
     general
-        | "o-1-sp" `isInfixOf` benchName = "-K36K -M16M"
+        -- GHC-9.6 requires 32M heap vs 16M for GHC-9.4
+        | "o-1-sp" `isInfixOf` benchName = "-K36K -M32M"
         | "o-n-h" `isInfixOf` benchName = "-K36K -M32M"
-        | "o-n-st" `isInfixOf` benchName = "-K1M -M16M"
+        -- GHC-9.6 requires 32M heap vs 16M for GHC-9.4
+        | "o-n-st" `isInfixOf` benchName = "-K1M -M32M"
         | "o-n-sp" `isInfixOf` benchName = "-K1M -M32M"
         | otherwise = ""
 
@@ -27,6 +29,12 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | otherwise = ""
 
     benchSpecific
+        -- GHC-9.6 requires 64M, earlier it was 16M
+        | "Data.Fold/o-n-heap.key-value.toHashMapIO (max buckets) sum" == benchName =
+            "-M64M"
+
+        -----------------------------------------------------------------------
+
         | "Prelude.Parallel/o-n-heap.mapping.mapM" == benchName = "-M256M"
         | "Prelude.Parallel/o-n-heap.monad-outer-product."
              `isPrefixOf` benchName = "-M256M"
@@ -57,6 +65,12 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         -- GHC 9.4.4 requires 4M
         | "Data.Stream.StreamDK/o-n-space.traversable."
             `isPrefixOf` benchName = "-K4M"
+        -- GHC-9.6 requires 64M, earlier it was 32M
+        | "Data.Stream.StreamDK/o-n-heap.buffered.readsPrec pure streams" == benchName =
+            "-M64M"
+        -- GHC-9.6 requires 64M, earlier it was 32M
+        | "Data.Stream.StreamDK/o-n-heap.buffered.showPrec Haskell lists" == benchName =
+            "-M64M"
 
         -----------------------------------------------------------------------
 
@@ -74,6 +88,13 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.Stream/o-n-space.iterated."
             `isPrefixOf` benchName = "-K4M"
 
+        -- GHC-9.6 requires 64M, earlier it was 32M
+        | "Data.Stream/o-n-heap.buffered.showPrec Haskell lists" == benchName =
+            "-M64M"
+        -- GHC-9.6 requires 64M, earlier it was 32M
+        | "Data.Stream/o-n-heap.buffered.readsPrec pure streams" == benchName =
+            "-M64M"
+
         | "Data.Stream.ConcurrentEager/o-n-heap.monad-outer-product.toNullAp"
             `isPrefixOf` benchName = "-M1024M"
         | "Data.Stream.ConcurrentEager/o-1-space."
@@ -86,10 +107,12 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
 
         | "Data.Array" `isPrefixOf` benchName
              && "/o-1-space.generation.read" `isSuffixOf` benchName = "-M32M"
+        -- XXX GHC 9.6 onwards needs 64M, earlier it was 32M
         | "Data.Array" `isPrefixOf` benchName
-             && "/o-1-space.generation.show" `isSuffixOf` benchName = "-M32M"
+             && "/o-1-space.generation.show" `isSuffixOf` benchName = "-M64M"
+        -- XXX GHC 9.6 onwards needs 64M, earlier it was 32M
         | "Data.Array.Generic/o-1-space.transformationX4.map"
-            `isPrefixOf` benchName = "-M32M"
+            `isPrefixOf` benchName = "-M64M"
 
         -- XXX For --long option, need to check why so much heap is required.
         -- Note, if we remove the chunked stream module we need to keep the
