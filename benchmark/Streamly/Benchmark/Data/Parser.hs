@@ -714,8 +714,6 @@ instance NFData ParseError where
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =
     [ benchIOSink value "takeBetween" $ takeBetween value
-    , benchIOSink value "takeEQ" $ takeEQ value
-    , benchIOSink value "takeGE" $ takeGE value
     , benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "takeWhileP" $ takeWhileP value
     , benchIOSink value "takeP" $ takeP value
@@ -812,8 +810,11 @@ o_1_space_serial_unfold bound arrays =
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [
+      benchIOSink value "takeEQ" $ takeEQ value
+    , benchIOSink value "takeGE" $ takeGE value
+
     -- lookahead benchmark holds the entire input till end
-      benchIOSink value "lookAhead" $ lookAhead value
+    , benchIOSink value "lookAhead" $ lookAhead value
 
     -- o-n-heap because of backtracking
     , benchIOSrc sourceEscapedFrames value "takeFramedByEsc_"
