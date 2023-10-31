@@ -33,6 +33,11 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.Fold/o-n-heap.key-value.toHashMapIO (max buckets) sum" == benchName =
             "-M64M"
 
+        -- This is required only for the --long case because we allocate all
+        -- the arrays upfront. depends on the size of the stream.
+        | "Data.Parser/o-1-space" `isPrefixOf` benchName =
+            "-M128M"
+
         -----------------------------------------------------------------------
 
         | "Prelude.Parallel/o-n-heap.mapping.mapM" == benchName = "-M256M"
