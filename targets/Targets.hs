@@ -190,7 +190,7 @@ targets =
     , ("Data.Unbox", [])
     , ("Data.Unbox.Derive.TH", [])
     , ("Data.Serialize", [])
-    , ("Data.Serialize.Derive.TH", [])
+    , ("Data.Serialize.Derive.TH", ["noBench"])
     , ("Data.Unfold", ["infinite_grp"])
     , ("FileSystem.Handle", [])
     , ("Unicode.Stream", [])
