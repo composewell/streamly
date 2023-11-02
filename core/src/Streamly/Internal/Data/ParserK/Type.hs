@@ -41,7 +41,10 @@ where
 #include "assert.hs"
 #include "inline.hs"
 
-import Control.Applicative (Alternative(..), liftA2)
+#if !MIN_VERSION_base(4,18,0)
+import Control.Applicative (liftA2)
+#endif
+import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..), ap)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 -- import Control.Monad.Trans.Class (MonadTrans(lift))

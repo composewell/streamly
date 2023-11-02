@@ -71,7 +71,9 @@ module Stream.Common
     )
 where
 
+#if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
+#endif
 import Control.DeepSeq (NFData)
 import Control.Exception (try)
 import GHC.Exception (ErrorCall)

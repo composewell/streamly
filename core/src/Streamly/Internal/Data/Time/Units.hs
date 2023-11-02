@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeInType #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE UnboxedTuples #-}
 
 -- |

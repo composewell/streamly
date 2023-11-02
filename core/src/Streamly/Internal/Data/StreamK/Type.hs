@@ -144,7 +144,9 @@ where
 import Control.Monad ((>=>))
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Class (MonadTrans(lift))
+#if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
+#endif
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Foldable (Foldable(foldl'), fold, foldr)
 import Data.Function (fix)

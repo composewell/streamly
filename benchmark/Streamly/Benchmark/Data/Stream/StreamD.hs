@@ -22,7 +22,9 @@
 
 module Main (main) where
 
+#if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
+#endif
 import Control.Monad (when)
 import Data.Maybe (isJust)
 import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)

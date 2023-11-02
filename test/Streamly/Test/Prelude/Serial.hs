@@ -1,5 +1,9 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
 {-# Language TypeApplications #-}
+-- XXX We are using head/tail at one place
+#if __GLASGOW_HASKELL__ >= 908
+{-# OPTIONS_GHC -Wno-x-partial #-}
+#endif
 
 -- |
 -- Module      : Streamly.Test.Prelude.Serial

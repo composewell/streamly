@@ -58,7 +58,9 @@ where
 
 #include "ArrayMacros.h"
 
+#if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
+#endif
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)

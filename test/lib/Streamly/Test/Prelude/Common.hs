@@ -1,4 +1,8 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
+-- XXX We are using head/tail at one place
+#if __GLASGOW_HASKELL__ >= 908
+{-# OPTIONS_GHC -Wno-x-partial #-}
+#endif
 
 -- |
 -- Module      : Streamly.Test.Prelude.Common
@@ -85,7 +89,10 @@ module Streamly.Test.Prelude.Common
     , sortEq
     ) where
 
-import Control.Applicative (ZipList(..), liftA2)
+#if !MIN_VERSION_base(4,18,0)
+import Control.Applicative (liftA2)
+#endif
+import Control.Applicative (ZipList(..))
 import Control.Exception (Exception, try)
 import Control.Concurrent (threadDelay)
 import Control.Monad (replicateM)

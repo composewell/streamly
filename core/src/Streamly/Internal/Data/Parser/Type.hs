@@ -216,7 +216,10 @@ where
 #include "inline.hs"
 #include "assert.hs"
 
-import Control.Applicative (Alternative(..), liftA2)
+#if !MIN_VERSION_base(4,18,0)
+import Control.Applicative (liftA2)
+#endif
+import Control.Applicative (Alternative(..))
 import Control.Exception (Exception(..))
 -- import Control.Monad (MonadPlus(..), (>=>))
 import Control.Monad ((>=>))

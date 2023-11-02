@@ -27,7 +27,9 @@ module Streamly.Internal.Data.Stream.Zip
     )
 where
 
+#if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
+#endif
 import Control.DeepSeq (NFData(..))
 #if MIN_VERSION_deepseq(1,4,3)
 import Control.DeepSeq (NFData1(..))

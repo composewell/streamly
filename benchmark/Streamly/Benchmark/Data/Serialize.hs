@@ -318,7 +318,7 @@ loop count f val = go count val
 -- The first arg of "f" is the environment which is not threaded around in the
 -- loop.
 {-# INLINE loopWith #-}
-loopWith :: Int -> (env -> a -> IO b) -> env -> a -> IO ()
+loopWith :: Int -> (e -> a -> IO b) -> e -> a -> IO ()
 loopWith count f e val = go count val
     where
 

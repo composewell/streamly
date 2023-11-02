@@ -145,6 +145,10 @@ common compile-options
         -Wno-missing-kind-signatures
         -Wno-operator-whitespace
 
+    if impl(ghc >= 9.8)
+      ghc-options:
+        -Wno-missing-role-annotations
+
     if flag(has-llvm)
       ghc-options: -fllvm
 

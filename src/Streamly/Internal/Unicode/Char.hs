@@ -7,6 +7,10 @@
 -- Stability   : experimental
 -- Portability : GHC
 
+-- XXX We are using head/tail at one place
+#if __GLASGOW_HASKELL__ >= 908
+{-# OPTIONS_GHC -Wno-x-partial #-}
+#endif
 -- XXX This module should have the reader/writer unfold/refold and read/write
 -- stream/fold routines to convert a char to/from stream.
 --
