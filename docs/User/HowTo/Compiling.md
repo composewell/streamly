@@ -4,8 +4,9 @@
 
 ### Compiler (GHC) Versions
 
-Do not use ghc 9.0.x and 9.2.1.  For best performance use
-`fusion-plugin` (see below) when compiling.
+Do not use ghc 9.0.x and 9.2.1. GHC 9.6.x may have a small memory
+leak issue in some concurrent stream cases, see below for more details.
+For best performance use `fusion-plugin` (see below) when compiling.
 
 ### Memory requirements
 
@@ -63,7 +64,8 @@ Important Notes:
 
 * `-fdicts-strict` is needed to avoid [a GHC
 issue](https://gitlab.haskell.org/ghc/ghc/issues/17745) leading to
-memory leak in some cases.
+memory leak in some cases. In GHC 9.6.x this issue cannot be avoided
+even with `-fdicts-strict` option.
 
 * `-fspec-constr-recursive` is needed for better stream fusion, it
 allows the `SpecConstr` optimization to occur in more cases. Large
