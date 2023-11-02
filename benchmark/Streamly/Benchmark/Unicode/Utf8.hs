@@ -13,7 +13,7 @@
 import Data.Char (chr)
 import Streamly.Internal.Unicode.Utf8 (Utf8)
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
 
 import qualified Streamly.Internal.Unicode.Utf8 as Utf8

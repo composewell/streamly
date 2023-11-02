@@ -22,7 +22,7 @@ import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 import qualified Handle.ReadWrite as RW
 import qualified Handle.Read as RO
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
 import Streamly.Benchmark.Common
 

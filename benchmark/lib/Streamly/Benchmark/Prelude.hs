@@ -82,7 +82,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Internal.Data.Time.Units
 
 -- Common polymorphic stream APIs used across multiple stream modules

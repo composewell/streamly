@@ -49,7 +49,7 @@ import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common hiding (benchPureSrc)
 
 type Stream = MutArray

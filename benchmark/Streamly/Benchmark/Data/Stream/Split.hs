@@ -35,7 +35,7 @@ import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Prelude as S
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle

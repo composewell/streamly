@@ -16,7 +16,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream.Transform as Transform
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 
-import Gauge
+import Test.Tasty.Bench
 
 moduleName :: String
 moduleName = "Prelude.Async"

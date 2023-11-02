@@ -16,7 +16,7 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Data.Foldable as P
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 
 import Prelude as P

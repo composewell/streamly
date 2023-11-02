@@ -37,7 +37,7 @@ import qualified Control.Monad.State.Strict as State
 #endif
 #endif
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Prelude hiding (reverse, tail)
 

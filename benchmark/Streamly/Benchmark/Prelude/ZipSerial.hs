@@ -29,7 +29,7 @@ import qualified Streamly.Prelude  as S
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude hiding (sourceUnfoldrM)
 
-import Gauge
+import Test.Tasty.Bench
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))

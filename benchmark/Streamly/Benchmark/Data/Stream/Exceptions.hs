@@ -45,7 +45,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as Stream
 #endif
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle

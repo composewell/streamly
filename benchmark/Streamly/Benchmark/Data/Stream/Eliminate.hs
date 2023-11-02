@@ -57,7 +57,7 @@ import qualified Streamly.Internal.Data.Stream as StreamK
 #endif
 #endif
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
     lookup, repeat, minimum, maximum, product, last, mapM_, init)

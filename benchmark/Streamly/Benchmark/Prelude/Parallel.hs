@@ -22,7 +22,7 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 
-import Gauge
+import Test.Tasty.Bench
 
 moduleName :: String
 moduleName = "Prelude.Parallel"

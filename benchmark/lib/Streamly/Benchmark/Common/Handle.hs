@@ -46,7 +46,7 @@ import System.Process (callCommand)
 
 import Data.IORef
 import Prelude hiding (last, length)
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 
 
 scratchDir :: String

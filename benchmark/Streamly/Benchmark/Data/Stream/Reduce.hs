@@ -61,7 +61,7 @@ import qualified Streamly.Internal.Data.Stream as K
 
 #endif
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Stream.Common
 import Prelude hiding (reverse, tail)

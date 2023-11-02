@@ -41,7 +41,7 @@ import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Unicode.Stream as SS
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
 import Streamly.Benchmark.Common.Handle
 

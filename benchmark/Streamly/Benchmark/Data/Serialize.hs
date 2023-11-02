@@ -42,7 +42,7 @@ import Streamly.Internal.Data.Serialize.TH
 #endif
 #endif
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 
 #ifndef USE_UNBOX

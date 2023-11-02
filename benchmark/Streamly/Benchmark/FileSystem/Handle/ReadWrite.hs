@@ -34,7 +34,7 @@ import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Stream.Prelude as S
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION

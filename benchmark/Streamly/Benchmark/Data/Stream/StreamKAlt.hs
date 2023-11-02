@@ -23,7 +23,7 @@ import qualified Streamly.Internal.Data.StreamK.Alt as S
 -- import qualified Streamly.Internal.Data.SVar as S
 
 import Streamly.Benchmark.Common
-import Gauge (bgroup, Benchmark, defaultMain)
+import Test.Tasty.Bench (bgroup, Benchmark, defaultMain)
 
 value :: Int
 value = 100000

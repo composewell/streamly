@@ -31,7 +31,7 @@ import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Unicode.Parser as PRU
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
 
 runParser :: Int -> (Stream IO Char -> IO a) -> IO ()

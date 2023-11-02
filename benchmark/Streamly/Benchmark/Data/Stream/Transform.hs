@@ -58,7 +58,7 @@ import qualified Streamly.Internal.Data.StreamK as StreamK
 #endif
 #endif
 
-import Gauge
+import Test.Tasty.Bench
 import Stream.Common hiding (scanl')
 import Streamly.Benchmark.Common
 import Prelude hiding (sequence, mapM)

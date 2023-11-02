@@ -48,7 +48,7 @@ import qualified Streamly.Data.Parser as PRD
 import qualified Streamly.Internal.Data.ParserK as PR
 import qualified Streamly.Internal.Data.StreamK as StreamK
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------

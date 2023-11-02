@@ -9,7 +9,7 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as Stream
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common hiding (benchPureSrc)
 import qualified Stream.Common as P
 

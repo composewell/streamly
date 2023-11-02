@@ -49,7 +49,7 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as Stream
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 

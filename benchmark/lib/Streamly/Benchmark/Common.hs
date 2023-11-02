@@ -56,7 +56,7 @@ import System.Random (randomRIO)
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as S
 
-import Gauge
+import Test.Tasty.Bench
 
 -------------------------------------------------------------------------------
 -- Benchmark Prefixes

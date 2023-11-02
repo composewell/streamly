@@ -40,7 +40,7 @@ import qualified Stream.Common as Common
 #endif
 #endif
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import qualified Prelude
 

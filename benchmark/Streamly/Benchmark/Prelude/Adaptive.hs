@@ -10,7 +10,7 @@
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Prelude as S
 import System.Random (randomRIO)
 

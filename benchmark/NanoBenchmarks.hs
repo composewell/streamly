@@ -18,7 +18,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
 
-import Gauge
+import Test.Tasty.Bench
 import System.Random
 
 maxValue :: Int

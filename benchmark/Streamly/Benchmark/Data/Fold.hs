@@ -41,7 +41,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream as Stream
 
-import Gauge
+import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Prelude hiding (all, any, take, unzip, sequence_, filter)
 

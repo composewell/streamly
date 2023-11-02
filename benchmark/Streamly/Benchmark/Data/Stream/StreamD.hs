@@ -27,7 +27,7 @@ import Control.Applicative (liftA2)
 #endif
 import Control.Monad (when)
 import Data.Maybe (isJust)
-import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)
+import Test.Tasty.Bench (bench, nfIO, bgroup, Benchmark, defaultMain)
 import System.Random (randomRIO)
 import Prelude hiding (tail, mapM_, foldl, last, map, mapM, concatMap, zip)
 

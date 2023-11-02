@@ -16,7 +16,7 @@ import Control.DeepSeq (NFData(..))
 import Streamly.Internal.Data.Array (Array)
 import System.FilePath (dropExtensions, takeFileName)
 import System.FilePath.Posix ((</>))
-import Gauge.Main (Benchmark, bench, bgroup, defaultMain, env, nfIO)
+import Test.Tasty.Bench (Benchmark, bench, bgroup, defaultMain, env, nfIO)
 import Streamly.Internal.Unicode.Char
     ( NormalizationMode(NFC, NFD, NFKC, NFKD)
     , normalize

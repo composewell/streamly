@@ -15,7 +15,7 @@ import Streamly.Prelude
     , fromWAsync, parallel, fromParallel
     )
 
-import Gauge
+import Test.Tasty.Bench
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------

@@ -54,11 +54,6 @@ flag opt
   manual: True
   default: True
 
-flag use-gauge
-  description: Use gauge instead of tasty-bench for benchmarking
-  manual: True
-  default: False
-
 flag use-streamly-core
   description: Benchmark only core package
   manual: True
@@ -195,22 +190,12 @@ common bench-depends
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.5
     , ghc-prim          >= 0.4   && < 0.12
+    , tasty-bench       >= 0.3 && < 0.4
+    , tasty             >= 1.4.1 && < 1.6
+    , streamly-core
 
-  if flag(use-streamly-core)
-    build-depends: streamly-core
-  else
+  if !flag(use-streamly-core)
     build-depends: streamly
-        , streamly-core
-
-  if flag(use-gauge)
-    build-depends:  gauge >= 0.2.4 && < 0.3
-  else
-    build-depends:    tasty-bench >= 0.3 && < 0.4
-                    , tasty     >= 1.4.1 && < 1.6
-    mixins: tasty-bench
-      (Test.Tasty.Bench as Gauge
-      , Test.Tasty.Bench as Gauge.Main
-      )
 
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     build-depends:

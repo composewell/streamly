@@ -15,7 +15,7 @@ import qualified Streamly.Prelude as S
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 
-import Gauge
+import Test.Tasty.Bench
 
 moduleName :: String
 moduleName = "Prelude.WAsync"

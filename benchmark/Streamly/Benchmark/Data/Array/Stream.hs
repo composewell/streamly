@@ -47,7 +47,7 @@ import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 import Control.Monad.IO.Class (MonadIO)

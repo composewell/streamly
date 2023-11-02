@@ -13,7 +13,7 @@ import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Streamly.Benchmark.Common
-import Gauge
+import Test.Tasty.Bench
 
 {-# INLINE source #-}
 source :: (Monad m, Num a, Stream.Enumerable a) =>

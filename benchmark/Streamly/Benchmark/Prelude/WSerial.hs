@@ -29,7 +29,7 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 
-import Gauge
+import Test.Tasty.Bench
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))

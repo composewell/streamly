@@ -54,7 +54,7 @@ import qualified Streamly.Internal.Data.Stream as StreamK
 #endif
 #endif
 
-import Gauge
+import Test.Tasty.Bench
 import Stream.Common
 import Streamly.Benchmark.Common
 import Prelude hiding (concatMap)

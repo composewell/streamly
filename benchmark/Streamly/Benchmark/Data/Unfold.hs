@@ -36,7 +36,7 @@ import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
 
-import Gauge hiding (env)
+import Test.Tasty.Bench hiding (env)
 import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle

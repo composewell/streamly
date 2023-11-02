@@ -104,7 +104,7 @@ import qualified Streamly.Internal.Data.Stream as StreamK
 #endif
 #endif
 
-import Gauge
+import Test.Tasty.Bench
 import Prelude hiding (Foldable(..), mapM, replicate)
 
 #ifdef USE_STREAMK

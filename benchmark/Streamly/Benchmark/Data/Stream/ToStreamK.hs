@@ -37,7 +37,7 @@ import qualified Streamly.Internal.Data.StreamK as S
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Fold as Fold
 
-import Gauge (bgroup, Benchmark, defaultMain)
+import Test.Tasty.Bench (bgroup, Benchmark, defaultMain)
 
 import Streamly.Benchmark.Common
 
