@@ -65,6 +65,8 @@ import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict
     (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
 
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Ring as Ring
 
@@ -300,7 +302,11 @@ windowRange n = Fold step initial extract
         if i == 0
         then return Nothing
         else do
-            x <- liftIO $ peek rh
+            -- Here we use "ringStart" over "ringHead" as "ringHead" will be
+            -- uninitialized if the ring is not full.
+            -- Using "unsafeForeignPtrToPtr" here is safe as we touch the ring
+            -- again in "foldFunc".
+            x <- liftIO $ peek (unsafeForeignPtrToPtr (Ring.ringStart rb))
             let accum (mn, mx) a = return (min mn a, max mx a)
             fmap Just $ foldFunc i rh accum (x, x) rb
 
