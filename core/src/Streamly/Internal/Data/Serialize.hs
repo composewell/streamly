@@ -13,6 +13,11 @@
 
 module Streamly.Internal.Data.Serialize
     ( module Streamly.Internal.Data.Serialize.Type
+    , module Streamly.Internal.Data.Unbox.TH
+    , module Streamly.Internal.Data.Serialize.TH
+    , module Streamly.Internal.Data.Serialize.TH.RecHeader
+    , module Streamly.Internal.Data.Serialize.TH.Common
+    , module Streamly.Internal.Data.Serialize.TH.Bottom
     ) where
 
 --------------------------------------------------------------------------------
@@ -32,6 +37,11 @@ import GHC.Integer.GMP.Internals (Integer(..), BigNat(..))
 #endif
 
 import Streamly.Internal.Data.Serialize.Type
+import Streamly.Internal.Data.Unbox.TH
+import Streamly.Internal.Data.Serialize.TH
+import Streamly.Internal.Data.Serialize.TH.RecHeader
+import Streamly.Internal.Data.Serialize.TH.Common
+import Streamly.Internal.Data.Serialize.TH.Bottom
 
 --------------------------------------------------------------------------------
 -- Common instances
