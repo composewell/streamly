@@ -10,6 +10,9 @@
 module Streamly.Internal.Data.Parser
     (
     -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
     -- $setup
 
       module Streamly.Internal.Data.Parser.Type

@@ -50,6 +50,7 @@ extra-source-files:
     src/DocTestDataMutArray.hs
     src/DocTestDataMutArrayGeneric.hs
     src/DocTestDataParser.hs
+    src/DocTestDataParserK.hs
     src/DocTestDataStream.hs
     src/DocTestDataStreamK.hs
     src/DocTestDataUnfold.hs

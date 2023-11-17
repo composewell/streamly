@@ -1331,7 +1331,8 @@ parserDone (ParserK.Failure n e) _ _ = pure $ ParserK.Error n e
 -- using parseBreakChunks. We can also use parseBreak as an alternative to the
 -- monad instance of ParserD.
 
--- | Run a 'ParserK' over a chunked 'StreamK' and return the rest of the Stream.
+-- | Run a 'ParserK' over a chunked 'StreamK' and return the parse result and
+-- the remaining Stream.
 {-# INLINE_NORMAL parseBreakChunks #-}
 parseBreakChunks
     :: (Monad m, Unbox a)

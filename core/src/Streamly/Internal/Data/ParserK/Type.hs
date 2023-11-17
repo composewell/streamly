@@ -168,8 +168,8 @@ newtype ParserK a m b = MkParser
 -------------------------------------------------------------------------------
 
 -- XXX rewrite this using ParserD, expose rmapM from ParserD.
--- | Maps a function over the output of the parser.
---
+
+-- | Map a function on the result i.e. on @b@ in @Parser a m b@.
 instance Functor m => Functor (ParserK a m) where
     {-# INLINE fmap #-}
     fmap f parser = MkParser $ \k n st arr ->
@@ -181,7 +181,7 @@ instance Functor m => Functor (ParserK a m) where
 -------------------------------------------------------------------------------
 
 -- This is the dual of stream "fromPure".
---
+
 -- | A parser that always yields a pure value without consuming any input.
 --
 -- /Pre-release/
@@ -199,9 +199,11 @@ fromEffect :: Monad m => m b -> ParserK a m b
 fromEffect eff =
     MkParser $ \k n st arr -> eff >>= \b -> k (Success n b) st arr
 
--- | 'Applicative' form of 'Streamly.Internal.Data.Parser.splitWith'. Note that
--- this operation does not fuse, use 'Streamly.Internal.Data.Parser.splitWith'
--- when fusion is important.
+-- | @f \<$> p1 \<*> p2@ applies parsers p1 and p2 sequentially to an input
+-- stream. The first parser runs and processes the input, the remaining input
+-- is then passed to the second parser. If both parsers succeed, their outputs
+-- are applied to the function @f@. If either parser fails, the operation
+-- fails.
 --
 instance Monad m => Applicative (ParserK a m) where
     {-# INLINE pure #-}
@@ -243,48 +245,8 @@ instance Monad m => Applicative (ParserK a m) where
 die :: String -> ParserK a m b
 die err = MkParser (\k n st arr -> k (Failure n err) st arr)
 
--- | Monad composition can be used for lookbehind parsers, we can make the
--- future parses depend on the previously parsed values.
---
--- If we have to parse "a9" or "9a" but not "99" or "aa" we can use the
--- following parser:
---
--- @
--- backtracking :: MonadCatch m => PR.Parser Char m String
--- backtracking =
---     sequence [PR.satisfy isDigit, PR.satisfy isAlpha]
---     '<|>'
---     sequence [PR.satisfy isAlpha, PR.satisfy isDigit]
--- @
---
--- We know that if the first parse resulted in a digit at the first place then
--- the second parse is going to fail.  However, we waste that information and
--- parse the first character again in the second parse only to know that it is
--- not an alphabetic char.  By using lookbehind in a 'Monad' composition we can
--- avoid redundant work:
---
--- @
--- data DigitOrAlpha = Digit Char | Alpha Char
---
--- lookbehind :: MonadCatch m => PR.Parser Char m String
--- lookbehind = do
---     x1 \<-    Digit '<$>' PR.satisfy isDigit
---          '<|>' Alpha '<$>' PR.satisfy isAlpha
---
---     -- Note: the parse depends on what we parsed already
---     x2 <- case x1 of
---         Digit _ -> PR.satisfy isAlpha
---         Alpha _ -> PR.satisfy isDigit
---
---     return $ case x1 of
---         Digit x -> [x,x2]
---         Alpha x -> [x,x2]
--- @
---
--- See also 'Streamly.Internal.Data.Parser.concatMap'. This monad instance
--- does not fuse, use 'Streamly.Internal.Data.Parser.concatMap' when you need
--- fusion.
---
+-- | Monad composition can be used for lookbehind parsers, we can dynamically
+-- compose new parsers based on the results of the previously parsed values.
 instance Monad m => Monad (ParserK a m) where
     {-# INLINE return #-}
     return = pure
@@ -316,18 +278,10 @@ instance MonadIO m => MonadIO (ParserK a m) where
 -- Alternative
 -------------------------------------------------------------------------------
 
--- | 'Alternative' form of 'Streamly.Internal.Data.Parser.alt'. Backtrack and
--- run the second parser if the first one fails.
---
--- The "some" and "many" operations of alternative accumulate results in a pure
--- list which is not scalable and streaming. Instead use
--- 'Streamly.Internal.Data.Parser.some' and
--- 'Streamly.Internal.Data.Parser.many' for fusible operations with composable
--- accumulation of results.
---
--- See also 'Streamly.Internal.Data.Parser.alt'. This 'Alternative' instance
--- does not fuse, use 'Streamly.Internal.Data.Parser.alt' when you need
--- fusion.
+-- | @p1 \<|> p2@ passes the input to parser p1, if it succeeds, the result is
+-- returned. However, if p1 fails, the parser driver backtracks and tries the
+-- same input on the alternative parser p2, returning the result if it
+-- succeeds.
 --
 instance Monad m => Alternative (ParserK a m) where
     {-# INLINE empty #-}

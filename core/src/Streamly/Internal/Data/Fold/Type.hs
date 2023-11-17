@@ -844,8 +844,10 @@ data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 -- complexity, because each composition adds a new branch that each subsequent
 -- fold's input element has to traverse, therefore, it cannot scale to a large
 -- number of compositions. After around 100 compositions the performance starts
--- dipping rapidly compared to a CPS style implementation. When you need
--- scaling use parser monad instead.
+-- dipping rapidly compared to a CPS style implementation.
+--
+-- For larger number of compositions you can convert the fold to a parser and
+-- use ParserK.
 --
 -- /Time: O(n^2) where n is the number of compositions./
 --
