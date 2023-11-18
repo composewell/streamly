@@ -21,8 +21,8 @@ module Streamly.Internal.Data.Parser
     , Step (..)
     , Initial (..)
 
-    -- -- * Downgrade to Fold
-    -- , toFold
+    -- * Downgrade to Fold
+    , toFold
 
     -- First order parsers
     -- * Accumulators
@@ -270,10 +270,6 @@ import Prelude hiding
 -- Downgrade a parser to a Fold
 -------------------------------------------------------------------------------
 
--- XXX Parsers cannot be converted to folds, because they do not have a
--- scanning function. Can we move the applicative folds to parsers instead?
--- need to measure the performance.
-{-
 -- | Make a 'Fold' from a 'Parser'. The fold just throws an exception if the
 -- parser fails or tries to backtrack.
 --
@@ -313,7 +309,9 @@ toFold (Parser pstep pinitial pextract) = Fold step initial extract final
             Done n _ -> derror n
             Error err -> eerror err
 
-    extract st = do
+    extract = error "toFold: parser cannot be used for scanning"
+
+    final st = do
         r <- pextract st
         case r of
             Done 0 b -> return b
@@ -321,7 +319,6 @@ toFold (Parser pstep pinitial pextract) = Fold step initial extract final
             Continue n _ -> cerror n
             Done n _ -> derror n
             Error err -> eerror err
--}
 
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses

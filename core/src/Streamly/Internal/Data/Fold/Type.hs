@@ -493,20 +493,35 @@ import Streamly.Internal.Data.Fold.Step
 -- The "final" function could be (s -> m (Step s b)), like in parsers so that
 -- it can be called in a loop to drain the fold.
 
--- | The type @Fold m a b@ having constructor @Fold step initial extract
--- final@ represents a fold over an input stream of values of type @a@ to a
--- final value of type @b@ in 'Monad' @m@.
+-- | The type @Fold m a b@ represents a consumer of an input stream of values
+-- of type @a@ and returning a final value of type @b@ in 'Monad' @m@. The
+-- constructor of a fold is @Fold step initial extract final@.
 --
--- The fold uses an intermediate state @s@ as accumulator, the type @s@ is
--- internal to the specific fold definition. The initial value of the fold
--- state @s@ is returned by @initial@. The @step@ function consumes an input
--- and either returns the final result @b@ if the fold is done or the next
--- intermediate state (see 'Step'). At any point the fold driver can extract
--- the result from the intermediate state using the @extract@ function. The
--- "final" function is used to finalize the fold, the driver can call it
--- whenever it holds a valid fold state which it will not be using anymore. The
--- state should not be used after finalization. Note that if the fold
--- terminates itself we won't have a valid fold state.
+-- The fold uses an internal state of type @s@. The initial value of the state
+-- @s@ is created by @initial@. This function is called once and only once
+-- before the fold starts consuming input. Any resource allocation can be done
+-- in this function.
+--
+-- The @step@ function is called on each input, it consumes an input and
+-- returns the next intermediate state (see 'Step') or the final result @b@ if
+-- the fold terminates.
+--
+-- If the fold is used as a scan, the @extract@ function is used by the scan
+-- driver to map the current state @s@ of the fold to the fold result. Thus
+-- @extract@ can be called multiple times. In some folds, where scanning does
+-- not make sense, this function is left unimplemented; such folds cannot be
+-- used as scans.
+--
+-- Before a fold terminates, @final@ is called once and only once (unless the
+-- fold terminated in @initial@ itself). Any resources allocated by @initial@
+-- can be released in @final@. In folds that do not require any cleanup
+-- @extract@ and @final@ are typically the same.
+--
+-- When implementing fold combinators, care should be taken to cleanup any
+-- state of the argument folds held by the fold by calling the respective
+-- @final@ at all exit points of the fold. Also, @final@ should not be called
+-- more than once. Note that if a fold terminates by 'Done' constructor, there
+-- is no state to cleanup.
 --
 -- NOTE: The constructor is not yet released, smart constructors are provided
 -- to create folds.
@@ -858,8 +873,8 @@ splitWith func
     step (SeqFoldR f st) a = runR (stepR st a) f
 
     -- XXX splitWith should not be used for scanning
-    -- It would rarely make sense and resource cleanup would be expensive.
-    -- especially when multiple splitWith are chained.
+    -- It would rarely make sense and resource tracking and cleanup would be
+    -- expensive. especially when multiple splitWith are chained.
     extract _ = error "splitWith: cannot be used for scanning"
 
     final (SeqFoldR f sR) = fmap f (finalR sR)
