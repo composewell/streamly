@@ -22,7 +22,7 @@ module Streamly.Data.Serialize
     , deriveSerializeWith
 
     -- * Encoding
-    , encode
+    -- , encode
     , pinnedEncode
 
     -- * Decoding
@@ -36,7 +36,7 @@ module Streamly.Data.Serialize
 import Streamly.Internal.Data.Serialize
     ( Serialize(..)
     , decode
-    , encode
+    -- , encode
     , pinnedEncode
     )
 import Streamly.Internal.Data.Serialize.TH
