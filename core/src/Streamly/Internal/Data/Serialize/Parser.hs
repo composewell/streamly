@@ -6,6 +6,12 @@
 -- Portability : GHC
 --
 -- Decode Haskell data types from byte streams.
+--
+-- It would be inefficient to use this to compose parsers for general algebraic
+-- data types. For general deserialization of ADTs please use the Serialize
+-- type class instances. The fastest way to deserialize byte streams
+-- representing Haskell data types is to write them to arrays and deserialize
+-- the array using the Serialize type class.
 
 module Streamly.Internal.Data.Serialize.Parser
     (
