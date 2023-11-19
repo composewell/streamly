@@ -9,6 +9,7 @@
 module Streamly.Internal.Data.Serialize.Type
     ( Serialize(..)
     , encode
+    , encodeAs
     , pinnedEncode
     , decode
     ) where
