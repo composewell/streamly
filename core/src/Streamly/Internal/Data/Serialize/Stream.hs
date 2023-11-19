@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Serialize.ToBytes
+-- Module      : Streamly.Internal.Data.Serialize.Stream
 -- Copyright   : (c) 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -17,7 +17,7 @@
 
 -- XXX remove unit, bool, ordering, and the type class as well
 
-module Streamly.Internal.Serialize.ToBytes
+module Streamly.Internal.Data.Serialize.Stream
     (
     -- * Type class
       ToBytes (..)

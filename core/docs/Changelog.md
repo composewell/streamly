@@ -17,6 +17,9 @@
 * `ParserK` in `Streamly.Data.ParserK` is not specialized to arrays anymore. To
   adapt to the new code, change `ParserK a m b` to `ParserK (Array a) m b` where
   `Array` comes from `Streamly.Data.Array`.
+* Internal modules renamed:
+  * Streamly.Internal.Serialize.FromBytes -> Streamly.Internal.Data.Serialize.Parser
+  * Streamly.Internal.Serialize.ToBytes ->   Streamly.Internal.Data.Serialize.Stream
 
 ### Deprecations
 

@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Serialize.FromBytes
+-- Module      : Streamly.Internal.Data.Serialize.Parser
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -7,7 +7,7 @@
 --
 -- Decode Haskell data types from byte streams.
 
-module Streamly.Internal.Serialize.FromBytes
+module Streamly.Internal.Data.Serialize.Parser
     (
     -- * Type class
       FromBytes (..)

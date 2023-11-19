@@ -299,6 +299,8 @@ library
                      , Streamly.Internal.Data.Serialize.TH.RecHeader
                      , Streamly.Internal.Data.Serialize.TH.Common
                      , Streamly.Internal.Data.Serialize.TH.Bottom
+                     , Streamly.Internal.Data.Serialize.Parser
+                     , Streamly.Internal.Data.Serialize.Stream
 
                      -- Unboxed IORef
                      , Streamly.Internal.Data.IORef.Unboxed
@@ -330,10 +332,6 @@ library
                      , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Stream.MutChunked
-
-                     -- streamly-serde
-                     , Streamly.Internal.Serialize.FromBytes
-                     , Streamly.Internal.Serialize.ToBytes
 
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream
