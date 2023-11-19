@@ -4,14 +4,16 @@
 
 ## Unreleased
 
+This changelog lists only the changes of the higher level `streamly`
+package.  For changes to the core functionality please see the changelog
+in the `streamly-core` package.
+
 ### Breaking Changes
 
-* MonadTrans and MonadBase instances has been removed for `AsyncT`,
+* `MonadTrans` and `MonadBase` instances have been removed for `AsyncT`,
   `ParallelT`, `AheadT` for GHC versions 9.6 onwards. This is due to a
   breaking change in `transformers` 0.6. You can replace `lift` with
   `fromEffect` when using these as top level monads in a monad stack.
-
-* Rethrow the exception promptly in bracketIO.
 
 ## 0.9.0 (Mar 2023)
 

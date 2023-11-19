@@ -2,26 +2,44 @@
 
 ## Unreleased
 
-* Arrays are now created unpinned by default, they were created pinned
-  earlier. During IO operations unpinned arrays are automatically copied
-  to pinned memory. When arrays are directly passed to IO operations
-  programmers can choose to create them pinned to avoid a copy.  To
-  create pinned arrays, use the internal APIs with the `pinned*` prefix.
-
-* Changed the signature of 'Streamly.Data.Stream.handle' to make the exception
-  handler monadic.
-* Rethrow the exception promptly in bracketIO.
-
 ### Breaking
 
 * `ParserK` in `Streamly.Data.ParserK` is not specialized to arrays anymore. To
   adapt to the new code, change `ParserK a m b` to `ParserK (Array a) m b` where
-  `Array` comes from `Streamly.Data.Array`.
+  `Array` comes from `Streamly.Data.Array`. This change also changed the
+  signatures of `parseChunks` and `parseBreakChunks`.
+* Changed the signature of 'Streamly.Data.Stream.handle' to make the
+  exception handler monadic.
+* Rethrow exceptions promptly in `bracketIO`.
+* `getIndex` signature changed in `Streamly.Data.MutArray` and
+  `Streamly.Data.MutArray.Generic`.
+
+### Internal Changes
+* Fold constructor has changed, added a `final` field to support
+  finalization and cleanup of a chain of folds. The `extract` field is
+  now used only for mapping the fold internal state to fold result for
+  scanning purposes.
+* Some low level internal modules have been removed, they are entirely
+  exported from higher level internal modules. If you were importing any
+  of the missing modules then import the higher level modules now.
 * Internal module changes:
   * Streamly.Internal.Serialize.FromBytes -> Streamly.Internal.Data.Serialize.Parser
   * Streamly.Internal.Serialize.ToBytes ->   Streamly.Internal.Data.Serialize.Stream
   * Streamly.Internal.Data.Unbox is now exported via Streamly.Internal.Data.Serialize
   * Streamly.Internal.Data.IORef.Unboxed is now exported via Streamly.Internal.Data.Serialize
+
+### Enhancements
+
+* Unboxed arrays are now created unpinned by default, they were
+  created pinned earlier. During IO operations, unpinned arrays are
+  automatically copied to pinned memory. When arrays are directly passed
+  to IO operations programmers can choose to create them pinned to avoid a
+  copy.  To create pinned arrays, use the internal APIs with the `pinned*`
+  prefix.
+* Added a `Streamly.Data.Serialize` module for fast binary serialization.
+* Added exception handling routines in StreamK (handle, bracketIO).
+* More APIs added in `Streamly.Data.MutArray` and 
+  `Streamly.Data.MutArray.Generic`.
 
 ### Deprecations
 
