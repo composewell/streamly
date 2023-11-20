@@ -138,7 +138,7 @@ import Data.Word (Word8)
 import Network.Socket (Socket, SockAddr)
 import Streamly.Internal.Data.Unfold (Unfold(..))
 import Streamly.Internal.Data.Array (Array(..))
-import Streamly.Internal.Data.Unbox (Unbox)
+import Streamly.Data.Serialize (Unbox)
 
 import Streamly.Internal.Network.Socket hiding (accept, read, readChunks)
 import Prelude hiding (read)

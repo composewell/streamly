@@ -13,7 +13,7 @@ import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Real (Ratio(..))
 import GHC.Stable (StablePtr(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
-import Streamly.Internal.Data.Unbox (Unbox)
+import Streamly.Internal.Data.Serialize (Unbox)
 import Streamly.Test.Common (chooseInt)
 import Test.Hspec (hspec, describe, it)
 import Test.Hspec.QuickCheck

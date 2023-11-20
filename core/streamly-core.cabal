@@ -292,18 +292,10 @@ library
                      , Streamly.Internal.Data.Producer
 
                      -- streamly-core-array-types
-                     , Streamly.Internal.Data.Unbox
                      , Streamly.Internal.Data.Serialize
-                     , Streamly.Internal.Data.Unbox.TH
-                     , Streamly.Internal.Data.Serialize.TH
-                     , Streamly.Internal.Data.Serialize.TH.RecHeader
-                     , Streamly.Internal.Data.Serialize.TH.Common
-                     , Streamly.Internal.Data.Serialize.TH.Bottom
                      , Streamly.Internal.Data.Serialize.Parser
                      , Streamly.Internal.Data.Serialize.Stream
 
-                     -- Unboxed IORef
-                     , Streamly.Internal.Data.IORef.Unboxed
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.MutArray
                      , Streamly.Internal.Data.MutArray.Generic
@@ -429,7 +421,15 @@ library
 
                     , Streamly.Internal.Data.Array.Type
 
+                    -- Unboxed IORef
+                    , Streamly.Internal.Data.Unbox
+                    , Streamly.Internal.Data.IORef.Unboxed
+                    , Streamly.Internal.Data.Unbox.TH
                     , Streamly.Internal.Data.Serialize.Type
+                    , Streamly.Internal.Data.Serialize.TH
+                    , Streamly.Internal.Data.Serialize.TH.RecHeader
+                    , Streamly.Internal.Data.Serialize.TH.Common
+                    , Streamly.Internal.Data.Serialize.TH.Bottom
 
                     , Streamly.Internal.Data.Producer.Type
                     , Streamly.Internal.Data.Producer.Source

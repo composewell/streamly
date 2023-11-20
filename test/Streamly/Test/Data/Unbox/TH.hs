@@ -15,8 +15,7 @@ module Streamly.Test.Data.Unbox.TH (main) where
 --------------------------------------------------------------------------------
 
 import Data.Proxy (Proxy(..))
-import Streamly.Internal.Data.Unbox.TH
-import Streamly.Internal.Data.Unbox (Unbox(..), newBytes, pokeByteIndex)
+import Streamly.Internal.Data.Serialize
 
 import Test.Hspec as H
 
@@ -35,7 +34,7 @@ testSerialization val = do
 
 -- Size is also implicitly tested while serializing and deserializing.
 checkSizeOf :: forall a. Unbox a => Proxy a -> Int -> IO ()
-checkSizeOf _ size = sizeOf (Proxy :: Proxy a) `shouldBe` size
+checkSizeOf _ sz = sizeOf (Proxy :: Proxy a) `shouldBe` sz
 
 checkSizeOfNew :: forall a. Unbox a => String -> Proxy a -> Int -> Spec
 checkSizeOfNew tag proxy expectation =

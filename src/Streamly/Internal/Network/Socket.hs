@@ -72,7 +72,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, Ptr, castPtr)
-import Streamly.Internal.Data.Unbox (Unbox)
+import Streamly.Data.Serialize (Unbox)
 import Network.Socket
        (Socket, SocketOption(..), Family(..), SockAddr(..),
         ProtocolNumber, withSocketsDo, SocketType(..), socket, bind,

@@ -22,12 +22,10 @@ module Streamly.Test.Data.Serialize (main) where
 --------------------------------------------------------------------------------
 
 import System.Random (randomRIO)
-import Streamly.Internal.Data.Unbox (MutableByteArray, newBytes)
+import Streamly.Internal.Data.Serialize (MutableByteArray, newBytes)
 import GHC.Generics (Generic)
 import Streamly.Data.Serialize (Serialize)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
-
-import qualified Streamly.Internal.Data.Serialize.TH as Serialize
 
 import Data.Functor.Identity (Identity (..))
 

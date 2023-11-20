@@ -24,22 +24,12 @@ import System.Random (randomRIO)
 import Test.QuickCheck (Arbitrary, arbitrary)
 #endif
 
+import Streamly.Internal.Data.Serialize hiding (encode)
 #ifdef USE_UNBOX
 import Data.Proxy (Proxy(..))
-import Streamly.Internal.Data.Unbox
 #else
 import Control.DeepSeq (force)
 import Test.QuickCheck (oneof, generate)
-import Streamly.Internal.Data.Unbox (newBytes, MutableByteArray)
-import Streamly.Internal.Data.Serialize hiding (encode)
-#endif
-
-#ifdef USE_TH
-#ifdef USE_UNBOX
-import Streamly.Internal.Data.Unbox.TH
-#else
-import Streamly.Internal.Data.Serialize.TH
-#endif
 #endif
 
 import Test.Tasty.Bench

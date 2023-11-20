@@ -8,7 +8,7 @@ module Streamly.Benchmark.Data.Serialize.TH (genLargeRecord) where
 
 import Language.Haskell.TH
 
-import Streamly.Internal.Data.Serialize.TH.Bottom (makeI)
+import Streamly.Internal.Data.Serialize (makeI)
 import Control.DeepSeq (NFData(..))
 
 --------------------------------------------------------------------------------

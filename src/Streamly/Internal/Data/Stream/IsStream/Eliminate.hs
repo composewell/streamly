@@ -164,7 +164,7 @@ import Streamly.Internal.Data.Stream.IsStream.Common
 import Streamly.Internal.Data.Stream.IsStream.Type
     (IsStream, fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Data.Unbox (Unbox)
+import Streamly.Data.Serialize (Unbox)
 
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Stream.Serial as Stream

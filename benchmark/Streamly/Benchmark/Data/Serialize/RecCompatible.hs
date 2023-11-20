@@ -12,7 +12,7 @@ module Streamly.Benchmark.Data.Serialize.RecCompatible
 import Streamly.Internal.Data.Serialize (Serialize)
 import Streamly.Benchmark.Data.Serialize.TH (genLargeRecord)
 
-import qualified Streamly.Internal.Data.Serialize.TH as Serialize
+import qualified Streamly.Internal.Data.Serialize as Serialize
 
 --------------------------------------------------------------------------------
 -- Code

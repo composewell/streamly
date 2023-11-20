@@ -27,32 +27,10 @@ import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic, Rep(..))
 import GHC.Real (Ratio(..))
 
+import Streamly.Internal.Data.Serialize
 #ifdef USE_SERIALIZE
-
-import Streamly.Internal.Data.Serialize (Serialize(..))
-import qualified Streamly.Internal.Data.Serialize.TH as Serialize
-
-#else
-
-#ifdef USE_TH
-import Streamly.Internal.Data.Unbox.TH
+import qualified Streamly.Internal.Data.Serialize as Serialize
 #endif
-
-#endif
-
-import Streamly.Internal.Data.Unbox
-    ( PeekRep(..)
-    , PokeRep(..)
-    , SizeOfRep(..)
-    , Unbox(..)
-    , genericPeekByteIndex
-    , genericPokeByteIndex
-    , genericSizeOf
-    , newBytes
-#ifndef USE_SERIALIZE
-    , MutableByteArray
-#endif
-    )
 
 import Test.Hspec as H
 
@@ -271,7 +249,7 @@ testGenericConsistency val = do
 #ifndef USE_SERIALIZE
 -- Size is also implicitly tested while serializing and deserializing.
 checkSizeOf :: forall a. Unbox a => Proxy a -> Int -> IO ()
-checkSizeOf _ size = sizeOf (Proxy :: Proxy a) `shouldBe` size
+checkSizeOf _ sz = sizeOf (Proxy :: Proxy a) `shouldBe` sz
 
 #endif
 

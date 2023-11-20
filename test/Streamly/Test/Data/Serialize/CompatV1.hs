@@ -11,7 +11,7 @@ module Streamly.Test.Data.Serialize.CompatV1
 
 import Test.QuickCheck (Arbitrary, arbitrary, elements)
 import Streamly.Internal.Data.Serialize (Serialize)
-import qualified Streamly.Internal.Data.Serialize.TH as Serialize
+import qualified Streamly.Internal.Data.Serialize as Serialize
 
 --------------------------------------------------------------------------------
 -- Types

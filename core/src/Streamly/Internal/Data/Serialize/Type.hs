@@ -7,7 +7,8 @@
 --
 
 module Streamly.Internal.Data.Serialize.Type
-    ( Serialize(..)
+    (
+      Serialize(..)
     , encode
     , encodeAs
     , pinnedEncode

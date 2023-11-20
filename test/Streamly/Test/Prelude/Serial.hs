@@ -26,7 +26,7 @@ import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
 import Data.Semigroup (Sum(..), getSum)
 import Foreign.Storable (Storable)
-import Streamly.Internal.Data.Unbox (Unbox)
+import Streamly.Internal.Data.Serialize (Unbox)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
     ( Gen
