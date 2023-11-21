@@ -169,9 +169,12 @@ mkSizeDec (Config {..}) headTy cons = do
             cfgRecordSyntaxWithHeader
             (typeOfType headTy cons)
     pure
-        [ PragmaD (InlineP 'size cfgInlineSize FunLike AllPhases)
-        , FunD 'size [Clause [] (NormalB sizeOfMethod) []]
-        ]
+        ( maybe
+            []
+            (\x -> [PragmaD (InlineP 'size x FunLike AllPhases)])
+            cfgInlineSize
+         ++ [FunD 'size [Clause [] (NormalB sizeOfMethod) []]]
+        )
 
 --------------------------------------------------------------------------------
 -- Peek
@@ -275,8 +278,12 @@ mkDeserializeDec (Config {..}) headTy cons = do
             headTy
             (typeOfType headTy cons)
     pure
-        [ PragmaD (InlineP 'deserialize cfgInlineDeserialize FunLike AllPhases)
-        , FunD
+        ( maybe
+            []
+            (\x -> [PragmaD (InlineP 'deserialize x FunLike AllPhases)])
+            cfgInlineDeserialize
+         ++
+            [ FunD
               'deserialize
               [ Clause
                     (if isUnitType cons && not cfgConstructorTagAsString
@@ -285,7 +292,8 @@ mkDeserializeDec (Config {..}) headTy cons = do
                     (NormalB peekMethod)
                     []
               ]
-        ]
+            ]
+        )
 
 --------------------------------------------------------------------------------
 -- Poke
@@ -379,17 +387,22 @@ mkSerializeDec (Config {..}) headTy cons = do
             cfgRecordSyntaxWithHeader
             (typeOfType headTy cons)
     pure
-        [ PragmaD (InlineP 'serialize cfgInlineSerialize FunLike AllPhases)
-        , FunD
-              'serialize
-              [ Clause
-                    (if isUnitType cons && not cfgConstructorTagAsString
-                         then [VarP _initialOffset, WildP, WildP]
-                         else [VarP _initialOffset, VarP _arr, VarP _val])
-                    (NormalB pokeMethod)
-                    []
-              ]
-        ]
+        ( maybe
+            []
+            (\x -> [PragmaD (InlineP 'serialize x FunLike AllPhases)])
+            cfgInlineSerialize
+         ++
+            [FunD
+                  'serialize
+                  [ Clause
+                        (if isUnitType cons && not cfgConstructorTagAsString
+                             then [VarP _initialOffset, WildP, WildP]
+                             else [VarP _initialOffset, VarP _arr, VarP _val])
+                        (NormalB pokeMethod)
+                        []
+                  ]
+            ]
+        )
 
 --------------------------------------------------------------------------------
 -- Main
