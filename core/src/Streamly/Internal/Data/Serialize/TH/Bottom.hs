@@ -450,7 +450,7 @@ errorUnsupported err =
         $ unlines
               [ "Unsupported"
               , "==========="
-              , "There is improper use of the library."
+              , "This is improper use of the library."
               , "This case is unsupported."
               , "Please contact the developer if this case is of interest."
               , ""
