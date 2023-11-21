@@ -74,38 +74,42 @@ import Streamly.Internal.Data.Unbox.TH (DataCon(..))
 -- Config
 --------------------------------------------------------------------------------
 
--- XXX Need to make it (Maybe Inline) so that we can use Nothing as default.
-
 -- | Configuration to control how the 'Serialize' instance is generated. Use
 -- 'defaultConfig' and config setter functions to generate desired Config. For
 -- example:
 --
--- >>> (inlineSize Inline) . (inlineSerialize Inlinable) defaultConfig
+-- >>> (inlineSize (Just Inline)) . (inlineSerialize (Just Inlinable)) defaultConfig
 --
 data Config =
     Config
-        { cfgInlineSize :: Inline
-        , cfgInlineSerialize :: Inline
-        , cfgInlineDeserialize :: Inline
+        { cfgInlineSize :: Maybe Inline
+        , cfgInlineSerialize :: Maybe Inline
+        , cfgInlineDeserialize :: Maybe Inline
         , cfgConstructorTagAsString :: Bool
         , cfgRecordSyntaxWithHeader :: Bool
         }
 
 -- | How should we inline the 'size' function? The default in 'defaultConfig'
--- is 'Inline'. However, aggressive inlining can bloat the code and increase
--- compilation times in when there are big functions and too many nesting
--- levels so you can change it accordingly.
-inlineSize :: Inline -> Config -> Config
+-- is 'Nothing' which means left to the compiler. Forcing inline on @size@
+-- function actually worsens some benchmarks and improves none.
+inlineSize :: Maybe Inline -> Config -> Config
 inlineSize v cfg = cfg {cfgInlineSize = v}
 
--- | How should we inline the 'serialize' function? See guidelines in
--- 'inlineSize'.
-inlineSerialize :: Inline -> Config -> Config
+-- XXX Should we make the default Inlinable instead?
+
+-- | How should we inline the 'serialize' function? The default in
+-- 'defaultConfig' is 'Just Inline'. However, aggressive inlining can bloat the
+-- code and increase in compilation times when there are big functions and too
+-- many nesting levels so you can change it accordingly. A 'Nothing' value
+-- leaves the decision to the compiler.
+inlineSerialize :: Maybe Inline -> Config -> Config
 inlineSerialize v cfg = cfg {cfgInlineSerialize = v}
 
+-- XXX Should we make the default Inlinable instead?
+
 -- | How should we inline the 'deserialize' function? See guidelines in
--- 'inlineSize'.
-inlineDeserialize :: Inline -> Config -> Config
+-- 'inlineSerialize'.
+inlineDeserialize :: Maybe Inline -> Config -> Config
 inlineDeserialize v cfg = cfg {cfgInlineDeserialize = v}
 
 -- | __Experimental__
@@ -174,16 +178,16 @@ encodeRecordFields v cfg = cfg {cfgRecordSyntaxWithHeader = v}
 
 -- | The default configuration settings are:
 --
--- * 'inlineSize' 'Inline'
--- * 'inlineSerialize' 'Inline'
--- * 'inlineDeserialize' 'Inline'
+-- * 'inlineSize' 'Nothing'
+-- * 'inlineSerialize' 'Just Inline'
+-- * 'inlineDeserialize' 'Just Inline'
 --
 defaultConfig :: Config
 defaultConfig =
     Config
-        { cfgInlineSize = Inline
-        , cfgInlineSerialize = Inline
-        , cfgInlineDeserialize = Inline
+        { cfgInlineSize = Nothing
+        , cfgInlineSerialize = Just Inline
+        , cfgInlineDeserialize = Just Inline
         , cfgConstructorTagAsString = False
         , cfgRecordSyntaxWithHeader = False
         }
