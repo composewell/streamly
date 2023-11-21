@@ -22,9 +22,6 @@ module Streamly.Internal.Data.Serialize
     , module Streamly.Internal.Data.Serialize.Type
     -- * Serialize TH
     , module Streamly.Internal.Data.Serialize.TH
-    , module Streamly.Internal.Data.Serialize.TH.RecHeader
-    , module Streamly.Internal.Data.Serialize.TH.Common
-    , module Streamly.Internal.Data.Serialize.TH.Bottom
     ) where
 
 --------------------------------------------------------------------------------
@@ -42,14 +39,11 @@ import GHC.Num.Integer (Integer(..))
 import GHC.Integer.GMP.Internals (Integer(..), BigNat(..))
 #endif
 
+import Streamly.Internal.Data.IORef.Unboxed
+import Streamly.Internal.Data.Serialize.TH
 import Streamly.Internal.Data.Serialize.Type
 import Streamly.Internal.Data.Unbox
 import Streamly.Internal.Data.Unbox.TH
-import Streamly.Internal.Data.Serialize.TH
-import Streamly.Internal.Data.Serialize.TH.RecHeader
-import Streamly.Internal.Data.Serialize.TH.Common
-import Streamly.Internal.Data.Serialize.TH.Bottom
-import Streamly.Internal.Data.IORef.Unboxed
 
 --------------------------------------------------------------------------------
 -- Common instances

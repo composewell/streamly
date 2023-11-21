@@ -9,10 +9,17 @@
 -- Portability : GHC
 --
 module Streamly.Internal.Data.Serialize.TH
-    ( deriveSerialize
-    , Config(..)
-    , defaultConfig
+    (
+    -- Deriving
+      deriveSerialize
     , deriveSerializeWith
+
+    -- Utilities
+    , module Streamly.Internal.Data.Serialize.TH.Bottom
+    -- ** Common
+    , module Streamly.Internal.Data.Serialize.TH.Common
+    -- ** RecHeader
+    , module Streamly.Internal.Data.Serialize.TH.RecHeader
     ) where
 
 --------------------------------------------------------------------------------
@@ -37,6 +44,7 @@ import qualified Streamly.Internal.Data.Serialize.TH.RecHeader as RecHeader
 
 import Streamly.Internal.Data.Serialize.TH.Bottom
 import Streamly.Internal.Data.Serialize.TH.Common
+import Streamly.Internal.Data.Serialize.TH.RecHeader
 
 --------------------------------------------------------------------------------
 -- Domain specific helpers
@@ -148,7 +156,7 @@ mkSizeOfExpr False False tyOfTy =
                 [varP _acc, varP _x]
                 (caseE (varE _x) (fmap (matchCons acc) cons))
 
-mkSizeOfExpr False True (TheType con) = RecHeader.mkSizeOfExpr con
+mkSizeOfExpr False True (TheType con) = RecHeader.mkRecSizeOfExpr con
 
 mkSizeOfExpr _ _ _ = errorUnimplemented
 
@@ -157,11 +165,11 @@ mkSizeDec (Config {..}) headTy cons = do
     -- INLINE on sizeOf actually worsens some benchmarks, and improves none
     sizeOfMethod <-
         mkSizeOfExpr
-            constructorTagAsString
-            recordSyntaxWithHeader
+            cfgConstructorTagAsString
+            cfgRecordSyntaxWithHeader
             (typeOfType headTy cons)
     pure
-        [ PragmaD (InlineP 'size inlineSize FunLike AllPhases)
+        [ PragmaD (InlineP 'size cfgInlineSize FunLike AllPhases)
         , FunD 'size [Clause [] (NormalB sizeOfMethod) []]
         ]
 
@@ -250,7 +258,7 @@ mkDeserializeExpr False True _ (TheType con@(SimpleDataCon _ fields)) = do
         RecHeader.mkDeserializeKeysDec deserializeWithKeys updateFunc con
     letE
         (pure <$> (deserializeWithKeysDec ++ updateFuncDec))
-        (RecHeader.mkDeserializeExpr
+        (RecHeader.mkRecDeserializeExpr
              _initialOffset
              _endOffset
              deserializeWithKeys
@@ -262,16 +270,16 @@ mkDeserializeDec :: Config -> Type -> [DataCon] -> Q [Dec]
 mkDeserializeDec (Config {..}) headTy cons = do
     peekMethod <-
         mkDeserializeExpr
-            constructorTagAsString
-            recordSyntaxWithHeader
+            cfgConstructorTagAsString
+            cfgRecordSyntaxWithHeader
             headTy
             (typeOfType headTy cons)
     pure
-        [ PragmaD (InlineP 'deserialize inlineDeserialize FunLike AllPhases)
+        [ PragmaD (InlineP 'deserialize cfgInlineDeserialize FunLike AllPhases)
         , FunD
               'deserialize
               [ Clause
-                    (if isUnitType cons && not constructorTagAsString
+                    (if isUnitType cons && not cfgConstructorTagAsString
                          then [VarP _initialOffset, WildP, WildP]
                          else [VarP _initialOffset, VarP _arr, VarP _endOffset])
                     (NormalB peekMethod)
@@ -359,7 +367,7 @@ mkSerializeExpr False False tyOfTy =
                      (zip [0 ..] cons))
 
 mkSerializeExpr False True (TheType con) =
-    RecHeader.mkSerializeExpr _initialOffset con
+    RecHeader.mkRecSerializeExpr _initialOffset con
 
 mkSerializeExpr _ _ _ = errorUnimplemented
 
@@ -367,15 +375,15 @@ mkSerializeDec :: Config -> Type -> [DataCon] -> Q [Dec]
 mkSerializeDec (Config {..}) headTy cons = do
     pokeMethod <-
         mkSerializeExpr
-            constructorTagAsString
-            recordSyntaxWithHeader
+            cfgConstructorTagAsString
+            cfgRecordSyntaxWithHeader
             (typeOfType headTy cons)
     pure
-        [ PragmaD (InlineP 'serialize inlineSerialize FunLike AllPhases)
+        [ PragmaD (InlineP 'serialize cfgInlineSerialize FunLike AllPhases)
         , FunD
               'serialize
               [ Clause
-                    (if isUnitType cons && not constructorTagAsString
+                    (if isUnitType cons && not cfgConstructorTagAsString
                          then [VarP _initialOffset, WildP, WildP]
                          else [VarP _initialOffset, VarP _arr, VarP _val])
                     (NormalB pokeMethod)

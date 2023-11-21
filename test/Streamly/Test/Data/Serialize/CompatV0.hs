@@ -29,7 +29,7 @@ instance Arbitrary a => Arbitrary (Rec a) where
     arbitrary = Rec <$> arbitrary <*> arbitrary <*> arbitrary
 
 $(Serialize.deriveSerializeWith
-      (Serialize.defaultConfig {Serialize.recordSyntaxWithHeader = True})
+      (Serialize.encodeRecordFields True Serialize.defaultConfig)
       [d|instance Serialize a => Serialize (Rec a)|])
 
 data River
@@ -42,5 +42,5 @@ instance Arbitrary River where
     arbitrary = elements [Ganga, Yamuna, Godavari]
 
 $(Serialize.deriveSerializeWith
-      (Serialize.defaultConfig {Serialize.constructorTagAsString = True})
+      (Serialize.encodeConstrNames True Serialize.defaultConfig)
       [d|instance Serialize River|])

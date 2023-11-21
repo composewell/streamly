@@ -9,8 +9,17 @@
 -- Portability : GHC
 --
 module Streamly.Internal.Data.Serialize.TH.Bottom
-    ( Config(..)
+    (
+    -- ** Config
+      Config(..)
     , defaultConfig
+    , inlineSize
+    , inlineSerialize
+    , inlineDeserialize
+    , encodeConstrNames
+    , encodeRecordFields
+
+    -- ** Other Utilities
     , TypeOfType(..)
     , typeOfType
     , SimpleDataCon(..)
@@ -65,48 +74,118 @@ import Streamly.Internal.Data.Unbox.TH (DataCon(..))
 -- Config
 --------------------------------------------------------------------------------
 
--- | Config to control how the 'Serialize' instance is generated.
+-- XXX Need to make it (Maybe Inline) so that we can use Nothing as default.
+
+-- | Configuration to control how the 'Serialize' instance is generated. Use
+-- 'defaultConfig' and config setter functions to generate desired Config. For
+-- example:
+--
+-- >>> (inlineSize Inline) . (inlineSerialize Inlinable) defaultConfig
+--
 data Config =
     Config
-        { inlineSize :: Inline
-          -- ^ Inline value for 'size'. Default is Inline.
-        , inlineSerialize :: Inline
-          -- ^ Inline value for 'serialize'. Default is Inline.
-        , inlineDeserialize :: Inline
-          -- ^ Inline value for 'deserialize'. Default is Inline.
-        , constructorTagAsString :: Bool
-          -- ^ __Experimental__
-          --
-          -- If True, encode constructors using the constructor names as Latin-1
-          -- byte sequence.
-        , recordSyntaxWithHeader :: Bool
-          -- ^ __Experimental__
-          --
-          -- If True, encode the keys of the record as a header and then
-          -- serialize the data. Multiple constructors are not supported with
-          -- @recordSyntaxWithHeader@ enabled.
-          --
-          -- __Performance Notes:__
-          --
-          -- There is a constant regression proportional to
-          -- @sum (map length keyList) + length keyList@ where @keyList@ is the
-          -- list of keys of that record as strings.
-          --
-          -- As an example, @keyList@ of,
-          -- @
-          -- data RecordType = RecordType { field0 :: Int, field2 :: Char }
-          -- @
-          -- is @["field0", "field1"]@
+        { cfgInlineSize :: Inline
+        , cfgInlineSerialize :: Inline
+        , cfgInlineDeserialize :: Inline
+        , cfgConstructorTagAsString :: Bool
+        , cfgRecordSyntaxWithHeader :: Bool
         }
 
+-- | How should we inline the 'size' function? The default in 'defaultConfig'
+-- is 'Inline'. However, aggressive inlining can bloat the code and increase
+-- compilation times in when there are big functions and too many nesting
+-- levels so you can change it accordingly.
+inlineSize :: Inline -> Config -> Config
+inlineSize v cfg = cfg {cfgInlineSize = v}
+
+-- | How should we inline the 'serialize' function? See guidelines in
+-- 'inlineSize'.
+inlineSerialize :: Inline -> Config -> Config
+inlineSerialize v cfg = cfg {cfgInlineSerialize = v}
+
+-- | How should we inline the 'deserialize' function? See guidelines in
+-- 'inlineSize'.
+inlineDeserialize :: Inline -> Config -> Config
+inlineDeserialize v cfg = cfg {cfgInlineDeserialize = v}
+
+-- | __Experimental__
+--
+-- In sum types, use Latin-1 encoded original constructor names rather than
+-- binary values to identify constructors. This option is not useful on a
+-- product type.
+--
+-- This option enables the following backward compatible behavior:
+--
+-- * __Reordering__: Order of the fields can be changed without affecting
+-- serialization.
+-- * __Addition__: If a field is added in the new version, the old version of
+-- the data type can still be deserialized by the new version. The new value
+-- would never occur in the old one.
+-- * __Deletion__: If a field is deleted in the new version and deserialization
+-- of the old version will result in an error. TBD: We can possibly designate a
+-- catch-all field to handle this case.
+--
+-- Note that if you change a type, change the semantics of a type, or delete a
+-- field and add a new field with the same name, deserialization of old data
+-- may result in silent unexpected behavior.
+--
+-- This option has to be the same on both encoding and decoding side.
+-- The default is 'False'.
+--
+encodeConstrNames :: Bool -> Config -> Config
+encodeConstrNames v cfg = cfg {cfgConstructorTagAsString = v}
+
+-- XXX We can deserialize each field to Either, so if there is a
+-- deserialization error in any field it can handled independently. Also, a
+-- unique type/version identifier of the field (based on the versions of the
+-- packages, full module name space + type identifier) can be serialized along
+-- with the value for stricter compatibility, semantics checking. Or we can
+-- store a type hash.
+
+-- | __Experimental__
+--
+-- In explicit record types, use Latin-1 encoded record field names rather than
+-- binary values to identify the record fields. Note that this option cannot be
+-- used on a sum type. Also, it does not work on a product type which is not a
+-- record, because there are no field names to begin with.
+--
+-- This option enables the following backward compatible behavior:
+--
+-- * __Reordering__: Order of the fields can be changed without affecting
+-- serialization.
+-- * __Addition__: If a 'Maybe' type field is added in the new version, the old
+-- version of the data type can still be deserialized by the new version, the
+-- field value in the older version is assumed to be 'Nothing'. If any other
+-- type of field is added, deserialization of the older version results in an
+-- error but only when that field is accessed in the deserialized record.
+-- * __Deletion__: If a field is deleted in the new version and it is
+-- encountered in a previously serialized version then the field is discarded.
+-- TBD: We can possibly designate a catch-all field to handle this case.
+--
+-- This option has to be the same on both encoding and decoding side.
+--
+-- There is a constant performance overhead proportional to the total length of
+-- the record field names and the number of record fields.
+--
+-- The default is 'False'.
+--
+encodeRecordFields :: Bool -> Config -> Config
+encodeRecordFields v cfg = cfg {cfgRecordSyntaxWithHeader = v}
+
+-- | The default configuration settings are:
+--
+-- * 'inlineSize' 'Inline'
+-- * 'inlineSerialize' 'Inline'
+-- * 'inlineDeserialize' 'Inline'
+--
 defaultConfig :: Config
 defaultConfig =
     Config
-        { inlineSize = Inline
-        , inlineSerialize = Inline
-        , inlineDeserialize = Inline
-        , constructorTagAsString = False
-        , recordSyntaxWithHeader = False
+        { cfgInlineSize = Inline
+        , cfgInlineSerialize = Inline
+        , cfgInlineDeserialize = Inline
+        , cfgConstructorTagAsString = False
+        , cfgRecordSyntaxWithHeader = False
         }
 
 --------------------------------------------------------------------------------

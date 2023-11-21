@@ -45,7 +45,7 @@ import Test.Hspec as H
 
 #ifdef ENABLE_constructorTagAsString
 #define CONF_NAME  "ENABLE_constructorTagAsString"
-#define CONF (Serialize.defaultConfig {Serialize.constructorTagAsString = True})
+#define CONF (Serialize.encodeConstrNames True Serialize.defaultConfig)
 #else
 #define CONF_NAME  "DEFAULT"
 #define CONF Serialize.defaultConfig

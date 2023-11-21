@@ -23,14 +23,14 @@ module Streamly.Internal.Data.IORef.Unboxed
     (
       IORef
 
-    -- * Construction
+    -- Construction
     , newIORef
 
-    -- * Write
+    -- Write
     , writeIORef
     , modifyIORef'
 
-    -- * Read
+    -- Read
     , readIORef
     , toStreamD
     )
