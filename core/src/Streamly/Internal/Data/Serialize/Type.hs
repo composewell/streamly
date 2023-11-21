@@ -61,21 +61,33 @@ import GHC.Exts
 -- Types
 --------------------------------------------------------------------------------
 
--- | A type implementing the 'Serialize' interface supplies operations for
--- reading and writing the type from and to a mutable byte array (an unboxed
--- representation of the type) in memory. The read operation 'deserialize'
--- deserializes the boxed type from the mutable byte array. The write operation
--- 'serialize' serializes the boxed type to the mutable byte array.
+-- | The 'Serialize' type class provides operations for serialization and
+-- deserialization of general Haskell data types to and from their byte stream
+-- representation.
 --
--- IMPORTANT: The serialized data's byte ordering is not normalized, which means
--- it remains the same as the machine's byte order where the function is
--- executed. Consequently, it may not be compatible across machines with
--- different byte ordering.
+-- Unlike 'Unbox', 'Serialize' uses variable length encoding, therefore, it can
+-- serialize recursive and variable length data types like lists, or variable
+-- length sum types where the length of the value may vary depending on a
+-- particular constructor. For variable length data types the length is encoded
+-- along with the data.
 --
--- 'Serialize' contains enough information to serialize and deserialize variable
--- length types.
+-- The 'deserialize' operation reads bytes from the mutable byte array and
+-- builds a Haskell data type from these bytes, the number of bytes it reads
+-- depends on the type and the encoded value it is reading. 'serialize'
+-- operation converts a Haskell data type to its binary representation which
+-- must consist of as many bytes as returned by the @size@ operation on that
+-- value and then stores these bytes into the mutable byte array. The
+-- programmer is expected to use the @size@ operation and allocate an array of
+-- sufficient length before calling 'serialize'.
 --
--- >>> import Streamly.Internal.Data.Serialize.Type (Serialize(..))
+-- IMPORTANT: The serialized data's byte ordering remains the same as the host
+-- machine's byte order. Therefore, it can not be deserialized from host
+-- machines with a different byte ordering.
+--
+-- Instances can be derived via Template Haskell, or written manually.
+--
+-- Here is an example, for deriving an instance of this type class using
+-- template Haskell:
 --
 -- >>> :{
 -- data Object = Object
@@ -84,10 +96,24 @@ import GHC.Exts
 --     }
 -- :}
 --
+-- @
+-- import Streamly.Data.Serialize (deriveSerialize)
+-- \$(deriveSerialize ''Object)
+-- @
+--
+-- See 'Streamly.Data.Serialize.deriveSerialize' and
+-- 'Streamly.Data.Serialize.deriveSerializeWith' for more information on
+-- deriving using Template Haskell.
+--
+-- Here is an example of a manual instance.
+--
+-- >>> import Streamly.Data.Serialize (Serialize(..))
+--
 -- >>> :{
 -- instance Serialize Object where
 --     size acc obj = size (size acc (_obj1 obj)) (_obj2 obj)
 --     deserialize i arr len = do
+--          -- Check the array bounds before reading
 --         (i1, x0) <- deserialize i arr len
 --         (i2, x1) <- deserialize i1 arr len
 --         pure (i2, Object x0 x1)
@@ -104,23 +130,28 @@ class Serialize a where
     -- It is of the form @Int -> a -> Int@ because you can have tail-recursive
     -- traversal of the structures.
 
-    -- | Get the size, in bytes, reqired to store the serialized
-    -- representation of the type. Size cannot be zero.
+    -- | @size accum value@ returns @accum@ incremented by the size of the
+    -- serialized representation of @value@ in bytes. Size cannot be zero. It
+    -- should be at least 1 byte.
     size :: Int -> a -> Int
 
     -- We can implement the following functions without returning the `Int`
     -- offset but that may require traversing the Haskell structure again to get
     -- the size. Therefore, this is a performance optimization.
 
-    -- | @deserialize offset array arrayLen@ deserializes a value from the
-    -- given byte-index in the array. Returns a tuple of the next byte-index
-    -- and the deserialized value.
+    -- | @deserialize byte-offset array arrayLen@ deserializes a value from the
+    -- given byte-offset in the array. Returns a tuple consisting of the next
+    -- byte-offset and the deserialized value.
+    --
+    -- Throws an exception if the operation would exceed the supplied arrayLen.
     deserialize :: Int -> MutableByteArray -> Int -> IO (Int, a)
 
-    -- | Write the serialized representation of the value in the array at the
-    -- given byte-index. Returns the next byte-index. This is an unsafe
-    -- operation, the programmer must ensure that the array has enough space
-    -- available in the array to serialize the value as determined by the
+    -- | @serialize byte-offset array value@ writes the serialized
+    -- representation of the @value@ in the array at the given byte-offset.
+    -- Returns the next byte-offset.
+    --
+    -- This is an unsafe operation, the programmer must ensure that the array
+    -- has enough space available to serialize the value as determined by the
     -- @size@ operation.
     serialize :: Int -> MutableByteArray -> a -> IO Int
 
@@ -303,10 +334,15 @@ encodeAs ps a =
 encode :: Serialize a => a -> Array Word8
 encode = encodeAs Unpinned
 
+-- | Encode a Haskell type to a byte array. The array is allocated using pinned
+-- memory so that it can be used directly in OS APIs for writing to file or
+-- sending over the network.
 {-# INLINE pinnedEncode #-}
 pinnedEncode :: Serialize a => a -> Array Word8
 pinnedEncode = encodeAs Pinned
 
+-- | Decode a Haskell type from its serialized representation in a byte
+-- array.
 {-# INLINE decode #-}
 decode :: Serialize a => Array Word8 -> a
 decode arr@(Array {..}) = unsafeInlineIO $ do

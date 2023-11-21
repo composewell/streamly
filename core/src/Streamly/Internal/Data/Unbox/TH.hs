@@ -430,23 +430,25 @@ deriveUnboxInternal preds headTy cons = do
             ]
     return [InstanceD Nothing preds (AppT (ConT ''Unbox) headTy) methods]
 
--- | Template haskell helper to create instances of 'Unbox' automatically.
+-- | @deriveUnbox dataTypeName@ generates a template Haskell splice consisting
+-- of a declaration of the 'Unbox' instance for the given dataTypeName, all type
+-- parameters of dataTypeName are required to have the 'Unbox' constraint.
 --
--- Consider the datatype:
+-- For example,
+--
 -- @
 -- data CustomDataType a b c = ...
+-- \$(deriveUnbox ''CustomDataType)
 -- @
 --
--- Usage: @$(deriveUnbox ''CustomDataType)@
+-- Generates the following code:
 --
--- Note: All type variables automatcally get an "Unbox" constraint.
--- The derived code will look like the following,
 -- @
 -- instance (Unbox a, Unbox b, Unbox c) => Unbox (CustomDataType a b c) where
 -- ...
 -- @
 --
--- To control which type variables get the Unbox constraint, use
+-- To control which type parameters get the Unbox constraint, use
 -- 'deriveUnboxWith'.
 deriveUnbox :: Name -> Q [Dec]
 deriveUnbox name = do
@@ -465,15 +467,19 @@ deriveUnbox name = do
         ClassP ''Unbox [ty]
 #endif
 
--- | Like 'deriveUnbox' but control which type variables get the 'Unbox'
--- constraint.
+-- | @deriveUnbox dataTypeName@ generates a template Haskell splice consisting
+-- of a declaration of the 'Unbox' instance for the given dataTypeName,
+-- varNames is a list of parameter names of dataTypeName that are required
+-- to have the 'Unbox' constraint.
 --
--- Consider the datatype:
+-- For example,
+--
 -- @
 -- data CustomDataType a b c = ...
+-- \$(deriveUnboxWith ["a", "c"] ''CustomDataType)
 -- @
 --
--- Usage: @$(deriveUnboxWith ["a", "c"] ''CustomDataType)@
+-- Generates the following code:
 --
 -- @
 -- instance (Unbox a, Unbox c) => Unbox (CustomDataType a b c) where

@@ -426,13 +426,18 @@ deriveSerializeInternal conf headTy cons next = do
     let methods = concat [sizeDec, peekDec, pokeDec]
     next methods
 
--- | Similar to 'deriveSerialize' but take a 'Config' to control how the
--- instance is generated.
+-- | @deriveSerializeWith config instance-dec@ generates a template Haskell
+-- splice consisting of a declaration of a 'Serialize' instance. @instance-dec@
+-- is a template Haskell declaration splice consisting of a standard Haskell
+-- instance declaration without the type class methods. The type class methods
+-- for the given instance are generated according to the supplied @config@
+-- parameter.
 --
--- Usage:
+-- For example:
+--
 -- @
--- $(deriveSerializeWith
---       config
+-- \$(deriveSerializeWith
+--       defaultConfig
 --       [d|instance Serialize a => Serialize (Maybe a)|])
 -- @
 deriveSerializeWith :: Config -> Q [Dec] -> Q [Dec]
@@ -478,23 +483,26 @@ deriveSerializeWith conf mDecs = do
         go _ = errorMessage dec
 
 
--- | Template haskell helper to create instances of 'Serialize' automatically.
+-- | @deriveSerialize dataTypeName@ generates a template Haskell splice
+-- consisting of a declaration of the 'Serialize' instance for the given
+-- dataTypeName, all type parameters of dataTypeName are required to have the
+-- 'Serialize' constraint.
 --
--- Consider the datatype:
+-- For example,
+--
 -- @
 -- data CustomDataType a b c = ...
+-- \$(deriveSerialize ''CustomDataType)
 -- @
 --
--- Usage: @$(deriveSerialize ''CustomDataType)@
+-- Generates the following code:
 --
--- Note: All type variables automatcally get an "Serialize" constraint.
--- The derived code will look like the following,
 -- @
 -- instance (Serialize a, Serialize b, Serialize c) => Serialize (CustomDataType a b c) where
 -- ...
 -- @
 --
--- To control which type variables don't get the Serialize constraint, use
+-- To control which type parameters get the Serialize constraint, use
 -- 'deriveSerializeWith'.
 deriveSerialize :: Name -> Q [Dec]
 deriveSerialize name = do

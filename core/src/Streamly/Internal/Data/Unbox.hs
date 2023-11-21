@@ -12,12 +12,17 @@
 -- Portability : GHC
 --
 module Streamly.Internal.Data.Unbox
-    ( Unbox(..)
-    , PinnedState(..)
-    , MutableByteArray(..)
-    , touch
+    (
+    -- ** MutableByteArray
+      MutableByteArray(..)
     , getMutableByteArray#
     , sizeOfMutableByteArray
+    , touch
+    , nil
+    , putSliceUnsafe
+
+    -- ** Allocation
+    , PinnedState(..)
     , isPinned
     , pin
     , unpin
@@ -25,30 +30,29 @@ module Streamly.Internal.Data.Unbox
     , newBytes
     , pinnedNewBytes
     , pinnedNewAlignedBytes
-    , nil
-    , putSliceUnsafe
 
-    -- * Type Parser and Builder
+    -- ** Unbox type class
+    , Unbox(..)
+
+    -- ** Peek and poke utilities
     , BoundedPtr (..)
-
+    -- Peek
     , Peeker (..)
     , read
     , readUnsafe
     , skipByte
     , runPeeker
-
+    -- Poke
     , pokeBoundedPtrUnsafe
     , pokeBoundedPtr
 
-    -- * Generic Unbox instances
-    , genericSizeOf
-    , genericPeekByteIndex
-    , genericPokeByteIndex
-
-    -- Classess used for generic deriving.
+    -- ** Generic Deriving
     , PeekRep(..)
     , PokeRep(..)
     , SizeOfRep(..)
+    , genericSizeOf
+    , genericPeekByteIndex
+    , genericPokeByteIndex
     ) where
 
 #include "MachDeps.h"
@@ -92,6 +96,10 @@ data PinnedState
     | Unpinned
 
 -- XXX can use UnliftedNewtypes
+
+-- | A lifted mutable byte array type wrapping @MutableByteArray# RealWorld@.
+-- This is a low level array used to back high level unboxed arrays and
+-- serialized data.
 data MutableByteArray = MutableByteArray (MutableByteArray# RealWorld)
 
 {-# INLINE getMutableByteArray# #-}
@@ -327,23 +335,37 @@ unpin arr@(MutableByteArray marr#) =
 -- size fields at each nesting level, aggregating the size upwards.
 
 -- | The 'Unbox' type class provides operations for serialization (unboxing)
--- and deserialization (boxing) of a fixed-length, non-recursive Haskell data
--- type to and from its unboxed byte representation in a mutable byte array.
+-- and deserialization (boxing) of fixed-length, non-recursive Haskell data
+-- types to and from their byte stream representation.
+--
 -- Unbox uses fixed size encoding, therefore, size is independent of the value,
--- it can be determined solely by the type. This makes types with 'Unbox'
--- instances suitable for storing in arrays. Note that sum types may have
--- multiple constructors of different sizes, the size of the sum type is
+-- it must be determined solely by the type. This restriction makes types with
+-- 'Unbox' instances suitable for storing in arrays. Note that sum types may
+-- have multiple constructors of different sizes, the size of a sum type is
 -- computed as the maximum required by any constructor.
 --
--- The 'peekByteIndex' read operation converts a Haskell type from its unboxed
--- representation stored in a mutable byte array, while the 'pokeByteIndex'
--- write operation serializes a Haskell data type to its byte representation in
--- the mutable byte array. These operations do not check the bounds of the
--- array, the user of the type class is expected to check the bounds before
--- peeking or poking.
+-- The 'peekByteIndex' operation reads as many bytes from the mutable byte
+-- array as the @size@ of the data type and builds a Haskell data type from
+-- these bytes. 'pokeByteIndex' operation converts a Haskell data type to its
+-- binary representation which consists of @size@ bytes and then stores
+-- these bytes into the mutable byte array. These operations do not check the
+-- bounds of the array, the user of the type class is expected to check the
+-- bounds before peeking or poking.
 --
--- Instances can be derived via Generics or Template Haskell. Note that the
--- data type must be non-recursive.
+-- IMPORTANT: The serialized data's byte ordering remains the same as the host
+-- machine's byte order. Therefore, it can not be deserialized from host
+-- machines with a different byte ordering.
+--
+-- Instances can be derived via Generics, Template Haskell, or written
+-- manually. Note that the data type must be non-recursive. WARNING! Generic
+-- and Template Haskell deriving, both hang for recursive data types. Deriving
+-- via Generics is more convenient but Template Haskell should be preferred
+-- over Generics for the following reasons:
+--
+-- 1. Instances derived via Template Haskell provide better and more reliable
+-- performance.
+-- 2. Generic deriving allows only 256 fields or constructor tags whereas
+-- template Haskell has no limit.
 --
 -- Here is an example, for deriving an instance of this type class using
 -- generics:
@@ -356,27 +378,19 @@ unpin arr@(MutableByteArray marr#) =
 --     } deriving Generic
 -- :}
 --
+-- >>> import Streamly.Data.Serialize (Unbox(..))
+-- >>> instance Unbox Object
+--
 -- To derive the instance via Template Haskell:
 --
 -- @
 -- import Streamly.Data.Serialize (deriveUnbox)
--- $(deriveUnbox ''Object)
+-- \$(deriveUnbox ''Object)
 -- @
 --
 -- See 'Streamly.Data.Serialize.deriveUnbox' and
 -- 'Streamly.Data.Serialize.deriveUnboxWith' for more information on deriving
 -- using Template Haskell.
---
--- Deriving via Template Haskell should be preferred for the following reasons:
--- 1. Instances derived via Template Haskell have more performant routines.
--- 2. Template Haskell deriving can handle (maxBound :: Word64) number of
--- constructors whereas the Generic deriving can only handle 256.
---
--- WARNING! Generic and Template Haskell deriving, both hang for recursive data
--- types.
---
--- >>> import Streamly.Data.Array (Unbox(..))
--- >>> instance Unbox Object
 --
 -- If you want to write the instance manually:
 --
@@ -395,15 +409,15 @@ unpin arr@(MutableByteArray marr#) =
 -- :}
 --
 class Unbox a where
-    -- | Get the size. Size cannot be zero.
+    -- | Get the size. Size cannot be zero, should be at least 1 byte.
     sizeOf :: Proxy a -> Int
 
     {-# INLINE sizeOf #-}
     default sizeOf :: (SizeOfRep (Rep a)) => Proxy a -> Int
     sizeOf = genericSizeOf
 
-    -- | Read an element of type "a" from a MutableByteArray given the byte
-    -- index.
+    -- | @peekByteIndex byte-index array@ reads an element of type @a@ from the
+    -- the given the byte index in the array.
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
@@ -414,8 +428,8 @@ class Unbox a where
          Int -> MutableByteArray -> IO a
     peekByteIndex i arr = genericPeekByteIndex arr i
 
-    -- | Write an element of type "a" to a MutableByteArray given the byte
-    -- index.
+    -- | @pokeByteIndex byte-index array@ writes an element of type @a@ to the
+    -- the given the byte index in the array.
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
