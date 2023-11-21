@@ -159,8 +159,8 @@ mkSizeOfExpr False True (TheType con) = RecHeader.mkRecSizeOfExpr con
 
 mkSizeOfExpr _ _ _ = errorUnimplemented
 
-mkSizeDec :: Config -> Type -> [DataCon] -> Q [Dec]
-mkSizeDec (Config {..}) headTy cons = do
+mkSizeDec :: SerializeConfig -> Type -> [DataCon] -> Q [Dec]
+mkSizeDec (SerializeConfig {..}) headTy cons = do
     -- INLINE on sizeOf actually worsens some benchmarks, and improves none
     sizeOfMethod <-
         mkSizeOfExpr
@@ -268,8 +268,8 @@ mkDeserializeExpr False True _ (TheType con@(SimpleDataCon _ fields)) = do
 
 mkDeserializeExpr _ _ _ _ = errorUnimplemented
 
-mkDeserializeDec :: Config -> Type -> [DataCon] -> Q [Dec]
-mkDeserializeDec (Config {..}) headTy cons = do
+mkDeserializeDec :: SerializeConfig -> Type -> [DataCon] -> Q [Dec]
+mkDeserializeDec (SerializeConfig {..}) headTy cons = do
     peekMethod <-
         mkDeserializeExpr
             cfgConstructorTagAsString
@@ -378,8 +378,8 @@ mkSerializeExpr False True (TheType con) =
 
 mkSerializeExpr _ _ _ = errorUnimplemented
 
-mkSerializeDec :: Config -> Type -> [DataCon] -> Q [Dec]
-mkSerializeDec (Config {..}) headTy cons = do
+mkSerializeDec :: SerializeConfig -> Type -> [DataCon] -> Q [Dec]
+mkSerializeDec (SerializeConfig {..}) headTy cons = do
     pokeMethod <-
         mkSerializeExpr
             cfgConstructorTagAsString
@@ -423,7 +423,7 @@ mkSerializeDec (Config {..}) headTy cons = do
 -- Usage:
 -- @
 -- $(deriveSerializeInternal
---       defaultConfig
+--       serializeConfig
 --       [AppT (ConT ''Serialize) (VarT (mkName "b"))]
 --       (AppT
 --            (AppT (ConT ''CustomDataType) (VarT (mkName "a")))
@@ -438,7 +438,7 @@ mkSerializeDec (Config {..}) headTy cons = do
 --       ])
 -- @
 deriveSerializeInternal ::
-       Config -> Type -> [DataCon] -> ([Dec] -> Q [Dec]) -> Q [Dec]
+       SerializeConfig -> Type -> [DataCon] -> ([Dec] -> Q [Dec]) -> Q [Dec]
 deriveSerializeInternal conf headTy cons next = do
     sizeDec <- mkSizeDec conf headTy cons
     peekDec <- mkDeserializeDec conf headTy cons
@@ -457,10 +457,10 @@ deriveSerializeInternal conf headTy cons next = do
 --
 -- @
 -- \$(deriveSerializeWith
---       defaultConfig
+--       serializeConfig
 --       [d|instance Serialize a => Serialize (Maybe a)|])
 -- @
-deriveSerializeWith :: Config -> Q [Dec] -> Q [Dec]
+deriveSerializeWith :: SerializeConfig -> Q [Dec] -> Q [Dec]
 deriveSerializeWith conf mDecs = do
     dec <- mDecs
     case dec of
@@ -505,7 +505,7 @@ deriveSerializeWith conf mDecs = do
 -- | Given a 'Serialize' instance declaration splice without the methods,
 -- generate a full instance declaration including all the type class methods.
 --
--- >>> deriveSerialize = deriveSerializeWith defaultConfig
+-- >>> deriveSerialize = deriveSerializeWith serializeConfig
 --
 -- Usage:
 --
@@ -514,4 +514,4 @@ deriveSerializeWith conf mDecs = do
 --       [d|instance Serialize a => Serialize (Maybe a)|])
 -- @
 deriveSerialize :: Q [Dec] -> Q [Dec]
-deriveSerialize = deriveSerializeWith defaultConfig
+deriveSerialize = deriveSerializeWith serializeConfig

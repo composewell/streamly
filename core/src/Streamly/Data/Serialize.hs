@@ -53,8 +53,8 @@ module Streamly.Data.Serialize
     , Serialize(..)
 
     -- Deriving instances
-    , Config -- XXX rename to SerializeConfig
-    , defaultConfig -- XXX rename to defaultSerializeConfig
+    , SerializeConfig
+    , serializeConfig
     , inlineSize
     , inlineSerialize
     , inlineDeserialize

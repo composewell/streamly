@@ -172,8 +172,7 @@ $(Serialize.deriveSerialize
     [d|instance Serialize a => Serialize (Complex a)|])
 $(Serialize.deriveSerialize
     [d|instance Serialize a => Serialize (Ratio a)|])
-$(Serialize.deriveSerializeWith
-    Serialize.defaultConfig
+$(Serialize.deriveSerialize
     [d|instance Serialize a => Serialize (Const a b)|])
 $(Serialize.deriveSerialize
     [d|instance Serialize a => Serialize (Identity a)|])
