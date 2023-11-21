@@ -42,7 +42,7 @@ import Streamly.Benchmark.Data.Serialize.RecNonCompatible
 
 #ifdef USE_UNBOX
 #define SERIALIZE_CLASS Unbox
-#define DERIVE_CLASS(typ) $(deriveUnbox ''typ)
+#define DERIVE_CLASS(typ) $(deriveUnbox [d|instance Unbox typ|])
 #define SERIALIZE_OP pokeByteIndex
 #define DESERIALIZE_OP peekByteIndex
 #else
