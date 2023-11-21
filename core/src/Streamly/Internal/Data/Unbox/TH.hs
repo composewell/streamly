@@ -10,13 +10,11 @@
 --
 module Streamly.Internal.Data.Unbox.TH
     ( deriveUnbox
-    , deriveUnboxWith
 
     -- th-helpers
     , DataCon(..)
     , DataType(..)
     , reifyDataType
-    , appsT
     ) where
 
 --------------------------------------------------------------------------------
@@ -68,10 +66,6 @@ tvName = elimTV id (\n _ -> n)
 -- | Get the 'Name' of a 'TyVarBndr'
 tyVarBndrName :: TyVarBndr_ flag -> Name
 tyVarBndrName = tvName
-
-appsT :: Type -> [Type] -> Type
-appsT x [] = x
-appsT x (y:xs) = appsT (AppT x y) xs
 
 -- | Simplified info about a 'DataD'. Omits deriving, strictness,
 -- kind info, and whether it's @data@ or @newtype@.
@@ -397,8 +391,8 @@ mkPokeExpr headTy cons =
 --             [(Nothing, (ConT ''Bool)), (Nothing, (VarT (mkName "b")))]
 --       ])
 -- @
-deriveUnboxInternal :: Cxt -> Type -> [DataCon] -> Q [Dec]
-deriveUnboxInternal preds headTy cons = do
+deriveUnboxInternal :: Type -> [DataCon] -> ([Dec] -> Q [Dec]) -> Q [Dec]
+deriveUnboxInternal headTy cons mkDec = do
     sizeOfMethod <- mkSizeOfExpr headTy cons
     peekMethod <- mkPeekExpr headTy cons
     pokeMethod <- mkPokeExpr headTy cons
@@ -428,77 +422,54 @@ deriveUnboxInternal preds headTy cons = do
                         []
                   ]
             ]
-    return [InstanceD Nothing preds (AppT (ConT ''Unbox) headTy) methods]
+    mkDec methods
 
--- | @deriveUnbox dataTypeName@ generates a template Haskell splice consisting
--- of a declaration of the 'Unbox' instance for the given dataTypeName, all type
--- parameters of dataTypeName are required to have the 'Unbox' constraint.
+-- | Given an 'Unbox' instance declaration splice without the methods,
+-- generate a full instance declaration including all the type class methods.
 --
--- For example,
---
--- @
--- data CustomDataType a b c = ...
--- \$(deriveUnbox ''CustomDataType)
--- @
---
--- Generates the following code:
+-- Usage:
 --
 -- @
--- instance (Unbox a, Unbox b, Unbox c) => Unbox (CustomDataType a b c) where
--- ...
+-- \$(deriveUnbox [d|instance Unbox a => Unbox (Maybe a)|])
 -- @
---
--- To control which type parameters get the Unbox constraint, use
--- 'deriveUnboxWith'.
-deriveUnbox :: Name -> Q [Dec]
-deriveUnbox name = do
-    dt <- reifyDataType name
-    let preds = map (unboxPred . VarT) (dtTvs dt)
-        headTy = appsT (ConT name) (map VarT (dtTvs dt))
-        cons = dtCons dt
-    deriveUnboxInternal preds headTy cons
+deriveUnbox :: Q [Dec] -> Q [Dec]
+deriveUnbox mDecs = do
+    dec <- mDecs
+    case dec of
+        [InstanceD mo preds headTyWC []] -> do
+            let headTy = unwrap dec headTyWC
+            dt <- reifyDataType (getMainTypeName dec headTy)
+            let cons = dtCons dt
+            deriveUnboxInternal headTy cons (mkInst mo preds headTyWC)
+        _ -> errorMessage dec
 
     where
 
-    unboxPred ty =
-#if MIN_VERSION_template_haskell(2,10,0)
-        AppT (ConT ''Unbox) ty
-#else
-        ClassP ''Unbox [ty]
-#endif
+    mkInst mo preds headTyWC methods =
+        pure [InstanceD mo preds headTyWC methods]
 
--- | @deriveUnbox dataTypeName@ generates a template Haskell splice consisting
--- of a declaration of the 'Unbox' instance for the given dataTypeName,
--- varNames is a list of parameter names of dataTypeName that are required
--- to have the 'Unbox' constraint.
---
--- For example,
---
--- @
--- data CustomDataType a b c = ...
--- \$(deriveUnboxWith ["a", "c"] ''CustomDataType)
--- @
---
--- Generates the following code:
---
--- @
--- instance (Unbox a, Unbox c) => Unbox (CustomDataType a b c) where
--- ...
--- @
---
-deriveUnboxWith :: [String] -> Name -> Q [Dec]
-deriveUnboxWith vars name = do
-    dt <- reifyDataType name
-    let preds = map (unboxPred . VarT) (fmap mkName vars)
-        headTy = appsT (ConT name) (map VarT (dtTvs dt))
-        cons = dtCons dt
-    deriveUnboxInternal preds headTy cons
+    errorMessage dec =
+        error $ unlines
+            [ "Error: deriveUnbox:"
+            , ""
+            , ">> " ++ pprint dec
+            , ""
+            , "The supplied declaration not a valid instance declaration."
+            , "Provide a valid Haskell instance declaration without a body."
+            , ""
+            , "Examples:"
+            , "instance Unbox (Proxy a)"
+            , "instance Unbox a => Unbox (Identity a)"
+            , "instance Unbox (TableT Identity)"
+            ]
 
-    where
+    unwrap _ (AppT (ConT _) r) = r
+    unwrap dec _ = errorMessage dec
 
-    unboxPred ty =
-#if MIN_VERSION_template_haskell(2,10,0)
-        AppT (ConT ''Unbox) ty
-#else
-        ClassP ''Unbox [ty]
-#endif
+    getMainTypeName dec = go
+
+        where
+
+        go (ConT nm) = nm
+        go (AppT l _) = go l
+        go _ = errorMessage dec

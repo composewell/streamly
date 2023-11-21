@@ -47,7 +47,6 @@ module Streamly.Data.Serialize
     -- * Unbox
     , Unbox(..)
     , deriveUnbox
-    , deriveUnboxWith
 
     -- * Serialize
     , Serialize(..)
