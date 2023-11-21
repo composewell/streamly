@@ -464,17 +464,16 @@ deriveSerializeWith :: SerializeConfig -> Q [Dec] -> Q [Dec]
 deriveSerializeWith conf mDecs = do
     dec <- mDecs
     case dec of
-        [inst@(InstanceD _ _ headTyWC [])] -> do
+        [InstanceD mo preds headTyWC []] -> do
             let headTy = unwrap dec headTyWC
             dt <- reifyDataType (getMainTypeName dec headTy)
             let cons = dtCons dt
-            deriveSerializeInternal conf headTy cons (next inst)
-        _ -> errorUnsupported (errorMessage dec)
-  where
+            deriveSerializeInternal conf headTy cons (next mo preds headTyWC)
+        _ -> errorMessage dec
 
-    next (InstanceD mo preds headTyWC []) methods =
-        pure [InstanceD mo preds headTyWC methods]
-    next dec _ = errorUnsupported (errorMessage dec)
+    where
+
+    next mo preds headTyWC methods = pure [InstanceD mo preds headTyWC methods]
 
     errorMessage dec =
         error $ unlines
@@ -482,8 +481,8 @@ deriveSerializeWith conf mDecs = do
             , ""
             , ">> " ++ pprint dec
             , ""
-            , "The above is not a valid instance declaration."
-            , "Any haskell instance declaration without a body is valid."
+            , "The supplied declaration is not a valid instance declaration."
+            , "Provide a valid Haskell instance declaration without a body."
             , ""
             , "Examples:"
             , "instance Serialize (Proxy a)"
