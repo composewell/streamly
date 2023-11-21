@@ -18,4 +18,4 @@ import qualified Streamly.Internal.Data.Serialize as Serialize
 --------------------------------------------------------------------------------
 
 $(genLargeRecord "RecNonCompatible" 50)
-$(Serialize.deriveSerialize ''RecNonCompatible)
+$(Serialize.deriveSerialize [d|instance Serialize.Serialize RecNonCompatible|])

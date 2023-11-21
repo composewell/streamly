@@ -36,7 +36,6 @@ import Streamly.Internal.Data.Serialize.Type
 import Streamly.Internal.Data.Unbox.TH
     ( DataCon(..)
     , DataType(..)
-    , appsT
     , reifyDataType
     )
 
@@ -454,7 +453,7 @@ deriveSerializeInternal conf headTy cons next = do
 -- for the given instance are generated according to the supplied @config@
 -- parameter.
 --
--- For example:
+-- Usage:
 --
 -- @
 -- \$(deriveSerializeWith
@@ -503,40 +502,16 @@ deriveSerializeWith conf mDecs = do
         go (AppT l _) = go l
         go _ = errorMessage dec
 
-
--- | @deriveSerialize dataTypeName@ generates a template Haskell splice
--- consisting of a declaration of the 'Serialize' instance for the given
--- dataTypeName, all type parameters of dataTypeName are required to have the
--- 'Serialize' constraint.
+-- | Given a 'Serialize' instance declaration splice without the methods,
+-- generate a full instance declaration including all the type class methods.
 --
--- For example,
+-- >>> deriveSerialize = deriveSerializeWith defaultConfig
 --
--- @
--- data CustomDataType a b c = ...
--- \$(deriveSerialize ''CustomDataType)
--- @
---
--- Generates the following code:
+-- Usage:
 --
 -- @
--- instance (Serialize a, Serialize b, Serialize c) => Serialize (CustomDataType a b c) where
--- ...
+-- \$(deriveSerialize
+--       [d|instance Serialize a => Serialize (Maybe a)|])
 -- @
---
--- To control which type parameters get the Serialize constraint, use
--- 'deriveSerializeWith'.
-deriveSerialize :: Name -> Q [Dec]
-deriveSerialize name = do
-    dt <- reifyDataType name
-    let preds = map (unboxPred . VarT) (dtTvs dt)
-        headTy = appsT (ConT name) (map VarT (dtTvs dt))
-        cons = dtCons dt
-    deriveSerializeInternal defaultConfig headTy cons (next preds headTy)
-
-
-    where
-
-    next preds headTy methods =
-        pure [InstanceD Nothing preds (AppT (ConT ''Serialize) headTy) methods]
-
-    unboxPred ty = AppT (ConT ''Serialize) ty
+deriveSerialize :: Q [Dec] -> Q [Dec]
+deriveSerialize = deriveSerializeWith defaultConfig
