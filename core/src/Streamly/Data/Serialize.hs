@@ -51,14 +51,20 @@ module Streamly.Data.Serialize
 
     -- * Serialize
     , Serialize(..)
-    -- XXX Need to export the config setters as well.
-    , defaultConfig
+
+    -- Deriving instances
+    , Config -- XXX rename to SerializeConfig
+    , defaultConfig -- XXX rename to defaultSerializeConfig
+    , inlineSize
+    , inlineSerialize
+    , inlineDeserialize
+
     , deriveSerialize
     , deriveSerializeWith
 
+    -- Encoding and Decoding
     -- , encode
     , pinnedEncode
-
     , decode
     ) where
 

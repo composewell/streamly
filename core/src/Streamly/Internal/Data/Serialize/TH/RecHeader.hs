@@ -9,9 +9,9 @@
 -- Portability : GHC
 --
 module Streamly.Internal.Data.Serialize.TH.RecHeader
-    ( mkSerializeExpr
-    , mkDeserializeExpr
-    , mkSizeOfExpr
+    ( mkRecSerializeExpr
+    , mkRecDeserializeExpr
+    , mkRecSizeOfExpr
     , conUpdateFuncDec
     , mkDeserializeKeysDec
     ) where
@@ -171,8 +171,8 @@ sizeOfHeader (SimpleDataCon _ fields) =
     sizeForNumFields = 1 -- At max 255 fields in the record constructor
     sizeForFieldLen = 1  -- At max 255 letters in the key
 
-mkSizeOfExpr :: SimpleDataCon -> Q Exp
-mkSizeOfExpr con = do
+mkRecSizeOfExpr :: SimpleDataCon -> Q Exp
+mkRecSizeOfExpr con = do
     n_acc <- newName "acc"
     n_x <- newName "x"
     (lamE
@@ -231,8 +231,8 @@ serializeWithSize off arr val = do
     Unbox.pokeByteIndex off arr (int_w32 (off1 - off - 4) :: Word32)
     pure off1
 
-mkSerializeExpr :: Name -> SimpleDataCon -> Q Exp
-mkSerializeExpr initialOffset (con@(SimpleDataCon cname fields)) = do
+mkRecSerializeExpr :: Name -> SimpleDataCon -> Q Exp
+mkRecSerializeExpr initialOffset (con@(SimpleDataCon cname fields)) = do
     afterHLen <- newName "afterHLen"
     -- Encoding the header length is required.
     -- We first compare the header length encoded and the current header
@@ -383,8 +383,8 @@ mkDeserializeKeysDec funcName updateFunc (SimpleDataCon cname fields) = do
             else [|error $(litE (StringL (nameBase k ++ " is not found.")))|]
 
 
-mkDeserializeExpr :: Name -> Name -> Name -> SimpleDataCon -> Q Exp
-mkDeserializeExpr initialOff endOff deserializeWithKeys con = do
+mkRecDeserializeExpr :: Name -> Name -> Name -> SimpleDataCon -> Q Exp
+mkRecDeserializeExpr initialOff endOff deserializeWithKeys con = do
     hOff <- newName "hOff"
     let  sizeForFinalOff = 4     -- Word32
          sizeForHeaderLength = 4 -- Word32
