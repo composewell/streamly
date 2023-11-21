@@ -41,7 +41,7 @@ import Test.Hspec as H
 #ifdef USE_SERIALIZE
 
 #define MODULE_NAME "Data.Serialize.Deriving.TH"
-#define DERIVE_UNBOX(typ) $(Serialize.deriveSerialize ''typ)
+#define DERIVE_UNBOX(typ) $(Serialize.deriveSerialize [d|instance Serialize typ|])
 #define PEEK(i, arr, sz) (deserialize i arr sz)
 #define POKE(i, arr, val) (serialize i arr val)
 #define TYPE_CLASS Serialize
@@ -168,12 +168,15 @@ DERIVE_UNBOX(NestedSOP)
 deriving instance Generic (Ratio Int)
 
 #if defined(USE_SERIALIZE)
-$(Serialize.deriveSerialize ''Complex)
-$(Serialize.deriveSerialize ''Ratio)
+$(Serialize.deriveSerialize
+    [d|instance Serialize a => Serialize (Complex a)|])
+$(Serialize.deriveSerialize
+    [d|instance Serialize a => Serialize (Ratio a)|])
 $(Serialize.deriveSerializeWith
-      Serialize.defaultConfig
-      [d|instance Serialize a => Serialize (Const a b)|])
-$(Serialize.deriveSerialize ''Identity)
+    Serialize.defaultConfig
+    [d|instance Serialize a => Serialize (Const a b)|])
+$(Serialize.deriveSerialize
+    [d|instance Serialize a => Serialize (Identity a)|])
 #endif
 
 --------------------------------------------------------------------------------

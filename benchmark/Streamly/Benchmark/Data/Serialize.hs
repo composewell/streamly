@@ -42,12 +42,12 @@ import Streamly.Benchmark.Data.Serialize.RecNonCompatible
 
 #ifdef USE_UNBOX
 #define SERIALIZE_CLASS Unbox
-#define DERIVE_CLASS deriveUnbox
+#define DERIVE_CLASS(typ) $(deriveUnbox ''typ)
 #define SERIALIZE_OP pokeByteIndex
 #define DESERIALIZE_OP peekByteIndex
 #else
 #define SERIALIZE_CLASS Serialize
-#define DERIVE_CLASS deriveSerialize
+#define DERIVE_CLASS(typ) $(deriveSerialize [d|instance Serialize typ|])
 #define SERIALIZE_OP serialize
 #define DESERIALIZE_OP deserialize
 #endif
@@ -62,7 +62,7 @@ data Unit = Unit
 #ifndef USE_TH
 instance SERIALIZE_CLASS Unit
 #else
-$(DERIVE_CLASS ''Unit)
+DERIVE_CLASS(Unit)
 #endif
 
 instance NFData Unit where
@@ -77,7 +77,7 @@ data Sum2
 #ifndef USE_TH
 instance SERIALIZE_CLASS Sum2
 #else
-$(DERIVE_CLASS ''Sum2)
+DERIVE_CLASS(Sum2)
 #endif
 
 instance NFData Sum2 where
@@ -115,7 +115,7 @@ data Sum25
 #ifndef USE_TH
 instance SERIALIZE_CLASS Sum25
 #else
-$(DERIVE_CLASS ''Sum25)
+DERIVE_CLASS(Sum25)
 #endif
 
 instance NFData Sum25 where
@@ -154,7 +154,7 @@ data Product25
 #ifndef USE_TH
 instance SERIALIZE_CLASS Product25
 #else
-$(DERIVE_CLASS ''Product25)
+DERIVE_CLASS(Product25)
 #endif
 
 instance NFData Product25 where
@@ -234,7 +234,7 @@ data CustomDT1
 #ifndef USE_TH
 instance SERIALIZE_CLASS CustomDT1
 #else
-$(DERIVE_CLASS ''CustomDT1)
+DERIVE_CLASS(CustomDT1)
 #endif
 
 instance NFData CustomDT1 where
@@ -257,7 +257,7 @@ data BinTree a
 #ifndef USE_TH
 instance Serialize (BinTree a)
 #else
-$(deriveSerialize ''BinTree)
+$(deriveSerialize [d|instance Serialize a => Serialize (BinTree a)|])
 #endif
 
 instance NFData a => NFData (BinTree a) where
