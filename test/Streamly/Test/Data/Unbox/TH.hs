@@ -62,10 +62,11 @@ data CustomDataType4 a b
     | CDT4Constructor3 Bool b
     deriving (Show, Eq)
 
-$(deriveUnbox ''CustomDataType1)
-$(deriveUnbox ''CustomDataType2)
-$(deriveUnbox ''CustomDataType3)
-$(deriveUnboxWith ["b"] ''CustomDataType4)
+$(deriveUnbox [d|instance Unbox CustomDataType1|])
+$(deriveUnbox [d|instance Unbox CustomDataType2|])
+$(deriveUnbox
+    [d|instance (Unbox a, Unbox b, Unbox c) => Unbox (CustomDataType3 a b c)|])
+$(deriveUnbox [d|instance Unbox b => Unbox (CustomDataType4 a b)|])
 
 --------------------------------------------------------------------------------
 -- CPP helpers
