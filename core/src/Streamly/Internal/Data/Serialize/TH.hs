@@ -449,9 +449,9 @@ deriveSerializeInternal conf headTy cons next = do
 -- | @deriveSerializeWith config instance-dec@ generates a template Haskell
 -- splice consisting of a declaration of a 'Serialize' instance. @instance-dec@
 -- is a template Haskell declaration splice consisting of a standard Haskell
--- instance declaration without the type class methods. The type class methods
--- for the given instance are generated according to the supplied @config@
--- parameter.
+-- instance declaration without the type class methods (e.g. @[d|instance
+-- Serialize a => Serialize (Maybe a)|]@). The type class methods for the given
+-- instance are generated according to the supplied @config@ parameter.
 --
 -- Usage:
 --
@@ -501,8 +501,9 @@ deriveSerializeWith conf mDecs = do
         go (AppT l _) = go l
         go _ = errorMessage dec
 
--- | Given a 'Serialize' instance declaration splice without the methods,
--- generate a full instance declaration including all the type class methods.
+-- | Given an 'Serialize' instance declaration splice without the methods (e.g.
+-- @[d|instance Serialize a => Serialize (Maybe a)|]@), generate an instance
+-- declaration including all the type class method implementations.
 --
 -- >>> deriveSerialize = deriveSerializeWith serializeConfig
 --

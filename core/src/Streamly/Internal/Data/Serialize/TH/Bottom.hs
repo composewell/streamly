@@ -185,8 +185,8 @@ encodeRecordFields v cfg = cfg {cfgRecordSyntaxWithHeader = v}
 -- | The default configuration settings are:
 --
 -- * 'inlineSize' 'Nothing'
--- * 'inlineSerialize' 'Just Inline'
--- * 'inlineDeserialize' 'Just Inline'
+-- * 'inlineSerialize' (Just Inline)
+-- * 'inlineDeserialize' (Just Inline)
 --
 serializeConfig :: SerializeConfig
 serializeConfig =

@@ -98,7 +98,7 @@ import GHC.Exts
 --
 -- @
 -- import Streamly.Data.Serialize (deriveSerialize)
--- \$(deriveSerialize ''Object)
+-- \$(deriveSerialize [d|instance Serialize Object|])
 -- @
 --
 -- See 'Streamly.Data.Serialize.deriveSerialize' and

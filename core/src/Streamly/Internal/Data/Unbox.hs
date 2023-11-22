@@ -385,11 +385,10 @@ unpin arr@(MutableByteArray marr#) =
 --
 -- @
 -- import Streamly.Data.Serialize (deriveUnbox)
--- \$(deriveUnbox ''Object)
+-- \$(deriveUnbox [d|instance Unbox Object|])
 -- @
 --
--- See 'Streamly.Data.Serialize.deriveUnbox' and
--- 'Streamly.Data.Serialize.deriveUnboxWith' for more information on deriving
+-- See 'Streamly.Data.Serialize.deriveUnbox' for more information on deriving
 -- using Template Haskell.
 --
 -- If you want to write the instance manually:

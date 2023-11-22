@@ -425,8 +425,9 @@ deriveUnboxInternal headTy cons mkDec = do
             ]
     mkDec methods
 
--- | Given an 'Unbox' instance declaration splice without the methods,
--- generate a full instance declaration including all the type class methods.
+-- | Given an 'Unbox' instance declaration splice without the methods (e.g.
+-- @[d|instance Unbox a => Unbox (Maybe a)|]@), generate an instance
+-- declaration including all the type class method implementations.
 --
 -- Usage:
 --
