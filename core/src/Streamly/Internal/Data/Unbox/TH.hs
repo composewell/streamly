@@ -23,6 +23,7 @@ module Streamly.Internal.Data.Unbox.TH
 
 import Data.Word (Word16, Word32, Word64, Word8)
 import Data.Proxy (Proxy(..))
+import Data.List (elemIndex)
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
@@ -438,12 +439,30 @@ deriveUnbox mDecs = do
     case dec of
         [InstanceD mo preds headTyWC []] -> do
             let headTy = unwrap dec headTyWC
-            dt <- reifyDataType (getMainTypeName dec headTy)
-            let cons = dtCons dt
+                (mainTyName, subs) = getMainTypeName dec headTy
+            dt <- reifyDataType mainTyName
+            let tyVars = dtTvs dt
+                mapper = mapperWith (VarT <$> tyVars) subs
+                cons = map (modifyConVariables mapper) (dtCons dt)
             deriveUnboxInternal headTy cons (mkInst mo preds headTyWC)
         _ -> errorMessage dec
 
     where
+
+    mapperWith l1 l2 a =
+        case elemIndex a l1 of
+            Nothing -> a
+            -- XXX Capture this case and give a relavant error.
+            Just i -> l2 !! i
+
+    mapType f (AppT t1 t2) = AppT (mapType f t1) (mapType f t2)
+    mapType f (InfixT t1 n t2) = InfixT (mapType f t1) n (mapType f t2)
+    mapType f (UInfixT t1 n t2) = UInfixT (mapType f t1) n (mapType f t2)
+    mapType f (ParensT t) = ParensT (mapType f t)
+    mapType f v = f v
+
+    modifyConVariables f con =
+        con { dcFields = map (\(a, b) -> (a, mapType f b)) (dcFields con) }
 
     mkInst mo preds headTyWC methods =
         pure [InstanceD mo preds headTyWC methods]
@@ -466,10 +485,10 @@ deriveUnbox mDecs = do
     unwrap _ (AppT (ConT _) r) = r
     unwrap dec _ = errorMessage dec
 
-    getMainTypeName dec = go
+    getMainTypeName dec = go []
 
         where
 
-        go (ConT nm) = nm
-        go (AppT l _) = go l
-        go _ = errorMessage dec
+        go xs (ConT nm) = (nm, xs)
+        go xs (AppT l r) = go (r:xs) l
+        go _ _ = errorMessage dec
