@@ -96,7 +96,6 @@ extra-source-files:
 
     -- This is duplicated
     src/Streamly/Internal/Data/Stream/Instances.hs
-    src/Streamly/Internal/Data/Array/ArrayMacros.h
 
     src/Streamly/Internal/FileSystem/Event/Darwin.h
     src/assert.hs
@@ -356,7 +355,6 @@ library
     include-dirs:
           src
         , src/Streamly/Internal/Data/Stream
-        , src/Streamly/Internal/Data/Array
 
     hs-source-dirs:    src
     exposed-modules:
@@ -380,7 +378,6 @@ library
                      , Streamly.Internal.Data.Fold.Concurrent.Channel.Type
                      , Streamly.Internal.Data.Fold.Concurrent.Channel
                      , Streamly.Internal.Data.Fold.Concurrent
-                     , Streamly.Data.Fold.Tee
 
                      , Streamly.Internal.Data.Stream.Concurrent.Channel.Type
                      , Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
@@ -412,10 +409,8 @@ library
                      , Streamly.Network.Inet.TCP
 
                      -- Deprecated
-                     , Streamly
-                     , Streamly.Data.Unicode.Stream
-                     , Streamly.Memory.Array
                      , Streamly.Data.Array.Foreign
+                     , Streamly.Data.Fold.Tee
                      , Streamly.Prelude
 
                      -- Deprecated Internal modules
