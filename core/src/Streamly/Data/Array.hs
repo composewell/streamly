@@ -73,10 +73,6 @@ module Streamly.Data.Array
     , pin
     , unpin
     , isPinned
-
-    -- * Deprecated
-    , read
-    , readRev
     )
 where
 
@@ -84,7 +80,6 @@ where
 
 import Streamly.Internal.Data.Array hiding (read, readRev)
 import Streamly.Internal.Data.Unbox (Unbox (..))
-import Streamly.Internal.Data.Unfold (Unfold)
 
 import Prelude hiding (read, length)
 
@@ -150,17 +145,3 @@ import Prelude hiding (read, length)
 -- This module is designed to be imported qualified:
 --
 -- >>> import qualified Streamly.Data.Array as Array
-
--- | Same as 'reader'
---
-{-# DEPRECATED read "Please use 'reader' instead" #-}
-{-# INLINE_NORMAL read #-}
-read :: (Monad m, Unbox a) => Unfold m (Array a) a
-read = reader
-
--- | Same as 'readerRev'
---
-{-# DEPRECATED readRev "Please use 'readerRev' instead" #-}
-{-# INLINE_NORMAL readRev #-}
-readRev :: (Monad m, Unbox a) => Unfold m (Array a) a
-readRev = readerRev

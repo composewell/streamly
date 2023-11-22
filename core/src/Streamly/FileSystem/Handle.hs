@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-#include "inline.hs"
 
 -- |
 -- Module      : Streamly.FileSystem.Handle
@@ -105,36 +104,13 @@ module Streamly.FileSystem.Handle
     , writeChunks
 
      -- * Deprecated
-    , read
     , readWithBufferOf
-    , readChunks
     , readChunksWithBufferOf
     , writeChunksWithBufferOf
     , writeWithBufferOf
     )
 where
 
-import Control.Monad.IO.Class (MonadIO(..))
-import Data.Word (Word8)
-import Streamly.Internal.Data.Array.Type (Array)
-import Streamly.Internal.Data.Unfold.Type (Unfold)
-import System.IO (Handle)
-
-import Streamly.Internal.FileSystem.Handle hiding (read, readChunks)
-import Prelude hiding (read)
+import Streamly.Internal.FileSystem.Handle
 
 #include "DocTestFileSystemHandle.hs"
-
--- | Same as 'reader'
---
-{-# DEPRECATED read "Please use 'reader' instead" #-}
-{-# INLINE read #-}
-read :: MonadIO m => Unfold m Handle Word8
-read = reader
-
--- | Same as 'chunkReader'
---
-{-# DEPRECATED readChunks "Please use 'chunkReader' instead" #-}
-{-# INLINE readChunks #-}
-readChunks :: MonadIO m => Unfold m Handle (Array Word8)
-readChunks = chunkReader
