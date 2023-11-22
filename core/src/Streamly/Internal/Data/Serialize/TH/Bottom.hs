@@ -74,6 +74,12 @@ import Streamly.Internal.Data.Unbox.TH (DataCon(..))
 -- Config
 --------------------------------------------------------------------------------
 
+-- NOTE: 'Nothing' is not eqvivalant to 'Just Inlinable'. Ie. Having no inline
+-- specific pragma and having an Inlinable pragma are different. Having an
+-- Inlinable pragma makes GHC put the code in the interface file whereas having
+-- no inline specific pragma let's GHC decide whether to put the code in
+-- interface file or not.
+
 -- | Configuration to control how the 'Serialize' instance is generated. Use
 -- 'defaultConfig' and config setter functions to generate desired Config. For
 -- example:
