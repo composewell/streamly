@@ -461,7 +461,8 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
     parseCont !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
     parseCont !cnt !pst None = parseContNothing cnt pst
 
--- | Convert a raw byte 'Parser' to a chunked 'ParserK'.
+-- | Convert an element 'Parser' to a chunked 'ParserK'. A chunked parser is
+-- more efficient than an element parser.
 --
 -- /Pre-release/
 --
@@ -563,7 +564,9 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
     parseCont !cnt !pst (Chunk arr) = parseContChunk cnt pst arr
     parseCont !cnt !pst None = parseContNothing cnt pst
 
--- | Similar to "adaptC" but for non-chunked input.
+-- | Convert a 'Parser' to 'ParserK'.
+--
+-- /Pre-release/
 --
 {-# INLINE_LATE adapt #-}
 adapt :: Monad m => ParserD.Parser a m b -> ParserK a m b
@@ -691,7 +694,10 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
     parseCont !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
     parseCont !cnt !pst None = parseContNothing cnt pst
 
--- | Similar to "adaptC" but is not constrained.
+-- | A generic 'adaptC'. Similar to 'adaptC' but is not constrained to 'Unbox'
+-- types.
+--
+-- /Pre-release/
 --
 {-# INLINE_LATE adaptCG #-}
 adaptCG ::

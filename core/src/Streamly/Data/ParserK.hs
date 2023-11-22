@@ -108,7 +108,9 @@ module Streamly.Data.ParserK
 
     -- * Parsers
     -- ** Conversions
+    , adapt
     , adaptC
+    , adaptCG
     -- , toParser
 
     -- ** Without Input
