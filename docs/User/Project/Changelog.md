@@ -2,7 +2,7 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
-## Unreleased
+## 0.10.0 (Nov 2023)
 
 This changelog lists only the changes of the higher level `streamly`
 package.  For changes to the core functionality please see the changelog

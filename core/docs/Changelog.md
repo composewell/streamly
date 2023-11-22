@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (Nov 2023)
 
 ### Breaking
 
@@ -15,6 +15,7 @@
   `Streamly.Data.MutArray.Generic`.
 
 ### Internal Changes
+
 * Fold constructor has changed, added a `final` field to support
   finalization and cleanup of a chain of folds. The `extract` field is
   now used only for mapping the fold internal state to fold result for
