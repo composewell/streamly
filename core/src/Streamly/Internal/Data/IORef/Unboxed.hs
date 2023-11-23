@@ -32,7 +32,7 @@ module Streamly.Internal.Data.IORef.Unboxed
 
     -- Read
     , readIORef
-    , toStreamD
+    , pollIntIORef
     )
 where
 
@@ -87,10 +87,16 @@ modifyIORef' var g = do
 
 -- | Generate a stream by continuously reading the IORef.
 --
+-- This operation reads the IORef without any synchronization. It can be
+-- assumed to be atomic because the IORef (MutableByteArray) is always aligned
+-- to Int boundaries, we are assuming that compiler uses single instructions to
+-- access the memory. It may read stale values though until caches are
+-- synchronised in a multiprocessor architecture.
+--
 -- /Pre-release/
-{-# INLINE_NORMAL toStreamD #-}
-toStreamD :: (MonadIO m, Unbox a) => IORef a -> D.Stream m a
-toStreamD var = D.Stream step ()
+{-# INLINE_NORMAL pollIntIORef #-}
+pollIntIORef :: (MonadIO m, Unbox a) => IORef a -> D.Stream m a
+pollIntIORef var = D.Stream step ()
 
     where
 

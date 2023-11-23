@@ -106,7 +106,7 @@ import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
 import Streamly.Data.Serialize (Unbox)
 
 import qualified Streamly.Internal.Data.MutArray as Unboxed
-    (toStreamD, IORef)
+    (pollIntIORef, IORef)
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
@@ -637,4 +637,4 @@ fromCallback setCallback = concatM $ do
 --
 {-# INLINE fromPrimIORef #-}
 fromPrimIORef :: (IsStream t, MonadIO m, Unbox a) => Unboxed.IORef a -> t m a
-fromPrimIORef = fromStreamD . Unboxed.toStreamD
+fromPrimIORef = fromStreamD . Unboxed.pollIntIORef

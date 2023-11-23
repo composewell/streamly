@@ -780,7 +780,7 @@ parTapCount predicate fld (D.Stream step state) = D.Stream step' Nothing
         countVar <- liftIO $ Unboxed.newIORef (0 :: Int)
         tid <- forkManaged
             $ void $ fld
-            $ Unboxed.toStreamD countVar
+            $ Unboxed.pollIntIORef countVar
         return $ Skip (Just (countVar, tid, state))
 
     step' gst (Just (countVar, tid, st)) = do
