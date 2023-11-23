@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.MutChunked
+-- Module      : Streamly.Internal.Data.MutArray.Stream
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Combinators to efficiently manipulate streams of mutable arrays.
 --
-module Streamly.Internal.Data.Stream.MutChunked
+module Streamly.Internal.Data.MutArray.Stream
     (
     -- * Generation
       chunksOf

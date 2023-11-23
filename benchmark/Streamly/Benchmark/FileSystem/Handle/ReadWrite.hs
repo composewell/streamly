@@ -42,7 +42,7 @@ import Streamly.Internal.Data.Stream (Step(..))
 
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.Stream.MutChunked as MAS
+import qualified Streamly.Internal.Data.MutArray.Stream as MAS
 import qualified Streamly.Internal.Data.Array as AT
 
 import Test.Inspection

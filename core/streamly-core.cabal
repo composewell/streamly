@@ -321,7 +321,7 @@ library
                      -- streamly-core-data-arrays
                      , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.Stream.MutChunked
+                     , Streamly.Internal.Data.MutArray.Stream
 
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream
