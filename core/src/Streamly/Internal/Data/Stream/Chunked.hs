@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Chunked
 -- Copyright   : (c) 2019 Composewell Technologies

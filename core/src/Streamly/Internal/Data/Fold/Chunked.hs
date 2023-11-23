@@ -6,7 +6,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Use "Streamly.Data.Parser.Chunked" instead.
+-- Use "Streamly.Data.Parser" instead.
 --
 -- Fold a stream of foreign arrays.  @Fold m a b@ in this module works
 -- on a stream of "Array a" and produces an output of type @b@.
@@ -19,18 +19,19 @@
 -- folds in Data.Fold to correctly work on an array stream as if it is an
 -- element stream. For example:
 --
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Stream.Chunked as ArrayStream
--- >>> import qualified Streamly.Internal.Data.Fold.Chunked as ChunkFold
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Data.StreamK as StreamK
+-- >> import qualified Streamly.Data.Fold as Fold
+-- >> import qualified Streamly.Internal.Data.Array.Stream as ArrayStream
+-- >> import qualified Streamly.Internal.Data.Fold.Chunked as ChunkFold
+-- >> import qualified Streamly.Data.Stream as Stream
+-- >> import qualified Streamly.Data.StreamK as StreamK
 --
--- >>> f = ChunkFold.fromFold (Fold.take 7 Fold.toList)
--- >>> s = Stream.chunksOf 5 $ Stream.fromList "hello world"
--- >>> ArrayStream.runArrayFold f (StreamK.fromStream s)
+-- >> f = ChunkFold.fromFold (Fold.take 7 Fold.toList)
+-- >> s = Stream.chunksOf 5 $ Stream.fromList "hello world"
+-- >> ArrayStream.runArrayFold f (StreamK.fromStream s)
 -- Right "hello w"
 --
 module Streamly.Internal.Data.Fold.Chunked
+    {-# DEPRECATED "Please use Streamly.Data.Parser instead." #-}
     (
       ChunkFold (..)
 
