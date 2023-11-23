@@ -795,8 +795,7 @@ parTapCount predicate fld (D.Stream step state) = D.Stream step' Nothing
                 liftIO $ killThread tid
                 return Stop
 
--- Deprecate in a major release.
--- {-# DEPRECATED tapCount "Please use parTapCount instead." #-}
+{-# DEPRECATED tapCount "Please use parTapCount instead." #-}
 -- | Same as 'parTapCount'. Deprecated.
 {-# INLINE tapCount #-}
 tapCount ::
