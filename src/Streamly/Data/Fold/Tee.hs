@@ -13,4 +13,4 @@ module Streamly.Data.Fold.Tee
     )
 where
 
-import Streamly.Internal.Data.Fold.Tee
+import Streamly.Internal.Data.Fold
