@@ -17,9 +17,9 @@ module Streamly.Internal.Data.Unbox
       MutableByteArray(..)
     , getMutableByteArray#
     , sizeOfMutableByteArray
-    , touch
     , nil
     , putSliceUnsafe
+    , asPtrUnsafe
 
     -- ** Allocation
     , PinnedState(..)
@@ -106,11 +106,6 @@ data MutableByteArray = MutableByteArray (MutableByteArray# RealWorld)
 getMutableByteArray# :: MutableByteArray -> MutableByteArray# RealWorld
 getMutableByteArray# (MutableByteArray mbarr) = mbarr
 
-{-# INLINE touch #-}
-touch :: MutableByteArray -> IO ()
-touch (MutableByteArray contents) =
-    IO $ \s -> case touch# contents s of s' -> (# s', () #)
-
 -- | Return the size of the array in bytes.
 {-# INLINE sizeOfMutableByteArray #-}
 sizeOfMutableByteArray :: MutableByteArray -> IO Int
@@ -118,6 +113,49 @@ sizeOfMutableByteArray (MutableByteArray arr) =
     IO $ \s ->
         case getSizeofMutableByteArray# arr s of
             (# s1, i #) -> (# s1, I# i #)
+
+{-# INLINE touch #-}
+touch :: MutableByteArray -> IO ()
+touch (MutableByteArray contents) =
+    IO $ \s -> case touch# contents s of s' -> (# s', () #)
+
+-- XXX We can provide another API for "unsafe" FFI calls passing an unlifted
+-- pointer to the FFI call. For unsafe calls we do not need to pin the array.
+-- We can pass an unlifted pointer to the FFI routine to avoid GC kicking in
+-- before the pointer is wrapped.
+--
+-- From the GHC manual:
+--
+-- GHC, since version 8.4, guarantees that garbage collection will never occur
+-- during an unsafe call, even in the bytecode interpreter, and further
+-- guarantees that unsafe calls will be performed in the calling thread. Making
+-- it safe to pass heap-allocated objects to unsafe functions.
+
+-- | Use a @MutableByteArray@ as @Ptr a@. This is useful when we want to pass
+-- an array as a pointer to some operating system call or to a "safe" FFI call.
+--
+-- If the array is not pinned it is copied to pinned memory before passing it
+-- to the monadic action.
+--
+-- /Performance Notes:/ Forces a copy if the array is not pinned. It is advised
+-- that the programmer keeps this in mind and creates a pinned array
+-- opportunistically before this operation occurs, to avoid the cost of a copy
+-- if possible.
+--
+-- /Unsafe/ because of direct pointer operations. The user must ensure that
+-- they are writing within the legal bounds of the array.
+--
+-- /Pre-release/
+--
+{-# INLINE asPtrUnsafe #-}
+asPtrUnsafe :: MonadIO m => MutableByteArray -> (Ptr a -> m b) -> m b
+asPtrUnsafe arr f = do
+  contents <- liftIO $ pin arr
+  let !ptr = Ptr (byteArrayContents#
+                     (unsafeCoerce# (getMutableByteArray# contents)))
+  r <- f ptr
+  liftIO $ touch contents
+  return r
 
 --------------------------------------------------------------------------------
 -- Creation

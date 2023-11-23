@@ -67,7 +67,6 @@ import Data.Bifunctor (first)
 import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.MutArray.Type (touch)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Parser (Initial(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -164,7 +163,6 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
 
         goArray !_ !cur !fs = do
             x <- liftIO $ peekByteIndex cur contents
-            liftIO $ touch contents
             res <- step1 fs x
             let elemSize = SIZE_OF(a)
                 next = INDEX_NEXT(cur,a)

@@ -32,7 +32,6 @@ module Streamly.Internal.Data.MutArray.Type
     -- $arrayNotes
       MutArray (..)
     , MutableByteArray
-    , touch
     , pin
     , unpin
     , isPinned
@@ -244,13 +243,11 @@ import Streamly.Internal.Data.Unbox
     , Unbox(..)
     , PinnedState(..)
     , getMutableByteArray#
-    , touch
     , putSliceUnsafe
     )
 import GHC.Base
     ( IO(..)
     , Int(..)
-    , byteArrayContents#
     , compareByteArrays#
     , copyMutableByteArray#
     )
@@ -2325,13 +2322,12 @@ cast arr =
 -- guarantees that unsafe calls will be performed in the calling thread. Making
 -- it safe to pass heap-allocated objects to unsafe functions.
 
--- Unsafe because of direct pointer operations. The user must ensure that they
--- are writing within the legal bounds of the array. Should we just name it
--- asPtr, the unsafety is implicit for any pointer operations. And we are safe
--- from Haskell perspective because we will be pinning the memory.
+-- Should we just name it asPtr, the unsafety is implicit for any pointer
+-- operations. And we are safe from Haskell perspective because we will be
+-- pinning the memory.
 
--- | Use an @MutArray a@ as @Ptr a@. This is useful when we want to pass an array
--- as a pointer to some operating system call or to a "safe" FFI call.
+-- | Use a @MutArray a@ as @Ptr a@. This is useful when we want to pass an
+-- array as a pointer to some operating system call or to a "safe" FFI call.
 --
 -- If the array is not pinned it is copied to pinned memory before passing it
 -- to the monadic action.
@@ -2341,20 +2337,16 @@ cast arr =
 -- opportunistically before this operation occurs, to avoid the cost of a copy
 -- if possible.
 --
--- /Unsafe/
+-- /Unsafe/ because of direct pointer operations. The user must ensure that
+-- they are writing within the legal bounds of the array.
 --
 -- /Pre-release/
 --
 {-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
-asPtrUnsafe arr f = do
-  contents <- liftIO $ Unboxed.pin $ arrContents arr
-  let !ptr = Ptr (byteArrayContents#
-                     (unsafeCoerce# (getMutableByteArray# contents)))
-
-  r <- f (ptr `plusPtr` arrStart arr)
-  liftIO $ touch contents
-  return r
+asPtrUnsafe arr f =
+    Unboxed.asPtrUnsafe
+        (arrContents arr) (\ptr -> f (ptr `plusPtr` arrStart arr))
 
 -------------------------------------------------------------------------------
 -- Equality
