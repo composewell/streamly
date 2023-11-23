@@ -4,15 +4,16 @@
 
 ### Breaking
 
-* `ParserK` in `Streamly.Data.ParserK` is not specialized to arrays anymore. To
-  adapt to the new code, change `ParserK a m b` to `ParserK (Array a) m b` where
-  `Array` comes from `Streamly.Data.Array`. This change also changed the
-  signatures of `parseChunks` and `parseBreakChunks`.
+* `ParserK` in `Streamly.Data.ParserK` is not implicitly specialized
+  to arrays anymore. To adapt to the new code, change `ParserK a m
+  b` to `ParserK (Array a) m b` where the `Array` type comes from
+  `Streamly.Data.Array`. This change also changed the signatures of
+  `parseChunks` and `parseBreakChunks`.
 * Changed the signature of 'Streamly.Data.Stream.handle' to make the
   exception handler monadic.
-* Rethrow exceptions promptly in `bracketIO`.
 * `getIndex` signature changed in `Streamly.Data.MutArray` and
   `Streamly.Data.MutArray.Generic`.
+* Behavior change: Exceptions are now rethrown promptly in `bracketIO`.
 
 ### Internal Changes
 
