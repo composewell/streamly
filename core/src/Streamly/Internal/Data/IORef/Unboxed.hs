@@ -49,8 +49,8 @@ import Streamly.Internal.Data.Unbox
 
 import qualified Streamly.Internal.Data.Stream.Type as D
 
--- | An 'IORef' holds a single 'Unbox'-able value.
-newtype IORef a = IORef MutableByteArray
+-- | An 'IORef' holds a single 'Unbox'-able value with offset.
+data IORef a = IORef !MutableByteArray !Int
 
 -- | Create a new 'IORef'.
 --
@@ -60,21 +60,21 @@ newIORef :: forall a. Unbox a => a -> IO (IORef a)
 newIORef x = do
     var <- newBytes (sizeOf (Proxy :: Proxy a))
     pokeByteIndex 0 var x
-    return $ IORef var
+    return $ IORef var 0
 
 -- | Write a value to an 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE writeIORef #-}
 writeIORef :: Unbox a => IORef a -> a -> IO ()
-writeIORef (IORef var) = pokeByteIndex 0 var
+writeIORef (IORef var o) = pokeByteIndex o var
 
 -- | Read a value from an 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE readIORef #-}
 readIORef :: Unbox a => IORef a -> IO a
-readIORef (IORef var) = peekByteIndex 0 var
+readIORef (IORef var o) = peekByteIndex o var
 
 -- | Modify the value of an 'IORef' using a function with strict application.
 --
