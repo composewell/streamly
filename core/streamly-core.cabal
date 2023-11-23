@@ -316,12 +316,12 @@ library
 
                      -- streamly-containers (non-base)
                      , Streamly.Internal.Data.Fold
-                     , Streamly.Internal.Data.Stream.Chunked
 
                      -- streamly-core-data-arrays
                      , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.MutArray.Stream
+                     , Streamly.Internal.Data.Array.Stream
 
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream

@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
 -- |
--- Module      : Streamly.Internal.Data.Stream.Chunked
+-- Module      : Streamly.Internal.Data.Array.Stream
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Combinators to efficiently manipulate streams of immutable arrays.
 --
-module Streamly.Internal.Data.Stream.Chunked
+module Streamly.Internal.Data.Array.Stream
     (
     -- * Creation
       chunksOf

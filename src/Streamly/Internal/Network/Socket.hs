@@ -87,7 +87,7 @@ import Prelude hiding (read)
 import qualified Network.Socket as Net
 
 import Streamly.Internal.Data.Array (Array(..))
-import Streamly.Internal.Data.Stream.Chunked (lpackArraysChunksOf)
+import Streamly.Internal.Data.Array.Stream (lpackArraysChunksOf)
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold (Unfold(..))
