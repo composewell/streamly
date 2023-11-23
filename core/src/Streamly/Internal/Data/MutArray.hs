@@ -9,6 +9,8 @@
 module Streamly.Internal.Data.MutArray
     (
       module Streamly.Internal.Data.MutArray.Type
+    -- * Unboxed IORef
+    , module Streamly.Internal.Data.IORef.Unboxed
     , splitOn
     , genSlicesFromLen
     , getSlicesFromLen
@@ -28,6 +30,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Prelude hiding (foldr, length, read, splitAt)
 import Streamly.Internal.Data.MutArray.Type
+import Streamly.Internal.Data.IORef.Unboxed
 
 -- | Split the array into a stream of slices using a predicate. The element
 -- matching the predicate is dropped.

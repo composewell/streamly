@@ -105,7 +105,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
 import Streamly.Internal.Data.Time.Units (AbsTime , RelTime64, addToAbsTime64)
 import Streamly.Data.Serialize (Unbox)
 
-import qualified Streamly.Internal.Data.Serialize as Unboxed
+import qualified Streamly.Internal.Data.MutArray as Unboxed
     (toStreamD, IORef)
 import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
 import qualified Streamly.Internal.Data.Stream.Parallel as Par

@@ -16,8 +16,6 @@ module Streamly.Internal.Data.Serialize
     -- * Unbox
       module Streamly.Internal.Data.Unbox
     , module Streamly.Internal.Data.Unbox.TH
-    -- * Unboxed IORef
-    , module Streamly.Internal.Data.IORef.Unboxed
     -- * Serialize
     , module Streamly.Internal.Data.Serialize.Type
     -- * Serialize TH
@@ -39,7 +37,6 @@ import GHC.Num.Integer (Integer(..))
 import GHC.Integer.GMP.Internals (Integer(..), BigNat(..))
 #endif
 
-import Streamly.Internal.Data.IORef.Unboxed
 import Streamly.Internal.Data.Serialize.TH
 import Streamly.Internal.Data.Serialize.Type
 import Streamly.Internal.Data.Unbox

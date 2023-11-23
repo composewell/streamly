@@ -112,7 +112,7 @@ import Streamly.Internal.Data.Stream.Channel.Types
 import Streamly.Internal.Data.Stream.Channel.Worker (sendWithDoorBell)
 import Streamly.Internal.Data.Stream (Stream, Step(..))
 
-import qualified Streamly.Internal.Data.Serialize as Unboxed
+import qualified Streamly.Internal.Data.MutArray as Unboxed
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
