@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Data.ParserK
 -- Copyright   : (c) 2023 Composewell Technologies
@@ -44,15 +45,6 @@
 --
 -- Monad composition can be used for lookbehind parsers, we can dynamically
 -- compose new parsers based on the results of the previously parsed values.
---
--- >>> :m
--- >>> import Control.Applicative ((<|>))
--- >>> import Data.Char (isDigit, isAlpha)
--- >>> import Streamly.Data.Parser (Parser)
--- >>> import Streamly.Data.ParserK (ParserK)
--- >>> import qualified Streamly.Data.Parser as Parser
--- >>> import qualified Streamly.Data.ParserK as ParserK
--- >>> import qualified Streamly.Internal.Data.ParserK as ParserK (adapt)
 --
 -- If we have to parse "a9" or "9a" but not "99" or "aa" we can use the
 -- following non-monadic, backtracking parser:
