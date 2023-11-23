@@ -48,7 +48,6 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.IORef (newIORef, readIORef, modifyIORef')
 import Streamly.Internal.Data.Fold.Type (Fold)
-import Streamly.Internal.Data.Stream.Common ()
 import Streamly.Internal.Data.Stream.Type (Stream, cross)
 
 import qualified Data.List as List

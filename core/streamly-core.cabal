@@ -304,7 +304,6 @@ library
                      , Streamly.Internal.Data.StreamK
                      -- StreamD depends on streamly-array-types
                      , Streamly.Internal.Data.Stream.StreamD
-                     , Streamly.Internal.Data.Stream.Common
                      , Streamly.Internal.Data.Stream
 
                      -- streamly-core-data

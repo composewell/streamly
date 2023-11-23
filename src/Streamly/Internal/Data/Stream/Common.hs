@@ -30,10 +30,10 @@ where
 
 #include "inline.hs"
 
-import Streamly.Internal.Data.Fold.Type (Fold (..))
+import Streamly.Data.Fold (Fold)
 
-import qualified Streamly.Internal.Data.StreamK.Type as K
-import qualified Streamly.Internal.Data.Stream.Type as D
+import qualified Streamly.Data.StreamK as K
+import qualified Streamly.Internal.Data.Stream as D
 
 import Prelude hiding (Foldable(..), repeat)
 

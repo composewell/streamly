@@ -465,6 +465,7 @@ library
          , Streamly.Data.Stream.Concurrent
          , Streamly.Data.Stream.Time
 
+         , Streamly.Internal.Data.Stream.Common
          , Streamly.Internal.Data.Stream.IsStream.Type
          , Streamly.Internal.Data.Stream.IsStream.Generate
          , Streamly.Internal.Data.Stream.IsStream.Eliminate
