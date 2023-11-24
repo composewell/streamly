@@ -8,14 +8,21 @@
 --
 -- Combinators to efficiently manipulate streams of immutable arrays.
 --
+-- We can either push these in the MutArray module with a "chunks" prefix or
+-- keep this as a separate module and release it.
+--
 module Streamly.Internal.Data.Array.Stream
     (
     -- * Creation
-      chunksOf
+      Array.chunksOf
+    , Array.pinnedChunksOf
+    , Array.bufferChunks
 
     -- * Flattening to elements
     , concat
+    , Array.flattenArrays
     , concatRev
+    , Array.flattenArraysRev
     , interpose
     , interposeSuffix
     , intercalateSuffix
@@ -27,7 +34,7 @@ module Streamly.Internal.Data.Array.Stream
     -- can flatten the stream to byte stream and use that. But if we want the
     -- remaining stream to be a chunk stream then this could be handy. But it
     -- could also be implemented using parseBreak.
-    , foldBreak -- StreamK.foldBreakChunks
+    , foldBreak
     , foldBreakD
     -- The byte level parseBreak cannot work efficiently. Because the stream
     -- will have to be a StreamK for backtracking, StreamK at byte level would
@@ -36,15 +43,17 @@ module Streamly.Internal.Data.Array.Stream
     -- , parseBreakD
     -- , foldManyChunks
     -- , parseManyChunks
+    , K.parseBreakChunks
+    , K.parseChunks
 
     -- ** Array Folds
-    -- XXX Use Parser.Chunked instead, need only chunkedParseBreak,
+    -- XXX Use parseBreakChunks/parseChunks instead
     -- foldBreak can be implemented using parseBreak. Use StreamK.
     , runArrayFold
     , runArrayFoldBreak
     -- , parseArr
-    , runArrayParserDBreak -- StreamK.chunkedParseBreak
-    , runArrayFoldMany     -- StreamK.chunkedParseMany
+    , runArrayParserDBreak -- StreamK.parseBreakChunks
+    , runArrayFoldMany
 
     , toArray
 
@@ -99,21 +108,6 @@ import qualified Streamly.Internal.Data.StreamK as K
 
 -- XXX Since these are immutable arrays MonadIO constraint can be removed from
 -- most places.
-
--------------------------------------------------------------------------------
--- Generation
--------------------------------------------------------------------------------
-
--- | @chunksOf n stream@ groups the elements in the input stream into arrays of
--- @n@ elements each.
---
--- > chunksOf n = Stream.groupsOf n (Array.writeN n)
---
--- /Pre-release/
-{-# INLINE chunksOf #-}
-chunksOf :: (MonadIO m, Unbox a)
-    => Int -> Stream m a -> Stream m (Array a)
-chunksOf = A.chunksOf
 
 -------------------------------------------------------------------------------
 -- Append
