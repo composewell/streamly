@@ -43,11 +43,11 @@ module Streamly.Data.Serialize
 
     -- * MutableByteArray
       MutByteArray
-    -- , isPinned
-    -- , pin
-    -- , unpin
-    -- , newBytes -- XXX rename to newByteArray
-    -- , pinnedNewBytes -- XXX rename to pinnedNewByteArray
+    , isPinned
+    , pin
+    , unpin
+    , newByteArray
+    , pinnedNewByteArray
 
     -- * Unbox
     , Unbox(..)
