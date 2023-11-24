@@ -31,6 +31,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- * Type
     -- $arrayNotes
       MutArray (..)
+    , MutByteArray
     , MutableByteArray
     , pin
     , unpin
@@ -239,7 +240,8 @@ import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Data.Unbox
-    ( MutableByteArray(..)
+    ( MutByteArray(..)
+    , MutableByteArray
     , Unbox(..)
     , PinnedState(..)
     , getMutableByteArray#
@@ -343,7 +345,7 @@ data MutArray a =
     -- The array is a range into arrContents. arrContents may be a superset of
     -- the slice represented by the array. All offsets are in bytes.
     MutArray
-    { arrContents :: {-# UNPACK #-} !MutableByteArray
+    { arrContents :: {-# UNPACK #-} !MutByteArray
     , arrStart :: {-# UNPACK #-} !Int  -- ^ index into arrContents
     , arrEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
                                        -- Represents the first invalid index of
@@ -405,7 +407,7 @@ isPinned MutArray{..} = Unboxed.isPinned arrContents
 -- /Pre-release/
 {-# INLINE newArrayWith #-}
 newArrayWith :: forall m a. (MonadIO m, Unbox a)
-    => (Int -> Int -> m MutableByteArray) -> Int -> Int -> m (MutArray a)
+    => (Int -> Int -> m MutByteArray) -> Int -> Int -> m (MutArray a)
 newArrayWith alloc alignSize count = do
     let size = max (count * SIZE_OF(a)) 0
     contents <- alloc size alignSize
@@ -602,7 +604,7 @@ modify MutArray{..} f = liftIO $
 swapArrayByteIndices ::
        forall a. Unbox a
     => Proxy a
-    -> MutableByteArray
+    -> MutByteArray
     -> Int
     -> Int
     -> IO ()
@@ -744,8 +746,8 @@ reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
         if Unboxed.isPinned arrContents
         then Unboxed.pinnedNewBytes newCapMaxInBytes
         else Unboxed.newBytes newCapMaxInBytes
-    let !(MutableByteArray mbarrFrom#) = arrContents
-        !(MutableByteArray mbarrTo#) = contents
+    let !(MutByteArray mbarrFrom#) = arrContents
+        !(MutByteArray mbarrTo#) = contents
 
     -- Copy old data
     let oldStart = arrStart
@@ -1455,7 +1457,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 -------------------------------------------------------------------------------
 
 data ArrayUnsafe a = ArrayUnsafe
-    {-# UNPACK #-} !MutableByteArray   -- contents
+    {-# UNPACK #-} !MutByteArray   -- contents
     {-# UNPACK #-} !Int                -- index 1
     {-# UNPACK #-} !Int                -- index 2
 

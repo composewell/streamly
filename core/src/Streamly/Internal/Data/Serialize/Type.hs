@@ -28,7 +28,7 @@ import Control.Exception (assert)
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
 import Streamly.Internal.Data.Unbox
-    ( MutableByteArray(..)
+    ( MutByteArray(..)
     , PinnedState(..)
     , Unbox
     )
@@ -144,7 +144,7 @@ class Serialize a where
     -- byte-offset and the deserialized value.
     --
     -- Throws an exception if the operation would exceed the supplied arrayLen.
-    deserialize :: Int -> MutableByteArray -> Int -> IO (Int, a)
+    deserialize :: Int -> MutByteArray -> Int -> IO (Int, a)
 
     -- | @serialize byte-offset array value@ writes the serialized
     -- representation of the @value@ in the array at the given byte-offset.
@@ -153,7 +153,7 @@ class Serialize a where
     -- This is an unsafe operation, the programmer must ensure that the array
     -- has enough space available to serialize the value as determined by the
     -- @size@ operation.
-    serialize :: Int -> MutableByteArray -> a -> IO Int
+    serialize :: Int -> MutByteArray -> a -> IO Int
 
 --------------------------------------------------------------------------------
 -- Instances
@@ -165,7 +165,7 @@ class Serialize a where
 --
 #ifdef DEBUG
 {-# INLINE checkBounds #-}
-checkBounds :: String -> Int -> MutableByteArray -> IO ()
+checkBounds :: String -> Int -> MutByteArray -> IO ()
 checkBounds _label _off _arr = do
     sz <- sizeOfMutableByteArray _arr
     if (_off > sz)
@@ -196,7 +196,7 @@ checkBounds _label _off _arr = do
 -- serialized value with a size header.
 --
 {-# INLINE deserializeUnsafe #-}
-deserializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> Int -> IO (Int, a)
+deserializeUnsafe :: forall a. Unbox a => Int -> MutByteArray -> Int -> IO (Int, a)
 deserializeUnsafe off arr sz =
     let next = off + Unbox.sizeOf (Proxy :: Proxy a)
      in do
@@ -209,7 +209,7 @@ deserializeUnsafe off arr sz =
                 ++ " max valid offset = " ++ show (sz - 1)
 
 {-# INLINE serializeUnsafe #-}
-serializeUnsafe :: forall a. Unbox a => Int -> MutableByteArray -> a -> IO Int
+serializeUnsafe :: forall a. Unbox a => Int -> MutByteArray -> a -> IO Int
 serializeUnsafe off arr val =
     let next = off + Unbox.sizeOf (Proxy :: Proxy a)
      in do
@@ -227,7 +227,7 @@ instance Serialize _type where \
 ;    deserialize off arr end = deserializeUnsafe off arr end :: IO (Int, _type) \
 ; {-# INLINE serialize #-} \
 ;    serialize =  \
-        serializeUnsafe :: Int -> MutableByteArray -> _type -> IO Int
+        serializeUnsafe :: Int -> MutByteArray -> _type -> IO Int
 
 DERIVE_SERIALIZE_FROM_UNBOX(())
 DERIVE_SERIALIZE_FROM_UNBOX(Bool)

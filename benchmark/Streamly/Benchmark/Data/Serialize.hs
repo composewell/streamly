@@ -326,7 +326,7 @@ benchSink name times f = bench name (nfIO (randomRIO (times, times) >>= f))
 
 {-
 {-# INLINE pokeWithSize #-}
-pokeWithSize :: SERIALIZE_CLASS a => MutableByteArray -> a -> IO ()
+pokeWithSize :: SERIALIZE_CLASS a => MutByteArray -> a -> IO ()
 pokeWithSize arr val = do
     let n = getSize val
     n `seq` SERIALIZE_OP 0 arr val >> return ()
@@ -340,7 +340,7 @@ pokeTimesWithSize val times = do
 -}
 
 {-# INLINE poke #-}
-poke :: SERIALIZE_CLASS a => MutableByteArray -> a -> IO ()
+poke :: SERIALIZE_CLASS a => MutByteArray -> a -> IO ()
 poke arr val = SERIALIZE_OP 0 arr val >> return ()
 
 {-# INLINE pokeTimes #-}
@@ -363,7 +363,7 @@ encodeTimes val times = loop times encode val
 
 {-# INLINE peek #-}
 peek :: forall a. (NFData a, SERIALIZE_CLASS a) =>
-    (a, Int) -> MutableByteArray -> IO ()
+    (a, Int) -> MutByteArray -> IO ()
 #ifdef USE_UNBOX
 peek (_val, _) arr = do
         (val1 :: a) <- DESERIALIZE_OP 0 arr

@@ -109,7 +109,7 @@ import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Ptr (Ptr (..), plusPtr)
 import System.IO.Unsafe (unsafePerformIO)
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.MutArray.Type (MutableByteArray)
+import Streamly.Internal.Data.MutArray.Type (MutByteArray)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Parser (Parser)
 import Streamly.Internal.Data.Stream (Stream)
@@ -685,9 +685,9 @@ decodeUtf8Lax = decodeUtf8
 #endif
 data FlattenState s
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
-    | InnerLoopDecodeInit s MutableByteArray !Int !Int
-    | InnerLoopDecodeFirst s MutableByteArray !Int !Int Word8
-    | InnerLoopDecoding s MutableByteArray !Int !Int
+    | InnerLoopDecodeInit s MutByteArray !Int !Int
+    | InnerLoopDecodeFirst s MutByteArray !Int !Int Word8
+    | InnerLoopDecoding s MutByteArray !Int !Int
         !DecodeState !CodePoint
     | YAndC !Char (FlattenState s)   -- These constructors can be
                                      -- encoded in the UTF8DecodeState

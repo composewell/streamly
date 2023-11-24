@@ -13,8 +13,9 @@
 --
 module Streamly.Internal.Data.Unbox
     (
-    -- ** MutableByteArray
-      MutableByteArray(..)
+    -- ** MutByteArray
+      MutByteArray(..)
+    , MutableByteArray
     , getMutableByteArray#
     , sizeOfMutableByteArray
     , nil
@@ -100,23 +101,26 @@ data PinnedState
 -- | A lifted mutable byte array type wrapping @MutableByteArray# RealWorld@.
 -- This is a low level array used to back high level unboxed arrays and
 -- serialized data.
-data MutableByteArray = MutableByteArray (MutableByteArray# RealWorld)
+data MutByteArray = MutByteArray (MutableByteArray# RealWorld)
+
+{-# DEPRECATED MutableByteArray "Please use MutByteArray instead" #-}
+type MutableByteArray = MutByteArray
 
 {-# INLINE getMutableByteArray# #-}
-getMutableByteArray# :: MutableByteArray -> MutableByteArray# RealWorld
-getMutableByteArray# (MutableByteArray mbarr) = mbarr
+getMutableByteArray# :: MutByteArray -> MutableByteArray# RealWorld
+getMutableByteArray# (MutByteArray mbarr) = mbarr
 
 -- | Return the size of the array in bytes.
 {-# INLINE sizeOfMutableByteArray #-}
-sizeOfMutableByteArray :: MutableByteArray -> IO Int
-sizeOfMutableByteArray (MutableByteArray arr) =
+sizeOfMutableByteArray :: MutByteArray -> IO Int
+sizeOfMutableByteArray (MutByteArray arr) =
     IO $ \s ->
         case getSizeofMutableByteArray# arr s of
             (# s1, i #) -> (# s1, I# i #)
 
 {-# INLINE touch #-}
-touch :: MutableByteArray -> IO ()
-touch (MutableByteArray contents) =
+touch :: MutByteArray -> IO ()
+touch (MutByteArray contents) =
     IO $ \s -> case touch# contents s of s' -> (# s', () #)
 
 -- XXX We can provide another API for "unsafe" FFI calls passing an unlifted
@@ -131,7 +135,7 @@ touch (MutableByteArray contents) =
 -- guarantees that unsafe calls will be performed in the calling thread. Making
 -- it safe to pass heap-allocated objects to unsafe functions.
 
--- | Use a @MutableByteArray@ as @Ptr a@. This is useful when we want to pass
+-- | Use a @MutByteArray@ as @Ptr a@. This is useful when we want to pass
 -- an array as a pointer to some operating system call or to a "safe" FFI call.
 --
 -- If the array is not pinned it is copied to pinned memory before passing it
@@ -148,7 +152,7 @@ touch (MutableByteArray contents) =
 -- /Pre-release/
 --
 {-# INLINE asPtrUnsafe #-}
-asPtrUnsafe :: MonadIO m => MutableByteArray -> (Ptr a -> m b) -> m b
+asPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
 asPtrUnsafe arr f = do
   contents <- liftIO $ pin arr
   let !ptr = Ptr (byteArrayContents#
@@ -162,41 +166,41 @@ asPtrUnsafe arr f = do
 --------------------------------------------------------------------------------
 
 {-# NOINLINE nil #-}
-nil :: MutableByteArray
+nil :: MutByteArray
 nil = unsafePerformIO $ newBytes 0
 
 {-# INLINE newBytes #-}
-newBytes :: Int -> IO MutableByteArray
+newBytes :: Int -> IO MutByteArray
 newBytes nbytes | nbytes < 0 =
   errorWithoutStackTrace "newBytes: size must be >= 0"
 newBytes (I# nbytes) = IO $ \s ->
     case newByteArray# nbytes s of
         (# s', mbarr# #) ->
-           let c = MutableByteArray mbarr#
+           let c = MutByteArray mbarr#
             in (# s', c #)
 
 {-# INLINE pinnedNewBytes #-}
-pinnedNewBytes :: Int -> IO MutableByteArray
+pinnedNewBytes :: Int -> IO MutByteArray
 pinnedNewBytes nbytes | nbytes < 0 =
   errorWithoutStackTrace "pinnedNewBytes: size must be >= 0"
 pinnedNewBytes (I# nbytes) = IO $ \s ->
     case newPinnedByteArray# nbytes s of
         (# s', mbarr# #) ->
-           let c = MutableByteArray mbarr#
+           let c = MutByteArray mbarr#
             in (# s', c #)
 
 {-# INLINE pinnedNewAlignedBytes #-}
-pinnedNewAlignedBytes :: Int -> Int -> IO MutableByteArray
+pinnedNewAlignedBytes :: Int -> Int -> IO MutByteArray
 pinnedNewAlignedBytes nbytes _align | nbytes < 0 =
   errorWithoutStackTrace "pinnedNewAlignedBytes: size must be >= 0"
 pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
     case newAlignedPinnedByteArray# nbytes align s of
         (# s', mbarr# #) ->
-           let c = MutableByteArray mbarr#
+           let c = MutByteArray mbarr#
             in (# s', c #)
 
 {-# INLINE newBytesAs #-}
-newBytesAs :: PinnedState -> Int -> IO MutableByteArray
+newBytesAs :: PinnedState -> Int -> IO MutByteArray
 newBytesAs Unpinned = newBytes
 newBytesAs Pinned = pinnedNewBytes
 
@@ -209,9 +213,9 @@ newBytesAs Pinned = pinnedNewBytes
 {-# INLINE putSliceUnsafe #-}
 putSliceUnsafe ::
        MonadIO m
-    => MutableByteArray
+    => MutByteArray
     -> Int
-    -> MutableByteArray
+    -> MutByteArray
     -> Int
     -> Int
     -> m ()
@@ -236,8 +240,8 @@ putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
 -------------------------------------------------------------------------------
 
 {-# INLINE isPinned #-}
-isPinned :: MutableByteArray -> Bool
-isPinned (MutableByteArray arr#) =
+isPinned :: MutByteArray -> Bool
+isPinned (MutByteArray arr#) =
     let pinnedInt = I# (isMutableByteArrayPinned# arr#)
      in pinnedInt /= 0
 
@@ -258,8 +262,8 @@ cloneMutableArrayWith# alloc# arr# s# =
                         s3# -> (# s3#, arr1# #)
 
 {-# INLINE pin #-}
-pin :: MutableByteArray -> IO MutableByteArray
-pin arr@(MutableByteArray marr#) =
+pin :: MutByteArray -> IO MutByteArray
+pin arr@(MutByteArray marr#) =
     if isPinned arr
     then return arr
     else
@@ -271,11 +275,11 @@ pin arr@(MutableByteArray marr#) =
         IO
              $ \s# ->
                    case cloneMutableArrayWith# newPinnedByteArray# marr# s# of
-                       (# s1#, marr1# #) -> (# s1#, MutableByteArray marr1# #)
+                       (# s1#, marr1# #) -> (# s1#, MutByteArray marr1# #)
 
 {-# INLINE unpin #-}
-unpin :: MutableByteArray -> IO MutableByteArray
-unpin arr@(MutableByteArray marr#) =
+unpin :: MutByteArray -> IO MutByteArray
+unpin arr@(MutByteArray marr#) =
     if not (isPinned arr)
     then return arr
     else
@@ -287,7 +291,7 @@ unpin arr@(MutableByteArray marr#) =
         IO
              $ \s# ->
                    case cloneMutableArrayWith# newByteArray# marr# s# of
-                       (# s1#, marr1# #) -> (# s1#, MutableByteArray marr1# #)
+                       (# s1#, marr1# #) -> (# s1#, MutByteArray marr1# #)
 
 --------------------------------------------------------------------------------
 -- The Unbox type class
@@ -458,11 +462,11 @@ class Unbox a where
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
-    peekByteIndex :: Int -> MutableByteArray -> IO a
+    peekByteIndex :: Int -> MutByteArray -> IO a
 
     {-# INLINE peekByteIndex #-}
     default peekByteIndex :: (Generic a, PeekRep (Rep a)) =>
-         Int -> MutableByteArray -> IO a
+         Int -> MutByteArray -> IO a
     peekByteIndex i arr = genericPeekByteIndex arr i
 
     -- | @pokeByteIndex byte-index array@ writes an element of type @a@ to the
@@ -470,11 +474,11 @@ class Unbox a where
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
-    pokeByteIndex :: Int -> MutableByteArray -> a -> IO ()
+    pokeByteIndex :: Int -> MutByteArray -> a -> IO ()
 
     {-# INLINE pokeByteIndex #-}
     default pokeByteIndex :: (Generic a, PokeRep (Rep a)) =>
-        Int -> MutableByteArray -> a -> IO ()
+        Int -> MutByteArray -> a -> IO ()
     pokeByteIndex i arr = genericPokeByteIndex arr i
 
 -- XXX Add asserts to check bounds
@@ -482,11 +486,11 @@ class Unbox a where
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray, _sizeOf) \
 instance Unbox _type where {                                         \
 ; {-# INLINE peekByteIndex #-}                                       \
-; peekByteIndex (I# n) (MutableByteArray mbarr) = IO $ \s ->         \
+; peekByteIndex (I# n) (MutByteArray mbarr) = IO $ \s ->         \
       case _readArray mbarr n s of                                   \
           { (# s1, i #) -> (# s1, _constructor i #) }                \
 ; {-# INLINE pokeByteIndex #-}                                       \
-; pokeByteIndex (I# n) (MutableByteArray mbarr) (_constructor val) = \
+; pokeByteIndex (I# n) (MutByteArray mbarr) (_constructor val) = \
         IO $ \s -> (# _writeArray mbarr n val s, () #)               \
 ; {-# INLINE sizeOf #-}                                              \
 ; sizeOf _ = _sizeOf                                                 \
@@ -681,7 +685,7 @@ instance Unbox Bool where
 -- cheaper to just get the bound using the size of the array whenever needed?
 data BoundedPtr =
     BoundedPtr
-        MutableByteArray          -- byte array
+        MutByteArray          -- byte array
         Int                       -- current pos
         Int                       -- position after end
 
@@ -966,7 +970,7 @@ genericPokeObj a ptr = void $ genericPokeObject a ptr
 
 {-# INLINE genericPokeByteIndex #-}
 genericPokeByteIndex :: (Generic a, PokeRep (Rep a)) =>
-    MutableByteArray -> Int -> a -> IO ()
+    MutByteArray -> Int -> a -> IO ()
 genericPokeByteIndex arr index x = do
     -- XXX Should we use unsafe poke?
 #ifdef DEBUG
@@ -1072,7 +1076,7 @@ genericPeekBoundedPtr = runPeeker genericPeeker
 
 {-# INLINE genericPeekByteIndex #-}
 genericPeekByteIndex :: (Generic a, PeekRep (Rep a)) =>
-    MutableByteArray -> Int -> IO a
+    MutByteArray -> Int -> IO a
 genericPeekByteIndex arr index = do
     -- XXX Should we use unsafe peek?
 #ifdef DEBUG

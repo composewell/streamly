@@ -22,7 +22,7 @@ module Streamly.Test.Data.Serialize (main) where
 --------------------------------------------------------------------------------
 
 import System.Random (randomRIO)
-import Streamly.Internal.Data.Serialize (MutableByteArray, newBytes)
+import Streamly.Internal.Data.Serialize (MutByteArray, newBytes)
 import GHC.Generics (Generic)
 import Streamly.Data.Serialize (Serialize)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
@@ -158,7 +158,7 @@ testCompatibility v0 v1 = do
 poke ::
        forall a. Serialize.Serialize a
     => a
-    -> IO (MutableByteArray, Int, Int)
+    -> IO (MutByteArray, Int, Int)
 poke val = do
     let sz = Serialize.size 0 val
 
@@ -177,7 +177,7 @@ poke val = do
 
 peekAndVerify ::
        forall a. (Eq a, Show a, Serialize.Serialize a)
-    => (MutableByteArray, Int, Int)
+    => (MutByteArray, Int, Int)
     -> a
     -> IO ()
 peekAndVerify (arr, serStartOff, serEndOff) val = do

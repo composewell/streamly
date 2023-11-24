@@ -41,7 +41,7 @@ where
 import Data.Proxy (Proxy(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unbox
-    ( MutableByteArray(..)
+    ( MutByteArray(..)
     , Unbox(..)
     , newBytes
     , sizeOf
@@ -50,7 +50,7 @@ import Streamly.Internal.Data.Unbox
 import qualified Streamly.Internal.Data.Stream.Type as D
 
 -- | An 'IORef' holds a single 'Unbox'-able value.
-newtype IORef a = IORef MutableByteArray
+newtype IORef a = IORef MutByteArray
 
 -- | Create a new 'IORef'.
 --

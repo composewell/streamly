@@ -206,15 +206,15 @@ instance Serialize LiftedInteger where
 liftInteger :: Integer -> LiftedInteger
 liftInteger (IS x) = LIS (I# x)
 liftInteger (IP x) =
-    LIP (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+    LIP (Array (MutByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
 liftInteger (IN x) =
-    LIN (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+    LIN (Array (MutByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
 
 {-# INLINE unliftInteger #-}
 unliftInteger :: LiftedInteger -> Integer
 unliftInteger (LIS (I# x)) = IS x
-unliftInteger (LIP (Array (MutableByteArray x) _ _)) = IP (unsafeCoerce# x)
-unliftInteger (LIN (Array (MutableByteArray x) _ _)) = IN (unsafeCoerce# x)
+unliftInteger (LIP (Array (MutByteArray x) _ _)) = IP (unsafeCoerce# x)
+unliftInteger (LIN (Array (MutByteArray x) _ _)) = IN (unsafeCoerce# x)
 
 #else
 
@@ -222,16 +222,16 @@ unliftInteger (LIN (Array (MutableByteArray x) _ _)) = IN (unsafeCoerce# x)
 liftInteger :: Integer -> LiftedInteger
 liftInteger (S# x) = LIS (I# x)
 liftInteger (Jp# (BN# x)) =
-    LIP (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+    LIP (Array (MutByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
 liftInteger (Jn# (BN# x)) =
-    LIN (Array (MutableByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+    LIN (Array (MutByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
 
 {-# INLINE unliftInteger #-}
 unliftInteger :: LiftedInteger -> Integer
 unliftInteger (LIS (I# x)) = S# x
-unliftInteger (LIP (Array (MutableByteArray x) _ _)) =
+unliftInteger (LIP (Array (MutByteArray x) _ _)) =
     Jp# (BN# (unsafeCoerce# x))
-unliftInteger (LIN (Array (MutableByteArray x) _ _)) =
+unliftInteger (LIN (Array (MutByteArray x) _ _)) =
     Jn# (BN# (unsafeCoerce# x))
 
 #endif

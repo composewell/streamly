@@ -27,7 +27,7 @@ import Data.Maybe (fromJust)
 import Language.Haskell.TH
 import Streamly.Internal.Data.Serialize.Type (Serialize(..))
 import Data.Foldable (foldlM)
-import Streamly.Internal.Data.Unbox (MutableByteArray)
+import Streamly.Internal.Data.Unbox (MutByteArray)
 import Data.Proxy (Proxy(..))
 
 import qualified Streamly.Internal.Data.Unbox as Unbox
@@ -225,7 +225,7 @@ headerValue (SimpleDataCon _ fields) =
 -- its type. We encode the size as 'Word32' hence there is a 4 bytes increase
 -- in size.
 {-# INLINE serializeWithSize #-}
-serializeWithSize :: Serialize a => Int -> MutableByteArray -> a -> IO Int
+serializeWithSize :: Serialize a => Int -> MutByteArray -> a -> IO Int
 serializeWithSize off arr val = do
     off1 <- serialize (off + 4) arr val
     Unbox.pokeByteIndex off arr (int_w32 (off1 - off - 4) :: Word32)
@@ -263,7 +263,7 @@ mkRecSerializeExpr initialOffset (con@(SimpleDataCon cname fields)) = do
 
 {-# INLINE deserializeWithSize #-}
 deserializeWithSize ::
-       Serialize a => Int -> MutableByteArray -> Int -> IO (Int, a)
+       Serialize a => Int -> MutByteArray -> Int -> IO (Int, a)
 deserializeWithSize off arr endOff = deserialize (off + 4) arr endOff
 
 conUpdateFuncDec :: Name -> [Field] -> Q [Dec]

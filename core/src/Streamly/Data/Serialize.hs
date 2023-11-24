@@ -42,7 +42,7 @@ module Streamly.Data.Serialize
     (
 
     -- * MutableByteArray
-      MutableByteArray
+      MutByteArray
     -- , isPinned
     -- , pin
     -- , unpin

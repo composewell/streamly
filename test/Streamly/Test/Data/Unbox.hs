@@ -72,7 +72,7 @@ import Test.Hspec as H
 peekByteIndexWithNextOff ::
        forall a. Unbox a
     => Int
-    -> MutableByteArray
+    -> MutByteArray
     -> IO (Int, a)
 peekByteIndexWithNextOff i arr = do
     val <- peekByteIndex i arr
@@ -81,7 +81,7 @@ peekByteIndexWithNextOff i arr = do
 pokeByteIndexWithNextOff ::
        forall a. Unbox a
     => Int
-    -> MutableByteArray
+    -> MutByteArray
     -> a
     -> IO Int
 pokeByteIndexWithNextOff i arr val = do
