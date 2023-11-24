@@ -335,7 +335,7 @@ pokeWithSize arr val = do
 pokeTimesWithSize :: SERIALIZE_CLASS a => a -> Int -> IO ()
 pokeTimesWithSize val times = do
     let n = getSize val
-    arr <- newBytes n
+    arr <- newByteArray n
     loopWith times pokeWithSize arr val
 -}
 
@@ -347,14 +347,14 @@ poke arr val = SERIALIZE_OP 0 arr val >> return ()
 pokeTimes :: SERIALIZE_CLASS a => a -> Int -> IO ()
 pokeTimes val times = do
     let n = getSize val
-    arr <- newBytes n
+    arr <- newByteArray n
     loopWith times poke arr val
 
 {-# INLINE encode #-}
 encode :: SERIALIZE_CLASS a => a -> IO ()
 encode val = do
     let n = getSize val
-    arr <- newBytes n
+    arr <- newByteArray n
     SERIALIZE_OP 0 arr val >> return ()
 
 {-# INLINE encodeTimes #-}
@@ -390,7 +390,7 @@ peek (_val, n) arr = do
 {-# INLINE peekTimes #-}
 peekTimes :: (NFData a, SERIALIZE_CLASS a) => Int -> a -> Int -> IO ()
 peekTimes n val times = do
-    arr <- newBytes n
+    arr <- newByteArray n
     _ <- SERIALIZE_OP 0 arr val
     loopWith times peek (val, n) arr
 
@@ -398,7 +398,7 @@ peekTimes n val times = do
 trip :: forall a. (NFData a, SERIALIZE_CLASS a) => a -> IO ()
 trip val = do
     let n = getSize val
-    arr <- newBytes n
+    arr <- newByteArray n
     _ <- SERIALIZE_OP 0 arr val
 #ifdef USE_UNBOX
     (val1 :: a) <- DESERIALIZE_OP 0 arr

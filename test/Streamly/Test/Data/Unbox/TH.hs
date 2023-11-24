@@ -28,7 +28,7 @@ testSerialization ::
     => a
     -> IO ()
 testSerialization val = do
-    arr <- newBytes (sizeOf (Proxy :: Proxy a))
+    arr <- newByteArray (sizeOf (Proxy :: Proxy a))
     pokeByteIndex 0 arr val
     peekByteIndex 0 arr `shouldReturn` val
 

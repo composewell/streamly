@@ -198,7 +198,7 @@ testSerialization val = do
 #else
                (sizeOf (Proxy :: Proxy a))
 #endif
-    arr <- newBytes len
+    arr <- newByteArray len
     nextOff <- POKE(0, arr, val)
     (nextOff1, val1) <- PEEK(0, arr, len)
     val1 `shouldBe` val
@@ -232,7 +232,7 @@ testGenericConsistency val = do
     len  `shouldBe` genericSizeOf (Proxy :: Proxy a)
 
     -- Test the serialization and deserialization
-    arr <- newBytes (sizeOf (Proxy :: Proxy a))
+    arr <- newByteArray (sizeOf (Proxy :: Proxy a))
 
     nextOff <- POKE(0, arr, val)
     genericPeekByteIndex arr 0 `shouldReturn` val

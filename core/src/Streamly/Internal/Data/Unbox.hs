@@ -28,8 +28,8 @@ module Streamly.Internal.Data.Unbox
     , pin
     , unpin
     , newBytesAs
-    , newBytes
-    , pinnedNewBytes
+    , newByteArray
+    , pinnedNewByteArray
     , pinnedNewAlignedBytes
 
     -- ** Unbox type class
@@ -167,23 +167,23 @@ asPtrUnsafe arr f = do
 
 {-# NOINLINE nil #-}
 nil :: MutByteArray
-nil = unsafePerformIO $ newBytes 0
+nil = unsafePerformIO $ newByteArray 0
 
-{-# INLINE newBytes #-}
-newBytes :: Int -> IO MutByteArray
-newBytes nbytes | nbytes < 0 =
-  errorWithoutStackTrace "newBytes: size must be >= 0"
-newBytes (I# nbytes) = IO $ \s ->
+{-# INLINE newByteArray #-}
+newByteArray :: Int -> IO MutByteArray
+newByteArray nbytes | nbytes < 0 =
+  errorWithoutStackTrace "newByteArray: size must be >= 0"
+newByteArray (I# nbytes) = IO $ \s ->
     case newByteArray# nbytes s of
         (# s', mbarr# #) ->
            let c = MutByteArray mbarr#
             in (# s', c #)
 
-{-# INLINE pinnedNewBytes #-}
-pinnedNewBytes :: Int -> IO MutByteArray
-pinnedNewBytes nbytes | nbytes < 0 =
-  errorWithoutStackTrace "pinnedNewBytes: size must be >= 0"
-pinnedNewBytes (I# nbytes) = IO $ \s ->
+{-# INLINE pinnedNewByteArray #-}
+pinnedNewByteArray :: Int -> IO MutByteArray
+pinnedNewByteArray nbytes | nbytes < 0 =
+  errorWithoutStackTrace "pinnedNewByteArray: size must be >= 0"
+pinnedNewByteArray (I# nbytes) = IO $ \s ->
     case newPinnedByteArray# nbytes s of
         (# s', mbarr# #) ->
            let c = MutByteArray mbarr#
@@ -201,8 +201,8 @@ pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
 
 {-# INLINE newBytesAs #-}
 newBytesAs :: PinnedState -> Int -> IO MutByteArray
-newBytesAs Unpinned = newBytes
-newBytesAs Pinned = pinnedNewBytes
+newBytesAs Unpinned = newByteArray
+newBytesAs Pinned = pinnedNewByteArray
 
 -------------------------------------------------------------------------------
 -- Copying

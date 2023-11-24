@@ -744,8 +744,8 @@ reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
     contents <-
         if Unboxed.isPinned arrContents
-        then Unboxed.pinnedNewBytes newCapMaxInBytes
-        else Unboxed.newBytes newCapMaxInBytes
+        then Unboxed.pinnedNewByteArray newCapMaxInBytes
+        else Unboxed.newByteArray newCapMaxInBytes
     let !(MutByteArray mbarrFrom#) = arrContents
         !(MutByteArray mbarrTo#) = contents
 
@@ -2134,8 +2134,8 @@ spliceCopy arr1 arr2 = liftIO $ do
     let newLen = len1 + len2
     newArrContents <-
         if Unboxed.isPinned (arrContents arr1)
-        then Unboxed.pinnedNewBytes newLen
-        else Unboxed.newBytes newLen
+        then Unboxed.pinnedNewByteArray newLen
+        else Unboxed.newByteArray newLen
     let len = len1 + len2
     putSliceUnsafe (arrContents arr1) start1 newArrContents 0 len1
     putSliceUnsafe (arrContents arr2) start2 newArrContents len1 len2
