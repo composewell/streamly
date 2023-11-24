@@ -1348,10 +1348,12 @@ chunksOfAs ps n (D.Stream step state) =
 
     step' _ GroupFinish = return D.Stop
 
--- | @chunksOf n stream@ groups the input stream into a stream of
--- arrays of size n.
+-- | @chunksOf n stream@ groups the elements in the input stream into arrays of
+-- @n@ elements each.
 --
--- @chunksOf n = StreamD.foldMany (MutArray.writeN n)@
+-- Same as the following but may be more efficient:
+--
+-- >>> chunksOf n = Stream.foldMany (MutArray.writeN n)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL chunksOf #-}
@@ -1884,7 +1886,7 @@ pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a)
 pinnedWriteNAligned align = writeNWith (pinnedNewAligned align)
 
 -- XXX Buffer to a list instead?
---
+
 -- | Buffer a stream into a stream of arrays.
 --
 -- >>> writeChunks n = Fold.many (MutArray.writeN n) Fold.toStreamK

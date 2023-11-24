@@ -8,19 +8,30 @@
 --
 -- Combinators to efficiently manipulate streams of mutable arrays.
 --
+-- We can either push these in the MutArray module with a "chunks" prefix or
+-- keep this as a separate module and release it.
+--
 module Streamly.Internal.Data.MutArray.Stream
     (
     -- * Generation
-      chunksOf
+      MArray.chunksOf
+    , MArray.pinnedChunksOf
+    , MArray.writeChunks -- chunksWrite?
+    , MArray.splitOn -- chunksSplitOn
 
     -- * Compaction
     , packArraysChunksOf
     , SpliceState (..)
     , lpackArraysChunksOf
-    , compact
+    , compact -- chunksCompact
     , compactLE
     , compactEQ
     , compactGE
+
+    -- * Elimination
+    , MArray.flattenArrays -- chunksConcat
+    , MArray.flattenArraysRev -- chunksConcatRev
+    , MArray.fromArrayStreamK -- chunksCoalesce
     )
 where
 
@@ -38,23 +49,10 @@ import Streamly.Internal.Data.Parser (ParseError)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.MutArray.Type as MArray
+import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as ParserD
 import qualified Streamly.Internal.Data.Stream as D
-
--- | @chunksOf n stream@ groups the elements in the input stream into arrays of
--- @n@ elements each.
---
--- Same as the following but may be more efficient:
---
--- > chunksOf n = Stream.foldMany (MArray.writeN n)
---
--- /Pre-release/
-{-# INLINE chunksOf #-}
-chunksOf :: (MonadIO m, Unbox a)
-    => Int -> Stream m a -> Stream m (MutArray a)
-chunksOf = MArray.chunksOf
 
 -------------------------------------------------------------------------------
 -- Compact
