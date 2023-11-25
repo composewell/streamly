@@ -50,7 +50,7 @@ import Streamly.Internal.Data.Serialize.TH.RecHeader
 --------------------------------------------------------------------------------
 
 exprGetSize :: Q Exp -> (Int, Type) -> Q Exp
-exprGetSize acc (i, _) = [|size $(acc) $(varE (mkFieldName i))|]
+exprGetSize acc (i, _) = [|addSizeTo $(acc) $(varE (mkFieldName i))|]
 
 getTagSize :: Int -> Int
 getTagSize numConstructors
@@ -170,9 +170,9 @@ mkSizeDec (SerializeConfig {..}) headTy cons = do
     pure
         ( maybe
             []
-            (\x -> [PragmaD (InlineP 'size x FunLike AllPhases)])
+            (\x -> [PragmaD (InlineP 'addSizeTo x FunLike AllPhases)])
             cfgInlineSize
-         ++ [FunD 'size [Clause [] (NormalB sizeOfMethod) []]]
+         ++ [FunD 'addSizeTo [Clause [] (NormalB sizeOfMethod) []]]
         )
 
 --------------------------------------------------------------------------------
@@ -192,7 +192,7 @@ mkDeserializeExpr True False headTy tyOfTy =
         conLen <- newName "conLen"
         off1 <- newName "off1"
         [|do ($(varP off1), $(varP conLen) :: Word8) <-
-                 deserialize
+                 deserializeAt
                      $(varE _initialOffset)
                      $(varE _arr)
                      $(varE _endOffset)
@@ -212,7 +212,7 @@ mkDeserializeExpr True False headTy tyOfTy =
             [|($(litIntegral lenCname) == $(varE conLen))
                    && $(xorCmp tag off _arr)|]
             [|let $(varP (makeI 0)) = $(varE off) + $(litIntegral lenCname)
-               in $(mkDeserializeExprOne 'deserialize con)|]
+               in $(mkDeserializeExprOne 'deserializeAt con)|]
 
 mkDeserializeExpr False False headTy tyOfTy =
     case tyOfTy of
@@ -223,7 +223,7 @@ mkDeserializeExpr False False headTy tyOfTy =
         TheType con ->
             letE
                 [valD (varP (mkName "i0")) (normalB (varE _initialOffset)) []]
-                (mkDeserializeExprOne 'deserialize con)
+                (mkDeserializeExprOne 'deserializeAt con)
         -- Sum type
         MultiType cons -> do
             let lenCons = length cons
@@ -231,7 +231,7 @@ mkDeserializeExpr False False headTy tyOfTy =
             doE
                 [ bindS
                       (tupP [varP (mkName "i0"), varP _tag])
-                      [|deserialize $(varE _initialOffset) $(varE _arr) $(varE _endOffset)|]
+                      [|deserializeAt $(varE _initialOffset) $(varE _arr) $(varE _endOffset)|]
                 , noBindS
                       (caseE
                            (sigE (varE _tag) (conT tagType))
@@ -241,7 +241,7 @@ mkDeserializeExpr False False headTy tyOfTy =
     peekMatch (i, con) =
         match
             (litP (IntegerL i))
-            (normalB (mkDeserializeExprOne 'deserialize con)) []
+            (normalB (mkDeserializeExprOne 'deserializeAt con)) []
     peekErr =
         match
             wildP
@@ -279,11 +279,11 @@ mkDeserializeDec (SerializeConfig {..}) headTy cons = do
     pure
         ( maybe
             []
-            (\x -> [PragmaD (InlineP 'deserialize x FunLike AllPhases)])
+            (\x -> [PragmaD (InlineP 'deserializeAt x FunLike AllPhases)])
             cfgInlineDeserialize
          ++
             [ FunD
-              'deserialize
+              'deserializeAt
               [ Clause
                     (if isUnitType cons && not cfgConstructorTagAsString
                          then [VarP _initialOffset, WildP, WildP]
@@ -300,7 +300,7 @@ mkDeserializeDec (SerializeConfig {..}) headTy cons = do
 
 mkSerializeExprTag :: Name -> Int -> Q Exp
 mkSerializeExprTag tagType tagVal =
-    [|serialize
+    [|serializeAt
           $(varE _initialOffset)
           $(varE _arr)
           $((sigE (litE (IntegerL (fromIntegral tagVal))) (conT tagType)))|]
@@ -335,7 +335,7 @@ mkSerializeExpr True False tyOfTy =
             (doE [ bindS
                        (varP (mkName "i0"))
                        (serializeW8List _initialOffset _arr conEnc)
-                 , noBindS (mkSerializeExprFields 'serialize fields)
+                 , noBindS (mkSerializeExprFields 'serializeAt fields)
                  ])
 
 mkSerializeExpr False False tyOfTy =
@@ -351,7 +351,7 @@ mkSerializeExpr False False tyOfTy =
                      [ matchConstructor
                            cname
                            (length fields)
-                           (mkSerializeExprFields 'serialize fields)
+                           (mkSerializeExprFields 'serializeAt fields)
                      ])
         -- Sum type
         (MultiType cons) -> do
@@ -368,7 +368,7 @@ mkSerializeExpr False False tyOfTy =
                                          (mkSerializeExprTag tagType tagVal)
                                    , noBindS
                                          (mkSerializeExprFields
-                                              'serialize
+                                              'serializeAt
                                               fields)
                                    ]))
                      (zip [0 ..] cons))
@@ -388,11 +388,11 @@ mkSerializeDec (SerializeConfig {..}) headTy cons = do
     pure
         ( maybe
             []
-            (\x -> [PragmaD (InlineP 'serialize x FunLike AllPhases)])
+            (\x -> [PragmaD (InlineP 'serializeAt x FunLike AllPhases)])
             cfgInlineSerialize
          ++
             [FunD
-                  'serialize
+                  'serializeAt
                   [ Clause
                         (if isUnitType cons && not cfgConstructorTagAsString
                              then [VarP _initialOffset, WildP, WildP]

@@ -561,9 +561,9 @@ streamFold f arr = f (A.read arr)
 encodeAs :: forall a. Serialize a => PinnedState -> a -> Array Word8
 encodeAs ps a =
     unsafeInlineIO $ do
-        let len = Serialize.size 0 a
+        let len = Serialize.addSizeTo 0 a
         mbarr <- MBA.newBytesAs ps len
-        off <- Serialize.serialize 0 mbarr a
+        off <- Serialize.serializeAt 0 mbarr a
         assertM(len == off)
         pure $ Array mbarr 0 off
 
@@ -584,6 +584,7 @@ pinnedSerialize = encodeAs Pinned
 deserialize :: Serialize a => Array Word8 -> a
 deserialize arr@(Array {..}) = unsafeInlineIO $ do
     let lenArr = length arr
-    (off, val) <- Serialize.deserialize arrStart arrContents (arrStart + lenArr)
+    (off, val) <-
+        Serialize.deserializeAt arrStart arrContents (arrStart + lenArr)
     assertM(off == arrStart + lenArr)
     pure val

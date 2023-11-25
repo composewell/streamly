@@ -40,8 +40,8 @@ import Test.Hspec as H
 
 #define MODULE_NAME "Data.Serialize.Deriving.TH"
 #define DERIVE_UNBOX(typ) $(deriveSerialize [d|instance Serialize typ|])
-#define PEEK(i, arr, sz) (deserialize i arr sz)
-#define POKE(i, arr, val) (serialize i arr val)
+#define PEEK(i, arr, sz) (deserializeAt i arr sz)
+#define POKE(i, arr, val) (serializeAt i arr val)
 #define TYPE_CLASS Serialize
 
 #else
@@ -185,7 +185,7 @@ variableSizeOf ::
        forall a. Serialize a
     => a
     -> Int
-variableSizeOf = size 0
+variableSizeOf = addSizeTo 0
 #endif
 
 testSerialization ::

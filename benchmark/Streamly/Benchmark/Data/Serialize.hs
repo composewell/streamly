@@ -49,8 +49,8 @@ import Streamly.Benchmark.Data.Serialize.RecNonCompatible
 #else
 #define SERIALIZE_CLASS Serialize
 #define DERIVE_CLASS(typ) $(deriveSerialize [d|instance Serialize typ|])
-#define SERIALIZE_OP serialize
-#define DESERIALIZE_OP deserialize
+#define SERIALIZE_OP serializeAt
+#define DESERIALIZE_OP deserializeAt
 #endif
 
 -------------------------------------------------------------------------------
@@ -288,7 +288,7 @@ getSize :: forall a. SERIALIZE_CLASS a => a -> Int
 #ifdef USE_UNBOX
 getSize _ = sizeOf (Proxy :: Proxy a)
 #else
-getSize = size 0
+getSize = addSizeTo 0
 #endif
 
 -------------------------------------------------------------------------------

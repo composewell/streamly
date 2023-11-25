@@ -160,7 +160,7 @@ poke ::
     => a
     -> IO (MutByteArray, Int, Int)
 poke val = do
-    let sz = Serialize.size 0 val
+    let sz = Serialize.addSizeTo 0 val
 
     let excessSize = 100
     randomOff <- randomRIO (10, excessSize)
@@ -171,7 +171,7 @@ poke val = do
         serEndOff = randomOff + sz
     arr <- Serialize.new arrSize
 
-    off1 <- Serialize.serialize serStartOff arr val
+    off1 <- Serialize.serializeAt serStartOff arr val
     off1 `shouldBe` serEndOff
     pure (arr, serStartOff, serEndOff)
 
@@ -181,7 +181,7 @@ peekAndVerify ::
     -> a
     -> IO ()
 peekAndVerify (arr, serStartOff, serEndOff) val = do
-    (off2, val2) <- Serialize.deserialize serStartOff arr serEndOff
+    (off2, val2) <- Serialize.deserializeAt serStartOff arr serEndOff
     val2 `shouldBe` val
     off2 `shouldBe` serEndOff
     let slice = Array.Array arr serStartOff serEndOff
@@ -207,7 +207,7 @@ testSerializeList
     -> IO ()
 testSerializeList sizeOfA val = do
 
-    let sz = Serialize.size 0 val
+    let sz = Serialize.addSizeTo 0 val
 
     sz `shouldBe` sizeOfA
 

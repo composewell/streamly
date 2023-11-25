@@ -58,14 +58,14 @@ import GHC.Exts
 -- particular constructor. For variable length data types the length is encoded
 -- along with the data.
 --
--- The 'deserialize' operation reads bytes from the mutable byte array and
+-- The 'deserializeAt' operation reads bytes from the mutable byte array and
 -- builds a Haskell data type from these bytes, the number of bytes it reads
--- depends on the type and the encoded value it is reading. 'serialize'
+-- depends on the type and the encoded value it is reading. 'serializeAt'
 -- operation converts a Haskell data type to its binary representation which
--- must consist of as many bytes as returned by the @size@ operation on that
+-- must consist of as many bytes as added by the @addSizeTo@ operation for that
 -- value and then stores these bytes into the mutable byte array. The
--- programmer is expected to use the @size@ operation and allocate an array of
--- sufficient length before calling 'serialize'.
+-- programmer is expected to use the @addSizeTo@ operation and allocate an
+-- array of sufficient length before calling 'serializeAt'.
 --
 -- IMPORTANT: The serialized data's byte ordering remains the same as the host
 -- machine's byte order. Therefore, it can not be deserialized from host
@@ -98,15 +98,15 @@ import GHC.Exts
 --
 -- >>> :{
 -- instance Serialize Object where
---     size acc obj = size (size acc (_obj1 obj)) (_obj2 obj)
---     deserialize i arr len = do
+--     addSizeTo acc obj = addSizeTo (addSizeTo acc (_obj1 obj)) (_obj2 obj)
+--     deserializeAt i arr len = do
 --          -- Check the array bounds before reading
---         (i1, x0) <- deserialize i arr len
---         (i2, x1) <- deserialize i1 arr len
+--         (i1, x0) <- deserializeAt i arr len
+--         (i2, x1) <- deserializeAt i1 arr len
 --         pure (i2, Object x0 x1)
---     serialize i arr (Object x0 x1) = do
---         i1 <- serialize i arr x0
---         i2 <- serialize i1 arr x1
+--     serializeAt i arr (Object x0 x1) = do
+--         i1 <- serializeAt i arr x0
+--         i2 <- serializeAt i1 arr x1
 --         pure i2
 -- :}
 --
@@ -117,30 +117,30 @@ class Serialize a where
     -- It is of the form @Int -> a -> Int@ because you can have tail-recursive
     -- traversal of the structures.
 
-    -- | @size accum value@ returns @accum@ incremented by the size of the
+    -- | @addSizeTo accum value@ returns @accum@ incremented by the size of the
     -- serialized representation of @value@ in bytes. Size cannot be zero. It
     -- should be at least 1 byte.
-    size :: Int -> a -> Int
+    addSizeTo :: Int -> a -> Int
 
     -- We can implement the following functions without returning the `Int`
     -- offset but that may require traversing the Haskell structure again to get
     -- the size. Therefore, this is a performance optimization.
 
-    -- | @deserialize byte-offset array arrayLen@ deserializes a value from the
+    -- | @deserializeAt byte-offset array arrayLen@ deserializes a value from the
     -- given byte-offset in the array. Returns a tuple consisting of the next
     -- byte-offset and the deserialized value.
     --
     -- Throws an exception if the operation would exceed the supplied arrayLen.
-    deserialize :: Int -> MutByteArray -> Int -> IO (Int, a)
+    deserializeAt :: Int -> MutByteArray -> Int -> IO (Int, a)
 
-    -- | @serialize byte-offset array value@ writes the serialized
+    -- | @serializeAt byte-offset array value@ writes the serialized
     -- representation of the @value@ in the array at the given byte-offset.
     -- Returns the next byte-offset.
     --
     -- This is an unsafe operation, the programmer must ensure that the array
     -- has enough space available to serialize the value as determined by the
-    -- @size@ operation.
-    serialize :: Int -> MutByteArray -> a -> IO Int
+    -- @addSizeTo@ operation.
+    serializeAt :: Int -> MutByteArray -> a -> IO Int
 
 --------------------------------------------------------------------------------
 -- Instances
@@ -191,7 +191,7 @@ deserializeUnsafe off arr sz =
         if (next <= sz)
         then Unbox.peekAt off arr >>= \val -> pure (next, val)
         else error
-            $ "deserialize: accessing array at offset = "
+            $ "deserializeAt: accessing array at offset = "
                 ++ show (next - 1)
                 ++ " max valid offset = " ++ show (sz - 1)
 
@@ -201,19 +201,19 @@ serializeUnsafe off arr val =
     let next = off + Unbox.sizeOf (Proxy :: Proxy a)
      in do
 #ifdef DEBUG
-        checkBounds "serialize" next arr
+        checkBounds "serializeAt" next arr
 #endif
         Unbox.pokeAt off arr val
         pure next
 
 #define DERIVE_SERIALIZE_FROM_UNBOX(_type) \
 instance Serialize _type where \
-; {-# INLINE size #-} \
-;    size acc _ = acc +  Unbox.sizeOf (Proxy :: Proxy _type) \
-; {-# INLINE deserialize #-} \
-;    deserialize off arr end = deserializeUnsafe off arr end :: IO (Int, _type) \
-; {-# INLINE serialize #-} \
-;    serialize =  \
+; {-# INLINE addSizeTo #-} \
+;    addSizeTo acc _ = acc +  Unbox.sizeOf (Proxy :: Proxy _type) \
+; {-# INLINE deserializeAt #-} \
+;    deserializeAt off arr end = deserializeUnsafe off arr end :: IO (Int, _type) \
+; {-# INLINE serializeAt #-} \
+;    serializeAt =  \
         serializeUnsafe :: Int -> MutByteArray -> _type -> IO Int
 
 DERIVE_SERIALIZE_FROM_UNBOX(())
@@ -237,68 +237,69 @@ DERIVE_SERIALIZE_FROM_UNBOX((FunPtr a))
 
 instance forall a. Serialize a => Serialize [a] where
 
-    -- {-# INLINE size #-}
-    size acc xs = foldl' size (acc + (Unbox.sizeOf (Proxy :: Proxy Int))) xs
+    -- {-# INLINE addSizeTo #-}
+    addSizeTo acc xs =
+        foldl' addSizeTo (acc + (Unbox.sizeOf (Proxy :: Proxy Int))) xs
 
     -- Inlining this causes large compilation times for tests
-    {-# INLINABLE deserialize #-}
-    deserialize off arr sz = do
-        (off1, len64) <- deserialize off arr sz :: IO (Int, Int64)
+    {-# INLINABLE deserializeAt #-}
+    deserializeAt off arr sz = do
+        (off1, len64) <- deserializeAt off arr sz :: IO (Int, Int64)
         let len = (fromIntegral :: Int64 -> Int) len64
             peekList f o i | i >= 3 = do
               -- Unfold the loop three times
-              (o1, x1) <- deserialize o arr sz
-              (o2, x2) <- deserialize o1 arr sz
-              (o3, x3) <- deserialize o2 arr sz
+              (o1, x1) <- deserializeAt o arr sz
+              (o2, x2) <- deserializeAt o1 arr sz
+              (o3, x3) <- deserializeAt o2 arr sz
               peekList (f . (\xs -> x1:x2:x3:xs)) o3 (i - 3)
             peekList f o 0 = pure (o, f [])
             peekList f o i = do
-              (o1, x) <- deserialize o arr sz
+              (o1, x) <- deserializeAt o arr sz
               peekList (f . (x:)) o1 (i - 1)
         peekList id off1 len
 
     -- Inlining this causes large compilation times for tests
-    {-# INLINABLE serialize #-}
-    serialize off arr val = do
+    {-# INLINABLE serializeAt #-}
+    serializeAt off arr val = do
         let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int64)
         let pokeList acc o [] =
               Unbox.pokeAt off arr (acc :: Int64) >> pure o
             pokeList acc o (x:xs) = do
-              o1 <- serialize o arr x
+              o1 <- serializeAt o arr x
               pokeList (acc + 1) o1 xs
         pokeList 0 off1 val
 
 instance Serialize (Array a) where
-    {-# INLINE size #-}
-    size i (Array {..}) = i + (arrEnd - arrStart) + 8
+    {-# INLINE addSizeTo #-}
+    addSizeTo i (Array {..}) = i + (arrEnd - arrStart) + 8
 
-    {-# INLINE deserialize #-}
-    deserialize off arr end = do
-        (off1, byteLen) <- deserialize off arr end :: IO (Int, Int)
+    {-# INLINE deserializeAt #-}
+    deserializeAt off arr end = do
+        (off1, byteLen) <- deserializeAt off arr end :: IO (Int, Int)
         let off2 = off1 + byteLen
         let slice = MutArray.MutArray arr off1 off2 off2
         newArr <- MutArray.clone slice
         pure (off2, Array.unsafeFreeze newArr)
 
-    {-# INLINE serialize #-}
-    serialize off arr (Array {..}) = do
+    {-# INLINE serializeAt #-}
+    serializeAt off arr (Array {..}) = do
         let arrLen = arrEnd - arrStart
-        off1 <- serialize off arr arrLen
+        off1 <- serializeAt off arr arrLen
         MBA.putSliceUnsafe arrContents arrStart arr off1 arrLen
         pure (off1 + arrLen)
 
 instance (Serialize a, Serialize b) => Serialize (a, b) where
 
-    {-# INLINE size #-}
-    size acc (a, b) = size (size acc a) b
+    {-# INLINE addSizeTo #-}
+    addSizeTo acc (a, b) = addSizeTo (addSizeTo acc a) b
 
-    {-# INLINE serialize #-}
-    serialize off arr (a, b) = do
-        off1 <- serialize off arr a
-        serialize off1 arr b
+    {-# INLINE serializeAt #-}
+    serializeAt off arr (a, b) = do
+        off1 <- serializeAt off arr a
+        serializeAt off1 arr b
 
-    {-# INLINE deserialize #-}
-    deserialize off arr end = do
-        (off1, a) <- deserialize off arr end
-        (off2, b) <- deserialize off1 arr end
+    {-# INLINE deserializeAt #-}
+    deserializeAt off arr end = do
+        (off1, a) <- deserializeAt off arr end
+        (off2, b) <- deserializeAt off1 arr end
         pure (off2, (a, b))

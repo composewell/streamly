@@ -75,9 +75,9 @@ module Streamly.Data.MutByteArray
     -- Deriving Serialize
     , SerializeConfig
     , serializeConfig
-    , inlineSize
-    , inlineSerialize
-    , inlineDeserialize
+    , inlineAddSizeTo
+    , inlineSerializeAt
+    , inlineDeserializeAt
 
     , deriveSerialize
     , deriveSerializeWith
