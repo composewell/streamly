@@ -15,6 +15,7 @@ module Streamly.Internal.Data.Serialize.Type
 -- Imports
 --------------------------------------------------------------------------------
 
+import Control.Monad (when)
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
 import Streamly.Internal.Data.Unbox (Unbox)
@@ -274,9 +275,14 @@ instance Serialize (Array a) where
     addSizeTo i (Array {..}) = i + (arrEnd - arrStart) + 8
 
     {-# INLINE deserializeAt #-}
-    deserializeAt off arr end = do
-        (off1, byteLen) <- deserializeAt off arr end :: IO (Int, Int)
+    deserializeAt off arr len = do
+        (off1, byteLen) <- deserializeAt off arr len :: IO (Int, Int)
         let off2 = off1 + byteLen
+        when (off2 > len) $
+            error
+                $ "deserializeAt: accessing array at offset = "
+                    ++ show (off2 - 1)
+                    ++ " max valid offset = " ++ show (len - 1)
         let slice = MutArray.MutArray arr off1 off2 off2
         newArr <- MutArray.clone slice
         pure (off2, Array.unsafeFreeze newArr)
