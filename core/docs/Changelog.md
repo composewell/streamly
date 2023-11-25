@@ -4,6 +4,9 @@
 
 ### Breaking
 
+See the [streamly-core-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.2.0.txt) 
+for a full list of changes in this release.
+
 * `ParserK` in `Streamly.Data.ParserK` is not implicitly specialized
   to arrays anymore. To adapt to the new code, change `ParserK a m
   b` to `ParserK (Array a) m b` where the `Array` type comes from
@@ -11,11 +14,34 @@
   `parseChunks` and `parseBreakChunks`.
 * Changed the signature of 'Streamly.Data.Stream.handle' to make the
   exception handler monadic.
-* `getIndex` signature changed in `Streamly.Data.MutArray` and
-  `Streamly.Data.MutArray.Generic`.
 * Behavior change: Exceptions are now rethrown promptly in `bracketIO`.
 
-### Internal Changes
+### Enhancements
+
+See the [streamly-core-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.2.0.txt) 
+for a full list of new APIs added in this release.
+
+* Serialization: Added a `Streamly.Data.MutByteArray` module with a
+  `Serialize` type class for fast binary serialization. The Data.Array
+  module supplies the `serialize` and `deserialize` operations for arrays.
+* Unpinned Arrays: Unboxed arrays are now created unpinned by default,
+  they were created pinned earlier. During IO operations, unpinned arrays
+  are automatically copied to pinned memory. When arrays are directly
+  passed to IO operations programmers can choose to create them pinned to
+  avoid a copy.  To create pinned arrays, use the internal APIs with the
+  `pinned*` prefix.
+* StreamK now supports native exception handling routines (handle, bracketIO).
+  Earlier we had to convert it to the `Stream` type for exception handling.
+
+### Deprecations
+
+See the [streamly-core-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.2.0.txt) 
+for a full list of deprecations.
+
+### Internal API Changes
+
+See the [streamly-core-0.2.0 Internal API Changelog](/core/docs/ApiChangelogs/0.2.0-internal.txt)
+for a full list of changes to the internal modules.
 
 * Fold constructor has changed, added a `final` field to support
   finalization and cleanup of a chain of folds. The `extract` field is
@@ -29,24 +55,6 @@
   * Streamly.Internal.Serialize.ToBytes ->   Streamly.Internal.Data.Binary.Stream
   * Streamly.Internal.Data.Unbox is now exported via Streamly.Internal.Data.Serialize
   * Streamly.Internal.Data.IORef.Unboxed is now exported via Streamly.Internal.Data.Serialize
-
-### Enhancements
-
-* Unboxed arrays are now created unpinned by default, they were
-  created pinned earlier. During IO operations, unpinned arrays are
-  automatically copied to pinned memory. When arrays are directly passed
-  to IO operations programmers can choose to create them pinned to avoid a
-  copy.  To create pinned arrays, use the internal APIs with the `pinned*`
-  prefix.
-* Added a `Streamly.Data.Serialize` module for fast binary serialization.
-* Added exception handling routines in StreamK (handle, bracketIO).
-* More APIs added in `Streamly.Data.MutArray` and 
-  `Streamly.Data.MutArray.Generic`.
-
-### Deprecations
-
-* `Streamly.Data.MutArray.newUnpinned` is renamed to
-  `Streamly.Data.MutArray.pinnedNew`
 
 ## 0.1.0 (March 2023)
 
