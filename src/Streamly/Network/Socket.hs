@@ -124,9 +124,7 @@ module Streamly.Network.Socket
     , accept
     , readChunk
     , writeChunk
-    , read
     , readWithBufferOf
-    , readChunks
     , readChunksWithBufferOf
     , writeWithBufferOf
     , writeChunksWithBufferOf
@@ -157,13 +155,3 @@ readChunk = getChunk
 {-# INLINABLE writeChunk #-}
 writeChunk :: Unbox a => Socket -> Array a -> IO ()
 writeChunk = putChunk
-
-{-# DEPRECATED read "Please use 'reader' instead" #-}
-{-# INLINE read #-}
-read :: MonadIO m => Unfold m Socket Word8
-read = reader
-
-{-# DEPRECATED readChunks "Please use 'chunkReader' instead" #-}
-{-# INLINE readChunks #-}
-readChunks :: MonadIO m => Unfold m Socket (Array Word8)
-readChunks = chunkReader
