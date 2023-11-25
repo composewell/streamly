@@ -22,7 +22,7 @@ module Streamly.Test.Data.Serialize (main) where
 --------------------------------------------------------------------------------
 
 import System.Random (randomRIO)
-import Streamly.Internal.Data.MutByteArray (MutByteArray, newByteArray)
+import Streamly.Internal.Data.MutByteArray (MutByteArray)
 import GHC.Generics (Generic)
 import Streamly.Data.MutByteArray (Serialize)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
@@ -169,7 +169,7 @@ poke val = do
     let arrSize = sz + excessSize
         serStartOff = randomOff
         serEndOff = randomOff + sz
-    arr <- newByteArray arrSize
+    arr <- Serialize.new arrSize
 
     off1 <- Serialize.serialize serStartOff arr val
     off1 `shouldBe` serEndOff

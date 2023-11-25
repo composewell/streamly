@@ -24,8 +24,8 @@ module Streamly.Internal.Data.MutByteArray.Type
     -- ** Allocation
     , nil
     , newBytesAs
-    , newByteArray
-    , pinnedNewByteArray
+    , new
+    , pinnedNew
     , pinnedNewAlignedBytes
 
     -- ** Access
@@ -122,23 +122,23 @@ asPtrUnsafe arr f = do
 
 {-# NOINLINE nil #-}
 nil :: MutByteArray
-nil = unsafePerformIO $ newByteArray 0
+nil = unsafePerformIO $ new 0
 
-{-# INLINE newByteArray #-}
-newByteArray :: Int -> IO MutByteArray
-newByteArray nbytes | nbytes < 0 =
+{-# INLINE new #-}
+new :: Int -> IO MutByteArray
+new nbytes | nbytes < 0 =
   errorWithoutStackTrace "newByteArray: size must be >= 0"
-newByteArray (I# nbytes) = IO $ \s ->
+new (I# nbytes) = IO $ \s ->
     case newByteArray# nbytes s of
         (# s', mbarr# #) ->
            let c = MutByteArray mbarr#
             in (# s', c #)
 
-{-# INLINE pinnedNewByteArray #-}
-pinnedNewByteArray :: Int -> IO MutByteArray
-pinnedNewByteArray nbytes | nbytes < 0 =
+{-# INLINE pinnedNew #-}
+pinnedNew :: Int -> IO MutByteArray
+pinnedNew nbytes | nbytes < 0 =
   errorWithoutStackTrace "pinnedNewByteArray: size must be >= 0"
-pinnedNewByteArray (I# nbytes) = IO $ \s ->
+pinnedNew (I# nbytes) = IO $ \s ->
     case newPinnedByteArray# nbytes s of
         (# s', mbarr# #) ->
            let c = MutByteArray mbarr#
@@ -156,8 +156,8 @@ pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
 
 {-# INLINE newBytesAs #-}
 newBytesAs :: PinnedState -> Int -> IO MutByteArray
-newBytesAs Unpinned = newByteArray
-newBytesAs Pinned = pinnedNewByteArray
+newBytesAs Unpinned = new
+newBytesAs Pinned = pinnedNew
 
 -------------------------------------------------------------------------------
 -- Copying

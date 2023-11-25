@@ -28,6 +28,7 @@ import GHC.Generics (Generic, Rep(..))
 import GHC.Real (Ratio(..))
 
 import Streamly.Internal.Data.MutByteArray
+import qualified Streamly.Internal.Data.MutByteArray as MBA
 
 import Test.Hspec as H
 
@@ -198,7 +199,7 @@ testSerialization val = do
 #else
                (sizeOf (Proxy :: Proxy a))
 #endif
-    arr <- newByteArray len
+    arr <- MBA.new len
     nextOff <- POKE(0, arr, val)
     (nextOff1, val1) <- PEEK(0, arr, len)
     val1 `shouldBe` val
@@ -232,7 +233,7 @@ testGenericConsistency val = do
     len  `shouldBe` genericSizeOf (Proxy :: Proxy a)
 
     -- Test the serialization and deserialization
-    arr <- newByteArray (sizeOf (Proxy :: Proxy a))
+    arr <- MBA.new (sizeOf (Proxy :: Proxy a))
 
     nextOff <- POKE(0, arr, val)
     genericPeekByteIndex arr 0 `shouldReturn` val

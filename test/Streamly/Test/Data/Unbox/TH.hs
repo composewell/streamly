@@ -16,6 +16,7 @@ module Streamly.Test.Data.Unbox.TH (main) where
 
 import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.MutByteArray
+import qualified Streamly.Internal.Data.MutByteArray as MBA
 
 import Test.Hspec as H
 
@@ -28,7 +29,7 @@ testSerialization ::
     => a
     -> IO ()
 testSerialization val = do
-    arr <- newByteArray (sizeOf (Proxy :: Proxy a))
+    arr <- MBA.new (sizeOf (Proxy :: Proxy a))
     pokeByteIndex 0 arr val
     peekByteIndex 0 arr `shouldReturn` val
 

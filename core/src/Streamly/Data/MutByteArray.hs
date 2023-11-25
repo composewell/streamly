@@ -52,8 +52,8 @@ module Streamly.Data.MutByteArray
     , isPinned
     , pin
     , unpin
-    , newByteArray
-    , pinnedNewByteArray
+    , new
+    , pinnedNew
 
     -- * Unbox
     , Unbox(..)

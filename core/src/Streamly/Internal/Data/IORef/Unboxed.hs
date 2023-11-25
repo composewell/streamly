@@ -40,10 +40,10 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Proxy (Proxy(..))
-import Streamly.Internal.Data.MutByteArray.Type
-    (MutByteArray(..), newByteArray)
+import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Unbox (Unbox(..), sizeOf)
 
+import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.Stream.Type as D
 
 -- | An 'IORef' holds a single 'Unbox'-able value.
@@ -55,7 +55,7 @@ newtype IORef a = IORef MutByteArray
 {-# INLINE newIORef #-}
 newIORef :: forall a. Unbox a => a -> IO (IORef a)
 newIORef x = do
-    var <- newByteArray (sizeOf (Proxy :: Proxy a))
+    var <- MBA.new (sizeOf (Proxy :: Proxy a))
     pokeByteIndex 0 var x
     return $ IORef var
 
