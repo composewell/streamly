@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Serialize.Parser
+-- Module      : Streamly.Internal.Data.Binary.Parser
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -13,7 +13,7 @@
 -- representing Haskell data types is to write them to arrays and deserialize
 -- the array using the Serialize type class.
 
-module Streamly.Internal.Data.Serialize.Parser
+module Streamly.Internal.Data.Binary.Parser
     (
     -- * Type class
       FromBytes (..)

@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Serialize.Stream
+-- Module      : Streamly.Internal.Data.Binary.Stream
 -- Copyright   : (c) 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -17,7 +17,7 @@
 
 -- XXX remove unit, bool, ordering, and the type class as well
 
-module Streamly.Internal.Data.Serialize.Stream
+module Streamly.Internal.Data.Binary.Stream
     (
     -- * Type class
       ToBytes (..)

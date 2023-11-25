@@ -293,8 +293,10 @@ library
 
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.MutByteArray
-                     , Streamly.Internal.Data.Serialize.Parser
-                     , Streamly.Internal.Data.Serialize.Stream
+
+                     -- streaming and parsing Haskell types to/from bytes
+                     , Streamly.Internal.Data.Binary.Parser
+                     , Streamly.Internal.Data.Binary.Stream
 
                      -- May depend on streamly-core-stream
                      , Streamly.Internal.Data.MutArray

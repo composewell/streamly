@@ -10,8 +10,8 @@ import Test.QuickCheck
     )
 import Test.QuickCheck.Monadic (monadicIO)
 
-import qualified Streamly.Internal.Data.Serialize.Parser as Decoder
-import qualified Streamly.Internal.Data.Serialize.Stream as Encoder
+import qualified Streamly.Internal.Data.Binary.Parser as Decoder
+import qualified Streamly.Internal.Data.Binary.Stream as Encoder
 import qualified Streamly.Data.Stream as Stream
 import Streamly.Internal.Data.Parser (Parser)
 

@@ -25,8 +25,8 @@
   exported from higher level internal modules. If you were importing any
   of the missing modules then import the higher level modules now.
 * Internal module changes:
-  * Streamly.Internal.Serialize.FromBytes -> Streamly.Internal.Data.Serialize.Parser
-  * Streamly.Internal.Serialize.ToBytes ->   Streamly.Internal.Data.Serialize.Stream
+  * Streamly.Internal.Serialize.FromBytes -> Streamly.Internal.Data.Binary.Parser
+  * Streamly.Internal.Serialize.ToBytes ->   Streamly.Internal.Data.Binary.Stream
   * Streamly.Internal.Data.Unbox is now exported via Streamly.Internal.Data.Serialize
   * Streamly.Internal.Data.IORef.Unboxed is now exported via Streamly.Internal.Data.Serialize
 
