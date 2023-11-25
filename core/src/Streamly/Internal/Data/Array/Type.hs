@@ -501,8 +501,8 @@ toListFB c n Array{..} = go arrStart
         -- accumulating the list and fusing better with the pure consumers.
         --
         -- This should be safe as the array contents are guaranteed to be
-        -- evaluated/written to before we peekByteIndex at them.
-        let !x = unsafeInlineIO $ peekByteIndex p arrContents
+        -- evaluated/written to before we peekAt at them.
+        let !x = unsafeInlineIO $ peekAt p arrContents
         in c x (go (INDEX_NEXT(p,a)))
 
 -- | Convert an 'Array' into a list.
@@ -703,7 +703,7 @@ _toStreamD_ size Array{..} = D.Stream step arrStart
     {-# INLINE_LATE step #-}
     step _ p | p == arrEnd = return D.Stop
     step _ p = liftIO $ do
-        x <- peekByteIndex p arrContents
+        x <- peekAt p arrContents
         return $ D.Yield x (p + size)
 
 {-

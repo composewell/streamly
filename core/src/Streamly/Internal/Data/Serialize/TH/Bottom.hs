@@ -341,7 +341,7 @@ xorCmp tag off arr =
     go8 i = do
         let wIntegral = litIntegral i
         [|xor (unsafeInlineIO
-                   (Unbox.peekByteIndex
+                   (Unbox.peekAt
                         ($(varE off) + $(litIntegral i))
                         $(varE arr)))
               ($(wIntegral) :: Word8) .|.
@@ -355,7 +355,7 @@ xorCmp tag off arr =
                 litIntegral
                     (shiftAdd w8_w16 [tag !! i, tag !! (i + 1)] :: Word16)
         [|xor (unsafeInlineIO
-                   (Unbox.peekByteIndex
+                   (Unbox.peekAt
                         ($(varE off) + $(litIntegral i))
                         $(varE arr)))
               ($(wIntegral) :: Word16) .|.
@@ -375,7 +375,7 @@ xorCmp tag off arr =
                          , tag !! (i + 3)
                          ] :: Word32)
         [|xor (unsafeInlineIO
-                   (Unbox.peekByteIndex
+                   (Unbox.peekAt
                         ($(varE off) + $(litIntegral i))
                         $(varE arr)))
               ($(wIntegral) :: Word32) .|.
@@ -399,7 +399,7 @@ xorCmp tag off arr =
                          , tag !! (i + 7)
                          ])
         [|xor (unsafeInlineIO
-                   (Unbox.peekByteIndex
+                   (Unbox.peekAt
                         ($(varE off) + $(litIntegral i))
                         $(varE arr)))
               ($(wIntegral) :: Word64) .|.

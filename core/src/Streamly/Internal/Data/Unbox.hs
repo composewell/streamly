@@ -162,9 +162,9 @@ import Streamly.Internal.Data.MutByteArray.Type (MutByteArray(..))
 -- have multiple constructors of different sizes, the size of a sum type is
 -- computed as the maximum required by any constructor.
 --
--- The 'peekByteIndex' operation reads as many bytes from the mutable byte
+-- The 'peekAt' operation reads as many bytes from the mutable byte
 -- array as the @size@ of the data type and builds a Haskell data type from
--- these bytes. 'pokeByteIndex' operation converts a Haskell data type to its
+-- these bytes. 'pokeAt' operation converts a Haskell data type to its
 -- binary representation which consists of @size@ bytes and then stores
 -- these bytes into the mutable byte array. These operations do not check the
 -- bounds of the array, the user of the type class is expected to check the
@@ -214,15 +214,15 @@ import Streamly.Internal.Data.MutByteArray.Type (MutByteArray(..))
 -- >>> :{
 -- instance Unbox Object where
 --     sizeOf _ = 16
---     peekByteIndex i arr = do
+--     peekAt i arr = do
 --        -- Check the array bounds
---         x0 <- peekByteIndex i arr
---         x1 <- peekByteIndex (i + 8) arr
+--         x0 <- peekAt i arr
+--         x1 <- peekAt (i + 8) arr
 --         return $ Object x0 x1
---     pokeByteIndex i arr (Object x0 x1) = do
+--     pokeAt i arr (Object x0 x1) = do
 --        -- Check the array bounds
---         pokeByteIndex i arr x0
---         pokeByteIndex (i + 8) arr x1
+--         pokeAt i arr x0
+--         pokeAt (i + 8) arr x1
 -- :}
 --
 class Unbox a where
@@ -233,40 +233,49 @@ class Unbox a where
     default sizeOf :: (SizeOfRep (Rep a)) => Proxy a -> Int
     sizeOf = genericSizeOf
 
-    -- | @peekByteIndex byte-index array@ reads an element of type @a@ from the
-    -- the given the byte index in the array.
+    -- | @peekAt byte-offset array@ reads an element of type @a@ from the
+    -- the given the byte offset in the array.
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
-    peekByteIndex :: Int -> MutByteArray -> IO a
+    peekAt :: Int -> MutByteArray -> IO a
 
-    {-# INLINE peekByteIndex #-}
-    default peekByteIndex :: (Generic a, PeekRep (Rep a)) =>
+    {-# INLINE peekAt #-}
+    default peekAt :: (Generic a, PeekRep (Rep a)) =>
          Int -> MutByteArray -> IO a
-    peekByteIndex i arr = genericPeekByteIndex arr i
+    peekAt i arr = genericPeekByteIndex arr i
 
-    -- | @pokeByteIndex byte-index array@ writes an element of type @a@ to the
-    -- the given the byte index in the array.
+    peekByteIndex :: Int -> MutByteArray -> IO a
+    peekByteIndex = peekAt
+
+    -- | @pokeAt byte-offset array@ writes an element of type @a@ to the
+    -- the given the byte offset in the array.
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
-    pokeByteIndex :: Int -> MutByteArray -> a -> IO ()
+    pokeAt :: Int -> MutByteArray -> a -> IO ()
 
-    {-# INLINE pokeByteIndex #-}
-    default pokeByteIndex :: (Generic a, PokeRep (Rep a)) =>
+    pokeByteIndex :: Int -> MutByteArray -> a -> IO ()
+    pokeByteIndex = pokeAt
+
+    {-# INLINE pokeAt #-}
+    default pokeAt :: (Generic a, PokeRep (Rep a)) =>
         Int -> MutByteArray -> a -> IO ()
-    pokeByteIndex i arr = genericPokeByteIndex arr i
+    pokeAt i arr = genericPokeByteIndex arr i
+
+{-# DEPRECATED peekByteIndex "Use peekAt." #-}
+{-# DEPRECATED pokeByteIndex "Use pokeAt." #-}
 
 -- XXX Add asserts to check bounds
 
 #define DERIVE_UNBOXED(_type, _constructor, _readArray, _writeArray, _sizeOf) \
 instance Unbox _type where {                                         \
-; {-# INLINE peekByteIndex #-}                                       \
-; peekByteIndex (I# n) (MutByteArray mbarr) = IO $ \s ->         \
+; {-# INLINE peekAt #-}                                       \
+; peekAt (I# n) (MutByteArray mbarr) = IO $ \s ->         \
       case _readArray mbarr n s of                                   \
           { (# s1, i #) -> (# s1, _constructor i #) }                \
-; {-# INLINE pokeByteIndex #-}                                       \
-; pokeByteIndex (I# n) (MutByteArray mbarr) (_constructor val) = \
+; {-# INLINE pokeAt #-}                                       \
+; pokeAt (I# n) (MutByteArray mbarr) (_constructor val) = \
         IO $ \s -> (# _writeArray mbarr n val s, () #)               \
 ; {-# INLINE sizeOf #-}                                              \
 ; sizeOf _ = _sizeOf                                                 \
@@ -274,24 +283,24 @@ instance Unbox _type where {                                         \
 
 #define DERIVE_WRAPPED_UNBOX(_constraint, _type, _constructor, _innerType)    \
 instance _constraint Unbox _type where                                        \
-; {-# INLINE peekByteIndex #-}                                                \
-; peekByteIndex i arr = _constructor <$> peekByteIndex i arr                  \
-; {-# INLINE pokeByteIndex #-}                                                \
-; pokeByteIndex i arr (_constructor a) = pokeByteIndex i arr a                \
+; {-# INLINE peekAt #-}                                                \
+; peekAt i arr = _constructor <$> peekAt i arr                  \
+; {-# INLINE pokeAt #-}                                                \
+; pokeAt i arr (_constructor a) = pokeAt i arr a                \
 ; {-# INLINE sizeOf #-}                                                       \
 ; sizeOf _ = SIZE_OF(_innerType)
 
 #define DERIVE_BINARY_UNBOX(_constraint, _type, _constructor, _innerType) \
 instance _constraint Unbox _type where {                                  \
-; {-# INLINE peekByteIndex #-}                                            \
-; peekByteIndex i arr =                                                   \
-      peekByteIndex i arr >>=                                             \
-        (\p1 -> peekByteIndex (i + SIZE_OF(_innerType)) arr               \
+; {-# INLINE peekAt #-}                                            \
+; peekAt i arr =                                                   \
+      peekAt i arr >>=                                             \
+        (\p1 -> peekAt (i + SIZE_OF(_innerType)) arr               \
             <&> _constructor p1)                                          \
-; {-# INLINE pokeByteIndex #-}                                            \
-; pokeByteIndex i arr (_constructor p1 p2) =                              \
-      pokeByteIndex i arr p1 >>                                           \
-        pokeByteIndex (i + SIZE_OF(_innerType)) arr p2                    \
+; {-# INLINE pokeAt #-}                                            \
+; pokeAt i arr (_constructor p1 p2) =                              \
+      pokeAt i arr p1 >>                                           \
+        pokeAt (i + SIZE_OF(_innerType)) arr p2                    \
 ; {-# INLINE sizeOf #-}                                                   \
 ; sizeOf _ = 2 * SIZE_OF(_innerType)                                      \
 }
@@ -413,11 +422,11 @@ DERIVE_BINARY_UNBOX(,Fingerprint,Fingerprint,Word64)
 
 instance Unbox () where
 
-    {-# INLINE peekByteIndex #-}
-    peekByteIndex _ _ = return ()
+    {-# INLINE peekAt #-}
+    peekAt _ _ = return ()
 
-    {-# INLINE pokeByteIndex #-}
-    pokeByteIndex _ _ _ = return ()
+    {-# INLINE pokeAt #-}
+    pokeAt _ _ _ = return ()
 
     {-# INLINE sizeOf #-}
     sizeOf _ = 1
@@ -425,11 +434,11 @@ instance Unbox () where
 #if MIN_VERSION_base(4,15,0)
 instance Unbox IoSubSystem where
 
-    {-# INLINE peekByteIndex #-}
-    peekByteIndex i arr = toEnum <$> peekByteIndex i arr
+    {-# INLINE peekAt #-}
+    peekAt i arr = toEnum <$> peekAt i arr
 
-    {-# INLINE pokeByteIndex #-}
-    pokeByteIndex i arr a = pokeByteIndex i arr (fromEnum a)
+    {-# INLINE pokeAt #-}
+    pokeAt i arr a = pokeAt i arr (fromEnum a)
 
     {-# INLINE sizeOf #-}
     sizeOf _ = sizeOf (Proxy :: Proxy Int)
@@ -437,16 +446,16 @@ instance Unbox IoSubSystem where
 
 instance Unbox Bool where
 
-    {-# INLINE peekByteIndex #-}
-    peekByteIndex i arr = do
-        res <- peekByteIndex i arr
+    {-# INLINE peekAt #-}
+    peekAt i arr = do
+        res <- peekAt i arr
         return $ res /= (0 :: Int8)
 
-    {-# INLINE pokeByteIndex #-}
-    pokeByteIndex i arr a =
+    {-# INLINE pokeAt #-}
+    pokeAt i arr a =
         if a
-        then pokeByteIndex i arr (1 :: Int8)
-        else pokeByteIndex i arr (0 :: Int8)
+        then pokeAt i arr (1 :: Int8)
+        else pokeAt i arr (0 :: Int8)
 
     {-# INLINE sizeOf #-}
     sizeOf _ = 1
@@ -489,7 +498,7 @@ readUnsafe = Peeker (Builder step)
                 ++ show next
                 ++ " end = " ++ show end
 #endif
-        r <- peekByteIndex pos arr
+        r <- peekAt pos arr
         return (r, BoundedPtr arr next end)
 
 {-# INLINE read #-}
@@ -506,7 +515,7 @@ read = Peeker (Builder step)
             $ error $ "read: reading beyond limit. next = "
                 ++ show next
                 ++ " end = " ++ show end
-        r <- peekByteIndex pos arr
+        r <- peekAt pos arr
         return (r, BoundedPtr arr next end)
 
 {-# INLINE skipByte #-}
@@ -551,7 +560,7 @@ pokeBoundedPtrUnsafe a (BoundedPtr arr pos end) = do
             ++ show next
             ++ " end = " ++ show end
 #endif
-    pokeByteIndex pos arr a
+    pokeAt pos arr a
     return (BoundedPtr arr next end)
 
 {-# INLINE pokeBoundedPtr #-}
@@ -559,7 +568,7 @@ pokeBoundedPtr :: forall a. Unbox a => a -> BoundedPtr -> IO BoundedPtr
 pokeBoundedPtr a (BoundedPtr arr pos end) = do
     let next = pos + sizeOf (Proxy :: Proxy a)
     when (next > end) $ error "pokeBoundedPtr writing beyond limit"
-    pokeByteIndex pos arr a
+    pokeAt pos arr a
     return (BoundedPtr arr next end)
 
 --------------------------------------------------------------------------------

@@ -124,7 +124,7 @@ fromFold (Fold.Fold fstep finitial _ ffinal) =
             assert (cur == end) (return ())
             return $ Partial 0 fs
         goArray !_ !cur !fs = do
-            x <- liftIO $ peekByteIndex cur contents
+            x <- liftIO $ peekAt cur contents
             res <- fstep fs x
             let elemSize = SIZE_OF(a)
                 next = INDEX_NEXT(cur,a)
@@ -163,7 +163,7 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
             else return $ st (arrRem + n) fs1
 
         goArray !_ !cur !fs = do
-            x <- liftIO $ peekByteIndex cur contents
+            x <- liftIO $ peekAt cur contents
             res <- step1 fs x
             let elemSize = SIZE_OF(a)
                 next = INDEX_NEXT(cur,a)

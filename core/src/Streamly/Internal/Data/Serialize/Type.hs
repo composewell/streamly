@@ -189,7 +189,7 @@ deserializeUnsafe off arr sz =
      in do
         -- Keep likely path in the straight branch.
         if (next <= sz)
-        then Unbox.peekByteIndex off arr >>= \val -> pure (next, val)
+        then Unbox.peekAt off arr >>= \val -> pure (next, val)
         else error
             $ "deserialize: accessing array at offset = "
                 ++ show (next - 1)
@@ -203,7 +203,7 @@ serializeUnsafe off arr val =
 #ifdef DEBUG
         checkBounds "serialize" next arr
 #endif
-        Unbox.pokeByteIndex off arr val
+        Unbox.pokeAt off arr val
         pure next
 
 #define DERIVE_SERIALIZE_FROM_UNBOX(_type) \
@@ -262,7 +262,7 @@ instance forall a. Serialize a => Serialize [a] where
     serialize off arr val = do
         let off1 = off + Unbox.sizeOf (Proxy :: Proxy Int64)
         let pokeList acc o [] =
-              Unbox.pokeByteIndex off arr (acc :: Int64) >> pure o
+              Unbox.pokeAt off arr (acc :: Int64) >> pure o
             pokeList acc o (x:xs) = do
               o1 <- serialize o arr x
               pokeList (acc + 1) o1 xs

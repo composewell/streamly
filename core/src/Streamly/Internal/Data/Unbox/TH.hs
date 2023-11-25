@@ -252,7 +252,7 @@ mkPeekExprOne tagSize (DataCon cname _ _ fields) =
 
     where
 
-    peekField i = [|peekByteIndex $(varE (mkOffsetName i)) $(varE _arr)|]
+    peekField i = [|peekAt $(varE (mkOffsetName i)) $(varE _arr)|]
 
 mkPeekExpr :: Type -> [DataCon] -> Q Exp
 mkPeekExpr headTy cons =
@@ -266,7 +266,7 @@ mkPeekExpr headTy cons =
             doE
                 [ bindS
                       (varP _tag)
-                      [|peekByteIndex $(varE _initialOffset) $(varE _arr)|]
+                      [|peekAt $(varE _initialOffset) $(varE _arr)|]
                 , noBindS
                       (caseE
                            (sigE (varE _tag) (conT tagType))
@@ -299,7 +299,7 @@ mkPokeExprTag tagType tagVal = pokeTag
     where
 
     pokeTag =
-        [|pokeByteIndex
+        [|pokeAt
               $(varE _initialOffset)
               $(varE _arr)
               $((sigE (litE (IntegerL (fromIntegral tagVal))) (conT tagType)))|]
@@ -317,7 +317,7 @@ mkPokeExprFields tagSize fields = do
 
     numFields = length fields
     pokeField i =
-        [|pokeByteIndex
+        [|pokeAt
               $(varE (mkOffsetName i))
               $(varE _arr)
               $(varE (mkFieldName i))|]
@@ -402,9 +402,9 @@ deriveUnboxInternal headTy cons mkDec = do
             -- none
             [ -- PragmaD (InlineP 'sizeOf Inline FunLike AllPhases)
               FunD 'sizeOf [Clause [WildP] (NormalB sizeOfMethod) []]
-            , PragmaD (InlineP 'peekByteIndex Inline FunLike AllPhases)
+            , PragmaD (InlineP 'peekAt Inline FunLike AllPhases)
             , FunD
-                  'peekByteIndex
+                  'peekAt
                   [ Clause
                         (if isUnitType cons
                              then [WildP, WildP]
@@ -412,9 +412,9 @@ deriveUnboxInternal headTy cons mkDec = do
                         (NormalB peekMethod)
                         []
                   ]
-            , PragmaD (InlineP 'pokeByteIndex Inline FunLike AllPhases)
+            , PragmaD (InlineP 'pokeAt Inline FunLike AllPhases)
             , FunD
-                  'pokeByteIndex
+                  'pokeAt
                   [ Clause
                         (if isUnitType cons
                              then [WildP, WildP, WildP]

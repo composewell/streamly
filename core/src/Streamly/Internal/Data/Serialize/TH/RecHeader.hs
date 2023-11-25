@@ -228,7 +228,7 @@ headerValue (SimpleDataCon _ fields) =
 serializeWithSize :: Serialize a => Int -> MutByteArray -> a -> IO Int
 serializeWithSize off arr val = do
     off1 <- serialize (off + 4) arr val
-    Unbox.pokeByteIndex off arr (int_w32 (off1 - off - 4) :: Word32)
+    Unbox.pokeAt off arr (int_w32 (off1 - off - 4) :: Word32)
     pure off1
 
 mkRecSerializeExpr :: Name -> SimpleDataCon -> Q Exp
@@ -245,7 +245,7 @@ mkRecSerializeExpr initialOffset (con@(SimpleDataCon cname fields)) = do
          $(varP (makeI 0)) <- $(serializeW8List afterHLen _arr hval)
          let $(openConstructor cname (length fields)) = $(varE _val)
          finalOff <- $(mkSerializeExprFields 'serializeWithSize fields)
-         Unbox.pokeByteIndex
+         Unbox.pokeAt
              $(varE initialOffset)
              $(varE _arr)
              ((fromIntegral :: Int -> Word32)

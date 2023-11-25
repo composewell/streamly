@@ -46,8 +46,8 @@ import Test.Hspec as H
 
 #else
 
-#define PEEK(i, arr, sz) peekByteIndexWithNextOff i arr
-#define POKE(i, arr, val) pokeByteIndexWithNextOff i arr val
+#define PEEK(i, arr, sz) peekAtWithNextOff i arr
+#define POKE(i, arr, val) pokeAtWithNextOff i arr val
 #define TYPE_CLASS Unbox
 
 #ifdef USE_TH
@@ -70,23 +70,23 @@ import Test.Hspec as H
 
 #ifndef USE_SERIALIZE
 
-peekByteIndexWithNextOff ::
+peekAtWithNextOff ::
        forall a. Unbox a
     => Int
     -> MutByteArray
     -> IO (Int, a)
-peekByteIndexWithNextOff i arr = do
-    val <- peekByteIndex i arr
+peekAtWithNextOff i arr = do
+    val <- peekAt i arr
     pure (i + sizeOf (Proxy :: Proxy a), val)
 
-pokeByteIndexWithNextOff ::
+pokeAtWithNextOff ::
        forall a. Unbox a
     => Int
     -> MutByteArray
     -> a
     -> IO Int
-pokeByteIndexWithNextOff i arr val = do
-    pokeByteIndex i arr val
+pokeAtWithNextOff i arr val = do
+    pokeAt i arr val
     pure $ i + sizeOf (Proxy :: Proxy a)
 
 #endif

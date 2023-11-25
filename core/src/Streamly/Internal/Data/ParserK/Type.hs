@@ -404,7 +404,7 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
         go !_ !cur !pst | cur >= end =
             onContinue ((end - start) `div` SIZE_OF(a))  pst
         go !_ !cur !pst = do
-            let !x = unsafeInlineIO $ peekByteIndex cur contents
+            let !x = unsafeInlineIO $ peekAt cur contents
             pRes <- pstep pst x
             let elemSize = SIZE_OF(a)
                 next = INDEX_NEXT(cur,a)

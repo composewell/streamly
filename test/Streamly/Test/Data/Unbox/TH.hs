@@ -30,8 +30,8 @@ testSerialization ::
     -> IO ()
 testSerialization val = do
     arr <- MBA.new (sizeOf (Proxy :: Proxy a))
-    pokeByteIndex 0 arr val
-    peekByteIndex 0 arr `shouldReturn` val
+    pokeAt 0 arr val
+    peekAt 0 arr `shouldReturn` val
 
 -- Size is also implicitly tested while serializing and deserializing.
 checkSizeOf :: forall a. Unbox a => Proxy a -> Int -> IO ()

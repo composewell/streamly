@@ -220,7 +220,7 @@ readerUnsafe = Unfold step inject
             --
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peekByteIndex p contents
+            let !x = unsafeInlineIO $ peekAt p contents
             let !p1 = INDEX_NEXT(p,a)
             return $ D.Yield x (ArrayUnsafe contents end p1)
 
@@ -243,7 +243,7 @@ getIndexRev i arr =
         $ do
                 let elemPtr = RINDEX_OF(arrEnd arr, i, a)
                 if i >= 0 && elemPtr >= arrStart arr
-                then Just <$> peekByteIndex elemPtr (arrContents arr)
+                then Just <$> peekAt elemPtr (arrContents arr)
                 else return Nothing
 
 -- |
@@ -404,7 +404,7 @@ getIndex i arr =
         $ do
                 let elemPtr = INDEX_OF(arrStart arr, i, a)
                 if i >= 0 && INDEX_VALID(elemPtr, arrEnd arr, a)
-                then Just <$> peekByteIndex elemPtr (arrContents arr)
+                then Just <$> peekAt elemPtr (arrContents arr)
                 else return Nothing
 
 -- | Given a stream of array indices, read the elements on those indices from

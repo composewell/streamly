@@ -79,7 +79,7 @@ import Foreign.Storable
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
-import Streamly.Internal.Data.Unbox as Unboxed (Unbox(peekByteIndex))
+import Streamly.Internal.Data.Unbox as Unboxed (Unbox(peekAt))
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray)
@@ -411,7 +411,7 @@ unsafeEqArrayN Ring{..} rh A.Array{..} nBytes
 
     check p i = do
         (relem :: Word8) <- peek p
-        aelem <- peekByteIndex i w8Contents
+        aelem <- peekAt i w8Contents
         if relem == aelem
         then go (p `plusPtr` 1) (i + 1)
         else return False
@@ -445,7 +445,7 @@ unsafeEqArray Ring{..} rh A.Array{..} =
 
     check p i = do
         (relem :: Word8) <- peek p
-        aelem <- peekByteIndex i w8Contents
+        aelem <- peekAt i w8Contents
         if relem == aelem
         then go (p `plusPtr` 1) (i + 1)
         else return False

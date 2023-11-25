@@ -56,7 +56,7 @@ newtype IORef a = IORef MutByteArray
 newIORef :: forall a. Unbox a => a -> IO (IORef a)
 newIORef x = do
     var <- MBA.new (sizeOf (Proxy :: Proxy a))
-    pokeByteIndex 0 var x
+    pokeAt 0 var x
     return $ IORef var
 
 -- | Write a value to an 'IORef'.
@@ -64,14 +64,14 @@ newIORef x = do
 -- /Pre-release/
 {-# INLINE writeIORef #-}
 writeIORef :: Unbox a => IORef a -> a -> IO ()
-writeIORef (IORef var) = pokeByteIndex 0 var
+writeIORef (IORef var) = pokeAt 0 var
 
 -- | Read a value from an 'IORef'.
 --
 -- /Pre-release/
 {-# INLINE readIORef #-}
 readIORef :: Unbox a => IORef a -> IO a
-readIORef (IORef var) = peekByteIndex 0 var
+readIORef (IORef var) = peekAt 0 var
 
 -- | Modify the value of an 'IORef' using a function with strict application.
 --
