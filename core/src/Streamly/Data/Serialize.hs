@@ -11,23 +11,27 @@
 -- than the store package. Conceptually, the 'Serialize' type class works in
 -- the same way as store.
 --
+-- == Mutable Byte Array
+--
+-- 'MutByteArray' is a primitive mutable array in the IO monad. 'Unbox' and
+-- 'Serialize' type classes use this primitive array to serialize data to and
+-- deserialize it from. This array can be wrapped into higher level unboxed
+-- array types 'Streamly.Data.MutArray.MutArray' and 'Streamly.Data.Array.Array'.
+--
 -- == Using Unbox
 --
 -- The 'Unbox' type class is simple and used to serialize non-recursive fixed
 -- size data types. This type class is primarily used to implement unboxed
--- arrays. Unboxed arrays are just serialization of fixed length Haskell data
--- types. Instances of this type class can be derived using 'Generic' or
--- template haskell based deriving functions provided in this module. Read the
--- type class documentation for more details.
+-- arrays. Unboxed arrays are just a sequence of serialized fixed length
+-- Haskell data types. Instances of this type class can be derived using
+-- 'Generic' or template haskell based deriving functions provided in this
+-- module.
 --
 -- Writing a data type to an array using the array creation routines in
--- "Streamly.Data.Array" or "Streamly.Data.MutArray", serializes the type to
--- the array. Similarly, reading the data type from the array deserializes it.
---
--- There are no encode/decode routines provided to serialize or deserialize
--- using this type class but you can write those easily. Just create a mutable
--- byte array and use 'pokeByteIndex' to serialize a type, and use
--- 'peekByteIndex' to deserialize it.
+-- "Streamly.Data.Array" or "Streamly.Data.MutArray" (e.g. @writeN@ or
+-- @fromListN@), serializes the type to the array. Similarly, reading the data
+-- type from the array deserializes it. You can also serialize and deserialize
+-- directly to and from a 'MutByteArray', using the type class methods.
 --
 -- == Using Serialize
 --
@@ -35,13 +39,15 @@
 -- serialize variable length data types as well e.g. Haskell lists. Use
 -- 'deriveSerialize' to derive the instances of the type class automatically
 -- and then use 'pinnedEncode', 'decode' to serialize and deserialize the type
--- respectively. You can also create the array yourself and use the type class
--- functions directly.
+-- to and from an 'Array' type. You can also serialize and deserialize directly
+-- to and from a 'MutByteArray', using the type class methods.
 --
 module Streamly.Data.Serialize
     (
 
-    -- * MutableByteArray
+    -- * Mutable Byte Array
+    -- | The standard way to read from or write to a 'MutByteArray' is by using
+    -- the 'Unbox' or 'Serialize' type class methods.
       MutByteArray
     , isPinned
     , pin
