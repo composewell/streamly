@@ -5,17 +5,24 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- Fast binary serialization and deserialization of Haskell values to and from
--- arrays. This module provides two type classes for serialization, 'Unbox' and
+-- A low level byte Array type for fast binary serialization and
+-- deserialization of Haskell values. Higher level unboxed array modules
+-- "Streamly.Data.Array" and "Streamly.Data.MutArray" are built on top of this
+-- module. This module provides two type classes for serialization, 'Unbox' and
 -- 'Serialize'. The speed is similar to, and in some cases many times faster
 -- than the store package. Conceptually, the 'Serialize' type class works in
 -- the same way as store.
+--
+-- You probably want the higher level
+-- 'Streamly.Internal.Data.Array.pinnedSerialize' and
+-- 'Streamly.Internal.Data.Array.deserialize' from the "Streamly.Data.Array"
+-- module.
 --
 -- == Mutable Byte Array
 --
 -- 'MutByteArray' is a primitive mutable array in the IO monad. 'Unbox' and
 -- 'Serialize' type classes use this primitive array to serialize data to and
--- deserialize it from. This array can be wrapped into higher level unboxed
+-- deserialize it from. This array is used to build higher level unboxed
 -- array types 'Streamly.Data.MutArray.MutArray' and 'Streamly.Data.Array.Array'.
 --
 -- == Using Unbox
@@ -38,9 +45,12 @@
 -- The 'Serialize' type class is a superset of the 'Unbox' type class, it can
 -- serialize variable length data types as well e.g. Haskell lists. Use
 -- 'deriveSerialize' to derive the instances of the type class automatically
--- and then use 'pinnedEncode', 'decode' to serialize and deserialize the type
--- to and from an 'Array' type. You can also serialize and deserialize directly
--- to and from a 'MutByteArray', using the type class methods.
+-- and then use the type class methods to serialize and deserialize to and from
+-- a 'MutByteArray'.
+--
+-- See 'Streamly.Internal.Data.Array.pinnedSerialize' and
+-- 'Streamly.Internal.Data.Array.deserialize' for 'Array' type based
+-- serialization.
 --
 module Streamly.Data.MutByteArray
     (
@@ -62,7 +72,7 @@ module Streamly.Data.MutByteArray
     -- * Serialize
     , Serialize(..)
 
-    -- Deriving instances
+    -- Deriving Serialize
     , SerializeConfig
     , serializeConfig
     , inlineSize
@@ -71,11 +81,6 @@ module Streamly.Data.MutByteArray
 
     , deriveSerialize
     , deriveSerializeWith
-
-    -- Encoding and Decoding
-    -- , encode
-    , pinnedEncode
-    , decode
     ) where
 
 --------------------------------------------------------------------------------

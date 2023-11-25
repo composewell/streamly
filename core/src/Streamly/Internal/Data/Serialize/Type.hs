@@ -9,36 +9,24 @@
 module Streamly.Internal.Data.Serialize.Type
     (
       Serialize(..)
-    , encode
-    , encodeAs
-    , pinnedEncode
-    , decode
     ) where
 
 --------------------------------------------------------------------------------
 -- Imports
 --------------------------------------------------------------------------------
 
-#include "assert.hs"
-
-#ifdef DEBUG
-import Control.Exception (assert)
-#endif
-
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
 import Streamly.Internal.Data.Unbox (Unbox)
-import Streamly.Internal.Data.MutByteArray.Type
-    (MutByteArray(..), PinnedState(..))
+import Streamly.Internal.Data.MutByteArray.Type (MutByteArray(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.System.IO (unsafeInlineIO)
 import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
 import GHC.Stable (StablePtr(..))
 
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.Unbox as Unbox
-import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.MutArray as MutArray
 
 import GHC.Exts
@@ -314,38 +302,3 @@ instance (Serialize a, Serialize b) => Serialize (a, b) where
         (off1, a) <- deserialize off arr end
         (off2, b) <- deserialize off1 arr end
         pure (off2, (a, b))
-
---------------------------------------------------------------------------------
--- High level functions
---------------------------------------------------------------------------------
-
-{-# INLINE encodeAs #-}
-encodeAs :: forall a. Serialize a => PinnedState -> a -> Array Word8
-encodeAs ps a =
-    unsafeInlineIO $ do
-        let len = size 0 a
-        mbarr <- MBA.newBytesAs ps len
-        off <- serialize 0 mbarr a
-        assertM(len == off)
-        pure $ Array mbarr 0 off
-
-{-# INLINE encode #-}
-encode :: Serialize a => a -> Array Word8
-encode = encodeAs Unpinned
-
--- | Encode a Haskell type to a byte array. The array is allocated using pinned
--- memory so that it can be used directly in OS APIs for writing to file or
--- sending over the network.
-{-# INLINE pinnedEncode #-}
-pinnedEncode :: Serialize a => a -> Array Word8
-pinnedEncode = encodeAs Pinned
-
--- | Decode a Haskell type from its serialized representation in a byte
--- array.
-{-# INLINE decode #-}
-decode :: Serialize a => Array Word8 -> a
-decode arr@(Array {..}) = unsafeInlineIO $ do
-    let lenArr = Array.length arr
-    (off, val) <- deserialize arrStart arrContents (arrStart + lenArr)
-    assertM(off == arrStart + lenArr)
-    pure val

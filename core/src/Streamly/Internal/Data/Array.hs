@@ -76,13 +76,19 @@ module Streamly.Internal.Data.Array
     -- ** Folding
     , streamFold
     , fold
+
+    -- ** Serialization
+    , encodeAs
+    , serialize
+    , pinnedSerialize
+    , deserialize
     )
 where
 
+#include "assert.hs"
 #include "inline.hs"
 #include "ArrayMacros.h"
 
-import Control.Exception (assert)
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
@@ -94,6 +100,8 @@ import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
+import Streamly.Internal.Data.MutByteArray.Type (PinnedState(..))
+import Streamly.Internal.Data.Serialize.Type (Serialize)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream (Stream)
@@ -101,7 +109,8 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
-import qualified Streamly.Internal.Data.MutArray.Type as MA
+import qualified Streamly.Internal.Data.Serialize.Type as Serialize
+import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.MutArray as MA
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
@@ -543,3 +552,38 @@ fold f arr = Stream.fold f (A.read arr)
 {-# INLINE streamFold #-}
 streamFold :: (Monad m, Unbox a) => (Stream m a -> m b) -> Array a -> m b
 streamFold f arr = f (A.read arr)
+
+--------------------------------------------------------------------------------
+-- Serialization
+--------------------------------------------------------------------------------
+
+{-# INLINE encodeAs #-}
+encodeAs :: forall a. Serialize a => PinnedState -> a -> Array Word8
+encodeAs ps a =
+    unsafeInlineIO $ do
+        let len = Serialize.size 0 a
+        mbarr <- MBA.newBytesAs ps len
+        off <- Serialize.serialize 0 mbarr a
+        assertM(len == off)
+        pure $ Array mbarr 0 off
+
+{-# INLINE serialize #-}
+serialize :: Serialize a => a -> Array Word8
+serialize = encodeAs Unpinned
+
+-- | Serialize a Haskell type to a pinned byte array. The array is allocated
+-- using pinned memory so that it can be used directly in OS APIs for writing
+-- to file or sending over the network.
+{-# INLINE pinnedSerialize #-}
+pinnedSerialize :: Serialize a => a -> Array Word8
+pinnedSerialize = encodeAs Pinned
+
+-- | Decode a Haskell type from a byte array containing its serialized
+-- representation.
+{-# INLINE deserialize #-}
+deserialize :: Serialize a => Array Word8 -> a
+deserialize arr@(Array {..}) = unsafeInlineIO $ do
+    let lenArr = length arr
+    (off, val) <- Serialize.deserialize arrStart arrContents (arrStart + lenArr)
+    assertM(off == arrStart + lenArr)
+    pure val

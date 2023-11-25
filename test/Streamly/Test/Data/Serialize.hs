@@ -185,9 +185,9 @@ peekAndVerify (arr, serStartOff, serEndOff) val = do
     val2 `shouldBe` val
     off2 `shouldBe` serEndOff
     let slice = Array.Array arr serStartOff serEndOff
-    val `shouldBe` Serialize.decode slice
+    val `shouldBe` Array.deserialize slice
     clonedSlice <- Array.clone slice
-    val `shouldBe` Serialize.decode clonedSlice
+    val `shouldBe` Array.deserialize clonedSlice
 
 roundtrip
     :: forall a. (Eq a, Show a, Serialize.Serialize a)
@@ -195,7 +195,7 @@ roundtrip
     -> IO ()
 roundtrip val = do
 
-    val `shouldBe` Serialize.decode (Serialize.encode val)
+    val `shouldBe` Array.deserialize (Array.pinnedSerialize val)
 
     res <- poke val
     peekAndVerify res val

@@ -24,7 +24,7 @@ import System.Random (randomRIO)
 import Test.QuickCheck (Arbitrary, arbitrary)
 #endif
 
-import Streamly.Internal.Data.MutByteArray hiding (encode)
+import Streamly.Internal.Data.MutByteArray
 import qualified Streamly.Internal.Data.MutByteArray as MBA
 #ifdef USE_UNBOX
 import Data.Proxy (Proxy(..))
