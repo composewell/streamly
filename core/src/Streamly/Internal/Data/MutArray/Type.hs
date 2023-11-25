@@ -239,7 +239,7 @@ import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
-import Streamly.Internal.Data.MutByteArray
+import Streamly.Internal.Data.MutByteArray.Type
     ( MutByteArray(..)
     , MutableByteArray
     , PinnedState(..)
@@ -266,7 +266,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.MutByteArray as Unboxed
+import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Lift as D

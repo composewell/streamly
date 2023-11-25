@@ -40,7 +40,8 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Proxy (Proxy(..))
-import Streamly.Internal.Data.MutByteArray (MutByteArray(..), newByteArray)
+import Streamly.Internal.Data.MutByteArray.Type
+    (MutByteArray(..), newByteArray)
 import Streamly.Internal.Data.Unbox (Unbox(..), sizeOf)
 
 import qualified Streamly.Internal.Data.Stream.Type as D

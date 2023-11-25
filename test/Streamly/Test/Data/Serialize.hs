@@ -22,15 +22,15 @@ module Streamly.Test.Data.Serialize (main) where
 --------------------------------------------------------------------------------
 
 import System.Random (randomRIO)
-import Streamly.Internal.Data.Serialize (MutByteArray, newByteArray)
+import Streamly.Internal.Data.MutByteArray (MutByteArray, newByteArray)
 import GHC.Generics (Generic)
-import Streamly.Data.Serialize (Serialize)
+import Streamly.Data.MutByteArray (Serialize)
 import Streamly.Test.Data.Serialize.TH (genDatatype)
 
 import Data.Functor.Identity (Identity (..))
 
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Serialize as Serialize
+import qualified Streamly.Internal.Data.MutByteArray as Serialize
 
 import qualified Streamly.Test.Data.Serialize.CompatV0 as CompatV0
 import qualified Streamly.Test.Data.Serialize.CompatV1 as CompatV1

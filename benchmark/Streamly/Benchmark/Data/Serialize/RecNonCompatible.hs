@@ -11,7 +11,7 @@ module Streamly.Benchmark.Data.Serialize.RecNonCompatible
 
 import Streamly.Benchmark.Data.Serialize.TH (genLargeRecord)
 
-import qualified Streamly.Internal.Data.Serialize as Serialize
+import qualified Streamly.Internal.Data.MutByteArray as Serialize
 
 --------------------------------------------------------------------------------
 -- Code

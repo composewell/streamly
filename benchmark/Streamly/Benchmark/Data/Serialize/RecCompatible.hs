@@ -9,10 +9,10 @@ module Streamly.Benchmark.Data.Serialize.RecCompatible
 -- Imports
 --------------------------------------------------------------------------------
 
-import Streamly.Internal.Data.Serialize (Serialize)
+import Streamly.Internal.Data.MutByteArray (Serialize)
 import Streamly.Benchmark.Data.Serialize.TH (genLargeRecord)
 
-import qualified Streamly.Internal.Data.Serialize as Serialize
+import qualified Streamly.Internal.Data.MutByteArray as Serialize
 
 --------------------------------------------------------------------------------
 -- Code

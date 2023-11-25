@@ -67,7 +67,7 @@ import GHC.Exts
 import GHC.TypeLits
 import Prelude hiding (read)
 
-import Streamly.Internal.Data.MutByteArray (MutByteArray(..))
+import Streamly.Internal.Data.MutByteArray.Type (MutByteArray(..))
 
 --------------------------------------------------------------------------------
 -- The Unbox type class
@@ -196,17 +196,17 @@ import Streamly.Internal.Data.MutByteArray (MutByteArray(..))
 --     } deriving Generic
 -- :}
 --
--- >>> import Streamly.Data.Serialize (Unbox(..))
+-- >>> import Streamly.Data.MutByteArray (Unbox(..))
 -- >>> instance Unbox Object
 --
 -- To derive the instance via Template Haskell:
 --
 -- @
--- import Streamly.Data.Serialize (deriveUnbox)
+-- import Streamly.Data.MutByteArray (deriveUnbox)
 -- \$(deriveUnbox [d|instance Unbox Object|])
 -- @
 --
--- See 'Streamly.Data.Serialize.deriveUnbox' for more information on deriving
+-- See 'Streamly.Data.MutByteArray.deriveUnbox' for more information on deriving
 -- using Template Haskell.
 --
 -- If you want to write the instance manually:

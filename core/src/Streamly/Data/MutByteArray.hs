@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Serialize
+-- Module      : Streamly.Data.MutByteArray
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -42,7 +42,7 @@
 -- to and from an 'Array' type. You can also serialize and deserialize directly
 -- to and from a 'MutByteArray', using the type class methods.
 --
-module Streamly.Data.Serialize
+module Streamly.Data.MutByteArray
     (
 
     -- * Mutable Byte Array
@@ -82,4 +82,4 @@ module Streamly.Data.Serialize
 -- Imports
 --------------------------------------------------------------------------------
 
-import Streamly.Internal.Data.Serialize
+import Streamly.Internal.Data.MutByteArray

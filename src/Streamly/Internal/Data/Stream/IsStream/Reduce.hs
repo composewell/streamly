@@ -180,7 +180,7 @@ import Streamly.Internal.Data.Stream.Serial(toStreamK)
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, MilliSecond64(..), addToAbsTime, toRelTime
        , toAbsTime)
-import Streamly.Data.Serialize (Unbox)
+import Streamly.Data.MutByteArray (Unbox)
 
 import qualified Data.Heap as H
 import qualified Streamly.Internal.Data.Unfold as Unfold

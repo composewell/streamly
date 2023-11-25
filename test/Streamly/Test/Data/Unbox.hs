@@ -27,7 +27,7 @@ import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic, Rep(..))
 import GHC.Real (Ratio(..))
 
-import Streamly.Internal.Data.Serialize
+import Streamly.Internal.Data.MutByteArray
 
 import Test.Hspec as H
 

@@ -28,14 +28,15 @@ import Control.Exception (assert)
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
 import Streamly.Internal.Data.Unbox (Unbox)
-import Streamly.Internal.Data.MutByteArray (MutByteArray(..), PinnedState(..))
+import Streamly.Internal.Data.MutByteArray.Type
+    (MutByteArray(..), PinnedState(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
 import GHC.Stable (StablePtr(..))
 
-import qualified Streamly.Internal.Data.MutByteArray as MBA
+import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.Unbox as Unbox
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray as MutArray
@@ -95,17 +96,17 @@ import GHC.Exts
 -- :}
 --
 -- @
--- import Streamly.Data.Serialize (deriveSerialize)
+-- import Streamly.Data.MutByteArray (deriveSerialize)
 -- \$(deriveSerialize [d|instance Serialize Object|])
 -- @
 --
--- See 'Streamly.Data.Serialize.deriveSerialize' and
--- 'Streamly.Data.Serialize.deriveSerializeWith' for more information on
+-- See 'Streamly.Data.MutByteArray.deriveSerialize' and
+-- 'Streamly.Data.MutByteArray.deriveSerializeWith' for more information on
 -- deriving using Template Haskell.
 --
 -- Here is an example of a manual instance.
 --
--- >>> import Streamly.Data.Serialize (Serialize(..))
+-- >>> import Streamly.Data.MutByteArray (Serialize(..))
 --
 -- >>> :{
 -- instance Serialize Object where

@@ -15,7 +15,7 @@ module Streamly.Test.Data.Unbox.TH (main) where
 --------------------------------------------------------------------------------
 
 import Data.Proxy (Proxy(..))
-import Streamly.Internal.Data.Serialize
+import Streamly.Internal.Data.MutByteArray
 
 import Test.Hspec as H
 

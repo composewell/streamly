@@ -1,249 +1,250 @@
-{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE TemplateHaskell #-}
+
+-- This is required as all the instances in this module are orphan instances.
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.MutByteArray
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
--- Stability   : experimental
 -- Portability : GHC
 --
+
 module Streamly.Internal.Data.MutByteArray
     (
-    -- ** MutByteArray
-      MutByteArray(..)
-    , MutableByteArray
-    , getMutableByteArray#
-
-    -- ** Pinning
-    , PinnedState(..)
-    , isPinned
-    , pin
-    , unpin
-
-    -- ** Allocation
-    , nil
-    , newBytesAs
-    , newByteArray
-    , pinnedNewByteArray
-    , pinnedNewAlignedBytes
-
-    -- ** Access
-    , sizeOfMutableByteArray
-    , putSliceUnsafe
-    , asPtrUnsafe
+    -- * MutByteArray
+      module Streamly.Internal.Data.MutByteArray.Type
+    -- * Unbox
+    , module Streamly.Internal.Data.Unbox
+    , module Streamly.Internal.Data.Unbox.TH
+    -- * Serialize
+    , module Streamly.Internal.Data.Serialize.Type
+    -- * Serialize TH
+    , module Streamly.Internal.Data.Serialize.TH
     ) where
 
-import Control.Monad.IO.Class (MonadIO(..))
-#ifdef DEBUG
-import Debug.Trace (trace)
-#endif
-import GHC.Base (IO(..))
-import System.IO.Unsafe (unsafePerformIO)
-
-import GHC.Exts
-
 --------------------------------------------------------------------------------
--- The ArrayContents type
+-- Imports
 --------------------------------------------------------------------------------
 
-data PinnedState
-    = Pinned
-    | Unpinned
+import Data.Proxy (Proxy(..))
+import Streamly.Internal.Data.Array (Array(..))
+import GHC.Exts (Int(..), sizeofByteArray#, unsafeCoerce#)
+import GHC.Word (Word8)
 
--- XXX can use UnliftedNewtypes
+#if __GLASGOW_HASKELL__ >= 900
+import GHC.Num.Integer (Integer(..))
+#else
+import GHC.Integer.GMP.Internals (Integer(..), BigNat(..))
+#endif
 
--- | A lifted mutable byte array type wrapping @MutableByteArray# RealWorld@.
--- This is a low level array used to back high level unboxed arrays and
--- serialized data.
-data MutByteArray = MutByteArray (MutableByteArray# RealWorld)
-
-{-# DEPRECATED MutableByteArray "Please use MutByteArray instead" #-}
-type MutableByteArray = MutByteArray
-
-{-# INLINE getMutableByteArray# #-}
-getMutableByteArray# :: MutByteArray -> MutableByteArray# RealWorld
-getMutableByteArray# (MutByteArray mbarr) = mbarr
-
--- | Return the size of the array in bytes.
-{-# INLINE sizeOfMutableByteArray #-}
-sizeOfMutableByteArray :: MutByteArray -> IO Int
-sizeOfMutableByteArray (MutByteArray arr) =
-    IO $ \s ->
-        case getSizeofMutableByteArray# arr s of
-            (# s1, i #) -> (# s1, I# i #)
-
-{-# INLINE touch #-}
-touch :: MutByteArray -> IO ()
-touch (MutByteArray contents) =
-    IO $ \s -> case touch# contents s of s' -> (# s', () #)
-
--- XXX We can provide another API for "unsafe" FFI calls passing an unlifted
--- pointer to the FFI call. For unsafe calls we do not need to pin the array.
--- We can pass an unlifted pointer to the FFI routine to avoid GC kicking in
--- before the pointer is wrapped.
---
--- From the GHC manual:
---
--- GHC, since version 8.4, guarantees that garbage collection will never occur
--- during an unsafe call, even in the bytecode interpreter, and further
--- guarantees that unsafe calls will be performed in the calling thread. Making
--- it safe to pass heap-allocated objects to unsafe functions.
-
--- | Use a @MutByteArray@ as @Ptr a@. This is useful when we want to pass
--- an array as a pointer to some operating system call or to a "safe" FFI call.
---
--- If the array is not pinned it is copied to pinned memory before passing it
--- to the monadic action.
---
--- /Performance Notes:/ Forces a copy if the array is not pinned. It is advised
--- that the programmer keeps this in mind and creates a pinned array
--- opportunistically before this operation occurs, to avoid the cost of a copy
--- if possible.
---
--- /Unsafe/ because of direct pointer operations. The user must ensure that
--- they are writing within the legal bounds of the array.
---
--- /Pre-release/
---
-{-# INLINE asPtrUnsafe #-}
-asPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
-asPtrUnsafe arr f = do
-  contents <- liftIO $ pin arr
-  let !ptr = Ptr (byteArrayContents#
-                     (unsafeCoerce# (getMutableByteArray# contents)))
-  r <- f ptr
-  liftIO $ touch contents
-  return r
+import Streamly.Internal.Data.MutByteArray.Type
+import Streamly.Internal.Data.Serialize.TH
+import Streamly.Internal.Data.Serialize.Type
+import Streamly.Internal.Data.Unbox
+import Streamly.Internal.Data.Unbox.TH
 
 --------------------------------------------------------------------------------
--- Creation
+-- Common instances
 --------------------------------------------------------------------------------
 
-{-# NOINLINE nil #-}
-nil :: MutByteArray
-nil = unsafePerformIO $ newByteArray 0
+-- Note
+-- ====
+--
+-- Even a non-functional change such as changing the order of constructors will
+-- change the instance derivation.
+--
+-- This will not pose a problem if both, encode, and decode are done by the same
+-- version of the application. There *might* be a problem if version that
+-- encodes differs from the version that decodes.
+--
+-- We need to add some compatibility tests using different versions of
+-- dependencies.
+--
+-- Although such chages for the most basic types won't happen we need to detect
+-- if it ever happens.
+--
+-- Should we worry about these kind of changes and this kind of compatibility?
+-- This is a problem for all types of derivations that depend on the order of
+-- constructors, for example, Enum.
 
-{-# INLINE newByteArray #-}
-newByteArray :: Int -> IO MutByteArray
-newByteArray nbytes | nbytes < 0 =
-  errorWithoutStackTrace "newByteArray: size must be >= 0"
-newByteArray (I# nbytes) = IO $ \s ->
-    case newByteArray# nbytes s of
-        (# s', mbarr# #) ->
-           let c = MutByteArray mbarr#
-            in (# s', c #)
+-- Note on Windows build
+-- =====================
+--
+-- On Windows, having template haskell splices here fail the build with the
+-- following error:
+--
+-- @
+-- addLibrarySearchPath: C:\...  (Win32 error 3): The system cannot find the path specified.
+-- @
+--
+-- The error might be irrelavant but having these splices triggers it. We should
+-- either fix the problem or avoid the use to template haskell splices in this
+-- file.
+--
+-- Similar issue: https://github.com/haskell/cabal/issues/4741
 
-{-# INLINE pinnedNewByteArray #-}
-pinnedNewByteArray :: Int -> IO MutByteArray
-pinnedNewByteArray nbytes | nbytes < 0 =
-  errorWithoutStackTrace "pinnedNewByteArray: size must be >= 0"
-pinnedNewByteArray (I# nbytes) = IO $ \s ->
-    case newPinnedByteArray# nbytes s of
-        (# s', mbarr# #) ->
-           let c = MutByteArray mbarr#
-            in (# s', c #)
+-- $(Serialize.deriveSerialize ''Maybe)
+instance Serialize a => Serialize (Maybe a) where
 
-{-# INLINE pinnedNewAlignedBytes #-}
-pinnedNewAlignedBytes :: Int -> Int -> IO MutByteArray
-pinnedNewAlignedBytes nbytes _align | nbytes < 0 =
-  errorWithoutStackTrace "pinnedNewAlignedBytes: size must be >= 0"
-pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
-    case newAlignedPinnedByteArray# nbytes align s of
-        (# s', mbarr# #) ->
-           let c = MutByteArray mbarr#
-            in (# s', c #)
+    {-# INLINE size #-}
+    size acc x =
+        case x of
+            Nothing -> (acc + 1)
+            Just field0 -> (size (acc + 1)) field0
 
-{-# INLINE newBytesAs #-}
-newBytesAs :: PinnedState -> Int -> IO MutByteArray
-newBytesAs Unpinned = newByteArray
-newBytesAs Pinned = pinnedNewByteArray
+    {-# INLINE deserialize #-}
+    deserialize initialOffset arr endOffset = do
+        (i0, tag) <- ((deserialize initialOffset) arr) endOffset
+        case tag :: Word8 of
+            0 -> pure (i0, Nothing)
+            1 -> do (i1, a0) <- ((deserialize i0) arr) endOffset
+                    pure (i1, Just a0)
+            _ -> error "Found invalid tag while peeking (Maybe a)"
 
--------------------------------------------------------------------------------
--- Copying
--------------------------------------------------------------------------------
+    {-# INLINE serialize #-}
+    serialize initialOffset arr val =
+        case val of
+            Nothing -> do
+                i0 <- ((serialize initialOffset) arr) (0 :: Word8)
+                pure i0
+            Just field0 -> do
+                i0 <- ((serialize initialOffset) arr) (1 :: Word8)
+                i1 <- ((serialize i0) arr) field0
+                pure i1
 
--- | Put a sub range of a source array into a subrange of a destination array.
--- This is not safe as it does not check the bounds.
-{-# INLINE putSliceUnsafe #-}
-putSliceUnsafe ::
-       MonadIO m
-    => MutByteArray
-    -> Int
-    -> MutByteArray
-    -> Int
-    -> Int
-    -> m ()
-putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
-#ifdef DEBUG
-    srcLen <- sizeOfMutableByteArray src
-    dstLen <- sizeOfMutableByteArray src
-    when (srcLen - srcStartBytes < lenBytes) $ error "SRC: Insufficient length."
-    when (dstLen - dstStartBytes < lenBytes) $ error "DST: Insufficient length."
+-- $(Serialize.deriveSerialize ''Either)
+instance (Serialize a, Serialize b) => Serialize (Either a b) where
+
+    {-# INLINE size #-}
+    size acc x =
+        case x of
+            Left field0 -> (size (acc + 1)) field0
+            Right field0 -> (size (acc + 1)) field0
+
+    {-# INLINE deserialize #-}
+    deserialize initialOffset arr endOffset = do
+        (i0, tag) <- ((deserialize initialOffset) arr) endOffset
+        case tag :: Word8 of
+            0 -> do (i1, a0) <- ((deserialize i0) arr) endOffset
+                    pure (i1, Left a0)
+            1 -> do (i1, a0) <- ((deserialize i0) arr) endOffset
+                    pure (i1, Right a0)
+            _ -> error "Found invalid tag while peeking (Either a b)"
+
+    {-# INLINE serialize #-}
+    serialize initialOffset arr val =
+        case val of
+            Left field0 -> do
+                i0 <- ((serialize initialOffset) arr) (0 :: Word8)
+                i1 <- ((serialize i0) arr) field0
+                pure i1
+            Right field0 -> do
+                i0 <- ((serialize initialOffset) arr) (1 :: Word8)
+                i1 <- ((serialize i0) arr) field0
+                pure i1
+
+instance Serialize (Proxy a) where
+
+    {-# INLINE size #-}
+    size acc _ = (acc + 1)
+
+    {-# INLINE deserialize #-}
+    deserialize initialOffset _ _ = pure ((initialOffset + 1), Proxy)
+
+    {-# INLINE serialize #-}
+    serialize initialOffset _ _ = pure (initialOffset + 1)
+
+--------------------------------------------------------------------------------
+-- Integer
+--------------------------------------------------------------------------------
+
+data LiftedInteger
+    = LIS Int
+    | LIP (Array Word)
+    | LIN (Array Word)
+
+-- $(Serialize.deriveSerialize ''LiftedInteger)
+instance Serialize LiftedInteger where
+
+    {-# INLINE size #-}
+    size acc x =
+        case x of
+            LIS field0 -> (size (acc + 1)) field0
+            LIP field0 -> (size (acc + 1)) field0
+            LIN field0 -> (size (acc + 1)) field0
+
+    {-# INLINE deserialize #-}
+    deserialize initialOffset arr endOffset = do
+        (i0, tag) <- ((deserialize initialOffset) arr) endOffset
+        case tag :: Word8 of
+            0 -> do (i1, a0) <- ((deserialize i0) arr) endOffset
+                    pure (i1, LIS a0)
+            1 -> do (i1, a0) <- ((deserialize i0) arr) endOffset
+                    pure (i1, LIP a0)
+            2 -> do (i1, a0) <- ((deserialize i0) arr) endOffset
+                    pure (i1, LIN a0)
+            _ -> error "Found invalid tag while peeking (LiftedInteger)"
+
+    {-# INLINE serialize #-}
+    serialize initialOffset arr val =
+        case val of
+            LIS field0 -> do
+                i0 <- ((serialize initialOffset) arr) (0 :: Word8)
+                i1 <- ((serialize i0) arr) field0
+                pure i1
+            LIP field0 -> do
+                i0 <- ((serialize initialOffset) arr) (1 :: Word8)
+                i1 <- ((serialize i0) arr) field0
+                pure i1
+            LIN field0 -> do
+                i0 <- ((serialize initialOffset) arr) (2 :: Word8)
+                i1 <- ((serialize i0) arr) field0
+                pure i1
+
+#if __GLASGOW_HASKELL__ >= 900
+
+{-# INLINE liftInteger #-}
+liftInteger :: Integer -> LiftedInteger
+liftInteger (IS x) = LIS (I# x)
+liftInteger (IP x) =
+    LIP (Array (MutByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+liftInteger (IN x) =
+    LIN (Array (MutByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+
+{-# INLINE unliftInteger #-}
+unliftInteger :: LiftedInteger -> Integer
+unliftInteger (LIS (I# x)) = IS x
+unliftInteger (LIP (Array (MutByteArray x) _ _)) = IP (unsafeCoerce# x)
+unliftInteger (LIN (Array (MutByteArray x) _ _)) = IN (unsafeCoerce# x)
+
+#else
+
+{-# INLINE liftInteger #-}
+liftInteger :: Integer -> LiftedInteger
+liftInteger (S# x) = LIS (I# x)
+liftInteger (Jp# (BN# x)) =
+    LIP (Array (MutByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+liftInteger (Jn# (BN# x)) =
+    LIN (Array (MutByteArray (unsafeCoerce# x)) 0 (I# (sizeofByteArray# x)))
+
+{-# INLINE unliftInteger #-}
+unliftInteger :: LiftedInteger -> Integer
+unliftInteger (LIS (I# x)) = S# x
+unliftInteger (LIP (Array (MutByteArray x) _ _)) =
+    Jp# (BN# (unsafeCoerce# x))
+unliftInteger (LIN (Array (MutByteArray x) _ _)) =
+    Jn# (BN# (unsafeCoerce# x))
+
 #endif
-    let !(I# srcStartBytes#) = srcStartBytes
-        !(I# dstStartBytes#) = dstStartBytes
-        !(I# lenBytes#) = lenBytes
-    let arrS# = getMutableByteArray# src
-        arrD# = getMutableByteArray# dst
-    IO $ \s# -> (# copyMutableByteArray#
-                    arrS# srcStartBytes# arrD# dstStartBytes# lenBytes# s#
-                , () #)
 
--------------------------------------------------------------------------------
--- Pinning & Unpinning
--------------------------------------------------------------------------------
+instance Serialize Integer where
+    {-# INLINE size #-}
+    size i a = size i (liftInteger a)
 
-{-# INLINE isPinned #-}
-isPinned :: MutByteArray -> Bool
-isPinned (MutByteArray arr#) =
-    let pinnedInt = I# (isMutableByteArrayPinned# arr#)
-     in pinnedInt /= 0
+    {-# INLINE deserialize #-}
+    deserialize off arr end = fmap unliftInteger <$> deserialize off arr end
 
-
-{-# INLINE cloneMutableArrayWith# #-}
-cloneMutableArrayWith#
-    :: (Int# -> State# RealWorld -> (# State# RealWorld
-                                     , MutableByteArray# RealWorld #))
-    -> MutableByteArray# RealWorld
-    -> State# RealWorld
-    -> (# State# RealWorld, MutableByteArray# RealWorld #)
-cloneMutableArrayWith# alloc# arr# s# =
-    case getSizeofMutableByteArray# arr# s# of
-        (# s1#, i# #) ->
-            case alloc# i# s1# of
-                (# s2#, arr1# #) ->
-                    case copyMutableByteArray# arr# 0# arr1# 0# i# s2# of
-                        s3# -> (# s3#, arr1# #)
-
-{-# INLINE pin #-}
-pin :: MutByteArray -> IO MutByteArray
-pin arr@(MutByteArray marr#) =
-    if isPinned arr
-    then return arr
-    else
-#ifdef DEBUG
-      do
-        -- XXX dump stack trace
-        trace ("pin: Copying array") (return ())
-#endif
-        IO
-             $ \s# ->
-                   case cloneMutableArrayWith# newPinnedByteArray# marr# s# of
-                       (# s1#, marr1# #) -> (# s1#, MutByteArray marr1# #)
-
-{-# INLINE unpin #-}
-unpin :: MutByteArray -> IO MutByteArray
-unpin arr@(MutByteArray marr#) =
-    if not (isPinned arr)
-    then return arr
-    else
-#ifdef DEBUG
-      do
-        -- XXX dump stack trace
-        trace ("unpin: Copying array") (return ())
-#endif
-        IO
-             $ \s# ->
-                   case cloneMutableArrayWith# newByteArray# marr# s# of
-                       (# s1#, marr1# #) -> (# s1#, MutByteArray marr1# #)
+    {-# INLINE serialize #-}
+    serialize off arr val = serialize off arr (liftInteger val)
