@@ -283,6 +283,7 @@ instance Serialize (Array a) where
                 $ "deserializeAt: accessing array at offset = "
                     ++ show (off2 - 1)
                     ++ " max valid offset = " ++ show (len - 1)
+        -- XXX Use MutByteArray.cloneSliceUnsafe
         let slice = MutArray.MutArray arr off1 off2 off2
         newArr <- MutArray.clone slice
         pure (off2, Array.unsafeFreeze newArr)

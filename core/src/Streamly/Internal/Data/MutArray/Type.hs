@@ -2103,8 +2103,8 @@ cloneAs ps src =
     liftIO $ do
         let startSrc = arrStart src
             srcLen = arrEnd src - startSrc
-        newArrContents <- Unboxed.newBytesAs ps srcLen
-        putSliceUnsafe (arrContents src) startSrc newArrContents 0 srcLen
+        newArrContents <-
+            Unboxed.cloneSliceUnsafeAs ps startSrc srcLen (arrContents src)
         return $ MutArray newArrContents 0 srcLen srcLen
 
 {-# INLINE clone #-}
