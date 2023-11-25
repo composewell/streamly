@@ -194,6 +194,7 @@ putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
 -- Pinning & Unpinning
 -------------------------------------------------------------------------------
 
+-- | Return 'True' if the array is allocated in pinned memory.
 {-# INLINE isPinned #-}
 isPinned :: MutByteArray -> Bool
 isPinned (MutByteArray arr#) =
@@ -216,6 +217,8 @@ cloneMutableArrayWith# alloc# arr# s# =
                     case copyMutableByteArray# arr# 0# arr1# 0# i# s2# of
                         s3# -> (# s3#, arr1# #)
 
+-- | Return a copy of the array in pinned memory if unpinned, else return the
+-- original array.
 {-# INLINE pin #-}
 pin :: MutByteArray -> IO MutByteArray
 pin arr@(MutByteArray marr#) =
@@ -232,6 +235,8 @@ pin arr@(MutByteArray marr#) =
                    case cloneMutableArrayWith# newPinnedByteArray# marr# s# of
                        (# s1#, marr1# #) -> (# s1#, MutByteArray marr1# #)
 
+-- | Return a copy of the array in unpinned memory if pinned, else return the
+-- original array.
 {-# INLINE unpin #-}
 unpin :: MutByteArray -> IO MutByteArray
 unpin arr@(MutByteArray marr#) =

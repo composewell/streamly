@@ -8,13 +8,15 @@
 --
 module Streamly.Internal.Data.MutArray
     (
+    -- * MutArray.Type module
       module Streamly.Internal.Data.MutArray.Type
-    -- * Unboxed IORef
-    , module Streamly.Internal.Data.IORef.Unboxed
+    -- * MutArray module
     , splitOn
     , genSlicesFromLen
     , getSlicesFromLen
     , fromStream
+    -- * Unboxed IORef
+    , module Streamly.Internal.Data.IORef.Unboxed
     )
 where
 

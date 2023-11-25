@@ -28,7 +28,7 @@
 
 module Streamly.Internal.Data.MutArray.Type
     (
-    -- * Type
+    -- ** Type
     -- $arrayNotes
       MutArray (..)
     , MutByteArray
@@ -37,7 +37,7 @@ module Streamly.Internal.Data.MutArray.Type
     , unpin
     , isPinned
 
-    -- * Constructing and Writing
+    -- -- * Constructing and Writing
     -- ** Construction
     , nil
 
@@ -65,7 +65,7 @@ module Streamly.Internal.Data.MutArray.Type
     , writeRevN
     -- , writeRev
 
-    -- ** From containers
+    -- *** From containers
     , fromListN
     , pinnedFromListN
     , fromList
@@ -76,7 +76,7 @@ module Streamly.Internal.Data.MutArray.Type
     , fromStreamD
     , fromPureStream
 
-    -- * Random writes
+    -- ** Random writes
     , putIndex
     , putIndexUnsafe
     , putIndices
@@ -93,32 +93,32 @@ module Streamly.Internal.Data.MutArray.Type
     , swapIndices
     , unsafeSwapIndices
 
-    -- * Growing and Shrinking
-    -- Arrays grow only at the end, though it is possible to grow on both sides
+    -- ** Growing and Shrinking
+    -- | Arrays grow only at the end, though it is possible to grow on both sides
     -- and therefore have a cons as well as snoc. But that will require two
     -- bounds in the array representation.
 
-    -- ** Appending elements
+    -- *** Appending elements
     , snocWith
     , snoc
     , snocLinear
     , snocMay
     , snocUnsafe
 
-    -- ** Appending streams
+    -- *** Appending streams
     , writeAppendNUnsafe
     , writeAppendN
     , writeAppendWith
     , writeAppend
 
-    -- * Eliminating and Reading
+    -- ** Eliminating and Reading
 
-    -- ** To streams
+    -- *** To streams
     , reader
     , readerRevWith
     , readerRev
 
-    -- ** To containers
+    -- *** To containers
     , toStreamDWith
     , toStreamDRevWith
     , toStreamKWith
@@ -133,7 +133,7 @@ module Streamly.Internal.Data.MutArray.Type
     , producerWith
     , producer
 
-    -- ** Random reads
+    -- *** Random reads
     , getIndex
     , getIndexUnsafe
     , getIndices
@@ -141,7 +141,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- , getFromThenTo
     , getIndexRev
 
-    -- * Memory Management
+    -- ** Memory Management
     , blockSize
     , arrayChunkBytes
     , allocBytesToElemCount
@@ -150,14 +150,14 @@ module Streamly.Internal.Data.MutArray.Type
     , resizeExp
     , rightSize
 
-    -- * Size
+    -- ** Size
     , length
     , byteLength
     -- , capacity
     , byteCapacity
     , bytesFree
 
-    -- * In-place Mutation Algorithms
+    -- ** In-place Mutation Algorithms
     , strip
     , reverse
     , permute
@@ -167,18 +167,18 @@ module Streamly.Internal.Data.MutArray.Type
     , mergeBy
     , bubble
 
-    -- * Casting
+    -- ** Casting
     , cast
     , castUnsafe
     , asBytes
     , asPtrUnsafe
 
-    -- * Folding
+    -- ** Folding
     , foldl'
     , foldr
     , cmp
 
-    -- * Arrays of arrays
+    -- ** Arrays of arrays
     --  We can add dimensionality parameter to the array type to get
     --  multidimensional arrays. Multidimensional arrays would just be a
     --  convenience wrapper on top of single dimensional arrays.
@@ -186,17 +186,17 @@ module Streamly.Internal.Data.MutArray.Type
     -- | Operations dealing with multiple arrays, streams of arrays or
     -- multidimensional array representations.
 
-    -- ** Construct from streams
+    -- *** Construct from streams
     , chunksOf
     , pinnedChunksOf
     , writeChunks
 
-    -- ** Eliminate to streams
+    -- *** Eliminate to streams
     , flattenArrays
     , flattenArraysRev
     , fromArrayStreamK
 
-    -- ** Construct from arrays
+    -- *** Construct from arrays
     -- get chunks without copying
     , getSliceUnsafe
     , getSlice
@@ -218,7 +218,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- , appendSlice
     -- , appendSliceFrom
 
-    -- * Utilities
+    -- ** Utilities
     , roundUpToPower2
     , memcpy
     , memcmp
@@ -357,8 +357,8 @@ data MutArray a =
 -- Pinning & Unpinning
 -------------------------------------------------------------------------------
 
--- | Copy the 'MutArray' to pinned memory if unpinned, else do nothing. The
--- overhead is a copy if the input array is unpinned.
+-- | Return a copy of the array in pinned memory if unpinned, else return the
+-- original array.
 {-# INLINE pin #-}
 pin :: MutArray a -> IO (MutArray a)
 pin arr@MutArray{..} =
@@ -366,8 +366,8 @@ pin arr@MutArray{..} =
     then pure arr
     else pinnedClone arr
 
--- | Copy the 'MutArray' to unpinned memory if pinned, else do nothing. The
--- overhead is a copy if the input array is pinned.
+-- | Return a copy of the array in unpinned memory if pinned, else return the
+-- original array.
 {-# INLINE unpin #-}
 unpin :: MutArray a -> IO (MutArray a)
 unpin arr@MutArray{..} =
@@ -375,6 +375,7 @@ unpin arr@MutArray{..} =
     then clone arr
     else pure arr
 
+-- | Return 'True' if the array is allocated in pinned memory.
 {-# INLINE isPinned #-}
 isPinned :: MutArray a -> Bool
 isPinned MutArray{..} = Unboxed.isPinned arrContents

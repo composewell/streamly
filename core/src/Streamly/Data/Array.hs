@@ -53,6 +53,19 @@ module Streamly.Data.Array
     -- list.
     , toList
 
+    -- * Pinning & Unpinning
+    -- | Arrays are created unpinned by default unless pinned versions of
+    -- creation APIs are used. Look for APIs with @pinned@ prefix in
+    -- "Streamly.Internal.Data.Array" for some unreleased pinned creation APIs.
+    -- If an array is to be sent to the OS without any further modification
+    -- then it should be created pinned in the first place instead of pinning
+    -- it later. Pinning an unpinned array has a copy overhead. OS interfacing
+    -- APIs create a pinned array directly or convert an unpinned array to
+    -- pinned array before sending it to the OS.
+    , pin
+    , unpin
+    , isPinned
+
     -- * Unfolds
     , reader
     , readerRev
@@ -66,13 +79,9 @@ module Streamly.Data.Array
     -- , (!!)
     , getIndex
 
-    -- * Unbox Type Class
+    -- * Re-exports
     , Unbox (..)
 
-    -- * Pinning & Unpinning
-    , pin
-    , unpin
-    , isPinned
     )
 where
 

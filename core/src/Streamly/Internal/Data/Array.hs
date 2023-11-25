@@ -27,10 +27,7 @@ module Streamly.Internal.Data.Array
     -- Monadic Folds
     , writeLastN
 
-    -- * Elimination
-    -- ** Conversion
-
-    -- ** Unfolds
+    -- * Unfolds
     , reader
     , readerUnsafe
     , producer -- experimental
@@ -73,11 +70,11 @@ module Streamly.Internal.Data.Array
     -- * Streaming Operations
     , streamTransform
 
-    -- ** Folding
+    -- * Folding
     , streamFold
     , fold
 
-    -- ** Serialization
+    -- * Serialization
     , encodeAs
     , serialize
     , pinnedSerialize

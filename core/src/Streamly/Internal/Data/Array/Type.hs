@@ -12,22 +12,23 @@
 --
 module Streamly.Internal.Data.Array.Type
     (
+    -- ** Type
     -- $arrayNotes
       Array (..)
     , asPtrUnsafe
     , nil
 
-    -- * Freezing and Thawing
+    -- ** Freezing and Thawing
     , unsafeFreeze
     , unsafeFreezeWithShrink
     , unsafeThaw
 
-    -- * Pinning and Unpinning
+    -- ** Pinning and Unpinning
     , pin
     , unpin
     , isPinned
 
-    -- * Construction
+    -- ** Construction
     , splice
 
     , fromList
@@ -41,14 +42,14 @@ module Streamly.Internal.Data.Array.Type
     , fromPureStream
     , fromByteStr#
 
-    -- * Split
+    -- ** Split
     , breakOn
 
     -- ** Cloning arrays
     , clone
     , pinnedClone
 
-    -- * Elimination
+    -- ** Elimination
     , unsafeIndexIO
     , getIndexUnsafe
     , byteLength
@@ -69,7 +70,7 @@ module Streamly.Internal.Data.Array.Type
     , readerRev
     , toList
 
-    -- * Folds
+    -- ** Folds
     , writeWith
     , writeN
     , pinnedWriteN
@@ -81,14 +82,14 @@ module Streamly.Internal.Data.Array.Type
     , pinnedWrite
     , unsafeMakePure
 
-    -- * Streams of arrays
+    -- ** Streams of arrays
     , chunksOf
     , pinnedChunksOf
     , bufferChunks
     , flattenArrays
     , flattenArraysRev
 
-    -- * Deprecated
+    -- ** Deprecated
     , unsafeIndex
     )
 where
@@ -230,18 +231,19 @@ unsafeThaw (Array ac as ae) = MutArray ac as ae ae
 -- Pinning & Unpinning
 -------------------------------------------------------------------------------
 
--- | Copy the 'Array' to pinned memory if unpinned, else do nothing. The
--- overhead is a copy if the input array is unpinned.
+-- | Return a copy of the 'Array' in pinned memory if unpinned, else return the
+-- original array.
 {-# INLINE pin #-}
 pin :: Array a -> IO (Array a)
 pin = fmap unsafeFreeze . MA.pin . unsafeThaw
 
--- | Copy the 'Array' to unpinned memory if pinned, else do nothing. The
--- overhead is a copy if the input array is pinned.
+-- | Return a copy of the 'Array' in unpinned memory if pinned, else return the
+-- original array.
 {-# INLINE unpin #-}
 unpin :: Array a -> IO (Array a)
 unpin = fmap unsafeFreeze . MA.unpin . unsafeThaw
 
+-- | Return 'True' if the array is allocated in pinned memory.
 {-# INLINE isPinned #-}
 isPinned :: Array a -> Bool
 isPinned = MA.isPinned . unsafeThaw

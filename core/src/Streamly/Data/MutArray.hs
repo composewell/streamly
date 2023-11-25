@@ -42,6 +42,11 @@ module Streamly.Data.MutArray
     , write       -- full buffer
     -- writeLastN
 
+    -- * Pinning & Unpinning
+    , pin
+    , unpin
+    , isPinned
+
     -- * Appending elements
     , snoc
 
@@ -78,13 +83,8 @@ module Streamly.Data.MutArray
     -- * Size
     , length
 
-    -- * Unbox Type Class
+    -- * Re-exports
     , Unbox (..)
-
-    -- * Pinning & Unpinning
-    , pin
-    , unpin
-    , isPinned
 
     -- * Deprecated
     , newPinned
