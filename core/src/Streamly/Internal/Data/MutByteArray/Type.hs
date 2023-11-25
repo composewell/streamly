@@ -31,6 +31,9 @@ module Streamly.Internal.Data.MutByteArray.Type
     -- ** Access
     , sizeOfMutableByteArray
     , putSliceUnsafe
+    , cloneSliceUnsafeAs
+    , cloneSliceUnsafe
+    , pinnedCloneSliceUnsafe
     , asPtrUnsafe
     ) where
 
@@ -164,7 +167,8 @@ newBytesAs Pinned = pinnedNew
 -------------------------------------------------------------------------------
 
 -- | Put a sub range of a source array into a subrange of a destination array.
--- This is not safe as it does not check the bounds.
+-- This is not safe as it does not check the bounds of neither the src array
+-- nor the destination array.
 {-# INLINE putSliceUnsafe #-}
 putSliceUnsafe ::
        MonadIO m
@@ -189,6 +193,29 @@ putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
     IO $ \s# -> (# copyMutableByteArray#
                     arrS# srcStartBytes# arrD# dstStartBytes# lenBytes# s#
                 , () #)
+
+-- | Unsafe as it does not check whether the start offset and length supplied
+-- are valid inside the array.
+{-# INLINE cloneSliceUnsafeAs #-}
+cloneSliceUnsafeAs :: MonadIO m =>
+    PinnedState -> Int -> Int -> MutByteArray -> m MutByteArray
+cloneSliceUnsafeAs ps srcOff srcLen src =
+    liftIO $ do
+        mba <- newBytesAs ps srcLen
+        putSliceUnsafe src srcOff mba 0 srcLen
+        return mba
+
+-- | @cloneSliceUnsafe offset len arr@ clones a slice of the supplied array
+-- starting at the given offset and equal to the given length.
+{-# INLINE cloneSliceUnsafe #-}
+cloneSliceUnsafe :: MonadIO m => Int -> Int -> MutByteArray -> m MutByteArray
+cloneSliceUnsafe = cloneSliceUnsafeAs Unpinned
+
+-- | @pinnedCloneSliceUnsafe offset len arr@
+{-# INLINE pinnedCloneSliceUnsafe #-}
+pinnedCloneSliceUnsafe :: MonadIO m =>
+    Int -> Int -> MutByteArray -> m MutByteArray
+pinnedCloneSliceUnsafe = cloneSliceUnsafeAs Pinned
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
