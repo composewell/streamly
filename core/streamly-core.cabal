@@ -421,6 +421,7 @@ library
                     , Streamly.Internal.Data.Array.Type
 
                     -- Unboxed IORef
+                    , Streamly.Internal.Data.MutByteArray
                     , Streamly.Internal.Data.Unbox
                     , Streamly.Internal.Data.IORef.Unboxed
                     , Streamly.Internal.Data.Unbox.TH

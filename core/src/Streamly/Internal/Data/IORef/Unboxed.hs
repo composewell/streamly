@@ -38,14 +38,10 @@ where
 
 #include "inline.hs"
 
-import Data.Proxy (Proxy(..))
 import Control.Monad.IO.Class (MonadIO(..))
-import Streamly.Internal.Data.Unbox
-    ( MutByteArray(..)
-    , Unbox(..)
-    , newByteArray
-    , sizeOf
-    )
+import Data.Proxy (Proxy(..))
+import Streamly.Internal.Data.MutByteArray (MutByteArray(..), newByteArray)
+import Streamly.Internal.Data.Unbox (Unbox(..), sizeOf)
 
 import qualified Streamly.Internal.Data.Stream.Type as D
 

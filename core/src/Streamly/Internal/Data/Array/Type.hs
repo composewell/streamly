@@ -121,7 +121,7 @@ import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Generate as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
-import qualified Streamly.Internal.Data.Unbox as Unboxed
+import qualified Streamly.Internal.Data.MutByteArray as Unboxed
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 

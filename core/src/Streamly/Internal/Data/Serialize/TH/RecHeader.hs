@@ -27,7 +27,7 @@ import Data.Maybe (fromJust)
 import Language.Haskell.TH
 import Streamly.Internal.Data.Serialize.Type (Serialize(..))
 import Data.Foldable (foldlM)
-import Streamly.Internal.Data.Unbox (MutByteArray)
+import Streamly.Internal.Data.MutByteArray (MutByteArray)
 import Data.Proxy (Proxy(..))
 
 import qualified Streamly.Internal.Data.Unbox as Unbox

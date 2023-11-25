@@ -27,17 +27,15 @@ import Control.Exception (assert)
 
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
-import Streamly.Internal.Data.Unbox
-    ( MutByteArray(..)
-    , PinnedState(..)
-    , Unbox
-    )
+import Streamly.Internal.Data.Unbox (Unbox)
+import Streamly.Internal.Data.MutByteArray (MutByteArray(..), PinnedState(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
 import GHC.Stable (StablePtr(..))
 
+import qualified Streamly.Internal.Data.MutByteArray as MBA
 import qualified Streamly.Internal.Data.Unbox as Unbox
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray as MutArray
@@ -297,7 +295,7 @@ instance Serialize (Array a) where
     serialize off arr (Array {..}) = do
         let arrLen = arrEnd - arrStart
         off1 <- serialize off arr arrLen
-        Unbox.putSliceUnsafe arrContents arrStart arr off1 arrLen
+        MBA.putSliceUnsafe arrContents arrStart arr off1 arrLen
         pure (off1 + arrLen)
 
 instance (Serialize a, Serialize b) => Serialize (a, b) where
@@ -325,7 +323,7 @@ encodeAs :: forall a. Serialize a => PinnedState -> a -> Array Word8
 encodeAs ps a =
     unsafeInlineIO $ do
         let len = size 0 a
-        mbarr <- Unbox.newBytesAs ps len
+        mbarr <- MBA.newBytesAs ps len
         off <- serialize 0 mbarr a
         assertM(len == off)
         pure $ Array mbarr 0 off

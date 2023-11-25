@@ -13,8 +13,10 @@
 
 module Streamly.Internal.Data.Serialize
     (
+    -- * MutByteArray
+      module Streamly.Internal.Data.MutByteArray
     -- * Unbox
-      module Streamly.Internal.Data.Unbox
+    , module Streamly.Internal.Data.Unbox
     , module Streamly.Internal.Data.Unbox.TH
     -- * Serialize
     , module Streamly.Internal.Data.Serialize.Type
@@ -37,6 +39,7 @@ import GHC.Num.Integer (Integer(..))
 import GHC.Integer.GMP.Internals (Integer(..), BigNat(..))
 #endif
 
+import Streamly.Internal.Data.MutByteArray
 import Streamly.Internal.Data.Serialize.TH
 import Streamly.Internal.Data.Serialize.Type
 import Streamly.Internal.Data.Unbox
