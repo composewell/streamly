@@ -127,9 +127,13 @@ class Serialize a where
     -- offset but that may require traversing the Haskell structure again to get
     -- the size. Therefore, this is a performance optimization.
 
-    -- | @deserializeAt byte-offset array arrayLen@ deserializes a value from the
-    -- given byte-offset in the array. Returns a tuple consisting of the next
-    -- byte-offset and the deserialized value.
+    -- | @deserializeAt byte-offset array arrayLen@ deserializes a value from
+    -- the given byte-offset in the array. Returns a tuple consisting of the
+    -- next byte-offset and the deserialized value.
+    --
+    -- The arrayLen passed is the entire length of the input buffer. It is to
+    -- be used to check if we would overflow the input buffer when
+    -- deserializing.
     --
     -- Throws an exception if the operation would exceed the supplied arrayLen.
     deserializeAt :: Int -> MutByteArray -> Int -> IO (Int, a)
