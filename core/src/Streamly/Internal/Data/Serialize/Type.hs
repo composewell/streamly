@@ -182,9 +182,9 @@ checkBounds _label _off _arr = do
 -- single array for deserializing. But that can also be done by framing the
 -- serialized value with a size header.
 --
-{-# INLINE deserializeUnsafe #-}
-deserializeUnsafe :: forall a. Unbox a => Int -> MutByteArray -> Int -> IO (Int, a)
-deserializeUnsafe off arr sz =
+{-# INLINE deserializeChecked #-}
+deserializeChecked :: forall a. Unbox a => Int -> MutByteArray -> Int -> IO (Int, a)
+deserializeChecked off arr sz =
     let next = off + Unbox.sizeOf (Proxy :: Proxy a)
      in do
         -- Keep likely path in the straight branch.
@@ -211,7 +211,7 @@ instance Serialize _type where \
 ; {-# INLINE addSizeTo #-} \
 ;    addSizeTo acc _ = acc +  Unbox.sizeOf (Proxy :: Proxy _type) \
 ; {-# INLINE deserializeAt #-} \
-;    deserializeAt off arr end = deserializeUnsafe off arr end :: IO (Int, _type) \
+;    deserializeAt off arr end = deserializeChecked off arr end :: IO (Int, _type) \
 ; {-# INLINE serializeAt #-} \
 ;    serializeAt =  \
         serializeUnsafe :: Int -> MutByteArray -> _type -> IO Int
