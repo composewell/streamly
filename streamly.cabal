@@ -375,13 +375,6 @@ library
                      , Streamly.Internal.Data.Unfold.Prelude
                      , Streamly.Internal.Data.Fold.Prelude
 
-                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
-                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
-                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Append
-                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
-                     , Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
-                     , Streamly.Internal.Data.Stream.Concurrent.Channel
                      , Streamly.Internal.Data.Stream.Concurrent
                      , Streamly.Internal.Data.Stream.Zip.Concurrent
                      , Streamly.Internal.Data.Stream.Time
@@ -457,7 +450,14 @@ library
          , Streamly.Data.Stream.Concurrent
          , Streamly.Data.Stream.Time
 
-         , Streamly.Internal.Data.Fold.SVar
+         , Streamly.Internal.Data.Stream.Concurrent.Channel.Type
+         , Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
+         , Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
+         , Streamly.Internal.Data.Stream.Concurrent.Channel.Append
+         , Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
+         , Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
+         , Streamly.Internal.Data.Stream.Concurrent.Channel
+
          , Streamly.Internal.Data.Fold.Async
          , Streamly.Internal.Data.Fold.Concurrent.Channel.Type
          , Streamly.Internal.Data.Fold.Concurrent.Channel
@@ -466,6 +466,7 @@ library
          , Streamly.Internal.Data.Unfold.Exception
          , Streamly.Internal.Data.Unfold.SVar
 
+         -- Deprecated
          , Streamly.Internal.Data.Stream.Common
          , Streamly.Internal.Data.Stream.IsStream.Type
          , Streamly.Internal.Data.Stream.IsStream.Generate
@@ -482,6 +483,8 @@ library
 
          , Streamly.Internal.Data.Stream.SVar.Generate
          , Streamly.Internal.Data.Stream.SVar.Eliminate
+
+         , Streamly.Internal.Data.Fold.SVar
 
          , Streamly.Internal.Data.SVar.Worker
          , Streamly.Internal.Data.SVar.Dispatch

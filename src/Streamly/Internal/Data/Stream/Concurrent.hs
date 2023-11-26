@@ -21,26 +21,10 @@ module Streamly.Internal.Data.Stream.Concurrent
     -- * Imports
     -- $setup
 
-    -- * Types
-      MonadAsync
+      module Streamly.Internal.Data.Stream.Concurrent.Channel
 
-    -- * Configuration
-    , Config
-    , maxThreads
-    , maxBuffer
-    , eager
-    , StopWhen (..)
-    , stopWhen
-    , ordered
-    , interleaved
-    -- maxYields
-    , Rate(..)
-    , rate
-    , avgRate
-    , minRate
-    , maxRate
-    , constRate
-    , inspect
+    -- * Types
+    , MonadAsync
 
     -- * Combinators
     -- | Stream combinators using a concurrent channel
