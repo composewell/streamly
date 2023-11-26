@@ -413,9 +413,7 @@ library
 
                      -- Deprecated Internal modules
                      , Streamly.Internal.Data.SVar
-
-                     , Streamly.Internal.Data.Stream.SVar.Generate
-                     , Streamly.Internal.Data.Stream.SVar.Eliminate
+                     , Streamly.Internal.Data.Stream.SVar
 
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Zip
@@ -479,6 +477,9 @@ library
          , Streamly.Internal.Data.Stream.IsStream.Exception
          , Streamly.Internal.Data.Stream.IsStream.Lift
          , Streamly.Internal.Data.Stream.IsStream.Top
+
+         , Streamly.Internal.Data.Stream.SVar.Generate
+         , Streamly.Internal.Data.Stream.SVar.Eliminate
 
          , Streamly.Internal.Data.SVar.Worker
          , Streamly.Internal.Data.SVar.Dispatch
