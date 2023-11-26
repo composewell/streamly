@@ -65,6 +65,8 @@ module Streamly.Data.Unfold
     -- ** Mapping on Input
     , lmap
     , lmapM
+    , first
+    , second
 
     -- ** Mapping on Output
     , mapM
