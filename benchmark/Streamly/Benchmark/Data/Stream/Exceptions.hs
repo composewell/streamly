@@ -36,7 +36,7 @@ import System.IO (Handle, hClose, hPutChar)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Unfold as IUF
-import qualified Streamly.Internal.Data.Unfold.Exception as IUF
+import qualified Streamly.Internal.Data.Unfold.Prelude as IUF
 
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream

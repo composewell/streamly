@@ -374,7 +374,7 @@ library
                      , Streamly.Internal.Data.Stream.Channel.Dispatcher
                      , Streamly.Internal.Data.Stream.Channel.Worker
 
-                     , Streamly.Internal.Data.Unfold.Exception
+                     , Streamly.Internal.Data.Unfold.Prelude
                      , Streamly.Internal.Data.Fold.Prelude
 
                      , Streamly.Internal.Data.Stream.Concurrent.Channel.Type
@@ -414,7 +414,6 @@ library
                      -- Deprecated Internal modules
                      , Streamly.Internal.Data.SVar
 
-                     , Streamly.Internal.Data.Unfold.SVar
                      , Streamly.Internal.Data.Stream.SVar.Generate
                      , Streamly.Internal.Data.Stream.SVar.Eliminate
 
@@ -466,6 +465,9 @@ library
          , Streamly.Internal.Data.Fold.Concurrent.Channel.Type
          , Streamly.Internal.Data.Fold.Concurrent.Channel
          , Streamly.Internal.Data.Fold.Concurrent
+
+         , Streamly.Internal.Data.Unfold.Exception
+         , Streamly.Internal.Data.Unfold.SVar
 
          , Streamly.Internal.Data.Stream.Common
          , Streamly.Internal.Data.Stream.IsStream.Type
