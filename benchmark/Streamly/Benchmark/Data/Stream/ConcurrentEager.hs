@@ -9,7 +9,7 @@
 import Stream.ConcurrentCommon (allBenchmarks)
 import Streamly.Benchmark.Common (runWithCLIOpts, defaultStreamSize)
 
-import qualified Streamly.Internal.Data.Stream.Concurrent as Async
+import qualified Streamly.Internal.Data.Stream.Prelude as Async
 
 moduleName :: String
 moduleName = "Data.Stream.ConcurrentEager"

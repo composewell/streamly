@@ -46,7 +46,7 @@ import Streamly.Internal.Data.Time.Units
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
 #ifndef USE_STREAMLY_CORE
-import qualified Streamly.Internal.Data.Stream.Time as Stream
+import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 #endif
 #ifdef USE_STREAMK
 import Control.DeepSeq (NFData(..))

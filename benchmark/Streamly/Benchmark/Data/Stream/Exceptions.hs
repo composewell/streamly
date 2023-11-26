@@ -42,7 +42,7 @@ import qualified Streamly.Internal.Data.Unfold.Prelude as IUF
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.Exception.Lifted as Stream
+import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 #endif
 
 import Test.Tasty.Bench hiding (env)

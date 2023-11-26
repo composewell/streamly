@@ -26,7 +26,7 @@ import Test.Hspec as H
 import qualified Streamly.Data.Fold as Fold ( toList )
 import qualified Streamly.Data.Stream as Stream
     ( replicate, fromEffect, fromPure, fromList, fold, take, nil )
-import qualified Streamly.Internal.Data.Stream.Concurrent as Async
+import qualified Streamly.Internal.Data.Stream.Prelude as Async
 
 import Streamly.Test.Common (listEquals)
 

@@ -48,7 +48,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as S
 #ifndef USE_STREAMLY_CORE
 import qualified Streamly.Data.Stream.Prelude as S
-import qualified Streamly.Internal.Data.Stream.Time as S
+import qualified Streamly.Internal.Data.Stream.Prelude as S
 #endif
 
 #ifdef USE_STREAMK

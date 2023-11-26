@@ -119,13 +119,13 @@ import System.Win32.Types (BOOL, DWORD, HANDLE, LPVOID, LPDWORD, failIfFalse_)
 
 import Streamly.Data.Array (Array)
 import Streamly.Data.Stream (Stream)
-import Streamly.Data.Stream.Concurrent (eager)
+import Streamly.Data.Stream.Prelude (eager)
 
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Data.Array as A (fromList)
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as S
-import qualified Streamly.Data.Stream.Concurrent as S
+import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Unicode.Stream as U
 import qualified Streamly.Internal.Unicode.Utf8 as UTF8 (pack, toArray)
 import qualified Streamly.Internal.Data.Array as A (read)

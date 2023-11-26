@@ -67,7 +67,7 @@ import System.IO.Temp (withSystemTempDirectory)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream.Concurrent as Stream
+import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 import qualified Streamly.Unicode.Stream as Unicode
 
 #if defined(FILESYSTEM_EVENT_LINUX)

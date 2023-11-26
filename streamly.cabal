@@ -375,10 +375,8 @@ library
                      , Streamly.Internal.Data.Unfold.Prelude
                      , Streamly.Internal.Data.Fold.Prelude
 
-                     , Streamly.Internal.Data.Stream.Concurrent
+                     , Streamly.Internal.Data.Stream.Prelude
                      , Streamly.Internal.Data.Stream.Zip.Concurrent
-                     , Streamly.Internal.Data.Stream.Time
-                     , Streamly.Internal.Data.Stream.Lifted
 
                      -- streamly-unicode (depends on unicode-data)
                      , Streamly.Internal.Unicode.Utf8
@@ -446,10 +444,6 @@ library
          , Streamly.Internal.Data.Channel.Dispatcher
          , Streamly.Internal.Data.Channel.Worker
 
-         , Streamly.Data.Stream.Exception
-         , Streamly.Data.Stream.Concurrent
-         , Streamly.Data.Stream.Time
-
          , Streamly.Internal.Data.Stream.Concurrent.Channel.Type
          , Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
          , Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
@@ -457,6 +451,9 @@ library
          , Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
          , Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
          , Streamly.Internal.Data.Stream.Concurrent.Channel
+         , Streamly.Internal.Data.Stream.Concurrent
+         , Streamly.Internal.Data.Stream.Time
+         , Streamly.Internal.Data.Stream.Lifted
 
          , Streamly.Internal.Data.Fold.Async
          , Streamly.Internal.Data.Fold.Concurrent.Channel.Type
