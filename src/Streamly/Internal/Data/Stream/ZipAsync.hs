@@ -13,7 +13,8 @@
 --
 -- >>> import qualified Streamly.Prelude as Stream
 --
-module Streamly.Internal.Data.Stream.ZipAsync {-# DEPRECATED "Please use \"Streamly.Internal.Data.Stream.Zip.Concurrent\" instead." #-}
+module Streamly.Internal.Data.Stream.ZipAsync
+    {-# DEPRECATED "Use \"Streamly.Data.Stream.MkType\" instead." #-}
     ( ZipAsyncM(..)
     , ZipAsync
     , consMZipAsync

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 -- |
 -- Module      : Streamly.Internal.Data.Fold.SVar
 -- Copyright   : (c) 2017 Composewell Technologies

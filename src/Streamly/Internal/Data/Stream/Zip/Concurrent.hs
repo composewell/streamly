@@ -13,6 +13,7 @@
 -- >>> import qualified Streamly.Data.Fold as Fold
 --
 module Streamly.Internal.Data.Stream.Zip.Concurrent
+    {-# DEPRECATED "Use \"Streamly.Data.Stream.MkType\" instead." #-}
     (
       ZipConcurrent (..)
     )

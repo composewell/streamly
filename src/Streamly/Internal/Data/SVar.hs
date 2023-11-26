@@ -8,6 +8,7 @@
 --
 --
 module Streamly.Internal.Data.SVar
+    {-# DEPRECATED "SVar is replaced by Channel." #-}
     (
       module Streamly.Internal.Data.SVar.Type
     , module Streamly.Internal.Data.SVar.Worker

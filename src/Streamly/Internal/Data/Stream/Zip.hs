@@ -15,6 +15,7 @@
 -- >>> import qualified Streamly.Prelude as Stream
 --
 module Streamly.Internal.Data.Stream.Zip
+    {-# DEPRECATED "Use \"Streamly.Data.Stream.MkType\" instead." #-}
     (
       ZipSerialM (..)
     , ZipSerial
