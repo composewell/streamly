@@ -121,7 +121,6 @@ module Streamly.Network.Socket
     , forSocketM
 
     -- * Deprecated
-    , accept
     , readChunk
     , writeChunk
     , readWithBufferOf
@@ -138,13 +137,8 @@ import Streamly.Internal.Data.Unfold (Unfold(..))
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Data.MutByteArray (Unbox)
 
-import Streamly.Internal.Network.Socket hiding (accept, read, readChunks)
+import Streamly.Internal.Network.Socket
 import Prelude hiding (read)
-
-{-# DEPRECATED accept "Please use 'acceptor' instead" #-}
-{-# INLINE accept #-}
-accept :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
-accept = acceptor
 
 {-# DEPRECATED readChunk "Please use 'getChunk' instead" #-}
 {-# INLINABLE readChunk #-}
