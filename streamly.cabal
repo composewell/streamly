@@ -423,9 +423,6 @@ library
                      , Streamly.Internal.Data.Stream.ZipAsync
 
                      , Streamly.Internal.Data.Stream.IsStream
-                     , Streamly.Internal.Data.Stream.IsStream.Combinators
-                     , Streamly.Internal.Data.Stream.IsStream.Common
-                     , Streamly.Internal.Data.Stream.IsStream.Enumeration
 
     if !impl(ghcjs) && flag(dev)
         other-modules:
@@ -477,6 +474,9 @@ library
          , Streamly.Internal.Data.Stream.IsStream.Exception
          , Streamly.Internal.Data.Stream.IsStream.Lift
          , Streamly.Internal.Data.Stream.IsStream.Top
+         , Streamly.Internal.Data.Stream.IsStream.Combinators
+         , Streamly.Internal.Data.Stream.IsStream.Common
+         , Streamly.Internal.Data.Stream.IsStream.Enumeration
 
          , Streamly.Internal.Data.Stream.SVar.Generate
          , Streamly.Internal.Data.Stream.SVar.Eliminate

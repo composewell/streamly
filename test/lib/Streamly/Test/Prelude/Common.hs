@@ -138,7 +138,7 @@ import Streamly.Prelude (avgRate, rate, maxBuffer, maxThreads)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Stream.IsStream.Common as IS
+import qualified Streamly.Internal.Data.Stream.IsStream as IS
 import qualified Streamly.Internal.Data.Unfold as UF
 
 import qualified Data.Map.Strict as Map

@@ -22,6 +22,9 @@ module Streamly.Internal.Data.Stream.IsStream  {-# DEPRECATED "Please use \"Stre
     , module Streamly.Internal.Data.Stream.IsStream.Exception
     , module Streamly.Internal.Data.Stream.IsStream.Lift
     , module Streamly.Internal.Data.Stream.IsStream.Top
+    , module Streamly.Internal.Data.Stream.IsStream.Combinators
+    , module Streamly.Internal.Data.Stream.IsStream.Common
+    , module Streamly.Internal.Data.Stream.IsStream.Enumeration
     , fromStream
     , toStream
     )
@@ -38,6 +41,9 @@ import Streamly.Internal.Data.Stream.IsStream.Transform
 import Streamly.Internal.Data.Stream.IsStream.Type
     hiding (cmpBy, drain, eqBy, foldl', fold, toList, toStream
         , fromEffect, fromPure, repeat, fromStream)
+import Streamly.Internal.Data.Stream.IsStream.Combinators
+import Streamly.Internal.Data.Stream.IsStream.Common
+import Streamly.Internal.Data.Stream.IsStream.Enumeration
 
 import qualified Streamly.Internal.Data.Stream as D
 
