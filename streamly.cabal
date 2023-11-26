@@ -372,11 +372,9 @@ library
                      , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.IOFinalizer.Lifted
 
+                     , Streamly.Internal.Data.Stream.Prelude
                      , Streamly.Internal.Data.Unfold.Prelude
                      , Streamly.Internal.Data.Fold.Prelude
-
-                     , Streamly.Internal.Data.Stream.Prelude
-                     , Streamly.Internal.Data.Stream.Zip.Concurrent
 
                      -- streamly-unicode (depends on unicode-data)
                      , Streamly.Internal.Unicode.Utf8

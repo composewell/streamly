@@ -13,6 +13,8 @@
 -- To run examples in this module:
 --
 -- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as D
+-- >>> import qualified Streamly.Data.Fold as Fold
 --
 module Streamly.Internal.Data.Stream.Zip
     {-# DEPRECATED "Use \"Streamly.Data.Stream.MkType\" instead." #-}
@@ -22,6 +24,8 @@ module Streamly.Internal.Data.Stream.Zip
     , consMZip
     , zipWithK
     , zipWithMK
+
+    , ZipConcurrent (..)
 
     -- * Deprecated
     , ZipStream
@@ -50,6 +54,7 @@ import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Stream.Serial (SerialT(..))
 import Streamly.Internal.Data.StreamK (Stream)
+import Streamly.Internal.Data.Stream.Concurrent (MonadAsync, parZipWith)
 
 import qualified Streamly.Internal.Data.Stream.Common as P
 import qualified Streamly.Internal.Data.StreamK as K
@@ -62,6 +67,8 @@ import Prelude hiding (map, repeat, zipWith)
 
 -- $setup
 -- >>> import qualified Streamly.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream as D
+-- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> :{
 --  delay n = do
@@ -136,3 +143,27 @@ instance Monad m => Applicative (ZipSerialM m) where
 
 FOLDABLE_INSTANCE(ZipSerialM)
 TRAVERSABLE_INSTANCE(ZipSerialM)
+
+-------------------------------------------------------------------------------
+-- ZipConcurrent
+-------------------------------------------------------------------------------
+
+newtype ZipConcurrent m a = ZipConcurrent {getZipConcurrent :: D.Stream m a}
+      deriving (Functor)
+
+-- | An IO stream whose applicative instance zips streams concurrently. Note
+-- that it uses the default concurrency options.
+--
+-- >>> s = ZipConcurrent $ D.fromList [1, 2, 3]
+-- >>> x = (,,) <$> s <*> s <*> s
+-- >>> D.fold Fold.toList (getZipConcurrent x)
+-- [(1,1,1),(2,2,2),(3,3,3)]
+--
+-- @since 0.9.0
+
+instance MonadAsync m => Applicative (ZipConcurrent m) where
+    pure = ZipConcurrent . D.repeat
+
+    {-# INLINE (<*>) #-}
+    ZipConcurrent m1 <*> ZipConcurrent m2 =
+        ZipConcurrent $ parZipWith id id m1 m2
