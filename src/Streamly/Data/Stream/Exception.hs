@@ -13,7 +13,6 @@
 --
 module Streamly.Data.Stream.Exception
     (
-    -- * Lifted Exceptions
       after
     , bracket
     -- , bracket3

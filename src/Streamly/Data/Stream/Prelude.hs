@@ -6,20 +6,28 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- This module re-exports the "Streamly.Data.Stream" module from the
--- "streamly-core" package and additionally provides concurrency, time and
--- lifted exception operations as well in a single module.
---
--- Also see the following modules for more pre-release operations:
---
--- * "Streamly.Internal.Data.Stream.Concurrent"
--- * "Streamly.Internal.Data.Stream.Time"
--- * "Streamly.Internal.Data.Stream.Exception.Lifted"
+-- All Stream related combinators including the streamly-core
+-- "Streamly.Data.Stream" module, concurrency, time and lifted
+-- exception operations.
 --
 module Streamly.Data.Stream.Prelude
-    ( module Streamly.Data.Stream
+    (
+    -- * "Streamly.Data.Stream"
+    -- | All "Streamly.Data.Stream" combinators are re-exported via this
+    -- module. For more pre-release combinators also see
+    -- "Streamly.Internal.Data.Stream" module.
+      module Streamly.Data.Stream
+    -- * Concurrent Operations
+    -- | Also see "Streamly.Internal.Data.Stream.Concurrent" for more
+    -- pre-release functions.
     , module Streamly.Data.Stream.Concurrent
+    -- * Time Related
+    -- | Also see "Streamly.Internal.Data.Stream.Time" for more pre-release
+    -- functions.
     , module Streamly.Data.Stream.Time
+    -- * Lifted Exceptions
+    -- | Also see "Streamly.Internal.Data.Stream.Exception.Lifted" for more
+    -- pre-release functions.
     , module Streamly.Data.Stream.Exception
     )
 where

@@ -15,7 +15,6 @@
 --
 module Streamly.Data.Stream.Time
     (
-    -- * Time
     -- ** Timers
       interject
 

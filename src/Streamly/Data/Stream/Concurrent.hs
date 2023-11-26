@@ -17,8 +17,9 @@
 
 module Streamly.Data.Stream.Concurrent
     (
-    -- * Concurrency
     -- $concurrency
+
+    -- ** Types
       MonadAsync
 
     -- ** Configuration
@@ -110,7 +111,7 @@ import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 
 -- $concurrency
 --
--- == Concurrency Channels
+-- == Channels
 --
 -- At a lower level, concurrency is implemented using channels that support
 -- concurrent evaluation of streams. We create a channel, and add one or more
@@ -118,7 +119,7 @@ import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 -- generates a single output stream from the results. How the streams are
 -- combined depends on the configuration of the channel.
 --
--- == Concurrency Primitives
+-- == Primitives
 --
 -- There are only a few fundamental abstractions for concurrency, 'parEval',
 -- 'parConcatMap', and 'parConcatIterate', all concurrency combinators can be
@@ -139,7 +140,7 @@ import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 -- function recursively over the stream. This can be used to traverse trees or
 -- graphs.
 --
--- == Concurrency Configuration
+-- == Configuration
 --
 -- Concurrent combinators take a 'Config' argument which controls the
 -- concurrent behavior. For example, maximum number of threads to be used
@@ -158,7 +159,7 @@ import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 -- documentation for the default behavior and default values of configuration
 -- parameters.
 --
--- == Scheduling behavior
+-- == Scheduling
 --
 -- The most important configuration option is to control whether the output of
 -- the concurrent execution is consumed in the same order as the corresponding
@@ -174,7 +175,7 @@ import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 -- if the stream consumer thread blocks it does not make any impact on the
 -- scheduling of the available tasks.
 --
--- == Concurrent Combinators
+-- == Combinators
 --
 -- Using the few fundamental concurrency primitives we can implement all the
 -- usual streaming combinators with concurrent behavior. Combinators like
