@@ -20,5 +20,4 @@ module Streamly.Data.Stream.Exception
     )
 where
 
-import Streamly.Internal.Data.Stream.Exception.Lifted
-    ( bracket, finally, after )
+import Streamly.Internal.Data.Stream.Lifted (bracket, finally, after)

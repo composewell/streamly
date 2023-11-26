@@ -136,7 +136,7 @@ import qualified Streamly.Internal.Data.Array as A (pinnedChunksOf)
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.Data.Fold as FL (Step(..), reduce)
 
-import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S (bracket)
+import qualified Streamly.Internal.Data.Stream.Lifted as S (bracket)
 import qualified Streamly.Internal.Network.Socket as ISK
 
 -- $setup

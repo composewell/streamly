@@ -42,7 +42,7 @@ import qualified Streamly.Internal.Data.Stream as D
     , handle
     )
 
-import qualified Streamly.Internal.Data.Stream.Exception.Lifted as D
+import qualified Streamly.Internal.Data.Stream.Lifted as D
     ( afterD
     , bracket3D
     , retryD
