@@ -8,7 +8,7 @@
 
 module Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
     (
-      newChannel
+      newInterleaveChannel
     )
 where
 
@@ -242,11 +242,11 @@ getFifoSVar mrun cfg = do
 --
 -- | Create a new async style concurrent stream evaluation channel. The monad
 -- state used to run the stream actions is taken from the call site of
--- newChannel.
-{-# INLINABLE newChannel #-}
-{-# SPECIALIZE newChannel :: (Config -> Config) -> IO (Channel IO a) #-}
-newChannel :: MonadAsync m =>
+-- newInterleaveChannel.
+{-# INLINABLE newInterleaveChannel #-}
+{-# SPECIALIZE newInterleaveChannel :: (Config -> Config) -> IO (Channel IO a) #-}
+newInterleaveChannel :: MonadAsync m =>
     (Config -> Config) -> m (Channel m a)
-newChannel modifier = do
+newInterleaveChannel modifier = do
     mrun <- askRunInIO
     liftIO $ getFifoSVar mrun (modifier defaultConfig)

@@ -7,7 +7,7 @@
 -- Portability : GHC
 --
 -- The functions in this module are separated from the combinators using
--- these because of a GHC issue. We need to have newChannel specialized but
+-- these because of a GHC issue. We need to have newAppendChannel specialized but
 -- not inlined. If we keep it in the same module as its users we cannot achieve
 -- that and the code becomes bloated. But if it is in a separate module we can
 -- use INLINABLE and SPECIALIZE on it which makes it specialized but it is not
@@ -15,7 +15,7 @@
 
 module Streamly.Internal.Data.Stream.Concurrent.Channel.Append
     (
-      newChannel
+      newAppendChannel
     )
 where
 
@@ -1037,10 +1037,10 @@ getLifoSVar mrun cfg = do
 
 -- | Create a new async style concurrent stream evaluation channel. The monad
 -- state used to run the stream actions is taken from the call site of
--- newChannel.
-{-# INLINABLE newChannel #-}
-{-# SPECIALIZE newChannel :: (Config -> Config) -> IO (Channel IO a) #-}
-newChannel :: MonadRunInIO m => (Config -> Config) -> m (Channel m a)
-newChannel modifier = do
+-- newAppendChannel.
+{-# INLINABLE newAppendChannel #-}
+{-# SPECIALIZE newAppendChannel :: (Config -> Config) -> IO (Channel IO a) #-}
+newAppendChannel :: MonadRunInIO m => (Config -> Config) -> m (Channel m a)
+newAppendChannel modifier = do
     mrun <- askRunInIO
     liftIO $ getLifoSVar mrun (modifier defaultConfig)

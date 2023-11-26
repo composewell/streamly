@@ -54,11 +54,11 @@ import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
     (fromChannel, fromChannelK, toChannel, toChannelK)
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Append
+    (newAppendChannel)
+import Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
+    (newInterleaveChannel)
 
-import qualified Streamly.Internal.Data.Stream.Concurrent.Channel.Append
-    as Append
-import qualified Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
-    as Interleave
 import qualified Streamly.Internal.Data.StreamK as K
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
@@ -73,8 +73,8 @@ newChannel :: MonadAsync m =>
 newChannel modifier =
     let cfg = modifier defaultConfig
      in if getInterleaved cfg
-        then Interleave.newChannel modifier
-        else Append.newChannel modifier
+        then newInterleaveChannel modifier
+        else newAppendChannel modifier
 
 -- | Allocate a channel and evaluate the stream using the channel and the
 -- supplied evaluator function. The evaluator is run in a worker thread.
