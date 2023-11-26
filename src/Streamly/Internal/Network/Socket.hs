@@ -104,7 +104,7 @@ import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.MutArray as MArray
     (MutArray(..), asPtrUnsafe, pinnedNewBytes)
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
-import qualified Streamly.Internal.Data.Unfold as UF (first, map)
+import qualified Streamly.Internal.Data.Unfold as UF (map)
 import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
 -- $setup

@@ -11,20 +11,25 @@
 
 module Streamly.Internal.Network.Inet.TCP
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * TCP Servers
     -- ** Streams
-      acceptOnAddr
+      accept
+    , acceptLocal
+    , acceptOnAddr
     , acceptOnAddrWith
-    , acceptOnPort
-    -- , acceptOnPortWith
-    , acceptOnPortLocal
 
     -- ** Unfolds
+    , acceptor
+    , acceptorLocal
+    , acceptorWith
     , acceptorOnAddr
     , acceptorOnAddrWith
-    , acceptorOnPort
-    , acceptorOnPortWith
-    , acceptorOnPortLocal
 
     -- * TCP clients
     -- | IP Address based operations.
@@ -89,6 +94,10 @@ module Streamly.Internal.Network.Inet.TCP
     , datagrams
     , datagramsOn
     -}
+
+    -- * Deprecated
+    , acceptorOnPort
+    , acceptorOnPortLocal
     )
 where
 
@@ -113,7 +122,7 @@ import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Data.MutByteArray (Unbox)
 import Streamly.Data.Unfold (Unfold)
-import Streamly.Internal.Network.Socket (SockSpec(..), accept, acceptor)
+import Streamly.Internal.Network.Socket (SockSpec(..))
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Control.Monad.Catch as MC
@@ -124,12 +133,17 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array as A (pinnedChunksOf)
-import qualified Streamly.Internal.Data.Unfold as UF (first, bracketIO)
+import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.Data.Fold as FL (Step(..), reduce)
 
 import qualified Streamly.Internal.Data.Stream.Exception.Lifted as S (bracket)
 import qualified Streamly.Internal.Network.Socket as ISK
-    (chunkReader, putBytes, putChunks, read, readChunks, writeChunks)
+
+-- $setup
+-- >>> :m
+--
+-- >>> import qualified Streamly.Data.Unfold as Unfold
+-- >>> import qualified Streamly.Network.Inet.TCP as TCP
 
 -------------------------------------------------------------------------------
 -- Accept (unfolds)
@@ -140,7 +154,7 @@ acceptorOnAddrWith
     :: MonadIO m
     => [(SocketOption, Int)]
     -> Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
-acceptorOnAddrWith opts = UF.lmap f acceptor
+acceptorOnAddrWith opts = UF.lmap f ISK.acceptor
     where
     f (addr, port) =
         (maxListenQueue
@@ -163,36 +177,50 @@ acceptorOnAddr
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
 acceptorOnAddr = acceptorOnAddrWith []
 
-{-# INLINE acceptorOnPortWith #-}
-acceptorOnPortWith :: MonadIO m
+{-# INLINE acceptorWith #-}
+acceptorWith :: MonadIO m
     => [(SocketOption, Int)]
     -> Unfold m PortNumber Socket
-acceptorOnPortWith opts = UF.first (0,0,0,0) (acceptorOnAddrWith opts)
+acceptorWith opts = UF.first (0,0,0,0) (acceptorOnAddrWith opts)
 
 -- | Like 'acceptorOnAddr' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
 -- the specified port.
 --
--- > acceptorOnPort = UF.first acceptorOnAddr (0,0,0,0)
+-- >>> acceptor = Unfold.first (0,0,0,0) TCP.acceptorOnAddr
 --
+{-# INLINE acceptor #-}
+acceptor :: MonadIO m => Unfold m PortNumber Socket
+acceptor = UF.first (0,0,0,0) acceptorOnAddr
+
+{-# DEPRECATED acceptorOnPort "Use \"acceptor\" instead." #-}
 {-# INLINE acceptorOnPort #-}
 acceptorOnPort :: MonadIO m => Unfold m PortNumber Socket
-acceptorOnPort = UF.first (0,0,0,0) acceptorOnAddr
+acceptorOnPort = acceptor
 
--- | Like 'acceptorOnAddr' but binds on the localhost IPv4 address @127.0.0.1@.
--- The server can only be accessed from the local host, it cannot be accessed
--- from other hosts on the network.
+-- | Like 'acceptor' but binds on the localhost IPv4 address @127.0.0.1@. The
+-- server can only be accessed from the local host, it cannot be accessed from
+-- other hosts on the network.
 --
--- > acceptorOnPortLocal = UF.first acceptorOnAddr (127,0,0,1)
+-- >>> acceptorLocal = Unfold.first (127,0,0,1) TCP.acceptorOnAddr
 --
+{-# INLINE acceptorLocal #-}
+acceptorLocal :: MonadIO m => Unfold m PortNumber Socket
+acceptorLocal = UF.first (127,0,0,1) acceptorOnAddr
+
+{-# DEPRECATED acceptorOnPortLocal "Use \"acceptorLocal\" instead." #-}
 {-# INLINE acceptorOnPortLocal #-}
 acceptorOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
-acceptorOnPortLocal = UF.first (127,0,0,1) acceptorOnAddr
+acceptorOnPortLocal = acceptorLocal
 
 -------------------------------------------------------------------------------
 -- Accept (streams)
 -------------------------------------------------------------------------------
 
+-- | Like 'acceptOnAddr' but with the ability to specify a list of socket
+-- options.
+--
+-- /Pre-release/
 {-# INLINE acceptOnAddrWith #-}
 acceptOnAddrWith
     :: MonadIO m
@@ -201,7 +229,7 @@ acceptOnAddrWith
     -> PortNumber
     -> Stream m Socket
 acceptOnAddrWith opts addr port =
-    accept maxListenQueue SockSpec
+    ISK.accept maxListenQueue SockSpec
         { sockFamily = AF_INET
         , sockType = Stream
         , sockProto = defaultProtocol
@@ -209,8 +237,9 @@ acceptOnAddrWith opts addr port =
         }
         (SockAddrInet port (tupleToHostAddress addr))
 
--- | Like 'accept' but binds on the specified IPv4 address of the machine
--- and listens for TCP connections on the specified port.
+-- | Like 'accept' but binds on the specified IPv4 address.
+--
+-- >>> acceptOnAddr = TCP.acceptOnAddrWith []
 --
 -- /Pre-release/
 {-# INLINE acceptOnAddr #-}
@@ -221,27 +250,27 @@ acceptOnAddr
     -> Stream m Socket
 acceptOnAddr = acceptOnAddrWith []
 
--- | Like 'accept' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
--- IPv4 addresses/interfaces of the machine and listens for TCP connections on
--- the specified port.
+-- | Start a TCP stream server that binds on the IPV4 address @0.0.0.0@ and
+-- listens for TCP connections from remote hosts on the specified server port.
+-- The server generates a stream of connected sockets.
 --
--- > acceptOnPort = acceptOnAddr (0,0,0,0)
+-- >>> accept = TCP.acceptOnAddr (0,0,0,0)
 --
 -- /Pre-release/
-{-# INLINE acceptOnPort #-}
-acceptOnPort :: MonadIO m => PortNumber -> Stream m Socket
-acceptOnPort = acceptOnAddr (0,0,0,0)
+{-# INLINE accept #-}
+accept :: MonadIO m => PortNumber -> Stream m Socket
+accept = acceptOnAddr (0,0,0,0)
 
 -- | Like 'accept' but binds on the localhost IPv4 address @127.0.0.1@.
 -- The server can only be accessed from the local host, it cannot be accessed
 -- from other hosts on the network.
 --
--- > acceptOnPortLocal = acceptOnAddr (127,0,0,1)
+-- >>> acceptLocal = TCP.acceptOnAddr (127,0,0,1)
 --
 -- /Pre-release/
-{-# INLINE acceptOnPortLocal #-}
-acceptOnPortLocal :: MonadIO m => PortNumber -> Stream m Socket
-acceptOnPortLocal = acceptOnAddr (127,0,0,1)
+{-# INLINE acceptLocal #-}
+acceptLocal :: MonadIO m => PortNumber -> Stream m Socket
+acceptLocal = acceptOnAddr (127,0,0,1)
 
 -------------------------------------------------------------------------------
 -- TCP Clients

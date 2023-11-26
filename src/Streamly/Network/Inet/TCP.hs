@@ -7,7 +7,7 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- Combinators to build Inet/TCP clients and servers.
+-- Combinators to build Inet\/IPv4/TCP clients and servers.
 --
 -- >>> import qualified Streamly.Network.Inet.TCP as TCP
 --
@@ -16,14 +16,15 @@ module Streamly.Network.Inet.TCP
     (
     -- * Accept Connections
     -- ** Streams
-      acceptOnAddr
-    , acceptOnPort
-    , acceptOnPortLocal
+      accept
+    , acceptLocal
+    , acceptOnAddr
+    , acceptOnAddrWith
 
     -- ** Unfolds
+    , acceptor
+    , acceptorLocal
     , acceptorOnAddr
-    , acceptorOnPort
-    , acceptorOnPortLocal
 
     -- * Connect to Servers
     , connect
@@ -53,6 +54,10 @@ module Streamly.Network.Inet.TCP
     , datagrams
     , datagramsOn
     -}
+
+    -- * Deprecated
+    , acceptorOnPort
+    , acceptorOnPortLocal
     )
 where
 
