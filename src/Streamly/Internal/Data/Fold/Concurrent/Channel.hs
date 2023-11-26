@@ -8,11 +8,9 @@
 
 module Streamly.Internal.Data.Fold.Concurrent.Channel
     (
-    -- * Channel
-      Channel
+    module Streamly.Internal.Data.Fold.Concurrent.Channel.Type
 
     -- * Configuration
-    , Config
     , maxBuffer
     , boundThreads
     , inspect

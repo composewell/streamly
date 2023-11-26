@@ -50,51 +50,8 @@
 
 module Streamly.Internal.Data.Fold.Concurrent
     (
-    -- * Configuration
-      Config
-    , maxBuffer
-    , boundThreads
-    , inspect
-
-    -- * Combinators
-    -- | Stream combinators using Async channel
-
-    , parEval
+      module Streamly.Internal.Data.Fold.Concurrent.Channel
     )
 where
 
--- import Streamly.Internal.Control.Concurrent (MonadAsync)
--- import Streamly.Internal.Data.Fold (Fold)
-
 import Streamly.Internal.Data.Fold.Concurrent.Channel
-
--- $setup
---
--- Imports for example snippets in this module.
---
--- >>> :m
--- >>> :set -XFlexibleContexts
--- >>> import Control.Concurrent (threadDelay)
--- >>> import qualified Streamly.Data.Array as Array
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Parser as Parser
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Fold.Concurrent as Fold
--- >>> import Prelude hiding (concatMap, concat)
--- >>> :{
---  delay n = do
---      threadDelay (n * 1000000)   -- sleep for n seconds
---      putStrLn (show n ++ " sec") -- print "n sec"
---      return n                    -- IO Int
--- :}
-
-{-
--- | Evaluate a stream asynchronously using a channel and serve the consumer
--- from the evaluation buffer.
---
--- >>> eval = Fold.parEval id
---
-{-# INLINE eval #-}
-eval :: MonadAsync m => Fold m a b -> Fold m a b
-eval = parEval id
--}
