@@ -62,7 +62,7 @@ import qualified Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
 import qualified Streamly.Internal.Data.StreamK as K
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-import Streamly.Internal.Data.Stream.Channel.Types
+import Streamly.Internal.Data.Channel.Types
 
 -- | Create a new concurrent stream evaluation channel. The monad
 -- state used to run the stream actions is captured from the call site of

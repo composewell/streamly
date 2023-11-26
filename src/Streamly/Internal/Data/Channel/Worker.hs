@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel.Worker
+-- Module      : Streamly.Internal.Data.Channel.Worker
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -8,7 +8,7 @@
 --
 -- Collecting results from child workers in a streamed fashion
 
-module Streamly.Internal.Data.Stream.Channel.Worker
+module Streamly.Internal.Data.Channel.Worker
     (
       Work (..)
     , estimateWorkers
@@ -34,7 +34,7 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), diffAbsTime64, fromRelTime64)
 
-import Streamly.Internal.Data.Stream.Channel.Types
+import Streamly.Internal.Data.Channel.Types
 
 -------------------------------------------------------------------------------
 -- Yield control

@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Channel.Types
+-- Module      : Streamly.Internal.Data.Channel.Types
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -31,7 +31,7 @@
 -- consumer is not pulling fast enough.  The number of workers may even get
 -- reduced depending on the consuming pace.
 --
-module Streamly.Internal.Data.Stream.Channel.Types
+module Streamly.Internal.Data.Channel.Types
     (
     -- * Types
       Count (..)

@@ -30,13 +30,13 @@ import Streamly.Internal.Control.Concurrent
     (MonadAsync, MonadRunInIO, askRunInIO)
 import Streamly.Internal.Control.ForkLifted (doForkWith)
 import Streamly.Internal.Data.Fold (Fold(..))
-import Streamly.Internal.Data.Stream.Channel.Dispatcher (dumpSVarStats)
-import Streamly.Internal.Data.Stream.Channel.Worker (sendWithDoorBell)
+import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
+import Streamly.Internal.Data.Channel.Worker (sendWithDoorBell)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as D
 
-import Streamly.Internal.Data.Stream.Channel.Types
+import Streamly.Internal.Data.Channel.Types
 
 data Channel m a b = Channel
     {

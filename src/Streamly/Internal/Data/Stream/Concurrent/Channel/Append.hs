@@ -32,7 +32,7 @@ import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, RunInIO(..), askRunInIO, restoreM)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_)
-import Streamly.Internal.Data.Stream.Channel.Dispatcher (modifyThread)
+import Streamly.Internal.Data.Channel.Dispatcher (modifyThread)
 
 import qualified Data.Heap as H
 import qualified Data.Set as Set
@@ -41,8 +41,8 @@ import qualified Streamly.Internal.Data.StreamK as K
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-import Streamly.Internal.Data.Stream.Channel.Types
-import Streamly.Internal.Data.Stream.Channel.Worker
+import Streamly.Internal.Data.Channel.Types
+import Streamly.Internal.Data.Channel.Worker
 
 ------------------------------------------------------------------------------
 -- Concurrent streams with first-come-first serve results

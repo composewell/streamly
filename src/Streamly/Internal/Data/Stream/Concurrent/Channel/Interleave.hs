@@ -21,14 +21,14 @@ import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pu
 import Data.IORef (newIORef, readIORef)
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO, restoreM)
-import Streamly.Internal.Data.Stream.Channel.Dispatcher (delThread)
+import Streamly.Internal.Data.Channel.Dispatcher (delThread)
 
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.StreamK as K
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-import Streamly.Internal.Data.Stream.Channel.Types
+import Streamly.Internal.Data.Channel.Types
 
 ------------------------------------------------------------------------------
 -- Creating a channel

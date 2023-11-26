@@ -363,6 +363,7 @@ library
                      -- graphmod | dot -Tps > deps.ps
                        Streamly.Internal.Data.IsMap.HashMap
                      , Streamly.Internal.Data.Cont
+                     , Streamly.Internal.Data.Channel
                      , Streamly.Internal.Data.Stream.MkType
 
                      -- streamly-concurrent
@@ -370,9 +371,6 @@ library
                      , Streamly.Internal.Control.ForkLifted
                      , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.IOFinalizer.Lifted
-                     , Streamly.Internal.Data.Stream.Channel.Types
-                     , Streamly.Internal.Data.Stream.Channel.Dispatcher
-                     , Streamly.Internal.Data.Stream.Channel.Worker
 
                      , Streamly.Internal.Data.Unfold.Prelude
                      , Streamly.Internal.Data.Fold.Prelude
@@ -451,7 +449,11 @@ library
           exposed-modules: Streamly.Internal.FileSystem.Event
 
     other-modules:
-           Streamly.Data.Stream.Exception
+           Streamly.Internal.Data.Channel.Types
+         , Streamly.Internal.Data.Channel.Dispatcher
+         , Streamly.Internal.Data.Channel.Worker
+
+         , Streamly.Data.Stream.Exception
          , Streamly.Data.Stream.Concurrent
          , Streamly.Data.Stream.Time
 

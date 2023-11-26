@@ -25,8 +25,8 @@ import Streamly.Internal.Control.Concurrent (MonadRunInIO)
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-import Streamly.Internal.Data.Stream.Channel.Dispatcher
-import Streamly.Internal.Data.Stream.Channel.Types
+import Streamly.Internal.Data.Channel.Dispatcher
+import Streamly.Internal.Data.Channel.Types
 
 -------------------------------------------------------------------------------
 -- Reading from the workers' output queue/buffer

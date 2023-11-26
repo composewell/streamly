@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Channel.Dispatcher
+-- Module      : Streamly.Internal.Data.Channel.Dispatcher
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -7,7 +7,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Internal.Data.Stream.Channel.Dispatcher
+module Streamly.Internal.Data.Channel.Dispatcher
     (
     -- * Latency collection
       minThreadDelay
@@ -40,7 +40,7 @@ import Streamly.Internal.Data.Time.Units
 
 import qualified Data.Set as S
 
-import Streamly.Internal.Data.Stream.Channel.Types
+import Streamly.Internal.Data.Channel.Types
 
 -------------------------------------------------------------------------------
 -- Worker latency data processing

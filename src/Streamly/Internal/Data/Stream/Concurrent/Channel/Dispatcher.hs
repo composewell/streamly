@@ -34,9 +34,9 @@ import Streamly.Internal.Data.Time.Units
        (MicroSecond64(..), diffAbsTime64, fromRelTime64, toRelTime64)
 
 import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-import Streamly.Internal.Data.Stream.Channel.Dispatcher
-import Streamly.Internal.Data.Stream.Channel.Types
-import Streamly.Internal.Data.Stream.Channel.Worker
+import Streamly.Internal.Data.Channel.Dispatcher
+import Streamly.Internal.Data.Channel.Types
+import Streamly.Internal.Data.Channel.Worker
 
 -------------------------------------------------------------------------------
 -- Dispatching workers

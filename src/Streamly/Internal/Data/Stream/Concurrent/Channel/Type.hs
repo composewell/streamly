@@ -25,12 +25,12 @@ import Data.List (intersperse)
 import Data.Set (Set)
 import Streamly.Internal.Control.Concurrent (RunInIO)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
-import Streamly.Internal.Data.Stream.Channel.Dispatcher (dumpSVarStats)
-import Streamly.Internal.Data.Stream.Channel.Worker
+import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
+import Streamly.Internal.Data.Channel.Worker
     (sendYield, sendStop, sendWithDoorBell)
 import Streamly.Internal.Data.StreamK (StreamK)
 
-import Streamly.Internal.Data.Stream.Channel.Types
+import Streamly.Internal.Data.Channel.Types
 
 -- IMPORTANT NOTE: we cannot update the SVar after generating it as we have
 -- references to the original SVar stored in several functions which will keep

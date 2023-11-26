@@ -26,11 +26,11 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (writeIORef)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Fold (Fold(..), Step (..))
-import Streamly.Internal.Data.Stream.Channel.Worker (sendWithDoorBell)
+import Streamly.Internal.Data.Channel.Worker (sendWithDoorBell)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import Streamly.Internal.Data.Fold.Concurrent.Channel.Type
-import Streamly.Internal.Data.Stream.Channel.Types
+import Streamly.Internal.Data.Channel.Types
 
 -------------------------------------------------------------------------------
 -- Evaluating a Fold
