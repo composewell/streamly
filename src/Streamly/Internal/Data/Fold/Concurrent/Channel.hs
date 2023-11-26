@@ -14,7 +14,7 @@ module Streamly.Internal.Data.Fold.Concurrent.Channel
     -- * Configuration
     , Config
     , maxBuffer
-    , bound
+    , boundThreads
     , inspect
 
     -- * Fold operations

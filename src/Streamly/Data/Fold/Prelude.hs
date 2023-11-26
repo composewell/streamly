@@ -20,7 +20,7 @@ module Streamly.Data.Fold.Prelude
     -- ** Configuration
     , Config
     , maxBuffer
-    , bound
+    , boundThreads
     , inspect
 
     -- ** Combinators

@@ -76,7 +76,7 @@ module Streamly.Internal.Data.Stream.Channel.Types
     , stopWhen
     , ordered
     , interleaved
-    , bound
+    , boundThreads
 
     , rate
     , avgRate
@@ -546,13 +546,14 @@ interleaved flag st = st { _interleaved = flag }
 getInterleaved :: Config -> Bool
 getInterleaved = _interleaved
 
+-- TODO: Make it consistently take effect everywhere.
+
 -- | Spawn bound threads (i.e., spawn threads using 'forkOS' instead of
 -- 'forkIO'). The default value is 'False'.
 --
--- Currently, this only takes effect for concurrent folds. TODO: Make it
--- consistently take effect everywhere.
-bound :: Bool -> Config -> Config
-bound flag st = st { _bound = flag }
+-- Currently, this only takes effect only for concurrent folds.
+boundThreads :: Bool -> Config -> Config
+boundThreads flag st = st { _bound = flag }
 
 getBound :: Config -> Bool
 getBound = _bound
