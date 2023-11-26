@@ -81,13 +81,13 @@ module Streamly.FileSystem.Handle
     -- position of the file handle. The stream ends as soon as EOF is
     -- encountered.
 
-    -- -- *** Streams
-    -- , read
-    -- , readWith
-    -- , readChunks
-    -- , readChunksWith
+    -- *** Streams
+    , read
+    , readWith
+    , readChunks
+    , readChunksWith
 
-    -- -- *** Unfolds
+    -- *** Unfolds
     , reader
     , readerWith
     , chunkReader
@@ -112,5 +112,6 @@ module Streamly.FileSystem.Handle
 where
 
 import Streamly.Internal.FileSystem.Handle
+import Prelude hiding (read)
 
 #include "DocTestFileSystemHandle.hs"

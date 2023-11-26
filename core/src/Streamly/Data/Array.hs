@@ -66,6 +66,10 @@ module Streamly.Data.Array
     , unpin
     , isPinned
 
+    -- * Streams
+    , read
+    , readRev
+
     -- * Unfolds
     , reader
     , readerRev
@@ -87,7 +91,7 @@ where
 
 #include "inline.hs"
 
-import Streamly.Internal.Data.Array hiding (read, readRev)
+import Streamly.Internal.Data.Array
 import Streamly.Internal.Data.Unbox (Unbox (..))
 
 import Prelude hiding (read, length)
@@ -106,7 +110,7 @@ import Prelude hiding (read, length)
 --
 -- Convert array to stream, and fold the stream:
 --
--- >>> fold f arr = Stream.unfold Array.reader arr & Stream.fold f
+-- >>> fold f arr = Array.read arr & Stream.fold f
 -- >>> fold Fold.sum (Array.fromList [1,2,3::Int])
 -- 6
 --
@@ -114,7 +118,7 @@ import Prelude hiding (read, length)
 --
 -- Convert array to stream, transform, and fold back to array:
 --
--- >>> amap f arr = Stream.unfold Array.reader arr & fmap f & Stream.fold Array.write
+-- >>> amap f arr = Array.read arr & fmap f & Stream.fold Array.write
 -- >>> amap (+1) (Array.fromList [1,2,3::Int])
 -- fromList [2,3,4]
 --

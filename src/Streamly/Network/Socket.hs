@@ -50,11 +50,11 @@
 --        in server spec addr
 --       where
 --       server spec addr =
---             Stream.unfold Socket.acceptor (maxListenQueue, spec, addr)
+--             Socket.accept maxListenQueue spec addr
 --           & Stream.parMapM (Stream.eager True) (Socket.forSocketM echo)
 --           & Stream.fold Fold.drain
 --       echo sk =
---             Stream.unfold Socket.chunkReader sk -- Stream IO (Array Word8)
+--             Socket.readChunks sk -- Stream IO (Array Word8)
 --           & Stream.fold (Socket.writeChunks sk) -- IO ()
 -- :}
 --
@@ -95,11 +95,18 @@ module Streamly.Network.Socket
       SockSpec(..)
 
     -- * Accept Connections
+    , accept
     , acceptor
 
     -- * Reads
     -- ** Singleton
     , getChunk
+
+    -- ** Streams
+    , read
+    , readWith
+    , readChunks
+    , readChunksWith
 
     -- ** Unfolds
     , reader
@@ -130,11 +137,9 @@ module Streamly.Network.Socket
     )
 where
 
-import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Network.Socket (Socket, SockAddr)
-import Streamly.Internal.Data.Unfold (Unfold(..))
-import Streamly.Internal.Data.Array (Array(..))
+import Network.Socket (Socket)
+import Streamly.Data.Array (Array)
 import Streamly.Data.MutByteArray (Unbox)
 
 import Streamly.Internal.Network.Socket

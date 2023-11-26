@@ -15,8 +15,13 @@
 module Streamly.Network.Inet.TCP
     (
     -- * Accept Connections
+    -- ** Streams
+      acceptOnAddr
+    , acceptOnPort
+    , acceptOnPortLocal
+
     -- ** Unfolds
-      acceptorOnAddr
+    , acceptorOnAddr
     , acceptorOnPort
     , acceptorOnPortLocal
 
@@ -50,10 +55,5 @@ module Streamly.Network.Inet.TCP
     -}
     )
 where
-
-import Control.Monad.IO.Class (MonadIO(..))
-import Data.Word (Word8)
-import Network.Socket (Socket, PortNumber)
-import Streamly.Internal.Data.Unfold (Unfold(..))
 
 import Streamly.Internal.Network.Inet.TCP
