@@ -11,7 +11,7 @@
 --
 module Streamly.Internal.Network.Socket
     (
-    SockSpec (..)
+      SockSpec (..)
     -- * Use a socket
     , forSocketM
     , withSocket
@@ -104,7 +104,6 @@ import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.MutArray as MArray
     (MutArray(..), asPtrUnsafe, pinnedNewBytes)
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
-import qualified Streamly.Internal.Data.Unfold as UF (map)
 import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
 -- $setup
@@ -140,6 +139,9 @@ withSocket sk f = S.finallyIO (Net.close sk) (f sk)
 -- XXX Protocol specific socket options should be separated from socket level
 -- options.
 --
+-- NOTE: the socket config is specified as a record and not by composing
+-- functions because all the fields are mandatory except the sockOpts field.
+
 -- | Specify the socket protocol details.
 data SockSpec = SockSpec
     {
@@ -183,7 +185,7 @@ listenTuples = Unfold step inject
 --
 {-# INLINE acceptor #-}
 acceptor :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
-acceptor = UF.map fst listenTuples
+acceptor = fmap fst listenTuples
 
 {-# INLINE connectCommon #-}
 connectCommon :: SockSpec -> Maybe SockAddr -> SockAddr -> IO Socket
