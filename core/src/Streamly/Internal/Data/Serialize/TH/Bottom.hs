@@ -80,11 +80,17 @@ import Streamly.Internal.Data.Unbox.TH (DataCon(..))
 -- no inline specific pragma let's GHC decide whether to put the code in
 -- interface file or not.
 
--- | Configuration to control how the 'Serialize' instance is generated. Use
--- 'serializeConfig' and config setter functions to generate desired Config. For
--- example:
+-- | Configuration to control how the 'Serialize' instance is generated. The
+-- configuration is opaque and is modified by composing config modifier
+-- functions, for example:
 --
--- >>> (inlineAddSizeTo (Just Inline)) . (inlineSerializeAt (Just Inlinable)) serializeConfig
+-- >>> (inlineSerializeAt (Just NoInline)) . (inlineSerializeAt (Just Inlinable))
+--
+-- The default configuration settings are:
+--
+-- * 'inlineAddSizeTo' Nothing
+-- * 'inlineSerializeAt' (Just Inline)
+-- * 'inlineDeserializeAt' (Just Inline)
 --
 data SerializeConfig =
     SerializeConfig
@@ -95,19 +101,19 @@ data SerializeConfig =
         , cfgRecordSyntaxWithHeader :: Bool
         }
 
--- | How should we inline the 'addSizeTo' function? The default in 'serializeConfig'
--- is 'Nothing' which means left to the compiler. Forcing inline on @addSizeTo@
--- function actually worsens some benchmarks and improves none.
+-- | How should we inline the 'addSizeTo' function? The default is 'Nothing'
+-- which means left to the compiler. Forcing inline on @addSizeTo@ function
+-- actually worsens some benchmarks and improves none.
 inlineAddSizeTo :: Maybe Inline -> SerializeConfig -> SerializeConfig
 inlineAddSizeTo v cfg = cfg {cfgInlineSize = v}
 
 -- XXX Should we make the default Inlinable instead?
 
--- | How should we inline the 'serialize' function? The default in
--- 'serializeConfig' is 'Just Inline'. However, aggressive inlining can bloat
--- the code and increase in compilation times when there are big functions and
--- too many nesting levels so you can change it accordingly. A 'Nothing' value
--- leaves the decision to the compiler.
+-- | How should we inline the 'serialize' function? The default 'Just Inline'.
+-- However, aggressive inlining can bloat the code and increase in compilation
+-- times when there are big functions and too many nesting levels so you can
+-- change it accordingly. A 'Nothing' value leaves the decision to the
+-- compiler.
 inlineSerializeAt :: Maybe Inline -> SerializeConfig -> SerializeConfig
 inlineSerializeAt v cfg = cfg {cfgInlineSerialize = v}
 
@@ -182,12 +188,6 @@ encodeConstrNames v cfg = cfg {cfgConstructorTagAsString = v}
 encodeRecordFields :: Bool -> SerializeConfig -> SerializeConfig
 encodeRecordFields v cfg = cfg {cfgRecordSyntaxWithHeader = v}
 
--- | The default configuration settings are:
---
--- * 'inlineAddSizeTo' 'Nothing'
--- * 'inlineSerializeAt' (Just Inline)
--- * 'inlineDeserializeAt' (Just Inline)
---
 serializeConfig :: SerializeConfig
 serializeConfig =
     SerializeConfig

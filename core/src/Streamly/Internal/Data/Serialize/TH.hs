@@ -446,29 +446,36 @@ deriveSerializeInternal conf headTy cons next = do
     let methods = concat [sizeDec, peekDec, pokeDec]
     next methods
 
--- | @deriveSerializeWith config instance-dec@ generates a template Haskell
--- splice consisting of a declaration of a 'Serialize' instance. @instance-dec@
--- is a template Haskell declaration splice consisting of a standard Haskell
--- instance declaration without the type class methods (e.g. @[d|instance
--- Serialize a => Serialize (Maybe a)|]@). The type class methods for the given
--- instance are generated according to the supplied @config@ parameter.
+-- | @deriveSerializeWith config-modifier instance-dec@ generates a template
+-- Haskell splice consisting of a declaration of a 'Serialize' instance.
+-- @instance-dec@ is a template Haskell declaration splice consisting of a
+-- standard Haskell instance declaration without the type class methods (e.g.
+-- @[d|instance Serialize a => Serialize (Maybe a)|]@).
+--
+-- The type class methods for the given instance are generated according to the
+-- supplied @config-modifier@ parameter. See 'SerializeConfig' for default
+-- configuration settings.
 --
 -- Usage:
 --
 -- @
 -- \$(deriveSerializeWith
---       serializeConfig
+--       ( inlineSerializeAt (Just NoInline)
+--       . inlineDeserializeAt (Just NoInline)
+--       )
 --       [d|instance Serialize a => Serialize (Maybe a)|])
 -- @
-deriveSerializeWith :: SerializeConfig -> Q [Dec] -> Q [Dec]
-deriveSerializeWith conf mDecs = do
+deriveSerializeWith ::
+    (SerializeConfig -> SerializeConfig) -> Q [Dec] -> Q [Dec]
+deriveSerializeWith modifier mDecs = do
     dec <- mDecs
     case dec of
         [InstanceD mo preds headTyWC []] -> do
             let headTy = unwrap dec headTyWC
             dt <- reifyDataType (getMainTypeName dec headTy)
             let cons = dtCons dt
-            deriveSerializeInternal conf headTy cons (next mo preds headTyWC)
+            deriveSerializeInternal
+                (modifier serializeConfig) headTy cons (next mo preds headTyWC)
         _ -> errorMessage dec
 
     where
@@ -505,7 +512,7 @@ deriveSerializeWith conf mDecs = do
 -- @[d|instance Serialize a => Serialize (Maybe a)|]@), generate an instance
 -- declaration including all the type class method implementations.
 --
--- >>> deriveSerialize = deriveSerializeWith serializeConfig
+-- >>> deriveSerialize = deriveSerializeWith id
 --
 -- Usage:
 --
@@ -514,4 +521,4 @@ deriveSerializeWith conf mDecs = do
 --       [d|instance Serialize a => Serialize (Maybe a)|])
 -- @
 deriveSerialize :: Q [Dec] -> Q [Dec]
-deriveSerialize = deriveSerializeWith serializeConfig
+deriveSerialize = deriveSerializeWith id

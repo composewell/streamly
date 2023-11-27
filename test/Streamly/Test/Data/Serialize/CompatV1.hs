@@ -30,7 +30,7 @@ instance Arbitrary a => Arbitrary (Rec a) where
     arbitrary = Rec <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 $(Serialize.deriveSerializeWith
-      (Serialize.encodeRecordFields True Serialize.serializeConfig)
+      (Serialize.encodeRecordFields True)
       [d|instance Serialize a => Serialize (Rec a)|])
 
 data River
@@ -44,5 +44,5 @@ instance Arbitrary River where
     arbitrary = elements [Ganga, Yamuna, Godavari]
 
 $(Serialize.deriveSerializeWith
-      (Serialize.encodeConstrNames True Serialize.serializeConfig)
+      (Serialize.encodeConstrNames True)
       [d|instance Serialize River|])

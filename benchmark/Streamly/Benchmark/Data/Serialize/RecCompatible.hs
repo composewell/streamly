@@ -20,5 +20,5 @@ import qualified Streamly.Internal.Data.MutByteArray as Serialize
 
 $(genLargeRecord "RecCompatible" 50)
 $(Serialize.deriveSerializeWith
-      (Serialize.encodeRecordFields True Serialize.serializeConfig)
+      (Serialize.encodeRecordFields True)
       [d|instance Serialize RecCompatible|])

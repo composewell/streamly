@@ -72,13 +72,13 @@ module Streamly.Data.MutByteArray
     -- * Serialize
     , Serialize(..)
 
-    -- Deriving Serialize
+    -- ** Instance Config
     , SerializeConfig
-    , serializeConfig
     , inlineAddSizeTo
     , inlineSerializeAt
     , inlineDeserializeAt
 
+    -- ** Instance Deriving
     , deriveSerialize
     , deriveSerializeWith
     ) where
