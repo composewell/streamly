@@ -167,6 +167,7 @@ extra-doc-files:
     docs/User/Explanatory/*.md
     docs/User/Explanatory/streaming-pradigms.rst
     docs/User/Project/*.md
+    docs/User/Project/Upgrading-0.8-to-0.9.md
     docs/User/Project/*.link
     docs/User/Project/ApiChangelogs/0.8.3-0.9.0.txt
     docs/User/Project/ApiChangelogs/0.8.3.txt
