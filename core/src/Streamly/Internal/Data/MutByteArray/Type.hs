@@ -182,9 +182,13 @@ putSliceUnsafe ::
 putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
 #ifdef DEBUG
     srcLen <- sizeOfMutableByteArray src
-    dstLen <- sizeOfMutableByteArray src
-    when (srcLen - srcStartBytes < lenBytes) $ error "SRC: Insufficient length."
-    when (dstLen - dstStartBytes < lenBytes) $ error "DST: Insufficient length."
+    dstLen <- sizeOfMutableByteArray dst
+    when (srcLen - srcStartBytes < lenBytes)
+        $ error $ "putSliceUnsafe: src overflow: start" ++ show srcStartBytes
+            ++ " end " ++ show srcLen ++ " len " ++ show lenBytes
+    when (dstLen - dstStartBytes < lenBytes)
+        $ error $ "putSliceUnsafe: dst overflow: start" ++ show dstStartBytes
+            ++ " end " ++ show dstLen ++ " len " ++ show lenBytes
 #endif
     let !(I# srcStartBytes#) = srcStartBytes
         !(I# dstStartBytes#) = dstStartBytes
