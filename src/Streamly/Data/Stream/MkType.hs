@@ -7,7 +7,8 @@
 -- Portability : GHC
 --
 -- Template Haskell macros to create custom newtype wrappers for the 'Stream'
--- type, deriving all the usual instances.
+-- type. See the examples below to create the standard stream types that were
+-- available in streamly versions before 0.9.0.
 --
 -- To use this module, the following extensions must be enabled:
 --
@@ -23,31 +24,61 @@
 -- >>> import Streamly.Data.Stream.MkType
 -- >>> import qualified Streamly.Data.Stream.Prelude as Stream
 --
--- Example, create an applicative type with zipping apply:
+-- For 'Streamly.Prelude.AsyncT' monad type with a concurrent cross product
+-- bind:
 --
 -- >>> :{
---  zipApply = Stream.zipWith ($)
---  $(mkZipType "ZipStream" "zipApply" False)
+--  bind = flip (Stream.parConcatMap id)
+--  $(mkCrossType "AsyncT" "bind" True)
 -- :}
 --
--- Example, create an applicative type with concurrent zipping apply:
+-- For 'Streamly.Prelude.WAsyncT' monad type with a concurrent interleaved
+-- bind:
 --
 -- >>> :{
---  parApply = Stream.parApply id
---  $(mkZipType "ParZipStream" "parApply" True)
+--  bind = flip (Stream.parConcatMap (Stream.interleaved True))
+--  $(mkCrossType "WAsyncT" "bind" True)
 -- :}
 --
--- Example, create a monad type with an eager concurrent cross product bind:
+-- For 'Streamly.Prelude.AheadT' monad type with a concurrent ordered
+-- cross product bind:
+--
+-- >>> :{
+--  bind = flip (Stream.parConcatMap (Stream.ordered True))
+--  $(mkCrossType "AheadT" "bind" True)
+-- :}
+--
+-- For 'Streamly.Prelude.ParallelT' monad type with an eager concurrent cross
+-- product bind:
 --
 -- >>> :{
 --  parBind = flip (Stream.parConcatMap (Stream.eager True))
---  $(mkCrossType "ParEagerStream" "parBind" True)
+--  $(mkCrossType "ParallelT" "parBind" True)
+-- :}
+--
+-- For 'Streamly.Prelude.ZipSerialM' serial zipping applicative type:
+--
+-- >>> :{
+--  zipApply = Stream.zipWith ($)
+--  $(mkZipType "ZipSerialM" "zipApply" False)
+-- :}
+--
+-- For 'Streamly.Prelude.ZipAsync' concurrent zipping applicative type:
+--
+-- >>> :{
+--  parApply = Stream.parApply id
+--  $(mkZipType "ZipAsync" "parApply" True)
 -- :}
 --
 -- Instead of using these macros directly you could use the generated code as
 -- well. Use these macros in ghci to generate the required code and paste it in
 -- your package, you can customize the code as desired. See the docs of the
--- macros below for examples about how to view the generated code.
+-- macros below for examples about how to view the generated code. For example:
+--
+-- >>> bind = flip (Stream.parConcatMap id)
+-- >>> expr <- runQ (mkCrossType "AsyncT" "bind" True)
+--
+-- >> putStrLn $ pprint expr
 --
 module Streamly.Data.Stream.MkType
     (
