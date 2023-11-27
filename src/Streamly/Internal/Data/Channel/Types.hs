@@ -495,10 +495,10 @@ getInspectMode = _inspect
 
 -- | By default, processing of output from the worker threads is given priority
 -- over dispatching new workers. More workers are dispatched only when there is
--- no output to process. With 'eager' on workers are dispatched aggresively as
--- long as there is more work to do irrespective of whether there is output
--- pending to be processed. However, dispatching may stop if 'maxThreads' or
--- 'maxBuffer' is reached.
+-- no output to process. When 'eager' is set to 'True', workers are dispatched
+-- aggresively as long as there is more work to do irrespective of whether
+-- there is output pending to be processed by the stream consumer. However,
+-- dispatching may stop if 'maxThreads' or 'maxBuffer' is reached.
 --
 -- /Note:/ This option has no effect when rate has been specified.
 --
