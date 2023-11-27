@@ -3,6 +3,12 @@
 [![Gitter chat](https://badges.gitter.im/composewell/gitter.svg)](https://gitter.im/composewell/streamly)
 [![Hackage](https://img.shields.io/hackage/v/streamly.svg?style=flat)](https://hackage.haskell.org/package/streamly)
 
+## Upgrading to 0.9.0+
+
+Please read the [Streamly 0.9.0 Upgrade Guide](/docs/User/Project/Upgrading-0.8-to-0.9.md).
+
+## Overview
+
 Streamly is a powerful Haskell library that provides developers with
 the essential building blocks to create safe, scalable, modular, and
 high-performance software. With Streamly, developers can enjoy the
