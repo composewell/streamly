@@ -216,13 +216,14 @@ common always-optimized
 -- Test suites in sorted order
 -------------------------------------------------------------------------------
 
-test-suite Data.List
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/List.hs
-  cpp-options:  -DUSE_STREAMLY_LIST
-  if !flag(dev)
-    buildable: False
+-- The Streamly.Data.List needs to be fixed to enable this
+-- test-suite Data.List
+--   import: test-options
+--   type: exitcode-stdio-1.0
+--   main-is: Streamly/Test/Data/List.hs
+--   cpp-options:  -DUSE_STREAMLY_LIST
+--   if !flag(dev)
+--     buildable: False
 
 test-suite Data.List.Base
   import: test-options

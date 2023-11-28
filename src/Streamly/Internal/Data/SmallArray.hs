@@ -106,7 +106,7 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- of elements use an 'Array' from either "Streamly.Data.Array.Generic" or "Streamly.Data.Array.Foreign".
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
-writeN len = FL.Fold step initial extract
+writeN len = FL.Fold step initial extract extract
 
     where
 

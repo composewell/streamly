@@ -444,9 +444,10 @@ library
                     , Streamly.Internal.Data.Time.Clock.Type
 
     if flag(dev)
-      other-modules:
+      exposed-modules:
                         Streamly.Internal.Data.StreamK.Alt
-                      , Streamly.Internal.Data.List
+                        -- XXX Compilation needs to be fixed
+                      -- , Streamly.Internal.Data.List
 
     build-depends:
                     -- streamly-base

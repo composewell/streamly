@@ -478,7 +478,7 @@ testTakeInterval :: IO Bool
 testTakeInterval = do
     r <-
           S.fold (FL.tee FL.head FL.last)
-        $ S.takeInterval (toRelTime64 takeDropTime)
+        $ S.takeInterval (fromIntegral takeDropTime * 10**(-9))
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime r
 
@@ -487,7 +487,7 @@ testDropInterval = do
     t0 <- getTime Monotonic
     mt1 <-
           S.fold FL.head
-        $ S.dropInterval (toRelTime64 takeDropTime)
+        $ S.dropInterval (fromIntegral takeDropTime * 10**(-9))
         $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
     checkTakeDropTime (Just t0, mt1)
 #endif

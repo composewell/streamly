@@ -120,7 +120,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 -- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (castPtr)
-import Streamly.Internal.Data.Unbox (Unbox)
 -- import System.IO (Handle, hGetBufSome, hPutBuf)
 import System.IO (IOMode)
 import Prelude hiding (read)
@@ -128,7 +127,7 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
-import Streamly.Data.Array (Array)
+import Streamly.Data.Array (Array, Unbox)
 import Streamly.Data.Stream (Stream)
 
 import Streamly.Internal.Data.Array (byteLength, unsafeFreeze, asPtrUnsafe)
@@ -149,7 +148,7 @@ import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.MutArray as MArray
     (MutArray(..), asPtrUnsafe, pinnedNewBytes)
-import qualified Streamly.Internal.Data.Stream.Chunked as AS
+import qualified Streamly.Internal.Data.Array.Stream as AS
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
     (Stream(..), Step(..))

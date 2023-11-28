@@ -424,9 +424,9 @@ library
                      , Streamly.Internal.FileSystem.FD
 
     if flag(dev)
-        other-modules:  Streamly.Data.SmallArray
+        exposed-modules:  Streamly.Data.SmallArray
                         , Streamly.Internal.Data.SmallArray
-                        , Streamly.Internal.Data.SmallArray.Type
+        other-modules:  Streamly.Internal.Data.SmallArray.Type
 
     if os(windows)
           exposed-modules: Streamly.Internal.FileSystem.Event.Windows

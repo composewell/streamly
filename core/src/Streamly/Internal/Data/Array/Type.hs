@@ -315,11 +315,23 @@ fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
 -------------------------------------------------------------------------------
 
 {-# INLINE clone #-}
-clone :: MonadIO m => Array a -> m (Array a)
+clone ::
+    ( MonadIO m
+#ifdef DEVBUILD
+    , Unbox a
+#endif
+    )
+    => Array a -> m (Array a)
 clone = fmap unsafeFreeze . MA.clone . unsafeThaw
 
 {-# INLINE pinnedClone #-}
-pinnedClone :: MonadIO m => Array a -> m (Array a)
+pinnedClone ::
+    ( MonadIO m
+#ifdef DEVBUILD
+    , Unbox a
+#endif
+    )
+    => Array a -> m (Array a)
 pinnedClone = fmap unsafeFreeze . MA.pinnedClone . unsafeThaw
 
 -------------------------------------------------------------------------------

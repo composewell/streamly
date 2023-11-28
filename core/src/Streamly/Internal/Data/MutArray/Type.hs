@@ -2098,7 +2098,13 @@ fromListRev xs = fromListRevN (Prelude.length xs) xs
 -------------------------------------------------------------------------------
 
 {-# INLINE cloneAs #-}
-cloneAs :: MonadIO m => PinnedState -> MutArray a -> m (MutArray a)
+cloneAs ::
+    ( MonadIO m
+#ifdef DEVBUILD
+    , Unbox a
+#endif
+    )
+    => PinnedState -> MutArray a -> m (MutArray a)
 cloneAs ps src =
     liftIO $ do
         let startSrc = arrStart src
@@ -2108,11 +2114,23 @@ cloneAs ps src =
         return $ MutArray newArrContents 0 srcLen srcLen
 
 {-# INLINE clone #-}
-clone :: MonadIO m => MutArray a -> m (MutArray a)
+clone ::
+    ( MonadIO m
+#ifdef DEVBUILD
+    , Unbox a
+#endif
+    )
+    => MutArray a -> m (MutArray a)
 clone = cloneAs Unpinned
 
 {-# INLINE pinnedClone #-}
-pinnedClone :: MonadIO m => MutArray a -> m (MutArray a)
+pinnedClone ::
+    ( MonadIO m
+#ifdef DEVBUILD
+    , Unbox a
+#endif
+    )
+    => MutArray a -> m (MutArray a)
 pinnedClone = cloneAs Pinned
 
 -------------------------------------------------------------------------------
