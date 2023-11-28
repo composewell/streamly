@@ -5,18 +5,25 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- A low level byte Array type for fast binary serialization and
--- deserialization of Haskell values. Higher level unboxed array modules
--- "Streamly.Data.Array" and "Streamly.Data.MutArray" are built on top of this
--- module. This module provides two type classes for serialization, 'Unbox' and
--- 'Serialize'. The speed is similar to, and in some cases many times faster
--- than the store package. Conceptually, the 'Serialize' type class works in
--- the same way as store.
+-- A low level byte Array type 'MutByteArray', along with type classes 'Unbox'
+-- and 'Serialize' for fast binary serialization and deserialization of Haskell
+-- values. Serialization, deserialization performance is similar to, and in
+-- some cases many times better than the store package. Conceptually, the
+-- 'Serialize' type class works in the same way as store.
 --
--- You probably want the higher level
--- 'Streamly.Internal.Data.Array.pinnedSerialize' and
--- 'Streamly.Internal.Data.Array.deserialize' from the "Streamly.Data.Array"
--- module.
+-- Serialize instances are configurable to use constructor names (see
+-- 'Streamly.Internal.Data.MutByteArray.encodeConstrNames'), record field names (see
+-- 'Streamly.Internal.Data.MutByteArray.encodeRecordFields') instead of binary
+-- encoded values. This is an experimental feature which allows JSON like
+-- properties with faster speed. For example, you can change the order of
+-- constructors or record fields without affecting serialized value.
+--
+-- Higher level unboxed array modules "Streamly.Data.Array" and
+-- "Streamly.Data.MutArray" are built on top of this module. Unboxed arrays are
+-- essentially serialized Haskell values. Array modules provide higher level
+-- serialization routines like 'Streamly.Data.Array.pinnedSerialize'
+-- and 'Streamly.Data.Array.deserialize' from the
+-- "Streamly.Data.Array" module.
 --
 -- == Mutable Byte Array
 --
@@ -48,8 +55,8 @@
 -- and then use the type class methods to serialize and deserialize to and from
 -- a 'MutByteArray'.
 --
--- See 'Streamly.Internal.Data.Array.pinnedSerialize' and
--- 'Streamly.Internal.Data.Array.deserialize' for 'Array' type based
+-- See 'Streamly.Data.Array.pinnedSerialize' and
+-- 'Streamly.Data.Array.deserialize' for 'Array' type based
 -- serialization.
 --
 module Streamly.Data.MutByteArray

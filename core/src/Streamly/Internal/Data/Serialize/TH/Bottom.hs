@@ -92,6 +92,11 @@ import Streamly.Internal.Data.Unbox.TH (DataCon(..))
 -- * 'inlineSerializeAt' (Just Inline)
 -- * 'inlineDeserializeAt' (Just Inline)
 --
+-- The following experimental options are also available:
+--
+-- * 'encodeConstrNames' False
+-- * 'encodeRecordFields' False
+--
 data SerializeConfig =
     SerializeConfig
         { cfgInlineSize :: Maybe Inline
@@ -127,25 +132,26 @@ inlineDeserializeAt v cfg = cfg {cfgInlineDeserialize = v}
 -- | __Experimental__
 --
 -- In sum types, use Latin-1 encoded original constructor names rather than
--- binary values to identify constructors. This option is not useful on a
--- product type.
+-- binary values to identify constructors. This option is not applicable to
+-- product types.
 --
--- This option enables the following backward compatible behavior:
+-- This option enables the following behavior:
 --
 -- * __Reordering__: Order of the fields can be changed without affecting
 -- serialization.
 -- * __Addition__: If a field is added in the new version, the old version of
 -- the data type can still be deserialized by the new version. The new value
 -- would never occur in the old one.
--- * __Deletion__: If a field is deleted in the new version and deserialization
+-- * __Deletion__: If a field is deleted in the new version, deserialization
 -- of the old version will result in an error. TBD: We can possibly designate a
--- catch-all field to handle this case.
+-- catch-all case to handle this scenario.
 --
 -- Note that if you change a type, change the semantics of a type, or delete a
 -- field and add a new field with the same name, deserialization of old data
 -- may result in silent unexpected behavior.
 --
 -- This option has to be the same on both encoding and decoding side.
+--
 -- The default is 'False'.
 --
 encodeConstrNames :: Bool -> SerializeConfig -> SerializeConfig
@@ -161,11 +167,11 @@ encodeConstrNames v cfg = cfg {cfgConstructorTagAsString = v}
 -- | __Experimental__
 --
 -- In explicit record types, use Latin-1 encoded record field names rather than
--- binary values to identify the record fields. Note that this option cannot be
--- used on a sum type. Also, it does not work on a product type which is not a
--- record, because there are no field names to begin with.
+-- binary values to identify the record fields. Note that this option is not
+-- applicable to sum types. Also, it does not work on a product type which is
+-- not a record, because there are no field names to begin with.
 --
--- This option enables the following backward compatible behavior:
+-- This option enables the following behavior:
 --
 -- * __Reordering__: Order of the fields can be changed without affecting
 -- serialization.
@@ -173,10 +179,10 @@ encodeConstrNames v cfg = cfg {cfgConstructorTagAsString = v}
 -- version of the data type can still be deserialized by the new version, the
 -- field value in the older version is assumed to be 'Nothing'. If any other
 -- type of field is added, deserialization of the older version results in an
--- error but only when that field is accessed in the deserialized record.
+-- error but only when that field is actually accessed in the deserialized
+-- record.
 -- * __Deletion__: If a field is deleted in the new version and it is
 -- encountered in a previously serialized version then the field is discarded.
--- TBD: We can possibly designate a catch-all field to handle this case.
 --
 -- This option has to be the same on both encoding and decoding side.
 --
