@@ -23,8 +23,8 @@ comprising:
 * Fearless, declarative concurrency for seamless parallel execution.
 * A collection of ecosystem libraries for fast and efficient development.
 
-Check out the [Streamly Setup and Usage
-Guide](/docs/User/Tutorials/setup-and-usage.md) and [Quick
+Check out the [Streamly Getting Started
+Guide](/docs/User/Tutorials/getting-started.md) and [Quick
 Overview](/docs/User/Tutorials/quick-overview.md) for an introduction
 to the library. For more detailed documentation, visit the [Haskell
 Streamly website][Streamly].
