@@ -4,9 +4,10 @@
 
 ## 0.10.0 (Nov 2023)
 
-This changelog lists only the changes of the higher level `streamly`
-package.  For changes to the core functionality please see the changelog
-in the `streamly-core` package.
+See [0.9.0-0.10.0 API Changelog](/docs/User/Project/ApiChangelogs/0.9.0-0.10.0.txt)
+for a full list of API changes in this release. Only a few significant
+changes are mentioned here.  For changes to the core functionality
+please see the changelog of the `streamly-core` package.
 
 ### Breaking Changes
 
@@ -15,13 +16,19 @@ in the `streamly-core` package.
   breaking change in `transformers` 0.6. You can replace `lift` with
   `fromEffect` when using these as top level monads in a monad stack.
 
+### Enhancements
+
+* __Concurrent Folds__: `Streamly.Data.Fold.Prelude` module added with
+  concurrent fold APIs and a container fold API to fold a key value
+  stream to a HashMap.
+
 ## 0.9.0 (Mar 2023)
 
 Also see the following:
 
-* [streamly-0.9.0 Upgrade Guide](/docs/User/ProjectRelated/Upgrading.md) or
+* [streamly-0.9.0 Upgrade Guide](/docs/User/Project/Upgrading-0.8-to-0.9.md) or
   https://hackage.haskell.org/package/streamly-0.9.0/docs/docs/User/ProjectRelated/Upgrading.md
-* [streamly-0.9.0 API Changelog](/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt) or
+* [streamly-0.9.0 API Changelog](/docs/User/Project/ApiChangelogs/0.8.3-0.9.0.txt) or
   https://hackage.haskell.org/package/streamly-0.9.0/docs/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt
 * [streamly-core-0.1.0 API Changelog](/core/docs/ApiChangelogs/0.1.0.txt) or
   https://hackage.haskell.org/package/streamly-core-0.1.0/docs/docs/ApiChangelogs/0.1.0.txt
@@ -70,7 +77,7 @@ added which provide a CPS based stream implementation. `Stream` and
 `StreamK` types can be easily interconverted.
 
 The old code can be adapted to use the new modules with some changes.
-See the [upgrade guide](/docs/User/ProjectRelated/Upgrading.md) for more
+See the [upgrade guide](/docs/User/Project/Upgrading-0.8-to-0.9.md) for more
 details on how to adapt your existing code to the new release.
 
 ### Enhancements
@@ -152,7 +159,7 @@ See ApiChangelogs/0.8.3.txt for new APIs introduced.
 
 ## 0.8.0 (Jun 2021)
 
-See [API Changelog](/docs/User/ProjectRelated/ApiChangelogs/0.8.3.txt) for a complete list of signature
+See [API Changelog](/docs/User/Project/ApiChangelogs/0.8.3.txt) for a complete list of signature
 changes and new APIs introduced.
 
 ### Breaking changes
@@ -191,7 +198,7 @@ changes and new APIs introduced.
 
 ### Enhancements
 
-* See [API Changelog](/docs/User/ProjectRelated/ApiChangelogs/0.8.3.txt) for a complete list of new
+* See [API Changelog](/docs/User/Project/ApiChangelogs/0.8.3.txt) for a complete list of new
   modules and APIs introduced.
 * The Fold type is now more powerful, the new termination behavior allows
   to express basic parsing of streams using folds.

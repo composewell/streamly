@@ -1,0 +1,424 @@
+---------------------------------
+API Annotations
+---------------------------------
+
+[A] : Added
+[R] : Removed
+[C] : Changed
+[O] : Old definition
+[N] : New definition
+[D] : Deprecated
+
+---------------------------------
+API diff
+---------------------------------
+
+[C] Streamly.Network.Socket
+    [A] readWith :: MonadIO m => Int -> Socket -> Stream m Word8
+    [A] readChunksWith :: MonadIO m => Int -> Socket -> Stream m (Array Word8)
+[C] Streamly.Network.Inet.TCP
+    [D] acceptorOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
+    [D] acceptorOnPort :: MonadIO m => Unfold m PortNumber Socket
+    [A] acceptorLocal :: MonadIO m => Unfold m PortNumber Socket
+    [A] acceptor :: MonadIO m => Unfold m PortNumber Socket
+    [A] acceptOnAddrWith :: MonadIO m => [(SocketOption, Int)] -> (Word8, Word8, Word8, Word8) -> PortNumber -> Stream m Socket
+    [A] acceptLocal :: MonadIO m => PortNumber -> Stream m Socket
+    [A] accept :: MonadIO m => PortNumber -> Stream m Socket
+[C] Streamly.Data.Stream.Prelude
+    [D] tapCount :: MonadAsync m => (a -> Bool) -> (Stream m Int -> m b) -> Stream m a -> Stream m a
+    [A] parTapCount :: MonadAsync m => (a -> Bool) -> (Stream m Int -> m b) -> Stream m a -> Stream m a
+[A] Streamly.Data.Fold.Prelude
+    [A] Config
+    [A] toHashMapIO :: (MonadIO m, Hashable k, Ord k) => (a -> k) -> Fold m a b -> Fold m a (HashMap k b)
+    [A] parEval :: MonadAsync m => (Config -> Config) -> Fold m a b -> Fold m a b
+    [A] maxBuffer :: Int -> Config -> Config
+    [A] inspect :: Bool -> Config -> Config
+    [A] boundThreads :: Bool -> Config -> Config
+
+---------------------------------
+Internal API diff
+---------------------------------
+
+[C] Streamly.Internal.Network.Inet.TCP
+    [A] acceptorWith :: MonadIO m => [(SocketOption, Int)] -> Unfold m PortNumber Socket
+    [R] acceptorOnPortWith :: MonadIO m => [(SocketOption, Int)] -> Unfold m PortNumber Socket
+    [D] acceptorOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
+    [D] acceptorOnPort :: MonadIO m => Unfold m PortNumber Socket
+    [A] acceptorLocal :: MonadIO m => Unfold m PortNumber Socket
+    [A] acceptor :: MonadIO m => Unfold m PortNumber Socket
+    [R] acceptOnPortLocal :: MonadIO m => PortNumber -> Stream m Socket
+    [R] acceptOnPort :: MonadIO m => PortNumber -> Stream m Socket
+    [A] acceptLocal :: MonadIO m => PortNumber -> Stream m Socket
+    [A] accept :: MonadIO m => PortNumber -> Stream m Socket
+[R] Streamly.Internal.Data.Unfold.SVar
+[A] Streamly.Internal.Data.Unfold.Prelude
+    [A] gbracket :: MonadRunInIO m => (a -> m c) -> (c -> m d) -> Unfold m (c, e) b -> (forall s. m s -> m (Either e s)) -> Unfold m c b -> Unfold m a b
+    [A] fromSVar :: MonadAsync m => Unfold m (SVar t m a) a
+    [A] fromProducer :: MonadAsync m => Unfold m (SVar t m a) a
+    [A] finally :: (MonadAsync m, MonadCatch m) => (a -> m c) -> Unfold m a b -> Unfold m a b
+    [A] bracket :: (MonadAsync m, MonadCatch m) => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
+    [A] after :: MonadRunInIO m => (a -> m c) -> Unfold m a b -> Unfold m a b
+[R] Streamly.Internal.Data.Unfold.Exception
+[R] Streamly.Internal.Data.Stream.Zip.Concurrent
+[D] Streamly.Internal.Data.Stream.Zip
+    [C] GHC.Base.Functor
+        [A] instance GHC.Base.Monad m => GHC.Base.Functor (Streamly.Internal.Data.Stream.Zip.ZipConcurrent m)
+    [C] GHC.Base.Applicative
+        [A] instance Streamly.Internal.Control.Concurrent.MonadAsync m => GHC.Base.Applicative (Streamly.Internal.Data.Stream.Zip.ZipConcurrent m)
+    [A] ZipConcurrent
+        [A] [getZipConcurrent] :: ZipConcurrent m a -> Stream m a
+        [A] ZipConcurrent :: Stream m a -> ZipConcurrent m a
+[R] Streamly.Internal.Data.Stream.Time
+[R] Streamly.Internal.Data.Stream.SVar.Generate
+[R] Streamly.Internal.Data.Stream.SVar.Eliminate
+[A] Streamly.Internal.Data.Stream.Prelude
+    [A] StopWhen
+        [A] FirstStops :: StopWhen
+        [A] AnyStops :: StopWhen
+        [A] AllStop :: StopWhen
+    [A] Rate
+        [A] [rateLow] :: Rate -> Double
+        [A] [rateHigh] :: Rate -> Double
+        [A] [rateGoal] :: Rate -> Double
+        [A] [rateBuffer] :: Rate -> Int
+        [A] Rate :: Double -> Double -> Double -> Int -> Rate
+    [A] Config
+    [A] Channel
+        [A] [yieldRateInfo] :: Channel m a -> Maybe YieldRateInfo
+        [A] [workerThreads] :: Channel m a -> IORef (Set ThreadId)
+        [A] [workerStopMVar] :: Channel m a -> MVar ()
+        [A] [workerCount] :: Channel m a -> IORef Int
+        [A] [workLoop] :: Channel m a -> Maybe WorkerInfo -> m ()
+        [A] [svarStats] :: Channel m a -> SVarStats
+        [A] [svarRef] :: Channel m a -> Maybe (IORef ())
+        [A] [svarMrun] :: Channel m a -> RunInIO m
+        [A] [svarInspectMode] :: Channel m a -> Bool
+        [A] [svarCreator] :: Channel m a -> ThreadId
+        [A] [remainingWork] :: Channel m a -> Maybe (IORef Count)
+        [A] [readOutputQ] :: Channel m a -> m [ChildEvent a]
+        [A] [postProcess] :: Channel m a -> m Bool
+        [A] [outputQueue] :: Channel m a -> IORef ([ChildEvent a], Int)
+        [A] [outputDoorBell] :: Channel m a -> MVar ()
+        [A] [maxWorkerLimit] :: Channel m a -> Limit
+        [A] [maxBufferLimit] :: Channel m a -> Limit
+        [A] [isWorkDone] :: Channel m a -> IO Bool
+        [A] [isQueueDone] :: Channel m a -> IO Bool
+        [A] [enqueue] :: Channel m a -> Bool -> (RunInIO m, StreamK m a) -> IO ()
+        [A] [eagerDispatch] :: Channel m a -> m ()
+        [A] [doorBellOnWorkQ] :: Channel m a -> IORef Bool
+        [A] [accountThread] :: Channel m a -> ThreadId -> m ()
+        [A] Channel :: RunInIO m -> IORef ([ChildEvent a], Int) -> MVar () -> m [ChildEvent a] -> m Bool -> Limit -> Limit -> Maybe (IORef Count) -> Maybe YieldRateInfo -> (Bool -> (RunInIO m, StreamK m a) -> IO ()) -> m () -> IO Bool -> IO Bool -> IORef Bool -> (Maybe WorkerInfo -> m ()) -> IORef (Set ThreadId) -> IORef Int -> (ThreadId -> m ()) -> MVar () -> Maybe (IORef ()) -> SVarStats -> Bool -> ThreadId -> Channel m a
+    [A] type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    [A] yield :: Channel m a -> Maybe WorkerInfo -> a -> IO Bool
+    [A] withChannelK :: MonadAsync m => (Config -> Config) -> StreamK m a -> (Channel m b -> StreamK m a -> StreamK m b) -> StreamK m b
+    [A] withChannel :: MonadAsync m => (Config -> Config) -> Stream m a -> (Channel m b -> Stream m a -> Stream m b) -> Stream m b
+    [A] toChannelK :: MonadRunInIO m => Channel m a -> StreamK m a -> m ()
+    [A] toChannel :: MonadRunInIO m => Channel m a -> Stream m a -> m ()
+    [A] ticksRate :: MonadAsync m => Rate -> Stream m ()
+    [A] ticks :: MonadIO m => Double -> Stream m ()
+    [A] takeLastInterval :: Double -> Stream m a -> Stream m a
+    [A] takeInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] stopWhen :: StopWhen -> Config -> Config
+    [A] stopChannel :: MonadIO m => Channel m a -> m ()
+    [A] stop :: Channel m a -> Maybe WorkerInfo -> IO ()
+    [A] startChannel :: MonadRunInIO m => Channel m a -> m ()
+    [A] sendWorkerWait :: MonadIO m => Bool -> (Channel m a -> IO ()) -> (Channel m a -> m Bool) -> Channel m a -> m ()
+    [A] sendWorkerDelayPaced :: Channel m a -> IO ()
+    [A] sendWorkerDelay :: Channel m a -> IO ()
+    [A] sampleIntervalStart :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] sampleIntervalEnd :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] sampleBurstStart :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] sampleBurstEnd :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] sampleBurst :: MonadAsync m => Bool -> Double -> Stream m a -> Stream m a
+    [A] retryD :: forall e m a. (Exception e, Ord e, MonadCatch m) => Map e Int -> (e -> Stream m a) -> Stream m a -> Stream m a
+    [A] retry :: (MonadCatch m, Exception e, Ord e) => Map e Int -> (e -> Stream m a) -> Stream m a -> Stream m a
+    [A] readOutputQPaced :: MonadRunInIO m => Channel m a -> m [ChildEvent a]
+    [A] readOutputQBounded :: MonadRunInIO m => Bool -> Channel m a -> m [ChildEvent a]
+    [A] rate :: Maybe Rate -> Config -> Config
+    [A] pushWorker :: MonadRunInIO m => Count -> Channel m a -> m ()
+    [A] postProcessPaced :: MonadRunInIO m => Channel m a -> m Bool
+    [A] postProcessBounded :: MonadRunInIO m => Channel m a -> m Bool
+    [A] periodic :: MonadIO m => m a -> Double -> Stream m a
+    [A] parZipWithM :: MonadAsync m => (Config -> Config) -> (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
+    [A] parZipWith :: MonadAsync m => (Config -> Config) -> (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+    [A] parTwo :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a -> Stream m a
+    [A] parTapCount :: MonadAsync m => (a -> Bool) -> (Stream m Int -> m b) -> Stream m a -> Stream m a
+    [A] parSequence :: MonadAsync m => (Config -> Config) -> Stream m (m a) -> Stream m a
+    [A] parReplicateM :: MonadAsync m => (Config -> Config) -> Int -> m a -> Stream m a
+    [A] parRepeatM :: MonadAsync m => (Config -> Config) -> m a -> Stream m a
+    [A] parMergeByM :: MonadAsync m => (Config -> Config) -> (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] parMergeBy :: MonadAsync m => (Config -> Config) -> (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] parMapM :: MonadAsync m => (Config -> Config) -> (a -> m b) -> Stream m a -> Stream m b
+    [A] parListOrdered :: MonadAsync m => [Stream m a] -> Stream m a
+    [A] parListLazy :: MonadAsync m => [Stream m a] -> Stream m a
+    [A] parListInterleaved :: MonadAsync m => [Stream m a] -> Stream m a
+    [A] parListEagerMin :: MonadAsync m => [Stream m a] -> Stream m a
+    [A] parListEagerFst :: MonadAsync m => [Stream m a] -> Stream m a
+    [A] parListEager :: MonadAsync m => [Stream m a] -> Stream m a
+    [A] parList :: MonadAsync m => (Config -> Config) -> [Stream m a] -> Stream m a
+    [A] parEval :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
+    [A] parConcatMap :: MonadAsync m => (Config -> Config) -> (a -> Stream m b) -> Stream m a -> Stream m b
+    [A] parConcatIterate :: MonadAsync m => (Config -> Config) -> (a -> Stream m a) -> Stream m a -> Stream m a
+    [A] parConcat :: MonadAsync m => (Config -> Config) -> Stream m (Stream m a) -> Stream m a
+    [A] parApply :: MonadAsync m => (Config -> Config) -> Stream m (a -> b) -> Stream m a -> Stream m b
+    [A] ordered :: Bool -> Config -> Config
+    [A] newInterleaveChannel :: MonadAsync m => (Config -> Config) -> m (Channel m a)
+    [A] newChannel :: MonadAsync m => (Config -> Config) -> m (Channel m a)
+    [A] newAppendChannel :: MonadRunInIO m => (Config -> Config) -> m (Channel m a)
+    [A] minRate :: Double -> Config -> Config
+    [A] maxThreads :: Int -> Config -> Config
+    [A] maxRate :: Double -> Config -> Config
+    [A] maxBuffer :: Int -> Config -> Config
+    [A] intervalsOf :: MonadAsync m => Double -> Fold m a b -> Stream m a -> Stream m b
+    [A] interleaved :: Bool -> Config -> Config
+    [A] interject :: MonadAsync m => m a -> Double -> Stream m a -> Stream m a
+    [A] inspect :: Bool -> Config -> Config
+    [A] groupsOfTimeout :: MonadAsync m => Int -> Double -> Fold m a b -> Stream m a -> Stream m b
+    [A] getStopWhen :: Config -> StopWhen
+    [A] fromChannelK :: MonadAsync m => Channel m a -> StreamK m a
+    [A] fromChannel :: MonadAsync m => Channel m a -> Stream m a
+    [A] fromCallback :: MonadAsync m => ((a -> m ()) -> m ()) -> Stream m a
+    [A] finally :: (MonadAsync m, MonadCatch m) => m b -> Stream m a -> Stream m a
+    [A] eager :: Bool -> Config -> Config
+    [A] dumpSVar :: Channel m a -> IO String
+    [A] dropLastInterval :: Int -> Stream m a -> Stream m a
+    [A] dropInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
+    [A] dispatchWorkerPaced :: MonadRunInIO m => Channel m a -> m Bool
+    [A] dispatchWorker :: MonadRunInIO m => Count -> Channel m a -> m Bool
+    [A] defaultConfig :: Config
+    [A] constRate :: Double -> Config -> Config
+    [A] classifySessionsOf :: (MonadAsync m, Ord k) => (Int -> m Bool) -> Double -> Fold m a b -> Stream m (AbsTime, (k, a)) -> Stream m (k, b)
+    [A] classifySessionsByGeneric :: forall m f a b. (MonadAsync m, IsMap f) => Proxy (f :: Type -> Type) -> Double -> Bool -> (Int -> m Bool) -> Double -> Fold m a b -> Stream m (AbsTime, (Key f, a)) -> Stream m (Key f, b)
+    [A] classifySessionsBy :: (MonadAsync m, Ord k) => Double -> Bool -> (Int -> m Bool) -> Double -> Fold m a b -> Stream m (AbsTime, (k, a)) -> Stream m (k, b)
+    [A] classifyKeepAliveSessions :: (MonadAsync m, Ord k) => (Int -> m Bool) -> Double -> Fold m a b -> Stream m (AbsTime, (k, a)) -> Stream m (k, b)
+    [A] bufferOldestN :: Int -> Stream m a -> Stream m a
+    [A] bufferLatestN :: Int -> Stream m a -> Stream m a
+    [A] bufferLatest :: Stream m a -> Stream m (Maybe a)
+    [A] bracket3D :: (MonadAsync m, MonadCatch m) => m b -> (b -> m c) -> (b -> m d) -> (b -> m e) -> (b -> Stream m a) -> Stream m a
+    [A] bracket3 :: (MonadAsync m, MonadCatch m) => m b -> (b -> m c) -> (b -> m d) -> (b -> m e) -> (b -> Stream m a) -> Stream m a
+    [A] bracket :: (MonadAsync m, MonadCatch m) => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
+    [A] avgRate :: Double -> Config -> Config
+    [A] afterD :: MonadRunInIO m => m b -> Stream m a -> Stream m a
+    [A] after :: (MonadIO m, MonadBaseControl IO m) => m b -> Stream m a -> Stream m a
+[R] Streamly.Internal.Data.Stream.Exception.Lifted
+[R] Streamly.Internal.Data.Stream.Concurrent.Channel.Type
+[R] Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
+[R] Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
+[R] Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
+[R] Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
+[R] Streamly.Internal.Data.Stream.Concurrent.Channel.Append
+[R] Streamly.Internal.Data.Stream.Concurrent.Channel
+[R] Streamly.Internal.Data.Stream.Concurrent
+[R] Streamly.Internal.Data.Stream.Channel.Worker
+[R] Streamly.Internal.Data.Stream.Channel.Types
+[R] Streamly.Internal.Data.Stream.Channel.Dispatcher
+[R] Streamly.Internal.Data.SVar.Worker
+[R] Streamly.Internal.Data.SVar.Pull
+[R] Streamly.Internal.Data.SVar.Dispatch
+[D] Streamly.Internal.Data.SVar
+    [A] Work
+        [A] PartialWorker :: Count -> Work
+        [A] ManyWorkers :: Int -> Count -> Work
+        [A] BlockWait :: NanoSecond64 -> Work
+    [A] workerUpdateLatency :: YieldRateInfo -> WorkerInfo -> IO ()
+    [A] workerRateControl :: SVar t m a -> YieldRateInfo -> WorkerInfo -> IO Bool
+    [A] withDiagMVar :: SVar t m a -> String -> IO () -> IO ()
+    [A] updateYieldCount :: WorkerInfo -> IO Count
+    [A] sendYield :: SVar t m a -> Maybe WorkerInfo -> ChildEvent a -> IO Bool
+    [A] sendWorkerWait :: MonadAsync m => (SVar t m a -> IO ()) -> (SVar t m a -> m Bool) -> SVar t m a -> m ()
+    [A] sendWorkerDelayPaced :: SVar t m a -> IO ()
+    [A] sendWorkerDelay :: SVar t m a -> IO ()
+    [A] sendToProducer :: SVar t m a -> ChildEvent a -> IO Int
+    [A] sendStopToProducer :: MonadIO m => SVar t m a -> m ()
+    [A] sendStop :: SVar t m a -> Maybe WorkerInfo -> IO ()
+    [A] sendFirstWorker :: MonadAsync m => SVar t m a -> t m a -> m (SVar t m a)
+    [A] send :: SVar t m a -> ChildEvent a -> IO Int
+    [A] ringDoorBell :: SVar t m a -> IO ()
+    [A] resetBufferLimit :: SVar t m a -> IO ()
+    [A] recordMaxWorkers :: MonadIO m => SVar t m a -> m ()
+    [A] readOutputQRaw :: SVar t m a -> IO ([ChildEvent a], Int)
+    [A] readOutputQPaced :: MonadAsync m => SVar t m a -> m [ChildEvent a]
+    [A] readOutputQBounded :: MonadAsync m => SVar t m a -> m [ChildEvent a]
+    [A] readOutputQBasic :: IORef ([ChildEvent a], Int) -> IO ([ChildEvent a], Int)
+    [A] pushWorkerPar :: MonadAsync m => SVar t m a -> (Maybe WorkerInfo -> m ()) -> m ()
+    [A] pushWorker :: MonadAsync m => Count -> SVar t m a -> m ()
+    [A] printSVar :: SVar t m a -> String -> IO ()
+    [A] postProcessPaced :: MonadAsync m => SVar t m a -> m Bool
+    [A] postProcessBounded :: MonadAsync m => SVar t m a -> m Bool
+    [A] modifyThread :: MonadIO m => SVar t m a -> ThreadId -> m ()
+    [A] minThreadDelay :: NanoSecond64
+    [A] isBeyondMaxRate :: SVar t m a -> YieldRateInfo -> IO Bool
+    [A] incrementYieldLimit :: SVar t m a -> IO ()
+    [A] incrementBufferLimit :: SVar t m a -> IO ()
+    [A] handleFoldException :: SVar t m a -> SomeException -> IO ()
+    [A] handleChildException :: SVar t m a -> SomeException -> IO ()
+    [A] estimateWorkers :: Limit -> Count -> Count -> NanoSecond64 -> NanoSecond64 -> NanoSecond64 -> LatencyRange -> Work
+    [A] dumpSVar :: SVar t m a -> IO String
+    [A] dispatchWorkerPaced :: MonadAsync m => SVar t m a -> m Bool
+    [A] dispatchWorker :: MonadAsync m => Count -> SVar t m a -> m Bool
+    [A] delThread :: MonadIO m => SVar t m a -> ThreadId -> m ()
+    [A] decrementYieldLimit :: SVar t m a -> IO Bool
+    [A] decrementBufferLimit :: SVar t m a -> IO ()
+    [A] collectLatency :: SVar t m a -> YieldRateInfo -> Bool -> IO (Count, AbsTime, NanoSecond64)
+    [A] cleanupSVarFromWorker :: SVar t m a -> IO ()
+    [A] cleanupSVar :: SVar t m a -> IO ()
+    [A] allThreadsDone :: MonadIO m => SVar t m a -> m Bool
+[C] Streamly.Internal.Data.IsMap.HashMap
+    [C] Streamly.Internal.Data.IsMap.IsMap
+        [C] (Data.HashMap.Internal.HashMap k)
+            [O] instance (Data.Hashable.Class.Hashable k, GHC.Classes.Eq k) => Streamly.Internal.Data.IsMap.IsMap (Data.HashMap.Internal.HashMap k)
+            [N] instance Data.Hashable.Class.Hashable k => Streamly.Internal.Data.IsMap.IsMap (Data.HashMap.Internal.HashMap k)
+[C] Streamly.Internal.Data.IOFinalizer.Lifted
+    [C] IOFinalizer
+[R] Streamly.Internal.Data.Fold.SVar
+[A] Streamly.Internal.Data.Fold.Prelude
+    [A] Config
+    [A] Channel
+        [A] [svarStats] :: Channel m a b -> SVarStats
+        [A] [svarRef] :: Channel m a b -> Maybe (IORef ())
+        [A] [svarInspectMode] :: Channel m a b -> Bool
+        [A] [svarCreator] :: Channel m a b -> ThreadId
+        [A] [readOutputQ] :: Channel m a b -> m [ChildEvent a]
+        [A] [outputQueue] :: Channel m a b -> IORef ([ChildEvent a], Int)
+        [A] [outputQueueFromConsumer] :: Channel m a b -> IORef ([ChildEvent b], Int)
+        [A] [outputDoorBell] :: Channel m a b -> MVar ()
+        [A] [outputDoorBellFromConsumer] :: Channel m a b -> MVar ()
+        [A] [maxBufferLimit] :: Channel m a b -> Limit
+        [A] [bufferSpaceDoorBell] :: Channel m a b -> MVar ()
+        [A] Channel :: IORef ([ChildEvent a], Int) -> Limit -> MVar () -> m [ChildEvent a] -> IORef ([ChildEvent b], Int) -> MVar () -> MVar () -> Maybe (IORef ()) -> SVarStats -> Bool -> ThreadId -> Channel m a b
+    [A] writeLimited :: MonadIO m => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
+    [A] write :: MonadIO m => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
+    [A] takeInterval :: MonadAsync m => Double -> Fold m a b -> Fold m a b
+    [A] sendToWorker :: MonadAsync m => Channel m a b -> a -> m (Maybe b)
+    [A] parEval :: MonadAsync m => (Config -> Config) -> Fold m a b -> Fold m a b
+    [A] newChannel :: MonadRunInIO m => (Config -> Config) -> Fold m a b -> m (Channel m a b)
+    [A] maxBuffer :: Int -> Config -> Config
+    [A] intervalsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
+    [A] inspect :: Bool -> Config -> Config
+    [A] dumpSVar :: Channel m a b -> IO String
+    [A] checkFoldStatus :: MonadAsync m => Channel m a b -> m (Maybe b)
+    [A] boundThreads :: Bool -> Config -> Config
+[R] Streamly.Internal.Data.Fold.Concurrent.Channel.Type
+[R] Streamly.Internal.Data.Fold.Concurrent.Channel
+[R] Streamly.Internal.Data.Fold.Concurrent
+[R] Streamly.Internal.Data.Fold.Async
+[A] Streamly.Internal.Data.Channel
+    [A] YieldRateInfo
+        [A] [workerPollingInterval] :: YieldRateInfo -> IORef Count
+        [A] [workerPendingLatency] :: YieldRateInfo -> IORef (Count, Count, NanoSecond64)
+        [A] [workerMeasuredLatency] :: YieldRateInfo -> IORef NanoSecond64
+        [A] [workerCollectedLatency] :: YieldRateInfo -> IORef (Count, Count, NanoSecond64)
+        [A] [workerBootstrapLatency] :: YieldRateInfo -> Maybe NanoSecond64
+        [A] [svarRateBuffer] :: YieldRateInfo -> Int
+        [A] [svarLatencyTarget] :: YieldRateInfo -> NanoSecond64
+        [A] [svarLatencyRange] :: YieldRateInfo -> LatencyRange
+        [A] [svarGainedLostYields] :: YieldRateInfo -> IORef Count
+        [A] [svarAllTimeLatency] :: YieldRateInfo -> IORef (Count, AbsTime)
+        [A] YieldRateInfo :: NanoSecond64 -> LatencyRange -> Int -> IORef Count -> IORef (Count, AbsTime) -> Maybe NanoSecond64 -> IORef Count -> IORef (Count, Count, NanoSecond64) -> IORef (Count, Count, NanoSecond64) -> IORef NanoSecond64 -> YieldRateInfo
+    [A] WorkerInfo
+        [A] [workerYieldMax] :: WorkerInfo -> Count
+        [A] [workerYieldCount] :: WorkerInfo -> IORef Count
+        [A] [workerLatencyStart] :: WorkerInfo -> IORef (Count, AbsTime)
+        [A] WorkerInfo :: Count -> IORef Count -> IORef (Count, AbsTime) -> WorkerInfo
+    [A] Work
+        [A] PartialWorker :: Count -> Work
+        [A] ManyWorkers :: Int -> Count -> Work
+        [A] BlockWait :: NanoSecond64 -> Work
+    [A] ThreadAbort
+        [A] ThreadAbort :: ThreadAbort
+    [A] StopWhen
+        [A] FirstStops :: StopWhen
+        [A] AnyStops :: StopWhen
+        [A] AllStop :: StopWhen
+    [A] SVarStats
+        [A] [totalDispatches] :: SVarStats -> IORef Int
+        [A] [svarStopTime] :: SVarStats -> IORef (Maybe AbsTime)
+        [A] [minWorkerLatency] :: SVarStats -> IORef NanoSecond64
+        [A] [maxWorkers] :: SVarStats -> IORef Int
+        [A] [maxWorkerLatency] :: SVarStats -> IORef NanoSecond64
+        [A] [maxWorkQSize] :: SVarStats -> IORef Int
+        [A] [maxOutQSize] :: SVarStats -> IORef Int
+        [A] [maxHeapSize] :: SVarStats -> IORef Int
+        [A] [avgWorkerLatency] :: SVarStats -> IORef (Count, NanoSecond64)
+        [A] SVarStats :: IORef Int -> IORef Int -> IORef Int -> IORef Int -> IORef Int -> IORef (Count, NanoSecond64) -> IORef NanoSecond64 -> IORef NanoSecond64 -> IORef (Maybe AbsTime) -> SVarStats
+    [A] Rate
+        [A] [rateLow] :: Rate -> Double
+        [A] [rateHigh] :: Rate -> Double
+        [A] [rateGoal] :: Rate -> Double
+        [A] [rateBuffer] :: Rate -> Int
+        [A] Rate :: Double -> Double -> Double -> Int -> Rate
+    [A] Limit
+        [A] Unlimited :: Limit
+        [A] Limited :: Word -> Limit
+    [A] LatencyRange
+        [A] [minLatency] :: LatencyRange -> NanoSecond64
+        [A] [maxLatency] :: LatencyRange -> NanoSecond64
+        [A] LatencyRange :: NanoSecond64 -> NanoSecond64 -> LatencyRange
+    [A] Config
+    [A] ChildEvent
+        [A] ChildYield :: a -> ChildEvent a
+        [A] ChildStopChannel :: ChildEvent a
+        [A] ChildStop :: ThreadId -> Maybe SomeException -> ChildEvent a
+    [A] Count
+        [A] Count :: Int64 -> Count
+    [A] workerRateControl :: Limit -> IORef Int -> YieldRateInfo -> WorkerInfo -> IO Bool
+    [A] withDiagMVar :: Bool -> IO String -> String -> IO () -> IO ()
+    [A] stopWhen :: StopWhen -> Config -> Config
+    [A] setStreamLatency :: Int -> Config -> Config
+    [A] sendYield :: Limit -> Limit -> IORef Int -> Maybe WorkerInfo -> Maybe YieldRateInfo -> IORef ([ChildEvent a], Int) -> MVar () -> ChildEvent a -> IO Bool
+    [A] sendWithDoorBell :: IORef ([ChildEvent a], Int) -> MVar () -> ChildEvent a -> IO Int
+    [A] sendStop :: IORef Int -> Maybe WorkerInfo -> Maybe YieldRateInfo -> IORef ([ChildEvent a], Int) -> MVar () -> IO ()
+    [A] ringDoorBell :: IORef Bool -> MVar () -> IO ()
+    [A] recordMaxWorkers :: MonadIO m => IORef Int -> SVarStats -> m ()
+    [A] readOutputQRaw :: IORef ([ChildEvent a], Int) -> Maybe SVarStats -> IO ([ChildEvent a], Int)
+    [A] readOutputQBasic :: IORef ([ChildEvent a], Int) -> IO ([ChildEvent a], Int)
+    [A] rate :: Maybe Rate -> Config -> Config
+    [A] printSVar :: IO String -> String -> IO ()
+    [A] ordered :: Bool -> Config -> Config
+    [A] newSVarStats :: IO SVarStats
+    [A] newRateInfo :: Config -> IO (Maybe YieldRateInfo)
+    [A] modifyThread :: MonadIO m => IORef (Set ThreadId) -> MVar () -> ThreadId -> m ()
+    [A] minThreadDelay :: NanoSecond64
+    [A] minRate :: Double -> Config -> Config
+    [A] maxYields :: Maybe Int64 -> Config -> Config
+    [A] maxThreads :: Int -> Config -> Config
+    [A] maxRate :: Double -> Config -> Config
+    [A] maxBuffer :: Int -> Config -> Config
+    [A] magicMaxBuffer :: Word
+    [A] isBeyondMaxRate :: Limit -> IORef Int -> YieldRateInfo -> IO Bool
+    [A] interleaved :: Bool -> Config -> Config
+    [A] inspect :: Bool -> Config -> Config
+    [A] incrementYieldLimit :: Maybe (IORef Count) -> IO ()
+    [A] handleChildException :: IORef ([ChildEvent a], Int) -> MVar () -> SomeException -> IO ()
+    [A] getYieldLimit :: Config -> Maybe Count
+    [A] getStreamRate :: Config -> Maybe Rate
+    [A] getStreamLatency :: Config -> Maybe NanoSecond64
+    [A] getStopWhen :: Config -> StopWhen
+    [A] getOrdered :: Config -> Bool
+    [A] getMaxThreads :: Config -> Limit
+    [A] getMaxBuffer :: Config -> Limit
+    [A] getInterleaved :: Config -> Bool
+    [A] getInspectMode :: Config -> Bool
+    [A] getEagerDispatch :: Config -> Bool
+    [A] getBound :: Config -> Bool
+    [A] estimateWorkers :: Limit -> Count -> Count -> NanoSecond64 -> NanoSecond64 -> NanoSecond64 -> LatencyRange -> Work
+    [A] eager :: Bool -> Config -> Config
+    [A] dumpWorkerCount :: Show a => IORef a -> IO String
+    [A] dumpSVarStats :: Bool -> Maybe YieldRateInfo -> SVarStats -> IO String
+    [A] dumpRunningThreads :: Show a => IORef a -> IO String
+    [A] dumpOutputQ :: (Foldable t, Show a1) => IORef (t a2, a1) -> IO String
+    [A] dumpNeedDoorBell :: Show a => IORef a -> IO String
+    [A] dumpDoorBell :: Show a => MVar a -> IO String
+    [A] dumpCreator :: Show a => a -> String
+    [A] delThread :: MonadIO m => IORef (Set ThreadId) -> ThreadId -> m ()
+    [A] defaultConfig :: Config
+    [A] decrementYieldLimit :: Maybe (IORef Count) -> IO Bool
+    [A] constRate :: Double -> Config -> Config
+    [A] collectLatency :: Bool -> SVarStats -> YieldRateInfo -> Bool -> IO (Count, AbsTime, NanoSecond64)
+    [A] cleanupSVar :: IORef (Set ThreadId) -> IO ()
+    [A] boundThreads :: Bool -> Config -> Config
+    [A] avgRate :: Double -> Config -> Config
+    [A] allThreadsDone :: MonadIO m => IORef (Set ThreadId) -> m Bool
+    [A] addThread :: MonadIO m => IORef (Set ThreadId) -> ThreadId -> m ()
+[C] Streamly.Internal.Control.ForkLifted
+    [A] doForkWith :: MonadRunInIO m => Bool -> m () -> RunInIO m -> (SomeException -> IO ()) -> m ThreadId

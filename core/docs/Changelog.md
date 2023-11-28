@@ -2,15 +2,16 @@
 
 ## 0.2.0 (Nov 2023)
 
-### Breaking
+See [0.1.0-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.1.0-0.2.0.txt)
+for a full list of API changes in this release. Only a few significant
+changes are mentioned here.
 
-See the [streamly-core-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.2.0.txt) 
-for a full list of changes in this release.
+### Breaking Changes
 
 * `ParserK` in `Streamly.Data.ParserK` is not implicitly specialized
   to arrays anymore. To adapt to the new code, change `ParserK a m
   b` to `ParserK (Array a) m b` where the `Array` type comes from
-  `Streamly.Data.Array`. This change also changed the signatures of
+  `Streamly.Data.Array`. This change also affected the signatures of
   `parseChunks` and `parseBreakChunks`.
 * Changed the signature of 'Streamly.Data.Stream.handle' to make the
   exception handler monadic.
@@ -18,13 +19,10 @@ for a full list of changes in this release.
 
 ### Enhancements
 
-See the [streamly-core-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.2.0.txt) 
-for a full list of new APIs added in this release.
-
-* Serialization: Added a `Streamly.Data.MutByteArray` module with a
+* __Serialization__: Added a `Streamly.Data.MutByteArray` module with a
   `Serialize` type class for fast binary serialization. The Data.Array
   module supplies the `serialize` and `deserialize` operations for arrays.
-* Unpinned Arrays: Unboxed arrays are now created unpinned by default,
+* __Unpinned Arrays__: Unboxed arrays are now created unpinned by default,
   they were created pinned earlier. During IO operations, unpinned arrays
   are automatically copied to pinned memory. When arrays are directly
   passed to IO operations programmers can choose to create them pinned to
@@ -35,21 +33,18 @@ for a full list of new APIs added in this release.
 
 ### Deprecations
 
-See the [streamly-core-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.2.0.txt) 
+See [0.1.0-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.1.0-0.2.0.txt)
 for a full list of deprecations.
 
 ### Internal API Changes
-
-See the [streamly-core-0.2.0 Internal API Changelog](/core/docs/ApiChangelogs/0.2.0-internal.txt)
-for a full list of changes to the internal modules.
 
 * Fold constructor has changed, added a `final` field to support
   finalization and cleanup of a chain of folds. The `extract` field is
   now used only for mapping the fold internal state to fold result for
   scanning purposes.
-* Some low level internal modules have been removed, they are entirely
+* Many low level internal modules have been removed, they are entirely
   exported from higher level internal modules. If you were importing any
-  of the missing modules then import the higher level modules now.
+  of the missing low level modules then import the higher level modules instead.
 * Internal module changes:
   * Streamly.Internal.Serialize.FromBytes -> Streamly.Internal.Data.Binary.Parser
   * Streamly.Internal.Serialize.ToBytes ->   Streamly.Internal.Data.Binary.Stream

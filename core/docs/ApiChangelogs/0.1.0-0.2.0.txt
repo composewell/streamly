@@ -1,0 +1,1471 @@
+---------------------------------
+API Annotations
+---------------------------------
+
+[A] : Added
+[R] : Removed
+[C] : Changed
+[O] : Old definition
+[N] : New definition
+[D] : Deprecated
+
+---------------------------------
+API diff
+---------------------------------
+
+[C] Streamly.Unicode.Parser
+    [A] double :: Monad m => Parser Char m Double
+[C] Streamly.FileSystem.Handle
+    [A] readWith :: MonadIO m => Int -> Handle -> Stream m Word8
+    [A] readChunksWith :: MonadIO m => Int -> Handle -> Stream m (Array Word8)
+[C] Streamly.FileSystem.Dir
+    [C] readEither
+        [O] readEither :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
+        [N] readEither :: (MonadIO m, MonadCatch m) => FilePath -> Stream m (Either FilePath FilePath)
+    [C] read
+        [O] read :: MonadIO m => FilePath -> Stream m FilePath
+        [N] read :: (MonadIO m, MonadCatch m) => FilePath -> Stream m FilePath
+[C] Streamly.Data.Unfold
+    [A] class Enum a => Enumerable a
+    [A] second :: b -> Unfold m (a, b) c -> Unfold m a c
+    [A] first :: a -> Unfold m (a, b) c -> Unfold m b c
+    [A] enumerateFromTo :: (Enumerable a, Monad m) => Unfold m (a, a) a
+    [A] enumerateFromThenTo :: (Enumerable a, Monad m) => Unfold m (a, a, a) a
+    [A] enumerateFromThen :: (Enumerable a, Monad m) => Unfold m (a, a) a
+    [A] enumerateFrom :: (Enumerable a, Monad m) => Unfold m a a
+[C] Streamly.Data.StreamK
+    [C] parseChunks
+        [O] parseChunks :: (Monad m, Unbox a) => ParserK a m b -> StreamK m (Array a) -> m (Either ParseError b)
+        [N] parseChunks :: (Monad m, Unbox a) => ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
+    [C] parseBreakChunks
+        [O] parseBreakChunks :: (Monad m, Unbox a) => ParserK a m b -> StreamK m (Array a) -> m (Either ParseError b, StreamK m (Array a))
+        [N] parseBreakChunks :: (Monad m, Unbox a) => ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b, StreamK m (Array a))
+    [A] parseBreak :: forall m a b. Monad m => ParserK a m b -> StreamK m a -> m (Either ParseError b, StreamK m a)
+    [A] parse :: Monad m => ParserK a m b -> StreamK m a -> m (Either ParseError b)
+    [A] handle :: (MonadCatch m, Exception e) => (e -> m (StreamK m a)) -> StreamK m a -> StreamK m a
+    [A] bracketIO :: (MonadIO m, MonadCatch m) => IO b -> (b -> IO c) -> (b -> StreamK m a) -> StreamK m a
+[C] Streamly.Data.Stream
+    [A] wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+    [A] splitOn :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+    [C] handle
+        [O] handle :: (MonadCatch m, Exception e) => (e -> Stream m a) -> Stream m a -> Stream m a
+        [N] handle :: (MonadCatch m, Exception e) => (e -> m (Stream m a)) -> Stream m a -> Stream m a
+    [A] groupsOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
+[C] Streamly.Data.ParserK
+    [D] fromParser :: (MonadIO m, Unbox a) => Parser a m b -> ParserK (Array a) m b
+    [D] fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ParserK (Array a) m b
+    [A] adaptCG :: Monad m => Parser a m b -> ParserK (Array a) m b
+    [A] adaptC :: (Monad m, Unbox a) => Parser a m b -> ParserK (Array a) m b
+    [A] adapt :: Monad m => Parser a m b -> ParserK a m b
+[C] Streamly.Data.Parser
+    [A] groupByRollingEither :: Monad m => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (Either b c)
+    [A] groupByRolling :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
+[A] Streamly.Data.MutByteArray
+    [A] class Unbox a
+    [A] class Serialize a
+    [A] SerializeConfig
+    [A] MutByteArray
+    [A] unpin :: MutByteArray -> IO MutByteArray
+    [A] sizeOf :: (Unbox a, SizeOfRep (Rep a)) => Proxy a -> Int
+    [A] serializeAt :: Serialize a => Int -> MutByteArray -> a -> IO Int
+    [A] pokeAt :: (Unbox a, Generic a, PokeRep (Rep a)) => Int -> MutByteArray -> a -> IO ()
+    [A] pinnedNew :: Int -> IO MutByteArray
+    [A] pin :: MutByteArray -> IO MutByteArray
+    [A] peekAt :: (Unbox a, Generic a, PeekRep (Rep a)) => Int -> MutByteArray -> IO a
+    [A] new :: Int -> IO MutByteArray
+    [A] isPinned :: MutByteArray -> Bool
+    [A] inlineSerializeAt :: Maybe Inline -> SerializeConfig -> SerializeConfig
+    [A] inlineDeserializeAt :: Maybe Inline -> SerializeConfig -> SerializeConfig
+    [A] inlineAddSizeTo :: Maybe Inline -> SerializeConfig -> SerializeConfig
+    [A] deserializeAt :: Serialize a => Int -> MutByteArray -> Int -> IO (Int, a)
+    [A] deriveUnbox :: Q [Dec] -> Q [Dec]
+    [A] deriveSerializeWith :: (SerializeConfig -> SerializeConfig) -> Q [Dec] -> Q [Dec]
+    [A] deriveSerialize :: Q [Dec] -> Q [Dec]
+    [A] addSizeTo :: Serialize a => Int -> a -> Int
+[C] Streamly.Data.MutArray.Generic
+    [A] write :: MonadIO m => Fold m a (MutArray a)
+    [A] readRev :: MonadIO m => MutArray a -> Stream m a
+    [A] read :: MonadIO m => MutArray a -> Stream m a
+    [A] putIndexUnsafe :: forall m a. MonadIO m => Int -> MutArray a -> a -> m ()
+    [A] modifyIndexUnsafe :: MonadIO m => Int -> MutArray a -> (a -> (a, b)) -> m b
+    [A] length :: MutArray a -> Int
+    [A] getIndexUnsafe :: MonadIO m => Int -> MutArray a -> m a
+    [C] getIndex
+        [O] getIndex :: MonadIO m => Int -> MutArray a -> m a
+        [N] getIndex :: MonadIO m => Int -> MutArray a -> m (Maybe a)
+    [A] fromListN :: MonadIO m => Int -> [a] -> m (MutArray a)
+    [A] fromList :: MonadIO m => [a] -> m (MutArray a)
+[C] Streamly.Data.MutArray
+    [A] unpin :: MutArray a -> IO (MutArray a)
+    [A] readRev :: forall m a. (MonadIO m, Unbox a) => MutArray a -> Stream m a
+    [A] read :: forall m a. (MonadIO m, Unbox a) => MutArray a -> Stream m a
+    [A] putIndexUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> a -> m ()
+    [D] pokeByteIndex :: Unbox a => Int -> MutByteArray -> a -> IO ()
+    [A] pokeAt :: (Unbox a, Generic a, PokeRep (Rep a)) => Int -> MutByteArray -> a -> IO ()
+    [A] pinnedNew :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
+    [A] pin :: MutArray a -> IO (MutArray a)
+    [D] peekByteIndex :: Unbox a => Int -> MutByteArray -> IO a
+    [A] peekAt :: (Unbox a, Generic a, PeekRep (Rep a)) => Int -> MutByteArray -> IO a
+    [D] newPinned :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
+    [A] modifyIndexUnsafe :: forall m a b. (MonadIO m, Unbox a) => Int -> MutArray a -> (a -> (a, b)) -> m b
+    [A] modifyIndex :: forall m a b. (MonadIO m, Unbox a) => Int -> MutArray a -> (a -> (a, b)) -> m b
+    [A] modify :: forall m a. (MonadIO m, Unbox a) => MutArray a -> (a -> a) -> m ()
+    [A] isPinned :: MutArray a -> Bool
+    [A] getIndexUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m a
+    [C] getIndex
+        [O] getIndex :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m a
+        [N] getIndex :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (Maybe a)
+[C] Streamly.Data.Array.Generic
+    [A] toList :: Array a -> [a]
+    [A] getIndex :: Int -> Array a -> Maybe a
+[C] Streamly.Data.Array
+    [A] unpin :: Array a -> IO (Array a)
+    [D] pokeByteIndex :: Unbox a => Int -> MutByteArray -> a -> IO ()
+    [A] pokeAt :: (Unbox a, Generic a, PokeRep (Rep a)) => Int -> MutByteArray -> a -> IO ()
+    [A] pin :: Array a -> IO (Array a)
+    [D] peekByteIndex :: Unbox a => Int -> MutByteArray -> IO a
+    [A] peekAt :: (Unbox a, Generic a, PeekRep (Rep a)) => Int -> MutByteArray -> IO a
+    [A] isPinned :: Array a -> Bool
+[C] Streamly.Console.Stdio
+
+---------------------------------
+Internal API diff
+---------------------------------
+
+[C] Streamly.Internal.Unicode.Stream
+    [C] writeCharUtf8'
+        [O] writeCharUtf8' :: Monad m => Fold m Word8 Char
+        [N] writeCharUtf8' :: Monad m => Parser Word8 m Char
+[C] Streamly.Internal.Unicode.Parser
+    [A] number :: Monad m => Parser Char m (Integer, Int)
+    [A] mkDouble :: Integer -> Int -> Double
+    [A] doubleParser :: Monad m => Parser Char m (Int, Int)
+    [C] double
+        [O] double :: Parser Char m Double
+        [N] double :: Monad m => Parser Char m Double
+[R] Streamly.Internal.Serialize.ToBytes
+[R] Streamly.Internal.Serialize.FromBytes
+[C] Streamly.Internal.FileSystem.File
+    [A] writeAppendWith :: (MonadIO m, MonadCatch m) => Int -> FilePath -> Stream m Word8 -> m ()
+    [A] writeAppendChunks :: (MonadIO m, MonadCatch m) => FilePath -> Stream m (Array a) -> m ()
+    [A] writeAppendArray :: FilePath -> Array a -> IO ()
+    [A] writeAppend :: (MonadIO m, MonadCatch m) => FilePath -> Stream m Word8 -> m ()
+    [R] appendWith :: (MonadIO m, MonadCatch m) => Int -> FilePath -> Stream m Word8 -> m ()
+    [R] appendChunks :: (MonadIO m, MonadCatch m) => FilePath -> Stream m (Array a) -> m ()
+    [R] appendArray :: FilePath -> Array a -> IO ()
+    [R] append :: (MonadIO m, MonadCatch m) => FilePath -> Stream m Word8 -> m ()
+[C] Streamly.Internal.FileSystem.Dir
+    [C] reader
+        [O] reader :: MonadIO m => Unfold m FilePath FilePath
+        [N] reader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
+    [C] readFiles
+        [O] readFiles :: MonadIO m => FilePath -> Stream m FilePath
+        [N] readFiles :: (MonadIO m, MonadCatch m) => FilePath -> Stream m FilePath
+    [C] readEitherPaths
+        [O] readEitherPaths :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
+        [N] readEitherPaths :: (MonadIO m, MonadCatch m) => FilePath -> Stream m (Either FilePath FilePath)
+    [C] readEither
+        [O] readEither :: MonadIO m => FilePath -> Stream m (Either FilePath FilePath)
+        [N] readEither :: (MonadIO m, MonadCatch m) => FilePath -> Stream m (Either FilePath FilePath)
+    [C] readDirs
+        [O] readDirs :: MonadIO m => FilePath -> Stream m FilePath
+        [N] readDirs :: (MonadIO m, MonadCatch m) => FilePath -> Stream m FilePath
+    [C] read
+        [O] read :: MonadIO m => FilePath -> Stream m FilePath
+        [N] read :: (MonadIO m, MonadCatch m) => FilePath -> Stream m FilePath
+    [C] fileReader
+        [O] fileReader :: MonadIO m => Unfold m FilePath FilePath
+        [N] fileReader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
+    [C] eitherReaderPaths
+        [O] eitherReaderPaths :: MonadIO m => Unfold m FilePath (Either FilePath FilePath)
+        [N] eitherReaderPaths :: (MonadIO m, MonadCatch m) => Unfold m FilePath (Either FilePath FilePath)
+    [C] eitherReader
+        [O] eitherReader :: MonadIO m => Unfold m FilePath (Either FilePath FilePath)
+        [N] eitherReader :: (MonadIO m, MonadCatch m) => Unfold m FilePath (Either FilePath FilePath)
+    [C] dirReader
+        [O] dirReader :: MonadIO m => Unfold m FilePath FilePath
+        [N] dirReader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
+[R] Streamly.Internal.Data.Unfold.Type
+[R] Streamly.Internal.Data.Unfold.Enumeration
+[C] Streamly.Internal.Data.Unfold
+    [C] Unfold
+        [A] Unfold :: (s -> m (Step s b)) -> (a -> m s) -> Unfold m a b
+    [A] takeWhileMWithInput :: Monad m => (a -> b -> m Bool) -> Unfold m a b -> Unfold m a b
+    [A] manyInterleave :: Monad m => Unfold m a b -> Unfold m c a -> Unfold m c b
+    [A] enumerateFromStepIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
+    [A] crossApplySnd :: Unfold m a b -> Unfold m a c -> Unfold m a c
+    [A] crossApplyFst :: Unfold m a b -> Unfold m a c -> Unfold m a b
+    [A] concatMap :: Monad m => (b -> Unfold m a c) -> Unfold m a b -> Unfold m a c
+[R] Streamly.Internal.Data.Unboxed
+[C] Streamly.Internal.Data.Time.Units
+    [R] Streamly.Internal.Data.Unboxed.Unbox
+    [A] Streamly.Internal.Data.Unbox.Unbox
+        [A] instance Streamly.Internal.Data.Unbox.Unbox Streamly.Internal.Data.Time.Units.NanoSecond64
+        [A] instance Streamly.Internal.Data.Unbox.Unbox Streamly.Internal.Data.Time.Units.MilliSecond64
+        [A] instance Streamly.Internal.Data.Unbox.Unbox Streamly.Internal.Data.Time.Units.MicroSecond64
+[R] Streamly.Internal.Data.Time.Clock.Type
+[A] Streamly.Internal.Data.StreamK
+    [A] CrossStreamK
+    [A] (FixityR,6)
+    [A] (FixityR,6)
+    [A] (FixityR,6)
+    [A] (FixityR,5)
+    [A] (FixityR,5)
+    [A] (FixityR,6)
+    [A] (FixityR,5)
+    [A] StreamK
+        [A] MkStream :: (forall r. State StreamK m a -> (a -> StreamK m a -> m r) -> (a -> m r) -> m r -> m r) -> StreamK m a
+    [A] zipWithM :: Monad m => (a -> b -> m c) -> StreamK m a -> StreamK m b -> StreamK m c
+    [A] zipWith :: Monad m => (a -> b -> c) -> StreamK m a -> StreamK m b -> StreamK m c
+    [A] unfoldrMWith :: Monad m => (m a -> StreamK m a -> StreamK m a) -> (b -> m (Maybe (a, b))) -> b -> StreamK m a
+    [A] unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> StreamK m a
+    [A] unfoldr :: (b -> Maybe (a, b)) -> b -> StreamK m a
+    [A] uncons :: Applicative m => StreamK m a -> m (Maybe (a, StreamK m a))
+    [A] unShare :: StreamK m a -> StreamK m a
+    [A] unCross :: CrossStreamK m a -> StreamK m a
+    [A] toStream :: Applicative m => StreamK m a -> Stream m a
+    [A] toList :: Monad m => StreamK m a -> m [a]
+    [A] the :: (Eq a, Monad m) => StreamK m a -> m (Maybe a)
+    [A] takeWhile :: (a -> Bool) -> StreamK m a -> StreamK m a
+    [A] take :: Int -> StreamK m a -> StreamK m a
+    [A] tail :: Applicative m => StreamK m a -> m (Maybe (StreamK m a))
+    [A] sortBy :: Monad m => (a -> a -> Ordering) -> StreamK m a -> StreamK m a
+    [A] sequence :: Monad m => StreamK m (m a) -> StreamK m a
+    [A] scanlx' :: (x -> a -> x) -> x -> (x -> b) -> StreamK m a -> StreamK m b
+    [A] scanl' :: (b -> a -> b) -> b -> StreamK m a -> StreamK m b
+    [A] reverse :: StreamK m a -> StreamK m a
+    [A] replicateMWith :: (m a -> StreamK m a -> StreamK m a) -> Int -> m a -> StreamK m a
+    [A] replicateM :: Monad m => Int -> m a -> StreamK m a
+    [A] replicate :: Int -> a -> StreamK m a
+    [A] repeatMWith :: (m a -> t m a -> t m a) -> m a -> t m a
+    [A] repeatM :: Monad m => m a -> StreamK m a
+    [A] repeat :: a -> StreamK m a
+    [A] parseDBreak :: Monad m => Parser a m b -> StreamK m a -> m (Either ParseError b, StreamK m a)
+    [A] parseD :: Monad m => Parser a m b -> StreamK m a -> m (Either ParseError b)
+    [A] parseChunksGeneric :: Monad m => ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
+    [A] parseChunks :: (Monad m, Unbox a) => ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
+    [A] parseBreakChunksGeneric :: forall m a b. Monad m => ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b, StreamK m (Array a))
+    [A] parseBreakChunks :: (Monad m, Unbox a) => ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b, StreamK m (Array a))
+    [A] parseBreak :: forall m a b. Monad m => ParserK a m b -> StreamK m a -> m (Either ParseError b, StreamK m a)
+    [A] parse :: Monad m => ParserK a m b -> StreamK m a -> m (Either ParseError b)
+    [A] null :: Monad m => StreamK m a -> m Bool
+    [A] notElem :: (Monad m, Eq a) => a -> StreamK m a -> m Bool
+    [A] nilM :: Applicative m => m b -> StreamK m a
+    [A] nil :: StreamK m a
+    [A] mkStream :: (forall r. State StreamK m a -> (a -> StreamK m a -> m r) -> (a -> m r) -> m r -> m r) -> StreamK m a
+    [A] mkCross :: StreamK m a -> CrossStreamK m a
+    [A] minimumBy :: Monad m => (a -> a -> Ordering) -> StreamK m a -> m (Maybe a)
+    [A] minimum :: (Monad m, Ord a) => StreamK m a -> m (Maybe a)
+    [A] mfix :: Monad m => (m a -> StreamK m a) -> StreamK m a
+    [A] mergeMapWith :: (StreamK m b -> StreamK m b -> StreamK m b) -> (a -> StreamK m b) -> StreamK m a -> StreamK m b
+    [A] mergeIterateWith :: (StreamK m a -> StreamK m a -> StreamK m a) -> (a -> StreamK m a) -> StreamK m a -> StreamK m a
+    [A] mergeByM :: Monad m => (a -> a -> m Ordering) -> StreamK m a -> StreamK m a -> StreamK m a
+    [A] mergeBy :: (a -> a -> Ordering) -> StreamK m a -> StreamK m a -> StreamK m a
+    [A] maximumBy :: Monad m => (a -> a -> Ordering) -> StreamK m a -> m (Maybe a)
+    [A] maximum :: (Monad m, Ord a) => StreamK m a -> m (Maybe a)
+    [A] mapMaybe :: (a -> Maybe b) -> StreamK m a -> StreamK m b
+    [A] mapM_ :: Monad m => (a -> m b) -> StreamK m a -> m ()
+    [A] mapMWith :: (m b -> StreamK m b -> StreamK m b) -> (a -> m b) -> StreamK m a -> StreamK m b
+    [A] mapMSerial :: Monad m => (a -> m b) -> StreamK m a -> StreamK m b
+    [A] mapM :: Monad m => (a -> m b) -> StreamK m a -> StreamK m b
+    [A] map :: (a -> b) -> StreamK m a -> StreamK m b
+    [A] lookup :: (Monad m, Eq a) => a -> StreamK m (a, b) -> m (Maybe b)
+    [A] liftInner :: (Monad m, MonadTrans t, Monad (t m)) => StreamK m a -> StreamK (t m) a
+    [A] last :: Monad m => StreamK m a -> m (Maybe a)
+    [A] iterateMWith :: Monad m => (m a -> StreamK m a -> StreamK m a) -> (a -> m a) -> m a -> StreamK m a
+    [A] iterateM :: Monad m => (a -> m a) -> m a -> StreamK m a
+    [A] iterate :: (a -> a) -> a -> StreamK m a
+    [A] intersperseM :: Monad m => m a -> StreamK m a -> StreamK m a
+    [A] intersperse :: Monad m => a -> StreamK m a -> StreamK m a
+    [A] interleaveMin :: StreamK m a -> StreamK m a -> StreamK m a
+    [A] interleaveFst :: StreamK m a -> StreamK m a -> StreamK m a
+    [A] interleave :: StreamK m a -> StreamK m a -> StreamK m a
+    [A] insertBy :: (a -> a -> Ordering) -> a -> StreamK m a -> StreamK m a
+    [A] init :: Applicative m => StreamK m a -> m (Maybe (StreamK m a))
+    [A] hoist :: (Monad m, Monad n) => (forall x. m x -> n x) -> StreamK m a -> StreamK n a
+    [A] head :: Monad m => StreamK m a -> m (Maybe a)
+    [A] handle :: (MonadCatch m, Exception e) => (e -> m (StreamK m a)) -> StreamK m a -> StreamK m a
+    [A] fromYieldK :: YieldK m a -> StreamK m a
+    [A] fromStream :: Monad m => Stream m a -> StreamK m a
+    [A] fromStopK :: StopK m -> StreamK m a
+    [A] fromPure :: a -> StreamK m a
+    [A] fromList :: [a] -> StreamK m a
+    [A] fromIndicesMWith :: (m a -> StreamK m a -> StreamK m a) -> (Int -> m a) -> StreamK m a
+    [A] fromIndicesM :: Monad m => (Int -> m a) -> StreamK m a
+    [A] fromIndices :: (Int -> a) -> StreamK m a
+    [A] fromFoldableM :: (Foldable f, Monad m) => f (m a) -> StreamK m a
+    [A] fromFoldable :: Foldable f => f a -> StreamK m a
+    [A] fromEffect :: Monad m => m a -> StreamK m a
+    [A] foldrT :: (Monad m, Monad (s m), MonadTrans s) => (a -> s m b -> s m b) -> s m b -> StreamK m a -> s m b
+    [A] foldrSShared :: (a -> StreamK m b -> StreamK m b) -> StreamK m b -> StreamK m a -> StreamK m b
+    [A] foldrSM :: Monad m => (m a -> StreamK m b -> StreamK m b) -> StreamK m b -> StreamK m a -> StreamK m b
+    [A] foldrS :: (a -> StreamK m b -> StreamK m b) -> StreamK m b -> StreamK m a -> StreamK m b
+    [A] foldrM :: (a -> m b -> m b) -> m b -> StreamK m a -> m b
+    [A] foldr1 :: Monad m => (a -> a -> a) -> StreamK m a -> m (Maybe a)
+    [A] foldr :: Monad m => (a -> b -> b) -> b -> StreamK m a -> m b
+    [A] foldlx' :: forall m a b x. Monad m => (x -> a -> x) -> x -> (x -> b) -> StreamK m a -> m b
+    [A] foldlT :: (Monad m, Monad (s m), MonadTrans s) => (s m b -> a -> s m b) -> s m b -> StreamK m a -> s m b
+    [A] foldlS :: (StreamK m b -> a -> StreamK m b) -> StreamK m b -> StreamK m a -> StreamK m b
+    [A] foldlMx' :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> StreamK m a -> m b
+    [A] foldlM' :: Monad m => (b -> a -> m b) -> m b -> StreamK m a -> m b
+    [A] foldl' :: Monad m => (b -> a -> b) -> b -> StreamK m a -> m b
+    [A] foldStreamShared :: State StreamK m a -> (a -> StreamK m a -> m r) -> (a -> m r) -> m r -> StreamK m a -> m r
+    [A] foldStream :: State StreamK m a -> (a -> StreamK m a -> m r) -> (a -> m r) -> m r -> StreamK m a -> m r
+    [A] foldEither :: Monad m => Fold m a b -> StreamK m a -> m (Either (Fold m a b) (b, StreamK m a))
+    [A] foldConcat :: Monad m => Producer m a b -> Fold m b c -> StreamK m a -> m (c, StreamK m a)
+    [A] foldBreak :: Monad m => Fold m a b -> StreamK m a -> m (b, StreamK m a)
+    [A] fold :: Monad m => Fold m a b -> StreamK m a -> m b
+    [A] findM :: Monad m => (a -> m Bool) -> StreamK m a -> m (Maybe a)
+    [A] findIndices :: (a -> Bool) -> StreamK m a -> StreamK m Int
+    [A] find :: Monad m => (a -> Bool) -> StreamK m a -> m (Maybe a)
+    [A] filter :: (a -> Bool) -> StreamK m a -> StreamK m a
+    [A] evalStateT :: Monad m => m s -> StreamK (StateT s m) a -> StreamK m a
+    [A] elem :: (Monad m, Eq a) => a -> StreamK m a -> m Bool
+    [A] dropWhile :: (a -> Bool) -> StreamK m a -> StreamK m a
+    [A] drop :: Int -> StreamK m a -> StreamK m a
+    [A] drain :: Monad m => StreamK m a -> m ()
+    [A] deleteBy :: (a -> a -> Bool) -> a -> StreamK m a -> StreamK m a
+    [A] crossWith :: Monad m => (a -> b -> c) -> StreamK m a -> StreamK m b -> StreamK m c
+    [A] crossApplyWith :: (StreamK m b -> StreamK m b -> StreamK m b) -> StreamK m (a -> b) -> StreamK m a -> StreamK m b
+    [A] crossApplySnd :: StreamK m a -> StreamK m b -> StreamK m b
+    [A] crossApplyFst :: StreamK m a -> StreamK m b -> StreamK m a
+    [A] crossApply :: StreamK m (a -> b) -> StreamK m a -> StreamK m b
+    [A] cross :: Monad m => StreamK m a -> StreamK m b -> StreamK m (a, b)
+    [A] consMBy :: Monad m => (StreamK m a -> StreamK m a -> StreamK m a) -> m a -> StreamK m a -> StreamK m a
+    [A] consM :: Monad m => m a -> StreamK m a -> StreamK m a
+    [A] consK :: YieldK m a -> StreamK m a -> StreamK m a
+    [A] cons :: a -> StreamK m a -> StreamK m a
+    [A] conjoin :: Monad m => StreamK m a -> StreamK m a -> StreamK m a
+    [A] concatMapWith :: (StreamK m b -> StreamK m b -> StreamK m b) -> (a -> StreamK m b) -> StreamK m a -> StreamK m b
+    [A] concatMapEffect :: Monad m => (b -> StreamK m a) -> m b -> StreamK m a
+    [A] concatMap :: (a -> StreamK m b) -> StreamK m a -> StreamK m b
+    [A] concatIterateWith :: (StreamK m a -> StreamK m a -> StreamK m a) -> (a -> StreamK m a) -> StreamK m a -> StreamK m a
+    [A] concatIterateScanWith :: Monad m => (StreamK m a -> StreamK m a -> StreamK m a) -> (b -> a -> m (b, StreamK m a)) -> m b -> StreamK m a -> StreamK m a
+    [A] concatIterateLeftsWith :: b ~ Either a c => (StreamK m b -> StreamK m b -> StreamK m b) -> (a -> StreamK m b) -> StreamK m b -> StreamK m b
+    [A] concatEffect :: Monad m => m (StreamK m a) -> StreamK m a
+    [A] buildSM :: Monad m => ((m a -> StreamK m a -> StreamK m a) -> StreamK m a -> StreamK m a) -> StreamK m a
+    [A] buildS :: ((a -> StreamK m a -> StreamK m a) -> StreamK m a -> StreamK m a) -> StreamK m a
+    [A] buildM :: Monad m => (forall r. (a -> StreamK m a -> m r) -> (a -> m r) -> m r -> m r) -> StreamK m a
+    [A] build :: forall m a. (forall b. (a -> b -> b) -> b -> b) -> StreamK m a
+    [A] bracketIO :: (MonadIO m, MonadCatch m) => IO b -> (b -> IO c) -> (b -> StreamK m a) -> StreamK m a
+    [A] bindWith :: (StreamK m b -> StreamK m b -> StreamK m b) -> StreamK m a -> (a -> StreamK m b) -> StreamK m b
+    [A] before :: Monad m => m b -> StreamK m a -> StreamK m a
+    [A] augmentSM :: Monad m => ((m a -> StreamK m a -> StreamK m a) -> StreamK m a -> StreamK m a) -> StreamK m a -> StreamK m a
+    [A] augmentS :: ((a -> StreamK m a -> StreamK m a) -> StreamK m a -> StreamK m a) -> StreamK m a -> StreamK m a
+    [A] append :: StreamK m a -> StreamK m a -> StreamK m a
+    [A] any :: Monad m => (a -> Bool) -> StreamK m a -> m Bool
+    [A] all :: Monad m => (a -> Bool) -> StreamK m a -> m Bool
+    [A] (.:) :: a -> StreamK m a -> StreamK m a
+    [A] (!!) :: Monad m => StreamK m a -> Int -> m (Maybe a)
+[R] Streamly.Internal.Data.Stream.StreamK.Type
+[R] Streamly.Internal.Data.Stream.StreamK.Transformer
+[R] Streamly.Internal.Data.Stream.StreamK
+[R] Streamly.Internal.Data.Stream.StreamD.Type
+[R] Streamly.Internal.Data.Stream.StreamD.Transformer
+[R] Streamly.Internal.Data.Stream.StreamD.Transform
+[R] Streamly.Internal.Data.Stream.StreamD.Top
+[R] Streamly.Internal.Data.Stream.StreamD.Step
+[R] Streamly.Internal.Data.Stream.StreamD.Nesting
+[R] Streamly.Internal.Data.Stream.StreamD.Lift
+[R] Streamly.Internal.Data.Stream.StreamD.Generate
+[R] Streamly.Internal.Data.Stream.StreamD.Exception
+[R] Streamly.Internal.Data.Stream.StreamD.Eliminate
+[R] Streamly.Internal.Data.Stream.StreamD.Container
+[D] Streamly.Internal.Data.Stream.StreamD
+[R] Streamly.Internal.Data.Stream.Common
+[R] Streamly.Internal.Data.Stream.Chunked
+[C] Streamly.Internal.Data.Stream
+    [A] class Enum a => Enumerable a
+    [A] Stream
+        [A] UnStream :: (State StreamK m a -> s -> m (Step s a)) -> s -> Stream m a
+    [A] Step
+        [A] Yield :: a -> s -> Step s a
+        [A] Stop :: Step s a
+        [A] Skip :: s -> Step s a
+    [A] InterleaveState
+        [A] InterleaveSecondOnly :: s2 -> InterleaveState s1 s2
+        [A] InterleaveSecond :: s1 -> s2 -> InterleaveState s1 s2
+        [A] InterleaveFirstOnly :: s1 -> InterleaveState s1 s2
+        [A] InterleaveFirst :: s1 -> s2 -> InterleaveState s1 s2
+    [A] FoldManyPost
+        [A] FoldManyPostYield :: b -> FoldManyPost s fs b a -> FoldManyPost s fs b a
+        [A] FoldManyPostStart :: s -> FoldManyPost s fs b a
+        [A] FoldManyPostLoop :: s -> fs -> FoldManyPost s fs b a
+        [A] FoldManyPostDone :: FoldManyPost s fs b a
+    [A] FoldMany
+        [A] FoldManyYield :: b -> FoldMany s fs b a -> FoldMany s fs b a
+        [A] FoldManyStart :: s -> FoldMany s fs b a
+        [A] FoldManyLoop :: s -> fs -> FoldMany s fs b a
+        [A] FoldManyFirst :: fs -> s -> FoldMany s fs b a
+        [A] FoldManyDone :: FoldMany s fs b a
+    [A] CrossStream
+    [A] ConcatUnfoldInterleaveState
+        [A] ConcatUnfoldInterleaveOuter :: o -> [i] -> ConcatUnfoldInterleaveState o i
+        [A] ConcatUnfoldInterleaveInnerR :: [i] -> [i] -> ConcatUnfoldInterleaveState o i
+        [A] ConcatUnfoldInterleaveInnerL :: [i] -> [i] -> ConcatUnfoldInterleaveState o i
+        [A] ConcatUnfoldInterleaveInner :: o -> [i] -> ConcatUnfoldInterleaveState o i
+    [A] ConcatMapUState
+        [A] ConcatMapUOuter :: o -> ConcatMapUState o i
+        [A] ConcatMapUInner :: o -> i -> ConcatMapUState o i
+    [A] AppendState
+        [A] AppendSecond :: s2 -> AppendState s1 s2
+        [A] AppendFirst :: s1 -> AppendState s1 s2
+    [A] pattern Stream :: (State StreamK m a -> s -> m (Step s a)) -> s -> Stream m a
+    [A] zipWithM :: Monad m => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
+    [A] zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+    [A] wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+    [A] with :: Monad m => (Stream m a -> Stream m (s, a)) -> (((s, a) -> b) -> Stream m (s, a) -> Stream m (s, a)) -> ((s, a) -> b) -> Stream m a -> Stream m a
+    [A] usingStateT :: Monad m => m s -> (Stream (StateT s m) a -> Stream (StateT s m) a) -> Stream m a -> Stream m a
+    [A] usingReaderT :: Monad m => m r -> (Stream (ReaderT r m) a -> Stream (ReaderT r m) a) -> Stream m a -> Stream m a
+    [A] uniqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Stream m a
+    [A] uniq :: (Eq a, Monad m) => Stream m a -> Stream m a
+    [A] unionWithStreamGenericBy :: MonadIO m => (a -> a -> Bool) -> Stream m a -> Stream m a -> Stream m a
+    [A] unionWithStreamAscBy :: (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] unfoldrM :: Monad m => (s -> m (Maybe (a, s))) -> s -> Stream m a
+    [A] unfoldr :: Monad m => (s -> Maybe (a, s)) -> s -> Stream m a
+    [A] unfoldRoundRobin :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+    [A] unfoldMany :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+    [A] unfoldIterateDfs :: Monad m => Unfold m a a -> Stream m a -> Stream m a
+    [A] unfoldIterateBfsRev :: Monad m => Unfold m a a -> Stream m a -> Stream m a
+    [A] unfoldIterateBfs :: Monad m => Unfold m a a -> Stream m a -> Stream m a
+    [A] unfoldInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+    [A] unfold :: Applicative m => Unfold m a b -> a -> Stream m b
+    [A] uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
+    [A] unCross :: CrossStream m a -> Stream m a
+    [A] transform :: Monad m => Pipe m a b -> Stream m a -> Stream m b
+    [A] trace_ :: Monad m => m b -> Stream m a -> Stream m a
+    [A] trace :: Monad m => (a -> m b) -> Stream m a -> Stream m a
+    [A] toStreamK :: Monad m => Stream m a -> StreamK m a
+    [A] toListRev :: Monad m => Stream m a -> m [a]
+    [A] toList :: Monad m => Stream m a -> m [a]
+    [A] timestamped :: MonadIO m => Stream m a -> Stream m (AbsTime, a)
+    [A] timestampWith :: MonadIO m => Double -> Stream m a -> Stream m (AbsTime, a)
+    [A] timesWith :: MonadIO m => Double -> Stream m (AbsTime, RelTime64)
+    [A] times :: MonadIO m => Stream m (AbsTime, RelTime64)
+    [A] timeout :: AbsTime -> t m ()
+    [A] timeIndexed :: MonadIO m => Stream m a -> Stream m (RelTime64, a)
+    [A] timeIndexWith :: MonadIO m => Double -> Stream m a -> Stream m (RelTime64, a)
+    [A] the :: (Eq a, Monad m) => Stream m a -> m (Maybe a)
+    [A] tapOffsetEvery :: Monad m => Int -> Int -> Fold m a b -> Stream m a -> Stream m a
+    [A] tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
+    [A] takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+    [A] takeWhileLast :: (a -> Bool) -> Stream m a -> Stream m a
+    [A] takeWhileAround :: (a -> Bool) -> Stream m a -> Stream m a
+    [A] takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+    [A] takeEndByM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+    [A] takeEndBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+    [A] take :: Applicative m => Int -> Stream m a -> Stream m a
+    [A] tail :: Monad m => Stream m a -> m (Maybe (Stream m a))
+    [A] stripSuffixUnbox :: (MonadIO m, Eq a, Unbox a) => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+    [A] stripSuffix :: (Monad m, Eq a) => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+    [A] stripPrefix :: (Monad m, Eq a) => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+    [A] strideFromThen :: Monad m => Int -> Int -> Stream m a -> Stream m a
+    [A] splitOnSuffixSeqAny :: [Array a] -> Fold m a b -> Stream m a -> Stream m b
+    [A] splitOnSuffixSeq :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a) => Bool -> Array a -> Fold m a b -> Stream m a -> Stream m b
+    [A] splitOnSeq :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a) => Array a -> Fold m a b -> Stream m a -> Stream m b
+    [A] splitOnPrefix :: (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+    [A] splitOnAny :: [Array a] -> Fold m a b -> Stream m a -> Stream m b
+    [A] splitOn :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+    [A] splitInnerBySuffix :: (Monad m, Eq (f a), Monoid (f a)) => (f a -> m (f a, Maybe (f a))) -> (f a -> f a -> m (f a)) -> Stream m (f a) -> Stream m (f a)
+    [A] splitInnerBy :: Monad m => (f a -> m (f a, Maybe (f a))) -> (f a -> f a -> m (f a)) -> Stream m (f a) -> Stream m (f a)
+    [A] slicesBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
+    [A] sliceOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
+    [A] sequence :: Monad m => Stream m (m a) -> Stream m a
+    [A] scanlx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> Stream m b
+    [A] scanlMx' :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> Stream m b
+    [A] scanlMAfter' :: Monad m => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
+    [A] scanlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+    [A] scanlM :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+    [A] scanl1M' :: Monad m => (a -> a -> m a) -> Stream m a -> Stream m a
+    [A] scanl1M :: Monad m => (a -> a -> m a) -> Stream m a -> Stream m a
+    [A] scanl1' :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
+    [A] scanl1 :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
+    [A] scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
+    [A] scanl :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
+    [A] scanMaybe :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
+    [A] scanMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
+    [A] scan :: Monad m => Fold m a b -> Stream m a -> Stream m b
+    [A] runStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m (s, a)
+    [A] runReaderT :: Monad m => m s -> Stream (ReaderT s m) a -> Stream m a
+    [A] runInnerWithState :: Monad m => (forall b. s -> t m b -> m (b, s)) -> m s -> Stream (t m) a -> Stream m (s, a)
+    [A] runInnerWith :: Monad m => (forall b. t m b -> m b) -> Stream (t m) a -> Stream m a
+    [A] roundRobin :: Monad m => Stream m a -> Stream m a -> Stream m a
+    [A] rollingMapM :: Monad m => (Maybe a -> a -> m b) -> Stream m a -> Stream m b
+    [A] rollingMap2 :: Monad m => (a -> a -> b) -> Stream m a -> Stream m b
+    [A] rollingMap :: Monad m => (Maybe a -> a -> b) -> Stream m a -> Stream m b
+    [A] reverseUnbox :: (MonadIO m, Unbox a) => Stream m a -> Stream m a
+    [A] reverse :: Monad m => Stream m a -> Stream m a
+    [A] replicateM :: Monad m => Int -> m a -> Stream m a
+    [A] replicate :: Monad m => Int -> a -> Stream m a
+    [A] repeated :: Stream m a -> Stream m a
+    [A] repeatM :: Monad m => m a -> Stream m a
+    [A] repeat :: Monad m => a -> Stream m a
+    [A] relTimesWith :: MonadIO m => Double -> Stream m RelTime64
+    [A] relTimes :: MonadIO m => Stream m RelTime64
+    [A] refoldMany :: Monad m => Refold m x a b -> m x -> Stream m a -> Stream m b
+    [A] refoldIterateM :: Monad m => Refold m b a b -> m b -> Stream m a -> Stream m b
+    [A] reduceIterateBfs :: Monad m => (a -> a -> m a) -> Stream m a -> m (Maybe a)
+    [A] reassembleBy :: Fold m a b -> (a -> a -> Int) -> Stream m a -> Stream m b
+    [A] prune :: (a -> Bool) -> Stream m a -> Stream m a
+    [A] prescanlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+    [A] prescanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
+    [A] postscanlx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> Stream m b
+    [A] postscanlMx' :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> Stream m b
+    [A] postscanlMAfter' :: Monad m => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
+    [A] postscanlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+    [A] postscanlM :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+    [A] postscanl' :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
+    [A] postscanl :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
+    [A] postscan :: Monad m => Fold m a b -> Stream m a -> Stream m b
+    [A] parseSequence :: Stream m (Parser a m b) -> Stream m a -> Stream m b
+    [A] parseManyTill :: Parser a m b -> Parser a m x -> Stream m a -> Stream m b
+    [A] parseManyD :: Monad m => Parser a m b -> Stream m a -> Stream m (Either ParseError b)
+    [A] parseMany :: Monad m => Parser a m b -> Stream m a -> Stream m (Either ParseError b)
+    [A] parseIterateD :: Monad m => (b -> Parser a m b) -> b -> Stream m a -> Stream m (Either ParseError b)
+    [A] parseIterate :: Monad m => (b -> Parser a m b) -> b -> Stream m a -> Stream m (Either ParseError b)
+    [A] parseD :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b)
+    [A] parseBreakD :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+    [A] parseBreak :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+    [A] parse :: Monad m => Parser a m b -> Stream m a -> m (Either ParseError b)
+    [A] onException :: MonadCatch m => m b -> Stream m a -> Stream m a
+    [A] null :: Monad m => Stream m a -> m Bool
+    [A] nub :: (Monad m, Ord a) => Stream m a -> Stream m a
+    [A] notElem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
+    [A] nilM :: Applicative m => m b -> Stream m a
+    [A] nil :: Applicative m => Stream m a
+    [A] morphInner :: Monad n => (forall x. m x -> n x) -> Stream m a -> Stream n a
+    [A] mkCross :: Stream m a -> CrossStream m a
+    [A] minimumBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> m (Maybe a)
+    [A] minimum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)
+    [A] mergeMinBy :: (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] mergeFstBy :: (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] mergeByM :: Monad m => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] mergeBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] maximumBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> m (Maybe a)
+    [A] maximum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)
+    [A] mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
+    [A] mapMaybe :: Monad m => (a -> Maybe b) -> Stream m a -> Stream m b
+    [A] mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
+    [A] mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
+    [A] map :: Monad m => (a -> b) -> Stream m a -> Stream m b
+    [A] lookup :: (Monad m, Eq a) => a -> Stream m (a, b) -> m (Maybe b)
+    [A] liftInnerWith :: Monad (t m) => (forall b. m b -> t m b) -> Stream m a -> Stream (t m) a
+    [A] liftInner :: (Monad m, MonadTrans t, Monad (t m)) => Stream m a -> Stream (t m) a
+    [A] last :: Monad m => Stream m a -> m (Maybe a)
+    [A] joinOuterGeneric :: MonadIO m => (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (Maybe a, Maybe b)
+    [A] joinOuterAscBy :: (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (Maybe a, Maybe b)
+    [A] joinOuter :: (Ord k, MonadIO m) => Stream m (k, a) -> Stream m (k, b) -> Stream m (k, Maybe a, Maybe b)
+    [A] joinLeftGeneric :: Monad m => (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
+    [A] joinLeftAscBy :: (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
+    [A] joinLeft :: (Ord k, Monad m) => Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, Maybe b)
+    [A] joinInnerGeneric :: Monad m => (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, b)
+    [A] joinInnerAscBy :: (a -> b -> Ordering) -> Stream m a -> Stream m b -> Stream m (a, b)
+    [A] joinInner :: (Monad m, Ord k) => Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, b)
+    [A] iterateM :: Monad m => (a -> m a) -> m a -> Stream m a
+    [A] iterate :: Monad m => (a -> a) -> a -> Stream m a
+    [A] isSuffixOfUnbox :: (MonadIO m, Eq a, Unbox a) => Stream m a -> Stream m a -> m Bool
+    [A] isSuffixOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
+    [A] isSubsequenceOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
+    [A] isPrefixOf :: (Monad m, Eq a) => Stream m a -> Stream m a -> m Bool
+    [A] isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a, Unbox a) => Stream m a -> Stream m a -> m Bool
+    [A] intersperseM_ :: Monad m => m b -> Stream m a -> Stream m a
+    [A] intersperseMWith :: Int -> m a -> Stream m a -> Stream m a
+    [A] intersperseMSuffix_ :: Monad m => m b -> Stream m a -> Stream m a
+    [A] intersperseMSuffixWith :: forall m a. Monad m => Int -> m a -> Stream m a -> Stream m a
+    [A] intersperseMSuffix :: forall m a. Monad m => m a -> Stream m a -> Stream m a
+    [A] intersperseMPrefix_ :: Monad m => m b -> Stream m a -> Stream m a
+    [A] intersperseM :: Monad m => m a -> Stream m a -> Stream m a
+    [A] intersperse :: Monad m => a -> Stream m a -> Stream m a
+    [A] intersectBySorted :: Monad m => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] interposeSuffixM :: Monad m => m c -> Unfold m b c -> Stream m b -> Stream m c
+    [A] interposeSuffix :: Monad m => c -> Unfold m b c -> Stream m b -> Stream m c
+    [A] interposeM :: Monad m => m c -> Unfold m b c -> Stream m b -> Stream m c
+    [A] interpose :: Monad m => c -> Unfold m b c -> Stream m b -> Stream m c
+    [A] interleaveMin :: Monad m => Stream m a -> Stream m a -> Stream m a
+    [A] interleaveFstSuffix :: Monad m => Stream m a -> Stream m a -> Stream m a
+    [A] interleaveFst :: Monad m => Stream m a -> Stream m a -> Stream m a
+    [A] interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
+    [A] intercalateSuffix :: Monad m => Unfold m b c -> b -> Stream m b -> Stream m c
+    [A] intercalate :: Monad m => Unfold m b c -> b -> Stream m b -> Stream m c
+    [A] insertBy :: Monad m => (a -> a -> Ordering) -> a -> Stream m a -> Stream m a
+    [A] indexedR :: Monad m => Int -> Stream m a -> Stream m (Int, a)
+    [A] indexed :: Monad m => Stream m a -> Stream m (Int, a)
+    [A] headElse :: Monad m => a -> Stream m a -> m a
+    [A] head :: Monad m => Stream m a -> m (Maybe a)
+    [A] handle :: (MonadCatch m, Exception e) => (e -> m (Stream m a)) -> Stream m a -> Stream m a
+    [A] groupsWhile :: Monad m => (a -> a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+    [A] groupsRollingBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+    [A] groupsOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
+    [A] gintercalateSuffix :: Monad m => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
+    [A] gintercalate :: Monad m => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
+    [A] ghandle :: (MonadCatch m, Exception e) => (e -> Stream m a -> m (Stream m a)) -> Stream m a -> Stream m a
+    [A] generateM :: Monad m => Int -> (Int -> m a) -> Stream m a
+    [A] generate :: Monad m => Int -> (Int -> a) -> Stream m a
+    [A] generalizeInner :: Monad m => Stream Identity a -> Stream m a
+    [A] gbracket_ :: Monad m => m c -> (c -> m d) -> (c -> e -> Stream m b -> m (Stream m b)) -> (forall s. m s -> m (Either e s)) -> (c -> Stream m b) -> Stream m b
+    [A] gbracket :: MonadIO m => IO c -> (c -> IO d1) -> (c -> e -> Stream m b -> IO (Stream m b)) -> (c -> IO d2) -> (forall s. m s -> m (Either e s)) -> (c -> Stream m b) -> Stream m b
+    [A] fromStreamK :: Applicative m => StreamK m a -> Stream m a
+    [A] fromPure :: Applicative m => a -> Stream m a
+    [A] fromPtrN :: (Monad m, Storable a) => Int -> Ptr a -> Stream m a
+    [A] fromPtr :: forall m a. (Monad m, Storable a) => Ptr a -> Stream m a
+    [A] fromListM :: Monad m => [m a] -> Stream m a
+    [A] fromList :: Applicative m => [a] -> Stream m a
+    [A] fromIndicesM :: Monad m => (Int -> m a) -> Stream m a
+    [A] fromIndices :: Monad m => (Int -> a) -> Stream m a
+    [A] fromFoldableM :: (Monad m, Foldable f) => f (m a) -> Stream m a
+    [A] fromFoldable :: (Monad m, Foldable f) => f a -> Stream m a
+    [A] fromEffect :: Applicative m => m a -> Stream m a
+    [A] fromByteStr# :: Monad m => Addr# -> Stream m Word8
+    [A] foldrT :: (Monad m, Monad (t m), MonadTrans t) => (a -> t m b -> t m b) -> t m b -> Stream m a -> t m b
+    [A] foldrS :: Monad m => (a -> Stream m b -> Stream m b) -> Stream m b -> Stream m a -> Stream m b
+    [A] foldrMx :: Monad m => (a -> m x -> m x) -> m x -> (m x -> m b) -> Stream m a -> m b
+    [A] foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
+    [A] foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
+    [A] foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
+    [A] foldlx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> m b
+    [A] foldlT :: (Monad m, Monad (s m), MonadTrans s) => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
+    [A] foldlS :: Monad m => (Stream m b -> a -> Stream m b) -> Stream m b -> Stream m a -> Stream m b
+    [A] foldlMx' :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> m b
+    [A] foldlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> m b
+    [A] foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
+    [A] foldSequence :: Stream m (Fold m a b) -> Stream m a -> Stream m b
+    [A] foldManyPost :: Monad m => Fold m a b -> Stream m a -> Stream m b
+    [A] foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
+    [A] foldIterateM :: Monad m => (b -> m (Fold m a b)) -> m b -> Stream m a -> Stream m b
+    [A] foldIterateBfs :: Fold m a (Either a a) -> Stream m a -> m (Maybe a)
+    [A] foldEither :: Monad m => Fold m a b -> Stream m a -> m (Either (Fold m a b) (b, Stream m a))
+    [A] foldBreak :: Monad m => Fold m a b -> Stream m a -> m (b, Stream m a)
+    [A] foldAddLazy :: Monad m => Fold m a b -> Stream m a -> Fold m a b
+    [A] foldAdd :: Monad m => Fold m a b -> Stream m a -> m (Fold m a b)
+    [A] fold :: Monad m => Fold m a b -> Stream m a -> m b
+    [A] findM :: Monad m => (a -> m Bool) -> Stream m a -> m (Maybe a)
+    [A] findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
+    [A] find :: Monad m => (a -> Bool) -> Stream m a -> m (Maybe a)
+    [A] finallyUnsafe :: MonadCatch m => m b -> Stream m a -> Stream m a
+    [A] finallyIO :: (MonadIO m, MonadCatch m) => IO b -> Stream m a -> Stream m a
+    [A] filterM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+    [A] filterInStreamGenericBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Stream m a -> Stream m a
+    [A] filterInStreamAscBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+    [A] evalStateT :: Monad m => m s -> Stream (StateT s m) a -> Stream m a
+    [A] eqBy :: Monad m => (a -> b -> Bool) -> Stream m a -> Stream m b -> m Bool
+    [A] enumerateTo :: (Monad m, Bounded a, Enumerable a) => a -> Stream m a
+    [A] enumerateFromToSmall :: (Monad m, Enum a) => a -> a -> Stream m a
+    [A] enumerateFromToIntegral :: (Monad m, Integral a) => a -> a -> Stream m a
+    [A] enumerateFromToFractional :: (Monad m, Fractional a, Ord a) => a -> a -> Stream m a
+    [A] enumerateFromTo :: (Enumerable a, Monad m) => a -> a -> Stream m a
+    [A] enumerateFromThenToSmall :: (Monad m, Enum a) => a -> a -> a -> Stream m a
+    [A] enumerateFromThenToIntegral :: (Monad m, Integral a) => a -> a -> a -> Stream m a
+    [A] enumerateFromThenToFractional :: (Monad m, Fractional a, Ord a) => a -> a -> a -> Stream m a
+    [A] enumerateFromThenTo :: (Enumerable a, Monad m) => a -> a -> a -> Stream m a
+    [A] enumerateFromThenSmallBounded :: (Monad m, Enumerable a, Bounded a) => a -> a -> Stream m a
+    [A] enumerateFromThenNum :: (Monad m, Num a) => a -> a -> Stream m a
+    [A] enumerateFromThenIntegral :: (Monad m, Integral a, Bounded a) => a -> a -> Stream m a
+    [A] enumerateFromThenFractional :: (Monad m, Fractional a) => a -> a -> Stream m a
+    [A] enumerateFromThen :: (Enumerable a, Monad m) => a -> a -> Stream m a
+    [A] enumerateFromStepNum :: (Monad m, Num a) => a -> a -> Stream m a
+    [A] enumerateFromStepIntegral :: (Integral a, Monad m) => a -> a -> Stream m a
+    [A] enumerateFromNum :: (Monad m, Num a) => a -> Stream m a
+    [A] enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => a -> Stream m a
+    [A] enumerateFromFractional :: (Monad m, Fractional a) => a -> Stream m a
+    [A] enumerateFromBounded :: (Monad m, Enumerable a, Bounded a) => a -> Stream m a
+    [A] enumerateFrom :: (Enumerable a, Monad m) => a -> Stream m a
+    [A] enumerate :: (Monad m, Bounded a, Enumerable a) => Stream m a
+    [A] elemIndices :: (Monad m, Eq a) => a -> Stream m a -> Stream m Int
+    [A] elem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
+    [A] durations :: Double -> t m RelTime64
+    [A] dropWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+    [A] dropWhileLast :: (a -> Bool) -> Stream m a -> Stream m a
+    [A] dropWhileAround :: (a -> Bool) -> Stream m a -> Stream m a
+    [A] dropWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+    [A] dropSuffix :: Stream m a -> Stream m a -> Stream m a
+    [A] dropPrefix :: Stream m a -> Stream m a -> Stream m a
+    [A] dropLast :: Int -> Stream m a -> Stream m a
+    [A] dropInfix :: Stream m a -> Stream m a -> Stream m a
+    [A] drop :: Monad m => Int -> Stream m a -> Stream m a
+    [A] drain :: Monad m => Stream m a -> m ()
+    [A] deleteInStreamGenericBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Stream m a -> Stream m a
+    [A] deleteInStreamAscBy :: (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+    [A] deleteBy :: Monad m => (a -> a -> Bool) -> a -> Stream m a -> Stream m a
+    [A] delayPre :: MonadIO m => Double -> Stream m a -> Stream m a
+    [A] delayPost :: MonadIO m => Double -> Stream m a -> Stream m a
+    [A] delay :: MonadIO m => Double -> Stream m a -> Stream m a
+    [A] crossWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+    [A] crossApplySnd :: Functor f => Stream f a -> Stream f b -> Stream f b
+    [A] crossApplyFst :: Functor f => Stream f a -> Stream f b -> Stream f a
+    [A] crossApply :: Functor f => Stream f (a -> b) -> Stream f a -> Stream f b
+    [A] cross :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
+    [A] consM :: Applicative m => m a -> Stream m a -> Stream m a
+    [A] cons :: Applicative m => a -> Stream m a -> Stream m a
+    [A] concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
+    [A] concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
+    [A] concatIterateScan :: Monad m => (b -> a -> m b) -> (b -> m (Maybe (b, Stream m a))) -> b -> Stream m a
+    [A] concatIterateDfs :: Monad m => (a -> Maybe (Stream m a)) -> Stream m a -> Stream m a
+    [A] concatIterateBfsRev :: Monad m => (a -> Maybe (Stream m a)) -> Stream m a -> Stream m a
+    [A] concatIterateBfs :: Monad m => (a -> Maybe (Stream m a)) -> Stream m a -> Stream m a
+    [A] concatEffect :: Monad m => m (Stream m a) -> Stream m a
+    [A] concat :: Monad m => Stream m (Stream m a) -> Stream m a
+    [A] cmpBy :: Monad m => (a -> b -> Ordering) -> Stream m a -> Stream m b -> m Ordering
+    [A] catRights :: Monad m => Stream m (Either a b) -> Stream m b
+    [A] catMaybes :: Monad m => Stream m (Maybe a) -> Stream m a
+    [A] catLefts :: Monad m => Stream m (Either a b) -> Stream m a
+    [A] catEithers :: Monad m => Stream m (Either a a) -> Stream m a
+    [A] bracketUnsafe :: MonadCatch m => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
+    [A] bracketIO3 :: (MonadIO m, MonadCatch m) => IO b -> (b -> IO c) -> (b -> IO d) -> (b -> IO e) -> (b -> Stream m a) -> Stream m a
+    [A] bracketIO :: (MonadIO m, MonadCatch m) => IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
+    [A] before :: Monad m => m b -> Stream m a -> Stream m a
+    [A] append :: Monad m => Stream m a -> Stream m a -> Stream m a
+    [A] any :: Monad m => (a -> Bool) -> Stream m a -> m Bool
+    [A] all :: Monad m => (a -> Bool) -> Stream m a -> m Bool
+    [A] afterUnsafe :: Monad m => m b -> Stream m a -> Stream m a
+    [A] afterIO :: MonadIO m => IO b -> Stream m a -> Stream m a
+    [A] absTimesWith :: MonadIO m => Double -> Stream m AbsTime
+    [A] absTimes :: MonadIO m => Stream m AbsTime
+    [A] (!!) :: Monad m => Stream m a -> Int -> m (Maybe a)
+[R] Streamly.Internal.Data.Ring.Unboxed
+[A] Streamly.Internal.Data.Ring.Generic
+    [A] Ring
+        [A] [ringMax] :: Ring a -> !Int
+        [A] [ringHead] :: Ring a -> !Int
+        [A] [ringArr] :: Ring a -> MutArray a
+        [A] Ring :: MutArray a -> !Int -> !Int -> Ring a
+    [A] writeLastN :: MonadIO m => Int -> Fold m a (Ring a)
+    [A] unsafeInsertRingWith :: Ring a -> a -> IO Int
+    [A] toStreamWith :: Int -> Ring a -> Stream m a
+    [A] toMutArray :: MonadIO m => Int -> Int -> Ring a -> m (MutArray a)
+    [A] seek :: MonadIO m => Int -> Ring a -> m (Ring a)
+    [A] createRing :: MonadIO m => Int -> m (Ring a)
+    [A] copyToMutArray :: MonadIO m => Int -> Int -> Ring a -> m (MutArray a)
+[C] Streamly.Internal.Data.Ring
+    [C] Ring
+        [A] [ringStart] :: Ring a -> {-# UNPACK #-} !ForeignPtr a
+        [R] [ringMax] :: Ring a -> !Int
+        [R] [ringHead] :: Ring a -> !Int
+        [A] [ringBound] :: Ring a -> {-# UNPACK #-} !Ptr a
+        [R] [ringArr] :: Ring a -> MutArray a
+        [C] Ring
+            [O] Ring :: MutArray a -> !Int -> !Int -> Ring a
+            [N] Ring :: {-# UNPACK #-} !ForeignPtr a -> {-# UNPACK #-} !Ptr a -> Ring a
+    [A] GHC.Show.Show
+        [A] instance (GHC.Show.Show a, GHC.Show.Show b, GHC.Show.Show c, GHC.Show.Show d) => GHC.Show.Show (Streamly.Internal.Data.Ring.Tuple4' a b c d)
+    [A] writeN :: Int -> Fold m a (Ring a)
+    [R] writeLastN :: MonadIO m => Int -> Fold m a (Ring a)
+    [R] unsafeInsertRingWith :: Ring a -> a -> IO Int
+    [A] unsafeInsert :: Storable a => Ring a -> Ptr a -> a -> IO (Ptr a)
+    [A] unsafeFoldRingNM :: forall m a b. (MonadIO m, Storable a) => Int -> Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
+    [A] unsafeFoldRingM :: forall m a b. (MonadIO m, Storable a) => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
+    [A] unsafeFoldRingFullM :: forall m a b. (MonadIO m, Storable a) => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
+    [A] unsafeFoldRing :: forall a b. Storable a => Ptr a -> (b -> a -> b) -> b -> Ring a -> b
+    [A] unsafeEqArrayN :: Ring a -> Ptr a -> Array a -> Int -> Bool
+    [A] unsafeEqArray :: Ring a -> Ptr a -> Array a -> Bool
+    [R] toStreamWith :: Int -> Ring a -> Stream m a
+    [R] toMutArray :: MonadIO m => Int -> Int -> Ring a -> m (MutArray a)
+    [A] startOf :: Ring a -> Ptr a
+    [A] slidingWindowWith :: forall m a b. (MonadIO m, Storable a, Unbox a) => Int -> Fold m ((a, Maybe a), m (MutArray a)) b -> Fold m a b
+    [A] slidingWindow :: forall m a b. (MonadIO m, Storable a, Unbox a) => Int -> Fold m (a, Maybe a) b -> Fold m a b
+    [A] slide :: Ring a -> a -> m (Ring a)
+    [R] seek :: MonadIO m => Int -> Ring a -> m (Ring a)
+    [A] ringsOf :: Int -> Stream m a -> Stream m (MutArray a)
+    [A] readRev :: Unfold m (MutArray a) a
+    [A] read :: forall m a. (MonadIO m, Storable a) => Unfold m (Ring a, Ptr a, Int) a
+    [A] putIndex :: Ring a -> Int -> a -> m ()
+    [A] newRing :: Int -> m (Ring a)
+    [A] new :: forall a. Storable a => Int -> IO (Ring a, Ptr a)
+    [A] moveBy :: forall a. Storable a => Int -> Ring a -> Ptr a -> Ptr a
+    [A] modifyIndex :: Ring a -> Int -> (a -> (a, b)) -> m b
+    [A] length :: Ring a -> Int
+    [A] getIndexUnsafe :: Ring a -> Int -> m a
+    [A] getIndexRev :: Ring a -> Int -> m a
+    [A] getIndex :: Ring a -> Int -> m a
+    [A] fromArray :: MutArray a -> Ring a
+    [R] createRing :: MonadIO m => Int -> m (Ring a)
+    [A] castUnsafe :: Ring a -> Ring b
+    [A] cast :: forall a b. Storable b => Ring a -> Maybe (Ring b)
+    [A] bytesFree :: Ring a -> Int
+    [A] byteLength :: Ring a -> Int
+    [A] byteCapacity :: Ring a -> Int
+    [A] asBytes :: Ring a -> Ring Word8
+    [A] advance :: forall a. Storable a => Ring a -> Ptr a -> Ptr a
+[R] Streamly.Internal.Data.Producer.Type
+[R] Streamly.Internal.Data.Producer.Source
+[C] Streamly.Internal.Data.Producer
+    [A] Source
+    [A] unread :: [b] -> Source a b -> Source a b
+    [A] translate :: Functor m => (a -> c) -> (c -> a) -> Producer m c b -> Producer m a b
+    [A] source :: Maybe a -> Source a b
+    [A] producer :: Monad m => Producer m a b -> Producer m (Source a b) b
+    [A] parseManyD :: Monad m => Parser a m b -> Producer m (Source x a) a -> Producer m (Source x a) (Either ParseError b)
+    [A] parseMany :: Monad m => Parser a m b -> Producer m (Source x a) a -> Producer m (Source x a) (Either ParseError b)
+    [A] parse :: Monad m => Parser a m b -> Producer m (Source s a) a -> Source s a -> m (Either ParseError b, Source s a)
+    [A] lmap :: (a -> a) -> Producer m a b -> Producer m a b
+    [A] isEmpty :: Source a b -> Bool
+[R] Streamly.Internal.Data.Pipe.Type
+[C] Streamly.Internal.Data.Pipe
+    [A] Step
+        [A] Yield :: a -> s -> Step s a
+        [A] Continue :: s -> Step s a
+    [A] PipeState
+        [A] Produce :: s2 -> PipeState s1 s2
+        [A] Consume :: s1 -> PipeState s1 s2
+    [C] Pipe
+        [A] Pipe :: (s1 -> a -> m (Step (PipeState s1 s2) b)) -> (s2 -> m (Step (PipeState s1 s2) b)) -> s1 -> Pipe m a b
+[A] Streamly.Internal.Data.ParserK
+    [A] Step
+        [A] Partial :: !Int -> (Input a -> m (Step a m r)) -> Step a m r
+        [A] Error :: !Int -> String -> Step a m r
+        [A] Done :: !Int -> r -> Step a m r
+        [A] Continue :: !Int -> (Input a -> m (Step a m r)) -> Step a m r
+    [A] ParseResult
+        [A] Success :: !Int -> !b -> ParseResult b
+        [A] Failure :: !Int -> !String -> ParseResult b
+    [A] Input
+        [A] None :: Input a
+        [A] Chunk :: a -> Input a
+    [A] ParserK
+        [A] [runParser] :: ParserK a m b -> forall r. (ParseResult b -> Int -> Input a -> m (Step a m r)) -> Int -> Int -> Input a -> m (Step a m r)
+        [A] MkParser :: (forall r. (ParseResult b -> Int -> Input a -> m (Step a m r)) -> Int -> Int -> Input a -> m (Step a m r)) -> ParserK a m b
+    [A] fromPure :: b -> ParserK a m b
+    [A] fromEffect :: Monad m => m b -> ParserK a m b
+    [A] die :: String -> ParserK a m b
+    [A] adaptCG :: Monad m => Parser a m b -> ParserK (Array a) m b
+    [A] adaptC :: (Monad m, Unbox a) => Parser a m b -> ParserK (Array a) m b
+    [A] adapt :: Monad m => Parser a m b -> ParserK a m b
+[R] Streamly.Internal.Data.Parser.ParserK.Type
+[R] Streamly.Internal.Data.Parser.ParserD.Type
+[R] Streamly.Internal.Data.Parser.ParserD.Tee
+[R] Streamly.Internal.Data.Parser.ParserD
+[C] Streamly.Internal.Data.Parser
+    [A] Step
+        [A] Partial :: !Int -> !s -> Step s b
+        [A] Error :: !String -> Step s b
+        [A] Done :: !Int -> !b -> Step s b
+        [A] Continue :: !Int -> !s -> Step s b
+    [A] Parser
+        [A] Parser :: (s -> a -> m (Step s b)) -> m (Initial s b) -> (s -> m (Step s b)) -> Parser a m b
+    [A] Initial
+        [A] IPartial :: !s -> Initial s b
+        [A] IError :: !String -> Initial s b
+        [A] IDone :: !b -> Initial s b
+    [A] GHC.Show.Show
+        [A] instance (GHC.Show.Show a, GHC.Show.Show b) => GHC.Show.Show (Streamly.Internal.Data.Parser.Tuple'Fused a b)
+    [A] ParseError
+        [A] ParseError :: String -> ParseError
+    [A] zipWithM :: Monad m => (a -> b -> m c) -> Stream m a -> Fold m c x -> Parser b m x
+    [A] zip :: Monad m => Stream m a -> Fold m (a, b) x -> Parser b m x
+    [A] wordWithQuotes :: (Monad m, Eq a) => Bool -> (a -> a -> Maybe a) -> a -> (a -> Maybe a) -> (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] wordProcessQuotes :: (Monad m, Eq a) => a -> (a -> Maybe a) -> (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] wordKeepQuotes :: (Monad m, Eq a) => a -> (a -> Maybe a) -> (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] wordFramedBy :: Monad m => (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] wordBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] toFold :: Monad m => Parser a m b -> Fold m a b
+    [A] takeWhileP :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
+    [A] takeWhile1 :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] takeStartBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] takeStartBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] takeP :: Monad m => Int -> Parser a m b -> Parser a m b
+    [A] takeGE :: Monad m => Int -> Fold m a b -> Parser a m b
+    [A] takeFramedBy_ :: Monad m => (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] takeFramedByGeneric :: Monad m => Maybe (a -> Bool) -> Maybe (a -> Bool) -> Maybe (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] takeFramedByEsc_ :: Monad m => (a -> Bool) -> (a -> Bool) -> (a -> Bool) -> Fold m a b -> Parser a m b
+    [A] takeEndBy_ :: (a -> Bool) -> Parser a m b -> Parser a m b
+    [A] takeEndByEsc :: Monad m => (a -> Bool) -> (a -> Bool) -> Parser a m b -> Parser a m b
+    [A] takeEndBy :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
+    [A] takeEitherSepBy :: (a -> Bool) -> Fold m (Either a b) c -> Parser a m c
+    [A] takeEQ :: Monad m => Int -> Fold m a b -> Parser a m b
+    [A] takeBetween :: Monad m => Int -> Int -> Fold m a b -> Parser a m b
+    [A] subsequenceBy :: (a -> a -> Bool) -> Stream m a -> Parser a m ()
+    [A] streamEqBy :: Monad m => (a -> a -> Bool) -> Stream m a -> Parser a m ()
+    [A] split_ :: Monad m => Parser x m a -> Parser x m b -> Parser x m b
+    [A] splitWith :: Monad m => (a -> b -> c) -> Parser x m a -> Parser x m b -> Parser x m c
+    [A] splitSome :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
+    [A] splitManyPost :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
+    [A] splitMany :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
+    [A] spanByRolling :: Monad m => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (b, c)
+    [A] spanBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (b, c)
+    [A] span :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (b, c)
+    [A] some :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
+    [A] sequence :: Monad m => Stream m (Parser a m b) -> Fold m b c -> Parser a m c
+    [A] sepByAll :: Monad m => Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+    [A] sepBy1 :: Monad m => Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+    [A] sepBy :: Monad m => Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+    [A] satisfy :: Monad m => (a -> Bool) -> Parser a m a
+    [A] sampleFromthen :: Monad m => Int -> Int -> Fold m a b -> Parser a m b
+    [A] roundRobin :: t (Parser a m b) -> Fold m b c -> Parser a m c
+    [A] rmapM :: Monad m => (b -> m c) -> Parser a m b -> Parser a m c
+    [A] retryMaxTotal :: Int -> Parser a m b -> Fold m b c -> Parser a m c
+    [A] retryMaxSuccessive :: Int -> Parser a m b -> Fold m b c -> Parser a m c
+    [A] retry :: Parser a m b -> Parser a m b
+    [A] postscan :: Fold m a b -> Parser b m c -> Parser a m c
+    [A] peek :: Monad m => Parser a m a
+    [A] oneOf :: (Monad m, Eq a, Foldable f) => f a -> Parser a m a
+    [A] oneNotEq :: (Monad m, Eq a) => a -> Parser a m a
+    [A] oneEq :: (Monad m, Eq a) => a -> Parser a m a
+    [A] one :: Monad m => Parser a m a
+    [A] noneOf :: (Monad m, Eq a, Foldable f) => f a -> Parser a m a
+    [A] noErrorUnsafeSplit_ :: Monad m => Parser x m a -> Parser x m b -> Parser x m b
+    [A] noErrorUnsafeSplitWith :: Monad m => (a -> b -> c) -> Parser x m a -> Parser x m b -> Parser x m c
+    [A] noErrorUnsafeConcatMap :: Monad m => (b -> Parser a m c) -> Parser a m b -> Parser a m c
+    [A] maybe :: Monad m => (a -> Maybe b) -> Parser a m b
+    [A] manyTillP :: Parser a m b -> Parser a m x -> Parser b m c -> Parser a m c
+    [A] manyTill :: Monad m => Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+    [A] manyThen :: Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
+    [A] manyP :: Parser a m b -> Parser b m c -> Parser a m c
+    [A] many :: Monad m => Parser a m b -> Fold m b c -> Parser a m c
+    [A] makeIndexFilter :: (Fold m (s, a) b -> Parser a m b) -> (((s, a) -> Bool) -> Fold m (s, a) b -> Fold m (s, a) b) -> ((s, a) -> Bool) -> Fold m a b -> Parser a m b
+    [A] lookAhead :: Monad m => Parser a m b -> Parser a m b
+    [A] lmapM :: Monad m => (a -> m b) -> Parser b m r -> Parser a m r
+    [A] lmap :: (a -> b) -> Parser b m r -> Parser a m r
+    [A] listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser a m [a]
+    [A] listEq :: (Monad m, Eq a) => [a] -> Parser a m [a]
+    [A] indexed :: forall m a b. Monad m => Fold m (Int, a) b -> Parser a m b
+    [A] groupByRollingEither :: Monad m => (a -> a -> Bool) -> Fold m a b -> Fold m a c -> Parser a m (Either b c)
+    [A] groupByRolling :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
+    [A] groupBy :: Monad m => (a -> a -> Bool) -> Fold m a b -> Parser a m b
+    [A] fromPure :: Monad m => b -> Parser a m b
+    [A] fromFoldMaybe :: Monad m => String -> Fold m a (Maybe b) -> Parser a m b
+    [A] fromFold :: Monad m => Fold m a b -> Parser a m b
+    [A] fromEffect :: Monad m => m b -> Parser a m b
+    [A] filter :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
+    [A] extractStep :: Monad m => (s -> m (Step s1 b)) -> Step s b -> m (Step s1 b)
+    [A] eof :: Monad m => Parser a m ()
+    [A] either :: Monad m => (a -> Either String b) -> Parser a m b
+    [A] dropWhile :: Monad m => (a -> Bool) -> Parser a m ()
+    [A] dieM :: Monad m => m String -> Parser a m b
+    [A] die :: Monad m => String -> Parser a m b
+    [A] deintercalateAll :: Monad m => Parser a m x -> Parser a m y -> Fold m (Either x y) z -> Parser a m z
+    [A] deintercalate1 :: Monad m => Parser a m x -> Parser a m y -> Fold m (Either x y) z -> Parser a m z
+    [A] deintercalate :: Monad m => Parser a m x -> Parser a m y -> Fold m (Either x y) z -> Parser a m z
+    [A] countBetween :: Int -> Int -> Parser a m b -> Fold m b c -> Parser a m c
+    [A] count :: Int -> Parser a m b -> Fold m b c -> Parser a m c
+    [A] concatMap :: Monad m => (b -> Parser a m c) -> Parser a m b -> Parser a m c
+    [A] blockWithQuotes :: (Monad m, Eq a) => (a -> Bool) -> (a -> Bool) -> a -> a -> Fold m a b -> Parser a m b
+    [A] bimapOverrideCount :: Int -> (s -> s1) -> (b -> b1) -> Step s b -> Step s1 b1
+    [A] alt :: Monad m => Parser x m a -> Parser x m a -> Parser x m a
+[A] Streamly.Internal.Data.MutByteArray
+    [A] class Unbox a
+    [A] class SizeOfRep (f :: Type -> Type)
+    [A] class Serialize a
+    [A] TypeOfType
+        [A] UnitType :: Name -> TypeOfType
+        [A] TheType :: SimpleDataCon -> TypeOfType
+        [A] MultiType :: [SimpleDataCon] -> TypeOfType
+    [A] SimpleDataCon
+        [A] SimpleDataCon :: Name -> [Field] -> SimpleDataCon
+    [A] SerializeConfig
+        [A] [cfgRecordSyntaxWithHeader] :: SerializeConfig -> Bool
+        [A] [cfgInlineSize] :: SerializeConfig -> Maybe Inline
+        [A] [cfgInlineSerialize] :: SerializeConfig -> Maybe Inline
+        [A] [cfgInlineDeserialize] :: SerializeConfig -> Maybe Inline
+        [A] [cfgConstructorTagAsString] :: SerializeConfig -> Bool
+        [A] SerializeConfig :: Maybe Inline -> Maybe Inline -> Maybe Inline -> Bool -> Bool -> SerializeConfig
+    [A] PinnedState
+        [A] Unpinned :: PinnedState
+        [A] Pinned :: PinnedState
+    [A] MutByteArray
+        [A] MutByteArray :: MutableByteArray# RealWorld -> MutByteArray
+    [A] DataType
+        [A] [dtTvs] :: DataType -> [Name]
+        [A] [dtName] :: DataType -> Name
+        [A] [dtCxt] :: DataType -> Cxt
+        [A] [dtCons] :: DataType -> [DataCon]
+        [A] DataType :: Name -> [Name] -> Cxt -> [DataCon] -> DataType
+    [A] DataCon
+        [A] [dcTvs] :: DataCon -> [Name]
+        [A] [dcName] :: DataCon -> Name
+        [A] [dcFields] :: DataCon -> [(Maybe Name, Type)]
+        [A] [dcCxt] :: DataCon -> Cxt
+        [A] DataCon :: Name -> [Name] -> Cxt -> [(Maybe Name, Type)] -> DataCon
+    [A] BoundedPtr
+        [A] BoundedPtr :: MutByteArray -> Int -> Int -> BoundedPtr
+    [A] Streamly.Internal.Data.Serialize.Type.Serialize
+        [A] instance Streamly.Internal.Data.Serialize.Type.Serialize Streamly.Internal.Data.MutByteArray.LiftedInteger
+        [A] instance Streamly.Internal.Data.Serialize.Type.Serialize GHC.Num.Integer.Integer
+        [A] instance Streamly.Internal.Data.Serialize.Type.Serialize a => Streamly.Internal.Data.Serialize.Type.Serialize (GHC.Maybe.Maybe a)
+        [A] instance Streamly.Internal.Data.Serialize.Type.Serialize (Data.Proxy.Proxy a)
+        [A] instance (Streamly.Internal.Data.Serialize.Type.Serialize a, Streamly.Internal.Data.Serialize.Type.Serialize b) => Streamly.Internal.Data.Serialize.Type.Serialize (Data.Either.Either a b)
+    [A] Peeker
+        [A] Peeker :: Builder BoundedPtr IO a -> Peeker a
+    [A] type Field = (Maybe Name, Type)
+    [A] xorCmp :: [Word8] -> Name -> Name -> Q Exp
+    [A] wListToString :: [Word8] -> String
+    [A] w8_int :: Word8 -> Int
+    [A] w32_int :: Word32 -> Int
+    [A] unpin :: MutByteArray -> IO MutByteArray
+    [A] typeOfType :: Type -> [DataCon] -> TypeOfType
+    [A] skipByte :: Peeker ()
+    [A] sizeOfRep :: SizeOfRep f => f x -> Int
+    [A] sizeOfMutableByteArray :: MutByteArray -> IO Int
+    [A] sizeOf :: (Unbox a, SizeOfRep (Rep a)) => Proxy a -> Int
+    [A] simplifyDataCon :: DataCon -> SimpleDataCon
+    [A] serializeW8List :: Name -> Name -> [Word8] -> Q Exp
+    [A] serializeConfig :: SerializeConfig
+    [A] serializeAt :: Serialize a => Int -> MutByteArray -> a -> IO Int
+    [A] runPeeker :: Peeker a -> BoundedPtr -> IO a
+    [A] reifyDataType :: Name -> Q DataType
+    [A] readUnsafe :: Unbox a => Peeker a
+    [A] read :: Unbox a => Peeker a
+    [A] putSliceUnsafe :: MonadIO m => MutByteArray -> Int -> MutByteArray -> Int -> Int -> m ()
+    [A] pokeRep :: PokeRep f => f a -> BoundedPtr -> IO BoundedPtr
+    [A] pokeBoundedPtrUnsafe :: forall a. Unbox a => a -> BoundedPtr -> IO BoundedPtr
+    [A] pokeBoundedPtr :: forall a. Unbox a => a -> BoundedPtr -> IO BoundedPtr
+    [A] pokeAt :: (Unbox a, Generic a, PokeRep (Rep a)) => Int -> MutByteArray -> a -> IO ()
+    [A] pinnedNewAlignedBytes :: Int -> Int -> IO MutByteArray
+    [A] pinnedNew :: Int -> IO MutByteArray
+    [A] pinnedCloneSliceUnsafe :: MonadIO m => Int -> Int -> MutByteArray -> m MutByteArray
+    [A] pin :: MutByteArray -> IO MutByteArray
+    [A] peekRep :: PeekRep f => Peeker (f x)
+    [A] peekAt :: (Unbox a, Generic a, PeekRep (Rep a)) => Int -> MutByteArray -> IO a
+    [A] openConstructor :: Name -> Int -> Q Pat
+    [A] nil :: MutByteArray
+    [A] newBytesAs :: PinnedState -> Int -> IO MutByteArray
+    [A] new :: Int -> IO MutByteArray
+    [A] mkSerializeExprFields :: Name -> [Field] -> Q Exp
+    [A] mkRecSizeOfExpr :: SimpleDataCon -> Q Exp
+    [A] mkRecSerializeExpr :: Name -> SimpleDataCon -> Q Exp
+    [A] mkRecDeserializeExpr :: Name -> Name -> Name -> SimpleDataCon -> Q Exp
+    [A] mkFieldName :: Int -> Name
+    [A] mkDeserializeKeysDec :: Name -> Name -> SimpleDataCon -> Q [Dec]
+    [A] mkDeserializeExprOne :: Name -> SimpleDataCon -> Q Exp
+    [A] matchConstructor :: Name -> Int -> Q Exp -> Q Match
+    [A] makeN :: Int -> Name
+    [A] makeI :: Int -> Name
+    [A] makeA :: Int -> Name
+    [A] litProxy :: Unbox a => Proxy a -> Q Exp
+    [A] litIntegral :: Integral a => a -> Q Exp
+    [A] isUnitType :: [DataCon] -> Bool
+    [A] isRecordSyntax :: SimpleDataCon -> Bool
+    [A] isPinned :: MutByteArray -> Bool
+    [A] int_w8 :: Int -> Word8
+    [A] int_w32 :: Int -> Word32
+    [A] inlineSerializeAt :: Maybe Inline -> SerializeConfig -> SerializeConfig
+    [A] inlineDeserializeAt :: Maybe Inline -> SerializeConfig -> SerializeConfig
+    [A] inlineAddSizeTo :: Maybe Inline -> SerializeConfig -> SerializeConfig
+    [A] getMutableByteArray# :: MutByteArray -> MutableByteArray# RealWorld
+    [A] genericSizeOf :: forall a. SizeOfRep (Rep a) => Proxy a -> Int
+    [A] genericPokeByteIndex :: (Generic a, PokeRep (Rep a)) => MutByteArray -> Int -> a -> IO ()
+    [A] genericPeekByteIndex :: (Generic a, PeekRep (Rep a)) => MutByteArray -> Int -> IO a
+    [A] errorUnsupported :: String -> a
+    [A] errorUnimplemented :: a
+    [A] encodeRecordFields :: Bool -> SerializeConfig -> SerializeConfig
+    [A] encodeConstrNames :: Bool -> SerializeConfig -> SerializeConfig
+    [A] deserializeAt :: Serialize a => Int -> MutByteArray -> Int -> IO (Int, a)
+    [A] deriveUnbox :: Q [Dec] -> Q [Dec]
+    [A] deriveSerializeWith :: (SerializeConfig -> SerializeConfig) -> Q [Dec] -> Q [Dec]
+    [A] deriveSerialize :: Q [Dec] -> Q [Dec]
+    [A] conUpdateFuncDec :: Name -> [Field] -> Q [Dec]
+    [A] cloneSliceUnsafeAs :: MonadIO m => PinnedState -> Int -> Int -> MutByteArray -> m MutByteArray
+    [A] cloneSliceUnsafe :: MonadIO m => Int -> Int -> MutByteArray -> m MutByteArray
+    [A] c2w :: Char -> Word8
+    [A] asPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
+    [A] addSizeTo :: Serialize a => Int -> a -> Int
+    [A] _x :: Name
+    [A] _val :: Name
+    [A] _tag :: Name
+    [A] _initialOffset :: Name
+    [A] _endOffset :: Name
+    [A] _arr :: Name
+    [A] _acc :: Name
+[A] Streamly.Internal.Data.MutArray.Stream
+    [A] SpliceState
+        [A] SpliceYielding :: arr -> SpliceState s arr -> SpliceState s arr
+        [A] SpliceInitial :: s -> SpliceState s arr
+        [A] SpliceFinish :: SpliceState s arr
+        [A] SpliceBuffering :: s -> arr -> SpliceState s arr
+    [A] writeChunks :: (MonadIO m, Unbox a) => Int -> Fold m a (StreamK n (MutArray a))
+    [A] splitOn :: (MonadIO m, Unbox a) => (a -> Bool) -> MutArray a -> Stream m (MutArray a)
+    [A] pinnedChunksOf :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> Stream m (MutArray a)
+    [A] packArraysChunksOf :: (MonadIO m, Unbox a) => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
+    [A] lpackArraysChunksOf :: (MonadIO m, Unbox a) => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
+    [A] fromArrayStreamK :: (Unbox a, MonadIO m) => StreamK m (MutArray a) -> m (MutArray a)
+    [A] flattenArraysRev :: forall m a. (MonadIO m, Unbox a) => Stream m (MutArray a) -> Stream m a
+    [A] flattenArrays :: forall m a. (MonadIO m, Unbox a) => Stream m (MutArray a) -> Stream m a
+    [A] compactLE :: (MonadIO m, Unbox a) => Int -> Stream m (MutArray a) -> Stream m (Either ParseError (MutArray a))
+    [A] compactGE :: (MonadIO m, Unbox a) => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
+    [A] compactEQ :: Int -> Stream m (MutArray a) -> Stream m (MutArray a)
+    [A] compact :: (MonadIO m, Unbox a) => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
+    [A] chunksOf :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> Stream m (MutArray a)
+[A] Streamly.Internal.Data.MutArray.Generic
+    [A] MutArray
+        [A] [arrTrueLen] :: MutArray a -> {-# UNPACK #-} !Int
+        [A] [arrStart] :: MutArray a -> {-# UNPACK #-} !Int
+        [A] [arrLen] :: MutArray a -> {-# UNPACK #-} !Int
+        [A] [arrContents#] :: MutArray a -> MutableArray# RealWorld a
+        [A] MutArray :: MutableArray# RealWorld a -> {-# UNPACK #-} !Int -> {-# UNPACK #-} !Int -> {-# UNPACK #-} !Int -> MutArray a
+    [A] writeWith :: MonadIO m => Int -> Fold m a (MutArray a)
+    [A] writeNUnsafe :: MonadIO m => Int -> Fold m a (MutArray a)
+    [A] writeN :: MonadIO m => Int -> Fold m a (MutArray a)
+    [A] write :: MonadIO m => Fold m a (MutArray a)
+    [A] uninit :: MonadIO m => MutArray a -> Int -> m (MutArray a)
+    [A] toStreamK :: MonadIO m => MutArray a -> StreamK m a
+    [A] toList :: MonadIO m => MutArray a -> m [a]
+    [A] strip :: MonadIO m => (a -> Bool) -> MutArray a -> m (MutArray a)
+    [A] snocWith :: MonadIO m => (Int -> Int) -> MutArray a -> a -> m (MutArray a)
+    [A] snocUnsafe :: MonadIO m => MutArray a -> a -> m (MutArray a)
+    [A] snoc :: MonadIO m => MutArray a -> a -> m (MutArray a)
+    [A] realloc :: MonadIO m => Int -> MutArray a -> m (MutArray a)
+    [A] reader :: MonadIO m => Unfold m (MutArray a) a
+    [A] readRev :: MonadIO m => MutArray a -> Stream m a
+    [A] read :: MonadIO m => MutArray a -> Stream m a
+    [A] putSliceUnsafe :: MonadIO m => MutArray a -> Int -> MutArray a -> Int -> Int -> m ()
+    [A] putIndices :: MonadIO m => MutArray a -> Fold m (Int, a) ()
+    [A] putIndexUnsafe :: forall m a. MonadIO m => Int -> MutArray a -> a -> m ()
+    [A] putIndex :: MonadIO m => Int -> MutArray a -> a -> m ()
+    [A] producerWith :: Monad m => (forall b. IO b -> m b) -> Producer m (MutArray a) a
+    [A] producer :: MonadIO m => Producer m (MutArray a) a
+    [A] nil :: MonadIO m => m (MutArray a)
+    [A] new :: MonadIO m => Int -> m (MutArray a)
+    [A] modifyIndexUnsafe :: MonadIO m => Int -> MutArray a -> (a -> (a, b)) -> m b
+    [A] modifyIndex :: MonadIO m => Int -> MutArray a -> (a -> (a, b)) -> m b
+    [A] length :: MutArray a -> Int
+    [A] getSliceUnsafe :: Int -> Int -> MutArray a -> MutArray a
+    [A] getSlice :: Int -> Int -> MutArray a -> MutArray a
+    [A] getIndexUnsafeWith :: MonadIO m => MutableArray# RealWorld a -> Int -> m a
+    [A] getIndexUnsafe :: MonadIO m => Int -> MutArray a -> m a
+    [A] getIndex :: MonadIO m => Int -> MutArray a -> m (Maybe a)
+    [A] fromStreamN :: MonadIO m => Int -> Stream m a -> m (MutArray a)
+    [A] fromStream :: MonadIO m => Stream m a -> m (MutArray a)
+    [A] fromPureStream :: MonadIO m => Stream Identity a -> m (MutArray a)
+    [A] fromListN :: MonadIO m => Int -> [a] -> m (MutArray a)
+    [A] fromList :: MonadIO m => [a] -> m (MutArray a)
+    [A] eq :: (MonadIO m, Eq a) => MutArray a -> MutArray a -> m Bool
+    [A] cmp :: (MonadIO m, Ord a) => MutArray a -> MutArray a -> m Ordering
+    [A] clone :: MonadIO m => MutArray a -> m (MutArray a)
+    [A] chunksOf :: forall m a. MonadIO m => Int -> Stream m a -> Stream m (MutArray a)
+[A] Streamly.Internal.Data.MutArray
+    [A] MutByteArray
+    [A] MutArray
+        [A] [arrStart] :: MutArray a -> {-# UNPACK #-} !Int
+        [A] [arrEnd] :: MutArray a -> {-# UNPACK #-} !Int
+        [A] [arrContents] :: MutArray a -> {-# UNPACK #-} !MutByteArray
+        [A] [arrBound] :: MutArray a -> {-# UNPACK #-} !Int
+        [A] MutArray :: {-# UNPACK #-} !MutByteArray -> {-# UNPACK #-} !Int -> {-# UNPACK #-} !Int -> {-# UNPACK #-} !Int -> MutArray a
+    [A] IORef
+    [A] ArrayUnsafe
+        [A] ArrayUnsafe :: {-# UNPACK #-} !MutByteArray -> {-# UNPACK #-} !Int -> {-# UNPACK #-} !Int -> ArrayUnsafe a
+    [A] writeWith :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+    [A] writeRevN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+    [A] writeNWithUnsafe :: forall m a. (MonadIO m, Unbox a) => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
+    [A] writeNWith :: forall m a. (MonadIO m, Unbox a) => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
+    [A] writeNUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+    [A] writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+    [A] writeIORef :: Unbox a => IORef a -> a -> IO ()
+    [A] writeChunks :: (MonadIO m, Unbox a) => Int -> Fold m a (StreamK n (MutArray a))
+    [A] writeAppendWith :: forall m a. (MonadIO m, Unbox a) => (Int -> Int) -> m (MutArray a) -> Fold m a (MutArray a)
+    [A] writeAppendNUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a) -> Fold m a (MutArray a)
+    [A] writeAppendN :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a) -> Fold m a (MutArray a)
+    [A] writeAppend :: forall m a. (MonadIO m, Unbox a) => m (MutArray a) -> Fold m a (MutArray a)
+    [A] write :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
+    [A] unsafeSwapIndices :: forall m a. (MonadIO m, Unbox a) => Int -> Int -> MutArray a -> m ()
+    [A] unpin :: MutArray a -> IO (MutArray a)
+    [A] toStreamKWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> MutArray a -> StreamK m a
+    [A] toStreamKRevWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> MutArray a -> StreamK m a
+    [A] toStreamKRev :: forall m a. (MonadIO m, Unbox a) => MutArray a -> StreamK m a
+    [A] toStreamK :: forall m a. (MonadIO m, Unbox a) => MutArray a -> StreamK m a
+    [A] toStreamDWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> MutArray a -> Stream m a
+    [A] toStreamDRevWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> MutArray a -> Stream m a
+    [A] toList :: forall m a. (MonadIO m, Unbox a) => MutArray a -> m [a]
+    [A] swapIndices :: forall m a. (MonadIO m, Unbox a) => Int -> Int -> MutArray a -> m ()
+    [A] strip :: forall a m. (Unbox a, MonadIO m) => (a -> Bool) -> MutArray a -> m (MutArray a)
+    [A] splitOn :: (MonadIO m, Unbox a) => (a -> Bool) -> MutArray a -> Stream m (MutArray a)
+    [A] splitAt :: forall a. Unbox a => Int -> MutArray a -> (MutArray a, MutArray a)
+    [A] spliceWith :: forall m a. (MonadIO m, Unbox a) => (Int -> Int -> Int) -> MutArray a -> MutArray a -> m (MutArray a)
+    [A] spliceUnsafe :: MonadIO m => MutArray a -> MutArray a -> m (MutArray a)
+    [A] spliceExp :: (MonadIO m, Unbox a) => MutArray a -> MutArray a -> m (MutArray a)
+    [A] spliceCopy :: forall m a. MonadIO m => MutArray a -> MutArray a -> m (MutArray a)
+    [A] splice :: (MonadIO m, Unbox a) => MutArray a -> MutArray a -> m (MutArray a)
+    [A] snocWith :: forall m a. (MonadIO m, Unbox a) => (Int -> Int) -> MutArray a -> a -> m (MutArray a)
+    [A] snocUnsafe :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
+    [A] snocMay :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (Maybe (MutArray a))
+    [A] snocLinear :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
+    [A] snoc :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
+    [A] shuffleBy :: (a -> a -> m Bool) -> MutArray a -> MutArray a -> m ()
+    [A] roundUpToPower2 :: Int -> Int
+    [A] rightSize :: forall m a. (MonadIO m, Unbox a) => MutArray a -> m (MutArray a)
+    [A] reverse :: forall m a. (MonadIO m, Unbox a) => MutArray a -> m ()
+    [A] resizeExp :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (MutArray a)
+    [A] resize :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (MutArray a)
+    [A] realloc :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (MutArray a)
+    [A] readerRevWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> Unfold m (MutArray a) a
+    [A] readerRev :: forall m a. (MonadIO m, Unbox a) => Unfold m (MutArray a) a
+    [A] reader :: forall m a. (MonadIO m, Unbox a) => Unfold m (MutArray a) a
+    [A] readRev :: forall m a. (MonadIO m, Unbox a) => MutArray a -> Stream m a
+    [A] readIORef :: Unbox a => IORef a -> IO a
+    [A] read :: forall m a. (MonadIO m, Unbox a) => MutArray a -> Stream m a
+    [A] putIndices :: forall m a. (MonadIO m, Unbox a) => MutArray a -> Fold m (Int, a) ()
+    [A] putIndexUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> a -> m ()
+    [A] putIndex :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> a -> m ()
+    [A] producerWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> Producer m (MutArray a) a
+    [A] producer :: forall m a. (MonadIO m, Unbox a) => Producer m (MutArray a) a
+    [A] pollIntIORef :: (MonadIO m, Unbox a) => IORef a -> Stream m a
+    [A] pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+    [A] pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a) => Int -> Int -> Fold m a (MutArray a)
+    [A] pinnedWriteN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+    [A] pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
+    [A] pinnedNewBytes :: MonadIO m => Int -> m (MutArray a)
+    [A] pinnedNewAligned :: (MonadIO m, Unbox a) => Int -> Int -> m (MutArray a)
+    [A] pinnedNew :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
+    [A] pinnedFromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
+    [A] pinnedFromList :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
+    [A] pinnedClone :: MonadIO m => MutArray a -> m (MutArray a)
+    [A] pinnedChunksOf :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> Stream m (MutArray a)
+    [A] pin :: MutArray a -> IO (MutArray a)
+    [A] permute :: MutArray a -> m Bool
+    [A] partitionBy :: forall m a. (MonadIO m, Unbox a) => (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
+    [A] nil :: MutArray a
+    [A] newIORef :: forall a. Unbox a => a -> IO (IORef a)
+    [A] newArrayWith :: forall m a. (MonadIO m, Unbox a) => (Int -> Int -> m MutByteArray) -> Int -> Int -> m (MutArray a)
+    [A] new :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
+    [A] modifyIndices :: forall m a. (MonadIO m, Unbox a) => MutArray a -> (Int -> a -> a) -> Fold m Int ()
+    [A] modifyIndexUnsafe :: forall m a b. (MonadIO m, Unbox a) => Int -> MutArray a -> (a -> (a, b)) -> m b
+    [A] modifyIndex :: forall m a b. (MonadIO m, Unbox a) => Int -> MutArray a -> (a -> (a, b)) -> m b
+    [A] modifyIORef' :: Unbox a => IORef a -> (a -> a) -> IO ()
+    [A] modify :: forall m a. (MonadIO m, Unbox a) => MutArray a -> (a -> a) -> m ()
+    [A] mergeBy :: Int -> (MutArray a -> MutArray a -> m ()) -> MutArray a -> m ()
+    [A] memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
+    [A] memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
+    [A] length :: forall a. Unbox a => MutArray a -> Int
+    [A] isPinned :: MutArray a -> Bool
+    [A] getSlicesFromLen :: forall m a. (Monad m, Unbox a) => Int -> Int -> Unfold m (MutArray a) (MutArray a)
+    [A] getSliceUnsafe :: forall a. Unbox a => Int -> Int -> MutArray a -> MutArray a
+    [A] getSlice :: forall a. Unbox a => Int -> Int -> MutArray a -> MutArray a
+    [A] getIndicesD :: (Monad m, Unbox a) => (forall b. IO b -> m b) -> Stream m Int -> Unfold m (MutArray a) a
+    [A] getIndices :: (MonadIO m, Unbox a) => Stream m Int -> Unfold m (MutArray a) a
+    [A] getIndexUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m a
+    [A] getIndexRev :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m a
+    [A] getIndex :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (Maybe a)
+    [A] genSlicesFromLen :: forall m a. (Monad m, Unbox a) => Int -> Int -> Unfold m (MutArray a) (Int, Int)
+    [A] fromStreamDN :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> m (MutArray a)
+    [A] fromStreamD :: (MonadIO m, Unbox a) => Stream m a -> m (MutArray a)
+    [A] fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (MutArray a)
+    [A] fromPureStream :: (MonadIO m, Unbox a) => Stream Identity a -> m (MutArray a)
+    [A] fromListRevN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
+    [A] fromListRev :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
+    [A] fromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
+    [A] fromList :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
+    [A] fromArrayStreamK :: (Unbox a, MonadIO m) => StreamK m (MutArray a) -> m (MutArray a)
+    [A] foldr :: (MonadIO m, Unbox a) => (a -> b -> b) -> b -> MutArray a -> m b
+    [A] foldl' :: (MonadIO m, Unbox a) => (b -> a -> b) -> b -> MutArray a -> m b
+    [A] flattenArraysRev :: forall m a. (MonadIO m, Unbox a) => Stream m (MutArray a) -> Stream m a
+    [A] flattenArrays :: forall m a. (MonadIO m, Unbox a) => Stream m (MutArray a) -> Stream m a
+    [A] divideBy :: Int -> (MutArray a -> m (MutArray a, MutArray a)) -> MutArray a -> m ()
+    [A] cmp :: MonadIO m => MutArray a -> MutArray a -> m Ordering
+    [A] clone :: MonadIO m => MutArray a -> m (MutArray a)
+    [A] chunksOf :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> Stream m (MutArray a)
+    [A] castUnsafe :: MutArray a -> MutArray b
+    [A] cast :: forall a b. Unbox b => MutArray a -> Maybe (MutArray b)
+    [A] c_memchr :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
+    [A] bytesFree :: MutArray a -> Int
+    [A] byteLength :: MutArray a -> Int
+    [A] byteCapacity :: MutArray a -> Int
+    [A] bubble :: (MonadIO m, Unbox a) => (a -> a -> Ordering) -> MutArray a -> m ()
+    [A] breakOn :: MonadIO m => Word8 -> MutArray Word8 -> m (MutArray Word8, Maybe (MutArray Word8))
+    [A] blockSize :: Int
+    [A] asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+    [A] asBytes :: MutArray a -> MutArray Word8
+    [A] arrayChunkBytes :: Int
+    [A] allocBytesToElemCount :: Unbox a => a -> Int -> Int
+[C] Streamly.Internal.Data.IsMap
+    [A] mapTraverseWithKey :: (IsMap f, Applicative t) => (Key f -> a -> t b) -> f a -> t (f b)
+[R] Streamly.Internal.Data.IORef.Unboxed
+[R] Streamly.Internal.Data.Fold.Window
+[R] Streamly.Internal.Data.Fold.Type
+[R] Streamly.Internal.Data.Fold.Tee
+[R] Streamly.Internal.Data.Fold.Step
+[R] Streamly.Internal.Data.Fold.Container
+[D] Streamly.Internal.Data.Fold.Chunked
+[C] Streamly.Internal.Data.Fold
+    [A] ManyState
+    [C] Fold
+        [C] Fold
+            [O] Fold :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Fold m a b
+            [N] Fold :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> (s -> m b) -> Fold m a b
+    [A] windowSumInt :: forall m a. (Monad m, Integral a) => Fold m (a, Maybe a) a
+    [A] windowSum :: forall m a. (Monad m, Num a) => Fold m (a, Maybe a) a
+    [A] windowRollingMapM :: Monad m => (Maybe a -> a -> m (Maybe b)) -> Fold m (a, Maybe a) (Maybe b)
+    [A] windowRollingMap :: Monad m => (Maybe a -> a -> Maybe b) -> Fold m (a, Maybe a) (Maybe b)
+    [A] windowRange :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe (a, a))
+    [A] windowPowerSumFrac :: (Monad m, Floating a) => a -> Fold m (a, Maybe a) a
+    [A] windowPowerSum :: (Monad m, Num a) => Int -> Fold m (a, Maybe a) a
+    [A] windowMinimum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
+    [A] windowMean :: forall m a. (Monad m, Fractional a) => Fold m (a, Maybe a) a
+    [A] windowMaximum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
+    [A] windowLmap :: (c -> a) -> Fold m (a, Maybe a) b -> Fold m (c, Maybe c) b
+    [A] windowLength :: (Monad m, Num b) => Fold m (a, Maybe a) b
+    [A] toSet :: (Monad m, Ord a) => Fold m a (Set a)
+    [A] toMapIO :: (MonadIO m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
+    [A] toMap :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
+    [A] toIntSet :: Monad m => Fold m Int IntSet
+    [A] toContainerIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) => (a -> Key f) -> Fold m a b -> Fold m a (f b)
+    [A] toContainer :: (Monad m, IsMap f, Traversable f, Ord (Key f)) => (a -> Key f) -> Fold m a b -> Fold m a (f b)
+    [A] nubInt :: Monad m => Fold m Int (Maybe Int)
+    [A] nub :: (Monad m, Ord a) => Fold m a (Maybe a)
+    [A] mapMStep :: Applicative m => (a -> m b) -> Step s a -> m (Step s b)
+    [A] kvToMap :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
+    [A] frequency :: (Monad m, Ord a) => Fold m a (Map a Int)
+    [A] demuxToMapIO :: (MonadIO m, Ord k) => (a -> k) -> (a -> m (Fold m a b)) -> Fold m a (Map k b)
+    [A] demuxToMap :: (Monad m, Ord k) => (a -> k) -> (a -> m (Fold m a b)) -> Fold m a (Map k b)
+    [A] demuxToContainerIO :: (MonadIO m, IsMap f, Traversable f) => (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
+    [A] demuxToContainer :: (Monad m, IsMap f, Traversable f) => (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
+    [A] demuxKvToMap :: (Monad m, Ord k) => (k -> m (Fold m a b)) -> Fold m (k, a) (Map k b)
+    [A] demuxKvToContainer :: (Monad m, IsMap f, Traversable f) => (Key f -> m (Fold m a b)) -> Fold m (Key f, a) (f b)
+    [A] demuxIO :: (MonadIO m, Ord k) => (a -> k) -> (a -> m (Fold m a b)) -> Fold m a (m (Map k b), Maybe (k, b))
+    [A] demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) => (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (m (f b), Maybe (Key f, b))
+    [A] demuxGeneric :: (Monad m, IsMap f, Traversable f) => (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (m (f b), Maybe (Key f, b))
+    [A] demux :: (Monad m, Ord k) => (a -> k) -> (a -> m (Fold m a b)) -> Fold m a (m (Map k b), Maybe (k, b))
+    [A] cumulative :: Fold m (a, Maybe a) b -> Fold m a b
+    [A] countDistinctInt :: Monad m => Fold m Int Int
+    [A] countDistinct :: (Monad m, Ord a) => Fold m a Int
+    [A] classifyIO :: (MonadIO m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
+    [A] classifyGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) => (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
+    [A] classifyGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) => (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
+    [A] classify :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
+    [A] chainStepM :: Applicative m => (s1 -> m s2) -> (a -> m (Step s2 b)) -> Step s1 a -> m (Step s2 b)
+[C] Streamly.Internal.Data.Builder
+    [C] Builder
+        [C] Builder
+            [O] Builder :: (s -> m (s, a)) -> Builder s m a
+            [N] Builder :: (s -> m (a, s)) -> Builder s m a
+[A] Streamly.Internal.Data.Binary.Stream
+    [A] class ToBytes a
+    [A] word8 :: Applicative m => Word8 -> Stream m Word8
+    [A] word64le :: Monad m => Word64 -> Stream m Word8
+    [A] word64host :: Monad m => Word64 -> Stream m Word8
+    [A] word64be :: Monad m => Word64 -> Stream m Word8
+    [A] word32le :: Monad m => Word32 -> Stream m Word8
+    [A] word32be :: Monad m => Word32 -> Stream m Word8
+    [A] word16le :: Monad m => Word16 -> Stream m Word8
+    [A] word16be :: Monad m => Word16 -> Stream m Word8
+    [A] unit :: Applicative m => Stream m Word8
+    [A] toBytes :: ToBytes a => a -> Stream m Word8
+    [A] ordering :: Applicative m => Ordering -> Stream m Word8
+    [A] int8 :: Applicative m => Int8 -> Stream m Word8
+    [A] int64le :: Monad m => Int64 -> Stream m Word8
+    [A] int64be :: Monad m => Int64 -> Stream m Word8
+    [A] int32le :: Monad m => Int32 -> Stream m Word8
+    [A] int32be :: Monad m => Int32 -> Stream m Word8
+    [A] int16le :: Monad m => Int16 -> Stream m Word8
+    [A] int16be :: Monad m => Int16 -> Stream m Word8
+    [A] float32le :: Monad m => Float -> Stream m Word8
+    [A] float32be :: Monad m => Float -> Stream m Word8
+    [A] double64le :: Monad m => Double -> Stream m Word8
+    [A] double64be :: Monad m => Double -> Stream m Word8
+    [A] charUtf8 :: Monad m => Char -> Stream m Word8
+    [A] charLatin1 :: Applicative m => Char -> Stream m Word8
+    [A] bool :: Applicative m => Bool -> Stream m Word8
+[A] Streamly.Internal.Data.Binary.Parser
+    [A] class FromBytes a
+    [A] word8 :: Monad m => Parser Word8 m Word8
+    [A] word64le :: Monad m => Parser Word8 m Word64
+    [A] word64host :: MonadIO m => Parser Word8 m Word64
+    [A] word64be :: Monad m => Parser Word8 m Word64
+    [A] word32le :: Monad m => Parser Word8 m Word32
+    [A] word32be :: Monad m => Parser Word8 m Word32
+    [A] word16le :: Monad m => Parser Word8 m Word16
+    [A] word16be :: Monad m => Parser Word8 m Word16
+    [A] unit :: Monad m => Parser Word8 m ()
+    [A] ordering :: Monad m => Parser Word8 m Ordering
+    [A] int8 :: Monad m => Parser Word8 m Int8
+    [A] int64le :: Monad m => Parser Word8 m Int64
+    [A] int64be :: Monad m => Parser Word8 m Int64
+    [A] int32le :: Monad m => Parser Word8 m Int32
+    [A] int32be :: Monad m => Parser Word8 m Int32
+    [A] int16le :: Monad m => Parser Word8 m Int16
+    [A] int16be :: Monad m => Parser Word8 m Int16
+    [A] fromBytes :: FromBytes a => Parser Word8 m a
+    [A] float32le :: MonadIO m => Parser Word8 m Float
+    [A] float32be :: MonadIO m => Parser Word8 m Float
+    [A] eqWord8 :: Monad m => Word8 -> Parser Word8 m Word8
+    [A] double64le :: MonadIO m => Parser Word8 m Double
+    [A] double64be :: MonadIO m => Parser Word8 m Double
+    [A] charLatin1 :: Monad m => Parser Word8 m Char
+    [A] bool :: Monad m => Parser Word8 m Bool
+[R] Streamly.Internal.Data.Array.Type
+[A] Streamly.Internal.Data.Array.Stream
+    [A] unlines :: forall m a. (MonadIO m, Unbox a) => a -> Stream m (Array a) -> Stream m a
+    [A] toArray :: (MonadIO m, Unbox a) => Stream m (Array a) -> m (Array a)
+    [A] splitOnSuffix :: MonadIO m => Word8 -> Stream m (Array Word8) -> Stream m (Array Word8)
+    [A] splitOn :: MonadIO m => Word8 -> Stream m (Array Word8) -> Stream m (Array Word8)
+    [A] runArrayParserDBreak :: forall m a b. (MonadIO m, Unbox a) => Parser (Array a) m b -> Stream m (Array a) -> m (Either ParseError b, Stream m (Array a))
+    [A] runArrayFoldMany :: (Monad m, Unbox a) => ChunkFold m a b -> StreamK m (Array a) -> StreamK m (Either ParseError b)
+    [A] runArrayFoldBreak :: (MonadIO m, Unbox a) => ChunkFold m a b -> StreamK m (Array a) -> m (Either ParseError b, StreamK m (Array a))
+    [A] runArrayFold :: (MonadIO m, Unbox a) => ChunkFold m a b -> StreamK m (Array a) -> m (Either ParseError b)
+    [A] pinnedChunksOf :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> Stream m (Array a)
+    [A] parseChunks :: (Monad m, Unbox a) => ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
+    [A] parseBreakChunks :: (Monad m, Unbox a) => ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b, StreamK m (Array a))
+    [A] parseBreak :: (MonadIO m, Unbox a) => Parser a m b -> StreamK m (Array a) -> m (Either ParseError b, StreamK m (Array a))
+    [A] lpackArraysChunksOf :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) () -> Fold m (Array a) ()
+    [A] interposeSuffix :: (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
+    [A] interpose :: (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
+    [A] intercalateSuffix :: (Monad m, Unbox a) => Array a -> Stream m (Array a) -> Stream m a
+    [A] foldBreakD :: forall m a b. (MonadIO m, Unbox a) => Fold m a b -> Stream m (Array a) -> m (b, Stream m (Array a))
+    [A] foldBreak :: (MonadIO m, Unbox a) => Fold m a b -> StreamK m (Array a) -> m (b, StreamK m (Array a))
+    [A] flattenArraysRev :: forall m a. (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
+    [A] flattenArrays :: forall m a. (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
+    [A] concatRev :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
+    [A] concat :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
+    [A] compact :: (MonadIO m, Unbox a) => Int -> Stream m (Array a) -> Stream m (Array a)
+    [A] chunksOf :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> Stream m (Array a)
+    [A] bufferChunks :: (MonadIO m, Unbox a) => Stream m a -> m (StreamK m (Array a))
+[R] Streamly.Internal.Data.Array.Mut.Type
+[R] Streamly.Internal.Data.Array.Mut.Stream
+[R] Streamly.Internal.Data.Array.Mut
+[R] Streamly.Internal.Data.Array.Generic.Mut.Type
+[C] Streamly.Internal.Data.Array.Generic
+    [A] getIndex :: Int -> Array a -> Maybe a
+    [A] fromPureStream :: Stream Identity a -> Array a
+    [A] fromByteStr# :: Addr# -> Array Word8
+    [A] chunksOf :: forall m a. MonadIO m => Int -> Stream m a -> Stream m (Array a)
+[C] Streamly.Internal.Data.Array
+    [A] ArrayUnsafe
+        [A] ArrayUnsafe :: {-# UNPACK #-} !MutByteArray -> {-# UNPACK #-} !Int -> {-# UNPACK #-} !Int -> ArrayUnsafe a
+    [C] Array
+        [A] [arrStart] :: Array a -> {-# UNPACK #-} !Int
+        [A] [arrEnd] :: Array a -> {-# UNPACK #-} !Int
+        [A] [arrContents] :: Array a -> {-# UNPACK #-} !MutByteArray
+        [A] Array :: {-# UNPACK #-} !MutByteArray -> {-# UNPACK #-} !Int -> {-# UNPACK #-} !Int -> Array a
+    [A] writeWith :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [A] writeNUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [R] writeNAligned :: forall m a. (MonadIO m, Unbox a) => Int -> Int -> Fold m a (Array a)
+    [A] unsafeMakePure :: Monad m => Fold IO a b -> Fold m a b
+    [A] unsafeIndexIO :: forall a. Unbox a => Int -> Array a -> IO a
+    [D] unsafeIndex :: forall a. Unbox a => Int -> Array a -> a
+    [A] unsafeFreezeWithShrink :: Unbox a => MutArray a -> Array a
+    [A] unpin :: Array a -> IO (Array a)
+    [A] toStreamKRev :: forall m a. (Monad m, Unbox a) => Array a -> StreamK m a
+    [A] toStreamK :: forall m a. (Monad m, Unbox a) => Array a -> StreamK m a
+    [A] toStreamDRev :: forall m a. (Monad m, Unbox a) => Array a -> Stream m a
+    [A] toStreamD :: forall m a. (Monad m, Unbox a) => Array a -> Stream m a
+    [A] splitAt :: Unbox a => Int -> Array a -> (Array a, Array a)
+    [A] splice :: (MonadIO m, Unbox a) => Array a -> Array a -> m (Array a)
+    [A] serialize :: Serialize a => a -> Array Word8
+    [A] pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [A] pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a) => Int -> Int -> Fold m a (Array a)
+    [A] pinnedWriteN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [A] pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
+    [A] pinnedSerialize :: Serialize a => a -> Array Word8
+    [A] pinnedFromListN :: Unbox a => Int -> [a] -> Array a
+    [A] pinnedFromList :: Unbox a => [a] -> Array a
+    [A] pinnedClone :: MonadIO m => Array a -> m (Array a)
+    [A] pinnedChunksOf :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> Stream m (Array a)
+    [A] pin :: Array a -> IO (Array a)
+    [A] nil :: Array a
+    [A] isPinned :: Array a -> Bool
+    [A] getIndexUnsafe :: forall a. Unbox a => Int -> Array a -> a
+    [A] fromStreamDN :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> m (Array a)
+    [A] fromStreamD :: forall m a. (MonadIO m, Unbox a) => Stream m a -> m (Array a)
+    [A] fromPureStream :: Unbox a => Stream Identity a -> Array a
+    [A] fromListRevN :: Unbox a => Int -> [a] -> Array a
+    [A] fromListRev :: Unbox a => [a] -> Array a
+    [A] fromByteStr# :: Addr# -> Array Word8
+    [A] foldr :: Unbox a => (a -> b -> b) -> b -> Array a -> b
+    [A] foldl' :: forall a b. Unbox a => (b -> a -> b) -> b -> Array a -> b
+    [A] flattenArraysRev :: forall m a. (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
+    [A] flattenArrays :: forall m a. (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
+    [A] encodeAs :: forall a. Serialize a => PinnedState -> a -> Array Word8
+    [A] deserialize :: Serialize a => Array Word8 -> a
+    [A] clone :: MonadIO m => Array a -> m (Array a)
+    [A] chunksOf :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m a -> Stream m (Array a)
+    [A] byteLength :: Array a -> Int
+    [A] bufferChunks :: (MonadIO m, Unbox a) => Stream m a -> m (StreamK m (Array a))
+    [A] breakOn :: MonadIO m => Word8 -> Array Word8 -> m (Array Word8, Maybe (Array Word8))
