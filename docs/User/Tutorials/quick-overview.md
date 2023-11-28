@@ -44,8 +44,6 @@ The meaning of these types are:
   `a` in the IO Monad.
 * A `Fold IO a b` is a representation of a function that converts a stream of
   type `a` to a final accumulator of type `b` in the IO Monad.
-* An `Unfold IO a b` is a representation of a function that converts a seed
-  value of type `a` into a stream of values of type `b` in the IO Monad.
 
 ## The Examples
 
@@ -219,7 +217,7 @@ import qualified Streamly.Unicode.Stream as Unicode
 
 countArray :: Array Word8 -> IO Counts
 countArray arr =
-      Stream.unfold Array.reader arr                      -- Stream IO Word8
+      Array.read arr                                      -- Stream IO Word8
     & Unicode.decodeLatin1                                -- Stream IO Char
     & Stream.fold (Fold.foldl' count (Counts 0 0 0 True)) -- IO Counts
 ```
@@ -335,9 +333,9 @@ fetch w = threadDelay 1000000 >> return (w,w)
 -- connection is closed.
 lookupWords :: Socket -> IO ()
 lookupWords sk =
-      Stream.unfold Socket.reader sk             -- Stream IO Word8
+      Socket.read sk                             -- Stream IO Word8
     & Unicode.decodeLatin1                       -- Stream IO Char
-    & Stream.parseMany word                      -- Stream IO String
+    & Stream.wordsBy isSpace Fold.toList         -- Stream IO String
     & Stream.parMapM cfg fetch                   -- Stream IO (String, String)
     & fmap show                                  -- Stream IO String
     & Stream.intersperse "\n"                    -- Stream IO String
@@ -346,7 +344,6 @@ lookupWords sk =
 
     where
 
-    word = Parser.wordBy isSpace Fold.toList
     cfg = Stream.ordered True
 
 serve :: Socket -> IO ()
@@ -357,9 +354,9 @@ serve sk = finally (lookupWords sk) (close sk)
 -- "nc" as a client to try it out.
 main :: IO ()
 main =
-      Stream.unfold TCP.acceptorOnPort 8091 -- Stream IO Socket
-    & Stream.parMapM id serve               -- Stream IO ()
-    & Stream.fold Fold.drain                -- IO ()
+      TCP.accept 8091         -- Stream IO Socket
+    & Stream.parMapM id serve -- Stream IO ()
+    & Stream.fold Fold.drain  -- IO ()
 ```
 
 ### Merging Incoming Streams
@@ -379,7 +376,6 @@ including the imports that we have omitted below.
 import Streamly.Data.Stream (Stream)
 import System.IO (IOMode(AppendMode), Handle, withFile)
 
-import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Network.Socket as Socket
 import qualified Streamly.FileSystem.Handle as Handle
 
@@ -388,9 +384,9 @@ import qualified Streamly.FileSystem.Handle as Handle
 -- buffering for safety.
 readLines :: Socket -> Stream IO (Array Char)
 readLines sk =
-    Stream.unfold Socket.reader sk -- Stream IO Word8
-  & Unicode.decodeLatin1           -- Stream IO Char
-  & Stream.foldMany line           -- Stream IO (Array Char)
+    Socket.read sk       -- Stream IO Word8
+  & Unicode.decodeLatin1 -- Stream IO Char
+  & Stream.foldMany line -- Stream IO (Array Char)
 
   where
 
@@ -405,7 +401,7 @@ recv sk = Stream.finallyIO (close sk) (readLines sk)
 -- streams at line boundaries and writes the merged stream to a file.
 server :: Handle -> IO ()
 server file =
-      Stream.unfold TCP.acceptorOnPort 8090        -- Stream IO Socket
+      TCP.accept 8090                              -- Stream IO Socket
     & Stream.parConcatMap (Stream.eager True) recv -- Stream IO (Array Char)
     & Stream.unfoldMany Array.reader               -- Stream IO Char
     & Unicode.encodeLatin1                         -- Stream IO Word8
