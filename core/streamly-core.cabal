@@ -4,7 +4,7 @@ version:            0.2.0
 synopsis:           Streaming, parsers, arrays and more
 description:
   For upgrading to streamly-0.9.0+ please read the
-  <https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/ProjectRelated/Upgrading-0.8-to-0.9.md Streamly-0.9.0 upgrade guide>.
+  <https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/Project/Upgrading-0.8-to-0.9.md Streamly-0.9.0 upgrade guide>.
   .
   Streamly consists of two packages: "streamly-core" and "streamly".
   <https://hackage.haskell.org/package/streamly-core streamly-core>
