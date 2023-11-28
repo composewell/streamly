@@ -2,7 +2,7 @@
 
 Also see the detailed changelog describing all the changes in the release:
 
-* [0.9.0 API Changelog](/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt) or
+* [0.9.0 API Changelog](/docs/User/Project/ApiChangelogs/0.8.3-0.9.0.txt) or
 * [0.9.0 API Changelog](https://hackage.haskell.org/package/streamly-0.9.0/docs/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt)
 
 `Streamly.Prelude` module has been deprecated, equivalent
