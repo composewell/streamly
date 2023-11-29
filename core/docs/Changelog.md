@@ -2,7 +2,7 @@
 
 ## 0.2.0 (Nov 2023)
 
-See [0.1.0-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.1.0-0.2.0.txt)
+See [0.1.0-0.2.0 API Changelog](https://github.com/composewell/streamly/blob/streamly-0.10.0/core/docs/ApiChangelogs/0.1.0-0.2.0.txt)
 for a full list of API changes in this release. Only a few significant
 changes are mentioned here.
 
@@ -33,7 +33,7 @@ changes are mentioned here.
 
 ### Deprecations
 
-See [0.1.0-0.2.0 API Changelog](/core/docs/ApiChangelogs/0.1.0-0.2.0.txt)
+See [0.1.0-0.2.0 API Changelog](https://github.com/composewell/streamly/blob/streamly-0.10.0/core/docs/ApiChangelogs/0.1.0-0.2.0.txt)
 for a full list of deprecations.
 
 ### Internal API Changes
@@ -53,7 +53,7 @@ for a full list of deprecations.
 
 ## 0.1.0 (March 2023)
 
-Also see [streamly-core-0.1.0 API Changelog](/core/docs/ApiChangelogs/0.1.0.txt) or
+Also see [streamly-core-0.1.0 API Changelog](https://github.com/composewell/streamly/blob/streamly-0.10.0/core/docs/ApiChangelogs/0.1.0.txt) or
 https://hackage.haskell.org/package/streamly-core-0.1.0/docs/docs/ApiChangelogs/0.1.0.txt
 
 `streamly` package is split into two packages, (1) `streamly-core` that

@@ -4,7 +4,8 @@
 
 ## 0.10.0 (Nov 2023)
 
-See [0.9.0-0.10.0 API Changelog](/docs/User/Project/ApiChangelogs/0.9.0-0.10.0.txt)
+See
+[0.9.0-0.10.0 API Changelog](https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/Project/ApiChangelogs/0.9.0-0.10.0.txt)
 for a full list of API changes in this release. Only a few significant
 changes are mentioned here.  For changes to the core functionality
 please see the changelog of the `streamly-core` package.
@@ -26,11 +27,11 @@ please see the changelog of the `streamly-core` package.
 
 Also see the following:
 
-* [streamly-0.9.0 Upgrade Guide](/docs/User/Project/Upgrading-0.8-to-0.9.md) or
+* [streamly-0.9.0 Upgrade Guide](https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/Project/Upgrading-0.8-to-0.9.md) or
   https://hackage.haskell.org/package/streamly-0.9.0/docs/docs/User/ProjectRelated/Upgrading.md
-* [streamly-0.9.0 API Changelog](/docs/User/Project/ApiChangelogs/0.8.3-0.9.0.txt) or
+* [streamly-0.9.0 API Changelog](https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/Project/ApiChangelogs/0.8.3-0.9.0.txt) or
   https://hackage.haskell.org/package/streamly-0.9.0/docs/docs/User/ProjectRelated/ApiChangelogs/0.8.3-0.9.0.txt
-* [streamly-core-0.1.0 API Changelog](/core/docs/ApiChangelogs/0.1.0.txt) or
+* [streamly-core-0.1.0 API Changelog](https://github.com/composewell/streamly/blob/streamly-0.10.0/core/docs/ApiChangelogs/0.1.0.txt) or
   https://hackage.haskell.org/package/streamly-core-0.1.0/docs/docs/ApiChangelogs/0.1.0.txt
 
 ### Package split
@@ -77,8 +78,9 @@ added which provide a CPS based stream implementation. `Stream` and
 `StreamK` types can be easily interconverted.
 
 The old code can be adapted to use the new modules with some changes.
-See the [upgrade guide](/docs/User/Project/Upgrading-0.8-to-0.9.md) for more
-details on how to adapt your existing code to the new release.
+See the 
+[streamly-0.9.0 Upgrade Guide](https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/Project/Upgrading-0.8-to-0.9.md)
+for more details on how to adapt your existing code to the new release.
 
 ### Enhancements
 
