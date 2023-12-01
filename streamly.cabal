@@ -1,6 +1,6 @@
 cabal-version:      2.2
 name:               streamly
-version:            0.10.0
+version:            0.11.0
 synopsis:           Streaming, dataflow programming and declarative concurrency
 description:
   For upgrading to streamly-0.9.0+ please read the
@@ -509,7 +509,7 @@ library
                      , template-haskell  >= 2.14  && < 2.22
 
                      -- The core streamly package
-                     , streamly-core     == 0.2.0
+                     , streamly-core     == 0.3.0
 
                      , hashable          >= 1.3   && < 1.5
                      , unordered-containers >= 0.2 && < 0.3

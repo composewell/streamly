@@ -2,6 +2,8 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
+## Unreleased
+
 ## 0.10.0 (Nov 2023)
 
 See
@@ -78,7 +80,7 @@ added which provide a CPS based stream implementation. `Stream` and
 `StreamK` types can be easily interconverted.
 
 The old code can be adapted to use the new modules with some changes.
-See the 
+See the
 [streamly-0.9.0 Upgrade Guide](https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/Project/Upgrading-0.8-to-0.9.md)
 for more details on how to adapt your existing code to the new release.
 
