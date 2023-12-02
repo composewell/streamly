@@ -20,6 +20,12 @@ module Streamly.Test.Data.Unbox (main) where
 -- Imports
 --------------------------------------------------------------------------------
 
+#ifdef USE_SERIALIZE
+import Data.Foldable (forM_)
+import Data.Word (Word8)
+import qualified Streamly.Internal.Data.Array as Array
+#endif
+
 import Data.Complex (Complex ((:+)))
 import Data.Functor.Const (Const (..))
 import Data.Functor.Identity (Identity (..))
@@ -201,6 +207,19 @@ testSerialization val = do
 #endif
     arr <- MBA.new len
     nextOff <- POKE(0, arr, val)
+#ifdef USE_SERIALIZE
+    arr2 <- MBA.new len
+    -- Re-initialize the array with random value
+    forM_ [0..(len - 1)] $ \i -> POKE(i, arr2, (8 :: Word8))
+    _ <- POKE(0, arr2, val)
+    let slice1 = Array.Array arr 0 len :: Array.Array Word8
+        slice2 = Array.Array arr2 0 len :: Array.Array Word8
+    -- The serialized representation should be the same
+    slice1 `shouldBe` slice2
+    -- The serialized representation is not the same for "Unbox" as the Array
+    -- might not be fully utilized in case of "Unbox". This is because different
+    -- constructors might have different lengths.
+#endif
     (nextOff1, val1) <- PEEK(0, arr, len)
     val1 `shouldBe` val
     nextOff1 `shouldBe` len
