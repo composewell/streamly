@@ -21,6 +21,8 @@ module Streamly.Test.Data.Serialize (main) where
 -- Imports
 --------------------------------------------------------------------------------
 
+import Data.Foldable (forM_)
+import Data.Word (Word8)
 import System.Random (randomRIO)
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
 import GHC.Generics (Generic)
@@ -170,8 +172,18 @@ poke val = do
         serStartOff = randomOff
         serEndOff = randomOff + sz
     arr <- Serialize.new arrSize
+    arr2 <- Serialize.new arrSize
+    -- Re-initialize the array with random value
+    forM_ [0..(arrSize - 1)] $ \i -> Serialize.pokeAt i arr2 (8 :: Word8)
 
     off1 <- Serialize.serializeAt serStartOff arr val
+    off2 <- Serialize.serializeAt 0 arr2 val
+
+    let slice1 = Array.Array arr serStartOff off1 :: Array.Array Word8
+        slice2 = Array.Array arr2 0 off2 :: Array.Array Word8
+    -- The serialized representation should be the same
+    slice1 `shouldBe` slice2
+
     off1 `shouldBe` serEndOff
     pure (arr, serStartOff, serEndOff)
 
