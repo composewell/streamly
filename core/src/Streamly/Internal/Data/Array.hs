@@ -564,6 +564,12 @@ encodeAs ps a =
         assertM(len == off)
         pure $ Array mbarr 0 off
 
+-- XXX The "Encoded Equivality" property is not (cannot be) true for Unbox.
+
+-- |
+-- Properties:
+-- 1. Identity: @deserialize . serialize == id@
+-- 2. Encoded Equivality: @serialize a == serialize a@
 {-# INLINE serialize #-}
 serialize :: Serialize a => a -> Array Word8
 serialize = encodeAs Unpinned
@@ -571,6 +577,10 @@ serialize = encodeAs Unpinned
 -- | Serialize a Haskell type to a pinned byte array. The array is allocated
 -- using pinned memory so that it can be used directly in OS APIs for writing
 -- to file or sending over the network.
+--
+-- Properties:
+-- 1. Identity: @deserialize . pinnedSerialize == id@
+-- 2. Encoded Equivality: @pinnedSerialize a == serialize a@
 {-# INLINE pinnedSerialize #-}
 pinnedSerialize :: Serialize a => a -> Array Word8
 pinnedSerialize = encodeAs Pinned
