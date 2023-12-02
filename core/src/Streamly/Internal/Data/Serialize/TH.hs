@@ -217,6 +217,7 @@ mkDeserializeExpr True False headTy tyOfTy =
 mkDeserializeExpr False False headTy tyOfTy =
     case tyOfTy of
         -- Unit constructor
+        -- XXX Should we peek and check if the byte value is 0?
         UnitType cname ->
             [|pure ($(varE _initialOffset) + 1, $(conE cname))|]
         -- Product type
@@ -341,7 +342,8 @@ mkSerializeExpr True False tyOfTy =
 mkSerializeExpr False False tyOfTy =
     case tyOfTy of
         -- Unit type
-        UnitType _ -> [|pure ($(varE _initialOffset) + 1)|]
+        UnitType _ ->
+            [|serializeAt $(varE _initialOffset) $(varE _arr) (0 :: Word8)|]
         -- Product type
         (TheType (SimpleDataCon cname fields)) ->
             letE
@@ -395,7 +397,7 @@ mkSerializeDec (SerializeConfig {..}) headTy cons = do
                   'serializeAt
                   [ Clause
                         (if isUnitType cons && not cfgConstructorTagAsString
-                             then [VarP _initialOffset, WildP, WildP]
+                             then [VarP _initialOffset, VarP _arr, WildP]
                              else [VarP _initialOffset, VarP _arr, VarP _val])
                         (NormalB pokeMethod)
                         []
