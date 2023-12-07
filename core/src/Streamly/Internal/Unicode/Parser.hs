@@ -300,6 +300,9 @@ data ScientificParseState
   | SPExponentWithSign !Multiplier !Number !DecimalPlaces !PowerMultiplier
   | SPAfterExponent !Multiplier !Number !DecimalPlaces !PowerMultiplier !Power
 
+-- XXX See https://hackage.haskell.org/package/integer-conversion for large
+-- integers.
+
 -- | A generic parser for scientific notation of numbers. Returns (mantissa,
 -- exponent) tuple. The result can be mapped to 'Double' or any other number
 -- representation e.g. @Scientific@.
