@@ -427,9 +427,11 @@ library
                      , Streamly.Internal.FileSystem.FD
 
     if flag(dev)
-        exposed-modules:  Streamly.Data.SmallArray
-                        , Streamly.Internal.Data.SmallArray
-        other-modules:  Streamly.Internal.Data.SmallArray.Type
+        exposed-modules: Streamly.Internal.Data.SmallArray
+        -- Exposed modules show up on hackage irrespective of the flag, so keep
+        -- it hidden.
+        other-modules:  Streamly.Data.SmallArray
+                      , Streamly.Internal.Data.SmallArray.Type
 
     if os(windows)
           exposed-modules: Streamly.Internal.FileSystem.Event.Windows
