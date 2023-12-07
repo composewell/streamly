@@ -6,7 +6,9 @@ description:
   For upgrading to streamly-0.9.0+ please read the
   <https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/Project/Upgrading-0.8-to-0.9.md Streamly-0.9.0 upgrade guide>.
   .
-  Streamly comprises two packages, the
+  Streamly is a standard library for Haskell that focuses on C-like
+  performance, modular combinators, and streaming data flow model.
+  Streamly consists of two packages, the
   <https://hackage.haskell.org/package/streamly-core streamly-core> package
   provides functionality that depends only on boot libraries, and
   the <https://hackage.haskell.org/package/streamly streamly> package
