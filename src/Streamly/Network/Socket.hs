@@ -10,13 +10,13 @@
 -- This module provides socket based streaming APIs to to receive connections
 -- from remote hosts, and to read and write from and to network sockets.
 --
--- For basic socket types and operations please consult the @Network.Socket@
+-- For basic socket types and non-streaming operations please consult the @Network.Socket@
 -- module of the <http://hackage.haskell.org/package/network network> package.
 --
 -- = Examples
 --
--- To write a server, use the 'acceptor' unfold to start listening for
--- connections from clients.  'acceptor' generates a stream of connected
+-- To write a server, use the 'accept' stream to start listening for
+-- connections from clients.  'accept' generates a stream of connected
 -- sockets. We can map an effectful action on this socket stream to handle the
 -- connections. The action would typically use socket reading and writing
 -- operations to communicate with the remote host. We can read/write a stream
@@ -33,7 +33,6 @@
 -- >>> import Streamly.Network.Socket (SockSpec(..))
 -- >>>
 -- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Data.Stream.Prelude as Stream
 -- >>> import qualified Streamly.Network.Socket as Socket
 -- >>>
