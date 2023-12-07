@@ -41,7 +41,8 @@ for a full list of deprecations.
 * Fold constructor has changed, added a `final` field to support
   finalization and cleanup of a chain of folds. The `extract` field is
   now used only for mapping the fold internal state to fold result for
-  scanning purposes.
+  scanning purposes. If your fold does not require cleanup you can just use
+  your existing `extract` function as `final` as well to adapt to this change.
 * Many low level internal modules have been removed, they are entirely
   exported from higher level internal modules. If you were importing any
   of the missing low level modules then import the higher level modules instead.
