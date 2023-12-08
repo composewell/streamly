@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 (Dec 2023)
+
+* Make the serialization of the unit constructor deterministic.
+
 ## 0.2.0 (Nov 2023)
 
 See [0.1.0-0.2.0 API Changelog](https://github.com/composewell/streamly/blob/streamly-0.10.0/core/docs/ApiChangelogs/0.1.0-0.2.0.txt)
