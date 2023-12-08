@@ -21,9 +21,9 @@
 -- Higher level unboxed array modules "Streamly.Data.Array" and
 -- "Streamly.Data.MutArray" are built on top of this module. Unboxed arrays are
 -- essentially serialized Haskell values. Array modules provide higher level
--- serialization routines like 'Streamly.Data.Array.pinnedSerialize'
--- and 'Streamly.Data.Array.deserialize' from the
--- "Streamly.Data.Array" module.
+-- serialization routines like 'Streamly.Internal.Data.Array.pinnedSerialize'
+-- and 'Streamly.Internal.Data.Array.deserialize' from the
+-- "Streamly.Internal.Data.Array" module.
 --
 -- == Mutable Byte Array
 --
@@ -55,9 +55,18 @@
 -- and then use the type class methods to serialize and deserialize to and from
 -- a 'MutByteArray'.
 --
--- See 'Streamly.Data.Array.pinnedSerialize' and
--- 'Streamly.Data.Array.deserialize' for 'Array' type based
+-- See 'Streamly.Internal.Data.Array.pinnedSerialize' and
+-- 'Streamly.Internal.Data.Array.deserialize' for 'Array' type based
 -- serialization.
+--
+-- == Comparing serialized values
+--
+-- When using the `Unbox` type class the same value may result in differing
+-- serialized bytes because of unused uninitialized data in case of sum types.
+-- Therefore, byte comparison of serialized values is not reliable.
+--
+-- However, the 'Serialize' type class guarantees that the serialized values
+-- are always exactly the same and byte comparison of serialized is reliable.
 --
 module Streamly.Data.MutByteArray
     (
