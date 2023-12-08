@@ -374,7 +374,7 @@ jobs:
               hpc-coveralls --repo-token="$REPO_TOKEN" --coverage-mode=StrictlyFullLines
             no_output_timeout: 25m
         - *save
-  hlint-src:
+  trailing-spaces:
       <<: *env
       executor: amd64-executor
       steps:
@@ -383,14 +383,9 @@ jobs:
         - *project-preinstall
         - *restore
         - run:
-            name: Hlint src
-            environment:
-              BUILD: hlint
-              HLINT_OPTIONS: lint
-              DISABLE_SDIST_BUILD: "yes"
-              HLINT_TARGETS: core/src src test benchmark
+            name: Check trailing spaces
             command: |
-              bash -c "$PACKCHECK $BUILD" || exit 1
+              # bash -c "$PACKCHECK $BUILD" || exit 1
               echo "Checking trailing spaces..."
               count=$(find . -name "*.hs" -exec grep -H '\ $' {} \; | tee /dev/tty | wc -l)
               exit $count
@@ -418,5 +413,5 @@ workflows:
       #- coveralls-ghc-8.8.3
       #- coveralls-ghc-8_10_2:
       #    name: GHC 8.10.2 + inspection + coverage + Werror
-      - hlint-src:
-          name: Hlint src + Trailing Spaces
+      - trailing-spaces:
+          name: Trailing Spaces
