@@ -41,12 +41,16 @@ jobs:
       # packcheck location and revision
       PACKCHECK_LOCAL_PATH: "./packcheck.sh"
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "a302772c8f3791c477edd1764b82f8d1f5b22fdf"
+      PACKCHECK_GITHUB_COMMIT: "a68b7b9c7c21eef8ed273e67030efb1d4fec027c"
 
       # Pull token from "secrets" setting of the github repo
       COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
       COVERAGE: ${{ matrix.coverage }}
       DOCTEST: ${{ matrix.doctest }}
+
+      # hlint
+      HLINT_OPTIONS: "lint"
+      HLINT_TARGETS: "core/src src test benchmark"
 
       # Subdir
       SUBDIR: ${{ matrix.subdir }}
@@ -170,6 +174,10 @@ jobs:
             cabal_build_options: "--flag debug --flag -opt"
             disable_sdist_build: "y"
             ignore_error: false
+          - name: hlint
+            build: hlint
+            runner: ubuntu-latest
+            ignore_error: true
 
     steps:
     - uses: actions/checkout@v2
