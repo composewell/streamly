@@ -188,7 +188,7 @@ common bench-depends
     , unordered-containers >= 0.2 && < 0.3
     , process             >= 1.4 && < 1.7
     , directory         >= 1.2.2 && < 1.4
-    , filepath          >= 1.4.1 && < 1.5
+    , filepath          >= 1.4.1 && < 1.6
     , ghc-prim          >= 0.4   && < 0.12
     , tasty-bench       >= 0.3 && < 0.4
     , tasty             >= 1.4.1 && < 1.6
