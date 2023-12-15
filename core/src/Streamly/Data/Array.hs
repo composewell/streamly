@@ -83,16 +83,20 @@ module Streamly.Data.Array
     -- , (!!)
     , getIndex
 
+    -- * Serialization
+    , pinnedSerialize
+    , deserialize
+
     -- * Re-exports
     , Unbox (..)
-
+    , Serialize(..)
     )
 where
 
 #include "inline.hs"
 
 import Streamly.Internal.Data.Array
-import Streamly.Internal.Data.Unbox (Unbox (..))
+import Streamly.Internal.Data.MutByteArray (Unbox(..), Serialize(..))
 
 import Prelude hiding (read, length)
 

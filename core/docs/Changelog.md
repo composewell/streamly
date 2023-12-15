@@ -3,6 +3,7 @@
 ## 0.2.1 (Dec 2023)
 
 * Make the serialization of the unit constructor deterministic.
+* Expose `pinnedSerialize` & `deserialize` via `Streamly.Data.Array`.
 
 ## 0.2.0 (Nov 2023)
 
