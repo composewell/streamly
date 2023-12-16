@@ -504,7 +504,7 @@ flattenDec (ma:mas) = do
 -- >>> expr <- runQ (mkZipType "ZipStream" "zipApply" False)
 -- >>> putStrLn $ pprint expr
 -- newtype ZipStream m a
---   = ZipStream (Stream.Stream m a)
+--     = ZipStream (Stream.Stream m a)
 --     deriving Foldable
 -- mkZipStream :: Stream.Stream m a -> ZipStream m a
 -- mkZipStream = ZipStream
@@ -516,19 +516,17 @@ flattenDec (ma:mas) = do
 -- deriving instance GHC.Classes.Eq a => Eq (ZipStream Identity a)
 -- deriving instance GHC.Classes.Ord a => Ord (ZipStream Identity a)
 -- instance Show a => Show (ZipStream Identity a)
---     where {-# INLINE show #-}
---           show (ZipStream strm) = show strm
+--     where {{-# INLINE show #-}; show (ZipStream strm) = show strm}
 -- instance Read a => Read (ZipStream Identity a)
---     where {-# INLINE readPrec #-}
---           readPrec = fmap ZipStream readPrec
+--     where {{-# INLINE readPrec #-}; readPrec = fmap ZipStream readPrec}
 -- instance Monad m => Functor (ZipStream m)
---     where {-# INLINE fmap #-}
---           fmap f (ZipStream strm) = ZipStream (fmap f strm)
+--     where {{-# INLINE fmap #-};
+--            fmap f (ZipStream strm) = ZipStream (fmap f strm)}
 -- instance Monad m => Applicative (ZipStream m)
---     where {-# INLINE pure #-}
---           pure = ZipStream . Stream.repeat
---           {-# INLINE (<*>) #-}
---           (<*>) (ZipStream strm1) (ZipStream strm2) = ZipStream (zipApply strm1 strm2)
+--     where {{-# INLINE pure #-};
+--            pure = ZipStream . Stream.repeat;
+--            {-# INLINE (<*>) #-};
+--            (<*>) (ZipStream strm1) (ZipStream strm2) = ZipStream (zipApply strm1 strm2)}
 mkZipType
     :: String -- ^ Name of the type
     -> String -- ^ Function to use for (\<*\>)
@@ -577,27 +575,25 @@ mkZipType dtNameStr apOpStr isConcurrent =
 -- unParallel :: Parallel m a -> Stream.Stream m a
 -- unParallel (Parallel strm) = strm
 -- instance Monad m => Functor (Parallel m)
---     where {-# INLINE fmap #-}
---           fmap f (Parallel strm) = Parallel (fmap f strm)
+--     where {{-# INLINE fmap #-};
+--            fmap f (Parallel strm) = Parallel (fmap f strm)}
 -- instance Stream.MonadAsync m => Monad (Parallel m)
---     where {-# INLINE (>>=) #-}
---           (>>=) (Parallel strm1) f = let f1 a = unParallel (f a)
---                                       in Parallel (parBind strm1 f1)
+--     where {{-# INLINE (>>=) #-};
+--            (>>=) (Parallel strm1) f = let f1 a = unParallel (f a)
+--                                        in Parallel (parBind strm1 f1)}
 -- instance Stream.MonadAsync m => Applicative (Parallel m)
---     where {-# INLINE pure #-}
---           pure = Parallel . Stream.fromPure
---           {-# INLINE (<*>) #-}
---           (<*>) = ap
+--     where {{-# INLINE pure #-};
+--            pure = Parallel . Stream.fromPure;
+--            {-# INLINE (<*>) #-};
+--            (<*>) = ap}
 -- instance (Monad (Parallel m), MonadIO m) => MonadIO (Parallel m)
---     where {-# INLINE liftIO #-}
---           liftIO = Parallel . (Stream.fromEffect . liftIO)
+--     where {{-# INLINE liftIO #-};
+--            liftIO = Parallel . (Stream.fromEffect . liftIO)}
 -- instance MonadTrans Parallel
---     where {-# INLINE lift #-}
---           lift = Parallel . Stream.fromEffect
+--     where {{-# INLINE lift #-}; lift = Parallel . Stream.fromEffect}
 -- instance (Monad (Parallel m),
 --           MonadThrow m) => MonadThrow (Parallel m)
---     where {-# INLINE throwM #-}
---           throwM = lift . throwM
+--     where {{-# INLINE throwM #-}; throwM = lift . throwM}
 mkCrossType
     :: String -- ^ Name of the type
     -> String -- ^ Function to use for (>>=)
