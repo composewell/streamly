@@ -1,7 +1,7 @@
 version: 2.1
 
 #-----------------------------------------------------------------------------
-# packcheck-0.4.2
+# packcheck-0.7.0
 # Packcheck global environment variables
 #-----------------------------------------------------------------------------
 
@@ -11,6 +11,8 @@ env: &env
       # Common options
       # ------------------------------------------------------------------------
       # GHC_OPTIONS: "-Werror"
+      # For updating see: https://downloads.haskell.org/~ghcup/
+      GHCUP_VERSION: 0.1.20.0
       CABAL_REINIT_CONFIG: "y"
       LC_ALL: "C.UTF-8"
 
@@ -22,7 +24,6 @@ env: &env
       # DISABLE_DOCS: "y"
       # DISABLE_SDIST_BUILD: "y"
       # DISABLE_DIST_CHECKS: "y"
-      ENABLE_INSTALL: "y"
 
       # ------------------------------------------------------------------------
       # stack options
@@ -38,15 +39,12 @@ env: &env
       # cabal options
       # ------------------------------------------------------------------------
       CABAL_CHECK_RELAX: "y"
-      CABAL_NO_SANDBOX: "y"
-      CABAL_HACKAGE_MIRROR: "hackage.haskell.org:http://hackage.fpcomplete.com"
       CABAL_BUILD_OPTIONS: "-j1 --flag limit-build-mem"
 
       # ------------------------------------------------------------------------
       # Where to find the required tools
       # ------------------------------------------------------------------------
-      PATH: /opt/ghc/bin:/opt/ghcjs/bin:/sbin:/usr/sbin:/bin:/usr/bin
-      TOOLS_DIR: /opt
+      PATH: /sbin:/usr/sbin:/bin:/usr/bin
 
       # ------------------------------------------------------------------------
       # Location of packcheck.sh (the shell script invoked to perform CI tests ).
@@ -59,15 +57,15 @@ env: &env
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "a302772c8f3791c477edd1764b82f8d1f5b22fdf"
+      PACKCHECK_GITHUB_COMMIT: "v0.7.0"
 
 executors:
   amd64-executor:
     docker:
-      - image: ubuntu:xenial
+      - image: ubuntu:latest
   x86-executor:
     docker:
-      - image: i386/ubuntu:eoan
+      - image: i386/ubuntu:focal
 
 #-----------------------------------------------------------------------------
 # Common utility stuff, not to be modified usually
@@ -79,38 +77,50 @@ preinstall: &preinstall
         # required for https/cache save and restore
         apt-get install -y ca-certificates
 
-        # required to (re)generate the configure script
-        apt-get install -y autoconf
-
-        # For ghc and cabal-install packages from hvr's ppa
+        # Alternative way of installing ghc and cabal, directly from
+        # haskell.org instead of using ghcup. NOTE: this is for Debian
+        # only and is debian release specific.
         # gnupg is required for apt-key to work
-        apt-get install -y gnupg
-        apt-get install -y apt-transport-https
-        apt-key adv --keyserver keyserver.ubuntu.com  --recv-keys BA3CBA3FFE22B574
-        apt-get install -y software-properties-common
-        add-apt-repository -y ppa:hvr/ghc
-        # echo "deb http://downloads.haskell.org/debian stretch main" >> /etc/apt/sources.list
-        echo "deb-src http://ppa.launchpad.net/hvr/ghc/ubuntu xenial main" >> /etc/apt/sources.list
-        apt-get update
-
-        # required for packcheck
-        apt-get install -y curl
-
-        # required for circleci.
-        apt-get install -y libcurl4-gnutls-dev
-        apt-get install -y git
-        apt-get install -y libtinfo-dev
+        #apt-get install -y gnupg
+        #apt-key adv --keyserver keyserver.ubuntu.com  --recv-keys BA3CBA3FFE22B574
+        #echo "deb http://downloads.haskell.org/debian buster main" >> /etc/apt/sources.list
+        #apt-get update
 
         # required for outbound https for stack and for stack setup
         apt-get install -y netbase xz-utils make
+        apt-get install -y zlib1g-dev
 
-project-preinstall: &project-preinstall
-  run: |
+        # For ghcup to install ghc
+        if test -n "$GHCUP_VERSION"
+        then
+          apt-get install -y gcc
+          apt-get install -y g++
+        fi
+
+        # libgmp required by ghc for linking
+        apt-get install -y libgmp-dev
+        apt-get install -y libtinfo-dev
+
+        # Required by cabal when git URL is specified in project file
+        apt-get install -y git
+
+        # Required for and by packcheck
+        apt-get install -y curl
+
         # Get packcheck if needed
-        CURL=$(which curl)
-        PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
-        if test ! -e "$PACKCHECK"; then $CURL -sL -o "$PACKCHECK" $PACKCHECK_URL; fi;
-        chmod +x $PACKCHECK
+        if test ! -e "$PACKCHECK"
+        then
+          if test -z "$PACKCHECK_GITHUB_COMMIT"
+          then
+              die "PACKCHECK_GITHUB_COMMIT is not specified."
+          fi
+          PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
+          curl --fail -sL -o "$PACKCHECK" $PACKCHECK_URL || exit 1
+          chmod +x $PACKCHECK
+        elif test ! -x "$PACKCHECK"
+        then
+            chmod +x $PACKCHECK
+        fi
 
 restore: &restore
   # Needs to happen after installing ca-certificates
@@ -126,266 +136,47 @@ save: &save
   save_cache:
       key: v1-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}
       paths:
-        - ~/.cabal
-        - ~/.ghc
         - ~/.local
+        - ~/.cabal
         - ~/.stack
+        - ~/.ghcup
 
 #-----------------------------------------------------------------------------
 # Build matrix
 #-----------------------------------------------------------------------------
 
 jobs:
-  cabal-ghc-8_10_4:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run:
-            environment:
-              CABAL_PROJECT: "cabal.project"
-              DISABLE_TEST: "yes"
-              DISABLE_BENCH: "yes"
-              DISABLE_SDIST_BUILD: "yes"
-            command: |
-              apt-get install -y ghc-8.10.4
-              apt-get install -y cabal-install-3.4
-              bash -c "$PACKCHECK cabal"
-        - *save
-  stack-ghc-8_8:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run:
-            name: GHC 8.8 + stack lts-16.12
-            environment:
-              BUILD: "stack"
-              RESOLVER: "lts-16.12"
-              SDIST_OPTIONS: "--ignore-check"
-              STACK_BUILD_OPTIONS: "--flag streamly-benchmarks:-opt"
-            command: |
-              apt-get build-dep -y ghc-8.8.4
-              apt-get install -y cabal-install-3.2
-              bash -c "$PACKCHECK $BUILD"
-        - *save
   cabal-ghc-8_6_5:
       <<: *env
       executor: amd64-executor
       steps:
-        - *preinstall
         - checkout
-        - *project-preinstall
         - *restore
-        - run: |
-              apt-get install -y ghc-8.6.3
-              apt-get install -y cabal-install-2.4
-              bash -c "$PACKCHECK cabal-v2"
-        - *save
-  cabal-ghc-8_4_4:
-      <<: *env
-      executor: x86-executor
-      steps:
         - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run:
-           name: GHC 8.4.4 + x86 + debug
-           environment:
-             BUILD: "cabal-v2"
-             GHCVER: "8.4.4"
-             CABAL_BUILD_OPTIONS: "--flag debug --flag limit-build-mem"
-           command: |
-              apt-get install -y ghc-8.4.4
-              apt-get install -y cabal-install-3.2
-              bash -c "$PACKCHECK $BUILD"
-        - *save
-  cabal-ghc-8_2_2:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
         - run:
             environment:
-              BUILD: "cabal-v2"
-              DISABLE_TEST: "yes"
-              DISABLE_BENCH: "yes"
-              DISABLE_DOCS: "yes"
+              CABAL_PROJECT: "cabal.project"
               DISABLE_SDIST_BUILD: "yes"
-              DISABLE_DIST_CHECKS: "yes"
+              CABAL_BUILD_OPTIONS: "--flag debug --flag -opt"
             command: |
-              apt-get install -y ghc-8.2.2
-              apt-get install -y cabal-install-3.2
-              bash -c "$PACKCHECK $BUILD"
+              bash -c "$PACKCHECK cabal GHCVER=8.6.5"
         - *save
-  cabal-ghc-8_0_2:
+  hlint-trailing-spaces:
       <<: *env
       executor: amd64-executor
       steps:
-        - *preinstall
         - checkout
-        - *project-preinstall
         - *restore
+        - *preinstall
         - run:
+            name: hlint and trailing spaces
             environment:
-              BUILD: "cabal-v2"
-              DISABLE_TEST: "yes"
-              DISABLE_BENCH: "yes"
-              DISABLE_DOCS: "yes"
               DISABLE_SDIST_BUILD: "yes"
-              DISABLE_DIST_CHECKS: "yes"
+              HLINT_VERSION: 3.6.1
+              HLINT_OPTIONS: lint
+              HLINT_TARGETS: core/src src test benchmark
             command: |
-              apt-get install -y ghc-8.0.2
-              apt-get install -y cabal-install-3.2
-              bash -c "$PACKCHECK $BUILD"
-        - *save
-  cabal-ghc-7_10_3:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run: |
-              apt-get install -y ghc-7.10.3
-              apt-get install -y cabal-install-2.4
-              bash -c "$PACKCHECK cabal-v2"
-        - *save
-  stack-ghc-8_4:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run: |
-            bash -c "$PACKCHECK stack RESOLVER=lts-12"
-        - *save
-  stack-ghc-8_2:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run: |
-            bash -c "$PACKCHECK stack RESOLVER=lts-11"
-        - *save
-  cabal-ghcjs-8_4:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run:
-            name: GHCJS 8.4+no-test+no-docs
-            environment:
-              BUILD: cabal-v2
-              ENABLE_GHCJS: "yes"
-              DISABLE_TEST: "yes"
-              ENABLE_INSTALL: ""
-              DISABLE_DOCS: "yes"
-              DISABLE_SDIST_BUILD: "yes"
-            command: |
-              add-apt-repository -y ppa:hvr/ghcjs
-              add-apt-repository -y 'deb https://deb.nodesource.com/node_11.x xenial main'
-              curl -sSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add -
-              apt-get update
-              apt-get install -y cabal-install-3.2
-              apt-get install -y nodejs
-              apt-get install -y ghcjs-8.4
-              cabal user-config update -a "jobs: 1"
-              bash -c "$PACKCHECK $BUILD"
-        - *save
-  coveralls-ghc-8_2_2:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run:
-            environment:
-              BUILD: cabal
-              COVERALLS_OPTIONS: "--repo-token=\"$REPO_TOKEN\" --coverage-mode=StrictlyFullLines --exclude-dir=test test"
-              GHC_OPTIONS: "-DCOVERAGE_BUILD"
-            command: |
-              apt-get install -y ghc-8.2.2
-              apt-get install -y cabal-install-2.4
-              bash -c "$PACKCHECK cabal-v1"
-        - *save
-  coveralls-ghc-8_8_3:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run:
-            environment:
-              BUILD: cabal-v2
-              COVERALLS_OPTIONS: "--repo-token=\"$REPO_TOKEN\" --coverage-mode=StrictlyFullLines --exclude-dir=test"
-              CABAL_PROJECT: "cabal.project.coverage"
-              CABAL_BUILD_TARGETS: ""
-            command: |
-              apt-get install -y ghc-8.8.3
-              apt-get install -y cabal-install-3.0
-              bash -c "$PACKCHECK cabal-v2"
-            no_output_timeout: 25m
-        - *save
-  coveralls-ghc-8_10_2:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run:
-            name: Build and test with inspection, coverage, Werror
-            command: |
-              apt-get install -y ghc-8.10.2
-              apt-get install -y cabal-install-3.2
-              # Run tests with coverage
-              cabal update
-              cabal user-config update -a "jobs: 1"
-              bin/test.sh --coverage --raw
-              # Upload results to coveralls.io
-              PATH=$HOME/.cabal/bin:$PATH
-              export PATH
-              which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.hpc-coveralls hpc-coveralls
-              hpc-coveralls --repo-token="$REPO_TOKEN" --coverage-mode=StrictlyFullLines
-            no_output_timeout: 25m
-        - *save
-  trailing-spaces:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - *preinstall
-        - checkout
-        - *project-preinstall
-        - *restore
-        - run:
-            name: Check trailing spaces
-            command: |
-              # bash -c "$PACKCHECK $BUILD" || exit 1
+              bash -c "$PACKCHECK hlint" || exit 1
               echo "Checking trailing spaces..."
               count=$(find . -name "*.hs" -exec grep -H '\ $' {} \; | tee /dev/tty | wc -l)
               exit $count
@@ -395,23 +186,7 @@ workflows:
   version: 2
   build:
     jobs:
-      - cabal-ghc-8_10_4:
-          name: GHC 8.10.4 + sdist + no-test + no-bench
-      #- cabal-ghc-8.6.5
-      #- cabal-ghc-8_4_4:
-      #    name: GHC 8.4.4 + x86 + debug
-      #- cabal-ghc-8_2_2:
-      #    name: GHC 8.2.2 + no-test + no-bench + no-docs
-      #- cabal-ghc-8_0_2:
-      #    name: GHC 8.0.2 + no-test + no-bench + no-docs
-      #- cabal-ghc-7.10.3
-      # - cabal-ghcjs-8_4:
-      #     name: GHCJS 8.4 + no-test + no-docs
-      #- stack-ghc-8.4
-      #- stack-ghc-8.2
-      #- coveralls-ghc-8.2.2
-      #- coveralls-ghc-8.8.3
-      #- coveralls-ghc-8_10_2:
-      #    name: GHC 8.10.2 + inspection + coverage + Werror
-      - trailing-spaces:
-          name: Trailing Spaces
+      #- cabal-ghc-8_6_5:
+      #    name: 8.6.5-debug-unoptimized
+      - hlint-trailing-spaces:
+          name: hlint and trailing spaces

@@ -13,9 +13,15 @@ jobs:
       # packcheck environment variables
       LC_ALL: C.UTF-8
       BUILD: ${{ matrix.build }}
+      # For updating see: https://downloads.haskell.org/~ghcup/
+      GHCUP_VERSION: 0.1.20.0
+      DOCSPEC_URL: https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20210111/cabal-docspec-0.0.0.20210111.xz
+      DOCSPEC_OPTIONS: "--timeout 60 --check-properties --property-variables xs"
+      GHCUP_GHC_OPTIONS: ${{ matrix.ghcup_ghc_options }}
       GHCVER: ${{ matrix.ghc_version }}
       CABALVER: ${{ matrix.cabal_version }}
       DISABLE_DOCS: ${{ matrix.disable_docs }}
+      ENABLE_DOCSPEC: ${{ matrix.enable_docspec }}
       DISABLE_TEST: ${{ matrix.disable_test }}
       DISABLE_BENCH: ${{ matrix.disable_bench }}
       DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
@@ -39,16 +45,16 @@ jobs:
       STACK_BUILD_OPTIONS: ${{ matrix.stack_build_options }}
 
       # packcheck location and revision
-      PACKCHECK_LOCAL_PATH: "./packcheck.sh"
+      PACKCHECK: "./packcheck.sh"
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "a68b7b9c7c21eef8ed273e67030efb1d4fec027c"
+      PACKCHECK_GITHUB_COMMIT: "v0.7.0"
 
       # Pull token from "secrets" setting of the github repo
       COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
       COVERAGE: ${{ matrix.coverage }}
-      DOCTEST: ${{ matrix.doctest }}
 
       # hlint
+      HLINT_VERSION: 3.6.1
       HLINT_OPTIONS: "lint"
       HLINT_TARGETS: "core/src src test benchmark"
 
@@ -63,7 +69,7 @@ jobs:
         # The order is important to optimize fail-fast.
         name:
           - 9.8.1-Werror
-          - 9.2.8-docspec
+          - 9.8.1-docspec
         # - 8.10.7-coverage
 
         # Note: if cabal.project is not specified benchmarks and tests won't
@@ -72,9 +78,19 @@ jobs:
         include:
           - name: head
             ghc_version: head
+            # The URL may change, to find a working URL go to https://gitlab.haskell.org/ghc/ghc/-/jobs/
+            # Find a debian10/11/12 job, click on a passed/failed status, at the
+            # end of the output you will find the tar.xz name, put that tar
+            # name after "raw/", and put the job name after "job=".
+            # Also see https://github.com/mpickering/ghc-artefact-nix/blob/master/gitlab-artifact.nix
+            #
+            # May also use ghcup for installing ghc head version, use the
+            # version "LatestNightly", and the following config:
+            # ghcup config add-release-channel https://ghc.gitlab.haskell.org/ghcup-metadata/ghcup-nightlies-0.0.7.yaml
+            ghcup_ghc_options: "-u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate"
             runner: ubuntu-latest
             build: cabal
-            cabal_version: 3.10.1.0
+            cabal_version: 3.10.2.0
             cabal_project: cabal.project.ghc-head
             disable_sdist_build: "y"
             ignore_error: true
@@ -86,6 +102,18 @@ jobs:
             cabal_version: 3.10.1.0
             disable_sdist_build: "y"
             cabal_project: cabal.project.Werror
+            ignore_error: false
+          - name: 9.8.1-docspec
+            ghc_version: 9.8.1
+            runner: ubuntu-latest
+            build: cabal
+            cabal_version: 3.10.1.0
+            cabal_project: cabal.project.doctest
+            disable_test: "y"
+            disable_bench: "y"
+            disable_docs: "y"
+            enable_docspec: "y"
+            disable_sdist_build: "y"
             ignore_error: false
           - name: 9.8.1-fusion-inspection
             ghc_version: 9.8.1
@@ -118,14 +146,6 @@ jobs:
             build: cabal
             cabal_project: cabal.project
             cabal_version: 3.6.2.0
-            disable_sdist_build: "y"
-            ignore_error: false
-          - name: 9.2.8-docspec
-            ghc_version: 9.2.8
-            runner: ubuntu-latest
-            doctest: "y"
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project
             disable_sdist_build: "y"
             ignore_error: false
           - name: 9.0.2-streamly-sdist
@@ -183,61 +203,35 @@ jobs:
     - uses: actions/checkout@v2
 
     - uses: actions/cache@v1
-      name: Cache ~/.cabal
+      name: Cache common directories
       with:
-        path: ~/.cabal
+        path: |
+          ~/.local
+          ~/.cabal
+          ~/.stack
+          ~/.ghcup
         # Bump the key version to clear the cache
         key: ${{ runner.os }}-${{ matrix.ghc_version }}-cabal-v2
 
     - name: Download packcheck
       run: |
-        # Get packcheck if needed
-        CURL=$(which curl)
-        PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
-        if test ! -e "$PACKCHECK_LOCAL_PATH"; then $CURL -sL -o "$PACKCHECK_LOCAL_PATH" $PACKCHECK_URL; fi;
-        chmod +x $PACKCHECK_LOCAL_PATH
-
-        os=$(uname -s -m)
-        case "$os" in
-          "Linux x86_64") GHCUP_ARCH="x86_64-linux" ;;
-          "Darwin x86_64") GHCUP_ARCH="x86_64-apple-darwin" ;;
-          *) echo "Unknown OS/Arch: $os"; exit 1;;
-        esac
-
-        # Check available versions here: https://downloads.haskell.org/~ghcup/
-        GHCUP_VER=0.1.18.0
-        $CURL -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/${GHCUP_ARCH}-ghcup-$GHCUP_VER
-        chmod +x ./ghcup
-        if test "$GHCVER" = "head"
+        if test ! -e "$PACKCHECK"
         then
-          # The URL may change, to find a working URL go to https://gitlab.haskell.org/ghc/ghc/-/jobs/
-          # Find a debian10 job, click on a passed/failed job, at the
-          # end of the output you will find the tar.xz name, put that after
-          # "raw/", and put the job name after "job=".
-          # Also see https://github.com/mpickering/ghc-artefact-nix/blob/master/gitlab-artifact.nix
-          ./ghcup install ghc -u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate head
-        else
-          ./ghcup install ghc $GHCVER
+          if test -z "$PACKCHECK_GITHUB_COMMIT"
+          then
+              die "PACKCHECK_GITHUB_COMMIT is not specified."
+          fi
+          PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
+          curl --fail -sL -o "$PACKCHECK" $PACKCHECK_URL || exit 1
+          chmod +x $PACKCHECK
+        elif test ! -x "$PACKCHECK"
+        then
+            chmod +x $PACKCHECK
         fi
-        ./ghcup install cabal $CABALVER
-        ./ghcup set ghc $GHCVER
-        ./ghcup set cabal $CABALVER
 
     - name: Run tests
       run: |
-        if test -n "$DOCTEST"
-        then
-          mkdir -p $HOME/.cabal/bin
-          curl -sL https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20210111/cabal-docspec-0.0.0.20210111.xz > cabal-docspec.xz
-          echo '0829bd034fba901cbcfe491d98ed8b28fd54f9cb5c91fa8e1ac62dc4413c9562  cabal-docspec.xz' | sha256sum -c -
-          xz -d < cabal-docspec.xz > $HOME/.cabal/bin/cabal-docspec
-          rm -f cabal-docspec.xz
-          chmod a+x $HOME/.cabal/bin/cabal-docspec
-          cabal update
-          cabal build --project-file cabal.project.doctest all
-          $HOME/.cabal/bin/cabal-docspec --version
-          $HOME/.cabal/bin/cabal-docspec --timeout 60 --check-properties --property-variables xs
-        elif test -n "$COVERAGE"
+        if test -n "$COVERAGE"
         then
           # Run tests with coverage
           cabal update
@@ -250,16 +244,15 @@ jobs:
           # XXX Uncomment this and fix it properly later
           # hpc-coveralls --repo-token="$COVERALLS_TOKEN" --coverage-mode=StrictlyFullLines
         else
-          export TOOLS_DIR=/opt
           # /usr/local/opt/curl/bin for macOS
           export PATH=$HOME/.local/bin:$HOME/.ghcup/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/opt/curl/bin
           if test -n "$SUBDIR"
           then
-            mv "$PACKCHECK_LOCAL_PATH" "$SUBDIR/packcheck.sh"
+            mv "$PACKCHECK" "$SUBDIR/packcheck.sh"
             # This is required as dist-newstyle will be created on the top level
             # directory as it is considered the working dir.
             rm cabal.project
             cd "$SUBDIR"
           fi
-          bash -c "$PACKCHECK_LOCAL_PATH $BUILD"
+          bash -c "$PACKCHECK $BUILD"
         fi
