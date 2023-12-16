@@ -334,10 +334,14 @@ monadthrowInstance _Type =
               [ clause
                     []
                     (normalB
-                       (infixE
-                            (Just (varE _lift))
-                            (varE _dotOp)
-                            (Just (varE _throwM))))
+                         (infixE
+                              (Just (conE _Type))
+                              (varE _dotOp)
+                              (Just
+                                   (infixE
+                                        (Just (varE (mkName "Stream.fromEffect")))
+                                        (varE _dotOp)
+                                        (Just (varE _throwM))))))
                     []
               ]
         ]
@@ -589,11 +593,11 @@ mkZipType dtNameStr apOpStr isConcurrent =
 -- instance (Monad (Parallel m), MonadIO m) => MonadIO (Parallel m)
 --     where {{-# INLINE liftIO #-};
 --            liftIO = Parallel . (Stream.fromEffect . liftIO)}
--- instance MonadTrans Parallel
---     where {{-# INLINE lift #-}; lift = Parallel . Stream.fromEffect}
 -- instance (Monad (Parallel m),
 --           MonadThrow m) => MonadThrow (Parallel m)
---     where {{-# INLINE throwM #-}; throwM = lift . throwM}
+--     where {{-# INLINE throwM #-};
+--            throwM = Parallel . (Stream.fromEffect . throwM)}
+
 mkCrossType
     :: String -- ^ Name of the type
     -> String -- ^ Function to use for (>>=)
@@ -613,7 +617,7 @@ mkCrossType dtNameStr bindOpStr isConcurrent =
                      , readInstance _Type
                      ]
                 else []
-        , sequence
+        , sequence $
               [ functorInstance _Type
               , mkStreamMonad dtNameStr classConstraints bindOpStr
               , mkStreamApplicative
@@ -623,10 +627,9 @@ mkCrossType dtNameStr bindOpStr isConcurrent =
                     "Stream.fromPure"
                     "ap"
               , monadioInstance _Type
-              , monadtransInstance _Type
               , monadthrowInstance _Type
               -- , monadreaderInstance _Type
-              ]
+              ] ++ [monadtransInstance _Type | not isConcurrent]
         ]
 
     where
