@@ -75,7 +75,7 @@ readFromHandle =
 
 readWithBufferFromHandle :: IO (Stream IO Char)
 readWithBufferFromHandle =
-    let f1 = (\h -> (1024, h))
+    let f1 h = (1024, h)
         f2 = Unicode.decodeUtf8 . Stream.unfold Handle.readerWith . f1
     in executor f2
 
@@ -88,7 +88,7 @@ readChunksFromHandle =
 
 readChunksWithBuffer :: IO (Stream IO Char)
 readChunksWithBuffer =
-    let f1 = (\h -> (1024, h))
+    let f1 h = (1024, h)
         f2 =
               Unicode.decodeUtf8
             . Stream.concatMap Array.read

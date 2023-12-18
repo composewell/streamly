@@ -2,7 +2,8 @@
 
 module Main (main) where
 
-import Data.List (sort)
+import Data.List (sort, sortBy)
+import Data.Ord (comparing, Down(..))
 import Data.Semigroup (Sum(..), getSum)
 import Streamly.Test.Common (checkListEqual, listEquals)
 import Test.QuickCheck
@@ -412,7 +413,7 @@ partitionByM =
     where
 
     action ls = do
-        let f = \x -> if odd x then return (Left x) else return (Right x)
+        let f x = if odd x then return (Left x) else return (Right x)
         v1 <-
             run
                 $ Stream.fold (Fold.partitionByM f Fold.length Fold.length)
@@ -429,7 +430,7 @@ partitionByFstM =
     where
 
     action _ = do
-        let f = \x -> if odd x then return (Left x) else return (Right x)
+        let f x = if odd x then return (Left x) else return (Right x)
         v1 <-
             run
                 $ Stream.fold
@@ -447,7 +448,7 @@ partitionByMinM1 =
     where
 
     action _ = do
-        let f = \x -> if odd x then return (Left x) else return (Right x)
+        let f x = if odd x then return (Left x) else return (Right x)
         v1 <-
             run
                 $ Stream.fold
@@ -465,7 +466,7 @@ partitionByMinM2 =
     where
 
     action _ = do
-        let f = \x -> if odd x then return (Left x) else return (Right x)
+        let f x = if odd x then return (Left x) else return (Right x)
         v1 <-
             run
                 $ Stream.fold
@@ -690,7 +691,7 @@ topBy isTop = forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
             if isTop
             then do
                 lst <- Stream.fold (Fold.top n) (Stream.fromList  ls) >>= MArray.toList
-                assert ((Prelude.take n . Prelude.reverse . sort) ls ==  lst)
+                assert ((Prelude.take n . sortBy (comparing Down)) ls ==  lst)
             else do
                 lst <- Stream.fold (Fold.bottom n) (Stream.fromList  ls) >>= MArray.toList
                 assert ((Prelude.take n . sort) ls ==  lst)

@@ -26,7 +26,7 @@ import Test.QuickCheck.Gen (oneof)
 genDatatype :: String -> Int -> Q [Dec]
 genDatatype tyName numCons =
     sequence
-        ([ dataD
+        [ dataD
                (pure [])
                (mkName tyName)
                []
@@ -49,7 +49,7 @@ genDatatype tyName numCons =
                            []
                       ]
                ]
-         ])
+         ]
 
     where
 

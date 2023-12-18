@@ -54,7 +54,7 @@ checkEqual opName op (mc1, mc2) = do
 checkOp :: String -> NormalizationMode -> [(Text, Text)] -> IO Bool
 checkOp name op pairs = do
     res <- mapM (checkEqual name (normalize op)) pairs
-    return $ all (== True) res
+    return $ and res
 
 checkNFC :: (Text, Text, Text, Text, Text) -> IO Bool
 checkNFC (c1, c2, c3, c4, c5) =
