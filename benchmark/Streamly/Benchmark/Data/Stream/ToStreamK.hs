@@ -120,7 +120,7 @@ fromFoldable streamLen n = S.fromFoldable [n..n+streamLen]
 {-# INLINE fromFoldableM #-}
 fromFoldableM :: Monad m => Int -> Int -> Stream m Int
 fromFoldableM streamLen n =
-    Prelude.foldr S.consM S.nil (Prelude.fmap return [n..n+streamLen])
+    Prelude.foldr (S.consM . return) S.nil [n .. n + streamLen]
 
 {-
 {-# INLINABLE concatMapFoldableWith #-}

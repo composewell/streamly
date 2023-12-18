@@ -269,13 +269,13 @@ unzip = Stream.fold $ FL.lmap (\a -> (a, a)) (FL.unzip FL.sum FL.length)
 {-# INLINE unzipWithFstM #-}
 unzipWithFstM :: Monad m => Stream m Int -> m (Int, Int)
 unzipWithFstM = do
-    let f = \a -> return (a + 1, a)
+    let f a = return (a + 1, a)
     Stream.fold (FL.unzipWithFstM f FL.sum FL.length)
 
 {-# INLINE unzipWithMinM #-}
 unzipWithMinM :: Monad m => Stream m Int -> m (Int, Int)
 unzipWithMinM = do
-    let f = \a -> return (a + 1, a)
+    let f a = return (a + 1, a)
     Stream.fold (FL.unzipWithMinM f FL.sum FL.length)
 
 -------------------------------------------------------------------------------

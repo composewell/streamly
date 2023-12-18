@@ -18,7 +18,7 @@ import Control.DeepSeq (NFData(..))
 genLargeRecord :: String -> Int -> Q [Dec]
 genLargeRecord tyName numFields =
     sequence
-        ([ dataD
+        [ dataD
                (pure [])
                (mkName tyName)
                []
@@ -28,7 +28,7 @@ genLargeRecord tyName numFields =
          , mkValueSigDec
          , mkValueDec
          , nfDataInstance tyName
-         ])
+         ]
 
     where
 
@@ -64,7 +64,7 @@ genLargeRecord tyName numFields =
                        (foldl
                             (\b a -> [|$(b) $(a)|])
                             (conE (mkName tyName))
-                            (const (conE '()) <$> [0 .. (numFields - 1)])))
+                            (conE '() <$ [0 .. (numFields - 1)])))
                   []
             ]
     mkCon nm = recC (mkName nm) (mkField <$> [0 .. (numFields - 1)])

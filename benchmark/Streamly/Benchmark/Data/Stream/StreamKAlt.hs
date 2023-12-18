@@ -452,4 +452,4 @@ o_1_space =
     ]
 
 main :: IO ()
-main = defaultMain $ concat [o_1_space]
+main = defaultMain [o_1_space]

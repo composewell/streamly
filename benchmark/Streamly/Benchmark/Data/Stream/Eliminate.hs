@@ -132,12 +132,14 @@ foldableAny :: Int -> Int -> Bool
 foldableAny value n =
     Prelude.any (> (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
 
+{- HLINT ignore "Use all"-}
 {-# INLINE foldableAnd #-}
 foldableAnd :: Int -> Int -> Bool
 foldableAnd value n =
     Prelude.and $ fmap
         (<= (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
 
+{- HLINT ignore "Use any"-}
 {-# INLINE foldableOr #-}
 foldableOr :: Int -> Int -> Bool
 foldableOr value n =

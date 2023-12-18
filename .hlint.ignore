@@ -31,6 +31,7 @@ benchmark/Streamly/Benchmark/Data/Stream/StreamK.hs
 benchmark/Streamly/Benchmark/Data/Unfold.hs
 benchmark/Streamly/Benchmark/FileSystem/Handle.hs
 benchmark/Streamly/Benchmark/Prelude/Async.hs
+benchmark/Streamly/Benchmark/Prelude/Concurrent.hs
 benchmark/Streamly/Benchmark/Prelude/Merge.hs
 benchmark/Streamly/Benchmark/Prelude/Parallel.hs
 benchmark/Streamly/Benchmark/Prelude/Rate.hs

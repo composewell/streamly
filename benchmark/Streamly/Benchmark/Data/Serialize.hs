@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{- HLINT ignore -}
 
 #undef FUSION_CHECK
 #ifdef FUSION_CHECK
@@ -18,6 +19,7 @@ module Main (main) where
 -------------------------------------------------------------------------------
 
 import Control.DeepSeq (NFData(..), deepseq)
+import Control.Monad (when, void)
 import GHC.Generics (Generic)
 import System.Random (randomRIO)
 #ifndef USE_UNBOX
@@ -264,13 +266,13 @@ $(deriveSerialize [d|instance Serialize a => Serialize (BinTree a)|])
 instance NFData a => NFData (BinTree a) where
   {-# INLINE rnf #-}
   rnf (Leaf a) = rnf a `seq` ()
-  rnf (Tree l r) = rnf l `seq` rnf r `seq` ()
+  rnf (Tree l r) = rnf l `seq` rnf r
 
 instance Arbitrary a => Arbitrary (BinTree a) where
   arbitrary = oneof [Leaf <$> arbitrary, Tree <$> arbitrary <*> arbitrary]
 
 mkBinTree :: (Arbitrary a) => Int -> IO (BinTree a)
-mkBinTree = go (generate $ arbitrary)
+mkBinTree = go (generate arbitrary)
 
     where
 
@@ -295,16 +297,14 @@ getSize = addSizeTo 0
 -- Common helpers
 -------------------------------------------------------------------------------
 
+{- HLINT ignore "Eta reduce" -}
 -- Parts of "f" that are dependent on val will not be optimized out.
 {-# INLINE loop #-}
 loop :: Int -> (a -> IO b) -> a -> IO ()
 loop count f val = go count val
     where
 
-    go n x = do
-        if n > 0
-        then f x >> go (n-1) x
-        else return ()
+    go n x = when (n > 0) $ f x >> go (n-1) x
 
 -- The first arg of "f" is the environment which is not threaded around in the
 -- loop.
@@ -313,10 +313,7 @@ loopWith :: Int -> (e -> a -> IO b) -> e -> a -> IO ()
 loopWith count f e val = go count val
     where
 
-    go n x = do
-        if n > 0
-        then f e x >> go (n-1) x
-        else return ()
+    go n x = when (n > 0) $ f e x >> go (n-1) x
 
 benchSink :: NFData b => String -> Int -> (Int -> IO b) -> Benchmark
 benchSink name times f = bench name (nfIO (randomRIO (times, times) >>= f))
@@ -342,7 +339,7 @@ pokeTimesWithSize val times = do
 
 {-# INLINE poke #-}
 poke :: SERIALIZE_CLASS a => MutByteArray -> a -> IO ()
-poke arr val = SERIALIZE_OP 0 arr val >> return ()
+poke arr val = void (SERIALIZE_OP 0 arr val)
 
 {-# INLINE pokeTimes #-}
 pokeTimes :: SERIALIZE_CLASS a => a -> Int -> IO ()
@@ -356,7 +353,7 @@ encode :: SERIALIZE_CLASS a => a -> IO ()
 encode val = do
     let n = getSize val
     arr <- MBA.new n
-    SERIALIZE_OP 0 arr val >> return ()
+    void (SERIALIZE_OP 0 arr val)
 
 {-# INLINE encodeTimes #-}
 encodeTimes :: SERIALIZE_CLASS a => a -> Int -> IO ()
