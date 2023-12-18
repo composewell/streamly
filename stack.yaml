@@ -1,4 +1,4 @@
-resolver: lts-20.13
+resolver: lts-22.0
 packages:
 - '.'
 - './benchmark'
