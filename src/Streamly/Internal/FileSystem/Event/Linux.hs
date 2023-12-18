@@ -152,6 +152,7 @@ where
 
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Catch (MonadThrow)
 import Data.Bits ((.|.), (.&.), complement)
 import Data.Char (ord)
 import Data.Foldable (foldlM)
@@ -173,7 +174,8 @@ import GHC.IO.FD (fdFD, mkFD)
 import GHC.IO.Handle.FD (mkHandleFromFD)
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Parser (Parser)
-import System.Directory (doesDirectoryExist)
+import System.Directory.OsPath (doesDirectoryExist)
+import qualified System.OsPath as OsPath
 import System.IO (Handle, hClose, IOMode(ReadMode))
 import GHC.IO.Handle.FD (handleToFd)
 
@@ -615,8 +617,10 @@ foreign import ccall unsafe
 -- separated bytes. So these may fail or convert the path in an unexpected
 -- manner. We should ultimately remove all usage of these.
 
-toUtf8 :: MonadIO m => String -> m (Array Word8)
-toUtf8 = A.fromStream . U.encodeUtf8 . S.fromList
+toUtf8 :: (MonadIO m, MonadThrow m) => OsPath.OsPath -> m (Array Word8)
+toUtf8 path = do
+    str <- OsPath.decodeUtf path
+    A.fromStream . U.encodeUtf8 . S.fromList $ str
 
 utf8ToString :: Array Word8 -> String
 utf8ToString = runIdentity . S.fold FL.toList . U.decodeUtf8' . A.read
@@ -716,12 +720,13 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX readDirs currently uses paths as String, we need to convert it
     -- to "/" separated by byte arrays.
-    pathIsDir <- doesDirectoryExist $ utf8ToString absPath
+    absPathOsString <- OsPath.encodeUtf (utf8ToString absPath)
+    pathIsDir <- doesDirectoryExist absPathOsString
     when (watchRec && pathIsDir) $ do
         let f = addToWatch cfg watch0 root . appendPaths path
             in S.fold (FL.drainMapM f)
                 $ S.mapM toUtf8
-                $ Dir.readDirs $ utf8ToString absPath
+                $ Dir.readDirs absPathOsString
 
 foreign import ccall unsafe
     "sys/inotify.h inotify_rm_watch" c_inotify_rm_watch
