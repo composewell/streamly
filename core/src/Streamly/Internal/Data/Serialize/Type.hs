@@ -1,3 +1,4 @@
+{- HLINT ignore -}
 -- |
 -- Module      : Streamly.Internal.Data.Serialize.Type
 -- Copyright   : (c) 2023 Composewell Technologies
@@ -190,7 +191,7 @@ deserializeChecked off arr sz =
     let next = off + Unbox.sizeOf (Proxy :: Proxy a)
      in do
         -- Keep likely path in the straight branch.
-        if (next <= sz)
+        if next <= sz
         then Unbox.peekAt off arr >>= \val -> pure (next, val)
         else error
             $ "deserializeAt: accessing array at offset = "
@@ -241,7 +242,7 @@ instance forall a. Serialize a => Serialize [a] where
 
     -- {-# INLINE addSizeTo #-}
     addSizeTo acc xs =
-        foldl' addSizeTo (acc + (Unbox.sizeOf (Proxy :: Proxy Int))) xs
+        foldl' addSizeTo (acc + Unbox.sizeOf (Proxy :: Proxy Int)) xs
 
     -- Inlining this causes large compilation times for tests
     {-# INLINABLE deserializeAt #-}

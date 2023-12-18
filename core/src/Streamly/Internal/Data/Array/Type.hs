@@ -897,7 +897,7 @@ fromPureStreamN n x =
 -- >>> fromPureStream = Array.fromList . runIdentity . Stream.toList
 --
 fromPureStream :: Unbox a => Stream Identity a -> Array a
-fromPureStream x = unsafePerformIO $ fmap (unsafeFreeze) (MA.fromPureStream x)
+fromPureStream x = unsafePerformIO $ fmap unsafeFreeze (MA.fromPureStream x)
 -- fromPureStream = runIdentity . D.fold (unsafeMakePure write)
 -- fromPureStream = fromList . runIdentity . D.toList
 

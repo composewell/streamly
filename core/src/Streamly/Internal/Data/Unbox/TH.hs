@@ -21,9 +21,10 @@ module Streamly.Internal.Data.Unbox.TH
 -- Imports
 --------------------------------------------------------------------------------
 
-import Data.Word (Word16, Word32, Word64, Word8)
-import Data.Proxy (Proxy(..))
+import Data.Bifunctor (second)
 import Data.List (elemIndex)
+import Data.Proxy (Proxy(..))
+import Data.Word (Word16, Word32, Word64, Word8)
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
@@ -62,7 +63,7 @@ elimTV _ptv ktv (KindedTV n k) = ktv n k
 -- | Extract the type variable name from a 'TyVarBndr', ignoring the
 -- kind signature if one exists.
 tvName :: TyVarBndr_ flag -> Name
-tvName = elimTV id (\n _ -> n)
+tvName = elimTV id const
 
 -- | Get the 'Name' of a 'TyVarBndr'
 tyVarBndrName :: TyVarBndr_ flag -> Name
@@ -191,7 +192,7 @@ mkOffsetDecls tagSize fields =
                        [|$(litE (IntegerL (fromIntegral tagSize))) +
                          $(varE _initialOffset)|])
                   [])
-             (map mkOffsetExpr (zip [1 ..] fields)))
+             (fmap mkOffsetExpr (zip [1 ..] fields)))
 
     where
 
@@ -271,7 +272,7 @@ mkPeekExpr headTy cons =
                 , noBindS
                       (caseE
                            (sigE (varE _tag) (conT tagType))
-                           (map peekMatch (zip [0 ..] cons) ++ [peekErr]))
+                           (fmap peekMatch (zip [0 ..] cons) ++ [peekErr]))
                 ]
 
     where
@@ -303,7 +304,7 @@ mkPokeExprTag tagType tagVal = pokeTag
         [|pokeAt
               $(varE _initialOffset)
               $(varE _arr)
-              $((sigE (litE (IntegerL (fromIntegral tagVal))) (conT tagType)))|]
+              $(sigE (litE (IntegerL (fromIntegral tagVal))) (conT tagType))|]
 
 mkPokeExprFields :: Int -> [Field] -> Q Exp
 mkPokeExprFields tagSize fields = do
@@ -326,7 +327,7 @@ mkPokeExprFields tagSize fields = do
 mkPokeMatch :: Name -> Int -> Q Exp -> Q Match
 mkPokeMatch cname numFields exp0 =
     match
-        (conP cname (map varP (map mkFieldName [0 .. (numFields - 1)])))
+        (conP cname (map (varP . mkFieldName) [0 .. (numFields - 1)]))
         (normalB exp0)
         []
 
@@ -339,15 +340,15 @@ mkPokeExpr headTy cons =
                    $(lift (pprint headTy)) ++ ")")|]
         -- XXX We don't gaurentee encoded equivalilty for Unbox. Does it still
         -- make sense to encode a default value for unit constructor?
-        [(DataCon _ _ _ [])] -> [|pure ()|] -- mkPokeExprTag ''Word8 0
-        [(DataCon cname _ _ fields)] ->
+        [DataCon _ _ _ []] -> [|pure ()|] -- mkPokeExprTag ''Word8 0
+        [DataCon cname _ _ fields] ->
             caseE
                 (varE _val)
                 [mkPokeMatch cname (length fields) (mkPokeExprFields 0 fields)]
         _ ->
             caseE
                 (varE _val)
-                (map (\(tagVal, (DataCon cname _ _ fields)) ->
+                (fmap (\(tagVal, DataCon cname _ _ fields) ->
                           mkPokeMatch
                               cname
                               (length fields)
@@ -466,7 +467,7 @@ deriveUnbox mDecs = do
     mapType f v = f v
 
     modifyConVariables f con =
-        con { dcFields = map (\(a, b) -> (a, mapType f b)) (dcFields con) }
+        con { dcFields = map (second (mapType f)) (dcFields con) }
 
     mkInst mo preds headTyWC methods =
         pure [InstanceD mo preds headTyWC methods]

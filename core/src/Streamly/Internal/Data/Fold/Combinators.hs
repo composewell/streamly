@@ -1337,7 +1337,7 @@ notElem a = all (/= a)
 --
 {-# INLINE and #-}
 and :: Monad m => Fold m Bool Bool
-and = all (== True)
+and = all id
 
 -- | Returns 'True' if any element is 'True', 'False' otherwise
 --
@@ -1347,7 +1347,7 @@ and = all (== True)
 --
 {-# INLINE or #-}
 or :: Monad m => Fold m Bool Bool
-or = any (== True)
+or = any id
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
@@ -1641,9 +1641,9 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                     SplitOnSeqKRLoop s _ _ _ -> s
         in fex st
 
-    extract state = extractFunc fextract state
+    extract = extractFunc fextract
 
-    final state = extractFunc ffinal state
+    final = extractFunc ffinal
 
 -- | Like 'takeEndBySeq' but discards the matched sequence.
 --
@@ -1802,9 +1802,9 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
             SplitOnSeqKR s idx rb _ -> consumeRing s idx rb (Ring.startOf rb)
             SplitOnSeqKRLoop s _ rb rh -> consumeRing s patLen rb rh
 
-    extract state = extractFunc fextract state
+    extract = extractFunc fextract
 
-    final state = extractFunc ffinal state
+    final = extractFunc ffinal
 
 ------------------------------------------------------------------------------
 -- Distributing

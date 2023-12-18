@@ -9,7 +9,6 @@
 # Warnings currently triggered by your code
 - suggest: {name: "Unused LANGUAGE pragma"}
 - suggest: {name: "Eta reduce"}
-- suggest: {name: "Reduce duplication"}
 
 # Warnings currently ignored
 - ignore: {name: "Use list literal pattern"}
@@ -25,6 +24,8 @@
 - ignore: {name: "Redundant $!"}
 - ignore: {name: "Use fmap"}
 - ignore: {name: "Use ++"}
+- ignore: {name: "Replace case with maybe"} # case is more readable
+- ignore: {name: "Use mapMaybe"} # does not make any difference
 
 # Warnings ignored in specific places
 - ignore: {name: "Use mapM", within: Stream.Transform}
@@ -38,9 +39,10 @@
 - arguments:
     [ --cpp-include=src
     , --cpp-include=src/Streamly/Internal/Data/Stream
-    , --cpp-include=src/Streamly/Internal/Data/Array
+    , --cpp-include=core/src/Streamly/Internal/Data/Array
     , --cpp-include=test
     , --cpp-define=CABAL_OS_LINUX
+    , --cpp-define=linux_HOST_OS
     ]
 
 

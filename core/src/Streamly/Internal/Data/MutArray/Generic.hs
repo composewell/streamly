@@ -301,7 +301,7 @@ putIndexUnsafeWith n _arrContents# x =
 putIndexUnsafe :: forall m a. MonadIO m => Int -> MutArray a -> a -> m ()
 putIndexUnsafe i MutArray {..} x =
     assert (i >= 0 && i < arrLen)
-    putIndexUnsafeWith (i + arrStart) arrContents# x
+        (putIndexUnsafeWith (i + arrStart) arrContents# x)
 
 invalidIndex :: String -> Int -> a
 invalidIndex label i =

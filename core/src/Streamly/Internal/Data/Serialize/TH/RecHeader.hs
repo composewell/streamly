@@ -105,7 +105,7 @@ instance forall a. Serialize a => Serialize (CompactList a) where
 
     -- {-# INLINE addSizeTo #-}
     addSizeTo acc (CompactList xs) =
-        foldl' addSizeTo (acc + (Unbox.sizeOf (Proxy :: Proxy Word8))) xs
+        foldl' addSizeTo (acc + Unbox.sizeOf (Proxy :: Proxy Word8)) xs
 
     -- Inlining this causes large compilation times for tests
     {-# INLINABLE deserializeAt #-}
@@ -175,10 +175,10 @@ mkRecSizeOfExpr :: SimpleDataCon -> Q Exp
 mkRecSizeOfExpr con = do
     n_acc <- newName "acc"
     n_x <- newName "x"
-    (lamE
+    lamE
          [varP n_acc, varP n_x]
          [|$(litIntegral hlen) +
-            $(caseE (varE n_x) [matchCons (varE n_acc) con])|])
+            $(caseE (varE n_x) [matchCons (varE n_acc) con])|]
 
     where
 
@@ -194,7 +194,7 @@ mkRecSizeOfExpr con = do
 
 headerValue :: SimpleDataCon -> [Word8]
 headerValue (SimpleDataCon _ fields) =
-    int_w8 numFields : concat (fmap lengthPrependedFieldEncoding fields)
+    int_w8 numFields : concatMap lengthPrependedFieldEncoding fields
 
     where
 
@@ -215,7 +215,7 @@ headerValue (SimpleDataCon _ fields) =
                     else
                         errorUnsupported
                             "Length of any key should be <= 255."
-         in (int_w8 (length fEnc)) : fEnc
+         in int_w8 (length fEnc) : fEnc
 
 --------------------------------------------------------------------------------
 -- Peek
@@ -232,7 +232,7 @@ serializeWithSize off arr val = do
     pure off1
 
 mkRecSerializeExpr :: Name -> SimpleDataCon -> Q Exp
-mkRecSerializeExpr initialOffset (con@(SimpleDataCon cname fields)) = do
+mkRecSerializeExpr initialOffset con@(SimpleDataCon cname fields) = do
     afterHLen <- newName "afterHLen"
     -- Encoding the header length is required.
     -- We first compare the header length encoded and the current header
@@ -264,7 +264,7 @@ mkRecSerializeExpr initialOffset (con@(SimpleDataCon cname fields)) = do
 {-# INLINE deserializeWithSize #-}
 deserializeWithSize ::
        Serialize a => Int -> MutByteArray -> Int -> IO (Int, a)
-deserializeWithSize off arr endOff = deserializeAt (off + 4) arr endOff
+deserializeWithSize off = deserializeAt (off + 4)
 
 conUpdateFuncDec :: Name -> [Field] -> Q [Dec]
 conUpdateFuncDec funcName fields = do
@@ -274,7 +274,7 @@ conUpdateFuncDec funcName fields = do
     arr <- newName "arr"
     key <- newName "key"
     method <-
-        (caseE
+        caseE
              (varE key)
              (concat
                   [ map (matchField arr endOff (prevAcc, curOff)) fnames
@@ -291,7 +291,7 @@ conUpdateFuncDec funcName fields = do
                                         , valOff + w32_int valLen)|])
                           []
                     ]
-                  ]))
+                  ])
     pure
         [ PragmaD (InlineP funcName NoInline FunLike AllPhases)
         , FunD

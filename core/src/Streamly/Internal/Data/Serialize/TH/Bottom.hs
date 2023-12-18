@@ -249,7 +249,7 @@ makeA i = mkName $ "a" ++ show i
 
 openConstructor :: Name -> Int -> Q Pat
 openConstructor cname numFields =
-    conP cname (map varP (map mkFieldName [0 .. (numFields - 1)]))
+    conP cname (map (varP. mkFieldName) [0 .. (numFields - 1)])
 
 matchConstructor :: Name -> Int -> Q Exp -> Q Match
 matchConstructor cname numFields exp0 =
@@ -276,9 +276,9 @@ typeOfType :: Type -> [DataCon] -> TypeOfType
 typeOfType headTy [] =
     error
         ("Attempting to get size with no constructors (" ++
-         (pprint headTy) ++ ")")
+         pprint headTy ++ ")")
 typeOfType _ [DataCon cname _ _ []] = UnitType cname
-typeOfType _ [con@(DataCon _ _ _ _)] = TheType $ simplifyDataCon con
+typeOfType _ [con@DataCon{}] = TheType $ simplifyDataCon con
 typeOfType _ cons = MultiType $ map simplifyDataCon cons
 
 isUnitType :: [DataCon] -> Bool
@@ -286,7 +286,7 @@ isUnitType [DataCon _ _ _ []] = True
 isUnitType _ = False
 
 isRecordSyntax :: SimpleDataCon -> Bool
-isRecordSyntax (SimpleDataCon _ fields) = and (isJust . fst <$> fields)
+isRecordSyntax (SimpleDataCon _ fields) = all (isJust . fst) fields
 
 --------------------------------------------------------------------------------
 -- Type casting
@@ -326,7 +326,7 @@ wListToString = fmap (chr . fromIntegral)
 shiftAdd :: Bits a => (b -> a) -> [b] -> a
 shiftAdd conv xs =
     foldl' (.|.) zeroBits $
-    map (\(j, x) -> shiftL x (j * 8)) $ zip [0 ..] $ map conv xs
+    fmap (\(j, x) -> shiftL x (j * 8)) $ zip [0 ..] $ map conv xs
 
 -- Note: This only works in little endian machines
 -- TODO:
@@ -423,7 +423,7 @@ serializeW8List :: Name -> Name -> [Word8] -> Q Exp
 serializeW8List off arr w8List = do
     [|let $(varP (makeN 0)) = $(varE off)
        in $(doE (fmap makeBind [0 .. (lenW8List - 1)] ++
-                 [noBindS ([|pure $(varE (makeN lenW8List))|])]))|]
+                 [noBindS [|pure $(varE (makeN lenW8List))|]]))|]
 
     where
 

@@ -172,8 +172,7 @@ mkSizeDec (SerializeConfig {..}) headTy cons = do
             cfgRecordSyntaxWithHeader
             (typeOfType headTy cons)
     pure
-        ( maybe
-            []
+        ( foldMap
             (\x -> [PragmaD (InlineP 'addSizeTo x FunLike AllPhases)])
             cfgInlineSize
          ++ [FunD 'addSizeTo [Clause [] (NormalB sizeOfMethod) []]]
@@ -240,7 +239,7 @@ mkDeserializeExpr False False headTy tyOfTy =
                 , noBindS
                       (caseE
                            (sigE (varE _tag) (conT tagType))
-                           (map peekMatch (zip [0 ..] cons) ++ [peekErr]))
+                           (fmap peekMatch (zip [0 ..] cons) ++ [peekErr]))
                 ]
   where
     peekMatch (i, con) =
@@ -282,8 +281,7 @@ mkDeserializeDec (SerializeConfig {..}) headTy cons = do
             headTy
             (typeOfType headTy cons)
     pure
-        ( maybe
-            []
+        ( foldMap
             (\x -> [PragmaD (InlineP 'deserializeAt x FunLike AllPhases)])
             cfgInlineDeserialize
          ++
@@ -308,7 +306,7 @@ mkSerializeExprTag tagType tagVal =
     [|serializeAt
           $(varE _initialOffset)
           $(varE _arr)
-          $((sigE (litE (IntegerL (fromIntegral tagVal))) (conT tagType)))|]
+          $(sigE (litE (IntegerL (fromIntegral tagVal))) (conT tagType))|]
 
 mkSerializeExpr :: Bool -> Bool -> TypeOfType -> Q Exp
 mkSerializeExpr True False tyOfTy =
@@ -365,7 +363,7 @@ mkSerializeExpr False False tyOfTy =
                 tagType = getTagType lenCons
             caseE
                 (varE _val)
-                (map (\(tagVal, (SimpleDataCon cname fields)) ->
+                (fmap (\(tagVal, SimpleDataCon cname fields) ->
                           matchConstructor
                               cname
                               (length fields)
@@ -392,8 +390,7 @@ mkSerializeDec (SerializeConfig {..}) headTy cons = do
             cfgRecordSyntaxWithHeader
             (typeOfType headTy cons)
     pure
-        ( maybe
-            []
+        ( foldMap
             (\x -> [PragmaD (InlineP 'serializeAt x FunLike AllPhases)])
             cfgInlineSerialize
          ++

@@ -19,6 +19,7 @@ where
 #if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
 #endif
+import Data.Bifunctor (first)
 
 ------------------------------------------------------------------------------
 -- The Builder type
@@ -34,7 +35,7 @@ newtype Builder s m a =
 -- | Maps a function on the output of the fold (the type @b@).
 instance Functor m => Functor (Builder s m) where
     {-# INLINE fmap #-}
-    fmap f (Builder step1) = Builder (fmap (\ (a, s) -> (f a, s)) . step1)
+    fmap f (Builder step1) = Builder (fmap (first f) . step1)
 
 {-# INLINE fromPure #-}
 fromPure :: Applicative m => b -> Builder s m b

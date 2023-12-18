@@ -40,8 +40,8 @@ mkDeserializeExprOne peeker (SimpleDataCon cname fields) =
                                        [ varE (makeI numFields)
                                        , appsE
                                              (conE cname :
-                                              (map (varE . makeA)
-                                                   [0 .. (numFields - 1)]))
+                                              map (varE . makeA)
+                                                   [0 .. (numFields - 1)])
                                        ]))
                        ]
                      ])
@@ -60,7 +60,7 @@ mkSerializeExprFields poker fields =
         _ ->
             doE
                 (fmap makeBind [0 .. (numFields - 1)] ++
-                 [noBindS ([|pure $(varE (makeI numFields))|])])
+                 [noBindS [|pure $(varE (makeI numFields))|]])
   where
     numFields = length fields
     makeBind i =

@@ -340,7 +340,7 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
     step SPInitial val =
         case val of
           '+' -> Continue 0 (SPSign 1)
-          '-' -> Continue 0 $ (SPSign (-1))
+          '-' -> Continue 0 (SPSign (-1))
           _ -> do
               let num = ord val - 48
               if num >= 0 && num <= 9
@@ -481,7 +481,7 @@ doubleParser =  Parser (\s a -> return $ step s a) initial (return . extract)
     step DPInitial val =
         case val of
           '+' -> Continue 0 (DPSign 1)
-          '-' -> Continue 0 $ (DPSign (-1))
+          '-' -> Continue 0 (DPSign (-1))
           _ -> do
               let num = ord val - 48
               if num >= 0 && num <= 9

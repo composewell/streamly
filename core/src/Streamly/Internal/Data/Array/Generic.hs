@@ -138,7 +138,7 @@ write = create
 
 fromPureStream :: Stream Identity a -> Array a
 fromPureStream x =
-    unsafePerformIO $ fmap (unsafeFreeze) (MArray.fromPureStream x)
+    unsafePerformIO $ fmap unsafeFreeze (MArray.fromPureStream x)
 -- fromPureStream = runIdentity . D.fold (unsafeMakePure write)
 -- fromPureStream = fromList . runIdentity . D.toList
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Unicode.String

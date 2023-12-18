@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{- HLINT ignore "Eta reduce" -}
 -- |
 -- Module      : Streamly.Internal.Data.StreamK
 -- Copyright   : (c) 2017 Composewell Technologies

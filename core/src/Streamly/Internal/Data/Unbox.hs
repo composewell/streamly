@@ -5,6 +5,7 @@
 {-# LANGUAGE NoMonoLocalBinds #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE UndecidableInstances #-}
+{- HLINT ignore -}
 
 -- |
 -- Module      : Streamly.Internal.Data.Unbox

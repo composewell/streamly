@@ -282,7 +282,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     src  = Prelude.reverse src0
                 return (Right b, Nesting.append (fromList src) (Stream step s))
             PR.Error err -> do
-                let src = (Prelude.reverse $ getList buf) ++ x:xs
+                let src = Prelude.reverse (getList buf) ++ x:xs
                 return
                     ( Left (ParseError err)
                     , Nesting.append (fromList src) (Stream step s)
@@ -315,7 +315,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     src  = Prelude.reverse src0
                 return (Right b, fromList src)
             PR.Error err -> do
-                let src = (Prelude.reverse $ getList buf) ++ x:xs
+                let src = Prelude.reverse (getList buf) ++ x:xs
                 return (Left (ParseError err), fromList src)
 
     -- This is simplified goExtract
@@ -441,7 +441,7 @@ elem e (Stream step state) = go SPEC state
 
 {-# INLINE_NORMAL notElem #-}
 notElem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
-notElem e s = fmap not (elem e s)
+notElem e s = fmap not (e `elem` s)
 
 {-# INLINE_NORMAL all #-}
 all :: Monad m => (a -> Bool) -> Stream m a -> m Bool

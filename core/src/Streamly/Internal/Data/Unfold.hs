@@ -519,7 +519,7 @@ replicateM = Unfold step inject
 
     where
 
-    inject seed = pure seed
+    inject = pure
 
     {-# INLINE_LATE step #-}
     step (i, action) =
