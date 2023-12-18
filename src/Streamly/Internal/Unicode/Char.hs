@@ -227,13 +227,13 @@ partialComposeD (Stream step state) = Stream step' (ComposeNone state)
                 Stop -> Skip $ YieldList rbuf ComposeStop
 
     {-# INLINE initHangul #-}
-    initHangul c st = ComposeJamo (Hangul c) st
+    initHangul c = ComposeJamo (Hangul c)
 
     {-# INLINE initJamo #-}
-    initJamo c st = ComposeJamo (Jamo c) st
+    initJamo c = ComposeJamo (Jamo c)
 
     {-# INLINE initReg #-}
-    initReg !c st = ComposeReg 0 [c] st
+    initReg !c = ComposeReg 0 [c]
 
     {-# INLINE composeNone #-}
     composeNone ch st

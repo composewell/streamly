@@ -646,8 +646,8 @@ parConcatIterate modifier f input =
 
     where
 
-    iterateStream channel stream =
-        parConcatMapChanKGeneric modifier channel (generate channel) stream
+    iterateStream channel =
+        parConcatMapChanKGeneric modifier channel (generate channel)
 
     generate channel x =
         -- XXX The channel q should be FIFO for DFS, otherwise it is BFS
