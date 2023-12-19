@@ -90,6 +90,7 @@ import Data.Function ((&))
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.FileSystem.ReadDir (readDirStreamEither)
 #if (defined linux_HOST_OS) || (defined darwin_HOST_OS) || (defined freebsd_HOST_OS)
 import qualified System.OsPath.Posix as OsPathPosix
 import System.Posix.Directory.PosixPath (DirStream, closeDirStream)
@@ -266,6 +267,19 @@ streamReader = Unfold step return
         then return Stop
         else return $ Yield file strm
 
+{-# INLINE streamEitherReader #-}
+streamEitherReader :: MonadIO m =>
+    Unfold m DirStream (Either OsPath OsPath)
+streamEitherReader = Unfold step return
+    where
+
+    toOsPath = either (Left . OsString) (Right . OsString)
+    step strm = do
+        file <- liftIO $ readDirStreamEither strm
+        if file == Left mempty
+        then return Stop
+        else return $ Yield (toOsPath file) strm
+
 #elif defined(mingw32_HOST_OS)
 openDirStream :: String -> IO (Win32.HANDLE, Win32.FindData)
 openDirStream = Win32.findFirstFile
@@ -318,14 +332,21 @@ reader =
 --  /Internal/
 --
 {-# INLINE eitherReader #-}
-eitherReader :: (MonadIO m, MonadCatch m) => Unfold m OsPath (Either OsPath OsPath)
-eitherReader = UF.mapM2 classify reader
+eitherReader :: (MonadIO m, MonadCatch m) =>
+    Unfold m OsPath (Either OsPath OsPath)
+eitherReader =
+    -- XXX bracketIO is expensive
+      UF.bracketIO openDirStream closeDirStream streamEitherReader
+    & UF.filter f
 
     where
 
-    classify dir x = do
-        r <- liftIO $ Dir.doesDirectoryExist (dir </> x)
-        return $ if r then Left x else Right x
+    dot = OsPath.unsafeFromChar '.'
+    f p =
+        case p of
+            -- XXX This check could be made more efficient
+            Left x -> x /= OsPath.pack [dot] && x /= OsPath.pack [dot, dot]
+            Right _ -> True
 
 {-# INLINE eitherReaderPaths #-}
 eitherReaderPaths ::(MonadIO m, MonadCatch m) => Unfold m OsPath (Either OsPath OsPath)
