@@ -335,22 +335,15 @@ reader =
 eitherReader :: (MonadIO m, MonadCatch m) =>
     Unfold m OsPath (Either OsPath OsPath)
 eitherReader =
-    -- XXX bracketIO is expensive
+    -- XXX The measured overhead of bracketIO is not noticeable, if it turns
+    -- out to be a problems for small filenames we can use getdents64 to use
+    -- chunked read to avoid the overhead.
       UF.bracketIO openDirStream closeDirStream streamEitherReader
-    & UF.filter f
-
-    where
-
-    dot = OsPath.unsafeFromChar '.'
-    f p =
-        case p of
-            -- XXX This check could be made more efficient
-            Left x -> x /= OsPath.pack [dot] && x /= OsPath.pack [dot, dot]
-            Right _ -> True
 
 {-# INLINE eitherReaderPaths #-}
 eitherReaderPaths ::(MonadIO m, MonadCatch m) => Unfold m OsPath (Either OsPath OsPath)
 eitherReaderPaths =
+    -- XXX Do not resolve the children again
     UF.mapM2 (\dir -> return . bimap (dir </>) (dir </>)) eitherReader
 
 --
