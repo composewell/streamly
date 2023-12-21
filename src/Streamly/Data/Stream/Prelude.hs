@@ -6,6 +6,11 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- For upgrading to streamly-0.9.0+ please read the
+-- <https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/Project/Upgrading-0.8-to-0.9.md Streamly-0.9.0 upgrade guide>.
+-- Also, see the "Streamly.Data.Stream.MkType" module for direct replacement of
+-- stream types that have been removed in 0.9.0.
+--
 -- All Stream related combinators including the streamly-core
 -- "Streamly.Data.Stream" module, concurrency, time and lifted
 -- exception operations. For more pre-release operations also see
