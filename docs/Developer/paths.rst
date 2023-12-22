@@ -140,12 +140,35 @@ know exactly how the file system stores the path. Otherwise if we display
 it differently, the user may use the displayed result to find the file
 and may not find it.
 
+OS Specific Path Encodings
+--------------------------
+
+In general, the OS does not have to look inside the path components
+other than the ability to recognize the separator char to parse the
+path into components and to construct it from components. However, in
+some cases the OS may may have to look inside the path e.g. "." or ".."
+special paths on Unix.
+
+On Unix a path component is just a blob of bytes. The user can encode
+and decode this blob of bytes as they desire. All they need to care
+about is that the path separator byte is respected. However, the the
+path component blobs may be changed by the underlying filesystem
+e.g. apple HFS may normalize the path before storing, therefore, the
+representation may change when it is returned back to the user.
+
+On modern Windows systems a path component is UTF16-LE
+encoded. Theoretically, from the OS perspective, it does not have to
+look inside the path components other than determining whether a 16-bit
+unit represents the separator character, therefore, users can use any
+encoding as long as it encodes to 16-bit multiples and the separator is
+preserved as equivalent to the UTF16-LE representation.
+
 Type Safety Requirements
 ------------------------
 
 * Safety against using an absolute path where a relative path is to be
-  used and vice-versa.  
-  
+  used and vice-versa.
+
   * Validations for absolute or relative path when constructing a path.
   * We cannot append an absolute path to another path
 * Safety against using a file name where a directory name is to be used and
