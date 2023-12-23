@@ -372,6 +372,7 @@ library
                      , Streamly.Internal.Unicode.Array
 
                      -- Filesystem/IO
+                     , Streamly.Internal.FileSystem.Path
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
                      , Streamly.Internal.FileSystem.Dir

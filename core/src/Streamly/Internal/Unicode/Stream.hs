@@ -28,6 +28,7 @@ module Streamly.Internal.Unicode.Stream
     , decodeUtf8
     , decodeUtf8'
     , decodeUtf8_
+    , decodeUtf16le'
 
     -- ** Resumable UTF-8 Decoding
     , DecodeError(..)
@@ -55,6 +56,7 @@ module Streamly.Internal.Unicode.Stream
     , encodeUtf8'
     , encodeUtf8_
     , encodeStrings
+    , encodeUtf16le'
     {-
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
@@ -97,7 +99,7 @@ import Data.Char (chr, ord)
 #if MIN_VERSION_base(4,17,0)
 import Data.Char (generalCategory, GeneralCategory(Space))
 #endif
-import Data.Word (Word8)
+import Data.Word (Word8, Word16)
 import Foreign.Marshal.Alloc (mallocBytes)
 import Foreign.Storable (Storable(..))
 #ifndef __GHCJS__
@@ -677,6 +679,19 @@ decodeUtf8Lax :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8Lax = decodeUtf8
 
 -------------------------------------------------------------------------------
+-- Decoding Utf16
+-------------------------------------------------------------------------------
+
+-- | Decode a UTF-16 little endian encoded bytestream to a stream of Unicode
+-- characters. The function throws an error if an invalid codepoint is
+-- encountered.
+--
+-- /Unimplemented/
+{-# INLINE decodeUtf16le' #-}
+decodeUtf16le' :: Stream m Word16 -> Stream m Char
+decodeUtf16le' = undefined
+
+-------------------------------------------------------------------------------
 -- Decoding Array Streams
 -------------------------------------------------------------------------------
 
@@ -945,6 +960,18 @@ encodeUtf8_ = encodeUtf8D_
 {-# INLINE encodeUtf8Lax #-}
 encodeUtf8Lax :: Monad m => Stream m Char -> Stream m Word8
 encodeUtf8Lax = encodeUtf8
+
+-------------------------------------------------------------------------------
+-- Encoding to Utf16
+-------------------------------------------------------------------------------
+
+-- | Encode a stream of Unicode characters to a UTF-16 little endian encoded
+-- bytestream.
+--
+-- /Unimplemented/
+{-# INLINE encodeUtf16le' #-}
+encodeUtf16le' :: Stream m Char -> Stream m Word16
+encodeUtf16le' = undefined
 
 -------------------------------------------------------------------------------
 -- Decoding string literals
