@@ -212,6 +212,9 @@ pattern Stream step state <- (unShare -> UnStream step state)
 nilM :: Applicative m => m b -> Stream m a
 nilM m = Stream (\_ _ -> m $> Stop) ()
 
+
+infixr 5 `consM`
+
 -- | Like 'cons' but fuses an effect instead of a pure value.
 {-# INLINE_NORMAL consM #-}
 consM :: Applicative m => m a -> Stream m a -> Stream m a

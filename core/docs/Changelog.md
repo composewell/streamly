@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* Add fixities `infixr 5` for `cons` and `consM` functions.
+
 ## 0.2.1 (Dec 2023)
 
 * Make the serialization of the unit constructor deterministic.
