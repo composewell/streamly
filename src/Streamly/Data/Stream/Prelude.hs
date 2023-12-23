@@ -61,25 +61,28 @@ module Streamly.Data.Stream.Prelude
     -- | Stream combinators using a concurrent channel.
 
     -- *** Evaluate
-    -- | Evaluates a serial stream asynchronously using a concurency channel.
+    -- | Evaluate a stream as a whole concurrently with respect to the consumer
+    -- of the stream.
 
     , parEval
 
     -- *** Generate
-    -- | Uses a concurrency channel to evaluate multiple actions concurrently.
+    -- | Generate a stream by evaluating multiple actions concurrently.
     , parRepeatM
     , parReplicateM
     , fromCallback
 
     -- *** Map
-    -- | Uses a concurrency channel to evaluate multiple mapped actions
-    -- concurrently.
+    -- | Map actions on a stream such that the mapped actions are evaluated
+    -- concurrently with each other.
 
     , parMapM
     , parSequence
 
     -- *** Combine two
-    -- | Use a channel for each pair.
+    -- | Combine two streams such that each stream as a whole is evaluated
+    -- concurrently with respect to the other stream as well as the consumer of
+    -- the resulting stream.
     , parZipWithM
     , parZipWith
     , parMergeByM
@@ -157,16 +160,18 @@ import Streamly.Internal.Data.Stream.Prelude
 -- 'parConcatMap', and 'parConcatIterate', all concurrency combinators can be
 -- expressed in terms of these.
 --
--- 'parEval', evaluates a single stream asynchronously, a worker thread runs
--- the stream and buffers the results, and the consumer of the stream runs in
--- another thread consuming it from the buffer, thus decoupling the production
--- and consumption of the stream. This can be used to run different stages of a
--- pipeline concurrently.
+-- 'parEval' evaluates a stream as a whole asynchronously with respect to
+-- the consumer of the stream. A worker thread evaluates multiple elements of
+-- the stream ahead of time and buffers the results; the consumer of the stream
+-- runs in another thread consuming the elements from the buffer, thus
+-- decoupling the production and consumption of the stream. 'parEval' can be
+-- used to run different stages of a pipeline concurrently.
 --
--- 'parConcatMap' is used to evaluate multiple streams concurrently and combine
--- the results. A stream generator function is mapped to the input stream and
--- all the generated streams are then evaluated concurrently, and the results
--- are combined.
+-- 'parConcatMap' is used to evaluate multiple actions in a stream concurrently
+-- with respect to each other or to evaluate multiple streams concurrently and
+-- combine the results. A stream generator function is mapped to the input
+-- stream and all the generated streams are then evaluated concurrently, and
+-- the results are combined.
 --
 -- 'parConcatIterate' is like 'parConcatMap' but iterates a stream generator
 -- function recursively over the stream. This can be used to traverse trees or

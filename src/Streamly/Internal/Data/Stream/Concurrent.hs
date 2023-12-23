@@ -147,15 +147,23 @@ parEvalD modifier m = D.Stream step Nothing
             D.Stop      -> D.Stop
 -}
 
--- | Evaluate a stream asynchronously. In a serial stream, each element of the
--- stream is generated as it is demanded by the consumer. `parEval` evaluates
--- multiple elements of the stream ahead of time and serves the results from a
--- buffer.
+-- | 'parEval' evaluates a stream as a whole asynchronously with respect to
+-- the consumer of the stream. A worker thread evaluates multiple elements of
+-- the stream ahead of time and buffers the results; the consumer of the stream
+-- runs in another thread consuming the elements from the buffer, thus
+-- decoupling the production and consumption of the stream. 'parEval' can be
+-- used to run different stages of a pipeline concurrently.
 --
--- Note that the evaluation requires only one thread as only one stream needs
--- to be evaluated. Therefore, the concurrency options that are relevant to
--- multiple streams won't apply here e.g. maxThreads, eager, interleaved,
--- ordered, stopWhen options won't have any effect.
+-- It is important to note that 'parEval' does not evaluate individual actions
+-- in the stream concurrently with respect to each other, it merely evaluates
+-- the stream serially but in a different thread than the consumer thread,
+-- thus the consumer and producer can run concurrently. See 'parMapM' and
+-- 'parSequence' to evaluate actions in the stream concurrently.
+--
+-- The evaluation requires only one thread as only one stream needs to be
+-- evaluated. Therefore, the concurrency options that are relevant to multiple
+-- streams do not apply here e.g. maxThreads, eager, interleaved, ordered,
+-- stopWhen options do not have any effect on 'parEval'.
 --
 -- Useful idioms:
 --
