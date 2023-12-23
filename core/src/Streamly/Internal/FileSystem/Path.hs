@@ -447,6 +447,8 @@ separator = SEPARATOR
 -- components in which case we cannot distinguish an absolute path from
 -- relative.
 
+-- XXX This can be generalized to an Array intersperse operation
+
 -- | Like 'extendDir' but for the less restrictive 'Path' type which will always
 -- create a syntactically valid 'Path' type but it may not be semantically valid
 -- because we may append an absolute path or we may append to a file path.
