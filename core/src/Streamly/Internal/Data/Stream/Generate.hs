@@ -154,6 +154,8 @@ import Streamly.Internal.Data.Stream.Type
 nil :: Applicative m => Stream m a
 nil = Stream (\_ _ -> pure Stop) ()
 
+infixr 5 `cons`
+
 -- XXX implement in terms of consM?
 -- cons x = consM (return x)
 -- From an implementation perspective, StreamK.cons translates into a
