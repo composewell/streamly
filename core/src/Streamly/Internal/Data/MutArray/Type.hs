@@ -76,6 +76,8 @@ module Streamly.Internal.Data.MutArray.Type
     , fromStreamD
     , fromPureStreamN
     , fromPureStream
+    , fromByteStr#
+    , fromPtrN
 
     -- ** Random writes
     , putIndex
@@ -173,6 +175,7 @@ module Streamly.Internal.Data.MutArray.Type
     , castUnsafe
     , asBytes
     , asPtrUnsafe
+    , asUnpinnedPtrUnsafe
 
     -- ** Folding
     , foldl'
@@ -255,7 +258,7 @@ import GHC.Base
     , copyMutableByteArray#
     )
 import GHC.Base (noinline)
-import GHC.Exts (unsafeCoerce#)
+import GHC.Exts (unsafeCoerce#, Addr#)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -283,6 +286,7 @@ import Prelude hiding
 -- Foreign helpers
 -------------------------------------------------------------------------------
 
+-- NOTE: Have to be "ccall unsafe" so that we can pass unpinned memory to these
 foreign import ccall unsafe "string.h memcpy" c_memcpy
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
 
@@ -291,6 +295,9 @@ foreign import ccall unsafe "string.h memchr" c_memchr
 
 foreign import ccall unsafe "string.h memcmp" c_memcmp
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
+
+foreign import ccall unsafe "string.h strlen" c_strlen
+    :: Ptr Word8 -> IO CSize
 
 -- | Given an 'Unboxed' type (unused first arg) and a number of bytes, return
 -- how many elements of that type will completely fit in those bytes.
@@ -2042,6 +2049,32 @@ fromPureStream :: (MonadIO m, Unbox a) => Stream Identity a -> m (MutArray a)
 fromPureStream xs =
     liftIO $ D.fold write $ D.morphInner (return . runIdentity) xs
 
+{-# INLINABLE fromPtrN #-}
+fromPtrN :: MonadIO m => Int -> Ptr Word8 -> m (MutArray Word8)
+fromPtrN len addr = do
+    -- memcpy is better than stream copy when the size is known.
+    -- XXX We can implement a stream copy in a similar way by streaming Word64
+    -- first and then remaining Word8.
+    arr <- new len
+    _ <- asUnpinnedPtrUnsafe arr
+            (\ptr -> liftIO $ c_memcpy ptr addr (fromIntegral len))
+    return (arr {arrEnd = len})
+
+{-# INLINABLE fromByteStr# #-}
+fromByteStr# :: MonadIO m => Addr# -> m (MutArray Word8)
+fromByteStr# addr = do
+    -- It is better to count the size first and allocate exact space.
+    -- Also, memcpy is better than stream copy when the size is known.
+    -- C strlen compares 4 bytes at a time, so is better than the stream
+    -- version. https://github.com/bminor/glibc/blob/master/string/strlen.c
+    -- XXX We can possibly use a stream of Word64 to do the same.
+    -- fromByteStr# addr = fromPureStream (D.fromByteStr# addr)
+    len <- liftIO $ c_strlen (Ptr addr)
+    let lenInt = fromIntegral len
+    arr <- new lenInt
+    _ <- asUnpinnedPtrUnsafe arr (\ptr -> liftIO $ c_memcpy ptr (Ptr addr) len)
+    return (arr {arrEnd = lenInt})
+
 -------------------------------------------------------------------------------
 -- convert stream to a single array
 -------------------------------------------------------------------------------
@@ -2377,6 +2410,12 @@ cast arr =
 asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
 asPtrUnsafe arr f =
     Unboxed.asPtrUnsafe
+        (arrContents arr) (\ptr -> f (ptr `plusPtr` arrStart arr))
+
+{-# INLINE asUnpinnedPtrUnsafe #-}
+asUnpinnedPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+asUnpinnedPtrUnsafe arr f =
+    Unboxed.asUnpinnedPtrUnsafe
         (arrContents arr) (\ptr -> f (ptr `plusPtr` arrStart arr))
 
 -------------------------------------------------------------------------------

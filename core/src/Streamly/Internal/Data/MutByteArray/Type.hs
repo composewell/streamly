@@ -35,6 +35,7 @@ module Streamly.Internal.Data.MutByteArray.Type
     , cloneSliceUnsafe
     , pinnedCloneSliceUnsafe
     , asPtrUnsafe
+    , asUnpinnedPtrUnsafe
     ) where
 
 import Control.Monad.IO.Class (MonadIO(..))
@@ -118,6 +119,16 @@ asPtrUnsafe arr f = do
                      (unsafeCoerce# (getMutableByteArray# contents)))
   r <- f ptr
   liftIO $ touch contents
+  return r
+
+-- | For use with unsafe FFI functions. Does not force pin the array memory.
+{-# INLINE asUnpinnedPtrUnsafe #-}
+asUnpinnedPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
+asUnpinnedPtrUnsafe arr f = do
+  let !ptr = Ptr (byteArrayContents#
+                     (unsafeCoerce# (getMutableByteArray# arr)))
+  r <- f ptr
+  liftIO $ touch arr
   return r
 
 --------------------------------------------------------------------------------

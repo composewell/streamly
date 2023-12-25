@@ -42,6 +42,8 @@ module Streamly.Internal.Data.Array.Type
     , fromPureStreamN
     , fromPureStream
     , fromByteStr#
+    , fromByteStr
+    , fromPtrN
 
     -- ** Split
     , breakOn
@@ -121,7 +123,6 @@ import Prelude hiding (Foldable(..), read, unlines, splitAt)
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream.Type as D
-import qualified Streamly.Internal.Data.Stream.Generate as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
@@ -633,6 +634,13 @@ fromPureStream x = unsafePerformIO $ fmap (unsafeFreeze) (MA.fromPureStream x)
 -- fromPureStream = runIdentity . D.fold (unsafeMakePure write)
 -- fromPureStream = fromList . runIdentity . D.toList
 
+-- | Copy an immutable 'Ptr Word8' sequence into an array.
+--
+-- /Unsafe:/ The caller is responsible for safe addressing.
+--
+fromPtrN :: Int -> Ptr Word8 -> Array Word8
+fromPtrN n addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromPtrN n addr)
+
 -- | Copy a null terminated immutable 'Addr#' Word8 sequence into an array.
 --
 -- /Unsafe:/ The caller is responsible for safe addressing.
@@ -644,7 +652,10 @@ fromPureStream x = unsafePerformIO $ fmap (unsafeFreeze) (MA.fromPureStream x)
 -- [1,2,3]
 --
 fromByteStr# :: Addr# -> Array Word8
-fromByteStr# addr = fromPureStream (D.fromByteStr# addr)
+fromByteStr# addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromByteStr# addr)
+
+fromByteStr :: Ptr Word8 -> Array Word8
+fromByteStr (Ptr addr#) = fromByteStr# addr#
 
 -------------------------------------------------------------------------------
 -- Instances
