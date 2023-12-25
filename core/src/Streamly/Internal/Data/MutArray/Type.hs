@@ -74,6 +74,7 @@ module Streamly.Internal.Data.MutArray.Type
     , fromListRev
     , fromStreamDN
     , fromStreamD
+    , fromPureStreamN
     , fromPureStream
 
     -- ** Random writes
@@ -2027,6 +2028,13 @@ pinnedFromListN n xs = fromStreamDNAs Pinned n $ D.fromList xs
 {-# INLINE fromListRevN #-}
 fromListRevN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
 fromListRevN n xs = D.fold (writeRevN n) $ D.fromList xs
+
+-- | Convert a pure stream in Identity monad to a mutable array.
+{-# INLINABLE fromPureStreamN #-}
+fromPureStreamN :: (MonadIO m, Unbox a) =>
+    Int -> Stream Identity a -> m (MutArray a)
+fromPureStreamN n xs =
+    liftIO $ D.fold (writeN n) $ D.morphInner (return . runIdentity) xs
 
 -- | Convert a pure stream in Identity monad to a mutable array.
 {-# INLINABLE fromPureStream #-}

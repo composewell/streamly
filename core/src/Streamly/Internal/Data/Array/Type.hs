@@ -39,6 +39,7 @@ module Streamly.Internal.Data.Array.Type
     , fromListRevN
     , fromStreamDN
     , fromStreamD
+    , fromPureStreamN
     , fromPureStream
     , fromByteStr#
 
@@ -615,6 +616,11 @@ unsafeMakePure (Fold step initial extract final) =
          (return $! unsafePerformIO initial)
          (\s -> return $! unsafeInlineIO $ extract s)
          (\s -> return $! unsafeInlineIO $ final s)
+
+{-# INLINE fromPureStreamN #-}
+fromPureStreamN :: Unbox a => Int -> Stream Identity a -> Array a
+fromPureStreamN n x =
+    unsafePerformIO $ fmap unsafeFreeze (MA.fromPureStreamN n x)
 
 -- | Convert a pure stream in Identity monad to an immutable array.
 --
