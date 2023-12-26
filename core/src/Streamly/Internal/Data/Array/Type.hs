@@ -44,6 +44,7 @@ module Streamly.Internal.Data.Array.Type
     , fromByteStr#
     , fromByteStr
     , fromPtrN
+    , fromArrayStreamK
 
     -- ** Split
     , breakOn
@@ -117,6 +118,7 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..), MutByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.StreamK.Type (StreamK)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec)
@@ -262,9 +264,9 @@ isPinned = MA.isPinned . unsafeThaw
 -- would make a copy on every splice operation, instead use the
 -- 'fromArrayStreamK' operation to combine n immutable arrays.
 {-# INLINE splice #-}
-splice :: (MonadIO m, Unbox a) => Array a -> Array a -> m (Array a)
+splice :: MonadIO m => Array a -> Array a -> m (Array a)
 splice arr1 arr2 =
-    unsafeFreeze <$> MA.splice (unsafeThaw arr1) (unsafeThaw arr2)
+    unsafeFreeze <$> MA.spliceCopy (unsafeThaw arr1) (unsafeThaw arr2)
 
 -- | Create an 'Array' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
@@ -663,6 +665,16 @@ fromByteStr# addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromByteStr# addr)
 fromByteStr :: Ptr Word8 -> Array Word8
 fromByteStr (Ptr addr#) = fromByteStr# addr#
 
+-- XXX implement fromArrayStream/fromArrayList instead?
+
+-- | Convert an array stream to an array. Note that this requires peak memory
+-- that is double the size of the array stream.
+--
+{-# INLINE fromArrayStreamK #-}
+fromArrayStreamK :: (Unbox a, MonadIO m) => StreamK m (Array a) -> m (Array a)
+fromArrayStreamK stream =
+    fmap unsafeFreeze $ MA.fromArrayStreamK $ fmap unsafeThaw stream
+
 -------------------------------------------------------------------------------
 -- Instances
 -------------------------------------------------------------------------------
@@ -815,6 +827,12 @@ instance Foldable Array where
 -- Semigroup and Monoid
 -------------------------------------------------------------------------------
 
+-- XXX Deprecate and remove the Semigroup and Monoid instances because of
+-- potential misuse chances.
+
+-- | This should not be used for combining many or N arrays as it would copy
+-- the two arrays everytime to a new array. For coalescing multiple arrays use
+-- 'fromArrayStreamK' instead.
 instance Unbox a => Semigroup (Array a) where
     arr1 <> arr2 = unsafePerformIO $ splice arr1 arr2
 

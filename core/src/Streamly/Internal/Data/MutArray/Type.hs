@@ -2087,21 +2087,29 @@ arrayStreamKLength as = K.foldl' (+) 0 (K.map length as)
 -- | Convert an array stream to an array. Note that this requires peak memory
 -- that is double the size of the array stream.
 --
-{-# INLINE fromArrayStreamK #-}
-fromArrayStreamK :: (Unbox a, MonadIO m) =>
+{-# INLINE fromArrayStreamKAs #-}
+fromArrayStreamKAs :: (Unbox a, MonadIO m) =>
     PinnedState -> StreamK m (MutArray a) -> m (MutArray a)
-fromArrayStreamK ps as = do
+fromArrayStreamKAs ps as = do
     len <- arrayStreamKLength as
     arr <- newAs ps len
     -- XXX is StreamK fold faster or StreamD fold?
     K.foldlM' spliceUnsafe (pure arr) as
     -- fromStreamDN len $ D.unfoldMany reader $ D.fromStreamK as
 
+-- | Convert an array stream to an array. Note that this requires peak memory
+-- that is double the size of the array stream.
+--
+{-# INLINE fromArrayStreamK #-}
+fromArrayStreamK :: (Unbox a, MonadIO m) =>
+    StreamK m (MutArray a) -> m (MutArray a)
+fromArrayStreamK = fromArrayStreamKAs Unpinned
+
 {-# INLINE fromStreamDAs #-}
 fromStreamDAs ::
        (MonadIO m, Unbox a) => PinnedState -> D.Stream m a -> m (MutArray a)
 fromStreamDAs ps m =
-    arrayStreamKFromStreamDAs Unpinned m >>= fromArrayStreamK ps
+    arrayStreamKFromStreamDAs Unpinned m >>= fromArrayStreamKAs ps
 
 -- CAUTION: a very large number (millions) of arrays can degrade performance
 -- due to GC overhead because we need to buffer the arrays before we flatten
