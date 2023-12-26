@@ -558,26 +558,6 @@ toArray :: (MonadIO m, Unbox a) => Stream m (Array a) -> m (Array a)
 toArray = spliceArraysRealloced
 -- spliceArrays = _spliceArraysBuffered
 
--- exponentially increasing sizes of the chunks upto the max limit.
--- XXX this will be easier to implement with parsers/terminating folds
--- With this we should be able to reduce the number of chunks/allocations.
--- The reallocation/copy based toArray can also be implemented using this.
---
-{-
-{-# INLINE toArraysInRange #-}
-toArraysInRange :: (MonadIO m, Unbox a)
-    => Int -> Int -> Fold m (Array a) b -> Fold m a b
-toArraysInRange low high (Fold step initial extract) =
--}
-
-{-
--- | Fold the input to a pure buffered stream (List) of arrays.
-{-# INLINE _toArraysOf #-}
-_toArraysOf :: (MonadIO m, Unbox a)
-    => Int -> Fold m a (Stream Identity (Array a))
-_toArraysOf n = FL.groupsOf n (A.writeNF n) FL.toStream
--}
-
 -------------------------------------------------------------------------------
 -- Elimination - running element parsers
 -------------------------------------------------------------------------------

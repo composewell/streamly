@@ -1385,6 +1385,19 @@ pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
 -- pinnedChunksOf n = D.foldMany (pinnedWriteN n)
 pinnedChunksOf = chunksOfAs Pinned
 
+-- | When we are buffering a stream of unknown size into an array we do not
+-- know how much space to pre-allocate. So we start with the min size and emit
+-- the array then keep on doubling the size every time. Thus we do not need to
+-- guess the optimum chunk size.
+--
+-- We can incorporate this in chunksOfAs if the additional size parameter does
+-- not impact perf.
+--
+{-# INLINE _chunksOfRange #-}
+_chunksOfRange :: -- (MonadIO m, Unbox a) =>
+    PinnedState -> Int -> Int -> D.Stream m a -> D.Stream m (MutArray a)
+_chunksOfRange _ps _low _hi = undefined
+
 -- XXX buffer to a list instead?
 -- | Buffer the stream into arrays in memory.
 {-# INLINE arrayStreamKFromStreamDAs #-}
