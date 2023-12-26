@@ -2290,10 +2290,9 @@ spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 {-# INLINE breakOn #-}
 breakOn :: MonadIO m
     => Word8 -> MutArray Word8 -> m (MutArray Word8, Maybe (MutArray Word8))
-breakOn sep arr@MutArray{..} = asPtrUnsafe arr $ \p -> liftIO $ do
-    -- XXX Instead of using asPtrUnsafe (pinning memory) we can pass unlifted
-    -- Addr# to memchr and it should be safe (from ghc 8.4).
+breakOn sep arr@MutArray{..} = asUnpinnedPtrUnsafe arr $ \p -> liftIO $ do
     -- XXX We do not need memchr here, we can use a Haskell equivalent.
+    -- Need efficient stream based primitives that work on Word64.
     loc <- c_memchr p sep (fromIntegral $ byteLength arr)
     let sepIndex = loc `minusPtr` p
     return $
