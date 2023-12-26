@@ -36,10 +36,11 @@ module Streamly.Internal.Data.Array.Stream
     -- could also be implemented using parseBreak.
     , foldBreak
     , foldBreakD
-    -- The byte level parseBreak cannot work efficiently. Because the stream
-    -- will have to be a StreamK for backtracking, StreamK at byte level would
-    -- not be efficient.
-    , parseBreak -- StreamK.parseBreakChunks
+    -- This is chunked parseBreak. A byte level parseBreak cannot work
+    -- efficiently. Because the stream will have to be a StreamK for
+    -- backtracking, StreamK at byte level would not be efficient.
+    -- parseBreak p = K.parseBreakChunks (ParserK.adaptC p)
+    , parseBreak
     -- , parseBreakD
     -- , foldManyChunks
     -- , parseManyChunks
@@ -77,6 +78,8 @@ where
 import Data.Bifunctor (second)
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
+-- import Data.Bifunctor (first)
+-- import Data.Either (fromRight)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unbox (Unbox(..))
@@ -103,6 +106,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
     (Parser(..), Initial(..))
+-- import qualified Streamly.Internal.Data.ParserK as ParserK
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
 
@@ -403,6 +407,17 @@ foldBreakK (FL.Fold fstep initial _ final) stream = do
 --
 -- > foldBreak f = runArrayFoldBreak (ChunkFold.fromFold f)
 --
+-- Instead of using this we can adapt the fold to ParserK and use
+-- parseBreakChunks instead. ParserK allows composing using Monad as well.
+--
+-- @
+-- foldBreak f s =
+--       fmap (first (fromRight undefined))
+--     $ K.parseBreakChunks (ParserK.adaptC (PR.fromFold f)) s
+-- @
+--
+-- We can compare perf and remove this one or define it in terms of that.
+--
 -- /Internal/
 --
 {-# INLINE_NORMAL foldBreak #-}
@@ -411,8 +426,14 @@ foldBreak ::
     => Fold m a b
     -> StreamK m (A.Array a)
     -> m (b, StreamK m (A.Array a))
--- foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)
 foldBreak = foldBreakK
+--
+-- foldBreak f s = fmap fromStreamD <$> foldBreakD f (toStreamD s)
+--
+-- foldBreak f s =
+--       fmap (first (fromRight undefined))
+--     $ K.parseBreakChunks (ParserK.adaptC (PR.fromFold f)) s
+--
 -- If foldBreak performs better than runArrayFoldBreak we can use a rewrite
 -- rule to rewrite runArrayFoldBreak to fold.
 -- foldBreak f = runArrayFoldBreak (ChunkFold.fromFold f)
@@ -799,6 +820,14 @@ parseBreakK (PRD.Parser pstep initial extract) stream = do
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
 -- result and the unconsumed stream. Throws 'ParseError' if the parse fails.
 --
+-- >> parseBreak p = K.parseBreakChunks (ParserK.adaptC p)
+--
+-- This is redundant and we can just use parseBreakChunks, as ParserK can be
+-- composed using Monad. The only advantage of this is that we do not need to
+-- adapt.
+--
+-- We can compare perf and remove this one or define it in terms of that.
+--
 -- /Internal/
 --
 {-# INLINE_NORMAL parseBreak #-}
@@ -812,6 +841,7 @@ parseBreak p s =
     fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
 -}
 parseBreak = parseBreakK
+-- parseBreak p = K.parseBreakChunks (ParserK.adaptC p)
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers
