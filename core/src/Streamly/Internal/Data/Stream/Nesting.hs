@@ -3065,12 +3065,13 @@ splitInnerBy splitter joiner (Stream step1 state1) =
 -- | Performs infix separator style splitting.
 {-# INLINE_NORMAL splitInnerBySuffix #-}
 splitInnerBySuffix
-    :: (Monad m, Eq (f a), Monoid (f a))
-    => (f a -> m (f a, Maybe (f a)))  -- splitter
+    :: Monad m
+    => (f a -> Bool)                  -- isEmpty?
+    -> (f a -> m (f a, Maybe (f a)))  -- splitter
     -> (f a -> f a -> m (f a))        -- joiner
     -> Stream m (f a)
     -> Stream m (f a)
-splitInnerBySuffix splitter joiner (Stream step1 state1) =
+splitInnerBySuffix isEmpty splitter joiner (Stream step1 state1) =
     Stream step (SplitInitial state1)
 
     where
@@ -3097,10 +3098,11 @@ splitInnerBySuffix splitter joiner (Stream step1 state1) =
                     Nothing -> Skip (SplitBuffering s buf')
                     Just x2 -> Skip (SplitYielding buf' (SplitSplitting s x2))
             Skip s -> return $ Skip (SplitBuffering s buf)
-            Stop -> return $
-                if buf == mempty
-                then Stop
-                else Skip (SplitYielding buf SplitFinishing)
+            Stop ->
+                return $
+                    if isEmpty buf
+                    then Stop
+                    else Skip (SplitYielding buf SplitFinishing)
 
     step _ (SplitSplitting st buf) = do
         (x1, mx2) <- splitter buf

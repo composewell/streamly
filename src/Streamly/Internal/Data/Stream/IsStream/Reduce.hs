@@ -1624,4 +1624,4 @@ splitInnerBySuffix
     -> t m (f a)
     -> t m (f a)
 splitInnerBySuffix splitter joiner xs =
-    fromStreamD $ D.splitInnerBySuffix splitter joiner $ toStreamD xs
+    fromStreamD $ D.splitInnerBySuffix (== mempty) splitter joiner $ toStreamD xs

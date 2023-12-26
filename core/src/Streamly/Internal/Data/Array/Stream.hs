@@ -274,6 +274,7 @@ _splitOn byte (D.Stream step state) = D.Stream step' (Initial state)
         case r of
             D.Yield arr s -> do
                 (arr1, marr2) <- A.breakOn byte arr
+                -- XXX Should use MutArray.splice
                 buf' <- A.splice buf arr1
                 return $ case marr2 of
                     Nothing -> D.Skip (Buffering s buf')
@@ -304,7 +305,11 @@ splitOn
     => Word8
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
-splitOn byte = D.splitInnerBy (A.breakOn byte) A.splice
+splitOn byte =
+    fmap A.unsafeFreeze
+        -- XXX use spliceExp and rightSize?
+        . D.splitInnerBy (MA.breakOn byte) MA.splice
+        . fmap A.unsafeThaw
 
 {-# INLINE splitOnSuffix #-}
 splitOnSuffix
@@ -313,7 +318,12 @@ splitOnSuffix
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
 -- splitOn byte s = fromStreamD $ A.splitOn byte $ toStreamD s
-splitOnSuffix byte = D.splitInnerBySuffix (A.breakOn byte) A.splice
+splitOnSuffix byte =
+    fmap A.unsafeFreeze
+        -- XXX use spliceExp and rightSize?
+        . D.splitInnerBySuffix
+            (\arr -> MA.byteLength arr == 0) (MA.breakOn byte) MA.splice
+        . fmap A.unsafeThaw
 
 -------------------------------------------------------------------------------
 -- Elimination - Running folds
