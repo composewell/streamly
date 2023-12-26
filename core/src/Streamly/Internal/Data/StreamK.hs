@@ -37,8 +37,6 @@ module Streamly.Internal.Data.StreamK
     -- * Elimination
     -- ** General Folds
     , foldr1
-    , foldlM'
-    , foldlMx'
     , fold
     , foldBreak
     , foldEither
@@ -306,19 +304,6 @@ foldr1 step m = do
             yieldk a r = fmap (step p) (go a r)
          in foldStream defState yieldk single stp m1
 
--- XXX replace the recursive "go" with explicit continuations.
--- | Like 'foldx', but with a monadic step function.
-{-# INLINABLE foldlMx' #-}
-foldlMx' :: Monad m
-    => (x -> a -> m x) -> m x -> (x -> m b) -> StreamK m a -> m b
-foldlMx' step begin done = go begin
-    where
-    go !acc m1 =
-        let stop = acc >>= done
-            single a = acc >>= \b -> step b a >>= done
-            yieldk a r = acc >>= \b -> step b a >>= \x -> go (return x) r
-         in foldStream defState yieldk single stop m1
-
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
 -- expression strictly at each step. The behavior is similar to 'foldl''. A
 -- 'Fold' can terminate early without consuming the full stream. See the
@@ -469,11 +454,6 @@ foldConcat
                     FL.Partial fs1 -> go1 SPEC fs1 s
             Stream.Skip s -> go1 SPEC fs s
             Stream.Stop -> return $ Left fs
-
--- | Like 'foldl'' but with a monadic step function.
-{-# INLINE foldlM' #-}
-foldlM' :: Monad m => (b -> a -> m b) -> m b -> StreamK m a -> m b
-foldlM' step begin = foldlMx' step begin return
 
 ------------------------------------------------------------------------------
 -- Specialized folds

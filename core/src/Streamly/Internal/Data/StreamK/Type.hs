@@ -84,6 +84,8 @@ module Streamly.Internal.Data.StreamK.Type
     -- ** Strict Left Folds
     , Streamly.Internal.Data.StreamK.Type.foldl'
     , foldlx'
+    , foldlMx'
+    , foldlM'
 
     -- ** Lazy Right Folds
     , Streamly.Internal.Data.StreamK.Type.foldr
@@ -816,6 +818,24 @@ foldlx' step begin done m = get $ go m begin
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> StreamK m a -> m b
 foldl' step begin = foldlx' step begin id
+
+-- XXX replace the recursive "go" with explicit continuations.
+-- | Like 'foldx', but with a monadic step function.
+{-# INLINABLE foldlMx' #-}
+foldlMx' :: Monad m
+    => (x -> a -> m x) -> m x -> (x -> m b) -> StreamK m a -> m b
+foldlMx' step begin done = go begin
+    where
+    go !acc m1 =
+        let stop = acc >>= done
+            single a = acc >>= \b -> step b a >>= done
+            yieldk a r = acc >>= \b -> step b a >>= \x -> go (return x) r
+         in foldStream defState yieldk single stop m1
+
+-- | Like 'foldl'' but with a monadic step function.
+{-# INLINE foldlM' #-}
+foldlM' :: Monad m => (b -> a -> m b) -> m b -> StreamK m a -> m b
+foldlM' step begin = foldlMx' step begin return
 
 ------------------------------------------------------------------------------
 -- Specialized folds

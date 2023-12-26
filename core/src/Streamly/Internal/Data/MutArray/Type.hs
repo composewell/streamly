@@ -1383,7 +1383,6 @@ pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
 -- pinnedChunksOf n = D.foldMany (pinnedWriteN n)
 pinnedChunksOf = chunksOfAs Pinned
 
--- XXX This should take a PinnedState
 -- XXX buffer to a list instead?
 -- | Buffer the stream into arrays in memory.
 {-# INLINE arrayStreamKFromStreamDAs #-}
@@ -2088,15 +2087,19 @@ arrayStreamKLength as = K.foldl' (+) 0 (K.map length as)
 --
 {-# INLINE fromArrayStreamK #-}
 fromArrayStreamK :: (Unbox a, MonadIO m) =>
-    StreamK m (MutArray a) -> m (MutArray a)
-fromArrayStreamK as = do
+    PinnedState -> StreamK m (MutArray a) -> m (MutArray a)
+fromArrayStreamK ps as = do
     len <- arrayStreamKLength as
-    fromStreamDN len $ D.unfoldMany reader $ D.fromStreamK as
+    arr <- newAs ps len
+    -- XXX is StreamK fold faster or StreamD fold?
+    K.foldlM' spliceUnsafe (pure arr) as
+    -- fromStreamDN len $ D.unfoldMany reader $ D.fromStreamK as
 
 {-# INLINE fromStreamDAs #-}
 fromStreamDAs ::
        (MonadIO m, Unbox a) => PinnedState -> D.Stream m a -> m (MutArray a)
-fromStreamDAs ps m = arrayStreamKFromStreamDAs ps m >>= fromArrayStreamK
+fromStreamDAs ps m =
+    arrayStreamKFromStreamDAs Unpinned m >>= fromArrayStreamK ps
 
 -- CAUTION: a very large number (millions) of arrays can degrade performance
 -- due to GC overhead because we need to buffer the arrays before we flatten
