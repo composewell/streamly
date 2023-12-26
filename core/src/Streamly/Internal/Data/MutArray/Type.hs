@@ -181,6 +181,8 @@ module Streamly.Internal.Data.MutArray.Type
     , foldl'
     , foldr
     , cmp
+    , byteCmp
+    , byteEq
 
     -- ** Arrays of arrays
     --  We can add dimensionality parameter to the array type to get
@@ -2424,14 +2426,18 @@ asUnpinnedPtrUnsafe arr f =
 -- Equality
 -------------------------------------------------------------------------------
 
--- | Compare the length of the arrays. If the length is equal, compare the
--- lexicographical ordering of two underlying byte arrays otherwise return the
--- result of length comparison.
+-- | Byte compare two arrays. Compare the length of the arrays. If the length
+-- is equal, compare the lexicographical ordering of two underlying byte arrays
+-- otherwise return the result of length comparison.
+--
+-- /Unsafe/: Note that the 'Unbox' instance of sum types with constructors of
+-- different sizes may leave some memory uninitialized which can make byte
+-- comparison unreliable.
 --
 -- /Pre-release/
-{-# INLINE cmp #-}
-cmp :: MonadIO m => MutArray a -> MutArray a -> m Ordering
-cmp arr1 arr2 =
+{-# INLINE byteCmp #-}
+byteCmp :: MonadIO m => MutArray a -> MutArray a -> m Ordering
+byteCmp arr1 arr2 =
     liftIO
         $ do
             let marr1 = getMutableByteArray# (arrContents arr1)
@@ -2453,6 +2459,20 @@ cmp arr1 arr2 =
                               in (# s#, res #)
                     return $ compare r 0
                 x -> return x
+
+{-# INLINE cmp #-}
+{-# DEPRECATED cmp "Please use byteCmp instead." #-}
+cmp :: MonadIO m => MutArray a -> MutArray a -> m Ordering
+cmp = byteCmp
+
+-- | Byte equality of two arrays.
+--
+-- >>> byteEq arr1 arr2 = (==) EQ $ MArray.byteCmp arr1 arr2
+--
+-- /Unsafe/: See 'byteCmp'.
+{-# INLINE byteEq #-}
+byteEq :: MonadIO m => MutArray a -> MutArray a -> m Bool
+byteEq arr1 arr2 = fmap (EQ ==) $ byteCmp arr1 arr2
 
 -------------------------------------------------------------------------------
 -- NFData

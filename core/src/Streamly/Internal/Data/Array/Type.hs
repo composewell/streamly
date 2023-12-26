@@ -84,6 +84,8 @@ module Streamly.Internal.Data.Array.Type
     , write
     , pinnedWrite
     , unsafeMakePure
+    , byteCmp
+    , byteEq
 
     -- ** Streams of arrays
     , chunksOf
@@ -104,8 +106,9 @@ import Control.Exception (assert)
 import Control.Monad (replicateM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
+import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Proxy (Proxy(..))
-import Data.Word (Word8)
+import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.Base (build)
 import GHC.Exts (IsList, IsString(..), Addr#)
 
@@ -254,7 +257,10 @@ isPinned = MA.isPinned . unsafeThaw
 -- Construction
 -------------------------------------------------------------------------------
 
--- Splice two immutable arrays creating a new array.
+-- | Copy two immutable arrays into a new array. If you want to splice more
+-- than two arrays then this operation would be highly inefficient because it
+-- would make a copy on every splice operation, instead use the
+-- 'fromArrayStreamK' operation to combine n immutable arrays.
 {-# INLINE splice #-}
 splice :: (MonadIO m, Unbox a) => Array a -> Array a -> m (Array a)
 splice arr1 arr2 =
@@ -687,12 +693,64 @@ instance Unbox a => IsList (Array a) where
     {-# INLINE toList #-}
     toList = toList
 
--- XXX we are assuming that Unboxed equality means element equality. This may
--- or may not be correct? arrcmp is 40% faster compared to stream equality.
-instance (Unbox a, Eq a) => Eq (Array a) where
+-- | Byte compare two arrays. Compare the length of the arrays. If the length
+-- is equal, compare the lexicographical ordering of two underlying byte arrays
+-- otherwise return the result of length comparison.
+--
+-- /Unsafe/: Note that the 'Unbox' instance of sum types with constructors of
+-- different sizes may leave some memory uninitialized which can make byte
+-- comparison unreliable.
+--
+-- /Pre-release/
+{-# INLINE byteCmp #-}
+byteCmp :: Array a -> Array a -> Ordering
+byteCmp arr1 arr2 =
+    unsafeInlineIO $! unsafeThaw arr1 `MA.byteCmp` unsafeThaw arr2
+
+-- | Byte equality of two arrays.
+--
+-- >>> byteEq arr1 arr2 = (==) EQ $ Array.byteCmp arr1 arr2
+--
+-- /Unsafe/: See 'byteCmp'.
+{-# INLINE byteEq #-}
+byteEq :: Array a -> Array a -> Bool
+byteEq arr1 arr2 = (==) EQ $ byteCmp arr1 arr2
+
+#define MK_EQ_INSTANCE(typ)                              \
+instance {-# OVERLAPPING #-} Eq (Array typ) where {      \
+;    {-# INLINE (==) #-}                                 \
+;    (==) = byteEq \
+}
+
+MK_EQ_INSTANCE(Char)
+MK_EQ_INSTANCE(Word8)
+MK_EQ_INSTANCE(Word16)
+MK_EQ_INSTANCE(Word32)
+MK_EQ_INSTANCE(Word64)
+MK_EQ_INSTANCE(Int)
+MK_EQ_INSTANCE(Int8)
+MK_EQ_INSTANCE(Int16)
+MK_EQ_INSTANCE(Int32)
+MK_EQ_INSTANCE(Int64)
+
+-- | If the type allows a byte-by-byte comparison (see 'byteCmp') this instance
+-- can be overlapped by a more specific instance that uses a byte comparison.
+-- Byte comparison can be significantly faster.
+--
+-- For example:
+--
+-- >>> (==) = byteCmp
+--
+instance {-# OVERLAPPABLE #-} (Unbox a, Eq a) => Eq (Array a) where
     {-# INLINE (==) #-}
     arr1 == arr2 =
-        (==) EQ $ unsafeInlineIO $! unsafeThaw arr1 `MA.cmp` unsafeThaw arr2
+        -- Does unboxed byte equality mean element equality?
+        -- XXX This is incorrect for sum types, as we may have some
+        -- uninitialized memory in that case. If we always initialize the
+        -- unused memory to zero we can use this.
+        -- Byte comparison is 40% faster compared to stream equality.
+        -- (==) EQ $ unsafeInlineIO $! unsafeThaw arr1 `MA.cmp` unsafeThaw arr2
+           (toStreamD arr1 :: Stream Identity a) == toStreamD arr2
 
 instance (Unbox a, Ord a) => Ord (Array a) where
     {-# INLINE compare #-}
