@@ -236,6 +236,15 @@ compact :: (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
 compact = packArraysChunksOf
 
+-- | Given a stream of arrays, splice them all together to generate a single
+-- array. The stream must be /finite/.
+--
+-- @since 0.7.0
+{-# INLINE toArray #-}
+toArray :: (MonadIO m, Unbox a) => Stream m (Array a) -> m (Array a)
+toArray s =
+    fmap A.unsafeFreeze $ MA.fromArrayStreamRealloced (fmap A.unsafeThaw s)
+
 -------------------------------------------------------------------------------
 -- Split
 -------------------------------------------------------------------------------
@@ -439,7 +448,7 @@ foldBreak = foldBreakK
 -- foldBreak f = runArrayFoldBreak (ChunkFold.fromFold f)
 
 -------------------------------------------------------------------------------
--- Fold to a single Array
+-- Elimination - running element parsers
 -------------------------------------------------------------------------------
 
 -- When we have to take an array partially, take the last part of the array.
@@ -484,83 +493,6 @@ splitAtArrayListRev n ls
                          arr2 = Array contents start end1
                          arr1 = Array contents end1 end
                       in ([arr1], arr2:xs)
-
--------------------------------------------------------------------------------
--- Fold to a single Array
--------------------------------------------------------------------------------
-
-{-
-
--- XXX Both of these implementations of splicing seem to perform equally well.
--- We need to perform benchmarks over a range of sizes though.
-
--- CAUTION! length must more than equal to lengths of all the arrays in the
--- stream.
-{-# INLINE spliceArraysLenUnsafe #-}
-spliceArraysLenUnsafe :: (MonadIO m, Unbox a)
-    => Int -> Stream m (MutArray a) -> m (MutArray a)
-spliceArraysLenUnsafe len buffered = do
-    -- XXX The new array's pinned state should depend on the first element
-    -- of the stream. We should uncons the stream and do the required.
-    arr <- undefined
-    D.foldlM' MA.spliceUnsafe (return arr) buffered
-
-{-# INLINE _spliceArrays #-}
-_spliceArrays :: (MonadIO m, Unbox a)
-    => Stream m (Array a) -> m (Array a)
-_spliceArrays s = do
-    buffered <- D.foldr K.cons K.nil s
-    len <- K.fold FL.sum (fmap Array.length buffered)
-    -- XXX The new array's pinned state should depend on the first element
-    -- of the stream. We should uncons the stream and do the required.
-    arr <- undefined
-    final <- D.foldlM' writeArr (return arr) (toStream buffered)
-    return $ A.unsafeFreeze final
-
-    where
-
-    writeArr dst arr = MA.spliceUnsafe dst (A.unsafeThaw arr)
-
-{-# INLINE _spliceArraysBuffered #-}
-_spliceArraysBuffered :: (MonadIO m, Unbox a)
-    => Stream m (Array a) -> m (Array a)
-_spliceArraysBuffered s = do
-    buffered <- D.foldr K.cons K.nil s
-    len <- K.fold FL.sum (fmap Array.length buffered)
-    A.unsafeFreeze <$>
-        spliceArraysLenUnsafe len (fmap A.unsafeThaw (toStream buffered))
-
--}
-
-{-# INLINE spliceArraysRealloced #-}
-spliceArraysRealloced :: forall m a. (MonadIO m, Unbox a)
-    => Stream m (Array a) -> m (Array a)
-spliceArraysRealloced s = do
-    res <- D.uncons s
-    case res of
-        Just (a, strm) -> do
-            arr <-
-                D.foldlM'
-                    MA.spliceExp
-                    (pure (A.unsafeThaw a))
-                    (fmap A.unsafeThaw strm)
-            liftIO $ A.unsafeFreeze <$> MA.rightSize arr
-        Nothing -> pure A.nil
-
--- XXX This should just be "fold A.write"
---
--- | Given a stream of arrays, splice them all together to generate a single
--- array. The stream must be /finite/.
---
--- @since 0.7.0
-{-# INLINE toArray #-}
-toArray :: (MonadIO m, Unbox a) => Stream m (Array a) -> m (Array a)
-toArray = spliceArraysRealloced
--- spliceArrays = _spliceArraysBuffered
-
--------------------------------------------------------------------------------
--- Elimination - running element parsers
--------------------------------------------------------------------------------
 
 -- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
 -- to make a newtype.

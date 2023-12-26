@@ -78,6 +78,8 @@ module Streamly.Internal.Data.MutArray.Type
     , fromPureStream
     , fromByteStr#
     , fromPtrN
+    , fromArrayStreamK
+    , fromArrayStreamRealloced
 
     -- ** Random writes
     , putIndex
@@ -200,7 +202,6 @@ module Streamly.Internal.Data.MutArray.Type
     -- *** Eliminate to streams
     , flattenArrays
     , flattenArraysRev
-    , fromArrayStreamK
 
     -- *** Construct from arrays
     -- get chunks without copying
@@ -2090,7 +2091,27 @@ fromByteStr# addr = do
     return (arr {arrEnd = lenInt})
 
 -------------------------------------------------------------------------------
--- convert stream to a single array
+-- convert a stream of arrays to a single array by reallocating and copying
+-------------------------------------------------------------------------------
+
+-- XXX Both of these implementations of splicing seem to perform equally well.
+-- We need to perform benchmarks over a range of sizes though.
+
+{-# INLINE fromArrayStreamRealloced #-}
+fromArrayStreamRealloced :: forall m a. (MonadIO m, Unbox a)
+    => Stream m (MutArray a) -> m (MutArray a)
+fromArrayStreamRealloced s = do
+    res <- D.uncons s
+    case res of
+        Just (a, strm) -> do
+            arr <- D.foldlM' spliceExp (pure a) strm
+            -- Reallocation is exponential so there may be 50% empty space in
+            -- worst case. One more reallocation to reclaim the space.
+            liftIO $ rightSize arr
+        Nothing -> pure nil
+
+-------------------------------------------------------------------------------
+-- convert a stream of arrays to a single array by buffering arrays first
 -------------------------------------------------------------------------------
 
 {-# INLINE arrayStreamKLength #-}
