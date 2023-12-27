@@ -57,7 +57,7 @@ env: &env
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "v0.7.0"
+      PACKCHECK_GITHUB_COMMIT: "f6cfd7b7a33b4bf6fd63cce6a3fb3d26f5031403"
 
 executors:
   amd64-executor:
@@ -155,11 +155,35 @@ jobs:
         - *preinstall
         - run:
             environment:
+              GHCVER: "8.6.5"
+              CABAL_VERSION: "3.6.2.0"
               CABAL_PROJECT: "cabal.project"
               DISABLE_SDIST_BUILD: "yes"
               CABAL_BUILD_OPTIONS: "--flag debug --flag -opt"
             command: |
-              bash -c "$PACKCHECK cabal GHCVER=8.6.5"
+              bash -c "$PACKCHECK cabal"
+        - *save
+  cabal-ghc-9_8_1-docspec:
+      <<: *env
+      executor: amd64-executor
+      steps:
+        - checkout
+        - *restore
+        - *preinstall
+        - run:
+            environment:
+              GHCVER: "9.8.1"
+              CABAL_VERSION: "3.10.1.0"
+              CABAL_PROJECT: "cabal.project.doctest"
+              DISABLE_SDIST_BUILD: "y"
+              DISABLE_TEST: "y"
+              DISABLE_BENCH: "y"
+              DISABLE_DOCS: "y"
+              ENABLE_DOCSPEC: "y"
+              DOCSPEC_URL: https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20210111/cabal-docspec-0.0.0.20210111.xz
+              DOCSPEC_OPTIONS: "--timeout 60 --check-properties --property-variables xs"
+            command: |
+              bash -c "$PACKCHECK cabal"
         - *save
   hlint-trailing-spaces:
       <<: *env
@@ -188,5 +212,7 @@ workflows:
     jobs:
       #- cabal-ghc-8_6_5:
       #    name: 8.6.5-debug-unoptimized
+      - cabal-ghc-9_8_1-docspec:
+          name: ghc-9.8.1-docspec
       - hlint-trailing-spaces:
           name: hlint and trailing spaces
