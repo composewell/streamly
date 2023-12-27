@@ -3,6 +3,8 @@
 ## Unreleased
 
 * Add fixities `infixr 5` for `cons` and `consM` functions.
+* Fix a bug in Array `Eq` instance when the type is a sum type with
+  differently sized constructors.
 
 ## 0.2.1 (Dec 2023)
 
