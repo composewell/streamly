@@ -111,11 +111,8 @@ packArraysChunksOf n (D.Stream step state) =
                 then return $
                     D.Skip (SpliceYielding buf (SpliceBuffering s arr))
                 else do
-                    buf' <- if MArray.byteCapacity buf < n
-                            then liftIO $ MArray.realloc n buf
-                            else return buf
-                    buf'' <- MArray.splice buf' arr
-                    return $ D.Skip (SpliceBuffering s buf'')
+                    buf1 <- MArray.splice buf arr
+                    return $ D.Skip (SpliceBuffering s buf1)
             D.Skip s -> return $ D.Skip (SpliceBuffering s buf)
             D.Stop -> return $ D.Skip (SpliceYielding buf SpliceFinish)
 
@@ -158,22 +155,19 @@ lpackArraysChunksOf n (Fold step1 initial1 _ final1) =
 
     step (Tuple' (Just buf) r1) arr = do
             let len = MArray.byteLength buf + MArray.byteLength arr
-            buf' <- if MArray.byteCapacity buf < len
-                    then liftIO $ MArray.realloc (max n len) buf
-                    else return buf
-            buf'' <- MArray.splice buf' arr
+            buf1 <- MArray.splice buf arr
 
             -- XXX this is common in both the equations of step
             if len >= n
             then do
-                r <- step1 r1 buf''
+                r <- step1 r1 buf1
                 case r of
                     FL.Done _ -> return $ FL.Done ()
                     FL.Partial s -> do
                         _ <- final1 s
                         res <- initial1
                         return $ first (Tuple' Nothing) res
-            else return $ FL.Partial $ Tuple' (Just buf'') r1
+            else return $ FL.Partial $ Tuple' (Just buf1) r1
 
     -- XXX Several folds do extract >=> final, therefore, we need to make final
     -- return  "m b" rather than using extract post it if we want extract to be
@@ -238,12 +232,8 @@ compactLEParserD n = ParserD.Parser step initial extract
          in if len > nBytes
             then return $ ParserD.Done 1 buf
             else do
-                buf1 <-
-                    if MArray.byteCapacity buf < nBytes
-                    then liftIO $ MArray.realloc nBytes buf
-                    else return buf
-                buf2 <- MArray.splice buf1 arr
-                return $ ParserD.Partial 0 (Just buf2)
+                buf1 <- MArray.splice buf arr
+                return $ ParserD.Partial 0 (Just buf1)
 
     extract Nothing = return $ ParserD.Done 0 MArray.nil
     extract (Just buf) = return $ ParserD.Done 0 buf
@@ -289,7 +279,7 @@ compactGEFold n = Fold step initial extract extract
             if MArray.byteCapacity buf < len
             then liftIO $ MArray.realloc (max len nBytes) buf
             else return buf
-        buf2 <- MArray.splice buf1 arr
+        buf2 <- MArray.spliceUnsafe buf1 arr
         if len >= n
         then return $ FL.Done buf2
         else return $ FL.Partial (Just buf2)
