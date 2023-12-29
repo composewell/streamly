@@ -26,7 +26,7 @@ module Streamly.Internal.Data.Array.Stream
     , interpose
     , interposeSuffix
     , intercalateSuffix
-    , unlines
+    , unlines -- same as interposeSuffix
 
     -- * Elimination
     -- ** Element Folds
@@ -56,19 +56,18 @@ module Streamly.Internal.Data.Array.Stream
     , runArrayParserDBreak -- StreamK.parseBreakChunks
     , runArrayFoldMany
 
-    , toArray
-
     -- * Compaction
+    , toArray -- Array.fromChunks
     -- We can use something like foldManyChunks, parseManyChunks with a take
     -- fold.
-    , lpackArraysChunksOf -- Fold.compactChunks
-    , compact -- rechunk, compactChunks
+    , lpackArraysChunksOf -- lcompactChunksOf
+    , compact -- compactChunksOf
 
     -- * Splitting
     -- We can use something like foldManyChunks, parseManyChunks with an
     -- appropriate splitting fold.
-    , splitOn       -- Stream.rechunkOn
-    , splitOnSuffix -- Stream.rechunkOnSuffix
+    , splitOn       -- compactChunksOn
+    , splitOnSuffix -- compactChunksOnSuffix
     )
 where
 
@@ -176,7 +175,7 @@ data FlattenState s =
       OuterLoop s
     | InnerLoop s !MA.MutableByteArray !Int !Int
 
--- XXX This is a special case of interposeSuffix, can be removed.
+-- XXX Same as interposeSuffix. Compare perf and remove.
 -- XXX Remove monadIO constraint
 {-# INLINE_NORMAL unlines #-}
 unlines :: forall m a. (MonadIO m, Unbox a)

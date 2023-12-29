@@ -14,24 +14,28 @@
 module Streamly.Internal.Data.MutArray.Stream
     (
     -- * Generation
-      MArray.chunksOf
+      MArray.chunksOf -- chunkStream
     , MArray.pinnedChunksOf
     , MArray.writeChunks -- chunksWrite?
-    , MArray.splitOn -- chunksSplitOn
+    , MArray.splitOn -- chunkArray
 
-    -- * Compaction
-    , packArraysChunksOf
+    -- * Transformations (Compaction)
+    , packArraysChunksOf -- same as compact, remove
     , SpliceState (..)
-    , lpackArraysChunksOf
-    , compact -- chunksCompact
-    , compactLE
+    , lpackArraysChunksOf -- lCompactChunksGE
+    , compact -- compactChunksLE
+    , compactLE -- same as compact, compare perf keep one
     , compactEQ
-    , compactGE
+    , compactGE -- can remove, just keep fCompactChunksGE
+
+    -- * Folds and Parsers
+    -- , compactLEParserD -- pCompactChunksLE
+    -- , compactGEFold -- fCompactChunksGE?
 
     -- * Elimination
     , MArray.flattenArrays -- chunksConcat
     , MArray.flattenArraysRev -- chunksConcatRev
-    , MArray.fromArrayStreamK -- chunksCoalesce
+    , MArray.fromArrayStreamK -- MutArray.fromChunks
     )
 where
 
@@ -66,11 +70,11 @@ data SpliceState s arr
 
 -- XXX This can be removed once compactLEFold/compactLE are implemented.
 --
--- | This mutates the first array (if it has space) to append values from the
+-- This mutates the first array (if it has space) to append values from the
 -- second one. This would work for immutable arrays as well because an
 -- immutable array never has space so a new array is allocated instead of
 -- mutating it.
---
+
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size. Note that if a single array is bigger than the
 -- specified size we do not split it to fit. When we coalesce multiple arrays
@@ -126,6 +130,7 @@ packArraysChunksOf n (D.Stream step state) =
 -- XXX Remove this once compactLEFold is implemented
 -- lpackArraysChunksOf = Fold.many compactLEFold
 --
+-- Terminates when the size of the chunk becomes >= n.
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf :: (MonadIO m, Unbox a)
     => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
