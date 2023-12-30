@@ -149,7 +149,6 @@ module Streamly.Internal.Data.Stream.Nesting
     , wordsBy
     , splitOnSeq
     , splitOnSuffixSeq
-    , sliceOnSuffix
 
     -- XXX Implement these as folds or parsers instead.
     , splitOnSuffixSeqAny
@@ -182,12 +181,9 @@ import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.Fold.Step (Step(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
@@ -1293,77 +1289,6 @@ foldIterateM func seed0 (Stream step state) =
                 return $ Skip $ FIterYield b FIterStop
     stepOuter _ (FIterYield a next) = return $ Yield a next
     stepOuter _ FIterStop = return Stop
-
-{-# ANN type CIterState Fuse #-}
-data CIterState s f fs b
-    = CIterInit s f
-    | CIterConsume s fs
-    | CIterYield b (CIterState s f fs b)
-    | CIterStop
-
--- | Like 'foldIterateM' but using the 'Refold' type instead. This could be
--- much more efficient due to stream fusion.
---
--- /Internal/
-{-# INLINE_NORMAL refoldIterateM #-}
-refoldIterateM ::
-       Monad m => Refold m b a b -> m b -> Stream m a -> Stream m b
-refoldIterateM (Refold fstep finject fextract) initial (Stream step state) =
-    Stream stepOuter (CIterInit state initial)
-
-    where
-
-    {-# INLINE iterStep #-}
-    iterStep st action = do
-        res <- action
-        return
-            $ Skip
-            $ case res of
-                  FL.Partial fs -> CIterConsume st fs
-                  FL.Done fb -> CIterYield fb $ CIterInit st (return fb)
-
-    {-# INLINE_LATE stepOuter #-}
-    stepOuter _ (CIterInit st action) = do
-        iterStep st (action >>= finject)
-    stepOuter gst (CIterConsume st fs) = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield x s -> iterStep s (fstep fs x)
-            Skip s -> return $ Skip $ CIterConsume s fs
-            Stop -> do
-                b <- fextract fs
-                return $ Skip $ CIterYield b CIterStop
-    stepOuter _ (CIterYield a next) = return $ Yield a next
-    stepOuter _ CIterStop = return Stop
-
--- "n" elements at the end are dropped by the fold.
-{-# INLINE sliceBy #-}
-sliceBy :: Monad m => Fold m a Int -> Int -> Refold m (Int, Int) a (Int, Int)
-sliceBy (Fold step1 initial1 extract1 _final) n = Refold step inject extract
-
-    where
-
-    inject (i, len) = do
-        r <- initial1
-        return $ case r of
-            Partial s -> Partial $ Tuple' (i + len + n) s
-            Done l -> Done (i, l)
-
-    step (Tuple' i s) x = do
-        r <- step1 s x
-        return $ case r of
-            Partial s1 -> Partial $ Tuple' i s1
-            Done len -> Done (i, len)
-
-    extract (Tuple' i s) = (i,) <$> extract1 s
-
-{-# INLINE sliceOnSuffix #-}
-sliceOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
-sliceOnSuffix predicate =
-    -- Scan the stream with the given refold
-    refoldIterateM
-        (sliceBy (FL.takeEndBy_ predicate FL.length) 1)
-        (return (-1, 0))
 
 ------------------------------------------------------------------------------
 -- Parsing

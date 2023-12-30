@@ -123,14 +123,21 @@ module Streamly.Internal.Data.Stream.Type
     , foldManyPost
     , groupsOf
     , refoldMany
+    , refoldIterateM
 
     -- * Fold Iterate
     , reduceIterateBfs
     , foldIterateBfs
 
+    -- * Splitting
+    , indexOnSuffix
+
     -- * Multi-stream folds
     , eqBy
     , cmpBy
+
+    -- * Deprecated
+    , sliceOnSuffix
     )
 where
 
@@ -162,6 +169,7 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Stream.Step (Step (..))
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL hiding (foldr)
@@ -1973,6 +1981,90 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
                 return $ Skip (FoldManyYield b FoldManyDone)
     step' _ (FoldManyYield b next) = return $ Yield b next
     step' _ FoldManyDone = return Stop
+
+{-# ANN type CIterState Fuse #-}
+data CIterState s f fs b
+    = CIterInit s f
+    | CIterConsume s fs
+    | CIterYield b (CIterState s f fs b)
+    | CIterStop
+
+-- | Like 'foldIterateM' but using the 'Refold' type instead. This could be
+-- much more efficient due to stream fusion.
+--
+-- /Internal/
+{-# INLINE_NORMAL refoldIterateM #-}
+refoldIterateM ::
+       Monad m => Refold m b a b -> m b -> Stream m a -> Stream m b
+refoldIterateM (Refold fstep finject fextract) initial (Stream step state) =
+    Stream stepOuter (CIterInit state initial)
+
+    where
+
+    {-# INLINE iterStep #-}
+    iterStep st action = do
+        res <- action
+        return
+            $ Skip
+            $ case res of
+                  FL.Partial fs -> CIterConsume st fs
+                  FL.Done fb -> CIterYield fb $ CIterInit st (return fb)
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter _ (CIterInit st action) = do
+        iterStep st (action >>= finject)
+    stepOuter gst (CIterConsume st fs) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> iterStep s (fstep fs x)
+            Skip s -> return $ Skip $ CIterConsume s fs
+            Stop -> do
+                b <- fextract fs
+                return $ Skip $ CIterYield b CIterStop
+    stepOuter _ (CIterYield a next) = return $ Yield a next
+    stepOuter _ CIterStop = return Stop
+
+-- | The refold @indexerBy f n@ takes an (index, len) tuple as initial input,
+-- and returns @(index + len + n, b)@ as output where @b@ is the output of the
+-- fold.
+{-# INLINE indexerBy #-}
+indexerBy :: Monad m =>
+    Fold m a Int -> Int -> Refold m (Int, Int) a (Int, Int)
+indexerBy (Fold step1 initial1 extract1 _final) n =
+    Refold step inject extract
+
+    where
+
+    inject (i, len) = do
+        r <- initial1
+        return $ case r of
+            FL.Partial s -> FL.Partial $ Tuple' (i + len + n) s
+            FL.Done l -> FL.Done (i, l)
+
+    step (Tuple' i s) x = do
+        r <- step1 s x
+        return $ case r of
+            FL.Partial s1 -> FL.Partial $ Tuple' i s1
+            FL.Done len -> FL.Done (i, len)
+
+    extract (Tuple' i s) = (i,) <$> extract1 s
+
+-- | Like 'splitOnSuffix' but generates a stream of (index, len) tuples marking
+-- the places where the predicate matches in the stream.
+--
+-- /Pre-release/
+{-# INLINE indexOnSuffix #-}
+indexOnSuffix :: Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m (Int, Int)
+indexOnSuffix predicate =
+    -- Scan the stream with the given refold
+    refoldIterateM
+        (indexerBy (FL.takeEndBy_ predicate FL.length) 1)
+        (return (-1, 0))
+
+{-# DEPRECATED sliceOnSuffix "Please use indexOnSuffix instead." #-}
+sliceOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
+sliceOnSuffix = indexOnSuffix
 
 ------------------------------------------------------------------------------
 -- Stream with a cross product style monad instance

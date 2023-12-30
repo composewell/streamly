@@ -2394,7 +2394,7 @@ splitOn :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> Stream m (MutArray a)
 splitOn predicate arr =
     fmap (\(i, len) -> getSliceUnsafe i len arr)
-        $ D.rangesOnSuffix predicate (read arr)
+        $ D.indexOnSuffix predicate (read arr)
 
 -- | Drops the separator byte
 {-# INLINE breakOn #-}
