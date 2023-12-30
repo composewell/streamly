@@ -63,12 +63,8 @@ module Streamly.Internal.Data.Array.Type
     , foldr
     , splitAt
 
-    , toStreamD
-    , toStreamDRev
     , toStreamK
     , toStreamKRev
-    , toStream
-    , toStreamRev
     , read
     , readRev
     , readerRev
@@ -103,6 +99,10 @@ module Streamly.Internal.Data.Array.Type
     , fromArrayStreamK
     , fromStreamDN
     , fromStreamD
+    , toStreamD
+    , toStreamDRev
+    , toStream
+    , toStreamRev
     )
 where
 
@@ -494,18 +494,19 @@ length arr = MA.length (unsafeThaw arr)
 readerRev :: forall m a. (Monad m, Unbox a) => Unfold m (Array a) a
 readerRev = Unfold.lmap unsafeThaw $ MA.readerRevWith (return . unsafeInlineIO)
 
+{-# DEPRECATED toStreamD "Please use 'read' instead." #-}
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Unbox a) => Array a -> D.Stream m a
-toStreamD arr = MA.toStreamDWith (return . unsafeInlineIO) (unsafeThaw arr)
+toStreamD = read
 
 {-# INLINE toStreamK #-}
 toStreamK :: forall m a. (Monad m, Unbox a) => Array a -> K.StreamK m a
 toStreamK arr = MA.toStreamKWith (return . unsafeInlineIO) (unsafeThaw arr)
 
+{-# DEPRECATED toStreamDRev "Please use 'readRev' instead." #-}
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (Monad m, Unbox a) => Array a -> D.Stream m a
-toStreamDRev arr =
-    MA.toStreamDRevWith (return . unsafeInlineIO) (unsafeThaw arr)
+toStreamDRev = readRev
 
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: forall m a. (Monad m, Unbox a) => Array a -> K.StreamK m a
@@ -517,7 +518,7 @@ toStreamKRev arr =
 -- /Pre-release/
 {-# INLINE_EARLY read #-}
 read :: (Monad m, Unbox a) => Array a -> Stream m a
-read = toStreamD
+read arr = MA.toStreamWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 -- | Same as 'read'
 --
@@ -534,7 +535,7 @@ toStream = read
 -- /Pre-release/
 {-# INLINE_EARLY readRev #-}
 readRev :: (Monad m, Unbox a) => Array a -> Stream m a
-readRev = toStreamDRev
+readRev arr = MA.toStreamRevWith (return . unsafeInlineIO) (unsafeThaw arr)
 
 -- | Same as 'readRev'
 --

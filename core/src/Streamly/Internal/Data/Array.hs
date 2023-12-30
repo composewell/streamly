@@ -331,7 +331,7 @@ splitOn :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
 splitOn predicate arr =
     fmap (\(i, len) -> getSliceUnsafe i len arr)
-        $ D.indexOnSuffix predicate (A.toStreamD arr)
+        $ D.indexOnSuffix predicate (A.read arr)
 
 {-# INLINE sliceIndexerFromLen #-}
 sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)

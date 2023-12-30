@@ -122,8 +122,8 @@ module Streamly.Internal.Data.MutArray.Type
     , readerRev
 
     -- *** To containers
-    , toStreamDWith
-    , toStreamDRevWith
+    , toStreamWith
+    , toStreamRevWith
     , toStreamKWith
     , toStreamKRevWith
     , read
@@ -1609,11 +1609,11 @@ toList MutArray{..} = liftIO $ go arrStart
         x <- peekAt p arrContents
         (:) x <$> go (INDEX_NEXT(p,a))
 
-{-# INLINE_NORMAL toStreamDWith #-}
-toStreamDWith ::
+{-# INLINE_NORMAL toStreamWith #-}
+toStreamWith ::
        forall m a. (Monad m, Unbox a)
     => (forall b. IO b -> m b) -> MutArray a -> D.Stream m a
-toStreamDWith liftio MutArray{..} = D.Stream step arrStart
+toStreamWith liftio MutArray{..} = D.Stream step arrStart
 
     where
 
@@ -1629,7 +1629,7 @@ toStreamDWith liftio MutArray{..} = D.Stream step arrStart
 --
 {-# INLINE_NORMAL read #-}
 read :: forall m a. (MonadIO m, Unbox a) => MutArray a -> D.Stream m a
-read = toStreamDWith liftIO
+read = toStreamWith liftIO
 
 {-# INLINE toStreamKWith #-}
 toStreamKWith ::
@@ -1648,11 +1648,11 @@ toStreamKWith liftio MutArray{..} = go arrStart
 toStreamK :: forall m a. (MonadIO m, Unbox a) => MutArray a -> StreamK m a
 toStreamK = toStreamKWith liftIO
 
-{-# INLINE_NORMAL toStreamDRevWith #-}
-toStreamDRevWith ::
+{-# INLINE_NORMAL toStreamRevWith #-}
+toStreamRevWith ::
        forall m a. (Monad m, Unbox a)
     => (forall b. IO b -> m b) -> MutArray a -> D.Stream m a
-toStreamDRevWith liftio MutArray{..} =
+toStreamRevWith liftio MutArray{..} =
     let p = INDEX_PREV(arrEnd,a)
     in D.Stream step p
 
@@ -1670,7 +1670,7 @@ toStreamDRevWith liftio MutArray{..} =
 --
 {-# INLINE_NORMAL readRev #-}
 readRev :: forall m a. (MonadIO m, Unbox a) => MutArray a -> D.Stream m a
-readRev = toStreamDRevWith liftIO
+readRev = toStreamRevWith liftIO
 
 {-# INLINE toStreamKRevWith #-}
 toStreamKRevWith ::
