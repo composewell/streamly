@@ -243,7 +243,7 @@ compact = packArraysChunksOf
 {-# INLINE toArray #-}
 toArray :: (MonadIO m, Unbox a) => Stream m (Array a) -> m (Array a)
 toArray s =
-    fmap A.unsafeFreeze $ MA.fromArrayStreamRealloced (fmap A.unsafeThaw s)
+    fmap A.unsafeFreeze $ MA.fromChunksRealloced (fmap A.unsafeThaw s)
 
 -------------------------------------------------------------------------------
 -- Split

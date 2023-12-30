@@ -44,7 +44,7 @@ module Streamly.Internal.Data.Array.Type
     , fromByteStr#
     , fromByteStr
     , fromPtrN
-    , fromArrayStreamK
+    , fromChunksK
 
     -- ** Split
     , breakOn
@@ -100,6 +100,7 @@ module Streamly.Internal.Data.Array.Type
     , bufferChunks
     , flattenArrays
     , flattenArraysRev
+    , fromArrayStreamK
     )
 where
 
@@ -265,7 +266,7 @@ isPinned = MA.isPinned . unsafeThaw
 -- | Copy two immutable arrays into a new array. If you want to splice more
 -- than two arrays then this operation would be highly inefficient because it
 -- would make a copy on every splice operation, instead use the
--- 'fromArrayStreamK' operation to combine n immutable arrays.
+-- 'fromChunksK' operation to combine n immutable arrays.
 {-# INLINE splice #-}
 splice :: MonadIO m => Array a -> Array a -> m (Array a)
 splice arr1 arr2 =
@@ -683,15 +684,19 @@ fromByteStr# addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromByteStr# addr)
 fromByteStr :: Ptr Word8 -> Array Word8
 fromByteStr (Ptr addr#) = fromByteStr# addr#
 
--- XXX implement fromArrayStream/fromArrayList instead?
+-- XXX implement fromChunks/fromChunkList instead?
 
 -- | Convert an array stream to an array. Note that this requires peak memory
 -- that is double the size of the array stream.
 --
-{-# INLINE fromArrayStreamK #-}
+{-# INLINE fromChunksK #-}
+fromChunksK :: (Unbox a, MonadIO m) => StreamK m (Array a) -> m (Array a)
+fromChunksK stream =
+    fmap unsafeFreeze $ MA.fromChunksK $ fmap unsafeThaw stream
+
+{-# DEPRECATED fromArrayStreamK "Please use fromChunksK instead." #-}
 fromArrayStreamK :: (Unbox a, MonadIO m) => StreamK m (Array a) -> m (Array a)
-fromArrayStreamK stream =
-    fmap unsafeFreeze $ MA.fromArrayStreamK $ fmap unsafeThaw stream
+fromArrayStreamK = fromChunksK
 
 -------------------------------------------------------------------------------
 -- Instances
@@ -850,7 +855,7 @@ instance Foldable Array where
 
 -- | This should not be used for combining many or N arrays as it would copy
 -- the two arrays everytime to a new array. For coalescing multiple arrays use
--- 'fromArrayStreamK' instead.
+-- 'fromChunksK' instead.
 instance Unbox a => Semigroup (Array a) where
     arr1 <> arr2 = unsafePerformIO $ splice arr1 arr2
 

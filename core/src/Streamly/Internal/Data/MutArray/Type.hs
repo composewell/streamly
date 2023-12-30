@@ -78,8 +78,8 @@ module Streamly.Internal.Data.MutArray.Type
     , fromPureStream
     , fromByteStr#
     , fromPtrN
-    , fromArrayStreamK
-    , fromArrayStreamRealloced
+    , fromChunksK
+    , fromChunksRealloced
 
     -- ** Random writes
     , putIndex
@@ -235,6 +235,7 @@ module Streamly.Internal.Data.MutArray.Type
     , writeChunks
     , flattenArrays
     , flattenArraysRev
+    , fromArrayStreamK
     )
 where
 
@@ -1997,7 +1998,7 @@ writeWithAs ps elemCount =
 --
 -- >>> f n = MutArray.writeAppendWith (* 2) (MutArray.new n)
 -- >>> writeWith n = Fold.rmapM MutArray.rightSize (f n)
--- >>> writeWith n = Fold.rmapM MutArray.fromArrayStreamK (MutArray.buildChunks n)
+-- >>> writeWith n = Fold.rmapM MutArray.fromChunksK (MutArray.buildChunks n)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL writeWith #-}
@@ -2117,10 +2118,11 @@ fromByteStr# addr = do
 -- XXX Both of these implementations of splicing seem to perform equally well.
 -- We need to perform benchmarks over a range of sizes though.
 
-{-# INLINE fromArrayStreamRealloced #-}
-fromArrayStreamRealloced :: forall m a. (MonadIO m, Unbox a)
+-- | Also see 'fromChunksK'.
+{-# INLINE fromChunksRealloced #-}
+fromChunksRealloced :: forall m a. (MonadIO m, Unbox a)
     => Stream m (MutArray a) -> m (MutArray a)
-fromArrayStreamRealloced s = do
+fromChunksRealloced s = do
     res <- D.uncons s
     case res of
         Just (a, strm) -> do
@@ -2141,29 +2143,39 @@ arrayStreamKLength as = K.foldl' (+) 0 (K.map length as)
 -- | Convert an array stream to an array. Note that this requires peak memory
 -- that is double the size of the array stream.
 --
-{-# INLINE fromArrayStreamKAs #-}
-fromArrayStreamKAs :: (Unbox a, MonadIO m) =>
+{-# INLINE fromChunkskAs #-}
+fromChunkskAs :: (Unbox a, MonadIO m) =>
     PinnedState -> StreamK m (MutArray a) -> m (MutArray a)
-fromArrayStreamKAs ps as = do
+fromChunkskAs ps as = do
     len <- arrayStreamKLength as
     arr <- newAs ps len
     -- XXX is StreamK fold faster or StreamD fold?
     K.foldlM' spliceUnsafe (pure arr) as
     -- fromStreamDN len $ D.unfoldMany reader $ D.fromStreamK as
 
+-- XXX Need to compare this with fromChunks and fromChunkList and keep the
+-- fastest or simplest one if all are equally fast.
+
 -- | Convert an array stream to an array. Note that this requires peak memory
 -- that is double the size of the array stream.
 --
-{-# INLINE fromArrayStreamK #-}
+-- Also see 'fromChunksRealloced'.
+--
+{-# INLINE fromChunksK #-}
+fromChunksK :: (Unbox a, MonadIO m) =>
+    StreamK m (MutArray a) -> m (MutArray a)
+fromChunksK = fromChunkskAs Unpinned
+
+{-# DEPRECATED fromArrayStreamK "Please use fromChunksK instead." #-}
 fromArrayStreamK :: (Unbox a, MonadIO m) =>
     StreamK m (MutArray a) -> m (MutArray a)
-fromArrayStreamK = fromArrayStreamKAs Unpinned
+fromArrayStreamK = fromChunksK
 
 {-# INLINE fromStreamDAs #-}
 fromStreamDAs ::
        (MonadIO m, Unbox a) => PinnedState -> D.Stream m a -> m (MutArray a)
 fromStreamDAs ps m =
-    arrayStreamKFromStreamDAs Unpinned m >>= fromArrayStreamKAs ps
+    arrayStreamKFromStreamDAs Unpinned m >>= fromChunkskAs ps
 
 -- CAUTION: a very large number (millions) of arrays can degrade performance
 -- due to GC overhead because we need to buffer the arrays before we flatten
