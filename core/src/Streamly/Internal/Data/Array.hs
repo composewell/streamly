@@ -408,7 +408,7 @@ getIndex i arr =
 {-# INLINE getIndices #-}
 getIndices :: (Monad m, Unbox a) => Stream m Int -> Unfold m (Array a) a
 getIndices m =
-    let unf = MA.getIndicesD (return . unsafeInlineIO) m
+    let unf = MA.getIndicesWith (return . unsafeInlineIO) m
      in Unfold.lmap A.unsafeThaw unf
 
 -- | Unfolds @(from, then, to, array)@ generating a finite stream whose first

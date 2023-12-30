@@ -142,7 +142,7 @@ module Streamly.Internal.Data.MutArray.Type
     , getIndex
     , getIndexUnsafe
     , getIndices
-    , getIndicesD
+    , getIndicesWith
     -- , getFromThenTo
     , getIndexRev
 
@@ -1051,15 +1051,10 @@ getIndexRev i MutArray{..} = do
 data GetIndicesState contents start end st =
     GetIndicesState contents start end st
 
--- | Given an unfold that generates array indices, read the elements on those
--- indices from the supplied MutArray. An error is thrown if an index is out of
--- bounds.
---
--- /Pre-release/
-{-# INLINE getIndicesD #-}
-getIndicesD :: (Monad m, Unbox a) =>
+{-# INLINE getIndicesWith #-}
+getIndicesWith :: (Monad m, Unbox a) =>
     (forall b. IO b -> m b) -> D.Stream m Int -> Unfold m (MutArray a) a
-getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
+getIndicesWith liftio (D.Stream stepi sti) = Unfold step inject
 
     where
 
@@ -1078,9 +1073,14 @@ getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
             D.Skip s -> return $ D.Skip (GetIndicesState contents start end s)
             D.Stop -> return D.Stop
 
+-- | Given an unfold that generates array indices, read the elements on those
+-- indices from the supplied MutArray. An error is thrown if an index is out of
+-- bounds.
+--
+-- /Pre-release/
 {-# INLINE getIndices #-}
 getIndices :: (MonadIO m, Unbox a) => Stream m Int -> Unfold m (MutArray a) a
-getIndices = getIndicesD liftIO
+getIndices = getIndicesWith liftIO
 
 -------------------------------------------------------------------------------
 -- Subarrays
