@@ -11,14 +11,12 @@ module Streamly.Internal.Data.MutArray
     -- * MutArray.Type module
       module Streamly.Internal.Data.MutArray.Type
     -- * MutArray module
-    , splitOn
     , sliceIndexerFromLen
     , slicerFromLen
     -- * Unboxed IORef
     , module Streamly.Internal.Data.IORef.Unboxed
 
     -- * Deprecated
-    , splitOn
     , genSlicesFromLen
     , getSlicesFromLen
     )
@@ -26,28 +24,14 @@ where
 
 #include "inline.hs"
 
-import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Unbox (Unbox)
-import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
-import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Prelude hiding (foldr, length, read, splitAt)
 import Streamly.Internal.Data.MutArray.Type
 import Streamly.Internal.Data.IORef.Unboxed
-
--- | Split the array into a stream of slices using a predicate. The element
--- matching the predicate is dropped.
---
--- /Pre-release/
-{-# INLINE splitOn #-}
-splitOn :: (MonadIO m, Unbox a) =>
-    (a -> Bool) -> MutArray a -> Stream m (MutArray a)
-splitOn predicate arr =
-    fmap (\(i, len) -> getSliceUnsafe i len arr)
-        $ D.sliceOnSuffix predicate (read arr)
 
 -- | Generate a stream of array slice descriptors ((index, len)) of specified
 -- length from an array, starting from the supplied array index. The last slice

@@ -209,6 +209,7 @@ module Streamly.Internal.Data.MutArray.Type
     , getSlice
     -- , getSlicesFromLenN
     , splitAt -- XXX should be able to express using getSlice
+    , splitOn
     , breakOn
 
     -- ** Cloning arrays
@@ -2383,6 +2384,17 @@ spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 -------------------------------------------------------------------------------
 -- Splitting
 -------------------------------------------------------------------------------
+
+-- | Generate a stream of array slices using a predicate. The array element
+-- matching the predicate is dropped.
+--
+-- /Pre-release/
+{-# INLINE splitOn #-}
+splitOn :: (MonadIO m, Unbox a) =>
+    (a -> Bool) -> MutArray a -> Stream m (MutArray a)
+splitOn predicate arr =
+    fmap (\(i, len) -> getSliceUnsafe i len arr)
+        $ D.rangesOnSuffix predicate (read arr)
 
 -- | Drops the separator byte
 {-# INLINE breakOn #-}

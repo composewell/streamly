@@ -46,7 +46,7 @@ module Streamly.Internal.Data.Array
 
     -- * Search
     , binarySearch
-    , findIndicesOf
+    , findIndicesOf -- see splitOn, rename to indicesOf
     -- , findIndexOf
     -- , find
 
