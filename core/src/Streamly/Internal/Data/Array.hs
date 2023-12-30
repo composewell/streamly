@@ -59,8 +59,8 @@ module Streamly.Internal.Data.Array
     -- * Subarrays
     , getSliceUnsafe
     -- , getSlice
-    , genSlicesFromLen
-    , getSlicesFromLen
+    , sliceIndexerFromLen
+    , slicerFromLen
     , splitOn
 
     -- * Streaming Operations
@@ -75,6 +75,10 @@ module Streamly.Internal.Data.Array
     , serialize
     , pinnedSerialize
     , deserialize
+
+    -- * Deprecated
+    , genSlicesFromLen
+    , getSlicesFromLen
     )
 where
 
@@ -329,27 +333,41 @@ splitOn predicate arr =
     fmap (\(i, len) -> getSliceUnsafe i len arr)
         $ D.sliceOnSuffix predicate (A.toStreamD arr)
 
-{-# INLINE genSlicesFromLen #-}
+{-# INLINE sliceIndexerFromLen #-}
+sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)
+    => Int -- ^ from index
+    -> Int -- ^ length of the slice
+    -> Unfold m (Array a) (Int, Int)
+sliceIndexerFromLen from len =
+    Unfold.lmap A.unsafeThaw (MA.sliceIndexerFromLen from len)
+
+{-# DEPRECATED genSlicesFromLen "Please use sliceIndexerFromLen instead." #-}
 genSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Int, Int)
-genSlicesFromLen from len =
-    Unfold.lmap A.unsafeThaw (MA.genSlicesFromLen from len)
+genSlicesFromLen = sliceIndexerFromLen
 
 -- | Generate a stream of slices of specified length from an array, starting
 -- from the supplied array index. The last slice may be shorter than the
 -- requested length.
 --
 -- /Pre-release//
-{-# INLINE getSlicesFromLen #-}
+{-# INLINE slicerFromLen #-}
+slicerFromLen :: forall m a. (Monad m, Unbox a)
+    => Int -- ^ from index
+    -> Int -- ^ length of the slice
+    -> Unfold m (Array a) (Array a)
+slicerFromLen from len =
+    fmap A.unsafeFreeze
+        $ Unfold.lmap A.unsafeThaw (MA.slicerFromLen from len)
+
+{-# DEPRECATED getSlicesFromLen "Please use slicerFromLen instead." #-}
 getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Array a)
-getSlicesFromLen from len =
-    fmap A.unsafeFreeze
-        $ Unfold.lmap A.unsafeThaw (MA.getSlicesFromLen from len)
+getSlicesFromLen = slicerFromLen
 
 -------------------------------------------------------------------------------
 -- Random reads and writes
