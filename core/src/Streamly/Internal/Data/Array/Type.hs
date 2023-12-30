@@ -37,8 +37,8 @@ module Streamly.Internal.Data.Array.Type
     , pinnedFromListN
     , fromListRev
     , fromListRevN
-    , fromStreamDN
-    , fromStreamD
+    , fromStreamN
+    , fromStream
     , fromPureStreamN
     , fromPureStream
     , fromByteStr#
@@ -101,6 +101,8 @@ module Streamly.Internal.Data.Array.Type
     , flattenArrays
     , flattenArraysRev
     , fromArrayStreamK
+    , fromStreamDN
+    , fromStreamD
     )
 where
 
@@ -108,7 +110,7 @@ where
 #include "inline.hs"
 
 import Control.Exception (assert)
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int8, Int16, Int32, Int64)
@@ -314,15 +316,45 @@ pinnedFromList xs = unsafePerformIO $ unsafeFreeze <$> MA.pinnedFromList xs
 fromListRev :: Unbox a => [a] -> Array a
 fromListRev xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRev xs
 
-{-# INLINE_NORMAL fromStreamDN #-}
+-- | Create an 'Array' from the first N elements of a stream. The array is
+-- allocated to size N, if the stream terminates before N elements then the
+-- array may hold less than N elements.
+--
+-- >>> fromStreamN n = Stream.fold (Array.writeN n)
+--
+-- /Pre-release/
+{-# INLINE_NORMAL fromStreamN #-}
+fromStreamN :: (MonadIO m, Unbox a) => Int -> Stream m a -> m (Array a)
+fromStreamN n m = do
+    when (n < 0) $ error "writeN: negative write count specified"
+    unsafeFreeze <$> MA.fromStreamN n m
+-- fromStreamN n = D.fold (writeN n)
+
+{-# DEPRECATED fromStreamDN "Please use fromStreamN instead." #-}
 fromStreamDN :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> m (Array a)
-fromStreamDN limit str = unsafeFreeze <$> MA.fromStreamDN limit str
+fromStreamDN = fromStreamN
 
+-- | Create an 'Array' from a stream. This is useful when we want to create a
+-- single array from a stream of unknown size. 'writeN' is at least twice
+-- as efficient when the size is already known.
+--
+-- >>> fromStream = Stream.fold Array.write
+--
+-- Note that if the input stream is too large memory allocation for the array
+-- may fail.  When the stream size is not known, `chunksOf` followed by
+-- processing of indvidual arrays in the resulting stream should be preferred.
+--
+-- /Pre-release/
 {-# INLINE_NORMAL fromStreamD #-}
+fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (Array a)
+fromStream = D.fold write
+-- fromStreamD str = unsafeFreeze <$> MA.fromStream str
+
+{-# DEPRECATED fromStreamD "Please use fromStream instead." #-}
 fromStreamD :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m a -> m (Array a)
-fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
+fromStreamD = fromStream
 
 -------------------------------------------------------------------------------
 -- Cloning

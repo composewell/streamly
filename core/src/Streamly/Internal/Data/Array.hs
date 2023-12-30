@@ -20,10 +20,6 @@ module Streamly.Internal.Data.Array
       module Streamly.Internal.Data.Array.Type
 
     -- * Construction
-    -- Stream Folds
-    , fromStreamN
-    , fromStream
-
     -- Monadic Folds
     , writeLastN
 
@@ -86,7 +82,6 @@ where
 #include "inline.hs"
 #include "ArrayMacros.h"
 
-import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Data.Proxy (Proxy(..))
@@ -144,35 +139,6 @@ import Streamly.Internal.Data.Array.Type
 -- overhead. To hold 32GB memory in 32k sized buffers we need 1 million arrays
 -- if we use one array for each chunk. This is still significant to add
 -- pressure to GC.
-
--------------------------------------------------------------------------------
--- Construction
--------------------------------------------------------------------------------
-
--- | Create an 'Array' from the first N elements of a stream. The array is
--- allocated to size N, if the stream terminates before N elements then the
--- array may hold less than N elements.
---
--- /Pre-release/
-{-# INLINE fromStreamN #-}
-fromStreamN :: (MonadIO m, Unbox a) => Int -> Stream m a -> m (Array a)
-fromStreamN n m = do
-    when (n < 0) $ error "writeN: negative write count specified"
-    A.fromStreamDN n m
-
--- | Create an 'Array' from a stream. This is useful when we want to create a
--- single array from a stream of unknown size. 'writeN' is at least twice
--- as efficient when the size is already known.
---
--- Note that if the input stream is too large memory allocation for the array
--- may fail.  When the stream size is not known, `chunksOf` followed by
--- processing of indvidual arrays in the resulting stream should be preferred.
---
--- /Pre-release/
-{-# INLINE fromStream #-}
-fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (Array a)
-fromStream = Stream.fold A.write
--- write m = A.fromStreamD $ D.fromStreamK m
 
 -------------------------------------------------------------------------------
 -- Elimination
