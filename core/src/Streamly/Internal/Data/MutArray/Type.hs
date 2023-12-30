@@ -72,8 +72,8 @@ module Streamly.Internal.Data.MutArray.Type
     , pinnedFromList
     , fromListRevN
     , fromListRev
-    , fromStreamDN
-    , fromStreamD
+    , fromStreamN
+    , fromStream
     , fromPureStreamN
     , fromPureStream
     , fromByteStr#
@@ -236,6 +236,8 @@ module Streamly.Internal.Data.MutArray.Type
     , flattenArrays
     , flattenArraysRev
     , fromArrayStreamK
+    , fromStreamDN
+    , fromStreamD
     )
 where
 
@@ -2044,13 +2046,18 @@ fromStreamDNAs ps limit str = do
 
 -- | Use the 'writeN' fold instead.
 --
--- >>> fromStreamDN n = Stream.fold (MutArray.writeN n)
+-- >>> fromStreamN n = Stream.fold (MutArray.writeN n)
 --
-{-# INLINE_NORMAL fromStreamDN #-}
-fromStreamDN :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL fromStreamN #-}
+fromStreamN :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> m (MutArray a)
 -- fromStreamDN n = D.fold (writeN n)
-fromStreamDN = fromStreamDNAs Unpinned
+fromStreamN = fromStreamDNAs Unpinned
+
+{-# DEPRECATED fromStreamDN "Please use fromStreamN instead." #-}
+fromStreamDN :: forall m a. (MonadIO m, Unbox a)
+    => Int -> D.Stream m a -> m (MutArray a)
+fromStreamDN = fromStreamN
 
 -- | Create a 'MutArray' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
@@ -2177,6 +2184,20 @@ fromStreamDAs ::
 fromStreamDAs ps m =
     arrayStreamKFromStreamDAs Unpinned m >>= fromChunkskAs ps
 
+-- | Create an 'Array' from a stream. This is useful when we want to create a
+-- single array from a stream of unknown size. 'writeN' is at least twice
+-- as efficient when the size is already known.
+--
+-- Note that if the input stream is too large memory allocation for the array
+-- may fail.  When the stream size is not known, `chunksOf` followed by
+-- processing of indvidual arrays in the resulting stream should be preferred.
+--
+-- /Pre-release/
+{-# INLINE fromStream #-}
+fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (MutArray a)
+fromStream = fromStreamDAs Unpinned
+
+-- fromStream (Stream m) = P.fold write m
 -- CAUTION: a very large number (millions) of arrays can degrade performance
 -- due to GC overhead because we need to buffer the arrays before we flatten
 -- all the arrays.
@@ -2191,8 +2212,9 @@ fromStreamDAs ps m =
 -- >>> fromStreamD = StreamD.fold MutArray.write
 --
 {-# INLINE fromStreamD #-}
+{-# DEPRECATED fromStreamD "Please use fromStream instead." #-}
 fromStreamD :: (MonadIO m, Unbox a) => D.Stream m a -> m (MutArray a)
-fromStreamD = fromStreamDAs Unpinned
+fromStreamD = fromStream
 
 -- | Create a 'MutArray' from a list. The list must be of finite size.
 --

@@ -14,7 +14,6 @@ module Streamly.Internal.Data.MutArray
     , splitOn
     , sliceIndexerFromLen
     , slicerFromLen
-    , fromStream
     -- * Unboxed IORef
     , module Streamly.Internal.Data.IORef.Unboxed
 
@@ -94,17 +93,3 @@ getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (MutArray a)
 getSlicesFromLen = slicerFromLen
-
--- | Create an 'Array' from a stream. This is useful when we want to create a
--- single array from a stream of unknown size. 'writeN' is at least twice
--- as efficient when the size is already known.
---
--- Note that if the input stream is too large memory allocation for the array
--- may fail.  When the stream size is not known, `chunksOf` followed by
--- processing of indvidual arrays in the resulting stream should be preferred.
---
--- /Pre-release/
-{-# INLINE fromStream #-}
-fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (MutArray a)
-fromStream = fromStreamD
--- fromStream (Stream m) = P.fold write m
