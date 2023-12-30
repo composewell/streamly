@@ -12,11 +12,16 @@ module Streamly.Internal.Data.MutArray
       module Streamly.Internal.Data.MutArray.Type
     -- * MutArray module
     , splitOn
-    , genSlicesFromLen
-    , getSlicesFromLen
+    , sliceIndexerFromLen
+    , slicerFromLen
     , fromStream
     -- * Unboxed IORef
     , module Streamly.Internal.Data.IORef.Unboxed
+
+    -- * Deprecated
+    , splitOn
+    , genSlicesFromLen
+    , getSlicesFromLen
     )
 where
 
@@ -50,31 +55,45 @@ splitOn predicate arr =
 -- may be shorter than the requested length depending on the array length.
 --
 -- /Pre-release/
-{-# INLINE genSlicesFromLen #-}
-genSlicesFromLen :: forall m a. (Monad m, Unbox a)
+{-# INLINE sliceIndexerFromLen #-}
+sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (Int, Int)
-genSlicesFromLen from len =
+sliceIndexerFromLen from len =
     let fromThenTo n = (from, from + len, n - 1)
         mkSlice n i = return (i, min len (n - i))
      in Unfold.lmap length
         $ Unfold.mapM2 mkSlice
         $ Unfold.lmap fromThenTo Unfold.enumerateFromThenTo
 
+{-# DEPRECATED genSlicesFromLen "Please use sliceIndexerFromLen instead." #-}
+genSlicesFromLen :: forall m a. (Monad m, Unbox a)
+    => Int -- ^ from index
+    -> Int -- ^ length of the slice
+    -> Unfold m (MutArray a) (Int, Int)
+genSlicesFromLen = sliceIndexerFromLen
+
 -- | Generate a stream of slices of specified length from an array, starting
 -- from the supplied array index. The last slice may be shorter than the
 -- requested length depending on the array length.
 --
 -- /Pre-release/
-{-# INLINE getSlicesFromLen #-}
+{-# INLINE slicerFromLen #-}
+slicerFromLen :: forall m a. (Monad m, Unbox a)
+    => Int -- ^ from index
+    -> Int -- ^ length of the slice
+    -> Unfold m (MutArray a) (MutArray a)
+slicerFromLen from len =
+    let mkSlice arr (i, n) = return $ getSliceUnsafe i n arr
+     in Unfold.mapM2 mkSlice (sliceIndexerFromLen from len)
+
+{-# DEPRECATED getSlicesFromLen "Please use slicerFromLen instead." #-}
 getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (MutArray a)
-getSlicesFromLen from len =
-    let mkSlice arr (i, n) = return $ getSliceUnsafe i n arr
-     in Unfold.mapM2 mkSlice (genSlicesFromLen from len)
+getSlicesFromLen = slicerFromLen
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice
