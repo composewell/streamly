@@ -91,12 +91,15 @@ module Streamly.Internal.Data.Array.Type
     -- ** Streams of arrays
     , chunksOf
     , pinnedChunksOf
-    , bufferChunks
-    , flattenArrays
-    , flattenArraysRev
+    , buildChunks
+    , concatChunks
+    , concatChunksRev
 
     -- ** Deprecated
     , unsafeIndex
+    , bufferChunks
+    , flattenArrays
+    , flattenArraysRev
     )
 where
 
@@ -348,10 +351,15 @@ pinnedClone = fmap unsafeFreeze . MA.pinnedClone . unsafeThaw
 -- Streams of arrays
 -------------------------------------------------------------------------------
 
-{-# INLINE bufferChunks #-}
+{-# INLINE buildChunks #-}
+buildChunks :: (MonadIO m, Unbox a) =>
+    D.Stream m a -> m (K.StreamK m (Array a))
+buildChunks m = D.foldr K.cons K.nil $ chunksOf defaultChunkSize m
+
+{-# DEPRECATED bufferChunks "Please use buildChunks instead." #-}
 bufferChunks :: (MonadIO m, Unbox a) =>
     D.Stream m a -> m (K.StreamK m (Array a))
-bufferChunks m = D.foldr K.cons K.nil $ chunksOf defaultChunkSize m
+bufferChunks = buildChunks
 
 -- | @chunksOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
@@ -372,27 +380,37 @@ pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
 pinnedChunksOf n str = D.map unsafeFreeze $ MA.pinnedChunksOf n str
 
--- | Use the "read" unfold instead.
+-- | Use the "reader" unfold instead.
 --
--- @flattenArrays = unfoldMany read@
+-- @concatChunks = unfoldMany reader@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
-{-# INLINE_NORMAL flattenArrays #-}
+{-# INLINE_NORMAL concatChunks #-}
+concatChunks :: forall m a. (MonadIO m, Unbox a)
+    => D.Stream m (Array a) -> D.Stream m a
+concatChunks = MA.concatChunks . D.map unsafeThaw
+
+{-# DEPRECATED flattenArrays "Please use \"unfoldMany reader\" instead." #-}
 flattenArrays :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
-flattenArrays = MA.flattenArrays . D.map unsafeThaw
+flattenArrays = concatChunks
 
--- | Use the "readRev" unfold instead.
+-- | Use the "readerRev" unfold instead.
 --
--- @flattenArrays = unfoldMany readRev@
+-- @concatChunksRev = unfoldMany readerRev@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
-{-# INLINE_NORMAL flattenArraysRev #-}
+{-# INLINE_NORMAL concatChunksRev #-}
+concatChunksRev :: forall m a. (MonadIO m, Unbox a)
+    => D.Stream m (Array a) -> D.Stream m a
+concatChunksRev = MA.concatChunksRev . D.map unsafeThaw
+
+{-# DEPRECATED flattenArraysRev "Please use \"unfoldMany readerRev\" instead." #-}
 flattenArraysRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
-flattenArraysRev = MA.flattenArraysRev . D.map unsafeThaw
+flattenArraysRev = concatChunksRev
 
 -- Drops the separator byte
 {-# INLINE breakOn #-}

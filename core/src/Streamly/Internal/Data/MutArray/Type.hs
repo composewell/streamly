@@ -197,11 +197,11 @@ module Streamly.Internal.Data.MutArray.Type
     -- *** Construct from streams
     , chunksOf
     , pinnedChunksOf
-    , writeChunks
+    , buildChunks
 
     -- *** Eliminate to streams
-    , flattenArrays
-    , flattenArraysRev
+    , concatChunks
+    , concatChunksRev
 
     -- *** Construct from arrays
     -- get chunks without copying
@@ -230,6 +230,11 @@ module Streamly.Internal.Data.MutArray.Type
     , memcpy
     , memcmp
     , c_memchr
+
+    -- * Deprecated
+    , writeChunks
+    , flattenArrays
+    , flattenArraysRev
     )
 where
 
@@ -1418,14 +1423,14 @@ data FlattenState s contents a =
 
 -- | Use the "reader" unfold instead.
 --
--- @flattenArrays = unfoldMany reader@
+-- @concatChunks = unfoldMany reader@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
-{-# INLINE_NORMAL flattenArrays #-}
-flattenArrays :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL concatChunks #-}
+concatChunks :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (MutArray a) -> D.Stream m a
-flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
+concatChunks (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where
 
@@ -1445,16 +1450,21 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
         x <- liftIO $ peekAt p contents
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
+{-# DEPRECATED flattenArrays "Please use \"unfoldMany reader\" instead." #-}
+flattenArrays :: forall m a. (MonadIO m, Unbox a)
+    => D.Stream m (MutArray a) -> D.Stream m a
+flattenArrays = concatChunks
+
 -- | Use the "readerRev" unfold instead.
 --
--- @flattenArrays = unfoldMany readerRev@
+-- @concatChunks = unfoldMany readerRev@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
-{-# INLINE_NORMAL flattenArraysRev #-}
-flattenArraysRev :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL concatChunksRev #-}
+concatChunksRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (MutArray a) -> D.Stream m a
-flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
+concatChunksRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where
 
@@ -1475,6 +1485,11 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         x <- liftIO $ peekAt p contents
         let cur = INDEX_PREV(p,a)
         return $ D.Yield x (InnerLoop st contents cur start)
+
+{-# DEPRECATED flattenArraysRev "Please use \"unfoldMany readerRev\" instead." #-}
+flattenArraysRev :: forall m a. (MonadIO m, Unbox a)
+    => D.Stream m (MutArray a) -> D.Stream m a
+flattenArraysRev = concatChunksRev
 
 -------------------------------------------------------------------------------
 -- Unfolds
@@ -1915,7 +1930,7 @@ pinnedWriteNAligned align = writeNWith (pinnedNewAligned align)
 
 -- | Buffer a stream into a stream of arrays.
 --
--- >>> writeChunks n = Fold.many (MutArray.writeN n) Fold.toStreamK
+-- >>> buildChunks n = Fold.many (MutArray.writeN n) Fold.toStreamK
 --
 -- Breaking an array into an array stream  can be useful to consume a large
 -- array sequentially such that memory of the array is released incrementatlly.
@@ -1924,10 +1939,15 @@ pinnedWriteNAligned align = writeNWith (pinnedNewAligned align)
 --
 -- /Unimplemented/
 --
-{-# INLINE_NORMAL writeChunks #-}
+{-# INLINE_NORMAL buildChunks #-}
+buildChunks :: (MonadIO m, Unbox a) =>
+    Int -> Fold m a (StreamK n (MutArray a))
+buildChunks n = FL.many (writeN n) FL.toStreamK
+
+{-# DEPRECATED writeChunks "Please use buildChunks instead." #-}
 writeChunks :: (MonadIO m, Unbox a) =>
     Int -> Fold m a (StreamK n (MutArray a))
-writeChunks n = FL.many (writeN n) FL.toStreamK
+writeChunks = buildChunks
 
 {-# INLINE_NORMAL writeWithAs #-}
 writeWithAs :: forall m a. (MonadIO m, Unbox a)
@@ -1953,7 +1973,7 @@ writeWithAs ps elemCount =
     extract = liftIO . rightSize
 
 -- XXX Compare writeWith with fromStreamD which uses an array of streams
--- implementation. We can write this using writeChunks above if that is faster.
+-- implementation. We can write this using buildChunks above if that is faster.
 -- If writeWith is faster then we should use that to implement
 -- fromStreamD.
 --
@@ -1977,7 +1997,7 @@ writeWithAs ps elemCount =
 --
 -- >>> f n = MutArray.writeAppendWith (* 2) (MutArray.new n)
 -- >>> writeWith n = Fold.rmapM MutArray.rightSize (f n)
--- >>> writeWith n = Fold.rmapM MutArray.fromArrayStreamK (MutArray.writeChunks n)
+-- >>> writeWith n = Fold.rmapM MutArray.fromArrayStreamK (MutArray.buildChunks n)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL writeWith #-}
