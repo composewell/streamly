@@ -30,8 +30,6 @@ module Streamly.Internal.Data.Fold.Combinators
     -- *** Reducers
     , drainMapM
     , the
-    , length
-    , lengthGeneric
     , mean
     , rollingHash
     , defaultSalt
@@ -166,8 +164,6 @@ module Streamly.Internal.Data.Fold.Combinators
     -- ** Trimming
 
     -- By elements
-    , takeEndBy
-    , takeEndBy_
     , takeEndBySeq
     , takeEndBySeq_
     {-
@@ -708,30 +704,6 @@ the = foldt' step initial id
 ------------------------------------------------------------------------------
 -- To Summary
 ------------------------------------------------------------------------------
-
--- | Like 'length', except with a more general 'Num' return value
---
--- Definition:
---
--- >>> lengthGeneric = fmap getSum $ Fold.foldMap (Sum . const  1)
--- >>> lengthGeneric = Fold.foldl' (\n _ -> n + 1) 0
---
--- /Pre-release/
-{-# INLINE lengthGeneric #-}
-lengthGeneric :: (Monad m, Num b) => Fold m a b
-lengthGeneric = foldl' (\n _ -> n + 1) 0
-
--- | Determine the length of the input stream.
---
--- Definition:
---
--- >>> length = Fold.lengthGeneric
--- >>> length = fmap getSum $ Fold.foldMap (Sum . const  1)
---
-{-# INLINE length #-}
-length :: Monad m => Fold m a Int
-length = lengthGeneric
-
 
 -- | Determine the sum of all elements of a stream of numbers. Returns additive
 -- identity (@0@) when the stream is empty. Note that this is not numerically
@@ -1509,70 +1481,6 @@ droppingWhileM p = Fold step initial extract extract
 {-# INLINE droppingWhile #-}
 droppingWhile :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
 droppingWhile p = droppingWhileM (return . p)
-
--- Note: Keep this consistent with S.splitOn. In fact we should eliminate
--- S.splitOn in favor of the fold.
---
--- XXX Use Fold.many instead once it is fixed.
--- > Stream.splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
-
--- | Like 'takeEndBy' but drops the element on which the predicate succeeds.
---
--- Example:
---
--- >>> input = Stream.fromList "hello\nthere\n"
--- >>> line = Fold.takeEndBy_ (== '\n') Fold.toList
--- >>> Stream.fold line input
--- "hello"
---
--- >>> Stream.fold Fold.toList $ Stream.foldMany line input
--- ["hello","there"]
---
-{-# INLINE takeEndBy_ #-}
-takeEndBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
--- takeEndBy_ predicate = scanMaybe (takingEndBy_ predicate)
-takeEndBy_ predicate (Fold fstep finitial fextract ffinal) =
-    Fold step finitial fextract ffinal
-
-    where
-
-    step s a =
-        if not (predicate a)
-        then fstep s a
-        else Done <$> ffinal s
-
--- Note:
--- > Stream.splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
-
--- | Take the input, stop when the predicate succeeds taking the succeeding
--- element as well.
---
--- Example:
---
--- >>> input = Stream.fromList "hello\nthere\n"
--- >>> line = Fold.takeEndBy (== '\n') Fold.toList
--- >>> Stream.fold line input
--- "hello\n"
---
--- >>> Stream.fold Fold.toList $ Stream.foldMany line input
--- ["hello\n","there\n"]
---
-{-# INLINE takeEndBy #-}
-takeEndBy :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
--- takeEndBy predicate = scanMaybe (takingEndBy predicate)
-takeEndBy predicate (Fold fstep finitial fextract ffinal) =
-    Fold step finitial fextract ffinal
-
-    where
-
-    step s a = do
-        res <- fstep s a
-        if not (predicate a)
-        then return res
-        else do
-            case res of
-                Partial s1 -> Done <$> ffinal s1
-                Done b -> return $ Done b
 
 ------------------------------------------------------------------------------
 -- Binary splitting on a separator
