@@ -90,6 +90,7 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Array.Type (Array(..))
+import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Fold.Chunked (ChunkFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
@@ -174,7 +175,7 @@ interposeSuffix x = D.interposeSuffix x A.reader
 
 data FlattenState s =
       OuterLoop s
-    | InnerLoop s !MA.MutableByteArray !Int !Int
+    | InnerLoop s !MutByteArray !Int !Int
 
 -- XXX This is a special case of interposeSuffix, can be removed.
 -- XXX Remove monadIO constraint

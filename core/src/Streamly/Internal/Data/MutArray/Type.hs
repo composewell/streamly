@@ -31,8 +31,6 @@ module Streamly.Internal.Data.MutArray.Type
     -- ** Type
     -- $arrayNotes
       MutArray (..)
-    , MutByteArray
-    , MutableByteArray
     , pin
     , unpin
     , isPinned
@@ -257,7 +255,6 @@ import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Data.MutByteArray.Type
     ( MutByteArray(..)
-    , MutableByteArray
     , PinnedState(..)
     , getMutableByteArray#
     , putSliceUnsafe
