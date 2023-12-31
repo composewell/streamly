@@ -2423,6 +2423,7 @@ breakOn sep arr@MutArray{..} = asUnpinnedPtrUnsafe arr $ \p -> liftIO $ do
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
 --
+{-# INLINE splitAt #-}
 splitAt :: forall a. Unbox a => Int -> MutArray a -> (MutArray a, MutArray a)
 splitAt i arr@MutArray{..} =
     let maxIndex = length arr - 1

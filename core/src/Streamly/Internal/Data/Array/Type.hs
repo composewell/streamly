@@ -48,6 +48,7 @@ module Streamly.Internal.Data.Array.Type
 
     -- ** Split
     , breakOn
+    , splitAt
 
     -- ** Cloning arrays
     , clone
@@ -61,7 +62,6 @@ module Streamly.Internal.Data.Array.Type
 
     , foldl'
     , foldr
-    , splitAt
 
     , toStreamK
     , toStreamKRev
@@ -559,6 +559,7 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
 --
+{-# INLINE splitAt #-}
 splitAt :: Unbox a => Int -> Array a -> (Array a, Array a)
 splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
   where
