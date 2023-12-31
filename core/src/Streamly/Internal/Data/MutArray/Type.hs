@@ -216,14 +216,23 @@ module Streamly.Internal.Data.MutArray.Type
     , pinnedChunksOf
     , buildChunks
 
-    -- *** Flatten a stream of arrays
-    , concatChunks
-    , concatChunksRev
-
     -- *** Split an array into slices
     -- , getSlicesFromLenN
     , splitOn
     -- , slicesOf
+
+    -- *** Flatten a stream of arrays
+    , concatChunks
+    , concatChunksRev
+
+    -- *** Compaction
+    , SpliceState (..)
+    , pCompactChunksLE
+    , rCompactChunksLE
+    , fCompactChunksGE
+    , lCompactChunksGE
+    , compactChunksGE
+    , compactChunksEQ
 
     -- ** Utilities
     , roundUpToPower2
@@ -248,6 +257,7 @@ where
 
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Bifunctor (first)
 import Data.Bits (shiftR, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
@@ -274,13 +284,17 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Parser.Type (Parser (..))
 import Streamly.Internal.Data.StreamK.Type (StreamK)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
+import qualified Streamly.Internal.Data.Parser.Type as Parser
+-- import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Lift as D
@@ -2582,7 +2596,256 @@ byteEq :: MonadIO m => MutArray a -> MutArray a -> m Bool
 byteEq arr1 arr2 = fmap (EQ ==) $ byteCmp arr1 arr2
 
 -------------------------------------------------------------------------------
--- NFData
+-- Compact
+-------------------------------------------------------------------------------
+
+-- | Parser @pCompactChunksLE n@ coalesces adjacent arrays in the input stream
+-- only if the combined size would be less than or equal to n.
+--
+-- /Internal/
+{-# INLINE_NORMAL pCompactChunksLE #-}
+pCompactChunksLE ::
+       forall m a. (MonadIO m, Unbox a)
+    => Int -> Parser (MutArray a) m (MutArray a)
+pCompactChunksLE n = Parser step initial extract
+
+    where
+
+    nBytes = n * SIZE_OF(a)
+
+    functionName = "Streamly.Internal.Data.MutArray.pCompactChunksLE"
+
+    initial =
+        return
+            $ if n <= 0
+              then error
+                       $ functionName
+                       ++ ": the size of arrays ["
+                       ++ show n ++ "] must be a natural number"
+              else Parser.IPartial Nothing
+
+    step Nothing arr =
+        return
+            $ let len = byteLength arr
+               in if len >= nBytes
+                  then Parser.Done 0 arr
+                  else Parser.Partial 0 (Just arr)
+    step (Just buf) arr =
+        let len = byteLength buf + byteLength arr
+         in if len > nBytes
+            then return $ Parser.Done 1 buf
+            else do
+                -- XXX check this in the Nothing case
+                buf1 <-
+                    if byteCapacity buf < nBytes
+                    then liftIO $ realloc nBytes buf
+                    else return buf
+                buf2 <- spliceUnsafe buf1 arr
+                return $ Parser.Partial 0 (Just buf2)
+
+    extract Nothing = return $ Parser.Done 0 nil
+    extract (Just buf) = return $ Parser.Done 0 buf
+
+data SpliceState s arr
+    = SpliceInitial s
+    | SpliceBuffering s arr
+    | SpliceYielding arr (SpliceState s arr)
+    | SpliceFinish
+
+-- This mutates the first array (if it has space) to append values from the
+-- second one. This would work for immutable arrays as well because an
+-- immutable array never has additional space so a new array is allocated
+-- instead of mutating it.
+
+-- | Scan @rCompactChunksLE n@ coalesces adjacent arrays in the input stream
+-- only if the combined size would be less than or equal to n.
+--
+-- /Internal/
+{-# INLINE_NORMAL rCompactChunksLE #-}
+rCompactChunksLE :: (MonadIO m, Unbox a)
+    => Int -> D.Stream m (MutArray a) -> D.Stream m (MutArray a)
+rCompactChunksLE n (D.Stream step state) =
+    D.Stream step' (SpliceInitial state)
+
+    where
+
+    functionName = "Streamly.Internal.Data.MutArray.rCompactChunksLE"
+
+    {-# INLINE_LATE step' #-}
+    step' gst (SpliceInitial st) = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ functionName ++ ": the size of arrays [" ++ show n
+                ++ "] must be a natural number"
+        r <- step gst st
+        case r of
+            D.Yield arr s -> return $
+                let len = byteLength arr
+                 in if len >= n
+                    then D.Skip (SpliceYielding arr (SpliceInitial s))
+                    else D.Skip (SpliceBuffering s arr)
+            D.Skip s -> return $ D.Skip (SpliceInitial s)
+            D.Stop -> return D.Stop
+
+    step' gst (SpliceBuffering st buf) = do
+        r <- step gst st
+        case r of
+            D.Yield arr s -> do
+                let len = byteLength buf + byteLength arr
+                if len > n
+                then return $
+                    D.Skip (SpliceYielding buf (SpliceBuffering s arr))
+                else do
+                    -- XXX check this in the SpliceInitial case
+                    buf1 <- if byteCapacity buf < n
+                            then liftIO $ realloc n buf
+                            else return buf
+                    buf2 <- spliceUnsafe buf1 arr
+                    return $ D.Skip (SpliceBuffering s buf2)
+            D.Skip s -> return $ D.Skip (SpliceBuffering s buf)
+            D.Stop -> return $ D.Skip (SpliceYielding buf SpliceFinish)
+
+    step' _ SpliceFinish = return D.Stop
+
+    step' _ (SpliceYielding arr next) = return $ D.Yield arr next
+
+-- | Fold @fCompactChunksGE n@ coalesces adjacent arrays in the input stream
+-- until the size becomes greater than or equal to n.
+--
+{-# INLINE_NORMAL fCompactChunksGE #-}
+fCompactChunksGE ::
+       forall m a. (MonadIO m, Unbox a)
+    => Int -> FL.Fold m (MutArray a) (MutArray a)
+fCompactChunksGE n = Fold step initial extract extract
+
+    where
+
+    nBytes = n * SIZE_OF(a)
+
+    functionName = "Streamly.Internal.Data.MutArray.fCompactChunksGE"
+
+    initial =
+        return
+            $ if n < 0
+              then error
+                       $ functionName
+                       ++ ": the size of arrays ["
+                       ++ show n ++ "] must be a natural number"
+              else FL.Partial Nothing
+
+    step Nothing arr =
+        return
+            $ let len = byteLength arr
+               in if len >= nBytes
+                  then FL.Done arr
+                  else FL.Partial (Just arr)
+    step (Just buf) arr = do
+        let len = byteLength buf + byteLength arr
+        buf1 <-
+            if byteCapacity buf < len
+            then liftIO $ realloc (max len nBytes) buf
+            else return buf
+        buf2 <- spliceUnsafe buf1 arr
+        if len >= n
+        then return $ FL.Done buf2
+        else return $ FL.Partial (Just buf2)
+
+    extract Nothing = return nil
+    extract (Just buf) = return buf
+
+-- | Like 'compactChunksGE' but for transforming folds instead of stream.
+--
+-- >>> lCompactChunksGE n = Fold.many (MutArray.fCompactChunksGE n)
+--
+{-# INLINE_NORMAL lCompactChunksGE #-}
+lCompactChunksGE :: (MonadIO m, Unbox a)
+    => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
+-- lCompactChunksGE n = Fold.many (fCompactChunksGE n)
+lCompactChunksGE n (Fold step1 initial1 _ final1) =
+    Fold step initial extract final
+
+    where
+
+    functionName = "Streamly.Internal.Data.MutArray.lCompactChunksGE"
+
+    initial = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ functionName ++ ": the size of arrays ["
+                ++ show n ++ "] must be a natural number"
+
+        r <- initial1
+        return $ first (Tuple' Nothing) r
+
+    step (Tuple' Nothing r1) arr =
+            let len = byteLength arr
+             in if len >= n
+                then do
+                    r <- step1 r1 arr
+                    case r of
+                        FL.Done _ -> return $ FL.Done ()
+                        FL.Partial s -> do
+                            _ <- final1 s
+                            res <- initial1
+                            return $ first (Tuple' Nothing) res
+                else return $ FL.Partial $ Tuple' (Just arr) r1
+
+    step (Tuple' (Just buf) r1) arr = do
+            let len = byteLength buf + byteLength arr
+            buf1 <- if byteCapacity buf < len
+                    then liftIO $ realloc (max n len) buf
+                    else return buf
+            buf2 <- spliceUnsafe buf1 arr
+
+            -- XXX this is common in both the equations of step
+            if len >= n
+            then do
+                r <- step1 r1 buf2
+                case r of
+                    FL.Done _ -> return $ FL.Done ()
+                    FL.Partial s -> do
+                        _ <- final1 s
+                        res <- initial1
+                        return $ first (Tuple' Nothing) res
+            else return $ FL.Partial $ Tuple' (Just buf2) r1
+
+    -- XXX Several folds do extract >=> final, therefore, we need to make final
+    -- return  "m b" rather than using extract post it if we want extract to be
+    -- partial.
+    --
+    -- extract forces the pending buffer to be sent to the fold which is not
+    -- what we want.
+    extract _ = error "lCompactChunksGE: not designed for scanning"
+
+    final (Tuple' Nothing r1) = final1 r1
+    final (Tuple' (Just buf) r1) = do
+        r <- step1 r1 buf
+        case r of
+            FL.Partial rr -> final1 rr
+            FL.Done _ -> return ()
+
+-- | @compactChunksGE n stream@ coalesces adjacent arrays in the @stream@ until
+-- the size becomes greater than or equal to @n@.
+--
+-- >>> compactChunksGE n = Stream.foldMany (MutArray.fCompactChunksGE n)
+--
+{-# INLINE compactChunksGE #-}
+compactChunksGE ::
+       (MonadIO m, Unbox a)
+    => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
+compactChunksGE n = D.foldMany (fCompactChunksGE n)
+
+-- | 'compactChunksEQ n' coalesces adajacent arrays in the input stream to
+-- arrays of exact size @n@.
+--
+-- /Unimplemented/
+{-# INLINE compactChunksEQ #-}
+compactChunksEQ :: -- (MonadIO m, Unbox a) =>
+    Int -> Stream m (MutArray a) -> Stream m (MutArray a)
+compactChunksEQ _n = undefined -- D.parseManyD (pCompactChunksEQ n)
+
+-------------------------------------------------------------------------------
+-- In-place mutation algorithms
 -------------------------------------------------------------------------------
 
 -- | Strip elements which match with predicate from both ends.
