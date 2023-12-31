@@ -46,6 +46,17 @@ module Streamly.Internal.Data.MutArray.Type
     , new
     , newArrayWith
 
+    -- ** Cloning arrays
+    , clone
+    , pinnedClone
+
+    -- ** Slicing
+    -- | Get a subarray without copying
+    , getSliceUnsafe
+    , getSlice
+    , splitAt -- XXX should be able to express using getSlice
+    , breakOn
+
     -- *** From streams
     , ArrayUnsafe (..)
     , writeNWithUnsafe
@@ -113,6 +124,16 @@ module Streamly.Internal.Data.MutArray.Type
     , writeAppendN
     , writeAppendWith
     , writeAppend
+
+    -- *** Appending arrays
+    , spliceCopy
+    , spliceWith
+    , splice
+    , spliceExp
+    , spliceUnsafe
+    -- , putSlice
+    -- , appendSlice
+    -- , appendSliceFrom
 
     -- ** Eliminating and Reading
 
@@ -184,45 +205,25 @@ module Streamly.Internal.Data.MutArray.Type
     , byteCmp
     , byteEq
 
-    -- ** Arrays of arrays
+    -- Arrays of arrays
     --  We can add dimensionality parameter to the array type to get
     --  multidimensional arrays. Multidimensional arrays would just be a
     --  convenience wrapper on top of single dimensional arrays.
 
-    -- | Operations dealing with multiple arrays, streams of arrays or
-    -- multidimensional array representations.
-
-    -- *** Construct from streams
+    -- ** Streams of Arrays
+    -- *** Group a stream into arrays
     , chunksOf
     , pinnedChunksOf
     , buildChunks
 
-    -- *** Eliminate to streams
+    -- *** Flatten a stream of arrays
     , concatChunks
     , concatChunksRev
 
-    -- *** Construct from arrays
-    -- get chunks without copying
-    , getSliceUnsafe
-    , getSlice
+    -- *** Split an array into slices
     -- , getSlicesFromLenN
-    , splitAt -- XXX should be able to express using getSlice
     , splitOn
-    , breakOn
-
-    -- ** Cloning arrays
-    , clone
-    , pinnedClone
-
-    -- ** Appending arrays
-    , spliceCopy
-    , spliceWith
-    , splice
-    , spliceExp
-    , spliceUnsafe
-    -- , putSlice
-    -- , appendSlice
-    -- , appendSliceFrom
+    -- , slicesOf
 
     -- ** Utilities
     , roundUpToPower2
