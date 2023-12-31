@@ -463,16 +463,17 @@ flattenArrays :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArrays = concatChunks
 
--- | Use the "readerRev" unfold instead.
+-- | Convert a stream of arrays into a stream of their elements reversing the
+-- contents of each array before flattening.
 --
--- @concatChunksRev = unfoldMany readerRev@
---
--- We can try this if there are any fusion issues in the unfold.
+-- >>> concatChunksRev = Stream.unfoldMany Array.readerRev
 --
 {-# INLINE_NORMAL concatChunksRev #-}
 concatChunksRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
+-- XXX this requires MonadIO whereas the unfoldMany version does not
 concatChunksRev = MA.concatChunksRev . D.map unsafeThaw
+-- concatChunksRev = D.unfoldMany readerRev
 
 {-# DEPRECATED flattenArraysRev "Please use \"unfoldMany readerRev\" instead." #-}
 flattenArraysRev :: forall m a. (MonadIO m, Unbox a)
