@@ -16,4 +16,5 @@
 For APIs that have not been released yet.
 
 >>> import qualified Streamly.Internal.Data.Array as Array
+>>> import qualified Streamly.Internal.Data.Stream as Stream
 -}

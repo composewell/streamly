@@ -69,6 +69,7 @@ module Streamly.Internal.Data.Array.Type
     , fromByteStr#
     , fromByteStr
     , fromPtrN
+    , fromChunks
     , fromChunksK
 
     -- ** Reading
@@ -122,6 +123,10 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Compact
     -- | Append the arrays in a stream to form a stream of larger arrays.
+    , compactLE
+    , fCompactGE
+    , lCompactGE
+    , compactGE
 
     -- ** Deprecated
     , unsafeIndex
@@ -166,6 +171,7 @@ import Text.Read (readPrec)
 import Prelude hiding (Foldable(..), concat, read, unlines, splitAt)
 
 import qualified GHC.Exts as Exts
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
@@ -479,6 +485,56 @@ concatRev = MA.concatRev . D.map unsafeThaw
 flattenArraysRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArraysRev = concatRev
+
+-------------------------------------------------------------------------------
+-- Compact
+-------------------------------------------------------------------------------
+
+-- XXX Note that this thaws immutable arrays for appending, that may be
+-- problematic if multiple users do the same thing, however, thawed immutable
+-- arrays would have no capacity to append, therefore, a copy will be forced
+-- anyway.
+
+-- | Scan @compactLE n@ coalesces adjacent arrays in the input stream
+-- only if the combined size would be less than or equal to n.
+{-# INLINE_NORMAL compactLE #-}
+compactLE :: (MonadIO m, Unbox a)
+    => Int -> Stream m (Array a) -> Stream m (Array a)
+compactLE n stream =
+    D.map unsafeFreeze $ MA.rCompactLE n $ D.map unsafeThaw stream
+
+-- | Fold @fCompactGE n@ coalesces adjacent arrays in the input stream
+-- until the size becomes greater than or equal to n.
+--
+{-# INLINE_NORMAL fCompactGE #-}
+fCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) (Array a)
+fCompactGE n = fmap unsafeFreeze $ Fold.lmap unsafeThaw $ MA.fCompactGE n
+
+-- | @compactGE n stream@ coalesces adjacent arrays in the @stream@ until
+-- the size becomes greater than or equal to @n@.
+--
+-- >>> compactGE n = Stream.foldMany (Array.fCompactGE n)
+--
+{-# INLINE compactGE #-}
+compactGE ::
+       (MonadIO m, Unbox a)
+    => Int -> Stream m (Array a) -> Stream m (Array a)
+compactGE n stream =
+    D.map unsafeFreeze $ MA.compactGE n $ D.map unsafeThaw stream
+
+-- | Like 'compactGE' but for transforming folds instead of stream.
+--
+-- >>> lCompactGE n = Fold.many (Array.fCompactGE n)
+--
+{-# INLINE_NORMAL lCompactGE #-}
+lCompactGE :: (MonadIO m, Unbox a)
+    => Int -> Fold m (Array a) () -> Fold m (Array a) ()
+lCompactGE n fld =
+    Fold.lmap unsafeThaw $ MA.lCompactGE n (Fold.lmap unsafeFreeze fld)
+
+-------------------------------------------------------------------------------
+-- Splitting
+-------------------------------------------------------------------------------
 
 -- Drops the separator byte
 {-# INLINE breakOn #-}
@@ -802,13 +858,28 @@ fromByteStr (Ptr addr#) = fromByteStr# addr#
 -- that is double the size of the array stream.
 --
 {-# INLINE fromChunksK #-}
-fromChunksK :: (Unbox a, MonadIO m) => StreamK m (Array a) -> m (Array a)
+fromChunksK :: (MonadIO m, Unbox a) => StreamK m (Array a) -> m (Array a)
 fromChunksK stream =
+    -- We buffer the entire stream and then allocate the target array of the
+    -- same size, thus requiring double the memory.
     fmap unsafeFreeze $ MA.fromChunksK $ fmap unsafeThaw stream
 
 {-# DEPRECATED fromArrayStreamK "Please use fromChunksK instead." #-}
 fromArrayStreamK :: (Unbox a, MonadIO m) => StreamK m (Array a) -> m (Array a)
 fromArrayStreamK = fromChunksK
+
+-- | Given a stream of arrays, splice them all together to generate a single
+-- array. The stream must be /finite/.
+--
+{-# INLINE fromChunks #-}
+fromChunks :: (MonadIO m, Unbox a) => Stream m (Array a) -> m (Array a)
+fromChunks s =
+    -- XXX Check which implementation is better
+    -- This may also require double the memory as we double the space every
+    -- time, when copying the last array we may have reallocated almost double
+    -- the space required before we right size it.
+    fmap unsafeFreeze $ MA.fromChunksRealloced (fmap unsafeThaw s)
+    -- fromChunkStreamK $ D.toStreamK s
 
 -------------------------------------------------------------------------------
 -- Instances

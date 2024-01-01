@@ -66,6 +66,17 @@ module Streamly.Internal.Data.Array
     , streamFold
     , fold
 
+    -- * Stream of Arrays
+
+    -- XXX these are probably not very useful to have in this module as we can
+    -- express these idiomatically using streams.
+    , interpose
+    , interposeSuffix
+    , intercalateSuffix
+
+    , compactOnByte
+    , compactOnByteSuffix
+
     -- * Serialization
     , encodeAs
     , serialize
@@ -93,10 +104,11 @@ import Foreign.Storable (Storable)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import Streamly.Internal.Data.MutByteArray.Type (PinnedState(..))
+import Streamly.Internal.Data.MutByteArray.Type (PinnedState(..), MutByteArray)
 import Streamly.Internal.Data.Serialize.Type (Serialize)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
@@ -539,3 +551,85 @@ deserialize arr@(Array {..}) = unsafeInlineIO $ do
         Serialize.deserializeAt arrStart arrContents (arrStart + lenArr)
     assertM(off == arrStart + lenArr)
     pure val
+
+-------------------------------------------------------------------------------
+-- Streams of Arrays
+-------------------------------------------------------------------------------
+
+-- TODO: efficiently compare two streams of arrays. Two streams can have chunks
+-- of different sizes, we can handle that in the stream comparison abstraction.
+-- This could be useful e.g. to fast compare whether two files differ.
+
+-- | Insert the given element between arrays and flatten.
+--
+-- >>> interpose x = Stream.interpose x Array.reader
+--
+{-# INLINE interpose #-}
+interpose :: (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
+interpose x = D.interpose x reader
+
+data FlattenState s =
+      OuterLoop s
+    | InnerLoop s !MutByteArray !Int !Int
+
+-- | Insert the given element after each array and flatten. This is similar to
+-- unlines.
+--
+-- >>> interposeSuffix x = Stream.interposeSuffix x Array.reader
+--
+{-# INLINE_NORMAL interposeSuffix #-}
+interposeSuffix :: forall m a. (MonadIO m, Unbox a)
+    => a -> Stream m (Array a) -> Stream m a
+-- This does not require MonadIO constraint.
+-- interposeSuffix x = D.interposeSuffix x reader
+interposeSuffix sep (D.Stream step state) = D.Stream step' (OuterLoop state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (OuterLoop st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            D.Yield Array{..} s ->
+                D.Skip (InnerLoop s arrContents arrStart arrEnd)
+            D.Skip s -> D.Skip (OuterLoop s)
+            D.Stop -> D.Stop
+
+    step' _ (InnerLoop st _ p end) | p == end =
+        return $ D.Yield sep $ OuterLoop st
+
+    step' _ (InnerLoop st contents p end) = do
+        x <- liftIO $ peekAt p contents
+        return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
+
+-- | Insert the given array after each array and flatten.
+--
+-- >>> intercalateSuffix = Stream.intercalateSuffix Array.reader
+--
+{-# INLINE intercalateSuffix #-}
+intercalateSuffix :: (Monad m, Unbox a)
+    => Array a -> Stream m (Array a) -> Stream m a
+intercalateSuffix = D.intercalateSuffix reader
+
+-- | Split a stream of arrays on a given separator byte, dropping the separator
+-- and coalescing all the arrays between two separators into a single array.
+--
+{-# INLINE compactOnByte #-}
+compactOnByte
+    :: (MonadIO m)
+    => Word8
+    -> Stream m (Array Word8)
+    -> Stream m (Array Word8)
+compactOnByte byte =
+    fmap unsafeFreeze . MA.compactOnByte byte . fmap unsafeThaw
+
+-- | Like 'compactOnByte' considers the separator in suffix position instead of
+-- infix position.
+{-# INLINE compactOnByteSuffix #-}
+compactOnByteSuffix
+    :: (MonadIO m)
+    => Word8
+    -> Stream m (Array Word8)
+    -> Stream m (Array Word8)
+compactOnByteSuffix byte =
+    fmap unsafeFreeze . MA.compactOnByteSuffix byte . fmap unsafeThaw

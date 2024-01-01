@@ -14,6 +14,8 @@ module Streamly.Internal.Data.MutArray
     , sliceIndexerFromLen
     , slicerFromLen
     , compactLE
+    , compactOnByte
+    , compactOnByteSuffix
     -- * Unboxed IORef
     , module Streamly.Internal.Data.IORef.Unboxed
 
@@ -26,11 +28,13 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Word (Word8)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
--- import qualified Streamly.Internal.Data.Stream.Nesting as Stream
+import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Stream.Nesting as Stream
 -- import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
@@ -88,5 +92,95 @@ getSlicesFromLen = slicerFromLen
 {-# INLINE compactLE #-}
 compactLE :: (MonadIO m, Unbox a) =>
     Int -> Stream m (MutArray a) -> Stream m (MutArray a)
+-- XXX compactLE can be moved to MutArray/Type if we are not using the parser
+-- to implement it.
 -- compactLE n = Stream.catRights . Stream.parseManyD (pCompactLE n)
 compactLE = rCompactLE
+
+data SplitState s arr
+    = Initial s
+    | Buffering s arr
+    | Splitting s arr
+    | Yielding arr (SplitState s arr)
+    | Finishing
+
+-- | Split a stream of arrays on a given separator byte, dropping the separator
+-- and coalescing all the arrays between two separators into a single array.
+--
+{-# INLINE_NORMAL _compactOnByteCustom #-}
+_compactOnByteCustom
+    :: MonadIO m
+    => Word8
+    -> Stream m (MutArray Word8)
+    -> Stream m (MutArray Word8)
+_compactOnByteCustom byte (Stream.Stream step state) =
+    Stream.Stream step' (Initial state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (Initial st) = do
+        r <- step gst st
+        case r of
+            Stream.Yield arr s -> do
+                (arr1, marr2) <- breakOn byte arr
+                return $ case marr2 of
+                    Nothing   -> Stream.Skip (Buffering s arr1)
+                    Just arr2 -> Stream.Skip (Yielding arr1 (Splitting s arr2))
+            Stream.Skip s -> return $ Stream.Skip (Initial s)
+            Stream.Stop -> return Stream.Stop
+
+    step' gst (Buffering st buf) = do
+        r <- step gst st
+        case r of
+            Stream.Yield arr s -> do
+                (arr1, marr2) <- breakOn byte arr
+                -- XXX Use spliceExp instead and then rightSize?
+                buf1 <- splice buf arr1
+                return $ case marr2 of
+                    Nothing -> Stream.Skip (Buffering s buf1)
+                    Just x -> Stream.Skip (Yielding buf1 (Splitting s x))
+            Stream.Skip s -> return $ Stream.Skip (Buffering s buf)
+            Stream.Stop -> return $
+                if byteLength buf == 0
+                then Stream.Stop
+                else Stream.Skip (Yielding buf Finishing)
+
+    step' _ (Splitting st buf) = do
+        (arr1, marr2) <- breakOn byte buf
+        return $ case marr2 of
+                Nothing -> Stream.Skip $ Buffering st arr1
+                Just arr2 -> Stream.Skip $ Yielding arr1 (Splitting st arr2)
+
+    step' _ (Yielding arr next) = return $ Stream.Yield arr next
+    step' _ Finishing = return Stream.Stop
+
+-- XXX implement predicate based version of this
+-- XXX Naming of predicate based vs custom version
+
+-- | Split a stream of arrays on a given separator byte, dropping the separator
+-- and coalescing all the arrays between two separators into a single array.
+--
+{-# INLINE compactOnByte #-}
+compactOnByte
+    :: (MonadIO m)
+    => Word8
+    -> Stream m (MutArray Word8)
+    -> Stream m (MutArray Word8)
+-- XXX compare perf of custom vs idiomatic version
+-- compactOnByte = _compactOnByteCustom
+-- XXX use spliceExp and rightSize?
+compactOnByte byte = Stream.splitInnerBy (breakOn byte) splice
+
+-- | Like 'compactOnByte' considers the separator in suffix position instead of
+-- infix position.
+{-# INLINE compactOnByteSuffix #-}
+compactOnByteSuffix
+    :: (MonadIO m)
+    => Word8
+    -> Stream m (MutArray Word8)
+    -> Stream m (MutArray Word8)
+compactOnByteSuffix byte =
+        -- XXX use spliceExp and rightSize?
+        Stream.splitInnerBySuffix
+            (\arr -> byteLength arr == 0) (breakOn byte) splice

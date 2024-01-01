@@ -19,13 +19,13 @@ module Streamly.Internal.Data.Array.Stream
     , Array.bufferChunks
 
     -- * Flattening to elements
-    , concat
+    , Array.concat
     , Array.flattenArrays
-    , concatRev
+    , Array.concatRev
     , Array.flattenArraysRev
-    , interpose
-    , interposeSuffix
-    , intercalateSuffix
+    , Array.interpose
+    , Array.interposeSuffix
+    , Array.intercalateSuffix
     , unlines
 
     -- * Elimination
@@ -90,7 +90,6 @@ import Prelude hiding (null, last, (!!), read, concat, unlines)
 
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Fold.Chunked (ChunkFold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
@@ -98,11 +97,8 @@ import Streamly.Internal.Data.StreamK (StreamK, fromStream, toStream)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.MutArray.Type as MA
-import qualified Streamly.Internal.Data.MutArray.Stream as AS
 import qualified Streamly.Internal.Data.Fold.Type as FL (Fold(..), Step(..))
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
@@ -115,108 +111,17 @@ import qualified Streamly.Internal.Data.StreamK as K
 -- most places.
 
 -------------------------------------------------------------------------------
--- Append
--------------------------------------------------------------------------------
-
--- XXX efficiently compare two streams of arrays. Two streams can have chunks
--- of different sizes, we can handle that in the stream comparison abstraction.
--- This could be useful e.g. to fast compare whether two files differ.
-
--- | Convert a stream of arrays into a stream of their elements.
---
--- Same as the following:
---
--- > concat = Stream.unfoldMany Array.read
---
--- @since 0.7.0
-{-# INLINE concat #-}
-concat :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
--- concat m = fromStreamD $ A.flattenArrays (toStreamD m)
--- concat m = fromStreamD $ D.concatMap A.toStreamD (toStreamD m)
-concat = D.unfoldMany A.reader
-
--- | Convert a stream of arrays into a stream of their elements reversing the
--- contents of each array before flattening.
---
--- > concatRev = Stream.unfoldMany Array.readerRev
---
--- @since 0.7.0
-{-# INLINE concatRev #-}
-concatRev :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
--- concatRev m = fromStreamD $ A.flattenArraysRev (toStreamD m)
-concatRev = D.unfoldMany A.readerRev
-
--------------------------------------------------------------------------------
 -- Intersperse and append
 -------------------------------------------------------------------------------
 
--- | Flatten a stream of arrays after inserting the given element between
--- arrays.
---
--- /Pre-release/
-{-# INLINE interpose #-}
-interpose :: (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
-interpose x = D.interpose x A.reader
-
-{-# INLINE intercalateSuffix #-}
-intercalateSuffix :: (Monad m, Unbox a)
-    => Array a -> Stream m (Array a) -> Stream m a
-intercalateSuffix = D.intercalateSuffix A.reader
-
--- | Flatten a stream of arrays appending the given element after each
--- array.
---
--- @since 0.7.0
-{-# INLINE interposeSuffix #-}
-interposeSuffix :: (Monad m, Unbox a)
-    => a -> Stream m (Array a) -> Stream m a
--- interposeSuffix x = fromStreamD . A.unlines x . toStreamD
-interposeSuffix x = D.interposeSuffix x A.reader
-
-data FlattenState s =
-      OuterLoop s
-    | InnerLoop s !MutByteArray !Int !Int
-
--- XXX This is a special case of interposeSuffix, can be removed.
--- XXX Remove monadIO constraint
 {-# INLINE_NORMAL unlines #-}
 unlines :: forall m a. (MonadIO m, Unbox a)
     => a -> D.Stream m (Array a) -> D.Stream m a
-unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
-    where
-    {-# INLINE_LATE step' #-}
-    step' gst (OuterLoop st) = do
-        r <- step (adaptState gst) st
-        return $ case r of
-            D.Yield Array{..} s ->
-                D.Skip (InnerLoop s arrContents arrStart arrEnd)
-            D.Skip s -> D.Skip (OuterLoop s)
-            D.Stop -> D.Stop
-
-    step' _ (InnerLoop st _ p end) | p == end =
-        return $ D.Yield sep $ OuterLoop st
-
-    step' _ (InnerLoop st contents p end) = do
-        x <- liftIO $ peekByteIndex p contents
-        return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
+unlines = Array.interposeSuffix
 
 -------------------------------------------------------------------------------
 -- Compact
 -------------------------------------------------------------------------------
-
--- XXX These would not be needed once we implement compactLEFold, see
--- module Streamly.Internal.Data.Stream.MutChunked
---
--- XXX Note that this thaws immutable arrays for appending, that may be
--- problematic if multiple users do the same thing, however, immutable arrays
--- would usually have no capacity to append, therefore, a copy will be forced
--- anyway. Confirm this. We can forcefully trim the array capacity before thaw
--- to ensure this.
-{-# INLINE_NORMAL packArraysChunksOf #-}
-packArraysChunksOf :: (MonadIO m, Unbox a)
-    => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
-packArraysChunksOf n str =
-    D.map A.unsafeFreeze $ AS.packArraysChunksOf n $ D.map A.unsafeThaw str
 
 -- XXX instead of writing two different versions of this operation, we should
 -- write it as a pipe.
@@ -225,8 +130,7 @@ packArraysChunksOf n str =
 {-# INLINE_NORMAL lpackArraysChunksOf #-}
 lpackArraysChunksOf :: (MonadIO m, Unbox a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
-lpackArraysChunksOf n fld =
-    FL.lmap A.unsafeThaw $ AS.lpackArraysChunksOf n (FL.lmap A.unsafeFreeze fld)
+lpackArraysChunksOf = Array.lCompactGE
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.
@@ -235,7 +139,7 @@ lpackArraysChunksOf n fld =
 {-# INLINE compact #-}
 compact :: (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
-compact = packArraysChunksOf
+compact = Array.compactLE
 
 -- | Given a stream of arrays, splice them all together to generate a single
 -- array. The stream must be /finite/.
@@ -243,70 +147,11 @@ compact = packArraysChunksOf
 -- @since 0.7.0
 {-# INLINE toArray #-}
 toArray :: (MonadIO m, Unbox a) => Stream m (Array a) -> m (Array a)
-toArray s =
-    fmap A.unsafeFreeze $ MA.fromChunksRealloced (fmap A.unsafeThaw s)
+toArray = Array.fromChunks
 
 -------------------------------------------------------------------------------
 -- Split
 -------------------------------------------------------------------------------
-
-data SplitState s arr
-    = Initial s
-    | Buffering s arr
-    | Splitting s arr
-    | Yielding arr (SplitState s arr)
-    | Finishing
-
--- | Split a stream of arrays on a given separator byte, dropping the separator
--- and coalescing all the arrays between two separators into a single array.
---
--- @since 0.7.0
-{-# INLINE_NORMAL _splitOn #-}
-_splitOn
-    :: MonadIO m
-    => Word8
-    -> D.Stream m (Array Word8)
-    -> D.Stream m (Array Word8)
-_splitOn byte (D.Stream step state) = D.Stream step' (Initial state)
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' gst (Initial st) = do
-        r <- step gst st
-        case r of
-            D.Yield arr s -> do
-                (arr1, marr2) <- A.breakOn byte arr
-                return $ case marr2 of
-                    Nothing   -> D.Skip (Buffering s arr1)
-                    Just arr2 -> D.Skip (Yielding arr1 (Splitting s arr2))
-            D.Skip s -> return $ D.Skip (Initial s)
-            D.Stop -> return D.Stop
-
-    step' gst (Buffering st buf) = do
-        r <- step gst st
-        case r of
-            D.Yield arr s -> do
-                (arr1, marr2) <- A.breakOn byte arr
-                -- XXX Should use MutArray.splice
-                buf' <- A.splice buf arr1
-                return $ case marr2 of
-                    Nothing -> D.Skip (Buffering s buf')
-                    Just x -> D.Skip (Yielding buf' (Splitting s x))
-            D.Skip s -> return $ D.Skip (Buffering s buf)
-            D.Stop -> return $
-                if A.byteLength buf == 0
-                then D.Stop
-                else D.Skip (Yielding buf Finishing)
-
-    step' _ (Splitting st buf) = do
-        (arr1, marr2) <- A.breakOn byte buf
-        return $ case marr2 of
-                Nothing -> D.Skip $ Buffering st arr1
-                Just arr2 -> D.Skip $ Yielding arr1 (Splitting st arr2)
-
-    step' _ (Yielding arr next) = return $ D.Yield arr next
-    step' _ Finishing = return D.Stop
 
 -- XXX Remove MonadIO constraint.
 -- | Split a stream of arrays on a given separator byte, dropping the separator
@@ -319,11 +164,7 @@ splitOn
     => Word8
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
-splitOn byte =
-    fmap A.unsafeFreeze
-        -- XXX use spliceExp and rightSize?
-        . D.splitInnerBy (MA.breakOn byte) MA.splice
-        . fmap A.unsafeThaw
+splitOn = Array.compactOnByte
 
 {-# INLINE splitOnSuffix #-}
 splitOnSuffix
@@ -331,13 +172,7 @@ splitOnSuffix
     => Word8
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
--- splitOn byte s = fromStreamD $ A.splitOn byte $ toStreamD s
-splitOnSuffix byte =
-    fmap A.unsafeFreeze
-        -- XXX use spliceExp and rightSize?
-        . D.splitInnerBySuffix
-            (\arr -> MA.byteLength arr == 0) (MA.breakOn byte) MA.splice
-        . fmap A.unsafeThaw
+splitOnSuffix = Array.compactOnByteSuffix
 
 -------------------------------------------------------------------------------
 -- Elimination - Running folds
