@@ -31,33 +31,44 @@ module Streamly.Internal.Data.MutArray.Type
     -- ** Type
     -- $arrayNotes
       MutArray (..)
+
+    -- ** Conversion
+    -- *** Pinned and Unpinned
     , pin
     , unpin
     , isPinned
 
-    -- -- * Constructing and Writing
+    -- ** Casting
+    , cast
+    , castUnsafe
+    , asBytes
+    , asPtrUnsafe
+    , asUnpinnedPtrUnsafe
+
     -- ** Construction
     , nil
 
-    -- *** Uninitialized Arrays
+    -- *** New
+    -- | New arrays are always empty arrays with some reserve capacity to
+    -- extend the length without reallocating.
+    , new
+    , newArrayWith
     , pinnedNew
     , pinnedNewBytes
     , pinnedNewAligned
-    , new
-    , newArrayWith
 
-    -- ** Cloning arrays
+    -- *** Cloning
     , clone
     , pinnedClone
 
-    -- ** Slicing
+    -- *** Slicing
     -- | Get a subarray without copying
     , getSliceUnsafe
     , getSlice
     , splitAt -- XXX should be able to express using getSlice
     , breakOn
 
-    -- *** From streams
+    -- *** Stream Folds
     , ArrayUnsafe (..)
     , writeNWithUnsafe
     , writeNWith
@@ -107,10 +118,77 @@ module Streamly.Internal.Data.MutArray.Type
     , swapIndices
     , unsafeSwapIndices
 
+    -- ** Reading
+
+    -- *** Indexing
+    , getIndex
+    , getIndexUnsafe
+    , getIndices -- XXX indexReader
+    , getIndicesWith -- XXX indexReaderWith
+    -- , getFromThenTo
+    , getIndexRev
+
+    -- *** To Streams
+    , read
+    , readRev
+    , toStreamWith
+    , toStreamRevWith
+    , toStreamK
+    , toStreamKWith
+    , toStreamKRev
+    , toStreamKRevWith
+
+    -- *** To Containers
+    , toList
+
+    -- *** Unfolds
+    -- experimental
+    , producerWith
+    , producer
+
+    , reader
+    , readerRevWith
+    , readerRev
+
+    -- ** Size and Capacity
+    -- *** Size
+    , length
+    , byteLength
+
+    -- *** Capacity
+    -- , capacity
+    , byteCapacity
+    , bytesFree
+
+    -- *** Capacity Management
+    , blockSize
+    , arrayChunkBytes
+    , allocBytesToElemCount
+    , realloc
+    , resize
+    , resizeExp
+    , rightSize
+
+    -- ** Folding
+    , foldl'
+    , foldr
+    , byteCmp
+    , byteEq
+
+    -- ** In-place Mutation Algorithms
+    , strip
+    , reverse
+    , permute
+    , partitionBy
+    , shuffleBy
+    , divideBy
+    , mergeBy
+    , bubble
+
     -- ** Growing and Shrinking
-    -- | Arrays grow only at the end, though it is possible to grow on both sides
-    -- and therefore have a cons as well as snoc. But that will require two
-    -- bounds in the array representation.
+    -- | Arrays grow only at the end, though it is possible to grow on both
+    -- sides and therefore have a cons as well as snoc. But that will require
+    -- both lower and upper bound in the array representation.
 
     -- *** Appending elements
     , snocWith
@@ -135,97 +213,32 @@ module Streamly.Internal.Data.MutArray.Type
     -- , appendSlice
     -- , appendSliceFrom
 
-    -- ** Eliminating and Reading
-
-    -- *** To streams
-    , reader
-    , readerRevWith
-    , readerRev
-
-    -- *** To containers
-    , toStreamWith
-    , toStreamRevWith
-    , toStreamKWith
-    , toStreamKRevWith
-    , read
-    , readRev
-    , toStreamK
-    , toStreamKRev
-    , toList
-
-    -- experimental
-    , producerWith
-    , producer
-
-    -- *** Random reads
-    , getIndex
-    , getIndexUnsafe
-    , getIndices
-    , getIndicesWith
-    -- , getFromThenTo
-    , getIndexRev
-
-    -- ** Memory Management
-    , blockSize
-    , arrayChunkBytes
-    , allocBytesToElemCount
-    , realloc
-    , resize
-    , resizeExp
-    , rightSize
-
-    -- ** Size
-    , length
-    , byteLength
-    -- , capacity
-    , byteCapacity
-    , bytesFree
-
-    -- ** In-place Mutation Algorithms
-    , strip
-    , reverse
-    , permute
-    , partitionBy
-    , shuffleBy
-    , divideBy
-    , mergeBy
-    , bubble
-
-    -- ** Casting
-    , cast
-    , castUnsafe
-    , asBytes
-    , asPtrUnsafe
-    , asUnpinnedPtrUnsafe
-
-    -- ** Folding
-    , foldl'
-    , foldr
-    , cmp
-    , byteCmp
-    , byteEq
-
     -- Arrays of arrays
     --  We can add dimensionality parameter to the array type to get
     --  multidimensional arrays. Multidimensional arrays would just be a
     --  convenience wrapper on top of single dimensional arrays.
 
     -- ** Streams of Arrays
-    -- *** Group a stream into arrays
+    -- *** Chunk
+    -- | Group a stream into arrays.
     , chunksOf
     , pinnedChunksOf
     , buildChunks
 
-    -- *** Split an array into slices
+    -- *** Split
+    -- | Split an array into slices.
+
     -- , getSlicesFromLenN
     , splitOn
     -- , slicesOf
 
-    -- *** Flatten a stream of arrays
+    -- *** Concat
+    -- | Append the arrays in a stream to form a stream of elements.
     , concatChunks
     , concatChunksRev
 
-    -- *** Compaction
+    -- *** Compact
+    -- | Append the arrays in a stream to form a stream of larger arrays.
     , SpliceState (..)
     , pCompactChunksLE
     , rCompactChunksLE
@@ -247,6 +260,7 @@ module Streamly.Internal.Data.MutArray.Type
     , fromArrayStreamK
     , fromStreamDN
     , fromStreamD
+    , cmp
     )
 where
 

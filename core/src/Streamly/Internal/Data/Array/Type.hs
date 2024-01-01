@@ -2,7 +2,6 @@
 -- |
 -- Module      : Streamly.Internal.Data.Array.Type
 -- Copyright   : (c) 2020 Composewell Technologies
---
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -10,72 +9,42 @@
 --
 -- See notes in "Streamly.Internal.Data.MutArray.Type"
 --
+
 module Streamly.Internal.Data.Array.Type
     (
     -- ** Type
     -- $arrayNotes
       Array (..)
-    , asPtrUnsafe
-    , nil
 
-    -- ** Freezing and Thawing
+    -- ** Conversion
+    -- *** Mutable and Immutable
     , unsafeFreeze
     , unsafeFreezeWithShrink
     , unsafeThaw
 
-    -- ** Pinning and Unpinning
+    -- *** Pinned and Unpinned
     , pin
     , unpin
     , isPinned
 
+    -- *** Casting
+    , asPtrUnsafe
+
     -- ** Construction
-    , splice
+    , nil
 
-    , fromList
-    , pinnedFromList
-    , fromListN
-    , pinnedFromListN
-    , fromListRev
-    , fromListRevN
-    , fromStreamN
-    , fromStream
-    , fromPureStreamN
-    , fromPureStream
-    , fromByteStr#
-    , fromByteStr
-    , fromPtrN
-    , fromChunksK
-
-    -- ** Split
-    , breakOn
-    , splitAt
-
-    -- ** Cloning arrays
+    -- *** Cloning
+    -- XXX Why would we clone an immutable array?
     , clone
     , pinnedClone
 
-    -- * Unfolds
-    , reader
-    , readerUnsafe
-    , producer -- experimental
+    -- *** Slicing
+    -- | Get a subarray without copying
+    , splitAt
+    , breakOn -- XXX requires MonadIO
 
-    -- ** Elimination
-    , unsafeIndexIO
-    , getIndexUnsafe
-    , byteLength
-    , length
-
-    , foldl'
-    , foldr
-
-    , toStreamK
-    , toStreamKRev
-    , read
-    , readRev
-    , readerRev
-    , toList
-
-    -- ** Folds
+    -- *** Stream Folds
+    , unsafeMakePure
     , writeWith
     , writeN
     , pinnedWriteN
@@ -85,16 +54,74 @@ module Streamly.Internal.Data.Array.Type
     , pinnedWriteNAligned
     , write
     , pinnedWrite
-    , unsafeMakePure
+
+    -- *** From containers
+    , fromListN
+    , pinnedFromListN
+    , fromList
+    , pinnedFromList
+    , fromListRevN
+    , fromListRev
+    , fromStreamN
+    , fromStream
+    , fromPureStreamN
+    , fromPureStream
+    , fromByteStr#
+    , fromByteStr
+    , fromPtrN
+    , fromChunksK
+
+    -- ** Reading
+
+    -- *** Indexing
+    , unsafeIndexIO -- XXX rename to getIndexUnsafeIO
+    , getIndexUnsafe
+
+    -- *** To Streams
+    , read
+    , readRev
+    , toStreamK
+    , toStreamKRev
+
+    -- *** To Containers
+    , toList
+
+    -- *** Unfolds
+    , producer -- experimental
+    , readerUnsafe
+    , reader
+    , readerRev
+
+    -- *** Size
+    , length
+    , byteLength
+
+    -- ** Folding
+    , foldl'
+    , foldr
     , byteCmp
     , byteEq
 
+    -- ** Appending
+    , splice -- XXX requires MonadIO
+
     -- ** Streams of arrays
+    -- *** Chunk
+    -- | Group a stream into arrays.
     , chunksOf
     , pinnedChunksOf
     , buildChunks
+
+    -- *** Split
+    -- | Split an array into slices.
+
+    -- *** Concat
+    -- | Append the arrays in a stream to form a stream of elements.
     , concatChunks
     , concatChunksRev
+
+    -- *** Compact
+    -- | Append the arrays in a stream to form a stream of larger arrays.
 
     -- ** Deprecated
     , unsafeIndex

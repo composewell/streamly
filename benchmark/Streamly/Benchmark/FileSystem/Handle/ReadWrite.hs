@@ -42,8 +42,7 @@ import Streamly.Internal.Data.Stream (Step(..))
 
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
-import qualified Streamly.Internal.Data.MutArray.Stream as MAS
-import qualified Streamly.Internal.Data.Array as AT
+import qualified Streamly.Internal.Data.MutArray as MutArray
 
 import Test.Inspection
 #endif
@@ -83,7 +82,7 @@ copyStream inh outh = S.fold (FH.write outh) (S.unfold FH.reader inh)
 inspect $ hasNoTypeClasses 'copyStream
 inspect $ 'copyStream `hasNoType` ''Step -- S.unfold
 inspect $ 'copyStream `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'copyStream `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+inspect $ 'copyStream `hasNoType` ''MutArray.ArrayUnsafe -- FH.write/writeNUnsafe
                                                    -- FH.read/A.read
 inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif
@@ -109,8 +108,8 @@ readFromBytesNull inh devNull = IFH.putBytes devNull $ S.unfold FH.reader inh
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readFromBytesNull
 inspect $ 'readFromBytesNull `hasNoType` ''Step
-inspect $ 'readFromBytesNull `hasNoType` ''MAS.SpliceState
-inspect $ 'readFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.chunksOf
+inspect $ 'readFromBytesNull `hasNoType` ''MutArray.SpliceState
+inspect $ 'readFromBytesNull `hasNoType` ''MutArray.ArrayUnsafe -- FH.fromBytes/S.chunksOf
 inspect $ 'readFromBytesNull `hasNoType` ''D.FoldMany
 #endif
 
@@ -123,8 +122,8 @@ readWithFromBytesNull inh devNull =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readWithFromBytesNull
 inspect $ 'readWithFromBytesNull `hasNoType` ''Step
-inspect $ 'readWithFromBytesNull `hasNoType` ''MAS.SpliceState
-inspect $ 'readWithFromBytesNull `hasNoType` ''AT.ArrayUnsafe -- FH.fromBytes/S.chunksOf
+inspect $ 'readWithFromBytesNull `hasNoType` ''MutArray.SpliceState
+inspect $ 'readWithFromBytesNull `hasNoType` ''MutArray.ArrayUnsafe -- FH.fromBytes/S.chunksOf
 inspect $ 'readWithFromBytesNull `hasNoType` ''D.FoldMany
 #endif
 
@@ -171,7 +170,7 @@ writeReadWith inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
 inspect $ hasNoTypeClasses 'writeReadWith
 inspect $ 'writeReadWith `hasNoType` ''Step
 inspect $ 'writeReadWith `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'writeReadWith `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+inspect $ 'writeReadWith `hasNoType` ''MutArray.ArrayUnsafe -- FH.write/writeNUnsafe
                                                       -- FH.read/A.read
 #endif
 
@@ -188,7 +187,7 @@ writeRead inh devNull = IUF.fold fld unf inh
 inspect $ hasNoTypeClasses 'writeRead
 inspect $ 'writeRead `hasNoType` ''Step
 inspect $ 'writeRead `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'writeRead `hasNoType` ''AT.ArrayUnsafe -- FH.write/writeNUnsafe
+inspect $ 'writeRead `hasNoType` ''MutArray.ArrayUnsafe -- FH.write/writeNUnsafe
                                                   -- FH.read/A.read
 #endif
 

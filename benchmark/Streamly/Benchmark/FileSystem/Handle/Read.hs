@@ -33,7 +33,6 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Internal.Data.Array as AT
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream as IP
 import qualified Streamly.Internal.FileSystem.Handle as IFH
@@ -48,7 +47,7 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream (Step(..), FoldMany)
 
-import qualified Streamly.Internal.Data.MutArray as MA
+import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Unfold as IUF
 
@@ -69,7 +68,7 @@ readLast = S.fold Fold.last . S.unfold FH.reader
 inspect $ hasNoTypeClasses 'readLast
 inspect $ 'readLast `hasNoType` ''Step -- S.unfold
 inspect $ 'readLast `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'readLast `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
+inspect $ 'readLast `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- assert that flattenArrays constructors are not present
@@ -81,7 +80,7 @@ readCountBytes = S.fold Fold.length . S.unfold FH.reader
 inspect $ hasNoTypeClasses 'readCountBytes
 inspect $ 'readCountBytes `hasNoType` ''Step -- S.unfold
 inspect $ 'readCountBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'readCountBytes `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
+inspect $ 'readCountBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Count the number of lines in a file.
@@ -96,7 +95,7 @@ readCountLines =
 inspect $ hasNoTypeClasses 'readCountLines
 inspect $ 'readCountLines `hasNoType` ''Step
 inspect $ 'readCountLines `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'readCountLines `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
+inspect $ 'readCountLines `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Count the number of words in a file.
@@ -120,7 +119,7 @@ readSumBytes = S.fold Fold.sum . S.unfold FH.reader
 inspect $ hasNoTypeClasses 'readSumBytes
 inspect $ 'readSumBytes `hasNoType` ''Step
 inspect $ 'readSumBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
-inspect $ 'readSumBytes `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
+inspect $ 'readSumBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- XXX When we mark this with INLINE and we have two benchmarks using S.drain
@@ -236,13 +235,13 @@ groupsOf :: Int -> Handle -> IO Int
 groupsOf n inh =
     -- writeNUnsafe gives 2.5x boost here over writeN.
     S.fold Fold.length
-        $ IP.groupsOf n (AT.writeNUnsafe n) (S.unfold FH.reader inh)
+        $ IP.groupsOf n (A.writeNUnsafe n) (S.unfold FH.reader inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'groupsOf
 inspect $ 'groupsOf `hasNoType` ''Step
 inspect $ 'groupsOf `hasNoType` ''FoldMany
-inspect $ 'groupsOf `hasNoType` ''AT.ArrayUnsafe -- AT.writeNUnsafe
+inspect $ 'groupsOf `hasNoType` ''MutArray.ArrayUnsafe -- AT.writeNUnsafe
                                                  -- FH.read/A.read
 inspect $ 'groupsOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 #endif
