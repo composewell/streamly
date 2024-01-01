@@ -104,7 +104,6 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 import qualified Streamly.Internal.Data.Serialize.Type as Serialize
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.MutArray as MA
-import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Stream as D
@@ -149,7 +148,7 @@ import Streamly.Internal.Data.Array.Type
 -- /Pre-release/
 {-# INLINE null #-}
 null :: Array a -> Bool
-null arr = A.byteLength arr == 0
+null arr = byteLength arr == 0
 
 -- | Like 'getIndex' but indexes the array in reverse from the end.
 --
@@ -185,7 +184,7 @@ writeLastN ::
        (Storable a, Unbox a, MonadIO m) => Int -> Fold m a (Array a)
 writeLastN n
     | n <= 0 = fmap (const mempty) FL.drain
-    | otherwise = A.unsafeFreeze <$> Fold step initial done done
+    | otherwise = unsafeFreeze <$> Fold step initial done done
 
     where
 
@@ -289,7 +288,7 @@ splitOn :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
 splitOn predicate arr =
     fmap (\(i, len) -> getSliceUnsafe i len arr)
-        $ D.indexOnSuffix predicate (A.read arr)
+        $ D.indexOnSuffix predicate (read arr)
 
 {-# INLINE sliceIndexerFromLen #-}
 sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)
@@ -297,7 +296,7 @@ sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Int, Int)
 sliceIndexerFromLen from len =
-    Unfold.lmap A.unsafeThaw (MA.sliceIndexerFromLen from len)
+    Unfold.lmap unsafeThaw (MA.sliceIndexerFromLen from len)
 
 {-# DEPRECATED genSlicesFromLen "Please use sliceIndexerFromLen instead." #-}
 genSlicesFromLen :: forall m a. (Monad m, Unbox a)
@@ -317,8 +316,8 @@ slicerFromLen :: forall m a. (Monad m, Unbox a)
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Array a)
 slicerFromLen from len =
-    fmap A.unsafeFreeze
-        $ Unfold.lmap A.unsafeThaw (MA.slicerFromLen from len)
+    fmap unsafeFreeze
+        $ Unfold.lmap unsafeThaw (MA.slicerFromLen from len)
 
 {-# DEPRECATED getSlicesFromLen "Please use slicerFromLen instead." #-}
 getSlicesFromLen :: forall m a. (Monad m, Unbox a)
@@ -367,7 +366,7 @@ getIndex i arr =
 indexReader :: (Monad m, Unbox a) => Stream m Int -> Unfold m (Array a) a
 indexReader m =
     let unf = MA.indexReaderWith (return . unsafeInlineIO) m
-     in Unfold.lmap A.unsafeThaw unf
+     in Unfold.lmap unsafeThaw unf
 
 -- XXX DO NOT REMOVE, change the signature to use Stream instead of unfold
 {-# DEPRECATED getIndices "Please use getIndices instead." #-}
@@ -407,7 +406,7 @@ indexReaderFromThenTo = undefined
 {-# INLINE runPipe #-}
 runPipe :: (MonadIO m, Unbox a, Unbox b)
     => Pipe m a b -> Array a -> m (Array b)
-runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
+runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (read arr)
 -}
 
 -- XXX For transformations that cannot change the number of elements e.g. "map"
@@ -421,7 +420,7 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 streamTransform :: forall m a b. (MonadIO m, Unbox a, Unbox b)
     => (Stream m a -> Stream m b) -> Array a -> m (Array b)
 streamTransform f arr =
-    Stream.fold (A.writeWith (length arr)) $ f (A.read arr)
+    Stream.fold (writeWith (length arr)) $ f (read arr)
 
 -------------------------------------------------------------------------------
 -- Casts
@@ -455,7 +454,7 @@ asBytes = castUnsafe
 --
 cast :: forall a b. (Unbox b) => Array a -> Maybe (Array b)
 cast arr =
-    let len = A.byteLength arr
+    let len = byteLength arr
         r = len `mod` SIZE_OF(b)
      in if r /= 0
         then Nothing
@@ -473,7 +472,7 @@ cast arr =
 --
 asCStringUnsafe :: Array a -> (CString -> IO b) -> IO b
 asCStringUnsafe arr act = do
-    let arr1 = asBytes arr <> A.fromList [0]
+    let arr1 = asBytes arr <> fromList [0]
     -- asPtrUnsafe makes sure the array is pinned
     asPtrUnsafe arr1 $ \ptr -> act (castPtr ptr)
 
@@ -488,14 +487,14 @@ asCStringUnsafe arr act = do
 -- /Pre-release/
 {-# INLINE fold #-}
 fold :: forall m a b. (Monad m, Unbox a) => Fold m a b -> Array a -> m b
-fold f arr = Stream.fold f (A.read arr)
+fold f arr = Stream.fold f (read arr)
 
 -- | Fold an array using a stream fold operation.
 --
 -- /Pre-release/
 {-# INLINE streamFold #-}
 streamFold :: (Monad m, Unbox a) => (Stream m a -> m b) -> Array a -> m b
-streamFold f arr = f (A.read arr)
+streamFold f arr = f (read arr)
 
 --------------------------------------------------------------------------------
 -- Serialization
