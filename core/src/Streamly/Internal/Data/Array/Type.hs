@@ -879,13 +879,9 @@ MK_EQ_INSTANCE(Int16)
 MK_EQ_INSTANCE(Int32)
 MK_EQ_INSTANCE(Int64)
 
--- | If the type allows a byte-by-byte comparison (see 'byteCmp') this instance
--- can be overlapped by a more specific instance that uses a byte comparison.
--- Byte comparison can be significantly faster.
---
--- For example:
---
--- >>> (==) = byteCmp
+-- | If the type allows a byte-by-byte comparison this instance can be
+-- overlapped by a more specific instance that uses 'byteCmp'. Byte comparison
+-- can be significantly faster.
 --
 instance {-# OVERLAPPABLE #-} (Unbox a, Eq a) => Eq (Array a) where
     {-# INLINE (==) #-}
