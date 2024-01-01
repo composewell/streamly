@@ -529,7 +529,7 @@ reverse' :: (IsStream t, MonadIO m, Unbox a) => t m a -> t m a
 -- reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 reverse' =
         fromStreamD
-        . A.concatChunksRev -- unfoldMany A.readerRev
+        . A.concatRev -- unfoldMany A.readerRev
         . D.fromStreamK
         . K.reverse
         . D.toStreamK

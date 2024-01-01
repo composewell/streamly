@@ -13,7 +13,7 @@ module Streamly.Internal.Data.MutArray
     -- * MutArray module
     , sliceIndexerFromLen
     , slicerFromLen
-    , compactChunksLE
+    , compactLE
     -- * Unboxed IORef
     , module Streamly.Internal.Data.IORef.Unboxed
 
@@ -83,10 +83,10 @@ getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     -> Unfold m (MutArray a) (MutArray a)
 getSlicesFromLen = slicerFromLen
 
--- | Scan @compactChunksLE n@ coalesces adjacent arrays in the input stream
+-- | Scan @compactLE n@ coalesces adjacent arrays in the input stream
 -- only if the combined size would be less than or equal to n.
-{-# INLINE compactChunksLE #-}
-compactChunksLE :: (MonadIO m, Unbox a) =>
+{-# INLINE compactLE #-}
+compactLE :: (MonadIO m, Unbox a) =>
     Int -> Stream m (MutArray a) -> Stream m (MutArray a)
--- compactLE n = Stream.catRights . Stream.parseManyD (pCompactChunksLE n)
-compactChunksLE = rCompactChunksLE
+-- compactLE n = Stream.catRights . Stream.parseManyD (pCompactLE n)
+compactLE = rCompactLE

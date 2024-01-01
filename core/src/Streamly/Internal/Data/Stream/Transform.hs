@@ -1537,7 +1537,7 @@ reverse m = Stream step Nothing
 {-# INLINE reverseUnbox #-}
 reverseUnbox :: (MonadIO m, Unbox a) => Stream m a -> Stream m a
 reverseUnbox =
-    A.concatChunksRev -- unfoldMany A.readerRev
+    A.concatRev -- unfoldMany A.readerRev
         . fromStreamK
         . K.reverse
         . toStreamK

@@ -69,7 +69,7 @@ import qualified Streamly.Internal.Data.Stream as D
 {-# INLINE packArraysChunksOf #-}
 packArraysChunksOf :: (MonadIO m, Unbox a)
     => Int -> D.Stream m (MutArray a) -> D.Stream m (MutArray a)
-packArraysChunksOf = MArray.compactChunksLE
+packArraysChunksOf = MArray.compactLE
 
 -- XXX Remove this once compactLEFold is implemented
 -- lpackArraysChunksOf = Fold.many compactLEFold
@@ -77,7 +77,7 @@ packArraysChunksOf = MArray.compactChunksLE
 {-# INLINE lpackArraysChunksOf #-}
 lpackArraysChunksOf :: (MonadIO m, Unbox a)
     => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
-lpackArraysChunksOf = MArray.lCompactChunksGE
+lpackArraysChunksOf = MArray.lCompactGE
 
 -- XXX Same as compactLE, to be removed once that is implemented.
 --
@@ -101,7 +101,7 @@ compact = packArraysChunksOf
 compactLEParserD ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> ParserD.Parser (MutArray a) m (MutArray a)
-compactLEParserD = MArray.pCompactChunksLE
+compactLEParserD = MArray.pCompactLE
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- minimum specified size. Note that if all the arrays in the stream together
@@ -114,7 +114,7 @@ compactLEParserD = MArray.pCompactChunksLE
 compactGEFold ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> FL.Fold m (MutArray a) (MutArray a)
-compactGEFold = MArray.fCompactChunksGE
+compactGEFold = MArray.fCompactGE
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.

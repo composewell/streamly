@@ -117,8 +117,8 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Concat
     -- | Append the arrays in a stream to form a stream of elements.
-    , concatChunks
-    , concatChunksRev
+    , concat
+    , concatRev
 
     -- *** Compact
     -- | Append the arrays in a stream to form a stream of larger arrays.
@@ -163,7 +163,7 @@ import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec)
 
-import Prelude hiding (Foldable(..), read, unlines, splitAt)
+import Prelude hiding (Foldable(..), concat, read, unlines, splitAt)
 
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.MutArray.Type as MA
@@ -450,35 +450,35 @@ pinnedChunksOf n str = D.map unsafeFreeze $ MA.pinnedChunksOf n str
 
 -- | Convert a stream of arrays into a stream of their elements.
 --
--- >>> concatChunks = Stream.unfoldMany Array.reader
+-- >>> concat = Stream.unfoldMany Array.reader
 --
-{-# INLINE_NORMAL concatChunks #-}
-concatChunks :: (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
+{-# INLINE_NORMAL concat #-}
+concat :: (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
 -- XXX this requires MonadIO whereas the unfoldMany version does not
-concatChunks = MA.concatChunks . D.map unsafeThaw
--- concatChunks = D.unfoldMany reader
+concat = MA.concat . D.map unsafeThaw
+-- concat = D.unfoldMany reader
 
 {-# DEPRECATED flattenArrays "Please use \"unfoldMany reader\" instead." #-}
 flattenArrays :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
-flattenArrays = concatChunks
+flattenArrays = concat
 
 -- | Convert a stream of arrays into a stream of their elements reversing the
 -- contents of each array before flattening.
 --
--- >>> concatChunksRev = Stream.unfoldMany Array.readerRev
+-- >>> concatRev = Stream.unfoldMany Array.readerRev
 --
-{-# INLINE_NORMAL concatChunksRev #-}
-concatChunksRev :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL concatRev #-}
+concatRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
 -- XXX this requires MonadIO whereas the unfoldMany version does not
-concatChunksRev = MA.concatChunksRev . D.map unsafeThaw
--- concatChunksRev = D.unfoldMany readerRev
+concatRev = MA.concatRev . D.map unsafeThaw
+-- concatRev = D.unfoldMany readerRev
 
 {-# DEPRECATED flattenArraysRev "Please use \"unfoldMany readerRev\" instead." #-}
 flattenArraysRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
-flattenArraysRev = concatChunksRev
+flattenArraysRev = concatRev
 
 -- Drops the separator byte
 {-# INLINE breakOn #-}

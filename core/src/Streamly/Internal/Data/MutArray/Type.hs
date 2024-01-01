@@ -234,18 +234,18 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- *** Concat
     -- | Append the arrays in a stream to form a stream of elements.
-    , concatChunks
-    , concatChunksRev
+    , concat
+    , concatRev
 
     -- *** Compact
     -- | Append the arrays in a stream to form a stream of larger arrays.
     , SpliceState (..)
-    , pCompactChunksLE
-    , rCompactChunksLE
-    , fCompactChunksGE
-    , lCompactChunksGE
-    , compactChunksGE
-    , compactChunksEQ
+    , pCompactLE
+    , rCompactLE
+    , fCompactGE
+    , lCompactGE
+    , compactGE
+    , compactEQ
 
     -- ** Utilities
     , roundUpToPower2
@@ -318,7 +318,7 @@ import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Prelude
 
 import Prelude hiding
-    (Foldable(..), read, unlines, splitAt, reverse, truncate)
+    (Foldable(..), concat, read, unlines, splitAt, reverse, truncate)
 
 #include "DocTestDataMutArray.hs"
 
@@ -851,7 +851,7 @@ reallocWith label capSizer minIncrBytes arr = do
     where
 
     badSize newSize =
-        concat
+        Prelude.concat
             [ label
             , ": new array size (in bytes) is less than required size "
             , show newSize
@@ -1465,14 +1465,14 @@ data FlattenState s contents a =
 
 -- | Use the "reader" unfold instead.
 --
--- @concatChunks = unfoldMany reader@
+-- @concat = unfoldMany reader@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
-{-# INLINE_NORMAL concatChunks #-}
-concatChunks :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL concat #-}
+concat :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (MutArray a) -> D.Stream m a
-concatChunks (D.Stream step state) = D.Stream step' (OuterLoop state)
+concat (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where
 
@@ -1495,18 +1495,18 @@ concatChunks (D.Stream step state) = D.Stream step' (OuterLoop state)
 {-# DEPRECATED flattenArrays "Please use \"unfoldMany reader\" instead." #-}
 flattenArrays :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (MutArray a) -> D.Stream m a
-flattenArrays = concatChunks
+flattenArrays = concat
 
 -- | Use the "readerRev" unfold instead.
 --
--- @concatChunks = unfoldMany readerRev@
+-- @concat = unfoldMany readerRev@
 --
 -- We can try this if there are any fusion issues in the unfold.
 --
-{-# INLINE_NORMAL concatChunksRev #-}
-concatChunksRev :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL concatRev #-}
+concatRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (MutArray a) -> D.Stream m a
-concatChunksRev (D.Stream step state) = D.Stream step' (OuterLoop state)
+concatRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where
 
@@ -1531,7 +1531,7 @@ concatChunksRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 {-# DEPRECATED flattenArraysRev "Please use \"unfoldMany readerRev\" instead." #-}
 flattenArraysRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (MutArray a) -> D.Stream m a
-flattenArraysRev = concatChunksRev
+flattenArraysRev = concatRev
 
 -------------------------------------------------------------------------------
 -- Unfolds
@@ -2625,21 +2625,21 @@ byteEq arr1 arr2 = fmap (EQ ==) $ byteCmp arr1 arr2
 -- Compact
 -------------------------------------------------------------------------------
 
--- | Parser @pCompactChunksLE n@ coalesces adjacent arrays in the input stream
+-- | Parser @pCompactLE n@ coalesces adjacent arrays in the input stream
 -- only if the combined size would be less than or equal to n.
 --
 -- /Internal/
-{-# INLINE_NORMAL pCompactChunksLE #-}
-pCompactChunksLE ::
+{-# INLINE_NORMAL pCompactLE #-}
+pCompactLE ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> Parser (MutArray a) m (MutArray a)
-pCompactChunksLE n = Parser step initial extract
+pCompactLE n = Parser step initial extract
 
     where
 
     nBytes = n * SIZE_OF(a)
 
-    functionName = "Streamly.Internal.Data.MutArray.pCompactChunksLE"
+    functionName = "Streamly.Internal.Data.MutArray.pCompactLE"
 
     initial =
         return
@@ -2683,19 +2683,19 @@ data SpliceState s arr
 -- immutable array never has additional space so a new array is allocated
 -- instead of mutating it.
 
--- | Scan @rCompactChunksLE n@ coalesces adjacent arrays in the input stream
+-- | Scan @rCompactLE n@ coalesces adjacent arrays in the input stream
 -- only if the combined size would be less than or equal to n.
 --
 -- /Internal/
-{-# INLINE_NORMAL rCompactChunksLE #-}
-rCompactChunksLE :: (MonadIO m, Unbox a)
+{-# INLINE_NORMAL rCompactLE #-}
+rCompactLE :: (MonadIO m, Unbox a)
     => Int -> D.Stream m (MutArray a) -> D.Stream m (MutArray a)
-rCompactChunksLE n (D.Stream step state) =
+rCompactLE n (D.Stream step state) =
     D.Stream step' (SpliceInitial state)
 
     where
 
-    functionName = "Streamly.Internal.Data.MutArray.rCompactChunksLE"
+    functionName = "Streamly.Internal.Data.MutArray.rCompactLE"
 
     {-# INLINE_LATE step' #-}
     step' gst (SpliceInitial st) = do
@@ -2735,20 +2735,20 @@ rCompactChunksLE n (D.Stream step state) =
 
     step' _ (SpliceYielding arr next) = return $ D.Yield arr next
 
--- | Fold @fCompactChunksGE n@ coalesces adjacent arrays in the input stream
+-- | Fold @fCompactGE n@ coalesces adjacent arrays in the input stream
 -- until the size becomes greater than or equal to n.
 --
-{-# INLINE_NORMAL fCompactChunksGE #-}
-fCompactChunksGE ::
+{-# INLINE_NORMAL fCompactGE #-}
+fCompactGE ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> FL.Fold m (MutArray a) (MutArray a)
-fCompactChunksGE n = Fold step initial extract extract
+fCompactGE n = Fold step initial extract extract
 
     where
 
     nBytes = n * SIZE_OF(a)
 
-    functionName = "Streamly.Internal.Data.MutArray.fCompactChunksGE"
+    functionName = "Streamly.Internal.Data.MutArray.fCompactGE"
 
     initial =
         return
@@ -2779,20 +2779,20 @@ fCompactChunksGE n = Fold step initial extract extract
     extract Nothing = return nil
     extract (Just buf) = return buf
 
--- | Like 'compactChunksGE' but for transforming folds instead of stream.
+-- | Like 'compactGE' but for transforming folds instead of stream.
 --
--- >>> lCompactChunksGE n = Fold.many (MutArray.fCompactChunksGE n)
+-- >>> lCompactGE n = Fold.many (MutArray.fCompactGE n)
 --
-{-# INLINE_NORMAL lCompactChunksGE #-}
-lCompactChunksGE :: (MonadIO m, Unbox a)
+{-# INLINE_NORMAL lCompactGE #-}
+lCompactGE :: (MonadIO m, Unbox a)
     => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
--- lCompactChunksGE n = Fold.many (fCompactChunksGE n)
-lCompactChunksGE n (Fold step1 initial1 _ final1) =
+-- lCompactGE n = Fold.many (fCompactGE n)
+lCompactGE n (Fold step1 initial1 _ final1) =
     Fold step initial extract final
 
     where
 
-    functionName = "Streamly.Internal.Data.MutArray.lCompactChunksGE"
+    functionName = "Streamly.Internal.Data.MutArray.lCompactGE"
 
     initial = do
         when (n <= 0) $
@@ -2841,7 +2841,7 @@ lCompactChunksGE n (Fold step1 initial1 _ final1) =
     --
     -- extract forces the pending buffer to be sent to the fold which is not
     -- what we want.
-    extract _ = error "lCompactChunksGE: not designed for scanning"
+    extract _ = error "lCompactGE: not designed for scanning"
 
     final (Tuple' Nothing r1) = final1 r1
     final (Tuple' (Just buf) r1) = do
@@ -2850,25 +2850,25 @@ lCompactChunksGE n (Fold step1 initial1 _ final1) =
             FL.Partial rr -> final1 rr
             FL.Done _ -> return ()
 
--- | @compactChunksGE n stream@ coalesces adjacent arrays in the @stream@ until
+-- | @compactGE n stream@ coalesces adjacent arrays in the @stream@ until
 -- the size becomes greater than or equal to @n@.
 --
--- >>> compactChunksGE n = Stream.foldMany (MutArray.fCompactChunksGE n)
+-- >>> compactGE n = Stream.foldMany (MutArray.fCompactGE n)
 --
-{-# INLINE compactChunksGE #-}
-compactChunksGE ::
+{-# INLINE compactGE #-}
+compactGE ::
        (MonadIO m, Unbox a)
     => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
-compactChunksGE n = D.foldMany (fCompactChunksGE n)
+compactGE n = D.foldMany (fCompactGE n)
 
--- | 'compactChunksEQ n' coalesces adajacent arrays in the input stream to
+-- | 'compactEQ n' coalesces adajacent arrays in the input stream to
 -- arrays of exact size @n@.
 --
 -- /Unimplemented/
-{-# INLINE compactChunksEQ #-}
-compactChunksEQ :: -- (MonadIO m, Unbox a) =>
+{-# INLINE compactEQ #-}
+compactEQ :: -- (MonadIO m, Unbox a) =>
     Int -> Stream m (MutArray a) -> Stream m (MutArray a)
-compactChunksEQ _n = undefined -- D.parseManyD (pCompactChunksEQ n)
+compactEQ _n = undefined -- D.parseManyD (pCompactEQ n)
 
 -------------------------------------------------------------------------------
 -- In-place mutation algorithms
