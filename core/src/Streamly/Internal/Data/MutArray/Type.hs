@@ -123,10 +123,10 @@ module Streamly.Internal.Data.MutArray.Type
     -- *** Indexing
     , getIndex
     , getIndexUnsafe
-    , getIndices -- XXX indexReader
-    , getIndicesWith -- XXX indexReaderWith
     -- , getFromThenTo
     , getIndexRev
+    , indexReader
+    , indexReaderWith
 
     -- *** To Streams
     , read
@@ -261,6 +261,8 @@ module Streamly.Internal.Data.MutArray.Type
     , fromStreamDN
     , fromStreamD
     , cmp
+    , getIndices
+    , getIndicesWith
     )
 where
 
@@ -1078,10 +1080,10 @@ getIndexRev i MutArray{..} = do
 data GetIndicesState contents start end st =
     GetIndicesState contents start end st
 
-{-# INLINE getIndicesWith #-}
-getIndicesWith :: (Monad m, Unbox a) =>
+{-# INLINE indexReaderWith #-}
+indexReaderWith :: (Monad m, Unbox a) =>
     (forall b. IO b -> m b) -> D.Stream m Int -> Unfold m (MutArray a) a
-getIndicesWith liftio (D.Stream stepi sti) = Unfold step inject
+indexReaderWith liftio (D.Stream stepi sti) = Unfold step inject
 
     where
 
@@ -1100,14 +1102,24 @@ getIndicesWith liftio (D.Stream stepi sti) = Unfold step inject
             D.Skip s -> return $ D.Skip (GetIndicesState contents start end s)
             D.Stop -> return D.Stop
 
+{-# DEPRECATED getIndicesWith "Please use indexReaderWith instead." #-}
+getIndicesWith :: (Monad m, Unbox a) =>
+    (forall b. IO b -> m b) -> D.Stream m Int -> Unfold m (MutArray a) a
+getIndicesWith = indexReaderWith
+
 -- | Given an unfold that generates array indices, read the elements on those
 -- indices from the supplied MutArray. An error is thrown if an index is out of
 -- bounds.
 --
 -- /Pre-release/
-{-# INLINE getIndices #-}
+{-# INLINE indexReader #-}
+indexReader :: (MonadIO m, Unbox a) => Stream m Int -> Unfold m (MutArray a) a
+indexReader = getIndicesWith liftIO
+
+-- XXX DO NOT REMOVE, change the signature to use Stream instead of unfold
+{-# DEPRECATED getIndices "Please use indexReader instead." #-}
 getIndices :: (MonadIO m, Unbox a) => Stream m Int -> Unfold m (MutArray a) a
-getIndices = getIndicesWith liftIO
+getIndices = indexReader
 
 -------------------------------------------------------------------------------
 -- Subarrays

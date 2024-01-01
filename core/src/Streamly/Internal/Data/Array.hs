@@ -2,7 +2,6 @@
 -- |
 -- Module      : Streamly.Internal.Data.Array
 -- Copyright   : (c) 2019 Composewell Technologies
---
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -27,21 +26,23 @@ module Streamly.Internal.Data.Array
     -- , (!!)
     , getIndex
     , getIndexRev
-    , last           -- XXX getIndexLast?
-    , getIndices
-    , getIndicesFromThenTo
+    , last           -- XXX getLastIndex?
     -- , getIndicesFrom    -- read from a given position to the end of file
     -- , getIndicesUpto    -- read from beginning up to the given position
     -- , getIndicesFromTo
     -- , getIndicesFromRev  -- read from a given position to the beginning of file
     -- , getIndicesUptoRev  -- read from end to the given position in file
+    , indexReader
+    , indexReaderFromThenTo
 
     -- * Size
     , null
 
     -- * Search
     , binarySearch
-    , findIndicesOf -- see splitOn, rename to indicesOf
+    , findIndicesOf
+    -- getIndicesOf
+    , indexFinder -- see splitOn
     -- , findIndexOf
     -- , find
 
@@ -74,6 +75,7 @@ module Streamly.Internal.Data.Array
     -- * Deprecated
     , genSlicesFromLen
     , getSlicesFromLen
+    , getIndices
     )
 where
 
@@ -226,19 +228,26 @@ binarySearch = undefined
 -- compared to streams by using SIMD instructions.
 -- We can also return a bit array instead.
 
+-- Can use SIMD.
+
 -- | Perform a linear search to find all the indices where a given element is
 -- present in an array.
 --
 -- /Unimplemented/
-findIndicesOf :: (a -> Bool) -> Unfold Identity (Array a) Int
-findIndicesOf = undefined
+indexFinder :: (a -> Bool) -> Unfold Identity (Array a) Int
+indexFinder = undefined
+
+-- |
+-- /Unimplemented/
+findIndicesOf :: (a -> Bool) -> Array a -> Stream Identity Int
+findIndicesOf p = Stream.unfold (indexFinder p)
 
 {-
 findIndexOf :: (a -> Bool) -> Array a -> Maybe Int
-findIndexOf p = Unfold.fold Fold.one . Stream.unfold (findIndicesOf p)
+findIndexOf p = Unfold.fold Fold.one . Stream.unfold (indexFinder p)
 
 find :: (a -> Bool) -> Array a -> Bool
-find = Unfold.fold Fold.null . Stream.unfold (findIndicesOf p)
+find = Unfold.fold Fold.null . Stream.unfold (indexFinder p)
 -}
 
 -------------------------------------------------------------------------------
@@ -346,19 +355,24 @@ getIndex i arr =
 -- @
 -- read =
 --      let u = lmap (\arr -> (0, length arr - 1)) Unfold.enumerateFromTo
---       in Unfold.lmap f (getIndices arr)
+--       in Unfold.lmap f (indexReader arr)
 --
 -- readRev =
 --      let i = length arr - 1
---       in Unfold.lmap f (getIndicesFromThenTo i (i - 1) 0)
+--       in Unfold.lmap f (indexReaderFromThenTo i (i - 1) 0)
 -- @
 --
 -- /Pre-release/
-{-# INLINE getIndices #-}
-getIndices :: (Monad m, Unbox a) => Stream m Int -> Unfold m (Array a) a
-getIndices m =
-    let unf = MA.getIndicesWith (return . unsafeInlineIO) m
+{-# INLINE indexReader #-}
+indexReader :: (Monad m, Unbox a) => Stream m Int -> Unfold m (Array a) a
+indexReader m =
+    let unf = MA.indexReaderWith (return . unsafeInlineIO) m
      in Unfold.lmap A.unsafeThaw unf
+
+-- XXX DO NOT REMOVE, change the signature to use Stream instead of unfold
+{-# DEPRECATED getIndices "Please use getIndices instead." #-}
+getIndices :: (Monad m, Unbox a) => Stream m Int -> Unfold m (Array a) a
+getIndices = indexReader
 
 -- | Unfolds @(from, then, to, array)@ generating a finite stream whose first
 -- element is the array value from the index @from@ and the successive elements
@@ -374,9 +388,9 @@ getIndices m =
 -- @
 --
 -- /Unimplemented/
-{-# INLINE getIndicesFromThenTo #-}
-getIndicesFromThenTo :: Unfold m (Int, Int, Int, Array a) a
-getIndicesFromThenTo = undefined
+{-# INLINE indexReaderFromThenTo #-}
+indexReaderFromThenTo :: Unfold m (Int, Int, Int, Array a) a
+indexReaderFromThenTo = undefined
 
 -------------------------------------------------------------------------------
 -- Transform via stream operations
