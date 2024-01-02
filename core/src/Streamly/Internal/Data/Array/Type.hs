@@ -49,10 +49,6 @@ module Streamly.Internal.Data.Array.Type
     -- ** Split
     , breakOn
 
-    -- ** Cloning arrays
-    , clone
-    , pinnedClone
-
     -- ** Elimination
     , unsafeIndexIO
     , getIndexUnsafe
@@ -319,30 +315,6 @@ fromStreamDN limit str = unsafeFreeze <$> MA.fromStreamDN limit str
 fromStreamD :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m a -> m (Array a)
 fromStreamD str = unsafeFreeze <$> MA.fromStreamD str
-
--------------------------------------------------------------------------------
--- Cloning
--------------------------------------------------------------------------------
-
-{-# INLINE clone #-}
-clone ::
-    ( MonadIO m
-#ifdef DEVBUILD
-    , Unbox a
-#endif
-    )
-    => Array a -> m (Array a)
-clone = fmap unsafeFreeze . MA.clone . unsafeThaw
-
-{-# INLINE pinnedClone #-}
-pinnedClone ::
-    ( MonadIO m
-#ifdef DEVBUILD
-    , Unbox a
-#endif
-    )
-    => Array a -> m (Array a)
-pinnedClone = fmap unsafeFreeze . MA.pinnedClone . unsafeThaw
 
 -------------------------------------------------------------------------------
 -- Streams of arrays
