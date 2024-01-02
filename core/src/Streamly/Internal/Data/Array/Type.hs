@@ -37,11 +37,6 @@ module Streamly.Internal.Data.Array.Type
     -- ** Construction
     , empty
 
-    -- *** Cloning
-    -- XXX Why would we clone an immutable array?
-    , clone
-    , pinnedClone
-
     -- *** Slicing
     -- | Get a subarray without copying
     , splitAt
@@ -419,30 +414,6 @@ fromStream = D.fold write
 fromStreamD :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m a -> m (Array a)
 fromStreamD = fromStream
-
--------------------------------------------------------------------------------
--- Cloning
--------------------------------------------------------------------------------
-
-{-# INLINE clone #-}
-clone ::
-    ( MonadIO m
-#ifdef DEVBUILD
-    , Unbox a
-#endif
-    )
-    => Array a -> m (Array a)
-clone = fmap unsafeFreeze . MA.clone . unsafeThaw
-
-{-# INLINE pinnedClone #-}
-pinnedClone ::
-    ( MonadIO m
-#ifdef DEVBUILD
-    , Unbox a
-#endif
-    )
-    => Array a -> m (Array a)
-pinnedClone = fmap unsafeFreeze . MA.pinnedClone . unsafeThaw
 
 -------------------------------------------------------------------------------
 -- Streams of arrays
