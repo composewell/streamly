@@ -32,6 +32,7 @@ import Streamly.Test.Data.Serialize.TH (genDatatype)
 import Data.Functor.Identity (Identity (..))
 
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.MutByteArray as Serialize
 
 import qualified Streamly.Test.Data.Serialize.CompatV0 as CompatV0
@@ -208,7 +209,8 @@ peekAndVerify (arr, serStartOff, serEndOff) val = do
     off2 `shouldBe` serEndOff
     let slice = Array.Array arr serStartOff serEndOff
     val `shouldBe` Array.deserialize slice
-    clonedSlice <- Array.clone slice
+    clonedSlice <-
+        fmap Array.unsafeFreeze $ MutArray.clone $ Array.unsafeThaw $ slice
     val `shouldBe` Array.deserialize clonedSlice
 
 roundtrip
