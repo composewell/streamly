@@ -11,7 +11,7 @@
 -- so that we get segfault if it is accessed. Also any unpinned large
 -- allocations can be kept unmapped for a while after being freed in case those
 -- are being used by someone, also we can aggressively move such pages to
--- detect problems more quickly..
+-- detect problems more quickly.
 --
 module Streamly.Internal.Data.MutArray
     (
@@ -27,23 +27,34 @@ module Streamly.Internal.Data.MutArray
     -- * Unboxed IORef
     , module Streamly.Internal.Data.IORef.Unboxed
 
+    -- XXX Do not expose these yet, we should perhaps expose only the Get/Put
+    -- monads instead? Decide after implementing the monads.
+
+    -- * Serialization
+    , serialize
+    , deserialize
+
     -- * Deprecated
     , genSlicesFromLen
     , getSlicesFromLen
     )
 where
 
+#include "assert.hs"
 #include "inline.hs"
+#include "ArrayMacros.h"
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Streamly.Internal.Data.MutByteArray.Type (PinnedState(..))
+import Streamly.Internal.Data.Serialize.Type (Serialize)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
-import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Serialize.Type as Serialize
 import qualified Streamly.Internal.Data.Stream.Nesting as Stream
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
@@ -95,6 +106,92 @@ getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (MutArray a)
 getSlicesFromLen = slicerFromLen
+
+--------------------------------------------------------------------------------
+-- Serialization/Deserialization using Serialize
+--------------------------------------------------------------------------------
+
+{-# INLINE unsafeSerialize #-}
+unsafeSerialize :: (MonadIO m, Serialize a) =>
+    MutArray Word8 -> a -> m (MutArray Word8)
+unsafeSerialize (MutArray mbarr start end bound) a = do
+#ifdef DEBUG
+    let len = Serialize.addSizeTo 0 a
+    assertM(bound - end >= len)
+#endif
+    off <- liftIO $ Serialize.serializeAt end mbarr a
+    pure $ MutArray mbarr start off bound
+
+{-# NOINLINE serializeRealloc #-}
+serializeRealloc :: forall m a. (MonadIO m, Serialize a) =>
+       (Int -> Int)
+    -> MutArray Word8
+    -> a
+    -> m (MutArray Word8)
+serializeRealloc sizer arr x = do
+    let len = Serialize.addSizeTo 0 x
+    arr1 <- liftIO $ reallocWith "serializeRealloc" sizer len arr
+    unsafeSerialize arr1 x
+
+{-# INLINE serializeWith #-}
+serializeWith :: forall m a. (MonadIO m, Serialize a) =>
+       (Int -> Int)
+    -> MutArray Word8
+    -> a
+    -> m (MutArray Word8)
+serializeWith sizer arr@(MutArray mbarr start end bound) x = do
+    let len = Serialize.addSizeTo 0 x
+    if (bound - end) >= len
+    then do
+        off <- liftIO $ Serialize.serializeAt end mbarr x
+        assertM(len <= off)
+        pure $ MutArray mbarr start off bound
+    -- XXX this will inhibit unboxing?
+    else serializeRealloc sizer arr x
+
+-- | Serialize the supplied Haskell value at the end of the mutable array,
+-- growing the array size. If there is no reserve capacity left in the array
+-- the array is reallocated to double the current size.
+--
+-- Like 'snoc' except that the value is serialized to the byte array.
+--
+-- Note: If you are serializing a large number of small fields, and the types
+-- are statically known, then it may be more efficient to declare a record of
+-- those fields and derive an 'Serialize' instance of the entire record.
+--
+-- /Unstable API/
+{-# INLINE serialize #-}
+serialize :: forall m a. (MonadIO m, Serialize a) =>
+    MutArray Word8 -> a -> m (MutArray Word8)
+serialize = serializeWith f
+
+    where
+
+    f oldSize =
+        if isPower2 oldSize
+        then oldSize * 2
+        else roundUpToPower2 oldSize * 2
+
+-- | Deserialize a Haskell value from the beginning of a mutable array. The
+-- deserialized value is removed from the array and the remaining array is
+-- returned.
+--
+-- Like 'uncons' except that the value is deserialized from the byte array.
+--
+-- Note: If you are deserializing a large number of small fields, and the types
+-- are statically known, then it may be more efficient to declare a record of
+-- those fields and derive 'Serialize' instance of the entire record.
+--
+-- /Unstable API/
+{-# INLINE deserialize #-}
+deserialize :: (MonadIO m, Serialize a) =>
+    MutArray Word8 -> m (a, MutArray Word8)
+deserialize arr@(MutArray {..}) = do
+    let lenArr = byteLength arr
+    (off, val) <-
+        liftIO $ Serialize.deserializeAt arrStart arrContents (arrStart + lenArr)
+    assertM(off <= arrStart + lenArr)
+    pure (val, MutArray arrContents off arrEnd arrBound)
 
 -------------------------------------------------------------------------------
 -- Compacting Streams of Arrays

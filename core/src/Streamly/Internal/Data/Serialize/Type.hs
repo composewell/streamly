@@ -26,10 +26,10 @@ import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
 import GHC.Stable (StablePtr(..))
 
+import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.Unbox as Unbox
-import qualified Streamly.Internal.Data.Array.Type as Array
-import qualified Streamly.Internal.Data.MutArray as MutArray
 
 import GHC.Exts
 import Prelude hiding (Foldable(..))

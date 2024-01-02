@@ -164,6 +164,7 @@ module Streamly.Internal.Data.MutArray.Type
     , arrayChunkBytes
     , allocBytesToElemCount
     , realloc -- this is "resize"
+    , reallocWith
     , grow
     , growExp
     , rightSize
@@ -267,6 +268,7 @@ module Streamly.Internal.Data.MutArray.Type
     , compactEQ
 
     -- ** Utilities
+    , isPower2
     , roundUpToPower2
     , memcpy
     , memcmp
