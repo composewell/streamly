@@ -87,6 +87,10 @@ getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     -> Unfold m (MutArray a) (MutArray a)
 getSlicesFromLen = slicerFromLen
 
+-------------------------------------------------------------------------------
+-- Compacting Streams of Arrays
+-------------------------------------------------------------------------------
+
 -- | Scan @compactLE n@ coalesces adjacent arrays in the input stream
 -- only if the combined size would be less than or equal to n.
 {-# INLINE compactLE #-}

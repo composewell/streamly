@@ -87,7 +87,6 @@ import Prelude hiding (read)
 import qualified Network.Socket as Net
 
 import Streamly.Internal.Data.Array (Array(..))
-import Streamly.Internal.Data.Array.Stream (lpackArraysChunksOf)
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold (Unfold(..))
@@ -100,7 +99,7 @@ import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array as A
     ( unsafeFreeze, asPtrUnsafe, byteLength, pinnedChunksOf,
-      pinnedWriteN, pinnedWriteNUnsafe )
+      pinnedWriteN, pinnedWriteNUnsafe, lCompactGE )
 import qualified Streamly.Internal.Data.MutArray as MArray
     (MutArray(..), asPtrUnsafe, pinnedNewBytes)
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
@@ -473,7 +472,7 @@ writeChunks h = FL.drainMapM (liftIO . putChunk h)
 {-# INLINE writeChunksWith #-}
 writeChunksWith :: (MonadIO m, Unbox a)
     => Int -> Socket -> Fold m (Array a) ()
-writeChunksWith n h = lpackArraysChunksOf n (writeChunks h)
+writeChunksWith n h = A.lCompactGE n (writeChunks h)
 
 -- | Same as 'writeChunksWith'
 --

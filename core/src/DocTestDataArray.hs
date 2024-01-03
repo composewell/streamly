@@ -11,7 +11,9 @@
 
 >>> import qualified Streamly.Data.Array as Array
 >>> import qualified Streamly.Data.Fold as Fold
+>>> import qualified Streamly.Data.ParserK as ParserK
 >>> import qualified Streamly.Data.Stream as Stream
+>>> import qualified Streamly.Data.StreamK as StreamK
 
 For APIs that have not been released yet.
 

@@ -77,6 +77,11 @@ module Streamly.Internal.Data.Array
     , compactOnByte
     , compactOnByteSuffix
 
+    , foldBreakChunks
+    , foldChunks
+    , foldBreakChunksK
+    , parseBreakChunksK
+
     -- * Serialization
     , encodeAs
     , serialize
@@ -95,32 +100,42 @@ where
 #include "ArrayMacros.h"
 
 import Control.Monad.IO.Class (MonadIO(..))
+-- import Data.Bifunctor (first)
+-- import Data.Either (fromRight)
 import Data.Functor.Identity (Identity)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.Ptr (castPtr)
 import Foreign.Storable (Storable)
+import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import Streamly.Internal.Data.MutByteArray.Type (PinnedState(..), MutByteArray)
 import Streamly.Internal.Data.Serialize.Type (Serialize)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.SVar.Type (adaptState)
-import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
+import Streamly.Internal.Data.Parser (Parser(..), Initial(..), ParseError(..))
+import Streamly.Internal.Data.Stream (Stream(..))
+import Streamly.Internal.Data.StreamK (StreamK)
+import Streamly.Internal.Data.SVar.Type (adaptState, defState)
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3Fused'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Serialize.Type as Serialize
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.MutArray as MA
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Ring as RB
+import qualified Streamly.Internal.Data.Parser as Parser
+-- import qualified Streamly.Internal.Data.ParserK as ParserK
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Prelude
 
 import Streamly.Internal.Data.Array.Type
 
@@ -631,3 +646,348 @@ compactOnByteSuffix
     -> Stream m (Array Word8)
 compactOnByteSuffix byte =
     fmap unsafeFreeze . MA.compactOnByteSuffix byte . fmap unsafeThaw
+
+-------------------------------------------------------------------------------
+-- Folding Streams of Arrays
+-------------------------------------------------------------------------------
+
+-- XXX This should not be used for breaking a stream as the D.cons used in
+-- reconstructing the stream could be very bad for performance. This can only
+-- be useful in folding without breaking.
+{-# INLINE_NORMAL foldBreakChunks #-}
+foldBreakChunks :: forall m a b. (MonadIO m, Unbox a) =>
+    Fold m a b -> Stream m (Array a) -> m (b, Stream m (Array a))
+foldBreakChunks (Fold fstep initial _ final) stream@(Stream step state) = do
+    res <- initial
+    case res of
+        Fold.Partial fs -> go SPEC state fs
+        Fold.Done fb -> return $! (fb, stream)
+
+    where
+
+    {-# INLINE go #-}
+    go !_ st !fs = do
+        r <- step defState st
+        case r of
+            Stream.Yield (Array contents start end) s ->
+                let fp = Tuple' end contents
+                 in goArray SPEC s fp start fs
+            Stream.Skip s -> go SPEC s fs
+            Stream.Stop -> do
+                b <- final fs
+                return (b, D.nil)
+
+    goArray !_ s (Tuple' end _) !cur !fs
+        | cur == end = do
+            go SPEC s fs
+    goArray !_ st fp@(Tuple' end contents) !cur !fs = do
+        x <- liftIO $ peekAt cur contents
+        res <- fstep fs x
+        let next = INDEX_NEXT(cur,a)
+        case res of
+            Fold.Done b -> do
+                let arr = Array contents next end
+                return $! (b, D.cons arr (D.Stream step st))
+            Fold.Partial fs1 -> goArray SPEC st fp next fs1
+
+-- This may be more robust wrt fusion compared to unfoldMany?
+
+-- | Fold a stream of arrays using a 'Fold'. This is equivalent to the
+-- following:
+--
+-- >>> foldChunks f = Stream.fold f . Stream.unfoldMany Array.reader
+--
+foldChunks :: (MonadIO m, Unbox a) => Fold m a b -> Stream m (Array a) -> m b
+foldChunks f s = fmap fst (foldBreakChunks f s)
+-- foldStream f = Stream.fold f . Stream.unfoldMany reader
+
+-- | Fold a stream of arrays using a 'Fold' and return the remaining stream.
+--
+-- The following alternative to this function allows composing the fold using
+-- the parser Monad:
+--
+-- @
+-- foldBreakStreamK f s =
+--       fmap (first (fromRight undefined))
+--     $ StreamK.parseBreakChunks (ParserK.adaptC (Parser.fromFold f)) s
+-- @
+--
+-- We can compare perf and remove this one or define it in terms of that.
+--
+foldBreakChunksK :: forall m a b. (MonadIO m, Unbox a) =>
+    Fold m a b -> StreamK m (Array a) -> m (b, StreamK m (Array a))
+{-
+foldBreakChunksK f s =
+      fmap (first (fromRight undefined))
+    $ StreamK.parseBreakChunks (ParserK.adaptC (Parser.fromFold f)) s
+-}
+foldBreakChunksK (Fold fstep initial _ final) stream = do
+    res <- initial
+    case res of
+        Fold.Partial fs -> go fs stream
+        Fold.Done fb -> return (fb, stream)
+
+    where
+
+    {-# INLINE go #-}
+    go !fs st = do
+        let stop = (, StreamK.nil) <$> final fs
+            single a = yieldk a StreamK.nil
+            yieldk (Array contents start end) r =
+                let fp = Tuple' end contents
+                 in goArray fs r fp start
+         in StreamK.foldStream defState yieldk single stop st
+
+    goArray !fs st (Tuple' end _) !cur
+        | cur == end = do
+            go fs st
+    goArray !fs st fp@(Tuple' end contents) !cur = do
+        x <- liftIO $ peekAt cur contents
+        res <- fstep fs x
+        let next = INDEX_NEXT(cur,a)
+        case res of
+            Fold.Done b -> do
+                let arr = Array contents next end
+                return $! (b, StreamK.cons arr st)
+            Fold.Partial fs1 -> goArray fs1 st fp next
+
+{-
+-- This can be generalized to any type provided it can be unfolded to a stream
+-- and it can be combined using a semigroup operation.
+--
+{-# INLINE_NORMAL parseBreakD #-}
+parseBreakD ::
+       forall m a b. (MonadIO m, MonadThrow m, Unbox a)
+    => PRD.Parser a m b
+    -> D.Stream m (Array.Array a)
+    -> m (b, D.Stream m (Array.Array a))
+parseBreakD
+    (PRD.Parser pstep initial extract) stream@(D.Stream step state) = do
+
+    res <- initial
+    case res of
+        PRD.IPartial s -> go SPEC state (List []) s
+        PRD.IDone b -> return (b, stream)
+        PRD.IError err -> throwM $ ParseError err
+
+    where
+
+    -- "backBuf" contains last few items in the stream that we may have to
+    -- backtrack to.
+    --
+    -- XXX currently we are using a dumb list based approach for backtracking
+    -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
+    -- That will allow us more efficient random back and forth movement.
+    go !_ st backBuf !pst = do
+        r <- step defState st
+        case r of
+            D.Yield (Array contents start end) s ->
+                gobuf SPEC s backBuf
+                    (Tuple' end contents) start pst
+            D.Skip s -> go SPEC s backBuf pst
+            D.Stop -> do
+                b <- extract pst
+                return (b, D.nil)
+
+    -- Use strictness on "cur" to keep it unboxed
+    gobuf !_ s backBuf (Tuple' end _) !cur !pst
+        | cur == end = do
+            go SPEC s backBuf pst
+    gobuf !_ s backBuf fp@(Tuple' end contents) !cur !pst = do
+        x <- liftIO $ peekByteIndex contents cur
+        pRes <- pstep pst x
+        let next = INDEX_NEXT(cur,a)
+        case pRes of
+            PR.Partial 0 pst1 ->
+                 gobuf SPEC s (List []) fp next pst1
+            PR.Partial n pst1 -> do
+                assert (n <= Prelude.length (x:getList backBuf)) (return ())
+                let src0 = Prelude.take n (x:getList backBuf)
+                    arr0 = A.fromListN n (Prelude.reverse src0)
+                    arr1 = Array contents next end
+                    src = arr0 <> arr1
+                let !(Array cont1 start end1) = src
+                    fp1 = Tuple' end1 cont1
+                gobuf SPEC s (List []) fp1 start pst1
+            PR.Continue 0 pst1 ->
+                gobuf SPEC s (List (x:getList backBuf)) fp next pst1
+            PR.Continue n pst1 -> do
+                assert (n <= Prelude.length (x:getList backBuf)) (return ())
+                let (src0, buf1) = splitAt n (x:getList backBuf)
+                    arr0 = A.fromListN n (Prelude.reverse src0)
+                    arr1 = Array contents next end
+                    src = arr0 <> arr1
+                let !(Array cont1 start end1) = src
+                    fp1 = Tuple' end1 cont1
+                gobuf SPEC s (List buf1) fp1 start pst1
+            PR.Done 0 b -> do
+                let arr = Array contents next end
+                return (b, D.cons arr (D.Stream step s))
+            PR.Done n b -> do
+                assert (n <= Prelude.length (x:getList backBuf)) (return ())
+                let src0 = Prelude.take n (x:getList backBuf)
+                    -- XXX create the array in reverse instead
+                    arr0 = A.fromListN n (Prelude.reverse src0)
+                    arr1 = Array contents next end
+                    -- XXX Use StreamK to avoid adding arbitrary layers of
+                    -- constructors every time.
+                    str = D.cons arr0 (D.cons arr1 (D.Stream step s))
+                return (b, str)
+            PR.Error err -> throwM $ ParseError err
+-}
+
+-- | Parse an array stream using the supplied 'Parser'.  Returns the parse
+-- result and the unconsumed stream. Throws 'ParseError' if the parse fails.
+--
+-- The following alternative to this function allows composing the parser using
+-- the parser Monad:
+--
+-- >>> parseBreakStreamK p = StreamK.parseBreakChunks (ParserK.adaptC p)
+--
+-- We can compare perf and remove this one or define it in terms of that.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL parseBreakChunksK #-}
+parseBreakChunksK ::
+       forall m a b. (MonadIO m, Unbox a)
+    => Parser a m b
+    -> StreamK m (Array a)
+    -> m (Either ParseError b, StreamK m (Array a))
+-- parseBreakStreamK p = StreamK.parseBreakChunks (ParserK.adaptC p)
+parseBreakChunksK (Parser pstep initial extract) stream = do
+    res <- initial
+    case res of
+        IPartial s -> go s stream []
+        IDone b -> return (Right b, stream)
+        IError err -> return (Left (ParseError err), stream)
+
+    where
+
+    -- "backBuf" contains last few items in the stream that we may have to
+    -- backtrack to.
+    --
+    -- XXX currently we are using a dumb list based approach for backtracking
+    -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
+    -- That will allow us more efficient random back and forth movement.
+    go !pst st backBuf = do
+        let stop = goStop pst backBuf -- (, K.nil) <$> extract pst
+            single a = yieldk a StreamK.nil
+            yieldk arr r = goArray pst backBuf r arr
+         in StreamK.foldStream defState yieldk single stop st
+
+    -- Use strictness on "cur" to keep it unboxed
+    goArray !pst backBuf st (Array _ cur end) | cur == end = go pst st backBuf
+    goArray !pst backBuf st (Array contents cur end) = do
+        x <- liftIO $ peekAt cur contents
+        pRes <- pstep pst x
+        let next = INDEX_NEXT(cur,a)
+        case pRes of
+            Parser.Partial 0 s ->
+                 goArray s [] st (Array contents next end)
+            Parser.Partial n s -> do
+                assert (n <= Prelude.length (x:backBuf)) (return ())
+                let src0 = Prelude.take n (x:backBuf)
+                    arr0 = fromListN n (Prelude.reverse src0)
+                    arr1 = Array contents next end
+                    src = arr0 <> arr1
+                goArray s [] st src
+            Parser.Continue 0 s ->
+                goArray s (x:backBuf) st (Array contents next end)
+            Parser.Continue n s -> do
+                assert (n <= Prelude.length (x:backBuf)) (return ())
+                let (src0, buf1) = Prelude.splitAt n (x:backBuf)
+                    arr0 = fromListN n (Prelude.reverse src0)
+                    arr1 = Array contents next end
+                    src = arr0 <> arr1
+                goArray s buf1 st src
+            Parser.Done 0 b -> do
+                let arr = Array contents next end
+                return (Right b, StreamK.cons arr st)
+            Parser.Done n b -> do
+                assert (n <= Prelude.length (x:backBuf)) (return ())
+                let src0 = Prelude.take n (x:backBuf)
+                    -- XXX Use fromListRevN once implemented
+                    -- arr0 = A.fromListRevN n src0
+                    arr0 = fromListN n (Prelude.reverse src0)
+                    arr1 = Array contents next end
+                    str = StreamK.cons arr0 (StreamK.cons arr1 st)
+                return (Right b, str)
+            Parser.Error err -> do
+                let n = Prelude.length backBuf
+                    arr0 = fromListN n (Prelude.reverse backBuf)
+                    arr1 = Array contents cur end
+                    str = StreamK.cons arr0 (StreamK.cons arr1 stream)
+                return (Left (ParseError err), str)
+
+    -- This is a simplified goArray
+    goExtract !pst backBuf (Array _ cur end)
+        | cur == end = goStop pst backBuf
+    goExtract !pst backBuf (Array contents cur end) = do
+        x <- liftIO $ peekAt cur contents
+        pRes <- pstep pst x
+        let next = INDEX_NEXT(cur,a)
+        case pRes of
+            Parser.Partial 0 s ->
+                 goExtract s [] (Array contents next end)
+            Parser.Partial n s -> do
+                assert (n <= Prelude.length (x:backBuf)) (return ())
+                let src0 = Prelude.take n (x:backBuf)
+                    arr0 = fromListN n (Prelude.reverse src0)
+                    arr1 = Array contents next end
+                    src = arr0 <> arr1
+                goExtract s [] src
+            Parser.Continue 0 s ->
+                goExtract s backBuf (Array contents next end)
+            Parser.Continue n s -> do
+                assert (n <= Prelude.length (x:backBuf)) (return ())
+                let (src0, buf1) = Prelude.splitAt n (x:backBuf)
+                    arr0 = fromListN n (Prelude.reverse src0)
+                    arr1 = Array contents next end
+                    src = arr0 <> arr1
+                goExtract s buf1 src
+            Parser.Done 0 b -> do
+                let arr = Array contents next end
+                return (Right b, StreamK.fromPure arr)
+            Parser.Done n b -> do
+                assert (n <= Prelude.length backBuf) (return ())
+                let src0 = Prelude.take n backBuf
+                    -- XXX Use fromListRevN once implemented
+                    -- arr0 = A.fromListRevN n src0
+                    arr0 = fromListN n (Prelude.reverse src0)
+                    arr1 = Array contents next end
+                    str = StreamK.cons arr0 (StreamK.fromPure arr1)
+                return (Right b, str)
+            Parser.Error err -> do
+                let n = Prelude.length backBuf
+                    arr0 = fromListN n (Prelude.reverse backBuf)
+                    arr1 = Array contents cur end
+                    str = StreamK.cons arr0 (StreamK.cons arr1 stream)
+                return (Left (ParseError err), str)
+
+    -- This is a simplified goExtract
+    {-# INLINE goStop #-}
+    goStop !pst backBuf = do
+        pRes <- extract pst
+        case pRes of
+            Parser.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
+            Parser.Continue 0 s ->
+                goStop s backBuf
+            Parser.Continue n s -> do
+                assert (n <= Prelude.length backBuf) (return ())
+                let (src0, buf1) = Prelude.splitAt n backBuf
+                    arr = fromListN n (Prelude.reverse src0)
+                goExtract s buf1 arr
+            Parser.Done 0 b ->
+                return (Right b, StreamK.nil)
+            Parser.Done n b -> do
+                assert (n <= Prelude.length backBuf) (return ())
+                let src0 = Prelude.take n backBuf
+                    -- XXX Use fromListRevN once implemented
+                    -- arr0 = A.fromListRevN n src0
+                    arr0 = fromListN n (Prelude.reverse src0)
+                return (Right b, StreamK.fromPure arr0)
+            Parser.Error err -> do
+                let n = Prelude.length backBuf
+                    arr0 = fromListN n (Prelude.reverse backBuf)
+                return (Left (ParseError err), StreamK.fromPure arr0)

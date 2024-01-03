@@ -133,14 +133,12 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Array.Type
        (Array(..), pinnedWriteNUnsafe, unsafeFreezeWithShrink, byteLength)
 import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.Array.Stream (lpackArraysChunksOf)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array.Type as A
-import qualified Streamly.Internal.Data.Array.Stream as AS
 import qualified Streamly.Internal.Data.MutArray.Type as MArray
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold.Type as FL(refoldMany)
@@ -421,7 +419,7 @@ putChunks h = S.fold (FL.drainMapM (putChunk h))
 {-# INLINE putChunksWith #-}
 putChunksWith :: (MonadIO m, Unbox a)
     => Int -> Handle -> Stream m (Array a) -> m ()
-putChunksWith n h xs = putChunks h $ AS.compact n xs
+putChunksWith n h xs = putChunks h $ A.compactLE n xs
 
 -- > putBytesWith n h m = Handle.putChunks h $ A.pinnedChunksOf n m
 
@@ -461,8 +459,6 @@ writeChunks h = FL.drainMapM (putChunk h)
 chunkWriter :: MonadIO m => Refold m Handle (Array a) ()
 chunkWriter = Refold.drainBy putChunk
 
--- XXX lpackArraysChunksOf should be written idiomatically
-
 -- | @writeChunksWith bufsize handle@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
 -- We never split an array, if a single array is bigger than the specified size
@@ -472,7 +468,7 @@ chunkWriter = Refold.drainBy putChunk
 {-# INLINE writeChunksWith #-}
 writeChunksWith :: (MonadIO m, Unbox a)
     => Int -> Handle -> Fold m (Array a) ()
-writeChunksWith n h = lpackArraysChunksOf n (writeChunks h)
+writeChunksWith n h = A.lCompactGE n (writeChunks h)
 
 -- | Same as 'writeChunksWith'
 --
