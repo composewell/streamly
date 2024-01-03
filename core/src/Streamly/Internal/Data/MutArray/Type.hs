@@ -213,6 +213,16 @@ module Streamly.Internal.Data.MutArray.Type
     -- , appendSlice
     -- , appendSliceFrom
 
+    -- ** Serialization using Unbox
+    , pokeAppend
+    , pokeAppendMay
+    , pokeSkipUnsafe
+
+    -- ** Deserialization using Unbox
+    , peekUncons
+    , peekUnconsUnsafe
+    , peekSkipUnsafe
+
     -- Arrays of arrays
     --  We can add dimensionality parameter to the array type to get
     --  multidimensional arrays. Multidimensional arrays would just be a
@@ -491,9 +501,9 @@ newBytesAs ps bytes = do
         , arrBound = bytes
         }
 
--- | Allocates a pinned empty array that can hold 'count' items.  The memory of
--- the array is uninitialized and the allocation is aligned as per the
--- 'Unboxed' instance of the type.
+-- | Allocates a pinned empty array that with a reserved capacity of bytes.
+-- The memory of the array is uninitialized and the allocation is aligned as
+-- per the 'Unboxed' instance of the type.
 --
 -- /Pre-release/
 {-# INLINE pinnedNewBytes #-}
@@ -1050,6 +1060,126 @@ snoc = snocWith f
         if isPower2 oldSize
         then oldSize * 2
         else roundUpToPower2 oldSize * 2
+
+-------------------------------------------------------------------------------
+-- Serialization/Deserialization
+-------------------------------------------------------------------------------
+
+{-# INLINE pokeNewEnd #-}
+pokeNewEnd :: (MonadIO m, Unbox a) =>
+    Int -> MutArray Word8 -> a -> m (MutArray Word8)
+pokeNewEnd newEnd arr@MutArray{..} x = liftIO $ do
+    assert (newEnd <= arrBound) (return ())
+    liftIO $ pokeAt arrEnd arrContents x
+    return $ arr {arrEnd = newEnd}
+
+-- | Really really unsafe, unboxes a Haskell type and appends the resulting
+-- bytes to the byte array, may cause silent data corruption or if you are
+-- lucky a segfault if the array does not have enough space to append the
+-- element.
+--
+-- /Internal/
+{-# INLINE pokeAppendUnsafe #-}
+pokeAppendUnsafe :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> a -> m (MutArray Word8)
+pokeAppendUnsafe arr@MutArray{..} = pokeNewEnd (arrEnd + SIZE_OF(a)) arr
+
+-- | Skip the specified number of bytes in the array. The data in the skipped
+-- region remains uninitialzed.
+{-# INLINE pokeSkipUnsafe #-}
+pokeSkipUnsafe :: Int -> MutArray Word8 -> MutArray Word8
+pokeSkipUnsafe n arr@MutArray{..} =  do
+    let newEnd = arrEnd + n
+     in assert (newEnd <= arrBound) (arr {arrEnd = newEnd})
+
+-- | Like 'pokeAppend' but does not grow the array when pre-allocated array
+-- capacity becomes full.
+--
+-- /Internal/
+{-# INLINE pokeAppendMay #-}
+pokeAppendMay :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> a -> m (Maybe (MutArray Word8))
+pokeAppendMay arr@MutArray{..} x = liftIO $ do
+    let newEnd = arrEnd + SIZE_OF(a)
+    if newEnd <= arrBound
+    then Just <$> pokeNewEnd newEnd arr x
+    else return Nothing
+
+{-# NOINLINE pokeWithRealloc #-}
+pokeWithRealloc :: forall m a. (MonadIO m, Unbox a) =>
+       (Int -> Int)
+    -> MutArray Word8
+    -> a
+    -> m (MutArray Word8)
+pokeWithRealloc sizer arr x = do
+    arr1 <- liftIO $ reallocWith "pokeWithRealloc" sizer (SIZE_OF(a)) arr
+    pokeAppendUnsafe arr1 x
+
+{-# INLINE pokeAppendWith #-}
+pokeAppendWith :: forall m a. (MonadIO m, Unbox a) =>
+       (Int -> Int)
+    -> MutArray Word8
+    -> a
+    -> m (MutArray Word8)
+pokeAppendWith allocSize arr x = liftIO $ do
+    let newEnd = arrEnd arr + SIZE_OF(a)
+    if newEnd <= arrBound arr
+    then pokeNewEnd newEnd arr x
+    else pokeWithRealloc allocSize arr x
+
+-- | Unbox a Haskell type and append the resulting bytes to a mutable byte
+-- array. The array is grown exponentially when more space is needed.
+--
+-- Definition:
+--
+-- >>> pokeAppend arr x = MutArray.castUnsafe <$> MutArray.snoc (MutArray.castUnsafe arr) x
+--
+{-# INLINE pokeAppend #-}
+pokeAppend :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> a -> m (MutArray Word8)
+pokeAppend = pokeAppendWith f
+
+    where
+
+    f oldSize =
+        if isPower2 oldSize
+        then oldSize * 2
+        else roundUpToPower2 oldSize * 2
+
+-- | Really really unsafe, create a Haskell value from an unboxed byte array,
+-- does not check if the array is big enough, may return garbage or if you are
+-- lucky may cause a segfault.
+--
+-- /Internal/
+{-# INLINE peekUnconsUnsafe #-}
+peekUnconsUnsafe :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> m (a, MutArray Word8)
+peekUnconsUnsafe MutArray{..} = do
+    let start1 = arrStart + SIZE_OF(a)
+    assert (start1 <= arrEnd) (return ())
+    liftIO $ do
+        r <- peekAt arrStart arrContents
+        return (r, MutArray arrContents start1 arrEnd arrBound)
+
+-- | Discard the specified number of bytes in the array.
+{-# INLINE peekSkipUnsafe #-}
+peekSkipUnsafe :: Int -> MutArray Word8 -> MutArray Word8
+peekSkipUnsafe n MutArray{..} =
+    let start1 = arrStart + n
+     in assert (start1 <= arrEnd) (MutArray arrContents start1 arrEnd arrBound)
+
+-- | Create a Haskell value from its unboxed representation from the head of a
+-- byte array, return the value and the remaining array.
+{-# INLINE peekUncons #-}
+peekUncons :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray Word8 -> m (Maybe a, MutArray Word8)
+peekUncons arr@MutArray{..} = do
+    let start1 = arrStart + SIZE_OF(a)
+    if start1 > arrEnd
+    then return (Nothing, arr)
+    else liftIO $ do
+        r <- peekAt arrStart arrContents
+        return (Just r, MutArray arrContents start1 arrEnd arrBound)
 
 -------------------------------------------------------------------------------
 -- Random reads
