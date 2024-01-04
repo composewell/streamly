@@ -581,7 +581,7 @@ putIndices arr = FL.foldlM' step (return ())
 
     where
 
-    step () (i, x) = liftIO (putIndex i arr x)
+    step () (i, x) = putIndex i arr x
 
 -- | Modify a given index of an array using a modifier function.
 --
@@ -777,9 +777,6 @@ arrayChunkBytes = 1024
 roundDownTo :: Int -> Int -> Int
 roundDownTo elemSize size = size - (size `mod` elemSize)
 
--- XXX See if resizing can be implemented by reading the old array as a stream
--- and then using writeN to the new array.
---
 -- NOTE: we are passing elemSize explicitly to avoid an Unboxed constraint.
 -- Since this is not inlined Unboxed consrraint leads to dictionary passing
 -- which complicates some inspection tests.
@@ -816,6 +813,10 @@ reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
         , arrEnd   = newLenInBytes
         , arrBound = newCapInBytes
         }
+
+-- XXX Should these be called reallocBytes etc?
+-- XXX We may also need reallocAs to allocate as pinned/unpinned explicitly. In
+-- fact clone/pinnedClone can be implemented using reallocAs.
 
 -- | @realloc newCapacity array@ reallocates the array to the specified
 -- capacity in bytes.
@@ -858,6 +859,8 @@ reallocWith label capSizer minIncrBytes arr = do
             , ". Please check the sizing function passed."
             ]
 
+-- XXX should be called expand/extend because it never shortens the array.
+
 -- | @resize newCapacity array@ changes the total capacity of the array so that
 -- it is enough to hold the specified number of elements.  Nothing is done if
 -- the specified capacity is less than the length of the array.
@@ -871,13 +874,14 @@ resize :: forall m a. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> m (MutArray a)
 resize nElems arr@MutArray{..} = do
     let req = SIZE_OF(a) * nElems
+        -- XXX Should use arrBound
         len = arrEnd - arrStart
     if req < len
     then return arr
     else realloc req arr
 
--- | Like 'resize' but if the byte capacity is more than 'largeObjectThreshold'
--- then it is rounded up to the closest power of 2.
+-- | Like 'resize' but if the requested byte capacity is more than
+-- 'largeObjectThreshold' then it is rounded up to the closest power of 2.
 --
 -- /Pre-release/
 {-# INLINE resizeExp #-}
@@ -889,6 +893,7 @@ resizeExp nElems arr@MutArray{..} = do
             if req > largeObjectThreshold
             then roundUpToPower2 req
             else req
+        -- XXX Should use arrBound
         len = arrEnd - arrStart
     if req1 < len
     then return arr
@@ -958,7 +963,7 @@ snocUnsafe arr@MutArray{..} = snocNewEnd (INDEX_NEXT(arrEnd,a)) arr
 {-# INLINE snocMay #-}
 snocMay :: forall m a. (MonadIO m, Unbox a) =>
     MutArray a -> a -> m (Maybe (MutArray a))
-snocMay arr@MutArray{..} x = liftIO $ do
+snocMay arr@MutArray{..} x = do
     let newEnd = INDEX_NEXT(arrEnd,a)
     if newEnd <= arrBound
     then Just <$> snocNewEnd newEnd arr x
@@ -972,7 +977,7 @@ snocWithRealloc :: forall m a. (MonadIO m, Unbox a) =>
     -> a
     -> m (MutArray a)
 snocWithRealloc sizer arr x = do
-    arr1 <- liftIO $ reallocWith "snocWith" sizer (SIZE_OF(a)) arr
+    arr1 <- reallocWith "snocWith" sizer (SIZE_OF(a)) arr
     snocUnsafe arr1 x
 
 -- | @snocWith sizer arr elem@ mutates @arr@ to append @elem@. The length of
@@ -994,7 +999,7 @@ snocWith :: forall m a. (MonadIO m, Unbox a) =>
     -> MutArray a
     -> a
     -> m (MutArray a)
-snocWith allocSize arr x = liftIO $ do
+snocWith allocSize arr x = do
     let newEnd = INDEX_NEXT(arrEnd arr,a)
     if newEnd <= arrBound arr
     then snocNewEnd newEnd arr x
@@ -1114,7 +1119,7 @@ getIndicesWith = indexReaderWith
 -- /Pre-release/
 {-# INLINE indexReader #-}
 indexReader :: (MonadIO m, Unbox a) => Stream m Int -> Unfold m (MutArray a) a
-indexReader = getIndicesWith liftIO
+indexReader = indexReaderWith liftIO
 
 -- XXX DO NOT REMOVE, change the signature to use Stream instead of unfold
 {-# DEPRECATED getIndices "Please use indexReader instead." #-}
@@ -2002,7 +2007,7 @@ writeWithAs ps elemCount =
 
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
-        liftIO $ newAs ps elemCount
+        newAs ps elemCount
 
     step arr@(MutArray _ start end bound) x
         | INDEX_NEXT(end,a) > bound = do
@@ -2073,7 +2078,7 @@ pinnedWrite =
 fromStreamDNAs :: forall m a. (MonadIO m, Unbox a)
     => PinnedState -> Int -> D.Stream m a -> m (MutArray a)
 fromStreamDNAs ps limit str = do
-    (arr :: MutArray a) <- liftIO $ newAs ps limit
+    (arr :: MutArray a) <- newAs ps limit
     end <- D.foldlM' (fwrite (arrContents arr)) (return $ arrEnd arr) $ D.take limit str
     return $ arr {arrEnd = end}
 
@@ -2123,13 +2128,13 @@ fromListRevN n xs = D.fold (writeRevN n) $ D.fromList xs
 fromPureStreamN :: (MonadIO m, Unbox a) =>
     Int -> Stream Identity a -> m (MutArray a)
 fromPureStreamN n xs =
-    liftIO $ D.fold (writeN n) $ D.morphInner (return . runIdentity) xs
+    D.fold (writeN n) $ D.morphInner (return . runIdentity) xs
 
 -- | Convert a pure stream in Identity monad to a mutable array.
 {-# INLINABLE fromPureStream #-}
 fromPureStream :: (MonadIO m, Unbox a) => Stream Identity a -> m (MutArray a)
 fromPureStream xs =
-    liftIO $ D.fold write $ D.morphInner (return . runIdentity) xs
+    D.fold write $ D.morphInner (return . runIdentity) xs
 
 {-# INLINABLE fromPtrN #-}
 fromPtrN :: MonadIO m => Int -> Ptr Word8 -> m (MutArray Word8)
@@ -2175,7 +2180,7 @@ fromChunksRealloced s = do
             arr <- D.foldlM' spliceExp (pure a) strm
             -- Reallocation is exponential so there may be 50% empty space in
             -- worst case. One more reallocation to reclaim the space.
-            liftIO $ rightSize arr
+            rightSize arr
         Nothing -> pure nil
 
 -------------------------------------------------------------------------------
@@ -2287,7 +2292,7 @@ cloneAs ::
     )
     => PinnedState -> MutArray a -> m (MutArray a)
 cloneAs ps src =
-    liftIO $ do
+    do
         let startSrc = arrStart src
             srcLen = arrEnd src - startSrc
         newArrContents <-
@@ -2326,17 +2331,16 @@ spliceCopy :: forall m a. MonadIO m =>
     Unbox a =>
 #endif
     MutArray a -> MutArray a -> m (MutArray a)
-spliceCopy arr1 arr2 = liftIO $ do
+spliceCopy arr1 arr2 = do
     let start1 = arrStart arr1
         start2 = arrStart arr2
         len1 = arrEnd arr1 - start1
         len2 = arrEnd arr2 - start2
-    let newLen = len1 + len2
+    let len = len1 + len2
     newArrContents <-
         if Unboxed.isPinned (arrContents arr1)
-        then Unboxed.pinnedNew newLen
-        else Unboxed.new newLen
-    let len = len1 + len2
+        then liftIO $ Unboxed.pinnedNew len
+        else liftIO $ Unboxed.new len
     putSliceUnsafe (arrContents arr1) start1 newArrContents 0 len1
     putSliceUnsafe (arrContents arr2) start2 newArrContents len1 len2
     return $ MutArray newArrContents 0 len len
@@ -2348,7 +2352,7 @@ spliceCopy arr1 arr2 = liftIO $ do
 spliceUnsafe :: MonadIO m =>
     MutArray a -> MutArray a -> m (MutArray a)
 spliceUnsafe dst src =
-    liftIO $ do
+    do
          let startSrc = arrStart src
              srcLen = arrEnd src - startSrc
              endDst = arrEnd dst
@@ -2386,7 +2390,7 @@ spliceWith sizer dst@(MutArray _ start end bound) src = do
                     $ "splice: newSize is less than the total size "
                     ++ "of arrays being appended. Please check the "
                     ++ "sizer function passed."
-            liftIO $ realloc newSizeInBytes dst
+            realloc newSizeInBytes dst
         else return dst
     spliceUnsafe dst1 src
 
@@ -2584,28 +2588,26 @@ asUnpinnedPtrUnsafe arr f =
 -- /Pre-release/
 {-# INLINE byteCmp #-}
 byteCmp :: MonadIO m => MutArray a -> MutArray a -> m Ordering
-byteCmp arr1 arr2 =
-    liftIO
-        $ do
-            let marr1 = getMutableByteArray# (arrContents arr1)
-                marr2 = getMutableByteArray# (arrContents arr2)
-                !(I# st1#) = arrStart arr1
-                !(I# st2#) = arrStart arr2
-                !(I# len#) = byteLength arr1
-            case compare (byteLength arr1) (byteLength arr2) of
-                EQ -> do
-                    r <- liftIO $ IO $ \s# ->
-                             let res =
-                                     I#
-                                         (compareByteArrays#
-                                              (unsafeCoerce# marr1)
-                                              st1#
-                                              (unsafeCoerce# marr2)
-                                              st2#
-                                              len#)
-                              in (# s#, res #)
-                    return $ compare r 0
-                x -> return x
+byteCmp arr1 arr2 = do
+    let marr1 = getMutableByteArray# (arrContents arr1)
+        marr2 = getMutableByteArray# (arrContents arr2)
+        !(I# st1#) = arrStart arr1
+        !(I# st2#) = arrStart arr2
+        !(I# len#) = byteLength arr1
+    case compare (byteLength arr1) (byteLength arr2) of
+        EQ -> do
+            r <- liftIO $ IO $ \s# ->
+                     let res =
+                             I#
+                                 (compareByteArrays#
+                                      (unsafeCoerce# marr1)
+                                      st1#
+                                      (unsafeCoerce# marr2)
+                                      st2#
+                                      len#)
+                      in (# s#, res #)
+            return $ compare r 0
+        x -> return x
 
 {-# INLINE cmp #-}
 {-# DEPRECATED cmp "Please use byteCmp instead." #-}

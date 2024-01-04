@@ -923,6 +923,7 @@ instance Unbox a => IsList (Array a) where
 {-# INLINE byteCmp #-}
 byteCmp :: Array a -> Array a -> Ordering
 byteCmp arr1 arr2 =
+    -- unsafePerformIO?
     unsafeInlineIO $! unsafeThaw arr1 `MA.byteCmp` unsafeThaw arr2
 
 -- | Byte equality of two arrays.

@@ -83,6 +83,9 @@ touch :: MutByteArray -> IO ()
 touch (MutByteArray contents) =
     IO $ \s -> case touch# contents s of s' -> (# s', () #)
 
+-- XXX Some functions in this module are "IO" and others are "m", we need to
+-- make it consistent.
+
 -- XXX We can provide another API for "unsafe" FFI calls passing an unlifted
 -- pointer to the FFI call. For unsafe calls we do not need to pin the array.
 -- We can pass an unlifted pointer to the FFI routine to avoid GC kicking in

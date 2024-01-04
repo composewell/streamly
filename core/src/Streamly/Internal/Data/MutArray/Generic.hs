@@ -318,7 +318,7 @@ putIndices arr = FL.foldlM' step (return ())
 
     where
 
-    step () (i, x) = liftIO (putIndex i arr x)
+    step () (i, x) = putIndex i arr x
 
 -- | Modify a given index of an array using a modifier function without checking
 -- the bounds.
@@ -636,17 +636,17 @@ writeWith elemCount = FL.rmapM extract $ FL.foldlM' step initial
 
     initial = do
         when (elemCount < 0) $ error "writeWith: elemCount is negative"
-        liftIO $ new elemCount
+        new elemCount
 
     step arr@(MutArray _ start end bound) x
         | end == bound = do
         let oldSize = end - start
             newSize = max (oldSize * 2) 1
-        arr1 <- liftIO $ realloc newSize arr
+        arr1 <- realloc newSize arr
         snocUnsafe arr1 x
     step arr x = snocUnsafe arr x
 
-    -- extract = liftIO . rightSize
+    -- extract = rightSize
     extract = return
 
 -- | Fold the whole input to a single array.
@@ -683,7 +683,7 @@ fromList xs = fromStream $ D.fromList xs
 {-# INLINABLE fromPureStream #-}
 fromPureStream :: MonadIO m => Stream Identity a -> m (MutArray a)
 fromPureStream xs =
-    liftIO $ D.fold write $ D.morphInner (return . runIdentity) xs
+    D.fold write $ D.morphInner (return . runIdentity) xs
 
 -------------------------------------------------------------------------------
 -- Chunking
@@ -815,7 +815,7 @@ putSliceUnsafe src srcStart dst dstStart len = liftIO $ do
 
 {-# INLINE clone #-}
 clone :: MonadIO m => MutArray a -> m (MutArray a)
-clone src = liftIO $ do
+clone src = do
     let len = arrLen src
     dst <- new len
     putSliceUnsafe src 0 dst 0 len
