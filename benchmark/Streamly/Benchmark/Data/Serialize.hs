@@ -268,6 +268,7 @@ instance NFData a => NFData (BinTree a) where
   rnf (Leaf a) = rnf a `seq` ()
   rnf (Tree l r) = rnf l `seq` rnf r
 
+-- XXX This may not terminate, or could become really large.
 instance Arbitrary a => Arbitrary (BinTree a) where
   arbitrary = oneof [Leaf <$> arbitrary, Tree <$> arbitrary <*> arbitrary]
 
@@ -559,8 +560,6 @@ main = do
     let !len = length lInt -- evaluate the list
 #endif
 #ifndef FUSION_CHECK
-    -- This can take too much memory/CPU, need to restrict the test
-    -- runQC
 #ifdef USE_UNBOX
     runWithCLIOpts defaultStreamSize allBenchmarks
 #else
@@ -568,7 +567,6 @@ main = do
         `seq` runWithCLIOpts
                   defaultStreamSize
                   (allBenchmarks tInt lInt recL recR)
-
 #endif
 #else
     -- Enable FUSION_CHECK macro at the beginning of the file
