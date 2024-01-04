@@ -874,9 +874,8 @@ resize :: forall m a. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> m (MutArray a)
 resize nElems arr@MutArray{..} = do
     let req = SIZE_OF(a) * nElems
-        -- XXX Should use arrBound
-        len = arrEnd - arrStart
-    if req < len
+        cap = arrBound - arrStart
+    if req < cap
     then return arr
     else realloc req arr
 
@@ -893,9 +892,8 @@ resizeExp nElems arr@MutArray{..} = do
             if req > largeObjectThreshold
             then roundUpToPower2 req
             else req
-        -- XXX Should use arrBound
-        len = arrEnd - arrStart
-    if req1 < len
+        cap = arrBound - arrStart
+    if req1 < cap
     then return arr
     else realloc req1 arr
 
