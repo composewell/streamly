@@ -164,9 +164,9 @@ module Streamly.Internal.Data.MutArray.Type
     , blockSize
     , arrayChunkBytes
     , allocBytesToElemCount
-    , realloc
-    , resize
-    , resizeExp
+    , realloc -- this is "resize"
+    , grow
+    , growExp
     , rightSize
 
     -- ** Folding
@@ -263,6 +263,8 @@ module Streamly.Internal.Data.MutArray.Type
     , cmp
     , getIndices
     , getIndicesWith
+    , resize
+    , resizeExp
     )
 where
 
@@ -859,9 +861,7 @@ reallocWith label capSizer minIncrBytes arr = do
             , ". Please check the sizing function passed."
             ]
 
--- XXX should be called expand/extend because it never shortens the array.
-
--- | @resize newCapacity array@ changes the total capacity of the array so that
+-- | @grow newCapacity array@ changes the total capacity of the array so that
 -- it is enough to hold the specified number of elements.  Nothing is done if
 -- the specified capacity is less than the length of the array.
 --
@@ -869,24 +869,29 @@ reallocWith label capSizer minIncrBytes arr = do
 -- the block size (4K).
 --
 -- /Pre-release/
-{-# INLINE resize #-}
-resize :: forall m a. (MonadIO m, Unbox a) =>
+{-# INLINE grow #-}
+grow :: forall m a. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> m (MutArray a)
-resize nElems arr@MutArray{..} = do
+grow nElems arr@MutArray{..} = do
     let req = SIZE_OF(a) * nElems
         cap = arrBound - arrStart
     if req < cap
     then return arr
     else realloc req arr
 
--- | Like 'resize' but if the requested byte capacity is more than
+{-# DEPRECATED resize "Please use grow instead." #-}
+resize :: forall m a. (MonadIO m, Unbox a) =>
+    Int -> MutArray a -> m (MutArray a)
+resize = grow
+
+-- | Like 'grow' but if the requested byte capacity is more than
 -- 'largeObjectThreshold' then it is rounded up to the closest power of 2.
 --
 -- /Pre-release/
-{-# INLINE resizeExp #-}
-resizeExp :: forall m a. (MonadIO m, Unbox a) =>
+{-# INLINE growExp #-}
+growExp :: forall m a. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> m (MutArray a)
-resizeExp nElems arr@MutArray{..} = do
+growExp nElems arr@MutArray{..} = do
     let req = roundUpLargeArray (SIZE_OF(a) * nElems)
         req1 =
             if req > largeObjectThreshold
@@ -896,6 +901,11 @@ resizeExp nElems arr@MutArray{..} = do
     if req1 < cap
     then return arr
     else realloc req1 arr
+
+{-# DEPRECATED resizeExp "Please use growExp instead." #-}
+resizeExp :: forall m a. (MonadIO m, Unbox a) =>
+    Int -> MutArray a -> m (MutArray a)
+resizeExp = growExp
 
 -- | Resize the allocated memory to drop any reserved free space at the end of
 -- the array and reallocate it to reduce wastage.
