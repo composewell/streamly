@@ -5,6 +5,8 @@
 * Add fixities `infixr 5` for `cons` and `consM` functions.
 * Fix a bug in Array `Eq` instance when the type is a sum type with
   differently sized constructors.
+* lpackArraysChunksOf, compact, writeChunksWith, putChunksWith now take the
+  buffer size in number of array elements instead of bytes.
 
 ## 0.2.1 (Dec 2023)
 

@@ -2635,46 +2635,55 @@ byteEq arr1 arr2 = fmap (EQ ==) $ byteCmp arr1 arr2
 -- Compact
 -------------------------------------------------------------------------------
 
--- | Parser @pCompactLE n@ coalesces adjacent arrays in the input stream
--- only if the combined size would be less than or equal to n.
+-- Note: LE versions avoid an extra copy compared to GE. LE parser trades
+-- backtracking one array in lieu of avoiding a copy. However, LE and GE both
+-- can leave some memory unused. They can split the last array to fit it
+-- exactly in the space.
+
+-- | Parser @pCompactLE maxElems@ coalesces adjacent arrays in the input stream
+-- only if the combined size would be less than or equal to @maxElems@
+-- elements. Note that it won't split an array if the original array is already
+-- larger than maxElems.
+--
+-- @maxElems@ must be greater than 0.
 --
 -- /Internal/
 {-# INLINE_NORMAL pCompactLE #-}
 pCompactLE ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> Parser (MutArray a) m (MutArray a)
-pCompactLE n = Parser step initial extract
+pCompactLE maxElems = Parser step initial extract
 
     where
 
-    nBytes = n * SIZE_OF(a)
+    maxBytes = maxElems * SIZE_OF(a)
 
     functionName = "Streamly.Internal.Data.MutArray.pCompactLE"
 
     initial =
         return
-            $ if n <= 0
+            $ if maxElems <= 0
               then error
                        $ functionName
                        ++ ": the size of arrays ["
-                       ++ show n ++ "] must be a natural number"
+                       ++ show maxElems ++ "] must be a natural number"
               else Parser.IPartial Nothing
 
     step Nothing arr =
         return
             $ let len = byteLength arr
-               in if len >= nBytes
+               in if len >= maxBytes
                   then Parser.Done 0 arr
                   else Parser.Partial 0 (Just arr)
+    -- XXX Split the last array to use the space more compactly.
     step (Just buf) arr =
         let len = byteLength buf + byteLength arr
-         in if len > nBytes
+         in if len > maxBytes
             then return $ Parser.Done 1 buf
             else do
-                -- XXX check this in the Nothing case
                 buf1 <-
-                    if byteCapacity buf < nBytes
-                    then liftIO $ realloc nBytes buf
+                    if byteCapacity buf < maxBytes
+                    then realloc maxBytes buf
                     else return buf
                 buf2 <- spliceUnsafe buf1 arr
                 return $ Parser.Partial 0 (Just buf2)
@@ -2693,48 +2702,54 @@ data SpliceState s arr
 -- immutable array never has additional space so a new array is allocated
 -- instead of mutating it.
 
--- | Scan @rCompactLE n@ coalesces adjacent arrays in the input stream
--- only if the combined size would be less than or equal to n.
+-- | Scan @rCompactLE maxElems@ coalesces adjacent arrays in the input stream
+-- only if the combined size would be less than or equal to @maxElems@
+-- elements. Note that it won't split an array if the original array is already
+-- larger than maxElems.
+--
+-- @maxElems@ must be greater than 0.
 --
 -- /Internal/
 {-# INLINE_NORMAL rCompactLE #-}
-rCompactLE :: (MonadIO m, Unbox a)
+rCompactLE :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m (MutArray a) -> D.Stream m (MutArray a)
-rCompactLE n (D.Stream step state) =
+rCompactLE maxElems (D.Stream step state) =
     D.Stream step' (SpliceInitial state)
 
     where
+
+    maxBytes = maxElems * SIZE_OF(a)
 
     functionName = "Streamly.Internal.Data.MutArray.rCompactLE"
 
     {-# INLINE_LATE step' #-}
     step' gst (SpliceInitial st) = do
-        when (n <= 0) $
+        when (maxElems <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ functionName ++ ": the size of arrays [" ++ show n
+            error $ functionName ++ ": the size of arrays [" ++ show maxElems
                 ++ "] must be a natural number"
         r <- step gst st
         case r of
             D.Yield arr s -> return $
                 let len = byteLength arr
-                 in if len >= n
+                 in if len >= maxBytes
                     then D.Skip (SpliceYielding arr (SpliceInitial s))
                     else D.Skip (SpliceBuffering s arr)
             D.Skip s -> return $ D.Skip (SpliceInitial s)
             D.Stop -> return D.Stop
 
+    -- XXX Split the last array to use the space more compactly.
     step' gst (SpliceBuffering st buf) = do
         r <- step gst st
         case r of
             D.Yield arr s -> do
                 let len = byteLength buf + byteLength arr
-                if len > n
+                if len > maxBytes
                 then return $
                     D.Skip (SpliceYielding buf (SpliceBuffering s arr))
                 else do
-                    -- XXX check this in the SpliceInitial case
-                    buf1 <- if byteCapacity buf < n
-                            then liftIO $ realloc n buf
+                    buf1 <- if byteCapacity buf < maxBytes
+                            then realloc maxBytes buf
                             else return buf
                     buf2 <- spliceUnsafe buf1 arr
                     return $ D.Skip (SpliceBuffering s buf2)
@@ -2745,44 +2760,45 @@ rCompactLE n (D.Stream step state) =
 
     step' _ (SpliceYielding arr next) = return $ D.Yield arr next
 
--- | Fold @fCompactGE n@ coalesces adjacent arrays in the input stream
--- until the size becomes greater than or equal to n.
+-- | Fold @fCompactGE minElems@ coalesces adjacent arrays in the input stream
+-- until the size becomes greater than or equal to @minElems@.
 --
 {-# INLINE_NORMAL fCompactGE #-}
 fCompactGE ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> FL.Fold m (MutArray a) (MutArray a)
-fCompactGE n = Fold step initial extract extract
+fCompactGE minElems = Fold step initial extract extract
 
     where
 
-    nBytes = n * SIZE_OF(a)
+    minBytes = minElems * SIZE_OF(a)
 
     functionName = "Streamly.Internal.Data.MutArray.fCompactGE"
 
     initial =
         return
-            $ if n < 0
+            $ if minElems < 0
               then error
                        $ functionName
                        ++ ": the size of arrays ["
-                       ++ show n ++ "] must be a natural number"
+                       ++ show minElems ++ "] must be a natural number"
               else FL.Partial Nothing
 
     step Nothing arr =
         return
             $ let len = byteLength arr
-               in if len >= nBytes
+               in if len >= minBytes
                   then FL.Done arr
                   else FL.Partial (Just arr)
+    -- XXX Buffer arrays as a list to avoid copy and reallocations
     step (Just buf) arr = do
         let len = byteLength buf + byteLength arr
         buf1 <-
             if byteCapacity buf < len
-            then liftIO $ realloc (max len nBytes) buf
+            then realloc (max len minBytes) buf
             else return buf
         buf2 <- spliceUnsafe buf1 arr
-        if len >= n
+        if len >= minBytes
         then return $ FL.Done buf2
         else return $ FL.Partial (Just buf2)
 
@@ -2794,59 +2810,54 @@ fCompactGE n = Fold step initial extract extract
 -- >>> lCompactGE n = Fold.many (MutArray.fCompactGE n)
 --
 {-# INLINE_NORMAL lCompactGE #-}
-lCompactGE :: (MonadIO m, Unbox a)
+lCompactGE :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
 -- lCompactGE n = Fold.many (fCompactGE n)
-lCompactGE n (Fold step1 initial1 _ final1) =
+lCompactGE minElems (Fold step1 initial1 _ final1) =
     Fold step initial extract final
 
     where
 
+    minBytes = minElems * SIZE_OF(a)
+
     functionName = "Streamly.Internal.Data.MutArray.lCompactGE"
 
     initial = do
-        when (n <= 0) $
+        when (minElems <= 0) $
             -- XXX we can pass the module string from the higher level API
             error $ functionName ++ ": the size of arrays ["
-                ++ show n ++ "] must be a natural number"
+                ++ show minElems ++ "] must be a natural number"
 
         r <- initial1
         return $ first (Tuple' Nothing) r
 
-    step (Tuple' Nothing r1) arr =
-            let len = byteLength arr
-             in if len >= n
-                then do
-                    r <- step1 r1 arr
-                    case r of
-                        FL.Done _ -> return $ FL.Done ()
-                        FL.Partial s -> do
-                            _ <- final1 s
-                            res <- initial1
-                            return $ first (Tuple' Nothing) res
-                else return $ FL.Partial $ Tuple' (Just arr) r1
-
-    step (Tuple' (Just buf) r1) arr = do
-            let len = byteLength buf + byteLength arr
-            buf1 <- if byteCapacity buf < len
-                    then liftIO $ realloc (max n len) buf
-                    else return buf
-            buf2 <- spliceUnsafe buf1 arr
-
-            -- XXX this is common in both the equations of step
-            if len >= n
+    {-# INLINE runInner #-}
+    runInner len acc buf =
+            if len >= minBytes
             then do
-                r <- step1 r1 buf2
+                r <- step1 acc buf
                 case r of
                     FL.Done _ -> return $ FL.Done ()
                     FL.Partial s -> do
                         _ <- final1 s
                         res <- initial1
                         return $ first (Tuple' Nothing) res
-            else return $ FL.Partial $ Tuple' (Just buf2) r1
+            else return $ FL.Partial $ Tuple' (Just buf) acc
+
+    step (Tuple' Nothing r1) arr =
+         runInner (byteLength arr) r1 arr
+
+    -- XXX Buffer arrays as a list to avoid copy and reallocations
+    step (Tuple' (Just buf) r1) arr = do
+        let len = byteLength buf + byteLength arr
+        buf1 <- if byteCapacity buf < len
+                then realloc (max minBytes len) buf
+                else return buf
+        buf2 <- spliceUnsafe buf1 arr
+        runInner len r1 buf2
 
     -- XXX Several folds do extract >=> final, therefore, we need to make final
-    -- return  "m b" rather than using extract post it if we want extract to be
+    -- return "m b" rather than using extract post it if we want extract to be
     -- partial.
     --
     -- extract forces the pending buffer to be sent to the fold which is not
