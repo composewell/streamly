@@ -32,14 +32,14 @@ module Streamly.Data.MutArray
     -- * Construction
 
     -- Uninitialized Arrays
-    , new
-    , pinnedNew
+    , emptyOf
+    , pinnedEmptyOf
 
     -- From containers
     , fromListN
     , fromList
-    , writeN      -- drop new
-    , write       -- full buffer
+    , createOf
+    , create
     -- writeLastN
 
     -- * Pinning & Unpinning
@@ -51,8 +51,8 @@ module Streamly.Data.MutArray
     , snoc
 
     -- * Appending streams
-    , writeAppendN -- XXX Rename to writeSnocN?
-    , writeAppend -- XXX Rename to writeSnoc?
+    , appendN
+    , append
 
     -- * Inplace mutation
     , putIndex
@@ -88,6 +88,12 @@ module Streamly.Data.MutArray
 
     -- * Deprecated
     , newPinned
+    , new
+    , pinnedNew
+    , writeN
+    , write
+    , writeAppendN
+    , writeAppend
     )
 where
 

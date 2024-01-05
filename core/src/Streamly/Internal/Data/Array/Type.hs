@@ -31,7 +31,7 @@ module Streamly.Internal.Data.Array.Type
     , asPtrUnsafe
 
     -- ** Construction
-    , nil
+    , empty
 
     -- *** Cloning
     -- XXX Why would we clone an immutable array?
@@ -140,6 +140,7 @@ module Streamly.Internal.Data.Array.Type
     , toStreamDRev
     , toStream
     , toStreamRev
+    , nil
     )
 where
 
@@ -736,7 +737,7 @@ writeN = fmap unsafeFreeze . MA.writeN
 -- | Like 'fromListN' but creates a pinned array.
 {-# INLINE_NORMAL pinnedWriteN #-}
 pinnedWriteN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
-pinnedWriteN = fmap unsafeFreeze . MA.pinnedWriteN
+pinnedWriteN = fmap unsafeFreeze . MA.pinnedCreateOf
 
 -- | @pinnedWriteNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
@@ -757,18 +758,18 @@ pinnedWriteNAligned alignSize = fmap unsafeFreeze . MA.pinnedWriteNAligned align
 {-# INLINE_NORMAL writeNUnsafe #-}
 writeNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
-writeNUnsafe n = unsafeFreeze <$> MA.writeNUnsafe n
+writeNUnsafe n = unsafeFreeze <$> MA.unsafeCreateOf n
 
 {-# INLINE_NORMAL pinnedWriteNUnsafe #-}
 pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
-pinnedWriteNUnsafe n = unsafeFreeze <$> MA.pinnedWriteNUnsafe n
+pinnedWriteNUnsafe n = unsafeFreeze <$> MA.unsafePinnedCreateOf n
 
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
 -- writeWith n = FL.rmapM spliceArrays $ toArraysOf n
-writeWith elemCount = unsafeFreeze <$> MA.writeWith elemCount
+writeWith elemCount = unsafeFreeze <$> MA.createWith elemCount
 
 -- | Fold the whole input to a single array.
 --
@@ -781,7 +782,7 @@ write = fmap unsafeFreeze MA.write
 -- | Like 'write' but creates a pinned array.
 {-# INLINE pinnedWrite #-}
 pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
-pinnedWrite = fmap unsafeFreeze MA.pinnedWrite
+pinnedWrite = fmap unsafeFreeze MA.pinnedCreate
 
 -- | Fold "step" has a dependency on "initial", and each step is dependent on
 -- the previous invocation of step due to state passing, finally extract
@@ -957,11 +958,16 @@ MK_EQ_INSTANCE(Char)
 MK_EQ_INSTANCE(Word8)
 MK_EQ_INSTANCE(Word16)
 MK_EQ_INSTANCE(Word32)
+
+-- XXX The Word64 default instance should be as fast because we are comparing
+-- 64-bit at a time.
 MK_EQ_INSTANCE(Word64)
 MK_EQ_INSTANCE(Int)
 MK_EQ_INSTANCE(Int8)
 MK_EQ_INSTANCE(Int16)
 MK_EQ_INSTANCE(Int32)
+
+-- XXX The Int64 default instance should be as fast.
 MK_EQ_INSTANCE(Int64)
 
 -- | If the type allows a byte-by-byte comparison this instance can be
@@ -1051,12 +1057,20 @@ instance Foldable Array where
 instance Unbox a => Semigroup (Array a) where
     arr1 <> arr2 = unsafePerformIO $ splice arr1 arr2
 
+empty ::
+#ifdef DEVBUILD
+    Unbox a =>
+#endif
+    Array a
+empty = Array Unboxed.empty 0 0
+
+{-# DEPRECATED nil "Please use empty instead." #-}
 nil ::
 #ifdef DEVBUILD
     Unbox a =>
 #endif
     Array a
-nil = Array Unboxed.nil 0 0
+nil = empty
 
 instance Unbox a => Monoid (Array a) where
     mempty = nil

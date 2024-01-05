@@ -101,7 +101,7 @@ import qualified Streamly.Internal.Data.Array as A
     ( unsafeFreeze, asPtrUnsafe, byteLength, pinnedChunksOf,
       pinnedWriteN, pinnedWriteNUnsafe, lCompactGE )
 import qualified Streamly.Internal.Data.MutArray as MArray
-    (MutArray(..), asPtrUnsafe, pinnedNewBytes)
+    (MutArray(..), asPtrUnsafe, pinnedEmptyOf)
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
 import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
@@ -252,6 +252,8 @@ accept tcpListenQ spec addr =
 -- Array IO (Input)
 -------------------------------------------------------------------------------
 
+-- XXX add an API that compacts the arrays to an exact size.
+
 {-# INLINABLE readArrayUptoWith #-}
 readArrayUptoWith
     :: (h -> Ptr Word8 -> Int -> IO Int)
@@ -259,7 +261,7 @@ readArrayUptoWith
     -> h
     -> IO (Array Word8)
 readArrayUptoWith f size h = do
-    arr <- MArray.pinnedNewBytes size
+    arr <- MArray.pinnedEmptyOf size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     MArray.asPtrUnsafe arr $ \p -> do
         n <- f h p size

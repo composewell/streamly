@@ -40,22 +40,22 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- ** Casting
     , cast
-    , castUnsafe
+    , castUnsafe -- XXX unsafeCast
     , asBytes
-    , asPtrUnsafe
-    , asUnpinnedPtrUnsafe
+    , asPtrUnsafe -- XXX rename to unsafePinnedAsPtr?
+    , asUnpinnedPtrUnsafe -- XXX rename to unsafeAsPtr
 
     -- ** Construction
-    , nil
+    , empty
 
     -- *** New
     -- | New arrays are always empty arrays with some reserve capacity to
     -- extend the length without reallocating.
-    , new
-    , newArrayWith
-    , pinnedNew
-    , pinnedNewBytes
-    , pinnedNewAligned
+    , emptyOf
+    , newArrayWith -- emptyAlignedWith
+    , pinnedEmptyOf
+    , pinnedNewAligned -- XXX not required
+    -- , new -- uninitialized array of specified length
 
     -- *** Cloning
     , clone
@@ -63,27 +63,25 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- *** Slicing
     -- | Get a subarray without copying
-    , getSliceUnsafe
+    , getSliceUnsafe -- XXX unsafeGetSlice
     , getSlice
     , splitAt -- XXX should be able to express using getSlice
     , breakOn
 
     -- *** Stream Folds
     , ArrayUnsafe (..)
-    , writeNWithUnsafe
-    , writeNWith
-    , writeNUnsafe
-    , pinnedWriteNUnsafe
-    , writeN
-    , pinnedWriteN
-    , pinnedWriteNAligned
+    , unsafeCreateOfWith
+    , unsafeCreateOf
+    , unsafePinnedCreateOf
+    , pinnedCreateOf
+    , createOfWith
+    , createOf
+    , revCreateOf
 
-    , writeWith
-    , write
-    , pinnedWrite
-
-    , writeRevN
-    -- , writeRev
+    , pinnedCreate
+    , createWith
+    , create
+    -- , revCreate
 
     -- *** From containers
     , fromListN
@@ -103,7 +101,7 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- ** Random writes
     , putIndex
-    , putIndexUnsafe
+    , putIndexUnsafe -- XXX unsafePutIndex
     , putIndices
     -- , putFromThenTo
     -- , putFrom -- start writing at the given position
@@ -111,7 +109,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- , putFromTo
     -- , putFromRev
     -- , putUptoRev
-    , modifyIndexUnsafe
+    , modifyIndexUnsafe -- XXX unsafeModifyIndex
     , modifyIndex
     , modifyIndices
     , modify
@@ -122,9 +120,9 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- *** Indexing
     , getIndex
-    , getIndexUnsafe
+    , getIndexUnsafe -- XXX unsafeGetIndex
     -- , getFromThenTo
-    , getIndexRev
+    , getIndexRev -- getRevIndex?
     , indexReader
     , indexReaderWith
 
@@ -195,20 +193,20 @@ module Streamly.Internal.Data.MutArray.Type
     , snoc
     , snocLinear
     , snocMay
-    , snocUnsafe
+    , snocUnsafe -- XXX unsafeSnoc
 
     -- *** Appending streams
-    , writeAppendNUnsafe
-    , writeAppendN
-    , writeAppendWith
-    , writeAppend
+    , unsafeAppendN
+    , appendN
+    , appendWith
+    , append
 
     -- *** Appending arrays
     , spliceCopy
     , spliceWith
     , splice
     , spliceExp
-    , spliceUnsafe
+    , spliceUnsafe -- XXX unsafeSplice
     -- , putSlice
     -- , appendSlice
     -- , appendSliceFrom
@@ -275,6 +273,25 @@ module Streamly.Internal.Data.MutArray.Type
     , getIndicesWith
     , resize
     , resizeExp
+    , nil
+    , new
+    , pinnedNew
+    , pinnedNewBytes
+    , writeAppendNUnsafe
+    , writeAppendN
+    , writeAppendWith
+    , writeAppend
+    , writeNWithUnsafe
+    , writeNWith
+    , writeNUnsafe
+    , pinnedWriteNUnsafe
+    , writeN
+    , pinnedWriteN
+    , pinnedWriteNAligned -- XXX not required
+    , writeWith
+    , write
+    , pinnedWrite
+    , writeRevN
     )
 where
 
@@ -456,6 +473,8 @@ isPinned MutArray{..} = Unboxed.isPinned arrContents
 -- we need more than that.  See stg_pinnedNewAlignedByteArrayzh and
 -- allocatePinned in GHC source.
 
+-- XXX Rename to emptyAlignedWith, alignSize should be first arg.
+
 -- | @newArrayWith allocator alignment count@ allocates a new array of zero
 -- length and with a capacity to hold @count@ elements, using @allocator
 -- size alignment@ as the memory allocator function.
@@ -479,12 +498,25 @@ newArrayWith alloc alignSize count = do
         , arrBound = size
         }
 
+-- For arrays "nil" sounds a bit odd. empty is better. The only problem with
+-- empty is that it is also used by the Alternative type class. But assuming we
+-- will mostly import the Array module qualified this should be fine.
+
+-- | Create an empty array.
+empty ::
+#ifdef DEVBUILD
+    Unbox a =>
+#endif
+    MutArray a
+empty = MutArray Unboxed.empty 0 0 0
+
+{-# DEPRECATED nil "Please use empty instead." #-}
 nil ::
 #ifdef DEVBUILD
     Unbox a =>
 #endif
     MutArray a
-nil = MutArray Unboxed.nil 0 0 0
+nil = empty
 
 {-# INLINE newBytesAs #-}
 newBytesAs :: MonadIO m =>
@@ -507,6 +539,7 @@ newBytesAs ps bytes = do
 --
 -- /Pre-release/
 {-# INLINE pinnedNewBytes #-}
+{-# DEPRECATED pinnedNewBytes "Please use pinnedEmptyOf with appropriate calculation" #-}
 pinnedNewBytes :: MonadIO m =>
 #ifdef DEVBUILD
     Unbox a =>
@@ -531,21 +564,31 @@ newAs ps =
         (error "new: alignment is not used in unpinned arrays.")
 
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
---
--- | Allocates an empty pinned array that can hold 'count' items.  The memory of
--- the array is uninitialized and the allocation is aligned as per the 'Unboxed'
--- instance of the type.
---
+
+-- | Allocates a pinned array of zero length but growable to the specified
+-- capacity without reallocation.
+{-# INLINE pinnedEmptyOf #-}
+pinnedEmptyOf :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
+pinnedEmptyOf = newAs Pinned
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED pinnedNew "Please use pinnedEmptyOf instead." #-}
 {-# INLINE pinnedNew #-}
 pinnedNew :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
-pinnedNew = newAs Pinned
+pinnedNew = pinnedEmptyOf
 
--- | Allocates an empty unpinned array that can hold 'count' items.  The memory
--- of the array is uninitialized.
+-- | Allocates an unpinned array of zero length but growable to the specified
+-- capacity without reallocation.
 --
+{-# INLINE emptyOf #-}
+emptyOf :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
+emptyOf = newAs Unpinned
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED new "Please use emptyOf instead." #-}
 {-# INLINE new #-}
 new :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
-new = newAs Unpinned
+new = emptyOf
 
 -------------------------------------------------------------------------------
 -- Random writes
@@ -890,6 +933,7 @@ grow nElems arr@MutArray{..} = do
     else realloc req arr
 
 {-# DEPRECATED resize "Please use grow instead." #-}
+{-# INLINE resize #-}
 resize :: forall m a. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> m (MutArray a)
 resize = grow
@@ -913,6 +957,7 @@ growExp nElems arr@MutArray{..} = do
     else realloc req1 arr
 
 {-# DEPRECATED resizeExp "Please use growExp instead." #-}
+{-# INLINE resizeExp #-}
 resizeExp :: forall m a. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> m (MutArray a)
 resizeExp = growExp
@@ -1246,6 +1291,7 @@ indexReaderWith liftio (D.Stream stepi sti) = Unfold step inject
             D.Stop -> return D.Stop
 
 {-# DEPRECATED getIndicesWith "Please use indexReaderWith instead." #-}
+{-# INLINE getIndicesWith #-}
 getIndicesWith :: (Monad m, Unbox a) =>
     (forall b. IO b -> m b) -> D.Stream m Int -> Unfold m (MutArray a) a
 getIndicesWith = indexReaderWith
@@ -1261,6 +1307,7 @@ indexReader = indexReaderWith liftIO
 
 -- XXX DO NOT REMOVE, change the signature to use Stream instead of unfold
 {-# DEPRECATED getIndices "Please use indexReader instead." #-}
+{-# INLINE getIndices #-}
 getIndices :: (MonadIO m, Unbox a) => Stream m Int -> Unfold m (MutArray a) a
 getIndices = indexReader
 
@@ -1557,7 +1604,7 @@ chunksOfAs ps n (D.Stream step state) =
 --
 -- Same as the following but may be more efficient:
 --
--- >>> chunksOf n = Stream.foldMany (MutArray.writeN n)
+-- >>> chunksOf n = Stream.foldMany (MutArray.createOf n)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL chunksOf #-}
@@ -1566,14 +1613,14 @@ chunksOf :: forall m a. (MonadIO m, Unbox a)
 -- XXX the idiomatic implementation leads to large regression in the D.reverse'
 -- benchmark. It seems it has difficulty producing optimized code when
 -- converting to StreamK. Investigate GHC optimizations.
--- chunksOf n = D.foldMany (writeN n)
+-- chunksOf n = D.foldMany (createOf n)
 chunksOf = chunksOfAs Unpinned
 
 -- | Like 'chunksOf' but creates pinned arrays.
 {-# INLINE_NORMAL pinnedChunksOf #-}
 pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (MutArray a)
--- pinnedChunksOf n = D.foldMany (pinnedWriteN n)
+-- pinnedChunksOf n = D.foldMany (pinnedCreateOf n)
 pinnedChunksOf = chunksOfAs Pinned
 
 -- | When we are buffering a stream of unknown size into an array we do not
@@ -1636,6 +1683,7 @@ concat (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
 {-# DEPRECATED flattenArrays "Please use \"unfoldMany reader\" instead." #-}
+{-# INLINE flattenArrays #-}
 flattenArrays :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (MutArray a) -> D.Stream m a
 flattenArrays = concat
@@ -1672,6 +1720,7 @@ concatRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Yield x (InnerLoop st contents cur start)
 
 {-# DEPRECATED flattenArraysRev "Please use \"unfoldMany readerRev\" instead." #-}
+{-# INLINE flattenArraysRev #-}
 flattenArraysRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (MutArray a) -> D.Stream m a
 flattenArraysRev = concatRev
@@ -1903,7 +1952,7 @@ foldr f z arr = D.foldr f z $ read arr
 
 -- XXX Keep the bound intact to not lose any free space? Perf impact?
 
--- | @writeAppendNUnsafe n arr@ appends up to @n@ input items to the supplied
+-- | @unsafeAppendN n arr@ appends up to @n@ input items to the supplied
 -- array.
 --
 -- Unsafe: Do not drive the fold beyond @n@ elements, it will lead to memory
@@ -1912,13 +1961,12 @@ foldr f z arr = D.foldr f z $ read arr
 -- Any free space left in the array after appending @n@ elements is lost.
 --
 -- /Internal/
-{-# INLINE_NORMAL writeAppendNUnsafe #-}
-writeAppendNUnsafe :: forall m a. (MonadIO m, Unbox a) =>
+{-# INLINE_NORMAL unsafeAppendN #-}
+unsafeAppendN :: forall m a. (MonadIO m, Unbox a) =>
        Int
     -> m (MutArray a)
     -> Fold m a (MutArray a)
-writeAppendNUnsafe n action =
-    fmap fromArrayUnsafe $ FL.foldlM' step initial
+unsafeAppendN n action = fmap fromArrayUnsafe $ FL.foldlM' step initial
 
     where
 
@@ -1931,7 +1979,7 @@ writeAppendNUnsafe n action =
         -- otherwise we lose that space.
         arr1 <-
             if free < needed
-            then noinline reallocWith "writeAppendNUnsafeWith" (+ needed) needed arr
+            then noinline reallocWith "unsafeAppendN" (+ needed) needed arr
             else return arr
         return $ toArrayUnsafe arr1
 
@@ -1939,30 +1987,51 @@ writeAppendNUnsafe n action =
         liftIO $ pokeAt end contents x
         return $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
+{-# DEPRECATED writeAppendNUnsafe "Please use unsafeAppendN instead." #-}
+{-# INLINE writeAppendNUnsafe #-}
+writeAppendNUnsafe :: forall m a. (MonadIO m, Unbox a) =>
+       Int
+    -> m (MutArray a)
+    -> Fold m a (MutArray a)
+writeAppendNUnsafe = unsafeAppendN
+
 -- | Append @n@ elements to an existing array. Any free space left in the array
 -- after appending @n@ elements is lost.
 --
--- >>> writeAppendN n initial = Fold.take n (MutArray.writeAppendNUnsafe n initial)
+-- >>> appendN n initial = Fold.take n (MutArray.unsafeAppendN n initial)
 --
-{-# INLINE_NORMAL writeAppendN #-}
+{-# INLINE_NORMAL appendN #-}
+appendN :: forall m a. (MonadIO m, Unbox a) =>
+    Int -> m (MutArray a) -> Fold m a (MutArray a)
+appendN n initial = FL.take n (unsafeAppendN n initial)
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED writeAppendN "Please use appendN instead." #-}
+{-# INLINE writeAppendN #-}
 writeAppendN :: forall m a. (MonadIO m, Unbox a) =>
     Int -> m (MutArray a) -> Fold m a (MutArray a)
-writeAppendN n initial = FL.take n (writeAppendNUnsafe n initial)
+writeAppendN = appendN
 
--- | @writeAppendWith realloc action@ mutates the array generated by @action@ to
+-- | @appendWith realloc action@ mutates the array generated by @action@ to
 -- append the input stream. If there is no reserved space available in the
 -- array it is reallocated to a size in bytes  determined by @realloc oldSize@,
 -- where @oldSize@ is the current size of the array in bytes.
 --
 -- Note that the returned array may be a mutated version of original array.
 --
--- >>> writeAppendWith sizer = Fold.foldlM' (MutArray.snocWith sizer)
+-- >>> appendWith sizer = Fold.foldlM' (MutArray.snocWith sizer)
 --
 -- /Pre-release/
+{-# INLINE appendWith #-}
+appendWith :: forall m a. (MonadIO m, Unbox a) =>
+    (Int -> Int) -> m (MutArray a) -> Fold m a (MutArray a)
+appendWith sizer = FL.foldlM' (snocWith sizer)
+
+{-# DEPRECATED writeAppendWith "Please use appendWith instead." #-}
 {-# INLINE writeAppendWith #-}
 writeAppendWith :: forall m a. (MonadIO m, Unbox a) =>
     (Int -> Int) -> m (MutArray a) -> Fold m a (MutArray a)
-writeAppendWith sizer = FL.foldlM' (snocWith sizer)
+writeAppendWith = appendWith
 
 -- | @append action@ mutates the array generated by @action@ to append the
 -- input stream. If there is no reserved space available in the array it is
@@ -1970,26 +2039,33 @@ writeAppendWith sizer = FL.foldlM' (snocWith sizer)
 --
 -- Note that the returned array may be a mutated version of original array.
 --
--- >>> writeAppend = MutArray.writeAppendWith (* 2)
+-- >>> append = MutArray.appendWith (* 2)
 --
+{-# INLINE append #-}
+append :: forall m a. (MonadIO m, Unbox a) =>
+    m (MutArray a) -> Fold m a (MutArray a)
+append = appendWith (* 2)
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED writeAppend "Please use append instead." #-}
 {-# INLINE writeAppend #-}
 writeAppend :: forall m a. (MonadIO m, Unbox a) =>
     m (MutArray a) -> Fold m a (MutArray a)
-writeAppend = writeAppendWith (* 2)
+writeAppend = append
 
 -- XXX We can carry bound as well in the state to make sure we do not lose the
 -- remaining capacity. Need to check perf impact.
 --
--- | Like 'writeNUnsafe' but takes a new array allocator @alloc size@ function
--- as argument.
+-- | Like 'unsafeCreateOf' but takes a new array allocator @alloc size@
+-- function as argument.
 --
--- >>> writeNWithUnsafe alloc n = MutArray.writeAppendNUnsafe (alloc n) n
+-- >>> unsafeCreateOfWith alloc n = MutArray.unsafeAppendN (alloc n) n
 --
 -- /Pre-release/
-{-# INLINE_NORMAL writeNWithUnsafe #-}
-writeNWithUnsafe :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL unsafeCreateOfWith #-}
+unsafeCreateOfWith :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
-writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
+unsafeCreateOfWith alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 
     where
 
@@ -2000,40 +2076,64 @@ writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
         return
           $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
+{-# DEPRECATED writeNWithUnsafe "Please use unsafeCreateOfWith instead." #-}
+{-# INLINE writeNWithUnsafe #-}
+writeNWithUnsafe :: forall m a. (MonadIO m, Unbox a)
+    => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
+writeNWithUnsafe = unsafeCreateOfWith
+
 {-# INLINE_NORMAL writeNUnsafeAs #-}
 writeNUnsafeAs :: forall m a. (MonadIO m, Unbox a)
     => PinnedState -> Int -> Fold m a (MutArray a)
-writeNUnsafeAs ps = writeNWithUnsafe (newAs ps)
+writeNUnsafeAs ps = unsafeCreateOfWith (newAs ps)
 
--- | Like 'writeN' but does not check the array bounds when writing. The fold
+-- | Like 'createOf' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
 -- corrupt the memory and crash. This function exists mainly because any
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
--- >>> writeNUnsafe = MutArray.writeNWithUnsafe MutArray.new
+-- >>> unsafeCreateOf = MutArray.unsafeCreateOfWith MutArray.emptyOf
 --
-{-# INLINE_NORMAL writeNUnsafe #-}
+{-# INLINE_NORMAL unsafeCreateOf #-}
+unsafeCreateOf :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Fold m a (MutArray a)
+unsafeCreateOf = writeNUnsafeAs Unpinned
+
+{-# DEPRECATED writeNUnsafe "Please use unsafeCreateOf instead." #-}
+{-# INLINE writeNUnsafe #-}
 writeNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
-writeNUnsafe = writeNUnsafeAs Unpinned
+writeNUnsafe = unsafeCreateOf
 
--- | Like 'writeNUnsafe' but creates a pinned array.
-{-# INLINE_NORMAL pinnedWriteNUnsafe #-}
+-- | Like 'unsafeCreateOf' but creates a pinned array.
+{-# INLINE_NORMAL unsafePinnedCreateOf #-}
+unsafePinnedCreateOf :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Fold m a (MutArray a)
+unsafePinnedCreateOf = writeNUnsafeAs Pinned
+
+{-# DEPRECATED pinnedWriteNUnsafe "Please use unsafePinnedCreateOf instead." #-}
+{-# INLINE pinnedWriteNUnsafe #-}
 pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
-pinnedWriteNUnsafe = writeNUnsafeAs Pinned
+pinnedWriteNUnsafe = unsafePinnedCreateOf
 
--- | @writeNWith alloc n@ folds a maximum of @n@ elements into an array
+-- | @createOfWith alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
 --
--- >>> writeNWith alloc n = Fold.take n (MutArray.writeNWithUnsafe alloc n)
--- >>> writeNWith alloc n = MutArray.writeAppendN (alloc n) n
+-- >>> createOfWith alloc n = Fold.take n (MutArray.unsafeCreateOfWith alloc n)
+-- >>> createOfWith alloc n = MutArray.appendN (alloc n) n
 --
-{-# INLINE_NORMAL writeNWith #-}
+{-# INLINE_NORMAL createOfWith #-}
+createOfWith :: forall m a. (MonadIO m, Unbox a)
+    => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
+createOfWith alloc n = FL.take n (unsafeCreateOfWith alloc n)
+
+-- {-# DEPRECATED writeNWith "Please use createOfWith instead." #-}
+{-# INLINE writeNWith #-}
 writeNWith :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
-writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
+writeNWith = createOfWith
 
 {-# INLINE_NORMAL writeNAs #-}
 writeNAs ::
@@ -2041,28 +2141,42 @@ writeNAs ::
     => PinnedState
     -> Int
     -> Fold m a (MutArray a)
-writeNAs ps = writeNWith (newAs ps)
+writeNAs ps = createOfWith (newAs ps)
 
--- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
+-- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'MutArray'.
 --
--- >>> writeN = MutArray.writeNWith MutArray.new
--- >>> writeN n = Fold.take n (MutArray.writeNUnsafe n)
--- >>> writeN n = MutArray.writeAppendN n (MutArray.new n)
+-- >>> createOf = MutArray.createOfWith MutArray.new
+-- >>> createOf n = Fold.take n (MutArray.unsafeCreateOf n)
+-- >>> createOf n = MutArray.appendN n (MutArray.emptyOf n)
 --
-{-# INLINE_NORMAL writeN #-}
-writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
-writeN = writeNAs Unpinned
+{-# INLINE_NORMAL createOf #-}
+createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+createOf = writeNAs Unpinned
 
--- | Like 'writeN' but creates a pinned array.
-{-# INLINE_NORMAL pinnedWriteN #-}
+-- XXX Deprecate in major
+-- {-# DEPRECATED writeN "Please use createOf instead." #-}
+{-# INLINE writeN #-}
+writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+writeN = createOf
+
+-- | Like 'createOf' but creates a pinned array.
+{-# INLINE_NORMAL pinnedCreateOf #-}
+pinnedCreateOf ::
+       forall m a. (MonadIO m, Unbox a)
+    => Int
+    -> Fold m a (MutArray a)
+pinnedCreateOf = writeNAs Pinned
+
+{-# DEPRECATED pinnedWriteN "Please use pinnedCreateOf instead." #-}
+{-# INLINE pinnedWriteN #-}
 pinnedWriteN ::
        forall m a. (MonadIO m, Unbox a)
     => Int
     -> Fold m a (MutArray a)
-pinnedWriteN = writeNAs Pinned
+pinnedWriteN = pinnedCreateOf
 
--- | Like writeNWithUnsafe but writes the array in reverse order.
+-- | Like unsafeCreateOfWith but writes the array in reverse order.
 --
 -- /Internal/
 {-# INLINE_NORMAL writeRevNWithUnsafe #-}
@@ -2083,7 +2197,7 @@ writeRevNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
         return
           $ ArrayUnsafe contents ptr end
 
--- | Like writeNWith but writes the array in reverse order.
+-- | Like createOfWith but writes the array in reverse order.
 --
 -- /Internal/
 {-# INLINE_NORMAL writeRevNWith #-}
@@ -2091,31 +2205,36 @@ writeRevNWith :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
 writeRevNWith alloc n = FL.take n (writeRevNWithUnsafe alloc n)
 
--- | Like writeN but writes the array in reverse order.
+-- | Like 'createOf' but writes the array in reverse order.
 --
 -- /Pre-release/
-{-# INLINE_NORMAL writeRevN #-}
+{-# INLINE_NORMAL revCreateOf #-}
+revCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+revCreateOf = writeRevNWith new
+
+{-# DEPRECATED writeRevN "Please use revCreateOf instead." #-}
+{-# INLINE writeRevN #-}
 writeRevN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
-writeRevN = writeRevNWith new
+writeRevN = revCreateOf
 
 -- | @pinnedWriteNAligned align n@ folds a maximum of @n@ elements from the
 -- input stream to a 'MutArray' aligned to the given size.
 --
--- >>> pinnedWriteNAligned align = MutArray.writeNWith (MutArray.pinnedNewAligned align)
--- >>> pinnedWriteNAligned align n = MutArray.writeAppendN n (MutArray.pinnedNewAligned align n)
+-- >>> pinnedWriteNAligned align = MutArray.createOfWith (MutArray.pinnedNewAligned align)
+-- >>> pinnedWriteNAligned align n = MutArray.appendN n (MutArray.pinnedNewAligned align n)
 --
 -- /Pre-release/
 --
 {-# INLINE_NORMAL pinnedWriteNAligned #-}
 pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a)
     => Int -> Int -> Fold m a (MutArray a)
-pinnedWriteNAligned align = writeNWith (pinnedNewAligned align)
+pinnedWriteNAligned align = createOfWith (pinnedNewAligned align)
 
 -- XXX Buffer to a list instead?
 
 -- | Buffer a stream into a stream of arrays.
 --
--- >>> buildChunks n = Fold.many (MutArray.writeN n) Fold.toStreamK
+-- >>> buildChunks n = Fold.many (MutArray.createOf n) Fold.toStreamK
 --
 -- Breaking an array into an array stream  can be useful to consume a large
 -- array sequentially such that memory of the array is released incrementatlly.
@@ -2127,9 +2246,10 @@ pinnedWriteNAligned align = writeNWith (pinnedNewAligned align)
 {-# INLINE_NORMAL buildChunks #-}
 buildChunks :: (MonadIO m, Unbox a) =>
     Int -> Fold m a (StreamK n (MutArray a))
-buildChunks n = FL.many (writeN n) FL.toStreamK
+buildChunks n = FL.many (createOf n) FL.toStreamK
 
 {-# DEPRECATED writeChunks "Please use buildChunks instead." #-}
+{-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, Unbox a) =>
     Int -> Fold m a (StreamK n (MutArray a))
 writeChunks = buildChunks
@@ -2137,14 +2257,14 @@ writeChunks = buildChunks
 {-# INLINE_NORMAL writeWithAs #-}
 writeWithAs :: forall m a. (MonadIO m, Unbox a)
     => PinnedState -> Int -> Fold m a (MutArray a)
--- writeWithAs ps n = FL.rmapM rightSize $ writeAppendWith (* 2) (newAs ps n)
+-- writeWithAs ps n = FL.rmapM rightSize $ appendWith (* 2) (newAs ps n)
 writeWithAs ps elemCount =
     FL.rmapM extract $ FL.foldlM' step initial
 
     where
 
     initial = do
-        when (elemCount < 0) $ error "writeWith: elemCount is negative"
+        when (elemCount < 0) $ error "createWith: elemCount is negative"
         newAs ps elemCount
 
     step arr@(MutArray _ start end bound) x
@@ -2157,9 +2277,9 @@ writeWithAs ps elemCount =
 
     extract = liftIO . rightSize
 
--- XXX Compare writeWith with fromStreamD which uses an array of streams
+-- XXX Compare createWith with fromStreamD which uses an array of streams
 -- implementation. We can write this using buildChunks above if that is faster.
--- If writeWith is faster then we should use that to implement
+-- If createWith is faster then we should use that to implement
 -- fromStreamD.
 --
 -- XXX The realloc based implementation needs to make one extra copy if we use
@@ -2174,39 +2294,56 @@ writeWithAs ps elemCount =
 -- XXX check if GHC's memory allocator is efficient enough. We can try the C
 -- malloc to compare against.
 
--- | @writeWith minCount@ folds the whole input to a single array. The array
+-- | @createWith minCount@ folds the whole input to a single array. The array
 -- starts at a size big enough to hold minCount elements, the size is doubled
 -- every time the array needs to be grown.
 --
 -- /Caution! Do not use this on infinite streams./
 --
--- >>> f n = MutArray.writeAppendWith (* 2) (MutArray.new n)
--- >>> writeWith n = Fold.rmapM MutArray.rightSize (f n)
--- >>> writeWith n = Fold.rmapM MutArray.fromChunksK (MutArray.buildChunks n)
+-- >>> f n = MutArray.appendWith (* 2) (MutArray.emptyOf n)
+-- >>> createWith n = Fold.rmapM MutArray.rightSize (f n)
+-- >>> createWith n = Fold.rmapM MutArray.fromChunksK (MutArray.buildChunks n)
 --
 -- /Pre-release/
-{-# INLINE_NORMAL writeWith #-}
+{-# INLINE_NORMAL createWith #-}
+createWith :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Fold m a (MutArray a)
+-- createWith n = FL.rmapM rightSize $ appendWith (* 2) (emptyOf n)
+createWith = writeWithAs Unpinned
+
+{-# DEPRECATED writeWith "Please use createWith instead." #-}
+{-# INLINE writeWith #-}
 writeWith :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
--- writeWith n = FL.rmapM rightSize $ writeAppendWith (* 2) (new n)
-writeWith = writeWithAs Unpinned
+writeWith = createWith
 
 -- | Fold the whole input to a single array.
 --
--- Same as 'writeWith' using an initial array size of 'arrayChunkBytes' bytes
+-- Same as 'createWith' using an initial array size of 'arrayChunkBytes' bytes
 -- rounded up to the element size.
 --
 -- /Caution! Do not use this on infinite streams./
 --
+{-# INLINE create #-}
+create :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
+create = createWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED write "Please use create instead." #-}
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
-write = writeWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
+write = create
 
--- | Like 'write' but creates a pinned array.
+-- | Like 'create' but creates a pinned array.
+{-# INLINE pinnedCreate #-}
+pinnedCreate :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
+pinnedCreate =
+    writeWithAs Pinned (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
+
+{-# DEPRECATED pinnedWrite "Please use pinnedCreate instead." #-}
 {-# INLINE pinnedWrite #-}
 pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
-pinnedWrite =
-    writeWithAs Pinned (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
+pinnedWrite = pinnedCreate
 
 -------------------------------------------------------------------------------
 -- construct from streams, known size
@@ -2226,17 +2363,18 @@ fromStreamDNAs ps limit str = do
         liftIO $ pokeAt ptr arrContents  x
         return $ INDEX_NEXT(ptr,a)
 
--- | Use the 'writeN' fold instead.
+-- | Use the 'createOf' fold instead.
 --
--- >>> fromStreamN n = Stream.fold (MutArray.writeN n)
+-- >>> fromStreamN n = Stream.fold (MutArray.createOf n)
 --
 {-# INLINE_NORMAL fromStreamN #-}
 fromStreamN :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> m (MutArray a)
--- fromStreamDN n = D.fold (writeN n)
+-- fromStreamDN n = D.fold (createOf n)
 fromStreamN = fromStreamDNAs Unpinned
 
 {-# DEPRECATED fromStreamDN "Please use fromStreamN instead." #-}
+{-# INLINE fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> m (MutArray a)
 fromStreamDN = fromStreamN
@@ -2259,20 +2397,20 @@ pinnedFromListN n xs = fromStreamDNAs Pinned n $ D.fromList xs
 -- /Pre-release/
 {-# INLINE fromListRevN #-}
 fromListRevN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
-fromListRevN n xs = D.fold (writeRevN n) $ D.fromList xs
+fromListRevN n xs = D.fold (revCreateOf n) $ D.fromList xs
 
 -- | Convert a pure stream in Identity monad to a mutable array.
 {-# INLINABLE fromPureStreamN #-}
 fromPureStreamN :: (MonadIO m, Unbox a) =>
     Int -> Stream Identity a -> m (MutArray a)
 fromPureStreamN n xs =
-    D.fold (writeN n) $ D.morphInner (return . runIdentity) xs
+    D.fold (createOf n) $ D.morphInner (return . runIdentity) xs
 
 -- | Convert a pure stream in Identity monad to a mutable array.
 {-# INLINABLE fromPureStream #-}
 fromPureStream :: (MonadIO m, Unbox a) => Stream Identity a -> m (MutArray a)
 fromPureStream xs =
-    D.fold write $ D.morphInner (return . runIdentity) xs
+    D.fold create $ D.morphInner (return . runIdentity) xs
 
 {-# INLINABLE fromPtrN #-}
 fromPtrN :: MonadIO m => Int -> Ptr Word8 -> m (MutArray Word8)
@@ -2356,6 +2494,7 @@ fromChunksK :: (Unbox a, MonadIO m) =>
 fromChunksK = fromChunkskAs Unpinned
 
 {-# DEPRECATED fromArrayStreamK "Please use fromChunksK instead." #-}
+{-# INLINE fromArrayStreamK #-}
 fromArrayStreamK :: (Unbox a, MonadIO m) =>
     StreamK m (MutArray a) -> m (MutArray a)
 fromArrayStreamK = fromChunksK
@@ -2367,7 +2506,7 @@ fromStreamDAs ps m =
     arrayStreamKFromStreamDAs Unpinned m >>= fromChunkskAs ps
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
--- single array from a stream of unknown size. 'writeN' is at least twice
+-- single array from a stream of unknown size. 'createOf' is at least twice
 -- as efficient when the size is already known.
 --
 -- Note that if the input stream is too large memory allocation for the array
@@ -2379,19 +2518,19 @@ fromStreamDAs ps m =
 fromStream :: (MonadIO m, Unbox a) => Stream m a -> m (MutArray a)
 fromStream = fromStreamDAs Unpinned
 
--- fromStream (Stream m) = P.fold write m
+-- fromStream (Stream m) = P.fold create m
 -- CAUTION: a very large number (millions) of arrays can degrade performance
 -- due to GC overhead because we need to buffer the arrays before we flatten
 -- all the arrays.
 --
--- XXX Compare if this is faster or "fold write".
+-- XXX Compare if this is faster or "fold create".
 --
 -- | We could take the approach of doubling the memory allocation on each
 -- overflow. This would result in more or less the same amount of copying as in
 -- the chunking approach. However, if we have to shrink in the end then it may
 -- result in an extra copy of the entire data.
 --
--- >>> fromStreamD = StreamD.fold MutArray.write
+-- >>> fromStreamD = StreamD.fold MutArray.create
 --
 {-# INLINE fromStreamD #-}
 {-# DEPRECATED fromStreamD "Please use fromStream instead." #-}
@@ -2420,6 +2559,10 @@ fromListRev xs = fromListRevN (Prelude.length xs) xs
 -------------------------------------------------------------------------------
 -- Cloning
 -------------------------------------------------------------------------------
+
+-- Arrays are aligned on 64-bit boundaries. The fastest way to copy an array is
+-- to unsafeCast it to Word64, read it, write it to Word64 array and unsafeCast
+-- it again. We can use SIMD read/write as well.
 
 {-# INLINE cloneAs #-}
 cloneAs ::
@@ -2512,7 +2655,7 @@ spliceWith :: forall m a. (MonadIO m, Unbox a) =>
     (Int -> Int -> Int) -> MutArray a -> MutArray a -> m (MutArray a)
 spliceWith sizer dst@(MutArray _ start end bound) src = do
 {-
-    let f = writeAppendWith (`sizer` byteLength src) (return dst)
+    let f = appendWith (`sizer` byteLength src) (return dst)
      in D.fold f (toStreamD src)
 -}
     assert (end <= bound) (return ())
@@ -2687,9 +2830,13 @@ cast arr =
 -- guarantees that unsafe calls will be performed in the calling thread. Making
 -- it safe to pass heap-allocated objects to unsafe functions.
 
--- Should we just name it asPtr, the unsafety is implicit for any pointer
+-- XXX Should we just name it asPtr, the unsafety is implicit for any pointer
 -- operations. And we are safe from Haskell perspective because we will be
 -- pinning the memory.
+--
+-- XXX we cannot pass the length of the ptr here as in some cases it may not be
+-- available e.g. a null terminated C string. However, we can create another
+-- flavor of the API e.g. asPtrN.
 
 -- | Use a @MutArray a@ as @Ptr a@. This is useful when we want to pass an
 -- array as a pointer to some operating system call or to a "safe" FFI call.

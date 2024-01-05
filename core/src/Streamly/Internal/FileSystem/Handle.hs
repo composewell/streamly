@@ -167,6 +167,8 @@ import qualified Streamly.Internal.Data.StreamK.Type as K (mkStream)
 -- Array IO (Input)
 -------------------------------------------------------------------------------
 
+-- XXX add an API that compacts the arrays to an exact size.
+
 -- | Read a 'ByteArray' consisting of one or more bytes from a file handle. If
 -- no data is available on the handle it blocks until at least one byte becomes
 -- available. If any data is available then it immediately returns that data
@@ -176,7 +178,7 @@ import qualified Streamly.Internal.Data.StreamK.Type as K (mkStream)
 {-# INLINABLE getChunk #-}
 getChunk :: MonadIO m => Int -> Handle -> m (Array Word8)
 getChunk size h = liftIO $ do
-    arr <- MArray.pinnedNewBytes size
+    arr :: MArray.MutArray Word8 <- MArray.pinnedEmptyOf size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     MArray.asPtrUnsafe arr $ \p -> do
         n <- hGetBufSome h p size

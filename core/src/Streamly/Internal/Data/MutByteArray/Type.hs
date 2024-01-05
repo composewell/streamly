@@ -13,7 +13,7 @@ module Streamly.Internal.Data.MutByteArray.Type
     -- ** MutByteArray
       MutByteArray(..)
     , MutableByteArray
-    , getMutableByteArray#
+    , getMutableByteArray# -- XXX getMutByteArray#
 
     -- ** Pinning
     , PinnedState(..)
@@ -22,20 +22,23 @@ module Streamly.Internal.Data.MutByteArray.Type
     , unpin
 
     -- ** Allocation
-    , nil
-    , newBytesAs
+    , empty
+    , newBytesAs -- XXX should be removed
     , new
     , pinnedNew
-    , pinnedNewAlignedBytes
+    , pinnedNewAlignedBytes -- XXX should be removed
 
     -- ** Access
-    , sizeOfMutableByteArray
+    , sizeOfMutableByteArray -- XXX length
     , putSliceUnsafe
     , cloneSliceUnsafeAs
     , cloneSliceUnsafe
     , pinnedCloneSliceUnsafe
-    , asPtrUnsafe
-    , asUnpinnedPtrUnsafe
+    , asPtrUnsafe -- XXX unsafePinnedAsPtr
+    , asUnpinnedPtrUnsafe -- XXX unsafeAsPtr
+
+    -- ** Deprecated
+    , nil
     ) where
 
 import Control.Monad.IO.Class (MonadIO(..))
@@ -138,9 +141,13 @@ asUnpinnedPtrUnsafe arr f = do
 -- Creation
 --------------------------------------------------------------------------------
 
-{-# NOINLINE nil #-}
+{-# NOINLINE empty #-}
+empty :: MutByteArray
+empty = unsafePerformIO $ new 0
+
+{-# DEPRECATED nil "Please use empty instead" #-}
 nil :: MutByteArray
-nil = unsafePerformIO $ new 0
+nil = empty
 
 -- XXX add "newRounded" to round up the large size to the next page boundary
 -- and return the allocated size.
@@ -157,7 +164,7 @@ new (I# nbytes) = IO $ \s ->
 {-# INLINE pinnedNew #-}
 pinnedNew :: Int -> IO MutByteArray
 pinnedNew nbytes | nbytes < 0 =
-  errorWithoutStackTrace "pinnedNewByteArray: size must be >= 0"
+  errorWithoutStackTrace "pinnedNew: size must be >= 0"
 pinnedNew (I# nbytes) = IO $ \s ->
     case newPinnedByteArray# nbytes s of
         (# s', mbarr# #) ->
