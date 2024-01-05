@@ -336,10 +336,6 @@ readerWith = UF.many A.reader chunkReaderWith
 readWithBufferOf :: MonadIO m => Unfold m (Int, Handle) Word8
 readWithBufferOf = readerWith
 
-{-# INLINE concatChunks #-}
-concatChunks :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
-concatChunks = S.unfoldMany A.reader
-
 -- | @readWith bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.
 --
@@ -348,7 +344,7 @@ concatChunks = S.unfoldMany A.reader
 -- /Pre-release/
 {-# INLINE readWith #-}
 readWith :: MonadIO m => Int -> Handle -> Stream m Word8
-readWith size h = concatChunks $ readChunksWith size h
+readWith size h = A.concat $ readChunksWith size h
 
 -- | Unfolds a file handle into a byte stream. IO requests to the device are
 -- performed in sizes of
@@ -367,7 +363,7 @@ reader = UF.many A.reader chunkReader
 -- /Pre-release/
 {-# INLINE read #-}
 read :: MonadIO m => Handle -> Stream m Word8
-read = concatChunks . readChunks
+read = A.concat . readChunks
 
 -------------------------------------------------------------------------------
 -- Writing

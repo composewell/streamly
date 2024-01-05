@@ -106,12 +106,11 @@ import Streamly.Data.Fold (groupsOf, drain)
 import Streamly.Internal.Data.Array.Type (Array(..), pinnedWriteNUnsafe)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
-import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
-import qualified Streamly.Data.Array as A
+import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array.Type as IA (pinnedChunksOf)
@@ -339,10 +338,6 @@ readWithBufferOf = readerWith
 reader :: (MonadIO m, MonadCatch m) => Unfold m FilePath Word8
 reader = UF.many A.reader (usingFile FH.chunkReader)
 
-{-# INLINE concatChunks #-}
-concatChunks :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
-concatChunks = S.unfoldMany A.reader
-
 -- | Generate a stream of bytes from a file specified by path. The stream ends
 -- when EOF is encountered. File is locked using multiple reader and single
 -- writer locking mode.
@@ -351,7 +346,7 @@ concatChunks = S.unfoldMany A.reader
 --
 {-# INLINE read #-}
 read :: (MonadIO m, MonadCatch m) => FilePath -> Stream m Word8
-read file = concatChunks $ withFile file ReadMode FH.readChunks
+read file = A.concat $ withFile file ReadMode FH.readChunks
 
 {-# DEPRECATED toBytes "Please use 'read' instead"  #-}
 {-# INLINE toBytes #-}
