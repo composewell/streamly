@@ -229,7 +229,7 @@ main =
             prop "read . write === id" testFoldUnfold
             prop "fromList" testFromList
             prop "foldMany with writeNUnsafe concats to original"
-                (foldManyWith (\n -> Fold.take n (A.writeNUnsafe n)))
+                (foldManyWith (\n -> Fold.take n (A.unsafeCreateOf n)))
         describe "unsafeSlice" $ do
             it "partial" $ unsafeSlice 2 4 [1..10]
             it "none" $ unsafeSlice 10 0 [1..10]

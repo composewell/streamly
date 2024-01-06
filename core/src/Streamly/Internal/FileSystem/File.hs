@@ -103,7 +103,7 @@ import qualified Control.Monad.Catch as MC
 import qualified System.IO as SIO
 
 import Streamly.Data.Fold (groupsOf, drain)
-import Streamly.Internal.Data.Array.Type (Array(..), pinnedWriteNUnsafe)
+import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -462,7 +462,7 @@ writeChunks path = Fold step initial extract final
 writeWith :: (MonadIO m, MonadCatch m)
     => Int -> FilePath -> Fold m Word8 ()
 writeWith n path =
-    groupsOf n (pinnedWriteNUnsafe n) (writeChunks path)
+    groupsOf n (A.unsafePinnedCreateOf n) (writeChunks path)
 
 {-# DEPRECATED writeWithBufferOf "Please use 'writeWith' instead"  #-}
 {-# INLINE writeWithBufferOf #-}

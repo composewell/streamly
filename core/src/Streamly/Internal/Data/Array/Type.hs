@@ -45,15 +45,13 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Stream Folds
     , unsafeMakePure
-    , writeWith
-    , writeN
-    , pinnedWriteN
-    , writeNUnsafe
-    , pinnedWriteNUnsafe
-    -- , MA.ArrayUnsafe (..)
-    , pinnedWriteNAligned
-    , write
-    , pinnedWrite
+    , createOf
+    , pinnedCreateOf
+    , unsafeCreateOf
+    , unsafePinnedCreateOf
+    , create
+    , pinnedCreate
+    , createWith
 
     -- *** From containers
     , fromListN
@@ -75,8 +73,8 @@ module Streamly.Internal.Data.Array.Type
     -- ** Reading
 
     -- *** Indexing
-    , unsafeIndexIO -- XXX rename to getIndexUnsafeIO
-    , getIndexUnsafe
+    , unsafeIndexIO -- XXX unsafeGetIndexIO
+    , getIndexUnsafe -- XXX unsafeGetIndex
 
     -- *** To Streams
     , read
@@ -143,6 +141,14 @@ module Streamly.Internal.Data.Array.Type
     , toStream
     , toStreamRev
     , nil
+    , writeWith
+    , writeN
+    , pinnedWriteN
+    , writeNUnsafe
+    , pinnedWriteNUnsafe
+    , pinnedWriteNAligned
+    , write
+    , pinnedWrite
     )
 where
 
@@ -745,17 +751,28 @@ toList s = build (\c n -> toListFB c n s)
 -- Folds
 -------------------------------------------------------------------------------
 
--- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
+-- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
-{-# INLINE_NORMAL writeN #-}
-writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
-writeN = fmap unsafeFreeze . MA.writeN
+{-# INLINE_NORMAL createOf #-}
+createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+createOf = fmap unsafeFreeze . MA.createOf
 
--- | Like 'fromListN' but creates a pinned array.
-{-# INLINE_NORMAL pinnedWriteN #-}
+-- XXX Deprecate in major
+-- {-# DEPRECATED writeN  "Please use createOf instead." #-}
+{-# INLINE writeN #-}
+writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+writeN = createOf
+
+-- | Like 'createOf' but creates a pinned array.
+{-# INLINE_NORMAL pinnedCreateOf #-}
+pinnedCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+pinnedCreateOf = fmap unsafeFreeze . MA.pinnedCreateOf
+
+{-# DEPRECATED pinnedWriteN  "Please use pinnedCreateOf instead." #-}
+{-# INLINE pinnedWriteN #-}
 pinnedWriteN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
-pinnedWriteN = fmap unsafeFreeze . MA.pinnedCreateOf
+pinnedWriteN = pinnedCreateOf
 
 -- | @pinnedWriteNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
@@ -763,44 +780,74 @@ pinnedWriteN = fmap unsafeFreeze . MA.pinnedCreateOf
 -- /Pre-release/
 --
 {-# INLINE_NORMAL pinnedWriteNAligned #-}
+{-# DEPRECATED pinnedWriteNAligned  "To be removed." #-}
 pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a)
     => Int -> Int -> Fold m a (Array a)
 pinnedWriteNAligned alignSize = fmap unsafeFreeze . MA.pinnedWriteNAligned alignSize
 
--- | Like 'writeN' but does not check the array bounds when writing. The fold
+-- | Like 'createOf' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
 -- corrupt the memory and crash. This function exists mainly because any
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
-{-# INLINE_NORMAL writeNUnsafe #-}
+{-# INLINE_NORMAL unsafeCreateOf #-}
+unsafeCreateOf :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Fold m a (Array a)
+unsafeCreateOf n = unsafeFreeze <$> MA.unsafeCreateOf n
+
+{-# DEPRECATED writeNUnsafe  "Please use unsafeCreateOf instead." #-}
+{-# INLINE writeNUnsafe #-}
 writeNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
-writeNUnsafe n = unsafeFreeze <$> MA.unsafeCreateOf n
+writeNUnsafe = unsafeCreateOf
 
-{-# INLINE_NORMAL pinnedWriteNUnsafe #-}
+{-# INLINE_NORMAL unsafePinnedCreateOf #-}
+unsafePinnedCreateOf :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Fold m a (Array a)
+unsafePinnedCreateOf n = unsafeFreeze <$> MA.unsafePinnedCreateOf n
+
+{-# DEPRECATED pinnedWriteNUnsafe  "Please use unsafePinnedCreateOf instead." #-}
+{-# INLINE pinnedWriteNUnsafe #-}
 pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
-pinnedWriteNUnsafe n = unsafeFreeze <$> MA.unsafePinnedCreateOf n
+pinnedWriteNUnsafe = unsafePinnedCreateOf
 
-{-# INLINE_NORMAL writeWith #-}
+{-# INLINE_NORMAL createWith #-}
+createWith :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Fold m a (Array a)
+-- createWith n = FL.rmapM spliceArrays $ toArraysOf n
+createWith elemCount = unsafeFreeze <$> MA.createWith elemCount
+
+{-# DEPRECATED writeWith "Please use createWith instead." #-}
+{-# INLINE writeWith #-}
 writeWith :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
--- writeWith n = FL.rmapM spliceArrays $ toArraysOf n
-writeWith elemCount = unsafeFreeze <$> MA.createWith elemCount
+writeWith = createWith
 
 -- | Fold the whole input to a single array.
 --
 -- /Caution! Do not use this on infinite streams./
 --
+{-# INLINE create #-}
+create :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
+create = fmap unsafeFreeze MA.create
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED write  "Please use create instead." #-}
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
-write = fmap unsafeFreeze MA.write
+write = create
 
--- | Like 'write' but creates a pinned array.
+-- | Like 'create' but creates a pinned array.
+{-# INLINE pinnedCreate #-}
+pinnedCreate :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
+pinnedCreate = fmap unsafeFreeze MA.pinnedCreate
+
+{-# DEPRECATED pinnedWrite  "Please use pinnedCreate instead." #-}
 {-# INLINE pinnedWrite #-}
 pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
-pinnedWrite = fmap unsafeFreeze MA.pinnedCreate
+pinnedWrite = pinnedCreate
 
 -- | Fold "step" has a dependency on "initial", and each step is dependent on
 -- the previous invocation of step due to state passing, finally extract

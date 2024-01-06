@@ -99,7 +99,7 @@ import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array as A
     ( unsafeFreeze, unsafePinnedAsPtr, byteLength, pinnedChunksOf,
-      pinnedWriteN, pinnedWriteNUnsafe, lCompactGE )
+      pinnedCreateOf, unsafePinnedCreateOf, lCompactGE )
 import qualified Streamly.Internal.Data.MutArray as MArray
     (MutArray(..), unsafePinnedAsPtr, pinnedEmptyOf)
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
@@ -505,7 +505,7 @@ putBytesWith n h m = putChunks h $ A.pinnedChunksOf n m
 --
 {-# INLINE writeWith #-}
 writeWith :: MonadIO m => Int -> Socket -> Fold m Word8 ()
-writeWith n h = FL.groupsOf n (A.pinnedWriteNUnsafe n) (writeChunks h)
+writeWith n h = FL.groupsOf n (A.unsafePinnedCreateOf n) (writeChunks h)
 
 -- | Same as 'writeWith'
 --
@@ -523,7 +523,7 @@ writeWithBufferOf = writeWith
 writeMaybesWith :: (MonadIO m )
     => Int -> Socket -> Fold m (Maybe Word8) ()
 writeMaybesWith n h =
-    let writeNJusts = FL.lmap fromJust $ A.pinnedWriteN n
+    let writeNJusts = FL.lmap fromJust $ A.pinnedCreateOf n
         writeOnNothing = FL.takeEndBy_ isNothing writeNJusts
     in FL.many writeOnNothing (writeChunks h)
 

@@ -31,28 +31,6 @@ module Streamly.Data.Array
     -- * The Array Type
       Array
 
-    -- * Construction
-    -- | When performance matters, the fastest way to generate an array is
-    -- 'writeN'. 'IsList' and 'IsString' instances can be
-    -- used to conveniently construct arrays from literal values.
-    -- 'OverloadedLists' extension or 'fromList' can be used to construct an
-    -- array from a list literal.  Similarly, 'OverloadedStrings' extension or
-    -- 'fromList' can be used to construct an array from a string literal.
-
-    -- Pure List APIs
-    , fromListN
-    , fromList
-
-    -- Monadic APIs
-    , writeN      -- drop new
-    , write       -- full buffer
-    , writeLastN    -- drop old (ring buffer)
-
-    -- * Conversion
-    -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
-    -- list.
-    , toList
-
     -- * Pinning & Unpinning
     -- | Arrays are created unpinned by default unless pinned versions of
     -- creation APIs are used. Look for APIs with @pinned@ prefix in
@@ -66,7 +44,29 @@ module Streamly.Data.Array
     , unpin
     , isPinned
 
-    -- * Streams
+    -- * Construction
+    -- | When performance matters, the fastest way to generate an array is
+    -- 'createOf'. 'IsList' and 'IsString' instances can be
+    -- used to conveniently construct arrays from literal values.
+    -- 'OverloadedLists' extension or 'fromList' can be used to construct an
+    -- array from a list literal.  Similarly, 'OverloadedStrings' extension or
+    -- 'fromList' can be used to construct an array from a string literal.
+
+    -- ** From Stream
+    , createOf
+    , create
+    , writeLastN    -- drop old (ring buffer)
+
+    -- ** From List
+    , fromListN
+    , fromList
+
+    -- * To List
+    -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
+    -- list.
+    , toList
+
+    -- * To Stream
     , read
     , readRev
 
@@ -90,6 +90,10 @@ module Streamly.Data.Array
     -- * Re-exports
     , Unbox (..)
     , Serialize(..)
+
+    -- * Deprecated
+    , writeN      -- drop new
+    , write       -- full buffer
     )
 where
 
@@ -122,7 +126,7 @@ import Prelude hiding (read, length)
 --
 -- Convert array to stream, transform, and fold back to array:
 --
--- >>> amap f arr = Array.read arr & fmap f & Stream.fold Array.write
+-- >>> amap f arr = Array.read arr & fmap f & Stream.fold Array.create
 -- >>> amap (+1) (Array.fromList [1,2,3::Int])
 -- fromList [2,3,4]
 --
@@ -154,7 +158,7 @@ import Prelude hiding (read, length)
 --
 -- >>> pure = Stream.fromList [1,2,3] :: Stream Identity Int
 -- >>> generally = Stream.morphInner (return . runIdentity)
--- >>> Stream.fold Array.write (generally pure :: Stream IO Int)
+-- >>> Stream.fold Array.create (generally pure :: Stream IO Int)
 -- fromList [1,2,3]
 --
 -- == Programming Tips

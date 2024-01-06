@@ -205,6 +205,8 @@ last = getIndexRev 0
 -- Folds with Array as the container
 -------------------------------------------------------------------------------
 
+-- XXX We should generate this from Ring.
+
 -- | @writeLastN n@ folds a maximum of @n@ elements from the end of the input
 -- stream to an 'Array'.
 --
@@ -447,7 +449,7 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (read arr)
 streamTransform :: forall m a b. (MonadIO m, Unbox a, Unbox b)
     => (Stream m a -> Stream m b) -> Array a -> m (Array b)
 streamTransform f arr =
-    Stream.fold (writeWith (length arr)) $ f (read arr)
+    Stream.fold (createWith (length arr)) $ f (read arr)
 
 -------------------------------------------------------------------------------
 -- Casts

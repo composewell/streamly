@@ -116,7 +116,6 @@ import Prelude hiding (read)
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (fork)
 import Streamly.Data.Array (Array)
-import Streamly.Internal.Data.Array (pinnedWriteNUnsafe)
 import Streamly.Internal.Data.Fold ( Fold(..) )
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -132,7 +131,8 @@ import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array as A (pinnedChunksOf)
+import qualified Streamly.Internal.Data.Array as A
+    (pinnedChunksOf, unsafePinnedCreateOf)
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.Data.Fold as FL (Step(..), reduce)
 
@@ -435,7 +435,7 @@ writeWithBufferOf
     -> PortNumber
     -> Fold m Word8 ()
 writeWithBufferOf n addr port =
-    FL.groupsOf n (pinnedWriteNUnsafe n) (writeChunks addr port)
+    FL.groupsOf n (A.unsafePinnedCreateOf n) (writeChunks addr port)
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
