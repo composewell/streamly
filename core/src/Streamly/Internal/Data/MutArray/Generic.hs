@@ -19,14 +19,14 @@ module Streamly.Internal.Data.MutArray.Generic
     , nil
 
     -- *** Uninitialized Arrays
-    , new
+    , emptyOf
     -- , newArrayWith
 
     -- *** From streams
-    , writeNUnsafe
-    , writeN
-    , writeWith
-    , write
+    , unsafeCreateOf
+    , createOf
+    , createWith -- createOfMin/createMin/createGE?
+    , create
     , fromStreamN
     , fromStream
     , fromPureStream
@@ -160,6 +160,13 @@ module Streamly.Internal.Data.MutArray.Generic
     -- , appendSliceFrom
 
     , clone
+
+    -- * Deprecated
+    , new
+    , writeNUnsafe
+    , writeN
+    , writeWith
+    , write
     )
 where
 
@@ -236,13 +243,13 @@ bottomElement =
 -- XXX Would be nice if GHC can provide something like newUninitializedArray# so
 -- that we do not have to write undefined or error in the whole array.
 
--- | @new count@ allocates a zero length array that can be extended to hold
+-- | @emptyOf count@ allocates a zero length array that can be extended to hold
 -- up to 'count' items without reallocating.
 --
 -- /Pre-release/
-{-# INLINE new #-}
-new :: MonadIO m => Int -> m (MutArray a)
-new n@(I# n#) =
+{-# INLINE emptyOf #-}
+emptyOf :: MonadIO m => Int -> m (MutArray a)
+emptyOf n@(I# n#) =
     liftIO
         $ IO
         $ \s# ->
@@ -250,6 +257,12 @@ new n@(I# n#) =
                   (# s1#, arr# #) ->
                       let ma = MutArray arr# 0 0 n
                        in (# s1#, ma #)
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED new "Please use emptyOf instead." #-}
+{-# INLINE new #-}
+new :: MonadIO m => Int -> m (MutArray a)
+new = emptyOf
 
 -- XXX This could be pure?
 
@@ -589,16 +602,16 @@ readRev arr@MutArray{..} =
 arrayChunkSize :: Int
 arrayChunkSize = 1024
 
--- | Like 'writeN' but does not check the array bounds when writing. The fold
+-- | Like 'createOf' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
 -- corrupt the memory and crash. This function exists mainly because any
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
 -- /Pre-release/
-{-# INLINE_NORMAL writeNUnsafe #-}
-writeNUnsafe :: MonadIO m => Int -> Fold m a (MutArray a)
-writeNUnsafe n = Fold step initial return return
+{-# INLINE_NORMAL unsafeCreateOf #-}
+unsafeCreateOf :: MonadIO m => Int -> Fold m a (MutArray a)
+unsafeCreateOf n = Fold step initial return return
 
     where
 
@@ -606,36 +619,47 @@ writeNUnsafe n = Fold step initial return return
 
     step arr x = FL.Partial <$> snocUnsafe arr x
 
--- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
+{-# DEPRECATED writeNUnsafe "Please use unsafeCreateOf instead." #-}
+{-# INLINE writeNUnsafe #-}
+writeNUnsafe :: MonadIO m => Int -> Fold m a (MutArray a)
+writeNUnsafe = unsafeCreateOf
+
+-- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
--- >>> writeN n = Fold.take n (MutArray.writeNUnsafe n)
+-- >>> createOf n = Fold.take n (MutArray.unsafeCreateOf n)
 --
 -- /Pre-release/
-{-# INLINE_NORMAL writeN #-}
+{-# INLINE_NORMAL createOf #-}
+createOf :: MonadIO m => Int -> Fold m a (MutArray a)
+createOf n = FL.take n $ unsafeCreateOf n
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED writeN "Please use createOf instead." #-}
+{-# INLINE writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (MutArray a)
-writeN n = FL.take n $ writeNUnsafe n
+writeN = createOf
 
 -- >>> f n = MutArray.writeAppendWith (* 2) (MutArray.pinnedNew n)
 -- >>> writeWith n = Fold.rmapM MutArray.rightSize (f n)
 -- >>> writeWith n = Fold.rmapM MutArray.fromArrayStreamK (MutArray.writeChunks n)
 
--- | @writeWith minCount@ folds the whole input to a single array. The array
+-- | @createWith minCount@ folds the whole input to a single array. The array
 -- starts at a size big enough to hold minCount elements, the size is doubled
 -- every time the array needs to be grown.
 --
 -- /Caution! Do not use this on infinite streams./
 --
 -- /Pre-release/
-{-# INLINE_NORMAL writeWith #-}
-writeWith :: MonadIO m => Int -> Fold m a (MutArray a)
+{-# INLINE_NORMAL createWith #-}
+createWith :: MonadIO m => Int -> Fold m a (MutArray a)
 -- writeWith n = FL.rmapM rightSize $ writeAppendWith (* 2) (pinnedNew n)
-writeWith elemCount = FL.rmapM extract $ FL.foldlM' step initial
+createWith elemCount = FL.rmapM extract $ FL.foldlM' step initial
 
     where
 
     initial = do
-        when (elemCount < 0) $ error "writeWith: elemCount is negative"
+        when (elemCount < 0) $ error "createWith: elemCount is negative"
         new elemCount
 
     step arr@(MutArray _ start end bound) x
@@ -649,16 +673,27 @@ writeWith elemCount = FL.rmapM extract $ FL.foldlM' step initial
     -- extract = rightSize
     extract = return
 
+{-# DEPRECATED writeWith "Please use createWith instead." #-}
+{-# INLINE writeWith #-}
+writeWith :: MonadIO m => Int -> Fold m a (MutArray a)
+writeWith = createWith
+
 -- | Fold the whole input to a single array.
 --
--- Same as 'writeWith' using an initial array size of 'arrayChunkSize' bytes
+-- Same as 'createWith' using an initial array size of 'arrayChunkSize' bytes
 -- rounded up to the element size.
 --
 -- /Caution! Do not use this on infinite streams./
 --
+{-# INLINE create #-}
+create :: MonadIO m => Fold m a (MutArray a)
+create = writeWith arrayChunkSize
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED write "Please use create instead." #-}
 {-# INLINE write #-}
 write :: MonadIO m => Fold m a (MutArray a)
-write = writeWith arrayChunkSize
+write = create
 
 -- | Create a 'MutArray' from the first @n@ elements of a stream. The
 -- array is allocated to size @n@, if the stream terminates before @n@

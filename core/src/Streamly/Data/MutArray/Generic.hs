@@ -23,11 +23,11 @@ module Streamly.Data.MutArray.Generic
       MutArray
 
     -- * Construction
-    , new
+    , emptyOf
     , fromListN
     , fromList
-    , writeN
-    , write
+    , createOf
+    , create
 
     -- * Appending elements
     , snoc
@@ -56,6 +56,11 @@ module Streamly.Data.MutArray.Generic
 
     -- * Size
     , length
+
+    -- * Deprecated
+    , new
+    , writeN
+    , write
     )
 where
 

@@ -106,11 +106,11 @@ nil = unsafePerformIO $ unsafeFreeze <$> MArray.nil
 
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (Array a)
-writeN = fmap unsafeFreeze <$> MArray.writeN
+writeN = fmap unsafeFreeze <$> MArray.createOf
 
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: MonadIO m => Int -> Fold m a (Array a)
-writeWith elemCount = unsafeFreeze <$> MArray.writeWith elemCount
+writeWith elemCount = unsafeFreeze <$> MArray.createWith elemCount
 
 -- | Fold the whole input to a single array.
 --
@@ -118,7 +118,7 @@ writeWith elemCount = unsafeFreeze <$> MArray.writeWith elemCount
 --
 {-# INLINE write #-}
 write :: MonadIO m => Fold m a (Array a)
-write = fmap unsafeFreeze MArray.write
+write = fmap unsafeFreeze MArray.create
 
 fromPureStream :: Stream Identity a -> Array a
 fromPureStream x =
