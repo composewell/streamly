@@ -15,34 +15,37 @@ module Streamly.Data.Array.Generic
     ( Array
 
     -- * Construction
-    , A.fromListN
-    , A.fromList
+    , fromListN
+    , fromList
 
     -- MonadicAPIs
-    , A.writeN
-    , A.write
+    , createOf
+    , create
 
     -- * Conversion
-    , A.toList
+    , toList
 
     -- * Streams
-    , A.read
-    , A.readRev
+    , read
+    , readRev
 
     -- * Unfolds
-    , A.reader
+    , reader
     -- , A.readerRev
 
     -- * Random Access
-    , A.length
-    , A.getIndex
+    , length
+    , getIndex
 
     -- -- * Folding Arrays
     -- , A.streamFold
     -- , A.fold
+
+    -- * Deprecated
+    , writeN
+    , write
     )
 where
 
-import Streamly.Internal.Data.Array.Generic (Array)
-
-import qualified Streamly.Internal.Data.Array.Generic as A
+import Streamly.Internal.Data.Array.Generic
+import Prelude hiding (length, read)

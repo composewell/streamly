@@ -11,8 +11,8 @@ module Streamly.Internal.Data.Array.Generic
 
     -- * Construction
     , nil
-    , writeN
-    , write
+    , createOf
+    , create
     , writeWith
     , writeLastN
 
@@ -44,6 +44,10 @@ module Streamly.Internal.Data.Array.Generic
     , getIndex
     , getSliceUnsafe
     , strip
+
+    -- * Deprecated
+    , writeN
+    , write
     )
 where
 
@@ -104,9 +108,15 @@ nil = unsafePerformIO $ unsafeFreeze <$> MArray.nil
 -- Construction - Folds
 -------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL writeN #-}
+{-# INLINE_NORMAL createOf #-}
+createOf :: MonadIO m => Int -> Fold m a (Array a)
+createOf = fmap unsafeFreeze <$> MArray.createOf
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED writeN "Please use createOf instead." #-}
+{-# INLINE writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (Array a)
-writeN = fmap unsafeFreeze <$> MArray.createOf
+writeN = createOf
 
 {-# INLINE_NORMAL writeWith #-}
 writeWith :: MonadIO m => Int -> Fold m a (Array a)
@@ -116,9 +126,15 @@ writeWith elemCount = unsafeFreeze <$> MArray.createWith elemCount
 --
 -- /Caution! Do not use this on infinite streams./
 --
+{-# INLINE create #-}
+create :: MonadIO m => Fold m a (Array a)
+create = fmap unsafeFreeze MArray.create
+
+-- XXX Deprecate in major
+-- {-# DEPRECATED write "Please use create instead." #-}
 {-# INLINE write #-}
 write :: MonadIO m => Fold m a (Array a)
-write = fmap unsafeFreeze MArray.create
+write = create
 
 fromPureStream :: Stream Identity a -> Array a
 fromPureStream x =
