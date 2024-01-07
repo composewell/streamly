@@ -2603,33 +2603,41 @@ breakOn sep arr@MutArray{..} = asUnpinnedPtrUnsafe arr $ \p -> liftIO $ do
                     }
             )
 
+-- | Like 'splitAt' but does not check whether the index is valid.
+--
+{-# INLINE unsafeSplitAt #-}
+unsafeSplitAt :: forall a. Unbox a =>
+    Int -> MutArray a -> (MutArray a, MutArray a)
+unsafeSplitAt i MutArray{..} =
+    let off = i * SIZE_OF(a)
+        p = arrStart + off
+     in ( MutArray
+         { arrContents = arrContents
+         , arrStart = arrStart
+         , arrEnd = p
+         , arrBound = p
+         }
+        , MutArray
+          { arrContents = arrContents
+          , arrStart = p
+          , arrEnd = arrEnd
+          , arrBound = arrBound
+          }
+        )
+
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
 --
 {-# INLINE splitAt #-}
 splitAt :: forall a. Unbox a => Int -> MutArray a -> (MutArray a, MutArray a)
-splitAt i arr@MutArray{..} =
+splitAt i arr =
     let maxIndex = length arr - 1
     in  if i < 0
         then error "sliceAt: negative array index"
         else if i > maxIndex
              then error $ "sliceAt: specified array index " ++ show i
                         ++ " is beyond the maximum index " ++ show maxIndex
-             else let off = i * SIZE_OF(a)
-                      p = arrStart + off
-                in ( MutArray
-                  { arrContents = arrContents
-                  , arrStart = arrStart
-                  , arrEnd = p
-                  , arrBound = p
-                  }
-                , MutArray
-                  { arrContents = arrContents
-                  , arrStart = p
-                  , arrEnd = arrEnd
-                  , arrBound = arrBound
-                  }
-                )
+             else unsafeSplitAt i arr
 
 -------------------------------------------------------------------------------
 -- Casting
