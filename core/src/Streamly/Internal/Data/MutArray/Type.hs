@@ -251,9 +251,12 @@ module Streamly.Internal.Data.MutArray.Type
     -- | Append the arrays in a stream to form a stream of larger arrays.
     , SpliceState (..)
     , pCompactLE
-    , rCompactLE
+    , pPinnedCompactLE
+    , compactLeAs
     , fCompactGE
+    , fPinnedCompactGE
     , lCompactGE
+    , lPinnedCompactGE
     , compactGE
     , compactEQ
 
@@ -839,15 +842,15 @@ roundDownTo elemSize size = size - (size `mod` elemSize)
 -- Since this is not inlined Unboxed consrraint leads to dictionary passing
 -- which complicates some inspection tests.
 --
-{-# NOINLINE reallocExplicit #-}
-reallocExplicit :: Int -> Int -> MutArray a -> IO (MutArray a)
-reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
+{-# NOINLINE reallocExplicitAs #-}
+reallocExplicitAs :: PinnedState -> Int -> Int -> MutArray a -> IO (MutArray a)
+reallocExplicitAs ps elemSize newCapacityInBytes MutArray{..} = do
     assertM(arrEnd <= arrBound)
 
     -- Allocate new array
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
     contents <-
-        if Unboxed.isPinned arrContents
+        if ps == Pinned
         then Unboxed.pinnedNew newCapMaxInBytes
         else Unboxed.new newCapMaxInBytes
     let !(MutByteArray mbarrFrom#) = arrContents
@@ -887,7 +890,12 @@ reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
 -- If the original array is pinned, the newly allocated array is also pinned.
 {-# INLINABLE realloc #-}
 realloc :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (MutArray a)
-realloc bytes arr = liftIO $ reallocExplicit (SIZE_OF(a)) bytes arr
+realloc bytes arr =
+    let ps =
+            if isPinned arr
+            then Pinned
+            else Unpinned
+     in liftIO $ reallocExplicitAs ps (SIZE_OF(a)) bytes arr
 
 -- | @reallocWith label capSizer minIncrBytes array@. The label is used
 -- in error messages and the capSizer is used to determine the capacity of the
@@ -2284,7 +2292,7 @@ writeWithAs ps elemCount =
         | INDEX_NEXT(end,a) > bound = do
         let oldSize = end - start
             newSize = max (oldSize * 2) 1
-        arr1 <- liftIO $ reallocExplicit (SIZE_OF(a)) newSize arr
+        arr1 <- liftIO $ reallocExplicitAs ps (SIZE_OF(a)) newSize arr
         snocUnsafe arr1 x
     step arr x = snocUnsafe arr x
 
@@ -2943,19 +2951,11 @@ byteEq arr1 arr2 = fmap (EQ ==) $ byteCmp arr1 arr2
 -- can leave some memory unused. They can split the last array to fit it
 -- exactly in the space.
 
--- | Parser @pCompactLE maxElems@ coalesces adjacent arrays in the input stream
--- only if the combined size would be less than or equal to @maxElems@
--- elements. Note that it won't split an array if the original array is already
--- larger than maxElems.
---
--- @maxElems@ must be greater than 0.
---
--- /Internal/
-{-# INLINE_NORMAL pCompactLE #-}
-pCompactLE ::
+{-# INLINE_NORMAL pCompactLeAs #-}
+pCompactLeAs ::
        forall m a. (MonadIO m, Unbox a)
-    => Int -> Parser (MutArray a) m (MutArray a)
-pCompactLE maxElems = Parser step initial extract
+    => PinnedState -> Int -> Parser (MutArray a) m (MutArray a)
+pCompactLeAs ps maxElems = Parser step initial extract
 
     where
 
@@ -2986,13 +2986,38 @@ pCompactLE maxElems = Parser step initial extract
             else do
                 buf1 <-
                     if byteCapacity buf < maxBytes
-                    then realloc maxBytes buf
+                    then liftIO $ reallocExplicitAs
+                            ps (SIZE_OF(a)) maxBytes buf
                     else return buf
                 buf2 <- spliceUnsafe buf1 arr
                 return $ Parser.Partial 0 (Just buf2)
 
     extract Nothing = return $ Parser.Done 0 nil
     extract (Just buf) = return $ Parser.Done 0 buf
+
+-- | Parser @pCompactLE maxElems@ coalesces adjacent arrays in the input stream
+-- only if the combined size would be less than or equal to @maxElems@
+-- elements. Note that it won't split an array if the original array is already
+-- larger than maxElems.
+--
+-- @maxElems@ must be greater than 0.
+--
+-- Generates unpinned arrays irrespective of the pinning status of input
+-- arrays.
+--
+-- /Internal/
+{-# INLINE pCompactLE #-}
+pCompactLE ::
+       forall m a. (MonadIO m, Unbox a)
+    => Int -> Parser (MutArray a) m (MutArray a)
+pCompactLE = pCompactLeAs Unpinned
+
+-- | Pinned version of 'pCompactLE'.
+{-# INLINE pPinnedCompactLE #-}
+pPinnedCompactLE ::
+       forall m a. (MonadIO m, Unbox a)
+    => Int -> Parser (MutArray a) m (MutArray a)
+pPinnedCompactLE = pCompactLeAs Pinned
 
 data SpliceState s arr
     = SpliceInitial s
@@ -3005,18 +3030,10 @@ data SpliceState s arr
 -- immutable array never has additional space so a new array is allocated
 -- instead of mutating it.
 
--- | Scan @rCompactLE maxElems@ coalesces adjacent arrays in the input stream
--- only if the combined size would be less than or equal to @maxElems@
--- elements. Note that it won't split an array if the original array is already
--- larger than maxElems.
---
--- @maxElems@ must be greater than 0.
---
--- /Internal/
-{-# INLINE_NORMAL rCompactLE #-}
-rCompactLE :: forall m a. (MonadIO m, Unbox a)
-    => Int -> D.Stream m (MutArray a) -> D.Stream m (MutArray a)
-rCompactLE maxElems (D.Stream step state) =
+{-# INLINE_NORMAL compactLeAs #-}
+compactLeAs :: forall m a. (MonadIO m, Unbox a)
+    => PinnedState -> Int -> D.Stream m (MutArray a) -> D.Stream m (MutArray a)
+compactLeAs ps maxElems (D.Stream step state) =
     D.Stream step' (SpliceInitial state)
 
     where
@@ -3052,7 +3069,8 @@ rCompactLE maxElems (D.Stream step state) =
                     D.Skip (SpliceYielding buf (SpliceBuffering s arr))
                 else do
                     buf1 <- if byteCapacity buf < maxBytes
-                            then realloc maxBytes buf
+                            then liftIO $ reallocExplicitAs
+                                    ps (SIZE_OF(a)) maxBytes buf
                             else return buf
                     buf2 <- spliceUnsafe buf1 arr
                     return $ D.Skip (SpliceBuffering s buf2)
@@ -3063,14 +3081,12 @@ rCompactLE maxElems (D.Stream step state) =
 
     step' _ (SpliceYielding arr next) = return $ D.Yield arr next
 
--- | Fold @fCompactGE minElems@ coalesces adjacent arrays in the input stream
--- until the size becomes greater than or equal to @minElems@.
---
-{-# INLINE_NORMAL fCompactGE #-}
-fCompactGE ::
+
+{-# INLINE_NORMAL fCompactGeAs #-}
+fCompactGeAs ::
        forall m a. (MonadIO m, Unbox a)
-    => Int -> FL.Fold m (MutArray a) (MutArray a)
-fCompactGE minElems = Fold step initial extract extract
+    => PinnedState -> Int -> FL.Fold m (MutArray a) (MutArray a)
+fCompactGeAs ps minElems = Fold step initial extract extract
 
     where
 
@@ -3098,7 +3114,8 @@ fCompactGE minElems = Fold step initial extract extract
         let len = byteLength buf + byteLength arr
         buf1 <-
             if byteCapacity buf < len
-            then realloc (max len minBytes) buf
+            then liftIO $ reallocExplicitAs
+                    ps (SIZE_OF(a)) (max minBytes len) buf
             else return buf
         buf2 <- spliceUnsafe buf1 arr
         if len >= minBytes
@@ -3108,15 +3125,30 @@ fCompactGE minElems = Fold step initial extract extract
     extract Nothing = return nil
     extract (Just buf) = return buf
 
--- | Like 'compactGE' but for transforming folds instead of stream.
+-- | Fold @fCompactGE minElems@ coalesces adjacent arrays in the input stream
+-- until the size becomes greater than or equal to @minElems@.
 --
--- >>> lCompactGE n = Fold.many (MutArray.fCompactGE n)
---
-{-# INLINE_NORMAL lCompactGE #-}
-lCompactGE :: forall m a. (MonadIO m, Unbox a)
-    => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
--- lCompactGE n = Fold.many (fCompactGE n)
-lCompactGE minElems (Fold step1 initial1 _ final1) =
+-- Generates unpinned arrays irrespective of the pinning status of input
+-- arrays.
+{-# INLINE fCompactGE #-}
+fCompactGE ::
+       forall m a. (MonadIO m, Unbox a)
+    => Int -> FL.Fold m (MutArray a) (MutArray a)
+fCompactGE = fCompactGeAs Unpinned
+
+-- | Pinned version of 'fCompactGE'.
+{-# INLINE fPinnedCompactGE #-}
+fPinnedCompactGE ::
+       forall m a. (MonadIO m, Unbox a)
+    => Int -> FL.Fold m (MutArray a) (MutArray a)
+fPinnedCompactGE = fCompactGeAs Pinned
+
+{-# INLINE_NORMAL lCompactGeAs #-}
+lCompactGeAs :: forall m a. (MonadIO m, Unbox a)
+    => PinnedState -> Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
+-- The fold version turns out to be a little bit slower.
+-- lCompactGeAs ps n = FL.many (fCompactGeAs ps n)
+lCompactGeAs ps minElems (Fold step1 initial1 _ final1) =
     Fold step initial extract final
 
     where
@@ -3154,7 +3186,8 @@ lCompactGE minElems (Fold step1 initial1 _ final1) =
     step (Tuple' (Just buf) r1) arr = do
         let len = byteLength buf + byteLength arr
         buf1 <- if byteCapacity buf < len
-                then realloc (max minBytes len) buf
+                then liftIO $ reallocExplicitAs
+                        ps (SIZE_OF(a)) (max minBytes len) buf
                 else return buf
         buf2 <- spliceUnsafe buf1 arr
         runInner len r1 buf2
@@ -3173,6 +3206,23 @@ lCompactGE minElems (Fold step1 initial1 _ final1) =
         case r of
             FL.Partial rr -> final1 rr
             FL.Done _ -> return ()
+
+-- | Like 'compactGE' but for transforming folds instead of stream.
+--
+-- >>> lCompactGE n = Fold.many (MutArray.fCompactGE n)
+--
+-- Generates unpinned arrays irrespective of the pinning status of input
+-- arrays.
+{-# INLINE lCompactGE #-}
+lCompactGE :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
+lCompactGE = lCompactGeAs Unpinned
+
+-- | Pinned version of 'lCompactGE'.
+{-# INLINE lPinnedCompactGE #-}
+lPinnedCompactGE :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
+lPinnedCompactGE = lCompactGeAs Pinned
 
 -- | @compactGE n stream@ coalesces adjacent arrays in the @stream@ until
 -- the size becomes greater than or equal to @n@.

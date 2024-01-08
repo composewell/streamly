@@ -74,6 +74,8 @@ module Streamly.Internal.Data.Array
     , interposeSuffix
     , intercalateSuffix
 
+    , compactLE
+    , pinnedCompactLE
     , compactOnByte
     , compactOnByteSuffix
 
@@ -623,6 +625,24 @@ interposeSuffix sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 intercalateSuffix :: (Monad m, Unbox a)
     => Array a -> Stream m (Array a) -> Stream m a
 intercalateSuffix = D.intercalateSuffix reader
+
+-- | @compactLE n@ coalesces adjacent arrays in the input stream
+-- only if the combined size would be less than or equal to n.
+--
+-- Generates unpinned arrays irrespective of the pinning status of input
+-- arrays.
+{-# INLINE_NORMAL compactLE #-}
+compactLE :: (MonadIO m, Unbox a)
+    => Int -> Stream m (Array a) -> Stream m (Array a)
+compactLE n stream =
+    D.map unsafeFreeze $ MA.compactLE n $ D.map unsafeThaw stream
+
+-- | Pinned version of 'compactLE'.
+{-# INLINE_NORMAL pinnedCompactLE #-}
+pinnedCompactLE :: (MonadIO m, Unbox a)
+    => Int -> Stream m (Array a) -> Stream m (Array a)
+pinnedCompactLE n stream =
+    D.map unsafeFreeze $ MA.pinnedCompactLE n $ D.map unsafeThaw stream
 
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.

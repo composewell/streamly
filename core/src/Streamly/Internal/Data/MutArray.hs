@@ -14,6 +14,7 @@ module Streamly.Internal.Data.MutArray
     , sliceIndexerFromLen
     , slicerFromLen
     , compactLE
+    , pinnedCompactLE
     , compactOnByte
     , compactOnByteSuffix
     -- * Unboxed IORef
@@ -29,6 +30,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
+import Streamly.Internal.Data.MutByteArray.Type (PinnedState(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -91,15 +93,30 @@ getSlicesFromLen = slicerFromLen
 -- Compacting Streams of Arrays
 -------------------------------------------------------------------------------
 
--- | Scan @compactLE n@ coalesces adjacent arrays in the input stream
--- only if the combined size would be less than or equal to n.
+-- | @compactLE maxElems@ coalesces adjacent arrays in the input stream
+-- only if the combined size would be less than or equal to @maxElems@
+-- elements. Note that it won't split an array if the original array is already
+-- larger than maxElems.
+--
+-- @maxElems@ must be greater than 0.
+--
+-- Generates unpinned arrays irrespective of the pinning status of input
+-- arrays.
 {-# INLINE compactLE #-}
 compactLE :: (MonadIO m, Unbox a) =>
     Int -> Stream m (MutArray a) -> Stream m (MutArray a)
 -- XXX compactLE can be moved to MutArray/Type if we are not using the parser
 -- to implement it.
+compactLE = compactLeAs Unpinned
+-- The parser version turns out to be a little bit slower.
 -- compactLE n = Stream.catRights . Stream.parseManyD (pCompactLE n)
-compactLE = rCompactLE
+
+-- | Pinned version of 'compactLE'.
+{-# INLINE pinnedCompactLE #-}
+pinnedCompactLE :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
+pinnedCompactLE = compactLeAs Pinned
+-- pinnedCompactLE n = Stream.catRights . Stream.parseManyD (pPinnedCompactLE n)
 
 data SplitState s arr
     = Initial s

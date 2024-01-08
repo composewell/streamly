@@ -123,9 +123,10 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Compact
     -- | Append the arrays in a stream to form a stream of larger arrays.
-    , compactLE
     , fCompactGE
+    , fPinnedCompactGE
     , lCompactGE
+    , lPinnedCompactGE
     , compactGE
 
     -- ** Deprecated
@@ -502,26 +503,28 @@ flattenArraysRev = concatRev
 -- arrays would have no capacity to append, therefore, a copy will be forced
 -- anyway.
 
--- | Scan @compactLE n@ coalesces adjacent arrays in the input stream
--- only if the combined size would be less than or equal to n.
-{-# INLINE_NORMAL compactLE #-}
-compactLE :: (MonadIO m, Unbox a)
-    => Int -> Stream m (Array a) -> Stream m (Array a)
-compactLE n stream =
-    D.map unsafeFreeze $ MA.rCompactLE n $ D.map unsafeThaw stream
-
 -- | Fold @fCompactGE n@ coalesces adjacent arrays in the input stream
 -- until the size becomes greater than or equal to n.
 --
+-- Generates unpinned arrays irrespective of the pinning status of input
+-- arrays.
 {-# INLINE_NORMAL fCompactGE #-}
 fCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) (Array a)
 fCompactGE n = fmap unsafeFreeze $ Fold.lmap unsafeThaw $ MA.fCompactGE n
+
+-- | PInned version of 'fCompactGE'.
+{-# INLINE_NORMAL fPinnedCompactGE #-}
+fPinnedCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) (Array a)
+fPinnedCompactGE n =
+    fmap unsafeFreeze $ Fold.lmap unsafeThaw $ MA.fPinnedCompactGE n
 
 -- | @compactGE n stream@ coalesces adjacent arrays in the @stream@ until
 -- the size becomes greater than or equal to @n@.
 --
 -- >>> compactGE n = Stream.foldMany (Array.fCompactGE n)
 --
+-- Generates unpinned arrays irrespective of the pinning status of input
+-- arrays.
 {-# INLINE compactGE #-}
 compactGE ::
        (MonadIO m, Unbox a)
@@ -533,11 +536,20 @@ compactGE n stream =
 --
 -- >>> lCompactGE n = Fold.many (Array.fCompactGE n)
 --
+-- Generates unpinned arrays irrespective of the pinning status of input
+-- arrays.
 {-# INLINE_NORMAL lCompactGE #-}
 lCompactGE :: (MonadIO m, Unbox a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
 lCompactGE n fld =
     Fold.lmap unsafeThaw $ MA.lCompactGE n (Fold.lmap unsafeFreeze fld)
+
+-- | Pinned version of 'lCompactGE'.
+{-# INLINE_NORMAL lPinnedCompactGE #-}
+lPinnedCompactGE :: (MonadIO m, Unbox a)
+    => Int -> Fold m (Array a) () -> Fold m (Array a) ()
+lPinnedCompactGE n fld =
+    Fold.lmap unsafeThaw $ MA.lPinnedCompactGE n (Fold.lmap unsafeFreeze fld)
 
 -------------------------------------------------------------------------------
 -- Splitting

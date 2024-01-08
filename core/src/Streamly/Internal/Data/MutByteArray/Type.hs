@@ -58,7 +58,7 @@ import GHC.Exts
 
 data PinnedState
     = Pinned
-    | Unpinned
+    | Unpinned deriving (Show, Eq)
 
 -- XXX can use UnliftedNewtypes
 
