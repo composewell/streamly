@@ -151,6 +151,15 @@ instance Exception PathException
 -- | A type representing file system paths for directories or files.
 newtype Path = Path (Array WORD_TYPE) -- deriving Eq
 
+-- Show instance prints raw bytes without any decoding for rountdtripping.
+-- Should we print this as a string instead, may be useful for ascii chars but
+-- utf8 encoded chars may be unprintable. Better use toString if you want to
+-- pretty print the path.
+{-
+instance Show Path where
+    show (Path x) = show x
+-}
+
 -- XXX Do we need a type for file or dir Name as names cannot have the
 -- separator char and there may be other restrictions on names? For example,
 -- length restriction.  A file name cannot be "." or "..". We can use the types
