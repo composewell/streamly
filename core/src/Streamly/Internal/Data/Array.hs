@@ -328,6 +328,7 @@ sliceIndexerFromLen from len =
     Unfold.lmap unsafeThaw (MA.sliceIndexerFromLen from len)
 
 {-# DEPRECATED genSlicesFromLen "Please use sliceIndexerFromLen instead." #-}
+{-# INLINE genSlicesFromLen #-}
 genSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
@@ -349,6 +350,7 @@ slicerFromLen from len =
         $ Unfold.lmap unsafeThaw (MA.slicerFromLen from len)
 
 {-# DEPRECATED getSlicesFromLen "Please use slicerFromLen instead." #-}
+{-# INLINE getSlicesFromLen #-}
 getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
@@ -399,6 +401,7 @@ indexReader m =
 
 -- XXX DO NOT REMOVE, change the signature to use Stream instead of unfold
 {-# DEPRECATED getIndices "Please use getIndices instead." #-}
+{-# INLINE getIndices #-}
 getIndices :: (Monad m, Unbox a) => Stream m Int -> Unfold m (Array a) a
 getIndices = indexReader
 

@@ -479,6 +479,7 @@ concat = MA.concatWith (pure . unsafeInlineIO) . D.map unsafeThaw
 -- concat = D.unfoldMany reader
 
 {-# DEPRECATED flattenArrays "Please use \"unfoldMany reader\" instead." #-}
+{-# INLINE flattenArrays #-}
 flattenArrays :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArrays = concat
@@ -496,6 +497,7 @@ concatRev = MA.concatRevWith (pure . unsafeInlineIO) . D.map unsafeThaw
 -- concatRev = D.unfoldMany readerRev
 
 {-# DEPRECATED flattenArraysRev "Please use \"unfoldMany readerRev\" instead." #-}
+{-# INLINE flattenArraysRev #-}
 flattenArraysRev :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArraysRev = concatRev
