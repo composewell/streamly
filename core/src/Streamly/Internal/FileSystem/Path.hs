@@ -96,13 +96,13 @@ import Data.Word (Word16)
 #endif
 import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Quote (QuasiQuoter)
-import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.SmallArray (Array)
 import Streamly.Internal.Data.Stream (Stream)
 import System.IO.Unsafe (unsafePerformIO)
 
-import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.SmallArray as Array
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.MutArray as MutArray
+import qualified Streamly.Internal.Data.MutSmallArray.Type as MutArray
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
@@ -454,7 +454,9 @@ separator = SEPARATOR
 -- the second path is not absolute.
 extendPath :: Path -> Path -> Path
 extendPath (Path a) (Path b) =
-    let len = Array.byteLength a + 1 + Array.byteLength b
+    let len1 = Array.byteLength a
+        len2 = Array.byteLength b
+        len = len1 + 1 + len2
         -- XXX Check the leading separator or drive identifier. However,
         -- checking the drive letter may add an additional overhead (can it be
         -- arbitrarily long?), if it is significant we may want to have a
@@ -464,10 +466,10 @@ extendPath (Path a) (Path b) =
         -- separator.
         newArr = unsafePerformIO $ do
             arr <- MutArray.new len
-            arr1 <- MutArray.spliceUnsafe arr (Array.unsafeThaw a)
-            arr2 <- MutArray.snocUnsafe arr1 separator
-            arr3 <- MutArray.spliceUnsafe arr2 (Array.unsafeThaw b)
-            return (Array.unsafeFreeze arr3)
+            MutArray.putSliceUnsafe (Array.unsafeThaw a) 0 arr 0 len1
+            MutArray.putIndexUnsafe len1 arr separator
+            MutArray.putSliceUnsafe (Array.unsafeThaw b) 0 arr (len1 + 1) len2
+            return (Array.unsafeFreeze arr)
         in Path newArr
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
