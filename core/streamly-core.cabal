@@ -339,6 +339,7 @@ library
                      , Streamly.Internal.Data.Binary.Stream
 
                      -- May depend on streamly-core-stream
+                     , Streamly.Internal.Data.MutSmallArray.Type
                      , Streamly.Internal.Data.MutArray
                      , Streamly.Internal.Data.MutArray.Generic
 
@@ -361,6 +362,7 @@ library
 
                      -- streamly-core-data-arrays
                      , Streamly.Internal.Data.Array.Generic
+                     , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.MutArray.Stream
                      , Streamly.Internal.Data.Array.Stream

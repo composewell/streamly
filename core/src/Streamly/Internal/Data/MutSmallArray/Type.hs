@@ -87,9 +87,11 @@ module Streamly.Internal.Data.MutSmallArray.Type
     {-
     , readerRevWith
     , readerRev
+    -}
 
     -- *** To containers
-    , toStreamDWith
+    , toStreamWith
+    {-
     , toStreamDRevWith
     , toStreamKWith
     , toStreamKRevWith
