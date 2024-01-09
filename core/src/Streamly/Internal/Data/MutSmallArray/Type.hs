@@ -11,39 +11,39 @@
 
 module Streamly.Internal.Data.MutSmallArray.Type
     (
-    {-
     -- ** Type
-    -- $arrayNotes
       MutArray (..)
+      {-
     , pin
     , unpin
     , isPinned
+    -}
 
     -- -- * Constructing and Writing
     -- ** Construction
-    , nil
+    , empty
 
     -- *** Uninitialized Arrays
+    {-
     , pinnedNew
     , pinnedNewBytes
     , pinnedNewAligned
+    -}
     , new
     , newArrayWith
 
     -- *** From streams
-    , ArrayUnsafe (..)
-    , writeNWithUnsafe
-    , writeNWith
-    , writeNUnsafe
-    , pinnedWriteNUnsafe
-    , writeN
+    , unsafeCreateOfWith
+    , createOfWith
+    -- , unsafeCreateOf
+    -- , pinnedWriteNUnsafe
+    , createOf
+    {-
     , pinnedWriteN
-    , pinnedWriteNAligned
 
     , writeWith
     , write
     , pinnedWrite
-
     , writeRevN
     -- , writeRev
 
@@ -57,10 +57,14 @@ module Streamly.Internal.Data.MutSmallArray.Type
     , fromStreamDN
     , fromStreamD
     , fromPureStream
+    -}
+    , fromPureStreamN
+    , fromByteStr#
 
     -- ** Random writes
     , putIndex
     , putIndexUnsafe
+    {-
     , putIndices
     -- , putFromThenTo
     -- , putFrom -- start writing at the given position
@@ -74,29 +78,13 @@ module Streamly.Internal.Data.MutSmallArray.Type
     , modify
     , swapIndices
     , unsafeSwapIndices
-
-    -- ** Growing and Shrinking
-    -- | Arrays grow only at the end, though it is possible to grow on both sides
-    -- and therefore have a cons as well as snoc. But that will require two
-    -- bounds in the array representation.
-
-    -- *** Appending elements
-    , snocWith
-    , snoc
-    , snocLinear
-    , snocMay
-    , snocUnsafe
-
-    -- *** Appending streams
-    , writeAppendNUnsafe
-    , writeAppendN
-    , writeAppendWith
-    , writeAppend
+    -}
 
     -- ** Eliminating and Reading
 
     -- *** To streams
     , reader
+    {-
     , readerRevWith
     , readerRev
 
@@ -105,16 +93,20 @@ module Streamly.Internal.Data.MutSmallArray.Type
     , toStreamDRevWith
     , toStreamKWith
     , toStreamKRevWith
+    -}
     , read
+    {-
     , readRev
     , toStreamK
     , toStreamKRev
     , toList
+    -}
 
     -- experimental
     , producerWith
     , producer
 
+    {-
     -- *** Random reads
     , getIndex
     , getIndexUnsafe
@@ -122,38 +114,18 @@ module Streamly.Internal.Data.MutSmallArray.Type
     , getIndicesD
     -- , getFromThenTo
     , getIndexRev
-
-    -- ** Memory Management
-    , blockSize
-    , arrayChunkBytes
-    , allocBytesToElemCount
-    , realloc
-    , resize
-    , resizeExp
-    , rightSize
+    -}
 
     -- ** Size
     , length
     , byteLength
-    -- , capacity
-    , byteCapacity
-    , bytesFree
-
-    -- ** In-place Mutation Algorithms
-    , strip
-    , reverse
-    , permute
-    , partitionBy
-    , shuffleBy
-    , divideBy
-    , mergeBy
-    , bubble
 
     -- ** Casting
     , cast
     , castUnsafe
     , asBytes
     , asPtrUnsafe
+    {-
 
     -- ** Folding
     , foldl'
@@ -189,23 +161,12 @@ module Streamly.Internal.Data.MutSmallArray.Type
     -- ** Cloning arrays
     , clone
     , pinnedClone
+    -}
 
     -- ** Appending arrays
-    , spliceCopy
-    , spliceWith
+    , putSliceUnsafe
+    , toPinnedCString
     , splice
-    , spliceExp
-    , spliceUnsafe
-    -- , putSlice
-    -- , appendSlice
-    -- , appendSliceFrom
-
-    -- ** Utilities
-    , roundUpToPower2
-    , memcpy
-    , memcmp
-    , c_memchr
-    -}
     )
 where
 
@@ -214,47 +175,47 @@ where
 #include "ArrayMacros.h"
 #include "MachDeps.h"
 
-import Control.Monad (when, void)
+-- import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Bits (shiftR, (.|.), (.&.))
+-- import Data.Bits (shiftR, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
-import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
+import Foreign.C.Types (CSize(..))
+-- import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Data.MutByteArray.Type
     ( MutByteArray(..)
-    , MutableByteArray
     , PinnedState(..)
-    , getMutableByteArray#
-    , putSliceUnsafe
     )
 import Streamly.Internal.Data.Unbox (Unbox(..))
+import System.IO.Unsafe (unsafePerformIO)
+{-
 import GHC.Base
     ( IO(..)
     , Int(..)
     , compareByteArrays#
     , copyMutableByteArray#
     )
-import GHC.Base (noinline)
-import GHC.Exts (unsafeCoerce#)
+-}
+-- import GHC.Base (noinline)
+import GHC.Exts (Addr#)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
-import Streamly.Internal.Data.StreamK.Type (StreamK)
-import Streamly.Internal.Data.SVar.Type (adaptState, defState)
+-- import Streamly.Internal.Data.StreamK.Type (StreamK)
+-- import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
+-- import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
+import qualified Streamly.Internal.Data.MutByteArray.Type as MutByteArray
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Lift as D
-import qualified Streamly.Internal.Data.StreamK.Type as K
-import qualified Prelude
+-- import qualified Streamly.Internal.Data.StreamK.Type as K
+-- import qualified Prelude
 
 import Prelude hiding
     (Foldable(..), read, unlines, splitAt, reverse, truncate)
@@ -262,78 +223,10 @@ import Prelude hiding
 #include "DocTestDataMutArray.hs"
 
 -------------------------------------------------------------------------------
--- Foreign helpers
--------------------------------------------------------------------------------
-
-{-
-foreign import ccall unsafe "string.h memcpy" c_memcpy
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
-
-foreign import ccall unsafe "string.h memchr" c_memchr
-    :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
-
-foreign import ccall unsafe "string.h memcmp" c_memcmp
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
-
--- | Given an 'Unboxed' type (unused first arg) and a number of bytes, return
--- how many elements of that type will completely fit in those bytes.
---
-{-# INLINE bytesToElemCount #-}
-bytesToElemCount :: forall a. Unbox a => a -> Int -> Int
-bytesToElemCount _ n = n `div` SIZE_OF(a)
-
--- XXX we are converting Int to CSize
-memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
-memcpy dst src len = void (c_memcpy dst src (fromIntegral len))
-
--- XXX we are converting Int to CSize
--- return True if the memory locations have identical contents
-{-# INLINE memcmp #-}
-memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
-memcmp p1 p2 len = do
-    r <- c_memcmp p1 p2 (fromIntegral len)
-    return $ r == 0
--}
-
--------------------------------------------------------------------------------
 -- MutArray Data Type
 -------------------------------------------------------------------------------
 
--- $arrayNotes
---
--- We can use an 'Unboxed' constraint in the MutArray type and the constraint
--- can be automatically provided to a function that pattern matches on the
--- MutArray type. However, it has huge performance cost, so we do not use it.
--- Investigate a GHC improvement possiblity.
-
--- | An unboxed mutable array. An array is created with a given length
--- and capacity. Length is the number of valid elements in the array.  Capacity
--- is the maximum number of elements that the array can be expanded to without
--- having to reallocate the memory.
---
--- The elements in the array can be mutated in-place without changing the
--- reference (constructor). However, the length of the array cannot be mutated
--- in-place.  A new array reference is generated when the length changes.  When
--- the length is increased (upto the maximum reserved capacity of the array),
--- the array is not reallocated and the new reference uses the same underlying
--- memory as the old one.
---
--- Several routines in this module allow the programmer to control the capacity
--- of the array. The programmer can control the trade-off between memory usage
--- and performance impact due to reallocations when growing or shrinking the
--- array.
---
-data MutArray a =
-    -- The array is a range into arrContents. arrContents may be a superset of
-    -- the slice represented by the array. All offsets are in bytes.
-    MutArray
-    { arrContents :: {-# UNPACK #-} !MutByteArray
-    , arrStart :: {-# UNPACK #-} !Int  -- ^ index into arrContents
-    , arrEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
-                                       -- Represents the first invalid index of
-                                       -- the array.
-    , arrBound :: {-# UNPACK #-} !Int    -- ^ first invalid index of arrContents.
-    }
+newtype MutArray a = MutArray MutByteArray
 
 {-
 -------------------------------------------------------------------------------
@@ -362,22 +255,14 @@ unpin arr@MutArray{..} =
 {-# INLINE isPinned #-}
 isPinned :: MutArray a -> Bool
 isPinned MutArray{..} = Unboxed.isPinned arrContents
+-}
 
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
 
--- XXX Change the names to use "new" instead of "newArray". That way we can use
--- the same names for managed file system objects as well. For unmanaged ones
--- we can use open/create etc as usual.
---
--- A new array is similar to "touch" creating a zero length file. An mmapped
--- array would be similar to a sparse file with holes. TBD: support mmapped
--- files and arrays.
-
--- GHC always guarantees word-aligned memory, alignment is important only when
--- we need more than that.  See stg_pinnedNewAlignedByteArrayzh and
--- allocatePinned in GHC source.
+empty :: MutArray a
+empty = MutArray MutByteArray.nil
 
 -- | @newArrayWith allocator alignment count@ allocates a new array of zero
 -- length and with a capacity to hold @count@ elements, using @allocator
@@ -395,34 +280,14 @@ newArrayWith :: forall m a. (MonadIO m, Unbox a)
 newArrayWith alloc alignSize count = do
     let size = max (count * SIZE_OF(a)) 0
     contents <- alloc size alignSize
-    return $ MutArray
-        { arrContents = contents
-        , arrStart = 0
-        , arrEnd   = 0
-        , arrBound = size
-        }
+    return $ MutArray contents
 
-nil ::
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    MutArray a
-nil = MutArray Unboxed.nil 0 0 0
-
+{-
 {-# INLINE newBytesAs #-}
-newBytesAs :: MonadIO m =>
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    PinnedState -> Int -> m (MutArray a)
+newBytesAs :: MonadIO m => PinnedState -> Int -> m (MutArray a)
 newBytesAs ps bytes = do
-    contents <- liftIO $ Unboxed.newBytesAs ps bytes
-    return $ MutArray
-        { arrContents = contents
-        , arrStart = 0
-        , arrEnd   = 0
-        , arrBound = bytes
-        }
+    contents <- liftIO $ MutByteArray.newBytesAs ps bytes
+    return $ MutArray contents
 
 -- | Allocates a pinned empty array that can hold 'count' items.  The memory of
 -- the array is uninitialized and the allocation is aligned as per the
@@ -445,14 +310,16 @@ pinnedNewBytes = newBytesAs Pinned
 pinnedNewAligned :: (MonadIO m, Unbox a) => Int -> Int -> m (MutArray a)
 pinnedNewAligned =
     newArrayWith (\s a -> liftIO $ Unboxed.pinnedNewAlignedBytes s a)
+-}
 
 {-# INLINE newAs #-}
 newAs :: (MonadIO m, Unbox a) => PinnedState -> Int -> m (MutArray a)
 newAs ps =
     newArrayWith
-        (\s _ -> liftIO $ Unboxed.newBytesAs ps s)
+        (\s _ -> liftIO $ MutByteArray.newBytesAs ps s)
         (error "new: alignment is not used in unpinned arrays.")
 
+{-
 -- XXX can unaligned allocation be more efficient when alignment is not needed?
 --
 -- | Allocates an empty pinned array that can hold 'count' items.  The memory of
@@ -462,6 +329,7 @@ newAs ps =
 {-# INLINE pinnedNew #-}
 pinnedNew :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
 pinnedNew = newAs Pinned
+-}
 
 -- | Allocates an empty unpinned array that can hold 'count' items.  The memory
 -- of the array is uninitialized.
@@ -481,10 +349,10 @@ new = newAs Unpinned
 {-# INLINE putIndexUnsafe #-}
 putIndexUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> MutArray a -> a -> m ()
-putIndexUnsafe i MutArray{..} x = do
-    let index = INDEX_OF(arrStart, i, a)
-    assert (i >= 0 && INDEX_VALID(index, arrEnd, a)) (return ())
-    liftIO $ pokeAt index arrContents  x
+putIndexUnsafe i (MutArray contents) x = do
+    let index = INDEX_OF(0, i, a)
+    assert (i >= 0 && INDEX_VALID(index, undefined, a)) (return ()) -- arrEND
+    liftIO $ pokeAt index contents  x
 
 invalidIndex :: String -> Int -> a
 invalidIndex label i =
@@ -499,12 +367,13 @@ invalidIndex label i =
 --
 {-# INLINE putIndex #-}
 putIndex :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> a -> m ()
-putIndex i MutArray{..} x = do
-    let index = INDEX_OF(arrStart,i,a)
-    if i >= 0 && INDEX_VALID(index,arrEnd,a)
-    then liftIO $ pokeAt index arrContents  x
+putIndex i (MutArray contents) x = do
+    let index = INDEX_OF(0,i,a)
+    if i >= 0 && INDEX_VALID(index,undefined,a) -- arrEnd
+    then liftIO $ pokeAt index contents  x
     else invalidIndex "putIndex" i
 
+{-
 -- | Write an input stream of (index, value) pairs to an array. Throws an
 -- error if any index is out of bounds.
 --
@@ -626,354 +495,6 @@ swapIndices i1 i2 MutArray{..} = liftIO $ do
         swapArrayByteIndices (Proxy :: Proxy a) arrContents t1 t2
 
 -------------------------------------------------------------------------------
--- Rounding
--------------------------------------------------------------------------------
-
--- XXX Should we use bitshifts in calculations or it gets optimized by the
--- compiler/processor itself?
---
--- | The page or block size used by the GHC allocator. Allocator allocates at
--- least a block and then allocates smaller allocations from within a block.
-blockSize :: Int
-blockSize = 4 * 1024
-
--- | Allocations larger than 'largeObjectThreshold' are in multiples of block
--- size and are always pinned. The space beyond the end of a large object up to
--- the end of the block is unused.
-largeObjectThreshold :: Int
-largeObjectThreshold = (blockSize * 8) `div` 10
-
--- XXX Should be done only when we are using the GHC allocator.
--- | Round up an array larger than 'largeObjectThreshold' to use the whole
--- block.
-{-# INLINE roundUpLargeArray #-}
-roundUpLargeArray :: Int -> Int
-roundUpLargeArray size =
-    if size >= largeObjectThreshold
-    then
-        assert
-            (blockSize /= 0 && ((blockSize .&. (blockSize - 1)) == 0))
-            ((size + blockSize - 1) .&. negate blockSize)
-    else size
-
-{-# INLINE isPower2 #-}
-isPower2 :: Int -> Bool
-isPower2 n = n .&. (n - 1) == 0
-
-{-# INLINE roundUpToPower2 #-}
-roundUpToPower2 :: Int -> Int
-roundUpToPower2 n =
-#if WORD_SIZE_IN_BITS == 64
-    1 + z6
-#else
-    1 + z5
-#endif
-
-    where
-
-    z0 = n - 1
-    z1 = z0 .|. z0 `shiftR` 1
-    z2 = z1 .|. z1 `shiftR` 2
-    z3 = z2 .|. z2 `shiftR` 4
-    z4 = z3 .|. z3 `shiftR` 8
-    z5 = z4 .|. z4 `shiftR` 16
-    z6 = z5 .|. z5 `shiftR` 32
-
--- | @allocBytesToBytes elem allocatedBytes@ returns the array size in bytes
--- such that the real allocation is less than or equal to @allocatedBytes@,
--- unless @allocatedBytes@ is less than the size of one array element in which
--- case it returns one element's size.
---
-{-# INLINE allocBytesToBytes #-}
-allocBytesToBytes :: forall a. Unbox a => a -> Int -> Int
-allocBytesToBytes _ n = max (arrayPayloadSize n) (SIZE_OF(a))
-
--- | Given an 'Unboxed' type (unused first arg) and real allocation size
--- (including overhead), return how many elements of that type will completely
--- fit in it, returns at least 1.
---
-{-# INLINE allocBytesToElemCount #-}
-allocBytesToElemCount :: Unbox a => a -> Int -> Int
-allocBytesToElemCount x bytes =
-    let n = bytesToElemCount x (allocBytesToBytes x bytes)
-     in assert (n >= 1) n
-
--- | The default chunk size by which the array creation routines increase the
--- size of the array when the array is grown linearly.
-arrayChunkBytes :: Int
-arrayChunkBytes = 1024
-
--------------------------------------------------------------------------------
--- Resizing
--------------------------------------------------------------------------------
-
--- | Round the second argument down to multiples of the first argument.
-{-# INLINE roundDownTo #-}
-roundDownTo :: Int -> Int -> Int
-roundDownTo elemSize size = size - (size `mod` elemSize)
-
--- XXX See if resizing can be implemented by reading the old array as a stream
--- and then using writeN to the new array.
---
--- NOTE: we are passing elemSize explicitly to avoid an Unboxed constraint.
--- Since this is not inlined Unboxed consrraint leads to dictionary passing
--- which complicates some inspection tests.
---
-{-# NOINLINE reallocExplicit #-}
-reallocExplicit :: Int -> Int -> MutArray a -> IO (MutArray a)
-reallocExplicit elemSize newCapacityInBytes MutArray{..} = do
-    assertM(arrEnd <= arrBound)
-
-    -- Allocate new array
-    let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
-    contents <-
-        if Unboxed.isPinned arrContents
-        then Unboxed.pinnedNew newCapMaxInBytes
-        else Unboxed.new newCapMaxInBytes
-    let !(MutByteArray mbarrFrom#) = arrContents
-        !(MutByteArray mbarrTo#) = contents
-
-    -- Copy old data
-    let oldStart = arrStart
-        !(I# oldStartInBytes#) = oldStart
-        oldSizeInBytes = arrEnd - oldStart
-        newCapInBytes = roundDownTo elemSize newCapMaxInBytes
-        !newLenInBytes@(I# newLenInBytes#) = min oldSizeInBytes newCapInBytes
-    assert (oldSizeInBytes `mod` elemSize == 0) (return ())
-    assert (newLenInBytes >= 0) (return ())
-    assert (newLenInBytes `mod` elemSize == 0) (return ())
-    IO $ \s# -> (# copyMutableByteArray# mbarrFrom# oldStartInBytes#
-                        mbarrTo# 0# newLenInBytes# s#, () #)
-
-    return $ MutArray
-        { arrStart = 0
-        , arrContents = contents
-        , arrEnd   = newLenInBytes
-        , arrBound = newCapInBytes
-        }
-
--- | @realloc newCapacity array@ reallocates the array to the specified
--- capacity in bytes.
---
--- If the new size is less than the original array the array gets truncated.
--- If the new size is not a multiple of array element size then it is rounded
--- down to multiples of array size.  If the new size is more than
--- 'largeObjectThreshold' then it is rounded up to the block size (4K).
---
--- If the original array is pinned, the newly allocated array is also pinned.
-{-# INLINABLE realloc #-}
-realloc :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (MutArray a)
-realloc bytes arr = liftIO $ reallocExplicit (SIZE_OF(a)) bytes arr
-
--- | @reallocWith label capSizer minIncrBytes array@. The label is used
--- in error messages and the capSizer is used to determine the capacity of the
--- new array in bytes given the current byte length of the array.
-reallocWith :: forall m a. (MonadIO m , Unbox a) =>
-       String
-    -> (Int -> Int)
-    -> Int
-    -> MutArray a
-    -> m (MutArray a)
-reallocWith label capSizer minIncrBytes arr = do
-    let oldSizeBytes = arrEnd arr - arrStart arr
-        newCapBytes = capSizer oldSizeBytes
-        newSizeBytes = oldSizeBytes + minIncrBytes
-        safeCapBytes = max newCapBytes newSizeBytes
-    assertM(safeCapBytes >= newSizeBytes || error (badSize newSizeBytes))
-
-    realloc safeCapBytes arr
-
-    where
-
-    badSize newSize =
-        concat
-            [ label
-            , ": new array size (in bytes) is less than required size "
-            , show newSize
-            , ". Please check the sizing function passed."
-            ]
-
--- | @resize newCapacity array@ changes the total capacity of the array so that
--- it is enough to hold the specified number of elements.  Nothing is done if
--- the specified capacity is less than the length of the array.
---
--- If the capacity is more than 'largeObjectThreshold' then it is rounded up to
--- the block size (4K).
---
--- /Pre-release/
-{-# INLINE resize #-}
-resize :: forall m a. (MonadIO m, Unbox a) =>
-    Int -> MutArray a -> m (MutArray a)
-resize nElems arr@MutArray{..} = do
-    let req = SIZE_OF(a) * nElems
-        len = arrEnd - arrStart
-    if req < len
-    then return arr
-    else realloc req arr
-
--- | Like 'resize' but if the byte capacity is more than 'largeObjectThreshold'
--- then it is rounded up to the closest power of 2.
---
--- /Pre-release/
-{-# INLINE resizeExp #-}
-resizeExp :: forall m a. (MonadIO m, Unbox a) =>
-    Int -> MutArray a -> m (MutArray a)
-resizeExp nElems arr@MutArray{..} = do
-    let req = roundUpLargeArray (SIZE_OF(a) * nElems)
-        req1 =
-            if req > largeObjectThreshold
-            then roundUpToPower2 req
-            else req
-        len = arrEnd - arrStart
-    if req1 < len
-    then return arr
-    else realloc req1 arr
-
--- | Resize the allocated memory to drop any reserved free space at the end of
--- the array and reallocate it to reduce wastage.
---
--- Up to 25% wastage is allowed to avoid reallocations.  If the capacity is
--- more than 'largeObjectThreshold' then free space up to the 'blockSize' is
--- retained.
---
--- /Pre-release/
-{-# INLINE rightSize #-}
-rightSize :: forall m a. (MonadIO m, Unbox a) => MutArray a -> m (MutArray a)
-rightSize arr@MutArray{..} = do
-    assert (arrEnd <= arrBound) (return ())
-    let start = arrStart
-        len = arrEnd - start
-        capacity = arrBound - start
-        target = roundUpLargeArray len
-        waste = arrBound - arrEnd
-    assert (target >= len) (return ())
-    assert (len `mod` SIZE_OF(a) == 0) (return ())
-    -- We trade off some wastage (25%) to avoid reallocations and copying.
-    if target < capacity && len < 3 * waste
-    then realloc target arr
-    else return arr
-
--------------------------------------------------------------------------------
--- Snoc
--------------------------------------------------------------------------------
-
--- XXX We can possibly use a smallMutableByteArray to hold the start, end,
--- bound pointers.  Using fully mutable handle will ensure that we do not have
--- multiple references to the same array of different lengths lying around and
--- potentially misused. In that case "snoc" need not return a new array (snoc
--- :: MutArray a -> a -> m ()), it will just modify the old reference.  The array
--- length will be mutable.  This means the length function would also be
--- monadic.  Mutable arrays would behave more like files that grow in that
--- case.
-
--- | Snoc using a 'Ptr'. Low level reusable function.
---
--- /Internal/
-{-# INLINE snocNewEnd #-}
-snocNewEnd :: (MonadIO m, Unbox a) => Int -> MutArray a -> a -> m (MutArray a)
-snocNewEnd newEnd arr@MutArray{..} x = liftIO $ do
-    assert (newEnd <= arrBound) (return ())
-    pokeAt arrEnd arrContents x
-    return $ arr {arrEnd = newEnd}
-
--- | Really really unsafe, appends the element into the first array, may
--- cause silent data corruption or if you are lucky a segfault if the first
--- array does not have enough space to append the element.
---
--- /Internal/
-{-# INLINE snocUnsafe #-}
-snocUnsafe :: forall m a. (MonadIO m, Unbox a) =>
-    MutArray a -> a -> m (MutArray a)
-snocUnsafe arr@MutArray{..} = snocNewEnd (INDEX_NEXT(arrEnd,a)) arr
-
--- | Like 'snoc' but does not reallocate when pre-allocated array capacity
--- becomes full.
---
--- /Internal/
-{-# INLINE snocMay #-}
-snocMay :: forall m a. (MonadIO m, Unbox a) =>
-    MutArray a -> a -> m (Maybe (MutArray a))
-snocMay arr@MutArray{..} x = liftIO $ do
-    let newEnd = INDEX_NEXT(arrEnd,a)
-    if newEnd <= arrBound
-    then Just <$> snocNewEnd newEnd arr x
-    else return Nothing
-
--- NOINLINE to move it out of the way and not pollute the instruction cache.
-{-# NOINLINE snocWithRealloc #-}
-snocWithRealloc :: forall m a. (MonadIO m, Unbox a) =>
-       (Int -> Int)
-    -> MutArray a
-    -> a
-    -> m (MutArray a)
-snocWithRealloc sizer arr x = do
-    arr1 <- liftIO $ reallocWith "snocWith" sizer (SIZE_OF(a)) arr
-    snocUnsafe arr1 x
-
--- | @snocWith sizer arr elem@ mutates @arr@ to append @elem@. The length of
--- the array increases by 1.
---
--- If there is no reserved space available in @arr@ it is reallocated to a size
--- in bytes determined by the @sizer oldSizeBytes@ function, where
--- @oldSizeBytes@ is the original size of the array in bytes.
---
--- If the new array size is more than 'largeObjectThreshold' we automatically
--- round it up to 'blockSize'.
---
--- Note that the returned array may be a mutated version of the original array.
---
--- /Pre-release/
-{-# INLINE snocWith #-}
-snocWith :: forall m a. (MonadIO m, Unbox a) =>
-       (Int -> Int)
-    -> MutArray a
-    -> a
-    -> m (MutArray a)
-snocWith allocSize arr x = liftIO $ do
-    let newEnd = INDEX_NEXT(arrEnd arr,a)
-    if newEnd <= arrBound arr
-    then snocNewEnd newEnd arr x
-    else snocWithRealloc allocSize arr x
-
--- | The array is mutated to append an additional element to it. If there
--- is no reserved space available in the array then it is reallocated to grow
--- it by 'arrayChunkBytes' rounded up to 'blockSize' when the size becomes more
--- than 'largeObjectThreshold'.
---
--- Note that the returned array may be a mutated version of the original array.
---
--- Performs O(n^2) copies to grow but is thrifty on memory.
---
--- /Pre-release/
-{-# INLINE snocLinear #-}
-snocLinear :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
-snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
-
--- | The array is mutated to append an additional element to it. If there is no
--- reserved space available in the array then it is reallocated to double the
--- original size.
---
--- This is useful to reduce allocations when appending unknown number of
--- elements.
---
--- Note that the returned array may be a mutated version of the original array.
---
--- >>> snoc = MutArray.snocWith (* 2)
---
--- Performs O(n * log n) copies to grow, but is liberal with memory allocation.
---
-{-# INLINE snoc #-}
-snoc :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
-snoc = snocWith f
-
-    where
-
-    f oldSize =
-        if isPower2 oldSize
-        then oldSize * 2
-        else roundUpToPower2 oldSize * 2
-
--------------------------------------------------------------------------------
 -- Random reads
 -------------------------------------------------------------------------------
 
@@ -1042,10 +563,6 @@ getIndicesD liftio (D.Stream stepi sti) = Unfold step inject
             D.Skip s -> return $ D.Skip (GetIndicesState contents start end s)
             D.Stop -> return D.Stop
 
-{-# INLINE getIndices #-}
-getIndices :: (MonadIO m, Unbox a) => Stream m Int -> Unfold m (MutArray a) a
-getIndices = getIndicesD liftIO
-
 -------------------------------------------------------------------------------
 -- Subarrays
 -------------------------------------------------------------------------------
@@ -1094,156 +611,21 @@ getSlice index len (MutArray contents start e _) =
         else error
                 $ "getSlice: invalid slice, index "
                 ++ show index ++ " length " ++ show len
-
--------------------------------------------------------------------------------
--- In-place mutation algorithms
--------------------------------------------------------------------------------
-
--- XXX consider the bulk update/accumulation/permutation APIs from vector.
-
--- | You may not need to reverse an array because you can consume it in reverse
--- using 'readerRev'. To reverse large arrays you can read in reverse and write
--- to another array. However, in-place reverse can be useful to take adavantage
--- of cache locality and when you do not want to allocate additional memory.
---
-{-# INLINE reverse #-}
-reverse :: forall m a. (MonadIO m, Unbox a) => MutArray a -> m ()
-reverse MutArray{..} = liftIO $ do
-    let l = arrStart
-        h = INDEX_PREV(arrEnd,a)
-     in swap l h
-
-    where
-
-    swap l h = do
-        when (l < h) $ do
-            swapArrayByteIndices (Proxy :: Proxy a) arrContents l h
-            swap (INDEX_NEXT(l,a)) (INDEX_PREV(h,a))
-
--- | Generate the next permutation of the sequence, returns False if this is
--- the last permutation.
---
--- /Unimplemented/
-{-# INLINE permute #-}
-permute :: MutArray a -> m Bool
-permute = undefined
-
--- | Partition an array into two halves using a partitioning predicate. The
--- first half retains values where the predicate is 'False' and the second half
--- retains values where the predicate is 'True'.
---
--- /Pre-release/
-{-# INLINE partitionBy #-}
-partitionBy :: forall m a. (MonadIO m, Unbox a)
-    => (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
-partitionBy f arr@MutArray{..} = liftIO $ do
-    if arrStart >= arrEnd
-    then return (arr, arr)
-    else do
-        ptr <- go arrStart (INDEX_PREV(arrEnd,a))
-        let pl = MutArray arrContents arrStart ptr ptr
-            pr = MutArray arrContents ptr arrEnd arrEnd
-        return (pl, pr)
-
-    where
-
-    -- Invariant low < high on entry, and on return as well
-    moveHigh low high = do
-        h <- peekAt high arrContents
-        if f h
-        then
-            -- Correctly classified, continue the loop
-            let high1 = INDEX_PREV(high,a)
-             in if low == high1
-                then return Nothing
-                else moveHigh low high1
-        else return (Just (high, h)) -- incorrectly classified
-
-    -- Keep a low pointer starting at the start of the array (first partition)
-    -- and a high pointer starting at the end of the array (second partition).
-    -- Keep incrementing the low ptr and decrementing the high ptr until both
-    -- are wrongly classified, at that point swap the two and continue until
-    -- the two pointer cross each other.
-    --
-    -- Invariants when entering this loop:
-    -- low <= high
-    -- Both low and high are valid locations within the array
-    go low high = do
-        l <- peekAt low arrContents
-        if f l
-        then
-            -- low is wrongly classified
-            if low == high
-            then return low
-            else do -- low < high
-                r <- moveHigh low high
-                case r of
-                    Nothing -> return low
-                    Just (high1, h) -> do -- low < high1
-                        pokeAt low arrContents h
-                        pokeAt high1 arrContents l
-                        let low1 = INDEX_NEXT(low,a)
-                            high2 = INDEX_PREV(high1,a)
-                        if low1 <= high2
-                        then go low1 high2
-                        else return low1 -- low1 > high2
-
-        else do
-            -- low is correctly classified
-            let low1 = INDEX_NEXT(low,a)
-            if low == high
-            then return low1
-            else go low1 high
-
--- | Shuffle corresponding elements from two arrays using a shuffle function.
--- If the shuffle function returns 'False' then do nothing otherwise swap the
--- elements. This can be used in a bottom up fold to shuffle or reorder the
--- elements.
---
--- /Unimplemented/
-{-# INLINE shuffleBy #-}
-shuffleBy :: (a -> a -> m Bool) -> MutArray a -> MutArray a -> m ()
-shuffleBy = undefined
-
--- XXX we can also make the folds partial by stopping at a certain level.
---
--- | @divideBy level partition array@  performs a top down hierarchical
--- recursive partitioning fold of items in the container using the given
--- function as the partition function.  Level indicates the level in the tree
--- where the fold would stop.
---
--- This performs a quick sort if the partition function is
--- 'partitionBy (< pivot)'.
---
--- /Unimplemented/
-{-# INLINABLE divideBy #-}
-divideBy ::
-    Int -> (MutArray a -> m (MutArray a, MutArray a)) -> MutArray a -> m ()
-divideBy = undefined
-
--- | @mergeBy level merge array@ performs a pairwise bottom up fold recursively
--- merging the pairs using the supplied merge function. Level indicates the
--- level in the tree where the fold would stop.
---
--- This performs a random shuffle if the merge function is random.  If we
--- stop at level 0 and repeatedly apply the function then we can do a bubble
--- sort.
---
--- /Unimplemented/
-mergeBy :: Int -> (MutArray a -> MutArray a -> m ()) -> MutArray a -> m ()
-mergeBy = undefined
+-}
 
 -------------------------------------------------------------------------------
 -- Size
 -------------------------------------------------------------------------------
 
+-- We do not realloc the underlying MutByteArray, therefore, the length cannot
+-- change, it is immutable.
+
 -- | /O(1)/ Get the byte length of the array.
 --
 {-# INLINE byteLength #-}
 byteLength :: MutArray a -> Int
-byteLength MutArray{..} =
-    let len = arrEnd - arrStart
-    in assert (len >= 0) len
+byteLength (MutArray contents) =
+    unsafePerformIO $ MutByteArray.sizeOfMutableByteArray contents
 
 -- Note: try to avoid the use of length in performance sensitive internal
 -- routines as it involves a costly 'div' operation. Instead use the end ptr
@@ -1257,31 +639,12 @@ byteLength MutArray{..} =
 --
 {-# INLINE length #-}
 length :: forall a. Unbox a => MutArray a -> Int
-length arr =
-    let elemSize = SIZE_OF(a)
-        blen = byteLength arr
+length arr = do
+    let blen = byteLength arr
+        elemSize = SIZE_OF(a)
      in assert (blen `mod` elemSize == 0) (blen `div` elemSize)
 
--- | Get the total capacity of an array. An array may have space reserved
--- beyond the current used length of the array.
---
--- /Pre-release/
-{-# INLINE byteCapacity #-}
-byteCapacity :: MutArray a -> Int
-byteCapacity MutArray{..} =
-    let len = arrBound - arrStart
-    in assert (len >= 0) len
-
--- | The remaining capacity in the array for appending more elements without
--- reallocation.
---
--- /Pre-release/
-{-# INLINE bytesFree #-}
-bytesFree :: MutArray a -> Int
-bytesFree MutArray{..} =
-    let n = arrBound - arrEnd
-    in assert (n >= 0) n
-
+{-
 -------------------------------------------------------------------------------
 -- Streams of arrays - Creation
 -------------------------------------------------------------------------------
@@ -1435,6 +798,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         x <- liftIO $ peekAt p contents
         let cur = INDEX_PREV(p,a)
         return $ D.Yield x (InnerLoop st contents cur start)
+-}
 
 -------------------------------------------------------------------------------
 -- Unfolds
@@ -1446,15 +810,10 @@ data ArrayUnsafe a = ArrayUnsafe
     {-# UNPACK #-} !Int                -- index 2
 
 toArrayUnsafe :: MutArray a -> ArrayUnsafe a
-toArrayUnsafe (MutArray contents start end _) = ArrayUnsafe contents start end
+toArrayUnsafe arr@(MutArray contents) = ArrayUnsafe contents 0 (byteLength arr)
 
-fromArrayUnsafe ::
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    ArrayUnsafe a -> MutArray a
-fromArrayUnsafe (ArrayUnsafe contents start end) =
-         MutArray contents start end end
+fromArrayUnsafe :: ArrayUnsafe a -> MutArray a
+fromArrayUnsafe (ArrayUnsafe contents _ _) = MutArray contents
 
 {-# INLINE_NORMAL producerWith #-}
 producerWith ::
@@ -1488,6 +847,7 @@ producer = producerWith liftIO
 reader :: forall m a. (MonadIO m, Unbox a) => Unfold m (MutArray a) a
 reader = Producer.simplify producer
 
+{-
 {-# INLINE_NORMAL readerRevWith #-}
 readerRevWith ::
        forall m a. (Monad m, Unbox a)
@@ -1552,19 +912,22 @@ toList MutArray{..} = liftIO $ go arrStart
     go p = do
         x <- peekAt p arrContents
         (:) x <$> go (INDEX_NEXT(p,a))
+-}
 
-{-# INLINE_NORMAL toStreamDWith #-}
-toStreamDWith ::
+{-# INLINE_NORMAL toStreamWith #-}
+toStreamWith ::
        forall m a. (Monad m, Unbox a)
     => (forall b. IO b -> m b) -> MutArray a -> D.Stream m a
-toStreamDWith liftio MutArray{..} = D.Stream step arrStart
+toStreamWith liftio arr@(MutArray contents) = D.Stream step 0
 
     where
+
+    arrEnd = byteLength arr
 
     {-# INLINE_LATE step #-}
     step _ p | assert (p <= arrEnd) (p == arrEnd) = return D.Stop
     step _ p = liftio $ do
-        r <- peekAt p arrContents
+        r <- peekAt p contents
         return $ D.Yield r (INDEX_NEXT(p,a))
 
 -- | Convert a 'MutArray' into a stream.
@@ -1573,8 +936,9 @@ toStreamDWith liftio MutArray{..} = D.Stream step arrStart
 --
 {-# INLINE_NORMAL read #-}
 read :: forall m a. (MonadIO m, Unbox a) => MutArray a -> D.Stream m a
-read = toStreamDWith liftIO
+read = toStreamWith liftIO
 
+{-
 {-# INLINE toStreamKWith #-}
 toStreamKWith ::
        forall m a. (Monad m, Unbox a)
@@ -1736,6 +1100,7 @@ writeAppendWith sizer = FL.foldlM' (snocWith sizer)
 writeAppend :: forall m a. (MonadIO m, Unbox a) =>
     m (MutArray a) -> Fold m a (MutArray a)
 writeAppend = writeAppendWith (* 2)
+-}
 
 -- XXX We can carry bound as well in the state to make sure we do not lose the
 -- remaining capacity. Need to check perf impact.
@@ -1746,20 +1111,22 @@ writeAppend = writeAppendWith (* 2)
 -- >>> writeNWithUnsafe alloc n = MutArray.writeAppendNUnsafe (alloc n) n
 --
 -- /Pre-release/
-{-# INLINE_NORMAL writeNWithUnsafe #-}
-writeNWithUnsafe :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL unsafeCreateOfWith #-}
+unsafeCreateOfWith :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
-writeNWithUnsafe alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
+unsafeCreateOfWith alloc n = MutArray . fst <$> FL.foldlM' step initial
 
     where
 
-    initial = toArrayUnsafe <$> alloc (max n 0)
+    initial = do
+        MutArray contents <- alloc n
+        return (contents, 0)
 
-    step (ArrayUnsafe contents start end) x = do
+    step (contents, end) x = do
         liftIO $ pokeAt end contents x
-        return
-          $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
+        return (contents, INDEX_NEXT(end,a))
 
+{-
 {-# INLINE_NORMAL writeNUnsafeAs #-}
 writeNUnsafeAs :: forall m a. (MonadIO m, Unbox a)
     => PinnedState -> Int -> Fold m a (MutArray a)
@@ -1783,6 +1150,7 @@ writeNUnsafe = writeNUnsafeAs Unpinned
 pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
 pinnedWriteNUnsafe = writeNUnsafeAs Pinned
+-}
 
 -- | @writeNWith alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
@@ -1790,18 +1158,18 @@ pinnedWriteNUnsafe = writeNUnsafeAs Pinned
 -- >>> writeNWith alloc n = Fold.take n (MutArray.writeNWithUnsafe alloc n)
 -- >>> writeNWith alloc n = MutArray.writeAppendN (alloc n) n
 --
-{-# INLINE_NORMAL writeNWith #-}
-writeNWith :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL createOfWith #-}
+createOfWith :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
-writeNWith alloc n = FL.take n (writeNWithUnsafe alloc n)
+createOfWith alloc n = FL.take n (unsafeCreateOfWith alloc n)
 
-{-# INLINE_NORMAL writeNAs #-}
-writeNAs ::
+{-# INLINE_NORMAL createOfAs #-}
+createOfAs ::
        forall m a. (MonadIO m, Unbox a)
     => PinnedState
     -> Int
     -> Fold m a (MutArray a)
-writeNAs ps = writeNWith (newAs ps)
+createOfAs ps = createOfWith (newAs ps)
 
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'MutArray'.
@@ -1810,10 +1178,11 @@ writeNAs ps = writeNWith (newAs ps)
 -- >>> writeN n = Fold.take n (MutArray.writeNUnsafe n)
 -- >>> writeN n = MutArray.writeAppendN n (MutArray.new n)
 --
-{-# INLINE_NORMAL writeN #-}
-writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
-writeN = writeNAs Unpinned
+{-# INLINE_NORMAL createOf #-}
+createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+createOf = createOfAs Unpinned
 
+{-
 -- | Like 'writeN' but creates a pinned array.
 {-# INLINE_NORMAL pinnedWriteN #-}
 pinnedWriteN ::
@@ -2010,7 +1379,39 @@ pinnedFromListN n xs = fromStreamDNAs Pinned n $ D.fromList xs
 {-# INLINE fromListRevN #-}
 fromListRevN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
 fromListRevN n xs = D.fold (writeRevN n) $ D.fromList xs
+-}
 
+-- | Convert a pure stream in Identity monad to a mutable array.
+{-# INLINABLE fromPureStreamN #-}
+fromPureStreamN :: (MonadIO m, Unbox a) =>
+    Int -> Stream Identity a -> m (MutArray a)
+fromPureStreamN n xs =
+    D.fold (createOf n) $ D.morphInner (return . runIdentity) xs
+
+-- XXX Need to share code between MutSmallArray and MutArray
+
+foreign import ccall unsafe "string.h strlen" c_strlen
+    :: Ptr Word8 -> IO CSize
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
+
+{-# INLINABLE fromByteStr# #-}
+fromByteStr# :: MonadIO m => Addr# -> m (MutArray Word8)
+fromByteStr# addr = do
+    -- It is better to count the size first and allocate exact space.
+    -- Also, memcpy is better than stream copy when the size is known.
+    -- C strlen compares 4 bytes at a time, so is better than the stream
+    -- version. https://github.com/bminor/glibc/blob/master/string/strlen.c
+    -- XXX We can possibly use a stream of Word64 to do the same.
+    -- fromByteStr# addr = fromPureStream (D.fromByteStr# addr)
+    len <- liftIO $ c_strlen (Ptr addr)
+    let lenInt = fromIntegral len
+    arr <- new lenInt
+    _ <- asUnpinnedPtrUnsafe arr (\ptr -> liftIO $ c_memcpy ptr (Ptr addr) len)
+    return arr
+
+{-
 -- | Convert a pure stream in Identity monad to a mutable array.
 {-# INLINABLE fromPureStream #-}
 fromPureStream :: (MonadIO m, Unbox a) => Stream Identity a -> m (MutArray a)
@@ -2115,170 +1516,52 @@ pinnedClone ::
     )
     => MutArray a -> m (MutArray a)
 pinnedClone = cloneAs Pinned
+-}
 
 -------------------------------------------------------------------------------
 -- Combining
 -------------------------------------------------------------------------------
 
--- | Copy two arrays into a newly allocated array. If the first array is pinned
--- the spliced array is also pinned.
-{-# INLINE spliceCopy #-}
-spliceCopy :: forall m a. MonadIO m =>
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    MutArray a -> MutArray a -> m (MutArray a)
-spliceCopy arr1 arr2 = liftIO $ do
-    let start1 = arrStart arr1
-        start2 = arrStart arr2
-        len1 = arrEnd arr1 - start1
-        len2 = arrEnd arr2 - start2
-    let newLen = len1 + len2
-    newArrContents <-
-        if Unboxed.isPinned (arrContents arr1)
-        then Unboxed.pinnedNew newLen
-        else Unboxed.new newLen
-    let len = len1 + len2
-    putSliceUnsafe (arrContents arr1) start1 newArrContents 0 len1
-    putSliceUnsafe (arrContents arr2) start2 newArrContents len1 len2
-    return $ MutArray newArrContents 0 len len
+-- | Put a sub range of a source array into a subrange of a destination array.
+-- This is not safe as it does not check the bounds of neither the src array
+-- nor the destination array.
+{-# INLINE putSliceUnsafe #-}
+putSliceUnsafe ::
+       forall m a. (MonadIO m, Unbox a)
+    => MutArray a
+    -> Int
+    -> MutArray a
+    -> Int
+    -> Int
+    -> m ()
+putSliceUnsafe (MutArray src) srcStart (MutArray dst) dstStart len =
+    let srcStartBytes = srcStart * SIZE_OF(a)
+        dstStartBytes = dstStart * SIZE_OF(a)
+     in MutByteArray.putSliceUnsafe src srcStartBytes dst dstStartBytes len
 
--- | Really really unsafe, appends the second array into the first array. If
--- the first array does not have enough space it may cause silent data
--- corruption or if you are lucky a segfault.
-{-# INLINE spliceUnsafe #-}
-spliceUnsafe :: MonadIO m =>
-    MutArray a -> MutArray a -> m (MutArray a)
-spliceUnsafe dst src =
-    liftIO $ do
-         let startSrc = arrStart src
-             srcLen = arrEnd src - startSrc
-             endDst = arrEnd dst
-         assertM(endDst + srcLen <= arrBound dst)
-         putSliceUnsafe
-             (arrContents src) startSrc (arrContents dst) endDst srcLen
-         return $ dst {arrEnd = endDst + srcLen}
-
--- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
--- reserved space available in @dst@ it is reallocated to a size determined by
--- the @sizer dstBytes srcBytes@ function, where @dstBytes@ is the size of the
--- first array and @srcBytes@ is the size of the second array, in bytes.
---
--- Note that the returned array may be a mutated version of first array.
---
--- /Pre-release/
-{-# INLINE spliceWith #-}
-spliceWith :: forall m a. (MonadIO m, Unbox a) =>
-    (Int -> Int -> Int) -> MutArray a -> MutArray a -> m (MutArray a)
-spliceWith sizer dst@(MutArray _ start end bound) src = do
-{-
-    let f = writeAppendWith (`sizer` byteLength src) (return dst)
-     in D.fold f (toStreamD src)
--}
-    assert (end <= bound) (return ())
-    let srcBytes = arrEnd src - arrStart src
-
-    dst1 <-
-        if end + srcBytes >= bound
-        then do
-            let dstBytes = end - start
-                newSizeInBytes = sizer dstBytes srcBytes
-            when (newSizeInBytes < dstBytes + srcBytes)
-                $ error
-                    $ "splice: newSize is less than the total size "
-                    ++ "of arrays being appended. Please check the "
-                    ++ "sizer function passed."
-            liftIO $ realloc newSizeInBytes dst
-        else return dst
-    spliceUnsafe dst1 src
-
--- | The first array is mutated to append the second array. If there is no
--- reserved space available in the first array a new allocation of exact
--- required size is done.
---
--- Note that the returned array may be a mutated version of first array.
---
--- >>> splice = MutArray.spliceWith (+)
---
--- If the original array is pinned the spliced array is also pinned.
---
--- /Pre-release/
 {-# INLINE splice #-}
-splice :: (MonadIO m, Unbox a) => MutArray a -> MutArray a -> m (MutArray a)
-splice = spliceWith (+)
+splice :: forall m a. MonadIO m => MutArray a -> MutArray a -> m (MutArray a)
+splice arr1@(MutArray ba1) arr2@(MutArray ba2) = do
+    let
+        len1 = byteLength arr1
+        len2 = byteLength arr2
+        len = len1 + len2
+    newArrContents <-
+        if MutByteArray.isPinned ba1
+        then liftIO $ MutByteArray.pinnedNew len
+        else liftIO $ MutByteArray.new len
+    MutByteArray.putSliceUnsafe ba1 0 newArrContents 0 len1
+    MutByteArray.putSliceUnsafe ba2 0 newArrContents len1 len2
+    return $ MutArray newArrContents
 
--- | Like 'append' but the growth of the array is exponential. Whenever a new
--- allocation is required the previous array size is at least doubled.
---
--- This is useful to reduce allocations when folding many arrays together.
---
--- Note that the returned array may be a mutated version of first array.
---
--- >>> spliceExp = MutArray.spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
---
--- /Pre-release/
-{-# INLINE spliceExp #-}
-spliceExp :: (MonadIO m, Unbox a) => MutArray a -> MutArray a -> m (MutArray a)
-spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
-
--------------------------------------------------------------------------------
--- Splitting
--------------------------------------------------------------------------------
-
--- | Drops the separator byte
-{-# INLINE breakOn #-}
-breakOn :: MonadIO m
-    => Word8 -> MutArray Word8 -> m (MutArray Word8, Maybe (MutArray Word8))
-breakOn sep arr@MutArray{..} = asPtrUnsafe arr $ \p -> liftIO $ do
-    -- XXX Instead of using asPtrUnsafe (pinning memory) we can pass unlifted
-    -- Addr# to memchr and it should be safe (from ghc 8.4).
-    -- XXX We do not need memchr here, we can use a Haskell equivalent.
-    loc <- c_memchr p sep (fromIntegral $ byteLength arr)
-    let sepIndex = loc `minusPtr` p
-    return $
-        if loc == nullPtr
-        then (arr, Nothing)
-        else
-            ( MutArray
-                { arrContents = arrContents
-                , arrStart = arrStart
-                , arrEnd = arrStart + sepIndex -- exclude the separator
-                , arrBound = arrStart + sepIndex
-                }
-            , Just $ MutArray
-                    { arrContents = arrContents
-                    , arrStart = arrStart + (sepIndex + 1)
-                    , arrEnd = arrEnd
-                    , arrBound = arrBound
-                    }
-            )
-
--- | Create two slices of an array without copying the original array. The
--- specified index @i@ is the first index of the second slice.
---
-splitAt :: forall a. Unbox a => Int -> MutArray a -> (MutArray a, MutArray a)
-splitAt i arr@MutArray{..} =
-    let maxIndex = length arr - 1
-    in  if i < 0
-        then error "sliceAt: negative array index"
-        else if i > maxIndex
-             then error $ "sliceAt: specified array index " ++ show i
-                        ++ " is beyond the maximum index " ++ show maxIndex
-             else let off = i * SIZE_OF(a)
-                      p = arrStart + off
-                in ( MutArray
-                  { arrContents = arrContents
-                  , arrStart = arrStart
-                  , arrEnd = p
-                  , arrBound = p
-                  }
-                , MutArray
-                  { arrContents = arrContents
-                  , arrStart = p
-                  , arrEnd = arrEnd
-                  , arrBound = arrBound
-                  }
-                )
+{-# INLINABLE toPinnedCString #-}
+toPinnedCString :: MonadIO m => MutArray Word8 -> m (MutArray Word8)
+toPinnedCString arr@(MutArray barr) = do
+    let len = byteLength arr
+    arr1@(MutArray barr1) <- newAs Pinned (len + 1)
+    MutByteArray.putSliceUnsafe barr 0 barr1 0 len
+    putIndexUnsafe len arr1 0
+    return arr1
 
 -------------------------------------------------------------------------------
 -- Casting
@@ -2291,13 +1574,8 @@ splitAt i arr@MutArray{..} =
 --
 -- /Pre-release/
 --
-castUnsafe ::
-#ifdef DEVBUILD
-    Unbox b =>
-#endif
-    MutArray a -> MutArray b
-castUnsafe (MutArray contents start end bound) =
-    MutArray contents start end bound
+castUnsafe :: MutArray a -> MutArray b
+castUnsafe (MutArray contents) = MutArray contents
 
 -- | Cast an @MutArray a@ into an @MutArray Word8@.
 --
@@ -2350,10 +1628,13 @@ cast arr =
 --
 {-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
-asPtrUnsafe arr f =
-    Unboxed.asPtrUnsafe
-        (arrContents arr) (\ptr -> f (ptr `plusPtr` arrStart arr))
+asPtrUnsafe (MutArray barr) = MutByteArray.asPtrUnsafe barr
 
+{-# INLINE asUnpinnedPtrUnsafe #-}
+asUnpinnedPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+asUnpinnedPtrUnsafe (MutArray barr) = MutByteArray.asUnpinnedPtrUnsafe barr
+
+{-
 -------------------------------------------------------------------------------
 -- Equality
 -------------------------------------------------------------------------------
@@ -2387,77 +1668,4 @@ cmp arr1 arr2 =
                               in (# s#, res #)
                     return $ compare r 0
                 x -> return x
-
--------------------------------------------------------------------------------
--- NFData
--------------------------------------------------------------------------------
-
--- | Strip elements which match with predicate from both ends.
---
--- /Pre-release/
-{-# INLINE strip #-}
-strip :: forall a m. (Unbox a, MonadIO m) =>
-    (a -> Bool) -> MutArray a -> m (MutArray a)
-strip eq arr@MutArray{..} = liftIO $ do
-    st <- getStart arrStart
-    end <- getLast arrEnd st
-    return arr {arrStart = st, arrEnd = end, arrBound = end}
-
-    where
-
-    {-
-    -- XXX This should have the same perf but it does not, investigate.
-    getStart = do
-        r <- liftIO $ D.head $ D.findIndices (not . eq) $ toStreamD arr
-        pure $
-            case r of
-                Nothing -> arrEnd
-                Just i -> PTR_INDEX(arrStart,i,a)
-    -}
-
-    getStart cur = do
-        if cur < arrEnd
-        then do
-            r <- peekAt cur arrContents
-            if eq r
-            then getStart (INDEX_NEXT(cur,a))
-            else return cur
-        else return cur
-
-    getLast cur low = do
-        if cur > low
-        then do
-            let prev = INDEX_PREV(cur,a)
-            r <- peekAt prev arrContents
-            if eq r
-            then getLast prev low
-            else return cur
-        else return cur
-
--- | Given an array sorted in ascending order except the last element being out
--- of order, use bubble sort to place the last element at the right place such
--- that the array remains sorted in ascending order.
---
--- /Pre-release/
-{-# INLINE bubble #-}
-bubble :: (MonadIO m, Unbox a) => (a -> a -> Ordering) -> MutArray a -> m ()
-bubble cmp0 arr =
-    when (l > 1) $ do
-        x <- getIndexUnsafe (l - 1) arr
-        go x (l - 2)
-
-        where
-
-        l = length arr
-
-        go x i =
-            if i >= 0
-            then do
-                x1 <- getIndexUnsafe i arr
-                case x `cmp0` x1 of
-                    LT -> do
-                        putIndexUnsafe (i + 1) arr x1
-                        go x (i - 1)
-                    _ -> putIndexUnsafe (i + 1) arr x
-            else putIndexUnsafe (i + 1) arr x
 -}
