@@ -429,7 +429,7 @@ library
                      , Streamly.Internal.FileSystem.FD
 
     if flag(dev)
-        exposed-modules: Streamly.Internal.Data.SmallArray
+        exposed-modules: Streamly.Internal.Data.SmallArray.Generic
         -- Exposed modules show up on hackage irrespective of the flag, so keep
         -- it hidden.
         other-modules:  Streamly.Data.SmallArray

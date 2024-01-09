@@ -12,7 +12,7 @@
 
 #include "inline.hs"
 
-module Streamly.Internal.Data.SmallArray
+module Streamly.Internal.Data.SmallArray.Generic
   (
     -- XXX should it be just Array instead? We should be able to replace one
     -- array type with another easily.

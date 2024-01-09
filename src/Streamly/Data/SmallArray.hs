@@ -31,4 +31,4 @@ where
 
 import Streamly.Internal.Data.SmallArray (SmallArray)
 
-import qualified Streamly.Internal.Data.SmallArray as A
+import qualified Streamly.Internal.Data.SmallArray.Generic as A
