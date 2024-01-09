@@ -16,12 +16,13 @@ where
 import Data.Char (ord)
 import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr)
 import Foreign.C (resetErrno, Errno(..), getErrno, eINTR, throwErrno, CString)
-import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.SmallArray (Array)
 import Streamly.Internal.FileSystem.Path (Path)
 import System.Posix.Directory.Internals (DirStream(..), CDir, CDirent)
 import System.Posix.Error (throwErrnoPathIfNullRetry)
 
-import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.SmallArray as Array
+import qualified Streamly.Internal.Data.Array as BigArray
 import qualified Streamly.Internal.FileSystem.Path as Path
 
 #include <dirent.h>
@@ -42,7 +43,10 @@ openDirStream :: Path -> IO DirStream
 openDirStream p =
   Array.asCStringUnsafe (Path.toChunk p) $ \s -> do
     -- XXX is toString always creating another copy or only in case of error?
-    dirp <- throwErrnoPathIfNullRetry "openDirStream" "" $ c_opendir s
+    dirp <- throwErrnoPathIfNullRetry "openDirStream" "TBD" $ c_opendir s
+    -- dirp <- throwErrnoPathIfNullRetry "openDirStream" (Path.toString p) $ c_opendir s
+    -- dirp <- throwErrnoPathIfNullRetry "openDirStream"
+            -- (show (BigArray.fromByteStr (castPtr s))) $ c_opendir s
     return (DirStream dirp)
 
 -- XXX We can use getdents64 directly so that we can use array slices from the
@@ -74,7 +78,7 @@ readDirStreamEither (DirStream dirp) = loop
         -- It is possible to find the name length using dreclen and then use
         -- fromPtrN, but it is not straightforward because the reclen is
         -- padded to 8-byte boundary.
-        let !name = Array.fromByteStr (castPtr dname)
+        name <- Array.fromByteStr (castPtr dname)
         if (dtype == #const DT_DIR)
         then do
             -- XXX Assuming UTF8 encoding

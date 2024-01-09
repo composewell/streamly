@@ -184,6 +184,7 @@ import qualified Data.IntMap.Lazy as Map
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Array as A (fromList, writeN, getIndex)
+import qualified Streamly.Internal.Data.SmallArray as SmallArray
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Unicode.Stream as U
@@ -618,7 +619,7 @@ foreign import ccall unsafe
 -- manner. We should ultimately remove all usage of these.
 
 toUtf8 :: MonadIO m => Path -> m (Array Word8)
-toUtf8 path = pure $ Path.toChunk path
+toUtf8 path = pure $ SmallArray.toArray (Path.toChunk path)
 
 utf8ToString :: Array Word8 -> String
 utf8ToString = runIdentity . S.fold FL.toList . U.decodeUtf8' . A.read
@@ -718,7 +719,7 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX readDirs currently uses paths as String, we need to convert it
     -- to "/" separated by byte arrays.
-    let p = Path.fromChunkUnsafe absPath
+    let p = Path.fromChunkUnsafe (SmallArray.fromArray absPath)
     -- XXX Need a FileSystem.Stat module to remove this
     pathIsDir <- doesDirectoryExist (Path.toString p)
     when (watchRec && pathIsDir) $ do
