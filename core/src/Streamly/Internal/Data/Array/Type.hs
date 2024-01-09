@@ -829,12 +829,18 @@ fromPureStream x = unsafePerformIO $ fmap (unsafeFreeze) (MA.fromPureStream x)
 -- fromPureStream = runIdentity . D.fold (unsafeMakePure write)
 -- fromPureStream = fromList . runIdentity . D.toList
 
+-- XXX This should be monadic.
+
 -- | Copy an immutable 'Ptr Word8' sequence into an array.
 --
 -- /Unsafe:/ The caller is responsible for safe addressing.
 --
+-- Note that this should be evaluated strictly to ensure that we do not hold
+-- the reference to the pointer in a lazy thunk.
 fromPtrN :: Int -> Ptr Word8 -> Array Word8
 fromPtrN n addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromPtrN n addr)
+
+-- XXX This should be monadic.
 
 -- | Copy a null terminated immutable 'Addr#' Word8 sequence into an array.
 --
@@ -846,9 +852,15 @@ fromPtrN n addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromPtrN n addr)
 -- >>> Array.toList $ Array.fromByteStr# "\1\2\3\0"#
 -- [1,2,3]
 --
+-- Note that this should be evaluated strictly to ensure that we do not hold
+-- the reference to the pointer in a lazy thunk.
 fromByteStr# :: Addr# -> Array Word8
 fromByteStr# addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromByteStr# addr)
 
+-- XXX This should be monadic.
+
+-- | Note that this should be evaluated strictly to ensure that we do not hold
+-- the reference to the pointer in a lazy thunk.
 fromByteStr :: Ptr Word8 -> Array Word8
 fromByteStr (Ptr addr#) = fromByteStr# addr#
 
