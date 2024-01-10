@@ -34,6 +34,7 @@ module Streamly.Internal.FileSystem.Dir
     , readDirs
     , readEither
     , readEitherPaths
+    , readEitherChunks
 
     -- We can implement this in terms of readAttrsRecursive without losing
     -- perf.
@@ -97,7 +98,8 @@ import Streamly.Internal.FileSystem.ReadDir
     (openDirStream, readDirStreamEither)
 import System.Posix.Directory (DirStream, closeDirStream)
 #endif
-import qualified Streamly.Data.Stream as S
+import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (mapM2, bracketIO)
 import qualified Streamly.Internal.FileSystem.Path as Path
@@ -361,6 +363,29 @@ readEitherPaths :: (MonadIO m, MonadCatch m) => Path -> Stream m (Either Path Pa
 readEitherPaths dir =
     let (</>) = Path.append
      in fmap (bimap (dir </>) (dir </>)) $ readEither dir
+
+{-# INLINE readEitherChunks #-}
+readEitherChunks :: (MonadIO m, MonadCatch m) => Path -> Stream m (Either Path [Path])
+readEitherChunks dir =
+    let (</>) = Path.extendPath
+    -- XXX Need to use a take to limit the group
+     in   S.groupsWhile grouper collector
+        $ fmap (bimap (dir </>) (dir </>))
+        $ readEither dir
+
+    where
+
+    grouper first next =
+        case first of
+            Left _ -> False
+            Right _ -> isRight next
+
+    collector = Fold.foldl' step (Right [])
+
+    step b x =
+        case x of
+            Left x1 -> Left x1
+            Right x1 -> fmap (x1:) b
 
 {-# DEPRECATED toEither "Please use 'readEither' instead" #-}
 {-# INLINE toEither #-}
