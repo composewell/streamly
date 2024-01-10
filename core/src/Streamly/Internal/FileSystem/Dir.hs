@@ -35,6 +35,7 @@ module Streamly.Internal.FileSystem.Dir
     , readEither
     , readEitherPaths
     , readEitherChunks
+    , _readEitherChunks
 
     -- We can implement this in terms of readAttrsRecursive without losing
     -- perf.
@@ -95,7 +96,7 @@ import Streamly.Internal.FileSystem.Path (Path)
 import qualified System.Win32 as Win32
 #else
 import Streamly.Internal.FileSystem.ReadDir
-    (openDirStream, readDirStreamEither)
+    (openDirStream, readDirStreamEither, readEitherChunks)
 import System.Posix.Directory (DirStream, closeDirStream)
 #endif
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -367,9 +368,9 @@ readEitherPaths dir =
 -- XXX For a fast custom implementation of traversal, the Right could be the
 -- final array chunk including all files and dirs to be written to IO. The Left
 -- could be list of dirs to be traversed.
-{-# INLINE readEitherChunks #-}
-readEitherChunks :: (MonadIO m, MonadCatch m) => [Path] -> Stream m (Either [Path] [Path])
-readEitherChunks dirs =
+{-# INLINE _readEitherChunks #-}
+_readEitherChunks :: (MonadIO m, MonadCatch m) => [Path] -> Stream m (Either [Path] [Path])
+_readEitherChunks dirs =
     -- XXX Need to use a take to limit the group size. There will be separate
     -- limits for dir and files groups.
      S.groupsWhile grouper collector
