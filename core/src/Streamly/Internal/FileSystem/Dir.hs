@@ -364,27 +364,35 @@ readEitherPaths dir =
     let (</>) = Path.append
      in fmap (bimap (dir </>) (dir </>)) $ readEither dir
 
+-- XXX For a fast custom implementation of traversal, the Right could be the
+-- final array chunk including all files and dirs to be written to IO. The Left
+-- could be list of dirs to be traversed.
 {-# INLINE readEitherChunks #-}
-readEitherChunks :: (MonadIO m, MonadCatch m) => Path -> Stream m (Either Path [Path])
-readEitherChunks dir =
-    let (</>) = Path.extendPath
-    -- XXX Need to use a take to limit the group
-     in   S.groupsWhile grouper collector
-        $ fmap (bimap (dir </>) (dir </>))
-        $ readEither dir
+readEitherChunks :: (MonadIO m, MonadCatch m) => [Path] -> Stream m (Either [Path] [Path])
+readEitherChunks dirs =
+    -- XXX Need to use a take to limit the group size. There will be separate
+    -- limits for dir and files groups.
+     S.groupsWhile grouper collector
+        $ S.unfoldMany eitherReaderPaths
+        $ S.fromList dirs
 
     where
 
+    -- XXX We can use a refold "Either dirs files" and yield the one that fills
+    -- and pass the remainder to the next Refold.
     grouper first next =
         case first of
-            Left _ -> False
+            Left _ -> isLeft next
             Right _ -> isRight next
 
     collector = Fold.foldl' step (Right [])
 
     step b x =
         case x of
-            Left x1 -> Left x1
+            Left x1 ->
+                case b of
+                    Right _ -> Left [x1] -- initial
+                    _ -> either (\xs -> Left (x1:xs)) Right b
             Right x1 -> fmap (x1:) b
 
 {-# DEPRECATED toEither "Please use 'readEither' instead" #-}
