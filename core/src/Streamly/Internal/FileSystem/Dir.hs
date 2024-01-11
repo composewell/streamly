@@ -36,6 +36,7 @@ module Streamly.Internal.FileSystem.Dir
     , readEitherPaths
     , readEitherChunks
     , _readEitherChunks
+    , readEitherByteChunks
 
     -- We can implement this in terms of readAttrsRecursive without losing
     -- perf.
@@ -96,7 +97,7 @@ import Streamly.Internal.FileSystem.Path (Path)
 import qualified System.Win32 as Win32
 #else
 import Streamly.Internal.FileSystem.ReadDir
-    (openDirStream, readDirStreamEither, readEitherChunks)
+    (openDirStream, readDirStreamEither, readEitherChunks, readEitherByteChunks)
 import System.Posix.Directory (DirStream, closeDirStream)
 #endif
 import qualified Streamly.Internal.Data.Fold as Fold
