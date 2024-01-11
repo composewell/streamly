@@ -142,6 +142,8 @@ asUnpinnedPtrUnsafe arr f = do
 nil :: MutByteArray
 nil = unsafePerformIO $ new 0
 
+-- XXX add "newRounded" to round up the large size to the next page boundary
+-- and return the allocated size.
 {-# INLINE new #-}
 new :: Int -> IO MutByteArray
 new nbytes | nbytes < 0 =
