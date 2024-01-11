@@ -36,7 +36,7 @@
 module Streamly.Internal.FileSystem.Path
     (
     -- * Path Types
-      Path
+      Path (..)
     , File
     , Dir
     , Abs
@@ -82,6 +82,11 @@ module Streamly.Internal.FileSystem.Path
     , toChars
 
     -- * Operations
+    -- Do we need to export the separator functions? They are not essential if
+    -- operations to split and combine paths are provided. If someone wants to
+    -- work on paths at low level then they know what they are.
+    , primarySeparator
+    , isSeparator
     , extendPath
     , extendDir
     )
@@ -89,6 +94,7 @@ where
 
 import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow(..))
+import Data.Char (chr)
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
@@ -447,8 +453,25 @@ mkRelFile = undefined
 -- Operations
 ------------------------------------------------------------------------------
 
-separator :: WORD_TYPE
-separator = SEPARATOR
+separatorWord :: WORD_TYPE
+separatorWord = SEPARATOR
+
+-- Portable definition for exporting.
+
+-- | Primary path separator character, @/@ on Posix and @\\@ on Windows.
+-- Windows supports @/@ too as a separator. Please use 'isSeparator' for
+-- testing if a char is a separator char.
+primarySeparator :: Char
+primarySeparator = chr (SEPARATOR)
+
+-- | On Posix only @/@ is a path separator but in windows it could be either
+-- @/@ or @\\@.
+isSeparator :: Char -> Bool
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+isSeparator c = (c == '/') || (c == '\\')
+#else
+isSeparator = (== '/')
+#endif
 
 -- If we append an absolute path it may fail with an error if the 'Path'
 -- implementation stores absolute path information (a leading separator char).
@@ -474,7 +497,7 @@ extendPath (Path a) (Path b) =
         newArr = unsafePerformIO $ do
             arr <- MutArray.new len
             arr1 <- MutArray.spliceUnsafe arr (Array.unsafeThaw a)
-            arr2 <- MutArray.snocUnsafe arr1 separator
+            arr2 <- MutArray.snocUnsafe arr1 separatorWord
             arr3 <- MutArray.spliceUnsafe arr2 (Array.unsafeThaw b)
             return (Array.unsafeFreeze arr3)
         in Path newArr
