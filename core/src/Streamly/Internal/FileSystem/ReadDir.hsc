@@ -265,6 +265,10 @@ readEitherByteChunks alldirs =
     -- that a worker should be able to pick up another dir from the queue
     -- without emitting an output until the buffer fills.
     --
+    -- XXX A worker can also pick up multiple work items in one go. However, we
+    -- also need to keep in mind that any kind of batching might have
+    -- pathological cases where concurrency may be reduced.
+    --
     -- XXX Alternatively, we can distribute the dir stream over multiple
     -- concurrent folds and return (monadic output) a stream of arrays created
     -- from the output channel, then consume that stream by using a monad bind.
@@ -336,11 +340,25 @@ readEitherByteChunks alldirs =
             dtype :: #{type unsigned char} <-
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
-            -- XXX Do the file check first
             -- XXX Skips come around the entire loop, does that impact perf
             -- because it has a StreamK in the middle.
-            if (dtype == (#const DT_DIR))
+            -- Keep the file check first as it is more likely
+            if (dtype /= (#const DT_DIR))
             then do
+                    r <- copyToBuf mbarr pos curdir dname
+                    case r of
+                        Just pos1 ->
+                            return $ Skip
+                                (ChunkStreamByteLoop curdir xs dirp dirs ndirs mbarr pos1)
+                        Nothing -> do
+                            if ndirs > 0
+                            then
+                                return $ Yield (Left dirs)
+                                    (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
+                            else
+                                return $ Skip
+                                    (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
+            else do
                 isMeta <- liftIO $ isMetaDir dname
                 if isMeta
                 then return $ Skip st
@@ -358,20 +376,6 @@ readEitherByteChunks alldirs =
                             -- We know dirs1 in not empty here
                             return $ Yield (Left dirs1)
                                 (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
-            else do
-                    r <- copyToBuf mbarr pos curdir dname
-                    case r of
-                        Just pos1 ->
-                            return $ Skip
-                                (ChunkStreamByteLoop curdir xs dirp dirs ndirs mbarr pos1)
-                        Nothing -> do
-                            if ndirs > 0
-                            then
-                                return $ Yield (Left dirs)
-                                    (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
-                            else
-                                return $ Skip
-                                    (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
         else do
             errno <- liftIO getErrno
             if (errno == eINTR)
