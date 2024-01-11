@@ -178,6 +178,7 @@ import System.IO (Handle, hClose, IOMode(ReadMode))
 import GHC.IO.Handle.FD (handleToFd)
 
 import Streamly.Internal.Data.Array (Array(..), byteLength)
+import Streamly.Internal.FileSystem.Path (Path)
 
 import qualified Data.IntMap.Lazy as Map
 import qualified Data.List.NonEmpty as NonEmpty
@@ -186,9 +187,10 @@ import qualified Streamly.Data.Array as A (fromList, writeN, getIndex)
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Unicode.Stream as U
+import qualified Streamly.Internal.FileSystem.Path as Path
 
 import qualified Streamly.Internal.Data.Array as A
-    ( fromStream, asCStringUnsafe, asPtrUnsafe
+    ( asCStringUnsafe, asPtrUnsafe
     , getSliceUnsafe, read
     )
 import qualified Streamly.Internal.FileSystem.Dir as Dir (readDirs)
@@ -615,8 +617,8 @@ foreign import ccall unsafe
 -- separated bytes. So these may fail or convert the path in an unexpected
 -- manner. We should ultimately remove all usage of these.
 
-toUtf8 :: MonadIO m => String -> m (Array Word8)
-toUtf8 = A.fromStream . U.encodeUtf8 . S.fromList
+toUtf8 :: MonadIO m => Path -> m (Array Word8)
+toUtf8 path = pure $ Path.toChunk path
 
 utf8ToString :: Array Word8 -> String
 utf8ToString = runIdentity . S.fold FL.toList . U.decodeUtf8' . A.read
@@ -716,12 +718,14 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX readDirs currently uses paths as String, we need to convert it
     -- to "/" separated by byte arrays.
-    pathIsDir <- doesDirectoryExist $ utf8ToString absPath
+    let p = Path.fromChunkUnsafe absPath
+    -- XXX Need a FileSystem.Stat module to remove this
+    pathIsDir <- doesDirectoryExist (Path.toString p)
     when (watchRec && pathIsDir) $ do
         let f = addToWatch cfg watch0 root . appendPaths path
             in S.fold (FL.drainMapM f)
                 $ S.mapM toUtf8
-                $ Dir.readDirs $ utf8ToString absPath
+                $ Dir.readDirs p
 
 foreign import ccall unsafe
     "sys/inotify.h inotify_rm_watch" c_inotify_rm_watch
