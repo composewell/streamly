@@ -228,7 +228,30 @@ data ChunkStreamByteState =
         Int    -- dir count
         MutByteArray
         Int
+    | ChunkStreamByteLoopPending
+        (Ptr CChar) -- pending item
+        Path -- current dir path
+        [Path]  -- remaining dirs
+        (Ptr CDir) -- current dir
+        MutByteArray
+        Int
 
+-- XXX Add follow-symlinks option.
+-- XXX Detect cycles.
+
+-- XXX We can also emit both files and directories together this will be
+-- especially useful when we are emitting chunks.
+--
+-- Since we are separating paths by newlines, it cannot support newlines in
+-- paths. Or we can return null separated paths as well. Provide a Mut array
+-- API to replace the nulls with newlines in-place.
+--
+-- We can pass a fold to make this modular, but if we are passing readdir
+-- managed memory then we will have to consume it immediately. Otherwise we can
+-- use getdents64 directly and use GHC managed memory instead.
+
+-- | Left is directories. Right is a buffer containing directories and files
+-- separated by newlines.
 {-# INLINE readEitherByteChunks #-}
 readEitherByteChunks :: MonadIO m =>
     [Path] -> Stream m (Either [Path] (Array Word8))
@@ -237,9 +260,6 @@ readEitherByteChunks alldirs =
 
     where
 
-    -- We want to keep the dir batching as low as possible for better
-    -- concurrency esp when the number of dirs is low.
-    dirMax = 12
     -- XXX A single worker may not have enough directories to list at once to
     -- fill up a large buffer. We need to change the concurrency model such
     -- that a worker should be able to pick up another dir from the queue
@@ -297,6 +317,16 @@ readEitherByteChunks alldirs =
     step _ (ChunkStreamByteInit [] dirs _ mbarr pos) =
         return $ Yield (Left dirs) (ChunkStreamByteInit [] [] 0 mbarr pos)
 
+    step _ (ChunkStreamByteLoopPending pending curdir xs dirp mbarr pos) = do
+        mbarr1 <- liftIO $ MutByteArray.pinnedNew bufSize
+        r1 <- copyToBuf mbarr1 0 curdir pending
+        case r1 of
+            Just pos2 ->
+                return $ Yield (Right (Array mbarr 0 pos))
+                    -- When we come in this state we have emitted dirs
+                    (ChunkStreamByteLoop curdir xs dirp [] 0 mbarr1 pos2)
+            Nothing -> error "Dirname too big for bufSize"
+
     step _ st@(ChunkStreamByteLoop curdir xs dirp dirs ndirs mbarr pos) = do
         liftIO resetErrno
         dentPtr <- liftIO $ c_readdir dirp
@@ -322,21 +352,12 @@ readEitherByteChunks alldirs =
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
                         Just pos1 ->
-                            if ndirs1 >= dirMax
-                            then return $ Yield (Left dirs1)
-                                (ChunkStreamByteLoop curdir xs dirp [] 0 mbarr pos1)
-                            else return $ Skip
+                            return $ Skip
                                 (ChunkStreamByteLoop curdir xs dirp dirs1 ndirs1 mbarr pos1)
                         Nothing -> do
-                            mbarr1 <- liftIO $ MutByteArray.pinnedNew bufSize
-                            r1 <- copyToBuf mbarr1 0 curdir dname
-                            case r1 of
-                                Just pos2 ->
-                                    -- XXX Need one more state here to not
-                                    -- increase dirs more than the max
-                                    return $ Yield (Right (Array mbarr 0 pos))
-                                        (ChunkStreamByteLoop curdir xs dirp dirs1 ndirs1 mbarr1 pos2)
-                                Nothing -> error "Dirname too big for bufSize"
+                            -- We know dirs1 in not empty here
+                            return $ Yield (Left dirs1)
+                                (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
             else do
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
@@ -344,13 +365,13 @@ readEitherByteChunks alldirs =
                             return $ Skip
                                 (ChunkStreamByteLoop curdir xs dirp dirs ndirs mbarr pos1)
                         Nothing -> do
-                            mbarr1 <- liftIO $ MutByteArray.pinnedNew bufSize
-                            r1 <- copyToBuf mbarr1 0 curdir dname
-                            case r1 of
-                                Just pos2 ->
-                                    return $ Yield (Right (Array mbarr 0 pos))
-                                        (ChunkStreamByteLoop curdir xs dirp dirs ndirs mbarr1 pos2)
-                                Nothing -> error "Filename too big for bufSize"
+                            if ndirs > 0
+                            then
+                                return $ Yield (Left dirs)
+                                    (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
+                            else
+                                return $ Skip
+                                    (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
         else do
             errno <- liftIO getErrno
             if (errno == eINTR)
