@@ -11,23 +11,27 @@ module Streamly.Internal.FileSystem.ReadDir
       openDirStream
     , readDirStreamEither
     , readEitherChunks
+    , readEitherByteChunks
     )
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord)
-import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr)
-import Foreign.C 
-    (resetErrno, Errno(..), getErrno, eINTR, throwErrno, CString, CChar)
+import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr)
+import Foreign.C
+    (resetErrno, Errno(..), getErrno, eINTR, throwErrno, CString, CChar, CSize(..))
+import Foreign.Storable (poke)
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Array (Array)
-import Streamly.Internal.FileSystem.Path (Path)
+import Streamly.Internal.Data.Array (Array(..))
+import Streamly.Internal.Data.MutByteArray (MutByteArray)
+import Streamly.Internal.FileSystem.Path (Path(..))
 import System.Posix.Directory (closeDirStream)
 import System.Posix.Directory.Internals (DirStream(..), CDir, CDirent)
 import System.Posix.Error (throwErrnoPathIfNullRetry)
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import qualified Streamly.Internal.FileSystem.Path as Path
 
 #include <dirent.h>
@@ -204,4 +208,156 @@ readEitherChunks alldirs =
                 liftIO $ closeDirStream (DirStream dirp)
                 if (n == 0)
                 then return $ Skip (ChunkStreamInit xs dirs ndirs files nfiles)
+                else liftIO $ throwErrno "readEitherChunks"
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
+
+foreign import ccall unsafe "string.h strlen" c_strlen
+    :: Ptr CChar -> IO CSize
+
+{-# ANN type ChunkStreamByteState Fuse #-}
+data ChunkStreamByteState =
+      ChunkStreamByteInit0
+    | ChunkStreamByteInit [Path] [Path] Int MutByteArray Int
+    | ChunkStreamByteLoop
+        Path -- current dir path
+        [Path]  -- remaining dirs
+        (Ptr CDir) -- current dir
+        [Path] -- dirs buffered
+        Int    -- dir count
+        MutByteArray
+        Int
+
+{-# INLINE readEitherByteChunks #-}
+readEitherByteChunks :: MonadIO m =>
+    [Path] -> Stream m (Either [Path] (Array Word8))
+readEitherByteChunks alldirs =
+    Stream step (ChunkStreamByteInit0)
+
+    where
+
+    -- We want to keep the dir batching as low as possible for better
+    -- concurrency esp when the number of dirs is low.
+    dirMax = 12
+    -- XXX A single worker may not have enough directories to list at once to
+    -- fill up a large buffer. We need to change the concurrency model such
+    -- that a worker should be able to pick up another dir from the queue
+    -- without emitting an output until the buffer fills.
+    --
+    -- XXX Alternatively, we can distribute the dir stream over multiple
+    -- concurrent folds and return (monadic output) a stream of arrays created
+    -- from the output channel, then consume that stream by using a monad bind.
+    bufSize = 4000
+
+    mkPath :: Array Word8 -> Path
+    mkPath = Path.unsafeFromPath . Path.unsafeFromChunk
+
+    copyToBuf dstArr pos dirPath name = do
+        nameLen <- fmap fromIntegral (liftIO $ c_strlen name)
+        let Path (Array dirArr start end) = dirPath
+            dirLen = end - start
+            -- XXX We may need to decode and encode the path if the
+            -- output encoding differs from fs encoding.
+            --
+            -- Account for separator and newline bytes.
+            byteCount = dirLen + nameLen + 2
+        if pos + byteCount <= bufSize
+        then do
+            -- XXX append a path separator to a dir path
+            -- We know it is already pinned.
+            MutByteArray.asUnpinnedPtrUnsafe dstArr (\ptr -> liftIO $ do
+                MutByteArray.putSliceUnsafe dirArr start dstArr pos dirLen
+                let ptr1 = ptr `plusPtr` (pos + dirLen)
+                    separator = 47 :: Word8
+                poke ptr1 separator
+                let ptr2 = ptr1 `plusPtr` 1
+                _ <- c_memcpy ptr2 (castPtr name) (fromIntegral nameLen)
+                let ptr3 = ptr2 `plusPtr` nameLen
+                    newline = 10 :: Word8
+                poke ptr3 newline
+                )
+            return (Just (pos + byteCount))
+        else return Nothing
+
+    step _ ChunkStreamByteInit0 = do
+        mbarr <- liftIO $ MutByteArray.pinnedNew bufSize
+        return $ Skip (ChunkStreamByteInit alldirs [] 0 mbarr 0)
+
+    step _ (ChunkStreamByteInit (x:xs) dirs ndirs mbarr pos) = do
+        DirStream dirp <- liftIO $ openDirStream x
+        return $ Skip (ChunkStreamByteLoop x xs dirp dirs ndirs mbarr pos)
+
+    step _ (ChunkStreamByteInit [] [] _ _ pos) | pos == 0 =
+        return Stop
+
+    step _ (ChunkStreamByteInit [] [] _ mbarr pos) =
+        return $ Yield (Right (Array mbarr 0 pos)) (ChunkStreamByteInit [] [] 0 mbarr 0)
+
+    step _ (ChunkStreamByteInit [] dirs _ mbarr pos) =
+        return $ Yield (Left dirs) (ChunkStreamByteInit [] [] 0 mbarr pos)
+
+    step _ st@(ChunkStreamByteLoop curdir xs dirp dirs ndirs mbarr pos) = do
+        liftIO resetErrno
+        dentPtr <- liftIO $ c_readdir dirp
+        if (dentPtr /= nullPtr)
+        then do
+            dname <- liftIO $ d_name dentPtr
+            dtype :: #{type unsigned char} <-
+                liftIO $ #{peek struct dirent, d_type} dentPtr
+
+            -- XXX Do the file check first
+            -- XXX Skips come around the entire loop, does that impact perf
+            -- because it has a StreamK in the middle.
+            if (dtype == (#const DT_DIR))
+            then do
+                isMeta <- liftIO $ isMetaDir dname
+                if isMeta
+                then return $ Skip st
+                else do
+                    let !name = Array.fromByteStr (castPtr dname)
+                        path = Path.append curdir (mkPath name)
+                        dirs1 = path : dirs
+                        ndirs1 = ndirs + 1
+                    r <- copyToBuf mbarr pos curdir dname
+                    case r of
+                        Just pos1 ->
+                            if ndirs1 >= dirMax
+                            then return $ Yield (Left dirs1)
+                                (ChunkStreamByteLoop curdir xs dirp [] 0 mbarr pos1)
+                            else return $ Skip
+                                (ChunkStreamByteLoop curdir xs dirp dirs1 ndirs1 mbarr pos1)
+                        Nothing -> do
+                            mbarr1 <- liftIO $ MutByteArray.pinnedNew bufSize
+                            r1 <- copyToBuf mbarr1 0 curdir dname
+                            case r1 of
+                                Just pos2 ->
+                                    -- XXX Need one more state here to not
+                                    -- increase dirs more than the max
+                                    return $ Yield (Right (Array mbarr 0 pos))
+                                        (ChunkStreamByteLoop curdir xs dirp dirs1 ndirs1 mbarr1 pos2)
+                                Nothing -> error "Dirname too big for bufSize"
+            else do
+                    r <- copyToBuf mbarr pos curdir dname
+                    case r of
+                        Just pos1 ->
+                            return $ Skip
+                                (ChunkStreamByteLoop curdir xs dirp dirs ndirs mbarr pos1)
+                        Nothing -> do
+                            mbarr1 <- liftIO $ MutByteArray.pinnedNew bufSize
+                            r1 <- copyToBuf mbarr1 0 curdir dname
+                            case r1 of
+                                Just pos2 ->
+                                    return $ Yield (Right (Array mbarr 0 pos))
+                                        (ChunkStreamByteLoop curdir xs dirp dirs ndirs mbarr1 pos2)
+                                Nothing -> error "Filename too big for bufSize"
+        else do
+            errno <- liftIO getErrno
+            if (errno == eINTR)
+            then return $ Skip st
+            else do
+                let (Errno n) = errno
+                liftIO $ closeDirStream (DirStream dirp)
+                if (n == 0)
+                then return $ Skip (ChunkStreamByteInit xs dirs ndirs mbarr pos)
                 else liftIO $ throwErrno "readEitherChunks"
