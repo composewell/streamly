@@ -97,7 +97,7 @@ module Streamly.Internal.Data.MutArray.Type
     , fromByteStr#
     , fromPtrN
     , fromChunksK
-    , fromChunksRealloced
+    , fromChunksRealloced -- fromSmallChunks
 
     -- ** Random writes
     , putIndex
@@ -214,12 +214,12 @@ module Streamly.Internal.Data.MutArray.Type
     -- ** Serialization using Unbox
     , pokeAppend
     , pokeAppendMay
-    , pokeSkipUnsafe
+    , pokeSkipUnsafe -- unsafePokeSkip
 
     -- ** Deserialization using Unbox
     , peekUncons
-    , peekUnconsUnsafe
-    , peekSkipUnsafe
+    , peekUnconsUnsafe -- unsafePeekUncons
+    , peekSkipUnsafe -- unsafePeekSkip
 
     -- Arrays of arrays
     --  We can add dimensionality parameter to the array type to get
