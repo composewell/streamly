@@ -44,11 +44,11 @@ module Streamly.Internal.FileSystem.Path
 
     -- * Conversions
     , IsPath (..)
-    , adaptPath
+    , adapt
 
     -- * Construction
     , fromChunk
-    , fromChunkUnsafe
+    , unsafeFromChunk
     , fromString
     , fromChars
 
@@ -85,10 +85,10 @@ module Streamly.Internal.FileSystem.Path
     -- Do we need to export the separator functions? They are not essential if
     -- operations to split and combine paths are provided. If someone wants to
     -- work on paths at low level then they know what they are.
-    , primarySeparator
-    , isSeparator
-    , extendPath
-    , extendDir
+    -- , primarySeparator
+    -- , isSeparator
+    , append
+    , appendRel
     )
 where
 
@@ -195,7 +195,7 @@ class IsPath a where
     -- performance and simplicity when we know that the properties of the path
     -- are already verified, for example, when we get the path from the file
     -- system or the OS APIs.
-    fromPathUnsafe :: Path -> a
+    unsafeFromPath :: Path -> a
 
     -- | Convert a raw 'Path' to other forms of well-typed paths. It may fail
     -- if the path does not satisfy the properties of the target type.
@@ -208,47 +208,47 @@ class IsPath a where
     toPath :: a -> Path
 
 instance IsPath Path where
-    fromPathUnsafe = id
+    unsafeFromPath = id
     fromPath = pure
     toPath = id
 
 instance IsPath (File Path) where
-    fromPathUnsafe p = File p
+    unsafeFromPath p = File p
     fromPath p = pure (File p)
     toPath (File p) = p
 
 instance IsPath (Dir Path) where
-    fromPathUnsafe p = Dir p
+    unsafeFromPath p = Dir p
     fromPath p = pure (Dir p)
     toPath (Dir p) = p
 
 instance IsPath (Abs Path) where
-    fromPathUnsafe p = Abs p
+    unsafeFromPath p = Abs p
     fromPath p = pure (Abs p)
     toPath (Abs p) = p
 
 instance IsPath (Rel Path) where
-    fromPathUnsafe p = Rel p
+    unsafeFromPath p = Rel p
     fromPath p = pure (Rel p)
     toPath (Rel p) = p
 
 instance IsPath (Abs (File Path)) where
-    fromPathUnsafe p = Abs (File p)
+    unsafeFromPath p = Abs (File p)
     fromPath p = pure (Abs (File p))
     toPath (Abs (File p)) = p
 
 instance IsPath (Abs (Dir Path)) where
-    fromPathUnsafe p = Abs (Dir p)
+    unsafeFromPath p = Abs (Dir p)
     fromPath p = pure (Abs (Dir p))
     toPath (Abs (Dir p)) = p
 
 instance IsPath (Rel (File Path)) where
-    fromPathUnsafe p = Rel (File p)
+    unsafeFromPath p = Rel (File p)
     fromPath p = pure (Rel (File p))
     toPath (Rel (File p)) = p
 
 instance IsPath (Rel (Dir Path)) where
-    fromPathUnsafe p = Rel (Dir p)
+    unsafeFromPath p = Rel (Dir p)
     fromPath p = pure (Rel (Dir p))
     toPath (Rel (Dir p)) = p
 
@@ -258,8 +258,8 @@ instance IsPath (Rel (Dir Path)) where
 -- | Convert a path type to another path type. This operation may fail with a
 -- 'PathException' when converting a less restrictive path type to a more
 -- restrictive one.
-adaptPath :: (MonadThrow m, IsPath a, IsPath b) => a -> m b
-adaptPath p = fromPath $ toPath p
+adapt :: (MonadThrow m, IsPath a, IsPath b) => a -> m b
+adapt p = fromPath $ toPath p
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -267,14 +267,15 @@ adaptPath p = fromPath $ toPath p
 
 -- A chunk is essentially an untyped Array i.e. Array Word8.  We can either use
 -- the term ByteArray for that or just Chunk. The latter is shorter and we have
--- been using it consistently in streamly.
+-- been using it consistently in streamly. We use "bytes" for a stream of
+-- bytes.
 
 -- | /Unsafe/: On Posix, a path cannot contain null characters. On Windows, the
 -- array passed must be a multiple of 2 bytes as the underlying representation
 -- uses 'Word16'.
-{-# INLINE fromChunkUnsafe #-}
-fromChunkUnsafe :: Array Word8 -> Path
-fromChunkUnsafe arr = Path (Array.castUnsafe arr)
+{-# INLINE unsafeFromChunk #-}
+unsafeFromChunk :: Array Word8 -> Path
+unsafeFromChunk arr = Path (Array.castUnsafe arr)
 
 -- | On Posix it may fail if the byte array contains null characters. On
 -- Windows the array passed must be a multiple of 2 bytes as the underlying
@@ -461,16 +462,16 @@ separatorWord = SEPARATOR
 -- | Primary path separator character, @/@ on Posix and @\\@ on Windows.
 -- Windows supports @/@ too as a separator. Please use 'isSeparator' for
 -- testing if a char is a separator char.
-primarySeparator :: Char
-primarySeparator = chr (SEPARATOR)
+_primarySeparator :: Char
+_primarySeparator = chr (SEPARATOR)
 
 -- | On Posix only @/@ is a path separator but in windows it could be either
 -- @/@ or @\\@.
-isSeparator :: Char -> Bool
+_isSeparator :: Char -> Bool
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-isSeparator c = (c == '/') || (c == '\\')
+_isSeparator c = (c == '/') || (c == '\\')
 #else
-isSeparator = (== '/')
+_isSeparator = (== '/')
 #endif
 
 -- If we append an absolute path it may fail with an error if the 'Path'
@@ -479,13 +480,17 @@ isSeparator = (== '/')
 -- components in which case we cannot distinguish an absolute path from
 -- relative.
 
--- | Like 'extendDir' but for the less restrictive 'Path' type which will always
--- create a syntactically valid 'Path' type but it may not be semantically valid
--- because we may append an absolute path or we may append to a file path.
--- The onus lies on the user to ensure that the first path is not a file and
--- the second path is not absolute.
-extendPath :: Path -> Path -> Path
-extendPath (Path a) (Path b) =
+-- XXX This can be generalized to an Array intersperse operation
+
+-- | Like 'appendRel' but for the less restrictive 'Path' type, it always
+-- creates a syntactically valid 'Path' type but it may not be semantically
+-- valid because we may append an absolute path or we may append a path to a
+-- file path. The onus lies on the user to ensure that the first path is not a
+-- file and the second path is not absolute.
+--
+-- Also see 'appendRel'.
+append :: Path -> Path -> Path
+append (Path a) (Path b) =
     let len = Array.byteLength a + 1 + Array.byteLength b
         -- XXX Check the leading separator or drive identifier. However,
         -- checking the drive letter may add an additional overhead (can it be
@@ -508,8 +513,10 @@ extendPath (Path a) (Path b) =
 
 -- | Extend a directory path by appending a relative path to it. This is the
 -- equivalent to the @</>@ operator from the @filepath@ package.
-{-# INLINE extendDir #-}
-extendDir :: (IsPath (a (Dir Path)), IsPath b, IsPath (a b)) =>
+--
+-- Also see 'append'.
+{-# INLINE appendRel #-}
+appendRel :: (IsPath (a (Dir Path)), IsPath b, IsPath (a b)) =>
     (a (Dir Path)) -> Rel b -> a b
-extendDir a (Rel b) =
-    fromPathUnsafe $ extendPath (toPath a) (toPath b)
+appendRel a (Rel b) =
+    unsafeFromPath $ append (toPath a) (toPath b)
