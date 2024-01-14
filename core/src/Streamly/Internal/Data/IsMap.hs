@@ -1,3 +1,7 @@
+{-# LANGUAGE TypeFamilies #-}
+-- Must come after TypeFamilies, otherwise it is re-enabled.
+-- MonoLocalBinds enabled by TypeFamilies causes perf regressions in general.
+{-# LANGUAGE NoMonoLocalBinds #-}
 -- |
 -- Module      : Streamly.Internal.Data.IsMap
 -- Copyright   : (c) 2022 Composewell Technologies

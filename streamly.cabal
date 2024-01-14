@@ -294,8 +294,6 @@ common compile-options
 common default-extensions
     default-extensions:
         BangPatterns
-        CApiFFI
-        CPP
         ConstraintKinds
         DeriveDataTypeable
         DeriveGeneric
@@ -306,23 +304,25 @@ common default-extensions
         GeneralizedNewtypeDeriving
         InstanceSigs
         KindSignatures
-        LambdaCase
-        MagicHash
         MultiParamTypeClasses
-        PatternSynonyms
         RankNTypes
-        RecordWildCards
         ScopedTypeVariables
         TupleSections
         TypeApplications
-        TypeFamilies
         TypeOperators
-        ViewPatterns
 
+        -- Not GHC2021
+        CApiFFI
+        CPP
+        LambdaCase
+        MagicHash
+        RecordWildCards
+
+        -- TypeFamilies -- required by IsHashMap type class
         -- MonoLocalBinds, enabled by TypeFamilies, causes performance
         -- regressions. Disable it. This must come after TypeFamilies,
         -- otherwise TypeFamilies will enable it again.
-        NoMonoLocalBinds
+        -- NoMonoLocalBinds
 
         -- UndecidableInstances -- Does not show any perf impact
         -- UnboxedTuples        -- interferes with (#.)

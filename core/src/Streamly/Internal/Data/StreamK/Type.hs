@@ -1,4 +1,8 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeFamilies #-}
+-- Must come after TypeFamilies, otherwise it is re-enabled.
+-- MonoLocalBinds enabled by TypeFamilies causes perf regressions in general.
+{-# LANGUAGE NoMonoLocalBinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 -- |
 -- Module      : Streamly.Internal.Data.StreamK.Type

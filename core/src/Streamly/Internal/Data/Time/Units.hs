@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE UnboxedTuples #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.Time.Units
 -- Copyright   : (c) 2019 Composewell Technologies
