@@ -3,7 +3,7 @@
 module Streamly.Test.Unicode.Stream (main) where
 
 import Data.Char (ord, chr)
-import Data.Word (Word8)
+import Data.Word (Word8, Word16)
 import Test.QuickCheck
     ( Property
     , forAll
@@ -17,6 +17,7 @@ import Test.QuickCheck
     , choose
     )
 import Test.QuickCheck.Monadic (run, monadicIO, assert)
+import Streamly.Data.Stream (Stream)
 
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Stream as Stream
@@ -43,8 +44,11 @@ maxTestCount = 10
 genUnicode :: Gen String
 genUnicode = listOf arbitraryUnicodeChar
 
-genWord8 :: Gen [Word8]
-genWord8 = listOf arbitrary
+genWord8List :: Gen [Word8]
+genWord8List = listOf arbitrary
+
+genListOfW8List :: Gen [[Word8]]
+genListOfW8List = listOf (listOf arbitrary)
 
 propDecodeEncodeId' :: Property
 propDecodeEncodeId' =
@@ -53,6 +57,33 @@ propDecodeEncodeId' =
             let wrds = SS.encodeUtf8' $ Stream.fromList list
             chrs <- run $ Stream.toList $ SS.decodeUtf8' wrds
             assert (chrs == list)
+
+propDecodeEncodeUtf16Id
+    :: (Stream IO Char -> Stream IO Word16)
+    -> (Stream IO Word16 -> Stream IO Char)
+    -> Property
+propDecodeEncodeUtf16Id encoder decoder =
+    forAll genUnicode $ \list ->
+        monadicIO $ do
+            let wrds = encoder $ Stream.fromList list
+            chrs <- run $ Stream.toList $ decoder wrds
+            assert (chrs == list)
+
+propMkEvenW8Chunks :: Property
+propMkEvenW8Chunks =
+    forAll genListOfW8List $ \list ->
+        monadicIO $ do
+            list1 <-
+                run $ Stream.toList
+                    $ fmap A.toList
+                    $ IUS.mkEvenW8Chunks
+                    $ fmap A.fromList $ Stream.fromList list
+            let concatedList = concat list
+                concatedList1 = concat list1
+            assert (and (map (even . length) list1))
+            if (odd (length concatedList))
+            then assert (concatedList1 == init concatedList)
+            else assert (concatedList1 == concatedList)
 
 -- XXX need to use invalid characters
 propDecodeEncodeId :: Property
@@ -120,7 +151,7 @@ testLines =
 
 testLinesArray :: Property
 testLinesArray =
-    forAll genWord8 $ \list ->
+    forAll genWord8List $ \list ->
         monadicIO $ do
             xs <- Stream.toList
                     $ fmap A.toList
@@ -183,6 +214,13 @@ main = H.hspec
         prop
             "Streamly.Data.String.unwords . Streamly.Data.String.words == unwords . words"
             testUnwords
+
+    H.describe "UTF16 - Encoding / Decoding" $ do
+        prop "decodeUtf16le' . encodeUtf16le' == id"
+             (propDecodeEncodeUtf16Id IUS.encodeUtf16le' IUS.decodeUtf16le')
+        prop "decodeUtf16le . encodeUtf16le == id"
+             (propDecodeEncodeUtf16Id IUS.encodeUtf16le' IUS.decodeUtf16le)
+        prop "mkEvenW8Chunks" propMkEvenW8Chunks
 
     H.describe "Latin1 - Encoding / Decoding" $ do
         prop "ASCII to Latin1" propASCIIToLatin1

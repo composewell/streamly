@@ -29,6 +29,7 @@ import Streamly.Data.Stream (Stream)
 import Streamly.Data.Fold (Fold)
 import Prelude hiding (last, length)
 import System.IO (Handle)
+import Streamly.Internal.System.IO (arrayPayloadSize)
 
 import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Fold as Fold
@@ -37,6 +38,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Array as UnicodeArr
 import qualified Streamly.Internal.Unicode.Stream as Unicode
+import qualified Streamly.Internal.Data.Array as Array
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
@@ -45,7 +47,6 @@ import Streamly.Benchmark.Common.Handle
 #ifdef INSPECTION
 import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Internal.Data.Stream (Step(..))
-import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
@@ -258,6 +259,17 @@ _copyStreamUtf8' inh outh =
      $ Unicode.decodeUtf8'
      $ Stream.unfold Handle.reader inh
 
+-- | Copy file
+{-# NOINLINE copyStreamUtf16 #-}
+copyStreamUtf16 :: Handle -> Handle -> IO ()
+copyStreamUtf16 inh outh =
+   Stream.fold (Handle.writeChunks outh)
+     $ fmap Array.castUnsafe $ Array.chunksOf (arrayPayloadSize (16 * 1024))
+     $ Unicode.encodeUtf16le'
+     $ Unicode.decodeUtf16le
+     $ Array.concat $ fmap Array.castUnsafe $ Unicode.mkEvenW8Chunks
+     $ Handle.readChunks inh
+
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses '_copyStreamUtf8'
 -- inspect $ '_copyStreamUtf8 `hasNoType` ''Step
@@ -319,6 +331,8 @@ o_1_space_decode_encode_read env =
               $ \inh outh -> _copyStreamUtf8Parser inh outh
         , mkBenchSmall "encodeUtf8 . decodeUtf8" env $ \inh outh ->
             copyStreamUtf8 inh outh
+        , mkBenchSmall "encodeUtf16 . decodeUtf16" env $ \inh outh ->
+            copyStreamUtf16 inh outh
         ]
     ]
 
