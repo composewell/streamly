@@ -6,6 +6,14 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : pre-release
 -- Portability : GHC
+--
+-- Time (default double precision). Fast Time (64-bit), Wide Time (TimeSpec).
+-- Timezone, UTC/Local/System/User-defined.
+--
+-- Fast (UTC Time), Wide (Local Time) etc.
+--
+-- Units? Can be module specific or wrappers around them.
+-- e.g. NanoSecond (Fast (UTC Time)) or NanoSecond Time.
 
 module Streamly.Internal.Data.Time.Units
     (
