@@ -378,6 +378,7 @@ library
 
                      -- Filesystem/IO
                      , Streamly.Internal.FileSystem.Path.Common
+                     , Streamly.Internal.FileSystem.Path.Posix
                      , Streamly.Internal.FileSystem.Path
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
