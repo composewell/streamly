@@ -329,6 +329,7 @@ library
                      , Streamly.Internal.Data.Time.TimeSpec
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock
+                     , Streamly.Internal.Data.Path
 
                      -- streamly-core-stream-types
                      , Streamly.Internal.Data.SVar.Type
