@@ -7,20 +7,23 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- Well typed and flexible file systems paths, preserving the OS and filesystem
--- encoding.
+-- Well typed, flexible, extensible and efficient file systems paths,
+-- preserving the OS and filesystem encoding.
 --
--- You can choose the level of type safety you want. 'Path' is the basic path
--- type which can represent a file, directory, absolute or relative path with
--- no restrictions. Depending on how much type safety you want you can choose
--- appropriate type wrappers to wrap 'Path'. @File Path@ mandates the path to
--- be a file whereas @Abs (File Path)@ mandates it to be an absolute path
--- representing a file.
+-- Flexible, you can choose the level of type safety you want. 'Path' is the
+-- basic path type which can represent a file, directory, absolute or relative
+-- path with no restrictions. Depending on how much type safety you want you
+-- can choose appropriate type wrappers to wrap 'Path'. @File Path@ mandates
+-- the path to be a file whereas @Abs (File Path)@ mandates it to be an
+-- absolute path representing a file.
 --
 -- You can upgrade or downgrade the safety. Whenever a less restrictive path
 -- type is converted to a more restrctive path type the conversion involves
 -- checks and it may fail. However, a more restrictive path type can be freely
 -- converted to a less restrictive one.
+--
+-- Extensible, you can define your own semantics or your own path types over
+-- and above the existing ones with the same efficiency.
 --
 -- See the @streamly-filepath@ package for interworking with the 'OsPath' type.
 -- The 'Path' type can be  converted to and from 'OsPath' type at zero cost
@@ -35,6 +38,14 @@
 -- However, the absence of a trailing separator does not convey any
 -- information, it could either be a directory or a file.
 
+-- Extensible: You can create your own instances to use more strict or lax
+-- Rel/Abs, File/Dir wrappers. For Time, File means a a fine grained unit, Dir
+-- means a coarse grained unit?
+
+-- Move the abstract IsPath type class, Abs/Rel, File/Dir to Data.Path.
+-- FileSystem.Path can define a Path type for FS. FileSystem.WindowsPath,
+-- FileSystem.PosixPath for OS specific paths.
+--
 -- You may also find the 'str' quasiquoter from "Streamly.Unicode.String" to be
 -- useful in creating paths.
 --
