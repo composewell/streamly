@@ -28,7 +28,10 @@ module Streamly.Internal.Unicode.Stream
     , decodeUtf8
     , decodeUtf8'
     , decodeUtf8_
+
+    -- ** UTF-16 Decoding
     , decodeUtf16le'
+    , decodeUtf16le
 
     -- ** Resumable UTF-8 Decoding
     , DecodeError(..)
@@ -56,7 +59,10 @@ module Streamly.Internal.Unicode.Stream
     , encodeUtf8'
     , encodeUtf8_
     , encodeStrings
+
+    -- ** UTF-16 Encoding
     , encodeUtf16le'
+    , encodeUtf16le
     {-
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
@@ -83,6 +89,10 @@ module Streamly.Internal.Unicode.Stream
     -- * Decoding String Literals
     , fromStr#
 
+    -- * Word16 Utilities
+    , mkEvenW8Chunks
+    , swapByteOrder
+
     -- * Deprecations
     , decodeUtf8Lax
     , encodeLatin1Lax
@@ -91,6 +101,10 @@ module Streamly.Internal.Unicode.Stream
 where
 
 #include "inline.hs"
+
+-- MachDeps.h includes ghcautoconf.h that defines WORDS_BIGENDIAN for big endian
+-- systems.
+#include "MachDeps.h"
 
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -124,7 +138,7 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Parser as Parser (Parser)
 import qualified Streamly.Internal.Data.Parser as ParserD
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -682,14 +696,183 @@ decodeUtf8Lax = decodeUtf8
 -- Decoding Utf16
 -------------------------------------------------------------------------------
 
--- | Decode a UTF-16 little endian encoded bytestream to a stream of Unicode
--- characters. The function throws an error if an invalid codepoint is
+data MkEvenW8ChunksState s w8 arr
+    = MECSInit s
+    | MECSBuffer w8 s
+    | MECSYieldAndInit arr s
+    | MECSYieldAndBuffer arr w8 s
+
+-- | Ensure chunks of even length. This can be used before casting the arrays to
+-- Word16. Use this API when interacting with external data.
+--
+-- The chunks are split and merged accordingly to create arrays of even length.
+-- If the sum of length of all the arrays in the stream is odd then the trailing
+-- byte of the last array is dropped.
+--
+{-# INLINE_NORMAL mkEvenW8Chunks #-}
+mkEvenW8Chunks :: Monad m => Stream m (Array Word8) -> Stream m (Array Word8)
+mkEvenW8Chunks (D.Stream step state) = D.Stream step1 (MECSInit state)
+
+    where
+
+    {-# INLINE_LATE step1 #-}
+    step1 gst (MECSInit st) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield arr st1 ->
+                    let len = Array.length arr
+                     in if (len .&. 1) == 1
+                        then let arr1 = Array.getSliceUnsafe 0 (len - 1) arr
+                                 remElem = Array.getIndexUnsafe (len - 1) arr
+                              in Yield arr1 (MECSBuffer remElem st1)
+                        else Yield arr (MECSInit st1)
+                Skip s -> Skip (MECSInit s)
+                Stop -> Stop
+    step1 gst (MECSBuffer remElem st) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield arr st1 | Array.length arr == 0 ->
+                                  Skip (MECSBuffer remElem st1)
+                Yield arr st1 | Array.length arr == 1 ->
+                    let fstElem = Array.getIndexUnsafe 0 arr
+                        w16 = Array.fromList [remElem, fstElem]
+                     in Yield w16 (MECSInit st1)
+                Yield arr st1 ->
+                    let len = Array.length arr
+                     in if (len .&. 1) == 1
+                        then let arr1 = Array.getSliceUnsafe 1 (len - 1) arr
+                                 fstElem = Array.getIndexUnsafe 0 arr
+                                 w16 = Array.fromList [remElem, fstElem]
+                              in Yield w16 (MECSYieldAndInit arr1 st1)
+                        else let arr1 = Array.getSliceUnsafe 1 (len - 2) arr
+                                 fstElem = Array.getIndexUnsafe 0 arr
+                                 lstElem = Array.getIndexUnsafe (len - 1) arr
+                                 w16 = Array.fromList [remElem, fstElem]
+                              in Yield w16
+                                     (MECSYieldAndBuffer arr1 lstElem st1)
+                Skip s -> Skip (MECSBuffer remElem s)
+                Stop -> Stop -- Here the last Word8 is lost
+    step1 _ (MECSYieldAndInit arr st) =
+        pure $ Yield arr (MECSInit st)
+    step1 _ (MECSYieldAndBuffer arr lastElem st) =
+        pure $ Yield arr (MECSBuffer lastElem st)
+
+-- | Swap the byte order of Word16
+--
+-- > swapByteOrder 0xABCD == 0xCDAB
+-- > swapByteOrder . swapByteOrder == id
+{-# INLINE swapByteOrder #-}
+swapByteOrder :: Word16 -> Word16
+swapByteOrder w = (w `shiftL` 8) .|. (w `shiftR` 8)
+
+data DecodeUtf16WithState w c s
+    = U16NoSurrogate s
+    | U16HighSurrogate w s
+    | U16D
+    | U16YAndC c (DecodeUtf16WithState w c s)
+
+{-# INLINE_NORMAL decodeUtf16With #-}
+decodeUtf16With ::
+       Monad m
+    => CodingFailureMode
+    -> D.Stream m Word16
+    -> D.Stream m Char
+decodeUtf16With cfm (D.Stream step state) =
+    D.Stream step1 (U16NoSurrogate state)
+
+    where
+
+    prefix = "Streamly.Internal.Unicode.Stream.decodeUtf16With: "
+
+    {-# INLINE combineSurrogates #-}
+    combineSurrogates hi lo =
+        let first10 = fromIntegral (hi - utf16HighSurrogate) `shiftL` 10
+            second10 = fromIntegral (lo - utf16LowSurrogate)
+         in unsafeChr (0x10000 + (first10 .|. second10))
+
+    {-# INLINE transliterateOrError #-}
+    transliterateOrError e s =
+        case cfm of
+            ErrorOnCodingFailure -> error e
+            TransliterateCodingFailure -> U16YAndC replacementChar s
+            DropOnCodingFailure -> s
+
+    {-# INLINE inputUnderflow #-}
+    inputUnderflow =
+        case cfm of
+            ErrorOnCodingFailure -> error $ prefix ++ "Input Underflow"
+            TransliterateCodingFailure -> U16YAndC replacementChar U16D
+            DropOnCodingFailure -> U16D
+
+    {-# INLINE_LATE step1 #-}
+    step1 gst (U16NoSurrogate st) = do
+        r <- step (adaptState gst) st
+        pure $
+            case r of
+                Yield x st1
+                    | x < 0xD800 || x > 0xDFFF ->
+                        Yield (unsafeChr (fromIntegral x)) (U16NoSurrogate st1)
+                    | x >= 0xD800 && x <= 0xDBFF ->
+                        Skip (U16HighSurrogate x st1)
+                    | otherwise ->
+                          let msg = prefix
+                                 ++ "Invalid first UTF16 word " ++ show x
+                           in Skip $
+                              transliterateOrError msg (U16NoSurrogate st1)
+                Skip st1 -> Skip (U16NoSurrogate st1)
+                Stop -> Stop
+    step1 gst (U16HighSurrogate hi st) = do
+        r <- step (adaptState gst) st
+        pure $
+            case r of
+                Yield x st1
+                    | x >= 0xDC00 && x <= 0xDFFF ->
+                          Yield (combineSurrogates hi x) (U16NoSurrogate st1)
+                    | otherwise ->
+                          let msg = prefix
+                                 ++ "Invalid subsequent UTF16 word " ++ show x
+                                 ++ " in state " ++ show hi
+                           in Skip $
+                              transliterateOrError msg (U16NoSurrogate st1)
+                Skip st1 -> Skip (U16HighSurrogate hi st1)
+                Stop -> Skip inputUnderflow
+    step1 _ (U16YAndC x st) = pure $ Yield x st
+    step1 _ U16D = pure Stop
+
+{-# INLINE decodeUtf16' #-}
+decodeUtf16' :: Monad m => Stream m Word16 -> Stream m Char
+decodeUtf16' = decodeUtf16With ErrorOnCodingFailure
+
+{-# INLINE decodeUtf16 #-}
+decodeUtf16 :: Monad m => Stream m Word16 -> Stream m Char
+decodeUtf16 = decodeUtf16With TransliterateCodingFailure
+
+-- | Similar to 'decodeUtf16le' but throws an error if an invalid codepoint is
 -- encountered.
 --
--- /Unimplemented/
 {-# INLINE decodeUtf16le' #-}
-decodeUtf16le' :: Stream m Word16 -> Stream m Char
-decodeUtf16le' = undefined
+decodeUtf16le' :: Monad m => Stream m Word16 -> Stream m Char
+decodeUtf16le' =
+    decodeUtf16'
+#ifdef WORDS_BIGENDIAN
+        . fmap swapByteOrder
+#endif
+
+-- | Decode a UTF-16 encoded stream to a stream of Unicode characters. Any
+-- invalid codepoint encountered is replaced with the unicode replacement
+-- character.
+--
+-- The Word16s are expected to be in the little-endian byte order.
+--
+{-# INLINE decodeUtf16le #-}
+decodeUtf16le :: Monad m => Stream m Word16 -> Stream m Char
+decodeUtf16le =
+    decodeUtf16
+#ifdef WORDS_BIGENDIAN
+        . fmap swapByteOrder
+#endif
 
 -------------------------------------------------------------------------------
 -- Decoding Array Streams
@@ -850,12 +1033,12 @@ decodeUtf8Chunks_ = decodeUtf8ArraysWithD DropOnCodingFailure
 -- Encoding Unicode (UTF-8) Characters
 -------------------------------------------------------------------------------
 
-data WList = WCons !Word8 !WList | WNil
+data WList a = WCons !a !(WList a) | WNil
 
 -- UTF-8 primitives, Lifted from GHC.IO.Encoding.UTF8.
 
 {-# INLINE ord2 #-}
-ord2 :: Char -> WList
+ord2 :: Char -> (WList Word8)
 ord2 c = assert (n >= 0x80 && n <= 0x07ff) (WCons x1 (WCons x2 WNil))
   where
     n = ord c
@@ -863,7 +1046,7 @@ ord2 c = assert (n >= 0x80 && n <= 0x07ff) (WCons x1 (WCons x2 WNil))
     x2 = fromIntegral $ (n .&. 0x3F) + 0x80
 
 {-# INLINE ord3 #-}
-ord3 :: Char -> WList
+ord3 :: Char -> (WList Word8)
 ord3 c = assert (n >= 0x0800 && n <= 0xffff) (WCons x1 (WCons x2 (WCons x3 WNil)))
   where
     n = ord c
@@ -872,7 +1055,7 @@ ord3 c = assert (n >= 0x0800 && n <= 0xffff) (WCons x1 (WCons x2 (WCons x3 WNil)
     x3 = fromIntegral $ (n .&. 0x3F) + 0x80
 
 {-# INLINE ord4 #-}
-ord4 :: Char -> WList
+ord4 :: Char -> (WList Word8)
 ord4 c = assert (n >= 0x10000)  (WCons x1 (WCons x2 (WCons x3 (WCons x4 WNil))))
   where
     n = ord c
@@ -882,7 +1065,7 @@ ord4 c = assert (n >= 0x10000)  (WCons x1 (WCons x2 (WCons x3 (WCons x4 WNil))))
     x4 = fromIntegral $ (n .&. 0x3F) + 0x80
 
 {-# INLINE_NORMAL readCharUtf8With #-}
-readCharUtf8With :: Monad m => WList -> Unfold m Char Word8
+readCharUtf8With :: Monad m => (WList Word8) -> Unfold m Char Word8
 readCharUtf8With surr = Unfold step inject
 
     where
@@ -965,13 +1148,74 @@ encodeUtf8Lax = encodeUtf8
 -- Encoding to Utf16
 -------------------------------------------------------------------------------
 
--- | Encode a stream of Unicode characters to a UTF-16 little endian encoded
--- bytestream.
+{-# INLINE utf16LowSurrogate #-}
+utf16LowSurrogate :: Word16
+utf16LowSurrogate = 0xDC00
+
+{-# INLINE utf16HighSurrogate #-}
+utf16HighSurrogate :: Word16
+utf16HighSurrogate = 0xD800
+
+{-# INLINE_NORMAL readCharUtf16With #-}
+readCharUtf16With :: Monad m => WList Word16 -> Unfold m Char Word16
+readCharUtf16With invalidReplacement = Unfold step inject
+
+    where
+
+    inject c =
+        return $ case ord c of
+            x | x < 0xD800 -> fromIntegral x `WCons` WNil
+              | x > 0xDFFF && x <= 0xFFFF -> fromIntegral x `WCons` WNil
+              | x >= 0x10000 && x <= 0x10FFFF ->
+                    let u = x - 0x10000                         -- 20 bits
+                        h = utf16HighSurrogate
+                                + fromIntegral (u `shiftR` 10)  -- 10 bits
+                        l = utf16LowSurrogate
+                                + fromIntegral (u .&. 0x3FF)    -- 10 bits
+                    in WCons h $ WCons l WNil
+              | otherwise -> invalidReplacement
+
+    {-# INLINE_LATE step #-}
+    step WNil = return Stop
+    step (WCons x xs) = return $ Yield x xs
+
+{-# INLINE encodeUtf16' #-}
+encodeUtf16' :: Monad m => Stream m Char -> Stream m Word16
+encodeUtf16' = D.unfoldMany (readCharUtf16With errString)
+    where
+    errString =
+        error
+            $ "Streamly.Internal.Unicode.encodeUtf16': Encountered an \
+               invalid character"
+
+{-# INLINE encodeUtf16 #-}
+encodeUtf16 :: Monad m => Stream m Char -> Stream m Word16
+encodeUtf16 = D.unfoldMany (readCharUtf16With WNil)
+
+-- | Similar to 'encodeUtf16le' but throws an error if any invalid character is
+-- encountered.
 --
--- /Unimplemented/
 {-# INLINE encodeUtf16le' #-}
-encodeUtf16le' :: Stream m Char -> Stream m Word16
-encodeUtf16le' = undefined
+encodeUtf16le' :: Monad m => Stream m Char -> Stream m Word16
+encodeUtf16le' =
+#ifdef WORDS_BIGENDIAN
+    fmap swapByteOrder .
+#endif
+        encodeUtf16'
+
+-- | Encode a stream of Unicode characters to a UTF-16 encoded stream. Any
+-- invalid characters in the input stream are replaced by the Unicode
+-- replacement character U+FFFD.
+--
+-- The resulting Word16s are encoded in little-endian byte order.
+--
+{-# INLINE encodeUtf16le #-}
+encodeUtf16le :: Monad m => Stream m Char -> Stream m Word16
+encodeUtf16le =
+#ifdef WORDS_BIGENDIAN
+    fmap swapByteOrder .
+#endif
+        encodeUtf16
 
 -------------------------------------------------------------------------------
 -- Decoding string literals
