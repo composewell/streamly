@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 (Jan 2024)
 
 * Add fixities `infixr 5` for `cons` and `consM` functions.
 * Fix a bug in Array `Eq` instance when the type is a sum type with
