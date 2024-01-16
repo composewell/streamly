@@ -2,7 +2,7 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
-## Unreleased
+## 0.10.1 (Jan 2024)
 
 * Fix TH macros in `Streamly.Data.Stream.MkType` for GHC 9.6 and above.
 
