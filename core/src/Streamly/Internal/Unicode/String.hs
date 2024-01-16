@@ -39,14 +39,14 @@ module Streamly.Internal.Unicode.String
     --
     -- $setup
 
-    str
+      str
     ) where
 
 
 import Control.Applicative (Alternative(..))
 import Control.Exception (displayException)
 import Data.Functor.Identity (runIdentity)
-import Streamly.Internal.Data.Parser (Parser)
+import Streamly.Internal.Data.Parser (Parser, ParseError)
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote
@@ -106,9 +106,12 @@ strSegmentExp (StrVar name) = do
 strExp :: [StrSegment] -> Q Exp
 strExp xs = appE [| concat |] $ listE $ map strSegmentExp xs
 
+parseStr :: String -> Either ParseError [StrSegment]
+parseStr = runIdentity . Stream.parse strParser . Stream.fromList
+
 expandVars :: String -> Q Exp
-expandVars ln =
-    case runIdentity $ Stream.parse strParser (Stream.fromList ln) of
+expandVars input =
+    case parseStr input of
         Left e ->
             fail $ "str QuasiQuoter parse error: " ++ displayException e
         Right x ->
