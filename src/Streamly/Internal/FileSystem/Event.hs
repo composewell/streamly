@@ -20,6 +20,9 @@
 -- * "Streamly.Internal.FileSystem.Event.Linux"
 -- * "Streamly.Internal.FileSystem.Event.Windows"
 
+-- XXX Need to ensure that the signatures of the exported APIs are same on all
+-- platforms.
+
 module Streamly.Internal.FileSystem.Event
     (
     -- * Creating a Watch
