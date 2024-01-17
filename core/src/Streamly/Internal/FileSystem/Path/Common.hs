@@ -358,17 +358,9 @@ doAppend os a b = unsafePerformIO $ do
 {-# INLINE withAppendCheck #-}
 withAppendCheck :: (Unbox b, Integral b) =>
     OS -> (Array b -> String) -> Array b -> a -> a
-withAppendCheck Posix toStr arr f =
-    if isAbsolute Posix arr
-    then error $ "append: cannot append absolute path " ++ toStr arr
-    else f
-withAppendCheck Windows toStr arr f =
-    if isAbsoluteInDrive arr
-    then error $ "append: cannot append drive absolute path " ++ toStr arr
-    else if hasDrive arr
-    then error $ "append: cannot append path with drive " ++ toStr arr
-    else if isAbsoluteUNC arr
-    then error $ "append: cannot append absolute UNC path " ++ toStr arr
+withAppendCheck os toStr arr f =
+    if isAbsolute os arr
+    then error $ "append: cannot append absolute or located path " ++ toStr arr
     else f
 
 -- | Does not check if any of the path is empty or if the second path is
