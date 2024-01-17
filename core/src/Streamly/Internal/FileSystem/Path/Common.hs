@@ -9,51 +9,26 @@
 --
 module Streamly.Internal.FileSystem.Path.Common
     (
-    -- * Path Types
-      File (..)
-    , Dir (..)
-    , Abs (..)
-    , Rel (..)
-    , PathException (..)
-
+    -- * Types
+      OS (..)
     -- * Conversions
     , IsPath (..)
-    , adapt
 
     -- * Construction
     , fromChunk
     , unsafeFromChunk
-    , fromString
-    -- , fromChars
+    , posixFromChars
+    , posixFromString
+    , unsafePosixFromString
 
-    -- * Statically Verified Literals
-    -- quasiquoters
-    , path
-    , abs
-    , rel
-    , dir
-    , file
-    , absdir
-    , reldir
-    , absfile
-    , relfile
-
-    -- * Statically Verified Strings
-    -- TH macros
-    , mkPath
-    , mkAbs
-    , mkRel
-    , mkDir
-    , mkFile
-    , mkAbsDir
-    , mkRelDir
-    , mkAbsFile
-    , mkRelFile
+    -- * Quasiquoters
+    , mkQ
 
     -- * Elimination
     , toChunk
     , toString
-    -- , toChars
+    , posixToChars
+    , posixToString
 
     -- * Operations
     -- Do we need to export the separator functions? They are not essential if
@@ -72,17 +47,13 @@ where
 
 #include "assert.hs"
 
-import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow(..))
 import Data.Char (ord, isAlpha)
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-import Data.Word (Word16)
-#endif
 import GHC.Base (unsafeChr)
 import Language.Haskell.TH (Q, Exp)
-import Language.Haskell.TH.Quote (QuasiQuoter)
+import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Internal.Data.Stream (Stream)
@@ -92,88 +63,13 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Stream as Stream
--- import qualified Streamly.Internal.Unicode.Stream as Unicode
+import qualified Streamly.Internal.Unicode.Stream as Unicode
+
+import Streamly.Internal.Data.Path
 
 import Prelude hiding (abs)
 
 data OS = Windows | Posix
-
-------------------------------------------------------------------------------
--- Exceptions
-------------------------------------------------------------------------------
-
--- | Exceptions thrown by path operations.
-data PathException =
-    InvalidPath String
-  | InvalidAbsPath String
-  | InvalidRelPath String
-  | InvalidFilePath String
-  | InvalidDirPath String
-    deriving (Show,Eq)
-
-instance Exception PathException
-
-------------------------------------------------------------------------------
--- Types
-------------------------------------------------------------------------------
-
--- XXX Do we need a type for file or dir Name as names cannot have the
--- separator char and there may be other restrictions on names? For example,
--- length restriction.  A file name cannot be "." or "..". We can use the types
--- "File Name" and "Dir Name" to represent names. Also, file systems may put
--- limits on names. Can have an IsName type class with members Name, (File
--- Name), (Dir Name).
-
--- | A type representing a file path.
-newtype File a = File a
-
--- | A type representing a directory path.
-newtype Dir a = Dir a
-
--- | A type representing absolute paths.
-newtype Abs a = Abs a
-
--- | A type representing relative paths.
-newtype Rel a = Rel a
-
-------------------------------------------------------------------------------
--- Conversions
-------------------------------------------------------------------------------
-
--- XXX call it IsBase? It is a more abstract concept and can be used for URLs
--- as well, but those can also be called paths. But if we make it more abstract
--- then File/Dir will have to be called something like Leaf/Branch which will
--- become more obscure.
-
--- | A member of 'IsPath' knows how to convert to and from the base path type.
-class IsPath f a where
-    -- | Like 'fromPath' but does not check the properties of 'Path'. The user
-    -- is responsible to maintain the invariants mentioned in the definition of
-    -- 'Path' type otherwise surprising behavior may result.
-    --
-    -- Provides performance and simplicity when we know that the properties of
-    -- the path are already verified, for example, when we get the path from
-    -- the file system or the OS APIs.
-    unsafeFromPath :: a -> f a
-
-    -- | Convert a raw 'Path' to other forms of well-typed paths. It may fail
-    -- if the path does not satisfy the properties of the target type.
-    --
-    -- Path components may have limits.
-    -- Total path length may have a limit.
-    fromPath :: MonadThrow m => a -> m (f a)
-
-    -- | Convert a well-typed path to a raw 'Path'. Never fails.
-    toPath :: f a -> a
-
--- XXX Use rewrite rules to eliminate intermediate conversions for better
--- efficiency.
-
--- | Convert a path type to another path type. This operation may fail with a
--- 'PathException' when converting a less restrictive path type to a more
--- restrictive one.
-adapt :: (MonadThrow m, IsPath a p, IsPath b p) => a p -> m (b p)
-adapt p = fromPath $ toPath p
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -212,136 +108,68 @@ fromChunk arr =
 toChunk :: Array a -> Array Word8
 toChunk = Array.asBytes
 
+unsafePosixFromChars :: Stream Identity Char -> Array Word8
+unsafePosixFromChars s =
+    let n = runIdentity $ Stream.fold Fold.length s
+     in Array.fromPureStreamN n (Unicode.encodeUtf8' s)
+
+unsafePosixFromString :: String -> Array Word8
+unsafePosixFromString = unsafePosixFromChars . Stream.fromList
+
+-- XXX Need Fold.Tee3, Tee4 etc for better efficiency composition.
+-- XXX Sanitize the path - remove duplicate separators, . segments, trailing .
+-- XXX Writing a custom fold for parsing a Posix path may be better for
+-- efficient bulk parsing when needed. We need the same code to validate a
+-- Chunk where we do not need to create an array.
+posixFromChars :: MonadThrow m => Stream Identity Char -> m (Array Word8)
+posixFromChars s =
+    let lengths = Fold.tee Fold.length (Fold.takeEndBy_ (== '\0') Fold.length)
+        (n, n1) = runIdentity $ Stream.fold lengths s
+        arr = Array.fromPureStreamN n (Unicode.encodeUtf8' s)
+        sample = Stream.takeWhile (/= '\0') s
+     in
+        if n1 < n
+        then throwM $ InvalidPath $ "Path contains a NULL char at position: "
+                ++ show n1 ++ " after " ++ runIdentity (Stream.toList sample)
+        else pure arr
+
 -- | Encode a Unicode string to 'Path' using strict UTF-8 encoding on Posix.
 -- On Posix it may fail if the stream contains null characters.
--- TBD: Use UTF16LE on Windows.
-fromString :: MonadThrow m =>
-    (Stream m Char -> m (Array a)) -> [Char] -> m (Array a)
+fromString ::
+    (Stream Identity Char -> m (Array a)) -> [Char] -> m (Array a)
 fromString f = f . Stream.fromList
 
+posixFromString :: MonadThrow m => [Char] -> m (Array Word8)
+posixFromString = fromString posixFromChars
+
 -- | Decode the path to a Unicode string using strict UTF-8 decoding on Posix.
--- TBD: Use UTF16LE on Windows.
 toString :: (Array a -> Stream Identity Char) -> Array a -> [Char]
 toString f = runIdentity . Stream.toList . f
+
+posixToChars :: Monad m => Array Word8 -> Stream m Char
+posixToChars arr = Unicode.decodeUtf8' $ Array.read arr
+
+posixToString :: Array Word8 -> [Char]
+posixToString = toString posixToChars
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
 ------------------------------------------------------------------------------
 
--- XXX Build these on top of the str quasiquoter so that we get the
--- interpolation for free.
+-- XXX pass the quote name for errors?
+mkQ :: (String -> Q Exp) -> QuasiQuoter
+mkQ f =
+  QuasiQuoter
+  { quoteExp  = f
+  , quotePat  = err "pattern"
+  , quoteType = err "type"
+  , quoteDec  = err "declaration"
+  }
 
--- | Generates a 'Path' type from an interpolated string literal.
---
--- /Unimplemented/
-path :: QuasiQuoter
-path = undefined
+  where
 
--- | Generates an @Abs Path@ type from an interpolated string literal.
---
--- /Unimplemented/
-abs :: QuasiQuoter
-abs = undefined
-
--- | Generates an @Rel Path@ type from an interpolated string literal.
---
--- /Unimplemented/
-rel :: QuasiQuoter
-rel = undefined
-
--- | Generates an @Dir Path@ type from an interpolated string literal.
---
--- /Unimplemented/
-dir :: QuasiQuoter
-dir = undefined
-
--- | Generates an @File Path@ type from an interpolated string literal.
---
--- /Unimplemented/
-file :: QuasiQuoter
-file = undefined
-
--- | Generates an @Abs (Dir Path)@ type from an interpolated string literal.
---
--- /Unimplemented/
-absdir :: QuasiQuoter
-absdir = undefined
-
--- | Generates an @Rel (Dir Path)@ type from an interpolated string literal.
---
--- /Unimplemented/
-reldir :: QuasiQuoter
-reldir = undefined
-
--- | Generates an @Abs (File Path)@ type from an interpolated string literal.
---
--- /Unimplemented/
-absfile :: QuasiQuoter
-absfile = undefined
-
--- | Generates an @Rel (File Path)@ type from an interpolated string literal.
---
--- /Unimplemented/
-relfile :: QuasiQuoter
-relfile = undefined
-
-------------------------------------------------------------------------------
--- Statically Verified Strings
-------------------------------------------------------------------------------
-
--- | Generates a 'Path' type.
---
--- /Unimplemented/
-mkPath :: String -> Q Exp
-mkPath = undefined
-
--- | Generates an @Abs Path@ type.
---
--- /Unimplemented/
-mkAbs :: String -> Q Exp
-mkAbs = undefined
-
--- | Generates an @Rel Path@ type.
---
--- /Unimplemented/
-mkRel :: String -> Q Exp
-mkRel = undefined
-
--- | Generates an @Dir Path@ type.
---
--- /Unimplemented/
-mkDir :: String -> Q Exp
-mkDir = undefined
-
--- | Generates an @File Path@ type.
---
--- /Unimplemented/
-mkFile :: String -> Q Exp
-mkFile = undefined
-
--- | Generates an @Abs (Dir Path)@ type.
---
--- /Unimplemented/
-mkAbsDir :: String -> Q Exp
-mkAbsDir = undefined
-
--- | Generates an @Rel (Dir Path)@ type.
---
--- /Unimplemented/
-mkRelDir :: String -> Q Exp
-mkRelDir = undefined
-
--- | Generates an @Abs (File Path)@ type.
---
--- /Unimplemented/
-mkAbsFile :: String -> Q Exp
-mkAbsFile = undefined
-
--- | Generates an @Rel (File Path)@ type.
---
--- /Unimplemented/
-mkRelFile :: String -> Q Exp
-mkRelFile = undefined
+  err x = \_ -> fail $ "QuasiQuote used as a " ++ x
+    ++ ", can be used only as an expression"
 
 ------------------------------------------------------------------------------
 -- Operations
@@ -536,16 +364,3 @@ append :: (Unbox a, Integral a) =>
     OS -> (Array a -> String) -> Array a -> Array a -> Array a
 append os toStr a b =
     withAppendCheck os toStr b (doAppend os a b)
-
--- The only safety we need for paths is: (1) The first path can only be a Dir
--- type path, and (2) second path can only be a Rel path.
-
-{-
--- | Append a 'Rel' 'Path' to a 'Dir' 'Path'. Never fails.
---
--- Also see 'append'.
-{-# INLINE appendRel #-}
-appendRel :: (IsPath a (Dir p), IsPath b, IsPath (a b)) =>
-    (a (Dir p)) -> Rel b -> a b
-appendRel a (Rel b) = unsafeFromPath $ unsafeAppend (toPath a) (toPath b)
--}

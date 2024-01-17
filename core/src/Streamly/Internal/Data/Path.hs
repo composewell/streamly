@@ -8,15 +8,26 @@
 module Streamly.Internal.Data.Path
     (
     -- * Path Types
+    -- | When @Abs/Rel@ and @File/Dir@ both are present, @Abs/Rel@ must be
+    -- outermost constructors and @File/Dir@ as inner. Thus the types File (Abs
+    -- a) or Dir (Abs a) are not allowed but Abs (Dir a) and Abs (File a) are
+    -- allowed.
+
       File (..)
     , Dir (..)
     , Abs (..)
     , Rel (..)
+
+    -- * Constraints
+    , IsAbsRel
+    , NotAbsRel
+    , IsDir
+
+    -- * Exceptions
     , PathException (..)
 
     -- * Conversions
     , IsPath (..)
-    , adapt
     )
 where
 
@@ -49,17 +60,46 @@ instance Exception PathException
 -- limits on names. Can have an IsName type class with members Name, (File
 -- Name), (Dir Name).
 
--- | A type representing a file path.
+-- | File path. A qualifier to annotate a path as file path, or in general as a
+-- leaf node in a tree or graph.
 newtype File a = File a
 
--- | A type representing a directory path.
+-- | Directory path. A qualifier to annotate a path as dir path, or in general
+-- as a non-leaf node in a tree or graph.
 newtype Dir a = Dir a
 
--- | A type representing absolute paths.
+-- | Absolute path. A qualifier to annotate a path which is relative to an
+-- explicitly known permanent node called a root node.
 newtype Abs a = Abs a
 
--- | A type representing relative paths.
+-- | Relative path. A qualifier to annotate a path which is can be relative to
+-- anything, not relative to an explicitly known permanent node.
 newtype Rel a = Rel a
+
+-- Abs (Dir a) etc. are also covered by these.
+
+-- | Constraint to check if a type has Abs or Rel annotations.
+class IsAbsRel a
+
+instance IsAbsRel (Abs a)
+instance IsAbsRel (Rel a)
+
+-- | Constraint to check if a type does not have Abs or Rel annotations.
+class NotAbsRel a
+
+instance NotAbsRel (File a)
+instance NotAbsRel (Dir a)
+
+-- Note that (Abs a) may also be a directory if "a" is (Dir b), but it can also
+-- be a file if "a" is (File b). Therefore, the constraints are put on a more
+-- spspecific type e.g. (Abs PosixPath) may be a dir.
+
+-- | Constraint to check if a type may be a directory.
+class IsDir a
+
+instance IsDir (Dir a)
+instance IsDir (Abs (Dir a))
+instance IsDir (Rel (Dir a))
 
 ------------------------------------------------------------------------------
 -- Conversions
@@ -71,7 +111,7 @@ newtype Rel a = Rel a
 -- become more obscure.
 
 -- | A member of 'IsPath' knows how to convert to and from the base path type.
-class IsPath f a where
+class IsPath a b where
     -- | Like 'fromPath' but does not check the properties of 'Path'. The user
     -- is responsible to maintain the invariants mentioned in the definition of
     -- 'Path' type otherwise surprising behavior may result.
@@ -79,23 +119,14 @@ class IsPath f a where
     -- Provides performance and simplicity when we know that the properties of
     -- the path are already verified, for example, when we get the path from
     -- the file system or the OS APIs.
-    unsafeFromPath :: a -> f a
+    unsafeFromPath :: a -> b
 
     -- | Convert a raw 'Path' to other forms of well-typed paths. It may fail
     -- if the path does not satisfy the properties of the target type.
     --
     -- Path components may have limits.
     -- Total path length may have a limit.
-    fromPath :: MonadThrow m => a -> m (f a)
+    fromPath :: MonadThrow m => a -> m b
 
     -- | Convert a well-typed path to a raw 'Path'. Never fails.
-    toPath :: f a -> a
-
--- XXX Use rewrite rules to eliminate intermediate conversions for better
--- efficiency.
-
--- | Convert a path type to another path type. This operation may fail with a
--- 'PathException' when converting a less restrictive path type to a more
--- restrictive one.
-adapt :: (MonadThrow m, IsPath a p, IsPath b p) => a p -> m (b p)
-adapt p = fromPath $ toPath p
+    toPath :: b -> a

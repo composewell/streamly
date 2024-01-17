@@ -1,4 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
+-- For constraints on "combine" and "combineDir"
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- |
 -- Module      : Streamly.Internal.FileSystem.Path.Posix
@@ -7,18 +9,104 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
+-- = File System Tree
+--
+-- A filesystem is a tree when there are no hard links or symbolic links. But
+-- in the presence of symlinks it could be a DAG or a graph, because directory
+-- symlinks can create cycles.
+--
+-- = Absolute vs Relative Paths
+--
+-- A path that does not refer to a particular location but defines steps to go
+-- from any place to some other place is a relative path. Absolute paths can
+-- never be appended to a path whereas relative paths can be appended.
+--
+-- Absolute: @/a/b/c@
+-- Relative @e/f/g@
+--
+-- An absolute path refers to a particular location, it has a notion of a root
+-- which could be implicit or explicit. A root refers to a specific known
+-- location.
+--
+-- = Appending Paths
+--
+-- We can only append a relative path to any path. But there can be
+-- complications when paths have implicit references.
+--
+-- = Comparing Paths
+--
+-- Each component of the path is the same then paths are same. But there can be
+-- complications when paths have implicit references.
+--
+-- = Implicit Roots (.)
+--
+-- On Posix and Windows "." implicitly refers to the current directory. On
+-- Windows a path like @/Users/@ has the drive reference implicit. Such
+-- references are contextual and may have different meanings at different
+-- times.
+--
+-- @./bin@ may refer to a different location depending on what "." is
+-- referring to. Thus we should not allow @./bin@ to be appended to another
+-- path, @bin@ can be appended though. Similarly, we cannot compare @./bin@
+-- with @./bin@ and say that they are equal because they may be referring to
+-- different locations depending on in what context the paths were created.
+--
+-- The same arguments apply to paths with implicit drive on Windows.
+--
+-- We can treat @.\/bin\/ls@ as an absolute path with "." as an implicit root.
+-- The relative path is "bin/ls" which represents steps from somewhere to
+-- somewhere else rather than a particular location. We can also call @./bin@
+-- as a "located path" as it points to particular location rather than "steps"
+-- from one place to another. If we want to append such paths we need to first
+-- make them explicitly relative by dropping the implicit root. Or we can use
+-- unsafeAppend to force it anyway or unsafeCast to convert absolute to
+-- relative.
+--
+-- On these absolute (located/Loc) paths if we use takeRoot, it should return
+-- RootCurDir, RootCurDrive and @Root Path@ to distinguish @./@, @/@, @C:/@. We
+-- could represent them by different types but that would make the types even more
+-- complicated. So runtime checks are are a good balance.
+--
+-- Path comparison should return EqTrue, EqFalse or EqUnknown. If we compare
+-- these absolute/located paths having implicit roots then result should be
+-- EqUnknown or maybe we can just return False?. @./bin@ and @./bin@ should be
+-- treated as paths with different roots/drives but same relative path. The
+-- programmer can explicitly drop the root and compare the relative paths if
+-- they want to check literal equality.
+--
+-- Note that a trailing . or a . in the middle of a path is different as it
+-- refers to a known name.
+--
+-- = Ambiguous References (..)
+--
+-- ".." in a path refers to the parent directory relative to the current path.
+-- For an absolute root directory ".." refers to the root itself because you
+-- cannot go futher up.
+--
+-- When resolving ".." it always resolves to the parent of a directory as
+-- stored in the dierctory entry. So if we landed in a directory via a symlink,
+-- ".." can take us back to a different directory and not to the symlink
+-- itself. Thus @a\/b/..@ may not be the same as @a/@. Shells like bash keep
+-- track of the old paths explicitly, so you may not see this behavior when
+-- using a shell.
+--
+-- For this reason we cannot process ".." in the path statically. However, if
+-- the components of two paths are exactly the same then they will always
+-- resolve to the same target. But two paths with different components could
+-- also point to the same target. So if there are ".." in the path we cannot
+-- definitively say if they are the same without resolving them.
+--
 module Streamly.Internal.FileSystem.Path.Posix
     (
-    {-
-    -- * OS
-      OS (..)
-
     -- * Path Types
-    , Path (..)
+      PosixPath (..)
     , File
     , Dir
     , Abs
     , Rel
+    , IsAbsRel
+    , NotAbsRel
+    , IsDir
 
     -- * Conversions
     , IsPath (..)
@@ -27,10 +115,11 @@ module Streamly.Internal.FileSystem.Path.Posix
     -- * Construction
     , fromChunk
     , unsafeFromChunk
-    , fromString
     , fromChars
+    , fromString
+    , unsafeFromString
 
-    -- * Statically Verified Literals
+    -- * Statically Verified String Literals
     -- quasiquoters
     , path
     , abs
@@ -43,6 +132,9 @@ module Streamly.Internal.FileSystem.Path.Posix
     , relfile
 
     -- * Statically Verified Strings
+    -- XXX Do we need these if we have quasiquoters? These may be useful if we
+    -- are generating strings statically using methods other than literals or
+    -- if we are doing some text processing on strings before using them.
     -- TH macros
     , mkPath
     , mkAbs
@@ -56,111 +148,118 @@ module Streamly.Internal.FileSystem.Path.Posix
 
     -- * Elimination
     , toChunk
-    , toString
     , toChars
+    , toString
+
+    -- * Parsing
+    , dropTrailingSeparators
 
     -- * Operations
-    -- Do we need to export the separator functions? They are not essential if
-    -- operations to split and combine paths are provided. If someone wants to
-    -- work on paths at low level then they know what they are.
-    -- , primarySeparator
-    -- , isSeparator
-    , append
     , unsafeAppend
-    , appendRel
-    , dropTrailingSeparators
-    , isRelativeRaw
-    , isAbsoluteRaw
-    -}
+    , append
+    , combine
+    , combineDir
     )
 where
 
-#include "assert.hs"
-
-import Control.Exception (Exception)
 import Control.Monad.Catch (MonadThrow(..))
-import Data.Char (ord, isAlpha)
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-import Data.Word (Word16)
-#endif
-import GHC.Base (unsafeChr)
-import Language.Haskell.TH (Q, Exp)
-import Language.Haskell.TH.Quote (QuasiQuoter)
+import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
-import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Internal.Data.Stream (Stream)
-import System.IO.Unsafe (unsafePerformIO)
+import Streamly.Internal.FileSystem.Path.Common (mkQ)
 
-import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Unicode.Stream as Unicode
-
-import Streamly.Internal.FileSystem.Path.Common -- (IsPath(..), File(..), Dir)
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
 
+import Language.Haskell.TH
+import Language.Haskell.TH.Quote
+import Streamly.Internal.Data.Path
 import Prelude hiding (abs)
+
+{- $setup
+>>> :m
+>>> :set -XQuasiQuotes
+
+For APIs that have not been released yet.
+
+>>> import qualified Streamly.Internal.FileSystem.Path.Posix as Path
+-}
 
 newtype PosixPath = PosixPath (Array Word8)
 
-{-
+-- XXX Swap the order of IsPath arguments?
+
 instance IsPath PosixPath PosixPath where
     unsafeFromPath = id
     fromPath = pure
     toPath = id
--}
 
-instance IsPath File PosixPath where
-    unsafeFromPath p = File p
+instance IsPath PosixPath (File PosixPath) where
+    unsafeFromPath = File
     fromPath p = pure (File p)
     toPath (File p) = p
 
-instance IsPath Dir PosixPath where
-    unsafeFromPath p = Dir p
+instance IsPath PosixPath (Dir PosixPath) where
+    unsafeFromPath = Dir
     fromPath p = pure (Dir p)
     toPath (Dir p) = p
 
-instance IsPath Abs PosixPath where
-    unsafeFromPath p = Abs p
+instance IsPath PosixPath (Abs PosixPath) where
+    unsafeFromPath = Abs
     fromPath p = pure (Abs p)
     toPath (Abs p) = p
 
-instance IsPath Rel PosixPath where
-    unsafeFromPath p = Rel p
+instance IsPath PosixPath (Rel PosixPath) where
+    unsafeFromPath = Rel
     fromPath p = pure (Rel p)
     toPath (Rel p) = p
 
-instance IsPath Abs (File PosixPath) where
-    unsafeFromPath p = Abs p
-    fromPath p = pure (Abs p)
-    toPath (Abs (File p)) = File p
+instance IsPath PosixPath (Abs (File PosixPath)) where
+    unsafeFromPath p = Abs (File p)
+    fromPath p = pure (Abs (File p))
+    toPath (Abs (File p)) = p
 
-instance IsPath Abs (Dir PosixPath) where
-    unsafeFromPath p = Abs p
-    fromPath p = pure (Abs p)
-    toPath (Abs (Dir p)) = Dir p
+instance IsPath PosixPath (Abs (Dir PosixPath)) where
+    unsafeFromPath p = Abs (Dir p)
+    fromPath p = pure (Abs (Dir p))
+    toPath (Abs (Dir p)) = p
 
-instance IsPath Rel (File PosixPath) where
-    unsafeFromPath p = Rel p
-    fromPath p = pure (Rel p)
-    toPath (Rel (File p)) = File p
+instance IsPath PosixPath (Rel (File PosixPath)) where
+    unsafeFromPath p = Rel (File p)
+    fromPath p = pure (Rel (File p))
+    toPath (Rel (File p)) = p
 
-instance IsPath Rel (Dir PosixPath) where
-    unsafeFromPath p = Rel p
-    fromPath p = pure (Rel p)
-    toPath (Rel (Dir p)) = Dir p
+instance IsPath PosixPath (Rel (Dir PosixPath)) where
+    unsafeFromPath p = Rel (Dir p)
+    fromPath p = pure (Rel (Dir p))
+    toPath (Rel (Dir p)) = p
 
 -- XXX Use rewrite rules to eliminate intermediate conversions for better
--- efficiency.
+-- efficiency. If the argument path is already verfied for a property, we
+-- should not verify it again e.g. if we adapt (Abs path) as (Abs (Dir path))
+-- then we should not verify it to be Abs again.
 
 -- | Convert a path type to another path type. This operation may fail with a
 -- 'PathException' when converting a less restrictive path type to a more
 -- restrictive one.
-adapt :: (MonadThrow m, IsPath a p, IsPath b p) => a p -> m (b p)
-adapt p = fromPath $ toPath p
+--
+-- You can only upgrade or downgrade type safety. Converting Abs to Rel or File
+-- to Dir will definitely fail.
+adapt :: (MonadThrow m, IsPath PosixPath a, IsPath PosixPath b) => a -> m b
+adapt p = fromPath (toPath p :: PosixPath)
+
+------------------------------------------------------------------------------
+-- Path parsing utilities
+------------------------------------------------------------------------------
+
+-- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
+-- @a@.
+{-# INLINE dropTrailingSeparators #-}
+dropTrailingSeparators :: PosixPath -> PosixPath
+dropTrailingSeparators (PosixPath arr) =
+    PosixPath (Common.dropTrailingSeparators Common.Posix arr)
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -177,394 +276,362 @@ adapt p = fromPath $ toPath p
 {-# INLINE unsafeFromChunk #-}
 unsafeFromChunk :: Array Word8 -> PosixPath
 -- XXX add asserts to check safety
-unsafeFromChunk arr = PosixPath (Array.castUnsafe arr)
+unsafeFromChunk = PosixPath . Common.unsafeFromChunk
 
--- | On Posix it may fail if the byte array contains null characters. On
--- Windows the array passed must be a multiple of 2 bytes as the underlying
--- representation uses 'Word16'.
+-- | It may fail if the byte array contains null characters.
 --
 -- Throws 'InvalidPath'.
 fromChunk :: MonadThrow m => Array Word8 -> m PosixPath
-fromChunk arr =
-    case Array.cast arr of
-        Nothing ->
-            -- XXX Windows only message.
-            throwM
-                $ InvalidPath
-                $ "Encoded path length " ++ show (Array.byteLength arr)
-                    ++ " is not a multiple of 16-bit."
-        Just x -> pure (PosixPath x)
+fromChunk = fmap PosixPath . Common.fromChunk
 
-{-
--- | Convert 'Path' to an array of bytes.
-toChunk :: Path -> Array Word8
-toChunk (Path arr) = Array.asBytes arr
+-- XXX Should be a Fold instead?
 
--- | Encode a Unicode char stream to 'Path' using strict UTF-8 encoding on
--- Posix. On Posix it may fail if the stream contains null characters.
--- TBD: Use UTF16LE on Windows.
+-- | Encode a Unicode string to 'Path' using strict UTF-8 encoding. It fails if
+-- the stream contains null characters or invalid unicode characters.
 --
 -- Unicode normalization is not done. If normalization is needed the user can
 -- normalize it and use the fromChunk API.
-fromChars :: MonadThrow m => Stream Identity Char -> m Path
-fromChars s =
-    let n = runIdentity $ Stream.fold Fold.length s
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-     in pure $ Path (Array.fromPureStreamN n (Unicode.encodeUtf16le' s))
-#else
-     in pure $ Path (Array.fromPureStreamN n (Unicode.encodeUtf8' s))
-#endif
+fromChars :: MonadThrow m => Stream Identity Char -> m PosixPath
+fromChars = fmap PosixPath . Common.posixFromChars
 
--- | Decode the path to a stream of Unicode chars using strict UTF-8 decoding
--- on Posix.
--- TBD: Use UTF16LE on Windows.
-toChars :: Monad m => Path -> Stream m Char
-toChars (Path arr) =
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-    Unicode.decodeUtf16le' $ Array.read arr
-#else
-    Unicode.decodeUtf8' $ Array.read arr
-#endif
+unsafeFromString :: [Char] -> PosixPath
+unsafeFromString = PosixPath . Common.unsafePosixFromString
 
--- | Encode a Unicode string to 'Path' using strict UTF-8 encoding on Posix.
--- On Posix it may fail if the stream contains null characters.
--- TBD: Use UTF16LE on Windows.
-fromString :: MonadThrow m => [Char] -> m Path
+-- | See fromChars.
+--
+-- >> fromString = fromChars . Stream.fromList
+--
+fromString :: MonadThrow m => [Char] -> m PosixPath
 fromString = fromChars . Stream.fromList
 
--- | Decode the path to a Unicode string using strict UTF-8 decoding on Posix.
--- TBD: Use UTF16LE on Windows.
-toString :: Path -> [Char]
-toString = runIdentity . Stream.toList . toChars
-
 ------------------------------------------------------------------------------
--- Statically Verified Literals
+--
 ------------------------------------------------------------------------------
 
--- XXX Build these on top of the str quasiquoter so that we get the
--- interpolation for free.
+absFromString :: MonadThrow m => String -> m (Abs PosixPath)
+absFromString s = fromString s >>= adapt
 
--- | Generates a 'Path' type from an interpolated string literal.
---
--- /Unimplemented/
-path :: QuasiQuoter
-path = undefined
+dirFromString :: MonadThrow m => String -> m (Dir PosixPath)
+dirFromString s = fromString s >>= adapt
 
--- | Generates an @Abs Path@ type from an interpolated string literal.
---
--- /Unimplemented/
-abs :: QuasiQuoter
-abs = undefined
+absDirFromString :: MonadThrow m => String -> m (Abs (Dir PosixPath))
+absDirFromString s = fromString s >>= adapt
 
--- | Generates an @Rel Path@ type from an interpolated string literal.
---
--- /Unimplemented/
-rel :: QuasiQuoter
-rel = undefined
+relFromString :: MonadThrow m => String -> m (Rel PosixPath)
+relFromString s = fromString s >>= adapt
 
--- | Generates an @Dir Path@ type from an interpolated string literal.
---
--- /Unimplemented/
-dir :: QuasiQuoter
-dir = undefined
+relDirFromString :: MonadThrow m => String -> m (Rel (Dir PosixPath))
+relDirFromString s = fromString s >>= adapt
 
--- | Generates an @File Path@ type from an interpolated string literal.
---
--- /Unimplemented/
-file :: QuasiQuoter
-file = undefined
+fileFromString :: MonadThrow m => String -> m (File PosixPath)
+fileFromString s = fromString s >>= adapt
 
--- | Generates an @Abs (Dir Path)@ type from an interpolated string literal.
---
--- /Unimplemented/
-absdir :: QuasiQuoter
-absdir = undefined
+absFileFromString :: MonadThrow m => String -> m (Abs (File PosixPath))
+absFileFromString s = fromString s >>= adapt
 
--- | Generates an @Rel (Dir Path)@ type from an interpolated string literal.
---
--- /Unimplemented/
-reldir :: QuasiQuoter
-reldir = undefined
-
--- | Generates an @Abs (File Path)@ type from an interpolated string literal.
---
--- /Unimplemented/
-absfile :: QuasiQuoter
-absfile = undefined
-
--- | Generates an @Rel (File Path)@ type from an interpolated string literal.
---
--- /Unimplemented/
-relfile :: QuasiQuoter
-relfile = undefined
+relFileFromString :: MonadThrow m => String -> m (Rel (File PosixPath))
+relFileFromString s = fromString s >>= adapt
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
 ------------------------------------------------------------------------------
 
+-- XXX We can lift the array directly, ByteArray has a lift instance. Does that
+-- work better?
+
+liftPath :: Quote m => PosixPath -> m Exp
+liftPath p =
+    [| PosixPath (Common.unsafePosixFromString $(lift $ toString p)) |]
+
+liftRel :: Quote m => Rel PosixPath -> m Exp
+liftRel p =
+    [| Rel (PosixPath (Common.unsafePosixFromString $(lift $ toString p))) |]
+
+liftAbs :: Quote m => Abs PosixPath -> m Exp
+liftAbs p =
+    [| Abs (PosixPath (Common.unsafePosixFromString $(lift $ toString p))) |]
+
+liftDir :: Quote m => Dir PosixPath -> m Exp
+liftDir p =
+    [| Dir (PosixPath (Common.unsafePosixFromString $(lift $ toString p))) |]
+
+liftAbsDir :: Quote m => Abs (Dir PosixPath) -> m Exp
+liftAbsDir p =
+    [| Abs (Dir (PosixPath (Common.unsafePosixFromString $(lift $ toString p)))) |]
+
+liftRelDir :: Quote m => Rel (Dir PosixPath) -> m Exp
+liftRelDir p =
+    [| Rel (Dir (PosixPath (Common.unsafePosixFromString $(lift $ toString p)))) |]
+
+liftFile :: Quote m => File PosixPath -> m Exp
+liftFile p =
+    [| File (PosixPath (Common.unsafePosixFromString $(lift $ toString p))) |]
+
+liftAbsFile :: Quote m => Abs (File PosixPath) -> m Exp
+liftAbsFile p =
+    [| Abs (File (PosixPath (Common.unsafePosixFromString $(lift $ toString p)))) |]
+
+liftRelFile :: Quote m => Rel (File PosixPath) -> m Exp
+liftRelFile p =
+    [| Rel (File (PosixPath (Common.unsafePosixFromString $(lift $ toString p)))) |]
+
 -- | Generates a 'Path' type.
 --
--- /Unimplemented/
 mkPath :: String -> Q Exp
-mkPath = undefined
+mkPath = either (error . show) liftPath . fromString
 
 -- | Generates an @Abs Path@ type.
 --
--- /Unimplemented/
 mkAbs :: String -> Q Exp
-mkAbs = undefined
+mkAbs = either (error . show) liftAbs . absFromString
 
 -- | Generates an @Rel Path@ type.
 --
--- /Unimplemented/
 mkRel :: String -> Q Exp
-mkRel = undefined
+mkRel = either (error . show) liftRel . relFromString
 
 -- | Generates an @Dir Path@ type.
 --
--- /Unimplemented/
 mkDir :: String -> Q Exp
-mkDir = undefined
+mkDir = either (error . show) liftDir . dirFromString
 
 -- | Generates an @File Path@ type.
 --
--- /Unimplemented/
 mkFile :: String -> Q Exp
-mkFile = undefined
+mkFile = either (error . show) liftFile . fileFromString
 
 -- | Generates an @Abs (Dir Path)@ type.
 --
--- /Unimplemented/
 mkAbsDir :: String -> Q Exp
-mkAbsDir = undefined
+mkAbsDir = either (error . show) liftAbsDir . absDirFromString
 
 -- | Generates an @Rel (Dir Path)@ type.
 --
--- /Unimplemented/
 mkRelDir :: String -> Q Exp
-mkRelDir = undefined
+mkRelDir = either (error . show) liftRelDir . relDirFromString
 
 -- | Generates an @Abs (File Path)@ type.
 --
--- /Unimplemented/
 mkAbsFile :: String -> Q Exp
-mkAbsFile = undefined
+mkAbsFile = either (error . show) liftAbsFile . absFileFromString
 
 -- | Generates an @Rel (File Path)@ type.
 --
--- /Unimplemented/
 mkRelFile :: String -> Q Exp
-mkRelFile = undefined
+mkRelFile = either (error . show) liftRelFile . relFileFromString
 
 ------------------------------------------------------------------------------
--- Operations
+-- Statically Verified Literals
 ------------------------------------------------------------------------------
 
-posixSeparator :: Char
-posixSeparator = '/'
+-- XXX Define folds or parsers to parse the paths.
+-- XXX Build these on top of the str quasiquoter so that we get interpolation
+-- for free. Interpolated vars if any have to be of appropriate type depending
+-- on the context so that we can splice them safely.
 
-windowsSeparator :: Char
-windowsSeparator = '\\'
-
--- XXX We can use Enum type class to include the Char type as well so that the
--- functions can work on Array Word8/Word16/Char but that may be slow.
-
--- | Unsafe, may tructate to shorter word types, can only be used safely for
--- characters that fit in the given word size.
-charToWord :: Integral a => Char -> a
-charToWord c =
-    let n = ord c
-     in assert (n <= 255) (fromIntegral n)
-
--- | Unsafe, should be a valid character.
-wordToChar :: Integral a => a -> Char
-wordToChar = unsafeChr . fromIntegral
-
--- | Index a word in an array and convert it to Char.
-unsafeIndexChar :: (Unbox a, Integral a) => Int -> Array a -> Char
-unsafeIndexChar i a = wordToChar (Array.getIndexUnsafe i a)
-
--- Portable definition for exporting.
-
--- | Primary path separator character, @/@ on Posix and @\\@ on Windows.
--- Windows supports @/@ too as a separator. Please use 'isSeparator' for
--- testing if a char is a separator char.
-_primarySeparator :: Char
-_primarySeparator = posixSeparator
-
-------------------------------------------------------------------------------
--- Path parsing utilities
-------------------------------------------------------------------------------
-
--- | On Posix only @/@ is a path separator but in windows it could be either
--- @/@ or @\\@.
-{-# INLINE isSeparator #-}
-isSeparator :: OS -> Char -> Bool
-isSeparator Windows c = (c == windowsSeparator) || (c == posixSeparator)
-isSeparator Posix c = (c == posixSeparator)
-
-{-# INLINE isSeparatorWord #-}
-isSeparatorWord :: Integral a => OS -> a -> Bool
-isSeparatorWord os = isSeparator os . wordToChar
-
-countTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Int
-countTrailingBy p arr =
-      runIdentity
-    $ Stream.fold Fold.length
-    $ Stream.takeWhile p
-    $ Array.readRev arr
-
--- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
--- @a@.
-dropTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Array a
-dropTrailingBy p arr@(Array barr start end) =
-    if end - start > 0
-    then
-        let n = countTrailingBy p arr
-         in Array barr start (max 1 (end - n))
-    else arr
-
--- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
--- @a@.
-{-# INLINE dropTrailingSeparators #-}
-dropTrailingSeparators :: OS -> Path -> Path
-dropTrailingSeparators os (Path arr) =
-    Path (dropTrailingBy (isSeparator os . wordToChar) arr)
-
--- | @C:...@
-hasDrive :: (Unbox a, Integral a) => Array a -> Bool
-hasDrive a =
-    if Array.byteLength a < 2
-    then False
-    -- Check colon first for quicker return
-    else if (unsafeIndexChar 1 a /= ':')
-    then False
-    -- XXX If we found a colon anyway this cannot be a valid path unless it has
-    -- a drive prefix. colon is not a valid path character.
-    -- XXX check isAlpha perf
-    else if not (isAlpha (unsafeIndexChar 0 a))
-    then False -- XXX if we are here it is not a valid path
-    else True
-
--- | On windows, the path starts with a separator.
-isAbsoluteInDrive :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteInDrive a =
-    -- Assuming the path is not empty.
-    isSeparator Windows (wordToChar (Array.getIndexUnsafe 0 a))
-
--- | @C:\...@
-isAbsoluteDrive :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteDrive a =
-    if Array.byteLength a < 3
-    then False
-    -- Check colon first for quicker return
-    else if (unsafeIndexChar 1 a /= ':')
-    then False
-    else if not (isSeparator Windows (unsafeIndexChar 2 a))
-    then False
-    -- XXX If we found a colon anyway this cannot be a valid path unless it has
-    -- a drive prefix. colon is not a valid path character.
-    -- XXX check isAlpha perf
-    else if not (isAlpha (unsafeIndexChar 0 a))
-    then False -- XXX if we are here it is not a valid path
-    else True
-
--- | @\\\\...@
-isAbsoluteUNC :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteUNC a =
-    if Array.byteLength a < 2
-    then False
-    else if (unsafeIndexChar 0 a /= '\\')
-    then False
-    else if (unsafeIndexChar 1 a /= '\\')
-    then False
-    else True
-
--- | On Posix, a path starting with a separator is an absolute path.
+-- | Generates a 'PosixPath' type from a quoted literal.
 --
--- On Windows:
--- * @C:\\@ local absolute
--- * @C:@ local relative
--- * @\\@ local relative to current drive root
--- * @\\\\@ UNC network path
--- * @\\\\?\\C:\\@ Long UNC local path
--- * @\\\\?\\UNC\\@ Long UNC server path
--- * @\\\\.\\@ DOS local device namespace
--- * @\\\\??\\@ DOS global namespace
-isAbsoluteRaw :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isAbsoluteRaw Posix a =
-    -- Assuming path is not empty.
-    isSeparator Posix (wordToChar (Array.getIndexUnsafe 0 a))
-isAbsoluteRaw Windows a = isAbsoluteDrive a || isAbsoluteUNC a
+-- >>> Path.toString ([path|/usr|] :: PosixPath)
+-- "/usr/bin"
+--
+path :: QuasiQuoter
+path = mkQ mkPath
 
-isRelativeRaw :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isRelativeRaw os = not . isAbsoluteRaw os
+-- XXX Change to "loc"?
+
+-- | Generates an @Abs PosixPath@ type from a quoted literal.
+--
+-- >>> Path.toString ([abs|/usr|] :: Abs PosixPath)
+-- "/usr"
+--
+abs :: QuasiQuoter
+abs = mkQ mkAbs
+
+-- | Generates a @Rel PosixPath@ type from a quoted literal.
+--
+-- >>> Path.toString ([rel|usr|] :: Rel PosixPath)
+-- "usr"
+--
+rel :: QuasiQuoter
+rel = mkQ mkRel
+
+-- | Generates a @Dir PosixPath@ type from a quoted literal.
+--
+-- >>> Path.toString ([dir|usr|] :: Dir PosixPath)
+-- "usr"
+--
+dir :: QuasiQuoter
+dir = mkQ mkDir
+
+-- | Generates a @File PosixPath@ type from a quoted literal.
+--
+-- >>> Path.toString ([dir|usr|] :: Dir PosixPath)
+-- "usr"
+--
+file :: QuasiQuoter
+file = mkQ mkFile
+
+-- XXX Change to "dirloc"?
+
+-- | Generates an @Abs (Dir PosixPath)@ type from a quoted literal.
+--
+-- >>> Path.toString ([absdir|/usr|] :: Abs (Dir PosixPath))
+-- "/usr"
+--
+absdir :: QuasiQuoter
+absdir = mkQ mkAbsDir
+
+-- | Generates a @Rel (Dir PosixPath)@ type from a quoted literal.
+--
+-- >>> Path.toString ([reldir|usr|] :: Rel (Dir PosixPath))
+-- "usr"
+--
+reldir :: QuasiQuoter
+reldir = mkQ mkRelDir
+
+-- XXX Change to "fileloc"?
+
+-- | Generates an @Abs (File PosixPath)@ type from a quoted literal.
+--
+-- >>> Path.toString ([absfile|/usr|] :: Abs (File PosixPath))
+-- "/usr"
+--
+absfile :: QuasiQuoter
+absfile = mkQ mkAbsFile
+
+-- | Generates an @Rel (File PosixPath)@ type from a quoted literal.
+--
+-- >>> Path.toString ([relfile|usr|] :: Rel (File PosixPath))
+-- "usr"
+--
+relfile :: QuasiQuoter
+relfile = mkQ mkRelFile
 
 ------------------------------------------------------------------------------
--- Operations of Path
+-- Eimination
+------------------------------------------------------------------------------
+
+-- | Convert the path to an array of bytes.
+toChunk :: PosixPath -> Array Word8
+toChunk (PosixPath arr) = Common.toChunk arr
+
+-- | Decode the path to a stream of Unicode chars using strict UTF-8 decoding.
+toChars :: (Monad m, IsPath PosixPath p) => p -> Stream m Char
+toChars p = let (PosixPath arr) = toPath p in Common.posixToChars arr
+
+-- XXX When showing append a "/" to dir types?
+
+-- | Decode the path to a Unicode string using strict UTF-8 decoding.
+toString :: IsPath PosixPath a => a -> [Char]
+toString = runIdentity . Stream.toList . toChars
+
+------------------------------------------------------------------------------
+-- Operations on Path
 ------------------------------------------------------------------------------
 
 -- XXX This can be generalized to an Array intersperse operation
 
-{-# INLINE doAppend #-}
-doAppend :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Array a
-doAppend os a b = unsafePerformIO $ do
-    let lenA = Array.byteLength a
-        lenB = Array.byteLength b
-    assertM (lenA /= 0 && lenB /= 0)
-    assertM (countTrailingBy (isSeparatorWord os) a == 0)
-    let len = lenA + 1 + lenB
-    arr <- MutArray.new len
-    arr1 <- MutArray.spliceUnsafe arr (Array.unsafeThaw a)
-    arr2 <- MutArray.snocUnsafe arr1 (charToWord posixSeparator)
-    arr3 <- MutArray.spliceUnsafe arr2 (Array.unsafeThaw b)
-    return (Array.unsafeFreeze arr3)
-
-{-# INLINE withAppendCheck #-}
-withAppendCheck :: OS -> Path -> a -> a
-withAppendCheck Posix p2@(Path arr) f =
-    if isAbsoluteRaw Posix arr
-    then error $ "append: cannot append absolute path " ++ toString p2
-    else f
-withAppendCheck Windows p2@(Path arr) f =
-    if isAbsoluteInDrive arr
-    then error $ "append: cannot append drive absolute path " ++ toString p2
-    else if hasDrive arr
-    then error $ "append: cannot append path with drive " ++ toString p2
-    else if isAbsoluteUNC arr
-    then error $ "append: cannot append absolute UNC path " ++ toString p2
-    else f
-
--- | Does not check if any of the path is empty or if the second path is
--- absolute.
-{-# INLINE unsafeAppendOS #-}
-unsafeAppendOS :: OS -> Path -> Path -> Path
-unsafeAppendOS os (Path a) p2@(Path b) =
-    assert (withAppendCheck os p2 True) (Path $ doAppend os a b)
-
 {-# INLINE unsafeAppend #-}
-unsafeAppend :: Path -> Path -> Path
-unsafeAppend = unsafeAppendOS currentOS
-
-{-# INLINE appendOS #-}
-appendOS :: OS -> Path -> Path -> Path
-appendOS os (Path a) p2@(Path b) =
-    withAppendCheck os p2 (Path $ doAppend os a b)
+unsafeAppend :: PosixPath -> PosixPath -> PosixPath
+unsafeAppend (PosixPath a) (PosixPath b) =
+    PosixPath $ Common.unsafeAppend Common.Posix Common.posixToString a b
 
 -- | Append a 'Path' to another. Fails if the second path is absolute.
 --
--- Also see 'appendRel'.
-append :: Path -> Path -> Path
-append = appendOS currentOS
+-- >>> Path.toString $ Path.append [path|/usr|] [path|bin|]
+-- "/usr/bin"
+--
+-- Also see 'combine'.
+append :: PosixPath -> PosixPath -> PosixPath
+append (PosixPath a) (PosixPath b) =
+    PosixPath $ Common.append Common.Posix Common.posixToString a b
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
 -- type path, and (2) second path can only be a Rel path.
 
--- | Append a 'Rel' 'Path' to a 'Dir' 'Path'. Never fails.
+-- If you are not using File/Dir annotations then this is the only API you need
+-- to combine paths.
+
+-- | Use this API to combine paths when the first path is @Abs@ or @Rel@.
+-- Second path must be @Rel@, if the second path is just @Dir@ or @File@ you
+-- can wrap it in @Rel@ first.
 --
--- Also see 'append'.
-{-# INLINE appendRel #-}
-appendRel :: (IsPath (a (Dir Path)), IsPath b, IsPath (a b)) =>
-    (a (Dir Path)) -> Rel b -> a b
-appendRel a (Rel b) = unsafeFromPath $ unsafeAppend (toPath a) (toPath b)
--}
+-- If the first path is absolute then the return type is also absolute.
+--
+-- >>> Path.toString (Path.combine [abs|/usr|] [rel|bin|] :: Abs PosixPath)
+-- "/usr/bin"
+-- >>> Path.toString (Path.combine [rel|usr|] [rel|bin|] :: Rel PosixPath)
+-- "usr/bin"
+--
+-- If the second path does not have File or Dir information then the return
+-- type too cannot have it.
+--
+-- >>> Path.toString (Path.combine [absdir|/usr|] [rel|bin|] :: Abs PosixPath)
+-- "/usr/bin"
+-- >>> Path.toString (Path.combine [reldir|usr|] [rel|bin|] :: Rel PosixPath)
+-- "usr/bin"
+--
+-- If the second path has 'File' or 'Dir' information then the return type
+-- also has it.
+--
+-- >>> Path.toString (Path.combine [abs|/usr|] [reldir|bin|] :: Abs (Dir PosixPath))
+-- "/usr/bin"
+-- >>> Path.toString (Path.combine [abs|/usr|] [relfile|bin|] :: Abs (File PosixPath))
+-- "/usr/bin"
+-- >>> Path.toString (Path.combine [rel|usr|] [reldir|bin|] :: Rel (Dir PosixPath))
+-- "usr/bin"
+-- >>> Path.toString (Path.combine [rel|usr|] [relfile|bin|] :: Rel (File PosixPath))
+-- "usr/bin"
+--
+-- >>> Path.toString (Path.combine [absdir|/usr|] [reldir|bin|] :: Abs (Dir PosixPath))
+-- "/usr/bin"
+-- >>> Path.toString (Path.combine [absdir|/usr|] [relfile|bin|] :: Abs (File PosixPath))
+-- "/usr/bin"
+-- >>> Path.toString (Path.combine [reldir|usr|] [reldir|bin|] :: Rel (Dir PosixPath))
+-- "usr/bin"
+-- >>> Path.toString (Path.combine [reldir|usr|] [relfile|bin|] :: Rel (File PosixPath))
+-- "usr/bin"
+--
+-- Type error cases:
+--
+-- >> Path.combine [dir|/usr|] [rel|bin|] -- first arg must be Abs/Rel
+-- >> Path.combine [file|/usr|] [rel|bin|] -- first arg must be Abs/Rel
+-- >> Path.combine [absfile|/usr|] [rel|bin|] -- first arg must be a dir
+-- >> Path.combine [abs|/usr|] [abs|/bin|] -- second arg must be rel
+-- >> Path.combine [abs|/usr|] [dir|bin|] -- second arg must be rel
+-- >> Path.combine [abs|/usr|] [file|bin|] -- second arg must be rel
+--
+-- Also see 'combineDir'.
+{-# INLINE combine #-}
+combine ::
+    (
+      IsAbsRel (a b)
+    , IsDir (a b)
+    , IsPath PosixPath (a b)
+    , IsPath PosixPath c
+    , IsPath PosixPath (a c)
+    ) => a b -> Rel c -> a c
+combine a (Rel c) = unsafeFromPath $ unsafeAppend (toPath a) (toPath c)
+
+-- | Use this API when you are appending to a 'Dir' path without 'Abs' or 'Rel'
+-- annotation.The second argument can only be either 'Dir' or 'File' without
+-- 'Abs' or 'Rel.
+--
+-- >>> Path.toString (Path.combineDir [dir|/usr|] [dir|bin|] :: Dir PosixPath)
+-- "/usr/bin"
+-- >>> Path.toString (Path.combineDir [dir|/usr|] [file|bin|] :: File PosixPath)
+-- "/usr/bin"
+--
+-- If your second path is @Rel Dir@ or @Rel File@ then you can remove the @Rel@
+-- annotation before using this API.
+--
+-- Type error cases:
+--
+-- >> Path.combineDir [dir|/usr|] [abs|bin|] -- second arg cannot be abs/rel
+-- >> Path.combineDir [dir|/usr|] [rel|bin|] -- second arg cannot be abs/rel
+--
+{-# INLINE combineDir #-}
+combineDir :: (IsPath PosixPath (a b), NotAbsRel (a b)) =>
+    Dir PosixPath -> a b -> a b
+combineDir (Dir a) b =
+    unsafeFromPath $ unsafeAppend (toPath a) (toPath b)
