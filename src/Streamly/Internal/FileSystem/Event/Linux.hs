@@ -188,7 +188,7 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Unicode.Stream as U
 
 import qualified Streamly.Internal.Data.Array as A
-    ( fromStream, asCStringUnsafe, asPtrUnsafe
+    ( fromStream, asCStringUnsafe, unsafePinnedAsPtr
     , getSliceUnsafe, read
     )
 import qualified Streamly.Internal.FileSystem.Dir as Dir (readDirs)
@@ -809,7 +809,7 @@ readOneEvent :: Config -> Watch -> Parser Word8 IO Event
 readOneEvent cfg  wt@(Watch _ wdMap) = do
     let headerLen = sizeOf (undefined :: CInt) + 12
     arr <- PR.takeEQ headerLen (A.writeN headerLen)
-    (ewd, eflags, cookie, pathLen) <- PR.fromEffect $ A.asPtrUnsafe arr readHeader
+    (ewd, eflags, cookie, pathLen) <- PR.fromEffect $ A.unsafePinnedAsPtr arr readHeader
     -- XXX need the "initial" in parsers to return a step type so that "take 0"
     -- can return without an input. otherwise if pathLen is 0 we will keep
     -- waiting to read one more char before we return this event.

@@ -498,8 +498,8 @@ cast arr =
 asCStringUnsafe :: Array a -> (CString -> IO b) -> IO b
 asCStringUnsafe arr act = do
     let arr1 = asBytes arr <> fromList [0]
-    -- asPtrUnsafe makes sure the array is pinned
-    asPtrUnsafe arr1 $ \ptr -> act (castPtr ptr)
+    -- unsafePinnedAsPtr makes sure the array is pinned
+    unsafePinnedAsPtr arr1 $ \ptr -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
 -- Folds

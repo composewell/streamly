@@ -98,10 +98,10 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array as A
-    ( unsafeFreeze, asPtrUnsafe, byteLength, pinnedChunksOf,
+    ( unsafeFreeze, unsafePinnedAsPtr, byteLength, pinnedChunksOf,
       pinnedWriteN, pinnedWriteNUnsafe, lCompactGE )
 import qualified Streamly.Internal.Data.MutArray as MArray
-    (MutArray(..), asPtrUnsafe, pinnedEmptyOf)
+    (MutArray(..), unsafePinnedAsPtr, pinnedEmptyOf)
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
 import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
@@ -263,7 +263,7 @@ readArrayUptoWith
 readArrayUptoWith f size h = do
     arr <- MArray.pinnedEmptyOf size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    MArray.asPtrUnsafe arr $ \p -> do
+    MArray.unsafePinnedAsPtr arr $ \p -> do
         n <- f h p size
         let v = A.unsafeFreeze
                 $ arr { MArray.arrEnd = n, MArray.arrBound = size }
@@ -311,7 +311,7 @@ writeArrayWith :: Unbox a
     -> Array a
     -> IO ()
 writeArrayWith _ _ arr | A.length arr == 0 = return ()
-writeArrayWith f h arr = A.asPtrUnsafe arr $ \ptr -> f h (castPtr ptr) aLen
+writeArrayWith f h arr = A.unsafePinnedAsPtr arr $ \ptr -> f h (castPtr ptr) aLen
 
     where
 

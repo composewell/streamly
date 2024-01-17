@@ -130,7 +130,7 @@ import qualified GHC.IO.Device as RawIO
 import Streamly.Data.Array (Array, Unbox)
 import Streamly.Data.Stream (Stream)
 
-import Streamly.Internal.Data.Array (byteLength, unsafeFreeze, asPtrUnsafe)
+import Streamly.Internal.Data.Array (byteLength, unsafeFreeze, unsafePinnedAsPtr)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 #if !defined(mingw32_HOST_OS)
@@ -147,7 +147,7 @@ import qualified Streamly.Internal.System.IOVec.Type as RawIO
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.MutArray as MArray
-    (MutArray(..), asPtrUnsafe, pinnedNewBytes)
+    (MutArray(..), unsafePinnedAsPtr, pinnedNewBytes)
 import qualified Streamly.Internal.Data.Array.Stream as AS
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
@@ -220,7 +220,7 @@ readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size (Handle fd) = do
     arr <- MArray.pinnedNewBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    MArray.asPtrUnsafe arr $ \p -> do
+    MArray.unsafePinnedAsPtr arr $ \p -> do
         -- n <- hGetBufSome h p size
 #if MIN_VERSION_base(4,15,0)
         n <- RawIO.read fd p 0 size
@@ -244,7 +244,7 @@ readArrayUpto size (Handle fd) = do
 writeArray :: Unbox a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
 writeArray (Handle fd) arr =
-    asPtrUnsafe arr $ \p ->
+    unsafePinnedAsPtr arr $ \p ->
     -- RawIO.writeAll fd (castPtr p) aLen
 #if MIN_VERSION_base(4,15,0)
     RawIO.write fd (castPtr p) 0 aLen
@@ -270,7 +270,7 @@ writeArray (Handle fd) arr =
 writeIOVec :: Handle -> Array RawIO.IOVec -> IO ()
 writeIOVec _ iov | A.length iov == 0 = return ()
 writeIOVec (Handle fd) iov =
-    asPtrUnsafe iov $ \p ->
+    unsafePinnedAsPtr iov $ \p ->
         RawIO.writevAll fd p (A.length iov)
 -}
 #endif

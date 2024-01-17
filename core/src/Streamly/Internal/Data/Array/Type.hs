@@ -28,7 +28,7 @@ module Streamly.Internal.Data.Array.Type
     , isPinned
 
     -- *** Casting
-    , asPtrUnsafe
+    , unsafePinnedAsPtr
 
     -- ** Construction
     , empty
@@ -129,6 +129,7 @@ module Streamly.Internal.Data.Array.Type
     , compactGE
 
     -- ** Deprecated
+    , asPtrUnsafe
     , unsafeIndex
     , bufferChunks
     , flattenArrays
@@ -231,15 +232,20 @@ data Array a =
 
 -- | Use an @Array a@ as @Ptr a@.
 --
--- See 'MA.asPtrUnsafe' in the Mutable array module for more details.
+-- See 'MA.unsafePinnedAsPtr' in the Mutable array module for more details.
 --
 -- /Unsafe/
 --
 -- /Pre-release/
 --
+{-# INLINE unsafePinnedAsPtr #-}
+unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
+unsafePinnedAsPtr arr = MA.unsafePinnedAsPtr (unsafeThaw arr)
+
+{-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
 {-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
-asPtrUnsafe arr = MA.asPtrUnsafe (unsafeThaw arr)
+asPtrUnsafe = unsafePinnedAsPtr
 
 -------------------------------------------------------------------------------
 -- Freezing and Thawing

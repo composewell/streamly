@@ -42,8 +42,8 @@ module Streamly.Internal.Data.MutArray.Type
     , cast
     , castUnsafe -- XXX unsafeCast
     , asBytes
-    , asPtrUnsafe -- XXX rename to unsafePinnedAsPtr?
-    , asUnpinnedPtrUnsafe -- XXX rename to unsafeAsPtr
+    , unsafePinnedAsPtr
+    , unsafeAsPtr
 
     -- ** Construction
     , empty
@@ -264,6 +264,7 @@ module Streamly.Internal.Data.MutArray.Type
     , c_memchr
 
     -- * Deprecated
+    , asPtrUnsafe
     , writeChunks
     , flattenArrays
     , flattenArraysRev
@@ -2431,7 +2432,7 @@ fromPtrN len addr = do
     -- XXX We can implement a stream copy in a similar way by streaming Word64
     -- first and then remaining Word8.
     arr <- new len
-    _ <- asUnpinnedPtrUnsafe arr
+    _ <- unsafeAsPtr arr
             (\ptr -> liftIO $ c_memcpy ptr addr (fromIntegral len))
     return (arr {arrEnd = len})
 
@@ -2447,7 +2448,7 @@ fromByteStr# addr = do
     len <- liftIO $ c_strlen (Ptr addr)
     let lenInt = fromIntegral len
     arr <- new lenInt
-    _ <- asUnpinnedPtrUnsafe arr (\ptr -> liftIO $ c_memcpy ptr (Ptr addr) len)
+    _ <- unsafeAsPtr arr (\ptr -> liftIO $ c_memcpy ptr (Ptr addr) len)
     return (arr {arrEnd = lenInt})
 
 -------------------------------------------------------------------------------
@@ -2735,7 +2736,7 @@ splitOn predicate arr =
 {-# INLINE breakOn #-}
 breakOn :: MonadIO m
     => Word8 -> MutArray Word8 -> m (MutArray Word8, Maybe (MutArray Word8))
-breakOn sep arr@MutArray{..} = asUnpinnedPtrUnsafe arr $ \p -> liftIO $ do
+breakOn sep arr@MutArray{..} = unsafeAsPtr arr $ \p -> liftIO $ do
     -- XXX We do not need memchr here, we can use a Haskell equivalent.
     -- Need efficient stream based primitives that work on Word64.
     loc <- c_memchr p sep (fromIntegral $ byteLength arr)
@@ -2866,16 +2867,21 @@ cast arr =
 --
 -- /Pre-release/
 --
-{-# INLINE asPtrUnsafe #-}
-asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
-asPtrUnsafe arr f =
-    Unboxed.asPtrUnsafe
+{-# INLINE unsafePinnedAsPtr #-}
+unsafePinnedAsPtr :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+unsafePinnedAsPtr arr f =
+    Unboxed.unsafePinnedAsPtr
         (arrContents arr) (\ptr -> f (ptr `plusPtr` arrStart arr))
 
-{-# INLINE asUnpinnedPtrUnsafe #-}
-asUnpinnedPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
-asUnpinnedPtrUnsafe arr f =
-    Unboxed.asUnpinnedPtrUnsafe
+{-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
+{-# INLINE asPtrUnsafe #-}
+asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+asPtrUnsafe = unsafePinnedAsPtr
+
+{-# INLINE unsafeAsPtr #-}
+unsafeAsPtr :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+unsafeAsPtr arr f =
+    Unboxed.unsafeAsPtr
         (arrContents arr) (\ptr -> f (ptr `plusPtr` arrStart arr))
 
 -------------------------------------------------------------------------------
