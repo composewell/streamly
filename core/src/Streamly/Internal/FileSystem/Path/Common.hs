@@ -246,6 +246,16 @@ dropTrailingSeparators :: (Unbox a, Integral a) => OS -> Array a -> Array a
 dropTrailingSeparators os =
     dropTrailingBy (isSeparator os . wordToChar)
 
+-- | path is @.@ or starts with @./@.
+isRelativeToCurDir :: (Unbox a, Integral a) => Array a -> Bool
+isRelativeToCurDir a =
+    -- Assuming the path is not empty.
+    if wordToChar (Array.getIndexUnsafe 0 a) /= '.'
+    then False
+    else if Array.byteLength a < 2
+    then True
+    else isSeparator Windows (wordToChar (Array.getIndexUnsafe 1 a))
+
 -- | @C:...@
 hasDrive :: (Unbox a, Integral a) => Array a -> Bool
 hasDrive a =
@@ -295,7 +305,9 @@ isAbsoluteUNC a =
     then False
     else True
 
--- | On Posix, a path starting with a separator is an absolute path.
+-- | On Posix and Windows,
+-- * a path starting with a separator
+-- * current dir "." or relative to current dir "./"
 --
 -- On Windows:
 -- * @C:\\@ local absolute
@@ -306,11 +318,19 @@ isAbsoluteUNC a =
 -- * @\\\\?\\UNC\\@ Long UNC server path
 -- * @\\\\.\\@ DOS local device namespace
 -- * @\\\\??\\@ DOS global namespace
+--
+-- * @C:file@ a path relative to curdir.
 isAbsolute :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isAbsolute Posix a =
     -- Assuming path is not empty.
     isSeparator Posix (wordToChar (Array.getIndexUnsafe 0 a))
-isAbsolute Windows a = isAbsoluteDrive a || isAbsoluteUNC a
+        || isRelativeToCurDir a
+isAbsolute Windows a =
+    isAbsoluteDrive a
+        || isAbsoluteInDrive a
+        || hasDrive a
+        || isAbsoluteUNC a
+        || isRelativeToCurDir a
 
 isRelative :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isRelative os = not . isAbsolute os
