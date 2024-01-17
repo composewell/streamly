@@ -460,9 +460,9 @@ pinnedChunksOf n str = D.map unsafeFreeze $ MA.pinnedChunksOf n str
 -- >>> concat = Stream.unfoldMany Array.reader
 --
 {-# INLINE_NORMAL concat #-}
-concat :: (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
+concat :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
 -- XXX this requires MonadIO whereas the unfoldMany version does not
-concat = MA.concat . D.map unsafeThaw
+concat = MA.concatWith (pure . unsafeInlineIO) . D.map unsafeThaw
 -- concat = D.unfoldMany reader
 
 {-# DEPRECATED flattenArrays "Please use \"unfoldMany reader\" instead." #-}
@@ -476,10 +476,10 @@ flattenArrays = concat
 -- >>> concatRev = Stream.unfoldMany Array.readerRev
 --
 {-# INLINE_NORMAL concatRev #-}
-concatRev :: forall m a. (MonadIO m, Unbox a)
+concatRev :: forall m a. (Monad m, Unbox a)
     => D.Stream m (Array a) -> D.Stream m a
 -- XXX this requires MonadIO whereas the unfoldMany version does not
-concatRev = MA.concatRev . D.map unsafeThaw
+concatRev = MA.concatRevWith (pure . unsafeInlineIO) . D.map unsafeThaw
 -- concatRev = D.unfoldMany readerRev
 
 {-# DEPRECATED flattenArraysRev "Please use \"unfoldMany readerRev\" instead." #-}

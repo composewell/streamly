@@ -242,6 +242,8 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- *** Concat
     -- | Append the arrays in a stream to form a stream of elements.
+    , concatWith
+    , concatRevWith
     , concat
     , concatRev
 
@@ -1653,16 +1655,10 @@ data FlattenState s contents a =
       OuterLoop s
     | InnerLoop s contents !Int !Int
 
--- | Use the "reader" unfold instead.
---
--- @concat = unfoldMany reader@
---
--- We can try this if there are any fusion issues in the unfold.
---
-{-# INLINE_NORMAL concat #-}
-concat :: forall m a. (MonadIO m, Unbox a)
-    => D.Stream m (MutArray a) -> D.Stream m a
-concat (D.Stream step state) = D.Stream step' (OuterLoop state)
+{-# INLINE_NORMAL concatWith #-}
+concatWith :: forall m a. (Monad m, Unbox a)
+    => (forall b. IO b -> m b) -> D.Stream m (MutArray a) -> D.Stream m a
+concatWith liftio (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where
 
@@ -1679,8 +1675,19 @@ concat (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st contents p end) = do
-        x <- liftIO $ peekAt p contents
+        x <- liftio $ peekAt p contents
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
+
+-- | Use the "reader" unfold instead.
+--
+-- @concat = unfoldMany reader@
+--
+-- We can try this if there are any fusion issues in the unfold.
+--
+{-# INLINE_NORMAL concat #-}
+concat :: forall m a. (MonadIO m, Unbox a)
+    => D.Stream m (MutArray a) -> D.Stream m a
+concat = concatWith liftIO
 
 {-# DEPRECATED flattenArrays "Please use \"unfoldMany reader\" instead." #-}
 {-# INLINE flattenArrays #-}
@@ -1688,16 +1695,10 @@ flattenArrays :: forall m a. (MonadIO m, Unbox a)
     => D.Stream m (MutArray a) -> D.Stream m a
 flattenArrays = concat
 
--- | Use the "readerRev" unfold instead.
---
--- @concat = unfoldMany readerRev@
---
--- We can try this if there are any fusion issues in the unfold.
---
-{-# INLINE_NORMAL concatRev #-}
-concatRev :: forall m a. (MonadIO m, Unbox a)
-    => D.Stream m (MutArray a) -> D.Stream m a
-concatRev (D.Stream step state) = D.Stream step' (OuterLoop state)
+{-# INLINE_NORMAL concatRevWith #-}
+concatRevWith :: forall m a. (Monad m, Unbox a)
+    => (forall b. IO b -> m b) -> D.Stream m (MutArray a) -> D.Stream m a
+concatRevWith liftio (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where
 
@@ -1715,9 +1716,20 @@ concatRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st contents p start) = do
-        x <- liftIO $ peekAt p contents
+        x <- liftio $ peekAt p contents
         let cur = INDEX_PREV(p,a)
         return $ D.Yield x (InnerLoop st contents cur start)
+
+-- | Use the "readerRev" unfold instead.
+--
+-- @concat = unfoldMany readerRev@
+--
+-- We can try this if there are any fusion issues in the unfold.
+--
+{-# INLINE_NORMAL concatRev #-}
+concatRev :: forall m a. (MonadIO m, Unbox a)
+    => D.Stream m (MutArray a) -> D.Stream m a
+concatRev = concatRevWith liftIO
 
 {-# DEPRECATED flattenArraysRev "Please use \"unfoldMany readerRev\" instead." #-}
 {-# INLINE flattenArraysRev #-}
