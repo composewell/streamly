@@ -197,6 +197,8 @@ Internal API diff
     [A] createOfWith :: forall m a. (MonadIO m, Unbox a) => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
     [A] createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
     [A] create :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
+    [A] concatWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> Stream m (MutArray a) -> Stream m a
+    [A] concatRevWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> Stream m (MutArray a) -> Stream m a
     [A] concatRev :: forall m a. (MonadIO m, Unbox a) => Stream m (MutArray a) -> Stream m a
     [A] concat :: forall m a. (MonadIO m, Unbox a) => Stream m (MutArray a) -> Stream m a
     [A] compactOnByteSuffix :: MonadIO m => Word8 -> Stream m (MutArray Word8) -> Stream m (MutArray Word8)
@@ -215,15 +217,12 @@ Internal API diff
 [D] Streamly.Internal.Data.Array.Stream
     [C] interposeSuffix
         [O] interposeSuffix :: (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
-        [N] interposeSuffix :: forall m a. (MonadIO m, Unbox a) => a -> Stream m (Array a) -> Stream m a
+        [N] interposeSuffix :: forall m a. (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
     [D] flattenArraysRev :: forall m a. (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
     [D] flattenArrays :: forall m a. (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
     [C] concatRev
         [O] concatRev :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
-        [N] concatRev :: forall m a. (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
-    [C] concat
-        [O] concat :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
-        [N] concat :: (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
+        [N] concatRev :: forall m a. (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
     [D] bufferChunks :: (MonadIO m, Unbox a) => Stream m a -> m (StreamK m (Array a))
 [C] Streamly.Internal.Data.Array.Generic
     [A] createOf :: MonadIO m => Int -> Fold m a (Array a)
@@ -240,7 +239,7 @@ Internal API diff
     [A] parseBreakChunksK :: forall m a b. (MonadIO m, Unbox a) => Parser a m b -> StreamK m (Array a) -> m (Either ParseError b, StreamK m (Array a))
     [D] nil :: Array a
     [A] lCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) () -> Fold m (Array a) ()
-    [A] interposeSuffix :: forall m a. (MonadIO m, Unbox a) => a -> Stream m (Array a) -> Stream m a
+    [A] interposeSuffix :: forall m a. (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
     [A] interpose :: (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
     [A] intercalateSuffix :: (Monad m, Unbox a) => Array a -> Stream m (Array a) -> Stream m a
     [A] indexReaderFromThenTo :: Unfold m (Int, Int, Int, Array a) a
@@ -267,8 +266,8 @@ Internal API diff
         [N] findIndicesOf :: (a -> Bool) -> Array a -> Stream Identity Int
     [A] fCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) (Array a)
     [A] empty :: Array a
-    [A] concatRev :: forall m a. (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
-    [A] concat :: (MonadIO m, Unbox a) => Stream m (Array a) -> Stream m a
+    [A] concatRev :: forall m a. (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
+    [A] concat :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
     [A] compactOnByteSuffix :: MonadIO m => Word8 -> Stream m (Array Word8) -> Stream m (Array Word8)
     [A] compactOnByte :: MonadIO m => Word8 -> Stream m (Array Word8) -> Stream m (Array Word8)
     [A] compactLE :: (MonadIO m, Unbox a) => Int -> Stream m (Array a) -> Stream m (Array a)
