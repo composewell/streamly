@@ -185,7 +185,7 @@ testUnsafeIndxedFromList inp =
 testAsPtrUnsafeMA :: IO ()
 testAsPtrUnsafeMA = do
     arr <- MA.fromList ([0 .. 99] :: [Int])
-    MA.asPtrUnsafe arr (getList (0 :: Int)) `shouldReturn` [0 .. 99]
+    MA.unsafePinnedAsPtr arr (getList (0 :: Int)) `shouldReturn` [0 .. 99]
 
     where
 

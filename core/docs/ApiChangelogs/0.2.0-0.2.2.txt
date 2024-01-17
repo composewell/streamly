@@ -111,9 +111,11 @@ Internal API diff
     [D] sliceOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
     [A] indexOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
 [C] Streamly.Internal.Data.MutByteArray
+    [A] unsafePinnedAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
+    [A] unsafeAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
     [D] nil :: MutByteArray
     [A] empty :: MutByteArray
-    [A] asUnpinnedPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
+    [D] asPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
 [D] Streamly.Internal.Data.MutArray.Stream
     [D] writeChunks :: (MonadIO m, Unbox a) => Int -> Fold m a (StreamK n (MutArray a))
     [D] fromArrayStreamK :: (Unbox a, MonadIO m) => StreamK m (MutArray a) -> m (MutArray a)
@@ -142,8 +144,10 @@ Internal API diff
     [D] writeAppendWith :: forall m a. (MonadIO m, Unbox a) => (Int -> Int) -> m (MutArray a) -> Fold m a (MutArray a)
     [D] writeAppendNUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a) -> Fold m a (MutArray a)
     [A] unsafePinnedCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+    [A] unsafePinnedAsPtr :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
     [A] unsafeCreateOfWith :: forall m a. (MonadIO m, Unbox a) => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
     [A] unsafeCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
+    [A] unsafeAsPtr :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
     [A] unsafeAppendN :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a) -> Fold m a (MutArray a)
     [A] toStreamWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> MutArray a -> Stream m a
     [A] toStreamRevWith :: forall m a. (Monad m, Unbox a) => (forall b. IO b -> m b) -> MutArray a -> Stream m a
@@ -210,7 +214,7 @@ Internal API diff
     [A] byteEq :: MonadIO m => MutArray a -> MutArray a -> m Bool
     [A] byteCmp :: MonadIO m => MutArray a -> MutArray a -> m Ordering
     [A] buildChunks :: (MonadIO m, Unbox a) => Int -> Fold m a (StreamK n (MutArray a))
-    [A] asUnpinnedPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+    [D] asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
     [A] appendWith :: forall m a. (MonadIO m, Unbox a) => (Int -> Int) -> m (MutArray a) -> Fold m a (MutArray a)
     [A] appendN :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a) -> Fold m a (MutArray a)
     [A] append :: forall m a. (MonadIO m, Unbox a) => m (MutArray a) -> Fold m a (MutArray a)
@@ -229,6 +233,7 @@ Internal API diff
     [A] create :: MonadIO m => Fold m a (Array a)
 [C] Streamly.Internal.Data.Array
     [R] ArrayUnsafe
+    [A] unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
     [D] toStreamDRev :: forall m a. (Monad m, Unbox a) => Array a -> Stream m a
     [D] toStreamD :: forall m a. (Monad m, Unbox a) => Array a -> Stream m a
     [C] splice
@@ -276,3 +281,4 @@ Internal API diff
     [A] byteCmp :: Array a -> Array a -> Ordering
     [A] buildChunks :: (MonadIO m, Unbox a) => Stream m a -> m (StreamK m (Array a))
     [D] bufferChunks :: (MonadIO m, Unbox a) => Stream m a -> m (StreamK m (Array a))
+    [D] asPtrUnsafe :: MonadIO m => Array a -> (Ptr a -> m b) -> m b

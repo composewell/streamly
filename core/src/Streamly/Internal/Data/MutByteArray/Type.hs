@@ -34,10 +34,11 @@ module Streamly.Internal.Data.MutByteArray.Type
     , cloneSliceUnsafeAs
     , cloneSliceUnsafe
     , pinnedCloneSliceUnsafe
-    , asPtrUnsafe -- XXX unsafePinnedAsPtr
-    , asUnpinnedPtrUnsafe -- XXX unsafeAsPtr
+    , unsafePinnedAsPtr
+    , unsafeAsPtr
 
     -- ** Deprecated
+    , asPtrUnsafe
     , nil
     ) where
 
@@ -117,9 +118,9 @@ touch (MutByteArray contents) =
 --
 -- /Pre-release/
 --
-{-# INLINE asPtrUnsafe #-}
-asPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
-asPtrUnsafe arr f = do
+{-# INLINE unsafePinnedAsPtr #-}
+unsafePinnedAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
+unsafePinnedAsPtr arr f = do
   contents <- liftIO $ pin arr
   let !ptr = Ptr (byteArrayContents#
                      (unsafeCoerce# (getMutableByteArray# contents)))
@@ -127,10 +128,15 @@ asPtrUnsafe arr f = do
   liftIO $ touch contents
   return r
 
+{-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
+{-# INLINE asPtrUnsafe #-}
+asPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
+asPtrUnsafe = unsafePinnedAsPtr
+
 -- | For use with unsafe FFI functions. Does not force pin the array memory.
-{-# INLINE asUnpinnedPtrUnsafe #-}
-asUnpinnedPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
-asUnpinnedPtrUnsafe arr f = do
+{-# INLINE unsafeAsPtr #-}
+unsafeAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
+unsafeAsPtr arr f = do
   let !ptr = Ptr (byteArrayContents#
                      (unsafeCoerce# (getMutableByteArray# arr)))
   r <- f ptr

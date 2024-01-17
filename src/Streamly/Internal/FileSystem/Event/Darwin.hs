@@ -451,7 +451,7 @@ openWatch Config{..} paths = do
 
     withPathName :: Array Word8 -> (PathName -> IO a) -> IO a
     withPathName arr act = do
-        A.asPtrUnsafe arr $ \ptr ->
+        A.unsafePinnedAsPtr arr $ \ptr ->
             let pname = PathName (castPtr ptr) (fromIntegral (A.length arr))
             in act pname
 
