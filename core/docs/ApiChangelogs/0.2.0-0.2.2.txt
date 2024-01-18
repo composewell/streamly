@@ -36,6 +36,8 @@ API diff
     [A] pinnedSerialize :: Serialize a => a -> Array Word8
     [A] deserializeAt :: Serialize a => Int -> MutByteArray -> Int -> IO (Int, a)
     [A] deserialize :: Serialize a => Array Word8 -> a
+    [A] createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [A] create :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
     [A] addSizeTo :: Serialize a => Int -> a -> Int
 
 ---------------------------------
@@ -158,7 +160,6 @@ Internal API diff
     [A] revCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
     [D] resizeExp :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (MutArray a)
     [D] resize :: forall m a. (MonadIO m, Unbox a) => Int -> MutArray a -> m (MutArray a)
-    [A] rCompactLE :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
     [A] pokeSkipUnsafe :: Int -> MutArray Word8 -> MutArray Word8
     [A] pokeAppendMay :: forall m a. (MonadIO m, Unbox a) => MutArray Word8 -> a -> m (Maybe (MutArray Word8))
     [A] pokeAppend :: forall m a. (MonadIO m, Unbox a) => MutArray Word8 -> a -> m (MutArray Word8)
@@ -169,11 +170,14 @@ Internal API diff
     [A] pinnedEmptyOf :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
     [A] pinnedCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
     [A] pinnedCreate :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
+    [A] pinnedCompactLE :: forall m a. (MonadIO m, Unbox a) => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
     [A] peekUnconsUnsafe :: forall m a. (MonadIO m, Unbox a) => MutArray Word8 -> m (a, MutArray Word8)
     [A] peekUncons :: forall m a. (MonadIO m, Unbox a) => MutArray Word8 -> m (Maybe a, MutArray Word8)
     [A] peekSkipUnsafe :: Int -> MutArray Word8 -> MutArray Word8
+    [A] pPinnedCompactLE :: forall m a. (MonadIO m, Unbox a) => Int -> Parser (MutArray a) m (MutArray a)
     [A] pCompactLE :: forall m a. (MonadIO m, Unbox a) => Int -> Parser (MutArray a) m (MutArray a)
     [D] nil :: MutArray a
+    [A] lPinnedCompactGE :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
     [A] lCompactGE :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
     [A] indexReaderWith :: (Monad m, Unbox a) => (forall b. IO b -> m b) -> Stream m Int -> Unfold m (MutArray a) a
     [A] indexReader :: (MonadIO m, Unbox a) => Stream m Int -> Unfold m (MutArray a) a
@@ -194,6 +198,7 @@ Internal API diff
     [D] fromArrayStreamK :: (Unbox a, MonadIO m) => StreamK m (MutArray a) -> m (MutArray a)
     [D] flattenArraysRev :: forall m a. (MonadIO m, Unbox a) => Stream m (MutArray a) -> Stream m a
     [D] flattenArrays :: forall m a. (MonadIO m, Unbox a) => Stream m (MutArray a) -> Stream m a
+    [A] fPinnedCompactGE :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m (MutArray a) (MutArray a)
     [A] fCompactGE :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m (MutArray a) (MutArray a)
     [A] emptyOf :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
     [A] empty :: MutArray a
@@ -207,6 +212,7 @@ Internal API diff
     [A] concat :: forall m a. (MonadIO m, Unbox a) => Stream m (MutArray a) -> Stream m a
     [A] compactOnByteSuffix :: MonadIO m => Word8 -> Stream m (MutArray Word8) -> Stream m (MutArray Word8)
     [A] compactOnByte :: MonadIO m => Word8 -> Stream m (MutArray Word8) -> Stream m (MutArray Word8)
+    [A] compactLeAs :: forall m a. (MonadIO m, Unbox a) => PinnedState -> Int -> Stream m (MutArray a) -> Stream m (MutArray a)
     [A] compactLE :: (MonadIO m, Unbox a) => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
     [A] compactGE :: (MonadIO m, Unbox a) => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
     [A] compactEQ :: Int -> Stream m (MutArray a) -> Stream m (MutArray a)
@@ -233,7 +239,11 @@ Internal API diff
     [A] create :: MonadIO m => Fold m a (Array a)
 [C] Streamly.Internal.Data.Array
     [R] ArrayUnsafe
+    [D] writeWith :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [D] writeNUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [A] unsafePinnedCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
     [A] unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
+    [A] unsafeCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
     [D] toStreamDRev :: forall m a. (Monad m, Unbox a) => Array a -> Stream m a
     [D] toStreamD :: forall m a. (Monad m, Unbox a) => Array a -> Stream m a
     [C] splice
@@ -241,8 +251,16 @@ Internal API diff
         [N] splice :: MonadIO m => Array a -> Array a -> m (Array a)
     [A] slicerFromLen :: forall m a. (Monad m, Unbox a) => Int -> Int -> Unfold m (Array a) (Array a)
     [A] sliceIndexerFromLen :: forall m a. (Monad m, Unbox a) => Int -> Int -> Unfold m (Array a) (Int, Int)
+    [D] pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [D] pinnedWriteNAligned :: forall m a. (MonadIO m, Unbox a) => Int -> Int -> Fold m a (Array a)
+    [D] pinnedWriteN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [D] pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
+    [A] pinnedCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [A] pinnedCreate :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
+    [A] pinnedCompactLE :: (MonadIO m, Unbox a) => Int -> Stream m (Array a) -> Stream m (Array a)
     [A] parseBreakChunksK :: forall m a b. (MonadIO m, Unbox a) => Parser a m b -> StreamK m (Array a) -> m (Either ParseError b, StreamK m (Array a))
     [D] nil :: Array a
+    [A] lPinnedCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) () -> Fold m (Array a) ()
     [A] lCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) () -> Fold m (Array a) ()
     [A] interposeSuffix :: forall m a. (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
     [A] interpose :: (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
@@ -269,8 +287,12 @@ Internal API diff
     [C] findIndicesOf
         [O] findIndicesOf :: (a -> Bool) -> Unfold Identity (Array a) Int
         [N] findIndicesOf :: (a -> Bool) -> Array a -> Stream Identity Int
+    [A] fPinnedCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) (Array a)
     [A] fCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) (Array a)
     [A] empty :: Array a
+    [A] createWith :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [A] createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+    [A] create :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
     [A] concatRev :: forall m a. (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
     [A] concat :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
     [A] compactOnByteSuffix :: MonadIO m => Word8 -> Stream m (Array Word8) -> Stream m (Array Word8)
