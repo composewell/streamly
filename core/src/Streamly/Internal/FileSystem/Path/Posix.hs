@@ -280,24 +280,22 @@ dropTrailingSeparators (PosixPath arr) =
 -- been using it consistently in streamly. We use "bytes" for a stream of
 -- bytes.
 
--- | /Unsafe/: The user is responsible to maintain the invariants mentioned in
--- the definition of the 'Path' type. On Windows, the array passed must be a
--- multiple of 2 bytes as the underlying representation uses 'Word16'.
+-- | /Unsafe/: The user is responsible to make sure that the cases mentioned in
+-- 'fromChars' are satisfied.
 {-# INLINE unsafeFromChunk #-}
 unsafeFromChunk :: Array Word8 -> PosixPath
 -- XXX add asserts to check safety
 unsafeFromChunk = PosixPath . Common.unsafeFromChunk
 
--- | It may fail if the byte array contains null characters.
+-- | See 'fromChars' for failure cases.
 --
--- Throws 'InvalidPath'.
 fromChunk :: MonadThrow m => Array Word8 -> m PosixPath
 fromChunk = fmap PosixPath . Common.fromChunk
 
 -- XXX Should be a Fold instead?
 
--- | Encode a Unicode string to 'Path' using strict UTF-8 encoding. It fails
--- if:
+-- | Encode a Unicode string to 'Path' using strict UTF-8 encoding. Fails with
+-- 'InvalidPath' exception if:
 --
 -- * the stream contains null characters
 -- * the stream contains invalid unicode characters
