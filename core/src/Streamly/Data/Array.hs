@@ -126,7 +126,7 @@ import Prelude hiding (read, length)
 --
 -- Convert array to stream, transform, and fold back to array:
 --
--- >>> amap f arr = Array.read arr & fmap f & Stream.fold Array.create
+-- >>> amap f arr = Array.read arr & fmap f & Stream.fold (Array.createOf (Array.length arr))
 -- >>> amap (+1) (Array.fromList [1,2,3::Int])
 -- fromList [2,3,4]
 --
@@ -153,12 +153,11 @@ import Prelude hiding (read, length)
 -- See the 'fromPureStream' unreleased API to generate an array from an
 -- Identity stream safely without using MonadIO constraint.
 --
---
 -- Note that 'Identity' streams can be generalized to IO streams:
 --
--- >>> pure = Stream.fromList [1,2,3] :: Stream Identity Int
--- >>> generally = Stream.morphInner (return . runIdentity)
--- >>> Stream.fold Array.create (generally pure :: Stream IO Int)
+-- >>> stream = Stream.fromList [1,2,3] :: Stream Identity Int
+-- >>> pure2IO s = Stream.morphInner (return . runIdentity) s :: Stream IO Int
+-- >>> Stream.fold Array.create (pure2IO stream)
 -- fromList [1,2,3]
 --
 -- == Programming Tips
