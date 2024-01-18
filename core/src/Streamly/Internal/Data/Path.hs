@@ -39,12 +39,8 @@ import Control.Monad.Catch (MonadThrow(..))
 ------------------------------------------------------------------------------
 
 -- | Exceptions thrown by path operations.
-data PathException =
+newtype PathException =
     InvalidPath String
-  | InvalidAbsPath String
-  | InvalidRelPath String
-  | InvalidFilePath String
-  | InvalidDirPath String
     deriving (Show,Eq)
 
 instance Exception PathException
@@ -94,7 +90,7 @@ instance NotAbsRel (Dir a)
 -- be a file if "a" is (File b). Therefore, the constraints are put on a more
 -- spspecific type e.g. (Abs PosixPath) may be a dir.
 
--- | Constraint to check if a type may be a directory.
+-- | Constraint to check if a type represents a directory.
 class IsDir a
 
 instance IsDir (Dir a)
@@ -111,6 +107,16 @@ instance IsDir (Rel (Dir a))
 -- become more obscure.
 
 -- | A member of 'IsPath' knows how to convert to and from the base path type.
+-- Create instances such that the type @b@ is one of:
+--
+--  * File a
+--  * Dir a
+--  * Abs a
+--  * Rel a
+--  * Abs (File a)
+--  * Abs (Dir a)
+--  * Rel (File a)
+--  * Rel (Dir a)
 class IsPath a b where
     -- | Like 'fromPath' but does not check the properties of 'Path'. The user
     -- is responsible to maintain the invariants mentioned in the definition of
