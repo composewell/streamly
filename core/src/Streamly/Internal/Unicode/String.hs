@@ -141,9 +141,6 @@ expandVars ln =
 -- :}
 -- "hello world!"
 --
--- Bugs: because of a bug in parsers, a lone # at the end of input gets
--- removed.
---
 str :: QuasiQuoter
 str =
     QuasiQuoter
