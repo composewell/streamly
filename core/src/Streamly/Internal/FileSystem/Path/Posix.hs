@@ -96,6 +96,15 @@
 -- also point to the same target. So if there are ".." in the path we cannot
 -- definitively say if they are the same without resolving them.
 --
+-- = Exception Handling
+--
+-- Path creation routines use MonadThrow which can be interpreted as an Either
+-- type. It is rare to actually handle exceptions in path creation functions,
+-- we would rather fix the issue, so partial functions should also be fine. But
+-- there may be some cases where we are parsing paths from external inputs,
+-- reading from a file etc where we may want to handle exceptions. We can
+-- always create partial wrappers from these if that is convenient to use.
+--
 module Streamly.Internal.FileSystem.Path.Posix
     (
     -- * Path Types
@@ -168,8 +177,9 @@ import Data.Word (Word8)
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.FileSystem.Path.Common (mkQ)
+import Streamly.Internal.FileSystem.Path.Common (OS(..), mkQ)
 
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
 
@@ -286,8 +296,12 @@ fromChunk = fmap PosixPath . Common.fromChunk
 
 -- XXX Should be a Fold instead?
 
--- | Encode a Unicode string to 'Path' using strict UTF-8 encoding. It fails if
--- the stream contains null characters or invalid unicode characters.
+-- | Encode a Unicode string to 'Path' using strict UTF-8 encoding. It fails
+-- if:
+--
+-- * the stream contains null characters
+-- * the stream contains invalid unicode characters
+-- * the stream is empty, should have at least one char
 --
 -- Unicode normalization is not done. If normalization is needed the user can
 -- normalize it and use the fromChunk API.
@@ -308,23 +322,51 @@ fromString = fromChars . Stream.fromList
 --
 ------------------------------------------------------------------------------
 
+absFromChunk :: MonadThrow m => Array Word8 -> m (Abs PosixPath)
+absFromChunk arr = do
+    if Common.isRelative Posix arr
+    -- XXX Add more detailed error msg with all valid examples.
+    then throwM $ InvalidPath "Path must be absolute or located"
+    else adapt (PosixPath arr)
+
 absFromString :: MonadThrow m => String -> m (Abs PosixPath)
-absFromString s = fromString s >>= adapt
+absFromString s = do
+    PosixPath arr <- fromString s
+    absFromChunk arr
+
+relFromChunk :: MonadThrow m => Array Word8 -> m (Rel PosixPath)
+relFromChunk arr = do
+    if Common.isAbsolute Posix arr
+    -- XXX Add more detailed error msg with all valid examples.
+    then throwM $ InvalidPath "Path must not be absolute or located"
+    else adapt (PosixPath arr)
+
+relFromString :: MonadThrow m => String -> m (Rel PosixPath)
+relFromString s = do
+    PosixPath arr <- fromString s
+    relFromChunk arr
 
 dirFromString :: MonadThrow m => String -> m (Dir PosixPath)
 dirFromString s = fromString s >>= adapt
 
 absDirFromString :: MonadThrow m => String -> m (Abs (Dir PosixPath))
-absDirFromString s = fromString s >>= adapt
-
-relFromString :: MonadThrow m => String -> m (Rel PosixPath)
-relFromString s = fromString s >>= adapt
+absDirFromString s = absFromString s >>= adapt
 
 relDirFromString :: MonadThrow m => String -> m (Rel (Dir PosixPath))
-relDirFromString s = fromString s >>= adapt
+relDirFromString s = relFromString s >>= adapt
 
+-- cannot be "." or "..", cannot have a separator, "." or ".." as last
+-- component.
 fileFromString :: MonadThrow m => String -> m (File PosixPath)
-fileFromString s = fromString s >>= adapt
+fileFromString s = do
+    r@(PosixPath _arr) <- fromString s
+    -- XXX take it from the array
+    let s1 = reverse $ takeWhile (not . Common.isSeparator Posix) (reverse s)
+     in if s1 == "."
+        then throwM $ InvalidPath "A file name cannot be \".\""
+        else if s1 == ".."
+        then throwM $ InvalidPath "A file name cannot be \"..\""
+        else adapt r
 
 absFileFromString :: MonadThrow m => String -> m (Abs (File PosixPath))
 absFileFromString s = fromString s >>= adapt

@@ -35,7 +35,7 @@ module Streamly.Internal.FileSystem.Path.Common
     -- operations to split and combine paths are provided. If someone wants to
     -- work on paths at low level then they know what they are.
     -- , primarySeparator
-    -- , isSeparator
+    , isSeparator
     , dropTrailingSeparators
     , isRelative
     , isAbsolute
@@ -128,7 +128,9 @@ posixFromChars s =
         arr = Array.fromPureStreamN n (Unicode.encodeUtf8' s)
         sample = Stream.takeWhile (/= '\0') s
      in
-        if n1 < n
+        if n <= 0
+        then throwM $ InvalidPath $ "Path cannot be empty."
+        else if n1 < n
         then throwM $ InvalidPath $ "Path contains a NULL char at position: "
                 ++ show n1 ++ " after " ++ runIdentity (Stream.toList sample)
         else pure arr
