@@ -379,6 +379,9 @@ library
                      -- Filesystem/IO
                      , Streamly.Internal.FileSystem.Path.Common
                      , Streamly.Internal.FileSystem.Path.Posix
+                     , Streamly.Internal.FileSystem.Path.PosixAbsRel
+                     , Streamly.Internal.FileSystem.Path.PosixFileDir
+                     , Streamly.Internal.FileSystem.Path.PosixTyped
                      , Streamly.Internal.FileSystem.Path
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File

@@ -7,24 +7,8 @@
 --
 module Streamly.Internal.Data.Path
     (
-    -- * Path Types
-    -- | When @Abs/Rel@ and @File/Dir@ both are present, @Abs/Rel@ must be
-    -- outermost constructors and @File/Dir@ as inner. Thus the types File (Abs
-    -- a) or Dir (Abs a) are not allowed but Abs (Dir a) and Abs (File a) are
-    -- allowed.
-
-      File (..)
-    , Dir (..)
-    , Abs (..)
-    , Rel (..)
-
-    -- * Constraints
-    , IsAbsRel
-    , NotAbsRel
-    , IsDir
-
     -- * Exceptions
-    , PathException (..)
+      PathException (..)
 
     -- * Conversions
     , IsPath (..)
@@ -44,58 +28,6 @@ newtype PathException =
     deriving (Show,Eq)
 
 instance Exception PathException
-
-------------------------------------------------------------------------------
--- Types
-------------------------------------------------------------------------------
-
--- XXX Do we need a type for file or dir Name as names cannot have the
--- separator char and there may be other restrictions on names? For example,
--- length restriction.  A file name cannot be "." or "..". We can use the types
--- "File Name" and "Dir Name" to represent names. Also, file systems may put
--- limits on names. Can have an IsName type class with members Name, (File
--- Name), (Dir Name).
-
--- | File path. A qualifier to annotate a path as file path, or in general as a
--- leaf node in a tree or graph.
-newtype File a = File a
-
--- | Directory path. A qualifier to annotate a path as dir path, or in general
--- as a non-leaf node in a tree or graph.
-newtype Dir a = Dir a
-
--- | Absolute path. A qualifier to annotate a path which is relative to an
--- explicitly known permanent node called a root node.
-newtype Abs a = Abs a
-
--- | Relative path. A qualifier to annotate a path which is can be relative to
--- anything, not relative to an explicitly known permanent node.
-newtype Rel a = Rel a
-
--- Abs (Dir a) etc. are also covered by these.
-
--- | Constraint to check if a type has Abs or Rel annotations.
-class IsAbsRel a
-
-instance IsAbsRel (Abs a)
-instance IsAbsRel (Rel a)
-
--- | Constraint to check if a type does not have Abs or Rel annotations.
-class NotAbsRel a
-
-instance NotAbsRel (File a)
-instance NotAbsRel (Dir a)
-
--- Note that (Abs a) may also be a directory if "a" is (Dir b), but it can also
--- be a file if "a" is (File b). Therefore, the constraints are put on a more
--- spspecific type e.g. (Abs PosixPath) may be a dir.
-
--- | Constraint to check if a type represents a directory.
-class IsDir a
-
-instance IsDir (Dir a)
-instance IsDir (Abs (Dir a))
-instance IsDir (Rel (Dir a))
 
 ------------------------------------------------------------------------------
 -- Conversions
