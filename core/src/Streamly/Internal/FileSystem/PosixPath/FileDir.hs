@@ -3,13 +3,13 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- |
--- Module      : Streamly.Internal.FileSystem.Path.Posix
+-- Module      : Streamly.Internal.FileSystem.PosixPath.FileDir
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
-module Streamly.Internal.FileSystem.Path.PosixFileDir
+module Streamly.Internal.FileSystem.PosixPath.FileDir
     (
     -- * Path Types
       File (..)
@@ -39,10 +39,10 @@ where
 import Control.Monad.Catch (MonadThrow(..))
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.FileSystem.Path.Common (OS(..), mkQ)
-import Streamly.Internal.FileSystem.Path.Posix (PosixPath(..))
+import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
 
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
-import qualified Streamly.Internal.FileSystem.Path.Posix as Posix
+import qualified Streamly.Internal.FileSystem.PosixPath as Posix
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote

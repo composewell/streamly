@@ -377,12 +377,22 @@ library
                      , Streamly.Internal.Unicode.Array
 
                      -- Filesystem/IO
-                     , Streamly.Internal.FileSystem.Path.Common
-                     , Streamly.Internal.FileSystem.Path.Posix
-                     , Streamly.Internal.FileSystem.Path.PosixAbsRel
-                     , Streamly.Internal.FileSystem.Path.PosixFileDir
-                     , Streamly.Internal.FileSystem.Path.PosixTyped
-                     , Streamly.Internal.FileSystem.Path
+
+                     -- , Streamly.Internal.FileSystem.Path
+                     -- , Streamly.Internal.FileSystem.Path.LocSeg
+                     -- , Streamly.Internal.FileSystem.Path.FileDir
+                     -- , Streamly.Internal.FileSystem.Path.Typed
+
+                     , Streamly.Internal.FileSystem.PosixPath
+                     , Streamly.Internal.FileSystem.PosixPath.LocSeg
+                     , Streamly.Internal.FileSystem.PosixPath.FileDir
+                     , Streamly.Internal.FileSystem.PosixPath.Typed
+
+                     -- , Streamly.Internal.FileSystem.WindowsPath
+                     -- , Streamly.Internal.FileSystem.WindowsPath.LocSeg
+                     -- , Streamly.Internal.FileSystem.WindowsPath.FileDir
+                     -- , Streamly.Internal.FileSystem.WindowsPath.Typed
+
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
                      , Streamly.Internal.FileSystem.Dir
@@ -489,6 +499,7 @@ library
                     , Streamly.Internal.Data.Producer.Source
 
                     , Streamly.Internal.Data.Time.Clock.Type
+                    , Streamly.Internal.FileSystem.Path.Common
 
     if flag(dev)
       exposed-modules:

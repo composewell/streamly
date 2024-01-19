@@ -4,7 +4,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- |
--- Module      : Streamly.Internal.FileSystem.Path.Posix
+-- Module      : Streamly.Internal.FileSystem.PosixPath.Typed
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -15,7 +15,7 @@
 -- a) or Dir (Loc a) are not allowed but Loc (Dir a) and Loc (File a) are
 -- allowed.
 
-module Streamly.Internal.FileSystem.Path.PosixTyped
+module Streamly.Internal.FileSystem.PosixPath.Typed
     (
     -- * Path Types
       HasDir
@@ -49,13 +49,13 @@ where
 import Control.Monad.Catch (MonadThrow(..))
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.FileSystem.Path.Common (mkQ)
-import Streamly.Internal.FileSystem.Path.Posix (PosixPath(..))
-import Streamly.Internal.FileSystem.Path.PosixAbsRel (Loc(..), Seg(..), IsLocSeg)
-import Streamly.Internal.FileSystem.Path.PosixFileDir (File(..), Dir(..))
+import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
+import Streamly.Internal.FileSystem.PosixPath.LocSeg (Loc(..), Seg(..), IsLocSeg)
+import Streamly.Internal.FileSystem.PosixPath.FileDir (File(..), Dir(..))
 
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
-import qualified Streamly.Internal.FileSystem.Path.Posix as Posix
-import qualified Streamly.Internal.FileSystem.Path.PosixAbsRel as AbsRel
+import qualified Streamly.Internal.FileSystem.PosixPath as Posix
+import qualified Streamly.Internal.FileSystem.PosixPath.LocSeg as LocSeg
 
 import Language.Haskell.TH hiding (Loc)
 import Language.Haskell.TH.Quote
@@ -121,10 +121,10 @@ adapt p = fromPath (toPath p :: PosixPath)
 ------------------------------------------------------------------------------
 
 dirLocFromString :: MonadThrow m => String -> m (Loc (Dir PosixPath))
-dirLocFromString s = AbsRel.locFromString s >>= adapt
+dirLocFromString s = LocSeg.locFromString s >>= adapt
 
 dirSegFromString :: MonadThrow m => String -> m (Seg (Dir PosixPath))
-dirSegFromString s = AbsRel.segFromString s >>= adapt
+dirSegFromString s = LocSeg.segFromString s >>= adapt
 
 fileLocFromString :: MonadThrow m => String -> m (Loc (File PosixPath))
 fileLocFromString s = Posix.fromString s >>= adapt

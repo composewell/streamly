@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 -- |
--- Module      : Streamly.Internal.FileSystem.Path.Posix
+-- Module      : Streamly.Internal.FileSystem.PosixPath
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -106,7 +106,7 @@
 -- reading from a file etc where we may want to handle exceptions. We can
 -- always create partial wrappers from these if that is convenient to use.
 --
-module Streamly.Internal.FileSystem.Path.Posix
+module Streamly.Internal.FileSystem.PosixPath
     (
     -- * Path Types
       PosixPath (..)
