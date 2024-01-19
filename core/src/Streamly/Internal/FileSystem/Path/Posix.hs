@@ -13,28 +13,31 @@
 -- in the presence of symlinks it could be a DAG or a graph, because directory
 -- symlinks can create cycles.
 --
--- = Absolute vs Relative Paths
+-- = Location and Segments
+--
+-- We make two distinctions for paths, a path could refer to a location or it
+-- could refer to a segment or segments.
+--
+-- A path that refers to a particular object in the file system  is called a
+-- location e.g. /usr is a location, . is a location, ./bin is a location. A
+-- location could be absolute e.g. /usr or it could be relative e.g. ./bin . A
+-- location always has two components, a specific "root" which could be
+-- explicit or implicit, and a path segment relative to the root. A location
+-- with a fixed root is known as an absolute location whereas a location with
+-- an implicit root e.g. "./bin" is known as a relative location.
 --
 -- A path that does not refer to a particular location but defines steps to go
--- from any place to some other place is a relative path. Absolute paths can
--- never be appended to a path whereas relative paths can be appended.
+-- from some place to another is a path segment. For example, "local/bin" is a
+-- path segment whereas "./local/bin" is a location.
 --
--- Absolute: @/a/b/c@
--- Relative @e/f/g@
---
--- An absolute path refers to a particular location, it has a notion of a root
--- which could be implicit or explicit. A root refers to a specific known
--- location.
---
--- = Appending Paths
---
--- We can only append a relative path to any path. But there can be
--- complications when paths have implicit references.
+-- Locations can never be appended to another location or to a path segment
+-- whereas a segment can be appended.
 --
 -- = Comparing Paths
 --
--- Each component of the path is the same then paths are same. But there can be
--- complications when paths have implicit references.
+-- We can compare two absolute locations or path segments but we cannot compare
+-- two relative locations. If each component of the path is the same then the
+-- paths are considered to be equal.
 --
 -- = Implicit Roots (.)
 --
@@ -179,15 +182,12 @@ instance IsPath PosixPath PosixPath where
 
 -- XXX Use rewrite rules to eliminate intermediate conversions for better
 -- efficiency. If the argument path is already verfied for a property, we
--- should not verify it again e.g. if we adapt (Abs path) as (Abs (Dir path))
--- then we should not verify it to be Abs again.
+-- should not verify it again e.g. if we adapt (Loc path) as (Loc (Dir path))
+-- then we should not verify it to be Loc again.
 
 -- | Convert a path type to another path type. This operation may fail with a
 -- 'PathException' when converting a less restrictive path type to a more
--- restrictive one.
---
--- You can only upgrade or downgrade type safety. Converting Abs to Rel or File
--- to Dir will definitely fail.
+-- restrictive one. This can be used to upgrade or downgrade type safety.
 adapt :: (MonadThrow m, IsPath PosixPath a, IsPath PosixPath b) => a -> m b
 adapt p = fromPath (toPath p :: PosixPath)
 
@@ -309,7 +309,8 @@ unsafeAppend :: PosixPath -> PosixPath -> PosixPath
 unsafeAppend (PosixPath a) (PosixPath b) =
     PosixPath $ Common.unsafeAppend Common.Posix Common.posixToString a b
 
--- | Append a 'Path' to another. Fails if the second path is absolute.
+-- | Append a 'Path' to another. Fails if the second path refers to a location
+-- and not a path segment.
 --
 -- >>> Path.toString $ Path.append [path|/usr|] [path|bin|]
 -- "/usr/bin"

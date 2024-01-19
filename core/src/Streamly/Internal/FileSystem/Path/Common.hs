@@ -37,8 +37,8 @@ module Streamly.Internal.FileSystem.Path.Common
     -- , primarySeparator
     , isSeparator
     , dropTrailingSeparators
-    , isRelative
-    , isAbsolute
+    , isSegment
+    , isLocation
 
     , append
     , unsafeAppend
@@ -274,14 +274,14 @@ hasDrive a =
     else True
 
 -- | On windows, the path starts with a separator.
-isAbsoluteInDrive :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteInDrive a =
+isLocationInDrive :: (Unbox a, Integral a) => Array a -> Bool
+isLocationInDrive a =
     -- Assuming the path is not empty.
     isSeparator Windows (wordToChar (Array.getIndexUnsafe 0 a))
 
 -- | @C:\...@
-isAbsoluteDrive :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteDrive a =
+isLocationDrive :: (Unbox a, Integral a) => Array a -> Bool
+isLocationDrive a =
     if Array.byteLength a < 3
     then False
     -- Check colon first for quicker return
@@ -297,8 +297,8 @@ isAbsoluteDrive a =
     else True
 
 -- | @\\\\...@
-isAbsoluteUNC :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteUNC a =
+isLocationUNC :: (Unbox a, Integral a) => Array a -> Bool
+isLocationUNC a =
     if Array.byteLength a < 2
     then False
     else if (unsafeIndexChar 0 a /= '\\')
@@ -308,34 +308,34 @@ isAbsoluteUNC a =
     else True
 
 -- | On Posix and Windows,
--- * a path starting with a separator
--- * current dir "." or relative to current dir "./"
+-- * a path starting with a separator, an absolute location
+-- * current dir "." or a location relative to current dir "./"
 --
 -- On Windows:
 -- * @C:\\@ local absolute
 -- * @C:@ local relative
 -- * @\\@ local relative to current drive root
--- * @\\\\@ UNC network path
+-- * @\\\\@ UNC network location
 -- * @\\\\?\\C:\\@ Long UNC local path
--- * @\\\\?\\UNC\\@ Long UNC server path
+-- * @\\\\?\\UNC\\@ Long UNC server location
 -- * @\\\\.\\@ DOS local device namespace
 -- * @\\\\??\\@ DOS global namespace
 --
 -- * @C:file@ a path relative to curdir.
-isAbsolute :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isAbsolute Posix a =
+isLocation :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isLocation Posix a =
     -- Assuming path is not empty.
     isSeparator Posix (wordToChar (Array.getIndexUnsafe 0 a))
         || isRelativeToCurDir a
-isAbsolute Windows a =
-    isAbsoluteDrive a
-        || isAbsoluteInDrive a
+isLocation Windows a =
+    isLocationDrive a
+        || isLocationInDrive a
         || hasDrive a
-        || isAbsoluteUNC a
+        || isLocationUNC a
         || isRelativeToCurDir a
 
-isRelative :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isRelative os = not . isAbsolute os
+isSegment :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isSegment os = not . isLocation os
 
 ------------------------------------------------------------------------------
 -- Operations of Path
@@ -361,7 +361,7 @@ doAppend os a b = unsafePerformIO $ do
 withAppendCheck :: (Unbox b, Integral b) =>
     OS -> (Array b -> String) -> Array b -> a -> a
 withAppendCheck os toStr arr f =
-    if isAbsolute os arr
+    if isLocation os arr
     then error $ "append: cannot append absolute or located path " ++ toStr arr
     else f
 

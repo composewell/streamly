@@ -15,25 +15,19 @@ module Streamly.Internal.FileSystem.Path.PosixFileDir
       File (..)
     , Dir (..)
     , IsFileDir
-
-    -- * Conversions
     , IsPath (..)
-    , adapt
 
     -- * Construction
     , dirFromString
     , fileFromString
 
     -- * Statically Verified String Literals
-    -- quasiquoters
+    -- | Quasiquoters.
     , dir
     , file
 
     -- * Statically Verified Strings
-    -- XXX Do we need these if we have quasiquoters? These may be useful if we
-    -- are generating strings statically using methods other than literals or
-    -- if we are doing some text processing on strings before using them.
-    -- TH macros
+    -- | Template Haskell expression splices.
     , mkDir
     , mkFile
 
@@ -66,7 +60,8 @@ For APIs that have not been released yet.
 newtype File a = File a
 newtype Dir a = Dir a
 
--- | Constraint to check if a type does not have Abs or Rel annotations.
+-- | Constraint to check if a type use 'File' or 'Dir' as the outermost
+-- constructor.
 class IsFileDir a
 
 instance IsFileDir (File a)
@@ -82,29 +77,15 @@ instance IsPath PosixPath (Dir PosixPath) where
     fromPath p = pure (Dir p)
     toPath (Dir p) = p
 
--- XXX Use rewrite rules to eliminate intermediate conversions for better
--- efficiency. If the argument path is already verfied for a property, we
--- should not verify it again e.g. if we adapt (Abs path) as (Abs (Dir path))
--- then we should not verify it to be Abs again.
-
--- | Convert a path type to another path type. This operation may fail with a
--- 'PathException' when converting a less restrictive path type to a more
--- restrictive one.
---
--- You can only upgrade or downgrade type safety. Converting Abs to Rel or File
--- to Dir will definitely fail.
-adapt :: (MonadThrow m, IsPath PosixPath a, IsPath PosixPath b) => a -> m b
-adapt p = fromPath (toPath p :: PosixPath)
-
 ------------------------------------------------------------------------------
 --
 ------------------------------------------------------------------------------
 
+-- | Any valid path could be a directory.
 dirFromString :: MonadThrow m => String -> m (Dir PosixPath)
-dirFromString s = Posix.fromString s >>= pure . Dir
+dirFromString s = Dir <$> Posix.fromString s
 
--- cannot be "." or "..", cannot have a separator, "." or ".." as last
--- component.
+-- | Cannot have "." or ".." as last component.
 fileFromString :: MonadThrow m => String -> m (File PosixPath)
 fileFromString s = do
     r@(PosixPath _arr) <- Posix.fromString s
@@ -167,18 +148,16 @@ file :: QuasiQuoter
 file = mkQ mkFile
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
--- type path, and (2) second path can only be a Rel path.
+-- type path, and (2) second path can only be a Seg path.
 
--- | Use this API when you are appending to a 'Dir' path without 'Abs' or 'Rel'
--- annotation.The second argument can only be either 'Dir' or 'File' without
--- 'Abs' or 'Rel.
+-- | Append a path to a 'Dir' path.
 --
 -- >>> Path.toString (Path.append [dir|/usr|] [dir|bin|] :: Dir PosixPath)
 -- "/usr/bin"
 -- >>> Path.toString (Path.append [dir|/usr|] [file|bin|] :: File PosixPath)
 -- "/usr/bin"
 --
--- Fails if the second path is not relative.
+-- Fails if the second path is a specific location and not a path segment.
 --
 {-# INLINE append #-}
 append :: (IsPath PosixPath (a PosixPath), IsFileDir (a PosixPath)) =>

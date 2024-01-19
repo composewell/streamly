@@ -11,31 +11,28 @@
 --
 module Streamly.Internal.FileSystem.Path.PosixAbsRel
     (
-    -- * Path Types
-      Abs (..)
-    , Rel (..)
-    , IsAbsRel
-
-    -- * Conversions
+    -- * Types
+      Loc (..)
+    , Seg (..)
+    , IsLocSeg
     , IsPath (..)
-    , adapt
 
     -- * Construction
-    , absFromString
-    , relFromString
+    , locFromString
+    , segFromString
 
     -- * Statically Verified String Literals
     -- quasiquoters
-    , abs
-    , rel
+    , loc
+    , seg
 
     -- * Statically Verified Strings
     -- XXX Do we need these if we have quasiquoters? These may be useful if we
     -- are generating strings statically using methods other than literals or
     -- if we are doing some text processing on strings before using them.
     -- TH macros
-    , mkAbs
-    , mkRel
+    , mkLoc
+    , mkSeg
 
     -- * Operations
     , append
@@ -52,10 +49,9 @@ import Streamly.Internal.FileSystem.Path.Posix (PosixPath(..))
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
 import qualified Streamly.Internal.FileSystem.Path.Posix as Posix
 
-import Language.Haskell.TH
+import Language.Haskell.TH hiding (Loc)
 import Language.Haskell.TH.Quote
 import Streamly.Internal.Data.Path
-import Prelude hiding (abs)
 
 {- $setup
 >>> :m
@@ -66,88 +62,74 @@ For APIs that have not been released yet.
 >>> import qualified Streamly.Internal.FileSystem.Path.Posix as Path
 -}
 
-newtype Abs a = Abs a
-newtype Rel a = Rel a
+newtype Loc a = Loc a
+newtype Seg a = Seg a
 
-instance IsPath PosixPath (Abs PosixPath) where
-    unsafeFromPath = Abs
-    fromPath p = pure (Abs p)
-    toPath (Abs p) = p
+instance IsPath PosixPath (Loc PosixPath) where
+    unsafeFromPath = Loc
+    fromPath p = pure (Loc p)
+    toPath (Loc p) = p
 
-instance IsPath PosixPath (Rel PosixPath) where
-    unsafeFromPath = Rel
-    fromPath p = pure (Rel p)
-    toPath (Rel p) = p
+instance IsPath PosixPath (Seg PosixPath) where
+    unsafeFromPath = Seg
+    fromPath p = pure (Seg p)
+    toPath (Seg p) = p
 
--- | Constraint to check if a type has Abs or Rel annotations.
-class IsAbsRel a
+-- | Constraint to check if a type has Loc or Seg annotations.
+class IsLocSeg a
 
-instance IsAbsRel (Abs a)
-instance IsAbsRel (Rel a)
-
--- XXX Use rewrite rules to eliminate intermediate conversions for better
--- efficiency. If the argument path is already verfied for a property, we
--- should not verify it again e.g. if we adapt (Abs path) as (Abs (Dir path))
--- then we should not verify it to be Abs again.
-
--- | Convert a path type to another path type. This operation may fail with a
--- 'PathException' when converting a less restrictive path type to a more
--- restrictive one.
---
--- You can only upgrade or downgrade type safety. Converting Abs to Rel or File
--- to Dir will definitely fail.
-adapt :: (MonadThrow m, IsPath PosixPath a, IsPath PosixPath b) => a -> m b
-adapt p = fromPath (toPath p :: PosixPath)
+instance IsLocSeg (Loc a)
+instance IsLocSeg (Seg a)
 
 ------------------------------------------------------------------------------
 --
 ------------------------------------------------------------------------------
 
-absFromChunk :: MonadThrow m => Array Word8 -> m (Abs PosixPath)
-absFromChunk arr = do
-    if Common.isRelative Posix arr
+locFromChunk :: MonadThrow m => Array Word8 -> m (Loc PosixPath)
+locFromChunk arr = do
+    if Common.isLocation Posix arr
+    then pure $ Loc (PosixPath arr)
     -- XXX Add more detailed error msg with all valid examples.
-    then throwM $ InvalidPath "Path must be absolute or located"
-    else pure $ Abs (PosixPath arr)
+    else throwM $ InvalidPath "Must be a specific location, not a path segment"
 
-absFromString :: MonadThrow m => String -> m (Abs PosixPath)
-absFromString s = do
+locFromString :: MonadThrow m => String -> m (Loc PosixPath)
+locFromString s = do
     PosixPath arr <- Posix.fromString s
-    absFromChunk arr
+    locFromChunk arr
 
-relFromChunk :: MonadThrow m => Array Word8 -> m (Rel PosixPath)
-relFromChunk arr = do
-    if Common.isAbsolute Posix arr
+segFromChunk :: MonadThrow m => Array Word8 -> m (Seg PosixPath)
+segFromChunk arr = do
+    if Common.isSegment Posix arr
+    then pure $ Seg (PosixPath arr)
     -- XXX Add more detailed error msg with all valid examples.
-    then throwM $ InvalidPath "Path must not be absolute or located"
-    else pure $ Rel (PosixPath arr)
+    else throwM $ InvalidPath "Must be a path segment, not a specific location"
 
-relFromString :: MonadThrow m => String -> m (Rel PosixPath)
-relFromString s = do
+segFromString :: MonadThrow m => String -> m (Seg PosixPath)
+segFromString s = do
     PosixPath arr <- Posix.fromString s
-    relFromChunk arr
+    segFromChunk arr
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
 ------------------------------------------------------------------------------
 
-liftRel :: Quote m => Rel PosixPath -> m Exp
-liftRel p =
-    [| Rel (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p))) |]
+liftLoc :: Quote m => Loc PosixPath -> m Exp
+liftLoc p =
+    [| Loc (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p))) |]
 
-liftAbs :: Quote m => Abs PosixPath -> m Exp
-liftAbs p =
-    [| Abs (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p))) |]
+liftSeg :: Quote m => Seg PosixPath -> m Exp
+liftSeg p =
+    [| Seg (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p))) |]
 
--- | Generates an @Abs Path@ type.
+-- | Generates an @Loc Path@ type.
 --
-mkAbs :: String -> Q Exp
-mkAbs = either (error . show) liftAbs . absFromString
+mkLoc :: String -> Q Exp
+mkLoc = either (error . show) liftLoc . locFromString
 
--- | Generates an @Rel Path@ type.
+-- | Generates an @Seg Path@ type.
 --
-mkRel :: String -> Q Exp
-mkRel = either (error . show) liftRel . relFromString
+mkSeg :: String -> Q Exp
+mkSeg = either (error . show) liftSeg . segFromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -158,45 +140,36 @@ mkRel = either (error . show) liftRel . relFromString
 -- for free. Interpolated vars if any have to be of appropriate type depending
 -- on the context so that we can splice them safely.
 
--- XXX Change to "loc"?
-
--- | Generates an @Abs PosixPath@ type from a quoted literal.
+-- | Generates an @Loc PosixPath@ type from a quoted literal.
 --
--- >>> Path.toString ([abs|/usr|] :: Abs PosixPath)
+-- >>> Path.toString ([loc|/usr|] :: Loc PosixPath)
 -- "/usr"
 --
-abs :: QuasiQuoter
-abs = mkQ mkAbs
+loc :: QuasiQuoter
+loc = mkQ mkLoc
 
--- | Generates a @Rel PosixPath@ type from a quoted literal.
+-- | Generates a @Seg PosixPath@ type from a quoted literal.
 --
--- >>> Path.toString ([rel|usr|] :: Rel PosixPath)
+-- >>> Path.toString ([seg|usr|] :: Seg PosixPath)
 -- "usr"
 --
-rel :: QuasiQuoter
-rel = mkQ mkRel
+seg :: QuasiQuoter
+seg = mkQ mkSeg
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
--- type path, and (2) second path can only be a Rel path.
+-- type path, and (2) second path can only be a Seg path.
 
--- | Use this API to combine paths when the first path is @Abs@ or @Rel@.
--- Second path must be @Rel@.
+-- | Append a path segment to a segment or location.
 --
--- If the first path is absolute then the return type is also absolute.
---
--- >>> Path.toString (Path.append [abs|/usr|] [rel|bin|] :: Abs PosixPath)
+-- >>> Path.toString (Path.append [loc|/usr|] [seg|bin|] :: Loc PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (Path.append [rel|usr|] [rel|bin|] :: Rel PosixPath)
+-- >>> Path.toString (Path.append [seg|usr|] [seg|bin|] :: Seg PosixPath)
 -- "usr/bin"
---
--- Type error cases:
---
--- >> Path.append [abs|/usr|] [abs|/bin|] -- second arg must be rel
 --
 {-# INLINE append #-}
 append ::
     (
-      IsAbsRel (a PosixPath)
+      IsLocSeg (a PosixPath)
     , IsPath PosixPath (a PosixPath)
-    ) => a PosixPath -> Rel PosixPath -> a PosixPath
-append a (Rel c) = unsafeFromPath $ Posix.unsafeAppend (toPath a) (toPath c)
+    ) => a PosixPath -> Seg PosixPath -> a PosixPath
+append a (Seg c) = unsafeFromPath $ Posix.unsafeAppend (toPath a) (toPath c)
