@@ -1,6 +1,7 @@
 # [Streamly][]: Idiomatic Haskell with C-Like Performance
 
 [![Gitter chat](https://badges.gitter.im/composewell/gitter.svg)](https://gitter.im/composewell/streamly)
+[![Hackage](https://img.shields.io/hackage/v/streamly-core.svg?style=flat)](https://hackage.haskell.org/package/streamly-core)
 [![Hackage](https://img.shields.io/hackage/v/streamly.svg?style=flat)](https://hackage.haskell.org/package/streamly)
 
 ## Upgrading to 0.9.0+
