@@ -25,7 +25,7 @@ import Control.Monad.Catch (MonadThrow(..))
 -- | Exceptions thrown by path operations.
 newtype PathException =
     InvalidPath String
-    deriving (Show,Eq)
+    deriving (Show, Eq)
 
 instance Exception PathException
 
@@ -33,38 +33,25 @@ instance Exception PathException
 -- Conversions
 ------------------------------------------------------------------------------
 
--- XXX call it IsBase? It is a more abstract concept and can be used for URLs
--- as well, but those can also be called paths. But if we make it more abstract
--- then File/Dir will have to be called something like Leaf/Branch which will
--- become more obscure.
+-- XXX Swap the order of IsPath arguments?
 
--- | A member of 'IsPath' knows how to convert to and from the base path type.
--- Create instances such that the type @b@ is one of:
+-- | If the type @a b@ is a member of 'IsPath' it means we know how to convert
+-- the type @b@ to and from the base type @a@.
 --
---  * File a
---  * Dir a
---  * Abs a
---  * Rel a
---  * Abs (File a)
---  * Abs (Dir a)
---  * Rel (File a)
---  * Rel (Dir a)
 class IsPath a b where
     -- | Like 'fromPath' but does not check the properties of 'Path'. The user
-    -- is responsible to maintain the invariants mentioned in the definition of
-    -- 'Path' type otherwise surprising behavior may result.
+    -- is responsible to maintain the invariants enforced by the type @b@
+    -- otherwise surprising behavior may result.
     --
-    -- Provides performance and simplicity when we know that the properties of
-    -- the path are already verified, for example, when we get the path from
-    -- the file system or the OS APIs.
+    -- This operation provides performance and simplicity when we know that the
+    -- properties of the path are already verified, for example, when we get
+    -- the path from the file system or from the OS APIs.
     unsafeFromPath :: a -> b
 
-    -- | Convert a raw 'Path' to other forms of well-typed paths. It may fail
-    -- if the path does not satisfy the properties of the target type.
+    -- | Convert a base path type to other forms of well-typed paths. It may
+    -- fail if the path does not satisfy the properties of the target type.
     --
-    -- Path components may have limits.
-    -- Total path length may have a limit.
     fromPath :: MonadThrow m => a -> m b
 
-    -- | Convert a well-typed path to a raw 'Path'. Never fails.
+    -- | Convert a well-typed path to the base path type. Never fails.
     toPath :: b -> a

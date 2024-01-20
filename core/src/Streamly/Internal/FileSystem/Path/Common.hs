@@ -11,15 +11,11 @@ module Streamly.Internal.FileSystem.Path.Common
     (
     -- * Types
       OS (..)
-    -- * Conversions
-    , IsPath (..)
-
     -- * Construction
     , fromChunk
     , unsafeFromChunk
-    , posixFromChars
-    , posixFromString
-    , unsafePosixFromString
+    , fromChars
+    , unsafeFromChars
 
     -- * Quasiquoters
     , mkQ
@@ -27,14 +23,9 @@ module Streamly.Internal.FileSystem.Path.Common
     -- * Elimination
     , toChunk
     , toString
-    , posixToChars
-    , posixToString
+    , toChars
 
     -- * Operations
-    -- Do we need to export the separator functions? They are not essential if
-    -- operations to split and combine paths are provided. If someone wants to
-    -- work on paths at low level then they know what they are.
-    -- , primarySeparator
     , isSeparator
     , dropTrailingSeparators
     , isSegment
@@ -50,12 +41,16 @@ where
 import Control.Monad.Catch (MonadThrow(..))
 import Data.Char (ord, isAlpha)
 import Data.Functor.Identity (Identity(..))
+#ifdef DEBUG
+import Data.Maybe (fromJust)
+#endif
 import Data.Word (Word8)
 import GHC.Base (unsafeChr)
 import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.MutByteArray (Unbox)
+import Streamly.Internal.Data.Path (PathException(..))
 import Streamly.Internal.Data.Stream (Stream)
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -63,11 +58,6 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Unicode.Stream as Unicode
-
-import Streamly.Internal.Data.Path
-
-import Prelude hiding (abs)
 
 data OS = Windows | Posix
 
@@ -84,9 +74,19 @@ data OS = Windows | Posix
 -- the definition of the 'Path' type. On Windows, the array passed must be a
 -- multiple of 2 bytes as the underlying representation uses 'Word16'.
 {-# INLINE unsafeFromChunk #-}
-unsafeFromChunk :: Array Word8 -> Array a
--- XXX add asserts to check safety
-unsafeFromChunk = Array.castUnsafe
+unsafeFromChunk ::
+#ifdef DEBUG
+    Unbox a =>
+#endif
+    Array Word8 -> Array a
+unsafeFromChunk =
+#ifndef DEBUG
+    Array.castUnsafe
+#else
+    fromJust . fromChunk
+#endif
+
+-- XXX Also check for invalid chars on windows.
 
 -- | On Posix it may fail if the byte array contains null characters. On
 -- Windows the array passed must be a multiple of 2 bytes as the underlying
@@ -108,25 +108,34 @@ fromChunk arr =
 toChunk :: Array a -> Array Word8
 toChunk = Array.asBytes
 
-unsafePosixFromChars :: Stream Identity Char -> Array Word8
-unsafePosixFromChars s =
+unsafeFromChars :: (Unbox a) =>
+       (Char -> Bool)
+    -> (Stream Identity Char -> Stream Identity a)
+    -> Stream Identity Char
+    -> Array a
+unsafeFromChars _p encode s =
+#ifndef DEBUG
     let n = runIdentity $ Stream.fold Fold.length s
-     in Array.fromPureStreamN n (Unicode.encodeUtf8' s)
+     in Array.fromPureStreamN n (encode s)
+#else
+     fromJust (fromChars _p encode s)
+#endif
 
-unsafePosixFromString :: String -> Array Word8
-unsafePosixFromString = unsafePosixFromChars . Stream.fromList
-
--- XXX Need Fold.Tee3, Tee4 etc for better efficiency composition.
 -- XXX Sanitize the path - remove duplicate separators, . segments, trailing .
 -- XXX Writing a custom fold for parsing a Posix path may be better for
 -- efficient bulk parsing when needed. We need the same code to validate a
 -- Chunk where we do not need to create an array.
-posixFromChars :: MonadThrow m => Stream Identity Char -> m (Array Word8)
-posixFromChars s =
-    let lengths = Fold.tee Fold.length (Fold.takeEndBy_ (== '\0') Fold.length)
+fromChars :: (MonadThrow m, Unbox a) =>
+       (Char -> Bool)
+    -> (Stream Identity Char -> Stream Identity a)
+    -> Stream Identity Char
+    -> m (Array a)
+fromChars p encode s =
+    -- XXX on windows terminate at first invalid char
+    let lengths = Fold.tee Fold.length (Fold.takeEndBy_ p Fold.length)
         (n, n1) = runIdentity $ Stream.fold lengths s
-        arr = Array.fromPureStreamN n (Unicode.encodeUtf8' s)
-        sample = Stream.takeWhile (/= '\0') s
+        arr = Array.fromPureStreamN n (encode s)
+        sample = Stream.takeWhile p s
      in
         if n <= 0
         then throwM $ InvalidPath $ "Path cannot be empty."
@@ -135,24 +144,11 @@ posixFromChars s =
                 ++ show n1 ++ " after " ++ runIdentity (Stream.toList sample)
         else pure arr
 
--- | Encode a Unicode string to 'Path' using strict UTF-8 encoding on Posix.
--- On Posix it may fail if the stream contains null characters.
-fromString ::
-    (Stream Identity Char -> m (Array a)) -> [Char] -> m (Array a)
-fromString f = f . Stream.fromList
+toChars :: (Monad m, Unbox a) => (Stream m a -> Stream m Char) -> Array a -> Stream m Char
+toChars decode arr = decode $ Array.read arr
 
-posixFromString :: MonadThrow m => [Char] -> m (Array Word8)
-posixFromString = fromString posixFromChars
-
--- | Decode the path to a Unicode string using strict UTF-8 decoding on Posix.
-toString :: (Array a -> Stream Identity Char) -> Array a -> [Char]
-toString f = runIdentity . Stream.toList . f
-
-posixToChars :: Monad m => Array Word8 -> Stream m Char
-posixToChars arr = Unicode.decodeUtf8' $ Array.read arr
-
-posixToString :: Array Word8 -> [Char]
-posixToString = toString posixToChars
+toString :: Unbox a => (Stream Identity a -> Stream Identity Char) -> Array a -> [Char]
+toString decode = runIdentity . Stream.toList . toChars decode
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -249,8 +245,8 @@ dropTrailingSeparators os =
     dropTrailingBy (isSeparator os . wordToChar)
 
 -- | path is @.@ or starts with @./@.
-isRelativeToCurDir :: (Unbox a, Integral a) => Array a -> Bool
-isRelativeToCurDir a =
+isCurDirRelativeLocation :: (Unbox a, Integral a) => Array a -> Bool
+isCurDirRelativeLocation a =
     -- Assuming the path is not empty.
     if wordToChar (Array.getIndexUnsafe 0 a) /= '.'
     then False
@@ -274,8 +270,8 @@ hasDrive a =
     else True
 
 -- | On windows, the path starts with a separator.
-isLocationInDrive :: (Unbox a, Integral a) => Array a -> Bool
-isLocationInDrive a =
+isCurDriveRelativeLocation :: (Unbox a, Integral a) => Array a -> Bool
+isCurDriveRelativeLocation a =
     -- Assuming the path is not empty.
     isSeparator Windows (wordToChar (Array.getIndexUnsafe 0 a))
 
@@ -297,8 +293,8 @@ isLocationDrive a =
     else True
 
 -- | @\\\\...@
-isLocationUNC :: (Unbox a, Integral a) => Array a -> Bool
-isLocationUNC a =
+isAbsoluteUNCLocation :: (Unbox a, Integral a) => Array a -> Bool
+isAbsoluteUNCLocation a =
     if Array.byteLength a < 2
     then False
     else if (unsafeIndexChar 0 a /= '\\')
@@ -326,13 +322,13 @@ isLocation :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isLocation Posix a =
     -- Assuming path is not empty.
     isSeparator Posix (wordToChar (Array.getIndexUnsafe 0 a))
-        || isRelativeToCurDir a
+        || isCurDirRelativeLocation a
 isLocation Windows a =
     isLocationDrive a
-        || isLocationInDrive a
-        || hasDrive a
-        || isLocationUNC a
-        || isRelativeToCurDir a
+        || isCurDriveRelativeLocation a
+        || hasDrive a -- curdir-in-drive relative, drive absolute
+        || isAbsoluteUNCLocation a
+        || isCurDirRelativeLocation a
 
 isSegment :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isSegment os = not . isLocation os
@@ -348,8 +344,8 @@ doAppend :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Array a
 doAppend os a b = unsafePerformIO $ do
     let lenA = Array.byteLength a
         lenB = Array.byteLength b
-    assertM (lenA /= 0 && lenB /= 0)
-    assertM (countTrailingBy (isSeparatorWord os) a == 0)
+    assertM(lenA /= 0 && lenB /= 0)
+    assertM(countTrailingBy (isSeparatorWord os) a == 0)
     let len = lenA + 1 + lenB
     arr <- MutArray.new len
     arr1 <- MutArray.spliceUnsafe arr (Array.unsafeThaw a)

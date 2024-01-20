@@ -378,7 +378,7 @@ library
 
                      -- Filesystem/IO
 
-                     -- , Streamly.Internal.FileSystem.Path
+                     , Streamly.Internal.FileSystem.Path
                      -- , Streamly.Internal.FileSystem.Path.LocSeg
                      -- , Streamly.Internal.FileSystem.Path.FileDir
                      -- , Streamly.Internal.FileSystem.Path.Typed

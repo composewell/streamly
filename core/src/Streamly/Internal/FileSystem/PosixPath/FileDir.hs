@@ -2,34 +2,48 @@
 -- For constraints on "append"
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
+#if defined(IS_WINDOWS)
+#define OS_NAME Windows
+#define OS_PATH WindowsPath
+#else
+#define OS_NAME Posix
+#define OS_PATH PosixPath
+#endif
+
 -- |
--- Module      : Streamly.Internal.FileSystem.PosixPath.FileDir
+-- Module      : Streamly.Internal.FileSystem.OS_PATH.FileDir
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
-module Streamly.Internal.FileSystem.PosixPath.FileDir
+-- This module provides a type safe path append operation by distinguishing
+-- paths between files and directories. Files are represented by the @File
+-- OS_PATH@ type and directories are represented by the @Dir OS_PATH@ type.
+--
+-- This distinction provides safety against appending a path to a file. Append
+-- operation allows appending to only 'Dir' types.
+--
+module Streamly.Internal.FileSystem.OS_PATH.FileDir
     (
-    -- * Path Types
+    -- * Types
       File (..)
     , Dir (..)
     , IsFileDir
-    , IsPath (..)
 
     -- * Construction
-    , dirFromString
+    , dirFromString -- dirString?
     , fileFromString
 
-    -- * Statically Verified String Literals
+    -- ** Statically Verified String Literals
     -- | Quasiquoters.
     , dir
     , file
 
-    -- * Statically Verified Strings
+    -- ** Statically Verified Strings
     -- | Template Haskell expression splices.
-    , mkDir
-    , mkFile
+    , dirExp
+    , fileExp
 
     -- * Operations
     , append
@@ -39,10 +53,10 @@ where
 import Control.Monad.Catch (MonadThrow(..))
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.FileSystem.Path.Common (OS(..), mkQ)
-import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
+import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
 
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
-import qualified Streamly.Internal.FileSystem.PosixPath as Posix
+import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote
@@ -54,25 +68,28 @@ import Streamly.Internal.Data.Path
 
 For APIs that have not been released yet.
 
->>> import qualified Streamly.Internal.FileSystem.Path.Posix as Path
+>>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
+>>> import Streamly.Internal.FileSystem.PosixPath.FileDir (File, Dir, file, dir)
+>>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
+>>> import qualified Streamly.Internal.FileSystem.PosixPath.FileDir as PathFD
 -}
 
 newtype File a = File a
 newtype Dir a = Dir a
 
--- | Constraint to check if a type use 'File' or 'Dir' as the outermost
+-- | Constraint to check if a type uses 'File' or 'Dir' as the outermost
 -- constructor.
 class IsFileDir a
 
 instance IsFileDir (File a)
 instance IsFileDir (Dir a)
 
-instance IsPath PosixPath (File PosixPath) where
+instance IsPath OS_PATH (File OS_PATH) where
     unsafeFromPath = File
     fromPath p = pure (File p)
     toPath (File p) = p
 
-instance IsPath PosixPath (Dir PosixPath) where
+instance IsPath OS_PATH (Dir OS_PATH) where
     unsafeFromPath = Dir
     fromPath p = pure (Dir p)
     toPath (Dir p) = p
@@ -82,13 +99,13 @@ instance IsPath PosixPath (Dir PosixPath) where
 ------------------------------------------------------------------------------
 
 -- | Any valid path could be a directory.
-dirFromString :: MonadThrow m => String -> m (Dir PosixPath)
-dirFromString s = Dir <$> Posix.fromString s
+dirFromString :: MonadThrow m => String -> m (Dir OS_PATH)
+dirFromString s = Dir <$> OsPath.fromString s
 
 -- | Cannot have "." or ".." as last component.
-fileFromString :: MonadThrow m => String -> m (File PosixPath)
+fileFromString :: MonadThrow m => String -> m (File OS_PATH)
 fileFromString s = do
-    r@(PosixPath _arr) <- Posix.fromString s
+    r@(OS_PATH _arr) <- OsPath.fromString s
     -- XXX take it from the array
     let s1 = reverse $ takeWhile (not . Common.isSeparator Posix) (reverse s)
      in if s1 == "."
@@ -104,23 +121,23 @@ fileFromString s = do
 -- XXX We can lift the array directly, ByteArray has a lift instance. Does that
 -- work better?
 
-liftDir :: Quote m => Dir PosixPath -> m Exp
-liftDir p =
-    [| Dir (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p))) |]
+liftDir :: Dir OS_PATH -> Q Exp
+liftDir (Dir p) =
+    [| Dir (OsPath.unsafeFromString $(lift $ OsPath.toString p)) |]
 
-liftFile :: Quote m => File PosixPath -> m Exp
-liftFile p =
-    [| File (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p))) |]
+liftFile :: File OS_PATH -> Q Exp
+liftFile (File p) =
+    [| File (OsPath.unsafeFromString $(lift $ OsPath.toString p)) |]
 
--- | Generates an @Dir Path@ type.
+-- | Generates a Haskell expression of type @Dir OS_PATH@.
 --
-mkDir :: String -> Q Exp
-mkDir = either (error . show) liftDir . dirFromString
+dirExp :: String -> Q Exp
+dirExp = either (error . show) liftDir . dirFromString
 
--- | Generates an @File Path@ type.
+-- | Generates a Haskell expression of type @File OS_PATH@.
 --
-mkFile :: String -> Q Exp
-mkFile = either (error . show) liftFile . fileFromString
+fileExp :: String -> Q Exp
+fileExp = either (error . show) liftFile . fileFromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -131,36 +148,36 @@ mkFile = either (error . show) liftFile . fileFromString
 -- for free. Interpolated vars if any have to be of appropriate type depending
 -- on the context so that we can splice them safely.
 
--- | Generates a @Dir PosixPath@ type from a quoted literal.
+-- | Generates a @Dir OS_PATH@ type from a quoted literal.
 --
 -- >>> Path.toString ([dir|usr|] :: Dir PosixPath)
 -- "usr"
 --
 dir :: QuasiQuoter
-dir = mkQ mkDir
+dir = mkQ dirExp
 
--- | Generates a @File PosixPath@ type from a quoted literal.
+-- | Generates a @File OS_PATH@ type from a quoted literal.
 --
--- >>> Path.toString ([dir|usr|] :: Dir PosixPath)
+-- >>> Path.toString ([file|usr|] :: File PosixPath)
 -- "usr"
 --
 file :: QuasiQuoter
-file = mkQ mkFile
+file = mkQ fileExp
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
 -- type path, and (2) second path can only be a Seg path.
 
--- | Append a path to a 'Dir' path.
+-- | Append a 'Dir' or 'File' path to a 'Dir' path.
 --
--- >>> Path.toString (Path.append [dir|/usr|] [dir|bin|] :: Dir PosixPath)
+-- >>> Path.toString (PathFD.append [dir|/usr|] [dir|bin|] :: Dir PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (Path.append [dir|/usr|] [file|bin|] :: File PosixPath)
+-- >>> Path.toString (PathFD.append [dir|/usr|] [file|bin|] :: File PosixPath)
 -- "/usr/bin"
 --
 -- Fails if the second path is a specific location and not a path segment.
 --
 {-# INLINE append #-}
-append :: (IsPath PosixPath (a PosixPath), IsFileDir (a PosixPath)) =>
-    Dir PosixPath -> a PosixPath -> a PosixPath
+append :: (IsPath OS_PATH (a OS_PATH), IsFileDir (a OS_PATH)) =>
+    Dir OS_PATH -> a OS_PATH -> a OS_PATH
 append (Dir a) b =
-    unsafeFromPath $ Posix.unsafeAppend (toPath a) (toPath b)
+    unsafeFromPath $ OsPath.unsafeAppend (toPath a) (toPath b)

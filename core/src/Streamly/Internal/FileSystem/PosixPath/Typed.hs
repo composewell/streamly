@@ -3,8 +3,16 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+#if defined(IS_WINDOWS)
+#define OS_NAME Windows
+#define OS_PATH WindowsPath
+#else
+#define OS_NAME Posix
+#define OS_PATH PosixPath
+#endif
+
 -- |
--- Module      : Streamly.Internal.FileSystem.PosixPath.Typed
+-- Module      : Streamly.Internal.FileSystem.OS_PATH.Typed
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -15,31 +23,31 @@
 -- a) or Dir (Loc a) are not allowed but Loc (Dir a) and Loc (File a) are
 -- allowed.
 
-module Streamly.Internal.FileSystem.PosixPath.Typed
+module Streamly.Internal.FileSystem.OS_PATH.Typed
     (
-    -- * Path Types
+    -- * Types
       HasDir
 
-    -- * Conversions
-    , IsPath (..)
-    , adapt
+    -- * Construction
+    -- ** From String
+    , dirLocFromString -- dirLocString?
+    , dirSegFromString
+    , fileLocFromString
+    , fileSegFromString
 
-    -- * Statically Verified String Literals
-    -- quasiquoters
+    -- ** Statically Verified String Literals
+    -- | Quasiquoters.
     , dirloc
     , dirseg
     , fileloc
     , fileseg
 
-    -- * Statically Verified Strings
-    -- XXX Do we need these if we have quasiquoters? These may be useful if we
-    -- are generating strings statically using methods other than literals or
-    -- if we are doing some text processing on strings before using them.
-    -- TH macros
-    , mkDirLoc
-    , mkDirSeg
-    , mkFileLoc
-    , mkFileSeg
+    -- ** Statically Verified Strings
+    -- | Template Haskell expression splices.
+    , dirLocExp
+    , dirSegExp
+    , fileLocExp
+    , fileSegExp
 
     -- * Operations
     , append
@@ -49,18 +57,16 @@ where
 import Control.Monad.Catch (MonadThrow(..))
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.FileSystem.Path.Common (mkQ)
-import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
-import Streamly.Internal.FileSystem.PosixPath.LocSeg (Loc(..), Seg(..), IsLocSeg)
-import Streamly.Internal.FileSystem.PosixPath.FileDir (File(..), Dir(..))
+import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
+import Streamly.Internal.FileSystem.OS_PATH.LocSeg (Loc(..), Seg(..))
+import Streamly.Internal.FileSystem.OS_PATH.FileDir (File(..), Dir(..))
 
-import qualified Streamly.Internal.FileSystem.Path.Common as Common
-import qualified Streamly.Internal.FileSystem.PosixPath as Posix
-import qualified Streamly.Internal.FileSystem.PosixPath.LocSeg as LocSeg
+import qualified Streamly.Internal.FileSystem.OS_PATH as OS_NAME
+import qualified Streamly.Internal.FileSystem.OS_PATH.LocSeg as LocSeg
 
 import Language.Haskell.TH hiding (Loc)
 import Language.Haskell.TH.Quote
 import Streamly.Internal.Data.Path
-import Prelude hiding (abs)
 
 {- $setup
 >>> :m
@@ -68,12 +74,17 @@ import Prelude hiding (abs)
 
 For APIs that have not been released yet.
 
->>> import qualified Streamly.Internal.FileSystem.Path.Posix as Path
+>>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
+>>> import Streamly.Internal.FileSystem.PosixPath.FileDir (Dir, File, dir, file)
+>>> import Streamly.Internal.FileSystem.PosixPath.LocSeg (Loc, Seg, loc, seg)
+>>> import Streamly.Internal.FileSystem.PosixPath.Typed (dirloc, dirseg, fileloc, fileseg)
+>>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
+>>> import qualified Streamly.Internal.FileSystem.PosixPath.Typed as PathTyp
 -}
 
 -- Note that (Loc a) may also be a directory if "a" is (Dir b), but it can also
 -- be a file if "a" is (File b). Therefore, the constraints are put on a more
--- spspecific type e.g. (Loc PosixPath) may be a dir.
+-- spspecific type e.g. (Loc OS_PATH) may be a dir.
 
 -- | Constraint to check if a type represents a directory.
 class HasDir a
@@ -82,55 +93,41 @@ instance HasDir (Dir a)
 instance HasDir (Loc (Dir a))
 instance HasDir (Seg (Dir a))
 
-instance IsPath PosixPath (Loc (File PosixPath)) where
+instance IsPath OS_PATH (Loc (File OS_PATH)) where
     unsafeFromPath p = Loc (File p)
     fromPath p = pure (Loc (File p))
     toPath (Loc (File p)) = p
 
-instance IsPath PosixPath (Loc (Dir PosixPath)) where
+instance IsPath OS_PATH (Loc (Dir OS_PATH)) where
     unsafeFromPath p = Loc (Dir p)
     fromPath p = pure (Loc (Dir p))
     toPath (Loc (Dir p)) = p
 
-instance IsPath PosixPath (Seg (File PosixPath)) where
+instance IsPath OS_PATH (Seg (File OS_PATH)) where
     unsafeFromPath p = Seg (File p)
     fromPath p = pure (Seg (File p))
     toPath (Seg (File p)) = p
 
-instance IsPath PosixPath (Seg (Dir PosixPath)) where
+instance IsPath OS_PATH (Seg (Dir OS_PATH)) where
     unsafeFromPath p = Seg (Dir p)
     fromPath p = pure (Seg (Dir p))
     toPath (Seg (Dir p)) = p
 
--- XXX Use rewrite rules to eliminate intermediate conversions for better
--- efficiency. If the argument path is already verfied for a property, we
--- should not verify it again e.g. if we adapt (Loc path) as (Loc (Dir path))
--- then we should not verify it to be Loc again.
-
--- | Convert a path type to another path type. This operation may fail with a
--- 'PathException' when converting a less restrictive path type to a more
--- restrictive one.
---
--- You can only upgrade or downgrade type safety. Converting Loc to Seg or File
--- to Dir will definitely fail.
-adapt :: (MonadThrow m, IsPath PosixPath a, IsPath PosixPath b) => a -> m b
-adapt p = fromPath (toPath p :: PosixPath)
-
 ------------------------------------------------------------------------------
 --
 ------------------------------------------------------------------------------
 
-dirLocFromString :: MonadThrow m => String -> m (Loc (Dir PosixPath))
-dirLocFromString s = LocSeg.locFromString s >>= adapt
+dirLocFromString :: MonadThrow m => String -> m (Loc (Dir OS_PATH))
+dirLocFromString s = LocSeg.locFromString s >>= OS_NAME.adapt
 
-dirSegFromString :: MonadThrow m => String -> m (Seg (Dir PosixPath))
-dirSegFromString s = LocSeg.segFromString s >>= adapt
+dirSegFromString :: MonadThrow m => String -> m (Seg (Dir OS_PATH))
+dirSegFromString s = LocSeg.segFromString s >>= OS_NAME.adapt
 
-fileLocFromString :: MonadThrow m => String -> m (Loc (File PosixPath))
-fileLocFromString s = Posix.fromString s >>= adapt
+fileLocFromString :: MonadThrow m => String -> m (Loc (File OS_PATH))
+fileLocFromString s = OS_NAME.fromString s >>= OS_NAME.adapt
 
-fileSegFromString :: MonadThrow m => String -> m (Seg (File PosixPath))
-fileSegFromString s = Posix.fromString s >>= adapt
+fileSegFromString :: MonadThrow m => String -> m (Seg (File OS_PATH))
+fileSegFromString s = OS_NAME.fromString s >>= OS_NAME.adapt
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
@@ -139,41 +136,41 @@ fileSegFromString s = Posix.fromString s >>= adapt
 -- XXX We can lift the array directly, ByteArray has a lift instance. Does that
 -- work better?
 
-liftDirLoc :: Quote m => Loc (Dir PosixPath) -> m Exp
-liftDirLoc p =
-    [| Loc (Dir (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p)))) |]
+liftDirLoc :: Loc (Dir OS_PATH) -> Q Exp
+liftDirLoc (Loc (Dir p)) =
+    [| Loc (Dir (OS_NAME.unsafeFromString $(lift $ OS_NAME.toString p))) |]
 
-liftDirSeg :: Quote m => Seg (Dir PosixPath) -> m Exp
-liftDirSeg p =
-    [| Seg (Dir (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p)))) |]
+liftDirSeg :: Seg (Dir OS_PATH) -> Q Exp
+liftDirSeg (Seg (Dir p)) =
+    [| Seg (Dir (OS_NAME.unsafeFromString $(lift $ OS_NAME.toString p))) |]
 
-liftFileLoc :: Quote m => Loc (File PosixPath) -> m Exp
-liftFileLoc p =
-    [| Loc (File (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p)))) |]
+liftFileLoc :: Loc (File OS_PATH) -> Q Exp
+liftFileLoc (Loc (File p)) =
+    [| Loc (File (OS_NAME.unsafeFromString $(lift $ OS_NAME.toString p))) |]
 
-liftFileSeg :: Quote m => Seg (File PosixPath) -> m Exp
-liftFileSeg p =
-    [| Seg (File (PosixPath (Common.unsafePosixFromString $(lift $ Posix.toString p)))) |]
+liftFileSeg :: Seg (File OS_PATH) -> Q Exp
+liftFileSeg (Seg (File p)) =
+    [| Seg (File (OS_NAME.unsafeFromString $(lift $ OS_NAME.toString p))) |]
 
--- | Generates an @Loc (Dir Path)@ type.
+-- | Generates a Haskell expression of type @Loc (Dir OS_PATH)@.
 --
-mkDirLoc :: String -> Q Exp
-mkDirLoc = either (error . show) liftDirLoc . dirLocFromString
+dirLocExp :: String -> Q Exp
+dirLocExp = either (error . show) liftDirLoc . dirLocFromString
 
--- | Generates an @Seg (Dir Path)@ type.
+-- | Generates a Haskell expression of type @Seg (Dir OS_PATH)@.
 --
-mkDirSeg :: String -> Q Exp
-mkDirSeg = either (error . show) liftDirSeg . dirSegFromString
+dirSegExp :: String -> Q Exp
+dirSegExp = either (error . show) liftDirSeg . dirSegFromString
 
--- | Generates an @Loc (File Path)@ type.
+-- | Generates a Haskell expression of type @Loc (File OS_PATH)@.
 --
-mkFileLoc :: String -> Q Exp
-mkFileLoc = either (error . show) liftFileLoc . fileLocFromString
+fileLocExp :: String -> Q Exp
+fileLocExp = either (error . show) liftFileLoc . fileLocFromString
 
--- | Generates an @Seg (File Path)@ type.
+-- | Generates a Haskell expression of type @Seg (File OS_PATH)@.
 --
-mkFileSeg :: String -> Q Exp
-mkFileSeg = either (error . show) liftFileSeg . fileSegFromString
+fileSegExp :: String -> Q Exp
+fileSegExp = either (error . show) liftFileSeg . fileSegFromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -186,102 +183,108 @@ mkFileSeg = either (error . show) liftFileSeg . fileSegFromString
 
 -- XXX Change to "dirloc"?
 
--- | Generates an @Loc (Dir PosixPath)@ type from a quoted literal.
+-- | Generates an @Loc (Dir OS_PATH)@ type from a quoted literal.
 --
 -- >>> Path.toString ([dirloc|/usr|] :: Loc (Dir PosixPath))
 -- "/usr"
 --
 dirloc :: QuasiQuoter
-dirloc = mkQ mkDirLoc
+dirloc = mkQ dirLocExp
 
--- | Generates a @Seg (Dir PosixPath)@ type from a quoted literal.
+-- | Generates a @Seg (Dir OS_PATH)@ type from a quoted literal.
 --
 -- >>> Path.toString ([dirseg|usr|] :: Seg (Dir PosixPath))
 -- "usr"
 --
 dirseg :: QuasiQuoter
-dirseg = mkQ mkDirSeg
+dirseg = mkQ dirSegExp
 
 -- XXX Change to "fileloc"?
 
--- | Generates an @Loc (File PosixPath)@ type from a quoted literal.
+-- | Generates an @Loc (File OS_PATH)@ type from a quoted literal.
 --
 -- >>> Path.toString ([fileloc|/usr|] :: Loc (File PosixPath))
 -- "/usr"
 --
 fileloc :: QuasiQuoter
-fileloc = mkQ mkFileLoc
+fileloc = mkQ fileLocExp
 
--- | Generates an @Seg (File PosixPath)@ type from a quoted literal.
+-- | Generates an @Seg (File OS_PATH)@ type from a quoted literal.
 --
 -- >>> Path.toString ([fileseg|usr|] :: Seg (File PosixPath))
 -- "usr"
 --
 fileseg :: QuasiQuoter
-fileseg = mkQ mkFileSeg
+fileseg = mkQ fileSegExp
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
 -- type path, and (2) second path can only be a Seg path.
 
--- If you are not using File/Dir annotations then this is the only API you need
--- to combine paths.
-
--- | Use this API to combine paths when the first path is @Loc@ or @Seg@.
--- Second path must be @Seg@, if the second path is just @Dir@ or @File@ you
--- can wrap it in @Seg@ first.
+{-
+-- If the first path is 'Loc' then the return type is also 'Loc'.
 --
--- If the first path is absolute then the return type is also absolute.
---
--- >>> Path.toString (Path.append [abs|/usr|] [rel|bin|] :: Loc PosixPath)
--- "/usr/bin"
--- >>> Path.toString (Path.append [rel|usr|] [rel|bin|] :: Seg PosixPath)
--- "usr/bin"
---
--- If the second path does not have File or Dir information then the return
+-- If the second path does not have 'File' or 'Dir' information then the return
 -- type too cannot have it.
 --
--- >>> Path.toString (Path.append [dirloc|/usr|] [rel|bin|] :: Loc PosixPath)
+-- >> Path.toString (PathTyp.append [dirloc|/usr|] [seg|bin|] :: Loc PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (Path.append [dirseg|usr|] [rel|bin|] :: Seg PosixPath)
+-- >> Path.toString (PathTyp.append [dirseg|usr|] [seg|bin|] :: Seg PosixPath)
+-- "usr/bin"
+--
+-- >> Path.toString (PathTyp.append [loc|/usr|] [seg|bin|] :: Loc PosixPath)
+-- "/usr/bin"
+-- >> Path.toString (PathTyp.append [seg|usr|] [seg|bin|] :: Seg PosixPath)
 -- "usr/bin"
 --
 -- If the second path has 'File' or 'Dir' information then the return type
 -- also has it.
 --
--- >>> Path.toString (Path.append [abs|/usr|] [dirseg|bin|] :: Loc (Dir PosixPath))
+-- >> Path.toString (PathTyp.append [loc|/usr|] [dirseg|bin|] :: Loc (Dir PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (Path.append [abs|/usr|] [fileseg|bin|] :: Loc (File PosixPath))
+-- >> Path.toString (PathTyp.append [loc|/usr|] [fileseg|bin|] :: Loc (File PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (Path.append [rel|usr|] [dirseg|bin|] :: Seg (Dir PosixPath))
+-- >> Path.toString (PathTyp.append [seg|usr|] [dirseg|bin|] :: Seg (Dir PosixPath))
 -- "usr/bin"
--- >>> Path.toString (Path.append [rel|usr|] [fileseg|bin|] :: Seg (File PosixPath))
--- "usr/bin"
---
--- >>> Path.toString (Path.append [dirloc|/usr|] [dirseg|bin|] :: Loc (Dir PosixPath))
--- "/usr/bin"
--- >>> Path.toString (Path.append [dirloc|/usr|] [fileseg|bin|] :: Loc (File PosixPath))
--- "/usr/bin"
--- >>> Path.toString (Path.append [dirseg|usr|] [dirseg|bin|] :: Seg (Dir PosixPath))
--- "usr/bin"
--- >>> Path.toString (Path.append [dirseg|usr|] [fileseg|bin|] :: Seg (File PosixPath))
+-- >> Path.toString (PathTyp.append [seg|usr|] [fileseg|bin|] :: Seg (File PosixPath))
 -- "usr/bin"
 --
 -- Type error cases:
 --
--- >> Path.append [dir|/usr|] [rel|bin|] -- first arg must be Loc/Seg
--- >> Path.append [file|/usr|] [rel|bin|] -- first arg must be Loc/Seg
--- >> Path.append [fileloc|/usr|] [rel|bin|] -- first arg must be a dir
--- >> Path.append [abs|/usr|] [abs|/bin|] -- second arg must be rel
--- >> Path.append [abs|/usr|] [dir|bin|] -- second arg must be rel
--- >> Path.append [abs|/usr|] [file|bin|] -- second arg must be rel
+-- >> PathTyp.append [dir|/usr|] [seg|bin|] -- first arg must be Loc/Seg
+-- >> PathTyp.append [file|/usr|] [seg|bin|] -- first arg must be Loc/Seg
+-- >> PathTyp.append [fileloc|/usr|] [seg|bin|] -- first arg must be a dir
+-- >> PathTyp.append [loc|/usr|] [loc|/bin|] -- second arg must be seg
+-- >> PathTyp.append [loc|/usr|] [dir|bin|] -- second arg must be seg
+-- >> PathTyp.append [loc|/usr|] [file|bin|] -- second arg must be seg
 --
 {-# INLINE append #-}
 append ::
     (
       IsLocSeg (a b)
     , HasDir (a b)
-    , IsPath PosixPath (a b)
-    , IsPath PosixPath c
-    , IsPath PosixPath (a c)
+    , IsPath OS_PATH (a b)
+    , IsPath OS_PATH c
+    , IsPath OS_PATH (a c)
     ) => a b -> Seg c -> a c
-append a (Seg c) = unsafeFromPath $ Posix.unsafeAppend (toPath a) (toPath c)
+append a (Seg c) = unsafeFromPath $ OS_NAME.unsafeAppend (toPath a) (toPath c)
+-}
+
+-- | Append a path segment to a directory.
+--
+-- >>> Path.toString (PathTyp.append [dirloc|/usr|] [dirseg|bin|] :: Loc (Dir PosixPath))
+-- "/usr/bin"
+-- >>> Path.toString (PathTyp.append [dirloc|/usr|] [fileseg|bin|] :: Loc (File PosixPath))
+-- "/usr/bin"
+-- >>> Path.toString (PathTyp.append [dirseg|usr|] [dirseg|bin|] :: Seg (Dir PosixPath))
+-- "usr/bin"
+-- >>> Path.toString (PathTyp.append [dirseg|usr|] [fileseg|bin|] :: Seg (File PosixPath))
+-- "usr/bin"
+--
+{-# INLINE append #-}
+append ::
+    (
+      IsPath OS_PATH (a (Dir OS_PATH))
+    , IsPath OS_PATH (b OS_PATH)
+    , IsPath OS_PATH (a (b OS_PATH))
+    ) => a (Dir PosixPath) -> Seg (b PosixPath) -> a (b PosixPath)
+append a (Seg c) = unsafeFromPath $ OS_NAME.unsafeAppend (toPath a) (toPath c)
