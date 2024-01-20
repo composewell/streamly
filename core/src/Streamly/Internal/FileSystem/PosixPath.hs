@@ -9,7 +9,7 @@
 #define UNICODE_ENCODER encodeUtf16le'
 #define UNICODE_DECODER decodeUtf16le'
 #define CODEC_NAME UTF-16LE
-#define SEPARATORS @/, \\\\@
+#define SEPARATORS @/, \\@
 #else
 #define OS_NAME Posix
 #define OS_PATH PosixPath
@@ -86,6 +86,9 @@ where
 import Control.Monad.Catch (MonadThrow(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
+#if defined(IS_WINDOWS)
+import Data.Word (Word16)
+#endif
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Stream (Stream)
@@ -308,7 +311,7 @@ toString = runIdentity . Stream.toList . toChars
 -- Relative locations:
 --
 -- * @\\@ relative to current drive root
--- * @./@ relative to current directory
+-- * @.\\@ relative to current directory
 -- * @C:file@ relative to current directory in drive
 #else
 -- | A path referring to a specific file system object:

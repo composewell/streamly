@@ -379,19 +379,19 @@ library
                      -- Filesystem/IO
 
                      , Streamly.Internal.FileSystem.Path
-                     -- , Streamly.Internal.FileSystem.Path.LocSeg
-                     -- , Streamly.Internal.FileSystem.Path.FileDir
-                     -- , Streamly.Internal.FileSystem.Path.Typed
+                     , Streamly.Internal.FileSystem.Path.LocSeg
+                     , Streamly.Internal.FileSystem.Path.FileDir
+                     , Streamly.Internal.FileSystem.Path.Typed
 
                      , Streamly.Internal.FileSystem.PosixPath
                      , Streamly.Internal.FileSystem.PosixPath.LocSeg
                      , Streamly.Internal.FileSystem.PosixPath.FileDir
                      , Streamly.Internal.FileSystem.PosixPath.Typed
 
-                     -- , Streamly.Internal.FileSystem.WindowsPath
-                     -- , Streamly.Internal.FileSystem.WindowsPath.LocSeg
-                     -- , Streamly.Internal.FileSystem.WindowsPath.FileDir
-                     -- , Streamly.Internal.FileSystem.WindowsPath.Typed
+                     , Streamly.Internal.FileSystem.WindowsPath
+                     , Streamly.Internal.FileSystem.WindowsPath.LocSeg
+                     , Streamly.Internal.FileSystem.WindowsPath.FileDir
+                     , Streamly.Internal.FileSystem.WindowsPath.Typed
 
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File

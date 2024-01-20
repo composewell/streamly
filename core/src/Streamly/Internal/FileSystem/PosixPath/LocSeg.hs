@@ -63,6 +63,7 @@ import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.FileSystem.Path.Common (OS(..), mkQ)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
 
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
 import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 
@@ -107,27 +108,27 @@ instance IsLocSeg (Seg a)
 
 locFromChunk :: MonadThrow m => Array Word8 -> m (Loc OS_PATH)
 locFromChunk arr = do
-    if Common.isLocation Posix arr
-    then pure $ Loc (OS_PATH arr)
+    if Common.isLocation OS_NAME arr
+    then fmap Loc (OsPath.fromChunk arr)
     -- XXX Add more detailed error msg with all valid examples.
     else throwM $ InvalidPath "Must be a specific location, not a path segment"
 
 locFromString :: MonadThrow m => String -> m (Loc OS_PATH)
 locFromString s = do
     OS_PATH arr <- OsPath.fromString s
-    locFromChunk arr
+    locFromChunk (Array.castUnsafe arr)
 
 segFromChunk :: MonadThrow m => Array Word8 -> m (Seg OS_PATH)
 segFromChunk arr = do
-    if Common.isSegment Posix arr
-    then pure $ Seg (OS_PATH arr)
+    if Common.isSegment OS_NAME arr
+    then fmap Seg (OsPath.fromChunk arr)
     -- XXX Add more detailed error msg with all valid examples.
     else throwM $ InvalidPath "Must be a path segment, not a specific location"
 
 segFromString :: MonadThrow m => String -> m (Seg OS_PATH)
 segFromString s = do
     OS_PATH arr <- OsPath.fromString s
-    segFromChunk arr
+    segFromChunk (Array.castUnsafe arr)
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings

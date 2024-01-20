@@ -286,5 +286,5 @@ append ::
       IsPath OS_PATH (a (Dir OS_PATH))
     , IsPath OS_PATH (b OS_PATH)
     , IsPath OS_PATH (a (b OS_PATH))
-    ) => a (Dir PosixPath) -> Seg (b PosixPath) -> a (b PosixPath)
+    ) => a (Dir OS_PATH) -> Seg (b OS_PATH) -> a (b OS_PATH)
 append a (Seg c) = unsafeFromPath $ OS_NAME.unsafeAppend (toPath a) (toPath c)
