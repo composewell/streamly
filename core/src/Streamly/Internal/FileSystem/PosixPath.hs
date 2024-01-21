@@ -169,6 +169,8 @@ instance IsPath OS_PATH OS_PATH where
 -- should not verify it again e.g. if we adapt (Loc path) as (Loc (Dir path))
 -- then we should not verify it to be Loc again.
 
+-- XXX castPath?
+
 -- | Convert a path type to another path type. This operation may fail with a
 -- 'PathException' when converting a less restrictive path type to a more
 -- restrictive one. This can be used to upgrade or downgrade type safety.
@@ -200,13 +202,15 @@ dropTrailingSeparators (OS_PATH arr) =
 -- | /Unsafe/: The user is responsible to make sure that the cases mentioned in
 -- OS_PATH are satisfied.
 {-# INLINE unsafeFromChunk #-}
-unsafeFromChunk :: Array Word8 -> OS_PATH
-unsafeFromChunk = OS_PATH . Common.unsafeFromChunk
+unsafeFromChunk :: IsPath OS_PATH a => Array Word8 -> a
+unsafeFromChunk = unsafeFromPath . OS_PATH . Common.unsafeFromChunk
+
+-- XXX mkPath?
 
 -- | See 'fromChars' for failure cases.
 --
-fromChunk :: MonadThrow m => Array Word8 -> m OS_PATH
-fromChunk = fmap OS_PATH . Common.fromChunk
+fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array Word8 -> m a
+fromChunk arr = fmap OS_PATH (Common.fromChunk arr) >>= fromPath
 
 -- XXX Should be a Fold instead?
 
@@ -222,13 +226,15 @@ fromChunk = fmap OS_PATH . Common.fromChunk
 --
 -- Unicode normalization is not done. If normalization is needed the user can
 -- normalize it and use the fromChunk API.
-fromChars :: MonadThrow m => Stream Identity Char -> m OS_PATH
-fromChars =
-    fmap OS_PATH . Common.fromChars (== '\0') Unicode.UNICODE_ENCODER
+fromChars :: (MonadThrow m, IsPath OS_PATH a) => Stream Identity Char -> m a
+fromChars s =
+    fmap OS_PATH (Common.fromChars (== '\0') Unicode.UNICODE_ENCODER s)
+        >>= fromPath
 
-unsafeFromString :: [Char] -> OS_PATH
+unsafeFromString :: IsPath OS_PATH a => [Char] -> a
 unsafeFromString =
-      OS_PATH
+      unsafeFromPath
+    . OS_PATH
     . Common.unsafeFromChars (== '\0') Unicode.UNICODE_ENCODER
     . Stream.fromList
 
@@ -236,7 +242,7 @@ unsafeFromString =
 --
 -- >>> fromString = Path.fromChars . Stream.fromList
 --
-fromString :: MonadThrow m => [Char] -> m OS_PATH
+fromString :: (MonadThrow m, IsPath OS_PATH a) => [Char] -> m a
 fromString = fromChars . Stream.fromList
 
 ------------------------------------------------------------------------------
@@ -245,10 +251,12 @@ fromString = fromChars . Stream.fromList
 
 -- XXX We can lift the array directly, ByteArray has a lift instance. Does that
 -- work better?
+--
+-- XXX Make this polymorphic and reusable in other modules.
 
 liftPath :: OS_PATH -> Q Exp
 liftPath p =
-    [| unsafeFromString $(lift $ toString p) |]
+    [| unsafeFromString $(lift $ toString p) :: OS_PATH |]
 
 -- | Generates a Haskell expression of type OS_PATH from a String.
 --
@@ -276,12 +284,14 @@ path = mkQ pathExp
 -- Eimination
 ------------------------------------------------------------------------------
 
+-- XXX unPath?
+
 -- | Convert the path to an array of bytes.
-toChunk :: OS_PATH -> Array Word8
-toChunk (OS_PATH arr) = Common.toChunk arr
+toChunk :: IsPath OS_PATH a => a -> Array Word8
+toChunk p = let OS_PATH arr = toPath p in Common.toChunk arr
 
 -- | Decode the path to a stream of Unicode chars using strict CODEC_NAME decoding.
-toChars :: (Monad m, IsPath OS_PATH p) => p -> Stream m Char
+toChars :: (Monad m, IsPath OS_PATH a) => a -> Stream m Char
 toChars p =
     let (OS_PATH arr) =
             toPath p in Common.toChars Unicode.UNICODE_DECODER arr
@@ -330,6 +340,7 @@ isSegment :: OS_PATH -> Bool
 isSegment = not . isLocation
 
 -- XXX This can be generalized to an Array intersperse operation
+-- XXX This can work on a polymorphic IsPath type.
 
 {-# INLINE unsafeAppend #-}
 unsafeAppend :: OS_PATH -> OS_PATH -> OS_PATH

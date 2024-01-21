@@ -25,24 +25,14 @@
 
 module Streamly.Internal.FileSystem.OS_PATH.Typed
     (
-    -- * Types
-      HasDir
-
-    -- * Construction
-    -- ** From String
-    , dirLocFromString -- dirLocString?
-    , dirSegFromString
-    , fileLocFromString
-    , fileSegFromString
-
-    -- ** Statically Verified String Literals
+    -- * Statically Verified Path Literals
     -- | Quasiquoters.
-    , dirloc
+      dirloc
     , dirseg
     , fileloc
     , fileseg
 
-    -- ** Statically Verified Strings
+    -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
     , dirLocExp
     , dirSegExp
@@ -54,15 +44,13 @@ module Streamly.Internal.FileSystem.OS_PATH.Typed
     )
 where
 
-import Control.Monad.Catch (MonadThrow(..))
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.FileSystem.Path.Common (mkQ)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
 import Streamly.Internal.FileSystem.OS_PATH.LocSeg (Loc(..), Seg(..))
 import Streamly.Internal.FileSystem.OS_PATH.FileDir (File(..), Dir(..))
 
-import qualified Streamly.Internal.FileSystem.OS_PATH as OS_NAME
-import qualified Streamly.Internal.FileSystem.OS_PATH.LocSeg as LocSeg
+import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 
 import Language.Haskell.TH hiding (Loc)
 import Language.Haskell.TH.Quote
@@ -84,50 +72,85 @@ For APIs that have not been released yet.
 
 -- Note that (Loc a) may also be a directory if "a" is (Dir b), but it can also
 -- be a file if "a" is (File b). Therefore, the constraints are put on a more
--- spspecific type e.g. (Loc OS_PATH) may be a dir.
+-- specific type e.g. (Loc OS_PATH) may be a dir.
 
+{-
 -- | Constraint to check if a type represents a directory.
 class HasDir a
 
 instance HasDir (Dir a)
 instance HasDir (Loc (Dir a))
 instance HasDir (Seg (Dir a))
+-}
+
+-- Design notes:
+--
+-- There are two ways in which we can lift or upgrade a lower level path to a
+-- higher level one. Lift each type directly from the base path e.g. Loc (Dir
+-- PosixPath) can be created directly from PosixPath. This allows us to do dir
+-- checks and loc checks at the same time in a monolithic manner. But this also
+-- makes us do the Dir checks again if we are lifting from Dir to Loc. This
+-- leads to less complicated constraints, more convenient type conversions.
+--
+-- Another alternative is to lift one segment at a time, so we lift PosixPath
+-- to Dir and then Dir to Loc. This way the checks are serialized, we perform
+-- the dir checks first and then Loc checks, we cannot combine them together.
+-- The advantage is that when lifting from Dir to Loc we do not need to do the
+-- Dir checks. The disadvantage is less convenient conversion because of
+-- stronger typing, we will need two steps - fromPath . fromPath and toPath .
+-- toPath to upgrade or downgrade instead of just adapt.
+--
+{-
+instance IsPath (File OS_PATH) (Loc (File OS_PATH)) where
+    unsafeFromPath = Loc
+    fromPath (File p) = do
+        _ :: Loc OS_PATH <- fromPath p
+        pure $ Loc (File p)
+    toPath (Loc p) = p
+
+instance IsPath (Loc OS_PATH) (Loc (File OS_PATH)) where
+    unsafeFromPath = Loc
+    fromPath (File p) = do
+        _ :: File OS_PATH <- fromPath p
+        pure $ Loc (File p)
+    toPath (Loc p) = p
+-}
+
+-- Assuming that lifting from Dir/File to Loc/Seg is not common and even if it
+-- is then the combined cost of doing Dir/Loc checks would be almost the same
+-- as individual checks, we take the first approach.
 
 instance IsPath OS_PATH (Loc (File OS_PATH)) where
     unsafeFromPath p = Loc (File p)
-    fromPath p = pure (Loc (File p))
+    fromPath p = do
+        _ :: File OS_PATH <- fromPath p
+        _ :: Loc OS_PATH <- fromPath p
+        pure $ Loc (File p)
     toPath (Loc (File p)) = p
 
 instance IsPath OS_PATH (Loc (Dir OS_PATH)) where
     unsafeFromPath p = Loc (Dir p)
-    fromPath p = pure (Loc (Dir p))
+    fromPath p = do
+        _ :: Dir OS_PATH <- fromPath p
+        _ :: Loc OS_PATH <- fromPath p
+        pure $ Loc (Dir p)
     toPath (Loc (Dir p)) = p
 
 instance IsPath OS_PATH (Seg (File OS_PATH)) where
     unsafeFromPath p = Seg (File p)
-    fromPath p = pure (Seg (File p))
+    fromPath p = do
+        _ :: File OS_PATH <- fromPath p
+        _ :: Seg OS_PATH <- fromPath p
+        pure $ Seg (File p)
     toPath (Seg (File p)) = p
 
 instance IsPath OS_PATH (Seg (Dir OS_PATH)) where
     unsafeFromPath p = Seg (Dir p)
-    fromPath p = pure (Seg (Dir p))
+    fromPath p = do
+        _ :: Dir OS_PATH <- fromPath p
+        _ :: Seg OS_PATH <- fromPath p
+        pure $ Seg (Dir p)
     toPath (Seg (Dir p)) = p
-
-------------------------------------------------------------------------------
---
-------------------------------------------------------------------------------
-
-dirLocFromString :: MonadThrow m => String -> m (Loc (Dir OS_PATH))
-dirLocFromString s = LocSeg.locFromString s >>= OS_NAME.adapt
-
-dirSegFromString :: MonadThrow m => String -> m (Seg (Dir OS_PATH))
-dirSegFromString s = LocSeg.segFromString s >>= OS_NAME.adapt
-
-fileLocFromString :: MonadThrow m => String -> m (Loc (File OS_PATH))
-fileLocFromString s = OS_NAME.fromString s >>= OS_NAME.adapt
-
-fileSegFromString :: MonadThrow m => String -> m (Seg (File OS_PATH))
-fileSegFromString s = OS_NAME.fromString s >>= OS_NAME.adapt
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
@@ -138,39 +161,39 @@ fileSegFromString s = OS_NAME.fromString s >>= OS_NAME.adapt
 
 liftDirLoc :: Loc (Dir OS_PATH) -> Q Exp
 liftDirLoc (Loc (Dir p)) =
-    [| Loc (Dir (OS_NAME.unsafeFromString $(lift $ OS_NAME.toString p))) |]
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Loc (Dir OS_PATH)|]
 
 liftDirSeg :: Seg (Dir OS_PATH) -> Q Exp
 liftDirSeg (Seg (Dir p)) =
-    [| Seg (Dir (OS_NAME.unsafeFromString $(lift $ OS_NAME.toString p))) |]
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Seg (Dir OS_PATH) |]
 
 liftFileLoc :: Loc (File OS_PATH) -> Q Exp
 liftFileLoc (Loc (File p)) =
-    [| Loc (File (OS_NAME.unsafeFromString $(lift $ OS_NAME.toString p))) |]
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Loc (File OS_PATH)|]
 
 liftFileSeg :: Seg (File OS_PATH) -> Q Exp
 liftFileSeg (Seg (File p)) =
-    [| Seg (File (OS_NAME.unsafeFromString $(lift $ OS_NAME.toString p))) |]
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Seg (File OS_PATH)|]
 
 -- | Generates a Haskell expression of type @Loc (Dir OS_PATH)@.
 --
 dirLocExp :: String -> Q Exp
-dirLocExp = either (error . show) liftDirLoc . dirLocFromString
+dirLocExp = either (error . show) liftDirLoc . OsPath.fromString
 
 -- | Generates a Haskell expression of type @Seg (Dir OS_PATH)@.
 --
 dirSegExp :: String -> Q Exp
-dirSegExp = either (error . show) liftDirSeg . dirSegFromString
+dirSegExp = either (error . show) liftDirSeg . OsPath.fromString
 
 -- | Generates a Haskell expression of type @Loc (File OS_PATH)@.
 --
 fileLocExp :: String -> Q Exp
-fileLocExp = either (error . show) liftFileLoc . fileLocFromString
+fileLocExp = either (error . show) liftFileLoc . OsPath.fromString
 
 -- | Generates a Haskell expression of type @Seg (File OS_PATH)@.
 --
 fileSegExp :: String -> Q Exp
-fileSegExp = either (error . show) liftFileSeg . fileSegFromString
+fileSegExp = either (error . show) liftFileSeg . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -287,4 +310,5 @@ append ::
     , IsPath OS_PATH (b OS_PATH)
     , IsPath OS_PATH (a (b OS_PATH))
     ) => a (Dir OS_PATH) -> Seg (b OS_PATH) -> a (b OS_PATH)
-append a (Seg c) = unsafeFromPath $ OS_NAME.unsafeAppend (toPath a) (toPath c)
+append p1 (Seg p2) =
+    unsafeFromPath $ OsPath.unsafeAppend (toPath p1) (toPath p2)

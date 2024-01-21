@@ -11,6 +11,7 @@ module Streamly.Internal.FileSystem.Path.Common
     (
     -- * Types
       OS (..)
+
     -- * Construction
     , fromChunk
     , unsafeFromChunk
@@ -33,6 +34,11 @@ module Streamly.Internal.FileSystem.Path.Common
 
     , append
     , unsafeAppend
+
+    -- * Utilities
+    , wordToChar
+    , charToWord
+    , unsafeIndexChar
     )
 where
 

@@ -36,17 +36,12 @@ module Streamly.Internal.FileSystem.OS_PATH.LocSeg
     , Seg (..)
     , IsLocSeg
 
-    -- * Construction
-    -- ** From String
-    , locFromString -- locString?
-    , segFromString
-
-    -- ** Statically Verified String Literals
+    -- * Statically Verified Path Literals
     -- | Quasiquoters.
     , loc
     , seg
 
-    -- ** Statically Verified Strings
+    -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
     , locExp
     , segExp
@@ -57,19 +52,14 @@ module Streamly.Internal.FileSystem.OS_PATH.LocSeg
 where
 
 import Control.Monad.Catch (MonadThrow(..))
-import Data.Word (Word8)
+import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Syntax (lift)
-import Streamly.Internal.Data.Array (Array(..))
-import Streamly.Internal.FileSystem.Path.Common (OS(..), mkQ)
+import Language.Haskell.TH.Quote (QuasiQuoter)
+import Streamly.Internal.Data.Path (IsPath(..), PathException(..))
+import Streamly.Internal.FileSystem.Path.Common (mkQ)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
 
-import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.FileSystem.Path.Common as Common
 import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
-
-import Language.Haskell.TH hiding (Loc)
-import Language.Haskell.TH.Quote
-import Streamly.Internal.Data.Path
 
 {- $setup
 >>> :m
@@ -88,12 +78,24 @@ newtype Seg a = Seg a
 
 instance IsPath OS_PATH (Loc OS_PATH) where
     unsafeFromPath = Loc
-    fromPath p = pure (Loc p)
+    fromPath p =
+        if OsPath.isLocation p
+        then pure (Loc p)
+        -- XXX Add more detailed error msg with all valid examples.
+        else throwM $ InvalidPath
+                $ "Must be a specific location, not a path segment: "
+                ++ OsPath.toString p
     toPath (Loc p) = p
 
 instance IsPath OS_PATH (Seg OS_PATH) where
     unsafeFromPath = Seg
-    fromPath p = pure (Seg p)
+    fromPath p =
+        if OsPath.isSegment p
+        then pure (Seg p)
+        -- XXX Add more detailed error msg with all valid examples.
+        else throwM $ InvalidPath
+                $ "Must be a path segment, not a specific location: "
+                ++ OsPath.toString p
     toPath (Seg p) = p
 
 -- | Constraint to check if a type has Loc or Seg annotations.
@@ -103,54 +105,26 @@ instance IsLocSeg (Loc a)
 instance IsLocSeg (Seg a)
 
 ------------------------------------------------------------------------------
---
-------------------------------------------------------------------------------
-
-locFromChunk :: MonadThrow m => Array Word8 -> m (Loc OS_PATH)
-locFromChunk arr = do
-    if Common.isLocation OS_NAME arr
-    then fmap Loc (OsPath.fromChunk arr)
-    -- XXX Add more detailed error msg with all valid examples.
-    else throwM $ InvalidPath "Must be a specific location, not a path segment"
-
-locFromString :: MonadThrow m => String -> m (Loc OS_PATH)
-locFromString s = do
-    OS_PATH arr <- OsPath.fromString s
-    locFromChunk (Array.castUnsafe arr)
-
-segFromChunk :: MonadThrow m => Array Word8 -> m (Seg OS_PATH)
-segFromChunk arr = do
-    if Common.isSegment OS_NAME arr
-    then fmap Seg (OsPath.fromChunk arr)
-    -- XXX Add more detailed error msg with all valid examples.
-    else throwM $ InvalidPath "Must be a path segment, not a specific location"
-
-segFromString :: MonadThrow m => String -> m (Seg OS_PATH)
-segFromString s = do
-    OS_PATH arr <- OsPath.fromString s
-    segFromChunk (Array.castUnsafe arr)
-
-------------------------------------------------------------------------------
 -- Statically Verified Strings
 ------------------------------------------------------------------------------
 
 liftLoc :: Loc OS_PATH -> Q Exp
 liftLoc (Loc p) =
-    [| Loc (OsPath.unsafeFromString $(lift $ OsPath.toString p)) |]
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Loc OS_PATH |]
 
 liftSeg :: Seg OS_PATH -> Q Exp
 liftSeg (Seg p) =
-    [| Seg (OsPath.unsafeFromString $(lift $ OsPath.toString p)) |]
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Seg OS_PATH |]
 
 -- | Generates a Haskell expression of type @Loc OS_PATH@.
 --
 locExp :: String -> Q Exp
-locExp = either (error . show) liftLoc . locFromString
+locExp = either (error . show) liftLoc . OsPath.fromString
 
 -- | Generates a Haskell expression of type @Seg OS_PATH@.
 --
 segExp :: String -> Q Exp
-segExp = either (error . show) liftSeg . segFromString
+segExp = either (error . show) liftSeg . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals

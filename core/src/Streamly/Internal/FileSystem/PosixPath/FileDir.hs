@@ -31,16 +31,12 @@ module Streamly.Internal.FileSystem.OS_PATH.FileDir
     , Dir (..)
     , IsFileDir
 
-    -- * Construction
-    , dirFromString -- dirString?
-    , fileFromString
-
-    -- ** Statically Verified String Literals
+    -- * Statically Verified Path Literals
     -- | Quasiquoters.
     , dir
     , file
 
-    -- ** Statically Verified Strings
+    -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
     , dirExp
     , fileExp
@@ -51,16 +47,17 @@ module Streamly.Internal.FileSystem.OS_PATH.FileDir
 where
 
 import Control.Monad.Catch (MonadThrow(..))
+import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Syntax (lift)
+import Language.Haskell.TH.Quote (QuasiQuoter)
+import Streamly.Internal.Data.Path (IsPath(..), PathException(..))
 import Streamly.Internal.FileSystem.Path.Common (OS(..), mkQ)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
 
+import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
 import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
-
-import Language.Haskell.TH
-import Language.Haskell.TH.Quote
-import Streamly.Internal.Data.Path
 
 {- $setup
 >>> :m
@@ -86,33 +83,31 @@ instance IsFileDir (Dir a)
 
 instance IsPath OS_PATH (File OS_PATH) where
     unsafeFromPath = File
-    fromPath p = pure (File p)
+
+    -- Cannot have "." or ".." as last component.
+    fromPath p@(OS_PATH arr) = do
+        s1 <-
+                Stream.toList
+                    $ Stream.take 3
+                    $ Stream.takeWhile (not . Common.isSeparator OS_NAME)
+                    $ fmap Common.wordToChar
+                    $ Array.readRev arr
+        -- XXX On posix we just need to check last 3 bytes of the array
+        case s1 of
+            '.' : xs ->
+                case xs of
+                    [] -> throwM $ InvalidPath "A file name cannot be \".\""
+                    '.' : [] ->
+                        throwM $ InvalidPath "A file name cannot be \"..\""
+                    _ -> pure $ File p
+            _ -> pure $ File p
+
     toPath (File p) = p
 
 instance IsPath OS_PATH (Dir OS_PATH) where
     unsafeFromPath = Dir
     fromPath p = pure (Dir p)
     toPath (Dir p) = p
-
-------------------------------------------------------------------------------
---
-------------------------------------------------------------------------------
-
--- | Any valid path could be a directory.
-dirFromString :: MonadThrow m => String -> m (Dir OS_PATH)
-dirFromString s = Dir <$> OsPath.fromString s
-
--- | Cannot have "." or ".." as last component.
-fileFromString :: MonadThrow m => String -> m (File OS_PATH)
-fileFromString s = do
-    r@(OS_PATH _arr) <- OsPath.fromString s
-    -- XXX take it from the array
-    let s1 = reverse $ takeWhile (not . Common.isSeparator Posix) (reverse s)
-     in if s1 == "."
-        then throwM $ InvalidPath "A file name cannot be \".\""
-        else if s1 == ".."
-        then throwM $ InvalidPath "A file name cannot be \"..\""
-        else (pure . File) r
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
@@ -123,21 +118,21 @@ fileFromString s = do
 
 liftDir :: Dir OS_PATH -> Q Exp
 liftDir (Dir p) =
-    [| Dir (OsPath.unsafeFromString $(lift $ OsPath.toString p)) |]
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Dir OS_PATH |]
 
 liftFile :: File OS_PATH -> Q Exp
 liftFile (File p) =
-    [| File (OsPath.unsafeFromString $(lift $ OsPath.toString p)) |]
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: File OS_PATH |]
 
 -- | Generates a Haskell expression of type @Dir OS_PATH@.
 --
 dirExp :: String -> Q Exp
-dirExp = either (error . show) liftDir . dirFromString
+dirExp = either (error . show) liftDir . OsPath.fromString
 
 -- | Generates a Haskell expression of type @File OS_PATH@.
 --
 fileExp :: String -> Q Exp
-fileExp = either (error . show) liftFile . fileFromString
+fileExp = either (error . show) liftFile . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals

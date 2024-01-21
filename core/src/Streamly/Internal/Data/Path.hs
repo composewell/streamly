@@ -34,6 +34,7 @@ instance Exception PathException
 ------------------------------------------------------------------------------
 
 -- XXX Swap the order of IsPath arguments?
+-- XXX rename to fromBase, fromBasePath, fromOsPath?
 
 -- | If the type @a b@ is a member of 'IsPath' it means we know how to convert
 -- the type @b@ to and from the base type @a@.
