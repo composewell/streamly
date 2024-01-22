@@ -43,6 +43,7 @@ module Streamly.Internal.Data.Stream.Eliminate
     , null
     , head
     , headElse
+    , init
     , tail
     , last
     , elem
@@ -90,7 +91,7 @@ import Foreign.Storable (Storable)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.SVar.Type (defState)
+import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (Unbox)
 
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
@@ -105,7 +106,7 @@ import qualified Streamly.Internal.Data.Stream.Transform as StreamD
 
 import Prelude hiding
        ( Foldable(..), all, any, head, last, lookup, mapM, mapM_
-       , notElem, splitAt, tail, (!!))
+       , notElem, splitAt, init, tail, (!!))
 import Data.Foldable (length)
 import Streamly.Internal.Data.Stream.Type
 
@@ -391,9 +392,35 @@ head = foldrM (\x _ -> return (Just x)) (return Nothing)
 headElse :: Monad m => a -> Stream m a -> m a
 headElse a = foldrM (\x _ -> return x) (return a)
 
+{-# INLINE_NORMAL init #-}
+init :: Monad m => Stream m a -> m (Maybe (Stream m a))
+init stream = do
+    r <- uncons stream
+    case r of
+        Nothing -> return Nothing
+        Just (h, Stream step1 state1) ->
+            return $ Just $ Stream step (h, state1)
+
+            where
+
+            step gst (a, s1) = do
+                res <- step1 (adaptState gst) s1
+                return $
+                    case res of
+                        Yield x s -> Yield a (x, s)
+                        Skip s -> Skip (a, s)
+                        Stop -> Stop
+
+-- | Same as:
+--
+-- >>> tail = fmap (fmap snd) . Stream.uncons
+--
 -- Does not fuse, has the same performance as the StreamK version.
+--
 {-# INLINE_NORMAL tail #-}
 tail :: Monad m => Stream m a -> m (Maybe (Stream m a))
+tail = fmap (fmap snd) . uncons
+{-
 tail (UnStream step state) = go SPEC state
   where
     go !_ st = do
@@ -402,6 +429,7 @@ tail (UnStream step state) = go SPEC state
             Yield _ s -> return (Just $ Stream step s)
             Skip  s   -> go SPEC s
             Stop      -> return Nothing
+-}
 
 -- XXX will it fuse? need custom impl?
 {-# INLINE_NORMAL last #-}

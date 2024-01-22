@@ -97,8 +97,11 @@ module Streamly.Internal.Data.StreamK.Type
     -- ** Specific Folds
     , drain
     , null
+    , headNonEmpty
     , tail
+    , tailNonEmpty
     , init
+    , initNonEmpty
 
     -- * Mapping
     , map
@@ -1811,14 +1814,42 @@ iterateMWith cns step = go
         !next <- s
         foldStreamShared st stp sng yld (return next `cns` go (step next))
 
-{-# INLINE headPartial #-}
-headPartial :: Monad m => StreamK m a -> m a
-headPartial = foldrM (\x _ -> return x) (error "head of nil")
+-- | head for non-empty streams, fails for empty stream case.
+--
+{-# INLINE headNonEmpty #-}
+headNonEmpty :: Monad m => StreamK m a -> m a
+headNonEmpty = foldrM (\x _ -> return x) (error "headNonEmpty: empty stream")
 
-{-# INLINE tailPartial #-}
-tailPartial :: StreamK m a -> StreamK m a
-tailPartial m = mkStream $ \st yld sng stp ->
-    let stop      = error "tail of nil"
+-- | init for non-empty streams, fails for empty stream case.
+--
+-- See also 'init' for a non-partial version of this function..
+{-# INLINE initNonEmpty #-}
+initNonEmpty :: Stream m a -> Stream m a
+initNonEmpty = go0
+
+    where
+
+    go0 m = mkStream $ \st yld sng stp ->
+        let stop = error "initNonEmpty: Empty Stream."
+            single _ = stp
+            yieldk a r = foldStream st yld sng stp (go1 a r)
+         in foldStream st yieldk single stop m
+
+    go1 a r = mkStream $ \st yld sng stp ->
+        let stop = stp
+            single _ = sng a
+            yieldk a1 r1 = yld a (go1 a1 r1)
+         in foldStream st yieldk single stop r
+
+-- | tail for non-empty streams, fails for empty stream case.
+--
+-- See also 'tail' for a non-partial version of this function..
+--
+-- Note: this is same as "drop 1" with error on empty stream.
+{-# INLINE tailNonEmpty #-}
+tailNonEmpty :: StreamK m a -> StreamK m a
+tailNonEmpty m = mkStream $ \st yld sng stp ->
+    let stop      = error "tailNonEmpty: empty stream"
         single _  = stp
         yieldk _ r = foldStream st yld sng stp r
     in foldStream st yieldk single stop m
@@ -1883,10 +1914,10 @@ mfix f = mkStream $ \st yld sng stp ->
     where
 
     -- fix the head element of the stream
-    xs = fix  (f . headPartial)
+    xs = fix  (f . headNonEmpty)
 
     -- now fix the tail recursively
-    ys = mfix (tailPartial . f)
+    ys = mfix (tailNonEmpty . f)
 
 -------------------------------------------------------------------------------
 -- Conversions
@@ -1917,6 +1948,15 @@ uncons m =
         yieldk a r = pure (Just (a, r))
     in foldStream defState yieldk single stop m
 
+-- Note that this is not a StreamK -> StreamK because then we cannot handle the
+-- empty stream case without making this a partial function.
+--
+-- See tailNonEmpty as well above.
+
+-- | Same as:
+--
+-- >>> tail = fmap (fmap snd) StreamK.uncons
+--
 {-# INLINE tail #-}
 tail :: Applicative m => StreamK m a -> m (Maybe (StreamK m a))
 tail =
@@ -1925,9 +1965,14 @@ tail =
         yieldk _ r = pure $ Just r
     in foldStream defState yieldk single stop
 
--- | Extract all but the last element of the stream, if any.
+-- Note that this is not a StreamK -> StreamK because then we cannot handle the
+-- empty stream case without making this a partial function.
 --
--- Note: This will end up buffering the entire stream.
+-- XXX How do we implement unsnoc? Make StreamK a monad and return the
+-- remaining stream as a result value in the monad?
+
+-- | Extract all but the last element of the stream, if any. This will end up
+-- evaluating the last element as well to find out that it is last.
 --
 -- /Pre-release/
 {-# INLINE init #-}

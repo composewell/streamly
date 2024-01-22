@@ -83,6 +83,8 @@ module Streamly.Internal.Data.Stream.Transform
 
     -- * Trimming
     -- | Produce a subset of the stream trimmed at ends.
+    , initNonEmpty
+    , tailNonEmpty
     , take
     , takeWhile
     , takeWhileM
@@ -1073,6 +1075,55 @@ repeated = undefined
 ------------------------------------------------------------------------------
 -- Trimming
 ------------------------------------------------------------------------------
+
+-- | init for non-empty streams, fails for empty stream case.
+--
+{-# INLINE initNonEmpty #-}
+initNonEmpty :: Monad m => Stream m a -> Stream m a
+initNonEmpty (Stream step1 state1) = Stream step (Nothing, state1)
+
+    where
+
+    step gst (Nothing, s1) = do
+        r <- step1 (adaptState gst) s1
+        return $
+            case r of
+                Yield x s -> Skip (Just x, s)
+                Skip s -> Skip (Nothing, s)
+                Stop -> error "initNonEmpty: empty Stream"
+
+    step gst (Just a, s1) = do
+        r <- step1 (adaptState gst) s1
+        return $
+            case r of
+                Yield x s -> Yield a (Just x, s)
+                Skip s -> Skip (Just a, s)
+                Stop -> Stop
+
+-- | tail for non-empty streams, fails for empty stream case.
+--
+-- See also 'tail' for a non-partial version of this function..
+{-# INLINE tailNonEmpty #-}
+tailNonEmpty :: Monad m => Stream m a -> Stream m a
+tailNonEmpty (Stream step1 state1) = Stream step (Nothing, state1)
+
+    where
+
+    step gst (Nothing, s1) = do
+        r <- step1 (adaptState gst) s1
+        return $
+            case r of
+                Yield x s -> Skip (Just x, s)
+                Skip s -> Skip (Nothing, s)
+                Stop -> error "tailNonEmpty: empty Stream"
+
+    step gst (Just a, s1) = do
+        r <- step1 (adaptState gst) s1
+        return $
+            case r of
+                Yield x s -> Yield x (Just x, s)
+                Skip s -> Skip (Just a, s)
+                Stop -> Stop
 
 -- | Take all consecutive elements at the end of the stream for which the
 -- predicate is true.
