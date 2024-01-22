@@ -16,16 +16,15 @@ module Streamly.Internal.Data.StreamK
     --
     -- $setup
 
-    -- * The stream type
       module Streamly.Internal.Data.StreamK.Type
+    -- * Transformer
     , module Streamly.Internal.Data.StreamK.Transformer
 
-    , StreamK(..)
+    -- * From containers
     , fromList
     , fromStream
-    , toStream
 
-    -- ** Specialized Generation
+    -- * Specialized Generation
     , repeatM
     , replicate
     , replicateM
@@ -67,12 +66,12 @@ module Streamly.Internal.Data.StreamK
     , find
     , (!!)
 
+    -- ** To Containers
+    , toList
+    , toStream
+
     -- ** Map and Fold
     , mapM_
-
-    -- ** Conversions
-    , toList
-    , hoist
 
     -- * Transformation
     -- ** By folding (scans)
@@ -115,6 +114,9 @@ module Streamly.Internal.Data.StreamK
 
     -- ** Transformation comprehensions
     , the
+
+    -- ** Transforming Inner Monad
+    , hoist
 
     -- * Exceptions
     , handle
