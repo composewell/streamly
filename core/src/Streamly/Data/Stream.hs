@@ -70,6 +70,15 @@ module Streamly.Data.Stream
 
     -- ** From Values
     -- | Generate a monadic stream from a seed value or values.
+    --
+    -- Non-empty pure streams can be cycled using repeat and unfold:
+    --
+    -- >>> cycle = Stream.unfoldMany Unfold.fromList . Stream.repeat
+    --
+    -- Non-empty StreamK can be cycled using append:
+    --
+    -- >>> cycle xs = let ys = xs `StreamK.append` ys in ys
+    --
     , fromPure
     , fromEffect
     , repeat
@@ -212,21 +221,57 @@ module Streamly.Data.Stream
     -- operations like mapping a function over the stream.
     , foldrM
     , foldr
+    -- foldr1
 
     -- ** Specific Folds
-    -- | Usually you can use the folds in "Streamly.Data.Fold". However, some
-    -- folds that may be commonly used or may have an edge in performance in
-    -- some cases are provided here.
-    --
-    -- Useful idioms:
+    -- | Streams are folded using folds in "Streamly.Data.Fold". Here are some
+    -- idioms and equivalents of Data.List APIs using folds:
     --
     -- >>> foldlM' f a = Stream.fold (Fold.foldlM' f a)
-    -- >>> foldl1 f = Stream.fold (Fold.foldl1' f)
+    -- >>> foldl1' f = Stream.fold (Fold.foldl1' f)
     -- >>> foldl' f a = Stream.fold (Fold.foldl' f a)
     -- >>> drain = Stream.fold Fold.drain
     -- >>> mapM_ f = Stream.fold (Fold.drainMapM f)
     -- >>> length = Stream.fold Fold.length
+    -- >>> genericLength = Stream.fold Fold.lengthGeneric
     -- >>> head = Stream.fold Fold.one
+    -- >>> last = Stream.fold Fold.latest
+    -- >>> null = Stream.fold Fold.null
+    -- >>> and = Stream.fold Fold.and
+    -- >>> or = Stream.fold Fold.or
+    -- >>> any p = Stream.fold (Fold.any p)
+    -- >>> all p = Stream.fold (Fold.all p)
+    -- >>> sum = Stream.fold Fold.sum
+    -- >>> product = Stream.fold Fold.product
+    -- >>> maximum = Stream.fold Fold.maximum
+    -- >>> maximumBy cmp = Stream.fold (Fold.maximumBy cmp)
+    -- >>> minimum = Stream.fold Fold.minimum
+    -- >>> minimumBy cmp = Stream.fold (Fold.minimumBy cmp)
+    -- >>> elem x = Stream.fold (Fold.elem x)
+    -- >>> notElem x = Stream.fold (Fold.notElem x)
+    -- >>> lookup x = Stream.fold (Fold.lookup x)
+    -- >>> find p = Stream.fold (Fold.find p)
+    -- >>> (!?) i = Stream.fold (Fold.index i)
+    -- >>> genericIndex i = Stream.fold (Fold.indexGeneric i)
+    -- >>> elemIndex x = Stream.fold (Fold.elemIndex x)
+    -- >>> findIndex p = Stream.fold (Fold.findIndex p)
+    --
+    -- Some equivalents of Data.List APIs from the Stream module:
+    --
+    -- >>> head = fmap (fmap fst) . Stream.uncons
+    -- >>> tail = fmap (fmap snd) . Stream.uncons
+    -- >>> tail = Stream.tail -- unreleased API
+    -- >>> init = Stream.init -- unreleased API
+    --
+    -- A Stream based toList fold implementation is provided below because it
+    -- has a better performance compared to the fold.
+
+    -- Functions in Data.List, missing here:
+    -- unsnoc = Stream.parseBreak (Parser.init Fold.toList)
+    -- genericTake
+    -- genericDrop
+    -- genericSplitAt
+    -- genericReplicate
     , toList
 
     -- * Mapping
@@ -280,6 +325,15 @@ module Streamly.Data.Stream
     , scan
     , postscan
     -- XXX postscan1 can be implemented using Monoids or Refolds.
+    -- The following scans from Data.List are not provided.
+    -- XXX scanl
+    -- XXX scanl1
+    -- XXX scanr
+    -- XXX scanr1
+    -- XXX mapAccumL
+    -- XXX mapAccumR
+    -- XXX inits
+    -- XXX tails
 
     -- ** Specific scans
     -- Indexing can be considered as a special type of zipping where we zip a
@@ -288,6 +342,8 @@ module Streamly.Data.Stream
 
     -- * Insertion
     -- | Add elements to the stream.
+    --
+    -- >>> insert = Stream.insertBy compare
 
     -- Inserting elements is a special case of interleaving/merging streams.
     , insertBy
@@ -323,12 +379,15 @@ module Streamly.Data.Stream
     -- "Streamly.Internal.Data.Fold" can be used along with 'scanMaybe' to
     -- perform stateful filtering operations in general.
     --
-    -- Useful idioms:
+    -- Idioms and equivalents of Data.List APIs:
     --
     -- >>> deleteBy cmp x = Stream.scanMaybe (Fold.deleteBy cmp x)
+    -- >>> deleteBy = Stream.deleteBy -- unreleased API
+    -- >>> delete = deleteBy (==)
     -- >>> findIndices p = Stream.scanMaybe (Fold.findIndices p)
     -- >>> elemIndices a = findIndices (== a)
     -- >>> uniq = Stream.scanMaybe (Fold.uniqBy (==))
+    -- >>> partition p = Stream.fold (Fold.partition Fold.toList Fold.toList) . fmap (if p then Left else Right)
     , scanMaybe
     , take
     , takeWhile
@@ -336,6 +395,8 @@ module Streamly.Data.Stream
     , drop
     , dropWhile
     , dropWhileM
+    -- XXX write to an array in reverse and then read in reverse
+    -- > dropWhileEnd = reverse . dropWhile p . reverse
 
     -- XXX These are available as scans in folds. We need to check the
     -- performance though. If these are common and we need convenient stream
@@ -372,6 +433,9 @@ module Streamly.Data.Stream
     -- >>> s = s1 `Stream.append` s2
 
     -- ** Appending
+    -- | Equivalent of Data.List append:
+    --
+    -- >>> (++) = Stream.append
     , append
 
     -- ** Interleaving
@@ -382,8 +446,14 @@ module Streamly.Data.Stream
     , mergeByM
 
     -- ** Zipping
+    -- | Idioms and equivalents of Data.List APIs:
+    --
+    -- >>> zip = Stream.zipWith (,)
+    -- >>> unzip = Stream.fold (Fold.unzip Fold.toList Fold.toList)
     , zipWith
     , zipWithM
+    -- XXX zipWith3,4,5,6,7
+    -- XXX unzip3,4,5,6,7
     -- , ZipStream (..)
 
     -- ** Cross Product
@@ -416,48 +486,89 @@ module Streamly.Data.Stream
     -- One dimension loops are just a special case of nested loops.  For
     -- example, 'concatMap' can degenerate to a simple map operation:
     --
-    -- > map f m = S.concatMap (\x -> S.fromPure (f x)) m
+    -- >>> map f m = Stream.concatMap (\x -> Stream.fromPure (f x)) m
     --
     -- Similarly, 'concatMap' can perform filtering by mapping an element to a
     -- 'nil' stream:
     --
-    -- > filter p m = S.concatMap (\x -> if p x then S.fromPure x else S.nil) m
+    -- >>> filter p m = Stream.concatMap (\x -> if p x then Stream.fromPure x else Stream.nil) m
     --
+    -- Idioms and equivalents of Data.List APIs:
+    --
+    -- >>> concat = Stream.concatMap id
+    -- >>> unlines = Stream.interposeSuffix '\n'
+    -- >>> unlines = Stream.intercalateSuffix Unfold.fromList "\n"
+    -- >>> unwords = Stream.interpose ' '
+    -- >>> unwords = Stream.intercalate Unfold.fromList " "
 
     , concatEffect
     , concatMap
     , concatMapM
 
     -- * Repeated Fold
-    -- | Useful idioms:
+    -- | Idioms and equivalents of Data.List APIs:
     --
-    -- >>> splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
-    -- >>> splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
-    -- >>> groupsBy eq f = Stream.parseMany (Parser.groupBy eq f)
-    -- >>> groupsByRolling eq f = Stream.parseMany (Parser.groupByRolling eq f)
-    -- >>> groupsOf n f = Stream.foldMany (Fold.take n f)
+    -- >>> groupsOf n = Stream.foldMany (Fold.take n Fold.toList)
+    -- >>> groupBy eq = Stream.groupsWhile eq Fold.toList
+    -- >>> groupBy eq = Stream.parseMany (Parser.groupBy eq Fold.toList)
+    -- >>> groupsByRolling eq = Stream.parseMany (Parser.groupByRolling eq Fold.toList)
+    -- >>> groups = groupBy (==)
     , foldMany -- XXX Rename to foldRepeat
     , groupsOf
     , parseMany
 
     -- * Splitting
+    -- | Idioms and equivalents of Data.List APIs:
+    --
+    -- >>> splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
+    -- >>> splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
+    -- >>> lines = splitOnSuffix (== '\n')
+    -- >>> words = Stream.wordsBy isSpace
+    -- >>> splitAt n = Stream.fold (Fold.splitAt n Fold.toList Fold.toList)
+    -- >>> span p = Parser.splitWith (,) (Parser.takeWhile p Fold.toList) (Parser.fromFold Fold.toList)
+    -- >>> break p = span (not . p)
     , splitOn
     , wordsBy
 
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.
     -- Reverse is essentially a left fold followed by an unfold.
+    --
+    -- Idioms and equivalents of Data.List APIs:
+    --
+    -- >>> nub = Stream.fold Fold.toList . Stream.scanMaybe Fold.nub
+    -- >>> nub = Stream.ordNub -- unreleased API
+    -- >>> sortBy = StreamK.sortBy
+    -- >>> sortOn f = StreamK.sortOn -- unreleased API
+    -- >>> deleteFirstsBy = Stream.deleteFirstsBy -- unreleased
+    -- >>> (\\) = Stream.deleteFirstsBy (==) -- unreleased
+    -- >>> intersectBy = Stream.intersectBy -- unreleased
+    -- >>> intersect = Stream.intersectBy (==) -- unreleased
+    -- >>> unionBy = Stream.unionBy -- unreleased
+    -- >>> union = Stream.unionBy (==) -- unreleased
+    --
     , reverse
+    -- XXX transpose: write the streams to arrays and then stream transposed.
+    -- XXX subsequences
+    -- XXX permutations
+    -- , nub
+    -- , ordNub
+    -- , nubBy
 
     -- * Multi-Stream folds
     -- | Operations that consume multiple streams at the same time.
     , eqBy
     , cmpBy
     , isPrefixOf
+    , isInfixOf
+    -- , isSuffixOf
+    -- , isSuffixOfUnbox
     , isSubsequenceOf
 
     -- trimming sequences
-    , stripPrefix
+    -- , stripPrefix
+    -- , stripSuffix
+    -- , stripSuffixUnbox
 
     -- Exceptions and resource management depend on the "exceptions" package
     -- XXX We can have IO Stream operations not depending on "exceptions"
@@ -521,10 +632,8 @@ where
 import Streamly.Internal.Data.Stream
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
-               foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
-               notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               scanl, scanl1, repeat, replicate, concatMap, span)
+               mapM, sequence, reverse, iterate, foldr1, repeat, replicate,
+               concatMap)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
 

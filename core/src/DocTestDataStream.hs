@@ -6,6 +6,7 @@
 >>> import Control.Monad.IO.Class (MonadIO (liftIO))
 >>> import Control.Monad.Trans.Class (lift)
 >>> import Control.Monad.Trans.Identity (runIdentityT)
+>>> import Data.Char (isSpace)
 >>> import Data.Either (fromLeft, fromRight, isLeft, isRight, either)
 >>> import Data.Maybe (fromJust, isJust)
 >>> import Data.Function (fix, (&))
@@ -32,6 +33,7 @@ For APIs that have not been released yet.
 >>> import qualified Streamly.Internal.Data.Fold as Fold
 >>> import qualified Streamly.Internal.Data.Parser as Parser
 >>> import qualified Streamly.Internal.Data.Stream as Stream
+>>> import qualified Streamly.Internal.Data.StreamK as StreamK
 >>> import qualified Streamly.Internal.Data.Unfold as Unfold
 >>> import qualified Streamly.Internal.FileSystem.Dir as Dir
 -}

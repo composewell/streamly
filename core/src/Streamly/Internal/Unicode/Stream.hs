@@ -1057,7 +1057,7 @@ stripHead = Stream.dropWhile isSpace
 -- >>> Stream.fold Fold.toList $ Unicode.lines Fold.toList (Stream.fromList "lines\nthis\nstring\n\n\n")
 -- ["lines","this","string","",""]
 --
--- > lines = Stream.splitOnSuffix (== '\n')
+-- >>> lines f = Stream.foldMany (Fold.takeEndBy_ (== '\n') f)
 --
 -- /Pre-release/
 {-# INLINE lines #-}
