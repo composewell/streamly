@@ -21,8 +21,6 @@ module Streamly.Internal.Data.Stream.Transform
 
     -- * Mapping
     -- | Stateless one-to-one maps.
-    , map
-    , mapM
     , sequence
 
     -- * Mapping Effects
@@ -75,7 +73,7 @@ module Streamly.Internal.Data.Stream.Transform
     , scanMaybe
     , filter
     , filterM
-    , deleteBy
+    , deleteBy -- deleteOnceBy?
     , uniqBy
     , uniq
     , prune
@@ -85,9 +83,6 @@ module Streamly.Internal.Data.Stream.Transform
     -- | Produce a subset of the stream trimmed at ends.
     , initNonEmpty
     , tailNonEmpty
-    , take
-    , takeWhile
-    , takeWhileM
     , takeWhileLast
     , takeWhileAround
     , drop
@@ -134,7 +129,6 @@ module Streamly.Internal.Data.Stream.Transform
     -- * Searching
     , findIndices
     , elemIndices
-    , slicesBy
 
     -- * Rolling map
     -- | Map using the previous element.
@@ -1759,25 +1753,6 @@ findIndices p (Stream step state) = Stream step' (state, 0)
 {-# INLINE elemIndices #-}
 elemIndices :: (Monad m, Eq a) => a -> Stream m a -> Stream m Int
 elemIndices a = findIndices (== a)
-
-{-# INLINE_NORMAL slicesBy #-}
-slicesBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
-slicesBy p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step gst (Just (st, i, len)) = i `seq` len `seq` do
-      r <- step1 (adaptState gst) st
-      return
-        $ case r of
-              Yield x s ->
-                if p x
-                then Yield (i, len + 1) (Just (s, i + len + 1, 0))
-                else Skip (Just (s, i, len + 1))
-              Skip s -> Skip (Just (s, i, len))
-              Stop -> if len == 0 then Stop else Yield (i, len) Nothing
-    step _ Nothing = return Stop
 
 ------------------------------------------------------------------------------
 -- Rolling map

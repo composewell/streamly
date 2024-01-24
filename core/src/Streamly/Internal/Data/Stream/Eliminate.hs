@@ -13,32 +13,19 @@
 --
 module Streamly.Internal.Data.Stream.Eliminate
     (
-    -- * Running a 'Fold'
-      fold
-
-    -- -- * Running a 'Parser'
-    , parse
+    -- * Running a Parser
+      parse
     , parseD
     , parseBreak
     , parseBreakD
 
-    -- * Stream Deconstruction
+    -- * Deconstruction
     , uncons
 
     -- * Right Folds
-    , foldrM
-    , foldr
-    , foldrMx
     , foldr1
 
-    -- * Left Folds
-    , foldlM'
-    , foldl'
-    , foldlMx'
-    , foldlx'
-
     -- * Specific Fold Functions
-    , drain
     , mapM_ -- Map and Fold
     , null
     , head
@@ -61,16 +48,9 @@ module Streamly.Internal.Data.Stream.Eliminate
     , the
 
     -- * To containers
-    , toList
     , toListRev
 
     -- * Multi-Stream Folds
-    -- ** Comparisons
-    -- | These should probably be expressed using zipping operations.
-    , eqBy
-    , cmpBy
-
-    -- ** Substreams
     -- | These should probably be expressed using parsers.
     , isPrefixOf
     , isInfixOf

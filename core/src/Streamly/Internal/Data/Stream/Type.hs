@@ -22,18 +22,18 @@
 
 module Streamly.Internal.Data.Stream.Type
     (
-    -- * The stream type
+    -- * Type
       Step (..)
     -- XXX UnStream is exported to avoid a performance issue in some
     -- combinators if we use the pattern synonym "Stream".
     , Stream (Stream, UnStream)
 
-    -- * CrossStream type wrapper
+    -- * CrossStream
     , CrossStream
     , unCross
     , mkCross
 
-    -- * Conversion to StreamK
+    -- * To StreamK
     , fromStreamK
     , toStreamK
 
@@ -91,6 +91,7 @@ module Streamly.Internal.Data.Stream.Type
 
     -- * Combining Two Streams
     -- ** Zipping
+    -- | Zip corresponding elements of two streams.
     , zipWithM
     , zipWith
 
@@ -106,6 +107,8 @@ module Streamly.Internal.Data.Stream.Type
     , unfoldMany
 
     -- * Concat
+    -- | Generate streams by mapping a stream generator on each element of an
+    -- input stream, append the resulting streams and flatten.
     , concatEffect
     , concatMap
     , concatMapM
@@ -139,6 +142,7 @@ module Streamly.Internal.Data.Stream.Type
     , indexOnSuffix
 
     -- * Multi-stream folds
+    -- | These should probably be expressed using zipping operations.
     , eqBy
     , cmpBy
 
@@ -2067,6 +2071,26 @@ indexOnSuffix predicate =
     refoldIterateM
         (indexerBy (FL.takeEndBy_ predicate FL.length) 1)
         (return (-1, 0))
+
+-- Alternate implementation
+{-# INLINE_NORMAL _indexOnSuffix #-}
+_indexOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
+_indexOnSuffix p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (Just (st, i, len)) = i `seq` len `seq` do
+      r <- step1 (adaptState gst) st
+      return
+        $ case r of
+              Yield x s ->
+                if p x
+                then Yield (i, len + 1) (Just (s, i + len + 1, 0))
+                else Skip (Just (s, i, len + 1))
+              Skip s -> Skip (Just (s, i, len))
+              Stop -> if len == 0 then Stop else Yield (i, len) Nothing
+    step _ Nothing = return Stop
 
 {-# DEPRECATED sliceOnSuffix "Please use indexOnSuffix instead." #-}
 sliceOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)

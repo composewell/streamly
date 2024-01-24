@@ -16,20 +16,13 @@ module Streamly.Internal.Data.Stream.Generate
   (
     -- * Primitives
       nil
-    , nilM
     , cons
-    , consM
-
-    -- * From 'Unfold'
-    , unfold
 
     -- * Unfolding
     , unfoldr
     , unfoldrM
 
     -- * From Values
-    , fromPure
-    , fromEffect
     , repeat
     , repeatM
     , replicate
@@ -95,7 +88,6 @@ module Streamly.Internal.Data.Stream.Generate
     -- * From Containers
     -- | Transform an input structure into a stream.
 
-    , fromList
     , fromListM
     , fromFoldable
     , fromFoldableM
@@ -104,10 +96,6 @@ module Streamly.Internal.Data.Stream.Generate
     , fromPtr
     , fromPtrN
     , fromByteStr#
-
-    -- * Conversions
-    , fromStreamK
-    , toStreamK
     )
 where
 

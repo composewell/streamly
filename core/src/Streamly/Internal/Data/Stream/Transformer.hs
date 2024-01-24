@@ -11,10 +11,11 @@
 
 module Streamly.Internal.Data.Stream.Transformer
     (
+    -- * Fold to Transformer Monad
       foldlT
     , foldrT
 
-    -- * Transform Inner Monad
+    -- * Inner Monad Operations
     , liftInner
     , runReaderT
     , usingReaderT

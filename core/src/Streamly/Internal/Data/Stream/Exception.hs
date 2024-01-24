@@ -9,17 +9,20 @@
 
 module Streamly.Internal.Data.Stream.Exception
     (
-      gbracket_
-    , gbracket
-    , before
-    , afterUnsafe
+    -- * Resources
+      before
     , afterIO
+    , afterUnsafe
+    , finallyIO
+    , finallyUnsafe
+    , gbracket_
+    , gbracket
     , bracketUnsafe
     , bracketIO3
     , bracketIO
+
+    -- * Exceptions
     , onException
-    , finallyUnsafe
-    , finallyIO
     , ghandle
     , handle
     )

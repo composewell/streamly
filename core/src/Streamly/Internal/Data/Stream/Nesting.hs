@@ -55,11 +55,6 @@ module Streamly.Internal.Data.Stream.Nesting
     -- yields an element. A special case of unfoldRoundRobin.
     , roundRobin -- interleaveFair?/ParallelFair
 
-    -- *** Zipping
-    -- | Zip corresponding elements of two streams.
-    , zipWith
-    , zipWithM
-
     -- *** Merging
     -- | Interleave elements from two streams based on a condition.
     , mergeBy
@@ -76,17 +71,10 @@ module Streamly.Internal.Data.Stream.Nesting
     -- unfoldMany: Unfold m a b -> t m a -> t m b
     -- @
 
-    -- *** ConcatMap
-    -- | Generate streams by mapping a stream generator on each element of an
-    -- input stream, append the resulting streams and flatten.
-    , concatMap
-    , concatMapM
-
     -- *** ConcatUnfold
     -- | Generate streams by using an unfold on each element of an input
     -- stream, append the resulting streams and flatten. A special case of
     -- gintercalate.
-    , unfoldMany
     , ConcatUnfoldInterleaveState (..)
     , unfoldInterleave
     , unfoldRoundRobin
@@ -118,11 +106,8 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- ** Folding
     -- | Apply folds on a stream.
-    , foldMany
-    , refoldMany
     , foldSequence
     , foldIterateM
-    , refoldIterateM
 
     -- ** Parsing
     -- | Parsing is opposite to flattening. 'parseMany' is dual to concatMap or
@@ -139,7 +124,6 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- ** Grouping
     -- | Group segments of a stream and fold. Special case of parsing.
-    , groupsOf
     , groupsBy
     , groupsWhile
     , groupsRollingBy
@@ -147,8 +131,8 @@ module Streamly.Internal.Data.Stream.Nesting
     -- ** Splitting
     -- | A special case of parsing.
     , wordsBy
-    , splitOnSeq
-    , splitOnSuffixSeq
+    , splitOnSeq -- XXX splitOnSeg
+    , splitOnSuffixSeq -- XXX splitOnSegSuffix, splitOnTrailer
 
     -- XXX Implement these as folds or parsers instead.
     , splitOnSuffixSeqAny
@@ -3046,6 +3030,8 @@ splitInnerBySuffix isEmpty splitter joiner (Stream step1 state1) =
 --
 -- Space: @O(1)@
 --
+-- See also stripPrefix.
+--
 -- /Unimplemented/
 {-# INLINE dropPrefix #-}
 dropPrefix ::
@@ -3058,6 +3044,8 @@ dropPrefix = error "Not implemented yet!"
 --
 -- Space: @O(n)@ where n is the length of the infix.
 --
+-- See also stripInfix.
+--
 -- /Unimplemented/
 {-# INLINE dropInfix #-}
 dropInfix ::
@@ -3069,6 +3057,8 @@ dropInfix = error "Not implemented yet!"
 -- consumed multiple times.
 --
 -- Space: @O(n)@ where n is the length of the suffix.
+--
+-- See also stripSuffix.
 --
 -- /Unimplemented/
 {-# INLINE dropSuffix #-}
