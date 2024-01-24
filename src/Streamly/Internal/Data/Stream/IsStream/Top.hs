@@ -649,7 +649,7 @@ intersectBySorted :: (IsStream t, Monad m) =>
     (a -> a -> Ordering) -> t m a -> t m a -> t m a
 intersectBySorted eq s1 =
       IsStream.fromStreamD
-    . StreamD.intersectBySorted eq (IsStream.toStreamD s1)
+    . StreamD.sortedIntersectBy eq (IsStream.toStreamD s1)
     . IsStream.toStreamD
 
 -- Roughly joinLeft s1 s2 = s1 `difference` s2 + s1 `intersection` s2

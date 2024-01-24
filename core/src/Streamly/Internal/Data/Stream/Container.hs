@@ -11,16 +11,17 @@
 
 module Streamly.Internal.Data.Stream.Container
     (
-      nub
+    -- * Deduplication
+      ordNub
 
-    -- * Joins for unconstrained types
-    , joinLeftGeneric
-    , joinOuterGeneric
+    -- * Joins
+    , leftJoin
+    , outerJoin
 
-    -- * Joins with Ord constraint
-    , joinInner
-    , joinLeft
-    , joinOuter
+    -- * Ord Joins
+    , innerOrdJoin
+    , leftOrdJoin
+    , outerOrdJoin
     )
 where
 
@@ -47,12 +48,15 @@ import qualified Streamly.Internal.Data.Stream.Transformer as Stream
 
 #include "DocTestDataStream.hs"
 
--- | The memory used is proportional to the number of unique elements in the
--- stream. If we want to limit the memory we can just use "take" to limit the
--- uniq elements in the stream.
-{-# INLINE_NORMAL nub #-}
-nub :: (Monad m, Ord a) => Stream m a -> Stream m a
-nub (Stream step1 state1) = Stream step (Set.empty, state1)
+-- | @nub@ specialized to 'Ord' types for better performance. Returns a
+-- subsequence of the stream removing any duplicate elements.
+--
+-- The memory used is proportional to the number of unique elements in the
+-- stream. One way to limit the memory is to  use @take@ on the resulting
+-- stream to limit the unique elements in the stream.
+{-# INLINE_NORMAL ordNub #-}
+ordNub :: (Monad m, Ord a) => Stream m a -> Stream m a
+ordNub (Stream step1 state1) = Stream step (Set.empty, state1)
 
     where
 
@@ -78,8 +82,8 @@ toMap =
 --
 -- XXX An IntMap may be faster when the keys are Int.
 -- XXX Use hashmap instead of map?
---
--- | Like 'joinInner' but uses a 'Map' for efficiency.
+
+-- | 'innerJoin' specialized to 'Ord' types for better performance.
 --
 -- If the input streams have duplicate keys, the behavior is undefined.
 --
@@ -90,10 +94,10 @@ toMap =
 -- Time: O(m + n)
 --
 -- /Pre-release/
-{-# INLINE joinInner #-}
-joinInner :: (Monad m, Ord k) =>
+{-# INLINE innerOrdJoin #-}
+innerOrdJoin :: (Monad m, Ord k) =>
     Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, b)
-joinInner s1 s2 =
+innerOrdJoin s1 s2 =
     Stream.concatEffect $ do
         km <- toMap s2
         pure $ Stream.mapMaybe (joinAB km) s1
@@ -106,32 +110,33 @@ joinInner s1 s2 =
             Nothing -> Nothing
 
 -- XXX We can do this concurrently.
+-- XXX Check performance of StreamD vs StreamK
 -- XXX If the second stream is sorted and passed as an Array or a seek capable
 -- stream then we could use binary search if we have an Ord instance or
 -- Ordering returning function. The time complexity would then become (m x log
 -- n).
 
--- XXX Check performance of StreamD vs StreamK
-
--- | Like 'joinInner' but emit @(a, Just b)@, and additionally, for those @a@'s
--- that are not equal to any @b@ emit @(a, Nothing)@.
+-- | Like 'innerJoin' but emits @(a, Just b)@ whenever a and b are equal, for
+-- those @a@'s that are not equal to any @b@ emits @(a, Nothing)@.
 --
--- The second stream is evaluated multiple times. If the stream is a
--- consume-once stream then the caller should cache it in an 'Data.Array.Array'
--- before calling this function. Caching may also improve performance if the
--- stream is expensive to evaluate.
+-- This is a generalization of 'innerJoin' to include all elements from the
+-- left stream and not just those which have an equal in the right stream. This
+-- is not a commutative operation, the order of the stream arguments matters.
 --
--- >>> joinRightGeneric eq = flip (Stream.joinLeftGeneric eq)
+-- All the caveats mentioned in 'innerJoin' apply here as well. Right join is
+-- not provided because it is just a flipped left join:
+--
+-- >>> rightJoin eq = flip (Stream.leftJoin eq)
 --
 -- Space: O(n) assuming the second stream is cached in memory.
 --
 -- Time: O(m x n)
 --
 -- /Unimplemented/
-{-# INLINE joinLeftGeneric #-}
-joinLeftGeneric :: Monad m =>
+{-# INLINE leftJoin #-}
+leftJoin :: Monad m =>
     (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
-joinLeftGeneric eq s1 s2 = Stream.evalStateT (return False) $ unCross $ do
+leftJoin eq s1 s2 = Stream.evalStateT (return False) $ unCross $ do
     a <- mkCross (Stream.liftInner s1)
     -- XXX should we use StreamD monad here?
     -- XXX Is there a better way to perform some action at the end of a loop
@@ -152,19 +157,17 @@ joinLeftGeneric eq s1 s2 = Stream.evalStateT (return False) $ unCross $ do
             else mkCross Stream.nil
         Nothing -> return (a, Nothing)
 
--- XXX rename to joinLeftOrd?
-
--- | A more efficient 'joinLeft' using a hashmap for efficiency.
+-- | 'leftJoin' specialized to 'Ord' types for better performance.
 --
 -- Space: O(n)
 --
 -- Time: O(m + n)
 --
 -- /Pre-release/
-{-# INLINE joinLeft #-}
-joinLeft :: (Ord k, Monad m) =>
+{-# INLINE leftOrdJoin #-}
+leftOrdJoin :: (Ord k, Monad m) =>
     Stream m (k, a) -> Stream m (k, b) -> Stream m (k, a, Maybe b)
-joinLeft s1 s2 =
+leftOrdJoin s1 s2 =
     Stream.concatEffect $ do
         km <- toMap s2
         return $ fmap (joinAB km) s1
@@ -177,13 +180,18 @@ joinLeft s1 s2 =
                     Nothing -> (k, a, Nothing)
 
 -- XXX We can do this concurrently.
+-- XXX Check performance of StreamD vs StreamK cross operation.
 
--- XXX Check performance of StreamD vs StreamK
-
--- | Like 'joinLeft' but emits a @(Just a, Just b)@. Like 'joinLeft', for those
+-- | Like 'leftJoin' but emits a @(Just a, Just b)@. Like 'leftJoin', for those
 -- @a@'s that are not equal to any @b@ emit @(Just a, Nothing)@, but
 -- additionally, for those @b@'s that are not equal to any @a@ emit @(Nothing,
 -- Just b)@.
+--
+-- This is a generalization of left join to include all the elements from the
+-- right stream as well, in other words it is a combination of left and right
+-- joins. This is a commutative operation. The order of stream arguments can be
+-- changed without affecting results, except for the ordering of elements in
+-- the resulting tuple.
 --
 -- For space efficiency use the smaller stream as the second stream.
 --
@@ -192,15 +200,15 @@ joinLeft s1 s2 =
 -- Time: O(m x n)
 --
 -- /Pre-release/
-{-# INLINE joinOuterGeneric #-}
-joinOuterGeneric :: MonadIO m =>
+{-# INLINE outerJoin #-}
+outerJoin :: MonadIO m =>
        (a -> b -> Bool)
     -> Stream m a
     -> Stream m b
     -> Stream m (Maybe a, Maybe b)
-joinOuterGeneric eq s1 s =
+outerJoin eq s1 s2 =
     Stream.concatEffect $ do
-        inputArr <- Array.fromStream s
+        inputArr <- Array.fromStream s2
         let len = Array.length inputArr
         foundArr <-
             Stream.fold
@@ -254,18 +262,18 @@ joinOuterGeneric eq s1 s =
 -- a flag. At the end go through @Stream m b@ and find those that are not in that
 -- hash to return (Nothing, b).
 
--- | Like 'joinOuter' but uses a 'Map' for efficiency.
+-- | 'outerJoin' specialized to 'Ord' types for better performance.
 --
 -- Space: O(m + n)
 --
 -- Time: O(m + n)
 --
 -- /Pre-release/
-{-# INLINE joinOuter #-}
-joinOuter ::
+{-# INLINE outerOrdJoin #-}
+outerOrdJoin ::
     (Ord k, MonadIO m) =>
     Stream m (k, a) -> Stream m (k, b) -> Stream m (k, Maybe a, Maybe b)
-joinOuter s1 s2 =
+outerOrdJoin s1 s2 =
     Stream.concatEffect $ do
         km1 <- kvFold s1
         km2 <- kvFold s2

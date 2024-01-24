@@ -82,7 +82,7 @@ module Streamly.Internal.Data.Unfold
     , dropWhileM
 
     -- ** Cross product
-    , joinInnerGeneric
+    , innerJoin
 
     -- ** Resource Management
     -- | 'bracket' is the most general resource management operation, all other
@@ -677,10 +677,12 @@ dropWhileM f (Unfold step inject) = Unfold step' inject'
 dropWhile :: Monad m => (b -> Bool) -> Unfold m a b -> Unfold m a b
 dropWhile f = dropWhileM (return . f)
 
-{-# INLINE_NORMAL joinInnerGeneric #-}
-joinInnerGeneric :: Monad m =>
+-- | Cross intersection of two unfolds. See
+-- 'Streamly.Internal.Data.Stream.innerJoin' for more details.
+{-# INLINE_NORMAL innerJoin #-}
+innerJoin :: Monad m =>
     (b -> c -> Bool) -> Unfold m a b -> Unfold m a c -> Unfold m a (b, c)
-joinInnerGeneric eq s1 s2 = filter (\(a, b) -> a `eq` b) $ cross s1 s2
+innerJoin eq s1 s2 = filter (\(a, b) -> a `eq` b) $ cross s1 s2
 
 ------------------------------------------------------------------------------
 -- Exceptions

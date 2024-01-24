@@ -141,9 +141,8 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- * Transform (Nested Containers)
     -- | Opposite to compact in ArrayStream
-    , splitInnerBy
-    , splitInnerBySuffix
-    , intersectBySorted
+    , splitInnerBy -- XXX innerSplitOn
+    , splitInnerBySuffix -- XXX innerSplitOnSuffix
 
     -- * Reduce By Streams
     , dropPrefix
@@ -592,49 +591,6 @@ mergeFstBy :: -- Monad m =>
     (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeFstBy _f _m1 _m2 = undefined
     -- fromStreamK $ D.mergeFstBy f (toStreamD m1) (toStreamD m2)
-
--------------------------------------------------------------------------------
--- Intersection of sorted streams
--------------------------------------------------------------------------------
-
--- Assuming the streams are sorted in ascending order
-{-# INLINE_NORMAL intersectBySorted #-}
-intersectBySorted :: Monad m
-    => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
-intersectBySorted cmp (Stream stepa ta) (Stream stepb tb) =
-    Stream step
-        ( ta -- left stream state
-        , tb -- right stream state
-        , Nothing -- left value
-        , Nothing -- right value
-        )
-
-    where
-
-    {-# INLINE_LATE step #-}
-    -- step 1, fetch the first value
-    step gst (sa, sb, Nothing, b) = do
-        r <- stepa gst sa
-        return $ case r of
-            Yield a sa' -> Skip (sa', sb, Just a, b) -- step 2/3
-            Skip sa'    -> Skip (sa', sb, Nothing, b)
-            Stop        -> Stop
-
-    -- step 2, fetch the second value
-    step gst (sa, sb, a@(Just _), Nothing) = do
-        r <- stepb gst sb
-        return $ case r of
-            Yield b sb' -> Skip (sa, sb', a, Just b) -- step 3
-            Skip sb'    -> Skip (sa, sb', a, Nothing)
-            Stop        -> Stop
-
-    -- step 3, compare the two values
-    step _ (sa, sb, Just a, Just b) = do
-        let res = cmp a b
-        return $ case res of
-            GT -> Skip (sa, sb, Just a, Nothing) -- step 2
-            LT -> Skip (sa, sb, Nothing, Just b) -- step 1
-            EQ -> Yield a (sa, sb, Nothing, Just b) -- step 1
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - unfoldMany
