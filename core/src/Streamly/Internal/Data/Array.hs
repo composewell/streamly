@@ -600,7 +600,6 @@ data FlattenState s =
 {-# INLINE_NORMAL interposeSuffix #-}
 interposeSuffix :: forall m a. (Monad m, Unbox a)
     => a -> Stream m (Array a) -> Stream m a
--- This does not require MonadIO constraint.
 -- interposeSuffix x = D.interposeSuffix x reader
 interposeSuffix sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 
@@ -619,7 +618,7 @@ interposeSuffix sep (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Yield sep $ OuterLoop st
 
     step' _ (InnerLoop st contents p end) = do
-        x <- pure $ unsafeInlineIO $ peekAt p contents
+        let !x = unsafeInlineIO $ peekAt p contents
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
 -- | Insert the given array after each array and flatten.

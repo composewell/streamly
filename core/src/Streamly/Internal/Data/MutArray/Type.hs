@@ -1684,7 +1684,7 @@ concatWith liftio (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st contents p end) = do
-        x <- liftio $ peekAt p contents
+        !x <- liftio $ peekAt p contents
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
 -- | Use the "reader" unfold instead.
@@ -1725,7 +1725,7 @@ concatRevWith liftio (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st contents p start) = do
-        x <- liftio $ peekAt p contents
+        !x <- liftio $ peekAt p contents
         let cur = INDEX_PREV(p,a)
         return $ D.Yield x (InnerLoop st contents cur start)
 
