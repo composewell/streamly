@@ -196,6 +196,12 @@ newBytesAs Pinned = pinnedNew
 -- Copying
 -------------------------------------------------------------------------------
 
+-- Note: Array copy is more efficient than streaming copy.
+-- CopyMutableByteArray# translates to genMemcpy in GHC/CmmToAsm/X86/CodeGen.hs
+-- glibc memcpy copies bytes/words/pages - unrolls the loops:
+-- https://github.com/bminor/glibc/blob/4290aed05135ae4c0272006442d147f2155e70d7/string/memcpy.c
+-- https://github.com/bminor/glibc/blob/4290aed05135ae4c0272006442d147f2155e70d7/string/wordcopy.c
+
 -- | Put a sub range of a source array into a subrange of a destination array.
 -- This is not safe as it does not check the bounds of neither the src array
 -- nor the destination array.

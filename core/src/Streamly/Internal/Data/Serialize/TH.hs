@@ -7,7 +7,11 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
---
+
+-- XXX Instead of applying the product constructor in one go can we apply it
+-- one at a time in case of too many arguments, compiler may not have to save
+-- them in local vars.
+
 module Streamly.Internal.Data.Serialize.TH
     (
     -- Deriving
