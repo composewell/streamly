@@ -100,6 +100,7 @@ module Streamly.Internal.Data.StreamK
 
     -- ** Reordering
     , sortBy
+    , sortOn
 
     -- ** Map and Filter
     , mapMaybe
@@ -131,6 +132,7 @@ import Control.Exception (mask_, Exception)
 import Control.Monad (void, join)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Ord (comparing)
 import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
@@ -1717,3 +1719,10 @@ sortBy cmp =
         . Stream.catRights -- its a non-failing backtracking parser
         . Stream.parseMany (fmap (either id id) p)
         . Stream.fromStreamK
+
+{-# INLINE sortOn #-}
+sortOn :: (Monad m, Ord b) => (a -> b) -> StreamK m a -> StreamK m a
+sortOn f =
+      fmap snd
+    . sortBy (comparing fst)
+    . fmap (\x -> let y = f x in y `seq` (y, x))
