@@ -214,3 +214,91 @@ a default type.
 The ListT style monad has the drawback that the second stream can be run
 multiple times, which in some cases may not work as expected because the stream
 is stateful. Can the appending monad be more useful than ListT?
+
+# Stream combining operations
+
+-- Consumer => Refold? Intuitive dual to Unfold. Consumer is too general and
+includes Fold as well.
+
+-- Use the term iterate for applying function like types e.g. Unfold or Refold.
+And use "many" for applying data like types e.g. Stream or Fold?
+
+* Unfold -> Unfold -> Unfold (many) -- expand/concat
+* Unfold -> Stream -> Stream (unfoldMany) -- expandMany/concatMany, iterating
+* Unfold -> Stream -> Stream -- sequencing unfolds/chain/sequence
+    -- Not sure how to do this but the idea is to apply different unfolds to
+    -- different elements in the stream.
+    -- Is stream Zip the dual of fold append?
+
+* Stream -> Stream -> Stream (serial et al)
+* Stream -> Fold -> Stream (foldMany) -- iterating
+* Stream -> Fold -> Stream -- foldOn, sequencing
+
+* Stream -> Pipe -> Stream -- iterating/sequencing versions
+* Pipe -> Pipe -> Pipe
+* Pipe -> Fold -> Fold -- iterating/sequencing versions
+
+* Fold -> Stream -> Fold (toFold) -- streamOn, sequencing
+* Fold -> Stream -> Fold -- streamMany, iterating
+* Fold -> Fold -> Fold (splitWith et al) -- serial
+
+* Fold -> Consumer -> Fold (appendConsumer) -- sequencing consumers/chain
+* Fold -> Consumer -> Fold  -- consumeMany/reduceMany -- iterating a consumer
+* Consumer -> Consumer -> Consumer (append) -- reduce
+
+Parser is an extension of Fold adding seeking (backtracking) and error.
+Zipper (Source) is an extension of Stream adding seeking and error.
+
+data Step s a =
+    Yield a s
+  | Skip s
+  | Stop
+data Stream m a =
+    forall s. UnStream (State K.Stream m a -> s -> m (Step s a)) s
+
+-- A file zipper could natively seek while a stream can be buffered in memory
+-- to convert it into a zipper
+
+data Seek s =
+    Partial Int s   -- Move back and trim
+  | Continue Int s  -- Move back
+
+Zipper m a = Zipper
+  (s -> m (Step s a))  -- step
+  (Seek s -> m s)      -- operation on buffer
+  s
+
+----
+
+To avoid the left associated <> issue we should only allow a stream of streams
+using cons and then concat it to get a stream of elements.
+
+cons :: Stream m a -> Stream m (Stream m a) -> Stream m (Stream m a)
+concat :: Stream m (Stream m a) -> Stream m a
+
+The problem with that is that `serial` will now look like:
+
+```
+s1 `serial` s2
+concat $ s1 `cons` s2 `cons` nil
+concat $ s1 `cons` pure s2
+cat [s1, s2] -- this is an ergonomic alternative
+tac [s1, s2] -- could do the same in reverse
+catWith cfg [s1, s2] -- with SVar configuration
+-- we can also possibly use overloaded lists
+
+-- To be consistent with fromList, we can use catList
+-- Or just use "list" and "cat" for these to be short?
+fromList [a1,a2,...]
+catList [s1,s2,...]
+catListWith ?
+```
+
+In that case instead of "serial", "async" etc we will need "Serial.concat",
+"Async.concat" etc.
+
+-----
+
+Pipes would be the equivalent of dlists providing both cons and snoc. But we
+cannot run those without closing one end using a stream of fold just like
+dlists. So that would be replacement of the builder type PR.
