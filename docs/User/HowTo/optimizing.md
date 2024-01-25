@@ -1,6 +1,6 @@
 # Optimization Guide
 
-## Performance Optimizations
+## Haskell Performance Optimizations
 
 A "closed loop" is any streamly code that generates a stream using
 unfold (or conceptually any stream generation combinator) and ends
@@ -31,7 +31,7 @@ to optimize the fast path and not everything blindly.
 
 It may help to add INLINE annotations on any intermediate functions
 involved in a closed loop. In some cases you may have to add an inline
-phase as well as described below.
+phase too as described in the following sections.
 
 Usually GHC has three inline phases - the first phase is pahse-2, the
 second phase is phase-1 and the last one is phase-0.
@@ -77,6 +77,18 @@ Do not use a strict `foldr` or lazy `foldl` unless you know what you are
 doing.  Use lazy `foldr` for lazily transforming the stream and strict
 `foldl` for reducing the stream.  If you are manually writing recursive
 code, try to use tail recursion where possible.
+
+## Streamly Optimizations
+
+### `fold` vs `foldBreak`
+
+`fold` and `foldBreak` provide two different ways to consume a
+stream. We can compose the cosumer folds into a single `Fold` type and
+then run it using `fold`. Alternatively, we can use `foldBreak` to run
+individual folds on the stream and get back the remaining stream each
+time, then run the next fold on the remaining stream. For streams that
+use a mutable state e.g. a stream from a file handle or a socket, the
+`foldBreak` method may turn out to be more efficient.
 
 ## Build times and space considerations
 
