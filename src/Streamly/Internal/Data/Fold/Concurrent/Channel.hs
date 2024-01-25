@@ -50,6 +50,17 @@ parEval modifier f =
 
     where
 
+    -- XXX Supply an output channel to the fold. The fold would send the result
+    -- from each step (i.e. scan result) to the channel. The Partial and Done
+    -- constructors are sent to the channel. We then draw the resulting stream
+    -- from that channel. Kind of concurrrent mapping on the stream but with a
+    -- fold/scan.
+    --
+    -- There can also be a model where multiple folds pick input from the same
+    -- channel.
+    --
+    -- We can also run parsers this way. So instead of sending output on each
+    -- step it can send once it is done.
     initial = Partial <$> newChannel modifier f
 
     -- XXX This is not truly asynchronous. If the fold is done we only get to
