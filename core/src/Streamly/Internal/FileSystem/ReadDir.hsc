@@ -24,7 +24,7 @@ import Foreign.Storable (poke)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
-import Streamly.Internal.FileSystem.Path (Path(..))
+import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
 import System.Posix.Directory (closeDirStream)
 import System.Posix.Directory.Internals (DirStream(..), CDir, CDirent)
 import System.Posix.Error (throwErrnoPathIfNullRetry)
@@ -32,7 +32,7 @@ import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
-import qualified Streamly.Internal.FileSystem.Path as Path
+import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 #include <dirent.h>
 
@@ -51,7 +51,7 @@ foreign import ccall unsafe "__hscore_d_name"
 -- XXX Path is not null terminated therefore we need to make a copy even if the
 -- array is pinned.
 -- {-# INLINE openDirStream #-}
-openDirStream :: Path -> IO DirStream
+openDirStream :: PosixPath -> IO DirStream
 openDirStream p =
   Array.asCStringUnsafe (Path.toChunk p) $ \s -> do
     -- XXX is toString always creating another copy or only in case of error?
@@ -85,15 +85,15 @@ isMetaDir dname = do
 -- {-# INLINE readDirStreamEither #-}
 readDirStreamEither ::
     -- DirStream -> IO (Either (Rel (Dir Path)) (Rel (File Path)))
-    DirStream -> IO (Maybe (Either Path Path))
+    DirStream -> IO (Maybe (Either PosixPath PosixPath))
 readDirStreamEither (DirStream dirp) = loop
 
   where
 
   -- mkPath :: IsPath (Rel (a Path)) => Array Word8 -> Rel (a Path)
   -- {-# INLINE mkPath #-}
-  mkPath :: Array Word8 -> Path
-  mkPath = Path.unsafeFromPath . Path.unsafeFromChunk
+  mkPath :: Array Word8 -> PosixPath
+  mkPath = Path.unsafeFromChunk
 
   loop = do
     resetErrno
@@ -127,21 +127,21 @@ readDirStreamEither (DirStream dirp) = loop
 
 {-# ANN type ChunkStreamState Fuse #-}
 data ChunkStreamState =
-      ChunkStreamInit [Path] [Path] Int [Path] Int
+      ChunkStreamInit [PosixPath] [PosixPath] Int [PosixPath] Int
     | ChunkStreamLoop
-        Path -- current dir path
-        [Path]  -- remaining dirs
+        PosixPath -- current dir path
+        [PosixPath]  -- remaining dirs
         (Ptr CDir) -- current dir
-        [Path] -- dirs buffered
+        [PosixPath] -- dirs buffered
         Int    -- dir count
-        [Path] -- files buffered
+        [PosixPath] -- files buffered
         Int -- file count
 
 -- XXX We can use a fold for collecting files and dirs.
 -- XXX We can write a two fold scan to buffer and yield whichever fills first
 -- like foldMany, it would be foldEither.
 {-# INLINE readEitherChunks #-}
-readEitherChunks :: MonadIO m => [Path] -> Stream m (Either [Path] [Path])
+readEitherChunks :: MonadIO m => [PosixPath] -> Stream m (Either [PosixPath] [PosixPath])
 readEitherChunks alldirs =
     Stream step (ChunkStreamInit alldirs [] 0 [] 0)
 
@@ -152,8 +152,8 @@ readEitherChunks alldirs =
     dirMax = 4
     fileMax = 1000
 
-    mkPath :: Array Word8 -> Path
-    mkPath = Path.unsafeFromPath . Path.unsafeFromChunk
+    mkPath :: Array Word8 -> PosixPath
+    mkPath = Path.unsafeFromChunk
 
     step _ (ChunkStreamInit (x:xs) dirs ndirs files nfiles) = do
         DirStream dirp <- liftIO $ openDirStream x
@@ -219,19 +219,19 @@ foreign import ccall unsafe "string.h strlen" c_strlen
 {-# ANN type ChunkStreamByteState Fuse #-}
 data ChunkStreamByteState =
       ChunkStreamByteInit0
-    | ChunkStreamByteInit [Path] [Path] Int MutByteArray Int
+    | ChunkStreamByteInit [PosixPath] [PosixPath] Int MutByteArray Int
     | ChunkStreamByteLoop
-        Path -- current dir path
-        [Path]  -- remaining dirs
+        PosixPath -- current dir path
+        [PosixPath]  -- remaining dirs
         (Ptr CDir) -- current dir
-        [Path] -- dirs buffered
+        [PosixPath] -- dirs buffered
         Int    -- dir count
         MutByteArray
         Int
     | ChunkStreamByteLoopPending
         (Ptr CChar) -- pending item
-        Path -- current dir path
-        [Path]  -- remaining dirs
+        PosixPath -- current dir path
+        [PosixPath]  -- remaining dirs
         (Ptr CDir) -- current dir
         MutByteArray
         Int
@@ -254,7 +254,7 @@ data ChunkStreamByteState =
 -- separated by newlines.
 {-# INLINE readEitherByteChunks #-}
 readEitherByteChunks :: MonadIO m =>
-    [Path] -> Stream m (Either [Path] (Array Word8))
+    [PosixPath] -> Stream m (Either [PosixPath] (Array Word8))
 readEitherByteChunks alldirs =
     Stream step (ChunkStreamByteInit0)
 
@@ -274,12 +274,12 @@ readEitherByteChunks alldirs =
     -- from the output channel, then consume that stream by using a monad bind.
     bufSize = 4000
 
-    mkPath :: Array Word8 -> Path
-    mkPath = Path.unsafeFromPath . Path.unsafeFromChunk
+    mkPath :: Array Word8 -> PosixPath
+    mkPath = Path.unsafeFromChunk
 
     copyToBuf dstArr pos dirPath name = do
         nameLen <- fmap fromIntegral (liftIO $ c_strlen name)
-        let Path (Array dirArr start end) = dirPath
+        let PosixPath (Array dirArr start end) = dirPath
             dirLen = end - start
             -- XXX We may need to decode and encode the path if the
             -- output encoding differs from fs encoding.
@@ -290,7 +290,7 @@ readEitherByteChunks alldirs =
         then do
             -- XXX append a path separator to a dir path
             -- We know it is already pinned.
-            MutByteArray.asUnpinnedPtrUnsafe dstArr (\ptr -> liftIO $ do
+            MutByteArray.unsafeAsPtr dstArr (\ptr -> liftIO $ do
                 MutByteArray.putSliceUnsafe dirArr start dstArr pos dirLen
                 let ptr1 = ptr `plusPtr` (pos + dirLen)
                     separator = 47 :: Word8
