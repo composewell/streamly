@@ -194,10 +194,10 @@ jobs:
             cabal_build_options: "--flag debug --flag -opt"
             disable_sdist_build: "y"
             ignore_error: false
-          - name: hlint
-            build: hlint
-            runner: ubuntu-latest
-            ignore_error: true
+        # - name: hlint
+        #   build: hlint
+        #   runner: ubuntu-latest
+        #   ignore_error: true
 
     steps:
     - uses: actions/checkout@v2
