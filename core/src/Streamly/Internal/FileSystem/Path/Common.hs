@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- |
 -- Module      : Streamly.Internal.FileSystem.Path.Common
 -- Copyright   : (c) 2023 Composewell Technologies
@@ -144,7 +142,7 @@ fromChars p encode s =
         sample = Stream.takeWhile p s
      in
         if n <= 0
-        then throwM $ InvalidPath $ "Path cannot be empty."
+        then throwM $ InvalidPath "Path cannot be empty."
         else if n1 < n
         then throwM $ InvalidPath $ "Path contains a NULL char at position: "
                 ++ show n1 ++ " after " ++ runIdentity (Stream.toList sample)
@@ -172,7 +170,7 @@ mkQ f =
 
   where
 
-  err x = \_ -> fail $ "QuasiQuote used as a " ++ x
+  err x _ = fail $ "QuasiQuote used as a " ++ x
     ++ ", can be used only as an expression"
 
 ------------------------------------------------------------------------------
@@ -220,7 +218,7 @@ _primarySeparator = posixSeparator
 {-# INLINE isSeparator #-}
 isSeparator :: OS -> Char -> Bool
 isSeparator Windows c = (c == windowsSeparator) || (c == posixSeparator)
-isSeparator Posix c = (c == posixSeparator)
+isSeparator Posix c = c == posixSeparator
 
 {-# INLINE isSeparatorWord #-}
 isSeparatorWord :: Integral a => OS -> a -> Bool
@@ -252,28 +250,23 @@ dropTrailingSeparators os =
 
 -- | path is @.@ or starts with @./@.
 isCurDirRelativeLocation :: (Unbox a, Integral a) => Array a -> Bool
-isCurDirRelativeLocation a =
+isCurDirRelativeLocation a
     -- Assuming the path is not empty.
-    if wordToChar (Array.getIndexUnsafe 0 a) /= '.'
-    then False
-    else if Array.byteLength a < 2
-    then True
-    else isSeparator Windows (wordToChar (Array.getIndexUnsafe 1 a))
+    | wordToChar (Array.getIndexUnsafe 0 a) /= '.' = False
+    | Array.byteLength a < 2 = True
+    | otherwise = isSeparator Windows (wordToChar (Array.getIndexUnsafe 1 a))
 
 -- | @C:...@
 hasDrive :: (Unbox a, Integral a) => Array a -> Bool
-hasDrive a =
-    if Array.byteLength a < 2
-    then False
+hasDrive a
+    | Array.byteLength a < 2 = False
     -- Check colon first for quicker return
-    else if (unsafeIndexChar 1 a /= ':')
-    then False
+    | unsafeIndexChar 1 a /= ':' = False
     -- XXX If we found a colon anyway this cannot be a valid path unless it has
     -- a drive prefix. colon is not a valid path character.
     -- XXX check isAlpha perf
-    else if not (isAlpha (unsafeIndexChar 0 a))
-    then False -- XXX if we are here it is not a valid path
-    else True
+    | not (isAlpha (unsafeIndexChar 0 a)) = False
+    | otherwise = True
 
 -- | On windows, the path starts with a separator.
 isCurDriveRelativeLocation :: (Unbox a, Integral a) => Array a -> Bool
@@ -283,31 +276,24 @@ isCurDriveRelativeLocation a =
 
 -- | @C:\...@
 isLocationDrive :: (Unbox a, Integral a) => Array a -> Bool
-isLocationDrive a =
-    if Array.byteLength a < 3
-    then False
+isLocationDrive a
+    | Array.byteLength a < 3 = False
     -- Check colon first for quicker return
-    else if (unsafeIndexChar 1 a /= ':')
-    then False
-    else if not (isSeparator Windows (unsafeIndexChar 2 a))
-    then False
+    | unsafeIndexChar 1 a /= ':' = False
+    | not (isSeparator Windows (unsafeIndexChar 2 a)) = False
     -- XXX If we found a colon anyway this cannot be a valid path unless it has
     -- a drive prefix. colon is not a valid path character.
     -- XXX check isAlpha perf
-    else if not (isAlpha (unsafeIndexChar 0 a))
-    then False -- XXX if we are here it is not a valid path
-    else True
+    | not (isAlpha (unsafeIndexChar 0 a)) = False
+    | otherwise = True
 
 -- | @\\\\...@
 isAbsoluteUNCLocation :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteUNCLocation a =
-    if Array.byteLength a < 2
-    then False
-    else if (unsafeIndexChar 0 a /= '\\')
-    then False
-    else if (unsafeIndexChar 1 a /= '\\')
-    then False
-    else True
+isAbsoluteUNCLocation a
+    | Array.byteLength a < 2 = False
+    | unsafeIndexChar 0 a /= '\\' = False
+    | unsafeIndexChar 1 a /= '\\' = False
+    | otherwise = True
 
 -- | On Posix and Windows,
 -- * a path starting with a separator, an absolute location

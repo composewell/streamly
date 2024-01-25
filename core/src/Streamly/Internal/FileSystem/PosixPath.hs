@@ -210,7 +210,7 @@ unsafeFromChunk = unsafeFromPath . OS_PATH . Common.unsafeFromChunk
 -- | See 'fromChars' for failure cases.
 --
 fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array Word8 -> m a
-fromChunk arr = fmap OS_PATH (Common.fromChunk arr) >>= fromPath
+fromChunk arr = Common.fromChunk arr >>= fromPath . OS_PATH
 
 -- XXX Should be a Fold instead?
 
@@ -228,8 +228,8 @@ fromChunk arr = fmap OS_PATH (Common.fromChunk arr) >>= fromPath
 -- normalize it and use the fromChunk API.
 fromChars :: (MonadThrow m, IsPath OS_PATH a) => Stream Identity Char -> m a
 fromChars s =
-    fmap OS_PATH (Common.fromChars (== '\0') Unicode.UNICODE_ENCODER s)
-        >>= fromPath
+    Common.fromChars (== '\0') Unicode.UNICODE_ENCODER s
+        >>= fromPath . OS_PATH
 
 unsafeFromString :: IsPath OS_PATH a => [Char] -> a
 unsafeFromString =
