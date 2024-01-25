@@ -40,6 +40,10 @@ import Prelude hiding (concat, map)
 -- Type
 ------------------------------------------------------------------------------
 
+-- Note that this type cannot be made a Functor on the seed/result type because
+-- that requires bi-directional mapping between the two types, see translate
+-- and lmap below.
+
 -- | A @Producer m a b@ is a generator of a stream of values of type @b@ from a
 -- seed of type 'a' in 'Monad' @m@.
 --
