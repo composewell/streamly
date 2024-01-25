@@ -572,8 +572,12 @@ foldAdd f =
 -- >>> Stream.foldrM step (return False) s
 -- True
 --
+-- >>> import Control.Monad (join)
+-- >>> foldrM f z = join $ Stream.foldr f z
+--
 {-# INLINE_NORMAL foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
+-- foldrM f z = join . Streamly.Internal.Data.Stream.StreamD.Type.foldr f z
 foldrM f z (Stream step state) = go SPEC state
   where
     {-# INLINE_LATE go #-}
