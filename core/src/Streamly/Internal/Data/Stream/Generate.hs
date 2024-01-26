@@ -250,6 +250,7 @@ unfoldr f = unfoldrM (return . f)
 ------------------------------------------------------------------------------
 
 -- |
+-- >>> repeatM = Stream.iterateM id
 -- >>> repeatM = Stream.sequence . Stream.repeat
 --
 -- Generate a stream by repeatedly executing a monadic action forever.
@@ -272,6 +273,7 @@ repeatM x = Stream (\_ _ -> x >>= \r -> return $ Yield r ()) ()
 -- |
 -- Generate an infinite stream by repeating a pure value.
 --
+-- >>> repeat = Stream.iterate id
 -- >>> repeat x = Stream.repeatM (pure x)
 --
 {-# INLINE_NORMAL repeat #-}
