@@ -68,7 +68,11 @@ module Streamly.Data.Stream
     , unfoldr
     , unfoldrM
 
-    -- ** From Values
+    -- ** Singleton
+    , fromPure
+    , fromEffect
+
+    -- ** Iteration
     -- | Generate a monadic stream from a seed value or values.
     --
     -- Non-empty pure streams can be cycled using repeat and unfold:
@@ -79,35 +83,30 @@ module Streamly.Data.Stream
     --
     -- >>> cycle xs = let ys = xs `StreamK.append` ys in ys
     --
-    , fromPure
-    , fromEffect
+    , iterate
+    , iterateM
     , repeat
     , repeatM
     , replicate
     , replicateM
 
-    -- Note: Using enumeration functions e.g. 'Prelude.enumFromThen' turns out
-    -- to be slightly faster than the idioms like @[from, then..]@.
-    --
     -- ** Enumeration
-    -- | We can use the 'Enum' type class to enumerate a type producing a list
-    -- and then convert it to a stream:
+    -- | 'Enumerable' type class is to streams as 'Enum' is to lists. Enum
+    -- provides functions to generate a list, Enumerable provides similar
+    -- functions to generate a stream instead.
     --
-    -- @
-    -- 'fromList' $ 'Prelude.enumFromThen' from then
-    -- @
+    -- It is much more efficient to use 'Enumerable' directly than enumerating
+    -- to a list and converting it to stream. The following works but is not
+    -- particularly efficient:
     --
-    -- However, this is not particularly efficient.
-    -- The 'Enumerable' type class provides corresponding functions that
-    -- generate a stream instead of a list, efficiently.
+    -- >>> s from then = Stream.fromList $ Prelude.enumFromThen from then
+    --
+    -- Note: For lists, using enumeration functions e.g. 'Prelude.enumFromThen'
+    -- turns out to be slightly faster than the idioms like @[from, then..]@.
 
     , Enumerable (..)
     , enumerate
     , enumerateTo
-
-    -- ** Iteration
-    , iterate
-    , iterateM
 
     -- ** From Containers
     -- | Convert an input structure, container or source into a stream. All of
