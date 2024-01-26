@@ -288,7 +288,7 @@ module Streamly.Data.Fold
     , duplicate
     -- , isClosed
 
-    -- * Combinators
+    -- * Tranformation
     -- | Combinators are modifiers of folds.  In the type @Fold m a b@, @a@ is
     -- the input type and @b@ is the output type.  Transformations can be
     -- applied either on the input side (contravariant) or on the output side
@@ -336,6 +336,7 @@ module Streamly.Data.Fold
     , takeEndBy
     , takeEndBy_
 
+    -- * Combinators
     -- ** Splitting
     , splitWith
     , many
