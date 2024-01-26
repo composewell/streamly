@@ -8,19 +8,18 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- Streams represented as chains of functions calls using Continuation Passing
--- Style (CPS), suitable for dynamically composing potentially large number of
--- streams.
+-- Streams represented as chains of function calls using Continuation Passing
+-- Style (CPS), suitable for dynamically and recursively composing potentially
+-- large number of streams. The 'K' in 'StreamK' stands for Kontinuation.
 --
 -- Unlike the statically fused operations in "Streamly.Data.Stream", StreamK
 -- operations are less efficient, involving a function call overhead for each
 -- element, but they exhibit linear O(n) time complexity wrt to the number of
 -- stream compositions. Therefore, they are suitable for dynamically composing
 -- streams e.g. appending potentially infinite streams in recursive loops.
--- While fused streams can be used to efficiently process elements as small as
+-- While fused streams can be used efficiently to process elements as small as
 -- a single byte, CPS streams are typically used on bigger chunks of data to
--- avoid the larger overhead per element. For more details See the @Stream vs
--- StreamK@ section in the "Streamly.Data.Stream" module.
+-- avoid the larger overhead per element.
 --
 -- In addition to the combinators in this module, you can use operations from
 -- "Streamly.Data.Stream" for StreamK as well by converting StreamK to Stream
@@ -32,6 +31,32 @@
 -- "Streamly.Data.Stream". Documentation has been omitted in this module unless
 -- there is a difference worth mentioning or if the combinator does not exist
 -- in "Streamly.Data.Stream".
+--
+-- = Overview
+--
+-- StreamK can be constructed like lists, except that they use 'nil' instead of
+-- '[]' and 'cons' instead of ':'.
+--
+-- >>> import Streamly.Data.StreamK (StreamK, cons, consM, nil)
+--
+-- `cons` constructs a stream from pure values:
+--
+-- >>> stream = 1 `cons` 2 `cons` nil :: StreamK IO Int
+--
+-- Operations from "Streamly.Data.Stream" can be used for StreamK as well by
+-- converting StreamK to Stream ('toStream'), and vice-versa ('fromStream').
+--
+-- >>> Stream.fold Fold.toList $ StreamK.toStream stream -- IO [Int]
+-- [1,2]
+--
+-- Stream can also be constructed from effects not just pure values:
+--
+-- >>> effect n = print n >> return n
+-- >>> stream = effect 1 `consM` effect 2 `consM` nil
+-- >>> Stream.fold Fold.toList $ StreamK.toStream stream
+-- 1
+-- 2
+-- [1,2]
 
 -- Notes:
 --
@@ -53,9 +78,6 @@ module Streamly.Data.StreamK
     -- run the following commands first.
     --
     -- $setup
-
-    -- * Overview
-    -- $overview
 
     -- * Type
       StreamK
@@ -165,30 +187,3 @@ import Streamly.Internal.Data.StreamK
 import Prelude hiding (reverse, zipWith, mapM, dropWhile, take)
 
 #include "DocTestDataStreamK.hs"
-
--- $overview
---
--- Continuation passing style (CPS) stream implementation. The 'K' in 'StreamK'
--- stands for Kontinuation.
---
--- StreamK can be constructed like lists, except that they use 'nil' instead of
--- '[]' and 'cons' instead of ':'.
---
--- `cons` adds a pure value at the head of the stream:
---
--- >>> import Streamly.Data.StreamK (StreamK, cons, consM, nil)
--- >>> stream = 1 `cons` 2 `cons` nil :: StreamK IO Int
---
--- You can use operations from "Streamly.Data.Stream" for StreamK as well by
--- converting StreamK to Stream ('toStream'), and vice-versa ('fromStream').
---
--- >>> Stream.fold Fold.toList $ StreamK.toStream stream -- IO [Int]
--- [1,2]
---
--- `consM` adds an effect at the head of the stream:
---
--- >>> stream = effect 1 `consM` effect 2 `consM` nil
--- >>> Stream.fold Fold.toList $ StreamK.toStream stream
--- 1
--- 2
--- [1,2]
