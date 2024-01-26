@@ -106,14 +106,6 @@ module Streamly.Data.Stream
     -- ** Iteration
     -- | Generate a monadic stream from a seed value or values.
     --
-    -- Non-empty pure streams can be cycled using repeat and unfold:
-    --
-    -- >>> cycle = Stream.unfoldMany Unfold.fromList . Stream.repeat
-    --
-    -- Non-empty StreamK can be cycled using append:
-    --
-    -- >>> cycle xs = let ys = xs `StreamK.append` ys in ys
-    --
     , iterate
     , iterateM
     , repeat
@@ -499,37 +491,39 @@ module Streamly.Data.Stream
     -- , CrossStream (..)
 
     -- * Unfold Each
+    -- Idioms and equivalents of Data.List APIs:
+    --
+    -- >>> cycle = Stream.unfoldMany Unfold.fromList . Stream.repeat
+    -- >>> unlines = Stream.interposeSuffix '\n'
+    -- >>> unwords = Stream.interpose ' '
+    -- >>> unlines = Stream.intercalateSuffix Unfold.fromList "\n"
+    -- >>> unwords = Stream.intercalate Unfold.fromList " "
+    --
     , unfoldMany
     , intercalate
     , intercalateSuffix
 
     -- * Stream of streams
-    -- | Stream operations like map and filter represent loop processing in
+    -- | Stream operations like map and filter represent loops in
     -- imperative programming terms. Similarly, the imperative concept of
     -- nested loops are represented by streams of streams. The 'concatMap'
     -- operation represents nested looping.
-    -- A 'concatMap' operation loops over the input stream and then for each
-    -- element of the input stream generates another stream and then loops over
-    -- that inner stream as well producing effects and generating a single
-    -- output stream.
+    --
+    -- A 'concatMap' operation loops over the input stream (outer loop),
+    -- generating a stream from each element of the stream. Then it loops over
+    -- each element of the generated streams (inner loop), collecting them in a
+    -- single output stream.
     --
     -- One dimension loops are just a special case of nested loops.  For
-    -- example, 'concatMap' can degenerate to a simple map operation:
+    -- example map and filter can be expressed using concatMap:
     --
-    -- >>> map f m = Stream.concatMap (\x -> Stream.fromPure (f x)) m
-    --
-    -- Similarly, 'concatMap' can perform filtering by mapping an element to a
-    -- 'nil' stream:
-    --
-    -- >>> filter p m = Stream.concatMap (\x -> if p x then Stream.fromPure x else Stream.nil) m
+    -- >>> map f = Stream.concatMap (Stream.fromPure . f)
+    -- >>> filter p = Stream.concatMap (\x -> if p x then Stream.fromPure x else Stream.nil)
     --
     -- Idioms and equivalents of Data.List APIs:
     --
     -- >>> concat = Stream.concatMap id
-    -- >>> unlines = Stream.interposeSuffix '\n'
-    -- >>> unlines = Stream.intercalateSuffix Unfold.fromList "\n"
-    -- >>> unwords = Stream.interpose ' '
-    -- >>> unwords = Stream.intercalate Unfold.fromList " "
+    -- >>> cycle = Stream.concatMap Stream.fromList . Stream.repeat
 
     , concatEffect
     , concatMap

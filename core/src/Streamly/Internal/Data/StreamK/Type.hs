@@ -264,17 +264,19 @@ infixr 5 `cons`
 -- faster than consM because there is no bind.
 
 -- | A right associative prepend operation to add a pure value at the head of
--- an existing stream::
+-- an existing stream:
 --
 -- >>> s = 1 `StreamK.cons` 2 `StreamK.cons` 3 `StreamK.cons` StreamK.nil
 -- >>> Stream.fold Fold.toList (StreamK.toStream s)
 -- [1,2,3]
 --
--- It can be used efficiently with 'Prelude.foldr':
+-- Unlike "Streamly.Data.Stream" cons StreamK cons can be used
+-- recursively:
 --
+-- >>> repeat x = let xs = StreamK.cons x xs in xs
 -- >>> fromFoldable = Prelude.foldr StreamK.cons StreamK.nil
 --
--- Same as the following but more efficient:
+-- cons is same as the following but more efficient:
 --
 -- >>> cons x xs = return x `StreamK.consM` xs
 --
@@ -885,6 +887,11 @@ null m =
 
 infixr 6 `append`
 
+-- | Unlike "Streamly.Data.Stream" append StreamK append can be used
+-- recursively:
+--
+-- >>> cycle xs = let ys = xs `StreamK.append` ys in ys
+--
 {-# INLINE append #-}
 append :: StreamK m a -> StreamK m a -> StreamK m a
 -- XXX This doubles the time of toNullAp benchmark, may not be fusing properly
@@ -1768,10 +1775,12 @@ unfoldrM = unfoldrMWith consM
 
 -- | Generate an infinite stream by repeating a pure value.
 --
+-- >>> repeat x = let xs = StreamK.cons x xs in xs
+--
 -- /Pre-release/
 {-# INLINE repeat #-}
 repeat :: a -> StreamK m a
-repeat a = let x = cons a x in x
+repeat x = let xs = cons x xs in xs
 
 -- | Like 'repeatM' but takes a stream 'cons' operation to combine the actions
 -- in a stream specific manner. A serial cons would repeat the values serially
