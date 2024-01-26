@@ -256,11 +256,14 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 --
 -- XXX If we use Refold in it, it can perhaps fuse/be more efficient. For
 -- example we can store just the result rather than storing the whole fold in
--- the Map.
+-- the Map. This would be similar to a refold based classify.
 --
 -- Note: There are separate functions to determine Key and Fold from the input
 -- because key is to be determined on each input whereas fold is to be
 -- determined only once for a key.
+--
+-- XXX Should we use (k -> m (Fold m a b)) instead since the fold is key
+-- specific? This should give better safety.
 
 -- | This is the most general of all demux, classify operations.
 --
@@ -527,6 +530,9 @@ demuxKvToMap = demuxKvToContainer
 -- the underlying monad, and when initial is called look it up, if the fold is
 -- done then initial would set a flag in the state to ignore the input or
 -- return an error.
+
+-- XXX Use a Refold m k a b so that we can make the fold key specifc.
+-- XXX Is using a function (a -> k) better than using the input (k,a)?
 
 {-# INLINE classifyGeneric #-}
 classifyGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>

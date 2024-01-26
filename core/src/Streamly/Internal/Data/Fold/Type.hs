@@ -1230,7 +1230,9 @@ data ConcatMapState m sa a b c
     | forall s. C (s -> a -> m (Step s c)) !s (s -> m c) (s -> m c)
 
 -- | Map a 'Fold' returning function on the result of a 'Fold' and run the
--- returned fold. This operation can be used to express data dependencies
+-- returned fold. This is akin to an n-ary version of 'splitWith' where the
+-- next fold for splitting the input is decided dynamically using the previous
+-- result. This operation can be used to express data dependencies
 -- between fold operations.
 --
 -- Let's say the first element in the stream is a count of the following

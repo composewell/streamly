@@ -288,12 +288,12 @@ module Streamly.Data.Fold
     , duplicate
     -- , isClosed
 
-    -- * Tranformation
-    -- | Combinators are modifiers of folds.  In the type @Fold m a b@, @a@ is
-    -- the input type and @b@ is the output type.  Transformations can be
+    -- * Transformations
+    -- | Transformations are modifiers of folds.  In the type @Fold m a b@, @a@
+    -- is the input type and @b@ is the output type.  Transformations can be
     -- applied either on the input side (contravariant) or on the output side
-    -- (covariant).  Therefore, combinators are of one of the following general
-    -- shapes:
+    -- (covariant).  Therefore, transformations have one of the following
+    -- general shapes:
     --
     -- * @... -> Fold m a b -> Fold m c b@ (input transformation)
     -- * @... -> Fold m a b -> Fold m a c@ (output transformation)
@@ -316,10 +316,7 @@ module Streamly.Data.Fold
     , lmap
     , lmapM
 
-    -- ** Scanning and Filtering
-    , scan
-    , postscan
-    , scanMaybe
+    -- ** Filtering
     , filter
     , filterM
 
@@ -332,16 +329,32 @@ module Streamly.Data.Fold
 
     -- ** Trimming
     , take
-    -- , takeInterval
     , takeEndBy
     , takeEndBy_
 
+    -- ** Key-value Collectors
+    , toMap
+    , toMapIO
+
+    -- ** Key-value Scanners
+    , classify
+    , classifyIO
+
+    -- ** Transforming the Monad
+    , morphInner
+
     -- * Combinators
+    -- | Transformations that combine two or more folds.
+
+    -- ** Scanning
+    , scan
+    , postscan
+    , scanMaybe
+
     -- ** Splitting
     , splitWith
     , many
     , groupsOf
-    -- , intervalsOf
 
     -- ** Parallel Distribution
     -- | For applicative composition using distribution see
@@ -363,26 +376,23 @@ module Streamly.Data.Fold
     --, partitionByMinM
     --, partitionBy
 
+    -- ** Unzipping
+    , unzip
+
+    -- * Dynamic Combinators
+    -- | The fold to be used is generated dynamically based on the input or
+    -- based on the output of the previous fold.
+
     -- ** Key-value Collectors
-    , toMap
-    , toMapIO
     , demuxToMap
     , demuxToMapIO
 
     -- ** Key-value Scanners
-    , classify
-    , classifyIO
     , demux
     , demuxIO
 
-    -- ** Unzipping
-    , unzip
-
     -- ** Nesting
     , concatMap
-
-    -- * Transforming the Monad
-    , morphInner
 
     -- * Deprecated
     , chunksOf
