@@ -175,15 +175,30 @@ module Streamly.Data.Fold
     --
     -- $setup
 
-    -- * Running A Fold
-      drive
-    -- XXX Should we have a stream returning function in fold module?
-    -- , breakStream
-
     -- * Fold Type
 
-    , Fold -- (..)
+      Fold -- (..)
     , Tee (..)
+
+    -- * Running A Fold
+    -- | 'Streamly.Data.Strem.fold' and 'drive' are the basic fold runners.
+    -- Folds can also be used a incremental builders. The 'addOne' and
+    -- 'addStream' combinators can be used to incrementally build any type of
+    -- structure using a fold, including arrays or a stream of arrays.
+
+    , drive
+    -- XXX should rename to "extract". can use "Fold.drive Stream.nil" instead,
+    -- for now.
+    -- , extractM
+    -- , reduce
+    , addOne
+    -- , snocl
+    -- XXX Can we use something like concatEffect to implement snocM?
+    -- , snocM
+    -- , snoclM
+    , addStream
+    , duplicate
+    -- , isClosed
 
     -- * Constructors
     , foldl'
@@ -264,29 +279,6 @@ module Streamly.Data.Fold
     , any
     , and
     , or
-
-    -- * Incremental builders
-    -- | Mutable arrays ("Streamly.Data.MutArray") are basic builders. You can
-    -- use the 'Streamly.Data.MutArray.snoc' or
-    -- 'Streamly.Data.MutArray.writeAppend' operations to incrementally build
-    -- mutable arrays. The 'addOne' and 'addStream' combinators can be used to
-    -- incrementally build any type of structure using a fold, including arrays
-    -- or a stream of arrays.
-    --
-    -- Use pinned arrays if you are going to use the data for IO.
-
-    -- XXX should rename to "extract". can use "Fold.drive Stream.nil" instead,
-    -- for now.
-    -- , extractM
-    -- , reduce
-    , addOne
-    -- , snocl
-    -- XXX Can we use something like concatEffect to implement snocM?
-    -- , snocM
-    -- , snoclM
-    , addStream
-    , duplicate
-    -- , isClosed
 
     -- * Transformations
     -- | Transformations are modifiers of folds.  In the type @Fold m a b@, @a@
