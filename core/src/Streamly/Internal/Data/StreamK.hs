@@ -1493,37 +1493,39 @@ parseBreak parser input = do
         -> a
         -> StreamK m a
         -> m (Either ParseError b, StreamK m a)
-    yieldk backBuf parserk arr stream = do
-        pRes <- parserk (ParserK.Chunk arr)
+    yieldk backBuf parserk element stream = do
+        pRes <- parserk (ParserK.Chunk element)
+        -- NOTE: factoring out "cons element stream" in a let statement here
+        -- cause big alloc regression.
         case pRes of
             ParserK.Partial 1 cont1 -> go [] cont1 stream
-            ParserK.Partial 0 cont1 -> go [] cont1 (cons arr stream)
+            ParserK.Partial 0 cont1 -> go [] cont1 (cons element stream)
             ParserK.Partial n _ | n > 1 -> seekErr n
-            ParserK.Partial n cont1 -> do
+            ParserK.Partial n cont1 -> do -- n < 0 case
                 let n1 = negate n
                     bufLen = length backBuf
-                    s = cons arr stream
+                    s = cons element stream
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backTrackSingular n1 backBuf s
                 go [] cont1 s1
-            ParserK.Continue 1 cont1 -> go (arr:backBuf) cont1 stream
+            ParserK.Continue 1 cont1 -> go (element:backBuf) cont1 stream
             ParserK.Continue 0 cont1 ->
-                go backBuf cont1 (cons arr stream)
+                go backBuf cont1 (cons element stream)
             ParserK.Continue n _ | n > 1 -> seekErr n
             ParserK.Continue n cont1 -> do
                 let n1 = negate n
                     bufLen = length backBuf
-                    s = cons arr stream
+                    s = cons element stream
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, backBuf1) = backTrackSingular n1 backBuf s
                 go backBuf1 cont1 s1
             ParserK.Done 1 b -> pure (Right b, stream)
-            ParserK.Done 0 b -> pure (Right b, cons arr stream)
+            ParserK.Done 0 b -> pure (Right b, cons element stream)
             ParserK.Done n _ | n > 1 -> seekErr n
             ParserK.Done n b -> do
                 let n1 = negate n
                     bufLen = length backBuf
-                    s = cons arr stream
+                    s = cons element stream
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backTrackSingular n1 backBuf s
                 pure (Right b, s1)

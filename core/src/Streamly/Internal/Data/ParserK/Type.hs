@@ -73,7 +73,14 @@ import qualified Streamly.Internal.Data.Parser.Type as ParserD
 --
 -- data Input a = None | Chunk {-# UNPACK #-} !(Array a)
 --
+-- XXX Rename Chunk to Some.
 data Input a = None | Chunk a
+
+-- XXX Step should be renamed to StepResult.
+-- XXX and StepParser should be just Step.
+
+-- | A parsing function that parses a single input.
+type StepParser a m r = Input a -> m (Step a m r)
 
 -- | The intermediate result of running a parser step. The parser driver may
 -- stop with a final result, pause with a continuation to resume, or fail with
@@ -89,8 +96,8 @@ data Step a m r =
     -- The Int is the current stream position index wrt to the start of the
     -- array.
       Done !Int r
-    | Partial !Int (Input a -> m (Step a m r))
-    | Continue !Int (Input a -> m (Step a m r))
+    | Partial !Int (StepParser a m r)
+    | Continue !Int (StepParser a m r)
     | Error !Int String
 
 instance Functor m => Functor (Step a m) where
@@ -140,7 +147,10 @@ newtype ParserK a m b = MkParser
            --
            -- Do not eta reduce the applications of this continuation.
            --
-           (ParseResult b -> Int -> Input a -> m (Step a m r))
+           -- The current stream position index is carried as part of 'Success'
+           -- constructor of 'ParseResult'. The second argument is the used
+           -- elem count.
+           (ParseResult b -> Int -> StepParser a m r)
            -- XXX Maintain and pass the original position in the stream. that
            -- way we can also report better errors. Use a Context structure for
            -- passing the state.
@@ -156,11 +166,7 @@ newtype ParserK a m b = MkParser
            -- used elem count, a count of elements consumed by the parser. If
            -- an Alternative fails we need to backtrack by this amount.
         -> Int
-           -- The second argument is the used count as described above. The
-           -- current input position is carried as part of 'Success'
-           -- constructor of 'ParseResult'.
-        -> Input a
-        -> m (Step a m r)
+        -> StepParser a m r
     }
 
 -------------------------------------------------------------------------------
@@ -172,9 +178,9 @@ newtype ParserK a m b = MkParser
 -- | Map a function on the result i.e. on @b@ in @Parser a m b@.
 instance Functor m => Functor (ParserK a m) where
     {-# INLINE fmap #-}
-    fmap f parser = MkParser $ \k n st arr ->
+    fmap f parser = MkParser $ \k pos used inp ->
         let k1 res = k (fmap f res)
-         in runParser parser k1 n st arr
+         in runParser parser k1 pos used inp
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -188,7 +194,7 @@ instance Functor m => Functor (ParserK a m) where
 --
 {-# INLINE fromPure #-}
 fromPure :: b -> ParserK a m b
-fromPure b = MkParser $ \k n st arr -> k (Success n b) st arr
+fromPure b = MkParser $ \k pos used inp -> k (Success pos b) used inp
 
 -- | See 'Streamly.Internal.Data.Parser.fromEffect'.
 --
@@ -197,7 +203,7 @@ fromPure b = MkParser $ \k n st arr -> k (Success n b) st arr
 {-# INLINE fromEffect #-}
 fromEffect :: Monad m => m b -> ParserK a m b
 fromEffect eff =
-    MkParser $ \k n st arr -> eff >>= \b -> k (Success n b) st arr
+    MkParser $ \k pos used inp -> eff >>= \b -> k (Success pos b) used inp
 
 -- | @f \<$> p1 \<*> p2@ applies parsers p1 and p2 sequentially to an input
 -- stream. The first parser runs and processes the input, the remaining input
@@ -213,19 +219,19 @@ instance Monad m => Applicative (ParserK a m) where
     (<*>) = ap
 
     {-# INLINE (*>) #-}
-    p1 *> p2 = MkParser $ \k n st arr ->
-        let k1 (Success n1 _) s input = runParser p2 k n1 s input
-            k1 (Failure n1 e) s input = k (Failure n1 e) s input
-        in runParser p1 k1 n st arr
+    p1 *> p2 = MkParser $ \k pos used input ->
+        let k1 (Success pos1 _) u inp = runParser p2 k pos1 u inp
+            k1 (Failure pos1 e) u inp = k (Failure pos1 e) u inp
+        in runParser p1 k1 pos used input
 
     {-# INLINE (<*) #-}
-    p1 <* p2 = MkParser $ \k n st arr ->
-        let k1 (Success n1 b) s1 input =
-                let k2 (Success n2 _) s2 input2  = k (Success n2 b) s2 input2
-                    k2 (Failure n2 e) s2 input2  = k (Failure n2 e) s2 input2
-                in runParser p2 k2 n1 s1 input
-            k1 (Failure n1 e) s1 input = k (Failure n1 e) s1 input
-        in runParser p1 k1 n st arr
+    p1 <* p2 = MkParser $ \k pos used input ->
+        let k1 (Success pos1 b) u1 inp =
+                let k2 (Success pos2 _) u2 inp2 = k (Success pos2 b) u2 inp2
+                    k2 (Failure pos2 e) u2 inp2 = k (Failure pos2 e) u2 inp2
+                in runParser p2 k2 pos1 u1 inp
+            k1 (Failure pos1 e) u1 inp = k (Failure pos1 e) u1 inp
+        in runParser p1 k1 pos used input
 
     {-# INLINE liftA2 #-}
     liftA2 f p = (<*>) (fmap f p)
@@ -243,7 +249,7 @@ instance Monad m => Applicative (ParserK a m) where
 --
 {-# INLINE die #-}
 die :: String -> ParserK a m b
-die err = MkParser (\k n st arr -> k (Failure n err) st arr)
+die err = MkParser (\k pos used inp -> k (Failure pos err) used inp)
 
 -- | Monad composition can be used for lookbehind parsers, we can dynamically
 -- compose new parsers based on the results of the previously parsed values.
@@ -252,10 +258,10 @@ instance Monad m => Monad (ParserK a m) where
     return = pure
 
     {-# INLINE (>>=) #-}
-    p >>= f = MkParser $ \k n st arr ->
-        let k1 (Success n1 b) s1 inp = runParser (f b) k n1 s1 inp
-            k1 (Failure n1 e) s1 inp = k (Failure n1 e) s1 inp
-         in runParser p k1 n st arr
+    p >>= f = MkParser $ \k pos used input ->
+        let k1 (Success pos1 b) u1 inp = runParser (f b) k pos1 u1 inp
+            k1 (Failure pos1 e) u1 inp = k (Failure pos1 e) u1 inp
+         in runParser p k1 pos used input
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
@@ -288,11 +294,11 @@ instance Monad m => Alternative (ParserK a m) where
     empty = die "empty"
 
     {-# INLINE (<|>) #-}
-    p1 <|> p2 = MkParser $ \k n _ arr ->
+    p1 <|> p2 = MkParser $ \k pos _ input ->
         let
-            k1 (Failure pos _) used input = runParser p2 k (pos - used) 0 input
-            k1 success _ input = k success 0 input
-        in runParser p1 k1 n 0 arr
+            k1 (Failure pos1 _) used inp = runParser p2 k (pos1 - used) 0 inp
+            k1 success _ inp = k success 0 inp
+        in runParser p1 k1 pos 0 input
 
     -- some and many are implemented here instead of using default definitions
     -- so that we can use INLINE on them. It gives 50% performance improvement.
@@ -490,14 +496,17 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
     res <- initial
     case res of
         ParserD.IPartial pst -> do
-            -- XXX can we come here with relPos 1?
             if relPos == 0
             then
                 case input of
-                    Chunk arr -> parseContChunk usedCount pst arr
+                    -- In element parser case chunk is just one element
+                    Chunk element -> parseContChunk usedCount pst element
                     None -> parseContNothing usedCount pst
             -- XXX Previous code was using Continue in this case
-            else pure $ Partial relPos (parseCont usedCount pst)
+            else
+                -- We consumed previous input, need to fetch the next
+                -- input from the driver.
+                pure $ Partial relPos (parseCont usedCount pst)
         ParserD.IDone b -> cont (Success relPos b) usedCount input
         ParserD.IError err -> cont (Failure relPos err) usedCount input
 
@@ -512,30 +521,34 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
         where
 
         go !_ !pst = do
-            pRes <- pstep pst x
-            case pRes of
+            r <- pstep pst x
+            case r of
+                -- Done, call the next continuation
                 ParserD.Done 0 b ->
                     cont (Success 1 b) (count + 1) (Chunk x)
                 ParserD.Done 1 b ->
                     cont (Success 0 b) count (Chunk x)
-                ParserD.Done n b ->
+                ParserD.Done n b -> -- n > 1
                     cont (Success (1 - n) b) (count + 1 - n) (Chunk x)
+
+                -- Not done yet, return the parseCont continuation
                 ParserD.Partial 0 pst1 ->
                     pure $ Partial 1 (parseCont (count + 1) pst1)
                 ParserD.Partial 1 pst1 ->
-                    -- XXX Since we got Partial, the driver should drop the
-                    -- buffer, we should call the driver here?
+                    -- XXX recurse or call the driver?
                     go SPEC pst1
-                ParserD.Partial n pst1 ->
+                ParserD.Partial n pst1 -> -- n > 0
                     pure $ Partial (1 - n) (parseCont (count + 1 - n) pst1)
                 ParserD.Continue 0 pst1 ->
                     pure $ Continue 1 (parseCont (count + 1) pst1)
                 ParserD.Continue 1 pst1 ->
+                    -- XXX recurse or call the driver?
                     go SPEC pst1
-                ParserD.Continue n pst1 ->
+                ParserD.Continue n pst1 -> -- n > 0
                     pure $ Continue (1 - n) (parseCont (count + 1 - n) pst1)
+
+                -- Error case
                 ParserD.Error err ->
-                    -- XXX fix undefined
                     cont (Failure 0 err) count (Chunk x)
 
     {-# NOINLINE parseContNothing #-}
@@ -544,7 +557,7 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
         case r of
             -- IMPORTANT: the n here is from the byte stream parser, that means
             -- it is the backtrack element count and not the stream position
-            -- index into the current input array.
+            -- index into the current input chunk.
             ParserD.Done n b ->
                 assert (n >= 0)
                     (cont (Success (- n) b) (count - n) None)
@@ -552,16 +565,16 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
                 assert (n >= 0)
                     (return $ Continue (- n) (parseCont (count - n) pst1))
             ParserD.Error err ->
-                -- XXX It is called only when there is no input arr. So using 0
-                -- as the position is correct?
+                -- XXX It is called only when there is no input chunk. So using
+                -- 0 as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.Partial _ _ -> error "Bug: adaptCWith Partial unreachable"
+            ParserD.Partial _ _ -> error "Bug: adaptWith Partial unreachable"
 
     -- XXX Maybe we can use two separate continuations instead of using
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
     -- function call.
     {-# INLINE parseCont #-}
-    parseCont !cnt !pst (Chunk arr) = parseContChunk cnt pst arr
+    parseCont !cnt !pst (Chunk element) = parseContChunk cnt pst element
     parseCont !cnt !pst None = parseContNothing cnt pst
 
 -- | Convert a 'Parser' to 'ParserK'.
