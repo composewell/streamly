@@ -17,8 +17,12 @@ module Streamly.Internal.Data.Stream.Transformer
 
     -- * Inner Monad Operations
     , liftInner
+
     , runReaderT
     , usingReaderT
+    , withReaderT
+    , localReaderT
+
     , evalStateT
     , runStateT
     , usingStateT
@@ -129,6 +133,28 @@ usingReaderT
     -> Stream m a
     -> Stream m a
 usingReaderT r f xs = runReaderT r $ f $ liftInner xs
+
+-- | Modify the environment of the underlying ReaderT monad.
+{-# INLINABLE withReaderT #-}
+withReaderT :: Monad m =>
+    (r2 -> r1) -> Stream (ReaderT r1 m) a -> Stream (ReaderT r2 m) a
+withReaderT f (Stream step state) = Stream step1 state
+
+    where
+
+    {-# INLINE_LATE step1 #-}
+    step1 gst st = do
+        r <- Reader.withReaderT f (step (adaptState gst) st)
+        return $ case r of
+            Yield x s -> Yield x s
+            Skip  s   -> Skip s
+            Stop      -> Stop
+
+-- | Modify the environment of the underlying ReaderT monad.
+{-# INLINABLE localReaderT #-}
+localReaderT :: Monad m =>
+    (r -> r) -> Stream (ReaderT r m) a -> Stream (ReaderT r m) a
+localReaderT = withReaderT
 
 ------------------------------------------------------------------------------
 -- Sharing read write state in a stream
