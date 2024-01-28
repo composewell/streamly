@@ -13,13 +13,16 @@ module Streamly.Internal.Data.StreamK.Transformer
 
     , liftInner
     , evalStateT
+
+    , localReaderT
     )
 where
 
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.Trans.State.Strict (StateT)
 import Streamly.Internal.Data.StreamK.Type
-    (StreamK, nil, cons, uncons, concatEffect)
+    (StreamK(..), nil, cons, uncons, concatEffect, foldStream, mkStream)
+import Control.Monad.Trans.Reader (ReaderT, local)
 
 import qualified Control.Monad.Trans.State.Strict as State
 
@@ -77,3 +80,12 @@ liftInner = go
         case res of
             Just (h, t) -> cons h (go t)
             Nothing -> nil
+
+-- | Modify the environment of the underlying ReaderT monad.
+{-# INLINABLE localReaderT #-}
+localReaderT :: (r -> r) -> StreamK (ReaderT r m) a -> StreamK (ReaderT r m) a
+localReaderT f m =
+    mkStream $ \st yld sng stp ->
+        let single = local f . sng
+            yieldk a r = local f $ yld a (localReaderT f r)
+        in foldStream st yieldk single (local f stp) m
