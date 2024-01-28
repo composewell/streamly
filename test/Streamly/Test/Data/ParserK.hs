@@ -7,9 +7,10 @@ module Main (main) where
 
 import Control.Applicative ((<|>))
 import Control.Exception (SomeException(..), try)
+import Data.Either (fromRight)
 import Data.Word (Word8, Word32, Word64)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
-import Test.Hspec (Spec, hspec, describe)
+import Test.Hspec (Spec, hspec, describe, it, expectationFailure, shouldBe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property,
@@ -22,8 +23,12 @@ import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
+import qualified Streamly.Internal.Data.Parser as Parser
+import qualified Streamly.Internal.Data.ParserK as ParserK
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
@@ -756,6 +761,40 @@ parseMany2Events =
                 }
          in listEquals (==) xs (replicate 2 ev)
 
+toParser :: Spec
+toParser = do
+    let p = ParserK.toParser (ParserK.adapt Parser.one)
+        runP xs = Stream.parse p (Stream.fromList xs)
+    describe "toParser . adapt" $ do
+        it "empty stream" $ do
+            r1 <- runP ([] :: [Int])
+            case r1 of
+                Left e -> print e
+                Right x ->
+                    expectationFailure $ "Expecting failure, got: " ++ show x
+        it "exact stream" $ do
+            r2 <- runP [0::Int]
+            fromRight undefined r2 `shouldBe` 0
+        it "longer stream" $ do
+            r3 <- runP [0,1::Int]
+            fromRight undefined r3 `shouldBe` 0
+
+    let p1 = ParserK.adapt $ ParserK.toParser (ParserK.adapt Parser.one)
+        runP1 xs = StreamK.parse p1 (StreamK.fromStream $ Stream.fromList xs)
+    describe "adapt . toParser . adapt" $ do
+        it "empty stream" $ do
+            r1 <- runP1 ([] :: [Int])
+            case r1 of
+                Left e -> print e
+                Right x ->
+                    expectationFailure $ "Expecting failure, got: " ++ show x
+        it "exact stream" $ do
+            r2 <- runP1 [0::Int]
+            fromRight undefined r2 `shouldBe` 0
+        it "longer stream" $ do
+            r3 <- runP1 [0,1::Int]
+            fromRight undefined r3 `shouldBe` 0
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -839,3 +878,4 @@ main =
         prop "P.some concatFold $ P.takeEndBy_ (== 1) FL.toList = Prelude.filter (== 0)" some
         prop "fail due to parser being die" someFail
     takeProperties
+    toParser

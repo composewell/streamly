@@ -30,7 +30,7 @@ module Streamly.Internal.Data.ParserK.Type
     , adaptC
     , adapt
     , adaptCG
-    -- , toParser
+    , toParser -- XXX unParserK, unK, unPK
     , fromPure
     , fromEffect
     , die
@@ -705,7 +705,6 @@ adaptCG ::
 adaptCG (ParserD.Parser step initial extract) =
     MkParser $ adaptCGWith step initial extract
 
-{-
 -------------------------------------------------------------------------------
 -- Convert CPS style 'Parser' to direct style 'D.Parser'
 -------------------------------------------------------------------------------
@@ -713,9 +712,13 @@ adaptCG (ParserD.Parser step initial extract) =
 -- | A continuation to extract the result when a CPS parser is done.
 {-# INLINE parserDone #-}
 parserDone :: Monad m => ParseResult b -> Int -> Input a -> m (Step a m b)
-parserDone (Success n b) _ None = return $ Done n b
-parserDone (Failure n e) _ None = return $ Error n e
-parserDone _ _ _ = error "Bug: toParser: called with input"
+parserDone (Success n b) _ None = return $ Done (negate n) b
+parserDone (Success n b) _ (Chunk _) = return $ Done (1 - n) b
+parserDone (Failure n e) _ None = return $ Error (negate n) e
+parserDone (Failure n e) _ (Chunk _) = return $ Error (1 - n) e
+
+-- XXX Note that this works only for single element parsers and not for Array
+-- input parsers. The asserts will fail for array parsers.
 
 -- | Convert a CPS style 'ParserK' to a direct style 'ParserD.Parser'.
 --
@@ -727,26 +730,28 @@ toParser parser = ParserD.Parser step initial extract
 
     where
 
-    initial = pure (ParserD.IPartial (\x -> runParser parser 0 0 x parserDone))
+    initial = pure (ParserD.IPartial (runParser parser parserDone 0 0))
 
     step cont a = do
-        r <- cont (Single a)
+        r <- cont (Chunk a)
         return $ case r of
-            Done n b -> ParserD.Done n b
+            Done n b -> assert (n <= 1) (ParserD.Done (1 - n) b)
             Error _ e -> ParserD.Error e
-            Partial n cont1 -> ParserD.Partial n cont1
-            Continue n cont1 -> ParserD.Continue n cont1
+            Partial n cont1 -> assert (n <= 1) (ParserD.Partial (1 - n) cont1)
+            Continue n cont1 -> assert (n <= 1) (ParserD.Continue (1 - n) cont1)
 
     extract cont = do
         r <- cont None
         case r of
-            Done n b -> return $ ParserD.Done n b
+            -- This is extract so no input has been given, therefore, the
+            -- translation here is (0 - n) rather than (1 - n).
+            Done n b ->  assert (n <= 0) (return $ ParserD.Done (negate n) b)
             Error _ e -> return $ ParserD.Error e
             Partial _ cont1 -> extract cont1
-            Continue n cont1 -> return $ ParserD.Continue n cont1
+            Continue n cont1 ->
+                assert (n <= 0) (return $ ParserD.Continue (negate n) cont1)
 
 {-# RULES "fromParser/toParser fusion" [2]
-    forall s. toParser (fromParser s) = s #-}
+    forall s. toParser (adapt s) = s #-}
 {-# RULES "toParser/fromParser fusion" [2]
-    forall s. fromParser (toParser s) = s #-}
--}
+    forall s. adapt (toParser s) = s #-}
