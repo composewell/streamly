@@ -207,6 +207,8 @@ module Streamly.Internal.Data.Parser.Type
     , noErrorUnsafeSplitWith
     , noErrorUnsafeSplit_
     , noErrorUnsafeConcatMap
+
+    , localReaderT
     )
 where
 
@@ -221,6 +223,7 @@ import Control.Exception (Exception(..))
 -- import Control.Monad (MonadPlus(..), (>=>))
 import Control.Monad ((>=>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Reader (ReaderT, local)
 import Data.Bifunctor (Bifunctor(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..), toList)
@@ -1450,3 +1453,15 @@ filter f (Parser step initial extract) = Parser step1 initial extract
     where
 
     step1 x a = if f a then step x a else return $ Partial 0 x
+
+-- XXX move this to ParserD.Transformer
+
+-- | Modify the environment of the underlying ReaderT monad.
+{-# INLINE localReaderT #-}
+localReaderT ::
+    (r -> r) -> Parser a (ReaderT r m) b -> Parser a (ReaderT r m) b
+localReaderT f (Parser step initial extract) =
+    Parser
+        ((local f .) . step)
+        (local f initial)
+        (local f . extract)
