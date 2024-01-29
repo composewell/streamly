@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.2.2 (Jan 2024)
 
 * Add fixities `infixr 5` for `cons` and `consM` functions.
