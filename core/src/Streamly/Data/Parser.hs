@@ -7,15 +7,28 @@
 -- Stability   : pre-release
 -- Portability : GHC
 --
--- Parsers are stream consumers like folds with the following differences:
+-- Parsers are more powerful 'Streamly.Data.Fold.Fold's:
 --
 -- * folds cannot fail but parsers can fail and backtrack.
 -- * folds can be composed as a Tee but parsers cannot.
 -- * folds can be used for scanning but parsers cannot.
 -- * folds can be converted to parsers.
 --
--- This module implements parsers with stream fusion which compile to efficient
--- loops comparable to the speed of C.
+-- Streamly parsers support all operations offered by popular Haskell parser
+-- libraries. They operate on a generic input type, support streaming, and are
+-- faster.
+--
+-- Like folds, parsers use stream fusion, compiling to efficient low-level code
+-- comparable to the speed of C. Parsers are suitable for high-performance
+-- parsing of streams.
+--
+-- Operations in this module are designed to be composed statically rather than
+-- dynamically. They are inlined to enable static fusion. More importantly,
+-- they are not designed to be used recursively. Recursive use will break
+-- fusion and will lead to quadratic performance slowdown. For dynamic or
+-- recursive composition use the continuation passing style (CPS) operations
+-- from the "Streamly.Data.ParserK" module. 'Parser' and
+-- 'Streamly.Data.ParserK.ParserK' types are interconvertible.
 --
 -- == Using Parsers
 --
@@ -116,23 +129,6 @@
 -- 'MonadTrans' instance is not provided. If the 'Parser' type is the top most
 -- layer (which should be the case almost always) you can just use 'fromEffect'
 -- to execute the lower layer monad effects.
---
--- == Parser vs ParserK Implementation
---
--- The 'Parser' type represents a stream consumer by composing state as data
--- which enables stream fusion. Stream fusion generates a tight loop without
--- any constructor allocations between the stages, providing C like performance
--- for the loop. Stream fusion works when multiple functions are combined in a
--- pipeline statically. Therefore, the operations in this module must be
--- inlined and must not be used recursively to allow for stream fusion.
---
--- The 'ParserK' type represents a stream consumer by composing function calls,
--- therefore, a function call overhead is incurred at each composition. It is
--- quite fast in general but may be a few times slower than a fused parser.
--- However, it allows for scalable dynamic composition especially parsers can
--- be used in recursive calls. Using the 'ParserK' type operations like
--- 'splitWith' provide linear (O(n)) performance with respect to the number of
--- compositions.
 --
 -- == Experimental APIs
 --

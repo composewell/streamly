@@ -11,18 +11,24 @@
 -- This module implements a using Continuation Passing Style (CPS) wrapper over
 -- the "Streamly.Data.Parser" module. It is as fast or faster than attoparsec.
 --
--- == Parser vs ParserK
+-- Streamly parsers support all operations offered by popular Haskell parser
+-- libraries. They operate on a generic input type, support streaming, and are
+-- faster.
+--
+-- The 'ParserK' type represents a stream-consumer as a composition of function
+-- calls, therefore, a function call overhead is incurred at each composition.
+-- It is reasonably fast in general but may be a few times slower than a fused
+-- parser represented by the 'Streamly.Data.Parser.Parser' type. However, it
+-- allows for scalable dynamic composition, especially, 'ParserK' can be used
+-- in recursive calls. Operations like 'splitWith' on 'ParserK' type have
+-- linear (O(n)) performance with respect to the number of compositions.
 --
 -- 'ParserK' is preferred over 'Streamly.Data.Parser.Parser' when extensive
 -- applicative, alternative and monadic composition is required, or when
--- recursive or dynamic composition of parsers is required. The
--- 'Streamly.Data.Parser.Parser' type fuses statically and creates efficient
--- loops whereas 'ParserK' uses function call based composition and has
--- comparatively larger runtime overhead but it is better suited to the
--- specific use cases mentioned above. 'ParserK' also allows to efficient parse
--- a stream of arrays, it can also break the input stream into a parse result
--- and remaining stream so that the stream can be parsed independently in
--- segments.
+-- recursive or dynamic composition of parsers is required. 'ParserK' also
+-- allows efficient parsing of a stream of arrays, it can also break the input
+-- stream into a parse result and remaining stream so that the stream can be
+-- parsed independently in segments.
 --
 -- == Using ParserK
 --
