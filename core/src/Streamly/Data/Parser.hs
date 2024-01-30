@@ -149,7 +149,7 @@ module Streamly.Data.Parser
     -- -- * Downgrade to Fold
     -- , toFold
 
-    -- * Parsers
+    -- * Elementary Parsers
     -- ** From Folds
     , fromFold
 
@@ -162,7 +162,7 @@ module Streamly.Data.Parser
     , peek
     , eof
 
-    -- ** Element parsers
+    -- ** Single Elements
 
     -- All of these can be expressed in terms of either
     , one
@@ -179,15 +179,15 @@ module Streamly.Data.Parser
     , listEqBy
     , listEq
 
-    -- * Combinators
+    -- * Transformations
     -- Mapping on output
     -- , rmapM
 
-    -- ** Mapping on input
+    -- ** Map on input
     , lmap
     , lmapM
 
-     -- * Map on output
+     -- ** Map on output
     , rmapM
 
     -- ** Filtering
@@ -196,6 +196,7 @@ module Streamly.Data.Parser
     -- ** Look Ahead
     , lookAhead
 
+    -- * Tokenizing Combinators
     -- ** Tokenize by length
     -- , takeBetween
     , takeEQ
@@ -226,12 +227,12 @@ module Streamly.Data.Parser
     -- -- * Alternative
     -- , alt
 
-    -- ** Splitting
+    -- * Splitting
     , many
     , some
     , manyTill
 
-    -- ** De-interleaving
+    -- * De-interleaving
     , deintercalate
     )
 
