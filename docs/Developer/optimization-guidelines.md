@@ -25,7 +25,7 @@ performance for the task at hand. Two important points to keep in mind
 before you optimize:
 
 * See if you actually need more performance
-* See if the code you are optimizing is in fast path
+* See if the code you are optimizing is in fast path of your application
 
 ### Stream Fusion
 
@@ -54,7 +54,7 @@ The haddock documentation includes a note when an operation cannot fuse.
 * Use unfolds especially when higher order operations are involved. For
   example, `unfoldMany` can fuse completely whereas `concatMap` would
   not fuse.
-* Use `outerProduct` in `Unfold` module instead of using the monad instance of
+* Use `outerProduct` from the `Unfold` module instead of using the monad instance of
   streams to fuse nested loops where performance matters. See the unfold
   benchmarks for an example. `outerProduct` can give you C like nested loop
   performance.
@@ -85,7 +85,7 @@ are part of a loop must be inlined:
 
 ### Streams and Unfolds
 
-Stream and Unfold State.  Direct style stream and unfold combinators use a
+Stream and Unfold State: Direct style stream and unfold combinators use a
 state data type to represent the internal state of the stream/unfold generator.
 
 * In some cases we may have to add a `FUSE` annotation on the state type to
@@ -212,11 +212,26 @@ See the `parselMx'` function in `StreamD` module.
 
 ### StreamK operations
 
-StreamK uses foldr/build fusion to a very limited degree. StreamK is not the
-primary representation in streamly but is used for several operations that
-cannot scale in StreamD representation. StreamK is relatively immune to compiler
-optimizations. In some cases you may need an INLINE pragma to improve the
-performance.
+StreamK (CPS based stream type) uses foldr/build fusion to a very
+limited degree. StreamK is not the primary representation in streamly
+but is used for several operations that cannot scale in fused `Stream`
+type representation. StreamK is relatively immune to compiler
+optimizations. In some cases you may need an INLINE pragma on the
+StreamK operation to improve its performance.
+
+## Debugging Fusion Issues
+
+### How to find non-fusing code?
+
+The fusion-plugin reports operations that do not fuse. It has many verbosity
+options to give even more information about the constructors that are not
+fusing. Read the readme of the fusion-plugin package for more details.
+
+When the code is not fusing you will see a lot more (e.g. 10x) allocations
+compared to the case when it is fusing.
+
+<!-- It is important to note where to expect fusion and where fusion is not
+possible. -->
 
 ### How to debug non-fusing code?
 
@@ -224,7 +239,7 @@ Strip down the code to a minimal version until it starts fusing and then
 start building it up from there adding more things incrementally. At
 each stage keep checking if the code is fusing. At some point it
 won't fuse. See what we added that made the code not fuse. Go through
-the guidelines above to check if we did something that that is not
+the guidelines above to check if we did something that is not
 recommended. Or raise an issue for GHC to be fixed if possible.
 
 # GHC Optimizations In Streamly
@@ -329,18 +344,22 @@ consume as arguments. This means `StreamD` combinators should not be marked
 as `INLINE` or `INLINE_EARLY`, instead they should all be marked as
 `INLINE_NORMAL` because higher order functions like `concatMap`/`map`/`mapM`
 etc are marked as `INLINE_NORMAL`. `StreamD` functions in other modules like
-`Streamly.Data.Array.Foreign` should also follow the same rules.
+`Streamly.Data.Array` should also follow the same rules.
+
+Use INLINE_NORMAL on functions like `pipe`, `Pipe.compose`, `Pipe.teeMerge` for
+complete fusion in a pipeline of multiple such operations e.g. in the `pipesX4`
+benchmarks.
 
 ## Stream Fusion
 
-In StreamD combinators, inlining the inner step or loop functions too early
+In fused `Stream` type combinators, inlining the inner step or loop functions too early
 i.e. in the same phase or before the outer function is inlined may block stream
 fusion opportunities. Therefore, the inner step functions and folding loops are
 marked as INLINE_LATE.
 
 ## Specialization
 
-In some cases, the `step` function in `StreamD` does not get specialized when
+In some cases, the `step` function in `Stream` does not get specialized when
 inlined unless it is provided with an explicit signature or made a lambda, for
 example, in the `replicate/replicateM` combinator we need the type annotation
 on `i` to get it specialized:
@@ -368,3 +387,51 @@ functions created during transformations, which can affect the inlining of
 these code blocks which in turn can affect stream fusion.
 
 See https://gitlab.haskell.org/ghc/ghc/issues/17075 .
+
+## Avoiding polymorphism
+
+Polymorphism can add unwanted inefficiencies, so avoid where possible. For
+example, more efficient code:
+
+```
+asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> IO b) -> m b
+```
+
+Less efficient version, because of a wroker-wrapper indirection (see
+https://github.com/composewell/streamly/issues/2589):
+
+```
+asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+```
+
+Using explicit type annotation
+------------------------------
+
+Having polymorphic types may hinder specialization and hurt performance. See
+the specialization section in design/inlining.md in streamly docs
+
+In some cases, the `step` function in `Stream` does not get specialized when
+inlined unless it is provided with an explicit signature or made a lambda, for
+example, in the `replicate/replicateM` combinator we need the type annotation
+on `i` to get it specialized:
+
+```
+    {-# INLINE_LATE step #-}
+    step _ (i :: Int) =
+        if i <= 0
+        then return Stop
+        else do
+                x <- action
+                return $ Yield x (i - 1)
+```
+
+In this case if the compiler does not infer the type of i automatically then we
+will be forced to provide the type and get it specialized.
+
+Strict State in Streams
+-----------------------
+
+Depending on the context, sometimes using strict data structures for
+stream state can provide better performance. In case the state does not
+fuse, making it strict will avoid performance problems due to state
+being lazy.
