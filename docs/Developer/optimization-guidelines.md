@@ -368,3 +368,33 @@ functions created during transformations, which can affect the inlining of
 these code blocks which in turn can affect stream fusion.
 
 See https://gitlab.haskell.org/ghc/ghc/issues/17075 .
+
+Do not infer types by default
+-----------------------------
+
+Having polymorphic types may hinder specialization and hurt performance. See
+the specialization section in design/inlining.md in streamly docs
+
+In some cases, the `step` function in `StreamD` does not get specialized when
+inlined unless it is provided with an explicit signature or made a lambda, for
+example, in the `replicate/replicateM` combinator we need the type annotation
+on `i` to get it specialized:
+
+```
+    {-# INLINE_LATE step #-}
+    step _ (i :: Int) =
+        if i <= 0
+        then return Stop
+        else do
+                x <- action
+                return $ Yield x (i - 1)
+```
+
+In this case if the compiler does not infer the type of i automatically then we
+will be forced to provide the type and get it specialized.
+
+Strict State in Streams
+-----------------------
+
+We should use the Strict data structures for stream state. In case the state
+does not fuse, it will avoid performances problems due to state being lazy.
