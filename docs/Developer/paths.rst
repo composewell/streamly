@@ -251,3 +251,13 @@ Some related links found by web search:
 * https://unix.stackexchange.com/questions/2089/what-charset-encoding-is-used-for-filenames-and-paths-on-linux
 * https://docs.microsoft.com/en-us/windows/win32/intl/character-sets-used-in-file-names
 * https://beets.io/blog/paths.html
+
+Related Packages
+----------------
+
+* https://hackage.haskell.org/package/paths
+* https://hackage.haskell.org/package/path
+* https://hackage.haskell.org/package/hpath
+* https://hackage.haskell.org/package/filepath
+* https://hackage.haskell.org/package/file-io
+* https://hackage.haskell.org/package/os-string
