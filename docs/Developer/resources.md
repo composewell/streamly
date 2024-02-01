@@ -30,6 +30,7 @@ Programming Languages](http://convecs.inria.fr/people/Wendelin.Serwe/Pubs/lopstr
 * [Stackless purescript](http://blog.functorial.com/posts/2015-07-31-Stackless-PureScript.html)
 * [Coroutine Pipelines](https://themonadreader.files.wordpress.com/2011/10/issue19.pdf)
 * [Faster Coroutine Pipelines](https://dl.acm.org/ft_gateway.cfm?id=3110249&ftid=1902054&dwn=1&CFID=982135108&CFTOKEN=78426775)
+* [Faster Coroutine Pipelines: A Reconstruction](https://rubenpieters.github.io/assets/papers/JFP20-pipes.pdf)
 
 ## Distributed
 * [Making reliable distributed systems in the presence of software errors](http://erlang.org/download/armstrong_thesis_2003.pdf)
