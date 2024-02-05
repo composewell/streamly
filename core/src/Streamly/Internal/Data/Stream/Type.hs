@@ -1797,24 +1797,25 @@ data FoldManyPost s fs b a
 
 -- | Like 'foldMany' but evaluates the fold even if the fold did not receive
 -- any input, therefore, always results in a non-empty output even on an empty
--- stream (default result of the fold).
+-- stream (default result of the fold). 'foldMany' is like 'scan' which always
+-- includes the initial value of the accumulator.
 --
--- Example, empty stream:
+-- Example, empty stream, compare with 'foldMany':
 --
--- >>> f = Fold.take 2 Fold.sum
+-- >>> f = Fold.take 2 Fold.toList
 -- >>> fmany = Stream.fold Fold.toList . Stream.foldManyPost f
 -- >>> fmany $ Stream.fromList []
--- [0]
+-- [[]]
 --
--- Example, last fold empty:
+-- Example, last empty fold is included, compare with 'foldMany':
 --
 -- >>> fmany $ Stream.fromList [1..4]
--- [3,7,0]
+-- [[1,2],[3,4],[]]
 --
--- Example, last fold non-empty:
+-- Example, last fold non-empty, same as 'foldMany':
 --
 -- >>> fmany $ Stream.fromList [1..5]
--- [3,7,5]
+-- [[1,2],[3,4],[5]]
 --
 -- Note that using a closed fold e.g. @Fold.take 0@, would result in an
 -- infinite stream without consuming the input.
@@ -1865,30 +1866,34 @@ data FoldMany s fs b a
     | FoldManyDone
 
 -- XXX Nested foldMany does not fuse.
+-- XXX Rename fondMany/foldManyPost to keep the behavior and naming consistent
+-- with scan, postscan?
 
--- | Apply a 'Fold' repeatedly on a stream and emit the results in the output
--- stream.
+-- | Apply a terminating 'Fold' repeatedly on a stream and emit the results in
+-- the output stream. Like 'postscan', foldMany omits the initial (default)
+-- value of the accumulator, if the input stream segment is empty the result is
+-- also empty. Using a non-terminating fold in 'foldMany' will result in a hang.
 --
 -- Definition:
 --
 -- >>> foldMany f = Stream.parseMany (Parser.fromFold f)
 --
--- Example, empty stream:
+-- Example, empty stream, omits the empty fold value:
 --
--- >>> f = Fold.take 2 Fold.sum
+-- >>> f = Fold.take 2 Fold.toList
 -- >>> fmany = Stream.fold Fold.toList . Stream.foldMany f
 -- >>> fmany $ Stream.fromList []
 -- []
 --
--- Example, last fold empty:
+-- Example, omits the last empty fold value:
 --
 -- >>> fmany $ Stream.fromList [1..4]
--- [3,7]
+-- [[1,2],[3,4]]
 --
 -- Example, last fold non-empty:
 --
 -- >>> fmany $ Stream.fromList [1..5]
--- [3,7,5]
+-- [[1,2],[3,4],[5]]
 --
 -- Note that using a closed fold e.g. @Fold.take 0@, would result in an
 -- infinite stream on a non-empty input stream.
