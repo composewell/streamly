@@ -415,7 +415,16 @@ trace_ eff = mapM (\x -> eff >> return x)
 
 data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 
--- | Postscan a stream using the given monadic fold.
+-- | Postscan a stream using the given fold. A postscan omits the initial
+-- (default) value of the accumulator and includes the final value.
+--
+-- >>> Stream.toList $ Stream.postscan Fold.latest (Stream.fromList [])
+-- []
+--
+-- Compare with 'scan' which includes the initial value as well:
+--
+-- >>> Stream.toList $ Stream.scan Fold.latest (Stream.fromList [])
+-- [Nothing]
 --
 -- The following example extracts the input stream up to a point where the
 -- running average of elements is no more than 10:
@@ -497,7 +506,9 @@ scanWith restart (Fold fstep initial extract final) (Stream sstep state) =
 -- can return new accumulator and the value to be emitted. The signature would
 -- be more like mapAccumL.
 
--- | Strict left scan. Scan a stream using the given monadic fold.
+-- | Strict left scan. Scan a stream using the given fold. Scan includes
+-- the initial (default) value of the accumulator as well as the final value.
+-- Compare with 'postscan' which omits the initial value.
 --
 -- >>> s = Stream.fromList [1..10]
 -- >>> Stream.fold Fold.toList $ Stream.takeWhile (< 10) $ Stream.scan Fold.sum s
