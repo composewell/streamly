@@ -377,6 +377,9 @@ demuxGenericIO getKey getFold =
                 res1 <- step1 s a
                 case res1 of
                     Partial _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
                         let fld = Fold step1 (return res1) extract1 final1
                         ref <- liftIO $ newIORef fld
                         return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
