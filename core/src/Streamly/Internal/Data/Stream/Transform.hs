@@ -218,6 +218,44 @@ transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
             Pipe.Yield b pst' -> return $ Yield b (pst', st)
             Pipe.Continue pst' -> return $ Skip (pst', st)
 
+{-# ANN type RunScanState Fuse #-}
+data RunScanState st sc ps = ScanConsume st sc | ScanProduce st ps
+
+{-# INLINE runScan #-}
+runScan :: Monad m => Scan m a b -> Stream m a -> Stream m b
+runScan (Scan consume produce initial) (Stream stream_step state) =
+    Stream step (ScanConsume state initial)
+
+    where
+
+    {-# INLINE goScan #-}
+    goScan st sc x = do
+        res <- consume sc x
+        return
+            $ case res of
+                Scan.YieldC s b -> Yield b (ScanConsume st s)
+                Scan.SkipC s -> Skip (ScanConsume st s)
+                Scan.Stop -> Stop
+                Scan.YieldP ps b -> Yield b (ScanProduce st ps)
+                Scan.SkipP ps -> Skip (ScanProduce st ps)
+
+    {-# INLINE_LATE step #-}
+    step gst (ScanConsume st sc) = do
+        r <- stream_step (adaptState gst) st
+        case r of
+            Yield x s -> goScan s sc x
+            Skip s -> return $ Skip (ScanConsume s sc)
+            Stop -> return Stop
+    step _ (ScanProduce st ps) = do
+        r <- produce ps
+        return
+            $ case r of
+                Scan.YieldC s b -> Yield b (ScanConsume st s)
+                Scan.SkipC s -> Skip (ScanConsume st s)
+                Scan.Stop -> Stop
+                Scan.YieldP ps1 b -> Yield b (ScanProduce st ps1)
+                Scan.SkipP ps1 -> Skip (ScanProduce st ps1)
+
 ------------------------------------------------------------------------------
 -- Transformation Folds
 ------------------------------------------------------------------------------
@@ -575,35 +613,6 @@ scan = scanWith False
 scanMany :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
 scanMany = scanWith True
-
-{-# ANN type RunScanState Fuse #-}
-data RunScanState st sc x = RunScan st sc | RunScanRep st sc x
-
-{-# INLINE runScan #-}
-runScan :: Monad m => Scan m a b -> Stream m a -> Stream m b
-runScan (Scan scan_step initial) (Stream stream_step state) =
-    Stream step (RunScan state initial)
-
-    where
-
-    {-# INLINE goScan #-}
-    goScan st sc x = do
-        res <- scan_step sc x
-        return
-            $ case res of
-                Scan.Yield s b -> Yield b (RunScan st s)
-                Scan.Skip s -> Skip (RunScan st s)
-                Scan.Stop -> Stop
-                Scan.YieldRep s b -> Yield b (RunScanRep st s x)
-                Scan.SkipRep s -> Skip (RunScanRep st s x)
-
-    step gst (RunScan st sc) = do
-        r <- stream_step (adaptState gst) st
-        case r of
-            Yield x s -> goScan s sc x
-            Skip s -> return $ Skip (RunScan s sc)
-            Stop -> return Stop
-    step _ (RunScanRep st sc x) = goScan st sc x
 
 ------------------------------------------------------------------------------
 -- Scanning - Prescans

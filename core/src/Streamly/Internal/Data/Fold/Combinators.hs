@@ -139,7 +139,7 @@ module Streamly.Internal.Data.Fold.Combinators
     -- ** Scanning Input
     , scan
     , scanMany
-    , runScan
+    -- , runScan
     , toScan
     , indexed
 
@@ -538,6 +538,7 @@ scan = scanWith False
 scanMany :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 scanMany = scanWith True
 
+{-
 -- | Does not work correctly for scans which can emit YieldRep or SkipRep
 -- constructors. This will get fixed when we add SkipRep to folds as well.
 {-# INLINE runScan #-}
@@ -576,6 +577,7 @@ runScan (Scan stepL initialL) (Fold stepR initialR extractR finalR) =
     extract = extractR . snd
 
     final = finalR . snd
+-}
 
 -- Note when we have a separate Scan type then we can remove extract from
 -- Folds. Then folds can only be used for foldMany or many and not for
@@ -588,8 +590,11 @@ runScan (Scan stepL initialL) (Fold stepR initialR extractR finalR) =
 -- With "Continue s" and "Partial s b" instead of using "extract" we can do
 -- that.
 
-{-# ANN type ToScanState Fuse #-}
-data ToScanState s = ToScanInit | ToScanGo s | ToScanStop
+{-# ANN type ToScanConsume Fuse #-}
+data ToScanConsume s x = ToScanInit | ToScanGo s
+
+{-# ANN type ToScanProduce Fuse #-}
+data ToScanProduce s x = ToScanFirst s x | ToScanStop
 
 -- | ScanR does not support finalization yet. This does not finalize the fold
 -- when the stream stops before the fold terminates. So cannot be used on folds
@@ -600,24 +605,27 @@ data ToScanState s = ToScanInit | ToScanGo s | ToScanStop
 --
 {-# INLINE toScan #-}
 toScan :: Monad m => Fold m a b -> Scan m a b
-toScan (Fold fstep finitial fextract _) = Scan step ToScanInit
+toScan (Fold fstep finitial fextract _) = Scan consume produce ToScanInit
 
     where
 
-    step ToScanInit _ = do
+    -- XXX make the initial state Either type and start in produce mode
+    consume ToScanInit x = do
         r <- finitial
         return $ case r of
-            Partial s -> Scan.SkipRep (ToScanGo s)
-            Done b -> Scan.YieldRep ToScanStop b
+            Partial s -> Scan.SkipP (ToScanFirst s x)
+            Done b -> Scan.YieldP ToScanStop b
 
-    step (ToScanGo st) a = do
+    consume (ToScanGo st) a = do
         r <- fstep st a
         case r of
             Partial s -> do
                 b <- fextract s
-                return $ Scan.Yield (ToScanGo s) b
-            Done b -> return $ Scan.Yield ToScanStop b
-    step ToScanStop _ = return Scan.Stop
+                return $ Scan.YieldC (ToScanGo s) b
+            Done b -> return $ Scan.YieldP ToScanStop b
+
+    produce (ToScanFirst st x) = consume (ToScanGo st) x
+    produce ToScanStop = return Scan.Stop
 
 ------------------------------------------------------------------------------
 -- Filters
