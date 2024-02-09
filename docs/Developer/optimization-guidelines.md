@@ -331,6 +331,10 @@ as `INLINE` or `INLINE_EARLY`, instead they should all be marked as
 etc are marked as `INLINE_NORMAL`. `StreamD` functions in other modules like
 `Streamly.Data.Array.Foreign` should also follow the same rules.
 
+Use INLINE_NORMAL on functions like `pipe`, `Pipe.compose`, `Pipe.teeMerge` for
+complete fusion in a pipeline of multiple such operations e.g. the pipesX4
+benchmarks.
+
 ## Stream Fusion
 
 In StreamD combinators, inlining the inner step or loop functions too early
