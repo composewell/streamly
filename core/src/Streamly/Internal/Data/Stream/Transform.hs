@@ -15,13 +15,9 @@
 
 module Streamly.Internal.Data.Stream.Transform
     (
-    -- * Piping
-    -- | Pass through a 'Pipe'.
-      transform
-
     -- * Mapping
     -- | Stateless one-to-one maps.
-    , sequence
+      sequence
 
     -- * Mapping Effects
     , tap
@@ -37,7 +33,7 @@ module Streamly.Internal.Data.Stream.Transform
     , postscan
     , scan
     , scanMany
-    , runScan
+    , pipe
 
     -- * Splitting
     , splitOn
@@ -160,8 +156,7 @@ import Data.Maybe (fromJust, isJust)
 import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Pipe.Type (Pipe(..), PipeState(..))
-import Streamly.Internal.Data.Scan (Scan(..))
+import Streamly.Internal.Data.Pipe.Type (Pipe(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
 import Streamly.Internal.Data.Unbox (Unbox)
@@ -171,7 +166,6 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding
@@ -188,73 +182,45 @@ import Streamly.Internal.Data.Stream.Type
 -- Piping
 ------------------------------------------------------------------------------
 
+{-# ANN type PipeState Fuse #-}
+data PipeState st sc ps = PipeConsume st sc | PipeProduce st ps
+
 -- | Use a 'Pipe' to transform a stream.
 --
--- /Pre-release/
---
-{-# INLINE_NORMAL transform #-}
-transform :: Monad m => Pipe m a b -> Stream m a -> Stream m b
-transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
-    Stream step' (Consume pstate, state)
-
-  where
-
-    {-# INLINE_LATE step' #-}
-
-    step' gst (Consume pst, st) = pst `seq` do
-        r <- step (adaptState gst) st
-        case r of
-            Yield x s -> do
-                res <- pstep1 pst x
-                case res of
-                    Pipe.Yield b pst' -> return $ Yield b (pst', s)
-                    Pipe.Continue pst' -> return $ Skip (pst', s)
-            Skip s -> return $ Skip (Consume pst, s)
-            Stop   -> return Stop
-
-    step' _ (Produce pst, st) = pst `seq` do
-        res <- pstep2 pst
-        case res of
-            Pipe.Yield b pst' -> return $ Yield b (pst', st)
-            Pipe.Continue pst' -> return $ Skip (pst', st)
-
-{-# ANN type RunScanState Fuse #-}
-data RunScanState st sc ps = ScanConsume st sc | ScanProduce st ps
-
-{-# INLINE runScan #-}
-runScan :: Monad m => Scan m a b -> Stream m a -> Stream m b
-runScan (Scan consume produce initial) (Stream stream_step state) =
-    Stream step (ScanConsume state initial)
+{-# INLINE_NORMAL pipe #-}
+pipe :: Monad m => Pipe m a b -> Stream m a -> Stream m b
+pipe (Pipe consume produce initial) (Stream stream_step state) =
+    Stream step (PipeConsume state initial)
 
     where
 
-    {-# INLINE goScan #-}
-    goScan st sc x = do
-        res <- consume sc x
+    {-# INLINE goConsume #-}
+    goConsume st cs x = do
+        res <- consume cs x
         return
             $ case res of
-                Scan.YieldC s b -> Yield b (ScanConsume st s)
-                Scan.SkipC s -> Skip (ScanConsume st s)
-                Scan.Stop -> Stop
-                Scan.YieldP ps b -> Yield b (ScanProduce st ps)
-                Scan.SkipP ps -> Skip (ScanProduce st ps)
+                Pipe.YieldC s b -> Yield b (PipeConsume st s)
+                Pipe.SkipC s -> Skip (PipeConsume st s)
+                Pipe.Stop -> Stop
+                Pipe.YieldP ps b -> Yield b (PipeProduce st ps)
+                Pipe.SkipP ps -> Skip (PipeProduce st ps)
 
     {-# INLINE_LATE step #-}
-    step gst (ScanConsume st sc) = do
+    step gst (PipeConsume st cs) = do
         r <- stream_step (adaptState gst) st
         case r of
-            Yield x s -> goScan s sc x
-            Skip s -> return $ Skip (ScanConsume s sc)
+            Yield x s -> goConsume s cs x
+            Skip s -> return $ Skip (PipeConsume s cs)
             Stop -> return Stop
-    step _ (ScanProduce st ps) = do
+    step _ (PipeProduce st ps) = do
         r <- produce ps
         return
             $ case r of
-                Scan.YieldC s b -> Yield b (ScanConsume st s)
-                Scan.SkipC s -> Skip (ScanConsume st s)
-                Scan.Stop -> Stop
-                Scan.YieldP ps1 b -> Yield b (ScanProduce st ps1)
-                Scan.SkipP ps1 -> Skip (ScanProduce st ps1)
+                Pipe.YieldC cs b -> Yield b (PipeConsume st cs)
+                Pipe.SkipC cs -> Skip (PipeConsume st cs)
+                Pipe.Stop -> Stop
+                Pipe.YieldP ps1 b -> Yield b (PipeProduce st ps1)
+                Pipe.SkipP ps1 -> Skip (PipeProduce st ps1)
 
 ------------------------------------------------------------------------------
 -- Transformation Folds

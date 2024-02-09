@@ -1,5 +1,3 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.Data.Pipe.Type
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -9,23 +7,49 @@
 -- Portability : GHC
 
 module Streamly.Internal.Data.Pipe.Type
-    ( Step (..)
+    (
+    -- * Type
+      Step (..)
     , Pipe (..)
-    , PipeState (..)
-    , zipWith
-    , tee
-    , map
+
+    -- * From folds
+    , fromFold
+
+    -- * Primitive Pipes
+    , identity
+    , map -- function?
+    , mapM -- functionM?
+    , filter
+    , filterM
+
+    -- * Combinators
     , compose
+    , teeMerge
+    -- , zipWith -- teeZip
     )
 where
 
-import Control.Arrow (Arrow(..))
+#include "inline.hs"
+-- import Control.Arrow (Arrow(..))
 import Control.Category (Category(..))
-import Data.Maybe (isJust)
-import Prelude hiding (zipWith, map, id, unzip, null)
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
+import Data.Functor ((<&>))
+import Fusion.Plugin.Types (Fuse(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
+-- import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 
 import qualified Prelude
+import qualified Streamly.Internal.Data.Fold.Type as Fold
+
+import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
+
+-- $setup
+-- >>> :m
+-- >>> :set -XFlexibleContexts
+-- >>> import Control.Category
+--
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Pipe as Pipe
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
 -- Pipes
@@ -39,27 +63,38 @@ import qualified Prelude
 --
 -- Therefore when two pipes are composed in parallel formation, one may run
 -- slower or faster than the other. If all of them are being fed from the same
--- source, we may have to buffer the input to match the speeds. In case of
--- scans we do not have that problem.
---
--- We may also need a "Stop" constructor to indicate that we are not generating
--- any more values and we can have a "Done" constructor to indicate that we are
--- not consuming any more values. Similarly we can have a stop with error or
--- exception and a done with error or leftover values.
---
--- In generator mode, Continue means no output/continue. In fold mode Continue means
--- need more input to produce result. we can perhaps call it Continue instead.
---
-data Step s a =
-      Yield a s
-    | Continue s
+-- source, we may have to buffer the input to match the speeds, if we want to
+-- zip the outputs. In case of scans we do not have that problem.
 
--- | Represents a stateful transformation over an input stream of values of
--- type @a@ to outputs of type @b@ in 'Monad' @m@.
+-- XXX If we do not want to change Streams, we should use "Yield b s" instead
+-- of "Yield s b". Though "Yield s b" is sometimes better when using curried
+-- "Yield s". "Yield b" sounds better because the verb applies to "b".
+--
+-- XXX We could reduce the number of constructors by using Consume | Produce
+-- wrapper around the state. But when fusion does not occur, it may be better
+-- yo use a flat structure rather than nested to avoid more allocations. In a
+-- flat structure the pointer tag from the Step constructor itself can identiy
+-- any of the 5 constructors.
+--
+{-# ANN type Step Fuse #-}
+data Step cs ps b =
+      YieldC cs b -- ^ Yield and consume
+    | SkipC cs -- ^ Skip and consume
+    | Stop
+    | YieldP ps b -- ^ Yield and produce
+    | SkipP ps -- ^ Skip and produce
+
+instance Functor (Step cs ps) where
+    {-# INLINE fmap #-}
+    fmap f (YieldC s b) = YieldC s (f b)
+    fmap f (YieldP s b) = YieldP s (f b)
+    fmap _ (SkipC s) = SkipC s
+    fmap _ (SkipP s) = SkipP s
+    fmap _ Stop = Stop
 
 -- A pipe uses a consume function and a produce function. It can switch from
 -- consume/fold mode to a produce/source mode. The first step function is a
--- fold function while the seocnd one is a stream generator function.
+-- fold function while the second one is a stream generator function.
 --
 -- We can upgrade a stream or a fold into a pipe. However, streams are more
 -- efficient in generation and folds are more efficient in consumption.
@@ -70,37 +105,302 @@ data Step s a =
 --
 -- XXX In general the starting state could either be for generation or for
 -- consumption. Currently we are only starting with a consumption state.
+
+-- | Represents a stateful transformation over an input stream of values of
+-- type @a@ to outputs of type @b@ in 'Monad' @m@.
 --
--- An explicit either type for better readability of the code
-data PipeState s1 s2 = Consume s1 | Produce s2
-
-isProduce :: PipeState s1 s2 -> Bool
-isProduce s =
-    case s of
-        Produce _ -> True
-        Consume _ -> False
-
+-- The constructor is @Pipe consume produce initial@.
 data Pipe m a b =
-  forall s1 s2. Pipe (s1 -> a -> m (Step (PipeState s1 s2) b))
-                     (s2 -> m (Step (PipeState s1 s2) b)) s1
+    forall cs ps. Pipe
+        (cs -> a -> m (Step cs ps b))
+        (ps -> m (Step cs ps b))
+        cs
 
-instance Monad m => Functor (Pipe m a) where
+------------------------------------------------------------------------------
+-- Functor: Mapping on the output
+------------------------------------------------------------------------------
+
+-- | 'fmap' maps a pure function on a scan output.
+--
+-- >>> Stream.toList $ Stream.pipe (fmap (+1) Pipe.identity) $ Stream.fromList [1..5::Int]
+-- [2,3,4,5,6]
+--
+instance Functor m => Functor (Pipe m a) where
     {-# INLINE_NORMAL fmap #-}
-    fmap f (Pipe consume produce initial) = Pipe consume' produce' initial
-        where
-        {-# INLINE_LATE consume' #-}
-        consume' st a = do
-            r <- consume st a
-            return $ case r of
-                Yield x s -> Yield (f x) s
-                Continue s -> Continue s
+    fmap f (Pipe consume produce cinitial) =
+        Pipe consume1 produce1 cinitial
 
-        {-# INLINE_LATE produce' #-}
-        produce' st = do
-            r <- produce st
-            return $ case r of
-                Yield x s -> Yield (f x) s
-                Continue s -> Continue s
+        where
+
+        {-# INLINE_LATE consume1 #-}
+        consume1 s b = fmap (fmap f) (consume s b)
+        {-# INLINE_LATE produce1 #-}
+        produce1 s = fmap (fmap f) (produce s)
+
+-------------------------------------------------------------------------------
+-- Category
+-------------------------------------------------------------------------------
+
+{-# ANN type ComposeConsume Fuse #-}
+data ComposeConsume csL psL csR =
+      ComposeConsume csL csR
+
+{-# ANN type ComposeProduce Fuse #-}
+data ComposeProduce csL psL csR psR =
+      ComposeProduceR csL psR
+    | ComposeProduceL psL csR
+    | ComposeProduceLR psL psR
+
+-- | Series composition. Compose two pipes such that the output of the second
+-- pipe is attached to the input of the first pipe.
+--
+-- >>> Stream.toList $ Stream.pipe (Pipe.map (+1) >>> Pipe.map (+1)) $ Stream.fromList [1..5::Int]
+-- [3,4,5,6,7]
+--
+{-# INLINE_NORMAL compose #-}
+compose :: Monad m => Pipe m b c -> Pipe m a b -> Pipe m a c
+compose
+    (Pipe consumeR produceR initialR)
+    (Pipe consumeL produceL initialL) =
+        Pipe consume produce (ComposeConsume initialL initialR)
+
+    where
+
+    {-# INLINE consumeLFeedR #-}
+    consumeLFeedR csL csR bL = do
+        rR <- consumeR csR bL
+        return
+            $ case rR of
+                YieldC csR1 br -> YieldC (ComposeConsume csL csR1) br
+                SkipC csR1 -> SkipC (ComposeConsume csL csR1)
+                Stop -> Stop
+                YieldP psR br -> YieldP (ComposeProduceR csL psR) br
+                SkipP psR -> SkipP (ComposeProduceR csL psR)
+
+    {-# INLINE produceLFeedR #-}
+    produceLFeedR psL csR bL = do
+        rR <- consumeR csR bL
+        return
+            $ case rR of
+                YieldC csR1 br -> YieldP (ComposeProduceL psL csR1) br
+                SkipC csR1 -> SkipP (ComposeProduceL psL csR1)
+                Stop -> Stop
+                YieldP psR br -> YieldP (ComposeProduceLR psL psR) br
+                SkipP psR -> SkipP (ComposeProduceLR psL psR)
+
+    consume (ComposeConsume csL csR) x = do
+        rL <- consumeL csL x
+        case rL of
+            YieldC csL1 bL ->
+                -- XXX Use SkipC instead? Flat may be better for fusion.
+                consumeLFeedR csL1 csR bL
+            SkipC csL1 -> return $ SkipC (ComposeConsume csL1 csR)
+            Stop -> return Stop
+            YieldP psL bL ->
+                -- XXX Use SkipC instead?
+                produceLFeedR psL csR bL
+            SkipP psL -> return $ SkipP (ComposeProduceL psL csR)
+
+    produce (ComposeProduceL psL csR) = do
+        rL <- produceL psL
+        case rL of
+            YieldC csL bL ->
+                -- XXX Use SkipC instead?
+                consumeLFeedR csL csR bL
+            SkipC csL -> return $ SkipC (ComposeConsume csL csR)
+            Stop -> return Stop
+            YieldP psL1 bL ->
+                -- XXX Use SkipC instead?
+                produceLFeedR psL1 csR bL
+            SkipP psL1 -> return $ SkipP (ComposeProduceL psL1 csR)
+
+    produce (ComposeProduceR csL psR) = do
+        rR <- produceR psR
+        return
+            $ case rR of
+                YieldC csR1 br -> YieldC (ComposeConsume csL csR1) br
+                SkipC csR1 -> SkipC (ComposeConsume csL csR1)
+                Stop -> Stop
+                YieldP psR1 br -> YieldP (ComposeProduceR csL psR1) br
+                SkipP psR1 -> SkipP (ComposeProduceR csL psR1)
+
+    produce (ComposeProduceLR psL psR) = do
+        rR <- produceR psR
+        return
+            $ case rR of
+                YieldC csR1 br -> YieldP (ComposeProduceL psL csR1) br
+                SkipC csR1 -> SkipP (ComposeProduceL psL csR1)
+                Stop -> Stop
+                YieldP psR1 br -> YieldP (ComposeProduceLR psL psR1) br
+                SkipP psR1 -> SkipP (ComposeProduceLR psL psR1)
+
+-- | A pipe representing mapping of a monadic action.
+--
+-- >>> Stream.toList $ Stream.pipe (Pipe.mapM print) $ Stream.fromList [1..5::Int]
+-- 1
+-- 2
+-- 3
+-- 4
+-- 5
+-- [(),(),(),(),()]
+--
+{-# INLINE mapM #-}
+mapM :: Monad m => (a -> m b) -> Pipe m a b
+mapM f = Pipe (\() a -> f a <&> YieldC ()) undefined ()
+
+-- | A pipe representing mapping of a pure function.
+--
+-- >>> Stream.toList $ Stream.pipe (Pipe.map (+1)) $ Stream.fromList [1..5::Int]
+-- [2,3,4,5,6]
+--
+{-# INLINE map #-}
+map :: Monad m => (a -> b) -> Pipe m a b
+map f = mapM (return Prelude.. f)
+
+{- HLINT ignore "Redundant map" -}
+
+-- | An identity pipe producing the same output as input.
+--
+-- >>> identity = Pipe.map Prelude.id
+--
+-- >>> Stream.toList $ Stream.pipe (Pipe.identity) $ Stream.fromList [1..5::Int]
+-- [1,2,3,4,5]
+--
+{-# INLINE identity #-}
+identity :: Monad m => Pipe m a a
+identity = map Prelude.id
+
+instance Monad m => Category (Pipe m) where
+    {-# INLINE id #-}
+    id = identity
+
+    {-# INLINE (.) #-}
+    (.) = compose
+
+{-# ANN type TeeMergeConsume Fuse #-}
+data TeeMergeConsume csL csR
+    = TeeMergeConsume !csL !csR
+    | TeeMergeConsumeOnlyL !csL
+    | TeeMergeConsumeOnlyR !csR
+
+{-# ANN type TeeMergeProduce Fuse #-}
+data TeeMergeProduce csL csR psL psR x
+    = TeeMergeProduce !csL !csR !x
+    | TeeMergeProduceL !psL !csR !x
+    | TeeMergeProduceR !csL !psR
+    | TeeMergeProduceOnlyL !psL
+    | TeeMergeProduceOnlyR !psR
+
+-- | Parallel composition. Distribute the input across two pipes and merge
+-- their outputs.
+--
+-- >>> Stream.toList $ Stream.pipe (Pipe.teeMerge Pipe.identity (Pipe.map (\x -> x * x))) $ Stream.fromList [1..5::Int]
+-- [1,1,2,4,3,9,4,16,5,25]
+--
+{-# INLINE_NORMAL teeMerge #-}
+teeMerge :: Monad m => Pipe m a b -> Pipe m a b -> Pipe m a b
+teeMerge (Pipe consumeL produceL initialL) (Pipe consumeR produceR initialR) =
+    Pipe consume produce (TeeMergeConsume initialL initialR)
+
+    where
+
+    {-# INLINE feedRightOnly #-}
+    feedRightOnly csR a = do
+        resR <- consumeR csR a
+        return
+            $ case resR of
+                  YieldC cs b -> YieldC (TeeMergeConsumeOnlyR cs) b
+                  SkipC cs -> SkipC (TeeMergeConsumeOnlyR cs)
+                  Stop -> Stop
+                  YieldP ps b -> YieldP (TeeMergeProduceOnlyR ps) b
+                  SkipP ps -> SkipP (TeeMergeProduceOnlyR ps)
+
+    {-# INLINE_LATE consume #-}
+    consume (TeeMergeConsume csL csR) a = do
+        resL <- consumeL csL a
+        case resL of
+              YieldC cs b -> return $ YieldP (TeeMergeProduce cs csR a) b
+              SkipC cs -> return $ SkipP (TeeMergeProduce cs csR a)
+              Stop ->
+                -- XXX Skip to a state instead?
+                feedRightOnly csR a
+              YieldP ps b -> return $ YieldP (TeeMergeProduceL ps csR a) b
+              SkipP ps -> return $ SkipP (TeeMergeProduceL ps csR a)
+
+    -- XXX Adding additional consume states causes 4x regression in
+    -- All.Data.Stream/o-1-space.pipesX4.tee benchmark (mapM 4 times).
+    -- Commenting these two states makes it 4x faster. Need to investigate why.
+    consume (TeeMergeConsumeOnlyL csL) a = do
+        resL <- consumeL csL a
+        return
+            $ case resL of
+                  YieldC cs b -> YieldC (TeeMergeConsumeOnlyL cs) b
+                  SkipC cs -> SkipC (TeeMergeConsumeOnlyL cs)
+                  Stop -> Stop
+                  YieldP ps b -> YieldP (TeeMergeProduceOnlyL ps) b
+                  SkipP ps -> SkipP (TeeMergeProduceOnlyL ps)
+    consume (TeeMergeConsumeOnlyR csR) a = feedRightOnly csR a
+
+    {-# INLINE_LATE produce #-}
+    produce (TeeMergeProduce csL csR a) = do
+        res <- consumeR csR a
+        return
+            $ case res of
+                  YieldC cs b -> YieldC (TeeMergeConsume csL cs) b
+                  SkipC cs -> SkipC (TeeMergeConsume csL cs)
+                  Stop -> SkipC (TeeMergeConsumeOnlyL csL)
+                  YieldP ps b -> YieldP (TeeMergeProduceR csL ps) b
+                  SkipP ps -> SkipP (TeeMergeProduceR csL ps)
+
+    produce (TeeMergeProduceL psL csR a) = do
+        res <- produceL psL
+        case res of
+              YieldC cs b -> return $ YieldP (TeeMergeProduce cs csR a) b
+              SkipC cs -> return $ SkipP (TeeMergeProduce cs csR a)
+              Stop -> feedRightOnly csR a
+              YieldP ps b -> return $ YieldP (TeeMergeProduceL ps csR a) b
+              SkipP ps -> return $ SkipP (TeeMergeProduceL ps csR a)
+
+    produce (TeeMergeProduceR csL psR) = do
+        res <- produceR psR
+        return $ case res of
+              YieldC cs b -> YieldC (TeeMergeConsume csL cs) b
+              SkipC cs -> SkipC (TeeMergeConsume csL cs)
+              Stop -> SkipC (TeeMergeConsumeOnlyL csL)
+              YieldP ps b -> YieldP (TeeMergeProduceR csL ps) b
+              SkipP ps -> SkipP (TeeMergeProduceR csL ps)
+
+    produce (TeeMergeProduceOnlyL psL) = do
+        resL <- produceL psL
+        return
+            $ case resL of
+                  YieldC cs b -> YieldC (TeeMergeConsumeOnlyL cs) b
+                  SkipC cs -> SkipC (TeeMergeConsumeOnlyL cs)
+                  Stop -> Stop
+                  YieldP ps b -> YieldP (TeeMergeProduceOnlyL ps) b
+                  SkipP ps -> SkipP (TeeMergeProduceOnlyL ps)
+
+    produce (TeeMergeProduceOnlyR psR) = do
+        resL <- produceR psR
+        return
+            $ case resL of
+                  YieldC cs b -> YieldC (TeeMergeConsumeOnlyR cs) b
+                  SkipC cs -> SkipC (TeeMergeConsumeOnlyR cs)
+                  Stop -> Stop
+                  YieldP ps b -> YieldP (TeeMergeProduceOnlyR ps) b
+                  SkipP ps -> SkipP (TeeMergeProduceOnlyR ps)
+
+instance Monad m => Semigroup (Pipe m a b) where
+    {-# INLINE (<>) #-}
+    (<>) = teeMerge
+
+-------------------------------------------------------------------------------
+-- Arrow
+-------------------------------------------------------------------------------
+
+{-
+unzip :: Pipe m a x -> Pipe m b y -> Pipe m (a, b) (x, y)
+unzip = undefined
 
 -- XXX move this to a separate module
 data Deque a = Deque [a] [a]
@@ -251,187 +551,6 @@ instance Monad m => Applicative (Pipe m a) where
 
     (<*>) = zipWith id
 
--- | The composed pipe distributes the input to both the constituent pipes and
--- merges the outputs of the two.
---
--- @since 0.7.0
-{-# INLINE_NORMAL tee #-}
-tee :: Monad m => Pipe m a b -> Pipe m a b -> Pipe m a b
-tee (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
-        Pipe consume produce state
-    where
-
-    state = Tuple' (Consume stateL) (Consume stateR)
-
-    consume (Tuple' sL sR) a =
-        case sL of
-            Consume st -> do
-                r <- consumeL st a
-                return $ case r of
-                    Yield x s -> Yield x (Produce (Tuple3' (Just a) s sR))
-                    Continue s -> Continue (Produce (Tuple3' (Just a) s sR))
-            -- XXX we should never come here unless the initial state of the
-            -- first pipe is set to "Right".
-            Produce _st -> undefined -- do
-            {-
-                r <- produceL st
-                return $ case r of
-                    Yield x s -> Yield x (Right (Tuple3' (Just a) s sR))
-                    Continue s -> Continue (Right (Tuple3' (Just a) s sR))
-                -}
-
-    produce (Tuple3' (Just a) sL sR) =
-        case sL of
-            Consume _ ->
-                case sR of
-                    Consume st -> do
-                        r <- consumeR st a
-                        let nextL s = Consume (Tuple' sL s)
-                        let nextR s = Produce (Tuple3' Nothing sL s)
-                        return $ case r of
-                            Yield x s@(Consume _) -> Yield x (nextL s)
-                            Yield x s@(Produce _) -> Yield x (nextR s)
-                            Continue s@(Consume _) -> Continue (nextL s)
-                            Continue s@(Produce _) -> Continue (nextR s)
-                    -- We will never come here unless the initial state of
-                    -- second pipe is set to "Right".
-                    Produce _ -> undefined
-            Produce st -> do
-                r <- produceL st
-                let next s = Produce (Tuple3' (Just a) s sR)
-                return $ case r of
-                    Yield x s -> Yield x (next s)
-                    Continue s -> Continue (next s)
-
-    produce (Tuple3' Nothing sL sR) =
-        case sR of
-            Consume _ -> undefined -- should never occur
-            Produce st -> do
-                r <- produceR st
-                return $ case r of
-                    Yield x s@(Consume _) ->
-                        Yield x (Consume (Tuple' sL s))
-                    Yield x s@(Produce _) ->
-                        Yield x (Produce (Tuple3' Nothing sL s))
-                    Continue s@(Consume _) ->
-                        Continue (Consume (Tuple' sL s))
-                    Continue s@(Produce _) ->
-                        Continue (Produce (Tuple3' Nothing sL s))
-
-instance Monad m => Semigroup (Pipe m a b) where
-    {-# INLINE (<>) #-}
-    (<>) = tee
-
--- | Lift a pure function to a 'Pipe'.
---
--- @since 0.7.0
-{-# INLINE map #-}
-map :: Monad m => (a -> b) -> Pipe m a b
-map f = Pipe consume undefined ()
-    where
-    consume _ a = return $ Yield (f a) (Consume ())
-
-{-
--- | A hollow or identity 'Pipe' passes through everything that comes in.
---
--- @since 0.7.0
-{-# INLINE id #-}
-id :: Monad m => Pipe m a a
-id = map Prelude.id
--}
-
--- | Compose two pipes such that the output of the second pipe is attached to
--- the input of the first pipe.
---
--- @since 0.7.0
-{-# INLINE_NORMAL compose #-}
-compose :: Monad m => Pipe m b c -> Pipe m a b -> Pipe m a c
-compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
-    Pipe consume produce state
-
-    where
-
-    state = Tuple' (Consume stateL) (Consume stateR)
-
-    consume (Tuple' sL sR) a =
-        case sL of
-            Consume stt ->
-                case sR of
-                    Consume st -> do
-                        rres <- consumeR st a
-                        case rres of
-                            Yield x sR' -> do
-                                let next s =
-                                        if isProduce sR'
-                                        then Produce s
-                                        else Consume s
-                                lres <- consumeL stt x
-                                return $ case lres of
-                                    Yield y s1@(Consume _) ->
-                                        Yield y (next $ Tuple' s1 sR')
-                                    Yield y s1@(Produce _) ->
-                                        Yield y (Produce $ Tuple' s1 sR')
-                                    Continue s1@(Consume _) ->
-                                        Continue (next $ Tuple' s1 sR')
-                                    Continue s1@(Produce _) ->
-                                        Continue (Produce $ Tuple' s1 sR')
-                            Continue s1@(Consume _) ->
-                                return $ Continue (Consume $ Tuple' sL s1)
-                            Continue s1@(Produce _) ->
-                                return $ Continue (Produce $ Tuple' sL s1)
-                    Produce _ -> undefined
-            -- XXX we should never come here unless the initial state of the
-            -- first pipe is set to "Right".
-            Produce _ -> undefined
-
-    -- XXX we need to write the code in mor optimized fashion. Use Continue
-    -- more and less yield points.
-    produce (Tuple' sL sR) =
-        case sL of
-            Produce st -> do
-                r <- produceL st
-                let next s = if isProduce sR then Produce s else Consume s
-                return $ case r of
-                    Yield x s@(Consume _) -> Yield x (next $ Tuple' s sR)
-                    Yield x s@(Produce _) -> Yield x (Produce $ Tuple' s sR)
-                    Continue s@(Consume _) -> Continue (next $ Tuple' s sR)
-                    Continue s@(Produce _) -> Continue (Produce $ Tuple' s sR)
-            Consume stt ->
-                case sR of
-                    Produce st -> do
-                        rR <- produceR st
-                        case rR of
-                            Yield x sR' -> do
-                                let next s =
-                                        if isProduce sR'
-                                        then Produce s
-                                        else Consume s
-                                rL <- consumeL stt x
-                                return $ case rL of
-                                    Yield y s1@(Consume _) ->
-                                        Yield y (next $ Tuple' s1 sR')
-                                    Yield y s1@(Produce _) ->
-                                        Yield y (Produce $ Tuple' s1 sR')
-                                    Continue s1@(Consume _) ->
-                                        Continue (next $ Tuple' s1 sR')
-                                    Continue s1@(Produce _) ->
-                                        Continue (Produce $ Tuple' s1 sR')
-                            Continue s1@(Consume _) ->
-                                return $ Continue (Consume $ Tuple' sL s1)
-                            Continue s1@(Produce _) ->
-                                return $ Continue (Produce $ Tuple' sL s1)
-                    Consume _ -> return $ Continue (Consume $ Tuple' sL sR)
-
-instance Monad m => Category (Pipe m) where
-    {-# INLINE id #-}
-    id = map Prelude.id
-
-    {-# INLINE (.) #-}
-    (.) = compose
-
-unzip :: Pipe m a x -> Pipe m b y -> Pipe m (a, b) (x, y)
-unzip = undefined
-
 instance Monad m => Arrow (Pipe m) where
     {-# INLINE arr #-}
     arr = map
@@ -440,4 +559,85 @@ instance Monad m => Arrow (Pipe m) where
     (***) = unzip
 
     {-# INLINE (&&&) #-}
-    (&&&) = zipWith (,)
+    -- (&&&) = zipWith (,)
+    (&&&) = undefined
+-}
+
+-------------------------------------------------------------------------------
+-- Primitive pipes
+-------------------------------------------------------------------------------
+
+-- | A filtering pipe using a monadic predicate.
+{-# INLINE filterM #-}
+filterM :: Monad m => (a -> m Bool) -> Pipe m a a
+filterM f = Pipe (\() a -> f a >>= g a) undefined ()
+
+    where
+
+    {-# INLINE g #-}
+    g a b =
+        return
+            $ if b
+              then YieldC () a
+              else SkipC ()
+
+-- | A filtering pipe using a pure predicate.
+--
+-- >>> Stream.toList $ Stream.pipe (Pipe.filter odd) $ Stream.fromList [1..5::Int]
+-- [1,3,5]
+--
+{-# INLINE filter #-}
+filter :: Monad m => (a -> Bool) -> Pipe m a a
+filter f = filterM (return Prelude.. f)
+
+-------------------------------------------------------------------------------
+-- Convert folds to pipes
+-------------------------------------------------------------------------------
+
+-- Note when we have a separate Scan type then we can remove extract from
+-- Folds. Then folds can only be used for foldMany or many and not for
+-- scanning. This combinator has to be removed then.
+
+-- XXX The way filter is implemented in Folds is that it discards the input and
+-- on "extract" it will return the previous accumulator value only. Thus the
+-- accumulator may repeat in the output stream when filter is used. Ideally the
+-- output stream should not have a value corresponding to the filtered value.
+-- With "Continue s" and "Partial s b" instead of using "extract" we can do
+-- that.
+
+{-# ANN type ToScanConsume Fuse #-}
+data ToScanConsume s x = ToScanInit | ToScanGo s
+
+{-# ANN type ToScanProduce Fuse #-}
+data ToScanProduce s x = ToScanFirst s x | ToScanStop
+
+-- | Pipes do not support finalization yet. This does not finalize the fold
+-- when the stream stops before the fold terminates. So cannot be used on folds
+-- that require finalization.
+--
+-- >>> Stream.toList $ Stream.pipe (Pipe.fromFold Fold.sum) $ Stream.fromList [1..5::Int]
+-- [1,3,6,10,15]
+--
+{-# INLINE fromFold #-}
+fromFold :: Monad m => Fold m a b -> Pipe m a b
+fromFold (Fold fstep finitial fextract _) = Pipe consume produce ToScanInit
+
+    where
+
+    -- XXX make the initial state Either type and start in produce mode
+    consume ToScanInit x = do
+        r <- finitial
+        return $ case r of
+            Fold.Partial s -> SkipP (ToScanFirst s x)
+            Fold.Done b -> YieldP ToScanStop b
+
+    consume (ToScanGo st) a = do
+        r <- fstep st a
+        case r of
+            Fold.Partial s -> do
+                b <- fextract s
+                return $ YieldC (ToScanGo s) b
+            Fold.Done b -> return $ YieldP ToScanStop b
+
+    produce (ToScanFirst st x) = consume (ToScanGo st) x
+    produce ToScanStop = return Stop

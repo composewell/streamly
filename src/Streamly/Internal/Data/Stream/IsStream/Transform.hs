@@ -257,7 +257,7 @@ import qualified Streamly.Internal.Data.Stream.Concurrent as Concur
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream as D
-    (transform, foldrT, tap, tapOffsetEvery, mapM, scan
+    (pipe, foldrT, tap, tapOffsetEvery, mapM, scan
     , scanMany, postscan, scanlx', scanlM', scanl', postscanl', prescanl'
     , prescanlM', scanl1M', scanl1', filter, filterM, uniq, deleteBy, takeWhileM
     , dropWhile, dropWhileM, insertBy, intersperse
@@ -298,7 +298,7 @@ import Prelude hiding
 --
 {-# INLINE transform #-}
 transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
-transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
+transform p xs = fromStreamD $ D.pipe p (toStreamD xs)
 
 ------------------------------------------------------------------------------
 -- Transformation Folds

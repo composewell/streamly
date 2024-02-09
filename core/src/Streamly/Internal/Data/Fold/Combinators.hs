@@ -130,17 +130,13 @@ module Streamly.Internal.Data.Fold.Combinators
     -- ** Utilities
     , with
 
-    -- ** Mapping on Input
-    , transform
-
     -- ** Sliding Window
     , slide2
 
     -- ** Scanning Input
     , scan
     , scanMany
-    -- , runScan
-    , toScan
+    , pipe
     , indexed
 
     -- ** Zipping Input
@@ -232,11 +228,9 @@ import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
 import Foreign.Storable (Storable, peek)
-import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Pipe.Type (Pipe (..), PipeState(..))
-import Streamly.Internal.Data.Scan (Scan(..))
+import Streamly.Internal.Data.Pipe.Type (Pipe (..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
@@ -248,7 +242,6 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring as Ring
-import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
 import Prelude hiding
@@ -437,44 +430,48 @@ tracing f x = void (f x) >> return x
 trace :: Monad m => (a -> m b) -> Fold m a r -> Fold m a r
 trace f = lmapM (tracing f)
 
--- rename to lpipe?
---
--- | Apply a transformation on a 'Fold' using a 'Pipe'.
+-- | Attach a 'Pipe' on the input of a 'Fold'.
 --
 -- /Pre-release/
-{-# INLINE transform #-}
-transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
-transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract ffinal) =
+{-# INLINE pipe #-}
+pipe :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
+pipe (Pipe consume produce pinitial) (Fold fstep finitial fextract ffinal) =
     Fold step initial extract final
 
     where
 
     initial = first (Tuple' pinitial) <$> finitial
 
-    step (Tuple' ps fs) x = do
-        r <- pstep1 ps x
+    step (Tuple' cs fs) x = do
+        r <- consume cs x
         go fs r
 
         where
 
         -- XXX use SPEC?
-        go acc (Pipe.Yield b (Consume ps')) = do
-            acc' <- fstep acc b
+        go acc (Pipe.YieldC cs1 b) = do
+            acc1 <- fstep acc b
             return
-                $ case acc' of
-                      Partial s -> Partial $ Tuple' ps' s
-                      Done b2 -> Done b2
-        go acc (Pipe.Yield b (Produce ps')) = do
-            acc' <- fstep acc b
-            r <- pstep2 ps'
-            case acc' of
+                $ case acc1 of
+                      Partial s -> Partial $ Tuple' cs1 s
+                      Done b1 -> Done b1
+        -- XXX this case is recursive may cause fusion issues.
+        -- To remove recursion we will need a produce mode in folds which makes
+        -- it similar to pipes except that it does not yield intermediate
+        -- values..
+        go acc (Pipe.YieldP ps1 b) = do
+            acc1 <- fstep acc b
+            r <- produce ps1
+            case acc1 of
                 Partial s -> go s r
-                Done b2 -> return $ Done b2
-        go acc (Pipe.Continue (Consume ps')) =
-            return $ Partial $ Tuple' ps' acc
-        go acc (Pipe.Continue (Produce ps')) = do
-            r <- pstep2 ps'
+                Done b1 -> return $ Done b1
+        go acc (Pipe.SkipC cs1) =
+            return $ Partial $ Tuple' cs1 acc
+        -- XXX this case is recursive may cause fusion issues.
+        go acc (Pipe.SkipP ps1) = do
+            r <- produce ps1
             go acc r
+        go acc Pipe.Stop = Done <$> fextract acc
 
     extract (Tuple' _ fs) = fextract fs
 
@@ -537,95 +534,6 @@ scan = scanWith False
 {-# INLINE scanMany #-}
 scanMany :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 scanMany = scanWith True
-
-{-
--- | Does not work correctly for scans which can emit YieldRep or SkipRep
--- constructors. This will get fixed when we add SkipRep to folds as well.
-{-# INLINE runScan #-}
-runScan :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
-runScan (Scan stepL initialL) (Fold stepR initialR extractR finalR) =
-    Fold step initial extract final
-
-    where
-
-    initial = do
-        rR <- initialR
-        case rR of
-            Partial sR -> return $ Partial (initialL, sR)
-            Done b -> return $ Done b
-
-    step (sL, sR) x = do
-        rL <- stepL sL x
-        case rL of
-            Scan.Yield sL1 bL -> do
-                rR <- stepR sR bL
-                case rR of
-                    Partial sR1 -> return $ Partial (sL1, sR1)
-                    Done bR -> return (Done bR)
-            Scan.Skip sL1 -> return $ Partial (sL1, sR)
-            Scan.Stop -> Done <$> finalR sR
-            Scan.YieldRep _sL1 bL -> do
-                rR <- stepR sR bL
-                case rR of
-                    -- XXX return SkipRep
-                    Partial _sR1 -> undefined -- return $ Partial (sL1, sR1)
-                    Done bR -> return (Done bR)
-            Scan.SkipRep _sL1 ->
-                -- XXX return SkipRep
-                undefined -- return $ Partial (sL1, sR)
-
-    extract = extractR . snd
-
-    final = finalR . snd
--}
-
--- Note when we have a separate Scan type then we can remove extract from
--- Folds. Then folds can only be used for foldMany or many and not for
--- scanning. This combinator has to be removed then.
-
--- XXX The way filter is implemented in Folds is that it discards the input and
--- on "extract" it will return the previous accumulator value only. Thus the
--- accumulator may repeat in the output stream when filter is used. Ideally the
--- output stream should not have a value corresponding to the filtered value.
--- With "Continue s" and "Partial s b" instead of using "extract" we can do
--- that.
-
-{-# ANN type ToScanConsume Fuse #-}
-data ToScanConsume s x = ToScanInit | ToScanGo s
-
-{-# ANN type ToScanProduce Fuse #-}
-data ToScanProduce s x = ToScanFirst s x | ToScanStop
-
--- | ScanR does not support finalization yet. This does not finalize the fold
--- when the stream stops before the fold terminates. So cannot be used on folds
--- that require finalization.
---
--- >>> Stream.toList $ Stream.runScan (Fold.toScan Fold.sum) $ Stream.fromList [1..5::Int]
--- [1,3,6,10,15]
---
-{-# INLINE toScan #-}
-toScan :: Monad m => Fold m a b -> Scan m a b
-toScan (Fold fstep finitial fextract _) = Scan consume produce ToScanInit
-
-    where
-
-    -- XXX make the initial state Either type and start in produce mode
-    consume ToScanInit x = do
-        r <- finitial
-        return $ case r of
-            Partial s -> Scan.SkipP (ToScanFirst s x)
-            Done b -> Scan.YieldP ToScanStop b
-
-    consume (ToScanGo st) a = do
-        r <- fstep st a
-        case r of
-            Partial s -> do
-                b <- fextract s
-                return $ Scan.YieldC (ToScanGo s) b
-            Done b -> return $ Scan.YieldP ToScanStop b
-
-    produce (ToScanFirst st x) = consume (ToScanGo st) x
-    produce ToScanStop = return Scan.Stop
 
 ------------------------------------------------------------------------------
 -- Filters

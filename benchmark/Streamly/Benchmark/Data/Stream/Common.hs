@@ -67,7 +67,7 @@ module Stream.Common
     , transformMapM
     , transformComposeMapM
     , transformTeeMapM
-    , transformZipMapM
+    -- , transformZipMapM
     )
 where
 
@@ -477,7 +477,7 @@ transformMapM ::
     => Int
     -> Stream m Int
     -> m ()
-transformMapM n = composeN n $ Stream.transform (Pipe.mapM return)
+transformMapM n = composeN n $ Stream.pipe (Pipe.mapM return)
 
 {-# INLINE transformComposeMapM #-}
 transformComposeMapM ::
@@ -487,7 +487,7 @@ transformComposeMapM ::
     -> m ()
 transformComposeMapM n =
     composeN n $
-    Stream.transform
+    Stream.pipe
         (Pipe.mapM (\x -> return (x + 1)) `Pipe.compose`
          Pipe.mapM (\x -> return (x + 2)))
 
@@ -499,10 +499,11 @@ transformTeeMapM ::
     -> m ()
 transformTeeMapM n =
     composeN n $
-    Stream.transform
-        (Pipe.mapM (\x -> return (x + 1)) `Pipe.tee`
+    Stream.pipe
+        (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
          Pipe.mapM (\x -> return (x + 2)))
 
+{-
 {-# INLINE transformZipMapM #-}
 transformZipMapM ::
        (Monad m)
@@ -511,8 +512,9 @@ transformZipMapM ::
     -> m ()
 transformZipMapM n =
     composeN n $
-    Stream.transform
+    Stream.pipe
         (Pipe.zipWith
              (+)
              (Pipe.mapM (\x -> return (x + 1)))
              (Pipe.mapM (\x -> return (x + 2))))
+-}
