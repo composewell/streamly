@@ -136,6 +136,7 @@ module Streamly.Internal.Data.Fold.Combinators
     -- ** Scanning Input
     , scan
     , scanMany
+    , runScan
     , pipe
     , indexed
 
@@ -231,6 +232,7 @@ import Foreign.Storable (Storable, peek)
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..))
+import Streamly.Internal.Data.Scan (Scan (..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
@@ -241,6 +243,7 @@ import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
@@ -477,6 +480,50 @@ pipe (Pipe consume produce pinitial) (Fold fstep finitial fextract ffinal) =
 
     final (Tuple' _ fs) = ffinal fs
 
+{-# INLINE runScanWith #-}
+runScanWith :: Monad m => Bool -> Scan m a b -> Fold m b c -> Fold m a c
+runScanWith isMany
+    (Scan stepL initialL)
+    (Fold stepR initialR extractR finalR) =
+    Fold step initial extract final
+
+    where
+
+    step (sL, sR) x = do
+        rL <- stepL sL x
+        case rL of
+            Scan.Yield sL1 b -> do
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL1, sR1)
+                    Done bR -> return (Done bR)
+            Scan.Skip sL1 -> return $ Partial (sL1, sR)
+            -- XXX We have dropped the input.
+            -- XXX Need same behavior for Stop in Fold so that the driver can
+            -- consistently assume it is dropped.
+            Scan.Stop ->
+                if isMany
+                then return $ Partial (initialL, sR)
+                else Done <$> finalR sR
+
+    initial = do
+        r <- initialR
+        case r of
+            Partial sR -> return $ Partial (initialL, sR)
+            Done b -> return $ Done b
+
+    extract = extractR . snd
+
+    final = finalR . snd
+
+-- | Scan the input of a 'Fold' to change it in a stateful manner using a
+-- 'Scan'. The scan stops as soon as the fold terminates.
+--
+-- /Pre-release/
+{-# INLINE runScan #-}
+runScan :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
+runScan = runScanWith False
+
 {-# INLINE scanWith #-}
 scanWith :: Monad m => Bool -> Fold m a b -> Fold m b c -> Fold m a c
 scanWith isMany
@@ -495,6 +542,10 @@ scanWith isMany
                 case rR of
                     Partial sR1 ->
                         if isMany
+                        -- XXX recursive call. If initialL returns Done then it
+                        -- will not terminate. In that case we should return
+                        -- error in the beginning itself. And we should remove
+                        -- this recursion, assuming it won't return Done.
                         then runStep initialL sR1
                         else Done <$> finalR sR1
                     Done bR -> return $ Done bR
