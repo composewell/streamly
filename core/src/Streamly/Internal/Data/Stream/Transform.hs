@@ -34,6 +34,7 @@ module Streamly.Internal.Data.Stream.Transform
     , scan
     , scanMany
     , pipe
+    , runScan
 
     -- * Splitting
     , splitOn
@@ -157,6 +158,7 @@ import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..))
+import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
 import Streamly.Internal.Data.Unbox (Unbox)
@@ -166,6 +168,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
+import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding
@@ -221,6 +224,32 @@ pipe (Pipe consume produce initial) (Stream stream_step state) =
                 Pipe.Stop -> Stop
                 Pipe.YieldP ps1 b -> Yield b (PipeProduce st ps1)
                 Pipe.SkipP ps1 -> Skip (PipeProduce st ps1)
+
+{-# ANN type RunScanState Fuse #-}
+data RunScanState st sc ps = ScanConsume st sc
+
+-- | Use a 'Scan' to transform a stream.
+--
+{-# INLINE_NORMAL runScan #-}
+runScan :: Monad m => Scan m a b -> Stream m a -> Stream m b
+runScan (Scan consume initial) (Stream stream_step state) =
+    Stream step (ScanConsume state initial)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (ScanConsume st cs) = do
+        r <- stream_step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                res <- consume cs x
+                return
+                    $ case res of
+                        Scan.Yield cs1 b -> Yield b (ScanConsume s cs1)
+                        Scan.Skip cs1 -> Skip (ScanConsume s cs1)
+                        Scan.Stop -> Stop
+            Skip s -> return $ Skip (ScanConsume s cs)
+            Stop -> return Stop
 
 ------------------------------------------------------------------------------
 -- Transformation Folds

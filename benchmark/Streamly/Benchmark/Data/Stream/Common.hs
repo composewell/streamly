@@ -68,6 +68,9 @@ module Stream.Common
     , transformComposeMapM
     , transformTeeMapM
     -- , transformZipMapM
+    , scanMapM
+    , scanComposeMapM
+    , scanTeeMapM
     )
 where
 
@@ -81,6 +84,7 @@ import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Pipe as Pipe
+import qualified Streamly.Internal.Data.Scan as Scan
 
 #ifdef USE_PRELUDE
 import Streamly.Prelude (foldl', scanl')
@@ -479,6 +483,14 @@ transformMapM ::
     -> m ()
 transformMapM n = composeN n $ Stream.pipe (Pipe.mapM return)
 
+{-# INLINE scanMapM #-}
+scanMapM ::
+       (Monad m)
+    => Int
+    -> Stream m Int
+    -> m ()
+scanMapM n = composeN n $ Stream.runScan (Scan.mapM return)
+
 {-# INLINE transformComposeMapM #-}
 transformComposeMapM ::
        (Monad m)
@@ -491,6 +503,18 @@ transformComposeMapM n =
         (Pipe.mapM (\x -> return (x + 1)) `Pipe.compose`
          Pipe.mapM (\x -> return (x + 2)))
 
+{-# INLINE scanComposeMapM #-}
+scanComposeMapM ::
+       (Monad m)
+    => Int
+    -> Stream m Int
+    -> m ()
+scanComposeMapM n =
+    composeN n $
+    Stream.runScan
+        (Scan.mapM (\x -> return (x + 1)) `Scan.compose`
+         Scan.mapM (\x -> return (x + 2)))
+
 {-# INLINE transformTeeMapM #-}
 transformTeeMapM ::
        (Monad m)
@@ -502,6 +526,18 @@ transformTeeMapM n =
     Stream.pipe
         (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
          Pipe.mapM (\x -> return (x + 2)))
+
+{-# INLINE scanTeeMapM #-}
+scanTeeMapM ::
+       (Monad m)
+    => Int
+    -> Stream m Int
+    -> m ()
+scanTeeMapM n =
+    composeN n $
+    Stream.runScan
+        (Scan.teeWith (+) (Scan.mapM (\x -> return (x + 1)))
+         (Scan.mapM (\x -> return (x + 2))))
 
 {-
 {-# INLINE transformZipMapM #-}

@@ -566,6 +566,28 @@ o_1_space_pipesX4 value =
     ]
 
 -------------------------------------------------------------------------------
+-- Scans
+-------------------------------------------------------------------------------
+
+o_1_space_scans :: Int -> [Benchmark]
+o_1_space_scans value =
+    [ bgroup "scans"
+        [ benchIOSink value "mapM" (scanMapM 1)
+        , benchIOSink value "compose" (scanComposeMapM 1)
+        , benchIOSink value "tee" (scanTeeMapM 1)
+        ]
+    ]
+
+o_1_space_scansX4 :: Int -> [Benchmark]
+o_1_space_scansX4 value =
+    [ bgroup "scansX4"
+        [ benchIOSink value "mapM" (scanMapM 4)
+        , benchIOSink value "compose" (scanComposeMapM 4)
+        , benchIOSink value "tee" (scanTeeMapM 4)
+        ]
+    ]
+
+-------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
@@ -582,6 +604,10 @@ benchmarks moduleName size =
             -- pipes
             , o_1_space_pipes size
             , o_1_space_pipesX4 size
+
+            -- scans
+            , o_1_space_scans size
+            , o_1_space_scansX4 size
             ]
         , bgroup (o_n_stack_prefix moduleName) (o_n_stack_iterated size)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_buffering size)

@@ -13,6 +13,8 @@ module Streamly.Internal.Data.Pipe.Type
     , Pipe (..)
 
     -- * From folds
+    , fromStream
+    , fromScan
     , fromFold
 
     -- * Primitive Pipes
@@ -35,10 +37,15 @@ import Control.Category (Category(..))
 import Data.Functor ((<&>))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Scan (Scan(..))
+import Streamly.Internal.Data.Stream.Type (Stream(..))
 -- import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold.Type as Fold
+import qualified Streamly.Internal.Data.Scan as Scan
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 
@@ -641,3 +648,34 @@ fromFold (Fold fstep finitial fextract _) = Pipe consume produce ToScanInit
 
     produce (ToScanFirst st x) = consume (ToScanGo st) x
     produce ToScanStop = return Stop
+
+-- | Produces the stream on consuming ().
+--
+{-# INLINE fromStream #-}
+fromStream :: Monad m => Stream m a -> Pipe m () a
+fromStream (Stream step state) = Pipe consume produce ()
+
+    where
+
+    -- XXX make the initial state Either type and start in produce mode
+    consume () () = return $ SkipP state
+
+    produce st = do
+        r <- step defState st
+        return $ case r of
+            Stream.Yield b s -> YieldP s b
+            Stream.Skip s -> SkipP s
+            Stream.Stop -> Stop
+
+{-# INLINE fromScan #-}
+fromScan :: Monad m => Scan m a b -> Pipe m a b
+fromScan (Scan step initial) = Pipe consume undefined initial
+
+    where
+
+    consume st a = do
+        r <- step st a
+        return $ case r of
+            Scan.Yield s b -> YieldC s b
+            Scan.Skip s -> SkipC s
+            Scan.Stop -> Stop
