@@ -5,6 +5,48 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- A Scan is half the pipe:
+--
+-- A scan is a simpler version of pipes. A scan always consumes an input and
+-- may or may not produce an output. It can produce at most one output on one
+-- input. Whereas a pipe may produce output even without consuming anything or
+-- it can produce multiple outputs on a single input. Scans are simpler
+-- abstractions to think about and easier for the compiler to optimize.
+--
+-- Scans vs folds:
+--
+-- Folds and scans both are consumers with very little difference. Folds return
+-- a singleton value whereas scans produce a stream. A fold can be implemented
+-- by extracting the last value from the scan stream.
+--
+-- Since folds do not care about intermediate values, we do not need the Yield
+-- constructor for folds, we can do with Skip and Stop. Because folds do not
+-- have a requirement for intermediate values, they can be used for
+-- implementing combinators like splitWith where intermediate values are not
+-- meaningful and are expensive to compute. Folds provide an applicative and
+-- monad behavior to consume the stream in parts and compose the folded
+-- results. Scans provide Category like composition and stream zip applicative
+-- behavior. The finalization function of a fold would return a single value
+-- whereas for scan it may be a stream draining the scan buffer. For these
+-- reasons, scans and folds are required as independent abstractions.
+--
+-- What kind of compositions are possible with scans?
+--
+-- Append: this is the easiest. The behavior is simple even in presence of
+-- filtering (Skip) and termination (Stop). Skip translates to Skip, Stop
+-- translates to Stop.
+--
+-- demux: we select one of n scans to run. Behaviour with Skip is straight
+-- forward. Termination behavior has multiple options, stop when first one
+-- stops, stop when the last one stops, or stop when a selected one stops.
+--
+-- zip: run all and zip the outputs. If one of them Skips we Skip the output.
+-- If one of them stops we stop. It may be possible to collect the outputs as
+-- Just/Nothing values.
+--
+-- Another option could be if a Scan terminates do we want to start it again or
+-- not.
 
 module Streamly.Internal.Data.Scan
     (
@@ -51,42 +93,23 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- Scans
 ------------------------------------------------------------------------------
 
--- A Scan is half the pipe:
---
--- A scan is a simpler version of pipes. A scan always consumes and input and
--- may or may not produce an output. It can produce at most one output on one
--- input. Whereas a pipe may produce output even without consuming anything or
--- it can produce multiple outputs on a single input. Scans are simpler
--- abstractions to think about and easier for the compiler to optimize.
-
--- What kind of compositions are possible with scans?
---
--- Append: this is the easiest. The behavior is simple even in presence of
--- filtering (Skip) and termination (Stop). Skip translates to Skip, Stop
--- translates to Stop.
---
--- demux: we select one of n scans to run. Behaviour with Skip is straight
--- forward. Termination behavior has multiple options, stop when first one
--- stops, stop when the last one stops, or stop when a selected one stops.
---
--- zip: run all and zip the outputs. If one of them Skips we Skip the output.
--- If one of them stops we stop. It may be possible to collect the outputs as
--- Just/Nothing values.
---
--- Another option could be if a Scan terminates do we want to start it again or
--- not.
---
+-- | The result of a scan step.
 {-# ANN type Step Fuse #-}
 data Step s b =
-      Yield s b -- ^ Yield and consume
-    | Skip s -- ^ Skip and consume
-    | Stop
+      Yield s b -- ^ Yield output and keep consuming
+    | Skip s -- ^ No output, keep consuming
+    | Stop -- ^ Stop consuming, last input is unsed
 
+-- | 'fmap' maps a function on the step output.
 instance Functor (Step s) where
     {-# INLINE_NORMAL fmap #-}
     fmap f (Yield s b) = Yield s (f b)
     fmap _ (Skip s) = Skip s
     fmap _ Stop = Stop
+
+-- XXX A scan produces an output only on an input. The scan may have buffered
+-- data which may have to be drained if the driver has no more input to supply.
+-- So we need a finalizer which produces a (possibly empty) stream.
 
 -- | Represents a stateful transformation over an input stream of values of
 -- type @a@ to outputs of type @b@ in 'Monad' @m@.
@@ -119,8 +142,8 @@ instance Functor m => Functor (Scan m a) where
 -- Category
 -------------------------------------------------------------------------------
 
--- | Connect two scans in series. The second scan is the input end, and the
--- first scan is the output end.
+-- | Connect two scans in series. Attach the first scan on the output of the
+-- second scan.
 --
 -- >>> import Control.Category
 -- >>> Stream.toList $ Stream.runScan (Scan.map (+1) >>> Scan.map (+1)) $ Stream.fromList [1..5::Int]
@@ -191,14 +214,18 @@ instance Monad m => Category (Scan m) where
     {-# INLINE (.) #-}
     (.) = compose
 
+-------------------------------------------------------------------------------
+-- Applicative Zip
+-------------------------------------------------------------------------------
+
 {-# ANN type TeeWith Fuse #-}
 data TeeWith sL sR = TeeWith !sL !sR
 
 -- XXX zipWith?
 
 -- | Connect two scans in parallel. Distribute the input across two scans and
--- merge their outputs as soon as they become available. Note that a scan may
--- not generate output on each input, it might filter it.
+-- zip their outputs. If the scan filters the output, 'Nothing' is emitted
+-- otherwise 'Just' is emitted. The scan stops if any of the scans stop.
 --
 -- >>> Stream.toList $ Stream.runScan (Scan.teeWithMay (,) Scan.identity (Scan.map (\x -> x * x))) $ Stream.fromList [1..5::Int]
 -- [(Just 1,Just 1),(Just 2,Just 4),(Just 3,Just 9),(Just 4,Just 16),(Just 5,Just 25)]
@@ -211,7 +238,6 @@ teeWithMay f (Scan stepL initialL) (Scan stepR initialR) =
 
     where
 
-    -- XXX Use strict tuple?
     step (TeeWith sL sR) a = do
         resL <- stepL sL a
         resR <- stepR sR a
@@ -233,10 +259,12 @@ teeWithMay f (Scan stepL initialL) (Scan stepR initialR) =
                         Stop -> Stop
                   Stop -> Stop
 
--- | Produces an output only when both the scans produce an output.
+-- | Produces an output only when both the scans produce an output. If any of
+-- the scans skips the output then the composed scan also skips. Stops when any
+-- of the scans stop.
 --
 -- >>> Stream.toList $ Stream.runScan (Scan.teeWith (,) Scan.identity (Scan.map (\x -> x * x))) $ Stream.fromList [1..5::Int]
--- [Just (1,1),Just (2,4),Just (3,9),Just (4,16),Just (5,25)]
+-- [(1,1),(2,4),(3,9),(4,16),(5,25)]
 --
 {-# INLINE_NORMAL teeWith #-}
 teeWith :: Monad m =>
@@ -246,10 +274,22 @@ teeWith f s1 s2 =
         $ compose (filter isJust)
         $ teeWithMay (\b c -> f <$> b <*> c) s1 s2
 
+-- | Zips the outputs only when both scans produce outputs, discards otherwise.
+instance Monad m => Applicative (Scan m a) where
+    {-# INLINE pure #-}
+    pure b = Scan (\_ _ -> pure $ Yield () b) ()
+
+    (<*>) = teeWith id
+
 -------------------------------------------------------------------------------
 -- Arrow
 -------------------------------------------------------------------------------
 
+-- | Use the first scan for the first element of the tuple and second scan for
+-- the second. Zip the outputs. Emits 'Nothing' if no output is generated by
+-- the scan, otherwise emits 'Just'. Stops as soon as any one of the scans
+-- stop.
+--
 {-# INLINE_NORMAL unzipMay #-}
 unzipMay :: Monad m =>
     Scan m a x -> Scan m b y -> Scan m (a, b) (Maybe x, Maybe y)
@@ -279,7 +319,8 @@ unzipMay (Scan stepL initialL) (Scan stepR initialR) =
                         Stop -> Stop
                   Stop -> Stop
 
--- | Produces an output only when both the scans produce an output.
+-- | Like 'unzipMay' but produces an output only when both the scans produce an
+-- output. Other outputs are filtered out.
 {-# INLINE_NORMAL unzip #-}
 unzip :: Monad m => Scan m a x -> Scan m b y -> Scan m (a, b) (x, y)
 unzip s1 s2 = fmap (fromJust Prelude.. f) $ unzipMay s1 s2
@@ -293,12 +334,6 @@ unzip s1 s2 = fmap (fromJust Prelude.. f) $ unzipMay s1 s2
                     Just y -> Just (x, y)
                     Nothing -> Nothing
             Nothing -> Nothing
-
-instance Monad m => Applicative (Scan m a) where
-    {-# INLINE pure #-}
-    pure b = Scan (\_ _ -> pure $ Yield () b) ()
-
-    (<*>) = teeWith id
 
 instance Monad m => Arrow (Scan m) where
     {-# INLINE arr #-}

@@ -16,6 +16,7 @@ module Streamly.Internal.Data.Pipe.Type
     , fromStream
     , fromScan
     , fromFold
+    , scanFold
 
     -- * Primitive Pipes
     , identity
@@ -62,24 +63,13 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- Pipes
 ------------------------------------------------------------------------------
 
--- A scan is a much simpler version of pipes. A scan always produces an output
--- on an input whereas a pipe does not necessarily produce an output on an
--- input, it might consume multiple inputs before producing an output. That way
--- it can implement filtering. Similarly, it can produce more than one output
--- on an single input.
---
--- Therefore when two pipes are composed in parallel formation, one may run
--- slower or faster than the other. If all of them are being fed from the same
--- source, we may have to buffer the input to match the speeds, if we want to
--- zip the outputs. In case of scans we do not have that problem.
-
 -- XXX If we do not want to change Streams, we should use "Yield b s" instead
 -- of "Yield s b". Though "Yield s b" is sometimes better when using curried
 -- "Yield s". "Yield b" sounds better because the verb applies to "b".
 --
--- XXX We could reduce the number of constructors by using Consume | Produce
+-- Note: We could reduce the number of constructors by using Consume | Produce
 -- wrapper around the state. But when fusion does not occur, it may be better
--- yo use a flat structure rather than nested to avoid more allocations. In a
+-- to use a flat structure rather than nested to avoid more allocations. In a
 -- flat structure the pointer tag from the Step constructor itself can identiy
 -- any of the 5 constructors.
 --
@@ -87,7 +77,7 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 data Step cs ps b =
       YieldC cs b -- ^ Yield and consume
     | SkipC cs -- ^ Skip and consume
-    | Stop
+    | Stop -- ^ when consuming, Stop means input remains unused
     | YieldP ps b -- ^ Yield and produce
     | SkipP ps -- ^ Skip and produce
 
@@ -99,16 +89,12 @@ instance Functor (Step cs ps) where
     fmap _ (SkipP s) = SkipP s
     fmap _ Stop = Stop
 
--- A pipe uses a consume function and a produce function. It can switch from
--- consume/fold mode to a produce/source mode. The first step function is a
--- fold function while the second one is a stream generator function.
+-- A pipe uses a consume function and a produce function. It can dynamically
+-- switch from consume/fold mode to a produce/source mode.
 --
--- We can upgrade a stream or a fold into a pipe. However, streams are more
--- efficient in generation and folds are more efficient in consumption.
---
--- For pure transformation we can have a 'Scan' type. A Scan would be more
--- efficient in zipping whereas pipes are useful for merging and zipping where
--- we know buffering can occur. A Scan type can be upgraded to a pipe.
+-- We can upgrade a stream, fold or scan into a pipe. However, the simpler
+-- types should be preferred because they can be more efficient and fuse
+-- better.
 --
 -- XXX In general the starting state could either be for generation or for
 -- consumption. Currently we are only starting with a consumption state.
@@ -277,6 +263,7 @@ map f = mapM (return Prelude.. f)
 identity :: Monad m => Pipe m a a
 identity = map Prelude.id
 
+-- | "." composes the pipes in series.
 instance Monad m => Category (Pipe m) where
     {-# INLINE id #-}
     id = identity
@@ -397,6 +384,7 @@ teeMerge (Pipe consumeL produceL initialL) (Pipe consumeR produceR initialR) =
                   YieldP ps b -> YieldP (TeeMergeProduceOnlyR ps) b
                   SkipP ps -> SkipP (TeeMergeProduceOnlyR ps)
 
+-- | '<>' composes the pipes in parallel.
 instance Monad m => Semigroup (Pipe m a b) where
     {-# INLINE (<>) #-}
     (<>) = teeMerge
@@ -430,6 +418,8 @@ uncons (Deque snocList consList) =
       case Prelude.reverse snocList of
         h : t -> Just (h, Deque [] t)
         _ -> Nothing
+
+-- XXX This is old code retained for reference until rewritten.
 
 -- | The composed pipe distributes the input to both the constituent pipes and
 -- zips the output of the two using a supplied zipping function.
@@ -612,42 +602,77 @@ filter f = filterM (return Prelude.. f)
 -- With "Continue s" and "Partial s b" instead of using "extract" we can do
 -- that.
 
-{-# ANN type ToScanConsume Fuse #-}
-data ToScanConsume s x = ToScanInit | ToScanGo s
+{-# ANN type FromFoldConsume Fuse #-}
+data FromFoldConsume s x = FoldConsumeInit | FoldConsumeGo s
 
-{-# ANN type ToScanProduce Fuse #-}
-data ToScanProduce s x = ToScanFirst s x | ToScanStop
+{-# ANN type FromFoldProduce Fuse #-}
+data FromFoldProduce s x = FoldProduceInit s x | FoldProduceStop
+
+-- XXX This should be removed once we remove "extract" from folds.
 
 -- | Pipes do not support finalization yet. This does not finalize the fold
 -- when the stream stops before the fold terminates. So cannot be used on folds
 -- that require finalization.
 --
--- >>> Stream.toList $ Stream.pipe (Pipe.fromFold Fold.sum) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.pipe (Pipe.scanFold Fold.sum) $ Stream.fromList [1..5::Int]
 -- [1,3,6,10,15]
 --
-{-# INLINE fromFold #-}
-fromFold :: Monad m => Fold m a b -> Pipe m a b
-fromFold (Fold fstep finitial fextract _) = Pipe consume produce ToScanInit
+{-# INLINE scanFold #-}
+scanFold :: Monad m => Fold m a b -> Pipe m a b
+scanFold (Fold fstep finitial fextract _) =
+    Pipe consume produce FoldConsumeInit
 
     where
 
     -- XXX make the initial state Either type and start in produce mode
-    consume ToScanInit x = do
+    consume FoldConsumeInit x = do
         r <- finitial
         return $ case r of
-            Fold.Partial s -> SkipP (ToScanFirst s x)
-            Fold.Done b -> YieldP ToScanStop b
+            Fold.Partial s -> SkipP (FoldProduceInit s x)
+            Fold.Done b -> YieldP FoldProduceStop b
 
-    consume (ToScanGo st) a = do
+    consume (FoldConsumeGo st) a = do
         r <- fstep st a
         case r of
             Fold.Partial s -> do
                 b <- fextract s
-                return $ YieldC (ToScanGo s) b
-            Fold.Done b -> return $ YieldP ToScanStop b
+                return $ YieldC (FoldConsumeGo s) b
+            Fold.Done b -> return $ YieldP FoldProduceStop b
 
-    produce (ToScanFirst st x) = consume (ToScanGo st) x
-    produce ToScanStop = return Stop
+    produce (FoldProduceInit st x) = consume (FoldConsumeGo st) x
+    produce FoldProduceStop = return Stop
+
+-- | Create a singleton pipe from a fold.
+--
+-- Pipes do not support finalization yet. This does not finalize the fold
+-- when the stream stops before the fold terminates. So cannot be used on folds
+-- that require such finalization.
+--
+-- >>> Stream.toList $ Stream.pipe (Pipe.fromFold Fold.sum) $ Stream.fromList [1..5::Int]
+-- [15]
+--
+{-# INLINE fromFold #-}
+fromFold :: Monad m => Fold m a b -> Pipe m a b
+fromFold (Fold fstep finitial _ _) =
+    Pipe consume produce FoldConsumeInit
+
+    where
+
+    -- XXX make the initial state Either type and start in produce mode
+    consume FoldConsumeInit x = do
+        r <- finitial
+        return $ case r of
+            Fold.Partial s -> SkipP (FoldProduceInit s x)
+            Fold.Done b -> YieldP FoldProduceStop b
+
+    consume (FoldConsumeGo st) a = do
+        r <- fstep st a
+        return $ case r of
+            Fold.Partial s -> SkipC (FoldConsumeGo s)
+            Fold.Done b -> YieldP FoldProduceStop b
+
+    produce (FoldProduceInit st x) = consume (FoldConsumeGo st) x
+    produce FoldProduceStop = return Stop
 
 -- | Produces the stream on consuming ().
 --

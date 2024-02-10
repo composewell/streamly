@@ -233,18 +233,18 @@ import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..))
 import Streamly.Internal.Data.Scan (Scan (..))
+import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Stream.Type (Stream)
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
 import Prelude hiding
@@ -474,6 +474,7 @@ pipe (Pipe consume produce pinitial) (Fold fstep finitial fextract ffinal) =
         go acc (Pipe.SkipP ps1) = do
             r <- produce ps1
             go acc r
+        -- XXX a Stop in consumer means we dropped the input.
         go acc Pipe.Stop = Done <$> fextract acc
 
     extract (Tuple' _ fs) = fextract fs

@@ -33,8 +33,8 @@ module Streamly.Internal.Data.Stream.Transform
     , postscan
     , scan
     , scanMany
-    , pipe
     , runScan
+    , pipe
 
     -- * Splitting
     , splitOn

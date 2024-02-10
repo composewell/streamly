@@ -28,6 +28,18 @@ import Fusion.Plugin.Types (Fuse(..))
 -- terminate early whereas we use data constructors. It allows stream fusion in
 -- contrast to the foldr/build fusion when composing with functions.
 
+-- XXX Change the semantics of Done such that when we return Done, the input is
+-- always unused. Then we can include the takeWhile fold as well under folds.
+-- This will be a breaking change, so rename "Done" to "Stop" so that users are
+-- forced to look at all places where it is used.
+--
+-- Perhaps we do not need to return the Step type in initial. Instead of
+-- returning "Done" in initial we can wait for the next input or invocation of
+-- "final". This should simplify the composition of initial considerably.
+--
+-- Also, rename Partial to Skip, to keep it consistent with Scans/Pipes/Streams.
+-- Make Partial a pattern synonym to keep backward compatibility.
+
 -- | Represents the result of the @step@ of a 'Fold'.  'Partial' returns an
 -- intermediate state of the fold, the fold step can be called again with the
 -- state or the driver can use @extract@ on the state to get the result out.

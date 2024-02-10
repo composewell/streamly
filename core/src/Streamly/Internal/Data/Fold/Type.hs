@@ -363,6 +363,7 @@ module Streamly.Internal.Data.Fold.Type
     , fromPure
     , fromEffect
     , fromRefold
+    , fromScan
     , drain
     , toList
     , toStreamK
@@ -455,9 +456,11 @@ import Data.Either (fromLeft, fromRight, isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Refold.Type (Refold(..))
+import Streamly.Internal.Data.Scan (Scan(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
+import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding (Foldable(..), concatMap, filter, map, take)
@@ -615,6 +618,36 @@ foldlM1' step = fmap toMaybe $ foldlM' step1 (return Nothing')
 
     step1 Nothing' a = return $ Just' a
     step1 (Just' x) a = Just' <$> step x a
+
+data FromScan s b = FromScanInit !s | FromScanGo !s !b
+
+-- | This does not work correctly yet. We lose the last input.
+--
+{-# INLINE fromScan #-}
+fromScan :: Monad m => Scan m a b -> Fold m a (Maybe b)
+fromScan (Scan consume initial) =
+    Fold fstep (return $ Partial (FromScanInit initial)) fextract fextract
+
+    where
+
+    fstep (FromScanInit ss) a = do
+        r <- consume ss a
+        return $ case r of
+            Scan.Yield s b -> Partial (FromScanGo s b)
+            Scan.Skip s -> Partial (FromScanInit s)
+            -- XXX We have lost the input here.
+            -- XXX Need to change folds to always return Done on the next input
+            Scan.Stop -> Done Nothing
+    fstep (FromScanGo ss acc) a = do
+        r <- consume ss a
+        return $ case r of
+            Scan.Yield s b -> Partial (FromScanGo s b)
+            Scan.Skip s -> Partial (FromScanGo s acc)
+            -- XXX We have lost the input here.
+            Scan.Stop -> Done (Just acc)
+
+    fextract (FromScanInit _) = return Nothing
+    fextract (FromScanGo _ acc) = return (Just acc)
 
 ------------------------------------------------------------------------------
 -- Right fold constructors
