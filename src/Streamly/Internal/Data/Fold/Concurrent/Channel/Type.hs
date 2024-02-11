@@ -31,7 +31,7 @@ import Streamly.Internal.Control.Concurrent
 import Streamly.Internal.Control.ForkLifted (doForkWith)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
-import Streamly.Internal.Data.Channel.Worker (sendWithDoorBell)
+import Streamly.Internal.Data.Channel.Worker (sendEvent)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as D
@@ -138,7 +138,7 @@ sendToDriver sv msg = do
     -- then wake it up so that it can check for the stop event or exception
     -- being sent to it otherwise we will be deadlocked.
     -- void $ tryPutMVar (pushBufferMVar sv) ()
-    sendWithDoorBell (outputQueueFromConsumer sv)
+    sendEvent (outputQueueFromConsumer sv)
                      (outputDoorBellFromConsumer sv) msg
 
 sendYieldToDriver :: MonadIO m => Channel m a b -> b -> m ()
@@ -321,7 +321,7 @@ sendToWorker chan a = go
                     then do
                         liftIO
                             $ void
-                            $ sendWithDoorBell
+                            $ sendEvent
                                 (outputQueue chan)
                                 (outputDoorBell chan)
                                 (ChildYield a)

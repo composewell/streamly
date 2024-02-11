@@ -27,7 +27,7 @@ import Streamly.Internal.Control.Concurrent (RunInIO)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Channel.Worker
-    (sendYield, sendStop, sendWithDoorBell)
+    (sendYield, sendStop, sendEvent)
 import Streamly.Internal.Data.StreamK (StreamK)
 
 import Streamly.Internal.Data.Channel.Types
@@ -121,23 +121,20 @@ data Channel m a = Channel
 
 {-# INLINE yield #-}
 yield :: Channel m a -> Maybe WorkerInfo -> a -> IO Bool
-yield sv winfo x =
+yield sv =
     sendYield
         (maxBufferLimit sv)
         (maxWorkerLimit sv)
         (workerCount sv)
-        winfo
         (yieldRateInfo sv)
         (outputQueue sv)
         (outputDoorBell sv)
-        (ChildYield x)
 
 {-# INLINE stop #-}
 stop :: Channel m a -> Maybe WorkerInfo -> IO ()
-stop sv winfo =
+stop sv =
     sendStop
         (workerCount sv)
-        winfo
         (yieldRateInfo sv)
         (outputQueue sv)
         (outputDoorBell sv)
@@ -148,7 +145,7 @@ stopChannel :: MonadIO m => Channel m a -> m ()
 stopChannel chan = liftIO $ do
     atomicModifyIORefCAS_ (workerCount chan) $ \n -> n - 1
     void
-        $ sendWithDoorBell
+        $ sendEvent
             (outputQueue chan)
             (outputDoorBell chan)
             ChildStopChannel

@@ -33,41 +33,41 @@
 --
 module Streamly.Internal.Data.Channel.Types
     (
-    -- * Types
+    -- ** Types
       Count (..)
     , Limit (..)
     , ThreadAbort (..)
     , ChildEvent (..)
 
-    -- * Stats
+    -- ** Stats
     , SVarStats (..)
     , newSVarStats
 
-    -- * Rate Control
+    -- ** Rate Control
     , WorkerInfo (..)
     , LatencyRange (..)
     , YieldRateInfo (..)
     , newRateInfo
 
-    -- * Output queue
+    -- ** Output queue
     , readOutputQRaw
     , readOutputQBasic
     , ringDoorBell
 
-    -- * Yield Limit
+    -- ** Yield Limit
     , decrementYieldLimit
     , incrementYieldLimit
 
-    -- * Configuration
+    -- ** Configuration
     , Rate (..)
     , StopWhen (..)
     , Config
 
-    -- ** Default config
+    -- *** Default config
     , magicMaxBuffer
     , defaultConfig
 
-    -- ** Set config
+    -- *** Set config
     , maxThreads
     , maxBuffer
     , maxYields
@@ -84,7 +84,7 @@ module Streamly.Internal.Data.Channel.Types
     , maxRate
     , constRate
 
-    -- ** Get config
+    -- *** Get config
     , getMaxThreads
     , getMaxBuffer
     , getStreamRate
@@ -98,10 +98,10 @@ module Streamly.Internal.Data.Channel.Types
     , getInterleaved
     , getBound
 
-    -- * Cleanup
+    -- ** Cleanup
     , cleanupSVar
 
-    -- * Diagnostics
+    -- ** Diagnostics
     , dumpCreator
     , dumpOutputQ
     , dumpDoorBell
@@ -186,11 +186,11 @@ data ChildEvent a =
 -- a particular rate when controlled pace mode it used.
 data WorkerInfo = WorkerInfo
     {
-    -- | 0 means unlimited
+    -- | Yields allowed for this worker. 0 means unlimited.
       workerYieldMax   :: Count
     -- | total number of yields by the worker till now
     , workerYieldCount    :: IORef Count
-    -- | yieldCount at start, timestamp
+    -- | (yield count at start of collection interval, collection start timestamp)
     , workerLatencyStart  :: IORef (Count, AbsTime)
     }
 
@@ -203,61 +203,70 @@ data LatencyRange = LatencyRange
 data YieldRateInfo = YieldRateInfo
     { svarLatencyTarget    :: NanoSecond64
     , svarLatencyRange     :: LatencyRange
-    , svarRateBuffer       :: Int
 
-    -- | [LOCKING] Unlocked access. Modified by the consumer thread and unsafely
+    -- | Number of yields beyond which we will not try to recover the rate.
+    , svarRateBuffer :: Int
+
+    -- | Yields that we have permanently gained or lost since the start of the
+    -- channel i.e. we do not want to adjust the rate to make up for this
+    -- deficit or gain.
+    --
+    -- [LOCKING] Unlocked access. Modified by the consumer thread and snapshot
     -- read by the worker threads
     , svarGainedLostYields :: IORef Count
 
-    -- | Actual latency/througput as seen from the consumer side, we count the
-    -- yields and the time it took to generates those yields. This is used to
-    -- increase or decrease the number of workers needed to achieve the desired
-    -- rate. The idle time of workers is adjusted in this, so that we only
-    -- account for the rate when the consumer actually demands data.
     -- XXX interval latency is enough, we can move this under diagnostics build
-    -- [LOCKING] Unlocked access. Modified by the consumer thread and unsafely
-    -- read by the worker threads
+
+    -- | (channel yields from start till now, channel start timestamp) as
+    -- recorded by the consumer side of the channel.
+    --
+    -- [LOCKING] Unlocked access. Modified by the consumer thread, snapshot
+    -- read by the worker threads.
     , svarAllTimeLatency :: IORef (Count, AbsTime)
 
-    -- XXX Worker latency specified by the user to be used before the first
-    -- actual measurement arrives. Not yet implemented
+    -- | TODO. Not yet implemented. Worker latency specified by the user to be
+    -- used as a guide before the first actual measurement arrives.
     , workerBootstrapLatency :: Maybe NanoSecond64
 
-    -- | After how many yields the worker should update the latency information.
-    -- If the latency is high, this count is kept lower and vice-versa.  XXX If
-    -- the latency suddenly becomes too high this count may remain too high for
-    -- long time, in such cases the consumer can change it.
-    -- 0 means no latency computation
+    -- XXX If the latency suddenly becomes too high this count may remain too
+    -- high for long time, in such cases the consumer can change it. 0 means no
+    -- latency computation
     -- XXX this is derivable from workerMeasuredLatency, can be removed.
-    -- [LOCKING] Unlocked access. Modified by the consumer thread and unsafely
+
+    -- | After how many yields the worker should update the latency
+    -- information. If the 'workerMeasuredLatency' is high, this count is kept
+    -- lower and vice-versa.
+    --
+    -- [LOCKING] Unlocked access. Modified by the consumer thread and snapshot
     -- read by the worker threads
     , workerPollingInterval :: IORef Count
 
-    -- | This is in progress latency stats maintained by the workers which we
-    -- empty into workerCollectedLatency stats at certain intervals - whenever
-    -- we process the stream elements yielded in this period. The first count
-    -- is all yields, the second count is only those yields for which the
-    -- latency was measured to be non-zero (note that if the timer resolution
-    -- is low the measured latency may be zero e.g. on JS platform).
-    -- [LOCKING] Locked access. Modified by the consumer thread as well as
-    -- worker threads. Workers modify it periodically based on
+    -- | (total yields, measured yields, time taken by measured yields).
+    -- This is first level collection bucket which is continuously updated by
+    -- workers and periodically emptied and collected into
+    -- 'workerCollectedLatency' by the consumer thread.
+    --
+    -- "Measured yields" are only those yields for which the latency was
+    -- measured to be non-zero (note that if the timer resolution is low the
+    -- measured latency may be zero e.g. on JS platform).
+    --
+    -- [LOCKING] Locked access. Atomically modified by the consumer thread as
+    -- well as worker threads. Workers modify it periodically based on
     -- workerPollingInterval and not on every yield to reduce the locking
     -- overhead.
-    -- (allYieldCount, yieldCount, timeTaken)
     , workerPendingLatency   :: IORef (Count, Count, NanoSecond64)
 
-    -- | This is the second level stat which is an accmulation from
-    -- workerPendingLatency stats. We keep accumulating latencies in this
-    -- bucket until we have stats for a sufficient period and then we reset it
-    -- to start collecting for the next period and retain the computed average
-    -- latency for the last period in workerMeasuredLatency.
-    -- [LOCKING] Unlocked access. Modified by the consumer thread and unsafely
+    -- | 'workerPendingLatency' is periodically reset and aggregated into this
+    -- by the consumer thread. This itself is reset periodically and
+    -- 'svarAllTimeLatency', 'workerMeasuredLatency' are updated using it.
+    --
+    -- [LOCKING] Unlocked access. Modified by the consumer thread and snapshot
     -- read by the worker threads
-    -- (allYieldCount, yieldCount, timeTaken)
     , workerCollectedLatency :: IORef (Count, Count, NanoSecond64)
 
-    -- | Latency as measured by workers, aggregated for the last period.
-    -- [LOCKING] Unlocked access. Modified by the consumer thread and unsafely
+    -- | Weighted average of worker latencies in previous measurement periods.
+    --
+    -- [LOCKING] Unlocked access. Modified by the consumer thread and snapshot
     -- read by the worker threads
     , workerMeasuredLatency :: IORef NanoSecond64
     }
@@ -284,8 +293,8 @@ data SVarStats = SVarStats {
 -- start of time. If the consumer or the producer is slower or faster, the
 -- actual rate may fall behind or exceed 'rateGoal'.  We try to recover the gap
 -- between the two by increasing or decreasing the pull rate from the producer.
--- However, if the gap becomes more than 'rateBuffer' we try to recover only as
--- much as 'rateBuffer'.
+-- However, if the yield count gap becomes more than 'rateBuffer' (specified as
+-- a yield count) we try to recover only as much as 'rateBuffer'.
 --
 -- 'rateLow' puts a bound on how low the instantaneous rate can go when
 -- recovering the rate gap.  In other words, it determines the maximum yield
@@ -298,10 +307,10 @@ data SVarStats = SVarStats {
 -- If the 'rateBuffer' is 0 or negative we do not attempt to recover.
 --
 data Rate = Rate
-    { rateLow    :: Double -- ^ The lower rate limit
+    { rateLow    :: Double -- ^ The lower rate limit (yields per sec)
     , rateGoal   :: Double -- ^ The target rate we want to achieve
     , rateHigh   :: Double -- ^ The upper rate limit
-    , rateBuffer :: Int    -- ^ Maximum slack from the goal
+    , rateBuffer :: Int    -- ^ Maximum yield count slack from the goal
     }
 
 -- | Specify when the 'Channel' should stop.
@@ -380,6 +389,11 @@ defaultConfig = Config
 -- Smart get/set routines for State
 -------------------------------------------------------------------------------
 
+-- | The maximum number of yields that this channel would produce. The Channel
+-- automatically stops after that. This could be used to limit the speculative
+-- execution beyond the limit.
+--
+-- 'Nothing' means there is no limit.
 maxYields :: Maybe Int64 -> Config -> Config
 maxYields lim st =
     st { _yieldLimit =
@@ -705,13 +719,21 @@ incrementYieldLimit remaining =
 -- Output queue
 -------------------------------------------------------------------------------
 
+-- | Read the output queue of the channel. After reading set it to empty list
+-- and 0 count.
 {-# INLINE readOutputQBasic #-}
-readOutputQBasic :: IORef ([ChildEvent a], Int) -> IO ([ChildEvent a], Int)
+readOutputQBasic ::
+       IORef ([ChildEvent a], Int) -- ^ The channel output queue
+    -> IO ([ChildEvent a], Int) -- ^ (events, count)
 readOutputQBasic q = atomicModifyIORefCAS q $ \x -> (([],0), x)
 
+-- | Same as 'readOutputQBasic' but additionally update the max output queue
+-- size channel stat if the new size is more than current max.
 {-# INLINE readOutputQRaw #-}
 readOutputQRaw ::
-    IORef ([ChildEvent a], Int) -> Maybe SVarStats -> IO ([ChildEvent a], Int)
+       IORef ([ChildEvent a], Int) -- ^ Channel output queue
+    -> Maybe SVarStats -- ^ Channel stats
+    -> IO ([ChildEvent a], Int) -- ^ (events, count)
 readOutputQRaw q stats = do
     (list, len) <- readOutputQBasic q
     case stats of
@@ -722,8 +744,13 @@ readOutputQRaw q stats = do
         Nothing -> return ()
     return (list, len)
 
+-- | Ring door bell. The IORef is read after adding a store-load barrier. If
+-- the IORef was set to 'True' it is atomically reset to 'False'.
 {-# INLINE ringDoorBell #-}
-ringDoorBell :: IORef Bool -> MVar () -> IO ()
+ringDoorBell ::
+       IORef Bool -- ^ If 'True' only then ring the door bell
+    -> MVar () -- ^ Door bell, put () to ring
+    -> IO ()
 ringDoorBell needBell bell = do
     storeLoadBarrier
     w <- readIORef needBell

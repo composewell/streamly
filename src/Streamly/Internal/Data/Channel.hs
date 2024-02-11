@@ -8,8 +8,16 @@
 
 module Streamly.Internal.Data.Channel
     (
-      module Streamly.Internal.Data.Channel.Dispatcher
-    , module Streamly.Internal.Data.Channel.Types
+    -- * Channel Config & Stats
+      module Streamly.Internal.Data.Channel.Types
+    -- * Worker Dispatcher
+    -- | Operations used by the consumer of the channel.
+    , module Streamly.Internal.Data.Channel.Dispatcher
+    -- * Channel Workers
+    -- | Operations used by the workers (producers) of the channel. These
+    -- operations are thread-safe, these can be called concurrently by workers
+    -- working in independent Haskell threads, the shared channel data
+    -- structures are read or updated atomically.
     , module Streamly.Internal.Data.Channel.Worker
     )
 where

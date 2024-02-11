@@ -10,16 +10,17 @@
 
 module Streamly.Internal.Data.Channel.Worker
     (
+    -- ** Worker Rate Control
       Work (..)
     , estimateWorkers
     , isBeyondMaxRate
-    , workerRateControl
+    , incrWorkerYieldCount
 
-    -- * Send Events
-    , sendWithDoorBell
+    -- ** Workers Sending Events
+    , sendEvent
     , sendYield
     , sendStop
-    , handleChildException -- XXX rename to sendException
+    , sendException
     )
 where
 
@@ -56,10 +57,16 @@ isBeyondMaxYield cnt winfo =
 -- Sending results from worker
 -------------------------------------------------------------------------------
 
-{-# INLINE sendWithDoorBell #-}
-sendWithDoorBell ::
-    IORef ([ChildEvent a], Int) -> MVar () -> ChildEvent a -> IO Int
-sendWithDoorBell q bell msg = do
+-- | Low level API to add an event on the channel's output queue. Atomically
+-- adds the event to the queue and rings the doorbell if needed to wakeup the
+-- consumer thread.
+{-# INLINE sendEvent #-}
+sendEvent ::
+       IORef ([ChildEvent a], Int) -- ^ Queue where the event is added
+    -> MVar () -- ^ Door bell to ring
+    -> ChildEvent a -- ^ The event to be added
+    -> IO Int -- ^ Length of the queue before adding this event
+sendEvent q bell msg = do
     -- XXX can the access to outputQueue be made faster somehow?
     oldlen <- atomicModifyIORefCAS q $ \(es, n) ->
         ((msg : es, n + 1), n)
@@ -129,12 +136,15 @@ workerUpdateLatency yinfo winfo = do
 -- Worker rate control
 -------------------------------------------------------------------------------
 
--- We either block, or send one worker with limited yield count or one or more
--- workers with unlimited yield count.
+-- | Describes how to pace the work based on current measurement estimates. If
+-- the rate is higher than expected we may have to sleep for some time
+-- ('BlockWait'), or send just one worker with limited yield count
+-- ('PartialWorker') or send more than one workers with max yield count of each
+-- limited to the total maximum target count.
 data Work
-    = BlockWait NanoSecond64
-    | PartialWorker Count
-    | ManyWorkers Int Count
+    = BlockWait NanoSecond64 -- ^ Sleep required before next dispatch
+    | PartialWorker Count -- ^ One worker is enough, total yields needed
+    | ManyWorkers Int Count -- ^ Worker count, total yields needed overall
     deriving Show
 
 -- | Another magic number! When we have to start more workers to cover up a
@@ -145,10 +155,15 @@ data Work
 rateRecoveryTime :: NanoSecond64
 rateRecoveryTime = 1000000
 
--- | Get the worker latency without resetting workerPendingLatency
--- Returns (total yield count, base time, measured latency)
 -- CAUTION! keep it in sync with collectLatency
-getWorkerLatency :: YieldRateInfo -> IO (Count, AbsTime, NanoSecond64)
+
+-- | Same as 'collectLatency' except that it does not update anything, this is
+-- a readonly version of 'collectLatency'.
+--
+getWorkerLatency ::
+       YieldRateInfo
+    -> IO (Count, AbsTime, NanoSecond64)
+    -- ^ (total yield count, base timestamp, 'workerMeasuredlatency')
 getWorkerLatency yinfo  = do
     let cur      = workerPendingLatency yinfo
         col      = workerCollectedLatency yinfo
@@ -172,14 +187,24 @@ getWorkerLatency yinfo  = do
     return (lcount + totalCount, ltime, newLat)
 
 -- XXX we can use phantom types to distinguish the duration/latency/expectedLat
+-- XXX This should probably be inlined.
+-- XXX Move this to the common Types module, since this is used by both
+-- dispatcher and workers.
+
+-- | Estimate how many workers and yield count ('Work') is required to maintian
+-- the target yield rate of the channel.
+--
+-- This is used by the worker dispatcher to estimate how many workers to
+-- dispatch. It is also used periodically by the workers to decide whether to
+-- stop or continue working.
 estimateWorkers
-    :: Limit
-    -> Count
-    -> Count
-    -> NanoSecond64
-    -> NanoSecond64
-    -> NanoSecond64
-    -> LatencyRange
+    :: Limit -- ^ Channel's max worker limit
+    -> Count -- ^ Channel's yield count since start
+    -> Count -- ^ 'svarGainedLostYields'
+    -> NanoSecond64 -- ^ The up time of the channel
+    -> NanoSecond64 -- ^ Current 'workerMeasuredLatency'
+    -> NanoSecond64 -- ^ 'svarLatencyTarget'
+    -> LatencyRange -- ^ 'svarLatencyRange'
     -> Work
 estimateWorkers workerLimit svarYields gainLossYields
                 svarElapsed wLatency targetLat range =
@@ -194,7 +219,7 @@ estimateWorkers workerLimit svarYields gainLossYields
         -- When the workers are IO bound we can increase the throughput by
         -- increasing the number of workers as long as the IO device has enough
         -- capacity to process all the requests concurrently. If the IO
-        -- bandwidth is saturated increasing the workers won't help. Also, if
+        -- bandwidth is saturated, increasing the workers won't help. Also, if
         -- the CPU utilization in processing all these requests exceeds the CPU
         -- bandwidth, then increasing the number of workers won't help.
         --
@@ -253,7 +278,15 @@ estimateWorkers workerLimit svarYields gainLossYields
                 Unlimited -> n
                 Limited x -> min n (fromIntegral x)
 
-isBeyondMaxRate :: Limit -> IORef Int -> YieldRateInfo -> IO Bool
+-- | Using the channel worker latency and channel yield count stats from the
+-- current measurement interval, estimate how many workers are needed to
+-- maintain the target rate and compare that with current number of workers.
+-- Returns true if we have have more than required workers.
+isBeyondMaxRate ::
+       Limit -- ^ Channel's max worker limit
+    -> IORef Int -- ^ Current worker count
+    -> YieldRateInfo -- ^ Channel's rate control info
+    -> IO Bool -- ^ True if we are exceeding the specified rate
 isBeyondMaxRate workerLimit workerCount rateInfo = do
     (count, tstamp, wLatency) <- getWorkerLatency rateInfo
     now <- getTime Monotonic
@@ -273,15 +306,18 @@ isBeyondMaxRate workerLimit workerCount rateInfo = do
 -- than based on the worker local yields as other workers may have yielded more
 -- and we should stop based on the aggregate yields. However, latency update
 -- period can be based on individual worker yields.
-{-# NOINLINE checkRatePeriodic #-}
-checkRatePeriodic ::
+
+-- | Update the worker latency and check the channel yield rate. Updates and
+-- checks only at specified multiples of yield count to keep the overhead low.
+{-# NOINLINE updateLatencyAndCheckRate #-}
+updateLatencyAndCheckRate ::
        Limit
     -> IORef Int
     -> YieldRateInfo
     -> WorkerInfo
     -> Count
     -> IO Bool
-checkRatePeriodic workerLimit workerCount rateInfo workerInfo ycnt = do
+updateLatencyAndCheckRate workerLimit workerCount rateInfo workerInfo ycnt = do
     i <- readIORef (workerPollingInterval rateInfo)
     -- XXX use generation count to check if the interval has been updated
     if i /= 0 && (ycnt `mod` i) == 0
@@ -291,13 +327,22 @@ checkRatePeriodic workerLimit workerCount rateInfo workerInfo ycnt = do
         isBeyondMaxRate workerLimit workerCount rateInfo
     else return False
 
--- | CAUTION! this also updates the yield count and therefore should be called
--- only when we are actually yielding an element.
-{-# NOINLINE workerRateControl #-}
-workerRateControl :: Limit -> IORef Int -> YieldRateInfo -> WorkerInfo -> IO Bool
-workerRateControl workerLimit workerCount rateInfo workerInfo = do
+-- | Update the local yield count of the worker and check if:
+--
+-- * the channel yield rate is beyond max limit
+-- * worker's yield count is beyond max limit
+--
+{-# NOINLINE incrWorkerYieldCount #-}
+incrWorkerYieldCount ::
+       Limit -- ^ Channel's max worker limit
+    -> IORef Int -- ^ Current worker count
+    -> YieldRateInfo -- ^ Channel's rate control info
+    -> WorkerInfo -- ^ Worker's yield count info
+    -> IO Bool -- ^ True means limits are ok and worker can continue
+incrWorkerYieldCount workerLimit workerCount rateInfo workerInfo = do
     cnt <- updateYieldCount workerInfo
-    beyondMaxRate <- checkRatePeriodic workerLimit workerCount rateInfo workerInfo cnt
+    beyondMaxRate <-
+        updateLatencyAndCheckRate workerLimit workerCount rateInfo workerInfo cnt
     return $ not (isBeyondMaxYield cnt workerInfo || beyondMaxRate)
 
 -------------------------------------------------------------------------------
@@ -308,21 +353,21 @@ workerRateControl workerLimit workerCount rateInfo workerInfo = do
 -- streams. latency update must be done when we yield directly to outputQueue
 -- or when we yield to heap.
 
--- | Returns whether the worker should continue (True) or stop (False).
+-- | Add a 'ChildYield' event to the channel's output queue.
 {-# INLINE sendYield #-}
 sendYield ::
-       Limit
-    -> Limit
-    -> IORef Int
-    -> Maybe WorkerInfo
-    -> Maybe YieldRateInfo
-    -> IORef ([ChildEvent a], Int)
-    -> MVar ()
-    -> ChildEvent a
-    -> IO Bool
-sendYield bufferLimit workerLimit workerCount workerInfo rateInfo q bell msg =
+       Limit -- ^ Channel's max buffer limit
+    -> Limit -- ^ Channel's max worker limit
+    -> IORef Int -- ^ Current worker count
+    -> Maybe YieldRateInfo -- ^ Channel's rate control info
+    -> IORef ([ChildEvent a], Int) -- ^ Queue where the output is added
+    -> MVar () -- ^ Door bell to ring
+    -> Maybe WorkerInfo -- ^ Worker's yield count info
+    -> a -- ^ The output to be sent
+    -> IO Bool -- ^ True means worker is allowed to continue working
+sendYield bufferLimit workerLimit workerCount rateInfo q bell workerInfo msg =
     do
-    oldlen <- sendWithDoorBell q bell msg
+    oldlen <- sendEvent q bell (ChildYield msg)
     bufferSpaceOk <-
         case bufferLimit of
             Unlimited -> return True
@@ -335,7 +380,7 @@ sendYield bufferLimit workerLimit workerCount workerInfo rateInfo q bell msg =
                 case rateInfo of
                     Nothing -> return True
                     Just yinfo ->
-                        workerRateControl workerLimit workerCount yinfo winfo
+                        incrWorkerYieldCount workerLimit workerCount yinfo winfo
             Nothing -> return True
     return $ bufferSpaceOk && rateLimitOk
 
@@ -349,15 +394,16 @@ workerStopUpdate winfo info = do
     i <- readIORef (workerPollingInterval info)
     when (i /= 0) $ workerUpdateLatency info winfo
 
+-- | Add a 'ChildStop' event to the channel's output queue.
 {-# INLINABLE sendStop #-}
 sendStop ::
-       IORef Int
-    -> Maybe WorkerInfo
-    -> Maybe YieldRateInfo
-    -> IORef ([ChildEvent a], Int)
-    -> MVar ()
+       IORef Int -- ^ Channel's current worker count
+    -> Maybe YieldRateInfo -- ^ Channel's rate control info
+    -> IORef ([ChildEvent a], Int) -- ^ Queue where the stop event is added
+    -> MVar () -- ^ Door bell to ring
+    -> Maybe WorkerInfo -- ^ Worker's yield count info
     -> IO ()
-sendStop workerCount workerInfo rateInfo q bell = do
+sendStop workerCount rateInfo q bell workerInfo = do
     atomicModifyIORefCAS_ workerCount $ \n -> n - 1
     case (workerInfo, rateInfo) of
       (Just winfo, Just rinfo) ->
@@ -365,11 +411,15 @@ sendStop workerCount workerInfo rateInfo q bell = do
       _ ->
           return ()
     myThreadId >>= \tid ->
-        void $ sendWithDoorBell q bell (ChildStop tid Nothing)
+        void $ sendEvent q bell (ChildStop tid Nothing)
 
-{-# NOINLINE handleChildException #-}
-handleChildException ::
-    IORef ([ChildEvent a], Int) -> MVar () -> SomeException -> IO ()
-handleChildException q bell e = do
+-- | Add a 'ChildStop' event with exception to the channel's output queue.
+{-# NOINLINE sendException #-}
+sendException ::
+       IORef ([ChildEvent a], Int) -- ^ Queue where the exception event is added
+    -> MVar () -- ^ Door bell to ring
+    -> SomeException -- ^ The exception to send
+    -> IO ()
+sendException q bell e = do
     tid <- myThreadId
-    void $ sendWithDoorBell q bell (ChildStop tid (Just e))
+    void $ sendEvent q bell (ChildStop tid (Just e))

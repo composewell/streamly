@@ -9,18 +9,18 @@
 --
 module Streamly.Internal.Data.Channel.Dispatcher
     (
-    -- * Latency collection
+    -- ** Latency collection
       minThreadDelay
     , collectLatency
 
-    -- * Thread accounting
+    -- ** Thread accounting
     , addThread
     , delThread
     , modifyThread
     , allThreadsDone
     , recordMaxWorkers
 
-    -- * Diagnostics
+    -- ** Diagnostics
     , dumpSVarStats
     )
 where
@@ -57,7 +57,7 @@ import Streamly.Internal.Data.Channel.Types
 minThreadDelay :: NanoSecond64
 minThreadDelay = 1000000
 
--- Every once in a while workers update the latencies and check the yield rate.
+-- | Every once in a while workers update the latencies and check the yield rate.
 -- They return if we are above the expected yield rate. If we check too often
 -- it may impact performance, if we check less often we may have a stale
 -- picture. We update every minThreadDelay but we translate that into a yield
@@ -90,12 +90,16 @@ recordAvgLatency ss (count, time) = do
     modifyIORef (avgWorkerLatency ss) $
         \(cnt, t) -> (cnt + count, t + time)
 
--- Pour the pending latency stats into a collection bucket
+-- | Add the 'workerPendingLatency' to 'workerCollectedLatency' and reset it to
+-- zeroes. Return the added counts.
 {-# INLINE collectWorkerPendingLatency #-}
 collectWorkerPendingLatency
-    :: IORef (Count, Count, NanoSecond64)
-    -> IORef (Count, Count, NanoSecond64)
+    :: IORef (Count, Count, NanoSecond64) -- ^ 'workerPendingLatency'
+    -> IORef (Count, Count, NanoSecond64) -- ^ 'workerCollectedLatency'
     -> IO (Count, Maybe (Count, NanoSecond64))
+    -- ^ (total yield count, Maybe (total latency count, total latency time)).
+    -- Latency count and time are reported only when both are non-zero to avoid
+    -- arithemetic exceptions in calculations.
 collectWorkerPendingLatency cur col = do
     (fcount, count, time) <- atomicModifyIORefCAS cur $ \v -> ((0,0,0), v)
 
@@ -126,18 +130,31 @@ shouldUseCollectedBatch collectedYields collectedTime newLat prevLat =
         || (prevLat > 0 && (r > 2 || r < 0.5))
         || (prevLat == 0)
 
--- Returns a triple, (1) yield count since last collection, (2) the base time
--- when we started counting, (3) average latency in the last measurement
--- period. The former two are used for accurate measurement of the going rate
--- whereas the average is used for future estimates e.g. how many workers
--- should be maintained to maintain the rate.
 -- CAUTION! keep it in sync with getWorkerLatency
+
+-- | Always moves 'workerPendingLatency' to 'workerCollectedLatency':
+--
+--  * 'workerCollectedLatency' always incremented by 'workerPendingLatency'
+--  * 'workerPendingLatency' always reset to 0
+--
+-- Moves 'workerCollectedLatency' to 'svarAllTimeLatency' periodically, when
+-- the collected batch size hits a limit, or time limit is over, or latency
+-- changes beyond a limit. Updates done when the batch is collected:
+--
+--  * 'svarAllTimeLatency' yield count updated
+--  * 'workerMeasuredLatency' set to (new+prev)/2
+--  * 'workerPollingInterval' set using max of new/prev worker latency
+--  * 'workerCollectedLatency' reset to 0
+--
+-- See also 'getWorkerLatency'.
+--
 collectLatency ::
-       Bool
-    -> SVarStats
-    -> YieldRateInfo
-    -> Bool
+       Bool -- ^ stat inspection mode
+    -> SVarStats -- ^ Channel stats
+    -> YieldRateInfo -- ^ Channel rate control info
+    -> Bool -- ^ Force batch collection
     -> IO (Count, AbsTime, NanoSecond64)
+    -- ^ (channel yield count since beginning, beginning timestamp, 'workerMeasuredLatency')
 collectLatency inspecting ss yinfo drain = do
     let cur      = workerPendingLatency yinfo
         col      = workerCollectedLatency yinfo

@@ -77,7 +77,7 @@ pushWorker yieldMax sv = do
     where
 
     modThread = modifyThread (workerThreads sv) (outputDoorBell sv)
-    exception = handleChildException (outputQueue sv) (outputDoorBell sv)
+    exception = sendException (outputQueue sv) (outputDoorBell sv)
 
 -- | Determine the maximum number of workers required based on 'maxWorkerLimit'
 -- and 'remainingWork'.
@@ -171,12 +171,15 @@ dispatchWorker yieldCount sv = do
 -- because we return the workers on the basis of that which causes a condition
 -- where we keep dispatching and they keep returning. So we must have exactly
 -- the same logic for not dispatching and for returning.
+
+-- | Dispatcher with rate control. The number of workers to be dispatched are
+-- decided based on the target rate.
 --
--- Returns:
--- True: can dispatch more
--- False: full, no more dispatches
+-- This is called when reading the output queue of the channel and after all
+-- the items read in one batch are all processed.
 dispatchWorkerPaced :: MonadRunInIO m =>
-    Channel m a -> m Bool
+       Channel m a
+    -> m Bool -- ^ True means can dispatch more
 dispatchWorkerPaced sv = do
     let yinfo = fromJust $ yieldRateInfo sv
     (svarYields, svarElapsed, wLatency) <- do
@@ -265,6 +268,9 @@ dispatchWorkerPaced sv = do
 
     where
 
+    -- If the absolute value of yields required is more than the svarRateBuffer
+    -- then the amount beyond the rate buffer is added to the permanently lost
+    -- or gained yields.
     updateGainedLostYields yinfo yields = do
         let buf = fromIntegral $ svarRateBuffer yinfo
         when (yields /= 0 && abs yields > buf) $ do

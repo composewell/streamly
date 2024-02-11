@@ -90,7 +90,7 @@ import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
 import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Channel.Dispatcher (modifyThread)
 import Streamly.Internal.Data.Channel.Types (ChildEvent(..))
-import Streamly.Internal.Data.Channel.Worker (sendWithDoorBell)
+import Streamly.Internal.Data.Channel.Worker (sendEvent)
 import Streamly.Internal.Data.Stream (Stream, Step(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 
@@ -727,7 +727,7 @@ newCallbackStream = do
     let callback a =
             liftIO
                 $ void
-                $ sendWithDoorBell
+                $ sendEvent
                     (outputQueue chan) (outputDoorBell chan) (ChildYield a)
     -- XXX Use fromChannelD?
     return (callback, fromChannel chan)

@@ -549,7 +549,7 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
                 -- transferring available results from heap to outputQueue.
                 void
                     $ liftIO
-                    $ sendWithDoorBell
+                    $ sendEvent
                         (outputQueue sv) (outputDoorBell sv) (ChildYield a)
                 nextHeap seqNo
             AheadEntryStream (RunInIO runin, r) -> do
@@ -704,7 +704,7 @@ processWithoutToken q heap sv winfo m seqNo = do
                         Just info -> do
                             rateOk <-
                                 liftIO
-                                    $ workerRateControl
+                                    $ incrWorkerYieldCount
                                         (maxWorkerLimit sv)
                                         (workerCount sv)
                                         yinfo
