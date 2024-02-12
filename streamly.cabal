@@ -466,8 +466,8 @@ library
          , Streamly.Internal.Data.Stream.Lifted
 
          , Streamly.Internal.Data.Fold.Time
-         , Streamly.Internal.Data.Fold.Concurrent.Channel.Type
-         , Streamly.Internal.Data.Fold.Concurrent.Channel
+         , Streamly.Internal.Data.Fold.Channel.Type
+         , Streamly.Internal.Data.Fold.Channel
          , Streamly.Internal.Data.Fold.Concurrent
 
          , Streamly.Internal.Data.Unfold.Exception

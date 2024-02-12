@@ -8,12 +8,18 @@
 --
 module Streamly.Internal.Data.Fold.Prelude
     (
-      module Streamly.Internal.Data.Fold.Time
+    -- * Channel
+      module Streamly.Internal.Data.Fold.Channel
+    -- * Concurrency
     , module Streamly.Internal.Data.Fold.Concurrent
+    -- * Time
+    , module Streamly.Internal.Data.Fold.Time
+    -- * Deprecated
     , module Streamly.Internal.Data.Fold.SVar
     )
 where
 
-import Streamly.Internal.Data.Fold.Time
+import Streamly.Internal.Data.Fold.Channel
 import Streamly.Internal.Data.Fold.Concurrent
 import Streamly.Internal.Data.Fold.SVar
+import Streamly.Internal.Data.Fold.Time

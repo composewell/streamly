@@ -1,15 +1,24 @@
 -- |
--- Module      : Streamly.Internal.Data.Fold.Concurrent.Channel.Type
+-- Module      : Streamly.Internal.Data.Fold.Channel.Type
 -- Copyright   : (c) 2017, 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Fold.Concurrent.Channel.Type
-    ( Channel (..)
-    , newChannel
+module Streamly.Internal.Data.Fold.Channel.Type
+    (
+    -- ** Type
+      Channel (..)
+
+    -- ** Configuration
     , Config
+    , maxBuffer
+    , boundThreads
+    , inspect
+
+    -- ** Operations
+    , newChannel
     , sendToWorker
     , checkFoldStatus
     , dumpSVar

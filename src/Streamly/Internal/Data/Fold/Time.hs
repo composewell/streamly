@@ -8,10 +8,7 @@
 --
 module Streamly.Internal.Data.Fold.Time
     (
-    -- * Trimming
       takeInterval
-
-    -- * Splitting
     , intervalsOf
     )
 where

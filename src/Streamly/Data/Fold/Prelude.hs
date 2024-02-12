@@ -36,7 +36,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.Hashable (Hashable)
 import Streamly.Data.Fold
 import Streamly.Internal.Data.Fold (toContainerIO)
-import Streamly.Internal.Data.Fold.Concurrent
+import Streamly.Internal.Data.Fold.Prelude
 import Streamly.Internal.Data.IsMap.HashMap ()
 
 -- | Split the input stream based on a hashable component of the key field and
