@@ -454,13 +454,13 @@ library
          , Streamly.Internal.Data.Channel.Dispatcher
          , Streamly.Internal.Data.Channel.Worker
 
-         , Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-         , Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
-         , Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
-         , Streamly.Internal.Data.Stream.Concurrent.Channel.Append
-         , Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
-         , Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
-         , Streamly.Internal.Data.Stream.Concurrent.Channel
+         , Streamly.Internal.Data.Stream.Channel.Type
+         , Streamly.Internal.Data.Stream.Channel.Dispatcher
+         , Streamly.Internal.Data.Stream.Channel.Consumer
+         , Streamly.Internal.Data.Stream.Channel.Append
+         , Streamly.Internal.Data.Stream.Channel.Interleave
+         , Streamly.Internal.Data.Stream.Channel.Operations
+         , Streamly.Internal.Data.Stream.Channel
          , Streamly.Internal.Data.Stream.Concurrent
          , Streamly.Internal.Data.Stream.Time
          , Streamly.Internal.Data.Stream.Lifted

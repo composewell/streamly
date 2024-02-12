@@ -8,14 +8,14 @@
 #endif
 
 -- |
--- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
+-- Module      : Streamly.Internal.Data.Stream.Channel.Operations
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
+module Streamly.Internal.Data.Stream.Channel.Operations
     (
       toChannel
     , toChannelK
@@ -42,9 +42,9 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
 
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
 import Streamly.Internal.Data.Channel.Types hiding (inspect)
+import Streamly.Internal.Data.Stream.Channel.Dispatcher
+import Streamly.Internal.Data.Stream.Channel.Type
 
 import Prelude hiding (map, concat, concatMap)
 

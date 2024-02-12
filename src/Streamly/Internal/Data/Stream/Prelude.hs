@@ -8,9 +8,8 @@
 --
 module Streamly.Internal.Data.Stream.Prelude
     (
-      -- XXX Move to Stream.Channel
       -- * Concurrency Channels
-      module Streamly.Internal.Data.Stream.Concurrent.Channel
+      module Streamly.Internal.Data.Stream.Channel
       -- * Concurrent Streams
     , module Streamly.Internal.Data.Stream.Concurrent
       -- * Time
@@ -20,7 +19,7 @@ module Streamly.Internal.Data.Stream.Prelude
     )
 where
 
+import Streamly.Internal.Data.Stream.Channel
 import Streamly.Internal.Data.Stream.Concurrent
-import Streamly.Internal.Data.Stream.Concurrent.Channel
 import Streamly.Internal.Data.Stream.Time
 import Streamly.Internal.Data.Stream.Lifted

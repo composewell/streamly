@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
+-- Module      : Streamly.Internal.Data.Stream.Channel.Consumer
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
+module Streamly.Internal.Data.Stream.Channel.Consumer
     (
     -- * Read Output
       readOutputQPaced
@@ -23,10 +23,10 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (readIORef)
 import Streamly.Internal.Control.Concurrent (MonadRunInIO)
 
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
 import Streamly.Internal.Data.Channel.Dispatcher
 import Streamly.Internal.Data.Channel.Types
+import Streamly.Internal.Data.Stream.Channel.Dispatcher
+import Streamly.Internal.Data.Stream.Channel.Type
 
 -------------------------------------------------------------------------------
 -- Reading from the workers' output queue/buffer

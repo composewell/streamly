@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel.Type
+-- Module      : Streamly.Internal.Data.Stream.Channel.Type
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.Concurrent.Channel.Type
+module Streamly.Internal.Data.Stream.Channel.Type
     (
       Channel(..)
     , yieldWith

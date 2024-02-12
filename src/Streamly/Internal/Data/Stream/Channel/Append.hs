@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel.Append
+-- Module      : Streamly.Internal.Data.Stream.Channel.Append
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -13,7 +13,7 @@
 -- use INLINABLE and SPECIALIZE on it which makes it specialized but it is not
 -- actually inlined.
 
-module Streamly.Internal.Data.Stream.Concurrent.Channel.Append
+module Streamly.Internal.Data.Stream.Channel.Append
     (
       newAppendChannel
     )
@@ -38,11 +38,11 @@ import qualified Data.Heap as H
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.StreamK as K
 
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
 import Streamly.Internal.Data.Channel.Types
 import Streamly.Internal.Data.Channel.Worker
+import Streamly.Internal.Data.Stream.Channel.Consumer
+import Streamly.Internal.Data.Stream.Channel.Dispatcher
+import Streamly.Internal.Data.Stream.Channel.Type
 
 ------------------------------------------------------------------------------
 -- Concurrent streams with first-come-first serve results

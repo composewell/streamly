@@ -1,27 +1,27 @@
 -- |
--- Module      : Streamly.Internal.Data.Stream.Concurrent.Channel
+-- Module      : Streamly.Internal.Data.Stream.Channel
 -- Copyright   : (c) 2017 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Internal.Data.Stream.Concurrent.Channel
+module Streamly.Internal.Data.Stream.Channel
     (
     -- ** Primitives
-      module Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
-    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
+      module Streamly.Internal.Data.Stream.Channel.Type
+    , module Streamly.Internal.Data.Stream.Channel.Dispatcher
+    , module Streamly.Internal.Data.Stream.Channel.Consumer
 
     -- ** Allocating and Using
     , newChannel
-    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Append
-    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
+    , module Streamly.Internal.Data.Stream.Channel.Append
+    , module Streamly.Internal.Data.Stream.Channel.Interleave
     , withChannel
     , withChannelK
     -- quiesceChannel -- wait for running tasks but do not schedule any more.
     -- ** Conversions
-    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
+    , module Streamly.Internal.Data.Stream.Channel.Operations
 
     -- ** Configuration
     , Config
@@ -61,12 +61,12 @@ import qualified Streamly.Internal.Data.StreamK as K
 
 import Streamly.Internal.Data.Channel.Types
 
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Append
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
-import Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
+import Streamly.Internal.Data.Stream.Channel.Type
+import Streamly.Internal.Data.Stream.Channel.Operations
+import Streamly.Internal.Data.Stream.Channel.Append
+import Streamly.Internal.Data.Stream.Channel.Interleave
+import Streamly.Internal.Data.Stream.Channel.Dispatcher
+import Streamly.Internal.Data.Stream.Channel.Consumer
 
 -- | Create a new concurrent stream evaluation channel. The monad
 -- state used to run the stream actions is captured from the call site of

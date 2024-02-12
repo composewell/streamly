@@ -8,7 +8,6 @@
 
 -- Single effects related functionality can be moved to
 -- Data.Async/Control.Async.
--- Stream channel to Data.Stream.Channel.
 
 module Streamly.Internal.Data.Stream.Concurrent
     (
@@ -92,7 +91,7 @@ import qualified Streamly.Internal.Data.StreamK as K
 
 import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 import Streamly.Internal.Data.Channel.Types
-import Streamly.Internal.Data.Stream.Concurrent.Channel
+import Streamly.Internal.Data.Stream.Channel
 
 -- $setup
 --
