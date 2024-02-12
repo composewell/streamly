@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.Data.Fold.Async
+-- Module      : Streamly.Internal.Data.Fold.Time
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Fold.Async
+module Streamly.Internal.Data.Fold.Time
     (
     -- * Trimming
       takeInterval
