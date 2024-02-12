@@ -144,7 +144,7 @@ parEval modifier f =
                 liftIO
                     $ withDiagMVar
                         (svarInspectMode chan)
-                        (dumpSVar chan)
+                        (dumpChannel chan)
                         "parEval: waiting to drain"
                     $ takeMVar (outputDoorBellFromConsumer chan)
                 -- XXX remove recursion
@@ -153,5 +153,5 @@ parEval modifier f =
                 when (svarInspectMode chan) $ liftIO $ do
                     t <- getTime Monotonic
                     writeIORef (svarStopTime (svarStats chan)) (Just t)
-                    printSVar (dumpSVar chan) "SVar Done"
+                    printSVar (dumpChannel chan) "SVar Done"
                 return b

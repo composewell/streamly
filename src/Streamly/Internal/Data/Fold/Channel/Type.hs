@@ -21,7 +21,7 @@ module Streamly.Internal.Data.Fold.Channel.Type
     , newChannel
     , sendToWorker
     , checkFoldStatus
-    , dumpSVar
+    , dumpChannel
     )
 where
 
@@ -87,9 +87,11 @@ data Channel m a b = Channel
     , svarCreator :: ThreadId
     }
 
-{-# NOINLINE dumpSVar #-}
-dumpSVar :: Channel m a b -> IO String
-dumpSVar sv = do
+-- | Dump the channel stats for diagnostics. Used when 'inspect' option is
+-- enabled.
+{-# NOINLINE dumpChannel #-}
+dumpChannel :: Channel m a b -> IO String
+dumpChannel sv = do
     xs <- sequence $ intersperse (return "\n")
         [ return (dumpCreator (svarCreator sv))
         , return "---------CURRENT STATE-----------"
@@ -195,7 +197,7 @@ readOutputQChan chan = do
         liftIO
             $ withDiagMVar
                 (svarInspectMode chan)
-                (dumpSVar chan)
+                (dumpChannel chan)
                 "readOutputQChan: nothing to do"
             $ takeMVar (outputDoorBell chan)
         readOutputQRaw (outputQueue chan) ss
