@@ -65,7 +65,7 @@ workLoopFIFO q sv winfo = run
     run = do
         work <- liftIO $ tryPopR q
         case work of
-            Nothing -> liftIO $ stop sv winfo
+            Nothing -> liftIO $ stopWith winfo sv
             Just (RunInIO runin, m) -> do
                 r <- liftIO
                         $ runin
@@ -74,10 +74,10 @@ workLoopFIFO q sv winfo = run
                 res <- restoreM r
                 case res of
                     Continue -> run
-                    Suspend -> liftIO $ stop sv winfo
+                    Suspend -> liftIO $ stopWith winfo sv
 
     single a = do
-        res <- liftIO $ yield sv winfo a
+        res <- liftIO $ yieldWith winfo sv a
         return $ if res then Continue else Suspend
 
     -- XXX in general we would like to yield "n" elements from a single stream
@@ -85,7 +85,7 @@ workLoopFIFO q sv winfo = run
     -- expensive in certain cases. Similarly, we can use time limit for
     -- yielding.
     yieldk a r = do
-        res <- liftIO $ yield sv winfo a
+        res <- liftIO $ yieldWith winfo sv a
         runInIO <- askRunInIO
         -- XXX If the queue is empty we do not need to enqueue. We can just
         -- continue evaluating the stream.
@@ -109,7 +109,7 @@ workLoopFIFOLimited q sv winfo = run
     run = do
         work <- liftIO $ tryPopR q
         case work of
-            Nothing -> liftIO $ stop sv winfo
+            Nothing -> liftIO $ stopWith winfo sv
             Just (RunInIO runin, m) -> do
                 yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
                 if yieldLimitOk
@@ -121,18 +121,18 @@ workLoopFIFOLimited q sv winfo = run
                     res <- restoreM r
                     case res of
                         Continue -> run
-                        Suspend -> liftIO $ stop sv winfo
+                        Suspend -> liftIO $ stopWith winfo sv
                 else liftIO $ do
                     enqueueFIFO sv q (RunInIO runin, m)
                     incrementYieldLimit (remainingWork sv)
-                    stop sv winfo
+                    stopWith winfo sv
 
     single a = do
-        res <- liftIO $ yield sv winfo a
+        res <- liftIO $ yieldWith winfo sv a
         return $ if res then Continue else Suspend
 
     yieldk a r = do
-        res <- liftIO $ yield sv winfo a
+        res <- liftIO $ yieldWith winfo sv a
         runInIO <- askRunInIO
         liftIO $ enqueueFIFO sv q (runInIO, r)
         yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)

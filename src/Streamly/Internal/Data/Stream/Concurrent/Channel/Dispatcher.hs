@@ -374,7 +374,7 @@ sendWorkerWait eagerEval delay dispatch sv = go
                 liftIO
                     $ withDiagMVar
                         (svarInspectMode sv)
-                        (dumpSVar sv)
+                        (dumpChannel sv)
                         "sendWorkerWait: nothing to do"
                     $ takeMVar (outputDoorBell sv)
                 (_, len) <- liftIO $ readIORef (outputQueue sv)

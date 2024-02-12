@@ -95,7 +95,7 @@ workLoopLIFO qref sv winfo = run
         work <- dequeue qref
         case work of
             QEmpty ->
-                liftIO $ stop sv winfo
+                liftIO $ stopWith winfo sv
             QInner (RunInIO runin, m) ->
                 process runin m True
             QOuter (RunInIO runin, m) ->
@@ -119,16 +119,16 @@ workLoopLIFO qref sv winfo = run
         res <- restoreM r
         case res of
             Continue -> run
-            Suspend -> liftIO $ stop sv winfo
+            Suspend -> liftIO $ stopWith winfo sv
 
         where
 
         single a = do
-            res <- liftIO $ yield sv winfo a
+            res <- liftIO $ yieldWith winfo sv a
             return $ if res then Continue else Suspend
 
         yieldk a r = do
-            res <- liftIO $ yield sv winfo a
+            res <- liftIO $ yieldWith winfo sv a
             if res
             then K.foldStreamShared undefined yieldk single (return Continue) r
             else do
@@ -159,7 +159,7 @@ workLoopLIFOLimited qref sv winfo = run
         work <- dequeue qref
         case work of
             QEmpty ->
-                liftIO $ stop sv winfo
+                liftIO $ stopWith winfo sv
             QInner item ->
                 process item True
             QOuter item ->
@@ -185,24 +185,24 @@ workLoopLIFOLimited qref sv winfo = run
             res <- restoreM r
             case res of
                 Continue -> run
-                Suspend -> liftIO $ stop sv winfo
+                Suspend -> liftIO $ stopWith winfo sv
         -- Avoid any side effects, undo the yield limit decrement if we
         -- never yielded anything.
         else liftIO $ do
             enqueueLIFO sv qref inner item
             incrementYieldLimit (remainingWork sv)
-            stop sv winfo
+            stopWith winfo sv
 
         where
 
         single a = do
-            res <- liftIO $ yield sv winfo a
+            res <- liftIO $ yieldWith winfo sv a
             return $ if res then Continue else Suspend
 
         -- XXX can we pass on the yield limit downstream to limit the
         -- concurrency of constituent streams.
         yieldk a r = do
-            res <- liftIO $ yield sv winfo a
+            res <- liftIO $ yieldWith winfo sv a
             yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
             if res && yieldLimitOk
             then K.foldStreamShared undefined yieldk single incrContinue r
@@ -494,7 +494,7 @@ preStopCheck sv heap =
 abortExecution :: Channel m a -> Maybe WorkerInfo -> IO ()
 abortExecution sv winfo = do
     incrementYieldLimit (remainingWork sv)
-    stop sv winfo
+    stopWith winfo sv
 
 -- XXX In absence of a "noyield" primitive (i.e. do not pre-empt inside a
 -- critical section) from GHC RTS, we have a difficult problem. Assume we have
@@ -536,7 +536,7 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
         then liftIO $ do
             -- put the entry back in the heap and stop
             requeueOnHeapTop heap (Entry seqNo ent) seqNo
-            stop sv winfo
+            stopWith winfo sv
         else runStreamWithYieldLimit True seqNo r
 
     loopHeap seqNo ent =
@@ -563,13 +563,13 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
         res <- liftIO $ dequeueFromHeapSeq heap (prevSeqNo + 1)
         case res of
             Ready (Entry seqNo hent) -> loopHeap seqNo hent
-            Clearing -> liftIO $ stop sv winfo
+            Clearing -> liftIO $ stopWith winfo sv
             Waiting _ ->
                 if stopping
                 then do
                     r <- liftIO $ preStopCheck sv heap
                     if r
-                    then liftIO $ stop sv winfo
+                    then liftIO $ stopWith winfo sv
                     else processWorkQueue prevSeqNo
                 else inline processWorkQueue prevSeqNo
 
@@ -579,7 +579,7 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
         then do
             work <- dequeueAhead q
             case work of
-                Nothing -> liftIO $ stop sv winfo
+                Nothing -> liftIO $ stopWith winfo sv
                 Just (m, seqNo) -> do
                     if seqNo == prevSeqNo + 1
                     then processWithToken q heap sv winfo m seqNo
@@ -591,7 +591,7 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
     -- only in yield continuation where we may have a remaining stream to be
     -- pushed on the heap.
     singleStreamFromHeap seqNo a = do
-        void $ liftIO $ yield sv winfo a
+        void $ liftIO $ yieldWith winfo sv a
         nextHeap seqNo
 
     -- XXX when we have an unfinished stream on the heap we cannot account all
@@ -620,10 +620,10 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
             liftIO $ do
                 requeueOnHeapTop heap ent seqNo
                 incrementYieldLimit (remainingWork sv)
-                stop sv winfo
+                stopWith winfo sv
 
     yieldStreamFromHeap seqNo a r = do
-        continue <- liftIO $ yield sv winfo a
+        continue <- liftIO $ yieldWith winfo sv a
         runStreamWithYieldLimit continue seqNo r
 
 {-# NOINLINE drainHeap #-}
@@ -639,7 +639,7 @@ drainHeap q heap sv winfo = do
     case r of
         Ready (Entry seqNo hent) ->
             processHeap q heap sv winfo hent seqNo True
-        _ -> liftIO $ stop sv winfo
+        _ -> liftIO $ stopWith winfo sv
 
 data HeapStatus = HContinue | HStop
 
@@ -754,7 +754,7 @@ processWithToken q heap sv winfo action sno = do
     where
 
     singleOutput seqNo a = do
-        continue <- liftIO $ yield sv winfo a
+        continue <- liftIO $ yieldWith winfo sv a
         if continue
         then return $ TokenContinue (seqNo + 1)
         else do
@@ -765,7 +765,7 @@ processWithToken q heap sv winfo action sno = do
     -- incrementing the yield in a stop continuation. Essentiatlly all
     -- "unstream" calls in this function must increment yield limit on stop.
     yieldOutput seqNo a r = do
-        continue <- liftIO $ yield sv winfo a
+        continue <- liftIO $ yieldWith winfo sv a
         yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
         if continue && yieldLimitOk
         then do
@@ -844,7 +844,7 @@ workLoopAhead q heap sv winfo = do
         case r of
             Ready (Entry seqNo hent) ->
                 processHeap q heap sv winfo hent seqNo False
-            Clearing -> liftIO $ stop sv winfo
+            Clearing -> liftIO $ stopWith winfo sv
             Waiting _ -> do
                 -- Before we execute the next item from the work queue we check
                 -- if we are beyond the yield limit. It is better to check the
@@ -867,7 +867,7 @@ workLoopAhead q heap sv winfo = do
                 then do
                     work <- dequeueAhead q
                     case work of
-                        Nothing -> liftIO $ stop sv winfo
+                        Nothing -> liftIO $ stopWith winfo sv
                         Just (m, seqNo) -> do
                             if seqNo == 0
                             then processWithToken q heap sv winfo m seqNo

@@ -5,6 +5,9 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- This module contains operations that are common for Stream and Fold
+-- channels.
 
 module Streamly.Internal.Data.Channel
     (

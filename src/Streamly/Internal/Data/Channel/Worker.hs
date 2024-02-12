@@ -413,6 +413,8 @@ sendStop workerCount rateInfo q bell workerInfo = do
     myThreadId >>= \tid ->
         void $ sendEvent q bell (ChildStop tid Nothing)
 
+-- XXX Shouldn't we perform a workerStopUpdate even in this case?
+
 -- | Add a 'ChildStop' event with exception to the channel's output queue.
 {-# NOINLINE sendException #-}
 sendException ::

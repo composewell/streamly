@@ -128,7 +128,7 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
         when (svarInspectMode sv) $ liftIO $ do
             t <- getTime Monotonic
             writeIORef (svarStopTime (svarStats sv)) (Just t)
-            printSVar (dumpSVar sv) "SVar Done"
+            printSVar (dumpChannel sv) "SVar Done"
 
     {-# INLINE processEvents #-}
     processEvents [] = K.MkStream $ \st yld sng stp -> do
@@ -203,7 +203,7 @@ fromChannelK sv =
         when (svarInspectMode sv) $ do
             r <- liftIO $ readIORef (svarStopTime (svarStats sv))
             when (isNothing r) $
-                printSVar (dumpSVar sv) "SVar Garbage Collected"
+                printSVar (dumpChannel sv) "SVar Garbage Collected"
         cleanupSVar (workerThreads sv)
         -- If there are any SVars referenced by this SVar a GC will prompt
         -- them to be cleaned up quickly.
@@ -249,7 +249,7 @@ _fromChannelD svar = D.Stream step FromSVarInit
             when (svarInspectMode svar) $ do
                 r <- liftIO $ readIORef (svarStopTime (svarStats svar))
                 when (isNothing r) $
-                    printSVar (dumpSVar svar) "SVar Garbage Collected"
+                    printSVar (dumpChannel svar) "SVar Garbage Collected"
             cleanupSVar (workerThreads svar)
             -- If there are any SVars referenced by this SVar a GC will prompt
             -- them to be cleaned up quickly.
@@ -290,5 +290,5 @@ _fromChannelD svar = D.Stream step FromSVarInit
         when (svarInspectMode sv) $ do
             t <- liftIO $ getTime Monotonic
             liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
-            liftIO $ printSVar (dumpSVar sv) "SVar Done"
+            liftIO $ printSVar (dumpChannel sv) "SVar Done"
         return D.Stop

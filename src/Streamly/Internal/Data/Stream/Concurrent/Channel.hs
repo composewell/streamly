@@ -8,29 +8,30 @@
 
 module Streamly.Internal.Data.Stream.Concurrent.Channel
     (
+    -- ** Primitives
       module Streamly.Internal.Data.Stream.Concurrent.Channel.Type
-    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
-    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Append
-    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
     , module Streamly.Internal.Data.Stream.Concurrent.Channel.Dispatcher
     , module Streamly.Internal.Data.Stream.Concurrent.Channel.Consumer
 
-    -- * Channel
-    , Channel (..)
+    -- ** Allocating and Using
     , newChannel
+    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Append
+    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Interleave
     , withChannel
     , withChannelK
     -- quiesceChannel -- wait for running tasks but do not schedule any more.
+    -- ** Conversions
+    , module Streamly.Internal.Data.Stream.Concurrent.Channel.Operations
 
-    -- * Configuration
+    -- ** Configuration
     , Config
     , defaultConfig
 
-    -- ** Limits
+    -- *** Limits
     , maxThreads
     , maxBuffer
 
-    -- ** Rate Control
+    -- *** Rate Control
     , Rate(..)
     , rate
     , avgRate
@@ -38,17 +39,17 @@ module Streamly.Internal.Data.Stream.Concurrent.Channel
     , maxRate
     , constRate
 
-    -- ** Stop behavior
+    -- *** Stop behavior
     , StopWhen (..)
     , stopWhen
     , getStopWhen
 
-    -- ** Scheduling behavior
+    -- *** Scheduling behavior
     , eager
     , ordered
     , interleaved
 
-    -- ** Diagnostics
+    -- *** Diagnostics
     , inspect
     )
 where

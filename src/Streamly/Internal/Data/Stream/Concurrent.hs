@@ -5,15 +5,9 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
---
--- Non-parallelizable stream combinators like unfoldrM, iterateM etc. can be
--- evaluated concurrently with the stream consumer by using `eval`.
--- Parallelizable combinators like repeatM, replicateM can generate the stream
--- concurrently using 'concatMap'.
 
 -- Single effects related functionality can be moved to
 -- Data.Async/Control.Async.
--- Common Channel functionality to Data.Channel.
 -- Stream channel to Data.Stream.Channel.
 
 module Streamly.Internal.Data.Stream.Concurrent
@@ -21,10 +15,8 @@ module Streamly.Internal.Data.Stream.Concurrent
     -- * Imports
     -- $setup
 
-      module Streamly.Internal.Data.Stream.Concurrent.Channel
-
     -- * Types
-    , MonadAsync
+      MonadAsync -- XXX Move in channel?
 
     -- * Combinators
     -- | Stream combinators using a concurrent channel
@@ -89,7 +81,6 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
 import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Channel.Dispatcher (modifyThread)
-import Streamly.Internal.Data.Channel.Types (ChildEvent(..))
 import Streamly.Internal.Data.Channel.Worker (sendEvent)
 import Streamly.Internal.Data.Stream (Stream, Step(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
@@ -100,6 +91,7 @@ import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
 
 import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
+import Streamly.Internal.Data.Channel.Types
 import Streamly.Internal.Data.Stream.Concurrent.Channel
 
 -- $setup
@@ -113,8 +105,7 @@ import Streamly.Internal.Data.Stream.Concurrent.Channel
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.StreamK as StreamK
--- >>> import qualified Streamly.Internal.Data.Stream as Stream hiding (append2)
--- >>> import qualified Streamly.Internal.Data.Stream.Concurrent as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 -- >>> import Prelude hiding (concatMap, concat, zipWith)
 -- >>> :{
 --  delay n = do
@@ -192,7 +183,7 @@ _appendGeneric newChan modifier stream1 stream2 = K.concatEffect action
     action = do
         chan <- newChan modifier
         let cfg = modifier defaultConfig
-            done = K.nilM (stopChannel chan)
+            done = K.nilM (shutdown chan)
         case getStopWhen cfg of
             AllStop -> do
                 toChannelK chan stream2
@@ -333,7 +324,7 @@ parConcatMapChanK chan f stream =
 parConcatMapChanKAny :: MonadAsync m =>
     Channel m b -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
 parConcatMapChanKAny chan f stream =
-   let done = K.nilM (stopChannel chan)
+   let done = K.nilM (shutdown chan)
        run q = concatMapDivK q (\x -> K.append (f x) done)
     in K.concatMapEffect (`run` stream) (mkEnqueue chan run)
 
@@ -341,7 +332,7 @@ parConcatMapChanKAny chan f stream =
 parConcatMapChanKFirst :: MonadAsync m =>
     Channel m b -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
 parConcatMapChanKFirst chan f stream =
-   let done = K.nilM (stopChannel chan)
+   let done = K.nilM (shutdown chan)
        run q = concatMapDivK q f
     in K.concatEffect $ do
         res <- K.uncons stream
