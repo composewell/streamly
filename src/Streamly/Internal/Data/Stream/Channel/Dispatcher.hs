@@ -9,7 +9,7 @@
 --
 module Streamly.Internal.Data.Stream.Channel.Dispatcher
     (
-    -- * Dispatching
+    -- ** Dispatching
       pushWorker
     , dispatchWorker
     , dispatchWorkerPaced

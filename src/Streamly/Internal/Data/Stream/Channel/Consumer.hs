@@ -8,11 +8,9 @@
 --
 module Streamly.Internal.Data.Stream.Channel.Consumer
     (
-    -- * Read Output
+    -- ** Reading
       readOutputQPaced
     , readOutputQBounded
-
-    -- * Postprocess Hook After Reading
     , postProcessPaced
     , postProcessBounded
     )

@@ -8,7 +8,37 @@
 
 module Streamly.Internal.Data.Stream.Channel.Type
     (
+    -- ** Type
       Channel(..)
+
+    -- ** Configuration
+    , Config
+
+    -- *** Limits
+    , maxThreads
+    , maxBuffer
+
+    -- *** Rate Control
+    , Rate(..)
+    , rate
+    , avgRate
+    , minRate
+    , maxRate
+    , constRate
+
+    -- *** Stop behavior
+    , StopWhen (..)
+    , stopWhen
+
+    -- *** Scheduling behavior
+    , eager
+    , ordered
+    , interleaved
+
+    -- *** Diagnostics
+    , inspect
+
+    -- ** Primitives
     , yieldWith
     , stopWith
     , exceptionWith
