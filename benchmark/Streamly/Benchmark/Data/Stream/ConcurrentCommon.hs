@@ -147,10 +147,10 @@ concatFmapStreamsWith f outer inner n =
         $ Async.parConcat f
         $ fmap (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
 
-o_1_space_concatMap :: Int -> (Config -> Config) -> [Benchmark]
-o_1_space_concatMap value f =
+o_1_space_concatMap :: String -> Int -> (Config -> Config) -> [Benchmark]
+o_1_space_concatMap label value f =
     value2 `seq`
-        [ bgroup "concat"
+        [ bgroup ("concat" ++ label)
             [ benchIO "parConcatMap (n of 1)"
                   (concatMapStreamsWith f value 1)
             , benchIO "parConcatMap (sqrt x of sqrt x)"
@@ -198,7 +198,8 @@ allBenchmarks moduleName wide modifier value =
     [ bgroup (o_1_space_prefix moduleName) $ concat
         [ o_1_space_mapping value modifier
         , o_1_space_concatFoldable value modifier
-        , o_1_space_concatMap value modifier
+        , o_1_space_concatMap "" value modifier
+        , o_1_space_concatMap "-maxThreads-1" value (modifier . Async.maxThreads 1)
         , o_1_space_joining value modifier
         ] ++ if wide then [] else o_1_space_outerProduct value modifier
     , bgroup (o_n_heap_prefix moduleName) $ concat
