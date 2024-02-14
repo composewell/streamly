@@ -82,6 +82,10 @@ import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Channel.Dispatcher (modifyThread)
 import Streamly.Internal.Data.Channel.Worker (sendEvent)
 import Streamly.Internal.Data.Stream (Stream, Step(..))
+import Streamly.Internal.Data.Stream.Channel
+    ( Channel(..), newChannel, fromChannel, toChannelK, withChannelK
+    , withChannel, shutdown
+    )
 import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import qualified Streamly.Internal.Data.MutArray as Unboxed
@@ -91,7 +95,6 @@ import qualified Streamly.Internal.Data.StreamK as K
 
 import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 import Streamly.Internal.Data.Channel.Types
-import Streamly.Internal.Data.Stream.Channel
 
 -- $setup
 --
@@ -266,8 +269,8 @@ parTwo modifier stream1 stream2 =
 -- Used for concurrent evaluation of streams using a Channel.
 {-# INLINE concatMapDivK #-}
 concatMapDivK :: Monad m =>
-       (K.StreamK m a -> m ())
-    -> (a -> K.StreamK m b)
+       (K.StreamK m a -> m ()) -- ^ Queue the tail
+    -> (a -> K.StreamK m b) -- ^ Generate a stream from the head
     -> K.StreamK m a
     -> K.StreamK m b
 concatMapDivK useTail useHead stream =
@@ -281,20 +284,33 @@ concatMapDivK useTail useHead stream =
 -- concat streams
 -------------------------------------------------------------------------------
 
--- | A runner function takes a queuing function @q@ and a stream, it splits the
--- input stream, queuing the tail and using the head to generate a stream.
--- 'mkEnqueue' takes a runner function and generates the queuing function @q@.
--- Note that @q@ and the runner are mutually recursive, mkEnqueue ties the knot
--- between the two.
+-- | 'mkEnqueue chan divider' returns a queuing function @enq@. @enq@ takes a
+-- @stream@ and enqueues the stream returned by @divider enq stream@ on the
+-- channel. Divider generates an output stream from the head and enqueues the
+-- tail on the channel.
+--
+-- The returned function @enq@ basically queues two streams on the channel, the
+-- first stream is a stream generated from the head element of the
+-- input stream, the second stream is a lazy action which when evaluated would
+-- recursively do the same thing again for the tail. If we keep on evaluating
+-- the second stream, ultimately all the elements in the original stream
+-- (@StreamK m a@) would be mapped to individual streams (@StreamK m b@) which
+-- are individually queued on the channel.
+--
+-- Note that @enq@ and runner are mutually recursive, mkEnqueue ties the
+-- knot between the two.
+--
 {-# INLINE mkEnqueue #-}
 mkEnqueue :: MonadAsync m =>
     Channel m b
+    -- | @divider enq stream@
     -> ((K.StreamK m a -> m ()) -> K.StreamK m a -> K.StreamK m b)
+    -- | Queuing function @enq@
     -> m (K.StreamK m a -> m ())
 mkEnqueue chan runner = do
     runInIO <- askRunInIO
     return
-        $ let q stream = do
+        $ let f stream = do
                 -- When using parConcatMap with lazy dispatch we enqueue the
                 -- outer stream tail and then map a stream generator on the
                 -- head, which is also queued. If we pick both head and tail
@@ -303,14 +319,14 @@ mkEnqueue chan runner = do
                 -- the inner streams when picking up for execution. This
                 -- requires two work queues, one for outer stream and one for
                 -- inner. Here we enqueue the outer loop stream.
-                liftIO $ enqueue chan False (runInIO, runner q stream)
+                liftIO $ enqueue chan False (runInIO, runner f stream)
                 -- XXX In case of eager dispatch we can just directly dispatch
                 -- a worker with the tail stream here rather than first queuing
                 -- and then dispatching a worker which dequeues the work. The
                 -- older implementation did a direct dispatch here and its perf
                 -- characterstics looked much better.
                 eagerDispatch chan
-           in q
+           in f
 
 -- | Takes the head element of the input stream and queues the tail of the
 -- stream to the channel, then maps the supplied function on the head and
@@ -348,6 +364,11 @@ parConcatMapChanKFirst chan f stream =
                 q <- mkEnqueue chan run
                 q t
                 return $ K.append (f h) done
+
+-- XXX Move this to the Channel module as an evaluator. Rename to
+-- parConcatMapChanK or just parConcatMapK.
+-- XXX If we use toChannelK multiple times on a channel make sure the channel
+-- does not go away before we use the subsequent ones.
 
 {-# INLINE parConcatMapChanKGeneric #-}
 parConcatMapChanKGeneric :: MonadAsync m =>

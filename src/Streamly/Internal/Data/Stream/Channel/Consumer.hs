@@ -8,11 +8,12 @@
 --
 module Streamly.Internal.Data.Stream.Channel.Consumer
     (
-    -- ** Reading
-      readOutputQPaced
-    , readOutputQBounded
-    , postProcessPaced
+    -- *** Reading Events
+    -- | Low level functions used to build 'fromChannelK'.
+      readOutputQBounded
+    , readOutputQPaced
     , postProcessBounded
+    , postProcessPaced
     )
 where
 
@@ -36,6 +37,11 @@ readOutputQChan sv = do
     let ss = if svarInspectMode sv then Just (svarStats sv) else Nothing
      in readOutputQRaw (outputQueue sv) ss
 
+-- | Read the channel's output queue. When there is no output dispatches
+-- workers and waits for output (using 'sendWorkerWait'). Always ensures that
+-- there is at least one outstanding worker.
+--
+-- To be used as 'readOutputQ' function for the channel.
 readOutputQBounded :: MonadRunInIO m => Bool -> Channel m a -> m [ChildEvent a]
 readOutputQBounded eagerEval sv = do
     (list, len) <- liftIO $ readOutputQChan sv
@@ -64,6 +70,11 @@ readOutputQBounded eagerEval sv = do
         sendWorkerWait eagerEval sendWorkerDelay (dispatchWorker 0) sv
         liftIO (fst `fmap` readOutputQChan sv)
 
+-- | Same as 'readOutputQBounded' but uses 'dispatchWorkerPaced' to
+-- dispatch workers with rate control.
+--
+-- To be used as 'readOutputQ' function for the channel when rate control is
+-- on.
 readOutputQPaced :: MonadRunInIO m => Channel m a -> m [ChildEvent a]
 readOutputQPaced sv = do
     (list, len) <- liftIO $ readOutputQChan sv
@@ -82,6 +93,11 @@ readOutputQPaced sv = do
         sendWorkerWait False sendWorkerDelayPaced dispatchWorkerPaced sv
         liftIO (fst `fmap` readOutputQChan sv)
 
+-- | If there is work to do dispatch as many workers as the target rate
+-- requires.
+--
+-- To be used as 'postProcess' function for the channel when rate control is
+-- enabled.
 postProcessPaced :: MonadRunInIO m => Channel m a -> m Bool
 postProcessPaced sv = do
     workersDone <- allThreadsDone (workerThreads sv)
@@ -101,6 +117,9 @@ postProcessPaced sv = do
         return r
     else return False
 
+-- | If there is work to do ensure that we have at least one worker disptached.
+--
+-- To be used as 'postProcess' function for the channel.
 postProcessBounded :: MonadRunInIO m => Channel m a -> m Bool
 postProcessBounded sv = do
     workersDone <- allThreadsDone (workerThreads sv)
