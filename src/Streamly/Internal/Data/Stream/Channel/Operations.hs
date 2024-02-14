@@ -117,11 +117,7 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 toChannelK :: MonadRunInIO m => Channel m a -> K.StreamK m a -> m ()
 toChannelK chan m = do
     runIn <- askRunInIO
-    -- The second argument to enqeue is used in case of lazy on-demand
-    -- scheduling. See comments in mkEnqueue. By default we enqueue on the
-    -- inner work q (True). When using concatMap the outer loop is enqueued on
-    -- the outer work q.
-    liftIO $ enqueue chan True (runIn, m)
+    liftIO $ enqueue chan (runIn, m)
 
 -- INLINE for fromStreamK/toStreamK fusion
 
