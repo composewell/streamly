@@ -89,6 +89,7 @@ sendEvent q bell msg = do
 
 workerCollectLatency :: WorkerInfo -> IO (Maybe (Count, NanoSecond64))
 workerCollectLatency winfo = do
+    -- XXX make this unboxed IORef
     (cnt0, t0) <- readIORef (workerLatencyStart winfo)
     cnt1 <- readIORef (workerYieldCount winfo)
     let cnt = cnt1 - cnt0
@@ -318,6 +319,7 @@ updateLatencyAndCheckRate ::
     -> Count
     -> IO Bool
 updateLatencyAndCheckRate workerLimit workerCount rateInfo workerInfo ycnt = do
+    -- XXX make this an unboxed IORef
     i <- readIORef (workerPollingInterval rateInfo)
     -- XXX use generation count to check if the interval has been updated
     if i /= 0 && (ycnt `mod` i) == 0
@@ -354,6 +356,16 @@ incrWorkerYieldCount workerLimit workerCount rateInfo workerInfo = do
 -- or when we yield to heap.
 
 -- | Add a 'ChildYield' event to the channel's output queue.
+--
+-- This is a wrapper over 'sendEvent', it does a few more things:
+--
+-- * performs a buffer limit check, returns False if exceeded
+--
+-- When rate control is enabled and 'WorkerInfo' is supplied::
+--
+-- * increments the worker yield count
+-- * periodically pushes the worker latency stats to the channel
+-- * performs a rate limit check, returns False if exceeded
 {-# INLINE sendYield #-}
 sendYield ::
        Limit -- ^ Channel's max buffer limit
@@ -394,7 +406,8 @@ workerStopUpdate winfo info = do
     i <- readIORef (workerPollingInterval info)
     when (i /= 0) $ workerUpdateLatency info winfo
 
--- | Add a 'ChildStop' event to the channel's output queue.
+-- | Add a 'ChildStop' event to the channel's output queue. When rate control
+-- is enabled, it pushes the worker latency stats to the channel.
 {-# INLINABLE sendStop #-}
 sendStop ::
        IORef Int -- ^ Channel's current worker count

@@ -48,15 +48,33 @@ import Streamly.Internal.Data.Stream.Channel.Type
 -- Concurrent streams with first-come-first serve results
 ------------------------------------------------------------------------------
 
--- Note: For purely right associated expressions this queue should have at most
--- one element. It grows to more than one when we have left associcated
--- expressions. Large left associated compositions can grow this to a
--- large size
+-- | We use two queues, one outer and the other inner. When entries are present
+-- in both the queues, inner queue is given preference when dequeuing.
+--
+-- Normally entries are queued to the inner queue only. The parConcatMap
+-- implementation makes use of the outer queue as well. The tail of the outer
+-- stream is queued to the outer queue whereas the inner loop streams are
+-- queued to the inner queue so that inner streams are given preference,
+-- otherwise we might just keep generating streams from the outer stream and
+-- not use them fast enough. We need to go depth first rather than breadth
+-- first.
+--
+-- If we do not use outer and inner distinction there are two problematic
+-- cases. The outer stream gets executed faster than inner and may keep adding
+-- more entries. When we queue it back on the work queue it may be the first
+-- one to be picked if it is on top of the LIFO.
+--
+-- Normally, when using parConcatMap the outer queue would have only one entry
+-- which is the tail of the outer stream. However, when manually queueing
+-- streams on the channel using 'toChannelK' you could queue to outer or inner,
+-- in which case outer queue may have multiple entries.
+--
 {-# INLINE enqueueLIFO #-}
 enqueueLIFO ::
       Channel m a
+   -- | (outer queue, inner queue)
    -> IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
-   -> Bool
+   -> Bool -- True means put it on inner queue, otherwise outer
    -> (RunInIO m, K.StreamK m a)
    -> IO ()
 enqueueLIFO sv q inner m = do
@@ -64,10 +82,19 @@ enqueueLIFO sv q inner m = do
         if inner then (xs, m : ys) else (m : xs, ys)
     ringDoorBell (doorBellOnWorkQ sv) (outputDoorBell sv)
 
-data QResult a = QEmpty | QOuter a | QInner a
+-- | We need to know whether an entry was dequeued from the outer q or inner q
+-- because when we consume it partially and q it back on the q we need to know
+-- which q to put it back on.
+data QResult a =
+      QEmpty
+    | QOuter a -- ^ Entry dequeued from outer q
+    | QInner a -- ^ Entry dequeued from inner q
 
+-- | Dequeues from inner q first and if it is empty then dequeue from the
+-- outer.
 {-# INLINE dequeue #-}
 dequeue :: MonadIO m =>
+    -- | (outer queue, inner queue)
        IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
     -> m (QResult (RunInIO m, K.StreamK m a))
 dequeue qref =
@@ -1038,6 +1065,8 @@ getLifoSVar mrun cfg = do
 -- | Create a new async style concurrent stream evaluation channel. The monad
 -- state used to run the stream actions is taken from the call site of
 -- newAppendChannel.
+--
+-- This is a low level API, use newChannel instead.
 {-# INLINABLE newAppendChannel #-}
 {-# SPECIALIZE newAppendChannel :: (Config -> Config) -> IO (Channel IO a) #-}
 newAppendChannel :: MonadRunInIO m => (Config -> Config) -> m (Channel m a)

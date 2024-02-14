@@ -9,14 +9,16 @@
 --
 module Streamly.Internal.Data.Stream.Channel.Dispatcher
     (
-    -- ** Dispatching
+    -- *** Worker Dispatching
+    -- | Low level functions used to build readOutputQ and postProcess
+    -- functions.
       pushWorker
     , dispatchWorker
     , dispatchWorkerPaced
     , sendWorkerWait
-    , startChannel
     , sendWorkerDelay
     , sendWorkerDelayPaced
+    , startChannel -- XXX bootstrap?
     )
 where
 
@@ -42,14 +44,22 @@ import Streamly.Internal.Data.Stream.Channel.Type
 -- Dispatching workers
 -------------------------------------------------------------------------------
 
+-- | Low level API to create a worker. Forks a thread which executes the
+-- 'workLoop' of the channel.
 {-# NOINLINE pushWorker #-}
-pushWorker :: MonadRunInIO m => Count -> Channel m a -> m ()
+pushWorker :: MonadRunInIO m =>
+       Count -- ^ max yield limit for the worker
+    -> Channel m a
+    -> m ()
 pushWorker yieldMax sv = do
     liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
     when (svarInspectMode sv)
         $ recordMaxWorkers (workerCount sv) (svarStats sv)
     -- This allocation matters when significant number of workers are being
     -- sent. We allocate it only when needed.
+    --
+    -- XXX WorkerInfo is required for maxYields to work even if rate control is
+    -- not enabled.
     winfo <-
         case yieldRateInfo sv of
             Nothing -> return Nothing
@@ -130,8 +140,17 @@ checkMaxBuffer active sv = do
             (_, n) <- liftIO $ readIORef (outputQueue sv)
             return $ fromIntegral lim > n + active
 
+-- | Higher level API to dispatch a worker, it uses 'pushWorker' to create a
+-- worker. Dispatches a worker only if:
+--
+-- * the channel has work to do
+-- * max thread count is not reached
+-- * max buffer limit is not reached
+--
 dispatchWorker :: MonadRunInIO m =>
-    Count -> Channel m a -> m Bool
+       Count -- ^ max yield limit for the worker
+    -> Channel m a
+    -> m Bool -- ^ can disptach more workers
 dispatchWorker yieldCount sv = do
     -- XXX in case of Ahead streams we should not send more than one worker
     -- when the work queue is done but heap is not done.
@@ -172,11 +191,10 @@ dispatchWorker yieldCount sv = do
 -- where we keep dispatching and they keep returning. So we must have exactly
 -- the same logic for not dispatching and for returning.
 
--- | Dispatcher with rate control. The number of workers to be dispatched are
--- decided based on the target rate.
+-- | Like 'dispatchWorker' but with rate control. The number of workers to be
+-- dispatched are decided based on the target rate. Uses 'dispatchWorker' to
+-- actually dispatch when required.
 --
--- This is called when reading the output queue of the channel and after all
--- the items read in one batch are all processed.
 dispatchWorkerPaced :: MonadRunInIO m =>
        Channel m a
     -> m Bool -- ^ True means can dispatch more
@@ -289,12 +307,19 @@ dispatchWorkerPaced sv = do
             then dispatchN (n - 1)
             else return False
 
+-- | Dispatches as many workers as it can until output is seen in the event
+-- queue of the channel. If the dispatcher function returns 'False' then no
+-- more dispatches can be done. If no more dispatches are possible blocks until
+-- output arrives in the event queue.
+--
+-- When this function returns we are sure that there is some output available.
+--
 {-# NOINLINE sendWorkerWait #-}
 sendWorkerWait
     :: MonadIO m
-    => Bool
-    -> (Channel m a -> IO ())
-    -> (Channel m a -> m Bool)
+    => Bool -- ^ 'eager' option is on
+    -> (Channel m a -> IO ()) -- ^ delay function
+    -> (Channel m a -> m Bool) -- ^ dispatcher function
     -> Channel m a
     -> m ()
 sendWorkerWait eagerEval delay dispatch sv = go
@@ -398,9 +423,11 @@ startChannel chan = do
             then liftIO $ threadDelay maxBound
             else pushWorker 1 chan
 
+-- | Noop as of now.
 sendWorkerDelayPaced :: Channel m a -> IO ()
 sendWorkerDelayPaced _ = return ()
 
+-- | Noop as of now.
 sendWorkerDelay :: Channel m a -> IO ()
 sendWorkerDelay _sv =
     -- XXX we need a better way to handle this than hardcoded delays. The

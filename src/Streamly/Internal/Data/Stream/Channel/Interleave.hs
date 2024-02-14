@@ -39,7 +39,7 @@ data WorkerStatus = Continue | Suspend
 -- XXX This is not strictly round-robin as the streams that are faster may
 -- yield more elements than the ones that are slower. Also, when streams
 -- suspend due to buffer getting full they get added to the queue in a random
--- order.
+-- order. Document this under interleaved config option or fix it.
 
 {-# INLINE enqueueFIFO #-}
 enqueueFIFO ::
@@ -239,10 +239,12 @@ getFifoSVar mrun cfg = do
 
 -- XXX GHC: If instead of MonadAsync we use (MonadIO m, MonadBaseControl IO m)
 -- constraint we get a 2x perf regression. Need to look into that.
---
--- | Create a new async style concurrent stream evaluation channel. The monad
--- state used to run the stream actions is taken from the call site of
+
+-- | Create a new 'interleaved' style concurrent stream evaluation channel. The
+-- monad state used to run the stream actions is taken from the call site of
 -- newInterleaveChannel.
+--
+-- This is a low level API, use newChannel instead.
 {-# INLINABLE newInterleaveChannel #-}
 {-# SPECIALIZE newInterleaveChannel :: (Config -> Config) -> IO (Channel IO a) #-}
 newInterleaveChannel :: MonadAsync m =>

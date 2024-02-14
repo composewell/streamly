@@ -17,10 +17,13 @@
 
 module Streamly.Internal.Data.Stream.Channel.Operations
     (
-      toChannel
-    , toChannelK
+    -- *** Reading Stream
+      fromChannelK
     , fromChannel
-    , fromChannelK
+
+    -- ** Enqueuing Work
+    , toChannelK
+    , toChannel
     )
 where
 
@@ -86,8 +89,24 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 -- XXX Should be a Fold, singleton API could be called joinChannel, or the fold
 -- can be called joinChannel.
 
--- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
--- be read back from the SVar using 'fromSVar'.
+-- | High level function to enqueue a work item on the channel. The fundamental
+-- unit of work is a stream. Each stream enqueued on the channel is picked up
+-- and evaluated by a worker thread. The worker evaluates the stream it picked
+-- up serially. When multiple streams are queued on the channel each stream can
+-- be evaluated concurrently by different workers.
+--
+-- Note that the items in each stream are not concurrently evaluated, streams
+-- are fundamentally serial, therefore, elements in one particular stream will
+-- be generated serially one after the other. Only two or more streams can be
+-- run concurrently with each other.
+--
+-- Items from each evaluated streams are queued to the same output queue of the
+-- channel which can be read using 'fromChannelK'. 'toChannelK' can be called
+-- multiple times to enqueue multiple streams on the channel.
+--
+-- The fundamental unit of work is a stream. If you want to run single actions
+-- concurrently, wrap each action into a singleton stream and queue all those
+-- streams on the channel.
 {-# INLINE toChannelK #-}
 toChannelK :: MonadRunInIO m => Channel m a -> K.StreamK m a -> m ()
 toChannelK chan m = do
@@ -100,7 +119,7 @@ toChannelK chan m = do
 
 -- INLINE for fromStreamK/toStreamK fusion
 
--- | Send a stream to a given channel for concurrent evaluation.
+-- | A wrapper over 'toChannelK' for 'Stream' type.
 {-# INLINE toChannel #-}
 toChannel :: MonadRunInIO m => Channel m a -> Stream m a -> m ()
 toChannel chan = toChannelK chan . Stream.toStreamK
@@ -184,10 +203,33 @@ inspect $ hasNoTypeClassesExcept 'fromChannelRaw
     ]
 #endif
 
--- XXX fromChannel Should not be called multiple times, we can add a
--- safeguard for that. Or we can replicate the stream so that we can distribute
--- it to multiple consumers. or should we use an explicit dupChannel for that?
+-- XXX Add a lock in the channel so that fromChannel cannot be called multiple
+-- times.
+--
+-- XXX Add an option to block the consumer rather than stopping the stream if
+-- the work queue gets over.
 
+-- | Draw a stream from a concurrent channel. The stream consists of the
+-- evaluated values from the input streams that were enqueued on the channel
+-- using 'toChannelK'.
+--
+-- This is the event processing loop for the channel which does two
+-- things, (1) dispatch workers, (2) process the events sent by the workers.
+-- Workers are dispatched based on the channel's configuration settings.
+--
+-- The stream stops and the channel is shutdown if any of the following occurs:
+--
+-- * the work queue becomes empty
+-- * channel's max yield limit is reached
+-- * an exception is thrown by a worker
+-- * 'shutdown' is called on the channel
+--
+-- Before the channel stops, all the workers are drained and no more workers
+-- are dispatched. When the channel is garbage collected a 'ThreadAbort'
+-- exception is thrown to all pending workers. If 'inspect' option is enabled
+-- then channel's stats are printed on stdout when the channel stops.
+--
+-- CAUTION! This API must not be called more than once on a channel.
 {-# INLINE fromChannelK #-}
 fromChannelK :: MonadAsync m => Channel m a -> K.StreamK m a
 fromChannelK sv =
@@ -207,19 +249,13 @@ fromChannelK sv =
         when (svarInspectMode sv) $ do
             r <- liftIO $ readIORef (svarStopTime (svarStats sv))
             when (isNothing r) $
-                printSVar (dumpChannel sv) "SVar Garbage Collected"
+                printSVar (dumpChannel sv) "Channel Garbage Collected"
         cleanupSVar (workerThreads sv)
         -- If there are any SVars referenced by this SVar a GC will prompt
         -- them to be cleaned up quickly.
         when (svarInspectMode sv) performMajorGC
 
--- | Generate a stream of results from concurrent evaluations from a channel.
--- Evaluation of the channel does not start until this API is called. This API
--- must not be called more than once on a channel. It kicks off evaluation of
--- the channel by dispatching concurrent workers and ensures that as long there
--- is work queued on the channel workers are dispatched proportional to the
--- demand by the consumer.
---
+-- | A wrapper over 'fromChannelK' for 'Stream' type.
 {-# INLINE fromChannel #-}
 fromChannel :: MonadAsync m => Channel m a -> Stream m a
 fromChannel = Stream.fromStreamK . fromChannelK

@@ -11,19 +11,18 @@ module Streamly.Internal.Data.Stream.Channel
       module Streamly.Internal.Data.Stream.Channel.Type
 
     -- ** Allocation
-    , newChannel
     , module Streamly.Internal.Data.Stream.Channel.Append
     , module Streamly.Internal.Data.Stream.Channel.Interleave
+    , newChannel
 
+    -- ** Event Processing Loop
     , module Streamly.Internal.Data.Stream.Channel.Dispatcher
     , module Streamly.Internal.Data.Stream.Channel.Consumer
-
-    -- ** Conversion
     , module Streamly.Internal.Data.Stream.Channel.Operations
 
     -- ** Evaluation
-    , withChannel
     , withChannelK
+    , withChannel
     -- quiesceChannel -- wait for running tasks but do not schedule any more.
     )
 where
@@ -54,14 +53,15 @@ newChannel modifier =
         then newInterleaveChannel modifier
         else newAppendChannel modifier
 
--- | Allocate a channel and evaluate the stream using the channel and the
--- supplied evaluator function. The evaluator is run in a worker thread.
+-- | Allocate a channel and evaluate the stream concurrently using the channel
+-- and the supplied evaluator function. The evaluator is run in a worker
+-- thread.
 {-# INLINE withChannelK #-}
 withChannelK :: MonadAsync m =>
-       (Config -> Config)
-    -> K.StreamK m a
-    -> (Channel m b -> K.StreamK m a -> K.StreamK m b)
-    -> K.StreamK m b
+       (Config -> Config) -- ^ config modifier
+    -> K.StreamK m a -- ^ input stream
+    -> (Channel m b -> K.StreamK m a -> K.StreamK m b) -- ^ stream evaluator
+    -> K.StreamK m b -- ^ output stream
 withChannelK modifier input evaluator = K.concatEffect action
 
     where
@@ -71,8 +71,8 @@ withChannelK modifier input evaluator = K.concatEffect action
         toChannelK chan (evaluator chan input)
         return $ fromChannelK chan
 
--- | Allocate a channel and evaluate the stream using the channel and the
--- supplied evaluator function. The evaluator is run in a worker thread.
+-- | A wrapper over 'withChannelK', converts 'Stream' to 'StreamK' and invokes
+-- 'withChannelK'.
 {-# INLINE withChannel #-}
 withChannel :: MonadAsync m =>
        (Config -> Config)
