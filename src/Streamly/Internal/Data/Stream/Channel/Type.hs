@@ -181,13 +181,10 @@ data Channel m a = Channel
     -- as there is work to do.
     , eagerDispatch :: m ()
 
-    -- | Enqueue a stream for evaluation on the channel. The first argument is
-    -- used only when 'ordered' or 'interleaved' is NOT set. In that case the
-    -- queue has two priority levels, True means higher priority and False
-    -- means lower priority. The first element of the tuple is the runner
-    -- function which is used to run the stream actions in a specific monadic
-    -- context.
-    , enqueue :: Bool -> (RunInIO m, StreamK m a) -> IO ()
+    -- | Enqueue a stream for evaluation on the channel. The first element of
+    -- the tuple is the runner function which is used to run the stream actions
+    -- in a specific monadic context.
+    , enqueue :: (RunInIO m, StreamK m a) -> IO ()
 
     -- | Determine if the work queue is empty, therefore, there is no more work
     -- to do.

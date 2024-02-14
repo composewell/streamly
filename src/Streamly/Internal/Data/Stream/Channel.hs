@@ -134,15 +134,7 @@ mkEnqueue chan runner = do
     runInIO <- askRunInIO
     return
         $ let f stream = do
-                -- When using parConcatMap with lazy dispatch we enqueue the
-                -- outer stream tail and then map a stream generator on the
-                -- head, which is also queued. If we pick both head and tail
-                -- with equal priority we may keep blowing up the tail into
-                -- more and more streams. To avoid that we give preference to
-                -- the inner streams when picking up for execution. This
-                -- requires two work queues, one for outer stream and one for
-                -- inner. Here we enqueue the outer loop stream.
-                liftIO $ enqueue chan False (runInIO, runner f stream)
+                liftIO $ enqueue chan (runInIO, runner f stream)
                 -- XXX In case of eager dispatch we can just directly dispatch
                 -- a worker with the tail stream here rather than first queuing
                 -- and then dispatching a worker which dequeues the work. The
