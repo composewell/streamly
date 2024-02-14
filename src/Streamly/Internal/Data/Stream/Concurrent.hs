@@ -77,16 +77,15 @@ where
 import Control.Concurrent (myThreadId, killThread)
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Streamly.Internal.Control.Concurrent (MonadAsync, askRunInIO)
+import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Channel.Dispatcher (modifyThread)
 import Streamly.Internal.Data.Channel.Worker (sendEvent)
 import Streamly.Internal.Data.Stream (Stream, Step(..))
 import Streamly.Internal.Data.Stream.Channel
     ( Channel(..), newChannel, fromChannel, toChannelK, withChannelK
-    , withChannel, shutdown
+    , withChannel, shutdown, chanConcatMapK
     )
-import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import qualified Streamly.Internal.Data.MutArray as Unboxed
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -258,133 +257,6 @@ parTwo modifier stream1 stream2 =
         $ appendWithK
             modifier (Stream.toStreamK stream1) (Stream.toStreamK stream2)
 
--------------------------------------------------------------------------------
--- Evaluator
--------------------------------------------------------------------------------
-
--- | @concatMapHeadK consumeTail mapHead stream@, maps a stream generation
--- function on the head element and performs a side effect on the tail.
---
--- Used for concurrent evaluation of streams using a Channel. A worker
--- evaluating the stream would queue the tail and go on to evaluate the head.
--- The tail is picked up by another worker which does the same.
-{-# INLINE concatMapHeadK #-}
-concatMapHeadK :: Monad m =>
-       (K.StreamK m a -> m ()) -- ^ Queue the tail
-    -> (a -> K.StreamK m b) -- ^ Generate a stream from the head
-    -> K.StreamK m a
-    -> K.StreamK m b
-concatMapHeadK consumeTail mapHead stream =
-    K.mkStream $ \st yld sng stp -> do
-        let foldShared = K.foldStreamShared st yld sng stp
-            single a = foldShared $ mapHead a
-            yieldk a r = consumeTail r >> single a
-         in K.foldStreamShared (adaptState st) yieldk single stp stream
-
--------------------------------------------------------------------------------
--- concat streams
--------------------------------------------------------------------------------
-
--- | 'mkEnqueue chan divider' returns a queuing function @enq@. @enq@ takes a
--- @stream@ and enqueues the stream returned by @divider enq stream@ on the
--- channel. Divider generates an output stream from the head and enqueues the
--- tail on the channel.
---
--- The returned function @enq@ basically queues two streams on the channel, the
--- first stream is a stream generated from the head element of the
--- input stream, the second stream is a lazy action which when evaluated would
--- recursively do the same thing again for the tail. If we keep on evaluating
--- the second stream, ultimately all the elements in the original stream
--- (@StreamK m a@) would be mapped to individual streams (@StreamK m b@) which
--- are individually queued on the channel.
---
--- Note that @enq@ and runner are mutually recursive, mkEnqueue ties the
--- knot between the two.
---
-{-# INLINE mkEnqueue #-}
-mkEnqueue :: MonadAsync m =>
-    Channel m b
-    -- | @divider enq stream@
-    -> ((K.StreamK m a -> m ()) -> K.StreamK m a -> K.StreamK m b)
-    -- | Queuing function @enq@
-    -> m (K.StreamK m a -> m ())
-mkEnqueue chan runner = do
-    runInIO <- askRunInIO
-    return
-        $ let f stream = do
-                -- When using parConcatMap with lazy dispatch we enqueue the
-                -- outer stream tail and then map a stream generator on the
-                -- head, which is also queued. If we pick both head and tail
-                -- with equal priority we may keep blowing up the tail into
-                -- more and more streams. To avoid that we give preference to
-                -- the inner streams when picking up for execution. This
-                -- requires two work queues, one for outer stream and one for
-                -- inner. Here we enqueue the outer loop stream.
-                liftIO $ enqueue chan False (runInIO, runner f stream)
-                -- XXX In case of eager dispatch we can just directly dispatch
-                -- a worker with the tail stream here rather than first queuing
-                -- and then dispatching a worker which dequeues the work. The
-                -- older implementation did a direct dispatch here and its perf
-                -- characterstics looked much better.
-                eagerDispatch chan
-           in f
-
--- | Takes the head element of the input stream and queues the tail of the
--- stream to the channel, then maps the supplied function on the head and
--- evaluates the resulting stream.
---
--- This function is designed to be used by worker threads on a channel to
--- concurrently map and evaluate a stream.
-{-# INLINE parConcatMapChanK #-}
-parConcatMapChanK :: MonadAsync m =>
-    Channel m b -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
-parConcatMapChanK chan f stream =
-   let run q = concatMapHeadK q f
-    in K.concatMapEffect (`run` stream) (mkEnqueue chan run)
-    -- K.parConcatMap (_appendWithChanK chan) f stream
-
-{-# INLINE parConcatMapChanKAny #-}
-parConcatMapChanKAny :: MonadAsync m =>
-    Channel m b -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
-parConcatMapChanKAny chan f stream =
-   let done = K.nilM (shutdown chan)
-       run q = concatMapHeadK q (\x -> K.append (f x) done)
-    in K.concatMapEffect (`run` stream) (mkEnqueue chan run)
-
-{-# INLINE parConcatMapChanKFirst #-}
-parConcatMapChanKFirst :: MonadAsync m =>
-    Channel m b -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
-parConcatMapChanKFirst chan f stream =
-   let done = K.nilM (shutdown chan)
-       run q = concatMapHeadK q f
-    in K.concatEffect $ do
-        res <- K.uncons stream
-        case res of
-            Nothing -> return K.nil
-            Just (h, t) -> do
-                q <- mkEnqueue chan run
-                q t
-                return $ K.append (f h) done
-
--- XXX Move this to the Channel module as an evaluator. Rename to
--- parConcatMapChanK or just parConcatMapK.
--- XXX If we use toChannelK multiple times on a channel make sure the channel
--- does not go away before we use the subsequent ones.
-
-{-# INLINE parConcatMapChanKGeneric #-}
-parConcatMapChanKGeneric :: MonadAsync m =>
-       (Config -> Config)
-    -> Channel m b
-    -> (a -> K.StreamK m b)
-    -> K.StreamK m a
-    -> K.StreamK m b
-parConcatMapChanKGeneric modifier chan f stream = do
-        let cfg = modifier defaultConfig
-        case getStopWhen cfg of
-            AllStop -> parConcatMapChanK chan f stream
-            FirstStops -> parConcatMapChanKFirst chan f stream
-            AnyStops -> parConcatMapChanKAny chan f stream
-
 -- XXX Add a deep evaluation variant that evaluates individual elements in the
 -- generated streams in parallel.
 
@@ -395,7 +267,7 @@ parConcatMapChanKGeneric modifier chan f stream = do
 parConcatMapK :: MonadAsync m =>
     (Config -> Config) -> (a -> K.StreamK m b) -> K.StreamK m a -> K.StreamK m b
 parConcatMapK modifier f input =
-    let g = parConcatMapChanKGeneric modifier
+    let g = chanConcatMapK modifier
      in withChannelK modifier input (`g` f)
 
 -- | Map each element of the input to a stream and then concurrently evaluate
@@ -673,12 +545,10 @@ parConcatIterate modifier f input =
 
     where
 
-    iterateStream channel =
-        parConcatMapChanKGeneric modifier channel (generate channel)
+    iterateStream chan = chanConcatMapK modifier chan (generate chan)
 
-    generate channel x =
-        -- XXX The channel q should be FIFO for DFS, otherwise it is BFS
-        x `K.cons` iterateStream channel (Stream.toStreamK $ f x)
+    -- XXX The channel q should be FIFO for DFS, otherwise it is BFS
+    generate chan x = x `K.cons` iterateStream chan (Stream.toStreamK $ f x)
 
 -------------------------------------------------------------------------------
 -- Generate

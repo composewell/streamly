@@ -88,6 +88,8 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 
 -- XXX Should be a Fold, singleton API could be called joinChannel, or the fold
 -- can be called joinChannel.
+-- XXX If we use toChannelK multiple times on a channel make sure the channel
+-- does not go away before we use the subsequent ones.
 
 -- | High level function to enqueue a work item on the channel. The fundamental
 -- unit of work is a stream. Each stream enqueued on the channel is picked up
@@ -100,13 +102,17 @@ import Test.Inspection (inspect, hasNoTypeClassesExcept)
 -- be generated serially one after the other. Only two or more streams can be
 -- run concurrently with each other.
 --
+-- See 'chanConcatMapK' for concurrent evaluation of each element of a stream.
+-- Alternatively, you can wrap each element of the original stream into a
+-- stream generating action and queue all those streams on the channel. Then
+-- all of them would be evaluated concurrently. However, that would not be
+-- streaming in nature, it would require buffering space for the entire
+-- original stream. Prefer 'chanConcatMapK' for larger streams.
+--
 -- Items from each evaluated streams are queued to the same output queue of the
 -- channel which can be read using 'fromChannelK'. 'toChannelK' can be called
 -- multiple times to enqueue multiple streams on the channel.
 --
--- The fundamental unit of work is a stream. If you want to run single actions
--- concurrently, wrap each action into a singleton stream and queue all those
--- streams on the channel.
 {-# INLINE toChannelK #-}
 toChannelK :: MonadRunInIO m => Channel m a -> K.StreamK m a -> m ()
 toChannelK chan m = do
