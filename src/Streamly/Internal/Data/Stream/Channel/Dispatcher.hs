@@ -12,10 +12,10 @@ module Streamly.Internal.Data.Stream.Channel.Dispatcher
     -- *** Worker Dispatching
     -- | Low level functions used to build readOutputQ and postProcess
     -- functions.
-      pushWorker
+      forkWorker
     , dispatchWorker
     , dispatchWorkerPaced
-    , sendWorkerWait
+    , dispatchAllWait
     , sendWorkerDelay
     , sendWorkerDelayPaced
     , startChannel -- XXX bootstrap?
@@ -46,12 +46,12 @@ import Streamly.Internal.Data.Stream.Channel.Type
 
 -- | Low level API to create a worker. Forks a thread which executes the
 -- 'workLoop' of the channel.
-{-# NOINLINE pushWorker #-}
-pushWorker :: MonadRunInIO m =>
+{-# NOINLINE forkWorker #-}
+forkWorker :: MonadRunInIO m =>
        Count -- ^ max yield limit for the worker
     -> Channel m a
     -> m ()
-pushWorker yieldMax sv = do
+forkWorker yieldMax sv = do
     liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
     when (svarInspectMode sv)
         $ recordMaxWorkers (workerCount sv) (svarStats sv)
@@ -140,7 +140,7 @@ checkMaxBuffer active sv = do
             (_, n) <- liftIO $ readIORef (outputQueue sv)
             return $ fromIntegral lim > n + active
 
--- | Higher level API to dispatch a worker, it uses 'pushWorker' to create a
+-- | Higher level API to dispatch a worker, it uses 'forkWorker' to create a
 -- worker. Dispatches a worker only if:
 --
 -- * the channel has work to do
@@ -176,13 +176,13 @@ dispatchWorker yieldCount sv = do
             then do
                 r1 <- checkMaxBuffer active sv
                 if r1
-                then pushWorker yieldCount sv >> return True
+                then forkWorker yieldCount sv >> return True
                 else return False
             else return False
         else do
             when (active <= 0) $ do
                 r <- liftIO $ isWorkDone sv
-                when (not r) $ pushWorker 0 sv
+                when (not r) $ forkWorker 0 sv
             return False
     else return False
 
@@ -314,15 +314,15 @@ dispatchWorkerPaced sv = do
 --
 -- When this function returns we are sure that there is some output available.
 --
-{-# NOINLINE sendWorkerWait #-}
-sendWorkerWait
+{-# NOINLINE dispatchAllWait #-}
+dispatchAllWait
     :: MonadIO m
     => Bool -- ^ 'eager' option is on
     -> (Channel m a -> IO ()) -- ^ delay function
     -> (Channel m a -> m Bool) -- ^ dispatcher function
     -> Channel m a
     -> m ()
-sendWorkerWait eagerEval delay dispatch sv = go
+dispatchAllWait eagerEval delay dispatch sv = go
 
     where
 
@@ -400,7 +400,7 @@ sendWorkerWait eagerEval delay dispatch sv = go
                     $ withDiagMVar
                         (svarInspectMode sv)
                         (dumpChannel sv)
-                        "sendWorkerWait: nothing to do"
+                        "dispatchAllWait: nothing to do"
                     $ takeMVar (outputDoorBell sv)
                 (_, len) <- liftIO $ readIORef (outputQueue sv)
                 if len <= 0
@@ -417,11 +417,11 @@ startChannel :: MonadRunInIO m =>
     Channel m a -> m ()
 startChannel chan = do
     case yieldRateInfo chan of
-        Nothing -> pushWorker 0 chan
+        Nothing -> forkWorker 0 chan
         Just yinfo  ->
             if svarLatencyTarget yinfo == maxBound
             then liftIO $ threadDelay maxBound
-            else pushWorker 1 chan
+            else forkWorker 1 chan
 
 -- | Noop as of now.
 sendWorkerDelayPaced :: Channel m a -> IO ()

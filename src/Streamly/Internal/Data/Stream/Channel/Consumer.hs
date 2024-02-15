@@ -63,11 +63,11 @@ readOutputQBounded eagerEval sv = do
         cnt <- liftIO $ readIORef $ workerCount sv
         when (cnt <= 0) $ do
             done <- liftIO $ isWorkDone sv
-            when (not done) (pushWorker 0 sv)
+            when (not done) (forkWorker 0 sv)
 
     {-# INLINE blockingRead #-}
     blockingRead = do
-        sendWorkerWait eagerEval sendWorkerDelay (dispatchWorker 0) sv
+        dispatchAllWait eagerEval sendWorkerDelay (dispatchWorker 0) sv
         liftIO (fst `fmap` readOutputQChan sv)
 
 -- | Same as 'readOutputQBounded' but uses 'dispatchWorkerPaced' to
@@ -90,7 +90,7 @@ readOutputQPaced sv = do
 
     {-# INLINE blockingRead #-}
     blockingRead = do
-        sendWorkerWait False sendWorkerDelayPaced dispatchWorkerPaced sv
+        dispatchAllWait False sendWorkerDelayPaced dispatchWorkerPaced sv
         liftIO (fst `fmap` readOutputQChan sv)
 
 -- | If there is work to do dispatch as many workers as the target rate
@@ -113,7 +113,7 @@ postProcessPaced sv = do
             -- finished, therefore we cannot just rely on dispatchWorkerPaced
             -- which may or may not send a worker.
             noWorker <- allThreadsDone (workerThreads  sv)
-            when noWorker $ pushWorker 0 sv
+            when noWorker $ forkWorker 0 sv
         return r
     else return False
 
@@ -137,7 +137,7 @@ postProcessBounded sv = do
         r <- liftIO $ isWorkDone sv
         -- Note that we need to guarantee a worker, therefore we cannot just
         -- use dispatchWorker which may or may not send a worker.
-        when (not r) (pushWorker 0 sv)
+        when (not r) (forkWorker 0 sv)
         -- XXX do we need to dispatch many here?
         -- void $ dispatchWorker sv
         return r
