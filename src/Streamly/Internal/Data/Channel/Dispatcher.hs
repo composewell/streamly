@@ -207,47 +207,55 @@ dumpSVarStats inspecting rateInfo ss = do
     minLat <- readIORef $ minWorkerLatency ss
     maxLat <- readIORef $ maxWorkerLatency ss
     (avgCnt, avgTime) <- readIORef $ avgWorkerLatency ss
-    (svarCnt, svarGainLossCnt, svarLat) <- case rateInfo of
-        Nothing -> return (0, 0, 0)
+    stopTime <- readIORef (svarStopTime ss)
+    let stopReason =
+            case stopTime of
+                Nothing -> "on GC"
+                Just _ -> "normal"
+    (svarCnt, svarGainLossCnt, svarLat, interval) <- case rateInfo of
+        Nothing -> return (0, 0, 0, 0)
         Just yinfo -> do
             (cnt, startTime) <- readIORef $ svarAllTimeLatency yinfo
-            if cnt > 0
-            then do
-                t <- readIORef (svarStopTime ss)
-                gl <- readIORef (svarGainedLostYields yinfo)
-                case t of
+            interval <-
+                case stopTime of
                     Nothing -> do
                         now <- getTime Monotonic
-                        let interval = diffAbsTime64 now startTime
-                        return (cnt, gl, interval `div` fromIntegral cnt)
-                    Just stopTime -> do
-                        let interval = diffAbsTime64 stopTime startTime
-                        return (cnt, gl, interval `div` fromIntegral cnt)
-            else return (0, 0, 0)
+                        return (diffAbsTime64 now startTime)
+                    Just t -> do
+                        return (diffAbsTime64 t startTime)
+            if cnt > 0
+            then do
+                gl <- readIORef (svarGainedLostYields yinfo)
+                return (cnt, gl, interval `div` fromIntegral cnt, interval)
+            else return (0, 0, 0, interval)
 
-    return $ unlines
-        [ "total dispatches = " <> show dispatches
-        , "max workers = " <> show maxWrk
-        , "max outQSize = " <> show maxOq
-            <> (if minLat > 0
-               then "\nmin worker latency = " <> showNanoSecond64 minLat
-               else "")
-            <> (if maxLat > 0
-               then "\nmax worker latency = " <> showNanoSecond64 maxLat
-               else "")
-            <> (if avgCnt > 0
-                then let lat = avgTime `div` fromIntegral avgCnt
-                     in "\navg worker latency = " <> showNanoSecond64 lat
-                else "")
-            <> (if svarLat > 0
-               then "\nSVar latency = " <> showRelTime64 svarLat
-               else "")
-            <> (if svarCnt > 0
-               then "\nSVar yield count = " <> show svarCnt
-               else "")
-            <> (if svarGainLossCnt > 0
-               then "\nSVar gain/loss yield count = " <> show svarGainLossCnt
-               else "")
+    return $ concat
+        [ "stop reason = " <> stopReason
+        ,  if interval > 0
+           then "\nlife time = " <> showRelTime64 interval
+           else ""
+        , "\ntotal dispatches = " <> show dispatches
+        , "\nmax workers = " <> show maxWrk
+        , "\nmax outQSize = " <> show maxOq
+        , if minLat > 0
+          then "\nmin worker latency = " <> showNanoSecond64 minLat
+          else ""
+        , if maxLat > 0
+          then "\nmax worker latency = " <> showNanoSecond64 maxLat
+          else ""
+        , if avgCnt > 0
+          then let lat = avgTime `div` fromIntegral avgCnt
+                in "\navg worker latency = " <> showNanoSecond64 lat
+          else ""
+        , if svarLat > 0
+          then "\nchannel latency = " <> showRelTime64 svarLat
+          else ""
+        , if svarCnt > 0
+          then "\nchannel yield count = " <> show svarCnt
+          else ""
+        , if svarGainLossCnt > 0
+          then "\nchannel gain/loss yield count = " <> show svarGainLossCnt
+          else ""
         ]
 
 -------------------------------------------------------------------------------
