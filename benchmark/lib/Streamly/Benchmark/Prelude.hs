@@ -62,7 +62,7 @@ module Streamly.Benchmark.Prelude
     , transformComposeMapM
     , transformMapM
     , transformTeeMapM
-    , transformZipMapM
+    -- , transformZipMapM
     )
 where
 
@@ -78,7 +78,7 @@ import qualified Data.Foldable as F
 import qualified Data.List as List
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Stream.IsStream as Internal
-import qualified Streamly.Internal.Data.Stream.IsStream.Type as IsStream
+import qualified Streamly.Internal.Data.Stream.IsStream as IsStream
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
@@ -318,9 +318,10 @@ transformTeeMapM t n =
     composeN n $
     t .
     Internal.transform
-        (Pipe.mapM (\x -> return (x + 1)) `Pipe.tee`
+        (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
          Pipe.mapM (\x -> return (x + 2)))
 
+{-
 {-# INLINE transformZipMapM #-}
 transformZipMapM ::
        (S.IsStream t, S.MonadAsync m)
@@ -336,6 +337,7 @@ transformZipMapM t n =
              (+)
              (Pipe.mapM (\x -> return (x + 1)))
              (Pipe.mapM (\x -> return (x + 2))))
+-}
 
 -------------------------------------------------------------------------------
 -- Streams of streams
