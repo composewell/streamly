@@ -296,6 +296,59 @@ benchmark Data.Stream.StreamDK
     else
       ghc-options: +RTS -M2500M -RTS
 
+benchmark Data.StreamD
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: StreamD.hs
+  if impl(ghcjs)
+    buildable: False
+
+benchmark Data.StreamK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: StreamK.hs
+  if impl(ghcjs)
+    buildable: False
+
+benchmark Data.Stream.ToStreamK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: ToStreamK.hs
+  if !flag(dev) || impl(ghcjs)
+    buildable: False
+
+benchmark Data.StreamK.Alt
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: StreamKAlt.hs
+  if !flag(dev) || impl(ghcjs)
+    buildable: False
+
+benchmark Data.Unfold
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  main-is: Streamly/Benchmark/Data/Unfold.hs
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+executable nano-bench
+  import: bench-options
+  hs-source-dirs: .
+  main-is: NanoBenchmarks.hs
+  if !flag(dev)
+    buildable: False
+
+-------------------------------------------------------------------------------
+-- Concurrent Streams
+-------------------------------------------------------------------------------
+
 benchmark Data.Stream.Concurrent
   import: bench-options-threaded
   type: exitcode-stdio-1.0
@@ -348,44 +401,22 @@ benchmark Data.Stream.ConcurrentOrdered
   else
     buildable: True
 
-benchmark Data.Unbox
-  import: bench-options
+benchmark Data.Stream.Rate
+  import: bench-options-threaded
   type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  cpp-options: -DUSE_UNBOX
-  main-is: Streamly/Benchmark/Data/Serialize.hs
-
-benchmark Data.Unbox.Derive.TH
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  cpp-options: -DUSE_UNBOX
-  cpp-options: -DUSE_TH
-  main-is: Streamly/Benchmark/Data/Serialize.hs
-
-benchmark Data.Serialize
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  cpp-options: -DUSE_TH
-  main-is: Streamly/Benchmark/Data/Serialize.hs
-  build-depends: QuickCheck, template-haskell
+  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
+  main-is: Rate.hs
   other-modules:
-      Streamly.Benchmark.Data.Serialize.TH
-      Streamly.Benchmark.Data.Serialize.RecCompatible
-      Streamly.Benchmark.Data.Serialize.RecNonCompatible
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
-
-benchmark Data.Unfold
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  main-is: Streamly/Benchmark/Data/Unfold.hs
+      Stream.ConcurrentCommon
+      Stream.Common
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
+
+-------------------------------------------------------------------------------
+-- Folds and Parsers
+-------------------------------------------------------------------------------
 
 benchmark Data.Fold
   import: bench-options
@@ -458,49 +489,6 @@ benchmark Data.ParserK.Chunked.Generic
   else
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
-
--------------------------------------------------------------------------------
--- Raw Streams
--------------------------------------------------------------------------------
-
-benchmark Data.StreamD
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: StreamD.hs
-  if impl(ghcjs)
-    buildable: False
-
-benchmark Data.StreamK
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: StreamK.hs
-  if impl(ghcjs)
-    buildable: False
-
-benchmark Data.Stream.ToStreamK
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: ToStreamK.hs
-  if !flag(dev) || impl(ghcjs)
-    buildable: False
-
-benchmark Data.StreamK.Alt
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: StreamKAlt.hs
-  if !flag(dev) || impl(ghcjs)
-    buildable: False
-
-executable nano-bench
-  import: bench-options
-  hs-source-dirs: .
-  main-is: NanoBenchmarks.hs
-  if !flag(dev)
-    buildable: False
 
 -------------------------------------------------------------------------------
 -- Streamly.Prelude
@@ -608,10 +596,6 @@ benchmark Prelude.Parallel
   if flag(limit-build-mem)
     ghc-options: +RTS -M2000M -RTS
 
--------------------------------------------------------------------------------
--- Concurrent Streams
--------------------------------------------------------------------------------
-
 benchmark Prelude.Concurrent
   import: bench-options-threaded
   type: exitcode-stdio-1.0
@@ -638,6 +622,39 @@ benchmark Prelude.Rate
   cpp-options: -DUSE_PRELUDE
   if !flag(use-prelude)
     buildable: False
+
+-------------------------------------------------------------------------------
+-- Serialization Benchmarks
+-------------------------------------------------------------------------------
+
+benchmark Data.Unbox
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_UNBOX
+  main-is: Streamly/Benchmark/Data/Serialize.hs
+
+benchmark Data.Unbox.Derive.TH
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_UNBOX
+  cpp-options: -DUSE_TH
+  main-is: Streamly/Benchmark/Data/Serialize.hs
+
+benchmark Data.Serialize
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_TH
+  main-is: Streamly/Benchmark/Data/Serialize.hs
+  build-depends: QuickCheck, template-haskell
+  other-modules:
+      Streamly.Benchmark.Data.Serialize.TH
+      Streamly.Benchmark.Data.Serialize.RecCompatible
+      Streamly.Benchmark.Data.Serialize.RecNonCompatible
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
 
 -------------------------------------------------------------------------------
 -- Array Benchmarks
