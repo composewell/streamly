@@ -1,4 +1,6 @@
 {-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoMonoLocalBinds #-}
 
 -- |
 -- Module : Data.Primitive.SmallArray

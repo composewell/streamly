@@ -329,7 +329,12 @@ isPinned = MA.isPinned . unsafeThaw
 -- would make a copy on every splice operation, instead use the
 -- 'fromChunksK' operation to combine n immutable arrays.
 {-# INLINE splice #-}
-splice :: MonadIO m => Array a -> Array a -> m (Array a)
+splice :: (MonadIO m
+#ifdef DEVBUILD
+    , Unbox a
+#endif
+    )
+    => Array a -> Array a -> m (Array a)
 splice arr1 arr2 =
     unsafeFreeze <$> MA.spliceCopy (unsafeThaw arr1) (unsafeThaw arr2)
 
