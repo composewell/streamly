@@ -19,6 +19,7 @@ module Streamly.Internal.Data.Stream.Channel.Append
     )
 where
 
+import Debug.Trace
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.MVar (newEmptyMVar, newMVar, putMVar, takeMVar)
 import Control.Exception (assert)
@@ -26,7 +27,6 @@ import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Heap (Heap, Entry(..))
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef, writeIORef)
-import Data.Kind (Type)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, RunInIO(..), askRunInIO, restoreM)
@@ -250,7 +250,7 @@ enqueueAhead sv q m = do
 
 {-# INLINE dequeueAhead #-}
 dequeueAhead :: MonadIO m
-    => IORef ([t m a], Int) -> m (Maybe (t m a, Int))
+    => IORef ([K.StreamK m a], Int) -> m (Maybe (K.StreamK m a, Int))
 dequeueAhead q = liftIO $
     atomicModifyIORefCAS q $ \case
             ([], n) -> (([], n), Nothing)
@@ -259,7 +259,7 @@ dequeueAhead q = liftIO $
 -- Dequeue only if the seq number matches the expected seq number.
 {-# INLINE dequeueAheadSeqCheck #-}
 dequeueAheadSeqCheck :: MonadIO m
-    => IORef ([t m a], Int) -> Int -> m (Maybe (t m a))
+    => IORef ([K.StreamK m a], Int) -> Int -> m (Maybe (K.StreamK m a))
 dequeueAheadSeqCheck q seqNo = liftIO $
     atomicModifyIORefCAS q $ \case
             ([], n) -> (([], n), Nothing)
@@ -279,20 +279,20 @@ atomicModifyIORef_ :: IORef a -> (a -> a) -> IO ()
 atomicModifyIORef_ ref f =
     atomicModifyIORef ref $ \x -> (f x, ())
 
-data AheadHeapEntry (t :: (Type -> Type) -> Type -> Type) m a =
+data AheadHeapEntry m a =
       AheadEntryNull
     | AheadEntryPure a
-    | AheadEntryStream (RunInIO m, t m a)
+    | AheadEntryStream (RunInIO m, K.StreamK m a)
 
-data HeapDequeueResult t m a =
+data HeapDequeueResult m a =
       Clearing
     | Waiting Int
-    | Ready (Entry Int (AheadHeapEntry t m a))
+    | Ready (Entry Int (AheadHeapEntry m a))
 
 {-# INLINE dequeueFromHeap #-}
 dequeueFromHeap
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
-    -> IO (HeapDequeueResult t m a)
+    :: IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
+    -> IO (HeapDequeueResult m a)
 dequeueFromHeap hpVar =
     atomicModifyIORef hpVar $ \pair@(hp, snum) ->
         case snum of
@@ -308,9 +308,9 @@ dequeueFromHeap hpVar =
 
 {-# INLINE dequeueFromHeapSeq #-}
 dequeueFromHeapSeq
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
+    :: IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Int
-    -> IO (HeapDequeueResult t m a)
+    -> IO (HeapDequeueResult m a)
 dequeueFromHeapSeq hpVar i =
     atomicModifyIORef hpVar $ \(hp, snum) ->
         case snum of
@@ -332,8 +332,8 @@ heapIsSane snum seqNo =
 
 {-# INLINE requeueOnHeapTop #-}
 requeueOnHeapTop
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
-    -> Entry Int (AheadHeapEntry t m a)
+    :: IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
+    -> Entry Int (AheadHeapEntry m a)
     -> Int
     -> IO ()
 requeueOnHeapTop hpVar ent seqNo =
@@ -342,7 +342,7 @@ requeueOnHeapTop hpVar ent seqNo =
 
 {-# INLINE updateHeapSeq #-}
 updateHeapSeq
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
+    :: IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Int
     -> IO ()
 updateHeapSeq hpVar seqNo =
@@ -427,7 +427,7 @@ updateHeapSeq hpVar seqNo =
 {-# INLINE underMaxHeap #-}
 underMaxHeap ::
        Channel m a
-    -> Heap (Entry Int (AheadHeapEntry K.StreamK m a))
+    -> Heap (Entry Int (AheadHeapEntry m a))
     -> IO Bool
 underMaxHeap sv hp = do
     (_, len) <- readIORef (outputQueue sv)
@@ -449,7 +449,7 @@ underMaxHeap sv hp = do
 -- False => continue
 preStopCheck ::
        Channel m a
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)) , Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)) , Maybe Int)
     -> IO Bool
 preStopCheck sv heap =
     -- check the stop condition under a lock before actually
@@ -502,10 +502,10 @@ abortExecution sv winfo = do
 processHeap
     :: MonadRunInIO m
     => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
-    -> AheadHeapEntry K.StreamK m a
+    -> AheadHeapEntry m a
     -> Int
     -> Bool -- we are draining the heap before we stop
     -> m ()
@@ -574,6 +574,7 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
     -- only in yield continuation where we may have a remaining stream to be
     -- pushed on the heap.
     singleStreamFromHeap seqNo a = do
+        trace "singleStreamFromHeap" (return ())
         void $ liftIO $ yieldWith winfo sv a
         nextHeap seqNo
 
@@ -606,6 +607,7 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
                 stopWith winfo sv
 
     yieldStreamFromHeap seqNo a r = do
+        trace "yieldStreamFromHeap" (return ())
         continue <- liftIO $ yieldWith winfo sv a
         runStreamWithYieldLimit continue seqNo r
 
@@ -613,7 +615,7 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
 drainHeap
     :: MonadRunInIO m
     => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -629,7 +631,7 @@ data HeapStatus = HContinue | HStop
 processWithoutToken
     :: MonadRunInIO m
     => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> K.StreamK m a
@@ -709,7 +711,7 @@ data TokenWorkerStatus = TokenContinue Int | TokenSuspend
 processWithToken
     :: MonadRunInIO m
     => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> K.StreamK m a
@@ -737,6 +739,7 @@ processWithToken q heap sv winfo action sno = do
     where
 
     singleOutput seqNo a = do
+        trace "singleOutput" (return ())
         continue <- liftIO $ yieldWith winfo sv a
         if continue
         then return $ TokenContinue (seqNo + 1)
@@ -748,6 +751,7 @@ processWithToken q heap sv winfo action sno = do
     -- incrementing the yield in a stop continuation. Essentiatlly all
     -- "unstream" calls in this function must increment yield limit on stop.
     yieldOutput seqNo a r = do
+        trace "yieldOutput" (return ())
         continue <- liftIO $ yieldWith winfo sv a
         yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
         if continue && yieldLimitOk
@@ -818,7 +822,7 @@ processWithToken q heap sv winfo action sno = do
 workLoopAhead
     :: MonadRunInIO m
     => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
