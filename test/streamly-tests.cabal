@@ -250,6 +250,26 @@ test-suite Data.Stream
   main-is: Streamly/Test/Data/Stream.hs
   ghc-options: -main-is Streamly.Test.Data.Stream.main
 
+test-suite Data.Stream.Concurrent
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Stream/Concurrent.hs
+  ghc-options: -main-is Streamly.Test.Data.Stream.Concurrent.main
+  if flag(use-streamly-core)
+    buildable: False
+
+test-suite Data.Stream.Rate
+  import:always-optimized
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Stream/Rate.hs
+  ghc-options: -main-is Streamly.Test.Data.Stream.Rate.main
+  if flag(dev)
+    buildable: True
+  else
+    buildable: False
+  if flag(use-streamly-core)
+    buildable: False
+
 test-suite Data.MutArray
   import: test-options
   type: exitcode-stdio-1.0
@@ -458,14 +478,6 @@ test-suite Prelude.Async
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Async.hs
   ghc-options: -main-is Streamly.Test.Prelude.Async.main
-  if flag(use-streamly-core)
-    buildable: False
-
-test-suite Data.Stream.Concurrent
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Stream/Concurrent.hs
-  ghc-options: -main-is Streamly.Test.Data.Stream.Concurrent.main
   if flag(use-streamly-core)
     buildable: False
 
