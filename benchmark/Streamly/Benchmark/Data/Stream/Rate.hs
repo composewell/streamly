@@ -72,8 +72,8 @@ o_1_space_async value =
           [ bgroup
                 "avgRate"
                 -- benchIO "unfoldr" $ toNull
-                -- benchIOSrc "unfoldrM" (sourceUnfoldrM value)
-                [ benchIOSrc "Nothing" $ rateNothing Stream.parEval id value
+                [ benchIOSrc "baseline" $ sourceUnfoldrM value
+                , benchIOSrc "Nothing" $ rateNothing Stream.parEval id value
                 , benchIOSrc "1M" $ avgRate Stream.parEval id value 1000000
                 , benchIOSrc "3M" $ avgRate Stream.parEval id value 3000000
                 -- , benchIOSrc "10M/maxThreads1" $ avgRateThreads1 Stream.parEval value 10000000
