@@ -19,11 +19,11 @@ module Streamly.Internal.Data.Stream.Channel
     , module Streamly.Internal.Data.Stream.Channel.Dispatcher
     , module Streamly.Internal.Data.Stream.Channel.Consumer
     , module Streamly.Internal.Data.Stream.Channel.Operations
+    , chanConcatMapK
 
     -- ** Evaluation
     , withChannelK
     , withChannel
-    , chanConcatMapK
     -- quiesceChannel -- wait for running tasks but do not schedule any more.
     )
 where
