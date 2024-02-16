@@ -17,6 +17,7 @@ module Streamly.Internal.Data.Stream.Channel.Type
     -- *** Limits
     , maxThreads
     , maxBuffer
+    , maxYields
 
     -- *** Rate Control
     , Rate(..)
