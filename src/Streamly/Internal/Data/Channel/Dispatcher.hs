@@ -70,7 +70,11 @@ minThreadDelay = 1000000
 updateWorkerPollingInterval :: YieldRateInfo -> NanoSecond64 -> IO ()
 updateWorkerPollingInterval yinfo latency = do
     let periodRef = workerPollingInterval yinfo
-        cnt = max 1 $ minThreadDelay `div` latency
+        -- This depends on the rate, if the rate is low, latencies are
+        -- small, by the time we poll it might be too late and we may have
+        -- yielded too many results.
+        -- cnt = max 1 $ minThreadDelay `div` latency
+        cnt = max 1 (latency `div` svarLatencyTarget yinfo)
         period = min cnt (fromIntegral magicMaxBuffer)
 
     writeIORef periodRef (fromIntegral period)
