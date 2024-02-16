@@ -491,10 +491,10 @@ preStopCheck sv heap =
             case yieldRateInfo sv of
                 Nothing -> continue
                 Just yinfo -> do
-                    rateOk <-
+                    beyondRate <-
                         isBeyondMaxRate
                             (maxWorkerLimit sv) (workerCount sv) yinfo
-                    if rateOk then continue else stopping
+                    if beyondRate then stopping else continue
         else stopping
 
 abortExecution :: Channel m a -> Maybe WorkerInfo -> IO ()
