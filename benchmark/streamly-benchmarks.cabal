@@ -486,6 +486,16 @@ benchmark Data.Stream.ConcurrentOrdered
   else
     buildable: True
 
+benchmark Data.Stream.ConcurrentThreadHeavy
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: ConcurrentThreadHeavy.hs
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
 benchmark Data.Stream.Rate
   import: bench-options-threaded
   type: exitcode-stdio-1.0

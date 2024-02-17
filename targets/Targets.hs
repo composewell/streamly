@@ -47,14 +47,12 @@ targets =
             , "fold_parser_grp"
             ]
       )
-    {-
     , ("Data.List",
             [ "list_grp"
             , "noBench"
             , "testDevOnly"
             ]
       )
-    -}
     , ("Data.List.Base",
             [ "list_grp"
             , "noBench"
@@ -121,6 +119,11 @@ targets =
             , "serial_concurrent_cmp"
             ]
       )
+    , ("Data.Stream.Adaptive",
+            [ "concurrent_stream_grp"
+            , "noTest"
+            ]
+      )
     , ("Data.Stream.Concurrent",
             [ "infinite_grp"
             , "concurrent_stream_grp"
@@ -149,14 +152,17 @@ targets =
             , "noTest"
             ]
       )
-    {-
-    -- devOnly
+    , ("Data.Stream.ConcurrentThreadHeavy",
+            [ "concurrent_stream_grp"
+            , "noTest"
+            ]
+      )
     , ("Data.Stream.Rate",
             [ "infinite_grp"
             , "concurrent_stream_grp"
+            , "testDevOnly"
             ]
       )
-    -}
     , ("Data.StreamK",
             [ "infinite_grp"
             , "serial_stream_grp"
