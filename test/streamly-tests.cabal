@@ -74,6 +74,7 @@ common compile-options
                       -Wnoncanonical-monad-instances
                       -Wmissing-export-lists
                       -Rghc-timing
+                      -with-rtsopts "-t"
 
     if flag(has-llvm)
       ghc-options: -fllvm

@@ -30,4 +30,4 @@ rtsOpts relaxMem exeName target =
             _ -> ""
 
 main :: IO ()
-main = mainWith targets rtsOpts
+main = mainWith targets (rtsOpts ++ " -t")
