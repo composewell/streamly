@@ -184,6 +184,7 @@ jobs:
             cabal_version: 3.6.2.0
             cabal_project: cabal.project
             disable_sdist_build: "y"
+            disable_docs: "y"
             ignore_error: false
           - name: 8.6.5-debug-unoptimized
             ghc_version: 8.6.5
