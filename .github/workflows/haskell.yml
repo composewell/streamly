@@ -193,6 +193,7 @@ jobs:
             cabal_project: cabal.project
             cabal_build_options: "--flag debug --flag -opt"
             disable_sdist_build: "y"
+            disable_docs: "y"
             ignore_error: false
         # - name: hlint
         #   build: hlint
