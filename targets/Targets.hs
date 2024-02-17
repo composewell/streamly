@@ -3,26 +3,133 @@ module Targets
     )
 where
 
--- Special tags
--- noTest
--- noBench
--- testDevOnly
+-- Special tags:
+-- *_grp groups
+-- *_cmp comparison groups
+-- noTest not available in tests
+-- noBench not available in bench
+-- testDevOnly dev only test
 targets :: [(String, [String])]
 targets =
-    [ -- Base streams
-      ("Data.Stream",
-            [ "base_stream_grp"
-            , "base_stream_cmp"
-            , "noTest"
-            ]
-      )
-    , ("Data.StreamK",
-            [ "base_stream_grp"
-            , "base_stream_cmp"
-            , "noTest"
-            ]
-      )
+    [
+      -------------------------------------------------------------------------
+      -- Alphabetical order
+      -------------------------------------------------------------------------
 
+      ("Data.Array",
+            [ "array_grp"
+            , "array_cmp"
+            ]
+      )
+    , ("Data.Array.Generic",
+            [ "array_grp"
+            , "array_cmp"
+            ]
+      )
+    , ("Data.Array.Stream",
+            [ "infinite_grp"
+            , "serial_stream_grp"
+            ]
+      )
+    , ("Data.Fold",
+            [ "infinite_grp"
+            , "fold_parser_grp"
+            ]
+      )
+    , ("Data.Fold.Window",
+            [ "infinite_grp"
+            , "fold_parser_grp"
+            ]
+      )
+    , ("Data.List",
+            [ "list_grp"
+            , "noBench"
+            , "testDevOnly"
+            ]
+      )
+    , ("Data.List.Base",
+            [ "list_grp"
+            , "noBench"
+            ]
+      )
+    , ("Data.MutArray",
+            [ "array_grp"
+            , "array_cmp"
+            ]
+      )
+    , ("Data.Parser",
+            [ "infinite_grp"
+            , "fold_parser_grp"
+            , "parser_cmp"
+            ]
+      )
+    , ("Data.ParserK",
+            [ "infinite_grp"
+            , "fold_parser_grp"
+            , "parser_cmp"
+            , "noTest"
+            ]
+      )
+    , ("Data.Ring.Unboxed",
+            [ "array_grp"
+            ]
+      )
+    , ("Data.Serialize",
+            [ "mut_bytearray_grp"
+            ]
+      )
+    , ("Data.Serialize.Derive.TH",
+            [ "mut_bytearray_grp"
+            , "noBench"
+            ]
+      )
+    , ("Data.Serialize.ENABLE_constructorTagAsString",
+            [ "mut_bytearray_grp"
+            , "noBench"
+            ]
+      )
+    , ("Data.Stream",
+            [ "infinite_grp"
+            , "serial_stream_grp"
+            , "serial_stream_cmp"
+            , "serial_concurrent_cmp"
+            , "noTest"
+            ]
+      )
+    , ("Data.Stream.StreamDK",
+            [ "infinite_grp"
+            , "serial_stream_grp"
+            , "noTest"
+            ]
+      )
+    , ("Data.Stream.Concurrent",
+            [ "infinite_grp"
+            , "concurrent_stream_grp"
+            , "concurrent_stream_cmp"
+            , "serial_concurrent_cmp"
+            ]
+      )
+    , ("Data.Stream.ConcurrentEager",
+            [ "infinite_grp"
+            , "concurrent_stream_grp"
+            , "concurrent_stream_cmp"
+            , "noTest"
+            ]
+      )
+    , ("Data.Stream.ConcurrentInterleaved",
+            [ "infinite_grp"
+            , "concurrent_stream_grp"
+            , "concurrent_stream_cmp"
+            , "noTest"
+            ]
+      )
+    , ("Data.Stream.ConcurrentOrdered",
+            [ "infinite_grp"
+            , "concurrent_stream_grp"
+            , "concurrent_stream_cmp"
+            , "noTest"
+            ]
+      )
 {-
     -- XXX Need devOnly flag support in BenchRunner
     , ("Data.Stream.ToStreamK",
@@ -31,55 +138,55 @@ targets =
             ]
       )
 -}
+    , ("Data.StreamK",
+            [ "infinite_grp"
+            , "serial_stream_grp"
+            , "serial_stream_cmp"
+            , "noTest"
+            ]
+      )
+    , ("Data.Unbox",
+            [ "noTest"
+            ]
+      )
+    , ("Data.Unbox.Derive.Generic",
+            [ "noBench"
+            ]
+      )
+    , ("Data.Unbox.Derive.TH",
+            []
+      )
+    , ("Data.Unbox.TH",
+            [ "noBench"
+            ]
+      )
+    , ("Data.Unfold",
+            [ "infinite_grp"
+            , "serial_stream_grp"
+            ]
+      )
+    , ("FileSystem.Event",
+            [ "noBench"
+            ]
+      )
+    -- XXX Use Linux os macro
+    , ("FileSystem.Event.Linux",
+            [ "noBench"
+            ]
+      )
+    , ("FileSystem.Handle", [])
+    , ("Network.Inet.TCP", ["noBench"])
+    , ("Network.Socket", ["noBench"])
+    , ("Unicode.Char", ["testDevOnly"])
+    , ("Unicode.Stream", [])
+    , ("Unicode.Utf8", ["noTest"])
+    , ("version-bounds", ["noBench"])
 
-    -- Streams
-    , ("Data.Stream",
-            [ "prelude_serial_grp"
-            , "infinite_grp"
-            , "serial_wserial_cmp"
-            , "serial_async_cmp"
-            , "noTest"
-            ]
-      )
-    , ("Data.Stream.StreamDK",
-            [ "prelude_serial_grp"
-            , "infinite_grp"
-            , "noTest"
-            ]
-      )
-    , ("Data.Stream.Concurrent",
-            [ "prelude_concurrent_grp"
-            , "infinite_grp"
-            , "concurrent_cmp"
-            , "serial_async_cmp"
-            ]
-      )
-    , ("Data.Stream.ConcurrentEager",
-            [ "prelude_concurrent_grp"
-            , "infinite_grp"
-            , "concurrent_cmp"
-            , "noTest"
-            ]
-      )
-    , ("Data.Stream.ConcurrentOrdered",
-            [ "prelude_concurrent_grp"
-            , "infinite_grp"
-            , "concurrent_cmp"
-            , "noTest"
-            ]
-      )
-    , ("Data.Stream.ConcurrentInterleaved",
-            [ "prelude_concurrent_grp"
-            , "infinite_grp"
-            , "concurrent_cmp"
-            , "noTest"
-            ]
-      )
-    , ("Data.Array.Stream",
-            [ "prelude_serial_grp"
-            , "infinite_grp"
-            ]
-      )
+    ---- DEPRECATED ----
+
+    -- test only, no benchmarks
+    -- , ("Prelude", ["prelude_other_grp", "noBench"])
+    -- , ("Prelude.Fold", ["prelude_other_grp", "noBench"])
     -- Enabled only when use-prelude flag is set
     -- , ("Prelude.Serial",
     --         [ "prelude_serial_grp"
@@ -153,61 +260,4 @@ targets =
     --         , "noTest"
     --         ]
     --   )
-
-    -- Arrays
-    , ("Data.Array.Generic",
-            [ "array_grp"
-            , "array_cmp"
-            ]
-      )
-    , ("Data.Array",
-            [ "array_grp"
-            , "array_cmp"
-            , "pinned_array_cmp"
-            ]
-      )
-    , ("Data.MutArray",
-            [ "array_grp"
-            , "array_cmp"
-            ]
-      )
-
-    -- Ring
-    , ("Data.Ring.Unboxed", [])
-
-    -- Parsers
-    , ("Data.ParserK",
-            [ "base_parser_grp"
-            , "base_parser_cmp"
-            , "infinite_grp"
-            , "noTest"
-            ]
-      )
-    , ("Data.Fold", [ "parser_grp", "infinite_grp" ])
-    , ("Data.Fold.Window", [ "parser_grp", "infinite_grp" ])
-    , ("Data.Parser", [ "parser_grp", "infinite_grp" ])
-
-    , ("Data.Unbox", ["noTest"])
-    , ("Data.Unbox.TH", ["noBench"])
-    , ("Data.Unbox.Derive.Generic", ["noBench"])
-    , ("Data.Unbox.Derive.TH", [])
-    , ("Data.Serialize", [])
-    , ("Data.Serialize.Derive.TH", ["noBench"])
-    , ("Data.Serialize.ENABLE_constructorTagAsString", ["noBench"])
-    , ("Data.Unfold", ["infinite_grp"])
-    , ("FileSystem.Handle", [])
-    , ("Unicode.Stream", [])
-    , ("Unicode.Utf8", ["noTest"])
-    , ("Unicode.Char", ["testDevOnly"])
-
-    -- test only, no benchmarks
-    -- , ("Prelude", ["prelude_other_grp", "noBench"])
-    -- , ("Prelude.Fold", ["prelude_other_grp", "noBench"])
-    , ("FileSystem.Event", ["noBench"])
-    , ("Network.Socket", ["noBench"])
-    , ("Network.Inet.TCP", ["noBench"])
-    , ("version-bounds", ["noBench"])
-
-    , ("Data.List", ["list_grp", "noBench", "testDevOnly"])
-    , ("Data.List.Base", ["list_grp", "noBench"])
     ]
