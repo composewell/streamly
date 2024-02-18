@@ -244,154 +244,47 @@ common bench-options-threaded
   build-depends: streamly-benchmarks == 0.0.0
 
 -------------------------------------------------------------------------------
--- Serial Streams
+-- Listed in alphabetical order
 -------------------------------------------------------------------------------
 
-benchmark Data.Stream
+benchmark Data.Array
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data
-  main-is: Stream.hs
+  hs-source-dirs: ., Streamly/Benchmark/Data
+  main-is: Streamly/Benchmark/Data/Array.hs
   other-modules:
-      Stream.Generate
-      Stream.Eliminate
-      Stream.Transform
-      Stream.Reduce
-      Stream.Expand
-      Stream.Lift
-      -- Stream.Split XXX need to fix this
       Stream.Common
-  if !flag(use-streamly-core)
-    other-modules:
-      Stream.Exceptions
+  if flag(use-streamly-core)
+    buildable: False
+  else
+    buildable: True
   if flag(limit-build-mem)
-    if flag(dev)
-      ghc-options: +RTS -M3500M -RTS
-    else
-      ghc-options: +RTS -M2500M -RTS
+    ghc-options: +RTS -M1500M -RTS
 
--- XXX move unique benchmarks to Data.Stream and remove this module
-benchmark Data.StreamD
+benchmark Data.Array.Generic
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: StreamD.hs
-  if impl(ghcjs)
-    buildable: False
-
-benchmark Data.StreamK
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data
-  main-is: StreamK.hs
-  if impl(ghcjs)
-    buildable: False
-
-benchmark Data.StreamK.FromStream
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/StreamK
-  main-is: FromStream.hs
-  if !flag(dev) || impl(ghcjs)
-    buildable: False
-
-benchmark Data.StreamK.StreamKAlt
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/StreamK
-  main-is: StreamKAlt.hs
-  if !flag(dev) || impl(ghcjs)
-    buildable: False
-
-benchmark Data.Unfold
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  main-is: Streamly/Benchmark/Data/Unfold.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
-executable nano-bench
-  import: bench-options
-  hs-source-dirs: .
-  main-is: NanoBenchmarks.hs
-  if !flag(dev)
-    buildable: False
-
--------------------------------------------------------------------------------
--- Concurrent Streams
--------------------------------------------------------------------------------
-
-benchmark Data.Stream.Concurrent
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
-  main-is: Concurrent.hs
+  hs-source-dirs: ., Streamly/Benchmark/Data
+  main-is: Streamly/Benchmark/Data/Array/Generic.hs
   other-modules:
-      Stream.ConcurrentCommon
       Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core)
     buildable: False
   else
     buildable: True
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
 
-benchmark Data.Stream.ConcurrentInterleaved
-  import: bench-options-threaded
+benchmark Data.Array.Stream
+  import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
-  main-is: ConcurrentInterleaved.hs
-  other-modules:
-      Stream.ConcurrentCommon
-      Stream.Common
+  hs-source-dirs: Streamly/Benchmark/Data/Array
+  main-is: Stream.hs
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True
-
-benchmark Data.Stream.ConcurrentEager
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
-  main-is: ConcurrentEager.hs
-  other-modules:
-      Stream.ConcurrentCommon
-      Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Data.Stream.ConcurrentOrdered
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
-  main-is: ConcurrentOrdered.hs
-  other-modules:
-      Stream.ConcurrentCommon
-      Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Data.Stream.Rate
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
-  main-is: Rate.hs
-  other-modules:
-      Stream.ConcurrentCommon
-      Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
--------------------------------------------------------------------------------
--- Folds and Parsers
--------------------------------------------------------------------------------
+    build-depends: exceptions >= 0.8   && < 0.11
 
 benchmark Data.Fold
   import: bench-options
@@ -413,6 +306,17 @@ benchmark Data.Fold.Window
   else
     buildable: True
 
+benchmark Data.MutArray
+  import: bench-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Benchmark/Data/MutArray.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
+  if flag(use-streamly-core)
+    buildable: False
+  else
+    buildable: True
+
 benchmark Data.Parser
   import: bench-options
   type: exitcode-stdio-1.0
@@ -429,6 +333,7 @@ benchmark Data.Parser
     else
       ghc-options: +RTS -M2000M -RTS
 
+-- XXX This is chunked?
 benchmark Data.ParserK
   import: bench-options
   type: exitcode-stdio-1.0
@@ -465,8 +370,244 @@ benchmark Data.ParserK.Chunked.Generic
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
+benchmark Data.Ring.Unboxed
+  import: bench-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Benchmark/Data/Ring/Unboxed.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
+
+-- XXX Should be renamed to MutByteArray
+benchmark Data.Serialize
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_TH
+  main-is: Streamly/Benchmark/Data/Serialize.hs
+  build-depends: QuickCheck, template-haskell
+  other-modules:
+      Streamly.Benchmark.Data.Serialize.TH
+      Streamly.Benchmark.Data.Serialize.RecCompatible
+      Streamly.Benchmark.Data.Serialize.RecNonCompatible
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
+
+benchmark Data.SmallArray
+  import: bench-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Benchmark/Data/Array/SmallArray.hs
+  if flag(dev) && !flag(use-streamly-core)
+    buildable: True
+  else
+    buildable: False
+
+benchmark Data.Stream
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Stream.hs
+  other-modules:
+      Stream.Generate
+      Stream.Eliminate
+      Stream.Transform
+      Stream.Reduce
+      Stream.Expand
+      Stream.Lift
+      -- Stream.Split XXX need to fix this
+      Stream.Common
+  if !flag(use-streamly-core)
+    other-modules:
+      Stream.Exceptions
+  if flag(limit-build-mem)
+    if flag(dev)
+      ghc-options: +RTS -M3500M -RTS
+    else
+      ghc-options: +RTS -M2500M -RTS
+
+benchmark Data.Stream.Concurrent
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
+  main-is: Concurrent.hs
+  other-modules:
+      Stream.ConcurrentCommon
+      Stream.Common
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Stream.ConcurrentEager
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
+  main-is: ConcurrentEager.hs
+  other-modules:
+      Stream.ConcurrentCommon
+      Stream.Common
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Stream.ConcurrentInterleaved
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
+  main-is: ConcurrentInterleaved.hs
+  other-modules:
+      Stream.ConcurrentCommon
+      Stream.Common
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Stream.ConcurrentOrdered
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
+  main-is: ConcurrentOrdered.hs
+  other-modules:
+      Stream.ConcurrentCommon
+      Stream.Common
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Stream.Rate
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream/, Streamly/Benchmark/Data/
+  main-is: Rate.hs
+  other-modules:
+      Stream.ConcurrentCommon
+      Stream.Common
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+-- XXX move unique benchmarks to Data.Stream and remove this module
+benchmark Data.StreamD
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: StreamD.hs
+  if impl(ghcjs)
+    buildable: False
+
+benchmark Data.StreamK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: StreamK.hs
+  if impl(ghcjs)
+    buildable: False
+
+-- XXX This needs to be cleaned up
+benchmark Data.StreamK.FromStream
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/StreamK
+  main-is: FromStream.hs
+  if !flag(dev) || impl(ghcjs)
+    buildable: False
+
+benchmark Data.StreamK.StreamKAlt
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/StreamK
+  main-is: StreamKAlt.hs
+  if !flag(dev) || impl(ghcjs)
+    buildable: False
+
+benchmark Data.Unbox
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_UNBOX
+  main-is: Streamly/Benchmark/Data/Serialize.hs
+
+benchmark Data.Unbox.Derive.TH
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_UNBOX
+  cpp-options: -DUSE_TH
+  main-is: Streamly/Benchmark/Data/Serialize.hs
+
+benchmark Data.Unfold
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  main-is: Streamly/Benchmark/Data/Unfold.hs
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark FileSystem.Handle
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/FileSystem
+  main-is: Handle.hs
+  other-modules:
+      Handle.Read
+    , Handle.ReadWrite
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
+  if flag(use-streamly-core)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Unicode.Char
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Unicode
+  main-is: Char.hs
+  -- Takes too much memory for ghcjs
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+
+benchmark Unicode.Parser
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Unicode
+  main-is: Parser.hs
+executable nano-bench
+  import: bench-options
+  hs-source-dirs: .
+  main-is: NanoBenchmarks.hs
+  if !flag(dev)
+    buildable: False
+
+benchmark Unicode.Stream
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Unicode
+  main-is: Stream.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
+  if flag(use-streamly-core)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Unicode.Utf8
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Unicode
+  main-is: Utf8.hs
+  if flag(use-streamly-core)
+    buildable: False
+  else
+    buildable: True
+
 -------------------------------------------------------------------------------
--- Streamly.Prelude
+-- Deprecated
 -------------------------------------------------------------------------------
 
 benchmark Prelude
@@ -597,174 +738,3 @@ benchmark Prelude.Rate
   cpp-options: -DUSE_PRELUDE
   if !flag(use-prelude)
     buildable: False
-
--------------------------------------------------------------------------------
--- Serialization Benchmarks
--------------------------------------------------------------------------------
-
-benchmark Data.Unbox
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  cpp-options: -DUSE_UNBOX
-  main-is: Streamly/Benchmark/Data/Serialize.hs
-
-benchmark Data.Unbox.Derive.TH
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  cpp-options: -DUSE_UNBOX
-  cpp-options: -DUSE_TH
-  main-is: Streamly/Benchmark/Data/Serialize.hs
-
-benchmark Data.Serialize
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  cpp-options: -DUSE_TH
-  main-is: Streamly/Benchmark/Data/Serialize.hs
-  build-depends: QuickCheck, template-haskell
-  other-modules:
-      Streamly.Benchmark.Data.Serialize.TH
-      Streamly.Benchmark.Data.Serialize.RecCompatible
-      Streamly.Benchmark.Data.Serialize.RecNonCompatible
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
-
--------------------------------------------------------------------------------
--- Array Benchmarks
--------------------------------------------------------------------------------
-
-benchmark Data.Array.Generic
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: ., Streamly/Benchmark/Data
-  main-is: Streamly/Benchmark/Data/Array/Generic.hs
-  other-modules:
-      Stream.Common
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
-
-benchmark Data.SmallArray
-  import: bench-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Array/SmallArray.hs
-  if flag(dev) && !flag(use-streamly-core)
-    buildable: True
-  else
-    buildable: False
-
-benchmark Data.Array
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: ., Streamly/Benchmark/Data
-  main-is: Streamly/Benchmark/Data/Array.hs
-  other-modules:
-      Stream.Common
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
-
-benchmark Data.MutArray
-  import: bench-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/MutArray.hs
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
-
--------------------------------------------------------------------------------
--- Ring Benchmarks
--------------------------------------------------------------------------------
-
-benchmark Data.Ring.Unboxed
-  import: bench-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Ring/Unboxed.hs
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
-
--------------------------------------------------------------------------------
--- Array Stream Benchmarks
--------------------------------------------------------------------------------
-
-benchmark Data.Array.Stream
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Array
-  main-is: Stream.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-    build-depends: exceptions >= 0.8   && < 0.11
-
--------------------------------------------------------------------------------
--- FileIO Benchmarks
--------------------------------------------------------------------------------
-
-benchmark FileSystem.Handle
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/FileSystem
-  main-is: Handle.hs
-  other-modules:
-      Handle.Read
-    , Handle.ReadWrite
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
-
--------------------------------------------------------------------------------
--- Unicode Benchmarks
--------------------------------------------------------------------------------
-
-benchmark Unicode.Stream
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Unicode
-  main-is: Stream.hs
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Unicode.Char
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Unicode
-  main-is: Char.hs
-  -- Takes too much memory for ghcjs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-
-benchmark Unicode.Utf8
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Unicode
-  main-is: Utf8.hs
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
-
-benchmark Unicode.Parser
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Unicode
-  main-is: Parser.hs
