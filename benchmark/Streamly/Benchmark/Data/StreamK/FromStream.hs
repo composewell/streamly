@@ -25,22 +25,21 @@ module Main (main) where
 -- import Control.Monad (when)
 -- import Data.Maybe (isJust)
 -- import System.Random (randomRIO)
+
+import Streamly.Internal.Data.StreamK (StreamK)
+import Test.Tasty.Bench (bgroup, Benchmark, defaultMain)
+
+import qualified Prelude as P
+-- import qualified Data.List as List
+import qualified Streamly.Internal.Data.StreamK as StreamK
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Fold as Fold
+
 import Prelude hiding
     ( tail, mapM_, foldl, last, map, mapM, concatMap, zipWith, init, iterate
     , repeat, replicate
     )
-
-import qualified Prelude as P
--- import qualified Data.List as List
-
-import qualified Streamly.Internal.Data.StreamK as S
-import qualified Streamly.Internal.Data.Stream as D
-import qualified Streamly.Internal.Data.Fold as Fold
-
-import Test.Tasty.Bench (bgroup, Benchmark, defaultMain)
-
 import Streamly.Benchmark.Common
-
 #ifdef INSPECTION
 import Test.Inspection
 #endif
@@ -49,11 +48,9 @@ import Test.Inspection
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream m a = S.Stream m a
-
 {-# INLINE unfoldrD #-}
-unfoldrD :: Monad m => Int -> Int -> Stream m Int
-unfoldrD streamLen n = D.toStreamK (D.unfoldr step n)
+unfoldrD :: Monad m => Int -> Int -> StreamK m Int
+unfoldrD streamLen n = Stream.toStreamK (Stream.unfoldr step n)
     where
     step cnt =
         if cnt > n + streamLen
@@ -61,8 +58,8 @@ unfoldrD streamLen n = D.toStreamK (D.unfoldr step n)
         else Just (cnt, cnt + 1)
 
 {-# INLINE unfoldrMD #-}
-unfoldrMD :: Monad m => Int -> Int -> Stream m Int
-unfoldrMD streamLen n = D.toStreamK (D.unfoldrM step n)
+unfoldrMD :: Monad m => Int -> Int -> StreamK m Int
+unfoldrMD streamLen n = Stream.toStreamK (Stream.unfoldrM step n)
     where
     step cnt =
         if cnt > n + streamLen
@@ -71,8 +68,8 @@ unfoldrMD streamLen n = D.toStreamK (D.unfoldrM step n)
 
 {-
 {-# INLINE unfoldrK #-}
-unfoldrK :: Int -> Int -> Stream m Int
-unfoldrK streamLen n = S.unfoldr step n
+unfoldrK :: Int -> Int -> StreamK m Int
+unfoldrK streamLen n = StreamK.unfoldr step n
     where
     step cnt =
         if cnt > n + streamLen
@@ -81,8 +78,8 @@ unfoldrK streamLen n = S.unfoldr step n
 -}
 
 {-# INLINE unfoldrMK #-}
-unfoldrMK :: Monad m => Int -> Int -> Stream m Int
-unfoldrMK streamLen n = S.unfoldrMWith S.consM step n
+unfoldrMK :: Monad m => Int -> Int -> StreamK m Int
+unfoldrMK streamLen n = StreamK.unfoldrMWith StreamK.consM step n
     where
     step cnt =
         if cnt > n + streamLen
@@ -90,118 +87,118 @@ unfoldrMK streamLen n = S.unfoldrMWith S.consM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE repeat #-}
-repeat :: Monad m => Int -> Int -> Stream m Int
-repeat streamLen = S.take streamLen . D.toStreamK . D.repeat
+repeat :: Monad m => Int -> Int -> StreamK m Int
+repeat streamLen = StreamK.take streamLen . Stream.toStreamK . Stream.repeat
 
 {-# INLINE repeatM #-}
-repeatM :: Monad m => Int -> Int -> Stream m Int
-repeatM streamLen = S.take streamLen . D.toStreamK . D.repeatM . return
+repeatM :: Monad m => Int -> Int -> StreamK m Int
+repeatM streamLen = StreamK.take streamLen . Stream.toStreamK . Stream.repeatM . return
 
 {-# INLINE replicate #-}
-replicate :: Monad m => Int -> Int -> Stream m Int
-replicate x y = D.toStreamK $ D.replicate x y
+replicate :: Monad m => Int -> Int -> StreamK m Int
+replicate x y = Stream.toStreamK $ Stream.replicate x y
 
 {-# INLINE replicateM #-}
-replicateM :: Monad m => Int -> Int -> Stream m Int
-replicateM streamLen = D.toStreamK . D.replicateM streamLen . return
+replicateM :: Monad m => Int -> Int -> StreamK m Int
+replicateM streamLen = Stream.toStreamK . Stream.replicateM streamLen . return
 
 {-# INLINE iterate #-}
-iterate :: Monad m => Int -> Int -> Stream m Int
-iterate streamLen = S.take streamLen . D.toStreamK . D.iterate (+1)
+iterate :: Monad m => Int -> Int -> StreamK m Int
+iterate streamLen = StreamK.take streamLen . Stream.toStreamK . Stream.iterate (+1)
 
 {-# INLINE iterateM #-}
-iterateM :: Monad m => Int -> Int -> Stream m Int
-iterateM streamLen = S.take streamLen . D.toStreamK . D.iterateM (return . (+1)) . return
+iterateM :: Monad m => Int -> Int -> StreamK m Int
+iterateM streamLen = StreamK.take streamLen . Stream.toStreamK . Stream.iterateM (return . (+1)) . return
 
 {-# INLINE fromFoldable #-}
-fromFoldable :: Int -> Int -> Stream m Int
-fromFoldable streamLen n = S.fromFoldable [n..n+streamLen]
+fromFoldable :: Int -> Int -> StreamK m Int
+fromFoldable streamLen n = StreamK.fromFoldable [n..n+streamLen]
 
 {-# INLINE fromFoldableM #-}
-fromFoldableM :: Monad m => Int -> Int -> Stream m Int
+fromFoldableM :: Monad m => Int -> Int -> StreamK m Int
 fromFoldableM streamLen n =
-    Prelude.foldr (S.consM . return) S.nil [n .. n + streamLen]
+    Prelude.foldr (StreamK.consM . return) StreamK.nil [n .. n + streamLen]
 
 {-
 {-# INLINABLE concatMapFoldableWith #-}
 concatMapFoldableWith :: Foldable f
-    => (Stream m b -> Stream m b -> Stream m b)
-    -> (a -> Stream m b)
+    => (StreamK m b -> StreamK m b -> StreamK m b)
+    -> (a -> StreamK m b)
     -> f a
-    -> Stream m b
-concatMapFoldableWith f g = Prelude.foldr (f . g) S.nil
+    -> StreamK m b
+concatMapFoldableWith f g = Prelude.foldr (f . g) StreamK.nil
 -}
 
 {-# INLINE concatMapFoldableSerial #-}
-concatMapFoldableSerial :: Monad m => Int -> Int -> Stream m Int
+concatMapFoldableSerial :: Monad m => Int -> Int -> StreamK m Int
 concatMapFoldableSerial streamLen n =
-    D.toStreamK $ D.concatMap D.fromPure $ D.fromStreamK $ S.fromList [n..n+streamLen]
+    Stream.toStreamK $ Stream.concatMap Stream.fromPure $ Stream.fromStreamK $ StreamK.fromList [n..n+streamLen]
 
 {-# INLINE concatMapFoldableSerialM #-}
-concatMapFoldableSerialM :: Monad m => Int -> Int -> Stream m Int
+concatMapFoldableSerialM :: Monad m => Int -> Int -> StreamK m Int
 concatMapFoldableSerialM streamLen n =
-    -- concatMapFoldableWith S.serial (S.fromEffect . return) [n..n+streamLen]
-    D.toStreamK $ D.concatMap (D.fromEffect . return) $ D.fromStreamK $ S.fromList [n..n+streamLen]
+    -- concatMapFoldableWith StreamK.serial (StreamK.fromEffect . return) [n..n+streamLen]
+    Stream.toStreamK $ Stream.concatMap (Stream.fromEffect . return) $ Stream.fromStreamK $ StreamK.fromList [n..n+streamLen]
 
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
 
 {-# INLINE drainD #-}
-drainD :: Monad m => Stream m a -> m ()
-drainD = D.drain . D.fromStreamK
+drainD :: Monad m => StreamK m a -> m ()
+drainD = Stream.drain . Stream.fromStreamK
 
 {-# INLINE drain #-}
-drain :: Monad m => Stream m a -> m ()
-drain = S.drain
+drain :: Monad m => StreamK m a -> m ()
+drain = StreamK.drain
 
 {-# INLINE mapM_ #-}
-mapM_ :: Monad m => Stream m a -> m ()
-mapM_ s = D.mapM_ (\_ -> return ()) $ D.fromStreamK s
+mapM_ :: Monad m => StreamK m a -> m ()
+mapM_ s = Stream.mapM_ (\_ -> return ()) $ Stream.fromStreamK s
 
 {-
 {-# INLINE uncons #-}
-uncons :: Monad m => Stream m Int -> m ()
+uncons :: Monad m => StreamK m Int -> m ()
 uncons s = do
-    r <- D.uncons $ D.fromStreamK s
+    r <- Stream.uncons $ Stream.fromStreamK s
     case r of
         Nothing -> return ()
-        Just (_, t) -> uncons (D.toStreamK t)
+        Just (_, t) -> uncons (Stream.toStreamK t)
 
 {-# INLINE init #-}
-init :: Monad m => Stream m a -> m ()
+init :: Monad m => StreamK m a -> m ()
 init s = do
-    t <- S.init s
-    P.mapM_ S.drain t
+    t <- StreamK.init s
+    P.mapM_ StreamK.drain t
 
 {-# INLINE tail #-}
-tail :: Monad m => Stream m a -> m ()
-tail s = S.tail s >>= P.mapM_ tail
+tail :: Monad m => StreamK m a -> m ()
+tail s = StreamK.tail s >>= P.mapM_ tail
 
 {-# INLINE nullTail #-}
-nullTail :: Monad m => Stream m Int -> m ()
+nullTail :: Monad m => StreamK m Int -> m ()
 nullTail s = do
-    r <- S.null s
-    when (not r) $ S.tail s >>= P.mapM_ nullTail
+    r <- StreamK.null s
+    when (not r) $ StreamK.tail s >>= P.mapM_ nullTail
 
 {-# INLINE headTail #-}
-headTail :: Monad m => Stream m Int -> m ()
+headTail :: Monad m => StreamK m Int -> m ()
 headTail s = do
-    h <- S.head s
-    when (isJust h) $ S.tail s >>= P.mapM_ headTail
+    h <- StreamK.head s
+    when (isJust h) $ StreamK.tail s >>= P.mapM_ headTail
 -}
 
 {-# INLINE toList #-}
-toList :: Monad m => Stream m Int -> m [Int]
-toList = D.fold Fold.toList . D.fromStreamK
+toList :: Monad m => StreamK m Int -> m [Int]
+toList = Stream.fold Fold.toList . Stream.fromStreamK
 
 {-# INLINE foldl' #-}
-foldl' :: Monad m => Stream m Int -> m Int
-foldl' = D.fold (Fold.foldl' (+) 0) . D.fromStreamK
+foldl' :: Monad m => StreamK m Int -> m Int
+foldl' = Stream.fold (Fold.foldl' (+) 0) . Stream.fromStreamK
 
 {-# INLINE last #-}
-last :: Monad m => Stream m Int -> m (Maybe Int)
-last = D.fold Fold.latest . D.fromStreamK
+last :: Monad m => StreamK m Int -> m (Maybe Int)
+last = Stream.fold Fold.latest . Stream.fromStreamK
 
 -------------------------------------------------------------------------------
 -- Transformation
@@ -210,7 +207,7 @@ last = D.fold Fold.latest . D.fromStreamK
 {-# INLINE composeN #-}
 composeN
     :: Monad m
-    => Int -> (Stream m Int -> Stream m Int) -> Stream m Int -> m ()
+    => Int -> (StreamK m Int -> StreamK m Int) -> StreamK m Int -> m ()
 composeN n f =
     case n of
         1 -> drain . f
@@ -220,86 +217,86 @@ composeN n f =
         _ -> undefined
 
 {-# INLINE scanl' #-}
-scanl' :: Monad m => Int -> Stream m Int -> m ()
+scanl' :: Monad m => Int -> StreamK m Int -> m ()
 scanl' n =
-    composeN n (D.toStreamK . D.scan (Fold.foldl' (+) 0) . D.fromStreamK)
+    composeN n (Stream.toStreamK . Stream.scan (Fold.foldl' (+) 0) . Stream.fromStreamK)
 
 {-# INLINE map #-}
-map :: Monad m => Int -> Stream m Int -> m ()
-map n = composeN n (D.toStreamK . D.map (+ 1) . D.fromStreamK)
+map :: Monad m => Int -> StreamK m Int -> m ()
+map n = composeN n (Stream.toStreamK . Stream.map (+ 1) . Stream.fromStreamK)
 
 {-
 {-# INLINE fmapK #-}
-fmapK :: Monad m => Int -> Stream m Int -> m ()
+fmapK :: Monad m => Int -> StreamK m Int -> m ()
 fmapK n = composeN n $ P.fmap (+ 1)
 -}
 
 {-# INLINE mapM #-}
-mapM :: Monad m => Int -> Stream m Int -> m ()
-mapM n = composeN n (D.toStreamK . D.mapM return . D.fromStreamK)
+mapM :: Monad m => Int -> StreamK m Int -> m ()
+mapM n = composeN n (Stream.toStreamK . Stream.mapM return . Stream.fromStreamK)
 
 {-
 {-# INLINE mapMSerial #-}
-mapMSerial :: S.MonadAsync m => Int -> Stream m Int -> m ()
-mapMSerial n = composeN n $ S.mapMSerial return
+mapMSerial :: StreamK.MonadAsync m => Int -> StreamK m Int -> m ()
+mapMSerial n = composeN n $ StreamK.mapMSerial return
 -}
 
 {-# INLINE filterEven #-}
-filterEven :: Monad m => Int -> Stream m Int -> m ()
-filterEven n = composeN n (D.toStreamK . D.filter even . D.fromStreamK)
+filterEven :: Monad m => Int -> StreamK m Int -> m ()
+filterEven n = composeN n (Stream.toStreamK . Stream.filter even . Stream.fromStreamK)
 
 {-
 {-# INLINE filterAllOut #-}
-filterAllOut :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterAllOut streamLen n = composeN n $ S.filter (> streamLen)
+filterAllOut :: Monad m => Int -> Int -> StreamK m Int -> m ()
+filterAllOut streamLen n = composeN n $ StreamK.filter (> streamLen)
 
 {-# INLINE filterAllIn #-}
-filterAllIn :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterAllIn streamLen n = composeN n $ S.filter (<= streamLen)
+filterAllIn :: Monad m => Int -> Int -> StreamK m Int -> m ()
+filterAllIn streamLen n = composeN n $ StreamK.filter (<= streamLen)
 
 {-# INLINE _takeOne #-}
-_takeOne :: Monad m => Int -> Stream m Int -> m ()
-_takeOne n = composeN n $ S.take 1
+_takeOne :: Monad m => Int -> StreamK m Int -> m ()
+_takeOne n = composeN n $ StreamK.take 1
 
 {-# INLINE takeAll #-}
-takeAll :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeAll streamLen n = composeN n $ S.take streamLen
+takeAll :: Monad m => Int -> Int -> StreamK m Int -> m ()
+takeAll streamLen n = composeN n $ StreamK.take streamLen
 
 {-# INLINE takeWhileTrue #-}
-takeWhileTrue :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeWhileTrue streamLen n = composeN n $ S.takeWhile (<= streamLen)
+takeWhileTrue :: Monad m => Int -> Int -> StreamK m Int -> m ()
+takeWhileTrue streamLen n = composeN n $ StreamK.takeWhile (<= streamLen)
 
 {-# INLINE dropOne #-}
-dropOne :: Monad m => Int -> Stream m Int -> m ()
-dropOne n = composeN n $ S.drop 1
+dropOne :: Monad m => Int -> StreamK m Int -> m ()
+dropOne n = composeN n $ StreamK.drop 1
 
 {-# INLINE dropAll #-}
-dropAll :: Monad m => Int -> Int -> Stream m Int -> m ()
-dropAll streamLen n = composeN n $ S.drop streamLen
+dropAll :: Monad m => Int -> Int -> StreamK m Int -> m ()
+dropAll streamLen n = composeN n $ StreamK.drop streamLen
 
 {-# INLINE dropWhileTrue #-}
-dropWhileTrue :: Monad m => Int -> Int -> Stream m Int -> m ()
-dropWhileTrue streamLen n = composeN n $ S.dropWhile (<= streamLen)
+dropWhileTrue :: Monad m => Int -> Int -> StreamK m Int -> m ()
+dropWhileTrue streamLen n = composeN n $ StreamK.dropWhile (<= streamLen)
 
 {-# INLINE dropWhileFalse #-}
-dropWhileFalse :: Monad m => Int -> Stream m Int -> m ()
-dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
+dropWhileFalse :: Monad m => Int -> StreamK m Int -> m ()
+dropWhileFalse n = composeN n $ StreamK.dropWhile (<= 1)
 -}
 
 {-
 {-# INLINE foldrS #-}
-foldrS :: Monad m => Int -> Stream m Int -> m ()
-foldrS n = composeN n $ S.foldrS S.cons S.nil
+foldrS :: Monad m => Int -> StreamK m Int -> m ()
+foldrS n = composeN n $ StreamK.foldrS StreamK.cons StreamK.nil
 
 {-# INLINE foldlS #-}
-foldlS :: Monad m => Int -> Stream m Int -> m ()
-foldlS n = composeN n $ S.foldlS (flip S.cons) S.nil
+foldlS :: Monad m => Int -> StreamK m Int -> m ()
+foldlS n = composeN n $ StreamK.foldlS (flip StreamK.cons) StreamK.nil
 -}
 
 {-
 {-# INLINE intersperse #-}
-intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
-intersperse streamLen n = composeN n $ S.intersperse streamLen
+intersperse :: StreamK.MonadAsync m => Int -> Int -> StreamK m Int -> m ()
+intersperse streamLen n = composeN n $ StreamK.intersperse streamLen
 -}
 
 -------------------------------------------------------------------------------
@@ -309,8 +306,8 @@ intersperse streamLen n = composeN n $ S.intersperse streamLen
 {-
 {-# INLINE iterateSource #-}
 iterateSource
-    :: S.MonadAsync m
-    => Int -> (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
+    :: StreamK.MonadAsync m
+    => Int -> (StreamK m Int -> StreamK m Int) -> Int -> Int -> StreamK m Int
 iterateSource iterStreamLen g i n = f i (unfoldrM iterStreamLen n)
     where
         f (0 :: Int) m = g m
@@ -318,39 +315,39 @@ iterateSource iterStreamLen g i n = f i (unfoldrM iterStreamLen n)
 
 -- this is quadratic
 {-# INLINE iterateScan #-}
-iterateScan :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateScan :: StreamK.MonadAsync m => Int -> Int -> Int -> StreamK m Int
 iterateScan iterStreamLen maxIters =
-    iterateSource iterStreamLen (S.scanl' (+) 0) (maxIters `div` 10)
+    iterateSource iterStreamLen (StreamK.scanl' (+) 0) (maxIters `div` 10)
 
 -- this is quadratic
 {-# INLINE iterateDropWhileFalse #-}
-iterateDropWhileFalse :: S.MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
+iterateDropWhileFalse :: StreamK.MonadAsync m => Int -> Int -> Int -> Int -> StreamK m Int
 iterateDropWhileFalse streamLen iterStreamLen maxIters =
-    iterateSource iterStreamLen (S.dropWhile (> streamLen)) (maxIters `div` 10)
+    iterateSource iterStreamLen (StreamK.dropWhile (> streamLen)) (maxIters `div` 10)
 
 {-# INLINE iterateMapM #-}
-iterateMapM :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
+iterateMapM :: StreamK.MonadAsync m => Int -> Int -> Int -> StreamK m Int
 iterateMapM iterStreamLen =
-    iterateSource iterStreamLen (S.mapMWith S.consM return)
+    iterateSource iterStreamLen (StreamK.mapMWith StreamK.consM return)
 
 {-# INLINE iterateFilterEven #-}
-iterateFilterEven :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateFilterEven iterStreamLen = iterateSource iterStreamLen (S.filter even)
+iterateFilterEven :: StreamK.MonadAsync m => Int -> Int -> Int -> StreamK m Int
+iterateFilterEven iterStreamLen = iterateSource iterStreamLen (StreamK.filter even)
 
 {-# INLINE iterateTakeAll #-}
-iterateTakeAll :: S.MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
+iterateTakeAll :: StreamK.MonadAsync m => Int -> Int -> Int -> Int -> StreamK m Int
 iterateTakeAll streamLen iterStreamLen =
-    iterateSource iterStreamLen (S.take streamLen)
+    iterateSource iterStreamLen (StreamK.take streamLen)
 
 {-# INLINE iterateDropOne #-}
-iterateDropOne :: S.MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateDropOne iterStreamLen = iterateSource iterStreamLen (S.drop 1)
+iterateDropOne :: StreamK.MonadAsync m => Int -> Int -> Int -> StreamK m Int
+iterateDropOne iterStreamLen = iterateSource iterStreamLen (StreamK.drop 1)
 
 {-# INLINE iterateDropWhileTrue #-}
-iterateDropWhileTrue :: S.MonadAsync m =>
-    Int -> Int -> Int -> Int -> Stream m Int
+iterateDropWhileTrue :: StreamK.MonadAsync m =>
+    Int -> Int -> Int -> Int -> StreamK m Int
 iterateDropWhileTrue streamLen iterStreamLen =
-    iterateSource iterStreamLen (S.dropWhile (<= streamLen))
+    iterateSource iterStreamLen (StreamK.dropWhile (<= streamLen))
 -}
 
 -------------------------------------------------------------------------------
@@ -359,19 +356,19 @@ iterateDropWhileTrue streamLen iterStreamLen =
 
 {-
 {-# INLINE zipWith #-}
-zipWith :: Monad m => Stream m Int -> m ()
-zipWith src = drain $ S.zipWith (,) src src
+zipWith :: Monad m => StreamK m Int -> m ()
+zipWith src = drain $ StreamK.zipWith (,) src src
 
 {-# INLINE zipWithM #-}
-zipWithM :: Monad m => Stream m Int -> m ()
-zipWithM src = drain $ S.zipWithM (curry return) src src
+zipWithM :: Monad m => StreamK m Int -> m ()
+zipWithM src = drain $ StreamK.zipWithM (curry return) src src
 
 {-# INLINE sortByK #-}
-sortByK :: (a -> a -> Ordering) -> Stream m a -> Stream m a
-sortByK f = S.concatPairsWith (S.mergeBy f) S.fromPure
+sortByK :: (a -> a -> Ordering) -> StreamK m a -> StreamK m a
+sortByK f = StreamK.concatPairsWith (StreamK.mergeBy f) StreamK.fromPure
 
 {-# INLINE sortBy #-}
-sortBy :: Monad m => Stream m Int -> m ()
+sortBy :: Monad m => StreamK m Int -> m ()
 sortBy = drain . sortByK compare
 
 -------------------------------------------------------------------------------
@@ -379,44 +376,44 @@ sortBy = drain . sortByK compare
 -------------------------------------------------------------------------------
 
 {-# INLINE scanMap #-}
-scanMap :: Monad m => Int -> Stream m Int -> m ()
-scanMap n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
+scanMap :: Monad m => Int -> StreamK m Int -> m ()
+scanMap n = composeN n $ StreamK.map (subtract 1) . StreamK.scanl' (+) 0
 
 {-# INLINE dropMap #-}
-dropMap :: Monad m => Int -> Stream m Int -> m ()
-dropMap n = composeN n $ S.map (subtract 1) . S.drop 1
+dropMap :: Monad m => Int -> StreamK m Int -> m ()
+dropMap n = composeN n $ StreamK.map (subtract 1) . StreamK.drop 1
 
 {-# INLINE dropScan #-}
-dropScan :: Monad m => Int -> Stream m Int -> m ()
-dropScan n = composeN n $ S.scanl' (+) 0 . S.drop 1
+dropScan :: Monad m => Int -> StreamK m Int -> m ()
+dropScan n = composeN n $ StreamK.scanl' (+) 0 . StreamK.drop 1
 
 {-# INLINE takeDrop #-}
-takeDrop :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeDrop streamLen n = composeN n $ S.drop 1 . S.take streamLen
+takeDrop :: Monad m => Int -> Int -> StreamK m Int -> m ()
+takeDrop streamLen n = composeN n $ StreamK.drop 1 . StreamK.take streamLen
 
 {-# INLINE takeScan #-}
-takeScan :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeScan streamLen n = composeN n $ S.scanl' (+) 0 . S.take streamLen
+takeScan :: Monad m => Int -> Int -> StreamK m Int -> m ()
+takeScan streamLen n = composeN n $ StreamK.scanl' (+) 0 . StreamK.take streamLen
 
 {-# INLINE takeMap #-}
-takeMap :: Monad m => Int -> Int -> Stream m Int -> m ()
-takeMap streamLen n = composeN n $ S.map (subtract 1) . S.take streamLen
+takeMap :: Monad m => Int -> Int -> StreamK m Int -> m ()
+takeMap streamLen n = composeN n $ StreamK.map (subtract 1) . StreamK.take streamLen
 
 {-# INLINE filterDrop #-}
-filterDrop :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterDrop streamLen n = composeN n $ S.drop 1 . S.filter (<= streamLen)
+filterDrop :: Monad m => Int -> Int -> StreamK m Int -> m ()
+filterDrop streamLen n = composeN n $ StreamK.drop 1 . StreamK.filter (<= streamLen)
 
 {-# INLINE filterTake #-}
-filterTake :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterTake streamLen n = composeN n $ S.take streamLen . S.filter (<= streamLen)
+filterTake :: Monad m => Int -> Int -> StreamK m Int -> m ()
+filterTake streamLen n = composeN n $ StreamK.take streamLen . StreamK.filter (<= streamLen)
 
 {-# INLINE filterScan #-}
-filterScan :: Monad m => Int -> Stream m Int -> m ()
-filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
+filterScan :: Monad m => Int -> StreamK m Int -> m ()
+filterScan n = composeN n $ StreamK.scanl' (+) 0 . StreamK.filter (<= maxBound)
 
 {-# INLINE filterMap #-}
-filterMap :: Monad m => Int -> Int -> Stream m Int -> m ()
-filterMap streamLen n = composeN n $ S.map (subtract 1) . S.filter (<= streamLen)
+filterMap :: Monad m => Int -> Int -> StreamK m Int -> m ()
+filterMap streamLen n = composeN n $ StreamK.map (subtract 1) . StreamK.filter (<= streamLen)
 -}
 
 -------------------------------------------------------------------------------
@@ -428,9 +425,9 @@ filterMap streamLen n = composeN n $ S.map (subtract 1) . S.filter (<= streamLen
 {-# INLINE concatMap #-}
 concatMap :: Int -> Int -> Int -> IO ()
 concatMap outer inner n =
-    S.drain $ D.toStreamK $ D.concatMap
-        (\_ -> D.fromStreamK $ unfoldrMK inner n)
-        (D.fromStreamK $ unfoldrMK outer n)
+    StreamK.drain $ Stream.toStreamK $ Stream.concatMap
+        (\_ -> Stream.fromStreamK $ unfoldrMK inner n)
+        (Stream.fromStreamK $ unfoldrMK outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMap
@@ -442,7 +439,7 @@ inspect $ hasNoTypeClasses 'concatMap
 {-# INLINE concatMapPure #-}
 concatMapPure :: Int -> Int -> Int -> IO ()
 concatMapPure outer inner n =
-    S.drain $ S.concatMap
+    StreamK.drain $ StreamK.concatMap
         (\_ -> unfoldr inner n)
         (unfoldr outer n)
 
@@ -455,7 +452,7 @@ inspect $ hasNoTypeClasses 'concatMapPure
 {-# INLINE concatMapRepl #-}
 concatMapRepl :: Int -> Int -> Int -> IO ()
 concatMapRepl outer inner n =
-    S.drain $ S.concatMap (S.replicate inner) (unfoldrM outer n)
+    StreamK.drain $ StreamK.concatMap (StreamK.replicate inner) (unfoldrM outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapRepl
@@ -465,14 +462,14 @@ inspect $ hasNoTypeClasses 'concatMapRepl
 
 {-# INLINE sourceConcatMapId #-}
 sourceConcatMapId :: Monad m
-    => Int -> Int -> Stream m (Stream m Int)
+    => Int -> Int -> StreamK m (StreamK m Int)
 sourceConcatMapId val n =
-    S.fromFoldable $ fmap (S.fromEffect . return) [n..n+val]
+    StreamK.fromFoldable $ fmap (StreamK.fromEffect . return) [n..n+val]
 
 {-# INLINE concatMapBySerial #-}
 concatMapBySerial :: Int -> Int -> Int -> IO ()
 concatMapBySerial outer inner n =
-    S.drain $ S.concatMapWith S.serial
+    StreamK.drain $ StreamK.concatMapWith StreamK.serial
         (unfoldrM inner)
         (unfoldrM outer n)
 -}
@@ -482,46 +479,46 @@ concatMapBySerial outer inner n =
 -- Nested Composition
 -------------------------------------------------------------------------------
 
-instance Monad m => Applicative (S.Stream m) where
+instance Monad m => Applicative (StreamK.Stream m) where
     {-# INLINE pure #-}
-    pure = S.fromPure
+    pure = StreamK.fromPure
 
     {-# INLINE (<*>) #-}
-    (<*>) = S.crossApply
+    (<*>) = StreamK.crossApply
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
     {-# INLINE (*>) #-}
-    (*>) = S.crossApplySnd
+    (*>) = StreamK.crossApplySnd
 
     {-# INLINE (<*) #-}
-    (<*) = S.crossApplyFst
+    (<*) = StreamK.crossApplyFst
 
 -- NOTE: even though concatMap for StreamD is 3x faster compared to StreamK,
 -- the monad instance of StreamD is slower than StreamK after foldr/build
 -- fusion.
-instance Monad m => Monad (S.Stream m) where
+instance Monad m => Monad (StreamK.Stream m) where
     {-# INLINE return #-}
     return = pure
 
     {-# INLINE (>>=) #-}
-    (>>=) = flip S.concatMap
+    (>>=) = flip StreamK.concatMap
 
 {-# INLINE drainApplicative #-}
-drainApplicative :: Monad m => Stream m Int -> m ()
+drainApplicative :: Monad m => StreamK m Int -> m ()
 drainApplicative s = drain $ do
     (+) <$> s <*> s
 
 {-# INLINE drainMonad #-}
-drainMonad :: Monad m => Stream m Int -> m ()
+drainMonad :: Monad m => StreamK m Int -> m ()
 drainMonad s = drain $ do
     x <- s
     y <- s
     return $ x + y
 
 {-# INLINE drainMonad3 #-}
-drainMonad3 :: Monad m => Stream m Int -> m ()
+drainMonad3 :: Monad m => StreamK m Int -> m ()
 drainMonad3 s = drain $ do
     x <- s
     y <- s
@@ -531,26 +528,26 @@ drainMonad3 s = drain $ do
 {-# INLINE filterAllOutMonad #-}
 filterAllOutMonad
     :: Monad m
-    => Stream m Int -> m ()
+    => StreamK m Int -> m ()
 filterAllOutMonad str = drain $ do
     x <- str
     y <- str
     let s = x + y
     if s < 0
     then return s
-    else S.nil
+    else StreamK.nil
 
 {-# INLINE filterAllInMonad #-}
 filterAllInMonad
     :: Monad m
-    => Stream m Int -> m ()
+    => StreamK m Int -> m ()
 filterAllInMonad str = drain $ do
     x <- str
     y <- str
     let s = x + y
     if s > 0
     then return s
-    else S.nil
+    else StreamK.nil
 
 -------------------------------------------------------------------------------
 -- Nested Composition Pure lists
@@ -696,7 +693,7 @@ o_1_space_transformationX4 streamLen =
         -- , benchFold "concatMap" (concatMap 4) (unfoldrM streamLen16)
         ]
 
--- Generate using K, fold using K, concat using D.concatMap
+-- Generate using K, fold using K, concat using Stream.concatMap
 o_1_space_concat :: Int -> Benchmark
 o_1_space_concat streamLen =
     bgroup "concat"
@@ -721,8 +718,8 @@ o_1_space_concat streamLen =
 
         -- This is for comparison with concatMapFoldableWith
         , benchIOSrc1 "concatMapWithId (n of 1) (fromFoldable)"
-            (S.drain
-                . S.concatMapWith S.serial id
+            (StreamK.drain
+                . StreamK.concatMapWith StreamK.serial id
                 . sourceConcatMapId streamLen)
 
         , benchIOSrc1 "concatMapBy serial (n of 1)"
