@@ -547,7 +547,7 @@ o_1_space_pipes value =
         , benchIOSink value "tee" (transformTeeMapM 1)
 #ifdef DEVBUILD
         -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM 1)
+        -- , benchIOSink value "zip" (transformZipMapM 1)
 #endif
         ]
     ]
@@ -560,7 +560,7 @@ o_1_space_pipesX4 value =
         , benchIOSink value "tee" (transformTeeMapM 4)
 #ifdef DEVBUILD
         -- XXX this take 1 GB memory to compile
-        , benchIOSink value "zip" (transformZipMapM 4)
+        -- , benchIOSink value "zip" (transformZipMapM 4)
 #endif
         ]
     ]
