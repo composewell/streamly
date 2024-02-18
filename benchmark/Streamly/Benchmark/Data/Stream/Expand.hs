@@ -174,7 +174,6 @@ concatMap outer inner n =
         (\_ -> fromStream $ sourceUnfoldrM inner n)
         (fromStream $ sourceUnfoldrM outer n)
 
-#ifndef USE_STREAMK
 {-# INLINE concatMapM #-}
 concatMapM :: Int -> Int -> Int -> IO ()
 concatMapM outer inner n =
@@ -185,7 +184,6 @@ concatMapM outer inner n =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMap
 inspect $ 'concatMap `hasNoType` ''SPEC
-#endif
 #endif
 
 -- concatMap unfoldr/unfoldr
@@ -295,7 +293,6 @@ o_1_space_concat value = sqrtVal `seq`
         , benchIOSrc1 "concatMap (1 of n)"
             (concatMap 1 value)
 
-#ifndef USE_STREAMK
         -- This is for comparison with foldMapWith
         , benchIOSrc "concatMapId (n of 1) (fromFoldable)"
             (S.concatMap id . sourceConcatMapId value)
@@ -306,7 +303,6 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapM sqrtVal sqrtVal)
         , benchIOSrc1 "concatMapM (1 of n)"
             (concatMapM 1 value)
-#endif
 
 #ifdef USE_STREAMK
         {-
