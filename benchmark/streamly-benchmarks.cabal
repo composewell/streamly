@@ -307,23 +307,23 @@ benchmark Data.StreamD
 benchmark Data.StreamK
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  hs-source-dirs: Streamly/Benchmark/Data
   main-is: StreamK.hs
   if impl(ghcjs)
     buildable: False
 
-benchmark Data.Stream.ToStreamK
+benchmark Data.StreamK.FromStream
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: ToStreamK.hs
+  hs-source-dirs: Streamly/Benchmark/Data/StreamK
+  main-is: FromStream.hs
   if !flag(dev) || impl(ghcjs)
     buildable: False
 
-benchmark Data.StreamK.Alt
+benchmark Data.StreamK.StreamKAlt
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  hs-source-dirs: Streamly/Benchmark/Data/StreamK
   main-is: StreamKAlt.hs
   if !flag(dev) || impl(ghcjs)
     buildable: False
