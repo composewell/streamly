@@ -43,11 +43,7 @@ import Stream.Common
 #endif
 
 moduleName :: String
-#ifdef USE_STREAMK
-moduleName = "Data.Stream.StreamDK"
-#else
 moduleName = "Data.Stream"
-#endif
 
 -------------------------------------------------------------------------------
 -- Main

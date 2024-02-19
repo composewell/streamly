@@ -37,70 +37,17 @@ import qualified Streamly.Internal.Data.Unfold as UF
 
 #ifdef USE_PRELUDE
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Stream.IsStream as StreamK
 import Streamly.Benchmark.Prelude
     ( sourceFoldMapM, sourceFoldMapWith, sourceFoldMapWithM
     , sourceFoldMapWithStream, concatFoldableWith, concatForFoldableWith)
 #else
 import qualified Streamly.Internal.Data.Stream as S
-#ifdef USE_STREAMK
-import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.Data.StreamK (StreamK, CrossStreamK)
-import qualified Control.Applicative as AP
-import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.StreamK as StreamK
-#else
-import qualified Streamly.Internal.Data.Stream as StreamK
-#endif
 #endif
 
 import Test.Tasty.Bench
 import Stream.Common
 import Streamly.Benchmark.Common
 import Prelude hiding (concatMap)
-
--------------------------------------------------------------------------------
--- Iteration/looping utilities
--------------------------------------------------------------------------------
-
-#ifdef USE_STREAMK
-{-# INLINE iterateN #-}
-iterateN :: (Int -> a -> a) -> a -> Int -> a
-iterateN g initial count = f count initial
-
-    where
-
-    f (0 :: Int) x = x
-    f i x = f (i - 1) (g i x)
-
--- Iterate a transformation over a singleton stream
-{-# INLINE iterateSingleton #-}
-iterateSingleton :: Applicative m =>
-       (Int -> CrossStreamK m Int -> CrossStreamK m Int)
-    -> Int
-    -> Int
-    -> Stream m Int
-iterateSingleton g count n =
-    toStream
-        $ StreamK.unCross
-        $ iterateN g (StreamK.mkCross (StreamK.fromPure n)) count
-#endif
-
-{-
--- XXX need to check why this is slower than the explicit recursion above, even
--- if the above code is written in a foldr like head recursive way. We also
--- need to try this with foldlM' once #150 is fixed.
--- However, it is perhaps best to keep the iteration benchmarks independent of
--- foldrM and any related fusion issues.
-{-# INLINE _iterateSingleton #-}
-_iterateSingleton ::
-       Monad m
-    => (Int -> Stream m Int -> Stream m Int)
-    -> Int
-    -> Int
-    -> Stream m Int
-_iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
--}
 
 -------------------------------------------------------------------------------
 -- Multi-Stream
@@ -113,22 +60,22 @@ _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
 {-# INLINE serial2 #-}
 serial2 :: Int -> Int -> IO ()
 serial2 count n =
-    drain $ toStream $
+    drain $
         Common.append
-            (fromStream $ sourceUnfoldrM count n)
-            (fromStream $ sourceUnfoldrM count (n + 1))
+            (sourceUnfoldrM count n)
+            (sourceUnfoldrM count (n + 1))
 
 {-# INLINE serial4 #-}
 serial4 :: Int -> Int -> IO ()
 serial4 count n =
-    drain $ toStream $
+    drain $
     Common.append
         (Common.append
-            (fromStream $ sourceUnfoldrM count n)
-            (fromStream $ sourceUnfoldrM count (n + 1)))
+            (sourceUnfoldrM count n)
+            (sourceUnfoldrM count (n + 1)))
         (Common.append
-              (fromStream $ sourceUnfoldrM count (n + 2))
-              (fromStream $ sourceUnfoldrM count (n + 3)))
+              (sourceUnfoldrM count (n + 2))
+              (sourceUnfoldrM count (n + 3)))
 
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
@@ -170,9 +117,9 @@ o_1_space_concatFoldable value =
 {-# INLINE concatMap #-}
 concatMap :: Int -> Int -> Int -> IO ()
 concatMap outer inner n =
-    drain $ toStream $ StreamK.concatMap
-        (\_ -> fromStream $ sourceUnfoldrM inner n)
-        (fromStream $ sourceUnfoldrM outer n)
+    drain $ S.concatMap
+        (\_ -> sourceUnfoldrM inner n)
+        (sourceUnfoldrM outer n)
 
 {-# INLINE concatMapM #-}
 concatMapM :: Int -> Int -> Int -> IO ()
@@ -191,9 +138,9 @@ inspect $ 'concatMap `hasNoType` ''SPEC
 {-# INLINE concatMapPure #-}
 concatMapPure :: Int -> Int -> Int -> IO ()
 concatMapPure outer inner n =
-    drain $ toStream $ StreamK.concatMap
-        (\_ -> fromStream $ sourceUnfoldr inner n)
-        (fromStream $ sourceUnfoldr outer n)
+    drain $ S.concatMap
+        (\_ -> sourceUnfoldr inner n)
+        (sourceUnfoldr outer n)
 
 #ifdef INSPECTION
 #if __GLASGOW_HASKELL__ >= 906
@@ -209,8 +156,8 @@ inspect $ 'concatMapPure `hasNoType` ''SPEC
 {-# INLINE concatMapRepl #-}
 concatMapRepl :: Int -> Int -> Int -> IO ()
 concatMapRepl outer inner n =
-    drain $ toStream $ StreamK.concatMap
-        (fromStream . S.replicate inner) (fromStream $ sourceUnfoldrM outer n)
+    drain $ S.concatMap
+        (S.replicate inner) (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
 #if __GLASGOW_HASKELL__ >= 906
@@ -219,42 +166,6 @@ inspect $ hasNoTypeClassesExcept 'concatMapRepl [''Applicative]
 inspect $ hasNoTypeClasses 'concatMapRepl
 #endif
 inspect $ 'concatMapRepl `hasNoType` ''SPEC
-#endif
-
--- concatMapWith
-
-#ifdef USE_STREAMK
-{-# INLINE concatMapWithSerial #-}
-concatMapWithSerial :: Int -> Int -> Int -> IO ()
-concatMapWithSerial = concatStreamsWith Common.append
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatMapWithSerial
-inspect $ 'concatMapWithSerial `hasNoType` ''SPEC
-#endif
-
-{-
-{-# INLINE concatMapWithAppend #-}
-concatMapWithAppend :: Int -> Int -> Int -> IO ()
-concatMapWithAppend = concatStreamsWith Common.append2
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatMapWithAppend
-inspect $ 'concatMapWithAppend `hasNoType` ''SPEC
-#endif
--}
-
--- mergeMapWith
-
-{-# INLINE mergeMapWithSerial #-}
-mergeMapWithSerial :: Int -> Int -> Int -> IO ()
-mergeMapWithSerial = mergeMapWith Common.append
-
-{-
-{-# INLINE mergeMapWithAppend #-}
-mergeMapWithAppend :: Int -> Int -> Int -> IO ()
-mergeMapWithAppend = mergeMapWith Common.append2
--}
 #endif
 
 -- unfoldMany
@@ -304,27 +215,6 @@ o_1_space_concat value = sqrtVal `seq`
         , benchIOSrc1 "concatMapM (1 of n)"
             (concatMapM 1 value)
 
-#ifdef USE_STREAMK
-        {-
-        -- This is for comparison with foldMapWith
-        , benchIOSrc "concatMapWithId (n of 1) (fromFoldable)"
-            (toStream . S.concatMapWith Common.append id . sourceConcatMapId value)
-        -}
-
-        , benchIOSrc1 "concatMapWith (n of 1)"
-            (concatMapWithSerial value 1)
-        , benchIOSrc1 "concatMapWith (sqrt n of sqrt n)"
-            (concatMapWithSerial sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMapWith (1 of n)"
-            (concatMapWithSerial 1 value)
-
-        {-
-        -- quadratic with number of outer streams
-        , benchIOSrc1 "concatMapWithAppend (2 of n/2)"
-            (concatMapWithAppend 2 (value `div` 2))
-        -}
-#endif
-
         -- concatMap vs unfoldMany
         , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
             (concatMapRepl sqrtVal sqrtVal)
@@ -336,36 +226,6 @@ o_1_space_concat value = sqrtVal `seq`
     where
 
     sqrtVal = round $ sqrt (fromIntegral value :: Double)
-
-#ifdef USE_STREAMK
-o_n_space_merge :: Int -> [Benchmark]
-o_n_space_merge value = sqrtVal `seq`
-    [ bgroup "concat"
-        [
-        -------------------mergeMapWith-----------------
-
-        -- Use large number of streams to check scalability
-
-          benchIOSrc1 "mergeMapWithSerial (n of 1)"
-            (mergeMapWithSerial value 1)
-        , benchIOSrc1 "mergeMapWithSerial (sqrtVal of sqrtVal)"
-            (mergeMapWithSerial sqrtVal sqrtVal)
-        , benchIOSrc1 "mergeMapWithSerial (2 of n/2)"
-            (mergeMapWithSerial 2 (value `div` 2))
-
-        {-
-        , benchIOSrc1 "mergeMapWithAppend (n of 1)"
-            (mergeMapWithAppend value 1)
-        , benchIOSrc1 "mergeMapWithAppend (sqrtVal of sqrtVal)"
-            (mergeMapWithAppend sqrtVal sqrtVal)
-        -}
-        ]
-    ]
-
-    where
-
-    sqrtVal = round $ sqrt (fromIntegral value :: Double)
-#endif
 
 -------------------------------------------------------------------------------
 -- Applicative
@@ -380,22 +240,6 @@ o_1_space_applicative value =
         , benchIO "liftA2 (sqrt n x sqrt n)" $ apLiftA2 value
         ]
     ]
-
-#ifdef USE_STREAMK
-o_n_space_applicative :: Int -> [Benchmark]
-o_n_space_applicative value =
-    [ bgroup "iterated"
-        [ benchIOSrc "(*>) (n times)" $
-            iterateSingleton ((*>) . pure) value
-        , benchIOSrc "(<*) (n times)" $
-            iterateSingleton (\x xs -> xs <* pure x) value
-        , benchIOSrc "(<*>) (n times)" $
-            iterateSingleton (\x xs -> pure (+ x) <*> xs) value
-        , benchIOSrc "liftA2 (n times)" $
-            iterateSingleton (AP.liftA2 (+) . pure) value
-        ]
-    ]
-#endif
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -418,39 +262,6 @@ o_1_space_monad value =
             toNullM3 value
         ]
     ]
-
-#ifdef USE_STREAMK
--- This is a good benchmark but inefficient way to compute primes. As we see a
--- new prime we keep appending a division filter for all the future numbers.
-{-# INLINE sieve #-}
-sieve :: Monad m => StreamK m Int -> StreamK m Int
-sieve s = StreamK.concatEffect $ do
-    r <- StreamK.uncons s
-    case r of
-        Just (prime, rest) ->
-            -- XXX Use K.filter or rewrite to K.filter
-            let f = S.filter (\n -> n `mod` prime /= 0)
-             in pure $ prime `StreamK.cons` sieve (fromStream $ f $ toStream rest)
-        Nothing -> pure StreamK.nil
-
-o_n_space_iterated :: Int -> [Benchmark]
-o_n_space_iterated value =
-    [ bgroup "iterated"
-        [
-          benchIO "concatEffect prime sieve (n/4)"
-            (\n ->
-                  S.fold Fold.sum
-                $ toStream
-                $ sieve
-                $ fromStream
-                $ S.enumerateFromTo 2 (value `div` 4 + n))
-        , benchIOSrc "(>>) (n times)" $
-            iterateSingleton ((>>) . pure) value
-        , benchIOSrc "(>>=) (n times)" $
-            iterateSingleton (\x xs -> xs >>= \y -> return (x + y)) value
-        ]
-    ]
-#endif
 
 o_n_space_monad :: Int -> [Benchmark]
 o_n_space_monad value =
@@ -545,11 +356,6 @@ benchmarks moduleName size =
             [
             -- multi-stream
               o_n_space_monad size
-#ifdef USE_STREAMK
-            , o_n_space_merge size
-            , o_n_space_iterated size
-            , o_n_space_applicative size
-#endif
             ]
        {-
        , bgroup (o_n_heap_prefix moduleName) $

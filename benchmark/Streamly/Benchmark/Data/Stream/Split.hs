@@ -24,6 +24,7 @@ module Stream.Split (benchmarks) where
 
 import Data.Char (ord)
 import Data.Word (Word8)
+import Streamly.Data.Stream (Stream)
 import System.IO (Handle)
 
 import qualified Streamly.FileSystem.Handle as FH
@@ -63,7 +64,7 @@ toarr = A.fromList . map (fromIntegral . ord)
 splitOn :: Handle -> IO Int
 splitOn inh =
     (S.length $ S.splitOn (== lf) FL.drain
-        $ S.unfold FH.read inh) -- >>= print
+        $ S.unfold FH.reader inh) -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOn
@@ -76,7 +77,7 @@ inspect $ 'splitOn `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 splitOnSuffix :: Handle -> IO Int
 splitOnSuffix inh =
     (S.length $ S.splitOnSuffix (== lf) FL.drain
-        $ S.unfold FH.read inh) -- >>= print
+        $ S.unfold FH.reader inh) -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOnSuffix
@@ -89,7 +90,7 @@ inspect $ 'splitOnSuffix `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 splitWithSuffix :: Handle -> IO Int
 splitWithSuffix inh =
     (S.length $ S.splitWithSuffix (== lf) FL.drain
-        $ S.unfold FH.read inh) -- >>= print
+        $ S.unfold FH.reader inh) -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitWithSuffix
@@ -104,7 +105,7 @@ foldManySepBy inh =
     (S.length
         $ IP.foldMany
             (FL.takeEndBy_ (== lf) FL.drain)
-            (S.unfold FH.read inh)
+            (S.unfold FH.reader inh)
     ) -- >>= print
 
 -- | Split on line feed.
@@ -113,14 +114,14 @@ parseManySepBy inh =
     (S.length
         $ IP.parseMany
             (PR.fromFold $ FL.takeEndBy_ (== lf) FL.drain)
-            (S.unfold FH.read inh)
+            (S.unfold FH.reader inh)
     ) -- >>= print
 
 -- | Words by space
 wordsBy :: Handle -> IO Int
 wordsBy inh =
     (S.length $ S.wordsBy isSp FL.drain
-        $ S.unfold FH.read inh) -- >>= print
+        $ S.unfold FH.reader inh) -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'wordsBy
@@ -133,7 +134,7 @@ inspect $ 'wordsBy `hasNoType` ''MA.ArrayUnsafe  -- FH.read/A.read
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
     (S.length $ IP.splitOnSeq (toarr str) FL.drain
-        $ S.unfold FH.read inh) -- >>= print
+        $ S.unfold FH.reader inh) -- >>= print
 
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'splitOnSeq
@@ -143,15 +144,17 @@ splitOnSeq str inh =
 -- | Split on a word8 sequence.
 splitOnSeq100k :: Handle -> IO Int
 splitOnSeq100k inh = do
-    arr <- A.fromStream $ IP.toStream $ S.fromSerial $ S.replicate 100000 123
+    arr <- A.fromStream
+        $ (S.toStream :: S.SerialT IO Word8 -> Stream IO Word8)
+        $ S.fromSerial $ S.replicate 100000 123
     (S.length $ IP.splitOnSeq arr FL.drain
-        $ S.unfold FH.read inh) -- >>= print
+        $ S.unfold FH.reader inh) -- >>= print
 
 -- | Split on suffix sequence.
 splitOnSuffixSeq :: String -> Handle -> IO Int
 splitOnSuffixSeq str inh =
     (S.length $ IP.splitOnSuffixSeq (toarr str) FL.drain
-        $ S.unfold FH.read inh) -- >>= print
+        $ S.unfold FH.reader inh) -- >>= print
 
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'splitOnSuffixSeq
@@ -162,7 +165,7 @@ splitOnSuffixSeq str inh =
 splitWithSuffixSeq :: String -> Handle -> IO Int
 splitWithSuffixSeq str inh =
     S.length $ IP.splitWithSuffixSeq (toarr str) FL.drain
-        $ S.unfold FH.read inh -- >>= print
+        $ S.unfold FH.reader inh -- >>= print
 
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_split env =
@@ -221,7 +224,7 @@ splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
     (S.length $ IP.splitOnSeq (A.fromList str) FL.drain
         $ IP.fromStream
-        $ IUS.decodeUtf8Arrays
+        $ IUS.decodeUtf8Chunks
         $ IFH.readChunks inh) -- >>= print
 
 o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]

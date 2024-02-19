@@ -29,12 +29,6 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 #else
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
-#ifdef USE_STREAMK
-import Stream.Common (benchIO, drain)
-import Streamly.Internal.Data.StreamK (StreamK)
-import qualified Streamly.Internal.Data.StreamK as StreamK
-import qualified Control.Monad.State.Strict as State
-#endif
 #endif
 
 import Test.Tasty.Bench
@@ -93,43 +87,6 @@ o_1_space_hoisting value =
         ]
     ]
 
-#ifdef USE_STREAMK
-{-# INLINE iterateStateIO #-}
-iterateStateIO ::
-       Monad m
-    => Int
-    -> StateT Int m Int
-iterateStateIO n = do
-    x <- get
-    if x > n
-    then do
-        put (x - 1)
-        iterateStateIO n
-    else return x
-
--- XXX This is basically testing the perf of concatEffect, change it to just
--- use concatEffect and move it along with other concatMap benchmarks.
-{-# INLINE iterateStateT #-}
-iterateStateT :: Int -> StreamK (StateT Int IO) Int
-iterateStateT n = StreamK.concatEffect $ do
-    x <- get
-    if x > n
-    then do
-        put (x - 1)
-        return $ iterateStateT n
-    else return $ StreamK.fromPure x
-
-o_n_heap_transformer :: Int -> [Benchmark]
-o_n_heap_transformer value =
-    [ bgroup "transformer"
-        [ benchIO "StateT Int IO (n times) (baseline)" $ \n ->
-            State.evalStateT (iterateStateIO n) value
-        , benchIO "Stream (StateT Int IO) (n times)" $ \n ->
-            State.evalStateT (drain $ Common.toStream (iterateStateT n)) value
-        ]
-    ]
-#endif
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -140,7 +97,4 @@ o_n_heap_transformer value =
 benchmarks :: String -> Int -> [Benchmark]
 benchmarks moduleName size =
         [ bgroup (o_1_space_prefix moduleName) (o_1_space_hoisting size)
-#ifdef USE_STREAMK
-        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_transformer size)
-#endif
         ]

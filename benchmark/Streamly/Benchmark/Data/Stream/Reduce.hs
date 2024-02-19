@@ -50,15 +50,6 @@ import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Internal.Data.Stream.Prelude as S
 #endif
-
-#ifdef USE_STREAMK
-import Streamly.Internal.Data.StreamK (StreamK)
-import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.StreamK as K
-#else
-import qualified Streamly.Internal.Data.Stream as K
-#endif
-
 #endif
 
 import Test.Tasty.Bench
@@ -71,22 +62,6 @@ type Stream = S.SerialT
 #endif
 
 -- Apply transformation g count times on a stream of length len
-#ifdef USE_STREAMK
-{-# INLINE iterateSource #-}
-iterateSource ::
-       MonadAsync m
-    => (StreamK m Int -> StreamK m Int)
-    -> Int
-    -> Int
-    -> Int
-    -> StreamK m Int
-iterateSource g count len n = f count (fromStream $ sourceUnfoldrM len n)
-
-    where
-
-    f (0 :: Int) stream = stream
-    f i stream = f (i - 1) (g stream)
-#else
 {-# INLINE iterateSource #-}
 iterateSource ::
        MonadAsync m
@@ -101,7 +76,6 @@ iterateSource g count len n = f count (sourceUnfoldrM len n)
 
     f (0 :: Int) stream = stream
     f i stream = f (i - 1) (g stream)
-#endif
 
 -------------------------------------------------------------------------------
 -- Grouping transformations
@@ -195,16 +169,6 @@ refoldIterateM =
             (Refold.take 2 Refold.sconcat) (return (Sum 0))
         . fmap Sum
 
-#ifdef USE_STREAMK
-{-# INLINE parseBreak #-}
-parseBreak :: Monad m => StreamK m Int -> m ()
-parseBreak s = do
-    r <- K.parseDBreak PR.one s
-    case r of
-         (Left _, _) -> return ()
-         (Right _, s1) -> parseBreak s1
-#endif
-
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
@@ -225,9 +189,6 @@ o_1_space_grouping value =
         , benchIOSink value "refoldMany" refoldMany
         , benchIOSink value "foldIterateM" foldIterateM
         , benchIOSink value "refoldIterateM" refoldIterateM
-#ifdef USE_STREAMK
-        , benchIOSink value "parseBreak (recursive)" (parseBreak . fromStream)
-#endif
 
 #ifndef USE_STREAMLY_CORE
         , benchIOSink value "classifySessionsOf (10000 buckets)"
@@ -256,7 +217,7 @@ o_1_space_grouping value =
 #ifndef USE_PRELUDE
 {-# INLINE reverse #-}
 reverse :: MonadIO m => Int -> Stream m Int -> m ()
-reverse n = composeN n (toStream . K.reverse . fromStream)
+reverse n = composeN n S.reverse
 
 {-# INLINE reverse' #-}
 reverse' :: MonadIO m => Int -> Stream m Int -> m ()
@@ -412,46 +373,6 @@ o_1_space_transformations_mixedX4 value =
 -- Iterating a transformation over and over again
 -------------------------------------------------------------------------------
 
-#ifdef USE_STREAMK
-{-
--- this is quadratic
-{-# INLINE iterateScan #-}
-iterateScan :: MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateScan count len = toStream . iterateSource (K.scanl' (+) 0) count len
--}
-
-{-# INLINE iterateMapM #-}
-iterateMapM :: MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateMapM count len = toStream . iterateSource (K.mapM return) count len
-
-{-# INLINE iterateFilterEven #-}
-iterateFilterEven :: MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateFilterEven count len =
-    toStream . iterateSource (K.filter even) count len
-
-{-# INLINE iterateTakeAll #-}
-iterateTakeAll :: MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
-iterateTakeAll value count len =
-    toStream . iterateSource (K.take (value + 1)) count len
-
-{-# INLINE iterateDropOne #-}
-iterateDropOne :: MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateDropOne count len = toStream . iterateSource (K.drop 1) count len
-
-{-# INLINE iterateDropWhileTrue #-}
-iterateDropWhileTrue :: MonadAsync m
-    => Int -> Int -> Int -> Int -> Stream m Int
-iterateDropWhileTrue value count len =
-    toStream . iterateSource (K.dropWhile (<= (value + 1))) count len
-
-{-# INLINE iterateDropWhileFalse #-}
-iterateDropWhileFalse :: MonadAsync m
-    => Int -> Int -> Int -> Int -> Stream m Int
-iterateDropWhileFalse value count len =
-    toStream . iterateSource (K.dropWhile (> (value + 1))) count len
-
-#else
-
 -- this is quadratic
 {-# INLINE iterateScan #-}
 iterateScan :: MonadAsync m => Int -> Int -> Int -> Stream m Int
@@ -484,7 +405,6 @@ iterateDropOne = iterateSource (S.drop 1)
 iterateDropWhileTrue :: MonadAsync m
     => Int -> Int -> Int -> Int -> Stream m Int
 iterateDropWhileTrue value = iterateSource (S.dropWhile (<= (value + 1)))
-#endif
 
 #ifdef USE_PRELUDE
 {-# INLINE tail #-}
@@ -505,10 +425,8 @@ o_n_stack_iterated :: Int -> [Benchmark]
 o_n_stack_iterated value = by10 `seq` by100 `seq`
     [ bgroup "iterated"
         [ benchIOSrc "mapM (n/10 x 10)" $ iterateMapM by10 10
-#ifndef USE_STREAMK
         , benchIOSrc "scanl' (quadratic) (n/100 x 100)" $
             iterateScan by100 100
-#endif
 #ifdef USE_PRELUDE
         , benchIOSrc "scanl1' (n/10 x 10)" $ iterateScanl1 by10 10
 #endif
@@ -517,10 +435,6 @@ o_n_stack_iterated value = by10 `seq` by100 `seq`
         , benchIOSrc "takeAll (n/10 x 10)" $
             iterateTakeAll value by10 10
         , benchIOSrc "dropOne (n/10 x 10)" $ iterateDropOne by10 10
-#ifdef USE_STREAMK
-        , benchIOSrc "dropWhileFalse (n/10 x 10)" $
-            iterateDropWhileFalse value by10 10
-#endif
         , benchIOSrc "dropWhileTrue (n/10 x 10)" $
             iterateDropWhileTrue value by10 10
 #ifdef USE_PRELUDE
@@ -569,10 +483,12 @@ o_1_space_pipesX4 value =
 -- Scans
 -------------------------------------------------------------------------------
 
+#ifndef USE_PRELUDE
 o_1_space_scans :: Int -> [Benchmark]
 o_1_space_scans value =
     [ bgroup "scans"
-        [ benchIOSink value "mapM" (scanMapM 1)
+        [
+          benchIOSink value "mapM" (scanMapM 1)
         , benchIOSink value "compose" (scanComposeMapM 1)
         , benchIOSink value "tee" (scanTeeMapM 1)
         ]
@@ -586,6 +502,7 @@ o_1_space_scansX4 value =
         , benchIOSink value "tee" (scanTeeMapM 4)
         ]
     ]
+#endif
 
 -------------------------------------------------------------------------------
 -- Main
@@ -605,9 +522,11 @@ benchmarks moduleName size =
             , o_1_space_pipes size
             , o_1_space_pipesX4 size
 
+#ifndef USE_PRELUDE
             -- scans
             , o_1_space_scans size
             , o_1_space_scansX4 size
+#endif
             ]
         , bgroup (o_n_stack_prefix moduleName) (o_n_stack_iterated size)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_buffering size)

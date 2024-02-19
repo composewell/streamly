@@ -48,14 +48,6 @@ import qualified Streamly.Internal.Data.Stream as Stream
 #ifndef USE_STREAMLY_CORE
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 #endif
-#ifdef USE_STREAMK
-import Control.DeepSeq (NFData(..))
-import Data.Functor.Identity (Identity(..))
-import qualified Prelude
-import qualified Streamly.Internal.Data.Fold as Fold
-import Streamly.Internal.Data.StreamK (StreamK)
-import qualified Streamly.Internal.Data.StreamK as StreamK
-#endif
 #endif
 
 import Test.Tasty.Bench
@@ -74,54 +66,6 @@ type Stream = Stream.SerialT
 -------------------------------------------------------------------------------
 -- one-to-one transformations
 -------------------------------------------------------------------------------
-
--------------------------------------------------------------------------------
--- Traversable Instance
--------------------------------------------------------------------------------
-
-#ifdef USE_STREAMK
-{-# INLINE traversableTraverse #-}
-traversableTraverse :: StreamK Identity Int -> IO (StreamK Identity Int)
-traversableTraverse = traverse return
-
-{-# INLINE traversableSequenceA #-}
-traversableSequenceA :: StreamK Identity Int -> IO (StreamK Identity Int)
-traversableSequenceA = sequenceA . Prelude.fmap return
-
-{-# INLINE traversableMapM #-}
-traversableMapM :: StreamK Identity Int -> IO (StreamK Identity Int)
-traversableMapM = Prelude.mapM return
-
-{-# INLINE traversableSequence #-}
-traversableSequence :: StreamK Identity Int -> IO (StreamK Identity Int)
-traversableSequence = Prelude.sequence . Prelude.fmap return
-
-{-# INLINE benchPureSinkIO #-}
-benchPureSinkIO
-    :: NFData b
-    => Int -> String -> (StreamK Identity Int -> IO b) -> Benchmark
-benchPureSinkIO value name f =
-    bench name
-        $ nfIO $ randomRIO (1, 1) >>= f . fromStream . sourceUnfoldr value
-
-instance NFData a => NFData (StreamK Identity a) where
-    {-# INLINE rnf #-}
-    rnf xs =
-        runIdentity
-            $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) (toStream xs)
-
-o_n_space_traversable :: Int -> [Benchmark]
-o_n_space_traversable value =
-    -- Buffering operations using heap proportional to number of elements.
-    [ bgroup "traversable"
-        -- Traversable instance
-        [ benchPureSinkIO value "traverse" traversableTraverse
-        , benchPureSinkIO value "sequenceA" traversableSequenceA
-        , benchPureSinkIO value "mapM" traversableMapM
-        , benchPureSinkIO value "sequence" traversableSequence
-        ]
-    ]
-#endif
 
 -------------------------------------------------------------------------------
 -- maps and scans
@@ -186,22 +130,6 @@ timestamped :: (MonadAsync m) => Stream m Int -> m ()
 timestamped = Stream.drain . Stream.timestamped
 #endif
 
-#ifdef USE_STREAMK
-{-# INLINE foldrS #-}
-foldrS :: MonadIO m => Int -> Stream m Int -> m ()
-foldrS n =
-    composeN n (toStream . StreamK.foldrS StreamK.cons StreamK.nil . fromStream)
-
-{-# INLINE foldrSMap #-}
-foldrSMap :: MonadIO m => Int -> Stream m Int -> m ()
-foldrSMap n =
-    composeN n
-        ( toStream
-        . StreamK.foldrS (\x xs -> x + 1 `StreamK.cons` xs) StreamK.nil
-        . fromStream
-        )
-#endif
-
 {-
 {-# INLINE foldrT #-}
 foldrT :: MonadIO m => Int -> Stream m Int -> m ()
@@ -223,12 +151,6 @@ o_1_space_mapping value =
     [ bgroup
         "mapping"
         [
-#ifdef USE_STREAMK
-        -- Right folds
-          benchIOSink value "foldrS" (foldrS 1)
-        , benchIOSink value "foldrSMap" (foldrSMap 1)
-        ,
-#endif
         -- , benchIOSink value "foldrT" (foldrT 1)
         -- , benchIOSink value "foldrTMap" (foldrTMap 1)
 
@@ -317,16 +239,6 @@ iterateN g initial count = f count initial
     f (0 :: Int) x = x
     f i x = f (i - 1) (g i x)
 
-#ifdef USE_STREAMK
--- Iterate a transformation over a singleton stream
-{-# INLINE iterateSingleton #-}
-iterateSingleton :: Applicative m =>
-       (Int -> StreamK m Int -> StreamK m Int)
-    -> Int
-    -> Int
-    -> Stream m Int
-iterateSingleton g count n = toStream $ iterateN g (StreamK.fromPure n) count
-#else
 -- Iterate a transformation over a singleton stream
 {-# INLINE iterateSingleton #-}
 iterateSingleton :: Applicative m =>
@@ -335,7 +247,6 @@ iterateSingleton :: Applicative m =>
     -> Int
     -> Stream m Int
 iterateSingleton g count n = iterateN g (Stream.fromPure n) count
-#endif
 
 {-
 -- XXX need to check why this is slower than the explicit recursion above, even
@@ -677,10 +588,6 @@ benchmarks moduleName size =
             ]
         , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
             [
-#ifdef USE_STREAMK
-              o_n_space_traversable size
-            ,
-#endif
               o_n_space_mapping size
             , o_n_space_iterated size
             ]

@@ -179,7 +179,11 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
 readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
 readWriteHandleExceptionStream inh devNull =
     let handler (_e :: SomeException) =
+#ifndef USE_PRELUDE
             return $ Stream.fromEffect (hClose inh >> return 10)
+#else
+            Stream.fromEffect (hClose inh >> return 10)
+#endif
         readEx = Stream.handle handler (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 

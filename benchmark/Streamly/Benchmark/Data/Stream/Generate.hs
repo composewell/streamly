@@ -33,11 +33,6 @@ import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import Stream.Common
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
-#ifdef USE_STREAMK
-import System.IO.Unsafe (unsafeInterleaveIO)
-import qualified Streamly.Internal.Data.StreamK as StreamK
-import qualified Stream.Common as Common
-#endif
 #endif
 
 import Test.Tasty.Bench
@@ -182,18 +177,6 @@ fromIndicesM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
 fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
 #endif
 
-#ifdef USE_STREAMK
-{-# INLINE mfixUnfold #-}
-mfixUnfold :: Int -> Int -> Stream IO (Int, Int)
-mfixUnfold count start = toStream $ StreamK.mfix f
-    where
-    f action = StreamK.unCross $ do
-        let incr n act = fmap ((+n) . snd)  $ unsafeInterleaveIO act
-        x <- StreamK.mkCross (fromStream $ Common.fromListM [incr 1 action, incr 2 action])
-        y <- StreamK.mkCross (fromStream $ Common.sourceUnfoldr count start)
-        return (x, y)
-#endif
-
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup "generation"
@@ -225,22 +208,12 @@ o_1_space_generation value =
         , benchIOSrc "fromIndicesM" (fromIndicesM value)
 #endif
 
-          -- These essentially test cons and consM
-#ifdef USE_STREAMK
-        , benchIOSrc "fromFoldable" (sourceFromFoldable value)
+        -- These essentially test cons and consM
         -- , benchIOSrc "fromFoldable 16" (sourceFromFoldable 16)
-#else
-        -- , benchIOSrc "fromFoldable 16" (sourceFromFoldable 16)
-#endif
 
 #ifdef USE_PRELUDE
         , benchIOSrc "fromFoldableM" (sourceFromFoldableM value)
         , benchIOSrc "absTimes" $ absTimes value
-#endif
-#ifdef USE_STREAMK
-        , Common.benchIOSrc "mfix_10" (mfixUnfold 10)
-        , Common.benchIOSrc "mfix_100" (mfixUnfold 100)
-        , Common.benchIOSrc "mfix_1000" (mfixUnfold 1000)
 #endif
         ]
     ]

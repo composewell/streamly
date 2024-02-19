@@ -44,17 +44,10 @@ import qualified Streamly.Internal.Data.Stream as D
 import Streamly.Prelude (fromSerial)
 import Streamly.Benchmark.Prelude
 import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Internal.Data.Stream.IsStream as StreamK
 #else
 import Stream.Common
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as S
-#ifdef USE_STREAMK
-import Streamly.Internal.Data.StreamK (StreamK)
-import qualified Streamly.Data.StreamK as StreamK
-#else
-import qualified Streamly.Internal.Data.Stream as StreamK
-#endif
 #endif
 
 import Test.Tasty.Bench
@@ -277,13 +270,9 @@ benchIdentitySink value name f = bench name $ nf (f . sourceUnfoldr value) 1
 -------------------------------------------------------------------------------
 
 {-# INLINE uncons #-}
-#ifdef USE_STREAMK
-uncons :: Monad m => StreamK m Int -> m ()
-#else
 uncons :: Monad m => Stream m Int -> m ()
-#endif
 uncons s = do
-    r <- StreamK.uncons s
+    r <- S.uncons s
     case r of
         Nothing -> return ()
         Just (_, t) -> uncons t
@@ -308,15 +297,9 @@ foldrMElem e =
                  else xs)
         (return False)
 
-#ifdef USE_STREAMK
-{-# INLINE foldrToStream #-}
-foldrToStream :: Monad m => Stream m Int -> m (StreamK Identity Int)
-foldrToStream = S.foldr StreamK.cons StreamK.nil
-#else
 -- {-# INLINE foldrToStream #-}
 -- foldrToStream :: Monad m => Stream m Int -> m (Stream Identity Int)
 -- foldrToStream = S.foldr S.cons S.nil
-#endif
 
 {-# INLINE foldrMBuild #-}
 foldrMBuild :: Monad m => Stream m Int -> m [Int]
@@ -460,19 +443,10 @@ o_1_space_elimination_folds value =
                   ]
             , bgroup "Identity"
                   [ benchIdentitySink value "foldrMElem" (foldrMElem value)
-#ifdef USE_STREAMK
-                  , benchIdentitySink value "foldrToStreamLength"
-                        (S.fold Fold.length . toStream . runIdentity . foldrToStream)
-                  {-
-                  , benchIdentitySink 16 "foldrToStreamLength (16)"
-                        (S.fold Fold.length . toStream . runIdentity . foldrToStream)
-                  -}
-#else
                   {-
                   , benchIdentitySink 16 "foldrToStreamLength (16)"
                         (S.fold Fold.length . runIdentity . foldrToStream)
                   -}
-#endif
                   {-
                   , benchPureSink 16 "foldrMToListLength (16)"
                         (Prelude.length . runIdentity . foldrMBuild)
@@ -483,7 +457,7 @@ o_1_space_elimination_folds value =
             ]
 
         -- deconstruction
-        , benchIOSink value "uncons" (uncons . fromStream)
+        , benchIOSink value "uncons" uncons
 #ifndef USE_PRELUDE
         , benchHoistSink value "length . generalizeInner"
               (S.fold Fold.length . S.generalizeInner)
