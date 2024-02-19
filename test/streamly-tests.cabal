@@ -214,8 +214,45 @@ common always-optimized
     ghc-options: -fplugin Fusion.Plugin
 
 -------------------------------------------------------------------------------
--- Test suites in sorted order
+-- Test suites in alphabetical order
 -------------------------------------------------------------------------------
+
+test-suite Data.Array
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Array.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.main
+
+test-suite Data.Array.Generic
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Array/Generic.hs
+  ghc-options: -main-is Streamly.Test.Data.Array.Generic.main
+  if flag(use-streamly-core)
+    buildable: False
+
+test-suite Data.Array.Stream
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Array/Stream.hs
+  if flag(use-streamly-core)
+    buildable: False
+
+test-suite Data.Binary
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Serialize/Serializable.hs
+
+test-suite Data.Fold
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Fold.hs
+
+test-suite Data.Fold.Window
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Fold/Window.hs
+  ghc-options: -main-is Streamly.Test.Data.Fold.Window.main
 
 -- The Streamly.Data.List needs to be fixed to enable this
 -- test-suite Data.List
@@ -231,19 +268,74 @@ test-suite Data.List.Base
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/List.hs
 
-test-suite Data.Array.Generic
+test-suite Data.MutArray
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Generic.hs
-  ghc-options: -main-is Streamly.Test.Data.Array.Generic.main
+  main-is: Streamly/Test/Data/MutArray.hs
+  ghc-options: -main-is Streamly.Test.Data.MutArray.main
+
+test-suite Data.Parser
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Parser.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M4000M -RTS
+
+test-suite Data.ParserK
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/ParserK.hs
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
+
+test-suite Data.Ring.Unboxed
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Ring/Unboxed.hs
+  ghc-options: -main-is Streamly.Test.Data.Ring.Unboxed.main
   if flag(use-streamly-core)
     buildable: False
 
-test-suite Data.Array
+-- XXX Rename to MutByteArray
+test-suite Data.Serialize
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array.hs
-  ghc-options: -main-is Streamly.Test.Data.Array.main
+  main-is: Streamly/Test/Data/Serialize.hs
+  other-modules:
+      Streamly.Test.Data.Serialize.TH
+      Streamly.Test.Data.Serialize.CompatV0
+      Streamly.Test.Data.Serialize.CompatV1
+  ghc-options: -main-is Streamly.Test.Data.Serialize.main
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
+
+test-suite Data.Serialize.Derive.TH
+  import: test-options
+  type: exitcode-stdio-1.0
+  cpp-options: -DUSE_SERIALIZE
+  main-is: Streamly/Test/Data/Unbox.hs
+  ghc-options: -main-is Streamly.Test.Data.Unbox.main
+
+test-suite Data.Serialize.ENABLE_constructorTagAsString
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Serialize.hs
+  other-modules:
+      Streamly.Test.Data.Serialize.TH
+      Streamly.Test.Data.Serialize.CompatV0
+      Streamly.Test.Data.Serialize.CompatV1
+  cpp-options: -DENABLE_constructorTagAsString
+  ghc-options: -main-is Streamly.Test.Data.Serialize.main
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1500M -RTS
+
+test-suite Data.SmallArray
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/SmallArray.hs
+  ghc-options: -main-is Streamly.Test.Data.SmallArray.main
+  if !flag(dev) || flag(use-streamly-core)
+    buildable: False
 
 test-suite Data.Stream
   import: test-options
@@ -271,20 +363,7 @@ test-suite Data.Stream.Rate
   if flag(use-streamly-core)
     buildable: False
 
-test-suite Data.MutArray
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/MutArray.hs
-  ghc-options: -main-is Streamly.Test.Data.MutArray.main
-
-test-suite Data.Ring.Unboxed
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Ring/Unboxed.hs
-  ghc-options: -main-is Streamly.Test.Data.Ring.Unboxed.main
-  if flag(use-streamly-core)
-    buildable: False
-
+-- XXX Rename to MutByteArray.Unbox
 test-suite Data.Unbox.Derive.Generic
   import: test-options
   type: exitcode-stdio-1.0
@@ -298,83 +377,11 @@ test-suite Data.Unbox.Derive.TH
   main-is: Streamly/Test/Data/Unbox.hs
   ghc-options: -main-is Streamly.Test.Data.Unbox.main
 
-test-suite Data.Serialize.Derive.TH
-  import: test-options
-  type: exitcode-stdio-1.0
-  cpp-options: -DUSE_SERIALIZE
-  main-is: Streamly/Test/Data/Unbox.hs
-  ghc-options: -main-is Streamly.Test.Data.Unbox.main
-
 test-suite Data.Unbox.TH
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Unbox/TH.hs
   ghc-options: -main-is Streamly.Test.Data.Unbox.TH.main
-
-test-suite Data.Serialize
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Serialize.hs
-  other-modules:
-      Streamly.Test.Data.Serialize.TH
-      Streamly.Test.Data.Serialize.CompatV0
-      Streamly.Test.Data.Serialize.CompatV1
-  ghc-options: -main-is Streamly.Test.Data.Serialize.main
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
-
-test-suite Data.Serialize.ENABLE_constructorTagAsString
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Serialize.hs
-  other-modules:
-      Streamly.Test.Data.Serialize.TH
-      Streamly.Test.Data.Serialize.CompatV0
-      Streamly.Test.Data.Serialize.CompatV1
-  cpp-options: -DENABLE_constructorTagAsString
-  ghc-options: -main-is Streamly.Test.Data.Serialize.main
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
-
-test-suite Data.Array.Stream
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Stream.hs
-  if flag(use-streamly-core)
-    buildable: False
-
-test-suite Data.Fold
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Fold.hs
-
-test-suite Data.Fold.Window
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Fold/Window.hs
-  ghc-options: -main-is Streamly.Test.Data.Fold.Window.main
-
-test-suite Data.Parser
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Parser.hs
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M4000M -RTS
-
-test-suite Data.ParserK
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/ParserK.hs
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
-
-test-suite Data.SmallArray
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/SmallArray.hs
-  ghc-options: -main-is Streamly.Test.Data.SmallArray.main
-  if !flag(dev) || flag(use-streamly-core)
-    buildable: False
 
 test-suite Data.Unfold
   import: test-options
@@ -459,6 +466,39 @@ test-suite Network.Socket
     ghc-options: -threaded -with-rtsopts=-N
   if flag(use-streamly-core)
     buildable: False
+
+test-suite Unicode.Char
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Unicode/Char.hs
+  ghc-options: -main-is Streamly.Test.Unicode.Char.main
+  if flag(use-streamly-core) || !flag(dev)
+    buildable: False
+
+test-suite Unicode.Parser
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Unicode/Parser.hs
+  ghc-options: -main-is Streamly.Test.Unicode.Parser.main
+  if flag(use-streamly-core)
+    buildable: False
+
+test-suite Unicode.Stream
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Unicode/Stream.hs
+  ghc-options: -main-is Streamly.Test.Unicode.Stream.main
+  if flag(use-streamly-core)
+    buildable: False
+
+test-suite version-bounds
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: version-bounds.hs
+
+-------------------------------------------------------------------------------
+-- Deprecated
+-------------------------------------------------------------------------------
 
 test-suite Prelude
   import: test-options
@@ -572,37 +612,3 @@ test-suite Prelude.ZipSerial
   ghc-options: -main-is Streamly.Test.Prelude.ZipSerial.main
   if flag(use-streamly-core)
     buildable: False
-
-test-suite Unicode.Stream
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Unicode/Stream.hs
-  ghc-options: -main-is Streamly.Test.Unicode.Stream.main
-  if flag(use-streamly-core)
-    buildable: False
-
-test-suite Unicode.Parser
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Unicode/Parser.hs
-  ghc-options: -main-is Streamly.Test.Unicode.Parser.main
-  if flag(use-streamly-core)
-    buildable: False
-
-test-suite Unicode.Char
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Unicode/Char.hs
-  ghc-options: -main-is Streamly.Test.Unicode.Char.main
-  if flag(use-streamly-core) || !flag(dev)
-    buildable: False
-
-test-suite Serialize.Serializable
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Serialize/Serializable.hs
-
-test-suite version-bounds
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: version-bounds.hs
