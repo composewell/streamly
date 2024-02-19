@@ -70,6 +70,20 @@ targets =
             , "noTest"
             ]
       )
+    , ("Data.ParserK.Chunked",
+            [ "infinite_grp"
+            , "fold_parser_grp"
+            , "parser_cmp"
+            , "noTest"
+            ]
+      )
+    , ("Data.ParserK.Chunked.Generic",
+            [ "infinite_grp"
+            , "fold_parser_grp"
+            , "parser_cmp"
+            , "noTest"
+            ]
+      )
     , ("Data.Ring.Unboxed",
             [ "array_grp"
             ]
@@ -93,12 +107,6 @@ targets =
             , "serial_stream_grp"
             , "serial_stream_cmp"
             , "serial_concurrent_cmp"
-            , "noTest"
-            ]
-      )
-    , ("Data.Stream.StreamDK",
-            [ "infinite_grp"
-            , "serial_stream_grp"
             , "noTest"
             ]
       )
@@ -130,14 +138,11 @@ targets =
             , "noTest"
             ]
       )
-{-
-    -- XXX Need devOnly flag support in BenchRunner
-    , ("Data.Stream.ToStreamK",
-            [ "noTest"
-            , "devOnly"
+    , ("Data.Stream.Rate",
+            [ "infinite_grp"
+            , "concurrent_stream_grp"
             ]
       )
--}
     , ("Data.StreamK",
             [ "infinite_grp"
             , "serial_stream_grp"
@@ -145,6 +150,16 @@ targets =
             , "noTest"
             ]
       )
+{-
+    -- XXX Need devOnly flag support in BenchRunner
+    , ("Data.StreamK.FromStream",
+            [ "infinite_grp"
+            , "serial_stream_grp"
+            , "noTest"
+            , "devOnly"
+            ]
+      )
+-}
     , ("Data.Unbox",
             [ "noTest"
             ]
@@ -178,6 +193,7 @@ targets =
     , ("Network.Inet.TCP", ["noBench"])
     , ("Network.Socket", ["noBench"])
     , ("Unicode.Char", ["testDevOnly"])
+    , ("Unicode.Parser", [])
     , ("Unicode.Stream", [])
     , ("Unicode.Utf8", ["noTest"])
     , ("version-bounds", ["noBench"])
