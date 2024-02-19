@@ -394,6 +394,13 @@ defaultConfig = Config
 -- execution beyond the limit.
 --
 -- 'Nothing' means there is no limit.
+--
+-- Keep in mind that checking this limit all the time has a performance
+-- overhead.
+--
+-- Known Bugs: currently this works only when rate is specified.
+-- Known Bugs: for ordered streams sometimes the actual count is less than
+-- expected.
 maxYields :: Maybe Int64 -> Config -> Config
 maxYields lim st =
     st { _yieldLimit =
@@ -499,7 +506,10 @@ getStreamLatency = _streamLatency
 
 -- XXX Rename to "inspect"
 
--- | Print debug information about the 'Channel' when the stream ends.
+-- | Print debug information about the 'Channel' when the stream ends. When the
+-- stream does not end normally, the channel debug information is printed when
+-- the channel is garbage collected. If you are expecting but not seeing the
+-- debug info try adding a 'performMajorGC' before the program ends.
 --
 inspect :: Bool -> Config -> Config
 inspect flag st = st { _inspect = flag }

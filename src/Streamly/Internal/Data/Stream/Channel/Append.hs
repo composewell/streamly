@@ -26,7 +26,6 @@ import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Heap (Heap, Entry(..))
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef, writeIORef)
-import Data.Kind (Type)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, RunInIO(..), askRunInIO, restoreM)
@@ -48,42 +47,33 @@ import Streamly.Internal.Data.Stream.Channel.Type
 -- Concurrent streams with first-come-first serve results
 ------------------------------------------------------------------------------
 
--- Note: For purely right associated expressions this queue should have at most
--- one element. It grows to more than one when we have left associcated
--- expressions. Large left associated compositions can grow this to a
--- large size
 {-# INLINE enqueueLIFO #-}
 enqueueLIFO ::
       Channel m a
-   -> IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
-   -> Bool
+   -> IORef [(RunInIO m, K.StreamK m a)]
    -> (RunInIO m, K.StreamK m a)
    -> IO ()
-enqueueLIFO sv q inner m = do
-    atomicModifyIORefCAS_ q $ \(xs, ys) ->
-        if inner then (xs, m : ys) else (m : xs, ys)
+enqueueLIFO sv q m = do
+    atomicModifyIORefCAS_ q (m :)
     ringDoorBell (doorBellOnWorkQ sv) (outputDoorBell sv)
-
-data QResult a = QEmpty | QOuter a | QInner a
 
 {-# INLINE dequeue #-}
 dequeue :: MonadIO m =>
-       IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
-    -> m (QResult (RunInIO m, K.StreamK m a))
+       IORef [(RunInIO m, K.StreamK m a)]
+    -> m (Maybe (RunInIO m, K.StreamK m a))
 dequeue qref =
     liftIO
         $ atomicModifyIORefCAS qref
         $ \case
-            (xs, y : ys) -> ((xs, ys), QInner y)
-            (x : xs, ys) -> ((xs, ys), QOuter x)
-            x -> (x, QEmpty)
+            (x : xs) -> (xs, Just x)
+            x -> (x, Nothing)
 
 data WorkerStatus = Continue | Suspend
 
 {-# INLINE workLoopLIFO #-}
 workLoopLIFO
     :: MonadRunInIO m
-    => IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
+    => IORef [(RunInIO m, K.StreamK m a)]
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -94,14 +84,10 @@ workLoopLIFO qref sv winfo = run
     run = do
         work <- dequeue qref
         case work of
-            QEmpty ->
-                liftIO $ stopWith winfo sv
-            QInner (RunInIO runin, m) ->
-                process runin m True
-            QOuter (RunInIO runin, m) ->
-                process runin m False
+            Nothing -> liftIO $ stopWith winfo sv
+            Just (RunInIO runin, m) -> process runin m
 
-    process runin m inner = do
+    process runin m = do
         -- XXX when we finish we need to send the monadic state back to
         -- the parent so that the state can be merged back. We capture
         -- and return the state in the stop continuation.
@@ -133,7 +119,7 @@ workLoopLIFO qref sv winfo = run
             then K.foldStreamShared undefined yieldk single (return Continue) r
             else do
                 runInIO <- askRunInIO
-                liftIO $ enqueueLIFO sv qref inner (runInIO, r)
+                liftIO $ enqueueLIFO sv qref (runInIO, r)
                 return Suspend
 
 -- We duplicate workLoop for yield limit and no limit cases because it has
@@ -144,7 +130,7 @@ workLoopLIFO qref sv winfo = run
 {-# INLINE workLoopLIFOLimited #-}
 workLoopLIFOLimited
     :: forall m a. MonadRunInIO m
-    => IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
+    => IORef [(RunInIO m, K.StreamK m a)]
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -158,14 +144,10 @@ workLoopLIFOLimited qref sv winfo = run
     run = do
         work <- dequeue qref
         case work of
-            QEmpty ->
-                liftIO $ stopWith winfo sv
-            QInner item ->
-                process item True
-            QOuter item ->
-                process item False
+            Nothing -> liftIO $ stopWith winfo sv
+            Just item -> process item
 
-    process item@(RunInIO runin, m) inner = do
+    process item@(RunInIO runin, m) = do
         -- XXX This is just a best effort minimization of concurrency
         -- to the yield limit. If the stream is made of concurrent
         -- streams we do not reserve the yield limit in the constituent
@@ -189,7 +171,7 @@ workLoopLIFOLimited qref sv winfo = run
         -- Avoid any side effects, undo the yield limit decrement if we
         -- never yielded anything.
         else liftIO $ do
-            enqueueLIFO sv qref inner item
+            enqueueLIFO sv qref item
             incrementYieldLimit (remainingWork sv)
             stopWith winfo sv
 
@@ -209,7 +191,7 @@ workLoopLIFOLimited qref sv winfo = run
             else do
                 runInIO <- askRunInIO
                 liftIO $ incrementYieldLimit (remainingWork sv)
-                liftIO $ enqueueLIFO sv qref inner (runInIO, r)
+                liftIO $ enqueueLIFO sv qref (runInIO, r)
                 return Suspend
 
 -------------------------------------------------------------------------------
@@ -267,7 +249,7 @@ enqueueAhead sv q m = do
 
 {-# INLINE dequeueAhead #-}
 dequeueAhead :: MonadIO m
-    => IORef ([t m a], Int) -> m (Maybe (t m a, Int))
+    => IORef ([K.StreamK m a], Int) -> m (Maybe (K.StreamK m a, Int))
 dequeueAhead q = liftIO $
     atomicModifyIORefCAS q $ \case
             ([], n) -> (([], n), Nothing)
@@ -276,7 +258,7 @@ dequeueAhead q = liftIO $
 -- Dequeue only if the seq number matches the expected seq number.
 {-# INLINE dequeueAheadSeqCheck #-}
 dequeueAheadSeqCheck :: MonadIO m
-    => IORef ([t m a], Int) -> Int -> m (Maybe (t m a))
+    => IORef ([K.StreamK m a], Int) -> Int -> m (Maybe (K.StreamK m a))
 dequeueAheadSeqCheck q seqNo = liftIO $
     atomicModifyIORefCAS q $ \case
             ([], n) -> (([], n), Nothing)
@@ -296,20 +278,40 @@ atomicModifyIORef_ :: IORef a -> (a -> a) -> IO ()
 atomicModifyIORef_ ref f =
     atomicModifyIORef ref $ \x -> (f x, ())
 
-data AheadHeapEntry (t :: (Type -> Type) -> Type -> Type) m a =
-      AheadEntryNull
-    | AheadEntryPure a
-    | AheadEntryStream (RunInIO m, t m a)
+data AheadHeapEntry m a =
+      AheadEntryNull -- ^ an empty result, required for sequencing
+    | AheadEntryPure a -- ^ a yielded value
+    -- ^ A stream with its head possibly evaluated, and tail unevaluated
+    | AheadEntryStream (RunInIO m, Maybe a, K.StreamK m a)
 
-data HeapDequeueResult t m a =
+data HeapDequeueResult m a =
+    -- | Not dequeued because someone is processing the heap. This is indicated
+    -- by the second component of the heap IORef tuple being set to 'Nothing'.
       Clearing
+    -- | Not dequeued because the seq no. of the top entry is not the next one
+    -- expected in seqeunce, we have to wait.
     | Waiting Int
-    | Ready (Entry Int (AheadHeapEntry t m a))
+    -- | dequeued successfully, the seq no. of the top entry is the next one
+    -- expected in sequence.
+    | Ready (Entry Int (AheadHeapEntry m a))
 
+-- | The heap is stored in an IORef along with a sequence number. When the
+-- sequence number is set to 'Nothing' it means we are processing the heap. The
+-- type of the dequeued entry would be 'Clearing' in this case. When the
+-- sequence number in the IORef is set to 'Just' then it is the next expected
+-- sequence number. If the dequeued entry matches with this expected sequence
+-- number then it is 'Ready' and dequeued otherwise it is 'Waiting'. When we
+-- return 'Clearing' or 'Waiting', the heap is not modified i.e. nothing is
+-- dequeued.
+--
+-- Note, when we have n streams each consisting of multiple items composed with
+-- "ordered" execution then the entire stream is treated as one item with the
+-- given sequence number and all of its elements are yielded serially.
 {-# INLINE dequeueFromHeap #-}
 dequeueFromHeap
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
-    -> IO (HeapDequeueResult t m a)
+    :: IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
+    -- ^ (heap, Maybe sequence-no).
+    -> IO (HeapDequeueResult m a)
 dequeueFromHeap hpVar =
     atomicModifyIORef hpVar $ \pair@(hp, snum) ->
         case snum of
@@ -323,11 +325,15 @@ dequeueFromHeap hpVar =
                             else assert (seqNo >= n) (pair, Waiting n)
                     Nothing -> (pair, Waiting n)
 
+-- | Called only when the heap is being processed to transfer entries to output
+-- queue. Matches the sequence number of the dequeued entry with the supplied
+-- sequence number to determine if the entry is 'Ready' or 'Waiting'. Heap is
+-- not modified if we return 'Waiting' i.e. entry is not dequeued.
 {-# INLINE dequeueFromHeapSeq #-}
 dequeueFromHeapSeq
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
+    :: IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Int
-    -> IO (HeapDequeueResult t m a)
+    -> IO (HeapDequeueResult m a)
 dequeueFromHeapSeq hpVar i =
     atomicModifyIORef hpVar $ \(hp, snum) ->
         case snum of
@@ -349,8 +355,8 @@ heapIsSane snum seqNo =
 
 {-# INLINE requeueOnHeapTop #-}
 requeueOnHeapTop
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
-    -> Entry Int (AheadHeapEntry t m a)
+    :: IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
+    -> Entry Int (AheadHeapEntry m a)
     -> Int
     -> IO ()
 requeueOnHeapTop hpVar ent seqNo =
@@ -359,7 +365,7 @@ requeueOnHeapTop hpVar ent seqNo =
 
 {-# INLINE updateHeapSeq #-}
 updateHeapSeq
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
+    :: IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Int
     -> IO ()
 updateHeapSeq hpVar seqNo =
@@ -444,7 +450,7 @@ updateHeapSeq hpVar seqNo =
 {-# INLINE underMaxHeap #-}
 underMaxHeap ::
        Channel m a
-    -> Heap (Entry Int (AheadHeapEntry K.StreamK m a))
+    -> Heap (Entry Int (AheadHeapEntry m a))
     -> IO Bool
 underMaxHeap sv hp = do
     (_, len) <- readIORef (outputQueue sv)
@@ -466,7 +472,7 @@ underMaxHeap sv hp = do
 -- False => continue
 preStopCheck ::
        Channel m a
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)) , Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)) , Maybe Int)
     -> IO Bool
 preStopCheck sv heap =
     -- check the stop condition under a lock before actually
@@ -485,10 +491,10 @@ preStopCheck sv heap =
             case yieldRateInfo sv of
                 Nothing -> continue
                 Just yinfo -> do
-                    rateOk <-
+                    beyondRate <-
                         isBeyondMaxRate
                             (maxWorkerLimit sv) (workerCount sv) yinfo
-                    if rateOk then continue else stopping
+                    if beyondRate then stopping else continue
         else stopping
 
 abortExecution :: Channel m a -> Maybe WorkerInfo -> IO ()
@@ -515,76 +521,26 @@ abortExecution sv winfo = do
 -- 2) make the other threads queue and go away if draining is in progress
 --
 -- In both cases we give the drainer a chance to run more often.
+
+-- | Move entries from the heap to the channel's output queue. Only those
+-- entries which are in correct order are transferred. Stop whenever a missing
+-- sequence number is encountered.
 --
+-- We enter this function only when we have verified that the sequence number
+-- passed to it is the next expected sequence number.
 processHeap
     :: MonadRunInIO m
-    => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    => IORef ([K.StreamK m a], Int) -- ^ work queue
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int) -- ^ heap
     -> Channel m a
     -> Maybe WorkerInfo
-    -> AheadHeapEntry K.StreamK m a
-    -> Int
-    -> Bool -- we are draining the heap before we stop
+    -> AheadHeapEntry m a -- heap entry dequeued from top of heap
+    -> Int -- seq no. of the heap entry, this is the next correct seq no.
+    -> Bool -- True if we are draining the heap when we are finally stopping
     -> m ()
 processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
 
     where
-
-    stopIfNeeded ent seqNo r = do
-        stopIt <- liftIO $ preStopCheck sv heap
-        if stopIt
-        then liftIO $ do
-            -- put the entry back in the heap and stop
-            requeueOnHeapTop heap (Entry seqNo ent) seqNo
-            stopWith winfo sv
-        else runStreamWithYieldLimit True seqNo r
-
-    loopHeap seqNo ent =
-        case ent of
-            AheadEntryNull -> nextHeap seqNo
-            AheadEntryPure a -> do
-                -- Use 'send' directly so that we do not account this in worker
-                -- latency as this will not be the real latency.
-                -- Don't stop the worker in this case as we are just
-                -- transferring available results from heap to outputQueue.
-                void
-                    $ liftIO
-                    $ sendEvent
-                        (outputQueue sv) (outputDoorBell sv) (ChildYield a)
-                nextHeap seqNo
-            AheadEntryStream (RunInIO runin, r) -> do
-                if stopping
-                then stopIfNeeded ent seqNo r
-                else do
-                    res <- liftIO $ runin (runStreamWithYieldLimit True seqNo r)
-                    restoreM res
-
-    nextHeap prevSeqNo = do
-        res <- liftIO $ dequeueFromHeapSeq heap (prevSeqNo + 1)
-        case res of
-            Ready (Entry seqNo hent) -> loopHeap seqNo hent
-            Clearing -> liftIO $ stopWith winfo sv
-            Waiting _ ->
-                if stopping
-                then do
-                    r <- liftIO $ preStopCheck sv heap
-                    if r
-                    then liftIO $ stopWith winfo sv
-                    else processWorkQueue prevSeqNo
-                else inline processWorkQueue prevSeqNo
-
-    processWorkQueue prevSeqNo = do
-        yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
-        if yieldLimitOk
-        then do
-            work <- dequeueAhead q
-            case work of
-                Nothing -> liftIO $ stopWith winfo sv
-                Just (m, seqNo) -> do
-                    if seqNo == prevSeqNo + 1
-                    then processWithToken q heap sv winfo m seqNo
-                    else processWithoutToken q heap sv winfo m seqNo
-        else liftIO $ abortExecution sv winfo
 
     -- We do not stop the worker on buffer full here as we want to proceed to
     -- nextHeap anyway so that we can clear any subsequent entries. We stop
@@ -593,6 +549,10 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
     singleStreamFromHeap seqNo a = do
         void $ liftIO $ yieldWith winfo sv a
         nextHeap seqNo
+
+    yieldStreamFromHeap seqNo a r = do
+        continue <- liftIO $ yieldWith winfo sv a
+        runStreamWithYieldLimit continue seqNo r
 
     -- XXX when we have an unfinished stream on the heap we cannot account all
     -- the yields of that stream until it finishes, so if we have picked up
@@ -616,21 +576,99 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
                           r
         else do
             runIn <- askRunInIO
-            let ent = Entry seqNo (AheadEntryStream (runIn, r))
+            let ent = Entry seqNo (AheadEntryStream (runIn, Nothing, r))
             liftIO $ do
                 requeueOnHeapTop heap ent seqNo
                 incrementYieldLimit (remainingWork sv)
                 stopWith winfo sv
 
-    yieldStreamFromHeap seqNo a r = do
-        continue <- liftIO $ yieldWith winfo sv a
-        runStreamWithYieldLimit continue seqNo r
+    processWorkQueue prevSeqNo = do
+        yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
+        if yieldLimitOk
+        then do
+            work <- dequeueAhead q
+            case work of
+                Nothing -> liftIO $ stopWith winfo sv
+                Just (m, seqNo) -> do
+                    if seqNo == prevSeqNo + 1
+                    then processWithToken q heap sv winfo m seqNo
+                    else processWithoutToken q heap sv winfo m seqNo
+        else liftIO $ abortExecution sv winfo
+
+    nextHeap prevSeqNo = do
+        res <- liftIO $ dequeueFromHeapSeq heap (prevSeqNo + 1)
+        case res of
+            Ready (Entry seqNo hent) -> loopHeap seqNo hent
+            Clearing -> liftIO $ stopWith winfo sv
+            Waiting _ ->
+                if stopping
+                then do
+                    r <- liftIO $ preStopCheck sv heap
+                    if r
+                    then liftIO $ stopWith winfo sv
+                    else processWorkQueue prevSeqNo
+                else inline processWorkQueue prevSeqNo
+
+    -- The main loop processing the heap. The seqNo is correct in sequence,
+    -- this is the one we should be sending to output next.
+    loopHeap seqNo ent =
+        case ent of
+            AheadEntryNull -> nextHeap seqNo
+            AheadEntryPure a -> do
+                -- Use 'send' directly so that we do not account this in worker
+                -- latency as this will not be the real latency.
+                -- Don't stop the worker in this case as we are just
+                -- transferring available results from heap to outputQueue.
+                void
+                    $ liftIO
+                    $ sendEvent
+                        (outputQueue sv) (outputDoorBell sv) (ChildYield a)
+                nextHeap seqNo
+            AheadEntryStream (RunInIO runin, Just a, r) -> do
+                let
+                    action = do
+                        -- XXX deduplicate this code with the same code above
+                        void
+                            $ liftIO
+                            $ sendEvent
+                                (outputQueue sv) (outputDoorBell sv) (ChildYield a)
+                        runStreamWithYieldLimit True seqNo r
+                    go = do
+                        res <- liftIO $ runin action
+                        restoreM res
+                if stopping
+                then do
+                    stopIt <- liftIO $ preStopCheck sv heap
+                    if stopIt
+                    then liftIO $ do
+                        -- put the entry back in the heap and stop
+                        requeueOnHeapTop heap (Entry seqNo ent) seqNo
+                        stopWith winfo sv
+                    else go
+                else go
+            AheadEntryStream (RunInIO runin, Nothing, r) -> do
+                -- XXX deuplicate this code with the code above
+                let
+                    action = runStreamWithYieldLimit True seqNo r
+                    go = do
+                        res <- liftIO $ runin action
+                        restoreM res
+                if stopping
+                then do
+                    stopIt <- liftIO $ preStopCheck sv heap
+                    if stopIt
+                    then liftIO $ do
+                        -- put the entry back in the heap and stop
+                        requeueOnHeapTop heap (Entry seqNo ent) seqNo
+                        stopWith winfo sv
+                    else go
+                else go
 
 {-# NOINLINE drainHeap #-}
 drainHeap
     :: MonadRunInIO m
     => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -643,10 +681,16 @@ drainHeap q heap sv winfo = do
 
 data HeapStatus = HContinue | HStop
 
+-- XXX Rename to processOutOfOrder
+
+-- | Without token means the worker is working on an item which not the next in
+-- sequence, therefore, the output has to be placed on the heap rather than
+-- sending it directly to the output queue.
+--
 processWithoutToken
     :: MonadRunInIO m
     => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> K.StreamK m a
@@ -664,11 +708,15 @@ processWithoutToken q heap sv winfo m seqNo = do
             toHeap AheadEntryNull
         mrun = runInIO $ svarMrun sv
 
+    -- XXX When StreamD streams are converted to StreamK, even for singleton
+    -- streams we have a yield and a stop. That can cause perf overhead in case
+    -- of concurrent workers. We should always create streams with a "single"
+    -- continuation.
     r <- liftIO $ mrun $
             K.foldStreamShared undefined
                 (\a r -> do
                     runIn <- askRunInIO
-                    toHeap $ AheadEntryStream (runIn, K.cons a r))
+                    toHeap $ AheadEntryStream (runIn, Just a, r))
                 (toHeap . AheadEntryPure)
                 stopk
                 m
@@ -696,6 +744,8 @@ processWithoutToken q heap sv winfo m seqNo = do
                     writeIORef (maxHeapSize $ svarStats sv) (H.size newHp)
 
         heapOk <- liftIO $ underMaxHeap sv newHp
+
+        -- XXX Refactor to use join points
         status <-
             case yieldRateInfo sv of
                 Nothing -> return HContinue
@@ -723,10 +773,18 @@ processWithoutToken q heap sv winfo m seqNo = do
 
 data TokenWorkerStatus = TokenContinue Int | TokenSuspend
 
+-- XXX Rename to processInOrder
+
+-- | With token means this worker is working on an item which is the next in
+-- sequence, therefore, it can be yielded directly to the output queue,
+-- avoiding the heap.
+--
+-- Before suspending the worker has the responsibility to transfer all the
+-- in-sequence entries from the heap to the output queue.
 processWithToken
     :: MonadRunInIO m
     => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> K.StreamK m a
@@ -779,7 +837,7 @@ processWithToken q heap sv winfo action sno = do
                           r
         else do
             runIn <- askRunInIO
-            let ent = Entry seqNo (AheadEntryStream (runIn, r))
+            let ent = Entry seqNo (AheadEntryStream (runIn, Nothing, r))
             liftIO $ requeueOnHeapTop heap ent seqNo
             liftIO $ incrementYieldLimit (remainingWork sv)
             return TokenSuspend
@@ -835,7 +893,7 @@ processWithToken q heap sv winfo action sno = do
 workLoopAhead
     :: MonadRunInIO m
     => IORef ([K.StreamK m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry K.StreamK m a)), Maybe Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)), Maybe Int)
     -> Channel m a
     -> Maybe WorkerInfo
     -> m ()
@@ -888,18 +946,19 @@ getLifoSVar :: forall m a. MonadRunInIO m =>
     RunInIO m -> Config -> IO (Channel m a)
 getLifoSVar mrun cfg = do
     outQ    <- newIORef ([], 0)
-    -- the second component of the tuple is "Nothing" when heap is being
-    -- cleared, "Just n" when we are expecting sequence number n to arrive
-    -- before we can start clearing the heap.
+    -- The second component of the heap IORef tuple is:
+    --
+    --  * "Nothing" when we are in the process of clearing the heap i.e. when
+    --  we are procssing the heap and transferring entries from the heap to the
+    --  output queue
+    --  * "Just n" when we are expecting sequence number n to arrive before we
+    --  can start clearing the heap.
     outH    <- newIORef (H.empty, Just 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef Set.empty
-    q       <- newIORef
-                ( [] :: [(RunInIO m, K.StreamK m a)]
-                , [] :: [(RunInIO m, K.StreamK m a)]
-                )
+    q       <- newIORef ([] :: [(RunInIO m, K.StreamK m a)])
     -- Sequence number is incremented whenever something is de-queued,
     -- therefore, first sequence number would be 0
     aheadQ <- newIORef ([], -1)
@@ -916,8 +975,8 @@ getLifoSVar mrun cfg = do
     -- We are reading it without lock, the result would be reliable only if no
     -- worker is pending.
     let isWorkFinished _ = do
-            (xs, ys) <- readIORef q
-            return (null xs && null ys)
+            xs <- readIORef q
+            return (null xs)
 
     let isWorkFinishedLimited sv = do
             yieldsDone <-
@@ -936,7 +995,7 @@ getLifoSVar mrun cfg = do
             -> (Channel m a -> m [ChildEvent a])
             -> (Channel m a -> m Bool)
             -> (Channel m a -> IO Bool)
-            -> (IORef ([(RunInIO m, K.StreamK m a)], [(RunInIO m, K.StreamK m a)])
+            -> (IORef [(RunInIO m, K.StreamK m a)]
                 -> Channel m a
                 -> Maybe WorkerInfo
                 -> m())
@@ -957,10 +1016,9 @@ getLifoSVar mrun cfg = do
                 then workLoopAhead aheadQ outH sv
                 else wloop q sv
             , enqueue =
-                \inner ->
                     if inOrder
                     then enqueueAhead sv aheadQ
-                    else enqueueLIFO sv q inner
+                    else enqueueLIFO sv q
             , eagerDispatch = when eagerEval $ void $ dispatchWorker 0 sv
             , isWorkDone =
                 if inOrder
@@ -1038,6 +1096,8 @@ getLifoSVar mrun cfg = do
 -- | Create a new async style concurrent stream evaluation channel. The monad
 -- state used to run the stream actions is taken from the call site of
 -- newAppendChannel.
+--
+-- This is a low level API, use newChannel instead.
 {-# INLINABLE newAppendChannel #-}
 {-# SPECIALIZE newAppendChannel :: (Config -> Config) -> IO (Channel IO a) #-}
 newAppendChannel :: MonadRunInIO m => (Config -> Config) -> m (Channel m a)
