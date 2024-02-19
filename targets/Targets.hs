@@ -31,6 +31,10 @@ targets =
             , "serial_stream_grp"
             ]
       )
+    , ("Data.Binary",
+            [ "noBench"
+            ]
+      )
     , ("Data.Fold",
             [ "infinite_grp"
             , "fold_parser_grp"
@@ -41,12 +45,14 @@ targets =
             , "fold_parser_grp"
             ]
       )
+    {-
     , ("Data.List",
             [ "list_grp"
             , "noBench"
             , "testDevOnly"
             ]
       )
+    -}
     , ("Data.List.Base",
             [ "list_grp"
             , "noBench"
@@ -67,7 +73,6 @@ targets =
             [ "infinite_grp"
             , "fold_parser_grp"
             , "parser_cmp"
-            , "noTest"
             ]
       )
     , ("Data.ParserK.Chunked",
@@ -102,12 +107,16 @@ targets =
             , "noBench"
             ]
       )
+    , ("Data.SmallArray",
+            [ "noBench"
+            , "testDevOnly"
+            ]
+      )
     , ("Data.Stream",
             [ "infinite_grp"
             , "serial_stream_grp"
             , "serial_stream_cmp"
             , "serial_concurrent_cmp"
-            , "noTest"
             ]
       )
     , ("Data.Stream.Concurrent",
@@ -184,11 +193,24 @@ targets =
             [ "noBench"
             ]
       )
-    -- XXX Use Linux os macro
+#if defined(darwin_HOST_OS)
+    , ("FileSystem.Event.Darwin",
+            [ "noBench"
+            ]
+      )
+#endif
+#if defined(linux_HOST_OS)
     , ("FileSystem.Event.Linux",
             [ "noBench"
             ]
       )
+#endif
+#if defined(mingw32_HOST_OS)
+    , ("FileSystem.Event.Windows",
+            [ "noBench"
+            ]
+      )
+#endif
     , ("FileSystem.Handle", [])
     , ("Network.Inet.TCP", ["noBench"])
     , ("Network.Socket", ["noBench"])
