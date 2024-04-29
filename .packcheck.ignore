@@ -7,6 +7,7 @@
 .hlint.ignore
 .hlint.yaml
 .packcheck.ignore
+.cirrus.yml
 appveyor.yml
 benchmark/bench-runner/default.nix
 benchmark/bench-runner/cabal.project
