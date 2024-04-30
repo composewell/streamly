@@ -91,7 +91,7 @@ import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import System.FilePath ((</>))
-#if (defined linux_HOST_OS) || (defined darwin_HOST_OS)
+#if (defined linux_HOST_OS) || (defined darwin_HOST_OS) || (defined freebsd_HOST_OS)
 import System.Posix (DirStream, openDirStream, readDirStream, closeDirStream)
 #elif defined(mingw32_HOST_OS)
 import qualified System.Win32 as Win32
@@ -239,7 +239,7 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 
 -- XXX exception handling
 
-#if (defined linux_HOST_OS) || (defined darwin_HOST_OS)
+#if (defined linux_HOST_OS) || (defined darwin_HOST_OS) || (defined freebsd_HOST_OS)
 {-# INLINE streamReader #-}
 streamReader :: MonadIO m => Unfold m DirStream FilePath
 streamReader = Unfold step return

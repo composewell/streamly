@@ -545,7 +545,7 @@ library
     if !flag(use-unliftio)
       build-depends:   monad-control     >= 1.0 && < 1.1
 
-    if os(linux) || os (darwin)
+    if os(linux) || os (darwin) || os(freebsd)
       build-depends: unix              >= 2.7.0 && < 2.9
 
     if os(windows)
