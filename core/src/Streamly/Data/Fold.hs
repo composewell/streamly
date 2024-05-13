@@ -206,6 +206,7 @@ module Streamly.Data.Fold
     , foldl1'
     , foldlM1'
     , foldr'
+    , foldrM'
 
     -- * Folds
     -- ** Accumulators
