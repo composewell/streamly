@@ -374,6 +374,7 @@ library
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream
                      , Streamly.Internal.Unicode.String
+                     , Streamly.Internal.Unicode.UTF8
                      , Streamly.Internal.Unicode.Parser
                      , Streamly.Internal.Unicode.Array
 
@@ -528,6 +529,7 @@ library
                      , filepath          >= 1.4.2 && < 1.6
 
                     -- streamly-unicode-core
+                     , unicode-data      >= 0.4   && < 0.5
                      , template-haskell  >= 2.14  && < 2.22
 
                      -- streamly-filesystem-core

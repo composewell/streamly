@@ -132,6 +132,7 @@ module Streamly.Internal.Data.Stream.Nesting
     -- | A special case of parsing.
     , wordsBy
     , splitOnSeq -- XXX splitOnSeg
+    , splitOnSeqWith
     , splitOnSuffixSeq -- XXX splitOnSegSuffix, splitOnTrailer
 
     -- XXX Implement these as folds or parsers instead.
@@ -2107,6 +2108,15 @@ data SplitOnSeqState rb rh ck w fs s b x =
     | SplitOnSeqKRDone Int !fs rb !rh
 
     | SplitOnSeqReinit (fs -> SplitOnSeqState rb rh ck w fs s b x)
+
+{-# INLINE_NORMAL splitOnSeqWith #-}
+splitOnSeqWith
+    :: Array c
+    -> (a -> c)
+    -> Fold m a b
+    -> Stream m a
+    -> Stream m b
+splitOnSeqWith = undefined
 
 {-# INLINE_NORMAL splitOnSeq #-}
 splitOnSeq
