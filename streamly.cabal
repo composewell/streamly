@@ -502,13 +502,13 @@ library
                     -- packages depending on the "ghc" package (packages
                     -- depending on doctest is a common example) can
                     -- depend on streamly.
-                       base              >= 4.12  && < 4.20
+                       base              >= 4.12  && < 4.21
                      , containers        >= 0.6.0 && < 0.8
                      , deepseq           >= 1.4.4 && < 1.6
                      , exceptions        >= 0.8.0 && < 0.11
                      , mtl               >= 2.2.2 && < 2.4
                      , transformers      >= 0.5.5 && < 0.7
-                     , template-haskell  >= 2.14  && < 2.22
+                     , template-haskell  >= 2.14  && < 2.23
 
                      -- The core streamly package
                      , streamly-core     == 0.3.0
