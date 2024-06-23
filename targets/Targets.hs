@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Targets
     ( targets
     )
@@ -147,11 +149,14 @@ targets =
             , "noTest"
             ]
       )
+    {-
+    -- devOnly
     , ("Data.Stream.Rate",
             [ "infinite_grp"
             , "concurrent_stream_grp"
             ]
       )
+    -}
     , ("Data.StreamK",
             [ "infinite_grp"
             , "serial_stream_grp"
@@ -202,6 +207,7 @@ targets =
 #if defined(linux_HOST_OS)
     , ("FileSystem.Event.Linux",
             [ "noBench"
+            , "testDevOnly"
             ]
       )
 #endif
