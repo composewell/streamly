@@ -93,6 +93,7 @@ iterateM streamLen = StreamK.take streamLen . StreamK.iterateM (return . (+1)) .
 fromFoldable :: Int -> Int -> StreamK m Int
 fromFoldable streamLen n = StreamK.fromFoldable [n..n+streamLen]
 
+{- HLINT ignore "Fuse foldr/fmap" -}
 {-# INLINE fromFoldableM #-}
 fromFoldableM :: Monad m => Int -> Int -> StreamK m Int
 fromFoldableM streamLen n =
@@ -842,6 +843,7 @@ o_n_space streamLen =
         ]
       ]
 
+{- HLINT ignore "Use <&>" -}
 {-# INLINE benchList #-}
 benchList :: P.String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
 benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f

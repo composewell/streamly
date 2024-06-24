@@ -400,6 +400,7 @@ intersperse streamLen n = composeN n $ StreamK.intersperse streamLen
 traversableTraverse :: StreamK Identity Int -> IO (StreamK Identity Int)
 traversableTraverse = traverse return
 
+{- HLINT ignore "Use traverse" -}
 {-# INLINE traversableSequenceA #-}
 traversableSequenceA :: StreamK Identity Int -> IO (StreamK Identity Int)
 traversableSequenceA = sequenceA . Prelude.fmap return
@@ -408,6 +409,7 @@ traversableSequenceA = sequenceA . Prelude.fmap return
 traversableMapM :: StreamK Identity Int -> IO (StreamK Identity Int)
 traversableMapM = P.mapM return
 
+{- HLINT ignore "Use mapM" -}
 {-# INLINE traversableSequence #-}
 traversableSequence :: StreamK Identity Int -> IO (StreamK Identity Int)
 traversableSequence = Prelude.sequence . Prelude.fmap return
@@ -566,6 +568,7 @@ _iterateSingleton ::
 _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
 -}
 
+{- HLINT ignore "Redundant <*" -}
 o_n_space_applicative :: Int -> Benchmark
 o_n_space_applicative value =
     bgroup "iterated"
