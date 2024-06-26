@@ -55,7 +55,7 @@ import Streamly.Internal.Data.IsMap.HashMap ()
 --
 -- >>> classify = Fold.toHashMapIO fst (Fold.lmap snd Fold.toList)
 -- >>> Stream.fold classify input :: IO (HashMap String [Double])
--- fromList [("k2",[2.0,2.2]),("k1",[1.0,1.1])]
+-- fromList [("k1",[1.0,1.1]),("k2",[2.0,2.2])]
 --
 -- /Pre-release/
 --
