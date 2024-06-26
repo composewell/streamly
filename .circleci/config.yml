@@ -163,7 +163,7 @@ jobs:
             command: |
               bash -c "$PACKCHECK cabal"
         - *save
-  cabal-ghc-9_8_1-docspec:
+  cabal-ghc-9_4_8-docspec:
       <<: *env
       executor: amd64-executor
       steps:
@@ -172,7 +172,7 @@ jobs:
         - *preinstall
         - run:
             environment:
-              GHCVER: "9.8.1"
+              GHCVER: "9.4.8"
               CABAL_VERSION: "3.10.1.0"
               CABAL_PROJECT: "cabal.project.doctest"
               DISABLE_SDIST_BUILD: "y"
@@ -212,7 +212,7 @@ workflows:
     jobs:
       #- cabal-ghc-8_6_5:
       #    name: 8.6.5-debug-unoptimized
-      - cabal-ghc-9_8_1-docspec:
-          name: ghc-9.8.1-docspec
+      - cabal-ghc-9_4_8-docspec:
+          name: ghc-9.4.8-docspec
       - hlint-trailing-spaces:
           name: hlint and trailing spaces
