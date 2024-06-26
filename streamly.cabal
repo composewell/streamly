@@ -527,7 +527,7 @@ library
                      , unicode-data      >= 0.1 && < 0.5
 
                     -- Network
-                     , network           >= 2.6   && < 3.2
+                     , network           >= 2.6   && < 3.3
 
     if impl(ghc < 9.6)
       build-depends:   transformers-base >= 0.4   && < 0.5
