@@ -518,13 +518,18 @@ library
                      , heaps             >= 0.3     && < 0.5
 
                     -- concurrency
-                     , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.4 && < 0.3
 
                      , unicode-data      >= 0.1 && < 0.7
 
                     -- Network
                      , network           >= 2.6   && < 3.3
+
+
+    if impl(ghc < 9.10)
+      build-depends:   atomic-primops    >= 0.8   && < 0.9
+    else
+      build-depends:   atomic-primops    >= 0.8.8 && < 0.9
 
     if impl(ghc < 9.6)
       build-depends:   transformers-base >= 0.4   && < 0.5
