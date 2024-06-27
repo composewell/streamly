@@ -43,7 +43,9 @@ import Streamly.Internal.Data.IsMap.HashMap ()
 -- fold each split using the given fold. Useful for map/reduce, bucketizing
 -- the input in different bins or for generating histograms.
 --
--- >>> import Data.HashMap.Strict (HashMap, fromList)
+-- >>> import Data.List (sortOn)
+-- >>> import Data.HashMap.Strict (HashMap)
+-- >>> import qualified Data.HashMap.Strict as HM
 -- >>> import qualified Streamly.Data.Fold.Prelude as Fold
 -- >>> import qualified Streamly.Data.Stream as Stream
 --
@@ -54,8 +56,8 @@ import Streamly.Internal.Data.IsMap.HashMap ()
 -- Classify each key to a different hash bin and fold the bins:
 --
 -- >>> classify = Fold.toHashMapIO fst (Fold.lmap snd Fold.toList)
--- >>> Stream.fold classify input :: IO (HashMap String [Double])
--- fromList [("k2",[2.0,2.2]),("k1",[1.0,1.1])]
+-- >>> sortOn fst . HM.toList <$> Stream.fold classify input :: IO [(String, [Double])]
+-- [("k1",[1.0,1.1]),("k2",[2.0,2.2])]
 --
 -- /Pre-release/
 --
