@@ -3,3 +3,8 @@ packages:   streamly.cabal
           , test/streamly-tests.cabal
           , benchmark/streamly-benchmarks.cabal
           , docs/streamly-docs.cabal
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/fusion-plugin.git
+  tag: ghc-9.10

@@ -175,7 +175,7 @@ common bench-depends
     -- Core libraries shipped with ghc, the min and max
     -- constraints of these libraries should match with
     -- the GHC versions we support
-      base                >= 4.9   && < 4.20
+      base                >= 4.9   && < 4.21
     , deepseq             >= 1.4.1 && < 1.6
     , mtl                 >= 2.2   && < 2.3.2
 
@@ -201,7 +201,7 @@ common bench-depends
     build-depends:
         fusion-plugin     >= 0.2   && < 0.3
   if flag(inspection)
-    build-depends:     template-haskell   >= 2.14  && < 2.22
+    build-depends:     template-haskell   >= 2.14  && < 2.23
                      , inspection-testing >= 0.4   && < 0.6
   -- Array uses a Storable constraint in dev build making several inspection
   -- tests fail
