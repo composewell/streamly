@@ -96,7 +96,7 @@ import Streamly.Internal.FileSystem.Path (Path)
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 import qualified System.Win32 as Win32
 #else
-import Streamly.Internal.FileSystem.ReadDir
+import Streamly.Internal.FileSystem.Posix.ReadDir
     ( DirStream, openDirStream, closeDirStream, readDirStreamEither
     , readEitherChunks, readEitherByteChunks)
 #endif

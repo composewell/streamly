@@ -400,7 +400,7 @@ library
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
                      , Streamly.Internal.FileSystem.Dir
-                     , Streamly.Internal.FileSystem.ReadDir
+                     , Streamly.Internal.FileSystem.Posix.ReadDir
 
                     -- Ring Arrays
                      , Streamly.Internal.Data.Ring
