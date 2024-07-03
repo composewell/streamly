@@ -298,6 +298,8 @@ library
         , src/Streamly/Internal/Data/Array
         , src/Streamly/Internal/Data/Stream
 
+    -- Prefer OS conditionals inside the source files rather than here,
+    -- conditionals here do not work well with cabal2nix.
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
 
@@ -450,6 +452,9 @@ library
                      , Streamly.Unicode.Parser
                      , Streamly.Unicode.Stream
                      , Streamly.Unicode.String
+
+    -- Only those modules should be here which are fully re-exported via some
+    -- other module.
     other-modules:
                       Streamly.Internal.Data.Fold.Step
                     , Streamly.Internal.Data.Fold.Type
