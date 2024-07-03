@@ -33,7 +33,7 @@ jobs:
         fetch-depth: 0
 
     - name: Run packdiff on streamly-core
-      run: cabal run packdiff --project-file=cabal.project.packdiff -- streamly-core $(git rev-parse origin/master) $(git rev-parse HEAD)
+      run: cabal run packdiff --project-file=cabal.project.packdiff -- diff streamly-core $(git rev-parse origin/master) streamly-core $(git rev-parse HEAD)
 
     - name: Run packdiff on streamly
-      run: cabal run packdiff --project-file=cabal.project.packdiff -- streamly $(git rev-parse origin/master) $(git rev-parse HEAD)
+      run: cabal run packdiff --project-file=cabal.project.packdiff -- diff streamly $(git rev-parse origin/master) streamly $(git rev-parse HEAD)
