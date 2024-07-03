@@ -2,6 +2,7 @@
 
 module Streamly.Test.Unicode.Stream (main) where
 
+import Control.Monad (when)
 import Data.Char (ord, chr)
 import Data.Word (Word8, Word16)
 import Test.QuickCheck
@@ -16,7 +17,7 @@ import Test.QuickCheck
     , vectorOf
     , choose
     )
-import Test.QuickCheck.Monadic (run, monadicIO, assert)
+import Test.QuickCheck.Monadic (run, monadicIO, assert, PropertyM)
 import Streamly.Data.Stream (Stream)
 
 import qualified Streamly.Data.Array as A
@@ -39,6 +40,13 @@ maxTestCount = 100
 maxTestCount = 10
 #endif
 -}
+
+assertEq :: (Eq a, Show a) => a -> a -> PropertyM IO ()
+assertEq a b = do
+    when (a /= b) $ run $ do
+        putStrLn $ "A: " ++ show a
+        putStrLn $ "B: " ++ show b
+    assert (a == b)
 
 -- Use quickcheck-unicode instead?
 genUnicode :: Gen String
@@ -67,7 +75,7 @@ propDecodeEncodeUtf16Id encoder decoder =
         monadicIO $ do
             let wrds = encoder $ Stream.fromList list
             chrs <- run $ Stream.toList $ decoder wrds
-            assert (chrs == list)
+            assertEq chrs list
 
 propMkEvenW8Chunks :: Property
 propMkEvenW8Chunks =
@@ -82,8 +90,8 @@ propMkEvenW8Chunks =
                 concatedList1 = concat list1
             assert (and (map (even . length) list1))
             if (odd (length concatedList))
-            then assert (concatedList1 == init concatedList)
-            else assert (concatedList1 == concatedList)
+            then assertEq concatedList1 (init concatedList)
+            else assertEq concatedList1 concatedList
 
 -- XXX need to use invalid characters
 propDecodeEncodeId :: Property
@@ -92,7 +100,7 @@ propDecodeEncodeId =
         monadicIO $ do
             let wrds = SS.encodeUtf8 $ Stream.fromList list
             chrs <- Stream.toList $ SS.decodeUtf8 wrds
-            assert (chrs == list)
+            assertEq chrs list
 
 propDecodeEncodeIdArrays :: Property
 propDecodeEncodeIdArrays =
@@ -100,7 +108,7 @@ propDecodeEncodeIdArrays =
         monadicIO $ do
             let wrds = Stream.chunksOf 8 $ SS.encodeUtf8' $ Stream.fromList list
             chrs <- Stream.toList $ IUS.decodeUtf8Chunks wrds
-            assert (chrs == list)
+            assertEq chrs list
 
 unicodeTestData :: [Char]
 unicodeTestData = "z\72150\83468;L$Wz| ?_i/J ."
@@ -117,7 +125,7 @@ propASCIIToLatin1 =
                             $ SS.encodeLatin1
                             $ Stream.fromList list
                 lst <- run $  Stream.toList wrds
-                assert (list == lst)
+                assertEq list lst
 
 propUnicodeToLatin1 :: Property
 propUnicodeToLatin1 =
@@ -127,7 +135,7 @@ propUnicodeToLatin1 =
                     $ SS.encodeLatin1
                     $ Stream.fromList unicodeTestData
         lst <- run $ Stream.toList wrds
-        assert (latin1TestData == lst)
+        assertEq latin1TestData lst
 
 propUnicodeToLatin1' :: Property
 propUnicodeToLatin1' =
@@ -137,7 +145,7 @@ propUnicodeToLatin1' =
                     $ SS.encodeLatin1'
                     $ Stream.fromList unicodeTestData
         lst <- run $ Stream.toList wrds
-        assert (latin1TestData == lst)
+        assertEq latin1TestData lst
 
 testLines :: Property
 testLines =
@@ -147,7 +155,7 @@ testLines =
                 $ fmap A.toList
                 $ IUA.lines
                 $ Stream.fromList list
-            assert (xs == lines list)
+            assertEq xs (lines list)
 
 testLinesArray :: Property
 testLinesArray =
@@ -157,7 +165,7 @@ testLinesArray =
                     $ fmap A.toList
                     $ AS.splitOnSuffix 10
                     $ Stream.fromPure (A.fromList list)
-            assert (xs == map (map (fromIntegral . ord))
+            assertEq xs (map (map (fromIntegral . ord))
                               (lines (map (chr .  fromIntegral) list)))
 
 testWords :: Property
@@ -168,7 +176,7 @@ testWords =
                 $ Stream.map A.toList
                 $ IUA.words
                 $ Stream.fromList list
-            assert (xs == words list)
+            assertEq xs (words list)
 
 testUnlines :: Property
 testUnlines =
@@ -178,7 +186,7 @@ testUnlines =
               $ IUA.unlines
               $ IUA.lines
               $ Stream.fromList list
-          assert (xs == unlines (lines list))
+          assertEq xs (unlines (lines list))
 
 testUnwords :: Property
 testUnwords =
@@ -189,7 +197,7 @@ testUnwords =
               $ IUA.unwords
               $ IUA.words
               $ Stream.fromList list
-          assert (xs == unwords (words list))
+          assertEq xs (unwords (words list))
 
 moduleName :: String
 moduleName = "Unicode.Stream"
