@@ -178,7 +178,7 @@ readChunksWithBufferOf = Unfold step return
                 _ -> D.Yield arr (size, h)
 
 -- XXX read 'Array a' instead of Word8
---
+
 -- | @toChunks handle@ reads a stream of arrays from the specified file
 -- handle.  The maximum size of a single array is limited to
 -- @defaultChunkSize@. The actual size read may be less than or equal to
@@ -243,9 +243,6 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 -- XXX exception handling
 
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-{-# INLINE streamReader #-}
-streamReader :: MonadIO m => Unfold m DirStream Path
-streamReader = fmap (either id id) streamEitherReader
 
 {-# INLINE streamEitherReader #-}
 streamEitherReader :: MonadIO m =>
@@ -259,7 +256,12 @@ streamEitherReader = Unfold step return
             Nothing -> return Stop
             Just x -> return $ Yield x strm
 
+{-# INLINE streamReader #-}
+streamReader :: MonadIO m => Unfold m DirStream Path
+streamReader = fmap (either id id) streamEitherReader
+
 #else
+
 openDirStream :: String -> IO (Win32.HANDLE, Win32.FindData)
 openDirStream = Win32.findFirstFile
 
@@ -309,14 +311,19 @@ reader =
 {-# INLINE eitherReader #-}
 eitherReader :: (MonadIO m, MonadCatch m) =>
     Unfold m Path (Either Path Path)
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 eitherReader =
     -- XXX The measured overhead of bracketIO is not noticeable, if it turns
-    -- out to be a problems for small filenames we can use getdents64 to use
+    -- out to be a problem for small filenames we can use getdents64 to use
     -- chunked read to avoid the overhead.
       UF.bracketIO openDirStream closeDirStream streamEitherReader
+#else
+eitherReader = undefined
+#endif
 
 {-# INLINE eitherReaderPaths #-}
-eitherReaderPaths ::(MonadIO m, MonadCatch m) => Unfold m Path (Either Path Path)
+eitherReaderPaths ::(MonadIO m, MonadCatch m) =>
+    Unfold m Path (Either Path Path)
 eitherReaderPaths =
     let (</>) = Path.append
      in UF.mapM2 (\dir -> return . bimap (dir </>) (dir </>)) eitherReader
@@ -361,7 +368,8 @@ readEither = S.unfold eitherReader
 -- | Like 'readEither' but prefix the names of the files and directories with
 -- the supplied directory path.
 {-# INLINE readEitherPaths #-}
-readEitherPaths :: (MonadIO m, MonadCatch m) => Path -> Stream m (Either Path Path)
+readEitherPaths :: (MonadIO m, MonadCatch m) =>
+    Path -> Stream m (Either Path Path)
 readEitherPaths dir =
     let (</>) = Path.append
      in fmap (bimap (dir </>) (dir </>)) $ readEither dir
@@ -370,7 +378,8 @@ readEitherPaths dir =
 -- final array chunk including all files and dirs to be written to IO. The Left
 -- could be list of dirs to be traversed.
 {-# INLINE _readEitherChunks #-}
-_readEitherChunks :: (MonadIO m, MonadCatch m) => [Path] -> Stream m (Either [Path] [Path])
+_readEitherChunks :: (MonadIO m, MonadCatch m) =>
+    [Path] -> Stream m (Either [Path] [Path])
 _readEitherChunks dirs =
     -- XXX Need to use a take to limit the group size. There will be separate
     -- limits for dir and files groups.
