@@ -8,15 +8,18 @@
 
 module Streamly.Internal.FileSystem.ReadDir
     (
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
       DirStream
     , openDirStream
     , closeDirStream
     , readDirStreamEither
     , readEitherChunks
     , readEitherByteChunks
+#endif
     )
 where
 
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord)
 import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr)
@@ -438,3 +441,4 @@ readEitherByteChunks alldirs =
                 if (n == 0)
                 then return $ Skip (ChunkStreamByteInit xs dirs ndirs mbarr pos)
                 else liftIO $ throwErrno "readEitherChunks"
+#endif
