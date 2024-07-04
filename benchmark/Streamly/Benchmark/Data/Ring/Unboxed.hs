@@ -11,7 +11,6 @@
 module Main (main) where
 
 import Control.Monad (void)
-import GHC.Ptr (Ptr(..))
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Data.Foldable as P
@@ -25,10 +24,10 @@ import Prelude as P
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
-unsafeEqArrayN :: (Int, Array.Array Int, (Ring.Ring Int, Ptr Int)) -> Bool
+unsafeEqArrayN :: (Int, Array.Array Int, (Ring.Ring Int, Int)) -> Bool
 unsafeEqArrayN (value, arr, (ring, rh)) = Ring.unsafeEqArrayN ring rh arr value
 
-unsafeEqArray :: (Array.Array Int, (Ring.Ring Int, Ptr Int)) -> Bool
+unsafeEqArray :: (Array.Array Int, (Ring.Ring Int, Int)) -> Bool
 unsafeEqArray (arr, (ring, rh)) = Ring.unsafeEqArray ring rh arr
 
 -------------------------------------------------------------------------------
@@ -36,7 +35,7 @@ unsafeEqArray (arr, (ring, rh)) = Ring.unsafeEqArray ring rh arr
 -------------------------------------------------------------------------------
 
 o_1_space_serial ::
-       Int -> Array.Array Int -> (Ring.Ring Int, Ptr Int) -> [Benchmark]
+       Int -> Array.Array Int -> (Ring.Ring Int, Int) -> [Benchmark]
 o_1_space_serial value arr (ring, rh) =
     [ bench "unsafeEqArrayN" $ nf unsafeEqArrayN (value, arr, (ring, rh))
     , bench "unsafeEqArray" $ nf unsafeEqArray (arr, (ring, rh))
@@ -58,12 +57,12 @@ main = do
     alloc value = do
         let input = [1 .. value] :: [Int]
         let arr = Array.fromList input
-        (ring, rh) <- Ring.new value
-        void $ P.foldlM (Ring.unsafeInsert ring) rh input
-        return (arr, (ring, rh))
+        ring <- Ring.new value
+        void $ P.foldlM (Ring.unsafeInsert ring) 0 input
+        return (arr, ring)
 
-    allBenchmarks (arr, (ring, rh)) value =
+    allBenchmarks (arr, ring) value =
         [ bgroup
               (o_1_space_prefix moduleName)
-              (o_1_space_serial value arr (ring, rh))
+              (o_1_space_serial value arr (ring, 0))
         ]

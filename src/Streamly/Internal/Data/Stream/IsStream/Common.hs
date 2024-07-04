@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans  #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.IsStream.Common

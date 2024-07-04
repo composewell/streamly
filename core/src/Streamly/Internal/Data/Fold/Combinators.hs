@@ -228,14 +228,13 @@ import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
-import Foreign.Storable (Storable, peek)
+import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..))
 import Streamly.Internal.Data.Scan (Scan (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
-import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Prelude
@@ -1564,7 +1563,7 @@ data SplitOnSeqState acc a rb rh w ck =
 --
 -- /Pre-release/
 {-# INLINE takeEndBySeq #-}
-takeEndBySeq :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a) =>
+takeEndBySeq :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b
@@ -1590,8 +1589,8 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
-                    (rb, rhead) <- liftIO $ Ring.new patLen
-                    return $ Partial $ SplitOnSeqKR acc 0 rb rhead
+                    rb <- liftIO $ Ring.new patLen
+                    return $ Partial $ SplitOnSeqKR acc 0 rb 0
             Done b -> return $ Done b
 
     -- Word pattern related
@@ -1664,7 +1663,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                 rh1 <- liftIO $ Ring.unsafeInsert rb rh x
                 if idx == maxIndex
                 then do
-                    let fld = Ring.unsafeFoldRing (Ring.ringBound rb)
+                    let fld = Ring.unsafeFoldRing (Ring.ringCapacity rb)
                     let !ringHash = fld addCksum 0 rb
                     if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
                     then Done <$> ffinal s1
@@ -1676,7 +1675,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
         res <- fstep s x
         case res of
             Partial s1 -> do
-                old <- liftIO $ peek rh
+                (old :: a) <- liftIO $ PEEK_ELEM(a, rh, (Ring.ringContents rb))
                 rh1 <- liftIO $ Ring.unsafeInsert rb rh x
                 let ringHash = deltaCksum cksum old x
                 if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
@@ -1704,7 +1703,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
 -- /Pre-release/
 --
 {-# INLINE takeEndBySeq_ #-}
-takeEndBySeq_ :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a) =>
+takeEndBySeq_ :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a) =>
        Array.Array a
     -> Fold m a b
     -> Fold m a b
@@ -1731,8 +1730,8 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
-                    (rb, rhead) <- liftIO $ Ring.new patLen
-                    return $ Partial $ SplitOnSeqKR acc 0 rb rhead
+                    rb <- liftIO $ Ring.new patLen
+                    return $ Partial $ SplitOnSeqKR acc 0 rb 0
             Done b -> return $ Done b
 
     -- Word pattern related
@@ -1804,14 +1803,14 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
         rh1 <- liftIO $ Ring.unsafeInsert rb rh x
         if idx == maxIndex
         then do
-            let fld = Ring.unsafeFoldRing (Ring.ringBound rb)
+            let fld = Ring.unsafeFoldRing (Ring.ringCapacity rb)
             let !ringHash = fld addCksum 0 rb
             if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
             then Done <$> ffinal s
             else return $ Partial $ SplitOnSeqKRLoop s ringHash rb rh1
         else return $ Partial $ SplitOnSeqKR s (idx + 1) rb rh1
     step (SplitOnSeqKRLoop s cksum rb rh) x = do
-        old <- liftIO $ peek rh
+        old <- liftIO $ PEEK_ELEM(a, rh, (Ring.ringContents rb))
         res <- fstep s old
         case res of
             Partial s1 -> do
@@ -1841,7 +1840,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 if n == 0
                 then fex s
                 else do
-                    old <- liftIO $ peek rh
+                    old <- liftIO $ PEEK_ELEM(a, rh, (Ring.ringContents rb))
                     let rh1 = Ring.advance rb rh
                     r <- fstep s old
                     case r of
@@ -1853,7 +1852,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
             SplitOnSeqSingle s _ -> fex s
             SplitOnSeqWord s idx wrd -> consumeWord s idx wrd
             SplitOnSeqWordLoop s wrd -> consumeWord s patLen wrd
-            SplitOnSeqKR s idx rb _ -> consumeRing s idx rb (Ring.startOf rb)
+            SplitOnSeqKR s idx rb _ -> consumeRing s idx rb 0
             SplitOnSeqKRLoop s _ rb rh -> consumeRing s patLen rb rh
 
     extract = extractFunc fextract
@@ -1888,7 +1887,7 @@ tee = teeWith (,)
 
 -- XXX use "List" instead of "[]"?, use Array for output to scale it to a large
 -- number of consumers? For polymorphic case a vector could be helpful. For
--- Storables we can use arrays. Will need separate APIs for those.
+-- Unboxs we can use arrays. Will need separate APIs for those.
 --
 -- | Distribute one copy of the stream to each fold and collect the results in
 -- a container.
