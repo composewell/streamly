@@ -159,7 +159,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
-import Foreign.Storable (Storable, peek)
+import Streamly.Internal.Data.Unbox (Unbox(..))
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Types (SPEC(..))
 
@@ -167,7 +167,6 @@ import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
-import Streamly.Internal.Data.Unbox (Unbox, sizeOf)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Array.Type as A
@@ -2110,7 +2109,7 @@ data SplitOnSeqState rb rh ck w fs s b x =
 
 {-# INLINE_NORMAL splitOnSeq #-}
 splitOnSeq
-    :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
     => Array a
     -> Fold m a b
     -> Stream m a
@@ -2174,8 +2173,8 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                                <= sizeOf (Proxy :: Proxy Word)
                           then return $ Skip $ SplitOnSeqWordInit acc state
                           else do
-                              (rb, rhead) <- liftIO $ RB.new patLen
-                              skip $ SplitOnSeqKRInit 0 acc state rb rhead
+                              rb <- liftIO $ RB.new patLen
+                              skip $ SplitOnSeqKRInit 0 acc state rb 0
             FL.Done b -> skip $ SplitOnSeqYield b SplitOnSeqInit
 
     stepOuter _ (SplitOnSeqYield x next) = return $ Yield x next
@@ -2310,7 +2309,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                 rh1 <- liftIO $ RB.unsafeInsert rb rh x
                 if idx == maxIndex
                 then do
-                    let fld = RB.unsafeFoldRing (RB.ringBound rb)
+                    let fld = RB.unsafeFoldRing (RB.ringCapacity rb)
                     let !ringHash = fld addCksum 0 rb
                     if ringHash == patHash
                     then skip $ SplitOnSeqKRCheck fs s rb rh1
@@ -2318,7 +2317,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                 else skip $ SplitOnSeqKRInit (idx + 1) fs s rb rh1
             Skip s -> skip $ SplitOnSeqKRInit idx fs s rb rh
             Stop -> do
-                skip $ SplitOnSeqKRDone idx fs rb (RB.startOf rb)
+                skip $ SplitOnSeqKRDone idx fs rb 0
 
     -- XXX The recursive "go" is more efficient than the state based recursion
     -- code commented out below. Perhaps its more efficient because of
@@ -2333,7 +2332,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    old <- liftIO $ peek rh
+                    old <- liftIO $ PEEK_ELEM(a,rh,(RB.ringContents rb))
                     let cksum1 = deltaCksum cksum old x
                     r <- fstep fs old
                     case r of
@@ -2343,7 +2342,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                             then skip $ SplitOnSeqKRCheck fs1 s rb rh1
                             else go SPEC fs1 s rh1 cksum1
                         FL.Done b -> do
-                            let rst = RB.startOf rb
+                            let rst = 0
                                 jump c = SplitOnSeqKRInit 0 c s rb rst
                             yieldProceed jump b
                 Skip s -> go SPEC fs s rh cksum
@@ -2379,7 +2378,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
         if RB.unsafeEqArray rb rh patArr
         then do
             r <- final fs
-            let rst = RB.startOf rb
+            let rst = 0
                 jump c = SplitOnSeqKRInit 0 c st rb rst
             yieldProceed jump r
         else skip $ SplitOnSeqKRLoop fs st rb rh patHash
@@ -2388,7 +2387,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
         r <- final fs
         skip $ SplitOnSeqYield r SplitOnSeqDone
     stepOuter _ (SplitOnSeqKRDone n fs rb rh) = do
-        old <- liftIO $ peek rh
+        old <- liftIO $ PEEK_ELEM(a,rh,(RB.ringContents rb))
         let rh1 = RB.advance rb rh
         r <- fstep fs old
         case r of
@@ -2423,7 +2422,7 @@ data SplitOnSuffixSeqState rb rh ck w fs s b x =
 
 {-# INLINE_NORMAL splitOnSuffixSeq #-}
 splitOnSuffixSeq
-    :: forall m a b. (MonadIO m, Storable a, Unbox a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
     => Bool
     -> Array a
     -> Fold m a b
@@ -2507,8 +2506,8 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                                <= sizeOf (Proxy :: Proxy Word)
                           then skip $ SplitOnSuffixSeqWordInit fs state
                           else do
-                              (rb, rhead) <- liftIO $ RB.new patLen
-                              skip $ SplitOnSuffixSeqKRInit 0 fs state rb rhead
+                              rb <- liftIO $ RB.new patLen
+                              skip $ SplitOnSuffixSeqKRInit 0 fs state rb 0
             FL.Done fb -> skip $ SplitOnSuffixSeqYield fb SplitOnSuffixSeqInit
 
     stepOuter _ (SplitOnSuffixSeqYield x next) = return $ Yield x next
@@ -2663,7 +2662,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                     FL.Partial fs1 ->
                         skip $ SplitOnSuffixSeqKRInit1 fs1 s rb rh1
                     FL.Done b -> do
-                        let rst = RB.startOf rb
+                        let rst = 0
                             jump c = SplitOnSuffixSeqKRInit 0 c s rb rst
                         yieldProceed jump b
             Skip s -> skip $ SplitOnSuffixSeqKRInit idx0 fs s rb rh0
@@ -2685,14 +2684,14 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                             if idx /= maxIndex
                             then go SPEC (idx + 1) rh1 s fs1
                             else skip $
-                                let fld = RB.unsafeFoldRing (RB.ringBound rb)
+                                let fld = RB.unsafeFoldRing (RB.ringCapacity rb)
                                     !ringHash = fld addCksum 0 rb
                                  in if ringHash == patHash
                                     then SplitOnSuffixSeqKRCheck fs1 s rb rh1
                                     else SplitOnSuffixSeqKRLoop
                                             fs1 s rb rh1 ringHash
                         FL.Done b -> do
-                            let rst = RB.startOf rb
+                            let rst = 0
                                 jump c = SplitOnSuffixSeqKRInit 0 c s rb rst
                             yieldProceed jump b
                 Skip s -> go SPEC idx rh s fs
@@ -2704,7 +2703,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                     then do
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-                    else skip $ SplitOnSuffixSeqKRDone idx fs rb (RB.startOf rb)
+                    else skip $ SplitOnSuffixSeqKRDone idx fs rb 0
 
     stepOuter gst (SplitOnSuffixSeqKRLoop fs0 st0 rb rh0 cksum0) =
         go SPEC fs0 st0 rh0 cksum0
@@ -2715,7 +2714,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    old <- liftIO $ peek rh
+                    old <- liftIO $ PEEK_ELEM(a,rh,(RB.ringContents rb))
                     rh1 <- liftIO (RB.unsafeInsert rb rh x)
                     let cksum1 = deltaCksum cksum old x
                     r <- if withSep then fstep fs x else fstep fs old
@@ -2725,7 +2724,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                             then go SPEC fs1 s rh1 cksum1
                             else skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
                         FL.Done b -> do
-                            let rst = RB.startOf rb
+                            let rst = 0
                                 jump c = SplitOnSuffixSeqKRInit 0 c s rb rst
                             yieldProceed jump b
                 Skip s -> go SPEC fs s rh cksum
@@ -2742,7 +2741,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
         if RB.unsafeEqArray rb rh patArr
         then do
             r <- final fs
-            let rst = RB.startOf rb
+            let rst = 0
                 jump c = SplitOnSuffixSeqKRInit 0 c st rb rst
             yieldProceed jump r
         else skip $ SplitOnSuffixSeqKRLoop fs st rb rh patHash
@@ -2751,7 +2750,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
         r <- final fs
         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
     stepOuter _ (SplitOnSuffixSeqKRDone n fs rb rh) = do
-        old <- liftIO $ peek rh
+        old <- liftIO $ PEEK_ELEM(a,rh,(RB.ringContents rb))
         let rh1 = RB.advance rb rh
         r <- fstep fs old
         case r of

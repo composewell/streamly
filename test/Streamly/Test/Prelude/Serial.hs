@@ -25,7 +25,6 @@ import Data.List (sort, group, intercalate)
 import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
 import Data.Semigroup (Sum(..), getSum)
-import Foreign.Storable (Storable)
 import Streamly.Internal.Data.MutByteArray (Unbox)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
@@ -80,11 +79,11 @@ splitOnSuffix :: Monad m =>
     (a -> Bool) -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
 splitOnSuffix predicate f = S.foldMany (FL.takeEndBy_ predicate f)
 
-splitOnSeq' :: (MonadIO m, Unbox a, Storable a, Enum a, Eq a) =>
+splitOnSeq' :: (MonadIO m, Unbox a, Enum a, Eq a) =>
     A.Array a -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
 splitOnSeq' patt f m = IS.foldManyPost (FL.takeEndBySeq_ patt f) m
 
-splitOnSuffixSeq' :: (MonadIO m, Unbox a, Storable a, Enum a, Eq a) =>
+splitOnSuffixSeq' :: (MonadIO m, Unbox a, Enum a, Eq a) =>
     A.Array a -> FL.Fold m a b -> S.Stream m a -> S.Stream m b
 splitOnSuffixSeq' patt f m = S.foldMany (FL.takeEndBySeq_ patt f) m
 
@@ -154,7 +153,7 @@ splitOnSuffixSeq = do
         splitOnSuffixSeq' (A.fromList pat) FL.toList (S.fromList xs)
 
 splitterProperties ::
-       forall a. (Arbitrary a, Eq a, Show a, Storable a, Unbox a, Enum a)
+       forall a. (Arbitrary a, Eq a, Show a, Unbox a, Enum a)
     => a
     -> String
     -> Spec

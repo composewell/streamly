@@ -17,12 +17,10 @@ module Streamly.Internal.Data.Ring
 
     -- * Construction
     , new
-    , newRing
     , writeN
 
     , advance
     , moveBy
-    , startOf
 
     -- * Random writes
     , unsafeInsert
@@ -72,22 +70,19 @@ module Streamly.Internal.Data.Ring
 #include "ArrayMacros.h"
 #include "inline.hs"
 
-import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Foreign.Storable
-import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (plusPtr, minusPtr, castPtr)
-import Streamly.Internal.Data.Unbox as Unboxed (Unbox(peekAt))
-import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
-import GHC.Ptr (Ptr(..))
+import Streamly.Internal.Data.Unbox as Unboxed (Unbox(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..), lmap)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Stream.Step (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
+import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
+import Data.Proxy (Proxy(..))
+
+import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Array.Type as A
@@ -111,68 +106,38 @@ import Prelude hiding (length, concat, read)
 -- structure. We should not leak out references to it for immutable use.
 --
 data Ring a = Ring
-    { ringStart :: {-# UNPACK #-} !(ForeignPtr a) -- first address
-    , ringBound :: {-# UNPACK #-} !(Ptr a)        -- first address beyond allocated memory
+    { ringContents :: {-# UNPACK #-} !MutByteArray
+    , ringCapacity :: {-# UNPACK #-} !Int
     }
 
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
 
--- | Get the first address of the ring as a pointer.
-startOf :: Ring a -> Ptr a
-startOf = unsafeForeignPtrToPtr . ringStart
-
 -- | Create a new ringbuffer and return the ring buffer and the ringHead.
 -- Returns the ring and the ringHead, the ringHead is same as ringStart.
 {-# INLINE new #-}
-new :: forall a. Storable a => Int -> IO (Ring a, Ptr a)
+new :: forall a. Unbox a => Int -> IO (Ring a)
 new count = do
-    let size = count * max 1 (sizeOf (undefined :: a))
-    fptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
-    let p = unsafeForeignPtrToPtr fptr
-    return (Ring
-        { ringStart = fptr
-        , ringBound = p `plusPtr` size
-        }, p)
-
--- XXX Rename this to "new".
---
--- | @newRing count@ allocates an empty array that can hold 'count' items.  The
--- memory of the array is uninitialized and the allocation is aligned as per
--- the 'Storable' instance of the type.
---
--- /Unimplemented/
-{-# INLINE newRing #-}
-newRing :: Int -> m (Ring a)
-newRing = undefined
+    arr <- MBA.new (count * SIZE_OF(a))
+    pure $ Ring arr count
 
 -- | Advance the ringHead by 1 item, wrap around if we hit the end of the
 -- array.
 {-# INLINE advance #-}
-advance :: forall a. Storable a => Ring a -> Ptr a -> Ptr a
-advance Ring{..} ringHead =
-    let ptr = PTR_NEXT(ringHead,a)
-    in if ptr <  ringBound
-       then ptr
-       else unsafeForeignPtrToPtr ringStart
+advance :: Ring a -> Int -> Int
+advance rb ringHead =
+    let newHead = ringHead + 1
+     in if newHead >= ringCapacity rb
+        then 0
+        else newHead
 
 -- | Move the ringHead by n items. The direction depends on the sign on whether
 -- n is positive or negative. Wrap around if we hit the beginning or end of the
 -- array.
 {-# INLINE moveBy #-}
-moveBy :: forall a. Storable a => Int -> Ring a -> Ptr a -> Ptr a
-moveBy by Ring {..} ringHead = ringStartPtr `plusPtr` advanceFromHead
-
-    where
-
-    elemSize = STORABLE_SIZE_OF(a)
-    ringStartPtr = unsafeForeignPtrToPtr ringStart
-    lenInBytes = ringBound `minusPtr` ringStartPtr
-    offInBytes = ringHead `minusPtr` ringStartPtr
-    len = assert (lenInBytes `mod` elemSize == 0) $ lenInBytes `div` elemSize
-    off = assert (offInBytes `mod` elemSize == 0) $ offInBytes `div` elemSize
-    advanceFromHead = (off + by `mod` len) * elemSize
+moveBy :: Int -> Ring a -> Int -> Int
+moveBy by rb ringHead = (ringHead + by) `mod` ringCapacity rb
 
 -- XXX Move the writeLastN from array module here.
 --
@@ -181,7 +146,7 @@ moveBy by Ring {..} ringHead = ringStartPtr `plusPtr` advanceFromHead
 --
 -- /Unimplemented/
 {-# INLINE writeN #-}
-writeN :: -- (Storable a, MonadIO m) =>
+writeN :: -- (Unbox a, MonadIO m) =>
     Int -> Fold m a (Ring a)
 writeN = undefined
 
@@ -200,7 +165,7 @@ fromArray = undefined
 -- | Modify a given index of a ring array using a modifier function.
 --
 -- /Unimplemented/
-modifyIndex :: -- forall m a b. (MonadIO m, Storable a) =>
+modifyIndex :: -- forall m a b. (MonadIO m, Unbox a) =>
     Ring a -> Int -> (a -> (a, b)) -> m b
 modifyIndex = undefined
 
@@ -211,7 +176,7 @@ modifyIndex = undefined
 --
 -- /Unimplemented/
 {-# INLINE putIndex #-}
-putIndex :: -- (MonadIO m, Storable a) =>
+putIndex :: -- (MonadIO m, Unbox a) =>
     Ring a -> Int -> a -> m ()
 putIndex = undefined
 
@@ -220,17 +185,16 @@ putIndex = undefined
 -- beause ringHead supplied is not verified to be within the Ring. Also,
 -- the ringStart foreignPtr must be guaranteed to be alive by the caller.
 {-# INLINE unsafeInsert #-}
-unsafeInsert :: Storable a => Ring a -> Ptr a -> a -> IO (Ptr a)
+unsafeInsert :: forall a. Unbox a => Ring a -> Int -> a -> IO Int
 unsafeInsert rb ringHead newVal = do
-    poke ringHead newVal
-    -- touchForeignPtr (ringStart rb)
-    return $ advance rb ringHead
+    pokeAt (ringHead * SIZE_OF(a)) (ringContents rb) newVal
+    pure $ advance rb ringHead
 
 -- | Insert an item at the head of the ring, when the ring is full this
 -- replaces the oldest item in the ring with the new item.
 --
 -- /Unimplemented/
-slide :: -- forall m a. (MonadIO m, Storable a) =>
+slide :: -- forall m a. (MonadIO m, Unbox a) =>
     Ring a -> a -> m (Ring a)
 slide = undefined
 
@@ -242,14 +206,14 @@ slide = undefined
 --
 -- Unsafe because it does not check the bounds of the ring array.
 {-# INLINE_NORMAL getIndexUnsafe #-}
-getIndexUnsafe :: -- forall m a. (MonadIO m, Storable a) =>
+getIndexUnsafe :: -- forall m a. (MonadIO m, Unbox a) =>
     Ring a -> Int -> m a
 getIndexUnsafe = undefined
 
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
 {-# INLINE getIndex #-}
-getIndex :: -- (MonadIO m, Storable a) =>
+getIndex :: -- (MonadIO m, Unbox a) =>
     Ring a -> Int -> m a
 getIndex = undefined
 
@@ -259,7 +223,7 @@ getIndex = undefined
 -- Slightly faster than computing the forward index and using getIndex.
 --
 {-# INLINE getIndexRev #-}
-getIndexRev :: -- (MonadIO m, Storable a) =>
+getIndexRev :: -- (MonadIO m, Unbox a) =>
     Ring a -> Int -> m a
 getIndexRev = undefined
 
@@ -282,7 +246,7 @@ byteLength = undefined
 --
 -- /Unimplemented/
 {-# INLINE length #-}
-length :: -- forall a. Storable a =>
+length :: -- forall a. Unbox a =>
     Ring a -> Int
 length = undefined
 
@@ -317,18 +281,16 @@ bytesFree = undefined
 --
 -- /Internal/
 {-# INLINE_NORMAL read #-}
-read :: forall m a. (MonadIO m, Storable a) => Unfold m (Ring a, Ptr a, Int) a
+read :: forall m a. (MonadIO m, Unbox a) => Unfold m (Ring a, Int, Int) a
 read = Unfold step return
 
     where
 
     step (rb, rh, n) = do
         if n <= 0
-        then do
-            liftIO $ touchForeignPtr (ringStart rb)
-            return Stop
+        then return Stop
         else do
-            x <- liftIO $ peek rh
+            x <- liftIO $ PEEK_ELEM(a, rh, (ringContents rb))
             let rh1 = advance rb rh
             return $ Yield x (rb, rh1, n - 1)
 
@@ -336,7 +298,7 @@ read = Unfold step return
 --
 -- /Unimplemented/
 {-# INLINE_NORMAL readRev #-}
-readRev :: -- forall m a. (MonadIO m, Storable a) =>
+readRev :: -- forall m a. (MonadIO m, Unbox a) =>
     Unfold m (MutArray a) a
 readRev = undefined
 
@@ -352,7 +314,7 @@ readRev = undefined
 --
 -- /Unimplemented/
 {-# INLINE_NORMAL ringsOf #-}
-ringsOf :: -- forall m a. (MonadIO m, Storable a) =>
+ringsOf :: -- forall m a. (MonadIO m, Unbox a) =>
     Int -> Stream m a -> Stream m (MutArray a)
 ringsOf = undefined -- Stream.scan (writeN n)
 
@@ -381,10 +343,10 @@ asBytes = castUnsafe
 --
 -- /Pre-release/
 --
-cast :: forall a b. Storable b => Ring a -> Maybe (Ring b)
+cast :: forall a b. Unbox b => Ring a -> Maybe (Ring b)
 cast arr =
     let len = byteLength arr
-        r = len `mod` STORABLE_SIZE_OF(b)
+        r = len `mod` SIZE_OF(b)
      in if r /= 0
         then Nothing
         else Just $ castUnsafe arr
@@ -399,28 +361,25 @@ cast arr =
 -- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
 -- be in range.
 {-# INLINE unsafeEqArrayN #-}
-unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
+unsafeEqArrayN :: forall a. Unbox a => Ring a -> Int -> A.Array a -> Int -> Bool
 unsafeEqArrayN Ring{..} rh A.Array{..} nBytes
     | nBytes < 0 = error "unsafeEqArrayN: n should be >= 0"
     | nBytes == 0 = True
-    | otherwise = unsafeInlineIO $ check (castPtr rh) 0
+    | otherwise = unsafeInlineIO $ check (rh * SIZE_OF(a)) 0
 
     where
 
-    w8Contents = arrContents
-
     check p i = do
-        (relem :: Word8) <- peek p
-        aelem <- peekAt i w8Contents
+        (relem :: Word8) <- peekAt p ringContents
+        aelem <- peekAt i arrContents
         if relem == aelem
-        then go (p `plusPtr` 1) (i + 1)
+        then go (p + 1) (i + 1)
         else return False
 
     go p i
         | i == nBytes = return True
-        | castPtr p == ringBound =
-            go (castPtr (unsafeForeignPtrToPtr ringStart)) i
-        | castPtr p == rh = touchForeignPtr ringStart >> return True
+        | p == (ringCapacity * SIZE_OF(a)) = go 0 i
+        | p == (rh * SIZE_OF(a)) = return True
         | otherwise = check p i
 
 -- XXX This is not modular. We should probably just convert the array and the
@@ -435,30 +394,30 @@ unsafeEqArrayN Ring{..} rh A.Array{..} nBytes
 -- supplied array must be equal to or bigger than the ringBuffer, ARRAY BOUNDS
 -- ARE NOT CHECKED.
 {-# INLINE unsafeEqArray #-}
-unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
+unsafeEqArray :: forall a. Unbox a => Ring a -> Int -> A.Array a -> Bool
 unsafeEqArray Ring{..} rh A.Array{..} =
-    unsafeInlineIO $ check (castPtr rh) 0
+    unsafeInlineIO $ check (rh * SIZE_OF(a)) 0
 
     where
 
-    w8Contents = arrContents
-
     check p i = do
-        (relem :: Word8) <- peek p
-        aelem <- peekAt i w8Contents
+        (relem :: Word8) <- peekAt p ringContents
+        aelem <- peekAt i arrContents
         if relem == aelem
-        then go (p `plusPtr` 1) (i + 1)
+        then go (p + 1) (i + 1)
         else return False
 
     go p i
-        | castPtr p ==
-              ringBound = go (castPtr (unsafeForeignPtrToPtr ringStart)) i
-        | castPtr p == rh = touchForeignPtr ringStart >> return True
+        | p == (ringCapacity * SIZE_OF(a)) = go 0 i
+        | p == (rh * SIZE_OF(a)) = return True
         | otherwise = check p i
 
 -------------------------------------------------------------------------------
 -- Folding
 -------------------------------------------------------------------------------
+
+-- XXX How does repeated multiplication effect performance? Should we track the
+-- byte index instead?
 
 -- XXX We can unfold it into a stream and fold the stream instead.
 -- XXX use MonadIO
@@ -469,39 +428,30 @@ unsafeEqArray Ring{..} rh A.Array{..} =
 --
 -- Unsafe because the supplied Ptr is not checked to be in range.
 {-# INLINE unsafeFoldRing #-}
-unsafeFoldRing :: forall a b. Storable a
-    => Ptr a -> (b -> a -> b) -> b -> Ring a -> b
-unsafeFoldRing ptr f z Ring{..} =
-    let !res = unsafeInlineIO $ withForeignPtr ringStart $ \p ->
-                    go z p ptr
+unsafeFoldRing :: forall a b. Unbox a
+    => Int -> (b -> a -> b) -> b -> Ring a -> b
+unsafeFoldRing len f z Ring{..} =
+    let !res = unsafeInlineIO $ go z 0 len
     in res
     where
       go !acc !p !q
         | p == q = return acc
         | otherwise = do
-            x <- peek p
-            go (f acc x) (PTR_NEXT(p,a)) q
-
--- XXX Can we remove MonadIO here?
-withForeignPtrM :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
-withForeignPtrM fp fn = do
-    r <- fn $ unsafeForeignPtrToPtr fp
-    liftIO $ touchForeignPtr fp
-    return r
+            x <- PEEK_ELEM(a, p, ringContents)
+            go (f acc x) (p + 1) q
 
 -- | Like unsafeFoldRing but with a monadic step function.
 {-# INLINE unsafeFoldRingM #-}
-unsafeFoldRingM :: forall m a b. (MonadIO m, Storable a)
-    => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingM ptr f z Ring {..} =
-    withForeignPtrM ringStart $ \x -> go z x ptr
+unsafeFoldRingM :: forall m a b. (MonadIO m, Unbox a)
+    => Int -> (b -> a -> m b) -> b -> Ring a -> m b
+unsafeFoldRingM len f z Ring {..} = go z 0 len
   where
     go !acc !start !end
         | start == end = return acc
         | otherwise = do
-            let !x = unsafeInlineIO $ peek start
+            let !x = unsafeInlineIO $ PEEK_ELEM(a, start, ringContents)
             acc1 <- f acc x
-            go acc1 (PTR_NEXT(start,a)) end
+            go acc1 (start + 1) end
 
 -- | Fold the entire length of a ring buffer starting at the supplied ringHead
 -- pointer.  Assuming the supplied ringHead pointer points to the oldest item,
@@ -511,13 +461,12 @@ unsafeFoldRingM ptr f z Ring {..} =
 -- Note, this will crash on ring of 0 size.
 --
 {-# INLINE unsafeFoldRingFullM #-}
-unsafeFoldRingFullM :: forall m a b. (MonadIO m, Storable a)
-    => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingFullM rh f z rb@Ring {..} =
-    withForeignPtrM ringStart $ \_ -> go z rh
+unsafeFoldRingFullM :: forall m a b. (MonadIO m, Unbox a)
+    => Int -> (b -> a -> m b) -> b -> Ring a -> m b
+unsafeFoldRingFullM rh f z rb@Ring {..} = go z rh
   where
     go !acc !start = do
-        let !x = unsafeInlineIO $ peek start
+        let !x = unsafeInlineIO $ PEEK_ELEM(a, start, ringContents)
         acc' <- f acc x
         let ptr = advance rb start
         if ptr == rh
@@ -530,16 +479,15 @@ unsafeFoldRingFullM rh f z rb@Ring {..} =
 -- Note, this will crash on ring of 0 size.
 --
 {-# INLINE unsafeFoldRingNM #-}
-unsafeFoldRingNM :: forall m a b. (MonadIO m, Storable a)
-    => Int -> Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingNM count rh f z rb@Ring {..} =
-    withForeignPtrM ringStart $ \_ -> go count z rh
+unsafeFoldRingNM :: forall m a b. (MonadIO m, Unbox a)
+    => Int -> Int -> (b -> a -> m b) -> b -> Ring a -> m b
+unsafeFoldRingNM count rh f z rb@Ring {..} = go count z rh
 
     where
 
     go 0 acc _ = return acc
     go !n !acc !start = do
-        let !x = unsafeInlineIO $ peek start
+        let !x = unsafeInlineIO $ PEEK_ELEM(a, start, ringContents)
         acc' <- f acc x
         let ptr = advance rb start
         if ptr == rh || n == 0
@@ -556,7 +504,7 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 -- a))@ action depends on when it is executed. It does not capture the sanpshot
 -- of the ring at a particular time.
 {-# INLINE slidingWindowWith #-}
-slidingWindowWith :: forall m a b. (MonadIO m, Storable a, Unbox a)
+slidingWindowWith :: forall m a b. (MonadIO m, Unbox a)
     => Int -> Fold m ((a, Maybe a), m (MutArray a)) b -> Fold m a b
 slidingWindowWith n (Fold step1 initial1 extract1 final1) =
     Fold step initial extract final
@@ -568,10 +516,10 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
         then error "Window size must be > 0"
         else do
             r <- initial1
-            (rb, rh) <- liftIO $ new n
+            rb <- liftIO $ new n
             return $
                 case r of
-                    Partial s -> Partial $ Tuple4' rb rh (0 :: Int) s
+                    Partial s -> Partial $ Tuple4' rb 0 (0 :: Int) s
                     Done b -> Done b
 
     toArray foldRing rb rh = do
@@ -583,17 +531,15 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
     step (Tuple4' rb rh i st) a
         | i < n = do
             rh1 <- liftIO $ unsafeInsert rb rh a
-            liftIO $ touchForeignPtr (ringStart rb)
-            let action = toArray unsafeFoldRingM rb (PTR_NEXT(rh, a))
+            let action = toArray unsafeFoldRingM rb rh1
             r <- step1 st ((a, Nothing), action)
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
                     Done b -> Done b
         | otherwise = do
-            old <- liftIO $ peek rh
+            old <- liftIO $ PEEK_ELEM(a, rh, (ringContents rb))
             rh1 <- liftIO $ unsafeInsert rb rh a
-            liftIO $ touchForeignPtr (ringStart rb)
             r <- step1 st ((a, Just old), toArray unsafeFoldRingFullM rb rh1)
             return $
                 case r of
@@ -614,6 +560,6 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
 -- there is no old element.
 --
 {-# INLINE slidingWindow #-}
-slidingWindow :: forall m a b. (MonadIO m, Storable a, Unbox a)
+slidingWindow :: forall m a b. (MonadIO m, Unbox a)
     => Int -> Fold m (a, Maybe a) b -> Fold m a b
 slidingWindow n f = slidingWindowWith n (lmap fst f)

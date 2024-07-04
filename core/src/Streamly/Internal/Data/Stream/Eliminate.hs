@@ -67,7 +67,6 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.Storable (Storable)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
@@ -772,7 +771,7 @@ stripPrefix (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
 -- /Requires 'Storable' constraint/
 --
 {-# INLINE isInfixOf #-}
-isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a, Unbox a)
+isInfixOf :: (MonadIO m, Eq a, Enum a, Unbox a)
     => Stream m a -> Stream m a -> m Bool
 isInfixOf infx stream = do
     arr <- fold Array.write infx

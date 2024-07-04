@@ -109,7 +109,6 @@ import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.Ptr (castPtr)
-import Foreign.Storable (Storable)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
@@ -212,7 +211,7 @@ last = getIndexRev 0
 --
 {-# INLINE writeLastN #-}
 writeLastN ::
-       (Storable a, Unbox a, MonadIO m) => Int -> Fold m a (Array a)
+       (Unbox a, MonadIO m) => Int -> Fold m a (Array a)
 writeLastN n
     | n <= 0 = fmap (const mempty) FL.drain
     | otherwise = unsafeFreeze <$> Fold step initial done done
@@ -224,7 +223,7 @@ writeLastN n
         return $ FL.Partial $ Tuple3Fused' rb rh1 (i + 1)
 
     initial =
-        let f (a, b) = FL.Partial $ Tuple3Fused' a b (0 :: Int)
+        let f a = FL.Partial $ Tuple3Fused' a 0 (0 :: Int)
          in fmap f $ liftIO $ RB.new n
 
     done (Tuple3Fused' rb rh i) = do

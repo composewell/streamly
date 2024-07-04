@@ -59,13 +59,11 @@ where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Bifunctor(bimap)
-import Foreign.Storable (Storable, peek)
+import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict
     (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
-
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Ring as Ring
@@ -268,7 +266,7 @@ windowPowerSumFrac p = windowLmap (** p) windowSum
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
 {-# INLINE windowRange #-}
-windowRange :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe (a, a))
+windowRange :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe (a, a))
 windowRange n = Fold step initial extract extract
 
     where
@@ -280,7 +278,7 @@ windowRange n = Fold step initial extract extract
         if n <= 0
         then error "range: window size must be > 0"
         else
-            let f (a, b) = Partial $ Tuple3Fused' a b (0 :: Int)
+            let f a = Partial $ Tuple3Fused' a 0 (0 :: Int)
              in fmap f $ liftIO $ Ring.new n
 
     step (Tuple3Fused' rb rh i) a = do
@@ -306,7 +304,7 @@ windowRange n = Fold step initial extract extract
             -- uninitialized if the ring is not full.
             -- Using "unsafeForeignPtrToPtr" here is safe as we touch the ring
             -- again in "foldFunc".
-            x <- liftIO $ peek (unsafeForeignPtrToPtr (Ring.ringStart rb))
+            x <- liftIO $ peekAt 0 (Ring.ringContents rb)
             let accum (mn, mx) a = return (min mn a, max mx a)
             fmap Just $ foldFunc i rh accum (x, x) rb
 
@@ -323,7 +321,7 @@ windowRange n = Fold step initial extract extract
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
 {-# INLINE windowMinimum #-}
-windowMinimum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
+windowMinimum :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe a)
 windowMinimum n = fmap (fmap fst) $ windowRange n
 
 -- | The maximum element in a rolling window.
@@ -336,7 +334,7 @@ windowMinimum n = fmap (fmap fst) $ windowRange n
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
 {-# INLINE windowMaximum #-}
-windowMaximum :: (MonadIO m, Storable a, Ord a) => Int -> Fold m a (Maybe a)
+windowMaximum :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe a)
 windowMaximum n = fmap (fmap snd) $ windowRange n
 
 -- | Arithmetic mean of elements in a sliding window:

@@ -21,7 +21,8 @@ import Test.Hspec as H
 unsafeEqArrayN :: [Int] -> [Int] -> Int -> Int -> Bool -> IO ()
 unsafeEqArrayN lstArr lstRing startR nelem expected = do
     let arr = Array.fromList lstArr
-    (ring, rh) <- Ring.new (length lstRing)
+    ring <- Ring.new (length lstRing)
+    let rh = 0
     void $ P.foldlM (Ring.unsafeInsert ring) rh lstRing
     Ring.unsafeEqArrayN ring (Ring.moveBy startR ring rh) arr nelem
         `shouldBe` expected
@@ -29,7 +30,8 @@ unsafeEqArrayN lstArr lstRing startR nelem expected = do
 unsafeEqArray :: [Int] -> [Int] -> Int -> Bool -> IO ()
 unsafeEqArray lstArr lstRing startR expected = do
     let arr = Array.fromList lstArr
-    (ring, rh) <- Ring.new (length lstRing)
+    ring <- Ring.new (length lstRing)
+    let rh = 0
     void $ P.foldlM (Ring.unsafeInsert ring) rh lstRing
     Ring.unsafeEqArray ring (Ring.moveBy startR ring rh) arr
         `shouldBe` expected
