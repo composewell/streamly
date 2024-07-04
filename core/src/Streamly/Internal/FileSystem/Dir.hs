@@ -35,8 +35,6 @@ module Streamly.Internal.FileSystem.Dir
     , readEither
     , readEitherPaths
     , readEitherChunks
-    , _readEitherChunks
-    , readEitherByteChunks
 
     -- We can implement this in terms of readAttrsRecursive without losing
     -- perf.
@@ -94,13 +92,14 @@ import Streamly.Internal.Data.Unfold (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-import qualified System.Win32 as Win32
+import qualified Streamly.Internal.Data.Fold as Fold
+import Streamly.Internal.FileSystem.Windows.ReadDir
+    (DirStream, openDirStream, closeDirStream, readDirStreamEither)
 #else
 import Streamly.Internal.FileSystem.Posix.ReadDir
     ( DirStream, openDirStream, closeDirStream, readDirStreamEither
-    , readEitherChunks, readEitherByteChunks)
+    , readEitherChunks)
 #endif
-import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Unfold as UF (mapM2, bracketIO)
@@ -242,8 +241,6 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 
 -- XXX exception handling
 
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-
 {-# INLINE streamEitherReader #-}
 streamEitherReader :: MonadIO m =>
     Unfold m DirStream (Either Path Path)
@@ -259,30 +256,6 @@ streamEitherReader = Unfold step return
 {-# INLINE streamReader #-}
 streamReader :: MonadIO m => Unfold m DirStream Path
 streamReader = fmap (either id id) streamEitherReader
-
-#else
-
-openDirStream :: String -> IO (Win32.HANDLE, Win32.FindData)
-openDirStream = Win32.findFirstFile
-
-closeDirStream :: (Win32.HANDLE, Win32.FindData) -> IO ()
-closeDirStream (h, _) = Win32.findClose h
-
-{-# INLINE streamReader #-}
-streamReader :: MonadIO m => Unfold m (Win32.HANDLE, Win32.FindData) Path
-streamReader = Unfold step return
-
-    where
-
-    step (h, fdat) = do
-        more <- liftIO $ Win32.findNextFile h fdat
-        if more
-        then do
-            filepath <- liftIO $ Win32.getFindDataFileName fdat
-            filename <- Path.fromString filepath
-            return $ Yield filename (h, fdat)
-        else return Stop
-#endif
 
 --  | Read a directory emitting a stream with names of the children. Filter out
 --  "." and ".." entries.
@@ -311,15 +284,11 @@ reader =
 {-# INLINE eitherReader #-}
 eitherReader :: (MonadIO m, MonadCatch m) =>
     Unfold m Path (Either Path Path)
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 eitherReader =
     -- XXX The measured overhead of bracketIO is not noticeable, if it turns
     -- out to be a problem for small filenames we can use getdents64 to use
     -- chunked read to avoid the overhead.
       UF.bracketIO openDirStream closeDirStream streamEitherReader
-#else
-eitherReader = undefined
-#endif
 
 {-# INLINE eitherReaderPaths #-}
 eitherReaderPaths ::(MonadIO m, MonadCatch m) =>
@@ -374,13 +343,20 @@ readEitherPaths dir =
     let (</>) = Path.append
      in fmap (bimap (dir </>) (dir </>)) $ readEither dir
 
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+-- XXX Implement a custom version of readEitherChunks (like for Posix) for
+-- windows as well. Also implement readEitherByteChunks.
+--
 -- XXX For a fast custom implementation of traversal, the Right could be the
 -- final array chunk including all files and dirs to be written to IO. The Left
 -- could be list of dirs to be traversed.
-{-# INLINE _readEitherChunks #-}
-_readEitherChunks :: (MonadIO m, MonadCatch m) =>
+--
+-- This is a generic (but slower?) version of readEitherChunks using
+-- eitherReaderPaths.
+{-# INLINE readEitherChunks #-}
+readEitherChunks :: (MonadIO m, MonadCatch m) =>
     [Path] -> Stream m (Either [Path] [Path])
-_readEitherChunks dirs =
+readEitherChunks dirs =
     -- XXX Need to use a take to limit the group size. There will be separate
     -- limits for dir and files groups.
      S.groupsWhile grouper collector
@@ -405,6 +381,7 @@ _readEitherChunks dirs =
                     Right _ -> Left [x1] -- initial
                     _ -> either (\xs -> Left (x1:xs)) Right b
             Right x1 -> fmap (x1:) b
+#endif
 
 {-# DEPRECATED toEither "Please use 'readEither' instead" #-}
 {-# INLINE toEither #-}

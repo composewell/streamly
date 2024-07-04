@@ -75,16 +75,10 @@ throwErrnoPathIfNullRetry loc path f =
 -- requires unix >= 2.8
 -------------------------------------------------------------------------------
 
-newtype DirStream = DirStream (Ptr CDir)
-
 data {-# CTYPE "DIR" #-} CDir
 data {-# CTYPE "struct dirent" #-} CDirent
 
--- | @closeDirStream dp@ calls @closedir@ to close
---   the directory stream @dp@.
-closeDirStream :: DirStream -> IO ()
-closeDirStream (DirStream dirp) = do
-  throwErrnoIfMinus1Retry_ "closeDirStream" (c_closedir dirp)
+newtype DirStream = DirStream (Ptr CDir)
 
 -------------------------------------------------------------------------------
 
@@ -94,11 +88,13 @@ foreign import ccall unsafe "closedir"
 foreign import capi unsafe "dirent.h opendir"
     c_opendir :: CString  -> IO (Ptr CDir)
 
+-- XXX The "unix" package uses a wrapper over readdir __hscore_readdir (see
+-- cbits/HsUnix.c in unix package) which uses readdir_r in some cases where
+-- readdir is not known to be re-entrant. We are not doing that here. We are
+-- assuming that readdir is re-entrant which may not be the case on some old
+-- unix systems.
 foreign import ccall unsafe "dirent.h readdir"
     c_readdir  :: Ptr CDir -> IO (Ptr CDirent)
-
-foreign import ccall unsafe "__hscore_d_name"
-    d_name :: Ptr CDirent -> IO CString
 
 -- XXX Use openat instead of open so that we do not have to build and resolve
 -- absolute paths.
@@ -109,9 +105,14 @@ foreign import ccall unsafe "__hscore_d_name"
 openDirStream :: PosixPath -> IO DirStream
 openDirStream p =
   Array.asCStringUnsafe (Path.toChunk p) $ \s -> do
-    -- XXX is toString always creating another copy or only in case of error?
     dirp <- throwErrnoPathIfNullRetry "openDirStream" p $ c_opendir s
     return (DirStream dirp)
+
+-- | @closeDirStream dp@ calls @closedir@ to close
+--   the directory stream @dp@.
+closeDirStream :: DirStream -> IO ()
+closeDirStream (DirStream dirp) = do
+  throwErrnoIfMinus1Retry_ "closeDirStream" (c_closedir dirp)
 
 isMetaDir :: Ptr CChar -> IO Bool
 isMetaDir dname = do
@@ -155,7 +156,7 @@ readDirStreamEither (DirStream dirp) = loop
     ptr <- c_readdir dirp
     if (ptr /= nullPtr)
     then do
-        dname <- d_name ptr
+        let dname = #{ptr struct dirent, d_name} ptr
         dtype :: #{type unsigned char} <- #{peek struct dirent, d_type} ptr
         -- dreclen :: #{type unsigned short} <- #{peek struct dirent, d_reclen} ptr
         -- It is possible to find the name length using dreclen and then use
@@ -228,7 +229,7 @@ readEitherChunks alldirs =
         dentPtr <- liftIO $ c_readdir dirp
         if (dentPtr /= nullPtr)
         then do
-            dname <- liftIO $ d_name dentPtr
+            let dname = #{ptr struct dirent, d_name} dentPtr
             dtype :: #{type unsigned char} <-
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
@@ -391,7 +392,7 @@ readEitherByteChunks alldirs =
         dentPtr <- liftIO $ c_readdir dirp
         if (dentPtr /= nullPtr)
         then do
-            dname <- liftIO $ d_name dentPtr
+            let dname = #{ptr struct dirent, d_name} dentPtr
             dtype :: #{type unsigned char} <-
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
@@ -440,5 +441,5 @@ readEitherByteChunks alldirs =
                 liftIO $ closeDirStream (DirStream dirp)
                 if (n == 0)
                 then return $ Skip (ChunkStreamByteInit xs dirs ndirs mbarr pos)
-                else liftIO $ throwErrno "readEitherChunks"
+                else liftIO $ throwErrno "readEitherByteChunks"
 #endif

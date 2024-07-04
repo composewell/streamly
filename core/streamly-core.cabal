@@ -401,6 +401,7 @@ library
                      , Streamly.Internal.FileSystem.File
                      , Streamly.Internal.FileSystem.Dir
                      , Streamly.Internal.FileSystem.Posix.ReadDir
+                     , Streamly.Internal.FileSystem.Windows.ReadDir
 
                     -- Ring Arrays
                      , Streamly.Internal.Data.Ring
