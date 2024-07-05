@@ -63,8 +63,10 @@ module Streamly.Internal.Data.Array.Type
     , fromStream
     , fromPureStreamN
     , fromPureStream
-    , fromByteStr#
-    , fromByteStr
+    , fromCString#
+    , fromCString
+    , fromW16CString#
+    , fromW16CString
     , fromPtrN
     , fromChunks
     , fromChunksK
@@ -148,6 +150,8 @@ module Streamly.Internal.Data.Array.Type
     , pinnedWriteNAligned
     , write
     , pinnedWrite
+    , fromByteStr#
+    , fromByteStr
     )
 where
 
@@ -888,8 +892,6 @@ fromPureStream x = unsafePerformIO $ fmap unsafeFreeze (MA.fromPureStream x)
 fromPtrN :: Int -> Ptr Word8 -> Array Word8
 fromPtrN n addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromPtrN n addr)
 
--- XXX This should be monadic.
-
 -- | Copy a null terminated immutable 'Addr#' Word8 sequence into an array.
 --
 -- /Unsafe:/ The caller is responsible for safe addressing.
@@ -897,20 +899,40 @@ fromPtrN n addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromPtrN n addr)
 -- Note that this is completely safe when reading from Haskell string
 -- literals because they are guaranteed to be NULL terminated:
 --
--- >>> Array.toList $ Array.fromByteStr# "\1\2\3\0"#
+-- Note, you can use lazy unsafePerformIO _only if_ the pointer is immutable.
+--
+-- >>> Array.toList $ unsafePerformIO $ Array.fromCString# "\1\2\3\0"#
 -- [1,2,3]
 --
--- Note that this should be evaluated strictly to ensure that we do not hold
--- the reference to the pointer in a lazy thunk.
+fromCString# :: MonadIO m => Addr# -> m (Array Word8)
+fromCString# addr = fmap unsafeFreeze (MA.fromCString# addr)
+
+{-# DEPRECATED fromByteStr# "Please use fromCString# instead." #-}
 fromByteStr# :: Addr# -> Array Word8
-fromByteStr# addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromByteStr# addr)
+fromByteStr# addr = unsafePerformIO $ fromCString# addr
 
--- XXX This should be monadic.
+-- | Copy a C string consisting of 16-bit wide chars and terminated by a 16-bit
+-- null char, into a Word16 array. The null character is not copied.
+--
+-- Useful for copying UTF16 strings on Windows.
+--
+fromW16CString# :: MonadIO m => Addr# -> m (Array Word16)
+fromW16CString# addr = fmap unsafeFreeze (MA.fromW16CString# addr)
 
--- | Note that this should be evaluated strictly to ensure that we do not hold
--- the reference to the pointer in a lazy thunk.
+fromCString :: MonadIO m => Ptr Word8 -> m (Array Word8)
+fromCString (Ptr addr#) = fromCString# addr#
+
+{-# DEPRECATED fromByteStr "Please use fromCString instead." #-}
 fromByteStr :: Ptr Word8 -> Array Word8
-fromByteStr (Ptr addr#) = fromByteStr# addr#
+fromByteStr = unsafePerformIO . fromCString
+
+-- | Copy a C string consisting of 16-bit wide chars and terminated by a 16-bit
+-- null char, into a Word16 array. The null character is not copied.
+--
+-- Useful for copying UTF16 strings on Windows.
+--
+fromW16CString :: MonadIO m => Ptr Word8 -> m (Array Word16)
+fromW16CString (Ptr addr#) = fromW16CString# addr#
 
 -- XXX implement fromChunks/fromChunkList instead?
 

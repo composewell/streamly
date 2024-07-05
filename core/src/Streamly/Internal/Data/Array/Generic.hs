@@ -19,7 +19,7 @@ module Streamly.Internal.Data.Array.Generic
     , fromStreamN
     , fromStream
     , fromPureStream
-    , fromByteStr#
+    , fromCString#
 
     , fromListN
     , fromList
@@ -48,6 +48,7 @@ module Streamly.Internal.Data.Array.Generic
     -- * Deprecated
     , writeN
     , write
+    , fromByteStr#
     )
 where
 
@@ -142,8 +143,12 @@ fromPureStream x =
 -- fromPureStream = runIdentity . D.fold (unsafeMakePure write)
 -- fromPureStream = fromList . runIdentity . D.toList
 
+fromCString# :: MonadIO m => Addr# -> m (Array Word8)
+fromCString# addr = fromStream $ D.fromCString# addr
+
+{-# DEPRECATED fromByteStr# "Please use fromCString instead" #-}
 fromByteStr# :: Addr# -> Array Word8
-fromByteStr# addr = fromPureStream (D.fromByteStr# addr)
+fromByteStr# addr = fromPureStream (D.fromCString# addr)
 
 -------------------------------------------------------------------------------
 -- Stream Ops

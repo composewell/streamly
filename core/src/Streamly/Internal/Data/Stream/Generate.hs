@@ -95,6 +95,10 @@ module Streamly.Internal.Data.Stream.Generate
     -- * From Pointers
     , fromPtr
     , fromPtrN
+    , fromCString#
+    , fromW16CString#
+
+    -- * Deprecated
     , fromByteStr#
     )
 where
@@ -1178,16 +1182,33 @@ fromPtrN n = take n . fromPtr
 -- byte is not included in the stream.
 --
 -- >>> :set -XMagicHash
--- >>> fromByteStr# addr = Stream.takeWhile (/= 0) $ Stream.fromPtr $ Ptr addr
+-- >>> fromCString# addr = Stream.takeWhile (/= 0) $ Stream.fromPtr $ (Ptr addr :: Ptr Word8)
 --
 -- /Unsafe:/ The caller is responsible for safe addressing.
 --
 -- Note that this is completely safe when reading from Haskell string
 -- literals because they are guaranteed to be NULL terminated:
 --
--- >>> Stream.toList $ Stream.fromByteStr# "\1\2\3\0"#
+-- >>> Stream.toList $ Stream.fromCString# "\1\2\3\0"#
 -- [1,2,3]
 --
+{-# INLINE fromCString# #-}
+fromCString# :: Monad m => Addr# -> Stream m Word8
+fromCString# addr = takeWhile (/= 0) $ fromPtr $ Ptr addr
+
+{-# DEPRECATED fromByteStr# "Please use fromCString# instead" #-}
 {-# INLINE fromByteStr# #-}
 fromByteStr# :: Monad m => Addr# -> Stream m Word8
-fromByteStr# addr = takeWhile (/= 0) $ fromPtr $ Ptr addr
+fromByteStr# = fromCString#
+
+-- | Read Word16 from an immutable 'Addr#' until a 0 Word16 is encountered, the
+-- 0 Word16 is not included in the stream.
+--
+-- >>> :set -XMagicHash
+-- >>> fromW16CString# addr = Stream.takeWhile (/= 0) $ Stream.fromPtr $ (Ptr addr :: Ptr Word16)
+--
+-- /Unsafe:/ The caller is responsible for safe addressing.
+--
+{-# INLINE fromW16CString# #-}
+fromW16CString# :: Monad m => Addr# -> Stream m Word16
+fromW16CString# addr = takeWhile (/= 0) $ fromPtr $ Ptr addr

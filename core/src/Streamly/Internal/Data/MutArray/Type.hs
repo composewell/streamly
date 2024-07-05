@@ -94,7 +94,8 @@ module Streamly.Internal.Data.MutArray.Type
     , fromStream
     , fromPureStreamN
     , fromPureStream
-    , fromByteStr#
+    , fromCString#
+    , fromW16CString#
     , fromPtrN
     , fromChunksK
     , fromChunksRealloced -- fromSmallChunks
@@ -298,6 +299,7 @@ module Streamly.Internal.Data.MutArray.Type
     , write
     , pinnedWrite
     , writeRevN
+    , fromByteStr#
     )
 where
 
@@ -312,9 +314,9 @@ import Data.Bifunctor (first)
 import Data.Bits (shiftR, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
-import Data.Word (Word8)
+import Data.Word (Word8, Word16)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
+import Foreign.Ptr (plusPtr, minusPtr, nullPtr, castPtr)
 import Streamly.Internal.Data.MutByteArray.Type
     ( MutByteArray(..)
     , PinnedState(..)
@@ -349,6 +351,7 @@ import qualified Streamly.Internal.Data.Parser.Type as Parser
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Lift as D
+import qualified Streamly.Internal.Data.Stream.Generate as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Prelude
 
@@ -2444,9 +2447,9 @@ fromPtrN len addr = do
             (\ptr -> liftIO $ c_memcpy ptr addr (fromIntegral len))
     return (arr {arrEnd = len})
 
-{-# INLINABLE fromByteStr# #-}
-fromByteStr# :: MonadIO m => Addr# -> m (MutArray Word8)
-fromByteStr# addr = do
+{-# INLINABLE fromCString# #-}
+fromCString# :: MonadIO m => Addr# -> m (MutArray Word8)
+fromCString# addr = do
     -- It is better to count the size first and allocate exact space.
     -- Also, memcpy is better than stream copy when the size is known.
     -- C strlen compares 4 bytes at a time, so is better than the stream
@@ -2458,6 +2461,30 @@ fromByteStr# addr = do
     arr <- new lenInt
     _ <- unsafeAsPtr arr (\ptr -> liftIO $ c_memcpy ptr (Ptr addr) len)
     return (arr {arrEnd = lenInt})
+
+{-# DEPRECATED fromByteStr# "Please fromCString# instead." #-}
+{-# INLINABLE fromByteStr# #-}
+fromByteStr# :: MonadIO m => Addr# -> m (MutArray Word8)
+fromByteStr# = fromCString#
+
+-- | Copy a C string consisting of 16-bit wide chars and terminated by a 16-bit
+-- null char, into a Word16 array. The null character is not copied.
+--
+-- Useful for copying UTF16 strings on Windows.
+--
+{-# INLINABLE fromW16CString# #-}
+fromW16CString# :: MonadIO m => Addr# -> m (MutArray Word16)
+fromW16CString# addr = do
+    w16len <- D.fold FL.length $ D.fromW16CString# addr
+    let bytes = w16len * 2
+    -- The array type is inferred from c_memcpy type, therefore, it is not the
+    -- same as the returned array type.
+    arr :: MutArray Word8 <- emptyOf bytes
+    _ <- unsafeAsPtr arr (\ptr -> liftIO
+            $ c_memcpy (castPtr ptr) (Ptr addr) (fromIntegral bytes))
+    -- CAUTION! The array type is inferred from the return type and may be
+    -- different from the arr type.
+    return (arr {arrEnd = bytes})
 
 -------------------------------------------------------------------------------
 -- convert a stream of arrays to a single array by reallocating and copying

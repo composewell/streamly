@@ -1234,7 +1234,7 @@ encodeUtf16le =
 --
 {-# INLINE fromStr# #-}
 fromStr# :: MonadIO m => Addr# -> Stream m Char
-fromStr# addr = decodeUtf8 $ Stream.fromByteStr# addr
+fromStr# addr = decodeUtf8 $ Stream.fromCString# addr
 
 -------------------------------------------------------------------------------
 -- Encode streams of containers
