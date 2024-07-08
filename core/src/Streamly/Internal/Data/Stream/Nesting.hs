@@ -2332,7 +2332,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    old <- liftIO $ PEEK_ELEM(a,rh,(RB.ringContents rb))
+                    old <- RB.unsafeGetIndex rh rb
                     let cksum1 = deltaCksum cksum old x
                     r <- fstep fs old
                     case r of
@@ -2387,7 +2387,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
         r <- final fs
         skip $ SplitOnSeqYield r SplitOnSeqDone
     stepOuter _ (SplitOnSeqKRDone n fs rb rh) = do
-        old <- liftIO $ PEEK_ELEM(a,rh,(RB.ringContents rb))
+        old <- RB.unsafeGetIndex rh rb
         let rh1 = RB.advance rb rh
         r <- fstep fs old
         case r of
@@ -2714,7 +2714,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    old <- liftIO $ PEEK_ELEM(a,rh,(RB.ringContents rb))
+                    old <- RB.unsafeGetIndex rh rb
                     rh1 <- liftIO (RB.unsafeInsert rb rh x)
                     let cksum1 = deltaCksum cksum old x
                     r <- if withSep then fstep fs x else fstep fs old
@@ -2750,7 +2750,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
         r <- final fs
         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
     stepOuter _ (SplitOnSuffixSeqKRDone n fs rb rh) = do
-        old <- liftIO $ PEEK_ELEM(a,rh,(RB.ringContents rb))
+        old <- RB.unsafeGetIndex rh rb
         let rh1 = RB.advance rb rh
         r <- fstep fs old
         case r of

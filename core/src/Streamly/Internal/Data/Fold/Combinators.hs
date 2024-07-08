@@ -1675,7 +1675,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
         res <- fstep s x
         case res of
             Partial s1 -> do
-                (old :: a) <- liftIO $ PEEK_ELEM(a, rh, (Ring.ringContents rb))
+                (old :: a) <- Ring.unsafeGetIndex rh rb
                 rh1 <- liftIO $ Ring.unsafeInsert rb rh x
                 let ringHash = deltaCksum cksum old x
                 if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
@@ -1810,7 +1810,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
             else return $ Partial $ SplitOnSeqKRLoop s ringHash rb rh1
         else return $ Partial $ SplitOnSeqKR s (idx + 1) rb rh1
     step (SplitOnSeqKRLoop s cksum rb rh) x = do
-        old <- liftIO $ PEEK_ELEM(a, rh, (Ring.ringContents rb))
+        old <- Ring.unsafeGetIndex rh rb
         res <- fstep s old
         case res of
             Partial s1 -> do
@@ -1840,7 +1840,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 if n == 0
                 then fex s
                 else do
-                    old <- liftIO $ PEEK_ELEM(a, rh, (Ring.ringContents rb))
+                    old <- Ring.unsafeGetIndex rh rb
                     let rh1 = Ring.advance rb rh
                     r <- fstep s old
                     case r of
