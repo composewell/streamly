@@ -238,7 +238,7 @@ class Unbox a where
     sizeOf = genericSizeOf
 
     -- | @peekAt byte-offset array@ reads an element of type @a@ from the
-    -- the given the byte offset in the array.
+    -- given byte offset in the array.
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
@@ -253,7 +253,7 @@ class Unbox a where
     peekByteIndex = peekAt
 
     -- | @pokeAt byte-offset array@ writes an element of type @a@ to the
-    -- the given the byte offset in the array.
+    -- given byte offset in the array.
     --
     -- IMPORTANT: The implementation of this interface may not check the bounds
     -- of the array, the caller must not assume that.
