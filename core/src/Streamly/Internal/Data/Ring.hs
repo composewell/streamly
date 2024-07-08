@@ -125,8 +125,10 @@ mod1 i j = mod1 i (i - j)
 -- Construction
 -------------------------------------------------------------------------------
 
--- | Create a new ringbuffer and return the ring buffer and the ringHead.
--- Returns the ring and the ringHead, the ringHead is same as ringStart.
+-- | @new count@ allocates an empty ring array that can hold 'count' items. The
+-- memory of the ring is uninitialized and the allocation is aligned as per
+-- the 'Unbox' instance of the type.
+--
 {-# INLINE new #-}
 new :: forall a. Unbox a => Int -> IO (Ring a)
 new count = do
@@ -201,8 +203,7 @@ unsafePutIndex ring i val =
 
 -- | Insert an item at the head of the ring, when the ring is full this
 -- replaces the oldest item in the ring with the new item. This is unsafe
--- beause ringHead supplied is not verified to be within the Ring. Also,
--- the ringStart foreignPtr must be guaranteed to be alive by the caller.
+-- beause ringHead supplied is not verified to be within the Ring.
 {-# INLINE unsafeInsert #-}
 unsafeInsert :: forall a. Unbox a => Ring a -> Int -> a -> IO Int
 unsafeInsert rb ringHead newVal = do
@@ -376,7 +377,7 @@ cast arr =
 -- XXX remove all usage of unsafeInlineIO
 --
 -- | Like 'unsafeEqArray' but compares only N bytes instead of entire length of
--- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
+-- the ring buffer. This is unsafe because the ringHead is not checked to
 -- be in range.
 {-# INLINE unsafeEqArrayN #-}
 unsafeEqArrayN :: forall a. Unbox a => Ring a -> Int -> A.Array a -> Int -> Bool
@@ -405,10 +406,10 @@ unsafeEqArrayN Ring{..} rh A.Array{..} nBytes
 -- though.
 
 -- | Byte compare the entire length of ringBuffer with the given array,
--- starting at the supplied ringHead pointer.  Returns true if the Array and
+-- starting at the supplied ringHead index.  Returns true if the Array and
 -- the ringBuffer have identical contents.
 --
--- This is unsafe because the ringHead Ptr is not checked to be in range. The
+-- This is unsafe because the ringHead is not checked to be in range. The
 -- supplied array must be equal to or bigger than the ringBuffer, ARRAY BOUNDS
 -- ARE NOT CHECKED.
 {-# INLINE unsafeEqArray #-}
@@ -440,11 +441,11 @@ unsafeEqArray Ring{..} rh A.Array{..} =
 -- XXX We can unfold it into a stream and fold the stream instead.
 -- XXX use MonadIO
 --
--- | Fold the buffer starting from ringStart up to the given 'Ptr' using a pure
+-- | Fold the buffer starting from ringStart up to the given index using a pure
 -- step function. This is useful to fold the items in the ring when the ring is
--- not full. The supplied pointer is usually the end of the ring.
+-- not full. The supplied index is usually the end of the ring.
 --
--- Unsafe because the supplied Ptr is not checked to be in range.
+-- Unsafe because the supplied index is not checked to be in range.
 {-# INLINE unsafeFoldRing #-}
 unsafeFoldRing :: forall a b. Unbox a
     => Int -> (b -> a -> b) -> b -> Ring a -> b
@@ -472,7 +473,7 @@ unsafeFoldRingM len f z rb = go z 0 len
             go acc1 (start + 1) end
 
 -- | Fold the entire length of a ring buffer starting at the supplied ringHead
--- pointer.  Assuming the supplied ringHead pointer points to the oldest item,
+-- index.  Assuming the supplied ringHead index points to the oldest item,
 -- this would fold the ring starting from the oldest item to the newest item in
 -- the ring.
 --
@@ -491,7 +492,7 @@ unsafeFoldRingFullM rh f z rb = go z rh
             then return acc'
             else go acc' ptr
 
--- | Fold @Int@ items in the ring starting at @Ptr a@.  Won't fold more
+-- | Fold @Int@ items in the ring starting at the given index. Won't fold more
 -- than the length of the ring.
 --
 -- Note, this will crash on ring of 0 size.
