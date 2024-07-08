@@ -308,7 +308,7 @@ read = Unfold step return
         if n <= 0
         then return Stop
         else do
-            x <- liftIO $ PEEK_ELEM(a, rh, (ringContents rb))
+            x <- unsafeGetIndex rh rb
             let rh1 = advance rb rh
             return $ Yield x (rb, rh1, n - 1)
 
@@ -448,26 +448,26 @@ unsafeEqArray Ring{..} rh A.Array{..} =
 {-# INLINE unsafeFoldRing #-}
 unsafeFoldRing :: forall a b. Unbox a
     => Int -> (b -> a -> b) -> b -> Ring a -> b
-unsafeFoldRing len f z Ring{..} =
+unsafeFoldRing len f z rb =
     let !res = unsafeInlineIO $ go z 0 len
     in res
     where
       go !acc !p !q
         | p == q = return acc
         | otherwise = do
-            x <- PEEK_ELEM(a, p, ringContents)
+            x <- unsafeGetIndex p rb
             go (f acc x) (p + 1) q
 
 -- | Like unsafeFoldRing but with a monadic step function.
 {-# INLINE unsafeFoldRingM #-}
 unsafeFoldRingM :: forall m a b. (MonadIO m, Unbox a)
     => Int -> (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingM len f z Ring {..} = go z 0 len
+unsafeFoldRingM len f z rb = go z 0 len
   where
     go !acc !start !end
         | start == end = return acc
         | otherwise = do
-            let !x = unsafeInlineIO $ PEEK_ELEM(a, start, ringContents)
+            let !x = unsafeInlineIO $ unsafeGetIndex start rb
             acc1 <- f acc x
             go acc1 (start + 1) end
 
@@ -481,10 +481,10 @@ unsafeFoldRingM len f z Ring {..} = go z 0 len
 {-# INLINE unsafeFoldRingFullM #-}
 unsafeFoldRingFullM :: forall m a b. (MonadIO m, Unbox a)
     => Int -> (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingFullM rh f z rb@Ring {..} = go z rh
+unsafeFoldRingFullM rh f z rb = go z rh
   where
     go !acc !start = do
-        let !x = unsafeInlineIO $ PEEK_ELEM(a, start, ringContents)
+        let !x = unsafeInlineIO $ unsafeGetIndex start rb
         acc' <- f acc x
         let ptr = advance rb start
         if ptr == rh
@@ -499,13 +499,13 @@ unsafeFoldRingFullM rh f z rb@Ring {..} = go z rh
 {-# INLINE unsafeFoldRingNM #-}
 unsafeFoldRingNM :: forall m a b. (MonadIO m, Unbox a)
     => Int -> Int -> (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingNM count rh f z rb@Ring {..} = go count z rh
+unsafeFoldRingNM count rh f z rb = go count z rh
 
     where
 
     go 0 acc _ = return acc
     go !n !acc !start = do
-        let !x = unsafeInlineIO $ PEEK_ELEM(a, start, ringContents)
+        let !x = unsafeInlineIO $ unsafeGetIndex start rb
         acc' <- f acc x
         let ptr = advance rb start
         if ptr == rh || n == 0
@@ -559,7 +559,7 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
                     Done b -> Done b
         | otherwise = do
-            old <- liftIO $ PEEK_ELEM(a, rh, (ringContents rb))
+            old <- unsafeGetIndex rh rb
             rh1 <- liftIO $ unsafeInsert rb rh a
             r <- step1 st ((a, Just old), toArray unsafeFoldRingFullM rb rh1)
             return $

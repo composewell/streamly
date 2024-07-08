@@ -41,10 +41,3 @@
 
 #define INDEX_VALID(i,end,a) i + SIZE_OF(a) <= end
 #define INDEX_INVALID(i,end,a) i + SIZE_OF(a) > end
-
--------------------------------------------------------------------------------
--- Macros to use Unbox with element indices
--------------------------------------------------------------------------------
-
-#define PEEK_ELEM(a,i,arr) peekAt (i * SIZE_OF(a)) arr
-#define POKE_ELEM(a,i,arr,val) pokeAt (i * SIZE_OF(a)) arr val
