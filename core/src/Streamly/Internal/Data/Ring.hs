@@ -467,7 +467,7 @@ unsafeFoldRingM len f z rb = go z 0 len
     go !acc !start !end
         | start == end = return acc
         | otherwise = do
-            let !x = unsafeInlineIO $ unsafeGetIndex start rb
+            x <- unsafeGetIndex start rb
             acc1 <- f acc x
             go acc1 (start + 1) end
 
@@ -484,7 +484,7 @@ unsafeFoldRingFullM :: forall m a b. (MonadIO m, Unbox a)
 unsafeFoldRingFullM rh f z rb = go z rh
   where
     go !acc !start = do
-        let !x = unsafeInlineIO $ unsafeGetIndex start rb
+        x <- unsafeGetIndex start rb
         acc' <- f acc x
         let ptr = advance rb start
         if ptr == rh
@@ -505,7 +505,7 @@ unsafeFoldRingNM count rh f z rb = go count z rh
 
     go 0 acc _ = return acc
     go !n !acc !start = do
-        let !x = unsafeInlineIO $ unsafeGetIndex start rb
+        x <- unsafeGetIndex start rb
         acc' <- f acc x
         let ptr = advance rb start
         if ptr == rh || n == 0
