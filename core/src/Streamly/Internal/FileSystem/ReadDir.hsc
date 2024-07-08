@@ -106,7 +106,7 @@ readDirStreamEither (DirStream dirp) = loop
         -- It is possible to find the name length using dreclen and then use
         -- fromPtrN, but it is not straightforward because the reclen is
         -- padded to 8-byte boundary.
-        let !name = Array.fromByteStr (castPtr dname)
+        name <- Array.fromCString (castPtr dname)
         if (dtype == #const DT_DIR)
         then do
             isMeta <- isMetaDir dname
@@ -177,8 +177,8 @@ readEitherChunks alldirs =
             dtype :: #{type unsigned char} <-
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
-            let !name = Array.fromByteStr (castPtr dname)
-                path = Path.append curdir (mkPath name)
+            name <- Array.fromCString (castPtr dname)
+            let path = Path.append curdir (mkPath name)
 
             if (dtype == (#const DT_DIR))
             then do
@@ -363,8 +363,8 @@ readEitherByteChunks alldirs =
                 if isMeta
                 then return $ Skip st
                 else do
-                    let !name = Array.fromByteStr (castPtr dname)
-                        path = Path.append curdir (mkPath name)
+                    name <- Array.fromCString (castPtr dname)
+                    let path = Path.append curdir (mkPath name)
                         dirs1 = path : dirs
                         ndirs1 = ndirs + 1
                     r <- copyToBuf mbarr pos curdir dname
