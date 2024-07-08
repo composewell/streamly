@@ -111,6 +111,16 @@ data Ring a = Ring
     }
 
 -------------------------------------------------------------------------------
+-- Helpers
+-------------------------------------------------------------------------------
+
+-- XXX Should we inline this?
+{-# INLINEABLE mod1 #-}
+mod1 :: Int -> Int -> Int
+mod1 i j | i < j = i
+mod1 i j = mod1 i (i - j)
+
+-------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
 
@@ -137,7 +147,7 @@ advance rb ringHead =
 -- array.
 {-# INLINE moveBy #-}
 moveBy :: Int -> Ring a -> Int -> Int
-moveBy by rb ringHead = (ringHead + by) `mod` ringCapacity rb
+moveBy by rb ringHead = (ringHead + by) `mod1` ringCapacity rb
 
 -- XXX Move the writeLastN from array module here.
 --
