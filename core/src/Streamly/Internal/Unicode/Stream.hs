@@ -28,6 +28,8 @@ module Streamly.Internal.Unicode.Stream
     , decodeUtf8
     , decodeUtf8'
     , decodeUtf8_
+    , decodeUtf8Indexed
+    , decodeUtf8ReverseIndexed
 
     -- ** UTF-16 Decoding
     , decodeUtf16le'
@@ -39,6 +41,7 @@ module Streamly.Internal.Unicode.Stream
     , CodePoint
     , decodeUtf8Either
     , resumeDecodeUtf8Either
+    , resumeDecodeUtf8EitherI
 
     -- ** UTF-8 Array Stream Decoding
     , decodeUtf8Chunks
@@ -348,6 +351,89 @@ data UTF8DecodeState s a
     | YieldAndContinue a (UTF8DecodeState s a)
     | Done
 
+#ifndef __GHCJS__
+{-# ANN type UTF8DecodeStateI Fuse #-}
+#endif
+data UTF8DecodeStateI i s a
+    = UTF8DecodeInitI i s
+    | UTF8DecodeInit1I i s !Word8
+    | UTF8DecodeFirstI i s !Word8
+    | UTF8DecodingI i i s !DecodeState !CodePoint
+    | YieldAndContinueI i i a (UTF8DecodeStateI i s a)
+    | DoneI
+
+{-# INLINE_NORMAL resumeDecodeUtf8EitherI #-}
+resumeDecodeUtf8EitherI
+    :: Monad m
+    => DecodeState
+    -> CodePoint
+    -> Int
+    -> D.Stream m Word8
+    -> D.Stream m ((Int, Int), (Either DecodeError Char))
+resumeDecodeUtf8EitherI dst codep ix0 (D.Stream step state) =
+    let stt =
+            if dst == 0
+            then UTF8DecodeInitI ix0 state
+            else UTF8DecodingI ix0 0 state dst codep
+    in D.Stream (step' utf8d) stt
+  where
+    {-# INLINE_LATE step' #-}
+    step' _ gst (UTF8DecodeInitI ix st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Skip (UTF8DecodeInit1I ix s x)
+            Skip s -> Skip (UTF8DecodeInitI ix s)
+            Stop   -> Skip DoneI
+
+    step' _ _ (UTF8DecodeInit1I ix st x) = do
+        -- Note: It is important to use a ">" instead of a "<=" test
+        -- here for GHC to generate code layout for default branch
+        -- prediction for the common case. This is fragile and might
+        -- change with the compiler versions, we need a more reliable
+        -- "likely" primitive to control branch predication.
+        case x > 0x7f of
+            False ->
+                return $ Skip $ YieldAndContinueI ix 1
+                    (Right $ unsafeChr (fromIntegral x))
+                    (UTF8DecodeInitI (ix + 1) st)
+            -- Using a separate state here generates a jump to a
+            -- separate code block in the core which seems to perform
+            -- slightly better for the non-ascii case.
+            True -> return $ Skip $ UTF8DecodeFirstI ix st x
+
+    -- XXX should we merge it with UTF8DecodeInit1?
+    step' table _ (UTF8DecodeFirstI ix st x) = do
+        let (Tuple' sv cp) = decode0 table x
+        return $
+            case sv of
+                12 ->
+                    Skip $ YieldAndContinueI ix 1 (Left $ DecodeError 0 (fromIntegral x))
+                                            (UTF8DecodeInitI (ix + 1) st)
+                0 -> error "unreachable state"
+                _ -> Skip (UTF8DecodingI ix 1 st sv cp)
+
+    -- We recover by trying the new byte x a starter of a new codepoint.
+    -- XXX on error need to report the next byte "x" as well.
+    -- XXX need to use the same recovery in array decoding routine as well
+    step' table gst (UTF8DecodingI ix len st statePtr codepointPtr) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
+                return $
+                    case sv of
+                        0 -> Skip $ YieldAndContinueI ix (len + 1) (Right $ unsafeChr cp)
+                                        (UTF8DecodeInitI (ix + len + 1) s)
+                        12 ->
+                            Skip $ YieldAndContinueI ix (len + 1) (Left $ DecodeError statePtr codepointPtr)
+                                        (UTF8DecodeInit1I (ix + len + 1) s x)
+                        _ -> Skip (UTF8DecodingI ix (len + 1) s sv cp)
+            Skip s -> return $ Skip (UTF8DecodingI ix len s statePtr codepointPtr)
+            Stop -> return $ Skip $ YieldAndContinueI ix len (Left $ DecodeError statePtr codepointPtr) DoneI
+
+    step' _ _ (YieldAndContinueI ix len c s) = return $ Yield ((ix, len), c) s
+    step' _ _ DoneI = return Stop
+
 {-# INLINE_NORMAL resumeDecodeUtf8EitherD #-}
 resumeDecodeUtf8EitherD
     :: Monad m
@@ -557,6 +643,16 @@ writeCharUtf8' =  parseCharUtf8WithD ErrorOnCodingFailure
 parseCharUtf8With ::
        Monad m => CodingFailureMode -> Parser.Parser Word8 m Char
 parseCharUtf8With = parseCharUtf8WithD
+
+{-# INLINE_NORMAL decodeUtf8ReverseIndexed #-}
+decodeUtf8ReverseIndexed ::
+    CodingFailureMode -> D.Stream m Word8 -> D.Stream m ((Int, Int), Char)
+decodeUtf8ReverseIndexed = undefined
+
+{-# INLINE_NORMAL decodeUtf8Indexed #-}
+decodeUtf8Indexed ::
+    CodingFailureMode -> D.Stream m Word8 -> D.Stream m ((Int, Int), Char)
+decodeUtf8Indexed = undefined
 
 -- XXX write it as a parser and use parseMany to decode a stream, need to check
 -- if that preserves the same performance. Or we can use a resumable parser
