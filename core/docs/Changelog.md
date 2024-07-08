@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+* Remove the `Storable` constraint from the following functions:
+  - Streamly.Data.Stream.isInfixOf
+  - Streamly.Data.Array.writeLastN
+
+### Internal API Changes
+
+* Remove the `Storable` constraint from several functions involving the ring
+  buffer.
+
 ## 0.2.2 (Jan 2024)
 
 * Add fixities `infixr 5` for `cons` and `consM` functions.
