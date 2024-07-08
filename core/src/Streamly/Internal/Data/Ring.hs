@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Ring
 
     -- * Random writes
     , unsafeInsert
+    , unsafePutIndex
     , slide
     , putIndex
     , modifyIndex
@@ -34,7 +35,7 @@ module Streamly.Internal.Data.Ring
 
     -- * Random reads
     , getIndex
-    , getIndexUnsafe
+    , unsafeGetIndex
     , getIndexRev
 
     -- * Size
@@ -184,11 +185,19 @@ modifyIndex = undefined
 --
 -- >>> putIndex arr ix val = Ring.modifyIndex arr ix (const (val, ()))
 --
--- /Unimplemented/
 {-# INLINE putIndex #-}
-putIndex :: -- (MonadIO m, Unbox a) =>
-    Ring a -> Int -> a -> m ()
-putIndex = undefined
+putIndex :: forall m a. (MonadIO m, Unbox a) => Ring a -> Int -> a -> m ()
+putIndex ring i = unsafePutIndex ring normalizedI
+    where
+    normalizedI = i `mod1` ringCapacity ring
+
+-- | Unsafe version of "putIndex". Unsafe because it does not check the bounds
+-- of the ring array.
+--
+{-# INLINE unsafePutIndex #-}
+unsafePutIndex :: forall m a. (MonadIO m, Unbox a) => Ring a -> Int -> a -> m ()
+unsafePutIndex ring i val =
+    liftIO $ pokeAt (i * SIZE_OF(a)) (ringContents ring) val
 
 -- | Insert an item at the head of the ring, when the ring is full this
 -- replaces the oldest item in the ring with the new item. This is unsafe
@@ -215,10 +224,9 @@ slide = undefined
 -- | Return the element at the specified index without checking the bounds.
 --
 -- Unsafe because it does not check the bounds of the ring array.
-{-# INLINE_NORMAL getIndexUnsafe #-}
-getIndexUnsafe :: -- forall m a. (MonadIO m, Unbox a) =>
-    Ring a -> Int -> m a
-getIndexUnsafe = undefined
+{-# INLINE unsafeGetIndex #-}
+unsafeGetIndex :: forall m a. (MonadIO m, Unbox a) => Int -> Ring a -> m a
+unsafeGetIndex i ring = liftIO $ peekAt (i * SIZE_OF(a)) (ringContents ring)
 
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
