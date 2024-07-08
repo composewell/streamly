@@ -531,7 +531,10 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
     step (Tuple4' rb rh i st) a
         | i < n = do
             rh1 <- liftIO $ unsafeInsert rb rh a
-            let action = toArray unsafeFoldRingM rb rh1
+            -- NOTE: We use (rh + 1) instead of rh1 in the code below as if we
+            -- are at the last element of the ring, rh1 would become 0 and we
+            -- would not fold anything.
+            let action = toArray unsafeFoldRingM rb (rh + 1)
             r <- step1 st ((a, Nothing), action)
             return $
                 case r of
