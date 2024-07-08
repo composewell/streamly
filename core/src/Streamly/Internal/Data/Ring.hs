@@ -449,28 +449,28 @@ unsafeEqArray Ring{..} rh A.Array{..} =
 {-# INLINE unsafeFoldRing #-}
 unsafeFoldRing :: forall a b. Unbox a
     => Int -> (b -> a -> b) -> b -> Ring a -> b
-unsafeFoldRing len f z rb =
-    let !res = unsafeInlineIO $ go z 0 len
+unsafeFoldRing !len f z rb =
+    let !res = unsafeInlineIO $ go z 0
     in res
     where
-      go !acc !p !q
-        | p == q = return acc
+      go !acc !p
+        | p == len = return acc
         | otherwise = do
             x <- unsafeGetIndex p rb
-            go (f acc x) (p + 1) q
+            go (f acc x) (p + 1)
 
 -- | Like unsafeFoldRing but with a monadic step function.
 {-# INLINE unsafeFoldRingM #-}
 unsafeFoldRingM :: forall m a b. (MonadIO m, Unbox a)
     => Int -> (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingM len f z rb = go z 0 len
+unsafeFoldRingM !len f z rb = go z 0
   where
-    go !acc !start !end
-        | start == end = return acc
+    go !acc !start
+        | start == len = return acc
         | otherwise = do
             x <- unsafeGetIndex start rb
             acc1 <- f acc x
-            go acc1 (start + 1) end
+            go acc1 (start + 1)
 
 -- | Fold the entire length of a ring buffer starting at the supplied ringHead
 -- index.  Assuming the supplied ringHead index points to the oldest item,
