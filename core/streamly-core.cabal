@@ -353,13 +353,11 @@ library
                      -- streamly-core-streams
                      , Streamly.Internal.Data.StreamK
                      -- StreamD depends on streamly-array-types
-                     , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream
 
                      -- streamly-core-data
                      , Streamly.Internal.Data.Builder
                      , Streamly.Internal.Data.Unfold
-                     , Streamly.Internal.Data.Fold.Chunked
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.ParserK
                      , Streamly.Internal.Data.Pipe
@@ -371,8 +369,6 @@ library
                      -- streamly-core-data-arrays
                      , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.MutArray.Stream
-                     , Streamly.Internal.Data.Array.Stream
 
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream
@@ -450,6 +446,16 @@ library
                      , Streamly.Unicode.Parser
                      , Streamly.Unicode.Stream
                      , Streamly.Unicode.String
+
+                    -- Deprecated in 0.3.0
+                     , Streamly.Internal.FileSystem.Dir
+                     , Streamly.FileSystem.Dir
+
+                    -- Deprecated in 0.2.0
+                     , Streamly.Internal.Data.MutArray.Stream
+                     , Streamly.Internal.Data.Array.Stream
+                     , Streamly.Internal.Data.Stream.StreamD
+                     , Streamly.Internal.Data.Fold.Chunked
 
     -- Only those modules should be here which are fully re-exported via some
     -- other module.
