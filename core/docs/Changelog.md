@@ -6,6 +6,12 @@
   - Streamly.Data.Stream.isInfixOf
   - Streamly.Data.Array.writeLastN
 
+* `Streamly.FileSystem.Dir` module is deprecated and replaced by
+  `Streamly.FileSystem.DirIO` module. The new module has exact same
+  APIs except that it uses the streamly native `Path` type instead
+  of `FilePath` for path representation. The new implementation is
+  significantly faster.
+
 ### Internal API Changes
 
 * Remove the `Storable` constraint from several functions involving the ring
