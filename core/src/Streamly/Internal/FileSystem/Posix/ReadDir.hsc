@@ -1,6 +1,6 @@
 -- |
 -- Module      : Streamly.Internal.FileSystem.Posix.ReadDir
--- Copyright   : (c) 2018 Composewell Technologies
+-- Copyright   : (c) 2024 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
