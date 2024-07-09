@@ -399,7 +399,7 @@ library
 
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
-                     , Streamly.Internal.FileSystem.Dir
+                     , Streamly.Internal.FileSystem.DirIO
                      , Streamly.Internal.FileSystem.Posix.ReadDir
                      , Streamly.Internal.FileSystem.Windows.ReadDir
 
@@ -415,18 +415,15 @@ library
                      -- , Streamly.Data.Binary.Encode -- Stream types
 
                      -- Pre-release modules
-                     -- , Streamly.Data.Fold.Window
                      -- , Streamly.Data.Pipe
                      -- , Streamly.Data.Array.Stream
                      -- , Streamly.Data.Array.Fold
                      -- , Streamly.Data.Array.Mut.Stream
                      -- , Streamly.Data.Ring
-                     -- , Streamly.Data.Ring.Unboxed
+                     -- , Streamly.Data.Ring.Generic
                      -- , Streamly.Data.IORef.Unboxed
                      -- , Streamly.Data.List
                      -- , Streamly.Data.Binary.Decode
-                     -- , Streamly.FileSystem.File
-                     -- , Streamly.FileSystem.Dir
                      -- , Streamly.Data.Time.Units
                      -- , Streamly.Data.Time.Clock
                      -- , Streamly.Data.Tuple.Strict
@@ -447,7 +444,7 @@ library
                      , Streamly.Data.Stream
                      , Streamly.Data.StreamK
                      , Streamly.Data.Unfold
-                     , Streamly.FileSystem.Dir
+                     , Streamly.FileSystem.DirIO
                      , Streamly.FileSystem.File
                      , Streamly.FileSystem.Handle
                      , Streamly.Unicode.Parser

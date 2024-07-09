@@ -193,7 +193,7 @@ import qualified Streamly.Internal.Data.Array as A
     ( asCStringUnsafe, unsafePinnedAsPtr
     , getSliceUnsafe, read
     )
-import qualified Streamly.Internal.FileSystem.Dir as Dir (readDirs)
+import qualified Streamly.Internal.FileSystem.DirIO as Dir (readDirs)
 import qualified Streamly.Internal.Data.Parser as PR
     (takeEQ, fromEffect, fromFold)
 

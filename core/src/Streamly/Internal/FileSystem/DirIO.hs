@@ -1,14 +1,14 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.FileSystem.Dir
+-- Module      : Streamly.Internal.FileSystem.DirIO
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 
-module Streamly.Internal.FileSystem.Dir
+module Streamly.Internal.FileSystem.DirIO
     (
     -- * Streams
       read
