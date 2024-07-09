@@ -25,7 +25,7 @@ module Streamly.Internal.FileSystem.DirIO
     -- , readAttrs
 
     -- recursive read requires us to read the attributes of the children to
-    -- determine if something is a dirctory or not. Therefore, it may be a good
+    -- determine if something is a directory or not. Therefore, it may be a good
     -- idea to have a low level routine that also spits out the attributes of
     -- the files, we get that for free. We can also add a filter/pattern/parser
     -- on the names of the children that we want to read.
@@ -75,11 +75,6 @@ module Streamly.Internal.FileSystem.DirIO
     , fromChunks
     , fromChunksWithBufferOf
     -}
-    -- * Deprecated
-    , toStream
-    , toEither
-    , toFiles
-    , toDirs
     )
 where
 
@@ -321,11 +316,6 @@ dirReader = fmap (fromLeft undefined) $ UF.filter isLeft eitherReader
 read :: (MonadIO m, MonadCatch m) => Path -> Stream m Path
 read = S.unfold reader
 
-{-# DEPRECATED toStream "Please use 'read' instead" #-}
-{-# INLINE toStream #-}
-toStream :: (MonadIO m, MonadCatch m) => Path -> Stream m Path
-toStream = read
-
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries. The output contains the names of the directories and files.
 --
@@ -383,11 +373,6 @@ readEitherChunks dirs =
             Right x1 -> fmap (x1:) b
 #endif
 
-{-# DEPRECATED toEither "Please use 'readEither' instead" #-}
-{-# INLINE toEither #-}
-toEither :: (MonadIO m, MonadCatch m) => Path -> Stream m (Either Path Path)
-toEither = readEither
-
 -- | Read files only.
 --
 --  /Internal/
@@ -396,11 +381,6 @@ toEither = readEither
 readFiles :: (MonadIO m, MonadCatch m) => Path -> Stream m Path
 readFiles = S.unfold fileReader
 
-{-# DEPRECATED toFiles "Please use 'readFiles' instead" #-}
-{-# INLINE toFiles #-}
-toFiles :: (MonadIO m, MonadCatch m) => Path -> Stream m Path
-toFiles = readFiles
-
 -- | Read directories only.
 --
 --  /Internal/
@@ -408,11 +388,6 @@ toFiles = readFiles
 {-# INLINE readDirs #-}
 readDirs :: (MonadIO m, MonadCatch m) => Path -> Stream m Path
 readDirs = S.unfold dirReader
-
-{-# DEPRECATED toDirs "Please use 'readDirs' instead" #-}
-{-# INLINE toDirs #-}
-toDirs :: (MonadIO m, MonadCatch m) => Path -> Stream m Path
-toDirs = readDirs
 
 {-
 -------------------------------------------------------------------------------
