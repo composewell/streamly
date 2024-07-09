@@ -4,11 +4,15 @@
 
 ### Compiler (GHC) Versions
 
-Do not use ghc 8.2 or earlier because in those versions it is not safe to pass
-heap allocated objects to unsafe FFI calls. Do not use ghc 9.0.x and 9.2.1
-becuse of performance issues. GHC 9.6.x may have a small memory leak issue in
-some concurrent stream cases, see below for more details. For best performance,
-use `fusion-plugin` (see below) when compiling.
+1. Do not use ghc 8.2 or earlier because in those versions it is not
+   safe to pass heap allocated objects to unsafe FFI calls. We depend on this
+   for array implementation.
+2. Do not use ghc 9.0.x and 9.2.1 becuse of performance issues. GHC 9.6.x may
+   have a small memory leak issue in some concurrent stream cases,
+   see below for more details. ghc 9.10 shows significant performance
+   degradations, should not be used until it is fixed.
+
+For best performance, use `fusion-plugin` (see below) when compiling.
 
 ### Memory requirements
 
