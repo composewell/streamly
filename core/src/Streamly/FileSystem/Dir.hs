@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 -- |
 -- Module      : Streamly.FileSystem.Dir
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -12,6 +13,7 @@
 -- something else.
 
 module Streamly.FileSystem.Dir
+{-# DEPRECATED "Please use \"Streamly.FileSystem.DirIO\" instead." #-}
     (
     -- * Streams
       read

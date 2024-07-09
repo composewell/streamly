@@ -9,6 +9,7 @@
 -- Portability : GHC
 
 module Streamly.Internal.FileSystem.Dir
+{-# DEPRECATED "Please use \"Streamly.Internal.FileSystem.DirIO\" instead." #-}
     (
     -- * Streams
       read
