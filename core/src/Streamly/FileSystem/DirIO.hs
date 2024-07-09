@@ -7,6 +7,10 @@
 -- Stability   : pre-release
 -- Portability : GHC
 --
+-- High performance and streaming APIs for reading directories.
+--
+-- >>> import qualified Streamly.FileSystem.DirIO as Dir
+--
 
 module Streamly.FileSystem.DirIO
     (
