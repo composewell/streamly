@@ -97,8 +97,8 @@ import Streamly.Internal.FileSystem.Path (Path)
 import qualified System.Win32 as Win32
 #else
 import Streamly.Internal.FileSystem.ReadDir
-    (openDirStream, readDirStreamEither, readEitherChunks, readEitherByteChunks)
-import System.Posix.Directory (DirStream, closeDirStream)
+    ( DirStream, openDirStream, closeDirStream, readDirStreamEither
+    , readEitherChunks, readEitherByteChunks)
 #endif
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as S

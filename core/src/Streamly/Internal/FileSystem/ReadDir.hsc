@@ -8,7 +8,9 @@
 
 module Streamly.Internal.FileSystem.ReadDir
     (
-      openDirStream
+      DirStream
+    , openDirStream
+    , closeDirStream
     , readDirStreamEither
     , readEitherChunks
     , readEitherByteChunks
@@ -19,15 +21,14 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord)
 import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr)
 import Foreign.C
-    (resetErrno, Errno(..), getErrno, eINTR, throwErrno, CString, CChar, CSize(..))
+    (resetErrno, Errno(..), getErrno, eINTR, throwErrno
+    , throwErrnoIfMinus1Retry_, CInt(..), CString, CChar, CSize(..))
+import Foreign.C.Error (errnoToIOError)
 import Foreign.Storable (poke)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
-import System.Posix.Directory (closeDirStream)
-import System.Posix.Directory.Internals (DirStream(..), CDir, CDirent)
-import System.Posix.Error (throwErrnoPathIfNullRetry)
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 
 import qualified Streamly.Internal.Data.Array as Array
@@ -35,6 +36,57 @@ import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 #include <dirent.h>
+
+-------------------------------------------------------------------------------
+-- From unix
+-------------------------------------------------------------------------------
+
+-- | as 'throwErrno', but exceptions include the given path when appropriate.
+--
+throwErrnoPath :: String -> PosixPath -> IO a
+throwErrnoPath loc path =
+  do
+    errno <- getErrno
+    -- XXX toString uses strict decoding, may fail
+    ioError (errnoToIOError loc errno Nothing (Just (Path.toString path)))
+
+throwErrnoPathIfRetry :: (a -> Bool) -> String -> PosixPath -> IO a -> IO a
+throwErrnoPathIfRetry pr loc rpath f =
+  do
+    res <- f
+    if pr res
+      then do
+        err <- getErrno
+        if err == eINTR
+          then throwErrnoPathIfRetry pr loc rpath f
+          else throwErrnoPath loc rpath
+      else return res
+
+throwErrnoPathIfNullRetry :: String -> PosixPath -> IO (Ptr a) -> IO (Ptr a)
+throwErrnoPathIfNullRetry loc path f =
+  throwErrnoPathIfRetry (== nullPtr) loc path f
+
+-------------------------------------------------------------------------------
+-- import System.Posix.Directory (closeDirStream)
+-- import System.Posix.Directory.Internals (DirStream(..), CDir, CDirent)
+-- requires unix >= 2.8
+-------------------------------------------------------------------------------
+
+newtype DirStream = DirStream (Ptr CDir)
+
+data {-# CTYPE "DIR" #-} CDir
+data {-# CTYPE "struct dirent" #-} CDirent
+
+-- | @closeDirStream dp@ calls @closedir@ to close
+--   the directory stream @dp@.
+closeDirStream :: DirStream -> IO ()
+closeDirStream (DirStream dirp) = do
+  throwErrnoIfMinus1Retry_ "closeDirStream" (c_closedir dirp)
+
+-------------------------------------------------------------------------------
+
+foreign import ccall unsafe "closedir"
+   c_closedir :: Ptr CDir -> IO CInt
 
 foreign import capi unsafe "dirent.h opendir"
     c_opendir :: CString  -> IO (Ptr CDir)
@@ -55,7 +107,7 @@ openDirStream :: PosixPath -> IO DirStream
 openDirStream p =
   Array.asCStringUnsafe (Path.toChunk p) $ \s -> do
     -- XXX is toString always creating another copy or only in case of error?
-    dirp <- throwErrnoPathIfNullRetry (Path.toString p) "openDirStream" $ c_opendir s
+    dirp <- throwErrnoPathIfNullRetry "openDirStream" p $ c_opendir s
     return (DirStream dirp)
 
 isMetaDir :: Ptr CChar -> IO Bool
