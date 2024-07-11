@@ -6,8 +6,8 @@ SPDX-License-Identifer: BSD-3-Clause
 
 # Getting started with `Haskell Streamly`
 
-This guide shows you how to use Streamly in `ghci` REPL, a simple
-program or a Haskell project.
+This guide shows you how to use Streamly in the GHCi REPL, in a simple
+program, or in a Haskell project.
 
 <!-- TODO: Add instructions for `stack` and `nix`.
 
