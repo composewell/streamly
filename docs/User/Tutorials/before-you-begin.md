@@ -29,7 +29,7 @@ If you use the nix package manager, a nix shell for complete
 development environment - including a consistent set of latest streamly
 ecosystem packages, hoogle documentation, vim and vscode editors,
 Haskell language server (HLS) and other tools - is available at
-[streamly-packages][streamly-packages].
+[streamly-packages](https://github.com/composewell/streamly-packages).
 
 ## Building for Performance
 
@@ -48,7 +48,7 @@ exceptions, and networking.
 For high-level functionality built over streamly like streaming
 system processes, shell programming, GNU coreutils, statistics,
 and compression libraries please see the [streamly ecosystem
-packages](https://streamly.composewell.com/ecosystem.html).
+packages](https://streamly.composewell.com/module-listing.html).
 
 ## Released and Pre-release modules
 
