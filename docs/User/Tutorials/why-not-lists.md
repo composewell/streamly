@@ -3,7 +3,12 @@
 SPDX-License-Identifer: BSD-3-Clause
 -->
 
-# Haskell Lazy Evaluation
+# Why not lists?
+
+This document explains some problems that you might face when using
+Haskell lists and why using streams is better in those cases.
+
+## Haskell Lazy Evaluation
 
 Haskell is fundamentally different from other languages. In most
 languages, a variable name refers to some concrete data in memory;  in
