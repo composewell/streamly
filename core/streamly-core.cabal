@@ -35,6 +35,7 @@ description:
   unpinned.
   * Arrays generalize the functionality provided by @bytestring@ and
   @text@ packages.
+  * Ring buffers
   * Interoperability with @bytestring@ and @text@ is
   provided via separate packages.
   * Arrays and folds provide natural builder functionality so there are no
