@@ -214,7 +214,8 @@ deserialize Haskell data types:
 
 The `Array` and MutArray types are unboxed arrays, they require an
 `Unbox` instance. Writing to an `Array` or `MutArray` is in fact
-serializing the type, and reading from them is deserializing it.
+exactly the same as serializing the type, and reading from them is
+deserializing it.
 
 ### Serialize
 
@@ -262,82 +263,3 @@ main =
       & Stream.fold Fold.sum                  -- IO Int
       >>= print                               -- IO ()
 ```
-
-## All your packages are belong to us
-
-<!--
-Bring the docs from streamly-core/streamly cabal package description here.
--->
-
-Streamly covers a wide range of functionality with a consistent,
-concise, modular interface and high performance APIs. It has been
-designed from scratch in such a way that minimum abstractions are used
-to cover maximum functionality with highest possible performance.
-
-Here we list some existing packages whose functionality streamly
-subsumes.
-
-### Lists and Strings
-
-The streamly modules `Streamly.Data.Stream`, `Streamly.Data.Fold` cover
-the lists, string and splitting functionality with superior performance.
-
-| Package        | Streamly Type | Module                  | Combinators |
-|----------------|---------------|-------------------------|-------------|
-| base/Data.List | Stream        | Streamly.Data.Stream    |             |
-| interpolate    |               | Streamly.Unicode.String | str         |
-| split          | Stream, Fold  | Streamly.Data.Stream    | splitOn etc |
-| stringsearch   | Stream, Fold  | Streamly.Data.Stream    | splitOn etc |
-
-### Streaming
-
-The streamly modules `Streamly.Data.Stream`, `Streamly.Data.Scan` and
-`Streamly.Data.Fold` cover the streaming functionality with superior
-performance.
-
-| Package        | Streamly Type                     |
-|----------------|-----------------------------------|
-| streaming      | Stream, Scan, Fold                |
-| pipes          | Stream, Scan, Fold                |
-| conduit        | Stream, Scan, Fold                |
-| foldl          | Scan, Fold                        |
-
-### List Transformer and Logic Programming
-
-A newtype wrapper over the `Stream` type provides list-t and logic-t
-functionality with superior performance.
-
-| Package        | Streamly Type                     |
-|----------------|-----------------------------------|
-| list-t         | CrossStreamK, CrossStream, MkType |
-| logic-t        | CrossStreamK, CrossStream, MkType |
-
-### Parsers
-
-Streamly parsers are more powerful, use a polymorphic type, provide
-a native streaming interface and same or better performance than
-attoparsec.
-
-| Package        | Streamly Type  | Module                  |
-|----------------|----------------|-------------------------|
-| attoparsec     | Fold, Parser   | Streamly.Data.Parser    |
-|                |                | Streamly.Unicode.Parser |
-
-### Arrays
-
-array, primitive, vector, vector-algorithms: Streamly.Data.Array/MutArray/Generic
-bytestring : Streamly.Data.Array
-text: Streamly.Data.Array
-
-### Builders
-
-DList - Streamly.Data.Fold toList fold coupled with addOne and addStream.
-bytestring builder, vector builder: Data.Fold, Data.MutArray
-
-### Serialization
-
-binary, cereal, store: Streamly.Data.MutByteArray
-
-### Concurrency
-
-async: Streamly.Data.Stream.Prelude, Fold.Prelude
