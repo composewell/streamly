@@ -9,16 +9,17 @@ modular interface and high performance APIs. It has been designed from
 scratch in such a way that minimum abstractions are used to cover
 maximum functionality with highest possible performance. It unifies
 functionality from many disparate packages on hackage and with better
-performance in most cases.
+performance in most cases. Streamly is the Swiss army knife for the
+Haskell programmer.
 
 Note that streamly does not forcefully strive to provide functionality
 that is already available in other packages, that is not at all the
-goal. The goal is to design basic building blocks which naturally happen
+goal. The goal has been to design basic building blocks which naturally happen
 to provide as much functionality as possible in a unified and concise
 manner with highest possible performance. The basic idea is what Haskell
 is actually meant for, do not repeat yourself (DRY). Unfortunately the
 idea of DRY does not manifest in the Haskell library ecosystem, streamly
-tries to rectify this problem.
+tries to rectify that problem.
 
 Here we list some packages whose functionality streamly subsumes. If you
 are looking for streamly functionality similar to an existing package,
@@ -180,7 +181,7 @@ flatten it.  For custom decoding you can build a parser using
 
 <!-- vector-builder -->
 
-## Time
+## Clock and Time
 
 Streamly provides clock, time and timer APIs for high-performance
 streaming use.
@@ -194,7 +195,7 @@ streaming use.
 ## Concurrency
 
 Streamly is built for concurrency, it provides native concurrent
-behavior for streams, scans and folds. It also provides time related
+evaluation of streams, scans and folds. It also provides time related
 streaming combinators for functional reactive programming.
 
 The relevant modules in streamly are:
@@ -211,7 +212,10 @@ The relevant modules in streamly are:
 ## File System
 
 Streamly provides native, high-performance streaming APIs for file
-system operations.
+system operations. The file path representation enables high-performance
+directory traversal (faster than Rust fd). The path modules allow
+gradual typing, you can choose to use untyped path, absolute vs relative
+distinction, file vs dir distinction or all four.
 
 The relevant modules in streamly are:
 
@@ -228,6 +232,9 @@ The relevant modules in streamly are:
 |-----------------------|--------------------------------------------|
 | base/System.IO        | Streamly.FileSystem.File,Handle            |
 | filepath              | Streamly.FileSystem.Path                   |
+| path                  | Streamly.Internal.FileSystem.Path.LocSeg   |
+| path                  | Streamly.Internal.FileSystem.Path.FileDir  |
+| path                  | Streamly.Internal.FileSystem.Path.Typed    |
 | directory             | Streamly.FileSystem.Dir                    |
 | fsnotify              | Streamly.Internal.FileSystem.Event         |
 | fsnotify              | Streamly.Internal.FileSystem.Event.Windows |
