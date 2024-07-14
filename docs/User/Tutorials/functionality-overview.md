@@ -27,6 +27,31 @@ following categories:
 * Network IO: for interfacing with the network
 * Unicode: stream processing of Unicode text
 
+## Types and Modules
+
+The following table lists the modules and types for monadic stream producers
+(streams), stream transformers (scans), stream consumers (folds and parsers).
+
+| Module                | Type          | Description                                                |
+|-----------------------|---------------|------------------------------------------------------------|
+| Streamly.Data.Stream  | Stream m a    | Streams using stream fusion, for static composition        |
+| Streamly.Data.Unfold  | Unfold m a b  | Streams using nested stream fusion, for static composition |
+| Streamly.Data.StreamK | StreamK m a   | Streams using CPS, for dynamic composition                 |
+| Streamly.Data.Scan    | Scan m a b    | Scans using stream fusion, for static composition          |
+| Streamly.Data.Fold    | Fold m a b    | Folds using stream fusion, for static composition          |
+| Streamly.Data.Parser  | Parser a m b  | Parsers using stream fusion, for static composition        |
+| Streamly.Data.ParserK | ParserK a m b | Parsers using CPS, for dynamic composition                 |
+
+Arrays:
+
+| Module                         | Type                               | Description                                    |
+|--------------------------------|------------------------------------|------------------------------------------------|
+| Streamly.Data.Array            | Array a                            | Immutable, unboxed, pinned and unpinned arrays |
+| Streamly.Data.MutArray         | MutArray a                         | Mutable, unboxed, pinned and unpinned arrays   |
+| Streamly.Data.Array.Generic    | Array a                            | Immutable, boxed arrays                        |
+| Streamly.Data.MutArray.Generic | MutArray a                         | Mutable, boxed arrays                          |
+| Streamly.Data.MutByteArray     | MutByteArray, Unbox a, Serialize a | Mutable byte arrays with serialization         |
+
 ## Streams
 
 In functional programming, stream processing paradigm is a higher level
@@ -62,13 +87,25 @@ output. The `Fold.sum` function above is a `Fold` which consumes an
 integer stream as input and returns their sum as output. The fold is
 driven using the `Stream.fold` combinator.
 
+Folds can be composed using combinators, for example, the `teeWith` combinator
+combines two folds such that the input of the resulting fold is passed through
+both of them.
+
+```haskell
+f = Fold.teeWith (,) Fold.sum (Fold.lmap (\x -> x * x) Fold.sum)
+main =
+    Stream.enumerateFromTo 1 3 -- Stream IO Int
+      & Stream.fold f          -- IO Int
+      >>= print                -- IO ()
+```
+
 See "Streamly.Data.Fold" module.
 
 ### Scan Type
 
 The `Scan` type represents a stateful transformation from a stream
 to another stream. As a contrived example to demonstrate the basic
-functionality of scans lets compute the expression `x^4 + 3x^2 + 4` for
+functionality of scans let us compute the expression `x^4 + 3x^2 + 4` for
 each number in a stream.
 
 ```haskell
@@ -248,6 +285,55 @@ Haskell data type to an `Array Word8`, using the `Serialize` type class:
 1234
 ```
 
+## Concurrency and Time
+
+Concurrency and time operations can be found in the `streamly` package.
+Stream operations can be performed concurrently by using the concurrent
+combinators.
+
+### Concurrent Streams
+
+The following example uses `parMapM` which is a concurrent version of `mapM`,
+consequently it prints a value every second even though there is a 2 second
+serial delay for each element.
+
+>>> let delay n = threadDelay (n * 1000000) >> return n
+>>> :{
+parMap =
+      Stream.repeatM (delay 1)
+    & Stream.parMapM (Stream.ordered True) (\x -> delay 1 >> print x)
+    & Stream.fold Fold.drain
+:}
+
+See `Streamly.Data.Stream.Prelude` module.
+
+### Concurrent Folds
+
+The following example evaluates each fold in a separate thread, therefore, even
+though each fold introduces a serial delay of 1 second, the total delay is
+still only 1 second instead of 2 seconds.
+
+```haskell
+>>> import qualified Streamly.Data.Fold.Prelude as Fold
+>>> p x = delay 1 >> print x
+>>> f1 = Fold.parEval id (Fold.drainMapM p)
+>>> f2 = Fold.parEval id (Fold.lmap (\x -> x * x) (Fold.drainMapM p))
+>>> f = Fold.teeWith (\_ _ -> pure ()) f1 f2
+>>> :{
+parFolds =
+    Stream.enumerateFromTo 1 3 -- Stream IO Int
+      & Stream.fold f          -- IO ()
+:}
+```
+
+See `Streamly.Data.Fold.Prelude` module.
+
+### Time Domain Operations
+
+>>> twoPerSec = Stream.parEval (Stream.constRate 2) $ Stream.enumerateFrom 1
+>>> intervals = Stream.intervalsOf 1 Fold.toList twoPerSec
+>>> Stream.fold Fold.toList $ Stream.take 2 intervals
+
 ## Console IO
 
 The `Streamly.Console.Stdio` module provides facilities to read a stream
@@ -263,3 +349,9 @@ main =
       & Stream.fold Fold.sum                  -- IO Int
       >>= print                               -- IO ()
 ```
+
+## File IO
+
+## Network IO
+
+## Unicode Text
