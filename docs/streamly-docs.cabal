@@ -40,7 +40,6 @@ library
   exposed-modules:
     User.Tutorials.Tutorial
     User.Tutorials.ConcurrentStreams
-    User.Tutorials.ReactiveProgramming
 
   build-depends:
       base              >= 4.9   &&  < 4.20
