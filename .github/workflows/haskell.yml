@@ -102,6 +102,14 @@ jobs:
             disable_sdist_build: "y"
             cabal_project: cabal.project.Werror
             ignore_error: false
+          - name: 9.10.1-macos
+            ghc_version: 9.10.1
+            runner: macos-latest
+            build: cabal
+            cabal_version: 3.10.1.0
+            disable_sdist_build: "y"
+            cabal_project: cabal.project
+            ignore_error: false
           - name: 9.10.1-fusion-inspection
             ghc_version: 9.10.1
             runner: ubuntu-latest
