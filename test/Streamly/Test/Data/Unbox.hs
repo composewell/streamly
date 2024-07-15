@@ -30,7 +30,7 @@ import Data.Complex (Complex ((:+)))
 import Data.Functor.Const (Const (..))
 import Data.Functor.Identity (Identity (..))
 import Data.Proxy (Proxy(..))
-import GHC.Generics (Generic, Rep(..))
+import GHC.Generics (Generic, Rep)
 import GHC.Real (Ratio(..))
 
 import Streamly.Internal.Data.MutByteArray

@@ -6,6 +6,7 @@
 
 {-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Serial
