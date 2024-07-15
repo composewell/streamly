@@ -590,6 +590,8 @@ createWatch = do
     rawfd <- throwErrnoIfMinus1 "createWatch" c_inotify_init
     -- we could use fdToHandle but it cannot determine the fd type
     -- automatically for the inotify fd
+    --
+    -- XXX It locks a regular file, do we need that for watching?
     (fd, fdType) <-
         mkFD
             rawfd
@@ -598,13 +600,14 @@ createWatch = do
             False                  -- not a socket
             False                  -- non-blocking is false
     let fdString = "<createWatch file descriptor: " ++ show fd ++ ">"
+    -- XXX Do we need non-blocking IO?
     h <-
         mkHandleFromFD
            fd
            fdType
            fdString
            ReadMode
-           True    -- use non-blocking IO
+           False    -- use non-blocking IO
            Nothing -- TextEncoding (binary)
     emptyMapRef <- newIORef Map.empty
     return $ Watch h emptyMapRef
