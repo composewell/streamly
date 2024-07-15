@@ -21,6 +21,7 @@ module Streamly.Internal.Data.Serialize.TH.RecHeader
 --------------------------------------------------------------------------------
 
 import Control.Monad (void)
+import Data.Foldable (length, sum)
 import Data.List (foldl')
 import Data.Word (Word32, Word8)
 import Data.Maybe (fromJust)
@@ -34,6 +35,7 @@ import qualified Streamly.Internal.Data.Unbox as Unbox
 
 import Streamly.Internal.Data.Serialize.TH.Bottom
 import Streamly.Internal.Data.Serialize.TH.Common
+import Prelude hiding (Foldable(..))
 
 --------------------------------------------------------------------------------
 -- Notes
@@ -353,7 +355,7 @@ mkDeserializeKeysDec funcName updateFunc (SimpleDataCon cname fields) = do
                      ([], dataOff)
                      keys
              $(varP finalRec) <-
-                 $(foldl
+                 $(foldl'
                        (\acc i ->
                             [|$(acc) <*>
                               $(deserializeFieldExpr i)|])

@@ -30,6 +30,7 @@ module Streamly.Internal.Data.Serialize.TH
 -- Imports
 --------------------------------------------------------------------------------
 
+import Data.Foldable (length, foldMap)
 import Data.List (foldl')
 import Data.Word (Word16, Word32, Word64, Word8)
 
@@ -48,6 +49,7 @@ import qualified Streamly.Internal.Data.Serialize.TH.RecHeader as RecHeader
 import Streamly.Internal.Data.Serialize.TH.Bottom
 import Streamly.Internal.Data.Serialize.TH.Common
 import Streamly.Internal.Data.Serialize.TH.RecHeader
+import Prelude hiding (Foldable(..))
 
 --------------------------------------------------------------------------------
 -- Domain specific helpers

@@ -56,6 +56,7 @@ module Streamly.Internal.Data.Serialize.TH.Bottom
 
 import Data.Maybe (isJust)
 import Data.Char (chr, ord)
+import Data.Foldable (length)
 import Data.List (foldl')
 import Data.Word (Word16, Word32, Word64, Word8)
 import Data.Bits (Bits, (.|.), shiftL, zeroBits, xor)
@@ -69,6 +70,7 @@ import Streamly.Internal.Data.Serialize.Type
 import qualified Streamly.Internal.Data.Unbox as Unbox
 
 import Streamly.Internal.Data.Unbox.TH (DataCon(..))
+import Prelude hiding (Foldable(..))
 
 --------------------------------------------------------------------------------
 -- Config

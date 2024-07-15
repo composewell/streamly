@@ -32,6 +32,7 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.MutArray as MutArray
 
 import GHC.Exts
+import Prelude hiding (Foldable(..))
 
 --------------------------------------------------------------------------------
 -- Developer Note

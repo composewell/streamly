@@ -102,6 +102,8 @@ import Control.Monad (when)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Data.IORef ( IORef, atomicModifyIORef', modifyIORef', newIORef
                   , readIORef, writeIORef)
+import Data.Foldable
+    (elem, foldl, foldMap, foldr, length, maximum, minimum, null, product, sum)
 import Data.List
     ( delete
     , deleteBy
@@ -144,6 +146,7 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Data.Map.Strict as Map
 
 import Streamly.Test.Common
+import Prelude hiding (Foldable(..))
 
 maxStreamLen :: Int
 maxStreamLen = 1000
