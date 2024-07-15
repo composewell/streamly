@@ -1,4 +1,4 @@
-# Functionality Overview
+# Functionality At a Glance
 
 Streamly is a self sufficient, batteries included library for general
 purpose programming.  It has been designed for ease of use and high
@@ -27,37 +27,12 @@ following categories:
 * Network IO: for interfacing with the network
 * Unicode: stream processing of Unicode text
 
-## Types and Modules
-
-The following table lists the modules and types for monadic stream producers
-(streams), stream transformers (scans), stream consumers (folds and parsers).
-
-| Module                | Type          | Description                                                |
-|-----------------------|---------------|------------------------------------------------------------|
-| Streamly.Data.Stream  | Stream m a    | Streams using stream fusion, for static composition        |
-| Streamly.Data.Unfold  | Unfold m a b  | Streams using nested stream fusion, for static composition |
-| Streamly.Data.StreamK | StreamK m a   | Streams using CPS, for dynamic composition                 |
-| Streamly.Data.Scan    | Scan m a b    | Scans using stream fusion, for static composition          |
-| Streamly.Data.Fold    | Fold m a b    | Folds using stream fusion, for static composition          |
-| Streamly.Data.Parser  | Parser a m b  | Parsers using stream fusion, for static composition        |
-| Streamly.Data.ParserK | ParserK a m b | Parsers using CPS, for dynamic composition                 |
-
-Arrays:
-
-| Module                         | Type                               | Description                                    |
-|--------------------------------|------------------------------------|------------------------------------------------|
-| Streamly.Data.Array            | Array a                            | Immutable, unboxed, pinned and unpinned arrays |
-| Streamly.Data.MutArray         | MutArray a                         | Mutable, unboxed, pinned and unpinned arrays   |
-| Streamly.Data.Array.Generic    | Array a                            | Immutable, boxed arrays                        |
-| Streamly.Data.MutArray.Generic | MutArray a                         | Mutable, boxed arrays                          |
-| Streamly.Data.MutByteArray     | MutByteArray, Unbox a, Serialize a | Mutable byte arrays with serialization         |
-
 ## Streams
 
 In functional programming, stream processing paradigm is a higher level
 alternative to the low level looping paradigm found in imperative
 programming. The `Stream` abstraction in streamly represents data as a
-sequence of items of the same type.  Functional combinators are used to
+sequence of items of the same type.  Functional operations are used to
 process and transform each item in the stream to a new stream of the
 same or different type.
 
