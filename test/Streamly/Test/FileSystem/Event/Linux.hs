@@ -92,11 +92,14 @@ main = do
             : regSymTests
 
     let symTests =
+#ifdef DEVBUILD
              -- when root is a symlinked dir, it does not recv touch, isDeleted
              -- or rootDeleted, rootUnwatched events.
               dirDelete "" (\dir -> [(dir, dirEvent Event.isAttrsModified)])
             -- No events occur when a symlink root is moved
-            : regSymTests
+            :
+#endif
+            regSymTests
 
     let w = Event.watchWith (Event.setAllEvents True)
         run = runTests moduleName "non-recursive" w
