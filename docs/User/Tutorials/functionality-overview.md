@@ -38,8 +38,8 @@ same or different type.
 
 ### Stream Type
 
-Following is a contrived example which generates a stream of a sequence
-of integers, then increments each one by 1, takes the first two
+Following is a contrived example which generates a stream consisting of a
+sequence of integers, then increments each one by 1, takes the first two
 elements, adds them and prints the result:
 
 ```haskell
@@ -272,6 +272,7 @@ The following example uses `parMapM` which is a concurrent version of `mapM`,
 consequently it prints a value every second even though there is a 2 second
 serial delay for each element.
 
+```haskell
 >>> let delay n = threadDelay (n * 1000000) >> return n
 >>> :{
 parMap =
@@ -279,6 +280,7 @@ parMap =
     & Stream.parMapM (Stream.ordered True) (\x -> delay 1 >> print x)
     & Stream.fold Fold.drain
 :}
+```
 
 See `Streamly.Data.Stream.Prelude` module.
 
@@ -305,15 +307,34 @@ See `Streamly.Data.Fold.Prelude` module.
 
 ### Time Domain Operations
 
->>> twoPerSec = Stream.parEval (Stream.constRate 2) $ Stream.enumerateFrom 1
->>> intervals = Stream.intervalsOf 1 Fold.toList twoPerSec
+Streamly provides time domain stream operations for reactive programming
+including event sampling operations like throttle and debounce.
+
+For example, the `intervalsOf` operation collapses stream elements within a
+specified time interval.
+
+```haskell
+>>> input = Stream.parEval (Stream.constRate 2) $ Stream.enumerateFrom 1
+>>> intervals = Stream.intervalsOf 1 Fold.toList input
 >>> Stream.fold Fold.toList $ Stream.take 2 intervals
+```
+
+See `Streamly.Data.Fold.Prelude` module.
 
 ## Console IO
 
 The `Streamly.Console.Stdio` module provides facilities to read a stream
-from stdin and to write a stream to stdout and stderr.  Here is an
-example to read two numbers from separate lines on stdin and sum them:
+from stdin and to write a stream to stdout and stderr.  
+
+Implementation of a console echo program:
+
+```haskell
+main =
+  Stdio.readChunks     -- Stream IO (Array Word8)
+    & Stdio.fromChunks -- IO ()
+```
+
+An example to read two numbers from separate lines on stdin and sum them:
 
 ```haskell
 main =
@@ -327,6 +348,96 @@ main =
 
 ## File IO
 
+Implementation of the Unix `cp` utility to copy `input.txt` to `output.txt`:
+
+```haskell
+main =
+  File.readChunks (Path.fromString "input.txt")      -- Stream IO (Array Word8)
+    & File.fromChunks (Path.fromString "output.txt") -- IO ()
+```
+
+Implementation of the Unix `cat` utility to read all files from
+the current directory on standard output.
+
+```haskell
+main =
+  Dir.read (Path.fromString ".")       -- Stream IO Path
+    & Stream.concatMap File.readChunks -- Stream IO (Array Word8)
+    & Console.putChunks -- IO ()
+```
+
 ## Network IO
 
-## Unicode Text
+Streaming network operations can be found in `Streamly.Network.*` modules. Here
+is a streaming implementation of a concurrent network server which echo's back
+whatever it receives.
+
+```haskell
+>>> ...
+>>> import qualified Streamly.Network.Inet.TCP as TCP
+>>> import qualified Streamly.Network.Socket as Socket
+>>> :{
+main :: IO ()
+main =
+      TCP.accept 8091                            -- Stream IO Socket
+    & Stream.parMapM id (handleExceptions echo)  -- Stream IO ()
+    & Stream.fold Fold.drain                     -- IO ()
+    where
+    echo :: Socket -> IO ()
+    echo sk =
+          Socket.readChunksWith 32768 sk      -- Stream IO (Array Word8)
+        & Stream.fold (Socket.writeChunks sk) -- IO ()
+    handleExceptions :: (Socket -> IO ()) -> Socket -> IO ()
+    handleExceptions f sk = finally (f sk) (Net.close sk)
+:}
+```
+
+## Unicode Operations
+
+The `Streamly.Unicode.*` modules provide stream operations like UTF-8, UTF-16
+encoding and decoding, splitting Unicode char streams into lines, words and
+joining lines and words etc.
+
+String quasiquoter:
+
+```haskell
+>>> [str|this is a string|]
+"this is a string"
+```
+
+String interpolation:
+
+```haskell
+>>> x = "interpolated"
+>>> [str|this is an #{x} string|]
+"this is an interpolated string"
+```
+
+Splitting a string into lines, each line is collected in a list fold and
+all the lines are collected in a list fold.:
+
+```haskell
+>>> Stream.fold Fold.toList $ Unicode.lines Fold.toList (Stream.fromList "lines\nthis\nstring\n\n\n")
+["lines","this","string","",""]
+```
+
+You could supply any fold to consume the lines in a different way, for example
+use `Fold.length` to print the lengths of the lines:
+
+```haskell
+>>> Stream.fold Fold.toList $ Unicode.lines Fold.length (Stream.fromList "lines\nthis\nstring\n\n\n")
+[5,4,6,0,0]
+```
+
+Decoding the contents of a file into a stream of Unicode chars:
+
+```haskell
+>>> File.readChunks (Path.fromString "input.txt") & Unicode.decodeUtf8Chunks & Fold.length
+```
+
+Streamly.Unicode.Parser provides Unicode char and sequence parsers:
+
+```haskell
+>>> Stream.parse Unicode.double . Stream.fromList "3.14"
+>>> Right 3.14
+```
