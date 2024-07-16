@@ -352,7 +352,7 @@ module Streamly.Data.Stream
     -- >>> postscanl' f z = Stream.postscan (Fold.foldl' f z)
     -- >>> postscanlM' f z = Stream.postscan (Fold.foldlM' f z)
     -- >>> scanl1' f = Stream.catMaybes . Stream.scan (Fold.foldl1' f)
-    -- >>> scanl1M' f = Stream.catMaybes . Stream.scan (Fold.foldlM1' f)
+    -- >>> scanl1M' f = Stream.catMaybes . Stream.scan (Fold.foldl1M' f)
     , scan
     , postscan
     -- XXX postscan1 can be implemented using Monoids or Refolds.

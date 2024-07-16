@@ -353,7 +353,7 @@ module Streamly.Internal.Data.Fold.Type
     , foldl'
     , foldlM'
     , foldl1'
-    , foldlM1'
+    , foldl1M'
     , foldt'
     , foldtM'
     , foldr'
@@ -442,6 +442,7 @@ module Streamly.Internal.Data.Fold.Type
     -- * Deprecated
     , foldr
     , serialWith
+    , foldlM1'
     )
 where
 
@@ -610,9 +611,17 @@ foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
 -- | Like 'foldl1\'' but with a monadic step function.
 --
 -- /Pre-release/
+{-# DEPRECATED foldlM1' "Please use foldl1M' instead" #-}
 {-# INLINE foldlM1' #-}
 foldlM1' :: Monad m => (a -> a -> m a) -> Fold m a (Maybe a)
-foldlM1' step = fmap toMaybe $ foldlM' step1 (return Nothing')
+foldlM1' = foldl1M'
+
+-- | Like 'foldl1\'' but with a monadic step function.
+--
+-- /Pre-release/
+{-# INLINE foldl1M' #-}
+foldl1M' :: Monad m => (a -> a -> m a) -> Fold m a (Maybe a)
+foldl1M'  step = fmap toMaybe $ foldlM' step1 (return Nothing')
 
     where
 
