@@ -67,14 +67,14 @@ testLastN =
                 monadicIO $ do
                     xs <- run
                         $ fmap A.toList
-                        $ S.fold (A.writeLastN n)
+                        $ S.fold (A.createLastOf n)
                         $ S.fromList list
                     assert (xs == lastN n list)
 
 testLastN_LN :: Int -> Int -> IO Bool
 testLastN_LN len n = do
     let list = [1..len]
-    l1 <- fmap A.toList $ S.fold (A.writeLastN n) $ S.fromList list
+    l1 <- fmap A.toList $ S.fold (A.createLastOf n) $ S.fromList list
     let l2 = lastN n list
     return $ l1 == l2
 
@@ -239,12 +239,12 @@ main =
             it "middle" (unsafeWriteIndex [1..10] 5 0 `shouldReturn` True)
             it "last" (unsafeWriteIndex [1..10] 9 0 `shouldReturn` True)
         describe "Fold" $ do
-            prop "writeLastN : 0 <= n <= len" testLastN
-            describe "writeLastN boundary conditions" $ do
-                it "writeLastN -1" (testLastN_LN 10 (-1) `shouldReturn` True)
-                it "writeLastN 0" (testLastN_LN 10 0 `shouldReturn` True)
-                it "writeLastN length" (testLastN_LN 10 10 `shouldReturn` True)
-                it "writeLastN (length + 1)" (testLastN_LN 10 11 `shouldReturn` True)
+            prop "createLastOf : 0 <= n <= len" testLastN
+            describe "createLastOf boundary conditions" $ do
+                it "createLastOf -1" (testLastN_LN 10 (-1) `shouldReturn` True)
+                it "createLastOf 0" (testLastN_LN 10 0 `shouldReturn` True)
+                it "createLastOf length" (testLastN_LN 10 10 `shouldReturn` True)
+                it "createLastOf (length + 1)" (testLastN_LN 10 11 `shouldReturn` True)
         describe "Strip" $ do
             it "strip" (testStrip `shouldReturn` True)
             it "stripLeft" (testStripLeft `shouldReturn` True)

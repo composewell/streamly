@@ -55,7 +55,7 @@ module Streamly.Data.Array
     -- ** From Stream
     , createOf
     , create
-    , writeLastN    -- drop old (ring buffer)
+    , createLastOf -- drop old (ring buffer)
 
     -- ** From List
     , fromListN
@@ -94,6 +94,7 @@ module Streamly.Data.Array
     -- * Deprecated
     , writeN      -- drop new
     , write       -- full buffer
+    , writeLastN
     )
 where
 
