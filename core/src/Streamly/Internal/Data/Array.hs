@@ -225,7 +225,7 @@ createLastOf n
 
     initial =
         let f a = FL.Partial $ Tuple3Fused' a 0 (0 :: Int)
-         in fmap f $ liftIO $ RB.new n
+         in fmap f $ liftIO $ RB.emptyOf n
 
     done (Tuple3Fused' rb rh i) = do
         arr <- MA.emptyOf n
