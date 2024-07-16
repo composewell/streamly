@@ -279,7 +279,7 @@ windowRange n = Fold step initial extract extract
         then error "range: window size must be > 0"
         else
             let f a = Partial $ Tuple3Fused' a 0 (0 :: Int)
-             in fmap f $ liftIO $ Ring.new n
+             in fmap f $ liftIO $ Ring.emptyOf n
 
     step (Tuple3Fused' rb rh i) a = do
         rh1 <- liftIO $ Ring.unsafeInsert rb rh a

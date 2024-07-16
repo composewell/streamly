@@ -11,8 +11,8 @@ module Streamly.Internal.Data.Ring.Generic
     ( Ring(..)
 
     -- * Generation
-    , createRing
-    , writeLastN
+    , emptyOf
+    , createOf
 
     -- * Modification
     , seek
@@ -52,9 +52,9 @@ data Ring a = Ring
 
 -- XXX If we align the ringMax to nearest power of two then computation of the
 -- index to write could be cheaper.
-{-# INLINE createRing #-}
-createRing :: MonadIO m => Int -> m (Ring a)
-createRing count = liftIO $ do
+{-# INLINE emptyOf #-}
+emptyOf :: MonadIO m => Int -> m (Ring a)
+emptyOf count = liftIO $ do
     arr <- MutArray.emptyOf count
     arr1 <- MutArray.uninit arr count
     return (Ring
@@ -67,17 +67,17 @@ createRing count = liftIO $ do
 -- | Note that it is not safe to return a reference to the mutable Ring using a
 -- scan as the Ring is continuously getting mutated. You could however copy out
 -- the Ring.
-{-# INLINE writeLastN #-}
-writeLastN :: MonadIO m => Int -> Fold m a (Ring a)
-writeLastN n = Fold step initial extract extract
+{-# INLINE createOf #-}
+createOf :: MonadIO m => Int -> Fold m a (Ring a)
+createOf n = Fold step initial extract extract
 
     where
 
     initial = do
         if n <= 0
-        then Fold.Done <$> createRing 0
+        then Fold.Done <$> emptyOf 0
         else do
-            rb <- createRing n
+            rb <- emptyOf n
             return $ Fold.Partial $ Tuple' rb (0 :: Int)
 
     step (Tuple' rb cnt) x = do

@@ -2173,7 +2173,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                                <= sizeOf (Proxy :: Proxy Word)
                           then return $ Skip $ SplitOnSeqWordInit acc state
                           else do
-                              rb <- liftIO $ RB.new patLen
+                              rb <- liftIO $ RB.emptyOf patLen
                               skip $ SplitOnSeqKRInit 0 acc state rb 0
             FL.Done b -> skip $ SplitOnSeqYield b SplitOnSeqInit
 
@@ -2506,7 +2506,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                                <= sizeOf (Proxy :: Proxy Word)
                           then skip $ SplitOnSuffixSeqWordInit fs state
                           else do
-                              rb <- liftIO $ RB.new patLen
+                              rb <- liftIO $ RB.emptyOf patLen
                               skip $ SplitOnSuffixSeqKRInit 0 fs state rb 0
             FL.Done fb -> skip $ SplitOnSuffixSeqYield fb SplitOnSuffixSeqInit
 

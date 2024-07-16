@@ -1589,7 +1589,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
-                    rb <- liftIO $ Ring.new patLen
+                    rb <- liftIO $ Ring.emptyOf patLen
                     return $ Partial $ SplitOnSeqKR acc 0 rb 0
             Done b -> return $ Done b
 
@@ -1730,7 +1730,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
-                    rb <- liftIO $ Ring.new patLen
+                    rb <- liftIO $ Ring.emptyOf patLen
                     return $ Partial $ SplitOnSeqKR acc 0 rb 0
             Done b -> return $ Done b
 

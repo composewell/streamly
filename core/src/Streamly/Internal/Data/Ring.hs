@@ -16,8 +16,8 @@ module Streamly.Internal.Data.Ring
     ( Ring(..)
 
     -- * Construction
-    , new
-    , writeN
+    , emptyOf
+    , createOf
 
     , advance
     , moveBy
@@ -129,9 +129,9 @@ mod1 i j = mod1 i (i - j)
 -- memory of the ring is uninitialized and the allocation is aligned as per
 -- the 'Unbox' instance of the type.
 --
-{-# INLINE new #-}
-new :: forall a. Unbox a => Int -> IO (Ring a)
-new count = do
+{-# INLINE emptyOf #-}
+emptyOf :: forall a. Unbox a => Int -> IO (Ring a)
+emptyOf count = do
     arr <- MBA.new (count * SIZE_OF(a))
     pure $ Ring arr count
 
@@ -154,14 +154,14 @@ moveBy by rb ringHead = (ringHead + by) `mod1` ringCapacity rb
 
 -- XXX Move the createLastOf from array module here.
 --
--- | @writeN n@ is a rolling fold that keeps the last n elements of the stream
+-- | @createOf n@ is a rolling fold that keeps the last n elements of the stream
 -- in a ring array.
 --
 -- /Unimplemented/
-{-# INLINE writeN #-}
-writeN :: -- (Unbox a, MonadIO m) =>
+{-# INLINE createOf #-}
+createOf :: -- (Unbox a, MonadIO m) =>
     Int -> Fold m a (Ring a)
-writeN = undefined
+createOf = undefined
 
 -------------------------------------------------------------------------------
 -- Conversions
@@ -335,7 +335,7 @@ readRev = undefined
 {-# INLINE_NORMAL ringsOf #-}
 ringsOf :: -- forall m a. (MonadIO m, Unbox a) =>
     Int -> Stream m a -> Stream m (MutArray a)
-ringsOf = undefined -- Stream.scan (writeN n)
+ringsOf = undefined -- Stream.scan (createOf n)
 
 -------------------------------------------------------------------------------
 -- Casting
@@ -535,7 +535,7 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
         then error "Window size must be > 0"
         else do
             r <- initial1
-            rb <- liftIO $ new n
+            rb <- liftIO $ emptyOf n
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb 0 (0 :: Int) s

@@ -57,7 +57,7 @@ main = do
     alloc value = do
         let input = [1 .. value] :: [Int]
         let arr = Array.fromList input
-        ring <- Ring.new value
+        ring <- Ring.emptyOf value
         void $ P.foldlM (Ring.unsafeInsert ring) 0 input
         return (arr, ring)
 

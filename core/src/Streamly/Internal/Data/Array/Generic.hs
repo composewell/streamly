@@ -13,7 +13,7 @@ module Streamly.Internal.Data.Array.Generic
     , nil
     , createOf
     , create
-    , writeWith
+    , createWith
     , createLastOf
 
     , fromStreamN
@@ -118,9 +118,9 @@ createOf = fmap unsafeFreeze <$> MArray.createOf
 writeN :: MonadIO m => Int -> Fold m a (Array a)
 writeN = createOf
 
-{-# INLINE_NORMAL writeWith #-}
-writeWith :: MonadIO m => Int -> Fold m a (Array a)
-writeWith elemCount = unsafeFreeze <$> MArray.createWith elemCount
+{-# INLINE_NORMAL createWith #-}
+createWith :: MonadIO m => Int -> Fold m a (Array a)
+createWith elemCount = unsafeFreeze <$> MArray.createWith elemCount
 
 -- | Fold the whole input to a single array.
 --
@@ -274,7 +274,7 @@ getIndex i arr@Array {..} =
 --
 {-# INLINE createLastOf #-}
 createLastOf :: MonadIO m => Int -> Fold m a (Array a)
-createLastOf n = FL.rmapM f (RB.createLastOf n)
+createLastOf n = FL.rmapM f (RB.createOf n)
 
     where
 
