@@ -38,8 +38,8 @@ module Streamly.Internal.FileSystem.OS_PATH.FileDir
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
-    , dirExp
-    , fileExp
+    , dirE
+    , fileE
 
     -- * Operations
     , append
@@ -126,13 +126,13 @@ liftFile (File p) =
 
 -- | Generates a Haskell expression of type @Dir OS_PATH@.
 --
-dirExp :: String -> Q Exp
-dirExp = either (error . show) liftDir . OsPath.fromString
+dirE :: String -> Q Exp
+dirE = either (error . show) liftDir . OsPath.fromString
 
 -- | Generates a Haskell expression of type @File OS_PATH@.
 --
-fileExp :: String -> Q Exp
-fileExp = either (error . show) liftFile . OsPath.fromString
+fileE :: String -> Q Exp
+fileE = either (error . show) liftFile . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -149,7 +149,7 @@ fileExp = either (error . show) liftFile . OsPath.fromString
 -- "usr"
 --
 dir :: QuasiQuoter
-dir = mkQ dirExp
+dir = mkQ dirE
 
 -- | Generates a @File OS_PATH@ type from a quoted literal.
 --
@@ -157,7 +157,7 @@ dir = mkQ dirExp
 -- "usr"
 --
 file :: QuasiQuoter
-file = mkQ fileExp
+file = mkQ fileE
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
 -- type path, and (2) second path can only be a Seg path.

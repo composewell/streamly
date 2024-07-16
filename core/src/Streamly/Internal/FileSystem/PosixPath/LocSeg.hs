@@ -43,8 +43,8 @@ module Streamly.Internal.FileSystem.OS_PATH.LocSeg
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
-    , locExp
-    , segExp
+    , locE
+    , segE
 
     -- * Operations
     , append
@@ -118,13 +118,13 @@ liftSeg (Seg p) =
 
 -- | Generates a Haskell expression of type @Loc OS_PATH@.
 --
-locExp :: String -> Q Exp
-locExp = either (error . show) liftLoc . OsPath.fromString
+locE :: String -> Q Exp
+locE = either (error . show) liftLoc . OsPath.fromString
 
 -- | Generates a Haskell expression of type @Seg OS_PATH@.
 --
-segExp :: String -> Q Exp
-segExp = either (error . show) liftSeg . OsPath.fromString
+segE :: String -> Q Exp
+segE = either (error . show) liftSeg . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -141,7 +141,7 @@ segExp = either (error . show) liftSeg . OsPath.fromString
 -- "/usr"
 --
 loc :: QuasiQuoter
-loc = mkQ locExp
+loc = mkQ locE
 
 -- | Generates a @Seg Path@ type from a quoted literal.
 --
@@ -149,7 +149,7 @@ loc = mkQ locExp
 -- "usr"
 --
 seg :: QuasiQuoter
-seg = mkQ segExp
+seg = mkQ segE
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
 -- type path, and (2) second path can only be a Seg path.
