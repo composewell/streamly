@@ -204,7 +204,7 @@ module Streamly.Data.Fold
     , foldl'
     , foldlM'
     , foldl1'
-    , foldlM1'
+    , foldl1M'
     , foldr'
 
     -- * Folds
@@ -387,6 +387,7 @@ module Streamly.Data.Fold
     , concatMap
 
     -- * Deprecated
+    , foldlM1'
     , chunksOf
     , foldr
     , drainBy
