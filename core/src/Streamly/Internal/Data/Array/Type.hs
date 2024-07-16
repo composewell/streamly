@@ -744,8 +744,7 @@ toList s = build (\c n -> toListFB c n s)
 createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
 createOf = fmap unsafeFreeze . MA.createOf
 
--- XXX Deprecate in major
--- {-# DEPRECATED writeN  "Please use createOf instead." #-}
+{-# DEPRECATED writeN  "Please use createOf instead." #-}
 {-# INLINE writeN #-}
 writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
 writeN = createOf
@@ -819,8 +818,7 @@ writeWith = createWith
 create :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
 create = fmap unsafeFreeze MA.create
 
--- XXX Deprecate in major
--- {-# DEPRECATED write  "Please use create instead." #-}
+{-# DEPRECATED write  "Please use create instead." #-}
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
 write = create

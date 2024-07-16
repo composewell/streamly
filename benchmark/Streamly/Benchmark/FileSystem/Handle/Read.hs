@@ -235,7 +235,7 @@ groupsOf :: Int -> Handle -> IO Int
 groupsOf n inh =
     -- writeNUnsafe gives 2.5x boost here over writeN.
     S.fold Fold.length
-        $ IP.groupsOf n (A.writeNUnsafe n) (S.unfold FH.reader inh)
+        $ IP.groupsOf n (A.unsafeCreateOf n) (S.unfold FH.reader inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'groupsOf

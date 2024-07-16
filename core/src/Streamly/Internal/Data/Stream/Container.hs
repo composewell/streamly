@@ -212,7 +212,7 @@ outerJoin eq s1 s2 =
         let len = Array.length inputArr
         foundArr <-
             Stream.fold
-            (MA.writeN len)
+            (MA.createOf len)
             (Stream.fromList (Prelude.replicate len False))
         return $ go inputArr foundArr `Stream.append` leftOver inputArr foundArr
 

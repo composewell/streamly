@@ -23,7 +23,7 @@ genericTestFrom arrFold =
                 assert (A.length arr == len)
 
 testLength :: Property
-testLength = genericTestFrom (S.fold . A.writeN)
+testLength = genericTestFrom (S.fold . A.createOf)
 
 testLengthFromStreamN :: Property
 testLengthFromStreamN = genericTestFrom A.fromStreamN
@@ -44,16 +44,16 @@ genericTestFromTo arrFold arrUnfold listEq =
 
 testFoldNUnfold :: Property
 testFoldNUnfold =
-    genericTestFromTo (S.fold . A.writeN) (S.unfold A.reader) (==)
+    genericTestFromTo (S.fold . A.createOf) (S.unfold A.reader) (==)
 
 testFoldNToStream :: Property
 testFoldNToStream =
-    genericTestFromTo (S.fold . A.writeN) A.read (==)
+    genericTestFromTo (S.fold . A.createOf) A.read (==)
 
 testFoldNToStreamRev :: Property
 testFoldNToStreamRev =
     genericTestFromTo
-        (S.fold . A.writeN)
+        (S.fold . A.createOf)
         A.readRev
         (\xs list -> xs == reverse list)
 
@@ -98,4 +98,4 @@ commonMain = do
         prop "toStream . fromStreamN === id" testFromStreamNToStream
         prop "fromListN" testFromListN
         prop "foldMany with writeN concats to original"
-            (foldManyWith A.writeN)
+            (foldManyWith A.createOf)

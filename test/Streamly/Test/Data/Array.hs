@@ -35,7 +35,7 @@ testFromStreamToStream = genericTestFromTo (const A.fromStream) A.read (==)
 
 testFoldUnfold :: Property
 testFoldUnfold =
-    genericTestFromTo (const (S.fold A.write)) (S.unfold A.reader) (==)
+    genericTestFromTo (const (S.fold A.create)) (S.unfold A.reader) (==)
 
 testFromList :: Property
 testFromList =
@@ -149,7 +149,7 @@ testBubbleWith asc =
                     else MA.bubble (flip compare) arr
                     return arr
                 )
-                (MA.pinnedNew $ length ls)
+                (MA.pinnedEmptyOf $ length ls)
 
 testBubbleAsc ::  Property
 testBubbleAsc = testBubbleWith True
@@ -159,7 +159,7 @@ testBubbleDesc = testBubbleWith False
 
 testByteLengthWithMA :: forall a. Unbox a => a -> IO ()
 testByteLengthWithMA _ = do
-     arrA <- MA.pinnedNew 100 :: IO (MutArray a)
+     arrA <- MA.pinnedEmptyOf 100 :: IO (MutArray a)
      let arrW8 = MA.castUnsafe arrA :: MutArray Word8
      MA.byteLength arrA `shouldBe` MA.length arrW8
 
@@ -171,7 +171,7 @@ testBreakOn inp sep bef aft = do
 
 testWrite :: [Char] -> IO ()
 testWrite inp = do
-    arr <- S.fold A.write (S.fromList inp)
+    arr <- S.fold A.create (S.fromList inp)
     A.toList arr `shouldBe` inp
 
 testFromToList :: [Char] -> IO ()

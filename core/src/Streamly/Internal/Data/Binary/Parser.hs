@@ -388,7 +388,7 @@ charLatin1 = fmap (chr . fromIntegral) word8
 {-# INLINE word64host #-}
 word64host :: MonadIO m => Parser Word8 m Word64
 word64host =
-    fmap (A.getIndexUnsafe 0 . A.castUnsafe) $ PR.takeEQ 8 (A.writeN 8)
+    fmap (A.getIndexUnsafe 0 . A.castUnsafe) $ PR.takeEQ 8 (A.createOf 8)
 
 -------------------------------------------------------------------------------
 -- Type class
