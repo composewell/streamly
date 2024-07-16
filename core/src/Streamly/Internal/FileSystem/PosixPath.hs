@@ -46,7 +46,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     , fromChunk
     , unsafeFromChunk
     , fromChars
-    , fromString -- pathString?
+    , fromString
     , unsafeFromString
 
     -- * Statically Verified String Literals
@@ -56,11 +56,11 @@ module Streamly.Internal.FileSystem.OS_PATH
     -- * Statically Verified Strings
     -- | Template Haskell expression splices.
 
-    -- XXX Do we need to expose these if we have quasiquoters? These may be
-    -- useful if we are generating strings statically using methods other than
-    -- literals or if we are doing some text processing on strings before using
-    -- them.
-    , pathExp
+    -- Note: We expose these eventhough we have quasiquoters as these TH helpers
+    -- are more powerful. They are useful if we are generating strings
+    -- statically using methods other than literals or if we are doing some text
+    -- processing on strings before using them.
+    , pathE
 
     -- * Elimination
     , toChunk
@@ -260,8 +260,8 @@ liftPath p =
 
 -- | Generates a Haskell expression of type OS_PATH from a String.
 --
-pathExp :: String -> Q Exp
-pathExp = either (error . show) liftPath . fromString
+pathE :: String -> Q Exp
+pathE = either (error . show) liftPath . fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -278,7 +278,7 @@ pathExp = either (error . show) liftPath . fromString
 -- "/usr/bin"
 --
 path :: QuasiQuoter
-path = mkQ pathExp
+path = mkQ pathE
 
 ------------------------------------------------------------------------------
 -- Eimination

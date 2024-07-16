@@ -34,10 +34,10 @@ module Streamly.Internal.FileSystem.OS_PATH.Typed
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
-    , dirLocExp
-    , dirSegExp
-    , fileLocExp
-    , fileSegExp
+    , dirLocE
+    , dirSegE
+    , fileLocE
+    , fileSegE
 
     -- * Operations
     , append
@@ -177,23 +177,23 @@ liftFileSeg (Seg (File p)) =
 
 -- | Generates a Haskell expression of type @Loc (Dir OS_PATH)@.
 --
-dirLocExp :: String -> Q Exp
-dirLocExp = either (error . show) liftDirLoc . OsPath.fromString
+dirLocE :: String -> Q Exp
+dirLocE = either (error . show) liftDirLoc . OsPath.fromString
 
 -- | Generates a Haskell expression of type @Seg (Dir OS_PATH)@.
 --
-dirSegExp :: String -> Q Exp
-dirSegExp = either (error . show) liftDirSeg . OsPath.fromString
+dirSegE :: String -> Q Exp
+dirSegE = either (error . show) liftDirSeg . OsPath.fromString
 
 -- | Generates a Haskell expression of type @Loc (File OS_PATH)@.
 --
-fileLocExp :: String -> Q Exp
-fileLocExp = either (error . show) liftFileLoc . OsPath.fromString
+fileLocE :: String -> Q Exp
+fileLocE = either (error . show) liftFileLoc . OsPath.fromString
 
 -- | Generates a Haskell expression of type @Seg (File OS_PATH)@.
 --
-fileSegExp :: String -> Q Exp
-fileSegExp = either (error . show) liftFileSeg . OsPath.fromString
+fileSegE :: String -> Q Exp
+fileSegE = either (error . show) liftFileSeg . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -212,7 +212,7 @@ fileSegExp = either (error . show) liftFileSeg . OsPath.fromString
 -- "/usr"
 --
 dirloc :: QuasiQuoter
-dirloc = mkQ dirLocExp
+dirloc = mkQ dirLocE
 
 -- | Generates a @Seg (Dir OS_PATH)@ type from a quoted literal.
 --
@@ -220,7 +220,7 @@ dirloc = mkQ dirLocExp
 -- "usr"
 --
 dirseg :: QuasiQuoter
-dirseg = mkQ dirSegExp
+dirseg = mkQ dirSegE
 
 -- XXX Change to "fileloc"?
 
@@ -230,7 +230,7 @@ dirseg = mkQ dirSegExp
 -- "/usr"
 --
 fileloc :: QuasiQuoter
-fileloc = mkQ fileLocExp
+fileloc = mkQ fileLocE
 
 -- | Generates an @Seg (File OS_PATH)@ type from a quoted literal.
 --
@@ -238,7 +238,7 @@ fileloc = mkQ fileLocExp
 -- "usr"
 --
 fileseg :: QuasiQuoter
-fileseg = mkQ fileSegExp
+fileseg = mkQ fileSegE
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
 -- type path, and (2) second path can only be a Seg path.
