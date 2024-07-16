@@ -368,7 +368,7 @@ module Streamly.Internal.Data.Fold.Type
     , toList
     , toStreamK
     , toStreamKRev
-    , lengthGeneric
+    , genericLength
     , length
 
     -- * Combinators
@@ -808,24 +808,24 @@ toStreamK = foldr K.cons K.nil
 --
 -- Definition:
 --
--- >>> lengthGeneric = fmap getSum $ Fold.foldMap (Sum . const  1)
--- >>> lengthGeneric = Fold.foldl' (\n _ -> n + 1) 0
+-- >>> genericLength = fmap getSum $ Fold.foldMap (Sum . const  1)
+-- >>> genericLength = Fold.foldl' (\n _ -> n + 1) 0
 --
 -- /Pre-release/
-{-# INLINE lengthGeneric #-}
-lengthGeneric :: (Monad m, Num b) => Fold m a b
-lengthGeneric = foldl' (\n _ -> n + 1) 0
+{-# INLINE genericLength #-}
+genericLength :: (Monad m, Num b) => Fold m a b
+genericLength = foldl' (\n _ -> n + 1) 0
 
 -- | Determine the length of the input stream.
 --
 -- Definition:
 --
--- >>> length = Fold.lengthGeneric
+-- >>> length = Fold.genericLength
 -- >>> length = fmap getSum $ Fold.foldMap (Sum . const  1)
 --
 {-# INLINE length #-}
 length :: Monad m => Fold m a Int
-length = lengthGeneric
+length = genericLength
 
 ------------------------------------------------------------------------------
 -- Instances

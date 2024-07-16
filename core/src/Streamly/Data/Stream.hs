@@ -264,7 +264,7 @@ module Streamly.Data.Stream
     -- >>> drain = Stream.fold Fold.drain
     -- >>> mapM_ f = Stream.fold (Fold.drainMapM f)
     -- >>> length = Stream.fold Fold.length
-    -- >>> genericLength = Stream.fold Fold.lengthGeneric
+    -- >>> genericLength = Stream.fold Fold.genericLength
     -- >>> head = Stream.fold Fold.one
     -- >>> last = Stream.fold Fold.latest
     -- >>> null = Stream.fold Fold.null
@@ -283,7 +283,7 @@ module Streamly.Data.Stream
     -- >>> lookup x = Stream.fold (Fold.lookup x)
     -- >>> find p = Stream.fold (Fold.find p)
     -- >>> (!?) i = Stream.fold (Fold.index i)
-    -- >>> genericIndex i = Stream.fold (Fold.indexGeneric i)
+    -- >>> genericIndex i = Stream.fold (Fold.genericIndex i)
     -- >>> elemIndex x = Stream.fold (Fold.elemIndex x)
     -- >>> findIndex p = Stream.fold (Fold.findIndex p)
     --
@@ -671,4 +671,3 @@ import Prelude
 import qualified Streamly.Internal.Data.Array.Type as Array
 
 #include "DocTestDataStream.hs"
-
