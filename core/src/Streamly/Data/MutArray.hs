@@ -40,7 +40,7 @@ module Streamly.Data.MutArray
     , fromList
     , createOf
     , create
-    -- writeLastN
+    -- createLastOf
 
     -- * Pinning & Unpinning
     , pin
