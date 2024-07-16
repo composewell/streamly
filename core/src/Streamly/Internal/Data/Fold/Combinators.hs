@@ -95,7 +95,7 @@ module Streamly.Internal.Data.Fold.Combinators
     , drainN
     -- , lastN
     -- , (!!)
-    , indexGeneric
+    , genericIndex
     , index
     , findM
     , find
@@ -1105,9 +1105,9 @@ drainN n = take n drain
 -- | Like 'index', except with a more general 'Integral' argument
 --
 -- /Pre-release/
-{-# INLINE indexGeneric #-}
-indexGeneric :: (Integral i, Monad m) => i -> Fold m a (Maybe a)
-indexGeneric i = foldt' step (Partial 0) (const Nothing)
+{-# INLINE genericIndex #-}
+genericIndex :: (Integral i, Monad m) => i -> Fold m a (Maybe a)
+genericIndex i = foldt' step (Partial 0) (const Nothing)
 
     where
 
@@ -1120,11 +1120,11 @@ indexGeneric i = foldt' step (Partial 0) (const Nothing)
 --
 -- Definition:
 --
--- >>> index = Fold.indexGeneric
+-- >>> index = Fold.genericIndex
 --
 {-# INLINE index #-}
 index :: Monad m => Int -> Fold m a (Maybe a)
-index = indexGeneric
+index = genericIndex
 
 -- | Consume a single input and transform it using the supplied 'Maybe'
 -- returning function.
