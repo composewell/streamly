@@ -774,7 +774,7 @@ stripPrefix (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
 isInfixOf :: (MonadIO m, Eq a, Enum a, Unbox a)
     => Stream m a -> Stream m a -> m Bool
 isInfixOf infx stream = do
-    arr <- fold Array.write infx
+    arr <- fold Array.create infx
     -- XXX can use breakOnSeq instead (when available)
     r <- null $ StreamD.drop 1 $ Nesting.splitOnSeq arr Fold.drain stream
     return (not r)

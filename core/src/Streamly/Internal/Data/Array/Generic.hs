@@ -113,8 +113,7 @@ nil = unsafePerformIO $ unsafeFreeze <$> MArray.nil
 createOf :: MonadIO m => Int -> Fold m a (Array a)
 createOf = fmap unsafeFreeze <$> MArray.createOf
 
--- XXX Deprecate in major
--- {-# DEPRECATED writeN "Please use createOf instead." #-}
+{-# DEPRECATED writeN "Please use createOf instead." #-}
 {-# INLINE writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (Array a)
 writeN = createOf
@@ -131,8 +130,7 @@ writeWith elemCount = unsafeFreeze <$> MArray.createWith elemCount
 create :: MonadIO m => Fold m a (Array a)
 create = fmap unsafeFreeze MArray.create
 
--- XXX Deprecate in major
--- {-# DEPRECATED write "Please use create instead." #-}
+{-# DEPRECATED write "Please use create instead." #-}
 {-# INLINE write #-}
 write :: MonadIO m => Fold m a (Array a)
 write = create
@@ -146,7 +144,7 @@ fromPureStream x =
 fromCString# :: MonadIO m => Addr# -> m (Array Word8)
 fromCString# addr = fromStream $ D.fromCString# addr
 
-{-# DEPRECATED fromByteStr# "Please use fromCString instead" #-}
+{-# DEPRECATED fromByteStr# "Please use 'unsafePerformIO . fromCString#' instead" #-}
 fromByteStr# :: Addr# -> Array Word8
 fromByteStr# addr = fromPureStream (D.fromCString# addr)
 

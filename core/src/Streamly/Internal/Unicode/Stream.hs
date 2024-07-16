@@ -1250,7 +1250,7 @@ encodeObject :: MonadIO m =>
     -> Unfold m a Char
     -> a
     -> m (Array Word8)
-encodeObject encode u = Stream.fold Array.write . encode . Stream.unfold u
+encodeObject encode u = Stream.fold Array.create . encode . Stream.unfold u
 
 -- | Encode a stream of container objects using the supplied encoding scheme.
 -- Each object is encoded as an @Array Word8@.

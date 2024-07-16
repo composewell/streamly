@@ -227,7 +227,7 @@ writeLastN n
          in fmap f $ liftIO $ RB.new n
 
     done (Tuple3Fused' rb rh i) = do
-        arr <- MA.new n
+        arr <- MA.emptyOf n
         -- XXX We should write a read unfold for ring.
         foldFunc i rh MA.snocUnsafe arr rb
 

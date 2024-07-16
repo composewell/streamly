@@ -546,9 +546,11 @@ newBytesAs ps bytes = do
 -- The memory of the array is uninitialized and the allocation is aligned as
 -- per the 'Unboxed' instance of the type.
 --
+-- > pinnedNewBytes = (castUnsafe :: Array Word8 -> a) . pinnedEmptyOf
+--
 -- /Pre-release/
 {-# INLINE pinnedNewBytes #-}
-{-# DEPRECATED pinnedNewBytes "Please use pinnedEmptyOf with appropriate calculation" #-}
+{-# DEPRECATED pinnedNewBytes "Please use pinnedEmptyOf to create a Word8 array and cast it accordingly." #-}
 pinnedNewBytes :: MonadIO m =>
 #ifdef DEVBUILD
     Unbox a =>
@@ -580,8 +582,7 @@ newAs ps =
 pinnedEmptyOf :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
 pinnedEmptyOf = newAs Pinned
 
--- XXX Deprecate in major
--- {-# DEPRECATED pinnedNew "Please use pinnedEmptyOf instead." #-}
+{-# DEPRECATED pinnedNew "Please use pinnedEmptyOf instead." #-}
 {-# INLINE pinnedNew #-}
 pinnedNew :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
 pinnedNew = pinnedEmptyOf
@@ -593,8 +594,7 @@ pinnedNew = pinnedEmptyOf
 emptyOf :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
 emptyOf = newAs Unpinned
 
--- XXX Deprecate in major
--- {-# DEPRECATED new "Please use emptyOf instead." #-}
+{-# DEPRECATED new "Please use emptyOf instead." #-}
 {-# INLINE new #-}
 new :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
 new = emptyOf
@@ -2029,8 +2029,7 @@ appendN :: forall m a. (MonadIO m, Unbox a) =>
     Int -> m (MutArray a) -> Fold m a (MutArray a)
 appendN n initial = FL.take n (unsafeAppendN n initial)
 
--- XXX Deprecate in major
--- {-# DEPRECATED writeAppendN "Please use appendN instead." #-}
+{-# DEPRECATED writeAppendN "Please use appendN instead." #-}
 {-# INLINE writeAppendN #-}
 writeAppendN :: forall m a. (MonadIO m, Unbox a) =>
     Int -> m (MutArray a) -> Fold m a (MutArray a)
@@ -2070,8 +2069,7 @@ append :: forall m a. (MonadIO m, Unbox a) =>
     m (MutArray a) -> Fold m a (MutArray a)
 append = appendWith (* 2)
 
--- XXX Deprecate in major
--- {-# DEPRECATED writeAppend "Please use append instead." #-}
+{-# DEPRECATED writeAppend "Please use append instead." #-}
 {-# INLINE writeAppend #-}
 writeAppend :: forall m a. (MonadIO m, Unbox a) =>
     m (MutArray a) -> Fold m a (MutArray a)
@@ -2153,7 +2151,7 @@ createOfWith :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
 createOfWith alloc n = FL.take n (unsafeCreateOfWith alloc n)
 
--- {-# DEPRECATED writeNWith "Please use createOfWith instead." #-}
+{-# DEPRECATED writeNWith "Please use createOfWith instead." #-}
 {-# INLINE writeNWith #-}
 writeNWith :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
@@ -2170,7 +2168,7 @@ writeNAs ps = createOfWith (newAs ps)
 -- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'MutArray'.
 --
--- >>> createOf = MutArray.createOfWith MutArray.new
+-- >>> createOf = MutArray.createOfWith MutArray.emptyOf
 -- >>> createOf n = Fold.take n (MutArray.unsafeCreateOf n)
 -- >>> createOf n = MutArray.appendN n (MutArray.emptyOf n)
 --
@@ -2178,8 +2176,7 @@ writeNAs ps = createOfWith (newAs ps)
 createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
 createOf = writeNAs Unpinned
 
--- XXX Deprecate in major
--- {-# DEPRECATED writeN "Please use createOf instead." #-}
+{-# DEPRECATED writeN "Please use createOf instead." #-}
 {-# INLINE writeN #-}
 writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
 writeN = createOf
@@ -2352,8 +2349,7 @@ writeWith = createWith
 create :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
 create = createWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
 
--- XXX Deprecate in major
--- {-# DEPRECATED write "Please use create instead." #-}
+{-# DEPRECATED write "Please use create instead." #-}
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
 write = create

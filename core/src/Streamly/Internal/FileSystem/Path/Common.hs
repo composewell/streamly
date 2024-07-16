@@ -339,7 +339,7 @@ doAppend os a b = unsafePerformIO $ do
     assertM(lenA /= 0 && lenB /= 0)
     assertM(countTrailingBy (isSeparatorWord os) a == 0)
     let len = lenA + 1 + lenB
-    arr <- MutArray.new len
+    arr <- MutArray.emptyOf len
     arr1 <- MutArray.spliceUnsafe arr (Array.unsafeThaw a)
     arr2 <- MutArray.snocUnsafe arr1 (charToWord posixSeparator)
     arr3 <- MutArray.spliceUnsafe arr2 (Array.unsafeThaw b)

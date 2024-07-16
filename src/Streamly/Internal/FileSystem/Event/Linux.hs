@@ -183,7 +183,7 @@ import Streamly.Internal.FileSystem.Path (Path)
 import qualified Data.IntMap.Lazy as Map
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Data.Array as A (fromList, writeN, getIndex)
+import qualified Streamly.Data.Array as A (fromList, createOf, getIndex)
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Unicode.Stream as U
@@ -812,7 +812,7 @@ data Event = Event
 readOneEvent :: Config -> Watch -> Parser Word8 IO Event
 readOneEvent cfg  wt@(Watch _ wdMap) = do
     let headerLen = sizeOf (undefined :: CInt) + 12
-    arr <- PR.takeEQ headerLen (A.writeN headerLen)
+    arr <- PR.takeEQ headerLen (A.createOf headerLen)
     (ewd, eflags, cookie, pathLen) <- PR.fromEffect $ A.unsafePinnedAsPtr arr readHeader
     -- XXX need the "initial" in parsers to return a step type so that "take 0"
     -- can return without an input. otherwise if pathLen is 0 we will keep
@@ -826,7 +826,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
             pth <-
                 PR.fromFold
                     $ FL.takeEndBy_ (== 0)
-                    $ FL.take pathLen (A.writeN pathLen)
+                    $ FL.take pathLen (A.createOf pathLen)
             let remaining = pathLen - byteLength pth - 1
             when (remaining /= 0) $ PR.takeEQ remaining FL.drain
             return pth

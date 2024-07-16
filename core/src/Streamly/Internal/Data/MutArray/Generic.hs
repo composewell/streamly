@@ -258,8 +258,7 @@ emptyOf n@(I# n#) =
                       let ma = MutArray arr# 0 0 n
                        in (# s1#, ma #)
 
--- XXX Deprecate in major
--- {-# DEPRECATED new "Please use emptyOf instead." #-}
+{-# DEPRECATED new "Please use emptyOf instead." #-}
 {-# INLINE new #-}
 new :: MonadIO m => Int -> m (MutArray a)
 new = emptyOf
@@ -269,7 +268,7 @@ new = emptyOf
 -- |
 -- Definition:
 --
--- >>> nil = MutArray.new 0
+-- >>> nil = MutArray.emptyOf 0
 {-# INLINE nil #-}
 nil :: MonadIO m => m (MutArray a)
 nil = new 0
@@ -634,8 +633,7 @@ writeNUnsafe = unsafeCreateOf
 createOf :: MonadIO m => Int -> Fold m a (MutArray a)
 createOf n = FL.take n $ unsafeCreateOf n
 
--- XXX Deprecate in major
--- {-# DEPRECATED writeN "Please use createOf instead." #-}
+{-# DEPRECATED writeN "Please use createOf instead." #-}
 {-# INLINE writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (MutArray a)
 writeN = createOf
@@ -689,8 +687,7 @@ writeWith = createWith
 create :: MonadIO m => Fold m a (MutArray a)
 create = writeWith arrayChunkSize
 
--- XXX Deprecate in major
--- {-# DEPRECATED write "Please use create instead." #-}
+{-# DEPRECATED write "Please use create instead." #-}
 {-# INLINE write #-}
 write :: MonadIO m => Fold m a (MutArray a)
 write = create

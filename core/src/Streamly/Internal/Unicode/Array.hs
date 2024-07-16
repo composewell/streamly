@@ -55,7 +55,7 @@ import Prelude hiding (String, lines, words, unlines, unwords)
 --
 {-# INLINE lines #-}
 lines :: MonadIO m => Stream m Char -> Stream m (Array Char)
-lines = S.lines A.write
+lines = S.lines A.create
 
 -- | Break a string up into a stream of strings, which were delimited
 -- by characters representing white space.
@@ -67,7 +67,7 @@ lines = S.lines A.write
 --
 {-# INLINE words #-}
 words :: MonadIO m => Stream m Char -> Stream m (Array Char)
-words = S.words A.write
+words = S.words A.create
 
 -- | Flattens the stream of @Array Char@, after appending a terminating
 -- newline to each string.

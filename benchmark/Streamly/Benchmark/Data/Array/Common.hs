@@ -26,7 +26,7 @@ benchIOSink value name = benchIO' name (sourceIntFromTo value)
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceUnfoldr value n = S.fold (A.writeN value) $ S.unfoldr step n
+sourceUnfoldr value n = S.fold (A.createOf value) $ S.unfoldr step n
     where
     step cnt =
         if cnt > n + value
@@ -35,11 +35,11 @@ sourceUnfoldr value n = S.fold (A.writeN value) $ S.unfoldr step n
 
 {-# INLINE sourceIntFromTo #-}
 sourceIntFromTo :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceIntFromTo value n = S.fold (A.writeN value) $ S.enumerateFromTo n (n + value)
+sourceIntFromTo value n = S.fold (A.createOf value) $ S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceFromList value n = S.fold (A.writeN value) $ S.fromList [n..n+value]
+sourceFromList value n = S.fold (A.createOf value) $ S.fromList [n..n+value]
 
 -------------------------------------------------------------------------------
 -- Transformation
@@ -69,7 +69,7 @@ onArray
     :: MonadIO m => Int -> (Stream.Stream m Int -> Stream.Stream m Int)
     -> Stream Int
     -> m (Stream Int)
-onArray value f arr = S.fold (A.writeN value) $ f $ S.unfold A.reader arr
+onArray value f arr = S.fold (A.createOf value) $ f $ S.unfold A.reader arr
 
 scanl'  value n = composeN n $ onArray value $ S.scan (Fold.foldl' (+) 0)
 scanl1' value n = composeN n $ onArray value $ Stream.scanl1' (+)
@@ -149,7 +149,7 @@ common_o_n_heap_serial value =
     [ bgroup "elimination"
         [
         -- Converting the stream to an array
-            benchFold "writeN" (S.fold (A.writeN value))
+            benchFold "writeN" (S.fold (A.createOf value))
                 (P.sourceUnfoldrM value)
          ]
     ]

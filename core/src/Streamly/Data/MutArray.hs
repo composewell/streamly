@@ -104,7 +104,7 @@ import Control.Monad.IO.Class (MonadIO)
 
 #include "DocTestDataMutArray.hs"
 
-{-# DEPRECATED newPinned "Please use pinnedNew instead." #-}
+{-# DEPRECATED newPinned "Please use pinnedEmptyOf instead." #-}
 {-# INLINE newPinned #-}
 newPinned :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
-newPinned = pinnedNew
+newPinned = pinnedEmptyOf

@@ -218,7 +218,7 @@ openFile path mode = Handle . fst <$> FD.openFile path mode True
 {-# INLINABLE readArrayUpto #-}
 readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size (Handle fd) = do
-    arr <- MArray.pinnedNewBytes size
+    arr <- MArray.pinnedEmptyOf size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     MArray.unsafePinnedAsPtr arr $ \p -> do
         -- n <- hGetBufSome h p size

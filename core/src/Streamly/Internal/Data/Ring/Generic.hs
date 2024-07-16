@@ -55,7 +55,7 @@ data Ring a = Ring
 {-# INLINE createRing #-}
 createRing :: MonadIO m => Int -> m (Ring a)
 createRing count = liftIO $ do
-    arr <- MutArray.new count
+    arr <- MutArray.emptyOf count
     arr1 <- MutArray.uninit arr count
     return (Ring
         { ringArr = arr1
@@ -143,7 +143,7 @@ toMutArray adj n Ring{..} =
         else do
             -- XXX Just swap the elements in the existing ring and return the
             -- same array without reallocation.
-            arr <- liftIO $ MutArray.new len
+            arr <- liftIO $ MutArray.emptyOf len
             arr1 <- MutArray.uninit arr len
             MutArray.putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
             MutArray.putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
@@ -159,7 +159,7 @@ copyToMutArray adj n Ring{..} = do
         let len = min ringMax n
         let idx = mod (ringHead + adj) ringMax
             end = idx + len
-        arr <- MutArray.new len
+        arr <- MutArray.emptyOf len
         arr1 <- MutArray.uninit arr len
         MutArray.putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
         MutArray.putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
