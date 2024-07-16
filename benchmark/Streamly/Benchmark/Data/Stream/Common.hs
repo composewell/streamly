@@ -427,7 +427,7 @@ scanMapM ::
     => Int
     -> Stream m Int
     -> m ()
-scanMapM n = composeN n $ Stream.runScan (Scan.mapM return)
+scanMapM n = composeN n $ Stream.runScan (Scan.functionM return)
 #endif
 
 {-# INLINE transformComposeMapM #-}
@@ -456,8 +456,8 @@ scanComposeMapM ::
 scanComposeMapM n =
     composeN n $
     Stream.runScan
-        (Scan.mapM (\x -> return (x + 1)) `Scan.compose`
-         Scan.mapM (\x -> return (x + 2)))
+        (Scan.functionM (\x -> return (x + 1)) `Scan.compose`
+         Scan.functionM (\x -> return (x + 2)))
 #endif
 
 {-# INLINE transformTeeMapM #-}
@@ -486,8 +486,8 @@ scanTeeMapM ::
 scanTeeMapM n =
     composeN n $
     Stream.runScan
-        (Scan.teeWith (+) (Scan.mapM (\x -> return (x + 1)))
-         (Scan.mapM (\x -> return (x + 2))))
+        (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
+         (Scan.functionM (\x -> return (x + 2))))
 #endif
 
 {-

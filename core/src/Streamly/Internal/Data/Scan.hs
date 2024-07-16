@@ -56,15 +56,15 @@ module Streamly.Internal.Data.Scan
 
     -- * Primitive Scans
     , identity
-    , map -- function?
-    , mapM -- functionM?
+    , function
+    , functionM
     , filter
     , filterM
 
     -- * Combinators
     , compose
     , teeWithMay
-    , teeWith -- zipWith -- teeZip
+    , teeWith
     )
 where
 
@@ -146,7 +146,7 @@ instance Functor m => Functor (Scan m a) where
 -- second scan.
 --
 -- >>> import Control.Category
--- >>> Stream.toList $ Stream.runScan (Scan.map (+1) >>> Scan.map (+1)) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.runScan (Scan.function (+1) >>> Scan.function (+1)) $ Stream.fromList [1..5::Int]
 -- [3,4,5,6,7]
 --
 {-# INLINE_NORMAL compose #-}
@@ -173,7 +173,7 @@ compose
 
 -- | A scan representing mapping of a monadic action.
 --
--- >>> Stream.toList $ Stream.runScan (Scan.mapM print) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.runScan (Scan.functionM print) $ Stream.fromList [1..5::Int]
 -- 1
 -- 2
 -- 3
@@ -181,31 +181,31 @@ compose
 -- 5
 -- [(),(),(),(),()]
 --
-{-# INLINE mapM #-}
-mapM :: Monad m => (a -> m b) -> Scan m a b
-mapM f = Scan (\() a -> f a <&> Yield ()) ()
+{-# INLINE functionM #-}
+functionM :: Monad m => (a -> m b) -> Scan m a b
+functionM f = Scan (\() a -> f a <&> Yield ()) ()
 
 -- | A scan representing mapping of a pure function.
 --
--- >>> Stream.toList $ Stream.runScan (Scan.map (+1)) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.runScan (Scan.function (+1)) $ Stream.fromList [1..5::Int]
 -- [2,3,4,5,6]
 --
-{-# INLINE map #-}
-map :: Monad m => (a -> b) -> Scan m a b
-map f = mapM (return Prelude.. f)
+{-# INLINE function #-}
+function :: Monad m => (a -> b) -> Scan m a b
+function f = functionM (return Prelude.. f)
 
 {- HLINT ignore "Redundant map" -}
 
 -- | An identity scan producing the same output as input.
 --
--- >>> identity = Scan.map Prelude.id
+-- >>> identity = Scan.function Prelude.id
 --
 -- >>> Stream.toList $ Stream.runScan (Scan.identity) $ Stream.fromList [1..5::Int]
 -- [1,2,3,4,5]
 --
 {-# INLINE identity #-}
 identity :: Monad m => Scan m a a
-identity = map Prelude.id
+identity = function Prelude.id
 
 instance Monad m => Category (Scan m) where
     {-# INLINE id #-}
@@ -227,7 +227,7 @@ data TeeWith sL sR = TeeWith !sL !sR
 -- zip their outputs. If the scan filters the output, 'Nothing' is emitted
 -- otherwise 'Just' is emitted. The scan stops if any of the scans stop.
 --
--- >>> Stream.toList $ Stream.runScan (Scan.teeWithMay (,) Scan.identity (Scan.map (\x -> x * x))) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.runScan (Scan.teeWithMay (,) Scan.identity (Scan.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
 -- [(Just 1,Just 1),(Just 2,Just 4),(Just 3,Just 9),(Just 4,Just 16),(Just 5,Just 25)]
 --
 {-# INLINE_NORMAL teeWithMay #-}
@@ -263,7 +263,7 @@ teeWithMay f (Scan stepL initialL) (Scan stepR initialR) =
 -- the scans skips the output then the composed scan also skips. Stops when any
 -- of the scans stop.
 --
--- >>> Stream.toList $ Stream.runScan (Scan.teeWith (,) Scan.identity (Scan.map (\x -> x * x))) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.runScan (Scan.teeWith (,) Scan.identity (Scan.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
 -- [(1,1),(2,4),(3,9),(4,16),(5,25)]
 --
 {-# INLINE_NORMAL teeWith #-}
@@ -337,7 +337,7 @@ unzip s1 s2 = fmap (fromJust Prelude.. f) $ unzipMay s1 s2
 
 instance Monad m => Arrow (Scan m) where
     {-# INLINE arr #-}
-    arr = map
+    arr = function
 
     {-# INLINE (***) #-}
     (***) = unzip
