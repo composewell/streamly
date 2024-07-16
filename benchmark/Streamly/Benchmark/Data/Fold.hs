@@ -397,7 +397,7 @@ o_1_space_serial_transformation value =
               "fold-runScan"
               (Stream.fold
                    (FL.runScan
-                        (Scan.mapM (\x -> return $ x + 1))
+                        (Scan.functionM (\x -> return $ x + 1))
                         FL.drain))
         , benchIOSink
             value
