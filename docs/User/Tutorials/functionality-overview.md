@@ -1,5 +1,42 @@
 # Functionality At a Glance
 
+## Streaming and Declarative Concurrency
+
+Streamly is a general purpose computing framework based on data flow
+programming paradigm also known as the streaming paradigm.  Streaming
+enables writing modular and composable applications declaratively.
+Moreover, streamly introduces concurrency to streaming with the same
+modularity and composability. Thus it enables the programmer to write
+concurrent programs in a declarative manner; concurrency enables
+scalability.  Streamly enables the programmer to write concurrent
+applications without being aware of threads or synchronization. No
+explicit thread pools are needed. The degree of concurrency can be
+automatically adjusted based on the demand by the consumer.
+
+Streaming and concurrency together enable expressing reactive applications
+conveniently. See the `CirclingSquare` example in [Streamly
+Examples](https://github.com/composewell/streamly-examples) for a simple SDL
+based FRP example. To summarize, streamly provides a unified computing
+framework for streaming, non-determinism and functional reactive programming in
+an elegant and simple API that is a natural extension of pure lists to monadic
+streams.
+
+<!--
+## Why data flow programming?
+
+If you need some convincing for using streaming or data flow programming
+paradigm itself then try to answer this question - why do we use lists in
+Haskell? It boils down to why we use functional programming in the first place.
+Haskell is successful in enforcing the functional data flow paradigm for pure
+computations using lists, but not for monadic computations. In the absence of a
+standard and easy to use data flow programming paradigm for monadic
+computations, and the IO monad providing an escape hatch to an imperative
+model, we just love to fall into the imperative trap, and start asking the same
+fundamental question again - why do we have to use the streaming data model?
+-->
+
+## Packages and Modules
+
 Streamly is a self sufficient, batteries included library for general
 purpose programming.  It has been designed for ease of use and high
 performance.
@@ -8,8 +45,8 @@ Streamly consists of two packages: "streamly-core" and "streamly".
 [streamly-core](https://hackage.haskell.org/package/streamly-core)
 provides basic features, and depends only on GHC boot libraries, while
 [streamly](https://hackage.haskell.org/package/streamly) provides
-higher-level features like concurrency, time, lifted exceptions, and
-networking.
+higher-level features like concurrency, time based streaming
+combinators, lifted exceptions, and streaming network operations.
 
 The general data processing functionality in `streamly` can be divided
 into following categories:
@@ -26,6 +63,14 @@ following categories:
 * File system IO: for interfacing with the file system
 * Network IO: for interfacing with the network
 * Unicode: stream processing of Unicode text
+
+## Streams and Arrays
+
+In streamly there are two fundamental data structures, streams and
+arrays. They are computing duals of each other, streams are for dataflow
+style processing while arrays are for storing data.  Both taken together
+are powerful tools for general purpose programming in a functional or
+dataflow style.
 
 ## Streams
 

@@ -1,6 +1,56 @@
 # Performance Considerations
 
-<!-- TBD: move cps-vs-direct.md here -->
+<!--
+CPS-vs-Direct
+
+# High performance code.
+
+Use examples to illustrate.
+
+## Direct encpasulated in CPS
+
+Direct style modules provide the highest performance with static fusion. CPS
+style modules provide dynamic composition and building/consuming of streams
+with dependencies.
+
+The basic principle is always compose using the fused modules as long as you
+can. When we cannot we wrap them in cps. In general the outer structure of the
+program is CPS and the inner structure is direct.
+
+When using streams, we generally build/process small segments using the direct
+style streams, we store the segments in chunks of arrays, wrap these arrays
+into StreamK to build larger streams.
+
+Similarly, we process larger CPS streams of arrays using CPS ParserK, process
+the smaller segments within using direct style parser as much as we can. When
+we need to express dependencies during processing i.e. we need monad then we
+wrap the direct processing in CPS.
+
+So we have the entire outline of the processing as CPS which encapsulates small
+islands of direct style processing.
+
+## Stream vs StreamK
+
+The CPS overhead is per element, the smaller the elements, more in numbers, the
+more is the overhead. Thus we want to minimize CPS and maximize direct style.
+So we keep chunks in outer CPS StreamK and process those chunks using the inner
+Stream. The direct processing is extermely efficient but it has to fuse
+statically.
+
+We we use fromStream (streamd), we are converting the stream to CPS and now
+each element of the stream will pass through CPS, each elements will have a
+constant CPS overhead. Thus it is better if we CPS a stream with fewer elements
+of larger size rather than a large number of elements.
+
+When we use toStream (streamk), we do not make the performance better, the
+overhead remains the same as each element is passing through CPS anyway. We are
+just processing the elements vis non-cps stream functions.
+
+Therefore once we made a stream CPS, it does not make any difference if we make
+it direct again or not. From performance perspective it is a one-way street.
+
+The same arguments apply to Parser vs ParserK.
+-->
 
 ## Streams
 
