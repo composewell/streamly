@@ -95,8 +95,6 @@ extra-source-files:
     bin/mk-tags.sh
     configure
     configure.ac
-    docs/*.hs
-    docs/streamly-docs.cabal
     targets/streamly-targets.cabal
     targets/Targets.hs
     test/test-runner/Main.hs
@@ -168,7 +166,6 @@ extra-doc-files:
     docs/User/*.md
     docs/User/Tutorials/*.md
     docs/User/Tutorials/*.link
-    docs/User/Tutorials/*.hs
     docs/User/HowTo/*.md
     docs/User/HowTo/*.link
     docs/User/HowTo/*.svg

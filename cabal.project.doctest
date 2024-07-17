@@ -1,6 +1,5 @@
 packages:   streamly.cabal
           , core/streamly-core.cabal
-          -- , docs/streamly-docs.cabal
           -- for QuickCheck in property doctests
           , test/streamly-tests.cabal
 
@@ -12,10 +11,6 @@ package streamly
   ghc-options: -O0
 
 package streamly-core
-  flags: -opt
-  ghc-options: -O0
-
-package streamly-docs
   flags: -opt
   ghc-options: -O0
 

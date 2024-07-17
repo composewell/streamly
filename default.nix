@@ -53,9 +53,6 @@ let haskellPackages =
                     streamly-tests =
                         mkPackage super "streamly-tests"
                             ./test flags inShell;
-                    streamly-docs =
-                        mkPackage super "streamly-docs"
-                            ./docs flags inShell;
 
                     #fusion-plugin =
                     #  super.callHackageDirect
@@ -122,7 +119,6 @@ let haskellPackages =
             p.streamly-core
             p.streamly-benchmarks
             p.streamly-tests
-            p.streamly-docs
           ];
         # some dependencies of hoogle fail to build with quickcheck-2.14
         # We should use hoogle as external tool instead of building it here
