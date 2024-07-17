@@ -444,6 +444,10 @@ library
                      , Streamly.FileSystem.DirIO
                      , Streamly.FileSystem.File
                      , Streamly.FileSystem.Handle
+                     , Streamly.FileSystem.Path
+                     , Streamly.FileSystem.Path.LocSeg
+                     , Streamly.FileSystem.Path.FileDir
+                     , Streamly.FileSystem.Path.Typed
                      , Streamly.Unicode.Parser
                      , Streamly.Unicode.Stream
                      , Streamly.Unicode.String
