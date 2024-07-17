@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+* Add the following modules
+  - Streamly.Data.Scan
+  - Streamly.FileSystem.Path
+  - Streamly.FileSystem.Path.LocSeg
+  - Streamly.FileSystem.Path.FileDir
+  - Streamly.FileSystem.Path.Typed
 * Remove the `Storable` constraint from the following functions:
   - Streamly.Data.Stream.isInfixOf
   - Streamly.Data.Array.writeLastN
-
 * `Streamly.FileSystem.Dir` module is deprecated and replaced by
   `Streamly.FileSystem.DirIO` module. The new module has exact same
   APIs except that it uses the streamly native `Path` type instead
@@ -16,6 +21,18 @@
 
 * Remove the `Storable` constraint from several functions involving the ring
   buffer.
+
+### API Renaming
+
+* Rename `writeN`-like APIs to `createOf`-like in Array modules.
+* Rename `new`-like APIs to `emptyOf`-like in Array modules.
+* In the Fold module `indexGeneric`, `lengthGeneric`, and `foldlM1'` to
+   `genericIndex`, `genericLength`, and `foldl1M'` respectively.
+
+### Deprecations and API changes
+
+See [0.2.2-0.3.0 API Changelog](/core/docs/ApiChangelogs/0.2.2-0.3.0.txt) for a
+full list of deprecations, additions, and changes to the function signatures.
 
 ## 0.2.2 (Jan 2024)
 
