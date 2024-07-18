@@ -55,7 +55,7 @@ module Streamly.Data.Array
     -- ** From Stream
     , createOf
     , create
-    , createLastOf -- drop old (ring buffer)
+    , createOfLast -- drop old (ring buffer)
 
     -- ** From List
     , fromListN

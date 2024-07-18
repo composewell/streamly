@@ -20,7 +20,7 @@ module Streamly.Internal.Data.Array
 
     -- * Construction
     -- Monadic Folds
-    , createLastOf
+    , createOfLast
 
     -- * Random Access
     -- , (!!)
@@ -207,13 +207,13 @@ last = getIndexRev 0
 
 -- XXX We should generate this from Ring.
 
--- | @createLastOf n@ folds a maximum of @n@ elements from the end of the input
+-- | @createOfLast n@ folds a maximum of @n@ elements from the end of the input
 -- stream to an 'Array'.
 --
-{-# INLINE createLastOf #-}
-createLastOf ::
+{-# INLINE createOfLast #-}
+createOfLast ::
        (Unbox a, MonadIO m) => Int -> Fold m a (Array a)
-createLastOf n
+createOfLast n
     | n <= 0 = fmap (const mempty) FL.drain
     | otherwise = unsafeFreeze <$> Fold step initial done done
 
@@ -236,10 +236,10 @@ createLastOf n
         | i < n = RB.unsafeFoldRingM
         | otherwise = RB.unsafeFoldRingFullM
 
-{-# DEPRECATED writeLastN "Please use createLastOf instead." #-}
+{-# DEPRECATED writeLastN "Please use createOfLast instead." #-}
 {-# INLINE writeLastN #-}
 writeLastN :: (Unbox a, MonadIO m) => Int -> Fold m a (Array a)
-writeLastN = createLastOf
+writeLastN = createOfLast
 
 -------------------------------------------------------------------------------
 -- Random Access

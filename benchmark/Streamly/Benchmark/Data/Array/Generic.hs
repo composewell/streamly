@@ -77,10 +77,10 @@ o_1_space_generation value =
 o_1_space_elimination :: Int -> [Benchmark]
 o_1_space_elimination value =
     [ bgroup "elimination"
-        [ benchFold "createLastOf.1"
-            (S.fold (IA.createLastOf 1)) (P.sourceUnfoldrM value)
-        , benchFold "createLastOf.10"
-            (S.fold (IA.createLastOf 10)) (P.sourceUnfoldrM value)
+        [ benchFold "createOfLast.1"
+            (S.fold (IA.createOfLast 1)) (P.sourceUnfoldrM value)
+        , benchFold "createOfLast.10"
+            (S.fold (IA.createOfLast 10)) (P.sourceUnfoldrM value)
 #ifdef DEVBUILD
 {-
           benchPureSink value "foldable/foldl'" foldableFoldl'
@@ -95,7 +95,7 @@ o_n_heap_serial value =
     [ bgroup "elimination"
         [
         -- Converting the stream to an array
-            benchFold "createLastOf.Max" (S.fold (IA.createLastOf (value + 1)))
+            benchFold "createOfLast.Max" (S.fold (IA.createOfLast (value + 1)))
                 (P.sourceUnfoldrM value)
          ]
     ]
