@@ -798,6 +798,15 @@ pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
 pinnedWriteNUnsafe = unsafePinnedCreateOf
 
+-- | A version of "create" that let's you pass in the initial capacity of the
+-- array in terms of the number of elements.
+--
+-- Semantically @createWith 10@ and @createWith 100@ will behave in the same
+-- way. @createWith 100@ will be more performant though.
+--
+-- > create = createWith elementCount
+--
+-- /Pre-release/
 {-# INLINE_NORMAL createWith #-}
 createWith :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
