@@ -14,7 +14,7 @@ module Streamly.Internal.Data.Array.Generic
     , createOf
     , create
     , createWith
-    , createLastOf
+    , createOfLast
 
     , fromStreamN
     , fromStream
@@ -267,14 +267,14 @@ getIndex i arr@Array {..} =
 -- >>> import Data.Function ((&))
 -- >>> :{
 --  Stream.fromList [1,2,3,4,5::Int]
---      & Stream.scan (Array.createLastOf 2)
+--      & Stream.scan (Array.createOfLast 2)
 --      & Stream.fold Fold.toList
 --  :}
 -- [fromList [],fromList [1],fromList [1,2],fromList [2,3],fromList [3,4],fromList [4,5]]
 --
-{-# INLINE createLastOf #-}
-createLastOf :: MonadIO m => Int -> Fold m a (Array a)
-createLastOf n = FL.rmapM f (RB.createOf n)
+{-# INLINE createOfLast #-}
+createOfLast :: MonadIO m => Int -> Fold m a (Array a)
+createOfLast n = FL.rmapM f (RB.createOf n)
 
     where
 

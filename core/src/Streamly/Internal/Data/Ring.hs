@@ -152,7 +152,7 @@ advance rb ringHead =
 moveBy :: Int -> Ring a -> Int -> Int
 moveBy by rb ringHead = (ringHead + by) `mod1` ringCapacity rb
 
--- XXX Move the createLastOf from array module here.
+-- XXX Move the createOfLast from array module here.
 --
 -- | @createOf n@ is a rolling fold that keeps the last n elements of the stream
 -- in a ring array.

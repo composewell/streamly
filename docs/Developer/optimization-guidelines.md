@@ -200,7 +200,7 @@ specialize in the last phase, inlining in the last phase is left to
 the compiler. `INLINE [0]` may sound the same as `NOINLINE [0]`,
 however, it behaves differently because we ask the compiler to INLINE
 it compulsorily and it may not give us the desired results. The
-Data.Fold.createLastOf benchmark is one such case where `NOINLINE [0]`
+Data.Fold.createOfLast benchmark is one such case where `NOINLINE [0]`
 provides much better performance than `INLINE [0]`.
 
 ### NoSpecConstr
