@@ -218,20 +218,17 @@ openFile path mode = Handle . fst <$> FD.openFile path mode True
 {-# INLINABLE readArrayUpto #-}
 readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size (Handle fd) = do
-    arr <- MArray.pinnedEmptyOf size
-    -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    MArray.unsafePinnedAsPtr arr $ \p -> do
-        -- n <- hGetBufSome h p size
+    arr <-
+        MArray.unsafePinnedCreateUsingPtr size $ \p ->
+             -- n <- hGetBufSome h p size
 #if MIN_VERSION_base(4,15,0)
-        n <- RawIO.read fd p 0 size
+            RawIO.read fd p 0 size
 #else
-        n <- RawIO.read fd p size
+            RawIO.read fd p size
 #endif
-        -- XXX shrink only if the diff is significant
-        -- Use unsafeFreezeWithShrink
-        return
-            $ unsafeFreeze
-            $ arr { MArray.arrEnd = n, MArray.arrBound = size }
+    -- XXX shrink only if the diff is significant
+    -- Use unsafeFreezeWithShrink
+    pure $ unsafeFreeze arr
 
 -------------------------------------------------------------------------------
 -- Array IO (output)

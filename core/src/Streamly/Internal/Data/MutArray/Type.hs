@@ -100,6 +100,9 @@ module Streamly.Internal.Data.MutArray.Type
     , fromChunksK
     , fromChunksRealloced -- fromSmallChunks
 
+    , unsafeCreateUsingPtr
+    , unsafePinnedCreateUsingPtr
+
     -- ** Random writes
     , putIndex
     , putIndexUnsafe -- XXX unsafePutIndex
@@ -323,7 +326,7 @@ import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.Ptr (plusPtr, minusPtr, nullPtr, castPtr)
+import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
 import Streamly.Internal.Data.MutByteArray.Type
     ( MutByteArray(..)
     , PinnedState(..)
@@ -2441,14 +2444,13 @@ fromPureStream xs =
 
 {-# INLINABLE fromPtrN #-}
 fromPtrN :: MonadIO m => Int -> Ptr Word8 -> m (MutArray Word8)
-fromPtrN len addr = do
+fromPtrN len addr =
     -- memcpy is better than stream copy when the size is known.
     -- XXX We can implement a stream copy in a similar way by streaming Word64
     -- first and then remaining Word8.
-    arr <- new len
-    _ <- unsafeAsPtr arr
-            (\ptr -> liftIO $ c_memcpy ptr addr (fromIntegral len))
-    return (arr {arrEnd = len})
+    unsafeCreateUsingPtr len
+        $ \ptr -> liftIO $ c_memcpy ptr addr (fromIntegral len) >> pure len
+
 
 {-# INLINABLE fromCString# #-}
 fromCString# :: MonadIO m => Addr# -> m (MutArray Word8)
@@ -2462,7 +2464,7 @@ fromCString# addr = do
     len <- liftIO $ c_strlen (Ptr addr)
     let lenInt = fromIntegral len
     arr <- new lenInt
-    _ <- unsafeAsPtr arr (\ptr -> liftIO $ c_memcpy ptr (Ptr addr) len)
+    _ <- unsafeAsPtr arr (\ptr _ -> liftIO $ c_memcpy ptr (Ptr addr) len)
     return (arr {arrEnd = lenInt})
 
 {-# DEPRECATED fromByteStr# "Please fromCString# instead." #-}
@@ -2482,12 +2484,13 @@ fromW16CString# addr = do
     let bytes = w16len * 2
     -- The array type is inferred from c_memcpy type, therefore, it is not the
     -- same as the returned array type.
-    arr :: MutArray Word8 <- emptyOf bytes
-    _ <- unsafeAsPtr arr (\ptr -> liftIO
-            $ c_memcpy (castPtr ptr) (Ptr addr) (fromIntegral bytes))
-    -- CAUTION! The array type is inferred from the return type and may be
-    -- different from the arr type.
-    return (arr {arrEnd = bytes})
+    arr <-
+        unsafeCreateUsingPtr
+            bytes
+            (\ptr ->
+                 liftIO $
+                     c_memcpy ptr (Ptr addr) (fromIntegral bytes) >> pure bytes)
+    pure $ unsafeCast arr
 
 -------------------------------------------------------------------------------
 -- convert a stream of arrays to a single array by reallocating and copying
@@ -2774,10 +2777,10 @@ splitOn predicate arr =
 {-# INLINE breakOn #-}
 breakOn :: MonadIO m
     => Word8 -> MutArray Word8 -> m (MutArray Word8, Maybe (MutArray Word8))
-breakOn sep arr@MutArray{..} = unsafeAsPtr arr $ \p -> liftIO $ do
+breakOn sep arr@MutArray{..} = unsafeAsPtr arr $ \p byteLen -> liftIO $ do
     -- XXX We do not need memchr here, we can use a Haskell equivalent.
     -- Need efficient stream based primitives that work on Word64.
-    loc <- c_memchr p sep (fromIntegral $ byteLength arr)
+    loc <- c_memchr p sep (fromIntegral byteLen)
     let sepIndex = loc `minusPtr` p
     return $
         if loc == nullPtr
@@ -2906,21 +2909,68 @@ cast arr =
 -- /Pre-release/
 --
 {-# INLINE unsafePinnedAsPtr #-}
-unsafePinnedAsPtr :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+unsafePinnedAsPtr :: MonadIO m => MutArray a -> (Ptr a -> Int -> m b) -> m b
 unsafePinnedAsPtr arr f =
     Unboxed.unsafePinnedAsPtr
-        (arrContents arr) (\ptr -> f (ptr `plusPtr` arrStart arr))
+        (arrContents arr)
+        (\ptr -> f (ptr `plusPtr` arrStart arr) (byteLength arr))
 
 {-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
 {-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
-asPtrUnsafe = unsafePinnedAsPtr
+asPtrUnsafe a f = unsafePinnedAsPtr a (\p _ -> f p)
 
+-- NOTE: unsafeAsPtr is safe to use unsafe with ffi given that the ffi function
+-- does not need the pointer to be valid after the call has completed.
 {-# INLINE unsafeAsPtr #-}
-unsafeAsPtr :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+unsafeAsPtr :: MonadIO m => MutArray a -> (Ptr a -> Int -> m b) -> m b
 unsafeAsPtr arr f =
     Unboxed.unsafeAsPtr
-        (arrContents arr) (\ptr -> f (ptr `plusPtr` arrStart arr))
+        (arrContents arr)
+        (\ptr -> f (ptr `plusPtr` arrStart arr) (byteLength arr))
+
+-- | @unsafeCreateUsingPtr capacity populater@ creates an array of @capacity@
+-- bytes lets the @populater@ function populate it. The @populater@ get the
+-- pointer to the array and should return the amount of the capacity populated
+-- in bytes.
+--
+-- /Unsafe/ because the pointer given should be used with care. Bytes populated
+-- should be lesser than the total capacity.
+{-# INLINE unsafeCreateUsingPtr #-}
+unsafeCreateUsingPtr
+    :: MonadIO m => Int -> (Ptr Word8 -> m Int) -> m (MutArray Word8)
+unsafeCreateUsingPtr cap pop = do
+    (arr :: MutArray Word8) <- emptyOf cap
+    len <- Unboxed.unsafeAsPtr (arrContents arr) pop
+    when (len > cap) (error (errMsg len))
+    -- arrStart == 0
+    pure (arr { arrEnd = len })
+
+    where
+
+    errMsg len =
+        "unsafeCreateUsingPtr: length > capacity, "
+             ++ "length = " ++ show len ++ ", "
+             ++ "capacity = " ++ show cap
+
+-- | Similar to "unsafeCreateUsingPtr" but creates a pinned array.
+{-# INLINE unsafePinnedCreateUsingPtr #-}
+unsafePinnedCreateUsingPtr
+    :: MonadIO m => Int -> (Ptr Word8 -> m Int) -> m (MutArray Word8)
+unsafePinnedCreateUsingPtr cap pop = do
+    (arr :: MutArray Word8) <- pinnedEmptyOf cap
+    len <- Unboxed.unsafeAsPtr (arrContents arr) pop
+    when (len > cap) (error (errMsg len))
+    -- arrStart == 0
+    pure (arr { arrEnd = len })
+
+
+    where
+
+    errMsg len =
+        "unsafePinnedCreateUsingPtr: length > capacity, "
+             ++ "length = " ++ show len ++ ", "
+             ++ "capacity = " ++ show cap
 
 -------------------------------------------------------------------------------
 -- Equality

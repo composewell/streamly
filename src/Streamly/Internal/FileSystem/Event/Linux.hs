@@ -870,7 +870,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
 
     where
 
-    readHeader (ptr :: Ptr Word8) = do
+    readHeader (ptr :: Ptr Word8) _ = do
         let len = sizeOf (undefined :: CInt)
         ewd <- peek ptr
         eflags <- peekByteOff ptr len
