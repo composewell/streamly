@@ -249,13 +249,13 @@ data Array a =
 -- /Pre-release/
 --
 {-# INLINE unsafePinnedAsPtr #-}
-unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
+unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> Int -> m b) -> m b
 unsafePinnedAsPtr arr = MA.unsafePinnedAsPtr (unsafeThaw arr)
 
 {-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
 {-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
-asPtrUnsafe = unsafePinnedAsPtr
+asPtrUnsafe arr f = unsafePinnedAsPtr arr (\p _ -> f p)
 
 -------------------------------------------------------------------------------
 -- Freezing and Thawing

@@ -185,19 +185,21 @@ testUnsafeIndxedFromList inp =
 testAsPtrUnsafeMA :: IO ()
 testAsPtrUnsafeMA = do
     arr <- MA.fromList ([0 .. 99] :: [Int])
-    MA.unsafePinnedAsPtr arr (getList (0 :: Int)) `shouldReturn` [0 .. 99]
+    MA.unsafePinnedAsPtr arr getList0 `shouldReturn` [0 .. 99]
 
     where
 
     sizeOfInt = sizeOf (Proxy :: Proxy Int)
 
+    getList0 p byteLen = getList p (p `plusPtr` byteLen)
+
     -- We need to be careful here. We assume Unboxed and Storable are compatible
     -- with each other. For Int, they are compatible.
-    getList i _
-        | i >= 100 = return []
-    getList i p = do
+    getList p limitP
+        | p >= limitP = return []
+    getList p limitP = do
         val <- peek p
-        rest <- getList (i + 1) (p `plusPtr` sizeOfInt)
+        rest <- getList (p `plusPtr` sizeOfInt) limitP
         return $ val : rest
 
 reallocMA :: Property

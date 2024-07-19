@@ -98,10 +98,10 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array as A
-    ( unsafeFreeze, unsafePinnedAsPtr, byteLength, pinnedChunksOf,
+    ( unsafeFreeze, unsafePinnedAsPtr, pinnedChunksOf,
       pinnedCreateOf, unsafePinnedCreateOf, lCompactGE )
 import qualified Streamly.Internal.Data.MutArray as MArray
-    (MutArray(..), unsafePinnedAsPtr, pinnedEmptyOf)
+    (unsafePinnedCreateUsingPtr)
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
 import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
@@ -261,16 +261,10 @@ readArrayUptoWith
     -> h
     -> IO (Array Word8)
 readArrayUptoWith f size h = do
-    arr <- MArray.pinnedEmptyOf size
-    -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    MArray.unsafePinnedAsPtr arr $ \p -> do
-        n <- f h p size
-        let v = A.unsafeFreeze
-                $ arr { MArray.arrEnd = n, MArray.arrBound = size }
-
-        -- XXX shrink only if the diff is significant
-        -- A.shrinkToFit v
-        return v
+    arr <- MArray.unsafePinnedCreateUsingPtr size $ \p -> f h p size
+    -- XXX shrink only if the diff is significant
+    -- unsafeFreezeWithShrink
+    pure $ A.unsafeFreeze arr
 
 -- | Read a byte array from a file handle up to a maximum of the requested
 -- size. If no data is available on the handle it blocks until some data
@@ -311,11 +305,8 @@ writeArrayWith :: Unbox a
     -> Array a
     -> IO ()
 writeArrayWith _ _ arr | A.length arr == 0 = return ()
-writeArrayWith f h arr = A.unsafePinnedAsPtr arr $ \ptr -> f h (castPtr ptr) aLen
-
-    where
-
-    aLen = A.byteLength arr
+writeArrayWith f h arr =
+    A.unsafePinnedAsPtr arr $ \ptr byteLen -> f h (castPtr ptr) byteLen
 
 -- | Write an Array to a socket.
 --

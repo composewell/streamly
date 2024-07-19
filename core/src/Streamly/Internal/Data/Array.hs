@@ -511,7 +511,7 @@ asCStringUnsafe :: Array a -> (CString -> IO b) -> IO b
 asCStringUnsafe arr act = do
     let arr1 = asBytes arr <> fromList [0]
     -- unsafePinnedAsPtr makes sure the array is pinned
-    unsafePinnedAsPtr arr1 $ \ptr -> act (castPtr ptr)
+    unsafePinnedAsPtr arr1 $ \ptr _ -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
 -- Folds
