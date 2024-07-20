@@ -27,6 +27,7 @@ module Streamly.Internal.Data.MutByteArray.Type
     , new
     , pinnedNew
     , pinnedNewAlignedBytes -- XXX should be removed
+    , reallocSliceAs
 
     -- ** Access
     , sizeOfMutableByteArray -- XXX length
@@ -191,6 +192,22 @@ pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
 newBytesAs :: PinnedState -> Int -> IO MutByteArray
 newBytesAs Unpinned = new
 newBytesAs Pinned = pinnedNew
+
+-- | @reallocSliceAs pinType newLen array offset len@ reallocates a slice
+-- from @array@ starting at @offset@ and having length @len@ to a new array of
+-- length @newLen@ copying the old data to the new. Note that if the @newLen@
+-- is smaller than @len@ it will truncate the old data.
+{-# INLINE reallocSliceAs #-}
+reallocSliceAs ::
+    PinnedState -> Int -> MutByteArray -> Int -> Int -> IO MutByteArray
+reallocSliceAs ps newLen (MutByteArray src#) srcStart srcLen = do
+    MutByteArray dst# <- newBytesAs ps newLen
+
+    -- Copy old data
+    let !(I# srcStart#) = srcStart
+        !(I# newLen#) = min srcLen newLen
+    IO $ \s# -> (# copyMutableByteArray# src# srcStart#
+                        dst# 0# newLen# s#, MutByteArray dst# #)
 
 -------------------------------------------------------------------------------
 -- Copying

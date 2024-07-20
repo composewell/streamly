@@ -328,7 +328,6 @@ import GHC.Base
     ( IO(..)
     , Int(..)
     , compareByteArrays#
-    , copyMutableByteArray#
     )
 import GHC.Base (noinline)
 import GHC.Exts (unsafeCoerce#, Addr#)
@@ -842,7 +841,7 @@ roundDownTo :: Int -> Int -> Int
 roundDownTo elemSize size = size - (size `mod` elemSize)
 
 -- NOTE: we are passing elemSize explicitly to avoid an Unboxed constraint.
--- Since this is not inlined Unboxed consrraint leads to dictionary passing
+-- Since this is not inlined, Unboxed constraint leads to dictionary passing
 -- which complicates some inspection tests.
 --
 {-# NOINLINE reallocExplicitAs #-}
@@ -850,26 +849,19 @@ reallocExplicitAs :: PinnedState -> Int -> Int -> MutArray a -> IO (MutArray a)
 reallocExplicitAs ps elemSize newCapacityInBytes MutArray{..} = do
     assertM(arrEnd <= arrBound)
 
-    -- Allocate new array
     let newCapMaxInBytes = roundUpLargeArray newCapacityInBytes
-    contents <-
-        if ps == Pinned
-        then Unboxed.pinnedNew newCapMaxInBytes
-        else Unboxed.new newCapMaxInBytes
-    let !(MutByteArray mbarrFrom#) = arrContents
-        !(MutByteArray mbarrTo#) = contents
-
-    -- Copy old data
-    let oldStart = arrStart
-        !(I# oldStartInBytes#) = oldStart
-        oldSizeInBytes = arrEnd - oldStart
+        oldSizeInBytes = arrEnd - arrStart
+        -- XXX Should we round up instead?
         newCapInBytes = roundDownTo elemSize newCapMaxInBytes
-        !newLenInBytes@(I# newLenInBytes#) = min oldSizeInBytes newCapInBytes
+        newLenInBytes = min oldSizeInBytes newCapInBytes
+
     assert (oldSizeInBytes `mod` elemSize == 0) (return ())
     assert (newLenInBytes >= 0) (return ())
     assert (newLenInBytes `mod` elemSize == 0) (return ())
-    IO $ \s# -> (# copyMutableByteArray# mbarrFrom# oldStartInBytes#
-                        mbarrTo# 0# newLenInBytes# s#, () #)
+
+    contents <-
+        Unboxed.reallocSliceAs
+            ps newCapInBytes arrContents arrStart newLenInBytes
 
     return $ MutArray
         { arrStart = 0
