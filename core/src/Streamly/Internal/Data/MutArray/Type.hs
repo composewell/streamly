@@ -185,9 +185,9 @@ module Streamly.Internal.Data.MutArray.Type
     , bubble
 
     -- ** Growing and Shrinking
-    -- | Arrays grow only at the end, though it is possible to grow on both
-    -- sides and therefore have a cons as well as snoc. But that will require
-    -- both lower and upper bound in the array representation.
+    -- | Arrays grow only at the end, though technically it is possible to
+    -- grow on both sides and therefore have a cons as well as snoc. But that
+    -- will require both lower and upper bound in the array representation.
 
     -- *** Appending elements
     , snocWith
@@ -212,15 +212,20 @@ module Streamly.Internal.Data.MutArray.Type
     -- , appendSlice
     -- , appendSliceFrom
 
+    -- XXX Do not expose these yet, we should perhaps expose only the Peek/Poke
+    -- monads instead? Decide after implementing the monads.
+
     -- ** Serialization using Unbox
-    , pokeAppend
-    , pokeAppendMay
+    -- Fixed length serialization.
+    , pokeAppend     -- poke
+    , pokeAppendMay  -- pokeMay
     , pokeSkipUnsafe -- unsafePokeSkip
 
     -- ** Deserialization using Unbox
-    , peekUncons
-    , peekUnconsUnsafe -- unsafePeekUncons
-    , peekSkipUnsafe -- unsafePeekSkip
+    -- Fixed length deserialization.
+    , peekUncons       -- peek
+    , peekUnconsUnsafe -- unsafePeek
+    , peekSkipUnsafe   -- unsafePeekSkip
 
     -- Arrays of arrays
     --  We can add dimensionality parameter to the array type to get
@@ -1113,7 +1118,7 @@ snoc = snocWith f
         else roundUpToPower2 oldSize * 2
 
 -------------------------------------------------------------------------------
--- Serialization/Deserialization
+-- Serialization/Deserialization using Unbox
 -------------------------------------------------------------------------------
 
 {-# INLINE pokeNewEnd #-}
@@ -1181,9 +1186,11 @@ pokeAppendWith allocSize arr x = liftIO $ do
 -- | Unbox a Haskell type and append the resulting bytes to a mutable byte
 -- array. The array is grown exponentially when more space is needed.
 --
--- Definition:
+-- Like 'snoc' except that the value is unboxed to the byte array.
 --
--- >>> pokeAppend arr x = MutArray.castUnsafe <$> MutArray.snoc (MutArray.castUnsafe arr) x
+-- Note: If you are serializing a large number of small fields, and the types
+-- are statically known, then it may be more efficient to declare a record of
+-- those fields and derive an 'Unbox' instance of the entire record.
 --
 {-# INLINE pokeAppend #-}
 pokeAppend :: forall m a. (MonadIO m, Unbox a) =>
@@ -1212,7 +1219,7 @@ peekUnconsUnsafe MutArray{..} = do
         r <- peekAt arrStart arrContents
         return (r, MutArray arrContents start1 arrEnd arrBound)
 
--- | Discard the specified number of bytes in the array.
+-- | Discard the specified number of bytes at the beginning of the array.
 {-# INLINE peekSkipUnsafe #-}
 peekSkipUnsafe :: Int -> MutArray Word8 -> MutArray Word8
 peekSkipUnsafe n MutArray{..} =
@@ -1221,6 +1228,12 @@ peekSkipUnsafe n MutArray{..} =
 
 -- | Create a Haskell value from its unboxed representation from the head of a
 -- byte array, return the value and the remaining array.
+--
+-- Like 'uncons' except that the value is deserialized from the byte array.
+--
+-- Note: If you are deserializing a large number of small fields, and the types
+-- are statically known, then it may be more efficient to declare a record of
+-- those fields and derive an 'Unbox' instance of the entire record.
 {-# INLINE peekUncons #-}
 peekUncons :: forall m a. (MonadIO m, Unbox a) =>
     MutArray Word8 -> m (Maybe a, MutArray Word8)

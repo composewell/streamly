@@ -503,6 +503,8 @@ instance Unbox Bool where
 
 -- Utilities to build or parse a type safely and easily.
 
+-- XXX Use Array instead.
+
 -- | A location inside a mutable byte array with the bound of the array. Is it
 -- cheaper to just get the bound using the size of the array whenever needed?
 data BoundedPtr =
@@ -580,6 +582,8 @@ runPeeker (Peeker (Builder f)) ptr = fmap fst (f ptr)
 --------------------------------------------------------------------------------
 -- Poke utilities
 --------------------------------------------------------------------------------
+
+-- XXX Use MutArray instead of BoundedPtr.
 
 -- XXX Using a Poker monad may be useful when we have to compute the size to be
 -- poked as we go and then poke the size at a previous location. For variable

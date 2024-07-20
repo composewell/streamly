@@ -560,11 +560,14 @@ serialize = encodeAs Unpinned
 -- to file or sending over the network.
 --
 -- Properties:
+--
 -- 1. Identity: @deserialize . pinnedSerialize == id@
 -- 2. Encoded equivalence: @pinnedSerialize a == pinnedSerialize a@
 {-# INLINE pinnedSerialize #-}
 pinnedSerialize :: Serialize a => a -> Array Word8
 pinnedSerialize = encodeAs Pinned
+
+-- XXX We can deserialize it like MutArray, returning the remaining slice.
 
 -- | Decode a Haskell type from a byte array containing its serialized
 -- representation.

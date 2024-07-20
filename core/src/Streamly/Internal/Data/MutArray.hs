@@ -5,6 +5,13 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+
+-- XXX To detect array overflow issues we can have a debug mode in RTS where we
+-- allocate one additional page beyond a large allocation and unmap that page
+-- so that we get segfault if it is accessed. Also any unpinned large
+-- allocations can be kept unmapped for a while after being freed in case those
+-- are being used by someone, also we can aggressively move such pages to
+-- detect problems more quickly..
 --
 module Streamly.Internal.Data.MutArray
     (
