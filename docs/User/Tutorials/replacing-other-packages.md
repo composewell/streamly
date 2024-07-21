@@ -254,3 +254,23 @@ The relevant modules in streamly are:
 |----------------|---------------------------|
 | network        | Streamly.Network.Socket   |
 |                | Streamly.Network.Inet.TCP |
+
+## Compatibility
+
+Streamly can interwork with other packages in the Haskell ecosystem
+providing similar functionality. Following is a list of examples or
+packages providing interconversion:
+
+<!-- TODO foldl interworking -->
+<!-- TODO vector interworking -->
+
+| Interop with   | Example, package                                                      |
+|----------------|-----------------------------------------------------------------------|
+| streaming      | [streamly-examples](https://github.com/composewell/streamly-examples) |
+| pipes          | [streamly-examples](https://github.com/composewell/streamly-examples) |
+| conduit        | [streamly-examples](https://github.com/composewell/streamly-examples) |
+| bytestring     | [streamly-bytestring](https://github.com/psibi/streamly-bytestring)   |
+| text           | [streamly-text](https://github.com/composewell/streamly-text)         |
+| filepath       | [streamly-filepath](https://github.com/composewell/streamly-filepath) |
+
+See the `streamly-ecosystem` chapter for more details.
