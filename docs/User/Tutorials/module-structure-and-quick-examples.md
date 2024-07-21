@@ -143,6 +143,12 @@ See "Streamly.Data.Parser" module.
 
 ## Arrays
 
+<!-- TODO Add pinning and unpinning examples 
+See the
+[streamly-bytestring](https://github.com/psibi/streamly-bytestring)
+repository.
+-->
+
 While streams are meant for sequential processing of in-flight data, arrays
 are meant for storing data in memory with serial or random access. Processing
 of the data stored by arrays is done using streams.
