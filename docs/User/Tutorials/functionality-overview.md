@@ -1,12 +1,10 @@
 # Functionality At a Glance
 
-## Overview
-
 Streamly allows the programmer to write high-performance code
 concisely and idiomatically using high level constructs, and with high
 expressivity.
 
-### Streams
+## Streams
 
 **Streaming**: Streamly is a general purpose computing framework
 based on data flow programming paradigm also known as the streaming
@@ -39,7 +37,13 @@ by numerous library in the Haskell ecosystem are all represented
 efficiently, with the highest possible performance with just these few
 abstractions.
 
-### Arrays
+**Interworking**: Streamly streams can be converted to and from other streaming
+types in the Haskell ecosystem. See the [interop
+examples](https://github.com/composewell/streamly-examples/tree/master/examples/Interop)
+in the [streamly-examples](https://github.com/composewell/streamly-examples)
+repository.
+
+## Arrays
 
 **Arrays**: Arrays complement streams. While streams are used for
 in-flight data processing, arrays are used for storing data-at-rest
@@ -74,30 +78,40 @@ which is covered by numerous library in the Haskell ecosystem are all
 represented efficiently, well-integrated with streams, with the highest
 possible performance, and in a concise and unified way. Especially, the
 functionality of `bytestring`, `text` and `vector` packages can all be
-represented by streamly arrays.
+represented by the single `Array` type in streamly and `MutArray` if you
+want them to be mutable.
 
-### Declarative Concurrency
+**Interworking**: Streamly arrays can be converted to and from
+other popular array types (e.g. bytestring, text and vector) in
+the Haskell ecosystem at zero cost i.e. without copying. See the
+[streamly-bytestring](https://github.com/psibi/streamly-bytestring)
+repository.
+<!-- TODO add streamly-text and streamly-vector repos -->
+
+## Declarative Concurrency
 
 Streamly introduces concurrency to the streaming paradigm preserving
-the modularity and composability of serial composition. It enables
-the programmer to write concurrent programs in a declarative manner.
-It enables the programmer to write concurrent applications without
-being aware of threads or synchronization. No explicit thread pools
-are needed. The degree of concurrency can be automatically adjusted
-dynamically based on the demand by the consumer.
+the modularity and composability of serial composition. It enables the
+programmer to write concurrent programs in a high-level declarative
+manner, without using low level concurrency primitives like threads
+and synchronization. No explicit thread pools are needed. The degree
+of concurrency can be automatically adjusted dynamically based on the
+demand by the consumer.
 
 Arrays are processed using streams and streams are concurrent,
 therefore, arrays can be processed concurrently.
 
-### Reactive Programming
+## Reactive Programming
 
-Streaming and concurrency together enable expressing reactive applications
-conveniently. See the `CirclingSquare` example in [Streamly
-Examples](https://github.com/composewell/streamly-examples) for a simple SDL
-based FRP example. To summarize, streamly provides a unified computing
-framework for streaming, non-determinism and functional reactive programming in
-an elegant and simple API that is a natural extension of pure lists to monadic
-streams.
+Streaming and concurrency together enable expressing reactive
+applications conveniently.  See the `AcidRain` game in [Streamly
+Examples](https://github.com/composewell/streamly-examples) for a simple
+reactive programming example.  See the `CirclingSquare` example in
+[Streamly Examples](https://github.com/composewell/streamly-examples)
+for a simple SDL based reactive programming example. To summarize,
+streamly provides a unified computing framework for streaming,
+non-determinism and functional reactive programming in an elegant and
+simple API that is a natural extension of pure lists to monadic streams.
 
 <!--
 ## Why data flow programming?
@@ -113,7 +127,7 @@ model, we just love to fall into the imperative trap, and start asking the same
 fundamental question again - why do we have to use the streaming data model?
 -->
 
-### Batteries Included
+## Batteries Included
 
 As we discussed above the core abstractions in streamly are streams
 and arrays. For basic programming needs we also need console IO, file
