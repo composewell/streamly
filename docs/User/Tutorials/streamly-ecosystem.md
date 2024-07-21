@@ -36,10 +36,28 @@ which, sleep etc.
 
 Similar to the `statistics` package but with streaming APIs.
 
-## streamly-bytestring
-
-Package for streamly and bytestring interoperation.
-
 ## streamly-lz4
 
 Streaming APIs for lz4 compression and decompression.
+
+## Compatibility Packages
+
+Streamly can interwork with other packages in the Haskell ecosystem
+providing similar functionality. These packages enable the
+interconversion.
+
+### streamly-bytestring
+
+Package for converting streamly `Array` type to the bytestring package's
+`ByteString` type and vice-versa.
+
+### streamly-text
+
+Package for converting streamly `Array` type to the `text` package's
+`Text` type and vice-versa.
+
+### streamly-filepath
+
+Package for converting streamly `Path` type to the `filepath` package's
+`OsPath` type and vice-versa.
+
