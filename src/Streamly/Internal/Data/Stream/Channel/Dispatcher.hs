@@ -141,21 +141,38 @@ checkMaxBuffer active sv = do
             return $ fromIntegral lim > n + active
 
 -- | Higher level API to dispatch a worker, it uses 'forkWorker' to create a
--- worker. Dispatches a worker only if:
+-- worker.
+--
+-- Dispatches a worker only if all of the following are true:
 --
 -- * the channel has work to do
 -- * max thread count is not reached
 -- * max buffer limit is not reached
 --
+-- It is possible that no worker is dispatched even when there is no
+-- outstanding worker - only if any of the following is true:
+--
+-- * maxBuffer limit is 0
+-- * maxThreads limit is set to 0
+-- * there is output pending in the output buffer
+--
+-- In all other cases a worker is guaranteed to be dispatched.
+--
 dispatchWorker :: MonadRunInIO m =>
        Count -- ^ max yield limit for the worker
     -> Channel m a
-    -> m Bool -- ^ can disptach more workers
+    -> m Bool -- ^ can dispatch more workers
 dispatchWorker yieldCount sv = do
     -- XXX in case of Ahead streams we should not send more than one worker
     -- when the work queue is done but heap is not done.
     -- XXX Should we have a single abstraction for checking q and
     -- work instead checking the two separately?
+    --
+    -- Yield count check may not be reliable unless there are no workers
+    -- outsanding. If there are no outstanding workers, we are fine. But if
+    -- there are outstanding workers, it may return done even if we are not
+    -- done yet. But that is fine too as there are outstanding workers and we
+    -- cannot block forever in dispatchAllWait.
     done <- liftIO $ isWorkDone sv
     -- Note, "done" may not mean that the work is actually finished if there
     -- are workers active, because there may be a worker which has not yet
@@ -165,7 +182,7 @@ dispatchWorker yieldCount sv = do
         qDone <- liftIO $ isQueueDone sv
         -- This count may be more until the sendStop events are processed.
         active <- liftIO $ readIORef $ workerCount sv
-        when (active < 0) $ error "dispatchWorker active negative"
+        when (active < 0) $ error "Bug: dispatchWorker active negative"
         if not qDone
         then do
             -- XXX for ahead streams shall we take the heap yields into account
@@ -193,8 +210,12 @@ dispatchWorker yieldCount sv = do
 
 -- | Like 'dispatchWorker' but with rate control. The number of workers to be
 -- dispatched are decided based on the target rate. Uses 'dispatchWorker' to
--- actually dispatch when required.
+-- actually dispatch when required. It may block wait until there is time to
+-- dispatch.
 --
+-- It guarantees that if there is no outstanding worker and there is work
+-- pending then it dispatches a worker though it may block for some time before
+-- it does that depending on the rate goal.
 dispatchWorkerPaced :: MonadRunInIO m =>
        Channel m a
     -> m Bool -- ^ True means can dispatch more
@@ -238,11 +259,12 @@ dispatchWorkerPaced sv = do
                 -- long we won't be able to send another worker until the
                 -- result arrives.
                 --
-                -- Sleep only if there are no active workers, otherwise we will
-                -- defer the output of those. Note we cannot use workerCount
-                -- here as it is not a reliable way to ensure there are
-                -- definitely no active workers. When workerCount is 0 we may
-                -- still have a Stop event waiting in the outputQueue.
+                -- Sleep only if there are no active workers and the
+                -- outputQueue is empty, otherwise we will delay reading the
+                -- pending output. Note we cannot use workerCount here as it is
+                -- not a reliable way to ensure the outputQueue is empty. When
+                -- workerCount is 0 we may still have a Stop event waiting in
+                -- the outputQueue.
                 done <- allThreadsDone (workerThreads sv)
                 when done $ void $ do
                     let us = fromRelTime64 (toRelTime64 s) :: MicroSecond64
@@ -261,6 +283,8 @@ dispatchWorkerPaced sv = do
                 assert (yields >= 0) (return ())
                 updateGainedLostYields yinfo yields
 
+                -- XXX workerPollingInterval is also modified by the
+                -- collectLatency call above. Need to reconcile the two.
                 let periodRef = workerPollingInterval yinfo
                     ycnt = max 1 $ yields `div` fromIntegral netWorkers
                     period = min ycnt (fromIntegral magicMaxBuffer)
@@ -313,6 +337,11 @@ dispatchWorkerPaced sv = do
 -- output arrives in the event queue.
 --
 -- When this function returns we are sure that there is some output available.
+--
+-- Before we call this function we must ensure that there is either a pending
+-- worker or pending work, otherwise it might block forever. If there is
+-- pending work and no pending worker the dispatcher function must ensure that
+-- it dispatches a worker.
 --
 {-# NOINLINE dispatchAllWait #-}
 dispatchAllWait

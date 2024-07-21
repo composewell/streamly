@@ -75,6 +75,11 @@ import Streamly.Internal.Data.Channel.Types
 -- XXX Since we have stream specific channels now, we can remove functions like
 -- enqueue, readOuputQ, postProcess, workLoop etc from this.
 
+-- XXX Add an option in channel for minthreads.
+-- dispatch tail worker from the worker itself up to min threads or based on
+-- pace data. min threads can be increased dynamically by the event loop.
+-- for eager minthreads = maxthreads
+
 -- | A mutable channel to evaluate multiple streams concurrently and provide
 -- the combined results as output stream.
 --
@@ -222,7 +227,7 @@ data Channel m a = Channel
     -- | Total number of active worker threads.
     --
     -- [LOCKING] Updated locked, by the event loop thread when dispatching a
-    -- worker and by a worker threads when the thread stops. This is read
+    -- worker and by a worker thread when the thread stops. This is read
     -- without lock at several places where we want to rely on an approximate
     -- value.
     , workerCount :: IORef Int
