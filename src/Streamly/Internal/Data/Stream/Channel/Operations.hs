@@ -211,6 +211,17 @@ inspect $ hasNoTypeClassesExcept 'fromChannelRaw
 -- XXX Add an option to block the consumer rather than stopping the stream if
 -- the work queue gets over.
 
+chanCleanupOnGc :: Channel m a -> IO ()
+chanCleanupOnGc chan = do
+    when (svarInspectMode chan) $ do
+        r <- liftIO $ readIORef (svarStopTime (svarStats chan))
+        when (isNothing r) $
+            printSVar (dumpChannel chan) "Channel Garbage Collected"
+    cleanupSVar (workerThreads chan)
+    -- If there are any other channels referenced by this channel a GC will
+    -- prompt them to be cleaned up quickly.
+    when (svarInspectMode chan) performMajorGC
+
 -- | Draw a stream from a concurrent channel. The stream consists of the
 -- evaluated values from the input streams that were enqueued on the channel
 -- using 'toChannelK'.
@@ -234,28 +245,17 @@ inspect $ hasNoTypeClassesExcept 'fromChannelRaw
 -- CAUTION! This API must not be called more than once on a channel.
 {-# INLINE fromChannelK #-}
 fromChannelK :: MonadAsync m => Channel m a -> K.StreamK m a
-fromChannelK sv =
+fromChannelK chan =
     K.mkStream $ \st yld sng stp -> do
         ref <- liftIO $ newIORef ()
-        _ <- liftIO $ mkWeakIORef ref hook
+        _ <- liftIO $ mkWeakIORef ref (chanCleanupOnGc chan)
 
-        startChannel sv
+        startChannel chan
         -- We pass a copy of sv to fromStreamVar, so that we know that it has
         -- no other references, when that copy gets garbage collected "ref"
         -- will get garbage collected and our hook will be called.
         K.foldStreamShared st yld sng stp $
-            fromChannelRaw sv{svarRef = Just ref}
-    where
-
-    hook = do
-        when (svarInspectMode sv) $ do
-            r <- liftIO $ readIORef (svarStopTime (svarStats sv))
-            when (isNothing r) $
-                printSVar (dumpChannel sv) "Channel Garbage Collected"
-        cleanupSVar (workerThreads sv)
-        -- If there are any SVars referenced by this SVar a GC will prompt
-        -- them to be cleaned up quickly.
-        when (svarInspectMode sv) performMajorGC
+            fromChannelRaw chan{svarRef = Just ref}
 
 -- | A wrapper over 'fromChannelK' for 'Stream' type.
 {-# INLINE fromChannel #-}
