@@ -47,34 +47,68 @@ import qualified Streamly.Internal.Data.Stream as D
 
 import Streamly.Internal.Data.Channel.Types
 
+-- XXX We can make the fold evaluation concurrent by using a monoid for the
+-- accumulator. It will then work in the same way as the stream evaluation, in
+-- stream evaluation we dequeue the head and queue the tail, in folds we will
+-- queue the accumulator and it will be picked by the next worker to accumulate
+-- the next value.
+
+-- | The fold driver thread queues the input of the fold in the 'inputQueue'
+-- The driver rings the doorbell when the queue transitions from empty to
+-- non-empty state.
+--
+-- The fold consumer thread dequeues the input items from the 'inputQueue' and
+-- supplies them to the fold. When the fold is done the output of the fold is
+-- placed in 'inputQueue' and 'outputDoorBell' is rung.
+--
+-- The fold driver thread keeps watching the 'outputQueue', if the fold has
+-- terminated, it stops queueing the input to the 'inputQueue'
+--
+-- If the fold driver runs out of input it stops and waits for the fold to
+-- drain the buffered input.
+--
+-- Driver thread ------>------Input Queue and Doorbell ----->-----Fold thread
+--
+-- Driver thread ------<------Output Queue and Doorbell-----<-----Fold thread
+--
 data Channel m a b = Channel
     {
     -- FORWARD FLOW: Flow of data from the driver to the consuming fold
 
-    -- XXX This is inputQueue instead.
-
-    -- Shared output queue (events, length)
-    --
-    -- [LOCKING] Frequent locked access. This is updated by the driver on each
-    -- yield and once in a while read by the consumer fold thread.
-    --
     -- XXX Use a different type than ChildEvent. We can do with a simpler type
     -- in folds.
-      outputQueue :: IORef ([ChildEvent a], Int)
-    -- This is capped to maxBufferLimit if set to more than that. Otherwise
-    -- potentially each worker may yield one value to the buffer in the worst
-    -- case exceeding the requested buffer size.
-    , maxBufferLimit :: Limit
 
-    -- [LOCKING] Infrequent MVar. Used when the outputQ transitions from empty
-    -- to non-empty.
-    , outputDoorBell :: MVar ()  -- signal the consumer about output
-    , readOutputQ :: m [ChildEvent a]
+    -- | Input queue (messages, length).
+    --
+    -- [LOCKING] Frequent, locked access. Input is queued frequently by the
+    -- driver and infrequently dequeued in chunks by the fold.
+    --
+      inputQueue :: IORef ([ChildEvent a], Int)
 
-    -- receive async events from the fold consumer to the driver.
-    , outputQueueFromConsumer :: IORef ([ChildEvent b], Int)
-    , outputDoorBellFromConsumer :: MVar ()
-    , bufferSpaceDoorBell :: MVar ()
+      -- | The maximum size of the inputQueue allowed.
+    , maxInputBuffer :: Limit
+
+    -- | Doorbell is rung by the driver when 'inputQueue' transitions from
+    -- empty to non-empty.
+    --
+    -- [LOCKING] Infrequent, MVar.
+    , inputItemDoorBell :: MVar ()
+
+    -- | Doorbell to tell the driver that there is now space available in the
+    -- 'inputQueue' and more items can be queued.
+    , inputSpaceDoorBell :: MVar ()
+
+    , readInputQ :: m [ChildEvent a]
+
+    -- | Final output and exceptions, if any, queued by the fold and read by
+    -- the fold driver.
+    , outputQueue :: IORef ([ChildEvent b], Int)
+
+    -- | Doorbell for the 'outputQueue', rung by the fold when the queue
+    -- transitions from empty to non-empty.
+    --
+    -- [LOCKING] Infrequent, MVar.
+    , outputDoorBell :: MVar ()
 
     -- cleanup: to track garbage collection of SVar --
     , svarRef :: Maybe (IORef ())
@@ -95,9 +129,9 @@ dumpChannel sv = do
     xs <- sequence $ intersperse (return "\n")
         [ return (dumpCreator (svarCreator sv))
         , return "---------CURRENT STATE-----------"
-        , dumpOutputQ (outputQueue sv)
+        , dumpOutputQ (inputQueue sv)
         -- XXX print the types of events in the outputQueue, first 5
-        , dumpDoorBell (outputDoorBell sv)
+        , dumpDoorBell (inputItemDoorBell sv)
         , return "---------STATS-----------\n"
         , dumpSVarStats (svarInspectMode sv) Nothing (svarStats sv)
         ]
@@ -149,8 +183,8 @@ sendToDriver sv msg = do
     -- then wake it up so that it can check for the stop event or exception
     -- being sent to it otherwise we will be deadlocked.
     -- void $ tryPutMVar (pushBufferMVar sv) ()
-    sendEvent (outputQueueFromConsumer sv)
-                     (outputDoorBellFromConsumer sv) msg
+    sendEvent (outputQueue sv)
+                     (outputDoorBell sv) msg
 
 sendYieldToDriver :: MonadIO m => Channel m a b -> b -> m ()
 sendYieldToDriver sv res = liftIO $ do
@@ -166,15 +200,15 @@ data FromSVarState m a b =
       FromSVarRead (Channel m a b)
     | FromSVarLoop (Channel m a b) [ChildEvent a]
 
-{-# INLINE_NORMAL fromProducerD #-}
-fromProducerD :: MonadIO m => Channel m a b -> D.Stream m a
-fromProducerD svar = D.Stream step (FromSVarRead svar)
+{-# INLINE_NORMAL fromInputQueue #-}
+fromInputQueue :: MonadIO m => Channel m a b -> D.Stream m a
+fromInputQueue svar = D.Stream step (FromSVarRead svar)
 
     where
 
     {-# INLINE_LATE step #-}
     step _ (FromSVarRead sv) = do
-        list <- readOutputQ sv
+        list <- readInputQ sv
         -- Reversing the output is important to guarantee that we process the
         -- outputs in the same order as they were generated by the constituent
         -- streams.
@@ -187,30 +221,30 @@ fromProducerD svar = D.Stream step (FromSVarRead svar)
             ChildStopChannel -> return D.Stop
             _ -> undefined
 
-{-# INLINE readOutputQChan #-}
-readOutputQChan :: Channel m a b -> IO ([ChildEvent a], Int)
-readOutputQChan chan = do
+{-# INLINE readInputQChan #-}
+readInputQChan :: Channel m a b -> IO ([ChildEvent a], Int)
+readInputQChan chan = do
     let ss = if svarInspectMode chan then Just (svarStats chan) else Nothing
-    r@(_, n) <- readOutputQRaw (outputQueue chan) ss
+    r@(_, n) <- readOutputQRaw (inputQueue chan) ss
     if n <= 0
     then do
         liftIO
             $ withDiagMVar
                 (svarInspectMode chan)
                 (dumpChannel chan)
-                "readOutputQChan: nothing to do"
-            $ takeMVar (outputDoorBell chan)
-        readOutputQRaw (outputQueue chan) ss
+                "readInputQChan: nothing to do"
+            $ takeMVar (inputItemDoorBell chan)
+        readOutputQRaw (inputQueue chan) ss
     else return r
 
-{-# INLINE readOutputQDB #-}
-readOutputQDB :: Channel m a b -> IO ([ChildEvent a], Int)
-readOutputQDB chan = do
-    r <- readOutputQChan chan
+{-# INLINE readInputQWithDB #-}
+readInputQWithDB :: Channel m a b -> IO ([ChildEvent a], Int)
+readInputQWithDB chan = do
+    r <- readInputQChan chan
     -- XXX We can do this only if needed, if someone sleeps because of buffer
     -- then they can set a flag and we ring the doorbell only if the flag is
     -- set. Like we do in sendWorkerWait for streams.
-    _ <- tryPutMVar (bufferSpaceDoorBell chan) ()
+    _ <- tryPutMVar (inputSpaceDoorBell chan) ()
     return r
 
 mkNewChannel :: forall m a b. MonadIO m => Config -> IO (Channel m a b)
@@ -226,13 +260,13 @@ mkNewChannel cfg = do
 
     let getSVar :: Channel m a b -> Channel m a b
         getSVar sv = Channel
-            { outputQueue      = outQ
-            , outputDoorBell   = outQMv
-            , outputQueueFromConsumer = outQRev
-            , outputDoorBellFromConsumer = outQMvRev
-            , bufferSpaceDoorBell = bufferMv
-            , maxBufferLimit   = getMaxBuffer cfg
-            , readOutputQ      = liftIO $ fmap fst (readOutputQDB sv)
+            { inputQueue      = outQ
+            , inputItemDoorBell   = outQMv
+            , outputQueue = outQRev
+            , outputDoorBell = outQMvRev
+            , inputSpaceDoorBell = bufferMv
+            , maxInputBuffer   = getMaxBuffer cfg
+            , readInputQ      = liftIO $ fmap fst (readInputQWithDB sv)
             , svarRef          = Nothing
             , svarInspectMode  = getInspectMode cfg
             , svarCreator      = tid
@@ -250,7 +284,8 @@ newChannel modifier f = do
     let config = modifier defaultConfig
     sv <- liftIO $ mkNewChannel config
     mrun <- askRunInIO
-    void $ doForkWith (getBound config) (work sv) mrun (sendExceptionToDriver sv)
+    void $ doForkWith
+        (getBound config) (work sv) mrun (sendExceptionToDriver sv)
     return sv
 
     where
@@ -258,7 +293,7 @@ newChannel modifier f = do
     {-# NOINLINE work #-}
     work chan =
         let f1 = Fold.rmapM (void . sendYieldToDriver chan) f
-         in D.fold f1 $ fromProducerD chan
+         in D.fold f1 $ fromInputQueue chan
 
 -------------------------------------------------------------------------------
 -- Process events received by the driver thread from the fold worker side
@@ -279,7 +314,7 @@ newChannel modifier f = do
 {-# NOINLINE checkFoldStatus #-}
 checkFoldStatus :: MonadAsync m => Channel m a b -> m (Maybe b)
 checkFoldStatus sv = do
-    (list, _) <- liftIO $ readOutputQBasic (outputQueueFromConsumer sv)
+    (list, _) <- liftIO $ readOutputQBasic (outputQueue sv)
     -- Reversing the output is important to guarantee that we process the
     -- outputs in the same order as they were generated by the constituent
     -- streams.
@@ -298,11 +333,11 @@ checkFoldStatus sv = do
 {-# INLINE isBufferAvailable #-}
 isBufferAvailable :: MonadIO m => Channel m a b -> m Bool
 isBufferAvailable sv = do
-    let limit = maxBufferLimit sv
+    let limit = maxInputBuffer sv
     case limit of
         Unlimited -> return True
         Limited lim -> do
-            (_, n) <- liftIO $ readIORef (outputQueue sv)
+            (_, n) <- liftIO $ readIORef (inputQueue sv)
             return $ fromIntegral lim > n
 
 -- | Push values from a driver to a fold worker via a Channel. Before pushing a
@@ -318,7 +353,7 @@ sendToWorker chan a = go
 
     -- Recursive function, should we use SPEC?
     go = do
-        let qref = outputQueueFromConsumer chan
+        let qref = outputQueue chan
         status <- do
             (_, n) <- liftIO $ readIORef qref
             if n > 0
@@ -333,10 +368,10 @@ sendToWorker chan a = go
                         liftIO
                             $ void
                             $ sendEvent
-                                (outputQueue chan)
-                                (outputDoorBell chan)
+                                (inputQueue chan)
+                                (inputItemDoorBell chan)
                                 (ChildYield a)
                         return Nothing
                     else do
-                        () <- liftIO $ takeMVar (bufferSpaceDoorBell chan)
+                        () <- liftIO $ takeMVar (inputSpaceDoorBell chan)
                         go

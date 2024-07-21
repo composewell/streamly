@@ -135,8 +135,8 @@ parEval modifier f =
     final chan = do
         liftIO $ void
             $ sendEvent
-                (outputQueue chan)
-                (outputDoorBell chan)
+                (inputQueue chan)
+                (inputItemDoorBell chan)
                 ChildStopChannel
         status <- checkFoldStatus chan
         case status of
@@ -146,7 +146,7 @@ parEval modifier f =
                         (svarInspectMode chan)
                         (dumpChannel chan)
                         "parEval: waiting to drain"
-                    $ takeMVar (outputDoorBellFromConsumer chan)
+                    $ takeMVar (outputDoorBell chan)
                 -- XXX remove recursion
                 final chan
             Just b -> do
