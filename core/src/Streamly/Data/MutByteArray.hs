@@ -5,11 +5,14 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- A low level byte Array type 'MutByteArray', along with type classes 'Unbox'
--- and 'Serialize' for fast binary serialization and deserialization of Haskell
--- values. Serialization, deserialization performance is similar to, and in
--- some cases many times better than the store package. Conceptually, the
--- 'Serialize' type class works in the same way as store.
+-- This module implements a low level byte Array type 'MutByteArray', along
+-- with type classes 'Unbox' and 'Serialize' for fast binary serialization and
+-- deserialization of Haskell values. Serialization, deserialization
+-- performance is similar to, and in some cases many times better than the
+-- store package. Conceptually, the 'Serialize' type class works in the same
+-- way as store.
+--
+-- == Fast serialization with schema
 --
 -- Serialize instances are configurable to use constructor names (see
 -- 'Streamly.Internal.Data.MutByteArray.encodeConstrNames'), record field names (see
@@ -18,11 +21,13 @@
 -- properties with faster speed. For example, you can change the order of
 -- constructors or record fields without affecting serialized value.
 --
+-- == Serialization with Array and MutArray
+--
 -- Higher level unboxed array modules "Streamly.Data.Array" and
 -- "Streamly.Data.MutArray" are built on top of this module. Unboxed arrays are
 -- essentially serialized Haskell values. Array modules provide higher level
 -- serialization routines like 'Streamly.Internal.Data.Array.pinnedSerialize'
--- and 'Streamly.Internal.Data.Array.deserialize' from the
+-- and 'Streamly.Internal.Data.Array.deserialize' in the
 -- "Streamly.Internal.Data.Array" module.
 --
 -- == Mutable Byte Array
@@ -32,7 +37,7 @@
 -- deserialize it from. This array is used to build higher level unboxed
 -- array types 'Streamly.Data.MutArray.MutArray' and 'Streamly.Data.Array.Array'.
 --
--- == Using Unbox
+-- == Serialization using Unbox
 --
 -- The 'Unbox' type class is simple and used to serialize non-recursive fixed
 -- size data types. This type class is primarily used to implement unboxed
@@ -47,7 +52,7 @@
 -- type from the array deserializes it. You can also serialize and deserialize
 -- directly to and from a 'MutByteArray', using the type class methods.
 --
--- == Using Serialize
+-- == Serialization using Serialize
 --
 -- The 'Serialize' type class is a superset of the 'Unbox' type class, it can
 -- serialize variable length data types as well e.g. Haskell lists. Use
