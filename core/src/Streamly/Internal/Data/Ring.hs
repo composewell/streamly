@@ -544,7 +544,7 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
     toArray foldRing rb rh = do
         -- Using unpinned array here instead of pinned
         arr <- liftIO $ MA.emptyOf n
-        let snoc' b a = liftIO $ MA.snocUnsafe b a
+        let snoc' b a = liftIO $ MA.unsafeSnoc b a
         foldRing rh snoc' arr rb
 
     step (Tuple4' rb rh i st) a

@@ -340,9 +340,9 @@ doAppend os a b = unsafePerformIO $ do
     assertM(countTrailingBy (isSeparatorWord os) a == 0)
     let len = lenA + 1 + lenB
     arr <- MutArray.emptyOf len
-    arr1 <- MutArray.spliceUnsafe arr (Array.unsafeThaw a)
-    arr2 <- MutArray.snocUnsafe arr1 (charToWord posixSeparator)
-    arr3 <- MutArray.spliceUnsafe arr2 (Array.unsafeThaw b)
+    arr1 <- MutArray.unsafeSplice arr (Array.unsafeThaw a)
+    arr2 <- MutArray.unsafeSnoc arr1 (charToWord posixSeparator)
+    arr3 <- MutArray.unsafeSplice arr2 (Array.unsafeThaw b)
     return (Array.unsafeFreeze arr3)
 
 {-# INLINE withAppendCheck #-}
