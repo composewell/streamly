@@ -33,6 +33,7 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Casting
     , unsafePinnedAsPtr
+    , unsafeAsForeignPtr
 
     -- ** Construction
     , empty
@@ -167,6 +168,7 @@ import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.Base (build)
 import GHC.Exts (IsList, IsString(..), Addr#)
+import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents(..))
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..))
@@ -251,6 +253,25 @@ data Array a =
 {-# INLINE unsafePinnedAsPtr #-}
 unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> Int -> m b) -> m b
 unsafePinnedAsPtr arr = MA.unsafePinnedAsPtr (unsafeThaw arr)
+
+-- | Use an @Array a@ as @ForeignPtr a@.
+--
+-- /Unsafe/ because of direct pointer operations. The user must ensure that they
+-- are writing within the legal bounds of the array.
+--
+-- /Pre-release/
+--
+{-# INLINE unsafeAsForeignPtr #-}
+unsafeAsForeignPtr
+    :: MonadIO m => Array a -> (ForeignPtr a -> Int -> m b) -> m b
+unsafeAsForeignPtr arr@Array{..} f =
+    unsafePinnedAsPtr arr finner
+    where
+    finner (Ptr addr#) i =
+        let fptrContents =
+                PlainPtr (Unboxed.getMutableByteArray# arrContents)
+            fptr = ForeignPtr addr# fptrContents
+         in f fptr i
 
 {-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
 {-# INLINE asPtrUnsafe #-}
