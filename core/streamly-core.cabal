@@ -102,6 +102,7 @@ extra-source-files:
     src/Streamly/Internal/Data/Array/ArrayMacros.h
     src/assert.hs
     src/inline.hs
+    src/deprecation.h
 
     src/Streamly/Internal/Data/Time/Clock/config-clock.h
     src/config.h.in
