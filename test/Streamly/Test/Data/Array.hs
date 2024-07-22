@@ -52,8 +52,8 @@ testLengthFromStream = genericTestFrom (const A.fromStream)
 unsafeWriteIndex :: [Int] -> Int -> Int -> IO Bool
 unsafeWriteIndex xs i x = do
     arr <- MA.fromList xs
-    MA.putIndexUnsafe i arr x
-    x1 <- MA.getIndexUnsafe i arr
+    MA.unsafePutIndex i arr x
+    x1 <- MA.unsafeGetIndex i arr
     return $ x1 == x
 
 lastN :: Int -> [a] -> [a]
@@ -160,7 +160,7 @@ testBubbleDesc = testBubbleWith False
 testByteLengthWithMA :: forall a. Unbox a => a -> IO ()
 testByteLengthWithMA _ = do
      arrA <- MA.pinnedEmptyOf 100 :: IO (MutArray a)
-     let arrW8 = MA.castUnsafe arrA :: MutArray Word8
+     let arrW8 = MA.unsafeCast arrA :: MutArray Word8
      MA.byteLength arrA `shouldBe` MA.length arrW8
 
 testBreakOn :: [Word8] -> Word8 -> [Word8] -> Maybe [Word8] -> IO ()
@@ -209,7 +209,7 @@ reallocMA =
     in forAll (vectorOf len (arbitrary :: Gen Char)) $ \vec ->
            forAll (chooseInt (bSize - 2000, bSize + 2000)) $ \newBLen -> do
                arr <- MA.fromList vec
-               arr1 <- MA.realloc newBLen arr
+               arr1 <- MA.reallocBytes newBLen arr
                lst <- MA.toList arr
                lst1 <- MA.toList arr1
                lst `shouldBe` lst1

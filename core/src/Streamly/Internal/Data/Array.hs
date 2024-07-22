@@ -230,7 +230,7 @@ createOfLast n
     done (Tuple3Fused' rb rh i) = do
         arr <- MA.emptyOf n
         -- XXX We should write a read unfold for ring.
-        foldFunc i rh MA.snocUnsafe arr rb
+        foldFunc i rh MA.unsafeSnoc arr rb
 
     foldFunc i
         | i < n = RB.unsafeFoldRingM

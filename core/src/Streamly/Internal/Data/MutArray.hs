@@ -97,7 +97,7 @@ slicerFromLen :: forall m a. (Monad m, Unbox a)
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (MutArray a)
 slicerFromLen from len =
-    let mkSlice arr (i, n) = return $ getSliceUnsafe i n arr
+    let mkSlice arr (i, n) = return $ unsafeGetSlice i n arr
      in Unfold.mapM2 mkSlice (sliceIndexerFromLen from len)
 
 {-# DEPRECATED getSlicesFromLen "Please use slicerFromLen instead." #-}
@@ -130,7 +130,7 @@ serializeRealloc :: forall m a. (MonadIO m, Serialize a) =>
     -> m (MutArray Word8)
 serializeRealloc sizer arr x = do
     let len = Serialize.addSizeTo 0 x
-    arr1 <- liftIO $ reallocWith "serializeRealloc" sizer len arr
+    arr1 <- liftIO $ reallocBytesWith "serializeRealloc" sizer len arr
     unsafeSerialize arr1 x
 
 {-# INLINE serializeWith #-}
