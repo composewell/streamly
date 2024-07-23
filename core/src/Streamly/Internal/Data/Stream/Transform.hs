@@ -33,7 +33,7 @@ module Streamly.Internal.Data.Stream.Transform
     , postscan
     , scan
     , scanMany
-    , runScan
+    , scanr
     , pipe
 
     -- * Splitting
@@ -172,7 +172,7 @@ import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding
        ( drop, dropWhile, filter, map, mapM, reverse
-       , scanl, scanl1, sequence, take, takeWhile, zipWith)
+       , scanl, scanl1, scanr, sequence, take, takeWhile, zipWith)
 
 import Streamly.Internal.Data.Stream.Generate
     (absTimesWith, relTimesWith)
@@ -227,11 +227,11 @@ pipe (Pipe consume produce initial) (Stream stream_step state) =
 {-# ANN type RunScanState Fuse #-}
 data RunScanState st sc ps = ScanConsume st sc
 
--- | Use a 'Scan' to transform a stream.
+-- | Use a lazy right 'Scan' to transform a stream.
 --
-{-# INLINE_NORMAL runScan #-}
-runScan :: Monad m => Scan m a b -> Stream m a -> Stream m b
-runScan (Scan consume initial) (Stream stream_step state) =
+{-# INLINE_NORMAL scanr #-}
+scanr :: Monad m => Scan m a b -> Stream m a -> Stream m b
+scanr (Scan consume initial) (Stream stream_step state) =
     Stream step (ScanConsume state initial)
 
     where
