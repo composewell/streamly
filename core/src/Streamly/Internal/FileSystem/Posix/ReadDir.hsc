@@ -347,7 +347,7 @@ readEitherByteChunks alldirs =
             -- XXX append a path separator to a dir path
             -- We know it is already pinned.
             MutByteArray.unsafeAsPtr dstArr (\ptr -> liftIO $ do
-                MutByteArray.putSliceUnsafe dirArr start dstArr pos dirLen
+                MutByteArray.unsafePutSlice  dirArr start dstArr pos dirLen
                 let ptr1 = ptr `plusPtr` (pos + dirLen)
                     separator = 47 :: Word8
                 poke ptr1 separator

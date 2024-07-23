@@ -269,7 +269,7 @@ unsafeAsForeignPtr arr@Array{..} f =
     where
     finner (Ptr addr#) i =
         let fptrContents =
-                PlainPtr (Unboxed.getMutableByteArray# arrContents)
+                PlainPtr (Unboxed.getMutByteArray# arrContents)
             fptr = ForeignPtr addr# fptrContents
          in f fptr i
 

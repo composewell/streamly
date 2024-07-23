@@ -542,7 +542,7 @@ encodeAs :: forall a. Serialize a => PinnedState -> a -> Array Word8
 encodeAs ps a =
     unsafeInlineIO $ do
         let len = Serialize.addSizeTo 0 a
-        mbarr <- MBA.newBytesAs ps len
+        mbarr <- MBA.newAs ps len
         off <- Serialize.serializeAt 0 mbarr a
         assertM(len == off)
         pure $ Array mbarr 0 off

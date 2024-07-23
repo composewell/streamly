@@ -13,7 +13,7 @@ module Streamly.Internal.Data.MutByteArray.Type
     -- ** MutByteArray
       MutByteArray(..)
     , MutableByteArray
-    , getMutableByteArray# -- XXX getMutByteArray#
+    , getMutByteArray#
 
     -- ** Pinning
     , PinnedState(..)
@@ -23,22 +23,29 @@ module Streamly.Internal.Data.MutByteArray.Type
 
     -- ** Allocation
     , empty
-    , newBytesAs -- XXX should be removed
+    , newAs
     , new
     , pinnedNew
-    , pinnedNewAlignedBytes -- XXX should be removed
     , reallocSliceAs
 
     -- ** Access
-    , sizeOfMutableByteArray -- XXX length
-    , putSliceUnsafe
-    , cloneSliceUnsafeAs
-    , cloneSliceUnsafe
-    , pinnedCloneSliceUnsafe
+    , length
+    , unsafePutSlice
+    , unsafeCloneSliceAs
+    , unsafeCloneSlice
+    , unsafePinnedCloneSlice
     , unsafePinnedAsPtr
     , unsafeAsPtr
 
     -- ** Deprecated
+    , getMutableByteArray#
+    , newBytesAs
+    , sizeOfMutableByteArray
+    , putSliceUnsafe
+    , cloneSliceUnsafeAs
+    , cloneSliceUnsafe
+    , pinnedCloneSliceUnsafe
+    , pinnedNewAlignedBytes
     , asPtrUnsafe
     , nil
     ) where
@@ -52,6 +59,9 @@ import GHC.Base (IO(..))
 import System.IO.Unsafe (unsafePerformIO)
 
 import GHC.Exts
+import Prelude hiding (length)
+
+#include "deprecation.h"
 
 --------------------------------------------------------------------------------
 -- The ArrayContents type
@@ -71,14 +81,14 @@ data MutByteArray = MutByteArray (MutableByteArray# RealWorld)
 {-# DEPRECATED MutableByteArray "Please use MutByteArray instead" #-}
 type MutableByteArray = MutByteArray
 
-{-# INLINE getMutableByteArray# #-}
-getMutableByteArray# :: MutByteArray -> MutableByteArray# RealWorld
-getMutableByteArray# (MutByteArray mbarr) = mbarr
+{-# INLINE getMutByteArray# #-}
+getMutableByteArray#, getMutByteArray# :: MutByteArray -> MutableByteArray# RealWorld
+getMutByteArray# (MutByteArray mbarr) = mbarr
 
 -- | Return the size of the array in bytes.
-{-# INLINE sizeOfMutableByteArray #-}
-sizeOfMutableByteArray :: MutByteArray -> IO Int
-sizeOfMutableByteArray (MutByteArray arr) =
+{-# INLINE length #-}
+sizeOfMutableByteArray, length :: MutByteArray -> IO Int
+length (MutByteArray arr) =
     IO $ \s ->
         case getSizeofMutableByteArray# arr s of
             (# s1, i #) -> (# s1, I# i #)
@@ -124,7 +134,7 @@ unsafePinnedAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
 unsafePinnedAsPtr arr f = do
   contents <- liftIO $ pin arr
   let !ptr = Ptr (byteArrayContents#
-                     (unsafeCoerce# (getMutableByteArray# contents)))
+                     (unsafeCoerce# (getMutByteArray# contents)))
   r <- f ptr
   liftIO $ touch contents
   return r
@@ -139,7 +149,7 @@ asPtrUnsafe = unsafePinnedAsPtr
 unsafeAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
 unsafeAsPtr arr f = do
   let !ptr = Ptr (byteArrayContents#
-                     (unsafeCoerce# (getMutableByteArray# arr)))
+                     (unsafeCoerce# (getMutByteArray# arr)))
   r <- f ptr
   liftIO $ touch arr
   return r
@@ -178,6 +188,7 @@ pinnedNew (I# nbytes) = IO $ \s ->
            let c = MutByteArray mbarr#
             in (# s', c #)
 
+{-# DEPRECATED pinnedNewAlignedBytes "Please use pinnedNew instead" #-}
 {-# INLINE pinnedNewAlignedBytes #-}
 pinnedNewAlignedBytes :: Int -> Int -> IO MutByteArray
 pinnedNewAlignedBytes nbytes _align | nbytes < 0 =
@@ -188,10 +199,10 @@ pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
            let c = MutByteArray mbarr#
             in (# s', c #)
 
-{-# INLINE newBytesAs #-}
-newBytesAs :: PinnedState -> Int -> IO MutByteArray
-newBytesAs Unpinned = new
-newBytesAs Pinned = pinnedNew
+{-# INLINE newAs #-}
+newBytesAs, newAs :: PinnedState -> Int -> IO MutByteArray
+newAs Unpinned = new
+newAs Pinned = pinnedNew
 
 -- | @reallocSliceAs pinType newLen array offset len@ reallocates a slice
 -- from @array@ starting at @offset@ and having length @len@ to a new array of
@@ -222,8 +233,8 @@ reallocSliceAs ps newLen (MutByteArray src#) srcStart srcLen = do
 -- | Put a sub range of a source array into a subrange of a destination array.
 -- This is not safe as it does not check the bounds of neither the src array
 -- nor the destination array.
-{-# INLINE putSliceUnsafe #-}
-putSliceUnsafe ::
+{-# INLINE unsafePutSlice #-}
+putSliceUnsafe, unsafePutSlice ::
        MonadIO m
     => MutByteArray
     -> Int
@@ -231,48 +242,48 @@ putSliceUnsafe ::
     -> Int
     -> Int
     -> m ()
-putSliceUnsafe src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
+unsafePutSlice src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
 #ifdef DEBUG
-    srcLen <- sizeOfMutableByteArray src
-    dstLen <- sizeOfMutableByteArray dst
+    srcLen <- length src
+    dstLen <- length dst
     when (srcLen - srcStartBytes < lenBytes)
-        $ error $ "putSliceUnsafe: src overflow: start" ++ show srcStartBytes
+        $ error $ "unsafePutSlice: src overflow: start" ++ show srcStartBytes
             ++ " end " ++ show srcLen ++ " len " ++ show lenBytes
     when (dstLen - dstStartBytes < lenBytes)
-        $ error $ "putSliceUnsafe: dst overflow: start" ++ show dstStartBytes
+        $ error $ "unsafePutSlice: dst overflow: start" ++ show dstStartBytes
             ++ " end " ++ show dstLen ++ " len " ++ show lenBytes
 #endif
     let !(I# srcStartBytes#) = srcStartBytes
         !(I# dstStartBytes#) = dstStartBytes
         !(I# lenBytes#) = lenBytes
-    let arrS# = getMutableByteArray# src
-        arrD# = getMutableByteArray# dst
+    let arrS# = getMutByteArray# src
+        arrD# = getMutByteArray# dst
     IO $ \s# -> (# copyMutableByteArray#
                     arrS# srcStartBytes# arrD# dstStartBytes# lenBytes# s#
                 , () #)
 
 -- | Unsafe as it does not check whether the start offset and length supplied
 -- are valid inside the array.
-{-# INLINE cloneSliceUnsafeAs #-}
-cloneSliceUnsafeAs :: MonadIO m =>
+{-# INLINE unsafeCloneSliceAs #-}
+cloneSliceUnsafeAs, unsafeCloneSliceAs :: MonadIO m =>
     PinnedState -> Int -> Int -> MutByteArray -> m MutByteArray
-cloneSliceUnsafeAs ps srcOff srcLen src =
+unsafeCloneSliceAs ps srcOff srcLen src =
     liftIO $ do
-        mba <- newBytesAs ps srcLen
-        putSliceUnsafe src srcOff mba 0 srcLen
+        mba <- newAs ps srcLen
+        unsafePutSlice src srcOff mba 0 srcLen
         return mba
 
--- | @cloneSliceUnsafe offset len arr@ clones a slice of the supplied array
+-- | @unsafeCloneSlice offset len arr@ clones a slice of the supplied array
 -- starting at the given offset and equal to the given length.
-{-# INLINE cloneSliceUnsafe #-}
-cloneSliceUnsafe :: MonadIO m => Int -> Int -> MutByteArray -> m MutByteArray
-cloneSliceUnsafe = cloneSliceUnsafeAs Unpinned
+{-# INLINE unsafeCloneSlice #-}
+cloneSliceUnsafe, unsafeCloneSlice :: MonadIO m => Int -> Int -> MutByteArray -> m MutByteArray
+unsafeCloneSlice = unsafeCloneSliceAs Unpinned
 
--- | @pinnedCloneSliceUnsafe offset len arr@
-{-# INLINE pinnedCloneSliceUnsafe #-}
-pinnedCloneSliceUnsafe :: MonadIO m =>
+-- | @unsafePinnedCloneSlice offset len arr@
+{-# INLINE unsafePinnedCloneSlice #-}
+pinnedCloneSliceUnsafe, unsafePinnedCloneSlice :: MonadIO m =>
     Int -> Int -> MutByteArray -> m MutByteArray
-pinnedCloneSliceUnsafe = cloneSliceUnsafeAs Pinned
+unsafePinnedCloneSlice = unsafeCloneSliceAs Pinned
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
@@ -336,3 +347,15 @@ unpin arr@(MutByteArray marr#) =
              $ \s# ->
                    case cloneMutableArrayWith# newByteArray# marr# s# of
                        (# s1#, marr1# #) -> (# s1#, MutByteArray marr1# #)
+
+--------------------------------------------------------------------------------
+-- Renaming
+--------------------------------------------------------------------------------
+
+RENAME(getMutableByteArray#, getMutByteArray#)
+RENAME(newBytesAs, newAs)
+RENAME(sizeOfMutableByteArray, length)
+RENAME(putSliceUnsafe, unsafePutSlice)
+RENAME(cloneSliceUnsafeAs, unsafeCloneSliceAs)
+RENAME(cloneSliceUnsafe, unsafeCloneSlice)
+RENAME(pinnedCloneSliceUnsafe, unsafePinnedCloneSlice)
