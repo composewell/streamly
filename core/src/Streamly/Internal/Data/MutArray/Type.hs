@@ -2648,6 +2648,13 @@ cloneAs ps src =
             Unboxed.cloneSliceUnsafeAs ps startSrc srcLen (arrContents src)
         return $ MutArray newArrContents 0 srcLen srcLen
 
+-- | Clones a MutArray.
+--
+-- To clone a slice of "MutArray" you can create a slice with "unsafeGetSlice"
+-- and then use "clone".
+--
+-- The new "MutArray" is unpinned in nature. Use "pinnedClone" to clone the
+-- MutArray in pinned memory.
 {-# INLINE clone #-}
 clone ::
     ( MonadIO m
@@ -2658,6 +2665,7 @@ clone ::
     => MutArray a -> m (MutArray a)
 clone = cloneAs Unpinned
 
+-- Similar to "clone" but uses pinned memory.
 {-# INLINE pinnedClone #-}
 pinnedClone ::
     ( MonadIO m
