@@ -221,8 +221,8 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- ** Serialization using Unbox
     -- Fixed length serialization.
-    , pokeAppend
-    , pokeAppendMay
+    , poke
+    , pokeMay
     , unsafePokeSkip
 
     -- ** Deserialization using Unbox
@@ -282,6 +282,8 @@ module Streamly.Internal.Data.MutArray.Type
     , createOfWith
     , peekUncons
     , peekUnconsUnsafe
+    , pokeAppend
+    , pokeAppendMay
     , castUnsafe
     , newArrayWith
     , getSliceUnsafe
@@ -1154,10 +1156,10 @@ pokeNewEnd newEnd arr@MutArray{..} x = liftIO $ do
 -- element.
 --
 -- /Internal/
-{-# INLINE pokeAppendUnsafe #-}
-pokeAppendUnsafe :: forall m a. (MonadIO m, Unbox a) =>
+{-# INLINE unsafePoke #-}
+unsafePoke :: forall m a. (MonadIO m, Unbox a) =>
     MutArray Word8 -> a -> m (MutArray Word8)
-pokeAppendUnsafe arr@MutArray{..} = pokeNewEnd (arrEnd + SIZE_OF(a)) arr
+unsafePoke arr@MutArray{..} = pokeNewEnd (arrEnd + SIZE_OF(a)) arr
 
 -- | Skip the specified number of bytes in the array. The data in the skipped
 -- region remains uninitialzed.
@@ -1167,14 +1169,14 @@ unsafePokeSkip n arr@MutArray{..} =  do
     let newEnd = arrEnd + n
      in assert (newEnd <= arrBound) (arr {arrEnd = newEnd})
 
--- | Like 'pokeAppend' but does not grow the array when pre-allocated array
+-- | Like 'poke' but does not grow the array when pre-allocated array
 -- capacity becomes full.
 --
 -- /Internal/
-{-# INLINE pokeAppendMay #-}
-pokeAppendMay :: forall m a. (MonadIO m, Unbox a) =>
+{-# INLINE pokeMay #-}
+pokeAppendMay, pokeMay :: forall m a. (MonadIO m, Unbox a) =>
     MutArray Word8 -> a -> m (Maybe (MutArray Word8))
-pokeAppendMay arr@MutArray{..} x = liftIO $ do
+pokeMay arr@MutArray{..} x = liftIO $ do
     let newEnd = arrEnd + SIZE_OF(a)
     if newEnd <= arrBound
     then Just <$> pokeNewEnd newEnd arr x
@@ -1188,15 +1190,15 @@ pokeWithRealloc :: forall m a. (MonadIO m, Unbox a) =>
     -> m (MutArray Word8)
 pokeWithRealloc sizer arr x = do
     arr1 <- liftIO $ reallocBytesWith "pokeWithRealloc" sizer (SIZE_OF(a)) arr
-    pokeAppendUnsafe arr1 x
+    unsafePoke arr1 x
 
-{-# INLINE pokeAppendWith #-}
-pokeAppendWith :: forall m a. (MonadIO m, Unbox a) =>
+{-# INLINE pokeWith #-}
+pokeWith :: forall m a. (MonadIO m, Unbox a) =>
        (Int -> Int)
     -> MutArray Word8
     -> a
     -> m (MutArray Word8)
-pokeAppendWith allocSize arr x = liftIO $ do
+pokeWith allocSize arr x = liftIO $ do
     let newEnd = arrEnd arr + SIZE_OF(a)
     if newEnd <= arrBound arr
     then pokeNewEnd newEnd arr x
@@ -1211,10 +1213,10 @@ pokeAppendWith allocSize arr x = liftIO $ do
 -- are statically known, then it may be more efficient to declare a record of
 -- those fields and derive an 'Unbox' instance of the entire record.
 --
-{-# INLINE pokeAppend #-}
-pokeAppend :: forall m a. (MonadIO m, Unbox a) =>
+{-# INLINE poke #-}
+pokeAppend, poke :: forall m a. (MonadIO m, Unbox a) =>
     MutArray Word8 -> a -> m (MutArray Word8)
-pokeAppend = pokeAppendWith f
+poke = pokeWith f
 
     where
 
@@ -3436,6 +3438,8 @@ RENAME(pokeSkipUnsafe, unsafePokeSkip)
 RENAME(peekSkipUnsafe, unsafePeekSkip)
 RENAME(peekUncons, peek)
 RENAME(peekUnconsUnsafe, unsafePeek)
+RENAME(pokeAppend, poke)
+RENAME(pokeAppendMay, pokeMay)
 
 -- This renaming can be done directly without deprecations. But I'm keeping this
 -- intentionally. Packdiff should be able to point out such APIs that we can
