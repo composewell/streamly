@@ -51,8 +51,7 @@
 module Streamly.Internal.Data.Scan
     (
     -- * Type
-      Step (..)
-    , Scan (..)
+      Scan (..)
 
     -- * Primitive Scans
     , identity
@@ -74,6 +73,7 @@ import Control.Category (Category(..))
 import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+import Streamly.Internal.Data.Stream.Step (Step (..))
 
 import qualified Prelude
 
@@ -97,23 +97,13 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- stream. For this reason a Scan cannot be represented using a Fold because a
 -- fold requires a value to be produced on Stop.
 
--- | The result of a scan step.
-{-# ANN type Step Fuse #-}
-data Step s b =
-      Yield b s -- ^ Yield output and keep consuming
-    | Skip s -- ^ No output, keep consuming
-    | Stop -- ^ Stop consuming, last input is unsed
-
--- | 'fmap' maps a function on the step output.
-instance Functor (Step s) where
-    {-# INLINE_NORMAL fmap #-}
-    fmap f (Yield b s) = Yield (f b) s
-    fmap _ (Skip s) = Skip s
-    fmap _ Stop = Stop
-
--- XXX A scan produces an output only on an input. The scan may have buffered
--- data which may have to be drained if the driver has no more input to supply.
--- So we need a finalizer which produces a (possibly empty) stream.
+-- A core difference between a Scan and a Stream is that a scan produces an
+-- output only on an input while a stream can produce output without consuming
+-- an input.
+--
+-- XXX A scan may have buffered data which may have to be drained if the driver
+-- has no more input to supply. So we need a finalizer which produces a
+-- (possibly empty) stream.
 
 -- | Represents a stateful transformation over an input stream of values of
 -- type @a@ to outputs of type @b@ in 'Monad' @m@.

@@ -168,7 +168,6 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding
@@ -245,9 +244,9 @@ runScan (Scan consume initial) (Stream stream_step state) =
                 res <- consume cs x
                 return
                     $ case res of
-                        Scan.Yield b cs1 -> Yield b (ScanConsume s cs1)
-                        Scan.Skip cs1 -> Skip (ScanConsume s cs1)
-                        Scan.Stop -> Stop
+                        Yield b cs1 -> Yield b (ScanConsume s cs1)
+                        Skip cs1 -> Skip (ScanConsume s cs1)
+                        Stop -> Stop
             Skip s -> return $ Skip (ScanConsume s cs)
             Stop -> return Stop
 

@@ -243,7 +243,6 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring as Ring
-import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
 import Prelude hiding
@@ -492,16 +491,16 @@ runScanWith isMany
     step (sL, sR) x = do
         rL <- stepL sL x
         case rL of
-            Scan.Yield b sL1 -> do
+            StreamD.Yield b sL1 -> do
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL1, sR1)
                     Done bR -> return (Done bR)
-            Scan.Skip sL1 -> return $ Partial (sL1, sR)
+            StreamD.Skip sL1 -> return $ Partial (sL1, sR)
             -- XXX We have dropped the input.
             -- XXX Need same behavior for Stop in Fold so that the driver can
             -- consistently assume it is dropped.
-            Scan.Stop ->
+            StreamD.Stop ->
                 if isMany
                 then return $ Partial (initialL, sR)
                 else Done <$> finalR sR

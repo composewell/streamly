@@ -45,7 +45,6 @@ import Streamly.Internal.Data.SVar.Type (defState)
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold.Type as Fold
-import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 
 import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
@@ -701,6 +700,6 @@ fromScan (Scan step initial) = Pipe consume undefined initial
     consume st a = do
         r <- step st a
         return $ case r of
-            Scan.Yield b s -> YieldC s b
-            Scan.Skip s -> SkipC s
-            Scan.Stop -> Stop
+            Stream.Yield b s -> YieldC s b
+            Stream.Skip s -> SkipC s
+            Stream.Stop -> Stop

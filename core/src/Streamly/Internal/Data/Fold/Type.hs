@@ -461,7 +461,7 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Scan as Scan
+import qualified Streamly.Internal.Data.Stream.Step as Stream
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding (Foldable(..), concatMap, filter, map, take)
@@ -655,18 +655,18 @@ fromScan (Scan consume initial) =
     fstep (FromScanInit ss) a = do
         r <- consume ss a
         return $ case r of
-            Scan.Yield b s -> Partial (FromScanGo s b)
-            Scan.Skip s -> Partial (FromScanInit s)
+            Stream.Yield b s -> Partial (FromScanGo s b)
+            Stream.Skip s -> Partial (FromScanInit s)
             -- XXX We have lost the input here.
             -- XXX Need to change folds to always return Done on the next input
-            Scan.Stop -> Done Nothing
+            Stream.Stop -> Done Nothing
     fstep (FromScanGo ss acc) a = do
         r <- consume ss a
         return $ case r of
-            Scan.Yield b s -> Partial (FromScanGo s b)
-            Scan.Skip s -> Partial (FromScanGo s acc)
+            Stream.Yield b s -> Partial (FromScanGo s b)
+            Stream.Skip s -> Partial (FromScanGo s acc)
             -- XXX We have lost the input here.
-            Scan.Stop -> Done (Just acc)
+            Stream.Stop -> Done (Just acc)
 
     fextract (FromScanInit _) = return Nothing
     fextract (FromScanGo _ acc) = return (Just acc)
