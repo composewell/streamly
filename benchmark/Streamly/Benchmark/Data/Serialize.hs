@@ -55,6 +55,11 @@ import Streamly.Benchmark.Data.Serialize.RecNonCompatible
 #define DESERIALIZE_OP deserializeAt
 #endif
 
+import Prelude hiding (length)
+#ifndef USE_UNBOX
+import qualified Prelude as P
+#endif
+
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
@@ -557,7 +562,7 @@ main = do
     -- Approximately 100000 constructors, assuming two constructors (Cons, Int)
     -- per element.
     let lInt = [1..50000 :: Int]
-    let !len = length lInt -- evaluate the list
+    let !len = P.length lInt -- evaluate the list
 #endif
 #ifndef FUSION_CHECK
 #ifdef USE_UNBOX

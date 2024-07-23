@@ -299,7 +299,7 @@ instance
     serializeAt off arr (Array {..}) = do
         let arrLen = arrEnd - arrStart
         off1 <- serializeAt off arr arrLen
-        MBA.putSliceUnsafe arrContents arrStart arr off1 arrLen
+        MBA.unsafePutSlice arrContents arrStart arr off1 arrLen
         pure (off1 + arrLen)
 
 instance (Serialize a, Serialize b) => Serialize (a, b) where
