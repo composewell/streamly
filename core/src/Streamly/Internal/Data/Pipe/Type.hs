@@ -701,6 +701,6 @@ fromScan (Scan step initial) = Pipe consume undefined initial
     consume st a = do
         r <- step st a
         return $ case r of
-            Scan.Yield s b -> YieldC s b
+            Scan.Yield b s -> YieldC s b
             Scan.Skip s -> SkipC s
             Scan.Stop -> Stop

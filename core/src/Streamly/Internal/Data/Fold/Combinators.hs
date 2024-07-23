@@ -492,7 +492,7 @@ runScanWith isMany
     step (sL, sR) x = do
         rL <- stepL sL x
         case rL of
-            Scan.Yield sL1 b -> do
+            Scan.Yield b sL1 -> do
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL1, sR1)

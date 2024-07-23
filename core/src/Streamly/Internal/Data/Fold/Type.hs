@@ -655,7 +655,7 @@ fromScan (Scan consume initial) =
     fstep (FromScanInit ss) a = do
         r <- consume ss a
         return $ case r of
-            Scan.Yield s b -> Partial (FromScanGo s b)
+            Scan.Yield b s -> Partial (FromScanGo s b)
             Scan.Skip s -> Partial (FromScanInit s)
             -- XXX We have lost the input here.
             -- XXX Need to change folds to always return Done on the next input
@@ -663,7 +663,7 @@ fromScan (Scan consume initial) =
     fstep (FromScanGo ss acc) a = do
         r <- consume ss a
         return $ case r of
-            Scan.Yield s b -> Partial (FromScanGo s b)
+            Scan.Yield b s -> Partial (FromScanGo s b)
             Scan.Skip s -> Partial (FromScanGo s acc)
             -- XXX We have lost the input here.
             Scan.Stop -> Done (Just acc)

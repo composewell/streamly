@@ -71,7 +71,6 @@ where
 #include "inline.hs"
 import Control.Arrow (Arrow(..))
 import Control.Category (Category(..))
-import Data.Functor ((<&>))
 import Data.Maybe (isJust, fromJust)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
@@ -101,14 +100,14 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- | The result of a scan step.
 {-# ANN type Step Fuse #-}
 data Step s b =
-      Yield s b -- ^ Yield output and keep consuming
+      Yield b s -- ^ Yield output and keep consuming
     | Skip s -- ^ No output, keep consuming
     | Stop -- ^ Stop consuming, last input is unsed
 
 -- | 'fmap' maps a function on the step output.
 instance Functor (Step s) where
     {-# INLINE_NORMAL fmap #-}
-    fmap f (Yield s b) = Yield s (f b)
+    fmap f (Yield b s) = Yield (f b) s
     fmap _ (Skip s) = Skip s
     fmap _ Stop = Stop
 
@@ -169,11 +168,11 @@ compose
     step (sL, sR) x = do
         rL <- stepL sL x
         case rL of
-            Yield sL1 bL -> do
+            Yield bL sL1 -> do
                 rR <- stepR sR bL
                 return
                     $ case rR of
-                        Yield sR1 br -> Yield (sL1, sR1) br
+                        Yield br sR1 -> Yield br (sL1, sR1)
                         Skip sR1 -> Skip (sL1, sR1)
                         Stop -> Stop
             Skip sL1 -> return $ Skip (sL1, sR)
@@ -191,7 +190,7 @@ compose
 --
 {-# INLINE functionM #-}
 functionM :: Monad m => (a -> m b) -> Scan m a b
-functionM f = Scan (\() a -> f a <&> Yield ()) ()
+functionM f = Scan (\() a -> fmap (\x -> Yield x ()) (f a)) ()
 
 -- | A scan representing mapping of a pure function.
 --
@@ -251,19 +250,27 @@ teeWithMay f (Scan stepL initialL) (Scan stepR initialR) =
         resR <- stepR sR a
         return
             $ case resL of
-                  Yield sL1 bL ->
+                  Yield bL sL1 ->
                     case resR of
-                        Yield sR1 bR ->
-                            Yield (TeeWith sL1 sR1) (f (Just bL) (Just bR))
+                        Yield bR sR1 ->
+                            Yield
+                                (f (Just bL) (Just bR))
+                                (TeeWith sL1 sR1)
                         Skip sR1 ->
-                            Yield (TeeWith sL1 sR1) (f (Just bL) Nothing)
+                            Yield
+                                (f (Just bL) Nothing)
+                                (TeeWith sL1 sR1)
                         Stop -> Stop
                   Skip sL1 ->
                     case resR of
-                        Yield sR1 bR ->
-                            Yield (TeeWith sL1 sR1) (f Nothing (Just bR))
+                        Yield bR sR1 ->
+                            Yield
+                                (f Nothing (Just bR))
+                                (TeeWith sL1 sR1)
                         Skip sR1 ->
-                            Yield (TeeWith sL1 sR1) (f Nothing Nothing)
+                            Yield
+                                (f Nothing Nothing)
+                                (TeeWith sL1 sR1)
                         Stop -> Stop
                   Stop -> Stop
 
@@ -285,7 +292,7 @@ teeWith f s1 s2 =
 -- | Zips the outputs only when both scans produce outputs, discards otherwise.
 instance Monad m => Applicative (Scan m a) where
     {-# INLINE pure #-}
-    pure b = Scan (\_ _ -> pure $ Yield () b) ()
+    pure b = Scan (\_ _ -> pure $ Yield b ()) ()
 
     (<*>) = teeWith id
 
@@ -311,19 +318,27 @@ unzipMay (Scan stepL initialL) (Scan stepR initialR) =
         resR <- stepR sR b
         return
             $ case resL of
-                  Yield sL1 bL ->
+                  Yield bL sL1 ->
                     case resR of
-                        Yield sR1 bR ->
-                            Yield (Tuple' sL1 sR1) (Just bL, Just bR)
+                        Yield bR sR1 ->
+                            Yield
+                                (Just bL, Just bR)
+                                (Tuple' sL1 sR1)
                         Skip sR1 ->
-                            Yield (Tuple' sL1 sR1) (Just bL, Nothing)
+                            Yield
+                                (Just bL, Nothing)
+                                (Tuple' sL1 sR1)
                         Stop -> Stop
                   Skip sL1 ->
                     case resR of
-                        Yield sR1 bR ->
-                            Yield (Tuple' sL1 sR1) (Nothing, Just bR)
+                        Yield bR sR1 ->
+                            Yield
+                                (Nothing, Just bR)
+                                (Tuple' sL1 sR1)
                         Skip sR1 ->
-                            Yield (Tuple' sL1 sR1) (Nothing, Nothing)
+                            Yield
+                                (Nothing, Nothing)
+                                (Tuple' sL1 sR1)
                         Stop -> Stop
                   Stop -> Stop
 
@@ -368,7 +383,7 @@ filterM f = Scan (\() a -> f a >>= g a) ()
     g a b =
         return
             $ if b
-              then Yield () a
+              then Yield a ()
               else Skip ()
 
 -- | A filtering scan using a pure predicate.

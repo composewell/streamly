@@ -245,7 +245,7 @@ runScan (Scan consume initial) (Stream stream_step state) =
                 res <- consume cs x
                 return
                     $ case res of
-                        Scan.Yield cs1 b -> Yield b (ScanConsume s cs1)
+                        Scan.Yield b cs1 -> Yield b (ScanConsume s cs1)
                         Scan.Skip cs1 -> Skip (ScanConsume s cs1)
                         Scan.Stop -> Stop
             Skip s -> return $ Skip (ScanConsume s cs)
