@@ -6,7 +6,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- A Scan is half the pipe:
+-- Scans vs pipes:
 --
 -- A scan is a simpler version of pipes. A scan always consumes an input and
 -- may or may not produce an output. It can produce at most one output on one
@@ -93,6 +93,11 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- Scans
 ------------------------------------------------------------------------------
 
+-- A core difference between the Scan type and the Fold type is that Scan can
+-- stop without producing an output, this is required to represent an empty
+-- stream. For this reason a Scan cannot be represented using a Fold because a
+-- fold requires a value to be produced on Stop.
+
 -- | The result of a scan step.
 {-# ANN type Step Fuse #-}
 data Step s b =
@@ -141,6 +146,9 @@ instance Functor m => Functor (Scan m a) where
 -------------------------------------------------------------------------------
 -- Category
 -------------------------------------------------------------------------------
+
+-- XXX We can call this append, because corresponding operation in stream is
+-- also append.
 
 -- | Connect two scans in series. Attach the first scan on the output of the
 -- second scan.

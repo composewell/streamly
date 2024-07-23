@@ -535,6 +535,9 @@ import Streamly.Internal.Data.Fold.Step
 -- to create folds.
 --
 data Fold m a b =
+  -- XXX Since we have scans now, we can remove the extract function.
+  -- XXX initial can be made pure, like in streams, we can add effects by using
+  -- bracket like operations.
   -- | @Fold@ @step@ @initial@ @extract@ @final@
   forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b) (s -> m b)
 
@@ -629,6 +632,16 @@ foldl1M'  step = fmap toMaybe $ foldlM' step1 (return Nothing')
     step1 (Just' x) a = Just' <$> step x a
 
 data FromScan s b = FromScanInit !s | FromScanGo !s !b
+
+-- XXX we can attach a scan on the last fold e.g. "runScan s last". Or run a
+-- scan on a fold that supplies a default value?
+--
+-- If we are pushing a value to a scan and the scan stops we will lose the
+-- input. Only those scans that do not use the Stop constructor can be used as
+-- folds or with folds? The Stop constructor makes them suitable to be composed
+-- with pull based streams, push based folds cannot work with that. Do we need
+-- two types of scans then, scans for streams and scans for folds? ScanR and
+-- ScanL?
 
 -- | This does not work correctly yet. We lose the last input.
 --
