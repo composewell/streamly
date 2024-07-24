@@ -474,7 +474,7 @@ pipe (Pipe consume produce pinitial) (Fold fstep finitial fextract ffinal) =
             r <- produce ps1
             go acc r
         -- XXX a Stop in consumer means we dropped the input.
-        go acc Pipe.Stop = Done <$> fextract acc
+        go acc Pipe.Stop = Done <$> ffinal acc
 
     extract (Tuple' _ fs) = fextract fs
 
