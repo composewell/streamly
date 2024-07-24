@@ -355,6 +355,7 @@ library
 
                      -- streamly-containers (non-base)
                      , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Scanl
 
                      -- streamly-core-data-arrays
                      , Streamly.Internal.Data.Array.Generic
