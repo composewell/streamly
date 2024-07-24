@@ -14,22 +14,10 @@
 -- it can produce multiple outputs on a single input. Scans are simpler
 -- abstractions to think about and easier for the compiler to optimize.
 --
--- Scans vs folds:
+-- Scanr vs Stream
 --
--- Folds and scans both are consumers with very little difference. Folds return
--- a singleton value whereas scans produce a stream. A fold can be implemented
--- by extracting the last value from the scan stream.
---
--- Since folds do not care about intermediate values, we do not need the Yield
--- constructor for folds, we can do with Skip and Stop. Because folds do not
--- have a requirement for intermediate values, they can be used for
--- implementing combinators like splitWith where intermediate values are not
--- meaningful and are expensive to compute. Folds provide an applicative and
--- monad behavior to consume the stream in parts and compose the folded
--- results. Scans provide Category like composition and stream zip applicative
--- behavior. The finalization function of a fold would return a single value
--- whereas for scan it may be a stream draining the scan buffer. For these
--- reasons, scans and folds are required as independent abstractions.
+-- A Scan m () a can be converted into a Stream m a by supplying the Scan with
+-- () inputs.
 --
 -- What kind of compositions are possible with scans?
 --
@@ -104,6 +92,9 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- XXX A scan may have buffered data which may have to be drained if the driver
 -- has no more input to supply. So we need a finalizer which produces a
 -- (possibly empty) stream.
+--
+-- XXX We should add finalizer (and Error constructor?) to it before we
+-- release it.
 
 -- | Represents a stateful transformation over an input stream of values of
 -- type @a@ to outputs of type @b@ in 'Monad' @m@.
