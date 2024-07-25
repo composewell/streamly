@@ -79,6 +79,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     , findIndices
     , elemIndices
 
+    {-
     -- *** Singleton folds
     -- | Folds that terminate after consuming exactly one input element. All
     -- these can be implemented in terms of the 'maybe' fold.
@@ -86,10 +87,12 @@ module Streamly.Internal.Data.Scanl.Combinators
     , null -- XXX not very useful and could be problematic, remove it?
     , satisfy
     , maybe
+    -}
 
     -- *** Multi folds
     -- | Terminate after consuming one or more elements.
     , drainN
+    {-
     -- , lastN
     -- , (!!)
     , genericIndex
@@ -105,6 +108,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     , any
     , and
     , or
+    -}
 
     -- ** Trimmers
     -- | Useful in combination with the 'scanMaybe' combinator.
@@ -116,18 +120,18 @@ module Streamly.Internal.Data.Scanl.Combinators
     , droppingWhile
     , prune
 
-    -- * Running A Fold
+    -- -- * Running A Fold
     -- , drive
     -- , breakStream
 
-    -- * Building Incrementally
+    -- -- * Building Incrementally
     -- , addStream
 
     -- * Combinators
     -- ** Utilities
     , with
 
-    -- ** Sliding Window
+    -- -- ** Sliding Window
     -- , slide2
 
     -- ** Scanning Input
@@ -157,7 +161,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     , reverse
     -}
 
-    -- ** Trimming
+    -- -- ** Trimming
 
     -- By elements
     -- , takeEndBySeq
@@ -168,7 +172,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     , dropWhileM
     -}
 
-    -- ** Serial Append
+    -- -- ** Serial Append
     -- , tail
     -- , init
     -- , splitAt -- spanN
@@ -195,9 +199,9 @@ module Streamly.Internal.Data.Scanl.Combinators
     , partitionBy
     , partition
 
-    -- ** Splitting
-    , chunksBetween
-    , intersperseWithQuotes
+    -- -- ** Splitting
+    -- , chunksBetween
+    -- , intersperseWithQuotes
 
     -- ** Nesting
     , unfoldMany
@@ -1042,6 +1046,7 @@ toListRev = scanl' (flip (:)) []
 drainN :: Monad m => Int -> Scanl m a ()
 drainN n = take n drain
 
+{-
 ------------------------------------------------------------------------------
 -- To Elements
 ------------------------------------------------------------------------------
@@ -1190,6 +1195,7 @@ findIndex predicate = scant' step (Partial 0) (const Nothing)
         if predicate a
         then Done $ Just i
         else Partial (i + 1)
+-}
 
 -- | Returns the index of the latest element if the element satisfies the given
 -- predicate.
@@ -1218,6 +1224,7 @@ findIndices predicate =
 elemIndices :: (Monad m, Eq a) => a -> Scanl m a (Maybe Int)
 elemIndices a = findIndices (== a)
 
+{-
 -- | Returns the first index where a given value is found in the stream.
 --
 -- Definition:
@@ -1336,6 +1343,7 @@ and = all id
 {-# INLINE or #-}
 or :: Monad m => Scanl m Bool Bool
 or = any id
+-}
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
@@ -2182,7 +2190,6 @@ concatSequence ::
     -- IsStream t =>
     Fold m b c -> t (Scanl m a b) -> Scanl m a c
 concatSequence _f _p = undefined
--}
 
 -- | Group the input stream into groups of elements between @low@ and @high@.
 -- Collection starts in chunks of @low@ and then keeps doubling until we reach
@@ -2200,6 +2207,7 @@ concatSequence _f _p = undefined
 chunksBetween :: -- Monad m =>
        Int -> Int -> Scanl m a b -> Scanl m b c -> Scanl m a c
 chunksBetween _low _high _f1 _f2 = undefined
+-}
 
 -- | A fold that buffers its input to a pure stream.
 --
@@ -2349,6 +2357,7 @@ top = bottomBy $ flip compare
 bottom :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (MutArray a)
 bottom = bottomBy compare
 
+{-
 ------------------------------------------------------------------------------
 -- Interspersed parsing
 ------------------------------------------------------------------------------
@@ -2444,3 +2453,4 @@ intersperseWithQuotes
         _ <- finalR sR
         _ <- finalL sL
         error "intersperseWithQuotes: finished inside quote, at escape char"
+-}

@@ -126,6 +126,7 @@ module Streamly.Internal.Data.Scanl.Type
     , takeEndBy
     , dropping
 
+    {-
     -- ** Sequential application
     -- , splitWith -- rename to "append"
     -- , split_
@@ -142,12 +143,14 @@ module Streamly.Internal.Data.Scanl.Type
     -- , concatMap
     -- , duplicate
     , refold
+    -}
 
     -- ** Parallel Distribution
     , teeWith
     , teeWithFst
     , teeWithMin
 
+    {-
     -- ** Parallel Alternative
     , shortest
     , longest
@@ -162,6 +165,7 @@ module Streamly.Internal.Data.Scanl.Type
     , snoclM
     , close
     , isClosed
+    -}
 
     -- * Transforming inner monad
     , morphInner
@@ -174,7 +178,7 @@ where
 #if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
 #endif
-import Control.Monad ((>=>), void)
+import Control.Monad ((>=>))
 import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
@@ -898,12 +902,16 @@ teeWithMin f
 
     final (Tuple' sL sR) = f <$> finalL sL <*> finalR sR
 
+{-
+-- XXX Is fromPure correct, should it generate a stream instead?
 instance Monad m => Applicative (Scanl m a) where
     {-# INLINE pure #-}
     pure = fromPure
 
     (<*>) = teeWith id
 
+-- XXX this does not make sense as a scan.
+--
 -- | Shortest alternative. Apply both folds in parallel but choose the result
 -- from the one which consumed least input i.e. take the shortest succeeding
 -- fold.
@@ -995,7 +1003,6 @@ longest
     final (LongestRight sR) = Right <$> finalR sR
     final (LongestBoth sL sR) = Left <$> finalL sL <* finalR sR
 
-{-
 data ConcatMapState m sa a b c
     = B !sa (sa -> m b)
     | forall s. C (s -> a -> m (Step s c)) !s (s -> m c) (s -> m c)
@@ -1416,7 +1423,6 @@ duplicate (Fold step1 initial1 extract1 final1) =
     extract = error "duplicate: scanning may be problematic"
 
     final s = pure $ Fold step1 (pure $ Partial s) extract1 final1
--}
 
 -- If there were a finalize/flushing action in the stream type that would be
 -- equivalent to running initialize in Fold. But we do not have a flushing
@@ -1579,6 +1585,7 @@ isClosed (Scanl _ initial _ _) = do
     return $ case res of
           Partial _ -> False
           Done _ -> True
+-}
 
 ------------------------------------------------------------------------------
 -- Parsing
@@ -1588,6 +1595,12 @@ isClosed (Scanl _ initial _ _) = do
 -- applied to a fold input stream. groupBy et al can be written as terminating
 -- folds and then we can apply "many" to use those repeatedly on a stream.
 
+-- XXX many should have the following signature:
+-- many :: Monad m => Foldl m a b -> Scanl m b c -> Scanl m a (Maybe c)
+-- Should return Nothing in the intermediate state and Just when the first fold
+-- completes and is fed to the second fold.
+
+{-
 {-# ANN type ManyState Fuse #-}
 data ManyState s1 s2
     = ManyFirst !s1 !s2
@@ -1857,6 +1870,7 @@ refoldMany1
 refold :: Monad m => Refold m b a c -> Scanl m a b -> Scanl m a c
 refold (Refold step inject extract) f =
     Scanl step (extractM f >>= inject) extract extract
+-}
 
 ------------------------------------------------------------------------------
 -- morphInner
