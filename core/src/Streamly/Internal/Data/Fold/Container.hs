@@ -292,7 +292,11 @@ demuxGeneric getKey getFold =
                             let fld = Fold step1 (return res1) extract1 final1
                              in Tuple' (IsMap.mapInsert k fld kv) Nothing
                         Done b -> Tuple' (IsMap.mapDelete k kv) (Just (k, b))
-            Done b -> return $ Tuple' kv (Just (k, b))
+            Done b ->
+                -- Done in "initial" is possible only for the very first time
+                -- the fold is initialized, and in that case we have not yet
+                -- inserted it in the Map, so we do not need to delete it.
+                return $ Tuple' kv (Just (k, b))
 
     step (Tuple' kv _) a = do
         let k = getKey a
@@ -590,6 +594,8 @@ classifyGeneric f (Fold step1 initial1 extract1 final1) =
 
         f1 k s = do
             if Set.member k set
+            -- XXX Why are we doing this? If it is in the set then it will not
+            -- be in the map and vice-versa.
             then extract1 s
             else final1 s
 
