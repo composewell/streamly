@@ -156,7 +156,7 @@ jobs:
         - run:
             environment:
               GHCVER: "8.6.5"
-              CABAL_VERSION: "3.6.2.0"
+              CABALVER: "3.6.2.0"
               CABAL_PROJECT: "cabal.project"
               DISABLE_SDIST_BUILD: "yes"
               CABAL_BUILD_OPTIONS: "--flag debug --flag -opt"
@@ -173,7 +173,7 @@ jobs:
         - run:
             environment:
               GHCVER: "9.8.1"
-              CABAL_VERSION: "3.10.1.0"
+              CABALVER: "3.10.1.0"
               CABAL_PROJECT: "cabal.project.doctest"
               DISABLE_SDIST_BUILD: "y"
               DISABLE_TEST: "y"

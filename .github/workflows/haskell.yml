@@ -128,18 +128,18 @@ jobs:
             disable_sdist_build: "y"
             cabal_project: cabal.project.Werror
             ignore_error: false
-          - name: 9.8.1-docspec
-            ghc_version: 9.8.1
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.10.1.0
-            cabal_project: cabal.project.doctest
-            disable_test: "y"
-            disable_bench: "y"
-            disable_docs: "y"
-            enable_docspec: "y"
-            disable_sdist_build: "y"
-            ignore_error: false
+        # - name: 9.8.1-docspec
+        #   ghc_version: 9.8.1
+        #   runner: ubuntu-latest
+        #   build: cabal
+        #   cabal_version: 3.10.1.0
+        #   cabal_project: cabal.project.doctest
+        #   disable_test: "y"
+        #   disable_bench: "y"
+        #   disable_docs: "y"
+        #   enable_docspec: "y"
+        #   disable_sdist_build: "y"
+        #   ignore_error: false
           - name: 9.8.1-fusion-inspection
             ghc_version: 9.8.1
             runner: ubuntu-latest
