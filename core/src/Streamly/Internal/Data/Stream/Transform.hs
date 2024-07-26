@@ -158,7 +158,7 @@ import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..))
-import Streamly.Internal.Data.Scanr (Scan(..))
+import Streamly.Internal.Data.Scanr (Scanr(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
 import Streamly.Internal.Data.Unbox (Unbox)
@@ -230,8 +230,8 @@ data RunScanState st sc ps = ScanConsume st sc
 -- | Use a lazy right 'Scan' to transform a stream.
 --
 {-# INLINE_NORMAL scanr #-}
-scanr :: Monad m => Scan m a b -> Stream m a -> Stream m b
-scanr (Scan consume initial) (Stream stream_step state) =
+scanr :: Monad m => Scanr m a b -> Stream m a -> Stream m b
+scanr (Scanr consume initial) (Stream stream_step state) =
     Stream step (ScanConsume state initial)
 
     where

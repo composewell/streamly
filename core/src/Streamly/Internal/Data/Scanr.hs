@@ -39,7 +39,7 @@
 module Streamly.Internal.Data.Scanr
     (
     -- * Type
-      Scan (..)
+      Scanr (..)
 
     -- * Primitive Scans
     , identity
@@ -100,8 +100,8 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- type @a@ to outputs of type @b@ in 'Monad' @m@.
 --
 -- The constructor is @Scan consume initial@.
-data Scan m a b =
-    forall s. Scan
+data Scanr m a b =
+    forall s. Scanr
         (s -> a -> m (Step s b))
         s
 
@@ -114,9 +114,9 @@ data Scan m a b =
 -- >>> Stream.toList $ Stream.runScan (fmap (+1) Scan.identity) $ Stream.fromList [1..5::Int]
 -- [2,3,4,5,6]
 --
-instance Functor m => Functor (Scan m a) where
+instance Functor m => Functor (Scanr m a) where
     {-# INLINE_NORMAL fmap #-}
-    fmap f (Scan consume initial) = Scan consume1 initial
+    fmap f (Scanr consume initial) = Scanr consume1 initial
 
         where
 
@@ -138,10 +138,10 @@ instance Functor m => Functor (Scan m a) where
 -- [3,4,5,6,7]
 --
 {-# INLINE_NORMAL compose #-}
-compose :: Monad m => Scan m b c -> Scan m a b -> Scan m a c
+compose :: Monad m => Scanr m b c -> Scanr m a b -> Scanr m a c
 compose
-    (Scan stepR initialR)
-    (Scan stepL initialL) = Scan step (initialL, initialR)
+    (Scanr stepR initialR)
+    (Scanr stepL initialL) = Scanr step (initialL, initialR)
 
     where
 
@@ -170,8 +170,8 @@ compose
 -- [(),(),(),(),()]
 --
 {-# INLINE functionM #-}
-functionM :: Monad m => (a -> m b) -> Scan m a b
-functionM f = Scan (\() a -> fmap (\x -> Yield x ()) (f a)) ()
+functionM :: Monad m => (a -> m b) -> Scanr m a b
+functionM f = Scanr (\() a -> fmap (`Yield` ()) (f a)) ()
 
 -- | A scan representing mapping of a pure function.
 --
@@ -179,7 +179,7 @@ functionM f = Scan (\() a -> fmap (\x -> Yield x ()) (f a)) ()
 -- [2,3,4,5,6]
 --
 {-# INLINE function #-}
-function :: Monad m => (a -> b) -> Scan m a b
+function :: Monad m => (a -> b) -> Scanr m a b
 function f = functionM (return Prelude.. f)
 
 {- HLINT ignore "Redundant map" -}
@@ -192,10 +192,10 @@ function f = functionM (return Prelude.. f)
 -- [1,2,3,4,5]
 --
 {-# INLINE identity #-}
-identity :: Monad m => Scan m a a
+identity :: Monad m => Scanr m a a
 identity = function Prelude.id
 
-instance Monad m => Category (Scan m) where
+instance Monad m => Category (Scanr m) where
     {-# INLINE id #-}
     id = identity
 
@@ -220,9 +220,9 @@ data TeeWith sL sR = TeeWith !sL !sR
 --
 {-# INLINE_NORMAL teeWithMay #-}
 teeWithMay :: Monad m =>
-    (Maybe b -> Maybe c -> d) -> Scan m a b -> Scan m a c -> Scan m a d
-teeWithMay f (Scan stepL initialL) (Scan stepR initialR) =
-    Scan step (TeeWith initialL initialR)
+    (Maybe b -> Maybe c -> d) -> Scanr m a b -> Scanr m a c -> Scanr m a d
+teeWithMay f (Scanr stepL initialL) (Scanr stepR initialR) =
+    Scanr step (TeeWith initialL initialR)
 
     where
 
@@ -264,16 +264,16 @@ teeWithMay f (Scan stepL initialL) (Scan stepR initialR) =
 --
 {-# INLINE_NORMAL teeWith #-}
 teeWith :: Monad m =>
-    (b -> c -> d) -> Scan m a b -> Scan m a c -> Scan m a d
+    (b -> c -> d) -> Scanr m a b -> Scanr m a c -> Scanr m a d
 teeWith f s1 s2 =
     fmap fromJust
         $ compose (filter isJust)
         $ teeWithMay (\b c -> f <$> b <*> c) s1 s2
 
 -- | Zips the outputs only when both scans produce outputs, discards otherwise.
-instance Monad m => Applicative (Scan m a) where
+instance Monad m => Applicative (Scanr m a) where
     {-# INLINE pure #-}
-    pure b = Scan (\_ _ -> pure $ Yield b ()) ()
+    pure b = Scanr (\_ _ -> pure $ Yield b ()) ()
 
     (<*>) = teeWith id
 
@@ -288,9 +288,9 @@ instance Monad m => Applicative (Scan m a) where
 --
 {-# INLINE_NORMAL unzipMay #-}
 unzipMay :: Monad m =>
-    Scan m a x -> Scan m b y -> Scan m (a, b) (Maybe x, Maybe y)
-unzipMay (Scan stepL initialL) (Scan stepR initialR) =
-    Scan step (Tuple' initialL initialR)
+    Scanr m a x -> Scanr m b y -> Scanr m (a, b) (Maybe x, Maybe y)
+unzipMay (Scanr stepL initialL) (Scanr stepR initialR) =
+    Scanr step (Tuple' initialL initialR)
 
     where
 
@@ -326,7 +326,7 @@ unzipMay (Scan stepL initialL) (Scan stepR initialR) =
 -- | Like 'unzipMay' but produces an output only when both the scans produce an
 -- output. Other outputs are filtered out.
 {-# INLINE_NORMAL unzip #-}
-unzip :: Monad m => Scan m a x -> Scan m b y -> Scan m (a, b) (x, y)
+unzip :: Monad m => Scanr m a x -> Scanr m b y -> Scanr m (a, b) (x, y)
 unzip s1 s2 = fmap (fromJust Prelude.. f) $ unzipMay s1 s2
 
     where
@@ -339,7 +339,7 @@ unzip s1 s2 = fmap (fromJust Prelude.. f) $ unzipMay s1 s2
                     Nothing -> Nothing
             Nothing -> Nothing
 
-instance Monad m => Arrow (Scan m) where
+instance Monad m => Arrow (Scanr m) where
     {-# INLINE arr #-}
     arr = function
 
@@ -355,8 +355,8 @@ instance Monad m => Arrow (Scan m) where
 
 -- | A filtering scan using a monadic predicate.
 {-# INLINE filterM #-}
-filterM :: Monad m => (a -> m Bool) -> Scan m a a
-filterM f = Scan (\() a -> f a >>= g a) ()
+filterM :: Monad m => (a -> m Bool) -> Scanr m a a
+filterM f = Scanr (\() a -> f a >>= g a) ()
 
     where
 
@@ -373,5 +373,5 @@ filterM f = Scan (\() a -> f a >>= g a) ()
 -- [1,3,5]
 --
 {-# INLINE filter #-}
-filter :: Monad m => (a -> Bool) -> Scan m a a
+filter :: Monad m => (a -> Bool) -> Scanr m a a
 filter f = filterM (return Prelude.. f)

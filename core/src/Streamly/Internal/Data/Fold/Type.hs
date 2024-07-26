@@ -363,7 +363,7 @@ module Streamly.Internal.Data.Fold.Type
     , fromPure
     , fromEffect
     , fromRefold
-    , fromScan
+    -- , fromScan
     , drain
     , toList
     , toStreamK
@@ -458,10 +458,10 @@ import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
-import Streamly.Internal.Data.Scanr (Scan(..))
+-- import Streamly.Internal.Data.Scanr (Scan(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Stream.Step as Stream
+-- import qualified Streamly.Internal.Data.Stream.Step as Stream
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding (Foldable(..), concatMap, filter, map, take)
@@ -631,6 +631,7 @@ foldl1M'  step = fmap toMaybe $ foldlM' step1 (return Nothing')
     step1 Nothing' a = return $ Just' a
     step1 (Just' x) a = Just' <$> step x a
 
+{-
 data FromScan s b = FromScanInit !s | FromScanGo !s !b
 
 -- XXX we can attach a scan on the last fold e.g. "runScan s last". Or run a
@@ -670,6 +671,7 @@ fromScan (Scan consume initial) =
 
     fextract (FromScanInit _) = return Nothing
     fextract (FromScanGo _ acc) = return (Just acc)
+-}
 
 ------------------------------------------------------------------------------
 -- Right fold constructors

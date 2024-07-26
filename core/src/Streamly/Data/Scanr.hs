@@ -71,7 +71,7 @@
 module Streamly.Data.Scanr
     (
     -- * Type
-      Scan
+      Scanr
 
     -- * Primitive Scans
     , identity
