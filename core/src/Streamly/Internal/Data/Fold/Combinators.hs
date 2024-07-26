@@ -136,7 +136,7 @@ module Streamly.Internal.Data.Fold.Combinators
     -- ** Scanning Input
     , scan
     , scanMany
-    , runScan
+    -- , runScan
     , pipe
     , indexed
 
@@ -232,7 +232,7 @@ import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..))
-import Streamly.Internal.Data.Scan (Scan (..))
+-- import Streamly.Internal.Data.Scan (Scan (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -479,6 +479,7 @@ pipe (Pipe consume produce pinitial) (Fold fstep finitial fextract ffinal) =
 
     final (Tuple' _ fs) = ffinal fs
 
+{-
 {-# INLINE runScanWith #-}
 runScanWith :: Monad m => Bool -> Scan m a b -> Fold m b c -> Fold m a c
 runScanWith isMany
@@ -522,6 +523,7 @@ runScanWith isMany
 {-# INLINE runScan #-}
 runScan :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
 runScan = runScanWith False
+-}
 
 {-# INLINE scanWith #-}
 scanWith :: Monad m => Bool -> Fold m a b -> Fold m b c -> Fold m a c

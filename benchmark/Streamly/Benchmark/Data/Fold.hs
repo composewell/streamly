@@ -39,7 +39,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Data.Fold.Prelude as Fold
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Pipe as Pipe
-import qualified Streamly.Internal.Data.Scan as Scan
+-- import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
@@ -392,6 +392,7 @@ o_1_space_serial_transformation value =
                    (FL.pipe
                         (Pipe.mapM (\x -> return $ x + 1))
                         FL.drain))
+{-
         , benchIOSink
               value
               "fold-runScan"
@@ -399,6 +400,7 @@ o_1_space_serial_transformation value =
                    (FL.runScan
                         (Scan.functionM (\x -> return $ x + 1))
                         FL.drain))
+-}
         , benchIOSink
             value
             "fold-scan"

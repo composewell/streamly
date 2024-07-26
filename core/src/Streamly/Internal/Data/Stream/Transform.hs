@@ -158,7 +158,7 @@ import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..))
-import Streamly.Internal.Data.Scan (Scan(..))
+import Streamly.Internal.Data.Scanr (Scan(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
 import Streamly.Internal.Data.Unbox (Unbox)

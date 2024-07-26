@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Scan
+-- Module      : Streamly.Internal.Data.Scanr
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -36,7 +36,7 @@
 -- Another option could be if a Scan terminates do we want to start it again or
 -- not.
 
-module Streamly.Internal.Data.Scan
+module Streamly.Internal.Data.Scanr
     (
     -- * Type
       Scan (..)

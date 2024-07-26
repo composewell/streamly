@@ -79,7 +79,7 @@ import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Pipe as Pipe
-import qualified Streamly.Internal.Data.Scan as Scan
+import qualified Streamly.Internal.Data.Scanr as Scanr
 
 #ifdef USE_PRELUDE
 import Streamly.Prelude (foldl', scanl')
@@ -427,7 +427,7 @@ scanMapM ::
     => Int
     -> Stream m Int
     -> m ()
-scanMapM n = composeN n $ Stream.runScan (Scan.functionM return)
+scanMapM n = composeN n $ Stream.scanr (Scanr.functionM return)
 #endif
 
 {-# INLINE transformComposeMapM #-}
@@ -455,9 +455,9 @@ scanComposeMapM ::
     -> m ()
 scanComposeMapM n =
     composeN n $
-    Stream.runScan
-        (Scan.functionM (\x -> return (x + 1)) `Scan.compose`
-         Scan.functionM (\x -> return (x + 2)))
+    Stream.scanr
+        (Scanr.functionM (\x -> return (x + 1)) `Scanr.compose`
+         Scanr.functionM (\x -> return (x + 2)))
 #endif
 
 {-# INLINE transformTeeMapM #-}
@@ -485,9 +485,9 @@ scanTeeMapM ::
     -> m ()
 scanTeeMapM n =
     composeN n $
-    Stream.runScan
-        (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
-         (Scan.functionM (\x -> return (x + 2))))
+    Stream.scanr
+        (Scanr.teeWith (+) (Scanr.functionM (\x -> return (x + 1)))
+         (Scanr.functionM (\x -> return (x + 2))))
 #endif
 
 {-

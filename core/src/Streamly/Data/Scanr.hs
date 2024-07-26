@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Scan
+-- Module      : Streamly.Data.Scanr
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -68,7 +68,7 @@
 -- @distribute@: Each input is supplied to all scans and the outputs are zipped
 -- or merged.
 --
-module Streamly.Data.Scan
+module Streamly.Data.Scanr
     (
     -- * Type
       Scan
@@ -87,5 +87,5 @@ module Streamly.Data.Scan
     )
 where
 
-import Streamly.Internal.Data.Scan
+import Streamly.Internal.Data.Scanr
 import Prelude hiding (filter)

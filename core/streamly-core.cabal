@@ -361,7 +361,7 @@ library
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.ParserK
                      , Streamly.Internal.Data.Pipe
-                     , Streamly.Internal.Data.Scan
+                     , Streamly.Internal.Data.Scanr
 
                      -- streamly-containers (non-base)
                      , Streamly.Internal.Data.Fold
@@ -435,7 +435,7 @@ library
                      , Streamly.Data.MutArray
                      , Streamly.Data.MutArray.Generic
                      , Streamly.Data.Fold
-                     , Streamly.Data.Scan
+                     , Streamly.Data.Scanr
                      , Streamly.Data.Parser
                      , Streamly.Data.ParserK
                      , Streamly.Data.Stream

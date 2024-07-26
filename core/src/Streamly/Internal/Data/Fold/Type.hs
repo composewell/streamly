@@ -458,7 +458,7 @@ import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
-import Streamly.Internal.Data.Scan (Scan(..))
+import Streamly.Internal.Data.Scanr (Scan(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Stream.Step as Stream
