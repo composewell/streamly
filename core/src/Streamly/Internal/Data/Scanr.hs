@@ -6,20 +6,26 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Scans vs pipes:
+-- Right scans.
 --
--- A scan is a simpler version of pipes. A scan always consumes an input and
--- may or may not produce an output. It can produce at most one output on one
--- input. Whereas a pipe may produce output even without consuming anything or
--- it can produce multiple outputs on a single input. Scans are simpler
--- abstractions to think about and easier for the compiler to optimize.
+-- == Scanr vs Stream
 --
--- Scanr vs Stream
+-- A scan is a generalization of a stream. Like streams, a scan has an internal
+-- state. Unlike a stream, a scan produces an output only on an input, the
+-- output is a function of the scan state and the input. A scan produces at
+-- most one output on one input, in other words it is driven solely by the
+-- input, it cannot produce output on its own. A @Scanr m () a@ can represent a
+-- @Stream m a@ by supplying the scan with () inputs.
 --
--- A Scan m () a can be converted into a Stream m a by supplying the Scan with
--- () inputs.
+-- == Scans vs pipes:
 --
--- What kind of compositions are possible with scans?
+-- A scan is a simpler version of pipes. It can produce at most one output on
+-- one input. Whereas a pipe may produce output even without consuming anything
+-- or it can produce multiple outputs on a single input. Scans are simpler
+-- abstractions to think about compared to pipes and easier for the compiler to
+-- optimize and fuse.
+--
+-- == Compositions
 --
 -- Append: this is the easiest. The behavior is simple even in presence of
 -- filtering (Skip) and termination (Stop). Skip translates to Skip, Stop

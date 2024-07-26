@@ -6,12 +6,13 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- The 'Scan' type represents a stateful transformation from a stream to
--- another stream. In general, using scans, we can split a stream into
--- multiple streams and perform different stateful computations in each branch
+-- 'Scanr' is a right scan. The 'Scanr' type facilitates a stateful
+-- transformation from a stream to another stream. In addition to simple
+-- transformation of a stream, scans can also be used to split a stream into
+-- multiple branches, perform different stateful transformations in each branch
 -- and then merge the results back into a single stream.
 --
--- You can run a scan on a stream using 'Streamly.Data.Stream.runScan'.
+-- A scan can be run on a stream using 'Streamly.Data.Stream.scanr'.
 --
 -- == Example
 --
@@ -49,17 +50,15 @@
 -- A scan represents a stateful transformation of a stream. It is a consumer as
 -- well as a producer of streams. When it consumes an input, it uses its
 -- internal state and the input to produce an output. It may skip an output, on
--- one input it can produce at most one output.
+-- one input it can produce at most one output, in other words it can shrink or
+-- filter a stream but it cannot expand it.
 --
--- == Scans vs Folds
+-- == Scanr vs Scanl
 --
--- Folds and scans both are consumers of streams. While the output of scans is
--- a stream, the output of folds is a singleton value. A fold is equivalent to
--- a scan which produces only the final value in the output stream.
---
--- Folds provide an applicative and monad behavior to consume the stream in
--- parts and compose the folded results. Scans provide category like
--- composition and stream zip applicative behavior.
+-- 'Scanr' is a right scan, and 'Scanl' is a left scan. 'Scanr' is to 'Stream'
+-- as 'Scanl' is to 'Fold'. 'Scanr' is for composing producer stream
+-- transformations whereas 'Scanl' is for composing consumer stream
+-- transformations.
 --
 -- == Compositions
 --
