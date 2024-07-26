@@ -309,9 +309,10 @@ rootDirMove suffix events =
 
 createFileWithParent :: FilePath -> FilePath -> IO ()
 createFileWithParent file parent = do
-    putStrLn $ "Creating dir and opening: " ++ (parent </> file)
-    when (not (null file)) $
+    when (not (null file)) $ do
+        putStrLn $ "Creating dir: " ++ (parent </> takeDirectory file)
         createDirectoryIfMissing True (parent </> takeDirectory file)
+    putStrLn $ "Opening: " ++ (parent </> file)
     openFile (parent </> file) WriteMode >>= hClose
     putStrLn $ "Opened: " ++ (parent </> file)
 
