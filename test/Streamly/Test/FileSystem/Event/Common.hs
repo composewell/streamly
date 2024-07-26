@@ -173,11 +173,13 @@ driver checker symlinkStyle (desc, pre, ops, expected) =
                             openFile root WriteMode >>= hClose
                             return root
                         SymLinkResolvedPath -> do
+                            -- root -> target
                             let tgt = fp </> "watch-root-real"
                             createDirectory tgt
                             createDirectoryLink tgt root
                             return tgt
                         SymLinkOrigPath -> do
+                            -- root -> target
                             let tgt = fp </> "watch-root-real"
                             createDirectory tgt
                             createDirectoryLink tgt root
@@ -189,7 +191,11 @@ driver checker symlinkStyle (desc, pre, ops, expected) =
                 startWatchAndCheck root target sync
 
     startWatchAndCheck root target sync = do
+            putStrLn ("Before pre op: root [" <> root
+                    <> "] target [" <> target <> "]")
             pre root
+            putStrLn ("After pre op: root [" <> root
+                    <> "] target [" <> target <> "]")
             -- XXX On macOS the events from pre ops also seem to be bundled
             -- with the events occurred after the watch is started.
             let check = checker root target sync expected
@@ -202,9 +208,11 @@ driver checker symlinkStyle (desc, pre, ops, expected) =
         -- not ensure that the event watcher has actually started. So we need a
         -- delay as well. Do we?
         takeMVar sync >> threadDelay 200000
+        putStrLn ("Before fs ops: root [" <> fp)
         ops fp
+        putStrLn ("After fs ops: root [" <> fp)
         threadDelay 10000000
-        error "Time out occurred before event watcher could terminate"
+        error $ fp <> ": Time out occurred before event watcher could terminate"
 
 -------------------------------------------------------------------------------
 -- Test descriptions
@@ -301,9 +309,11 @@ rootDirMove suffix events =
 
 createFileWithParent :: FilePath -> FilePath -> IO ()
 createFileWithParent file parent = do
+    putStrLn $ "Creating dir and opening: " ++ (parent </> file)
     when (not (null file)) $
         createDirectoryIfMissing True (parent </> takeDirectory file)
     openFile (parent </> file) WriteMode >>= hClose
+    putStrLn $ "Opened: " ++ (parent </> file)
 
 createFile :: FilePath -> FilePath -> IO ()
 createFile file parent =

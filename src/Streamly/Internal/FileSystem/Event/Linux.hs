@@ -169,7 +169,7 @@ import Foreign.C.Types (CInt(..), CUInt(..))
 import Foreign.Ptr (Ptr)
 import Foreign.Storable (peek, peekByteOff, sizeOf)
 import GHC.IO.Device (IODeviceType(Stream))
-import GHC.IO.FD (fdFD, mkFD)
+import GHC.IO.FD (fdFD, FD(..))
 import GHC.IO.Handle.FD (mkHandleFromFD)
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Parser (Parser)
@@ -577,6 +577,7 @@ data Watch =
 
 newtype WD = WD CInt deriving Show
 
+-- XXX Use inotify_init1? and IN_NONBLOCK?
 foreign import ccall unsafe
     "sys/inotify.h inotify_init" c_inotify_init :: IO CInt
 
@@ -588,24 +589,32 @@ foreign import ccall unsafe
 createWatch :: IO Watch
 createWatch = do
     rawfd <- throwErrnoIfMinus1 "createWatch" c_inotify_init
-    -- we could use fdToHandle but it cannot determine the fd type
-    -- automatically for the inotify fd
+    -- We could use fdToHandle but it cannot determine the fd type
+    -- automatically for the inotify fd because fdStat fails for Stream type
+    -- fd.
     --
-    -- XXX It locks a regular file, do we need that for watching?
-    (fd, fdType) <-
-        mkFD
-            rawfd
-            ReadMode
-            (Just (Stream, 0, 0))  -- (IODeviceType, CDev, CIno)
-            False                  -- not a socket
-            False                  -- non-blocking is false
-    let fdString = "<createWatch file descriptor: " ++ show fd ++ ">"
+    -- Do not use mkFD as it locks a regular file causing "resource busy" error
+    -- in some test cases.
+    let fd =
+            FD
+                { fdFD = rawfd
+#if !defined(mingw32_HOST_OS)
+                , fdIsNonBlocking = 0
+#else
+                , fdIsSocket_ = 0
+#endif
+              }
+
     -- XXX Do we need non-blocking IO?
+    -- With non-blocking IO it fails because GHC-9.10 uses fdStat in
+    -- FD.setNonBlockingMode to determine the fd type which fails for Stream
+    -- type fd. However, without non-blocking IO "select" has a limitation on
+    -- the number of FDs being watched (1024).
     h <-
         mkHandleFromFD
            fd
-           fdType
-           fdString
+           Stream
+           ("<createWatch fd: " ++ show fd ++ ">")
            ReadMode
            False    -- use non-blocking IO
            Nothing -- TextEncoding (binary)
