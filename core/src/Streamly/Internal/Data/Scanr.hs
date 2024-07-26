@@ -73,7 +73,7 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- >>> import Control.Category
 --
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Scan as Scan
+-- >>> import qualified Streamly.Internal.Data.Scanr as Scanr
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
@@ -111,7 +111,7 @@ data Scanr m a b =
 
 -- | 'fmap' maps a pure function on a scan output.
 --
--- >>> Stream.toList $ Stream.runScan (fmap (+1) Scan.identity) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (fmap (+1) Scanr.identity) $ Stream.fromList [1..5::Int]
 -- [2,3,4,5,6]
 --
 instance Functor m => Functor (Scanr m a) where
@@ -134,7 +134,7 @@ instance Functor m => Functor (Scanr m a) where
 -- second scan.
 --
 -- >>> import Control.Category
--- >>> Stream.toList $ Stream.runScan (Scan.function (+1) >>> Scan.function (+1)) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scanr.function (+1) >>> Scanr.function (+1)) $ Stream.fromList [1..5::Int]
 -- [3,4,5,6,7]
 --
 {-# INLINE_NORMAL compose #-}
@@ -161,7 +161,7 @@ compose
 
 -- | A scan representing mapping of a monadic action.
 --
--- >>> Stream.toList $ Stream.runScan (Scan.functionM print) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scanr.functionM print) $ Stream.fromList [1..5::Int]
 -- 1
 -- 2
 -- 3
@@ -175,7 +175,7 @@ functionM f = Scanr (\() a -> fmap (`Yield` ()) (f a)) ()
 
 -- | A scan representing mapping of a pure function.
 --
--- >>> Stream.toList $ Stream.runScan (Scan.function (+1)) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scanr.function (+1)) $ Stream.fromList [1..5::Int]
 -- [2,3,4,5,6]
 --
 {-# INLINE function #-}
@@ -186,9 +186,9 @@ function f = functionM (return Prelude.. f)
 
 -- | An identity scan producing the same output as input.
 --
--- >>> identity = Scan.function Prelude.id
+-- >>> identity = Scanr.function Prelude.id
 --
--- >>> Stream.toList $ Stream.runScan (Scan.identity) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scanr.identity) $ Stream.fromList [1..5::Int]
 -- [1,2,3,4,5]
 --
 {-# INLINE identity #-}
@@ -215,7 +215,7 @@ data TeeWith sL sR = TeeWith !sL !sR
 -- zip their outputs. If the scan filters the output, 'Nothing' is emitted
 -- otherwise 'Just' is emitted. The scan stops if any of the scans stop.
 --
--- >>> Stream.toList $ Stream.runScan (Scan.teeWithMay (,) Scan.identity (Scan.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scanr.teeWithMay (,) Scanr.identity (Scanr.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
 -- [(Just 1,Just 1),(Just 2,Just 4),(Just 3,Just 9),(Just 4,Just 16),(Just 5,Just 25)]
 --
 {-# INLINE_NORMAL teeWithMay #-}
@@ -259,7 +259,7 @@ teeWithMay f (Scanr stepL initialL) (Scanr stepR initialR) =
 -- the scans skips the output then the composed scan also skips. Stops when any
 -- of the scans stop.
 --
--- >>> Stream.toList $ Stream.runScan (Scan.teeWith (,) Scan.identity (Scan.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scanr.teeWith (,) Scanr.identity (Scanr.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
 -- [(1,1),(2,4),(3,9),(4,16),(5,25)]
 --
 {-# INLINE_NORMAL teeWith #-}
@@ -369,7 +369,7 @@ filterM f = Scanr (\() a -> f a >>= g a) ()
 
 -- | A filtering scan using a pure predicate.
 --
--- >>> Stream.toList $ Stream.runScan (Scan.filter odd) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scanr.filter odd) $ Stream.fromList [1..5::Int]
 -- [1,3,5]
 --
 {-# INLINE filter #-}

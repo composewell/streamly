@@ -19,15 +19,20 @@
 -- us compute the value of the expression @x^4 + 3x^2 + 4@ for each number in a
 -- stream.
 --
--- >>> scan1 = Scan.map (\x -> x * x)
--- >>> scan2 = Scan.map (\x -> 3 * x)
--- >>> scan3 = Scan.teeWith (+) scan1 scan2 -- Compute x^2 + 3x
--- >>> scan4 = Scan.compose scan1 scan3     -- compute x^2 then pass it to scan3
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Scanr as Scanr
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import Data.Function ((&))
+--
+-- >>> scan1 = Scanr.function (\x -> x * x)
+-- >>> scan2 = Scanr.function (\x -> 3 * x)
+-- >>> scan3 = Scanr.teeWith (+) scan1 scan2 -- Compute x^2 + 3x
+-- >>> scan4 = Scanr.compose scan1 scan3     -- compute x^2 then pass it to scan3
 --
 -- >>> :{
 -- main =
 --     Stream.enumerateFromTo 1 3             -- Stream IO Int
---       & Stream.runScan scan4               -- Stream IO Int
+--       & Stream.scanr scan4                 -- Stream IO Int
 --       & fmap (+4)                          -- Stream IO Int
 --       & Stream.fold (Fold.drainMapM print) -- IO ()
 -- :}
