@@ -47,12 +47,12 @@ module Streamly.Internal.Data.Scanl
 
       module Streamly.Internal.Data.Scanl.Type
     , module Streamly.Internal.Data.Scanl.Combinators
-    -- , module Streamly.Internal.Data.Fold.Container
+    , module Streamly.Internal.Data.Scanl.Container
     )
 where
 
 import Streamly.Internal.Data.Scanl.Combinators
--- import Streamly.Internal.Data.Fold.Container
+import Streamly.Internal.Data.Scanl.Container
 import Streamly.Internal.Data.Scanl.Type
 
 #include "DocTestDataFold.hs"

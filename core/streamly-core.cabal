@@ -465,6 +465,7 @@ library
 
                     , Streamly.Internal.Data.Scanl.Type
                     , Streamly.Internal.Data.Scanl.Combinators
+                    , Streamly.Internal.Data.Scanl.Container
 
                     , Streamly.Internal.Data.Parser.Type
                     , Streamly.Internal.Data.Parser.Tee
