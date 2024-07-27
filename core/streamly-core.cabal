@@ -17,35 +17,22 @@ description:
   and networking. For documentation, visit the
   <https://streamly.composewell.com Streamly website>.
   .
-  The streamly-core package provides the following functionality:
+  The streamly-core package provides unified streaming abstractions that
+  include streams, scans, folds and parsers, covering functionalities
+  like effectful lists, list transformer, logic programming. A small
+  number of basic abstractions provide a wide range of functionality.
   .
-  * Streams as composable producers of a sequence of values.
-  * Streams provide all the functionality provided by Haskell lists but
-  in an effectful, streaming fashion with better performance.
-  * Streams provide ListT and logic programming functionality as well.
-  * Folds as composable stream consumers that reduce the streams to a
-  single value or reduce segments of streams to transform the stream.
-  * Parsers as more powerful, composable stream consumers supporting
-  standard parser combinators with backtracking but in a streaming
-  fashion.
-  * Arrays with streaming interfaces providing high performance,
-  modularity, and concise interface as all streaming operations can be
-  performed on arrays.
-  * Arrays can be immutable or mutable, unboxed or boxed, pinned or
-  unpinned.
-  * Arrays generalize the functionality provided by @bytestring@ and
-  @text@ packages.
-  * Ring buffers
-  * Interoperability with @bytestring@ and @text@ is
-  provided via separate packages.
-  * Arrays and folds provide natural builder functionality so there are no
-  separate builder modules.
-  * High performance binary serialization with configurable JSON like features.
-  * Streaming combinators for unicode text processing, providing
-  functionality equivalent to the @text@ package.
-  * String interpolation for convenient construction of strings.
-  * Streaming console IO (stdin/stdout) operations.
-  * Streaming file and directory IO operations.
+  Another unified class of abstractions provided by this package is
+  arrays which can represent, pinned, unpinned, mutable, immutable,
+  boxed and unboxed arrays, ring arrays, unifying concepts
+  like bytestring, text and vector into a single Array
+  abstraction. Functionalities like builders and serialization are
+  natural to arrays without requires any additional packages.
+  .
+  It is a batteries included package, including console IO, file IO,
+  unicode processing, string interpolation. The fundamental unifying
+  theme in all functionality is modularity using basic streaming and
+  array abstractions.
   .
   This package covers some or all of the functionality covered
   by @streaming, pipes, conduit, list-t, logic-t, foldl, attoparsec,
