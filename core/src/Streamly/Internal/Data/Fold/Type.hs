@@ -363,7 +363,7 @@ module Streamly.Internal.Data.Fold.Type
     , fromPure
     , fromEffect
     , fromRefold
-    -- , fromScan
+    , fromScanl
     , drain
     , toList
     , toStreamK
@@ -458,7 +458,7 @@ import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
--- import Streamly.Internal.Data.Scanr (Scan(..))
+import Streamly.Internal.Data.Scanl.Type (Scanl(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 -- import qualified Streamly.Internal.Data.Stream.Step as Stream
@@ -672,6 +672,11 @@ fromScan (Scan consume initial) =
     fextract (FromScanInit _) = return Nothing
     fextract (FromScanGo _ acc) = return (Just acc)
 -}
+
+-- | Convert a left scan to a fold.
+{-# INLINE fromScanl #-}
+fromScanl :: Scanl m a b -> Fold m a b
+fromScanl (Scanl step initial extract final) = Fold step initial extract final
 
 ------------------------------------------------------------------------------
 -- Right fold constructors
