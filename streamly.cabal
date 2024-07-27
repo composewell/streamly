@@ -24,8 +24,8 @@ description:
   additional functionality to quickly build general-purpose applications
   in Haskell. For high-level functionality built over streamly like
   streaming OS processes, shell programming, GNU coreutils,
-  statistics, and compression libraries please see the
-  <https://streamly.composewell.com/ecosystem.html streamly ecosystem packages>.
+  statistics, and compression libraries please see the streamly
+  ecosystem packages.
   .
   Performance with modularity:
   .
@@ -34,7 +34,7 @@ description:
   * Declarative concurrency with automatic scaling
   * Filesystem, fsnotify, network, and Unicode support included
   * Fast binary serialization (with optional JSON like features)
-  * More functionality is provided via many (<https://streamly.composewell.com/ecosystem.html ecosystem packages>)
+  * More functionality is provided via many ecosystem packages
   .
   Unified and powerful abstractions:
   .
