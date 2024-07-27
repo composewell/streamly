@@ -328,9 +328,11 @@ module Streamly.Data.Fold
     , toMap
     , toMapIO
 
+    {-
     -- ** Key-value Scanners
     , classify
     , classifyIO
+    -}
 
     -- ** Transforming the Monad
     , morphInner
@@ -379,9 +381,11 @@ module Streamly.Data.Fold
     , demuxToMap
     , demuxToMapIO
 
+    {-
     -- ** Key-value Scanners
     , demux
     , demuxIO
+    -}
 
     -- ** Nesting
     , concatMap
@@ -398,6 +402,10 @@ module Streamly.Data.Fold
     , variance
     , stdDev
     , serialWith
+    , classify
+    , classifyIO
+    , demux
+    , demuxIO
     )
 where
 

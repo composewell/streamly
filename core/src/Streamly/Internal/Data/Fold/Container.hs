@@ -45,10 +45,10 @@ module Streamly.Internal.Data.Fold.Container
     -- | Like above, but the resulting fold state snapshot contains the key
     -- value container as well as the finished key result if a fold in the
     -- container finished.
-    , demuxGeneric
-    , demux
-    , demuxGenericIO
-    , demuxIO
+    , demuxScanGeneric
+    , demuxScan
+    , demuxScanGenericIO
+    , demuxScanIO
 
     -- TODO: These can be implemented using the above operations
     -- , demuxSel -- Stop when the fold for the specified key stops
@@ -75,12 +75,23 @@ module Streamly.Internal.Data.Fold.Container
     , toMap
     , toMapIO
 
+    , classifyScanGeneric
+    , classifyScan
+    , classifyScanGenericIO
+    , classifyScanIO
+    -- , toContainerSel
+    -- , toContainerMin
+
+    -- * Deprecated
+    , demuxGeneric
+    , demux
+    , demuxGenericIO
+    , demuxIO
+
     , classifyGeneric
     , classify
     , classifyGenericIO
     , classifyIO
-    -- , toContainerSel
-    -- , toContainerMin
     )
 where
 
@@ -93,6 +104,7 @@ import Data.Map.Strict (Map)
 import Data.IntSet (IntSet)
 import Data.Set (Set)
 import Streamly.Internal.Data.IsMap (IsMap(..))
+import Streamly.Internal.Data.Scanl.Type (Scanl(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 
 import qualified Data.IntSet as IntSet
@@ -268,6 +280,7 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- | This is the most general of all demux, classify operations.
 --
 -- See 'demux' for documentation.
+{-# DEPRECATED demuxGeneric "Use demuxGeneric from Scanl module" #-}
 {-# INLINE demuxGeneric #-}
 demuxGeneric :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
@@ -326,6 +339,16 @@ demuxGeneric getKey getFold =
                 Partial s -> fin s
                 _ -> error "demuxGeneric: unreachable code"
 
+-- | Replacement for demuxGeneric when Folds will not have the 'extract'
+-- function. Note that this requires the drain step of Scanl to be streaming.
+--
+-- /Unimplemented/
+demuxScanGeneric :: -- (Monad m, IsMap f, Traversable f) =>
+       (a -> k) -- k ~ Key f
+    -> (k -> m (Fold m a b))
+    -> Scanl m a (k, b)
+demuxScanGeneric = undefined
+
 -- | @demux getKey getFold@: In a key value stream, fold values corresponding
 -- to each key using a key specific fold. @getFold@ is invoked to generate a
 -- key specific fold when a key is encountered for the first time in the
@@ -352,6 +375,7 @@ demuxGeneric getKey getFold =
 --
 -- /Pre-release/
 --
+{-# DEPRECATED demux "Use demux from Scanl module" #-}
 {-# INLINE demux #-}
 demux :: (Monad m, Ord k) =>
        (a -> k)
@@ -359,8 +383,19 @@ demux :: (Monad m, Ord k) =>
     -> Fold m a (m (Map k b), Maybe (k, b))
 demux = demuxGeneric
 
+-- | Replacement for demux when Folds will not have the 'extract'
+-- function. Note that this requires the drain step of Scanl to be streaming.
+--
+-- /Unimplemented/
+demuxScan :: -- (Monad m, Ord k) =>
+       (a -> k)
+    -> (k -> m (Fold m a b))
+    -> Scanl m a (k, b)
+demuxScan = undefined
+
 -- | This is specialized version of 'demuxGeneric' that uses mutable IO cells
 -- as fold accumulators for better performance.
+{-# DEPRECATED demuxGenericIO "Use demuxGenericIO from Scanl module" #-}
 {-# INLINE demuxGenericIO #-}
 demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
@@ -438,18 +473,39 @@ demuxGenericIO getKey getFold =
                 Partial s -> fin s
                 _ -> error "demuxGenericIO: unreachable code"
 
+-- | Replacement for demuxGenericIO when Folds will not have the 'extract'
+-- function. Note that this requires the drain step of Scanl to be streaming.
+--
+-- /Unimplemented/
+demuxScanGenericIO :: -- (Monad m, IsMap f, Traversable f) =>
+       (a -> k) -- k ~ Key f
+    -> (k -> m (Fold m a b))
+    -> Scanl m a (k, b)
+demuxScanGenericIO = undefined
+
 -- | This is specialized version of 'demux' that uses mutable IO cells as
 -- fold accumulators for better performance.
 --
 -- Keep in mind that the values in the returned Map may be changed by the
 -- ongoing fold if you are using those concurrently in another thread.
 --
+{-# DEPRECATED demuxIO "Use demuxIO from Scanl module" #-}
 {-# INLINE demuxIO #-}
 demuxIO :: (MonadIO m, Ord k) =>
        (a -> k)
     -> (a -> m (Fold m a b))
     -> Fold m a (m (Map k b), Maybe (k, b))
 demuxIO = demuxGenericIO
+
+-- | Replacement for demuxIO when Folds will not have the 'extract'
+-- function. Note that this requires the drain step of Scanl to be streaming.
+--
+-- /Unimplemented/
+demuxScanIO :: -- (Monad m, Ord k) =>
+       (a -> k)
+    -> (k -> m (Fold m a b))
+    -> Scanl m a (k, b)
+demuxScanIO = undefined
 
 -- | Fold a key value stream to a key-value Map. If the same key appears
 -- multiple times, only the last value is retained.
@@ -541,6 +597,7 @@ demuxKvToMap = demuxKvToContainer
 -- XXX Use a Refold m k a b so that we can make the fold key specifc.
 -- XXX Is using a function (a -> k) better than using the input (k,a)?
 
+{-# DEPRECATED classifyGeneric "Use classifyGeneric from Scanl module" #-}
 {-# INLINE classifyGeneric #-}
 classifyGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
     -- Note: we need to return the Map itself to display the in-progress values
@@ -599,6 +656,16 @@ classifyGeneric f (Fold step1 initial1 extract1 final1) =
             then extract1 s
             else final1 s
 
+-- | Replacement for classifyGeneric when Folds will not have the 'extract'
+-- function. Note that this requires the drain step of Scanl to be streaming.
+--
+-- /Unimplemented/
+classifyScanGeneric :: -- (Monad m, IsMap f, Traversable f) =>
+       (a -> k) -- k ~ Key f
+    -> Fold m a b
+    -> Scanl m a (k, b)
+classifyScanGeneric = undefined
+
 -- | Folds the values for each key using the supplied fold. When scanning, as
 -- soon as the fold is complete, its result is available in the second
 -- component of the tuple.  The first component of the tuple is a snapshot of
@@ -610,15 +677,27 @@ classifyGeneric f (Fold step1 initial1 extract1 final1) =
 --
 -- >>> classify f fld = Fold.demux f (const fld)
 --
+{-# DEPRECATED classify "Use classify from Scanl module" #-}
 {-# INLINE classify #-}
 classify :: (Monad m, Ord k) =>
     (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
 classify = classifyGeneric
 
+-- | Replacement for classify when Folds will not have the 'extract' function.
+-- Note that this requires the drain step of Scanl to be streaming.
+--
+-- /Unimplemented/
+classifyScan :: -- (Monad m, Ord k) =>
+       (a -> k)
+    -> Fold m a b
+    -> Scanl m a (k, b)
+classifyScan = undefined
+
 -- XXX we can use a Prim IORef if we can constrain the state "s" to be Prim
 --
 -- The code is almost the same as classifyGeneric except the IORef operations.
 
+{-# DEPRECATED classifyGenericIO "Use classifyGenericIO from Scanl module" #-}
 {-# INLINE classifyGenericIO #-}
 classifyGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Fold m a b -> Fold m a (m (f b), Maybe (Key f, b))
@@ -678,6 +757,16 @@ classifyGenericIO f (Fold step1 initial1 extract1 final1) =
             then extract1 s
             else final1 s
 
+-- | Replacement for classifyGenericIO when Folds will not have the 'extract'
+-- function. Note that this requires the drain step of Scanl to be streaming.
+--
+-- /Unimplemented/
+classifyScanGenericIO :: -- (Monad m, IsMap f, Traversable f) =>
+       (a -> k) -- k ~ Key f
+    -> Fold m a b
+    -> Scanl m a (k, b)
+classifyScanGenericIO = undefined
+
 -- | Same as classify except that it uses mutable IORef cells in the
 -- Map providing better performance. Be aware that if this is used as a scan,
 -- the values in the intermediate Maps would be mutable.
@@ -686,10 +775,21 @@ classifyGenericIO f (Fold step1 initial1 extract1 final1) =
 --
 -- >>> classifyIO f fld = Fold.demuxIO f (const fld)
 --
+{-# DEPRECATED classifyIO "Use classifyIO from Scanl module" #-}
 {-# INLINE classifyIO #-}
 classifyIO :: (MonadIO m, Ord k) =>
     (a -> k) -> Fold m a b -> Fold m a (m (Map k b), Maybe (k, b))
 classifyIO = classifyGenericIO
+
+-- | Replacement for classifyIO when Folds will not have the 'extract'
+-- function. Note that this requires the drain step of Scanl to be streaming.
+--
+-- /Unimplemented/
+classifyScanIO :: -- (MonadIO m, Ord k) =>
+       (a -> k)
+    -> Fold m a b
+    -> Scanl m a (k, b)
+classifyScanIO = undefined
 
 {-# INLINE toContainer #-}
 toContainer :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
