@@ -426,6 +426,7 @@ library
                      , Streamly.Data.MutArray
                      , Streamly.Data.MutArray.Generic
                      , Streamly.Data.Fold
+                     , Streamly.Data.Scanl
                      , Streamly.Data.Scanr
                      , Streamly.Data.Parser
                      , Streamly.Data.ParserK
