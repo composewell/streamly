@@ -262,8 +262,10 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- because key is to be determined on each input whereas fold is to be
 -- determined only once for a key.
 --
--- XXX Should we use (k -> m (Scanl m a b)) instead since the fold is key
--- specific? This should give better safety.
+-- XXX If a scan terminates do not start it again? This can be easily done by
+-- installing a drain fold after a fold is done.
+--
+-- XXX We can use the Scan drain step to drain the buffered map in the end.
 
 -- | This is the most general of all demux, classify operations.
 --
@@ -271,7 +273,7 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 {-# INLINE demuxGeneric #-}
 demuxGeneric :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (a -> m (Scanl m a b))
+    -> (Key f -> m (Scanl m a b))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxGeneric getKey getFold =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
@@ -286,12 +288,16 @@ demuxGeneric getKey getFold =
          case res of
             Partial s -> do
                 res1 <- step1 s a
-                return
-                    $ case res1 of
-                        Partial _ ->
+                case res1 of
+                        Partial ss -> do
+                            b <- extract1 ss
                             let fld = Scanl step1 (return res1) extract1 final1
-                             in Tuple' (IsMap.mapInsert k fld kv) Nothing
-                        Done b -> Tuple' (IsMap.mapDelete k kv) (Just (k, b))
+                            return
+                                $ Tuple'
+                                    (IsMap.mapInsert k fld kv) (Just (k, b))
+                        Done b ->
+                            return
+                                $ Tuple' (IsMap.mapDelete k kv) (Just (k, b))
             Done b ->
                 -- Done in "initial" is possible only for the very first time
                 -- the fold is initialized, and in that case we have not yet
@@ -302,7 +308,7 @@ demuxGeneric getKey getFold =
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                fld <- getFold a
+                fld <- getFold k
                 runFold kv fld (k, a)
             Just f -> runFold kv f (k, a)
 
@@ -326,45 +332,46 @@ demuxGeneric getKey getFold =
                 Partial s -> fin s
                 _ -> error "demuxGeneric: unreachable code"
 
--- | @demux getKey getFold@: In a key value stream, fold values corresponding
--- to each key using a key specific fold. @getFold@ is invoked to generate a
--- key specific fold when a key is encountered for the first time in the
+-- | @demux getKey getScan@: In a key value stream, scan values corresponding
+-- to each key using a key specific scan. @getScan@ is invoked to generate a
+-- key specific scan when a key is encountered for the first time in the
 -- stream.
 --
 -- The first component of the output tuple is a key-value Map of in-progress
--- folds. The fold returns the fold result as the second component of the
--- output tuple whenever a fold terminates.
+-- scans. The scan returns the scan result as the second component of the
+-- output tuple.
 --
--- If a fold terminates, another instance of the fold is started upon receiving
--- an input with that key, @getFold@ is invoked again whenever the key is
+-- If a scan terminates, another instance of the scan is started upon receiving
+-- an input with that key, @getScan@ is invoked again whenever the key is
 -- encountered again.
 --
--- This can be used to scan a stream and collect the results from the scan
--- output.
+-- This can be used to scan a stream, splitting it based on different keys.
 --
--- Since the fold generator function is monadic we can add folds dynamically.
--- For example, we can maintain a Map of keys to folds in an IORef and lookup
--- the fold from that corresponding to a key. This Map can be changed
--- dynamically, folds for new keys can be added or folds for old keys can be
+-- Since the scan generator function is monadic we can add scans dynamically.
+-- For example, we can maintain a Map of keys to scans in an IORef and lookup
+-- the scan from that corresponding to a key. This Map can be changed
+-- dynamically, scans for new keys can be added or scans for old keys can be
 -- deleted or modified.
 --
--- Compare with 'classify', the fold in 'classify' is a static fold.
+-- Compare with 'classify', the scan in 'classify' is a static scan.
 --
 -- /Pre-release/
 --
 {-# INLINE demux #-}
 demux :: (Monad m, Ord k) =>
        (a -> k)
-    -> (a -> m (Scanl m a b))
+    -> (k -> m (Scanl m a b))
     -> Scanl m a (m (Map k b), Maybe (k, b))
 demux = demuxGeneric
+
+-- XXX We can use the Scan drain step to drain the buffered map in the end.
 
 -- | This is specialized version of 'demuxGeneric' that uses mutable IO cells
 -- as fold accumulators for better performance.
 {-# INLINE demuxGenericIO #-}
 demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (a -> m (Scanl m a b))
+    -> (Key f -> m (Scanl m a b))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxGenericIO getKey getFold =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
@@ -380,13 +387,15 @@ demuxGenericIO getKey getFold =
             Partial s -> do
                 res1 <- step1 s a
                 case res1 of
-                    Partial _ -> do
+                    Partial ss -> do
                         -- XXX Instead of using a Fold type here use a custom
                         -- type with an IORef (possibly unboxed) for the
                         -- accumulator. That will reduce the allocations.
                         let fld = Scanl step1 (return res1) extract1 final1
                         ref <- liftIO $ newIORef fld
-                        return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
+                        b <- extract1 ss
+                        return
+                            $ Tuple' (IsMap.mapInsert k ref kv) (Just (k, b))
                     Done b -> return $ Tuple' kv (Just (k, b))
             Done b -> return $ Tuple' kv (Just (k, b))
 
@@ -397,10 +406,11 @@ demuxGenericIO getKey getFold =
             Partial s -> do
                 res1 <- step1 s a
                 case res1 of
-                        Partial _ -> do
+                        Partial ss -> do
                             let fld = Scanl step1 (return res1) extract1 final1
                             liftIO $ writeIORef ref fld
-                            return $ Tuple' kv Nothing
+                            b <- extract1 ss
+                            return $ Tuple' kv (Just (k, b))
                         Done b ->
                             let kv1 = IsMap.mapDelete k kv
                              in return $ Tuple' kv1 (Just (k, b))
@@ -410,7 +420,7 @@ demuxGenericIO getKey getFold =
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                f <- getFold a
+                f <- getFold k
                 initFold kv f (k, a)
             Just ref -> do
                 f <- liftIO $ readIORef ref
@@ -447,7 +457,7 @@ demuxGenericIO getKey getFold =
 {-# INLINE demuxIO #-}
 demuxIO :: (MonadIO m, Ord k) =>
        (a -> k)
-    -> (a -> m (Scanl m a b))
+    -> (k -> m (Scanl m a b))
     -> Scanl m a (m (Map k b), Maybe (k, b))
 demuxIO = demuxGenericIO
 
@@ -460,7 +470,7 @@ kvToMapOverwriteGeneric =
 
 {-# INLINE demuxToContainer #-}
 demuxToContainer :: (Monad m, IsMap f, Traversable f) =>
-    (a -> Key f) -> (a -> m (Scanl m a b)) -> Scanl m a (f b)
+    (a -> Key f) -> (Key f -> m (Scanl m a b)) -> Scanl m a (f b)
 demuxToContainer getKey getFold =
     let
         classifier = demuxGeneric getKey getFold
@@ -476,12 +486,12 @@ demuxToContainer getKey getFold =
 --
 {-# INLINE demuxToMap #-}
 demuxToMap :: (Monad m, Ord k) =>
-    (a -> k) -> (a -> m (Scanl m a b)) -> Scanl m a (Map k b)
+    (a -> k) -> (k -> m (Scanl m a b)) -> Scanl m a (Map k b)
 demuxToMap = demuxToContainer
 
 {-# INLINE demuxToContainerIO #-}
 demuxToContainerIO :: (MonadIO m, IsMap f, Traversable f) =>
-    (a -> Key f) -> (a -> m (Scanl m a b)) -> Scanl m a (f b)
+    (a -> Key f) -> (Key f -> m (Scanl m a b)) -> Scanl m a (f b)
 demuxToContainerIO getKey getFold =
     let
         classifier = demuxGenericIO getKey getFold
@@ -497,13 +507,13 @@ demuxToContainerIO getKey getFold =
 --
 {-# INLINE demuxToMapIO #-}
 demuxToMapIO :: (MonadIO m, Ord k) =>
-    (a -> k) -> (a -> m (Scanl m a b)) -> Scanl m a (Map k b)
+    (a -> k) -> (k -> m (Scanl m a b)) -> Scanl m a (Map k b)
 demuxToMapIO = demuxToContainerIO
 
 {-# INLINE demuxKvToContainer #-}
 demuxKvToContainer :: (Monad m, IsMap f, Traversable f) =>
     (Key f -> m (Scanl m a b)) -> Scanl m (Key f, a) (f b)
-demuxKvToContainer f = demuxToContainer fst (\(k, _) -> fmap (lmap snd) (f k))
+demuxKvToContainer f = demuxToContainer fst (fmap (lmap snd) . f)
 
 -- | Fold a stream of key value pairs using a function that maps keys to folds.
 --
@@ -540,6 +550,8 @@ demuxKvToMap = demuxKvToContainer
 
 -- XXX Use a Refold m k a b so that we can make the fold key specifc.
 -- XXX Is using a function (a -> k) better than using the input (k,a)?
+--
+-- XXX We can use the Scan drain step to drain the buffered map in the end.
 
 {-# INLINE classifyGeneric #-}
 classifyGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
@@ -553,6 +565,8 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
 
     where
 
+    -- XXX Instead of keeping a Set, after a fold terminates just install a
+    -- fold that always returns Partial/Nothing.
     initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
 
     {-# INLINE initFold #-}
@@ -561,12 +575,13 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
         case x of
               Partial s -> do
                 r <- step1 s a
-                return
-                    $ case r of
-                          Partial s1 ->
-                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
-                          Done b ->
-                            Tuple3' kv set (Just (k, b))
+                case r of
+                  Partial s1 -> do
+                    b <- extract1 s1
+                    return
+                        $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k, b))
+                  Done b ->
+                    return $ Tuple3' kv set (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
@@ -578,13 +593,13 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
                 else initFold kv set k a
             Just s -> do
                 r <- step1 s a
-                return
-                    $ case r of
-                          Partial s1 ->
-                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
-                          Done b ->
-                            let kv1 = IsMap.mapDelete k kv
-                             in Tuple3' kv1 (Set.insert k set) (Just (k, b))
+                case r of
+                  Partial s1 -> do
+                    b <- extract1 s1
+                    return $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k,b))
+                  Done b ->
+                    let kv1 = IsMap.mapDelete k kv
+                     in return $ Tuple3' kv1 (Set.insert k set) (Just (k, b))
 
     extract (Tuple3' kv _ x) = return (Prelude.mapM extract1 kv, x)
 
@@ -618,6 +633,8 @@ classify = classifyGeneric
 -- XXX we can use a Prim IORef if we can constrain the state "s" to be Prim
 --
 -- The code is almost the same as classifyGeneric except the IORef operations.
+--
+-- XXX We can use the Scan drain step to drain the buffered map in the end.
 
 {-# INLINE classifyGenericIO #-}
 classifyGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
@@ -638,7 +655,10 @@ classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
                 case r of
                       Partial s1 -> do
                         ref <- liftIO $ newIORef s1
-                        return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
+                        b <- extract1 s1
+                        return
+                            $ Tuple3'
+                                (IsMap.mapInsert k ref kv) set (Just (k, b))
                       Done b ->
                         return $ Tuple3' kv set (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
@@ -656,7 +676,8 @@ classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
                 case r of
                       Partial s1 -> do
                         liftIO $ writeIORef ref s1
-                        return $ Tuple3' kv set Nothing
+                        b <- extract1 s1
+                        return $ Tuple3' kv set (Just (k, b))
                       Done b ->
                         let kv1 = IsMap.mapDelete k kv
                          in return
