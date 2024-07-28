@@ -23,6 +23,17 @@
 -- A @Scanl m a b@ can represent a @Fold m a b@ by discarding the intermediate
 -- outputs and keeping only the final output of the scan.
 --
+-- Since folds do not care about intermediate values, we do not need the
+-- extract function for folds. Because folds do not have a requirement for
+-- intermediate values, they can be used for implementing combinators like
+-- splitWith where intermediate values are not meaningful and are expensive to
+-- compute. Folds provide an applicative and monad behavior to consume the
+-- stream in parts and compose the folded results. Scans provide Category like
+-- composition and stream zip applicative behavior. The finalization function
+-- of a fold would return a single value whereas for scan it may be a stream
+-- draining the scan buffer. For these reasons, scans and folds are required as
+-- independent abstractions.
+--
 -- == Scanl vs Pipe
 --
 -- A scan is a simpler version of the consumer side of pipes. A left scan
