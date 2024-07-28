@@ -268,6 +268,24 @@ data Scanl m a b =
   -- | @Fold@ @step@ @initial@ @extract@ @final@
   forall s. Scanl (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b) (s -> m b)
 
+{-
+-- XXX Change the type to as follows. This takes care of the unfoldMany case
+-- where we need to continue in produce mode. Though we need to see how it
+-- impacts the key-value scans.
+--
+data Step s b =
+      YieldC s b -- ^ Yield and consume
+    | YieldP s b -- ^ Yield and produce
+    | Stop b
+
+data Scanl m a b =
+  forall s. Scanl
+    (s -> a -> m (Step s b)) -- consume step
+    (m (Step s b))           -- initial
+    (s -> m (Step s b))      -- produce step
+    (s -> m (Step s b))      -- drain step
+-}
+
 ------------------------------------------------------------------------------
 -- Mapping on the output
 ------------------------------------------------------------------------------
