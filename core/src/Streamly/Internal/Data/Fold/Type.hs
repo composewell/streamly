@@ -362,6 +362,7 @@ module Streamly.Internal.Data.Fold.Type
     -- * Folds
     , fromPure
     , fromEffect
+    -- XXX Do refold ops belong to Scanl or Fold?
     , fromRefold
     , fromScanl
     , drain
@@ -425,7 +426,6 @@ module Streamly.Internal.Data.Fold.Type
     , longest
 
     -- * Running A Fold
-    , extractM
     , reduce
     , snoc
     , addOne
@@ -443,6 +443,7 @@ module Streamly.Internal.Data.Fold.Type
     , foldr
     , serialWith
     , foldlM1'
+    , extractM
     )
 where
 
@@ -514,16 +515,13 @@ import Streamly.Internal.Data.Fold.Step
 -- returns the next intermediate state (see 'Step') or the final result @b@ if
 -- the fold terminates.
 --
--- If the fold is used as a scan, the @extract@ function is used by the scan
--- driver to map the current state @s@ of the fold to the fold result. Thus
--- @extract@ can be called multiple times. In some folds, where scanning does
--- not make sense, this function is left unimplemented; such folds cannot be
--- used as scans.
+-- Folds are no longer used for scanning, please see the 'Streamly.Data.Scanl'
+-- module for scanning. The @extract@ operation is no longer used and will be
+-- removed in future.
 --
 -- Before a fold terminates, @final@ is called once and only once (unless the
 -- fold terminated in @initial@ itself). Any resources allocated by @initial@
--- can be released in @final@. In folds that do not require any cleanup
--- @extract@ and @final@ are typically the same.
+-- can be released in @final@.
 --
 -- When implementing fold combinators, care should be taken to cleanup any
 -- state of the argument folds held by the fold by calling the respective
@@ -540,6 +538,9 @@ data Fold m a b =
   -- bracket like operations.
   -- | @Fold@ @step@ @initial@ @extract@ @final@
   forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b) (s -> m b)
+
+-- XXX Have functions to modify initial, step, final of a fold. That way we
+-- won't have to use the constructor in many cases.
 
 {-
 -- XXX Change the type to as follows. This takes care of the unfoldMany case
@@ -1851,6 +1852,7 @@ addOne = flip snoc
 -- []
 --
 -- /Pre-release/
+{-# DEPRECATED extractM "Extract operation will be removed from folds" #-}
 {-# INLINE extractM #-}
 extractM :: Monad m => Fold m a b -> m b
 extractM (Fold _ initial extract _) = do
