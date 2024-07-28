@@ -541,6 +541,27 @@ data Fold m a b =
   -- | @Fold@ @step@ @initial@ @extract@ @final@
   forall s. Fold (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b) (s -> m b)
 
+{-
+-- XXX Change the type to as follows. This takes care of the unfoldMany case
+-- where we need to continue in produce mode. Can we keep the same Step as
+-- Scanl without impacting the key-value folds?
+--
+-- Note: this will require a change in Parser type as well for Parser.fromFold
+-- to work.
+--
+data Step s b =
+      Consume s
+    | Produce s
+    | Stop b
+
+data Fold m a b =
+  forall s. Fold
+    (s -> a -> m (Step s b)) -- consume step
+    (m (Step s b))           -- initial
+    (s -> m (Step s b))      -- produce step
+    (s -> m (Step s b))      -- drain step
+-}
+
 ------------------------------------------------------------------------------
 -- Mapping on the output
 ------------------------------------------------------------------------------
