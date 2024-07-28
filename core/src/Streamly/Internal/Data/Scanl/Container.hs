@@ -18,7 +18,7 @@ module Streamly.Internal.Data.Scanl.Container
     , nubInt
 
     -- * Map operations
-    , frequency
+    -- , frequency
 
     -- ** Demultiplexing
     -- | Direct values in the input stream to different folds using an n-ary
@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Scanl.Container
     -- You need to see only 'demux' if you are looking to find the capabilities
     -- of these combinators, all others are variants of that.
 
+    {-
     -- *** Output is a container
     -- | The fold state snapshot returns the key-value container of in-progress
     -- folds.
@@ -45,6 +46,7 @@ module Streamly.Internal.Data.Scanl.Container
     -- | Like above, but the resulting fold state snapshot contains the key
     -- value container as well as the finished key result if a fold in the
     -- container finished.
+    -}
     , demuxGeneric
     , demux
     , demuxGenericIO
@@ -68,12 +70,14 @@ module Streamly.Internal.Data.Scanl.Container
     -- and their meanings then trie Map would be better if we also want to
     -- display them in sorted order.
 
+    {-
     , kvToMap
 
     , toContainer
     , toContainerIO
     , toMap
     , toMapIO
+    -}
 
     , classifyGeneric
     , classify
@@ -101,7 +105,7 @@ import qualified Streamly.Internal.Data.IsMap as IsMap
 
 import Prelude hiding (Foldable(..))
 import Streamly.Internal.Data.Scanl.Type
-import Streamly.Internal.Data.Scanl.Combinators
+-- import Streamly.Internal.Data.Scanl.Combinators
 
 -- $setup
 -- >>> :m
@@ -461,6 +465,7 @@ demuxIO :: (MonadIO m, Ord k) =>
     -> Scanl m a (m (Map k b), Maybe (k, b))
 demuxIO = demuxGenericIO
 
+{-
 -- | Fold a key value stream to a key-value Map. If the same key appears
 -- multiple times, only the last value is retained.
 {-# INLINE kvToMapOverwriteGeneric #-}
@@ -537,6 +542,7 @@ demuxKvToContainer f = demuxToContainer fst (fmap (lmap snd) . f)
 demuxKvToMap :: (Monad m, Ord k) =>
     (k -> m (Scanl m a b)) -> Scanl m (k, a) (Map k b)
 demuxKvToMap = demuxKvToContainer
+-}
 
 ------------------------------------------------------------------------------
 -- Classify: Like demux but uses the same fold for all keys.
@@ -712,6 +718,7 @@ classifyIO :: (MonadIO m, Ord k) =>
     (a -> k) -> Scanl m a b -> Scanl m a (m (Map k b), Maybe (k, b))
 classifyIO = classifyGenericIO
 
+{-
 {-# INLINE toContainer #-}
 toContainer :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Scanl m a b -> Scanl m a (f b)
@@ -817,3 +824,4 @@ kvToMap = toMap fst . lmap snd
 {-# INLINE frequency #-}
 frequency :: (Monad m, Ord a) => Scanl m a (Map a Int)
 frequency = toMap id length
+-}

@@ -46,7 +46,7 @@ module Streamly.Data.Scanl
     , length
     , countDistinct
     , countDistinctInt
-    , frequency
+    -- , frequency
     -- , sum
     , product
     , mean
@@ -130,9 +130,11 @@ module Streamly.Data.Scanl
     , takeEndBy
     , takeEndBy_
 
+    {-
     -- ** Key-value Collectors
     , toMap
     , toMapIO
+    -}
 
     -- ** Key-value Scanners
     , classify
@@ -176,9 +178,11 @@ module Streamly.Data.Scanl
     -- | The fold to be used is generated dynamically based on the input or
     -- based on the output of the previous fold.
 
+    {-
     -- ** Key-value Collectors
     , demuxToMap
     , demuxToMapIO
+    -}
 
     -- ** Key-value Scanners
     , demux
