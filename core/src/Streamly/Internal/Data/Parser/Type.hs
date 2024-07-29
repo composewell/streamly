@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE NoMonoLocalBinds #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserD.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -178,7 +180,8 @@ module Streamly.Internal.Data.Parser.Type
     (
     -- * Types
       Initial (..)
-    , Step (..)
+    -- (..) does not seem to export patterns yet the compiler complains it does.
+    , Step(Partial, Continue, Done, SPartial, SContinue, SDone, Error)
     , extractStep
     , bimapOverrideCount
     , Parser (..)
@@ -322,7 +325,7 @@ instance Functor (Initial s) where
 --
 {-# ANN type Step Fuse #-}
 data Step s b =
-        Partial !Int !s
+        SPartial !Int !s
     -- ^ @Partial count state@. The following hold on Partial result:
     --
     -- 1. @extract@ on @state@ would succeed and give a result.
@@ -330,7 +333,7 @@ data Step s b =
     -- 3. All input before the new position is dropped. The parser can
     -- never backtrack beyond this position.
 
-    | Continue !Int !s
+    | SContinue !Int !s
     -- ^ @Continue count state@. The following hold on a Continue result:
     --
     -- 1. If there was a 'Partial' result in past, @extract@ on @state@ would
@@ -339,7 +342,7 @@ data Step s b =
     -- 2. Input stream position is reset to @current position - count@.
     -- 3. the input is retained in a backtrack buffer.
 
-    | Done !Int !b
+    | SDone !Int !b
     -- ^ Done with leftover input count and result.
     --
     -- @Done count result@ means the parser has finished, it will accept no
@@ -352,6 +355,32 @@ data Step s b =
     -- The parsing operation may backtrack to the beginning and try another
     -- alternative.
     deriving (Show)
+
+--------------------------------------------------------------------------------
+-- Custom Patterns
+--------------------------------------------------------------------------------
+
+negateDirection :: Step s b -> Step s b
+negateDirection (SPartial i s) = SPartial (1 - i) s
+negateDirection (SContinue i s) = SContinue (1 - i) s
+negateDirection (SDone i b) = SDone (1 - i) b
+negateDirection (Error s) = Error s
+
+pattern Partial :: Int -> s -> Step s b
+pattern Partial i s <- (negateDirection -> SPartial i s)
+    where Partial i s = SPartial (1 - i) s
+
+pattern Continue :: Int -> s -> Step s b
+pattern Continue i s <- (negateDirection -> SContinue i s)
+    where Continue i s = SContinue (1 - i) s
+
+pattern Done :: Int -> b -> Step s b
+pattern Done i b <- (negateDirection -> SDone i b)
+    where Done i b = SDone (1 - i) b
+
+--------------------------------------------------------------------------------
+-- Code
+--------------------------------------------------------------------------------
 
 -- | Map first function over the state and second over the result.
 instance Bifunctor Step where
