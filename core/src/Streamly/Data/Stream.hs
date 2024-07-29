@@ -344,17 +344,17 @@ module Streamly.Data.Stream
     , scanl1M'
     -}
 
-    -- ** Scanning By 'Fold'
+    -- ** Scanning By 'Scanl'
     -- | Useful idioms:
     --
-    -- >>> scanl' f z = Stream.scan (Fold.foldl' f z)
-    -- >>> scanlM' f z = Stream.scan (Fold.foldlM' f z)
-    -- >>> postscanl' f z = Stream.postscan (Fold.foldl' f z)
-    -- >>> postscanlM' f z = Stream.postscan (Fold.foldlM' f z)
-    -- >>> scanl1' f = Stream.catMaybes . Stream.scan (Fold.foldl1' f)
-    -- >>> scanl1M' f = Stream.catMaybes . Stream.scan (Fold.foldl1M' f)
-    , scan
-    , postscan
+    -- >>> scanl' f z = Stream.scanl (Scanl.scanl' f z)
+    -- >>> scanlM' f z = Stream.scanl (Scanl.scanlM' f z)
+    -- >>> postscanl' f z = Stream.postscanl (Scanl.scanl' f z)
+    -- >>> postscanlM' f z = Stream.postscanl (Scanl.scanlM' f z)
+    -- >>> scanl1' f = Stream.catMaybes . Stream.scanl (Scanl.scanl1' f)
+    -- >>> scanl1M' f = Stream.catMaybes . Stream.scanl (Scanl.scanl1M' f)
+    , scanl
+    , postscanl
     -- XXX postscan1 can be implemented using Monoids or Refolds.
     -- The following scans from Data.List are not provided.
     -- XXX scanl
@@ -405,7 +405,10 @@ module Streamly.Data.Stream
     , catEithers
 
     -- ** Stateful Filters
-    -- | 'scanMaybe' is the most general stateful filtering operation. The
+
+    -- XXX Should use scanr instead of scanlMaybe for filtering.
+
+    -- 'scanMaybe' is the most general stateful filtering operation. The
     -- filtering folds (folds returning a 'Maybe' type) in
     -- "Streamly.Internal.Data.Fold" can be used along with 'scanMaybe' to
     -- perform stateful filtering operations in general.
@@ -419,7 +422,7 @@ module Streamly.Data.Stream
     -- >>> elemIndices a = findIndices (== a)
     -- >>> uniq = Stream.scanMaybe (Fold.uniqBy (==))
     -- >>> partition p = Stream.fold (Fold.partition Fold.toList Fold.toList) . fmap (if p then Left else Right)
-    , scanMaybe
+    -- , scanlMaybe
     , take
     , takeWhile
     , takeWhileM
@@ -563,13 +566,15 @@ module Streamly.Data.Stream
     , splitOn
     , wordsBy
 
+    -- XXX Should use scanr instead
+    -- >>> nub = Stream.fold Fold.toList . Stream.scanMaybe Fold.nub
+
     -- * Buffered Operations
     -- | Operations that require buffering of the stream.
     -- Reverse is essentially a left fold followed by an unfold.
     --
     -- Idioms and equivalents of Data.List APIs:
     --
-    -- >>> nub = Stream.fold Fold.toList . Stream.scanMaybe Fold.nub
     -- >>> nub = Stream.ordNub -- unreleased API
     -- >>> sortBy = StreamK.sortBy
     -- >>> sortOn f = StreamK.sortOn -- unreleased API
@@ -659,13 +664,18 @@ module Streamly.Data.Stream
     -- specific array module. Or maybe we should abstract over array types.
     -- * Stream of Arrays
     , Array.chunksOf
+
+    -- * Deprecated
+    , scan
+    , scanMaybe
+    , postscan
     )
 where
 
 import Streamly.Internal.Data.Stream
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
-               mapM, sequence, reverse, iterate, foldr1, repeat, replicate,
+               mapM, scanl, sequence, reverse, iterate, foldr1, repeat, replicate,
                concatMap)
 
 import qualified Streamly.Internal.Data.Array.Type as Array

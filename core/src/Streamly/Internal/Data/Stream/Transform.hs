@@ -29,23 +29,23 @@ module Streamly.Internal.Data.Stream.Transform
     , foldrS
     , foldlS
 
-    -- * Scanning By 'Fold'
-    , postscan
-    , scan
-    , scanMany
+    -- * Composable Scans
+    , postscanl
+    , scanl
+    , scanlMany
     , scanr
     , pipe
 
     -- * Splitting
     , splitOn
 
-    -- * Scanning
+    -- * Ad-hoc Scans
     -- | Left scans. Stateful, mostly one-to-one maps.
     , scanlM'
     , scanlMAfter'
     , scanl'
     , scanlM
-    , scanl
+    , scanlBy
     , scanl1M'
     , scanl1'
     , scanl1M
@@ -54,7 +54,7 @@ module Streamly.Internal.Data.Stream.Transform
     , prescanl'
     , prescanlM'
 
-    , postscanl
+    , postscanlBy
     , postscanlM
     , postscanl'
     , postscanlM'
@@ -68,7 +68,7 @@ module Streamly.Internal.Data.Stream.Transform
     -- * Filtering
     -- | Produce a subset of the stream.
     , with
-    , scanMaybe
+    , scanlMaybe
     , filter
     , filterM
     , deleteBy -- deleteOnceBy?
@@ -143,6 +143,12 @@ module Streamly.Internal.Data.Stream.Transform
     , catLefts
     , catRights
     , catEithers
+
+    -- * Deprecated
+    , postscan
+    , scan
+    , scanMany
+    , scanMaybe
     )
 where
 
@@ -158,6 +164,7 @@ import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..))
+import Streamly.Internal.Data.Scanl (Scanl(..))
 import Streamly.Internal.Data.Scanr (Scanr(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Time.Units (AbsTime, RelTime64)
@@ -475,9 +482,9 @@ data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 -- :}
 -- [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 --
-{-# INLINE_NORMAL postscan #-}
-postscan :: Monad m => FL.Fold m a b -> Stream m a -> Stream m b
-postscan (FL.Fold fstep initial extract final) (Stream sstep state) =
+{-# INLINE_NORMAL postscanl #-}
+postscanl :: Monad m => Scanl m a b -> Stream m a -> Stream m b
+postscanl (Scanl fstep initial extract final) (Stream sstep state) =
     Stream step (ScanInit state)
 
     where
@@ -503,10 +510,16 @@ postscan (FL.Fold fstep initial extract final) (Stream sstep state) =
             Stop -> final fs >> return Stop
     step _ ScanDone = return Stop
 
-{-# INLINE scanWith #-}
-scanWith :: Monad m
-    => Bool -> Fold m a b -> Stream m a -> Stream m b
-scanWith restart (Fold fstep initial extract final) (Stream sstep state) =
+{-# DEPRECATED postscan "Please use postscanl instead" #-}
+{-# INLINE_NORMAL postscan #-}
+postscan :: Monad m => FL.Fold m a b -> Stream m a -> Stream m b
+postscan (FL.Fold fstep initial extract final) =
+    postscanl (Scanl fstep initial extract final)
+
+{-# INLINE scanlWith #-}
+scanlWith :: Monad m
+    => Bool -> Scanl m a b -> Stream m a -> Stream m b
+scanlWith restart (Scanl fstep initial extract final) (Stream sstep state) =
     Stream step (ScanInit state)
 
     where
@@ -531,6 +544,13 @@ scanWith restart (Fold fstep initial extract final) (Stream sstep state) =
             Skip s -> return $ Skip $ ScanDo s fs
             Stop -> final fs >> return Stop
     step _ ScanDone = return Stop
+
+{-# DEPRECATED scanWith "Please use scanlWith instead" #-}
+{-# INLINE scanWith #-}
+scanWith :: Monad m
+    => Bool -> Fold m a b -> Stream m a -> Stream m b
+scanWith restart (Fold fstep initial extract final) =
+    scanlWith restart (Scanl fstep initial extract final)
 
 -- XXX It may be useful to have a version of scan where we can keep the
 -- accumulator independent of the value emitted. So that we do not necessarily
@@ -595,14 +615,26 @@ scanWith restart (Fold fstep initial extract final) (Stream sstep state) =
 -- lazy expressions inside the accumulator, it is recommended that a strict
 -- data structure is used for accumulator.
 --
+{-# INLINE_NORMAL scanl #-}
+scanl :: Monad m
+    => Scanl m a b -> Stream m a -> Stream m b
+scanl = scanlWith False
+
+-- | Like 'scanl' but restarts scanning afresh when the scanning fold
+-- terminates.
+--
+{-# INLINE_NORMAL scanlMany #-}
+scanlMany :: Monad m
+    => Scanl m a b -> Stream m a -> Stream m b
+scanlMany = scanlWith True
+
+{-# DEPRECATED scan "Please use scanl instead" #-}
 {-# INLINE_NORMAL scan #-}
 scan :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
 scan = scanWith False
 
--- | Like 'scan' but restarts scanning afresh when the scanning fold
--- terminates.
---
+{-# DEPRECATED scanMany "Please use scanlMany instead" #-}
 {-# INLINE_NORMAL scanMany #-}
 scanMany :: Monad m
     => FL.Fold m a b -> Stream m a -> Stream m b
@@ -770,9 +802,9 @@ postscanlM fstep begin (Stream step state) = Stream step' Nothing
             Skip s -> return $ Skip (Just (s, acc))
             Stop   -> return Stop
 
-{-# INLINE_NORMAL postscanl #-}
-postscanl :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
-postscanl f seed = postscanlM (\a b -> return (f a b)) (return seed)
+{-# INLINE_NORMAL postscanlBy #-}
+postscanlBy :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
+postscanlBy f seed = postscanlM (\a b -> return (f a b)) (return seed)
 
 -- | Like 'scanl'' but with a monadic step function and a monadic seed.
 --
@@ -876,9 +908,9 @@ scanlM fstep begin (Stream step state) = Stream step' Nothing
             Skip s -> return $ Skip (Just (s, acc))
             Stop   -> return Stop
 
-{-# INLINE scanl #-}
-scanl :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
-scanl f seed = scanlM (\a b -> return (f a b)) (return seed)
+{-# INLINE scanlBy #-}
+scanlBy :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
+scanlBy f seed = scanlM (\a b -> return (f a b)) (return seed)
 
 -- Adapted from the vector package
 {-# INLINE_NORMAL scanl1M #-}
@@ -1915,10 +1947,15 @@ catMaybes (Stream step state) = Stream step1 state
             Skip s -> return $ Skip s
             Stop -> return Stop
 
--- | Use a filtering fold on a stream.
+-- | Use a filtering scan on a stream.
 --
--- >>> scanMaybe f = Stream.catMaybes . Stream.postscan f
+-- >>> scanlMaybe f = Stream.catMaybes . Stream.postscanl f
 --
+{-# INLINE scanlMaybe #-}
+scanlMaybe :: Monad m => Scanl m a (Maybe b) -> Stream m a -> Stream m b
+scanlMaybe f = catMaybes . postscanl f
+
+{-# DEPRECATED scanMaybe "Use scanlMaybe instead" #-}
 {-# INLINE scanMaybe #-}
 scanMaybe :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
 scanMaybe f = catMaybes . postscan f

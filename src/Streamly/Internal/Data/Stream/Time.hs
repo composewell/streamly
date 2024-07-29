@@ -75,6 +75,7 @@ import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 
 import qualified Data.Heap as H
 import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Scanl as Scanl
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Fold as Fold (Step(..))
@@ -834,7 +835,7 @@ sampleBurst sampleAtEnd gap xs =
     -- but the tick stream should work well as long as the timer
     -- granularity is small enough compared to the gap.
     Stream.mapMaybe extract
-        $ Stream.scan (Fold.foldl' step BurstNone)
+        $ Stream.scanl (Scanl.scanl' step BurstNone)
         $ Stream.timeIndexed
         $ interject (return Nothing) 0.01 (fmap Just xs)
 
