@@ -158,7 +158,7 @@ class Serialize a where
 {-# INLINE checkBounds #-}
 checkBounds :: String -> Int -> MutByteArray -> IO ()
 checkBounds _label _size _arr = do
-    sz <- MBA.sizeOfMutableByteArray _arr
+    sz <- MBA.length _arr
     if (_size > sz)
     then error
         $ _label
@@ -169,7 +169,7 @@ checkBounds _label _size _arr = do
 #endif
 
 -- Note: Instead of passing around the size parameter, we can use
--- (sizeOfMutableByteArray arr) for checking the array bound, but that turns
+-- (MBA.length arr) for checking the array bound, but that turns
 -- out to be more expensive.
 --
 -- Another way to optimize this is to avoid the check for fixed size

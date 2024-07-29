@@ -70,7 +70,7 @@ import Prelude hiding (read)
 
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray(..))
 #ifdef DEBUG
-import Streamly.Internal.Data.MutByteArray.Type (sizeOfMutableByteArray)
+import qualified Streamly.Internal.Data.MutByteArray.Type as MutByteArray
 #endif
 
 --------------------------------------------------------------------------------
@@ -275,7 +275,7 @@ class Unbox a where
 checkBounds :: String -> Int -> MutByteArray -> IO ()
 checkBounds _label _size _arr = do
 #ifdef DEBUG
-    sz <- sizeOfMutableByteArray _arr
+    sz <- MutByteArray.length _arr
     if (_size > sz)
     then error
         $ _label
@@ -800,7 +800,7 @@ genericPokeByteIndex :: (Generic a, PokeRep (Rep a)) =>
 genericPokeByteIndex arr index x = do
     -- XXX Should we use unsafe poke?
 #ifdef DEBUG
-    end <- sizeOfMutableByteArray arr
+    end <- MutByteArray.length arr
     genericPokeObj x (BoundedPtr arr index end)
 #else
     genericPokeObj x (BoundedPtr arr index undefined)
@@ -906,7 +906,7 @@ genericPeekByteIndex :: (Generic a, PeekRep (Rep a)) =>
 genericPeekByteIndex arr index = do
     -- XXX Should we use unsafe peek?
 #ifdef DEBUG
-    end <- sizeOfMutableByteArray arr
+    end <- MutByteArray.length arr
     genericPeekBoundedPtr (BoundedPtr arr index end)
 #else
     genericPeekBoundedPtr (BoundedPtr arr index undefined)
