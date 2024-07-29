@@ -264,6 +264,7 @@ common compile-options
                     -Wno-monomorphism-restriction
                     -Wno-prepositive-qualified-module
                     -Wno-unsafe
+                    -Wno-unused-packages
                     -Rghc-timing
 
     if impl(ghc >= 9.2)
@@ -531,8 +532,7 @@ library
     else
       build-depends:   atomic-primops    >= 0.8.8 && < 0.9
 
-    if impl(ghc < 9.6)
-      build-depends:   transformers-base >= 0.4   && < 0.5
+    build-depends:   transformers-base >= 0.4   && < 0.5
 
     if flag(use-unliftio)
       build-depends:   unliftio-core     >= 0.2 && < 0.3
