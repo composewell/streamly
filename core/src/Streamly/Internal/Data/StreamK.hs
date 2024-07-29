@@ -1196,14 +1196,16 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                     PR.Error err -> do
                         let src = Prelude.reverse buf
                         return (Left (ParseError err), fromList src)
-                    PR.Done n b -> do
+                    PR.SDone m b -> do
+                        let n = 1 - m
                         assertM(n <= length buf)
                         let src0 = Prelude.take n buf
                             src  = Prelude.reverse src0
                         return (Right b, fromList src)
-                    PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
-                    PR.Continue 0 s -> goStream nil buf s
-                    PR.Continue n s -> do
+                    PR.SPartial _ _ -> error "Bug: parseBreak: Partial in extract"
+                    PR.SContinue 1 s -> goStream nil buf s
+                    PR.SContinue m s -> do
+                        let n = 1 - m
                         assertM(n <= length buf)
                         let (src0, buf1) = splitAt n buf
                             src = Prelude.reverse src0
@@ -1212,20 +1214,23 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
             yieldk x r = do
                 res <- pstep pst x
                 case res of
-                    PR.Partial 0 s -> goStream r [] s
-                    PR.Partial n s -> do
+                    PR.SPartial 1 s -> goStream r [] s
+                    PR.SPartial m s -> do
+                        let n = 1 - m
                         assertM(n <= length (x:buf))
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
                         goBuf r [] src s
-                    PR.Continue 0 s -> goStream r (x:buf) s
-                    PR.Continue n s -> do
+                    PR.SContinue 1 s -> goStream r (x:buf) s
+                    PR.SContinue m s -> do
+                        let n = 1 - m
                         assertM(n <= length (x:buf))
                         let (src0, buf1) = splitAt n (x:buf)
                             src = Prelude.reverse src0
                         goBuf r buf1 src s
-                    PR.Done 0 b -> return (Right b, r)
-                    PR.Done n b -> do
+                    PR.SDone 1 b -> return (Right b, r)
+                    PR.SDone m b -> do
+                        let n = 1 - m
                         assertM(n <= length (x:buf))
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
@@ -1239,19 +1244,22 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
     goBuf st buf (x:xs) !pst = do
         pRes <- pstep pst x
         case pRes of
-            PR.Partial 0 s -> goBuf st [] xs s
-            PR.Partial n s -> do
+            PR.SPartial 1 s -> goBuf st [] xs s
+            PR.SPartial m s -> do
+                let n = 1 - m
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 goBuf st [] src s
-            PR.Continue 0 s -> goBuf st (x:buf) xs s
-            PR.Continue n s -> do
+            PR.SContinue 1 s -> goBuf st (x:buf) xs s
+            PR.SContinue m s -> do
+                let n = 1 - m
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 goBuf st buf1 src s
-            PR.Done n b -> do
+            PR.SDone m b -> do
+                let n = 1 - m
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
