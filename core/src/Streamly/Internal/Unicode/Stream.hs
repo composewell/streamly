@@ -496,12 +496,12 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
             ErrorOnCodingFailure -> ParserD.Error err
             TransliterateCodingFailure ->
                 case souldBackTrack of
-                    True -> ParserD.Done 1 replacementChar
-                    False -> ParserD.Done 0 replacementChar
+                    True -> ParserD.SDone 0 replacementChar
+                    False -> ParserD.SDone 1 replacementChar
             DropOnCodingFailure ->
                 case souldBackTrack of
-                    True -> ParserD.Continue 1 UTF8CharDecodeInit
-                    False -> ParserD.Continue 0 UTF8CharDecodeInit
+                    True -> ParserD.SContinue 0 UTF8CharDecodeInit
+                    False -> ParserD.SContinue 1 UTF8CharDecodeInit
 
     {-# INLINE step' #-}
     step' table UTF8CharDecodeInit x =
@@ -511,7 +511,7 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
         -- change with the compiler versions, we need a more reliable
         -- "likely" primitive to control branch predication.
         return $ case x > 0x7f of
-            False -> ParserD.Done 0 $ unsafeChr $ fromIntegral x
+            False -> ParserD.SDone 1 $ unsafeChr $ fromIntegral x
             True ->
                 let (Tuple' sv cp) = decode0 table x
                  in case sv of
@@ -520,12 +520,12 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
                                     ++ "Invalid first UTF8 byte" ++ show x
                              in handleError msg False
                         0 -> error $ prefix ++ "unreachable state"
-                        _ -> ParserD.Continue 0 (UTF8CharDecoding sv cp)
+                        _ -> ParserD.SContinue 1 (UTF8CharDecoding sv cp)
 
     step' table (UTF8CharDecoding statePtr codepointPtr) x = return $
         let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
          in case sv of
-            0 -> ParserD.Done 0 $ unsafeChr cp
+            0 -> ParserD.SDone 1 $ unsafeChr cp
             12 ->
                 let msg = prefix
                         ++ "Invalid subsequent UTF8 byte"
@@ -535,7 +535,7 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
                         ++ "accumulated value"
                         ++ show codepointPtr
                  in handleError msg True
-            _ -> ParserD.Continue 0 (UTF8CharDecoding sv cp)
+            _ -> ParserD.SContinue 1 (UTF8CharDecoding sv cp)
 
     {-# INLINE extract #-}
     extract UTF8CharDecodeInit =  error $ prefix ++ "Not enough input"
@@ -544,7 +544,7 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
             ErrorOnCodingFailure ->
                 return $ ParserD.Error $ prefix ++ "Not enough input"
             TransliterateCodingFailure ->
-                return (ParserD.Done 0 replacementChar)
+                return (ParserD.SDone 1 replacementChar)
             -- XXX We shouldn't error out here. There is no way to represent an
             -- empty parser result unless we return a "Maybe" type.
             DropOnCodingFailure -> error $ prefix ++ "Not enough input"
