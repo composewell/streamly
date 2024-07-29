@@ -410,28 +410,31 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
             r <- pstep pst x
             case r of
                 -- Done, call the next continuation
-                ParserD.Done 0 b ->
+                ParserD.SDone 1 b ->
                     cont (Success 1 b) (count + 1) (Chunk x)
-                ParserD.Done 1 b ->
+                ParserD.SDone 0 b ->
                     cont (Success 0 b) count (Chunk x)
-                ParserD.Done n b -> -- n > 1
-                    cont (Success (1 - n) b) (count + 1 - n) (Chunk x)
+                ParserD.SDone m b -> -- n > 1
+                    let n = 1 - m
+                     in cont (Success (1 - n) b) (count + 1 - n) (Chunk x)
 
                 -- Not done yet, return the parseCont continuation
-                ParserD.Partial 0 pst1 ->
+                ParserD.SPartial 1 pst1 ->
                     pure $ Partial 1 (parseCont (count + 1) pst1)
-                ParserD.Partial 1 pst1 ->
+                ParserD.SPartial 0 pst1 ->
                     -- XXX recurse or call the driver?
                     go SPEC pst1
-                ParserD.Partial n pst1 -> -- n > 0
-                    pure $ Partial (1 - n) (parseCont (count + 1 - n) pst1)
-                ParserD.Continue 0 pst1 ->
+                ParserD.SPartial m pst1 -> -- n > 0
+                    let n = 1 - m
+                     in pure $ Partial (1 - n) (parseCont (count + 1 - n) pst1)
+                ParserD.SContinue 1 pst1 ->
                     pure $ Continue 1 (parseCont (count + 1) pst1)
-                ParserD.Continue 1 pst1 ->
+                ParserD.SContinue 0 pst1 ->
                     -- XXX recurse or call the driver?
                     go SPEC pst1
-                ParserD.Continue n pst1 -> -- n > 0
-                    pure $ Continue (1 - n) (parseCont (count + 1 - n) pst1)
+                ParserD.SContinue m pst1 -> -- n > 0
+                    let n = 1 - m
+                     in pure $ Continue (1 - n) (parseCont (count + 1 - n) pst1)
 
                 -- Error case
                 ParserD.Error err ->
@@ -444,17 +447,19 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
             -- IMPORTANT: the n here is from the byte stream parser, that means
             -- it is the backtrack element count and not the stream position
             -- index into the current input chunk.
-            ParserD.Done n b ->
-                assert (n >= 0)
-                    (cont (Success (- n) b) (count - n) None)
-            ParserD.Continue n pst1 ->
-                assert (n >= 0)
-                    (return $ Continue (- n) (parseCont (count - n) pst1))
+            ParserD.SDone m b ->
+                let n = 1 - m
+                 in assert (n >= 0)
+                        (cont (Success (- n) b) (count - n) None)
+            ParserD.SContinue m pst1 ->
+                let n = 1 - m
+                 in assert (n >= 0)
+                        (return $ Continue (- n) (parseCont (count - n) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input chunk. So using
                 -- 0 as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.Partial _ _ -> error "Bug: adaptWith Partial unreachable"
+            ParserD.SPartial _ _ -> error "Bug: adaptWith Partial unreachable"
 
     -- XXX Maybe we can use two separate continuations instead of using
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
@@ -503,21 +508,21 @@ toParser parser = ParserD.Parser step initial extract
     step cont a = do
         r <- cont (Chunk a)
         return $ case r of
-            Done n b -> assert (n <= 1) (ParserD.Done (1 - n) b)
+            Done n b -> assert (n <= 1) (ParserD.SDone n b)
             Error _ e -> ParserD.Error e
-            Partial n cont1 -> assert (n <= 1) (ParserD.Partial (1 - n) cont1)
-            Continue n cont1 -> assert (n <= 1) (ParserD.Continue (1 - n) cont1)
+            Partial n cont1 -> assert (n <= 1) (ParserD.SPartial n cont1)
+            Continue n cont1 -> assert (n <= 1) (ParserD.SContinue n cont1)
 
     extract cont = do
         r <- cont None
         case r of
             -- This is extract so no input has been given, therefore, the
-            -- translation here is (0 - n) rather than (1 - n).
-            Done n b ->  assert (n <= 0) (return $ ParserD.Done (negate n) b)
+            -- translation here is (n + 1) rather than n.
+            Done n b ->  assert (n <= 0) (return $ ParserD.SDone (n + 1) b)
             Error _ e -> return $ ParserD.Error e
             Partial _ cont1 -> extract cont1
             Continue n cont1 ->
-                assert (n <= 0) (return $ ParserD.Continue (negate n) cont1)
+                assert (n <= 0) (return $ ParserD.SContinue (n + 1) cont1)
 
 {-# RULES "fromParser/toParser fusion" [2]
     forall s. toParser (parserK s) = s #-}
