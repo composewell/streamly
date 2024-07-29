@@ -62,6 +62,6 @@ import Streamly.Internal.Data.IsMap.HashMap ()
 -- /Pre-release/
 --
 {-# INLINE toHashMapIO #-}
-toHashMapIO :: (MonadIO m, Hashable k, Ord k) =>
+toHashMapIO :: (MonadIO m, Hashable k) =>
     (a -> k) -> Fold m a b -> Fold m a (HashMap k b)
 toHashMapIO = toContainerIO
