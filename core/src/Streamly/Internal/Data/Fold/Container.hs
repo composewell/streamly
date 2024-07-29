@@ -1,3 +1,7 @@
+{-# LANGUAGE TypeFamilies #-}
+-- Must come after TypeFamilies, otherwise it is re-enabled.
+-- MonoLocalBinds enabled by TypeFamilies causes perf regressions in general.
+{-# LANGUAGE NoMonoLocalBinds #-}
 -- |
 -- Module      : Streamly.Internal.Data.Fold.Container
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -29,12 +33,12 @@ module Streamly.Internal.Data.Fold.Container
     -- of these combinators, all others are variants of that.
 
     -- *** Output is a container
-    -- | The fold state snapshot returns the key-value container of in-progress
-    -- folds.
-    , demuxToContainer
-    , demuxToContainerIO
-    , demuxToMap
-    , demuxToMapIO
+    -- | Use key specific folds to fold corresponding values to a key-value
+    -- container.
+    , demuxerToContainer
+    , demuxerToContainerIO
+    , demuxerToMap
+    , demuxerToMapIO
 
     -- *** Input is explicit key-value tuple
     -- | Like above but inputs are in explicit key-value pair form.
@@ -42,9 +46,9 @@ module Streamly.Internal.Data.Fold.Container
     , demuxKvToMap
 
     -- *** Scan of finished fold results
-    -- | Like above, but the resulting fold state snapshot contains the key
-    -- value container as well as the finished key result if a fold in the
-    -- container finished.
+    -- | Use key specific folds to fold corresponding values to a key-value
+    -- stream, restarts the fold again after it terminates, thus resulting in a
+    -- stream of values for each key.
     , demuxScanGeneric
     , demuxScan
     , demuxScanGenericIO
@@ -87,6 +91,10 @@ module Streamly.Internal.Data.Fold.Container
     , demux
     , demuxGenericIO
     , demuxIO
+    , demuxToContainer
+    , demuxToContainerIO
+    , demuxToMap
+    , demuxToMapIO
 
     , classifyGeneric
     , classify
@@ -339,6 +347,67 @@ demuxGeneric getKey getFold =
                 Partial s -> fin s
                 _ -> error "demuxGeneric: unreachable code"
 
+-- XXX There seem to be a significant difference in demux and classify. In
+-- demux once a key is done we again restart it and give the result of the
+-- last one. In classify, we do not restart once it is done. To keep it
+-- simple we should use the classify behavior.
+
+-- | This is the most general of all demux, classify operations.
+--
+-- See 'demux' for documentation.
+{-# INLINE demuxerToContainer #-}
+demuxerToContainer :: (Monad m, IsMap f, Traversable f) =>
+       (a -> Key f)
+    -> (Key f -> m (Fold m a b))
+    -> Fold m a (f b)
+demuxerToContainer getKey getFold =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) undefined final
+
+    where
+
+    initial = return $ Tuple' IsMap.mapEmpty IsMap.mapEmpty
+
+    {-# INLINE runFold #-}
+    runFold kv kv1 (Fold step1 initial1 _ final1) (k, a) = do
+         res <- initial1
+         case res of
+            Partial s -> do
+                res1 <- step1 s a
+                return
+                    $ case res1 of
+                        Partial _ ->
+                            let fld = Fold step1 (return res1) undefined final1
+                             in Tuple' (IsMap.mapInsert k fld kv) kv1
+                        Done b ->
+                            Tuple'
+                                (IsMap.mapDelete k kv)
+                                (IsMap.mapInsert k b kv1)
+            Done b ->
+                -- Done in "initial" is possible only for the very first time
+                -- the fold is initialized, and in that case we have not yet
+                -- inserted it in the Map, so we do not need to delete it.
+                return $ Tuple' kv (IsMap.mapInsert k b kv1)
+
+    step (Tuple' kv kv1) a = do
+        let k = getKey a
+        case IsMap.mapLookup k kv of
+            Nothing -> do
+                fld <- getFold k
+                runFold kv kv1 fld (k, a)
+            Just f -> runFold kv kv1 f (k, a)
+
+    final (Tuple' kv kv1) = do
+        r <- Prelude.mapM f kv
+        return $ IsMap.mapUnion r kv1
+
+        where
+
+        f (Fold _ i _ fin) = do
+            r <- i
+            case r of
+                Partial s -> fin s
+                _ -> error "demuxerToContainer: unreachable code"
+
 -- | Replacement for demuxGeneric when Folds will not have the 'extract'
 -- function. Note that this requires the drain step of Scanl to be streaming.
 --
@@ -473,6 +542,76 @@ demuxGenericIO getKey getFold =
                 Partial s -> fin s
                 _ -> error "demuxGenericIO: unreachable code"
 
+-- | This is a specialized version of 'demuxToContainer' that uses mutable IO cells
+-- as fold accumulators for better performance.
+{-# INLINE demuxerToContainerIO #-}
+demuxerToContainerIO :: (MonadIO m, IsMap f, Traversable f) =>
+       (a -> Key f)
+    -> (Key f -> m (Fold m a b))
+    -> Fold m a (f b)
+demuxerToContainerIO getKey getFold =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) undefined final
+
+    where
+
+    initial = return $ Tuple' IsMap.mapEmpty IsMap.mapEmpty
+
+    {-# INLINE initFold #-}
+    initFold kv kv1 (Fold step1 initial1 _ final1) (k, a) = do
+         res <- initial1
+         case res of
+            Partial s -> do
+                res1 <- step1 s a
+                case res1 of
+                    Partial _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) undefined final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) kv1
+                    Done b -> return $ Tuple' kv (IsMap.mapInsert k b kv1)
+            Done b -> return $ Tuple' kv (IsMap.mapInsert k b kv1)
+
+    {-# INLINE runFold #-}
+    runFold kv kv1 ref (Fold step1 initial1 _ final1) (k, a) = do
+         res <- initial1
+         case res of
+            Partial s -> do
+                res1 <- step1 s a
+                case res1 of
+                        Partial _ -> do
+                            let fld = Fold step1 (return res1) undefined final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv kv1
+                        Done b ->
+                            let r = IsMap.mapDelete k kv
+                             in return $ Tuple' r (IsMap.mapInsert k b kv1)
+            Done _ -> error "demuxGenericIO: unreachable"
+
+    step (Tuple' kv kv1) a = do
+        let k = getKey a
+        case IsMap.mapLookup k kv of
+            Nothing -> do
+                f <- getFold k
+                initFold kv kv1 f (k, a)
+            Just ref -> do
+                f <- liftIO $ readIORef ref
+                runFold kv kv1 ref f (k, a)
+
+    final (Tuple' kv kv1) = do
+        r <- Prelude.mapM f kv
+        return $ IsMap.mapUnion r kv1
+
+        where
+
+        f ref = do
+            Fold _ i _ fin <- liftIO $ readIORef ref
+            r <- i
+            case r of
+                Partial s -> fin s
+                _ -> error "demuxGenericIO: unreachable code"
+
 -- | Replacement for demuxGenericIO when Folds will not have the 'extract'
 -- function. Note that this requires the drain step of Scanl to be streaming.
 --
@@ -514,6 +653,7 @@ kvToMapOverwriteGeneric :: (Monad m, IsMap f) => Fold m (Key f, a) (f a)
 kvToMapOverwriteGeneric =
     foldl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 
+{-# DEPRECATED demuxToContainer "Use demuxerToContainer instead" #-}
 {-# INLINE demuxToContainer #-}
 demuxToContainer :: (Monad m, IsMap f, Traversable f) =>
     (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
@@ -530,11 +670,20 @@ demuxToContainer getKey getFold =
 
 -- | This collects all the results of 'demux' in a Map.
 --
+{-# DEPRECATED demuxToMap "Use demuxerToMap instead" #-}
 {-# INLINE demuxToMap #-}
 demuxToMap :: (Monad m, Ord k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Fold m a (Map k b)
 demuxToMap = demuxToContainer
 
+-- | This collects all the results of 'demux' in a Map.
+--
+{-# INLINE demuxerToMap #-}
+demuxerToMap :: (Monad m, Ord k) =>
+    (a -> k) -> (k -> m (Fold m a b)) -> Fold m a (Map k b)
+demuxerToMap = demuxerToContainer
+
+{-# DEPRECATED demuxToContainerIO "Use demuxerToContainerIO instead" #-}
 {-# INLINE demuxToContainerIO #-}
 demuxToContainerIO :: (MonadIO m, IsMap f, Traversable f) =>
     (a -> Key f) -> (a -> m (Fold m a b)) -> Fold m a (f b)
@@ -551,15 +700,23 @@ demuxToContainerIO getKey getFold =
 
 -- | Same as 'demuxToMap' but uses 'demuxIO' for better performance.
 --
+{-# DEPRECATED demuxToMapIO "Use demuxerToMapIO instead" #-}
 {-# INLINE demuxToMapIO #-}
 demuxToMapIO :: (MonadIO m, Ord k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Fold m a (Map k b)
 demuxToMapIO = demuxToContainerIO
 
+-- | Same as 'demuxerToMap' but uses mutable cells for better performance.
+--
+{-# INLINE demuxerToMapIO #-}
+demuxerToMapIO :: (MonadIO m, Ord k) =>
+    (a -> k) -> (k -> m (Fold m a b)) -> Fold m a (Map k b)
+demuxerToMapIO = demuxerToContainerIO
+
 {-# INLINE demuxKvToContainer #-}
 demuxKvToContainer :: (Monad m, IsMap f, Traversable f) =>
     (Key f -> m (Fold m a b)) -> Fold m (Key f, a) (f b)
-demuxKvToContainer f = demuxToContainer fst (\(k, _) -> fmap (lmap snd) (f k))
+demuxKvToContainer f = demuxerToContainer fst (fmap (lmap snd) . f)
 
 -- | Fold a stream of key value pairs using a function that maps keys to folds.
 --
@@ -655,6 +812,51 @@ classifyGeneric f (Fold step1 initial1 extract1 final1) =
             -- be in the map and vice-versa.
             then extract1 s
             else final1 s
+
+{-# INLINE toContainer #-}
+toContainer :: (Monad m, IsMap f, Traversable f) =>
+    (a -> Key f) -> Fold m a b -> Fold m a (f b)
+toContainer f (Fold step1 initial1 _ final1) =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) undefined final
+
+    where
+
+    initial = return $ Tuple' IsMap.mapEmpty IsMap.mapEmpty
+
+    {-# INLINE initFold #-}
+    initFold kv kv1 k a = do
+        x <- initial1
+        case x of
+              Partial s -> do
+                r <- step1 s a
+                return
+                    $ case r of
+                          Partial s1 ->
+                            Tuple' (IsMap.mapInsert k s1 kv) kv1
+                          Done b ->
+                            Tuple' kv (IsMap.mapInsert k b kv1)
+              Done b -> return (Tuple' kv (IsMap.mapInsert k b kv1))
+
+    step (Tuple' kv kv1) a = do
+        let k = f a
+        case IsMap.mapLookup k kv of
+            Nothing -> do
+                case IsMap.mapLookup k kv1 of
+                    Nothing -> initFold kv kv1 k a
+                    Just _ -> return (Tuple' kv kv1)
+            Just s -> do
+                r <- step1 s a
+                return
+                    $ case r of
+                          Partial s1 ->
+                            Tuple' (IsMap.mapInsert k s1 kv) kv1
+                          Done b ->
+                            let res = IsMap.mapDelete k kv
+                             in Tuple' res (IsMap.mapInsert k b kv1)
+
+    final (Tuple' kv kv1) = do
+        r <- Prelude.mapM final1 kv
+        return $ IsMap.mapUnion r kv1
 
 -- | Replacement for classifyGeneric when Folds will not have the 'extract'
 -- function. Note that this requires the drain step of Scanl to be streaming.
@@ -757,6 +959,61 @@ classifyGenericIO f (Fold step1 initial1 extract1 final1) =
             then extract1 s
             else final1 s
 
+-- XXX we can use a Prim IORef if we can constrain the state "s" to be Prim
+--
+-- The code is almost the same as classifyGeneric except the IORef operations.
+
+{-# INLINE toContainerIO #-}
+toContainerIO :: (MonadIO m, IsMap f, Traversable f) =>
+    (a -> Key f) -> Fold m a b -> Fold m a (f b)
+toContainerIO f (Fold step1 initial1 _ final1) =
+    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) undefined final
+
+    where
+
+    initial = return $ Tuple' IsMap.mapEmpty IsMap.mapEmpty
+
+    {-# INLINE initFold #-}
+    initFold kv kv1 k a = do
+        x <- initial1
+        case x of
+              Partial s -> do
+                r <- step1 s a
+                case r of
+                      Partial s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple' (IsMap.mapInsert k ref kv) kv1
+                      Done b ->
+                        return $ Tuple' kv (IsMap.mapInsert k b kv1)
+              Done b -> return (Tuple' kv (IsMap.mapInsert k b kv1))
+
+    step (Tuple' kv kv1) a = do
+        let k = f a
+        case IsMap.mapLookup k kv of
+            Nothing -> do
+                case IsMap.mapLookup k kv1 of
+                    Nothing -> initFold kv kv1 k a
+                    Just _ -> return $ Tuple' kv kv1
+            Just ref -> do
+                s <- liftIO $ readIORef ref
+                r <- step1 s a
+                case r of
+                      Partial s1 -> do
+                        liftIO $ writeIORef ref s1
+                        return $ Tuple' kv kv1
+                      Done b ->
+                        let res = IsMap.mapDelete k kv
+                         in return
+                                $ Tuple' res (IsMap.mapInsert k b kv1)
+
+    final (Tuple' kv kv1) = do
+        r <- Prelude.mapM g kv
+        return $ IsMap.mapUnion r kv1
+
+        where
+
+        g ref = liftIO (readIORef ref) >>= final1
+
 -- | Replacement for classifyGenericIO when Folds will not have the 'extract'
 -- function. Note that this requires the drain step of Scanl to be streaming.
 --
@@ -791,6 +1048,7 @@ classifyScanIO :: -- (MonadIO m, Ord k) =>
     -> Scanl m a (k, b)
 classifyScanIO = undefined
 
+{-
 {-# INLINE toContainer #-}
 toContainer :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Fold m a b -> Fold m a (f b)
@@ -804,6 +1062,7 @@ toContainer f fld =
                 (rmapM getMap $ lmap fst latest)
                 (lmap snd $ catMaybes kvToMapOverwriteGeneric)
     in postscan classifier aggregator
+-}
 
 -- | Split the input stream based on a key field and fold each split using the
 -- given fold. Useful for map/reduce, bucketizing the input in different bins
@@ -841,6 +1100,7 @@ toMap :: (Monad m, Ord k) =>
     (a -> k) -> Fold m a b -> Fold m a (Map k b)
 toMap = toContainer
 
+{-
 {-# INLINE toContainerIO #-}
 toContainerIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Fold m a b -> Fold m a (f b)
@@ -854,6 +1114,7 @@ toContainerIO f fld =
                 (rmapM getMap $ lmap fst latest)
                 (lmap snd $ catMaybes kvToMapOverwriteGeneric)
     in postscan classifier aggregator
+-}
 
 -- | Same as 'toMap' but maybe faster because it uses mutable cells as
 -- fold accumulators in the Map.

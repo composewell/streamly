@@ -378,8 +378,8 @@ module Streamly.Data.Fold
     -- based on the output of the previous fold.
 
     -- ** Key-value Collectors
-    , demuxToMap
-    , demuxToMapIO
+    , demuxerToMap
+    , demuxerToMapIO
 
     {-
     -- ** Key-value Scanners
@@ -406,6 +406,8 @@ module Streamly.Data.Fold
     , classifyIO
     , demux
     , demuxIO
+    , demuxToMap
+    , demuxToMapIO
     , scan
     , postscan
     , scanMaybe
