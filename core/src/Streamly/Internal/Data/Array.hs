@@ -891,28 +891,31 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
         pRes <- pstep pst x
         let next = INDEX_NEXT(cur,a)
         case pRes of
-            Parser.Partial 0 s ->
+            Parser.SPartial 1 s ->
                  goArray s [] st (Array contents next end)
-            Parser.Partial n s -> do
+            Parser.SPartial m s -> do
+                let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let src0 = Prelude.take n (x:backBuf)
                     arr0 = fromListN n (Prelude.reverse src0)
                     arr1 = Array contents next end
                     src = arr0 <> arr1
                 goArray s [] st src
-            Parser.Continue 0 s ->
+            Parser.SContinue 1 s ->
                 goArray s (x:backBuf) st (Array contents next end)
-            Parser.Continue n s -> do
+            Parser.SContinue m s -> do
+                let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let (src0, buf1) = Prelude.splitAt n (x:backBuf)
                     arr0 = fromListN n (Prelude.reverse src0)
                     arr1 = Array contents next end
                     src = arr0 <> arr1
                 goArray s buf1 st src
-            Parser.Done 0 b -> do
+            Parser.SDone 1 b -> do
                 let arr = Array contents next end
                 return (Right b, StreamK.cons arr st)
-            Parser.Done n b -> do
+            Parser.SDone m b -> do
+                let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let src0 = Prelude.take n (x:backBuf)
                     -- XXX Use fromListRevN once implemented
@@ -936,28 +939,31 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
         pRes <- pstep pst x
         let next = INDEX_NEXT(cur,a)
         case pRes of
-            Parser.Partial 0 s ->
+            Parser.SPartial 1 s ->
                  goExtract s [] (Array contents next end)
-            Parser.Partial n s -> do
+            Parser.SPartial m s -> do
+                let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let src0 = Prelude.take n (x:backBuf)
                     arr0 = fromListN n (Prelude.reverse src0)
                     arr1 = Array contents next end
                     src = arr0 <> arr1
                 goExtract s [] src
-            Parser.Continue 0 s ->
+            Parser.SContinue 1 s ->
                 goExtract s backBuf (Array contents next end)
-            Parser.Continue n s -> do
+            Parser.SContinue m s -> do
+                let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let (src0, buf1) = Prelude.splitAt n (x:backBuf)
                     arr0 = fromListN n (Prelude.reverse src0)
                     arr1 = Array contents next end
                     src = arr0 <> arr1
                 goExtract s buf1 src
-            Parser.Done 0 b -> do
+            Parser.SDone 1 b -> do
                 let arr = Array contents next end
                 return (Right b, StreamK.fromPure arr)
-            Parser.Done n b -> do
+            Parser.SDone m b -> do
+                let n = 1 - m
                 assert (n <= Prelude.length backBuf) (return ())
                 let src0 = Prelude.take n (x:backBuf)
                     -- XXX Use fromListRevN once implemented
@@ -978,17 +984,19 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
     goStop !pst backBuf = do
         pRes <- extract pst
         case pRes of
-            Parser.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
-            Parser.Continue 0 s ->
+            Parser.SPartial _ _ -> error "Bug: parseBreak: Partial in extract"
+            Parser.SContinue 1 s ->
                 goStop s backBuf
-            Parser.Continue n s -> do
+            Parser.SContinue m s -> do
+                let n = 1 - m
                 assert (n <= Prelude.length backBuf) (return ())
                 let (src0, buf1) = Prelude.splitAt n backBuf
                     arr = fromListN n (Prelude.reverse src0)
                 goExtract s buf1 arr
-            Parser.Done 0 b ->
+            Parser.SDone 1 b ->
                 return (Right b, StreamK.nil)
-            Parser.Done n b -> do
+            Parser.SDone m b -> do
+                let n = 1 - m
                 assert (n <= Prelude.length backBuf) (return ())
                 let src0 = Prelude.take n backBuf
                     -- XXX Use fromListRevN once implemented

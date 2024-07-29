@@ -140,19 +140,22 @@ parse
             Yield x s -> do
                 pRes <- pstep pst x
                 case pRes of
-                    Partial 0 pst1 -> go SPEC s (List []) pst1
-                    Partial n pst1 -> do
+                    SPartial 1 pst1 -> go SPEC s (List []) pst1
+                    SPartial m pst1 -> do
+                        let n = 1 - m
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
                         gobuf SPEC s (List []) (List src) pst1
-                    Continue 0 pst1 -> go SPEC s (List (x:getList buf)) pst1
-                    Continue n pst1 -> do
+                    SContinue 1 pst1 -> go SPEC s (List (x:getList buf)) pst1
+                    SContinue m pst1 -> do
+                        let n = 1 - m
                         assert (n <= length (x:getList buf)) (return ())
                         let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
                         gobuf SPEC s (List buf1) (List src) pst1
-                    Done n b -> do
+                    SDone m b -> do
+                        let n = 1 - m
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
@@ -172,21 +175,24 @@ parse
     gobuf !_ s buf (List (x:xs)) !pst = do
         pRes <- pstep pst x
         case pRes of
-            Partial 0 pst1 ->
+            SPartial 1 pst1 ->
                 gobuf SPEC s (List []) (List xs) pst1
-            Partial n pst1 -> do
+            SPartial m pst1 -> do
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC s (List []) (List src) pst1
-            Continue 0 pst1 ->
+            SContinue 1 pst1 ->
                 gobuf SPEC s (List (x:getList buf)) (List xs) pst1
-            Continue n pst1 -> do
+            SContinue m pst1 -> do
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC s (List buf1) (List src) pst1
-            Done n b -> do
+            SDone m b -> do
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
@@ -205,21 +211,24 @@ parse
     goExtract !_ buf (List (x:xs)) !pst = do
         pRes <- pstep pst x
         case pRes of
-            Partial 0 pst1 ->
+            SPartial 1 pst1 ->
                 goExtract SPEC (List []) (List xs) pst1
-            Partial n pst1 -> do
+            SPartial m pst1 -> do
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 goExtract SPEC (List []) (List src) pst1
-            Continue 0 pst1 ->
+            SContinue 1 pst1 ->
                 goExtract SPEC (List (x:getList buf)) (List xs) pst1
-            Continue n pst1 -> do
+            SContinue m pst1 -> do
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 goExtract SPEC (List buf1) (List src) pst1
-            Done n b -> do
+            SDone m b -> do
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
@@ -236,16 +245,18 @@ parse
     goStop buf pst = do
         pRes <- extract pst
         case pRes of
-            Partial _ _ -> error "Bug: parseD: Partial in extract"
-            Continue 0 pst1 ->
+            SPartial _ _ -> error "Bug: parseD: Partial in extract"
+            SContinue 1 pst1 ->
                 goStop buf pst1
-            Continue n pst1 -> do
+            SContinue m pst1 -> do
+                let n = 1 - m
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
                 goExtract SPEC (List buf1) (List src) pst1
-            Done 0 b -> return (Right b, source Nothing)
-            Done n b -> do
+            SDone 1 b -> return (Right b, source Nothing)
+            SDone m b -> do
+                let n = 1 - m
                 assert (n <= length (getList buf)) (return ())
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0
