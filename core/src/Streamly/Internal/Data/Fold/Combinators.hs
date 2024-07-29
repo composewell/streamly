@@ -68,9 +68,6 @@ module Streamly.Internal.Data.Fold.Combinators
     -- aggregation of all elements till now.
     , latest
  -- , nthLast -- using Ring array
-    , indexingWith
-    , indexing
-    , indexingRev
     , rollingMapM
 
     -- *** Filters
@@ -134,8 +131,10 @@ module Streamly.Internal.Data.Fold.Combinators
     , slide2
 
     -- ** Scanning Input
-    , scan
-    , scanMany
+    , scanl
+    , scanlMany
+    , postscanl
+    , postscanlMaybe
     -- , runScan
     , pipe
     , indexed
@@ -214,6 +213,11 @@ module Streamly.Internal.Data.Fold.Combinators
     , mapM
     , variance
     , stdDev
+    , indexingWith
+    , indexing
+    , indexingRev
+    , scan
+    , scanMany
     )
 where
 
@@ -228,6 +232,7 @@ import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
+import Streamly.Internal.Data.Scanl.Type (Scanl(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
@@ -243,6 +248,7 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Window as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.Scanl.Combinators as Scanl
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
 import Prelude hiding
@@ -525,6 +531,61 @@ runScan :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
 runScan = runScanWith False
 -}
 
+-- | Postscan the input of a 'Fold' to change it in a stateful manner using
+-- a 'Scanl'.
+--
+-- @postscanl scanner collector@
+--
+-- /Pre-release/
+{-# INLINE postscanl #-}
+postscanl :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
+postscanl
+    (Scanl stepL initialL extractL finalL)
+    (Fold stepR initialR _ finalR) =
+    Fold step initial undefined final
+
+    where
+
+    {-# INLINE runStep #-}
+    runStep actionL sR = do
+        rL <- actionL
+        case rL of
+            Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 -> Done <$> finalR sR1
+                    Done bR -> return $ Done bR
+            Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+
+    initial = do
+        rR <- initialR
+        case rR of
+            Partial sR -> do
+                rL <- initialL
+                case rL of
+                    Done _ -> Done <$> finalR sR
+                    Partial sL -> return $ Partial (sL, sR)
+            Done b -> return $ Done b
+
+    -- XXX should use Tuple'
+    step (sL, sR) x = runStep (stepL sL x) sR
+
+    final (sL, sR) = finalL sL *> finalR sR
+
+-- | Use a 'Maybe' returning left scan for filtering the input of a fold.
+--
+-- >>> scanlMaybe p f = Fold.postscanl p (Fold.catMaybes f)
+--
+-- /Pre-release/
+{-# INLINE postscanlMaybe #-}
+postscanlMaybe :: Monad m => Scanl m a (Maybe b) -> Fold m b c -> Fold m a c
+postscanlMaybe f1 f2 = postscanl f1 (catMaybes f2)
+
 {-# INLINE scanWith #-}
 scanWith :: Monad m => Bool -> Fold m a b -> Fold m b c -> Fold m a c
 scanWith isMany
@@ -586,6 +647,66 @@ scan = scanWith False
 {-# INLINE scanMany #-}
 scanMany :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 scanMany = scanWith True
+
+{-# INLINE scanlWith #-}
+scanlWith :: Monad m => Bool -> Scanl m a b -> Fold m b c -> Fold m a c
+scanlWith isMany
+    (Scanl stepL initialL extractL finalL)
+    (Fold stepR initialR _ finalR) =
+    Fold step initial undefined final
+
+    where
+
+    {-# INLINE runStep #-}
+    runStep actionL sR = do
+        rL <- actionL
+        case rL of
+            Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 ->
+                        if isMany
+                        -- XXX recursive call. If initialL returns Done then it
+                        -- will not terminate. In that case we should return
+                        -- error in the beginning itself. And we should remove
+                        -- this recursion, assuming it won't return Done.
+                        then runStep initialL sR1
+                        else Done <$> finalR sR1
+                    Done bR -> return $ Done bR
+            Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+
+    initial = do
+        r <- initialR
+        case r of
+            Partial sR -> runStep initialL sR
+            Done b -> return $ Done b
+
+    step (sL, sR) x = runStep (stepL sL x) sR
+
+    final (sL, sR) = finalL sL *> finalR sR
+
+-- | Scan the input of a 'Fold' to change it in a stateful manner using another
+-- 'Fold'. The scan stops as soon as the fold terminates.
+--
+-- /Pre-release/
+{-# INLINE scanl #-}
+scanl :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
+scanl = scanlWith False
+
+-- XXX This does not fuse beacuse of the recursive step. Need to investigate.
+
+-- | Scan the input of a 'Fold' to change it in a stateful manner using another
+-- 'Fold'. The scan restarts with a fresh state if the fold terminates.
+--
+-- /Pre-release/
+{-# INLINE scanlMany #-}
+scanlMany :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
+scanlMany = scanlWith True
 
 ------------------------------------------------------------------------------
 -- Filters
@@ -2166,6 +2287,7 @@ zipStream = zipStreamWithM (curry return)
 
 -- | Pair each element of a fold input with its index, starting from index 0.
 --
+{-# DEPRECATED indexingWith "Use Scanl.indexingWith instead" #-}
 {-# INLINE indexingWith #-}
 indexingWith :: Monad m => Int -> (Int -> Int) -> Fold m a (Maybe (Int, a))
 indexingWith i f = fmap toMaybe $ foldl' step initial
@@ -2180,6 +2302,7 @@ indexingWith i f = fmap toMaybe $ foldl' step initial
 -- |
 -- >>> indexing = Fold.indexingWith 0 (+ 1)
 --
+{-# DEPRECATED indexing "Use Scanl.indexing instead" #-}
 {-# INLINE indexing #-}
 indexing :: Monad m => Fold m a (Maybe (Int, a))
 indexing = indexingWith 0 (+ 1)
@@ -2187,6 +2310,7 @@ indexing = indexingWith 0 (+ 1)
 -- |
 -- >>> indexingRev n = Fold.indexingWith n (subtract 1)
 --
+{-# DEPRECATED indexingRev "Use Scanl.indexingRev instead" #-}
 {-# INLINE indexingRev #-}
 indexingRev :: Monad m => Int -> Fold m a (Maybe (Int, a))
 indexingRev n = indexingWith n (subtract 1)
@@ -2197,7 +2321,7 @@ indexingRev n = indexingWith n (subtract 1)
 --
 {-# INLINE indexed #-}
 indexed :: Monad m => Fold m (Int, a) b -> Fold m a b
-indexed = scanMaybe indexing
+indexed = postscanlMaybe Scanl.indexing
 
 -- | Change the predicate function of a Fold from @a -> b@ to accept an
 -- additional state input @(s, a) -> b@. Convenient to filter with an

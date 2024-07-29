@@ -341,9 +341,9 @@ module Streamly.Data.Fold
     -- | Transformations that combine two or more folds.
 
     -- ** Scanning
-    , scan
-    , postscan
-    , scanMaybe
+    , scanl
+    , postscanl
+    , postscanlMaybe
 
     -- ** Splitting
     , splitWith
@@ -406,6 +406,9 @@ module Streamly.Data.Fold
     , classifyIO
     , demux
     , demuxIO
+    , scan
+    , postscan
+    , scanMaybe
     )
 where
 
