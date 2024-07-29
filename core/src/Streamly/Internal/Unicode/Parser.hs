@@ -339,87 +339,87 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
     {-# INLINE step #-}
     step SPInitial val =
         case val of
-          '+' -> Continue 0 (SPSign 1)
-          '-' -> Continue 0 (SPSign (-1))
+          '+' -> SContinue 1 (SPSign 1)
+          '-' -> SContinue 1 (SPSign (-1))
           _ -> do
               let num = ord val - 48
               if num >= 0 && num <= 9
-              then Partial 0 $ SPAfterSign 1 (intToInteger num)
+              then SPartial 1 $ SPAfterSign 1 (intToInteger num)
               else Error $ exitSPInitial $ show val
     step (SPSign multiplier) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
-            then Partial 0 $ SPAfterSign multiplier (intToInteger num)
+            then SPartial 1 $ SPAfterSign multiplier (intToInteger num)
             else Error $ exitSPSign $ show val
     step (SPAfterSign multiplier buf) val =
         case val of
-            '.' -> Continue 0 $ SPDot multiplier buf
-            'e' -> Continue 0 $ SPExponent multiplier buf 0
-            'E' -> Continue 0 $ SPExponent multiplier buf 0
+            '.' -> SContinue 1 $ SPDot multiplier buf
+            'e' -> SContinue 1 $ SPExponent multiplier buf 0
+            'E' -> SContinue 1 $ SPExponent multiplier buf 0
             _ ->
                 let num = ord val - 48
                  in if num >= 0 && num <= 9
                     then
-                        Partial 0
+                        SPartial 1
                             $ SPAfterSign multiplier (combineNum buf (intToInteger num))
-                    else Done 1 $ exitSPAfterSign multiplier buf
+                    else SDone 0 $ exitSPAfterSign multiplier buf
     step (SPDot multiplier buf) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
-            then Partial 0 $ SPAfterDot multiplier (combineNum buf (intToInteger num)) 1
-            else Done 2 $ exitSPAfterSign multiplier buf
+            then SPartial 1 $ SPAfterDot multiplier (combineNum buf (intToInteger num)) 1
+            else SDone (-1) $ exitSPAfterSign multiplier buf
     step (SPAfterDot multiplier buf decimalPlaces) val =
         case val of
-            'e' -> Continue 0 $ SPExponent multiplier buf decimalPlaces
-            'E' -> Continue 0 $ SPExponent multiplier buf decimalPlaces
+            'e' -> SContinue 1 $ SPExponent multiplier buf decimalPlaces
+            'E' -> SContinue 1 $ SPExponent multiplier buf decimalPlaces
             _ ->
                 let num = ord val - 48
                  in if num >= 0 && num <= 9
                     then
-                        Partial 0
+                        SPartial 1
                             $ SPAfterDot
                                   multiplier
                                   (combineNum buf (intToInteger num))
                                   (decimalPlaces + 1)
-                    else Done 1 $ exitSPAfterDot multiplier buf decimalPlaces
+                    else SDone 0 $ exitSPAfterDot multiplier buf decimalPlaces
     step (SPExponent multiplier buf decimalPlaces) val =
         case val of
-          '+' -> Continue 0 (SPExponentWithSign multiplier buf decimalPlaces 1)
-          '-' -> Continue 0 (SPExponentWithSign multiplier buf decimalPlaces (-1))
+          '+' -> SContinue 1 (SPExponentWithSign multiplier buf decimalPlaces 1)
+          '-' -> SContinue 1 (SPExponentWithSign multiplier buf decimalPlaces (-1))
           _ -> do
               let num = ord val - 48
               if num >= 0 && num <= 9
-              then Partial 0 $ SPAfterExponent multiplier buf decimalPlaces 1 num
-              else Done 2 $ exitSPAfterDot multiplier buf decimalPlaces
+              then SPartial 1 $ SPAfterExponent multiplier buf decimalPlaces 1 num
+              else SDone (-1) $ exitSPAfterDot multiplier buf decimalPlaces
     step (SPExponentWithSign mult buf decimalPlaces powerMult) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
-            then Partial 0 $ SPAfterExponent mult buf decimalPlaces powerMult num
-            else Done 3 $ exitSPAfterDot mult buf decimalPlaces
+            then SPartial 1 $ SPAfterExponent mult buf decimalPlaces powerMult num
+            else SDone (-2) $ exitSPAfterDot mult buf decimalPlaces
     step (SPAfterExponent mult num decimalPlaces powerMult buf) val =
         let n = ord val - 48
          in if n >= 0 && n <= 9
             then
-                Partial 0
+                SPartial 1
                     $ SPAfterExponent
                           mult num decimalPlaces powerMult (combineNum buf n)
             else
-                Done 1
+                SDone 0
                     $ exitSPAfterExponent mult num decimalPlaces powerMult buf
 
     {-# INLINE extract #-}
     extract SPInitial = Error $ exitSPInitial "end of input"
     extract (SPSign _) = Error $ exitSPSign "end of input"
-    extract (SPAfterSign mult num) = Done 0 $ exitSPAfterSign mult num
-    extract (SPDot mult num) = Done 1 $ exitSPAfterSign mult num
+    extract (SPAfterSign mult num) = SDone 1 $ exitSPAfterSign mult num
+    extract (SPDot mult num) = SDone 0 $ exitSPAfterSign mult num
     extract (SPAfterDot mult num decimalPlaces) =
-        Done 0 $ exitSPAfterDot mult num decimalPlaces
+        SDone 1 $ exitSPAfterDot mult num decimalPlaces
     extract (SPExponent mult num decimalPlaces) =
-        Done 1 $ exitSPAfterDot mult num decimalPlaces
+        SDone 0 $ exitSPAfterDot mult num decimalPlaces
     extract (SPExponentWithSign mult num decimalPlaces _) =
-        Done 2 $ exitSPAfterDot mult num decimalPlaces
+        SDone (-1) $ exitSPAfterDot mult num decimalPlaces
     extract (SPAfterExponent mult num decimalPlaces powerMult powerNum) =
-        Done 0 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
+        SDone 1 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
 
 type MantissaInt = Int
 type OverflowPower = Int
@@ -480,84 +480,84 @@ doubleParser =  Parser (\s a -> return $ step s a) initial (return . extract)
     {-# INLINE step #-}
     step DPInitial val =
         case val of
-          '+' -> Continue 0 (DPSign 1)
-          '-' -> Continue 0 (DPSign (-1))
+          '+' -> SContinue 1 (DPSign 1)
+          '-' -> SContinue 1 (DPSign (-1))
           _ -> do
               let num = ord val - 48
               if num >= 0 && num <= 9
-              then Partial 0 $ DPAfterSign 1 num 0
+              then SPartial 1 $ DPAfterSign 1 num 0
               else Error $ exitDPInitial $ show val
     step (DPSign multiplier) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
-            then Partial 0 $ DPAfterSign multiplier num 0
+            then SPartial 1 $ DPAfterSign multiplier num 0
             else Error $ exitDPSign $ show val
     step (DPAfterSign multiplier buf opower) val =
         case val of
-            '.' -> Continue 0 $ DPDot multiplier buf opower
-            'e' -> Continue 0 $ DPExponent multiplier buf opower
-            'E' -> Continue 0 $ DPExponent multiplier buf opower
+            '.' -> SContinue 1 $ DPDot multiplier buf opower
+            'e' -> SContinue 1 $ DPExponent multiplier buf opower
+            'E' -> SContinue 1 $ DPExponent multiplier buf opower
             _ ->
                 let num = ord val - 48
                  in if num >= 0 && num <= 9
                     then
                         let (buf1, power1) = combineNum buf opower num
-                         in Partial 0
+                         in SPartial 1
                             $ DPAfterSign multiplier buf1 power1
-                    else Done 1 $ exitDPAfterSign multiplier buf opower
+                    else SDone 0 $ exitDPAfterSign multiplier buf opower
     step (DPDot multiplier buf opower) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
             then
                 let (buf1, power1) = combineNum buf opower num
-                 in Partial 0 $ DPAfterDot multiplier buf1 (power1 - 1)
-            else Done 2 $ exitDPAfterSign multiplier buf opower
+                 in SPartial 1 $ DPAfterDot multiplier buf1 (power1 - 1)
+            else SDone (-1) $ exitDPAfterSign multiplier buf opower
     step (DPAfterDot multiplier buf opower) val =
         case val of
-            'e' -> Continue 0 $ DPExponent multiplier buf opower
-            'E' -> Continue 0 $ DPExponent multiplier buf opower
+            'e' -> SContinue 1 $ DPExponent multiplier buf opower
+            'E' -> SContinue 1 $ DPExponent multiplier buf opower
             _ ->
                 let num = ord val - 48
                  in if num >= 0 && num <= 9
                     then
                         let (buf1, power1) = combineNum buf opower num
-                         in Partial 0 $ DPAfterDot multiplier buf1 (power1 - 1)
-                    else Done 1 $ exitDPAfterDot multiplier buf opower
+                         in SPartial 1 $ DPAfterDot multiplier buf1 (power1 - 1)
+                    else SDone 0 $ exitDPAfterDot multiplier buf opower
     step (DPExponent multiplier buf opower) val =
         case val of
-          '+' -> Continue 0 (DPExponentWithSign multiplier buf opower 1)
-          '-' -> Continue 0 (DPExponentWithSign multiplier buf opower (-1))
+          '+' -> SContinue 1 (DPExponentWithSign multiplier buf opower 1)
+          '-' -> SContinue 1 (DPExponentWithSign multiplier buf opower (-1))
           _ -> do
               let num = ord val - 48
               if num >= 0 && num <= 9
-              then Partial 0 $ DPAfterExponent multiplier buf opower 1 num
-              else Done 2 $ exitDPAfterDot multiplier buf opower
+              then SPartial 1 $ DPAfterExponent multiplier buf opower 1 num
+              else SDone (-1) $ exitDPAfterDot multiplier buf opower
     step (DPExponentWithSign mult buf opower powerMult) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
-            then Partial 0 $ DPAfterExponent mult buf opower powerMult num
-            else Done 3 $ exitDPAfterDot mult buf opower
+            then SPartial 1 $ DPAfterExponent mult buf opower powerMult num
+            else SDone (-2) $ exitDPAfterDot mult buf opower
     step (DPAfterExponent mult num opower powerMult buf) val =
         let n = ord val - 48
          in if n >= 0 && n <= 9
             then
-                Partial 0
+                SPartial 1
                     $ DPAfterExponent mult num opower powerMult (buf * 10 + n)
-            else Done 1 $ exitDPAfterExponent mult num opower powerMult buf
+            else SDone 0 $ exitDPAfterExponent mult num opower powerMult buf
 
     {-# INLINE extract #-}
     extract DPInitial = Error $ exitDPInitial "end of input"
     extract (DPSign _) = Error $ exitDPSign "end of input"
-    extract (DPAfterSign mult num opow) = Done 0 $ exitDPAfterSign mult num opow
-    extract (DPDot mult num opow) = Done 1 $ exitDPAfterSign mult num opow
+    extract (DPAfterSign mult num opow) = SDone 1 $ exitDPAfterSign mult num opow
+    extract (DPDot mult num opow) = SDone 0 $ exitDPAfterSign mult num opow
     extract (DPAfterDot mult num opow) =
-        Done 0 $ exitDPAfterDot mult num opow
+        SDone 1 $ exitDPAfterDot mult num opow
     extract (DPExponent mult num opow) =
-        Done 1 $ exitDPAfterDot mult num opow
+        SDone 0 $ exitDPAfterDot mult num opow
     extract (DPExponentWithSign mult num opow _) =
-        Done 2 $ exitDPAfterDot mult num opow
+        SDone (-1) $ exitDPAfterDot mult num opow
     extract (DPAfterExponent mult num opow powerMult powerNum) =
-        Done 0 $ exitDPAfterExponent mult num opow powerMult powerNum
+        SDone 1 $ exitDPAfterExponent mult num opow powerMult powerNum
 
 -- XXX We can have a `realFloat` parser instead to parse any RealFloat value.
 -- And a integral parser to read any integral value.

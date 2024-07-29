@@ -3722,13 +3722,13 @@ pCompactLeAs ps maxElems = Parser step initial extract
         return
             $ let len = byteLength arr
                in if len >= maxBytes
-                  then Parser.Done 0 arr
-                  else Parser.Partial 0 (Just arr)
+                  then Parser.SDone 1 arr
+                  else Parser.SPartial 1 (Just arr)
     -- XXX Split the last array to use the space more compactly.
     step (Just buf) arr =
         let len = byteLength buf + byteLength arr
          in if len > maxBytes
-            then return $ Parser.Done 1 buf
+            then return $ Parser.SDone 0 buf
             else do
                 buf1 <-
                     if byteCapacity buf < maxBytes
@@ -3736,10 +3736,10 @@ pCompactLeAs ps maxElems = Parser step initial extract
                             ps (SIZE_OF(a)) maxBytes buf
                     else return buf
                 buf2 <- unsafeSplice buf1 arr
-                return $ Parser.Partial 0 (Just buf2)
+                return $ Parser.SPartial 1 (Just buf2)
 
-    extract Nothing = return $ Parser.Done 0 nil
-    extract (Just buf) = return $ Parser.Done 0 buf
+    extract Nothing = return $ Parser.SDone 1 nil
+    extract (Just buf) = return $ Parser.SDone 1 buf
 
 -- | Parser @createCompactMax maxElems@ coalesces adjacent arrays in the
 -- input stream only if the combined size would be less than or equal to
