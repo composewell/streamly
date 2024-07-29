@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- |
 -- Module      : Streamly.Internal.Data.Array.Stream
 -- Copyright   : (c) 2019 Composewell Technologies
