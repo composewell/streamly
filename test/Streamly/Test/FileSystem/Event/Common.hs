@@ -241,7 +241,7 @@ fileEvent = id
 
 createParent :: FilePath -> FilePath -> IO ()
 createParent file parent = do
-    createDirectoryIfMissing True (parent </> takeDirectory file)
+    createDirectoryIfMissing True (takeDirectory (parent </> file))
 
 createDirWithParent :: FilePath -> FilePath -> IO ()
 createDirWithParent dir parent =
@@ -310,8 +310,8 @@ rootDirMove suffix events =
 createFileWithParent :: FilePath -> FilePath -> IO ()
 createFileWithParent file parent = do
     when (not (null file)) $ do
-        putStrLn $ "Creating dir: " ++ (parent </> takeDirectory file)
-        createDirectoryIfMissing True (parent </> takeDirectory file)
+        putStrLn $ "Creating dir: " ++ takeDirectory (parent </> file)
+        createDirectoryIfMissing True (takeDirectory (parent </> file))
     putStrLn $ "Opening: " ++ (parent </> file)
     openFile (parent </> file) WriteMode >>= hClose
     putStrLn $ "Opened: " ++ (parent </> file)
