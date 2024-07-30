@@ -31,6 +31,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Scanl as Scanl
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Unfold as Unfold
@@ -40,6 +41,7 @@ import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity(..))
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream.IsStream as Stream
 import Streamly.Internal.Data.Time.Units
 #else
@@ -91,7 +93,7 @@ scanl1M' n = composeN n $ Stream.scanl1M' (\b a -> return $ b + a)
 
 {-# INLINE scan #-}
 scan :: MonadIO m => Int -> Stream m Int -> m ()
-scan n = composeN n $ Stream.scan FL.sum
+scan n = composeN n $ Stream.scanl Scanl.sum
 
 #ifdef USE_PRELUDE
 {-# INLINE postscanl' #-}
@@ -105,7 +107,7 @@ postscanlM' n = composeN n $ Stream.postscanlM' (\b a -> return $ b + a) (return
 
 {-# INLINE postscan #-}
 postscan :: MonadIO m => Int -> Stream m Int -> m ()
-postscan n = composeN n $ Stream.postscan FL.sum
+postscan n = composeN n $ Stream.postscanl Scanl.sum
 
 {-# INLINE sequence #-}
 sequence :: MonadAsync m => Stream m (m Int) -> m ()
@@ -199,7 +201,7 @@ o_1_space_mappingX4 value =
 sieveScan :: Monad m => Stream m Int -> Stream m Int
 sieveScan =
       Stream.mapMaybe snd
-    . Stream.scan (FL.foldlM' (\(primes, _) n -> do
+    . Stream.scanl (Scanl.scanlM' (\(primes, _) n -> do
             return $
                 let ps = takeWhile (\p -> p * p <= n) primes
                  in if all (\p -> n `mod` p /= 0) ps

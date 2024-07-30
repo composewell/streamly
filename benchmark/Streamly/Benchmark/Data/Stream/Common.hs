@@ -79,6 +79,7 @@ import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Pipe as Pipe
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Scanr as Scanr
 
 #ifdef USE_PRELUDE
@@ -405,7 +406,7 @@ foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' f z = Stream.fold (Fold.foldl' f z)
 
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
-scanl' f z = Stream.scan (Fold.foldl' f z)
+scanl' f z = Stream.scanl (Scanl.scanl' f z)
 #endif
 
 {-# INLINE transformMapM #-}

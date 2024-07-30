@@ -263,7 +263,7 @@ toIntMapIO ::
 toIntMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
 
 {-# INLINE toHashMapIO #-}
-toHashMapIO :: (MonadIO m, Ord k, Num a, Hashable k) =>
+toHashMapIO :: (MonadIO m, Num a, Hashable k) =>
     (a -> k) -> Stream m a -> m (HashMap k a)
 toHashMapIO f = Stream.fold (Fold.toHashMapIO f FL.sum)
 
