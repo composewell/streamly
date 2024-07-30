@@ -465,6 +465,7 @@ library
                     , Streamly.Internal.Data.Fold.Window
 
                     , Streamly.Internal.Data.Scanl.Type
+                    , Streamly.Internal.Data.Scanl.Window
                     , Streamly.Internal.Data.Scanl.Combinators
                     , Streamly.Internal.Data.Scanl.Container
 
