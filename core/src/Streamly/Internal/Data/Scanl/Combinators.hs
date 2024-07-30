@@ -38,7 +38,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- | 'product' terminates if it becomes 0. Other folds can theoretically
     -- saturate on bounded types, and therefore terminate, however, they will
     -- run forever on unbounded types like Integer/Double.
-    -- , sum
+    , sum
     , product
     , maximumBy
     , maximum
@@ -232,7 +232,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import qualified Prelude
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 -- import qualified Streamly.Internal.Data.Array.Type as Array
--- import qualified Streamly.Internal.Data.Fold.Window as Fold
+import qualified Streamly.Internal.Data.Scanl.Window as Scanl
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 -- import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
@@ -768,7 +768,6 @@ the = scant' step initial id
 -- To Summary
 ------------------------------------------------------------------------------
 
-{-
 -- | Determine the sum of all elements of a stream of numbers. Returns additive
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
@@ -782,8 +781,7 @@ the = scant' step initial id
 --
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Scanl m a a
-sum = Fold.cumulative Fold.windowSum
--}
+sum = Scanl.cumulative Scanl.windowSum
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates
