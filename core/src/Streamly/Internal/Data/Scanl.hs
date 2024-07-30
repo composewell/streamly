@@ -57,11 +57,13 @@ module Streamly.Internal.Data.Scanl
     -- $setup
 
       module Streamly.Internal.Data.Scanl.Type
+    , module Streamly.Internal.Data.Scanl.Window
     , module Streamly.Internal.Data.Scanl.Combinators
     , module Streamly.Internal.Data.Scanl.Container
     )
 where
 
+import Streamly.Internal.Data.Scanl.Window
 import Streamly.Internal.Data.Scanl.Combinators
 import Streamly.Internal.Data.Scanl.Container
 import Streamly.Internal.Data.Scanl.Type
