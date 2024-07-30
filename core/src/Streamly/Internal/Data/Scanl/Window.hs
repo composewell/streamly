@@ -39,6 +39,9 @@ module Streamly.Internal.Data.Scanl.Window
       windowLmap
     , cumulative
 
+    , windowScan
+    , windowScanWith
+
     , windowRollingMap
     , windowRollingMapM
 
@@ -59,14 +62,16 @@ where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Bifunctor(bimap)
+import Streamly.Internal.Data.MutArray.Type (MutArray)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import Streamly.Internal.Data.Scanl.Type (Scanl(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict
     (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
 
-import qualified Streamly.Internal.Data.Scanl.Type as Scanl
+import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 
 import Prelude hiding (length, sum, minimum, maximum)
 
@@ -81,6 +86,79 @@ import Prelude hiding (length, sum, minimum, maximum)
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
+
+data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
+
+-- | Like 'windowScan' but also provides the entire ring contents as an Array.
+-- The array reflects the state of the ring after inserting the incoming
+-- element.
+--
+-- IMPORTANT NOTE: The ring is mutable, therefore, the result of @(m (Array
+-- a))@ action depends on when it is executed. It does not capture the snapshot
+-- of the ring at a particular time.
+{-# INLINE windowScanWith #-}
+windowScanWith :: forall m a b. (MonadIO m, Unbox a)
+    => Int -> Scanl m ((a, Maybe a), m (MutArray a)) b -> Scanl m a b
+windowScanWith n (Scanl step1 initial1 extract1 final1) =
+    Scanl step initial extract final
+
+    where
+
+    initial = do
+        if n <= 0
+        then error "Window size must be > 0"
+        else do
+            r <- initial1
+            rb <- liftIO $ Ring.emptyOf n
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb 0 (0 :: Int) s
+                    Done b -> Done b
+
+    toArray foldRing rb rh = do
+        -- Using unpinned array here instead of pinned
+        arr <- liftIO $ MutArray.emptyOf n
+        let snoc' b a = liftIO $ MutArray.unsafeSnoc b a
+        foldRing rh snoc' arr rb
+
+    step (Tuple4' rb rh i st) a
+        | i < n = do
+            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
+            -- NOTE: We use (rh + 1) instead of rh1 in the code below as if we
+            -- are at the last element of the ring, rh1 would become 0 and we
+            -- would not fold anything.
+            let action = toArray Ring.unsafeFoldRingM rb (rh + 1)
+            r <- step1 st ((a, Nothing), action)
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
+                    Done b -> Done b
+        | otherwise = do
+            old <- Ring.unsafeGetIndex rh rb
+            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
+            r <- step1 st ((a, Just old), toArray Ring.unsafeFoldRingFullM rb rh1)
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
+                    Done b -> Done b
+
+    extract (Tuple4' _ _ _ st) = extract1 st
+
+    final (Tuple4' _ _ _ st) = final1 st
+
+-- | @windowScan collector@ is an incremental sliding window fold that does not
+-- require all the intermediate elements in a computation. This maintains @n@
+-- elements in the window, when a new element comes it slides out the oldest
+-- element and the new element along with the old element are supplied to the
+-- collector fold.
+--
+-- The 'Maybe' type is for the case when initially the window is filling and
+-- there is no old element.
+--
+{-# INLINE windowScan #-}
+windowScan :: forall m a b. (MonadIO m, Unbox a)
+    => Int -> Scanl m (a, Maybe a) b -> Scanl m a b
+windowScan n f = windowScanWith n (Scanl.lmap fst f)
 
 -- | Map a function on the incoming as well as outgoing element of a rolling
 -- window fold.
