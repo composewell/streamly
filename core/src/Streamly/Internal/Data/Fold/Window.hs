@@ -21,6 +21,8 @@
 -- XXX A window fold can be driven either using the Ring.slidingWindow
 -- combinator or by zipping nthLast fold and last fold.
 
+-- XXX Deprecate all the functions in this module. These should be scans only.
+
 module Streamly.Internal.Data.Fold.Window
     (
     -- * Incremental Folds
