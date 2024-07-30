@@ -772,14 +772,14 @@ toParser parser = ParserD.Parser step initial extract
         r <- cont None
         case r of
             -- This is extract so no input has been given, therefore, the
-            -- translation here is (1 + n) rather than n.
-            -- XXX How should we visualize (1 + n)?
-            -- XXX Go forward by 1 element on extract?
-            Done n b ->  assert (n <= 0) (return $ ParserD.SDone (1 + n) b)
+            -- translation here is (n - 1) rather than n.
+            -- In ParserD @n@ means go back by @n@ including the current input
+            -- Since there is no current input we reduce moving by 1.
+            Done n b ->  assert (n <= 0) (return $ ParserD.SDone (n - 1) b)
             Error _ e -> return $ ParserD.Error e
             Partial _ cont1 -> extract cont1
             Continue n cont1 ->
-                assert (n <= 0) (return $ ParserD.SContinue (1 + n) cont1)
+                assert (n <= 0) (return $ ParserD.SContinue (n - 1) cont1)
 
 {-# RULES "fromParser/toParser fusion" [2]
     forall s. toParser (adapt s) = s #-}
