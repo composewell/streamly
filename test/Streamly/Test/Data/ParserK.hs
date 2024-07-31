@@ -797,19 +797,35 @@ toParser = do
 
     -- NOTE: Without fusionBreaker this test would pass even if toParser has
     -- incorrect implementation because of fusion rules.
-    let p2 =
+    let p2 = Parser.takeWhile (<= 3) FL.toList
+        runP2 xs = Stream.parseBreak p2 (Stream.fromList xs)
+
+        p3 = ParserK.adapt (Parser.takeWhile (<= 3) FL.toList)
+        runP3 xs = StreamK.parseBreak p3 (StreamK.fromList xs)
+
+        p4 =
             ParserK.toParser
                 $ fusionBreaker
                 $ ParserK.adapt (Parser.takeWhile (<= 3) FL.toList)
-        runP2 xs = Stream.parseBreak p2 (Stream.fromList xs)
+        runP4 xs = Stream.parseBreak p4 (Stream.fromList xs)
     describe "toParser . adapt" $ do
         it "(<= 3) for [1, 2, 3, 4, 5]" $ do
             (a, b) <- runP2 ([1, 2, 3, 4, 5] :: [Int])
             fromRight undefined a `shouldBe` [1, 2, 3]
             rest <- Stream.toList b
             rest `shouldBe` [4, 5]
+        it "(<= 3) for [1, 2, 3, 4, 5]" $ do
+            (a, b) <- runP3 ([1, 2, 3, 4, 5] :: [Int])
+            fromRight undefined a `shouldBe` [1, 2, 3]
+            rest <- StreamK.toList b
+            rest `shouldBe` [4, 5]
+        it "(<= 3) for [1, 2, 3, 4, 5]" $ do
+            (a, b) <- runP4 ([1, 2, 3, 4, 5] :: [Int])
+            fromRight undefined a `shouldBe` [1,2,3]
+            rest <- Stream.toList b
+            rest `shouldBe` [4, 5]
         it "(<= 3) for [1, 2, 3]" $ do
-            (a, b) <- runP2 ([1, 2, 3] :: [Int])
+            (a, b) <- runP4 ([1, 2, 3] :: [Int])
             fromRight undefined a `shouldBe` [1, 2, 3]
             rest <- Stream.toList b
             rest `shouldBe` []

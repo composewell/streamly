@@ -725,10 +725,12 @@ adaptCG (ParserD.Parser step initial extract) =
 -- | A continuation to extract the result when a CPS parser is done.
 {-# INLINE parserDone #-}
 parserDone :: Monad m => ParseResult b -> Int -> Input a -> m (Step a m b)
-parserDone (Success n b) _ None = return $ Done (negate n) b
-parserDone (Success n b) _ (Chunk _) = return $ Done (1 - n) b
-parserDone (Failure n e) _ None = return $ Error (negate n) e
-parserDone (Failure n e) _ (Chunk _) = return $ Error (1 - n) e
+parserDone (Success n b) _ _ = do
+    assertM(n <= 1)
+    return $ Done n b
+parserDone (Failure n e) _ _ = do
+    assertM(n <= 1)
+    return $ Error n e
 
 -- XXX Note that this works only for single element parsers and not for Array
 -- input parsers. The asserts will fail for array parsers.
