@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE UnliftedFFITypes #-}
 -- |
 -- Module      : Streamly.Internal.Data.MutArray.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -31,6 +32,8 @@ module Streamly.Internal.Data.MutArray.Type
     -- ** Type
     -- $arrayNotes
       MutArray (..)
+    , fromMutByteArray
+    , toMutByteArray
 
     -- ** Conversion
     -- *** Pinned and Unpinned
@@ -100,7 +103,6 @@ module Streamly.Internal.Data.MutArray.Type
     , fromChunksK
     , fromChunksRealloced -- fromSmallChunks
 
-    , unsafeCreateUsingPtr
     , unsafePinnedCreateUsingPtr
 
     -- ** Random writes
@@ -273,9 +275,6 @@ module Streamly.Internal.Data.MutArray.Type
     -- ** Utilities
     , isPower2
     , roundUpToPower2
-    , memcpy
-    , memcmp
-    , c_memchr
 
     -- * Deprecated
     , realloc
@@ -335,15 +334,15 @@ where
 #include "ArrayMacros.h"
 #include "MachDeps.h"
 
-import Control.Monad (when, void)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 import Data.Bits (shiftR, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16)
-import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.Ptr (plusPtr, minusPtr, nullPtr)
+import Foreign.C.Types (CSize(..))
+import Foreign.Ptr (plusPtr)
 import Streamly.Internal.Data.MutByteArray.Type
     ( MutByteArray(..)
     , PinnedState(..)
@@ -355,9 +354,9 @@ import GHC.Base
     ( IO(..)
     , Int(..)
     , compareByteArrays#
+    , noinline
     )
-import GHC.Base (noinline)
-import GHC.Exts (unsafeCoerce#, Addr#)
+import GHC.Exts (unsafeCoerce#, Addr#, MutableByteArray#, RealWorld)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -392,13 +391,10 @@ import Prelude hiding
 
 -- NOTE: Have to be "ccall unsafe" so that we can pass unpinned memory to these
 foreign import ccall unsafe "string.h memcpy" c_memcpy
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
+    :: MutableByteArray# RealWorld -> Ptr Word8 -> CSize -> IO (Ptr Word8)
 
-foreign import ccall unsafe "string.h memchr" c_memchr
-    :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
-
-foreign import ccall unsafe "string.h memcmp" c_memcmp
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
+foreign import ccall unsafe "memchr_index" c_memchr_index
+    :: MutableByteArray# RealWorld -> CSize -> Word8 -> CSize -> IO CSize
 
 foreign import ccall unsafe "string.h strlen" c_strlen
     :: Ptr Word8 -> IO CSize
@@ -409,18 +405,6 @@ foreign import ccall unsafe "string.h strlen" c_strlen
 {-# INLINE bytesToElemCount #-}
 bytesToElemCount :: forall a. Unbox a => a -> Int -> Int
 bytesToElemCount _ n = n `div` SIZE_OF(a)
-
--- XXX we are converting Int to CSize
-memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
-memcpy dst src len = void (c_memcpy dst src (fromIntegral len))
-
--- XXX we are converting Int to CSize
--- return True if the memory locations have identical contents
-{-# INLINE memcmp #-}
-memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
-memcmp p1 p2 len = do
-    r <- c_memcmp p1 p2 (fromIntegral len)
-    return $ r == 0
 
 -------------------------------------------------------------------------------
 -- MutArray Data Type
@@ -464,6 +448,25 @@ data MutArray a =
                                        -- the array.
     , arrBound :: {-# UNPACK #-} !Int    -- ^ first invalid index of arrContents.
     }
+
+-------------------------------------------------------------------------------
+-- Construction and destructuring
+-------------------------------------------------------------------------------
+
+{-# INLINE fromMutByteArray #-}
+fromMutByteArray :: MonadIO m => MutByteArray -> Int -> Int -> m (MutArray a)
+fromMutByteArray arr start end = do
+    len <- liftIO $ Unboxed.length arr
+    return $ MutArray
+        { arrContents = arr
+        , arrStart = start
+        , arrEnd = end
+        , arrBound = len
+        }
+
+{-# INLINE toMutByteArray #-}
+toMutByteArray :: MutArray a -> (MutByteArray, Int, Int)
+toMutByteArray MutArray{..} = (arrContents, arrStart, arrEnd)
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
@@ -2458,16 +2461,34 @@ fromPureStream :: (MonadIO m, Unbox a) => Stream Identity a -> m (MutArray a)
 fromPureStream xs =
     D.fold create $ D.morphInner (return . runIdentity) xs
 
+-- | @fromPtrN len addr@ copies @len@ bytes from @addr@ into an array.
+--
+-- /Unsafe:/
+--
+-- 1. The memory pointed by @addr@ must be pinned or static.
+-- 2. The caller is responsible to ensure that the pointer passed is valid up
+-- to the given length.
+--
 {-# INLINABLE fromPtrN #-}
 fromPtrN :: MonadIO m => Int -> Ptr Word8 -> m (MutArray Word8)
-fromPtrN len addr =
+fromPtrN len addr = do
     -- memcpy is better than stream copy when the size is known.
     -- XXX We can implement a stream copy in a similar way by streaming Word64
     -- first and then remaining Word8.
-    unsafeCreateUsingPtr len
-        $ \ptr -> liftIO $ c_memcpy ptr addr (fromIntegral len) >> pure len
+    (arr :: MutArray Word8) <- emptyOf len
+    let mbarr = getMutByteArray# (arrContents arr)
+    _ <- liftIO $ c_memcpy mbarr addr (fromIntegral len)
+    pure (arr { arrEnd = len })
 
-
+-- | @fromW16CString# addr@ copies a C string consisting of bytes and
+-- terminated by a null byte, into a Word8 array. The null byte is not copied.
+--
+-- /Unsafe:/
+--
+-- 1. The memory pointed by @addr@ must be pinned or static.
+-- 2. The caller is responsible to ensure that the pointer passed is valid up
+-- to the point where null byte is found.
+--
 {-# INLINABLE fromCString# #-}
 fromCString# :: MonadIO m => Addr# -> m (MutArray Word8)
 fromCString# addr = do
@@ -2478,34 +2499,32 @@ fromCString# addr = do
     -- XXX We can possibly use a stream of Word64 to do the same.
     -- fromByteStr# addr = fromPureStream (D.fromByteStr# addr)
     len <- liftIO $ c_strlen (Ptr addr)
-    let lenInt = fromIntegral len
-    arr <- new lenInt
-    _ <- unsafeAsPtr arr (\ptr _ -> liftIO $ c_memcpy ptr (Ptr addr) len)
-    return (arr {arrEnd = lenInt})
+    fromPtrN (fromIntegral len) (Ptr addr)
 
 {-# DEPRECATED fromByteStr# "Please fromCString# instead." #-}
 {-# INLINABLE fromByteStr# #-}
 fromByteStr# :: MonadIO m => Addr# -> m (MutArray Word8)
 fromByteStr# = fromCString#
 
--- | Copy a C string consisting of 16-bit wide chars and terminated by a 16-bit
--- null char, into a Word16 array. The null character is not copied.
+-- | @fromW16CString# addr@ copies a C string consisting of 16-bit wide chars
+-- and terminated by a 16-bit null char, into a Word16 array. The null
+-- character is not copied.
 --
 -- Useful for copying UTF16 strings on Windows.
+--
+-- /Unsafe:/
+--
+-- 1. The memory pointed by @addr@ must be pinned or static.
+-- 2. The caller is responsible to ensure that the pointer passed is valid up
+-- to the point where null Word16 is found.
 --
 {-# INLINABLE fromW16CString# #-}
 fromW16CString# :: MonadIO m => Addr# -> m (MutArray Word16)
 fromW16CString# addr = do
+    -- XXX this can be done faster if we process one Word64 at a time
     w16len <- D.fold FL.length $ D.fromW16CString# addr
     let bytes = w16len * 2
-    -- The array type is inferred from c_memcpy type, therefore, it is not the
-    -- same as the returned array type.
-    arr <-
-        unsafeCreateUsingPtr
-            bytes
-            (\ptr ->
-                 liftIO $
-                     c_memcpy ptr (Ptr addr) (fromIntegral bytes) >> pure bytes)
+    arr <- fromPtrN bytes (Ptr addr)
     pure $ unsafeCast arr
 
 -------------------------------------------------------------------------------
@@ -2801,24 +2820,26 @@ splitOn predicate arr =
 {-# INLINE breakOn #-}
 breakOn :: MonadIO m
     => Word8 -> MutArray Word8 -> m (MutArray Word8, Maybe (MutArray Word8))
-breakOn sep arr@MutArray{..} = unsafeAsPtr arr $ \p byteLen -> liftIO $ do
+breakOn sep arr@MutArray{..} = liftIO $ do
     -- XXX We do not need memchr here, we can use a Haskell equivalent.
     -- Need efficient stream based primitives that work on Word64.
-    loc <- c_memchr p sep (fromIntegral byteLen)
-    let sepIndex = loc `minusPtr` p
+    let marr = getMutByteArray# arrContents
+        len = fromIntegral (arrEnd - arrStart)
+    sepIndex <- c_memchr_index marr (fromIntegral arrStart) sep len
+    let intIndex = fromIntegral sepIndex
     return $
-        if loc == nullPtr
+        if sepIndex >= len
         then (arr, Nothing)
         else
             ( MutArray
                 { arrContents = arrContents
                 , arrStart = arrStart
-                , arrEnd = arrStart + sepIndex -- exclude the separator
-                , arrBound = arrStart + sepIndex
+                , arrEnd = arrStart + intIndex -- exclude the separator
+                , arrBound = arrStart + intIndex
                 }
             , Just $ MutArray
                     { arrContents = arrContents
-                    , arrStart = arrStart + (sepIndex + 1)
+                    , arrStart = arrStart + (intIndex + 1)
                     , arrEnd = arrEnd
                     , arrBound = arrBound
                     }
@@ -2896,56 +2917,35 @@ cast arr =
         then Nothing
         else Just $ unsafeCast arr
 
--- XXX We can provide another API for "unsafe" FFI calls passing an unlifted
--- pointer to the FFI call. For unsafe calls we do not need to pin the array.
--- We can pass an unlifted pointer to the FFI routine to avoid GC kicking in
--- before the pointer is wrapped.
---
--- From the GHC manual:
---
--- GHC, since version 8.4, guarantees that garbage collection will never occur
--- during an unsafe call, even in the bytecode interpreter, and further
--- guarantees that unsafe calls will be performed in the calling thread. Making
--- it safe to pass heap-allocated objects to unsafe functions.
-
 -- XXX Should we just name it asPtr, the unsafety is implicit for any pointer
 -- operations. And we are safe from Haskell perspective because we will be
 -- pinning the memory.
---
--- XXX we cannot pass the length of the ptr here as in some cases it may not be
--- available e.g. a null terminated C string. However, we can create another
--- flavor of the API e.g. asPtrN.
 
--- | Use a @MutArray a@ as @Ptr a@. This is useful when we want to pass an
--- array as a pointer to some operating system call or to a "safe" FFI call.
---
--- If the array is not pinned it is copied to pinned memory before passing it
--- to the monadic action.
---
--- /Performance Notes:/ Forces a copy if the array is not pinned. It is advised
--- that the programmer keeps this in mind and creates a pinned array
--- opportunistically before this operation occurs, to avoid the cost of a copy
--- if possible.
---
--- /Unsafe/ because of direct pointer operations. The user must ensure that
--- they are writing within the legal bounds of the array.
---
--- /Pre-release/
---
+-- | NOTE: this is deprecated because it can lead to accidental problems if the
+-- user tries to use it to mutate the array because it does not return the new
+-- array after pinning.
+{-# DEPRECATED unsafePinnedAsPtr "Pin the array and then use unsafeAsPtr." #-}
 {-# INLINE unsafePinnedAsPtr #-}
 unsafePinnedAsPtr :: MonadIO m => MutArray a -> (Ptr a -> Int -> m b) -> m b
-unsafePinnedAsPtr arr f =
-    Unboxed.unsafePinnedAsPtr
-        (arrContents arr)
-        (\ptr -> f (ptr `plusPtr` arrStart arr) (byteLength arr))
+unsafePinnedAsPtr arr f = do
+    arr1 <- liftIO $ pin arr
+    unsafeAsPtr arr1 f
 
-{-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
+{-# DEPRECATED asPtrUnsafe "Pin the array and then use unsafeAsPtr." #-}
 {-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
 asPtrUnsafe a f = unsafePinnedAsPtr a (\p _ -> f p)
 
--- NOTE: unsafeAsPtr is safe to use unsafe with ffi given that the ffi function
--- does not need the pointer to be valid after the call has completed.
+-- | @unsafeAsPtr arr f@, f is a function used as @f ptr len@ where @ptr@ is a
+-- pointer to the beginning of array and @len@ is the length of the array.
+--
+-- /Unsafe/ WARNING:
+--
+-- 1. The array must be pinned, otherwise it will lead to memory corruption.
+-- 2. The user must not use the pointer beyond the supplied length.
+--
+-- /Pre-release/
+--
 {-# INLINE unsafeAsPtr #-}
 unsafeAsPtr :: MonadIO m => MutArray a -> (Ptr a -> Int -> m b) -> m b
 unsafeAsPtr arr f =
@@ -2953,31 +2953,14 @@ unsafeAsPtr arr f =
         (arrContents arr)
         (\ptr -> f (ptr `plusPtr` arrStart arr) (byteLength arr))
 
--- | @unsafeCreateUsingPtr capacity populater@ creates an array of @capacity@
--- bytes lets the @populater@ function populate it. The @populater@ get the
--- pointer to the array and should return the amount of the capacity populated
--- in bytes.
+-- | @unsafePinnedCreateUsingPtr capacity populator@ creates a pinned array of
+-- @capacity@ bytes and invokes the @populator@ function to populate it.
+-- @populator ptr len@ gets the pointer to the array and MUST return the amount
+-- of the capacity populated in bytes.
 --
--- /Unsafe/ because the pointer given should be used with care. Bytes populated
--- should be lesser than the total capacity.
-{-# INLINE unsafeCreateUsingPtr #-}
-unsafeCreateUsingPtr
-    :: MonadIO m => Int -> (Ptr Word8 -> m Int) -> m (MutArray Word8)
-unsafeCreateUsingPtr cap pop = do
-    (arr :: MutArray Word8) <- emptyOf cap
-    len <- Unboxed.unsafeAsPtr (arrContents arr) pop
-    when (len > cap) (error (errMsg len))
-    -- arrStart == 0
-    pure (arr { arrEnd = len })
-
-    where
-
-    errMsg len =
-        "unsafeCreateUsingPtr: length > capacity, "
-             ++ "length = " ++ show len ++ ", "
-             ++ "capacity = " ++ show cap
-
--- | Similar to "unsafeCreateUsingPtr" but creates a pinned array.
+-- /Unsafe/ because the populator is allowed to use the pointer only up to
+-- specified length. In other words, bytes populated MUST be less than or equal
+-- to the total capacity.
 {-# INLINE unsafePinnedCreateUsingPtr #-}
 unsafePinnedCreateUsingPtr
     :: MonadIO m => Int -> (Ptr Word8 -> m Int) -> m (MutArray Word8)

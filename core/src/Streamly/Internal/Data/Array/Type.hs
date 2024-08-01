@@ -248,11 +248,17 @@ data Array a =
 --
 -- /Unsafe/
 --
+-- 1. The accessor must not access the array beyond the specified length.
+-- 2. The accessor must not mutate the array.
+--
 -- /Pre-release/
 --
 {-# INLINE unsafePinnedAsPtr #-}
 unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> Int -> m b) -> m b
-unsafePinnedAsPtr arr = MA.unsafePinnedAsPtr (unsafeThaw arr)
+unsafePinnedAsPtr arr f = do
+    let marr = unsafeThaw arr
+    pinned <- liftIO $ MA.pin marr
+    MA.unsafeAsPtr pinned f
 
 -- | Use an @Array a@ as @ForeignPtr a@.
 --
@@ -911,9 +917,11 @@ fromPureStream x = unsafePerformIO $ fmap unsafeFreeze (MA.fromPureStream x)
 
 -- XXX This should be monadic.
 
--- | Copy an immutable 'Ptr Word8' sequence into an array.
+-- | @fromPtrN len addr@ copies @len@ bytes from @addr@ into an array. The
+-- memory pointed by @addr@ must be pinned or static.
 --
--- /Unsafe:/ The caller is responsible for safe addressing.
+-- /Unsafe:/ The caller is responsible to ensure that the pointer passed is
+-- valid up to the given length.
 --
 -- Note that this should be evaluated strictly to ensure that we do not hold
 -- the reference to the pointer in a lazy thunk.

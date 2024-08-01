@@ -37,6 +37,26 @@
 -- deserialize it from. This array is used to build higher level unboxed
 -- array types 'Streamly.Data.MutArray.MutArray' and 'Streamly.Data.Array.Array'.
 --
+-- == Using with FFI
+--
+-- For using an array with "safe" FFI functions or OS interfaces the array must
+-- be pinned using 'pin' and then the array pointer can be accessed using
+-- 'unsafeAsPtr'.
+--
+-- For using with "unsafe" FFI functions, the array can remain unpinned. The
+-- safe way to do that is to directly pass the underlying 'MutableByteArray#
+-- RealWorld' (using 'getMutByteArray#') to the FFI function wherever a pointer
+-- to the array is required, it translates to the memory address of the payload
+-- of the array.
+--
+-- For more details, see the FFI section in the GHC user guide. Here is a
+-- relevant excerpt from the GHC manual:
+--
+-- GHC, since version 8.4, guarantees that garbage collection will never occur
+-- during an unsafe call, even in the bytecode interpreter, and further
+-- guarantees that unsafe calls will be performed in the calling thread. Making
+-- it safe to pass heap-allocated objects to unsafe functions.
+
 -- == Serialization using Unbox
 --
 -- The 'Unbox' type class is simple and used to serialize non-recursive fixed

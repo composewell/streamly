@@ -286,6 +286,8 @@ library
         , src/Streamly/Internal/Data/Array
         , src/Streamly/Internal/Data/Stream
 
+    c-sources: src/Streamly/Internal/Data/MutArray/Lib.c
+
     -- Prefer OS conditionals inside the source files rather than here,
     -- conditionals here do not work well with cabal2nix.
     if os(windows)
