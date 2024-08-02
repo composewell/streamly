@@ -8,6 +8,7 @@ packages:
 extra-deps:
   - tasty-bench-0.3.1
   - lockfree-queue-0.2.4
+  - unicode-data-0.6.0
 
 #allow-newer: true
 rebuild-ghc-options: true

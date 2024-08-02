@@ -187,14 +187,17 @@ jobs:
             cabal_version: 3.6.2.0
             subdir: core
             ignore_error: false
-          - name: 8.10.7-streamly-sdist-stack
+          - name: 8.10.7-stack
             runner: ubuntu-latest
             build: stack
-            resolver: lts-20.13
+            resolver: lts-18.28
             stack_yaml: stack.yaml
-            sdist_options: "--ignore-check"
+            disable_docs: "y"
+            disable_sdist_build: "y"
+            disable_dist_checks: "y"
+            #sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
-            cabal_version: 3.6.2.0
+            cabal_version: 3.12.1.0
             ignore_error: false
         # - name: 8.10.7-coverage
         #   ghc_version: 8.10.7
