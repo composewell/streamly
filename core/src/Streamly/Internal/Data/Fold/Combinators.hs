@@ -634,6 +634,7 @@ scanWith isMany
 -- 'Fold'. The scan stops as soon as the fold terminates.
 --
 -- /Pre-release/
+{-# DEPRECATED scan "Please use 'scanl' instead." #-}
 {-# INLINE scan #-}
 scan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 scan = scanWith False
@@ -644,6 +645,7 @@ scan = scanWith False
 -- 'Fold'. The scan restarts with a fresh state if the fold terminates.
 --
 -- /Pre-release/
+{-# DEPRECATED scanMany "Please use 'scanlMany' instead." #-}
 {-# INLINE scanMany #-}
 scanMany :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 scanMany = scanWith True

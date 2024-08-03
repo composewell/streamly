@@ -1413,6 +1413,7 @@ lmapM f (Fold step begin done final) = Fold step' begin done final
 -- @postscan scanner collector@
 --
 -- /Pre-release/
+{-# DEPRECATED postscan "Please use 'postscanl' instead." #-}
 {-# INLINE postscan #-}
 postscan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 postscan
@@ -1481,6 +1482,7 @@ catMaybes (Fold step initial extract final) = Fold step1 initial extract final
 -- >>> scanMaybe p f = Fold.postscan p (Fold.catMaybes f)
 --
 -- /Pre-release/
+{-# DEPRECATED scanMaybe "Please use 'postscanlMaybe' instead." #-}
 {-# INLINE scanMaybe #-}
 scanMaybe :: Monad m => Fold m a (Maybe b) -> Fold m b c -> Fold m a c
 scanMaybe f1 f2 = postscan f1 (catMaybes f2)
