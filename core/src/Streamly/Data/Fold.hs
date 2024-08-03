@@ -343,7 +343,7 @@ module Streamly.Data.Fold
     -- ** Scanning
     , scanl
     , postscanl
-    , postscanlMaybe
+    -- , postscanlMaybe
 
     -- ** Splitting
     , splitWith
