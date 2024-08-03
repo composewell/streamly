@@ -16,7 +16,7 @@ module Streamly.Data.Scanl
     --
     -- $setup
 
-    -- * Fold Type
+    -- * Scanl Type
 
       Scanl -- (..)
 
@@ -27,12 +27,12 @@ module Streamly.Data.Scanl
     , scanl1M'
     , scanr'
 
-    -- * Folds
+    -- * Scans
     -- ** Accumulators
-    -- | Folds that never terminate, these folds are much like strict left
+    -- | Scans that never terminate, these scans are much like strict left
     -- folds. 'mconcat' is the fundamental accumulator.  All other accumulators
     -- can be expressed in terms of 'mconcat' using a suitable Monoid.  Instead
-    -- of writing folds we could write Monoids and turn them into folds.
+    -- of writing scans we could write Monoids and turn them into scans.
 
     -- Monoids
     , sconcat
@@ -47,7 +47,7 @@ module Streamly.Data.Scanl
     , countDistinct
     , countDistinctInt
     -- , frequency
-    -- , sum
+    , sum
     , product
     , mean
     , rollingHash
@@ -70,7 +70,7 @@ module Streamly.Data.Scanl
     , minimum
 
     -- ** Filtering Scanners
-    -- | Accumulators that are usually run as a scan using the 'scanMaybe'
+    -- | Accumulators that are usually run as a scan using the 'potscanlMaybe'
     -- combinator.
     , findIndices
     , elemIndices
@@ -87,26 +87,26 @@ module Streamly.Data.Scanl
     , the
 
     -- * Transformations
-    -- | Transformations are modifiers of folds.  In the type @Fold m a b@, @a@
+    -- | Transformations are modifiers of scans.  In the type @Scan m a b@, @a@
     -- is the input type and @b@ is the output type.  Transformations can be
     -- applied either on the input side (contravariant) or on the output side
     -- (covariant).  Therefore, transformations have one of the following
     -- general shapes:
     --
-    -- * @... -> Fold m a b -> Fold m c b@ (input transformation)
-    -- * @... -> Fold m a b -> Fold m a c@ (output transformation)
+    -- * @... -> Scanl m a b -> Scanl m c b@ (input transformation)
+    -- * @... -> Scanl m a b -> Scanl m a c@ (output transformation)
     --
-    -- The input side transformations are more interesting for folds.  Most of
+    -- The input side transformations are more interesting for scans.  Most of
     -- the following sections describe the input transformation operations on a
-    -- fold. When an operation makes sense on both input and output side we use
+    -- scan. When an operation makes sense on both input and output side we use
     -- the prefix @l@ (for left) for input side operations and the prefix @r@
     -- (for right) for output side operations.
 
     -- ** Mapping on output
-    -- | The 'Functor' instance of a fold maps on the output of the fold:
+    -- | The 'Functor' instance of a scan maps on the output of the scan:
     --
-    -- >>> Stream.fold (fmap show Fold.sum) (Stream.enumerateFromTo 1 100)
-    -- "5050"
+    -- >>> Stream.toList $ Stream.scanl (fmap show Scanl.sum) (Stream.enumerateFromTo 1 10)
+    -- ["0","1","3","6","10","15","21","28","36","45","55"]
     --
     , rmapM
 
@@ -130,12 +130,6 @@ module Streamly.Data.Scanl
     , takeEndBy
     , takeEndBy_
 
-    {-
-    -- ** Key-value Collectors
-    , toMap
-    , toMapIO
-    -}
-
     -- ** Key-value Scanners
     , classify
     , classifyIO
@@ -144,7 +138,7 @@ module Streamly.Data.Scanl
     , morphInner
 
     -- * Combinators
-    -- | Transformations that combine two or more folds.
+    -- | Transformations that combine two or more scans.
 
     -- ** Scanning
     , scan
@@ -152,8 +146,7 @@ module Streamly.Data.Scanl
     , scanMaybe
 
     -- ** Parallel Distribution
-    -- | For applicative composition using distribution see
-    -- "Streamly.Internal.Data.Fold.Tee".
+    -- | The 'Applicative' distributes the input to both scans.
 
     , teeWith
     --, teeWithFst
@@ -162,8 +155,8 @@ module Streamly.Data.Scanl
     , distribute
 
     -- ** Partitioning
-    -- | Direct items in the input stream to different folds using a binary
-    -- fold selector.
+    -- | Direct items in the input stream to different scans using a binary
+    -- scan selector.
 
     , partition
     --, partitionByM
@@ -175,14 +168,7 @@ module Streamly.Data.Scanl
     , unzip
 
     -- * Dynamic Combinators
-    -- | The fold to be used is generated dynamically based on the input or
-    -- based on the output of the previous fold.
-
-    {-
-    -- ** Key-value Collectors
-    , demuxToMap
-    , demuxToMapIO
-    -}
+    -- | The scan to be used is generated dynamically based on the input.
 
     -- ** Key-value Scanners
     , demux
@@ -200,4 +186,4 @@ import Prelude
 
 import Streamly.Internal.Data.Scanl
 
-#include "DocTestDataFold.hs"
+#include "DocTestDataScanl.hs"
