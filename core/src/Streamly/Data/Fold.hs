@@ -330,8 +330,8 @@ module Streamly.Data.Fold
 
     {-
     -- ** Key-value Scanners
-    , classify
-    , classifyIO
+    , classifyScan
+    , classifyScanIO
     -}
 
     -- ** Transforming the Monad
@@ -383,8 +383,8 @@ module Streamly.Data.Fold
 
     {-
     -- ** Key-value Scanners
-    , demux
-    , demuxIO
+    , demuxScan
+    , demuxScanIO
     -}
 
     -- ** Nesting
