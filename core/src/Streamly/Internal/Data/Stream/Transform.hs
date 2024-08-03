@@ -68,7 +68,7 @@ module Streamly.Internal.Data.Stream.Transform
     -- * Filtering
     -- | Produce a subset of the stream.
     , with
-    , scanlMaybe
+    , postscanlMaybe
     , filter
     , filterM
     , deleteBy -- deleteOnceBy?
@@ -1949,13 +1949,13 @@ catMaybes (Stream step state) = Stream step1 state
 
 -- | Use a filtering scan on a stream.
 --
--- >>> scanlMaybe f = Stream.catMaybes . Stream.postscanl f
+-- >>> postscanlMaybe f = Stream.catMaybes . Stream.postscanl f
 --
-{-# INLINE scanlMaybe #-}
-scanlMaybe :: Monad m => Scanl m a (Maybe b) -> Stream m a -> Stream m b
-scanlMaybe f = catMaybes . postscanl f
+{-# INLINE postscanlMaybe #-}
+postscanlMaybe :: Monad m => Scanl m a (Maybe b) -> Stream m a -> Stream m b
+postscanlMaybe f = catMaybes . postscanl f
 
-{-# DEPRECATED scanMaybe "Use scanlMaybe instead" #-}
+{-# DEPRECATED scanMaybe "Use postscanlMaybe instead" #-}
 {-# INLINE scanMaybe #-}
 scanMaybe :: Monad m => Fold m a (Maybe b) -> Stream m a -> Stream m b
 scanMaybe f = catMaybes . postscan f
