@@ -263,7 +263,11 @@ toIntMapIO ::
 toIntMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
 
 {-# INLINE toHashMapIO #-}
-toHashMapIO :: (MonadIO m, Num a, Hashable k) =>
+toHashMapIO :: (MonadIO m, Num a, Hashable k
+#if __GLASGOW_HASKELL__ == 810
+    , Eq k
+#endif
+    ) =>
     (a -> k) -> Stream m a -> m (HashMap k a)
 toHashMapIO f = Stream.fold (Fold.toHashMapIO f FL.sum)
 
