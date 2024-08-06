@@ -432,6 +432,7 @@ module Streamly.Internal.Data.Fold.Type
     , snocM
     , snocl
     , snoclM
+    , finalM
     , close
     , isClosed
 
@@ -1854,13 +1855,33 @@ addOne = flip snoc
 -- []
 --
 -- /Pre-release/
-{-# DEPRECATED extractM "Extract operation will be removed from folds" #-}
+{-# DEPRECATED extractM "Please use finalM instead" #-}
 {-# INLINE extractM #-}
 extractM :: Monad m => Fold m a b -> m b
 extractM (Fold _ initial extract _) = do
     res <- initial
     case res of
           Partial fs -> extract fs
+          Done b -> return b
+
+-- | Finalize a fold and extract the accumulated result of the fold.
+--
+-- Definition:
+--
+-- >>> finalM = Fold.drive Stream.nil
+--
+-- Example:
+--
+-- >>> Fold.finalM Fold.toList
+-- []
+--
+-- /Pre-release/
+{-# INLINE finalM #-}
+finalM :: Monad m => Fold m a b -> m b
+finalM (Fold _ initial _ final) = do
+    res <- initial
+    case res of
+          Partial fs -> final fs
           Done b -> return b
 
 -- | Close a fold so that it does not accept any more input.
