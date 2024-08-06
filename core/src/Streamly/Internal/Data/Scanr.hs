@@ -58,6 +58,11 @@ module Streamly.Internal.Data.Scanr
     , compose
     , teeWithMay
     , teeWith
+    , tee
+
+    -- * Scans
+    , length
+    , sum
     )
 where
 
@@ -71,7 +76,8 @@ import Streamly.Internal.Data.Stream.Step (Step (..))
 
 import qualified Prelude
 
-import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
+import Prelude hiding
+    (filter, length, sum, zipWith, map, mapM, id, unzip, null)
 
 -- $setup
 -- >>> :m
@@ -283,6 +289,10 @@ instance Monad m => Applicative (Scanr m a) where
 
     (<*>) = teeWith id
 
+{-# INLINE_NORMAL tee #-}
+tee :: Monad m => Scanr m a b -> Scanr m a c -> Scanr m a (b,c)
+tee = teeWith (,)
+
 -------------------------------------------------------------------------------
 -- Arrow
 -------------------------------------------------------------------------------
@@ -381,3 +391,11 @@ filterM f = Scanr (\() a -> f a >>= g a) ()
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Scanr m a a
 filter f = filterM (return Prelude.. f)
+
+{-# INLINE length #-}
+length :: Monad m => Scanr m a Int
+length = Scanr (\acc _ -> pure $ let !n = acc + 1 in Yield n n) 0
+
+{-# INLINE sum #-}
+sum :: (Monad m, Num a) => Scanr m a a
+sum = Scanr (\acc x -> pure $ let !n = acc + x in Yield n n) 0

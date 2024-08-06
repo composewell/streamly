@@ -234,7 +234,21 @@ pipe (Pipe consume produce initial) (Stream stream_step state) =
 {-# ANN type RunScanState Fuse #-}
 data RunScanState st sc ps = ScanConsume st sc
 
--- | Use a lazy right 'Scan' to transform a stream.
+-- | Use a lazy right 'Scanr' to transform a stream.
+--
+-- The following example extracts the input stream up to a point where the
+-- running average of elements is no more than 10:
+--
+-- >>> import Data.Maybe (fromJust)
+-- >>> let avg = Scanr.teeWith (/) Scanr.sum (fmap fromIntegral Scanr.length)
+-- >>> s = Stream.enumerateFromTo 1.0 100.0
+-- >>> :{
+--  Stream.fold Fold.toList
+--   $ fmap fst
+--   $ Stream.takeWhile (\(_,x) -> x <= 10)
+--   $ Stream.scanr (Scanr.tee Scanr.identity avg) s
+-- :}
+-- [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 --
 {-# INLINE_NORMAL scanr #-}
 scanr :: Monad m => Scanr m a b -> Stream m a -> Stream m b
@@ -456,6 +470,12 @@ trace_ eff = mapM (\x -> eff >> return x)
 ------------------------------------------------------------------------------
 
 data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
+
+-- NOTE: Lazy postscans can be useful e.g. to use a lazy postscan on "latest".
+-- We can keep the initial state undefined in lazy postscans which do not use
+-- it at all. Otherwise we have to wrap the accumulator in a Maybe type.
+-- Unfortunately, we cannot define lazy scans because the Partial constructor
+-- itself is strict.
 
 -- | Postscan a stream using the given fold. A postscan omits the initial
 -- (default) value of the accumulator and includes the final value.
