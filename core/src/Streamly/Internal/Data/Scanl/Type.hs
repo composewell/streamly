@@ -87,9 +87,11 @@ module Streamly.Internal.Data.Scanl.Type
     , scanr'
     , scanrM'
 
-    -- * Folds
-    , fromPure
-    , fromEffect
+    -- * Scans
+    , const
+    -- , fromPure
+    , constM
+    -- , fromEffect
     , fromRefold
     -- , fromScan
     , drain
@@ -97,7 +99,7 @@ module Streamly.Internal.Data.Scanl.Type
     , toStreamK
     , toStreamKRev
     , genericLength
-    , length
+    , length -- call it "count"?
 
     -- * Combinators
 
@@ -107,11 +109,11 @@ module Streamly.Internal.Data.Scanl.Type
     -- ** Mapping Input
     , lmap
     , lmapM
-    , postscan
+    , postscanl
 
     -- ** Filtering
     , catMaybes
-    , scanMaybe
+    , postscanlMaybe
     , filter
     , filtering
     , filterM
@@ -147,8 +149,8 @@ module Streamly.Internal.Data.Scanl.Type
 
     -- ** Parallel Distribution
     , teeWith
-    , teeWithFst
-    , teeWithMin
+    -- , teeWithFst
+    -- , teeWithMax
 
     {-
     -- ** Parallel Alternative
@@ -179,7 +181,7 @@ where
 import Control.Applicative (liftA2)
 #endif
 import Control.Monad ((>=>))
-import Data.Bifunctor (Bifunctor(..))
+-- import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -191,7 +193,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 --import qualified Streamly.Internal.Data.Stream.Step as Stream
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
-import Prelude hiding (Foldable(..), concatMap, filter, map, take)
+import Prelude hiding (Foldable(..), concatMap, filter, map, take, const)
 
 -- Entire module is exported, do not import selectively
 import Streamly.Internal.Data.Fold.Step
@@ -225,8 +227,10 @@ import Streamly.Internal.Data.Fold.Step
 -- separate type for bracketed folds but then we need to manage the complexity
 -- of two different fold types.
 
--- The "final" function could be (s -> m (Step s b)), like in parsers so that
--- it can be called in a loop to drain the fold.
+-- XXX The "final" function in a scan should not return an output. The output
+-- from final would only be a duplicate of the last generated output. Since a
+-- scan generates an ouput at each input, there should be nothing remaining to
+-- be emitted during finalization.
 
 -- | The type @Fold m a b@ represents a consumer of an input stream of values
 -- of type @a@ and returning a final value of type @b@ in 'Monad' @m@. The
@@ -619,23 +623,43 @@ length = genericLength
 -- folds, and the same may be the case if we have a stop/cleanup operation in
 -- streams.
 
--- | Make a fold that yields the supplied value without consuming any further
--- input.
+{-
+-- | Make a scan that yields the supplied value without consuming any input.
 --
 -- /Pre-release/
 --
 {-# INLINE fromPure #-}
 fromPure :: Applicative m => b -> Scanl m a b
 fromPure b = Scanl undefined (pure $ Done b) pure pure
+-}
 
--- | Make a fold that yields the result of the supplied effectful action
--- without consuming any further input.
+-- | Make a scan that yields the supplied value on any input.
+--
+-- /Pre-release/
+--
+{-# INLINE const #-}
+const :: Applicative m => b -> Scanl m a b
+const b = Scanl (\s _ -> pure $ Partial s) (pure $ Partial b) pure pure
+
+{-
+-- | Make a scan that yields the result of the supplied effectful action
+-- without consuming further input.
 --
 -- /Pre-release/
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Applicative m => m b -> Scanl m a b
 fromEffect b = Scanl undefined (Done <$> b) pure pure
+-}
+
+-- | Make a scan that runs the supplied effect once and then yields the result
+-- on any input.
+--
+-- /Pre-release/
+--
+{-# INLINE constM #-}
+constM :: Applicative m => m b -> Scanl m a b
+constM b = Scanl (\s _ -> pure $ Partial s) (Partial <$> b) pure pure
 
 {-
 {-# ANN type SeqFoldState Fuse #-}
@@ -769,7 +793,6 @@ instance Monad m => Applicative (Fold m a) where
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
--}
 
 {-# ANN type TeeState Fuse #-}
 data TeeState sL sR bL bR
@@ -777,29 +800,22 @@ data TeeState sL sR bL bR
     | TeeLeft !bR !sL
     | TeeRight !bL !sR
 
--- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until both
--- of them terminate and combines their output using @k@.
+-- | @teeWithMax k f1 f2@ distributes its input to both @f1@ and @f2@ until
+-- both of them terminate. The output of the two scans is combined using the
+-- function @k@.
 --
--- Definition:
+-- XXX There are two choices:
 --
--- >>> teeWith k f1 f2 = fmap (uncurry k) (Fold.tee f1 f2)
+-- 1. If one of them terminates before the other, the final value of
+-- the other is used in the zipping function.
+-- 2. Use a (Maybe a -> Maybe b -> c) zipping function
 --
--- Example:
+-- Which is better? We will find out based on the actual use cases.
 --
--- >>> avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
--- >>> Stream.fold avg $ Stream.fromList [1.0..100.0]
--- 50.5
---
--- For applicative composition using this combinator see
--- "Streamly.Data.Fold.Tee".
---
--- See also: "Streamly.Data.Fold.Tee"
---
--- Note that nested applications of teeWith do not fuse.
---
-{-# INLINE teeWith #-}
-teeWith :: Monad m => (a -> b -> c) -> Scanl m x a -> Scanl m x b -> Scanl m x c
-teeWith f
+{-# INLINE teeWithMax #-}
+teeWithMax :: Monad m =>
+    (a -> b -> c) -> Scanl m x a -> Scanl m x b -> Scanl m x c
+teeWithMax f
     (Scanl stepL initialL extractL finalL)
     (Scanl stepR initialR extractR finalR) =
     Scanl step initial extract final
@@ -838,7 +854,9 @@ data TeeFstState sL sR b
     = TeeFstBoth !sL !sR
     | TeeFstLeft !b !sL
 
--- | Like 'teeWith' but terminates as soon as the first fold terminates.
+-- | Like 'teeWith' but terminates only when the first scan terminates. If the
+-- second scan terminates earlier then its final value is used in the zipping
+-- function.
 --
 -- /Pre-release/
 --
@@ -880,16 +898,30 @@ teeWithFst f
 
     final (TeeFstBoth sL sR) = f <$> finalL sL <*> finalR sR
     final (TeeFstLeft bR sL) = (`f` bR) <$> finalL sL
+-}
 
--- | Like 'teeWith' but terminates as soon as any one of the two folds
--- terminates.
+-- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until any
+-- one of them terminates. The outputs of the two scans are combined using the
+-- function @k@.
+--
+-- Definition:
+--
+-- >>> teeWith k f1 f2 = fmap (uncurry k) (Scanl.tee f1 f2)
+--
+-- Example:
+--
+-- >>> avg = Scanl.teeWith (/) Scanl.sum (fmap fromIntegral Scanl.length)
+-- >>> Stream.toList $ Stream.postscanl avg $ Stream.fromList [1.0..10.0]
+-- [1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5,5.0,5.5]
+--
+-- Note that nested applications of teeWith do not fuse.
 --
 -- /Pre-release/
 --
-{-# INLINE teeWithMin #-}
-teeWithMin :: Monad m =>
+{-# INLINE teeWith #-}
+teeWith :: Monad m =>
     (b -> c -> d) -> Scanl m a b -> Scanl m a c -> Scanl m a d
-teeWithMin f
+teeWith f
     (Scanl stepL initialL extractL finalL)
     (Scanl stepR initialR extractR finalR) =
     Scanl step initial extract final
@@ -920,14 +952,13 @@ teeWithMin f
 
     final (Tuple' sL sR) = f <$> finalL sL <*> finalR sR
 
-{-
--- XXX Is fromPure correct, should it generate a stream instead?
 instance Monad m => Applicative (Scanl m a) where
     {-# INLINE pure #-}
-    pure = fromPure
+    pure = const
 
     (<*>) = teeWith id
 
+{-
 -- XXX this does not make sense as a scan.
 --
 -- | Shortest alternative. Apply both folds in parallel but choose the result
@@ -1120,17 +1151,15 @@ lmapM f (Scanl step begin done final) = Scanl step' begin done final
     where
     step' x a = f a >>= step x
 
--- XXX This is concat or append
-
--- | Postscan the input of a 'Fold' to change it in a stateful manner using
--- another 'Fold'.
+-- | Postscan the input of a 'Scanl' to change it in a stateful manner using
+-- another 'Scanl'.
 --
--- @postscan scanner collector@
+-- This is basically an append operation.
 --
 -- /Pre-release/
-{-# INLINE postscan #-}
-postscan :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
-postscan
+{-# INLINE postscanl #-}
+postscanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
+postscanl
     (Scanl stepL initialL extractL finalL)
     (Scanl stepR initialR extractR finalR) =
     Scanl step initial extract final
@@ -1192,14 +1221,14 @@ catMaybes (Scanl step initial extract final) =
             Nothing -> return $ Partial s
             Just x -> step s x
 
--- | Use a 'Maybe' returning fold as a filtering scan.
+-- | Scan using a 'Maybe' returning scan, filter out 'Nothing' values.
 --
--- >>> scanMaybe p f = Fold.postscan p (Fold.catMaybes f)
+-- >>> postscanlMaybe p f = Fold.postscan p (Fold.catMaybes f)
 --
 -- /Pre-release/
-{-# INLINE scanMaybe #-}
-scanMaybe :: Monad m => Scanl m a (Maybe b) -> Scanl m b c -> Scanl m a c
-scanMaybe f1 f2 = postscan f1 (catMaybes f2)
+{-# INLINE postscanlMaybe #-}
+postscanlMaybe :: Monad m => Scanl m a (Maybe b) -> Scanl m b c -> Scanl m a c
+postscanlMaybe f1 f2 = postscanl f1 (catMaybes f2)
 
 -- | A scanning fold for filtering elements based on a predicate.
 --
@@ -1222,7 +1251,7 @@ filtering f = scanl' step Nothing
 --
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Scanl m a r -> Scanl m a r
--- filter p = scanMaybe (filtering p)
+-- filter p = postscanlMaybe (filtering p)
 filter f (Scanl step begin extract final) = Scanl step' begin extract final
     where
     step' x a = if f a then step x a else return $ Partial x
@@ -1322,7 +1351,7 @@ dropping n = scant' step initial extract
 --
 {-# INLINE take #-}
 take :: Monad m => Int -> Scanl m a b -> Scanl m a b
--- take n = scanMaybe (taking n)
+-- take n = postscanlMaybe (taking n)
 take n (Scanl fstep finitial fextract ffinal) = Scanl step initial extract final
 
     where
@@ -1366,7 +1395,7 @@ take n (Scanl fstep finitial fextract ffinal) = Scanl step initial extract final
 --
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m => (a -> Bool) -> Scanl m a b -> Scanl m a b
--- takeEndBy_ predicate = scanMaybe (takingEndBy_ predicate)
+-- takeEndBy_ predicate = postscanlMaybe (takingEndBy_ predicate)
 takeEndBy_ predicate (Scanl fstep finitial fextract ffinal) =
     Scanl step finitial fextract ffinal
 
@@ -1395,7 +1424,7 @@ takeEndBy_ predicate (Scanl fstep finitial fextract ffinal) =
 --
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Scanl m a b -> Scanl m a b
--- takeEndBy predicate = scanMaybe (takingEndBy predicate)
+-- takeEndBy predicate = postscanlMaybe (takingEndBy predicate)
 takeEndBy predicate (Scanl fstep finitial fextract ffinal) =
     Scanl step finitial fextract ffinal
 

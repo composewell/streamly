@@ -141,12 +141,12 @@ module Streamly.Data.Scanl
     -- | Transformations that combine two or more scans.
 
     -- ** Scanning
-    , scan
-    , postscan
-    , scanMaybe
+    , scanl
+    , postscanl
+    , postscanlMaybe
 
     -- ** Parallel Distribution
-    -- | The 'Applicative' distributes the input to both scans.
+    -- | The 'Applicative' instance distributes the input to both scans.
 
     , teeWith
     --, teeWithFst

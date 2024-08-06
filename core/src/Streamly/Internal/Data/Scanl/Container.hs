@@ -117,22 +117,22 @@ import Streamly.Internal.Data.Scanl.Type
 -- >>> import qualified Streamly.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Fold.Container as Fold
 
--- | Fold the input to a set.
+-- | Scan the input adding it to a set.
 --
 -- Definition:
 --
--- >>> toSet = Fold.foldl' (flip Set.insert) Set.empty
+-- >>> toSet = Scanl.scanl' (flip Set.insert) Set.empty
 --
 {-# INLINE toSet #-}
 toSet :: (Monad m, Ord a) => Scanl m a (Set a)
 toSet = scanl' (flip Set.insert) Set.empty
 
--- | Fold the input to an int set. For integer inputs this performs better than
--- 'toSet'.
+-- | Scan the input adding it to an int set. For integer inputs this performs
+-- better than 'toSet'.
 --
 -- Definition:
 --
--- >>> toIntSet = Fold.foldl' (flip IntSet.insert) IntSet.empty
+-- >>> toIntSet = Scanl.scanl' (flip IntSet.insert) IntSet.empty
 --
 {-# INLINE toIntSet #-}
 toIntSet :: Monad m => Scanl m Int IntSet
@@ -140,13 +140,13 @@ toIntSet = scanl' (flip IntSet.insert) IntSet.empty
 
 -- XXX Name as nubOrd? Or write a nubGeneric
 
--- | Used as a scan. Returns 'Just' for the first occurrence of an element,
--- returns 'Nothing' for any other occurrences.
+-- | Returns 'Just' for the first occurrence of an element, returns 'Nothing'
+-- for any other occurrences.
 --
 -- Example:
 --
 -- >>> stream = Stream.fromList [1::Int,1,2,3,4,4,5,1,5,7]
--- >>> Stream.fold Fold.toList $ Stream.scanMaybe Fold.nub stream
+-- >>> Stream.fold Fold.toList $ Stream.postscanlMaybe Scanl.nub stream
 -- [1,2,3,4,5,7]
 --
 -- /Pre-release/
@@ -187,8 +187,8 @@ nubInt = fmap (\(Tuple' _ x) -> x) $ scanl' step initial
 --
 -- Definition:
 --
--- >>> countDistinct = fmap Set.size Fold.toSet
--- >>> countDistinct = Fold.postscan Fold.nub $ Fold.catMaybes $ Fold.length
+-- >>> countDistinct = fmap Set.size Scanl.toSet
+-- >>> countDistinct = Scanl.postscanl Scanl.nub $ Scanl.catMaybes $ Scanl.length
 --
 -- The memory used is proportional to the number of distinct elements in the
 -- stream, to guard against using too much memory use it as a scan and
@@ -223,8 +223,8 @@ countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 --
 -- Definition:
 --
--- >>> countDistinctInt = fmap IntSet.size Fold.toIntSet
--- >>> countDistinctInt = Fold.postscan Fold.nubInt $ Fold.catMaybes $ Fold.length
+-- >>> countDistinctInt = fmap IntSet.size Scanl.toIntSet
+-- >>> countDistinctInt = Scanl.postscanl Scanl.nubInt $ Scanl.catMaybes $ Scanl.length
 --
 -- /Pre-release/
 {-# INLINE countDistinctInt #-}
@@ -272,6 +272,10 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- XXX We can use the Scan drain step to drain the buffered map in the end.
 
 -- | This is the most general of all demux, classify operations.
+--
+-- The first component of the output tuple is a key-value Map of in-progress
+-- scans. The scan returns the scan result as the second component of the
+-- output tuple.
 --
 -- See 'demux' for documentation.
 {-# INLINE demuxGeneric #-}
@@ -336,14 +340,18 @@ demuxGeneric getKey getFold =
                 Partial s -> fin s
                 _ -> error "demuxGeneric: unreachable code"
 
+{-# INLINE demuxUsingMap #-}
+demuxUsingMap :: (Monad m, Ord k) =>
+       (a -> k)
+    -> (k -> m (Scanl m a b))
+    -> Scanl m a (m (Map k b), Maybe (k, b))
+demuxUsingMap = demuxGeneric
+
 -- | @demux getKey getScan@: In a key value stream, scan values corresponding
 -- to each key using a key specific scan. @getScan@ is invoked to generate a
 -- key specific scan when a key is encountered for the first time in the
--- stream.
---
--- The first component of the output tuple is a key-value Map of in-progress
--- scans. The scan returns the scan result as the second component of the
--- output tuple.
+-- stream. If a scan does not exist corresponding to the key then 'Nothing' is
+-- returned otherwise the result of the scan is returned.
 --
 -- If a scan terminates, another instance of the scan is started upon receiving
 -- an input with that key, @getScan@ is invoked again whenever the key is
@@ -365,13 +373,17 @@ demuxGeneric getKey getFold =
 demux :: (Monad m, Ord k) =>
        (a -> k)
     -> (k -> m (Scanl m a b))
-    -> Scanl m a (m (Map k b), Maybe (k, b))
-demux = demuxGeneric
+    -> Scanl m a (Maybe (k, b))
+demux getKey = fmap snd . demuxUsingMap getKey
 
 -- XXX We can use the Scan drain step to drain the buffered map in the end.
 
 -- | This is specialized version of 'demuxGeneric' that uses mutable IO cells
 -- as fold accumulators for better performance.
+--
+-- Keep in mind that the values in the returned Map may be changed by the
+-- ongoing scan if you are using those concurrently in another thread.
+--
 {-# INLINE demuxGenericIO #-}
 demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
@@ -452,18 +464,22 @@ demuxGenericIO getKey getFold =
                 Partial s -> fin s
                 _ -> error "demuxGenericIO: unreachable code"
 
--- | This is specialized version of 'demux' that uses mutable IO cells as
--- fold accumulators for better performance.
---
--- Keep in mind that the values in the returned Map may be changed by the
--- ongoing fold if you are using those concurrently in another thread.
+{-# INLINE demuxUsingMapIO #-}
+demuxUsingMapIO :: (MonadIO m, Ord k) =>
+       (a -> k)
+    -> (k -> m (Scanl m a b))
+    -> Scanl m a (m (Map k b), Maybe (k, b))
+demuxUsingMapIO = demuxGenericIO
+
+-- | This is specialized version of 'demux' that uses mutable IO cells as scan
+-- accumulators for better performance.
 --
 {-# INLINE demuxIO #-}
 demuxIO :: (MonadIO m, Ord k) =>
        (a -> k)
     -> (k -> m (Scanl m a b))
-    -> Scanl m a (m (Map k b), Maybe (k, b))
-demuxIO = demuxGenericIO
+    -> Scanl m a (Maybe (k, b))
+demuxIO getKey = fmap snd . demuxUsingMapIO getKey
 
 {-
 -- | Fold a key value stream to a key-value Map. If the same key appears
@@ -620,21 +636,25 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
             then extract1 s
             else final1 s
 
--- | Folds the values for each key using the supplied fold. When scanning, as
--- soon as the fold is complete, its result is available in the second
--- component of the tuple.  The first component of the tuple is a snapshot of
--- the in-progress folds.
+{-# INLINE classifyUsingMap #-}
+classifyUsingMap :: (Monad m, Ord k) =>
+    (a -> k) -> Scanl m a b -> Scanl m a (m (Map k b), Maybe (k, b))
+classifyUsingMap = classifyGeneric
+
+-- XXX Make it consistent with denux.
+
+-- | Scans the values for each key using the supplied scan.
 --
--- Once the fold for a key is done, any future values of the key are ignored.
+-- Once the scan for a key terminates, any future values of the key are ignored.
 --
--- Definition:
+-- Equivalent to the following except that the scan is not restarted:
 --
--- >>> classify f fld = Fold.demux f (const fld)
+-- >>> classify f fld = Scanl.demux f (const fld)
 --
 {-# INLINE classify #-}
-classify :: (Monad m, Ord k) =>
-    (a -> k) -> Scanl m a b -> Scanl m a (m (Map k b), Maybe (k, b))
-classify = classifyGeneric
+classify :: (MonadIO m, Ord k) =>
+    (a -> k) -> Scanl m a b -> Scanl m a (Maybe (k, b))
+classify getKey = fmap snd . classifyUsingMap getKey
 
 -- XXX we can use a Prim IORef if we can constrain the state "s" to be Prim
 --
@@ -642,6 +662,8 @@ classify = classifyGeneric
 --
 -- XXX We can use the Scan drain step to drain the buffered map in the end.
 
+-- | Be aware that the values in the intermediate Maps would be mutable.
+--
 {-# INLINE classifyGenericIO #-}
 classifyGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Scanl m a b -> Scanl m a (m (f b), Maybe (Key f, b))
@@ -705,18 +727,22 @@ classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
             then extract1 s
             else final1 s
 
+{-# INLINE classifyUsingMapIO #-}
+classifyUsingMapIO :: (MonadIO m, Ord k) =>
+    (a -> k) -> Scanl m a b -> Scanl m a (m (Map k b), Maybe (k, b))
+classifyUsingMapIO = classifyGenericIO
+
 -- | Same as classify except that it uses mutable IORef cells in the
--- Map providing better performance. Be aware that if this is used as a scan,
--- the values in the intermediate Maps would be mutable.
+-- Map, providing better performance.
 --
--- Definitions:
+-- Equivalent to the following except that the scan is not restarted:
 --
--- >>> classifyIO f fld = Fold.demuxIO f (const fld)
+-- >>> classifyIO f fld = Scanl.demuxIO f (const fld)
 --
 {-# INLINE classifyIO #-}
 classifyIO :: (MonadIO m, Ord k) =>
-    (a -> k) -> Scanl m a b -> Scanl m a (m (Map k b), Maybe (k, b))
-classifyIO = classifyGenericIO
+    (a -> k) -> Scanl m a b -> Scanl m a (Maybe (k, b))
+classifyIO getKey = fmap snd . classifyUsingMapIO getKey
 
 {-
 {-# INLINE toContainer #-}
