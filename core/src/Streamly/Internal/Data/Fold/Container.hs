@@ -676,7 +676,29 @@ demuxToMap :: (Monad m, Ord k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Fold m a (Map k b)
 demuxToMap = demuxToContainer
 
--- | This collects all the results of 'demux' in a Map.
+-- | @demuxerToMap getKey getFold@: In a key value stream, fold values
+-- corresponding to each key using a key specific fold. @getFold@ is invoked to
+-- generate a key specific fold when a key is encountered for the first time in
+-- the stream.
+--
+-- If a fold terminates, another instance of the fold is started upon receiving
+-- an input with that key, @getFold@ is invoked again whenever the key is
+-- encountered again.
+--
+-- This combinator can be used to scan a stream and collect the results from
+-- the scan output.
+--
+-- Since the fold generator function is monadic, folds for new keys can be
+-- added dynamically or folds for old keys can be deleted or modified. For
+-- example, we can maintain a Map of keys to folds in an IORef and lookup the
+-- fold from that corresponding to a key. This Map can be changed dynamically.
+--
+-- Note that this fold never terminates. Inputs that do not correspond to a
+-- fold in the map are dropped.
+--
+-- Compare with 'classify', the fold in 'classify' is a static fold.
+--
+-- /Pre-release/
 --
 {-# INLINE demuxerToMap #-}
 demuxerToMap :: (Monad m, Ord k) =>
