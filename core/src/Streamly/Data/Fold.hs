@@ -328,9 +328,11 @@ module Streamly.Data.Fold
     , toMap
     , toMapIO
 
+    {-
     -- ** Key-value Scanners
-    , classify
-    , classifyIO
+    , classifyScan
+    , classifyScanIO
+    -}
 
     -- ** Transforming the Monad
     , morphInner
@@ -339,9 +341,9 @@ module Streamly.Data.Fold
     -- | Transformations that combine two or more folds.
 
     -- ** Scanning
-    , scan
-    , postscan
-    , scanMaybe
+    , scanl
+    , postscanl
+    -- , postscanlMaybe
 
     -- ** Splitting
     , splitWith
@@ -376,12 +378,14 @@ module Streamly.Data.Fold
     -- based on the output of the previous fold.
 
     -- ** Key-value Collectors
-    , demuxToMap
-    , demuxToMapIO
+    , demuxerToMap
+    , demuxerToMapIO
 
+    {-
     -- ** Key-value Scanners
-    , demux
-    , demuxIO
+    , demuxScan
+    , demuxScanIO
+    -}
 
     -- ** Nesting
     , concatMap
@@ -398,6 +402,15 @@ module Streamly.Data.Fold
     , variance
     , stdDev
     , serialWith
+    , classify
+    , classifyIO
+    , demux
+    , demuxIO
+    , demuxToMap
+    , demuxToMapIO
+    , scan
+    , postscan
+    , scanMaybe
     )
 where
 

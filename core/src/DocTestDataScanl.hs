@@ -9,6 +9,7 @@
 >>> import Data.IORef (newIORef, readIORef, writeIORef)
 >>> import Data.Maybe (fromJust, isJust)
 >>> import Data.Monoid (Endo(..), Last(..), Sum(..))
+>>> import Prelude hiding (length, sum, minimum, maximum)
 
 >>> import Streamly.Data.Array (Array)
 >>> import Streamly.Data.Fold (Fold, Tee(..))
@@ -21,6 +22,7 @@
 >>> import qualified Streamly.Data.Fold as Fold
 >>> import qualified Streamly.Data.MutArray as MutArray
 >>> import qualified Streamly.Data.Parser as Parser
+>>> import qualified Streamly.Data.Scanl as Scanl
 >>> import qualified Streamly.Data.Stream as Stream
 >>> import qualified Streamly.Data.StreamK as StreamK
 >>> import qualified Streamly.Data.Unfold as Unfold
@@ -28,6 +30,7 @@
 For APIs that have not been released yet.
 
 >>> import qualified Streamly.Internal.Data.Fold as Fold
+>>> import qualified Streamly.Internal.Data.Ring as Ring
 >>> import qualified Streamly.Internal.Data.Scanl as Scanl
 >>> import qualified Streamly.Internal.Data.Stream as Stream
 -}

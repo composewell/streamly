@@ -522,6 +522,7 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 -- IMPORTANT NOTE: The ring is mutable, therefore, the result of @(m (Array
 -- a))@ action depends on when it is executed. It does not capture the sanpshot
 -- of the ring at a particular time.
+{-# DEPRECATED slidingWindowWith "Please use Scanl.windowScanWith instead." #-}
 {-# INLINE slidingWindowWith #-}
 slidingWindowWith :: forall m a b. (MonadIO m, Unbox a)
     => Int -> Fold m ((a, Maybe a), m (MutArray a)) b -> Fold m a b
@@ -581,6 +582,7 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
 -- The 'Maybe' type is for the case when initially the window is filling and
 -- there is no old element.
 --
+{-# DEPRECATED slidingWindow "Please use Scanl.windowScan instead." #-}
 {-# INLINE slidingWindow #-}
 slidingWindow :: forall m a b. (MonadIO m, Unbox a)
     => Int -> Fold m (a, Maybe a) b -> Fold m a b

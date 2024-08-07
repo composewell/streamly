@@ -430,6 +430,25 @@ data Parser a m b =
         -- result in Partial, therefore, we have to use Done instead of Partial.
         (s -> m (Step s b))
 
+{-
+-- XXX To accomodate a Produce mode in folds, the parser type has to be
+-- changed as follows. With this parsers can consume chunked input.
+--
+data Step s b =
+      Partial !Int !s
+    | Continue !Int !s
+    | Produce !s
+    | Done !Int !b
+    | Error !String
+
+data Fold m a b =
+  forall s. Parser
+    (s -> a -> m (Step s b)) -- consume step
+    (m (Initial s b))        -- initial
+    (s -> m (Step s b))      -- produce step
+    (s -> m (Step s b))      -- drain step
+-}
+
 -- | This exception is used when a parser ultimately fails, the user of the
 -- parser is intimated via this exception.
 --
