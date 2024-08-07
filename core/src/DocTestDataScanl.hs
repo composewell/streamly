@@ -25,4 +25,5 @@
 For APIs that have not been released yet.
 
 >>> import qualified Streamly.Internal.Data.Fold as Fold
+>>> import qualified Streamly.Internal.Data.Scanl as Scanl
 -}

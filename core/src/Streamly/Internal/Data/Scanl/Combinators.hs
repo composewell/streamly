@@ -25,7 +25,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     , foldMapM
 
     -- *** Reducers
-    -- , drainMapM
+    , drainMapM
     , the
     , mean
     , rollingHash
@@ -246,7 +246,7 @@ import Prelude hiding
        , scanl, scanl1, replicate, concatMap, mconcat, unzip
        , span, splitAt, break, mapM, zip, maybe, const)
 
-#include "DocTestDataFold.hs"
+#include "DocTestDataScanl.hs"
 
 ------------------------------------------------------------------------------
 -- Running
@@ -359,7 +359,7 @@ addStream stream = drive stream . duplicate
 ------------------------------------------------------------------------------
 
 -- |
--- >>> mapMaybeM f = Fold.lmapM f . Fold.catMaybes
+-- >>> mapMaybeM f = Scanl.lmapM f . Scanl.catMaybes
 --
 {-# INLINE mapMaybeM #-}
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Scanl m b r -> Scanl m a r
@@ -369,11 +369,11 @@ mapMaybeM f = lmapM f . catMaybes
 -- the fold, filters out 'Nothing' elements, and return the values extracted
 -- from 'Just'.
 --
--- >>> mapMaybe f = Fold.lmap f . Fold.catMaybes
--- >>> mapMaybe f = Fold.mapMaybeM (return . f)
+-- >>> mapMaybe f = Scanl.lmap f . Scanl.catMaybes
+-- >>> mapMaybe f = Scanl.mapMaybeM (return . f)
 --
 -- >>> f x = if even x then Just x else Nothing
--- >>> fld = Fold.mapMaybe f Fold.toList
+-- >>> fld = Scanl.mapMaybe f Scanl.toList
 -- >>> Stream.fold fld (Stream.enumerateFromTo 1 10)
 -- [2,4,6,8,10]
 --
@@ -387,7 +387,7 @@ mapMaybe f = lmap f . catMaybes
 
 -- | Apply a monadic function on the input and return the input.
 --
--- >>> Stream.fold (Fold.lmapM (Fold.tracing print) Fold.drain) $ (Stream.enumerateFromTo (1 :: Int) 2)
+-- >>> Stream.fold (Scanl.lmapM (Scanl.tracing print) Scanl.drain) $ (Stream.enumerateFromTo (1 :: Int) 2)
 -- 1
 -- 2
 --
@@ -400,11 +400,11 @@ tracing f x = void (f x) >> return x
 -- | Apply a monadic function to each element flowing through and discard the
 -- results.
 --
--- >>> Stream.fold (Fold.trace print Fold.drain) $ (Stream.enumerateFromTo (1 :: Int) 2)
+-- >>> Stream.fold (Scanl.trace print Scanl.drain) $ (Stream.enumerateFromTo (1 :: Int) 2)
 -- 1
 -- 2
 --
--- >>> trace f = Fold.lmapM (Fold.tracing f)
+-- >>> trace f = Scanl.lmapM (Scanl.tracing f)
 --
 -- /Pre-release/
 {-# INLINE trace #-}
@@ -586,7 +586,7 @@ scanlMany = scanWith True
 -- Example:
 --
 -- >>> input = Stream.fromList [1,3,3,5]
--- >>> Stream.fold Fold.toList $ Stream.postscanlMaybe (Fold.deleteBy (==) 3) input
+-- >>> Stream.fold Scanl.toList $ Stream.postscanlMaybe (Scanl.deleteBy (==) 3) input
 -- [1,3,5]
 --
 {-# INLINE_NORMAL deleteBy #-}
@@ -606,7 +606,7 @@ deleteBy eq x0 = fmap extract $ mkScanl step (Tuple' False Nothing)
 {-
 -- | Provide a sliding window of length 2 elements.
 --
--- See "Streamly.Internal.Data.Fold.Window".
+-- See "Streamly.Internal.Data.Scanl.Window".
 --
 {-# INLINE slide2 #-}
 slide2 :: Monad m => Fold m (a, Maybe a) b -> Scanl m a b
@@ -625,7 +625,7 @@ slide2 (Fold step1 initial1 extract1 final1) = Fold step initial extract final
     final (Tuple' _ s) = final1 s
 -}
 
--- XXX Compare this with the implementation in Fold.Window, preferrably use the
+-- XXX Compare this with the implementation in Scanl.Window, preferrably use the
 -- latter if performance is good.
 
 -- | Apply a function on every two successive elements of a stream. The first
@@ -652,7 +652,7 @@ rollingMapM f = Scanl step initial extract extract
     extract = return . snd
 
 -- |
--- >>> rollingMap f = Fold.rollingMapM (\x y -> return $ f x y)
+-- >>> rollingMap f = Scanl.rollingMapM (\x y -> return $ f x y)
 --
 {-# INLINE rollingMap #-}
 rollingMap :: Monad m => (Maybe a -> a -> b) -> Scanl m a b
@@ -666,7 +666,7 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 --
 -- >>> input = Stream.fromList "//a//b"
 -- >>> f x y = x == '/' && y == '/'
--- >>> Stream.fold Fold.toList $ Stream.postscanlMaybe (Fold.uniqBy f) input
+-- >>> Stream.fold Scanl.toList $ Stream.postscanlMaybe (Scanl.uniqBy f) input
 -- "/a/b"
 --
 -- Space: @O(1)@
@@ -688,7 +688,7 @@ uniqBy eq = rollingMap f
 --
 -- Definition:
 --
--- >>> uniq = Fold.uniqBy (==)
+-- >>> uniq = Scanl.uniqBy (==)
 --
 {-# INLINE uniq #-}
 uniq :: (Monad m, Eq a) => Scanl m a (Maybe a)
@@ -729,12 +729,11 @@ repeated = error "Not implemented yet!"
 -- Run Effects
 ------------------------------------------------------------------------------
 
-{-
 -- |
 -- Definitions:
 --
--- >>> drainMapM f = Fold.lmapM f Fold.drain
--- >>> drainMapM f = Fold.foldMapM (void . f)
+-- >>> drainMapM f = Scanl.lmapM f Scanl.drain
+-- >>> drainMapM f = Scanl.foldMapM (void . f)
 --
 -- Drain all input after passing it through a monadic function. This is the
 -- dual of mapM_ on stream producers.
@@ -742,12 +741,11 @@ repeated = error "Not implemented yet!"
 {-# INLINE drainMapM #-}
 drainMapM ::  Monad m => (a -> m b) -> Scanl m a ()
 drainMapM f = lmapM f drain
--}
 
 -- | Returns the latest element of the input stream, if any.
 --
 -- >>> latest = Scanl.mkScanl1 (\_ x -> x)
--- >>> latest = fmap getLast $ Fold.foldMap (Last . Just)
+-- >>> latest = fmap getLast $ Scanl.foldMap (Last . Just)
 --
 {-# INLINE latest #-}
 latest :: Monad m => Scanl m a (Maybe a)
@@ -779,12 +777,12 @@ the = mkScant step initial id
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
 --
--- >>> sum = Fold.cumulative Fold.windowSum
+-- >>> sum = Scanl.cumulative Scanl.windowSum
 --
 -- Same as following but numerically stable:
 --
 -- >>> sum = Scanl.mkScanl (+) 0
--- >>> sum = fmap Data.Monoid.getSum $ Fold.foldMap Data.Monoid.Sum
+-- >>> sum = fmap Data.Monoid.getSum $ Scanl.foldMap Data.Monoid.Sum
 --
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Scanl m a a
@@ -796,7 +794,7 @@ sum = Scanl.cumulative Scanl.windowSum
 --
 -- Same as the following but terminates on multiplication by @0@:
 --
--- >>> product = fmap Data.Monoid.getProduct $ Fold.foldMap Data.Monoid.Product
+-- >>> product = fmap Data.Monoid.getProduct $ Scanl.foldMap Data.Monoid.Product
 --
 {-# INLINE product #-}
 product :: (Monad m, Num a, Eq a) => Scanl m a a
@@ -837,7 +835,7 @@ maximumBy cmp = mkScanl1 max'
 -- Same as the following but without a default maximum. The 'Max' Monoid uses
 -- the 'minBound' as the default maximum:
 --
--- >>> maximum = fmap Data.Semigroup.getMax $ Fold.foldMap Data.Semigroup.Max
+-- >>> maximum = fmap Data.Semigroup.getMax $ Scanl.foldMap Data.Semigroup.Max
 --
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => Scanl m a (Maybe a)
@@ -867,7 +865,7 @@ minimumBy cmp = mkScanl1 min'
 -- Same as the following but without a default minimum. The 'Min' Monoid uses the
 -- 'maxBound' as the default maximum:
 --
--- >>> maximum = fmap Data.Semigroup.getMin $ Fold.foldMap Data.Semigroup.Min
+-- >>> maximum = fmap Data.Semigroup.getMin $ Scanl.foldMap Data.Semigroup.Min
 --
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Scanl m a (Maybe a)
@@ -922,7 +920,7 @@ defaultSalt = -2578643520546668380
 
 -- | Compute an 'Int' sized polynomial rolling hash of a stream.
 --
--- >>> rollingHash = Fold.rollingHashWithSalt Fold.defaultSalt
+-- >>> rollingHash = Scanl.rollingHashWithSalt Scanl.defaultSalt
 --
 {-# INLINE rollingHash #-}
 rollingHash :: (Monad m, Enum a) => Scanl m a Int64
@@ -931,7 +929,7 @@ rollingHash = rollingHashWithSalt defaultSalt
 -- | Compute an 'Int' sized polynomial rolling hash of the first n elements of
 -- a stream.
 --
--- >>> rollingHashFirstN n = Fold.take n Fold.rollingHash
+-- >>> rollingHashFirstN n = Scanl.take n Scanl.rollingHash
 --
 -- /Pre-release/
 {-# INLINE rollingHashFirstN #-}
@@ -950,7 +948,7 @@ rollingHashFirstN n = take n rollingHash
 -- >>> sconcat = Scanl.mkScanl (<>)
 --
 -- >>> semigroups = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
--- >>> Stream.fold (Fold.sconcat 10) semigroups
+-- >>> Stream.fold (Scanl.sconcat 10) semigroups
 -- Sum {getSum = 65}
 --
 {-# INLINE sconcat #-}
@@ -962,10 +960,10 @@ sconcat = mkScanl (<>)
 --
 -- Definition:
 --
--- >>> mconcat = Fold.sconcat mempty
+-- >>> mconcat = Scanl.sconcat mempty
 --
 -- >>> monoids = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
--- >>> Stream.fold Fold.mconcat monoids
+-- >>> Stream.fold Scanl.mconcat monoids
 -- Sum {getSum = 55}
 --
 {-# INLINE mconcat #-}
@@ -977,12 +975,12 @@ mconcat = sconcat mempty
 -- |
 -- Definition:
 --
--- >>> foldMap f = Fold.lmap f Fold.mconcat
+-- >>> foldMap f = Scanl.lmap f Scanl.mconcat
 --
 -- Make a fold from a pure function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- >>> sum = Fold.foldMap Data.Monoid.Sum
+-- >>> sum = Scanl.foldMap Data.Monoid.Sum
 -- >>> Stream.fold sum $ Stream.enumerateFromTo 1 10
 -- Sum {getSum = 55}
 --
@@ -993,12 +991,12 @@ foldMap f = lmap f mconcat
 -- |
 -- Definition:
 --
--- >>> foldMapM f = Fold.lmapM f Fold.mconcat
+-- >>> foldMapM f = Scanl.lmapM f Scanl.mconcat
 --
 -- Make a fold from a monadic function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- >>> sum = Fold.foldMapM (return . Data.Monoid.Sum)
+-- >>> sum = Scanl.foldMapM (return . Data.Monoid.Sum)
 -- >>> Stream.fold sum $ Stream.enumerateFromTo 1 10
 -- Sum {getSum = 55}
 --
@@ -1017,14 +1015,14 @@ foldMapM act = mkScanlM step (pure mempty)
 ------------------------------------------------------------------------------
 
 -- $toListRev
--- This is more efficient than 'Streamly.Internal.Data.Fold.toList'. toList is
+-- This is more efficient than 'Streamly.Internal.Data.Scanl.toList'. toList is
 -- exactly the same as reversing the list after 'toListRev'.
 
 -- | Buffers the input stream to a list in the reverse order of the input.
 --
 -- Definition:
 --
--- >>> toListRev = Fold.mkScanl (flip (:)) []
+-- >>> toListRev = Scanl.mkScanl (flip (:)) []
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
@@ -1044,7 +1042,7 @@ toListRev = mkScanl (flip (:)) []
 --
 -- Definition:
 --
--- >>> drainN n = Fold.take n Fold.drain
+-- >>> drainN n = Scanl.take n Scanl.drain
 --
 -- /Pre-release/
 {-# INLINE drainN #-}
@@ -1074,7 +1072,7 @@ genericIndex i = mkScant step (Partial 0) (const Nothing)
 --
 -- Definition:
 --
--- >>> index = Fold.genericIndex
+-- >>> index = Scanl.genericIndex
 --
 {-# INLINE index #-}
 index :: Monad m => Int -> Scanl m a (Maybe a)
@@ -1094,7 +1092,7 @@ maybe f = mkScant (const (Done . f)) (Partial Nothing) id
 --
 -- Definition:
 --
--- >>> satisfy f = Fold.maybe (\a -> if f a then Just a else Nothing)
+-- >>> satisfy f = Scanl.maybe (\a -> if f a then Just a else Nothing)
 --
 -- /Pre-release/
 {-# INLINE satisfy #-}
@@ -1137,7 +1135,7 @@ satisfy f = Fold step (return $ Partial ()) (const (return Nothing))
 --
 -- Definition:
 --
--- >>> one = Fold.maybe Just
+-- >>> one = Scanl.maybe Just
 --
 -- This is similar to the stream 'Stream.uncons' operation.
 --
@@ -1175,7 +1173,7 @@ find p = findM (return . p)
 --
 -- Definition:
 --
--- >>> lookup x = fmap snd <$> Fold.find ((== x) . fst)
+-- >>> lookup x = fmap snd <$> Scanl.find ((== x) . fst)
 --
 {-# INLINE lookup #-}
 lookup :: (Eq a, Monad m) => a -> Scanl m (a,b) (Maybe b)
@@ -1223,7 +1221,7 @@ findIndices predicate =
 --
 -- Definition:
 --
--- >>> elemIndices a = Fold.findIndices (== a)
+-- >>> elemIndices a = Scanl.findIndices (== a)
 --
 {-# INLINE elemIndices #-}
 elemIndices :: (Monad m, Eq a) => a -> Scanl m a (Maybe Int)
@@ -1234,7 +1232,7 @@ elemIndices a = findIndices (== a)
 --
 -- Definition:
 --
--- >>> elemIndex a = Fold.findIndex (== a)
+-- >>> elemIndex a = Scanl.findIndex (== a)
 --
 {-# INLINE elemIndex #-}
 elemIndex :: (Eq a, Monad m) => a -> Scanl m a (Maybe Int)
@@ -1255,7 +1253,7 @@ elemIndex a = findIndex (== a)
 --
 -- Definition:
 --
--- >>> null = fmap isJust Fold.one
+-- >>> null = fmap isJust Scanl.one
 --
 {-# INLINE null #-}
 null :: Monad m => Scanl m a Bool
@@ -1265,11 +1263,11 @@ null = mkScant (\() _ -> Done False) (Partial ()) (const True)
 --
 -- Definition:
 --
--- >>> any p = Fold.lmap p Fold.or
+-- >>> any p = Scanl.lmap p Scanl.or
 --
 -- Example:
 --
--- >>> Stream.fold (Fold.any (== 0)) $ Stream.fromList [1,0,1]
+-- >>> Stream.fold (Scanl.any (== 0)) $ Stream.fromList [1,0,1]
 -- True
 --
 {-# INLINE any #-}
@@ -1289,7 +1287,7 @@ any predicate = mkScant step initial id
 --
 -- Definition:
 --
--- >>> elem a = Fold.any (== a)
+-- >>> elem a = Scanl.any (== a)
 --
 {-# INLINE elem #-}
 elem :: (Eq a, Monad m) => a -> Scanl m a Bool
@@ -1299,11 +1297,11 @@ elem a = any (== a)
 --
 -- Definition:
 --
--- >>> all p = Fold.lmap p Fold.and
+-- >>> all p = Scanl.lmap p Scanl.and
 --
 -- Example:
 --
--- >>> Stream.fold (Fold.all (== 0)) $ Stream.fromList [1,0,1]
+-- >>> Stream.fold (Scanl.all (== 0)) $ Stream.fromList [1,0,1]
 -- False
 --
 {-# INLINE all #-}
@@ -1323,7 +1321,7 @@ all predicate = mkScant step initial id
 --
 -- Definition:
 --
--- >>> notElem a = Fold.all (/= a)
+-- >>> notElem a = Scanl.all (/= a)
 --
 {-# INLINE notElem #-}
 notElem :: (Eq a, Monad m) => a -> Scanl m a Bool
@@ -1333,7 +1331,7 @@ notElem a = all (/= a)
 --
 -- Definition:
 --
--- >>> and = Fold.all (== True)
+-- >>> and = Scanl.all (== True)
 --
 {-# INLINE and #-}
 and :: Monad m => Scanl m Bool Bool
@@ -1343,7 +1341,7 @@ and = all id
 --
 -- Definition:
 --
--- >>> or = Fold.any (== True)
+-- >>> or = Scanl.any (== True)
 --
 {-# INLINE or #-}
 or :: Monad m => Scanl m Bool Bool
@@ -1428,7 +1426,7 @@ takingEndByM p = Scanl step initial extract extract
 
 -- |
 --
--- >>> takingEndBy p = Fold.takingEndByM (return . p)
+-- >>> takingEndBy p = Scanl.takingEndByM (return . p)
 --
 {-# INLINE takingEndBy #-}
 takingEndBy :: Monad m => (a -> Bool) -> Scanl m a (Maybe a)
@@ -1453,7 +1451,7 @@ takingEndByM_ p = Scanl step initial extract extract
 
 -- |
 --
--- >>> takingEndBy_ p = Fold.takingEndByM_ (return . p)
+-- >>> takingEndBy_ p = Scanl.takingEndByM_ (return . p)
 --
 {-# INLINE takingEndBy_ #-}
 takingEndBy_ :: Monad m => (a -> Bool) -> Scanl m a (Maybe a)
@@ -1479,7 +1477,7 @@ droppingWhileM p = Scanl step initial extract extract
     extract = return . toMaybe
 
 -- |
--- >>> droppingWhile p = Fold.droppingWhileM (return . p)
+-- >>> droppingWhile p = Scanl.droppingWhileM (return . p)
 --
 {-# INLINE droppingWhile #-}
 droppingWhile :: Monad m => (a -> Bool) -> Scanl m a (Maybe a)
@@ -2147,7 +2145,7 @@ zipStreamWithM = undefined
 
 -- | Zip a stream with the input of a fold.
 --
--- >>> zip = Fold.zipStreamWithM (curry return)
+-- >>> zip = Scanl.zipStreamWithM (curry return)
 --
 -- /Unimplemented/
 --
@@ -2184,7 +2182,7 @@ indexingRev n = indexingWith n (subtract 1)
 
 -- | Pair each element of a fold input with its index, starting from index 0.
 --
--- >>> indexed = Scanl.postscanlMaybe Fold.indexing
+-- >>> indexed = Scanl.postscanlMaybe Scanl.indexing
 --
 {-# INLINE indexed #-}
 indexed :: Monad m => Scanl m (Int, a) b -> Scanl m a b
@@ -2194,7 +2192,7 @@ indexed = postscanlMaybe indexing
 -- additional state input @(s, a) -> b@. Convenient to filter with an
 -- addiitonal index or time input.
 --
--- >>> filterWithIndex = Fold.with Fold.indexed Fold.filter
+-- >>> filterWithIndex = Scanl.with Scanl.indexed Scanl.filter
 --
 -- @
 -- filterWithAbsTime = with timestamped filter
@@ -2259,7 +2257,7 @@ chunksBetween _low _high _f1 _f2 = undefined
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
 --
--- >>> toStream = fmap Stream.fromList Fold.toList
+-- >>> toStream = fmap Stream.fromList Scanl.toList
 --
 -- /Pre-release/
 {-# INLINE toStream #-}
@@ -2272,7 +2270,7 @@ toStream = fmap StreamD.fromList toList
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
 --
--- >>> toStreamRev = fmap Stream.fromList Fold.toListRev
+-- >>> toStreamRev = fmap Stream.fromList Scanl.toListRev
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
@@ -2355,12 +2353,12 @@ bottomBy cmp n = Scanl step initial extract extract
 --
 -- To get bottom n elements instead:
 --
--- >>> bottomBy cmp = Fold.topBy (flip cmp)
+-- >>> bottomBy cmp = Scanl.topBy (flip cmp)
 --
 -- Example:
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.fold (Fold.topBy compare 3) stream >>= MutArray.toList
+-- >>> Stream.fold (Scanl.topBy compare 3) stream >>= MutArray.toList
 -- [17,11,9]
 --
 -- /Pre-release/
@@ -2376,10 +2374,10 @@ topBy cmp = bottomBy (flip cmp)
 --
 -- Definition:
 --
--- >>> top = Fold.topBy compare
+-- >>> top = Scanl.topBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.fold (Fold.top 3) stream >>= MutArray.toList
+-- >>> Stream.fold (Scanl.top 3) stream >>= MutArray.toList
 -- [17,11,9]
 --
 -- /Pre-release/
@@ -2391,10 +2389,10 @@ top = bottomBy $ flip compare
 --
 -- Definition:
 --
--- >>> bottom = Fold.bottomBy compare
+-- >>> bottom = Scanl.bottomBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.fold (Fold.bottom 3) stream >>= MutArray.toList
+-- >>> Stream.fold (Scanl.bottom 3) stream >>= MutArray.toList
 -- [1,2,3]
 --
 -- /Pre-release/
