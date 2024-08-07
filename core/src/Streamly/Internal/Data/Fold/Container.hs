@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 -- Must come after TypeFamilies, otherwise it is re-enabled.
 -- MonoLocalBinds enabled by TypeFamilies causes perf regressions in general.
@@ -18,8 +19,8 @@ module Streamly.Internal.Data.Fold.Container
     , toIntSet
     , countDistinct
     , countDistinctInt
-    , nub
-    , nubInt
+    , nub -- XXX deprecate in favor of scan
+    , nubInt -- XXX deprecate in favor of scan
 
     -- * Map operations
     , frequency
@@ -123,15 +124,7 @@ import Prelude hiding (Foldable(..))
 import Streamly.Internal.Data.Fold.Type
 import Streamly.Internal.Data.Fold.Combinators
 
--- $setup
--- >>> :m
--- >>> :set -XFlexibleContexts
--- >>> import qualified Data.Map as Map
--- >>> import qualified Data.Set as Set
--- >>> import qualified Data.IntSet as IntSet
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Fold.Container as Fold
+#include "DocTestDataFold.hs"
 
 -- | Fold the input to a set.
 --
@@ -162,7 +155,8 @@ toIntSet = foldl' (flip IntSet.insert) IntSet.empty
 -- Example:
 --
 -- >>> stream = Stream.fromList [1::Int,1,2,3,4,4,5,1,5,7]
--- >>> Stream.fold Fold.toList $ Stream.scanMaybe Fold.nub stream
+--
+-- >> Stream.toList $ Stream.scanMaybe Fold.nub stream
 -- [1,2,3,4,5,7]
 --
 -- /Pre-release/
@@ -204,7 +198,7 @@ nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 -- Definition:
 --
 -- >>> countDistinct = fmap Set.size Fold.toSet
--- >>> countDistinct = Fold.postscan Fold.nub $ Fold.catMaybes $ Fold.length
+-- >>> countDistinct = Fold.postscanl Scanl.nub $ Fold.catMaybes $ Fold.length
 --
 -- The memory used is proportional to the number of distinct elements in the
 -- stream, to guard against using too much memory use it as a scan and
@@ -240,7 +234,7 @@ countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- Definition:
 --
 -- >>> countDistinctInt = fmap IntSet.size Fold.toIntSet
--- >>> countDistinctInt = Fold.postscan Fold.nubInt $ Fold.catMaybes $ Fold.length
+-- >>> countDistinctInt = Fold.postscanl Scanl.nubInt $ Fold.catMaybes $ Fold.length
 --
 -- /Pre-release/
 {-# INLINE countDistinctInt #-}
@@ -744,7 +738,7 @@ demuxKvToContainer f = demuxerToContainer fst (fmap (lmap snd) . f)
 --
 -- Definition:
 --
--- >>> demuxKvToMap f = Fold.demuxToContainer fst (Fold.lmap snd . f)
+-- >>> demuxKvToMap f = Fold.demuxerToContainer fst (Fold.lmap snd . f)
 --
 -- Example:
 --
@@ -899,7 +893,7 @@ classifyScanGeneric = undefined
 --
 -- Definition:
 --
--- >>> classify f fld = Fold.demux f (const fld)
+-- >> classify f fld = Fold.demux f (const fld)
 --
 {-# DEPRECATED classify "Use classify from Scanl module" #-}
 {-# INLINE classify #-}
@@ -1052,7 +1046,7 @@ classifyScanGenericIO = undefined
 --
 -- Definitions:
 --
--- >>> classifyIO f fld = Fold.demuxIO f (const fld)
+-- >> classifyIO f fld = Fold.demuxIO f (const fld)
 --
 {-# DEPRECATED classifyIO "Use classifyIO from Scanl module" #-}
 {-# INLINE classifyIO #-}

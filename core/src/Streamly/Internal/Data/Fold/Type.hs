@@ -1480,7 +1480,7 @@ catMaybes (Fold step initial extract final) = Fold step1 initial extract final
 
 -- | Use a 'Maybe' returning fold as a filtering scan.
 --
--- >>> scanMaybe p f = Fold.postscan p (Fold.catMaybes f)
+-- >> scanMaybe p f = Fold.postscan p (Fold.catMaybes f)
 --
 -- /Pre-release/
 {-# DEPRECATED scanMaybe "Please use 'postscanlMaybe' instead." #-}
@@ -1503,7 +1503,6 @@ filtering f = foldl' step Nothing
 -- >>> Stream.fold (Fold.filter (> 5) Fold.sum) $ Stream.fromList [1..10]
 -- 40
 --
--- >>> filter p = Fold.scanMaybe (Fold.filtering p)
 -- >>> filter p = Fold.filterM (return . p)
 -- >>> filter p = Fold.mapMaybe (\x -> if p x then Just x else Nothing)
 --
@@ -1772,7 +1771,7 @@ snoclM (Fold fstep finitial fextract ffinal) action =
 -- Example:
 --
 -- >>> import qualified Data.Foldable as Foldable
--- >>> Fold.extractM $ Foldable.foldl Fold.snocl Fold.toList [1..3]
+-- >>> Fold.finalM $ Foldable.foldl Fold.snocl Fold.toList [1..3]
 -- [1,2,3]
 --
 -- /Pre-release/
@@ -1848,11 +1847,6 @@ addOne = flip snoc
 -- Definition:
 --
 -- >>> extractM = Fold.drive Stream.nil
---
--- Example:
---
--- >>> Fold.extractM Fold.toList
--- []
 --
 -- /Pre-release/
 {-# DEPRECATED extractM "Please use finalM instead" #-}

@@ -71,6 +71,9 @@ module Streamly.Internal.Data.Fold.Combinators
     , rollingMapM
 
     -- *** Filters
+
+    -- XXX deprecate these in favor of corresponding scans
+
     -- | Useful in combination with the 'scanMaybe' combinator.
     , deleteBy
     , uniqBy
@@ -342,7 +345,7 @@ breakStreamK strm fl = fmap f $ K.foldBreak fl (Stream.toStreamK strm)
 -- Example, build an array incrementally:
 --
 -- >>> :{
--- pure (Array.write :: Fold IO Int (Array Int))
+-- pure (Array.create :: Fold IO Int (Array Int))
 --     >>= Fold.addOne 1
 --     >>= Fold.addStream (Stream.enumerateFromTo 2 4)
 --     >>= Fold.drive Stream.nil
@@ -354,7 +357,7 @@ breakStreamK strm fl = fmap f $ K.foldBreak fl (Stream.toStreamK strm)
 --
 -- >>> :{
 -- let f :: Fold IO Int (Stream Identity (Array Int))
---     f = Fold.groupsOf 2 (Array.writeN 3) Fold.toStream
+--     f = Fold.groupsOf 2 (Array.createOf 3) Fold.toStream
 -- in pure f
 --     >>= Fold.addOne 1
 --     >>= Fold.addStream (Stream.enumerateFromTo 2 4)
@@ -720,7 +723,8 @@ scanlMany = scanlWith True
 -- Example:
 --
 -- >>> input = Stream.fromList [1,3,3,5]
--- >>> Stream.fold Fold.toList $ Stream.scanMaybe (Fold.deleteBy (==) 3) input
+--
+-- >> Stream.toList $ Stream.scanMaybe (Fold.deleteBy (==) 3) input
 -- [1,3,5]
 --
 {-# INLINE_NORMAL deleteBy #-}
@@ -765,7 +769,8 @@ slide2 (Fold step1 initial1 extract1 final1) = Fold step initial extract final
 --
 -- >>> input = Stream.fromList "//a//b"
 -- >>> f x y = x == '/' && y == '/'
--- >>> Stream.fold Fold.toList $ Stream.scanMaybe (Fold.uniqBy f) input
+--
+-- >> Stream.toList $ Stream.scanMaybe (Fold.uniqBy f) input
 -- "/a/b"
 --
 -- Space: @O(1)@
@@ -2302,7 +2307,7 @@ indexingWith i f = fmap toMaybe $ foldl' step initial
     step (Just' (n, _)) a = Just' (f n, a)
 
 -- |
--- >>> indexing = Fold.indexingWith 0 (+ 1)
+-- >> indexing = Fold.indexingWith 0 (+ 1)
 --
 {-# DEPRECATED indexing "Use Scanl.indexing instead" #-}
 {-# INLINE indexing #-}
@@ -2310,7 +2315,7 @@ indexing :: Monad m => Fold m a (Maybe (Int, a))
 indexing = indexingWith 0 (+ 1)
 
 -- |
--- >>> indexingRev n = Fold.indexingWith n (subtract 1)
+-- >> indexingRev n = Fold.indexingWith n (subtract 1)
 --
 {-# DEPRECATED indexingRev "Use Scanl.indexingRev instead" #-}
 {-# INLINE indexingRev #-}
@@ -2319,7 +2324,7 @@ indexingRev n = indexingWith n (subtract 1)
 
 -- | Pair each element of a fold input with its index, starting from index 0.
 --
--- >>> indexed = Fold.scanMaybe Fold.indexing
+-- >>> indexed = Fold.postscanlMaybe Scanl.indexing
 --
 {-# INLINE indexed #-}
 indexed :: Monad m => Fold m (Int, a) b -> Fold m a b
