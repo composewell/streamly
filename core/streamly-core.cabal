@@ -417,6 +417,7 @@ library
                      -- , Streamly.Data.Tuple.Strict
                      -- , Streamly.Data.Maybe.Strict
                      -- , Streamly.Data.Either.Strict
+                     -- , Streamly.Data.Scanr
 
                      -- streamly-core released modules in alphabetic order
                      -- NOTE: these must be added to streamly.cabal as well
@@ -428,7 +429,6 @@ library
                      , Streamly.Data.MutArray.Generic
                      , Streamly.Data.Fold
                      , Streamly.Data.Scanl
-                     , Streamly.Data.Scanr
                      , Streamly.Data.Parser
                      , Streamly.Data.ParserK
                      , Streamly.Data.Stream
