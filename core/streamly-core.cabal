@@ -73,6 +73,7 @@ extra-source-files:
    -- doctest include files
     src/DocTestDataArray.hs
     src/DocTestDataFold.hs
+    src/DocTestDataScanl.hs
     src/DocTestDataMutArray.hs
     src/DocTestDataMutArrayGeneric.hs
     src/DocTestDataParser.hs

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Scanl.Window
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -75,13 +76,7 @@ import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 
 import Prelude hiding (length, sum, minimum, maximum)
 
--- $setup
--- >>> import Data.Bifunctor(bimap)
--- >>> import qualified Streamly.Data.Scanl as Scanl
--- >>> import qualified Streamly.Internal.Data.Scanl.Window as Fold
--- >>> import qualified Streamly.Internal.Data.Ring as Ring
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import Prelude hiding (length, sum, minimum, maximum)
+#include "DocTestDataScanl.hs"
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -214,7 +209,7 @@ windowRollingMap f = Scanl.mkScanl f1 initial
 -------------------------------------------------------------------------------
 
 -- XXX Overflow.
---
+
 -- | The sum of all the elements in a rolling window. The input elements are
 -- required to be intergal numbers.
 --
@@ -242,14 +237,14 @@ windowSumInt = Scanl step initial extract extract
     extract = return
 
 -- XXX Overflow.
---
+
 -- | Sum of all the elements in a rolling window:
 --
 -- \(S = \sum_{i=1}^n x_{i}\)
 --
 -- This is the first power sum.
 --
--- >>> sum = powerSum 1
+-- >>> sum = Scanl.windowPowerSum 1
 --
 -- Uses Kahan-Babuska-Neumaier style summation for numerical stability of
 -- floating precision arithmetic.
@@ -295,7 +290,7 @@ windowSum = Scanl step initial extract extract
 --
 -- This is the \(0\)th power sum.
 --
--- >>> length = powerSum 0
+-- >>> length = Scanl.windowPowerSum 0
 --
 {-# INLINE windowLength #-}
 windowLength :: (Monad m, Num b) => Scanl m (a, Maybe a) b
@@ -310,7 +305,7 @@ windowLength = Scanl.mkScanl step 0
 --
 -- \(S_k = \sum_{i=1}^n x_{i}^k\)
 --
--- >>> powerSum k = lmap (^ k) sum
+-- >>> windowPowerSum k = Scanl.windowLmap (^ k) Scanl.windowSum
 --
 -- /Space/: \(\mathcal{O}(1)\)
 --
@@ -322,7 +317,7 @@ windowPowerSum k = windowLmap (^ k) windowSum
 -- | Like 'powerSum' but powers can be negative or fractional. This is slower
 -- than 'powerSum' for positive intergal powers.
 --
--- >>> powerSumFrac p = lmap (** p) sum
+-- >>> windowPowerSumFrac p = Scanl.windowLmap (** p) Scanl.windowSum
 --
 {-# INLINE windowPowerSumFrac #-}
 windowPowerSumFrac :: (Monad m, Floating a) => a -> Scanl m (a, Maybe a) a
@@ -423,7 +418,7 @@ windowMaximum n = fmap (fmap snd) $ windowRange n
 -- sliding window and Cumulative Moving Avergae (CMA) when used on the entire
 -- stream.
 --
--- >>> mean = Scanl.teeWith (/) sum length
+-- >>> mean = Scanl.teeWith (/) Scanl.windowSum Scanl.windowLength
 --
 -- /Space/: \(\mathcal{O}(1)\)
 --

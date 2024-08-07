@@ -10,16 +10,11 @@
 
 module Streamly.Internal.Data.Scanl.Combinators
     (
-    -- * Mappers
-    -- | Monadic functions useful with mapM/lmapM on folds or streams.
-      tracing
-    , trace
-
-    -- * Folds
+    -- * Scans
 
     -- ** Accumulators
     -- *** Semigroups and Monoids
-    , sconcat
+      sconcat
     , mconcat
     , foldMap
     , foldMapM
@@ -212,7 +207,7 @@ where
 #include "inline.hs"
 #include "ArrayMacros.h"
 
-import Control.Monad (void)
+-- import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 -- import Data.Bits (shiftL, shiftR, (.|.), (.&.))
@@ -258,7 +253,7 @@ import Prelude hiding
 --
 -- Definition:
 --
--- >>> drive = flip Stream.fold
+-- >>> drive = flip Stream.toList $ Stream.scanl
 --
 -- Example:
 --
@@ -275,7 +270,7 @@ drive = flip StreamD.fold
 --
 -- Definition:
 --
--- >>> breakStream = flip Stream.foldBreak
+-- >>> breakStream = flip Stream.toList $ Stream.scanlBreak
 --
 -- /CPS/
 --
@@ -373,9 +368,9 @@ mapMaybeM f = lmapM f . catMaybes
 -- >>> mapMaybe f = Scanl.mapMaybeM (return . f)
 --
 -- >>> f x = if even x then Just x else Nothing
--- >>> fld = Scanl.mapMaybe f Scanl.toList
--- >>> Stream.fold fld (Stream.enumerateFromTo 1 10)
--- [2,4,6,8,10]
+-- >>> scn = Scanl.mapMaybe f Scanl.toList
+-- >>> Stream.toList $ Stream.scanl scn (Stream.enumerateFromTo 1 10)
+-- [[],[],[2],[2],[2,4],[2,4],[2,4,6],[2,4,6],[2,4,6,8],[2,4,6,8],[2,4,6,8,10]]
 --
 {-# INLINE mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Scanl m b r -> Scanl m a r
@@ -384,32 +379,6 @@ mapMaybe f = lmap f . catMaybes
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
 ------------------------------------------------------------------------------
-
--- | Apply a monadic function on the input and return the input.
---
--- >>> Stream.fold (Scanl.lmapM (Scanl.tracing print) Scanl.drain) $ (Stream.enumerateFromTo (1 :: Int) 2)
--- 1
--- 2
---
--- /Pre-release/
---
-{-# INLINE tracing #-}
-tracing :: Monad m => (a -> m b) -> (a -> m a)
-tracing f x = void (f x) >> return x
-
--- | Apply a monadic function to each element flowing through and discard the
--- results.
---
--- >>> Stream.fold (Scanl.trace print Scanl.drain) $ (Stream.enumerateFromTo (1 :: Int) 2)
--- 1
--- 2
---
--- >>> trace f = Scanl.lmapM (Scanl.tracing f)
---
--- /Pre-release/
-{-# INLINE trace #-}
-trace :: Monad m => (a -> m b) -> Scanl m a r -> Scanl m a r
-trace f = lmapM (tracing f)
 
 -- XXX rather scanl the input of a pipe? And scanr the output?
 -- pipe :: Monad m => Scanl m a b -> Pipe m b c -> Scanl m a c
@@ -586,7 +555,7 @@ scanlMany = scanWith True
 -- Example:
 --
 -- >>> input = Stream.fromList [1,3,3,5]
--- >>> Stream.fold Scanl.toList $ Stream.postscanlMaybe (Scanl.deleteBy (==) 3) input
+-- >>> Stream.toList $ Stream.postscanlMaybe (Scanl.deleteBy (==) 3) input
 -- [1,3,5]
 --
 {-# INLINE_NORMAL deleteBy #-}
@@ -666,7 +635,7 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 --
 -- >>> input = Stream.fromList "//a//b"
 -- >>> f x y = x == '/' && y == '/'
--- >>> Stream.fold Scanl.toList $ Stream.postscanlMaybe (Scanl.uniqBy f) input
+-- >>> Stream.toList $ Stream.postscanlMaybe (Scanl.uniqBy f) input
 -- "/a/b"
 --
 -- Space: @O(1)@
@@ -947,9 +916,9 @@ rollingHashFirstN n = take n rollingHash
 --
 -- >>> sconcat = Scanl.mkScanl (<>)
 --
--- >>> semigroups = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
--- >>> Stream.fold (Scanl.sconcat 10) semigroups
--- Sum {getSum = 65}
+-- >>> semigroups = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 3
+-- >>> Stream.toList $ Stream.scanl (Scanl.sconcat 3) semigroups
+-- [Sum {getSum = 3},Sum {getSum = 4},Sum {getSum = 6},Sum {getSum = 9}]
 --
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => a -> Scanl m a a
@@ -962,9 +931,9 @@ sconcat = mkScanl (<>)
 --
 -- >>> mconcat = Scanl.sconcat mempty
 --
--- >>> monoids = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
--- >>> Stream.fold Scanl.mconcat monoids
--- Sum {getSum = 55}
+-- >>> monoids = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 3
+-- >>> Stream.toList $ Stream.scanl Scanl.mconcat monoids
+-- [Sum {getSum = 0},Sum {getSum = 1},Sum {getSum = 3},Sum {getSum = 6}]
 --
 {-# INLINE mconcat #-}
 mconcat ::
@@ -981,8 +950,8 @@ mconcat = sconcat mempty
 -- using 'mappend' and 'mempty'.
 --
 -- >>> sum = Scanl.foldMap Data.Monoid.Sum
--- >>> Stream.fold sum $ Stream.enumerateFromTo 1 10
--- Sum {getSum = 55}
+-- >>> Stream.toList $ Stream.scanl sum $ Stream.enumerateFromTo 1 3
+-- [Sum {getSum = 0},Sum {getSum = 1},Sum {getSum = 3},Sum {getSum = 6}]
 --
 {-# INLINE foldMap #-}
 foldMap :: (Monad m, Monoid b) => (a -> b) -> Scanl m a b
@@ -997,8 +966,8 @@ foldMap f = lmap f mconcat
 -- using 'mappend' and 'mempty'.
 --
 -- >>> sum = Scanl.foldMapM (return . Data.Monoid.Sum)
--- >>> Stream.fold sum $ Stream.enumerateFromTo 1 10
--- Sum {getSum = 55}
+-- >>> Stream.toList $ Stream.scanl sum $ Stream.enumerateFromTo 1 3
+-- [Sum {getSum = 0},Sum {getSum = 1},Sum {getSum = 3},Sum {getSum = 6}]
 --
 {-# INLINE foldMapM #-}
 foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Scanl m a b
@@ -1267,7 +1236,7 @@ null = mkScant (\() _ -> Done False) (Partial ()) (const True)
 --
 -- Example:
 --
--- >>> Stream.fold (Scanl.any (== 0)) $ Stream.fromList [1,0,1]
+-- >>> Stream.toList $ Stream.scanl (Scanl.any (== 0)) $ Stream.fromList [1,0,1]
 -- True
 --
 {-# INLINE any #-}
@@ -1301,7 +1270,7 @@ elem a = any (== a)
 --
 -- Example:
 --
--- >>> Stream.fold (Scanl.all (== 0)) $ Stream.fromList [1,0,1]
+-- >>> Stream.toList $ Stream.scanl (Scanl.all (== 0)) $ Stream.fromList [1,0,1]
 -- False
 --
 {-# INLINE all #-}
@@ -1365,7 +1334,7 @@ or = any id
 -- elements of its input are consumed by fold @f1@ and the rest of the stream
 -- is consumed by fold @f2@.
 --
--- >>> let splitAt_ n xs = Stream.fold (Fold.splitAt n Fold.toList Fold.toList) $ Stream.fromList xs
+-- >>> let splitAt_ n xs = Stream.toList $ Stream.scanl (Fold.splitAt n Fold.toList Fold.toList) $ Stream.fromList xs
 --
 -- >>> splitAt_ 6 "Hello World!"
 -- ("Hello ","World!")
@@ -1504,10 +1473,10 @@ data SplitOnSeqState acc a rb rh w ck =
 --
 -- >>> s = Stream.fromList "hello there. How are you?"
 -- >>> f = Fold.takeEndBySeq (Array.fromList "re") Fold.toList
--- >>> Stream.fold f s
+-- >>> Stream.toList $ Stream.scanl f s
 -- "hello there"
 --
--- >>> Stream.fold Fold.toList $ Stream.foldMany f s
+-- >>> Stream.toList $ Stream.scanl Fold.toList $ Stream.toList $ Stream.scanlMany f s
 -- ["hello there",". How are"," you?"]
 --
 -- /Pre-release/
@@ -2358,8 +2327,8 @@ bottomBy cmp n = Scanl step initial extract extract
 -- Example:
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.fold (Scanl.topBy compare 3) stream >>= MutArray.toList
--- [17,11,9]
+-- >>> Stream.toList (Stream.scanl (Scanl.topBy compare 3) stream) >>= mapM MutArray.toList
+-- [[],[17],[17,11],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9]]
 --
 -- /Pre-release/
 --
@@ -2377,8 +2346,8 @@ topBy cmp = bottomBy (flip cmp)
 -- >>> top = Scanl.topBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.fold (Scanl.top 3) stream >>= MutArray.toList
--- [17,11,9]
+-- >>> Stream.toList (Stream.scanl (Scanl.top 3) stream) >>= mapM MutArray.toList
+-- [[],[17],[17,11],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9]]
 --
 -- /Pre-release/
 {-# INLINE top #-}
@@ -2392,8 +2361,8 @@ top = bottomBy $ flip compare
 -- >>> bottom = Scanl.bottomBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.fold (Scanl.bottom 3) stream >>= MutArray.toList
--- [1,2,3]
+-- >>> Stream.toList (Stream.scanl (Scanl.bottom 3) stream) >>= mapM MutArray.toList
+-- [[],[1],[1,2],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3]]
 --
 -- /Pre-release/
 {-# INLINE bottom #-}

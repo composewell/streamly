@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Scanl.Container
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -107,15 +108,7 @@ import Prelude hiding (Foldable(..))
 import Streamly.Internal.Data.Scanl.Type
 -- import Streamly.Internal.Data.Scanl.Combinators
 
--- $setup
--- >>> :m
--- >>> :set -XFlexibleContexts
--- >>> import qualified Data.Map as Map
--- >>> import qualified Data.Set as Set
--- >>> import qualified Data.IntSet as IntSet
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Fold.Container as Fold
+#include "DocTestDataScanl.hs"
 
 -- | Scan the input adding it to a set.
 --
@@ -146,7 +139,7 @@ toIntSet = mkScanl (flip IntSet.insert) IntSet.empty
 -- Example:
 --
 -- >>> stream = Stream.fromList [1::Int,1,2,3,4,4,5,1,5,7]
--- >>> Stream.fold Fold.toList $ Stream.postscanlMaybe Scanl.nub stream
+-- >>> Stream.toList $ Stream.postscanlMaybe Scanl.nub stream
 -- [1,2,3,4,5,7]
 --
 -- /Pre-release/
