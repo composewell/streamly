@@ -3,6 +3,9 @@
 -- Must come after TypeFamilies, otherwise it is re-enabled.
 -- MonoLocalBinds enabled by TypeFamilies causes perf regressions in general.
 {-# LANGUAGE NoMonoLocalBinds #-}
+
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Fold.Container
 -- Copyright   : (c) 2019 Composewell Technologies
