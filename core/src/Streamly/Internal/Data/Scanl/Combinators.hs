@@ -591,7 +591,7 @@ scanlMany = scanWith True
 --
 {-# INLINE_NORMAL deleteBy #-}
 deleteBy :: Monad m => (a -> a -> Bool) -> a -> Scanl m a (Maybe a)
-deleteBy eq x0 = fmap extract $ scanl' step (Tuple' False Nothing)
+deleteBy eq x0 = fmap extract $ mkScanl step (Tuple' False Nothing)
 
     where
 
@@ -746,12 +746,12 @@ drainMapM f = lmapM f drain
 
 -- | Returns the latest element of the input stream, if any.
 --
--- >>> latest = Fold.scanl1' (\_ x -> x)
+-- >>> latest = Scanl.mkScanl1 (\_ x -> x)
 -- >>> latest = fmap getLast $ Fold.foldMap (Last . Just)
 --
 {-# INLINE latest #-}
 latest :: Monad m => Scanl m a (Maybe a)
-latest = scanl1' (\_ x -> x)
+latest = mkScanl1 (\_ x -> x)
 
 -- | Terminates with 'Nothing' as soon as it finds an element different than
 -- the previous one, returns 'the' element if the entire input consists of the
@@ -759,7 +759,7 @@ latest = scanl1' (\_ x -> x)
 --
 {-# INLINE the #-}
 the :: (Monad m, Eq a) => Scanl m a (Maybe a)
-the = scant' step initial id
+the = mkScant step initial id
 
     where
 
@@ -783,7 +783,7 @@ the = scant' step initial id
 --
 -- Same as following but numerically stable:
 --
--- >>> sum = Fold.scanl' (+) 0
+-- >>> sum = Scanl.mkScanl (+) 0
 -- >>> sum = fmap Data.Monoid.getSum $ Fold.foldMap Data.Monoid.Sum
 --
 {-# INLINE sum #-}
@@ -800,7 +800,7 @@ sum = Scanl.cumulative Scanl.windowSum
 --
 {-# INLINE product #-}
 product :: (Monad m, Num a, Eq a) => Scanl m a a
-product =  scant' step (Partial 1) id
+product =  mkScant step (Partial 1) id
 
     where
 
@@ -818,7 +818,7 @@ product =  scant' step (Partial 1) id
 --
 {-# INLINE maximumBy #-}
 maximumBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe a)
-maximumBy cmp = scanl1' max'
+maximumBy cmp = mkScanl1 max'
 
     where
 
@@ -831,8 +831,8 @@ maximumBy cmp = scanl1' max'
 --
 -- Definitions:
 --
--- >>> maximum = Fold.maximumBy compare
--- >>> maximum = Fold.scanl1' max
+-- >>> maximum = Scanl.maximumBy compare
+-- >>> maximum = Scanl.mkScanl1 max
 --
 -- Same as the following but without a default maximum. The 'Max' Monoid uses
 -- the 'minBound' as the default maximum:
@@ -841,13 +841,13 @@ maximumBy cmp = scanl1' max'
 --
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => Scanl m a (Maybe a)
-maximum = scanl1' max
+maximum = mkScanl1 max
 
 -- | Computes the minimum element with respect to the given comparison function
 --
 {-# INLINE minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe a)
-minimumBy cmp = scanl1' min'
+minimumBy cmp = mkScanl1 min'
 
     where
 
@@ -861,8 +861,8 @@ minimumBy cmp = scanl1' min'
 --
 -- Definitions:
 --
--- >>> minimum = Fold.minimumBy compare
--- >>> minimum = Fold.scanl1' min
+-- >>> minimum = Scanl.minimumBy compare
+-- >>> minimum = Scanl.mkScanl1 min
 --
 -- Same as the following but without a default minimum. The 'Min' Monoid uses the
 -- 'maxBound' as the default maximum:
@@ -871,7 +871,7 @@ minimumBy cmp = scanl1' min'
 --
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Scanl m a (Maybe a)
-minimum = scanl1' min
+minimum = mkScanl1 min
 
 ------------------------------------------------------------------------------
 -- To Summary (Statistical)
@@ -882,7 +882,7 @@ minimum = scanl1' min
 --
 {-# INLINE mean #-}
 mean :: (Monad m, Fractional a) => Scanl m a a
-mean = fmap done $ scanl' step begin
+mean = fmap done $ mkScanl step begin
 
     where
 
@@ -907,7 +907,7 @@ mean = fmap done $ scanl' step begin
 --
 {-# INLINE rollingHashWithSalt #-}
 rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Scanl m a Int64
-rollingHashWithSalt = scanl' step
+rollingHashWithSalt = mkScanl step
 
     where
 
@@ -947,7 +947,7 @@ rollingHashFirstN n = take n rollingHash
 --
 -- Definition:
 --
--- >>> sconcat = Fold.scanl' (<>)
+-- >>> sconcat = Scanl.mkScanl (<>)
 --
 -- >>> semigroups = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 10
 -- >>> Stream.fold (Fold.sconcat 10) semigroups
@@ -955,7 +955,7 @@ rollingHashFirstN n = take n rollingHash
 --
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => a -> Scanl m a a
-sconcat = scanl' (<>)
+sconcat = mkScanl (<>)
 
 -- | Monoid concat. Fold an input stream consisting of monoidal elements using
 -- 'mappend' and 'mempty'.
@@ -1004,7 +1004,7 @@ foldMap f = lmap f mconcat
 --
 {-# INLINE foldMapM #-}
 foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Scanl m a b
-foldMapM act = scanlM' step (pure mempty)
+foldMapM act = mkScanlM step (pure mempty)
 
     where
 
@@ -1024,7 +1024,7 @@ foldMapM act = scanlM' step (pure mempty)
 --
 -- Definition:
 --
--- >>> toListRev = Fold.scanl' (flip (:)) []
+-- >>> toListRev = Fold.mkScanl (flip (:)) []
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
@@ -1033,7 +1033,7 @@ foldMapM act = scanlM' step (pure mempty)
 --  xn : ... : x2 : x1 : []
 {-# INLINE toListRev #-}
 toListRev :: Monad m => Scanl m a [a]
-toListRev = scanl' (flip (:)) []
+toListRev = mkScanl (flip (:)) []
 
 ------------------------------------------------------------------------------
 -- Partial Folds
@@ -1061,7 +1061,7 @@ drainN n = take n drain
 -- /Pre-release/
 {-# INLINE genericIndex #-}
 genericIndex :: (Integral i, Monad m) => i -> Scanl m a (Maybe a)
-genericIndex i = scant' step (Partial 0) (const Nothing)
+genericIndex i = mkScant step (Partial 0) (const Nothing)
 
     where
 
@@ -1087,7 +1087,7 @@ index = genericIndex
 --
 {-# INLINE maybe #-}
 maybe :: Monad m => (a -> Maybe b) -> Scanl m a (Maybe b)
-maybe f = scant' (const (Done . f)) (Partial Nothing) id
+maybe f = mkScant (const (Done . f)) (Partial Nothing) id
 
 -- | Consume a single element and return it if it passes the predicate else
 -- return 'Nothing'.
@@ -1179,7 +1179,7 @@ find p = findM (return . p)
 --
 {-# INLINE lookup #-}
 lookup :: (Eq a, Monad m) => a -> Scanl m (a,b) (Maybe b)
-lookup a0 = scant' step (Partial ()) (const Nothing)
+lookup a0 = mkScant step (Partial ()) (const Nothing)
 
     where
 
@@ -1192,7 +1192,7 @@ lookup a0 = scant' step (Partial ()) (const Nothing)
 --
 {-# INLINE findIndex #-}
 findIndex :: Monad m => (a -> Bool) -> Scanl m a (Maybe Int)
-findIndex predicate = scant' step (Partial 0) (const Nothing)
+findIndex predicate = mkScant step (Partial 0) (const Nothing)
 
     where
 
@@ -1209,7 +1209,7 @@ findIndex predicate = scant' step (Partial 0) (const Nothing)
 findIndices :: Monad m => (a -> Bool) -> Scanl m a (Maybe Int)
 findIndices predicate =
     -- XXX implement by combining indexing and filtering scans
-    fmap (either (Prelude.const Nothing) Just) $ scanl' step (Left (-1))
+    fmap (either (Prelude.const Nothing) Just) $ mkScanl step (Left (-1))
 
     where
 
@@ -1259,7 +1259,7 @@ elemIndex a = findIndex (== a)
 --
 {-# INLINE null #-}
 null :: Monad m => Scanl m a Bool
-null = scant' (\() _ -> Done False) (Partial ()) (const True)
+null = mkScant (\() _ -> Done False) (Partial ()) (const True)
 
 -- | Returns 'True' if any element of the input satisfies the predicate.
 --
@@ -1274,7 +1274,7 @@ null = scant' (\() _ -> Done False) (Partial ()) (const True)
 --
 {-# INLINE any #-}
 any :: Monad m => (a -> Bool) -> Scanl m a Bool
-any predicate = scant' step initial id
+any predicate = mkScant step initial id
 
     where
 
@@ -1308,7 +1308,7 @@ elem a = any (== a)
 --
 {-# INLINE all #-}
 all :: Monad m => (a -> Bool) -> Scanl m a Bool
-all predicate = scant' step initial id
+all predicate = mkScant step initial id
 
     where
 
@@ -2159,7 +2159,7 @@ zipStream = zipStreamWithM (curry return)
 --
 {-# INLINE indexingWith #-}
 indexingWith :: Monad m => Int -> (Int -> Int) -> Scanl m a (Maybe (Int, a))
-indexingWith i f = fmap toMaybe $ scanl' step initial
+indexingWith i f = fmap toMaybe $ mkScanl step initial
 
     where
 

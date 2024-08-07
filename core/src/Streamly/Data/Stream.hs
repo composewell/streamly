@@ -347,12 +347,12 @@ module Streamly.Data.Stream
     -- ** Scanning By 'Scanl'
     -- | Useful idioms:
     --
-    -- >>> scanl' f z = Stream.scanl (Scanl.scanl' f z)
-    -- >>> scanlM' f z = Stream.scanl (Scanl.scanlM' f z)
-    -- >>> postscanl' f z = Stream.postscanl (Scanl.scanl' f z)
-    -- >>> postscanlM' f z = Stream.postscanl (Scanl.scanlM' f z)
-    -- >>> scanl1' f = Stream.catMaybes . Stream.scanl (Scanl.scanl1' f)
-    -- >>> scanl1M' f = Stream.catMaybes . Stream.scanl (Scanl.scanl1M' f)
+    -- >>> scanl' f z = Stream.scanl (Scanl.mkScanl f z)
+    -- >>> scanlM' f z = Stream.scanl (Scanl.mkScanlM f z)
+    -- >>> postscanl' f z = Stream.postscanl (Scanl.mkScanl f z)
+    -- >>> postscanlM' f z = Stream.postscanl (Scanl.mkScanlM f z)
+    -- >>> scanl1' f = Stream.catMaybes . Stream.scanl (Scanl.mkScanl1 f)
+    -- >>> scanl1M' f = Stream.catMaybes . Stream.scanl (Scanl.mkScanl1M f)
     , scanl
     , postscanl
     -- XXX postscan1 can be implemented using Monoids or Refolds.

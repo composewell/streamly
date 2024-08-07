@@ -78,14 +78,14 @@ module Streamly.Internal.Data.Scanl.Type
     , Scanl (..)
 
     -- * Constructors
-    , scanl'
-    , scanlM'
-    , scanl1'
-    , scanl1M'
-    , scant'
-    , scantM'
-    , scanr'
-    , scanrM'
+    , mkScanl
+    , mkScanlM
+    , mkScanl1
+    , mkScanl1M
+    , mkScant
+    , mkScantM
+    , mkScanr
+    , mkScanrM
 
     -- * Scans
     , const
@@ -323,9 +323,9 @@ rmapM f (Scanl step initial extract final) =
 -- mkfoldlx step initial extract = fmap extract (foldl' step initial)
 -- @
 --
-{-# INLINE scanl' #-}
-scanl' :: Monad m => (b -> a -> b) -> b -> Scanl m a b
-scanl' step initial =
+{-# INLINE mkScanl #-}
+mkScanl :: Monad m => (b -> a -> b) -> b -> Scanl m a b
+mkScanl step initial =
     Scanl
         (\s a -> return $ Partial $ step s a)
         (return (Partial initial))
@@ -342,9 +342,9 @@ scanl' step initial =
 -- mkFoldlxM step initial extract = rmapM extract (foldlM' step initial)
 -- @
 --
-{-# INLINE scanlM' #-}
-scanlM' :: Monad m => (b -> a -> m b) -> m b -> Scanl m a b
-scanlM' step initial =
+{-# INLINE mkScanlM #-}
+mkScanlM :: Monad m => (b -> a -> m b) -> m b -> Scanl m a b
+mkScanlM step initial =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) return return
 
 -- | Maps a function on the output of the fold (the type @b@).
@@ -363,9 +363,9 @@ instance Functor m => Functor (Scanl m a) where
 -- starting value. Returns Nothing if the stream is empty.
 --
 -- /Pre-release/
-{-# INLINE scanl1' #-}
-scanl1' :: Monad m => (a -> a -> a) -> Scanl m a (Maybe a)
-scanl1' step = fmap toMaybe $ scanl' step1 Nothing'
+{-# INLINE mkScanl1 #-}
+mkScanl1 :: Monad m => (a -> a -> a) -> Scanl m a (Maybe a)
+mkScanl1 step = fmap toMaybe $ mkScanl step1 Nothing'
 
     where
 
@@ -375,9 +375,9 @@ scanl1' step = fmap toMaybe $ scanl' step1 Nothing'
 -- | Like 'foldl1\'' but with a monadic step function.
 --
 -- /Pre-release/
-{-# INLINE scanl1M' #-}
-scanl1M' :: Monad m => (a -> a -> m a) -> Scanl m a (Maybe a)
-scanl1M'  step = fmap toMaybe $ scanlM' step1 (return Nothing')
+{-# INLINE mkScanl1M #-}
+mkScanl1M :: Monad m => (a -> a -> m a) -> Scanl m a (Maybe a)
+mkScanl1M  step = fmap toMaybe $ mkScanlM step1 (return Nothing')
 
     where
 
@@ -445,9 +445,9 @@ fromScan (Scan consume initial) =
 -- >>> Stream.fold (Fold.foldr' (:) []) $ Stream.enumerateFromTo 1 5
 -- [1,2,3,4,5]
 --
-{-# INLINE scanr' #-}
-scanr' :: Monad m => (a -> b -> b) -> b -> Scanl m a b
-scanr' f z = fmap ($ z) $ scanl' (\g x -> g . f x) id
+{-# INLINE mkScanr #-}
+mkScanr :: Monad m => (a -> b -> b) -> b -> Scanl m a b
+mkScanr f z = fmap ($ z) $ mkScanl (\g x -> g . f x) id
 
 -- XXX we have not seen any use of this yet, not releasing until we have a use
 -- case.
@@ -461,10 +461,10 @@ scanr' f z = fmap ($ z) $ scanl' (\g x -> g . f x) id
 -- See also: 'Streamly.Internal.Data.Stream.foldrM'
 --
 -- /Pre-release/
-{-# INLINE scanrM' #-}
-scanrM' :: Monad m => (a -> b -> m b) -> m b -> Scanl m a b
-scanrM' g z =
-    rmapM (z >>=) $ scanlM' (\f x -> return $ g x >=> f) (return return)
+{-# INLINE mkScanrM #-}
+mkScanrM :: Monad m => (a -> b -> m b) -> m b -> Scanl m a b
+mkScanrM g z =
+    rmapM (z >>=) $ mkScanlM (\f x -> return $ g x >=> f) (return return)
 
 ------------------------------------------------------------------------------
 -- General fold constructors
@@ -489,9 +489,9 @@ scanrM' g z =
 --
 -- /Pre-release/
 --
-{-# INLINE scant' #-}
-scant' :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Scanl m a b
-scant' step initial extract =
+{-# INLINE mkScant #-}
+mkScant :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Scanl m a b
+mkScant step initial extract =
     Scanl
         (\s a -> return $ step s a)
         (return initial)
@@ -507,9 +507,9 @@ scant' step initial extract =
 --
 -- /Pre-release/
 --
-{-# INLINE scantM' #-}
-scantM' :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Scanl m a b
-scantM' step initial extract = Scanl step initial extract extract
+{-# INLINE mkScantM #-}
+mkScantM :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Scanl m a b
+mkScantM step initial extract = Scanl step initial extract extract
 
 ------------------------------------------------------------------------------
 -- Refold
@@ -537,7 +537,7 @@ fromRefold (Refold step inject extract) c =
 --
 {-# INLINE drain #-}
 drain :: Monad m => Scanl m a ()
-drain = scanl' (\_ _ -> ()) ()
+drain = mkScanl (\_ _ -> ()) ()
 
 -- | Folds the input stream to a list.
 --
@@ -549,7 +549,7 @@ drain = scanl' (\_ _ -> ()) ()
 --
 {-# INLINE toList #-}
 toList :: Monad m => Scanl m a [a]
-toList = scanr' (:) []
+toList = mkScanr (:) []
 
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
@@ -564,7 +564,7 @@ toList = scanr' (:) []
 --  xn : ... : x2 : x1 : []
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: Monad m => Scanl m a (K.StreamK n a)
-toStreamKRev = scanl' (flip K.cons) K.nil
+toStreamKRev = mkScanl (flip K.cons) K.nil
 
 -- | A fold that buffers its input to a pure stream.
 --
@@ -574,7 +574,7 @@ toStreamKRev = scanl' (flip K.cons) K.nil
 -- /Internal/
 {-# INLINE toStreamK #-}
 toStreamK :: Monad m => Scanl m a (K.StreamK n a)
-toStreamK = scanr' K.cons K.nil
+toStreamK = mkScanr K.cons K.nil
 
 -- | Like 'length', except with a more general 'Num' return value
 --
@@ -586,7 +586,7 @@ toStreamK = scanr' K.cons K.nil
 -- /Pre-release/
 {-# INLINE genericLength #-}
 genericLength :: (Monad m, Num b) => Scanl m a b
-genericLength = scanl' (\n _ -> n + 1) 0
+genericLength = mkScanl (\n _ -> n + 1) 0
 
 -- | Determine the length of the input stream.
 --
@@ -1234,7 +1234,7 @@ postscanlMaybe f1 f2 = postscanl f1 (catMaybes f2)
 --
 {-# INLINE filtering #-}
 filtering :: Monad m => (a -> Bool) -> Scanl m a (Maybe a)
-filtering f = scanl' step Nothing
+filtering f = mkScanl step Nothing
 
     where
 
@@ -1312,7 +1312,7 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 
 {-# INLINE taking #-}
 taking :: Monad m => Int -> Scanl m a (Maybe a)
-taking n = scant' step initial extract
+taking n = mkScant step initial extract
 
     where
 
@@ -1330,7 +1330,7 @@ taking n = scant' step initial extract
 
 {-# INLINE dropping #-}
 dropping :: Monad m => Int -> Scanl m a (Maybe a)
-dropping n = scant' step initial extract
+dropping n = mkScant step initial extract
 
     where
 

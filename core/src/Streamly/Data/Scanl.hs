@@ -21,11 +21,11 @@ module Streamly.Data.Scanl
       Scanl -- (..)
 
     -- * Constructors
-    , scanl'
-    , scanlM'
-    , scanl1'
-    , scanl1M'
-    , scanr'
+    , mkScanl
+    , mkScanlM
+    , mkScanl1
+    , mkScanl1M
+    , mkScanr
 
     -- * Scans
     -- ** Accumulators

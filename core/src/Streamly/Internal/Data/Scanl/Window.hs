@@ -186,7 +186,7 @@ cumulative = Scanl.lmap (, Nothing)
 {-# INLINE windowRollingMapM #-}
 windowRollingMapM :: Monad m =>
     (Maybe a -> a -> m (Maybe b)) -> Scanl m (a, Maybe a) (Maybe b)
-windowRollingMapM f = Scanl.scanlM' f1 initial
+windowRollingMapM f = Scanl.mkScanlM f1 initial
 
     where
 
@@ -201,7 +201,7 @@ windowRollingMapM f = Scanl.scanlM' f1 initial
 {-# INLINE windowRollingMap #-}
 windowRollingMap :: Monad m =>
     (Maybe a -> a -> Maybe b) -> Scanl m (a, Maybe a) (Maybe b)
-windowRollingMap f = Scanl.scanl' f1 initial
+windowRollingMap f = Scanl.mkScanl f1 initial
 
     where
 
@@ -299,7 +299,7 @@ windowSum = Scanl step initial extract extract
 --
 {-# INLINE windowLength #-}
 windowLength :: (Monad m, Num b) => Scanl m (a, Maybe a) b
-windowLength = Scanl.scanl' step 0
+windowLength = Scanl.mkScanl step 0
 
     where
 

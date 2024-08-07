@@ -121,22 +121,22 @@ import Streamly.Internal.Data.Scanl.Type
 --
 -- Definition:
 --
--- >>> toSet = Scanl.scanl' (flip Set.insert) Set.empty
+-- >>> toSet = Scanl.mkScanl (flip Set.insert) Set.empty
 --
 {-# INLINE toSet #-}
 toSet :: (Monad m, Ord a) => Scanl m a (Set a)
-toSet = scanl' (flip Set.insert) Set.empty
+toSet = mkScanl (flip Set.insert) Set.empty
 
 -- | Scan the input adding it to an int set. For integer inputs this performs
 -- better than 'toSet'.
 --
 -- Definition:
 --
--- >>> toIntSet = Scanl.scanl' (flip IntSet.insert) IntSet.empty
+-- >>> toIntSet = Scanl.mkScanl (flip IntSet.insert) IntSet.empty
 --
 {-# INLINE toIntSet #-}
 toIntSet :: Monad m => Scanl m Int IntSet
-toIntSet = scanl' (flip IntSet.insert) IntSet.empty
+toIntSet = mkScanl (flip IntSet.insert) IntSet.empty
 
 -- XXX Name as nubOrd? Or write a nubGeneric
 
@@ -152,7 +152,7 @@ toIntSet = scanl' (flip IntSet.insert) IntSet.empty
 -- /Pre-release/
 {-# INLINE nub #-}
 nub :: (Monad m, Ord a) => Scanl m a (Maybe a)
-nub = fmap (\(Tuple' _ x) -> x) $ scanl' step initial
+nub = fmap (\(Tuple' _ x) -> x) $ mkScanl step initial
 
     where
 
@@ -168,7 +168,7 @@ nub = fmap (\(Tuple' _ x) -> x) $ scanl' step initial
 -- /Pre-release/
 {-# INLINE nubInt #-}
 nubInt :: Monad m => Scanl m Int (Maybe Int)
-nubInt = fmap (\(Tuple' _ x) -> x) $ scanl' step initial
+nubInt = fmap (\(Tuple' _ x) -> x) $ mkScanl step initial
 
     where
 
@@ -487,7 +487,7 @@ demuxIO getKey = fmap snd . demuxUsingMapIO getKey
 {-# INLINE kvToMapOverwriteGeneric #-}
 kvToMapOverwriteGeneric :: (Monad m, IsMap f) => Scanl m (Key f, a) (f a)
 kvToMapOverwriteGeneric =
-    scanl' (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
+    mkScanl (\kv (k, v) -> IsMap.mapInsert k v kv) IsMap.mapEmpty
 
 {-# INLINE demuxToContainer #-}
 demuxToContainer :: (Monad m, IsMap f, Traversable f) =>

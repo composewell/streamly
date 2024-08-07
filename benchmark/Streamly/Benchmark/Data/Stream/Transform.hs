@@ -201,7 +201,7 @@ o_1_space_mappingX4 value =
 sieveScan :: Monad m => Stream m Int -> Stream m Int
 sieveScan =
       Stream.mapMaybe snd
-    . Stream.scanl (Scanl.scanlM' (\(primes, _) n -> do
+    . Stream.scanl (Scanl.mkScanlM (\(primes, _) n -> do
             return $
                 let ps = takeWhile (\p -> p * p <= n) primes
                  in if all (\p -> n `mod` p /= 0) ps

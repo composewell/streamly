@@ -406,7 +406,7 @@ foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' f z = Stream.fold (Fold.foldl' f z)
 
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
-scanl' f z = Stream.scanl (Scanl.scanl' f z)
+scanl' f z = Stream.scanl (Scanl.mkScanl f z)
 #endif
 
 {-# INLINE transformMapM #-}
