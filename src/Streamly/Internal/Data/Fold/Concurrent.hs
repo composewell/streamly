@@ -6,6 +6,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- = Asynchronous Evaluation
+--
 -- Using 'parEval' a fold can be decoupled from the driver and evaluated
 -- concurrently with the driver. The driver just pushes an element to the
 -- fold's buffer and waits for async evaluation to finish.
@@ -17,6 +19,8 @@
 --
 -- Stages in a fold pipeline can be made concurrent using 'parEval'.
 --
+-- = Concurrent Fold Combinators
+--
 -- The 'demux' combinator can be made concurrent by using 'parEval' on the fold
 -- returned by the fold-generating function. Thus, we can fold values for each
 -- key in the input stream concurrently.
@@ -25,24 +29,26 @@
 -- 'demuxToMap', 'classify', 'tee', 'distribute', 'partition' etc. Basically,
 -- any combinator that composes multiple folds or multiple instances of a fold
 -- is a good candidate for running folds concurrently.
-
--- TODO:
+--
+-- = Finalization
 --
 -- Before a fold returns "done" it has to drain the child folds. For example,
--- consider a "take" operation on a `parEval` fold, the take would return as
--- soon as it has taken required number of elements irrespective of whether the
--- child fold has yet finished or not.
---
--- parLmapM on a fold.
+-- consider a "take" operation on a `parEval` fold, the take should return as
+-- soon as it has taken required number of elements but we have to ensure that
+-- any asynchronous child folds finish before it returns. This is achieved by
+-- calling the "final" operation of the fold.
+
+-- = TODO
 --
 -- Use multiple worker folds to fold serial chunks of a stream and collect the
 -- results using another fold, combine using a monoid. The results can be
 -- collected out-of-order or in-order. This would be easier if each input
--- element is a streamable chunk and each fold consumes one at a time. This is
--- like parConcatMap in streams. We also need to have a lconcatMap to expand
--- the chunks in the input to streams before folding. This will require an
--- input Skip constructor. In fact, parLmapM would be implemented in terms of
--- this like in streams.
+-- element is a streamable chunk and each fold consumes one chunk at a time.
+-- This is like parConcatMap in streams.
+--
+-- We also need to have a lconcatMap to expand the chunks in the input to
+-- streams before folding. This will require an input Skip constructor. In
+-- fact, parLmapM would be implemented in terms of this like in streams.
 --
 -- Concurrent append: if one fold's buffer becomes full then use the next one
 -- Concurrent interleave/partition: Round robin to n folds.
