@@ -534,10 +534,8 @@ runScan :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
 runScan = runScanWith False
 -}
 
--- | Postscan the input of a 'Fold' to change it in a stateful manner using
--- a 'Scanl'.
---
--- @postscanl scanner collector@
+-- | @postscanl scanner collector@ postscans the input of the @collector@ fold
+-- to change it in a stateful manner using 'scanner'.
 --
 -- /Pre-release/
 {-# INLINE postscanl #-}
@@ -695,8 +693,8 @@ scanlWith isMany
 
     final (sL, sR) = finalL sL *> finalR sR
 
--- | Scan the input of a 'Fold' to change it in a stateful manner using another
--- 'Fold'. The scan stops as soon as the fold terminates.
+-- | Scan the input of a 'Fold' to change it in a stateful manner using a
+-- 'Scanl'. The scan stops as soon as the fold terminates.
 --
 -- /Pre-release/
 {-# INLINE scanl #-}
@@ -705,8 +703,8 @@ scanl = scanlWith False
 
 -- XXX This does not fuse beacuse of the recursive step. Need to investigate.
 
--- | Scan the input of a 'Fold' to change it in a stateful manner using another
--- 'Fold'. The scan restarts with a fresh state if the fold terminates.
+-- | Scan the input of a 'Fold' to change it in a stateful manner using a
+-- 'Scanl'. The scan restarts with a fresh state if it terminates.
 --
 -- /Pre-release/
 {-# INLINE scanlMany #-}
