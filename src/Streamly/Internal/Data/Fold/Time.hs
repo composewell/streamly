@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Fold.Time
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -23,13 +24,7 @@ import Streamly.Internal.Data.Fold (Fold(..), Step (..))
 import Streamly.Internal.Control.Concurrent (MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
--- $setup
--- >>> :m
--- >>> :set -fno-warn-deprecations
--- >>> :set -XFlexibleContexts
--- >>> import qualified Streamly.Prelude as Stream
--- >>> import qualified Streamly.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Fold.Async as Fold
+#include "DocTestDataFold.hs"
 
 -- XXX We can use asyncClock here. A parser can be used to return an input that
 -- arrives after the timeout.

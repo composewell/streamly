@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Data.Fold.Prelude
 -- Copyright   : (c) 2021 Composewell Technologies
@@ -11,6 +12,12 @@
 --
 module Streamly.Data.Fold.Prelude
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * "Streamly.Data.Fold"
     -- | All "Streamly.Data.Fold" combinators are re-exported via this
     -- module. For more pre-release combinators also see
@@ -39,15 +46,11 @@ import Streamly.Internal.Data.Fold (toContainerIO)
 import Streamly.Internal.Data.Fold.Prelude
 import Streamly.Internal.Data.IsMap.HashMap ()
 
+#include "DocTestDataFold.hs"
+
 -- | Split the input stream based on a hashable component of the key field and
 -- fold each split using the given fold. Useful for map/reduce, bucketizing
 -- the input in different bins or for generating histograms.
---
--- >>> import Data.List (sortOn)
--- >>> import Data.HashMap.Strict (HashMap)
--- >>> import qualified Data.HashMap.Strict as HM
--- >>> import qualified Streamly.Data.Fold.Prelude as Fold
--- >>> import qualified Streamly.Data.Stream as Stream
 --
 -- Consider a stream of key value pairs:
 --

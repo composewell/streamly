@@ -95,6 +95,7 @@ extra-source-files:
     bin/mk-tags.sh
     configure
     configure.ac
+    src/doctest/*.hs
     targets/streamly-targets.cabal
     targets/Targets.hs
     test/test-runner/Main.hs
@@ -362,6 +363,7 @@ library
 
     include-dirs:
           src
+        , src/doctest
         , src/Streamly/Internal/Data/Stream
 
     hs-source-dirs:    src
