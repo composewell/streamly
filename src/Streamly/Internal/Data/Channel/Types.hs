@@ -733,8 +733,8 @@ incrementYieldLimit remaining =
 -- and 0 count.
 {-# INLINE readOutputQBasic #-}
 readOutputQBasic ::
-       IORef ([ChildEvent a], Int) -- ^ The channel output queue
-    -> IO ([ChildEvent a], Int) -- ^ (events, count)
+       IORef ([a], Int) -- ^ The channel output queue
+    -> IO ([a], Int) -- ^ (events, count)
 readOutputQBasic q = atomicModifyIORefCAS q $ \x -> (([],0), x)
 
 -- | Same as 'readOutputQBasic' but additionally update the max output queue

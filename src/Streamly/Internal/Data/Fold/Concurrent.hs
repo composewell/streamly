@@ -53,16 +53,23 @@ module Streamly.Internal.Data.Fold.Concurrent
     , parDistribute
     , parPartition
     , parUnzipWithM
+    , parDistributeScan
     )
 where
 
-import Control.Concurrent (takeMVar)
+#include "inline.hs"
+
+import Control.Concurrent (newEmptyMVar, takeMVar, throwTo)
+import Control.Monad.Catch (throwM)
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Data.IORef (writeIORef)
+import Data.IORef (newIORef, readIORef, writeIORef)
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import Streamly.Internal.Data.Fold (Fold(..), Step (..))
 import Streamly.Internal.Data.Channel.Worker (sendEvent)
+import Streamly.Internal.Data.Fold (Fold(..), Step (..))
+import Streamly.Internal.Data.Stream (Stream(..), Step(..))
+import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -75,6 +82,13 @@ import Streamly.Internal.Data.Channel.Types
 -------------------------------------------------------------------------------
 
 -- XXX Cleanup the fold if the stream is interrupted. Add a GC hook.
+
+cleanup :: MonadIO m => Channel m a b -> m ()
+cleanup chan = do
+    when (svarInspectMode chan) $ liftIO $ do
+        t <- getTime Monotonic
+        writeIORef (svarStopTime (svarStats chan)) (Just t)
+        printSVar (dumpChannel chan) "Fold channel done"
 
 -- | 'parEval' introduces a concurrent stage at the input of the fold. The
 -- inputs are asynchronously queued in a buffer and evaluated concurrently with
@@ -164,10 +178,7 @@ parEval modifier f =
                 -- XXX remove recursion
                 final chan
             Just b -> do
-                when (svarInspectMode chan) $ liftIO $ do
-                    t <- getTime Monotonic
-                    writeIORef (svarStopTime (svarStats chan)) (Just t)
-                    printSVar (dumpChannel chan) "SVar Done"
+                cleanup chan
                 return b
 
 -- XXX We can have a lconcatMap (unfoldMany) to expand the chunks in the input
@@ -267,3 +278,128 @@ parPartition cfg c1 c2 = Fold.partition (parEval cfg c1) (parEval cfg c2)
 parUnzipWithM :: MonadAsync m
     => (Config -> Config) -> (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
 parUnzipWithM cfg f c1 c2 = Fold.unzipWithM f (parEval cfg c1) (parEval cfg c2)
+
+-- There are two ways to implement a concurrent scan.
+--
+-- 1. Make the scan itself asynchronous, add the input to the queue, and then
+-- extract the output. Extraction will have to be asynchronous, which will
+-- require changes to the scan driver. This will require a different Scanl
+-- type.
+--
+-- 2. A monolithic implementation of concurrent Stream->Stream scan, using a
+-- custom implementation of the scan and the driver.
+
+{-# ANN type ScanState Fuse #-}
+data ScanState s q db f =
+      ScanInit
+    | ScanGo s q db [f]
+    | ScanDrain q db [f]
+    | ScanStop
+
+-- XXX return [b] or just b?
+-- XXX We can use a one way mailbox type abstraction instead of using an IORef
+-- for adding new folds dynamically.
+
+-- | Evaluate a stream and send its outputs to zero or more dynamically
+-- generated folds. It checks for any new folds at each input generation step.
+-- Any new fold is added to the list of folds which are currently running. If
+-- there are no folds available, the input is discarded. If a fold completes
+-- its output is emitted in the output of the scan.
+--
+-- >>> import Data.IORef
+-- >>> ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold IO Int Int]
+-- >>> gen = atomicModifyIORef ref (\xs -> ([], xs))
+-- >>> Stream.toList $ Fold.parDistributeScan id gen (Stream.enumerateFromTo 1 10)
+-- ...
+--
+{-# INLINE parDistributeScan #-}
+parDistributeScan :: MonadAsync m =>
+    (Config -> Config) -> m [Fold m a b] -> Stream m a -> Stream m [b]
+parDistributeScan cfg getFolds (Stream sstep state) =
+    Stream step ScanInit
+
+    where
+
+    -- XXX can be written as a fold
+    processOutputs chans events done = do
+        case events of
+            [] -> return (chans, done)
+            (x:xs) ->
+                case x of
+                    FoldException _tid ex -> do
+                        -- XXX report the fold that threw the exception
+                        liftIO $ mapM_ (`throwTo` ThreadAbort) (fmap snd chans)
+                        mapM_ cleanup (fmap fst chans)
+                        liftIO $ throwM ex
+                    FoldDone tid b ->
+                        let ch = filter (\(_, t) -> t /= tid) chans
+                         in processOutputs ch xs (b:done)
+
+    collectOutputs qref chans = do
+        (_, n) <- liftIO $ readIORef qref
+        if n > 0
+        then do
+            r <- fmap fst $ liftIO $ readOutputQBasic qref
+            processOutputs chans r []
+        else return (chans, [])
+
+    finalize chan = do
+        liftIO $ void
+            $ sendEvent
+                (inputQueue chan)
+                (inputItemDoorBell chan)
+                ChildStopChannel
+
+    step _ ScanInit = do
+        q <- liftIO $ newIORef ([], 0)
+        db <- liftIO $ newEmptyMVar
+        return $ Skip (ScanGo state q db [])
+
+    step gst (ScanGo st q db chans) = do
+        -- merge any new channels added since last input
+        fxs <- getFolds
+        newChans <- Prelude.mapM (newChannelWith q db cfg) fxs
+        let allChans = chans ++ newChans
+
+        -- Collect outputs from running channels
+        (running, outputs) <- collectOutputs q allChans
+
+        -- Send input to running folds
+        res <- sstep (adaptState gst) st
+        next <- case res of
+            Yield x s -> do
+                -- XXX We might block forever if some folds are already
+                -- done but we have not read the output queue yet. To
+                -- avoid that we have to either (1) precheck if space
+                -- is available in the input queues of all folds so
+                -- that this does not block, or (2) we have to use a
+                -- non-blocking read and track progress so that we can
+                -- restart from where we left.
+                --
+                -- If there is no space available then we should block
+                -- on doorbell db or inputSpaceDoorBell of the relevant
+                -- channel. To avoid deadlock the output space can be
+                -- kept unlimited. However, the blocking will delay the
+                -- processing of outputs. We should yield the outputs
+                -- before blocking.
+                Prelude.mapM_ (flip sendToWorker_ x) (fmap fst running)
+                return $ ScanGo s q db running
+            Skip s -> do
+                return $ ScanGo s q db running
+            Stop -> do
+                Prelude.mapM_ finalize (fmap fst running)
+                return $ ScanDrain q db running
+        if (null outputs)
+        then return $ Skip next
+        else return $ Yield outputs next
+    step _ (ScanDrain q db chans) = do
+        (running, outputs) <- collectOutputs q chans
+        case running of
+            [] -> return $ Yield outputs ScanStop
+            _ -> do
+                if (null outputs)
+                then do
+                    liftIO $ takeMVar db
+                    return $ Skip (ScanDrain q db running)
+                else return $ Yield outputs (ScanDrain q db running)
+    step _ ScanStop = return Stop

@@ -2051,6 +2051,12 @@ distribute = Prelude.foldr (teeWith (:)) (fromPure [])
 -- return the folds only once e.g. it can be implemented using modifyIORef
 -- replacing the original value by an empty list before returning it.
 --
+-- >>> import Data.IORef
+-- >>> ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold IO Int Int]
+-- >>> gen = atomicModifyIORef ref (\xs -> ([], xs))
+-- >>> Stream.toList $ Stream.scanl (Fold.distributeScan gen) (Stream.enumerateFromTo 1 10)
+-- [[],[],[],[2,3],[],[],[],[],[],[],[]]
+--
 {-# INLINE distributeScan #-}
 distributeScan :: Monad m => m [Fold m a b] -> Scanl m a [b]
 distributeScan getFolds = Scanl consume initial extract final

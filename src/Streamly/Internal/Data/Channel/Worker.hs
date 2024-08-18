@@ -62,9 +62,9 @@ isBeyondMaxYield cnt winfo =
 -- consumer thread.
 {-# INLINE sendEvent #-}
 sendEvent ::
-       IORef ([ChildEvent a], Int) -- ^ Queue where the event is added
+       IORef ([a], Int) -- ^ Queue where the event is added
     -> MVar () -- ^ Door bell to ring
-    -> ChildEvent a -- ^ The event to be added
+    -> a -- ^ The event to be added
     -> IO Int -- ^ Length of the queue before adding this event
 sendEvent q bell msg = do
     -- XXX can the access to outputQueue be made faster somehow?

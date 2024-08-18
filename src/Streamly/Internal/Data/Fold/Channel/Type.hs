@@ -10,6 +10,7 @@ module Streamly.Internal.Data.Fold.Channel.Type
     (
     -- ** Type
       Channel (..)
+    , OutEvent (..)
 
     -- ** Configuration
     , Config
@@ -18,9 +19,11 @@ module Streamly.Internal.Data.Fold.Channel.Type
     , inspect
 
     -- ** Operations
+    , newChannelWith
     , newChannel
     , sendToWorker
-    , checkFoldStatus
+    , sendToWorker_
+    , checkFoldStatus -- XXX collectFoldOutput
     , dumpChannel
     )
 where
@@ -52,6 +55,10 @@ import Streamly.Internal.Data.Channel.Types
 -- stream evaluation we dequeue the head and queue the tail, in folds we will
 -- queue the accumulator and it will be picked by the next worker to accumulate
 -- the next value.
+
+data OutEvent b =
+      FoldException ThreadId SomeException
+    | FoldDone ThreadId b
 
 -- | The fold driver thread queues the input of the fold in the 'inputQueue'
 -- The driver rings the doorbell when the queue transitions from empty to
@@ -102,7 +109,10 @@ data Channel m a b = Channel
 
     -- | Final output and exceptions, if any, queued by the fold and read by
     -- the fold driver.
-    , outputQueue :: IORef ([ChildEvent b], Int)
+    --
+    -- [LOCKING] atomicModifyIORef. Output is queued infrequently by the fold
+    -- and read frequently by the driver.
+    , outputQueue :: IORef ([OutEvent b], Int)
 
     -- | Doorbell for the 'outputQueue', rung by the fold when the queue
     -- transitions from empty to non-empty.
@@ -177,7 +187,7 @@ dumpChannel sv = do
 -- Process events received by a fold worker from a fold driver
 -------------------------------------------------------------------------------
 
-sendToDriver :: Channel m a b -> ChildEvent b -> IO Int
+sendToDriver :: Channel m a b -> OutEvent b -> IO Int
 sendToDriver sv msg = do
     -- In case the producer stream is blocked on pushing to the fold buffer
     -- then wake it up so that it can check for the stop event or exception
@@ -188,13 +198,14 @@ sendToDriver sv msg = do
 
 sendYieldToDriver :: MonadIO m => Channel m a b -> b -> m ()
 sendYieldToDriver sv res = liftIO $ do
-    void $ sendToDriver sv (ChildYield res)
+    tid <- myThreadId
+    void $ sendToDriver sv (FoldDone tid res)
 
 {-# NOINLINE sendExceptionToDriver #-}
 sendExceptionToDriver :: Channel m a b -> SomeException -> IO ()
 sendExceptionToDriver sv e = do
     tid <- myThreadId
-    void $ sendToDriver sv (ChildStop tid (Just e))
+    void $ sendToDriver sv (FoldException tid e)
 
 data FromSVarState m a b =
       FromSVarRead (Channel m a b)
@@ -217,6 +228,9 @@ fromInputQueue svar = D.Stream step (FromSVarRead svar)
     step _ (FromSVarLoop sv []) = return $ D.Skip $ FromSVarRead sv
     step _ (FromSVarLoop sv (ev : es)) = do
         case ev of
+            -- XXX Separate input and output events. Input events cannot have
+            -- Stop event and output events cannot have ChildStopChannel
+            -- event.
             ChildYield a -> return $ D.Yield a (FromSVarLoop sv es)
             ChildStopChannel -> return D.Stop
             _ -> undefined
@@ -247,12 +261,14 @@ readInputQWithDB chan = do
     _ <- tryPutMVar (inputSpaceDoorBell chan) ()
     return r
 
-mkNewChannel :: forall m a b. MonadIO m => Config -> IO (Channel m a b)
-mkNewChannel cfg = do
+mkNewChannelWith :: forall m a b. MonadIO m =>
+       IORef ([OutEvent b], Int)
+    -> MVar ()
+    -> Config
+    -> IO (Channel m a b)
+mkNewChannelWith outQRev outQMvRev cfg = do
     outQ <- newIORef ([], 0)
     outQMv <- newEmptyMVar
-    outQRev <- newIORef ([], 0)
-    outQMvRev <- newEmptyMVar
     bufferMv <- newEmptyMVar
 
     stats <- newSVarStats
@@ -275,18 +291,26 @@ mkNewChannel cfg = do
 
     let sv = getSVar sv in return sv
 
-{-# INLINABLE newChannel #-}
-{-# SPECIALIZE newChannel ::
-    (Config -> Config) -> Fold IO a b -> IO (Channel IO a b) #-}
-newChannel :: (MonadRunInIO m) =>
-    (Config -> Config) -> Fold m a b -> m (Channel m a b)
-newChannel modifier f = do
+{-# INLINABLE newChannelWith #-}
+{-# SPECIALIZE newChannelWith ::
+       IORef ([OutEvent b], Int)
+    -> MVar ()
+    -> (Config -> Config)
+    -> Fold IO a b
+    -> IO (Channel IO a b, ThreadId) #-}
+newChannelWith :: (MonadRunInIO m) =>
+       IORef ([OutEvent b], Int)
+    -> MVar ()
+    -> (Config -> Config)
+    -> Fold m a b
+    -> m (Channel m a b, ThreadId)
+newChannelWith outq outqDBell modifier f = do
     let config = modifier defaultConfig
-    sv <- liftIO $ mkNewChannel config
+    sv <- liftIO $ mkNewChannelWith outq outqDBell config
     mrun <- askRunInIO
-    void $ doForkWith
+    tid <- doForkWith
         (getBound config) (work sv) mrun (sendExceptionToDriver sv)
-    return sv
+    return (sv, tid)
 
     where
 
@@ -294,6 +318,16 @@ newChannel modifier f = do
     work chan =
         let f1 = Fold.rmapM (void . sendYieldToDriver chan) f
          in D.fold f1 $ fromInputQueue chan
+
+{-# INLINABLE newChannel #-}
+{-# SPECIALIZE newChannel ::
+    (Config -> Config) -> Fold IO a b -> IO (Channel IO a b) #-}
+newChannel :: (MonadRunInIO m) =>
+    (Config -> Config) -> Fold m a b -> m (Channel m a b)
+newChannel modifier f = do
+    outQRev <- liftIO $ newIORef ([], 0)
+    outQMvRev <- liftIO $ newEmptyMVar
+    fmap fst (newChannelWith outQRev outQMvRev modifier f)
 
 -------------------------------------------------------------------------------
 -- Process events received by the driver thread from the fold worker side
@@ -326,9 +360,8 @@ checkFoldStatus sv = do
     processEvents [] = return Nothing
     processEvents (ev : _) = do
         case ev of
-            ChildStop _ e -> maybe undefined throwM e
-            ChildStopChannel -> undefined
-            ChildYield b -> return (Just b)
+            FoldException _ e -> throwM e
+            FoldDone _ b -> return (Just b)
 
 {-# INLINE isBufferAvailable #-}
 isBufferAvailable :: MonadIO m => Channel m a b -> m Bool
@@ -340,10 +373,11 @@ isBufferAvailable sv = do
             (_, n) <- liftIO $ readIORef (inputQueue sv)
             return $ fromIntegral lim > n
 
--- | Push values from a driver to a fold worker via a Channel. Before pushing a
--- value to the Channel it polls for events received from the fold worker.  If a
--- stop event is received then it returns 'True' otherwise false.  Propagates
--- exceptions received from the fold wroker.
+-- | Push values from a driver to a fold worker via a Channel. Blocks if no
+-- space is available in the buffer. Before pushing a value to the Channel it
+-- polls for events received from the fold worker.  If a stop event is received
+-- then it returns 'True' otherwise false.  Propagates exceptions received from
+-- the fold worker.
 --
 {-# INLINE sendToWorker #-}
 sendToWorker :: MonadAsync m => Channel m a b -> a -> m (Maybe b)
@@ -375,3 +409,28 @@ sendToWorker chan a = go
                     else do
                         () <- liftIO $ takeMVar (inputSpaceDoorBell chan)
                         go
+
+-- | Like sendToWorker but only sends, does not receive any events from the
+-- fold.
+{-# INLINE sendToWorker_ #-}
+sendToWorker_ :: MonadAsync m => Channel m a b -> a -> m ()
+sendToWorker_ chan a = go
+
+    where
+
+    -- Recursive function, should we use SPEC?
+    go = do
+        r <- isBufferAvailable chan
+        if r
+        then do
+            liftIO
+                $ void
+                $ sendEvent
+                    (inputQueue chan)
+                    (inputItemDoorBell chan)
+                    (ChildYield a)
+        else do
+            error "sendToWorker_: No space available in the buffer"
+            -- Block for space
+            -- () <- liftIO $ takeMVar (inputSpaceDoorBell chan)
+            -- go
