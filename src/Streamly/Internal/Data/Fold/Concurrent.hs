@@ -62,16 +62,15 @@ where
 
 import Control.Concurrent (newEmptyMVar, takeMVar, throwTo)
 import Control.Monad.Catch (throwM)
-import Control.Monad (void, when)
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (newIORef, readIORef)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Channel.Worker (sendEvent)
 import Streamly.Internal.Data.Fold (Fold(..), Step (..))
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
-import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -82,15 +81,6 @@ import Streamly.Internal.Data.Channel.Types
 -------------------------------------------------------------------------------
 -- Evaluating a Fold
 -------------------------------------------------------------------------------
-
--- XXX Cleanup the fold if the stream is interrupted. Add a GC hook.
-
-cleanup :: MonadIO m => Channel m a b -> m ()
-cleanup chan = do
-    when (svarInspectMode chan) $ liftIO $ do
-        t <- getTime Monotonic
-        writeIORef (svarStopTime (svarStats chan)) (Just t)
-        printSVar (dumpChannel chan) "Fold channel done"
 
 -- | 'parEval' introduces a concurrent stage at the input of the fold. The
 -- inputs are asynchronously queued in a buffer and evaluated concurrently with
@@ -291,14 +281,6 @@ parUnzipWithM cfg f c1 c2 = Fold.unzipWithM f (parEval cfg c1) (parEval cfg c2)
 -- 2. A monolithic implementation of concurrent Stream->Stream scan, using a
 -- custom implementation of the scan and the driver.
 
-finalize :: MonadIO m => Channel m a b -> m ()
-finalize chan = do
-    liftIO $ void
-        $ sendEvent
-            (inputQueue chan)
-            (inputItemDoorBell chan)
-            ChildStopChannel
-
 {-# ANN type ScanState Fuse #-}
 data ScanState s q db f =
       ScanInit
@@ -344,6 +326,7 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                     FoldDone tid b ->
                         let ch = filter (\(_, t) -> t /= tid) chans
                          in processOutputs ch xs (b:done)
+                    FoldPartial _ -> undefined
 
     collectOutputs qref chans = do
         (_, n) <- liftIO $ readIORef qref
@@ -418,8 +401,9 @@ data DemuxState s q db f =
 -- fold again because some inputs would be lost in between, or (2) have a
 -- FoldYield constructor to yield repeatedly so that we can restart the
 -- existing fold itself when it is done. But in that case we cannot change the
--- fold once it is started. Whatever we do we should keep the non-concurrent
--- fold as well consistent with that.
+-- fold once it is started. Also the Map would keep on increasing in size as we
+-- never delete a key. Whatever we do we should keep the non-concurrent fold as
+-- well consistent with that.
 
 -- | Evaluate a stream and send its outputs to the selected fold. The fold is
 -- dynamically selected using a key at the time of the first input seen for
@@ -466,6 +450,7 @@ parDemuxScan cfg getKey getFold (Stream sstep state) =
                     FoldDone _tid o@(k, _) ->
                         let ch = Map.delete k keyToChan
                          in processOutputs ch xs (o:done)
+                    FoldPartial _ -> undefined
 
     collectOutputs qref keyToChan = do
         (_, n) <- liftIO $ readIORef qref

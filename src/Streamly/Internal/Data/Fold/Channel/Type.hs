@@ -20,11 +20,14 @@ module Streamly.Internal.Data.Fold.Channel.Type
 
     -- ** Operations
     , newChannelWith
+    , newChannelWithScan
     , newChannel
     , sendToWorker
     , sendToWorker_
     , checkFoldStatus -- XXX collectFoldOutput
     , dumpChannel
+    , cleanup
+    , finalize
     )
 where
 
@@ -33,17 +36,19 @@ where
 import Control.Concurrent (ThreadId, myThreadId, tryPutMVar)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar)
 import Control.Exception (SomeException(..))
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.IORef (IORef, newIORef, readIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List (intersperse)
 import Streamly.Internal.Control.Concurrent
     (MonadAsync, MonadRunInIO, askRunInIO)
 import Streamly.Internal.Control.ForkLifted (doForkWith)
 import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Internal.Data.Scanl (Scanl(..))
 import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Channel.Worker (sendEvent)
+import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as D
@@ -58,6 +63,7 @@ import Streamly.Internal.Data.Channel.Types
 
 data OutEvent b =
       FoldException ThreadId SomeException
+    | FoldPartial b
     | FoldDone ThreadId b
 
 -- | The fold driver thread queues the input of the fold in the 'inputQueue'
@@ -201,6 +207,10 @@ sendYieldToDriver sv res = liftIO $ do
     tid <- myThreadId
     void $ sendToDriver sv (FoldDone tid res)
 
+sendPartialToDriver :: MonadIO m => Channel m a b -> b -> m ()
+sendPartialToDriver sv res = liftIO $ do
+    void $ sendToDriver sv (FoldPartial res)
+
 {-# NOINLINE sendExceptionToDriver #-}
 sendExceptionToDriver :: Channel m a b -> SomeException -> IO ()
 sendExceptionToDriver sv e = do
@@ -319,6 +329,61 @@ newChannelWith outq outqDBell modifier f = do
         let f1 = Fold.rmapM (void . sendYieldToDriver chan) f
          in D.fold f1 $ fromInputQueue chan
 
+{-# INLINE scanToChannel #-}
+scanToChannel :: MonadIO m => Channel m a b -> Scanl m a b -> Scanl m a ()
+scanToChannel chan (Scanl step initial extract final) =
+    Scanl step1 initial1 extract1 final1
+
+    where
+
+    initial1 = do
+        r <- initial
+        case r of
+            Fold.Partial s -> do
+                return $ Fold.Partial s
+            Fold.Done b ->
+                Fold.Done <$> void (sendYieldToDriver chan b)
+
+    step1 st x = do
+        r <- step st x
+        case r of
+            Fold.Partial s -> do
+                b <- extract s
+                void $ sendPartialToDriver chan b
+                return $ Fold.Partial s
+            Fold.Done b ->
+                Fold.Done <$> void (sendYieldToDriver chan b)
+
+    extract1 _ = return ()
+
+    final1 st = void (final st)
+
+{-# INLINABLE newChannelWithScan #-}
+{-# SPECIALIZE newChannelWithScan ::
+       IORef ([OutEvent b], Int)
+    -> MVar ()
+    -> (Config -> Config)
+    -> Scanl IO a b
+    -> IO (Channel IO a b, ThreadId) #-}
+newChannelWithScan :: (MonadRunInIO m) =>
+       IORef ([OutEvent b], Int)
+    -> MVar ()
+    -> (Config -> Config)
+    -> Scanl m a b
+    -> m (Channel m a b, ThreadId)
+newChannelWithScan outq outqDBell modifier f = do
+    let config = modifier defaultConfig
+    sv <- liftIO $ mkNewChannelWith outq outqDBell config
+    mrun <- askRunInIO
+    tid <- doForkWith
+        (getBound config) (work sv) mrun (sendExceptionToDriver sv)
+    return (sv, tid)
+
+    where
+
+    {-# NOINLINE work #-}
+    work chan = D.drain $ D.scanl (scanToChannel chan f) $ fromInputQueue chan
+
 {-# INLINABLE newChannel #-}
 {-# SPECIALIZE newChannel ::
     (Config -> Config) -> Fold IO a b -> IO (Channel IO a b) #-}
@@ -362,6 +427,7 @@ checkFoldStatus sv = do
         case ev of
             FoldException _ e -> throwM e
             FoldDone _ b -> return (Just b)
+            FoldPartial _ -> undefined
 
 {-# INLINE isBufferAvailable #-}
 isBufferAvailable :: MonadIO m => Channel m a b -> m Bool
@@ -434,3 +500,20 @@ sendToWorker_ chan a = go
             -- Block for space
             -- () <- liftIO $ takeMVar (inputSpaceDoorBell chan)
             -- go
+
+-- XXX Cleanup the fold if the stream is interrupted. Add a GC hook.
+
+cleanup :: MonadIO m => Channel m a b -> m ()
+cleanup chan = do
+    when (svarInspectMode chan) $ liftIO $ do
+        t <- getTime Monotonic
+        writeIORef (svarStopTime (svarStats chan)) (Just t)
+        printSVar (dumpChannel chan) "Scan channel done"
+
+finalize :: MonadIO m => Channel m a b -> m ()
+finalize chan = do
+    liftIO $ void
+        $ sendEvent
+            (inputQueue chan)
+            (inputItemDoorBell chan)
+            ChildStopChannel
