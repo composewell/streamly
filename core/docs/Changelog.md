@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-* Add the following modules
-  - Streamly.Data.Scan
+* Add several concurrent combinators for folds in `Streamly.Data.Fold.Prelude`.
+* Split the `Fold` type in two, `Fold` and `Scanl`. `Streamly.Data.Scanl`
+  module is added for the new `Scanl` type.
+* Add a `Path` type for representing file system paths, following modules are
+  added:
   - Streamly.FileSystem.Path
   - Streamly.FileSystem.Path.LocSeg
   - Streamly.FileSystem.Path.FileDir
