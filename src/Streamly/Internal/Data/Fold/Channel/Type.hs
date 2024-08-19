@@ -326,7 +326,7 @@ newChannel :: (MonadRunInIO m) =>
     (Config -> Config) -> Fold m a b -> m (Channel m a b)
 newChannel modifier f = do
     outQRev <- liftIO $ newIORef ([], 0)
-    outQMvRev <- liftIO $ newEmptyMVar
+    outQMvRev <- liftIO newEmptyMVar
     fmap fst (newChannelWith outQRev outQMvRev modifier f)
 
 -------------------------------------------------------------------------------
