@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 -- |
--- Module      : Streamly.Internal.Data.Fold.Window
+-- Module      : Streamly.Internal.Data.Scanl.Window
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : Apache-2.0
 -- Maintainer  : streamly@composewell.com
@@ -22,9 +22,7 @@
 -- XXX A window fold can be driven either using the Ring.slidingWindow
 -- combinator or by zipping nthLast fold and last fold.
 
--- XXX Deprecate all the functions in this module. These should be scans only.
-
-module Streamly.Internal.Data.Fold.Window
+module Streamly.Internal.Data.Scanl.Window
     (
     -- * Incremental Folds
     -- | Folds of type @Fold m (a, Maybe a) b@ are incremental sliding window
@@ -41,6 +39,9 @@ module Streamly.Internal.Data.Fold.Window
     --
       windowLmap
     , cumulative
+
+    , windowScan
+    , windowScanWith
 
     , windowRollingMap
     , windowRollingMapM
@@ -62,40 +63,115 @@ where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Bifunctor(bimap)
+import Streamly.Internal.Data.MutArray.Type (MutArray)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
-import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
+import Streamly.Internal.Data.Scanl.Type (Scanl(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict
     (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
 
-import qualified Streamly.Internal.Data.Fold.Type as Fold
+import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 
 import Prelude hiding (length, sum, minimum, maximum)
 
-#include "DocTestDataFold.hs"
+#include "DocTestDataScanl.hs"
 
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
 
+data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
+
+-- | Like 'windowScan' but also provides the entire ring contents as an Array.
+-- The array reflects the state of the ring after inserting the incoming
+-- element.
+--
+-- IMPORTANT NOTE: The ring is mutable, therefore, the result of @(m (Array
+-- a))@ action depends on when it is executed. It does not capture the snapshot
+-- of the ring at a particular time.
+{-# INLINE windowScanWith #-}
+windowScanWith :: forall m a b. (MonadIO m, Unbox a)
+    => Int -> Scanl m ((a, Maybe a), m (MutArray a)) b -> Scanl m a b
+windowScanWith n (Scanl step1 initial1 extract1 final1) =
+    Scanl step initial extract final
+
+    where
+
+    initial = do
+        if n <= 0
+        then error "Window size must be > 0"
+        else do
+            r <- initial1
+            rb <- liftIO $ Ring.emptyOf n
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb 0 (0 :: Int) s
+                    Done b -> Done b
+
+    toArray foldRing rb rh = do
+        -- Using unpinned array here instead of pinned
+        arr <- liftIO $ MutArray.emptyOf n
+        let snoc' b a = liftIO $ MutArray.unsafeSnoc b a
+        foldRing rh snoc' arr rb
+
+    step (Tuple4' rb rh i st) a
+        | i < n = do
+            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
+            -- NOTE: We use (rh + 1) instead of rh1 in the code below as if we
+            -- are at the last element of the ring, rh1 would become 0 and we
+            -- would not fold anything.
+            let action = toArray Ring.unsafeFoldRingM rb (rh + 1)
+            r <- step1 st ((a, Nothing), action)
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
+                    Done b -> Done b
+        | otherwise = do
+            old <- Ring.unsafeGetIndex rh rb
+            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
+            r <- step1 st ((a, Just old), toArray Ring.unsafeFoldRingFullM rb rh1)
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
+                    Done b -> Done b
+
+    extract (Tuple4' _ _ _ st) = extract1 st
+
+    final (Tuple4' _ _ _ st) = final1 st
+
+-- | @windowScan collector@ is an incremental sliding window fold that does not
+-- require all the intermediate elements in a computation. This maintains @n@
+-- elements in the window, when a new element comes it slides out the oldest
+-- element and the new element along with the old element are supplied to the
+-- collector fold.
+--
+-- The 'Maybe' type is for the case when initially the window is filling and
+-- there is no old element.
+--
+{-# INLINE windowScan #-}
+windowScan :: forall m a b. (MonadIO m, Unbox a)
+    => Int -> Scanl m (a, Maybe a) b -> Scanl m a b
+windowScan n f = windowScanWith n (Scanl.lmap fst f)
+
 -- | Map a function on the incoming as well as outgoing element of a rolling
 -- window fold.
 --
--- >>> lmap f = Fold.lmap (bimap f (f <$>))
+-- >>> lmap f = Scanl.lmap (bimap f (f <$>))
 --
 {-# INLINE windowLmap #-}
-windowLmap :: (c -> a) -> Fold m (a, Maybe a) b -> Fold m (c, Maybe c) b
-windowLmap f = Fold.lmap (bimap f (f <$>))
+windowLmap :: (c -> a) -> Scanl m (a, Maybe a) b -> Scanl m (c, Maybe c) b
+windowLmap f = Scanl.lmap (bimap f (f <$>))
 
 -- | Convert an incremental fold to a cumulative fold using the entire input
 -- stream as a single window.
 --
--- >>> cumulative f = Fold.lmap (\x -> (x, Nothing)) f
+-- >>> cumulative f = Scanl.lmap (\x -> (x, Nothing)) f
 --
 {-# INLINE cumulative #-}
-cumulative :: Fold m (a, Maybe a) b -> Fold m a b
-cumulative = Fold.lmap (, Nothing)
+cumulative :: Scanl m (a, Maybe a) b -> Scanl m a b
+cumulative = Scanl.lmap (, Nothing)
 
 -- XXX Exchange the first two arguments of rollingMap or exchange the order in
 -- the fold input tuple.
@@ -104,8 +180,8 @@ cumulative = Fold.lmap (, Nothing)
 -- window.
 {-# INLINE windowRollingMapM #-}
 windowRollingMapM :: Monad m =>
-    (Maybe a -> a -> m (Maybe b)) -> Fold m (a, Maybe a) (Maybe b)
-windowRollingMapM f = Fold.foldlM' f1 initial
+    (Maybe a -> a -> m (Maybe b)) -> Scanl m (a, Maybe a) (Maybe b)
+windowRollingMapM f = Scanl.mkScanlM f1 initial
 
     where
 
@@ -115,12 +191,12 @@ windowRollingMapM f = Fold.foldlM' f1 initial
 
 -- | Apply a pure function on the latest and the oldest element of the window.
 --
--- >>> windowRollingMap f = Fold.windowRollingMapM (\x y -> return $ f x y)
+-- >>> windowRollingMap f = Scanl.windowRollingMapM (\x y -> return $ f x y)
 --
 {-# INLINE windowRollingMap #-}
 windowRollingMap :: Monad m =>
-    (Maybe a -> a -> Maybe b) -> Fold m (a, Maybe a) (Maybe b)
-windowRollingMap f = Fold.foldl' f1 initial
+    (Maybe a -> a -> Maybe b) -> Scanl m (a, Maybe a) (Maybe b)
+windowRollingMap f = Scanl.mkScanl f1 initial
 
     where
 
@@ -144,8 +220,8 @@ windowRollingMap f = Fold.foldl' f1 initial
 -- /Internal/
 --
 {-# INLINE windowSumInt #-}
-windowSumInt :: forall m a. (Monad m, Integral a) => Fold m (a, Maybe a) a
-windowSumInt = Fold step initial extract extract
+windowSumInt :: forall m a. (Monad m, Integral a) => Scanl m (a, Maybe a) a
+windowSumInt = Scanl step initial extract extract
 
     where
 
@@ -168,7 +244,7 @@ windowSumInt = Fold step initial extract extract
 --
 -- This is the first power sum.
 --
--- >>> windowSum = Fold.windowPowerSum 1
+-- >>> sum = Scanl.windowPowerSum 1
 --
 -- Uses Kahan-Babuska-Neumaier style summation for numerical stability of
 -- floating precision arithmetic.
@@ -178,8 +254,8 @@ windowSumInt = Fold step initial extract extract
 -- /Time/: \(\mathcal{O}(n)\)
 --
 {-# INLINE windowSum #-}
-windowSum :: forall m a. (Monad m, Num a) => Fold m (a, Maybe a) a
-windowSum = Fold step initial extract extract
+windowSum :: forall m a. (Monad m, Num a) => Scanl m (a, Maybe a) a
+windowSum = Scanl step initial extract extract
 
     where
 
@@ -214,11 +290,11 @@ windowSum = Fold step initial extract extract
 --
 -- This is the \(0\)th power sum.
 --
--- >>> length = Fold.windowPowerSum 0
+-- >>> length = Scanl.windowPowerSum 0
 --
 {-# INLINE windowLength #-}
-windowLength :: (Monad m, Num b) => Fold m (a, Maybe a) b
-windowLength = Fold.foldl' step 0
+windowLength :: (Monad m, Num b) => Scanl m (a, Maybe a) b
+windowLength = Scanl.mkScanl step 0
 
     where
 
@@ -229,22 +305,22 @@ windowLength = Fold.foldl' step 0
 --
 -- \(S_k = \sum_{i=1}^n x_{i}^k\)
 --
--- >>> windowPowerSum k = Fold.windowLmap (^ k) Fold.windowSum
+-- >>> windowPowerSum k = Scanl.windowLmap (^ k) Scanl.windowSum
 --
 -- /Space/: \(\mathcal{O}(1)\)
 --
 -- /Time/: \(\mathcal{O}(n)\)
 {-# INLINE windowPowerSum #-}
-windowPowerSum :: (Monad m, Num a) => Int -> Fold m (a, Maybe a) a
+windowPowerSum :: (Monad m, Num a) => Int -> Scanl m (a, Maybe a) a
 windowPowerSum k = windowLmap (^ k) windowSum
 
 -- | Like 'powerSum' but powers can be negative or fractional. This is slower
 -- than 'powerSum' for positive intergal powers.
 --
--- >>> windowPowerSumFrac p = Fold.windowLmap (** p) Fold.windowSum
+-- >>> windowPowerSumFrac p = Scanl.windowLmap (** p) Scanl.windowSum
 --
 {-# INLINE windowPowerSumFrac #-}
-windowPowerSumFrac :: (Monad m, Floating a) => a -> Fold m (a, Maybe a) a
+windowPowerSumFrac :: (Monad m, Floating a) => a -> Scanl m (a, Maybe a) a
 windowPowerSumFrac p = windowLmap (** p) windowSum
 
 -------------------------------------------------------------------------------
@@ -255,16 +331,16 @@ windowPowerSumFrac p = windowLmap (** p) windowSum
 
 -- | Determine the maximum and minimum in a rolling window.
 --
--- If you want to compute the range of the entire stream @Fold.teeWith (,)
--- Fold.maximum Fold.minimum@ would be much faster.
+-- If you want to compute the range of the entire stream @Scanl.teeWith (,)
+-- Scanl.maximum Scanl.minimum@ would be much faster.
 --
 -- /Space/: \(\mathcal{O}(n)\) where @n@ is the window size.
 --
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
 {-# INLINE windowRange #-}
-windowRange :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe (a, a))
-windowRange n = Fold step initial extract extract
+windowRange :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (Maybe (a, a))
+windowRange n = Scanl step initial extract extract
 
     where
 
@@ -313,25 +389,25 @@ windowRange n = Fold step initial extract extract
 -- small (< 30).
 --
 -- If you want to compute the minimum of the entire stream
--- 'Streamly.Data.Fold.minimum' is much faster.
+-- 'Streamly.Data.Scanl.minimum' is much faster.
 --
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
 {-# INLINE windowMinimum #-}
-windowMinimum :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe a)
+windowMinimum :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (Maybe a)
 windowMinimum n = fmap (fmap fst) $ windowRange n
 
 -- | The maximum element in a rolling window.
 --
 -- See the performance related comments in 'minimum'.
 --
--- If you want to compute the maximum of the entire stream 'Fold.maximum' would
+-- If you want to compute the maximum of the entire stream 'Scanl.maximum' would
 -- be much faster.
 --
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
 {-# INLINE windowMaximum #-}
-windowMaximum :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe a)
+windowMaximum :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (Maybe a)
 windowMaximum n = fmap (fmap snd) $ windowRange n
 
 -- | Arithmetic mean of elements in a sliding window:
@@ -342,11 +418,11 @@ windowMaximum n = fmap (fmap snd) $ windowRange n
 -- sliding window and Cumulative Moving Avergae (CMA) when used on the entire
 -- stream.
 --
--- >>> mean = Fold.teeWith (/) Fold.windowSum Fold.windowLength
+-- >>> mean = Scanl.teeWith (/) Scanl.windowSum Scanl.windowLength
 --
 -- /Space/: \(\mathcal{O}(1)\)
 --
 -- /Time/: \(\mathcal{O}(n)\)
 {-# INLINE windowMean #-}
-windowMean :: forall m a. (Monad m, Fractional a) => Fold m (a, Maybe a) a
-windowMean = Fold.teeWith (/) windowSum windowLength
+windowMean :: forall m a. (Monad m, Fractional a) => Scanl m (a, Maybe a) a
+windowMean = Scanl.teeWith (/) windowSum windowLength

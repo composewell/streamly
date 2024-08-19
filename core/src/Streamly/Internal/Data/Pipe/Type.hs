@@ -77,6 +77,8 @@ data Step cs ps b =
       YieldC cs b -- ^ Yield and consume
     | SkipC cs -- ^ Skip and consume
     | Stop -- ^ when consuming, Stop means input remains unused
+    -- Therefore, Stop should not be used when we are processing an input,
+    -- instead use YieldP and then Stop.
     | YieldP ps b -- ^ Yield and produce
     | SkipP ps -- ^ Skip and produce
 
@@ -95,8 +97,16 @@ instance Functor (Step cs ps) where
 -- types should be preferred because they can be more efficient and fuse
 -- better.
 --
--- XXX In general the starting state could either be for generation or for
--- consumption. Currently we are only starting with a consumption state.
+-- The design of the Pipe type is such that the pipe decides whether it wants
+-- to consume or produce, not the driver. The driver has to do what the pipe
+-- dictates, if it can. The starting state of the pipe could either be
+-- consuming or producing. Current implementation starts with a consuming
+-- state. If the default state of the pipe is consumption state and there is no
+-- input, the driver can call finalC :: cs -> m (Step cs ps b) to switch the
+-- pipe to production state. The pipe can use SkipP to switch to production
+-- state. If the default state of the pipe is producing state, the pipe can use
+-- SkipC to switch to the consumer state. The driver can use finalP to switch
+-- to consuming state.
 
 -- | Represents a stateful transformation over an input stream of values of
 -- type @a@ to outputs of type @b@ in 'Monad' @m@.
@@ -106,7 +116,9 @@ data Pipe m a b =
     forall cs ps. Pipe
         (cs -> a -> m (Step cs ps b))
         (ps -> m (Step cs ps b))
-        cs
+     -- (cs -> m (Step cs ps b)) -- finalC
+     -- (ps -> m (Step cs ps b)) -- finalP
+        cs                       -- Either cs ps
 
 ------------------------------------------------------------------------------
 -- Functor: Mapping on the output

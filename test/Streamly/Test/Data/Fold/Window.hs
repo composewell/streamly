@@ -1,7 +1,7 @@
 module Streamly.Test.Data.Fold.Window (main) where
 
 import Test.Hspec (hspec, describe, it, runIO)
-import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Fold as Fold
 
@@ -21,15 +21,17 @@ main = hspec $ do
             deviationLimit = 1
             testFunc f = do
                 let c = S.fromList testCase
-                a <- runIO $ S.fold (Ring.slidingWindow winSize f) c
-                b <- runIO $ S.fold f $ S.drop (numElem - winSize)
+                    f1 = Fold.fromScanl $ Scanl.windowScan winSize f
+                    f2 = Fold.fromScanl f
+                a <- runIO $ S.fold f1 c
+                b <- runIO $ S.fold f2 $ S.drop (numElem - winSize)
                         $ fmap (, Nothing) c
                 let c1 = a - b
                 it ("should not deviate more than " ++ show deviationLimit)
                     $ c1 >= -1 * deviationLimit && c1 <= deviationLimit
 
-        describe "Sum" $ testFunc Fold.windowSum
-        describe "mean" $ testFunc Fold.windowMean
+        describe "Sum" $ testFunc Scanl.windowSum
+        describe "mean" $ testFunc Scanl.windowMean
 
     describe "Correctness" $ do
         let winSize = 3
@@ -40,28 +42,28 @@ main = hspec $ do
 
             testFunc tc f sI sW = do
                 let c = S.fromList tc
-                a <- runIO $ S.fold Fold.toList $ S.postscan f $ fmap (, Nothing) c
-                b <- runIO $ S.fold Fold.toList $ S.postscan
-                        (Ring.slidingWindow winSize f) c
+                a <- runIO $ S.fold Fold.toList $ S.postscanl f $ fmap (, Nothing) c
+                b <- runIO $ S.fold Fold.toList $ S.postscanl
+                        (Scanl.windowScan winSize f) c
                 it "Infinite" $ a  == sI
                 it ("Finite " ++ show winSize) $ b == sW
 
             testFunc2 tc expec f = do
                 let c = S.fromList tc
-                a <- runIO $ S.fold (f winSize) c
+                a <- runIO $ S.fold (Fold.fromScanl (f winSize)) c
                 it (show tc) $ a == expec
 
         describe "minimum" $ do
-            testFunc2 testCase1 (Just (-2.5)) Fold.windowMinimum
+            testFunc2 testCase1 (Just (-2.5)) Scanl.windowMinimum
         describe "maximum" $ do
-            testFunc2 testCase1 (Just 7.0) Fold.windowMaximum
+            testFunc2 testCase1 (Just 7.0) Scanl.windowMaximum
         describe "range" $ do
-            testFunc2 testCase1 (Just (-2.5, 7.0)) Fold.windowRange
+            testFunc2 testCase1 (Just (-2.5, 7.0)) Scanl.windowRange
         describe "sum" $ do
             let scanInf = [1, 2, 3, 4, 5, 12] :: [Double]
                 scanWin = [1, 2, 3, 3, 3, 9] :: [Double]
-            testFunc testCase2 Fold.windowSum scanInf scanWin
+            testFunc testCase2 Scanl.windowSum scanInf scanWin
         describe "mean" $ do
             let scanInf = [1, 1, 1, 1, 1, 2] :: [Double]
                 scanWin = [1, 1, 1, 1, 1, 3] :: [Double]
-            testFunc testCase2 Fold.windowMean scanInf scanWin
+            testFunc testCase2 Scanl.windowMean scanInf scanWin

@@ -2978,7 +2978,7 @@ data SepByState fs sp ss =
 -- Definitions:
 --
 -- >>> sepBy p1 p2 f = Parser.deintercalate p1 p2 (Fold.catLefts f)
--- >>> sepBy p1 p2 f = Parser.sepBy1 p1 p2 f <|> Parser.fromEffect (Fold.extractM f)
+-- >>> sepBy p1 p2 f = Parser.sepBy1 p1 p2 f <|> Parser.fromEffect (Fold.finalM f)
 --
 -- Examples:
 --
