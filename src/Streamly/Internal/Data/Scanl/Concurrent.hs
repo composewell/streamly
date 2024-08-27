@@ -8,7 +8,8 @@
 
 module Streamly.Internal.Data.Scanl.Concurrent
     (
-      parDistributeScan
+      parTeeWith
+    , parDistributeScan
     , parDemuxScan
     )
 where
@@ -21,9 +22,12 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
+import Streamly.Internal.Data.Fold (Step (..))
 import Streamly.Internal.Data.Scanl (Scanl(..))
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
+import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
 import qualified Data.Map.Strict as Map
 
@@ -33,6 +37,85 @@ import Streamly.Internal.Data.Channel.Types
 -------------------------------------------------------------------------------
 -- Concurrent scans
 -------------------------------------------------------------------------------
+
+-- | Execute both the scans in a tee concurrently.
+--
+-- Example:
+--
+-- >>> src = Stream.delay 1 (Stream.enumerateFromTo 1 3)
+-- >>> delay x = threadDelay 1000000 >> print x >> return x
+-- >>> c1 = Scanl.lmapM delay Scanl.sum
+-- >>> c2 = Scanl.lmapM delay Scanl.length
+-- >>> dst = Scanl.parTeeWith id (,) c1 c2
+-- >>> Stream.toList $ Stream.scanl dst src
+-- ...
+--
+{-# INLINABLE parTeeWith #-}
+parTeeWith :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> b -> c)
+    -> Scanl m x a
+    -> Scanl m x b
+    -> Scanl m x c
+parTeeWith cfg f c1 c2 = Scanl step initial extract final
+
+    where
+
+    getResponse ch1 ch2 = do
+        -- NOTE: We do not need a queue and doorbell mechanism for this, a single
+        -- MVar should be enough. Also, there is only one writer and it writes
+        -- only once before we read it.
+        let db1 = outputDoorBell ch1
+        let q1 = outputQueue ch1
+        (xs1, _) <- liftIO $ atomicModifyIORefCAS q1 $ \x -> (([],0), x)
+        case xs1 of
+            [] -> do
+                liftIO $ takeMVar db1
+                getResponse ch1 ch2
+            x1 : [] -> do
+                case x1 of
+                    FoldException _tid ex -> do
+                        -- XXX
+                        -- liftIO $ throwTo ch2Tid ThreadAbort
+                        cleanup ch1
+                        cleanup ch2
+                        liftIO $ throwM ex
+                    FoldDone _tid b -> return (Left b)
+                    FoldPartial b -> return (Right b)
+            _ -> error "parTeeWith: not expecting more than one msg in q"
+
+    processResponses ch1 ch2 r1 r2 =
+        return $ case r1 of
+            Left b1 -> do
+                case r2 of
+                    Left b2 -> Done (f b1 b2)
+                    Right b2 -> Done (f b1 b2)
+            Right b1 -> do
+                case r2 of
+                    Left b2 -> Done (f b1 b2)
+                    Right b2 -> Partial $ Tuple3' ch1 ch2 (f b1 b2)
+
+    initial = do
+        ch1 <- newScanChannel cfg c1
+        ch2 <- newScanChannel cfg c2
+        r1 <- getResponse ch1 ch2
+        r2 <- getResponse ch2 ch1
+        processResponses ch1 ch2 r1 r2
+
+    step (Tuple3' ch1 ch2 _) x = do
+        sendToWorker_ ch1 x
+        sendToWorker_ ch2 x
+        r1 <- getResponse ch1 ch2
+        r2 <- getResponse ch2 ch1
+        processResponses ch1 ch2 r1 r2
+
+    extract (Tuple3' _ _ x) = return x
+
+    final (Tuple3' ch1 ch2 x) = do
+        finalize ch1
+        finalize ch2
+        -- XXX generate the final value?
+        return x
 
 -- There are two ways to implement a concurrent scan.
 --

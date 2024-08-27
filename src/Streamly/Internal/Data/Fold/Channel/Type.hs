@@ -22,6 +22,7 @@ module Streamly.Internal.Data.Fold.Channel.Type
     , newChannelWith
     , newChannelWithScan
     , newChannel
+    , newScanChannel
     , sendToWorker
     , sendToWorker_
     , checkFoldStatus -- XXX collectFoldOutput
@@ -340,6 +341,8 @@ scanToChannel chan (Scanl step initial extract final) =
         r <- initial
         case r of
             Fold.Partial s -> do
+                b <- extract s
+                void $ sendPartialToDriver chan b
                 return $ Fold.Partial s
             Fold.Done b ->
                 Fold.Done <$> void (sendYieldToDriver chan b)
@@ -356,6 +359,7 @@ scanToChannel chan (Scanl step initial extract final) =
 
     extract1 _ = return ()
 
+    -- XXX Should we not discard the result?
     final1 st = void (final st)
 
 {-# INLINABLE newChannelWithScan #-}
@@ -393,6 +397,16 @@ newChannel modifier f = do
     outQRev <- liftIO $ newIORef ([], 0)
     outQMvRev <- liftIO newEmptyMVar
     fmap fst (newChannelWith outQRev outQMvRev modifier f)
+
+{-# INLINABLE newScanChannel #-}
+{-# SPECIALIZE newScanChannel ::
+    (Config -> Config) -> Scanl IO a b -> IO (Channel IO a b) #-}
+newScanChannel :: (MonadRunInIO m) =>
+    (Config -> Config) -> Scanl m a b -> m (Channel m a b)
+newScanChannel modifier f = do
+    outQRev <- liftIO $ newIORef ([], 0)
+    outQMvRev <- liftIO newEmptyMVar
+    fmap fst (newChannelWithScan outQRev outQMvRev modifier f)
 
 -------------------------------------------------------------------------------
 -- Process events received by the driver thread from the fold worker side
