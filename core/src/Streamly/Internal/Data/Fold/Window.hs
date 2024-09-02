@@ -41,6 +41,8 @@ module Streamly.Internal.Data.Fold.Window
     --
       windowLmap
     , cumulative
+    , windowFoldWith
+    , windowFold
 
     , windowRollingMap
     , windowRollingMapM
@@ -62,6 +64,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Bifunctor(bimap)
+import Streamly.Internal.Data.MutArray.Type (MutArray)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
@@ -69,6 +72,7 @@ import Streamly.Internal.Data.Tuple.Strict
     (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
 
 import qualified Streamly.Internal.Data.Fold.Type as Fold
+import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Ring as Ring
 
 import Prelude hiding (length, sum, minimum, maximum)
@@ -96,6 +100,80 @@ windowLmap f = Fold.lmap (bimap f (f <$>))
 {-# INLINE cumulative #-}
 cumulative :: Fold m (a, Maybe a) b -> Fold m a b
 cumulative = Fold.lmap (, Nothing)
+
+data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
+
+-- | Like windowFold but also provides the entire ring contents as an Array.
+-- The array reflects the state of the ring after inserting the incoming
+-- element.
+--
+-- IMPORTANT NOTE: The ring is mutable, therefore, the result of @(m (Array
+-- a))@ action depends on when it is executed. It does not capture the sanpshot
+-- of the ring at a particular time.
+{-# INLINE windowFoldWith #-}
+windowFoldWith :: forall m a b. (MonadIO m, Unbox a)
+    => Int -> Fold m ((a, Maybe a), m (MutArray a)) b -> Fold m a b
+windowFoldWith n (Fold step1 initial1 extract1 final1) =
+    Fold step initial extract final
+
+    where
+
+    initial = do
+        if n <= 0
+        then error "Window size must be > 0"
+        else do
+            r <- initial1
+            rb <- liftIO $ Ring.emptyOf n
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb 0 (0 :: Int) s
+                    Done b -> Done b
+
+    toArray foldRing rb rh = do
+        -- Using unpinned array here instead of pinned
+        arr <- liftIO $ MutArray.emptyOf n
+        let snoc' b a = liftIO $ MutArray.unsafeSnoc b a
+        foldRing rh snoc' arr rb
+
+    step (Tuple4' rb rh i st) a
+        | i < n = do
+            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
+            -- NOTE: We use (rh + 1) instead of rh1 in the code below as if we
+            -- are at the last element of the ring, rh1 would become 0 and we
+            -- would not fold anything.
+            let action = toArray Ring.unsafeFoldRingM rb (rh + 1)
+            r <- step1 st ((a, Nothing), action)
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
+                    Done b -> Done b
+        | otherwise = do
+            old <- Ring.unsafeGetIndex rh rb
+            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
+            r <- step1
+                    st ((a, Just old), toArray Ring.unsafeFoldRingFullM rb rh1)
+            return $
+                case r of
+                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
+                    Done b -> Done b
+
+    extract (Tuple4' _ _ _ st) = extract1 st
+
+    final (Tuple4' _ _ _ st) = final1 st
+
+-- | @windowFold collector@ is an incremental sliding window fold that does not
+-- require all the intermediate elements in a computation. This maintains @n@
+-- elements in the window, when a new element comes it slides out the oldest
+-- element and the new element along with the old element are supplied to the
+-- collector fold.
+--
+-- The 'Maybe' type is for the case when initially the window is filling and
+-- there is no old element.
+--
+{-# INLINE windowFold #-}
+windowFold :: (MonadIO m, Unbox a)
+    => Int -> Fold m (a, Maybe a) b -> Fold m a b
+windowFold n f = windowFoldWith n (Fold.lmap fst f)
 
 -- XXX Exchange the first two arguments of rollingMap or exchange the order in
 -- the fold input tuple.
