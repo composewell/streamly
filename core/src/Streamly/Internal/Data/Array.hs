@@ -560,13 +560,10 @@ pinnedSerialize = encodeAs Pinned
 -- | Decode a Haskell type from a byte array containing its serialized
 -- representation.
 {-# INLINE deserialize #-}
-deserialize :: Serialize a => Array Word8 -> a
-deserialize arr@(Array {..}) = unsafeInlineIO $ do
-    let lenArr = length arr
-    (off, val) <-
-        Serialize.deserializeAt arrStart arrContents (arrStart + lenArr)
-    assertM(off == arrStart + lenArr)
-    pure val
+deserialize :: Serialize a => Array Word8 -> (a, Array Word8)
+deserialize arr =
+    let (a, b) = unsafeInlineIO $ MA.deserialize (unsafeThaw arr)
+     in (a, unsafeFreeze b)
 
 -------------------------------------------------------------------------------
 -- Streams of Arrays

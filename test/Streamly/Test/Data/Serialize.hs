@@ -208,10 +208,10 @@ peekAndVerify (arr, serStartOff, serEndOff) val = do
     val2 `shouldBe` val
     off2 `shouldBe` serEndOff
     let slice = Array.Array arr serStartOff serEndOff
-    val `shouldBe` Array.deserialize slice
+    val `shouldBe` fst (Array.deserialize slice)
     clonedSlice <-
         fmap Array.unsafeFreeze $ MutArray.clone $ Array.unsafeThaw slice
-    val `shouldBe` Array.deserialize clonedSlice
+    val `shouldBe` fst (Array.deserialize clonedSlice)
 
 roundtrip
     :: forall a. (Eq a, Show a, Serialize.Serialize a)
@@ -223,7 +223,7 @@ roundtrip val = do
     -- let sz = Serialize.addSizeTo 0 val
     -- putStrLn $ "Size is: " ++ show sz
 
-    val `shouldBe` Array.deserialize (Array.pinnedSerialize val)
+    val `shouldBe` fst (Array.deserialize (Array.pinnedSerialize val))
 
     res <- poke val
     peekAndVerify res val
