@@ -1,6 +1,7 @@
 module Streamly.Test.Data.Fold.Window (main) where
 
 import Test.Hspec (hspec, describe, it, runIO)
+import Streamly.Internal.Data.Scanl (Incr(..))
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -19,19 +20,20 @@ main = hspec $ do
                                 9007199254740992, 1, 1, 1, 9007199254740992]
             testCase = take numElem $ cycle testCaseChunk
             deviationLimit = 1
+
             testFunc f = do
                 let c = S.fromList testCase
                     f1 = Fold.fromScanl $ Scanl.windowScan winSize f
                     f2 = Fold.fromScanl f
                 a <- runIO $ S.fold f1 c
                 b <- runIO $ S.fold f2 $ S.drop (numElem - winSize)
-                        $ fmap (, Nothing) c
+                        $ fmap Insert c
                 let c1 = a - b
                 it ("should not deviate more than " ++ show deviationLimit)
                     $ c1 >= -1 * deviationLimit && c1 <= deviationLimit
 
-        describe "Sum" $ testFunc Scanl.windowSum
-        describe "mean" $ testFunc Scanl.windowMean
+        describe "Sum" $ testFunc Scanl.incrSum
+        describe "mean" $ testFunc Scanl.incrMean
 
     describe "Correctness" $ do
         let winSize = 3
@@ -42,7 +44,7 @@ main = hspec $ do
 
             testFunc tc f sI sW = do
                 let c = S.fromList tc
-                a <- runIO $ S.fold Fold.toList $ S.postscanl f $ fmap (, Nothing) c
+                a <- runIO $ S.fold Fold.toList $ S.postscanl f $ fmap Insert c
                 b <- runIO $ S.fold Fold.toList $ S.postscanl
                         (Scanl.windowScan winSize f) c
                 it "Infinite" $ a  == sI
@@ -62,8 +64,8 @@ main = hspec $ do
         describe "sum" $ do
             let scanInf = [1, 2, 3, 4, 5, 12] :: [Double]
                 scanWin = [1, 2, 3, 3, 3, 9] :: [Double]
-            testFunc testCase2 Scanl.windowSum scanInf scanWin
+            testFunc testCase2 Scanl.incrSum scanInf scanWin
         describe "mean" $ do
             let scanInf = [1, 1, 1, 1, 1, 2] :: [Double]
                 scanWin = [1, 1, 1, 1, 1, 3] :: [Double]
-            testFunc testCase2 Scanl.windowMean scanInf scanWin
+            testFunc testCase2 Scanl.incrMean scanInf scanWin

@@ -746,7 +746,7 @@ the = mkScant step initial id
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
 --
--- >>> sum = Scanl.cumulative Scanl.windowSum
+-- >>> sum = Scanl.cumulativeScan Scanl.incrSum
 --
 -- Same as following but numerically stable:
 --
@@ -755,7 +755,7 @@ the = mkScant step initial id
 --
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Scanl m a a
-sum = Scanl.cumulative Scanl.windowSum
+sum = Scanl.cumulativeScan Scanl.incrSum
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates

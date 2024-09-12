@@ -24,45 +24,53 @@
 
 module Streamly.Internal.Data.Scanl.Window
     (
-    -- * Incremental Folds
-    -- | Folds of type @Fold m (a, Maybe a) b@ are incremental sliding window
-    -- folds. An input of type @(a, Nothing)@ indicates that the input element
-    -- @a@ is being inserted in the window without ejecting an old value
-    -- increasing the window size by 1. An input of type @(a, Just a)@
-    -- indicates that the first element is being inserted in the window and the
-    -- second element is being removed from the window, the window size remains
-    -- the same. The window size can only increase and never decrease.
-    --
-    -- You can compute the statistics over the entire stream using sliding
-    -- window folds by keeping the second element of the input tuple as
-    -- @Nothing@.
-    --
-      windowLmap
-    , cumulative
+    -- * Types
+      Incr (..)
 
+    -- * Running Incremental Scans
+    -- | Scans of type @Scanl m (Incr a) b@ are incremental sliding window
+    -- scans and are prefixed with @incr@. An input of type @(Insert a)@
+    -- indicates that the input element @a@ is being inserted in the window
+    -- without ejecting an old value increasing the window size by 1. An input
+    -- of type @(Replace a a)@ indicates that the first element is being inserted
+    -- in the window and the second element is being removed from the window,
+    -- the window size remains the same. The window size can only increase and
+    -- never decrease.
+    --
+    -- You can compute the statistics over the entire stream using window folds
+    -- by always supplying input of type @Insert a@.
+    --
+    -- The incremental scans are converted into scans over a window using the
+    -- 'windowScan' operation which maintains a sliding window and supplies the
+    -- new and/or exiting element of the window to the window scan in the form
+    -- of an incremental operation. The names of window scans are prefixed with
+    -- @window@.
+    --
+    , cumulativeScan
     , windowScan
     , windowScanWith
 
-    , windowRollingMap
-    , windowRollingMapM
+    -- * Incremental Scans
+
+    , incrRollingMap -- XXX remove?
+    , incrRollingMapM -- XXX remove?
 
     -- ** Sums
-    , windowLength
-    , windowSum
-    , windowSumInt
-    , windowPowerSum
-    , windowPowerSumFrac
+    , incrCount
+    , incrSum
+    , incrSumInt
+    , incrPowerSum
+    , incrPowerSumFrac
 
     -- ** Location
     , windowMinimum
     , windowMaximum
     , windowRange
-    , windowMean
+    , incrMean
     )
 where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.Bifunctor(bimap)
 import Streamly.Internal.Data.MutArray.Type (MutArray)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
@@ -79,6 +87,31 @@ import Prelude hiding (length, sum, minimum, maximum)
 #include "DocTestDataScanl.hs"
 
 -------------------------------------------------------------------------------
+-- Incremental operations
+-------------------------------------------------------------------------------
+
+-- The delete operation could be quite useful e.g. if we are computing stats
+-- over last one hour of trades. The window would be growing when trade
+-- frequency is increasing, the window would remain constant when the trade
+-- frequency is steady, but it would shrink when the trade frequency reduces.
+-- If no trades are happening our clock would still be ticking and to maintain
+-- a 1 hour window we would be ejecting the oldest elements from the window
+-- even without any other elements entering the window. In fact, it is required
+-- for time based windows.
+--
+-- Replace can be implemented using Insert and Delete.
+
+data Incr a =
+      Insert !a
+    -- | Delete !a
+    | Replace !a !a
+
+instance Functor Incr where
+    fmap f (Insert x) = Insert (f x)
+    -- fmap f (Delete x) = Delete (f x)
+    fmap f (Replace x y) = Replace (f x) (f y)
+
+-------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
 
@@ -93,7 +126,7 @@ data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 -- of the ring at a particular time.
 {-# INLINE windowScanWith #-}
 windowScanWith :: forall m a b. (MonadIO m, Unbox a)
-    => Int -> Scanl m ((a, Maybe a), m (MutArray a)) b -> Scanl m a b
+    => Int -> Scanl m (Incr a, m (MutArray a)) b -> Scanl m a b
 windowScanWith n (Scanl step1 initial1 extract1 final1) =
     Scanl step initial extract final
 
@@ -123,7 +156,7 @@ windowScanWith n (Scanl step1 initial1 extract1 final1) =
             -- are at the last element of the ring, rh1 would become 0 and we
             -- would not fold anything.
             let action = toArray Ring.unsafeFoldRingM rb (rh + 1)
-            r <- step1 st ((a, Nothing), action)
+            r <- step1 st (Insert a, action)
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
@@ -131,7 +164,7 @@ windowScanWith n (Scanl step1 initial1 extract1 final1) =
         | otherwise = do
             old <- Ring.unsafeGetIndex rh rb
             rh1 <- liftIO $ Ring.unsafeInsert rb rh a
-            r <- step1 st ((a, Just old), toArray Ring.unsafeFoldRingFullM rb rh1)
+            r <- step1 st (Replace a old, toArray Ring.unsafeFoldRingFullM rb rh1)
             return $
                 case r of
                     Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
@@ -141,68 +174,58 @@ windowScanWith n (Scanl step1 initial1 extract1 final1) =
 
     final (Tuple4' _ _ _ st) = final1 st
 
--- | @windowScan collector@ is an incremental sliding window fold that does not
+-- | @windowScan collector@ is an incremental sliding window scan that does not
 -- require all the intermediate elements in a computation. This maintains @n@
 -- elements in the window, when a new element comes it slides out the oldest
 -- element and the new element along with the old element are supplied to the
 -- collector fold.
 --
--- The 'Maybe' type is for the case when initially the window is filling and
--- there is no old element.
---
 {-# INLINE windowScan #-}
 windowScan :: forall m a b. (MonadIO m, Unbox a)
-    => Int -> Scanl m (a, Maybe a) b -> Scanl m a b
+    => Int -> Scanl m (Incr a) b -> Scanl m a b
 windowScan n f = windowScanWith n (Scanl.lmap fst f)
 
--- | Map a function on the incoming as well as outgoing element of a rolling
--- window fold.
---
--- >>> lmap f = Scanl.lmap (bimap f (f <$>))
---
-{-# INLINE windowLmap #-}
-windowLmap :: (c -> a) -> Scanl m (a, Maybe a) b -> Scanl m (c, Maybe c) b
-windowLmap f = Scanl.lmap (bimap f (f <$>))
-
--- | Convert an incremental fold to a cumulative fold using the entire input
+-- | Convert an incremental scan to a cumulative scan using the entire input
 -- stream as a single window.
 --
--- >>> cumulative f = Scanl.lmap (\x -> (x, Nothing)) f
+-- >>> cumulativeScan = Scanl.lmap Insert
 --
-{-# INLINE cumulative #-}
-cumulative :: Scanl m (a, Maybe a) b -> Scanl m a b
-cumulative = Scanl.lmap (, Nothing)
+{-# INLINE cumulativeScan #-}
+cumulativeScan :: Scanl m (Incr a) b -> Scanl m a b
+cumulativeScan = Scanl.lmap Insert
 
--- XXX Exchange the first two arguments of rollingMap or exchange the order in
--- the fold input tuple.
-
--- | Apply an effectful function on the latest and the oldest element of the
--- window.
-{-# INLINE windowRollingMapM #-}
-windowRollingMapM :: Monad m =>
-    (Maybe a -> a -> m (Maybe b)) -> Scanl m (a, Maybe a) (Maybe b)
-windowRollingMapM f = Scanl.mkScanlM f1 initial
+-- | Apply an effectful function on the entering and the exiting element of the
+-- window. The first argument of the mapped function is the exiting element and
+-- the second argument is the entering element.
+{-# INLINE incrRollingMapM #-}
+incrRollingMapM :: Monad m =>
+    (Maybe a -> a -> m (Maybe b)) -> Scanl m (Incr a) (Maybe b)
+incrRollingMapM f = Scanl.mkScanlM f1 initial
 
     where
 
     initial = return Nothing
 
-    f1 _ (a, ma) = f ma a
+    f1 _ (Insert a) = f Nothing a
+    -- f1 _ (Delete _) = return Nothing
+    f1 _ (Replace x y) = f (Just y) x
 
 -- | Apply a pure function on the latest and the oldest element of the window.
 --
--- >>> windowRollingMap f = Scanl.windowRollingMapM (\x y -> return $ f x y)
+-- >>> incrRollingMap f = Scanl.incrRollingMapM (\x y -> return $ f x y)
 --
-{-# INLINE windowRollingMap #-}
-windowRollingMap :: Monad m =>
-    (Maybe a -> a -> Maybe b) -> Scanl m (a, Maybe a) (Maybe b)
-windowRollingMap f = Scanl.mkScanl f1 initial
+{-# INLINE incrRollingMap #-}
+incrRollingMap :: Monad m =>
+    (Maybe a -> a -> Maybe b) -> Scanl m (Incr a) (Maybe b)
+incrRollingMap f = Scanl.mkScanl f1 initial
 
     where
 
     initial = Nothing
 
-    f1 _ (a, ma) = f ma a
+    f1 _ (Insert a) = f Nothing a
+    -- f1 _ (Delete _) = Nothing
+    f1 _ (Replace x y) = f (Just y) x
 
 -------------------------------------------------------------------------------
 -- Sum
@@ -211,28 +234,25 @@ windowRollingMap f = Scanl.mkScanl f1 initial
 -- XXX Overflow.
 
 -- | The sum of all the elements in a rolling window. The input elements are
--- required to be intergal numbers.
+-- required to be integral numbers.
 --
--- This was written in the hope that it would be a tiny bit faster than 'sum'
--- for 'Integral' values. But turns out that 'sum' is 2% faster than this even
--- for intergal values!
+-- This was written in the hope that it would be a tiny bit faster than 'incrSum'
+-- for 'Integral' values. But turns out that 'incrSum' is 2% faster than this even
+-- for integral values!
 --
 -- /Internal/
 --
-{-# INLINE windowSumInt #-}
-windowSumInt :: forall m a. (Monad m, Integral a) => Scanl m (a, Maybe a) a
-windowSumInt = Scanl step initial extract extract
+{-# INLINE incrSumInt #-}
+incrSumInt :: forall m a. (Monad m, Integral a) => Scanl m (Incr a) a
+incrSumInt = Scanl step initial extract extract
 
     where
 
     initial = return $ Partial (0 :: a)
 
-    step s (a, ma) =
-        return
-            $ Partial
-                $ case ma of
-                    Nothing -> s + a
-                    Just old -> s + a - old
+    step s (Insert a) = return $ Partial (s + a)
+    -- step s (Delete a) = return $ Partial (s - a)
+    step s (Replace new old) = return $ Partial (s + new - old)
 
     extract = return
 
@@ -244,7 +264,7 @@ windowSumInt = Scanl step initial extract extract
 --
 -- This is the first power sum.
 --
--- >>> sum = Scanl.windowPowerSum 1
+-- >>> incrSum = Scanl.incrPowerSum 1
 --
 -- Uses Kahan-Babuska-Neumaier style summation for numerical stability of
 -- floating precision arithmetic.
@@ -253,9 +273,9 @@ windowSumInt = Scanl step initial extract extract
 --
 -- /Time/: \(\mathcal{O}(n)\)
 --
-{-# INLINE windowSum #-}
-windowSum :: forall m a. (Monad m, Num a) => Scanl m (a, Maybe a) a
-windowSum = Scanl step initial extract extract
+{-# INLINE incrSum #-}
+incrSum :: forall m a. (Monad m, Num a) => Scanl m (Incr a) a
+incrSum = Scanl step initial extract extract
 
     where
 
@@ -266,23 +286,33 @@ windowSum = Scanl step initial extract extract
                 (0 :: a) -- running sum
                 (0 :: a) -- accumulated rounding error
 
-    step (Tuple' total err) (new, mOld) =
-        let incr =
-                case mOld of
-                    -- XXX new may be large and err may be small we may lose it
-                    Nothing -> new - err
-                    -- XXX if (new - old) is large we may lose err
-                    Just old -> (new - old) - err
+    add total incr =
+        let
             -- total is large and incr may be small, we may round incr here but
             -- we will accumulate the rounding error in err1 in the next step.
             total1 = total + incr
             -- Accumulate any rounding error in err1
-            -- XXX In the Nothing case above we may lose err, therefore we
+            -- XXX In the Insert case we may lose err, therefore we
             -- should use ((total1 - total) - new) + err here.
-            -- Or even in the just case if (new - old) is large we may lose
+            -- Or even in the Replace case if (new - old) is large we may lose
             -- err, so we should use ((total1 - total) + (old - new)) + err.
             err1 = (total1 - total) - incr
         in return $ Partial $ Tuple' total1 err1
+
+    step (Tuple' total err) (Insert new) =
+        -- XXX if new is large we may lose err
+        let incr = new - err
+         in add total incr
+    {-
+    step (Tuple' total err) (Delete new) =
+        -- XXX if new is large we may lose err
+        let incr = -new - err
+         in add total incr
+    -}
+    step (Tuple' total err) (Replace new old) =
+        -- XXX if (new - old) is large we may lose err
+        let incr = (new - old) - err
+         in add total incr
 
     extract (Tuple' total _) = return total
 
@@ -290,38 +320,39 @@ windowSum = Scanl step initial extract extract
 --
 -- This is the \(0\)th power sum.
 --
--- >>> length = Scanl.windowPowerSum 0
+-- >>> incrCount = Scanl.incrPowerSum 0
 --
-{-# INLINE windowLength #-}
-windowLength :: (Monad m, Num b) => Scanl m (a, Maybe a) b
-windowLength = Scanl.mkScanl step 0
+{-# INLINE incrCount #-}
+incrCount :: (Monad m, Num b) => Scanl m (Incr a) b
+incrCount = Scanl.mkScanl step 0
 
     where
 
-    step w (_, Nothing) = w + 1
-    step w _ = w
+    step w (Insert _) = w + 1
+    -- step w (Delete _) = w - 1
+    step w (Replace _ _) = w
 
 -- | Sum of the \(k\)th power of all the elements in a rolling window:
 --
 -- \(S_k = \sum_{i=1}^n x_{i}^k\)
 --
--- >>> windowPowerSum k = Scanl.windowLmap (^ k) Scanl.windowSum
+-- >>> incrPowerSum k = Scanl.lmap (fmap (^ k)) Scanl.incrSum
 --
 -- /Space/: \(\mathcal{O}(1)\)
 --
 -- /Time/: \(\mathcal{O}(n)\)
-{-# INLINE windowPowerSum #-}
-windowPowerSum :: (Monad m, Num a) => Int -> Scanl m (a, Maybe a) a
-windowPowerSum k = windowLmap (^ k) windowSum
+{-# INLINE incrPowerSum #-}
+incrPowerSum :: (Monad m, Num a) => Int -> Scanl m (Incr a) a
+incrPowerSum k = Scanl.lmap (fmap (^ k)) incrSum
 
--- | Like 'powerSum' but powers can be negative or fractional. This is slower
--- than 'powerSum' for positive intergal powers.
+-- | Like 'incrPowerSum' but powers can be negative or fractional. This is
+-- slower than 'incrPowerSum' for positive intergal powers.
 --
--- >>> windowPowerSumFrac p = Scanl.windowLmap (** p) Scanl.windowSum
+-- >>> incrPowerSumFrac p = Scanl.lmap (fmap (** p)) Scanl.incrSum
 --
-{-# INLINE windowPowerSumFrac #-}
-windowPowerSumFrac :: (Monad m, Floating a) => a -> Scanl m (a, Maybe a) a
-windowPowerSumFrac p = windowLmap (** p) windowSum
+{-# INLINE incrPowerSumFrac #-}
+incrPowerSumFrac :: (Monad m, Floating a) => a -> Scanl m (Incr a) a
+incrPowerSumFrac p = Scanl.lmap (fmap (** p)) incrSum
 
 -------------------------------------------------------------------------------
 -- Location
@@ -418,11 +449,11 @@ windowMaximum n = fmap (fmap snd) $ windowRange n
 -- sliding window and Cumulative Moving Avergae (CMA) when used on the entire
 -- stream.
 --
--- >>> mean = Scanl.teeWith (/) Scanl.windowSum Scanl.windowLength
+-- >>> incrMean = Scanl.teeWith (/) Scanl.incrSum Scanl.incrCount
 --
 -- /Space/: \(\mathcal{O}(1)\)
 --
 -- /Time/: \(\mathcal{O}(n)\)
-{-# INLINE windowMean #-}
-windowMean :: forall m a. (Monad m, Fractional a) => Scanl m (a, Maybe a) a
-windowMean = Scanl.teeWith (/) windowSum windowLength
+{-# INLINE incrMean #-}
+incrMean :: forall m a. (Monad m, Fractional a) => Scanl m (Incr a) a
+incrMean = Scanl.teeWith (/) incrSum incrCount
