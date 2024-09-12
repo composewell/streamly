@@ -441,6 +441,8 @@ windowMinimum n = fmap (fmap fst) $ windowRange n
 windowMaximum :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (Maybe a)
 windowMaximum n = fmap (fmap snd) $ windowRange n
 
+-- XXX Returns NaN on empty stream.
+
 -- | Arithmetic mean of elements in a sliding window:
 --
 -- \(\mu = \frac{\sum_{i=1}^n x_{i}}{n}\)
