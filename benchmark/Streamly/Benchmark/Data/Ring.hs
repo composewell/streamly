@@ -10,10 +10,9 @@
 
 module Main (main) where
 
-import Control.Monad (void)
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Ring as Ring
-import qualified Data.Foldable as P
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
@@ -24,21 +23,20 @@ import Prelude as P
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
-unsafeEqArrayN :: (Int, Array.Array Int, (Ring.Ring Int, Int)) -> Bool
-unsafeEqArrayN (value, arr, (ring, rh)) = Ring.unsafeEqArrayN ring rh arr value
+eqArrayN :: (Int, Array.Array Int, Ring.Ring Int) -> IO Bool
+eqArrayN (value, arr, ring) = Ring.eqArrayN ring arr value
 
-unsafeEqArray :: (Array.Array Int, (Ring.Ring Int, Int)) -> Bool
-unsafeEqArray (arr, (ring, rh)) = Ring.unsafeEqArray ring rh arr
+eqArray :: (Array.Array Int, Ring.Ring Int) -> IO Bool
+eqArray (arr, ring) = Ring.eqArray ring arr
 
 -------------------------------------------------------------------------------
 -- Benchmark groups
 -------------------------------------------------------------------------------
 
-o_1_space_serial ::
-       Int -> Array.Array Int -> (Ring.Ring Int, Int) -> [Benchmark]
-o_1_space_serial value arr (ring, rh) =
-    [ bench "unsafeEqArrayN" $ nf unsafeEqArrayN (value, arr, (ring, rh))
-    , bench "unsafeEqArray" $ nf unsafeEqArray (arr, (ring, rh))
+o_1_space_serial :: Int -> Array.Array Int -> Ring.Ring Int -> [Benchmark]
+o_1_space_serial value arr ring =
+    [ bench "eqArrayN" $ nfIO $ eqArrayN (value, arr, ring)
+    , bench "eqArray" $ nfIO $ eqArray (arr, ring)
     ]
 
 -------------------------------------------------------------------------------
@@ -46,7 +44,7 @@ o_1_space_serial value arr (ring, rh) =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Data.Ring.Unboxed"
+moduleName = "Data.Ring"
 
 main :: IO ()
 main = do
@@ -57,12 +55,13 @@ main = do
     alloc value = do
         let input = [1 .. value] :: [Int]
         let arr = Array.fromList input
-        ring <- Ring.emptyOf value
-        void $ P.foldlM (Ring.unsafeInsert ring) 0 input
+        marr <- MutArray.fromList input
+        let ring = maybe (error "cast failed") id (Ring.castMutArray marr)
+
         return (arr, ring)
 
     allBenchmarks (arr, ring) value =
         [ bgroup
               (o_1_space_prefix moduleName)
-              (o_1_space_serial value arr (ring, 0))
+              (o_1_space_serial value arr ring)
         ]

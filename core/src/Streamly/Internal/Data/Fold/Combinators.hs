@@ -47,13 +47,13 @@ module Streamly.Internal.Data.Fold.Combinators
     , maximum
     , minimumBy
     , minimum
+    , rangeBy
+    , range
 
     -- *** Collectors
     -- | Avoid using these folds in scalable or performance critical
     -- applications, they buffer all the input in GC memory which can be
     -- detrimental to performance if the input is large.
-    , toListRev
-    -- $toListRev
     , toStream
     , toStreamRev
     , topBy
@@ -66,7 +66,6 @@ module Streamly.Internal.Data.Fold.Combinators
     -- the 'scanMaybe' combinator. For scanners the result of the fold is
     -- usually a transformation of the current element rather than an
     -- aggregation of all elements till now.
-    , latest
  -- , nthLast -- using Ring array
     , rollingMapM
 
@@ -134,11 +133,6 @@ module Streamly.Internal.Data.Fold.Combinators
     , slide2
 
     -- ** Scanning Input
-    , scanl
-    , scanlMany
-    , postscanl
-    , postscanlMaybe
-    -- , runScan
     , pipe
     , indexed
 
@@ -211,7 +205,6 @@ module Streamly.Internal.Data.Fold.Combinators
 
     -- * Deprecated
     , drainBy
-    , last
     , head
     , sequence
     , mapM
@@ -220,8 +213,6 @@ module Streamly.Internal.Data.Fold.Combinators
     , indexingWith
     , indexing
     , indexingRev
-    , scan
-    , scanMany
     )
 where
 
@@ -236,11 +227,13 @@ import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
+import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Scanl.Type (Scanl(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..))
+import Streamly.Internal.Data.Ring (Ring(..))
 -- import Streamly.Internal.Data.Scan (Scan (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
@@ -249,10 +242,12 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import qualified Prelude
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Array.Type as Array
-import qualified Streamly.Internal.Data.Fold.Window as Fold
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.Ring as Ring
 import qualified Streamly.Internal.Data.Scanl.Combinators as Scanl
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
+import qualified Streamly.Internal.Data.Scanl.Window as Scanl
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
 import Prelude hiding
@@ -489,229 +484,6 @@ pipe (Pipe consume produce pinitial) (Fold fstep finitial fextract ffinal) =
 
     final (Tuple' _ fs) = ffinal fs
 
-{-
-{-# INLINE runScanWith #-}
-runScanWith :: Monad m => Bool -> Scan m a b -> Fold m b c -> Fold m a c
-runScanWith isMany
-    (Scan stepL initialL)
-    (Fold stepR initialR extractR finalR) =
-    Fold step initial extract final
-
-    where
-
-    step (sL, sR) x = do
-        rL <- stepL sL x
-        case rL of
-            StreamD.Yield b sL1 -> do
-                rR <- stepR sR b
-                case rR of
-                    Partial sR1 -> return $ Partial (sL1, sR1)
-                    Done bR -> return (Done bR)
-            StreamD.Skip sL1 -> return $ Partial (sL1, sR)
-            -- XXX We have dropped the input.
-            -- XXX Need same behavior for Stop in Fold so that the driver can
-            -- consistently assume it is dropped.
-            StreamD.Stop ->
-                if isMany
-                then return $ Partial (initialL, sR)
-                else Done <$> finalR sR
-
-    initial = do
-        r <- initialR
-        case r of
-            Partial sR -> return $ Partial (initialL, sR)
-            Done b -> return $ Done b
-
-    extract = extractR . snd
-
-    final = finalR . snd
-
--- | Scan the input of a 'Fold' to change it in a stateful manner using a
--- 'Scan'. The scan stops as soon as the fold terminates.
---
--- /Pre-release/
-{-# INLINE runScan #-}
-runScan :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
-runScan = runScanWith False
--}
-
--- | @postscanl scanner collector@ postscans the input of the @collector@ fold
--- to change it in a stateful manner using 'scanner'.
---
--- /Pre-release/
-{-# INLINE postscanl #-}
-postscanl :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
-postscanl
-    (Scanl stepL initialL extractL finalL)
-    (Fold stepR initialR _ finalR) =
-    Fold step initial undefined final
-
-    where
-
-    {-# INLINE runStep #-}
-    runStep actionL sR = do
-        rL <- actionL
-        case rL of
-            Done bL -> do
-                rR <- stepR sR bL
-                case rR of
-                    Partial sR1 -> Done <$> finalR sR1
-                    Done bR -> return $ Done bR
-            Partial sL -> do
-                !b <- extractL sL
-                rR <- stepR sR b
-                case rR of
-                    Partial sR1 -> return $ Partial (sL, sR1)
-                    Done bR -> finalL sL >> return (Done bR)
-
-    initial = do
-        rR <- initialR
-        case rR of
-            Partial sR -> do
-                rL <- initialL
-                case rL of
-                    Done _ -> Done <$> finalR sR
-                    Partial sL -> return $ Partial (sL, sR)
-            Done b -> return $ Done b
-
-    -- XXX should use Tuple'
-    step (sL, sR) x = runStep (stepL sL x) sR
-
-    final (sL, sR) = finalL sL *> finalR sR
-
--- | Use a 'Maybe' returning left scan for filtering the input of a fold.
---
--- >>> scanlMaybe p f = Fold.postscanl p (Fold.catMaybes f)
---
--- /Pre-release/
-{-# INLINE postscanlMaybe #-}
-postscanlMaybe :: Monad m => Scanl m a (Maybe b) -> Fold m b c -> Fold m a c
-postscanlMaybe f1 f2 = postscanl f1 (catMaybes f2)
-
-{-# INLINE scanWith #-}
-scanWith :: Monad m => Bool -> Fold m a b -> Fold m b c -> Fold m a c
-scanWith isMany
-    (Fold stepL initialL extractL finalL)
-    (Fold stepR initialR extractR finalR) =
-    Fold step initial extract final
-
-    where
-
-    {-# INLINE runStep #-}
-    runStep actionL sR = do
-        rL <- actionL
-        case rL of
-            Done bL -> do
-                rR <- stepR sR bL
-                case rR of
-                    Partial sR1 ->
-                        if isMany
-                        -- XXX recursive call. If initialL returns Done then it
-                        -- will not terminate. In that case we should return
-                        -- error in the beginning itself. And we should remove
-                        -- this recursion, assuming it won't return Done.
-                        then runStep initialL sR1
-                        else Done <$> finalR sR1
-                    Done bR -> return $ Done bR
-            Partial sL -> do
-                !b <- extractL sL
-                rR <- stepR sR b
-                case rR of
-                    Partial sR1 -> return $ Partial (sL, sR1)
-                    Done bR -> finalL sL >> return (Done bR)
-
-    initial = do
-        r <- initialR
-        case r of
-            Partial sR -> runStep initialL sR
-            Done b -> return $ Done b
-
-    step (sL, sR) x = runStep (stepL sL x) sR
-
-    extract = extractR . snd
-
-    final (sL, sR) = finalL sL *> finalR sR
-
--- | Scan the input of a 'Fold' to change it in a stateful manner using another
--- 'Fold'. The scan stops as soon as the fold terminates.
---
--- /Pre-release/
-{-# DEPRECATED scan "Please use 'scanl' instead." #-}
-{-# INLINE scan #-}
-scan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
-scan = scanWith False
-
--- XXX This does not fuse beacuse of the recursive step. Need to investigate.
---
--- | Scan the input of a 'Fold' to change it in a stateful manner using another
--- 'Fold'. The scan restarts with a fresh state if the fold terminates.
---
--- /Pre-release/
-{-# DEPRECATED scanMany "Please use 'scanlMany' instead." #-}
-{-# INLINE scanMany #-}
-scanMany :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
-scanMany = scanWith True
-
-{-# INLINE scanlWith #-}
-scanlWith :: Monad m => Bool -> Scanl m a b -> Fold m b c -> Fold m a c
-scanlWith isMany
-    (Scanl stepL initialL extractL finalL)
-    (Fold stepR initialR _ finalR) =
-    Fold step initial undefined final
-
-    where
-
-    {-# INLINE runStep #-}
-    runStep actionL sR = do
-        rL <- actionL
-        case rL of
-            Done bL -> do
-                rR <- stepR sR bL
-                case rR of
-                    Partial sR1 ->
-                        if isMany
-                        -- XXX recursive call. If initialL returns Done then it
-                        -- will not terminate. In that case we should return
-                        -- error in the beginning itself. And we should remove
-                        -- this recursion, assuming it won't return Done.
-                        then runStep initialL sR1
-                        else Done <$> finalR sR1
-                    Done bR -> return $ Done bR
-            Partial sL -> do
-                !b <- extractL sL
-                rR <- stepR sR b
-                case rR of
-                    Partial sR1 -> return $ Partial (sL, sR1)
-                    Done bR -> finalL sL >> return (Done bR)
-
-    initial = do
-        r <- initialR
-        case r of
-            Partial sR -> runStep initialL sR
-            Done b -> return $ Done b
-
-    step (sL, sR) x = runStep (stepL sL x) sR
-
-    final (sL, sR) = finalL sL *> finalR sR
-
--- | Scan the input of a 'Fold' to change it in a stateful manner using a
--- 'Scanl'. The scan stops as soon as the fold terminates.
---
--- /Pre-release/
-{-# INLINE scanl #-}
-scanl :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
-scanl = scanlWith False
-
--- XXX This does not fuse beacuse of the recursive step. Need to investigate.
-
--- | Scan the input of a 'Fold' to change it in a stateful manner using a
--- 'Scanl'. The scan restarts with a fresh state if it terminates.
---
--- /Pre-release/
-{-# INLINE scanlMany #-}
-scanlMany :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
-scanlMany = scanlWith True
-
 ------------------------------------------------------------------------------
 -- Filters
 ------------------------------------------------------------------------------
@@ -850,20 +622,6 @@ drainMapM f = lmapM f drain
 drainBy ::  Monad m => (a -> m b) -> Fold m a ()
 drainBy = drainMapM
 
--- | Returns the latest element of the input stream, if any.
---
--- >>> latest = Fold.foldl1' (\_ x -> x)
--- >>> latest = fmap getLast $ Fold.foldMap (Last . Just)
---
-{-# INLINE latest #-}
-latest :: Monad m => Fold m a (Maybe a)
-latest = foldl1' (\_ x -> x)
-
-{-# DEPRECATED last "Please use 'latest' instead." #-}
-{-# INLINE last #-}
-last :: Monad m => Fold m a (Maybe a)
-last = latest
-
 -- | Terminates with 'Nothing' as soon as it finds an element different than
 -- the previous one, returns 'the' element if the entire input consists of the
 -- same element.
@@ -899,7 +657,7 @@ the = foldt' step initial id
 --
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => Fold m a a
-sum = Fold.cumulative Fold.windowSum
+sum = Fold.fromScanl $ Scanl.cumulativeScan Scanl.incrSum
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty. The fold terminates
@@ -983,6 +741,16 @@ minimumBy cmp = foldl1' min'
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Fold m a (Maybe a)
 minimum = foldl1' min
+
+{-# INLINE rangeBy #-}
+rangeBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe (a, a))
+rangeBy cmp = fromScanl (Scanl.rangeBy cmp)
+
+-- | Find minimum and maximum elements i.e. (min, max).
+--
+{-# INLINE range #-}
+range :: (Monad m, Ord a) => Fold m a (Maybe (a, a))
+range = fromScanl Scanl.range
 
 ------------------------------------------------------------------------------
 -- To Summary (Statistical)
@@ -1186,29 +954,6 @@ foldMapM act = foldlM' step (pure mempty)
     step m a = do
         m' <- act a
         return $! mappend m m'
-
-------------------------------------------------------------------------------
--- To Containers
-------------------------------------------------------------------------------
-
--- $toListRev
--- This is more efficient than 'Streamly.Internal.Data.Fold.toList'. toList is
--- exactly the same as reversing the list after 'toListRev'.
-
--- | Buffers the input stream to a list in the reverse order of the input.
---
--- Definition:
---
--- >>> toListRev = Fold.foldl' (flip (:)) []
---
--- /Warning!/ working on large lists accumulated as buffers in memory could be
--- very inefficient, consider using "Streamly.Array" instead.
---
-
---  xn : ... : x2 : x1 : []
-{-# INLINE toListRev #-}
-toListRev :: Monad m => Fold m a [a]
-toListRev = foldl' (flip (:)) []
 
 ------------------------------------------------------------------------------
 -- Partial Folds
@@ -1667,13 +1412,13 @@ droppingWhile p = droppingWhileM (return . p)
 -- Binary splitting on a separator
 ------------------------------------------------------------------------------
 
-data SplitOnSeqState acc a rb rh w ck =
+data SplitOnSeqState mba acc a rh w ck =
       SplitOnSeqEmpty !acc
     | SplitOnSeqSingle !acc !a
     | SplitOnSeqWord !acc !Int !w
     | SplitOnSeqWordLoop !acc !w
-    | SplitOnSeqKR !acc !Int !rb !rh
-    | SplitOnSeqKRLoop !acc !ck !rb !rh
+    | SplitOnSeqKR !acc !Int !mba
+    | SplitOnSeqKRLoop !acc !ck !mba !rh
 
 -- XXX Need to add tests for takeEndBySeq, we have tests for takeEndBySeq_ .
 
@@ -1701,6 +1446,9 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
     where
 
     patLen = Array.length patArr
+    patBytes = Array.byteLength patArr
+    maxIndex = patLen - 1
+    maxOffset = patBytes - SIZE_OF(a)
 
     initial = do
         res <- finitial
@@ -1717,13 +1465,12 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
-                    rb <- liftIO $ Ring.emptyOf patLen
-                    return $ Partial $ SplitOnSeqKR acc 0 rb 0
+                    (MutArray mba _ _ _) :: MutArray a <-
+                        liftIO $ MA.emptyOf patLen
+                    return $ Partial $ SplitOnSeqKR acc 0 mba
             Done b -> return $ Done b
 
     -- Word pattern related
-    maxIndex = patLen - 1
-
     elemBits = SIZE_OF(a) * 8
 
     wordMask :: Word
@@ -1784,31 +1531,44 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                 | otherwise ->
                     return $ Partial $ SplitOnSeqWordLoop s1 wrd1
             Done b -> return $ Done b
-    step (SplitOnSeqKR s idx rb rh) x = do
+    step (SplitOnSeqKR s offset mba) x = do
         res <- fstep s x
         case res of
             Partial s1 -> do
-                rh1 <- liftIO $ Ring.unsafeInsert rb rh x
-                if idx == maxIndex
+                liftIO $ pokeAt offset mba x
+                if offset == maxOffset
                 then do
-                    let fld = Ring.unsafeFoldRing (Ring.ringCapacity rb)
-                    let !ringHash = fld addCksum 0 rb
-                    if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+                    let arr :: Array a = Array
+                                { arrContents = mba
+                                , arrStart = 0
+                                , arrEnd = patBytes
+                                }
+                    let ringHash = Array.foldl' addCksum 0 arr
+                    if ringHash == patHash && Array.byteEq arr patArr
                     then Done <$> ffinal s1
-                    else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
+                    else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba 0
                 else
-                    return $ Partial $ SplitOnSeqKR s1 (idx + 1) rb rh1
+                    return $ Partial $ SplitOnSeqKR s1 (offset + SIZE_OF(a)) mba
             Done b -> return $ Done b
-    step (SplitOnSeqKRLoop s cksum rb rh) x = do
+    step (SplitOnSeqKRLoop s cksum mba offset) x = do
         res <- fstep s x
         case res of
             Partial s1 -> do
-                (old :: a) <- Ring.unsafeGetIndex rh rb
-                rh1 <- liftIO $ Ring.unsafeInsert rb rh x
+                let rb = Ring
+                        { ringContents = mba
+                        , ringSize = patBytes
+                        , ringHead = offset
+                        }
+                (rb1, old :: a) <- liftIO (Ring.insert rb x)
                 let ringHash = deltaCksum cksum old x
-                if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+                let rh1 = ringHead rb1
+                matches <-
+                    if ringHash == patHash
+                    then liftIO $ Ring.eqArray rb1 patArr
+                    else return False
+                if matches
                 then Done <$> ffinal s1
-                else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
+                else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba rh1
             Done b -> return $ Done b
 
     extractFunc fex state =
@@ -1818,7 +1578,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                     SplitOnSeqSingle s _ -> s
                     SplitOnSeqWord s _ _ -> s
                     SplitOnSeqWordLoop s _ -> s
-                    SplitOnSeqKR s _ _ _ -> s
+                    SplitOnSeqKR s _ _ -> s
                     SplitOnSeqKRLoop s _ _ _ -> s
         in fex st
 
@@ -1841,6 +1601,9 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
     where
 
     patLen = Array.length patArr
+    patBytes = Array.byteLength patArr
+    maxIndex = patLen - 1
+    maxOffset = patBytes - SIZE_OF(a)
 
     initial = do
         res <- finitial
@@ -1858,13 +1621,12 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
-                    rb <- liftIO $ Ring.emptyOf patLen
-                    return $ Partial $ SplitOnSeqKR acc 0 rb 0
+                    (MutArray mba _ _ _) :: MutArray a <-
+                        liftIO $ MA.emptyOf patLen
+                    return $ Partial $ SplitOnSeqKR acc 0 mba
             Done b -> return $ Done b
 
     -- Word pattern related
-    maxIndex = patLen - 1
-
     elemBits = SIZE_OF(a) * 8
 
     wordMask :: Word
@@ -1927,26 +1689,39 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 | otherwise ->
                     return $ Partial $ SplitOnSeqWordLoop s1 wrd1
             Done b -> return $ Done b
-    step (SplitOnSeqKR s idx rb rh) x = do
-        rh1 <- liftIO $ Ring.unsafeInsert rb rh x
-        if idx == maxIndex
+    step (SplitOnSeqKR s offset mba) x = do
+        liftIO $ pokeAt offset mba x
+        if offset == maxOffset
         then do
-            let fld = Ring.unsafeFoldRing (Ring.ringCapacity rb)
-            let !ringHash = fld addCksum 0 rb
-            if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+            let arr :: Array a = Array
+                        { arrContents = mba
+                        , arrStart = 0
+                        , arrEnd = patBytes
+                        }
+            let ringHash = Array.foldl' addCksum 0 arr
+            if ringHash == patHash && Array.byteEq arr patArr
             then Done <$> ffinal s
-            else return $ Partial $ SplitOnSeqKRLoop s ringHash rb rh1
-        else return $ Partial $ SplitOnSeqKR s (idx + 1) rb rh1
-    step (SplitOnSeqKRLoop s cksum rb rh) x = do
-        old <- Ring.unsafeGetIndex rh rb
+            else return $ Partial $ SplitOnSeqKRLoop s ringHash mba 0
+        else return $ Partial $ SplitOnSeqKR s (offset + SIZE_OF(a)) mba
+    step (SplitOnSeqKRLoop s cksum mba offset) x = do
+        let rb = Ring
+                { ringContents = mba
+                , ringSize = patBytes
+                , ringHead = offset
+                }
+        (rb1, old :: a) <- liftIO (Ring.insert rb x)
         res <- fstep s old
         case res of
             Partial s1 -> do
-                rh1 <- liftIO $ Ring.unsafeInsert rb rh x
                 let ringHash = deltaCksum cksum old x
-                if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+                let rh1 = ringHead rb1
+                matches <-
+                    if ringHash == patHash
+                    then liftIO $ Ring.eqArray rb1 patArr
+                    else return False
+                if matches
                 then Done <$> ffinal s1
-                else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
+                else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba rh1
             Done b -> return $ Done b
 
     -- XXX extract should return backtrack count as well. If the fold
@@ -1964,24 +1739,41 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                         Partial s1 -> consumeWord s1 (n - 1) wrd
                         Done b -> return b
 
-        let consumeRing s n rb rh =
-                if n == 0
+        let consumeArray s end mba offset =
+                if offset == end
                 then fex s
                 else do
-                    old <- Ring.unsafeGetIndex rh rb
-                    let rh1 = Ring.advance rb rh
+                    old <- liftIO $ peekAt offset mba
                     r <- fstep s old
                     case r of
-                        Partial s1 -> consumeRing s1 (n - 1) rb rh1
+                        Partial s1 ->
+                            consumeArray s1 end mba (offset + SIZE_OF(a))
                         Done b -> return b
+
+        let consumeRing s orig mba offset = do
+                let rb :: Ring a = Ring
+                            { ringContents = mba
+                            , ringSize = patBytes
+                            , ringHead = offset
+                            }
+                old <- Ring.unsafeGetHead rb
+                let rb1 = Ring.moveForward rb
+                r <- fstep s old
+                case r of
+                    Partial s1 ->
+                        let rh = ringHead rb1
+                         in if rh == orig
+                            then fex s1
+                            else consumeRing s1 orig mba rh
+                    Done b -> return b
 
         case state of
             SplitOnSeqEmpty s -> fex s
             SplitOnSeqSingle s _ -> fex s
             SplitOnSeqWord s idx wrd -> consumeWord s idx wrd
             SplitOnSeqWordLoop s wrd -> consumeWord s patLen wrd
-            SplitOnSeqKR s idx rb _ -> consumeRing s idx rb 0
-            SplitOnSeqKRLoop s _ rb rh -> consumeRing s patLen rb rh
+            SplitOnSeqKR s end mba -> consumeArray s end mba 0
+            SplitOnSeqKRLoop s _ mba rh -> consumeRing s rh mba rh
 
     extract = extractFunc fextract
 

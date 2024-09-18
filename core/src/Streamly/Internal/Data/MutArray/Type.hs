@@ -158,6 +158,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- *** Size
     , length
     , byteLength
+    , vacate
 
     -- *** Capacity
     -- , capacity
@@ -189,6 +190,7 @@ module Streamly.Internal.Data.MutArray.Type
     , divideBy
     , mergeBy
     , bubble
+    , rangeBy
 
     -- ** Growing and Shrinking
     -- | Arrays grow only at the end, though technically it is possible to
@@ -446,6 +448,7 @@ data MutArray a =
     , arrEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
                                        -- Represents the first invalid index of
                                        -- the array.
+    -- XXX rename to arrCapacity to be consistent with ring.
     , arrBound :: {-# UNPACK #-} !Int    -- ^ first invalid index of arrContents.
     }
 
@@ -1021,6 +1024,13 @@ rightSize arr@MutArray{..} = do
     then realloc target arr
     else return arr
 
+-- | Reset the array end position to start, thus truncating the array to 0
+-- length, making it empty. The capacity of the array remains unchanged. The
+-- array refers to the same memory as before.
+{-# INLINE vacate #-}
+vacate :: MutArray a -> MutArray a
+vacate MutArray{..} = MutArray arrContents arrStart arrStart arrBound
+
 -------------------------------------------------------------------------------
 -- Snoc
 -------------------------------------------------------------------------------
@@ -1540,6 +1550,23 @@ divideBy = undefined
 -- /Unimplemented/
 mergeBy :: Int -> (MutArray a -> MutArray a -> m ()) -> MutArray a -> m ()
 mergeBy = undefined
+
+-- XXX Use vector instructions in arrays to find min/max/range faster
+
+-- XXX If we can mutate the array then we can do pairwise processing to keep
+-- min in the first slot and max in the second. Then compare adjacent mins and
+-- keep the min of those in the first slot, and similarly for max. Thus
+-- reducing the comparisons in binary fashion.
+--
+-- Or we can use mergeBy as defined above.
+--
+-- If we cannot mutate the array then we can (1) copy it and use the above
+-- algo, or (2) stream the array and use pairwise concat.
+
+-- | Find the minimum and maximum elements in the array using the provided
+-- comparison function.
+rangeBy :: (a -> a -> Ordering) -> MutArray a -> IO (Maybe (a, a))
+rangeBy = undefined
 
 -------------------------------------------------------------------------------
 -- Size

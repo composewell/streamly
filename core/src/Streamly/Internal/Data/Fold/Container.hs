@@ -125,7 +125,6 @@ import qualified Streamly.Internal.Data.IsMap as IsMap
 
 import Prelude hiding (Foldable(..))
 import Streamly.Internal.Data.Fold.Type
-import Streamly.Internal.Data.Fold.Combinators
 
 #include "DocTestDataFold.hs"
 

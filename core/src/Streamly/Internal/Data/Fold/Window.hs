@@ -25,6 +25,7 @@
 -- XXX Deprecate all the functions in this module. These should be scans only.
 
 module Streamly.Internal.Data.Fold.Window
+    {-# DEPRECATED "Please use Streamly.Internal.Data.Scanl.Window instead." #-}
     (
     -- * Incremental Folds
     -- | Folds of type @Fold m (a, Maybe a) b@ are incremental sliding window
@@ -41,8 +42,6 @@ module Streamly.Internal.Data.Fold.Window
     --
       windowLmap
     , cumulative
-    , windowFoldWith
-    , windowFold
 
     , windowRollingMap
     , windowRollingMapM
@@ -62,18 +61,16 @@ module Streamly.Internal.Data.Fold.Window
     )
 where
 
-import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad.IO.Class (MonadIO)
 import Data.Bifunctor(bimap)
-import Streamly.Internal.Data.MutArray.Type (MutArray)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
-import Streamly.Internal.Data.Tuple.Strict
-    (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as Fold
-import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 
 import Prelude hiding (length, sum, minimum, maximum)
 
@@ -100,80 +97,6 @@ windowLmap f = Fold.lmap (bimap f (f <$>))
 {-# INLINE cumulative #-}
 cumulative :: Fold m (a, Maybe a) b -> Fold m a b
 cumulative = Fold.lmap (, Nothing)
-
-data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
-
--- | Like windowFold but also provides the entire ring contents as an Array.
--- The array reflects the state of the ring after inserting the incoming
--- element.
---
--- IMPORTANT NOTE: The ring is mutable, therefore, the result of @(m (Array
--- a))@ action depends on when it is executed. It does not capture the sanpshot
--- of the ring at a particular time.
-{-# INLINE windowFoldWith #-}
-windowFoldWith :: forall m a b. (MonadIO m, Unbox a)
-    => Int -> Fold m ((a, Maybe a), m (MutArray a)) b -> Fold m a b
-windowFoldWith n (Fold step1 initial1 extract1 final1) =
-    Fold step initial extract final
-
-    where
-
-    initial = do
-        if n <= 0
-        then error "Window size must be > 0"
-        else do
-            r <- initial1
-            rb <- liftIO $ Ring.emptyOf n
-            return $
-                case r of
-                    Partial s -> Partial $ Tuple4' rb 0 (0 :: Int) s
-                    Done b -> Done b
-
-    toArray foldRing rb rh = do
-        -- Using unpinned array here instead of pinned
-        arr <- liftIO $ MutArray.emptyOf n
-        let snoc' b a = liftIO $ MutArray.unsafeSnoc b a
-        foldRing rh snoc' arr rb
-
-    step (Tuple4' rb rh i st) a
-        | i < n = do
-            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
-            -- NOTE: We use (rh + 1) instead of rh1 in the code below as if we
-            -- are at the last element of the ring, rh1 would become 0 and we
-            -- would not fold anything.
-            let action = toArray Ring.unsafeFoldRingM rb (rh + 1)
-            r <- step1 st ((a, Nothing), action)
-            return $
-                case r of
-                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
-                    Done b -> Done b
-        | otherwise = do
-            old <- Ring.unsafeGetIndex rh rb
-            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
-            r <- step1
-                    st ((a, Just old), toArray Ring.unsafeFoldRingFullM rb rh1)
-            return $
-                case r of
-                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
-                    Done b -> Done b
-
-    extract (Tuple4' _ _ _ st) = extract1 st
-
-    final (Tuple4' _ _ _ st) = final1 st
-
--- | @windowFold collector@ is an incremental sliding window fold that does not
--- require all the intermediate elements in a computation. This maintains @n@
--- elements in the window, when a new element comes it slides out the oldest
--- element and the new element along with the old element are supplied to the
--- collector fold.
---
--- The 'Maybe' type is for the case when initially the window is filling and
--- there is no old element.
---
-{-# INLINE windowFold #-}
-windowFold :: (MonadIO m, Unbox a)
-    => Int -> Fold m (a, Maybe a) b -> Fold m a b
-windowFold n f = windowFoldWith n (Fold.lmap fst f)
 
 -- XXX Exchange the first two arguments of rollingMap or exchange the order in
 -- the fold input tuple.
@@ -342,46 +265,8 @@ windowPowerSumFrac p = windowLmap (** p) windowSum
 --
 {-# INLINE windowRange #-}
 windowRange :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe (a, a))
-windowRange n = Fold step initial extract extract
-
-    where
-
-    -- XXX Use Ring unfold and then fold for composing maximum and minimum to
-    -- get the range.
-
-    initial =
-        if n <= 0
-        then error "range: window size must be > 0"
-        else
-            let f a = Partial $ Tuple3Fused' a 0 (0 :: Int)
-             in fmap f $ liftIO $ Ring.emptyOf n
-
-    step (Tuple3Fused' rb rh i) a = do
-        rh1 <- liftIO $ Ring.unsafeInsert rb rh a
-        return $ Partial $ Tuple3Fused' rb rh1 (i + 1)
-
-    -- XXX We need better Ring array APIs so that we can unfold the ring to a
-    -- stream and fold the stream using a fold of our choice.
-    --
-    -- We could just scan the stream to get a stream of ring buffers and then
-    -- map required folds over those, but we need to be careful that all those
-    -- rings refer to the same mutable ring, therefore, downstream needs to
-    -- process those strictly before it can change.
-    foldFunc i
-        | i < n = Ring.unsafeFoldRingM
-        | otherwise = Ring.unsafeFoldRingFullM
-
-    extract (Tuple3Fused' rb rh i) =
-        if i == 0
-        then return Nothing
-        else do
-            -- Here we use "ringStart" over "ringHead" as "ringHead" will be
-            -- uninitialized if the ring is not full.
-            -- Using "unsafeForeignPtrToPtr" here is safe as we touch the ring
-            -- again in "foldFunc".
-            x <- liftIO $ peekAt 0 (Ring.ringContents rb)
-            let accum (mn, mx) a = return (min mn a, max mx a)
-            fmap Just $ foldFunc i rh accum (x, x) rb
+windowRange =
+    Fold.fromScanl . Ring.scanFoldRingsBy (Fold.fromScanl Scanl.range)
 
 -- | Find the minimum element in a rolling window.
 --
@@ -397,7 +282,8 @@ windowRange n = Fold step initial extract extract
 --
 {-# INLINE windowMinimum #-}
 windowMinimum :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe a)
-windowMinimum n = fmap (fmap fst) $ windowRange n
+windowMinimum =
+    Fold.fromScanl . Ring.scanFoldRingsBy (Fold.fromScanl Scanl.minimum)
 
 -- | The maximum element in a rolling window.
 --
@@ -410,7 +296,8 @@ windowMinimum n = fmap (fmap fst) $ windowRange n
 --
 {-# INLINE windowMaximum #-}
 windowMaximum :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe a)
-windowMaximum n = fmap (fmap snd) $ windowRange n
+windowMaximum =
+    Fold.fromScanl . Ring.scanFoldRingsBy (Fold.fromScanl Scanl.maximum)
 
 -- | Arithmetic mean of elements in a sliding window:
 --

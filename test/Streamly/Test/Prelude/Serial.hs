@@ -220,17 +220,17 @@ splitterProperties sep desc = do
 
     where
 
-    splitOnSeq_ xs ys =
-        toList $ splitOnSeq' (A.fromList ys) FL.toList (S.fromList xs)
+    splitOnSeq_ xs pat =
+        toList $ splitOnSeq' (A.fromList pat) FL.toList (S.fromList xs)
 
-    splitOnSuffixSeq_ xs ys =
-        toList $ splitOnSuffixSeq' (A.fromList ys) FL.toList (S.fromList xs)
+    splitOnSuffixSeq_ xs pat =
+        toList $ splitOnSuffixSeq' (A.fromList pat) FL.toList (S.fromList xs)
 
-    splitOn_ xs ys =
-        toList $ splitOn (== (head ys)) FL.toList (S.fromList xs)
+    splitOn_ xs pat =
+        toList $ splitOn (== (head pat)) FL.toList (S.fromList xs)
 
-    splitOnSuffix_ xs ys =
-        toList $ splitOnSuffix (== (head ys)) FL.toList (S.fromList xs)
+    splitOnSuffix_ xs pat =
+        toList $ splitOnSuffix (== (head pat)) FL.toList (S.fromList xs)
 
     intercalateSuffix xs yss = intercalate xs yss ++ xs
 

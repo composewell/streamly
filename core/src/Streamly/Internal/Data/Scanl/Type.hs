@@ -95,11 +95,20 @@ module Streamly.Internal.Data.Scanl.Type
     , fromRefold
     -- , fromScan
     , drain
+    , latest
+    , functionM
     , toList
     , toStreamK
     , toStreamKRev
     , genericLength
     , length -- call it "count"?
+
+    , maximumBy
+    , maximum
+    , minimumBy
+    , minimum
+    , rangeBy
+    , range
 
     -- * Combinators
 
@@ -183,6 +192,7 @@ import Control.Applicative (liftA2)
 import Control.Monad ((>=>))
 -- import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
+import Data.Functor ((<&>))
 import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
@@ -523,6 +533,25 @@ fromRefold (Refold step inject extract) c =
 drain :: Monad m => Scanl m a ()
 drain = mkScanl (\_ _ -> ()) ()
 
+-- | Returns the latest element of the input stream, if any.
+--
+-- >>> latest = Scanl.mkScanl1 (\_ x -> x)
+-- >>> latest = fmap getLast $ Scanl.foldMap (Last . Just)
+--
+{-# INLINE latest #-}
+latest :: Monad m => Scanl m a (Maybe a)
+latest = mkScanl1 (\_ x -> x)
+
+-- | Lift a Maybe returning function to a scan.
+functionM :: Monad m => (a -> m (Maybe b)) -> Scanl m a (Maybe b)
+functionM f = Scanl step initial return return
+
+    where
+
+    initial = return $ Partial Nothing
+
+    step _ x = f x <&> Partial
+
 -- | Scans the input stream building a list.
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
@@ -579,6 +608,96 @@ genericLength = mkScanl (\n _ -> n + 1) 0
 {-# INLINE length #-}
 length :: Monad m => Scanl m a Int
 length = genericLength
+
+------------------------------------------------------------------------------
+-- To Summary (Maybe)
+------------------------------------------------------------------------------
+
+maxBy :: (a -> a -> Ordering) -> a -> a -> a
+maxBy cmp x y =
+    case cmp x y of
+        GT -> x
+        _ -> y
+
+-- | Determine the maximum element in a stream using the supplied comparison
+-- function.
+--
+{-# INLINE maximumBy #-}
+maximumBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe a)
+maximumBy cmp = mkScanl1 (maxBy cmp)
+
+-- | Determine the maximum element in a stream.
+--
+-- Definitions:
+--
+-- >>> maximum = Scanl.maximumBy compare
+-- >>> maximum = Scanl.mkScanl1 max
+--
+-- Same as the following but without a default maximum. The 'Max' Monoid uses
+-- the 'minBound' as the default maximum:
+--
+-- >>> maximum = fmap Data.Semigroup.getMax $ Scanl.foldMap Data.Semigroup.Max
+--
+{-# INLINE maximum #-}
+maximum :: (Monad m, Ord a) => Scanl m a (Maybe a)
+maximum = mkScanl1 max
+
+minBy :: (a -> a -> Ordering) -> a -> a -> a
+minBy cmp x y =
+    case cmp x y of
+        GT -> y
+        _ -> x
+
+-- | Computes the minimum element with respect to the given comparison function
+--
+{-# INLINE minimumBy #-}
+minimumBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe a)
+minimumBy cmp = mkScanl1 (minBy cmp)
+
+-- | Determine the minimum element in a stream using the supplied comparison
+-- function.
+--
+-- Definitions:
+--
+-- >>> minimum = Scanl.minimumBy compare
+-- >>> minimum = Scanl.mkScanl1 min
+--
+-- Same as the following but without a default minimum. The 'Min' Monoid uses the
+-- 'maxBound' as the default maximum:
+--
+-- >>> maximum = fmap Data.Semigroup.getMin $ Scanl.foldMap Data.Semigroup.Min
+--
+{-# INLINE minimum #-}
+minimum :: (Monad m, Ord a) => Scanl m a (Maybe a)
+minimum = mkScanl1 min
+
+extractRange :: Range a -> Maybe (a, a)
+extractRange RangeNone = Nothing
+extractRange (Range mn mx) = Just (mn, mx)
+
+data Range a = RangeNone | Range !a !a
+
+-- | Find minimum and maximum element using the provided comparison function.
+--
+{-# INLINE rangeBy #-}
+rangeBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe (a, a))
+rangeBy cmp = fmap extractRange $ mkScanl step RangeNone
+
+    where
+
+    step RangeNone x = Range x x
+    step (Range mn mx) x = Range (minBy cmp mn x) (maxBy cmp mx x)
+
+-- | Find minimum and maximum elements i.e. (min, max).
+--
+{-# INLINE range #-}
+range :: (Monad m, Ord a) => Scanl m a (Maybe (a, a))
+range = fmap extractRange $ mkScanl step RangeNone
+
+    where
+
+    step RangeNone x = Range x x
+    step (Range mn mx) x = Range (min mn x) (max mx x)
 
 ------------------------------------------------------------------------------
 -- Instances

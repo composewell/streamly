@@ -367,10 +367,13 @@ module Streamly.Internal.Data.Fold.Type
     , fromScanl
     , drain
     , toList
+    , toListRev
+    -- $toListRev
     , toStreamK
     , toStreamKRev
     , genericLength
     , length
+    , latest
 
     -- * Combinators
 
@@ -380,7 +383,14 @@ module Streamly.Internal.Data.Fold.Type
     -- ** Mapping Input
     , lmap
     , lmapM
+
+    -- ** Scanning input
     , postscan
+    , scanl
+    , scanlMany
+    , postscanl
+    , postscanlMaybe
+    -- , runScan
 
     -- ** Filtering
     , catMaybes
@@ -398,6 +408,9 @@ module Streamly.Internal.Data.Fold.Type
     , takeEndBy_
     , takeEndBy
     , dropping
+
+    -- ** Condition
+    , ifThen
 
     -- ** Sequential application
     , splitWith -- rename to "append"
@@ -445,6 +458,9 @@ module Streamly.Internal.Data.Fold.Type
     , serialWith
     , foldlM1'
     , extractM
+    , scan
+    , scanMany
+    , last
     )
 where
 
@@ -458,6 +474,7 @@ import Data.Bifunctor (Bifunctor(..))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
+import Streamly.Internal.Data.Either.Strict (Either'(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Scanl.Type (Scanl(..))
@@ -466,7 +483,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 -- import qualified Streamly.Internal.Data.Stream.Step as Stream
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
-import Prelude hiding (Foldable(..), concatMap, filter, map, take)
+import Prelude hiding (Foldable(..), concatMap, filter, map, take, scanl, last)
 
 -- Entire module is exported, do not import selectively
 import Streamly.Internal.Data.Fold.Step
@@ -819,6 +836,10 @@ fromRefold (Refold step inject extract) c =
 drain :: Monad m => Fold m a ()
 drain = foldl' (\_ _ -> ()) ()
 
+------------------------------------------------------------------------------
+-- To Containers
+------------------------------------------------------------------------------
+
 -- | Folds the input stream to a list.
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
@@ -830,6 +851,25 @@ drain = foldl' (\_ _ -> ()) ()
 {-# INLINE toList #-}
 toList :: Monad m => Fold m a [a]
 toList = foldr' (:) []
+
+-- $toListRev
+-- This is more efficient than 'Streamly.Internal.Data.Fold.toList'. toList is
+-- exactly the same as reversing the list after 'toListRev'.
+
+-- | Buffers the input stream to a list in the reverse order of the input.
+--
+-- Definition:
+--
+-- >>> toListRev = Fold.foldl' (flip (:)) []
+--
+-- /Warning!/ working on large lists accumulated as buffers in memory could be
+-- very inefficient, consider using "Streamly.Array" instead.
+--
+
+--  xn : ... : x2 : x1 : []
+{-# INLINE toListRev #-}
+toListRev :: Monad m => Fold m a [a]
+toListRev = foldl' (flip (:)) []
 
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
@@ -878,6 +918,20 @@ genericLength = foldl' (\n _ -> n + 1) 0
 {-# INLINE length #-}
 length :: Monad m => Fold m a Int
 length = genericLength
+
+-- | Returns the latest element of the input stream, if any.
+--
+-- >>> latest = Fold.foldl1' (\_ x -> x)
+-- >>> latest = fmap getLast $ Fold.foldMap (Last . Just)
+--
+{-# INLINE latest #-}
+latest :: Monad m => Fold m a (Maybe a)
+latest = foldl1' (\_ x -> x)
+
+{-# DEPRECATED last "Please use 'latest' instead." #-}
+{-# INLINE last #-}
+last :: Monad m => Fold m a (Maybe a)
+last = latest
 
 ------------------------------------------------------------------------------
 -- Instances
@@ -1408,6 +1462,10 @@ lmapM f (Fold step begin done final) = Fold step' begin done final
     where
     step' x a = f a >>= step x
 
+------------------------------------------------------------------------------
+-- Scanning
+------------------------------------------------------------------------------
+
 -- | Postscan the input of a 'Fold' to change it in a stateful manner using
 -- another 'Fold'.
 --
@@ -1456,6 +1514,229 @@ postscan
     extract = extractR . snd
 
     final (sL, sR) = finalL sL *> finalR sR
+
+{-
+{-# INLINE runScanWith #-}
+runScanWith :: Monad m => Bool -> Scan m a b -> Fold m b c -> Fold m a c
+runScanWith isMany
+    (Scan stepL initialL)
+    (Fold stepR initialR extractR finalR) =
+    Fold step initial extract final
+
+    where
+
+    step (sL, sR) x = do
+        rL <- stepL sL x
+        case rL of
+            StreamD.Yield b sL1 -> do
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL1, sR1)
+                    Done bR -> return (Done bR)
+            StreamD.Skip sL1 -> return $ Partial (sL1, sR)
+            -- XXX We have dropped the input.
+            -- XXX Need same behavior for Stop in Fold so that the driver can
+            -- consistently assume it is dropped.
+            StreamD.Stop ->
+                if isMany
+                then return $ Partial (initialL, sR)
+                else Done <$> finalR sR
+
+    initial = do
+        r <- initialR
+        case r of
+            Partial sR -> return $ Partial (initialL, sR)
+            Done b -> return $ Done b
+
+    extract = extractR . snd
+
+    final = finalR . snd
+
+-- | Scan the input of a 'Fold' to change it in a stateful manner using a
+-- 'Scan'. The scan stops as soon as the fold terminates.
+--
+-- /Pre-release/
+{-# INLINE runScan #-}
+runScan :: Monad m => Scan m a b -> Fold m b c -> Fold m a c
+runScan = runScanWith False
+-}
+
+-- | @postscanl scanner collector@ postscans the input of the @collector@ fold
+-- to change it in a stateful manner using 'scanner'.
+--
+-- /Pre-release/
+{-# INLINE postscanl #-}
+postscanl :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
+postscanl
+    (Scanl stepL initialL extractL finalL)
+    (Fold stepR initialR _ finalR) =
+    Fold step initial undefined final
+
+    where
+
+    {-# INLINE runStep #-}
+    runStep actionL sR = do
+        rL <- actionL
+        case rL of
+            Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 -> Done <$> finalR sR1
+                    Done bR -> return $ Done bR
+            Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+
+    initial = do
+        rR <- initialR
+        case rR of
+            Partial sR -> do
+                rL <- initialL
+                case rL of
+                    Done _ -> Done <$> finalR sR
+                    Partial sL -> return $ Partial (sL, sR)
+            Done b -> return $ Done b
+
+    -- XXX should use Tuple'
+    step (sL, sR) x = runStep (stepL sL x) sR
+
+    final (sL, sR) = finalL sL *> finalR sR
+
+-- | Use a 'Maybe' returning left scan for filtering the input of a fold.
+--
+-- >>> scanlMaybe p f = Fold.postscanl p (Fold.catMaybes f)
+--
+-- /Pre-release/
+{-# INLINE postscanlMaybe #-}
+postscanlMaybe :: Monad m => Scanl m a (Maybe b) -> Fold m b c -> Fold m a c
+postscanlMaybe f1 f2 = postscanl f1 (catMaybes f2)
+
+{-# INLINE scanWith #-}
+scanWith :: Monad m => Bool -> Fold m a b -> Fold m b c -> Fold m a c
+scanWith isMany
+    (Fold stepL initialL extractL finalL)
+    (Fold stepR initialR extractR finalR) =
+    Fold step initial extract final
+
+    where
+
+    {-# INLINE runStep #-}
+    runStep actionL sR = do
+        rL <- actionL
+        case rL of
+            Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 ->
+                        if isMany
+                        -- XXX recursive call. If initialL returns Done then it
+                        -- will not terminate. In that case we should return
+                        -- error in the beginning itself. And we should remove
+                        -- this recursion, assuming it won't return Done.
+                        then runStep initialL sR1
+                        else Done <$> finalR sR1
+                    Done bR -> return $ Done bR
+            Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+
+    initial = do
+        r <- initialR
+        case r of
+            Partial sR -> runStep initialL sR
+            Done b -> return $ Done b
+
+    step (sL, sR) x = runStep (stepL sL x) sR
+
+    extract = extractR . snd
+
+    final (sL, sR) = finalL sL *> finalR sR
+
+-- | Scan the input of a 'Fold' to change it in a stateful manner using another
+-- 'Fold'. The scan stops as soon as the fold terminates.
+--
+-- /Pre-release/
+{-# DEPRECATED scan "Please use 'scanl' instead." #-}
+{-# INLINE scan #-}
+scan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
+scan = scanWith False
+
+-- XXX This does not fuse beacuse of the recursive step. Need to investigate.
+--
+-- | Scan the input of a 'Fold' to change it in a stateful manner using another
+-- 'Fold'. The scan restarts with a fresh state if the fold terminates.
+--
+-- /Pre-release/
+{-# DEPRECATED scanMany "Please use 'scanlMany' instead." #-}
+{-# INLINE scanMany #-}
+scanMany :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
+scanMany = scanWith True
+
+{-# INLINE scanlWith #-}
+scanlWith :: Monad m => Bool -> Scanl m a b -> Fold m b c -> Fold m a c
+scanlWith isMany
+    (Scanl stepL initialL extractL finalL)
+    (Fold stepR initialR _ finalR) =
+    Fold step initial undefined final
+
+    where
+
+    {-# INLINE runStep #-}
+    runStep actionL sR = do
+        rL <- actionL
+        case rL of
+            Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 ->
+                        if isMany
+                        -- XXX recursive call. If initialL returns Done then it
+                        -- will not terminate. In that case we should return
+                        -- error in the beginning itself. And we should remove
+                        -- this recursion, assuming it won't return Done.
+                        then runStep initialL sR1
+                        else Done <$> finalR sR1
+                    Done bR -> return $ Done bR
+            Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+
+    initial = do
+        r <- initialR
+        case r of
+            Partial sR -> runStep initialL sR
+            Done b -> return $ Done b
+
+    step (sL, sR) x = runStep (stepL sL x) sR
+
+    final (sL, sR) = finalL sL *> finalR sR
+
+-- | Scan the input of a 'Fold' to change it in a stateful manner using a
+-- 'Scanl'. The scan stops as soon as the fold terminates.
+--
+-- /Pre-release/
+{-# INLINE scanl #-}
+scanl :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
+scanl = scanlWith False
+
+-- XXX This does not fuse beacuse of the recursive step. Need to investigate.
+
+-- | Scan the input of a 'Fold' to change it in a stateful manner using a
+-- 'Scanl'. The scan restarts with a fresh state if it terminates.
+--
+-- /Pre-release/
+{-# INLINE scanlMany #-}
+scanlMany :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
+scanlMany = scanlWith True
 
 ------------------------------------------------------------------------------
 -- Filtering
@@ -1695,6 +1976,34 @@ takeEndBy predicate (Fold fstep finitial fextract ffinal) =
             case res of
                 Partial s1 -> Done <$> ffinal s1
                 Done b -> return $ Done b
+
+-- Fusible if-then-else
+
+-- | Evaluate a condition, if True then use the first fold otherwise use the
+-- second fold.
+{-# INLINE ifThen #-}
+ifThen :: Monad m => m Bool -> Fold m a b -> Fold m a b -> Fold m a b
+ifThen predicate
+    (Fold step1 initial1 extract1 final1)
+    (Fold step2 initial2 extract2 final2)
+    = Fold step initial extract final
+
+    where
+
+    initial = do
+        r <- predicate
+        if r
+        then first Left' <$> initial1
+        else first Right' <$> initial2
+
+    step (Left' s) x = first Left' <$> step1 s x
+    step (Right' s) x = first Right' <$> step2 s x
+
+    extract (Left' s) = extract1 s
+    extract (Right' s) = extract2 s
+
+    final (Left' s) = final1 s
+    final (Right' s) = final2 s
 
 ------------------------------------------------------------------------------
 -- Nesting

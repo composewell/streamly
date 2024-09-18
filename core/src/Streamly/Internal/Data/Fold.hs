@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 -- |
 -- Module      : Streamly.Internal.Data.Fold
 -- Copyright   : (c) 2019 Composewell Technologies

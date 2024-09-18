@@ -121,7 +121,7 @@ import Streamly.Internal.Data.Parser (Parser(..), Initial(..), ParseError(..))
 import Streamly.Internal.Data.Stream (Stream(..))
 import Streamly.Internal.Data.StreamK (StreamK)
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3Fused'(..))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
@@ -129,7 +129,6 @@ import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Serialize.Type as Serialize
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.MutArray as MA
-import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Ring as RB
 import qualified Streamly.Internal.Data.Parser as Parser
 -- import qualified Streamly.Internal.Data.ParserK as ParserK
@@ -205,36 +204,19 @@ last = getIndexRev 0
 -- Folds with Array as the container
 -------------------------------------------------------------------------------
 
--- XXX We should generate this from Ring.
-
 -- | @createOfLast n@ folds a maximum of @n@ elements from the end of the input
 -- stream to an 'Array'.
 --
 {-# INLINE createOfLast #-}
 createOfLast ::
        (Unbox a, MonadIO m) => Int -> Fold m a (Array a)
-createOfLast n
-    | n <= 0 = fmap (const mempty) FL.drain
-    | otherwise = unsafeFreeze <$> Fold step initial done done
+createOfLast n = Fold.ifThen (pure (n <= 0)) (Fold.fromPure empty) lst
 
     where
 
-    step (Tuple3Fused' rb rh i) a = do
-        rh1 <- liftIO $ RB.unsafeInsert rb rh a
-        return $ FL.Partial $ Tuple3Fused' rb rh1 (i + 1)
-
-    initial =
-        let f a = FL.Partial $ Tuple3Fused' a 0 (0 :: Int)
-         in fmap f $ liftIO $ RB.emptyOf n
-
-    done (Tuple3Fused' rb rh i) = do
-        arr <- MA.emptyOf n
-        -- XXX We should write a read unfold for ring.
-        foldFunc i rh MA.unsafeSnoc arr rb
-
-    foldFunc i
-        | i < n = RB.unsafeFoldRingM
-        | otherwise = RB.unsafeFoldRingFullM
+    lst =
+        let f = fmap unsafeFreeze . RB.toMutArray
+         in Fold.rmapM f $ RB.createOfLast n
 
 {-# DEPRECATED writeLastN "Please use createOfLast instead." #-}
 {-# INLINE writeLastN #-}

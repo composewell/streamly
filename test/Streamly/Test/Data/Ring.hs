@@ -8,36 +8,32 @@
 
 module Streamly.Test.Data.Ring (main) where
 
-import Control.Monad (void)
-
+import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Ring as Ring
 
 import Prelude as P
-import qualified Data.Foldable as P
 
 import Test.Hspec as H
 
-unsafeEqArrayN :: [Int] -> [Int] -> Int -> Int -> Bool -> IO ()
-unsafeEqArrayN lstArr lstRing startR nelem expected = do
+eqArrayN :: [Int] -> [Int] -> Int -> Int -> Bool -> IO ()
+eqArrayN lstArr lstRing startR nelem expected = do
     let arr = Array.fromList lstArr
-    ring <- Ring.emptyOf (length lstRing)
-    let rh = 0
-    void $ P.foldlM (Ring.unsafeInsert ring) rh lstRing
-    Ring.unsafeEqArrayN ring (Ring.moveBy startR ring rh) arr nelem
-        `shouldBe` expected
+    marr <- MutArray.fromList lstRing
+    let ring =
+            maybe (error "cast failed") id $ Ring.castMutArrayWith startR marr
+    Ring.eqArrayN ring arr nelem `shouldReturn` expected
 
-unsafeEqArray :: [Int] -> [Int] -> Int -> Bool -> IO ()
-unsafeEqArray lstArr lstRing startR expected = do
+eqArray :: [Int] -> [Int] -> Int -> Bool -> IO ()
+eqArray lstArr lstRing startR expected = do
     let arr = Array.fromList lstArr
-    ring <- Ring.emptyOf (length lstRing)
-    let rh = 0
-    void $ P.foldlM (Ring.unsafeInsert ring) rh lstRing
-    Ring.unsafeEqArray ring (Ring.moveBy startR ring rh) arr
-        `shouldBe` expected
+    marr <- MutArray.fromList lstRing
+    let ring =
+            maybe (error "cast failed") id $ Ring.castMutArrayWith startR marr
+    Ring.eqArray ring arr `shouldReturn` expected
 
 moduleName :: String
-moduleName = "Data.Ring.Unboxed"
+moduleName = "Data.Ring"
 
 main :: IO ()
 main = hspec $ do
@@ -45,11 +41,11 @@ main = hspec $ do
         describe "Eq" $ do
             let lstArr = [0..99]
                 lstRing = [50..99] ++ [0..49]
-            it "unsafeEqArrayN True (n < len)"
-                   $ unsafeEqArrayN lstArr lstRing 50 75 True
-            it "unsafeEqArrayN True (n > len)"
-                   $ unsafeEqArrayN lstArr lstRing 50 200 True
-            it "unsafeEqArrayN False"
-                   $ unsafeEqArrayN lstArr lstRing 10 75 False
-            it "unsafeEqArray True" $ unsafeEqArray lstArr lstRing 50 True
-            it "unsafeEqArray False" $ unsafeEqArray lstArr lstRing 20 False
+            it "eqArrayN True (n < len)"
+                   $ eqArrayN lstArr lstRing 50 75 True
+            it "eqArrayN True (n > len)"
+                   $ eqArrayN lstArr lstRing 50 200 True
+            it "eqArrayN False"
+                   $ eqArrayN lstArr lstRing 10 75 False
+            it "eqArray True" $ eqArray lstArr lstRing 50 True
+            it "eqArray False" $ eqArray lstArr lstRing 20 False

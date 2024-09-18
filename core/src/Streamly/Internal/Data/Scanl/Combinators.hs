@@ -35,10 +35,6 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- run forever on unbounded types like Integer/Double.
     , sum
     , product
-    , maximumBy
-    , maximum
-    , minimumBy
-    , minimum
 
     -- *** Collectors
     -- | Avoid using these folds in scalable or performance critical
@@ -58,7 +54,6 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- the 'postscanlMaybe' combinator. For scanners the result of the fold is
     -- usually a transformation of the current element rather than an
     -- aggregation of all elements till now.
-    , latest
  -- , nthLast -- using Ring array
     , indexingWith
     , indexing
@@ -711,15 +706,6 @@ repeated = error "Not implemented yet!"
 drainMapM ::  Monad m => (a -> m b) -> Scanl m a ()
 drainMapM f = lmapM f drain
 
--- | Returns the latest element of the input stream, if any.
---
--- >>> latest = Scanl.mkScanl1 (\_ x -> x)
--- >>> latest = fmap getLast $ Scanl.foldMap (Last . Just)
---
-{-# INLINE latest #-}
-latest :: Monad m => Scanl m a (Maybe a)
-latest = mkScanl1 (\_ x -> x)
-
 -- | Terminates with 'Nothing' as soon as it finds an element different than
 -- the previous one, returns 'the' element if the entire input consists of the
 -- same element.
@@ -775,70 +761,6 @@ product =  mkScant step (Partial 1) id
         if a == 0
         then Done 0
         else Partial $ x * a
-
-------------------------------------------------------------------------------
--- To Summary (Maybe)
-------------------------------------------------------------------------------
-
--- | Determine the maximum element in a stream using the supplied comparison
--- function.
---
-{-# INLINE maximumBy #-}
-maximumBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe a)
-maximumBy cmp = mkScanl1 max'
-
-    where
-
-    max' x y =
-        case cmp x y of
-            GT -> x
-            _ -> y
-
--- | Determine the maximum element in a stream.
---
--- Definitions:
---
--- >>> maximum = Scanl.maximumBy compare
--- >>> maximum = Scanl.mkScanl1 max
---
--- Same as the following but without a default maximum. The 'Max' Monoid uses
--- the 'minBound' as the default maximum:
---
--- >>> maximum = fmap Data.Semigroup.getMax $ Scanl.foldMap Data.Semigroup.Max
---
-{-# INLINE maximum #-}
-maximum :: (Monad m, Ord a) => Scanl m a (Maybe a)
-maximum = mkScanl1 max
-
--- | Computes the minimum element with respect to the given comparison function
---
-{-# INLINE minimumBy #-}
-minimumBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe a)
-minimumBy cmp = mkScanl1 min'
-
-    where
-
-    min' x y =
-        case cmp x y of
-            GT -> y
-            _ -> x
-
--- | Determine the minimum element in a stream using the supplied comparison
--- function.
---
--- Definitions:
---
--- >>> minimum = Scanl.minimumBy compare
--- >>> minimum = Scanl.mkScanl1 min
---
--- Same as the following but without a default minimum. The 'Min' Monoid uses the
--- 'maxBound' as the default maximum:
---
--- >>> maximum = fmap Data.Semigroup.getMin $ Scanl.foldMap Data.Semigroup.Min
---
-{-# INLINE minimum #-}
-minimum :: (Monad m, Ord a) => Scanl m a (Maybe a)
-minimum = mkScanl1 min
 
 ------------------------------------------------------------------------------
 -- To Summary (Statistical)

@@ -131,6 +131,8 @@ module Streamly.Internal.Data.Stream.Nesting
     -- ** Splitting
     -- | A special case of parsing.
     , wordsBy
+
+    -- XXX these are currently not being used/tested
     , splitOnSeq -- XXX splitOnSeg
     , splitOnSuffixSeq -- XXX splitOnSegSuffix, splitOnTrailer
 
@@ -165,11 +167,14 @@ import GHC.Types (SPEC(..))
 
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Ring (Ring(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Array.Type as A
+import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
@@ -2087,9 +2092,9 @@ data SplitOptions = SplitOptions
 -- because we can use the constructor directly without having to create "jump"
 -- functions.
 {-# ANN type SplitOnSeqState Fuse #-}
-data SplitOnSeqState rb rh ck w fs s b x =
+data SplitOnSeqState mba rb rh ck w fs s b x =
       SplitOnSeqInit
-    | SplitOnSeqYield b (SplitOnSeqState rb rh ck w fs s b x)
+    | SplitOnSeqYield b (SplitOnSeqState mba rb rh ck w fs s b x)
     | SplitOnSeqDone
 
     | SplitOnSeqEmpty !fs s
@@ -2100,12 +2105,12 @@ data SplitOnSeqState rb rh ck w fs s b x =
     | SplitOnSeqWordLoop !w s !fs
     | SplitOnSeqWordDone Int !fs !w
 
-    | SplitOnSeqKRInit Int !fs s rb !rh
-    | SplitOnSeqKRLoop fs s rb !rh !ck
-    | SplitOnSeqKRCheck fs s rb !rh
-    | SplitOnSeqKRDone Int !fs rb !rh
+    | SplitOnSeqKRInit Int !fs s mba
+    | SplitOnSeqKRLoop fs s mba !rh !ck
+    | SplitOnSeqKRCheck fs s mba !rh
+    | SplitOnSeqKRDone Int !fs rb
 
-    | SplitOnSeqReinit (fs -> SplitOnSeqState rb rh ck w fs s b x)
+    | SplitOnSeqReinit (fs -> SplitOnSeqState mba rb rh ck w fs s b x)
 
 {-# INLINE_NORMAL splitOnSeq #-}
 splitOnSeq
@@ -2120,7 +2125,9 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
     where
 
     patLen = A.length patArr
+    patBytes = A.byteLength patArr
     maxIndex = patLen - 1
+    maxOffset = patBytes - SIZE_OF(a)
     elemBits = SIZE_OF(a) * 8
 
     -- For word pattern case
@@ -2173,8 +2180,9 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                                <= sizeOf (Proxy :: Proxy Word)
                           then return $ Skip $ SplitOnSeqWordInit acc state
                           else do
-                              rb <- liftIO $ RB.emptyOf patLen
-                              skip $ SplitOnSeqKRInit 0 acc state rb 0
+                              (MutArray mba _ _ _) :: MutArray a <-
+                                liftIO $ MutArray.emptyOf patLen
+                              skip $ SplitOnSeqKRInit 0 acc state mba
             FL.Done b -> skip $ SplitOnSeqYield b SplitOnSeqInit
 
     stepOuter _ (SplitOnSeqYield x next) = return $ Yield x next
@@ -2302,51 +2310,72 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
     -- General Pattern - Karp Rabin
     -------------------------------
 
-    stepOuter gst (SplitOnSeqKRInit idx fs st rb rh) = do
+    -- XXX Document this pattern for writing efficient code. Loop around only
+    -- required elements in the recursive loop, build the structures being
+    -- manipulated locally e.g. we are pssing only mba, here and build an array
+    -- using patLen and arrStart from the surrounding context.
+
+    stepOuter gst (SplitOnSeqKRInit offset fs st mba) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
-                rh1 <- liftIO $ RB.unsafeInsert rb rh x
-                if idx == maxIndex
+                liftIO $ pokeAt offset mba x
+                if offset == maxOffset
                 then do
-                    let fld = RB.unsafeFoldRing (RB.ringCapacity rb)
-                    let !ringHash = fld addCksum 0 rb
-                    if ringHash == patHash
-                    then skip $ SplitOnSeqKRCheck fs s rb rh1
-                    else skip $ SplitOnSeqKRLoop fs s rb rh1 ringHash
-                else skip $ SplitOnSeqKRInit (idx + 1) fs s rb rh1
-            Skip s -> skip $ SplitOnSeqKRInit idx fs s rb rh
+                    let arr :: Array a = Array
+                                { arrContents = mba
+                                , arrStart = 0
+                                , arrEnd = patBytes
+                                }
+                    let ringHash = A.foldl' addCksum 0 arr
+                    if ringHash == patHash && A.byteEq arr patArr
+                    then skip $ SplitOnSeqKRCheck fs s mba 0
+                    else skip $ SplitOnSeqKRLoop fs s mba 0 ringHash
+                else skip $ SplitOnSeqKRInit (offset + SIZE_OF(a)) fs s mba
+            Skip s -> skip $ SplitOnSeqKRInit offset fs s mba
             Stop -> do
-                skip $ SplitOnSeqKRDone idx fs rb 0
+                let rb = Ring
+                        { ringContents = mba
+                        , ringSize = offset
+                        , ringHead = 0
+                        }
+                skip $ SplitOnSeqKRDone offset fs rb
 
     -- XXX The recursive "go" is more efficient than the state based recursion
     -- code commented out below. Perhaps its more efficient because of
     -- factoring out "rb" outside the loop.
     --
-    stepOuter gst (SplitOnSeqKRLoop fs0 st0 rb rh0 cksum0) =
+    stepOuter gst (SplitOnSeqKRLoop fs0 st0 mba rh0 cksum0) =
         go SPEC fs0 st0 rh0 cksum0
 
         where
 
         go !_ !fs !st !rh !cksum = do
             res <- step (adaptState gst) st
+            let rb = Ring
+                    { ringContents = mba
+                    , ringSize = patBytes
+                    , ringHead = rh
+                    }
             case res of
                 Yield x s -> do
-                    old <- RB.unsafeGetIndex rh rb
-                    let cksum1 = deltaCksum cksum old x
+                    (rb1, old) <- liftIO (RB.insert rb x)
                     r <- fstep fs old
                     case r of
                         FL.Partial fs1 -> do
-                            rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                            let cksum1 = deltaCksum cksum old x
+                            let rh1 = ringHead rb1
                             if cksum1 == patHash
-                            then skip $ SplitOnSeqKRCheck fs1 s rb rh1
+                            then skip $ SplitOnSeqKRCheck fs1 s mba rh1
                             else go SPEC fs1 s rh1 cksum1
                         FL.Done b -> do
-                            let rst = 0
-                                jump c = SplitOnSeqKRInit 0 c s rb rst
+                            -- XXX the old code looks wrong as we are resetting
+                            -- the ring head but the ring still has old
+                            -- elements as we are not resetting the size.
+                            let jump c = SplitOnSeqKRInit 0 c s mba
                             yieldProceed jump b
                 Skip s -> go SPEC fs s rh cksum
-                Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
+                Stop -> skip $ SplitOnSeqKRDone patLen fs rb
 
     -- XXX The following code is 5 times slower compared to the recursive loop
     -- based code above. Need to investigate why. One possibility is that the
@@ -2374,32 +2403,37 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                 Stop -> skip $ SplitOnSeqKRDone patLen fs rb rh
     -}
 
-    stepOuter _ (SplitOnSeqKRCheck fs st rb rh) = do
-        if RB.unsafeEqArray rb rh patArr
+    stepOuter _ (SplitOnSeqKRCheck fs st mba rh) = do
+        let rb = Ring
+                    { ringContents = mba
+                    , ringSize = patBytes
+                    , ringHead = rh
+                    }
+        res <- liftIO $ RB.eqArray rb patArr
+        if res
         then do
             r <- final fs
-            let rst = 0
-                jump c = SplitOnSeqKRInit 0 c st rb rst
+            let jump c = SplitOnSeqKRInit 0 c st mba
             yieldProceed jump r
-        else skip $ SplitOnSeqKRLoop fs st rb rh patHash
+        else skip $ SplitOnSeqKRLoop fs st mba rh patHash
 
-    stepOuter _ (SplitOnSeqKRDone 0 fs _ _) = do
+    stepOuter _ (SplitOnSeqKRDone 0 fs _) = do
         r <- final fs
         skip $ SplitOnSeqYield r SplitOnSeqDone
-    stepOuter _ (SplitOnSeqKRDone n fs rb rh) = do
-        old <- RB.unsafeGetIndex rh rb
-        let rh1 = RB.advance rb rh
+    stepOuter _ (SplitOnSeqKRDone len fs rb) = do
+        old <- RB.unsafeGetHead rb
+        let rb1 = RB.moveForward rb
         r <- fstep fs old
         case r of
-            FL.Partial fs1 -> skip $ SplitOnSeqKRDone (n - 1) fs1 rb rh1
+            FL.Partial fs1 -> skip $ SplitOnSeqKRDone (len - SIZE_OF(a)) fs1 rb1
             FL.Done b -> do
-                 let jump c = SplitOnSeqKRDone (n - 1) c rb rh1
+                 let jump c = SplitOnSeqKRDone (len - SIZE_OF(a)) c rb1
                  yieldProceed jump b
 
 {-# ANN type SplitOnSuffixSeqState Fuse #-}
-data SplitOnSuffixSeqState rb rh ck w fs s b x =
+data SplitOnSuffixSeqState mba rb rh ck w fs s b x =
       SplitOnSuffixSeqInit
-    | SplitOnSuffixSeqYield b (SplitOnSuffixSeqState rb rh ck w fs s b x)
+    | SplitOnSuffixSeqYield b (SplitOnSuffixSeqState mba rb rh ck w fs s b x)
     | SplitOnSuffixSeqDone
 
     | SplitOnSuffixSeqEmpty !fs s
@@ -2411,14 +2445,14 @@ data SplitOnSuffixSeqState rb rh ck w fs s b x =
     | SplitOnSuffixSeqWordLoop !w s !fs
     | SplitOnSuffixSeqWordDone Int !fs !w
 
-    | SplitOnSuffixSeqKRInit Int !fs s rb !rh
-    | SplitOnSuffixSeqKRInit1 !fs s rb !rh
-    | SplitOnSuffixSeqKRLoop fs s rb !rh !ck
-    | SplitOnSuffixSeqKRCheck fs s rb !rh
-    | SplitOnSuffixSeqKRDone Int !fs rb !rh
+    | SplitOnSuffixSeqKRInit !fs s mba
+    | SplitOnSuffixSeqKRInit1 !fs s mba
+    | SplitOnSuffixSeqKRLoop fs s mba !rh !ck
+    | SplitOnSuffixSeqKRCheck fs s mba !rh
+    | SplitOnSuffixSeqKRDone Int !fs rb
 
     | SplitOnSuffixSeqReinit
-          (fs -> SplitOnSuffixSeqState rb rh ck w fs s b x)
+          (fs -> SplitOnSuffixSeqState mba rb rh ck w fs s b x)
 
 {-# INLINE_NORMAL splitOnSuffixSeq #-}
 splitOnSuffixSeq
@@ -2434,7 +2468,9 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
     where
 
     patLen = A.length patArr
+    patBytes = A.byteLength patArr
     maxIndex = patLen - 1
+    maxOffset = patBytes - SIZE_OF(a)
     elemBits = SIZE_OF(a) * 8
 
     -- For word pattern case
@@ -2506,8 +2542,9 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                                <= sizeOf (Proxy :: Proxy Word)
                           then skip $ SplitOnSuffixSeqWordInit fs state
                           else do
-                              rb <- liftIO $ RB.emptyOf patLen
-                              skip $ SplitOnSuffixSeqKRInit 0 fs state rb 0
+                              (MutArray mba _ _ _) :: MutArray a <-
+                                liftIO $ MutArray.emptyOf patLen
+                              skip $ SplitOnSuffixSeqKRInit fs state mba
             FL.Done fb -> skip $ SplitOnSuffixSeqYield fb SplitOnSuffixSeqInit
 
     stepOuter _ (SplitOnSuffixSeqYield x next) = return $ Yield x next
@@ -2652,111 +2689,131 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
     -- General Pattern - Karp Rabin
     -------------------------------
 
-    stepOuter gst (SplitOnSuffixSeqKRInit idx0 fs st0 rb rh0) = do
+    stepOuter gst (SplitOnSuffixSeqKRInit fs st0 mba) = do
         res <- step (adaptState gst) st0
         case res of
             Yield x s -> do
-                rh1 <- liftIO $ RB.unsafeInsert rb rh0 x
+                liftIO $ pokeAt 0 mba x
                 r <- if withSep then fstep fs x else return $ FL.Partial fs
                 case r of
                     FL.Partial fs1 ->
-                        skip $ SplitOnSuffixSeqKRInit1 fs1 s rb rh1
+                        skip $ SplitOnSuffixSeqKRInit1 fs1 s mba
                     FL.Done b -> do
-                        let rst = 0
-                            jump c = SplitOnSuffixSeqKRInit 0 c s rb rst
+                        let jump c = SplitOnSuffixSeqKRInit c s mba
                         yieldProceed jump b
-            Skip s -> skip $ SplitOnSuffixSeqKRInit idx0 fs s rb rh0
+            Skip s -> skip $ SplitOnSuffixSeqKRInit fs s mba
             Stop -> final fs >> return Stop
 
-    stepOuter gst (SplitOnSuffixSeqKRInit1 fs0 st0 rb rh0) = do
-        go SPEC 1 rh0 st0 fs0
+    stepOuter gst (SplitOnSuffixSeqKRInit1 fs0 st0 mba) = do
+        go SPEC (SIZE_OF(a)) st0 fs0
 
         where
 
-        go !_ !idx !rh st !fs = do
+        go !_ !offset st !fs = do
             res <- step (adaptState gst) st
+            let arr :: Array a = Array
+                        { arrContents = mba
+                        , arrStart = 0
+                        , arrEnd = patBytes
+                        }
             case res of
                 Yield x s -> do
-                    rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                    liftIO $ pokeAt offset mba x
                     r <- if withSep then fstep fs x else return $ FL.Partial fs
                     case r of
                         FL.Partial fs1 ->
-                            if idx /= maxIndex
-                            then go SPEC (idx + 1) rh1 s fs1
-                            else skip $
-                                let fld = RB.unsafeFoldRing (RB.ringCapacity rb)
-                                    !ringHash = fld addCksum 0 rb
-                                 in if ringHash == patHash
-                                    then SplitOnSuffixSeqKRCheck fs1 s rb rh1
+                            if offset /= maxOffset
+                            then go SPEC (offset + SIZE_OF(a)) s fs1
+                            else do
+                                let ringHash = A.foldl' addCksum 0 arr
+                                skip $
+                                    if ringHash == patHash
+                                    then SplitOnSuffixSeqKRCheck fs1 s mba 0
                                     else SplitOnSuffixSeqKRLoop
-                                            fs1 s rb rh1 ringHash
+                                            fs1 s mba 0 ringHash
                         FL.Done b -> do
-                            let rst = 0
-                                jump c = SplitOnSuffixSeqKRInit 0 c s rb rst
+                            let jump c = SplitOnSuffixSeqKRInit c s mba
                             yieldProceed jump b
-                Skip s -> go SPEC idx rh s fs
+                Skip s -> go SPEC offset s fs
                 Stop -> do
                     -- do not issue a blank segment when we end at pattern
-                    if (idx == maxIndex) && RB.unsafeEqArray rb rh patArr
+                    if offset == maxOffset && A.byteEq arr patArr
                     then final fs >> return Stop
                     else if withSep
                     then do
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-                    else skip $ SplitOnSuffixSeqKRDone idx fs rb 0
+                    else do
+                        let rb = Ring
+                                { ringContents = mba
+                                , ringSize = offset
+                                , ringHead = 0
+                                }
+                         in skip $ SplitOnSuffixSeqKRDone offset fs rb
 
-    stepOuter gst (SplitOnSuffixSeqKRLoop fs0 st0 rb rh0 cksum0) =
+    stepOuter gst (SplitOnSuffixSeqKRLoop fs0 st0 mba rh0 cksum0) =
         go SPEC fs0 st0 rh0 cksum0
 
         where
 
         go !_ !fs !st !rh !cksum = do
             res <- step (adaptState gst) st
+            let rb = Ring
+                    { ringContents = mba
+                    , ringSize = patBytes
+                    , ringHead = rh
+                    }
             case res of
                 Yield x s -> do
-                    old <- RB.unsafeGetIndex rh rb
-                    rh1 <- liftIO (RB.unsafeInsert rb rh x)
+                    (rb1, old) <- liftIO (RB.insert rb x)
                     let cksum1 = deltaCksum cksum old x
+                    let rh1 = ringHead rb1
                     r <- if withSep then fstep fs x else fstep fs old
                     case r of
                         FL.Partial fs1 ->
                             if cksum1 /= patHash
                             then go SPEC fs1 s rh1 cksum1
-                            else skip $ SplitOnSuffixSeqKRCheck fs1 s rb rh1
+                            else skip $ SplitOnSuffixSeqKRCheck fs1 s mba rh1
                         FL.Done b -> do
-                            let rst = 0
-                                jump c = SplitOnSuffixSeqKRInit 0 c s rb rst
+                            let jump c = SplitOnSuffixSeqKRInit c s mba
                             yieldProceed jump b
                 Skip s -> go SPEC fs s rh cksum
-                Stop ->
-                    if RB.unsafeEqArray rb rh patArr
+                Stop -> do
+                    matches <- liftIO $ RB.eqArray rb patArr
+                    if matches
                     then final fs >> return Stop
                     else if withSep
                     then do
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-                    else skip $ SplitOnSuffixSeqKRDone patLen fs rb rh
+                    else skip $ SplitOnSuffixSeqKRDone patLen fs rb
 
-    stepOuter _ (SplitOnSuffixSeqKRCheck fs st rb rh) = do
-        if RB.unsafeEqArray rb rh patArr
+    stepOuter _ (SplitOnSuffixSeqKRCheck fs st mba rh) = do
+        let rb = Ring
+                    { ringContents = mba
+                    , ringSize = patBytes
+                    , ringHead = rh
+                    }
+        matches <- liftIO $ RB.eqArray rb patArr
+        if matches
         then do
             r <- final fs
-            let rst = 0
-                jump c = SplitOnSuffixSeqKRInit 0 c st rb rst
+            let jump c = SplitOnSuffixSeqKRInit c st mba
             yieldProceed jump r
-        else skip $ SplitOnSuffixSeqKRLoop fs st rb rh patHash
+        else skip $ SplitOnSuffixSeqKRLoop fs st mba rh patHash
 
-    stepOuter _ (SplitOnSuffixSeqKRDone 0 fs _ _) = do
+    stepOuter _ (SplitOnSuffixSeqKRDone 0 fs _) = do
         r <- final fs
         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-    stepOuter _ (SplitOnSuffixSeqKRDone n fs rb rh) = do
-        old <- RB.unsafeGetIndex rh rb
-        let rh1 = RB.advance rb rh
+    stepOuter _ (SplitOnSuffixSeqKRDone len fs rb) = do
+        old <- RB.unsafeGetHead rb
+        let rb1 = RB.moveForward rb
         r <- fstep fs old
         case r of
-            FL.Partial fs1 -> skip $ SplitOnSuffixSeqKRDone (n - 1) fs1 rb rh1
+            FL.Partial fs1 ->
+                skip $ SplitOnSuffixSeqKRDone (len - SIZE_OF(a)) fs1 rb1
             FL.Done b -> do
-                let jump c = SplitOnSuffixSeqKRDone (n - 1) c rb rh1
+                let jump c = SplitOnSuffixSeqKRDone (len - SIZE_OF(a)) c rb1
                 yieldProceed jump b
 
 -- Implement this as a fold or a parser instead.

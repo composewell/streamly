@@ -47,11 +47,10 @@ module Streamly.Internal.Data.Scanl.Window
     -- @window@.
     --
     , cumulativeScan
-    , windowScan
-    , windowScanWith
+    , incrScan
+    , incrScanWith
 
     -- * Incremental Scans
-
     , incrRollingMap -- XXX remove?
     , incrRollingMapM -- XXX remove?
 
@@ -63,20 +62,15 @@ module Streamly.Internal.Data.Scanl.Window
     , incrPowerSumFrac
 
     -- ** Location
-    , windowMinimum
-    , windowMaximum
-    , windowRange
     , incrMean
     )
 where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Streamly.Internal.Data.MutArray.Type (MutArray)
-import Streamly.Internal.Data.Unbox (Unbox(..))
-
+import Streamly.Internal.Data.Ring (Ring)
 import Streamly.Internal.Data.Scanl.Type (Scanl(..), Step(..))
-import Streamly.Internal.Data.Tuple.Strict
-    (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Ring as Ring
@@ -115,19 +109,18 @@ instance Functor Incr where
 -- Utilities
 -------------------------------------------------------------------------------
 
-data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
+data SlidingWindow a r s = SWArray !a !Int !s | SWRing !r !s
 
--- | Like 'windowScan' but also provides the entire ring contents as an Array.
--- The array reflects the state of the ring after inserting the incoming
--- element.
+-- | Like 'windowScan' but also provides the ring array to the scan. The ring
+-- array reflects the state of the ring after inserting the incoming element.
 --
--- IMPORTANT NOTE: The ring is mutable, therefore, the result of @(m (Array
--- a))@ action depends on when it is executed. It does not capture the snapshot
--- of the ring at a particular time.
-{-# INLINE windowScanWith #-}
-windowScanWith :: forall m a b. (MonadIO m, Unbox a)
-    => Int -> Scanl m (Incr a, m (MutArray a)) b -> Scanl m a b
-windowScanWith n (Scanl step1 initial1 extract1 final1) =
+-- IMPORTANT NOTE: The ring is mutable, therefore, references to it should not
+-- be stored and used later, the state would have changed by then. If you need
+-- to store it then copy it to an array or another ring and store it.
+{-# INLINE incrScanWith #-}
+incrScanWith :: forall m a b. (MonadIO m, Unbox a)
+    => Int -> Scanl m (Incr a, Ring a) b -> Scanl m a b
+incrScanWith n (Scanl step1 initial1 extract1 final1) =
     Scanl step initial extract final
 
     where
@@ -137,53 +130,47 @@ windowScanWith n (Scanl step1 initial1 extract1 final1) =
         then error "Window size must be > 0"
         else do
             r <- initial1
-            rb <- liftIO $ Ring.emptyOf n
+            arr <- liftIO $ MutArray.emptyOf n
             return $
                 case r of
-                    Partial s -> Partial $ Tuple4' rb 0 (0 :: Int) s
+                    Partial s -> Partial $ SWArray arr (0 :: Int) s
                     Done b -> Done b
 
-    toArray foldRing rb rh = do
-        -- Using unpinned array here instead of pinned
-        arr <- liftIO $ MutArray.emptyOf n
-        let snoc' b a = liftIO $ MutArray.unsafeSnoc b a
-        foldRing rh snoc' arr rb
+    step (SWArray arr i st) a = do
+        arr1 <- liftIO $ MutArray.unsafeSnoc arr a
+        r <- step1 st (Insert a, Ring.unsafeCastMutArray arr1)
+        return $ case r of
+            Partial s ->
+                let i1 = i + 1
+                in if i1 < n
+                   then Partial $ SWArray arr1 i1 s
+                   else Partial $ SWRing (Ring.unsafeCastMutArray arr1) s
+            Done b -> Done b
 
-    step (Tuple4' rb rh i st) a
-        | i < n = do
-            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
-            -- NOTE: We use (rh + 1) instead of rh1 in the code below as if we
-            -- are at the last element of the ring, rh1 would become 0 and we
-            -- would not fold anything.
-            let action = toArray Ring.unsafeFoldRingM rb (rh + 1)
-            r <- step1 st (Insert a, action)
-            return $
-                case r of
-                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
-                    Done b -> Done b
-        | otherwise = do
-            old <- Ring.unsafeGetIndex rh rb
-            rh1 <- liftIO $ Ring.unsafeInsert rb rh a
-            r <- step1 st (Replace a old, toArray Ring.unsafeFoldRingFullM rb rh1)
-            return $
-                case r of
-                    Partial s -> Partial $ Tuple4' rb rh1 (i + 1) s
-                    Done b -> Done b
+    step (SWRing rb st) a = do
+        (rb1, old) <- Ring.insert rb a
+        r <- step1 st (Replace a old, rb1)
+        return $
+            case r of
+                Partial s -> Partial $ SWRing rb s
+                Done b -> Done b
 
-    extract (Tuple4' _ _ _ st) = extract1 st
+    extract (SWArray _ _ st) = extract1 st
+    extract (SWRing _ st) = extract1 st
 
-    final (Tuple4' _ _ _ st) = final1 st
+    final (SWArray _ _ st) = final1 st
+    final (SWRing _ st) = final1 st
 
--- | @windowScan collector@ is an incremental sliding window scan that does not
+-- | @incrScan collector@ is an incremental sliding window scan that does not
 -- require all the intermediate elements in a computation. This maintains @n@
 -- elements in the window, when a new element comes it slides out the oldest
 -- element and the new element along with the old element are supplied to the
 -- collector fold.
 --
-{-# INLINE windowScan #-}
-windowScan :: forall m a b. (MonadIO m, Unbox a)
+{-# INLINE incrScan #-}
+incrScan :: forall m a b. (MonadIO m, Unbox a)
     => Int -> Scanl m (Incr a) b -> Scanl m a b
-windowScan n f = windowScanWith n (Scanl.lmap fst f)
+incrScan n f = incrScanWith n (Scanl.lmap fst f)
 
 -- | Convert an incremental scan to a cumulative scan using the entire input
 -- stream as a single window.
@@ -358,90 +345,8 @@ incrPowerSumFrac p = Scanl.lmap (fmap (** p)) incrSum
 -- Location
 -------------------------------------------------------------------------------
 
--- XXX Remove MonadIO constraint
-
--- | Determine the maximum and minimum in a rolling window.
---
--- If you want to compute the range of the entire stream @Scanl.teeWith (,)
--- Scanl.maximum Scanl.minimum@ would be much faster.
---
--- /Space/: \(\mathcal{O}(n)\) where @n@ is the window size.
---
--- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
---
-{-# INLINE windowRange #-}
-windowRange :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (Maybe (a, a))
-windowRange n = Scanl step initial extract extract
-
-    where
-
-    -- XXX Use Ring unfold and then fold for composing maximum and minimum to
-    -- get the range.
-
-    initial =
-        if n <= 0
-        then error "range: window size must be > 0"
-        else
-            let f a = Partial $ Tuple3Fused' a 0 (0 :: Int)
-             in fmap f $ liftIO $ Ring.emptyOf n
-
-    step (Tuple3Fused' rb rh i) a = do
-        rh1 <- liftIO $ Ring.unsafeInsert rb rh a
-        return $ Partial $ Tuple3Fused' rb rh1 (i + 1)
-
-    -- XXX We need better Ring array APIs so that we can unfold the ring to a
-    -- stream and fold the stream using a fold of our choice.
-    --
-    -- We could just scan the stream to get a stream of ring buffers and then
-    -- map required folds over those, but we need to be careful that all those
-    -- rings refer to the same mutable ring, therefore, downstream needs to
-    -- process those strictly before it can change.
-    foldFunc i
-        | i < n = Ring.unsafeFoldRingM
-        | otherwise = Ring.unsafeFoldRingFullM
-
-    extract (Tuple3Fused' rb rh i) =
-        if i == 0
-        then return Nothing
-        else do
-            -- Here we use "ringStart" over "ringHead" as "ringHead" will be
-            -- uninitialized if the ring is not full.
-            -- Using "unsafeForeignPtrToPtr" here is safe as we touch the ring
-            -- again in "foldFunc".
-            x <- liftIO $ peekAt 0 (Ring.ringContents rb)
-            let accum (mn, mx) a = return (min mn a, max mx a)
-            fmap Just $ foldFunc i rh accum (x, x) rb
-
--- | Find the minimum element in a rolling window.
---
--- This implementation traverses the entire window buffer to compute the
--- minimum whenever we demand it.  It performs better than the dequeue based
--- implementation in @streamly-statistics@ package when the window size is
--- small (< 30).
---
--- If you want to compute the minimum of the entire stream
--- 'Streamly.Data.Scanl.minimum' is much faster.
---
--- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
---
-{-# INLINE windowMinimum #-}
-windowMinimum :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (Maybe a)
-windowMinimum n = fmap (fmap fst) $ windowRange n
-
--- | The maximum element in a rolling window.
---
--- See the performance related comments in 'minimum'.
---
--- If you want to compute the maximum of the entire stream 'Scanl.maximum' would
--- be much faster.
---
--- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
---
-{-# INLINE windowMaximum #-}
-windowMaximum :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (Maybe a)
-windowMaximum n = fmap (fmap snd) $ windowRange n
-
 -- XXX Returns NaN on empty stream.
+-- XXX remove teeWith for better fusion?
 
 -- | Arithmetic mean of elements in a sliding window:
 --
