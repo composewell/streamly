@@ -78,7 +78,7 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Array/Generic.hs
     benchmark/Streamly/Benchmark/Data/Array/SmallArray.hs
     benchmark/Streamly/Benchmark/Data/Array.hs
-    benchmark/Streamly/Benchmark/Data/Ring/Unboxed.hs
+    benchmark/Streamly/Benchmark/Data/Ring.hs
     benchmark/Streamly/Benchmark/Data/MutArray.hs
     benchmark/Streamly/Benchmark/Data/Array/Stream.hs
     benchmark/Streamly/Benchmark/Data/Fold/Window.hs
@@ -114,7 +114,7 @@ extra-source-files:
     test/Streamly/Test/Data/Array/Generic.hs
     test/Streamly/Test/Data/Array.hs
     test/Streamly/Test/Data/MutArray.hs
-    test/Streamly/Test/Data/Ring/Unboxed.hs
+    test/Streamly/Test/Data/Ring.hs
     test/Streamly/Test/Data/Array/Stream.hs
     test/Streamly/Test/Data/Parser.hs
     test/Streamly/Test/Data/ParserK.hs

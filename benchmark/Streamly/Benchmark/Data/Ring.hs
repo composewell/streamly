@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Data.Ring.Unboxed
+-- Module      : Streamly.Benchmark.Data.Ring
 -- Copyright   : (c) 2022 Composewell
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com

@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Test.Data.Ring.Unboxed
+-- Module      : Streamly.Test.Data.Ring
 -- Copyright   : (c) 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Ring.Unboxed (main) where
+module Streamly.Test.Data.Ring (main) where
 
 import Control.Monad (void)
 
