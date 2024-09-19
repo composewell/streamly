@@ -101,7 +101,7 @@ unsafeInsertRingWith :: Ring a -> a -> IO Int
 unsafeInsertRingWith Ring{..} x = do
     assertM(ringMax >= 1)
     assertM(ringHead < ringMax)
-    MutArray.putIndexUnsafe ringHead ringArr x
+    MutArray.unsafePutIndex ringHead ringArr x
     let rh1 = ringHead + 1
         next = if rh1 == ringMax then 0 else rh1
     return next
@@ -145,8 +145,8 @@ toMutArray adj n Ring{..} =
             -- same array without reallocation.
             arr <- liftIO $ MutArray.emptyOf len
             arr1 <- MutArray.uninit arr len
-            MutArray.putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
-            MutArray.putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
+            MutArray.unsafePutSlice ringArr idx arr1 0 (ringMax - idx)
+            MutArray.unsafePutSlice ringArr 0 arr1 (ringMax - idx) (end - ringMax)
             return arr1
 
 -- | Copy out the mutable ring to a mutable Array.
@@ -161,8 +161,8 @@ copyToMutArray adj n Ring{..} = do
             end = idx + len
         arr <- MutArray.emptyOf len
         arr1 <- MutArray.uninit arr len
-        MutArray.putSliceUnsafe ringArr idx arr1 0 (ringMax - idx)
-        MutArray.putSliceUnsafe ringArr 0 arr1 (ringMax - idx) (end - ringMax)
+        MutArray.unsafePutSlice ringArr idx arr1 0 (ringMax - idx)
+        MutArray.unsafePutSlice ringArr 0 arr1 (ringMax - idx) (end - ringMax)
         return arr1
 
 -- This would be theoretically slower than toMutArray because of a branch

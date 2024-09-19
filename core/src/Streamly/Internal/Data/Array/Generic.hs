@@ -250,7 +250,7 @@ streamFold f arr = f (read arr)
 {-# INLINE getIndexUnsafe #-}
 getIndexUnsafe :: Int -> Array a -> a
 getIndexUnsafe i arr =
-    unsafePerformIO $ MArray.getIndexUnsafe i (unsafeThaw arr)
+    unsafePerformIO $ MArray.unsafeGetIndex i (unsafeThaw arr)
 
 -- | Lookup the element at the given index. Index starts from 0.
 --

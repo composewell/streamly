@@ -57,7 +57,7 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.MutArray.Generic as GenArr
-    ( getIndexUnsafeWith
+    ( unsafeGetIndexWith
     )
 import qualified Streamly.Internal.Data.Array.Generic as GenArr
 import qualified Streamly.Internal.Data.Parser.Type as ParserD
@@ -654,7 +654,7 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
         go !_ !cur !pst | cur >= end =
             onContinue len  pst
         go !_ !cur !pst = do
-            let !x = unsafeInlineIO $ GenArr.getIndexUnsafeWith contents cur
+            let !x = unsafeInlineIO $ GenArr.unsafeGetIndexWith contents cur
             pRes <- pstep pst x
             let next = cur + 1
                 back n = next - n

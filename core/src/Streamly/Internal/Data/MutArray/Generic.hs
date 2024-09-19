@@ -40,7 +40,7 @@ module Streamly.Internal.Data.MutArray.Generic
 
     -- * Random writes
     , putIndex
-    , putIndexUnsafe
+    , unsafePutIndex
     , putIndices
     -- , putFromThenTo
     -- , putFrom -- start writing at the given position
@@ -48,7 +48,7 @@ module Streamly.Internal.Data.MutArray.Generic
     -- , putFromTo
     -- , putFromRev
     -- , putUptoRev
-    , modifyIndexUnsafe
+    , unsafeModifyIndex
     , modifyIndex
     -- , modifyIndices
     -- , modify
@@ -68,7 +68,7 @@ module Streamly.Internal.Data.MutArray.Generic
     , snoc
     -- , snocLinear
     -- , snocMay
-    , snocUnsafe
+    , unsafeSnoc
 
     -- ** Appending streams
     -- , writeAppendNUnsafe
@@ -100,8 +100,8 @@ module Streamly.Internal.Data.MutArray.Generic
 
     -- ** Random reads
     , getIndex
-    , getIndexUnsafe
-    , getIndexUnsafeWith
+    , unsafeGetIndex
+    , unsafeGetIndexWith
     -- , getIndices
     -- , getFromThenTo
     -- , getIndexRev
@@ -144,7 +144,7 @@ module Streamly.Internal.Data.MutArray.Generic
 
     -- ** Construct from arrays
     -- get chunks without copying
-    , getSliceUnsafe
+    , unsafeGetSlice
     , getSlice
     -- , getSlicesFromLenN
     -- , splitAt -- XXX should be able to express using getSlice
@@ -155,7 +155,7 @@ module Streamly.Internal.Data.MutArray.Generic
     -- , spliceWith
     -- , splice
     -- , spliceExp
-    , putSliceUnsafe
+    , unsafePutSlice
     -- , appendSlice
     -- , appendSliceFrom
 
@@ -167,10 +167,18 @@ module Streamly.Internal.Data.MutArray.Generic
     , writeN
     , writeWith
     , write
+    , getIndexUnsafe
+    , getIndexUnsafeWith
+    , putIndexUnsafe
+    , modifyIndexUnsafe
+    , snocUnsafe
+    , getSliceUnsafe
+    , putSliceUnsafe
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 #include "assert.hs"
 
 import Control.Monad (when)
@@ -296,9 +304,9 @@ putIndexUnsafeWith n _arrContents# x =
 -- the index is out of bounds of the array.
 --
 -- /Pre-release/
-{-# INLINE putIndexUnsafe #-}
-putIndexUnsafe :: forall m a. MonadIO m => Int -> MutArray a -> a -> m ()
-putIndexUnsafe i MutArray {..} x =
+{-# INLINE unsafePutIndex #-}
+unsafePutIndex, putIndexUnsafe :: forall m a. MonadIO m => Int -> MutArray a -> a -> m ()
+unsafePutIndex i MutArray {..} x =
     assert (i >= 0 && i < arrLen)
         (putIndexUnsafeWith (i + arrStart) arrContents# x)
 
@@ -316,7 +324,7 @@ invalidIndex label i =
 putIndex :: MonadIO m => Int -> MutArray a -> a -> m ()
 putIndex i arr@MutArray {..} x =
     if i >= 0 && i < arrLen
-    then putIndexUnsafe i arr x
+    then unsafePutIndex i arr x
     else invalidIndex "putIndex" i
 
 -- | Write an input stream of (index, value) pairs to an array. Throws an
@@ -338,8 +346,8 @@ putIndices arr = FL.foldlM' step (return ())
 -- Unsafe because it does not check the bounds of the array.
 --
 -- /Pre-release/
-modifyIndexUnsafe :: MonadIO m => Int -> MutArray a -> (a -> (a, b)) -> m b
-modifyIndexUnsafe i MutArray {..} f = do
+unsafeModifyIndex, modifyIndexUnsafe :: MonadIO m => Int -> MutArray a -> (a -> (a, b)) -> m b
+unsafeModifyIndex i MutArray {..} f = do
     liftIO
         $ IO
         $ \s# ->
@@ -357,7 +365,7 @@ modifyIndexUnsafe i MutArray {..} f = do
 modifyIndex :: MonadIO m => Int -> MutArray a -> (a -> (a, b)) -> m b
 modifyIndex i arr@MutArray {..} f = do
     if i >= 0 && i < arrLen
-    then modifyIndexUnsafe i arr f
+    then unsafeModifyIndex i arr f
     else invalidIndex "modifyIndex" i
 
 -------------------------------------------------------------------------------
@@ -412,12 +420,12 @@ reallocWith label sizer reqSize arr = do
 -- is out of bounds.
 --
 -- /Internal/
-{-# INLINE snocUnsafe #-}
-snocUnsafe :: MonadIO m => MutArray a -> a -> m (MutArray a)
-snocUnsafe arr@MutArray {..} a = do
+{-# INLINE unsafeSnoc #-}
+unsafeSnoc, snocUnsafe :: MonadIO m => MutArray a -> a -> m (MutArray a)
+unsafeSnoc arr@MutArray {..} a = do
     assert (arrStart + arrLen < arrTrueLen) (return ())
     let arr1 = arr {arrLen = arrLen + 1}
-    putIndexUnsafe arrLen arr1 a
+    unsafePutIndex arrLen arr1 a
     return arr1
 
 -- NOINLINE to move it out of the way and not pollute the instruction cache.
@@ -425,7 +433,7 @@ snocUnsafe arr@MutArray {..} a = do
 snocWithRealloc :: MonadIO m => (Int -> Int) -> MutArray a -> a -> m (MutArray a)
 snocWithRealloc sizer arr x = do
     arr1 <- reallocWith "snocWithRealloc" sizer 1 arr
-    snocUnsafe arr1 x
+    unsafeSnoc arr1 x
 
 -- | @snocWith sizer arr elem@ mutates @arr@ to append @elem@. The length of
 -- the array increases by 1.
@@ -441,7 +449,7 @@ snocWithRealloc sizer arr x = do
 snocWith :: MonadIO m => (Int -> Int) -> MutArray a -> a -> m (MutArray a)
 snocWith sizer arr@MutArray {..} x = do
     if arrStart + arrLen < arrTrueLen
-    then snocUnsafe arr x
+    then unsafeSnoc arr x
     else snocWithRealloc sizer arr x
 
 -- XXX round it to next power of 2.
@@ -483,9 +491,9 @@ uninit arr@MutArray{..} len =
 -- a @MutableArray# RealWorld@.
 --
 -- Unsafe because it does not check the bounds of the array.
-{-# INLINE getIndexUnsafeWith #-}
-getIndexUnsafeWith :: MonadIO m => MutableArray# RealWorld a -> Int -> m a
-getIndexUnsafeWith _arrContents# n =
+{-# INLINE unsafeGetIndexWith #-}
+unsafeGetIndexWith, getIndexUnsafeWith :: MonadIO m => MutableArray# RealWorld a -> Int -> m a
+unsafeGetIndexWith _arrContents# n =
     liftIO
         $ IO
         $ \s# ->
@@ -495,9 +503,9 @@ getIndexUnsafeWith _arrContents# n =
 -- | Return the element at the specified index without checking the bounds.
 --
 -- Unsafe because it does not check the bounds of the array.
-{-# INLINE_NORMAL getIndexUnsafe #-}
-getIndexUnsafe :: MonadIO m => Int -> MutArray a -> m a
-getIndexUnsafe n MutArray {..} = getIndexUnsafeWith arrContents# (n + arrStart)
+{-# INLINE_NORMAL unsafeGetIndex #-}
+unsafeGetIndex, getIndexUnsafe :: MonadIO m => Int -> MutArray a -> m a
+unsafeGetIndex n MutArray {..} = unsafeGetIndexWith arrContents# (n + arrStart)
 
 -- | /O(1)/ Lookup the element at the given index. Index starts from 0.
 --
@@ -505,7 +513,7 @@ getIndexUnsafe n MutArray {..} = getIndexUnsafeWith arrContents# (n + arrStart)
 getIndex :: MonadIO m => Int -> MutArray a -> m (Maybe a)
 getIndex i arr@MutArray {..} =
     if i >= 0 && i < arrLen
-    then Just <$> getIndexUnsafe i arr
+    then Just <$> unsafeGetIndex i arr
     else return Nothing
 
 -------------------------------------------------------------------------------
@@ -521,13 +529,13 @@ getIndex i arr@MutArray {..} =
 -- /Unsafe/
 --
 -- /Pre-release/
-{-# INLINE getSliceUnsafe #-}
-getSliceUnsafe
+{-# INLINE unsafeGetSlice #-}
+unsafeGetSlice, getSliceUnsafe
     :: Int -- ^ from index
     -> Int -- ^ length of the slice
     -> MutArray a
     -> MutArray a
-getSliceUnsafe index len arr@MutArray {..} =
+unsafeGetSlice index len arr@MutArray {..} =
     assert (index >= 0 && len >= 0 && index + len <= arrLen)
         $ arr {arrStart = arrStart + index, arrLen = len}
 
@@ -560,7 +568,7 @@ getSlice index len arr@MutArray{..} =
 -- /Pre-release/
 {-# INLINE toList #-}
 toList :: MonadIO m => MutArray a -> m [a]
-toList arr@MutArray{..} = mapM (`getIndexUnsafe` arr) [0 .. (arrLen - 1)]
+toList arr@MutArray{..} = mapM (`unsafeGetIndex` arr) [0 .. (arrLen - 1)]
 
 -- | Generates a stream from the elements of a @MutArray@.
 --
@@ -569,7 +577,7 @@ toList arr@MutArray{..} = mapM (`getIndexUnsafe` arr) [0 .. (arrLen - 1)]
 {-# INLINE_NORMAL read #-}
 read :: MonadIO m => MutArray a -> D.Stream m a
 read arr@MutArray{..} =
-    D.mapM (`getIndexUnsafe` arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
+    D.mapM (`unsafeGetIndex` arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
 
 -- Check equivalence with StreamK.fromStream . toStreamD and remove
 {-# INLINE toStreamK #-}
@@ -581,13 +589,13 @@ toStreamK arr@MutArray{..} = K.unfoldrM step 0
     step i
         | i == arrLen = return Nothing
         | otherwise = do
-            x <- getIndexUnsafe i arr
+            x <- unsafeGetIndex i arr
             return $ Just (x, i + 1)
 
 {-# INLINE_NORMAL readRev #-}
 readRev :: MonadIO m => MutArray a -> D.Stream m a
 readRev arr@MutArray{..} =
-    D.mapM (`getIndexUnsafe` arr)
+    D.mapM (`unsafeGetIndex` arr)
         $ D.enumerateFromThenToIntegral (arrLen - 1) (arrLen - 2) 0
 
 -------------------------------------------------------------------------------
@@ -616,7 +624,7 @@ unsafeCreateOf n = Fold step initial return return
 
     initial = FL.Partial <$> new (max n 0)
 
-    step arr x = FL.Partial <$> snocUnsafe arr x
+    step arr x = FL.Partial <$> unsafeSnoc arr x
 
 {-# DEPRECATED writeNUnsafe "Please use unsafeCreateOf instead." #-}
 {-# INLINE writeNUnsafe #-}
@@ -665,8 +673,8 @@ createWith elemCount = FL.rmapM extract $ FL.foldlM' step initial
         let oldSize = end - start
             newSize = max (oldSize * 2) 1
         arr1 <- realloc newSize arr
-        snocUnsafe arr1 x
-    step arr x = snocUnsafe arr x
+        unsafeSnoc arr1 x
+    step arr x = unsafeSnoc arr x
 
     -- extract = rightSize
     extract = return
@@ -809,7 +817,7 @@ producerWith liftio = Producer step inject extract
     step (arr, i)
         | assert (arrLen arr >= 0) (i == arrLen arr) = return D.Stop
     step (arr, i) = do
-        x <- liftio $ getIndexUnsafe i arr
+        x <- liftio $ unsafeGetIndex i arr
         return $ D.Yield x (arr, i + 1)
 
 -- | Resumable unfold of an array.
@@ -830,10 +838,10 @@ reader = Producer.simplify producer
 
 -- | Put a sub range of a source array into a subrange of a destination array.
 -- This is not safe as it does not check the bounds.
-{-# INLINE putSliceUnsafe #-}
-putSliceUnsafe :: MonadIO m =>
+{-# INLINE unsafePutSlice #-}
+unsafePutSlice, putSliceUnsafe :: MonadIO m =>
     MutArray a -> Int -> MutArray a -> Int -> Int -> m ()
-putSliceUnsafe src srcStart dst dstStart len = liftIO $ do
+unsafePutSlice src srcStart dst dstStart len = liftIO $ do
     assertM(len <= arrLen dst)
     assertM(len <= arrLen src)
     let !(I# srcStart#) = srcStart + arrStart src
@@ -850,7 +858,7 @@ clone :: MonadIO m => MutArray a -> m (MutArray a)
 clone src = do
     let len = arrLen src
     dst <- new len
-    putSliceUnsafe src 0 dst 0 len
+    unsafePutSlice src 0 dst 0 len
     return dst
 
 -------------------------------------------------------------------------------
@@ -885,8 +893,8 @@ cmp a1 a2 =
     loop i
         | i < 0 = return EQ
         | otherwise = do
-            v1 <- getIndexUnsafe i a1
-            v2 <- getIndexUnsafe i a2
+            v1 <- unsafeGetIndex i a1
+            v2 <- unsafeGetIndex i a2
             case compare v1 v2 of
                 EQ -> loop (i - 1)
                 x -> return x
@@ -906,8 +914,8 @@ eq a1 a2 =
     loop i
         | i < 0 = return True
         | otherwise = do
-            v1 <- getIndexUnsafe i a1
-            v2 <- getIndexUnsafe i a2
+            v1 <- unsafeGetIndex i a1
+            v2 <- unsafeGetIndex i a2
             if v1 == v2
             then loop (i - 1)
             else return False
@@ -925,20 +933,32 @@ strip p arr = liftIO $ do
         then return arr
         else
            let newLen = indexR - indexL + 1
-            in return $ getSliceUnsafe indexL newLen arr
+            in return $ unsafeGetSlice indexL newLen arr
 
     where
 
     getIndexR idx
         | idx < 0 = return idx
         | otherwise = do
-            r <- getIndexUnsafe idx arr
+            r <- unsafeGetIndex idx arr
             if p r
             then getIndexR (idx - 1)
             else return idx
 
     getIndexL idx = do
-        r <- getIndexUnsafe idx arr
+        r <- unsafeGetIndex idx arr
         if p r
         then getIndexL (idx + 1)
         else return idx
+
+--------------------------------------------------------------------------------
+-- Renaming
+--------------------------------------------------------------------------------
+
+RENAME(putIndexUnsafe, unsafePutIndex)
+RENAME(modifyIndexUnsafe, unsafeModifyIndex)
+RENAME(getIndexUnsafe, unsafeGetIndex)
+RENAME(getIndexUnsafeWith, unsafeGetIndexWith)
+RENAME(getSliceUnsafe, unsafeGetSlice)
+RENAME(putSliceUnsafe, unsafePutSlice)
+RENAME(snocUnsafe, unsafeSnoc)
