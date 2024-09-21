@@ -301,10 +301,6 @@ benchmark Data.Fold.Window
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Fold
   main-is: Window.hs
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
 
 benchmark Data.MutArray
   import: bench-options
