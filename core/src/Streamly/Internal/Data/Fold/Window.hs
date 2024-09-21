@@ -61,19 +61,24 @@ module Streamly.Internal.Data.Fold.Window
     )
 where
 
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Bifunctor(bimap)
+import Data.Proxy (Proxy(..))
+import Streamly.Internal.Data.Ring (Ring(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..))
-import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+import Streamly.Internal.Data.Tuple.Strict
+    (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
 
 import qualified Streamly.Internal.Data.Fold.Type as Fold
+import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Ring as Ring
-import qualified Streamly.Internal.Data.Scanl.Type as Scanl
+-- import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 
 import Prelude hiding (length, sum, minimum, maximum)
 
+#include "ArrayMacros.h"
 #include "DocTestDataFold.hs"
 
 -------------------------------------------------------------------------------
@@ -252,7 +257,18 @@ windowPowerSumFrac p = windowLmap (** p) windowSum
 -- Location
 -------------------------------------------------------------------------------
 
--- XXX Remove MonadIO constraint
+{-# INLINE ringRange #-}
+ringRange :: (MonadIO m, Unbox a, Ord a) => Ring a -> m (Maybe (a, a))
+-- Ideally this should perform the same as the implementation below, but it is
+-- 2x worse, need to investigate why.
+-- ringRange = Ring.fold (Fold.fromScanl Scanl.range)
+ringRange rb@Ring{..} = do
+    if ringSize == 0
+    then return Nothing
+    else do
+        x <- liftIO $ peekAt 0 ringContents
+        let accum (mn, mx) a = return (min mn a, max mx a)
+         in fmap Just $ Ring.foldlM' accum (x, x) rb
 
 -- | Determine the maximum and minimum in a rolling window.
 --
@@ -264,9 +280,39 @@ windowPowerSumFrac p = windowLmap (** p) windowSum
 -- /Time/: \(\mathcal{O}(n*w)\) where \(w\) is the window size.
 --
 {-# INLINE windowRange #-}
-windowRange :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe (a, a))
-windowRange =
-    Fold.fromScanl . Ring.scanFoldRingsBy (Fold.fromScanl Scanl.range)
+windowRange :: forall m a. (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe (a, a))
+-- windowRange =
+    -- Fold.fromScanl . Ring.scanFoldRingsBy (Fold.fromScanl Scanl.range)
+-- Ideally this should perform the same as the implementation below which is
+-- just expanded form of this. Some inlining/exitify optimization makes this
+-- perform much worse. Need to investigate and fix that.
+-- windowRange = Fold.fromScanl . Ring.scanCustomFoldRingsBy ringRange
+windowRange n = Fold step initial extract extract
+
+    where
+
+    initial =
+        if n <= 0
+        then error "ringsOf: window size must be > 0"
+        else do
+            arr :: MutArray.MutArray a <- liftIO $ MutArray.emptyOf n
+            return $ Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
+
+    step (Tuple3Fused' mba rh i) a = do
+        Ring _ _ rh1 <- Ring.insert_ (Ring mba (n * SIZE_OF(a)) rh) a
+        return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
+
+    -- XXX exitify optimization causes a problem here when modular folds are
+    -- used. Sometimes inlining "extract" is helpful.
+    -- {-# INLINE extract #-}
+    extract (Tuple3Fused' mba rh i) =
+    -- XXX If newest is lower than the current min than new is the min.
+    -- XXX If exiting one was equal to min only then we need to find new min
+    -- XXX We can supply a custom extract function to a generic window
+    -- operation.
+        let rs = min i n * SIZE_OF(a)
+            rh1 = if i <= n then 0 else rh
+         in ringRange $ Ring mba rs rh1
 
 -- | Find the minimum element in a rolling window.
 --
@@ -282,8 +328,9 @@ windowRange =
 --
 {-# INLINE windowMinimum #-}
 windowMinimum :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe a)
-windowMinimum =
-    Fold.fromScanl . Ring.scanFoldRingsBy (Fold.fromScanl Scanl.minimum)
+windowMinimum n = fmap (fmap fst) $ windowRange n
+-- windowMinimum =
+    -- Fold.fromScanl . Ring.scanFoldRingsBy (Fold.fromScanl Scanl.minimum)
 
 -- | The maximum element in a rolling window.
 --
@@ -296,8 +343,9 @@ windowMinimum =
 --
 {-# INLINE windowMaximum #-}
 windowMaximum :: (MonadIO m, Unbox a, Ord a) => Int -> Fold m a (Maybe a)
-windowMaximum =
-    Fold.fromScanl . Ring.scanFoldRingsBy (Fold.fromScanl Scanl.maximum)
+windowMaximum n = fmap (fmap snd) $ windowRange n
+-- windowMaximum =
+    -- Fold.fromScanl . Ring.scanFoldRingsBy (Fold.fromScanl Scanl.maximum)
 
 -- | Arithmetic mean of elements in a sliding window:
 --

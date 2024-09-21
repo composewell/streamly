@@ -31,7 +31,9 @@ module Streamly.Internal.Data.Ring
     , moveBy
 
     -- * In-place Mutation
-    , insert
+    -- introduce "insert" for expanding the ring
+    -- expand by shifting the lesser half towards left or right
+    , insert -- XXX change to "replace"
     , insert_
     , putIndex
     , modifyIndex
@@ -62,13 +64,16 @@ module Streamly.Internal.Data.Ring
     , unsafeCast
     , asBytes
     , asMutArray
+    , asMutArray_
 
     -- * Folds
     , foldlM'
+    , fold
 
     -- * Stream of Rings
     , ringsOf
     , scanRingsOf
+    , scanCustomFoldRingsBy
     , scanFoldRingsBy
 
     -- * Fast Byte Comparisons
@@ -91,6 +96,8 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
+import Fusion.Plugin.Types (Fuse(..))
+import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
@@ -98,6 +105,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..), Step(..), lmap)
 import Streamly.Internal.Data.Scanl.Type (Scanl(..))
 import Streamly.Internal.Data.Stream.Step (Step(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.Tuple.Strict (Tuple3Fused'(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
@@ -107,6 +115,9 @@ import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+-- import qualified Streamly.Internal.Data.Unfold as Unfold
+-- XXX Add scanl benchmarks
+-- XXX check split benchmarks
 
 import Prelude hiding (length, concat, read)
 
@@ -122,6 +133,16 @@ import Prelude hiding (length, concat, read)
 --
 -- Empty (zero-sized) rings are not allowed in construction routines though the
 -- code supports it. We can allow it if there is a compelling use case.
+--
+-- We could represent a ring as a tuple of array and ring head (MutArray a,
+-- Int). The array never changes, only the head does so the array can be passed
+-- as a constant in a loop.
+--
+-- Performance notes: Replacing the oldest item with the newest is a very
+-- common operation, during this operation the only thing that changes is the
+-- ring head. Updating the Ring constructor because of that could be expensive,
+-- therefore, either the Ring constructor should be eliminated via fusion or we
+-- should unbox it manually where needed to allow for only the head to change.
 
 -- | A ring buffer is a circular buffer. A new element is inserted at a
 -- position called the ring head which points to the oldest element in the
@@ -155,7 +176,8 @@ data Ring a = Ring
 --
 -- * Ring size cannot be zero, this won't work correctly if so.
 -- * Absolute value of offset must be less than or equal to the ring size.
--- * Offset must integer multiple of element size.
+-- * Offset must be integer multiple of element size.
+{-# INLINE unsafeChangeHeadByOffset #-}
 unsafeChangeHeadByOffset :: Int -> Int -> Int -> Int
 unsafeChangeHeadByOffset rh rs i =
     let i1 = rh + i
@@ -169,6 +191,7 @@ unsafeChangeHeadByOffset rh rs i =
 -- underlying mutable array. Offset can be positive or negative.
 --
 -- Throws an error if the offset is greater than or equal to the ring size.
+{-# INLINE changeHeadByOffset #-}
 changeHeadByOffset :: Int -> Int -> Int -> Int
 changeHeadByOffset rh rs i =
     if i < rs && i > -rs
@@ -237,6 +260,7 @@ moveReverse rb@Ring{..} =
 
 -- | The array must not be a slice, and the index must be within the bounds of
 -- the array otherwise unpredictable behavior will occur.
+{-# INLINE unsafeCastMutArrayWith #-}
 unsafeCastMutArrayWith :: forall a. Unbox a => Int -> MutArray a -> Ring a
 unsafeCastMutArrayWith i arr =
     Ring
@@ -250,6 +274,7 @@ unsafeCastMutArrayWith i arr =
 --
 -- >>> unsafeCastMutArray = Ring.unsafeCastMutArrayWith 0
 --
+{-# INLINE unsafeCastMutArray #-}
 unsafeCastMutArray :: forall a. Unbox a => MutArray a -> Ring a
 unsafeCastMutArray = unsafeCastMutArrayWith 0
 
@@ -268,6 +293,7 @@ unsafeCastMutArray = unsafeCastMutArrayWith 0
 -- is a slice. In that case clone the array and cast it or stream the array and
 -- use 'createOfLast' to create a ring.
 --
+{-# INLINE castMutArrayWith #-}
 castMutArrayWith :: forall a. Unbox a => Int -> MutArray a -> Maybe (Ring a)
 castMutArrayWith i arr
     | i < 0 || i >= MutArray.length arr
@@ -282,6 +308,7 @@ castMutArrayWith i arr
 --
 -- >>> castMutArray = Ring.castMutArrayWith 0
 --
+{-# INLINE castMutArray #-}
 castMutArray :: forall a. Unbox a => MutArray a -> Maybe (Ring a)
 castMutArray = castMutArrayWith 0
 
@@ -337,6 +364,7 @@ unsafeGetRawIndex i ring = liftIO $ peekAt i (ringContents ring)
 --
 -- Throws an error if the ring is empty.
 --
+{-# INLINE insert #-}
 insert :: forall m a. (MonadIO m, Unbox a) => Ring a -> a -> m (Ring a, a)
 insert rb newVal = do
     -- Note: ring size cannot be zero.
@@ -455,8 +483,6 @@ readRev = Stream.unfold readerRev
 -- Stream of arrays
 -------------------------------------------------------------------------------
 
-data RingsOf a r = WindowsArray !a !Int | WindowsRing !r
-
 -- | @scanRingsOf n@ groups the input stream into a stream of ring arrays of
 -- size up to @n@. The first ring would be of size 1, then 2, and so on up to
 -- size n, when size n is reached the ring starts sliding out the oldest
@@ -467,7 +493,7 @@ data RingsOf a r = WindowsArray !a !Int | WindowsRing !r
 -- iteration of the stream.
 --
 {-# INLINE scanRingsOf #-}
-scanRingsOf :: (MonadIO m, Unbox a) => Int -> Scanl m a (Ring a)
+scanRingsOf :: forall m a. (MonadIO m, Unbox a) => Int -> Scanl m a (Ring a)
 scanRingsOf n = Scanl step initial extract extract
 
     where
@@ -476,23 +502,20 @@ scanRingsOf n = Scanl step initial extract extract
         if n <= 0
         then error "ringsOf: window size must be > 0"
         else do
-            arr <- liftIO $ MutArray.emptyOf n
-            return $ Partial $ WindowsArray arr (0 :: Int)
+            arr :: MutArray.MutArray a <- liftIO $ MutArray.emptyOf n
+            return $ Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
 
-    step (WindowsArray arr i) a = do
-        arr1 <- liftIO $ MutArray.unsafeSnoc arr a
-        let i1 = i + 1
-         in return $ Partial $
-            if i1 < n
-            then WindowsArray arr1 i1
-            else WindowsRing (unsafeCastMutArray arr1)
+    step (Tuple3Fused' mba rh i) a = do
+        Ring _ _ rh1 <- insert_ (Ring mba (n * SIZE_OF(a)) rh) a
+        return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
 
-    step (WindowsRing rb) a = do
-        rb1 <- insert_ rb a
-        return $ Partial $ WindowsRing rb1
-
-    extract (WindowsArray arr _) = return $ unsafeCastMutArray arr
-    extract (WindowsRing r ) = return r
+    -- XXX exitify optimization causes a problem here when modular folds are
+    -- used. Sometimes inlining "extract" is helpful.
+    {-# INLINE extract #-}
+    extract (Tuple3Fused' mba rh i) =
+        let rs = min i n * SIZE_OF(a)
+            rh1 = if i <= n then 0 else rh
+         in pure $ Ring mba rs rh1
 
 -- | @ringsOf n stream@ groups the input stream into a stream of ring arrays of
 -- size up to n. See 'scanRingsOf' for more details.
@@ -506,6 +529,17 @@ ringsOf n = Stream.postscanl (scanRingsOf n)
 -- the fold then we can use asMutArray which could be slightly faster.
 -- f1 rb = Stream.fold f $ MutArray.read $ fst $ Ring.asMutArray rb
 
+-- XXX the size and the array pointer are constant in the stream, only the head
+-- changes on each tick. So we can just emit the head in the loop and keep the
+-- size and pointer global.
+
+{-# INLINE_NORMAL scanCustomFoldRingsBy #-}
+scanCustomFoldRingsBy :: forall m a b. (MonadIO m, Unbox a) =>
+    (Ring a -> m b) -> Int -> Scanl m a b
+-- Custom Ring.fold performs better than the idiomatic implementations below,
+-- perhaps because of some GHC optimization effect.
+scanCustomFoldRingsBy f = Scanl.rmapM f . scanRingsOf
+
 -- | Apply the given fold on sliding windows of the given size. Note that this
 -- could be expensive because each operation goes through the entire window.
 -- This should be used only if there is no efficient alternative way possible.
@@ -517,9 +551,15 @@ ringsOf n = Stream.postscanl (scanRingsOf n)
 -- >>> windowMaximum = Ring.scanFoldRingsBy Fold.maximum
 --
 {-# INLINE scanFoldRingsBy #-}
-scanFoldRingsBy :: (MonadIO m, Unbox a) =>
+scanFoldRingsBy :: forall m a b. (MonadIO m, Unbox a) =>
     Fold m a b -> Int -> Scanl m a b
-scanFoldRingsBy f = Scanl.rmapM (Stream.fold f . read) . scanRingsOf
+-- Custom Ring.fold performs better than the idiomatic implementations below,
+-- perhaps because of some GHC optimization effect.
+scanFoldRingsBy f = scanCustomFoldRingsBy (fold f)
+-- scanFoldRingsBy f = Scanl.rmapM (fold f) . scanRingsOf
+-- scanFoldRingsBy f = Scanl.rmapM (Unfold.fold f reader) . scanRingsOf
+-- scanFoldRingsBy f = Scanl.rmapM (Stream.fold f . read) . scanRingsOf
+
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -539,6 +579,7 @@ createOfLast n = Fold.fromScanl $ scanRingsOf n
 -- | Cast a ring having elements of type @a@ into a ring having elements of
 -- type @b@. The ring size must be a multiple of the size of type @b@.
 --
+{-# INLINE unsafeCast #-}
 unsafeCast :: Ring a -> Ring b
 unsafeCast Ring{..} =
     Ring
@@ -556,6 +597,7 @@ asBytes = unsafeCast
 -- type @b@. The length of the ring should be a multiple of the size of the
 -- target element otherwise 'Nothing' is returned.
 --
+{-# INLINE cast #-}
 cast :: forall a b. (Unbox b) => Ring a -> Maybe (Ring b)
 cast ring =
     let len = byteLength ring
@@ -635,6 +677,41 @@ eqArray Ring{..} Array.Array{..}
 -- Folding
 -------------------------------------------------------------------------------
 
+-- Note: INLINE_NORMAL is important for use in scanFoldRingsBy
+
+-- | Fold the entire length of a ring buffer starting at the current ring head.
+--
+{-# INLINE_NORMAL fold #-}
+fold :: forall m a b. (MonadIO m, Unbox a)
+    => Fold m a b -> Ring a -> m b
+-- These are slower when used in a scan extract. One of the issues is the
+-- exitify optimization, there could be others.
+-- fold f rb = Unfold.fold f reader rb
+-- fold f rb = Stream.fold f $ read rb
+fold (Fold step initial _ final) rb = do
+    res <- initial
+    case res of
+        Fold.Partial fs -> go SPEC rh fs
+        Fold.Done b -> return b
+
+    where
+
+    rh = ringHead rb
+
+    -- Note: Passing the SPEC arg seems to give better results in windowRange
+    -- benchmarks for larger windows, while worse results for smaller windows.
+    {-# INLINE go #-}
+    go !_ index !fs = do
+        x <- unsafeGetRawIndex index rb
+        r <- step fs x
+        case r of
+            Fold.Done b -> return b
+            Fold.Partial s -> do
+                let next = incrHeadByOffset index (ringSize rb) (SIZE_OF(a))
+                if next == rh
+                then final s
+                else go SPEC next s
+
 -- XXX This was for folding when the ring is not full, now we do not support
 -- that so this should not be needed.
 
@@ -673,8 +750,6 @@ unsafeFoldRingM !len f z rb = go z 0
             acc1 <- f acc x
             go acc1 (index + SIZE_OF(a))
 
--- XXX this can be removed. We can use streaming and folding.
-
 -- | Fold the entire length of a ring buffer starting at the current ring head.
 --
 -- Note, this will crash on ring of 0 size.
@@ -682,6 +757,14 @@ unsafeFoldRingM !len f z rb = go z 0
 {-# INLINE foldlM' #-}
 foldlM' :: forall m a b. (MonadIO m, Unbox a)
     => (b -> a -> m b) -> b -> Ring a -> m b
+foldlM' f z = fold (Fold.foldlM' f (pure z))
+
+-- These are slower when used in a scan extract. One of the issues is the
+-- exitify optimization, there could be others.
+-- foldlM' f z rb = Unfold.fold (Fold.foldlM' f (pure z)) reader rb
+-- foldlM' f z rb = Stream.fold (Fold.foldlM' f (pure z)) $ read rb
+
+{-
 foldlM' f z rb = go z rh
 
     where
@@ -691,10 +774,11 @@ foldlM' f z rb = go z rh
     go !acc !index = do
         x <- unsafeGetRawIndex index rb
         acc' <- f acc x
-        let next = unsafeChangeHeadByOffset index (ringSize rb) (SIZE_OF(a))
+        let next = incrHeadByOffset index (ringSize rb) (SIZE_OF(a))
         if next == rh
         then return acc'
         else go acc' next
+-}
 
 {-# DEPRECATED unsafeFoldRingFullM "This function will be removed in future." #-}
 {-# INLINE unsafeFoldRingFullM #-}
@@ -729,6 +813,7 @@ unsafeFoldRingNM count f z rb = go count z rh
 -- | Cast the ring to a mutable array. Return the mutable array as well as the
 -- current position of the ring head. Note that the array does not start with
 -- the current ring head. The array refers to the same memory as the ring.
+{-# INLINE asMutArray #-}
 asMutArray :: Ring a -> (MutArray a, Int)
 asMutArray rb =
     ( MutArray
@@ -739,6 +824,16 @@ asMutArray rb =
         }
     , ringHead rb
     )
+
+{-# INLINE asMutArray_ #-}
+asMutArray_ :: Ring a -> MutArray a
+asMutArray_ rb =
+    MutArray
+        { arrContents = ringContents rb
+        , arrStart = 0
+        , arrEnd = ringSize rb
+        , arrBound = ringSize rb
+        }
 
 -- XXX We can use bulk copy using memcpy or at least a Word64 at a time.
 
@@ -774,7 +869,8 @@ toList = Stream.toList . read
 showRing :: (Unbox a, Show a) => Ring a -> IO String
 showRing rb = show <$> toList rb
 
-data SlidingWindow a r s = SWArray !a !Int !s | SWRing !r !Int !s
+{-# ANN type SlidingWindow Fuse #-}
+data SlidingWindow a s = SWArray !a !Int !s !Int | SWRing !a !Int !s
 
 -- | Like slidingWindow but also provides the entire ring contents as an Array.
 -- The array reflects the state of the ring after inserting the incoming
@@ -797,34 +893,36 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
         then error "Window size must be > 0"
         else do
             r <- initial1
-            arr <- liftIO $ MutArray.emptyOf n
+            arr :: MutArray.MutArray a <- liftIO $ MutArray.emptyOf n
             return $
                 case r of
-                    Partial s -> Partial $ SWArray arr (0 :: Int) s
+                    Partial s -> Partial
+                        $ SWArray (MutArray.arrContents arr) 0 s n
                     Done b -> Done b
 
-    step (SWArray arr i st) a = do
-        arr1 <- liftIO $ MutArray.unsafeSnoc arr a
-        r <- step1 st ((a, Nothing), return arr1)
-        return $ case r of
-            Partial s ->
-                let i1 = i + 1
-                in if i1 < n
-                   then Partial $ SWArray arr1 i1 s
-                   else Partial $ SWRing (unsafeCastMutArray arr1) i1 s
-            Done b -> Done b
-    step (SWRing rb i st) a = do
-        (rb1, old) <- insert rb a
-        r <- step1 st ((a, Just old), toMutArray rb1)
+    step (SWArray mba rh st i) a = do
+        Ring _ _ rh1 <- insert_ (Ring mba (n * SIZE_OF(a)) rh) a
+        r <- step1 st ((a, Nothing), toMutArray undefined)
         return $
             case r of
-                Partial s -> Partial $ SWRing rb (i + 1) s
+                Partial s ->
+                    if i > 0
+                    then Partial $ SWArray mba rh1 s (i-1)
+                    else Partial $ SWRing mba rh1 s
                 Done b -> Done b
 
-    extract (SWArray _ _ st) = extract1 st
+    step (SWRing mba rh st) a = do
+        (Ring _ _ rh1, old) <- insert (Ring mba (n * SIZE_OF(a)) rh) a
+        r <- step1 st ((a, Just old), toMutArray undefined)
+        return $
+            case r of
+                Partial s -> Partial $ SWRing mba rh1 s
+                Done b -> Done b
+
+    extract (SWArray _ _ st _) = extract1 st
     extract (SWRing _ _ st) = extract1 st
 
-    final (SWArray _ _ st) = final1 st
+    final (SWArray _ _ st _) = final1 st
     final (SWRing _ _ st) = final1 st
 
 -- | @slidingWindow collector@ is an incremental sliding window

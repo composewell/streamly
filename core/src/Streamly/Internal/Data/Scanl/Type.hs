@@ -613,6 +613,7 @@ length = genericLength
 -- To Summary (Maybe)
 ------------------------------------------------------------------------------
 
+{-# INLINE maxBy #-}
 maxBy :: (a -> a -> Ordering) -> a -> a -> a
 maxBy cmp x y =
     case cmp x y of
@@ -642,6 +643,7 @@ maximumBy cmp = mkScanl1 (maxBy cmp)
 maximum :: (Monad m, Ord a) => Scanl m a (Maybe a)
 maximum = mkScanl1 max
 
+{-# INLINE minBy #-}
 minBy :: (a -> a -> Ordering) -> a -> a -> a
 minBy cmp x y =
     case cmp x y of
