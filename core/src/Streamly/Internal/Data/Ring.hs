@@ -902,7 +902,8 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
 
     step (SWArray mba rh st i) a = do
         Ring _ _ rh1 <- insert_ (Ring mba (n * SIZE_OF(a)) rh) a
-        r <- step1 st ((a, Nothing), toMutArray undefined)
+        let size = (n - i) * SIZE_OF(a)
+        r <- step1 st ((a, Nothing), pure (MutArray mba 0 size size))
         return $
             case r of
                 Partial s ->
@@ -912,8 +913,8 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
                 Done b -> Done b
 
     step (SWRing mba rh st) a = do
-        (Ring _ _ rh1, old) <- insert (Ring mba (n * SIZE_OF(a)) rh) a
-        r <- step1 st ((a, Just old), toMutArray undefined)
+        (rb1@(Ring _ _ rh1), old) <- insert (Ring mba (n * SIZE_OF(a)) rh) a
+        r <- step1 st ((a, Just old), toMutArray rb1)
         return $
             case r of
                 Partial s -> Partial $ SWRing mba rh1 s

@@ -71,6 +71,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Proxy (Proxy(..))
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Ring (Ring(..))
 import Streamly.Internal.Data.Scanl.Type (Scanl(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict
@@ -115,7 +116,9 @@ instance Functor Incr where
 -- Utilities
 -------------------------------------------------------------------------------
 
+{-# ANN type SlidingWindow Fuse #-}
 data SlidingWindow a r s = SWArray !a !Int !s | SWRing !r !s
+-- data SlidingWindow a s = SWArray !a !Int !s !Int | SWRing !a !Int !s
 
 -- | Like 'windowScan' but also provides the ring array to the scan. The ring
 -- array reflects the state of the ring after inserting the incoming element.
@@ -166,6 +169,48 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
 
     final (SWArray _ _ st) = final1 st
     final (SWRing _ st) = final1 st
+
+    -- Alternative implementation flattening the constructors
+    -- Improves some benchmarks, worsens some others, need more investigation.
+    {-
+    initial = do
+        if n <= 0
+        then error "Window size must be > 0"
+        else do
+            r <- initial1
+            arr :: MutArray.MutArray a <- liftIO $ MutArray.emptyOf n
+            return $
+                case r of
+                    Partial s -> Partial
+                        $ SWArray (MutArray.arrContents arr) 0 s n
+                    Done b -> Done b
+
+    step (SWArray mba rh st i) a = do
+        Ring _ _ rh1 <- Ring.insert_ (Ring mba (n * SIZE_OF(a)) rh) a
+        r <- step1 st (Insert a, Ring mba ((n - i) * SIZE_OF(a)) rh1)
+        return $
+            case r of
+                Partial s ->
+                    if i > 0
+                    then Partial $ SWArray mba rh1 s (i-1)
+                    else Partial $ SWRing mba rh1 s
+                Done b -> Done b
+
+    step (SWRing mba rh st) a = do
+        (rb1@(Ring _ _ rh1), old) <-
+            Ring.insert (Ring mba (n * SIZE_OF(a)) rh) a
+        r <- step1 st (Replace a old, rb1)
+        return $
+            case r of
+                Partial s -> Partial $ SWRing mba rh1 s
+                Done b -> Done b
+
+    extract (SWArray _ _ st _) = extract1 st
+    extract (SWRing _ _ st) = extract1 st
+
+    final (SWArray _ _ st _) = final1 st
+    final (SWRing _ _ st) = final1 st
+    -}
 
 -- | @incrScan collector@ is an incremental sliding window scan that does not
 -- require all the intermediate elements in a computation. This maintains @n@

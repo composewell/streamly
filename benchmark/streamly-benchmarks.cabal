@@ -384,6 +384,12 @@ benchmark Data.Ring
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
+benchmark Data.Scanl.Window
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Scanl
+  main-is: Window.hs
+
 -- XXX Should be renamed to MutByteArray
 benchmark Data.Serialize
   import: bench-options

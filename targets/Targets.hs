@@ -89,8 +89,13 @@ targets =
             , "noTest"
             ]
       )
-    , ("Data.Ring.Unboxed",
+    , ("Data.Ring",
             [ "array_grp"
+            ]
+      )
+    , ("Data.Scanl.Window",
+            [ "infinite_grp"
+            , "fold_parser_grp"
             ]
       )
     , ("Data.Serialize",
