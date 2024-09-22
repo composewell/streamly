@@ -9,13 +9,14 @@
 
 module Streamly.Test.Data.Stream.Concurrent (main) where
 
-#ifdef DEVBUILD
 import Control.Concurrent (threadDelay)
-#endif
 import Control.Exception (Exception, try)
 import Control.Monad (replicateM)
 import Control.Monad.Catch (throwM)
+import Data.Function ( (&) )
+import Data.IORef ( newIORef, readIORef, writeIORef)
 import Data.List (sort)
+import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
 import Streamly.Data.Stream (Stream)
 import Test.Hspec.QuickCheck
@@ -23,9 +24,9 @@ import Test.QuickCheck (Testable, Property, choose, forAll, withMaxSuccess)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
-import qualified Streamly.Data.Fold as Fold ( toList )
-import qualified Streamly.Data.Stream as Stream
-    ( replicate, fromEffect, fromPure, fromList, fold, take, nil )
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Async
 
 import Streamly.Test.Common (listEquals)
@@ -218,6 +219,37 @@ sequenceReplicate cfg = constructWithLenM stream list
     list = flip replicateM (return 1 :: IO Int)
     stream = Async.parSequence cfg . flip Stream.replicate (return 1 :: IO Int)
 
+drainMapM :: Monad m => (a -> m b) -> Stream m a -> m ()
+drainMapM f = Stream.fold (Fold.drainMapM f)
+
+testFromCallback :: IO Int
+testFromCallback = do
+    ref <- newIORef Nothing
+    let stream =
+           Stream.parList (Stream.eager True)
+                [ fmap Just (Stream.fromCallback (setCallback ref))
+                , runCallback ref
+                ]
+    Stream.fold Fold.sum $ fmap fromJust $ Stream.takeWhile isJust stream
+
+    where
+
+    setCallback ref cb = do
+        writeIORef ref (Just cb)
+
+    runCallback ref = Stream.fromEffect $ do
+        cb <-
+             Stream.repeatM (readIORef ref)
+                & Stream.delayPost 0.1
+                & Stream.mapMaybe id
+                & Stream.fold Fold.one
+
+        Stream.fromList [1..100]
+            & Stream.delayPost 0.001
+            & drainMapM (fromJust cb)
+        threadDelay 100000
+        return Nothing
+
 main :: IO ()
 main = hspec
   $ H.parallel
@@ -361,3 +393,4 @@ main = hspec
         describe "Exception propagation" $ exceptionPropagation async
         -- Ad-hoc tests
         it "takes n from stream of streams" $ takeCombined 2
+        it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
