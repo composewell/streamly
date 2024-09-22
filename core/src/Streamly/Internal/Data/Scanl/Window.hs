@@ -157,7 +157,7 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
             Done b -> Done b
 
     step (SWRing rb st) a = do
-        (rb1, old) <- Ring.insert rb a
+        (rb1, old) <- Ring.replace rb a
         r <- step1 st (Replace a old, rb1)
         return $
             case r of
@@ -445,7 +445,7 @@ windowRange n = Scanl step initial extract extract
             return $ Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
 
     step (Tuple3Fused' mba rh i) a = do
-        Ring _ _ rh1 <- Ring.insert_ (Ring mba (n * SIZE_OF(a)) rh) a
+        Ring _ _ rh1 <- Ring.replace_ (Ring mba (n * SIZE_OF(a)) rh) a
         return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
 
     -- XXX exitify optimization causes a problem here when modular folds are

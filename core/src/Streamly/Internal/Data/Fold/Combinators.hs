@@ -1559,7 +1559,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                         , ringSize = patBytes
                         , ringHead = offset
                         }
-                (rb1, old :: a) <- liftIO (Ring.insert rb x)
+                (rb1, old :: a) <- liftIO (Ring.replace rb x)
                 let ringHash = deltaCksum cksum old x
                 let rh1 = ringHead rb1
                 matches <-
@@ -1709,7 +1709,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 , ringSize = patBytes
                 , ringHead = offset
                 }
-        (rb1, old :: a) <- liftIO (Ring.insert rb x)
+        (rb1, old :: a) <- liftIO (Ring.replace rb x)
         res <- fstep s old
         case res of
             Partial s1 -> do

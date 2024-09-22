@@ -31,10 +31,9 @@ module Streamly.Internal.Data.Ring
     , moveBy
 
     -- * In-place Mutation
-    -- introduce "insert" for expanding the ring
-    -- expand by shifting the lesser half towards left or right
-    , insert -- XXX change to "replace"
-    , insert_
+    , insert
+    , replace
+    , replace_
     , putIndex
     , modifyIndex
 
@@ -116,7 +115,6 @@ import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 -- import qualified Streamly.Internal.Data.Unfold as Unfold
--- XXX Add scanl benchmarks
 -- XXX check split benchmarks
 
 import Prelude hiding (length, concat, read)
@@ -338,15 +336,31 @@ putIndex i ring x =
     let j = changeHeadByOffset (ringHead ring) (ringSize ring) (i * SIZE_OF(a))
      in liftIO $ pokeAt j (ringContents ring) x
 
--- | Like 'insert' but does not return the old value of overwritten element.
+-- XXX Expand the ring by inserting the newest element before the head. If the
+-- number of elements before the head are lesser than the ones after it then
+-- shift them all by one place to the left, moving the first element at the end
+-- of the ring. Otherwise, shift the elements after the head by one place to
+-- the right. Note this requires adding a capacity field to the ring. Also,
+-- like mutarray we can reallocate the ring to expand the capacity.
+
+-- | Insert a new element without replacing an old one. Expands the size of the
+-- ring. This is similar to the snoc operation for MutArray.
+--
+-- /Unimplemented/
+{-# INLINE insert #-}
+insert :: -- (MonadIO m, Unbox a) =>
+    Ring a -> a -> m (Ring a)
+insert = undefined
+
+-- | Like 'replace' but does not return the old value of overwritten element.
 --
 -- Same as:
 --
--- >>> insert_ rb x = Ring.putIndex 0 rb x >> pure (Ring.moveForward rb)
+-- >>> replace_ rb x = Ring.putIndex 0 rb x >> pure (Ring.moveForward rb)
 --
-{-# INLINE insert_ #-}
-insert_ :: forall m a. (MonadIO m, Unbox a) => Ring a -> a -> m (Ring a)
-insert_ rb newVal = do
+{-# INLINE replace_ #-}
+replace_ :: forall m a. (MonadIO m, Unbox a) => Ring a -> a -> m (Ring a)
+replace_ rb newVal = do
     -- Note poke will corrupt memory if the ring size is 0.
     when (ringSize rb /= 0)
         $ liftIO $ pokeAt (ringHead rb) (ringContents rb) newVal
@@ -364,9 +378,9 @@ unsafeGetRawIndex i ring = liftIO $ peekAt i (ringContents ring)
 --
 -- Throws an error if the ring is empty.
 --
-{-# INLINE insert #-}
-insert :: forall m a. (MonadIO m, Unbox a) => Ring a -> a -> m (Ring a, a)
-insert rb newVal = do
+{-# INLINE replace #-}
+replace :: forall m a. (MonadIO m, Unbox a) => Ring a -> a -> m (Ring a, a)
+replace rb newVal = do
     -- Note: ring size cannot be zero.
     when (ringSize rb == 0) $
         error "insert: cannot insert in 0 sized ring"
@@ -506,7 +520,7 @@ scanRingsOf n = Scanl step initial extract extract
             return $ Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
 
     step (Tuple3Fused' mba rh i) a = do
-        Ring _ _ rh1 <- insert_ (Ring mba (n * SIZE_OF(a)) rh) a
+        Ring _ _ rh1 <- replace_ (Ring mba (n * SIZE_OF(a)) rh) a
         return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
 
     -- XXX exitify optimization causes a problem here when modular folds are
@@ -901,7 +915,7 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
                     Done b -> Done b
 
     step (SWArray mba rh st i) a = do
-        Ring _ _ rh1 <- insert_ (Ring mba (n * SIZE_OF(a)) rh) a
+        Ring _ _ rh1 <- replace_ (Ring mba (n * SIZE_OF(a)) rh) a
         let size = (n - i) * SIZE_OF(a)
         r <- step1 st ((a, Nothing), pure (MutArray mba 0 size size))
         return $
@@ -913,7 +927,7 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
                 Done b -> Done b
 
     step (SWRing mba rh st) a = do
-        (rb1@(Ring _ _ rh1), old) <- insert (Ring mba (n * SIZE_OF(a)) rh) a
+        (rb1@(Ring _ _ rh1), old) <- replace (Ring mba (n * SIZE_OF(a)) rh) a
         r <- step1 st ((a, Just old), toMutArray rb1)
         return $
             case r of

@@ -2359,7 +2359,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                     }
             case res of
                 Yield x s -> do
-                    (rb1, old) <- liftIO (RB.insert rb x)
+                    (rb1, old) <- liftIO (RB.replace rb x)
                     r <- fstep fs old
                     case r of
                         FL.Partial fs1 -> do
@@ -2765,7 +2765,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                     }
             case res of
                 Yield x s -> do
-                    (rb1, old) <- liftIO (RB.insert rb x)
+                    (rb1, old) <- liftIO (RB.replace rb x)
                     let cksum1 = deltaCksum cksum old x
                     let rh1 = ringHead rb1
                     r <- if withSep then fstep fs x else fstep fs old
