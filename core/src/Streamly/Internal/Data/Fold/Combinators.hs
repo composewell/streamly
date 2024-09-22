@@ -1426,13 +1426,18 @@ data SplitOnSeqState mba acc a rh w ck =
 -- sequence, taking the supplied sequence as well. If the pattern is empty this
 -- acts as an identity fold.
 --
--- >>> s = Stream.fromList "hello there. How are you?"
--- >>> f = Fold.takeEndBySeq (Array.fromList "re") Fold.toList
+-- >>> s = Stream.fromList "Gauss---Euler---Noether"
+-- >>> f = Fold.takeEndBySeq (Array.fromList "---") Fold.toList
 -- >>> Stream.fold f s
--- "hello there"
+-- "Gauss---"
 --
 -- >>> Stream.fold Fold.toList $ Stream.foldMany f s
--- ["hello there",". How are"," you?"]
+-- ["Gauss---","Euler---","Noether"]
+--
+-- Uses Rabin-Karp algorithm for substring search.
+--
+-- See also: 'Streamly.Data.Stream.splitOnSeq' and
+-- 'Streamly.Data.Stream.splitEndBySeq'.
 --
 -- /Pre-release/
 {-# INLINE takeEndBySeq #-}
@@ -1587,6 +1592,17 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
     final = extractFunc ffinal
 
 -- | Like 'takeEndBySeq' but discards the matched sequence.
+--
+-- >>> s = Stream.fromList "Gauss---Euler---Noether"
+-- >>> f = Fold.takeEndBySeq_ (Array.fromList "---") Fold.toList
+-- >>> Stream.fold f s
+-- "Gauss"
+--
+-- >>> Stream.fold Fold.toList $ Stream.foldMany f s
+-- ["Gauss","Euler","Noether"]
+--
+-- See also: 'Streamly.Data.Stream.splitOnSeq' and
+-- 'Streamly.Data.Stream.splitEndBySeq_'.
 --
 -- /Pre-release/
 --

@@ -216,10 +216,10 @@ chunksOfSum :: Int -> Handle -> IO Int
 chunksOfSum n inh =
     S.fold Fold.length $ IP.groupsOf n FL.sum (S.unfold FH.reader inh)
 
-foldManyPostChunksOfSum :: Int -> Handle -> IO Int
-foldManyPostChunksOfSum n inh =
+foldMany1ChunksOfSum :: Int -> Handle -> IO Int
+foldMany1ChunksOfSum n inh =
     S.fold Fold.length
-        $ IP.foldManyPost (FL.take n FL.sum) (S.unfold FH.reader inh)
+        $ IP.foldMany1 (FL.take n FL.sum) (S.unfold FH.reader inh)
 
 foldManyChunksOfSum :: Int -> Handle -> IO Int
 foldManyChunksOfSum n inh =
@@ -263,13 +263,13 @@ o_1_space_reduce_read_grouped env =
         -- XXX investigate why we need inline/noinline in these cases (GHC)
         -- Chunk using parsers
         , mkBench
-            ("S.foldManyPost (FL.take " ++ show (bigSize env) ++ " FL.sum)")
+            ("S.foldMany1 (FL.take " ++ show (bigSize env) ++ " FL.sum)")
             env
-            $ \inh _ -> noinline foldManyPostChunksOfSum (bigSize env) inh
+            $ \inh _ -> noinline foldMany1ChunksOfSum (bigSize env) inh
         , mkBench
-            "S.foldManyPost (FL.take 1 FL.sum)"
+            "S.foldMany1 (FL.take 1 FL.sum)"
             env
-            $ \inh _ -> inline foldManyPostChunksOfSum 1 inh
+            $ \inh _ -> inline foldMany1ChunksOfSum 1 inh
         , mkBench
             ("S.foldMany (FL.take " ++ show (bigSize env) ++ " FL.sum)")
             env

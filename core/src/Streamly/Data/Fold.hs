@@ -323,6 +323,8 @@ module Streamly.Data.Fold
     , take
     , takeEndBy
     , takeEndBy_
+    , takeEndBySeq
+    , takeEndBySeq_
 
     -- ** Key-value Collectors
     , toMap
