@@ -201,7 +201,7 @@ toarr = Array.fromList . map (fromIntegral . ord)
 fileInfixTakeEndBy_ :: Handle -> IO Int
 fileInfixTakeEndBy_ inh =
     Stream.fold Fold.length
-        $ Stream.foldManyPost (FL.takeEndBy_ (== lf) Fold.drain)
+        $ Stream.foldMany1 (FL.takeEndBy_ (== lf) Fold.drain)
         $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
@@ -256,7 +256,7 @@ inspect $ 'fileSuffixTakeEndBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
     Stream.fold Fold.length
-        $ Stream.foldManyPost (Fold.takeEndBySeq_ (toarr str) Fold.drain)
+        $ Stream.foldMany1 (Fold.takeEndBySeq_ (toarr str) Fold.drain)
         $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
@@ -269,7 +269,7 @@ splitOnSeq100k :: Handle -> IO Int
 splitOnSeq100k inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
     Stream.fold Fold.length
-        $ Stream.foldManyPost (Fold.takeEndBySeq_ arr Fold.drain)
+        $ Stream.foldMany1 (Fold.takeEndBySeq_ arr Fold.drain)
         $ Handle.read inh -- >>= print
 
 -- | Split on suffix sequence.
@@ -356,8 +356,7 @@ o_1_space_reduce_read_split env =
 splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
     Stream.fold Fold.length
-        $ Stream.foldManyPost
-            (Fold.takeEndBySeq_ (Array.fromList str) Fold.drain)
+        $ Stream.foldMany1 (Fold.takeEndBySeq_ (Array.fromList str) Fold.drain)
         $ Unicode.decodeUtf8Chunks
         $ Handle.readChunks inh -- >>= print
 

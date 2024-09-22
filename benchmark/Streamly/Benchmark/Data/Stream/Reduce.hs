@@ -135,12 +135,12 @@ foldMany =
     . S.foldMany (FL.take 2 FL.mconcat)
     . fmap Sum
 
-{-# INLINE foldManyPost #-}
-foldManyPost :: Monad m => Stream m Int -> m ()
-foldManyPost =
+{-# INLINE foldMany1 #-}
+foldMany1 :: Monad m => Stream m Int -> m ()
+foldMany1 =
       Common.drain
     . fmap getSum
-    . S.foldManyPost (FL.take 2 FL.mconcat)
+    . S.foldMany1 (FL.take 2 FL.mconcat)
     . fmap Sum
 
 {-# INLINE refoldMany #-}
@@ -185,7 +185,7 @@ o_1_space_grouping value =
         -- modules we can bring those here. chunksOf benchmarks are in
         -- Parser/ParserD/Array.Stream/FileSystem.Handle.
           benchIOSink value "foldMany" foldMany
-        , benchIOSink value "foldManyPost" foldManyPost
+        , benchIOSink value "foldMany1" foldMany1
         , benchIOSink value "refoldMany" refoldMany
         , benchIOSink value "foldIterateM" foldIterateM
         , benchIOSink value "refoldIterateM" refoldIterateM

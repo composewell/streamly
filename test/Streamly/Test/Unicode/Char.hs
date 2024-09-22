@@ -72,7 +72,7 @@ checkNFKD :: (Text, Text, Text, Text, Text) -> IO Bool
 checkNFKD (c1, c2, c3, c4, c5) =
     checkOp "toNFKD" NFKD $ map (c5,) [c1, c2, c3, c4, c5]
 
-splitOn predicate f = S.foldManyPost (FL.takeEndBy_ predicate f)
+splitOn predicate f = S.foldMany1 (FL.takeEndBy_ predicate f)
 
 checkAllTestCases :: Int -> String -> IO ()
 checkAllTestCases lineno line = do

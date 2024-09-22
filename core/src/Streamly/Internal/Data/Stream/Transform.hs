@@ -2024,6 +2024,10 @@ catEithers = fmap (either id id)
 -- separator elements determined by the supplied predicate, separator is
 -- considered as infixed between two segments:
 --
+-- Definition:
+--
+-- >>> splitOn p f = Stream.foldMany1 (Fold.takeEndBy_ p f)
+--
 -- >>> splitOn' p xs = Stream.fold Fold.toList $ Stream.splitOn p Fold.toList (Stream.fromList xs)
 -- >>> splitOn' (== '.') "a.b"
 -- ["a","b"]
@@ -2071,4 +2075,4 @@ splitOn predicate f =
     --
     -- Since a suffix split fold can be easily expressed using a
     -- non-backtracking fold, we use that.
-    foldManyPost (FL.takeEndBy_ predicate f)
+    foldMany1 (FL.takeEndBy_ predicate f)

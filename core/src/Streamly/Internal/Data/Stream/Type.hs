@@ -129,6 +129,7 @@ module Streamly.Internal.Data.Stream.Type
     , FoldMany (..) -- for inspection testing
     , FoldManyPost (..)
     , foldMany
+    , foldMany1
     , foldManyPost
     , groupsOf
     , refoldMany
@@ -463,7 +464,7 @@ foldBreak fld strm = do
     nil = Stream (\_ _ -> return Stop) ()
 
 -- >>> fold f = Fold.extractM . Stream.foldAddLazy f
--- >>> fold f = Stream.fold Fold.one . Stream.foldManyPost f
+-- >>> fold f = Stream.fold Fold.one . Stream.foldMany1 f
 -- >>> fold f = Fold.extractM <=< Stream.foldAdd f
 
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
@@ -1786,24 +1787,21 @@ data FoldManyPost s fs b a
     | FoldManyPostYield b (FoldManyPost s fs b a)
     | FoldManyPostDone
 
--- XXX Need a more intuitive name, and need to reconcile the names
--- foldMany/fold/parse/parseMany/parseManyPost etc.
-
--- XXX foldManyPost keeps the last fold always partial. if the last fold is
--- complete then another fold is applied on empty input. This is used for
--- applying folds like takeEndBy such that the last element is not the
--- separator (infix style). But that looks like a hack. We should remove this
--- and use a custom combinator for infix parsing.
+-- Note that using a closed fold e.g. @Fold.take 0@, would result in an
+-- infinite stream without consuming the input.
+--
+-- Like foldMany1, "scan" should ideally be "scan1" always resulting in a
+-- non-empty stream, and "postscan" should be called just "scan" because it is
+-- much more common. But those names cannot be changed now.
 
 -- | Like 'foldMany' but evaluates the fold even if the fold did not receive
 -- any input, therefore, always results in a non-empty output even on an empty
--- stream (default result of the fold). 'foldMany' is like 'scan' which always
--- includes the initial value of the accumulator.
+-- stream (default result of the fold).
 --
 -- Example, empty stream, compare with 'foldMany':
 --
 -- >>> f = Fold.take 2 Fold.toList
--- >>> fmany = Stream.fold Fold.toList . Stream.foldManyPost f
+-- >>> fmany = Stream.fold Fold.toList . Stream.foldMany1 f
 -- >>> fmany $ Stream.fromList []
 -- [[]]
 --
@@ -1817,14 +1815,11 @@ data FoldManyPost s fs b a
 -- >>> fmany $ Stream.fromList [1..5]
 -- [[1,2],[3,4],[5]]
 --
--- Note that using a closed fold e.g. @Fold.take 0@, would result in an
--- infinite stream without consuming the input.
---
 -- /Pre-release/
 --
-{-# INLINE_NORMAL foldManyPost #-}
-foldManyPost :: Monad m => Fold m a b -> Stream m a -> Stream m b
-foldManyPost (Fold fstep initial _ final) (Stream step state) =
+{-# INLINE_NORMAL foldMany1 #-}
+foldMany1 :: Monad m => Fold m a b -> Stream m a -> Stream m b
+foldMany1 (Fold fstep initial _ final) (Stream step state) =
     Stream step' (FoldManyPostStart state)
 
     where
@@ -1857,6 +1852,11 @@ foldManyPost (Fold fstep initial _ final) (Stream step state) =
     step' _ (FoldManyPostYield b next) = return $ Yield b next
     step' _ FoldManyPostDone = return Stop
 
+{-# DEPRECATED foldManyPost "Please use foldMany1 instead." #-}
+{-# INLINE foldManyPost #-}
+foldManyPost :: Monad m => Fold m a b -> Stream m a -> Stream m b
+foldManyPost = foldMany1
+
 {-# ANN type FoldMany Fuse #-}
 data FoldMany s fs b a
     = FoldManyStart s
@@ -1866,13 +1866,12 @@ data FoldMany s fs b a
     | FoldManyDone
 
 -- XXX Nested foldMany does not fuse.
--- XXX Rename fondMany/foldManyPost to keep the behavior and naming consistent
--- with scan, postscan?
 
 -- | Apply a terminating 'Fold' repeatedly on a stream and emit the results in
--- the output stream. Like 'postscan', foldMany omits the initial (default)
--- value of the accumulator, if the input stream segment is empty the result is
--- also empty. Using a non-terminating fold in 'foldMany' will result in a hang.
+-- the output stream. If the last fold is empty, it's result is not emitted.
+-- This means if the input stream is empty the result is also an empty stream.
+-- See 'foldMany1' for an alternate behavior which always results in a
+-- non-empty stream even if the input stream is empty.
 --
 -- Definition:
 --

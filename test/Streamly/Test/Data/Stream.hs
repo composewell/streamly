@@ -59,7 +59,7 @@ toList = Stream.toList
 -- XXX Where are the tests for "takeEndBy"?
 splitOn :: Monad m =>
     (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitOn predicate f = Stream.foldManyPost (Fold.takeEndBy_ predicate f)
+splitOn predicate f = Stream.foldMany1 (Fold.takeEndBy_ predicate f)
 
 splitOnSuffix :: Monad m =>
     (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
@@ -68,7 +68,7 @@ splitOnSuffix predicate f = Stream.foldMany (Fold.takeEndBy_ predicate f)
 -- XXX Where are the tests for "takeEndBySeq"?
 splitOnSeqFold :: (MonadIO m, Unbox a, Enum a, Eq a) =>
    Array.Array a -> Fold m a b -> Stream m a -> Stream m b
-splitOnSeqFold patt f = Stream.foldManyPost (Fold.takeEndBySeq_ patt f)
+splitOnSeqFold patt f = Stream.foldMany1 (Fold.takeEndBySeq_ patt f)
 
 splitOnSeqStream :: (MonadIO m, Unbox a, Enum a, Eq a) =>
    Array.Array a -> Fold m a b -> Stream m a -> Stream m b

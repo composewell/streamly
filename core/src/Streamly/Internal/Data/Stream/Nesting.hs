@@ -131,10 +131,10 @@ module Streamly.Internal.Data.Stream.Nesting
     -- ** Splitting
     -- | A special case of parsing.
     , wordsBy
-
-    -- XXX these are currently not being used/tested
-    , splitOnSeq -- XXX splitOnSeg
-    , splitOnSuffixSeq -- XXX splitOnSegSuffix, splitOnTrailer
+    , splitOnSeq
+    , splitOnSuffixSeq
+    , splitEndBySeq
+    , splitEndBySeq_
 
     -- XXX Implement these as folds or parsers instead.
     , splitOnSuffixSeqAny
@@ -2112,6 +2112,17 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 
     | SplitOnSeqReinit (fs -> SplitOnSeqState mba rb rh ck w fs s b x)
 
+-- | Like 'splitOn' but splits the stream on a sequence of elements rather than
+-- a single element. Parses a sequence of tokens separated by an infixed
+-- separator e.g. @a;b;c@ is parsed as @a@, @b@, @c@. If the pattern is empty
+-- the stream is returned as it is.
+--
+-- Equivalent to the following:
+--
+-- >>> splitOnSeq pat f = Stream.foldMany1 (Fold.takeEndBySeq_ pat f)
+--
+-- Uses Rabin-Karp algorithm for substring search.
+--
 {-# INLINE_NORMAL splitOnSeq #-}
 splitOnSeq
     :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -2455,6 +2466,10 @@ data SplitOnSuffixSeqState mba rb rh ck w fs s b x =
     | SplitOnSuffixSeqReinit
           (fs -> SplitOnSuffixSeqState mba rb rh ck w fs s b x)
 
+-- | @splitOnSuffixSeq withSep pat fld input@ splits the input using @pat@ as a
+-- suffixed separator, the resulting split segments are fed to the fold @fld@.
+-- If @withSep@ is True then the separator sequence is also suffixed with the
+-- split segments.
 {-# INLINE_NORMAL splitOnSuffixSeq #-}
 splitOnSuffixSeq
     :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -2817,6 +2832,42 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
             FL.Done b -> do
                 let jump c = SplitOnSuffixSeqKRDone (len - SIZE_OF(a)) c rb1
                 yieldProceed jump b
+
+-- | Parses a sequence of tokens suffixed by a separator e.g. @a;b;c;@ is
+-- parsed as @a;@, @b;@, @c;@. If the pattern is empty the input stream is
+-- returned as it is.
+--
+-- Equivalent to the following:
+--
+-- >>> splitOnSeq pat f = Stream.foldMany (Fold.takeEndBySeq pat f)
+--
+-- Uses Rabin-Karp algorithm for substring search.
+--
+{-# INLINE_NORMAL splitEndBySeq #-}
+splitEndBySeq
+    :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
+    => Array a
+    -> Fold m a b
+    -> Stream m a
+    -> Stream m b
+splitEndBySeq = splitOnSuffixSeq True
+
+-- | Like 'splitEndBySeq' but drops the separators and returns only the tokens.
+--
+-- Equivalent to the following:
+--
+-- >>> splitEndBySeq_ pat f = Stream.foldMany (Fold.takeEndBySeq_ pat f)
+--
+-- Uses Rabin-Karp algorithm for substring search.
+--
+{-# INLINE_NORMAL splitEndBySeq_ #-}
+splitEndBySeq_
+    :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
+    => Array a
+    -> Fold m a b
+    -> Stream m a
+    -> Stream m b
+splitEndBySeq_ = splitOnSuffixSeq False
 
 -- Implement this as a fold or a parser instead.
 -- This can be implemented easily using Rabin Karp

@@ -549,21 +549,25 @@ module Streamly.Data.Stream
     -- >>> groupBy eq = Stream.parseMany (Parser.groupBy eq Fold.toList)
     -- >>> groupsByRolling eq = Stream.parseMany (Parser.groupByRolling eq Fold.toList)
     -- >>> groups = groupBy (==)
-    , foldMany -- XXX Rename to foldRepeat
+    , foldMany
+    , foldMany1
     , groupsOf
     , parseMany
 
     -- * Splitting
     -- | Idioms and equivalents of Data.List APIs:
     --
-    -- >>> splitWithSuffix p f = Stream.foldMany (Fold.takeEndBy p f)
-    -- >>> splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
-    -- >>> lines = splitOnSuffix (== '\n')
+    -- >>> splitEndBy p f = Stream.foldMany (Fold.takeEndBy p f)
+    -- >>> splitEndBy_ p f = Stream.foldMany (Fold.takeEndBy_ p f)
+    -- >>> lines = splitEndBy_ (== '\n')
     -- >>> words = Stream.wordsBy isSpace
     -- >>> splitAt n = Stream.fold (Fold.splitAt n Fold.toList Fold.toList)
     -- >>> span p = Parser.splitWith (,) (Parser.takeWhile p Fold.toList) (Parser.fromFold Fold.toList)
     -- >>> break p = span (not . p)
     , splitOn
+    , splitOnSeq
+    , splitEndBySeq
+    , splitEndBySeq_
     , wordsBy
 
     -- XXX Should use scanr instead
