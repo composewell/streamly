@@ -26,7 +26,7 @@ import qualified Stream.Expand as NestedStream
 import qualified Stream.Generate as Generation
 import qualified Stream.Lift as Lift
 import qualified Stream.Reduce as NestedFold
-#ifdef USE_PRELUDE
+#ifndef USE_PRELUDE
 import qualified Stream.Split as Split
 #endif
 import qualified Stream.Transform as Transformation
@@ -66,7 +66,7 @@ main = do
 #ifndef USE_STREAMLY_CORE
         , Exceptions.benchmarks moduleName env size
 #endif
-#ifdef USE_PRELUDE
+#ifndef USE_PRELUDE
         , Split.benchmarks moduleName env
 #endif
         , Transformation.benchmarks moduleName size
