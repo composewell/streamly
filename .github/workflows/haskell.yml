@@ -199,10 +199,34 @@ jobs:
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
             ignore_error: false
-          - name: 9.8.2-stack
+          - name: 9.6.6-stack
+            runner: macos-latest
+            build: stack
+            resolver: lts-22.35
+            stack_yaml: stack.yaml
+            disable_docs: "y"
+            disable_sdist_build: "y"
+            disable_dist_checks: "y"
+            #sdist_options: "--ignore-check"
+            stack_build_options: "--flag streamly-benchmarks:-opt"
+            cabal_version: 3.12.1.0
+            ignore_error: false
+          - name: 9.8.2-stack-nightly-june
             runner: macos-latest
             build: stack
             resolver: nightly-2024-06-20
+            stack_yaml: stack.yaml
+            disable_docs: "y"
+            disable_sdist_build: "y"
+            disable_dist_checks: "y"
+            #sdist_options: "--ignore-check"
+            stack_build_options: "--flag streamly-benchmarks:-opt"
+            cabal_version: 3.12.1.0
+            ignore_error: false
+          - name: 9.8.2-stack-nightly-september
+            runner: macos-latest
+            build: stack
+            resolver: nightly-2024-09-23
             stack_yaml: stack.yaml
             disable_docs: "y"
             disable_sdist_build: "y"
