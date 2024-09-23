@@ -1,5 +1,5 @@
-{-# Language TypeApplications #-}
 -- XXX We are using head/tail at one place
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
 #if __GLASGOW_HASKELL__ >= 908
 {-# OPTIONS_GHC -Wno-x-partial #-}
 #endif
@@ -19,6 +19,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.List (sort, group, intercalate)
 import Data.Semigroup (Sum(..), getSum)
 import Data.Word (Word8)
+import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Internal.Data.Stream (Stream)
@@ -27,7 +28,6 @@ import Test.QuickCheck
     , Property
     , Arbitrary(..)
     , choose
-    , elements
     , forAll
     , frequency
     , listOf
@@ -54,6 +54,9 @@ import Streamly.Test.Common
 toList :: Monad m => Stream m a -> m [a]
 toList = Stream.toList
 
+-- XXX There are takeEndBy_ tests in Data.Fold module as well, need to
+-- deduplicate.
+-- XXX Where are the tests for "takeEndBy"?
 splitOn :: Monad m =>
     (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 splitOn predicate f = Stream.foldManyPost (Fold.takeEndBy_ predicate f)
@@ -62,13 +65,23 @@ splitOnSuffix :: Monad m =>
     (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 splitOnSuffix predicate f = Stream.foldMany (Fold.takeEndBy_ predicate f)
 
-splitOnSeq' :: (MonadIO m, Unbox a, Enum a, Eq a) =>
+-- XXX Where are the tests for "takeEndBySeq"?
+splitOnSeqFold :: (MonadIO m, Unbox a, Enum a, Eq a) =>
    Array.Array a -> Fold m a b -> Stream m a -> Stream m b
-splitOnSeq' patt f m = Stream.foldManyPost (Fold.takeEndBySeq_ patt f) m
+splitOnSeqFold patt f = Stream.foldManyPost (Fold.takeEndBySeq_ patt f)
 
-splitOnSuffixSeq' :: (MonadIO m, Unbox a, Enum a, Eq a) =>
+splitOnSeqStream :: (MonadIO m, Unbox a, Enum a, Eq a) =>
    Array.Array a -> Fold m a b -> Stream m a -> Stream m b
-splitOnSuffixSeq' patt f m =Stream.foldMany (Fold.takeEndBySeq_ patt f) m
+splitOnSeqStream = Stream.splitOnSeq
+
+splitOnSuffixSeqFold :: (MonadIO m, Unbox a, Enum a, Eq a) =>
+   Array.Array a -> Fold m a b -> Stream m a -> Stream m b
+splitOnSuffixSeqFold patt f = Stream.foldMany (Fold.takeEndBySeq_ patt f)
+
+-- XXX Where are the tests for Stream.splitOnSuffixSeq True ?
+splitOnSuffixSeqStream :: (MonadIO m, Unbox a, Enum a, Eq a) =>
+   Array.Array a -> Fold m a b -> Stream m a -> Stream m b
+splitOnSuffixSeqStream = Stream.splitOnSuffixSeq False
 
 groupsBy :: Monad m =>
     (a -> a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
@@ -84,34 +97,58 @@ drainWhile :: Monad m => (a -> Bool) -> Stream m a -> m ()
 drainWhile p m = Stream.fold Fold.drain $ Stream.takeWhile p m
 -}
 
-splitOnSeq :: Spec
-splitOnSeq = do
+splitOnSeq ::
+    (Array Char -> Fold IO a [a] -> Stream IO Char -> Stream IO String)
+    -> Spec
+splitOnSeq op = do
     describe "Tests for splitOnSeq" $ do
-        it "splitOnSeq_ \"hello\" \"\" = [\"\"]"
-          $ splitOnSeq_ "hello" "" `shouldReturn` [""]
-        it "splitOnSeq_ \"hello\" \"hello\" = [\"\", \"\"]"
-          $ splitOnSeq_ "hello" "hello" `shouldReturn` ["", ""]
+        -- Empty pattern case
+
+        -- Single element pattern cases
         it "splitOnSeq_ \"x\" \"hello\" = [\"hello\"]"
           $ splitOnSeq_ "x" "hello" `shouldReturn` ["hello"]
         it "splitOnSeq_ \"h\" \"hello\" = [\"\", \"ello\"]"
           $ splitOnSeq_ "h" "hello" `shouldReturn` ["", "ello"]
-        it "splitOnSeq_ \"o\" \"hello\" = [\"hell\", \"\"]"
-          $ splitOnSeq_ "o" "hello" `shouldReturn` ["hell", ""]
         it "splitOnSeq_ \"e\" \"hello\" = [\"h\", \"llo\"]"
           $ splitOnSeq_ "e" "hello" `shouldReturn` ["h", "llo"]
         it "splitOnSeq_ \"l\" \"hello\" = [\"he\", \"\", \"o\"]"
           $ splitOnSeq_ "l" "hello" `shouldReturn` ["he", "", "o"]
+        it "splitOnSeq_ \"o\" \"hello\" = [\"hell\", \"\"]"
+          $ splitOnSeq_ "o" "hello" `shouldReturn` ["hell", ""]
+
+        -- multi-element pattern fitting in a Word
+        it "splitOnSeq_ \"he\" \"hello\" = [\"\", \"llo\"]"
+          $ splitOnSeq_ "he" "hello" `shouldReturn` ["", "llo"]
         it "splitOnSeq_ \"ll\" \"hello\" = [\"he\", \"o\"]"
           $ splitOnSeq_ "ll" "hello" `shouldReturn` ["he", "o"]
+        it "splitOnSeq_ \"lo\" \"hello\" = [\"hel\", \"\"]"
+          $ splitOnSeq_ "lo" "hello" `shouldReturn` ["hel", ""]
+
+        -- multi-element pattern - Rabin-Karp cases
+        it "splitOnSeq_ \"hello\" \"\" = [\"\"]"
+          $ splitOnSeq_ "hello" "" `shouldReturn` [""]
+        it "splitOnSeq_ \"hel\" \"hello\" = [\"\", \"lo\"]"
+          $ splitOnSeq_ "hel" "hello" `shouldReturn` ["", "lo"]
+        it "splitOnSeq_ \"ell\" \"hello\" = [\"h\", \"o\"]"
+          $ splitOnSeq_ "ell" "hello" `shouldReturn` ["h", "o"]
+        it "splitOnSeq_ \"llo\" \"hello\" = [\"he\", \"\"]"
+          $ splitOnSeq_ "llo" "hello" `shouldReturn` ["he", ""]
+        it "splitOnSeq_ \"hello\" \"hello\" = [\"\", \"\"]"
+          $ splitOnSeq_ "hello" "hello" `shouldReturn` ["", ""]
 
     where
 
     splitOnSeq_ pat xs = toList $
-        splitOnSeq' (Array.fromList pat) Fold.toList (Stream.fromList xs)
+        op (Array.fromList pat) Fold.toList (Stream.fromList xs)
 
-splitOnSuffixSeq :: Spec
-splitOnSuffixSeq = do
+splitOnSuffixSeq ::
+    (Array Char -> Fold IO a [a] -> Stream IO Char -> Stream IO String)
+    -> Spec
+splitOnSuffixSeq op = do
     describe "Tests for splitOnSuffixSeq" $ do
+        -- Empty pattern case
+
+        -- Single element pattern cases
         it "splitSuffixOn_ \".\" \"\" []"
           $ splitSuffixOn_ "." "" `shouldReturn` []
         it "splitSuffixOn_ \".\" \".\" [\"\"]"
@@ -129,190 +166,219 @@ splitOnSuffixSeq = do
         it "splitSuffixOn_ \".\" \"a..b..\" [\"a\",\"\",\"b\",\"\"]"
           $ splitSuffixOn_ "." "a..b.." `shouldReturn` ["a", "", "b", ""]
 
+        -- multi-element pattern fitting in a Word
+        it "splitSuffixOn_ \"he\" \"hello\" = [\"\", \"llo\"]"
+          $ splitSuffixOn_ "he" "hello" `shouldReturn` ["", "llo"]
+        it "splitSuffixOn_ \"el\" \"hello\" = [\"h\", \"lo\"]"
+          $ splitSuffixOn_ "el" "hello" `shouldReturn` ["h", "lo"]
+        it "splitSuffixOn_ \"lo\" \"hello\" = [\"hel\"]"
+          $ splitSuffixOn_ "lo" "hello" `shouldReturn` ["hel"]
+
+        -- multi-element pattern - Rabin-Karp cases
+        it "splitSuffixOn_ \"hello\" \"\" = []"
+          $ splitSuffixOn_ "hello" "" `shouldReturn` []
+        it "splitSuffixOn_ \"hel\" \"hello\" = [\"\", \"lo\"]"
+          $ splitSuffixOn_ "hel" "hello" `shouldReturn` ["", "lo"]
+        it "splitSuffixOn_ \"ell\" \"hello\" = [\"h\", \"o\"]"
+          $ splitSuffixOn_ "ell" "hello" `shouldReturn` ["h", "o"]
+        it "splitSuffixOn_ \"llo\" \"hello\" = [\"he\"]"
+          $ splitSuffixOn_ "llo" "hello" `shouldReturn` ["he"]
+        it "splitSuffixOn_ \"hello\" \"hello\" = [\"\", \"\"]"
+          $ splitSuffixOn_ "hello" "hello" `shouldReturn` [""]
+
     where
 
     splitSuffixOn_ pat xs = toList $
-        splitOnSuffixSeq' (Array.fromList pat) Fold.toList (Stream.fromList xs)
+        op (Array.fromList pat) Fold.toList (Stream.fromList xs)
+
+intercalateSuffix xs yss = intercalate xs yss ++ xs
+
+nonSepElem :: (Arbitrary a, Eq a) => a -> Gen a
+nonSepElem sep = suchThat arbitrary (/= sep)
+
+listWithSep :: Arbitrary a => a -> Gen [a]
+listWithSep sep = listOf $ frequency [(3, arbitrary), (1, return sep)]
+
+listWithoutSep :: (Arbitrary a, Eq a) => a -> Gen [a]
+listWithoutSep sep = vectorOf 4 (nonSepElem sep)
+
+listsWithoutSep :: (Arbitrary a, Eq a) => a -> Gen [[a]]
+listsWithoutSep sep = listOf (listWithoutSep sep)
+
+listsWithoutSep1 :: (Arbitrary a, Eq a) => a -> Gen [[a]]
+listsWithoutSep1 sep = listOf1 (listWithoutSep sep)
+
+intercalateSplitEqId sep splitter lIntercalater sIntercalater i =
+    let name =
+            "intercalater . splitter == id ("
+                <> show i <> " element separator)"
+     in prop name
+            $ forAll (listWithSep sep)
+            $ \xs -> withMaxSuccess maxTestCount $ monadicIO $ testCase xs
+
+    where
+
+    testCase xs = do
+        ys <- splitter xs (replicate i sep)
+        szs <-
+            toList
+                $ sIntercalater Unfold.fromList (replicate i sep)
+                $ Stream.fromList ys
+        let lzs = lIntercalater (replicate i sep) ys
+        listEquals (==) szs xs
+        listEquals (==) lzs xs
+
+intercalateSplitEqIdNoSepEnd sep splitter lIntercalater sIntercalater i =
+    let name =
+            "intercalater . splitter . (++ [x \\= sep]) == id ("
+                <> show i <> " element separator)"
+     in prop name
+            $ forAll ((,) <$> listWithSep sep <*> nonSepElem sep)
+            $ \(xs_, nonSep) -> do
+                  let xs = xs_ ++ [nonSep]
+                  withMaxSuccess maxTestCount $ monadicIO $ testCase xs
+
+    where
+
+    testCase xs = do
+        ys <- splitter xs (replicate i sep)
+        szs <-
+            toList
+                $ sIntercalater Unfold.fromList (replicate i sep)
+                $ Stream.fromList ys
+        let lzs = lIntercalater (replicate i sep) ys
+        listEquals (==) szs xs
+        listEquals (==) lzs xs
+
+concatSplitIntercalateEqConcat sep splitter lIntercalater sIntercalater i =
+    let name =
+            "concat . splitter .Stream.intercalater == "
+                <> "concat ("
+                <> show i <> " element separator/possibly empty list)"
+     in prop name
+            $ forAll (listsWithoutSep sep)
+            $ \xss -> withMaxSuccess maxTestCount $ monadicIO $ testCase xss
+
+    where
+
+    testCase xss = do
+        let lxs = lIntercalater (replicate i sep) xss
+        lys <- splitter lxs (replicate i sep)
+        sxs <-
+            toList
+                $ sIntercalater Unfold.fromList (replicate i sep)
+                $ Stream.fromList xss
+        sys <- splitter sxs (replicate i sep)
+        listEquals (==) (concat lys) (concat xss)
+        listEquals (==) (concat sys) (concat xss)
+
+splitIntercalateEqId sep splitter lIntercalater sIntercalater =
+    let name =
+            "splitter . intercalater == id"
+                <> " (exclusive separator/non-empty list)"
+     in prop name
+            $ forAll (listsWithoutSep1 sep)
+            $ \xss -> do
+                  withMaxSuccess maxTestCount $ monadicIO $ testCase xss
+
+    where
+
+    testCase xss = do
+        let lxs = lIntercalater [sep] xss
+        lys <- splitter lxs [sep]
+        sxs <- toList $ sIntercalater Unfold.fromList [sep] $ Stream.fromList xss
+        sys <- splitter sxs [sep]
+        listEquals (==) lys xss
+        listEquals (==) sys xss
 
 splitterProperties ::
-       forall a. (Arbitrary a, Eq a, Show a, Unbox a, Enum a)
+       forall a. (Arbitrary a, Eq a, Show a)
     => a
     -> String
     -> Spec
 splitterProperties sep desc = do
-    describe (desc <> " splitOnSeq")
-        $ do
-
-            forM_ [0, 1, 2, 4]
-                $ intercalateSplitEqId splitOnSeq_ intercalate Stream.intercalate
-
-            forM_ [0, 1, 2, 4]
-                $ concatSplitIntercalateEqConcat
-                      splitOnSeq_
-                      intercalate
-                      Stream.intercalate
-
-            -- Exclusive case
-            splitIntercalateEqId splitOnSeq_ intercalate Stream.intercalate
-
     describe (desc <> " splitOn")
         $ do
 
-            intercalateSplitEqId splitOn_ intercalate Stream.intercalate 1
+            intercalateSplitEqId sep splitOn_ intercalate Stream.intercalate 1
 
             concatSplitIntercalateEqConcat
-                splitOn_ intercalate Stream.intercalate 1
+                sep splitOn_ intercalate Stream.intercalate 1
 
             -- Exclusive case
-            splitIntercalateEqId splitOn_ intercalate Stream.intercalate
-
-    describe (desc <> " splitOnSuffixSeq")
-        $ do
-
-            forM_ [0, 1, 2, 4]
-                $ intercalateSplitEqIdNoSepEnd
-                      splitOnSuffixSeq_
-                      intercalate
-                      Stream.intercalate
-
-            forM_ [0, 1, 2, 4]
-                $ concatSplitIntercalateEqConcat
-                      splitOnSuffixSeq_
-                      intercalateSuffix
-                      Stream.intercalateSuffix
-
-            -- Exclusive case
-            splitIntercalateEqId
-                splitOnSuffixSeq_
-                intercalateSuffix
-                Stream.intercalateSuffix
+            splitIntercalateEqId sep splitOn_ intercalate Stream.intercalate
 
     describe (desc <> " splitOnSuffix")
         $ do
 
             intercalateSplitEqIdNoSepEnd
-                splitOnSuffix_ intercalate Stream.intercalate 1
+                sep splitOnSuffix_ intercalate Stream.intercalate 1
 
             concatSplitIntercalateEqConcat
-                splitOnSuffix_ intercalateSuffix Stream.intercalateSuffix 1
+                sep splitOnSuffix_ intercalateSuffix Stream.intercalateSuffix 1
 
             -- Exclusive case
             splitIntercalateEqId
-                splitOnSuffix_ intercalateSuffix Stream.intercalateSuffix
+                sep splitOnSuffix_ intercalateSuffix Stream.intercalateSuffix
+
+    where
+
+    splitOn_ xs pat =
+        toList $ splitOn (== head pat) Fold.toList (Stream.fromList xs)
+
+    splitOnSuffix_ xs pat =
+        toList $ splitOnSuffix (== head pat) Fold.toList (Stream.fromList xs)
+
+seqSplitterProperties ::
+       forall a. (Arbitrary a, Eq a, Show a, Unbox a, Enum a)
+    => a
+    -> String
+    -> Spec
+seqSplitterProperties sep desc = do
+    describe (desc <> " splitOnSeq fold") (splitOnSeqWith splitOnSeq_)
+    describe (desc <> " splitOnSeq stream") (splitOnSeqWith splitOnSeqStream_)
+    describe (desc <> " splitOnSuffixSeq fold")
+        (splitOnSuffixSeqWith splitOnSuffixSeq_)
+    describe (desc <> " splitOnSuffixSeq stream")
+        (splitOnSuffixSeqWith splitOnSuffixSeqStream_)
 
     where
 
     splitOnSeq_ xs pat =
-        toList $ splitOnSeq' (Array.fromList pat) Fold.toList (Stream.fromList xs)
+        toList $ splitOnSeqFold (Array.fromList pat) Fold.toList (Stream.fromList xs)
+
+    splitOnSeqStream_ xs pat =
+        toList $ splitOnSeqStream (Array.fromList pat) Fold.toList (Stream.fromList xs)
 
     splitOnSuffixSeq_ xs pat =
-        toList $ splitOnSuffixSeq' (Array.fromList pat) Fold.toList (Stream.fromList xs)
+        toList $ splitOnSuffixSeqFold (Array.fromList pat) Fold.toList (Stream.fromList xs)
 
-    splitOn_ xs pat =
-        toList $ splitOn (== (head pat)) Fold.toList (Stream.fromList xs)
+    splitOnSuffixSeqStream_ xs pat =
+        toList $ splitOnSuffixSeqStream (Array.fromList pat) Fold.toList (Stream.fromList xs)
 
-    splitOnSuffix_ xs pat =
-        toList $ splitOnSuffix (== (head pat)) Fold.toList (Stream.fromList xs)
+    splitOnSeqWith op = do
+        forM_ [0, 1, 2, 4]
+            $ intercalateSplitEqId sep op intercalate Stream.intercalate
 
-    intercalateSuffix xs yss = intercalate xs yss ++ xs
+        forM_ [0, 1, 2, 4]
+            $ concatSplitIntercalateEqConcat
+                sep op intercalate Stream.intercalate
 
-    nonSepElem :: Gen a
-    nonSepElem = suchThat arbitrary (/= sep)
+        -- Exclusive case
+        splitIntercalateEqId sep op intercalate Stream.intercalate
 
-    listWithSep :: Gen [a]
-    listWithSep = listOf $ frequency [(3, arbitrary), (1, elements [sep])]
+    splitOnSuffixSeqWith op = do
+        forM_ [0, 1, 2, 4]
+            $ intercalateSplitEqIdNoSepEnd
+                sep op intercalate Stream.intercalate
 
-    listWithoutSep :: Gen [a]
-    listWithoutSep = vectorOf 4 nonSepElem
+        forM_ [0, 1, 2, 4]
+            $ concatSplitIntercalateEqConcat
+                  sep op intercalateSuffix Stream.intercalateSuffix
 
-    listsWithoutSep :: Gen [[a]]
-    listsWithoutSep = listOf listWithoutSep
-
-    listsWithoutSep1 :: Gen [[a]]
-    listsWithoutSep1 = listOf1 listWithoutSep
-
-    intercalateSplitEqId splitter lIntercalater sIntercalater i =
-        let name =
-                "intercalater . splitter == id ("
-                    <> show i <> " element separator)"
-         in prop name
-                $ forAll listWithSep
-                $ \xs -> withMaxSuccess maxTestCount $ monadicIO $ testCase xs
-
-        where
-
-        testCase xs = do
-            ys <- splitter xs (replicate i sep)
-            szs <-
-                toList
-                    $ sIntercalater Unfold.fromList (replicate i sep)
-                    $ Stream.fromList ys
-            let lzs = lIntercalater (replicate i sep) ys
-            listEquals (==) szs xs
-            listEquals (==) lzs xs
-
-    intercalateSplitEqIdNoSepEnd splitter lIntercalater sIntercalater i =
-        let name =
-                "intercalater . splitter . (++ [x \\= sep]) == id ("
-                    <> show i <> " element separator)"
-         in prop name
-                $ forAll ((,) <$> listWithSep <*> nonSepElem)
-                $ \(xs_, nonSep) -> do
-                      let xs = xs_ ++ [nonSep]
-                      withMaxSuccess maxTestCount $ monadicIO $ testCase xs
-
-        where
-
-        testCase xs = do
-            ys <- splitter xs (replicate i sep)
-            szs <-
-                toList
-                    $ sIntercalater Unfold.fromList (replicate i sep)
-                    $ Stream.fromList ys
-            let lzs = lIntercalater (replicate i sep) ys
-            listEquals (==) szs xs
-            listEquals (==) lzs xs
-
-    concatSplitIntercalateEqConcat splitter lIntercalater sIntercalater i =
-        let name =
-                "concat . splitter .Stream.intercalater == "
-                    <> "concat ("
-                    <> show i <> " element separator/possibly empty list)"
-         in prop name
-                $ forAll listsWithoutSep
-                $ \xss -> withMaxSuccess maxTestCount $ monadicIO $ testCase xss
-
-        where
-
-        testCase xss = do
-            let lxs = lIntercalater (replicate i sep) xss
-            lys <- splitter lxs (replicate i sep)
-            sxs <-
-                toList
-                    $ sIntercalater Unfold.fromList (replicate i sep)
-                    $ Stream.fromList xss
-            sys <- splitter sxs (replicate i sep)
-            listEquals (==) (concat lys) (concat xss)
-            listEquals (==) (concat sys) (concat xss)
-
-    splitIntercalateEqId splitter lIntercalater sIntercalater =
-        let name =
-                "splitter . intercalater == id"
-                    <> " (exclusive separator/non-empty list)"
-         in prop name
-                $ forAll listsWithoutSep1
-                $ \xss -> do
-                      withMaxSuccess maxTestCount $ monadicIO $ testCase xss
-
-        where
-
-        testCase xss = do
-            let lxs = lIntercalater [sep] xss
-            lys <- splitter lxs [sep]
-            sxs <- toList $ sIntercalater Unfold.fromList [sep] $ Stream.fromList xss
-            sys <- splitter sxs [sep]
-            listEquals (==) lys xss
-            listEquals (==) sys xss
+        -- Exclusive case
+        splitIntercalateEqId
+            sep op intercalateSuffix Stream.intercalateSuffix
 
 intercalateSplitOnId ::
        forall a. (Arbitrary a, Eq a, Show a, Num a) =>
@@ -328,17 +394,25 @@ intercalateSplitOnId x desc =
     where
 
     listWithZeroes :: Gen [a]
-    listWithZeroes = listOf $ frequency [(3, arbitrary), (1, elements [0])]
+    listWithZeroes = listOf $ frequency [(3, arbitrary), (1, return 0)]
 
 groupSplitOps :: String -> Spec
 groupSplitOps desc = do
     -- splitting
-    splitOnSeq
-    splitOnSuffixSeq
+    splitOnSeq splitOnSeqFold
+    splitOnSeq splitOnSeqStream
+    splitOnSuffixSeq splitOnSuffixSeqFold
+
+    -- XXX there are no tests for withSep = True option
+    splitOnSuffixSeq splitOnSuffixSeqStream
 
     -- splitting properties
     splitterProperties (0 :: Int) desc
     splitterProperties (0 :: Word8) desc
+
+    seqSplitterProperties (0 :: Int) desc
+    seqSplitterProperties (0 :: Word8) desc
+
     intercalateSplitOnId (0 :: Int) desc
     intercalateSplitOnId (0 :: Word8) desc
 
@@ -382,7 +456,7 @@ maybeMinimum ls = Just $ minimum ls
 -- Checks if the @[Int]@ is non-increasing.
 decreasing :: [Maybe Int] -> Bool
 decreasing [] = True
-decreasing xs = all (== True) $ zipWith (<=) (tail xs) xs
+decreasing xs = and $ zipWith (<=) (tail xs) xs
 
 -- |
 -- To check if the minimum elements (after grouping on @<@)
@@ -499,10 +573,10 @@ main = hspec
     describe "Runners" $ do
         -- XXX use an IORef to store and check the side effects
         it "simple serially" $
-            (Stream.fold Fold.drain)
+            Stream.fold Fold.drain
             (Stream.fromPure (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
-            (Stream.fold Fold.drain)
+            Stream.fold Fold.drain
             (Stream.fromEffect $ putStrLn "hello") `shouldReturn` ()
 
     describe "Construction" $ do

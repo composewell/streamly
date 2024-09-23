@@ -2312,8 +2312,8 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
 
     -- XXX Document this pattern for writing efficient code. Loop around only
     -- required elements in the recursive loop, build the structures being
-    -- manipulated locally e.g. we are pssing only mba, here and build an array
-    -- using patLen and arrStart from the surrounding context.
+    -- manipulated locally e.g. we are passing only mba, here and build an
+    -- array using patLen and arrStart from the surrounding context.
 
     stepOuter gst (SplitOnSeqKRInit offset fs st mba) = do
         res <- step (adaptState gst) st
@@ -2375,7 +2375,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                             let jump c = SplitOnSeqKRInit 0 c s mba
                             yieldProceed jump b
                 Skip s -> go SPEC fs s rh cksum
-                Stop -> skip $ SplitOnSeqKRDone patLen fs rb
+                Stop -> skip $ SplitOnSeqKRDone patBytes fs rb
 
     -- XXX The following code is 5 times slower compared to the recursive loop
     -- based code above. Need to investigate why. One possibility is that the
@@ -2421,6 +2421,7 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
         r <- final fs
         skip $ SplitOnSeqYield r SplitOnSeqDone
     stepOuter _ (SplitOnSeqKRDone len fs rb) = do
+        assert (len >= 0) (return ())
         old <- RB.unsafeGetHead rb
         let rb1 = RB.moveForward rb
         r <- fstep fs old
@@ -2786,7 +2787,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                     then do
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-                    else skip $ SplitOnSuffixSeqKRDone patLen fs rb
+                    else skip $ SplitOnSuffixSeqKRDone patBytes fs rb
 
     stepOuter _ (SplitOnSuffixSeqKRCheck fs st mba rh) = do
         let rb = Ring
@@ -2806,6 +2807,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
         r <- final fs
         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
     stepOuter _ (SplitOnSuffixSeqKRDone len fs rb) = do
+        assert (len >= 0) (return ())
         old <- RB.unsafeGetHead rb
         let rb1 = RB.moveForward rb
         r <- fstep fs old
