@@ -291,6 +291,7 @@ benchmark Data.Fold
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Fold.hs
+  -- XXX Separate the Data.Fold.Prelude benchmarks and remove this flag
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
   else

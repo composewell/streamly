@@ -29,7 +29,6 @@ import Streamly.Internal.Data.Array (Array)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
@@ -72,64 +71,12 @@ inspect $ 'splitOn `hasNoType` ''Unfold.ConcatState -- FH.read/UF.many
 inspect $ 'splitOn `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
--- | Split suffix on line feed.
-splitOnSuffix :: Handle -> IO Int
-splitOnSuffix inh =
-    (Stream.fold Fold.length
-        $ splitOnSuffix1 (== lf) Fold.drain
-        $ Handle.read inh) -- >>= print
-
-    where
-
-    splitOnSuffix1 p f = Stream.foldMany (Fold.takeEndBy_ p f)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'splitOnSuffix
-inspect $ 'splitOnSuffix `hasNoType` ''Step
-inspect $ 'splitOnSuffix `hasNoType` ''Unfold.ConcatState -- FH.read/UF.many
-inspect $ 'splitOnSuffix `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
-#endif
-
--- | Split suffix with line feed.
-splitWithSuffix :: Handle -> IO Int
-splitWithSuffix inh =
-    (Stream.fold Fold.length $ splitWithSuffix1 (== lf) Fold.drain
-        $ Handle.read inh) -- >>= print
-
-    where
-
-    splitWithSuffix1 p f = Stream.foldMany (Fold.takeEndBy p f)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'splitWithSuffix
-inspect $ 'splitWithSuffix `hasNoType` ''Step
-inspect $ 'splitWithSuffix `hasNoType` ''Unfold.ConcatState -- FH.read/UF.many
-inspect $ 'splitWithSuffix `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
-#endif
-
--- | Split on line feed.
-foldManySepBy :: Handle -> IO Int
-foldManySepBy inh =
-    (Stream.fold Fold.length
-        $ Stream.foldMany
-            (Fold.takeEndBy_ (== lf) Fold.drain)
-            (Handle.read inh)
-    ) -- >>= print
-
--- | Split on line feed.
-parseManySepBy :: Handle -> IO Int
-parseManySepBy inh =
-    (Stream.fold Fold.length
-        $ Stream.parseMany
-            (Parser.fromFold $ Fold.takeEndBy_ (== lf) Fold.drain)
-            (Handle.read inh)
-    ) -- >>= print
-
 -- | Words by space
 wordsBy :: Handle -> IO Int
 wordsBy inh =
-    (Stream.fold Fold.length $ Stream.wordsBy isSp Fold.drain
-        $ Handle.read inh) -- >>= print
+    Stream.fold Fold.length
+        $ Stream.wordsBy isSp Fold.drain
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'wordsBy
@@ -178,52 +125,55 @@ splitWithSuffixSeq str inh =
 
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_split env =
-    [ bgroup "split"
-        [ mkBench "S.foldMany (FL.takeEndBy_ (== lf) FL.drain)" env
-            $ \inh _ -> foldManySepBy inh
-        , mkBench "S.parseMany (FL.takeEndBy_ (== lf) FL.drain)" env
-            $ \inh _ -> parseManySepBy inh
-        , mkBench "S.wordsBy isSpace FL.drain" env $ \inh _ ->
-            wordsBy inh
-        , mkBench "S.splitOn (== lf) FL.drain" env $ \inh _ ->
+    -- NOTE: keep the benchmark names consistent with Data.Fold.takeEndBy*
+    [ bgroup "FileSplitElem"
+        [ mkBench "splitOn infix lf" env $ \inh _ ->
             splitOn inh
-        , mkBench "S.splitOnSuffix (== lf) FL.drain" env $ \inh _ ->
-            splitOnSuffix inh
-        , mkBench "S.splitWithSuffix (== lf) FL.drain" env $ \inh _ ->
-            splitWithSuffix inh
-        , mkBench "S.splitOnSeq empty-string FL.drain" env $ \inh _ ->
+        ]
+    -- splitting on a sequence
+    , bgroup "FileSplitSeq"
+        [
+          mkBench "wordsBy infix isSpace" env $ \inh _ ->
+            wordsBy inh
+
+        -- Infix
+        , mkBench "splitOnSeq infix empty pattern" env $ \inh _ ->
             splitOnSeq "" inh
-        , mkBench "S.splitOnSuffixSeq empty-string FL.drain" env $ \inh _ ->
-            splitOnSuffixSeq "" inh
-        , mkBench "S.splitOnSeq lf FL.drain" env $ \inh _ ->
+        , mkBench "splitOnSeq infix lf" env $ \inh _ ->
             splitOnSeq "\n" inh
-        , mkBench "S.splitOnSuffixSeq lf FL.drain" env $ \inh _ ->
-            splitOnSuffixSeq "\n" inh
-        , mkBench "S.splitOnSeq a FL.drain" env $ \inh _ ->
+        , mkBench "splitOnSeq infix a" env $ \inh _ ->
             splitOnSeq "a" inh
-        , mkBench "S.splitOnSeq crlf FL.drain" env $ \inh _ ->
+        , mkBench "splitOnSeq infix crlf" env $ \inh _ ->
             splitOnSeq "\r\n" inh
-        , mkBench "S.splitOnSuffixSeq crlf FL.drain" env $ \inh _ ->
-            splitOnSuffixSeq "\r\n" inh
-        , mkBench "S.splitWithSuffixSeq crlf FL.drain" env $ \inh _ ->
-            splitWithSuffixSeq "\r\n" inh
-        , mkBench "S.splitOnSeq aa FL.drain" env $ \inh _ ->
+        , mkBench "splitOnSeq infix aa" env $ \inh _ ->
             splitOnSeq "aa" inh
-        , mkBench "S.splitOnSeq aaaa FL.drain" env $ \inh _ ->
+        , mkBench "splitOnSeq infix aaaa" env $ \inh _ ->
             splitOnSeq "aaaa" inh
-        , mkBench "S.splitOnSeq abcdefgh FL.drain" env $ \inh _ ->
+        , mkBench "splitOnSeq infix abcdefgh" env $ \inh _ ->
             splitOnSeq "abcdefgh" inh
-        , mkBench "S.splitOnSeq abcdefghi FL.drain" env $ \inh _ ->
+        , mkBench "splitOnSeq infix abcdefghi" env $ \inh _ ->
             splitOnSeq "abcdefghi" inh
-        , mkBench "S.splitOnSeq catcatcatcatcat FL.drain" env $ \inh _ ->
+        , mkBench "splitOnSeq infix catcatcatcatcat" env $ \inh _ ->
             splitOnSeq "catcatcatcatcat" inh
-        , mkBench "S.splitOnSeq abcdefghijklmnopqrstuvwxyz FL.drain"
+        , mkBench "splitOnSeq infix abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
-        , mkBench "S.splitOnSeq 100k long pattern"
+        , mkBench "splitOnSeq infix 100k long pattern"
             env $ \inh _ -> splitOnSeq100k inh
-        , mkBenchSmall "S.splitOnSuffixSeq abcdefghijklmnopqrstuvwxyz FL.drain"
+
+        -- Suffix
+        , mkBench "splitOnSuffixSeq suffix empty pattern" env $ \inh _ ->
+            splitOnSuffixSeq "" inh
+        , mkBench "splitOnSuffixSeq suffix lf" env $ \inh _ ->
+            splitOnSuffixSeq "\n" inh
+        , mkBench "splitOnSuffixSeq suffix crlf" env $ \inh _ ->
+            splitOnSuffixSeq "\r\n" inh
+        , mkBenchSmall "splitOnSuffixSeq suffix abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
-        , mkBenchSmall "S.splitWithSuffixSeq abcdefghijklmnopqrstuvwxyz FL.drain"
+
+        -- Suffix with separator
+        , mkBench "splitWithSuffixSeq suffix crlf" env $ \inh _ ->
+            splitWithSuffixSeq "\r\n" inh
+        , mkBenchSmall "splitWithSuffixSeq suffix abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
         ]
     ]
@@ -238,11 +188,10 @@ splitOnSeqUtf8 str inh =
 
 o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_toChunks_split env =
-    [ bgroup "split/toChunks"
-        [ mkBenchSmall ("S.splitOnSeqUtf8 abcdefgh FL.drain "
-            ++ ". US.decodeUtf8Arrays") env $ \inh _ ->
-                splitOnSeqUtf8 "abcdefgh" inh
-        , mkBenchSmall "S.splitOnSeqUtf8 abcdefghijklmnopqrstuvwxyz FL.drain"
+    [ bgroup "FileSplitSeqUtf8"
+        [ mkBenchSmall "splitOnSeqUtf8 abcdefgh"
+            env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
+        , mkBenchSmall "splitOnSeqUtf8 abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
         ]
     ]
