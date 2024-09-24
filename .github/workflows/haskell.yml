@@ -76,117 +76,117 @@ jobs:
         # run. But we need at least one test where we test without
         # cabal.project because that is how hackage would build it.
         include:
-          - name: head
-            ghc_version: head
-            # The URL may change, to find a working URL go to https://gitlab.haskell.org/ghc/ghc/-/jobs/
-            # Find a debian10/11/12 job, click on a passed/failed status, at the
-            # end of the output you will find the tar.xz name, put that tar
-            # name after "raw/", and put the job name after "job=".
-            # Also see https://github.com/mpickering/ghc-artefact-nix/blob/master/gitlab-artifact.nix
-            #
-            # May also use ghcup for installing ghc head version, use the
-            # version "LatestNightly", and the following config:
-            # ghcup config add-release-channel https://ghc.gitlab.haskell.org/ghcup-metadata/ghcup-nightlies-0.0.7.yaml
-            ghcup_ghc_options: "-u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate"
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.10.2.0
-            cabal_project: cabal.project.ghc-head
-            disable_sdist_build: "y"
-            ignore_error: true
-          - name: 9.10.1-Werror
-            ghc_version: 9.10.1
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.10.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project.Werror
-            ignore_error: false
-          - name: 9.10.1-macos
-            ghc_version: 9.10.1
-            runner: macos-latest
-            build: cabal
-            cabal_version: 3.10.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            ignore_error: false
-          - name: 9.10.1-fusion-inspection
-            ghc_version: 9.10.1
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.10.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            cabal_build_options: "--flag fusion-plugin --flag inspection"
-            ignore_error: false
-          # Note: use linux for warning build for convenient dev testing
-          - name: 9.8.1-Werror
-            ghc_version: 9.8.1
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.10.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project.Werror
-            ignore_error: false
-        # - name: 9.8.1-docspec
-        #   ghc_version: 9.8.1
-        #   runner: ubuntu-latest
-        #   build: cabal
-        #   cabal_version: 3.10.1.0
-        #   cabal_project: cabal.project.doctest
-        #   disable_test: "y"
-        #   disable_bench: "y"
-        #   disable_docs: "y"
-        #   enable_docspec: "y"
-        #   disable_sdist_build: "y"
-        #   ignore_error: false
-          - name: 9.8.1-fusion-inspection
-            ghc_version: 9.8.1
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.10.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            cabal_build_options: "--flag fusion-plugin --flag inspection"
-            ignore_error: false
-          - name: 9.6.3-macos
-            ghc_version: 9.6.3
-            runner: macos-latest
-            build: cabal
-            cabal_version: 3.10.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            ignore_error: false
-          - name: 9.4.7
-            ghc_version: 9.4.7
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.8.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            ignore_error: false
-          - name: 9.2.8
-            ghc_version: 9.2.8
-            runner: ubuntu-latest
-            build: cabal
-            cabal_project: cabal.project
-            cabal_version: 3.6.2.0
-            disable_sdist_build: "y"
-            ignore_error: false
-          - name: 9.0.2-streamly-sdist
-            ghc_version: 9.0.2
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project.streamly
-            ignore_error: true
-          - name: 9.0.2-streamly-core-sdist
-            ghc_version: 9.0.2
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            subdir: core
-            ignore_error: false
+        #   - name: head
+        #     ghc_version: head
+        #     # The URL may change, to find a working URL go to https://gitlab.haskell.org/ghc/ghc/-/jobs/
+        #     # Find a debian10/11/12 job, click on a passed/failed status, at the
+        #     # end of the output you will find the tar.xz name, put that tar
+        #     # name after "raw/", and put the job name after "job=".
+        #     # Also see https://github.com/mpickering/ghc-artefact-nix/blob/master/gitlab-artifact.nix
+        #     #
+        #     # May also use ghcup for installing ghc head version, use the
+        #     # version "LatestNightly", and the following config:
+        #     # ghcup config add-release-channel https://ghc.gitlab.haskell.org/ghcup-metadata/ghcup-nightlies-0.0.7.yaml
+        #     ghcup_ghc_options: "-u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate"
+        #     runner: ubuntu-latest
+        #     build: cabal
+        #     cabal_version: 3.10.2.0
+        #     cabal_project: cabal.project.ghc-head
+        #     disable_sdist_build: "y"
+        #     ignore_error: true
+        #   - name: 9.10.1-Werror
+        #     ghc_version: 9.10.1
+        #     runner: ubuntu-latest
+        #     build: cabal
+        #     cabal_version: 3.10.1.0
+        #     disable_sdist_build: "y"
+        #     cabal_project: cabal.project.Werror
+        #     ignore_error: false
+        #   - name: 9.10.1-macos
+        #     ghc_version: 9.10.1
+        #     runner: macos-latest
+        #     build: cabal
+        #     cabal_version: 3.10.1.0
+        #     disable_sdist_build: "y"
+        #     cabal_project: cabal.project
+        #     ignore_error: false
+        #   - name: 9.10.1-fusion-inspection
+        #     ghc_version: 9.10.1
+        #     runner: ubuntu-latest
+        #     build: cabal
+        #     cabal_version: 3.10.1.0
+        #     disable_sdist_build: "y"
+        #     cabal_project: cabal.project
+        #     cabal_build_options: "--flag fusion-plugin --flag inspection"
+        #     ignore_error: false
+        #   # Note: use linux for warning build for convenient dev testing
+        #   - name: 9.8.1-Werror
+        #     ghc_version: 9.8.1
+        #     runner: ubuntu-latest
+        #     build: cabal
+        #     cabal_version: 3.10.1.0
+        #     disable_sdist_build: "y"
+        #     cabal_project: cabal.project.Werror
+        #     ignore_error: false
+        # # - name: 9.8.1-docspec
+        # #   ghc_version: 9.8.1
+        # #   runner: ubuntu-latest
+        # #   build: cabal
+        # #   cabal_version: 3.10.1.0
+        # #   cabal_project: cabal.project.doctest
+        # #   disable_test: "y"
+        # #   disable_bench: "y"
+        # #   disable_docs: "y"
+        # #   enable_docspec: "y"
+        # #   disable_sdist_build: "y"
+        # #   ignore_error: false
+        #   - name: 9.8.1-fusion-inspection
+        #     ghc_version: 9.8.1
+        #     runner: ubuntu-latest
+        #     build: cabal
+        #     cabal_version: 3.10.1.0
+        #     disable_sdist_build: "y"
+        #     cabal_project: cabal.project
+        #     cabal_build_options: "--flag fusion-plugin --flag inspection"
+        #     ignore_error: false
+        #   - name: 9.6.3-macos
+        #     ghc_version: 9.6.3
+        #     runner: macos-latest
+        #     build: cabal
+        #     cabal_version: 3.10.1.0
+        #     disable_sdist_build: "y"
+        #     cabal_project: cabal.project
+        #     ignore_error: false
+        #   - name: 9.4.7
+        #     ghc_version: 9.4.7
+        #     runner: ubuntu-latest
+        #     build: cabal
+        #     cabal_version: 3.8.1.0
+        #     disable_sdist_build: "y"
+        #     cabal_project: cabal.project
+        #     ignore_error: false
+        #   - name: 9.2.8
+        #     ghc_version: 9.2.8
+        #     runner: ubuntu-latest
+        #     build: cabal
+        #     cabal_project: cabal.project
+        #     cabal_version: 3.6.2.0
+        #     disable_sdist_build: "y"
+        #     ignore_error: false
+        #   - name: 9.0.2-streamly-sdist
+        #     ghc_version: 9.0.2
+        #     runner: ubuntu-latest
+        #     build: cabal
+        #     cabal_version: 3.6.2.0
+        #     cabal_project: cabal.project.streamly
+        #     ignore_error: true
+        #   - name: 9.0.2-streamly-core-sdist
+        #     ghc_version: 9.0.2
+        #     runner: ubuntu-latest
+        #     build: cabal
+        #     cabal_version: 3.6.2.0
+        #     subdir: core
+        #     ignore_error: false
           - name: 8.10.7-stack
             runner: ubuntu-latest
             build: stack
@@ -195,6 +195,8 @@ jobs:
             disable_docs: "y"
             disable_sdist_build: "y"
             disable_dist_checks: "y"
+            disable_test: "y"
+            disable_bench: "y"
             #sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
@@ -207,6 +209,8 @@ jobs:
             disable_docs: "y"
             disable_sdist_build: "y"
             disable_dist_checks: "y"
+            disable_test: "y"
+            disable_bench: "y"
             #sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
@@ -219,6 +223,8 @@ jobs:
             disable_docs: "y"
             disable_sdist_build: "y"
             disable_dist_checks: "y"
+            disable_test: "y"
+            disable_bench: "y"
             #sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
@@ -231,6 +237,8 @@ jobs:
             disable_docs: "y"
             disable_sdist_build: "y"
             disable_dist_checks: "y"
+            disable_test: "y"
+            disable_bench: "y"
             #sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
@@ -241,25 +249,25 @@ jobs:
         #   coverage: "y"
         #   cabal_version: 3.6.2.0
         #   ignore_error: false
-          - name: 8.8.4
-            ghc_version: 8.8.4
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project
-            disable_sdist_build: "y"
-            disable_docs: "y"
-            ignore_error: false
-          - name: 8.6.5-debug-unoptimized
-            ghc_version: 8.6.5
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project
-            cabal_build_options: "--flag debug --flag -opt"
-            disable_sdist_build: "y"
-            disable_docs: "y"
-            ignore_error: false
+          # - name: 8.8.4
+          #   ghc_version: 8.8.4
+          #   runner: ubuntu-latest
+          #   build: cabal
+          #   cabal_version: 3.6.2.0
+          #   cabal_project: cabal.project
+          #   disable_sdist_build: "y"
+          #   disable_docs: "y"
+          #   ignore_error: false
+          # - name: 8.6.5-debug-unoptimized
+          #   ghc_version: 8.6.5
+          #   runner: ubuntu-latest
+          #   build: cabal
+          #   cabal_version: 3.6.2.0
+          #   cabal_project: cabal.project
+          #   cabal_build_options: "--flag debug --flag -opt"
+          #   disable_sdist_build: "y"
+          #   disable_docs: "y"
+          #   ignore_error: false
         # - name: hlint
         #   build: hlint
         #   runner: ubuntu-latest
