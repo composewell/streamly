@@ -291,7 +291,17 @@ benchmark Data.Fold
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Fold.hs
-  -- XXX Separate the Data.Fold.Prelude benchmarks and remove this flag
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Fold.Prelude
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Fold
+  -- XXX Using the name Prelude.hs causes compilation error
+  main-is: Prelood.hs
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
   else

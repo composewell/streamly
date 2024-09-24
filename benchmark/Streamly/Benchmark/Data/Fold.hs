@@ -36,8 +36,6 @@ import Data.Char (ord)
 import Streamly.Internal.Data.Array (Array)
 import Data.Functor.Identity (Identity(..))
 import Data.Map.Strict (Map)
-import Data.Hashable (Hashable)
-import Data.HashMap.Strict (HashMap)
 import Data.IntMap.Strict (IntMap)
 import Data.Monoid (Last(..), Sum(..))
 import Data.Word (Word8)
@@ -46,10 +44,8 @@ import System.Random (randomRIO)
 
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Fold (Fold(..))
-import Streamly.Internal.Data.IsMap.HashMap ()
 import Streamly.Internal.Data.MutArray (MutArray)
 
-import qualified Streamly.Data.Fold.Prelude as Fold
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -436,28 +432,10 @@ demuxToIntMap :: Monad m =>
     (a -> Int) -> (a -> m (Fold m a b)) -> Stream m a -> m (IntMap b)
 demuxToIntMap f g = Stream.fold (FL.demuxToContainer f g)
 
-{-# INLINE demuxToHashMap  #-}
-demuxToHashMap :: (Monad m, Hashable k
-#if __GLASGOW_HASKELL__ == 810
-    , Eq k
-#endif
-    ) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
-demuxToHashMap f g = Stream.fold (FL.demuxToContainer f g)
-
 {-# INLINE demuxToMapIO  #-}
 demuxToMapIO :: (MonadIO m, Ord k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
 demuxToMapIO f g = Stream.fold (FL.demuxToContainerIO f g)
-
-{-# INLINE demuxToHashMapIO  #-}
-demuxToHashMapIO :: (MonadIO m, Hashable k
-#if __GLASGOW_HASKELL__ == 810
-    , Eq k
-#endif
-    ) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
-demuxToHashMapIO f g = Stream.fold (FL.demuxToContainerIO f g)
 
 {-# INLINE toMap #-}
 toMap ::
@@ -478,15 +456,6 @@ toMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
 toIntMapIO ::
        (MonadIO m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
 toIntMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
-
-{-# INLINE toHashMapIO #-}
-toHashMapIO :: (MonadIO m, Num a, Hashable k
-#if __GLASGOW_HASKELL__ == 810
-    , Eq k
-#endif
-    ) =>
-    (a -> k) -> Stream m a -> m (HashMap k a)
-toHashMapIO f = Stream.fold (Fold.toHashMapIO f FL.sum)
 
 -------------------------------------------------------------------------------
 -- unzip
@@ -700,12 +669,8 @@ o_n_heap_serial value =
                 $ demuxToMap (getKey 64) (getFold . getKey 64)
             , benchIOSink value "demuxToIntMap (64 buckets) [sum, length]"
                 $ demuxToIntMap (getKey 64) (getFold . getKey 64)
-            , benchIOSink value "demuxToHashMap (64 buckets) [sum, length]"
-                $ demuxToHashMap (getKey 64) (getFold . getKey 64)
             , benchIOSink value "demuxToMapIO (64 buckets) [sum, length]"
                 $ demuxToMapIO (getKey 64) (getFold . getKey 64)
-            , benchIOSink value "demuxToHashMapIO (64 buckets) [sum, length]"
-                $ demuxToHashMapIO (getKey 64) (getFold . getKey 64)
 
             -- classify: immutable
             , benchIOSink value "toMap (64 buckets) sum"
@@ -722,12 +687,6 @@ o_n_heap_serial value =
                 $ toMapIO (getKey value)
             , benchIOSink value "toIntMapIO (64 buckets) sum"
                 $ toIntMapIO (getKey 64)
-            , benchIOSink value "toHashMapIO (single bucket) sum"
-                $ toHashMapIO (getKey 1)
-            , benchIOSink value "toHashMapIO (64 buckets) sum"
-                $ toHashMapIO (getKey 64)
-            , benchIOSink value "toHashMapIO (max buckets) sum"
-                $ toHashMapIO (getKey value)
             ]
     ]
 
