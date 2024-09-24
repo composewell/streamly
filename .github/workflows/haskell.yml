@@ -84,6 +84,8 @@ jobs:
             disable_sdist_build: "y"
             disable_dist_checks: "y"
             #sdist_options: "--ignore-check"
+            disable_test: "y"
+            disable_bench: "y"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
 
