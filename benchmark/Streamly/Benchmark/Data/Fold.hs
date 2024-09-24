@@ -5,6 +5,7 @@
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
@@ -17,34 +18,58 @@
 {-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
 #endif
 
+#ifdef __HADDOCK_VERSION__
+#undef INSPECTION
+#endif
+
+#ifdef INSPECTION
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
+#endif
+
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Char (ord)
+import Streamly.Internal.Data.Array (Array)
 import Data.Functor.Identity (Identity(..))
 import Data.Map.Strict (Map)
-import Data.Hashable (Hashable)
-import Data.HashMap.Strict (HashMap)
 import Data.IntMap.Strict (IntMap)
 import Data.Monoid (Last(..), Sum(..))
+import Data.Word (Word8)
+import System.IO (Handle)
 import System.Random (randomRIO)
 
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Fold (Fold(..))
-import Streamly.Internal.Data.IsMap.HashMap ()
 import Streamly.Internal.Data.MutArray (MutArray)
 
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Data.Fold.Prelude as Fold
-import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Pipe as Pipe
 -- import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.FileSystem.Handle as Handle
+import qualified Streamly.Internal.Unicode.Stream as Unicode
 
-import Test.Tasty.Bench
+import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
-import Prelude hiding (all, any, take, unzip, sequence_, filter)
+import Streamly.Benchmark.Common.Handle
+import Prelude hiding (last, length, all, any, take, unzip, sequence_, filter)
+
+#ifdef INSPECTION
+import Streamly.Internal.Data.Stream (Step(..))
+
+import qualified Streamly.Internal.Data.MutArray as MutArray
+import qualified Streamly.Internal.Data.Unfold as Unfold
+
+import Test.Inspection
+#endif
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
@@ -115,16 +140,8 @@ scanMaybe2 _ =
         $ FL.scanMaybe (FL.filtering odd) FL.drain
 
 -------------------------------------------------------------------------------
--- Splitting by serial application
+-- Splitting in two
 -------------------------------------------------------------------------------
-
-{-# INLINE takeEndBy_ #-}
-takeEndBy_ :: Monad m => Int -> Stream m Int -> m ()
-takeEndBy_ value = Stream.fold (FL.takeEndBy_ (>= value) FL.drain)
-
-{-# INLINE many #-}
-many :: Monad m => Stream m Int -> m ()
-many = Stream.fold (FL.many (FL.take 1 FL.drain) FL.drain)
 
 {-# INLINE splitAllAny #-}
 splitAllAny :: Monad m => Int -> Stream m Int -> m (Bool, Bool)
@@ -157,6 +174,202 @@ foldBreak :: Monad m => Stream m Int -> m ()
 foldBreak s = do
     (r, s1) <- Stream.foldBreak (FL.take 1 FL.length) s
     when (r /= 0) $ foldBreak s1
+
+-------------------------------------------------------------------------------
+-- Split generated streams (not a file)
+-------------------------------------------------------------------------------
+
+{-# INLINE many #-}
+many :: Monad m => Stream m Int -> m ()
+many = Stream.fold (FL.many (FL.take 1 FL.drain) FL.drain)
+
+{-# INLINE takeEndBy_ #-}
+takeEndBy_ :: Monad m => Int -> Stream m Int -> m ()
+takeEndBy_ value = Stream.fold (FL.takeEndBy_ (>= value) FL.drain)
+
+-------------------------------------------------------------------------------
+-- Splitting a file stream into a stream by serial application
+-------------------------------------------------------------------------------
+
+lf :: Word8
+lf = fromIntegral (ord '\n')
+
+toarr :: String -> Array Word8
+toarr = Array.fromList . map (fromIntegral . ord)
+
+-- | Split on line feed.
+fileInfixTakeEndBy_ :: Handle -> IO Int
+fileInfixTakeEndBy_ inh =
+    Stream.fold Fold.length
+        $ Stream.foldManyPost (FL.takeEndBy_ (== lf) Fold.drain)
+        $ Handle.read inh -- >>= print
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'fileInfixTakeEndBy_
+inspect $ 'fileInfixTakeEndBy_ `hasNoType` ''Step
+inspect $ 'fileInfixTakeEndBy_ `hasNoType` ''Unfold.ConcatState -- FH.read/UF.many
+inspect $ 'fileInfixTakeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+#endif
+
+-- | Split on line feed.
+fileSuffixTakeEndBy_ :: Handle -> IO Int
+fileSuffixTakeEndBy_ inh =
+    Stream.fold Fold.length
+        $ Stream.foldMany
+            (Fold.takeEndBy_ (== lf) Fold.drain)
+            (Handle.read inh)
+     -- >>= print
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'fileSuffixTakeEndBy_
+inspect $ 'fileSuffixTakeEndBy_ `hasNoType` ''Step
+inspect $ 'fileSuffixTakeEndBy_ `hasNoType` ''Unfold.ConcatState -- FH.read/UF.many
+inspect $ 'fileSuffixTakeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+#endif
+
+-- | Split on line feed.
+parseFileSuffixTakeEndBy_ :: Handle -> IO Int
+parseFileSuffixTakeEndBy_ inh =
+    Stream.fold Fold.length
+        $ Stream.parseMany
+            (Parser.fromFold $ Fold.takeEndBy_ (== lf) Fold.drain)
+            (Handle.read inh)
+     -- >>= print
+
+-- | Split suffix with line feed.
+fileSuffixTakeEndBy :: Handle -> IO Int
+fileSuffixTakeEndBy inh =
+    Stream.fold Fold.length
+        $ Stream.foldMany
+            (Fold.takeEndBy (== lf) Fold.drain)
+            (Handle.read inh)
+     -- >>= print
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'fileSuffixTakeEndBy
+inspect $ 'fileSuffixTakeEndBy `hasNoType` ''Step
+inspect $ 'fileSuffixTakeEndBy `hasNoType` ''Unfold.ConcatState -- FH.read/UF.many
+inspect $ 'fileSuffixTakeEndBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+#endif
+
+-- | Infix split on a word8 sequence.
+splitOnSeq :: String -> Handle -> IO Int
+splitOnSeq str inh =
+    Stream.fold Fold.length
+        $ Stream.foldManyPost (Fold.takeEndBySeq_ (toarr str) Fold.drain)
+        $ Handle.read inh -- >>= print
+
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'splitOnSeq
+-- inspect $ 'splitOnSeq `hasNoType` ''Step
+#endif
+
+-- | Infix split on a word8 sequence.
+splitOnSeq100k :: Handle -> IO Int
+splitOnSeq100k inh = do
+    arr <- Stream.fold Array.create $ Stream.replicate 100000 123
+    Stream.fold Fold.length
+        $ Stream.foldManyPost (Fold.takeEndBySeq_ arr Fold.drain)
+        $ Handle.read inh -- >>= print
+
+-- | Split on suffix sequence.
+splitOnSuffixSeq :: String -> Handle -> IO Int
+splitOnSuffixSeq str inh =
+    Stream.fold Fold.length
+        $ Stream.foldMany (Fold.takeEndBySeq_ (toarr str) Fold.drain)
+        $ Handle.read inh -- >>= print
+
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'splitOnSuffixSeq
+-- inspect $ 'splitOnSuffixSeq `hasNoType` ''Step
+#endif
+
+-- | Split on suffix sequence.
+splitWithSuffixSeq :: String -> Handle -> IO Int
+splitWithSuffixSeq str inh =
+    Stream.fold Fold.length
+        $ Stream.foldMany (Fold.takeEndBySeq (toarr str) Fold.drain)
+        $ Handle.read inh -- >>= print
+
+o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
+o_1_space_reduce_read_split env =
+    -- NOTE: keep the benchmark names consistent with Data.Stream.split*
+    [ bgroup "FileSplitElem"
+        -- Splitting on single element
+        [
+          mkBench "takeEndBy_ infix (splitOn)" env $ \inh _ ->
+            fileInfixTakeEndBy_ inh
+        , mkBench "takeEndBy_ suffix (splitOnSuffix)" env $ \inh _ ->
+            fileSuffixTakeEndBy_ inh
+        , mkBench "takeEndBy_ suffix parseMany (splitOnSuffix)" env
+            $ \inh _ -> parseFileSuffixTakeEndBy_ inh
+        , mkBench "takeEndBy suffix (splitWithSuffix)" env $ \inh _ ->
+            fileSuffixTakeEndBy inh
+        ]
+
+    -- Splitting on sequence
+    , bgroup "FileSplitSeq"
+        [
+          -- Infix takeEndBySeq_
+          mkBench "takeEndBySeq_ infix empty pattern" env $ \inh _ ->
+            splitOnSeq "" inh
+        , mkBench "takeEndBySeq_ infix lf" env $ \inh _ ->
+            splitOnSeq "\n" inh
+        , mkBench "takeEndBySeq_ infix a" env $ \inh _ ->
+            splitOnSeq "a" inh
+        , mkBench "takeEndBySeq_ infix crlf" env $ \inh _ ->
+            splitOnSeq "\r\n" inh
+        , mkBench "takeEndBySeq_ infix aa" env $ \inh _ ->
+            splitOnSeq "aa" inh
+        , mkBench "takeEndBySeq_ infix aaaa" env $ \inh _ ->
+            splitOnSeq "aaaa" inh
+        , mkBench "takeEndBySeq_ infix abcdefgh" env $ \inh _ ->
+            splitOnSeq "abcdefgh" inh
+        , mkBench "takeEndBySeq_ infix abcdefghi" env $ \inh _ ->
+            splitOnSeq "abcdefghi" inh
+        , mkBench "takeEndBySeq_ infix catcatcatcatcat" env $ \inh _ ->
+            splitOnSeq "catcatcatcatcat" inh
+        , mkBench "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
+        , mkBench "takeEndBySeq_ infix 100k long pattern"
+            env $ \inh _ -> splitOnSeq100k inh
+
+          -- Suffix takeEndBySeq_
+        , mkBench "takeEndBySeq_ suffix empty pattern" env $ \inh _ ->
+            splitOnSuffixSeq "" inh
+        , mkBench "takeEndBySeq_ suffix lf" env $ \inh _ ->
+            splitOnSuffixSeq "\n" inh
+        , mkBench "takeEndBySeq_ suffix crlf" env $ \inh _ ->
+            splitOnSuffixSeq "\r\n" inh
+        , mkBenchSmall "takeEndBySeq_ suffix abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+
+          -- Suffix takeEndBySeq
+        , mkBench "takeEndBySeq suffix crlf" env $ \inh _ ->
+            splitWithSuffixSeq "\r\n" inh
+        , mkBenchSmall "takeEndBySeq suffix abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+        ]
+    ]
+
+-- | Infix split on a character sequence.
+splitOnSeqUtf8 :: String -> Handle -> IO Int
+splitOnSeqUtf8 str inh =
+    Stream.fold Fold.length
+        $ Stream.foldManyPost
+            (Fold.takeEndBySeq_ (Array.fromList str) Fold.drain)
+        $ Unicode.decodeUtf8Chunks
+        $ Handle.readChunks inh -- >>= print
+
+o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
+o_1_space_reduce_toChunks_split env =
+    [ bgroup "FileSplitSeqUtf8"
+        [ mkBenchSmall "takeEndBySeq_ infix abcdefgh"
+            env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
+        , mkBenchSmall "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
+        ]
+    ]
 
 -------------------------------------------------------------------------------
 -- Distributing by parallel application
@@ -219,28 +432,10 @@ demuxToIntMap :: Monad m =>
     (a -> Int) -> (a -> m (Fold m a b)) -> Stream m a -> m (IntMap b)
 demuxToIntMap f g = Stream.fold (FL.demuxToContainer f g)
 
-{-# INLINE demuxToHashMap  #-}
-demuxToHashMap :: (Monad m, Hashable k
-#if __GLASGOW_HASKELL__ == 810
-    , Eq k
-#endif
-    ) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
-demuxToHashMap f g = Stream.fold (FL.demuxToContainer f g)
-
 {-# INLINE demuxToMapIO  #-}
 demuxToMapIO :: (MonadIO m, Ord k) =>
     (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
 demuxToMapIO f g = Stream.fold (FL.demuxToContainerIO f g)
-
-{-# INLINE demuxToHashMapIO  #-}
-demuxToHashMapIO :: (MonadIO m, Hashable k
-#if __GLASGOW_HASKELL__ == 810
-    , Eq k
-#endif
-    ) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (HashMap k b)
-demuxToHashMapIO f g = Stream.fold (FL.demuxToContainerIO f g)
 
 {-# INLINE toMap #-}
 toMap ::
@@ -261,15 +456,6 @@ toMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
 toIntMapIO ::
        (MonadIO m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
 toIntMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
-
-{-# INLINE toHashMapIO #-}
-toHashMapIO :: (MonadIO m, Num a, Hashable k
-#if __GLASGOW_HASKELL__ == 810
-    , Eq k
-#endif
-    ) =>
-    (a -> k) -> Stream m a -> m (HashMap k a)
-toHashMapIO f = Stream.fold (Fold.toHashMapIO f FL.sum)
 
 -------------------------------------------------------------------------------
 -- unzip
@@ -359,7 +545,7 @@ o_1_space_serial_elimination value =
               "foldMapM"
               (Stream.fold (FL.foldMapM (return . Last . Just)))
         , benchIOSink value "index" (Stream.fold (FL.index (value + 1)))
-        , benchIOSink value "head" (Stream.fold FL.head)
+        -- , benchIOSink value "head" (Stream.fold FL.head)
         , benchIOSink value "find" (Stream.fold (FL.find (== (value + 1))))
         , benchIOSink
               value
@@ -373,7 +559,7 @@ o_1_space_serial_elimination value =
               value
               "elemIndex"
               (Stream.fold (FL.elemIndex (value + 1)))
-        , benchIOSink value "null" (Stream.fold FL.null)
+        -- , benchIOSink value "null" (Stream.fold FL.null)
         , benchIOSink value "elem" (Stream.fold (FL.elem (value + 1)))
         , benchIOSink value "notElem" (Stream.fold (FL.notElem (value + 1)))
         , benchIOSink value "all" $ all value
@@ -483,12 +669,8 @@ o_n_heap_serial value =
                 $ demuxToMap (getKey 64) (getFold . getKey 64)
             , benchIOSink value "demuxToIntMap (64 buckets) [sum, length]"
                 $ demuxToIntMap (getKey 64) (getFold . getKey 64)
-            , benchIOSink value "demuxToHashMap (64 buckets) [sum, length]"
-                $ demuxToHashMap (getKey 64) (getFold . getKey 64)
             , benchIOSink value "demuxToMapIO (64 buckets) [sum, length]"
                 $ demuxToMapIO (getKey 64) (getFold . getKey 64)
-            , benchIOSink value "demuxToHashMapIO (64 buckets) [sum, length]"
-                $ demuxToHashMapIO (getKey 64) (getFold . getKey 64)
 
             -- classify: immutable
             , benchIOSink value "toMap (64 buckets) sum"
@@ -505,12 +687,6 @@ o_n_heap_serial value =
                 $ toMapIO (getKey value)
             , benchIOSink value "toIntMapIO (64 buckets) sum"
                 $ toIntMapIO (getKey 64)
-            , benchIOSink value "toHashMapIO (single bucket) sum"
-                $ toHashMapIO (getKey 1)
-            , benchIOSink value "toHashMapIO (64 buckets) sum"
-                $ toHashMapIO (getKey 64)
-            , benchIOSink value "toHashMapIO (max buckets) sum"
-                $ toHashMapIO (getKey value)
             ]
     ]
 
@@ -531,15 +707,18 @@ o_n_heap_serial value =
 main :: IO ()
 main = do
 #ifndef FUSION_CHECK
-    runWithCLIOpts defaultStreamSize allBenchmarks
+    env <- mkHandleBenchEnv
+    runWithCLIOpts defaultStreamSize (allBenchmarks env)
 
     where
 
-    allBenchmarks value =
+    allBenchmarks env value =
         [ bgroup (o_1_space_prefix moduleName) $ concat
             [ o_1_space_serial_elimination value
             , o_1_space_serial_transformation value
             , o_1_space_serial_composition value
+            , o_1_space_reduce_read_split env
+            , o_1_space_reduce_toChunks_split env
             ]
         , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)

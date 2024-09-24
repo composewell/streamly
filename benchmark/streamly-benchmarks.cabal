@@ -291,6 +291,17 @@ benchmark Data.Fold
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Fold.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Fold.Prelude
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Fold
+  -- XXX Using the name Prelude.hs causes compilation error
+  main-is: Prelood.hs
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
   else
@@ -301,10 +312,6 @@ benchmark Data.Fold.Window
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Fold
   main-is: Window.hs
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
 
 benchmark Data.MutArray
   import: bench-options
@@ -413,7 +420,7 @@ benchmark Data.Stream
       Stream.Reduce
       Stream.Expand
       Stream.Lift
-      -- Stream.Split XXX need to fix this
+      Stream.Split
       Stream.Common
   if !flag(use-streamly-core)
     other-modules:
@@ -643,7 +650,6 @@ benchmark Prelude
       Stream.Expand
       Stream.Lift
       Stream.Common
-      Stream.Split
       Stream.Exceptions
   cpp-options: -DUSE_PRELUDE
   if !flag(use-prelude)
