@@ -164,10 +164,26 @@ data Ring a = Ring
     , ringSize :: {-# UNPACK #-} !Int -- size of array in bytes
     , ringHead :: {-# UNPACK #-} !Int -- byte index in the array
     }
+-- XXX How do we differentiate between byte-ish and element-ish numbers?
+-- This was a problem when I was playing with arrays.
+
+{-
+XXX
+
+Maintaining ringHead in the Ring means we need to pass the ring around in the
+loop if we ever modify the ringHead.
+
+Consider functions like splitOnSuffixSeq and friends. Currently we only thread
+the ringHead in the loop but keeping the ringHead in the Ring means we'll have
+to thread the entire ring.
+
+-}
 
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
+
+-- XXX We should suffix byte based APIs with *Bytes
 
 -- | Given byte offset relative to the ring head, compute the linear byte
 -- offset in the array. Offset can be positive or negative. Invariants:
@@ -184,6 +200,9 @@ unsafeChangeHeadByOffset rh rs i =
         else if i1 < 0
              then i1 + rs
              else i1
+-- XXX Petty observation:
+-- Don't use the term "change"?
+-- When I look at this function used in other functions I get confused.
 
 -- | Convert a byte offset relative to the ring head to a byte offset in the
 -- underlying mutable array. Offset can be positive or negative.
@@ -218,6 +237,7 @@ incrHeadByOffset rh rs n =
      in if rh1 >= rs
         then 0
         else rh1
+-- Isn't this the same as "unsafeChangeHeadByOffset"?
 
 -- | Advance the ring head forward by 1 slot, the ring head will now point to
 -- the next (newer) item, and the old ring head position will become the latest
@@ -251,6 +271,7 @@ decrHeadByOffset rh rs n =
 moveReverse :: forall a. Unbox a => Ring a -> Ring a
 moveReverse rb@Ring{..} =
     rb { ringHead = decrHeadByOffset ringHead ringSize (SIZE_OF(a)) }
+-- XXX moveBackward?
 
 -------------------------------------------------------------------------------
 -- Conversions
@@ -365,6 +386,8 @@ replace_ rb newVal = do
     when (ringSize rb /= 0)
         $ liftIO $ pokeAt (ringHead rb) (ringContents rb) newVal
     pure $ moveForward rb
+-- XXX replace_ does not perform a check done by replace
+-- Maybe consider using the prefix unsafe?
 
 -- | Return the element at the specified index without checking the bounds.
 --
@@ -387,6 +410,8 @@ replace rb newVal = do
     old <- unsafeGetRawIndex (ringHead rb) rb
     liftIO $ pokeAt (ringHead rb) (ringContents rb) newVal
     pure (moveForward rb, old)
+-- XXX The terminology of oldest and newest is rather confusing
+-- Would advancing a pointer make the next element the oldest?
 
 -------------------------------------------------------------------------------
 -- Random reads
@@ -479,6 +504,7 @@ readerRev = Unfold step inject
             let rb1 = moveReverse rb
             x <- unsafeGetHead rb1
             return $ Yield x (rb1, n - SIZE_OF(a))
+-- XXX Move the moveReverse to the inject and use the same code as reader?
 
 -- | Read the entire ring as a stream, starting at the ring head i.e. from
 -- oldest to newest.
@@ -519,6 +545,7 @@ scanRingsOf n = Scanl step initial extract extract
             arr :: MutArray.MutArray a <- liftIO $ MutArray.emptyOf n
             return $ Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
 
+    -- XXX Move "n * SIZE_OF(a)" out?
     step (Tuple3Fused' mba rh i) a = do
         Ring _ _ rh1 <- replace_ (Ring mba (n * SIZE_OF(a)) rh) a
         return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
@@ -601,6 +628,7 @@ unsafeCast Ring{..} =
         , ringHead = ringHead
         , ringSize = ringSize
     }
+-- XXX Indentation fix
 
 -- | Cast a @Ring a@ into a @Ring Word8@.
 --
@@ -747,6 +775,7 @@ unsafeFoldRing !len f z rb = go z 0
         | otherwise = do
             x <- unsafeGetRawIndex index rb
             go (f acc x) (index + SIZE_OF(a))
+-- XXX Deprecated message does not say what to replace it with.
 
 -- | Like unsafeFoldRing but with a monadic step function.
 {-# DEPRECATED unsafeFoldRingM "This function will be removed in future." #-}
@@ -763,6 +792,7 @@ unsafeFoldRingM !len f z rb = go z 0
             x <- unsafeGetRawIndex index rb
             acc1 <- f acc x
             go acc1 (index + SIZE_OF(a))
+-- XXX Deprecated message does not say what to replace it with.
 
 -- | Fold the entire length of a ring buffer starting at the current ring head.
 --
@@ -799,6 +829,7 @@ foldlM' f z rb = go z rh
 unsafeFoldRingFullM :: forall m a b. (MonadIO m, Unbox a)
     => (b -> a -> m b) -> b -> Ring a -> m b
 unsafeFoldRingFullM = foldlM'
+-- XXX Deprecated message does not say what to replace it with.
 
 -- | Fold @n@ items in the ring starting at the ring head. Won't fold more
 -- than the length of the ring even if @n@ is larger.
@@ -823,6 +854,7 @@ unsafeFoldRingNM count f z rb = go count z rh
         if next == rh || n == 0
             then return acc'
             else go (n - 1) acc' next
+-- XXX Deprecated message does not say what to replace it with.
 
 -- | Cast the ring to a mutable array. Return the mutable array as well as the
 -- current position of the ring head. Note that the array does not start with
