@@ -111,6 +111,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.MutArray.Type as MutArray
+import qualified Streamly.Internal.Data.MutByteArray.Type as MutByteArray
 import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.Type as Stream
@@ -461,8 +462,8 @@ reader = Unfold step inject
             x <- unsafeGetHead rb
             return $ Yield x (moveForward rb, n - SIZE_OF(a))
 
--- | Read the entire ring, starting at the item before the ring head i.e. from
--- newest to oldest
+-- | Read the entire ring in reverse order, starting at the item before the
+-- ring head i.e. from newest to oldest
 --
 {-# INLINE_NORMAL readerRev #-}
 readerRev :: forall m a. (MonadIO m, Unbox a) => Unfold m (Ring a) a
@@ -470,15 +471,14 @@ readerRev = Unfold step inject
 
     where
 
-    inject rb = return (rb, ringSize rb)
+    inject rb = return (moveReverse rb, ringSize rb)
 
     step (rb, n) = do
         if n <= 0
         then return Stop
         else do
-            let rb1 = moveReverse rb
-            x <- unsafeGetHead rb1
-            return $ Yield x (rb1, n - SIZE_OF(a))
+            x <- unsafeGetHead rb
+            return $ Yield x (moveReverse rb, n - SIZE_OF(a))
 
 -- | Read the entire ring as a stream, starting at the ring head i.e. from
 -- oldest to newest.
@@ -512,23 +512,26 @@ scanRingsOf n = Scanl step initial extract extract
 
     where
 
+    rSize = n * SIZE_OF(a)
+
     initial =
         if n <= 0
-        then error "ringsOf: window size must be > 0"
+        then error "scanRingsOf: window size must be > 0"
         else do
-            arr :: MutArray.MutArray a <- liftIO $ MutArray.emptyOf n
-            return $ Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
+            mba <- liftIO $ MutByteArray.new rSize
+            return $ Partial $ Tuple3Fused' mba 0 0
 
-    step (Tuple3Fused' mba rh i) a = do
-        Ring _ _ rh1 <- replace_ (Ring mba (n * SIZE_OF(a)) rh) a
-        return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
+    step (Tuple3Fused' mba rh offset) a = do
+        Ring _ _ rh1 <- replace_ (Ring mba rSize rh) a
+        let offset1 = offset + SIZE_OF(a)
+        return $ Partial $ Tuple3Fused' mba rh1 offset1
 
     -- XXX exitify optimization causes a problem here when modular folds are
     -- used. Sometimes inlining "extract" is helpful.
     {-# INLINE extract #-}
-    extract (Tuple3Fused' mba rh i) =
-        let rs = min i n * SIZE_OF(a)
-            rh1 = if i <= n then 0 else rh
+    extract (Tuple3Fused' mba rh offset) =
+        let rs = min offset rSize
+            rh1 = if offset <= rSize then 0 else rh
          in pure $ Ring mba rs rh1
 
 -- | @ringsOf n stream@ groups the input stream into a stream of ring arrays of
@@ -600,7 +603,7 @@ unsafeCast Ring{..} =
         { ringContents = ringContents
         , ringHead = ringHead
         , ringSize = ringSize
-    }
+        }
 
 -- | Cast a @Ring a@ into a @Ring Word8@.
 --
