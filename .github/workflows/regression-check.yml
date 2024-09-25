@@ -14,30 +14,38 @@ on:
 # with the benchmark target.
 # Eg, "Data.Async:12" where "Data.Async" is the benchmark target, ":" is the
 # seperator, and "12" is the new cutoff percent
+#----------------------------------------------------------------------
+#-- Benchmarks listed in alphabetical order
+#----------------------------------------------------------------------
 jobs:
   check-regressions:
     env:
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
-        Data.MutArray
         Data.Array.Generic
-        Data.Ring.Unboxed
+        Data.Array.Stream
         Data.Fold
+        Data.Fold.Prelude
         Data.Fold.Window
+        Data.MutArray
         Data.Parser
         Data.ParserK
-        Data.StreamD
-        Data.StreamK:6
-        Data.Unfold
+        Data.ParserK.Chunked
+        Data.ParserK.Chunked.Generic
+        Data.Ring
+        Data.Serialize
         Data.Stream
         Data.Stream.Concurrent
         Data.Stream.ConcurrentEager
         Data.Stream.ConcurrentInterleaved
         Data.Stream.ConcurrentOrdered
+        Data.StreamK:6
+        Data.Unbox
+        Data.Unbox.Derive.TH
+        Data.Unfold
         FileSystem.Handle
-        Unicode.Char
+        Unicode.Parser
         Unicode.Stream
-        Unicode.Utf8
       CI_FIELDS: allocated
       CI_DIFF_CUTOFF_PERCENT: 3
 
