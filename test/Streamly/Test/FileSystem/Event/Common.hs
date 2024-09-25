@@ -54,6 +54,7 @@ import System.Directory
     , createDirectoryIfMissing
     , createDirectoryLink
     , doesDirectoryExist
+    , doesFileExist
     , removeFile
     , removePathForcibly
     , renameDirectory
@@ -310,15 +311,24 @@ rootDirMove suffix events =
 
 createFileWithParent :: FilePath -> FilePath -> IO ()
 createFileWithParent file parent = do
-    let dir = takeDirectory (parent </> file)
-    putStrLn $ "Creating dir: " ++ dir
+    let filepath = parent </> file
+    let dir = takeDirectory filepath
+    putStrLn $ "createFileWithParent: file ["
+        ++ file ++ "] dir [" ++ dir ++ "]"
+    putStrLn $ "Ensuring dir: " ++ dir
     createDirectoryIfMissing True dir
     r <- doesDirectoryExist dir
     if r
     then do
-        putStrLn $ "Opening: " ++ (parent </> file)
-        openFile (parent </> file) WriteMode >>= hClose
-        putStrLn $ "Opened: " ++ (parent </> file)
+        putStrLn $ "Ensured dir: " ++ dir
+        when (not (null file)) $ do
+            exists <- doesFileExist filepath
+            if not exists
+            then do
+                putStrLn $ "Creating file: " ++ (parent </> file)
+                openFile (parent </> file) WriteMode >>= hClose
+                putStrLn $ "Created file: " ++ (parent </> file)
+            else error $ "File exists: " ++ filepath
     else error $ "Could not create dir: " ++ dir
 
 createFile :: FilePath -> FilePath -> IO ()

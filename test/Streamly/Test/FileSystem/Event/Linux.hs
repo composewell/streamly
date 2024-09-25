@@ -10,7 +10,7 @@ module Streamly.Test.FileSystem.Event.Linux (main) where
 
 import Streamly.Internal.FileSystem.Event.Linux (Event)
 -- #if __GLASGOW_HASKELL__ == 902
-#if 0
+#if 1
 import qualified Data.List as List
 #endif
 import qualified Streamly.Internal.FileSystem.Event.Linux as Event
@@ -99,12 +99,11 @@ main = do
 
     let symTests =
 #if 0
-             -- when root is a symlinked dir, it does not recv touch, isDeleted
-             -- or rootDeleted, rootUnwatched events.
-             -- We are not seeing isAttrModified event as well, so disabling
-             -- this altogether.
+             -- No events occur when a symlink root is moved. when root is a
+             -- symlinked dir, it does not recv touch, isDeleted or
+             -- rootDeleted, rootUnwatched events. We are not seeing
+             -- isAttrModified event as well, so disabling this altogether.
               dirDelete "" (\dir -> [(dir, dirEvent Event.isAttrsModified)])
-            -- No events occur when a symlink root is moved
             :
 #endif
             regSymTests
@@ -112,7 +111,7 @@ main = do
     let w = Event.watchWith (Event.setAllEvents True)
         run = runTests moduleName "non-recursive" w
 
-#if 0
+#if 1
     let failingTests =
             [ "File deleted (file1)"
             , "File modified (file1)"
@@ -121,14 +120,14 @@ main = do
 #endif
 
     run DirType
-#if 0
-        $ filter (\(desc, _, _, _) -> List.notElem desc failingTests)
+#if 1
+        $ filter (\(desc, _, _, _) -> desc `List.notElem` failingTests)
 #endif
         regTests
 
     run SymLinkOrigPath
-#if 0
-        $ filter (\(desc, _, _, _) -> List.notElem desc failingTests)
+#if 1
+        $ filter (\(desc, _, _, _) -> desc `List.notElem` failingTests)
 #endif
         symTests
 
@@ -185,7 +184,7 @@ main = do
     --      uncaught exception: IOException of type ResourceBusy
     --      /tmp/fsevent_dir-a5bd0df64c44ab27/watch-root/file: openFile: resource busy (file is locked)
 
-#if 0
+#if 1
     let failingRecTests = failingTests ++
             [ "File created (subdir/file)"
             , "File deleted (subdir/file1)"
@@ -195,14 +194,14 @@ main = do
 #endif
 
     runRec DirType
-#if 0
-        $ filter (\(desc, _, _, _) -> List.notElem desc failingRecTests)
+#if 1
+        $ filter (\(desc, _, _, _) -> desc `List.notElem` failingRecTests)
 #endif
         recRegTests
 
     runRec SymLinkOrigPath
-#if 0
-        $ filter (\(desc, _, _, _) -> List.notElem desc failingRecTests)
+#if 1
+        $ filter (\(desc, _, _, _) -> desc `List.notElem` failingRecTests)
 #endif
         recSymTests
 #endif
