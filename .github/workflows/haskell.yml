@@ -62,13 +62,13 @@ jobs:
       SUBDIR: ${{ matrix.subdir }}
 
     runs-on: ${{ matrix.runner }}
-    continue-on-error: ${{ matrix.ignore_error }}
+    # continue-on-error: ${{ matrix.ignore_error }}
     strategy:
-      fail-fast: true
+      # fail-fast: true
       matrix:
         # The order is important to optimize fail-fast.
-        name:
-          - 9.10.1-Werror
+        # name:
+        #   - 9.10.1-Werror
         # - 9.8.1-docspec
         # - 8.10.7-coverage
 
@@ -200,7 +200,7 @@ jobs:
             #sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
-            ignore_error: false
+            # ignore_error: false
           - name: 9.6.6-stack
             runner: macos-latest
             build: stack
@@ -214,7 +214,7 @@ jobs:
             #sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
-            ignore_error: false
+            # ignore_error: false
           - name: 9.8.2-stack-nightly-june
             runner: macos-latest
             build: stack
@@ -228,7 +228,7 @@ jobs:
             #sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
-            ignore_error: false
+            # ignore_error: false
           - name: 9.8.2-stack-nightly-september
             runner: macos-latest
             build: stack
@@ -242,7 +242,7 @@ jobs:
             #sdist_options: "--ignore-check"
             stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
-            ignore_error: false
+            # ignore_error: false
         # - name: 8.10.7-coverage
         #   ghc_version: 8.10.7
         #   runner: ubuntu-latest
