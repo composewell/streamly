@@ -94,6 +94,7 @@ jobs:
             cabal_project: cabal.project.ghc-head
             disable_sdist_build: "y"
             ignore_error: true
+          # Note: use linux for warning build for convenient dev testing
           - name: 9.10.1-Werror
             ghc_version: 9.10.1
             runner: ubuntu-latest
@@ -119,15 +120,20 @@ jobs:
             cabal_project: cabal.project
             cabal_build_options: "--flag fusion-plugin --flag inspection"
             ignore_error: false
-          # Note: use linux for warning build for convenient dev testing
-          - name: 9.8.1-Werror
-            ghc_version: 9.8.1
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.10.1.0
+          - name: 9.8.2-macos-stack
+            runner: macos-latest
+            build: stack
+            resolver: nightly-2024-09-26
+            stack_yaml: stack.yaml
+            disable_docs: "y"
             disable_sdist_build: "y"
-            cabal_project: cabal.project.Werror
-            ignore_error: false
+            disable_dist_checks: "y"
+            disable_test: "y"
+            disable_bench: "y"
+            #sdist_options: "--ignore-check"
+            stack_build_options: "-v"
+            cabal_version: 3.12.1.0
+            ignore_error: true
         # - name: 9.8.1-docspec
         #   ghc_version: 9.8.1
         #   runner: ubuntu-latest
@@ -187,17 +193,15 @@ jobs:
             cabal_version: 3.6.2.0
             subdir: core
             ignore_error: false
-          - name: 8.10.7-stack
+          - name: 8.10.7-noopt
             runner: ubuntu-latest
-            build: stack
-            resolver: lts-18.28
-            stack_yaml: stack.yaml
-            disable_docs: "y"
+            build: cabal
+            cabal_version: 3.6.2.0
+            cabal_project: cabal.project
             disable_sdist_build: "y"
+            disable_docs: "y"
             disable_dist_checks: "y"
-            #sdist_options: "--ignore-check"
-            stack_build_options: "--flag streamly-benchmarks:-opt"
-            cabal_version: 3.12.1.0
+            cabal_build_options: "--flags \"-opt\""
             ignore_error: false
         # - name: 8.10.7-coverage
         #   ghc_version: 8.10.7

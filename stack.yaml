@@ -6,7 +6,7 @@ packages:
 - './core'
 
 extra-deps:
-  - tasty-bench-0.3.1
+  #- tasty-bench-0.3.1
   - lockfree-queue-0.2.4
   - unicode-data-0.6.0
 
