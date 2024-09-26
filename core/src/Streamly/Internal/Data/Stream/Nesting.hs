@@ -2370,6 +2370,16 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                     }
             case res of
                 Yield x s -> do
+                    -- XXX See the comment in Fold.splitOnSeq
+                    -- With that comment in mind, does the same problem mentined
+                    -- occur here? Does it happen during "Stream.concatMap"?
+                    -- Essentially what I mean is. On "Stop" we perform a
+                    -- redundant write. If that last action occurs often, this
+                    -- might be an issue.
+                    --
+                    -- XXX I skimmed through the rest of this module. If the
+                    -- changes made are similar to that of its Fold counterpart
+                    -- then it's fine.
                     (rb1, old) <- liftIO (RB.replace rb x)
                     r <- fstep fs old
                     case r of

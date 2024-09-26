@@ -1714,6 +1714,12 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                         , arrStart = 0
                         , arrEnd = patBytes
                         }
+            -- XXX Is Array.byteEq arr patArr and Ring.unsafeEqArray rb rh1
+            -- patArr the same? unsateEqArray considers matching from rh1 and
+            -- whereas byteEq starts from a constant index.
+            --
+            -- Ah! since offset == maxOffset is rh1 always 0 as it loops over.
+            -- Is my understanding correct?
             let ringHash = Array.foldl' addCksum 0 arr
             if ringHash == patHash && Array.byteEq arr patArr
             then Done <$> ffinal s
@@ -1725,6 +1731,12 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 , ringSize = patBytes
                 , ringHead = offset
                 }
+        -- XXX Just an observation:
+        -- Here, If fstep returns "Done" the write to Ring is redundant!
+        -- If this is used in "foldMany" and "Done" is case often there will be
+        -- a lot of redundant writes to the ring buffer.
+        -- Like earlier, we could split this into "peek" first and "poke" if
+        -- required, instead of "replace"
         (rb1, old :: a) <- liftIO (Ring.replace rb x)
         res <- fstep s old
         case res of
