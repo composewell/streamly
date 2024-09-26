@@ -198,7 +198,7 @@ jobs:
             disable_test: "y"
             disable_bench: "y"
             #sdist_options: "--ignore-check"
-            stack_build_options: "--flag streamly-benchmarks:-opt"
+            # stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
             # ignore_error: false
           - name: 9.6.6-stack
@@ -212,7 +212,7 @@ jobs:
             disable_test: "y"
             disable_bench: "y"
             #sdist_options: "--ignore-check"
-            stack_build_options: "--flag streamly-benchmarks:-opt"
+            # stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
             # ignore_error: false
           - name: 9.8.2-stack-nightly-june
@@ -226,7 +226,7 @@ jobs:
             disable_test: "y"
             disable_bench: "y"
             #sdist_options: "--ignore-check"
-            stack_build_options: "--flag streamly-benchmarks:-opt"
+            # stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
             # ignore_error: false
           - name: 9.8.2-stack-nightly-september
@@ -240,7 +240,7 @@ jobs:
             disable_test: "y"
             disable_bench: "y"
             #sdist_options: "--ignore-check"
-            stack_build_options: "--flag streamly-benchmarks:-opt"
+            # stack_build_options: "--flag streamly-benchmarks:-opt"
             cabal_version: 3.12.1.0
             # ignore_error: false
         # - name: 8.10.7-coverage
