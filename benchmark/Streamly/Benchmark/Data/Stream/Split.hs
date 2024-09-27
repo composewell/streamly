@@ -137,43 +137,43 @@ o_1_space_reduce_read_split env =
             wordsBy inh
 
         -- Infix
-        , mkBench "splitOnSeq infix empty pattern" env $ \inh _ ->
+        , mkBench "splitOnSeq empty infix" env $ \inh _ ->
             splitOnSeq "" inh
-        , mkBench "splitOnSeq infix lf" env $ \inh _ ->
+        , mkBench "splitOnSeq single infix lf" env $ \inh _ ->
             splitOnSeq "\n" inh
-        , mkBench "splitOnSeq infix a" env $ \inh _ ->
+        , mkBench "splitOnSeq single infix a" env $ \inh _ ->
             splitOnSeq "a" inh
-        , mkBench "splitOnSeq infix crlf" env $ \inh _ ->
+        , mkBench "splitOnSeq word infix crlf" env $ \inh _ ->
             splitOnSeq "\r\n" inh
-        , mkBench "splitOnSeq infix aa" env $ \inh _ ->
+        , mkBench "splitOnSeq word infix aa" env $ \inh _ ->
             splitOnSeq "aa" inh
-        , mkBench "splitOnSeq infix aaaa" env $ \inh _ ->
+        , mkBench "splitOnSeq word infix aaaa" env $ \inh _ ->
             splitOnSeq "aaaa" inh
-        , mkBench "splitOnSeq infix abcdefgh" env $ \inh _ ->
+        , mkBench "splitOnSeq word infix abcdefgh" env $ \inh _ ->
             splitOnSeq "abcdefgh" inh
-        , mkBench "splitOnSeq infix abcdefghi" env $ \inh _ ->
+        , mkBench "splitOnSeq KR infix abcdefghi" env $ \inh _ ->
             splitOnSeq "abcdefghi" inh
-        , mkBench "splitOnSeq infix catcatcatcatcat" env $ \inh _ ->
+        , mkBench "splitOnSeq KR infix catcatcatcatcat" env $ \inh _ ->
             splitOnSeq "catcatcatcatcat" inh
-        , mkBench "splitOnSeq infix abcdefghijklmnopqrstuvwxyz"
+        , mkBench "splitOnSeq KR infix abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
-        , mkBench "splitOnSeq infix 100k long pattern"
+        , mkBench "splitOnSeq KR infix 100k long pattern"
             env $ \inh _ -> splitOnSeq100k inh
 
         -- Suffix
-        , mkBench "splitOnSuffixSeq suffix empty pattern" env $ \inh _ ->
+        , mkBench "splitOnSuffixSeq empty suffix" env $ \inh _ ->
             splitOnSuffixSeq "" inh
-        , mkBench "splitOnSuffixSeq suffix lf" env $ \inh _ ->
+        , mkBench "splitOnSuffixSeq single suffix lf" env $ \inh _ ->
             splitOnSuffixSeq "\n" inh
-        , mkBench "splitOnSuffixSeq suffix crlf" env $ \inh _ ->
+        , mkBench "splitOnSuffixSeq word suffix crlf" env $ \inh _ ->
             splitOnSuffixSeq "\r\n" inh
-        , mkBenchSmall "splitOnSuffixSeq suffix abcdefghijklmnopqrstuvwxyz"
+        , mkBenchSmall "splitOnSuffixSeq KR suffix abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
 
         -- Suffix with separator
-        , mkBench "splitWithSuffixSeq suffix crlf" env $ \inh _ ->
+        , mkBench "splitWithSuffixSeq word suffix crlf" env $ \inh _ ->
             splitWithSuffixSeq "\r\n" inh
-        , mkBenchSmall "splitWithSuffixSeq suffix abcdefghijklmnopqrstuvwxyz"
+        , mkBenchSmall "splitWithSuffixSeq KR suffix abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
         ]
     ]
@@ -189,9 +189,9 @@ splitOnSeqUtf8 str inh =
 o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_toChunks_split env =
     [ bgroup "FileSplitSeqUtf8"
-        [ mkBenchSmall "splitOnSeqUtf8 abcdefgh"
+        [ mkBenchSmall "splitOnSeqUtf8 word abcdefgh"
             env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
-        , mkBenchSmall "splitOnSeqUtf8 abcdefghijklmnopqrstuvwxyz"
+        , mkBenchSmall "splitOnSeqUtf8 KR abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
         ]
     ]
