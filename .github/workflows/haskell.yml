@@ -33,7 +33,7 @@ jobs:
       # Github has machines with 2 CPUS and 6GB memory so the cabal jobs
       # default (ncpus) is good, this can be checked from the packcheck
       # output in case it changes.
-      CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }} --flag limit-build-mem
+      CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
       CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
       CABAL_PROJECT: ${{ matrix.cabal_project }}
       CABAL_CHECK_RELAX: y
@@ -90,7 +90,8 @@ jobs:
             ghcup_ghc_options: "-u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate"
             runner: ubuntu-latest
             build: cabal
-            cabal_version: 3.10.2.0
+            cabal_build_options: "--flag limit-build-mem"
+            cabal_version: 3.12.1.0
             cabal_project: cabal.project.ghc-head
             disable_sdist_build: "y"
             ignore_error: true
@@ -99,7 +100,8 @@ jobs:
             ghc_version: 9.10.1
             runner: ubuntu-latest
             build: cabal
-            cabal_version: 3.10.1.0
+            cabal_build_options: "--flag limit-build-mem"
+            cabal_version: 3.12.1.0
             disable_sdist_build: "y"
             cabal_project: cabal.project.Werror
             ignore_error: false
@@ -107,7 +109,8 @@ jobs:
             ghc_version: 9.10.1
             runner: macos-latest
             build: cabal
-            cabal_version: 3.10.1.0
+            cabal_build_options: "--flag limit-build-mem"
+            cabal_version: 3.12.1.0
             disable_sdist_build: "y"
             cabal_project: cabal.project
             ignore_error: false
@@ -115,7 +118,7 @@ jobs:
             ghc_version: 9.10.1
             runner: ubuntu-latest
             build: cabal
-            cabal_version: 3.10.1.0
+            cabal_version: 3.12.1.0
             disable_sdist_build: "y"
             cabal_project: cabal.project
             cabal_build_options: "--flag fusion-plugin --flag inspection"
@@ -150,7 +153,7 @@ jobs:
             ghc_version: 9.8.1
             runner: ubuntu-latest
             build: cabal
-            cabal_version: 3.10.1.0
+            cabal_version: 3.12.1.0
             disable_sdist_build: "y"
             cabal_project: cabal.project
             cabal_build_options: "--flag fusion-plugin --flag inspection"
