@@ -1036,7 +1036,7 @@ isLastHardLink = getFlag kFSEventStreamEventFlagItemIsLastHardlink
 -- | Convert an 'Event' record to a String representation.
 showEvent :: Event -> String
 showEvent ev@Event{..} =
-    let path = runIdentity $ S.fold FL.toList $ U.decodeUtf8' $ A.toStream eventAbsPath
+    let path = runIdentity $ S.fold FL.toList $ U.decodeUtf8' $ A.read eventAbsPath
     in "--------------------------"
         ++ "\nId = " ++ show eventId
         ++ "\nPath = " ++ show path
