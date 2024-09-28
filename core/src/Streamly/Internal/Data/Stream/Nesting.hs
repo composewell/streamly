@@ -2671,10 +2671,15 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                             then go SPEC (idx + 1) wrd1 s fs1
                             else if wrd1 .&. wordMask /= wordPat
                             then skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
-                            else do final fs >>= yieldReinit jump
+                            else do final fs1 >>= yieldReinit jump
                         FL.Done b -> yieldReinit jump b
                 Skip s -> go SPEC idx wrd s fs
-                Stop -> skip $ SplitOnSuffixSeqWordDone idx fs wrd
+                Stop ->
+                    if withSep
+                    then do
+                        r <- final fs
+                        skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
+                    else skip $ SplitOnSuffixSeqWordDone idx fs wrd
 
     stepOuter gst (SplitOnSuffixSeqWordLoop wrd0 st0 fs0) =
         go SPEC wrd0 st0 fs0
@@ -2702,8 +2707,11 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                         FL.Done b -> yieldReinit jump b
                 Skip s -> go SPEC wrd s fs
                 Stop ->
+                    -- XXX We never enter this state with matching pattern, and
+                    -- within this state we always reinit if the pattern
+                    -- matches, so this should never occur.
                     if wrd .&. wordMask == wordPat
-                    then final fs >> return Stop
+                    then assert False (final fs >> return Stop)
                     else if withSep
                     then do
                         r <- final fs

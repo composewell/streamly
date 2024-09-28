@@ -405,6 +405,19 @@ groupSplitOps desc = do
 
     -- XXX there are no tests for withSep = True option
     splitOnSuffixSeq splitOnSuffixSeqStream
+    -- Some ad-hoc tests
+    it "splitEndBySeq word hash cases" $ do
+        let f input result =
+                (Stream.toList
+                    $ Stream.splitEndBySeq (Array.fromList "ab") Fold.toList
+                    $ Stream.fromList input
+                ) `shouldReturn` result
+        f "a" ["a"]
+        f "ab" ["ab"]
+        f "aba" ["ab","a"]
+        f "abab" ["ab","ab"]
+        f "abc" ["ab","c"]
+        f "xab" ["xab"]
 
     -- splitting properties
     splitterProperties (0 :: Int) desc
