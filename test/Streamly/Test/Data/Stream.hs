@@ -408,16 +408,59 @@ groupSplitOps desc = do
     -- Some ad-hoc tests
     it "splitEndBySeq word hash cases" $ do
         let f input result =
-                (Stream.toList
-                    $ Stream.splitEndBySeq (Array.fromList "ab") Fold.toList
+                Stream.toList
+                    ( Stream.splitEndBySeq (Array.fromList "ab") Fold.toList
                     $ Stream.fromList input
-                ) `shouldReturn` result
+                    ) `shouldReturn` result
         f "a" ["a"]
         f "ab" ["ab"]
         f "aba" ["ab","a"]
         f "abab" ["ab","ab"]
         f "abc" ["ab","c"]
         f "xab" ["xab"]
+
+    let takeEndBySeq pat input result =
+                Stream.toList
+                    ( Stream.takeEndBySeq (Array.fromList pat)
+                    $ Stream.fromList input
+                    ) `shouldReturn` result
+    it "takeEndBySeq empty pattern" $ do
+        let f = takeEndBySeq ""
+        f "" ""
+        f "abcd" ""
+    it "takeEndBySeq single element pattern" $ do
+        let f = takeEndBySeq "a"
+        f "" ""
+        f "a" "a"
+        f "ab" "a"
+        f "xa" "xa"
+        f "xab" "xa"
+    it "takeEndBySeq word hash cases" $ do
+        let f = takeEndBySeq "ab"
+        f "" ""
+        f "a" "a"
+        f "ab" "ab"
+        f "abc" "ab"
+        f "aba" "ab"
+        f "abab" "ab"
+        f "x" "x"
+        f "xa" "xa"
+        f "xab" "xab"
+        f "xabc" "xab"
+    it "takeEndBySeq karp-rabin cases" $ do
+        let f = takeEndBySeq "abc"
+        f "" ""
+        f "a" "a"
+        f "ab" "ab"
+        f "abc" "abc"
+        f "abcd" "abc"
+        f "abca" "abc"
+        f "abcabc" "abc"
+        f "x" "x"
+        f "xa" "xa"
+        f "xab" "xab"
+        f "xabc" "xabc"
+        f "xabcd" "xabc"
 
     -- splitting properties
     splitterProperties (0 :: Int) desc
