@@ -173,6 +173,8 @@ o_1_space_reduce_read_split env =
         -- Suffix with separator
         , mkBench "splitWithSuffixSeq word suffix crlf" env $ \inh _ ->
             splitWithSuffixSeq "\r\n" inh
+        , mkBench "splitWithSuffixSeq KR suffix abcdefghi" env $ \inh _ ->
+            splitWithSuffixSeq "abcdefghi" inh
         , mkBenchSmall "splitWithSuffixSeq KR suffix abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
         ]
