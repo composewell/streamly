@@ -2704,12 +2704,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                         FL.Done b -> yieldReinit jump b
                 Skip s -> go SPEC wrd s fs
                 Stop ->
-                    -- XXX We never enter this state with matching pattern, and
-                    -- within this state we always reinit if the pattern
-                    -- matches, so this should never occur.
-                    if wrd .&. wordMask == wordPat
-                    then assert False (final fs >> return Stop)
-                    else if withSep
+                    if withSep
                     then do
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
@@ -2750,17 +2745,16 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                 Yield x s -> do
                     liftIO $ pokeAt offset mba x
                     r <- if withSep then fstep fs x else return $ FL.Partial fs
+                    let ringHash = A.foldl' addCksum 0 arr
                     case r of
-                        FL.Partial fs1 ->
-                            if offset /= maxOffset
-                            then go SPEC (offset + SIZE_OF(a)) s fs1
-                            else do
-                                let ringHash = A.foldl' addCksum 0 arr
-                                skip $
-                                    if ringHash == patHash
-                                    then SplitOnSuffixSeqKRCheck fs1 s mba 0
-                                    else SplitOnSuffixSeqKRLoop
-                                            fs1 s mba 0 ringHash
+                        FL.Partial fs1
+                            | offset /= maxOffset ->
+                                go SPEC (offset + SIZE_OF(a)) s fs1
+                            | ringHash == patHash ->
+                                skip $ SplitOnSuffixSeqKRCheck fs1 s mba 0
+                            | otherwise ->
+                                skip $ SplitOnSuffixSeqKRLoop
+                                    fs1 s mba 0 ringHash
                         FL.Done b -> do
                             let jump c = SplitOnSuffixSeqKRInit c s mba
                             yieldReinit jump b
@@ -2809,10 +2803,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                             yieldReinit jump b
                 Skip s -> go SPEC fs s rh cksum
                 Stop -> do
-                    matches <- liftIO $ RB.eqArray rb patArr
-                    if matches
-                    then final fs >> return Stop
-                    else if withSep
+                    if withSep
                     then do
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
