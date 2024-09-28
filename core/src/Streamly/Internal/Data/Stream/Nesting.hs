@@ -130,6 +130,8 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- ** Splitting
     -- | A special case of parsing.
+    , takeEndBySeq
+    , takeEndBySeq_
     , wordsBy
     , splitOnSeq
     , splitOnSuffixSeq
@@ -2074,6 +2076,283 @@ wordsBy predicate (Fold fstep initial _ final) (Stream step state) =
 -- String search algorithms:
 -- http://www-igm.univ-mlv.fr/~lecroq/string/index.html
 
+{-# ANN type TakeEndBySeqState Fuse #-}
+data TakeEndBySeqState mba rb rh ck w s b x =
+      TakeEndBySeqInit
+    | TakeEndBySeqYield b (TakeEndBySeqState mba rb rh ck w s b x)
+    | TakeEndBySeqDone
+
+    | TakeEndBySeqSingle s x
+
+    | TakeEndBySeqWordInit !Int !w s
+    | TakeEndBySeqWordLoop !w s
+    | TakeEndBySeqWordDone Int !w
+
+    | TakeEndBySeqKRInit s mba
+    | TakeEndBySeqKRInit1 s mba !Int
+    | TakeEndBySeqKRLoop s mba !rh !ck
+    | TakeEndBySeqKRCheck s mba !rh
+    | TakeEndBySeqKRDone Int rb
+
+-- | If the pattern is empty the output stream is empty.
+{-# INLINE_NORMAL takeEndBySeqWith #-}
+takeEndBySeqWith
+    :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
+    => Bool
+    -> Array a
+    -> Stream m a
+    -> Stream m a
+takeEndBySeqWith withSep patArr (Stream step state) =
+    Stream stepOuter TakeEndBySeqInit
+
+    where
+
+    patLen = A.length patArr
+    patBytes = A.byteLength patArr
+    maxIndex = patLen - 1
+    maxOffset = patBytes - SIZE_OF(a)
+    elemBits = SIZE_OF(a) * 8
+
+    -- For word pattern case
+    wordMask :: Word
+    wordMask = (1 `shiftL` (elemBits * patLen)) - 1
+
+    elemMask :: Word
+    elemMask = (1 `shiftL` elemBits) - 1
+
+    wordPat :: Word
+    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+
+    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
+    -- For Rabin-Karp search
+    k = 2891336453 :: Word32
+    coeff = k ^ patLen
+
+    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+
+    deltaCksum cksum old new =
+        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+
+    -- XXX shall we use a random starting hash or 1 instead of 0?
+    patHash = A.foldl' addCksum 0 patArr
+
+    skip = return . Skip
+
+    {-# INLINE yield #-}
+    yield x = skip . TakeEndBySeqYield x
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter _ TakeEndBySeqInit = do
+        if patLen == 0
+        then return Stop
+        else if patLen == 1
+             then do
+                 pat <- liftIO $ A.unsafeIndexIO 0 patArr
+                 return $ Skip $ TakeEndBySeqSingle state pat
+             else if SIZE_OF(a) * patLen
+                       <= sizeOf (Proxy :: Proxy Word)
+                  then return $ Skip $ TakeEndBySeqWordInit 0 0 state
+                  else do
+                      (MutArray mba _ _ _) :: MutArray a <-
+                        liftIO $ MutArray.emptyOf patLen
+                      skip $ TakeEndBySeqKRInit state mba
+
+    ---------------------
+    -- Single yield point
+    ---------------------
+
+    stepOuter _ (TakeEndBySeqYield x next) = return $ Yield x next
+
+    -----------------
+    -- Done
+    -----------------
+
+    stepOuter _ TakeEndBySeqDone = return Stop
+
+    -----------------
+    -- Single Pattern
+    -----------------
+
+    stepOuter gst (TakeEndBySeqSingle st pat) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s ->
+                if pat == x
+                then do
+                    if withSep
+                    then yield x TakeEndBySeqDone
+                    else return Stop
+                else do
+                    yield x (TakeEndBySeqSingle s pat)
+            Skip s -> skip $ TakeEndBySeqSingle s pat
+            Stop -> return Stop
+
+    ---------------------------
+    -- Short Pattern - Shift Or
+    ---------------------------
+
+    stepOuter _ (TakeEndBySeqWordDone 0 _) = do
+        return Stop
+    stepOuter _ (TakeEndBySeqWordDone n wrd) = do
+        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+         in yield
+                (toEnum $ fromIntegral old)
+                (TakeEndBySeqWordDone (n - 1) wrd)
+
+    stepOuter gst (TakeEndBySeqWordInit idx wrd st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                let wrd1 = addToWord wrd x
+                    next
+                      | idx /= maxIndex =
+                            TakeEndBySeqWordInit (idx + 1) wrd1 s
+                      | wrd1 .&. wordMask /= wordPat =
+                            TakeEndBySeqWordLoop wrd1 s
+                      | otherwise = TakeEndBySeqDone
+                if withSep
+                then yield x next
+                else skip next
+            Skip s -> skip $ TakeEndBySeqWordInit idx wrd s
+            Stop ->
+                if withSep
+                then return Stop
+                else skip $ TakeEndBySeqWordDone idx wrd
+
+    stepOuter gst (TakeEndBySeqWordLoop wrd st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                let wrd1 = addToWord wrd x
+                    old = (wordMask .&. wrd)
+                            `shiftR` (elemBits * (patLen - 1))
+                    next
+                      | wrd1 .&. wordMask /= wordPat =
+                            TakeEndBySeqWordLoop wrd1 s
+                      | otherwise = TakeEndBySeqDone
+                if withSep
+                then yield x next
+                else yield (toEnum $ fromIntegral old) next
+            Skip s -> skip $ TakeEndBySeqWordLoop wrd s
+            Stop ->
+                -- XXX will this ever happen
+                 if withSep || (wrd .&. wordMask == wordPat)
+                 then return Stop
+                 else skip $ TakeEndBySeqWordDone patLen wrd
+
+    -------------------------------
+    -- General Pattern - Karp Rabin
+    -------------------------------
+
+    -- XXX These two states can be collapsed into one
+    stepOuter gst (TakeEndBySeqKRInit st0 mba) = do
+        res <- step (adaptState gst) st0
+        case res of
+            Yield x s -> do
+                liftIO $ pokeAt 0 mba x
+                if withSep
+                then yield x (TakeEndBySeqKRInit1 s mba (SIZE_OF(a)))
+                else skip $ TakeEndBySeqKRInit1 s mba (SIZE_OF(a))
+            Skip s -> skip $ TakeEndBySeqKRInit s mba
+            Stop -> return Stop
+
+    stepOuter gst (TakeEndBySeqKRInit1 st mba offset) = do
+        res <- step (adaptState gst) st
+        let arr :: Array a = Array
+                    { arrContents = mba
+                    , arrStart = 0
+                    , arrEnd = patBytes
+                    }
+        case res of
+            Yield x s -> do
+                liftIO $ pokeAt offset mba x
+                let next =
+                        if offset /= maxOffset
+                        then TakeEndBySeqKRInit1 s mba (offset + SIZE_OF(a))
+                        else
+                            let ringHash = A.foldl' addCksum 0 arr
+                             in if ringHash == patHash
+                                then TakeEndBySeqKRCheck s mba 0
+                                else TakeEndBySeqKRLoop s mba 0 ringHash
+                if withSep
+                then yield x next
+                else skip next
+            Skip s -> skip $ TakeEndBySeqKRInit1 s mba offset
+            Stop -> do
+                -- do not issue a blank segment when we end at pattern
+                -- XXX will this ever happen
+                if withSep || (offset == maxOffset && A.byteEq arr patArr)
+                then return Stop
+                else do
+                    let rb = Ring
+                            { ringContents = mba
+                            , ringSize = offset
+                            , ringHead = 0
+                            }
+                     in skip $ TakeEndBySeqKRDone offset rb
+
+    stepOuter gst (TakeEndBySeqKRLoop st mba rh cksum) = do
+        res <- step (adaptState gst) st
+        let rb = Ring
+                { ringContents = mba
+                , ringSize = patBytes
+                , ringHead = rh
+                }
+        case res of
+            Yield x s -> do
+                (rb1, old) <- liftIO (RB.replace rb x)
+                let cksum1 = deltaCksum cksum old x
+                let rh1 = ringHead rb1
+                    next =
+                        if cksum1 /= patHash
+                        then TakeEndBySeqKRLoop s mba rh1 cksum1
+                        else TakeEndBySeqKRCheck s mba rh1
+                if withSep
+                then yield x next
+                else yield old next
+            Skip s -> skip $ TakeEndBySeqKRLoop s mba rh cksum
+            Stop -> do
+                -- XXX will this ever happen
+                matches <- liftIO $ RB.eqArray rb patArr
+                if withSep || matches
+                then return Stop
+                else skip $ TakeEndBySeqKRDone patBytes rb
+
+    stepOuter _ (TakeEndBySeqKRCheck st mba rh) = do
+        let rb = Ring
+                    { ringContents = mba
+                    , ringSize = patBytes
+                    , ringHead = rh
+                    }
+        matches <- liftIO $ RB.eqArray rb patArr
+        if matches
+        then return Stop
+        else skip $ TakeEndBySeqKRLoop st mba rh patHash
+
+    stepOuter _ (TakeEndBySeqKRDone 0 _) = return Stop
+    stepOuter _ (TakeEndBySeqKRDone len rb) = do
+        assert (len >= 0) (return ())
+        old <- RB.unsafeGetHead rb
+        let rb1 = RB.moveForward rb
+        yield old $ TakeEndBySeqKRDone (len - SIZE_OF(a)) rb1
+
+{-# INLINE takeEndBySeq #-}
+takeEndBySeq
+    :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
+    => Array a
+    -> Stream m a
+    -> Stream m a
+takeEndBySeq = takeEndBySeqWith True
+
+{-# INLINE takeEndBySeq_ #-}
+takeEndBySeq_
+    :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
+    => Array a
+    -> Stream m a
+    -> Stream m a
+takeEndBySeq_ = takeEndBySeqWith False
+
 {-
 -- TODO can we unify the splitting operations using a splitting configuration
 -- like in the split package.
@@ -2258,6 +2537,12 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
     ---------------------------
     -- Short Pattern - Shift Or
     ---------------------------
+
+    -- Note: We fill the matching buffer before we emit anything, in case it
+    -- matches and we have to drop it. Though we could be more eager in
+    -- emitting as soon as we know that the pattern cannot match. But still the
+    -- worst case will remain the same, in case a match is going to happen we
+    -- will have to delay until the very end.
 
     stepOuter _ (SplitOnSeqWordDone 0 fs _) = do
         r <- final fs

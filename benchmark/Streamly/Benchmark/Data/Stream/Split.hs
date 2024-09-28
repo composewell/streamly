@@ -96,6 +96,36 @@ splitOnSeq str inh =
 -- inspect $ 'splitOnSeq `hasNoType` ''Step
 #endif
 
+takeEndBySeq :: String -> Handle -> IO Int
+takeEndBySeq str inh =
+    (Stream.fold Fold.length
+        $ Stream.takeEndBySeq (toarr str)
+        $ Stream.filter (/= fromIntegral (ord 'a'))
+        $ Handle.read inh) -- >>= print
+
+takeEndBySeq_ :: String -> Handle -> IO Int
+takeEndBySeq_ str inh =
+    (Stream.fold Fold.length
+        $ Stream.takeEndBySeq_ (toarr str)
+        $ Stream.filter (/= fromIntegral (ord 'a'))
+        $ Handle.read inh) -- >>= print
+
+takeEndBySeq100k :: Handle -> IO Int
+takeEndBySeq100k inh = do
+    arr <- Stream.fold Array.create $ Stream.replicate 100000 123
+    (Stream.fold Fold.length
+        $ Stream.takeEndBySeq arr
+        $ Stream.filter (/= fromIntegral (ord 'a'))
+        $ Handle.read inh) -- >>= print
+
+takeEndBySeq_100k :: Handle -> IO Int
+takeEndBySeq_100k inh = do
+    arr <- Stream.fold Array.create $ Stream.replicate 100000 123
+    (Stream.fold Fold.length
+        $ Stream.takeEndBySeq_ arr
+        $ Stream.filter (/= fromIntegral (ord 'a'))
+        $ Handle.read inh) -- >>= print
+
 -- | Split on a word8 sequence.
 splitOnSeq100k :: Handle -> IO Int
 splitOnSeq100k inh = do
@@ -171,12 +201,62 @@ o_1_space_reduce_read_split env =
             env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
 
         -- Suffix with separator
+        , mkBench "splitWithSuffixSeq single suffix lf" env $ \inh _ ->
+            splitWithSuffixSeq "\n" inh
         , mkBench "splitWithSuffixSeq word suffix crlf" env $ \inh _ ->
             splitWithSuffixSeq "\r\n" inh
         , mkBench "splitWithSuffixSeq KR suffix abcdefghi" env $ \inh _ ->
             splitWithSuffixSeq "abcdefghi" inh
         , mkBenchSmall "splitWithSuffixSeq KR suffix abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+        ]
+
+    , bgroup "FileTakeSeq"
+        [
+        {-
+          mkBench "takeEndBySeq empty" env $ \inh _ ->
+                takeEndBySeq "" inh
+        -}
+        -- IMPORTANT: the pattern must contain a, because we filter a's out
+        -- from the stream so that we do not terminate too early and
+        -- unpredictably.
+          mkBench "takeEndBySeq single a" env $ \inh _ ->
+            takeEndBySeq "a" inh
+        , mkBench "takeEndBySeq word aa" env $ \inh _ ->
+            takeEndBySeq "aa" inh
+        , mkBench "takeEndBySeq word aaaa" env $ \inh _ ->
+            takeEndBySeq "aaaa" inh
+        , mkBench "takeEndBySeq word abcdefgh" env $ \inh _ ->
+            takeEndBySeq "abcdefgh" inh
+        , mkBench "takeEndBySeq KR abcdefghi" env $ \inh _ ->
+            takeEndBySeq "abcdefghi" inh
+        , mkBench "takeEndBySeq KR catcatcatcatcat" env $ \inh _ ->
+            takeEndBySeq "catcatcatcatcat" inh
+        , mkBench "takeEndBySeq KR abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> takeEndBySeq "abcdefghijklmnopqrstuvwxyz" inh
+        , mkBench "takeEndBySeq KR 100k long pattern"
+            env $ \inh _ -> takeEndBySeq100k inh
+
+        {-
+        , mkBench "takeEndBySeq_ empty" env $ \inh _ ->
+            takeEndBySeq_ "" inh
+        -}
+        , mkBench "takeEndBySeq_ single a" env $ \inh _ ->
+            takeEndBySeq_ "a" inh
+        , mkBench "takeEndBySeq_ word aa" env $ \inh _ ->
+            takeEndBySeq_ "aa" inh
+        , mkBench "takeEndBySeq_ word aaaa" env $ \inh _ ->
+            takeEndBySeq_ "aaaa" inh
+        , mkBench "takeEndBySeq_ word abcdefgh" env $ \inh _ ->
+            takeEndBySeq_ "abcdefgh" inh
+        , mkBench "takeEndBySeq_ KR abcdefghi" env $ \inh _ ->
+            takeEndBySeq_ "abcdefghi" inh
+        , mkBench "takeEndBySeq_ KR catcatcatcatcat" env $ \inh _ ->
+            takeEndBySeq_ "catcatcatcatcat" inh
+        , mkBench "takeEndBySeq_ KR abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> takeEndBySeq_ "abcdefghijklmnopqrstuvwxyz" inh
+        , mkBench "takeEndBySeq_ KR 100k long pattern"
+            env $ \inh _ -> takeEndBySeq_100k inh
         ]
     ]
 
