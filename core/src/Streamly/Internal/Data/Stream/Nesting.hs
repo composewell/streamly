@@ -2156,19 +2156,20 @@ takeEndBySeqWith withSep patArr (Stream step state) =
         -- until then we can guide the compiler statically where we can. If we
         -- want to use single element search statically then we can use
         -- takeEndBy instead.
-        if patLen == 0
-        then return Stop
-        else if patLen == 1
-             then do
-                 pat <- liftIO $ A.unsafeIndexIO 0 patArr
-                 return $ Skip $ TakeEndBySeqSingle state pat
-             else if SIZE_OF(a) * patLen
-                       <= sizeOf (Proxy :: Proxy Word)
-                  then return $ Skip $ TakeEndBySeqWordInit 0 0 state
-                  else do
-                      (MutArray mba _ _ _) :: MutArray a <-
+        --
+        -- XXX Is there a way for GHC to statically determine patLen when we
+        -- use an array created from a static string as pattern e.g. "\n".
+        case () of
+            _ | patLen == 0 -> return Stop
+              | patLen == 1 -> do
+                    pat <- liftIO $ A.unsafeIndexIO 0 patArr
+                    return $ Skip $ TakeEndBySeqSingle state pat
+              | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
+                    return $ Skip $ TakeEndBySeqWordInit 0 0 state
+              | otherwise -> do
+                    (MutArray mba _ _ _) :: MutArray a <-
                         liftIO $ MutArray.emptyOf patLen
-                      skip $ TakeEndBySeqKRInit state mba
+                    skip $ TakeEndBySeqKRInit state mba
 
     ---------------------
     -- Single yield point
@@ -2265,7 +2266,6 @@ takeEndBySeqWith withSep patArr (Stream step state) =
     -- General Pattern - Karp Rabin
     -------------------------------
 
-    -- XXX These two states can be collapsed into one
     stepOuter gst (TakeEndBySeqKRInit st0 mba) = do
         res <- step (adaptState gst) st0
         case res of
@@ -2353,6 +2353,8 @@ takeEndBySeqWith withSep patArr (Stream step state) =
         let rb1 = RB.moveForward rb
         yield old $ TakeEndBySeqKRDone (len - SIZE_OF(a)) rb1
 
+-- XXX takeEndOn, takeEndOn_ would be better names, "By" is for functions and
+-- "On" is for values. Change splitOn to splitBy.
 {-# INLINE takeEndBySeq #-}
 takeEndBySeq
     :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
