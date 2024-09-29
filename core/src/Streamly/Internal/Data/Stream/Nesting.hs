@@ -2180,20 +2180,18 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
     stepOuter _ SplitOnSeqInit = do
         res <- initial
         case res of
-            FL.Partial acc ->
-                if patLen == 0
-                then return $ Skip $ SplitOnSeqEmpty acc state
-                else if patLen == 1
-                     then do
-                         pat <- liftIO $ A.unsafeIndexIO 0 patArr
-                         return $ Skip $ SplitOnSeqSingle acc state pat
-                     else if SIZE_OF(a) * patLen
-                               <= sizeOf (Proxy :: Proxy Word)
-                          then return $ Skip $ SplitOnSeqWordInit acc state
-                          else do
-                              (MutArray mba _ _ _) :: MutArray a <-
-                                liftIO $ MutArray.emptyOf patLen
-                              skip $ SplitOnSeqKRInit 0 acc state mba
+            FL.Partial acc
+                | patLen == 0 ->
+                    return $ Skip $ SplitOnSeqEmpty acc state
+                | patLen == 1 -> do
+                    pat <- liftIO $ A.unsafeIndexIO 0 patArr
+                    return $ Skip $ SplitOnSeqSingle acc state pat
+                | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
+                    return $ Skip $ SplitOnSeqWordInit acc state
+                | otherwise -> do
+                    (MutArray mba _ _ _) :: MutArray a <-
+                        liftIO $ MutArray.emptyOf patLen
+                    skip $ SplitOnSeqKRInit 0 acc state mba
             FL.Done b -> skip $ SplitOnSeqYield b SplitOnSeqInit
 
     stepOuter _ (SplitOnSeqYield x next) = return $ Yield x next
@@ -2556,20 +2554,18 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
     stepOuter _ SplitOnSuffixSeqInit = do
         res <- initial
         case res of
-            FL.Partial fs ->
-                if patLen == 0
-                then skip $ SplitOnSuffixSeqEmpty fs state
-                else if patLen == 1
-                     then do
-                         pat <- liftIO $ A.unsafeIndexIO 0 patArr
-                         skip $ SplitOnSuffixSeqSingleInit fs state pat
-                     else if SIZE_OF(a) * patLen
-                               <= sizeOf (Proxy :: Proxy Word)
-                          then skip $ SplitOnSuffixSeqWordInit fs state
-                          else do
-                              (MutArray mba _ _ _) :: MutArray a <-
-                                liftIO $ MutArray.emptyOf patLen
-                              skip $ SplitOnSuffixSeqKRInit fs state mba
+            FL.Partial fs
+                | patLen == 0 ->
+                    skip $ SplitOnSuffixSeqEmpty fs state
+                | patLen == 1 -> do
+                    pat <- liftIO $ A.unsafeIndexIO 0 patArr
+                    skip $ SplitOnSuffixSeqSingleInit fs state pat
+                | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
+                    skip $ SplitOnSuffixSeqWordInit fs state
+                | otherwise -> do
+                    (MutArray mba _ _ _) :: MutArray a <-
+                        liftIO $ MutArray.emptyOf patLen
+                    skip $ SplitOnSuffixSeqKRInit fs state mba
             FL.Done fb -> skip $ SplitOnSuffixSeqYield fb SplitOnSuffixSeqInit
 
     stepOuter _ (SplitOnSuffixSeqYield x next) = return $ Yield x next
@@ -2666,12 +2662,13 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                     let wrd1 = addToWord wrd x
                     r <- if withSep then fstep fs x else return $ FL.Partial fs
                     case r of
-                        FL.Partial fs1 ->
-                            if idx /= maxIndex
-                            then go SPEC (idx + 1) wrd1 s fs1
-                            else if wrd1 .&. wordMask /= wordPat
-                            then skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
-                            else do final fs1 >>= yieldReinit jump
+                        FL.Partial fs1
+                            | idx /= maxIndex ->
+                                go SPEC (idx + 1) wrd1 s fs1
+                            | wrd1 .&. wordMask /= wordPat ->
+                                skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
+                            | otherwise ->
+                                final fs1 >>= yieldReinit jump
                         FL.Done b -> yieldReinit jump b
                 Skip s -> go SPEC idx wrd s fs
                 Stop ->
