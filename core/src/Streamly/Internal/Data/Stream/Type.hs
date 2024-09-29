@@ -86,6 +86,7 @@ module Streamly.Internal.Data.Stream.Type
     , take
     , takeWhile
     , takeWhileM
+    , takeEndBy_
     , takeEndBy
     , takeEndByM
 
@@ -1100,6 +1101,13 @@ takeEndByM f (Stream step state) = Stream step' (Just state)
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 takeEndBy f = takeEndByM (return . f)
+
+-- |
+-- >>> takeEndBy_ f = Stream.takeWhile (not . f)
+--
+{-# INLINE takeEndBy_ #-}
+takeEndBy_ :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+takeEndBy_ f = takeWhile (not . f)
 
 ------------------------------------------------------------------------------
 -- Zipping

@@ -2076,23 +2076,27 @@ wordsBy predicate (Fold fstep initial _ final) (Stream step state) =
 -- String search algorithms:
 -- http://www-igm.univ-mlv.fr/~lecroq/string/index.html
 
+-- XXX Can GHC find a way to modularise this? Can we write different cases
+-- i.e.g single element, word hash, karp-rabin as different functions and then
+-- be able to combine them into a single state machine?
+
 {-# ANN type TakeEndBySeqState Fuse #-}
 data TakeEndBySeqState mba rb rh ck w s b x =
       TakeEndBySeqInit
-    | TakeEndBySeqYield b (TakeEndBySeqState mba rb rh ck w s b x)
+    | TakeEndBySeqYield !b (TakeEndBySeqState mba rb rh ck w s b x)
     | TakeEndBySeqDone
 
     | TakeEndBySeqSingle s x
 
     | TakeEndBySeqWordInit !Int !w s
     | TakeEndBySeqWordLoop !w s
-    | TakeEndBySeqWordDone Int !w
+    | TakeEndBySeqWordDone !Int !w
 
     | TakeEndBySeqKRInit s mba
     | TakeEndBySeqKRInit1 s mba !Int
     | TakeEndBySeqKRLoop s mba !rh !ck
     | TakeEndBySeqKRCheck s mba !rh
-    | TakeEndBySeqKRDone Int rb
+    | TakeEndBySeqKRDone !Int rb
 
 -- | If the pattern is empty the output stream is empty.
 {-# INLINE_NORMAL takeEndBySeqWith #-}
@@ -2140,10 +2144,18 @@ takeEndBySeqWith withSep patArr (Stream step state) =
     skip = return . Skip
 
     {-# INLINE yield #-}
-    yield x = skip . TakeEndBySeqYield x
+    yield x !s = skip $ TakeEndBySeqYield x s
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ TakeEndBySeqInit = do
+        -- XXX When we statically specify the method compiler is able to
+        -- simplify the code better and removes the handling of other states.
+        -- When it is determined dynamically, the code is less efficient. For
+        -- example, the single element search degrades by 80% if the handling
+        -- of other cases is present. We need to investigate this further but
+        -- until then we can guide the compiler statically where we can. If we
+        -- want to use single element search statically then we can use
+        -- takeEndBy instead.
         if patLen == 0
         then return Stop
         else if patLen == 1
@@ -2178,13 +2190,12 @@ takeEndBySeqWith withSep patArr (Stream step state) =
         res <- step (adaptState gst) st
         case res of
             Yield x s ->
-                if pat == x
-                then do
+                if pat /= x
+                then yield x (TakeEndBySeqSingle s pat)
+                else do
                     if withSep
                     then yield x TakeEndBySeqDone
                     else return Stop
-                else do
-                    yield x (TakeEndBySeqSingle s pat)
             Skip s -> skip $ TakeEndBySeqSingle s pat
             Stop -> return Stop
 
@@ -2192,6 +2203,9 @@ takeEndBySeqWith withSep patArr (Stream step state) =
     -- Short Pattern - Shift Or
     ---------------------------
 
+    -- Note: Karp-Rabin is roughly 15% slower than word hash for a 2 element
+    -- pattern. This may be useful for common cases like splitting lines using
+    -- "\r\n".
     stepOuter _ (TakeEndBySeqWordDone 0 _) = do
         return Stop
     stepOuter _ (TakeEndBySeqWordDone n wrd) = do
@@ -2200,6 +2214,8 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                 (toEnum $ fromIntegral old)
                 (TakeEndBySeqWordDone (n - 1) wrd)
 
+    -- XXX If we remove this init state for perf experiment the time taken
+    -- reduces to half, there may be some optimization opportunity here.
     stepOuter gst (TakeEndBySeqWordInit idx wrd st) = do
         res <- step (adaptState gst) st
         case res of
@@ -2224,20 +2240,24 @@ takeEndBySeqWith withSep patArr (Stream step state) =
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
+                -- XXX Never use a lazy expression as state, that causes issues
+                -- in simplification because the state argument of Yield is
+                -- lazy, maybe we can make that strict.
                 let wrd1 = addToWord wrd x
                     old = (wordMask .&. wrd)
                             `shiftR` (elemBits * (patLen - 1))
-                    next
-                      | wrd1 .&. wordMask /= wordPat =
-                            TakeEndBySeqWordLoop wrd1 s
-                      | otherwise = TakeEndBySeqDone
-                if withSep
-                then yield x next
-                else yield (toEnum $ fromIntegral old) next
+                    !y =
+                            if withSep
+                            then x
+                            else toEnum $ fromIntegral old
+                -- Note: changing the nesting order of if and yield makes a
+                -- difference in performance.
+                if wrd1 .&. wordMask /= wordPat
+                then yield y (TakeEndBySeqWordLoop wrd1 s)
+                else yield y TakeEndBySeqDone
             Skip s -> skip $ TakeEndBySeqWordLoop wrd s
             Stop ->
-                -- XXX will this ever happen
-                 if withSep || (wrd .&. wordMask == wordPat)
+                 if withSep
                  then return Stop
                  else skip $ TakeEndBySeqWordDone patLen wrd
 
@@ -2280,9 +2300,7 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                 else skip next
             Skip s -> skip $ TakeEndBySeqKRInit1 s mba offset
             Stop -> do
-                -- do not issue a blank segment when we end at pattern
-                -- XXX will this ever happen
-                if withSep || (offset == maxOffset && A.byteEq arr patArr)
+                if withSep
                 then return Stop
                 else do
                     let rb = Ring
@@ -2313,9 +2331,7 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                 else yield old next
             Skip s -> skip $ TakeEndBySeqKRLoop s mba rh cksum
             Stop -> do
-                -- XXX will this ever happen
-                matches <- liftIO $ RB.eqArray rb patArr
-                if withSep || matches
+                if withSep
                 then return Stop
                 else skip $ TakeEndBySeqKRDone patBytes rb
 

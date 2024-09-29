@@ -96,6 +96,20 @@ splitOnSeq str inh =
 -- inspect $ 'splitOnSeq `hasNoType` ''Step
 #endif
 
+takeEndBy :: Word8 -> Handle -> IO Int
+takeEndBy c inh =
+    (Stream.fold Fold.length
+        $ Stream.takeEndBy (== c)
+        $ Stream.filter (/= fromIntegral (ord 'a'))
+        $ Handle.read inh) -- >>= print
+
+takeEndBy_ :: Word8 -> Handle -> IO Int
+takeEndBy_ c inh =
+    (Stream.fold Fold.length
+        $ Stream.takeEndBy_ (== c)
+        $ Stream.filter (/= fromIntegral (ord 'a'))
+        $ Handle.read inh) -- >>= print
+
 takeEndBySeq :: String -> Handle -> IO Int
 takeEndBySeq str inh =
     (Stream.fold Fold.length
@@ -220,7 +234,11 @@ o_1_space_reduce_read_split env =
         -- IMPORTANT: the pattern must contain a, because we filter a's out
         -- from the stream so that we do not terminate too early and
         -- unpredictably.
-          mkBench "takeEndBySeq single a" env $ \inh _ ->
+          mkBench "takeEndBy" env $ \inh _ ->
+            takeEndBy (fromIntegral $ ord 'a') inh
+        , mkBench "takeEndBy_" env $ \inh _ ->
+            takeEndBy_ (fromIntegral $ ord 'a') inh
+        , mkBench "takeEndBySeq single a" env $ \inh _ ->
             takeEndBySeq "a" inh
         , mkBench "takeEndBySeq word aa" env $ \inh _ ->
             takeEndBySeq "aa" inh
