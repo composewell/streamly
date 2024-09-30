@@ -33,6 +33,7 @@ jobs:
         Data.ParserK.Chunked
         Data.ParserK.Chunked.Generic
         Data.Ring
+        Data.Scanl.Window
         Data.Serialize
         Data.Stream
         Data.Stream.Concurrent
