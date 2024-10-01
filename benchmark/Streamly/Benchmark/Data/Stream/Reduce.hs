@@ -18,7 +18,9 @@
 module Stream.Reduce (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Maybe (isJust)
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
 
@@ -33,7 +35,6 @@ import Streamly.Internal.Data.IsMap.HashMap ()
 #endif
 
 #ifdef USE_PRELUDE
-import Control.Monad (when)
 import qualified Streamly.Internal.Data.Stream.IsStream as S
 import qualified Streamly.Prelude as S
 import Streamly.Prelude (fromSerial)
@@ -348,9 +349,37 @@ o_1_space_transformations_mixed value =
     -- need monolithic implementations of these.
     [ bgroup "mixed"
         [ benchIOSink value "scanl-map" (scanMap 1)
+        , benchIOSink value "drop-map" (dropMap 1)
+        , benchIOSink value "drop-scan" (dropScan 1)
+        , benchIOSink value "take-drop" (takeDrop value 1)
+        , benchIOSink value "take-scan" (takeScan value 1)
+        , benchIOSink value "take-map" (takeMap value 1)
+        , benchIOSink value "filter-drop" (filterDrop value 1)
+        , benchIOSink value "filter-take" (filterTake value 1)
+        , benchIOSink value "filter-scan" (filterScan 1)
+        , benchIOSink value "filter-map" (filterMap value 1)
         , benchIOSink value "foldl-map" foldl'ReduceMap
         , benchIOSink value "sum-product-fold" sumProductFold
         , benchIOSink value "sum-product-scan" sumProductScan
+        ]
+    ]
+
+o_1_space_transformations_mixedX2 :: Int -> [Benchmark]
+o_1_space_transformations_mixedX2 value =
+    [ bgroup "mixedX2"
+        [ benchIOSink value "scan-map" (scanMap 2)
+        , benchIOSink value "drop-map" (dropMap 2)
+        , benchIOSink value "drop-scan" (dropScan 2)
+        , benchIOSink value "take-drop" (takeDrop value 2)
+        , benchIOSink value "take-scan" (takeScan value 2)
+        , benchIOSink value "take-map" (takeMap value 2)
+        , benchIOSink value "filter-drop" (filterDrop value 2)
+        , benchIOSink value "filter-take" (filterTake value 2)
+        , benchIOSink value "filter-scan" (filterScan 2)
+#ifdef USE_PRELUDE
+        , benchIOSink value "filter-scanl1" (filterScanl1 2)
+#endif
+        , benchIOSink value "filter-map" (filterMap value 2)
         ]
     ]
 
@@ -410,7 +439,11 @@ iterateDropWhileTrue :: MonadAsync m
     => Int -> Int -> Int -> Int -> Stream m Int
 iterateDropWhileTrue value = iterateSource (S.dropWhile (<= (value + 1)))
 
-#ifdef USE_PRELUDE
+{-# INLINE iterateDropWhileFalse #-}
+iterateDropWhileFalse :: MonadAsync m
+    => Int -> Int -> Int -> Int -> Stream m Int
+iterateDropWhileFalse value = iterateSource (S.dropWhile (> (value + 1)))
+
 {-# INLINE tail #-}
 tail :: Monad m => Stream m a -> m ()
 tail s = S.tail s >>= mapM_ tail
@@ -422,7 +455,16 @@ nullHeadTail s = do
     when (not r) $ do
         _ <- S.head s
         S.tail s >>= mapM_ nullHeadTail
-#endif
+
+nullTail :: Monad m => Stream m Int -> m ()
+nullTail s = do
+    r <- S.null s
+    when (not r) $ S.tail s >>= mapM_ nullTail
+
+headTail :: Monad m => Stream m Int -> m ()
+headTail s = do
+    h <- S.head s
+    when (isJust h) $ S.tail s >>= mapM_ headTail
 
 -- Head recursive operations.
 o_n_stack_iterated :: Int -> [Benchmark]
@@ -441,11 +483,13 @@ o_n_stack_iterated value = by10 `seq` by100 `seq`
         , benchIOSrc "dropOne (n/10 x 10)" $ iterateDropOne by10 10
         , benchIOSrc "dropWhileTrue (n/10 x 10)" $
             iterateDropWhileTrue value by10 10
-#ifdef USE_PRELUDE
+        , benchIOSrc "dropWhileFalse (n/10 x 10)" $
+            iterateDropWhileFalse value by10 10
         , benchIOSink value "tail" tail
+        , benchIOSink value "nullTail" nullTail
+        , benchIOSink value "headTail" headTail
         , benchIOSink value "nullHeadTail" nullHeadTail
-#endif
-        ]
+     ]
     ]
 
     where
@@ -520,6 +564,7 @@ benchmarks moduleName size =
         [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
             [ o_1_space_grouping size
             , o_1_space_transformations_mixed size
+            , o_1_space_transformations_mixedX2 size
             , o_1_space_transformations_mixedX4 size
 
             -- pipes

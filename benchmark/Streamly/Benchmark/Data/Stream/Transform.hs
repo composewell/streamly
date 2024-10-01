@@ -198,6 +198,15 @@ o_1_space_mappingX4 value =
         , benchIOSink value "postscanl'" (postscanl' 4)
         , benchIOSink value "postscanlM'" (postscanlM' 4)
 #endif
+#ifndef USE_PRELUDE
+        , benchIOSink value "scan" (scan 4)
+        , benchIOSink value "postscan" (postscan 4)
+{-
+        -- XXX this is horribly slow
+        , let value16 = round (fromIntegral value**(1/16::Double))
+           benchFold "concatMap" (concatMap 4) (sourceUnfoldrMN value16)
+-}
+#endif
         ]
     ]
 
@@ -538,6 +547,7 @@ o_1_space_inserting value =
         , benchIOSink value "insertBy" (insertBy value 1)
         , benchIOSink value "interposeSuffix" (interposeSuffix value 1)
         , benchIOSink value "intercalateSuffix" (intercalateSuffix value 1)
+        , benchIOSinkPureSrc value "interspersePure" (intersperse value 1)
         ]
     ]
 
