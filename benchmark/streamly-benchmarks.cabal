@@ -522,15 +522,6 @@ benchmark Data.Stream.Rate
   else
     buildable: True
 
--- XXX move unique benchmarks to Data.Stream and remove this module
-benchmark Data.StreamD
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: StreamD.hs
-  if impl(ghcjs)
-    buildable: False
-
 benchmark Data.StreamK
   import: bench-options
   type: exitcode-stdio-1.0

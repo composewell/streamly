@@ -238,6 +238,7 @@ o_1_space_applicative value =
         , benchIO "(<*) (sqrt n x sqrt n)" $ apDiscardSnd value
         , benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp value
         , benchIO "liftA2 (sqrt n x sqrt n)" $ apLiftA2 value
+        , benchIO "toNullApPure" $ toNullApPure value
         ]
     ]
 
@@ -260,6 +261,10 @@ o_1_space_monad value =
             breakAfterSome value
         , benchIO "(>>=) (cubert n x cubert n x cubert n)" $
             toNullM3 value
+        , benchIO "toNullPure" $ toNullMPure value
+        , benchIO "toNull3Pure" $ toNullM3Pure value
+        , benchIO "filterAllInPure" $ filterAllInMPure value
+        , benchIO "filterAllOutPure" $ filterAllOutMPure value
         ]
     ]
 

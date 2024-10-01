@@ -37,8 +37,15 @@ module Stream.Common
 
     -- Benchmark stream elimination
     , benchIOSink
+    , benchIOSinkPureSrc
     , benchIOSrc
     , benchIO
+
+    , toNullApPure
+    , toNullMPure
+    , toNullM3Pure
+    , filterAllOutMPure
+    , filterAllInMPure
 
     -- Benchmarking functions
     , apDiscardFst
@@ -202,6 +209,13 @@ benchIOSink
     => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
+
+{-# INLINE benchIOSinkPureSrc #-}
+benchIOSinkPureSrc
+    :: (NFData b)
+    => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
+benchIOSinkPureSrc value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldr value
 #endif
 
 -- | Takes a source, and uses it with a default drain/fold method.
@@ -266,6 +280,16 @@ toNullAp linearCount start = drain $ unCross $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# INLINE toNullApPure #-}
+toNullApPure :: MonadAsync m => Int -> Int -> m ()
+toNullApPure linearCount start = drain $ unCross $
+    (+) <$> mkCross (sourceUnfoldr nestedCount2 start)
+        <*> mkCross (sourceUnfoldr nestedCount2 start)
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
 {-# INLINE monadThen #-}
 monadThen :: MonadAsync m => Int -> Int -> m ()
 monadThen linearCount start = drain $ unCross $ do
@@ -287,12 +311,33 @@ toNullM linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# INLINE toNullMPure #-}
+toNullMPure :: MonadAsync m => Int -> Int -> m ()
+toNullMPure linearCount start = drain $ unCross $ do
+    x <- mkCross (sourceUnfoldr nestedCount2 start)
+    y <- mkCross (sourceUnfoldr nestedCount2 start)
+    return $ x + y
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
 {-# INLINE toNullM3 #-}
 toNullM3 :: MonadAsync m => Int -> Int -> m ()
 toNullM3 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount3 start)
     y <- mkCross (sourceUnfoldrM nestedCount3 start)
     z <- mkCross (sourceUnfoldrM nestedCount3 start)
+    return $ x + y + z
+  where
+    nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
+
+{-# INLINE toNullM3Pure #-}
+toNullM3Pure :: MonadAsync m => Int -> Int -> m ()
+toNullM3Pure linearCount start = drain $ unCross $ do
+    x <- mkCross (sourceUnfoldr nestedCount3 start)
+    y <- mkCross (sourceUnfoldr nestedCount3 start)
+    z <- mkCross (sourceUnfoldr nestedCount3 start)
     return $ x + y + z
   where
     nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
@@ -314,6 +359,30 @@ filterAllInM :: MonadAsync m => Int -> Int -> m ()
 filterAllInM linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount2 start)
     y <- mkCross (sourceUnfoldrM nestedCount2 start)
+    let s = x + y
+    if s > 0
+    then return s
+    else mkCross Stream.nil
+  where
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE filterAllOutMPure #-}
+filterAllOutMPure :: MonadAsync m => Int -> Int -> m ()
+filterAllOutMPure linearCount start = drain $ unCross $ do
+    x <- mkCross (sourceUnfoldr nestedCount2 start)
+    y <- mkCross (sourceUnfoldr nestedCount2 start)
+    let s = x + y
+    if s < 0
+    then return s
+    else mkCross Stream.nil
+  where
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE filterAllInMPure #-}
+filterAllInMPure :: MonadAsync m => Int -> Int -> m ()
+filterAllInMPure linearCount start = drain $ unCross $ do
+    x <- mkCross (sourceUnfoldr nestedCount2 start)
+    y <- mkCross (sourceUnfoldr nestedCount2 start)
     let s = x + y
     if s > 0
     then return s
