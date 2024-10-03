@@ -27,6 +27,8 @@ module Streamly.Internal.Data.Stream.Time
     , intervalsOf
     , boundedIntervalsOf
     , timedGroupsOf
+    , timedChunksOf
+    , timedChunksOf'
 
     -- * Sampling
     , sampleIntervalEnd
@@ -64,6 +66,8 @@ import Data.Map (Map)
 import Data.Maybe (isNothing)
 import Data.Proxy (Proxy(..))
 import Streamly.Data.Fold (Fold)
+import Streamly.Data.Array (Unbox)
+import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Channel.Types (Rate, rate)
@@ -78,6 +82,7 @@ import Streamly.Internal.Data.Time.Units
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
 
 import qualified Data.Heap as H
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Scanl as Scanl
 import qualified Streamly.Data.Stream as Stream
@@ -289,6 +294,26 @@ timedGroupsOf timeout n f =
 groupsOfTimeout :: MonadAsync m
     => Int -> Double -> Fold m a b -> Stream m a -> Stream m b
 groupsOfTimeout n timeout = timedGroupsOf timeout n
+
+-- Ideally this should be in an array module, but we do not have one in
+-- streamly package.
+
+-- | Like 'chunksOf' from the Array module but emits the chunk after the
+-- timeout even if we have not yet collected the requested size.
+{-# INLINE timedChunksOf #-}
+timedChunksOf :: (MonadAsync m, Unbox a) =>
+    Double -> Int -> Stream m a -> Stream m (Array a)
+timedChunksOf timeout n = timedGroupsOf timeout n (Array.unsafeCreateOf n)
+
+-- | Like 'timedChunksOf' but creates pinned arrays. If the chunks are smaller
+-- than LARGE_OBJECT_THRESHOLD then this routine may be useful for better
+-- performance if the arrays are to be sent for IO. This will avoid a copy for
+-- pinning by the IO routines.
+{-# INLINE timedChunksOf' #-}
+timedChunksOf' :: (MonadAsync m, Unbox a) =>
+    Double -> Int -> Stream m a -> Stream m (Array a)
+timedChunksOf' timeout n =
+    timedGroupsOf timeout n (Array.unsafePinnedCreateOf n)
 
 ------------------------------------------------------------------------------
 -- Windowed classification
@@ -575,7 +600,7 @@ classifySessionsByGeneric
     -> Stream m (Key f, b) -- ^ session key, fold result
 classifySessionsByGeneric _ tick reset ejectPred tmout
     (Fold step initial extract final) input =
-    Stream.unfoldMany (Unfold.lmap sessionOutputStream Unfold.fromStream)
+    Stream.unfoldEach (Unfold.lmap sessionOutputStream Unfold.fromStream)
         $ Stream.scanlMAfter' sstep (return szero) (flush final)
         $ interject (return Nothing) tick
         $ fmap Just input

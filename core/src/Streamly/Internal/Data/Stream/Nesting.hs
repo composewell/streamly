@@ -17,9 +17,6 @@
 --
 -- These combinators involve transformation, generation, elimination so can be
 -- classified under any of those.
---
--- Ultimately these operations should be supported by Unfolds, Pipes and Folds,
--- and this module may become redundant.
 
 -- The zipWithM combinator in this module has been adapted from the vector
 -- package (c) Roman Leshchinskiy.
@@ -32,27 +29,32 @@ module Streamly.Internal.Data.Stream.Nesting
     -- ** Combine Two Streams
     -- | Functions ending in the shape:
     --
-    -- @t m a -> t m a -> t m a@.
+    -- @Stream m a -> Stream m a -> Stream m a@.
 
     -- *** Appending
     -- | Append a stream after another. A special case of concatMap or
-    -- unfoldMany.
+    -- unfoldEach Note, appending more than two streams is called @concat@
+    -- which could be called appendMany or appendAll in append terminology and
+    -- is equivalent to @concatMap id@. Append is equivalent to @mergeBy fst@.
       AppendState(..)
     , append
 
     -- *** Interleaving
     -- | Interleave elements from two streams alternately. A special case of
-    -- unfoldInterleave.
+    -- unfoldEachInterleave. Interleave is equivalent to mergeBy with a round
+    -- robin merge function.
     , InterleaveState(..)
     , interleave
-    , interleaveMin
-    , interleaveFst
-    , interleaveFstSuffix
+    , interleaveEndBy'
+    , interleaveSepBy'
+    , interleaveBeginBy
+    , interleaveEndBy
+    , interleaveSepBy
 
     -- *** Scheduling
     -- | Execute streams alternately irrespective of whether they generate
     -- elements or not. Note 'interleave' would execute a stream until it
-    -- yields an element. A special case of unfoldRoundRobin.
+    -- yields an element. A special case of unfoldEachRoundRobin.
     , roundRobin -- interleaveFair?/ParallelFair
 
     -- *** Merging
@@ -66,34 +68,39 @@ module Streamly.Internal.Data.Stream.Nesting
     -- | Functions generally ending in these shapes:
     --
     -- @
-    -- concat: f (t m a) -> t m a
-    -- concatMap: (a -> t m b) -> t m a -> t m b
-    -- unfoldMany: Unfold m a b -> t m a -> t m b
+    -- concat: f (Stream m a) -> Stream m a
+    -- concatMap: (a -> Stream m b) -> Stream m a -> Stream m b
+    -- unfoldEach: Unfold m a b -> Stream m a -> Stream m b
     -- @
 
-    -- *** ConcatUnfold
+    -- *** unfoldEach
     -- | Generate streams by using an unfold on each element of an input
     -- stream, append the resulting streams and flatten. A special case of
-    -- gintercalate.
+    -- intercalate.
+    , unfoldEachFoldBy
     , ConcatUnfoldInterleaveState (..)
-    , unfoldInterleave
-    , unfoldRoundRobin
+    , unfoldEachInterleave
+    , unfoldEachInterleaveRev
+    , unfoldEachRoundRobin
 
-    -- *** Interpose
-    -- | Like unfoldMany but intersperses an effect between the streams. A
-    -- special case of gintercalate.
-    , interpose
-    , interposeM
-    , interposeSuffix
-    , interposeSuffixM
+    -- *** unfoldEach joined by elements
+    -- | Like unfoldEach but intersperses an element between the streams after
+    -- unfolding. A special case of intercalate.
+    , unfoldEachSepBy
+    , unfoldEachSepByM
+    , unfoldEachEndBy
+    , unfoldEachEndByM
 
-    -- *** Intercalate
-    -- | Like unfoldMany but intersperses streams from another source between
-    -- the streams from the first source.
-    , gintercalate
-    , gintercalateSuffix
-    , intercalate
-    , intercalateSuffix
+    -- *** unfoldEach joined by sequences
+    -- | Like unfoldEach but intersperses a sequence between the unfolded
+    -- streams before unfolding. A special case of intercalate.
+    , unfoldEachSepBySeq
+    , unfoldEachEndBySeq
+
+    -- *** unfoldEach joined by streams
+    -- | Like unfoldEach but intersperses streams between the unfolded streams.
+    , intercalateSepBy
+    , intercalateEndBy
 
     -- * Eliminate
     -- | Folding and Parsing chunks of streams to eliminate nested streams.
@@ -111,20 +118,17 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- ** Parsing
     -- | Parsing is opposite to flattening. 'parseMany' is dual to concatMap or
-    -- unfoldMany. concatMap generates a stream from single values in a
+    -- unfoldEach concatMap generates a stream from single values in a
     -- stream and flattens, parseMany does the opposite of flattening by
     -- splitting the stream and then folds each such split to single value in
     -- the output stream.
     , parseMany
-    , parseManyD
     , parseSequence
     , parseManyTill
     , parseIterate
-    , parseIterateD
 
     -- ** Grouping
     -- | Group segments of a stream and fold. Special case of parsing.
-    , groupsBy
     , groupsWhile
     , groupsRollingBy
 
@@ -133,15 +137,14 @@ module Streamly.Internal.Data.Stream.Nesting
     , takeEndBySeq
     , takeEndBySeq_
     , wordsBy
-    , splitOnSeq
-    , splitOnSuffixSeq
+    , splitSepBySeq_
     , splitEndBySeq
     , splitEndBySeq_
+    , splitOnSuffixSeq -- internal
 
-    -- XXX Implement these as folds or parsers instead.
-    , splitOnSuffixSeqAny
-    , splitOnPrefix
-    , splitOnAny
+    , splitBeginBy_
+    , splitEndBySeqOneOf
+    , splitSepBySeqOneOf
 
     -- * Transform (Nested Containers)
     -- | Opposite to compact in ArrayStream
@@ -152,9 +155,29 @@ module Streamly.Internal.Data.Stream.Nesting
     , dropPrefix
     , dropInfix
     , dropSuffix
+
+    -- * Deprecated
+    , interpose
+    , interposeM
+    , interposeSuffix
+    , interposeSuffixM
+    , gintercalate
+    , gintercalateSuffix
+    , intercalate
+    , intercalateSuffix
+    , unfoldInterleave
+    , unfoldRoundRobin
+    , interleaveMin
+    , interleaveFst
+    , interleaveFstSuffix
+    , parseManyD
+    , parseIterateD
+    , groupsBy
+    , splitOnSeq
     )
 where
 
+#include "deprecation.h"
 #include "inline.hs"
 #include "ArrayMacros.h"
 
@@ -181,9 +204,11 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
 import qualified Streamly.Internal.Data.Ring as RB
+import qualified Streamly.Internal.Data.Stream.Generate as Stream
+import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 
 import Streamly.Internal.Data.Stream.Transform
-    (intersperse, intersperseMSuffix)
+    (intersperse, intersperseEndByM)
 import Streamly.Internal.Data.Stream.Type
 
 import Prelude hiding (concatMap, mapM, zipWith)
@@ -196,14 +221,14 @@ import Prelude hiding (concatMap, mapM, zipWith)
 
 data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
 
--- From an implementation perspective, StreamK.'Streamly.Data.StreamK.append'
--- translates into a function call whereas Stream.'append' translates into a
--- conditional branch (jump). However, the overhead of the function call in
--- StreamK.append is incurred only once, while the overhead of the conditional
--- branch in fused append is incurred for each element in the stream. As a
--- result, StreamK.append has a linear time complexity of O(n), while fused
--- append has a quadratic time complexity of O(n^2), where @n@ represents the
--- number of 'append's used.
+-- Performance Note: From an implementation perspective,
+-- StreamK.'Streamly.Data.StreamK.append' translates into a function call
+-- whereas Stream.'append' translates into a conditional branch (jump).
+-- However, the overhead of the function call in StreamK.append is incurred
+-- only once, while the overhead of the conditional branch in fused append is
+-- incurred for each element in the stream. As a result, StreamK.append has a
+-- linear time complexity of O(n), while fused append has a quadratic time
+-- complexity of O(n^2), where @n@ represents the number of 'append's used.
 
 -- | WARNING! O(n^2) time complexity wrt number of streams. Suitable for
 -- statically fusing a small number of streams. Use the O(n) complexity
@@ -246,13 +271,35 @@ append (Stream step1 state1) (Stream step2 state2) =
 data InterleaveState s1 s2 = InterleaveFirst s1 s2 | InterleaveSecond s1 s2
     | InterleaveSecondOnly s2 | InterleaveFirstOnly s1
 
+-- XXX Ideally we should change the order of the arguments but we have the same
+-- convention in append as well, we will have to change that too. Also, the
+-- argument order of append makes sense for infix use.
+
 -- | WARNING! O(n^2) time complexity wrt number of streams. Suitable for
 -- statically fusing a small number of streams. Use the O(n) complexity
 -- StreamK.'Streamly.Data.StreamK.interleave' otherwise.
 --
--- Interleaves two streams, yielding one element from each stream alternately.
--- When one stream stops the rest of the other stream is used in the output
--- stream.
+-- Interleaves two streams, yielding one element from each stream alternately,
+-- starting from the first stream. When one stream is exhausted, all the
+-- remaining elements of the other stream are emitted in the output stream.
+--
+-- Both the streams are completely exhausted.
+--
+-- @
+-- (a b c) (. . .) => a . b . c .
+-- (a b c) (. .  ) => a . b . c
+-- (a b  ) (. . .) => a . b .  .
+-- @
+--
+-- Examples:
+--
+-- >>> f x y = Stream.toList $ Stream.interleave (Stream.fromList x) (Stream.fromList y)
+-- >>> f "abc" "..."
+-- "a.b.c."
+-- >>> f "abc" ".."
+-- "a.b.c"
+-- >>> f "ab" "..."
+-- "a.b.."
 --
 {-# INLINE_NORMAL interleave #-}
 interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
@@ -290,9 +337,49 @@ interleave (Stream step1 state1) (Stream step2 state2) =
             Skip s -> Skip (InterleaveSecondOnly s)
             Stop -> Stop
 
--- | Like `interleave` but stops interleaving as soon as any of the two streams
--- stops.
+-- XXX Check the performance of the implementation, we can write a custom one.
+
+{-# ANN module "HLint: ignore Use zip" #-}
+
+-- | Interleave the two streams such that the elements of the second stream are
+-- ended by the elements of the first stream. If one of the streams is
+-- exhausted then interleaving stops.
 --
+-- @
+-- (. . .) (a b c) => a . b . c .
+-- (. .  ) (a b c) => a . b .      -- c is discarded
+-- (. . .) (a b  ) => a . b .      -- . is discarded
+-- @
+--
+-- Examples:
+--
+-- >>> f x y = Stream.toList $ Stream.interleaveEndBy' (Stream.fromList x) (Stream.fromList y)
+-- >>> f "..." "abc"
+-- "a.b.c."
+-- >>> f ".." "abc"
+-- "a.b."
+-- >>> f "..." "ab"
+-- "a.b."
+--
+-- Definition:
+--
+-- >>> interleaveEndBy' s1 s2 = unfoldEach Unfold.fromTuple $ Stream.zipWith (,) s2 s1
+--
+-- Similarly, we can defined interleaveBeginBy' as:
+--
+-- >>> interleaveBeginBy' = flip interleaveEndBy'
+--
+{-# INLINE_NORMAL interleaveEndBy' #-}
+interleaveEndBy' :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveEndBy' s1 s2 = unfoldEach Unfold.fromTuple $ zipWith (,) s2 s1
+
+-- | Like `interleave` but stops interleaving as soon as any of the two streams
+-- stops. The suffix 'Min' in the name determines the stop behavior.
+--
+-- This is the same as interleaveEndBy' but it might emit an additional element
+-- at the end.
+--
+{-# DEPRECATED interleaveMin "Please use flip interleaveEndBy' instead." #-}
 {-# INLINE_NORMAL interleaveMin #-}
 interleaveMin :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleaveMin (Stream step1 state1) (Stream step2 state2) =
@@ -318,28 +405,74 @@ interleaveMin (Stream step1 state1) (Stream step2 state2) =
     step _ (InterleaveFirstOnly _) =  undefined
     step _ (InterleaveSecondOnly _) =  undefined
 
--- | Interleaves the outputs of two streams, yielding elements from each stream
--- alternately, starting from the first stream. As soon as the first stream
--- finishes, the output stops, discarding the remaining part of the second
--- stream. In this case, the last element in the resulting stream would be from
--- the second stream. If the second stream finishes early then the first stream
--- still continues to yield elements until it finishes.
+-- | Interleave the two streams such that the elements of the first stream are
+-- infixed between the elements of the second stream. If one of the streams is
+-- exhausted then interleaving stops.
 --
--- >>> :set -XOverloadedStrings
--- >>> import Data.Functor.Identity (Identity)
--- >>> Stream.interleaveFstSuffix "abc" ",,,," :: Stream Identity Char
--- fromList "a,b,c,"
--- >>> Stream.interleaveFstSuffix "abc" "," :: Stream Identity Char
--- fromList "a,bc"
+-- @
+-- (. . .) (a b c) => a . b . c    -- additional . is discarded
+-- (. .  ) (a b c) => a . b . c
+-- (.    ) (a b c) => a . b        -- c is discarded
+-- @
 --
--- 'interleaveFstSuffix' is a dual of 'interleaveFst'.
+-- >>> f x y = Stream.toList $ Stream.interleaveSepBy' (Stream.fromList x) (Stream.fromList y)
+-- >>> f "..." "abc"
+-- "a.b.c"
+-- >>> f ".." "abc"
+-- "a.b.c"
+-- >>> f "." "abc"
+-- "a.b"
 --
--- Do not use dynamically.
+{-# INLINE_NORMAL interleaveSepBy' #-}
+interleaveSepBy' :: Monad m => Stream m a -> Stream m a -> Stream m a
+-- XXX Not an efficient implementation, need to write a fused one.
+interleaveSepBy' s1 s2 = concatEffect $ do
+    r <- uncons s2
+    case r of
+        Nothing -> return Stream.nil
+        Just (h, t) ->
+            return $ h `Stream.cons`
+                unfoldEach Unfold.fromTuple (zipWith (,) s1 t)
+
+-- | Interleave the two streams such that the elements of the second stream are
+-- prefixed by the elements of the first stream. Interleaving stops when and
+-- only when the second stream is exhausted. Shortfall of the prefix stream is
+-- ignored and excess is discarded.
 --
--- /Pre-release/
-{-# INLINE_NORMAL interleaveFstSuffix #-}
-interleaveFstSuffix :: Monad m => Stream m a -> Stream m a -> Stream m a
-interleaveFstSuffix (Stream step1 state1) (Stream step2 state2) =
+-- @
+-- (. . .) (a b c) => . a . b . c
+-- (. . .) (a b  ) => . a . b      -- additional . is discarded
+-- (. .  ) (a b c) => . a . b c    -- missing . is ignored
+-- @
+--
+-- /Unimplemented/
+--
+{-# INLINE_NORMAL interleaveBeginBy #-}
+interleaveBeginBy :: -- Monad m =>
+    Stream m a -> Stream m a -> Stream m a
+interleaveBeginBy = undefined
+
+-- | Like 'interleaveEndBy'' but interleaving stops when and only when the
+-- second stream is exhausted. Shortfall of the suffix stream is ignored and
+-- excess is discarded.
+--
+-- @
+-- (. . .) (a b c) => a . b . c .
+-- (. .  ) (a b c) => a . b . c    -- missing . is ignored
+-- (. . .) (a b  ) => a . b .      -- additional . is discarded
+-- @
+--
+-- >>> f x y = Stream.toList $ Stream.interleaveEndBy (Stream.fromList x) (Stream.fromList y)
+-- >>> f "..." "abc"
+-- "a.b.c."
+-- >>> f ".." "abc"
+-- "a.b.c"
+-- >>> f "..." "ab"
+-- "a.b."
+--
+{-# INLINE_NORMAL interleaveEndBy #-}
+interleaveEndBy :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveEndBy (Stream step2 state2) (Stream step1 state1) =
     Stream step (InterleaveFirst state1 state2)
 
     where
@@ -368,6 +501,11 @@ interleaveFstSuffix (Stream step1 state1) (Stream step2 state2) =
 
     step _ (InterleaveSecondOnly _) =  undefined
 
+{-# INLINE interleaveFstSuffix #-}
+{-# DEPRECATED interleaveFstSuffix "Please use flip interleaveEndBy instead." #-}
+interleaveFstSuffix :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveFstSuffix = flip interleaveEndBy
+
 data InterleaveInfixState s1 s2 a
     = InterleaveInfixFirst s1 s2
     | InterleaveInfixSecondBuf s1 s2
@@ -375,28 +513,29 @@ data InterleaveInfixState s1 s2 a
     | InterleaveInfixFirstYield s1 s2 a
     | InterleaveInfixFirstOnly s1
 
--- | Interleaves the outputs of two streams, yielding elements from each stream
--- alternately, starting from the first stream and ending at the first stream.
--- If the second stream is longer than the first, elements from the second
--- stream are infixed with elements from the first stream. If the first stream
--- is longer then it continues yielding elements even after the second stream
--- has finished.
+-- | Like 'interleaveSepBy'' but interleaving stops when and only when the
+-- second stream is exhausted. Shortfall of the infix stream is ignored and
+-- excess is discarded.
 --
--- >>> :set -XOverloadedStrings
--- >>> import Data.Functor.Identity (Identity)
--- >>> Stream.interleaveFst "abc" ",,,," :: Stream Identity Char
--- fromList "a,b,c"
--- >>> Stream.interleaveFst "abc" "," :: Stream Identity Char
--- fromList "a,bc"
+-- @
+-- (. . .) (a b c) => a . b . c    -- additional . is discarded
+-- (. .  ) (a b c) => a . b . c
+-- (.    ) (a b c) => a . b c      -- missing . is ignored
+-- @
 --
--- 'interleaveFst' is a dual of 'interleaveFstSuffix'.
+-- Examples:
 --
--- Do not use dynamically.
+-- >>> f x y = Stream.toList $ Stream.interleaveSepBy (Stream.fromList x) (Stream.fromList y)
+-- >>> f "..." "abc"
+-- "a.b.c"
+-- >>> f ".." "abc"
+-- "a.b.c"
+-- >>> f "." "abc"
+-- "a.bc"
 --
--- /Pre-release/
-{-# INLINE_NORMAL interleaveFst #-}
-interleaveFst :: Monad m => Stream m a -> Stream m a -> Stream m a
-interleaveFst (Stream step1 state1) (Stream step2 state2) =
+{-# INLINE_NORMAL interleaveSepBy #-}
+interleaveSepBy :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveSepBy (Stream step2 state2) (Stream step1 state1) =
     Stream step (InterleaveInfixFirst state1 state2)
 
     where
@@ -432,6 +571,11 @@ interleaveFst (Stream step1 state1) (Stream step2 state2) =
             Yield a s -> Yield a (InterleaveInfixFirstOnly s)
             Skip s -> Skip (InterleaveInfixFirstOnly s)
             Stop -> Stop
+
+{-# DEPRECATED interleaveFst "Please use flip interleaveSepBy instead." #-}
+{-# INLINE_NORMAL interleaveFst #-}
+interleaveFst :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveFst = flip interleaveSepBy
 
 ------------------------------------------------------------------------------
 -- Scheduling
@@ -599,8 +743,22 @@ mergeFstBy _f _m1 _m2 = undefined
     -- fromStreamK $ D.mergeFstBy f (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
--- Combine N Streams - unfoldMany
+-- Combine N Streams - unfoldEach
 ------------------------------------------------------------------------------
+
+-- XXX If we want to have strictly N elements in each batch then we can supply a
+-- Maybe input to the fold. That could be another variant of this combinator.
+
+-- | Stream must be finite. Unfolds each element of the input stream to
+-- generate streams. After generating one element from each stream fold those
+-- using the supplied fold and emit the result in the output stream. Continue
+-- doing this until the streams are exhausted.
+--
+-- /Unimplemented/
+{-# INLINE_NORMAL unfoldEachFoldBy #-}
+unfoldEachFoldBy :: -- Monad m =>
+    Fold m b c -> Unfold m a b -> Stream m a -> Stream m c
+unfoldEachFoldBy = undefined
 
 data ConcatUnfoldInterleaveState o i =
       ConcatUnfoldInterleaveOuter o [i]
@@ -624,30 +782,83 @@ data ConcatUnfoldInterleaveState o i =
 --
 -- Ideally, we need some scheduling bias to inner streams vs outer stream.
 -- Maybe we can configure the behavior.
---
--- XXX Instead of using "concatPairsWith wSerial" we can implement an N-way
--- interleaving CPS combinator which behaves like unfoldInterleave. Instead
--- of pairing up the streams we just need to go yielding one element from each
--- stream and storing the remaining streams and then keep doing rounds through
--- those in a round robin fashion. This would be much like wAsync.
 
--- | This does not pair streams like mergeMapWith, instead, it goes through
--- each stream one by one and yields one element from each stream. After it
--- goes to the last stream it reverses the traversal to come back to the first
--- stream yielding elements from each stream on its way back to the first
--- stream and so on.
+-- XXX Instead of using "reverse" build the list in the correct order to begin
+-- with.
+
+-- | Like 'unfoldEach' but interleaves the resulting streams instead of
+-- appending them. Unfolds each element in the input stream to a stream and
+-- then interleave the resulting streams.
 --
--- >>> lists = Stream.fromList [[1,1],[2,2],[3,3],[4,4],[5,5]]
--- >>> interleaved = Stream.unfoldInterleave Unfold.fromList lists
--- >>> Stream.fold Fold.toList interleaved
--- [1,2,3,4,5,5,4,3,2,1]
+-- >>> lists = Stream.fromList [[1,4,7],[2,5,8],[3,6,9]]
+-- >>> Stream.toList $ Stream.unfoldEachInterleave Unfold.fromList lists
+-- [1,2,3,4,5,6,7,8,9]
 --
--- Note that this is order of magnitude more efficient than "mergeMapWith
--- interleave" because of fusion.
+-- This is similar to 'mergeMapWith' using 'Streamly.Data.StreamK.interleave'
+-- but an order of magnitude more efficient due to fusion.
 --
-{-# INLINE_NORMAL unfoldInterleave #-}
-unfoldInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-unfoldInterleave (Unfold istep inject) (Stream ostep ost) =
+-- See also 'mergeMapWith'.
+--
+{-# INLINE_NORMAL unfoldEachInterleave #-}
+unfoldEachInterleave :: Monad m =>
+    Unfold m a b -> Stream m a -> Stream m b
+unfoldEachInterleave (Unfold istep inject) (Stream ostep ost) =
+    Stream step (ConcatUnfoldInterleaveOuter ost [])
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (ConcatUnfoldInterleaveOuter o ls) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a o' -> do
+                i <- inject a
+                i `seq` return (Skip (ConcatUnfoldInterleaveInner o' (i : ls)))
+            Skip o' -> return $ Skip (ConcatUnfoldInterleaveOuter o' ls)
+            Stop -> return $ Skip (ConcatUnfoldInterleaveInnerL (reverse ls) [])
+
+    step _ (ConcatUnfoldInterleaveInner _ []) = undefined
+    step _ (ConcatUnfoldInterleaveInner o (st:ls)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveOuter o (s:ls))
+            Skip s    -> Skip (ConcatUnfoldInterleaveInner o (s:ls))
+            Stop      -> Skip (ConcatUnfoldInterleaveOuter o ls)
+
+    step _ (ConcatUnfoldInterleaveInnerL [] []) = return Stop
+    step _ (ConcatUnfoldInterleaveInnerL [] rs) =
+        return $ Skip (ConcatUnfoldInterleaveInnerR [] (reverse rs))
+
+    step _ (ConcatUnfoldInterleaveInnerL (st:ls) rs) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerL ls (s:rs))
+            Skip s    -> Skip (ConcatUnfoldInterleaveInnerL (s:ls) rs)
+            Stop      -> Skip (ConcatUnfoldInterleaveInnerL ls rs)
+
+    step _ (ConcatUnfoldInterleaveInnerR [] []) = return Stop
+    step _ (ConcatUnfoldInterleaveInnerR ls []) =
+        return $ Skip (ConcatUnfoldInterleaveInnerL (reverse ls) [])
+
+    step _ (ConcatUnfoldInterleaveInnerR ls (st:rs)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerR (s:ls) rs)
+            Skip s    -> Skip (ConcatUnfoldInterleaveInnerR ls (s:rs))
+            Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
+
+-- | Like 'unfoldEachInterleave' but reverses the traversal direction after
+-- reaching the last stream. This could be little bit more efficient if the
+-- order of traversal is not important.
+--
+-- >>> lists = Stream.fromList [[1,4,7],[2,5,8],[3,6,9]]
+-- >>> Stream.toList $ Stream.unfoldEachInterleaveRev Unfold.fromList lists
+-- [1,2,3,6,5,4,7,8,9]
+--
+{-# INLINE_NORMAL unfoldEachInterleaveRev #-}
+unfoldEachInterleaveRev, unfoldInterleave :: Monad m =>
+    Unfold m a b -> Stream m a -> Stream m b
+unfoldEachInterleaveRev (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
 
     where
@@ -692,23 +903,26 @@ unfoldInterleave (Unfold istep inject) (Stream ostep ost) =
             Skip s    -> Skip (ConcatUnfoldInterleaveInnerR ls (s:rs))
             Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
 
+RENAME(unfoldInterleave,unfoldEachInterleaveRev)
+
 -- XXX In general we can use different scheduling strategies e.g. how to
 -- schedule the outer vs inner loop or assigning weights to different streams
 -- or outer and inner loops.
 --
 -- This could be inefficient if the tasks are too small.
 --
--- Compared to unfoldInterleave this one switches streams on Skips.
+-- Compared to unfoldEachInterleave this one switches streams on Skips.
 
--- | 'unfoldInterleave' switches to the next stream whenever a value from a
+-- | 'unfoldEachInterleave' switches to the next stream whenever a value from a
 -- stream is yielded, it does not switch on a 'Skip'. So if a stream keeps
 -- skipping for long time other streams won't get a chance to run.
--- 'unfoldRoundRobin' switches on Skip as well. So it basically schedules each
+-- 'unfoldEachRoundRobin' switches on Skip as well. So it basically schedules each
 -- stream fairly irrespective of whether it produces a value or not.
 --
-{-# INLINE_NORMAL unfoldRoundRobin #-}
-unfoldRoundRobin :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-unfoldRoundRobin (Unfold istep inject) (Stream ostep ost) =
+{-# INLINE_NORMAL unfoldEachRoundRobin #-}
+unfoldEachRoundRobin, unfoldRoundRobin :: Monad m =>
+    Unfold m a b -> Stream m a -> Stream m b
+unfoldEachRoundRobin (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
   where
     {-# INLINE_LATE step #-}
@@ -753,6 +967,8 @@ unfoldRoundRobin (Unfold istep inject) (Stream ostep ost) =
             Skip s    -> Skip (ConcatUnfoldInterleaveInnerR (s:ls) rs)
             Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
 
+RENAME(unfoldRoundRobin,unfoldEachRoundRobin)
+
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose
 ------------------------------------------------------------------------------
@@ -764,16 +980,22 @@ data InterposeSuffixState s1 i1 =
     | InterposeSuffixFirstInner s1 i1
     | InterposeSuffixSecond s1
 
--- Note that if an unfolded layer turns out to be nil we still emit the
+-- XXX Note that if an unfolded layer turns out to be nil we still emit the
 -- separator effect. An alternate behavior could be to emit the separator
 -- effect only if at least one element has been yielded by the unfolding.
 -- However, that becomes a bit complicated, so we have chosen the former
--- behvaior for now.
-{-# INLINE_NORMAL interposeSuffixM #-}
-interposeSuffixM
-    :: Monad m
-    => m c -> Unfold m b c -> Stream m b -> Stream m c
-interposeSuffixM
+-- behavior for now.
+
+-- | Monadic variant of 'unfoldEachEndBy'.
+--
+-- Definition:
+--
+-- >>> unfoldEachEndByM x = Stream.intercalateEndBy Unfold.identity (Stream.repeatM x)
+--
+{-# INLINE_NORMAL unfoldEachEndByM #-}
+unfoldEachEndByM, interposeSuffixM :: Monad m =>
+    m c -> Unfold m b c -> Stream m b -> Stream m c
+unfoldEachEndByM
     action
     (Unfold istep1 inject1) (Stream step1 state1) =
     Stream step (InterposeSuffixFirst state1)
@@ -811,18 +1033,25 @@ interposeSuffixM
         r <- action
         return $ Yield r (InterposeSuffixFirst s1)
 
--- interposeSuffix x unf str = gintercalateSuffix unf str UF.identity (repeat x)
-
 -- | Unfold the elements of a stream, append the given element after each
 -- unfolded stream and then concat them into a single stream.
 --
--- >>> unlines = Stream.interposeSuffix '\n'
+-- Definition:
+--
+-- >>> unfoldEachEndBy x = Stream.intercalateEndBy Unfold.identity (Stream.repeat x)
+--
+-- Usage:
+--
+-- >>> unlines = Stream.unfoldEachEndBy '\n'
 --
 -- /Pre-release/
-{-# INLINE interposeSuffix #-}
-interposeSuffix :: Monad m
+{-# INLINE unfoldEachEndBy #-}
+unfoldEachEndBy, interposeSuffix :: Monad m
     => c -> Unfold m b c -> Stream m b -> Stream m c
-interposeSuffix x = interposeSuffixM (return x)
+unfoldEachEndBy x = unfoldEachEndByM (return x)
+
+RENAME(interposeSuffix,unfoldEachEndBy)
+RENAME(interposeSuffixM,unfoldEachEndByM)
 
 {-# ANN type InterposeState Fuse #-}
 data InterposeState s1 i1 a =
@@ -837,9 +1066,17 @@ data InterposeState s1 i1 a =
 
 -- Note that this only interposes the pure values, we may run many effects to
 -- generate those values as some effects may not generate anything (Skip).
-{-# INLINE_NORMAL interposeM #-}
-interposeM :: Monad m => m c -> Unfold m b c -> Stream m b -> Stream m c
-interposeM
+
+-- | Monadic variant of 'unfoldEachSepBy'.
+--
+-- Definition:
+--
+-- >>> unfoldEachSepByM x = Stream.intercalateSepBy Unfold.identity (Stream.repeatM x)
+--
+{-# INLINE_NORMAL unfoldEachSepByM #-}
+unfoldEachSepByM, interposeM :: Monad m =>
+    m c -> Unfold m b c -> Stream m b -> Stream m c
+unfoldEachSepByM
     action
     (Unfold istep1 inject1) (Stream step1 state1) =
     Stream step (InterposeFirst state1)
@@ -906,18 +1143,26 @@ interposeM
         return $ Yield v (InterposeFirstInner s1 i1)
     -}
 
--- > interpose x unf str = gintercalate unf str UF.identity (repeat x)
-
 -- | Unfold the elements of a stream, intersperse the given element between the
 -- unfolded streams and then concat them into a single stream.
 --
--- >>> unwords = Stream.interpose ' '
+-- Definition:
+--
+-- >>> unfoldEachSepBy x = unfoldEachSepByM (return x)
+-- >>> unfoldEachSepBy x = Stream.intercalateSepBy Unfold.identity (Stream.repeat x)
+--
+-- Usage:
+--
+-- >>> unwords = Stream.unfoldEachSepBy ' '
 --
 -- /Pre-release/
-{-# INLINE interpose #-}
-interpose :: Monad m
+{-# INLINE unfoldEachSepBy #-}
+unfoldEachSepBy, interpose :: Monad m
     => c -> Unfold m b c -> Stream m b -> Stream m c
-interpose x = interposeM (return x)
+unfoldEachSepBy x = unfoldEachSepByM (return x)
+
+RENAME(interposeM,unfoldEachSepByM)
+RENAME(interpose,unfoldEachSepBy)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - intercalate
@@ -933,16 +1178,22 @@ data ICUState s1 s2 i1 i2 =
     | ICUFirstOnlyInner s1 i1
     | ICUSecondOnlyInner s2 i2
 
--- | 'interleaveFstSuffix' followed by unfold and concat.
+-- | See 'intercalateSepBy' for detailed documentation.
+--
+-- You can think of this as 'interleaveEndBy' on the stream of streams followed
+-- by concat. Same as the following but more efficient:
+--
+-- >>> intercalateEndBy u1 s1 u2 s2 = Stream.concat $ interleaveEndBy (fmap (unfold u1) s1) (fmap (unfold u2) s2)
 --
 -- /Pre-release/
-{-# INLINE_NORMAL gintercalateSuffix #-}
-gintercalateSuffix
-    :: Monad m
-    => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
-gintercalateSuffix
-    (Unfold istep1 inject1) (Stream step1 state1)
-    (Unfold istep2 inject2) (Stream step2 state2) =
+{-# INLINE_NORMAL intercalateEndBy #-}
+intercalateEndBy :: Monad m =>
+       Unfold m a c -> Stream m a
+    -> Unfold m b c -> Stream m b
+    -> Stream m c
+intercalateEndBy
+    (Unfold istep2 inject2) (Stream step2 state2)
+    (Unfold istep1 inject1) (Stream step1 state1) =
     Stream step (ICUFirst state1 state2)
 
     where
@@ -999,6 +1250,17 @@ gintercalateSuffix
     step _ (ICUSecondOnly _s2) = undefined
     step _ (ICUSecondOnlyInner _s2 _i2) = undefined
 
+-- |
+--
+-- >>> gintercalateSuffix u1 s1 u2 s2 = Stream.intercalateEndBy u2 s2 u1 s1
+--
+{-# DEPRECATED gintercalateSuffix "Please use intercalateEndBy instead. Note the change in argument order." #-}
+{-# INLINE gintercalateSuffix #-}
+gintercalateSuffix
+    :: Monad m
+    => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
+gintercalateSuffix u1 s1 u2 s2 = intercalateEndBy u2 s2 u1 s1
+
 data ICALState s1 s2 i1 i2 a =
       ICALFirst s1 s2
     -- | ICALFirstYield s1 s2 i1
@@ -1012,24 +1274,36 @@ data ICALState s1 s2 i1 i2 a =
     -- -- | ICALSecondInner s1 s2 i1 i2 a
     -- -- | ICALFirstResume s1 s2 i1 i2 a
 
--- XXX we can swap the order of arguments to gintercalate so that the
--- definition of unfoldMany becomes simpler? The first stream should be
--- infixed inside the second one. However, if we change the order in
--- "interleave" as well similarly, then that will make it a bit unintuitive.
+-- | The first stream @Stream m b@ is turned into a stream of streams by
+-- unfolding each element using the first unfold, similarly @Stream m a@ is
+-- also turned into a stream of streams.  The second stream of streams is
+-- interspersed with the streams from the first stream in an infix manner and
+-- then the resulting stream is flattened.
 --
--- > unfoldMany unf str =
--- >     gintercalate unf str (UF.nilM (\_ -> return ())) (repeat ())
-
--- | 'interleaveFst' followed by unfold and concat.
+-- You can think of this as 'interleaveSepBy' on the stream of streams followed
+-- by concat. Same as the following but more efficient:
+--
+-- >>> intercalateSepBy u1 s1 u2 s2 = Stream.concat $ interleaveSepBy (fmap (unfold u1) s1) (fmap (unfold u2) s2)
+--
+-- If the separator stream consists of nil streams then it becomes equivalent
+-- to 'unfoldEach':
+--
+-- >>> unfoldEach = intercalateSepBy (Unfold.nilM (const (return ()))) (Stream.repeat ())
 --
 -- /Pre-release/
-{-# INLINE_NORMAL gintercalate #-}
-gintercalate
+{-# INLINE_NORMAL intercalateSepBy #-}
+intercalateSepBy
     :: Monad m
-    => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
-gintercalate
-    (Unfold istep1 inject1) (Stream step1 state1)
-    (Unfold istep2 inject2) (Stream step2 state2) =
+    => Unfold m b c -> Stream m b
+    -> Unfold m a c -> Stream m a
+    -> Stream m c
+{-
+intercalateSepBy u1 s1 u2 s2 =
+    Stream.concat $ interleaveSepBy (fmap (unfold u1) s1) (fmap (unfold u2) s2)
+-}
+intercalateSepBy
+    (Unfold istep2 inject2) (Stream step2 state2)
+    (Unfold istep1 inject1) (Stream step1 state1) =
     Stream step (ICALFirst state1 state2)
 
     where
@@ -1129,39 +1403,75 @@ gintercalate
         return $ Yield x (ICALFirstInner s1 s2 i1 i2)
     -}
 
--- > intercalateSuffix unf seed str = gintercalateSuffix unf str unf (repeatM seed)
-
--- | 'intersperseMSuffix' followed by unfold and concat.
+-- |
 --
--- >>> intercalateSuffix u a = Stream.unfoldMany u . Stream.intersperseMSuffix a
--- >>> intersperseMSuffix = Stream.intercalateSuffix Unfold.identity
--- >>> unlines = Stream.intercalateSuffix Unfold.fromList "\n"
+-- >>> gintercalate u1 s1 u2 s2 = Stream.intercalateSepBy u2 s2 u1 s1
+--
+{-# DEPRECATED gintercalate "Please use intercalateSepBy instead." #-}
+{-# INLINE gintercalate #-}
+gintercalate :: Monad m =>
+    Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
+gintercalate u1 s1 u2 s2 = intercalateSepBy u2 s2 u1 s1
+
+-- | Unfold each element of the stream, end each unfold by a sequence generated
+-- by unfolding the supplied value.
+--
+-- Definition:
+--
+-- >>> unfoldEachEndBySeq a u = Stream.unfoldEach u . Stream.intersperseEndByM a
+-- >>> unfoldEachEndBySeq a u = intercalateEndBy u (Stream.repeat a) u
+--
+-- Idioms:
+--
+-- >>> intersperseEndByM x = Stream.unfoldEachEndBySeq x Unfold.identity
+-- >>> unlines = Stream.unfoldEachEndBySeq "\n" Unfold.fromList
+--
+-- Usage:
 --
 -- >>> input = Stream.fromList ["abc", "def", "ghi"]
--- >>> Stream.fold Fold.toList $ Stream.intercalateSuffix Unfold.fromList "\n" input
+-- >>> Stream.toList $ Stream.unfoldEachEndBySeq Unfold.fromList "\n" input
 -- "abc\ndef\nghi\n"
 --
+{-# INLINE unfoldEachEndBySeq #-}
+unfoldEachEndBySeq :: Monad m
+    => b -> Unfold m b c -> Stream m b -> Stream m c
+unfoldEachEndBySeq seed unf = unfoldEach unf . intersperseEndByM (return seed)
+
+{-# DEPRECATED intercalateSuffix "Please use unfoldEachEndBySeq instead." #-}
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: Monad m
     => Unfold m b c -> b -> Stream m b -> Stream m c
-intercalateSuffix unf seed = unfoldMany unf . intersperseMSuffix (return seed)
+intercalateSuffix u x = unfoldEachEndBySeq x u
 
--- > intercalate unf seed str = gintercalate unf str unf (repeatM seed)
-
--- | 'intersperse' followed by unfold and concat.
+-- | Unfold each element of the stream, separate the successive unfolds by a
+-- sequence generated by unfolding the supplied value.
 --
--- >>> intercalate u a = Stream.unfoldMany u . Stream.intersperse a
--- >>> intersperse = Stream.intercalate Unfold.identity
--- >>> unwords = Stream.intercalate Unfold.fromList " "
+-- Definition:
+--
+-- >>> unfoldEachSepBySeq a u = Stream.unfoldEach u . Stream.intersperse a
+-- >>> unfoldEachSepBySeq a u = Stream.intercalateSepBy u (Stream.repeat a) u
+--
+-- Idioms:
+--
+-- >>> intersperse x = Stream.unfoldEachSepBySeq x Unfold.identity
+-- >>> unwords = Stream.unfoldEachSepBySeq " " Unfold.fromList
+--
+-- Usage:
 --
 -- >>> input = Stream.fromList ["abc", "def", "ghi"]
--- >>> Stream.fold Fold.toList $ Stream.intercalate Unfold.fromList " " input
+-- >>> Stream.toList $ Stream.UnfoldEachSepBySeq " " Unfold.fromList input
 -- "abc def ghi"
 --
+{-# INLINE unfoldEachSepBySeq #-}
+unfoldEachSepBySeq :: Monad m
+    => b -> Unfold m b c -> Stream m b -> Stream m c
+unfoldEachSepBySeq seed unf str = unfoldEach unf $ intersperse seed str
+
+{-# DEPRECATED intercalate "Please use unfoldEachSepBySeq instead." #-}
 {-# INLINE intercalate #-}
 intercalate :: Monad m
     => Unfold m b c -> b -> Stream m b -> Stream m c
-intercalate unf seed str = unfoldMany unf $ intersperse seed str
+intercalate u x = unfoldEachSepBySeq x u
 
 ------------------------------------------------------------------------------
 -- Folding
@@ -1191,6 +1501,8 @@ data FIterState s f m a b
 -- | Iterate a fold generator on a stream. The initial value @b@ is used to
 -- generate the first fold, the fold is applied on the stream and the result of
 -- the fold is used to generate the next fold and so on.
+--
+-- Usage:
 --
 -- >>> import Data.Monoid (Sum(..))
 -- >>> f x = return (Fold.take 2 (Fold.sconcat x))
@@ -1252,15 +1564,30 @@ data ParseChunksState x inpBuf st pst =
     | ParseChunksYield x (ParseChunksState x inpBuf st pst)
 
 -- XXX return the remaining stream as part of the error.
--- XXX This is in fact parseMany1 (a la foldMany1). Do we need a parseMany as
--- well?
-{-# INLINE_NORMAL parseManyD #-}
-parseManyD
+
+-- | Apply a 'Parser' repeatedly on a stream and emit the parsed values in the
+-- output stream.
+--
+-- Usage:
+--
+-- >>> s = Stream.fromList [1..10]
+-- >>> parser = Parser.takeBetween 0 2 Fold.sum
+-- >>> Stream.toList $ Stream.parseMany parser s
+-- [Right 3,Right 7,Right 11,Right 15,Right 19]
+--
+-- This is the streaming equivalent of the 'Streamly.Data.Parser.many' parse
+-- combinator.
+--
+-- Known Issues: When the parser fails there is no way to get the remaining
+-- stream.
+--
+{-# INLINE_NORMAL parseMany #-}
+parseMany
     :: Monad m
     => PRD.Parser a m b
     -> Stream m a
     -> Stream m (Either ParseError b)
-parseManyD (PRD.Parser pstep initial extract) (Stream step state) =
+parseMany (PRD.Parser pstep initial extract) (Stream step state) =
     Stream stepOuter (ParseChunksInit [] state)
 
     where
@@ -1466,29 +1793,14 @@ parseManyD (PRD.Parser pstep initial extract) (Stream step state) =
 
     stepOuter _ (ParseChunksYield a next) = return $ Yield a next
 
--- | Apply a 'Parser' repeatedly on a stream and emit the parsed values in the
--- output stream.
---
--- Example:
---
--- >>> s = Stream.fromList [1..10]
--- >>> parser = Parser.takeBetween 0 2 Fold.sum
--- >>> Stream.fold Fold.toList $ Stream.parseMany parser s
--- [Right 3,Right 7,Right 11,Right 15,Right 19]
---
--- This is the streaming equivalent of the 'Streamly.Data.Parser.many' parse
--- combinator.
---
--- Known Issues: When the parser fails there is no way to get the remaining
--- stream.
---
-{-# INLINE parseMany #-}
-parseMany
+{-# DEPRECATED parseManyD "Please use parseMany instead." #-}
+{-# INLINE parseManyD #-}
+parseManyD
     :: Monad m
     => PR.Parser a m b
     -> Stream m a
     -> Stream m (Either ParseError b)
-parseMany = parseManyD
+parseManyD = parseMany
 
 -- | Apply a stream of parsers to an input stream and emit the results in the
 -- output stream.
@@ -1537,15 +1849,30 @@ data ConcatParseState c b inpBuf st p m a =
         inpBuf inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Step s b))
     | ConcatParseYield c (ConcatParseState c b inpBuf st p m a)
 
--- XXX Review the changes
-{-# INLINE_NORMAL parseIterateD #-}
-parseIterateD
+-- | Iterate a parser generating function on a stream. The initial value @b@ is
+-- used to generate the first parser, the parser is applied on the stream and
+-- the result is used to generate the next parser and so on.
+--
+-- Example:
+--
+-- >>> import Data.Monoid (Sum(..))
+-- >>> s = Stream.fromList [1..10]
+-- >>> Stream.toList $ fmap getSum $ Stream.catRights $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) (Sum 0) $ fmap Sum s
+-- [3,10,21,36,55,55]
+--
+-- This is the streaming equivalent of monad like sequenced application of
+-- parsers where next parser is dependent on the previous parser.
+--
+-- /Pre-release/
+--
+{-# INLINE_NORMAL parseIterate #-}
+parseIterate
     :: Monad m
     => (b -> PRD.Parser a m b)
     -> b
     -> Stream m a
     -> Stream m (Either ParseError b)
-parseIterateD func seed (Stream step state) =
+parseIterate func seed (Stream step state) =
     Stream stepOuter (ConcatParseInit [] state (func seed))
 
     where
@@ -1737,28 +2064,15 @@ parseIterateD func seed (Stream step state) =
 
     stepOuter _ (ConcatParseYield a next) = return $ Yield a next
 
--- | Iterate a parser generating function on a stream. The initial value @b@ is
--- used to generate the first parser, the parser is applied on the stream and
--- the result is used to generate the next parser and so on.
---
--- >>> import Data.Monoid (Sum(..))
--- >>> s = Stream.fromList [1..10]
--- >>> Stream.fold Fold.toList $ fmap getSum $ Stream.catRights $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) (Sum 0) $ fmap Sum s
--- [3,10,21,36,55,55]
---
--- This is the streaming equivalent of monad like sequenced application of
--- parsers where next parser is dependent on the previous parser.
---
--- /Pre-release/
---
-{-# INLINE parseIterate #-}
-parseIterate
+{-# DEPRECATED parseIterateD "Please use parseIterate instead." #-}
+{-# INLINE parseIterateD #-}
+parseIterateD
     :: Monad m
     => (b -> PR.Parser a m b)
     -> b
     -> Stream m a
     -> Stream m (Either ParseError b)
-parseIterate = parseIterateD
+parseIterateD = parseIterate
 
 ------------------------------------------------------------------------------
 -- Grouping
@@ -1772,13 +2086,15 @@ data GroupByState st fs a b
     | GroupingYield !b (GroupByState st fs a b)
     | GroupingDone
 
--- | The argument order of the comparison function in `groupsWhile` is
--- different than that of `groupsBy`.
+-- | Keep collecting items in a group as long as the comparison function
+-- returns true. The comparison function is @cmp old new@ where @old@ is the
+-- first item in the group and @new@ is the incoming item being tested for
+-- membership of the group. The collected items are folded by the supplied
+-- fold.
 --
--- In `groupsBy` the comparison function takes the next element as the first
--- argument and the previous element as the second argument. In `groupsWhile`
--- the first argument is the previous element and second argument is the next
--- element.
+-- Definition:
+--
+-- >>> groupsWhile cmp f = Stream.parseMany (Parser.groupBy cmp f)
 {-# INLINE_NORMAL groupsWhile #-}
 groupsWhile :: Monad m
     => (a -> a -> Bool)
@@ -1867,6 +2183,13 @@ groupsWhile cmp (Fold fstep initial _ final) (Stream step state) =
     stepOuter _ (GroupingYield _ _) = error "groupsWhile: Unreachable"
     stepOuter _ GroupingDone = return Stop
 
+-- | The argument order of the comparison function in `groupsWhile` is
+-- different than that of `groupsBy`.
+--
+-- In `groupsBy` the comparison function takes the next element as the first
+-- argument and the previous element as the second argument. In `groupsWhile`
+-- the first argument is the previous element and second argument is the next
+-- element.
 {-# DEPRECATED groupsBy "Please use groupsWhile instead. Please note the change in the argument order of the comparison function." #-}
 {-# INLINE_NORMAL groupsBy #-}
 groupsBy :: Monad m
@@ -1876,6 +2199,12 @@ groupsBy :: Monad m
     -> Stream m b
 groupsBy cmp = groupsWhile (flip cmp)
 
+-- |
+--
+-- Definition:
+--
+-- >>> groupsRollingBy cmp f = Stream.parseMany (Parser.groupByRolling cmp f)
+--
 {-# INLINE_NORMAL groupsRollingBy #-}
 groupsRollingBy :: Monad m
     => (a -> a -> Bool)
@@ -1991,12 +2320,19 @@ data WordsByState st fs b
     | WordsByDone
     | WordsByYield !b (WordsByState st fs b)
 
--- | Split the stream after stripping leading, trailing, and repeated separators
--- as per the fold supplied.
--- Therefore, @".a..b."@ with '.' as the separator would be parsed as
--- @["a","b"]@.  In other words, its like parsing words from whitespace
--- separated text.
-
+-- | Split the stream after stripping leading, trailing, and repeated
+-- separators determined by the predicate supplied. The tokens after splitting
+-- are collected by the supplied fold. In other words, the tokens are parsed in
+-- the same way as words are parsed from whitespace separated text.
+--
+-- >>> f x = Stream.toList $ Stream.wordsBy (== '.') Fold.toList $ Stream.fromList x
+-- >>> f "a.b"
+-- ["a","b"]
+-- >>> f "a..b"
+-- ["a","b"]
+-- >>> f ".a..b."
+-- ["a","b"]
+--
 {-# INLINE_NORMAL wordsBy #-}
 wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 wordsBy predicate (Fold fstep initial _ final) (Stream step state) =
@@ -2353,8 +2689,19 @@ takeEndBySeqWith withSep patArr (Stream step state) =
         let rb1 = RB.moveForward rb
         yield old $ TakeEndBySeqKRDone (len - SIZE_OF(a)) rb1
 
--- XXX takeEndOn, takeEndOn_ would be better names, "By" is for functions and
--- "On" is for values. Change splitOn to splitBy.
+-- | Take the stream until the supplied sequence is encountered. Take the
+-- sequence as well and stop.
+--
+-- Usage:
+--
+-- >>> f pat xs = Stream.toList $ Stream.takeEndBySeq (Array.fromList pat) $ Stream.fromList xs
+-- >>> f "fgh" "abcdefghijk"
+-- "abcdefgh"
+-- >>> f "lmn" "abcdefghijk"
+-- "abcdefghijk"
+-- >>> f "" "abcdefghijk"
+-- ""
+--
 {-# INLINE takeEndBySeq #-}
 takeEndBySeq
     :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -2363,6 +2710,19 @@ takeEndBySeq
     -> Stream m a
 takeEndBySeq = takeEndBySeqWith True
 
+-- | Take the stream until the supplied sequence is encountered. Do not take
+-- the sequence.
+--
+-- Usage:
+--
+-- >>> f pat xs = Stream.toList $ Stream.takeEndBySeq_ (Array.fromList pat) $ Stream.fromList xs
+-- >>> f "fgh" "abcdefghijk"
+-- "abcde"
+-- >>> f "lmn" "abcdefghijk"
+-- "abcdefghijk"
+-- >>> f "" "abcdefghijk"
+-- ""
+--
 {-# INLINE takeEndBySeq_ #-}
 takeEndBySeq_
     :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -2409,6 +2769,8 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 
     | SplitOnSeqReinit (fs -> SplitOnSeqState mba rb rh ck w fs s b x)
 
+-- XXX Need to fix empty stream split behavior
+
 -- | Like 'splitOn' but splits the stream on a sequence of elements rather than
 -- a single element. Parses a sequence of tokens separated by an infixed
 -- separator e.g. @a;b;c@ is parsed as @a@, @b@, @c@. If the pattern is empty
@@ -2416,18 +2778,18 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 --
 -- Equivalent to the following:
 --
--- >>> splitOnSeq pat f = Stream.foldMany1 (Fold.takeEndBySeq_ pat f)
+-- >>> splitSepBySeq_ pat f = Stream.foldMany0 (Fold.takeEndBySeq_ pat f)
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --
-{-# INLINE_NORMAL splitOnSeq #-}
-splitOnSeq
+{-# INLINE_NORMAL splitSepBySeq_ #-}
+splitSepBySeq_, splitOnSeq
     :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
     => Array a
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
+splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
     Stream stepOuter SplitOnSeqInit
 
     where
@@ -2752,6 +3114,8 @@ splitOnSeq patArr (Fold fstep initial _ final) (Stream step state) =
                  let jump c = SplitOnSeqKRDone (len - SIZE_OF(a)) c rb1
                  yieldReinit jump b
 
+RENAME(splitOnSeq,splitSepBySeq_)
+
 {-# ANN type SplitOnSuffixSeqState Fuse #-}
 data SplitOnSuffixSeqState mba rb rh ck w fs s b x =
       SplitOnSuffixSeqInit
@@ -2780,6 +3144,8 @@ data SplitOnSuffixSeqState mba rb rh ck w fs s b x =
 -- suffixed separator, the resulting split segments are fed to the fold @fld@.
 -- If @withSep@ is True then the separator sequence is also suffixed with the
 -- split segments.
+--
+-- /Internal/
 {-# INLINE_NORMAL splitOnSuffixSeq #-}
 splitOnSuffixSeq
     :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -3147,7 +3513,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
 --
 -- Equivalent to the following:
 --
--- >>> splitOnSeq pat f = Stream.foldMany (Fold.takeEndBySeq pat f)
+-- >>> splitEndBySeq pat f = Stream.foldMany (Fold.takeEndBySeq pat f)
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --
@@ -3179,14 +3545,14 @@ splitEndBySeq_ = splitOnSuffixSeq False
 
 -- Implement this as a fold or a parser instead.
 -- This can be implemented easily using Rabin Karp
+
 -- | Split post any one of the given patterns.
 --
 -- /Unimplemented/
-{-# INLINE splitOnSuffixSeqAny #-}
-splitOnSuffixSeqAny :: -- (Monad m, Unboxed a, Integral a) =>
+{-# INLINE splitEndBySeqOneOf #-}
+splitEndBySeqOneOf :: -- (Monad m, Unboxed a, Integral a) =>
     [Array a] -> Fold m a b -> Stream m a -> Stream m b
-splitOnSuffixSeqAny _subseq _f _m = undefined
-    -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
+splitEndBySeqOneOf _subseq _f _m = undefined
 
 -- | Split on a prefixed separator element, dropping the separator.  The
 -- supplied 'Fold' is applied on the split segments.
@@ -3237,10 +3603,10 @@ splitOnSuffixSeqAny _subseq _f _m = undefined
 -- > Stream.splitOnPrefix (== '.') Fold.toList . Stream.intercalatePrefix (Stream.fromPure '.') Unfold.fromList === id
 --
 -- /Unimplemented/
-{-# INLINE splitOnPrefix #-}
-splitOnPrefix :: -- (IsStream t, MonadCatch m) =>
+{-# INLINE splitBeginBy_ #-}
+splitBeginBy_ :: -- (MonadCatch m) =>
     (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitOnPrefix _predicate _f = undefined
+splitBeginBy_ _predicate _f = undefined
     -- parseMany (Parser.sliceBeginBy predicate f)
 
 -- Int list examples for splitOn:
@@ -3274,10 +3640,10 @@ splitOnPrefix _predicate _f = undefined
 --
 -- /Unimplemented/
 --
-{-# INLINE splitOnAny #-}
-splitOnAny :: -- (Monad m, Unboxed a, Integral a) =>
+{-# INLINE splitSepBySeqOneOf #-}
+splitSepBySeqOneOf :: -- (Monad m, Unboxed a, Integral a) =>
     [Array a] -> Fold m a b -> Stream m a -> Stream m b
-splitOnAny _subseq _f _m =
+splitSepBySeqOneOf _subseq _f _m =
     undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.toStreamD m)
 
 ------------------------------------------------------------------------------

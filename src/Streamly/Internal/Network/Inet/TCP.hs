@@ -346,11 +346,11 @@ withConnection addr port = S.bracketIO (connect addr port) Net.close
 {-# INLINE reader #-}
 reader :: (MonadCatch m, MonadAsync m)
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
-reader = UF.many A.reader (usingConnection ISK.chunkReader)
+reader = UF.unfoldEach A.reader (usingConnection ISK.chunkReader)
 
 {-# INLINE concatChunks #-}
 concatChunks :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
-concatChunks = S.unfoldMany A.reader
+concatChunks = S.unfoldEach A.reader
 
 -- | Read a stream from the supplied IPv4 host address and port number.
 --

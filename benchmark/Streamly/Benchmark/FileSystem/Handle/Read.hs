@@ -219,7 +219,7 @@ chunksOfSum n inh =
 foldMany1ChunksOfSum :: Int -> Handle -> IO Int
 foldMany1ChunksOfSum n inh =
     S.fold Fold.length
-        $ IP.foldMany1 (FL.take n FL.sum) (S.unfold FH.reader inh)
+        $ IP.foldManyPost (FL.take n FL.sum) (S.unfold FH.reader inh)
 
 foldManyChunksOfSum :: Int -> Handle -> IO Int
 foldManyChunksOfSum n inh =

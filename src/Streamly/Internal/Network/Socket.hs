@@ -99,7 +99,7 @@ import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array as A
     ( unsafeFreeze, unsafePinnedAsPtr, pinnedChunksOf,
-      pinnedCreateOf, unsafePinnedCreateOf, lCompactGE )
+      pinnedCreateOf, unsafePinnedCreateOf, scanCompactMin )
 import qualified Streamly.Internal.Data.MutArray as MArray
     (unsafePinnedCreateUsingPtr)
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
@@ -398,7 +398,7 @@ chunkReader = UF.first defaultChunkSize chunkReaderWith
 
 {-# INLINE concatChunks #-}
 concatChunks :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
-concatChunks = S.unfoldMany A.reader
+concatChunks = S.unfoldEach A.reader
 
 -- | Generate a byte stream from a socket using a buffer of the given size.
 --
@@ -421,7 +421,7 @@ read = readWith defaultChunkSize
 --
 {-# INLINE readerWith #-}
 readerWith :: MonadIO m => Unfold m (Int, Socket) Word8
-readerWith = UF.many A.reader chunkReaderWith
+readerWith = UF.unfoldEach A.reader chunkReaderWith
 
 -- | Same as 'readWith'
 --
@@ -465,7 +465,10 @@ writeChunks h = FL.drainMapM (liftIO . putChunk h)
 {-# INLINE writeChunksWith #-}
 writeChunksWith :: (MonadIO m, Unbox a)
     => Int -> Socket -> Fold m (Array a) ()
-writeChunksWith n h = A.lCompactGE n (writeChunks h)
+-- writeChunksWith n h = A.lCompactBySizeGE n (writeChunks h)
+writeChunksWith n h =
+   FL.postscanl (A.scanCompactMin n)
+    $ FL.catMaybes (writeChunks h)
 
 -- | Same as 'writeChunksWith'
 --

@@ -350,7 +350,7 @@ readEitherChunks dirs =
     -- XXX Need to use a take to limit the group size. There will be separate
     -- limits for dir and files groups.
      S.groupsWhile grouper collector
-        $ S.unfoldMany eitherReaderPaths
+        $ S.unfoldEach eitherReaderPaths
         $ S.fromList dirs
 
     where

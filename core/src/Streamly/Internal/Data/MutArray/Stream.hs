@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 -- |
 -- Module      : Streamly.Internal.Data.MutArray.Stream
 -- Copyright   : (c) 2019 Composewell Technologies

@@ -605,7 +605,7 @@ concatCount linearCount =
 many :: Monad m => Int -> Int -> m ()
 many linearCount start = do
     let end = start + concatCount linearCount
-    UF.fold FL.drain (UF.many (source end) (source end)) start
+    UF.fold FL.drain (UF.unfoldEach (source end) (source end)) start
 
 -------------------------------------------------------------------------------
 -- Benchmarks

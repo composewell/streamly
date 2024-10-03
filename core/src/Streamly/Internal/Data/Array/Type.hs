@@ -3,6 +3,7 @@
 -- Must come after TypeFamilies, otherwise it is re-enabled.
 -- MonoLocalBinds enabled by TypeFamilies causes perf regressions in general.
 {-# LANGUAGE NoMonoLocalBinds #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 -- |
 -- Module      : Streamly.Internal.Data.Array.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -112,6 +113,10 @@ module Streamly.Internal.Data.Array.Type
     , chunksOf
     , pinnedChunksOf
     , buildChunks
+    , chunksEndBy
+    , chunksEndBy'
+    , chunksEndByLn
+    , chunksEndByLn'
 
     -- *** Split
     -- | Split an array into slices.
@@ -123,11 +128,11 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Compact
     -- | Append the arrays in a stream to form a stream of larger arrays.
-    , fCompactGE
-    , fPinnedCompactGE
-    , lCompactGE
-    , lPinnedCompactGE
-    , compactGE
+    , createCompactMin
+    , createCompactMin'
+    , scanCompactMin
+    , scanCompactMin'
+    , compactMin
 
     -- ** Deprecated
     , asPtrUnsafe
@@ -153,15 +158,22 @@ module Streamly.Internal.Data.Array.Type
     , pinnedWrite
     , fromByteStr#
     , fromByteStr
+    , fCompactGE
+    , fPinnedCompactGE
+    , lCompactGE
+    , lPinnedCompactGE
+    , compactGE
     )
 where
 
 #include "ArrayMacros.h"
+#include "deprecation.h"
 #include "inline.hs"
 
 import Control.Exception (assert)
 import Control.Monad (replicateM, when)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Char (ord)
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Proxy (Proxy(..))
@@ -176,6 +188,7 @@ import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Scanl.Type (Scanl (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.StreamK.Type (StreamK)
 import Streamly.Internal.Data.Unbox (Unbox(..))
@@ -191,6 +204,7 @@ import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
 import qualified Streamly.Internal.Data.Producer as Producer
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
@@ -479,6 +493,38 @@ pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
 pinnedChunksOf n str = D.map unsafeFreeze $ MA.pinnedChunksOf n str
 
+-- | Create arrays from the input stream using a predicate to find the end of
+-- the chunk. When the predicate matches, the chunk ends, the matching element
+-- is included in the chunk.
+--
+--  Definition:
+--
+-- >>> chunksEndBy p = Stream.foldMany (Fold.takeEndBy p Array.create)
+--
+{-# INLINE chunksEndBy #-}
+chunksEndBy :: forall m a. (MonadIO m, Unbox a)
+    => (a -> Bool) -> D.Stream m a -> D.Stream m (Array a)
+chunksEndBy p = D.foldMany (Fold.takeEndBy p create)
+
+-- | Like 'chunksEndBy' but creates pinned arrays.
+--
+{-# INLINE chunksEndBy' #-}
+chunksEndBy' :: forall m a. (MonadIO m, Unbox a)
+    => (a -> Bool) -> D.Stream m a -> D.Stream m (Array a)
+chunksEndBy' p = D.foldMany (Fold.takeEndBy p pinnedCreate)
+
+-- | Create chunks using newline as the separator, including it.
+{-# INLINE chunksEndByLn #-}
+chunksEndByLn :: (MonadIO m)
+    => D.Stream m Word8 -> D.Stream m (Array Word8)
+chunksEndByLn = chunksEndBy (== fromIntegral (ord '\n'))
+
+-- | Like 'chunksEndByLn' but creates pinned arrays.
+{-# INLINE chunksEndByLn' #-}
+chunksEndByLn' :: (MonadIO m)
+    => D.Stream m Word8 -> D.Stream m (Array Word8)
+chunksEndByLn' = chunksEndBy' (== fromIntegral (ord '\n'))
+
 -- | Convert a stream of arrays into a stream of their elements.
 --
 -- >>> concat = Stream.unfoldMany Array.reader
@@ -522,41 +568,53 @@ flattenArraysRev = concatRev
 -- arrays would have no capacity to append, therefore, a copy will be forced
 -- anyway.
 
--- | Fold @fCompactGE n@ coalesces adjacent arrays in the input stream
--- until the size becomes greater than or equal to n.
+-- | Fold @createCompactBySizeGE n@ coalesces adjacent arrays in the input
+-- stream until the size becomes greater than or equal to n.
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
-{-# INLINE_NORMAL fCompactGE #-}
-fCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) (Array a)
-fCompactGE n = fmap unsafeFreeze $ Fold.lmap unsafeThaw $ MA.fCompactGE n
+{-# INLINE_NORMAL createCompactMin #-}
+createCompactMin, fCompactGE :: (MonadIO m, Unbox a) =>
+    Int -> Fold m (Array a) (Array a)
+createCompactMin n =
+    fmap unsafeFreeze $ Fold.lmap unsafeThaw $ MA.createCompactMin n
 
--- | PInned version of 'fCompactGE'.
-{-# INLINE_NORMAL fPinnedCompactGE #-}
-fPinnedCompactGE :: (MonadIO m, Unbox a) => Int -> Fold m (Array a) (Array a)
-fPinnedCompactGE n =
-    fmap unsafeFreeze $ Fold.lmap unsafeThaw $ MA.fPinnedCompactGE n
+RENAME(fCompactGE,createCompactMin)
 
--- | @compactGE n stream@ coalesces adjacent arrays in the @stream@ until
+-- | Pinned version of 'createCompactMin'.
+{-# INLINE_NORMAL createCompactMin' #-}
+createCompactMin', fPinnedCompactGE :: (MonadIO m, Unbox a) =>
+    Int -> Fold m (Array a) (Array a)
+createCompactMin' n =
+    fmap unsafeFreeze $ Fold.lmap unsafeThaw $ MA.createCompactMin' n
+
+{-# DEPRECATED fPinnedCompactGE "Please use createCompactMin' instead." #-}
+{-# INLINE fPinnedCompactGE #-}
+fPinnedCompactGE = createCompactMin
+
+-- | @compactBySize n stream@ coalesces adjacent arrays in the @stream@ until
 -- the size becomes greater than or equal to @n@.
 --
--- >>> compactGE n = Stream.foldMany (Array.fCompactGE n)
+-- >>> compactBySize n = Stream.foldMany (Array.createCompactBySizeGE n)
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
-{-# INLINE compactGE #-}
-compactGE ::
+{-# INLINE compactMin #-}
+compactMin, compactGE ::
        (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
-compactGE n stream =
-    D.map unsafeFreeze $ MA.compactGE n $ D.map unsafeThaw stream
+compactMin n stream =
+    D.map unsafeFreeze $ MA.compactMin n $ D.map unsafeThaw stream
 
--- | Like 'compactGE' but for transforming folds instead of stream.
+RENAME(compactGE,compactMin)
+
+-- | Like 'compactBySizeGE' but for transforming folds instead of stream.
 --
--- >>> lCompactGE n = Fold.many (Array.fCompactGE n)
+-- >>> lCompactBySizeGE n = Fold.many (Array.createCompactBySizeGE n)
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
+{-# DEPRECATED lCompactGE "Please use scanCompactMin instead." #-}
 {-# INLINE_NORMAL lCompactGE #-}
 lCompactGE :: (MonadIO m, Unbox a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
@@ -564,11 +622,28 @@ lCompactGE n fld =
     Fold.lmap unsafeThaw $ MA.lCompactGE n (Fold.lmap unsafeFreeze fld)
 
 -- | Pinned version of 'lCompactGE'.
+{-# DEPRECATED lPinnedCompactGE "Please use scanCompactMin' instead." #-}
 {-# INLINE_NORMAL lPinnedCompactGE #-}
 lPinnedCompactGE :: (MonadIO m, Unbox a)
     => Int -> Fold m (Array a) () -> Fold m (Array a) ()
 lPinnedCompactGE n fld =
     Fold.lmap unsafeThaw $ MA.lPinnedCompactGE n (Fold.lmap unsafeFreeze fld)
+
+{-# INLINE scanCompactMin #-}
+scanCompactMin :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Scanl m (Array a) (Maybe (Array a))
+scanCompactMin n =
+    Scanl.lmap unsafeThaw
+        $ fmap (fmap unsafeFreeze)
+        $ MA.scanCompactMin n
+
+{-# INLINE scanCompactMin' #-}
+scanCompactMin' :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Scanl m (Array a) (Maybe (Array a))
+scanCompactMin' n =
+    Scanl.lmap unsafeThaw
+        $ fmap (fmap unsafeFreeze)
+        $ MA.scanCompactMin' n
 
 -------------------------------------------------------------------------------
 -- Splitting

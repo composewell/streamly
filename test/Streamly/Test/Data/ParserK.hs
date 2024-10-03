@@ -650,7 +650,7 @@ parseMany =
         forAll (listOf (vectorOf len (chooseAny :: Gen Int))) $ \ ins ->
             monadicIO $ do
             outs <-
-                (toList $ S.catRights $ S.parseManyD
+                (toList $ S.catRights $ S.parseMany
                     (P.fromFold $ FL.take len FL.toList) (S.fromList $ concat ins)
                 )
             return $ outs == ins
@@ -678,7 +678,7 @@ parseUnfold = do
                     Producer.simplify (Producer.parseManyD parser readSrc)
             xs <- run
                 $ toList
-                $ S.unfoldMany Unfold.fromList
+                $ S.unfoldEach Unfold.fromList
                 $ S.catRights
                 $ S.unfold streamParser src
 
@@ -749,7 +749,7 @@ parseMany2Events =
             ( run
             $ toList
             $ S.catRights
-            $ S.parseManyD readOneEvent
+            $ S.parseMany readOneEvent
             $ S.fromList (concat (replicate 2 event))
             )
         assert (length xs == 2)

@@ -84,7 +84,7 @@ module Streamly.Internal.Data.Parser
     , dropWhile
 
     -- ** Separated by elements
-    -- | Separator could be in prefix postion ('takeStartBy'), or suffix
+    -- | Separator could be in prefix postion ('takeBeginBy'), or suffix
     -- position ('takeEndBy'). See 'deintercalate', 'sepBy' etc for infix
     -- separator parsing, also see 'intersperseQuotedBy' fold.
 
@@ -94,8 +94,8 @@ module Streamly.Internal.Data.Parser
     , takeEndBy_
     , takeEndByEsc
     -- , takeEndByEsc_
-    , takeStartBy
-    , takeStartBy_
+    , takeBeginBy
+    , takeBeginBy_
     , takeEitherSepBy
     , wordBy
 
@@ -115,7 +115,7 @@ module Streamly.Internal.Data.Parser
 
     -- Framed by separate start and end characters, potentially nested.
     -- blockWithQuotes allows quotes inside a block. However,
-    -- takeFramedByGeneric can be used to express takeStartBy, takeEndBy and
+    -- takeFramedByGeneric can be used to express takeBeginBy, takeEndBy and
     -- block with escaping.
     -- , takeFramedBy
     , takeFramedBy_
@@ -239,10 +239,13 @@ module Streamly.Internal.Data.Parser
 
      -- * Deprecated
     , next
+    , takeStartBy
+    , takeStartBy_
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 #include "assert.hs"
 
 import Control.Monad (when)
@@ -1042,7 +1045,7 @@ takeFramedByGeneric esc begin end (Fold fstep finitial _ ffinal) =
                         if isEnd a
                         then Done 0 <$> ffinal s
                         else process s a n
-            Nothing -> -- takeStartBy case
+            Nothing -> -- takeBeginBy case
                 case begin of
                     Just isBegin ->
                         if isBegin a
@@ -1284,14 +1287,14 @@ takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
 -- * Stops - when the predicate succeeds in non-leading position.
 -- * Fails - when the predicate fails in the leading position.
 --
--- >>> splitWithPrefix p f = Stream.parseMany (Parser.takeStartBy p f)
+-- >>> splitWithPrefix p f = Stream.parseMany (Parser.takeBeginBy p f)
 --
 -- Examples: -
 --
--- >>> p = Parser.takeStartBy (== ',') Fold.toList
+-- >>> p = Parser.takeBeginBy (== ',') Fold.toList
 -- >>> leadingComma = Stream.parse p . Stream.fromList
 -- >>> leadingComma "a,b"
--- Left (ParseError "takeStartBy: missing frame start")
+-- Left (ParseError "takeBeginBy: missing frame start")
 -- ...
 -- >>> leadingComma ",,"
 -- Right ","
@@ -1302,9 +1305,10 @@ takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
 --
 -- /Pre-release/
 --
-{-# INLINE takeStartBy #-}
-takeStartBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-takeStartBy cond (Fold fstep finitial _ ffinal) =
+{-# INLINE takeBeginBy #-}
+takeBeginBy, takeStartBy :: Monad m =>
+    (a -> Bool) -> Fold m a b -> Parser a m b
+takeBeginBy cond (Fold fstep finitial _ ffinal) =
 
     Parser step initial extract
 
@@ -1315,7 +1319,7 @@ takeStartBy cond (Fold fstep finitial _ ffinal) =
         return $
             case res of
                 FL.Partial s -> IPartial (Left' s)
-                FL.Done _ -> IError "takeStartBy: fold done without input"
+                FL.Done _ -> IError "takeBeginBy: fold done without input"
 
     {-# INLINE process #-}
     process s a = do
@@ -1328,7 +1332,7 @@ takeStartBy cond (Fold fstep finitial _ ffinal) =
     step (Left' s) a =
         if cond a
         then process s a
-        else return $ Error "takeStartBy: missing frame start"
+        else return $ Error "takeBeginBy: missing frame start"
     step (Right' s) a =
         if not (cond a)
         then process s a
@@ -1337,13 +1341,18 @@ takeStartBy cond (Fold fstep finitial _ ffinal) =
     extract (Left' s) = fmap (Done 0) $ ffinal s
     extract (Right' s) = fmap (Done 0) $ ffinal s
 
--- | Like 'takeStartBy' but drops the separator.
+RENAME(takeStartBy,takeBeginBy)
+
+-- | Like 'takeBeginBy' but drops the separator.
 --
--- >>> takeStartBy_ isBegin = Parser.takeFramedByGeneric Nothing (Just isBegin) Nothing
+-- >>> takeBeginBy_ isBegin = Parser.takeFramedByGeneric Nothing (Just isBegin) Nothing
 --
-{-# INLINE takeStartBy_ #-}
-takeStartBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-takeStartBy_ isBegin = takeFramedByGeneric Nothing (Just isBegin) Nothing
+{-# INLINE takeBeginBy_ #-}
+takeBeginBy_, takeStartBy_ :: Monad m =>
+    (a -> Bool) -> Fold m a b -> Parser a m b
+takeBeginBy_ isBegin = takeFramedByGeneric Nothing (Just isBegin) Nothing
+
+RENAME(takeStartBy_,takeBeginBy_)
 
 -- | @takeFramedByEsc_ isEsc isBegin isEnd fold@ parses a token framed using a
 -- begin and end predicate, and an escape character. The frame begin and end

@@ -776,7 +776,7 @@ isInfixOf :: (MonadIO m, Eq a, Enum a, Unbox a)
 isInfixOf infx stream = do
     arr <- fold Array.create infx
     -- XXX can use breakOnSeq instead (when available)
-    r <- null $ StreamD.drop 1 $ Nesting.splitOnSeq arr Fold.drain stream
+    r <- null $ StreamD.drop 1 $ Nesting.splitSepBySeq_ arr Fold.drain stream
     return (not r)
 
 -- Note: isPrefixOf uses the prefix stream only once. In contrast, isSuffixOf

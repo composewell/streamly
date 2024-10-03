@@ -59,7 +59,7 @@ toList = Stream.toList
 -- XXX Where are the tests for "takeEndBy"?
 splitOn :: Monad m =>
     (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitOn predicate f = Stream.foldMany1 (Fold.takeEndBy_ predicate f)
+splitOn predicate f = Stream.foldManyPost (Fold.takeEndBy_ predicate f)
 
 splitOnSuffix :: Monad m =>
     (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
@@ -68,11 +68,11 @@ splitOnSuffix predicate f = Stream.foldMany (Fold.takeEndBy_ predicate f)
 -- XXX Where are the tests for "takeEndBySeq"?
 splitOnSeqFold :: (MonadIO m, Unbox a, Enum a, Eq a) =>
    Array.Array a -> Fold m a b -> Stream m a -> Stream m b
-splitOnSeqFold patt f = Stream.foldMany1 (Fold.takeEndBySeq_ patt f)
+splitOnSeqFold patt f = Stream.foldManyPost (Fold.takeEndBySeq_ patt f)
 
 splitOnSeqStream :: (MonadIO m, Unbox a, Enum a, Eq a) =>
    Array.Array a -> Fold m a b -> Stream m a -> Stream m b
-splitOnSeqStream = Stream.splitOnSeq
+splitOnSeqStream = Stream.splitSepBySeq_
 
 splitOnSuffixSeqFold :: (MonadIO m, Unbox a, Enum a, Eq a) =>
    Array.Array a -> Fold m a b -> Stream m a -> Stream m b
@@ -222,7 +222,7 @@ intercalateSplitEqId sep splitter lIntercalater sIntercalater i =
         ys <- splitter xs (replicate i sep)
         szs <-
             toList
-                $ sIntercalater Unfold.fromList (replicate i sep)
+                $ sIntercalater (replicate i sep) Unfold.fromList
                 $ Stream.fromList ys
         let lzs = lIntercalater (replicate i sep) ys
         listEquals (==) szs xs
@@ -244,7 +244,7 @@ intercalateSplitEqIdNoSepEnd sep splitter lIntercalater sIntercalater i =
         ys <- splitter xs (replicate i sep)
         szs <-
             toList
-                $ sIntercalater Unfold.fromList (replicate i sep)
+                $ sIntercalater (replicate i sep) Unfold.fromList
                 $ Stream.fromList ys
         let lzs = lIntercalater (replicate i sep) ys
         listEquals (==) szs xs
@@ -266,7 +266,7 @@ concatSplitIntercalateEqConcat sep splitter lIntercalater sIntercalater i =
         lys <- splitter lxs (replicate i sep)
         sxs <-
             toList
-                $ sIntercalater Unfold.fromList (replicate i sep)
+                $ sIntercalater (replicate i sep) Unfold.fromList
                 $ Stream.fromList xss
         sys <- splitter sxs (replicate i sep)
         listEquals (==) (concat lys) (concat xss)
@@ -286,7 +286,9 @@ splitIntercalateEqId sep splitter lIntercalater sIntercalater =
     testCase xss = do
         let lxs = lIntercalater [sep] xss
         lys <- splitter lxs [sep]
-        sxs <- toList $ sIntercalater Unfold.fromList [sep] $ Stream.fromList xss
+        sxs <- toList
+                $ sIntercalater [sep] Unfold.fromList
+                $ Stream.fromList xss
         sys <- splitter sxs [sep]
         listEquals (==) lys xss
         listEquals (==) sys xss
@@ -300,26 +302,28 @@ splitterProperties sep desc = do
     describe (desc <> " splitOn")
         $ do
 
-            intercalateSplitEqId sep splitOn_ intercalate Stream.intercalate 1
+            intercalateSplitEqId
+                sep splitOn_ intercalate Stream.unfoldEachSepBySeq 1
 
             concatSplitIntercalateEqConcat
-                sep splitOn_ intercalate Stream.intercalate 1
+                sep splitOn_ intercalate Stream.unfoldEachSepBySeq 1
 
             -- Exclusive case
-            splitIntercalateEqId sep splitOn_ intercalate Stream.intercalate
+            splitIntercalateEqId
+                sep splitOn_ intercalate Stream.unfoldEachSepBySeq
 
     describe (desc <> " splitOnSuffix")
         $ do
 
             intercalateSplitEqIdNoSepEnd
-                sep splitOnSuffix_ intercalate Stream.intercalate 1
+                sep splitOnSuffix_ intercalate Stream.unfoldEachSepBySeq 1
 
             concatSplitIntercalateEqConcat
-                sep splitOnSuffix_ intercalateSuffix Stream.intercalateSuffix 1
+                sep splitOnSuffix_ intercalateSuffix Stream.unfoldEachEndBySeq 1
 
             -- Exclusive case
             splitIntercalateEqId
-                sep splitOnSuffix_ intercalateSuffix Stream.intercalateSuffix
+                sep splitOnSuffix_ intercalateSuffix Stream.unfoldEachEndBySeq
 
     where
 
@@ -358,27 +362,27 @@ seqSplitterProperties sep desc = do
 
     splitOnSeqWith op = do
         forM_ [0, 1, 2, 4]
-            $ intercalateSplitEqId sep op intercalate Stream.intercalate
+            $ intercalateSplitEqId sep op intercalate Stream.unfoldEachSepBySeq
 
         forM_ [0, 1, 2, 4]
             $ concatSplitIntercalateEqConcat
-                sep op intercalate Stream.intercalate
+                sep op intercalate Stream.unfoldEachSepBySeq
 
         -- Exclusive case
-        splitIntercalateEqId sep op intercalate Stream.intercalate
+        splitIntercalateEqId sep op intercalate Stream.unfoldEachSepBySeq
 
     splitOnSuffixSeqWith op = do
         forM_ [0, 1, 2, 4]
             $ intercalateSplitEqIdNoSepEnd
-                sep op intercalate Stream.intercalate
+                sep op intercalate Stream.unfoldEachSepBySeq
 
         forM_ [0, 1, 2, 4]
             $ concatSplitIntercalateEqConcat
-                  sep op intercalateSuffix Stream.intercalateSuffix
+                  sep op intercalateSuffix Stream.unfoldEachEndBySeq
 
         -- Exclusive case
         splitIntercalateEqId
-            sep op intercalateSuffix Stream.intercalateSuffix
+            sep op intercalateSuffix Stream.unfoldEachEndBySeq
 
 intercalateSplitOnId ::
        forall a. (Arbitrary a, Eq a, Show a, Num a) =>

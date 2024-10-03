@@ -514,12 +514,12 @@ insertBy value n = composeN n $ Stream.insertBy compare (value + 1)
 {-# INLINE interposeSuffix #-}
 interposeSuffix :: Monad m => Int -> Int -> Stream m Int -> m ()
 interposeSuffix value n =
-    composeN n $ Stream.interposeSuffix (value + 1) Unfold.identity
+    composeN n $ Stream.unfoldEachSepBy (value + 1) Unfold.identity
 
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: Monad m => Int -> Int -> Stream m Int -> m ()
 intercalateSuffix value n =
-    composeN n $ Stream.intercalateSuffix Unfold.identity (value + 1)
+    composeN n $ Stream.unfoldEachSepBySeq (value + 1) Unfold.identity
 
 o_1_space_inserting :: Int -> [Benchmark]
 o_1_space_inserting value =

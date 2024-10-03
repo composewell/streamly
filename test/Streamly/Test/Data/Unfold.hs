@@ -549,7 +549,7 @@ concat :: Bool
 concat =
     let unfIn = UF.replicateM
         unfOut = UF.map ((10,) . return) UF.enumerateFromToIntegral
-        unf = UF.many unfIn unfOut
+        unf = UF.unfoldEach unfIn unfOut
         lst = Prelude.concat $ Prelude.map (Prelude.replicate 10) [1 .. 10]
      in testUnfoldD unf (1, 10) lst
 

@@ -7,8 +7,6 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
---
--- "Streamly.Internal.Data.Pipe" might ultimately replace this module.
 
 -- A few functions in this module have been adapted from the vector package
 -- (c) Roman Leshchinskiy. See the notes in specific combinators.
@@ -37,7 +35,7 @@ module Streamly.Internal.Data.Stream.Transform
     , pipe
 
     -- * Splitting
-    , splitOn
+    , splitSepBy_
 
     -- * Ad-hoc Scans
     -- | Left scans. Stateful, mostly one-to-one maps.
@@ -66,43 +64,63 @@ module Streamly.Internal.Data.Stream.Transform
     , scanlx'
 
     -- * Filtering
+    -- delete is for once like insert, filter is for many like intersperse.
+
     -- | Produce a subset of the stream.
     , with
     , postscanlMaybe
-    , filter
+    , filter -- retainBy
     , filterM
-    , deleteBy -- deleteOnceBy?
+    , deleteBy -- deleteOnceBy/deleteFirstBy?
     , uniqBy
     , uniq
     , prune
     , repeated
 
+    -- * Sampling
+    -- | Value agnostic filtering.
+    , sampleFromThen
+    -- keepEvery/filterEvery -- sampling
+    -- deleteEvery/dropEvery/removeEvery -- dual of intersperseEvery
+    -- deintersperse - drop infixed elements
+
     -- * Trimming
     -- | Produce a subset of the stream trimmed at ends.
     , initNonEmpty
     , tailNonEmpty
-    , takeWhileLast
-    , takeWhileAround
     , drop
     , dropWhile
     , dropWhileM
+
+    -- * Trimming from end
+    -- | Ring array based or buffering operations.
+    --
+    , takeWhileLast
+    , takeWhileAround
     , dropLast
     , dropWhileLast
     , dropWhileAround
 
     -- * Inserting Elements
-    -- | Produce a superset of the stream.
-    , insertBy
+    -- insert is for once like delete, intersperse is for many like filter
+    -- | Produce a superset of the stream. Value agnostic insertion.
     , intersperse
     , intersperseM
-    , intersperseMWith
-    , intersperseMSuffix
-    , intersperseMSuffixWith
+    , intersperseEveryM
+    , intersperseEndByM
+    , intersperseEndByEveryM
+
+    -- Value aware insertion.
+    , insertBy -- insertCmpBy
+    -- insertBeforeBy
+    -- insertAfterBy
+    -- intersperseBeforeBy
+    -- intersperseAfterBy
 
     -- * Inserting Side Effects
     , intersperseM_
-    , intersperseMSuffix_
-    , intersperseMPrefix_
+    , intersperseEndByM_
+    , intersperseBeginByM_
 
     , delay
     , delayPre
@@ -149,9 +167,16 @@ module Streamly.Internal.Data.Stream.Transform
     , scan
     , scanMany
     , scanMaybe
+    , intersperseMSuffix
+    , intersperseMSuffixWith
+    , intersperseMSuffix_
+    , intersperseMPrefix_
+    , strideFromThen
+    , splitOn
     )
 where
 
+#include "deprecation.h"
 #include "inline.hs"
 
 import Control.Concurrent (threadDelay)
@@ -1165,6 +1190,28 @@ repeated :: -- (Monad m, Eq a) =>
 repeated = undefined
 
 ------------------------------------------------------------------------------
+-- Sampling
+------------------------------------------------------------------------------
+
+-- XXX We can implement this using addition instead of "mod" to make it more
+-- efficient.
+
+-- | @sampleFromThen offset stride@ takes the element at @offset@ index and
+-- then every element at strides of @stride@.
+--
+-- >>> Stream.fold Fold.toList $ Stream.strideFromThen 2 3 $ Stream.enumerateFromTo 0 10
+-- [2,5,8]
+--
+{-# INLINE sampleFromThen #-}
+sampleFromThen, strideFromThen :: Monad m =>
+    Int -> Int -> Stream m a -> Stream m a
+sampleFromThen offset stride =
+    with indexed filter
+        (\(i, _) -> i >= offset && (i - offset) `mod` stride == 0)
+
+RENAME(strideFromThen,sampleFromThen)
+
+------------------------------------------------------------------------------
 -- Trimming
 ------------------------------------------------------------------------------
 
@@ -1378,21 +1425,13 @@ data LoopState x s = FirstYield s
                    | InterspersingYield s
                    | YieldAndCarry x s
 
--- intersperseM = intersperseMWith 1
-
--- | Insert an effect and its output before consuming an element of a stream
--- except the first one.
+-- | Effectful variant of 'intersperse'. Insert an effect and its output
+-- between successive elements of a stream. It does nothing if stream has less
+-- than two elements.
 --
--- >>> input = Stream.fromList "hello"
--- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseM (putChar '.' >> return ',') input
--- h.,e.,l.,l.,o"h,e,l,l,o"
+-- Definition:
 --
--- Be careful about the order of effects. In the above example we used trace
--- after the intersperse, if we use it before the intersperse the output would
--- be he.l.l.o."h,e,l,l,o".
---
--- >>> Stream.fold Fold.toList $ Stream.intersperseM (putChar '.' >> return ',') $ Stream.trace putChar input
--- he.l.l.o."h,e,l,l,o"
+-- >>> intersperseM x = Stream.interleaveSepBy (Stream.repeatM x)
 --
 {-# INLINE_NORMAL intersperseM #-}
 intersperseM :: Monad m => m a -> Stream m a -> Stream m a
@@ -1418,22 +1457,36 @@ intersperseM m (Stream step state) = Stream step' (FirstYield state)
 
     step' _ (YieldAndCarry x st) = return $ Yield x (InterspersingYield st)
 
--- | Insert a pure value between successive elements of a stream.
+-- | Insert a pure value between successive elements of a stream. It does
+-- nothing if stream has less than two elements.
 --
--- >>> input = Stream.fromList "hello"
--- >>> Stream.fold Fold.toList $ Stream.intersperse ',' input
--- "h,e,l,l,o"
+-- Definition:
+--
+-- >>> intersperse x = intersperseM (return x)
+-- >>> intersperse x = Stream.unfoldEachSepBy x Unfold.identity
+-- >>> intersperse x = Stream.unfoldEachSepBySeq x Unfold.identity
+-- >>> intersperse x = Stream.interleaveSepBy (Stream.repeat x)
+--
+-- Example:
+--
+-- >>> f x y = Stream.toList $ Stream.intersperse x $ Stream.fromList y
+-- >>> f ',' "abc"
+-- "a,b,c"
+-- >>> f ',' "a"
+-- "a"
 --
 {-# INLINE intersperse #-}
 intersperse :: Monad m => a -> Stream m a -> Stream m a
 intersperse a = intersperseM (return a)
 
--- | Insert a side effect before consuming an element of a stream except the
--- first one.
+-- | Perform a side effect between two successive elements of a stream. It does
+-- nothing if the stream has less than two elements.
 --
--- >>> input = Stream.fromList "hello"
--- >>> Stream.fold Fold.drain $ Stream.trace putChar $ Stream.intersperseM_ (putChar '.') input
--- h.e.l.l.o
+-- >>> f x y = Stream.fold Fold.drain $ Stream.trace putChar $ Stream.intersperseM_ x $ Stream.fromList y
+-- >>> f (putChar '.') "abc"
+-- a.b.c
+-- >>> f (putChar '.') "a"
+-- a
 --
 -- /Pre-release/
 {-# INLINE_NORMAL intersperseM_ #-}
@@ -1453,31 +1506,51 @@ intersperseM_ m (Stream step1 state1) = Stream step (Left (pure (), state1))
 -- | Intersperse a monadic action into the input stream after every @n@
 -- elements.
 --
+-- Definition:
+--
+-- >> intersperseEveryM n x = Stream.interleaveEverySepBy n (Stream.repeatM x)
+--
+-- Idioms:
+--
+-- >>> intersperseM = intersperseEveryM 1
+-- >>> intersperse x = intersperseEveryM 1 (return x)
+--
+-- Usage:
+--
 -- >> input = Stream.fromList "hello"
--- >> Stream.fold Fold.toList $ Stream.intersperseMWith 2 (return ',') input
+-- >> Stream.toList $ Stream.intersperseEveryM 2 (return ',') input
 -- "he,ll,o"
 --
 -- /Unimplemented/
-{-# INLINE intersperseMWith #-}
-intersperseMWith :: -- Monad m =>
+{-# INLINE intersperseEveryM #-}
+intersperseEveryM :: -- Monad m =>
     Int -> m a -> Stream m a -> Stream m a
-intersperseMWith _n _f _xs = undefined
+intersperseEveryM _n _f _xs = undefined
 
 data SuffixState s a
     = SuffixElem s
     | SuffixSuffix s
     | SuffixYield a (SuffixState s a)
 
--- | Insert an effect and its output after consuming an element of a stream.
+-- | Insert an effect and its output after every element of a stream.
 --
--- >>> input = Stream.fromList "hello"
--- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseMSuffix (putChar '.' >> return ',') input
--- h.,e.,l.,l.,o.,"h,e,l,l,o,"
+-- Definition:
+--
+-- >>> intersperseEndByM x = Stream.interleaveEndBy (Stream.repeatM x)
+--
+-- Usage:
+--
+-- >>> f x y = Stream.toList $ Stream.intersperseEndByM (pure x) $ Stream.fromList y
+-- >>> f ',' "abc"
+-- "a,b,c,"
+-- >>> f ',' "a"
+-- "a,"
 --
 -- /Pre-release/
-{-# INLINE_NORMAL intersperseMSuffix #-}
-intersperseMSuffix :: forall m a. Monad m => m a -> Stream m a -> Stream m a
-intersperseMSuffix action (Stream step state) = Stream step' (SuffixElem state)
+{-# INLINE_NORMAL intersperseEndByM #-}
+intersperseEndByM, intersperseMSuffix :: forall m a. Monad m =>
+    m a -> Stream m a -> Stream m a
+intersperseEndByM action (Stream step state) = Stream step' (SuffixElem state)
     where
     {-# INLINE_LATE step' #-}
     step' gst (SuffixElem st) = do
@@ -1492,17 +1565,23 @@ intersperseMSuffix action (Stream step state) = Stream step' (SuffixElem state)
 
     step' _ (SuffixYield x next) = return $ Yield x next
 
--- | Insert a side effect after consuming an element of a stream.
+RENAME(intersperseMSuffix,intersperseEndByM)
+
+-- | Insert an effect after every element of a stream.
 --
--- >>> input = Stream.fromList "hello"
--- >>> Stream.fold Fold.toList $ Stream.intersperseMSuffix_ (threadDelay 1000000) input
--- "hello"
+-- Example:
+--
+-- >>> f x y = Stream.fold Fold.drain $ Stream.trace putChar $ Stream.intersperseEndByM_ x $ Stream.fromList y
+-- >>> f (putChar '.') "abc"
+-- a.b.c.
+-- >>> f (putChar '.') "a"
+-- a.
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL intersperseMSuffix_ #-}
-intersperseMSuffix_ :: Monad m => m b -> Stream m a -> Stream m a
-intersperseMSuffix_ m (Stream step1 state1) = Stream step (Left state1)
+{-# INLINE_NORMAL intersperseEndByM_ #-}
+intersperseEndByM_, intersperseMSuffix_ :: Monad m => m b -> Stream m a -> Stream m a
+intersperseEndByM_ m (Stream step1 state1) = Stream step (Left state1)
   where
     {-# INLINE_LATE step #-}
     step gst (Left st) = do
@@ -1514,6 +1593,8 @@ intersperseMSuffix_ m (Stream step1 state1) = Stream step (Left state1)
 
     step _ (Right st) = m >> return (Skip (Left st))
 
+RENAME(intersperseMSuffix_,intersperseEndByM_)
+
 data SuffixSpanState s a
     = SuffixSpanElem s Int
     | SuffixSpanSuffix s
@@ -1521,19 +1602,28 @@ data SuffixSpanState s a
     | SuffixSpanLast
     | SuffixSpanStop
 
--- | Like 'intersperseMSuffix' but intersperses an effectful action into the
--- input stream after every @n@ elements and after the last element.
+-- | Like 'intersperseEndByM' but intersperses an effectful action into the
+-- input stream after every @n@ elements and also after the last element.
+--
+-- Example:
 --
 -- >>> input = Stream.fromList "hello"
--- >>> Stream.fold Fold.toList $ Stream.intersperseMSuffixWith 2 (return ',') input
+-- >>> Stream.toList $ Stream.intersperseEndByEveryM 2 (return ',') input
 -- "he,ll,o,"
+-- >>> f n x y = Stream.toList $ Stream.intersperseEndByEveryM n (pure x) $ Stream.fromList y
+-- >>> f 2 ',' "abcdef"
+-- "ab,cd,ef,"
+-- >>> f 2 ',' "abcdefg"
+-- "ab,cd,ef,g,"
+-- >>> f 2 ',' "a"
+-- "a,"
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL intersperseMSuffixWith #-}
-intersperseMSuffixWith :: forall m a. Monad m
+{-# INLINE_NORMAL intersperseEndByEveryM #-}
+intersperseEndByEveryM, intersperseMSuffixWith :: forall m a. Monad m
     => Int -> m a -> Stream m a -> Stream m a
-intersperseMSuffixWith n action (Stream step state) =
+intersperseEndByEveryM n action (Stream step state) =
     Stream step' (SuffixSpanElem state n)
     where
     {-# INLINE_LATE step' #-}
@@ -1555,23 +1645,31 @@ intersperseMSuffixWith n action (Stream step state) =
 
     step' _ SuffixSpanStop = return Stop
 
--- | Insert a side effect before consuming an element of a stream.
+RENAME(intersperseMSuffixWith,intersperseEndByEveryM)
+
+-- | Insert a side effect before every element of a stream.
 --
 -- Definition:
 --
--- >>> intersperseMPrefix_ m = Stream.mapM (\x -> void m >> return x)
+-- >>> intersperseBeginByM_ = Stream.trace_
+-- >>> intersperseBeginByM_ m = Stream.mapM (\x -> void m >> return x)
 --
--- >>> input = Stream.fromList "hello"
--- >>> Stream.fold Fold.toList $ Stream.trace putChar $ Stream.intersperseMPrefix_ (putChar '.' >> return ',') input
--- .h.e.l.l.o"hello"
+-- Usage:
+--
+-- >>> f x y = Stream.fold Fold.drain $ Stream.trace putChar $ Stream.intersperseBeginByM_ x $ Stream.fromList y
+-- >>> f (putChar '.') "abc"
+-- .h.e.l.l.o
 --
 -- Same as 'trace_'.
 --
 -- /Pre-release/
 --
-{-# INLINE intersperseMPrefix_ #-}
-intersperseMPrefix_ :: Monad m => m b -> Stream m a -> Stream m a
-intersperseMPrefix_ m = mapM (\x -> void m >> return x)
+{-# INLINE intersperseBeginByM_ #-}
+intersperseBeginByM_, intersperseMPrefix_ :: Monad m =>
+    m b -> Stream m a -> Stream m a
+intersperseBeginByM_ m = mapM (\x -> void m >> return x)
+
+RENAME(intersperseMPrefix_,intersperseBeginByM_)
 
 ------------------------------------------------------------------------------
 -- Inserting Time
@@ -2019,6 +2117,48 @@ catEithers = fmap (either id id)
 -- Splitting
 ------------------------------------------------------------------------------
 
+-- Design note: If we use splitSepBy_ on an empty stream what should be the
+-- result? Let's try the splitOn function in the "split" package:
+--
+-- > splitOn "a" ""
+-- [""]
+--
+-- Round tripping the result through intercalate gives identity:
+--
+-- > intercalate "a" [""]
+-- ""
+--
+-- Now let's try intercalate on empty list:
+--
+-- > intercalate "a" []
+-- ""
+--
+-- Round tripping it with splitOn is not identity:
+--
+-- > splitOn "a" ""
+-- [""]
+--
+-- Because intercalate flattens the two layers, both [] and [""] produce the
+-- same result after intercalate. Therefore, inverse of intercalate is not
+-- possible. We have to choose one of the two options for splitting an empty
+-- stream.
+--
+-- Choosing empty stream as the result of splitting empty stream makes better
+-- sense. This is different from the split package's choice. Splitting an empty
+-- stream resulting into a non-empty stream seems a bit odd. Also, splitting
+-- empty stream to empty stream is consistent with splitEndBy operation as
+-- well.
+
+{-# ANN type SplitSepBy Fuse #-}
+data SplitSepBy s fs b a
+    = SplitSepByInit s
+    | SplitSepByInitFold0 s
+    | SplitSepByInitFold1 s a
+    | SplitSepByCheck s a fs
+    | SplitSepByNext s fs
+    | SplitSepByYield b (SplitSepBy s fs b a)
+    | SplitSepByDone
+
 -- | Split on an infixed separator element, dropping the separator.  The
 -- supplied 'Fold' is applied on the split segments.  Splits the stream on
 -- separator elements determined by the supplied predicate, separator is
@@ -2026,53 +2166,115 @@ catEithers = fmap (either id id)
 --
 -- Definition:
 --
--- >>> splitOn p f = Stream.foldMany1 (Fold.takeEndBy_ p f)
 --
--- >>> splitOn' p xs = Stream.fold Fold.toList $ Stream.splitOn p Fold.toList (Stream.fromList xs)
--- >>> splitOn' (== '.') "a.b"
+-- Usage:
+--
+-- >>> splitOn p xs = Stream.fold Fold.toList $ Stream.splitSepBy_ p Fold.toList (Stream.fromList xs)
+-- >>> splitOn (== '.') "a.b"
 -- ["a","b"]
 --
--- An empty stream is folded to the default value of the fold:
+-- Splitting an empty stream results in an empty stream i.e. zero splits:
 --
--- >>> splitOn' (== '.') ""
--- [""]
+-- >>> splitOn (== '.') ""
+-- []
+--
+-- If the stream does not contain the separator then it results in a single
+-- split:
+--
+-- >>> splitOn (== '.') "abc"
+-- ["abc"]
 --
 -- If one or both sides of the separator are missing then the empty segment on
 -- that side is folded to the default output of the fold:
 --
--- >>> splitOn' (== '.') "."
+-- >>> splitOn (== '.') "."
 -- ["",""]
 --
--- >>> splitOn' (== '.') ".a"
+-- >>> splitOn (== '.') ".a"
 -- ["","a"]
 --
--- >>> splitOn' (== '.') "a."
+-- >>> splitOn (== '.') "a."
 -- ["a",""]
 --
--- >>> splitOn' (== '.') "a..b"
+-- >>> splitOn (== '.') "a..b"
 -- ["a","","b"]
 --
--- splitOn is an inverse of intercalating single element:
+-- 'splitSepBy_' is an inverse of 'unfoldEachSepBy':
 --
--- > Stream.intercalate (Stream.fromPure '.') Unfold.fromList . Stream.splitOn (== '.') Fold.toList === id
+-- > Stream.unfoldEachSepBy '.' Unfold.fromList . Stream.splitSepBy_ (== '.') Fold.toList === id
 --
 -- Assuming the input stream does not contain the separator:
 --
--- > Stream.splitOn (== '.') Fold.toList . Stream.intercalate (Stream.fromPure '.') Unfold.fromList === id
+-- > Stream.splitSepBy_ (== '.') Fold.toList . Stream.unfoldEachSepBy '.' Unfold.fromList === id
 --
+{-# INLINE splitSepBy_ #-}
+splitSepBy_ :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+-- We can express the infix splitting in terms of optional suffix split
+-- fold.  After applying a suffix split fold repeatedly if the last segment
+-- ends with a suffix then we need to return the default output of the fold
+-- after that to make it an infix split.
+--
+-- Alternately, we can also express it using an optional prefix split fold.
+-- If the first segment starts with a prefix then we need to emit the
+-- default output of the fold before that to make it an infix split, and
+-- then apply prefix split fold repeatedly.
+--
+splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
+    Stream step (SplitSepByInit state1)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (SplitSepByInit st) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield x s -> return $ Skip $ SplitSepByInitFold1 s x
+            Skip s -> return $ Skip (SplitSepByInit s)
+            Stop -> return Stop
+
+    step _ (SplitSepByInitFold0 st) = do
+        fres <- initial
+        return
+            $ Skip
+            $ case fres of
+                  FL.Done b -> SplitSepByYield b (SplitSepByInitFold0 st)
+                  FL.Partial fs -> SplitSepByNext st fs
+
+    step _ (SplitSepByInitFold1 st x) = do
+        fres <- initial
+        return
+            $ Skip
+            $ case fres of
+                  FL.Done b -> SplitSepByYield b (SplitSepByInitFold1 st x)
+                  FL.Partial fs -> SplitSepByCheck st x fs
+
+    step _ (SplitSepByCheck st x fs) = do
+        if predicate x
+        then do
+            b <- final fs
+            return $ Skip $ SplitSepByYield b (SplitSepByInitFold0 st)
+        else do
+            fres <- fstep fs x
+            return
+                $ Skip
+                $ case fres of
+                      FL.Done b -> SplitSepByYield b (SplitSepByInitFold0 st)
+                      FL.Partial fs1 -> SplitSepByNext st fs1
+
+    step gst (SplitSepByNext st fs) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield x s -> return $ Skip $ SplitSepByCheck s x fs
+            Skip s -> return $ Skip (SplitSepByNext s fs)
+            Stop -> do
+                b <- final fs
+                return $ Skip $ SplitSepByYield b SplitSepByDone
+
+    step _ (SplitSepByYield b next) = return $ Yield b next
+    step _ SplitSepByDone = return Stop
+
+{-# DEPRECATED splitOn "Please use splitSepBy_ instead. Note the difference in behavior on splitting empty stream." #-}
 {-# INLINE splitOn #-}
 splitOn :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 splitOn predicate f =
-    -- We can express the infix splitting in terms of optional suffix split
-    -- fold.  After applying a suffix split fold repeatedly if the last segment
-    -- ends with a suffix then we need to return the default output of the fold
-    -- after that to make it an infix split.
-    --
-    -- Alternately, we can also express it using an optional prefix split fold.
-    -- If the first segment starts with a prefix then we need to emit the
-    -- default output of the fold before that to make it an infix split, and
-    -- then apply prefix split fold repeatedly.
-    --
-    -- Since a suffix split fold can be easily expressed using a
-    -- non-backtracking fold, we use that.
-    foldMany1 (FL.takeEndBy_ predicate f)
+    foldManyPost (FL.takeEndBy_ predicate f)

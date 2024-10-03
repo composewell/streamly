@@ -20,10 +20,11 @@ module Streamly.Internal.Data.MutArray
     -- * MutArray module
     , sliceIndexerFromLen
     , slicerFromLen
-    , compactLE
-    , pinnedCompactLE
-    , compactOnByte
-    , compactOnByteSuffix
+    , compactMax
+    , compactMax'
+    , compactSepByByte_
+    , compactEndByByte_
+    , compactEndByLn_
     -- * Unboxed IORef
     , module Streamly.Internal.Data.IORef.Unboxed
 
@@ -37,10 +38,15 @@ module Streamly.Internal.Data.MutArray
     -- * Deprecated
     , genSlicesFromLen
     , getSlicesFromLen
+    , compactLE
+    , pinnedCompactLE
+    , compactOnByte
+    , compactOnByteSuffix
     )
 where
 
 #include "assert.hs"
+#include "deprecation.h"
 #include "inline.hs"
 #include "ArrayMacros.h"
 
@@ -206,21 +212,27 @@ deserialize arr@(MutArray {..}) = do
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
-{-# INLINE compactLE #-}
-compactLE :: (MonadIO m, Unbox a) =>
+{-# INLINE compactMax #-}
+compactMax, compactLE :: (MonadIO m, Unbox a) =>
     Int -> Stream m (MutArray a) -> Stream m (MutArray a)
 -- XXX compactLE can be moved to MutArray/Type if we are not using the parser
 -- to implement it.
-compactLE = compactLeAs Unpinned
+compactMax = compactLeAs Unpinned
 -- The parser version turns out to be a little bit slower.
 -- compactLE n = Stream.catRights . Stream.parseManyD (pCompactLE n)
 
--- | Pinned version of 'compactLE'.
-{-# INLINE pinnedCompactLE #-}
-pinnedCompactLE :: forall m a. (MonadIO m, Unbox a)
+RENAME(compactLE,compactMax)
+
+-- | Like 'compactBySizeLE' but generates pinned arrays.
+{-# INLINE_NORMAL compactMax' #-}
+compactMax', pinnedCompactLE :: forall m a. (MonadIO m, Unbox a)
     => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
-pinnedCompactLE = compactLeAs Pinned
--- pinnedCompactLE n = Stream.catRights . Stream.parseManyD (pPinnedCompactLE n)
+compactMax' = compactLeAs Pinned
+-- compactMax' n = Stream.catRights . Stream.parseManyD (pPinnedCompactLE n)
+
+{-# DEPRECATED pinnedCompactLE "Please use compactMax' instead." #-}
+{-# INLINE pinnedCompactLE #-}
+pinnedCompactLE = compactMax'
 
 data SplitState s arr
     = Initial s
@@ -232,13 +244,13 @@ data SplitState s arr
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.
 --
-{-# INLINE_NORMAL _compactOnByteCustom #-}
-_compactOnByteCustom
+{-# INLINE_NORMAL _compactSepByByteCustom #-}
+_compactSepByByteCustom
     :: MonadIO m
     => Word8
     -> Stream m (MutArray Word8)
     -> Stream m (MutArray Word8)
-_compactOnByteCustom byte (Stream.Stream step state) =
+_compactSepByByteCustom byte (Stream.Stream step state) =
     Stream.Stream step' (Initial state)
 
     where
@@ -280,14 +292,15 @@ _compactOnByteCustom byte (Stream.Stream step state) =
     step' _ (Yielding arr next) = return $ Stream.Yield arr next
     step' _ Finishing = return Stream.Stop
 
--- XXX implement predicate based version of this
--- XXX Naming of predicate based vs custom version
+-- XXX implement predicate based version of this compactSepBy_, compactEndBy_
+-- XXX the versions that use equality can be named compactSepByElem_ etc. The
+-- byte/word etc versions of that can be specialized using rewrite rules.
 
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.
 --
-{-# INLINE compactOnByte #-}
-compactOnByte
+{-# INLINE compactSepByByte_ #-}
+compactSepByByte_, compactOnByte
     :: (MonadIO m)
     => Word8
     -> Stream m (MutArray Word8)
@@ -295,17 +308,32 @@ compactOnByte
 -- XXX compare perf of custom vs idiomatic version
 -- compactOnByte = _compactOnByteCustom
 -- XXX use spliceExp and rightSize?
-compactOnByte byte = Stream.splitInnerBy (breakOn byte) splice
+compactSepByByte_ byte = Stream.splitInnerBy (breakOn byte) splice
 
--- | Like 'compactOnByte' considers the separator in suffix position instead of
--- infix position.
-{-# INLINE compactOnByteSuffix #-}
-compactOnByteSuffix
+RENAME(compactOnByte,compactSepByByte_)
+
+-- | Split a stream of arrays on a given separator byte, dropping the separator
+-- and coalescing all the arrays between two separators into a single array.
+--
+{-# INLINE compactEndByByte_ #-}
+compactEndByByte_, compactOnByteSuffix
     :: (MonadIO m)
     => Word8
     -> Stream m (MutArray Word8)
     -> Stream m (MutArray Word8)
-compactOnByteSuffix byte =
+compactEndByByte_ byte =
         -- XXX use spliceExp and rightSize?
         Stream.splitInnerBySuffix
             (\arr -> byteLength arr == 0) (breakOn byte) splice
+
+RENAME(compactOnByteSuffix,compactEndByByte_)
+
+-- XXX On windows we should compact on "\r\n". We can just compact on '\n' and
+-- drop the last byte in each array if it is '\r'.
+
+-- | Compact byte arrays on newline character, dropping the newline char.
+{-# INLINE compactEndByLn_ #-}
+compactEndByLn_ :: MonadIO m
+    => Stream m (MutArray Word8)
+    -> Stream m (MutArray Word8)
+compactEndByLn_ = compactEndByByte_ 10

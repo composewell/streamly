@@ -176,7 +176,7 @@ inspect $ 'concatMapRepl `hasNoType` ''SPEC
 unfoldManyRepl :: Int -> Int -> Int -> IO ()
 unfoldManyRepl outer inner n =
     drain
-         $ S.unfoldMany
+         $ S.unfoldEach
                UF.replicateM
                (fmap ((inner,) . return) (sourceUnfoldrM outer n))
 

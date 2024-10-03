@@ -422,6 +422,7 @@ module Streamly.Data.Stream
     -- >>> elemIndices a = findIndices (== a)
     -- >>> uniq = Stream.scanMaybe (Fold.uniqBy (==))
     -- >>> partition p = Stream.fold (Fold.partition Fold.toList Fold.toList) . fmap (if p then Left else Right)
+    -- >>> takeLast n s = Stream.fromEffect $ fmap Array.read $ Array.createOfLast n s
     -- , scanlMaybe
     , take
     , takeWhile
@@ -505,15 +506,15 @@ module Streamly.Data.Stream
     -- * Unfold Each
     -- Idioms and equivalents of Data.List APIs:
     --
-    -- >>> cycle = Stream.unfoldMany Unfold.fromList . Stream.repeat
-    -- >>> unlines = Stream.interposeSuffix '\n'
-    -- >>> unwords = Stream.interpose ' '
-    -- >>> unlines = Stream.intercalateSuffix Unfold.fromList "\n"
-    -- >>> unwords = Stream.intercalate Unfold.fromList " "
+    -- >>> cycle = Stream.unfoldEach Unfold.fromList . Stream.repeat
+    -- >>> unlines = Stream.unfoldEachEndBy '\n'
+    -- >>> unwords = Stream.unfoldEachSepBy ' '
+    -- >>> unlines = Stream.unfoldEachEndBySeq "\n" Unfold.fromList
+    -- >>> unwords = Stream.unfoldEachSepBySeq " " Unfold.fromList
     --
-    , unfoldMany
-    , intercalate
-    , intercalateSuffix
+    , unfoldEach
+    , unfoldEachSepBySeq
+    , unfoldEachEndBySeq
 
     -- * Stream of streams
     -- | Stream operations like map and filter represent loops in
@@ -550,7 +551,6 @@ module Streamly.Data.Stream
     -- >>> groupsByRolling eq = Stream.parseMany (Parser.groupByRolling eq Fold.toList)
     -- >>> groups = groupBy (==)
     , foldMany
-    , foldMany1
     , groupsOf
     , parseMany
 
@@ -564,8 +564,8 @@ module Streamly.Data.Stream
     -- >>> splitAt n = Stream.fold (Fold.splitAt n Fold.toList Fold.toList)
     -- >>> span p = Parser.splitWith (,) (Parser.takeWhile p Fold.toList) (Parser.fromFold Fold.toList)
     -- >>> break p = span (not . p)
-    , splitOn
-    , splitOnSeq
+    , splitSepBy_
+    , splitSepBySeq_
     , splitEndBySeq
     , splitEndBySeq_
     , wordsBy
@@ -674,6 +674,11 @@ module Streamly.Data.Stream
     , scan
     , scanMaybe
     , postscan
+    , splitOn
+    , splitOnSeq
+    , unfoldMany
+    , intercalate
+    , intercalateSuffix
     )
 where
 

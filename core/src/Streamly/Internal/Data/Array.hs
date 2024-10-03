@@ -57,7 +57,7 @@ module Streamly.Internal.Data.Array
     -- , getSlice
     , sliceIndexerFromLen
     , slicerFromLen
-    , splitOn
+    , splitOn -- XXX slicesEndBy
 
     -- * Streaming Operations
     , streamTransform
@@ -67,17 +67,15 @@ module Streamly.Internal.Data.Array
     , fold
 
     -- * Stream of Arrays
+    , concatSepBy
+    , concatEndBy
+    , concatEndBySeq
 
-    -- XXX these are probably not very useful to have in this module as we can
-    -- express these idiomatically using streams.
-    , interpose
-    , interposeSuffix
-    , intercalateSuffix
-
-    , compactLE
-    , pinnedCompactLE
-    , compactOnByte
-    , compactOnByteSuffix
+    , compactMax
+    , compactMax'
+    , compactSepByByte_
+    , compactEndByByte_
+    , compactEndByLn_
 
     , foldBreakChunks
     , foldChunks
@@ -95,10 +93,18 @@ module Streamly.Internal.Data.Array
     , getSlicesFromLen
     , getIndices
     , writeLastN
+    , interpose
+    , interposeSuffix
+    , intercalateSuffix
+    , compactLE
+    , pinnedCompactLE
+    , compactOnByte
+    , compactOnByteSuffix
     )
 where
 
 #include "assert.hs"
+#include "deprecation.h"
 #include "inline.hs"
 #include "ArrayMacros.h"
 
@@ -572,11 +578,14 @@ deserialize arr@(Array {..}) = unsafeInlineIO $ do
 
 -- | Insert the given element between arrays and flatten.
 --
--- >>> interpose x = Stream.interpose x Array.reader
+-- >>> concatSepBy x = Stream.unfoldEachSepBy x Array.reader
 --
-{-# INLINE interpose #-}
-interpose :: (Monad m, Unbox a) => a -> Stream m (Array a) -> Stream m a
-interpose x = D.interpose x reader
+{-# INLINE concatSepBy #-}
+concatSepBy, interpose :: (Monad m, Unbox a) =>
+    a -> Stream m (Array a) -> Stream m a
+concatSepBy x = D.unfoldEachSepBy x reader
+
+RENAME(interpose,concatSepBy)
 
 data FlattenState s =
       OuterLoop s
@@ -585,13 +594,13 @@ data FlattenState s =
 -- | Insert the given element after each array and flatten. This is similar to
 -- unlines.
 --
--- >>> interposeSuffix x = Stream.interposeSuffix x Array.reader
+-- >>> concatEndBy x = Stream.unfoldEachEndBy x Array.reader
 --
-{-# INLINE_NORMAL interposeSuffix #-}
-interposeSuffix :: forall m a. (Monad m, Unbox a)
+{-# INLINE_NORMAL concatEndBy #-}
+concatEndBy, interposeSuffix :: forall m a. (Monad m, Unbox a)
     => a -> Stream m (Array a) -> Stream m a
--- interposeSuffix x = D.interposeSuffix x reader
-interposeSuffix sep (D.Stream step state) = D.Stream step' (OuterLoop state)
+-- concatEndBy x = D.unfoldEachEndBy x reader
+concatEndBy sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where
 
@@ -611,55 +620,81 @@ interposeSuffix sep (D.Stream step state) = D.Stream step' (OuterLoop state)
         let !x = unsafeInlineIO $ peekAt p contents
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
+RENAME(interposeSuffix,concatEndBy)
+
 -- | Insert the given array after each array and flatten.
 --
--- >>> intercalateSuffix = Stream.intercalateSuffix Array.reader
+-- >>> concatEndBySeq x = Stream.unfoldEachEndBySeq x Array.reader
 --
-{-# INLINE intercalateSuffix #-}
-intercalateSuffix :: (Monad m, Unbox a)
+{-# INLINE concatEndBySeq #-}
+concatEndBySeq, intercalateSuffix :: (Monad m, Unbox a)
     => Array a -> Stream m (Array a) -> Stream m a
-intercalateSuffix = D.intercalateSuffix reader
+concatEndBySeq x = D.unfoldEachEndBySeq x reader
 
--- | @compactLE n@ coalesces adjacent arrays in the input stream
+RENAME(intercalateSuffix,concatEndBySeq)
+
+-- | @compactMax n@ coalesces adjacent arrays in the input stream
 -- only if the combined size would be less than or equal to n.
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
-{-# INLINE_NORMAL compactLE #-}
-compactLE :: (MonadIO m, Unbox a)
+{-# INLINE_NORMAL compactMax #-}
+compactMax, compactLE :: (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
-compactLE n stream =
-    D.map unsafeFreeze $ MA.compactLE n $ D.map unsafeThaw stream
+compactMax n stream =
+    D.map unsafeFreeze $ MA.compactMax n $ D.map unsafeThaw stream
 
--- | Pinned version of 'compactLE'.
-{-# INLINE_NORMAL pinnedCompactLE #-}
-pinnedCompactLE :: (MonadIO m, Unbox a)
+RENAME(compactLE,compactMax)
+
+-- | Like 'compactMax' but generates pinned arrays.
+{-# INLINE_NORMAL compactMax' #-}
+compactMax', pinnedCompactLE :: (MonadIO m, Unbox a)
     => Int -> Stream m (Array a) -> Stream m (Array a)
-pinnedCompactLE n stream =
-    D.map unsafeFreeze $ MA.pinnedCompactLE n $ D.map unsafeThaw stream
+compactMax' n stream =
+    D.map unsafeFreeze $ MA.compactMax' n $ D.map unsafeThaw stream
 
--- | Split a stream of arrays on a given separator byte, dropping the separator
--- and coalescing all the arrays between two separators into a single array.
+{-# DEPRECATED pinnedCompactLE "Please use compactMax' instead." #-}
+{-# INLINE pinnedCompactLE #-}
+pinnedCompactLE = compactMax'
+
+-- | Split a stream of byte arrays on a given separator byte, dropping the
+-- separator and coalescing all the arrays between two separators into a single
+-- array.
 --
-{-# INLINE compactOnByte #-}
-compactOnByte
+{-# INLINE compactSepByByte_ #-}
+compactSepByByte_, compactOnByte
     :: (MonadIO m)
     => Word8
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
-compactOnByte byte =
-    fmap unsafeFreeze . MA.compactOnByte byte . fmap unsafeThaw
+compactSepByByte_ byte =
+    fmap unsafeFreeze . MA.compactSepByByte_ byte . fmap unsafeThaw
 
--- | Like 'compactOnByte' considers the separator in suffix position instead of
--- infix position.
-{-# INLINE compactOnByteSuffix #-}
-compactOnByteSuffix
+RENAME(compactOnByte,compactSepByByte_)
+
+-- | Like 'compactSepByByte_', but considers the separator in suffix position
+-- instead of infix position.
+{-# INLINE compactEndByByte_ #-}
+compactEndByByte_, compactOnByteSuffix
     :: (MonadIO m)
     => Word8
     -> Stream m (Array Word8)
     -> Stream m (Array Word8)
-compactOnByteSuffix byte =
-    fmap unsafeFreeze . MA.compactOnByteSuffix byte . fmap unsafeThaw
+compactEndByByte_ byte =
+    fmap unsafeFreeze . MA.compactEndByByte_ byte . fmap unsafeThaw
+-- compactEndByByte_ byte = chunksEndBy_ (== byte) . concat
+
+RENAME(compactOnByteSuffix,compactEndByByte_)
+
+-- XXX On windows we should compact on "\r\n". We can just compact on '\n' and
+-- drop the last byte in each array if it is '\r'.
+
+-- | Compact byte arrays on newline character, dropping the newline char.
+{-# INLINE compactEndByLn_ #-}
+compactEndByLn_ :: MonadIO m
+    => Stream m (Array Word8)
+    -> Stream m (Array Word8)
+compactEndByLn_ = compactEndByByte_ 10
 
 -------------------------------------------------------------------------------
 -- Folding Streams of Arrays
@@ -709,11 +744,11 @@ foldBreakChunks (Fold fstep initial _ final) stream@(Stream step state) = do
 -- | Fold a stream of arrays using a 'Fold'. This is equivalent to the
 -- following:
 --
--- >>> foldChunks f = Stream.fold f . Stream.unfoldMany Array.reader
+-- >>> foldChunks f = Stream.fold f . Stream.unfoldEach Array.reader
 --
 foldChunks :: (MonadIO m, Unbox a) => Fold m a b -> Stream m (Array a) -> m b
 foldChunks f s = fmap fst (foldBreakChunks f s)
--- foldStream f = Stream.fold f . Stream.unfoldMany reader
+-- foldStream f = Stream.fold f . Stream.unfoldEach reader
 
 -- | Fold a stream of arrays using a 'Fold' and return the remaining stream.
 --

@@ -26,7 +26,7 @@
 -- much less efficient when compared to combinators using 'Unfold'.  For
 -- example, the 'Streamly.Data.Stream.concatMap' combinator which uses @a -> t m b@
 -- (where @t@ is a stream type) to generate streams is much less efficient
--- compared to 'Streamly.Data.Stream.unfoldMany'.
+-- compared to 'Streamly.Data.Stream.unfoldEach'.
 --
 -- On the other hand, transformation operations on stream types are as
 -- efficient as transformations on 'Unfold'.
@@ -62,6 +62,7 @@ module Streamly.Internal.Data.Unfold.Type
 
     -- * From Containers
     , fromList
+    , fromTuple
 
     -- * Transformations
     , lmap
@@ -81,10 +82,10 @@ module Streamly.Internal.Data.Unfold.Type
 
     -- * Nesting
     , ConcatState (..)
-    , many
-    , many2
-    , manyInterleave
-    -- , manyInterleave2
+    , unfoldEach
+    , unfoldEach2
+    , unfoldEachInterleave
+    -- , unfoldEachInterleave2
 
     -- Applicative
     , crossApplySnd
@@ -101,9 +102,15 @@ module Streamly.Internal.Data.Unfold.Type
 
     , zipWithM
     , zipWith
+
+    -- * Deprecated
+    , many
+    , many2
+    , manyInterleave
     )
 where
 
+#include "deprecation.h"
 #include "inline.hs"
 
 -- import Control.Arrow (Arrow(..))
@@ -146,13 +153,13 @@ import Prelude hiding (map, mapM, concatMap, zipWith, takeWhile)
 --
 -- This allows an important optimization to occur in several cases, making the
 -- 'Unfold' a more efficient abstraction. Consider the 'concatMap' and
--- 'unfoldMany' operations, the latter is more efficient.  'concatMap'
+-- 'unfoldEach' operations, the latter is more efficient.  'concatMap'
 -- generates a new stream object from each element in the stream by applying
 -- the supplied function to the element, the stream object includes the "step"
 -- function as well as the initial "state" of the stream.  Since the stream is
 -- generated dynamically the compiler does not know the step function or the
 -- state type statically at compile time, therefore, it cannot inline it. On
--- the other hand in case of 'unfoldMany' the compiler has visibility into
+-- the other hand in case of 'unfoldEach' the compiler has visibility into
 -- the unfold's state generation function, therefore, the compiler knows all
 -- the types statically and it can inline the inject as well as the step
 -- functions, generating efficient code. Essentially, the stream is not opaque
@@ -275,9 +282,9 @@ unfoldr step = unfoldrM (pure . step)
 -- >>> Unfold.fold Fold.toList u [1..5]
 -- [2,3,4,5,6]
 --
--- @
--- lmap f = Unfold.many (Unfold.function f)
--- @
+-- Definition:
+--
+-- >>> lmap f = Unfold.unfoldEach (Unfold.function f)
 --
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
@@ -285,9 +292,9 @@ lmap f (Unfold ustep uinject) = Unfold ustep (uinject Prelude.. f)
 
 -- | Map an action on the input argument of the 'Unfold'.
 --
--- @
--- lmapM f = Unfold.many (Unfold.functionM f)
--- @
+-- Definition:
+--
+-- lmapM f = Unfold.unfoldEach (Unfold.functionM f)
 --
 {-# INLINE_NORMAL lmapM #-}
 lmapM :: Monad m => (a -> m c) -> Unfold m c b -> Unfold m a b
@@ -502,6 +509,21 @@ fromEffect m = Unfold step inject
 fromPure :: Applicative m => b -> Unfold m a b
 fromPure = fromEffect Prelude.. pure
 
+data TupleState a = TupleBoth a a | TupleOne a | TupleNone
+
+-- | Convert a tuple to a 'Stream'.
+--
+{-# INLINE_LATE fromTuple #-}
+fromTuple :: Applicative m => Unfold m (a,a) a
+fromTuple = Unfold step (\(x,y) -> pure $ TupleBoth x y)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step (TupleBoth x y) = pure $ Yield x (TupleOne y)
+    step (TupleOne y) = pure $ Yield y TupleNone
+    step TupleNone = pure Stop
+
 -- XXX Check if "unfold (fromList [1..10])" fuses, if it doesn't we can use
 -- rewrite rules to rewrite list enumerations to unfold enumerations.
 
@@ -538,9 +560,10 @@ crossApplyFst (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 {-# ANN type Many2State Fuse #-}
 data Many2State x s1 s2 = Many2Outer x s1 | Many2Inner x s1 s2
 
-{-# INLINE_NORMAL many2 #-}
-many2 :: Monad m => Unfold m (a, b) c -> Unfold m a b -> Unfold m a c
-many2 (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
+{-# INLINE_NORMAL unfoldEach2 #-}
+unfoldEach2, many2 :: Monad m =>
+    Unfold m (a, b) c -> Unfold m a b -> Unfold m a c
+unfoldEach2 (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 
     where
 
@@ -564,6 +587,8 @@ many2 (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
             Yield x s -> Yield x (Many2Inner a ost s)
             Skip s    -> Skip (Many2Inner a ost s)
             Stop      -> Skip (Many2Outer a ost)
+
+RENAME(many2,unfoldEach2)
 
 data Cross a s1 b s2 = CrossOuter a s1 | CrossInner a s1 b s2
 
@@ -792,12 +817,12 @@ data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
 -- | Apply the first unfold to each output element of the second unfold and
 -- flatten the output in a single stream.
 --
--- >>> many u = Unfold.many2 (Unfold.lmap snd u)
+-- >>> unfoldEach u = Unfold.unfoldEach2 (Unfold.lmap snd u)
 --
-{-# INLINE_NORMAL many #-}
-many :: Monad m => Unfold m b c -> Unfold m a b -> Unfold m a c
+{-# INLINE_NORMAL unfoldEach #-}
+unfoldEach, many :: Monad m => Unfold m b c -> Unfold m a b -> Unfold m a c
 -- many u1 = many2 (lmap snd u1)
-many (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
+unfoldEach (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 
     where
 
@@ -821,6 +846,8 @@ many (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
             Yield x s -> Yield x (ConcatInner ost s)
             Skip s    -> Skip (ConcatInner ost s)
             Stop      -> Skip (ConcatOuter ost)
+
+RENAME(many,unfoldEach)
 
 {-
 -- XXX There are multiple possible ways to combine the unfolds, "many" appends
@@ -939,7 +966,7 @@ data ManyInterleaveState o i =
     | ManyInterleaveInnerL [i] [i]
     | ManyInterleaveInnerR [i] [i]
 
--- | 'Streamly.Internal.Data.Stream.unfoldManyInterleave' for
+-- | 'Streamly.Internal.Data.Stream.unfoldEachInterleave' for
 -- documentation and notes.
 --
 -- This is almost identical to unfoldManyInterleave in StreamD module.
@@ -947,9 +974,10 @@ data ManyInterleaveState o i =
 -- The 'many' combinator is in fact 'manyAppend' to be more explicit in naming.
 --
 -- /Internal/
-{-# INLINE_NORMAL manyInterleave #-}
-manyInterleave :: Monad m => Unfold m a b -> Unfold m c a -> Unfold m c b
-manyInterleave (Unfold istep iinject) (Unfold ostep oinject) =
+{-# INLINE_NORMAL unfoldEachInterleave #-}
+unfoldEachInterleave, manyInterleave :: Monad m =>
+    Unfold m a b -> Unfold m c a -> Unfold m c b
+unfoldEachInterleave (Unfold istep iinject) (Unfold ostep oinject) =
     Unfold step inject
 
     where
@@ -997,3 +1025,5 @@ manyInterleave (Unfold istep iinject) (Unfold ostep oinject) =
             Yield x s -> Yield x (ManyInterleaveInnerR (s:ls) rs)
             Skip s    -> Skip (ManyInterleaveInnerR ls (s:rs))
             Stop      -> Skip (ManyInterleaveInnerR ls rs)
+
+RENAME(manyInterleave,unfoldEachInterleave)

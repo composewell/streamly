@@ -320,11 +320,11 @@ chunkReader = UF.first defaultChunkSize chunkReaderWith
 -- | Unfolds the tuple @(bufsize, handle)@ into a byte stream, read requests
 -- to the IO device are performed using buffers of @bufsize@.
 --
--- >>> readerWith = Unfold.many Array.reader Handle.chunkReaderWith
+-- >>> readerWith = Unfold.unfoldEach Array.reader Handle.chunkReaderWith
 --
 {-# INLINE readerWith #-}
 readerWith :: MonadIO m => Unfold m (Int, Handle) Word8
-readerWith = UF.many A.reader chunkReaderWith
+readerWith = UF.unfoldEach A.reader chunkReaderWith
 
 -- | Same as 'readerWith'
 --
@@ -336,7 +336,7 @@ readWithBufferOf = readerWith
 -- | @readWith bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.
 --
--- >>> readWith size h = Stream.unfoldMany Array.reader $ Handle.readChunksWith size h
+-- >>> readWith size h = Stream.unfoldEach Array.reader $ Handle.readChunksWith size h
 --
 -- /Pre-release/
 {-# INLINE readWith #-}
@@ -347,15 +347,15 @@ readWith size h = A.concat $ readChunksWith size h
 -- performed in sizes of
 -- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
--- >>> reader = Unfold.many Array.reader Handle.chunkReader
+-- >>> reader = Unfold.unfoldEach Array.reader Handle.chunkReader
 --
 {-# INLINE reader #-}
 reader :: MonadIO m => Unfold m Handle Word8
-reader = UF.many A.reader chunkReader
+reader = UF.unfoldEach A.reader chunkReader
 
 -- | Generate a byte stream from a file 'Handle'.
 --
--- >>> read h = Stream.unfoldMany Array.reader $ Handle.readChunks h
+-- >>> read h = Stream.unfoldEach Array.reader $ Handle.readChunks h
 --
 -- /Pre-release/
 {-# INLINE read #-}
@@ -407,7 +407,7 @@ putChunks h = S.fold (FL.drainMapM (putChunk h))
 {-# INLINE putChunksWith #-}
 putChunksWith :: (MonadIO m, Unbox a)
     => Int -> Handle -> Stream m (Array a) -> m ()
-putChunksWith n h xs = putChunks h $ A.compactLE n xs
+putChunksWith n h xs = putChunks h $ A.compactMax n xs
 
 -- > putBytesWith n h m = Handle.putChunks h $ A.pinnedChunksOf n m
 
@@ -456,7 +456,10 @@ chunkWriter = Refold.drainBy putChunk
 {-# INLINE writeChunksWith #-}
 writeChunksWith :: (MonadIO m, Unbox a)
     => Int -> Handle -> Fold m (Array a) ()
-writeChunksWith n h = A.lCompactGE n (writeChunks h)
+-- writeChunksWith n h = A.lCompactGE n (writeChunks h)
+writeChunksWith n h =
+   FL.postscanl (A.scanCompactMin n)
+    $ FL.catMaybes (writeChunks h)
 
 -- | Same as 'writeChunksWith'
 --

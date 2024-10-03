@@ -18,10 +18,12 @@ module Streamly.Internal.Unicode.Stream
     --
     -- $setup
 
+    -- XXX Use to/from instead of encode/decode for more compact naming.
+
     -- * Construction (Decoding)
       decodeLatin1
 
-    -- ** UTF-8 Decoding
+    -- ** UTF-8 Byte Stream Decoding
     , CodingFailureMode(..)
     , writeCharUtf8'
     , parseCharUtf8With
@@ -29,11 +31,11 @@ module Streamly.Internal.Unicode.Stream
     , decodeUtf8'
     , decodeUtf8_
 
-    -- ** UTF-16 Decoding
+    -- ** UTF-16 Byte Stream Decoding
     , decodeUtf16le'
     , decodeUtf16le
 
-    -- ** Resumable UTF-8 Decoding
+    -- ** Resumable UTF-8 Byte Stream Decoding
     , DecodeError(..)
     , DecodeState
     , CodePoint
@@ -44,14 +46,15 @@ module Streamly.Internal.Unicode.Stream
     , decodeUtf8Chunks
     , decodeUtf8Chunks'
     , decodeUtf8Chunks_
+    -- , fromUtf8ChunksEndByLn
 
     -- * Elimination (Encoding)
-    -- ** Latin1 Encoding
+    -- ** Latin1 Encoding to Byte Stream
     , encodeLatin1
     , encodeLatin1'
     , encodeLatin1_
 
-    -- ** UTF-8 Encoding
+    -- ** UTF-8 Encoding to Byte Stream
     , readCharUtf8'
     , readCharUtf8
     , readCharUtf8_
@@ -60,7 +63,18 @@ module Streamly.Internal.Unicode.Stream
     , encodeUtf8_
     , encodeStrings
 
-    -- ** UTF-16 Encoding
+    -- ** UTF-8 Encoding to Chunk Stream
+    -- , toUtf8Chunks
+    -- , toUtf8Chunks'
+    -- , toUtf8Chunks_
+    -- , toUtf8ChunksEndByLn
+
+    -- , toPinnedUtf8Chunks
+    -- , toPinnedUtf8Chunks'
+    -- , toPinnedUtf8Chunks_
+    -- , toPinnedUtf8ChunksEndByLn
+
+    -- ** UTF-16 Encoding to Byte Stream
     , encodeUtf16le'
     , encodeUtf16le
     {-
@@ -71,10 +85,10 @@ module Streamly.Internal.Unicode.Stream
 
     -- * Transformation
     , stripHead
-    , lines
-    , words
-    , unlines
-    , unwords
+    , lines -- foldLines
+    , words -- foldWords
+    , unlines -- unfoldLines
+    , unwords -- unfoldWords
 
     -- * StreamD UTF8 Encoding / Decoding transformations.
     , decodeUtf8D
@@ -1093,7 +1107,7 @@ readCharUtf8' =
 -- paths (slow path).
 {-# INLINE_NORMAL encodeUtf8D' #-}
 encodeUtf8D' :: Monad m => D.Stream m Char -> D.Stream m Word8
-encodeUtf8D' = D.unfoldMany readCharUtf8'
+encodeUtf8D' = D.unfoldEach readCharUtf8'
 
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. When
 -- any invalid character (U+D800-U+D8FF) is encountered in the input stream the
@@ -1112,7 +1126,7 @@ readCharUtf8 = readCharUtf8With $ WCons 239 (WCons 191 (WCons 189 WNil))
 --
 {-# INLINE_NORMAL encodeUtf8D #-}
 encodeUtf8D :: Monad m => D.Stream m Char -> D.Stream m Word8
-encodeUtf8D = D.unfoldMany readCharUtf8
+encodeUtf8D = D.unfoldEach readCharUtf8
 
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. Any
 -- Invalid characters (U+D800-U+D8FF) in the input stream are replaced by the
@@ -1128,7 +1142,7 @@ readCharUtf8_ = readCharUtf8With WNil
 
 {-# INLINE_NORMAL encodeUtf8D_ #-}
 encodeUtf8D_ :: Monad m => D.Stream m Char -> D.Stream m Word8
-encodeUtf8D_ = D.unfoldMany readCharUtf8_
+encodeUtf8D_ = D.unfoldEach readCharUtf8_
 
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. Any
 -- Invalid characters (U+D800-U+D8FF) in the input stream are dropped.
@@ -1181,7 +1195,7 @@ readCharUtf16With invalidReplacement = Unfold step inject
 
 {-# INLINE encodeUtf16' #-}
 encodeUtf16' :: Monad m => Stream m Char -> Stream m Word16
-encodeUtf16' = D.unfoldMany (readCharUtf16With errString)
+encodeUtf16' = D.unfoldEach (readCharUtf16With errString)
     where
     errString =
         error
@@ -1190,7 +1204,7 @@ encodeUtf16' = D.unfoldMany (readCharUtf16With errString)
 
 {-# INLINE encodeUtf16 #-}
 encodeUtf16 :: Monad m => Stream m Char -> Stream m Word16
-encodeUtf16 = D.unfoldMany (readCharUtf16With WNil)
+encodeUtf16 = D.unfoldEach (readCharUtf16With WNil)
 
 -- | Similar to 'encodeUtf16le' but throws an error if any invalid character is
 -- encountered.
@@ -1220,6 +1234,8 @@ encodeUtf16le =
 -------------------------------------------------------------------------------
 -- Decoding string literals
 -------------------------------------------------------------------------------
+
+-- XXX decodeCString#
 
 -- | Read UTF-8 encoded bytes as chars from an 'Addr#' until a 0 byte is
 -- encountered, the 0 byte is not included in the stream.
@@ -1288,7 +1304,7 @@ stripTail = undefined
 
 -- | Remove leading whitespace from a string.
 --
--- > stripHead = Stream.dropWhile isSpace
+-- >>> stripHead = Stream.dropWhile Char.isSpace
 --
 -- /Pre-release/
 {-# INLINE stripHead #-}
@@ -1298,10 +1314,14 @@ stripHead = Stream.dropWhile isSpace
 -- | Fold each line of the stream using the supplied 'Fold'
 -- and stream the result.
 --
--- >>> Stream.fold Fold.toList $ Unicode.lines Fold.toList (Stream.fromList "lines\nthis\nstring\n\n\n")
--- ["lines","this","string","",""]
+-- Definition:
 --
 -- >>> lines f = Stream.foldMany (Fold.takeEndBy_ (== '\n') f)
+--
+-- Usage:
+--
+-- >>> Stream.toList $ Unicode.lines Fold.toList (Stream.fromList "line1\nline2\nline3\n\n\n")
+-- ["line1","line2","line3","",""]
 --
 -- /Pre-release/
 {-# INLINE lines #-}
@@ -1326,13 +1346,16 @@ isSpace c
   where
     uc = fromIntegral (ord c) :: Word
 
--- | Fold each word of the stream using the supplied 'Fold'
--- and stream the result.
+-- | Fold each word of the stream using the supplied 'Fold'.
 --
--- >>>  Stream.fold Fold.toList $ Unicode.words Fold.toList (Stream.fromList "fold these     words")
--- ["fold","these","words"]
+-- Definition:
 --
--- > words = Stream.wordsBy isSpace
+-- >>> words = Stream.wordsBy Char.isSpace
+--
+-- Usage:
+--
+-- >>> Stream.toList $ Unicode.words Fold.toList (Stream.fromList " ab  cd   ef ")
+-- ["ab","cd","ef"]
 --
 -- /Pre-release/
 {-# INLINE words #-}
@@ -1342,26 +1365,24 @@ words f = D.wordsBy isSpace f
 -- | Unfold a stream to character streams using the supplied 'Unfold'
 -- and concat the results suffixing a newline character @\\n@ to each stream.
 --
--- @
--- unlines = Stream.interposeSuffix '\n'
--- unlines = Stream.intercalateSuffix Unfold.fromList "\n"
--- @
+-- Definition:
+--
+-- >>> unlines = Stream.unfoldEachEndBy '\n'
+-- >>> unlines = Stream.unfoldEachEndBySeq "\n" Unfold.fromList
 --
 -- /Pre-release/
 {-# INLINE unlines #-}
 unlines :: MonadIO m => Unfold m a Char -> Stream m a -> Stream m Char
-unlines = Stream.interposeSuffix '\n'
+unlines = Stream.unfoldEachEndBy '\n'
 
 -- | Unfold the elements of a stream to character streams using the supplied
 -- 'Unfold' and concat the results with a whitespace character infixed between
 -- the streams.
 --
--- @
--- unwords = Stream.interpose ' '
--- unwords = Stream.intercalate Unfold.fromList " "
--- @
+-- >>> unwords = Stream.unfoldEachSepBy ' '
+-- >>> unwords = Stream.unfoldEachSepBySeq " " Unfold.fromList
 --
 -- /Pre-release/
 {-# INLINE unwords #-}
 unwords :: MonadIO m => Unfold m a Char -> Stream m a -> Stream m Char
-unwords = Stream.interpose ' '
+unwords = Stream.unfoldEachSepBy ' '

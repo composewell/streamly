@@ -392,7 +392,7 @@ takeStartBy =
                 Left _ -> property False
             where
                 predicate = odd
-                parser = P.takeStartBy predicate FL.toList
+                parser = P.takeBeginBy predicate FL.toList
 
 takeWhile :: Property
 takeWhile =
@@ -864,7 +864,7 @@ parseUnfold = do
                     Producer.simplify (Producer.parseManyD parser readSrc)
             xs <- run
                 $ S.toList
-                $ S.unfoldMany Unfold.fromList
+                $ S.unfoldEach Unfold.fromList
                 $ S.catRights
                 $ S.unfold streamParser src
 
@@ -1272,7 +1272,7 @@ takeStartBy_ =
                 Left err -> property (displayException err == msg)
             where
                 predicate = odd
-                parser = P.takeStartBy_ predicate FL.toList
+                parser = P.takeBeginBy_ predicate FL.toList
 
 quotedWordTest :: String -> [String] -> IO ()
 quotedWordTest inp expected = do

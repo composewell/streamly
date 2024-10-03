@@ -11,7 +11,7 @@
 -- Fast, composable stream producers with ability to terminate, supporting
 -- nested stream fusion. Nested stream operations like
 -- 'Streamly.Data.Stream.concatMap' in the "Streamly.Data.Stream" module do not
--- fuse, however, the 'Streamly.Data.Stream.unfoldMany' operation, using the
+-- fuse, however, the 'Streamly.Data.Stream.unfoldEach' operation, using the
 -- 'Unfold' type, is a fully fusible alternative to
 -- 'Streamly.Data.Stream.concatMap'.
 --
@@ -88,6 +88,9 @@ module Streamly.Data.Unfold
     , crossWith
 
     -- ** Nesting
+    , unfoldEach
+
+    -- * Deprecated
     , many
 
     )

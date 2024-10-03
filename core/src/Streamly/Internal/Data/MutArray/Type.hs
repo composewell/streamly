@@ -244,35 +244,52 @@ module Streamly.Internal.Data.MutArray.Type
     -- *** Chunk
     -- | Group a stream into arrays.
     , chunksOf
-    , pinnedChunksOf
+    , pinnedChunksOf -- chunksOf'
+    -- , timedChunksOf -- see the Streamly.Data.Stream.Prelude module
     , buildChunks
+    , chunksEndBy
+    , chunksEndBy'
+    , chunksEndByLn
+    , chunksEndByLn'
+    -- , chunksBeginBySeq -- for parsing streams with headers
 
     -- *** Split
     -- | Split an array into slices.
 
     -- , getSlicesFromLenN
-    , splitOn
+    , splitOn -- slicesEndBy
     -- , slicesOf
 
     -- *** Concat
     -- | Append the arrays in a stream to form a stream of elements.
-    , concatWith
-    , concatRevWith
     , concat
+    -- , concatSepBy
+    -- , concatEndBy
+    -- , concatEndByLn -- unlines - concat a byte chunk stream using newline byte separator
+    , concatWith -- internal
     , concatRev
+    , concatRevWith -- internal
 
     -- *** Compact
     -- | Append the arrays in a stream to form a stream of larger arrays.
     , SpliceState (..)
-    , pCompactLE
-    , pPinnedCompactLE
-    , compactLeAs
-    , fCompactGE
-    , fPinnedCompactGE
-    , lCompactGE
-    , lPinnedCompactGE
-    , compactGE
-    , compactEQ
+    , compactLeAs -- internal
+
+    -- Creation folds/parsers
+    , createCompactMax
+    , createCompactMax'
+    , createCompactMin
+    , createCompactMin'
+
+    -- Stream compaction
+    , compactMin
+    -- , compactMin'
+    , compactExact
+    -- , compactExact'
+
+    -- Scans
+    , scanCompactMin
+    , scanCompactMin'
 
     -- ** Utilities
     , isPower2
@@ -327,6 +344,13 @@ module Streamly.Internal.Data.MutArray.Type
     , pinnedWrite
     , writeRevN
     , fromByteStr#
+    , pCompactLE
+    , pPinnedCompactLE
+    , fCompactGE
+    , fPinnedCompactGE
+    , lPinnedCompactGE
+    , lCompactGE
+    , compactGE
     )
 where
 
@@ -340,6 +364,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
 import Data.Bits (shiftR, (.|.), (.&.))
+import Data.Char (ord)
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16)
@@ -363,6 +388,7 @@ import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
+import Streamly.Internal.Data.Scanl.Type (Scanl (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Parser.Type (Parser (..))
 import Streamly.Internal.Data.StreamK.Type (StreamK)
@@ -1692,6 +1718,38 @@ pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (MutArray a)
 -- pinnedChunksOf n = D.foldMany (pinnedCreateOf n)
 pinnedChunksOf = chunksOfAs Pinned
+
+-- | Create arrays from the input stream using a predicate to find the end of
+-- the chunk. When the predicate matches, the chunk ends, the matching element
+-- is included in the chunk.
+--
+--  Definition:
+--
+-- >>> chunksEndBy p = Stream.foldMany (Fold.takeEndBy p MutArray.create)
+--
+{-# INLINE chunksEndBy #-}
+chunksEndBy :: forall m a. (MonadIO m, Unbox a)
+    => (a -> Bool) -> D.Stream m a -> D.Stream m (MutArray a)
+chunksEndBy p = D.foldMany (FL.takeEndBy p create)
+
+-- | Like 'chunksEndBy' but creates pinned arrays.
+--
+{-# INLINE chunksEndBy' #-}
+chunksEndBy' :: forall m a. (MonadIO m, Unbox a)
+    => (a -> Bool) -> D.Stream m a -> D.Stream m (MutArray a)
+chunksEndBy' p = D.foldMany (FL.takeEndBy p pinnedCreate)
+
+-- | Create chunks using newline as the separator, including it.
+{-# INLINE chunksEndByLn #-}
+chunksEndByLn :: (MonadIO m)
+    => D.Stream m Word8 -> D.Stream m (MutArray Word8)
+chunksEndByLn = chunksEndBy (== fromIntegral (ord '\n'))
+
+-- | Like 'chunksEndByLn' but creates pinned arrays.
+{-# INLINE chunksEndByLn' #-}
+chunksEndByLn' :: (MonadIO m)
+    => D.Stream m Word8 -> D.Stream m (MutArray Word8)
+chunksEndByLn' = chunksEndBy' (== fromIntegral (ord '\n'))
 
 -- | When we are buffering a stream of unknown size into an array we do not
 -- know how much space to pre-allocate. So we start with the min size and emit
@@ -3062,7 +3120,7 @@ byteEq arr1 arr2 = fmap (EQ ==) $ byteCmp arr1 arr2
 
 -- Note: LE versions avoid an extra copy compared to GE. LE parser trades
 -- backtracking one array in lieu of avoiding a copy. However, LE and GE both
--- can leave some memory unused. They can split the last array to fit it
+-- can leave some memory unused. They may split the last array to fit it
 -- exactly in the space.
 
 {-# INLINE_NORMAL pCompactLeAs #-}
@@ -3109,29 +3167,38 @@ pCompactLeAs ps maxElems = Parser step initial extract
     extract Nothing = return $ Parser.Done 0 nil
     extract (Just buf) = return $ Parser.Done 0 buf
 
--- | Parser @pCompactLE maxElems@ coalesces adjacent arrays in the input stream
--- only if the combined size would be less than or equal to @maxElems@
--- elements. Note that it won't split an array if the original array is already
--- larger than maxElems.
+-- | Parser @createCompactMax maxElems@ coalesces adjacent arrays in the
+-- input stream only if the combined size would be less than or equal to
+-- @maxElems@ elements. Note that it won't split an array if the original array
+-- is already larger than maxElems.
 --
 -- @maxElems@ must be greater than 0.
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
 --
+-- Note that a fold compacting to less than or equal to a given size is not
+-- possible, as folds cannot backtrack.
+--
 -- /Internal/
-{-# INLINE pCompactLE #-}
-pCompactLE ::
+{-# INLINE createCompactMax #-}
+createCompactMax, pCompactLE ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> Parser (MutArray a) m (MutArray a)
-pCompactLE = pCompactLeAs Unpinned
+createCompactMax = pCompactLeAs Unpinned
 
--- | Pinned version of 'pCompactLE'.
-{-# INLINE pPinnedCompactLE #-}
-pPinnedCompactLE ::
+RENAME(pCompactLE,createCompactMax)
+
+-- | Pinned version of 'createCompactMax'.
+{-# INLINE createCompactMax' #-}
+createCompactMax', pPinnedCompactLE ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> Parser (MutArray a) m (MutArray a)
-pPinnedCompactLE = pCompactLeAs Pinned
+createCompactMax' = pCompactLeAs Pinned
+
+{-# DEPRECATED pPinnedCompactLE "Please use createCompactMax' instead." #-}
+{-# INLINE pPinnedCompactLE #-}
+pPinnedCompactLE = createCompactMax'
 
 data SpliceState s arr
     = SpliceInitial s
@@ -3139,11 +3206,10 @@ data SpliceState s arr
     | SpliceYielding arr (SpliceState s arr)
     | SpliceFinish
 
--- This mutates the first array (if it has space) to append values from the
+-- | This mutates the first array (if it has space) to append values from the
 -- second one. This would work for immutable arrays as well because an
 -- immutable array never has additional space so a new array is allocated
 -- instead of mutating it.
-
 {-# INLINE_NORMAL compactLeAs #-}
 compactLeAs :: forall m a. (MonadIO m, Unbox a)
     => PinnedState -> Int -> D.Stream m (MutArray a) -> D.Stream m (MutArray a)
@@ -3239,23 +3305,29 @@ fCompactGeAs ps minElems = Fold step initial extract extract
     extract Nothing = return nil
     extract (Just buf) = return buf
 
--- | Fold @fCompactGE minElems@ coalesces adjacent arrays in the input stream
--- until the size becomes greater than or equal to @minElems@.
+-- | Fold @createCompactMin minElems@ coalesces adjacent arrays in the
+-- input stream until the size becomes greater than or equal to @minElems@.
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
-{-# INLINE fCompactGE #-}
-fCompactGE ::
+{-# INLINE createCompactMin #-}
+createCompactMin, fCompactGE ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> FL.Fold m (MutArray a) (MutArray a)
-fCompactGE = fCompactGeAs Unpinned
+createCompactMin = fCompactGeAs Unpinned
 
--- | Pinned version of 'fCompactGE'.
-{-# INLINE fPinnedCompactGE #-}
-fPinnedCompactGE ::
+RENAME(fCompactGE,createCompactMin)
+
+-- | Pinned version of 'createCompactMin'.
+{-# INLINE createCompactMin' #-}
+createCompactMin', fPinnedCompactGE ::
        forall m a. (MonadIO m, Unbox a)
     => Int -> FL.Fold m (MutArray a) (MutArray a)
-fPinnedCompactGE = fCompactGeAs Pinned
+createCompactMin' = fCompactGeAs Pinned
+
+{-# DEPRECATED fPinnedCompactGE "Please use createCompactMin' instead." #-}
+{-# INLINE fPinnedCompactGE #-}
+fPinnedCompactGE = createCompactMin'
 
 {-# INLINE_NORMAL lCompactGeAs #-}
 lCompactGeAs :: forall m a. (MonadIO m, Unbox a)
@@ -3323,40 +3395,110 @@ lCompactGeAs ps minElems (Fold step1 initial1 _ final1) =
 
 -- | Like 'compactGE' but for transforming folds instead of stream.
 --
--- >>> lCompactGE n = Fold.many (MutArray.fCompactGE n)
+-- >> lCompactGE n = Fold.many (MutArray.fCompactGE n)
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
+{-# DEPRECATED lCompactGE "Please use scanCompactMin instead." #-}
 {-# INLINE lCompactGE #-}
 lCompactGE :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
 lCompactGE = lCompactGeAs Unpinned
 
 -- | Pinned version of 'lCompactGE'.
+{-# DEPRECATED lPinnedCompactGE "Please use scanCompactMin' instead." #-}
 {-# INLINE lPinnedCompactGE #-}
 lPinnedCompactGE :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m (MutArray a) () -> Fold m (MutArray a) ()
 lPinnedCompactGE = lCompactGeAs Pinned
 
--- | @compactGE n stream@ coalesces adjacent arrays in the @stream@ until
--- the size becomes greater than or equal to @n@.
+data CompactMinState arr =
+    CompactMinInit | CompactMinIncomplete arr | CompactMinComplete arr
+
+{-# INLINE_NORMAL scanCompactMinAs #-}
+scanCompactMinAs :: forall m a. (MonadIO m, Unbox a)
+    => PinnedState -> Int -> Scanl m (MutArray a) (Maybe (MutArray a))
+scanCompactMinAs ps minElems =
+    Scanl step initial extract final
+
+    where
+
+    minBytes = minElems * SIZE_OF(a)
+
+    functionName = "Streamly.Internal.Data.MutArray.scanCompactMin"
+
+    initial = do
+        when (minElems <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ functionName ++ ": the size of arrays ["
+                ++ show minElems ++ "] must be a natural number"
+
+        return $ FL.Partial CompactMinInit
+
+    {-# INLINE runInner #-}
+    runInner len buf =
+            if len >= minBytes
+            then do
+                return $ FL.Partial $ CompactMinComplete buf
+            else return $ FL.Partial $ CompactMinIncomplete buf
+
+    step CompactMinInit arr =
+         runInner (byteLength arr) arr
+
+    step (CompactMinComplete _) arr =
+         runInner (byteLength arr) arr
+
+    -- XXX Buffer arrays as a list to avoid copy and reallocations
+    step (CompactMinIncomplete buf) arr = do
+        let len = byteLength buf + byteLength arr
+        buf1 <- if byteCapacity buf < len
+                then liftIO $ reallocExplicitAs
+                        ps (SIZE_OF(a)) (max minBytes len) buf
+                else return buf
+        buf2 <- unsafeSplice buf1 arr
+        runInner len buf2
+
+    extract CompactMinInit = return Nothing
+    extract (CompactMinComplete arr) = return (Just arr)
+    extract (CompactMinIncomplete _) = return Nothing
+
+    final CompactMinInit = return Nothing
+    final (CompactMinComplete arr) = return (Just arr)
+    final (CompactMinIncomplete arr) = return (Just arr)
+
+-- | Like 'compactMin' but a scan.
+{-# INLINE scanCompactMin #-}
+scanCompactMin :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Scanl m (MutArray a) (Maybe (MutArray a))
+scanCompactMin = scanCompactMinAs Unpinned
+
+-- | Like 'compactMin'' but a scan.
+{-# INLINE scanCompactMin' #-}
+scanCompactMin' :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Scanl m (MutArray a) (Maybe (MutArray a))
+scanCompactMin' = scanCompactMinAs Pinned
+
+-- | @compactMin n stream@ coalesces adjacent arrays in the @stream@ until
+-- the compacted array size becomes greater than or equal to @n@.
 --
--- >>> compactGE n = Stream.foldMany (MutArray.fCompactGE n)
+-- >>> compactMin n = Stream.foldMany (MutArray.createCompactMin n)
 --
-{-# INLINE compactGE #-}
-compactGE ::
+{-# INLINE compactMin #-}
+compactMin, compactGE ::
        (MonadIO m, Unbox a)
     => Int -> Stream m (MutArray a) -> Stream m (MutArray a)
-compactGE n = D.foldMany (fCompactGE n)
+compactMin n = D.foldMany (createCompactMin n)
 
--- | 'compactEQ n' coalesces adajacent arrays in the input stream to
+RENAME(compactGE,compactMin)
+
+-- | 'compactExact n' coalesces adajacent arrays in the input stream to
 -- arrays of exact size @n@.
 --
 -- /Unimplemented/
-{-# INLINE compactEQ #-}
-compactEQ :: -- (MonadIO m, Unbox a) =>
+{-# INLINE compactExact #-}
+compactExact :: -- (MonadIO m, Unbox a) =>
     Int -> Stream m (MutArray a) -> Stream m (MutArray a)
-compactEQ _n = undefined -- D.parseManyD (pCompactEQ n)
+compactExact _n = undefined -- D.parseManyD (pCompactEQ n)
 
 -------------------------------------------------------------------------------
 -- In-place mutation algorithms
@@ -3435,23 +3577,23 @@ bubble cmp0 arr =
 -- Renaming
 --------------------------------------------------------------------------------
 
-RENAME(realloc, reallocBytes)
-RENAME(castUnsafe, unsafeCast)
-RENAME(newArrayWith, emptyWithAligned)
-RENAME(getSliceUnsafe, unsafeGetSlice)
-RENAME(putIndexUnsafe, unsafePutIndex)
-RENAME(modifyIndexUnsafe, unsafeModifyIndex)
-RENAME(getIndexUnsafe, unsafeGetIndex)
-RENAME(snocUnsafe, unsafeSnoc)
-RENAME(spliceUnsafe, unsafeSplice)
-RENAME(pokeSkipUnsafe, unsafePokeSkip)
-RENAME(peekSkipUnsafe, unsafePeekSkip)
-RENAME(peekUncons, peek)
-RENAME(peekUnconsUnsafe, unsafePeek)
-RENAME(pokeAppend, poke)
-RENAME(pokeAppendMay, pokeMay)
+RENAME(realloc,reallocBytes)
+RENAME(castUnsafe,unsafeCast)
+RENAME(newArrayWith,emptyWithAligned)
+RENAME(getSliceUnsafe,unsafeGetSlice)
+RENAME(putIndexUnsafe,unsafePutIndex)
+RENAME(modifyIndexUnsafe,unsafeModifyIndex)
+RENAME(getIndexUnsafe,unsafeGetIndex)
+RENAME(snocUnsafe,unsafeSnoc)
+RENAME(spliceUnsafe,unsafeSplice)
+RENAME(pokeSkipUnsafe,unsafePokeSkip)
+RENAME(peekSkipUnsafe,unsafePeekSkip)
+RENAME(peekUncons,peek)
+RENAME(peekUnconsUnsafe,unsafePeek)
+RENAME(pokeAppend,poke)
+RENAME(pokeAppendMay,pokeMay)
 
 -- This renaming can be done directly without deprecations. But I'm keeping this
 -- intentionally. Packdiff should be able to point out such APIs that we can
 -- just remove.
-RENAME(createOfWith, createWithOf)
+RENAME(createOfWith,createWithOf)

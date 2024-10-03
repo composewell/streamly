@@ -102,10 +102,12 @@ module Streamly.Internal.Data.Stream.Type
     , crossApplySnd
     , crossWith
     , cross
+    , loop -- forEach
+    , loopBy
 
     -- * Unfold Many
     , ConcatMapUState (..)
-    , unfoldMany
+    , unfoldEach
 
     -- * Concat
     -- | Generate streams by mapping a stream generator on each element of an
@@ -130,8 +132,8 @@ module Streamly.Internal.Data.Stream.Type
     , FoldMany (..) -- for inspection testing
     , FoldManyPost (..)
     , foldMany
-    , foldMany1
     , foldManyPost
+    , foldManySepBy
     , groupsOf
     , refoldMany
     , refoldIterateM
@@ -150,9 +152,11 @@ module Streamly.Internal.Data.Stream.Type
 
     -- * Deprecated
     , sliceOnSuffix
+    , unfoldMany
     )
 where
 
+#include "deprecation.h"
 #include "inline.hs"
 
 #if !MIN_VERSION_base(4,18,0)
@@ -186,9 +190,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL hiding (foldr)
 import qualified Streamly.Internal.Data.StreamK.Type as K
-#ifdef USE_UNFOLDS_EVERYWHERE
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
-#endif
 
 #include "DocTestDataStream.hs"
 
@@ -465,7 +467,7 @@ foldBreak fld strm = do
     nil = Stream (\_ _ -> return Stop) ()
 
 -- >>> fold f = Fold.extractM . Stream.foldAddLazy f
--- >>> fold f = Stream.fold Fold.one . Stream.foldMany1 f
+-- >>> fold f = Stream.fold Fold.one . Stream.foldMany0 f
 -- >>> fold f = Fold.extractM <=< Stream.foldAdd f
 
 -- | Fold a stream using the supplied left 'Fold' and reducing the resulting
@@ -1165,6 +1167,8 @@ zipWith f = zipWithM (\a b -> return (f a b))
 -- Combine N Streams - concatAp
 ------------------------------------------------------------------------------
 
+-- XXX unfoldApplyEach
+
 -- | Apply a stream of functions to a stream of values and flatten the results.
 --
 -- Note that the second stream is evaluated multiple times.
@@ -1256,6 +1260,10 @@ instance Applicative f => Applicative (Stream f) where
     (<*) = crossApplyFst
 -}
 
+-- XXX We can use @Stream Identity b@ as the second stream to avoid running
+-- effects multiple times. Or it could be an array or an unfold i.e.
+-- unfoldCross.
+
 -- |
 -- Definition:
 --
@@ -1289,8 +1297,28 @@ crossWith f m1 m2 = fmap f m1 `crossApply` m2
 cross :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
 cross = crossWith (,)
 
+-- crossWith/cross should ideally use Stream m b as the first stream, because
+-- we are transforming Stream m a using that. We provide loop with arguments
+-- flipped.
+
+-- | Loop the supplied stream (first argument) around each element of the input
+-- stream (second argument) generating tuples.  This is an argument flipped
+-- version of 'cross'.
+{-# INLINE loop #-}
+loop :: Monad m => Stream m b -> Stream m a -> Stream m (a, b)
+loop = crossWith (\b a -> (a,b))
+
+-- | Loop by unfold. Unfold a value into a stream and nest it with the input
+-- stream. This is much faster than 'loop' due to stream fusion.
+{-# INLINE loopBy #-}
+loopBy :: Monad m => Unfold m x b -> x -> Stream m a -> Stream m (a, b)
+loopBy u x s =
+    let u1 = Unfold.lmap snd u
+        u2 = Unfold.map2 (\i b -> (fst i, b)) u1
+     in unfoldEach u2 $ fmap (, x) s
+
 ------------------------------------------------------------------------------
--- Combine N Streams - unfoldMany
+-- Combine N Streams - unfoldEach
 ------------------------------------------------------------------------------
 
 {-# ANN type ConcatMapUState Fuse #-}
@@ -1298,7 +1326,7 @@ data ConcatMapUState o i =
       ConcatMapUOuter o
     | ConcatMapUInner o i
 
--- | @unfoldMany unfold stream@ uses @unfold@ to map the input stream elements
+-- | @unfoldEach unfold stream@ uses @unfold@ to map the input stream elements
 -- to streams and then flattens the generated streams into a single output
 -- stream.
 
@@ -1311,9 +1339,9 @@ data ConcatMapUState o i =
 -- 'concatMap' this can fuse the 'Unfold' code with the inner loop and
 -- therefore provide many times better performance.
 --
-{-# INLINE_NORMAL unfoldMany #-}
-unfoldMany :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-unfoldMany (Unfold istep inject) (Stream ostep ost) =
+{-# INLINE_NORMAL unfoldEach #-}
+unfoldEach, unfoldMany :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+unfoldEach (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatMapUOuter ost)
   where
     {-# INLINE_LATE step #-}
@@ -1333,6 +1361,8 @@ unfoldMany (Unfold istep inject) (Stream ostep ost) =
             Skip i'    -> Skip (ConcatMapUInner o i')
             Stop       -> Skip (ConcatMapUOuter o)
 
+RENAME(unfoldMany,unfoldEach)
+
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap
 ------------------------------------------------------------------------------
@@ -1344,7 +1374,7 @@ unfoldMany (Unfold istep inject) (Stream ostep ost) =
 -- generation function is monadic, unlike 'concatMap', it can produce an
 -- effect at the beginning of each iteration of the inner loop.
 --
--- See 'unfoldMany' for a fusible alternative.
+-- See 'unfoldEach' for a fusible alternative.
 --
 {-# INLINE_NORMAL concatMapM #-}
 concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
@@ -1381,9 +1411,9 @@ concatMapM f (Stream step state) = Stream step' (Left state)
 --
 -- >>> concatMap f = Stream.concatMapM (return . f)
 -- >>> concatMap f = Stream.concat . fmap f
--- >>> concatMap f = Stream.unfoldMany (Unfold.lmap f Unfold.fromStream)
+-- >>> concatMap f = Stream.unfoldEach (Unfold.lmap f Unfold.fromStream)
 --
--- See 'unfoldMany' for a fusible alternative.
+-- See 'unfoldEach' for a fusible alternative.
 --
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
@@ -1412,8 +1442,8 @@ concat = concatMap id
 -- >>> concatEffect = Stream.concat . lift    -- requires (MonadTrans t)
 -- >>> concatEffect = join . lift             -- requires (MonadTrans t, Monad (Stream m))
 
--- | Given a stream value in the underlying monad, lift and join the underlying
--- monad with the stream monad.
+-- | Flatten a stream generated by an effect i.e. concat the effect monad with
+-- the stream monad.
 --
 -- >>> concatEffect = Stream.concat . Stream.fromEffect
 -- >>> concatEffect eff = Stream.concatMapM (\() -> eff) (Stream.fromPure ())
@@ -1798,7 +1828,8 @@ data FoldManyPost s fs b a
 -- Note that using a closed fold e.g. @Fold.take 0@, would result in an
 -- infinite stream without consuming the input.
 --
--- Like foldMany1, "scan" should ideally be "scan1" always resulting in a
+-- We can call foldManyPost as foldMany0, but we should probably remove it.
+-- Like foldMany0, "scan" should ideally be "scan0" always resulting in a
 -- non-empty stream, and "postscan" should be called just "scan" because it is
 -- much more common. But those names cannot be changed now.
 
@@ -1809,7 +1840,7 @@ data FoldManyPost s fs b a
 -- Example, empty stream, compare with 'foldMany':
 --
 -- >>> f = Fold.take 2 Fold.toList
--- >>> fmany = Stream.fold Fold.toList . Stream.foldMany1 f
+-- >>> fmany = Stream.fold Fold.toList . Stream.foldMany0 f
 -- >>> fmany $ Stream.fromList []
 -- [[]]
 --
@@ -1825,9 +1856,9 @@ data FoldManyPost s fs b a
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL foldMany1 #-}
-foldMany1 :: Monad m => Fold m a b -> Stream m a -> Stream m b
-foldMany1 (Fold fstep initial _ final) (Stream step state) =
+{-# INLINE_NORMAL foldManyPost #-}
+foldManyPost :: Monad m => Fold m a b -> Stream m a -> Stream m b
+foldManyPost (Fold fstep initial _ final) (Stream step state) =
     Stream step' (FoldManyPostStart state)
 
     where
@@ -1860,10 +1891,13 @@ foldMany1 (Fold fstep initial _ final) (Stream step state) =
     step' _ (FoldManyPostYield b next) = return $ Yield b next
     step' _ FoldManyPostDone = return Stop
 
-{-# DEPRECATED foldManyPost "Please use foldMany1 instead." #-}
-{-# INLINE foldManyPost #-}
-foldManyPost :: Monad m => Fold m a b -> Stream m a -> Stream m b
-foldManyPost = foldMany1
+-- | Apply fold f1 infix separated by fold f2.
+--
+-- /Unimplemented/
+{-# INLINE_NORMAL foldManySepBy #-}
+foldManySepBy :: -- Monad m =>
+    Fold m a b -> Fold m a b -> Stream m a -> Stream m b
+foldManySepBy _f1 _f2 = undefined
 
 {-# ANN type FoldMany Fuse #-}
 data FoldMany s fs b a
@@ -1878,7 +1912,7 @@ data FoldMany s fs b a
 -- | Apply a terminating 'Fold' repeatedly on a stream and emit the results in
 -- the output stream. If the last fold is empty, it's result is not emitted.
 -- This means if the input stream is empty the result is also an empty stream.
--- See 'foldMany1' for an alternate behavior which always results in a
+-- See 'foldManyPost' for an alternate behavior which always results in a
 -- non-empty stream even if the input stream is empty.
 --
 -- Definition:
@@ -1949,10 +1983,14 @@ foldMany (Fold fstep initial _ final) (Stream step state) =
 -- | Group the input stream into groups of @n@ elements each and then fold each
 -- group using the provided fold function.
 --
--- @groupsOf n f = foldMany (FL.take n f)@
+-- Definition:
 --
--- >>> Stream.toList $ Stream.groupsOf 2 Fold.sum (Stream.enumerateFromTo 1 10)
--- [3,7,11,15,19]
+-- >>> groupsOf n f = Stream.foldMany (Fold.take n f)
+--
+-- Usage:
+--
+-- >>> Stream.toList $ Stream.groupsOf 2 Fold.toList (Stream.enumerateFromTo 1 10)
+-- [[1,2],[3,4],[5,6],[7,8],[9,10]]
 --
 -- This can be considered as an n-fold version of 'take' where we apply
 -- 'take' repeatedly on the leftover stream until the stream exhausts.
@@ -2075,7 +2113,9 @@ indexerBy (Fold step1 initial1 extract1 _final) n =
 
     extract (Tuple' i s) = (i,) <$> extract1 s
 
--- | Like 'splitOnSuffix' but generates a stream of (index, len) tuples marking
+-- XXX rename to indicesEndBy
+
+-- | Like 'splitEndBy' but generates a stream of (index, len) tuples marking
 -- the places where the predicate matches in the stream.
 --
 -- /Pre-release/

@@ -81,7 +81,7 @@ foldManyWith f =
             monadicIO $ do
                 xs <- run
                     $ S.fold Fold.toList
-                    $ S.unfoldMany A.reader
+                    $ S.unfoldEach A.reader
                     $ S.foldMany (f 240)
                     $ S.fromList list
                 assert (xs == list)

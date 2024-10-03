@@ -7,12 +7,11 @@
 -- Portability : GHC
 --
 -- Direct style re-implementation of CPS stream in
--- "Streamly.Internal.Data.StreamK".  The symbol or suffix 'D' in this
--- module denotes the "Direct" style.  GHC is able to INLINE and fuse direct
+-- "Streamly.Internal.Data.StreamK". GHC is able to INLINE and fuse direct
 -- style better, providing better performance than CPS implementation.
 --
 -- @
--- import qualified Streamly.Internal.Data.Stream as D
+-- import qualified Streamly.Internal.Data.Stream as Stream
 -- @
 
 module Streamly.Internal.Data.Stream

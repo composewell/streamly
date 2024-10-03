@@ -140,7 +140,7 @@ foldMany1 :: Monad m => Stream m Int -> m ()
 foldMany1 =
       Common.drain
     . fmap getSum
-    . S.foldMany1 (FL.take 2 FL.mconcat)
+    . S.foldManyPost (FL.take 2 FL.mconcat)
     . fmap Sum
 
 {-# INLINE refoldMany #-}

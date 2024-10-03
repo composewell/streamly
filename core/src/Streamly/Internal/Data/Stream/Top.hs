@@ -48,10 +48,6 @@
 
 module Streamly.Internal.Data.Stream.Top
     (
-    -- * Sampling
-    -- | Value agnostic filtering.
-      strideFromThen
-
     -- * Straight Joins
     -- | These are set-like operations but not exactly set operations because
     -- streams are not necessarily sets, they may have duplicated elements.
@@ -59,7 +55,7 @@ module Streamly.Internal.Data.Stream.Top
     -- types, therefore, they have quadratic performance characterstics. For
     -- better performance using Set or Map structures see the
     -- Streamly.Internal.Data.Stream.Container module.
-    , intersectBy
+      intersectBy
     , deleteFirstsBy
     , unionBy
 
@@ -95,25 +91,6 @@ import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import Prelude hiding (filter, zipWith, concatMap, concat)
 
 #include "DocTestDataStream.hs"
-
-------------------------------------------------------------------------------
--- Sampling
-------------------------------------------------------------------------------
-
--- XXX We can implement this using addition instead of "mod" to make it more
--- efficient.
-
--- | @strideFromthen offset stride@ takes the element at @offset@ index and
--- then every element at strides of @stride@.
---
--- >>> Stream.fold Fold.toList $ Stream.strideFromThen 2 3 $ Stream.enumerateFromTo 0 10
--- [2,5,8]
---
-{-# INLINE strideFromThen #-}
-strideFromThen :: Monad m => Int -> Int -> Stream m a -> Stream m a
-strideFromThen offset stride =
-    Stream.with Stream.indexed Stream.filter
-        (\(i, _) -> i >= offset && (i - offset) `mod` stride == 0)
 
 ------------------------------------------------------------------------------
 -- SQL Joins
@@ -419,7 +396,7 @@ sortedDeleteFirstsBy _eq _s1 _s2 = undefined
 -- | Returns the first stream appended with those unique elements from the
 -- second stream that are not already present in the first stream. Note that
 -- this is not a commutative operation unlike a set union, argument order
--- matters. The behavior is similar to the 'Data.List.unionBy'.
+-- matters. The behavior is similar to 'Data.List.unionBy'.
 --
 -- Equivalent to the following except that @s2@ is evaluated only once:
 --
