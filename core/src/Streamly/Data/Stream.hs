@@ -590,6 +590,7 @@ module Streamly.Data.Stream
     -- >>> union = Stream.unionBy (==) -- unreleased
     --
     , reverse
+    , unionBy
     -- XXX transpose: write the streams to arrays and then stream transposed.
     -- XXX subsequences
     -- XXX permutations
