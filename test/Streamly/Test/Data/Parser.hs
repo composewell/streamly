@@ -6,11 +6,10 @@ module Main (main) where
 
 import Control.Applicative ((<|>))
 import Control.Exception (displayException)
+import Data.Char (isSpace)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
-import Test.Hspec (Spec, hspec, describe)
-import Test.Hspec.QuickCheck
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property, property, listOf,
         vectorOf, Gen, (.&&.))
@@ -28,6 +27,9 @@ import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
+
+import Test.Hspec
+import Test.Hspec.QuickCheck
 
 #if MIN_VERSION_QuickCheck(2,14,0)
 
@@ -1271,6 +1273,33 @@ takeStartBy_ =
             where
                 predicate = odd
                 parser = P.takeStartBy_ predicate FL.toList
+
+quotedWordTest :: String -> [String] -> IO ()
+quotedWordTest inp expected = do
+    res <-
+        S.fold FL.toList
+            $ catRightsErr
+            $ S.parseMany quotedWord $ S.fromList inp
+    res `shouldBe` expected
+    where
+    catRightsErr = fmap (either (error . displayException) id)
+    quotedWord =
+        let toRQuote x =
+                case x of
+                    '"' -> Just x
+                    '\'' -> Just x
+                    _ -> Nothing
+            -- Inside ",
+            -- * \\ is translated to \
+            -- * \" is translated to "
+            trEsc '"' x =
+                case x of
+                    '\\' -> Just '\\'
+                    '"' -> Just '"'
+                    _ -> Nothing
+            trEsc _ _ = Nothing
+         in P.wordWithQuotes False trEsc '\\' toRQuote isSpace FL.toList
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1377,3 +1406,12 @@ main =
         prop "takeStartBy_" takeStartBy_
 
     takeProperties
+
+    describe "quotedWordTest" $ do
+        it "Single quote test" $ do
+           quotedWordTest "'hello\\\\\"world'" ["hello\\\\\"world"]
+           quotedWordTest "'hello\\'" ["hello\\"]
+        it "Double quote test" $ do
+           quotedWordTest
+               "\"hello\\\"\\\\w\\'orld\""
+               ["hello\"\\w\\'orld"]

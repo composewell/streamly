@@ -1756,6 +1756,19 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
                 FL.Partial s1 -> Continue 0 (WordUnquotedWord s1)
                 FL.Done b -> Done 0 b
 
+    {-# INLINE checkRightQuoteAndProcess #-}
+    checkRightQuoteAndProcess s a n ql qr =
+        if a == qr
+        then
+           if n == 1
+           then if keepQuotes
+                then processUnquoted s a
+                else return $ Continue 0 $ WordUnquotedWord s
+           else processQuoted s a (n - 1) ql qr
+        else if a == ql
+             then processQuoted s a (n + 1) ql qr
+             else processQuoted s a n ql qr
+
     step (WordQuotedSkipPre s) a
         | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
         | isSep a = return $ Partial 0 $ WordQuotedSkipPre s
@@ -1792,24 +1805,14 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
             b <- fextract s
             return $ Partial 0 $ WordQuotedSkipPost b
         -}
-        | otherwise = do
-                if a == qr
-                then
-                   if n == 1
-                   then if keepQuotes
-                        then processUnquoted s a
-                        else return $ Continue 0 $ WordUnquotedWord s
-                   else processQuoted s a (n - 1) ql qr
-                else if a == ql
-                     then processQuoted s a (n + 1) ql qr
-                     else processQuoted s a n ql qr
+        | otherwise = checkRightQuoteAndProcess s a n ql qr
     step (WordUnquotedEsc s) a = processUnquoted s a
     step (WordQuotedEsc s n ql qr) a =
         case tr ql a of
             Nothing -> do
                 res <- fstep s escChar
                 case res of
-                    FL.Partial s1 -> processQuoted s1 a n ql qr
+                    FL.Partial s1 -> checkRightQuoteAndProcess s1 a n ql qr
                     FL.Done b -> return $ Done 0 b
             Just x -> processQuoted s x n ql qr
     step (WordQuotedSkipPost b) a =
