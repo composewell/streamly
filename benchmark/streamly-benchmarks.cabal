@@ -338,7 +338,7 @@ benchmark Data.Parser
     if flag(dev)
       ghc-options: +RTS -M3000M -RTS
     else
-      ghc-options: +RTS -M2000M -RTS
+      ghc-options: +RTS -M2500M -RTS
 
 -- XXX This is chunked?
 benchmark Data.ParserK
