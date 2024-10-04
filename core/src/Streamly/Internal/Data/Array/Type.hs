@@ -1018,8 +1018,6 @@ fromPureStream x = unsafePerformIO $ fmap unsafeFreeze (MA.fromPureStream x)
 -- fromPureStream = runIdentity . D.fold (unsafeMakePure write)
 -- fromPureStream = fromList . runIdentity . D.toList
 
--- XXX This should be monadic.
-
 -- | @fromPtrN len addr@ copies @len@ bytes from @addr@ into an array. The
 -- memory pointed by @addr@ must be pinned or static.
 --
@@ -1028,8 +1026,8 @@ fromPureStream x = unsafePerformIO $ fmap unsafeFreeze (MA.fromPureStream x)
 --
 -- Note that this should be evaluated strictly to ensure that we do not hold
 -- the reference to the pointer in a lazy thunk.
-fromPtrN :: Int -> Ptr Word8 -> Array Word8
-fromPtrN n addr = unsafePerformIO $ fmap unsafeFreeze (MA.fromPtrN n addr)
+fromPtrN :: MonadIO m => Int -> Ptr Word8 -> m (Array Word8)
+fromPtrN n addr = fmap unsafeFreeze (MA.fromPtrN n addr)
 
 -- | Copy a null terminated immutable 'Addr#' Word8 sequence into an array.
 --
