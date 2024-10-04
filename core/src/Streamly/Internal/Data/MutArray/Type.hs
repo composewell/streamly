@@ -3022,7 +3022,7 @@ asPtrUnsafe :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
 asPtrUnsafe a f = unsafePinnedAsPtr a (\p _ -> f p)
 
 -- | @unsafeAsPtr arr f@, f is a function used as @f ptr len@ where @ptr@ is a
--- pointer to the beginning of array and @len@ is the length of the array.
+-- pointer to the beginning of array and @len@ is the byte-length of the array.
 --
 -- /Unsafe/ WARNING:
 --

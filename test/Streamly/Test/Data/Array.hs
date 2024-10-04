@@ -13,10 +13,12 @@ import Data.List (sort)
 import Data.Proxy (Proxy(..))
 import Data.Word(Word8)
 import Foreign.Storable (peek)
-import GHC.Ptr (plusPtr)
+import Foreign.ForeignPtr (newForeignPtr_, withForeignPtr)
+import GHC.Ptr (plusPtr, Ptr)
 import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Internal.Data.MutArray (MutArray)
 import Test.QuickCheck (chooseInt, listOf)
+import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.MutArray as MA
@@ -182,17 +184,14 @@ testUnsafeIndxedFromList inp =
     let arr = A.fromList inp
      in fmap (`A.getIndexUnsafe` arr) [0 .. (length inp - 1)] `shouldBe` inp
 
-testAsPtrUnsafeMA :: IO ()
-testAsPtrUnsafeMA = do
-    arr <- MA.fromList ([0 .. 99] :: [Int])
-    arr1 <- MA.pin arr
-    MA.unsafeAsPtr arr1 getList0 `shouldReturn` [0 .. 99]
+getIntList :: Ptr Int -> Int -> IO [Int]
+getIntList ptr byteLen = do
+    performMajorGC
+    getList ptr (ptr `plusPtr` byteLen)
 
     where
 
     sizeOfInt = sizeOf (Proxy :: Proxy Int)
-
-    getList0 p byteLen = getList p (p `plusPtr` byteLen)
 
     -- We need to be careful here. We assume Unboxed and Storable are compatible
     -- with each other. For Int, they are compatible.
@@ -202,6 +201,46 @@ testAsPtrUnsafeMA = do
         val <- peek p
         rest <- getList (p `plusPtr` sizeOfInt) limitP
         return $ val : rest
+
+testAsPtrUnsafeMA :: IO ()
+testAsPtrUnsafeMA = do
+    arr <- MA.fromList ([0 .. 99] :: [Int])
+    arr1 <- MA.pin arr
+    MA.unsafeAsPtr arr1 getIntList `shouldReturn` [0 .. 99]
+
+testUnsafePinnedAsPtr :: IO ()
+testUnsafePinnedAsPtr = do
+    arr <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Int])
+    let arr1 = A.unsafeFreeze arr
+    A.unsafePinnedAsPtr arr1 getIntList `shouldReturn` [10 .. 59]
+
+testUnsafeAsForeignPtr :: IO ()
+testUnsafeAsForeignPtr = do
+    arr <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Int])
+    let arr1 = A.unsafeFreeze arr
+    A.unsafeAsForeignPtr arr1 getIntList1 `shouldReturn` [10 .. 59]
+    where
+    getIntList1 fp blen = withForeignPtr fp $ \p -> getIntList p blen
+
+testForeignPtrConversionId :: IO ()
+testForeignPtrConversionId = do
+    arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
+    let arr = A.unsafeFreeze arr0
+    arr1 <-
+        A.unsafeAsForeignPtr
+             arr
+             (\fptr len -> pure $ A.unsafeFromForeignPtr fptr len)
+    arr1 `shouldBe` arr
+
+testUnsafeFromForeignPtr :: IO ()
+testUnsafeFromForeignPtr = do
+    arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
+    let arr = A.unsafeFreeze arr0
+    A.unsafePinnedAsPtr arr $ \ptr len -> do
+        fptr <- newForeignPtr_ ptr
+        performMajorGC
+        let arr1 = A.unsafeFromForeignPtr fptr len
+        arr1 `shouldBe` arr
 
 reallocMA :: Property
 reallocMA =
@@ -233,6 +272,11 @@ main =
             prop "fromList" testFromList
             prop "foldMany with writeNUnsafe concats to original"
                 (foldManyWith (\n -> Fold.take n (A.unsafeCreateOf n)))
+        describe "AsPtr" $ do
+            it "testUnsafePinnedAsPtr" testUnsafePinnedAsPtr
+            it "testUnsafeAsForeignPtr" testUnsafeAsForeignPtr
+            it "testForeignPtrConversionId" testForeignPtrConversionId
+            it "testUnsafeFromForeignPtr" testUnsafeFromForeignPtr
         describe "unsafeSlice" $ do
             it "partial" $ unsafeSlice 2 4 [1..10]
             it "none" $ unsafeSlice 10 0 [1..10]

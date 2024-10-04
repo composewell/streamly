@@ -72,6 +72,7 @@ module Streamly.Internal.Data.Array.Type
     , fromPtrN
     , fromChunks
     , fromChunksK
+    , unsafeFromForeignPtr
 
     -- ** Reading
 
@@ -179,11 +180,13 @@ import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16, Word32, Word64)
 import GHC.Base (build)
-import GHC.Exts (IsList, IsString(..), Addr#)
+import GHC.Exts (IsList, IsString(..), Addr#, minusAddr#)
+import GHC.Int (Int(..))
 import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents(..))
+import Foreign.Storable (peek)
 
 import GHC.IO (unsafePerformIO)
-import GHC.Ptr (Ptr(..))
+import GHC.Ptr (Ptr(..), plusPtr, nullPtr)
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
@@ -256,6 +259,7 @@ data Array a =
 -- Utility functions
 -------------------------------------------------------------------------------
 
+-- XXX Rename this to "unsafeAsPtr"?
 -- | Use an @Array a@ as @Ptr a@.
 --
 -- See 'MA.unsafePinnedAsPtr' in the Mutable array module for more details.
@@ -292,6 +296,30 @@ unsafeAsForeignPtr arr@Array{..} f =
                 PlainPtr (Unboxed.getMutByteArray# arrContents)
             fptr = ForeignPtr addr# fptrContents
          in f fptr i
+
+mutableByteArrayContents# :: Exts.MutableByteArray# s -> Addr#
+{-# INLINE mutableByteArrayContents# #-}
+mutableByteArrayContents# x =
+#if __GLASGOW_HASKELL__ >= 902
+  Exts.mutableByteArrayContents# x
+#else
+  Exts.byteArrayContents# (Exts.unsafeCoerce# x)
+#endif
+
+-- | @unsafeFromForeignPtr fptr len@ converts the "ForeignPtr" to an "Array".
+--
+unsafeFromForeignPtr
+    :: ForeignPtr Word8 -> Int -> Array Word8
+unsafeFromForeignPtr (ForeignPtr addr# _) i
+    | Ptr addr# == nullPtr || i == 0 = empty
+unsafeFromForeignPtr (ForeignPtr addr# (PlainPtr marr#)) len =
+    let off = I# (addr# `minusAddr#` mutableByteArrayContents# marr#)
+     in Array (Unboxed.MutByteArray marr#) off (off + len)
+unsafeFromForeignPtr (ForeignPtr addr# _) len =
+    unsafeInlineIO
+        $ fromStreamN len
+        $ D.mapM (peek . plusPtr (Ptr addr#))
+        $ D.fromList [0,1..(len - 1)]
 
 {-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
 {-# INLINE asPtrUnsafe #-}
