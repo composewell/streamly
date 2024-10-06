@@ -26,6 +26,8 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Stream as SI
+import qualified Streamly.Internal.Data.StreamK as K
 import qualified Test.Hspec as H
 
 import Test.Hspec
@@ -1300,6 +1302,170 @@ quotedWordTest inp expected = do
             trEsc _ _ = Nothing
          in P.wordWithQuotes False trEsc '\\' toRQuote isSpace FL.toList
 
+--------------------------------------------------------------------------------
+-- Parser sanity tests
+--------------------------------------------------------------------------------
+
+data Move
+    = Consume Int
+    | Custom (P.Step () ())
+    deriving (Show)
+
+jumpParser :: Monad m => [Move] -> P.Parser Int m [Int]
+jumpParser jumps = P.Parser step initial done
+    where
+    initial = pure $ P.IPartial (jumps, [])
+
+    step ([], buf) _ = pure $ P.Done 1 (reverse buf)
+    step (action:xs, buf) a =
+        case action of
+            Consume n
+                | n == 1 -> pure $ P.Continue 0 (xs, a:buf)
+                | n > 0 -> pure $ P.Continue 0 (Consume (n - 1) : xs, a:buf)
+                | otherwise -> error "Cannot consume < 0"
+            Custom (P.Partial i ()) -> pure $ P.Partial i (xs, buf)
+            Custom (P.Continue i ()) -> pure $ P.Continue i (xs, buf)
+            Custom (P.Done i ()) -> pure $ P.Done i (reverse buf)
+            Custom (P.Error err) -> pure $ P.Error err
+
+    done ([], buf) = pure $ P.Done 0 (reverse buf)
+    done (action:xs, buf) =
+        case action of
+            Consume _ -> pure $ P.Error "INCOMPLETE"
+            Custom (P.Partial i ()) -> pure $ P.Partial i (xs, buf)
+            Custom (P.Continue i ()) -> pure $ P.Continue i (xs, buf)
+            Custom (P.Done i ()) -> pure $ P.Done i (reverse buf)
+            Custom (P.Error err) -> pure $ P.Error err
+
+chunkedTape :: [[Int]]
+chunkedTape = Prelude.map (\x -> [x..(x+9)]) [1, 11 .. 91]
+
+tape :: [Int]
+tape = concat chunkedTape
+
+tapeLen :: Int
+tapeLen = length tape
+
+expectedResult :: [Move] -> (Either ParseError [Int], [Int])
+expectedResult moves = go 1 1 [] moves
+    where
+    go i _ ys [] = (Right ys, [i..tapeLen])
+    go i j ys ((Consume n):xs)
+        | i + n - 1 > tapeLen = (Left (ParseError "INCOMPLETE"), tape)
+        | otherwise = go (i + n) j (ys ++ [i..(i + n - 1)]) xs
+    go i j ys ((Custom (P.Partial n ())):xs)
+        | i > tapeLen = go (i - n) (max j (i - n)) ys xs
+        | otherwise = go (i + 1 - n) (max j (i + 1 - n)) ys xs
+    go i j ys ((Custom (P.Continue n ())):xs)
+        | i > tapeLen = go (i - n) j ys xs
+        | otherwise = go (i + 1 - n) j ys xs
+    go i j ys ((Custom (P.Done n ())):xs)
+        | i > tapeLen = go (i - n) j ys xs
+        | otherwise = (Right ys, [(i + 1 - n)..tapeLen])
+    go i j _ ((Custom (P.Error err)):_)
+        | i > tapeLen = (Left (ParseError err), [j..tapeLen])
+        | otherwise = (Left (ParseError err), [j..tapeLen])
+
+createPaths :: [a] -> [[a]]
+createPaths xs =
+    Prelude.map (flip Prelude.take xs) [1..length xs]
+
+parserSanityTests :: String -> ([Move] -> SpecWith ()) -> SpecWith ()
+parserSanityTests desc testRunner =
+    describe desc $ do
+        Prelude.mapM_ testRunner $
+            createPaths
+                [ Consume (tapeLen + 1)
+                ]
+        Prelude.mapM_ testRunner $
+            createPaths
+                [ Custom (P.Error "Message0")
+                ]
+        Prelude.mapM_ testRunner $
+            createPaths
+                [ Consume 10
+                , Custom (P.Partial 0 ())
+                , Consume 10
+                , Custom (P.Partial 1 ())
+                , Consume 10
+                , Custom (P.Partial 11 ())
+                , Consume 10
+                , Custom (P.Continue 0 ())
+                , Consume 10
+                , Custom (P.Continue 1 ())
+                , Consume 10
+                , Custom (P.Continue 11 ())
+                , Custom (P.Error "Message1")
+                ]
+        Prelude.mapM_ testRunner $
+            createPaths
+                [ Consume 10
+                , Custom (P.Continue 0 ())
+                , Consume 10
+                , Custom (P.Continue 1 ())
+                , Consume 10
+                , Custom (P.Continue 11 ())
+                , Consume 10
+                , Custom (P.Done 0 ())
+                ]
+        Prelude.mapM_ testRunner $
+            createPaths
+                [ Consume 20
+                , Custom (P.Continue 0 ())
+                , Custom (P.Continue 11 ())
+                , Custom (P.Done 1 ())
+                ]
+        Prelude.mapM_ testRunner $
+            createPaths
+                [ Consume 20
+                , Custom (P.Continue 0 ())
+                , Custom (P.Continue 11 ())
+                , Custom (P.Error "Message2")
+                ]
+        Prelude.mapM_ testRunner $
+            createPaths
+                [ Consume 20
+                , Custom (P.Continue 0 ())
+                , Custom (P.Continue 11 ())
+                , Custom (P.Done 5 ())
+                ]
+        Prelude.mapM_ testRunner $
+            createPaths
+                [ Consume tapeLen
+                , Custom (P.Continue 0 ())
+                , Custom (P.Continue 10 ())
+                , Custom (P.Done 5 ())
+                ]
+
+{-
+TODO:
+Add sanity tests for
+- Producer.parse
+- Producer.parseMany
+- Stream.parseMany
+- Stream.parseIterate
+-}
+
+sanityParseBreak :: [Move] -> SpecWith ()
+sanityParseBreak jumps = it (show jumps) $ do
+    (val, rest) <- SI.parseBreak (jumpParser jumps) $ S.fromList tape
+    lst <- S.toList rest
+    (val, lst) `shouldBe` (expectedResult jumps)
+
+sanityParseDBreak :: [Move] -> SpecWith ()
+sanityParseDBreak jumps = it (show jumps) $ do
+    (val, rest) <- K.parseDBreak (jumpParser jumps) $ K.fromList tape
+    lst <- K.toList rest
+    (val, lst) `shouldBe` (expectedResult jumps)
+
+sanityParseBreakChunksK :: [Move] -> SpecWith ()
+sanityParseBreakChunksK jumps = it (show jumps) $ do
+    (val, rest) <-
+        A.parseBreakChunksK (jumpParser jumps)
+            $ K.fromList $ Prelude.map A.fromList chunkedTape
+    lst <- Prelude.map A.toList <$> K.toList rest
+    (val, concat lst) `shouldBe` (expectedResult jumps)
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1313,7 +1479,9 @@ main =
   H.parallel $
   modifyMaxSuccess (const maxTestCount) $ do
   describe moduleName $ do
-
+    parserSanityTests "Stream.parseBreak" sanityParseBreak
+    parserSanityTests "StreamK.parseDBreak" sanityParseDBreak
+    parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
     describe "Instances" $ do
         prop "applicative" applicative
         prop "Alternative: end of input 1" altEOF1
