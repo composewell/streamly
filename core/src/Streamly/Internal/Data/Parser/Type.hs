@@ -350,6 +350,7 @@ data Step s b =
     --
     -- The parsing operation may backtrack to the beginning and try another
     -- alternative.
+    deriving (Show)
 
 -- | Map first function over the state and second over the result.
 instance Bifunctor Step where
@@ -455,7 +456,7 @@ data Fold m a b =
 -- /Pre-release/
 --
 newtype ParseError = ParseError String
-    deriving Show
+    deriving (Eq, Show)
 
 instance Exception ParseError where
     displayException (ParseError err) = err
