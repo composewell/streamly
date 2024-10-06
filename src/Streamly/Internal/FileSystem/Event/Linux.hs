@@ -151,11 +151,8 @@ module Streamly.Internal.FileSystem.Event.Linux
 where
 
 import Control.Monad (void, when)
-import Control.Monad.IO.Class (MonadIO)
 import Data.Bits ((.|.), (.&.), complement)
-import Data.Char (ord)
 import Data.Foldable (foldlM)
-import Data.Functor.Identity (runIdentity)
 import Data.IntMap.Lazy (IntMap)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef)
 import Data.List.NonEmpty (NonEmpty)
@@ -177,21 +174,19 @@ import System.Directory (doesDirectoryExist)
 import System.IO (Handle, hClose, IOMode(ReadMode))
 import GHC.IO.Handle.FD (handleToFd)
 
-import Streamly.Internal.Data.Array (Array(..), byteLength)
+import Streamly.Internal.Data.Array (byteLength)
 import Streamly.Internal.FileSystem.Path (Path)
 
 import qualified Data.IntMap.Lazy as Map
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Data.Array as A (fromList, createOf, getIndex)
+import qualified Streamly.Data.Array as A (createOf)
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Unicode.Stream as U
 import qualified Streamly.Internal.FileSystem.Path as Path
 
 import qualified Streamly.Internal.Data.Array as A
     ( asCStringUnsafe, unsafePinnedAsPtr
-    , getSliceUnsafe, read
     )
 import qualified Streamly.Internal.FileSystem.DirIO as Dir (readDirs)
 import qualified Streamly.Internal.Data.Parser as PR
@@ -556,6 +551,33 @@ defaultConfig =
         }
 
 -------------------------------------------------------------------------------
+-- Path representation for events
+-------------------------------------------------------------------------------
+
+type PathRep =
+    ( Path       -- Absolute path of the watch root
+    , Maybe Path -- Path of subdir relative to watch root
+    )
+
+{-# INLINE combinePathRep #-}
+combinePathRep :: PathRep -> Path
+combinePathRep (root, Nothing) = root
+combinePathRep (root, Just sub) = Path.append root sub
+
+{-# INLINE addSub #-}
+addSub :: PathRep -> Path -> PathRep
+addSub (root, Nothing) sub = (root, Just sub)
+addSub (root, Just sub0) sub1 = (root, Just (Path.append sub0 sub1))
+
+{-# INLINE getRepRoot #-}
+getRepRoot :: PathRep -> Path
+getRepRoot = fst
+
+{-# INLINE getRepSub #-}
+getRepSub :: PathRep -> Maybe Path
+getRepSub = snd
+
+-------------------------------------------------------------------------------
 -- Open an event stream
 -------------------------------------------------------------------------------
 
@@ -565,9 +587,7 @@ data Watch =
         Handle                  -- File handle for the watch
         (IORef
             (IntMap             -- Key is the watch descriptor
-                ( Array Word8   -- Absolute path of the watch root
-                , Array Word8   -- Path of subdir relative to watch root
-                )
+                PathRep
             )
         )
 
@@ -625,62 +645,14 @@ foreign import ccall unsafe
     "sys/inotify.h inotify_add_watch" c_inotify_add_watch
         :: CInt -> CString -> CUInt -> IO CInt
 
--- XXX we really do not know the path encoding, all we know is that it is "/"
--- separated bytes. So these may fail or convert the path in an unexpected
--- manner. We should ultimately remove all usage of these.
-
-toUtf8 :: MonadIO m => Path -> m (Array Word8)
-toUtf8 path = pure $ Path.toChunk path
-
-utf8ToString :: Array Word8 -> String
-utf8ToString = runIdentity . S.fold FL.toList . U.decodeUtf8' . A.read
-
--- | Add a trailing "/" at the end of the path if there is none. Do not add a
--- "/" if the path is empty.
---
-ensureTrailingSlash :: Array Word8 -> Array Word8
-ensureTrailingSlash path =
-    if byteLength path /= 0
-    then
-        let mx = A.getIndex (byteLength path - 1) path
-         in case mx of
-            Nothing -> error "ensureTrailingSlash: Bug: Invalid index"
-            Just x ->
-                if x /= forwardSlashByte
-                then path <> forwardSlash
-                else path
-    else path
-    where forwardSlash = A.fromList [ forwardSlashByte ]
-          forwardSlashByte = fromIntegral (ord '/')
-
-removeTrailingSlash :: Array Word8 -> Array Word8
-removeTrailingSlash path =
-    if byteLength path /= 0
-    then
-        let n = byteLength path - 1
-            mx = A.getIndex n path
-         in case mx of
-            Nothing -> error "removeTrailingSlash: Bug: Invalid index"
-            Just x ->
-                if x == fromIntegral (ord '/')
-                then A.getSliceUnsafe 0 n path
-                else path
-    else path
-
-appendPaths :: Array Word8 -> Array Word8 -> Array Word8
-appendPaths a b
-  | byteLength a == 0 = b
-  | byteLength b == 0 = a
-  | otherwise = ensureTrailingSlash a <> b
-
 -- | @addToWatch cfg watch root subpath@ adds @subpath@ to the list of paths
 -- being monitored under @root@ via the watch handle @watch@.  @root@ must be
 -- an absolute path and @subpath@ must be relative to @root@.
 --
 -- /Pre-release/
 --
-addToWatch :: Config -> Watch -> Array Word8 -> Array Word8 -> IO ()
-addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
+addToWatch :: Config -> Watch -> PathRep -> IO ()
+addToWatch cfg@Config{..} watch0@(Watch handle wdMap) prep = do
     -- XXX do not add if the path is already added
     -- XXX if the watch is added by the scan and not via an event we can
     -- generate a create event assuming that the create may have been lost. We
@@ -699,10 +671,11 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     -- handle it. For example, if it is a dir create the application can read
     -- the dir to scan the files in it.
     --
-    let root = removeTrailingSlash root0
-        path = removeTrailingSlash path0
-        absPath = appendPaths root path
-    putStrLn $ "root = " ++ utf8ToString root ++ " path = " ++ utf8ToString path ++ " absPath = " ++ utf8ToString absPath
+    let absPath = combinePathRep prep
+        showPathRep (root, Nothing) = "root = " ++ Path.toString root
+        showPathRep (root, Just sub) =
+            "root = " ++ Path.toString root ++ " sub = " ++ Path.toString sub
+    putStrLn $ showPathRep prep ++ " absPath = " ++ Path.toString absPath
 
     fd <- handleToFd handle
 
@@ -713,14 +686,14 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX The file may have even got deleted and then recreated which we will
     -- never get to know, document this.
-    wd <- A.asCStringUnsafe absPath $ \pathPtr ->
-            throwErrnoIfMinus1 ("addToWatch: " ++ utf8ToString absPath) $
+    wd <- A.asCStringUnsafe (Path.toChunk absPath) $ \pathPtr ->
+            throwErrnoIfMinus1 ("addToWatch: " ++ Path.toString absPath) $
                 c_inotify_add_watch (fdFD fd) pathPtr (CUInt createFlags)
 
     -- We add the parent first so that we start getting events for any new
     -- creates and add the new subdirectories on creates while we are adding
     -- the children.
-    modifyIORef wdMap (Map.insert (fromIntegral wd) (root, path))
+    modifyIORef wdMap (Map.insert (fromIntegral wd) prep)
 
     -- Now add the children. If we missed any creates while we were adding the
     -- parent, this will make sure they are added too.
@@ -730,14 +703,12 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX readDirs currently uses paths as String, we need to convert it
     -- to "/" separated by byte arrays.
-    let p = Path.unsafeFromChunk absPath
+    let p = absPath
     -- XXX Need a FileSystem.Stat module to remove this
     pathIsDir <- doesDirectoryExist (Path.toString p)
     when (watchRec && pathIsDir) $ do
-        let f = addToWatch cfg watch0 root . appendPaths path
-            in S.fold (FL.drainMapM f)
-                $ S.mapM toUtf8
-                $ Dir.readDirs p
+        let f = addToWatch cfg watch0 . addSub prep
+            in S.fold (FL.drainMapM f) $ Dir.readDirs p
 
 foreign import ccall unsafe
     "sys/inotify.h inotify_rm_watch" c_inotify_rm_watch
@@ -749,8 +720,8 @@ foreign import ccall unsafe
 --
 -- /Pre-release/
 --
-removeFromWatch :: Watch -> Array Word8 -> IO ()
-removeFromWatch (Watch handle wdMap) path = do
+removeFromWatch :: Watch -> Path -> IO ()
+removeFromWatch (Watch handle wdMap) root = do
     fd <- handleToFd handle
     km <- readIORef wdMap
     wdMap1 <- foldlM (step fd) Map.empty (Map.toList km)
@@ -759,9 +730,9 @@ removeFromWatch (Watch handle wdMap) path = do
     where
 
     step fd newMap (wd, v) = do
-        if fst v == path
+        if Path.toChunk (getRepRoot v) == Path.toChunk root
         then do
-            let err = "removeFromWatch: " ++ show (utf8ToString path)
+            let err = "removeFromWatch: " ++ show (Path.toString root)
                 rm = c_inotify_rm_watch (fdFD fd) (fromIntegral wd)
             void $ throwErrnoIfMinus1 err rm
             return newMap
@@ -773,12 +744,10 @@ removeFromWatch (Watch handle wdMap) path = do
 --
 -- /Pre-release/
 --
-openWatch :: Config -> NonEmpty (Array Word8) -> IO Watch
+openWatch :: Config -> NonEmpty Path -> IO Watch
 openWatch cfg paths = do
     w <- createWatch
-    mapM_
-        (\root -> addToWatch cfg w root (A.fromList []))
-        $ NonEmpty.toList paths
+    mapM_ (\root -> addToWatch cfg w (root, Nothing)) $ NonEmpty.toList paths
     return w
 
 -- | Close a 'Watch' handle.
@@ -803,9 +772,9 @@ data Event = Event
    { eventWd :: CInt
    , eventFlags :: Word32
    , eventCookie :: Word32
-   , eventRelPath :: Array Word8
-   , eventMap :: IntMap (Array Word8, Array Word8)
-   } deriving (Show, Ord, Eq)
+   , eventRelPath :: Maybe Path
+   , eventMap :: IntMap PathRep
+   }
 
 -- The inotify event struct from the man page/header file:
 --
@@ -829,7 +798,15 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
     -- XXX need the "initial" in parsers to return a step type so that "take 0"
     -- can return without an input. otherwise if pathLen is 0 we will keep
     -- waiting to read one more char before we return this event.
-    path <-
+    wdm <- PR.fromEffect $ readIORef wdMap
+    let prep =
+            case Map.lookup (fromIntegral ewd) wdm of
+                    Just prep0 -> prep0
+                    Nothing ->
+                        error $ "readOneEvent: "
+                                  <> "Unknown watch descriptor: "
+                                  <> show ewd
+    prep1 <-
         if pathLen /= 0
         then do
             -- XXX takeEndBy_ drops the separator so assumes a null
@@ -841,21 +818,12 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
                     $ FL.take pathLen (A.createOf pathLen)
             let remaining = pathLen - byteLength pth - 1
             when (remaining /= 0) $ PR.takeEQ remaining FL.drain
-            return pth
-        else return $ A.fromList []
-    wdm <- PR.fromEffect $ readIORef wdMap
-    let (root, sub) =
-            case Map.lookup (fromIntegral ewd) wdm of
-                    Just pair -> pair
-                    Nothing ->
-                        error $ "readOneEvent: "
-                                  <> "Unknown watch descriptor: "
-                                  <> show ewd
-    let sub1 = appendPaths sub path
-        -- Check for "ISDIR" first because it is less likely
-        isDirCreate = eflags .&. iN_ISDIR /= 0 && eflags .&. iN_CREATE /= 0
+            return $ addSub prep (Path.unsafeFromChunk pth)
+        else return $ prep
+    -- Check for "ISDIR" first because it is less likely
+    let isDirCreate = eflags .&. iN_ISDIR /= 0 && eflags .&. iN_CREATE /= 0
     when (watchRec cfg && isDirCreate)
-        $ PR.fromEffect $ addToWatch cfg wt root sub1
+        $ PR.fromEffect $ addToWatch cfg wt prep1
     -- XXX Handle IN_DELETE, IN_DELETE_SELF, IN_MOVE_SELF, IN_MOVED_FROM,
     -- IN_MOVED_TO
     -- What if a large dir tree gets moved in to our hierarchy? Do we get a
@@ -864,7 +832,7 @@ readOneEvent cfg  wt@(Watch _ wdMap) = do
         { eventWd = fromIntegral ewd
         , eventFlags = eflags
         , eventCookie = cookie
-        , eventRelPath = sub1
+        , eventRelPath = getRepSub prep1
         , eventMap = wdm
         }
 
@@ -928,7 +896,7 @@ watchToStream cfg wt@(Watch handle _) = do
 --
 -- /Pre-release/
 --
-watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
+watchWith :: (Config -> Config) -> NonEmpty Path -> Stream IO Event
 watchWith f paths = S.bracketIO before after (watchToStream cfg)
 
     where
@@ -945,7 +913,7 @@ watchWith f paths = S.bracketIO before after (watchToStream cfg)
 --
 -- /Pre-release/
 --
-watchRecursive :: NonEmpty (Array Word8) -> Stream IO Event
+watchRecursive :: NonEmpty Path -> Stream IO Event
 watchRecursive = watchWith (setRecursiveMode True)
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
@@ -954,13 +922,14 @@ watchRecursive = watchWith (setRecursiveMode True)
 --
 -- /Pre-release/
 --
-watch :: NonEmpty (Array Word8) -> Stream IO Event
+watch :: NonEmpty Path -> Stream IO Event
 watch = watchWith id
 
 -------------------------------------------------------------------------------
 -- Examine event stream
 -------------------------------------------------------------------------------
 
+-- XXX Should we return a Maybe here instead of erroring out?
 -- | Get the watch root corresponding to the 'Event'.
 --
 -- Note that if a path was moved after adding to the watch, this will give the
@@ -970,16 +939,16 @@ watch = watchWith id
 --
 -- /Pre-release/
 --
-getRoot :: Event -> Array Word8
+getRoot :: Event -> Path
 getRoot Event{..} =
     if eventWd >= 1
     then
         case Map.lookup (fromIntegral eventWd) eventMap of
-            Just path -> fst path
+            Just prep -> getRepRoot prep
             Nothing ->
                 error $ "Bug: getRoot: No path found corresponding to the "
                     ++ "watch descriptor " ++ show eventWd
-    else A.fromList []
+    else error $ "getRoot: ewd = " ++ show eventWd
 
 -- XXX should we use a Maybe here?
 -- | Get the file system object path for which the event is generated, relative
@@ -987,7 +956,7 @@ getRoot Event{..} =
 --
 -- /Pre-release/
 --
-getRelPath :: Event -> Array Word8
+getRelPath :: Event -> Maybe Path
 getRelPath Event{..} = eventRelPath
 
 -- | Get the absolute file system object path for which the event is generated.
@@ -997,13 +966,11 @@ getRelPath Event{..} = eventRelPath
 --
 -- /Pre-release/
 --
-getAbsPath :: Event -> Array Word8
+getAbsPath :: Event -> Path
 getAbsPath ev =
-    let relpath = getRelPath ev
-        root = getRoot ev
-    in  if byteLength relpath /= 0
-        then ensureTrailingSlash root <> relpath
-        else removeTrailingSlash root
+    case getRelPath ev of
+        Just relPath -> Path.append (getRoot ev) relPath
+        Nothing -> getRoot ev
 
 -- XXX should we use a Maybe?
 -- | Cookie is set when a rename occurs. The cookie value can be used to
@@ -1275,8 +1242,8 @@ showEvent :: Event -> String
 showEvent ev@Event{..} =
        "--------------------------"
     ++ "\nWd = " ++ show eventWd
-    ++ "\nRoot = " ++ show (utf8ToString $ getRoot ev)
-    ++ "\nPath = " ++ show (utf8ToString $ getRelPath ev)
+    ++ "\nRoot = " ++ show (Path.toString $ getRoot ev)
+    ++ "\nPath = " ++ maybe "" (show . Path.toString) (getRelPath ev)
     ++ "\nCookie = " ++ show (getCookie ev)
     ++ "\nFlags " ++ show eventFlags
 

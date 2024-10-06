@@ -42,13 +42,9 @@ where
 import Debug.Trace (trace)
 import Control.Concurrent (MVar, newEmptyMVar, putMVar, takeMVar, threadDelay)
 import Control.Monad (when)
-import Control.Monad.IO.Class (MonadIO)
 import Data.Bifunctor (first)
 import Data.Function ((&))
-import Data.Functor.Identity (runIdentity)
 import Data.List.NonEmpty (NonEmpty)
-import Data.Word (Word8)
-import Streamly.Data.Array (Array)
 import System.Directory
     ( createDirectory
     , createDirectoryIfMissing
@@ -65,12 +61,12 @@ import System.IO
     ( BufferMode(..), hSetBuffering, stdout, IOMode (WriteMode), openFile
     , hClose)
 import System.IO.Temp (withSystemTempDirectory)
+import Streamly.Internal.FileSystem.Path (Path)
 
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
-import qualified Streamly.Unicode.Stream as Unicode
+import qualified Streamly.Internal.FileSystem.Path as Path
 
 #if defined(FILESYSTEM_EVENT_LINUX)
 import Streamly.Internal.FileSystem.Event.Linux (Event)
@@ -98,7 +94,7 @@ type EventChecker =
     -> MVar ()   -- mvar to sync file system ops and the watch
     -> [(String, Event -> Bool)] -- expected events
     -> IO ()
-type EventWatcher = NonEmpty (Array Word8) -> Stream.Stream IO Event.Event
+type EventWatcher = NonEmpty Path -> Stream.Stream IO Event.Event
 
 eventMatches :: Event -> (String, Event -> Bool) -> Bool
 eventMatches ev (expectedPath, f) =
@@ -107,14 +103,7 @@ eventMatches ev (expectedPath, f) =
 
     where
 
-    utf8ToString :: Array Word8 -> String
-    utf8ToString =
-        runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.read
-
-    evPath = utf8ToString (Event.getAbsPath ev)
-
-toUtf8 :: MonadIO m => String -> m (Array Word8)
-toUtf8 = Array.fromStream . Unicode.encodeUtf8' . Stream.fromList
+    evPath = Path.toString (Event.getAbsPath ev)
 
 checkEvents :: EventWatcher -> EventChecker
 checkEvents watcher rootPath targetPath mvar matchList = do
@@ -124,7 +113,7 @@ checkEvents watcher rootPath targetPath mvar matchList = do
     let matchList1 = fmap (first (targetPath </>)) matchList
         finder xs ev = filter (not . eventMatches ev) xs
 
-    paths <- mapM toUtf8 [rootPath]
+    paths <- mapM Path.fromString [rootPath]
     watcher (NonEmpty.fromList paths)
         & Stream.before (putMVar mvar ())
         & Stream.trace (putStrLn . Event.showEvent)

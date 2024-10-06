@@ -49,9 +49,8 @@ module Streamly.Internal.FileSystem.Event
 where
 
 import Data.List.NonEmpty (NonEmpty)
-import Data.Word (Word8)
-import Streamly.Data.Array (Array)
 import Streamly.Data.Stream (Stream)
+import Streamly.FileSystem.Path (Path)
 
 #if defined(CABAL_OS_DARWIN)
 import Streamly.Internal.FileSystem.Event.Darwin (Event)
@@ -118,7 +117,7 @@ import qualified Streamly.Internal.FileSystem.Event.Windows as Event
 --
 -- /Pre-release/
 --
-watch :: NonEmpty (Array Word8) -> Stream IO Event
+watch :: NonEmpty Path -> Stream IO Event
 #if defined(CABAL_OS_DARWIN)
 watch = Event.watchRecursive
 #else
@@ -132,7 +131,7 @@ watch = Event.watch
 --
 -- /Pre-release/
 --
-_watchRecursive :: NonEmpty (Array Word8) -> Stream IO Event
+_watchRecursive :: NonEmpty Path -> Stream IO Event
 _watchRecursive = Event.watchRecursive
 
 -------------------------------------------------------------------------------
@@ -162,7 +161,7 @@ _watchRecursive = Event.watchRecursive
 --
 -- /Pre-release/
 --
-getAbsPath :: Event -> Array Word8
+getAbsPath :: Event -> Path
 getAbsPath = Event.getAbsPath
 
 -- | Determine whether the event indicates creation of an object within the
