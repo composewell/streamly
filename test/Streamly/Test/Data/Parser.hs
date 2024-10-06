@@ -26,6 +26,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Stream as SI
 import qualified Test.Hspec as H
 
 import Test.Hspec
@@ -1300,6 +1301,62 @@ quotedWordTest inp expected = do
             trEsc _ _ = Nothing
          in P.wordWithQuotes False trEsc '\\' toRQuote isSpace FL.toList
 
+data JumpState
+    = Forward Int
+    | Backward Int
+    | ErrorOut String
+    deriving (Show)
+
+data ParseError1 = ParseError1 Int String
+
+jumpParser :: Monad m => String -> [JumpState] -> P.Parser Int m [Int]
+jumpParser streamIncompleteErr jumps = P.Parser step initial done
+    where
+    initial = pure $ P.IPartial (jumps, [])
+
+    step ((Forward 0):xs, buf) _ = pure $ P.Continue 1 (xs, buf)
+    step ((Forward n):xs, buf) a =
+        pure $ P.Continue 0 (Forward (n - 1) : xs, a:buf)
+    step ((Backward n):xs, buf) _ = pure $ P.Continue (n + 1) (xs, drop n buf)
+    step ((ErrorOut err):_, _) _ = pure $ P.Error err
+    step ([], buf) _ = pure $ P.Done 1 buf
+
+    done ([], buf) = pure $ P.Done 0 buf
+    done _ = pure $ P.Error streamIncompleteErr
+
+parseBreakErrorIndexTests :: SpecWith ()
+parseBreakErrorIndexTests =
+    describe "Absolute Error Index for parseBreak" $ do
+        tester [Forward 101]
+        tester [Forward 80, Backward 50, ErrorOut "Message1"]
+        tester [Forward 20, Backward 10, Forward 10, ErrorOut "Message2"]
+        tester [Forward 90, Backward 10, Backward 10, ErrorOut "Message3"]
+        tester [Forward 90, Backward 40, Forward 20]
+
+    where
+
+    inp = [1..100]
+    lenInp = length inp
+    iErr = "Incomplete"
+    mkP = jumpParser iErr
+
+    removeIndexFromResult (Left (ParseError1 _ val), b) =
+        (Left (ParseError val), b)
+    removeIndexFromResult (Right x, b) = (Right x, b)
+
+    expectedResult i [] | i > lenInp = (Left (ParseError1 lenInp iErr), inp)
+    expectedResult i (Forward j : xs) = expectedResult (i + j) xs
+    expectedResult i (Backward j : xs) = expectedResult (i - j) xs
+    expectedResult i (ErrorOut val : _) =
+        (Left (ParseError1 (i + 1) val), inp)
+    expectedResult i [] =
+        (Right (reverse (Prelude.take i inp)), Prelude.drop i inp)
+
+    tester jumps = it (show jumps) $ do
+        (val, rest) <- SI.parseBreak (mkP jumps) $ S.fromList inp
+        lst <- S.toList rest
+        (val, lst) `shouldBe` removeIndexFromResult (expectedResult 0 jumps)
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1313,7 +1370,7 @@ main =
   H.parallel $
   modifyMaxSuccess (const maxTestCount) $ do
   describe moduleName $ do
-
+    parseBreakErrorIndexTests
     describe "Instances" $ do
         prop "applicative" applicative
         prop "Alternative: end of input 1" altEOF1
