@@ -455,7 +455,7 @@ data Fold m a b =
 -- /Pre-release/
 --
 newtype ParseError = ParseError String
-    deriving Show
+    deriving (Eq, Show)
 
 instance Exception ParseError where
     displayException (ParseError err) = err
