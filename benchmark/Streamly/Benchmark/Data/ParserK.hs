@@ -374,7 +374,7 @@ moduleName = MODULE_NAME
 
 instance NFData ParseError where
     {-# INLINE rnf #-}
-    rnf (ParseError x) = rnf x
+    rnf (ParseError i x) = rnf i `seq` rnf x
 
 o_1_space_serial :: Int -> [Benchmark]
 o_1_space_serial value =

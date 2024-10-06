@@ -331,8 +331,6 @@ TODO:
 Add sanity tests for
 - Producer.parse
 - Producer.parseMany
-- Stream.parseMany
-- Stream.parseIterate
 -}
 
 sanityParseBreak :: [Move] -> SpecWith ()

@@ -129,7 +129,7 @@ For example, to parse a sequence of digits:
 >>> Stream.parse decimal $ Stream.fromList "1234 is the number"
 Right "1234"
 >>> Stream.parse decimal $ Stream.fromList "this is the number"
-Left (ParseError "takeWhile1: predicate failed on first element")
+Left (ParseError 1 "takeWhile1: predicate failed on first element")
 ```
 
 On failure we can return a default value:
@@ -143,7 +143,7 @@ See "Streamly.Data.Parser" module.
 
 ## Arrays
 
-<!-- TODO Add pinning and unpinning examples 
+<!-- TODO Add pinning and unpinning examples
 See the
 [streamly-bytestring](https://github.com/psibi/streamly-bytestring)
 repository.
@@ -336,7 +336,7 @@ See `Streamly.Data.Fold.Prelude` module.
 ## Console IO
 
 The `Streamly.Console.Stdio` module provides facilities to read a stream
-from stdin and to write a stream to stdout and stderr.  
+from stdin and to write a stream to stdout and stderr.
 
 Implementation of a console echo program:
 

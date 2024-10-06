@@ -521,11 +521,12 @@ data Parser a m b =
 --
 -- /Pre-release/
 --
-newtype ParseError = ParseError String
+data ParseError = ParseError Int String
     deriving (Eq, Show)
 
 instance Exception ParseError where
-    displayException (ParseError err) = err
+    -- XXX Append the index in the error message here?
+    displayException (ParseError _ err) = err
 
 -- | Map a function on the result i.e. on @b@ in @Parser a m b@.
 instance Functor m => Functor (Parser a m) where
