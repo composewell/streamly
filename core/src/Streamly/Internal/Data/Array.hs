@@ -966,7 +966,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
                 let n = Prelude.length backBuf
                     arr0 = fromListN n (Prelude.reverse backBuf)
                     arr1 = Array contents cur end
-                    str = StreamK.cons arr0 (StreamK.cons arr1 stream)
+                    str = StreamK.cons arr0 (StreamK.cons arr1 st)
                 return (Left (ParseError err), str)
 
     -- This is a simplified goArray
@@ -1000,7 +1000,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
                 return (Right b, StreamK.fromPure arr)
             Parser.Done n b -> do
                 assert (n <= Prelude.length backBuf) (return ())
-                let src0 = Prelude.take n backBuf
+                let src0 = Prelude.take n (x:backBuf)
                     -- XXX Use fromListRevN once implemented
                     -- arr0 = A.fromListRevN n src0
                     arr0 = fromListN n (Prelude.reverse src0)

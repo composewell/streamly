@@ -1259,7 +1259,7 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
             PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0
+                    src  = Prelude.reverse src0 ++ xs
                 return (Right b, append (fromList src) st)
             PR.Error err -> do
                 let src = Prelude.reverse buf ++ x:xs
