@@ -1349,7 +1349,7 @@ tapeLen = length tape
 expectedResult :: [Move] -> (Either ParseError [Int], [Int])
 expectedResult moves = go 1 1 [] moves
     where
-    go i _ ys [] = (Right ys, [i..tapeLen])
+    go i j ys [] = (Right ys, [(max i j)..tapeLen])
     go i j ys ((Consume n):xs)
         | i + n - 1 > tapeLen = (Left (ParseError "INCOMPLETE"), tape)
         | otherwise = go (i + n) j (ys ++ [i..(i + n - 1)]) xs
