@@ -1011,7 +1011,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
                 let n = Prelude.length backBuf
                     arr0 = fromListN n (Prelude.reverse backBuf)
                     arr1 = Array contents cur end
-                    str = StreamK.cons arr0 (StreamK.cons arr1 stream)
+                    str = StreamK.cons arr0 (StreamK.fromPure arr1)
                 return (Left (ParseError err), str)
 
     -- This is a simplified goExtract
