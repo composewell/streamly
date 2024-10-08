@@ -86,7 +86,7 @@ import Streamly.Internal.FileSystem.Event (Event)
 import qualified Streamly.Internal.FileSystem.Event as Event
 #endif
 
-import Test.Hspec
+-- import Test.Hspec
 
 -------------------------------------------------------------------------------
 -- Check generated events
@@ -153,9 +153,12 @@ data WatchRootType =
                           -- Event contains path via the original symlink
     deriving Show
 
-driver :: EventChecker -> WatchRootType -> TestDesc -> SpecWith ()
-driver checker symlinkStyle (desc, pre, ops, expected) =
-    it desc $ runOneTest `shouldReturn` ()
+-- driver :: EventChecker -> WatchRootType -> TestDesc -> SpecWith ()
+driver :: EventChecker -> WatchRootType -> TestDesc -> IO ()
+driver checker symlinkStyle (desc, pre, ops, expected) = do
+    -- it desc $ runOneTest `shouldReturn` ()
+    putStrLn $ "Running: " ++ desc
+    runOneTest
 
     where
 
@@ -438,7 +441,11 @@ runTests ::
     -> [TestDesc]
     -> IO ()
 runTests modName watchType watcher rootType tests = do
+    putStrLn $ "Running tests, module: " ++ modName
+        ++ " watchType: " ++ watchType
     hSetBuffering stdout NoBuffering
+    let checker = checkEvents watcher
+    {-
     hspec
         $ describe modName
         $ describe watchType
@@ -446,3 +453,5 @@ runTests modName watchType watcher rootType tests = do
             let checker = checkEvents watcher
             describe ("Root type " ++ show rootType)
                     $ mapM_ (driver checker rootType) tests
+    -}
+    mapM_ (driver checker rootType) tests
