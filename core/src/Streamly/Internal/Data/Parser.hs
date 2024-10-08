@@ -1766,17 +1766,15 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
                 FL.Done b -> Done 0 b
 
     {-# INLINE checkRightQuoteAndProcess #-}
-    checkRightQuoteAndProcess s a n ql qr =
-        if a == qr
-        then
+    checkRightQuoteAndProcess s a n ql qr
+        | a == qr =
            if n == 1
            then if keepQuotes
                 then processUnquoted s a
                 else return $ Continue 0 $ WordUnquotedWord s
            else processQuoted s a (n - 1) ql qr
-        else if a == ql
-             then processQuoted s a (n + 1) ql qr
-             else processQuoted s a n ql qr
+        | a == ql = processQuoted s a (n + 1) ql qr
+        | otherwise = processQuoted s a n ql qr
 
     step (WordQuotedSkipPre s) a
         | isEsc a = return $ Continue 0 $ WordUnquotedEsc s
