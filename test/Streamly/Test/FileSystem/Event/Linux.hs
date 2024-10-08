@@ -10,6 +10,7 @@
 --
 module Streamly.Test.FileSystem.Event.Linux (main) where
 
+import Control.Monad (replicateM)
 import Streamly.Internal.FileSystem.Event.Linux (Event)
 -- #if __GLASGOW_HASKELL__ == 902
 #if 1
@@ -83,6 +84,8 @@ fileMoveEvents src dst =
 
 main :: IO ()
 main = do
+    _ <- replicateM 100 $ runDiagnostics [fileCreate "file" fileTouchEvents]
+
     -- We ignore the events on root/parent dir during regular non-root dir/file
     -- tests.
 
