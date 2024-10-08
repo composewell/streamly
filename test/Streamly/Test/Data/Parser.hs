@@ -1436,6 +1436,13 @@ parserSanityTests desc testRunner =
                 , Custom (P.Continue 10 ())
                 , Custom (P.Done 5 ())
                 ]
+        Prelude.mapM_ testRunner $
+            createPaths
+                [ Consume tapeLen
+                , Custom (P.Continue 0 ())
+                , Custom (P.Continue 10 ())
+                , Custom (P.Error "Message3")
+                ]
 
 {-
 TODO:
