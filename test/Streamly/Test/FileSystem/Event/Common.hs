@@ -12,6 +12,7 @@ module Streamly.Test.FileSystem.Event.Common
     ( TestDesc
 
     -- * Running tests
+    , runDiagnostics
     , runTests
     , WatchRootType (..)
 
@@ -457,3 +458,69 @@ runTests modName watchType watcher rootType tests = do
                     $ mapM_ (driver checker rootType) tests
     -}
     mapM_ (driver checker rootType) tests
+
+diagDriver :: EventChecker -> TestDesc -> IO ()
+diagDriver checker (desc, pre, ops, expected) = do
+    putStrLn $ "Running diag: " ++ desc
+    sync <- newEmptyMVar
+    withSystemTempDirectory "fsevent_dir_diag" $ \fp -> do
+        let root = fp </> "watch-root-diag"
+        createDirectory root
+
+        -- XXX On macOS we seem to get the watch root create events
+        -- even though they occur before the watch is started.  Even if
+        -- we add a delay here.
+        startWatchAndCheck root sync
+
+    where
+
+    startWatchAndCheck root sync = do
+            putStrLn ("Before pre op: root [" <> root <> "]")
+            pre root
+            putStrLn ("After pre op: root [" <> root <> "]")
+            let check = checker root root sync expected
+                fsOps = Stream.fromEffect $ runFSOps root sync
+            Stream.drain
+                $ Stream.parListEagerFst [Stream.fromEffect check, fsOps]
+
+    runFSOps root sync = do
+        -- We put the MVar before the event watcher starts to run but that does
+        -- not ensure that the event watcher has actually started. So we need a
+        -- delay as well. Do we?
+        takeMVar sync >> threadDelay 200000
+        putStrLn ("Before fs ops: root [" <> root <> "]")
+        ops root
+        putStrLn ("After fs ops: root [" <> root <> "]")
+        threadDelay 10000000
+        error $ root <> ": Time out occurred before event watcher could terminate"
+
+checkDiag :: EventChecker
+checkDiag rootPath targetPath mvar matchList = do
+    putStrLn ("Watching on root [" <> rootPath
+             <> "] for [" <> targetPath <> "]")
+
+    let matchList1 = fmap (first (targetPath </>)) matchList
+        finder xs ev = filter (not . eventMatches ev) xs
+
+    paths <- mapM toUtf8 [rootPath]
+#if defined(FILESYSTEM_EVENT_LINUX)
+    Event.watchWith (Event.setAllEvents True)
+#elif defined(FILESYSTEM_EVENT_DARWIN)
+    Event.watchWith (Event.setAllEvents True)
+#elif defined(FILESYSTEM_EVENT_WINDOWS)
+    Event.watchWith (Event.setAllEvents True)
+#else
+    Event.watch
+#endif
+          (NonEmpty.fromList paths)
+        & Stream.before (putMVar mvar ())
+        & Stream.trace (putStrLn . Event.showEvent)
+        & Stream.scanl' finder matchList1
+        & Stream.takeWhile (not . null)
+        & Stream.drain
+
+runDiagnostics :: [TestDesc] -> IO ()
+runDiagnostics tests = do
+    putStrLn $ "Running diag tests"
+    hSetBuffering stdout NoBuffering
+    mapM_ (diagDriver checkDiag) tests
