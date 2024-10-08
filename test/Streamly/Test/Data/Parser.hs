@@ -1322,7 +1322,7 @@ jumpParser jumps = P.Parser step initial done
             Consume n
                 | n == 1 -> pure $ P.Continue 0 (xs, a:buf)
                 | n > 0 -> pure $ P.Continue 0 (Consume (n - 1) : xs, a:buf)
-                | otherwise -> error "Cannot consume < 0"
+                | otherwise -> error "Cannot consume <= 0"
             Custom (P.Partial i ()) -> pure $ P.Partial i (xs, buf)
             Custom (P.Continue i ()) -> pure $ P.Continue i (xs, buf)
             Custom (P.Done i ()) -> pure $ P.Done i (reverse buf)
@@ -1346,25 +1346,37 @@ tape = concat chunkedTape
 tapeLen :: Int
 tapeLen = length tape
 
-expectedResult :: [Move] -> (Either ParseError [Int], [Int])
-expectedResult moves = go 1 1 [] moves
+expectedResult :: [Move] -> [Int] -> (Either ParseError [Int], [Int])
+expectedResult moves inp = go 0 0 [] moves
     where
-    go i j ys [] = (Right ys, [(max i j)..tapeLen])
+    inpLen = length inp
+
+    slice off len = Prelude.take len . Prelude.drop off
+    slice_ off = Prelude.drop off
+
+    -- i = Index of inp head
+    -- j = Minimum index of inp head
+    go i j ys [] = (Right ys, slice_ (max i j) inp)
     go i j ys ((Consume n):xs)
-        | i + n - 1 > tapeLen = (Left (ParseError "INCOMPLETE"), tape)
-        | otherwise = go (i + n) j (ys ++ [i..(i + n - 1)]) xs
-    go i j ys ((Custom (P.Partial n ())):xs)
-        | i > tapeLen = go (i - n) (max j (i - n)) ys xs
-        | otherwise = go (i + 1 - n) (max j (i + 1 - n)) ys xs
-    go i j ys ((Custom (P.Continue n ())):xs)
-        | i > tapeLen = go (i - n) j ys xs
-        | otherwise = go (i + 1 - n) j ys xs
-    go i j ys ((Custom (P.Done n ())):xs)
-        | i > tapeLen = go (i - n) j ys xs
-        | otherwise = (Right ys, [(i + 1 - n)..tapeLen])
-    go i j _ ((Custom (P.Error err)):_)
-        | i > tapeLen = (Left (ParseError err), [j..tapeLen])
-        | otherwise = (Left (ParseError err), [j..tapeLen])
+        | i + n > inpLen = (Left (ParseError "INCOMPLETE"), drop j inp)
+        | otherwise =
+            go (i + n) j (ys ++ slice i n inp) xs
+    go i j ys ((Custom step):xs)
+        | i > inpLen = error "i > inpLen"
+        | i == inpLen =
+              -- Where there is no input we do not move forward by default.
+              -- Hence it is (i - n) and not (i + 1 - n)
+              case step of
+                  P.Partial n () -> go (i - n) (max j (i - n)) ys xs
+                  P.Continue n () -> go (i - n) j ys xs
+                  P.Done n () -> (Right ys, slice_ (max (i - n) j) inp)
+                  P.Error err -> (Left (ParseError err), slice_ j inp)
+        | otherwise =
+              case step of
+                  P.Partial n () -> go (i + 1 - n) (max j (i + 1 - n)) ys xs
+                  P.Continue n () -> go (i + 1 - n) j ys xs
+                  P.Done n () -> (Right ys, slice_ (max (i - n + 1) j) inp)
+                  P.Error err -> (Left (ParseError err), slice_ j inp)
 
 createPaths :: [a] -> [[a]]
 createPaths xs =
@@ -1457,13 +1469,13 @@ sanityParseBreak :: [Move] -> SpecWith ()
 sanityParseBreak jumps = it (show jumps) $ do
     (val, rest) <- SI.parseBreak (jumpParser jumps) $ S.fromList tape
     lst <- S.toList rest
-    (val, lst) `shouldBe` (expectedResult jumps)
+    (val, lst) `shouldBe` (expectedResult jumps tape)
 
 sanityParseDBreak :: [Move] -> SpecWith ()
 sanityParseDBreak jumps = it (show jumps) $ do
     (val, rest) <- K.parseDBreak (jumpParser jumps) $ K.fromList tape
     lst <- K.toList rest
-    (val, lst) `shouldBe` (expectedResult jumps)
+    (val, lst) `shouldBe` (expectedResult jumps tape)
 
 sanityParseBreakChunksK :: [Move] -> SpecWith ()
 sanityParseBreakChunksK jumps = it (show jumps) $ do
@@ -1471,7 +1483,7 @@ sanityParseBreakChunksK jumps = it (show jumps) $ do
         A.parseBreakChunksK (jumpParser jumps)
             $ K.fromList $ Prelude.map A.fromList chunkedTape
     lst <- Prelude.map A.toList <$> K.toList rest
-    (val, concat lst) `shouldBe` (expectedResult jumps)
+    (val, concat lst) `shouldBe` (expectedResult jumps tape)
 
 -------------------------------------------------------------------------------
 -- Main
