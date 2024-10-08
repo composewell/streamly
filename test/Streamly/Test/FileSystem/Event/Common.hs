@@ -312,6 +312,24 @@ rootDirMove suffix events =
 -- File tests
 -------------------------------------------------------------------------------
 
+createFile :: FilePath -> FilePath -> IO ()
+createFile file parent = do
+    let filepath = parent </> file
+    let dir = takeDirectory filepath
+    r <- doesDirectoryExist dir
+    if r
+    then do
+        putStrLn $ "createFile: directory exists: " ++ dir
+        when (not (null file)) $ do
+            exists <- doesFileExist filepath
+            if not exists
+            then do
+                putStrLn $ "createFile: Creating file: " ++ (parent </> file)
+                openFile (parent </> file) WriteMode >>= hClose
+                putStrLn $ "createFile: Created file: " ++ (parent </> file)
+            else error $ "createFile: File exists: " ++ filepath
+    else error $ "createFile: directory does not exist: " ++ dir
+
 createFileWithParent :: FilePath -> FilePath -> IO ()
 createFileWithParent file parent = do
     let filepath = parent </> file
@@ -320,23 +338,7 @@ createFileWithParent file parent = do
         ++ file ++ "] dir [" ++ dir ++ "]"
     putStrLn $ "Ensuring dir: " ++ dir
     createDirectoryIfMissing True dir
-    r <- doesDirectoryExist dir
-    if r
-    then do
-        putStrLn $ "Ensured dir: " ++ dir
-        when (not (null file)) $ do
-            exists <- doesFileExist filepath
-            if not exists
-            then do
-                putStrLn $ "Creating file: " ++ (parent </> file)
-                openFile (parent </> file) WriteMode >>= hClose
-                putStrLn $ "Created file: " ++ (parent </> file)
-            else error $ "File exists: " ++ filepath
-    else error $ "Could not create dir: " ++ dir
-
-createFile :: FilePath -> FilePath -> IO ()
-createFile file parent =
-    openFile (parent </> file) WriteMode >>= hClose
+    createFile file parent
 
 fileCreate :: String -> (String -> [(String, Event -> Bool)]) -> TestDesc
 fileCreate file1 events =
