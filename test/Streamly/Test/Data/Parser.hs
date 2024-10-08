@@ -1378,6 +1378,15 @@ expectedResult moves inp = go 0 0 [] moves
                   P.Done n () -> (Right ys, slice_ (max (i - n + 1) j) inp)
                   P.Error err -> (Left (ParseError err), slice_ j inp)
 
+expectedResultMany :: [Move] -> [Int] -> [Either ParseError [Int]]
+expectedResultMany _ [] = []
+expectedResultMany moves inp =
+    let (res, rest) = expectedResult moves inp
+     in
+       case res of
+           Left err -> [Left err]
+           Right val -> Right val : expectedResultMany moves rest
+
 createPaths :: [a] -> [[a]]
 createPaths xs =
     Prelude.map (flip Prelude.take xs) [1..length xs]
@@ -1485,6 +1494,18 @@ sanityParseBreakChunksK jumps = it (show jumps) $ do
     lst <- Prelude.map A.toList <$> K.toList rest
     (val, concat lst) `shouldBe` (expectedResult jumps tape)
 
+sanityParseMany :: [Move] -> SpecWith ()
+sanityParseMany jumps = it (show jumps) $ do
+    res <- S.toList $ SI.parseMany (jumpParser jumps) $ S.fromList tape
+    res `shouldBe` (expectedResultMany jumps tape)
+
+sanityParseIterate :: [Move] -> SpecWith ()
+sanityParseIterate jumps = it (show jumps) $ do
+    res <-
+        S.toList
+             $ SI.parseIterate (const (jumpParser jumps)) [] $ S.fromList tape
+    res `shouldBe` (expectedResultMany jumps tape)
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1501,6 +1522,8 @@ main =
     parserSanityTests "Stream.parseBreak" sanityParseBreak
     parserSanityTests "StreamK.parseDBreak" sanityParseDBreak
     parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
+    parserSanityTests "Stream.parseMany" sanityParseMany
+    parserSanityTests "Stream.parseIterate" sanityParseIterate
     describe "Instances" $ do
         prop "applicative" applicative
         prop "Alternative: end of input 1" altEOF1
