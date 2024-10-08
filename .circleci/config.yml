@@ -187,6 +187,22 @@ jobs:
               sed -i 's/other-modules:/exposed-modules:/g' core/streamly-core.cabal
               bash -c "$PACKCHECK cabal"
         - *save
+  cabal-ghc-9_2_8:
+      <<: *env
+      executor: amd64-executor
+      steps:
+        - checkout
+        - *restore
+        - *preinstall
+        - run:
+            environment:
+              GHCVER: "9.2.8"
+              CABALVER: "3.6.2.0"
+              CABAL_PROJECT: "cabal.project"
+              DISABLE_SDIST_BUILD: "y"
+            command: |
+              bash -c "$PACKCHECK cabal"
+        - *save
   hlint-trailing-spaces:
       <<: *env
       executor: amd64-executor
@@ -214,6 +230,8 @@ workflows:
     jobs:
       #- cabal-ghc-8_6_5:
       #    name: 8.6.5-debug-unoptimized
+      - cabal-ghc-9_2_8:
+          name: ghc-9.2.8
       - cabal-ghc-9_8_1-docspec:
           name: ghc-9.8.1-docspec
       - hlint-trailing-spaces:
