@@ -754,7 +754,7 @@ readOutputQRaw q stats = do
         Nothing -> return ()
     return (list, len)
 
--- | Ring door bell. The IORef is read after adding a store-load barrier. If
+-- | RingArray door bell. The IORef is read after adding a store-load barrier. If
 -- the IORef was set to 'True' it is atomically reset to 'False'.
 {-# INLINE ringDoorBell #-}
 ringDoorBell ::

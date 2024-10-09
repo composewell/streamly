@@ -193,7 +193,7 @@ import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Ring (Ring(..))
+import Streamly.Internal.Data.RingArray (RingArray(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -203,7 +203,7 @@ import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
-import qualified Streamly.Internal.Data.Ring as RB
+import qualified Streamly.Internal.Data.RingArray as RB
 import qualified Streamly.Internal.Data.Stream.Generate as Stream
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 
@@ -2639,7 +2639,7 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                 if withSep
                 then return Stop
                 else do
-                    let rb = Ring
+                    let rb = RingArray
                             { ringContents = mba
                             , ringSize = offset
                             , ringHead = 0
@@ -2648,7 +2648,7 @@ takeEndBySeqWith withSep patArr (Stream step state) =
 
     stepOuter gst (TakeEndBySeqKRLoop st mba rh cksum) = do
         res <- step (adaptState gst) st
-        let rb = Ring
+        let rb = RingArray
                 { ringContents = mba
                 , ringSize = patBytes
                 , ringHead = rh
@@ -2672,7 +2672,7 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                 else skip $ TakeEndBySeqKRDone patBytes rb
 
     stepOuter _ (TakeEndBySeqKRCheck st mba rh) = do
-        let rb = Ring
+        let rb = RingArray
                     { ringContents = mba
                     , ringSize = patBytes
                     , ringHead = rh
@@ -3017,7 +3017,7 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                 else skip $ SplitOnSeqKRInit (offset + SIZE_OF(a)) fs s mba
             Skip s -> skip $ SplitOnSeqKRInit offset fs s mba
             Stop -> do
-                let rb = Ring
+                let rb = RingArray
                         { ringContents = mba
                         , ringSize = offset
                         , ringHead = 0
@@ -3035,7 +3035,7 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
 
         go !_ !fs !st !rh !cksum = do
             res <- step (adaptState gst) st
-            let rb = Ring
+            let rb = RingArray
                     { ringContents = mba
                     , ringSize = patBytes
                     , ringHead = rh
@@ -3087,7 +3087,7 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
     -}
 
     stepOuter _ (SplitOnSeqKRCheck fs st mba rh) = do
-        let rb = Ring
+        let rb = RingArray
                     { ringContents = mba
                     , ringSize = patBytes
                     , ringHead = rh
@@ -3437,7 +3437,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
                     else do
-                        let rb = Ring
+                        let rb = RingArray
                                 { ringContents = mba
                                 , ringSize = offset
                                 , ringHead = 0
@@ -3451,7 +3451,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
 
         go !_ !fs !st !rh !cksum = do
             res <- step (adaptState gst) st
-            let rb = Ring
+            let rb = RingArray
                     { ringContents = mba
                     , ringSize = patBytes
                     , ringHead = rh
@@ -3479,7 +3479,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                     else skip $ SplitOnSuffixSeqKRDone patBytes fs rb
 
     stepOuter _ (SplitOnSuffixSeqKRCheck fs st mba rh) = do
-        let rb = Ring
+        let rb = RingArray
                     { ringContents = mba
                     , ringSize = patBytes
                     , ringHead = rh

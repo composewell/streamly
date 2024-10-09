@@ -135,7 +135,7 @@ import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Serialize.Type as Serialize
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.MutArray as MA
-import qualified Streamly.Internal.Data.Ring as RB
+import qualified Streamly.Internal.Data.RingArray as RB
 import qualified Streamly.Internal.Data.Parser as Parser
 -- import qualified Streamly.Internal.Data.ParserK as ParserK
 import qualified Streamly.Internal.Data.Stream as D

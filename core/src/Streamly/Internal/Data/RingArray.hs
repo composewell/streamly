@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Ring
+-- Module      : Streamly.Internal.Data.RingArray
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -12,8 +12,8 @@
 
 -- XXX Write benchmarks
 
-module Streamly.Internal.Data.Ring
-    ( Ring (..)
+module Streamly.Internal.Data.RingArray
+    ( RingArray (..)
 
     -- * Debugging
     , showRing
@@ -124,7 +124,7 @@ import Prelude hiding (length, concat, read)
 -- >>> :m
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
 -- >>> import qualified Streamly.Internal.Data.MutArray as MutArray
--- >>> import qualified Streamly.Internal.Data.Ring as Ring
+-- >>> import qualified Streamly.Internal.Data.RingArray as RingArray
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 -- XXX Need a feature in GHC to disable positional constructors for record
@@ -139,8 +139,8 @@ import Prelude hiding (length, concat, read)
 --
 -- Performance notes: Replacing the oldest item with the newest is a very
 -- common operation, during this operation the only thing that changes is the
--- ring head. Updating the Ring constructor because of that could be expensive,
--- therefore, either the Ring constructor should be eliminated via fusion or we
+-- ring head. Updating the RingArray constructor because of that could be expensive,
+-- therefore, either the RingArray constructor should be eliminated via fusion or we
 -- should unbox it manually where needed to allow for only the head to change.
 
 -- | A ring buffer is a circular buffer. A new element is inserted at a
@@ -148,7 +148,7 @@ import Prelude hiding (length, concat, read)
 -- ring, an insert overwrites the oldest element. After inserting, the head is
 -- moved to point to the next element which is now the oldest element.
 --
--- Elements in the ring are indexed relative to the head. Ring head is
+-- Elements in the ring are indexed relative to the head. RingArray head is
 -- designated as the index 0 of the ring buffer, it points to the oldest or the
 -- first element in the buffer. Higher positive indices point to the newer
 -- elements in the buffer. Index @-1@ points to the newest or the last element
@@ -160,7 +160,7 @@ import Prelude hiding (length, concat, read)
 -- This module provides an unboxed implementation of ring buffers for best
 -- performance.
 --
-data Ring a = Ring
+data RingArray a = RingArray
     { ringContents :: {-# UNPACK #-} !MutByteArray
     , ringSize :: {-# UNPACK #-} !Int -- size of array in bytes
     , ringHead :: {-# UNPACK #-} !Int -- byte index in the array
@@ -173,7 +173,7 @@ data Ring a = Ring
 -- | Given byte offset relative to the ring head, compute the linear byte
 -- offset in the array. Offset can be positive or negative. Invariants:
 --
--- * Ring size cannot be zero, this won't work correctly if so.
+-- * RingArray size cannot be zero, this won't work correctly if so.
 -- * Absolute value of offset must be less than or equal to the ring size.
 -- * Offset must be integer multiple of element size.
 {-# INLINE unsafeChangeHeadByOffset #-}
@@ -204,7 +204,7 @@ changeHeadByOffset rh rs i =
 -- Throws an error if the absolute value of count is more than or euqal to the
 -- ring size.
 {-# INLINE moveBy #-}
-moveBy :: forall a. Unbox a => Int -> Ring a -> Ring a
+moveBy :: forall a. Unbox a => Int -> RingArray a -> RingArray a
 moveBy n rb =
     let i = changeHeadByOffset (ringHead rb) (ringSize rb) (n * SIZE_OF(a))
      in rb {ringHead = i}
@@ -224,11 +224,11 @@ incrHeadByOffset rh rs n =
 -- the next (newer) item, and the old ring head position will become the latest
 -- or the newest item position.
 --
--- >>> moveForward = Ring.moveBy 1
+-- >>> moveForward = RingArray.moveBy 1
 --
 {-# INLINE moveForward #-}
-moveForward :: forall a. Unbox a => Ring a -> Ring a
-moveForward rb@Ring{..} =
+moveForward :: forall a. Unbox a => RingArray a -> RingArray a
+moveForward rb@RingArray{..} =
     rb { ringHead = incrHeadByOffset ringHead ringSize (SIZE_OF(a)) }
 
 -- | the offset must be exactly the element size in bytes.
@@ -246,11 +246,11 @@ decrHeadByOffset rh rs n =
 -- the prev (older) item, when the ring head is at the oldest item it will move
 -- to the newest item.
 --
--- >>> moveForward = Ring.moveBy (-1)
+-- >>> moveForward = RingArray.moveBy (-1)
 --
 {-# INLINE moveReverse #-}
-moveReverse :: forall a. Unbox a => Ring a -> Ring a
-moveReverse rb@Ring{..} =
+moveReverse :: forall a. Unbox a => RingArray a -> RingArray a
+moveReverse rb@RingArray{..} =
     rb { ringHead = decrHeadByOffset ringHead ringSize (SIZE_OF(a)) }
 
 -------------------------------------------------------------------------------
@@ -260,9 +260,9 @@ moveReverse rb@Ring{..} =
 -- | The array must not be a slice, and the index must be within the bounds of
 -- the array otherwise unpredictable behavior will occur.
 {-# INLINE unsafeCastMutArrayWith #-}
-unsafeCastMutArrayWith :: forall a. Unbox a => Int -> MutArray a -> Ring a
+unsafeCastMutArrayWith :: forall a. Unbox a => Int -> MutArray a -> RingArray a
 unsafeCastMutArrayWith i arr =
-    Ring
+    RingArray
         { ringContents = arrContents arr
         , ringSize = arrEnd arr
         , ringHead = i * SIZE_OF(a)
@@ -271,10 +271,10 @@ unsafeCastMutArrayWith i arr =
 -- | Cast a MutArray to a ring sharing the same memory without copying. The
 -- ring head is at index 0 of the array. The array must not be a slice.
 --
--- >>> unsafeCastMutArray = Ring.unsafeCastMutArrayWith 0
+-- >>> unsafeCastMutArray = RingArray.unsafeCastMutArrayWith 0
 --
 {-# INLINE unsafeCastMutArray #-}
-unsafeCastMutArray :: forall a. Unbox a => MutArray a -> Ring a
+unsafeCastMutArray :: forall a. Unbox a => MutArray a -> RingArray a
 unsafeCastMutArray = unsafeCastMutArrayWith 0
 
 -- XXX To avoid the failure we can either copy the array or have a ringStart
@@ -293,7 +293,7 @@ unsafeCastMutArray = unsafeCastMutArrayWith 0
 -- use 'createOfLast' to create a ring.
 --
 {-# INLINE castMutArrayWith #-}
-castMutArrayWith :: forall a. Unbox a => Int -> MutArray a -> Maybe (Ring a)
+castMutArrayWith :: forall a. Unbox a => Int -> MutArray a -> Maybe (RingArray a)
 castMutArrayWith i arr
     | i < 0 || i >= MutArray.length arr
         = error "castMutArray: index must not be negative or >= array size"
@@ -305,10 +305,10 @@ castMutArrayWith i arr
 -- ring head is at index 0 of the array. Cast fails with Nothing if the array
 -- is a slice.
 --
--- >>> castMutArray = Ring.castMutArrayWith 0
+-- >>> castMutArray = RingArray.castMutArrayWith 0
 --
 {-# INLINE castMutArray #-}
-castMutArray :: forall a. Unbox a => MutArray a -> Maybe (Ring a)
+castMutArray :: forall a. Unbox a => MutArray a -> Maybe (RingArray a)
 castMutArray = castMutArrayWith 0
 
 -------------------------------------------------------------------------------
@@ -319,7 +319,7 @@ castMutArray = castMutArrayWith 0
 --
 -- /Unimplemented/
 modifyIndex :: -- forall m a b. (MonadIO m, Unbox a) =>
-    Int -> Ring a -> (a -> (a, b)) -> m b
+    Int -> RingArray a -> (a -> (a, b)) -> m b
 modifyIndex = undefined
 
 -- | /O(1)/ Write the given element at the given index relative to the current
@@ -330,7 +330,7 @@ modifyIndex = undefined
 -- Performs in-place mutation of the array.
 --
 {-# INLINE putIndex #-}
-putIndex :: forall m a. (MonadIO m, Unbox a) => Int -> Ring a -> a -> m ()
+putIndex :: forall m a. (MonadIO m, Unbox a) => Int -> RingArray a -> a -> m ()
 -- putIndex ix ring val = modifyIndex ix ring (const (val, ()))
 putIndex i ring x =
     -- Note: ring must be of non-zero size.
@@ -350,17 +350,17 @@ putIndex i ring x =
 -- /Unimplemented/
 {-# INLINE insert #-}
 insert :: -- (MonadIO m, Unbox a) =>
-    Ring a -> a -> m (Ring a)
+    RingArray a -> a -> m (RingArray a)
 insert = undefined
 
 -- | Like 'replace' but does not return the old value of overwritten element.
 --
 -- Same as:
 --
--- >>> replace_ rb x = Ring.putIndex 0 rb x >> pure (Ring.moveForward rb)
+-- >>> replace_ rb x = RingArray.putIndex 0 rb x >> pure (RingArray.moveForward rb)
 --
 {-# INLINE replace_ #-}
-replace_ :: forall m a. (MonadIO m, Unbox a) => Ring a -> a -> m (Ring a)
+replace_ :: forall m a. (MonadIO m, Unbox a) => RingArray a -> a -> m (RingArray a)
 replace_ rb newVal = do
     -- Note poke will corrupt memory if the ring size is 0.
     when (ringSize rb /= 0)
@@ -371,7 +371,7 @@ replace_ rb newVal = do
 --
 -- Unsafe because it does not check the bounds of the ring array.
 {-# INLINE unsafeGetRawIndex #-}
-unsafeGetRawIndex :: forall m a. (MonadIO m, Unbox a) => Int -> Ring a -> m a
+unsafeGetRawIndex :: forall m a. (MonadIO m, Unbox a) => Int -> RingArray a -> m a
 unsafeGetRawIndex i ring = liftIO $ peekAt i (ringContents ring)
 
 -- | Replace the oldest item in the ring (the item at the ring head) with a new
@@ -380,7 +380,7 @@ unsafeGetRawIndex i ring = liftIO $ peekAt i (ringContents ring)
 -- Throws an error if the ring is empty.
 --
 {-# INLINE replace #-}
-replace :: forall m a. (MonadIO m, Unbox a) => Ring a -> a -> m (Ring a, a)
+replace :: forall m a. (MonadIO m, Unbox a) => RingArray a -> a -> m (RingArray a, a)
 replace rb newVal = do
     -- Note: ring size cannot be zero.
     when (ringSize rb == 0) $
@@ -396,7 +396,7 @@ replace rb newVal = do
 -- | Like 'getIndex' but does not check the bounds. Unpredictable behavior
 -- occurs if the index is more than or equal to the ring size.
 {-# INLINE unsafeGetIndex #-}
-unsafeGetIndex :: forall m a. (MonadIO m, Unbox a) => Int -> Ring a -> m a
+unsafeGetIndex :: forall m a. (MonadIO m, Unbox a) => Int -> RingArray a -> m a
 unsafeGetIndex i ring =
     let rs = ringSize ring
         j = unsafeChangeHeadByOffset (ringHead ring) rs (i * SIZE_OF(a))
@@ -407,7 +407,7 @@ unsafeGetIndex i ring =
 -- index is more than or equal to the size of the ring.
 --
 {-# INLINE getIndex #-}
-getIndex :: forall m a. (MonadIO m, Unbox a) => Int -> Ring a -> m (Maybe a)
+getIndex :: forall m a. (MonadIO m, Unbox a) => Int -> RingArray a -> m (Maybe a)
 getIndex i ring =
     let rs = ringSize ring
      in if i < rs && i > -rs
@@ -420,7 +420,7 @@ getIndex i ring =
 -- index rollover check.
 --
 {-# INLINE unsafeGetHead #-}
-unsafeGetHead :: (MonadIO m, Unbox a) => Ring a -> m a
+unsafeGetHead :: (MonadIO m, Unbox a) => RingArray a -> m a
 unsafeGetHead ring = unsafeGetRawIndex (ringHead ring) ring
 
 -------------------------------------------------------------------------------
@@ -430,14 +430,14 @@ unsafeGetHead ring = unsafeGetRawIndex (ringHead ring) ring
 -- | /O(1)/ Get the byte length of the ring.
 --
 {-# INLINE byteLength #-}
-byteLength :: Ring a -> Int
+byteLength :: RingArray a -> Int
 byteLength = ringSize
 
 -- | /O(1)/ Get the length of the ring. i.e. the number of elements in the
 -- ring.
 --
 {-# INLINE length #-}
-length :: forall a. Unbox a => Ring a -> Int
+length :: forall a. Unbox a => RingArray a -> Int
 length rb = ringSize rb `div` SIZE_OF(a)
 
 -------------------------------------------------------------------------------
@@ -448,7 +448,7 @@ length rb = ringSize rb `div` SIZE_OF(a)
 -- newest.
 --
 {-# INLINE_NORMAL reader #-}
-reader :: forall m a. (MonadIO m, Unbox a) => Unfold m (Ring a) a
+reader :: forall m a. (MonadIO m, Unbox a) => Unfold m (RingArray a) a
 reader = Unfold step inject
 
     where
@@ -466,7 +466,7 @@ reader = Unfold step inject
 -- ring head i.e. from newest to oldest
 --
 {-# INLINE_NORMAL readerRev #-}
-readerRev :: forall m a. (MonadIO m, Unbox a) => Unfold m (Ring a) a
+readerRev :: forall m a. (MonadIO m, Unbox a) => Unfold m (RingArray a) a
 readerRev = Unfold step inject
 
     where
@@ -484,13 +484,13 @@ readerRev = Unfold step inject
 -- oldest to newest.
 --
 {-# INLINE_NORMAL read #-}
-read :: forall m a. (MonadIO m, Unbox a) => Ring a -> Stream m a
+read :: forall m a. (MonadIO m, Unbox a) => RingArray a -> Stream m a
 read = Stream.unfold reader
 
 -- | Read the entire ring as a stream, starting from newest to oldest elements.
 --
 {-# INLINE_NORMAL readRev #-}
-readRev :: forall m a. (MonadIO m, Unbox a) => Ring a -> Stream m a
+readRev :: forall m a. (MonadIO m, Unbox a) => RingArray a -> Stream m a
 readRev = Stream.unfold readerRev
 
 -------------------------------------------------------------------------------
@@ -507,7 +507,7 @@ readRev = Stream.unfold readerRev
 -- iteration of the stream.
 --
 {-# INLINE scanRingsOf #-}
-scanRingsOf :: forall m a. (MonadIO m, Unbox a) => Int -> Scanl m a (Ring a)
+scanRingsOf :: forall m a. (MonadIO m, Unbox a) => Int -> Scanl m a (RingArray a)
 scanRingsOf n = Scanl step initial extract extract
 
     where
@@ -522,7 +522,7 @@ scanRingsOf n = Scanl step initial extract extract
             return $ Partial $ Tuple3Fused' mba 0 0
 
     step (Tuple3Fused' mba rh offset) a = do
-        Ring _ _ rh1 <- replace_ (Ring mba rSize rh) a
+        RingArray _ _ rh1 <- replace_ (RingArray mba rSize rh) a
         let offset1 = offset + SIZE_OF(a)
         return $ Partial $ Tuple3Fused' mba rh1 offset1
 
@@ -532,19 +532,19 @@ scanRingsOf n = Scanl step initial extract extract
     extract (Tuple3Fused' mba rh offset) =
         let rs = min offset rSize
             rh1 = if offset <= rSize then 0 else rh
-         in pure $ Ring mba rs rh1
+         in pure $ RingArray mba rs rh1
 
 -- | @ringsOf n stream@ groups the input stream into a stream of ring arrays of
 -- size up to n. See 'scanRingsOf' for more details.
 --
 {-# INLINE_NORMAL ringsOf #-}
 ringsOf :: forall m a. (MonadIO m, Unbox a) =>
-    Int -> Stream m a -> Stream m (Ring a)
+    Int -> Stream m a -> Stream m (RingArray a)
 ringsOf n = Stream.postscanl (scanRingsOf n)
 
--- XXX to keep the order intact use Ring.read. If order is not important for
+-- XXX to keep the order intact use RingArray.read. If order is not important for
 -- the fold then we can use asMutArray which could be slightly faster.
--- f1 rb = Stream.fold f $ MutArray.read $ fst $ Ring.asMutArray rb
+-- f1 rb = Stream.fold f $ MutArray.read $ fst $ RingArray.asMutArray rb
 
 -- XXX the size and the array pointer are constant in the stream, only the head
 -- changes on each tick. So we can just emit the head in the loop and keep the
@@ -552,8 +552,8 @@ ringsOf n = Stream.postscanl (scanRingsOf n)
 
 {-# INLINE_NORMAL scanCustomFoldRingsBy #-}
 scanCustomFoldRingsBy :: forall m a b. (MonadIO m, Unbox a) =>
-    (Ring a -> m b) -> Int -> Scanl m a b
--- Custom Ring.fold performs better than the idiomatic implementations below,
+    (RingArray a -> m b) -> Int -> Scanl m a b
+-- Custom RingArray.fold performs better than the idiomatic implementations below,
 -- perhaps because of some GHC optimization effect.
 scanCustomFoldRingsBy f = Scanl.rmapM f . scanRingsOf
 
@@ -563,14 +563,14 @@ scanCustomFoldRingsBy f = Scanl.rmapM f . scanRingsOf
 --
 -- Examples:
 --
--- >>> windowRange = Ring.scanFoldRingsBy Fold.range
--- >>> windowMinimum = Ring.scanFoldRingsBy Fold.minimum
--- >>> windowMaximum = Ring.scanFoldRingsBy Fold.maximum
+-- >>> windowRange = RingArray.scanFoldRingsBy Fold.range
+-- >>> windowMinimum = RingArray.scanFoldRingsBy Fold.minimum
+-- >>> windowMaximum = RingArray.scanFoldRingsBy Fold.maximum
 --
 {-# INLINE scanFoldRingsBy #-}
 scanFoldRingsBy :: forall m a b. (MonadIO m, Unbox a) =>
     Fold m a b -> Int -> Scanl m a b
--- Custom Ring.fold performs better than the idiomatic implementations below,
+-- Custom RingArray.fold performs better than the idiomatic implementations below,
 -- perhaps because of some GHC optimization effect.
 scanFoldRingsBy f = scanCustomFoldRingsBy (fold f)
 -- scanFoldRingsBy f = Scanl.rmapM (fold f) . scanRingsOf
@@ -586,7 +586,7 @@ scanFoldRingsBy f = scanCustomFoldRingsBy (fold f)
 -- array. @n@ must be non-zero.
 --
 {-# INLINE createOfLast #-}
-createOfLast :: (Unbox a, MonadIO m) => Int -> Fold m a (Ring a)
+createOfLast :: (Unbox a, MonadIO m) => Int -> Fold m a (RingArray a)
 createOfLast n = Fold.fromScanl $ scanRingsOf n
 
 -------------------------------------------------------------------------------
@@ -597,17 +597,17 @@ createOfLast n = Fold.fromScanl $ scanRingsOf n
 -- type @b@. The ring size must be a multiple of the size of type @b@.
 --
 {-# INLINE unsafeCast #-}
-unsafeCast :: Ring a -> Ring b
-unsafeCast Ring{..} =
-    Ring
+unsafeCast :: RingArray a -> RingArray b
+unsafeCast RingArray{..} =
+    RingArray
         { ringContents = ringContents
         , ringHead = ringHead
         , ringSize = ringSize
         }
 
--- | Cast a @Ring a@ into a @Ring Word8@.
+-- | Cast a @RingArray a@ into a @RingArray Word8@.
 --
-asBytes :: Ring a -> Ring Word8
+asBytes :: RingArray a -> RingArray Word8
 asBytes = unsafeCast
 
 -- | Cast a ring having elements of type @a@ into a ring having elements of
@@ -615,7 +615,7 @@ asBytes = unsafeCast
 -- target element otherwise 'Nothing' is returned.
 --
 {-# INLINE cast #-}
-cast :: forall a b. (Unbox b) => Ring a -> Maybe (Ring b)
+cast :: forall a b. (Unbox b) => RingArray a -> Maybe (RingArray b)
 cast ring =
     let len = byteLength ring
         r = len `mod` SIZE_OF(b)
@@ -632,8 +632,8 @@ cast ring =
 -- error.
 --
 {-# INLINE eqArrayN #-}
-eqArrayN :: Ring a -> Array a -> Int -> IO Bool
-eqArrayN Ring{..} Array.Array{..} nBytes
+eqArrayN :: RingArray a -> Array a -> Int -> IO Bool
+eqArrayN RingArray{..} Array.Array{..} nBytes
     | nBytes < 0 = error "eqArrayN: n should be >= 0"
     | arrLen < nBytes = error "eqArrayN: array is shorter than n"
     | ringSize < nBytes = error "eqArrayN: ring is shorter than n"
@@ -668,8 +668,8 @@ eqArrayN Ring{..} Array.Array{..} nBytes
 -- an error.
 --
 {-# INLINE eqArray #-}
-eqArray :: Ring a -> Array a -> IO Bool
-eqArray Ring{..} Array.Array{..}
+eqArray :: RingArray a -> Array a -> IO Bool
+eqArray RingArray{..} Array.Array{..}
     | arrLen < ringSize = error "eqArrayN: array is shorter than ring"
     | otherwise = check ringHead 0
 
@@ -700,7 +700,7 @@ eqArray Ring{..} Array.Array{..}
 --
 {-# INLINE_NORMAL fold #-}
 fold :: forall m a b. (MonadIO m, Unbox a)
-    => Fold m a b -> Ring a -> m b
+    => Fold m a b -> RingArray a -> m b
 -- These are slower when used in a scan extract. One of the issues is the
 -- exitify optimization, there could be others.
 -- fold f rb = Unfold.fold f reader rb
@@ -740,7 +740,7 @@ fold (Fold step initial _ final) rb = do
 {-# DEPRECATED unsafeFoldRing "This function will be removed in future." #-}
 {-# INLINE unsafeFoldRing #-}
 unsafeFoldRing :: forall a b. Unbox a
-    => Int -> (b -> a -> b) -> b -> Ring a -> IO b
+    => Int -> (b -> a -> b) -> b -> RingArray a -> IO b
 unsafeFoldRing !len f z rb = go z 0
 
     where
@@ -755,7 +755,7 @@ unsafeFoldRing !len f z rb = go z 0
 {-# DEPRECATED unsafeFoldRingM "This function will be removed in future." #-}
 {-# INLINE unsafeFoldRingM #-}
 unsafeFoldRingM :: forall m a b. (MonadIO m, Unbox a)
-    => Int -> (b -> a -> m b) -> b -> Ring a -> m b
+    => Int -> (b -> a -> m b) -> b -> RingArray a -> m b
 unsafeFoldRingM !len f z rb = go z 0
 
     where
@@ -773,7 +773,7 @@ unsafeFoldRingM !len f z rb = go z 0
 --
 {-# INLINE foldlM' #-}
 foldlM' :: forall m a b. (MonadIO m, Unbox a)
-    => (b -> a -> m b) -> b -> Ring a -> m b
+    => (b -> a -> m b) -> b -> RingArray a -> m b
 foldlM' f z = fold (Fold.foldlM' f (pure z))
 
 -- These are slower when used in a scan extract. One of the issues is the
@@ -800,7 +800,7 @@ foldlM' f z rb = go z rh
 {-# DEPRECATED unsafeFoldRingFullM "This function will be removed in future." #-}
 {-# INLINE unsafeFoldRingFullM #-}
 unsafeFoldRingFullM :: forall m a b. (MonadIO m, Unbox a)
-    => (b -> a -> m b) -> b -> Ring a -> m b
+    => (b -> a -> m b) -> b -> RingArray a -> m b
 unsafeFoldRingFullM = foldlM'
 
 -- | Fold @n@ items in the ring starting at the ring head. Won't fold more
@@ -811,7 +811,7 @@ unsafeFoldRingFullM = foldlM'
 {-# DEPRECATED unsafeFoldRingNM "This function will be removed in future." #-}
 {-# INLINE unsafeFoldRingNM #-}
 unsafeFoldRingNM :: forall m a b. (MonadIO m, Unbox a)
-    => Int -> (b -> a -> m b) -> b -> Ring a -> m b
+    => Int -> (b -> a -> m b) -> b -> RingArray a -> m b
 unsafeFoldRingNM count f z rb = go count z rh
 
     where
@@ -831,7 +831,7 @@ unsafeFoldRingNM count f z rb = go count z rh
 -- current position of the ring head. Note that the array does not start with
 -- the current ring head. The array refers to the same memory as the ring.
 {-# INLINE asMutArray #-}
-asMutArray :: Ring a -> (MutArray a, Int)
+asMutArray :: RingArray a -> (MutArray a, Int)
 asMutArray rb =
     ( MutArray
         { arrContents = ringContents rb
@@ -843,7 +843,7 @@ asMutArray rb =
     )
 
 {-# INLINE asMutArray_ #-}
-asMutArray_ :: Ring a -> MutArray a
+asMutArray_ :: RingArray a -> MutArray a
 asMutArray_ rb =
     MutArray
         { arrContents = ringContents rb
@@ -857,10 +857,10 @@ asMutArray_ rb =
 -- | Copy the ring to a MutArray, the first element of the MutArray is the
 -- oldest element of the ring (i.e. ring head) and the last is the newest.
 --
--- >>> toMutArray rb = Stream.fold (MutArray.createOf (Ring.length rb)) $ Ring.read rb
+-- >>> toMutArray rb = Stream.fold (MutArray.createOf (RingArray.length rb)) $ RingArray.read rb
 --
 {-# INLINE toMutArray #-}
-toMutArray :: (MonadIO m, Unbox a) => Ring a -> m (MutArray a)
+toMutArray :: (MonadIO m, Unbox a) => RingArray a -> m (MutArray a)
 toMutArray rb = MutArray.fromStreamN (length rb) $ read rb
 {-
 toMutArray rb = do
@@ -873,17 +873,17 @@ toMutArray rb = do
 -- | Copy the ring to a list, the first element of the list is the oldest
 -- element of the ring (i.e. ring head) and the last is the newest.
 --
--- >>> toList = Stream.toList . Ring.read
+-- >>> toList = Stream.toList . RingArray.read
 --
 {-# INLINE toList #-}
-toList :: (MonadIO m, Unbox a) => Ring a -> m [a]
+toList :: (MonadIO m, Unbox a) => RingArray a -> m [a]
 toList = Stream.toList . read
 
--- | Show the contents of a Ring as a list.
+-- | Show the contents of a RingArray as a list.
 --
--- >>> showRing rb = Ring.toList rb >>= return . show
+-- >>> showRing rb = RingArray.toList rb >>= return . show
 --
-showRing :: (Unbox a, Show a) => Ring a -> IO String
+showRing :: (Unbox a, Show a) => RingArray a -> IO String
 showRing rb = show <$> toList rb
 
 {-# ANN type SlidingWindow Fuse #-}
@@ -918,7 +918,7 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
                     Done b -> Done b
 
     step (SWArray mba rh st i) a = do
-        Ring _ _ rh1 <- replace_ (Ring mba (n * SIZE_OF(a)) rh) a
+        RingArray _ _ rh1 <- replace_ (RingArray mba (n * SIZE_OF(a)) rh) a
         let size = (n - i) * SIZE_OF(a)
         r <- step1 st ((a, Nothing), pure (MutArray mba 0 size size))
         return $
@@ -930,7 +930,7 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
                 Done b -> Done b
 
     step (SWRing mba rh st) a = do
-        (rb1@(Ring _ _ rh1), old) <- replace (Ring mba (n * SIZE_OF(a)) rh) a
+        (rb1@(RingArray _ _ rh1), old) <- replace (RingArray mba (n * SIZE_OF(a)) rh) a
         r <- step1 st ((a, Just old), toMutArray rb1)
         return $
             case r of

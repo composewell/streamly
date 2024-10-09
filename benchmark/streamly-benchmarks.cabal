@@ -377,10 +377,10 @@ benchmark Data.ParserK.Chunked.Generic
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
-benchmark Data.Ring
+benchmark Data.RingArray
   import: bench-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Ring.hs
+  main-is: Streamly/Benchmark/Data/RingArray.hs
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 

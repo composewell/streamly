@@ -54,7 +54,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- the 'postscanlMaybe' combinator. For scanners the result of the fold is
     -- usually a transformation of the current element rather than an
     -- aggregation of all elements till now.
- -- , nthLast -- using Ring array
+ -- , nthLast -- using RingArray array
     , indexingWith
     , indexing
     , indexingRev
@@ -224,7 +224,7 @@ import qualified Streamly.Internal.Data.MutArray.Type as MA
 -- import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Scanl.Window as Scanl
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
--- import qualified Streamly.Internal.Data.Ring as Ring
+-- import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
 import Streamly.Internal.Data.Scanl.Type
@@ -1429,7 +1429,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
-                    rb <- liftIO $ Ring.emptyOf patLen
+                    rb <- liftIO $ RingArray.emptyOf patLen
                     return $ Partial $ SplitOnSeqKR acc 0 rb 0
             Done b -> return $ Done b
 
@@ -1500,12 +1500,12 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
         res <- fstep s x
         case res of
             Partial s1 -> do
-                rh1 <- liftIO $ Ring.unsafeInsert rb rh x
+                rh1 <- liftIO $ RingArray.unsafeInsert rb rh x
                 if idx == maxIndex
                 then do
-                    let fld = Ring.unsafeFoldRing (Ring.ringCapacity rb)
+                    let fld = RingArray.unsafeFoldRing (RingArray.ringCapacity rb)
                     let !ringHash = fld addCksum 0 rb
-                    if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+                    if ringHash == patHash && RingArray.unsafeEqArray rb rh1 patArr
                     then Done <$> ffinal s1
                     else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
                 else
@@ -1515,10 +1515,10 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
         res <- fstep s x
         case res of
             Partial s1 -> do
-                (old :: a) <- Ring.unsafeGetIndex rh rb
-                rh1 <- liftIO $ Ring.unsafeInsert rb rh x
+                (old :: a) <- RingArray.unsafeGetIndex rh rb
+                rh1 <- liftIO $ RingArray.unsafeInsert rb rh x
                 let ringHash = deltaCksum cksum old x
-                if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+                if ringHash == patHash && RingArray.unsafeEqArray rb rh1 patArr
                 then Done <$> ffinal s1
                 else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
             Done b -> return $ Done b
@@ -1570,7 +1570,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
                 | otherwise -> do
-                    rb <- liftIO $ Ring.emptyOf patLen
+                    rb <- liftIO $ RingArray.emptyOf patLen
                     return $ Partial $ SplitOnSeqKR acc 0 rb 0
             Done b -> return $ Done b
 
@@ -1640,23 +1640,23 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                     return $ Partial $ SplitOnSeqWordLoop s1 wrd1
             Done b -> return $ Done b
     step (SplitOnSeqKR s idx rb rh) x = do
-        rh1 <- liftIO $ Ring.unsafeInsert rb rh x
+        rh1 <- liftIO $ RingArray.unsafeInsert rb rh x
         if idx == maxIndex
         then do
-            let fld = Ring.unsafeFoldRing (Ring.ringCapacity rb)
+            let fld = RingArray.unsafeFoldRing (RingArray.ringCapacity rb)
             let !ringHash = fld addCksum 0 rb
-            if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+            if ringHash == patHash && RingArray.unsafeEqArray rb rh1 patArr
             then Done <$> ffinal s
             else return $ Partial $ SplitOnSeqKRLoop s ringHash rb rh1
         else return $ Partial $ SplitOnSeqKR s (idx + 1) rb rh1
     step (SplitOnSeqKRLoop s cksum rb rh) x = do
-        old <- Ring.unsafeGetIndex rh rb
+        old <- RingArray.unsafeGetIndex rh rb
         res <- fstep s old
         case res of
             Partial s1 -> do
-                rh1 <- liftIO $ Ring.unsafeInsert rb rh x
+                rh1 <- liftIO $ RingArray.unsafeInsert rb rh x
                 let ringHash = deltaCksum cksum old x
-                if ringHash == patHash && Ring.unsafeEqArray rb rh1 patArr
+                if ringHash == patHash && RingArray.unsafeEqArray rb rh1 patArr
                 then Done <$> ffinal s1
                 else return $ Partial $ SplitOnSeqKRLoop s1 ringHash rb rh1
             Done b -> return $ Done b
@@ -1680,8 +1680,8 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 if n == 0
                 then fex s
                 else do
-                    old <- Ring.unsafeGetIndex rh rb
-                    let rh1 = Ring.advance rb rh
+                    old <- RingArray.unsafeGetIndex rh rb
+                    let rh1 = RingArray.advance rb rh
                     r <- fstep s old
                     case r of
                         Partial s1 -> consumeRing s1 (n - 1) rb rh1

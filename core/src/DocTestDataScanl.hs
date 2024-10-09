@@ -30,7 +30,7 @@
 For APIs that have not been released yet.
 
 >>> import qualified Streamly.Internal.Data.Fold as Fold
->>> import qualified Streamly.Internal.Data.Ring as Ring
+>>> import qualified Streamly.Internal.Data.RingArray as RingArray
 >>> import qualified Streamly.Internal.Data.Scanl as Scanl
 >>> import qualified Streamly.Internal.Data.Stream as Stream
 -}

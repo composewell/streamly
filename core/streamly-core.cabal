@@ -391,9 +391,9 @@ library
                      , Streamly.Internal.FileSystem.Posix.ReadDir
                      , Streamly.Internal.FileSystem.Windows.ReadDir
 
-                    -- Ring Arrays
-                     , Streamly.Internal.Data.Ring
-                     , Streamly.Internal.Data.Ring.Generic
+                    -- RingArray Arrays
+                     , Streamly.Internal.Data.RingArray
+                     , Streamly.Internal.Data.RingArray.Generic
 
                      -- streamly-console
                      , Streamly.Internal.Console.Stdio
@@ -407,8 +407,8 @@ library
                      -- , Streamly.Data.Array.Stream
                      -- , Streamly.Data.Array.Fold
                      -- , Streamly.Data.Array.Mut.Stream
-                     -- , Streamly.Data.Ring
-                     -- , Streamly.Data.Ring.Generic
+                     -- , Streamly.Data.RingArray
+                     -- , Streamly.Data.RingArray.Generic
                      -- , Streamly.Data.IORef.Unboxed
                      -- , Streamly.Data.List
                      -- , Streamly.Data.Binary.Decode
