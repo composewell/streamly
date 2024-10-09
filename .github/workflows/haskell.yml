@@ -34,7 +34,7 @@ jobs:
       # default (ncpus) is good, this can be checked from the packcheck
       # output in case it changes.
       CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
-      CABAL_TEST_OPTIONS: -j1
+      # CABAL_TEST_OPTIONS: -j1
       CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
       CABAL_PROJECT: ${{ matrix.cabal_project }}
       CABAL_CHECK_RELAX: y
