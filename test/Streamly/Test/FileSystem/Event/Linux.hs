@@ -8,7 +8,7 @@
 --
 module Streamly.Test.FileSystem.Event.Linux (main) where
 
-import Control.Monad (replicateM)
+-- import Control.Monad (replicateM)
 import Streamly.Internal.FileSystem.Event.Linux (Event)
 -- #if __GLASGOW_HASKELL__ == 902
 #if 1
@@ -19,6 +19,9 @@ import qualified Streamly.Internal.FileSystem.Event.Linux as Event
 import Streamly.Test.FileSystem.Event.Common
 
 #define DEVBUILD
+
+tempPrefix :: String
+tempPrefix = "fsevent_linux"
 
 moduleName :: String
 moduleName = "FileSystem.Event.Linux"
@@ -82,7 +85,7 @@ fileMoveEvents src dst =
 
 main :: IO ()
 main = do
-    _ <- replicateM 100 $ runDiagnostics [fileCreate "file" fileTouchEvents]
+    -- _ <- replicateM 100 $ runDiagnostics [fileCreate "file" fileTouchEvents]
 
     -- We ignore the events on root/parent dir during regular non-root dir/file
     -- tests.
@@ -112,7 +115,7 @@ main = do
             regSymTests
 
     let w = Event.watchWith (Event.setAllEvents True)
-        run = runTests moduleName "non-recursive" w
+        run = runTests tempPrefix moduleName "non-recursive" w
 
 #if 1
     let failingTests =
@@ -148,7 +151,7 @@ main = do
 
     let recw = Event.watchWith
                 (Event.setAllEvents True . Event.setRecursiveMode True)
-        runRec = runTests moduleName "recursive" recw
+        runRec = runTests tempPrefix moduleName "recursive" recw
 
 #ifdef DEVBUILD
     -- In recursive mode all subdirectories are roots therefore they will
