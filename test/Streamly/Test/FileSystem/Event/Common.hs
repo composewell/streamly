@@ -155,16 +155,13 @@ data WatchRootType =
     deriving Show
 
 -- driver :: EventChecker -> WatchRootType -> TestDesc -> SpecWith ()
-driver :: EventChecker -> WatchRootType -> TestDesc -> IO ()
-driver checker symlinkStyle (desc, pre, ops, expected) = do
+driver :: String -> EventChecker -> WatchRootType -> TestDesc -> IO ()
+driver fseventDir checker symlinkStyle (desc, pre, ops, expected) = do
     -- it desc $ runOneTest `shouldReturn` ()
     putStrLn $ "Running: " ++ desc
     runOneTest
 
     where
-
-    fseventDir :: String
-    fseventDir = "fsevent_dir"
 
     runOneTest = do
             sync <- newEmptyMVar
@@ -439,11 +436,12 @@ commonRecTests = testsWithParent "subdir"
 runTests ::
        String
     -> String
+    -> String
     -> EventWatcher
     -> WatchRootType
     -> [TestDesc]
     -> IO ()
-runTests modName watchType watcher rootType tests = do
+runTests tempPrefix modName watchType watcher rootType tests = do
     putStrLn $ "Running tests, module: " ++ modName
         ++ " watchType: " ++ watchType
     hSetBuffering stdout NoBuffering
@@ -457,7 +455,7 @@ runTests modName watchType watcher rootType tests = do
             describe ("Root type " ++ show rootType)
                     $ mapM_ (driver checker rootType) tests
     -}
-    mapM_ (driver checker rootType) tests
+    mapM_ (driver tempPrefix checker rootType) tests
 
 diagDriver :: EventChecker -> TestDesc -> IO ()
 diagDriver checker (desc, pre, ops, expected) = do
