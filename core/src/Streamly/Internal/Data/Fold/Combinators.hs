@@ -66,7 +66,7 @@ module Streamly.Internal.Data.Fold.Combinators
     -- the 'scanMaybe' combinator. For scanners the result of the fold is
     -- usually a transformation of the current element rather than an
     -- aggregation of all elements till now.
- -- , nthLast -- using Ring array
+ -- , nthLast -- using RingArray array
     , rollingMapM
 
     -- *** Filters
@@ -233,7 +233,7 @@ import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Pipe.Type (Pipe (..))
-import Streamly.Internal.Data.Ring (Ring(..))
+import Streamly.Internal.Data.RingArray (RingArray(..))
 -- import Streamly.Internal.Data.Scan (Scan (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
@@ -244,7 +244,7 @@ import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
-import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Scanl.Combinators as Scanl
 import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Scanl.Window as Scanl
@@ -1559,17 +1559,17 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
         res <- fstep s x
         case res of
             Partial s1 -> do
-                let rb = Ring
+                let rb = RingArray
                         { ringContents = mba
                         , ringSize = patBytes
                         , ringHead = offset
                         }
-                (rb1, old :: a) <- liftIO (Ring.replace rb x)
+                (rb1, old :: a) <- liftIO (RingArray.replace rb x)
                 let ringHash = deltaCksum cksum old x
                 let rh1 = ringHead rb1
                 matches <-
                     if ringHash == patHash
-                    then liftIO $ Ring.eqArray rb1 patArr
+                    then liftIO $ RingArray.eqArray rb1 patArr
                     else return False
                 if matches
                 then Done <$> ffinal s1
@@ -1720,12 +1720,12 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
             else return $ Partial $ SplitOnSeqKRLoop s ringHash mba 0
         else return $ Partial $ SplitOnSeqKR s (offset + SIZE_OF(a)) mba
     step (SplitOnSeqKRLoop s cksum mba offset) x = do
-        let rb = Ring
+        let rb = RingArray
                 { ringContents = mba
                 , ringSize = patBytes
                 , ringHead = offset
                 }
-        (rb1, old :: a) <- liftIO (Ring.replace rb x)
+        (rb1, old :: a) <- liftIO (RingArray.replace rb x)
         res <- fstep s old
         case res of
             Partial s1 -> do
@@ -1733,7 +1733,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 let rh1 = ringHead rb1
                 matches <-
                     if ringHash == patHash
-                    then liftIO $ Ring.eqArray rb1 patArr
+                    then liftIO $ RingArray.eqArray rb1 patArr
                     else return False
                 if matches
                 then Done <$> ffinal s1
@@ -1767,13 +1767,13 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                         Done b -> return b
 
         let consumeRing s orig mba offset = do
-                let rb :: Ring a = Ring
+                let rb :: RingArray a = RingArray
                             { ringContents = mba
                             , ringSize = patBytes
                             , ringHead = offset
                             }
-                old <- Ring.unsafeGetHead rb
-                let rb1 = Ring.moveForward rb
+                old <- RingArray.unsafeGetHead rb
+                let rb1 = RingArray.moveForward rb
                 r <- fstep s old
                 case r of
                     Partial s1 ->

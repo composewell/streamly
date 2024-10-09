@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Ring.Generic
+-- Module      : Streamly.Internal.Data.RingArray.Generic
 -- Copyright   : (c) 2021 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -7,8 +7,8 @@
 -- Portability : GHC
 --
 
-module Streamly.Internal.Data.Ring.Generic
-    ( Ring(..)
+module Streamly.Internal.Data.RingArray.Generic
+    ( RingArray(..)
 
     -- * Generation
     , emptyOf
@@ -37,7 +37,7 @@ import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.MutArray.Generic as MutArray
 
 -- XXX Use MutableArray rather than keeping a MutArray here.
-data Ring a = Ring
+data RingArray a = RingArray
     { ringArr :: MutArray a
     -- XXX We can keep the current fill amount, Or we can keep a count of total
     -- elements inserted and compute ring head as well using mod on that,
@@ -53,22 +53,22 @@ data Ring a = Ring
 -- XXX If we align the ringMax to nearest power of two then computation of the
 -- index to write could be cheaper.
 {-# INLINE emptyOf #-}
-emptyOf :: MonadIO m => Int -> m (Ring a)
+emptyOf :: MonadIO m => Int -> m (RingArray a)
 emptyOf count = liftIO $ do
     arr <- MutArray.emptyOf count
     arr1 <- MutArray.uninit arr count
-    return (Ring
+    return (RingArray
         { ringArr = arr1
         , ringHead = 0
         , ringMax = count
         })
 
 
--- | Note that it is not safe to return a reference to the mutable Ring using a
--- scan as the Ring is continuously getting mutated. You could however copy out
--- the Ring.
+-- | Note that it is not safe to return a reference to the mutable RingArray using a
+-- scan as the RingArray is continuously getting mutated. You could however copy out
+-- the RingArray.
 {-# INLINE createOf #-}
-createOf :: MonadIO m => Int -> Fold m a (Ring a)
+createOf :: MonadIO m => Int -> Fold m a (RingArray a)
 createOf n = Fold step initial extract extract
 
     where
@@ -84,10 +84,10 @@ createOf n = Fold step initial extract extract
         rh1 <- liftIO $ unsafeInsertRingWith rb x
         return $ Fold.Partial $ Tuple' (rb {ringHead = rh1}) (cnt + 1)
 
-    extract (Tuple' rb@Ring{..} cnt) =
+    extract (Tuple' rb@RingArray{..} cnt) =
         return $
             if cnt < ringMax
-            then Ring ringArr 0 ringHead
+            then RingArray ringArr 0 ringHead
             else rb
 
 -------------------------------------------------------------------------------
@@ -97,8 +97,8 @@ createOf n = Fold step initial extract extract
 -- XXX This is safe
 -- Take the ring head and return the new ring head.
 {-# INLINE unsafeInsertRingWith #-}
-unsafeInsertRingWith :: Ring a -> a -> IO Int
-unsafeInsertRingWith Ring{..} x = do
+unsafeInsertRingWith :: RingArray a -> a -> IO Int
+unsafeInsertRingWith RingArray{..} x = do
     assertM(ringMax >= 1)
     assertM(ringHead < ringMax)
     MutArray.unsafePutIndex ringHead ringArr x
@@ -109,13 +109,13 @@ unsafeInsertRingWith Ring{..} x = do
 -- | Move the ring head clockwise (+ve adj) or counter clockwise (-ve adj) by
 -- the given amount.
 {-# INLINE seek #-}
-seek :: MonadIO m => Int -> Ring a -> m (Ring a)
-seek adj rng@Ring{..}
+seek :: MonadIO m => Int -> RingArray a -> m (RingArray a)
+seek adj rng@RingArray{..}
     | ringMax > 0 = liftIO $ do
         -- XXX try avoiding mod when in bounds
         let idx1 = ringHead + adj
             next = mod idx1 ringMax
-        return $ Ring ringArr next ringMax
+        return $ RingArray ringArr next ringMax
     | otherwise = pure rng
 
 -------------------------------------------------------------------------------
@@ -124,13 +124,13 @@ seek adj rng@Ring{..}
 
 -- | @toMutArray rignHeadAdjustment lengthToRead ring@.
 -- Convert the ring into a boxed mutable array. Note that the returned MutArray
--- shares the same underlying memory as the Ring, the user of this API needs to
+-- shares the same underlying memory as the RingArray, the user of this API needs to
 -- ensure that the ring is not mutated during and after the conversion.
 --
 {-# INLINE toMutArray #-}
-toMutArray :: MonadIO m => Int -> Int -> Ring a -> m (MutArray a)
-toMutArray adj n Ring{..} =
-    -- XXX for empty Ring it will raise an Exception: divide by zero
+toMutArray :: MonadIO m => Int -> Int -> RingArray a -> m (MutArray a)
+toMutArray adj n RingArray{..} =
+    -- XXX for empty RingArray it will raise an Exception: divide by zero
     if ringMax <= 0
     then MutArray.nil
     else do
@@ -151,8 +151,8 @@ toMutArray adj n Ring{..} =
 
 -- | Copy out the mutable ring to a mutable Array.
 {-# INLINE copyToMutArray #-}
-copyToMutArray :: MonadIO m => Int -> Int -> Ring a -> m (MutArray a)
-copyToMutArray adj n Ring{..} = do
+copyToMutArray :: MonadIO m => Int -> Int -> RingArray a -> m (MutArray a)
+copyToMutArray adj n RingArray{..} = do
     if ringMax <= 0
     then MutArray.nil
     else do
@@ -170,10 +170,10 @@ copyToMutArray adj n Ring{..} = do
 
 -- | Seek by n and then read the entire ring. Use 'take' on the stream to
 -- restrict the reads.
-toStreamWith :: Int -> Ring a -> Stream m a
+toStreamWith :: Int -> RingArray a -> Stream m a
 toStreamWith = undefined
 {-
-toStreamWith n Ring{..}
+toStreamWith n RingArray{..}
     | ringMax > 0 = concatEffect $ liftIO $ do
         idx <- readIORef ringHead
         let idx1 = idx + adj

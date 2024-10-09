@@ -288,11 +288,11 @@ test-suite Data.ParserK
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
-test-suite Data.Ring
+test-suite Data.RingArray
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Ring.hs
-  ghc-options: -main-is Streamly.Test.Data.Ring.main
+  main-is: Streamly/Test/Data/RingArray.hs
+  ghc-options: -main-is Streamly.Test.Data.RingArray.main
 
 -- XXX Rename to MutByteArray
 test-suite Data.Serialize
