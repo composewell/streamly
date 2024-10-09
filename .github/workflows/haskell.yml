@@ -34,6 +34,7 @@ jobs:
       # default (ncpus) is good, this can be checked from the packcheck
       # output in case it changes.
       CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
+      CABAL_TEST_OPTIONS: -j1
       CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
       CABAL_PROJECT: ${{ matrix.cabal_project }}
       CABAL_CHECK_RELAX: y
@@ -47,7 +48,7 @@ jobs:
       # packcheck location and revision
       PACKCHECK: "./packcheck.sh"
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "e575ff318c93add2a6d3f9107a52c5e37c666a98"
+      PACKCHECK_GITHUB_COMMIT: "7c4e1ab7a59b5ed6e92cfd0da67460a6116be4ac"
 
       # Pull token from "secrets" setting of the github repo
       COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
