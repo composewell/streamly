@@ -297,13 +297,12 @@ unsafeAsForeignPtr arr@Array{..} f =
             fptr = ForeignPtr addr# fptrContents
          in f fptr i
 
-mutableByteArrayContents# :: Exts.MutableByteArray# s -> Addr#
 {-# INLINE mutableByteArrayContents# #-}
-mutableByteArrayContents# x =
+mutableByteArrayContents# :: Exts.MutableByteArray# s -> Addr#
 #if __GLASGOW_HASKELL__ >= 902
-  Exts.mutableByteArrayContents# x
+mutableByteArrayContents# = Exts.mutableByteArrayContents#
 #else
-  Exts.byteArrayContents# (Exts.unsafeCoerce# x)
+mutableByteArrayContents# x = Exts.byteArrayContents# (Exts.unsafeCoerce# x)
 #endif
 
 -- | @unsafeFromForeignPtr fptr len@ converts the "ForeignPtr" to an "Array".
@@ -1024,8 +1023,6 @@ fromPureStream x = unsafePerformIO $ fmap unsafeFreeze (MA.fromPureStream x)
 -- /Unsafe:/ The caller is responsible to ensure that the pointer passed is
 -- valid up to the given length.
 --
--- Note that this should be evaluated strictly to ensure that we do not hold
--- the reference to the pointer in a lazy thunk.
 fromPtrN :: MonadIO m => Int -> Ptr Word8 -> m (Array Word8)
 fromPtrN n addr = fmap unsafeFreeze (MA.fromPtrN n addr)
 
