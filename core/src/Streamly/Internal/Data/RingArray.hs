@@ -14,6 +14,7 @@
 
 module Streamly.Internal.Data.RingArray
     ( RingArray (..)
+    , Ring
 
     -- * Debugging
     , showRing
@@ -165,6 +166,9 @@ data RingArray a = RingArray
     , ringSize :: {-# UNPACK #-} !Int -- size of array in bytes
     , ringHead :: {-# UNPACK #-} !Int -- byte index in the array
     }
+
+{-# DEPRECATED Ring "Please use RingArray instead." #-}
+type Ring = RingArray
 
 -------------------------------------------------------------------------------
 -- Construction
