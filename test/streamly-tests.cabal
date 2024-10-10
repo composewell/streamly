@@ -182,7 +182,9 @@ common lib-options
 library
     import: lib-options, test-dependencies
     hs-source-dirs: lib
-    exposed-modules: Streamly.Test.Common
+    exposed-modules:
+        Streamly.Test.Common
+        Streamly.Test.Parser.Common
     if !flag(use-streamly-core)
       exposed-modules: Streamly.Test.Prelude.Common
     if flag(limit-build-mem)
