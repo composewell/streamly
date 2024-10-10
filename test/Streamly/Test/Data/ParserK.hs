@@ -21,6 +21,7 @@ import qualified Data.List as List
 import qualified Prelude
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Array.Generic as AG
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Parser as Parser
@@ -32,6 +33,8 @@ import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Test.Hspec as H
+
+import Streamly.Test.Parser.Common
 
 import Prelude hiding (sequence)
 
@@ -835,6 +838,34 @@ fusionBreaker :: a -> a
 fusionBreaker = id
 
 -------------------------------------------------------------------------------
+-- Parser driver sanity tests
+-------------------------------------------------------------------------------
+
+sanityParseBreak :: [Move] -> H.SpecWith ()
+sanityParseBreak jumps = it (show jumps) $ do
+    (val, rest) <-
+        StreamK.parseBreak (ParserK.adapt (jumpParser jumps))
+            $ StreamK.fromList tape
+    lst <- StreamK.toList rest
+    (val, lst) `shouldBe` (expectedResult jumps tape)
+
+sanityParseBreakChunks :: [Move] -> H.SpecWith ()
+sanityParseBreakChunks jumps = it (show jumps) $ do
+    (val, rest) <-
+        StreamK.parseBreakChunks (ParserK.adaptC (jumpParser jumps))
+            $ StreamK.fromList $ Prelude.map A.fromList chunkedTape
+    lst <- Prelude.map A.toList <$> StreamK.toList rest
+    (val, concat lst) `shouldBe` (expectedResult jumps tape)
+
+sanityParseBreakChunksGeneric :: [Move] -> H.SpecWith ()
+sanityParseBreakChunksGeneric jumps = it (show jumps) $ do
+    (val, rest) <-
+        StreamK.parseBreakChunksGeneric (ParserK.adaptCG (jumpParser jumps))
+            $ StreamK.fromList $ Prelude.map AG.fromList chunkedTape
+    lst <- Prelude.map AG.toList <$> StreamK.toList rest
+    (val, concat lst) `shouldBe` (expectedResult jumps tape)
+
+-------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
@@ -847,6 +878,10 @@ main =
   H.parallel $
   modifyMaxSuccess (const maxTestCount) $ do
   describe moduleName $ do
+
+    parserSanityTests "StreamK.parseBreak" sanityParseBreak
+    parserSanityTests "StreamK.parseBreakChunks" sanityParseBreakChunks
+    parserSanityTests "StreamK.parseBreakChunksGeneric" sanityParseBreakChunksGeneric
 
     describe "Instances" $ do
         prop "applicative" applicative

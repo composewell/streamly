@@ -1481,7 +1481,9 @@ parseBreak parser input = do
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, _) = backTrackSingular n1 backBuf nil
                  in return (Right b, s1)
-            ParserK.Error _ err -> return (Left (ParseError err), nil)
+            ParserK.Error _ err ->
+                let strm = fromList (Prelude.reverse backBuf)
+                 in return (Left (ParseError err), strm)
 
     seekErr n =
         error $ "parseBreak: Partial: forward seek not implemented n = "
@@ -1529,7 +1531,12 @@ parseBreak parser input = do
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backTrackSingular n1 backBuf s
                 pure (Right b, s1)
-            ParserK.Error _ err -> return (Left (ParseError err), nil)
+            ParserK.Error _ err ->
+                let strm =
+                        append
+                            (fromList (Prelude.reverse backBuf))
+                            (cons element stream)
+                 in return (Left (ParseError err), strm)
 
     go
         :: [a]
@@ -1622,7 +1629,9 @@ parseBreakChunksGeneric parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map GenArr.length backBuf))
                 let (s1, _) = backTrackGenericChunks n1 backBuf nil
                  in return (Right b, s1)
-            ParserK.Error _ err -> return (Left (ParseError err), nil)
+            ParserK.Error _ err ->
+                let strm = fromList (Prelude.reverse backBuf)
+                 in return (Left (ParseError err), strm)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
@@ -1672,7 +1681,12 @@ parseBreakChunksGeneric parser input = do
                 assertM(n1 <= sum (Prelude.map GenArr.length (arr:backBuf)))
                 let (s1, _) = backTrackGenericChunks n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.Error _ err -> return (Left (ParseError err), nil)
+            ParserK.Error _ err ->
+                let strm =
+                        append
+                            (fromList (Prelude.reverse backBuf))
+                            (cons arr stream)
+                 in return (Left (ParseError err), strm)
 
     go
         :: [GenArr.Array a]
