@@ -9,6 +9,7 @@
 
 module Streamly.Internal.Data.RingArray.Generic
     ( RingArray(..)
+    , Ring
 
     -- * Generation
     , emptyOf
@@ -45,6 +46,9 @@ data RingArray a = RingArray
     , ringHead :: !Int -- current index to be over-written
     , ringMax :: !Int  -- first index beyond allocated memory
     }
+
+{-# DEPRECATED Ring "Please use RingArray instead." #-}
+type Ring = RingArray
 
 -------------------------------------------------------------------------------
 -- Generation
