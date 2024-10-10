@@ -23,12 +23,14 @@ import qualified Data.List as List
 import qualified Prelude
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Array.Generic as AG
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Stream as SI
 import qualified Streamly.Internal.Data.StreamK as K
+import qualified Streamly.Internal.Data.ParserK as PK
 import qualified Test.Hspec as H
 
 import Test.Hspec
@@ -112,7 +114,7 @@ parserFail =
     property $
         case runIdentity $ S.parse (Fail.fail err) (S.fromList [0 :: Int]) of
             Right _ -> False
-            Left (ParseError e) -> err == e
+            Left (ParseError _ e) -> err == e
     where
     err = "Testing MonadFail.fail."
 
@@ -1312,8 +1314,6 @@ TODO:
 Add sanity tests for
 - Producer.parse
 - Producer.parseMany
-- Stream.parseMany
-- Stream.parseIterate
 -}
 
 sanityParseBreak :: [Move] -> SpecWith ()
