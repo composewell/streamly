@@ -281,12 +281,16 @@ parser from the `Streamly.Data.Parser` module.
 >>> splitOn = Streamly.Internal.Data.Stream.splitOn
 >>> splitOnSuffix p f = Stream.foldMany (Fold.takeEndBy_ p f)
 >>> indexedR = Streamly.Internal.Data.Stream.indexedR
->>> groupsBy eq fld = Stream.parseMany (Parser.groupBy eq fld)
+>>> groupsBy eq fld = Stream.parseMany (Parser.groupBy (flip eq) fld)
 >>> groups = groupsBy (==)
 >>> groupsByRolling = Streamly.Internal.Data.Stream.groupsRollingBy
 >>> wordsBy p f = Stream.parseMany (Parser.wordBy p f)
 >>> chunksOf n f = Stream.foldMany (Fold.take n f)
 ```
+
+**Caution**: In `streamly-0.8`, The `groupsBy` comparison function took the new
+element as the first argument and the previous element as the second.  The order
+is flipped in the newer versions of streamly.
 
 Direct implementation of these are also available in
 `Streamly.Internal.Data.Stream`.

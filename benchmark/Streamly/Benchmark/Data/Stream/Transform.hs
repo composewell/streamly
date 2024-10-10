@@ -91,9 +91,15 @@ scanl1M' :: MonadIO m => Int -> Stream m Int -> m ()
 scanl1M' n = composeN n $ Stream.scanl1M' (\b a -> return $ b + a)
 #endif
 
+#ifndef USE_PRELUDE
 {-# INLINE scan #-}
 scan :: MonadIO m => Int -> Stream m Int -> m ()
 scan n = composeN n $ Stream.scanl Scanl.sum
+
+{-# INLINE postscan #-}
+postscan :: MonadIO m => Int -> Stream m Int -> m ()
+postscan n = composeN n $ Stream.postscanl Scanl.sum
+#endif
 
 #ifdef USE_PRELUDE
 {-# INLINE postscanl' #-}
@@ -104,10 +110,6 @@ postscanl' n = composeN n $ Stream.postscanl' (+) 0
 postscanlM' :: MonadIO m => Int -> Stream m Int -> m ()
 postscanlM' n = composeN n $ Stream.postscanlM' (\b a -> return $ b + a) (return 0)
 #endif
-
-{-# INLINE postscan #-}
-postscan :: MonadIO m => Int -> Stream m Int -> m ()
-postscan n = composeN n $ Stream.postscanl Scanl.sum
 
 {-# INLINE sequence #-}
 sequence :: MonadAsync m => Stream m (m Int) -> m ()
@@ -174,8 +176,10 @@ o_1_space_mapping value =
         , benchIOSink value "postscanl'" (postscanl' 1)
         , benchIOSink value "postscanlM'" (postscanlM' 1)
 #endif
+#ifndef USE_PRELUDE
         , benchIOSink value "scan" (scan 1)
         , benchIOSink value "postscan" (postscan 1)
+#endif
         ]
     ]
 
@@ -194,9 +198,19 @@ o_1_space_mappingX4 value =
         , benchIOSink value "postscanl'" (postscanl' 4)
         , benchIOSink value "postscanlM'" (postscanlM' 4)
 #endif
+#ifndef USE_PRELUDE
+        , benchIOSink value "scan" (scan 4)
+        , benchIOSink value "postscan" (postscan 4)
+{-
+        -- XXX this is horribly slow
+        , let value16 = round (fromIntegral value**(1/16::Double))
+           benchFold "concatMap" (concatMap 4) (sourceUnfoldrMN value16)
+-}
+#endif
         ]
     ]
 
+#ifndef USE_PRELUDE
 {-# INLINE sieveScan #-}
 sieveScan :: Monad m => Stream m Int -> Stream m Int
 sieveScan =
@@ -207,12 +221,16 @@ sieveScan =
                  in if all (\p -> n `mod` p /= 0) ps
                     then (primes ++ [n], Just n)
                     else (primes, Nothing)) (return ([2], Just 2)))
+#endif
 
 o_n_space_mapping :: Int -> [Benchmark]
 o_n_space_mapping value =
     [ bgroup "mapping"
-        [ benchIO "naive prime sieve"
+        [
+#ifndef USE_PRELUDE
+          benchIO "naive prime sieve"
             (\n -> Stream.fold FL.sum $ sieveScan $ Stream.enumerateFromTo 2 (value + n))
+#endif
         ]
     ]
 
@@ -529,6 +547,7 @@ o_1_space_inserting value =
         , benchIOSink value "insertBy" (insertBy value 1)
         , benchIOSink value "interposeSuffix" (interposeSuffix value 1)
         , benchIOSink value "intercalateSuffix" (intercalateSuffix value 1)
+        , benchIOSinkPureSrc value "interspersePure" (intersperse value 1)
         ]
     ]
 

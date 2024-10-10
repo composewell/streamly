@@ -135,7 +135,7 @@ import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.Serialize.Type as Serialize
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.MutArray as MA
-import qualified Streamly.Internal.Data.Ring as RB
+import qualified Streamly.Internal.Data.RingArray as RB
 import qualified Streamly.Internal.Data.Parser as Parser
 -- import qualified Streamly.Internal.Data.ParserK as ParserK
 import qualified Streamly.Internal.Data.Stream as D
@@ -560,13 +560,10 @@ pinnedSerialize = encodeAs Pinned
 -- | Decode a Haskell type from a byte array containing its serialized
 -- representation.
 {-# INLINE deserialize #-}
-deserialize :: Serialize a => Array Word8 -> a
-deserialize arr@(Array {..}) = unsafeInlineIO $ do
-    let lenArr = length arr
-    (off, val) <-
-        Serialize.deserializeAt arrStart arrContents (arrStart + lenArr)
-    assertM(off == arrStart + lenArr)
-    pure val
+deserialize :: Serialize a => Array Word8 -> (a, Array Word8)
+deserialize arr =
+    let (a, b) = unsafeInlineIO $ MA.deserialize (unsafeThaw arr)
+     in (a, unsafeFreeze b)
 
 -------------------------------------------------------------------------------
 -- Streams of Arrays

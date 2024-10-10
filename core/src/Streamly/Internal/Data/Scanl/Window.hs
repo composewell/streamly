@@ -19,7 +19,7 @@
 -- For more advanced statistical measures see the @streamly-statistics@
 -- package.
 
--- XXX A window fold can be driven either using the Ring.slidingWindow
+-- XXX A window fold can be driven either using the RingArray.slidingWindow
 -- combinator or by zipping nthLast fold and last fold.
 
 module Streamly.Internal.Data.Scanl.Window
@@ -72,14 +72,14 @@ where
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Proxy (Proxy(..))
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Ring (Ring(..))
+import Streamly.Internal.Data.RingArray (RingArray(..))
 import Streamly.Internal.Data.Scanl.Type (Scanl(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict
     (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import qualified Streamly.Internal.Data.MutArray.Type as MutArray
-import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 
 import Prelude hiding (length, sum, minimum, maximum)
@@ -128,7 +128,7 @@ data SlidingWindow a r s = SWArray !a !Int !s | SWRing !r !s
 -- to store it then copy it to an array or another ring and store it.
 {-# INLINE incrScanWith #-}
 incrScanWith :: forall m a b. (MonadIO m, Unbox a)
-    => Int -> Scanl m (Incr a, Ring a) b -> Scanl m a b
+    => Int -> Scanl m (Incr a, RingArray a) b -> Scanl m a b
 incrScanWith n (Scanl step1 initial1 extract1 final1) =
     Scanl step initial extract final
 
@@ -147,17 +147,17 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
 
     step (SWArray arr i st) a = do
         arr1 <- liftIO $ MutArray.unsafeSnoc arr a
-        r <- step1 st (Insert a, Ring.unsafeCastMutArray arr1)
+        r <- step1 st (Insert a, RingArray.unsafeCastMutArray arr1)
         return $ case r of
             Partial s ->
                 let i1 = i + 1
                 in if i1 < n
                    then Partial $ SWArray arr1 i1 s
-                   else Partial $ SWRing (Ring.unsafeCastMutArray arr1) s
+                   else Partial $ SWRing (RingArray.unsafeCastMutArray arr1) s
             Done b -> Done b
 
     step (SWRing rb st) a = do
-        (rb1, old) <- Ring.replace rb a
+        (rb1, old) <- RingArray.replace rb a
         r <- step1 st (Replace a old, rb1)
         return $
             case r of
@@ -186,8 +186,8 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
                     Done b -> Done b
 
     step (SWArray mba rh st i) a = do
-        Ring _ _ rh1 <- Ring.insert_ (Ring mba (n * SIZE_OF(a)) rh) a
-        r <- step1 st (Insert a, Ring mba ((n - i) * SIZE_OF(a)) rh1)
+        RingArray _ _ rh1 <- RingArray.insert_ (RingArray mba (n * SIZE_OF(a)) rh) a
+        r <- step1 st (Insert a, RingArray mba ((n - i) * SIZE_OF(a)) rh1)
         return $
             case r of
                 Partial s ->
@@ -197,8 +197,8 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
                 Done b -> Done b
 
     step (SWRing mba rh st) a = do
-        (rb1@(Ring _ _ rh1), old) <-
-            Ring.insert (Ring mba (n * SIZE_OF(a)) rh) a
+        (rb1@(RingArray _ _ rh1), old) <-
+            RingArray.insert (RingArray mba (n * SIZE_OF(a)) rh) a
         r <- step1 st (Replace a old, rb1)
         return $
             case r of
@@ -397,17 +397,17 @@ incrPowerSumFrac p = Scanl.lmap (fmap (** p)) incrSum
 -------------------------------------------------------------------------------
 
 {-# INLINE ringRange #-}
-ringRange :: (MonadIO m, Unbox a, Ord a) => Ring a -> m (Maybe (a, a))
+ringRange :: (MonadIO m, Unbox a, Ord a) => RingArray a -> m (Maybe (a, a))
 -- Ideally this should perform the same as the implementation below, but it is
 -- 2x worse, need to investigate why.
--- ringRange = Ring.fold (Fold.fromScanl Scanl.range)
-ringRange rb@Ring{..} = do
+-- ringRange = RingArray.fold (Fold.fromScanl Scanl.range)
+ringRange rb@RingArray{..} = do
     if ringSize == 0
     then return Nothing
     else do
         x <- liftIO $ peekAt 0 ringContents
         let accum (mn, mx) a = return (min mn a, max mx a)
-         in fmap Just $ Ring.foldlM' accum (x, x) rb
+         in fmap Just $ RingArray.foldlM' accum (x, x) rb
 
 -- | Determine the maximum and minimum in a rolling window.
 --
@@ -426,12 +426,12 @@ ringRange rb@Ring{..} = do
 {-# INLINE windowRange #-}
 windowRange :: forall m a. (MonadIO m, Unbox a, Ord a) =>
     Int -> Scanl m a (Maybe (a, a))
--- windowRange = Ring.scanFoldRingsBy (Fold.fromScanl Scanl.range)
+-- windowRange = RingArray.scanFoldRingsBy (Fold.fromScanl Scanl.range)
 
 -- Ideally this should perform the same as the implementation below which is
 -- just expanded form of this. Some inlining/exitify optimization makes this
 -- perform much worse. Need to investigate and fix that.
--- windowRange = Ring.scanCustomFoldRingsBy ringRange
+-- windowRange = RingArray.scanCustomFoldRingsBy ringRange
 
 windowRange n = Scanl step initial extract extract
 
@@ -445,7 +445,7 @@ windowRange n = Scanl step initial extract extract
             return $ Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
 
     step (Tuple3Fused' mba rh i) a = do
-        Ring _ _ rh1 <- Ring.replace_ (Ring mba (n * SIZE_OF(a)) rh) a
+        RingArray _ _ rh1 <- RingArray.replace_ (RingArray mba (n * SIZE_OF(a)) rh) a
         return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
 
     -- XXX exitify optimization causes a problem here when modular folds are
@@ -457,7 +457,7 @@ windowRange n = Scanl step initial extract extract
     -- new min
         let rs = min i n * SIZE_OF(a)
             rh1 = if i <= n then 0 else rh
-         in ringRange $ Ring mba rs rh1
+         in ringRange $ RingArray mba rs rh1
 
 -- | Find the minimum element in a rolling window.
 --
@@ -471,7 +471,7 @@ windowRange n = Scanl step initial extract extract
 {-# INLINE windowMinimum #-}
 windowMinimum :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (Maybe a)
 windowMinimum n = fmap (fmap fst) $ windowRange n
--- windowMinimum = Ring.scanFoldRingsBy (Fold.fromScanl Scanl.minimum)
+-- windowMinimum = RingArray.scanFoldRingsBy (Fold.fromScanl Scanl.minimum)
 
 -- | The maximum element in a rolling window.
 --
@@ -485,7 +485,7 @@ windowMinimum n = fmap (fmap fst) $ windowRange n
 {-# INLINE windowMaximum #-}
 windowMaximum :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (Maybe a)
 windowMaximum n = fmap (fmap snd) $ windowRange n
--- windowMaximum = Ring.scanFoldRingsBy (Fold.fromScanl Scanl.maximum)
+-- windowMaximum = RingArray.scanFoldRingsBy (Fold.fromScanl Scanl.maximum)
 
 -- XXX Returns NaN on empty stream.
 -- XXX remove teeWith for better fusion?

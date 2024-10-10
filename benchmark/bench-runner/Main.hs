@@ -128,6 +128,12 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         -- this, so the reason may be related to chunked streams.
         | "Data.ParserK/o-1-space"
             `isPrefixOf` benchName = "-K4M -M256M"
+{-
+        -- XXX This options does not seem to take effect. "ParserK.Chunked"
+        -- needs more memory to work with --long option
+        | "Data.ParserK.Chunked.Generic/o-1-space"
+            `isPrefixOf` benchName = "-K4M -M256M"
+-}
 
         -----------------------------------------------------------------------
 

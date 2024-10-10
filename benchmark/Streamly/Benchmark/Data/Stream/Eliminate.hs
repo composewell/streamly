@@ -26,6 +26,7 @@
 
 module Stream.Eliminate (benchmarks) where
 
+import Control.Monad (when)
 import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
@@ -277,15 +278,27 @@ uncons s = do
         Nothing -> return ()
         Just (_, t) -> uncons t
 
+#ifndef USE_PRELUDE
+{-# INLINE toNull #-}
+toNull :: Monad m => Stream m Int -> m ()
+toNull = S.drain
+#endif
+
 #ifdef USE_PRELUDE
 {-# INLINE init #-}
 init :: Monad m => Stream m a -> m ()
 init s = S.init s >>= Prelude.mapM_ S.drain
+#endif
 
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => Stream m Int -> m ()
 mapM_ = S.mapM_ (\_ -> return ())
-#endif
+
+{-# INLINE foldBreak #-}
+foldBreak :: Monad m => Stream m Int -> m ()
+foldBreak s = do
+    (r, s1) <- S.foldBreak (Fold.take 1 Fold.length) s
+    when (r /= 0) $ foldBreak s1
 
 {-# INLINE foldrMElem #-}
 foldrMElem :: Monad m => Int -> Stream m Int -> m Bool
@@ -305,11 +318,15 @@ foldrMElem e =
 foldrMBuild :: Monad m => Stream m Int -> m [Int]
 foldrMBuild = S.foldrM (\x xs -> (x :) <$> xs) (return [])
 
-#ifdef USE_PRELUDE
 {-# INLINE foldl'Reduce #-}
 foldl'Reduce :: Monad m => Stream m Int -> m Int
 foldl'Reduce = S.foldl' (+) 0
 
+{-# INLINE last #-}
+last :: Monad m => Stream m Int -> m (Maybe Int)
+last = S.last
+
+#ifdef USE_PRELUDE
 {-# INLINE foldl1'Reduce #-}
 foldl1'Reduce :: Monad m => Stream m Int -> m (Maybe Int)
 foldl1'Reduce = S.foldl1' (+)
@@ -317,10 +334,6 @@ foldl1'Reduce = S.foldl1' (+)
 {-# INLINE foldlM'Reduce #-}
 foldlM'Reduce :: Monad m => Stream m Int -> m Int
 foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) (return 0)
-
-{-# INLINE last #-}
-last :: Monad m => Stream m Int -> m (Maybe Int)
-last = S.last
 
 {-# INLINE _head #-}
 _head :: Monad m => Stream m Int -> m (Maybe Int)
@@ -458,9 +471,14 @@ o_1_space_elimination_folds value =
 
         -- deconstruction
         , benchIOSink value "uncons" uncons
+        , benchIOSink value "mapM_" mapM_
+        , benchIOSink value "last" last
 #ifndef USE_PRELUDE
         , benchHoistSink value "length . generalizeInner"
               (S.fold Fold.length . S.generalizeInner)
+        , benchIOSink value "toNull" toNull
+        , benchIOSink value "foldBreak" foldBreak
+        , benchIOSink value "foldl" foldl'Reduce
 #endif
 #ifdef USE_PRELUDE
         , benchIOSink value "init" init
@@ -470,11 +488,9 @@ o_1_space_elimination_folds value =
         , benchIOSink value "drainN" $ drainN value
         , benchIOSink value "drainWhile" drainWhile
         , benchPureSink value "drain (pure)" id
-        , benchIOSink value "mapM_" mapM_
 
         -- this is too fast, causes all benchmarks reported in ns
     -- , benchIOSink value "head" head
-        , benchIOSink value "last" last
         , benchIOSink value "length" length
         , benchIOSink value "sum" sum
         , benchIOSink value "product" product
@@ -563,6 +579,10 @@ o_n_space_elimination_foldr value =
         -- expression needs to be fully built before it can be reduced.
         , benchIdentitySink value "foldrM/reduce/Identity (sum)" foldrMReduce
         , benchIOSink value "foldrM/reduce/IO (sum)" foldrMReduce
+
+        -- This is horribly slow, never finishes
+        -- let foldlS = composeN n $ S.foldlS (flip S.cons) S.nil
+        --  in benchFold "foldlS"  (foldlS    1) sourceUnfoldrM
         ]
     ]
 

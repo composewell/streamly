@@ -9,7 +9,7 @@ import System.Random (randomRIO)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Fold as Window
-import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Streamly.Benchmark.Common
@@ -94,29 +94,29 @@ o_1_space_folds numElements =
             (Window.windowRange 1000)
 
         , benchWithFoldInt numElements "sumInt (window size 100)"
-            (Ring.slidingWindow 100 Window.windowSumInt)
+            (RingArray.slidingWindow 100 Window.windowSumInt)
         , benchWithFoldInt numElements "sum for Int (window size 100)"
-            (Ring.slidingWindow 100 Window.windowSum)
+            (RingArray.slidingWindow 100 Window.windowSum)
         , benchWithFold numElements "sum (window size 100)"
-            (Ring.slidingWindow 100 Window.windowSum)
+            (RingArray.slidingWindow 100 Window.windowSum)
         , benchWithFold numElements "sum (window size 1000)"
-            (Ring.slidingWindow 1000 Window.windowSum)
+            (RingArray.slidingWindow 1000 Window.windowSum)
         , benchWithFold numElements "sum (entire stream)"
             (Window.cumulative Window.windowSum)
         , benchWithFold numElements "sum (Data.Fold)"
             Fold.sum
 
         , benchWithFold numElements "mean (window size 100)"
-            (Ring.slidingWindow 100 Window.windowMean)
+            (RingArray.slidingWindow 100 Window.windowMean)
         , benchWithFold numElements "mean (window size 1000)"
-            (Ring.slidingWindow 1000 Window.windowMean)
+            (RingArray.slidingWindow 1000 Window.windowMean)
         , benchWithFold numElements "mean (entire stream)"
             (Window.cumulative Window.windowMean)
         , benchWithFold numElements "mean (Data.Fold)"
             Fold.mean
 
         , benchWithFold numElements "powerSum 2 (window size 100)"
-            (Ring.slidingWindow 100 (Window.windowPowerSum 2))
+            (RingArray.slidingWindow 100 (Window.windowPowerSum 2))
         , benchWithFold numElements "powerSum 2 (entire stream)"
             (Window.cumulative (Window.windowPowerSum 2))
 
@@ -159,19 +159,19 @@ o_1_space_scans numElements =
             (Window.windowRange 1000)
 
         , benchWithPostscan numElements "sum (window size 100)"
-            (Ring.slidingWindow 100 Window.windowSum)
+            (RingArray.slidingWindow 100 Window.windowSum)
         , benchWithPostscan numElements "sum (window size 1000)"
-            (Ring.slidingWindow 1000 Window.windowSum)
+            (RingArray.slidingWindow 1000 Window.windowSum)
 
         , benchWithPostscan numElements "mean (window size 100)"
-            (Ring.slidingWindow 100 Window.windowMean)
+            (RingArray.slidingWindow 100 Window.windowMean)
         , benchWithPostscan numElements "mean (window size 1000)"
-            (Ring.slidingWindow 1000 Window.windowMean)
+            (RingArray.slidingWindow 1000 Window.windowMean)
 
         , benchWithPostscan numElements "powerSum 2 (window size 100)"
-            (Ring.slidingWindow 100 (Window.windowPowerSum 2))
+            (RingArray.slidingWindow 100 (Window.windowPowerSum 2))
         , benchWithPostscan numElements "powerSum 2 (window size 1000)"
-            (Ring.slidingWindow 1000 (Window.windowPowerSum 2))
+            (RingArray.slidingWindow 1000 (Window.windowPowerSum 2))
         ]
     ]
 

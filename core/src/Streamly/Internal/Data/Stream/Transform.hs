@@ -93,7 +93,7 @@ module Streamly.Internal.Data.Stream.Transform
     , dropWhileM
 
     -- * Trimming from end
-    -- | Ring array based or buffering operations.
+    -- | RingArray array based or buffering operations.
     --
     , takeWhileLast
     , takeWhileAround

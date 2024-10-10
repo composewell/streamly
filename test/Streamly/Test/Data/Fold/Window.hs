@@ -3,7 +3,7 @@ module Streamly.Test.Data.Fold.Window (main) where
 import Test.Hspec (hspec, describe, it, runIO)
 import Streamly.Internal.Data.Scanl (Incr(..))
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as S
 
@@ -62,23 +62,23 @@ main = hspec $ do
                 [[1.0],[1.0,4.0],[1.0,4.0,3.0],[4.0,3.0,2.1],[3.0,2.1,-5.1]
                 ,[2.1,-5.1,-2.0],[-5.1,-2.0,7.0],[-2.0,7.0,3.0],[7.0,3.0,-2.5]
                 ]
-                (Ring.scanFoldRingsBy Fold.toList)
+                (RingArray.scanFoldRingsBy Fold.toList)
         describe "minimum" $ do
             testFunc2 testCase1
                 [Just 1.0,Just 1.0,Just 1.0,Just 2.1,Just (-5.1),Just (-5.1)
                 ,Just (-5.1),Just (-2.0),Just (-2.5)]
-                (Ring.scanFoldRingsBy Fold.minimum)
+                (RingArray.scanFoldRingsBy Fold.minimum)
         describe "maximum" $ do
             testFunc2 testCase1
                 [Just 1.0,Just 4.0,Just 4.0,Just 4.0,Just 3.0,Just 2.1
                 ,Just 7.0,Just 7.0,Just 7.0]
-                (Ring.scanFoldRingsBy Fold.maximum)
+                (RingArray.scanFoldRingsBy Fold.maximum)
         describe "range" $ do
             testFunc2 testCase1
                 [Just (1.0,1.0),Just (1.0,4.0),Just (1.0,4.0),Just (2.1,4.0)
                 ,Just (-5.1,3.0),Just (-5.1,2.1),Just (-5.1,7.0)
                 ,Just (-2.0,7.0),Just (-2.5,7.0)]
-                (Ring.scanFoldRingsBy Fold.range)
+                (RingArray.scanFoldRingsBy Fold.range)
         describe "sum" $ do
             let scanInf = [1, 2, 3, 4, 5, 12] :: [Double]
                 scanWin = [1, 2, 3, 3, 3, 9] :: [Double]

@@ -89,7 +89,7 @@ targets =
             , "noTest"
             ]
       )
-    , ("Data.Ring",
+    , ("Data.RingArray",
             [ "array_grp"
             ]
       )

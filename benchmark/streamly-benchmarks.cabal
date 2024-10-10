@@ -338,7 +338,7 @@ benchmark Data.Parser
     if flag(dev)
       ghc-options: +RTS -M3000M -RTS
     else
-      ghc-options: +RTS -M2000M -RTS
+      ghc-options: +RTS -M2500M -RTS
 
 -- XXX This is chunked?
 benchmark Data.ParserK
@@ -377,10 +377,10 @@ benchmark Data.ParserK.Chunked.Generic
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
-benchmark Data.Ring
+benchmark Data.RingArray
   import: bench-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Benchmark/Data/Ring.hs
+  main-is: Streamly/Benchmark/Data/RingArray.hs
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
@@ -521,15 +521,6 @@ benchmark Data.Stream.Rate
     buildable: False
   else
     buildable: True
-
--- XXX move unique benchmarks to Data.Stream and remove this module
-benchmark Data.StreamD
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: StreamD.hs
-  if impl(ghcjs)
-    buildable: False
 
 benchmark Data.StreamK
   import: bench-options

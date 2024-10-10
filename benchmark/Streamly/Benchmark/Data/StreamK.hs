@@ -28,7 +28,7 @@ import Control.Monad (when)
 import Data.Maybe (isJust)
 import Streamly.Internal.Data.StreamK (StreamK)
 import System.Random (randomRIO)
-import Test.Tasty.Bench (bench, nfIO, bgroup, Benchmark, defaultMain)
+import Test.Tasty.Bench (bench, nfIO, bgroup, Benchmark)
 
 import qualified Data.List as List
 import qualified Prelude as P
@@ -669,7 +669,6 @@ o_1_space_concat streamLen =
             (concatMapBySerial streamLen2 streamLen2)
         , benchIOSrc1 "concatMapBy serial (1 of n)"
             (concatMapBySerial 1 streamLen)
-        , benchFold "sortBy" sortBy (unfoldrM streamLen)
         ]
     where
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
@@ -797,6 +796,9 @@ o_n_heap streamLen =
       [ bgroup "transformation"
         [ benchFold "foldlS" (foldlS 1) (unfoldrM streamLen)
         ]
+      , bgroup "concat"
+        [ benchFold "sortBy" sortBy (unfoldrM streamLen)
+        ]
       ]
 
 {-# INLINE benchK #-}
@@ -849,16 +851,16 @@ benchList :: P.String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
 benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
 
 main :: IO ()
-main =
-    defaultMain
-        [ o_1_space streamLen
-        , o_n_stack streamLen iterStreamLen maxIters
-        , o_n_heap streamLen
-        , o_n_space streamLen
-        ]
+main = do
+    runWithCLIOpts defaultStreamSize allBenchmarks
 
     where
 
-    streamLen = 100000
-    maxIters = 10000
-    iterStreamLen = 10
+    allBenchmarks streamLen =
+        let !iterStreamLen = 10
+            !maxIters = streamLen `div` iterStreamLen
+         in [ o_1_space streamLen
+            , o_n_stack streamLen iterStreamLen maxIters
+            , o_n_heap streamLen
+            , o_n_space streamLen
+            ]

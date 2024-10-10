@@ -1104,7 +1104,7 @@ slidingChunkBuffer
     :: (IsStream t, Monad m, Ord a, Unbox a)
     => Int -- window size
     -> Int -- window slide
-    -> Fold m (Ring a, Array a) b
+    -> Fold m (RingArray a, Array a) b
     -> t m a
     -> t m b
 slidingChunkBuffer = undefined

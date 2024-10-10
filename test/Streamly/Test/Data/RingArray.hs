@@ -1,16 +1,16 @@
 -- |
--- Module      : Streamly.Test.Data.Ring
+-- Module      : Streamly.Test.Data.RingArray
 -- Copyright   : (c) 2022 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Ring (main) where
+module Streamly.Test.Data.RingArray (main) where
 
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Ring as Ring
+import qualified Streamly.Internal.Data.RingArray as RingArray
 
 import Prelude as P
 
@@ -21,19 +21,19 @@ eqArrayN lstArr lstRing startR nelem expected = do
     let arr = Array.fromList lstArr
     marr <- MutArray.fromList lstRing
     let ring =
-            maybe (error "cast failed") id $ Ring.castMutArrayWith startR marr
-    Ring.eqArrayN ring arr nelem `shouldReturn` expected
+            maybe (error "cast failed") id $ RingArray.castMutArrayWith startR marr
+    RingArray.eqArrayN ring arr nelem `shouldReturn` expected
 
 eqArray :: [Int] -> [Int] -> Int -> Bool -> IO ()
 eqArray lstArr lstRing startR expected = do
     let arr = Array.fromList lstArr
     marr <- MutArray.fromList lstRing
     let ring =
-            maybe (error "cast failed") id $ Ring.castMutArrayWith startR marr
-    Ring.eqArray ring arr `shouldReturn` expected
+            maybe (error "cast failed") id $ RingArray.castMutArrayWith startR marr
+    RingArray.eqArray ring arr `shouldReturn` expected
 
 moduleName :: String
-moduleName = "Data.Ring"
+moduleName = "Data.RingArray"
 
 main :: IO ()
 main = hspec $ do
