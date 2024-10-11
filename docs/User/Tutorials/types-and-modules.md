@@ -17,17 +17,17 @@ The following table lists the modules and types for monadic stream producers
 
 ## Arrays
 
-| Module                              | Type         | Description                                    |
-|-------------------------------------|--------------|------------------------------------------------|
-| Streamly.Data.Array                 | Array a      | Immutable, unboxed, pinned and unpinned arrays |
-| Streamly.Data.MutArray              | MutArray a   | Mutable, unboxed, pinned and unpinned arrays   |
-| Streamly.Data.Array.Generic         | Array a      | Immutable, boxed arrays                        |
-| Streamly.Data.MutArray.Generic      | MutArray a   | Mutable, boxed arrays                          |
-| Streamly.Data.MutByteArray          | MutByteArray | Mutable byte arrays                            |
-| Streamly.Data.MutByteArray          | Unbox a      | Fixed length data serialization                |
-| Streamly.Data.MutByteArray          | Serialize a  | Variable length data serialization             |
-| Streamly.Internal.Data.Ring         | Ring a       | Unboxed ring buffer                            |
-| Streamly.Internal.Data.Ring.Generic | Ring a       | Boxed ring buffer                              |
+| Module                                   | Type         | Description                                    |
+|------------------------------------------|--------------|------------------------------------------------|
+| Streamly.Data.Array                      | Array a      | Immutable, unboxed, pinned and unpinned arrays |
+| Streamly.Data.MutArray                   | MutArray a   | Mutable, unboxed, pinned and unpinned arrays   |
+| Streamly.Data.Array.Generic              | Array a      | Immutable, boxed arrays                        |
+| Streamly.Data.MutArray.Generic           | MutArray a   | Mutable, boxed arrays                          |
+| Streamly.Data.MutByteArray               | MutByteArray | Mutable byte arrays                            |
+| Streamly.Data.MutByteArray               | Unbox a      | Fixed length data serialization                |
+| Streamly.Data.MutByteArray               | Serialize a  | Variable length data serialization             |
+| Streamly.Internal.Data.RingArray         | RingArray a  | Unboxed ring buffer                            |
+| Streamly.Internal.Data.RingArray.Generic | RingArray a  | Boxed ring buffer                              |
 
 ## Unicode Operations
 

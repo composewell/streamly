@@ -113,8 +113,8 @@ The relevant modules in streamly are:
 * `Streamly.Data.Array.Generic`: immutable, boxed arrays
 * `Streamly.Data.MutArray`: mutable, unboxed, pinned, unpinned arrays
 * `Streamly.Data.MutArray.Generic`: mutable, boxed arrays
-* `Streamly.Internal.Data.Ring`: unboxed ring buffer
-* `Streamly.Internal.Data.Ring.Generic`: boxed ring buffer
+* `Streamly.Internal.Data.RingArray`: unboxed ring buffer
+* `Streamly.Internal.Data.RingArray.Generic`: boxed ring buffer
 
 | Package           | Streamly Type           |
 |-------------------|-------------------------|
