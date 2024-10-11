@@ -32,7 +32,7 @@ jobs:
         Data.ParserK
         Data.ParserK.Chunked
         Data.ParserK.Chunked.Generic
-        Data.Ring
+        Data.RingArray
         Data.Scanl.Window
         Data.Serialize
         Data.Stream
