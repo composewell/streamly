@@ -226,10 +226,7 @@ testForeignPtrConversionId :: IO ()
 testForeignPtrConversionId = do
     arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
     let arr = A.unsafeFreeze arr0
-    arr1 <-
-        A.unsafeAsForeignPtr
-             arr
-             (\fptr len -> pure $ A.unsafeFromForeignPtr fptr len)
+    arr1 <- A.unsafeAsForeignPtr arr A.unsafeFromForeignPtr
     arr1 `shouldBe` arr
 
 testUnsafeFromForeignPtr :: IO ()
@@ -239,8 +236,7 @@ testUnsafeFromForeignPtr = do
     A.unsafePinnedAsPtr arr $ \ptr len -> do
         fptr <- newForeignPtr_ ptr
         performMajorGC
-        let arr1 = A.unsafeFromForeignPtr fptr len
-        arr1 `shouldBe` arr
+        A.unsafeFromForeignPtr fptr len `shouldReturn` arr
 
 reallocMA :: Property
 reallocMA =

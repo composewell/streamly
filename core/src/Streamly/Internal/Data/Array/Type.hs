@@ -183,10 +183,9 @@ import GHC.Base (build)
 import GHC.Exts (IsList, IsString(..), Addr#, minusAddr#)
 import GHC.Int (Int(..))
 import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents(..))
-import Foreign.Storable (peek)
 
 import GHC.IO (unsafePerformIO)
-import GHC.Ptr (Ptr(..), plusPtr, nullPtr)
+import GHC.Ptr (Ptr(..), nullPtr)
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
@@ -308,17 +307,14 @@ mutableByteArrayContents# x = Exts.byteArrayContents# (Exts.unsafeCoerce# x)
 -- | @unsafeFromForeignPtr fptr len@ converts the "ForeignPtr" to an "Array".
 --
 unsafeFromForeignPtr
-    :: ForeignPtr Word8 -> Int -> Array Word8
+    :: MonadIO m => ForeignPtr Word8 -> Int -> m (Array Word8)
 unsafeFromForeignPtr (ForeignPtr addr# _) i
-    | Ptr addr# == nullPtr || i == 0 = empty
+    | Ptr addr# == nullPtr || i == 0 = pure empty
 unsafeFromForeignPtr (ForeignPtr addr# (PlainPtr marr#)) len =
     let off = I# (addr# `minusAddr#` mutableByteArrayContents# marr#)
-     in Array (Unboxed.MutByteArray marr#) off (off + len)
+     in pure (Array (Unboxed.MutByteArray marr#) off (off + len))
 unsafeFromForeignPtr (ForeignPtr addr# _) len =
-    unsafeInlineIO
-        $ fromStreamN len
-        $ D.mapM (peek . plusPtr (Ptr addr#))
-        $ D.fromList [0,1..(len - 1)]
+    fromPtrN len (Ptr addr#)
 
 {-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
 {-# INLINE asPtrUnsafe #-}
