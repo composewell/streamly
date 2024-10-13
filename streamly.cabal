@@ -442,7 +442,7 @@ library
 
     if os(darwin)
           include-dirs:  src/Streamly/Internal
-          c-sources: src/Streamly/Internal/FileSystem/Event/Darwin.m
+          c-sources: src/Streamly/Internal/FileSystem/Event/Darwin.c
           exposed-modules: Streamly.Internal.FileSystem.Event.Darwin
 
     if os(linux)
