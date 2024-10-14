@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Test.FileSystem.Event
 -- Copyright   : (c) 2021 Composewell Technologies
