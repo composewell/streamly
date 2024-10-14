@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.FileSystem.Event
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -23,7 +25,9 @@
 -- XXX Need to ensure that the signatures of the exported APIs are same on all
 -- platforms.
 
+
 module Streamly.Internal.FileSystem.Event
+    {-# DEPRECATED "Use the streamly-fsevents package." #-}
     (
     -- * Creating a Watch
 

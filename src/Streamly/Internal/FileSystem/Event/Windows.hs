@@ -43,6 +43,7 @@
 -- * Minimum supported server: Windows Server 2003 [desktop apps | UWP apps
 
 module Streamly.Internal.FileSystem.Event.Windows
+    {-# DEPRECATED "Use the streamly-fsevents package." #-}
     (
     -- * Subscribing to events
 

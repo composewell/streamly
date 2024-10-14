@@ -59,6 +59,7 @@
 
 #if HAVE_DECL_IN_EXCL_UNLINK
 module Streamly.Internal.FileSystem.Event.Linux
+    {-# DEPRECATED "Use the streamly-fsevents package." #-}
     (
     -- * Subscribing to events
 
