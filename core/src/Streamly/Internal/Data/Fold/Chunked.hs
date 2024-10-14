@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Fold.Chunked
 -- Copyright   : (c) 2021 Composewell Technologies
