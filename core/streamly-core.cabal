@@ -396,6 +396,8 @@ library
 
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
+                     , Streamly.Internal.FileSystem.FileIO
+                     , Streamly.Internal.FileSystem.File.Utils
                      , Streamly.Internal.FileSystem.DirIO
                      , Streamly.Internal.FileSystem.Posix.ReadDir
                      , Streamly.Internal.FileSystem.Windows.ReadDir
@@ -565,5 +567,10 @@ library
     if !flag(use-unliftio)
       build-depends:   monad-control     >= 1.0 && < 1.1
 
+    if os(linux) || os (darwin) || os(freebsd)
+      build-depends: unix              >= 2.7.0 && < 2.9
+      exposed-modules: Streamly.Internal.FileSystem.Posix.File
+
     if os(windows)
       build-depends: Win32            >= 2.6 && < 2.14
+      exposed-modules: Streamly.Internal.FileSystem.Windows.File
