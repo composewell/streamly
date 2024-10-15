@@ -387,7 +387,10 @@ library
 
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
+                     , Streamly.Internal.FileSystem.FileIO
+                     , Streamly.Internal.FileSystem.File.Utils
                      , Streamly.Internal.FileSystem.DirIO
+                     , Streamly.Internal.FileSystem.Posix.File
                      , Streamly.Internal.FileSystem.Posix.ReadDir
                      , Streamly.Internal.FileSystem.Windows.ReadDir
 
