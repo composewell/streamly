@@ -90,11 +90,7 @@ module Streamly.Internal.FileSystem.Event.Windows
 where
 
 import Data.Bits ((.|.), (.&.), complement)
-import Data.Char (ord)
-import Data.Functor.Identity (runIdentity)
 import Data.List.NonEmpty (NonEmpty)
-import Data.Word (Word8)
-import Foreign.C.String (peekCWStringLen)
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Storable (peekByteOff)
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr, nullFunPtr, plusPtr)
@@ -117,18 +113,16 @@ import System.Win32.File
     )
 import System.Win32.Types (BOOL, DWORD, HANDLE, LPVOID, LPDWORD, failIfFalse_)
 
-import Streamly.Data.Array (Array)
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Stream.Prelude (eager)
+import Streamly.Internal.FileSystem.Path (Path)
 
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Streamly.Data.Array as A (fromList)
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Stream.Prelude as S
-import qualified Streamly.Unicode.Stream as U
-import qualified Streamly.Internal.Unicode.Utf8 as UTF8 (pack, toArray)
-import qualified Streamly.Internal.Data.Array as A (read)
+import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.FileSystem.Path as Path
 
 -- | Watch configuration, used to specify the events of interest and the
 -- behavior of the watch.
@@ -284,10 +278,10 @@ getConfigRecMode Config{..} = watchRec
 
 data Event = Event
     { eventFlags :: DWORD
-    , eventRelPath :: String
-    , eventRootPath :: String
+    , eventRelPath :: Path
+    , eventRootPath :: Path
     , totalBytes :: DWORD
-    } deriving (Show, Ord, Eq)
+    }
 
 -- For reference documentation see:
 --
@@ -295,16 +289,17 @@ data Event = Event
 data FILE_NOTIFY_INFORMATION = FILE_NOTIFY_INFORMATION
     { fniNextEntryOffset :: DWORD
     , fniAction :: DWORD
-    , fniFileName :: String
-    } deriving Show
+    , fniFileName :: Path
+    }
 
 type LPOVERLAPPED_COMPLETION_ROUTINE =
     FunPtr ((DWORD, DWORD, LPOVERLAPPED) -> IO ())
 
 -- | A handle for a watch.
-getWatchHandle :: FilePath -> IO (HANDLE, FilePath)
+getWatchHandle :: Path -> IO (HANDLE, Path)
 getWatchHandle dir = do
-    h <- createFile dir
+    let dirStr = Path.toString dir
+    h <- createFile dirStr
         -- Access mode
         fILE_LIST_DIRECTORY
         -- Share mode
@@ -355,17 +350,12 @@ peekFNI buf = do
     neof <- peekByteOff buf 0
     acti <- peekByteOff buf 4
     fnle <- peekByteOff buf 8
-    -- Note: The path is UTF-16 encoded C WChars, peekCWStringLen converts
-    -- UTF-16 to UTF-32 Char String
-    fnam <- peekCWStringLen
-        -- start of array
-        (buf `plusPtr` 12,
-        -- fnle is the length in *bytes*, and a WCHAR is 2 bytes
-        fromEnum (fnle :: DWORD) `div` 2)
+    fnam0 <- Array.fromPtrN fnle (buf `plusPtr` 12)
+    fnam <- Path.fromChunk fnam0
     return $ FILE_NOTIFY_INFORMATION neof acti fnam
 
 readChangeEvents ::
-    Ptr FILE_NOTIFY_INFORMATION -> String -> DWORD -> IO [Event]
+    Ptr FILE_NOTIFY_INFORMATION -> Path -> DWORD -> IO [Event]
 readChangeEvents pfni root bytesRet = do
     fni <- peekFNI pfni
     let entry = Event
@@ -382,7 +372,7 @@ readChangeEvents pfni root bytesRet = do
     return $ entry : entries
 
 readDirectoryChanges ::
-    String -> HANDLE -> Bool -> FileNotificationFlag -> IO [Event]
+    Path -> HANDLE -> Bool -> FileNotificationFlag -> IO [Event]
 readDirectoryChanges root h wst mask = do
     let maxBuf = 63 * 1024
     allocaBytes maxBuf $ \buffer -> do
@@ -409,7 +399,7 @@ fILE_ACTION_RENAMED_OLD_NAME  =  4
 fILE_ACTION_RENAMED_NEW_NAME  :: FileAction
 fILE_ACTION_RENAMED_NEW_NAME  =  5
 
-eventStreamAggr :: (HANDLE, FilePath, Config) -> Stream IO Event
+eventStreamAggr :: (HANDLE, Path, Config) -> Stream IO Event
 eventStreamAggr (handle, rootPath, cfg) =  do
     let recMode = getConfigRecMode cfg
         flagMasks = getConfigFlag cfg
@@ -418,7 +408,7 @@ eventStreamAggr (handle, rootPath, cfg) =  do
         $ readDirectoryChanges rootPath handle recMode flagMasks
 
 pathsToHandles ::
-    NonEmpty FilePath -> Config -> Stream IO (HANDLE, FilePath, Config)
+    NonEmpty Path -> Config -> Stream IO (HANDLE, Path, Config)
 pathsToHandles paths cfg = do
     let pathStream = S.fromList (NonEmpty.toList paths)
         st2 = S.mapM getWatchHandle pathStream
@@ -428,15 +418,9 @@ pathsToHandles paths cfg = do
 -- Utilities
 -------------------------------------------------------------------------------
 
-utf8ToString :: Array Word8 -> FilePath
-utf8ToString = runIdentity . S.fold Fold.toList . U.decodeUtf8 . A.read
-
-utf8ToStringList :: NonEmpty (Array Word8) -> NonEmpty FilePath
-utf8ToStringList = NonEmpty.map utf8ToString
-
 -- | Close a Directory handle.
 --
-closePathHandleStream :: Stream IO (HANDLE, FilePath, Config) -> IO ()
+closePathHandleStream :: Stream IO (HANDLE, Path, Config) -> IO ()
 closePathHandleStream =
     let f (h, _, _) = closeHandle h
         in S.fold (Fold.drainMapM f)
@@ -472,13 +456,13 @@ closePathHandleStream =
 --
 -- /Pre-release/
 --
-watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
+watchWith :: (Config -> Config) -> NonEmpty Path -> Stream IO Event
 watchWith f paths =
     S.bracketIO before after (S.parConcatMap (eager True) eventStreamAggr)
 
     where
 
-    before = return $ pathsToHandles (utf8ToStringList paths) $ f defaultConfig
+    before = return $ pathsToHandles paths $ f defaultConfig
     after = closePathHandleStream
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
@@ -487,7 +471,7 @@ watchWith f paths =
 --
 -- /Pre-release/
 --
-watchRecursive :: NonEmpty (Array Word8) -> Stream IO Event
+watchRecursive :: NonEmpty Path -> Stream IO Event
 watchRecursive = watchWith (setRecursiveMode True)
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
@@ -496,30 +480,26 @@ watchRecursive = watchWith (setRecursiveMode True)
 --
 -- /Pre-release/
 --
-watch :: NonEmpty (Array Word8) -> Stream IO Event
+watch :: NonEmpty Path -> Stream IO Event
 watch = watchWith id
 
 getFlag :: DWORD -> Event -> Bool
 getFlag mask Event{..} = eventFlags == mask
 
--- XXX Change the type to Array Word8 to make it compatible with other APIs.
---
 -- | Get the file system object path for which the event is generated, relative
--- to the watched root. The path is a UTF-8 encoded array of bytes.
+-- to the watched root.
 --
 -- /Pre-release/
 --
-getRelPath :: Event -> Array Word8
-getRelPath Event{..} = (UTF8.toArray . UTF8.pack) eventRelPath
+getRelPath :: Event -> Path
+getRelPath Event{..} = eventRelPath
 
--- XXX Change the type to Array Word8 to make it compatible with other APIs.
---
 -- | Get the watch root directory to which this event belongs.
 --
 -- /Pre-release/
 --
-getRoot :: Event -> Array Word8
-getRoot Event{..} = (UTF8.toArray . UTF8.pack) eventRootPath
+getRoot :: Event -> Path
+getRoot Event{..} = eventRootPath
 
 -- | Get the absolute file system object path for which the event is generated.
 --
@@ -528,9 +508,8 @@ getRoot Event{..} = (UTF8.toArray . UTF8.pack) eventRootPath
 --
 -- /Pre-release/
 --
-getAbsPath :: Event -> Array Word8
-getAbsPath ev = getRoot ev <> backSlash <> getRelPath ev
-    where backSlash = A.fromList [ fromIntegral (ord '\\') ]
+getAbsPath :: Event -> Path
+getAbsPath ev = Path.append (getRoot ev) (getRelPath ev)
 
 -- XXX need to document the exact semantics of these.
 --
@@ -625,9 +604,9 @@ isEventsLost Event{..} = totalBytes == 0
 showEvent :: Event -> String
 showEvent ev@Event{..} =
         "--------------------------"
-    ++ "\nRoot = " ++ utf8ToString (getRoot ev)
-    ++ "\nPath = " ++ utf8ToString (getRelPath ev)
-    ++ "\ngetAbsPath = " ++ utf8ToString (getAbsPath ev)
+    ++ "\nRoot = " ++ Path.toString (getRoot ev)
+    ++ "\nPath = " ++ Path.toString (getRelPath ev)
+    ++ "\ngetAbsPath = " ++ Path.toString (getAbsPath ev)
     ++ "\nFlags " ++ show eventFlags
     ++ showev isEventsLost "Overflow"
     ++ showev isCreated "Created"
