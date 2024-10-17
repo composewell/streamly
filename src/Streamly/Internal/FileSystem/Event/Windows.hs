@@ -90,12 +90,14 @@ module Streamly.Internal.FileSystem.Event.Windows
 where
 
 import Data.Bits ((.|.), (.&.), complement)
+import Data.Char (ord)
+import Data.Functor.Identity (runIdentity)
 import Data.List.NonEmpty (NonEmpty)
+import Data.Word (Word8)
 import Foreign.C.String (peekCWStringLen)
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Storable (peekByteOff)
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr, nullFunPtr, plusPtr)
-import System.IO.Unsafe (unsafePerformIO)
 import System.Win32.File
     ( FileNotificationFlag
     , LPOVERLAPPED
@@ -115,15 +117,18 @@ import System.Win32.File
     )
 import System.Win32.Types (BOOL, DWORD, HANDLE, LPVOID, LPDWORD, failIfFalse_)
 
+import Streamly.Data.Array (Array)
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Stream.Prelude (eager)
-import Streamly.Internal.FileSystem.Path (Path)
 
 import qualified Data.List.NonEmpty as NonEmpty
+import qualified Streamly.Data.Array as A (fromList)
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Stream.Prelude as S
-import qualified Streamly.Internal.FileSystem.Path as Path
+import qualified Streamly.Unicode.Stream as U
+import qualified Streamly.Internal.Unicode.Utf8 as UTF8 (pack, toArray)
+import qualified Streamly.Internal.Data.Array as A (read)
 
 -- | Watch configuration, used to specify the events of interest and the
 -- behavior of the watch.
@@ -423,6 +428,12 @@ pathsToHandles paths cfg = do
 -- Utilities
 -------------------------------------------------------------------------------
 
+utf8ToString :: Array Word8 -> FilePath
+utf8ToString = runIdentity . S.fold Fold.toList . U.decodeUtf8 . A.read
+
+utf8ToStringList :: NonEmpty (Array Word8) -> NonEmpty FilePath
+utf8ToStringList = NonEmpty.map utf8ToString
+
 -- | Close a Directory handle.
 --
 closePathHandleStream :: Stream IO (HANDLE, FilePath, Config) -> IO ()
@@ -461,16 +472,13 @@ closePathHandleStream =
 --
 -- /Pre-release/
 --
-watchWith :: (Config -> Config) -> NonEmpty Path -> Stream IO Event
+watchWith :: (Config -> Config) -> NonEmpty (Array Word8) -> Stream IO Event
 watchWith f paths =
     S.bracketIO before after (S.parConcatMap (eager True) eventStreamAggr)
 
     where
 
-    before =
-        return
-            $ pathsToHandles (NonEmpty.map Path.toString paths)
-            $ f defaultConfig
+    before = return $ pathsToHandles (utf8ToStringList paths) $ f defaultConfig
     after = closePathHandleStream
 
 -- | Same as 'watchWith' using 'defaultConfig' and recursive mode.
@@ -479,7 +487,7 @@ watchWith f paths =
 --
 -- /Pre-release/
 --
-watchRecursive :: NonEmpty Path -> Stream IO Event
+watchRecursive :: NonEmpty (Array Word8) -> Stream IO Event
 watchRecursive = watchWith (setRecursiveMode True)
 
 -- | Same as 'watchWith' using defaultConfig and non-recursive mode.
@@ -488,26 +496,30 @@ watchRecursive = watchWith (setRecursiveMode True)
 --
 -- /Pre-release/
 --
-watch :: NonEmpty Path -> Stream IO Event
+watch :: NonEmpty (Array Word8) -> Stream IO Event
 watch = watchWith id
 
 getFlag :: DWORD -> Event -> Bool
 getFlag mask Event{..} = eventFlags == mask
 
+-- XXX Change the type to Array Word8 to make it compatible with other APIs.
+--
 -- | Get the file system object path for which the event is generated, relative
--- to the watched root.
+-- to the watched root. The path is a UTF-8 encoded array of bytes.
 --
 -- /Pre-release/
 --
-getRelPath :: Event -> Path
-getRelPath Event{..} = unsafePerformIO $ Path.fromString eventRelPath
+getRelPath :: Event -> Array Word8
+getRelPath Event{..} = (UTF8.toArray . UTF8.pack) eventRelPath
 
+-- XXX Change the type to Array Word8 to make it compatible with other APIs.
+--
 -- | Get the watch root directory to which this event belongs.
 --
 -- /Pre-release/
 --
-getRoot :: Event -> Path
-getRoot Event{..} = unsafePerformIO $ Path.fromString eventRootPath
+getRoot :: Event -> Array Word8
+getRoot Event{..} = (UTF8.toArray . UTF8.pack) eventRootPath
 
 -- | Get the absolute file system object path for which the event is generated.
 --
@@ -516,8 +528,9 @@ getRoot Event{..} = unsafePerformIO $ Path.fromString eventRootPath
 --
 -- /Pre-release/
 --
-getAbsPath :: Event -> Path
-getAbsPath ev = Path.append (getRoot ev) (getRelPath ev)
+getAbsPath :: Event -> Array Word8
+getAbsPath ev = getRoot ev <> backSlash <> getRelPath ev
+    where backSlash = A.fromList [ fromIntegral (ord '\\') ]
 
 -- XXX need to document the exact semantics of these.
 --
@@ -612,9 +625,9 @@ isEventsLost Event{..} = totalBytes == 0
 showEvent :: Event -> String
 showEvent ev@Event{..} =
         "--------------------------"
-    ++ "\nRoot = " ++ Path.toString (getRoot ev)
-    ++ "\nPath = " ++ Path.toString (getRelPath ev)
-    ++ "\ngetAbsPath = " ++ Path.toString (getAbsPath ev)
+    ++ "\nRoot = " ++ utf8ToString (getRoot ev)
+    ++ "\nPath = " ++ utf8ToString (getRelPath ev)
+    ++ "\ngetAbsPath = " ++ utf8ToString (getAbsPath ev)
     ++ "\nFlags " ++ show eventFlags
     ++ showev isEventsLost "Overflow"
     ++ showev isCreated "Created"
