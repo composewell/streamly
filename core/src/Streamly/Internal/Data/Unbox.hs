@@ -461,19 +461,38 @@ instance Unbox () where
     sizeOf _ = 1
 
 #if MIN_VERSION_base(4,15,0)
+
+-- We could use Word8 instead of Int here but that would be a silent breaking
+-- change.
+
+-- base that ships with GHC 9.12 removes the Enum instance for IoSubSystem. It's
+-- easier to remove the use of Enum for every version than to play around with
+-- CPP macros.
+
+{-# INLINE fromEnumIoSubSystem #-}
+fromEnumIoSubSystem :: IoSubSystem -> Int
+fromEnumIoSubSystem IoPOSIX = 0
+fromEnumIoSubSystem IoNative = 1
+
+{-# INLINE toEnumIoSubSystem #-}
+toEnumIoSubSystem :: Int -> IoSubSystem
+toEnumIoSubSystem 0 = IoPOSIX
+toEnumIoSubSystem 1 = IoNative
+toEnumIoSubSystem val = error $ show val ++ ": Invalid tag for IoSubSystem"
+
 instance Unbox IoSubSystem where
 
     {-# INLINE peekAt #-}
     peekAt i arr =
         checkBounds
             "peek IoSubSystem" (i + sizeOf (Proxy :: Proxy IoSubSystem)) arr
-        >> toEnum <$> peekAt i arr
+        >> toEnumIoSubSystem <$> peekAt i arr
 
     {-# INLINE pokeAt #-}
     pokeAt i arr a =
         checkBounds
             "poke IoSubSystem" (i + sizeOf (Proxy :: Proxy IoSubSystem)) arr
-        >> pokeAt i arr (fromEnum a)
+        >> pokeAt i arr (fromEnumIoSubSystem a)
 
     {-# INLINE sizeOf #-}
     sizeOf _ = sizeOf (Proxy :: Proxy Int)
