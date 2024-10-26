@@ -536,7 +536,7 @@ library
                     -- depend on streamly.
                        ghc-prim          >= 0.5.3 && < 0.12
                      , fusion-plugin-types >= 0.1 && < 0.2
-                     , base              >= 4.12  && < 4.21
+                     , base              >= 4.12  && < 4.22
                      , exceptions        >= 0.8.0 && < 0.11
                      , transformers      >= 0.5.5 && < 0.7
                      , filepath          >= 1.4.2 && < 1.6
