@@ -72,6 +72,7 @@ extra-source-files:
     benchmark/bench-runner/Main.hs
     benchmark/bench-runner/bench-runner.cabal
     benchmark/Streamly/Benchmark/Data/*.hs
+    benchmark/Streamly/Benchmark/Data/Scanl/*.hs
     benchmark/Streamly/Benchmark/Data/Fold/*.hs
     benchmark/Streamly/Benchmark/Data/Serialize/*.hs
     benchmark/Streamly/Benchmark/Data/Array/Common.hs
@@ -135,6 +136,7 @@ extra-source-files:
     test/Streamly/Test/Data/Fold/*.hs
     test/lib/Streamly/Test/Common.hs
     test/lib/Streamly/Test/Prelude/Common.hs
+    test/lib/Streamly/Test/Parser/Common.hs
     test/streamly-tests.cabal
     test/version-bounds.hs
     test/Streamly/Test/Unicode/ucd/NormalizationTest.txt
