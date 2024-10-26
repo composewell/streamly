@@ -68,7 +68,7 @@ expectedResult moves inp = go 0 0 [] moves
     inpLen = length inp
 
     slice off len = Prelude.take len . Prelude.drop off
-    slice_ off = Prelude.drop off
+    slice_ = Prelude.drop
 
     -- i = Index of inp head
     -- j = Minimum index of inp head
@@ -105,7 +105,7 @@ expectedResultMany moves inp =
 
 createPaths :: [a] -> [[a]]
 createPaths xs =
-    Prelude.map (flip Prelude.take xs) [1..length xs]
+    Prelude.map (`Prelude.take` xs) [1..length xs]
 
 parserSanityTests :: String -> ([Move] -> SpecWith ()) -> SpecWith ()
 parserSanityTests desc testRunner =
