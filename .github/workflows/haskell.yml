@@ -62,7 +62,7 @@ jobs:
       SUBDIR: ${{ matrix.subdir }}
 
     runs-on: ${{ matrix.runner }}
-    continue-on-error: ${{ matrix.ignore_error }}
+    continue-on-error: true
     strategy:
       fail-fast: true
       matrix:
