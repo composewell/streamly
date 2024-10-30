@@ -62,6 +62,39 @@ import qualified Streamly.Internal.Data.MutArray.Generic as GenArr
 import qualified Streamly.Internal.Data.Array.Generic as GenArr
 import qualified Streamly.Internal.Data.Parser.Type as ParserD
 
+-------------------------------------------------------------------------------
+-- Developer Notes
+-------------------------------------------------------------------------------
+
+-- MonadReader cannot be implemented using continuations for ParserK
+--
+-- "local" (and hence "MonadReader") cannot be implemented for ParserK because
+-- there is no way to override all continuations.
+--
+-- We can implement `MonadReader` for ParserK via ParserD:
+--
+-- @
+-- instance (Show r, MonadReader r m) => MonadReader r (Parser a m) where
+--     {-# INLINE ask #-}
+--     ask = Parser.fromEffect ask
+--     {-# INLINE local #-}
+--     local f (Parser step initial extract) =
+--         Parser
+--             ((local f .) . step)
+--             (local f initial)
+--             (local f . extract)
+--
+-- instance (Show r, MonadReader r m) => MonadReader r (ParserK a m) where
+--     {-# INLINE ask #-}
+--     ask = ParserK.fromEffect ask
+--     {-# INLINE local #-}
+--     local f parser = ParserK.adapt $ local f $ ParserK.toParser parser
+-- @
+
+-------------------------------------------------------------------------------
+-- Types
+-------------------------------------------------------------------------------
+
 -- Note: We cannot use an Array directly as input because we need to identify
 -- the end of input case using None. We cannot do that using nil Array as nil
 -- Arrays can be encountered in normal input as well.
