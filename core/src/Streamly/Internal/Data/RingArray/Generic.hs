@@ -143,7 +143,7 @@ toMutArray adj n RingArray{..} =
             end = idx + len
         if end <= ringMax
         then
-            return $ ringArr { arrStart = idx, arrLen = len }
+            return $ ringArr { arrStart = idx, arrEnd = end }
         else do
             -- XXX Just swap the elements in the existing ring and return the
             -- same array without reallocation.
