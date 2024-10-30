@@ -647,15 +647,12 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
     where
 
     {-# NOINLINE parseContChunk #-}
-    parseContChunk !count !offset !state arr@(GenArr.Array contents start len) = do
+    parseContChunk !count !offset !state arr@(GenArr.Array contents start end) = do
          if offset >= 0
          then go SPEC (start + offset) state
          else return $ Continue offset (parseCont count state)
 
         where
-
-        {-# INLINE end #-}
-        end = start + len
 
         {-# INLINE onDone #-}
         onDone n b =
@@ -685,7 +682,7 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
                 else constr pos pst
 
         go !_ !cur !pst | cur >= end =
-            onContinue len  pst
+            onContinue (end - start)  pst
         go !_ !cur !pst = do
             let !x = unsafeInlineIO $ GenArr.unsafeGetIndexWith contents cur
             pRes <- pstep pst x

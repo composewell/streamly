@@ -91,15 +91,15 @@ data Array a =
         , arrStart :: {-# UNPACK #-}!Int
           -- ^ The starting index of this slice.
 
-        , arrLen :: {-# UNPACK #-}!Int
-          -- ^ The length of this slice.
+        , arrEnd :: {-# UNPACK #-}!Int
+          -- ^ First invalid index of the array.
         }
 
 unsafeFreeze :: MArray.MutArray a -> Array a
-unsafeFreeze (MArray.MutArray cont# arrS arrL _) = Array cont# arrS arrL
+unsafeFreeze (MArray.MutArray cont# arrS arrE _) = Array cont# arrS arrE
 
 unsafeThaw :: Array a -> MArray.MutArray a
-unsafeThaw (Array cont# arrS arrL) = MArray.MutArray cont# arrS arrL arrL
+unsafeThaw (Array cont# arrS arrE) = MArray.MutArray cont# arrS arrE arrE
 
 {-# NOINLINE nil #-}
 nil :: Array a
@@ -185,7 +185,7 @@ fromList xs = unsafePerformIO $ fromStream $ D.fromList xs
 
 {-# INLINE length #-}
 length :: Array a -> Int
-length = arrLen
+length arr = arrEnd arr - arrStart arr
 
 {-# INLINE_NORMAL reader #-}
 reader :: Monad m => Unfold m (Array a) a
@@ -210,14 +210,16 @@ toList arr = loop 0
 
 {-# INLINE_NORMAL read #-}
 read :: Monad m => Array a -> Stream m a
-read arr@Array{..} =
-    D.map (`getIndexUnsafe` arr) $ D.enumerateFromToIntegral 0 (arrLen - 1)
+read arr =
+    D.map (`getIndexUnsafe` arr) $ D.enumerateFromToIntegral 0 (length arr - 1)
 
 {-# INLINE_NORMAL readRev #-}
 readRev :: Monad m => Array a -> Stream m a
-readRev arr@Array{..} =
+readRev arr =
     D.map (`getIndexUnsafe` arr)
         $ D.enumerateFromThenToIntegral (arrLen - 1) (arrLen - 2) 0
+    where
+    arrLen = length arr
 
 -------------------------------------------------------------------------------
 -- Elimination - using Folds
@@ -256,8 +258,8 @@ getIndexUnsafe i arr =
 --
 {-# INLINE getIndex #-}
 getIndex :: Int -> Array a -> Maybe a
-getIndex i arr@Array {..} =
-    if i >= 0 && i < arrLen
+getIndex i arr =
+    if i >= 0 && i < length arr
     then Just $ getIndexUnsafe i arr
     else Nothing
 
@@ -284,7 +286,8 @@ createOfLast n = FL.rmapM f (RB.createOf n)
 
 {-# INLINE getSliceUnsafe #-}
 getSliceUnsafe :: Int -> Int -> Array a -> Array a
-getSliceUnsafe offset len (Array cont off1 _) = Array cont (off1 + offset) len
+getSliceUnsafe offset len =
+    unsafeFreeze . MArray.unsafeGetSlice offset len . unsafeThaw
 
 -- XXX This is not efficient as it copies the array. We should support array
 -- slicing so that we can just refer to the underlying array memory instead of

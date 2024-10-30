@@ -471,11 +471,11 @@ data MutArray a =
     MutArray
     { arrContents :: {-# UNPACK #-} !MutByteArray
     , arrStart :: {-# UNPACK #-} !Int  -- ^ index into arrContents
-    , arrEnd   :: {-# UNPACK #-} !Int    -- ^ index into arrContents
+    , arrEnd   :: {-# UNPACK #-} !Int  -- ^ index into arrContents
                                        -- Represents the first invalid index of
                                        -- the array.
     -- XXX rename to arrCapacity to be consistent with ring.
-    , arrBound :: {-# UNPACK #-} !Int    -- ^ first invalid index of arrContents.
+    , arrBound :: {-# UNPACK #-} !Int  -- ^ first invalid index of arrContents.
     }
 
 -------------------------------------------------------------------------------
