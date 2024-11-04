@@ -145,6 +145,7 @@ module Streamly.Data.Parser
 
     -- * Parser Type
       Parser
+    , ParseError
 
     -- -- * Downgrade to Fold
     -- , toFold
