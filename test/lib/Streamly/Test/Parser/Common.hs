@@ -32,25 +32,25 @@ jumpParser jumps = P.Parser step initial done
     where
     initial = pure $ P.IPartial (jumps, [])
 
-    step ([], buf) _ = pure $ P.Done 1 (reverse buf)
+    step ([], buf) _ = pure $ P.SDone 0 (reverse buf)
     step (action:xs, buf) a =
         case action of
             Consume n
-                | n == 1 -> pure $ P.Continue 0 (xs, a:buf)
-                | n > 0 -> pure $ P.Continue 0 (Consume (n - 1) : xs, a:buf)
+                | n == 1 -> pure $ P.SContinue 1 (xs, a:buf)
+                | n > 0 -> pure $ P.SContinue 1 (Consume (n - 1) : xs, a:buf)
                 | otherwise -> error "Cannot consume <= 0"
-            Custom (P.Partial i ()) -> pure $ P.Partial i (xs, buf)
-            Custom (P.Continue i ()) -> pure $ P.Continue i (xs, buf)
-            Custom (P.Done i ()) -> pure $ P.Done i (reverse buf)
+            Custom (P.SPartial i ()) -> pure $ P.SPartial i (xs, buf)
+            Custom (P.SContinue i ()) -> pure $ P.SContinue i (xs, buf)
+            Custom (P.SDone i ()) -> pure $ P.SDone i (reverse buf)
             Custom (P.Error err) -> pure $ P.Error err
 
-    done ([], buf) = pure $ P.Done 0 (reverse buf)
+    done ([], buf) = pure $ P.SDone 1 (reverse buf)
     done (action:xs, buf) =
         case action of
             Consume _ -> pure $ P.Error "INCOMPLETE"
-            Custom (P.Partial i ()) -> pure $ P.Partial i (xs, buf)
-            Custom (P.Continue i ()) -> pure $ P.Continue i (xs, buf)
-            Custom (P.Done i ()) -> pure $ P.Done i (reverse buf)
+            Custom (P.SPartial i ()) -> pure $ P.SPartial i (xs, buf)
+            Custom (P.SContinue i ()) -> pure $ P.SContinue i (xs, buf)
+            Custom (P.SDone i ()) -> pure $ P.SDone i (reverse buf)
             Custom (P.Error err) -> pure $ P.Error err
 
 chunkedTape :: [[Int]]
@@ -83,15 +83,15 @@ expectedResult moves inp = go 0 0 [] moves
               -- Where there is no input we do not move forward by default.
               -- Hence it is (i - n) and not (i + 1 - n)
               case step of
-                  P.Partial n () -> go (i - n) (max j (i - n)) ys xs
-                  P.Continue n () -> go (i - n) j ys xs
-                  P.Done n () -> (Right ys, slice_ (max (i - n) j) inp)
+                  P.SPartial n () -> go (i + n - 1) (max j (i + n - 1)) ys xs
+                  P.SContinue n () -> go (i + n - 1) j ys xs
+                  P.SDone n () -> (Right ys, slice_ (max (i + n - 1) j) inp)
                   P.Error err -> (Left (ParseError err), slice_ j inp)
         | otherwise =
               case step of
-                  P.Partial n () -> go (i + 1 - n) (max j (i + 1 - n)) ys xs
-                  P.Continue n () -> go (i + 1 - n) j ys xs
-                  P.Done n () -> (Right ys, slice_ (max (i - n + 1) j) inp)
+                  P.SPartial n () -> go (i + n) (max j (i + n)) ys xs
+                  P.SContinue n () -> go (i + n) j ys xs
+                  P.SDone n () -> (Right ys, slice_ (max (i + n) j) inp)
                   P.Error err -> (Left (ParseError err), slice_ j inp)
 
 expectedResultMany :: [Move] -> [Int] -> [Either ParseError [Int]]
@@ -121,62 +121,62 @@ parserSanityTests desc testRunner =
         Prelude.mapM_ testRunner $
             createPaths
                 [ Consume 10
-                , Custom (P.Partial 0 ())
+                , Custom (P.SPartial 1 ())
                 , Consume 10
-                , Custom (P.Partial 1 ())
+                , Custom (P.SPartial 0 ())
                 , Consume 10
-                , Custom (P.Partial 11 ())
+                , Custom (P.SPartial (-10) ())
                 , Consume 10
-                , Custom (P.Continue 0 ())
+                , Custom (P.SContinue 1 ())
                 , Consume 10
-                , Custom (P.Continue 1 ())
+                , Custom (P.SContinue 0 ())
                 , Consume 10
-                , Custom (P.Continue 11 ())
+                , Custom (P.SContinue (-10) ())
                 , Custom (P.Error "Message1")
                 ]
         Prelude.mapM_ testRunner $
             createPaths
                 [ Consume 10
-                , Custom (P.Continue 0 ())
+                , Custom (P.SContinue 1 ())
                 , Consume 10
-                , Custom (P.Continue 1 ())
+                , Custom (P.SContinue 0 ())
                 , Consume 10
-                , Custom (P.Continue 11 ())
+                , Custom (P.SContinue (-10) ())
                 , Consume 10
-                , Custom (P.Done 0 ())
+                , Custom (P.SDone 1 ())
                 ]
         Prelude.mapM_ testRunner $
             createPaths
                 [ Consume 20
-                , Custom (P.Continue 0 ())
-                , Custom (P.Continue 11 ())
-                , Custom (P.Done 1 ())
+                , Custom (P.SContinue 1 ())
+                , Custom (P.SContinue (-10) ())
+                , Custom (P.SDone 0 ())
                 ]
         Prelude.mapM_ testRunner $
             createPaths
                 [ Consume 20
-                , Custom (P.Continue 0 ())
-                , Custom (P.Continue 11 ())
+                , Custom (P.SContinue 1 ())
+                , Custom (P.SContinue (-10) ())
                 , Custom (P.Error "Message2")
                 ]
         Prelude.mapM_ testRunner $
             createPaths
                 [ Consume 20
-                , Custom (P.Continue 0 ())
-                , Custom (P.Continue 11 ())
-                , Custom (P.Done 5 ())
+                , Custom (P.SContinue 1 ())
+                , Custom (P.SContinue (-10) ())
+                , Custom (P.SDone (-4) ())
                 ]
         Prelude.mapM_ testRunner $
             createPaths
                 [ Consume tapeLen
-                , Custom (P.Continue 0 ())
-                , Custom (P.Continue 10 ())
-                , Custom (P.Done 5 ())
+                , Custom (P.SContinue 1 ())
+                , Custom (P.SContinue (-9) ())
+                , Custom (P.SDone (-4) ())
                 ]
         Prelude.mapM_ testRunner $
             createPaths
                 [ Consume tapeLen
-                , Custom (P.Continue 0 ())
-                , Custom (P.Continue 10 ())
+                , Custom (P.SContinue 1 ())
+                , Custom (P.SContinue (-9) ())
                 , Custom (P.Error "Message3")
                 ]
