@@ -366,14 +366,17 @@ negateDirection (SContinue i s) = SContinue (1 - i) s
 negateDirection (SDone i b) = SDone (1 - i) b
 negateDirection (Error s) = Error s
 
+{-# DEPRECATED Partial "Please use @SPartial (1 - n)@ instead of @Partial n@" #-}
 pattern Partial :: Int -> s -> Step s b
 pattern Partial i s <- (negateDirection -> SPartial i s)
     where Partial i s = SPartial (1 - i) s
 
+{-# DEPRECATED Continue "Please use @SContinue (1 - n)@ instead of @Continue n@" #-}
 pattern Continue :: Int -> s -> Step s b
 pattern Continue i s <- (negateDirection -> SContinue i s)
     where Continue i s = SContinue (1 - i) s
 
+{-# DEPRECATED Done "Please use @SDone (1 - n)@ instead of @Done n@" #-}
 pattern Done :: Int -> b -> Step s b
 pattern Done i b <- (negateDirection -> SDone i b)
     where Done i b = SDone (1 - i) b
