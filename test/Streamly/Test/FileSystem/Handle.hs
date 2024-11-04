@@ -20,20 +20,27 @@ import System.IO
     , hClose
     , hFlush
     , hSeek
-    , openFile
+    , hPutStr
     )
 import System.IO.Temp (withSystemTempDirectory)
+import Streamly.Internal.FileSystem.File.Utils (openFile, withFile)
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
+import Streamly.Internal.FileSystem.Path (Path)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Unicode.Stream as Unicode
+import qualified Streamly.Internal.FileSystem.Path as Path
 
+import Prelude hiding (writeFile)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
+
+writeFile :: Path -> String -> IO ()
+writeFile fpath val = withFile fpath WriteMode (`hPutStr` val)
 
 maxArrLen :: Int
 maxArrLen = defaultChunkSize * 8
@@ -63,7 +70,7 @@ testBinData = "01234567890123456789012345678901234567890123456789"
 executor :: (Handle -> Stream IO Char) -> IO (Stream IO Char)
 executor f =
     withSystemTempDirectory "fs_handle" $ \fp -> do
-        let fpath = fp </> "tmp_read.txt"
+        fpath <- Path.fromString $ fp </> "tmp_read.txt"
         writeFile fpath testDataLarge
         h <- openFile fpath ReadMode
         return $ f h
@@ -115,7 +122,7 @@ testWrite hfold =
 
                 go list =
                     withSystemTempDirectory "fs_handle" $ \fp -> do
-                        let fpathWrite = fp </> "tmp_write.txt"
+                        fpathWrite <- Path.fromString $ fp </> "tmp_write.txt"
                         writeFile fpathWrite ""
                         h <- openFile fpathWrite ReadWriteMode
                         hSeek h AbsoluteSeek 0
@@ -136,8 +143,8 @@ testWriteWithChunk =
 
         go =
             withSystemTempDirectory "fs_handle" $ \fp -> do
-                let fpathRead = fp </> "tmp_read.txt"
-                    fpathWrite = fp </> "tmp_write.txt"
+                fpathRead <- Path.fromString $ fp </> "tmp_read.txt"
+                fpathWrite <- Path.fromString $ fp </> "tmp_write.txt"
                 writeFile fpathRead testDataLarge
                 writeFile fpathWrite ""
                 hr <- openFile fpathRead ReadMode
@@ -158,7 +165,7 @@ testReadChunksFromToWith from to buffSize res = monadicIO $ run go
 
     go =
         withSystemTempDirectory "fs_handle" $ \fp -> do
-            let fpathRead = fp </> "tmp_read.txt"
+            fpathRead <- Path.fromString $ fp </> "tmp_read.txt"
             writeFile fpathRead testBinData
             h <- openFile fpathRead ReadMode
             ls <-
