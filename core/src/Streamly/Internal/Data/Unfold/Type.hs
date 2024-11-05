@@ -596,7 +596,7 @@ data Cross a s1 b s2 = CrossOuter a s1 | CrossInner a s1 b s2
 -- output streams of two unfolds using a monadic combining function.
 --
 -- >>> f1 f u = Unfold.mapM2 (\(_, c) b -> f b c) (Unfold.lmap fst u)
--- >>> crossWithM f u = Unfold.many2 (f1 f u)
+-- >>> crossWithM f u = Unfold.unfoldEach2 (f1 f u)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL crossWithM #-}

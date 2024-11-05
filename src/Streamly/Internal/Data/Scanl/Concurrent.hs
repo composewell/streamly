@@ -34,6 +34,13 @@ import qualified Data.Map.Strict as Map
 import Streamly.Internal.Data.Fold.Channel.Type
 import Streamly.Internal.Data.Channel.Types
 
+-- $setup
+-- >>> :set -fno-warn-deprecations
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Scanl as Scanl
+-- >>> import qualified Streamly.Internal.Data.Scanl.Concurrent as Scanl
+
 -------------------------------------------------------------------------------
 -- Concurrent scans
 -------------------------------------------------------------------------------
@@ -146,7 +153,7 @@ data ScanState s q db f =
 -- outputs of the parallel scans are merged in the output stream.
 --
 -- >>> import Data.IORef
--- >>> ref <- newIORef [Scanl.take 5 Scanl.sum, Scanl.take 5 Scanl.length :: Scanl IO Int Int]
+-- >>> ref <- newIORef [Scanl.take 5 Scanl.sum, Scanl.take 5 Scanl.length :: Scanl.Scanl IO Int Int]
 -- >>> gen = atomicModifyIORef ref (\xs -> ([], xs))
 -- >>> Stream.toList $ Scanl.parDistributeScan id gen (Stream.enumerateFromTo 1 10)
 -- ...

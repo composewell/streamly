@@ -254,7 +254,7 @@ unfoldr f = unfoldrM (return . f)
 ------------------------------------------------------------------------------
 
 -- |
--- >>> repeatM = Stream.iterateM id
+-- >>> repeatM act = Stream.iterateM (const act) act
 -- >>> repeatM = Stream.sequence . Stream.repeat
 --
 -- Generate a stream by repeatedly executing a monadic action forever.

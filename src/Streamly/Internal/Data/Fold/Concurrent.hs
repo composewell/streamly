@@ -78,6 +78,14 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import Streamly.Internal.Data.Fold.Channel.Type
 import Streamly.Internal.Data.Channel.Types
 
+-- $setup
+-- >>> :set -fno-warn-deprecations
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.Prelude as Stream
+-- >>> import qualified Streamly.Internal.Data.Fold as Fold
+-- >>> import qualified Streamly.Internal.Data.Fold.Concurrent as Fold
+
 -------------------------------------------------------------------------------
 -- Evaluating a Fold
 -------------------------------------------------------------------------------
@@ -299,7 +307,7 @@ data ScanState s q db f =
 -- its output is emitted in the output of the scan.
 --
 -- >>> import Data.IORef
--- >>> ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold IO Int Int]
+-- >>> ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold.Fold IO Int Int]
 -- >>> gen = atomicModifyIORef ref (\xs -> ([], xs))
 -- >>> Stream.toList $ Fold.parDistributeScan id gen (Stream.enumerateFromTo 1 10)
 -- ...

@@ -363,7 +363,7 @@ interleave (Stream step1 state1) (Stream step2 state2) =
 --
 -- Definition:
 --
--- >>> interleaveEndBy' s1 s2 = unfoldEach Unfold.fromTuple $ Stream.zipWith (,) s2 s1
+-- >>> interleaveEndBy' s1 s2 = Stream.unfoldEach Unfold.fromTuple $ Stream.zipWith (,) s2 s1
 --
 -- Similarly, we can defined interleaveBeginBy' as:
 --
@@ -645,6 +645,8 @@ roundRobin (Stream step1 state1) (Stream step2 state2) =
 --
 -- Example, merge two streams in a proportion of 2:1:
 --
+-- >>> :set -fno-warn-unrecognised-warning-flags
+-- >>> :set -fno-warn-x-partial
 -- >>> :{
 -- do
 --  let s1 = Stream.fromList [1,1,1,1,1,1]
@@ -1148,7 +1150,7 @@ unfoldEachSepByM
 --
 -- Definition:
 --
--- >>> unfoldEachSepBy x = unfoldEachSepByM (return x)
+-- >>> unfoldEachSepBy x = Stream.unfoldEachSepByM (return x)
 -- >>> unfoldEachSepBy x = Stream.intercalateSepBy Unfold.identity (Stream.repeat x)
 --
 -- Usage:
@@ -1183,7 +1185,7 @@ data ICUState s1 s2 i1 i2 =
 -- You can think of this as 'interleaveEndBy' on the stream of streams followed
 -- by concat. Same as the following but more efficient:
 --
--- >>> intercalateEndBy u1 s1 u2 s2 = Stream.concat $ interleaveEndBy (fmap (unfold u1) s1) (fmap (unfold u2) s2)
+-- >>> intercalateEndBy u1 s1 u2 s2 = Stream.concat $ Stream.interleaveEndBy (fmap (Stream.unfold u1) s1) (fmap (Stream.unfold u2) s2)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL intercalateEndBy #-}
@@ -1283,12 +1285,12 @@ data ICALState s1 s2 i1 i2 a =
 -- You can think of this as 'interleaveSepBy' on the stream of streams followed
 -- by concat. Same as the following but more efficient:
 --
--- >>> intercalateSepBy u1 s1 u2 s2 = Stream.concat $ interleaveSepBy (fmap (unfold u1) s1) (fmap (unfold u2) s2)
+-- >>> intercalateSepBy u1 s1 u2 s2 = Stream.concat $ Stream.interleaveSepBy (fmap (Stream.unfold u1) s1) (fmap (Stream.unfold u2) s2)
 --
 -- If the separator stream consists of nil streams then it becomes equivalent
 -- to 'unfoldEach':
 --
--- >>> unfoldEach = intercalateSepBy (Unfold.nilM (const (return ()))) (Stream.repeat ())
+-- >>> unfoldEach = Stream.intercalateSepBy (Unfold.nilM (const (return ()))) (Stream.repeat ())
 --
 -- /Pre-release/
 {-# INLINE_NORMAL intercalateSepBy #-}
@@ -1419,7 +1421,7 @@ gintercalate u1 s1 u2 s2 = intercalateSepBy u2 s2 u1 s1
 -- Definition:
 --
 -- >>> unfoldEachEndBySeq a u = Stream.unfoldEach u . Stream.intersperseEndByM a
--- >>> unfoldEachEndBySeq a u = intercalateEndBy u (Stream.repeat a) u
+-- >>> unfoldEachEndBySeq a u = Stream.intercalateEndBy u (Stream.repeat a) u
 --
 -- Idioms:
 --
@@ -1429,7 +1431,7 @@ gintercalate u1 s1 u2 s2 = intercalateSepBy u2 s2 u1 s1
 -- Usage:
 --
 -- >>> input = Stream.fromList ["abc", "def", "ghi"]
--- >>> Stream.toList $ Stream.unfoldEachEndBySeq Unfold.fromList "\n" input
+-- >>> Stream.toList $ Stream.unfoldEachEndBySeq "\n" Unfold.fromList input
 -- "abc\ndef\nghi\n"
 --
 {-# INLINE unfoldEachEndBySeq #-}
@@ -1459,7 +1461,7 @@ intercalateSuffix u x = unfoldEachEndBySeq x u
 -- Usage:
 --
 -- >>> input = Stream.fromList ["abc", "def", "ghi"]
--- >>> Stream.toList $ Stream.UnfoldEachSepBySeq " " Unfold.fromList input
+-- >>> Stream.toList $ Stream.unfoldEachSepBySeq " " Unfold.fromList input
 -- "abc def ghi"
 --
 {-# INLINE unfoldEachSepBySeq #-}
@@ -2778,7 +2780,7 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 --
 -- Equivalent to the following:
 --
--- >>> splitSepBySeq_ pat f = Stream.foldMany0 (Fold.takeEndBySeq_ pat f)
+-- >>> splitSepBySeq_ pat f = Stream.foldManyPost (Fold.takeEndBySeq_ pat f)
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --

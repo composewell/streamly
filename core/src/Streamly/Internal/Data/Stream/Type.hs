@@ -577,7 +577,7 @@ foldAdd f =
 -- True
 --
 -- >>> import Control.Monad (join)
--- >>> foldrM f z = join $ Stream.foldr f z
+-- >>> foldrM f z = join . Stream.foldr f z
 --
 {-# INLINE_NORMAL foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
@@ -1551,7 +1551,7 @@ concatIterateBfsRev f stream = Stream step (stream, [])
 -- Example, list a directory tree using BFS:
 --
 -- >>> f = either (Just . Dir.readEitherPaths) (const Nothing)
--- >>> input = Stream.fromPure (Left ".")
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = Stream.concatIterateBfs f input
 --
 -- /Pre-release/
@@ -1590,7 +1590,7 @@ concatIterateBfs f stream = Stream step (stream, [], [])
 -- Example, list a directory tree using DFS:
 --
 -- >>> f = either (Just . Dir.readEitherPaths) (const Nothing)
--- >>> input = Stream.fromPure (Left ".")
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = Stream.concatIterateDfs f input
 --
 -- This is equivalent to using @concatIterateWith StreamK.append@.
@@ -1631,7 +1631,7 @@ data IterateUnfoldState o i =
 -- Example, list a directory tree using DFS:
 --
 -- >>> f = Unfold.either Dir.eitherReaderPaths Unfold.nil
--- >>> input = Stream.fromPure (Left ".")
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = Stream.unfoldIterateDfs f input
 --
 -- /Pre-release/
@@ -1840,7 +1840,7 @@ data FoldManyPost s fs b a
 -- Example, empty stream, compare with 'foldMany':
 --
 -- >>> f = Fold.take 2 Fold.toList
--- >>> fmany = Stream.fold Fold.toList . Stream.foldMany0 f
+-- >>> fmany = Stream.fold Fold.toList . Stream.foldManyPost f
 -- >>> fmany $ Stream.fromList []
 -- [[]]
 --

@@ -226,7 +226,7 @@ incrScan n f = incrScanWith n (Scanl.lmap fst f)
 -- | Convert an incremental scan to a cumulative scan using the entire input
 -- stream as a single window.
 --
--- >>> cumulativeScan = Scanl.lmap Insert
+-- >>> cumulativeScan = Scanl.lmap Scanl.Insert
 --
 {-# INLINE cumulativeScan #-}
 cumulativeScan :: Scanl m (Incr a) b -> Scanl m a b

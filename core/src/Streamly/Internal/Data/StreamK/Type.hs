@@ -1543,7 +1543,7 @@ concatUnfoldr = undefined
 -- Example, list a directory tree using DFS:
 --
 -- >>> f = StreamK.fromStream . either Dir.readEitherPaths (const Stream.nil)
--- >>> input = StreamK.fromPure (Left ".")
+-- >>> input = StreamK.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = StreamK.concatIterateWith StreamK.append f input
 --
 -- Note that 'iterateM' is a special case of 'concatIterateWith':
@@ -1573,7 +1573,7 @@ concatIterateWith combine f = iterateStream
 -- Example, list a directory tree using balanced traversal:
 --
 -- >>> f = StreamK.fromStream . either Dir.readEitherPaths (const Stream.nil)
--- >>> input = StreamK.fromPure (Left ".")
+-- >>> input = StreamK.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = StreamK.mergeIterateWith StreamK.interleave f input
 --
 -- /Pre-release/
@@ -1662,7 +1662,7 @@ concatMapEitherWith = undefined
 --
 -- To traverse a directory tree:
 --
--- >>> input = StreamK.fromPure (Left ".")
+-- >>> input = StreamK.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = StreamK.concatIterateLeftsWith StreamK.append (StreamK.fromStream . Dir.readEither) input
 --
 -- /Pre-release/
@@ -1933,6 +1933,8 @@ tailNonEmpty m = mkStream $ \st yld sng stp ->
 
 -- | We can define cyclic structures using @let@:
 --
+-- >>> :set -fno-warn-unrecognised-warning-flags
+-- >>> :set -fno-warn-x-partial
 -- >>> let (a, b) = ([1, b], head a) in (a, b)
 -- ([1,1],1)
 --
@@ -2032,7 +2034,7 @@ uncons m =
 
 -- | Same as:
 --
--- >>> tail = fmap (fmap snd) StreamK.uncons
+-- >>> tail = fmap (fmap snd) . StreamK.uncons
 --
 {-# INLINE tail #-}
 tail :: Applicative m => StreamK m a -> m (Maybe (StreamK m a))

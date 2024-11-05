@@ -86,7 +86,8 @@ import Prelude hiding (Foldable(..))
 -- configuration is opaque and is modified by composing config modifier
 -- functions, for example:
 --
--- >>> (inlineSerializeAt (Just NoInline)) . (inlineSerializeAt (Just Inlinable))
+-- >>> import Language.Haskell.TH (Inline(..))
+-- >>> configOpts = (inlineDeserializeAt (Just NoInline)) . (inlineSerializeAt (Just Inlinable))
 --
 -- The default configuration settings are:
 --
