@@ -13,6 +13,7 @@
 >>> import Data.Functor.Identity (runIdentity)
 >>> import Data.IORef
 >>> import Data.Semigroup (cycle1)
+>>> import Data.Word (Word8, Word16)
 >>> import GHC.Exts (Ptr (Ptr))
 >>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 
@@ -31,6 +32,9 @@
 
 For APIs that have not been released yet.
 
+>>> import qualified Streamly.Internal.FileSystem.Path as Path
+>>> import qualified Streamly.Internal.Data.Scanr as Scanr
+>>> import qualified Streamly.Internal.Data.Scanl as Scanl
 >>> import qualified Streamly.Internal.Data.Fold as Fold
 >>> import qualified Streamly.Internal.Data.Parser as Parser
 >>> import qualified Streamly.Internal.Data.Stream as Stream

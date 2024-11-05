@@ -249,7 +249,7 @@ filterStreamWith fld member s1 s2 =
 -- intersectBy is a special case of 'innerJoin'.
 --
 -- >>> f s1 s2 = Stream.fold Fold.toList $ Stream.intersectBy (==) (Stream.fromList s1) (Stream.fromList s2)
--- >>> f [1,3,4,4,5]) [2,3,4,5,5]
+-- >>> f [1,3,4,4,5] [2,3,4,5,5]
 -- [3,4,4,5]
 --
 -- First stream can be infinite, the second stream must be finite and must be
@@ -338,8 +338,8 @@ sortedIntersectBy cmp (Stream stepa ta) (Stream stepb tb) =
 --
 -- The following holds:
 --
--- > deleteFirstsBy (==) (Stream.nub s2 `append` s1) s2 === s1
--- > deleteFirstsBy (==) (Stream.nub s2 `interleave` s1) s2 === s1
+-- > deleteFirstsBy (==) (Stream.ordNub s2 `append` s1) s2 === s1
+-- > deleteFirstsBy (==) (Stream.ordNub s2 `interleave` s1) s2 === s1
 --
 -- First stream can be infinite, second stream must be finite.
 --
@@ -400,7 +400,7 @@ sortedDeleteFirstsBy _eq _s1 _s2 = undefined
 --
 -- Equivalent to the following except that @s2@ is evaluated only once:
 --
--- >>> unionBy eq s1 s2 = s1 `Stream.append` Stream.deleteFirstsBy eq s1 (Stream.nub s2)
+-- >>> unionBy eq s1 s2 = s1 `Stream.append` Stream.deleteFirstsBy eq s1 (Stream.ordNub s2)
 --
 -- Example:
 --

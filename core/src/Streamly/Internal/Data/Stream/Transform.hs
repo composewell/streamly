@@ -505,25 +505,25 @@ data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 -- | Postscan a stream using the given fold. A postscan omits the initial
 -- (default) value of the accumulator and includes the final value.
 --
--- >>> Stream.toList $ Stream.postscan Fold.latest (Stream.fromList [])
+-- >>> Stream.toList $ Stream.postscanl Scanl.latest (Stream.fromList [])
 -- []
 --
 -- Compare with 'scan' which includes the initial value as well:
 --
--- >>> Stream.toList $ Stream.scan Fold.latest (Stream.fromList [])
+-- >>> Stream.toList $ Stream.scanl Scanl.latest (Stream.fromList [])
 -- [Nothing]
 --
 -- The following example extracts the input stream up to a point where the
 -- running average of elements is no more than 10:
 --
 -- >>> import Data.Maybe (fromJust)
--- >>> let avg = Fold.teeWith (/) Fold.sum (fmap fromIntegral Fold.length)
+-- >>> let avg = Scanl.teeWith (/) Scanl.sum (fmap fromIntegral Scanl.length)
 -- >>> s = Stream.enumerateFromTo 1.0 100.0
 -- >>> :{
 --  Stream.fold Fold.toList
 --   $ fmap (fromJust . fst)
 --   $ Stream.takeWhile (\(_,x) -> x <= 10)
---   $ Stream.postscan (Fold.tee Fold.latest avg) s
+--   $ Stream.postscanl (Scanl.tee Scanl.latest avg) s
 -- :}
 -- [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 --
@@ -611,14 +611,14 @@ scanWith restart (Fold fstep initial extract final) =
 -- Compare with 'postscan' which omits the initial value.
 --
 -- >>> s = Stream.fromList [1..10]
--- >>> Stream.fold Fold.toList $ Stream.takeWhile (< 10) $ Stream.scan Fold.sum s
+-- >>> Stream.fold Fold.toList $ Stream.takeWhile (< 10) $ Stream.scanl Scanl.sum s
 -- [0,1,3,6]
 --
 -- See also: 'usingStateT'
 --
 
 -- EXPLANATION:
--- >>> scanl' step z = Stream.scan (Fold.foldl' step z)
+-- >>> scanl' step z = Stream.scanl (Scanl.mkScanl step z)
 --
 -- Like 'map', 'scanl'' too is a one to one transformation,
 -- however it adds an extra element.
@@ -642,7 +642,7 @@ scanWith restart (Fold fstep initial extract final) =
 -- Consider the following monolithic example, computing the sum and the product
 -- of the elements in a stream in one go using a @foldl'@:
 --
--- >>> foldl' step z = Stream.fold (Fold.foldl' step z)
+-- >>> foldl' step z = Stream.fold (Scanl.mkScanl step z)
 -- >>> foldl' (\(s, p) x -> (s + x, p * x)) (0,1) s
 -- (10,24)
 --
@@ -927,7 +927,7 @@ scanlMAfter' fstep initial done s =
 -- lazy expressions inside the accumulator, it is recommended that a strict
 -- data structure is used for accumulator.
 --
--- >>> scanl' step z = Stream.scan (Fold.foldl' step z)
+-- >>> scanl' step z = Stream.scanl (Scanl.mkScanl step z)
 -- >>> scanl' f z xs = Stream.scanlM' (\a b -> return (f a b)) (return z) xs
 --
 -- See also: 'usingStateT'
@@ -1065,7 +1065,7 @@ filterM f (Stream step state) = Stream step' state
 --
 -- >>> filter p = Stream.filterM (return . p)
 -- >>> filter p = Stream.mapMaybe (\x -> if p x then Just x else Nothing)
--- >>> filter p = Stream.scanMaybe (Fold.filtering p)
+-- >>> filter p = Stream.postscanlMaybe (Scanl.filtering p)
 --
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
@@ -1199,7 +1199,7 @@ repeated = undefined
 -- | @sampleFromThen offset stride@ takes the element at @offset@ index and
 -- then every element at strides of @stride@.
 --
--- >>> Stream.fold Fold.toList $ Stream.strideFromThen 2 3 $ Stream.enumerateFromTo 0 10
+-- >>> Stream.fold Fold.toList $ Stream.sampleFromThen 2 3 $ Stream.enumerateFromTo 0 10
 -- [2,5,8]
 --
 {-# INLINE sampleFromThen #-}
@@ -1462,7 +1462,7 @@ intersperseM m (Stream step state) = Stream step' (FirstYield state)
 --
 -- Definition:
 --
--- >>> intersperse x = intersperseM (return x)
+-- >>> intersperse x = Stream.intersperseM (return x)
 -- >>> intersperse x = Stream.unfoldEachSepBy x Unfold.identity
 -- >>> intersperse x = Stream.unfoldEachSepBySeq x Unfold.identity
 -- >>> intersperse x = Stream.interleaveSepBy (Stream.repeat x)
@@ -1512,8 +1512,8 @@ intersperseM_ m (Stream step1 state1) = Stream step (Left (pure (), state1))
 --
 -- Idioms:
 --
--- >>> intersperseM = intersperseEveryM 1
--- >>> intersperse x = intersperseEveryM 1 (return x)
+-- >>> intersperseM = Stream.intersperseEveryM 1
+-- >>> intersperse x = Stream.intersperseEveryM 1 (return x)
 --
 -- Usage:
 --
@@ -1658,7 +1658,7 @@ RENAME(intersperseMSuffixWith,intersperseEndByEveryM)
 --
 -- >>> f x y = Stream.fold Fold.drain $ Stream.trace putChar $ Stream.intersperseBeginByM_ x $ Stream.fromList y
 -- >>> f (putChar '.') "abc"
--- .h.e.l.l.o
+-- .a.b.c
 --
 -- Same as 'trace_'.
 --
@@ -1707,7 +1707,7 @@ delay = intersperseM_ . sleep
 -- Definition:
 --
 -- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
--- >>> delayPost = Stream.intersperseMSuffix_ . sleep
+-- >>> delayPost = Stream.intersperseEndByM_ . sleep
 --
 -- Example:
 --
@@ -1729,7 +1729,7 @@ delayPost n = intersperseMSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 -- Definition:
 --
 -- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
--- >>> delayPre = Stream.intersperseMPrefix_. sleep
+-- >>> delayPre = Stream.intersperseBeginByM_ . sleep
 --
 -- Example:
 --
@@ -1806,8 +1806,8 @@ reassembleBy = undefined
 -- Adapted from the vector package
 
 -- |
--- >>> f = Fold.foldl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
--- >>> indexed = Stream.postscan f
+-- >>> f = Scanl.mkScanl (\(i, _) x -> (i + 1, x)) (-1,undefined)
+-- >>> indexed = Stream.postscanl f
 -- >>> indexed = Stream.zipWith (,) (Stream.enumerateFrom 0)
 -- >>> indexedR n = fmap (\(i, a) -> (n - i, a)) . indexed
 --
@@ -1832,8 +1832,8 @@ indexed (Stream step state) = Stream step' (state, 0)
 -- Adapted from the vector package
 
 -- |
--- >>> f n = Fold.foldl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
--- >>> indexedR n = Stream.postscan (f n)
+-- >>> f n = Scanl.mkScanl (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
+-- >>> indexedR n = Stream.postscanl (f n)
 --
 -- >>> s n = Stream.enumerateFromThen n (n - 1)
 -- >>> indexedR n = Stream.zipWith (,) (s n)
@@ -1927,7 +1927,7 @@ timeIndexed = timeIndexWith 0.01
 -- | Find all the indices where the element in the stream satisfies the given
 -- predicate.
 --
--- >>> findIndices p = Stream.scanMaybe (Fold.findIndices p)
+-- >>> findIndices p = Stream.postscanlMaybe (Scanl.findIndices p)
 --
 {-# INLINE_NORMAL findIndices #-}
 findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
@@ -1979,7 +1979,7 @@ rollingMapM f (Stream step1 state1) = Stream step (RollingMapGo state1 Nothing)
 -- rollingMap is a special case of an incremental sliding fold. It can be
 -- written as:
 --
--- > fld f = slidingWindow 1 (Fold.foldl' (\_ (x,y) -> f y x)
+-- > fld f = slidingWindow 1 (Scanl.mkScanl (\_ (x,y) -> f y x)
 -- > rollingMap f = Stream.postscan (fld f) undefined
 
 -- | Apply a function on every two successive elements of a stream. The first

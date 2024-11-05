@@ -2355,9 +2355,6 @@ writeRevN = revCreateOf
 -- | @pinnedWriteNAligned align n@ folds a maximum of @n@ elements from the
 -- input stream to a 'MutArray' aligned to the given size.
 --
--- >>> pinnedWriteNAligned align = MutArray.createWithOf (MutArray.pinnedNewAligned align)
--- >>> pinnedWriteNAligned align n = MutArray.appendN n (MutArray.pinnedNewAligned align n)
---
 -- /Pre-release/
 --
 {-# INLINE_NORMAL pinnedWriteNAligned #-}
@@ -3107,7 +3104,7 @@ cmp = byteCmp
 
 -- | Byte equality of two arrays.
 --
--- >>> byteEq arr1 arr2 = (==) EQ $ MArray.byteCmp arr1 arr2
+-- >>> byteEq arr1 arr2 = (==) EQ <$> MutArray.byteCmp arr1 arr2
 --
 -- /Unsafe/: See 'byteCmp'.
 {-# INLINE byteEq #-}

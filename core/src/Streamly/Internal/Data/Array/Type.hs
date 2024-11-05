@@ -447,7 +447,7 @@ fromListRev xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRev xs
 -- allocated to size N, if the stream terminates before N elements then the
 -- array may hold less than N elements.
 --
--- >>> fromStreamN n = Stream.fold (Array.writeN n)
+-- >>> fromStreamN n = Stream.fold (Array.createOf n)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL fromStreamN #-}
@@ -466,7 +466,7 @@ fromStreamDN = fromStreamN
 -- single array from a stream of unknown size. 'writeN' is at least twice
 -- as efficient when the size is already known.
 --
--- >>> fromStream = Stream.fold Array.write
+-- >>> fromStream = Stream.fold Array.create
 --
 -- Note that if the input stream is too large memory allocation for the array
 -- may fail.  When the stream size is not known, `chunksOf` followed by
@@ -502,7 +502,7 @@ bufferChunks = buildChunks
 --
 -- Same as the following but may be more efficient:
 --
--- >>> chunksOf n = Stream.foldMany (Array.writeN n)
+-- >>> chunksOf n = Stream.foldMany (Array.createOf n)
 --
 -- /Pre-release/
 {-# INLINE_NORMAL chunksOf #-}
@@ -550,7 +550,7 @@ chunksEndByLn' = chunksEndBy' (== fromIntegral (ord '\n'))
 
 -- | Convert a stream of arrays into a stream of their elements.
 --
--- >>> concat = Stream.unfoldMany Array.reader
+-- >>> concat = Stream.unfoldEach Array.reader
 --
 {-# INLINE_NORMAL concat #-}
 concat :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
@@ -567,7 +567,7 @@ flattenArrays = concat
 -- | Convert a stream of arrays into a stream of their elements reversing the
 -- contents of each array before flattening.
 --
--- >>> concatRev = Stream.unfoldMany Array.readerRev
+-- >>> concatRev = Stream.unfoldEach Array.readerRev
 --
 {-# INLINE_NORMAL concatRev #-}
 concatRev :: forall m a. (Monad m, Unbox a)
@@ -591,7 +591,7 @@ flattenArraysRev = concatRev
 -- arrays would have no capacity to append, therefore, a copy will be forced
 -- anyway.
 
--- | Fold @createCompactBySizeGE n@ coalesces adjacent arrays in the input
+-- | Fold @createCompactMin n@ coalesces adjacent arrays in the input
 -- stream until the size becomes greater than or equal to n.
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
@@ -618,7 +618,7 @@ fPinnedCompactGE = createCompactMin
 -- | @compactBySize n stream@ coalesces adjacent arrays in the @stream@ until
 -- the size becomes greater than or equal to @n@.
 --
--- >>> compactBySize n = Stream.foldMany (Array.createCompactBySizeGE n)
+-- >>> compactBySize n = Stream.foldMany (Array.createCompactMin n)
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
@@ -633,7 +633,7 @@ RENAME(compactGE,compactMin)
 
 -- | Like 'compactBySizeGE' but for transforming folds instead of stream.
 --
--- >>> lCompactBySizeGE n = Fold.many (Array.createCompactBySizeGE n)
+-- >>> lCompactBySizeGE n = Fold.many (Array.createCompactMin n)
 --
 -- Generates unpinned arrays irrespective of the pinning status of input
 -- arrays.
@@ -987,7 +987,7 @@ pinnedWrite = pinnedCreate
 -- could be unsafe and dangerous. This is dangerous especially when used with
 -- foldMany like operations.
 --
--- >>> unsafePureWrite = Array.unsafeMakePure Array.write
+-- >>> unsafePureWrite = Array.unsafeMakePure Array.create
 --
 {-# INLINE unsafeMakePure #-}
 unsafeMakePure :: Monad m => Fold IO a b -> Fold m a b

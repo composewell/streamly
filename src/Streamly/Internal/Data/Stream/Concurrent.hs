@@ -106,6 +106,7 @@ import Streamly.Internal.Data.Channel.Types
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
 -- >>> import qualified Streamly.Data.StreamK as StreamK
+-- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 -- >>> import Prelude hiding (concatMap, concat, zipWith)
 -- >>> :{

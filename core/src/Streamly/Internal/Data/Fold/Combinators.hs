@@ -648,7 +648,7 @@ the = foldt' step initial id
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
 --
--- >>> sum = Fold.cumulative Fold.windowSum
+-- >>> sum = Fold.fromScanl (Scanl.cumulativeScan Scanl.incrSum)
 --
 -- Same as following but numerically stable:
 --
@@ -1936,6 +1936,8 @@ partitionByMUsing t f fld1 fld2 =
 --
 -- Example, send input to the two folds in a proportion of 2:1:
 --
+-- >>> :set -fno-warn-unrecognised-warning-flags
+-- >>> :set -fno-warn-x-partial
 -- >>> :{
 -- proportionately m n = do
 --  ref <- newIORef $ cycle $ concat [replicate m Left, replicate n Right]

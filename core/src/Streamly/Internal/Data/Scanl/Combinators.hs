@@ -1798,6 +1798,8 @@ data PartState sL sR = PartLeft !sL !sR | PartRight !sL !sR
 --
 -- Example, send input to the two folds in a proportion of 2:1:
 --
+-- >>> :set -fno-warn-unrecognised-warning-flags
+-- >>> :set -fno-warn-x-partial
 -- >>> :{
 -- proportionately m n = do
 --  ref <- newIORef $ cycle $ concat [replicate m Left, replicate n Right]

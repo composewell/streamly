@@ -46,7 +46,7 @@ import qualified Streamly.Internal.Data.Stream as D
 
 -- $setup
 -- >>> :m
--- >>> import qualified Streamly.Internal.Data.Stream.Exception.Lifted as Stream
+-- >>> import qualified Streamly.Internal.Data.Stream.Lifted as Stream
 
 -- XXX Implement in terms of the corresponding IO operation (gbracketIO).
 

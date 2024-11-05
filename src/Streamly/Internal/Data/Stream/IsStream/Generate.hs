@@ -125,6 +125,8 @@ import Prelude hiding (iterate, replicate, repeat)
 -- $setup
 -- >>> :m
 -- >>> :set -fno-warn-deprecations
+-- >>> :set -fno-warn-unrecognised-warning-flags
+-- >>> :set -fno-warn-x-partial
 -- >>> import Data.Function ((&))
 -- >>> import Prelude hiding (iterate, replicate, repeat)
 -- >>> import qualified Streamly.Prelude as Stream

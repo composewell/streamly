@@ -197,6 +197,8 @@ import Prelude hiding (concat, concatMap, zipWith)
 -- $setup
 -- >>> :m
 -- >>> :set -fno-warn-deprecations
+-- >>> :set -fno-warn-unrecognised-warning-flags
+-- >>> :set -fno-warn-x-partial
 -- >>> import Control.Concurrent (threadDelay)
 -- >>> import Data.IORef
 -- >>> import Prelude hiding (zipWith, concatMap, concat)

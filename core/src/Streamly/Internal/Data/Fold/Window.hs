@@ -88,6 +88,7 @@ import Prelude hiding (length, sum, minimum, maximum)
 -- | Map a function on the incoming as well as outgoing element of a rolling
 -- window fold.
 --
+-- >>> :set -fno-warn-deprecations
 -- >>> lmap f = Fold.lmap (bimap f (f <$>))
 --
 {-# INLINE windowLmap #-}

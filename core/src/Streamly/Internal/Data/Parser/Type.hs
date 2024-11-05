@@ -883,8 +883,8 @@ data AltParseState sl sr = AltParseL !Int !sl | AltParseR !sr
 -- result, if a parser is defined recursively using this, it may cause an
 -- infintie loop. The following example checks the strictness:
 --
--- >>> p = Parser.satisfy (> 0) `Parser.alt` undefined
--- >>> Stream.parse p $ Stream.fromList [1..10]
+-- >> p = Parser.satisfy (> 0) `Parser.alt` undefined
+-- >> Stream.parse p $ Stream.fromList [1..10]
 -- *** Exception: Prelude.undefined
 --
 -- CAVEAT 2: QUADRATIC TIME COMPLEXITY. Static composition is fast due to
