@@ -334,7 +334,7 @@ sortedIntersectBy cmp (Stream stepa ta) (Stream stepb tb) =
 --
 -- >>> f xs ys = Stream.fold Fold.toList $ Stream.deleteFirstsBy (==) (Stream.fromList xs) (Stream.fromList ys)
 -- >>> f [1,2,2,3,3,5] [1,2,2,3,4]
--- [2,3,5]
+-- [3,5]
 --
 -- The following holds:
 --
@@ -365,9 +365,9 @@ deleteFirstsBy eq s2 s1 =
         -- It reverses the list but that is fine.
         let del x =
                 List.foldl' (\(ys,res) y ->
-                    if x `eq` y
+                    if not res && x `eq` y
                     then (ys, True)
-                    else (x:ys, res)) ([], False)
+                    else (y:ys, res)) ([], False)
             g (ys,_) x =
                 let (ys1, deleted) = del x ys
                  in if deleted
