@@ -183,6 +183,8 @@ jobs:
               DOCSPEC_URL: https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20210111/cabal-docspec-0.0.0.20210111.xz
               DOCSPEC_OPTIONS: "--timeout 60 --check-properties --property-variables xs"
             command: |
+              sed -i 's/other-modules:/exposed-modules:/g' streamly.cabal
+              sed -i 's/other-modules:/exposed-modules:/g' core/streamly-core.cabal
               bash -c "$PACKCHECK cabal"
         - *save
   hlint-trailing-spaces:
