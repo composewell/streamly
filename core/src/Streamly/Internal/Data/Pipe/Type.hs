@@ -653,13 +653,15 @@ scanFold (Fold fstep finitial fextract _) =
     produce (FoldProduceInit st x) = consume (FoldConsumeGo st) x
     produce FoldProduceStop = return Stop
 
+-- XXX The doctest for Pipe.fromFold fails with "[]" as the result.
+
 -- | Create a singleton pipe from a fold.
 --
 -- Pipes do not support finalization yet. This does not finalize the fold
 -- when the stream stops before the fold terminates. So cannot be used on folds
 -- that require such finalization.
 --
--- >>> Stream.toList $ Stream.pipe (Pipe.fromFold Fold.sum) $ Stream.fromList [1..5::Int]
+-- >> Stream.toList $ Stream.pipe (Pipe.fromFold Fold.sum) $ Stream.fromList [1..5::Int]
 -- [15]
 --
 {-# INLINE fromFold #-}
