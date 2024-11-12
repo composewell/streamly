@@ -25,6 +25,7 @@ module Streamly.Internal.FileSystem.Path.Common
     , toChars
 
     -- * Operations
+    , primarySeparator
     , isSeparator
     , dropTrailingSeparators
     , isSegment
@@ -201,13 +202,13 @@ wordToChar = unsafeChr . fromIntegral
 unsafeIndexChar :: (Unbox a, Integral a) => Int -> Array a -> Char
 unsafeIndexChar i a = wordToChar (Array.getIndexUnsafe i a)
 
--- Portable definition for exporting.
-
 -- | Primary path separator character, @/@ on Posix and @\\@ on Windows.
 -- Windows supports @/@ too as a separator. Please use 'isSeparator' for
 -- testing if a char is a separator char.
-_primarySeparator :: Char
-_primarySeparator = posixSeparator
+{-# INLINE primarySeparator #-}
+primarySeparator :: OS -> Char
+primarySeparator Posix = posixSeparator
+primarySeparator Windows = windowsSeparator
 
 ------------------------------------------------------------------------------
 -- Path parsing utilities
@@ -341,7 +342,7 @@ doAppend os a b = unsafePerformIO $ do
     let len = lenA + 1 + lenB
     arr <- MutArray.emptyOf len
     arr1 <- MutArray.unsafeSplice arr (Array.unsafeThaw a)
-    arr2 <- MutArray.unsafeSnoc arr1 (charToWord posixSeparator)
+    arr2 <- MutArray.unsafeSnoc arr1 (charToWord (primarySeparator os))
     arr3 <- MutArray.unsafeSplice arr2 (Array.unsafeThaw b)
     return (Array.unsafeFreeze arr3)
 
