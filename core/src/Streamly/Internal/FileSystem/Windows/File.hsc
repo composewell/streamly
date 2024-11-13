@@ -70,8 +70,10 @@ failIfWithRetry needRetry msg action = retryOrFail retries
             then return ret
             else do
                 err_code <- getLastError
+                putStrLn $ "failed.........err_code " ++ show err_code
                 if err_code == 32
                 then do
+                    putStrLn "retrying......"
                     threadDelay delay
                     retryOrFail (times - 1)
                 else errorWin msg
@@ -91,13 +93,13 @@ createFile ::
     -> IO Win32.HANDLE
 createFile name access share mb_attr mode flag mb_h =
   withFilePath name $ \ c_name -> do
-      putStrLn $ "**pre createFile: fp [" ++ Path.toString name
+      putStrLn $ "**pre createFile: fp [" ++ Path.toString name ++ "]"
       h <- failIfWithRetry
         (== iNVALID_HANDLE_VALUE)
         (unwords ["CreateFile", Path.toString name])
         $ c_CreateFile
             c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
-      putStrLn $ "**post createFile: fp [" ++ Path.toString name
+      putStrLn $ "**post createFile: fp [" ++ Path.toString name ++ "]"
       return h
 
 {-
@@ -112,8 +114,10 @@ win2HsHandle _fp iomode h = do
     when (iomode == AppendMode )
         $ void $ Win32.setFilePointerEx h 0 Win32.fILE_END
 #if defined(__IO_MANAGER_WINIO__)
+    putStrLn "win2HSHandle: IO Manager WINIO"
     Win32.hANDLEToHandle h
 #else
+    putStrLn "win2HSHandle: NOT WINIO"
     fd <- _open_osfhandle (fromIntegral (ptrToIntPtr h)) (#const _O_BINARY)
     fdToHandle' fd Nothing False (Path.toString _fp) iomode True
 #endif
