@@ -1,9 +1,14 @@
 module Streamly.Internal.FileSystem.Posix.File
-    ( openExistingFile
-    , openFile
-    , openExistingFileWithCloseOnExec
-    , openFileWithCloseOnExec
+    (
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+    openFile
+    -- , openExistingFile
+    -- , openExistingFileWithCloseOnExec
+    -- , openFileWithCloseOnExec
+#endif
     ) where
+
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 
 -------------------------------------------------------------------------------
 -- Imports
@@ -65,15 +70,8 @@ defaultFileFlags =
     sync      = False
   }
 
-defaultExistingFileFlags :: OpenFileFlags
-defaultExistingFileFlags = defaultFileFlags { noctty = True, nonBlock = True, creat = Nothing }
-
 defaultFileFlags' :: OpenFileFlags
 defaultFileFlags' = defaultFileFlags { noctty = True, nonBlock = True }
-
-withFilePath :: PosixPath -> (CString -> IO a) -> IO a
-withFilePath p = Array.asCStringUnsafe (Path.toChunk p)
-
 
 -- |Open and optionally create a file relative to an optional
 -- directory file descriptor.
@@ -87,7 +85,9 @@ openat_ fdMay str how (OpenFileFlags appendFlag exclusiveFlag nocttyFlag
                                 creatFlag cloexecFlag directoryFlag
                                 syncFlag) =
     Fd <$> c_openat c_fd str all_flags mode_w
-  where
+
+    where
+
     c_fd = maybe (-100) (\ (Fd fd) -> fd) fdMay
     all_flags  = creat .|. flags .|. open_mode
 
@@ -114,18 +114,14 @@ openat_ fdMay str how (OpenFileFlags appendFlag exclusiveFlag nocttyFlag
 foreign import capi unsafe "HsUnix.h openat"
    c_openat :: CInt -> CString -> CInt -> CMode -> IO CInt
 
--- |Open and optionally create this file.  See 'System.Posix.Files'
--- for information on how to use the 'FileMode' type.
-openFd :: PosixPath
-       -> OpenMode
-       -> OpenFileFlags
-       -> IO Fd
-openFd = openFdAt Nothing
-
-throwErrnoPathIfMinus1Retry :: (Eq a, Num a)
-                            => String -> PosixPath -> IO a -> IO a
-throwErrnoPathIfMinus1Retry loc path f = do
-  throwErrnoPathIfRetry (== -1) loc path f
+throwErrnoPath :: String -> PosixPath -> IO a
+throwErrnoPath loc path =
+  do
+    errno <- getErrno
+    -- XXX What if this decode fails?
+    -- The unix package catches this kind of an error
+    let path' = Path.toString path
+    ioError (errnoToIOError loc errno Nothing (Just path'))
 
 throwErrnoPathIfRetry :: (a -> Bool) -> String -> PosixPath -> IO a -> IO a
 throwErrnoPathIfRetry pr loc rpath f =
@@ -139,14 +135,13 @@ throwErrnoPathIfRetry pr loc rpath f =
           else throwErrnoPath loc rpath
       else return res
 
-throwErrnoPath :: String -> PosixPath -> IO a
-throwErrnoPath loc path =
-  do
-    errno <- getErrno
-    -- XXX What if this decode fails?
-    -- The unix package catches this kind of an error
-    let path' = Path.toString path
-    ioError (errnoToIOError loc errno Nothing (Just path'))
+throwErrnoPathIfMinus1Retry :: (Eq a, Num a)
+                            => String -> PosixPath -> IO a -> IO a
+throwErrnoPathIfMinus1Retry loc path f = do
+  throwErrnoPathIfRetry (== -1) loc path f
+
+withFilePath :: PosixPath -> (CString -> IO a) -> IO a
+withFilePath p = Array.asCStringUnsafe (Path.toChunk p)
 
 -- | Open a file relative to an optional directory file descriptor.
 --
@@ -163,14 +158,43 @@ openFdAt fdMay name how flags =
    withFilePath name $ \str ->
      throwErrnoPathIfMinus1Retry "openFdAt" name $ openat_ fdMay str how flags
 
+-- |Open and optionally create this file.  See 'System.Posix.Files'
+-- for information on how to use the 'FileMode' type.
+openFd :: PosixPath
+       -> OpenMode
+       -> OpenFileFlags
+       -> IO Fd
+openFd = openFdAt Nothing
+
+openFile_ :: OpenFileFlags -> PosixPath -> IOMode -> IO Handle
+openFile_ df fp iomode = fdToHandle =<< case iomode of
+    ReadMode      -> open ReadOnly  df
+    WriteMode     -> open WriteOnly df { trunc = True, creat = Just 0o666 }
+    AppendMode    -> open WriteOnly df { append = True, creat = Just 0o666 }
+    ReadWriteMode -> open ReadWrite df { creat = Just 0o666 }
+
+  where
+
+  open = openFd fp
+
+-- | Open a file and return the 'Handle'.
+openFile :: PosixPath -> IOMode -> IO Handle
+openFile = openFile_ defaultFileFlags'
+
+{-
 openExistingFile_ :: OpenFileFlags -> PosixPath -> IOMode -> IO Handle
 openExistingFile_ df fp iomode = fdToHandle =<< case iomode of
   ReadMode      -> open ReadOnly  df
   WriteMode     -> open WriteOnly df { trunc = True }
   AppendMode    -> open WriteOnly df { append = True }
   ReadWriteMode -> open ReadWrite df
- where
+
+  where
+
   open = openFd fp
+
+defaultExistingFileFlags :: OpenFileFlags
+defaultExistingFileFlags = defaultFileFlags { noctty = True, nonBlock = True, creat = Nothing }
 
 -- | Open an existing file and return the 'Handle'.
 openExistingFile :: PosixPath -> IOMode -> IO Handle
@@ -179,18 +203,7 @@ openExistingFile = openExistingFile_ defaultExistingFileFlags
 openExistingFileWithCloseOnExec :: PosixPath -> IOMode -> IO Handle
 openExistingFileWithCloseOnExec = openExistingFile_ defaultExistingFileFlags { cloexec = True }
 
-openFile_ :: OpenFileFlags -> PosixPath -> IOMode -> IO Handle
-openFile_ df fp iomode = fdToHandle =<< case iomode of
-  ReadMode      -> open ReadOnly  df
-  WriteMode     -> open WriteOnly df { trunc = True, creat = Just 0o666 }
-  AppendMode    -> open WriteOnly df { append = True, creat = Just 0o666 }
-  ReadWriteMode -> open ReadWrite df { creat = Just 0o666 }
- where
-  open = openFd fp
-
--- | Open a file and return the 'Handle'.
-openFile :: PosixPath -> IOMode -> IO Handle
-openFile = openFile_ defaultFileFlags'
-
 openFileWithCloseOnExec :: PosixPath -> IOMode -> IO Handle
 openFileWithCloseOnExec = openFile_ defaultFileFlags' { cloexec = True }
+-}
+#endif
