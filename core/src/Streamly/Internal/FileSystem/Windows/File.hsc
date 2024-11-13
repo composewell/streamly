@@ -1,8 +1,7 @@
 module Streamly.Internal.FileSystem.Windows.File
     (
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-    -- openFile
-    createFile
+      openFile
 #endif
     ) where
 
@@ -12,9 +11,9 @@ module Streamly.Internal.FileSystem.Windows.File
 -- Imports
 -------------------------------------------------------------------------------
 
+import Control.Concurrent (threadDelay)
 import Control.Exception (bracketOnError, try, SomeException, onException)
 import Control.Monad (when, void)
-import Control.Monad.Concurrent (threadDelay)
 import Streamly.Internal.FileSystem.WindowsPath (WindowsPath)
 import System.IO (IOMode(..), Handle)
 
@@ -88,8 +87,8 @@ createFile ::
     -> Maybe LPSECURITY_ATTRIBUTES
     -> CreateMode
     -> FileAttributeOrFlag
-    -> Maybe HANDLE
-    -> IO HANDLE
+    -> Maybe Win32.HANDLE
+    -> IO Win32.HANDLE
 createFile name access share mb_attr mode flag mb_h =
   withFilePath name $ \ c_name ->
       failIfWithRetry
@@ -97,17 +96,6 @@ createFile name access share mb_attr mode flag mb_h =
         (unwords ["CreateFile", show name])
         $ c_CreateFile
             c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
-
-maxShareMode :: ShareMode
-maxShareMode =
-      Win32.fILE_SHARE_DELETE
-  .|. Win32.fILE_SHARE_READ
-  .|. Win32.fILE_SHARE_WRITE
-
-writeShareMode :: ShareMode
-writeShareMode =
-      Win32.fILE_SHARE_DELETE
-  .|. Win32.fILE_SHARE_READ
 
 #if !defined(__IO_MANAGER_WINIO__)
 foreign import ccall "_open_osfhandle"
@@ -129,16 +117,45 @@ toHandle :: WindowsPath -> IOMode -> Win32.HANDLE -> IO Handle
 toHandle fp iomode h =
     win2HsHandle fp iomode h `onException` Win32.closeHandle h
 
-{-
--- | Open a file and return the 'Handle'.
 openFile :: WindowsPath -> IOMode -> IO Handle
-openFile fp iomode = bracketOnError
-    (createFile
-      fp
-      accessMode
-      shareMode
-      Nothing
-      createMode
+openFile fp iomode =
+    bracketOnError create Win32.closeHandle (toHandle fp iomode)
+
+    where
+
+    accessMode =
+        case iomode of
+            ReadMode      -> Win32.gENERIC_READ
+            WriteMode     -> Win32.gENERIC_WRITE
+            AppendMode    -> Win32.gENERIC_WRITE .|. Win32.fILE_APPEND_DATA
+            ReadWriteMode -> Win32.gENERIC_READ .|. Win32.gENERIC_WRITE
+
+    writeShareMode :: ShareMode
+    writeShareMode =
+          Win32.fILE_SHARE_DELETE
+      .|. Win32.fILE_SHARE_READ
+
+    maxShareMode :: ShareMode
+    maxShareMode =
+          Win32.fILE_SHARE_DELETE
+      .|. Win32.fILE_SHARE_READ
+      .|. Win32.fILE_SHARE_WRITE
+
+    shareMode =
+        case iomode of
+            ReadMode      -> Win32.fILE_SHARE_READ
+            WriteMode     -> writeShareMode
+            AppendMode    -> writeShareMode
+            ReadWriteMode -> maxShareMode
+
+    createMode =
+        case iomode of
+            ReadMode      -> Win32.oPEN_EXISTING
+            WriteMode     -> Win32.cREATE_ALWAYS
+            AppendMode    -> Win32.oPEN_ALWAYS
+            ReadWriteMode -> Win32.oPEN_ALWAYS
+
+    fileAttr =
 #if defined(__IO_MANAGER_WINIO__)
       (case ioSubSystem of
         IoPOSIX -> Win32.fILE_ATTRIBUTE_NORMAL
@@ -147,27 +164,14 @@ openFile fp iomode = bracketOnError
 #else
       Win32.fILE_ATTRIBUTE_NORMAL
 #endif
-      Nothing)
-    Win32.closeHandle
-    (toHandle fp iomode)
- where
-  accessMode = case iomode of
-    ReadMode      -> Win32.gENERIC_READ
-    WriteMode     -> Win32.gENERIC_WRITE
-    AppendMode    -> Win32.gENERIC_WRITE .|. Win32.fILE_APPEND_DATA
-    ReadWriteMode -> Win32.gENERIC_READ .|. Win32.gENERIC_WRITE
 
-  createMode = case iomode of
-    ReadMode      -> Win32.oPEN_EXISTING
-    WriteMode     -> Win32.cREATE_ALWAYS
-    AppendMode    -> Win32.oPEN_ALWAYS
-    ReadWriteMode -> Win32.oPEN_ALWAYS
-
-  shareMode = case iomode of
-    ReadMode      -> Win32.fILE_SHARE_READ
-    WriteMode     -> writeShareMode
-    AppendMode    -> writeShareMode
-    ReadWriteMode -> maxShareMode
-
--}
+    create =
+        createFile
+          fp
+          accessMode
+          shareMode
+          Nothing
+          createMode
+          fileAttr
+          Nothing
 #endif
