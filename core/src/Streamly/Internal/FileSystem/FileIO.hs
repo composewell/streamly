@@ -115,7 +115,11 @@ import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (Step(..), snoc, reduce)
 import qualified Streamly.Internal.FileSystem.Handle as FH
-import qualified Streamly.Internal.FileSystem.File.Utils as FU
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+import qualified Streamly.Internal.FileSystem.Posix.File as File
+#else
+import qualified Streamly.Internal.FileSystem.Windows.File as File
+#endif
 
 #include "inline.hs"
 
@@ -148,7 +152,7 @@ import qualified Streamly.Internal.FileSystem.File.Utils as FU
 {-# INLINE withFile #-}
 withFile :: (MonadIO m, MonadCatch m)
     => Path -> IOMode -> (Handle -> Stream m a) -> Stream m a
-withFile file mode = S.bracketIO (FU.openFile file mode) hClose
+withFile file mode = S.bracketIO (File.openFile file mode) hClose
 
 -- | Transform an 'Unfold' from a 'Handle' to an unfold from a 'Path'.  The
 -- resulting unfold opens a handle in 'ReadMode', uses it using the supplied
@@ -161,7 +165,7 @@ withFile file mode = S.bracketIO (FU.openFile file mode) hClose
 {-# INLINE usingFile #-}
 usingFile :: (MonadIO m, MonadCatch m)
     => Unfold m Handle a -> Unfold m Path a
-usingFile = UF.bracketIO (`FU.openFile` ReadMode) hClose
+usingFile = UF.bracketIO (`File.openFile` ReadMode) hClose
 
 {-# INLINE usingFile2 #-}
 usingFile2 :: (MonadIO m, MonadCatch m)
@@ -171,7 +175,7 @@ usingFile2 = UF.bracketIO before after
     where
 
     before (x, file) =  do
-        h <- FU.openFile file ReadMode
+        h <- File.openFile file ReadMode
         return (x, h)
 
     after (_, h) = hClose h
@@ -184,7 +188,7 @@ usingFile3 = UF.bracketIO before after
     where
 
     before (x, y, z, file) =  do
-        h <- FU.openFile file ReadMode
+        h <- File.openFile file ReadMode
         return (x, y, z, h)
 
     after (_, _, _, h) = hClose h
@@ -205,7 +209,7 @@ usingFile3 = UF.bracketIO before after
 --
 {-# INLINABLE putChunk #-}
 putChunk :: Path -> Array a -> IO ()
-putChunk file arr = FU.withFile file WriteMode (`FH.putChunk` arr)
+putChunk file arr = File.withFile file WriteMode (`FH.putChunk` arr)
 
 -- | append an array to a file.
 --
@@ -213,7 +217,7 @@ putChunk file arr = FU.withFile file WriteMode (`FH.putChunk` arr)
 --
 {-# INLINABLE writeAppendArray #-}
 writeAppendArray :: Path -> Array a -> IO ()
-writeAppendArray file arr = FU.withFile file AppendMode (`FH.putChunk` arr)
+writeAppendArray file arr = File.withFile file AppendMode (`FH.putChunk` arr)
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -436,7 +440,7 @@ writeChunks :: (MonadIO m, MonadCatch m)
 writeChunks path = Fold step initial extract final
     where
     initial = do
-        h <- liftIO (FU.openFile path WriteMode)
+        h <- liftIO (File.openFile path WriteMode)
         fld <- FL.reduce (FH.writeChunks h)
                 `MC.onException` liftIO (hClose h)
         return $ FL.Partial (fld, h)
