@@ -17,13 +17,11 @@ import Control.Monad (when, void)
 import Streamly.Internal.FileSystem.WindowsPath (WindowsPath)
 import System.IO (IOMode(..), Handle)
 
-#if 0
 #if defined(__IO_MANAGER_WINIO__)
 import GHC.IO.SubSystem
 #else
 import GHC.IO.Handle.FD (fdToHandle')
 #include <fcntl.h>
-#endif
 #endif
 
 import qualified Streamly.Internal.FileSystem.WindowsPath as Path
@@ -101,16 +99,21 @@ createFile name access share mb_attr mode flag mb_h =
             c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
 
 {-
-maxShareMode :: Win32.ShareMode
+maxShareMode :: ShareMode
 maxShareMode =
-  Win32.fILE_SHARE_DELETE .|.
-  Win32.fILE_SHARE_READ   .|.
-  Win32.fILE_SHARE_WRITE
+      Win32.fILE_SHARE_DELETE
+  .|. Win32.fILE_SHARE_READ
+  .|. Win32.fILE_SHARE_WRITE
 
-writeShareMode :: Win32.ShareMode
+writeShareMode :: ShareMode
 writeShareMode =
-  Win32.fILE_SHARE_DELETE .|.
-  Win32.fILE_SHARE_READ
+      Win32.fILE_SHARE_DELETE
+  .|. Win32.fILE_SHARE_READ
+
+#if !defined(__IO_MANAGER_WINIO__)
+foreign import ccall "_open_osfhandle"
+  _open_osfhandle :: CIntPtr -> CInt -> IO CInt
+#endif
 
 toHandle :: WindowsPath -> IOMode -> Win32.HANDLE -> IO Handle
 #if defined(__IO_MANAGER_WINIO__)
@@ -162,57 +165,6 @@ openFile fp iomode = bracketOnError
     WriteMode     -> writeShareMode
     AppendMode    -> writeShareMode
     ReadWriteMode -> maxShareMode
-
-
--- | Open an existing file and return the 'Handle'.
-openExistingFile :: WindowsPath -> IOMode -> IO Handle
-openExistingFile fp iomode = bracketOnError
-    (createFile
-      fp
-      accessMode
-      shareMode
-      Nothing
-      createMode
-#if defined(__IO_MANAGER_WINIO__)
-      (case ioSubSystem of
-        IoPOSIX -> Win32.fILE_ATTRIBUTE_NORMAL
-        IoNative -> Win32.fILE_ATTRIBUTE_NORMAL .|. Win32.fILE_FLAG_OVERLAPPED
-      )
-#else
-      Win32.fILE_ATTRIBUTE_NORMAL
-#endif
-      Nothing)
-    Win32.closeHandle
-    (toHandle fp iomode)
- where
-  accessMode = case iomode of
-    ReadMode      -> Win32.gENERIC_READ
-    WriteMode     -> Win32.gENERIC_WRITE
-    AppendMode    -> Win32.gENERIC_WRITE .|. Win32.fILE_APPEND_DATA
-    ReadWriteMode -> Win32.gENERIC_READ .|. Win32.gENERIC_WRITE
-
-  createMode = case iomode of
-    ReadMode      -> Win32.oPEN_EXISTING
-    WriteMode     -> Win32.tRUNCATE_EXISTING
-    AppendMode    -> Win32.oPEN_EXISTING
-    ReadWriteMode -> Win32.oPEN_EXISTING
-
-  shareMode = case iomode of
-    ReadMode      -> Win32.fILE_SHARE_READ
-    WriteMode     -> writeShareMode
-    AppendMode    -> writeShareMode
-    ReadWriteMode -> maxShareMode
-
-#if !defined(__IO_MANAGER_WINIO__)
-foreign import ccall "_open_osfhandle"
-  _open_osfhandle :: CIntPtr -> CInt -> IO CInt
-#endif
-
-openFileWithCloseOnExec :: WindowsPath -> IOMode -> IO Handle
-openFileWithCloseOnExec = openFile
-
-openExistingFileWithCloseOnExec :: WindowsPath -> IOMode -> IO Handle
-openExistingFileWithCloseOnExec = openExistingFile
 
 -}
 #endif
