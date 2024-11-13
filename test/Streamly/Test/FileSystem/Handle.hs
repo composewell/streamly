@@ -23,7 +23,11 @@ import System.IO
     , hPutStr
     )
 import System.IO.Temp (withSystemTempDirectory)
-import Streamly.Internal.FileSystem.File.Utils (openFile, withFile)
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+import Streamly.Internal.FileSystem.Posix.File (openFile, withFile)
+#else
+import Streamly.Internal.FileSystem.Windows.File (openFile, withFile)
+#endif
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Streamly.Internal.FileSystem.Path (Path)

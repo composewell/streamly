@@ -58,7 +58,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
 import Streamly.Internal.FileSystem.Posix.Errno (throwErrnoPathIfNullRetry)
 import Streamly.Internal.FileSystem.Posix.File
-    (OpenMode(..), openFd, openFdAt, closeFd)
+    (OpenMode(..), open, openAt, close)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
 import System.Posix.Types (Fd(..), CMode)
 
@@ -146,6 +146,13 @@ readPlusScanWith = undefined
 -- readdir operations
 -------------------------------------------------------------------------------
 
+-- XXX Marking the calls "safe" has significant perf impact because it runs on
+-- a separate OS thread. "unsafe" is faster but can block the GC if the system
+-- call blocks. The effect could be signifcant if the file system is on NFS. Is
+-- it possible to have a faster safe - where we know the function is safe but
+-- we run it on the current thread, and if it blocks for longer we can snatch
+-- the capability and enable GC?
+--
 -- IMPORTANT NOTE: Use capi FFI for all readdir APIs. This is required at
 -- least on macOS for correctness. We saw random directory entries when ccall
 -- was used on macOS 15.3. Looks like it was picking the wrong version of
@@ -237,7 +244,7 @@ openDirStream p =
 -- DirStream the fd will be closed.
 openDirStreamAt :: Fd -> PosixPath -> IO DirStream
 openDirStreamAt fd p = do
-    fd1 <- openFdAt (Just fd) p ReadOnly
+    fd1 <- openAt (Just fd) p ReadOnly
     -- liftIO $ putStrLn $ "opened: " ++ show fd1
     dirp <- throwErrnoPathIfNullRetry "openDirStreamAt" p
         $ c_fdopendir (fromIntegral fd1)
@@ -854,7 +861,7 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
         else return Nothing
 
     step _ ByteChunksAtInit0 = do
-        pfd <- liftIO $ openFd ppath ReadOnly
+        pfd <- liftIO $ open ppath ReadOnly
         mbarr <- liftIO $ MutByteArray.new' bufSize
         return $ Skip (ByteChunksAtInit pfd alldirs mbarr 0)
 
@@ -863,7 +870,7 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
         return $ Skip (ByteChunksAtLoop ph dirp x xs [] 0 mbarr pos)
 
     step _ (ByteChunksAtInit pfd [] _ 0) = do
-        liftIO $ closeFd (pfd)
+        liftIO $ close (pfd)
         return Stop
 
     step _ (ByteChunksAtInit pfd [] mbarr pos) = do
