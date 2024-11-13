@@ -14,6 +14,7 @@ module Streamly.Internal.FileSystem.Windows.File
 
 import Control.Exception (bracketOnError, try, SomeException, onException)
 import Control.Monad (when, void)
+import Control.Monad.Concurrent (threadDelay)
 import Streamly.Internal.FileSystem.WindowsPath (WindowsPath)
 import System.IO (IOMode(..), Handle)
 
@@ -56,11 +57,10 @@ failIfWithRetry needRetry msg action = retryOrFail retries
 
     where
 
-    delay = 100*1000 -- in ms, we use threadDelay
+    delay = 100 * 1000 -- 100 ms
 
     -- KB article recommends 250/5
     retries = 20 :: Int
-
 
     -- retryOrFail :: Int -> IO a
     retryOrFail times
@@ -98,7 +98,6 @@ createFile name access share mb_attr mode flag mb_h =
         $ c_CreateFile
             c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
 
-{-
 maxShareMode :: ShareMode
 maxShareMode =
       Win32.fILE_SHARE_DELETE
@@ -115,18 +114,22 @@ foreign import ccall "_open_osfhandle"
   _open_osfhandle :: CIntPtr -> CInt -> IO CInt
 #endif
 
-toHandle :: WindowsPath -> IOMode -> Win32.HANDLE -> IO Handle
+win2HsHandle :: WindowsPath -> IOMode -> Win32.HANDLE -> IO Handle
+win2HsHandle _fp iomode h = do
+    when (iomode == AppendMode )
+        $ void $ Win32.setFilePointerEx h 0 Win32.fILE_END
 #if defined(__IO_MANAGER_WINIO__)
-toHandle _ iomode h = (`onException` Win32.closeHandle h) $ do
-    when (iomode == AppendMode ) $ void $ Win32.setFilePointerEx h 0 Win32.fILE_END
     Win32.hANDLEToHandle h
 #else
-toHandle fp iomode h = (`onException` Win32.closeHandle h) $ do
-    when (iomode == AppendMode ) $ void $ Win32.setFilePointerEx h 0 Win32.fILE_END
     fd <- _open_osfhandle (fromIntegral (ptrToIntPtr h)) (#const _O_BINARY)
-    fdToHandle' fd Nothing False (Path.toString fp) iomode True
+    fdToHandle' fd Nothing False (Path.toString _fp) iomode True
 #endif
 
+toHandle :: WindowsPath -> IOMode -> Win32.HANDLE -> IO Handle
+toHandle fp iomode h =
+    win2HsHandle fp iomode h `onException` Win32.closeHandle h
+
+{-
 -- | Open a file and return the 'Handle'.
 openFile :: WindowsPath -> IOMode -> IO Handle
 openFile fp iomode = bracketOnError
