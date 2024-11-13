@@ -93,7 +93,7 @@ createFile name access share mb_attr mode flag mb_h =
   withFilePath name $ \ c_name ->
       failIfWithRetry
         (== iNVALID_HANDLE_VALUE)
-        (unwords ["CreateFile", show name])
+        (unwords ["CreateFile", Path.toString name])
         $ c_CreateFile
             c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
 
