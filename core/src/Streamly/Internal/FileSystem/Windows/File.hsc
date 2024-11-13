@@ -97,10 +97,12 @@ createFile name access share mb_attr mode flag mb_h =
         $ c_CreateFile
             c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
 
+{-
 #if !defined(__IO_MANAGER_WINIO__)
 foreign import ccall "_open_osfhandle"
   _open_osfhandle :: CIntPtr -> CInt -> IO CInt
 #endif
+-}
 
 win2HsHandle :: WindowsPath -> IOMode -> Win32.HANDLE -> IO Handle
 win2HsHandle _fp iomode h = do
