@@ -296,58 +296,61 @@ instance Functor (Initial s) where
 
 -- | The return type of a 'Parser' step.
 --
--- The parse operation feeds the input stream to the parser one element at a
--- time, representing a parse 'Step'. The parser may or may not consume the
--- item and returns a result. If the result is 'Partial' we can either extract
--- the result or feed more input to the parser. If the result is 'Continue', we
--- must feed more input in order to get a result. If the parser returns 'Done'
--- then the parser can no longer take any more input.
+-- The parser driver feeds the input stream to the parser one element at a
+-- time, representing a parse 'Step'. If the step result is 'SPartial' then a
+-- parse result is available, we can extract the result and feed more input to
+-- the parser. If the result is 'SContinue', we must feed more input in order
+-- to get a result. If the parser returns 'SDone' then the parser can no longer
+-- take any more input.
 --
--- If the result is 'Continue', the parse operation retains the input in a
--- backtracking buffer, in case the parser may ask to backtrack in future.
--- Whenever a 'Partial n' result is returned we first backtrack by @n@ elements
--- in the input and then release any remaining backtracking buffer. Similarly,
--- 'Continue n' backtracks to @n@ elements before the current position and
--- starts feeding the input from that point for future invocations of the
--- parser.
+-- The first argument of `SPartial`, `Scontinue` and `SDone` is an integer
+-- representing adjustment to the current stream position. The stream position
+-- is adjusted by that amount and the next step would use an input from the new
+-- position. If n is positive we go forward in the stream, if it is negative we
+-- go backward. If it is 0 we stay put at the same position and the same input
+-- is used for the next step.
+--
+-- If the result is 'SContinue', the parser driver retains the input in a
+-- backtracking buffer, in case of failure the parser can backtrack up to the
+-- length of the backtracking buffer. Whenever the result is `SPartial` the
+-- current backtracking buffer is released i.e. we cannot backtrack beyond this
+-- point in the stream. The parser must ensure that the backtrack position is
+-- always within the bounds of the backtracking buffer.
 --
 -- If parser is not yet done, we can use the @extract@ operation on the @state@
 -- of the parser to extract a result. If the parser has not yet yielded a
--- result, the operation fails with a 'ParseError' exception. If the parser
--- yielded a 'Partial' result in the past the last partial result is returned.
+-- result, @extract@ fails with a 'ParseError' exception. If the parser yielded
+-- a 'Partial' result in the past then the latest partial result is returned.
 -- Therefore, if a parser yields a partial result once it cannot fail later on.
---
--- The parser can never backtrack beyond the position where the last partial
--- result left it at. The parser must ensure that the backtrack position is
--- always after that.
 --
 -- /Pre-release/
 --
 {-# ANN type Step Fuse #-}
 data Step s b =
         SPartial !Int !s
-    -- ^ @Partial count state@. The following hold on Partial result:
+    -- ^ @SPartial count state@. The following statements hold on an SPartial
+    -- result:
     --
     -- 1. @extract@ on @state@ would succeed and give a result.
-    -- 2. Input stream position is reset to @current position - count@.
-    -- 3. All input before the new position is dropped. The parser can
-    -- never backtrack beyond this position.
+    -- 2. Input stream position is updated to @current position + count@.
+    -- 3. All buffered input before the new position is dropped. The parser can
+    -- never backtrack before this position.
 
     | SContinue !Int !s
-    -- ^ @Continue count state@. The following hold on a Continue result:
+    -- ^ @SContinue count state@. The following statements hold on an SContinue
+    -- result:
     --
-    -- 1. If there was a 'Partial' result in past, @extract@ on @state@ would
-    -- give that result as 'Done' otherwise it may return 'Error' or
-    -- 'Continue'.
-    -- 2. Input stream position is reset to @current position - count@.
-    -- 3. the input is retained in a backtrack buffer.
+    -- 1. If 'SPartial' result was returned in the past, @extract@ on @state@
+    -- would give that result otherwise it will return 'Error' or 'SContinue'.
+    -- 2. Input stream position is updated to @current position + count@.
+    -- 3. the previous input is retained in a backtrack buffer.
 
     | SDone !Int !b
     -- ^ Done with leftover input count and result.
     --
-    -- @Done count result@ means the parser has finished, it will accept no
-    -- more input, last @count@ elements from the input are unused and the
-    -- result of the parser is in @result@.
+    -- @SDone count result@ means the parser has finished, it will not accept
+    -- any more input, the final stream position must be set to @current
+    -- position + count@ and the result of the parser is in @result@.
 
     | Error !String
     -- ^ Parser failed without generating any output.
@@ -456,12 +459,12 @@ mapMStep f res =
 data Parser a m b =
     forall s. Parser
         (s -> a -> m (Step s b))
-        -- Initial cannot return "Partial/Done n" or "Continue". Continue 0 is
-        -- same as Partial 0. In other words it cannot backtrack.
+        -- Initial cannot backtrack.
         (m (Initial s b))
-        -- Extract can only return Partial or Continue n. In other words it can
-        -- only backtrack or return partial result/error. But we do not return
-        -- result in Partial, therefore, we have to use Done instead of Partial.
+        -- Extract can only return SPartial or SContinue n. In other words it
+        -- can only backtrack or return partial result/error. But we do not
+        -- return result in SPartial, therefore, we have to use SDone instead of
+        -- SPartial.
         (s -> m (Step s b))
 
 {-
