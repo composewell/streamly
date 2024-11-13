@@ -8,10 +8,12 @@
 
 module Streamly.Test.FileSystem.Handle (main) where
 
+import Control.Monad (when)
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.System.IO (defaultChunkSize)
+import System.Directory (doesDirectoryExist)
 import System.FilePath ((</>))
 import System.IO
     ( Handle
@@ -70,6 +72,8 @@ testBinData = "01234567890123456789012345678901234567890123456789"
 executor :: (Handle -> Stream IO Char) -> IO (Stream IO Char)
 executor f =
     withSystemTempDirectory "fs_handle" $ \fp -> do
+        r <- doesDirectoryExist fp
+        when (not r) $ error $ "temp directory [" ++ fp ++ "] does not exist"
         let path = fp </> "tmp_read.txt"
         putStrLn $ "executor: [" ++ path ++ "]"
         fpath <- Path.fromString path
