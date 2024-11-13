@@ -70,10 +70,16 @@ testBinData = "01234567890123456789012345678901234567890123456789"
 executor :: (Handle -> Stream IO Char) -> IO (Stream IO Char)
 executor f =
     withSystemTempDirectory "fs_handle" $ \fp -> do
-        fpath <- Path.fromString $ fp </> "tmp_read.txt"
-        writeFile fpath testDataLarge
-        h <- openFile fpath ReadMode
-        return $ f h
+        let path = fp </> "tmp_read.txt"
+        putStrLn $ "executor: [" ++ path ++ "]"
+        fpath <- Path.fromString path
+        if path /= Path.toString fpath
+        then
+            error $ "executor: path = " ++ path ++ " fpath = " ++ Path.toString fpath
+        else do
+            writeFile fpath testDataLarge
+            h <- openFile fpath ReadMode
+            return $ f h
 
 readFromHandle :: IO (Stream IO Char)
 readFromHandle =
