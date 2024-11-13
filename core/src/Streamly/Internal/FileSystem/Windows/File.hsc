@@ -90,12 +90,15 @@ createFile ::
     -> Maybe Win32.HANDLE
     -> IO Win32.HANDLE
 createFile name access share mb_attr mode flag mb_h =
-  withFilePath name $ \ c_name ->
-      failIfWithRetry
+  withFilePath name $ \ c_name -> do
+      putStrLn $ "**pre createFile: fp [" ++ Path.toString name
+      h <- failIfWithRetry
         (== iNVALID_HANDLE_VALUE)
         (unwords ["CreateFile", Path.toString name])
         $ c_CreateFile
             c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
+      putStrLn $ "**post createFile: fp [" ++ Path.toString name
+      return h
 
 {-
 #if !defined(__IO_MANAGER_WINIO__)
@@ -120,7 +123,8 @@ toHandle fp iomode h =
     win2HsHandle fp iomode h `onException` Win32.closeHandle h
 
 openFile :: WindowsPath -> IOMode -> IO Handle
-openFile fp iomode =
+openFile fp iomode = do
+    putStrLn $ "**openFile: fp [" ++ Path.toString fp ++ "] iomode [" ++ show iomode ++ "]"
     bracketOnError create Win32.closeHandle (toHandle fp iomode)
 
     where
