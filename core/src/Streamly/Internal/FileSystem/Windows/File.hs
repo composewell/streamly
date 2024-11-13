@@ -1,8 +1,9 @@
 module Streamly.Internal.FileSystem.Windows.File
-    ( openExistingFile
-    , openFile
-    , openExistingFileWithCloseOnExec
-    , openFileWithCloseOnExec
+    ( -- openExistingFile
+    -- openFile
+    createFile
+    -- , openExistingFileWithCloseOnExec
+    -- , openFileWithCloseOnExec
     ) where
 
 -------------------------------------------------------------------------------
@@ -43,7 +44,6 @@ import qualified Streamly.Internal.Data.Array as Array
 foreign import WINDOWS_CCONV unsafe "windows.h CreateFileW"
   c_CreateFile :: LPCTSTR -> AccessMode -> ShareMode -> LPSECURITY_ATTRIBUTES -> CreateMode -> FileAttributeOrFlag -> HANDLE -> IO HANDLE
 
-
 -- | like failIf, but retried on sharing violations. This is necessary for many
 -- file operations; see
 -- https://www.betaarchive.com/wiki/index.php/Microsoft_KB_Archive/316609
@@ -80,6 +80,30 @@ createFile name access share mb_attr mode flag mb_h =
   withFilePath name $ \ c_name ->
   failIfWithRetry (==iNVALID_HANDLE_VALUE) (unwords ["CreateFile",show name]) $
     c_CreateFile c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
+
+{-
+maxShareMode :: Win32.ShareMode
+maxShareMode =
+  Win32.fILE_SHARE_DELETE .|.
+  Win32.fILE_SHARE_READ   .|.
+  Win32.fILE_SHARE_WRITE
+
+writeShareMode :: Win32.ShareMode
+writeShareMode =
+  Win32.fILE_SHARE_DELETE .|.
+  Win32.fILE_SHARE_READ
+
+toHandle :: WindowsPath -> IOMode -> Win32.HANDLE -> IO Handle
+#if defined(__IO_MANAGER_WINIO__)
+toHandle _ iomode h = (`onException` Win32.closeHandle h) $ do
+    when (iomode == AppendMode ) $ void $ Win32.setFilePointerEx h 0 Win32.fILE_END
+    Win32.hANDLEToHandle h
+#else
+toHandle fp iomode h = (`onException` Win32.closeHandle h) $ do
+    when (iomode == AppendMode ) $ void $ Win32.setFilePointerEx h 0 Win32.fILE_END
+    fd <- _open_osfhandle (fromIntegral (ptrToIntPtr h)) (#const _O_BINARY)
+    fdToHandle' fd Nothing False (Path.toString fp) iomode True
+#endif
 
 -- | Open a file and return the 'Handle'.
 openFile :: WindowsPath -> IOMode -> IO Handle
@@ -120,17 +144,6 @@ openFile fp iomode = bracketOnError
     AppendMode    -> writeShareMode
     ReadWriteMode -> maxShareMode
 
-
-maxShareMode :: Win32.ShareMode
-maxShareMode =
-  Win32.fILE_SHARE_DELETE .|.
-  Win32.fILE_SHARE_READ   .|.
-  Win32.fILE_SHARE_WRITE
-
-writeShareMode :: Win32.ShareMode
-writeShareMode =
-  Win32.fILE_SHARE_DELETE .|.
-  Win32.fILE_SHARE_READ
 
 -- | Open an existing file and return the 'Handle'.
 openExistingFile :: WindowsPath -> IOMode -> IO Handle
@@ -182,14 +195,4 @@ openFileWithCloseOnExec = openFile
 openExistingFileWithCloseOnExec :: WindowsPath -> IOMode -> IO Handle
 openExistingFileWithCloseOnExec = openExistingFile
 
-toHandle :: WindowsPath -> IOMode -> Win32.HANDLE -> IO Handle
-#if defined(__IO_MANAGER_WINIO__)
-toHandle _ iomode h = (`onException` Win32.closeHandle h) $ do
-    when (iomode == AppendMode ) $ void $ Win32.setFilePointerEx h 0 Win32.fILE_END
-    Win32.hANDLEToHandle h
-#else
-toHandle fp iomode h = (`onException` Win32.closeHandle h) $ do
-    when (iomode == AppendMode ) $ void $ Win32.setFilePointerEx h 0 Win32.fILE_END
-    fd <- _open_osfhandle (fromIntegral (ptrToIntPtr h)) (#const _O_BINARY)
-    fdToHandle' fd Nothing False (Path.toString fp) iomode True
-#endif
+-}
