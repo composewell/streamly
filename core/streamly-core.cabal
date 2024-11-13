@@ -401,6 +401,7 @@ library
                      , Streamly.Internal.FileSystem.DirIO
                      , Streamly.Internal.FileSystem.Posix.ReadDir
                      , Streamly.Internal.FileSystem.Windows.ReadDir
+                     , Streamly.Internal.FileSystem.Posix.File
                      , Streamly.Internal.FileSystem.Windows.File
 
                     -- RingArray Arrays
@@ -570,7 +571,6 @@ library
 
     if os(linux) || os (darwin) || os(freebsd)
       build-depends: unix              >= 2.7.0 && < 2.9
-      exposed-modules: Streamly.Internal.FileSystem.Posix.File
 
     if os(windows)
       build-depends: Win32            >= 2.6 && < 2.14
