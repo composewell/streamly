@@ -12,7 +12,7 @@ module Streamly.Internal.FileSystem.Windows.File
 -------------------------------------------------------------------------------
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (bracketOnError, try, SomeException, onException)
+import Control.Exception (bracketOnError, onException)
 import Control.Monad (when, void)
 import Streamly.Internal.FileSystem.WindowsPath (WindowsPath)
 import System.IO (IOMode(..), Handle)
@@ -28,13 +28,13 @@ import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 import qualified Streamly.Internal.Data.Array as Array
 
 import Data.Bits
-import Foreign.C.String
-import Foreign.C.Types
+-- import Foreign.C.String
+-- import Foreign.C.Types
 import Foreign.Ptr
-import Foreign.Marshal.Alloc
-import Foreign.Storable
+-- import Foreign.Marshal.Alloc
+-- import Foreign.Storable
 import System.Win32 as Win32 hiding (createFile, failIfWithRetry)
-import System.Win32.Types
+-- import System.Win32.Types
 
 #include <windows.h>
 
