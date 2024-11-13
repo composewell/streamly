@@ -1,47 +1,52 @@
 module Streamly.Internal.FileSystem.Windows.File
-    ( -- openExistingFile
+    (
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
     -- openFile
     createFile
-    -- , openExistingFileWithCloseOnExec
-    -- , openFileWithCloseOnExec
+#endif
     ) where
+
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 
 -------------------------------------------------------------------------------
 -- Imports
 -------------------------------------------------------------------------------
 
 import Control.Exception (bracketOnError, try, SomeException, onException)
-import Data.Bits
-import System.IO (IOMode(..), Handle)
-import Foreign.C.Types
-import qualified System.Win32 as Win32
 import Control.Monad (when, void)
 import Streamly.Internal.FileSystem.WindowsPath (WindowsPath)
+import System.IO (IOMode(..), Handle)
 
-import System.Win32.Types
-
+#if 0
 #if defined(__IO_MANAGER_WINIO__)
 import GHC.IO.SubSystem
 #else
 import GHC.IO.Handle.FD (fdToHandle')
 #include <fcntl.h>
 #endif
-
-import Foreign.C.String
-import Foreign.Ptr
-import Foreign.Marshal.Alloc
-import Foreign.Storable
+#endif
 
 import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 import qualified Streamly.Internal.Data.Array as Array
 
-#include "windows_cconv.h"
+import Data.Bits
+import Foreign.C.String
+import Foreign.C.Types
+import Foreign.Ptr
+import Foreign.Marshal.Alloc
+import Foreign.Storable
+import System.Win32 as Win32 hiding (createFile, failIfWithRetry)
+import System.Win32.Types
+
+#include <windows.h>
 
 -------------------------------------------------------------------------------
 -- Windows
 -------------------------------------------------------------------------------
 
-foreign import WINDOWS_CCONV unsafe "windows.h CreateFileW"
+-- XXX Note for i386, stdcall is needed instead of ccall, see Win32
+-- package/windows_cconv.h. We support only x86_64 for now.
+foreign import ccall unsafe "windows.h CreateFileW"
   c_CreateFile :: LPCTSTR -> AccessMode -> ShareMode -> LPSECURITY_ATTRIBUTES -> CreateMode -> FileAttributeOrFlag -> HANDLE -> IO HANDLE
 
 -- | like failIf, but retried on sharing violations. This is necessary for many
@@ -49,37 +54,51 @@ foreign import WINDOWS_CCONV unsafe "windows.h CreateFileW"
 -- https://www.betaarchive.com/wiki/index.php/Microsoft_KB_Archive/316609
 --
 failIfWithRetry :: (a -> Bool) -> String -> IO a -> IO a
-failIfWithRetry cond msg action = retryOrFail retries
-  where
-    delay   = 100*1000 -- in ms, we use threadDelay
+failIfWithRetry needRetry msg action = retryOrFail retries
 
+    where
+
+    delay = 100*1000 -- in ms, we use threadDelay
+
+    -- KB article recommends 250/5
     retries = 20 :: Int
-      -- KB article recommends 250/5
 
 
     -- retryOrFail :: Int -> IO a
-
     retryOrFail times
-      | times <= 0 = errorWin msg
-      | otherwise  = do
-         ret <- action
-         if not (cond ret)
+        | times <= 0 = errorWin msg
+        | otherwise  = do
+            ret <- action
+            if not (needRetry ret)
             then return ret
             else do
-              err_code <- getLastError
-              if err_code == (32)
-                then do threadDelay delay; retryOrFail (times - 1)
+                err_code <- getLastError
+                if err_code == 32
+                then do
+                    threadDelay delay
+                    retryOrFail (times - 1)
                 else errorWin msg
 
 withFilePath :: WindowsPath -> (LPTSTR -> IO a) -> IO a
 withFilePath p act =
     Array.unsafePinnedAsPtr (Path.toChunk p) $ \ptr _ -> act (castPtr ptr)
 
-createFile :: WindowsPath -> AccessMode -> ShareMode -> Maybe LPSECURITY_ATTRIBUTES -> CreateMode -> FileAttributeOrFlag -> Maybe HANDLE -> IO HANDLE
+createFile ::
+       WindowsPath
+    -> AccessMode
+    -> ShareMode
+    -> Maybe LPSECURITY_ATTRIBUTES
+    -> CreateMode
+    -> FileAttributeOrFlag
+    -> Maybe HANDLE
+    -> IO HANDLE
 createFile name access share mb_attr mode flag mb_h =
   withFilePath name $ \ c_name ->
-  failIfWithRetry (==iNVALID_HANDLE_VALUE) (unwords ["CreateFile",show name]) $
-    c_CreateFile c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
+      failIfWithRetry
+        (== iNVALID_HANDLE_VALUE)
+        (unwords ["CreateFile", show name])
+        $ c_CreateFile
+            c_name access share (maybePtr mb_attr) mode flag (maybePtr mb_h)
 
 {-
 maxShareMode :: Win32.ShareMode
@@ -196,3 +215,4 @@ openExistingFileWithCloseOnExec :: WindowsPath -> IOMode -> IO Handle
 openExistingFileWithCloseOnExec = openExistingFile
 
 -}
+#endif
