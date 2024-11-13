@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+* Add several concurrent combinators for folds in `Streamly.Data.Fold.Prelude`.
 * Fix rate control for ordered streams.
 
 ## 0.10.1 (Jan 2024)
