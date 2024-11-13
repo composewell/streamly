@@ -401,6 +401,7 @@ library
                      , Streamly.Internal.FileSystem.DirIO
                      , Streamly.Internal.FileSystem.Posix.ReadDir
                      , Streamly.Internal.FileSystem.Windows.ReadDir
+                     , Streamly.Internal.FileSystem.Windows.File
 
                     -- RingArray Arrays
                      , Streamly.Internal.Data.RingArray
@@ -573,4 +574,3 @@ library
 
     if os(windows)
       build-depends: Win32            >= 2.6 && < 2.14
-      exposed-modules: Streamly.Internal.FileSystem.Windows.File
