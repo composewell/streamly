@@ -13,7 +13,7 @@ import Control.Exception (bracketOnError, try, SomeException, onException)
 import Data.Bits
 import System.IO (IOMode(..), Handle)
 import Foreign.C.Types
-import System.Win32 as Win32
+import qualified System.Win32 as Win32
 import Control.Monad (when, void)
 import Streamly.Internal.FileSystem.WindowsPath (WindowsPath)
 
@@ -32,6 +32,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Storable
 
 import qualified Streamly.Internal.FileSystem.WindowsPath as Path
+import qualified Streamly.Internal.Data.Array as Array
 
 #include "windows_cconv.h"
 
