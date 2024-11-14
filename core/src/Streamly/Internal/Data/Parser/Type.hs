@@ -294,6 +294,11 @@ instance Functor (Initial s) where
 --
 -- Folds can only return the right values. Parsers can also return lefts.
 
+-- XXX If we assume that the current position of the stream includes the
+-- element being processed then we can use 'SPartial 0' in the common cases, no
+-- change from current, and the change required would be just inverting the
+-- sign of the arguments.
+
 -- | The return type of a 'Parser' step.
 --
 -- The parser driver feeds the input stream to the parser one element at a
