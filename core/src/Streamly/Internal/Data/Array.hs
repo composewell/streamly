@@ -894,6 +894,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
             Parser.SPartial 1 s ->
                  goArray s [] st (Array contents next end)
             Parser.SPartial m s -> do
+                assertM(m <= 1)
                 let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let src0 = Prelude.take n (x:backBuf)
@@ -904,6 +905,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
             Parser.SContinue 1 s ->
                 goArray s (x:backBuf) st (Array contents next end)
             Parser.SContinue m s -> do
+                assertM(m <= 1)
                 let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let (src0, buf1) = Prelude.splitAt n (x:backBuf)
@@ -915,6 +917,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
                 let arr = Array contents next end
                 return (Right b, StreamK.cons arr st)
             Parser.SDone m b -> do
+                assertM(m <= 1)
                 let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let src0 = Prelude.take n (x:backBuf)
@@ -942,6 +945,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
             Parser.SPartial 1 s ->
                  goExtract s [] (Array contents next end)
             Parser.SPartial m s -> do
+                assertM(m <= 1)
                 let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let src0 = Prelude.take n (x:backBuf)
@@ -952,6 +956,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
             Parser.SContinue 1 s ->
                 goExtract s backBuf (Array contents next end)
             Parser.SContinue m s -> do
+                assertM(m <= 1)
                 let n = 1 - m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let (src0, buf1) = Prelude.splitAt n (x:backBuf)
@@ -963,6 +968,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
                 let arr = Array contents next end
                 return (Right b, StreamK.fromPure arr)
             Parser.SDone m b -> do
+                assertM(m <= 1)
                 let n = 1 - m
                 assert (n <= Prelude.length backBuf) (return ())
                 let src0 = Prelude.take n (x:backBuf)
@@ -988,6 +994,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
             Parser.SContinue 1 s ->
                 goStop s backBuf
             Parser.SContinue m s -> do
+                assertM(m <= 1)
                 let n = 1 - m
                 assert (n <= Prelude.length backBuf) (return ())
                 let (src0, buf1) = Prelude.splitAt n backBuf
@@ -996,6 +1003,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
             Parser.SDone 1 b ->
                 return (Right b, StreamK.nil)
             Parser.SDone m b -> do
+                assertM(m <= 1)
                 let n = 1 - m
                 assert (n <= Prelude.length backBuf) (return ())
                 let src0 = Prelude.take n backBuf
