@@ -28,20 +28,20 @@ module Streamly.Internal.Data.Scanl.Window
       Incr (..)
 
     -- * Running Incremental Scans
-    -- | Scans of type @Scanl m (Incr a) b@ are incremental sliding window
-    -- scans and are prefixed with @incr@. An input of type @(Insert a)@
-    -- indicates that the input element @a@ is being inserted in the window
-    -- without ejecting an old value increasing the window size by 1. An input
-    -- of type @(Replace a a)@ indicates that the first element is being inserted
-    -- in the window and the second element is being removed from the window,
-    -- the window size remains the same. The window size can only increase and
-    -- never decrease.
+    -- | Scans of type @Scanl m (Incr a) b@ are incremental sliding-window
+    -- scans. Names of such scans are prefixed with @incr@. An input of type
+    -- @(Insert a)@ indicates that the input element @a@ is being inserted in
+    -- the window without ejecting an old value, increasing the window size by
+    -- 1. An input of type @(Replace a a)@ indicates that the first argument of
+    -- Replace is being inserted in the window and the second argument is being
+    -- removed from the window, the window size remains the same. The window
+    -- size can only increase and never decrease.
     --
     -- You can compute the statistics over the entire stream using window folds
     -- by always supplying input of type @Insert a@.
     --
     -- The incremental scans are converted into scans over a window using the
-    -- 'windowScan' operation which maintains a sliding window and supplies the
+    -- 'incrScan' operation which maintains a sliding window and supplies the
     -- new and/or exiting element of the window to the window scan in the form
     -- of an incremental operation. The names of window scans are prefixed with
     -- @window@.
@@ -101,11 +101,16 @@ import Prelude hiding (length, sum, minimum, maximum)
 -- for time based windows.
 --
 -- Replace can be implemented using Insert and Delete.
+--
+-- XXX Use "Replace old new" instead.
 
+-- | Represents incremental input for a scan. 'Insert' means a new element is
+-- being added to the collection, 'Replace' means an old value in the
+-- collection is being replaced with a new value.
 data Incr a =
       Insert !a
-    -- | Delete !a
-    | Replace !a !a
+    --  | Delete !a
+    | Replace !a !a -- ^ Replace new old
 
 instance Functor Incr where
     fmap f (Insert x) = Insert (f x)
@@ -120,7 +125,7 @@ instance Functor Incr where
 data SlidingWindow a r s = SWArray !a !Int !s | SWRing !r !s
 -- data SlidingWindow a s = SWArray !a !Int !s !Int | SWRing !a !Int !s
 
--- | Like 'windowScan' but also provides the ring array to the scan. The ring
+-- | Like 'incrScan' but also provides the ring array to the scan. The ring
 -- array reflects the state of the ring after inserting the incoming element.
 --
 -- IMPORTANT NOTE: The ring is mutable, therefore, references to it should not
@@ -213,10 +218,10 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
     -}
 
 -- | @incrScan collector@ is an incremental sliding window scan that does not
--- require all the intermediate elements in a computation. This maintains @n@
--- elements in the window, when a new element comes it slides out the oldest
--- element and the new element along with the old element are supplied to the
--- collector fold.
+-- require all the intermediate elements in each step of the scan computation.
+-- This maintains @n@ elements in the window, when a new element comes it
+-- slides out the oldest element. The new element along with the old element
+-- are supplied to the collector fold.
 --
 {-# INLINE incrScan #-}
 incrScan :: forall m a b. (MonadIO m, Unbox a)
