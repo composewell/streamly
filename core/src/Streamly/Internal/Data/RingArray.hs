@@ -918,7 +918,7 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
             return $
                 case r of
                     Partial s -> Partial
-                        $ SWArray (MutArray.arrContents arr) 0 s n
+                        $ SWArray (MutArray.arrContents arr) 0 s (n - 1)
                     Done b -> Done b
 
     step (SWArray mba rh st i) a = do
@@ -929,12 +929,13 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
             case r of
                 Partial s ->
                     if i > 0
-                    then Partial $ SWArray mba rh1 s (i-1)
+                    then Partial $ SWArray mba rh1 s (i - 1)
                     else Partial $ SWRing mba rh1 s
                 Done b -> Done b
 
     step (SWRing mba rh st) a = do
-        (rb1@(RingArray _ _ rh1), old) <- replace (RingArray mba (n * SIZE_OF(a)) rh) a
+        (rb1@(RingArray _ _ rh1), old) <-
+            replace (RingArray mba (n * SIZE_OF(a)) rh) a
         r <- step1 st ((a, Just old), toMutArray rb1)
         return $
             case r of
