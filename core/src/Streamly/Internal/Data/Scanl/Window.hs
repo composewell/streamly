@@ -151,6 +151,7 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
                     Done b -> Done b
 
     step (SWArray arr i st) a = do
+        -- XXX compare this with the slidingWindow impl
         arr1 <- liftIO $ MutArray.unsafeSnoc arr a
         r <- step1 st (Insert a, RingArray.unsafeCastMutArray arr1)
         return $ case r of
@@ -166,7 +167,7 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
         r <- step1 st (Replace a old, rb1)
         return $
             case r of
-                Partial s -> Partial $ SWRing rb s
+                Partial s -> Partial $ SWRing rb1 s
                 Done b -> Done b
 
     extract (SWArray _ _ st) = extract1 st
