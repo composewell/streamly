@@ -12,6 +12,9 @@ import qualified Streamly.Internal.FileSystem.Event.Darwin as Event
 
 import Streamly.Test.FileSystem.Event.Common
 
+tempPrefix :: String
+tempPrefix = "fsevent_darwin"
+
 moduleName :: String
 moduleName = "FileSystem.Event.Darwin"
 
@@ -79,7 +82,7 @@ main = do
             ]
 
     let w = Event.watchWith (Event.setAllEvents True)
-        run = runTests moduleName "recursive" w
+        run = runTests tempPrefix moduleName "recursive" w
 
     run DirType regularRootTests
     run SymLinkResolvedPath symLinkRootTests
