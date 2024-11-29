@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-* Add several concurrent combinators for folds in `Streamly.Data.Fold.Prelude`.
+* In the `Streamly.Data.Parser` module, the constructors `Partial n`,
+  `Continue n`, `Done n` have been changed to `SPartial (1-n)`, `SContinue
+  (1-n)` and `SDone (1-n)`. The semantics of the constructor argument
+  has changed, the argument can now be positive or negative and it now
+  means the relative change in the current position of the stream.
 * Split the `Fold` type in two, `Fold` and `Scanl`. `Streamly.Data.Scanl`
   module is added for the new `Scanl` type.
 * Add a `Path` type for representing file system paths, following modules are
