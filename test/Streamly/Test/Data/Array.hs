@@ -12,10 +12,10 @@ import Control.Monad (void)
 import Data.Char (isLower)
 import Data.List (sort)
 import Data.Proxy (Proxy(..))
-import Data.Word(Word8)
+import Data.Word(Word8, Word16)
 import Foreign.Storable (peek)
 import Foreign.ForeignPtr (newForeignPtr_, withForeignPtr)
-import GHC.Ptr (plusPtr, Ptr)
+import GHC.Ptr (plusPtr, Ptr(..))
 import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Internal.Data.MutArray (MutArray)
 import Test.QuickCheck (chooseInt, listOf)
@@ -248,6 +248,24 @@ testUnsafeFromForeignPtr = do
         performMajorGC
         A.unsafeFromForeignPtr fptr len `shouldReturn` arr
 
+testFromCString# :: IO ()
+testFromCString# = do
+    arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
+    let arr = A.unsafeFreeze arr0
+    A.unsafePinnedAsPtr (arr <> A.fromList [0]) $ \(Ptr addr#) _ -> do
+        arr1 <- A.fromCString# addr#
+        performGCSweep 4 100000
+        arr1 `shouldBe` arr
+
+testFromW16CString# :: IO ()
+testFromW16CString# = do
+    arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word16])
+    let arr = A.unsafeFreeze arr0
+    A.unsafePinnedAsPtr (arr <> A.fromList [0]) $ \(Ptr addr#) _ -> do
+        arr1 <- A.fromW16CString# addr#
+        performGCSweep 4 100000
+        arr1 `shouldBe` arr
+
 reallocMA :: Property
 reallocMA =
     let len = 10000
@@ -283,6 +301,8 @@ main =
             it "testUnsafeAsForeignPtr" testUnsafeAsForeignPtr
             it "testForeignPtrConversionId" testForeignPtrConversionId
             it "testUnsafeFromForeignPtr" testUnsafeFromForeignPtr
+            it "testFromCString#" testFromCString#
+            it "testFromW16CString#" testFromW16CString#
         describe "unsafeSlice" $ do
             it "partial" $ unsafeSlice 2 4 [1..10]
             it "none" $ unsafeSlice 10 0 [1..10]
