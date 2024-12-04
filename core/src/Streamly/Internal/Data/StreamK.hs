@@ -117,19 +117,23 @@ module Streamly.Internal.Data.StreamK
     , the
 
     -- ** Transforming Inner Monad
-    , hoist
+    , morphInner
 
     -- * Exceptions
     , handle
 
     -- * Resource Management
     , bracketIO
+
+    -- * Deprecated
+    , hoist
     )
 where
 
 #include "ArrayMacros.h"
 #include "inline.hs"
 #include "assert.hs"
+#include "deprecation.h"
 
 import Control.Exception (mask_, Exception)
 import Control.Monad (void, join)
@@ -687,16 +691,17 @@ toList :: Monad m => StreamK m a -> m [a]
 toList = foldr (:) []
 
 -- Based on suggestions by David Feuer and Pranay Sashank
-{-# INLINE hoist #-}
-hoist :: (Monad m, Monad n)
+{-# INLINE morphInner #-}
+morphInner, hoist :: (Monad m, Monad n)
     => (forall x. m x -> n x) -> StreamK m a -> StreamK n a
-hoist f str =
+morphInner f str =
     mkStream $ \st yld sng stp ->
             let single = return . sng
                 yieldk a s = return $ yld a (hoist f s)
                 stop = return stp
                 state = adaptState st
              in join . f $ foldStreamShared state yieldk single stop str
+RENAME(hoist,morphInner)
 
 -------------------------------------------------------------------------------
 -- Transformation by folding (Scans)
