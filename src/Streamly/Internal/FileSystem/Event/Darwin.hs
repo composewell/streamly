@@ -87,6 +87,7 @@
 #if HAVE_DECL_KFSEVENTSTREAMCREATEFLAGFILEEVENTS
 
 module Streamly.Internal.FileSystem.Event.Darwin
+    {-# DEPRECATED "Use the streamly-fsevents package." #-}
     (
     -- * Creating a Watch
 
