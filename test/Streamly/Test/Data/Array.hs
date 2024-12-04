@@ -8,7 +8,6 @@
 
 module Streamly.Test.Data.Array (main) where
 
-import Control.Monad (void)
 import Data.Char (isLower)
 import Data.List (sort)
 import Data.Proxy (Proxy(..))
@@ -20,6 +19,7 @@ import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Internal.Data.MutArray (MutArray)
 import Test.QuickCheck (chooseInt, listOf)
 import System.Mem (performMajorGC)
+import Streamly.Test.Common (performGCSweep)
 
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.MutArray as MA
@@ -222,12 +222,6 @@ testUnsafeAsForeignPtr = do
     A.unsafeAsForeignPtr arr1 getIntList1 `shouldReturn` [10 .. 59]
     where
     getIntList1 fp blen = withForeignPtr fp $ \p -> getIntList p blen
-
-performGCSweep :: Int -> Int -> IO ()
-performGCSweep i j = do
-  mapM_ id $ replicate i $ do
-      performMajorGC
-      void $ MA.fromList ([0 .. j] :: [Int])
 
 testForeignPtrConversionId :: IO ()
 testForeignPtrConversionId = do
