@@ -248,7 +248,6 @@ where
 #include "deprecation.h"
 #include "assert.hs"
 
-import Control.Monad (when)
 import Data.Bifunctor (first)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -676,11 +675,15 @@ takeBetween low high (Fold fstep finitial _ ffinal) =
                       then IDone b
                       else IError (foldErr i1)
 
-    initial = do
-        when (low >= 0 && high >= 0 && low > high)
-            $ error invalidRange
-
-        finitial >>= inext (-1)
+    -- In the case of Identity monad
+    -- @
+    -- when True (error invalidRange)
+    -- @
+    -- does not evaluate the @error invalidRange@ due to which no error occurs.
+    initial =
+        if low >= 0 && high >= 0 && low > high
+        then error invalidRange
+        else finitial >>= inext (-1)
 
     -- Keep the impl same as inext
     {-# INLINE snext #-}
