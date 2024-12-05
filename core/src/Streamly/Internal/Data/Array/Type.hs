@@ -287,14 +287,12 @@ unsafePinnedAsPtr arr f = do
 {-# INLINE unsafeAsForeignPtr #-}
 unsafeAsForeignPtr
     :: MonadIO m => Array a -> (ForeignPtr a -> Int -> m b) -> m b
-unsafeAsForeignPtr arr0 f = do
-    let marr = unsafeThaw arr0
-    pinned <- liftIO $ MA.pin marr
-    MA.unsafeAsPtr pinned (finner (MA.arrContents pinned))
+unsafeAsForeignPtr arr@Array{..} f =
+    unsafePinnedAsPtr arr finner
     where
-    finner arrContents_ (Ptr addr#) i =
+    finner (Ptr addr#) i =
         let fptrContents =
-                PlainPtr (Unboxed.getMutByteArray# arrContents_)
+                PlainPtr (Unboxed.getMutByteArray# arrContents)
             fptr = ForeignPtr addr# fptrContents
          in f fptr i
 
