@@ -5,7 +5,7 @@
 module Main (main) where
 
 import Control.Applicative ((<|>))
-import Control.Exception (displayException)
+import Control.Exception (displayException, try, evaluate, SomeException)
 import Data.Char (isSpace)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
@@ -13,7 +13,7 @@ import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property, property, listOf,
-        vectorOf, Gen, (.&&.))
+        vectorOf, Gen, (.&&.), ioProperty)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Prelude hiding (sequence)
@@ -203,27 +203,27 @@ takeBetweenPass =
                                     $ Prelude.take lpl ls
                             Left _ -> property False
 
-_takeBetween :: Property
-_takeBetween =
+takeBetween :: Property
+takeBetween =
     forAll (chooseInt (min_value, max_value)) $ \m ->
         forAll (chooseInt (min_value, max_value)) $ \n ->
             forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-                go m n ls
+                ioProperty $ go m n ls
 
     where
 
-    go m n ls =
+    go m n ls = do
         let inputLen = Prelude.length ls
-         in do
-            let p = P.takeBetween m n FL.toList
-            case runIdentity $ S.parse p (S.fromList ls) of
-                Right xs ->
-                    let parsedLen = Prelude.length xs
-                    in if inputLen >= m && parsedLen >= m && parsedLen <= n
-                        then checkListEqual xs $ Prelude.take parsedLen ls
-                        else property False
-                Left _ ->
-                    property ((m >= 0 && n >= 0 && m > n) || inputLen < m)
+        let p = P.takeBetween m n FL.toList
+        eres <- try $ evaluate $ runIdentity $ S.parse p (S.fromList ls)
+        pure $ case eres of
+            Left (_ :: SomeException) -> m >= 0 && n >= 0 && m > n
+            Right (Right xs) ->
+                let parsedLen = Prelude.length xs
+                in (inputLen >= m && parsedLen >= m && parsedLen <= n)
+                       && (xs == Prelude.take parsedLen ls)
+            Right (Left _) -> inputLen < m
+
 
 take :: Property
 take =
@@ -1399,10 +1399,8 @@ main =
     describe "test for sequence parser" $ do
         prop "P.takeBetween = Prelude.take when len >= m and len <= n"
             takeBetweenPass
-        -- XXX This test fails
-        -- XXX cabal run test:Data.Parser -- --match "/Data.Parser/test for sequence parser/P.takeBetween = Prelude.take when len >= m and len <= n and failotherwise fail/" --seed 1563586298
-        -- prop ("P.takeBetween = Prelude.take when len >= m and len <= n and fail"
-              -- ++ "otherwise fail") Main._takeBetween
+        prop ("P.takeBetween = Prelude.take when len >= m and len <= n and fail"
+              ++ "otherwise fail") takeBetween
         prop "P.take = Prelude.take" Main.take
         prop "P.takeEQ = Prelude.take when len >= n" takeEQPass
         prop "P.takeEQ = Prelude.take when len >= n and fail otherwise"
