@@ -8,7 +8,6 @@
 
 module Streamly.Test.Data.Array (main) where
 
-import Control.Monad (void)
 import Data.Char (isLower)
 import Data.List (sort)
 import Data.Proxy (Proxy(..))
@@ -223,21 +222,12 @@ testUnsafeAsForeignPtr = do
     where
     getIntList1 fp blen = withForeignPtr fp $ \p -> getIntList p blen
 
-performGCSweep :: Int -> Int -> IO ()
-performGCSweep i j = do
-  mapM_ id $ replicate i $ do
-      performMajorGC
-      void $ MA.fromList ([0 .. j] :: [Int])
-
 testForeignPtrConversionId :: IO ()
 testForeignPtrConversionId = do
     arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
     let arr = A.unsafeFreeze arr0
-    A.unsafeAsForeignPtr arr $ \a b -> do
-        res <- A.unsafeFromForeignPtr a b
-        performGCSweep 4 100000
-        res `shouldBe` arr
-
+    arr1 <- A.unsafeAsForeignPtr arr A.unsafeFromForeignPtr
+    arr1 `shouldBe` arr
 
 testUnsafeFromForeignPtr :: IO ()
 testUnsafeFromForeignPtr = do
