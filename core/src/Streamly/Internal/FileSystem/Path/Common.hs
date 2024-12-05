@@ -36,6 +36,7 @@ module Streamly.Internal.FileSystem.Path.Common
 
     , append
     , unsafeAppend
+    , splitPath
 
     -- * Utilities
     , wordToChar
@@ -46,9 +47,29 @@ where
 
 #include "assert.hs"
 
+{- $setup
+>>> :m
+
+>>> import Data.Functor.Identity (runIdentity)
+>>> import System.IO.Unsafe (unsafePerformIO)
+>>> import qualified Streamly.Data.Stream as Stream
+>>> import qualified Streamly.Unicode.Stream as Unicode
+>>> import qualified Streamly.Internal.Data.Array as Array
+>>> import qualified Streamly.Internal.FileSystem.Path.Common as Common
+>>> import qualified Streamly.Internal.Unicode.Stream as Unicode
+
+>>> packPosix = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf8' . Stream.fromList
+>>> unpackPosix = runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.read
+
+>>> packWindows = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf16le' . Stream.fromList
+>>> unpackWindows = runIdentity . Stream.toList . Unicode.decodeUtf16le' . Array.read
+-}
+
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow(..))
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord, isAlpha)
+import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
 #ifdef DEBUG
 import Data.Maybe (fromJust)
@@ -463,3 +484,30 @@ append :: (Unbox a, Integral a) =>
     OS -> (Array a -> String) -> Array a -> Array a -> Array a
 append os toStr a b =
     withAppendCheck os toStr b (doAppend os a b)
+
+-- |
+-- >>> :{
+--  splitPath Common.Posix = Stream.toList . fmap unpackPosix . Common.splitPath Common.Posix . packPosix
+--  splitPath Common.Windows = Stream.toList . fmap unpackWindows . Common.splitPath Common.Windows . packWindows
+-- :}
+--
+-- >>> splitPath Common.Posix "home//user/./..////\\directory/."
+-- ["home","user","..","\\directory"]
+--
+-- >>> splitPath Common.Windows "home//user/./..////\\directory/."
+-- ["home","user","..","directory"]
+--
+{-# INLINE splitPath #-}
+splitPath
+    :: forall a m. (Unbox a, Integral a, MonadIO m)
+    => OS -> Array a -> Stream m (Array a)
+splitPath os arr =
+    Stream.indexEndBy_ (isSeparatorWord os) (Array.read arr)
+        & Stream.filter (not . shouldFilterOut)
+        & fmap (\(i, len) -> Array.getSliceUnsafe i len arr)
+
+    where
+
+    shouldFilterOut (off, len) =
+        len == 0 ||
+            (len == 1 && unsafeIndexChar off arr == '.')
