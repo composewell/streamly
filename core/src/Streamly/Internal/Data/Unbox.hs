@@ -471,13 +471,13 @@ instance Unbox () where
 
 {-# INLINE fromEnumIoSubSystem #-}
 fromEnumIoSubSystem :: IoSubSystem -> Int
-fromEnumIoSubSystem IoPOSIX = 1
-fromEnumIoSubSystem IoNative = 0
+fromEnumIoSubSystem IoPOSIX = 0
+fromEnumIoSubSystem IoNative = 1
 
 {-# INLINE toEnumIoSubSystem #-}
 toEnumIoSubSystem :: Int -> IoSubSystem
-toEnumIoSubSystem 0 = IoNative
-toEnumIoSubSystem 1 = IoPOSIX
+toEnumIoSubSystem 0 = IoPOSIX
+toEnumIoSubSystem 1 = IoNative
 toEnumIoSubSystem val = error $ show val ++ ": Invalid tag for IoSubSystem"
 
 instance Unbox IoSubSystem where
