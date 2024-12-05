@@ -295,9 +295,6 @@ module Streamly.Internal.Data.MutArray.Type
     , isPower2
     , roundUpToPower2
 
-    -- * Foreign APIs
-    , c_memcmp_index
-
     -- * Deprecated
     , realloc
     , createOfWith
@@ -371,7 +368,7 @@ import Data.Char (ord)
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16)
-import Foreign.C.Types (CSize(..), CInt(..))
+import Foreign.C.Types (CSize(..))
 import Foreign.Ptr (plusPtr)
 import Streamly.Internal.Data.MutByteArray.Type
     ( MutByteArray(..)
@@ -429,11 +426,6 @@ foreign import ccall unsafe "memchr_index" c_memchr_index
 
 foreign import ccall unsafe "string.h strlen" c_strlen
     :: Ptr Word8 -> IO CSize
-
-foreign import ccall unsafe "memcmp_index" c_memcmp_index
-    :: MutableByteArray# RealWorld -> CSize
-    -> MutableByteArray# RealWorld -> CSize
-    -> CSize -> IO CInt
 
 -- | Given an 'Unboxed' type (unused first arg) and a number of bytes, return
 -- how many elements of that type will completely fit in those bytes.

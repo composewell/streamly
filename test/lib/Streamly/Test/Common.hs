@@ -13,17 +13,13 @@ module Streamly.Test.Common
     , checkListEqual
     , chooseInt
     , chooseDouble
-    , performGCSweep
     ) where
 
-import Control.Monad (when, void, replicateM_)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.List ((\\))
-import System.Mem (performMajorGC)
 import Test.QuickCheck (Property, Gen, choose, counterexample)
 import Test.QuickCheck.Monadic (PropertyM, assert, monitor, monadicIO)
-
-import qualified Streamly.Internal.Data.MutArray as MA
 
 equals
     :: (Show a, Monad m)
@@ -68,10 +64,3 @@ chooseInt = choose
 
 chooseDouble :: (Double, Double) -> Gen Double
 chooseDouble = choose
-
--- XXX Move this to Streamly.Test.Array.Common?
-performGCSweep :: Int -> Int -> IO ()
-performGCSweep i j = do
-  replicateM_ i $ do
-      performMajorGC
-      void $ MA.fromList ([0 .. j] :: [Int])

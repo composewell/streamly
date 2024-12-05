@@ -8,24 +8,21 @@
 
 module Streamly.Test.Data.RingArray (main) where
 
-import Streamly.Test.Common (performGCSweep)
-
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.RingArray as RingArray
 
 import Prelude as P
+
 import Test.Hspec as H
 
 eqArrayN :: [Int] -> [Int] -> Int -> Int -> Bool -> IO ()
-eqArrayN lstArr lstRing startR nBytes expected = do
+eqArrayN lstArr lstRing startR nelem expected = do
     let arr = Array.fromList lstArr
     marr <- MutArray.fromList lstRing
     let ring =
             maybe (error "cast failed") id $ RingArray.castMutArrayWith startR marr
-    performGCSweep 4 100000
-    res <- RingArray.eqArrayN ring arr nBytes
-    res `shouldBe` expected
+    RingArray.eqArrayN ring arr nelem `shouldReturn` expected
 
 eqArray :: [Int] -> [Int] -> Int -> Bool -> IO ()
 eqArray lstArr lstRing startR expected = do
@@ -33,9 +30,7 @@ eqArray lstArr lstRing startR expected = do
     marr <- MutArray.fromList lstRing
     let ring =
             maybe (error "cast failed") id $ RingArray.castMutArrayWith startR marr
-    performGCSweep 4 100000
-    res <- RingArray.eqArray ring arr
-    res `shouldBe` expected
+    RingArray.eqArray ring arr `shouldReturn` expected
 
 moduleName :: String
 moduleName = "Data.RingArray"

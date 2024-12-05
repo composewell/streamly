@@ -639,24 +639,31 @@ cast ring =
 eqArrayN :: RingArray a -> Array a -> Int -> IO Bool
 eqArrayN RingArray{..} Array.Array{..} nBytes
     | nBytes < 0 = error "eqArrayN: n should be >= 0"
-    | arrEnd - arrStart < nBytes = error "eqArrayN: array is shorter than n"
+    | arrLen < nBytes = error "eqArrayN: array is shorter than n"
     | ringSize < nBytes = error "eqArrayN: ring is shorter than n"
     | nBytes == 0 = return True
-    | nBytesC <= p1Len = do
-          part1 <- MutArray.c_memcmp_index arr# 0 ring# p1Off nBytesC
-          pure $ part1 == 0
-    | otherwise = do
-          part1 <- MutArray.c_memcmp_index arr# 0 ring# p1Off p1Len
-          part2 <- MutArray.c_memcmp_index arr# p1Len ring# p2Off p2Len
-          pure $ part1 == 0 && part2 == 0
+    | otherwise = check ringHead 0
+
     where
-    nBytesC = fromIntegral nBytes
-    arr# = MutByteArray.getMutByteArray# arrContents
-    ring# = MutByteArray.getMutByteArray# ringContents
-    p1Off = fromIntegral ringHead
-    p1Len = fromIntegral $ ringSize - ringHead
-    p2Off = 0
-    p2Len = nBytesC - p1Len
+
+    arrLen = arrEnd - arrStart
+
+    -- XXX compare Word64 at a time
+    check ringIndex arrayIndex = do
+        (relem :: Word8) <- peekAt ringIndex ringContents
+        aelem <- peekAt arrayIndex arrContents
+        if relem == aelem
+        then go (ringIndex + 1) (arrayIndex + 1)
+        else return False
+
+    go ringIndex arrayIndex
+        -- Checking ringIndex == rh is enough
+        --  | arrayIndex == nBytes = return True
+        | ringIndex == ringSize = go 0 arrayIndex
+        | ringIndex == ringHead = return True
+        | otherwise = check ringIndex arrayIndex
+
+-- XXX We can use memcmp over two segments.
 
 -- | Byte compare the entire length of ringBuffer with the given array,
 -- starting at the supplied ring head index.  Returns true if the Array and
@@ -667,18 +674,25 @@ eqArrayN RingArray{..} Array.Array{..} nBytes
 {-# INLINE eqArray #-}
 eqArray :: RingArray a -> Array a -> IO Bool
 eqArray RingArray{..} Array.Array{..}
-    | arrEnd - arrStart < ringSize = error "eqArrayN: array is shorter than ring"
-    | otherwise = do
-          part1 <- MutArray.c_memcmp_index arr# 0 ring# p1Off p1Len
-          part2 <- MutArray.c_memcmp_index arr# p1Len ring# p2Off p2Len
-          pure $ part1 == 0 && part2 == 0
+    | arrLen < ringSize = error "eqArrayN: array is shorter than ring"
+    | otherwise = check ringHead 0
+
     where
-    arr# = MutByteArray.getMutByteArray# arrContents
-    ring# = MutByteArray.getMutByteArray# ringContents
-    p1Off = fromIntegral ringHead
-    p1Len = fromIntegral $ ringSize - ringHead
-    p2Off = 0
-    p2Len = fromIntegral ringHead
+
+    arrLen = arrEnd - arrStart
+
+    -- XXX compare Word64 at a time
+    check ringIndex arrayIndex = do
+        (relem :: Word8) <- peekAt ringIndex ringContents
+        aelem <- peekAt arrayIndex arrContents
+        if relem == aelem
+        then go (ringIndex + 1) (arrayIndex + 1)
+        else return False
+
+    go ringIndex arrayIndex
+        | ringIndex == ringSize = go 0 arrayIndex
+        | ringIndex == ringHead = return True
+        | otherwise = check ringIndex arrayIndex
 
 -------------------------------------------------------------------------------
 -- Folding
