@@ -41,6 +41,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     -- * Conversions
     , IsPath (..)
     , adapt
+    , normalize
 
     -- * Construction
     , fromChunk
@@ -360,3 +361,49 @@ append (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
+
+-- | Normalize the path.
+--
+-- The behaviour is similar to FilePath.normalise.
+--
+-- >>> Path.toString $ Path.normalize $ [path|/file/\test////|]
+-- "/file/\\test/"
+--
+-- >>> Path.toString $ Path.normalize $ [path|/file/./test|]
+-- "/file/test"
+--
+-- >>> Path.toString $ Path.normalize $ [path|/test/file/../bob/fred/|]
+-- "/test/file/../bob/fred/"
+--
+-- >>> Path.toString $ Path.normalize $ [path|../bob/fred/|]
+-- "../bob/fred/"
+--
+-- >>> Path.toString $ Path.normalize $ [path|/a/../c|]
+-- "/a/../c"
+--
+-- >>> Path.toString $ Path.normalize $ [path|./bob/fred/|]
+-- "bob/fred/"
+--
+-- >>> Path.toString $ Path.normalize $ [path|.|]
+-- "."
+--
+-- >>> Path.toString $ Path.normalize $ [path|./|]
+-- "./"
+--
+-- >>> Path.toString $ Path.normalize $ [path|./.|]
+-- "./"
+--
+-- >>> Path.toString $ Path.normalize $ [path|/./|]
+-- "/"
+--
+-- >>> Path.toString $ Path.normalize $ [path|/|]
+-- "/"
+--
+-- >>> Path.toString $ Path.normalize $ [path|bob/fred/.|]
+-- "bob/fred/"
+--
+-- >>> Path.toString $ Path.normalize $ [path|//home|]
+-- "/home"
+--
+normalize :: OS_PATH -> OS_PATH
+normalize (OS_PATH a) = OS_PATH $ Common.normalize Common.OS_NAME a
