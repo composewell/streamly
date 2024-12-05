@@ -9,12 +9,13 @@ import Control.Exception (displayException, try, evaluate, SomeException)
 import Data.Char (isSpace)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
+import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property, property, listOf,
         vectorOf, Gen, (.&&.), ioProperty)
-import Test.QuickCheck.Monadic (monadicIO, assert, run)
+import Test.QuickCheck.Monadic (monadicIO, assert, run, PropertyM)
 
 import Prelude hiding (sequence)
 
@@ -23,8 +24,10 @@ import qualified Data.List as List
 import qualified Prelude
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Array.Generic as GA
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
+import qualified Streamly.Internal.Data.ParserK as PK
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Stream as SI
@@ -68,49 +71,54 @@ max_length = 1000
 
 -- Accumulator Tests
 
-fromFold :: Property
-fromFold =
+type ParserTestCase a m b c =
+        forall t. ([a] -> t)
+        -> (P.Parser a m b -> t -> m (Either ParseError b))
+        -> c
+
+fromFold :: ParserTestCase Int IO Int Property
+fromFold producer consumer =
     forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
-        monadicIO $ do
-        s1 <- S.parse (P.fromFold FL.sum) (S.fromList ls)
+        ioProperty $ do
+        s1 <- consumer (P.fromFold FL.sum) (producer ls)
         o2 <- S.fold FL.sum (S.fromList ls)
         return $
             case s1 of
                 Right o1 -> o1 == o2
                 Left _ -> False
 
-fromPure :: Property
-fromPure =
+fromPure :: ParserTestCase Int Identity Int Property
+fromPure producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \x ->
-        case runIdentity $ S.parse (P.fromPure x) (S.fromList [1 :: Int]) of
+        case runIdentity $ consumer (P.fromPure x) (producer [1 :: Int]) of
             Right r -> r == x
             Left _ -> False
 
-fromEffect :: Property
-fromEffect =
+fromEffect :: ParserTestCase Int Identity Int Property
+fromEffect producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \x ->
-        case runIdentity $ S.parse (P.fromEffect $ return x) (S.fromList [1 :: Int]) of
+        case runIdentity $ consumer (P.fromEffect $ return x) (producer [1 :: Int]) of
             Right r -> r == x
             Left _ -> False
 
-die :: Property
-die =
+die :: ParserTestCase Int Identity Int Property
+die producer consumer =
     property $
-    case runIdentity $ S.parse (P.die "die test") (S.fromList [0 :: Int]) of
+    case runIdentity $ consumer (P.die "die test") (producer [0 :: Int]) of
         Right _ -> False
         Left _ -> True
 
-dieM :: Property
-dieM =
+dieM :: ParserTestCase Int Identity Int Property
+dieM producer consumer =
     property $
-    case runIdentity $ S.parse (P.dieM (Identity "die test")) (S.fromList [0 :: Int]) of
+    case runIdentity $ consumer (P.dieM (Identity "die test")) (producer [0 :: Int]) of
         Right _ -> False
         Left _ -> True
 
-parserFail :: Property
-parserFail =
+parserFail :: ParserTestCase Int Identity Int Property
+parserFail producer consumer =
     property $
-        case runIdentity $ S.parse (Fail.fail err) (S.fromList [0 :: Int]) of
+        case runIdentity $ consumer (Fail.fail err) (producer [0 :: Int]) of
             Right _ -> False
             Left (ParseError e) -> err == e
     where
@@ -118,52 +126,52 @@ parserFail =
 
 -- Element Parser Tests
 
-peekPass :: Property
-peekPass =
+peekPass :: ParserTestCase Int Identity Int Property
+peekPass producer consumer =
     forAll (chooseInt (1, max_length)) $ \list_length ->
         forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-            case runIdentity $ S.parse P.peek (S.fromList ls) of
+            case runIdentity $ consumer P.peek (producer ls) of
                 Right head_value -> case ls of
                     head_ls : _ -> head_value == head_ls
                     _ -> False
                 Left _ -> False
 
-peekFail :: Property
-peekFail =
-    property (case runIdentity $ S.parse P.peek (S.fromList []) of
+peekFail :: ParserTestCase Int Identity Int Property
+peekFail producer consumer =
+    property (case runIdentity $ consumer P.peek (producer []) of
         Right _ -> False
         Left _ -> True)
 
-eofPass :: Property
-eofPass =
-    property (case runIdentity $ S.parse P.eof (S.fromList []) of
+eofPass :: ParserTestCase Int Identity () Property
+eofPass producer consumer =
+    property (case runIdentity $ consumer P.eof (producer []) of
         Right _ -> True
         Left _ -> False)
 
-eofFail :: Property
-eofFail =
+eofFail :: ParserTestCase Int Identity () Property
+eofFail producer consumer =
     forAll (chooseInt (1, max_length)) $ \list_length ->
         forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-            case runIdentity $ S.parse P.eof (S.fromList ls) of
+            case runIdentity $ consumer P.eof (producer ls) of
                 Right _ -> False
                 Left _ -> True
 
-satisfyPass :: Property
-satisfyPass =
+satisfyPass :: ParserTestCase Int Identity Int Property
+satisfyPass producer consumer =
     forAll (chooseInt (mid_value, max_value)) $ \first_element ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls_tail ->
             let
                 ls = first_element : ls_tail
                 predicate = (>= mid_value)
             in
-                case runIdentity $ S.parse (P.satisfy predicate) (S.fromList ls) of
+                case runIdentity $ consumer (P.satisfy predicate) (producer ls) of
                     Right r -> r == first_element
                     Left _ -> False
 
-satisfy :: Property
-satisfy =
+satisfy :: ParserTestCase Int Identity Int Property
+satisfy producer consumer =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-        case runIdentity $ S.parse (P.satisfy predicate) (S.fromList ls) of
+        case runIdentity $ consumer (P.satisfy predicate) (producer ls) of
             Right r -> case ls of
                 [] -> False
                 (x : _) -> predicate x && (r == x)
@@ -173,38 +181,38 @@ satisfy =
         where
             predicate = (>= mid_value)
 
-onePass :: Property
-onePass =
+onePass :: ParserTestCase Int Identity Int Property
+onePass producer consumer =
     forAll (chooseInt (1, max_value)) $ \int ->
-        property (case runIdentity $ S.parse P.one (S.fromList [int]) of
+        property (case runIdentity $ consumer P.one (producer [int]) of
             Right i -> i  == int
             Left _ -> False)
 
-one :: Property
-one =
+one :: ParserTestCase Int Identity Int Property
+one producer consumer =
     property $
-        case runIdentity $ S.parse P.one (S.fromList []) of
+        case runIdentity $ consumer P.one (producer []) of
             Left _ -> True
             Right _ -> False
 
 -- Sequence Parsers Tests
-takeBetweenPass :: Property
-takeBetweenPass =
+takeBetweenPass :: ParserTestCase Int Identity [Int] Property
+takeBetweenPass producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \m ->
         forAll (chooseInt (m, max_value)) $ \n ->
             forAll (chooseInt (m, max_value)) $ \list_length ->
                 forAll (vectorOf list_length (chooseInt (min_value, max_value)))
                     $ \ls ->
-                        case runIdentity $ S.parse (P.takeBetween m n FL.toList)
-                                (S.fromList ls) of
+                        case runIdentity $ consumer (P.takeBetween m n FL.toList)
+                                (producer ls) of
                             Right parsed_list ->
                                 let lpl = Prelude.length parsed_list
                                 in checkListEqual parsed_list
                                     $ Prelude.take lpl ls
                             Left _ -> property False
 
-takeBetween :: Property
-takeBetween =
+takeBetween :: ParserTestCase Int Identity [Int] Property
+takeBetween producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \m ->
         forAll (chooseInt (min_value, max_value)) $ \n ->
             forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
@@ -215,7 +223,7 @@ takeBetween =
     go m n ls = do
         let inputLen = Prelude.length ls
         let p = P.takeBetween m n FL.toList
-        eres <- try $ evaluate $ runIdentity $ S.parse p (S.fromList ls)
+        eres <- try $ evaluate $ runIdentity $ consumer p (producer ls)
         pure $ case eres of
             Left (_ :: SomeException) -> m >= 0 && n >= 0 && m > n
             Right (Right xs) ->
@@ -225,57 +233,57 @@ takeBetween =
             Right (Left _) -> inputLen < m
 
 
-take :: Property
-take =
+take :: ParserTestCase Int Identity [Int] Property
+take producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-            case runIdentity $ S.parse (P.fromFold $ FL.take n FL.toList) (S.fromList ls) of
+            case runIdentity $ consumer (P.fromFold $ FL.take n FL.toList) (producer ls) of
                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n ls)
                 Left _ -> property False
 
-takeEQPass :: Property
-takeEQPass =
+takeEQPass :: ParserTestCase Int Identity [Int] Property
+takeEQPass producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (chooseInt (n, max_value)) $ \list_length ->
             forAll (vectorOf list_length
                         (chooseInt (min_value, max_value))) $ \ls ->
-                case runIdentity $ S.parse (P.takeEQ n FL.toList) (S.fromList ls) of
+                case runIdentity $ consumer (P.takeEQ n FL.toList) (producer ls) of
                     Right parsed_list ->
                         checkListEqual parsed_list (Prelude.take n ls)
                     Left _ -> property False
 
-takeEQ :: Property
-takeEQ =
+takeEQ :: ParserTestCase Int Identity [Int] Property
+takeEQ producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
             let
                 list_length = Prelude.length ls
             in
-                case runIdentity $ S.parse (P.takeEQ n FL.toList) (S.fromList ls) of
+                case runIdentity $ consumer (P.takeEQ n FL.toList) (producer ls) of
                     Right parsed_list ->
                         if n <= list_length
                         then checkListEqual parsed_list (Prelude.take n ls)
                         else property False
                     Left _ -> property (n > list_length)
 
-takeGEPass :: Property
-takeGEPass =
+takeGEPass :: ParserTestCase Int Identity [Int] Property
+takeGEPass producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (chooseInt (n, max_value)) $ \list_length ->
             forAll (vectorOf list_length (chooseInt (min_value, max_value)))
                 $ \ls ->
-                    case runIdentity $ S.parse (P.takeGE n FL.toList) (S.fromList ls) of
+                    case runIdentity $ consumer (P.takeGE n FL.toList) (producer ls) of
                         Right parsed_list -> checkListEqual parsed_list ls
                         Left _ -> property False
 
-takeGE :: Property
-takeGE =
+takeGE :: ParserTestCase Int Identity [Int] Property
+takeGE producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
             let
                 list_length = Prelude.length ls
             in
-                case runIdentity $ S.parse (P.takeGE n FL.toList) (S.fromList ls) of
+                case runIdentity $ consumer (P.takeGE n FL.toList) (producer ls) of
                     Right parsed_list ->
                         if n <= list_length
                         then checkListEqual parsed_list ls
@@ -288,26 +296,26 @@ nLessThanEqual0 ::
        -> P.Parser Int Identity [Int]
        )
     -> (Int -> [Int] -> [Int])
-    -> Property
-nLessThanEqual0 tk ltk =
+    -> ParserTestCase Int Identity [Int] Property
+nLessThanEqual0 tk ltk producer consumer =
     forAll (elements [0, (-1)]) $ \n ->
         forAll (listOf arbitrary) $ \ls ->
-            case runIdentity $ S.parse (tk n FL.toList) (S.fromList ls) of
+            case runIdentity $ consumer (tk n FL.toList) (producer ls) of
                 Right parsed_list -> checkListEqual parsed_list (ltk n ls)
                 Left _ -> property False
 
-takeProperties :: Spec
-takeProperties =
+takeProperties :: ParserTestCase Int Identity [Int] Spec
+takeProperties producer consumer =
     describe "take combinators when n <= 0/" $ do
         prop "takeEQ n FL.toList = []" $
-            nLessThanEqual0 P.takeEQ (\_ -> const [])
+            nLessThanEqual0 P.takeEQ (\_ -> const []) producer consumer
         prop "takeGE n FL.toList xs = xs" $
-            nLessThanEqual0 P.takeGE (\_ -> id)
+            nLessThanEqual0 P.takeGE (\_ -> id) producer consumer
 
 -- XXX lookAhead can't deal with EOF which in this case means when
 -- n==list_length, this test will fail. So excluding that case for now.
-lookAheadPass :: Property
-lookAheadPass =
+lookAheadPass :: ParserTestCase Int Identity ([Int], [Int]) Property
+lookAheadPass producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         let
             takeWithoutConsume = P.lookAhead $ P.fromFold $ FL.take n FL.toList
@@ -318,12 +326,12 @@ lookAheadPass =
         in
             forAll (chooseInt (n+1, max_value)) $ \list_length ->
                 forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-                    case runIdentity $ S.parse parseTwice (S.fromList ls) of
+                    case runIdentity $ consumer parseTwice (producer ls) of
                         Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
                         Left _ -> property $ False
 
--- lookAheadFail :: Property
--- lookAheadFail =
+-- lookAheadFail :: ParserTestCase Int Identity Int Property
+-- lookAheadFail producer consumer =
 --     forAll (chooseInt (min_value + 1, max_value)) $ \n ->
 --         let
 --             takeWithoutConsume = P.lookAhead $ P.take n FL.toList
@@ -334,12 +342,12 @@ lookAheadPass =
 --         in
 --             forAll (chooseInt (min_value, n - 1)) $ \list_length ->
 --                 forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
---                     case S.parse parseTwice (S.fromList ls) of
+--                     case consumer parseTwice (producer ls) of
 --                         Right _ -> False
 --                         Left _ -> True
 
-lookAhead :: Property
-lookAhead =
+lookAhead :: ParserTestCase Int Identity ([Int], [Int]) Property
+lookAhead producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         let
             takeWithoutConsume = P.lookAhead $ P.fromFold $ FL.take n FL.toList
@@ -349,16 +357,16 @@ lookAhead =
                 return (parsed_list_1, parsed_list_2)
         in
             forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
-                case runIdentity $ S.parse parseTwice (S.fromList ls) of
+                case runIdentity $ consumer parseTwice (producer ls) of
                     Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
                     Left _ -> property ((list_length < n) || (list_length == n && n == 0))
                         where
                             list_length = Prelude.length ls
 
-takeEndBy_ :: Property
-takeEndBy_ =
+takeEndBy_ :: ParserTestCase Int Identity [Int] Property
+takeEndBy_ producer consumer =
     forAll (listOf (chooseInt (min_value, max_value )))  $ \ls ->
-        case runIdentity $ S.parse (P.takeEndBy_ predicate prsr) (S.fromList ls) of
+        case runIdentity $ consumer (P.takeEndBy_ predicate prsr) (producer ls) of
             Right parsed_list ->
                 checkListEqual parsed_list (tkwhl ls)
             Left _ -> property False
@@ -367,22 +375,22 @@ takeEndBy_ =
             prsr = P.many (P.satisfy (const True)) FL.toList
             tkwhl ls = Prelude.takeWhile (not . predicate) ls
 
-takeEndByOrMax_ :: Property
-takeEndByOrMax_ =
+takeEndByOrMax_ :: ParserTestCase Int Identity [Int] Property
+takeEndByOrMax_ producer consumer =
     forAll (chooseInt (min_value, max_value)) $ \n ->
         forAll (listOf (chooseInt (0, 1))) $ \ls ->
-            case runIdentity $ S.parse (P.fromFold $ FL.takeEndBy_ predicate (FL.take n FL.toList)) (S.fromList ls) of
+            case runIdentity $ consumer (P.fromFold $ FL.takeEndBy_ predicate (FL.take n FL.toList)) (producer ls) of
                 Right parsed_list -> checkListEqual parsed_list (Prelude.take n (Prelude.takeWhile (not . predicate) ls))
                 Left _ -> property False
             where
                 predicate = (== 1)
 
-takeStartBy :: Property
-takeStartBy =
+takeStartBy :: ParserTestCase Int Identity [Int] Property
+takeStartBy producer consumer =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
         let ls1 = 1:ls
         in
-            case runIdentity $ S.parse parser (S.fromList ls1) of
+            case runIdentity $ consumer parser (producer ls1) of
                 Right parsed_list ->
                   if not $ Prelude.null ls1
                   then
@@ -397,33 +405,33 @@ takeStartBy =
                 predicate = odd
                 parser = P.takeBeginBy predicate FL.toList
 
-takeWhile :: Property
-takeWhile =
+takeWhile :: ParserTestCase Int Identity [Int] Property
+takeWhile producer consumer =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
-        case runIdentity $ S.parse (P.takeWhile predicate FL.toList) (S.fromList ls) of
+        case runIdentity $ consumer (P.takeWhile predicate FL.toList) (producer ls) of
             Right parsed_list ->
                 checkListEqual parsed_list (Prelude.takeWhile predicate ls)
             Left _ -> property False
         where
             predicate = (== 0)
 
-takeP :: Property
-takeP =
+takeP :: ParserTestCase Int Identity [Int] Property
+takeP producer consumer =
     forAll
         ((,) <$> chooseInt (min_value, max_value)
              <*> listOf (chooseInt (0, 1)))
         $ \(takeNum, ls) ->
-              case runIdentity $ S.parse
+              case runIdentity $ consumer
                        (P.takeP takeNum (P.fromFold FL.toList))
-                       (S.fromList ls) of
+                       (producer ls) of
                   Right parsed_list ->
                       checkListEqual parsed_list (Prelude.take takeNum ls)
                   Left _ -> property False
 
-takeWhile1 :: Property
-takeWhile1 =
+takeWhile1 :: ParserTestCase Int Identity [Int] Property
+takeWhile1 producer consumer =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
-        case runIdentity $ S.parse (P.takeWhile1 predicate  FL.toList) (S.fromList ls) of
+        case runIdentity $ consumer (P.takeWhile1 predicate  FL.toList) (producer ls) of
             Right parsed_list -> case ls of
                 [] -> property False
                 (x : _) ->
@@ -439,8 +447,8 @@ takeWhile1 =
         where
             predicate = (== 0)
 
-takeWhileP :: Property
-takeWhileP =
+takeWhileP :: ParserTestCase Int Identity [Int] Property
+takeWhileP producer consumer =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
         forAll (chooseInt (min_value, max_value)) $ \n ->
             let
@@ -453,7 +461,7 @@ takeWhileP =
                 takeWhileTillLen maxLen prd list =
                     Prelude.take maxLen $ Prelude.takeWhile prd list
             in
-                case runIdentity $ S.parse prsr (S.fromList ls) of
+                case runIdentity $ consumer prsr (producer ls) of
                     Right parsed_list ->
                         checkListEqual
                         parsed_list
@@ -461,14 +469,14 @@ takeWhileP =
                     Left _ -> property False
 
 {-
-choice :: Property
-choice =
+choice :: ParserTestCase Int Identity Int Property
+choice producer consumer =
     forAll
         ((,,) <$> chooseInt (min_value, max_value)
              <*> chooseInt (min_value, max_value)
              <*> listOf (chooseInt (0, 1)))
         $ \(i, j, ls) ->
-              case S.parse (P.choice [parser i, parser j]) (S.fromList ls) of
+              case consumer (P.choice [parser i, parser j]) (producer ls) of
                   Right parsed_list ->
                       checkListEqual parsed_list $ take (min i j) ls
                   Left _ -> property False
@@ -478,11 +486,11 @@ choice =
     parser i = P.fromFold (FL.take i FL.toList)
 -}
 
-groupBy :: Property
-groupBy =
+groupBy :: ParserTestCase Int Identity [Int] Property
+groupBy producer consumer =
     forAll (listOf (chooseInt (0, 1)))
         $ \ls ->
-              case runIdentity $ S.parse parser (S.fromList ls) of
+              case runIdentity $ consumer parser (producer ls) of
                   Right parsed -> checkListEqual parsed (groupByLF ls)
                   Left _ -> property False
 
@@ -494,11 +502,11 @@ groupBy =
         | null lst = []
         | otherwise = head $ List.groupBy cmp lst
 
-groupByRolling :: Property
-groupByRolling =
+groupByRolling :: ParserTestCase Int Identity [Int] Property
+groupByRolling producer consumer =
     forAll (listOf (chooseInt (0, 1)))
         $ \ls ->
-              case runIdentity $ S.parse parser (S.fromList ls) of
+              case runIdentity $ consumer parser (producer ls) of
                   Right parsed -> checkListEqual parsed (groupByLF Nothing ls)
                   Left _ -> property False
 
@@ -513,11 +521,11 @@ groupByRolling =
         then x : groupByLF (Just x) xs
         else []
 
-wordBy :: Property
-wordBy =
+wordBy :: ParserTestCase Char Identity [String] Property
+wordBy producer consumer =
     forAll (listOf (elements [' ', 's']))
         $ \ls ->
-              case runIdentity $ S.parse parser (S.fromList ls) of
+              case runIdentity $ consumer parser (producer ls) of
                   Right parsed -> checkListEqual parsed (words' ls)
                   Left _ -> property False
 
@@ -528,6 +536,258 @@ wordBy =
     words' lst =
         let wrds = words lst
          in if wrds == [] && length lst > 0 then [""] else wrds
+
+splitWith :: ParserTestCase Int Identity (Int, Int) Property
+splitWith producer consumer =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case runIdentity $ consumer (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (producer ls) of
+            Right (result_first, result_second) -> case ls of
+                0 : 1 : _ -> (result_first == 0) && (result_second == 1)
+                _ -> False
+            Left _ -> case ls of
+                0 : 1 : _ -> False
+                _ -> True
+
+splitWithFailLeft :: ParserTestCase Int Identity (Int, Int) Property
+splitWithFailLeft producer consumer =
+    property (case runIdentity $ consumer (P.splitWith (,) (P.die "die") (P.fromPure (1 :: Int))) (producer [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+splitWithFailRight :: ParserTestCase Int Identity (Int, Int) Property
+splitWithFailRight producer consumer =
+    property (case runIdentity $ consumer (P.splitWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (producer [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+splitWithFailBoth :: ParserTestCase Int Identity (Int, Int) Property
+splitWithFailBoth producer consumer =
+    property (case runIdentity $ consumer (P.splitWith (,) (P.die "die") (P.die "die")) (producer [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+-- teeWithPass :: ParserTestCase Int Identity Int Property
+-- teeWithPass producer consumer =
+--     forAll (chooseInt (min_value, max_value)) $ \n ->
+--         forAll (listOf (chooseInt (0, 1))) $ \ls ->
+--             let
+--                 prsr = P.fromFold $ FL.take n FL.toList
+--             in
+--                 case consumer (P.teeWith (,) prsr prsr) (producer ls) of
+--                     Right (ls_1, ls_2) -> checkListEqual (Prelude.take n ls) ls_1 .&&. checkListEqual ls_1 ls_2
+--                     Left _ -> property False
+
+-- teeWithFailLeft :: ParserTestCase Int Identity Int Property
+-- teeWithFailLeft producer consumer =
+--     property (case consumer (P.teeWith (,) (P.die "die") (P.fromPure (1 :: Int))) (producer [1 :: Int]) of
+--         Right _ -> False
+--         Left _ -> True)
+
+-- teeWithFailRight :: ParserTestCase Int Identity Int Property
+-- teeWithFailRight producer consumer =
+--     property (case consumer (P.teeWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (producer [1 :: Int]) of
+--         Right _ -> False
+--         Left _ -> True)
+
+-- teeWithFailBoth :: ParserTestCase Int Identity Int Property
+-- teeWithFailBoth producer consumer =
+--     property (case consumer (P.teeWith (,) (P.die "die") (P.die "die")) (producer [1 :: Int]) of
+--         Right _ -> False
+--         Left _ -> True)
+
+{-
+deintercalate :: ParserTestCase Int Identity Int Property
+deintercalate producer consumer =
+    forAll (listOf (chooseAny :: Gen Int)) $ \ls ->
+        case runIdentity $ consumer p (producer ls) of
+            Right evenOdd -> evenOdd == List.partition even ls
+            Left _ -> False
+
+        where
+            p1 = P.takeWhile even FL.toList
+            p2 = P.takeWhile odd FL.toList
+            partition =
+                FL.tee (fmap concat $ FL.catLefts FL.toList)
+                       (fmap concat $ FL.catRights FL.toList)
+            p = P.deintercalate p1 p2 partition
+-}
+
+-- shortestPass :: ParserTestCase Int Identity Int Property
+-- shortestPass producer consumer =
+--     forAll (listOf (chooseInt(min_value, max_value))) $ \ls ->
+--         let
+--             half_mid_value = mid_value `Prelude.div` 2
+--             prsr_1 = P.takeWhile (<= half_mid_value) FL.toList
+--             prsr_2 = P.takeWhile (<= mid_value) FL.toList
+--             prsr_shortest = P.shortest prsr_1 prsr_2
+--         in
+--             case consumer prsr_shortest (producer ls) of
+--                 Right short_list -> checkListEqual short_list (Prelude.takeWhile (<= half_mid_value) ls)
+--                 Left _ -> property False
+
+-- shortestPassLeft :: ParserTestCase Int Identity Int Property
+-- shortestPassLeft producer consumer =
+--     property (case consumer (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (producer [1 :: Int]) of
+--         Right r -> r == 1
+--         Left _ -> False)
+--
+-- shortestPassRight :: ParserTestCase Int Identity Int Property
+-- shortestPassRight producer consumer =
+--     property (case consumer (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (producer [1 :: Int]) of
+--         Right r -> r == 1
+--         Left _ -> False)
+
+-- shortestFailBoth :: ParserTestCase Int Identity Int Property
+-- shortestFailBoth producer consumer =
+--     property
+--         (case consumer
+--                   (P.shortest (P.die "die") (P.die "die"))
+--                   (producer [1 :: Int]) of
+--              Right _ -> False
+--              Left _ -> True)
+--
+-- longestPass :: ParserTestCase Int Identity Int Property
+-- longestPass producer consumer =
+--     forAll (listOf (chooseInt(min_value, max_value))) $ \ls ->
+--         let
+--             half_mid_value = mid_value `Prelude.div` 2
+--             prsr_1 = P.takeWhile (<= half_mid_value) FL.toList
+--             prsr_2 = P.takeWhile (<= mid_value) FL.toList
+--             prsr_longest = P.longest prsr_1 prsr_2
+--         in
+--             case consumer prsr_longest (producer ls) of
+--                 Right long_list -> long_list == Prelude.takeWhile (<= mid_value) ls
+--                 Left _ -> False
+--
+-- longestPassLeft :: ParserTestCase Int Identity Int Property
+-- longestPassLeft producer consumer =
+--     property (case consumer (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (producer [1 :: Int]) of
+--         Right r -> r == 1
+--         Left _ -> False)
+--
+-- longestPassRight :: ParserTestCase Int Identity Int Property
+-- longestPassRight producer consumer =
+--     property (case consumer (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (producer [1 :: Int]) of
+--         Right r -> r == 1
+--         Left _ -> False)
+--
+-- longestFailBoth :: ParserTestCase Int Identity Int Property
+-- longestFailBoth producer consumer =
+--     property
+--         (case consumer (P.shortest (P.die "die") (P.die "die")) (producer [1 :: Int]) of
+--         Right _ -> False
+--         Left _ -> True)
+
+many :: ParserTestCase Int Identity [Int] Property
+many producer consumer =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        let fldstp conL currL = return $ FL.Partial (conL ++ currL)
+            concatFold = FL.Fold fldstp (return (FL.Partial [])) return return
+            prsr =
+                flip P.many concatFold
+                    $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+         in case runIdentity $ consumer prsr (producer ls) of
+                Right res_list ->
+                    checkListEqual res_list (Prelude.filter (== 0) ls)
+                Left _ -> property False
+
+many_empty :: ParserTestCase Int Identity [Int] Property
+many_empty producer consumer =
+    property (case runIdentity $ consumer (flip P.many FL.toList (P.die "die")) (producer [1 :: Int]) of
+        Right res_list -> checkListEqual res_list ([] :: [Int])
+        Left _ -> property False)
+
+some :: ParserTestCase Int Identity [Int] Property
+some producer consumer =
+    forAll (listOf (chooseInt (0, 1))) $ \genLs ->
+        let
+            ls = 0 : genLs
+            fldstp conL currL = return $ FL.Partial $ conL ++ currL
+            concatFold = FL.Fold fldstp (return (FL.Partial [])) return return
+            prsr =
+                flip P.some concatFold
+                    $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
+         in case runIdentity $ consumer prsr (producer ls) of
+                Right res_list -> res_list == Prelude.filter (== 0) ls
+                Left _ -> False
+
+someFail :: ParserTestCase Int Identity [Int] Property
+someFail producer consumer =
+    property (case runIdentity $ consumer (P.some (P.die "die") FL.toList) (producer [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+-------------------------------------------------------------------------------
+-- Instances
+-------------------------------------------------------------------------------
+
+applicative :: ParserTestCase Int Identity ([Int], [Int]) Property
+applicative producer consumer =
+    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
+        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
+            let parser =
+                    (,)
+                        <$> P.fromFold (FL.take (length list1) FL.toList)
+                        <*> P.fromFold (FL.take (length list2) FL.toList)
+             in
+                case runIdentity $ consumer parser (producer $ list1 ++ list2) of
+                    Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                    Left _ -> False
+
+sequence :: ParserTestCase Int IO [[Int]] Property
+sequence producer consumer =
+    forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ ins ->
+        let p xs = P.fromFold (FL.take (length xs) FL.toList)
+         in monadicIO $ do
+                outs <- run $
+                        consumer
+                            (Prelude.sequence $ fmap p ins)
+                            (producer $ concat ins)
+                return $
+                    case outs of
+                        Right ls -> ls == ins
+                        Left _ -> False
+
+altEOF1 :: ParserTestCase Int (PropertyM IO) Int Property
+altEOF1 producer consumer =
+    monadicIO $ do
+    s1 <- consumer
+        (P.satisfy (> 0) <|> return 66)
+        (producer ([]::[Int]))
+    return $
+        case s1 of
+            Right x -> x == 66
+            Left _ -> False
+
+altEOF2 :: ParserTestCase Int (PropertyM IO) [Int] Property
+altEOF2 producer consumer =
+    monadicIO $ do
+    s1 <- consumer
+        ((P.takeEQ 2 FL.toList) <|> (P.takeEQ 1 FL.toList))
+        (producer ([51]::[Int]))
+    return $
+        case s1 of
+            Right x -> x == [51]
+            Left _ -> False
+
+monad :: ParserTestCase Int (PropertyM IO) ([Int], [Int]) Property
+monad producer consumer =
+    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
+        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
+            let parser = do
+                    olist1 <- P.fromFold (FL.take (length list1) FL.toList)
+                    olist2 <- P.fromFold (FL.take (length list2) FL.toList)
+                    return (olist1, olist2)
+             in monadicIO $ do
+                    s <- consumer parser (producer $ list1 ++ list2)
+                    return $
+                        case s of
+                            Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
+                            Left _ -> False
+
+-------------------------------------------------------------------------------
+-- Stream parsing
+-------------------------------------------------------------------------------
 
 parseManyWordQuotedBy :: H.SpecWith ()
 parseManyWordQuotedBy =
@@ -578,258 +838,6 @@ parseManyWordQuotedBy =
           , "The[ qui[ck] brown] fox"
           , ["The qui[ck] brown", "fox"])
         ]
-
-splitWith :: Property
-splitWith =
-    forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case runIdentity $ S.parse (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
-            Right (result_first, result_second) -> case ls of
-                0 : 1 : _ -> (result_first == 0) && (result_second == 1)
-                _ -> False
-            Left _ -> case ls of
-                0 : 1 : _ -> False
-                _ -> True
-
-splitWithFailLeft :: Property
-splitWithFailLeft =
-    property (case runIdentity $ S.parse (P.splitWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
-        Right _ -> False
-        Left _ -> True)
-
-splitWithFailRight :: Property
-splitWithFailRight =
-    property (case runIdentity $ S.parse (P.splitWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
-        Right _ -> False
-        Left _ -> True)
-
-splitWithFailBoth :: Property
-splitWithFailBoth =
-    property (case runIdentity $ S.parse (P.splitWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
-        Right _ -> False
-        Left _ -> True)
-
--- teeWithPass :: Property
--- teeWithPass =
---     forAll (chooseInt (min_value, max_value)) $ \n ->
---         forAll (listOf (chooseInt (0, 1))) $ \ls ->
---             let
---                 prsr = P.fromFold $ FL.take n FL.toList
---             in
---                 case S.parse (P.teeWith (,) prsr prsr) (S.fromList ls) of
---                     Right (ls_1, ls_2) -> checkListEqual (Prelude.take n ls) ls_1 .&&. checkListEqual ls_1 ls_2
---                     Left _ -> property False
-
--- teeWithFailLeft :: Property
--- teeWithFailLeft =
---     property (case S.parse (P.teeWith (,) (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
---         Right _ -> False
---         Left _ -> True)
-
--- teeWithFailRight :: Property
--- teeWithFailRight =
---     property (case S.parse (P.teeWith (,) (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
---         Right _ -> False
---         Left _ -> True)
-
--- teeWithFailBoth :: Property
--- teeWithFailBoth =
---     property (case S.parse (P.teeWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
---         Right _ -> False
---         Left _ -> True)
-
-{-
-deintercalate :: Property
-deintercalate =
-    forAll (listOf (chooseAny :: Gen Int)) $ \ls ->
-        case runIdentity $ S.parse p (S.fromList ls) of
-            Right evenOdd -> evenOdd == List.partition even ls
-            Left _ -> False
-
-        where
-            p1 = P.takeWhile even FL.toList
-            p2 = P.takeWhile odd FL.toList
-            partition =
-                FL.tee (fmap concat $ FL.catLefts FL.toList)
-                       (fmap concat $ FL.catRights FL.toList)
-            p = P.deintercalate p1 p2 partition
--}
-
--- shortestPass :: Property
--- shortestPass =
---     forAll (listOf (chooseInt(min_value, max_value))) $ \ls ->
---         let
---             half_mid_value = mid_value `Prelude.div` 2
---             prsr_1 = P.takeWhile (<= half_mid_value) FL.toList
---             prsr_2 = P.takeWhile (<= mid_value) FL.toList
---             prsr_shortest = P.shortest prsr_1 prsr_2
---         in
---             case S.parse prsr_shortest (S.fromList ls) of
---                 Right short_list -> checkListEqual short_list (Prelude.takeWhile (<= half_mid_value) ls)
---                 Left _ -> property False
-
--- shortestPassLeft :: Property
--- shortestPassLeft =
---     property (case S.parse (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
---         Right r -> r == 1
---         Left _ -> False)
---
--- shortestPassRight :: Property
--- shortestPassRight =
---     property (case S.parse (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
---         Right r -> r == 1
---         Left _ -> False)
-
--- shortestFailBoth :: Property
--- shortestFailBoth =
---     property
---         (case S.parse
---                   (P.shortest (P.die "die") (P.die "die"))
---                   (S.fromList [1 :: Int]) of
---              Right _ -> False
---              Left _ -> True)
---
--- longestPass :: Property
--- longestPass =
---     forAll (listOf (chooseInt(min_value, max_value))) $ \ls ->
---         let
---             half_mid_value = mid_value `Prelude.div` 2
---             prsr_1 = P.takeWhile (<= half_mid_value) FL.toList
---             prsr_2 = P.takeWhile (<= mid_value) FL.toList
---             prsr_longest = P.longest prsr_1 prsr_2
---         in
---             case S.parse prsr_longest (S.fromList ls) of
---                 Right long_list -> long_list == Prelude.takeWhile (<= mid_value) ls
---                 Left _ -> False
---
--- longestPassLeft :: Property
--- longestPassLeft =
---     property (case S.parse (P.shortest (P.die "die") (P.fromPure (1 :: Int))) (S.fromList [1 :: Int]) of
---         Right r -> r == 1
---         Left _ -> False)
---
--- longestPassRight :: Property
--- longestPassRight =
---     property (case S.parse (P.shortest (P.fromPure (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
---         Right r -> r == 1
---         Left _ -> False)
---
--- longestFailBoth :: Property
--- longestFailBoth =
---     property
---         (case S.parse (P.shortest (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
---         Right _ -> False
---         Left _ -> True)
-
-many :: Property
-many =
-    forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        let fldstp conL currL = return $ FL.Partial (conL ++ currL)
-            concatFold = FL.Fold fldstp (return (FL.Partial [])) return return
-            prsr =
-                flip P.many concatFold
-                    $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
-         in case runIdentity $ S.parse prsr (S.fromList ls) of
-                Right res_list ->
-                    checkListEqual res_list (Prelude.filter (== 0) ls)
-                Left _ -> property False
-
-many_empty :: Property
-many_empty =
-    property (case runIdentity $ S.parse (flip P.many FL.toList (P.die "die")) (S.fromList [1 :: Int]) of
-        Right res_list -> checkListEqual res_list ([] :: [Int])
-        Left _ -> property False)
-
-some :: Property
-some =
-    forAll (listOf (chooseInt (0, 1))) $ \genLs ->
-        let
-            ls = 0 : genLs
-            fldstp conL currL = return $ FL.Partial $ conL ++ currL
-            concatFold = FL.Fold fldstp (return (FL.Partial [])) return return
-            prsr =
-                flip P.some concatFold
-                    $ P.fromFold $ FL.takeEndBy_ (== 1) FL.toList
-         in case runIdentity $ S.parse prsr (S.fromList ls) of
-                Right res_list -> res_list == Prelude.filter (== 0) ls
-                Left _ -> False
-
-someFail :: Property
-someFail =
-    property (case runIdentity $ S.parse (P.some (P.die "die") FL.toList) (S.fromList [1 :: Int]) of
-        Right _ -> False
-        Left _ -> True)
-
--------------------------------------------------------------------------------
--- Instances
--------------------------------------------------------------------------------
-
-applicative :: Property
-applicative =
-    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
-        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
-            let parser =
-                    (,)
-                        <$> P.fromFold (FL.take (length list1) FL.toList)
-                        <*> P.fromFold (FL.take (length list2) FL.toList)
-             in
-                case runIdentity $ S.parse parser (S.fromList $ list1 ++ list2) of
-                    Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
-                    Left _ -> False
-
-sequence :: Property
-sequence =
-    forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ ins ->
-        let p xs = P.fromFold (FL.take (length xs) FL.toList)
-         in monadicIO $ do
-                outs <- run $
-                        S.parse
-                            (Prelude.sequence $ fmap p ins)
-                            (S.fromList $ concat ins)
-                return $
-                    case outs of
-                        Right ls -> ls == ins
-                        Left _ -> False
-
-altEOF1 :: Property
-altEOF1 =
-    monadicIO $ do
-    s1 <- S.parse
-        (P.satisfy (> 0) <|> return 66)
-        (S.fromList ([]::[Int]))
-    return $
-        case s1 of
-            Right x -> x == 66
-            Left _ -> False
-
-altEOF2 :: Property
-altEOF2 =
-    monadicIO $ do
-    s1 <- S.parse
-        ((P.takeEQ 2 FL.toList) <|> (P.takeEQ 1 FL.toList))
-        (S.fromList ([51]::[Int]))
-    return $
-        case s1 of
-            Right x -> x == [51]
-            Left _ -> False
-
-monad :: Property
-monad =
-    forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
-        forAll (listOf (chooseAny :: Gen Int)) $ \ list2 ->
-            let parser = do
-                    olist1 <- P.fromFold (FL.take (length list1) FL.toList)
-                    olist2 <- P.fromFold (FL.take (length list2) FL.toList)
-                    return (olist1, olist2)
-             in monadicIO $ do
-                    s <- S.parse parser (S.fromList $ list1 ++ list2)
-                    return $
-                        case s of
-                            Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
-                            Left _ -> False
-
--------------------------------------------------------------------------------
--- Stream parsing
--------------------------------------------------------------------------------
 
 parseMany :: Property
 parseMany =
@@ -969,10 +977,10 @@ manyEqParseMany =
     split i = P.fromFold (FL.take i FL.toList)
 
 
-takeEndBy1 :: Property
-takeEndBy1 =
+takeEndBy1 :: ParserTestCase Int Identity [Int] Property
+takeEndBy1 producer consumer =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case runIdentity $ S.parse (P.takeEndBy predicate prsr) (S.fromList ls) of
+        case runIdentity $ consumer (P.takeEndBy predicate prsr) (producer ls) of
             Right parsed_list ->
                 checkListEqual
                 parsed_list
@@ -1030,8 +1038,8 @@ takeEndBy2 =
                         Left _ -> property False
                         Right splitList -> checkListEqual parsedList splitList
 
-takeEndByEsc :: Property
-takeEndByEsc =
+takeEndByEsc :: ParserTestCase Int Identity [Int] Property
+takeEndByEsc producer consumer =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
         let
             msg = "takeEndByEsc: trailing escape"
@@ -1062,12 +1070,12 @@ takeEndByEsc =
                     Just _ ->
                             x : escapeSep Nothing xs
         in
-            case runIdentity $ S.parse prsr (S.fromList ls) of
+            case runIdentity $ consumer prsr (producer ls) of
                 Right parsed_list -> checkListEqual parsed_list $ escapeSep Nothing ls
                 Left err -> property (displayException err == msg)
 
-takeFramedByEsc_ :: Property
-takeFramedByEsc_ =
+takeFramedByEsc_ :: ParserTestCase Int Identity [Int] Property
+takeFramedByEsc_ producer consumer =
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
         let
             isBegin = (== 0)
@@ -1138,7 +1146,7 @@ takeFramedByEsc_ =
                 in
                     helper l Nothing (0 :: Int)
         in
-            case runIdentity $ S.parse prsr (S.fromList ls) of
+            case runIdentity $ consumer prsr (producer ls) of
                 Right parsed_list ->
                     if checkPassBeg ls
                     then checkListEqual parsed_list $
@@ -1149,8 +1157,8 @@ takeFramedByEsc_ =
                     then property False
                     else property True
 
-takeFramedByEsc_Pass :: Property
-takeFramedByEsc_Pass =
+takeFramedByEsc_Pass :: ParserTestCase Int Identity [Int] Property
+takeFramedByEsc_Pass producer consumer =
     forAll (listOf (chooseInt (min_value, max_value))) $ \list ->
         let
             ls = (0 : list) ++ (Prelude.replicate (Prelude.length list + 1) 1)
@@ -1195,12 +1203,12 @@ takeFramedByEsc_Pass =
                 in
                     helper l Nothing (0 :: Int)
         in
-            case runIdentity $ S.parse prsr (S.fromList ls) of
+            case runIdentity $ consumer prsr (producer ls) of
                 Right parsed_list -> checkListEqual parsed_list $ escapeFrame isBegin isEnd isEsc ls
                 _ -> property False
 
-takeFramedByEsc_Fail1 :: Property
-takeFramedByEsc_Fail1 =
+takeFramedByEsc_Fail1 :: ParserTestCase Int Identity [Int] Property
+takeFramedByEsc_Fail1 producer consumer =
     let
         msg = "takeFramedByEsc_: missing frame end"
 
@@ -1214,12 +1222,12 @@ takeFramedByEsc_Fail1 =
 
         ls = [0 :: Int]
     in
-        case runIdentity $ S.parse prsr (S.fromList ls) of
+        case runIdentity $ consumer prsr (producer ls) of
             Right _ -> property False
             Left err -> property (displayException err == msg)
 
-takeFramedByEsc_Fail2 :: Property
-takeFramedByEsc_Fail2 =
+takeFramedByEsc_Fail2 :: ParserTestCase Int Identity [Int] Property
+takeFramedByEsc_Fail2 producer consumer =
     let
         msg = "takeFramedByEsc_: missing frame start"
 
@@ -1233,12 +1241,12 @@ takeFramedByEsc_Fail2 =
 
         ls = [1 :: Int]
     in
-        case runIdentity $ S.parse prsr (S.fromList ls) of
+        case runIdentity $ consumer prsr (producer ls) of
             Right _ -> property False
             Left err -> property (displayException err == msg)
 
-takeFramedByEsc_Fail3 :: Property
-takeFramedByEsc_Fail3 =
+takeFramedByEsc_Fail3 :: ParserTestCase Int Identity [Int] Property
+takeFramedByEsc_Fail3 producer consumer =
     let
         msg = "takeFramedByEsc_: missing frame end"
 
@@ -1252,17 +1260,17 @@ takeFramedByEsc_Fail3 =
 
         ls = [2 :: Int]
     in
-        case runIdentity $ S.parse prsr (S.fromList ls) of
+        case runIdentity $ consumer prsr (producer ls) of
             Right _ -> property False
             Left err -> property $ (displayException err == msg)
 
-takeStartBy_ :: Property
-takeStartBy_ =
+takeStartBy_ :: ParserTestCase Int Identity [Int] Property
+takeStartBy_ producer consumer =
      forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
         let ls1 = 1:ls
             msg = "takeFramedByGeneric: empty token"
         in
-            case runIdentity $ S.parse parser (S.fromList ls1) of
+            case runIdentity $ consumer parser (producer ls1) of
                 Right parsed_list ->
                   if not $ Prelude.null ls1
                   then
@@ -1355,6 +1363,117 @@ sanityParseIterate jumps = it (show jumps) $ do
 moduleName :: String
 moduleName = "Data.Parser"
 
+data TestMode
+    = TMParserStream
+    | TMParserKStreamK
+    | TMParserKStreamKChunks
+    | TMParserKStreamKChunksGeneric
+    deriving (Show)
+
+runParserTC :: (Unbox a, Monad m) => TestMode -> ParserTestCase a m b c -> c
+runParserTC tm runner =
+    case tm of
+        TMParserStream -> runner S.fromList S.parse
+        TMParserKStreamK -> runner K.fromList (K.parse . PK.adapt)
+        TMParserKStreamKChunks ->
+            runner (producerChunks A.fromList) (K.parseChunks . PK.adaptC)
+        TMParserKStreamKChunksGeneric ->
+            runner
+                (producerChunks GA.fromList)
+                (K.parseChunksGeneric . PK.adaptCG)
+
+    where
+    cSize = 50
+    -- Not using A.createOf here because of the MonadIO constraint
+    producerChunks fl =
+        K.fromStream
+             . S.groupsOf cSize (fl <$> FL.toList)
+             . S.fromList
+
+mainCommon :: TestMode -> Spec
+mainCommon ptt = do
+  describe (show ptt) $ do
+    describe "Instances" $ do
+        prop "applicative" $ runParserTC ptt applicative
+        prop "Alternative: end of input 1" $ runParserTC ptt altEOF1
+        prop "Alternative: end of input 2" $ runParserTC ptt altEOF2
+        prop "monad" $ runParserTC ptt monad
+        prop "sequence" $ runParserTC ptt sequence
+
+    describe "test for accumulator" $ do
+        prop "P.fromFold FL.sum = FL.sum" $ runParserTC ptt fromFold
+        prop "fromPure value provided" $ runParserTC ptt fromPure
+        prop "fromPure monadic value provided" $ runParserTC ptt fromEffect
+        prop "fail err = Left (SomeException (ParseError err))" $ runParserTC ptt parserFail
+        prop "always fail" $ runParserTC ptt die
+        prop "always fail but monadic" $ runParserTC ptt dieM
+
+    describe "test for element parser" $ do
+        prop "peek = head with list length > 0" $ runParserTC ptt peekPass
+        prop "peek fail on []" $ runParserTC ptt peekFail
+        prop "eof pass on []" $ runParserTC ptt eofPass
+        prop "eof fail on non-empty list" $ runParserTC ptt eofFail
+        prop "first element exists and >= mid_value" $ runParserTC ptt satisfyPass
+        prop "one pass on [Int]" $ runParserTC ptt onePass
+        prop "one fail on []" $ runParserTC ptt one
+        prop "check first element exists and satisfies predicate" $ runParserTC ptt satisfy
+    describe "test for sequence parser" $ do
+        prop "P.takeBetween = Prelude.take when len >= m and len <= n"
+            $ runParserTC ptt takeBetweenPass
+        prop ("P.takeBetween = Prelude.take when len >= m and len <= n and fail"
+              ++ "otherwise fail") $ runParserTC ptt takeBetween
+        prop "P.take = Prelude.take" $ runParserTC ptt Main.take
+        prop "P.takeEQ = Prelude.take when len >= n" $ runParserTC ptt takeEQPass
+        prop "P.takeEQ = Prelude.take when len >= n and fail otherwise"
+            $ runParserTC ptt Main.takeEQ
+        prop "P.takeGE n ls = ls when len >= n" $ runParserTC ptt takeGEPass
+        prop "P.takeGE n ls = ls when len >= n and fail otherwise" $ runParserTC ptt Main.takeGE
+        prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" $ runParserTC ptt lookAheadPass
+        -- prop "Fail when stream length exceeded" lookAheadFail
+        prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" $ runParserTC ptt lookAhead
+        prop ("P.takeStartBy pred = head : Prelude.takeWhile (not . pred)"
+                ++ " tail") $ runParserTC ptt takeStartBy
+        prop "P.takeWhile = Prelude.takeWhile" $ runParserTC ptt Main.takeWhile
+        prop ("P.takeWhile1 = Prelude.takeWhile if taken something,"
+                ++ " else check why failed") $ runParserTC ptt takeWhile1
+        prop "takeWhileP prd P.take = takeWhileMaxLen prd" $ runParserTC ptt takeWhileP
+        prop ("P.takeP = Prelude.take") $ runParserTC ptt takeP
+        prop "P.groupBy = Prelude.head . Prelude.groupBy" $ runParserTC ptt groupBy
+        prop "groupByRolling" $ runParserTC ptt groupByRolling
+        prop "many (P.wordBy ' ') = words'" $ runParserTC ptt wordBy
+        -- prop "choice" choice
+        prop "parse 0, then 1, else fail" $ runParserTC ptt splitWith
+        prop "fail due to die as left parser" $ runParserTC ptt splitWithFailLeft
+        prop "fail due to die as right parser" $ runParserTC ptt splitWithFailRight
+        prop "fail due to die as both parsers" $ runParserTC ptt splitWithFailBoth
+        -- prop "" teeWithPass
+        -- prop "" teeWithFailLeft
+        -- prop "" teeWithFailRight
+        -- prop "" teeWithFailBoth
+        -- prop "deintercalate" deintercalate
+        -- prop "" shortestPass
+        -- prop "" shortestFailLeft
+        -- prop "" shortestFailRight
+        -- prop "" shortestFailBoth
+        prop ("P.many concatFold $ P.takeEndBy_ (== 1) FL.toList ="
+                ++ "Prelude.filter (== 0)") $ runParserTC ptt many
+        prop "[] due to parser being die" $ runParserTC ptt many_empty
+        prop ("P.some concatFold $ P.takeEndBy_ (== 1) FL.toList ="
+                ++ "Prelude.filter (== 0)") $ runParserTC ptt some
+        prop "fail due to parser being die" $ runParserTC ptt someFail
+        prop "takeEndBy_" $ runParserTC ptt takeEndBy_
+        prop "takeEndByOrMax_" $ runParserTC ptt takeEndByOrMax_
+        prop "takeEndBy1" $ runParserTC ptt takeEndBy1
+        prop "takeEndByEsc" $ runParserTC ptt takeEndByEsc
+        prop "takeFramedByEsc_" $ runParserTC ptt takeFramedByEsc_
+        prop "takeFramedByEsc_Pass" $ runParserTC ptt takeFramedByEsc_Pass
+        prop "takeFramedByEsc_Fail1" $ runParserTC ptt takeFramedByEsc_Fail1
+        prop "takeFramedByEsc_Fail2" $ runParserTC ptt takeFramedByEsc_Fail2
+        prop "takeFramedByEsc_Fail3" $ runParserTC ptt takeFramedByEsc_Fail3
+        prop "takeStartBy_" $ runParserTC ptt takeStartBy_
+
+    runParserTC ptt takeProperties
+
 main :: IO ()
 main =
   hspec $
@@ -1366,96 +1485,16 @@ main =
     parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
     parserSanityTests "Stream.parseMany" sanityParseMany
     parserSanityTests "Stream.parseIterate" sanityParseIterate
-    describe "Instances" $ do
-        prop "applicative" applicative
-        prop "Alternative: end of input 1" altEOF1
-        prop "Alternative: end of input 2" altEOF2
-        prop "monad" monad
-        prop "sequence" sequence
     describe "Stream parsing" $ do
         prop "parseMany" parseMany
         prop "parseMany2Events" parseMany2Events
         prop "parseUnfold" parseUnfold
         prop "parserSequence" parserSequence
 
-    describe "test for accumulator" $ do
-        prop "P.fromFold FL.sum = FL.sum" fromFold
-        prop "fromPure value provided" fromPure
-        prop "fromPure monadic value provided" fromEffect
-        prop "fail err = Left (SomeException (ParseError err))" parserFail
-        prop "always fail" die
-        prop "always fail but monadic" dieM
-
-    describe "test for element parser" $ do
-        prop "peek = head with list length > 0" peekPass
-        prop "peek fail on []" peekFail
-        prop "eof pass on []" eofPass
-        prop "eof fail on non-empty list" eofFail
-        prop "first element exists and >= mid_value" satisfyPass
-        prop "one pass on [Int]" onePass
-        prop "one fail on []" one
-        prop "check first element exists and satisfies predicate" satisfy
-
     describe "test for sequence parser" $ do
-        prop "P.takeBetween = Prelude.take when len >= m and len <= n"
-            takeBetweenPass
-        prop ("P.takeBetween = Prelude.take when len >= m and len <= n and fail"
-              ++ "otherwise fail") takeBetween
-        prop "P.take = Prelude.take" Main.take
-        prop "P.takeEQ = Prelude.take when len >= n" takeEQPass
-        prop "P.takeEQ = Prelude.take when len >= n and fail otherwise"
-            Main.takeEQ
-        prop "P.takeGE n ls = ls when len >= n" takeGEPass
-        prop "P.takeGE n ls = ls when len >= n and fail otherwise" Main.takeGE
-        prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
-        -- prop "Fail when stream length exceeded" lookAheadFail
-        prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
-        prop ("P.takeStartBy pred = head : Prelude.takeWhile (not . pred)"
-                ++ " tail") takeStartBy
-        prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
-        prop ("P.takeWhile1 = Prelude.takeWhile if taken something,"
-                ++ " else check why failed") takeWhile1
-        prop "takeWhileP prd P.take = takeWhileMaxLen prd" takeWhileP
-        prop ("P.takeP = Prelude.take") takeP
-        prop "P.groupBy = Prelude.head . Prelude.groupBy" groupBy
-        prop "groupByRolling" groupByRolling
-        prop "many (P.wordBy ' ') = words'" wordBy
         parseManyWordQuotedBy
-        -- prop "choice" choice
-        prop "parse 0, then 1, else fail" splitWith
-        prop "fail due to die as left parser" splitWithFailLeft
-        prop "fail due to die as right parser" splitWithFailRight
-        prop "fail due to die as both parsers" splitWithFailBoth
-        -- prop "" teeWithPass
-        -- prop "" teeWithFailLeft
-        -- prop "" teeWithFailRight
-        -- prop "" teeWithFailBoth
-        -- prop "deintercalate" deintercalate
-        -- prop "" shortestPass
-        -- prop "" shortestFailLeft
-        -- prop "" shortestFailRight
-        -- prop "" shortestFailBoth
-        prop ("P.many concatFold $ P.takeEndBy_ (== 1) FL.toList ="
-                ++ "Prelude.filter (== 0)") many
-        prop "[] due to parser being die" many_empty
-        prop ("P.some concatFold $ P.takeEndBy_ (== 1) FL.toList ="
-                ++ "Prelude.filter (== 0)") some
-        prop "fail due to parser being die" someFail
         prop "P.many == S.parseMany" manyEqParseMany
-
-        prop "takeEndBy_" takeEndBy_
-        prop "takeEndByOrMax_" takeEndByOrMax_
-        prop "takeEndBy1" takeEndBy1
         prop "takeEndBy2" takeEndBy2
-        prop "takeEndByEsc" takeEndByEsc
-        prop "takeFramedByEsc_" takeFramedByEsc_
-        prop "takeFramedByEsc_Pass" takeFramedByEsc_Pass
-        prop "takeFramedByEsc_Fail1" takeFramedByEsc_Fail1
-        prop "takeFramedByEsc_Fail2" takeFramedByEsc_Fail2
-        prop "takeFramedByEsc_Fail3" takeFramedByEsc_Fail3
-        prop "takeStartBy_" takeStartBy_
-
-    takeProperties
 
     describe "quotedWordTest" $ do
         it "Single quote test" $ do
@@ -1465,3 +1504,22 @@ main =
            quotedWordTest
                "\"hello\\\"\\\\w\\'orld\""
                ["hello\"\\w\\'orld"]
+
+    -- We keep Parser and ParserK tests in the same (Parser) executable for 2
+    -- reasons:
+    -- 1. We almost always write Parser tests hence we prioritize Parser over
+    --    ParserK
+    -- 2. This results in minimal compilation overhead compared to duplicating
+    --    or keeping the common part in the library.
+    --    2.1. Duplication will result in compilation of this code twice
+    --    2.2. Keeping the common part in the library will compile the Parser
+    --         code even when it's not necessary. For example, if we are running
+    --         non-parser test suites.
+    --
+    -- One problem is that this module becomes very big for compilation. We can
+    -- break this further and keep them as a part of "other-modules" in
+    -- Test.Parser test-suite.
+    mainCommon TMParserStream
+    mainCommon TMParserKStreamKChunks
+    mainCommon TMParserKStreamK
+    mainCommon TMParserKStreamKChunksGeneric
