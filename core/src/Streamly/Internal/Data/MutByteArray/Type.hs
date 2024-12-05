@@ -155,20 +155,14 @@ empty = unsafePerformIO $ new 0
 nil :: MutByteArray
 nil = empty
 
--- 4000
-{-# INLINE _BLOCK_SIZE #-}
-_BLOCK_SIZE :: Int
-_BLOCK_SIZE = 4 * 1024
-
--- 3276
-{-# INLINE _LARGE_BLOCK_THRESHOLD #-}
-_LARGE_BLOCK_THRESHOLD :: Int
-_LARGE_BLOCK_THRESHOLD = (_BLOCK_SIZE * 8) `div` 10
-
-{-# INLINE pinnedNewRaw #-}
-pinnedNewRaw :: Int -> IO MutByteArray
-pinnedNewRaw (I# nbytes) = IO $ \s ->
-    case newPinnedByteArray# nbytes s of
+-- XXX add "newRoundedUp" to round up the large size to the next page boundary
+-- and return the allocated size.
+{-# INLINE new #-}
+new :: Int -> IO MutByteArray
+new nbytes | nbytes < 0 =
+  errorWithoutStackTrace "newByteArray: size must be >= 0"
+new (I# nbytes) = IO $ \s ->
+    case newByteArray# nbytes s of
         (# s', mbarr# #) ->
            let c = MutByteArray mbarr#
             in (# s', c #)
@@ -177,19 +171,8 @@ pinnedNewRaw (I# nbytes) = IO $ \s ->
 pinnedNew :: Int -> IO MutByteArray
 pinnedNew nbytes | nbytes < 0 =
   errorWithoutStackTrace "pinnedNew: size must be >= 0"
-pinnedNew nbytes = pinnedNewRaw nbytes
-
--- XXX add "newRoundedUp" to round up the large size to the next page boundary
--- and return the allocated size.
--- Uses the pinned version of allocated if the size required is >
--- _LARGE_BLOCK_THRESHOLD
-{-# INLINE new #-}
-new :: Int -> IO MutByteArray
-new nbytes | nbytes > _LARGE_BLOCK_THRESHOLD = pinnedNewRaw nbytes
-new nbytes | nbytes < 0 =
-  errorWithoutStackTrace "newByteArray: size must be >= 0"
-new (I# nbytes) = IO $ \s ->
-    case newByteArray# nbytes s of
+pinnedNew (I# nbytes) = IO $ \s ->
+    case newPinnedByteArray# nbytes s of
         (# s', mbarr# #) ->
            let c = MutByteArray mbarr#
             in (# s', c #)
