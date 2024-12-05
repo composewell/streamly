@@ -36,6 +36,10 @@ module Streamly.Internal.Data.MutByteArray.Type
     , unsafePinnedAsPtr
     , unsafeAsPtr
 
+    -- ** Capacity Management
+    , blockSize
+    , largeObjectThreshold
+
     -- ** Deprecated
     , MutableByteArray
     , getMutableByteArray#
@@ -155,15 +159,19 @@ empty = unsafePerformIO $ new 0
 nil :: MutByteArray
 nil = empty
 
--- 4000
-{-# INLINE _BLOCK_SIZE #-}
-_BLOCK_SIZE :: Int
-_BLOCK_SIZE = 4 * 1024
+-- XXX Should we use bitshifts in calculations or it gets optimized by the
+-- compiler/processor itself?
+--
+-- | The page or block size used by the GHC allocator. Allocator allocates at
+-- least a block and then allocates smaller allocations from within a block.
+blockSize :: Int
+blockSize = 4 * 1024
 
--- 3276
-{-# INLINE _LARGE_BLOCK_THRESHOLD #-}
-_LARGE_BLOCK_THRESHOLD :: Int
-_LARGE_BLOCK_THRESHOLD = (_BLOCK_SIZE * 8) `div` 10
+-- | Allocations larger than 'largeObjectThreshold' are in multiples of block
+-- size and are always pinned. The space beyond the end of a large object up to
+-- the end of the block is unused.
+largeObjectThreshold :: Int
+largeObjectThreshold = (blockSize * 8) `div` 10
 
 {-# INLINE pinnedNewRaw #-}
 pinnedNewRaw :: Int -> IO MutByteArray
@@ -182,10 +190,10 @@ pinnedNew nbytes = pinnedNewRaw nbytes
 -- XXX add "newRoundedUp" to round up the large size to the next page boundary
 -- and return the allocated size.
 -- Uses the pinned version of allocated if the size required is >
--- _LARGE_BLOCK_THRESHOLD
+-- largeObjectThreshold
 {-# INLINE new #-}
 new :: Int -> IO MutByteArray
-new nbytes | nbytes > _LARGE_BLOCK_THRESHOLD = pinnedNewRaw nbytes
+new nbytes | nbytes > largeObjectThreshold = pinnedNewRaw nbytes
 new nbytes | nbytes < 0 =
   errorWithoutStackTrace "newByteArray: size must be >= 0"
 new (I# nbytes) = IO $ \s ->
