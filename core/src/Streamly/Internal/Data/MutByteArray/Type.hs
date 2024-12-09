@@ -14,6 +14,9 @@ module Streamly.Internal.Data.MutByteArray.Type
       MutByteArray(..)
     , getMutByteArray#
 
+    -- ** Helpers
+    , unsafeByteCmp
+
     -- ** Pinning
     , PinnedState(..)
     , isPinned
@@ -298,6 +301,21 @@ unsafeCloneSlice = unsafeCloneSliceAs Unpinned
 pinnedCloneSliceUnsafe, unsafePinnedCloneSlice :: MonadIO m =>
     Int -> Int -> MutByteArray -> m MutByteArray
 unsafePinnedCloneSlice = unsafeCloneSliceAs Pinned
+
+unsafeByteCmp
+    :: MutByteArray -> Int -> MutByteArray -> Int -> Int -> IO Int
+unsafeByteCmp
+    (MutByteArray marr1) (I# st1#) (MutByteArray marr2) (I# st2#) (I# len#) =
+    IO $ \s# ->
+        let res =
+                I#
+                    (compareByteArrays#
+                         (unsafeCoerce# marr1)
+                         st1#
+                         (unsafeCoerce# marr2)
+                         st2#
+                         len#)
+         in (# s#, res #)
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
