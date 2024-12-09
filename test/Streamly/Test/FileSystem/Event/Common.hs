@@ -12,6 +12,7 @@ module Streamly.Test.FileSystem.Event.Common
     ( TestDesc
 
     -- * Running tests
+    , runDiagnostics
     , runTests
     , WatchRootType (..)
 
@@ -86,7 +87,7 @@ import Streamly.Internal.FileSystem.Event (Event)
 import qualified Streamly.Internal.FileSystem.Event as Event
 #endif
 
-import Test.Hspec
+-- import Test.Hspec
 
 -------------------------------------------------------------------------------
 -- Check generated events
@@ -153,14 +154,14 @@ data WatchRootType =
                           -- Event contains path via the original symlink
     deriving Show
 
-driver :: EventChecker -> WatchRootType -> TestDesc -> SpecWith ()
-driver checker symlinkStyle (desc, pre, ops, expected) =
-    it desc $ runOneTest `shouldReturn` ()
+-- driver :: EventChecker -> WatchRootType -> TestDesc -> SpecWith ()
+driver :: String -> EventChecker -> WatchRootType -> TestDesc -> IO ()
+driver fseventDir checker symlinkStyle (desc, pre, ops, expected) = do
+    -- it desc $ runOneTest `shouldReturn` ()
+    putStrLn $ "Running: " ++ desc
+    runOneTest
 
     where
-
-    fseventDir :: String
-    fseventDir = "fsevent_dir"
 
     runOneTest = do
             sync <- newEmptyMVar
@@ -309,6 +310,24 @@ rootDirMove suffix events =
 -- File tests
 -------------------------------------------------------------------------------
 
+createFile :: FilePath -> FilePath -> IO ()
+createFile file parent = do
+    let filepath = parent </> file
+    let dir = takeDirectory filepath
+    r <- doesDirectoryExist dir
+    if r
+    then do
+        putStrLn $ "createFile: directory exists: " ++ dir
+        when (not (null file)) $ do
+            exists <- doesFileExist filepath
+            if not exists
+            then do
+                putStrLn $ "createFile: Creating file: " ++ (parent </> file)
+                openFile (parent </> file) WriteMode >>= hClose
+                putStrLn $ "createFile: Created file: " ++ (parent </> file)
+            else error $ "createFile: File exists: " ++ filepath
+    else error $ "createFile: directory does not exist: " ++ dir
+
 createFileWithParent :: FilePath -> FilePath -> IO ()
 createFileWithParent file parent = do
     let filepath = parent </> file
@@ -317,23 +336,7 @@ createFileWithParent file parent = do
         ++ file ++ "] dir [" ++ dir ++ "]"
     putStrLn $ "Ensuring dir: " ++ dir
     createDirectoryIfMissing True dir
-    r <- doesDirectoryExist dir
-    if r
-    then do
-        putStrLn $ "Ensured dir: " ++ dir
-        when (not (null file)) $ do
-            exists <- doesFileExist filepath
-            if not exists
-            then do
-                putStrLn $ "Creating file: " ++ (parent </> file)
-                openFile (parent </> file) WriteMode >>= hClose
-                putStrLn $ "Created file: " ++ (parent </> file)
-            else error $ "File exists: " ++ filepath
-    else error $ "Could not create dir: " ++ dir
-
-createFile :: FilePath -> FilePath -> IO ()
-createFile file parent =
-    openFile (parent </> file) WriteMode >>= hClose
+    createFile file parent
 
 fileCreate :: String -> (String -> [(String, Event -> Bool)]) -> TestDesc
 fileCreate file1 events =
@@ -433,12 +436,17 @@ commonRecTests = testsWithParent "subdir"
 runTests ::
        String
     -> String
+    -> String
     -> EventWatcher
     -> WatchRootType
     -> [TestDesc]
     -> IO ()
-runTests modName watchType watcher rootType tests = do
+runTests tempPrefix modName watchType watcher rootType tests = do
+    putStrLn $ "Running tests, module: " ++ modName
+        ++ " watchType: " ++ watchType
     hSetBuffering stdout NoBuffering
+    let checker = checkEvents watcher
+    {-
     hspec
         $ describe modName
         $ describe watchType
@@ -446,3 +454,71 @@ runTests modName watchType watcher rootType tests = do
             let checker = checkEvents watcher
             describe ("Root type " ++ show rootType)
                     $ mapM_ (driver checker rootType) tests
+    -}
+    mapM_ (driver tempPrefix checker rootType) tests
+
+diagDriver :: EventChecker -> TestDesc -> IO ()
+diagDriver checker (desc, pre, ops, expected) = do
+    putStrLn $ "Running diag: " ++ desc
+    sync <- newEmptyMVar
+    withSystemTempDirectory "fsevent_dir_diag" $ \fp -> do
+        let root = fp </> "watch-root-diag"
+        createDirectory root
+
+        -- XXX On macOS we seem to get the watch root create events
+        -- even though they occur before the watch is started.  Even if
+        -- we add a delay here.
+        startWatchAndCheck root sync
+
+    where
+
+    startWatchAndCheck root sync = do
+            putStrLn ("Before pre op: root [" <> root <> "]")
+            pre root
+            putStrLn ("After pre op: root [" <> root <> "]")
+            let check = checker root root sync expected
+                fsOps = Stream.fromEffect $ runFSOps root sync
+            Stream.drain
+                $ Stream.parListEagerFst [Stream.fromEffect check, fsOps]
+
+    runFSOps root sync = do
+        -- We put the MVar before the event watcher starts to run but that does
+        -- not ensure that the event watcher has actually started. So we need a
+        -- delay as well. Do we?
+        takeMVar sync >> threadDelay 200000
+        putStrLn ("Before fs ops: root [" <> root <> "]")
+        ops root
+        putStrLn ("After fs ops: root [" <> root <> "]")
+        threadDelay 10000000
+        error $ root <> ": Time out occurred before event watcher could terminate"
+
+checkDiag :: EventChecker
+checkDiag rootPath targetPath mvar matchList = do
+    putStrLn ("Watching on root [" <> rootPath
+             <> "] for [" <> targetPath <> "]")
+
+    let matchList1 = fmap (first (targetPath </>)) matchList
+        finder xs ev = filter (not . eventMatches ev) xs
+
+    paths <- mapM toUtf8 [rootPath]
+#if defined(FILESYSTEM_EVENT_LINUX)
+    Event.watchWith (Event.setAllEvents True)
+#elif defined(FILESYSTEM_EVENT_DARWIN)
+    Event.watchWith (Event.setAllEvents True)
+#elif defined(FILESYSTEM_EVENT_WINDOWS)
+    Event.watchWith (Event.setAllEvents True)
+#else
+    Event.watch
+#endif
+          (NonEmpty.fromList paths)
+        & Stream.before (putMVar mvar ())
+        & Stream.trace (putStrLn . Event.showEvent)
+        & Stream.scanl' finder matchList1
+        & Stream.takeWhile (not . null)
+        & Stream.drain
+
+runDiagnostics :: [TestDesc] -> IO ()
+runDiagnostics tests = do
+    putStrLn $ "Running diag tests"
+    hSetBuffering stdout NoBuffering
+    mapM_ (diagDriver checkDiag) tests
