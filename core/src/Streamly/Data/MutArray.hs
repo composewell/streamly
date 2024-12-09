@@ -110,4 +110,4 @@ import Control.Monad.IO.Class (MonadIO)
 {-# DEPRECATED newPinned "Please use pinnedEmptyOf instead." #-}
 {-# INLINE newPinned #-}
 newPinned :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
-newPinned = pinnedEmptyOf
+newPinned = emptyOf'

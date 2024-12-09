@@ -313,7 +313,7 @@ timedChunksOf timeout n = timedGroupsOf timeout n (Array.unsafeCreateOf n)
 timedChunksOf' :: (MonadAsync m, Unbox a) =>
     Double -> Int -> Stream m a -> Stream m (Array a)
 timedChunksOf' timeout n =
-    timedGroupsOf timeout n (Array.unsafePinnedCreateOf n)
+    timedGroupsOf timeout n (Array.unsafeCreateOf' n)
 
 ------------------------------------------------------------------------------
 -- Windowed classification

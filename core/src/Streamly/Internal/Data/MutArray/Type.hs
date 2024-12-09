@@ -56,13 +56,13 @@ module Streamly.Internal.Data.MutArray.Type
     -- extend the length without reallocating.
     , emptyOf
     , emptyWithAligned
-    , pinnedEmptyOf
+    , emptyOf'
     , pinnedNewAligned -- XXX not required
     -- , new -- uninitialized array of specified length
 
     -- *** Cloning
     , clone
-    , pinnedClone
+    , clone'
 
     -- *** Slicing
     -- | Get a subarray without copying
@@ -75,22 +75,22 @@ module Streamly.Internal.Data.MutArray.Type
     , ArrayUnsafe (..)
     , unsafeCreateOfWith
     , unsafeCreateOf
-    , unsafePinnedCreateOf
-    , pinnedCreateOf
+    , unsafeCreateOf'
+    , createOf'
     , createWithOf
     , createOf
     , revCreateOf
 
-    , pinnedCreate
+    , create'
     , createWith
     , create
     -- , revCreate
 
     -- *** From containers
     , fromListN
-    , pinnedFromListN
+    , fromListN'
     , fromList
-    , pinnedFromList
+    , fromList'
     , fromListRevN
     , fromListRev
     , fromStreamN
@@ -244,7 +244,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- *** Chunk
     -- | Group a stream into arrays.
     , chunksOf
-    , pinnedChunksOf -- chunksOf'
+    , chunksOf' -- chunksOf'
     -- , timedChunksOf -- see the Streamly.Data.Stream.Prelude module
     , buildChunks
     , chunksEndBy
@@ -354,6 +354,14 @@ module Streamly.Internal.Data.MutArray.Type
     , lPinnedCompactGE
     , lCompactGE
     , compactGE
+    , pinnedEmptyOf
+    , pinnedChunksOf
+    , pinnedCreateOf
+    , pinnedCreate
+    , pinnedFromListN
+    , pinnedFromList
+    , pinnedClone
+    , unsafePinnedCreateOf
     )
 where
 
@@ -518,7 +526,7 @@ pin :: MutArray a -> IO (MutArray a)
 pin arr@MutArray{..} =
     if Unboxed.isPinned arrContents
     then pure arr
-    else pinnedClone arr
+    else clone' arr
 
 -- | Return a copy of the array in unpinned memory if pinned, else return the
 -- original array.
@@ -614,11 +622,11 @@ newBytesAs ps bytes = do
 -- The memory of the array is uninitialized and the allocation is aligned as
 -- per the 'Unboxed' instance of the type.
 --
--- > pinnedNewBytes = (unsafeCast :: Array Word8 -> a) . pinnedEmptyOf
+-- > pinnedNewBytes = (unsafeCast :: Array Word8 -> a) . emptyOf'
 --
 -- /Pre-release/
 {-# INLINE pinnedNewBytes #-}
-{-# DEPRECATED pinnedNewBytes "Please use pinnedEmptyOf to create a Word8 array and cast it accordingly." #-}
+{-# DEPRECATED pinnedNewBytes "Please use emptyOf' to create a Word8 array and cast it accordingly." #-}
 pinnedNewBytes :: MonadIO m =>
 #ifdef DEVBUILD
     Unbox a =>
@@ -630,7 +638,7 @@ pinnedNewBytes = newBytesAs Pinned
 -- the alignment is dictated by the 'Unboxed' instance of the type.
 --
 -- /Internal/
-{-# DEPRECATED pinnedNewAligned "Please use pinnedEmptyOf to create a Word8 array and cast it accordingly." #-}
+{-# DEPRECATED pinnedNewAligned "Please use emptyOf' to create a Word8 array and cast it accordingly." #-}
 {-# INLINE pinnedNewAligned #-}
 pinnedNewAligned :: (MonadIO m, Unbox a) => Int -> Int -> m (MutArray a)
 pinnedNewAligned = emptyWithAligned (\s _ -> liftIO $ Unboxed.pinnedNew s)
@@ -646,14 +654,15 @@ newAs ps =
 
 -- | Allocates a pinned array of zero length but growable to the specified
 -- capacity without reallocation.
-{-# INLINE pinnedEmptyOf #-}
-pinnedEmptyOf :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
-pinnedEmptyOf = newAs Pinned
+{-# INLINE emptyOf' #-}
+pinnedEmptyOf, emptyOf' :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
+emptyOf' = newAs Pinned
+RENAME_PRIME(pinnedEmptyOf,emptyOf)
 
-{-# DEPRECATED pinnedNew "Please use pinnedEmptyOf instead." #-}
+{-# DEPRECATED pinnedNew "Please use emptyOf' instead." #-}
 {-# INLINE pinnedNew #-}
 pinnedNew :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
-pinnedNew = pinnedEmptyOf
+pinnedNew = emptyOf'
 
 -- | Allocates an unpinned array of zero length but growable to the specified
 -- capacity without reallocation.
@@ -926,7 +935,7 @@ reallocExplicitAs ps elemSize newCapacityInBytes MutArray{..} = do
         }
 
 -- XXX We may also need reallocAs to allocate as pinned/unpinned explicitly. In
--- fact clone/pinnedClone can be implemented using reallocAs.
+-- fact clone/clone' can be implemented using reallocAs.
 
 -- | @realloc newCapacity array@ reallocates the array to the specified
 -- capacity in bytes.
@@ -1709,11 +1718,12 @@ chunksOf :: forall m a. (MonadIO m, Unbox a)
 chunksOf = chunksOfAs Unpinned
 
 -- | Like 'chunksOf' but creates pinned arrays.
-{-# INLINE_NORMAL pinnedChunksOf #-}
-pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL chunksOf' #-}
+pinnedChunksOf, chunksOf' :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (MutArray a)
--- pinnedChunksOf n = D.foldMany (pinnedCreateOf n)
-pinnedChunksOf = chunksOfAs Pinned
+-- chunksOf' n = D.foldMany (createOf' n)
+chunksOf' = chunksOfAs Pinned
+RENAME_PRIME(pinnedChunksOf,chunksOf)
 
 -- | Create arrays from the input stream using a predicate to find the end of
 -- the chunk. When the predicate matches, the chunk ends, the matching element
@@ -1733,7 +1743,7 @@ chunksEndBy p = D.foldMany (FL.takeEndBy p create)
 {-# INLINE chunksEndBy' #-}
 chunksEndBy' :: forall m a. (MonadIO m, Unbox a)
     => (a -> Bool) -> D.Stream m a -> D.Stream m (MutArray a)
-chunksEndBy' p = D.foldMany (FL.takeEndBy p pinnedCreate)
+chunksEndBy' p = D.foldMany (FL.takeEndBy p create')
 
 -- | Create chunks using newline as the separator, including it.
 {-# INLINE chunksEndByLn #-}
@@ -2239,16 +2249,17 @@ writeNUnsafe :: forall m a. (MonadIO m, Unbox a)
 writeNUnsafe = unsafeCreateOf
 
 -- | Like 'unsafeCreateOf' but creates a pinned array.
-{-# INLINE_NORMAL unsafePinnedCreateOf #-}
-unsafePinnedCreateOf :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL unsafeCreateOf' #-}
+unsafePinnedCreateOf, unsafeCreateOf' :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
-unsafePinnedCreateOf = writeNUnsafeAs Pinned
+unsafeCreateOf' = writeNUnsafeAs Pinned
+RENAME_PRIME(unsafePinnedCreateOf,unsafeCreateOf)
 
-{-# DEPRECATED pinnedWriteNUnsafe "Please use unsafePinnedCreateOf instead." #-}
+{-# DEPRECATED pinnedWriteNUnsafe "Please use unsafeCreateOf' instead." #-}
 {-# INLINE pinnedWriteNUnsafe #-}
 pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
-pinnedWriteNUnsafe = unsafePinnedCreateOf
+pinnedWriteNUnsafe = unsafeCreateOf'
 
 -- | @createWithOf alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
@@ -2292,20 +2303,21 @@ writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
 writeN = createOf
 
 -- | Like 'createOf' but creates a pinned array.
-{-# INLINE_NORMAL pinnedCreateOf #-}
-pinnedCreateOf ::
+{-# INLINE_NORMAL createOf' #-}
+pinnedCreateOf, createOf' ::
        forall m a. (MonadIO m, Unbox a)
     => Int
     -> Fold m a (MutArray a)
-pinnedCreateOf = writeNAs Pinned
+createOf' = writeNAs Pinned
+RENAME_PRIME(pinnedCreateOf,createOf)
 
-{-# DEPRECATED pinnedWriteN "Please use pinnedCreateOf instead." #-}
+{-# DEPRECATED pinnedWriteN "Please use createOf' instead." #-}
 {-# INLINE pinnedWriteN #-}
 pinnedWriteN ::
        forall m a. (MonadIO m, Unbox a)
     => Int
     -> Fold m a (MutArray a)
-pinnedWriteN = pinnedCreateOf
+pinnedWriteN = createOf'
 
 -- | Like unsafeCreateOfWith but writes the array in reverse order.
 --
@@ -2462,15 +2474,16 @@ write :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
 write = create
 
 -- | Like 'create' but creates a pinned array.
-{-# INLINE pinnedCreate #-}
-pinnedCreate :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
-pinnedCreate =
+{-# INLINE create' #-}
+pinnedCreate, create' :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
+create' =
     writeWithAs Pinned (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
+RENAME_PRIME(pinnedCreate,create)
 
-{-# DEPRECATED pinnedWrite "Please use pinnedCreate instead." #-}
+{-# DEPRECATED pinnedWrite "Please use create' instead." #-}
 {-# INLINE pinnedWrite #-}
 pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
-pinnedWrite = pinnedCreate
+pinnedWrite = create'
 
 -------------------------------------------------------------------------------
 -- construct from streams, known size
@@ -2515,9 +2528,10 @@ fromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
 fromListN n xs = fromStreamDN n $ D.fromList xs
 
 -- | Like 'fromListN' but creates a pinned array.
-{-# INLINABLE pinnedFromListN #-}
-pinnedFromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
-pinnedFromListN n xs = fromStreamDNAs Pinned n $ D.fromList xs
+{-# INLINABLE fromListN' #-}
+pinnedFromListN, fromListN' :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
+fromListN' n xs = fromStreamDNAs Pinned n $ D.fromList xs
+RENAME_PRIME(pinnedFromListN,fromListN)
 
 -- | Like fromListN but writes the array in reverse order.
 --
@@ -2711,9 +2725,10 @@ fromList :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
 fromList xs = fromStreamD $ D.fromList xs
 
 -- | Like 'fromList' but creates a pinned array.
-{-# INLINE pinnedFromList #-}
-pinnedFromList :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
-pinnedFromList xs = fromStreamDAs Pinned $ D.fromList xs
+{-# INLINE fromList' #-}
+pinnedFromList, fromList' :: (MonadIO m, Unbox a) => [a] -> m (MutArray a)
+fromList' xs = fromStreamDAs Pinned $ D.fromList xs
+RENAME_PRIME(pinnedFromList,fromList)
 
 -- XXX We are materializing the whole list first for getting the length. Check
 -- if the 'fromList' like chunked implementation would fare better.
@@ -2752,7 +2767,7 @@ cloneAs ps src =
 -- To clone a slice of "MutArray" you can create a slice with "unsafeGetSlice"
 -- and then use "clone".
 --
--- The new "MutArray" is unpinned in nature. Use "pinnedClone" to clone the
+-- The new "MutArray" is unpinned in nature. Use "clone'" to clone the
 -- MutArray in pinned memory.
 {-# INLINE clone #-}
 clone ::
@@ -2765,15 +2780,16 @@ clone ::
 clone = cloneAs Unpinned
 
 -- Similar to "clone" but uses pinned memory.
-{-# INLINE pinnedClone #-}
-pinnedClone ::
+{-# INLINE clone' #-}
+pinnedClone, clone' ::
     ( MonadIO m
 #ifdef DEVBUILD
     , Unbox a
 #endif
     )
     => MutArray a -> m (MutArray a)
-pinnedClone = cloneAs Pinned
+clone' = cloneAs Pinned
+RENAME_PRIME(pinnedClone,clone)
 
 -------------------------------------------------------------------------------
 -- Combining
@@ -3043,7 +3059,7 @@ unsafeAsPtr arr f =
 unsafePinnedCreateUsingPtr
     :: MonadIO m => Int -> (Ptr Word8 -> m Int) -> m (MutArray Word8)
 unsafePinnedCreateUsingPtr cap pop = do
-    (arr :: MutArray Word8) <- pinnedEmptyOf cap
+    (arr :: MutArray Word8) <- emptyOf' cap
     len <- Unboxed.unsafeAsPtr (arrContents arr) pop
     when (len > cap) (error (errMsg len))
     -- arrStart == 0

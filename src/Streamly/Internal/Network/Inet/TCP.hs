@@ -133,7 +133,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array as A
-    (pinnedChunksOf, unsafePinnedCreateOf)
+    (chunksOf', unsafeCreateOf')
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.Data.Fold as FL (Step(..), reduce)
 
@@ -422,7 +422,7 @@ putBytesWithBufferOf
     -> Stream m Word8
     -> m ()
 putBytesWithBufferOf n addr port m =
-    putChunks addr port $ A.pinnedChunksOf n m
+    putChunks addr port $ A.chunksOf' n m
 
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of
@@ -436,7 +436,7 @@ writeWithBufferOf
     -> PortNumber
     -> Fold m Word8 ()
 writeWithBufferOf n addr port =
-    FL.groupsOf n (A.unsafePinnedCreateOf n) (writeChunks addr port)
+    FL.groupsOf n (A.unsafeCreateOf' n) (writeChunks addr port)
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --

@@ -223,7 +223,7 @@ roundtrip val = do
     -- let sz = Serialize.addSizeTo 0 val
     -- putStrLn $ "Size is: " ++ show sz
 
-    val `shouldBe` fst (Array.deserialize (Array.pinnedSerialize val))
+    val `shouldBe` fst (Array.deserialize (Array.serialize' val))
 
     res <- poke val
     peekAndVerify res val

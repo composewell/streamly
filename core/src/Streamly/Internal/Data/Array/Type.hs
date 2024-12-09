@@ -47,18 +47,18 @@ module Streamly.Internal.Data.Array.Type
     -- *** Stream Folds
     , unsafeMakePure
     , createOf
-    , pinnedCreateOf
+    , createOf'
     , unsafeCreateOf
-    , unsafePinnedCreateOf
+    , unsafeCreateOf'
     , create
-    , pinnedCreate
+    , create'
     , createWith
 
     -- *** From containers
     , fromListN
-    , pinnedFromListN
+    , fromListN'
     , fromList
-    , pinnedFromList
+    , fromList'
     , fromListRevN
     , fromListRev
     , fromStreamN
@@ -112,7 +112,7 @@ module Streamly.Internal.Data.Array.Type
     -- *** Chunk
     -- | Group a stream into arrays.
     , chunksOf
-    , pinnedChunksOf
+    , chunksOf'
     , buildChunks
     , chunksEndBy
     , chunksEndBy'
@@ -164,6 +164,12 @@ module Streamly.Internal.Data.Array.Type
     , lCompactGE
     , lPinnedCompactGE
     , compactGE
+    , pinnedCreateOf
+    , unsafePinnedCreateOf
+    , pinnedCreate
+    , pinnedFromListN
+    , pinnedFromList
+    , pinnedChunksOf
     )
 where
 
@@ -412,10 +418,11 @@ fromListN :: Unbox a => Int -> [a] -> Array a
 fromListN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListN n xs
 
 -- | Like 'fromListN' but creates a pinned array.
-{-# INLINABLE pinnedFromListN #-}
-pinnedFromListN :: Unbox a => Int -> [a] -> Array a
-pinnedFromListN n xs =
-    unsafePerformIO $ unsafeFreeze <$> MA.pinnedFromListN n xs
+{-# INLINABLE fromListN' #-}
+pinnedFromListN, fromListN' :: Unbox a => Int -> [a] -> Array a
+fromListN' n xs =
+    unsafePerformIO $ unsafeFreeze <$> MA.fromListN' n xs
+RENAME_PRIME(pinnedFromListN,fromListN)
 
 -- | Create an 'Array' from the first N elements of a list in reverse order.
 -- The array is allocated to size N, if the list terminates before N elements
@@ -433,9 +440,10 @@ fromList :: Unbox a => [a] -> Array a
 fromList xs = unsafePerformIO $ unsafeFreeze <$> MA.fromList xs
 
 -- | Like 'fromList' but creates a pinned array.
-{-# INLINE pinnedFromList #-}
-pinnedFromList :: Unbox a => [a] -> Array a
-pinnedFromList xs = unsafePerformIO $ unsafeFreeze <$> MA.pinnedFromList xs
+{-# INLINE fromList' #-}
+pinnedFromList, fromList' :: Unbox a => [a] -> Array a
+fromList' xs = unsafePerformIO $ unsafeFreeze <$> MA.fromList' xs
+RENAME_PRIME(pinnedFromList,fromList)
 
 -- | Create an 'Array' from a list in reverse order. The list must be of finite
 -- size.
@@ -513,10 +521,11 @@ chunksOf :: forall m a. (MonadIO m, Unbox a)
 chunksOf n str = D.map unsafeFreeze $ MA.chunksOf n str
 
 -- | Like 'chunksOf' but creates pinned arrays.
-{-# INLINE_NORMAL pinnedChunksOf #-}
-pinnedChunksOf :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL chunksOf' #-}
+pinnedChunksOf, chunksOf' :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
-pinnedChunksOf n str = D.map unsafeFreeze $ MA.pinnedChunksOf n str
+chunksOf' n str = D.map unsafeFreeze $ MA.chunksOf' n str
+RENAME_PRIME(pinnedChunksOf,chunksOf)
 
 -- | Create arrays from the input stream using a predicate to find the end of
 -- the chunk. When the predicate matches, the chunk ends, the matching element
@@ -536,7 +545,7 @@ chunksEndBy p = D.foldMany (Fold.takeEndBy p create)
 {-# INLINE chunksEndBy' #-}
 chunksEndBy' :: forall m a. (MonadIO m, Unbox a)
     => (a -> Bool) -> D.Stream m a -> D.Stream m (Array a)
-chunksEndBy' p = D.foldMany (Fold.takeEndBy p pinnedCreate)
+chunksEndBy' p = D.foldMany (Fold.takeEndBy p create')
 
 -- | Create chunks using newline as the separator, including it.
 {-# INLINE chunksEndByLn #-}
@@ -877,14 +886,15 @@ writeN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
 writeN = createOf
 
 -- | Like 'createOf' but creates a pinned array.
-{-# INLINE_NORMAL pinnedCreateOf #-}
-pinnedCreateOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
-pinnedCreateOf = fmap unsafeFreeze . MA.pinnedCreateOf
+{-# INLINE_NORMAL createOf' #-}
+pinnedCreateOf, createOf' :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
+createOf' = fmap unsafeFreeze . MA.createOf'
+RENAME_PRIME(pinnedCreateOf,createOf)
 
-{-# DEPRECATED pinnedWriteN  "Please use pinnedCreateOf instead." #-}
+{-# DEPRECATED pinnedWriteN  "Please use createOf' instead." #-}
 {-# INLINE pinnedWriteN #-}
 pinnedWriteN :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
-pinnedWriteN = pinnedCreateOf
+pinnedWriteN = createOf'
 
 -- | @pinnedWriteNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
@@ -914,16 +924,17 @@ writeNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
 writeNUnsafe = unsafeCreateOf
 
-{-# INLINE_NORMAL unsafePinnedCreateOf #-}
-unsafePinnedCreateOf :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL unsafeCreateOf' #-}
+unsafePinnedCreateOf, unsafeCreateOf' :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
-unsafePinnedCreateOf n = unsafeFreeze <$> MA.unsafePinnedCreateOf n
+unsafeCreateOf' n = unsafeFreeze <$> MA.unsafeCreateOf' n
+RENAME_PRIME(unsafePinnedCreateOf,unsafeCreateOf)
 
-{-# DEPRECATED pinnedWriteNUnsafe  "Please use unsafePinnedCreateOf instead." #-}
+{-# DEPRECATED pinnedWriteNUnsafe  "Please use unsafeCreateOf' instead." #-}
 {-# INLINE pinnedWriteNUnsafe #-}
 pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (Array a)
-pinnedWriteNUnsafe = unsafePinnedCreateOf
+pinnedWriteNUnsafe = unsafeCreateOf'
 
 -- | A version of "create" that let's you pass in the initial capacity of the
 -- array in terms of the number of elements.
@@ -960,14 +971,15 @@ write :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
 write = create
 
 -- | Like 'create' but creates a pinned array.
-{-# INLINE pinnedCreate #-}
-pinnedCreate :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
-pinnedCreate = fmap unsafeFreeze MA.pinnedCreate
+{-# INLINE create' #-}
+pinnedCreate, create' :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
+create' = fmap unsafeFreeze MA.create'
+RENAME_PRIME(pinnedCreate,create)
 
-{-# DEPRECATED pinnedWrite  "Please use pinnedCreate instead." #-}
+{-# DEPRECATED pinnedWrite  "Please use create' instead." #-}
 {-# INLINE pinnedWrite #-}
 pinnedWrite :: forall m a. (MonadIO m, Unbox a) => Fold m a (Array a)
-pinnedWrite = pinnedCreate
+pinnedWrite = create'
 
 -- | Fold "step" has a dependency on "initial", and each step is dependent on
 -- the previous invocation of step due to state passing, finally extract

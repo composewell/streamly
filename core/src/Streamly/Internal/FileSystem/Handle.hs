@@ -417,7 +417,7 @@ putChunksWith n h xs = putChunks h $ A.compactMax n xs
 --
 {-# INLINE putBytesWith #-}
 putBytesWith :: MonadIO m => Int -> Handle -> Stream m Word8 -> m ()
-putBytesWith n h m = putChunks h $ A.pinnedChunksOf n m
+putBytesWith n h m = putChunks h $ A.chunksOf' n m
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing.
@@ -487,7 +487,7 @@ writeChunksWithBufferOf = writeChunksWith
 --
 {-# INLINE writeWith #-}
 writeWith :: MonadIO m => Int -> Handle -> Fold m Word8 ()
-writeWith n h = FL.groupsOf n (A.unsafePinnedCreateOf n) (writeChunks h)
+writeWith n h = FL.groupsOf n (A.unsafeCreateOf' n) (writeChunks h)
 
 -- | Same as 'writeWith'
 --
@@ -505,7 +505,7 @@ writeWithBufferOf = writeWith
 writeMaybesWith :: (MonadIO m )
     => Int -> Handle -> Fold m (Maybe Word8) ()
 writeMaybesWith n h =
-    let writeNJusts = FL.lmap fromJust $ A.pinnedCreateOf n
+    let writeNJusts = FL.lmap fromJust $ A.createOf' n
         writeOnNothing = FL.takeEndBy_ isNothing writeNJusts
     in FL.many writeOnNothing (writeChunks h)
 
@@ -515,7 +515,7 @@ writeMaybesWith n h =
 {-# INLINE writerWith #-}
 writerWith :: MonadIO m => Int -> Refold m Handle Word8 ()
 writerWith n =
-    FL.refoldMany (FL.take n $ A.unsafePinnedCreateOf n) chunkWriter
+    FL.refoldMany (FL.take n $ A.unsafeCreateOf' n) chunkWriter
 
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing
