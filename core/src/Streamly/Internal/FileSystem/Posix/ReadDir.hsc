@@ -15,11 +15,14 @@ module Streamly.Internal.FileSystem.Posix.ReadDir
     , readDirStreamEither
     , readEitherChunks
     , readEitherByteChunks
+    , eitherReader
+    , reader
 #endif
     )
 where
 
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord)
 import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr)
@@ -31,11 +34,14 @@ import Foreign.Storable (poke)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.FileSystem.Path (Path)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
+import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 #include <dirent.h>
@@ -96,6 +102,9 @@ foreign import capi unsafe "dirent.h opendir"
 foreign import ccall unsafe "dirent.h readdir"
     c_readdir  :: Ptr CDir -> IO (Ptr CDirent)
 
+foreign import ccall unsafe "lstat_is_directory"
+    c_lstat_is_directory  :: CString -> IO CInt
+
 -- XXX Use openat instead of open so that we do not have to build and resolve
 -- absolute paths.
 --
@@ -133,6 +142,36 @@ isMetaDir dname = do
             then return True
             else return False
 
+lstatDname :: PosixPath -> Ptr CChar -> IO (Bool, Bool)
+lstatDname parent dname = do
+    isMeta <- liftIO $ isMetaDir dname
+    if isMeta
+    then pure (True, True)
+    else do
+        path <- appendCString parent dname
+        Array.asCStringUnsafe (Path.toChunk path) $ \cStr -> do
+            res <- c_lstat_is_directory cStr
+            case res of
+                x | x == 0 -> pure (True, False)
+                x | x == 1 -> pure (False, False)
+                -- XXX Need to check if and how we should handle some errors
+                -- like EACCES.
+                _ -> throwErrno "checkIfDirectory"
+
+-- | Checks if dname is a directory and additionaly returns if dname is a meta
+-- directory.
+{-# INLINE checkDirStatus #-}
+checkDirStatus
+    :: PosixPath -> Ptr CChar -> #{type unsigned char} -> IO (Bool, Bool)
+checkDirStatus parent dname dtype =
+    if dtype == #const DT_UNKNOWN
+    then lstatDname parent dname
+    else if dtype == (#const DT_DIR)
+    then do
+        isMeta <- liftIO $ isMetaDir dname
+        pure (True, isMeta)
+    else pure (False, False)
+
 -- XXX We can use getdents64 directly so that we can use array slices from the
 -- same buffer that we passed to the OS. That way we can also avoid any
 -- overhead of bracket.
@@ -141,8 +180,8 @@ isMetaDir dname = do
 -- {-# INLINE readDirStreamEither #-}
 readDirStreamEither ::
     -- DirStream -> IO (Either (Rel (Dir Path)) (Rel (File Path)))
-    DirStream -> IO (Maybe (Either PosixPath PosixPath))
-readDirStreamEither (DirStream dirp) = loop
+    (PosixPath, DirStream) -> IO (Maybe (Either PosixPath PosixPath))
+readDirStreamEither (curdir, (DirStream dirp)) = loop
 
   where
 
@@ -163,9 +202,9 @@ readDirStreamEither (DirStream dirp) = loop
         -- fromPtrN, but it is not straightforward because the reclen is
         -- padded to 8-byte boundary.
         name <- Array.fromCString (castPtr dname)
-        if (dtype == #const DT_DIR)
+        (isDir, isMeta) <- checkDirStatus curdir dname dtype
+        if isDir
         then do
-            isMeta <- isMetaDir dname
             if isMeta
             then loop
             else return (Just (Left (mkPath name)))
@@ -180,6 +219,70 @@ readDirStreamEither (DirStream dirp) = loop
             -- then return (Left (mkPath (Array.fromList [46])))
             then return Nothing
             else throwErrno "readDirStreamEither"
+
+-- XXX We can make this code common with windows, the path argument would be
+-- redundant for windows case though.
+{-# INLINE streamEitherReader #-}
+streamEitherReader :: MonadIO m =>
+    Unfold m (PosixPath, DirStream) (Either Path Path)
+streamEitherReader = Unfold step return
+    where
+
+    step s = do
+        r <- liftIO $ readDirStreamEither s
+        case r of
+            Nothing -> return Stop
+            Just x -> return $ Yield x s
+
+{-# INLINE streamReader #-}
+streamReader :: MonadIO m => Unfold m (PosixPath, DirStream) Path
+streamReader = fmap (either id id) streamEitherReader
+
+{-# INLINE before #-}
+before :: PosixPath -> IO (PosixPath, DirStream)
+before parent = (parent,) <$> openDirStream parent
+
+{-# INLINE after #-}
+after :: (PosixPath, DirStream) -> IO ()
+after (_, dirStream) = closeDirStream dirStream
+
+--  | Read a directory emitting a stream with names of the children. Filter out
+--  "." and ".." entries.
+--
+--  /Internal/
+--
+{-# INLINE reader #-}
+reader :: (MonadIO m, MonadCatch m) => Unfold m Path Path
+reader =
+    -- XXX Instead of using bracketIO for each iteration of the loop we should
+    -- instead yield a buffer of dir entries in each iteration and then use an
+    -- unfold and concat to flatten those entries. That should improve the
+    -- performance.
+    UF.bracketIO before after streamReader
+
+-- | Read directories as Left and files as Right. Filter out "." and ".."
+-- entries.
+--
+--  /Internal/
+--
+{-# INLINE eitherReader #-}
+eitherReader :: (MonadIO m, MonadCatch m) =>
+    Unfold m Path (Either Path Path)
+eitherReader =
+    -- XXX The measured overhead of bracketIO is not noticeable, if it turns
+    -- out to be a problem for small filenames we can use getdents64 to use
+    -- chunked read to avoid the overhead.
+    UF.bracketIO before after streamEitherReader
+
+{-# INLINE appendCString #-}
+appendCString :: PosixPath -> CString -> IO PosixPath
+appendCString a b = do
+    -- XXX We do not need to create an Array from the CString first. We can
+    -- append it directly if Path can provide a known length stream append
+    -- operation. Should we ensure that this is pinned in the DT_UNKNOWN case
+    -- because we always pass it to a C function which pins it anyway.
+    b1 <- Array.fromCString (castPtr b)
+    pure $ Path.append a (Path.unsafeFromChunk b1)
 
 {-# ANN type ChunkStreamState Fuse #-}
 data ChunkStreamState =
@@ -208,9 +311,6 @@ readEitherChunks alldirs =
     dirMax = 4
     fileMax = 1000
 
-    mkPath :: Array Word8 -> PosixPath
-    mkPath = Path.unsafeFromChunk
-
     step _ (ChunkStreamInit (x:xs) dirs ndirs files nfiles) = do
         DirStream dirp <- liftIO $ openDirStream x
         return $ Skip (ChunkStreamLoop x xs dirp dirs ndirs files nfiles)
@@ -233,22 +333,23 @@ readEitherChunks alldirs =
             dtype :: #{type unsigned char} <-
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
-            name <- Array.fromCString (castPtr dname)
-            let path = Path.append curdir (mkPath name)
-
-            if (dtype == (#const DT_DIR))
+            (isDir, isMeta) <- liftIO $ checkDirStatus curdir dname dtype
+            if isDir
             then do
-                isMeta <- liftIO $ isMetaDir dname
                 if isMeta
                 then return $ Skip st
-                else let dirs1 = path : dirs
+                else do
+                     path <- liftIO $ appendCString curdir dname
+                     let dirs1 = path : dirs
                          ndirs1 = ndirs + 1
                       in if ndirs1 >= dirMax
                          then return $ Yield (Left dirs1)
                             (ChunkStreamLoop curdir xs dirp [] 0 files nfiles)
                          else return $ Skip
                             (ChunkStreamLoop curdir xs dirp dirs1 ndirs1 files nfiles)
-            else let files1 = path : files
+            else do
+                 path <- liftIO $ appendCString curdir dname
+                 let files1 = path : files
                      nfiles1 = nfiles + 1
                   in if nfiles1 >= fileMax
                      then return $ Yield (Right files1)
@@ -330,9 +431,6 @@ readEitherByteChunks alldirs =
     -- from the output channel, then consume that stream by using a monad bind.
     bufSize = 4000
 
-    mkPath :: Array Word8 -> PosixPath
-    mkPath = Path.unsafeFromChunk
-
     copyToBuf dstArr pos dirPath name = do
         nameLen <- fmap fromIntegral (liftIO $ c_strlen name)
         let PosixPath (Array dirArr start end) = dirPath
@@ -399,7 +497,8 @@ readEitherByteChunks alldirs =
             -- XXX Skips come around the entire loop, does that impact perf
             -- because it has a StreamK in the middle.
             -- Keep the file check first as it is more likely
-            if (dtype /= (#const DT_DIR))
+            (isDir, isMeta) <- liftIO $ checkDirStatus curdir dname dtype
+            if not isDir
             then do
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
@@ -415,13 +514,11 @@ readEitherByteChunks alldirs =
                                 return $ Skip
                                     (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
             else do
-                isMeta <- liftIO $ isMetaDir dname
                 if isMeta
                 then return $ Skip st
                 else do
-                    name <- Array.fromCString (castPtr dname)
-                    let path = Path.append curdir (mkPath name)
-                        dirs1 = path : dirs
+                    path <- liftIO $ appendCString curdir dname
+                    let dirs1 = path : dirs
                         ndirs1 = ndirs + 1
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
