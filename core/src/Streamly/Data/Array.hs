@@ -84,7 +84,7 @@ module Streamly.Data.Array
     , getIndex
 
     -- * Serialization
-    , pinnedSerialize
+    , serialize'
     , deserialize
 
     -- * Re-exports
@@ -92,6 +92,7 @@ module Streamly.Data.Array
     , Serialize(..)
 
     -- * Deprecated
+    , pinnedSerialize
     , writeN      -- drop new
     , write       -- full buffer
     , writeLastN
