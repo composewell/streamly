@@ -20,6 +20,8 @@ module Streamly.Internal.FileSystem.Posix.ReadDir
 where
 
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+import Control.Exception (Exception(..), throwIO)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord)
 import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr)
@@ -80,6 +82,21 @@ data {-# CTYPE "struct dirent" #-} CDirent
 
 newtype DirStream = DirStream (Ptr CDir)
 
+-------------------------------------------------------------------------------
+-- Exception Type
+-------------------------------------------------------------------------------
+
+newtype ReadDirException =
+    RDE_DT_UNKNOWN Path.PosixPath
+
+instance Show ReadDirException where
+    show (RDE_DT_UNKNOWN p) =
+        "DT_UNKNOWN: " ++ Path.toString p
+
+instance Exception ReadDirException
+
+-------------------------------------------------------------------------------
+-- Functions
 -------------------------------------------------------------------------------
 
 foreign import ccall unsafe "closedir"
@@ -163,6 +180,10 @@ readDirStreamEither (DirStream dirp) = loop
         -- fromPtrN, but it is not straightforward because the reclen is
         -- padded to 8-byte boundary.
         name <- Array.fromCString (castPtr dname)
+
+        when (dtype == #const DT_UNKNOWN)
+            $ throwIO (RDE_DT_UNKNOWN (mkPath name))
+
         if (dtype == #const DT_DIR)
         then do
             isMeta <- isMetaDir dname
@@ -235,6 +256,9 @@ readEitherChunks alldirs =
 
             name <- Array.fromCString (castPtr dname)
             let path = Path.append curdir (mkPath name)
+
+            when (dtype == #const DT_UNKNOWN)
+                $ liftIO $ throwIO (RDE_DT_UNKNOWN path)
 
             if (dtype == (#const DT_DIR))
             then do
@@ -395,6 +419,11 @@ readEitherByteChunks alldirs =
             let dname = #{ptr struct dirent, d_name} dentPtr
             dtype :: #{type unsigned char} <-
                 liftIO $ #{peek struct dirent, d_type} dentPtr
+
+            when (dtype == #const DT_UNKNOWN) $ do
+               name <- Array.fromCString (castPtr dname)
+               let path = Path.append curdir (mkPath name)
+               liftIO $ throwIO (RDE_DT_UNKNOWN path)
 
             -- XXX Skips come around the entire loop, does that impact perf
             -- because it has a StreamK in the middle.
