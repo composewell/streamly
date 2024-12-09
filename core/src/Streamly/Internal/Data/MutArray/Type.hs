@@ -380,15 +380,11 @@ import Streamly.Internal.Data.MutByteArray.Type
     , unsafePutSlice
     , blockSize
     , largeObjectThreshold
+    , unsafeByteCmp
     )
 import Streamly.Internal.Data.Unbox (Unbox(..))
-import GHC.Base
-    ( IO(..)
-    , Int(..)
-    , compareByteArrays#
-    , noinline
-    )
-import GHC.Exts (unsafeCoerce#, Addr#, MutableByteArray#, RealWorld)
+import GHC.Base (noinline)
+import GHC.Exts (Addr#, MutableByteArray#, RealWorld)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -3073,23 +3069,15 @@ unsafePinnedCreateUsingPtr cap pop = do
 {-# INLINE byteCmp #-}
 byteCmp :: MonadIO m => MutArray a -> MutArray a -> m Ordering
 byteCmp arr1 arr2 = do
-    let marr1 = getMutByteArray# (arrContents arr1)
-        marr2 = getMutByteArray# (arrContents arr2)
-        !(I# st1#) = arrStart arr1
-        !(I# st2#) = arrStart arr2
-        !(I# len#) = byteLength arr1
-    case compare (byteLength arr1) (byteLength arr2) of
+    let !marr1 = arrContents arr1
+        !marr2 = arrContents arr2
+        !len1 = byteLength arr1
+        !len2 = byteLength arr2
+        !st1 = arrStart arr1
+        !st2 = arrStart arr2
+    case compare len1 len2 of
         EQ -> do
-            r <- liftIO $ IO $ \s# ->
-                     let res =
-                             I#
-                                 (compareByteArrays#
-                                      (unsafeCoerce# marr1)
-                                      st1#
-                                      (unsafeCoerce# marr2)
-                                      st2#
-                                      len#)
-                      in (# s#, res #)
+            r <- liftIO $ unsafeByteCmp marr1 st1 marr2 st2 len1
             return $ compare r 0
         x -> return x
 
