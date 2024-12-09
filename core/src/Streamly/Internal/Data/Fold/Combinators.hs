@@ -2321,7 +2321,7 @@ bottomBy cmp n = Fold step initial extract extract
     where
 
     initial = do
-        arr <- MA.pinnedEmptyOf n
+        arr <- MA.emptyOf' n
         if n <= 0
         then return $ Done arr
         else return $ Partial (arr, 0)
