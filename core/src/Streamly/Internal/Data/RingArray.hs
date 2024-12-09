@@ -642,21 +642,21 @@ eqArrayN RingArray{..} Array.Array{..} nBytes
     | arrEnd - arrStart < nBytes = error "eqArrayN: array is shorter than n"
     | ringSize < nBytes = error "eqArrayN: ring is shorter than n"
     | nBytes == 0 = return True
-    | nBytesC <= p1Len = do
-          part1 <- MutArray.c_memcmp_index arr# 0 ring# p1Off nBytesC
+    | nBytes <= p1Len = do
+          part1 <-
+              MutByteArray.unsafeByteCmp
+                  arrContents 0 ringContents ringHead nBytes
           pure $ part1 == 0
     | otherwise = do
-          part1 <- MutArray.c_memcmp_index arr# 0 ring# p1Off p1Len
-          part2 <- MutArray.c_memcmp_index arr# p1Len ring# p2Off p2Len
+          part1 <-
+              MutByteArray.unsafeByteCmp
+                  arrContents 0 ringContents ringHead p1Len
+          part2 <-
+              MutByteArray.unsafeByteCmp arrContents p1Len ringContents 0 p2Len
           pure $ part1 == 0 && part2 == 0
     where
-    nBytesC = fromIntegral nBytes
-    arr# = MutByteArray.getMutByteArray# arrContents
-    ring# = MutByteArray.getMutByteArray# ringContents
-    p1Off = fromIntegral ringHead
-    p1Len = fromIntegral $ ringSize - ringHead
-    p2Off = 0
-    p2Len = nBytesC - p1Len
+    p1Len = ringSize - ringHead
+    p2Len = nBytes - p1Len
 
 -- | Byte compare the entire length of ringBuffer with the given array,
 -- starting at the supplied ring head index.  Returns true if the Array and
@@ -669,16 +669,16 @@ eqArray :: RingArray a -> Array a -> IO Bool
 eqArray RingArray{..} Array.Array{..}
     | arrEnd - arrStart < ringSize = error "eqArrayN: array is shorter than ring"
     | otherwise = do
-          part1 <- MutArray.c_memcmp_index arr# 0 ring# p1Off p1Len
-          part2 <- MutArray.c_memcmp_index arr# p1Len ring# p2Off p2Len
+          part1 <-
+              MutByteArray.unsafeByteCmp
+                  arrContents 0 ringContents ringHead p1Len
+          part2 <-
+              MutByteArray.unsafeByteCmp
+                  arrContents p1Len ringContents 0 p2Len
           pure $ part1 == 0 && part2 == 0
     where
-    arr# = MutByteArray.getMutByteArray# arrContents
-    ring# = MutByteArray.getMutByteArray# ringContents
-    p1Off = fromIntegral ringHead
-    p1Len = fromIntegral $ ringSize - ringHead
-    p2Off = 0
-    p2Len = fromIntegral ringHead
+    p1Len = ringSize - ringHead
+    p2Len = ringHead
 
 -------------------------------------------------------------------------------
 -- Folding
