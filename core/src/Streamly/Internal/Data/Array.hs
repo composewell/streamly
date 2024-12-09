@@ -85,10 +85,11 @@ module Streamly.Internal.Data.Array
     -- * Serialization
     , encodeAs
     , serialize
-    , pinnedSerialize
+    , serialize'
     , deserialize
 
     -- * Deprecated
+    , pinnedSerialize
     , genSlicesFromLen
     , getSlicesFromLen
     , getIndices
@@ -549,11 +550,12 @@ serialize = encodeAs Unpinned
 --
 -- Properties:
 --
--- 1. Identity: @deserialize . pinnedSerialize == id@
--- 2. Encoded equivalence: @pinnedSerialize a == pinnedSerialize a@
-{-# INLINE pinnedSerialize #-}
-pinnedSerialize :: Serialize a => a -> Array Word8
-pinnedSerialize = encodeAs Pinned
+-- 1. Identity: @deserialize . serialize' == id@
+-- 2. Encoded equivalence: @serialize' a == serialize' a@
+{-# INLINE serialize' #-}
+pinnedSerialize, serialize' :: Serialize a => a -> Array Word8
+serialize' = encodeAs Pinned
+RENAME_PRIME(pinnedSerialize,serialize)
 
 -- XXX We can deserialize it like MutArray, returning the remaining slice.
 
