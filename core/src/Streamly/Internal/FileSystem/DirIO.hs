@@ -93,7 +93,7 @@ import Streamly.Internal.FileSystem.Windows.ReadDir
 #else
 import Streamly.Internal.FileSystem.Posix.ReadDir
     ( DirStream, openDirStream, closeDirStream, readDirStreamEither
-    , readEitherChunks)
+    , readEitherChunks, PathClassified, evaluateUnknown, unClassifyPath)
 #endif
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
@@ -238,7 +238,7 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 
 {-# INLINE streamEitherReader #-}
 streamEitherReader :: MonadIO m =>
-    Unfold m DirStream (Either Path Path)
+    Unfold m DirStream PathClassified
 streamEitherReader = Unfold step return
     where
 
@@ -246,11 +246,11 @@ streamEitherReader = Unfold step return
         r <- liftIO $ readDirStreamEither strm
         case r of
             Nothing -> return Stop
-            Just x -> return $ Yield x strm
+            Just (x) -> return $ Yield x strm
 
 {-# INLINE streamReader #-}
 streamReader :: MonadIO m => Unfold m DirStream Path
-streamReader = fmap (either id id) streamEitherReader
+streamReader = fmap unClassifyPath streamEitherReader
 
 --  | Read a directory emitting a stream with names of the children. Filter out
 --  "." and ".." entries.
@@ -283,7 +283,12 @@ eitherReader =
     -- XXX The measured overhead of bracketIO is not noticeable, if it turns
     -- out to be a problem for small filenames we can use getdents64 to use
     -- chunked read to avoid the overhead.
-      UF.bracketIO openDirStream closeDirStream streamEitherReader
+      UF.bracketIO
+          (\parent -> (parent,) <$> openDirStream parent)
+          (\(_, dirStream) -> closeDirStream dirStream)
+          (UF.mapM2
+               (\(parent, _) p -> liftIO (evaluateUnknown parent p))
+               (UF.lmap snd streamEitherReader))
 
 {-# INLINE eitherReaderPaths #-}
 eitherReaderPaths ::(MonadIO m, MonadCatch m) =>

@@ -10,6 +10,9 @@ module Streamly.Internal.FileSystem.Posix.ReadDir
     (
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
       DirStream
+    , PathClassified(..)
+    , unClassifyPath
+    , evaluateUnknown
     , openDirStream
     , closeDirStream
     , readDirStreamEither
@@ -81,6 +84,15 @@ data {-# CTYPE "struct dirent" #-} CDirent
 newtype DirStream = DirStream (Ptr CDir)
 
 -------------------------------------------------------------------------------
+-- Stat
+-------------------------------------------------------------------------------
+
+foreign import ccall unsafe "stat_is_directory"
+    c_stat_is_directory  :: CString -> IO CInt
+
+-------------------------------------------------------------------------------
+-- Functions
+-------------------------------------------------------------------------------
 
 foreign import ccall unsafe "closedir"
    c_closedir :: Ptr CDir -> IO CInt
@@ -133,6 +145,42 @@ isMetaDir dname = do
             then return True
             else return False
 
+statCheckIfDir :: PosixPath -> IO Bool
+statCheckIfDir path =
+    Array.asCStringUnsafe (Path.toChunk path) $ \cStr -> do
+        res <- c_stat_is_directory cStr
+        case res of
+            x | x == 0 -> pure True
+            x | x == 1 -> pure False
+            _ -> throwErrno "checkIfDirectory"
+
+{-# INLINE appendCString #-}
+appendCString :: PosixPath -> CString -> IO PosixPath
+appendCString a b = do
+    b1 <- Array.fromCString (castPtr b)
+    pure $ Path.append a (Path.unsafeFromChunk b1)
+
+data PathClassified
+    = PCDir PosixPath
+    | PCFile PosixPath
+    | PCUnknown PosixPath
+
+unClassifyPath :: PathClassified -> PosixPath
+unClassifyPath (PCDir a) = a
+unClassifyPath (PCFile a) = a
+unClassifyPath (PCUnknown a) = a
+
+evaluateUnknown
+    :: PosixPath -> PathClassified -> IO (Either PosixPath PosixPath)
+evaluateUnknown _ (PCDir a) = pure $ Left a
+evaluateUnknown _ (PCFile a) = pure $ Right a
+evaluateUnknown parent (PCUnknown child) = do
+    statIsDir <- statCheckIfDir $ Path.append parent child
+    pure
+        $ if statIsDir
+          then Left child
+          else Right child
+
 -- XXX We can use getdents64 directly so that we can use array slices from the
 -- same buffer that we passed to the OS. That way we can also avoid any
 -- overhead of bracket.
@@ -141,7 +189,7 @@ isMetaDir dname = do
 -- {-# INLINE readDirStreamEither #-}
 readDirStreamEither ::
     -- DirStream -> IO (Either (Rel (Dir Path)) (Rel (File Path)))
-    DirStream -> IO (Maybe (Either PosixPath PosixPath))
+    DirStream -> IO (Maybe PathClassified)
 readDirStreamEither (DirStream dirp) = loop
 
   where
@@ -168,8 +216,10 @@ readDirStreamEither (DirStream dirp) = loop
             isMeta <- isMetaDir dname
             if isMeta
             then loop
-            else return (Just (Left (mkPath name)))
-        else return (Just (Right (mkPath name)))
+            else return (Just (PCDir (mkPath name)))
+        else if (dtype == #const DT_UNKNOWN)
+        then pure (Just (PCUnknown (mkPath name)))
+        else return (Just (PCFile (mkPath name)))
     else do
         errno <- getErrno
         if (errno == eINTR)
@@ -208,9 +258,6 @@ readEitherChunks alldirs =
     dirMax = 4
     fileMax = 1000
 
-    mkPath :: Array Word8 -> PosixPath
-    mkPath = Path.unsafeFromChunk
-
     step _ (ChunkStreamInit (x:xs) dirs ndirs files nfiles) = do
         DirStream dirp <- liftIO $ openDirStream x
         return $ Skip (ChunkStreamLoop x xs dirp dirs ndirs files nfiles)
@@ -233,10 +280,12 @@ readEitherChunks alldirs =
             dtype :: #{type unsigned char} <-
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
-            name <- Array.fromCString (castPtr dname)
-            let path = Path.append curdir (mkPath name)
-
-            if (dtype == (#const DT_DIR))
+            path <- liftIO $ appendCString curdir dname
+            statIsDir <-
+                if dtype == #const DT_UNKNOWN
+                then liftIO $ statCheckIfDir path
+                else pure False
+            if dtype == (#const DT_DIR) || statIsDir
             then do
                 isMeta <- liftIO $ isMetaDir dname
                 if isMeta
@@ -330,9 +379,6 @@ readEitherByteChunks alldirs =
     -- from the output channel, then consume that stream by using a monad bind.
     bufSize = 4000
 
-    mkPath :: Array Word8 -> PosixPath
-    mkPath = Path.unsafeFromChunk
-
     copyToBuf dstArr pos dirPath name = do
         nameLen <- fmap fromIntegral (liftIO $ c_strlen name)
         let PosixPath (Array dirArr start end) = dirPath
@@ -399,7 +445,11 @@ readEitherByteChunks alldirs =
             -- XXX Skips come around the entire loop, does that impact perf
             -- because it has a StreamK in the middle.
             -- Keep the file check first as it is more likely
-            if (dtype /= (#const DT_DIR))
+            statIsDir <-
+                if dtype == #const DT_UNKNOWN
+                then liftIO (appendCString curdir dname >>= statCheckIfDir)
+                else pure False
+            if dtype /= (#const DT_DIR) && not statIsDir
             then do
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
@@ -419,9 +469,8 @@ readEitherByteChunks alldirs =
                 if isMeta
                 then return $ Skip st
                 else do
-                    name <- Array.fromCString (castPtr dname)
-                    let path = Path.append curdir (mkPath name)
-                        dirs1 = path : dirs
+                    path <- liftIO $ appendCString curdir dname
+                    let dirs1 = path : dirs
                         ndirs1 = ndirs + 1
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
