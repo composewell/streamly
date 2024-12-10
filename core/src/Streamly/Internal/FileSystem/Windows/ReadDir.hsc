@@ -10,6 +10,9 @@ module Streamly.Internal.FileSystem.Windows.ReadDir
     (
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
       DirStream
+    , PathClassified(..)
+    , unClassifyPath
+    , evaluateUnknown
     , openDirStream
     , closeDirStream
     , readDirStreamEither
@@ -58,6 +61,19 @@ type WIN32_FIND_DATA = ()
 type HANDLE = Ptr ()
 
 ------------------------------------------------------------------------------
+-- Commonization helpers
+------------------------------------------------------------------------------
+
+type PathClassified = Either WindowsPath WindowsPath
+
+unClassifyPath :: PathClassified -> WindowsPath
+unClassifyPath = either id id
+
+evaluateUnknown
+    :: WindowsPath -> PathClassified -> IO (Either WindowsPath WindowsPath)
+evaluateUnknown _ = pure
+
+------------------------------------------------------------------------------
 -- Windows C APIs
 ------------------------------------------------------------------------------
 
@@ -104,7 +120,7 @@ failWith fn_name err_code = do
   c_msg <- getErrorMessage err_code
   msg <- if c_msg == nullPtr
          then return $ "Error 0x" ++ Numeric.showHex err_code ""
-         else do 
+         else do
              msg <- peekCWString c_msg
              -- We ignore failure of freeing c_msg, given we're already failing
              _ <- localFree c_msg
@@ -145,8 +161,8 @@ openDirStream p = do
             Array.asCStringUnsafe (Path.toChunk path) $ \pathPtr -> do
                 -- XXX Use getLastError to distinguish the case when no
                 -- matching file is found. See the doc of FindFirstFileW.
-                failIf 
-                    (== iNVALID_HANDLE_VALUE) 
+                failIf
+                    (== iNVALID_HANDLE_VALUE)
                     ("FindFirstFileW: " ++ Path.toString path)
                     $ c_FindFirstFileW (castPtr pathPtr) dataPtr
         ref <- newIORef True
