@@ -25,6 +25,7 @@ module Streamly.Internal.Data.MutArray
     , compactSepByByte_
     , compactEndByByte_
     , compactEndByLn_
+    , createOfLast
     -- * Unboxed IORef
     , module Streamly.Internal.Data.IORef.Unboxed
 
@@ -57,10 +58,13 @@ import Streamly.Internal.Data.Serialize.Type (Serialize)
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Fold.Type (Fold)
 
+import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Serialize.Type as Serialize
 import qualified Streamly.Internal.Data.Stream.Nesting as Stream
 import qualified Streamly.Internal.Data.Stream.Type as Stream
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
@@ -337,3 +341,14 @@ compactEndByLn_ :: MonadIO m
     => Stream m (MutArray Word8)
     -> Stream m (MutArray Word8)
 compactEndByLn_ = compactEndByByte_ 10
+
+-- | @createOfLast n@ folds a maximum of @n@ elements from the end of the input
+-- stream to an 'MutArray'.
+--
+{-# INLINE createOfLast #-}
+createOfLast :: (Unbox a, MonadIO m) => Int -> Fold m a (MutArray a)
+createOfLast n =
+    Fold.ifThen
+        (pure (n <= 0))
+        (Fold.fromPure empty)
+        (Fold.rmapM RingArray.toMutArray $ RingArray.createOfLast n)

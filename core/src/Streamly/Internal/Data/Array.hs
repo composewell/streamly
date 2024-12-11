@@ -210,6 +210,10 @@ last = getIndexRev 0
 -- Folds with Array as the container
 -------------------------------------------------------------------------------
 
+-- NOTE: We could possible write this in terms of "MutArray.createOfLast" but
+-- this causes regression. This is probably because mapping inside "Fold.ifThen"
+-- is more efficient than mapping over "Fold.ifTen".
+--
 -- | @createOfLast n@ folds a maximum of @n@ elements from the end of the input
 -- stream to an 'Array'.
 --
