@@ -33,8 +33,8 @@ module Streamly.Internal.Data.Scanl.Window
     -- @(Insert a)@ indicates that the input element @a@ is being inserted in
     -- the window without ejecting an old value, increasing the window size by
     -- 1. An input of type @(Replace a a)@ indicates that the first argument of
-    -- Replace is being inserted in the window and the second argument is being
-    -- removed from the window, the window size remains the same. The window
+    -- Replace is being removed from the window and the second argument is being
+    -- inserted in the window, the window size remains the same. The window
     -- size can only increase and never decrease.
     --
     -- You can compute the statistics over the entire stream using window folds
@@ -102,7 +102,6 @@ import Prelude hiding (length, sum, minimum, maximum)
 --
 -- Replace can be implemented using Insert and Delete.
 --
--- XXX Use "Replace old new" instead.
 
 -- | Represents incremental input for a scan. 'Insert' means a new element is
 -- being added to the collection, 'Replace' means an old value in the
@@ -110,7 +109,7 @@ import Prelude hiding (length, sum, minimum, maximum)
 data Incr a =
       Insert !a
     --  | Delete !a
-    | Replace !a !a -- ^ Replace new old
+    | Replace !a !a -- ^ Replace old new
 
 instance Functor Incr where
     fmap f (Insert x) = Insert (f x)
@@ -164,7 +163,7 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
 
     step (SWRing rb st) a = do
         (rb1, old) <- RingArray.replace rb a
-        r <- step1 st (Replace a old, rb1)
+        r <- step1 st (Replace old a, rb1)
         return $
             case r of
                 Partial s -> Partial $ SWRing rb1 s
@@ -205,7 +204,7 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
     step (SWRing mba rh st) a = do
         (rb1@(RingArray _ _ rh1), old) <-
             RingArray.insert (RingArray mba (n * SIZE_OF(a)) rh) a
-        r <- step1 st (Replace a old, rb1)
+        r <- step1 st (Replace old a, rb1)
         return $
             case r of
                 Partial s -> Partial $ SWRing mba rh1 s
@@ -252,7 +251,7 @@ incrRollingMapM f = Scanl.mkScanlM f1 initial
 
     f1 _ (Insert a) = f Nothing a
     -- f1 _ (Delete _) = return Nothing
-    f1 _ (Replace x y) = f (Just y) x
+    f1 _ (Replace old new) = f (Just old) new
 
 -- | Apply a pure function on the latest and the oldest element of the window.
 --
@@ -269,7 +268,7 @@ incrRollingMap f = Scanl.mkScanl f1 initial
 
     f1 _ (Insert a) = f Nothing a
     -- f1 _ (Delete _) = Nothing
-    f1 _ (Replace x y) = f (Just y) x
+    f1 _ (Replace old new) = f (Just old) new
 
 -------------------------------------------------------------------------------
 -- Sum
@@ -296,7 +295,7 @@ incrSumInt = Scanl step initial extract extract
 
     step s (Insert a) = return $ Partial (s + a)
     -- step s (Delete a) = return $ Partial (s - a)
-    step s (Replace new old) = return $ Partial (s + new - old)
+    step s (Replace old new) = return $ Partial (s + new - old)
 
     extract = return
 
@@ -353,7 +352,7 @@ incrSum = Scanl step initial extract extract
         let incr = -new - err
          in add total incr
     -}
-    step (Tuple' total err) (Replace new old) =
+    step (Tuple' total err) (Replace old new) =
         -- XXX if (new - old) is large we may lose err
         let incr = (new - old) - err
          in add total incr
