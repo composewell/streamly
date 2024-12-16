@@ -259,10 +259,19 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- because key is to be determined on each input whereas fold is to be
 -- determined only once for a key.
 --
--- XXX If a scan terminates do not start it again? This can be easily done by
--- installing a drain fold after a fold is done.
---
 -- XXX We can use the Scan drain step to drain the buffered map in the end.
+
+-- NOTE: Not restarting the scan can either use an external Set or Maybe value
+-- in the Map itself. We can evaluate the performace and change the
+-- implementation. Currently it uses a Set, similar to that of classify.
+--
+-- XXX Alternatively, if we had a Skip constructor in Fold, we can perhaps
+-- implement it without using a Set
+--
+-- XXX Implementing both, restarting and non-restarting capabilities in a single
+-- function makes the code look ugly. It does not look like a good abstraction.
+-- The abstraction might look better if we use functions as args but that might
+-- impact the performance. We can check and do this lazily on demand.
 
 -- | This is the most general of all demux, classify operations.
 --
@@ -270,9 +279,11 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- scans. The scan returns the scan result as the second component of the
 -- output tuple.
 --
+-- The scan is not restarted after it is completed.
+--
 -- See 'demux' for documentation.
 {-# INLINE demuxGeneric #-}
-demuxGeneric :: (Monad m, IsMap f, Traversable f) =>
+demuxGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
        (a -> Key f)
     -> (Key f -> m (Scanl m a b))
     -> Scanl m a (m (f b), Maybe (Key f, b))
@@ -281,10 +292,10 @@ demuxGeneric getKey getFold =
 
     where
 
-    initial = return $ Tuple' IsMap.mapEmpty Nothing
+    initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
 
     {-# INLINE runFold #-}
-    runFold kv (Scanl step1 initial1 extract1 final1) (k, a) = do
+    runFold kv set (Scanl step1 initial1 extract1 final1) (k, a) = do
          res <- initial1
          case res of
             Partial s -> do
@@ -292,28 +303,30 @@ demuxGeneric getKey getFold =
                 case res1 of
                         Partial ss -> do
                             b <- extract1 ss
-                            let fld = Scanl step1 (return res1) extract1 final1
-                            return
-                                $ Tuple'
-                                    (IsMap.mapInsert k fld kv) (Just (k, b))
-                        Done b ->
-                            return
-                                $ Tuple' (IsMap.mapDelete k kv) (Just (k, b))
+                            let fld = Scanl step1 (pure res1) extract1 final1
+                                kv1 = IsMap.mapInsert k fld kv
+                            pure $ Tuple3' kv1 set (Just (k, b))
+                        Done b -> do
+                            let kv1 = IsMap.mapDelete k kv
+                            pure $ Tuple3' kv1 (Set.insert k set) (Just (k, b))
             Done b ->
                 -- Done in "initial" is possible only for the very first time
                 -- the fold is initialized, and in that case we have not yet
                 -- inserted it in the Map, so we do not need to delete it.
-                return $ Tuple' kv (Just (k, b))
+                return $ Tuple3' kv (Set.insert k set) (Just (k, b))
 
-    step (Tuple' kv _) a = do
+    step (Tuple3' kv set _) a = do
         let k = getKey a
         case IsMap.mapLookup k kv of
-            Nothing -> do
-                fld <- getFold k
-                runFold kv fld (k, a)
-            Just f -> runFold kv f (k, a)
+            Nothing ->
+                if Set.member k set
+                then return (Tuple3' kv set Nothing)
+                else do
+                    fld <- getFold k
+                    runFold kv set fld (k, a)
+            Just f -> runFold kv set f (k, a)
 
-    extract (Tuple' kv x) = return (Prelude.mapM f kv, x)
+    extract (Tuple3' kv _ x) = return (Prelude.mapM f kv, x)
 
         where
 
@@ -323,7 +336,7 @@ demuxGeneric getKey getFold =
                 Partial s -> e s
                 _ -> error "demuxGeneric: unreachable code"
 
-    final (Tuple' kv x) = return (Prelude.mapM f kv, x)
+    final (Tuple3' kv _ x) = return (Prelude.mapM f kv, x)
 
         where
 
@@ -369,8 +382,6 @@ demux :: (Monad m, Ord k) =>
     -> Scanl m a (Maybe (k, b))
 demux getKey = fmap snd . demuxUsingMap getKey
 
--- XXX We can use the Scan drain step to drain the buffered map in the end.
-
 -- | This is specialized version of 'demuxGeneric' that uses mutable IO cells
 -- as fold accumulators for better performance.
 --
@@ -378,7 +389,7 @@ demux getKey = fmap snd . demuxUsingMap getKey
 -- ongoing scan if you are using those concurrently in another thread.
 --
 {-# INLINE demuxGenericIO #-}
-demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
+demuxGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
        (a -> Key f)
     -> (Key f -> m (Scanl m a b))
     -> Scanl m a (m (f b), Maybe (Key f, b))
@@ -387,10 +398,10 @@ demuxGenericIO getKey getFold =
 
     where
 
-    initial = return $ Tuple' IsMap.mapEmpty Nothing
+    initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
 
     {-# INLINE initFold #-}
-    initFold kv (Scanl step1 initial1 extract1 final1) (k, a) = do
+    initFold kv set (Scanl step1 initial1 extract1 final1) (k, a) = do
          res <- initial1
          case res of
             Partial s -> do
@@ -403,13 +414,13 @@ demuxGenericIO getKey getFold =
                         let fld = Scanl step1 (return res1) extract1 final1
                         ref <- liftIO $ newIORef fld
                         b <- extract1 ss
-                        return
-                            $ Tuple' (IsMap.mapInsert k ref kv) (Just (k, b))
-                    Done b -> return $ Tuple' kv (Just (k, b))
-            Done b -> return $ Tuple' kv (Just (k, b))
+                        let kv1 = IsMap.mapInsert k ref kv
+                        return $ Tuple3' kv1 set (Just (k, b))
+                    Done b -> pure $ Tuple3' kv (Set.insert k set) (Just (k, b))
+            Done b -> return $ Tuple3' kv (Set.insert k set) (Just (k, b))
 
     {-# INLINE runFold #-}
-    runFold kv ref (Scanl step1 initial1 extract1 final1) (k, a) = do
+    runFold kv set ref (Scanl step1 initial1 extract1 final1) (k, a) = do
          res <- initial1
          case res of
             Partial s -> do
@@ -419,23 +430,26 @@ demuxGenericIO getKey getFold =
                             let fld = Scanl step1 (return res1) extract1 final1
                             liftIO $ writeIORef ref fld
                             b <- extract1 ss
-                            return $ Tuple' kv (Just (k, b))
-                        Done b ->
+                            return $ Tuple3' kv set (Just (k, b))
+                        Done b -> do
                             let kv1 = IsMap.mapDelete k kv
-                             in return $ Tuple' kv1 (Just (k, b))
+                            pure $ Tuple3' kv1 (Set.insert k set) (Just (k, b))
             Done _ -> error "demuxGenericIO: unreachable"
 
-    step (Tuple' kv _) a = do
+    step (Tuple3' kv set _) a = do
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                f <- getFold k
-                initFold kv f (k, a)
+                if Set.member k set
+                then return (Tuple3' kv set Nothing)
+                else do
+                    fld <- getFold k
+                    initFold kv set fld (k, a)
             Just ref -> do
                 f <- liftIO $ readIORef ref
-                runFold kv ref f (k, a)
+                runFold kv set ref f (k, a)
 
-    extract (Tuple' kv x) = return (Prelude.mapM f kv, x)
+    extract (Tuple3' kv _ x) = return (Prelude.mapM f kv, x)
 
         where
 
@@ -446,7 +460,7 @@ demuxGenericIO getKey getFold =
                 Partial s -> e s
                 _ -> error "demuxGenericIO: unreachable code"
 
-    final (Tuple' kv x) = return (Prelude.mapM f kv, x)
+    final (Tuple3' kv _ x) = return (Prelude.mapM f kv, x)
 
         where
 
