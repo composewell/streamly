@@ -24,6 +24,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Foldable (asum)
 #ifdef BENCH_CHUNKED
 import Streamly.Data.Array (Array, Unbox)
+import qualified Streamly.Internal.Data.Array as Array (chunksOf)
 #endif
 #ifdef BENCH_CHUNKED_GENERIC
 import Streamly.Data.Array.Generic (Array)
@@ -116,7 +117,7 @@ benchIOSink value name f =
         >>= f
             . StreamK.fromStream
 #ifdef BENCH_CHUNKED
-            . Stream.chunksOf 4000
+            . Array.chunksOf 4000
 #endif
 #ifdef BENCH_CHUNKED_GENERIC
             . GenArr.chunksOf 4000
