@@ -82,6 +82,11 @@ module Streamly.Data.StreamK
     -- * Type
       StreamK
 
+    -- * CrossStreamK
+    , CrossStreamK
+    , unCross
+    , mkCross
+
     -- * Construction
     -- ** Primitives
     -- | Primitives to construct a stream from pure values or monadic actions.
@@ -126,6 +131,7 @@ module Streamly.Data.StreamK
     , mapM
     , dropWhile
     , take
+    , filter
 
     -- * Combining Two Streams
     -- | Unlike the operations in "Streamly.Data.Stream", these operations can
@@ -163,7 +169,7 @@ module Streamly.Data.StreamK
     -- >>> concatForFoldableWith f xs g = Prelude.foldr (f . g) StreamK.nil xs
     --
     , concatEffect
-    -- , concatMap
+    , concatMap
     , concatMapWith
     , mergeMapWith
 
@@ -184,6 +190,7 @@ module Streamly.Data.StreamK
 where
 
 import Streamly.Internal.Data.StreamK
-import Prelude hiding (reverse, zipWith, mapM, dropWhile, take)
+import Prelude hiding
+    (reverse, zipWith, mapM, dropWhile, take, filter, concatMap)
 
 #include "DocTestDataStreamK.hs"
