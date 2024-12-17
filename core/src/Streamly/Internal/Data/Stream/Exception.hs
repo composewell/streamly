@@ -180,7 +180,6 @@ gbracket bef aft onExc onGC ftry action =
 --
 -- Same as the following but more efficient due to fusion:
 --
--- >>> before action xs = Stream.nilM action <> xs
 -- >>> before action xs = Stream.concatMap (const xs) (Stream.fromEffect action)
 --
 {-# INLINE_NORMAL before #-}
