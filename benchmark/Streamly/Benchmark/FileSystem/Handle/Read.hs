@@ -29,7 +29,6 @@ import GHC.Magic (inline)
 import GHC.Magic (noinline)
 import System.IO (Handle)
 
-import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array as A
@@ -249,7 +248,7 @@ inspect $ 'groupsOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
 {-# INLINE chunksOf #-}
 chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
-    S.fold Fold.length $ Stream.chunksOf n (S.unfold FH.reader inh)
+    S.fold Fold.length $ A.chunksOf n (S.unfold FH.reader inh)
 
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_grouped env =
@@ -288,11 +287,11 @@ o_1_space_reduce_read_grouped env =
             groupsOf 1000 inh
 
         -- chunksOf may use a different impl than groupsOf
-        , mkBenchSmall "S.chunksOf 1" env $ \inh _ ->
+        , mkBenchSmall "A.chunksOf 1" env $ \inh _ ->
             chunksOf 1 inh
-        , mkBench "S.chunksOf 10" env $ \inh _ ->
+        , mkBench "A.chunksOf 10" env $ \inh _ ->
             chunksOf 10 inh
-        , mkBench "S.chunksOf 1000" env $ \inh _ ->
+        , mkBench "A.chunksOf 1000" env $ \inh _ ->
             chunksOf 1000 inh
         ]
     ]

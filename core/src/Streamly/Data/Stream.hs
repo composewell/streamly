@@ -665,11 +665,6 @@ module Streamly.Data.Stream
     , runReaderT
     , runStateT
 
-    -- XXX Arrays could be different types, therefore, this should be in
-    -- specific array module. Or maybe we should abstract over array types.
-    -- * Stream of Arrays
-    , Array.chunksOf
-
     -- * Deprecated
     , scan
     , scanMaybe
@@ -679,6 +674,7 @@ module Streamly.Data.Stream
     , unfoldMany
     , intercalate
     , intercalateSuffix
+    , chunksOf
     )
 where
 
@@ -688,6 +684,15 @@ import Prelude
                mapM, scanl, sequence, reverse, iterate, foldr1, repeat, replicate,
                concatMap)
 
+import Streamly.Internal.Data.Unbox (Unbox(..))
+import Control.Monad.IO.Class (MonadIO(..))
+
 import qualified Streamly.Internal.Data.Array.Type as Array
 
 #include "DocTestDataStream.hs"
+
+{-# DEPRECATED chunksOf "Please use chunksOf from the Array module instead." #-}
+{-# INLINE chunksOf #-}
+chunksOf :: forall m a. (MonadIO m, Unbox a)
+    => Int -> Stream m a -> Stream m (Array.Array a)
+chunksOf = Array.chunksOf

@@ -21,6 +21,7 @@ import Test.QuickCheck.Monadic (run, monadicIO, assert, PropertyM)
 import Streamly.Data.Stream (Stream)
 
 import qualified Streamly.Data.Array as A
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Array.Stream as AS
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -106,7 +107,7 @@ propDecodeEncodeIdArrays :: Property
 propDecodeEncodeIdArrays =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            let wrds = Stream.chunksOf 8 $ SS.encodeUtf8' $ Stream.fromList list
+            let wrds = Array.chunksOf 8 $ SS.encodeUtf8' $ Stream.fromList list
             chrs <- Stream.toList $ IUS.decodeUtf8Chunks wrds
             assertEq chrs list
 
