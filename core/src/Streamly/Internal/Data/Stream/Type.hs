@@ -225,6 +225,7 @@ pattern Stream step state <- (unShare -> UnStream step state)
 -- | A stream that terminates without producing any output, but produces a side
 -- effect.
 --
+-- >>> nilM action = Stream.before action Stream.nil
 -- >>> Stream.fold Fold.toList (Stream.nilM (print "nil"))
 -- "nil"
 -- []
