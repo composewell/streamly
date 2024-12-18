@@ -74,6 +74,9 @@ module Streamly.Data.Array
     , reader
     , readerRev
 
+    -- * Stream of Arrays
+    , chunksOf
+
     -- * Casting
     , cast
     , asBytes

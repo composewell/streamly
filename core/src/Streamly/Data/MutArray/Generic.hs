@@ -54,6 +54,9 @@ module Streamly.Data.MutArray.Generic
     , reader
     -- , readerRev
 
+    -- * Stream of Arrays
+    , chunksOf
+
     -- * Size
     , length
 

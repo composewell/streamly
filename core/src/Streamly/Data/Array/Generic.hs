@@ -33,6 +33,9 @@ module Streamly.Data.Array.Generic
     , reader
     -- , A.readerRev
 
+    -- * Stream of Arrays
+    , chunksOf
+
     -- * Random Access
     , length
     , getIndex
