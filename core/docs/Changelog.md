@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* The `FileSystem.Event.*` modules have been deprecated in favor of the
+  [streamly-fsevents](https://github.com/composewell/streamly-fsevents) package.
 * Add several concurrent combinators for folds in `Streamly.Data.Fold.Prelude`.
 * Split the `Fold` type in two, `Fold` and `Scanl`. `Streamly.Data.Scanl`
   module is added for the new `Scanl` type.
