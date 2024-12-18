@@ -80,7 +80,7 @@ double s d = monadicIO $ do
         Right val -> if val == d
                      then assert (val == d)
                      else trace ("Expected = " ++ show d ++ " Got = "++ show val) (assert (val == d))
-        Left (ParseError _) -> assert False
+        Left (ParseError _ _) -> assert False
 
 numberP :: Monad m => Parser Char m Double
 numberP = uncurry Parser.mkDouble <$> Parser.number
@@ -95,16 +95,16 @@ number s d = monadicIO $ do
         Right val -> if val == d
                      then assert (val == d)
                      else trace ("Expected = " ++ show d ++ " Got = "++ show val) (assert (val == d))
-        Left (ParseError _) -> assert False
+        Left (ParseError _ _) -> assert False
 
 doubleErr :: (String -> IO (Either ParseError Double)) -> String -> String -> Property
 doubleErr f s msg = monadicIO $ do
     x <- run $ f s
     case x of
         Right _ -> assert False
-        Left (ParseError err) -> if err == msg
-                                then assert (err == msg)
-                                else trace err (assert (err == msg))
+        Left (ParseError _ err) -> if err == msg
+                                   then assert (err == msg)
+                                   else trace err (assert (err == msg))
 
 remainingStreamDouble :: String -> [String]
 remainingStreamDouble x =
