@@ -1,4 +1,6 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserD.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -177,7 +179,8 @@ module Streamly.Internal.Data.Parser.Type
     (
     -- * Types
       Initial (..)
-    , Step (..)
+    -- (..) does not seem to export patterns yet the compiler complains it does.
+    , Step(Partial, Continue, Done, SPartial, SContinue, SDone, Error)
     , extractStep
     , bimapOverrideCount
     , Parser (..)
@@ -290,60 +293,66 @@ instance Functor (Initial s) where
 --
 -- Folds can only return the right values. Parsers can also return lefts.
 
+-- XXX If we assume that the current position of the stream includes the
+-- element being processed then we can use 'SPartial 0' in the common cases, no
+-- change from current, and the change required would be just inverting the
+-- sign of the arguments.
+
 -- | The return type of a 'Parser' step.
 --
--- The parse operation feeds the input stream to the parser one element at a
--- time, representing a parse 'Step'. The parser may or may not consume the
--- item and returns a result. If the result is 'Partial' we can either extract
--- the result or feed more input to the parser. If the result is 'Continue', we
--- must feed more input in order to get a result. If the parser returns 'Done'
--- then the parser can no longer take any more input.
+-- The parser driver feeds the input stream to the parser one element at a
+-- time, representing a parse 'Step'. If the step result is 'SPartial' then a
+-- parse result is available, we can extract the result and feed more input to
+-- the parser. If the result is 'SContinue', we must feed more input in order
+-- to get a result. If the parser returns 'SDone' then the parser can no longer
+-- take any more input.
 --
--- If the result is 'Continue', the parse operation retains the input in a
--- backtracking buffer, in case the parser may ask to backtrack in future.
--- Whenever a 'Partial n' result is returned we first backtrack by @n@ elements
--- in the input and then release any remaining backtracking buffer. Similarly,
--- 'Continue n' backtracks to @n@ elements before the current position and
--- starts feeding the input from that point for future invocations of the
--- parser.
+-- The first argument of `SPartial`, `Scontinue` and `SDone` is an integer
+-- representing adjustment to the current stream position. The stream position
+-- is adjusted by that amount and the next step would use an input from the new
+-- position. If n is positive we go forward in the stream, if it is negative we
+-- go backward. If it is 0 we stay put at the same position and the same input
+-- is used for the next step.
+--
+-- If the result is 'SContinue', the parser driver retains the input in a
+-- backtracking buffer, if the parser fails we may have to backtrack. If the
+-- result is `SPartial` then the backtracking buffer is released i.e. we cannot
+-- backtrack beyond this point in th stream. The parser must ensure that the
+-- backtrack position is always after that.
 --
 -- If parser is not yet done, we can use the @extract@ operation on the @state@
 -- of the parser to extract a result. If the parser has not yet yielded a
--- result, the operation fails with a 'ParseError' exception. If the parser
--- yielded a 'Partial' result in the past the last partial result is returned.
--- Therefore, if a parser yields a partial result once it cannot fail later on.
---
--- The parser can never backtrack beyond the position where the last partial
--- result left it at. The parser must ensure that the backtrack position is
--- always after that.
+-- result, the extract fails with a 'ParseError' exception. If the parser
+-- yielded a 'Partial' result in the past the latest partial result is
+-- returned. Therefore, if a parser yields a partial result once it cannot fail
+-- later on.
 --
 -- /Pre-release/
 --
 {-# ANN type Step Fuse #-}
 data Step s b =
-        Partial !Int !s
-    -- ^ @Partial count state@. The following hold on Partial result:
+        SPartial !Int !s
+    -- ^ @SPartial count state@. The following hold on Partial result:
     --
     -- 1. @extract@ on @state@ would succeed and give a result.
-    -- 2. Input stream position is reset to @current position - count@.
-    -- 3. All input before the new position is dropped. The parser can
+    -- 2. Input stream position is reset to @current position + count@.
+    -- 3. All buffered input before the new position is dropped. The parser can
     -- never backtrack beyond this position.
 
-    | Continue !Int !s
-    -- ^ @Continue count state@. The following hold on a Continue result:
+    | SContinue !Int !s
+    -- ^ @SContinue count state@. The following hold on a Continue result:
     --
-    -- 1. If there was a 'Partial' result in past, @extract@ on @state@ would
-    -- give that result as 'Done' otherwise it may return 'Error' or
-    -- 'Continue'.
-    -- 2. Input stream position is reset to @current position - count@.
-    -- 3. the input is retained in a backtrack buffer.
+    -- 1. If there was a 'SPartial' result in past, @extract@ on @state@ would
+    -- give that result otherwise it may return 'Error' or 'SContinue'.
+    -- 2. Input stream position is reset to @current position + count@.
+    -- 3. the previous input is retained in a backtrack buffer.
 
-    | Done !Int !b
+    | SDone !Int !b
     -- ^ Done with leftover input count and result.
     --
-    -- @Done count result@ means the parser has finished, it will accept no
-    -- more input, last @count@ elements from the input are unused and the
-    -- result of the parser is in @result@.
+    -- @SDone count result@ means the parser has finished, it will accept no
+    -- more input, the final stream position must be set to @current position +
+    -- count@ and the result of the parser is in @result@.
 
     | Error !String
     -- ^ Parser failed without generating any output.
@@ -352,23 +361,52 @@ data Step s b =
     -- alternative.
     deriving (Show)
 
+--------------------------------------------------------------------------------
+-- Custom Patterns
+--------------------------------------------------------------------------------
+
+negateDirection :: Step s b -> Step s b
+negateDirection (SPartial i s) = SPartial (1 - i) s
+negateDirection (SContinue i s) = SContinue (1 - i) s
+negateDirection (SDone i b) = SDone (1 - i) b
+negateDirection (Error s) = Error s
+
+{-# DEPRECATED Partial "Please use @SPartial (1 - n)@ instead of @Partial n@" #-}
+pattern Partial :: Int -> s -> Step s b
+pattern Partial i s <- (negateDirection -> SPartial i s)
+    where Partial i s = SPartial (1 - i) s
+
+{-# DEPRECATED Continue "Please use @SContinue (1 - n)@ instead of @Continue n@" #-}
+pattern Continue :: Int -> s -> Step s b
+pattern Continue i s <- (negateDirection -> SContinue i s)
+    where Continue i s = SContinue (1 - i) s
+
+{-# DEPRECATED Done "Please use @SDone (1 - n)@ instead of @Done n@" #-}
+pattern Done :: Int -> b -> Step s b
+pattern Done i b <- (negateDirection -> SDone i b)
+    where Done i b = SDone (1 - i) b
+
+--------------------------------------------------------------------------------
+-- Code
+--------------------------------------------------------------------------------
+
 -- | Map first function over the state and second over the result.
 instance Bifunctor Step where
     {-# INLINE bimap #-}
     bimap f g step =
         case step of
-            Partial n s -> Partial n (f s)
-            Continue n s -> Continue n (f s)
-            Done n b -> Done n (g b)
+            SPartial n s -> SPartial n (f s)
+            SContinue n s -> SContinue n (f s)
+            SDone n b -> SDone n (g b)
             Error err -> Error err
 
 -- | Bimap discarding the count, and using the supplied count instead.
 bimapOverrideCount :: Int -> (s -> s1) -> (b -> b1) -> Step s b -> Step s1 b1
 bimapOverrideCount n f g step =
     case step of
-        Partial _ s -> Partial n (f s)
-        Continue _ s -> Continue n (f s)
-        Done _ b -> Done n (g b)
+        SPartial _ s -> SPartial n (f s)
+        SContinue _ s -> SContinue n (f s)
+        SDone _ b -> SDone n (g b)
         Error err -> Error err
 
 -- | fmap = second
@@ -380,9 +418,9 @@ instance Functor (Step s) where
 assertStepCount :: Int -> Step s b -> Step s b
 assertStepCount i step =
     case step of
-        Partial n _ -> assert (i == n) step
-        Continue n _ -> assert (i == n) step
-        Done n _ -> assert (i == n) step
+        SPartial n _ -> assert (i == n) step
+        SContinue n _ -> assert (i == n) step
+        SDone n _ -> assert (i == n) step
         Error _ -> step
 
 -- | Map an extract function over the state of Step
@@ -391,9 +429,9 @@ assertStepCount i step =
 extractStep :: Monad m => (s -> m (Step s1 b)) -> Step s b -> m (Step s1 b)
 extractStep f res =
     case res of
-        Partial n s1 -> assertStepCount n <$> f s1
-        Done n b -> return $ Done n b
-        Continue n s1 -> assertStepCount n <$> f s1
+        SPartial n s1 -> assertStepCount n <$> f s1
+        SDone n b -> return $ SDone n b
+        SContinue n s1 -> assertStepCount n <$> f s1
         Error err -> return $ Error err
 
 -- | Map a monadic function over the result @b@ in @Step s b@.
@@ -403,9 +441,9 @@ extractStep f res =
 mapMStep :: Applicative m => (a -> m b) -> Step s a -> m (Step s b)
 mapMStep f res =
     case res of
-        Partial n s -> pure $ Partial n s
-        Done n b -> Done n <$> f b
-        Continue n s -> pure $ Continue n s
+        SPartial n s -> pure $ SPartial n s
+        SDone n b -> SDone n <$> f b
+        SContinue n s -> pure $ SContinue n s
         Error err -> pure $ Error err
 
 -- | A parser is a fold that can fail and is represented as @Parser step
@@ -423,12 +461,12 @@ mapMStep f res =
 data Parser a m b =
     forall s. Parser
         (s -> a -> m (Step s b))
-        -- Initial cannot return "Partial/Done n" or "Continue". Continue 0 is
-        -- same as Partial 0. In other words it cannot backtrack.
+        -- Initial cannot backtrack.
         (m (Initial s b))
-        -- Extract can only return Partial or Continue n. In other words it can
-        -- only backtrack or return partial result/error. But we do not return
-        -- result in Partial, therefore, we have to use Done instead of Partial.
+        -- Extract can only return SPartial or SContinue n. In other words it
+        -- can only backtrack or return partial result/error. But we do not
+        -- return result in Partial, therefore, we have to use SDone instead of
+        -- SPartial.
         (s -> m (Step s b))
 
 {-
@@ -594,15 +632,15 @@ splitWith func (Parser stepL initialL extractL)
             -- e.g. in ((,) <$> p1 <*> p2) <|> p3, if p2 fails we have to
             -- backtrack and start running p3. So we need to keep the input
             -- buffered until we know that the applicative cannot fail.
-            Partial n s -> return $ Continue n (SeqParseL s)
-            Continue n s -> return $ Continue n (SeqParseL s)
-            Done n b -> do
+            SPartial n s -> return $ SContinue n (SeqParseL s)
+            SContinue n s -> return $ SContinue n (SeqParseL s)
+            SDone n b -> do
                 -- XXX Use bimap if we make this a Step type
                 -- fmap (bimap (SeqParseR (func b)) (func b)) initialR
                 initR <- initialR
                 return $ case initR of
-                   IPartial sr -> Continue n $ SeqParseR (func b) sr
-                   IDone br -> Done n (func b br)
+                   IPartial sr -> SContinue n $ SeqParseR (func b) sr
+                   IDone br -> SDone n (func b br)
                    IError err -> Error err
             Error err -> return $ Error err
 
@@ -613,7 +651,7 @@ splitWith func (Parser stepL initialL extractL)
         -- XXX Use bimap here
         rL <- extractL sL
         case rL of
-            Done n bL -> do
+            SDone n bL -> do
                 -- XXX Use bimap here if we use Step type in Initial
                 iR <- initialR
                 case iR of
@@ -621,11 +659,11 @@ splitWith func (Parser stepL initialL extractL)
                         fmap
                             (bimap (SeqParseR (func bL)) (func bL))
                             (extractR sR)
-                    IDone bR -> return $ Done n $ func bL bR
+                    IDone bR -> return $ SDone n $ func bL bR
                     IError err -> return $ Error err
             Error err -> return $ Error err
-            Partial _ _ -> error "Bug: splitWith extract 'Partial'"
-            Continue n s -> return $ Continue n (SeqParseL s)
+            SPartial _ _ -> error "Bug: splitWith extract 'Partial'"
+            SContinue n s -> return $ SContinue n (SeqParseL s)
 
 -------------------------------------------------------------------------------
 -- Sequential applicative for backtracking folds
@@ -667,20 +705,20 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
             IError err -> errMsg err
 
     -- Note: For the composed parse to terminate, the left parser has to be
-    -- a terminating parser returning a Done at some point.
+    -- a terminating parser returning a SDone at some point.
     step (SeqParseL st) a = do
         r <- stepL st a
         case r of
             -- Assume that the parser can never fail, therefore, we do not
             -- need to keep the input for backtracking.
-            Partial n s -> return $ Partial n (SeqParseL s)
-            Continue n s -> return $ Continue n (SeqParseL s)
-            Done n b -> do
+            SPartial n s -> return $ SPartial n (SeqParseL s)
+            SContinue n s -> return $ SContinue n (SeqParseL s)
+            SDone n b -> do
                 res <- initialR
                 return
                     $ case res of
-                          IPartial sr -> Partial n $ SeqParseR (func b) sr
-                          IDone br -> Done n (func b br)
+                          IPartial sr -> SPartial n $ SeqParseR (func b) sr
+                          IDone br -> SDone n (func b br)
                           IError err -> errMsg err
             Error err -> errMsg err
 
@@ -691,7 +729,7 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
     extract (SeqParseL sL) = do
         rL <- extractL sL
         case rL of
-            Done n bL -> do
+            SDone n bL -> do
                 iR <- initialR
                 case iR of
                     IPartial sR -> do
@@ -699,11 +737,11 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
                         return
                             $ bimapOverrideCount
                                 n (SeqParseR (func bL)) (func bL) rR
-                    IDone bR -> return $ Done n $ func bL bR
+                    IDone bR -> return $ SDone n $ func bL bR
                     IError err -> errMsg err
             Error err -> errMsg err
-            Partial _ _ -> errMsg "Partial"
-            Continue n s -> return $ Continue n (SeqParseL s)
+            SPartial _ _ -> errMsg "Partial"
+            SContinue n s -> return $ SContinue n (SeqParseL s)
 
 {-# ANN type SeqAState Fuse #-}
 data SeqAState sl sr = SeqAL !sl | SeqAR !sr
@@ -744,7 +782,7 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
             IError err -> return $ IError err
 
     -- Note: For the composed parse to terminate, the left parser has to be
-    -- a terminating parser returning a Done at some point.
+    -- a terminating parser returning a SDone at some point.
     step (SeqAL st) a = do
         -- Important: Do not use Applicative here. Applicative somehow caused
         -- the right action to run many times, not sure why though.
@@ -752,13 +790,13 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         case resL of
             -- Note: this leads to buffering even if we are not in an
             -- Alternative composition.
-            Partial n s -> return $ Continue n (SeqAL s)
-            Continue n s -> return $ Continue n (SeqAL s)
-            Done n _ -> do
+            SPartial n s -> return $ SContinue n (SeqAL s)
+            SContinue n s -> return $ SContinue n (SeqAL s)
+            SDone n _ -> do
                 initR <- initialR
                 return $ case initR of
-                    IPartial s -> Continue n (SeqAR s)
-                    IDone b -> Done n b
+                    IPartial s -> SContinue n (SeqAR s)
+                    IDone b -> SDone n b
                     IError err -> Error err
             Error err -> return $ Error err
 
@@ -768,17 +806,17 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     extract (SeqAL sL) = do
         rL <- extractL sL
         case rL of
-            Done n _ -> do
+            SDone n _ -> do
                 iR <- initialR
                 -- XXX For initial we can have a bimap with leftover.
                 case iR of
                     IPartial sR ->
                         fmap (bimapOverrideCount n SeqAR id) (extractR sR)
-                    IDone bR -> return $ Done n bR
+                    IDone bR -> return $ SDone n bR
                     IError err -> return $ Error err
             Error err -> return $ Error err
-            Partial _ _ -> error "split_: Partial"
-            Continue n s -> return $ Continue n (SeqAL s)
+            SPartial _ _ -> error "split_: Partial"
+            SContinue n s -> return $ SContinue n (SeqAL s)
 
 -- | Better performance 'split_' for non-failing parsers.
 --
@@ -806,20 +844,20 @@ noErrorUnsafeSplit_
             IError err -> errMsg err
 
     -- Note: For the composed parse to terminate, the left parser has to be
-    -- a terminating parser returning a Done at some point.
+    -- a terminating parser returning a SDone at some point.
     step (SeqAL st) a = do
         -- Important: Please do not use Applicative here. Applicative somehow
         -- caused the next action to run many times in the "tar" parsing code,
         -- not sure why though.
         resL <- stepL st a
         case resL of
-            Partial n s -> return $ Partial n (SeqAL s)
-            Continue n s -> return $ Continue n (SeqAL s)
-            Done n _ -> do
+            SPartial n s -> return $ SPartial n (SeqAL s)
+            SContinue n s -> return $ SContinue n (SeqAL s)
+            SDone n _ -> do
                 initR <- initialR
                 return $ case initR of
-                    IPartial s -> Partial n (SeqAR s)
-                    IDone b -> Done n b
+                    IPartial s -> SPartial n (SeqAR s)
+                    IDone b -> SDone n b
                     IError err -> errMsg err
             Error err -> errMsg err
 
@@ -829,16 +867,16 @@ noErrorUnsafeSplit_
     extract (SeqAL sL) = do
         rL <- extractL sL
         case rL of
-            Done n _ -> do
+            SDone n _ -> do
                 iR <- initialR
                 case iR of
                     IPartial sR -> do
                         fmap (bimapOverrideCount n SeqAR id) (extractR sR)
-                    IDone bR -> return $ Done n bR
+                    IDone bR -> return $ SDone n bR
                     IError err -> errMsg err
             Error err -> errMsg err
-            Partial _ _ -> error "split_: Partial"
-            Continue n s -> return $ Continue n (SeqAL s)
+            SPartial _ _ -> error "split_: Partial"
+            SContinue n s -> return $ SContinue n (SeqAL s)
 
 -- | READ THE CAVEATS in 'splitWith' before using this instance.
 --
@@ -922,25 +960,25 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     step (AltParseL cnt st) a = do
         r <- stepL st a
         case r of
-            Partial n s -> return $ Partial n (AltParseL 0 s)
-            Continue n s -> do
-                assertM(cnt + 1 - n >= 0)
-                return $ Continue n (AltParseL (cnt + 1 - n) s)
-            Done n b -> return $ Done n b
+            SPartial n s -> return $ SPartial n (AltParseL 0 s)
+            SContinue n s -> do
+                assertM(cnt + n >= 0)
+                return $ SContinue n (AltParseL (cnt + n) s)
+            SDone n b -> return $ SDone n b
             Error _ -> do
                 res <- initialR
                 return
                     $ case res of
-                          IPartial rR -> Continue (cnt + 1) (AltParseR rR)
-                          IDone b -> Done (cnt + 1) b
+                          IPartial rR -> SContinue (negate cnt) (AltParseR rR)
+                          IDone b -> SDone (negate cnt) b
                           IError err -> Error err
 
     step (AltParseR st) a = do
         r <- stepR st a
         return $ case r of
-            Partial n s -> Partial n (AltParseR s)
-            Continue n s -> Continue n (AltParseR s)
-            Done n b -> Done n b
+            SPartial n s -> SPartial n (AltParseR s)
+            SContinue n s -> SContinue n (AltParseR s)
+            SDone n b -> SDone n b
             Error err -> Error err
 
     extract (AltParseR sR) = fmap (first AltParseR) (extractR sR)
@@ -948,18 +986,18 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     extract (AltParseL cnt sL) = do
         rL <- extractL sL
         case rL of
-            Done n b -> return $ Done n b
+            SDone n b -> return $ SDone n b
             Error _ -> do
                 res <- initialR
                 return
                     $ case res of
-                          IPartial rR -> Continue cnt (AltParseR rR)
-                          IDone b -> Done cnt b
+                          IPartial rR -> SContinue (1 - cnt) (AltParseR rR)
+                          IDone b -> SDone (1 - cnt) b
                           IError err -> Error err
-            Partial _ _ -> error "Bug: alt: extractL 'Partial'"
-            Continue n s -> do
-                assertM(n == cnt)
-                return $ Continue n (AltParseL 0 s)
+            SPartial _ _ -> error "Bug: alt: extractL 'Partial'"
+            SContinue n s -> do
+                assertM(n == 1 - cnt)
+                return $ SContinue n (AltParseL 0 s)
 
 {-# ANN type Fused3 Fuse #-}
 data Fused3 a b c = Fused3 !a !b !c
@@ -1000,34 +1038,34 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
-            Partial n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Continue n (Fused3 s (cnt1 - n) fs)
-            Continue n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Continue n (Fused3 s (cnt1 - n) fs)
-            Done n b -> do
-                assertM(cnt1 - n >= 0)
-                fstep fs b >>= handleCollect (Partial n) (Done n)
+            SPartial n s -> do
+                assertM(cnt1 >= 1 - n)
+                return $ SContinue n (Fused3 s (cnt1 + n - 1) fs)
+            SContinue n s -> do
+                assertM(cnt1 >= 1 - n)
+                return $ SContinue n (Fused3 s (cnt1 + n - 1) fs)
+            SDone n b -> do
+                assertM(cnt1 >= 1 - n)
+                fstep fs b >>= handleCollect (SPartial n) (SDone n)
             Error _ -> do
                 xs <- ffinal fs
-                return $ Done cnt xs
+                return $ SDone (1 - cnt) xs
 
-    extract (Fused3 _ 0 fs) = fmap (Done 0) (ffinal fs)
+    extract (Fused3 _ 0 fs) = fmap (SDone 1) (ffinal fs)
     extract (Fused3 s cnt fs) = do
         r <- extract1 s
         case r of
-            Error _ -> fmap (Done cnt) (ffinal fs)
-            Done n b -> do
-                assertM(n <= cnt)
+            Error _ -> fmap (SDone (1 - cnt)) (ffinal fs)
+            SDone n b -> do
+                assertM(1 - n <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
-                    FL.Partial s1 -> fmap (Done n) (ffinal s1)
-                    FL.Done b1 -> return (Done n b1)
-            Partial _ _ -> error "splitMany: Partial in extract"
-            Continue n s1 -> do
-                assertM(n == cnt)
-                return (Continue n (Fused3 s1 0 fs))
+                    FL.Partial s1 -> fmap (SDone n) (ffinal s1)
+                    FL.Done b1 -> return (SDone n b1)
+            SPartial _ _ -> error "splitMany: SPartial in extract"
+            SContinue n s1 -> do
+                assertM(1 - n == cnt)
+                return (SContinue n (Fused3 s1 0 fs))
 
 -- | Like splitMany, but inner fold emits an output at the end even if no input
 -- is received.
@@ -1064,33 +1102,33 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
-            Partial n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Continue n (Fused3 s (cnt1 - n) fs)
-            Continue n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Continue n (Fused3 s (cnt1 - n) fs)
-            Done n b -> do
-                assertM(cnt1 - n >= 0)
-                fstep fs b >>= handleCollect (Partial n) (Done n)
+            SPartial n s -> do
+                assertM(cnt1 >= 1 - n)
+                return $ SContinue n (Fused3 s (cnt1 + n - 1) fs)
+            SContinue n s -> do
+                assertM(cnt1 >= 1 - n)
+                return $ SContinue n (Fused3 s (cnt1 + n - 1) fs)
+            SDone n b -> do
+                assertM(cnt1 >= 1 - n)
+                fstep fs b >>= handleCollect (SPartial n) (SDone n)
             Error _ -> do
                 xs <- ffinal fs
-                return $ Done cnt1 xs
+                return $ SDone (1 - cnt1) xs
 
     extract (Fused3 s cnt fs) = do
         r <- extract1 s
         case r of
-            Error _ -> fmap (Done cnt) (ffinal fs)
-            Done n b -> do
-                assertM(n <= cnt)
+            Error _ -> fmap (SDone (1 - cnt)) (ffinal fs)
+            SDone n b -> do
+                assertM(1 - n <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
-                    FL.Partial s1 -> fmap (Done n) (ffinal s1)
-                    FL.Done b1 -> return (Done n b1)
-            Partial _ _ -> error "splitMany: Partial in extract"
-            Continue n s1 -> do
-                assertM(n == cnt)
-                return (Continue n (Fused3 s1 0 fs))
+                    FL.Partial s1 -> fmap (SDone n) (ffinal s1)
+                    FL.Done b1 -> return (SDone n b1)
+            SPartial _ _ -> error "splitMany: SPartial in extract"
+            SContinue n s1 -> do
+                assertM(1 - n == cnt)
+                return (SContinue n (Fused3 s1 0 fs))
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.some'.
 --
@@ -1141,59 +1179,59 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
         -- In the Left state, count is used only for the assert
         let cnt1 = cnt + 1
         case r of
-            Partial n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Continue n (Fused3 s (cnt1 - n) (Left fs))
-            Continue n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Continue n (Fused3 s (cnt1 - n) (Left fs))
-            Done n b -> do
-                assertM(cnt1 - n >= 0)
-                fstep fs b >>= handleCollect (Partial n) (Done n)
+            SPartial n s -> do
+                assertM(cnt1 >= 1 - n)
+                return $ SContinue n (Fused3 s (cnt1 + n - 1) (Left fs))
+            SContinue n s -> do
+                assertM(cnt1 >= 1 - n)
+                return $ SContinue n (Fused3 s (cnt1 + n - 1) (Left fs))
+            SDone n b -> do
+                assertM(cnt1 >= 1 - n)
+                fstep fs b >>= handleCollect (SPartial n) (SDone n)
             Error err -> return $ Error err
     step (Fused3 st cnt (Right fs)) a = do
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
-            Partial n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Partial n (Fused3 s (cnt1 - n) (Right fs))
-            Continue n s -> do
-                assertM(cnt1 - n >= 0)
-                return $ Continue n (Fused3 s (cnt1 - n) (Right fs))
-            Done n b -> do
-                assertM(cnt1 - n >= 0)
-                fstep fs b >>= handleCollect (Partial n) (Done n)
-            Error _ -> Done cnt1 <$> ffinal fs
+            SPartial n s -> do
+                assertM(cnt1 >= 1 - n)
+                return $ SPartial n (Fused3 s (cnt1 + n - 1) (Right fs))
+            SContinue n s -> do
+                assertM(cnt1 >= 1 - n)
+                return $ SContinue n (Fused3 s (cnt1 + n - 1) (Right fs))
+            SDone n b -> do
+                assertM(cnt1 >= 1 - n)
+                fstep fs b >>= handleCollect (SPartial n) (SDone n)
+            Error _ -> SDone (1 - cnt1) <$> ffinal fs
 
     extract (Fused3 s cnt (Left fs)) = do
         r <- extract1 s
         case r of
             Error err -> return (Error err)
-            Done n b -> do
-                assertM(n <= cnt)
+            SDone n b -> do
+                assertM(1 - n <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
-                    FL.Partial s1 -> fmap (Done n) (ffinal s1)
-                    FL.Done b1 -> return (Done n b1)
-            Partial _ _ -> error "splitSome: Partial in extract"
-            Continue n s1 -> do
-                assertM(n == cnt)
-                return (Continue n (Fused3 s1 0 (Left fs)))
+                    FL.Partial s1 -> fmap (SDone n) (ffinal s1)
+                    FL.Done b1 -> return (SDone n b1)
+            SPartial _ _ -> error "splitSome: SPartial in extract"
+            SContinue n s1 -> do
+                assertM(1 - n == cnt)
+                return (SContinue n (Fused3 s1 0 (Left fs)))
     extract (Fused3 s cnt (Right fs)) = do
         r <- extract1 s
         case r of
-            Error _ -> fmap (Done cnt) (ffinal fs)
-            Done n b -> do
-                assertM(n <= cnt)
+            Error _ -> fmap (SDone (1 - cnt)) (ffinal fs)
+            SDone n b -> do
+                assertM(1 - n <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
-                    FL.Partial s1 -> fmap (Done n) (ffinal s1)
-                    FL.Done b1 -> return (Done n b1)
-            Partial _ _ -> error "splitSome: Partial in extract"
-            Continue n s1 -> do
-                assertM(n == cnt)
-                return (Continue n (Fused3 s1 0 (Right fs)))
+                    FL.Partial s1 -> fmap (SDone n) (ffinal s1)
+                    FL.Done b1 -> return (SDone n b1)
+            SPartial _ _ -> error "splitSome: SPartial in extract"
+            SContinue n s1 -> do
+                assertM(1 - n == cnt)
+                return (SContinue n (Fused3 s1 0 (Right fs)))
 
 -- | A parser that always fails with an error message without consuming
 -- any input.
@@ -1278,24 +1316,24 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
     initializeRL n (Parser stepR initialR extractR) = do
         resR <- initialR
         return $ case resR of
-            IPartial sr -> Continue n $ ConcatParseR stepR sr extractR
-            IDone br -> Done n br
+            IPartial sr -> SContinue n $ ConcatParseR stepR sr extractR
+            IDone br -> SDone n br
             IError err -> Error err
 
     step (ConcatParseL st) a = do
         r <- stepL st a
         case r of
-            Partial n s -> return $ Continue n (ConcatParseL s)
-            Continue n s -> return $ Continue n (ConcatParseL s)
-            Done n b -> initializeRL n (func b)
+            SPartial n s -> return $ SContinue n (ConcatParseL s)
+            SContinue n s -> return $ SContinue n (ConcatParseL s)
+            SDone n b -> initializeRL n (func b)
             Error err -> return $ Error err
 
     step (ConcatParseR stepR st extractR) a = do
         r <- stepR st a
         return $ case r of
-            Partial n s -> Partial n $ ConcatParseR stepR s extractR
-            Continue n s -> Continue n $ ConcatParseR stepR s extractR
-            Done n b -> Done n b
+            SPartial n s -> SPartial n $ ConcatParseR stepR s extractR
+            SContinue n s -> SContinue n $ ConcatParseR stepR s extractR
+            SDone n b -> SDone n b
             Error err -> Error err
 
     {-# INLINE extractP #-}
@@ -1306,7 +1344,7 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
                 fmap
                     (first (\s1 -> ConcatParseR stepR s1 extractR))
                     (extractR s)
-            IDone b -> return (Done n b)
+            IDone b -> return (SDone n b)
             IError err -> return $ Error err
 
     extract (ConcatParseR stepR s extractR) =
@@ -1315,9 +1353,9 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
         rL <- extractL sL
         case rL of
             Error err -> return $ Error err
-            Done n b -> extractP n $ func b
-            Partial _ _ -> error "concatMap: extract Partial"
-            Continue n s -> return $ Continue n (ConcatParseL s)
+            SDone n b -> extractP n $ func b
+            SPartial _ _ -> error "concatMap: extract Partial"
+            SContinue n s -> return $ SContinue n (ConcatParseL s)
 
 -- | Better performance 'concatMap' for non-failing parsers.
 --
@@ -1352,24 +1390,24 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
     initializeRL n (Parser stepR initialR extractR) = do
         resR <- initialR
         return $ case resR of
-            IPartial sr -> Partial n $ ConcatParseR stepR sr extractR
-            IDone br -> Done n br
+            IPartial sr -> SPartial n $ ConcatParseR stepR sr extractR
+            IDone br -> SDone n br
             IError err -> Error err
 
     step (ConcatParseL st) a = do
         r <- stepL st a
         case r of
-            Partial n s -> return $ Partial n (ConcatParseL s)
-            Continue n s -> return $ Continue n (ConcatParseL s)
-            Done n b -> initializeRL n (func b)
+            SPartial n s -> return $ SPartial n (ConcatParseL s)
+            SContinue n s -> return $ SContinue n (ConcatParseL s)
+            SDone n b -> initializeRL n (func b)
             Error err -> return $ Error err
 
     step (ConcatParseR stepR st extractR) a = do
         r <- stepR st a
         return $ case r of
-            Partial n s -> Partial n $ ConcatParseR stepR s extractR
-            Continue n s -> Continue n $ ConcatParseR stepR s extractR
-            Done n b -> Done n b
+            SPartial n s -> SPartial n $ ConcatParseR stepR s extractR
+            SContinue n s -> SContinue n $ ConcatParseR stepR s extractR
+            SDone n b -> SDone n b
             Error err -> Error err
 
     {-# INLINE extractP #-}
@@ -1380,7 +1418,7 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
                 fmap
                     (first (\s1 -> ConcatParseR stepR s1 extractR))
                     (extractR s)
-            IDone b -> return (Done n b)
+            IDone b -> return (SDone n b)
             IError err -> return $ Error err
 
     extract (ConcatParseR stepR s extractR) =
@@ -1389,9 +1427,9 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
         rL <- extractL sL
         case rL of
             Error err -> return $ Error err
-            Done n b -> extractP n $ func b
-            Partial _ _ -> error "concatMap: extract Partial"
-            Continue n s -> return $ Continue n (ConcatParseL s)
+            SDone n b -> extractP n $ func b
+            SPartial _ _ -> error "concatMap: extract Partial"
+            SContinue n s -> return $ SContinue n (ConcatParseL s)
 
 -- Note: The monad instance has quadratic performance complexity. It works fine
 -- for small number of compositions but for a scalable implementation we need a
@@ -1472,7 +1510,7 @@ filter f (Parser step initial extract) = Parser step1 initial extract
 
     where
 
-    step1 x a = if f a then step x a else return $ Partial 0 x
+    step1 x a = if f a then step x a else return $ SPartial 1 x
 
 -- XXX move this to ParserD.Transformer
 
