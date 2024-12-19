@@ -34,6 +34,21 @@ module Streamly.Internal.FileSystem.Path.Common
     , append
     , unsafeAppend
 
+    -- * Path normalization
+
+    -- Most of these helpers are exposed because we want to test them using
+    -- docspec.
+
+    , readDriveShareName
+    , readDriveLetter
+    , readDriveUNC
+    , readDriveShare
+    , spanDrive
+    , normalizeDrive
+    , splitPath
+    , isNotFileLocation
+    , normalizedEq
+
     -- * Utilities
     , wordToChar
     , charToWord
@@ -43,8 +58,28 @@ where
 
 #include "assert.hs"
 
+{- $setup
+>>> :m
+
+>>> import Data.Functor.Identity (runIdentity)
+>>> import System.IO.Unsafe (unsafePerformIO)
+>>> import qualified Streamly.Data.Stream as Stream
+>>> import qualified Streamly.Unicode.Stream as Unicode
+>>> import qualified Streamly.Internal.Data.Array as Array
+>>> import qualified Streamly.Internal.FileSystem.Path.Common as Common
+>>> import qualified Streamly.Internal.Unicode.Stream as Unicode
+
+>>> packPosix = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf8' . Stream.fromList
+>>> unpackPosix = runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.read
+
+>>> packWindows = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf16le' . Stream.fromList
+>>> unpackWindows = runIdentity . Stream.toList . Unicode.decodeUtf16le' . Array.read
+-}
+
 import Control.Monad.Catch (MonadThrow(..))
-import Data.Char (ord, isAlpha)
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.Char (ord, isAlpha, isAsciiLower, isAsciiUpper, toUpper)
+import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
 #ifdef DEBUG
 import Data.Maybe (fromJust)
@@ -54,7 +89,7 @@ import GHC.Base (unsafeChr)
 import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Streamly.Internal.Data.Array (Array(..))
-import Streamly.Internal.Data.MutByteArray (Unbox)
+import Streamly.Internal.Data.MutByteArray (Unbox(..))
 import Streamly.Internal.Data.Path (PathException(..))
 import Streamly.Internal.Data.Stream (Stream)
 import System.IO.Unsafe (unsafePerformIO)
@@ -367,3 +402,469 @@ append :: (Unbox a, Integral a) =>
     OS -> (Array a -> String) -> Array a -> Array a -> Array a
 append os toStr a b =
     withAppendCheck os toStr b (doAppend os a b)
+
+--------------------------------------------------------------------------------
+-- Path equality helpers
+--------------------------------------------------------------------------------
+
+{-# INLINE ordIntegral #-}
+ordIntegral :: Integral a => Char -> a
+ordIntegral = fromIntegral . ord
+
+{-# INLINE isSeparatorIntegral #-}
+isSeparatorIntegral :: Integral a => OS -> a -> Bool
+isSeparatorIntegral os =
+    isSeparator os . unsafeChr . fromIntegral
+
+{-# INLINE primarySeparatorIntegral #-}
+primarySeparatorIntegral :: Integral a => OS -> a
+primarySeparatorIntegral = ordIntegral . primarySeparator
+
+{-# INLINE isLetter #-}
+isLetter :: Char -> Bool
+isLetter l = isAsciiLower l || isAsciiUpper l
+
+{-# INLINE countUntilSeperator #-}
+countUntilSeperator :: (Monad m, Unbox a, Integral a) => OS -> Array a -> m Int
+countUntilSeperator os arr =
+    Stream.fold
+          (Fold.takeEndBy_ (not . isSeparatorIntegral os) Fold.length)
+          (Array.read arr)
+
+--------------------------------------------------------------------------------
+-- Path equality windows specific
+--------------------------------------------------------------------------------
+
+-- |
+-- >>> readDriveLetter = fmap (\(a, b) -> (unpackWindows a, unpackWindows b)) . Common.readDriveLetter . packWindows
+--
+-- >>> readDriveLetter "c:"
+-- Just ("c:","")
+--
+-- >>> readDriveLetter "F:\\"
+-- Just ("F:\\","")
+--
+-- >>> readDriveLetter "F:\\\\\\"
+-- Just ("F:\\\\\\","")
+--
+-- >>> readDriveLetter "F:\\\\Desktop"
+-- Just ("F:\\\\","Desktop")
+--
+-- >>> readDriveLetter "F:\\/./Desktop"
+-- Just ("F:\\/","./Desktop")
+--
+-- >>> readDriveLetter "\\Desktop"
+-- Nothing
+--
+readDriveLetter :: (Unbox a, Integral a) => Array a -> Maybe (Array a, Array a)
+readDriveLetter arr
+    | arrLen >= 2, isLetter x, c == ':' = Just $
+        if arrLen >= 3 && isSeparator Windows (unsafeIndexChar 2 arr)
+        then runIdentity $ do
+            let afterDrive = Array.getSliceUnsafe 2 (arrLen - 2) arr
+            i <- countUntilSeperator Windows afterDrive
+            pure
+                ( Array.getSliceUnsafe 0 (2 + i) arr
+                , Array.getSliceUnsafe (2 + i) (arrLen - i - 2) arr
+                )
+        else ( Array.getSliceUnsafe 0 2 arr
+             , Array.getSliceUnsafe 2 (arrLen - 2) arr
+             )
+    | otherwise = Nothing
+    where
+    arrLen = Array.length arr
+    x = unsafeIndexChar 0 arr
+    c = unsafeIndexChar 1 arr
+
+-- |
+-- >>> readDriveShareName = (\(a, b) -> (unpackWindows a, unpackWindows b)) . Common.readDriveShareName . packWindows
+--
+-- >>> readDriveShareName ""
+-- ("","")
+--
+-- >>> readDriveShareName "Desktop/Folder"
+-- ("Desktop/","Folder")
+--
+-- >>> readDriveShareName "Desktop//\\\\\\Folder"
+-- ("Desktop/","/\\\\\\Folder")
+--
+-- >>> readDriveShareName "Desktop"
+-- ("Desktop","")
+--
+readDriveShareName :: (Unbox a, Integral a) => Array a -> (Array a, Array a)
+readDriveShareName arr = runIdentity $ do
+    i <- Stream.fold (Fold.takeEndBy isSep Fold.length) (Array.read arr)
+    pure (Array.getSliceUnsafe 0 i arr, Array.getSliceUnsafe i (arrLen - i) arr)
+    where
+    isSep = isSeparatorIntegral Windows
+    arrLen = Array.length arr
+
+-- |
+-- >>> readDriveShare = fmap (\(a, b) -> (unpackWindows a, unpackWindows b)) . Common.readDriveShare . packWindows
+--
+-- >>> readDriveShare ""
+-- Nothing
+--
+-- >>> readDriveShare "Desktop"
+-- Nothing
+--
+-- >>> readDriveShare "\\/"
+-- Just ("\\/","")
+--
+-- >>> readDriveShare "\\\\localhost\\Desktop"
+-- Just ("\\\\localhost\\","Desktop")
+--
+-- >>> readDriveShare "\\\\localhost"
+-- Just ("\\\\localhost","")
+--
+-- >>> readDriveShare "\\\\localhost/"
+-- Just ("\\\\localhost/","")
+--
+readDriveShare :: (Unbox a, Integral a) => Array a -> Maybe (Array a, Array a)
+readDriveShare arr
+    | arrLen >= 2 && isSep s1 && isSep s2 =
+        let (a, b) =
+                readDriveShareName (Array.getSliceUnsafe 2 (arrLen - 2) arr)
+         in Just (Array.getSliceUnsafe 0 (2 + Array.length a) arr, b)
+    | otherwise = Nothing
+    where
+    isSep = isSeparator Windows
+    arrLen = Array.length arr
+    s1 = unsafeIndexChar 0 arr
+    s2 = unsafeIndexChar 1 arr
+
+-- |
+-- >>> readDriveUNC = fmap (\(a, b) -> (unpackWindows a, unpackWindows b)) . Common.readDriveUNC . packWindows
+--
+-- >>> readDriveUNC ""
+-- Nothing
+--
+-- >>> readDriveUNC "Desktop"
+-- Nothing
+--
+-- >>> readDriveUNC "\\/?\\c:"
+-- Just ("\\/?\\c:","")
+--
+-- >>> readDriveUNC "\\/?\\F:/"
+-- Just ("\\/?\\F:/","")
+--
+-- >>> readDriveUNC "\\/?\\F:/\\\\Desktop"
+-- Just ("\\/?\\F:/\\\\","Desktop")
+--
+-- >>> readDriveUNC "\\/?\\uNc/"
+-- Just ("\\/?\\uNc/","")
+--
+-- >>> readDriveUNC "\\/?\\uNc/\\Desktop"
+-- Just ("\\/?\\uNc/\\","Desktop")
+--
+-- >>> readDriveUNC "\\/?\\uNc/Desktop\\Folder"
+-- Just ("\\/?\\uNc/Desktop\\","Folder")
+--
+readDriveUNC
+    :: (Unbox a, Integral a) => Array a -> Maybe (Array a, Array a)
+readDriveUNC arr
+    | arrLen >= 4, q == '?', all isSep [s1,s2,s3] =
+        if arrLen >= 8 && map toUpper [u, n, c] == "UNC" && isSep s4
+        then
+            let (a, b) =
+                    readDriveShareName (Array.getSliceUnsafe 8 (arrLen - 8) arr)
+             in Just (Array.getSliceUnsafe 0 (8 + Array.length a) arr, b)
+        else
+            case readDriveLetter (Array.getSliceUnsafe 4 (arrLen - 4) arr) of
+                Nothing -> Nothing
+                Just (a, b) ->
+                    Just (Array.getSliceUnsafe 0 (4 + Array.length a) arr, b)
+    | otherwise = Nothing
+    where
+    isSep = isSeparator Windows
+    arrLen = Array.length arr
+
+    s1 = unsafeIndexChar 0 arr
+    s2 = unsafeIndexChar 1 arr
+    q = unsafeIndexChar 2 arr
+    s3 = unsafeIndexChar 3 arr
+    u = unsafeIndexChar 4 arr
+    n = unsafeIndexChar 5 arr
+    c = unsafeIndexChar 6 arr
+    s4 = unsafeIndexChar 7 arr
+
+-- |
+-- >>> spanDrive = (\(a, b) -> (unpackWindows a, unpackWindows b)) . Common.spanDrive . packWindows
+--
+-- >>> spanDrive "F:\\/./Desktop"
+-- ("F:\\/","./Desktop")
+--
+-- >>> spanDrive "\\\\localhost\\Desktop"
+-- ("\\\\localhost\\","Desktop")
+--
+-- >>> spanDrive "\\/?\\uNc/Desktop\\Folder"
+-- ("\\/?\\uNc/Desktop\\","Folder")
+--
+-- >>> spanDrive "\\local/device"
+-- ("\\","local/device")
+--
+-- >>> spanDrive "\\."
+-- ("\\",".")
+--
+-- >>> spanDrive "file"
+-- ("","file")
+--
+-- >>> spanDrive "c:/file"
+-- ("c:/","file")
+--
+-- >>> spanDrive "c:\\file"
+-- ("c:\\","file")
+--
+-- >>> spanDrive "\\\\shared\\test"
+-- ("\\\\shared\\","test")
+--
+-- >>> spanDrive "\\\\shared"
+-- ("\\\\shared","")
+--
+-- >>> spanDrive "\\\\?\\UNC\\shared\\file"
+-- ("\\\\?\\UNC\\shared\\","file")
+--
+-- >>> spanDrive "\\\\?\\UNCshared\\file"
+-- ("\\\\?\\","UNCshared\\file")
+--
+-- >>> spanDrive "\\\\?\\d:\\file"
+-- ("\\\\?\\d:\\","file")
+--
+-- >>> spanDrive "/d"
+-- ("\\","d")
+--
+spanDrive :: (Unbox a, Integral a) => Array a -> (Array a, Array a)
+spanDrive arr | Just res <- readDriveLetter arr = res
+spanDrive arr | Just res <- readDriveUNC arr = res
+spanDrive arr | Just res <- readDriveShare arr = res
+spanDrive arr = runIdentity $ do
+    i <- countUntilSeperator Windows arr
+    pure
+        $ if i > 0
+          then ( Array.fromListN 1 [primarySeparatorIntegral Windows]
+               , Array.getSliceUnsafe i (arrLen - i) arr
+               )
+          else (Array.empty, Array.getSliceUnsafe i (arrLen - i) arr)
+    where
+    arrLen = Array.length arr
+
+-- XXX Should we normalize uNc to UNC?
+-- XXX What about uNcshared vs UNCshared?
+-- |
+-- >>> normalizeDrive = unpackWindows . Common.normalizeDrive . packWindows
+--
+-- >>> normalizeDrive ""
+-- ""
+--
+-- >>> normalizeDrive "F:\\/"
+-- "F:\\"
+--
+-- >>> normalizeDrive "\\\\localhost/"
+-- "\\\\localhost\\"
+--
+-- >>> normalizeDrive "\\/?\\uNc/Desktop\\"
+-- "\\\\?\\UNC\\Desktop\\"
+--
+-- >>> normalizeDrive "\\"
+-- "\\"
+--
+normalizeDrive :: (Unbox a, Integral a) => Array a -> Array a
+normalizeDrive arr | Array.null arr = Array.empty
+normalizeDrive arr
+    | Just (drv, _) <- readDriveLetter arrSRep =
+        let drvLen = Array.length drv
+         in
+           if drvLen == 0
+           then error "normalizeDrive: impossible"
+           else
+               let x = ordIntegral $ toUpper $ unsafeIndexChar 0 drv
+                in if drvLen == 2
+                   then Array.fromListN 2 [x, ordIntegral ':']
+                   else Array.fromListN 3 [x, ordIntegral ':', primarySeparatorIntegral Windows]
+    | otherwise = arrSRep
+    where
+    canonicalizeSeperator x =
+        if isSeparatorIntegral Windows x
+        then primarySeparatorIntegral Windows
+        else x
+    arrSRep =
+        unsafePerformIO
+            $ Stream.fold Array.create
+            $ fmap canonicalizeSeperator
+            $ Array.read arr
+
+--------------------------------------------------------------------------------
+-- Path equality posix specific
+--------------------------------------------------------------------------------
+
+-- Posix specific function.
+isAbsoluteLocation :: (Integral a, Unbox a) => Array a -> Bool
+isAbsoluteLocation arr = arrLen > 0 && firstChar == primarySeparator Posix
+    where
+    arrLen = Array.length arr
+    firstChar = unsafeIndexChar 0 arr
+
+--------------------------------------------------------------------------------
+-- Path equality common operations
+--------------------------------------------------------------------------------
+
+-- |
+-- >>> :{
+--  splitPath Common.Posix = Stream.toList . fmap unpackPosix . Common.splitPath Common.Posix . packPosix
+--  splitPath Common.Windows = Stream.toList . fmap unpackWindows . Common.splitPath Common.Windows . packWindows
+-- :}
+--
+-- >>> splitPath Common.Posix "home//user/./..////\\directory/."
+-- ["home","user","..","\\directory"]
+--
+-- >>> splitPath Common.Windows "home//user/./..////\\directory/."
+-- ["home","user","..","directory"]
+--
+{-# INLINE splitPath #-}
+splitPath
+    :: forall a m. (Unbox a, Integral a, MonadIO m)
+    => OS -> Array a -> Stream m (Array a)
+splitPath os arr =
+    Stream.indexOnSuffix (isSeparatorIntegral os) (Array.read arr)
+        & Stream.filter (not . shouldFilterOut)
+        & fmap (\(i, len) -> Array.getSliceUnsafe i len arr)
+
+    where
+
+    shouldFilterOut (off, len) =
+        len == 0 ||
+            (len == 1 && unsafeIndexChar off arr == '.')
+
+-- |
+-- >>> :{
+--  isNotFileLocation Common.Posix = Common.isNotFileLocation Common.Posix . packPosix
+--  isNotFileLocation Common.Windows = Common.isNotFileLocation Common.Windows . packWindows
+-- :}
+--
+-- >>> isNotFileLocation Common.Posix ""
+-- True
+--
+-- >>> isNotFileLocation Common.Posix "/"
+-- True
+--
+-- >>> isNotFileLocation Common.Posix "/."
+-- True
+--
+-- >>> isNotFileLocation Common.Posix "./."
+-- True
+--
+-- >>> isNotFileLocation Common.Posix "home/user"
+-- False
+--
+-- >>> isNotFileLocation Common.Windows "\\"
+-- True
+--
+-- >>> isNotFileLocation Common.Windows "\\."
+-- True
+--
+-- >>> isNotFileLocation Common.Windows ""
+-- True
+--
+-- >>> isNotFileLocation Common.Windows "home\\user"
+-- False
+--
+-- >>> isNotFileLocation Common.Windows "/home/user/"
+-- True
+--
+isNotFileLocation :: (Integral a, Unbox a) => OS -> Array a -> Bool
+isNotFileLocation os arr =
+    (arrLen == 0)
+        || (arrLen > 0 && (isSeparator os lastChar))
+        || (arrLen > 1 && isSeparator os sndlastChar && lastChar == '.')
+
+    where
+    arrLen = Array.length arr
+    lastChar = unsafeIndexChar (arrLen - 1) arr
+    sndlastChar = unsafeIndexChar (arrLen - 2) arr
+
+-- |
+-- >>> :{
+--  normalizedEq Common.Posix a b = Common.normalizedEq Common.Posix (packPosix a) (packPosix b)
+--  normalizedEq Common.Windows a b = Common.normalizedEq Common.Windows (packWindows a) (packWindows b)
+-- :}
+--
+-- >>> normalizedEq Common.Posix "/file/\\test////"  "/file/\\test/"
+-- True
+--
+-- >>> normalizedEq Common.Posix "/file/./test"  "/file/test"
+-- True
+--
+-- >>> normalizedEq Common.Posix "/test/file/../bob/fred/"  "/test/file/../bob/fred/"
+-- True
+--
+-- >>> normalizedEq Common.Posix "../bob/fred/"  "../bob/fred/"
+-- True
+--
+-- >>> normalizedEq Common.Posix "/a/../c"  "/a/../c"
+-- True
+--
+-- >>> normalizedEq Common.Posix "./bob/fred/"  "bob/fred/"
+-- True
+--
+-- >>> normalizedEq Common.Posix "./"  "./"
+-- True
+--
+-- >>> normalizedEq Common.Posix "./."  "./"
+-- True
+--
+-- >>> normalizedEq Common.Posix "/./"  "/"
+-- True
+--
+-- >>> normalizedEq Common.Posix "/"  "/"
+-- True
+--
+-- >>> normalizedEq Common.Posix "bob/fred/."  "bob/fred/"
+-- True
+--
+-- >>> normalizedEq Common.Posix "//home"  "/home"
+-- True
+--
+-- >>> normalizedEq Common.Windows "c:\\file/bob\\" "C:\\file\\bob\\"
+-- True
+--
+-- >>> normalizedEq Common.Windows "c:\\" "C:\\"
+-- True
+--
+-- >>> normalizedEq Common.Windows "C:.\\" "C:"
+-- True
+--
+-- >>> normalizedEq Common.Windows "\\\\server\\test" "\\\\server\\test"
+-- True
+--
+-- >>> normalizedEq Common.Windows "//server/test" "\\\\server\\test"
+-- True
+--
+-- >>> normalizedEq Common.Windows "c:/file" "C:\\file"
+-- True
+--
+-- >>> normalizedEq Common.Windows "/file" "\\file"
+-- True
+--
+-- >>> normalizedEq Common.Windows "\\" "\\"
+-- True
+--
+-- >>> normalizedEq Common.Windows "/./" "\\"
+-- True
+--
+normalizedEq :: (Integral a, Unbox a) => OS -> Array a -> Array a -> Bool
+normalizedEq Posix a b = unsafePerformIO $ do
+    let absA = isAbsoluteLocation a
+        absB = isAbsoluteLocation b
+        notFA = isNotFileLocation Posix a
+        notFB = isNotFileLocation Posix b
+    if absA == absB && notFA == notFB
+    then Stream.eqBy Array.byteEq (splitPath Posix a) (splitPath Posix b)
+    else pure False
+normalizedEq Windows a b = unsafePerformIO $ do
+    let (da, pa) = spanDrive a
+        (db, pb) = spanDrive b
+        nFA = isNotFileLocation Windows pa
+        nFB = isNotFileLocation Windows pb
+    if nFA == nFB && Array.byteEq (normalizeDrive da) (normalizeDrive db)
+    then Stream.eqBy Array.byteEq (splitPath Windows pa) (splitPath Windows pb)
+    else pure False

@@ -41,6 +41,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     -- * Conversions
     , IsPath (..)
     , adapt
+    , normalizedEq
 
     -- * Construction
     , fromChunk
@@ -360,3 +361,44 @@ append (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
+
+-- | Compare 2 paths in their normalized form
+--
+-- >>> Path.normalizedEq [path|/file/\\test////|]  [path|/file/\\test/|]
+-- True
+--
+-- >>> Path.normalizedEq [path|/file/./test|]  [path|/file/test|]
+-- True
+--
+-- >>> Path.normalizedEq [path|/test/file/../bob/fred/|]  [path|/test/file/../bob/fred/|]
+-- True
+--
+-- >>> Path.normalizedEq [path|../bob/fred/|]  [path|../bob/fred/|]
+-- True
+--
+-- >>> Path.normalizedEq [path|/a/../c|]  [path|/a/../c|]
+-- True
+--
+-- >>> Path.normalizedEq [path|./bob/fred/|]  [path|bob/fred/|]
+-- True
+--
+-- >>> Path.normalizedEq [path|./|]  [path|./|]
+-- True
+--
+-- >>> Path.normalizedEq [path|./.|]  [path|./|]
+-- True
+--
+-- >>> Path.normalizedEq [path|/./|]  [path|/|]
+-- True
+--
+-- >>> Path.normalizedEq [path|/|]  [path|/|]
+-- True
+--
+-- >>> Path.normalizedEq [path|bob/fred/.|]  [path|bob/fred/|]
+-- True
+--
+-- >>> Path.normalizedEq [path|//home|]  [path|/home|]
+-- True
+--
+normalizedEq :: OS_PATH -> OS_PATH -> Bool
+normalizedEq (OS_PATH a) (OS_PATH b) = Common.normalizedEq Common.OS_NAME a b
