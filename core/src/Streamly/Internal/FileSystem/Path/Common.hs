@@ -773,11 +773,11 @@ splitPath os arr =
 --
 isNotFileLocation :: (Integral a, Unbox a) => OS -> Array a -> Bool
 isNotFileLocation os arr =
-    (arrLen > 0 && (isSeparator os lastChar || lastChar == winDriveSep))
+    (arrLen == 0)
+        || (arrLen > 0 && (isSeparator os lastChar))
         || (arrLen > 1 && isSeparator os sndlastChar && lastChar == '.')
 
     where
-    winDriveSep = ':'
     arrLen = Array.length arr
     lastChar = unsafeIndexChar (arrLen - 1) arr
     sndlastChar = unsafeIndexChar (arrLen - 2) arr
@@ -863,8 +863,8 @@ normalizedEq Posix a b = unsafePerformIO $ do
 normalizedEq Windows a b = unsafePerformIO $ do
     let (da, pa) = spanDrive a
         (db, pb) = spanDrive b
-        nFA = isNotFileLocation Windows a
-        nFB = isNotFileLocation Windows b
+        nFA = isNotFileLocation Windows pa
+        nFB = isNotFileLocation Windows pb
     if nFA == nFB && Array.byteEq (normalizeDrive da) (normalizeDrive db)
     then Stream.eqBy Array.byteEq (splitPath Windows pa) (splitPath Windows pb)
     else pure False
