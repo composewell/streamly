@@ -52,6 +52,8 @@ module Streamly.Internal.Data.Scanl.Container
     , demux
     , demuxGenericIO
     , demuxIO
+    , demuxManyGeneric
+    , demuxManyGenericIO
 
     -- TODO: These can be implemented using the above operations
     -- , demuxSel -- Stop when the fold for the specified key stops
@@ -259,10 +261,19 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- because key is to be determined on each input whereas fold is to be
 -- determined only once for a key.
 --
--- XXX If a scan terminates do not start it again? This can be easily done by
--- installing a drain fold after a fold is done.
---
 -- XXX We can use the Scan drain step to drain the buffered map in the end.
+
+-- NOTE: Not restarting the scan can either use an external Set or Maybe value
+-- in the Map itself. We can evaluate the performace and change the
+-- implementation. Currently it uses a Set, similar to that of classify.
+--
+-- XXX Alternatively, if we had a Skip constructor in Fold, we can perhaps
+-- implement it without using a Set
+--
+-- XXX Implementing both, restarting and non-restarting capabilities in a single
+-- function makes the code look ugly. It does not look like a good abstraction.
+-- The abstraction might look better if we use functions as args but that might
+-- impact the performance. We can check and do this lazily on demand.
 
 -- | This is the most general of all demux, classify operations.
 --
@@ -270,13 +281,79 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 -- scans. The scan returns the scan result as the second component of the
 -- output tuple.
 --
+-- The scan is not restarted after it is completed.
+--
 -- See 'demux' for documentation.
 {-# INLINE demuxGeneric #-}
-demuxGeneric :: (Monad m, IsMap f, Traversable f) =>
+demuxGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
        (a -> Key f)
     -> (Key f -> m (Scanl m a b))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxGeneric getKey getFold =
+    Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
+
+    where
+
+    initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
+
+    {-# INLINE runFold #-}
+    runFold kv set (Scanl step1 initial1 extract1 final1) (k, a) = do
+         res <- initial1
+         case res of
+            Partial s -> do
+                res1 <- step1 s a
+                case res1 of
+                        Partial ss -> do
+                            b <- extract1 ss
+                            let fld = Scanl step1 (pure res1) extract1 final1
+                                kv1 = IsMap.mapInsert k fld kv
+                            pure $ Tuple3' kv1 set (Just (k, b))
+                        Done b -> do
+                            let kv1 = IsMap.mapDelete k kv
+                            pure $ Tuple3' kv1 (Set.insert k set) (Just (k, b))
+            Done b ->
+                -- Done in "initial" is possible only for the very first time
+                -- the fold is initialized, and in that case we have not yet
+                -- inserted it in the Map, so we do not need to delete it.
+                return $ Tuple3' kv (Set.insert k set) (Just (k, b))
+
+    step (Tuple3' kv set _) a = do
+        let k = getKey a
+        case IsMap.mapLookup k kv of
+            Nothing ->
+                if Set.member k set
+                then return (Tuple3' kv set Nothing)
+                else do
+                    fld <- getFold k
+                    runFold kv set fld (k, a)
+            Just f -> runFold kv set f (k, a)
+
+    extract (Tuple3' kv _ x) = return (Prelude.mapM f kv, x)
+
+        where
+
+        f (Scanl _ i e _) = do
+            r <- i
+            case r of
+                Partial s -> e s
+                _ -> error "demuxGeneric: unreachable code"
+
+    final (Tuple3' kv _ x) = return (Prelude.mapM f kv, x)
+
+        where
+
+        f (Scanl _ i _ fin) = do
+            r <- i
+            case r of
+                Partial s -> fin s
+                _ -> error "demuxGeneric: unreachable code"
+
+{-# INLINE demuxManyGeneric #-}
+demuxManyGeneric :: (Monad m, IsMap f, Traversable f) =>
+       (a -> Key f)
+    -> (Key f -> m (Scanl m a b))
+    -> Scanl m a (m (f b), Maybe (Key f, b))
+demuxManyGeneric getKey getFold =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
 
     where
@@ -321,7 +398,7 @@ demuxGeneric getKey getFold =
             r <- i
             case r of
                 Partial s -> e s
-                _ -> error "demuxGeneric: unreachable code"
+                _ -> error "demuxManyGeneric: unreachable code"
 
     final (Tuple' kv x) = return (Prelude.mapM f kv, x)
 
@@ -331,7 +408,7 @@ demuxGeneric getKey getFold =
             r <- i
             case r of
                 Partial s -> fin s
-                _ -> error "demuxGeneric: unreachable code"
+                _ -> error "demuxManyGeneric: unreachable code"
 
 {-# INLINE demuxUsingMap #-}
 demuxUsingMap :: (Monad m, Ord k) =>
@@ -369,8 +446,6 @@ demux :: (Monad m, Ord k) =>
     -> Scanl m a (Maybe (k, b))
 demux getKey = fmap snd . demuxUsingMap getKey
 
--- XXX We can use the Scan drain step to drain the buffered map in the end.
-
 -- | This is specialized version of 'demuxGeneric' that uses mutable IO cells
 -- as fold accumulators for better performance.
 --
@@ -378,11 +453,94 @@ demux getKey = fmap snd . demuxUsingMap getKey
 -- ongoing scan if you are using those concurrently in another thread.
 --
 {-# INLINE demuxGenericIO #-}
-demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
+demuxGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
        (a -> Key f)
     -> (Key f -> m (Scanl m a b))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxGenericIO getKey getFold =
+    Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
+
+    where
+
+    initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
+
+    {-# INLINE initFold #-}
+    initFold kv set (Scanl step1 initial1 extract1 final1) (k, a) = do
+         res <- initial1
+         case res of
+            Partial s -> do
+                res1 <- step1 s a
+                case res1 of
+                    Partial ss -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Scanl step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        b <- extract1 ss
+                        let kv1 = IsMap.mapInsert k ref kv
+                        return $ Tuple3' kv1 set (Just (k, b))
+                    Done b -> pure $ Tuple3' kv (Set.insert k set) (Just (k, b))
+            Done b -> return $ Tuple3' kv (Set.insert k set) (Just (k, b))
+
+    {-# INLINE runFold #-}
+    runFold kv set ref (Scanl step1 initial1 extract1 final1) (k, a) = do
+         res <- initial1
+         case res of
+            Partial s -> do
+                res1 <- step1 s a
+                case res1 of
+                        Partial ss -> do
+                            let fld = Scanl step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            b <- extract1 ss
+                            return $ Tuple3' kv set (Just (k, b))
+                        Done b -> do
+                            let kv1 = IsMap.mapDelete k kv
+                            pure $ Tuple3' kv1 (Set.insert k set) (Just (k, b))
+            Done _ -> error "demuxGenericIO: unreachable"
+
+    step (Tuple3' kv set _) a = do
+        let k = getKey a
+        case IsMap.mapLookup k kv of
+            Nothing -> do
+                if Set.member k set
+                then return (Tuple3' kv set Nothing)
+                else do
+                    fld <- getFold k
+                    initFold kv set fld (k, a)
+            Just ref -> do
+                f <- liftIO $ readIORef ref
+                runFold kv set ref f (k, a)
+
+    extract (Tuple3' kv _ x) = return (Prelude.mapM f kv, x)
+
+        where
+
+        f ref = do
+            Scanl _ i e _ <- liftIO $ readIORef ref
+            r <- i
+            case r of
+                Partial s -> e s
+                _ -> error "demuxGenericIO: unreachable code"
+
+    final (Tuple3' kv _ x) = return (Prelude.mapM f kv, x)
+
+        where
+
+        f ref = do
+            Scanl _ i _ fin <- liftIO $ readIORef ref
+            r <- i
+            case r of
+                Partial s -> fin s
+                _ -> error "demuxGenericIO: unreachable code"
+
+{-# INLINE demuxManyGenericIO #-}
+demuxManyGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
+       (a -> Key f)
+    -> (Key f -> m (Scanl m a b))
+    -> Scanl m a (m (f b), Maybe (Key f, b))
+demuxManyGenericIO getKey getFold =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
 
     where
@@ -423,7 +581,7 @@ demuxGenericIO getKey getFold =
                         Done b ->
                             let kv1 = IsMap.mapDelete k kv
                              in return $ Tuple' kv1 (Just (k, b))
-            Done _ -> error "demuxGenericIO: unreachable"
+            Done _ -> error "demuxManyGenericIO: unreachable"
 
     step (Tuple' kv _) a = do
         let k = getKey a
@@ -444,7 +602,7 @@ demuxGenericIO getKey getFold =
             r <- i
             case r of
                 Partial s -> e s
-                _ -> error "demuxGenericIO: unreachable code"
+                _ -> error "demuxManyGenericIO: unreachable code"
 
     final (Tuple' kv x) = return (Prelude.mapM f kv, x)
 
@@ -455,7 +613,7 @@ demuxGenericIO getKey getFold =
             r <- i
             case r of
                 Partial s -> fin s
-                _ -> error "demuxGenericIO: unreachable code"
+                _ -> error "demuxManyGenericIO: unreachable code"
 
 {-# INLINE demuxUsingMapIO #-}
 demuxUsingMapIO :: (MonadIO m, Ord k) =>
