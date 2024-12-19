@@ -742,7 +742,7 @@ splitPath os arr =
 -- :}
 --
 -- >>> isNotFileLocation Common.Posix ""
--- False
+-- True
 --
 -- >>> isNotFileLocation Common.Posix "/"
 -- True
@@ -763,7 +763,7 @@ splitPath os arr =
 -- True
 --
 -- >>> isNotFileLocation Common.Windows ""
--- False
+-- True
 --
 -- >>> isNotFileLocation Common.Windows "home\\user"
 -- False
