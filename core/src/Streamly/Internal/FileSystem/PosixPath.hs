@@ -41,7 +41,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     -- * Conversions
     , IsPath (..)
     , adapt
-    , normalize
+    , normalizedEq
 
     -- * Construction
     , fromChunk
@@ -362,48 +362,43 @@ append (OS_PATH a) (OS_PATH b) =
         $ Common.append
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | Normalize the path.
+-- | Compare 2 paths in their normalized form
 --
--- The behaviour is similar to FilePath.normalise.
+-- >>> Path.normalizedEq [path|/file/\\test////|]  [path|/file/\\test/|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|/file/\test////|]
--- "/file/\\test/"
+-- >>> Path.normalizedEq [path|/file/./test|]  [path|/file/test|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|/file/./test|]
--- "/file/test"
+-- >>> Path.normalizedEq [path|/test/file/../bob/fred/|]  [path|/test/file/../bob/fred/|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|/test/file/../bob/fred/|]
--- "/test/file/../bob/fred/"
+-- >>> Path.normalizedEq [path|../bob/fred/|]  [path|../bob/fred/|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|../bob/fred/|]
--- "../bob/fred/"
+-- >>> Path.normalizedEq [path|/a/../c|]  [path|/a/../c|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|/a/../c|]
--- "/a/../c"
+-- >>> Path.normalizedEq [path|./bob/fred/|]  [path|bob/fred/|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|./bob/fred/|]
--- "bob/fred/"
+-- >>> Path.normalizedEq [path|./|]  [path|./|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|.|]
--- "."
+-- >>> Path.normalizedEq [path|./.|]  [path|./|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|./|]
--- "./"
+-- >>> Path.normalizedEq [path|/./|]  [path|/|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|./.|]
--- "./"
+-- >>> Path.normalizedEq [path|/|]  [path|/|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|/./|]
--- "/"
+-- >>> Path.normalizedEq [path|bob/fred/.|]  [path|bob/fred/|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|/|]
--- "/"
+-- >>> Path.normalizedEq [path|//home|]  [path|/home|]
+-- True
 --
--- >>> Path.toString $ Path.normalize $ [path|bob/fred/.|]
--- "bob/fred/"
---
--- >>> Path.toString $ Path.normalize $ [path|//home|]
--- "/home"
---
-normalize :: OS_PATH -> OS_PATH
-normalize (OS_PATH a) = OS_PATH $ Common.normalize Common.OS_NAME a
+normalizedEq :: OS_PATH -> OS_PATH -> Bool
+normalizedEq (OS_PATH a) (OS_PATH b) = Common.normalizedEq Common.OS_NAME a b

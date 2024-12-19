@@ -35,14 +35,19 @@ module Streamly.Internal.FileSystem.Path.Common
     , unsafeAppend
 
     -- * Path normalization
+
+    -- Most of these helpers are exposed because we want to test them using
+    -- docspec.
+
     , readDriveShareName
     , readDriveLetter
     , readDriveUNC
     , readDriveShare
-    , splitDrive
+    , spanDrive
     , normalizeDrive
-    , normalizePath
-    , normalize
+    , splitPath
+    , isNotFileLocation
+    , normalizedEq
 
     -- * Utilities
     , wordToChar
@@ -72,6 +77,7 @@ where
 -}
 
 import Control.Monad.Catch (MonadThrow(..))
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord, isAlpha, isAsciiLower, isAsciiUpper, toUpper)
 import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
@@ -398,7 +404,7 @@ append os toStr a b =
     withAppendCheck os toStr b (doAppend os a b)
 
 --------------------------------------------------------------------------------
--- Path normalization
+-- Path equality helpers
 --------------------------------------------------------------------------------
 
 {-# INLINE ordIntegral #-}
@@ -424,6 +430,10 @@ countUntilSeperator os arr =
     Stream.fold
           (Fold.takeEndBy_ (not . isSeparatorIntegral os) Fold.length)
           (Array.read arr)
+
+--------------------------------------------------------------------------------
+-- Path equality windows specific
+--------------------------------------------------------------------------------
 
 -- |
 -- >>> readDriveLetter = fmap (\(a, b) -> (unpackWindows a, unpackWindows b)) . Common.readDriveLetter . packWindows
@@ -579,89 +589,59 @@ readDriveUNC arr
     s4 = unsafeIndexChar 7 arr
 
 -- |
--- >>> :{
---  splitDrive Common.Posix = (\(a, b) -> (unpackPosix a, unpackPosix b)) . Common.splitDrive Common.Posix . packPosix
---  splitDrive Common.Windows = (\(a, b) -> (unpackWindows a, unpackWindows b)) . Common.splitDrive Common.Windows . packWindows
--- :}
+-- >>> spanDrive = (\(a, b) -> (unpackWindows a, unpackWindows b)) . Common.spanDrive . packWindows
 --
--- >>> splitDrive Common.Posix ""
--- ("","")
---
--- >>> splitDrive Common.Posix "/"
--- ("/","")
---
--- >>> splitDrive Common.Posix "./"
--- ("","./")
---
--- >>> splitDrive Common.Posix "/home/usr"
--- ("/","home/usr")
---
--- >>> splitDrive Common.Posix "/////home/usr"
--- ("/","home/usr")
---
--- >>> splitDrive Common.Posix "/test"
--- ("/","test")
---
--- >>> splitDrive Common.Posix "//test"
--- ("/","test")
---
--- >>> splitDrive Common.Posix "test/file"
--- ("","test/file")
---
--- >>> splitDrive Common.Posix "file"
--- ("","file")
---
--- >>> splitDrive Common.Windows "F:\\/./Desktop"
+-- >>> spanDrive "F:\\/./Desktop"
 -- ("F:\\/","./Desktop")
 --
--- >>> splitDrive Common.Windows "\\\\localhost\\Desktop"
+-- >>> spanDrive "\\\\localhost\\Desktop"
 -- ("\\\\localhost\\","Desktop")
 --
--- >>> splitDrive Common.Windows "\\/?\\uNc/Desktop\\Folder"
+-- >>> spanDrive "\\/?\\uNc/Desktop\\Folder"
 -- ("\\/?\\uNc/Desktop\\","Folder")
 --
--- >>> splitDrive Common.Windows "\\local/device"
+-- >>> spanDrive "\\local/device"
 -- ("\\","local/device")
 --
--- >>> splitDrive Common.Windows "\\."
+-- >>> spanDrive "\\."
 -- ("\\",".")
 --
--- >>> splitDrive Common.Windows "file"
+-- >>> spanDrive "file"
 -- ("","file")
 --
--- >>> splitDrive Common.Windows "c:/file"
+-- >>> spanDrive "c:/file"
 -- ("c:/","file")
 --
--- >>> splitDrive Common.Windows "c:\\file"
+-- >>> spanDrive "c:\\file"
 -- ("c:\\","file")
 --
--- >>> splitDrive Common.Windows "\\\\shared\\test"
+-- >>> spanDrive "\\\\shared\\test"
 -- ("\\\\shared\\","test")
 --
--- >>> splitDrive Common.Windows "\\\\shared"
+-- >>> spanDrive "\\\\shared"
 -- ("\\\\shared","")
 --
--- >>> splitDrive Common.Windows "\\\\?\\UNC\\shared\\file"
+-- >>> spanDrive "\\\\?\\UNC\\shared\\file"
 -- ("\\\\?\\UNC\\shared\\","file")
 --
--- >>> splitDrive Common.Windows "\\\\?\\UNCshared\\file"
+-- >>> spanDrive "\\\\?\\UNCshared\\file"
 -- ("\\\\?\\","UNCshared\\file")
 --
--- >>> splitDrive Common.Windows "\\\\?\\d:\\file"
+-- >>> spanDrive "\\\\?\\d:\\file"
 -- ("\\\\?\\d:\\","file")
 --
--- >>> splitDrive Common.Windows "/d"
+-- >>> spanDrive "/d"
 -- ("\\","d")
 --
-splitDrive :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
-splitDrive Windows arr | Just res <- readDriveLetter arr = res
-splitDrive Windows arr | Just res <- readDriveUNC arr = res
-splitDrive Windows arr | Just res <- readDriveShare arr = res
-splitDrive os arr = runIdentity $ do
-    i <- countUntilSeperator os arr
+spanDrive :: (Unbox a, Integral a) => Array a -> (Array a, Array a)
+spanDrive arr | Just res <- readDriveLetter arr = res
+spanDrive arr | Just res <- readDriveUNC arr = res
+spanDrive arr | Just res <- readDriveShare arr = res
+spanDrive arr = runIdentity $ do
+    i <- countUntilSeperator Windows arr
     pure
         $ if i > 0
-          then ( Array.fromListN 1 [primarySeparatorIntegral os]
+          then ( Array.fromListN 1 [primarySeparatorIntegral Windows]
                , Array.getSliceUnsafe i (arrLen - i) arr
                )
           else (Array.empty, Array.getSliceUnsafe i (arrLen - i) arr)
@@ -671,37 +651,26 @@ splitDrive os arr = runIdentity $ do
 -- XXX Should we normalize uNc to UNC?
 -- XXX What about uNcshared vs UNCshared?
 -- |
--- >>> :{
---  normalizeDrive Common.Posix = unpackPosix . Common.normalizeDrive Common.Posix . packPosix
---  normalizeDrive Common.Windows = unpackWindows . Common.normalizeDrive Common.Windows . packWindows
--- :}
+-- >>> normalizeDrive = unpackWindows . Common.normalizeDrive . packWindows
 --
--- >>> normalizeDrive Common.Posix ""
+-- >>> normalizeDrive ""
 -- ""
 --
--- >>> normalizeDrive Common.Posix "/"
--- "/"
---
--- >>> normalizeDrive Common.Windows ""
--- ""
---
--- >>> normalizeDrive Common.Windows "F:\\/"
+-- >>> normalizeDrive "F:\\/"
 -- "F:\\"
 --
--- >>> normalizeDrive Common.Windows "\\\\localhost/"
+-- >>> normalizeDrive "\\\\localhost/"
 -- "\\\\localhost\\"
 --
--- >>> normalizeDrive Common.Windows "\\/?\\uNc/Desktop\\"
+-- >>> normalizeDrive "\\/?\\uNc/Desktop\\"
 -- "\\\\?\\UNC\\Desktop\\"
 --
--- >>> normalizeDrive Common.Windows "\\"
+-- >>> normalizeDrive "\\"
 -- "\\"
 --
-normalizeDrive :: (Unbox a, Integral a) => OS -> Array a -> Array a
-normalizeDrive _ arr | Array.null arr = Array.empty
-normalizeDrive Posix _ =
-    Array.fromListN 1 [primarySeparatorIntegral Posix]
-normalizeDrive Windows arr
+normalizeDrive :: (Unbox a, Integral a) => Array a -> Array a
+normalizeDrive arr | Array.null arr = Array.empty
+normalizeDrive arr
     | Just (drv, _) <- readDriveLetter arrSRep =
         let drvLen = Array.length drv
          in
@@ -724,278 +693,178 @@ normalizeDrive Windows arr
             $ fmap canonicalizeSeperator
             $ Array.read arr
 
+--------------------------------------------------------------------------------
+-- Path equality posix specific
+--------------------------------------------------------------------------------
+
+-- Posix specific function.
+isAbsoluteLocation :: (Integral a, Unbox a) => Array a -> Bool
+isAbsoluteLocation arr = arrLen > 0 && firstChar == primarySeparator Posix
+    where
+    arrLen = Array.length arr
+    firstChar = unsafeIndexChar 0 arr
+
+--------------------------------------------------------------------------------
+-- Path equality common operations
+--------------------------------------------------------------------------------
+
 -- |
 -- >>> :{
---  normalizePath Common.Posix = unpackPosix . Common.normalizePath Common.Posix . packPosix
---  normalizePath Common.Windows = unpackWindows . Common.normalizePath Common.Windows . packWindows
+--  splitPath Common.Posix = Stream.toList . fmap unpackPosix . Common.splitPath Common.Posix . packPosix
+--  splitPath Common.Windows = Stream.toList . fmap unpackWindows . Common.splitPath Common.Windows . packWindows
 -- :}
 --
--- >>> normalizePath Common.Posix ""
--- ""
+-- >>> splitPath Common.Posix "home//user/./..////\\directory/."
+-- ["home","user","..","\\directory"]
 --
--- >>> normalizePath Common.Posix "/"
--- ""
+-- >>> splitPath Common.Windows "home//user/./..////\\directory/."
+-- ["home","user","..","directory"]
 --
--- >>> normalizePath Common.Posix "/."
--- ""
---
--- >>> normalizePath Common.Posix "/home/usr/"
--- "home/usr/"
---
--- >>> normalizePath Common.Posix "/////home/usr/."
--- "home/usr/"
---
--- >>> normalizePath Common.Windows "./Desktop/"
--- "Desktop\\"
---
--- >>> normalizePath Common.Windows "\\Desktop\\Folder/."
--- "Desktop\\Folder\\"
---
--- >>> normalizePath Common.Windows "\\Desktop\\Folder/"
--- "Desktop\\Folder\\"
---
--- >>> normalizePath Common.Windows "\\Desktop\\File"
--- "Desktop\\File"
---
--- >>> normalizePath Common.Windows "."
--- ""
---
--- >>> normalizePath Common.Windows ""
--- ""
---
-{-# INLINE normalizePath #-}
-normalizePath :: forall a. (Unbox a, Integral a) => OS -> Array a -> Array a
-normalizePath os arr =
-    Array.unsafeFreeze $ unsafePerformIO $ do
-        let workSliceStream = MutArray.read workSliceMut
-        mid <-
-            Stream.indexOnSuffix (isSeparatorIntegral os) workSliceStream
-                & Stream.filter (not . shouldFilterOut)
-                & Stream.mapM (\(i, len) -> getSliceWithSepSuffix os i len)
-                & Stream.fold (Fold.foldlM' (combine os) initBufferM)
-        case os of
-            Posix -> pure mid
-            Windows ->
-                let midLen = MutArray.length mid in
-                pure $ case midLen of
-                    ml | ml >= 2 ->
-                        let lastElem = Array.getIndexUnsafe (arrLen - 1) arr
-                            lastButOne = Array.getIndexUnsafe (arrLen - 2) arr
-                         in if (isSeparatorIntegral Windows lastButOne
-                                  && lastElem == dotElem)
-                                   || isSeparatorIntegral Windows lastElem
-                            then mid
-                            else MutArray.unsafeGetSlice 0 (midLen - 1) mid
-                    ml | ml >= 1 ->
-                        let lastElem = Array.getIndexUnsafe (arrLen - 1) arr
-                         in if isSeparatorIntegral Windows lastElem
-                            then mid
-                            else MutArray.unsafeGetSlice 0 (midLen - 1) mid
-                    _ -> mid
+{-# INLINE splitPath #-}
+splitPath
+    :: forall a m. (Unbox a, Integral a, MonadIO m)
+    => OS -> Array a -> Stream m (Array a)
+splitPath os arr =
+    Stream.indexOnSuffix (isSeparatorIntegral os) (Array.read arr)
+        & Stream.filter (not . shouldFilterOut)
+        & fmap (\(i, len) -> Array.getSliceUnsafe i len arr)
 
     where
 
-    (dotElem :: a) = ordIntegral '.'
-    arrLen = Array.length arr
-
-    workSlice = arr
-    workSliceMut = Array.unsafeThaw workSlice
-    workSliceElemLen = Array.length workSlice
-
     shouldFilterOut (off, len) =
         len == 0 ||
-            (len == 1 && Array.getIndexUnsafe off workSlice == dotElem)
-
-    getSliceWithSepSuffix Posix i len
-        | i + len == workSliceElemLen =
-            pure $ MutArray.unsafeGetSlice i len workSliceMut
-    getSliceWithSepSuffix Posix i len =
-        pure $ MutArray.unsafeGetSlice i (len + 1) workSliceMut
-    getSliceWithSepSuffix Windows i len =
-        pure $ MutArray.unsafeGetSlice i len workSliceMut
-
-    combine Posix b a = MutArray.unsafeSplice b a
-    combine Windows b a = do
-        b1 <- MutArray.unsafeSplice b a
-        MutArray.unsafeSnoc b1 (primarySeparatorIntegral Windows)
-
-    initBufferM = MutArray.emptyOf (arrLen + 1)
-
+            (len == 1 && unsafeIndexChar off arr == '.')
 
 -- |
 -- >>> :{
---  normalize Common.Posix = unpackPosix . Common.normalize Common.Posix . packPosix
---  normalize Common.Windows = unpackWindows . Common.normalize Common.Windows . packWindows
+--  isNotFileLocation Common.Posix = Common.isNotFileLocation Common.Posix . packPosix
+--  isNotFileLocation Common.Windows = Common.isNotFileLocation Common.Windows . packWindows
 -- :}
 --
--- >>> normalize Common.Posix ""
--- ""
+-- >>> isNotFileLocation Common.Posix ""
+-- False
 --
--- >>> normalize Common.Posix "/"
--- "/"
+-- >>> isNotFileLocation Common.Posix "/"
+-- True
 --
--- >>> normalize Common.Posix "/path/to///file"
--- "/path/to/file"
+-- >>> isNotFileLocation Common.Posix "/."
+-- True
 --
--- >>> normalize Common.Posix "/path/to///folder/"
--- "/path/to/folder/"
+-- >>> isNotFileLocation Common.Posix "./."
+-- True
 --
--- >>> normalize Common.Posix "/path/to/././folder/."
--- "/path/to/folder/"
+-- >>> isNotFileLocation Common.Posix "home/user"
+-- False
 --
--- >>> normalize Common.Posix "/path/to/./../folder/."
--- "/path/to/../folder/"
+-- >>> isNotFileLocation Common.Windows "\\"
+-- True
 --
--- >>> normalize Common.Posix "/file/\\test////"
--- "/file/\\test/"
+-- >>> isNotFileLocation Common.Windows "\\."
+-- True
 --
--- >>> normalize Common.Posix "/file/./test"
--- "/file/test"
+-- >>> isNotFileLocation Common.Windows ""
+-- False
 --
--- >>> normalize Common.Posix "/test/file/../bob/fred/"
--- "/test/file/../bob/fred/"
+-- >>> isNotFileLocation Common.Windows "home\\user"
+-- False
 --
--- >>> normalize Common.Posix "../bob/fred/"
--- "../bob/fred/"
+-- >>> isNotFileLocation Common.Windows "/home/user/"
+-- True
 --
--- >>> normalize Common.Posix "/a/../c"
--- "/a/../c"
+isNotFileLocation :: (Integral a, Unbox a) => OS -> Array a -> Bool
+isNotFileLocation os arr =
+    (arrLen > 0 && (isSeparator os lastChar || lastChar == winDriveSep))
+        || (arrLen > 1 && isSeparator os sndlastChar && lastChar == '.')
+
+    where
+    winDriveSep = ':'
+    arrLen = Array.length arr
+    lastChar = unsafeIndexChar (arrLen - 1) arr
+    sndlastChar = unsafeIndexChar (arrLen - 2) arr
+
+-- |
+-- >>> :{
+--  normalizedEq Common.Posix a b = Common.normalizedEq Common.Posix (packPosix a) (packPosix b)
+--  normalizedEq Common.Windows a b = Common.normalizedEq Common.Windows (packWindows a) (packWindows b)
+-- :}
 --
--- >>> normalize Common.Posix "./bob/fred/"
--- "bob/fred/"
+-- >>> normalizedEq Common.Posix "/file/\\test////"  "/file/\\test/"
+-- True
 --
--- >>> normalize Common.Posix "."
--- "."
+-- >>> normalizedEq Common.Posix "/file/./test"  "/file/test"
+-- True
 --
--- >>> normalize Common.Posix "./"
--- "./"
+-- >>> normalizedEq Common.Posix "/test/file/../bob/fred/"  "/test/file/../bob/fred/"
+-- True
 --
--- >>> normalize Common.Posix "./."
--- "./"
+-- >>> normalizedEq Common.Posix "../bob/fred/"  "../bob/fred/"
+-- True
 --
--- >>> normalize Common.Posix "/./"
--- "/"
+-- >>> normalizedEq Common.Posix "/a/../c"  "/a/../c"
+-- True
 --
--- >>> normalize Common.Posix "/"
--- "/"
+-- >>> normalizedEq Common.Posix "./bob/fred/"  "bob/fred/"
+-- True
 --
--- >>> normalize Common.Posix "bob/fred/."
--- "bob/fred/"
+-- >>> normalizedEq Common.Posix "./"  "./"
+-- True
 --
--- >>> normalize Common.Posix "//home"
--- "/home"
+-- >>> normalizedEq Common.Posix "./."  "./"
+-- True
 --
--- >>> normalize Common.Windows "."
--- "."
+-- >>> normalizedEq Common.Posix "/./"  "/"
+-- True
 --
--- >>> normalize Common.Windows "\\\\?\\c:\\"
--- "\\\\?\\c:\\"
+-- >>> normalizedEq Common.Posix "/"  "/"
+-- True
 --
--- >>> normalize Common.Windows "c:\\file/bob\\"
--- "C:\\file\\bob\\"
+-- >>> normalizedEq Common.Posix "bob/fred/."  "bob/fred/"
+-- True
 --
--- >>> normalize Common.Windows "c:\\file/bob\\"
--- "C:\\file\\bob\\"
+-- >>> normalizedEq Common.Posix "//home"  "/home"
+-- True
 --
--- >>> normalize Common.Windows "c:\\"
--- "C:\\"
+-- >>> normalizedEq Common.Windows "c:\\file/bob\\" "C:\\file\\bob\\"
+-- True
 --
--- >>> normalize Common.Windows "c:\\\\\\\\"
--- "C:\\"
+-- >>> normalizedEq Common.Windows "c:\\" "C:\\"
+-- True
 --
--- >>> normalize Common.Windows "C:.\\"
--- "C:"
+-- >>> normalizedEq Common.Windows "C:.\\" "C:"
+-- True
 --
--- >>> normalize Common.Windows "\\\\server\\test"
--- "\\\\server\\test"
+-- >>> normalizedEq Common.Windows "\\\\server\\test" "\\\\server\\test"
+-- True
 --
--- >>> normalize Common.Windows "//server/test"
--- "\\\\server\\test"
+-- >>> normalizedEq Common.Windows "//server/test" "\\\\server\\test"
+-- True
 --
--- >>> normalize Common.Windows "c:/file"
--- "C:\\file"
+-- >>> normalizedEq Common.Windows "c:/file" "C:\\file"
+-- True
 --
--- >>> normalize Common.Windows "\\file"
--- "\\file"
+-- >>> normalizedEq Common.Windows "/file" "\\file"
+-- True
 --
--- >>> normalize Common.Windows "/file"
--- "\\file"
+-- >>> normalizedEq Common.Windows "\\" "\\"
+-- True
 --
--- >>> normalize Common.Windows "/./"
--- "\\"
+-- >>> normalizedEq Common.Windows "/./" "\\"
+-- True
 --
--- >>> normalize Common.Windows "/file/\\test////"
--- "\\file\\test\\"
---
--- >>> normalize Common.Windows "/file/./test"
--- "\\file\\test"
---
--- >>> normalize Common.Windows "/test/file/../bob/fred/"
--- "\\test\\file\\..\\bob\\fred\\"
---
--- >>> normalize Common.Windows "../bob/fred/"
--- "..\\bob\\fred\\"
---
--- >>> normalize Common.Windows "/a/../c"
--- "\\a\\..\\c"
---
--- >>> normalize Common.Windows "./bob/fred/"
--- "bob\\fred\\"
---
--- >>> normalize Common.Windows "./"
--- ".\\"
---
--- >>> normalize Common.Windows "./."
--- ".\\"
---
--- >>> normalize Common.Windows "/./"
--- "\\"
---
--- >>> normalize Common.Windows "/"
--- "\\"
---
--- >>> normalize Common.Windows "bob/fred/."
--- "bob\\fred\\"
---
--- >>> normalize Common.Windows "//home"
--- "\\\\home"
---
-{-# INLINE normalize #-}
-normalize :: forall a. (Unbox a, Integral a) => OS -> Array a -> Array a
-normalize os arr =
-    let (a, b) = splitDrive os arr
-        drv = normalizeDrive os a
-        pth = normalizePath os b
-        drvLen = Array.length drv
-        pthLen = Array.length pth
-        arrLen = Array.length arr
-     in if drvLen == 0 && pthLen == 0 && arrLen > 0
-        then
-            if arrLen >= 2
-            then
-                let x = unsafeIndexChar 0 arr
-                    y = unsafeIndexChar 1 arr
-                in
-                  if x == '.' && isSeparator os y
-                  then Array.fromListN 2
-                           [ordIntegral '.', primarySeparatorIntegral os]
-                  else Array.fromListN 1 [ordIntegral '.']
-            else Array.fromListN 1 [ordIntegral '.']
-        else if drvLen == 0
-        then pth
-        else if pthLen == 0
-        then drv
-        else Array.unsafeFreeze $ unsafePerformIO $ do
-            let x = unsafeIndexChar (drvLen - 1) drv
-            if isSeparator os x
-            then do
-                marr <- MutArray.emptyOf (drvLen + pthLen)
-                marr1 <- MutArray.unsafeSplice marr (Array.unsafeThaw drv)
-                MutArray.unsafeSplice marr1 (Array.unsafeThaw pth)
-            else do
-                marr <- MutArray.emptyOf (drvLen + pthLen + 1)
-                marr1 <- MutArray.unsafeSplice marr (Array.unsafeThaw drv)
-                marr2 <-
-                    MutArray.unsafeSnoc
-                        marr1 (ordIntegral (primarySeparator os))
-                MutArray.unsafeSplice marr2 (Array.unsafeThaw pth)
+normalizedEq :: (Integral a, Unbox a) => OS -> Array a -> Array a -> Bool
+normalizedEq Posix a b = unsafePerformIO $ do
+    let absA = isAbsoluteLocation a
+        absB = isAbsoluteLocation b
+        notFA = isNotFileLocation Posix a
+        notFB = isNotFileLocation Posix b
+    if absA == absB && notFA == notFB
+    then Stream.eqBy Array.byteEq (splitPath Posix a) (splitPath Posix b)
+    else pure False
+normalizedEq Windows a b = unsafePerformIO $ do
+    let (da, pa) = spanDrive a
+        (db, pb) = spanDrive b
+        nFA = isNotFileLocation Windows a
+        nFB = isNotFileLocation Windows b
+    if nFA == nFB && Array.byteEq (normalizeDrive da) (normalizeDrive db)
+    then Stream.eqBy Array.byteEq (splitPath Windows pa) (splitPath Windows pb)
+    else pure False

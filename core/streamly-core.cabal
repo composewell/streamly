@@ -457,8 +457,8 @@ library
 
     -- Only those modules should be here which are fully re-exported via some
     -- other module.
-    other-modules:
-                      Streamly.Internal.Data.Fold.Step
+
+                    , Streamly.Internal.Data.Fold.Step
                     , Streamly.Internal.Data.Fold.Type
                     , Streamly.Internal.Data.Fold.Combinators
                     , Streamly.Internal.Data.Fold.Container
