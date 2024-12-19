@@ -445,12 +445,6 @@ test-suite FileSystem.Handle
   if flag(use-streamly-core)
     buildable: False
 
-test-suite FileSystem.Path
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/FileSystem/Path.hs
-  ghc-options: -main-is Streamly.Test.FileSystem.Path.main
-
 test-suite Network.Inet.TCP
   import: lib-options
   type: exitcode-stdio-1.0
