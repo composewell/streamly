@@ -83,21 +83,18 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (bimap)
 import Data.Either (isRight, isLeft, fromLeft, fromRight)
 import Streamly.Data.Stream (Stream)
-import Streamly.Internal.Data.Unfold (Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 import qualified Streamly.Internal.Data.Fold as Fold
-import Streamly.Internal.FileSystem.Windows.ReadDir
-    (DirStream, openDirStream, closeDirStream, readDirStreamEither)
+import Streamly.Internal.FileSystem.Windows.ReadDir (eitherReader, reader)
 #else
 import Streamly.Internal.FileSystem.Posix.ReadDir
-    ( DirStream, openDirStream, closeDirStream, readDirStreamEither
-    , readEitherChunks)
+    (readEitherChunks, eitherReader, reader)
 #endif
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Unfold as UF (mapM2, bracketIO)
+import qualified Streamly.Internal.Data.Unfold as UF (mapM2)
 import qualified Streamly.Internal.FileSystem.Path as Path
 
 import Prelude hiding (read)
@@ -236,54 +233,10 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 
 -- XXX exception handling
 
-{-# INLINE streamEitherReader #-}
-streamEitherReader :: MonadIO m =>
-    Unfold m DirStream (Either Path Path)
-streamEitherReader = Unfold step return
-    where
-
-    step strm = do
-        r <- liftIO $ readDirStreamEither strm
-        case r of
-            Nothing -> return Stop
-            Just x -> return $ Yield x strm
-
-{-# INLINE streamReader #-}
-streamReader :: MonadIO m => Unfold m DirStream Path
-streamReader = fmap (either id id) streamEitherReader
-
---  | Read a directory emitting a stream with names of the children. Filter out
---  "." and ".." entries.
---
---  /Internal/
-
-{-# INLINE reader #-}
-reader :: (MonadIO m, MonadCatch m) => Unfold m Path Path
-reader =
--- XXX Instead of using bracketIO for each iteration of the loop we should
--- instead yield a buffer of dir entries in each iteration and then use an
--- unfold and concat to flatten those entries. That should improve the
--- performance.
-      UF.bracketIO openDirStream closeDirStream streamReader
-
 -- XXX We can use a more general mechanism to filter the contents of a
 -- directory. We can just stat each child and pass on the stat information. We
 -- can then use that info to do a general filtering. "find" like filters can be
 -- created.
-
--- | Read directories as Left and files as Right. Filter out "." and ".."
--- entries.
---
---  /Internal/
---
-{-# INLINE eitherReader #-}
-eitherReader :: (MonadIO m, MonadCatch m) =>
-    Unfold m Path (Either Path Path)
-eitherReader =
-    -- XXX The measured overhead of bracketIO is not noticeable, if it turns
-    -- out to be a problem for small filenames we can use getdents64 to use
-    -- chunked read to avoid the overhead.
-      UF.bracketIO openDirStream closeDirStream streamEitherReader
 
 {-# INLINE eitherReaderPaths #-}
 eitherReaderPaths ::(MonadIO m, MonadCatch m) =>
