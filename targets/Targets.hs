@@ -93,6 +93,11 @@ targets =
             [ "array_grp"
             ]
       )
+    , ("Data.Scanl",
+            [ "infinite_grp"
+            , "fold_parser_grp"
+            ]
+      )
     , ("Data.Scanl.Window",
             [ "infinite_grp"
             , "fold_parser_grp"
