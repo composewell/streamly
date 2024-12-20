@@ -2758,12 +2758,15 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 
     | SplitOnSeqEmpty !fs s
 
+    | SplitOnSeqSingle0 !fs s x
     | SplitOnSeqSingle !fs s x
 
-    | SplitOnSeqWordInit !fs s
+    | SplitOnSeqWordInit0 !fs s
+    | SplitOnSeqWordInit Int Word !fs s
     | SplitOnSeqWordLoop !w s !fs
     | SplitOnSeqWordDone Int !fs !w
 
+    | SplitOnSeqKRInit0 Int !fs s mba
     | SplitOnSeqKRInit Int !fs s mba
     | SplitOnSeqKRLoop fs s mba !rh !ck
     | SplitOnSeqKRCheck fs s mba !rh
@@ -2778,9 +2781,55 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 -- separator e.g. @a;b;c@ is parsed as @a@, @b@, @c@. If the pattern is empty
 -- then each element is a match, thus the fold is finalized on each element.
 --
--- Equivalent to the following:
+-- >>> splitOn p xs = Stream.fold Fold.toList $ Stream.splitSepBySeq_ (Array.fromList p) Fold.toList (Stream.fromList xs)
 --
--- >>> splitSepBySeq_ pat f = Stream.foldManyPost (Fold.takeEndBySeq_ pat f)
+-- >>> splitOn "" ""
+-- []
+--
+-- >>> splitOn "." ""
+-- []
+--
+-- >>> splitOn ".." ""
+-- []
+--
+-- >>> splitOn "..." ""
+-- []
+--
+-- >>> splitOn "" "a...b"
+-- ["a",".",".",".","b"]
+--
+-- >>> splitOn "." "a...b"
+-- ["a","","","b"]
+--
+-- >>> splitOn ".." "a...b"
+-- ["a",".b"]
+--
+-- >>> splitOn "..." "a...b"
+-- ["a","b"]
+--
+-- >>> splitOn "." "abc"
+-- ["abc"]
+--
+-- >>> splitOn ".." "abc"
+-- ["abc"]
+--
+-- >>> splitOn "..." "abc"
+-- ["abc"]
+--
+-- >>> splitOn "." "."
+-- ["",""]
+--
+-- >>> splitOn ".." ".."
+-- ["",""]
+--
+-- >>> splitOn "..." "..."
+-- ["",""]
+--
+-- >>> splitOn "." ".a"
+-- ["","a"]
+--
+-- >>> splitOn "." "a."
+-- ["a",""]
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --
@@ -2846,13 +2895,13 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                     return $ Skip $ SplitOnSeqEmpty acc state
                 | patLen == 1 -> do
                     pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
-                    return $ Skip $ SplitOnSeqSingle acc state pat
+                    return $ Skip $ SplitOnSeqSingle0 acc state pat
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
-                    return $ Skip $ SplitOnSeqWordInit acc state
+                    return $ Skip $ SplitOnSeqWordInit0 acc state
                 | otherwise -> do
                     (MutArray mba _ _ _) :: MutArray a <-
                         liftIO $ MutArray.emptyOf patLen
-                    skip $ SplitOnSeqKRInit 0 acc state mba
+                    skip $ SplitOnSeqKRInit0 0 acc state mba
             FL.Done b -> skip $ SplitOnSeqYield b SplitOnSeqInit
 
     stepOuter _ (SplitOnSeqYield x next) = return $ Yield x next
@@ -2891,6 +2940,23 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
     -----------------
     -- Single Pattern
     -----------------
+
+    -- TODO: Commonize the Yield part and check the performance
+    stepOuter gst (SplitOnSeqSingle0 fs st pat) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                let jump c = SplitOnSeqSingle c s pat
+                if pat == x
+                then final fs >>= yieldReinit jump
+                else do
+                    r <- fstep fs x
+                    case r of
+                        FL.Partial fs1 ->
+                            pure $ Skip $ SplitOnSeqSingle fs1 s pat
+                        FL.Done b -> yieldReinit jump b
+            Skip s -> pure $ Skip $ SplitOnSeqSingle0 fs s pat
+            Stop -> final fs >> pure Stop
 
     stepOuter gst (SplitOnSeqSingle fs0 st0 pat) = do
         go SPEC fs0 st0
@@ -2938,8 +3004,17 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                  let jump c = SplitOnSeqWordDone (n - 1) c wrd
                  yieldReinit jump b
 
-    stepOuter gst (SplitOnSeqWordInit fs st0) =
-        go SPEC 0 0 st0
+    stepOuter gst (SplitOnSeqWordInit0 fs st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s ->
+                let wrd1 = addToWord 0 x
+                 in pure $ Skip $ SplitOnSeqWordInit 1 wrd1 fs s
+            Skip s -> pure $ Skip $ SplitOnSeqWordInit0 fs s
+            Stop -> final fs >> pure Stop
+
+    stepOuter gst (SplitOnSeqWordInit idx0 wrd0 fs st0) =
+        go SPEC idx0 wrd0 st0
 
         where
 
@@ -2953,7 +3028,7 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                     then do
                         if wrd1 .&. wordMask == wordPat
                         then do
-                            let jump c = SplitOnSeqWordInit c s
+                            let jump c = SplitOnSeqWordInit 0 0 c s
                             final fs >>= yieldReinit jump
                         else skip $ SplitOnSeqWordLoop wrd1 s fs
                     else go SPEC (idx + 1) wrd1 s
@@ -2977,7 +3052,7 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let jump c = SplitOnSeqWordInit c s
+                    let jump c = SplitOnSeqWordInit 0 0 c s
                         wrd1 = addToWord wrd x
                         old = (wordMask .&. wrd)
                                 `shiftR` (elemBits * (patLen - 1))
@@ -2999,6 +3074,15 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
     -- required elements in the recursive loop, build the structures being
     -- manipulated locally e.g. we are passing only mba, here and build an
     -- array using patLen and arrStart from the surrounding context.
+
+    stepOuter gst (SplitOnSeqKRInit0 offset fs st mba) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                liftIO $ pokeAt offset mba x
+                skip $ SplitOnSeqKRInit (offset + SIZE_OF(a)) fs s mba
+            Skip s -> skip $ SplitOnSeqKRInit0 offset fs s mba
+            Stop -> final fs >> pure Stop
 
     stepOuter gst (SplitOnSeqKRInit offset fs st mba) = do
         res <- step (adaptState gst) st
