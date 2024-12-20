@@ -354,7 +354,7 @@ demuxGeneric getKey getFold =
 {-# INLINE demuxerToContainer #-}
 demuxerToContainer :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> m (Fold m a b))
+    -> (Key f -> m (Maybe (Fold m a b)))
     -> Fold m a (f b)
 demuxerToContainer getKey getFold =
     Fold (\s a -> Partial <$> step s a) (Partial <$> initial) undefined final
@@ -388,8 +388,10 @@ demuxerToContainer getKey getFold =
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                fld <- getFold k
-                runFold kv kv1 fld (k, a)
+                mfld <- getFold k
+                case mfld of
+                    Nothing -> pure $ Tuple' kv kv1
+                    Just fld -> runFold kv kv1 fld (k, a)
             Just f -> runFold kv kv1 f (k, a)
 
     final (Tuple' kv kv1) = do
@@ -408,7 +410,7 @@ demuxerToContainer getKey getFold =
 {-# INLINE demuxScanGeneric #-}
 demuxScanGeneric :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> m (Fold m a b))
+    -> (Key f -> m (Maybe (Fold m a b)))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxScanGeneric getKey getFold =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
@@ -439,8 +441,10 @@ demuxScanGeneric getKey getFold =
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                fld <- getFold k
-                runFold kv fld (k, a)
+                mfld <- getFold k
+                case mfld of
+                    Nothing -> pure $ Tuple' kv Nothing
+                    Just fld -> runFold kv fld (k, a)
             Just f -> runFold kv f (k, a)
 
     extract (Tuple' kv x) = return (Prelude.mapM f kv, x)
@@ -500,7 +504,7 @@ demux = demuxGeneric
 {-# INLINE demuxUsingMap #-}
 demuxUsingMap :: (Monad m, Ord k) =>
        (a -> k)
-    -> (k -> m (Fold m a b))
+    -> (k -> m (Maybe (Fold m a b)))
     -> Scanl m a (m (Map k b), Maybe (k, b))
 demuxUsingMap = demuxScanGeneric
 
@@ -512,7 +516,7 @@ demuxUsingMap = demuxScanGeneric
 {-# INLINE demuxScan #-}
 demuxScan :: (Monad m, Ord k) =>
        (a -> k)
-    -> (k -> m (Fold m a b))
+    -> (k -> m (Maybe (Fold m a b)))
     -> Scanl m a (Maybe (k, b))
 demuxScan getKey = fmap snd . demuxUsingMap getKey
 
@@ -601,7 +605,7 @@ demuxGenericIO getKey getFold =
 {-# INLINE demuxerToContainerIO #-}
 demuxerToContainerIO :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> m (Fold m a b))
+    -> (Key f -> m (Maybe (Fold m a b)))
     -> Fold m a (f b)
 demuxerToContainerIO getKey getFold =
     Fold (\s a -> Partial <$> step s a) (Partial <$> initial) undefined final
@@ -647,8 +651,10 @@ demuxerToContainerIO getKey getFold =
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                f <- getFold k
-                initFold kv kv1 f (k, a)
+                res <- getFold k
+                case res of
+                    Nothing -> pure $ Tuple' kv kv1
+                    Just f -> initFold kv kv1 f (k, a)
             Just ref -> do
                 f <- liftIO $ readIORef ref
                 runFold kv kv1 ref f (k, a)
@@ -675,7 +681,7 @@ demuxerToContainerIO getKey getFold =
 {-# INLINE demuxScanGenericIO #-}
 demuxScanGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> m (Fold m a b))
+    -> (Key f -> m (Maybe (Fold m a b)))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxScanGenericIO getKey getFold =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
@@ -721,8 +727,10 @@ demuxScanGenericIO getKey getFold =
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                f <- getFold k
-                initFold kv f (k, a)
+                res <- getFold k
+                case res of
+                    Nothing -> pure $ Tuple' kv Nothing
+                    Just f -> initFold kv f (k, a)
             Just ref -> do
                 f <- liftIO $ readIORef ref
                 runFold kv ref f (k, a)
@@ -766,7 +774,7 @@ demuxIO = demuxGenericIO
 {-# INLINE demuxUsingMapIO #-}
 demuxUsingMapIO :: (MonadIO m, Ord k) =>
        (a -> k)
-    -> (k -> m (Fold m a b))
+    -> (k -> m (Maybe (Fold m a b)))
     -> Scanl m a (m (Map k b), Maybe (k, b))
 demuxUsingMapIO = demuxScanGenericIO
 
@@ -779,7 +787,7 @@ demuxUsingMapIO = demuxScanGenericIO
 {-# INLINE demuxScanIO #-}
 demuxScanIO :: (MonadIO m, Ord k) =>
        (a -> k)
-    -> (k -> m (Fold m a b))
+    -> (k -> m (Maybe (Fold m a b)))
     -> Scanl m a (Maybe (k, b))
 demuxScanIO getKey = fmap snd . demuxUsingMapIO getKey
 
@@ -839,7 +847,7 @@ demuxToMap = demuxToContainer
 --
 {-# INLINE demuxerToMap #-}
 demuxerToMap :: (Monad m, Ord k) =>
-    (a -> k) -> (k -> m (Fold m a b)) -> Fold m a (Map k b)
+    (a -> k) -> (k -> m (Maybe (Fold m a b))) -> Fold m a (Map k b)
 demuxerToMap = demuxerToContainer
 
 {-# DEPRECATED demuxToContainerIO "Use demuxerToContainerIO instead" #-}
@@ -869,13 +877,13 @@ demuxToMapIO = demuxToContainerIO
 --
 {-# INLINE demuxerToMapIO #-}
 demuxerToMapIO :: (MonadIO m, Ord k) =>
-    (a -> k) -> (k -> m (Fold m a b)) -> Fold m a (Map k b)
+    (a -> k) -> (k -> m (Maybe (Fold m a b))) -> Fold m a (Map k b)
 demuxerToMapIO = demuxerToContainerIO
 
 {-# INLINE demuxKvToContainer #-}
 demuxKvToContainer :: (Monad m, IsMap f, Traversable f) =>
-    (Key f -> m (Fold m a b)) -> Fold m (Key f, a) (f b)
-demuxKvToContainer f = demuxerToContainer fst (fmap (lmap snd) . f)
+    (Key f -> m (Maybe (Fold m a b))) -> Fold m (Key f, a) (f b)
+demuxKvToContainer f = demuxerToContainer fst (fmap (fmap (lmap snd)) . f)
 
 -- | Fold a stream of key value pairs using a function that maps keys to folds.
 --
@@ -887,8 +895,8 @@ demuxKvToContainer f = demuxerToContainer fst (fmap (lmap snd) . f)
 --
 -- >>> import Data.Map (Map)
 -- >>> :{
---  let f "SUM" = return Fold.sum
---      f _ = return Fold.product
+--  let f "SUM" = return (Just Fold.sum)
+--      f _ = return (Just Fold.product)
 --      input = Stream.fromList [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)]
 --   in Stream.fold (Fold.demuxKvToMap f) input :: IO (Map String Int)
 -- :}
@@ -897,7 +905,7 @@ demuxKvToContainer f = demuxerToContainer fst (fmap (lmap snd) . f)
 -- /Pre-release/
 {-# INLINE demuxKvToMap #-}
 demuxKvToMap :: (Monad m, Ord k) =>
-    (k -> m (Fold m a b)) -> Fold m (k, a) (Map k b)
+    (k -> m (Maybe (Fold m a b))) -> Fold m (k, a) (Map k b)
 demuxKvToMap = demuxKvToContainer
 
 ------------------------------------------------------------------------------

@@ -274,7 +274,7 @@ countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 {-# INLINE demuxGeneric #-}
 demuxGeneric :: (Monad m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> m (Scanl m a b))
+    -> (Key f -> m (Maybe (Scanl m a b)))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxGeneric getKey getFold =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
@@ -309,8 +309,10 @@ demuxGeneric getKey getFold =
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                fld <- getFold k
-                runFold kv fld (k, a)
+                mfld <- getFold k
+                case mfld of
+                    Nothing -> pure $ Tuple' kv Nothing
+                    Just fld -> runFold kv fld (k, a)
             Just f -> runFold kv f (k, a)
 
     extract (Tuple' kv x) = return (Prelude.mapM f kv, x)
@@ -336,7 +338,7 @@ demuxGeneric getKey getFold =
 {-# INLINE demuxUsingMap #-}
 demuxUsingMap :: (Monad m, Ord k) =>
        (a -> k)
-    -> (k -> m (Scanl m a b))
+    -> (k -> m (Maybe (Scanl m a b)))
     -> Scanl m a (m (Map k b), Maybe (k, b))
 demuxUsingMap = demuxGeneric
 
@@ -365,7 +367,7 @@ demuxUsingMap = demuxGeneric
 {-# INLINE demux #-}
 demux :: (Monad m, Ord k) =>
        (a -> k)
-    -> (k -> m (Scanl m a b))
+    -> (k -> m (Maybe (Scanl m a b)))
     -> Scanl m a (Maybe (k, b))
 demux getKey = fmap snd . demuxUsingMap getKey
 
@@ -380,7 +382,7 @@ demux getKey = fmap snd . demuxUsingMap getKey
 {-# INLINE demuxGenericIO #-}
 demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
        (a -> Key f)
-    -> (Key f -> m (Scanl m a b))
+    -> (Key f -> m (Maybe (Scanl m a b)))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxGenericIO getKey getFold =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
@@ -429,8 +431,10 @@ demuxGenericIO getKey getFold =
         let k = getKey a
         case IsMap.mapLookup k kv of
             Nothing -> do
-                f <- getFold k
-                initFold kv f (k, a)
+                res <- getFold k
+                case res of
+                    Nothing -> pure $ Tuple' kv Nothing
+                    Just f -> initFold kv f (k, a)
             Just ref -> do
                 f <- liftIO $ readIORef ref
                 runFold kv ref f (k, a)
@@ -460,7 +464,7 @@ demuxGenericIO getKey getFold =
 {-# INLINE demuxUsingMapIO #-}
 demuxUsingMapIO :: (MonadIO m, Ord k) =>
        (a -> k)
-    -> (k -> m (Scanl m a b))
+    -> (k -> m (Maybe (Scanl m a b)))
     -> Scanl m a (m (Map k b), Maybe (k, b))
 demuxUsingMapIO = demuxGenericIO
 
@@ -470,7 +474,7 @@ demuxUsingMapIO = demuxGenericIO
 {-# INLINE demuxIO #-}
 demuxIO :: (MonadIO m, Ord k) =>
        (a -> k)
-    -> (k -> m (Scanl m a b))
+    -> (k -> m (Maybe (Scanl m a b)))
     -> Scanl m a (Maybe (k, b))
 demuxIO getKey = fmap snd . demuxUsingMapIO getKey
 
