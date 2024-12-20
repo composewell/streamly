@@ -10,7 +10,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 #undef FUSION_CHECK
@@ -48,6 +47,7 @@ import Streamly.Internal.Data.MutArray (MutArray)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Pipe as Pipe
@@ -130,14 +130,14 @@ filter _ = Stream.fold (FL.filter even FL.drain)
 
 {-# INLINE scanMaybe #-}
 scanMaybe :: Monad m => Int -> Stream m Int -> m ()
-scanMaybe _ = Stream.fold (FL.scanMaybe (FL.filtering even) FL.drain)
+scanMaybe _ = Stream.fold (FL.postscanlMaybe (Scanl.filtering even) FL.drain)
 
 {-# INLINE scanMaybe2 #-}
 scanMaybe2 :: Monad m => Int -> Stream m Int -> m ()
 scanMaybe2 _ =
     Stream.fold
-        $ FL.scanMaybe (FL.filtering even)
-        $ FL.scanMaybe (FL.filtering odd) FL.drain
+        $ FL.postscanlMaybe (Scanl.filtering even)
+        $ FL.postscanlMaybe (Scanl.filtering odd) FL.drain
 
 -------------------------------------------------------------------------------
 -- Splitting in two
@@ -423,18 +423,18 @@ partitionByMinM =
 
 {-# INLINE demuxToMap  #-}
 demuxToMap :: (Monad m, Ord k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
-demuxToMap f g = Stream.fold (FL.demuxToContainer f g)
+    (a -> k) -> (k -> m (Maybe (Fold m a b))) -> Stream m a -> m (Map k b)
+demuxToMap f g = Stream.fold (FL.demuxerToContainer f g)
 
 {-# INLINE demuxToIntMap  #-}
 demuxToIntMap :: Monad m =>
-    (a -> Int) -> (a -> m (Fold m a b)) -> Stream m a -> m (IntMap b)
-demuxToIntMap f g = Stream.fold (FL.demuxToContainer f g)
+    (a -> Int) -> (Int -> m (Maybe (Fold m a b))) -> Stream m a -> m (IntMap b)
+demuxToIntMap f g = Stream.fold (FL.demuxerToContainer f g)
 
 {-# INLINE demuxToMapIO  #-}
 demuxToMapIO :: (MonadIO m, Ord k) =>
-    (a -> k) -> (a -> m (Fold m a b)) -> Stream m a -> m (Map k b)
-demuxToMapIO f g = Stream.fold (FL.demuxToContainerIO f g)
+    (a -> k) -> (k -> m (Maybe (Fold m a b))) -> Stream m a -> m (Map k b)
+demuxToMapIO f g = Stream.fold (FL.demuxerToContainerIO f g)
 
 {-# INLINE toMap #-}
 toMap ::
@@ -506,9 +506,9 @@ o_1_space_serial_elimination :: Int -> [Benchmark]
 o_1_space_serial_elimination value =
     [ bgroup "elimination"
         [ benchIOSink value "drain" (Stream.fold FL.drain)
-        , benchIOSink value "drainBy" (Stream.fold (FL.drainBy return))
+        , benchIOSink value "drainBy" (Stream.fold (FL.drainMapM return))
         , benchIOSink value "drainN" (Stream.fold (FL.drainN value))
-        , benchIOSink value "last" (Stream.fold FL.last)
+        , benchIOSink value "last" (Stream.fold FL.latest)
         , benchIOSink value "length" (Stream.fold FL.length)
         , benchIOSink value "top" (Stream.fold $ FL.top 10)
         , benchIOSink value "bottom" (Stream.fold $ FL.bottom 10)
@@ -523,6 +523,11 @@ o_1_space_serial_elimination value =
               value
               "mean"
               (Stream.fold FL.mean . fmap (fromIntegral :: Int -> Double))
+{-
+        -- These are already benchmarked in streamly-statistics package. If we
+        -- still want to keep these tests here, perhaps we should move them to a
+        -- different module so we can remove -fno-warn-warnings-deprecations.
+
         , benchIOSink
               value
               "variance"
@@ -531,6 +536,7 @@ o_1_space_serial_elimination value =
               value
               "stdDev"
               (Stream.fold FL.stdDev . fmap (fromIntegral :: Int -> Double))
+-}
         , benchIOSink
               value
               "mconcat"
@@ -601,15 +607,15 @@ o_1_space_serial_transformation value =
         , benchIOSink
             value
             "fold-scan"
-            (Stream.fold $ FL.scan FL.sum FL.drain)
+            (Stream.fold $ FL.scanl Scanl.sum FL.drain)
         , benchIOSink
             value
             "fold-scanMany"
-            (Stream.fold $ FL.scanMany (FL.take 2 FL.drain) FL.drain)
+            (Stream.fold $ FL.scanlMany (Scanl.take 2 Scanl.drain) FL.drain)
         , benchIOSink
             value
             "fold-postscan"
-            (Stream.fold $ FL.postscan FL.sum FL.drain)
+            (Stream.fold $ FL.postscanl Scanl.sum FL.drain)
         ]
     ]
 
@@ -665,11 +671,11 @@ o_n_heap_serial value =
     , bgroup "key-value"
             [
               benchIOSink value "demuxToMap (64 buckets) [sum, length]"
-                $ demuxToMap (getKey 64) (getFold . getKey 64)
+                $ demuxToMap (getKey 64) getFold
             , benchIOSink value "demuxToIntMap (64 buckets) [sum, length]"
-                $ demuxToIntMap (getKey 64) (getFold . getKey 64)
+                $ demuxToIntMap (getKey 64) getFold
             , benchIOSink value "demuxToMapIO (64 buckets) [sum, length]"
-                $ demuxToMapIO (getKey 64) (getFold . getKey 64)
+                $ demuxToMapIO (getKey 64) getFold
 
             -- classify: immutable
             , benchIOSink value "toMap (64 buckets) sum"
@@ -694,7 +700,7 @@ o_n_heap_serial value =
     getKey buckets = (`mod` buckets)
 
     getFold k =
-        return $ case k of
+        return $ Just $ case k of
             0 -> FL.sum
             1 -> FL.length
             _ -> FL.length

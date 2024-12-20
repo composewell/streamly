@@ -596,9 +596,9 @@ foldBreak ls = monadicIO $ do
 
 demux :: Expectation
 demux =
-    let table "SUM" = return Fold.sum
-        table "PRODUCT" = return Fold.product
-        table _ = return Fold.length
+    let table "SUM" = return $ Just Fold.sum
+        table "PRODUCT" = return $ Just Fold.product
+        table _ = return $ Just Fold.length
         input = Stream.fromList  (
                 [ ("SUM", 1)
                 , ("abc", 1)
