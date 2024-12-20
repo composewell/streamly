@@ -384,6 +384,12 @@ benchmark Data.RingArray
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
+benchmark Data.Scanl
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Scanl.hs
+
 benchmark Data.Scanl.Window
   import: bench-options
   type: exitcode-stdio-1.0
