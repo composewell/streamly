@@ -662,7 +662,7 @@ foldManyPost f m = fromStreamD $ D.foldManyPost f (toStreamD m)
 -- ["h","e","l","l","o"]
 --
 -- >>> splitOnSeq' "hello" ""
--- [""]
+-- []
 --
 -- >>> splitOnSeq' "hello" "hello"
 -- ["",""]
