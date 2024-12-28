@@ -126,7 +126,7 @@ testStripNull = do
 unsafeSlice :: Int -> Int -> [Int] -> Bool
 unsafeSlice i n list =
     let lst = take n $ drop i list
-        arr = A.toList $ A.getSliceUnsafe i n $ A.fromList list
+        arr = A.toList $ A.unsafeGetSlice i n $ A.fromList list
      in arr == lst
 
 testBubbleWith :: Bool -> Property
@@ -183,7 +183,7 @@ testFromToList inp = A.toList (A.fromList inp) `shouldBe` inp
 testUnsafeIndxedFromList :: [Char] -> IO ()
 testUnsafeIndxedFromList inp =
     let arr = A.fromList inp
-     in fmap (`A.getIndexUnsafe` arr) [0 .. (length inp - 1)] `shouldBe` inp
+     in fmap (`A.unsafeGetIndex` arr) [0 .. (length inp - 1)] `shouldBe` inp
 
 getIntList :: Ptr Int -> Int -> IO [Int]
 getIntList ptr byteLen = do
@@ -334,7 +334,7 @@ main =
         describe "toList . fromList" $ do
             it "testFromToList abc" (testFromToList "abc")
             it "testFromToList \\22407" (testFromToList "\22407")
-        describe "getIndexUnsafe . fromList" $ do
+        describe "unsafeGetIndex . fromList" $ do
             it "testUnsafeIndxedFromList abc" (testUnsafeIndxedFromList "abc")
             it "testUnsafeIndxedFromList \\22407"
                    (testUnsafeIndxedFromList "\22407")

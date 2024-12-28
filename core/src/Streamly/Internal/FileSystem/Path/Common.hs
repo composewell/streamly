@@ -121,7 +121,7 @@ unsafeFromChunk ::
     Array Word8 -> Array a
 unsafeFromChunk =
 #ifndef DEBUG
-    Array.castUnsafe
+    Array.unsafeCast
 #else
     fromJust . fromChunk
 #endif
@@ -229,7 +229,7 @@ wordToChar = unsafeChr . fromIntegral
 
 -- | Index a word in an array and convert it to Char.
 unsafeIndexChar :: (Unbox a, Integral a) => Int -> Array a -> Char
-unsafeIndexChar i a = wordToChar (Array.getIndexUnsafe i a)
+unsafeIndexChar i a = wordToChar (Array.unsafeGetIndex i a)
 
 ------------------------------------------------------------------------------
 -- Separator parsing
@@ -333,9 +333,9 @@ isDrive a = Array.length a == 2 && unsafeHasDrive a
 isRelativeCurDir :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isRelativeCurDir os a
     | len == 0 = False -- empty path should not occur
-    | wordToChar (Array.getIndexUnsafe 0 a) /= '.' = False
+    | wordToChar (Array.unsafeGetIndex 0 a) /= '.' = False
     | len < 2 = True
-    | otherwise = isSeparatorWord os (Array.getIndexUnsafe 1 a)
+    | otherwise = isSeparatorWord os (Array.unsafeGetIndex 1 a)
 
     where
 
@@ -345,7 +345,7 @@ isRelativeCurDir os a
 hasLeadingSeparator :: (Unbox a, Integral a) => OS -> Array a -> Bool
 hasLeadingSeparator os a
     | Array.length a == 0 = False -- empty path should not occur
-    | isSeparatorWord os (Array.getIndexUnsafe 0 a) = True
+    | isSeparatorWord os (Array.unsafeGetIndex 0 a) = True
     | otherwise = False
 
 -- | A non-UNC path starting with a separator.
@@ -359,8 +359,8 @@ isRelativeCurDriveRoot a
     where
 
     len = Array.length a
-    c0 = Array.getIndexUnsafe 0 a
-    c1 = Array.getIndexUnsafe 1 a
+    c0 = Array.unsafeGetIndex 0 a
+    c1 = Array.unsafeGetIndex 1 a
     sep0 = isSeparatorWord Windows c0
 
 -- | @C:@ or @C:a...@.
@@ -387,8 +387,8 @@ isAbsoluteUNC a
 
     where
 
-    c0 = Array.getIndexUnsafe 0 a
-    c1 = Array.getIndexUnsafe 1 a
+    c0 = Array.unsafeGetIndex 0 a
+    c1 = Array.unsafeGetIndex 1 a
 
 -- | Note that on Windows a path starting with a separator is relative to
 -- current drive while on Posix this is absolute path as there is only one
@@ -551,11 +551,11 @@ unsafeSplitPrefix os prefixLen arr = (drive, path)
 
     len = Array.length arr
     -- XXX Array.readFrom may be useful here
-    afterDrive = Array.getSliceUnsafe prefixLen (len - prefixLen) arr
+    afterDrive = Array.unsafeGetSlice prefixLen (len - prefixLen) arr
     n = countLeadingBy (isSeparatorWord os) afterDrive
     cnt = prefixLen + n
-    drive = Array.getSliceUnsafe 0 cnt arr
-    path = Array.getSliceUnsafe cnt (len - cnt) arr
+    drive = Array.unsafeGetSlice 0 cnt arr
+    path = Array.unsafeGetSlice cnt (len - cnt) arr
 
 -- XXX We can produce a normalized result for the drive during split.
 
@@ -631,11 +631,11 @@ parseSegment arr len sepOff = (segOff, segCnt)
 
     where
 
-    arr1 = Array.getSliceUnsafe sepOff (len - sepOff) arr
+    arr1 = Array.unsafeGetSlice sepOff (len - sepOff) arr
     sepCnt = countLeadingBy (isSeparatorWord Windows) arr1
     segOff = sepOff + sepCnt
 
-    arr2 = Array.getSliceUnsafe segOff (len - segOff) arr
+    arr2 = Array.unsafeGetSlice segOff (len - segOff) arr
     segCnt = countLeadingBy (not . isSeparatorWord Windows) arr2
 
 -- XXX We can split a path as "root, . , rest" or "root, /, rest".
@@ -698,7 +698,7 @@ unsafeSplitUNC arr =
     where
 
     len = Array.length arr
-    arr1 = Array.getSliceUnsafe 2 (len - 2) arr
+    arr1 = Array.unsafeGetSlice 2 (len - 2) arr
     cnt1 = countLeadingBy (not . isSeparatorWord Windows) arr1
     sepOff = 2 + cnt1
 
@@ -789,7 +789,7 @@ splitPath os arr =
     let stream =
               Stream.indexEndBy_ (isSeparatorWord os) (Array.read rest)
             & Stream.filter (not . shouldFilterOut)
-            & fmap (\(i, len) -> Array.getSliceUnsafe i len rest)
+            & fmap (\(i, len) -> Array.unsafeGetSlice i len rest)
 
     in if Array.length root == 0
        then stream

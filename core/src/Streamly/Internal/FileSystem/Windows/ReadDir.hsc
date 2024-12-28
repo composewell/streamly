@@ -104,7 +104,7 @@ failWith fn_name err_code = do
   c_msg <- getErrorMessage err_code
   msg <- if c_msg == nullPtr
          then return $ "Error 0x" ++ Numeric.showHex err_code ""
-         else do 
+         else do
              msg <- peekCWString c_msg
              -- We ignore failure of freeing c_msg, given we're already failing
              _ <- localFree c_msg
@@ -145,8 +145,8 @@ openDirStream p = do
             Array.asCStringUnsafe (Path.toChunk path) $ \pathPtr -> do
                 -- XXX Use getLastError to distinguish the case when no
                 -- matching file is found. See the doc of FindFirstFileW.
-                failIf 
-                    (== iNVALID_HANDLE_VALUE) 
+                failIf
+                    (== iNVALID_HANDLE_VALUE)
                     ("FindFirstFileW: " ++ Path.toString path)
                     $ c_FindFirstFileW (castPtr pathPtr) dataPtr
         ref <- newIORef True
@@ -199,8 +199,8 @@ readDirStreamEither (DirStream (h, ref, fdata)) =
             isMeta <- isMetaDir dname
             if isMeta
             then findNext ptr
-            else return (Just (Left (mkPath (Array.castUnsafe name))))
-        else return (Just (Right (mkPath (Array.castUnsafe name))))
+            else return (Just (Left (mkPath (Array.unsafeCast name))))
+        else return (Just (Right (mkPath (Array.unsafeCast name))))
 
     findNext ptr = do
         retval <- liftIO $ c_FindNextFileW h ptr

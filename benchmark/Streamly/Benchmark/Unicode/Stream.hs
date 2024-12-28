@@ -264,10 +264,10 @@ _copyStreamUtf8' inh outh =
 copyStreamUtf16 :: Handle -> Handle -> IO ()
 copyStreamUtf16 inh outh =
    Stream.fold (Handle.writeChunks outh)
-     $ fmap Array.castUnsafe $ Array.chunksOf (arrayPayloadSize (16 * 1024))
+     $ fmap Array.unsafeCast $ Array.chunksOf (arrayPayloadSize (16 * 1024))
      $ Unicode.encodeUtf16le'
      $ Unicode.decodeUtf16le
-     $ Array.concat $ fmap Array.castUnsafe $ Unicode.mkEvenW8Chunks
+     $ Array.concat $ fmap Array.unsafeCast $ Unicode.mkEvenW8Chunks
      $ Handle.readChunks inh
 
 #ifdef INSPECTION

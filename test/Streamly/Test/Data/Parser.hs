@@ -928,10 +928,10 @@ data Event = Event
 readOneEvent :: P.Parser Word8 IO Event
 readOneEvent = do
     arr <- P.takeEQ 24 (A.createOf 24)
-    let arr1 = A.castUnsafe arr :: A.Array Word64
-        eid = A.getIndexUnsafe 0 arr1
-        eflags = A.getIndexUnsafe 1 arr1
-        pathLen = fromIntegral $ A.getIndexUnsafe 2 arr1
+    let arr1 = A.unsafeCast arr :: A.Array Word64
+        eid = A.unsafeGetIndex 0 arr1
+        eflags = A.unsafeGetIndex 1 arr1
+        pathLen = fromIntegral $ A.unsafeGetIndex 2 arr1
     -- XXX handle if pathLen is 0
     path <- P.takeEQ pathLen (A.createOf pathLen)
     return $ Event

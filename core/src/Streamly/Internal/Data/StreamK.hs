@@ -1583,8 +1583,8 @@ backTrackGenericChunks = go
            then go (n - len) xs (cons x stream)
            else if n == len
            then (cons x stream, xs)
-           else let arr1 = GenArr.getSliceUnsafe (len - n) n x
-                    arr2 = GenArr.getSliceUnsafe 0 (len - n) x
+           else let arr1 = GenArr.unsafeGetSlice (len - n) n x
+                    arr2 = GenArr.unsafeGetSlice 0 (len - n) x
                  in (cons arr1 stream, arr2:xs)
 
 -- | Similar to 'parseBreak' but works on generic arrays

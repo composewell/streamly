@@ -49,11 +49,11 @@ module Streamly.Internal.Data.Array
     -- * Casting
     , cast
     , asBytes
-    , castUnsafe
+    , unsafeCast
     , asCStringUnsafe
 
     -- * Subarrays
-    , getSliceUnsafe
+    , unsafeGetSlice
     -- , getSlice
     , sliceIndexerFromLen
     , slicerFromLen
@@ -89,6 +89,8 @@ module Streamly.Internal.Data.Array
     , deserialize
 
     -- * Deprecated
+    , castUnsafe
+    , getSliceUnsafe
     , pinnedSerialize
     , genSlicesFromLen
     , getSlicesFromLen
@@ -294,18 +296,20 @@ find = Unfold.fold Fold.null . Stream.unfold (indexFinder p)
 -- /Unsafe/
 --
 -- /Pre-release/
-{-# INLINE getSliceUnsafe #-}
-getSliceUnsafe ::
+{-# INLINE unsafeGetSlice #-}
+unsafeGetSlice, getSliceUnsafe ::
        forall a. Unbox a
     => Int -- ^ starting index
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-getSliceUnsafe index len (Array contents start e) =
+unsafeGetSlice index len (Array contents start e) =
     let size = SIZE_OF(a)
         start1 = start + (index * size)
         end1 = start1 + (len * size)
      in assert (end1 <= e) (Array contents start1 end1)
+
+RENAME(getSliceUnsafe,unsafeGetSlice)
 
 -- | Split the array into a stream of slices using a predicate. The element
 -- matching the predicate is dropped.
@@ -466,19 +470,20 @@ streamTransform f arr =
 --
 -- /Pre-release/
 --
-castUnsafe ::
+unsafeCast, castUnsafe ::
 #ifdef DEVBUILD
     Unbox b =>
 #endif
     Array a -> Array b
-castUnsafe (Array contents start end) =
+unsafeCast (Array contents start end) =
     Array contents start end
+RENAME(castUnsafe,unsafeCast)
 
 -- | Cast an @Array a@ into an @Array Word8@.
 --
 --
 asBytes :: Array a -> Array Word8
-asBytes = castUnsafe
+asBytes = unsafeCast
 
 -- | Cast an array having elements of type @a@ into an array having elements of
 -- type @b@. The length of the array should be a multiple of the size of the
@@ -491,7 +496,7 @@ cast arr =
         r = len `mod` SIZE_OF(b)
      in if r /= 0
         then Nothing
-        else Just $ castUnsafe arr
+        else Just $ unsafeCast arr
 
 -- | Convert an array of any type into a null terminated CString Ptr.  If the
 -- array is unpinned it is first converted to a pinned array which requires a
