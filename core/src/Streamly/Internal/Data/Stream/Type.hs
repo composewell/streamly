@@ -143,7 +143,7 @@ module Streamly.Internal.Data.Stream.Type
     , foldIterateBfs
 
     -- * Splitting
-    , indexOnSuffix
+    , indexEndBy_
 
     -- * Multi-stream folds
     -- | These should probably be expressed using zipping operations.
@@ -153,6 +153,7 @@ module Streamly.Internal.Data.Stream.Type
     -- * Deprecated
     , sliceOnSuffix
     , unfoldMany
+    , indexOnSuffix
     )
 where
 
@@ -2114,25 +2115,27 @@ indexerBy (Fold step1 initial1 extract1 _final) n =
 
     extract (Tuple' i s) = (i,) <$> extract1 s
 
--- XXX rename to indicesEndBy
-
--- | Like 'splitEndBy' but generates a stream of (index, len) tuples marking
+-- | Like 'splitEndBy_' but generates a stream of (index, len) tuples marking
 -- the places where the predicate matches in the stream.
 --
+-- >>> Stream.toList $ Stream.indexEndBy_ (== '/') $ Stream.fromList "/home/harendra"
+-- [(0,0),(1,4),(6,8)]
+--
 -- /Pre-release/
-{-# INLINE indexOnSuffix #-}
-indexOnSuffix :: Monad m =>
+{-# INLINE indexEndBy_ #-}
+indexEndBy_, indexOnSuffix :: Monad m =>
     (a -> Bool) -> Stream m a -> Stream m (Int, Int)
-indexOnSuffix predicate =
-    -- Scan the stream with the given refold
+indexEndBy_ predicate =
     refoldIterateM
         (indexerBy (FL.takeEndBy_ predicate FL.length) 1)
         (return (-1, 0))
 
+RENAME(indexOnSuffix,indexEndBy_)
+
 -- Alternate implementation
-{-# INLINE_NORMAL _indexOnSuffix #-}
-_indexOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
-_indexOnSuffix p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
+{-# INLINE_NORMAL _indexEndBy_ #-}
+_indexEndBy_ :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
+_indexEndBy_ p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
 
     where
 
@@ -2149,9 +2152,9 @@ _indexOnSuffix p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
               Stop -> if len == 0 then Stop else Yield (i, len) Nothing
     step _ Nothing = return Stop
 
-{-# DEPRECATED sliceOnSuffix "Please use indexOnSuffix instead." #-}
+{-# DEPRECATED sliceOnSuffix "Please use indexEndBy_ instead." #-}
 sliceOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
-sliceOnSuffix = indexOnSuffix
+sliceOnSuffix = indexEndBy_
 
 ------------------------------------------------------------------------------
 -- Stream with a cross product style monad instance

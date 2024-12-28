@@ -57,7 +57,7 @@ module Streamly.Internal.Data.Array
     -- , getSlice
     , sliceIndexerFromLen
     , slicerFromLen
-    , splitOn -- XXX slicesEndBy
+    , sliceEndBy_
 
     -- * Streaming Operations
     , streamTransform
@@ -101,6 +101,7 @@ module Streamly.Internal.Data.Array
     , pinnedCompactLE
     , compactOnByte
     , compactOnByteSuffix
+    , splitOn
     )
 where
 
@@ -310,12 +311,14 @@ getSliceUnsafe index len (Array contents start e) =
 -- matching the predicate is dropped.
 --
 -- /Pre-release/
-{-# INLINE splitOn #-}
-splitOn :: (Monad m, Unbox a) =>
+{-# INLINE sliceEndBy_ #-}
+sliceEndBy_, splitOn :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
-splitOn predicate arr =
+sliceEndBy_ predicate arr =
     fmap (\(i, len) -> getSliceUnsafe i len arr)
-        $ D.indexOnSuffix predicate (read arr)
+        $ D.indexEndBy_ predicate (read arr)
+
+RENAME(splitOn,sliceEndBy_)
 
 {-# INLINE sliceIndexerFromLen #-}
 sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)

@@ -257,7 +257,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- | Split an array into slices.
 
     -- , getSlicesFromLenN
-    , splitOn -- slicesEndBy
+    , sliceEndBy_
     -- , slicesOf
 
     -- *** Concat
@@ -359,6 +359,7 @@ module Streamly.Internal.Data.MutArray.Type
     , pinnedFromList
     , pinnedClone
     , unsafePinnedCreateOf
+    , splitOn
     )
 where
 
@@ -2891,12 +2892,16 @@ spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 -- matching the predicate is dropped.
 --
 -- /Pre-release/
-{-# INLINE splitOn #-}
-splitOn :: (MonadIO m, Unbox a) =>
+{-# INLINE sliceEndBy_ #-}
+sliceEndBy_, splitOn :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> Stream m (MutArray a)
-splitOn predicate arr =
+sliceEndBy_ predicate arr =
     fmap (\(i, len) -> unsafeGetSlice i len arr)
-        $ D.indexOnSuffix predicate (read arr)
+        $ D.indexEndBy_ predicate (read arr)
+
+RENAME(splitOn,sliceEndBy_)
+
+-- XXX breakEndBy_?
 
 -- | Drops the separator byte
 {-# INLINE breakOn #-}
