@@ -2500,7 +2500,7 @@ takeEndBySeqWith withSep patArr (Stream step state) =
         case () of
             _ | patLen == 0 -> return Stop
               | patLen == 1 -> do
-                    pat <- liftIO $ A.unsafeIndexIO 0 patArr
+                    pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
                     return $ Skip $ TakeEndBySeqSingle state pat
               | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Skip $ TakeEndBySeqWordInit 0 0 state
@@ -2845,7 +2845,7 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                 | patLen == 0 ->
                     return $ Skip $ SplitOnSeqEmpty acc state
                 | patLen == 1 -> do
-                    pat <- liftIO $ A.unsafeIndexIO 0 patArr
+                    pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
                     return $ Skip $ SplitOnSeqSingle acc state pat
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Skip $ SplitOnSeqWordInit acc state
@@ -3229,7 +3229,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                 | patLen == 0 ->
                     skip $ SplitOnSuffixSeqEmpty fs state
                 | patLen == 1 -> do
-                    pat <- liftIO $ A.unsafeIndexIO 0 patArr
+                    pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
                     skip $ SplitOnSuffixSeqSingleInit fs state pat
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     skip $ SplitOnSuffixSeqWordInit fs state

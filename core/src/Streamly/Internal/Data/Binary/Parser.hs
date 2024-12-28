@@ -57,7 +57,7 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple' (..))
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array as A
-    (getIndexUnsafe, castUnsafe)
+    (unsafeGetIndex, unsafeCast)
 import qualified Streamly.Internal.Data.Parser as PR
     (fromPure, either, satisfy, takeEQ)
 import qualified Streamly.Internal.Data.Parser as PRD
@@ -388,7 +388,7 @@ charLatin1 = fmap (chr . fromIntegral) word8
 {-# INLINE word64host #-}
 word64host :: MonadIO m => Parser Word8 m Word64
 word64host =
-    fmap (A.getIndexUnsafe 0 . A.castUnsafe) $ PR.takeEQ 8 (A.createOf 8)
+    fmap (A.unsafeGetIndex 0 . A.unsafeCast) $ PR.takeEQ 8 (A.createOf 8)
 
 -------------------------------------------------------------------------------
 -- Type class

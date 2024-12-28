@@ -77,8 +77,8 @@ module Streamly.Internal.Data.Array.Type
     -- ** Reading
 
     -- *** Indexing
-    , unsafeIndexIO -- XXX unsafeGetIndexIO
-    , getIndexUnsafe -- XXX unsafeGetIndex
+    , unsafeGetIndexIO
+    , unsafeGetIndex
 
     -- *** To Streams
     , read
@@ -91,7 +91,7 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Unfolds
     , producer -- experimental
-    , readerUnsafe
+    , unsafeReader
     , reader
     , readerRev
 
@@ -170,6 +170,9 @@ module Streamly.Internal.Data.Array.Type
     , pinnedFromListN
     , pinnedFromList
     , pinnedChunksOf
+    , unsafeIndexIO
+    , getIndexUnsafe
+    , readerUnsafe
     )
 where
 
@@ -698,19 +701,19 @@ breakOn sep arr = do
 -- | Return element at the specified index without checking the bounds.
 --
 -- Unsafe because it does not check the bounds of the array.
-{-# INLINE_NORMAL unsafeIndexIO #-}
-unsafeIndexIO :: forall a. Unbox a => Int -> Array a -> IO a
-unsafeIndexIO i arr = MA.unsafeGetIndex i (unsafeThaw arr)
+{-# INLINE_NORMAL unsafeGetIndexIO #-}
+unsafeGetIndexIO, unsafeIndexIO :: forall a. Unbox a => Int -> Array a -> IO a
+unsafeGetIndexIO i arr = MA.unsafeGetIndex i (unsafeThaw arr)
 
 -- | Return element at the specified index without checking the bounds.
-{-# INLINE_NORMAL getIndexUnsafe #-}
-getIndexUnsafe :: forall a. Unbox a => Int -> Array a -> a
-getIndexUnsafe i arr = let !r = unsafeInlineIO $ unsafeIndexIO i arr in r
+{-# INLINE_NORMAL unsafeGetIndex #-}
+unsafeGetIndex, getIndexUnsafe :: forall a. Unbox a => Int -> Array a -> a
+unsafeGetIndex i arr = let !r = unsafeInlineIO $ unsafeGetIndexIO i arr in r
 
-{-# DEPRECATED unsafeIndex "Please use 'getIndexUnsafe' instead" #-}
+{-# DEPRECATED unsafeIndex "Please use 'unsafeGetIndex' instead" #-}
 {-# INLINE_NORMAL unsafeIndex #-}
 unsafeIndex :: forall a. Unbox a => Int -> Array a -> a
-unsafeIndex = getIndexUnsafe
+unsafeIndex = unsafeGetIndex
 
 -- | /O(1)/ Get the byte length of the array.
 --
@@ -748,9 +751,9 @@ reader = Producer.simplify producer
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL readerUnsafe #-}
-readerUnsafe :: forall m a. (Monad m, Unbox a) => Unfold m (Array a) a
-readerUnsafe = Unfold step inject
+{-# INLINE_NORMAL unsafeReader #-}
+unsafeReader, readerUnsafe :: forall m a. (Monad m, Unbox a) => Unfold m (Array a) a
+unsafeReader = Unfold step inject
     where
 
     inject (Array contents start end) =
@@ -1288,3 +1291,11 @@ nil = empty
 instance Unbox a => Monoid (Array a) where
     mempty = nil
     mappend = (<>)
+
+-------------------------------------------------------------------------------
+-- Backward Compatibility
+-------------------------------------------------------------------------------
+
+RENAME(unsafeIndexIO,unsafeGetIndexIO)
+RENAME(getIndexUnsafe,unsafeGetIndex)
+RENAME(readerUnsafe,unsafeReader)

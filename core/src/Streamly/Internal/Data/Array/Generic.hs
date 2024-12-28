@@ -40,12 +40,14 @@ module Streamly.Internal.Data.Array.Generic
     , fold
 
     -- * Random Access
-    , getIndexUnsafe
+    , unsafeGetIndex
     , getIndex
-    , getSliceUnsafe
+    , unsafeGetSlice
     , strip
 
     -- * Deprecated
+    , getIndexUnsafe
+    , getSliceUnsafe
     , writeN
     , write
     , fromByteStr#
@@ -53,6 +55,7 @@ module Streamly.Internal.Data.Array.Generic
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
 import Control.Monad (replicateM)
 import Control.Monad.IO.Class (MonadIO)
@@ -206,17 +209,17 @@ toList arr = loop 0
 
     len = length arr
     loop i | i == len = []
-    loop i = getIndexUnsafe i arr : loop (i + 1)
+    loop i = unsafeGetIndex i arr : loop (i + 1)
 
 {-# INLINE_NORMAL read #-}
 read :: Monad m => Array a -> Stream m a
 read arr =
-    D.map (`getIndexUnsafe` arr) $ D.enumerateFromToIntegral 0 (length arr - 1)
+    D.map (`unsafeGetIndex` arr) $ D.enumerateFromToIntegral 0 (length arr - 1)
 
 {-# INLINE_NORMAL readRev #-}
 readRev :: Monad m => Array a -> Stream m a
 readRev arr =
-    D.map (`getIndexUnsafe` arr)
+    D.map (`unsafeGetIndex` arr)
         $ D.enumerateFromThenToIntegral (arrLen - 1) (arrLen - 2) 0
     where
     arrLen = length arr
@@ -249,9 +252,9 @@ streamFold f arr = f (read arr)
 -- not check the bounds.
 --
 -- @since 0.8.0
-{-# INLINE getIndexUnsafe #-}
-getIndexUnsafe :: Int -> Array a -> a
-getIndexUnsafe i arr =
+{-# INLINE unsafeGetIndex #-}
+unsafeGetIndex, getIndexUnsafe :: Int -> Array a -> a
+unsafeGetIndex i arr =
     unsafePerformIO $ MArray.unsafeGetIndex i (unsafeThaw arr)
 
 -- | Lookup the element at the given index. Index starts from 0.
@@ -260,7 +263,7 @@ getIndexUnsafe i arr =
 getIndex :: Int -> Array a -> Maybe a
 getIndex i arr =
     if i >= 0 && i < length arr
-    then Just $ getIndexUnsafe i arr
+    then Just $ unsafeGetIndex i arr
     else Nothing
 
 -- >>> import qualified Streamly.Data.Stream as Stream
@@ -284,9 +287,9 @@ createOfLast n = FL.rmapM f (RB.createOf n)
         arr <- RB.copyToMutArray 0 n rb
         return $ unsafeFreeze arr
 
-{-# INLINE getSliceUnsafe #-}
-getSliceUnsafe :: Int -> Int -> Array a -> Array a
-getSliceUnsafe offset len =
+{-# INLINE unsafeGetSlice #-}
+unsafeGetSlice, getSliceUnsafe :: Int -> Int -> Array a -> Array a
+unsafeGetSlice offset len =
     unsafeFreeze . MArray.unsafeGetSlice offset len . unsafeThaw
 
 -- XXX This is not efficient as it copies the array. We should support array
@@ -346,3 +349,10 @@ instance Read a => Read (Array a) where
         if fromListWord == "fromList "
         then fromList <$> readPrec
         else ReadPrec.pfail
+
+-------------------------------------------------------------------------------
+-- Backward Compatibility
+-------------------------------------------------------------------------------
+
+RENAME(getSliceUnsafe,unsafeGetSlice)
+RENAME(getIndexUnsafe,unsafeGetIndex)

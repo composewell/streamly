@@ -1424,7 +1424,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                     -- Done <$> ffinal acc
                     return $ Partial $ SplitOnSeqEmpty acc
                 | patLen == 1 -> do
-                    pat <- liftIO $ Array.unsafeIndexIO 0 patArr
+                    pat <- liftIO $ Array.unsafeGetIndexIO 0 patArr
                     return $ Partial $ SplitOnSeqSingle acc pat
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
                     return $ Partial $ SplitOnSeqWord acc 0 0
@@ -1564,7 +1564,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                     -- Done <$> ffinal acc
                     return $ Partial $ SplitOnSeqEmpty acc
                 | patLen == 1 -> do
-                    pat <- liftIO $ Array.unsafeIndexIO 0 patArr
+                    pat <- liftIO $ Array.unsafeGetIndexIO 0 patArr
                     return $ Partial $ SplitOnSeqSingle acc pat
                 -- XXX Need to add tests for this case
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->

@@ -737,8 +737,8 @@ mkEvenW8Chunks (D.Stream step state) = D.Stream step1 (MECSInit state)
                 Yield arr st1 ->
                     let len = Array.length arr
                      in if (len .&. 1) == 1
-                        then let arr1 = Array.getSliceUnsafe 0 (len - 1) arr
-                                 remElem = Array.getIndexUnsafe (len - 1) arr
+                        then let arr1 = Array.unsafeGetSlice 0 (len - 1) arr
+                                 remElem = Array.unsafeGetIndex (len - 1) arr
                               in Yield arr1 (MECSBuffer remElem st1)
                         else Yield arr (MECSInit st1)
                 Skip s -> Skip (MECSInit s)
@@ -750,19 +750,19 @@ mkEvenW8Chunks (D.Stream step state) = D.Stream step1 (MECSInit state)
                 Yield arr st1 | Array.length arr == 0 ->
                                   Skip (MECSBuffer remElem st1)
                 Yield arr st1 | Array.length arr == 1 ->
-                    let fstElem = Array.getIndexUnsafe 0 arr
+                    let fstElem = Array.unsafeGetIndex 0 arr
                         w16 = Array.fromList [remElem, fstElem]
                      in Yield w16 (MECSInit st1)
                 Yield arr st1 ->
                     let len = Array.length arr
                      in if (len .&. 1) == 1
-                        then let arr1 = Array.getSliceUnsafe 1 (len - 1) arr
-                                 fstElem = Array.getIndexUnsafe 0 arr
+                        then let arr1 = Array.unsafeGetSlice 1 (len - 1) arr
+                                 fstElem = Array.unsafeGetIndex 0 arr
                                  w16 = Array.fromList [remElem, fstElem]
                               in Yield w16 (MECSYieldAndInit arr1 st1)
-                        else let arr1 = Array.getSliceUnsafe 1 (len - 2) arr
-                                 fstElem = Array.getIndexUnsafe 0 arr
-                                 lstElem = Array.getIndexUnsafe (len - 1) arr
+                        else let arr1 = Array.unsafeGetSlice 1 (len - 2) arr
+                                 fstElem = Array.unsafeGetIndex 0 arr
+                                 lstElem = Array.unsafeGetIndex (len - 1) arr
                                  w16 = Array.fromList [remElem, fstElem]
                               in Yield w16
                                      (MECSYieldAndBuffer arr1 lstElem st1)
