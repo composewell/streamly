@@ -65,8 +65,8 @@ module Streamly.Internal.Data.Unfold
     -- ** Mapping on Output
     , postscanlM'
     , postscan
-    , scan
-    , scanMany
+    , scanl
+    , scanlMany
     , foldMany
     -- pipe
 
@@ -107,6 +107,10 @@ module Streamly.Internal.Data.Unfold
     -- stream of arrays before flattening it to a stream of chars.
     , onException
     , handle
+
+    -- ** Deprecated
+    , scan
+    , scanMany
     )
 where
 
@@ -118,6 +122,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Functor (($>))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Scanl.Type (Scanl(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 import Streamly.Internal.Data.Stream.Type (Stream(..))
@@ -134,7 +139,7 @@ import Streamly.Internal.Data.Unfold.Enumeration
 import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
-              , drop, dropWhile, either)
+              , drop, dropWhile, either, scanl)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Foreign (Storable, peek, sizeOf)
 import Foreign.Ptr
@@ -347,8 +352,8 @@ postscan (Fold stepF initial extract final) (Unfold stepU injectU) =
 data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 
 {-# INLINE_NORMAL scanWith #-}
-scanWith :: Monad m => Bool -> Fold m b c -> Unfold m a b -> Unfold m a c
-scanWith restart (Fold fstep initial extract final) (Unfold stepU injectU) =
+scanWith :: Monad m => Bool -> Scanl m b c -> Unfold m a b -> Unfold m a c
+scanWith restart (Scanl fstep initial extract final) (Unfold stepU injectU) =
     Unfold step inject
 
     where
@@ -379,28 +384,40 @@ scanWith restart (Fold fstep initial extract final) (Unfold stepU injectU) =
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 -- Once fold is done it will restart from its initial state.
 --
--- >>> u = Unfold.scanMany (Fold.take 2 Fold.sum) Unfold.fromList
+-- >>> u = Unfold.scanlMany (Scanl.take 2 Scanl.sum) Unfold.fromList
 -- >>> Unfold.fold Fold.toList u [1,2,3,4,5]
 -- [0,1,3,0,3,7,0,5]
 --
 -- /Pre-release/
+{-# INLINE_NORMAL scanlMany #-}
+scanlMany :: Monad m => Scanl m b c -> Unfold m a b -> Unfold m a c
+scanlMany = scanWith True
+
+-- When we remove extract from Fold this function should be removed.
+{-# DEPRECATED scanMany "Please use scanlMany instead" #-}
 {-# INLINE_NORMAL scanMany #-}
 scanMany :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-scanMany = scanWith True
+scanMany (Fold s i e f) = scanWith True (Scanl s i e f)
 
 -- scan2 :: Monad m => Refold m a b c -> Unfold m a b -> Unfold m a c
 
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 -- Once fold is done it will stop.
 --
--- >>> u = Unfold.scan (Fold.take 2 Fold.sum) Unfold.fromList
+-- >>> u = Unfold.scanl (Scanl.take 2 Scanl.sum) Unfold.fromList
 -- >>> Unfold.fold Fold.toList u [1,2,3,4,5]
 -- [0,1,3]
 --
 -- /Pre-release/
+{-# INLINE_NORMAL scanl #-}
+scanl :: Monad m => Scanl m b c -> Unfold m a b -> Unfold m a c
+scanl = scanWith False
+
+-- When we remove extract from Fold this function should be removed.
+{-# DEPRECATED scan "Please use scanl instead" #-}
 {-# INLINE_NORMAL scan #-}
 scan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-scan = scanWith False
+scan (Fold s i e f) = scanWith False (Scanl s i e f)
 
 -- | Scan the output of an 'Unfold' to change it in a stateful manner.
 --
