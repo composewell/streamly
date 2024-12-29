@@ -46,16 +46,13 @@ module Streamly.Internal.FileSystem.OS_PATH.FileDir
     )
 where
 
-import Control.Monad.Catch (MonadThrow(..))
 import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Syntax (lift)
 import Language.Haskell.TH.Quote (QuasiQuoter)
-import Streamly.Internal.Data.Path (IsPath(..), PathException(..))
+import Streamly.Internal.Data.Path (IsPath(..))
 import Streamly.Internal.FileSystem.Path.Common (OS(..), mkQ)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
 
-import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
 import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 
@@ -84,23 +81,9 @@ instance IsFileDir (Dir a)
 instance IsPath OS_PATH (File OS_PATH) where
     unsafeFromPath = File
 
-    -- Cannot have "." or ".." as last component.
     fromPath p@(OS_PATH arr) = do
-        s1 <-
-                Stream.toList
-                    $ Stream.take 3
-                    $ Stream.takeWhile (not . Common.isSeparator OS_NAME)
-                    $ fmap Common.wordToChar
-                    $ Array.readRev arr
-        -- XXX On posix we just need to check last 3 bytes of the array
-        case s1 of
-            '.' : xs ->
-                case xs of
-                    [] -> throwM $ InvalidPath "A file name cannot be \".\""
-                    '.' : [] ->
-                        throwM $ InvalidPath "A file name cannot be \"..\""
-                    _ -> pure $ File p
-            _ -> pure $ File p
+        !_ <- Common.maybeFile OS_NAME arr
+        pure $ File p
 
     toPath (File p) = p
 

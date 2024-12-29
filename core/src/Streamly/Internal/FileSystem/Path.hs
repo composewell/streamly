@@ -17,17 +17,36 @@
 -- 'Path' type.
 --
 -- The basic type-safety is provided by the
--- "Streamly.Internal.FileSystem.PosixPath.LocSeg" module. We make a distinction
--- between two types of paths viz. locations and segments. Locations are
--- represented by the @Loc Path@ type and path segments are represented by the
--- @Seg Path@ type. Locations are paths pointing to specific objects in the
--- file system absolute or relative e.g. @\/usr\/bin@, @.\/local\/bin@, or @.@.
--- Segments are a sequence of path components without any reference to a
--- location e.g. @usr\/bin@, @local\/bin@, or @../bin@ are segments. This
--- distinction is for safe append operation on paths, you can only append
--- segments to any path and not a location. If you use the 'Path' type then
--- append can fail if you try to append a location to a path, but if you use
--- @Loc Path@ or @Seg Path@ types then append can never fail.
+-- "Streamly.Internal.FileSystem.PosixPath.LocSeg" module. We make a
+-- distinction between two types of paths viz. locations and segments.
+-- Locations are represented by the @Loc Path@ type and path segments are
+-- represented by the @Seg Path@ type.
+--
+-- Locations are rooted paths, they have a "root" attached to them. Rooted
+-- paths can be absolute or relative. Absolute paths have an absolute root e.g.
+-- @\/usr\/bin@. Relative paths have a dynamic or relative root e.g.
+-- @.\/local\/bin@, or @.@, in these cases the root is current directory which
+-- is not absolute but can change dynamically, nevertheless these are rooted
+-- paths as they still refer to a specific location starting from some root in
+-- the file system even though the root is decided dynamically.
+--
+-- In contrast to rooted paths, path segments are simply a sequence of path
+-- components without any reference to a root or specific starting location
+-- e.g. @usr\/bin@, @local\/bin@, or @../bin@ are simply path segments which
+-- can be attached to any other path or segment to augment it. This distinction
+-- is made to allow for safe append operation on paths, you can only append
+-- path segments to any path, a rooted path cannot be appended to another path.
+-- If you use the 'Path' type then append can fail if you try to append a
+-- rooted location to another path, but if you use @Loc Path@ or @Seg Path@
+-- types then append can never fail at run time as the types would not allow
+-- it.
+--
+-- To summarize the conceptual distinctions:
+-- * Path
+--   * Rooted location
+--     * Absolute
+--     * Relative
+--   * Unrooted segment
 --
 -- Independently of the location or segment distinction you can also make the
 -- distinction between files and directories using the

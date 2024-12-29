@@ -30,6 +30,9 @@ module Streamly.Internal.FileSystem.Path.Common
     , dropTrailingSeparators
     , isSegment
     , isLocation
+    , maybeFile
+    , isAbsolute
+    , isRelativeWithDrive
 
     , append
     , unsafeAppend
@@ -43,6 +46,7 @@ where
 
 #include "assert.hs"
 
+import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow(..))
 import Data.Char (ord, isAlpha)
 import Data.Functor.Identity (Identity(..))
@@ -54,7 +58,7 @@ import GHC.Base (unsafeChr)
 import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Streamly.Internal.Data.Array (Array(..))
-import Streamly.Internal.Data.MutByteArray (Unbox)
+import Streamly.Internal.Data.MutByteArray (Unbox(..))
 import Streamly.Internal.Data.Path (PathException(..))
 import Streamly.Internal.Data.Stream (Stream)
 import System.IO.Unsafe (unsafePerformIO)
@@ -175,14 +179,8 @@ mkQ f =
     ++ ", can be used only as an expression"
 
 ------------------------------------------------------------------------------
--- Operations
+-- Parsing Operations
 ------------------------------------------------------------------------------
-
-posixSeparator :: Char
-posixSeparator = '/'
-
-windowsSeparator :: Char
-windowsSeparator = '\\'
 
 -- XXX We can use Enum type class to include the Char type as well so that the
 -- functions can work on Array Word8/Word16/Char but that may be slow.
@@ -202,6 +200,16 @@ wordToChar = unsafeChr . fromIntegral
 unsafeIndexChar :: (Unbox a, Integral a) => Int -> Array a -> Char
 unsafeIndexChar i a = wordToChar (Array.getIndexUnsafe i a)
 
+------------------------------------------------------------------------------
+-- Separator parsing
+------------------------------------------------------------------------------
+
+posixSeparator :: Char
+posixSeparator = '/'
+
+windowsSeparator :: Char
+windowsSeparator = '\\'
+
 -- | Primary path separator character, @/@ on Posix and @\\@ on Windows.
 -- Windows supports @/@ too as a separator. Please use 'isSeparator' for
 -- testing if a char is a separator char.
@@ -209,10 +217,6 @@ unsafeIndexChar i a = wordToChar (Array.getIndexUnsafe i a)
 primarySeparator :: OS -> Char
 primarySeparator Posix = posixSeparator
 primarySeparator Windows = windowsSeparator
-
-------------------------------------------------------------------------------
--- Path parsing utilities
-------------------------------------------------------------------------------
 
 -- | On Posix only @/@ is a path separator but in windows it could be either
 -- @/@ or @\\@.
@@ -224,6 +228,10 @@ isSeparator Posix c = c == posixSeparator
 {-# INLINE isSeparatorWord #-}
 isSeparatorWord :: Integral a => OS -> a -> Bool
 isSeparatorWord os = isSeparator os . wordToChar
+
+------------------------------------------------------------------------------
+-- Path normalization
+------------------------------------------------------------------------------
 
 countTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Int
 countTrailingBy p arr =
@@ -244,87 +252,175 @@ dropTrailingBy p arr@(Array barr start end) =
 
 -- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
 -- @a@.
+--
+-- Note that a path with trailing separators may implicitly be considered as a
+-- directory by some applications. So dropping it may change the dir nature of
+-- the path.
 {-# INLINE dropTrailingSeparators #-}
 dropTrailingSeparators :: (Unbox a, Integral a) => OS -> Array a -> Array a
 dropTrailingSeparators os =
     dropTrailingBy (isSeparator os . wordToChar)
 
--- | path is @.@ or starts with @./@.
-isCurDirRelativeLocation :: (Unbox a, Integral a) => Array a -> Bool
-isCurDirRelativeLocation a
+-- XXX We implicitly consider "./" as a rooted path. We can provide an API to
+-- drop all leading "." to make it a segment from a rooted path.
+
+------------------------------------------------------------------------------
+-- Drive parsing
+------------------------------------------------------------------------------
+
+-- | @C:...@, does not check array length.
+{-# INLINE unsafeHasDrive #-}
+unsafeHasDrive :: (Unbox a, Integral a) => Array a -> Bool
+unsafeHasDrive a
+    -- Check colon first for quicker return
+    | unsafeIndexChar 1 a /= ':' = False
+    -- XXX If we found a colon anyway this cannot be a valid path unless it has
+    -- a drive prefix. colon is not a valid path character.
+    -- XXX check isAlpha perf
+    | not (isAlpha (unsafeIndexChar 0 a)) = False
+    | otherwise = True
+
+-- | A path that starts with a alphabet followed by a colon e.g. @C:...@.
+hasDrive :: (Unbox a, Integral a) => Array a -> Bool
+hasDrive a = Array.byteLength a >= 2 && unsafeHasDrive a
+
+-- | A path that contains only an alphabet followed by a colon e.g. @C:@.
+isDrive :: (Unbox a, Integral a) => Array a -> Bool
+isDrive a = Array.byteLength a == 2 && unsafeHasDrive a
+
+------------------------------------------------------------------------------
+-- Relative or Absolute
+------------------------------------------------------------------------------
+
+-- | A path relative to cur dir it is either @.@ or starts with @./@.
+isRelativeCurDir :: (Unbox a, Integral a) => Array a -> Bool
+isRelativeCurDir a
     -- Assuming the path is not empty.
     | wordToChar (Array.getIndexUnsafe 0 a) /= '.' = False
     | Array.byteLength a < 2 = True
     | otherwise = isSeparator Windows (wordToChar (Array.getIndexUnsafe 1 a))
 
--- | @C:...@
-hasDrive :: (Unbox a, Integral a) => Array a -> Bool
-hasDrive a
-    | Array.byteLength a < 2 = False
-    -- Check colon first for quicker return
-    | unsafeIndexChar 1 a /= ':' = False
-    -- XXX If we found a colon anyway this cannot be a valid path unless it has
-    -- a drive prefix. colon is not a valid path character.
-    -- XXX check isAlpha perf
-    | not (isAlpha (unsafeIndexChar 0 a)) = False
-    | otherwise = True
-
--- | On windows, the path starts with a separator.
-isCurDriveRelativeLocation :: (Unbox a, Integral a) => Array a -> Bool
-isCurDriveRelativeLocation a =
+-- | The path starting with a separator. On Windows this is relative to current
+-- drive while on Posix this is absolute path as there is only one drive.
+isRelativeCurDrive :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isRelativeCurDrive os a =
     -- Assuming the path is not empty.
-    isSeparator Windows (wordToChar (Array.getIndexUnsafe 0 a))
+    isSeparator os (wordToChar (Array.getIndexUnsafe 0 a))
 
--- | @C:\...@
-isLocationDrive :: (Unbox a, Integral a) => Array a -> Bool
-isLocationDrive a
-    | Array.byteLength a < 3 = False
-    -- Check colon first for quicker return
-    | unsafeIndexChar 1 a /= ':' = False
-    | not (isSeparator Windows (unsafeIndexChar 2 a)) = False
-    -- XXX If we found a colon anyway this cannot be a valid path unless it has
-    -- a drive prefix. colon is not a valid path character.
-    -- XXX check isAlpha perf
-    | not (isAlpha (unsafeIndexChar 0 a)) = False
-    | otherwise = True
+-- | @C:@ or @C:a...@.
+isRelativeWithDrive :: (Unbox a, Integral a) => Array a -> Bool
+isRelativeWithDrive a =
+    hasDrive a
+        && (  Array.byteLength a < 3
+           || not (isSeparator Windows (unsafeIndexChar 2 a))
+           )
+
+-- | @C:\...@. Note that "C:" or "C:a" is not absolute.
+isAbsoluteWithDrive :: (Unbox a, Integral a) => Array a -> Bool
+isAbsoluteWithDrive a =
+    Array.byteLength a >= 3
+        && unsafeHasDrive a
+        && isSeparator Windows (unsafeIndexChar 2 a)
 
 -- | @\\\\...@
-isAbsoluteUNCLocation :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteUNCLocation a
+isAbsoluteUNC :: (Unbox a, Integral a) => Array a -> Bool
+isAbsoluteUNC a
     | Array.byteLength a < 2 = False
     | unsafeIndexChar 0 a /= '\\' = False
     | unsafeIndexChar 1 a /= '\\' = False
     | otherwise = True
 
--- | On Posix and Windows,
--- * a path starting with a separator, an absolute location
--- * current dir "." or a location relative to current dir "./"
+-- | Note that on Windows a path starting with a separator is relative to
+-- current drive while on Posix this is absolute path as there is only one
+-- drive.
+isAbsolute :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isAbsolute Posix arr =
+    isRelativeCurDrive Posix arr
+isAbsolute Windows arr =
+    isAbsoluteWithDrive arr || isAbsoluteUNC arr
+
+------------------------------------------------------------------------------
+-- Location or Segment
+------------------------------------------------------------------------------
+
+-- XXX API for static processing of .. (normalizeParentRefs)
 --
--- On Windows:
--- * @C:\\@ local absolute
--- * @C:@ local relative
--- * @\\@ local relative to current drive root
--- * @\\\\@ UNC network location
+-- Note: paths starting with . or .. are ambiguous and can be considered
+-- segments or rooted. We consider a path starting with "." as rooted, when
+-- someone uses "./x" they explicitly mean x in the current directory whereas
+-- just "x" can be taken to mean a path segment without any specific root.
+-- However, in typed paths the programmer can convey the meaning whether they
+-- mean it as a segment or a rooted path. So even "./x" can potentially be used
+-- as a segment which can just mean "x".
+--
+-- XXX For the untyped Path we can allow appending "./x" to other paths. We can
+-- leave this to the programmer. In typed paths we can allow "./x" in segments.
+--
+-- XXX C:\\ is invalid, \\share\ is invalid?
+-- XXX Empty path can be taken to mean "." except in case of UNC paths
+
+-- | Rooted paths on Posix and Windows,
+-- * @/...@ a path starting with a separator
+-- * @.@ current dir
+-- * @./...@ a location relative to current dir
+--
+-- Rooted paths on Windows:
+-- * @C:@ local drive cur dir location
+-- * @C:a\\b@ local drive relative to cur dir location
+-- * @C:\\@ local drive absolute location
+-- * @\\@ local path relative to current drive
+-- * @\\\\share\\@ UNC network location
 -- * @\\\\?\\C:\\@ Long UNC local path
 -- * @\\\\?\\UNC\\@ Long UNC server location
 -- * @\\\\.\\@ DOS local device namespace
 -- * @\\\\??\\@ DOS global namespace
 --
--- * @C:file@ a path relative to curdir.
 isLocation :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isLocation Posix a =
-    -- Assuming path is not empty.
-    isSeparator Posix (wordToChar (Array.getIndexUnsafe 0 a))
-        || isCurDirRelativeLocation a
+    isRelativeCurDrive Posix a
+        || isRelativeCurDir a
 isLocation Windows a =
-    isLocationDrive a
-        || isCurDriveRelativeLocation a
+    isRelativeCurDrive Windows a
+        || isRelativeCurDir a
         || hasDrive a -- curdir-in-drive relative, drive absolute
-        || isAbsoluteUNCLocation a
-        || isCurDirRelativeLocation a
+        || isAbsoluteUNC a
 
 isSegment :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isSegment os = not . isLocation os
+
+------------------------------------------------------------------------------
+-- File or Dir
+------------------------------------------------------------------------------
+
+-- | Returns () if the path can be a valid file, otherwise throws an
+-- exception.
+maybeFile :: (MonadThrow m, Unbox a, Integral a) => OS -> Array a -> m ()
+maybeFile os arr = do
+    s1 <-
+            Stream.toList
+                $ Stream.take 3
+                $ Stream.takeWhile (not . isSeparator os)
+                $ fmap wordToChar
+                $ Array.readRev arr
+    -- XXX On posix we just need to check last 3 bytes of the array
+    -- XXX Display the path in the exception messages.
+    case s1 of
+        [] -> throwM $ InvalidPath "A file name cannot have a trailing separator"
+        '.' : xs ->
+            case xs of
+                [] -> throwM $ InvalidPath "A file name cannot have a trailing \".\""
+                '.' : [] ->
+                    throwM $ InvalidPath "A file name cannot have a trailing \"..\""
+                _ -> pure ()
+        _ -> pure ()
+
+    case os of
+        Windows ->
+            -- XXX We can exclude a UNC root as well but just the UNC root is
+            -- not even a valid path.
+            when (isDrive arr)
+                $ throwM $ InvalidPath "A drive root is not a valid file name"
+        Posix -> pure ()
 
 ------------------------------------------------------------------------------
 -- Operations of Path
