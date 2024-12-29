@@ -485,11 +485,23 @@ append :: (Unbox a, Integral a) =>
 append os toStr a b =
     withAppendCheck os toStr b (doAppend os a b)
 
--- |
+-- | Split a path into components separated by the path separator. "."
+-- components in the path are ignored except in the leading position. Multiple
+-- consecutive separators are ignored.
+--
 -- >>> :{
 --  splitPath Common.Posix = Stream.toList . fmap unpackPosix . Common.splitPath Common.Posix . packPosix
 --  splitPath Common.Windows = Stream.toList . fmap unpackWindows . Common.splitPath Common.Windows . packWindows
 -- :}
+--
+-- >>> splitPath Common.Posix "."
+-- ["."]
+--
+-- >>> splitPath Common.Posix "././"
+-- ["."]
+--
+-- >>> splitPath Common.Posix "./a/b/."
+-- [".","a","b"]
 --
 -- >>> splitPath Common.Posix "home//user/./..////\\directory/."
 -- ["home","user","..","\\directory"]
