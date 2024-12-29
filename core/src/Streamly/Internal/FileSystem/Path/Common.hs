@@ -37,6 +37,7 @@ module Streamly.Internal.FileSystem.Path.Common
     , append
     , unsafeAppend
     , splitPath
+    , unsafeJoinPaths
 
     -- * Utilities
     , wordToChar
@@ -523,3 +524,20 @@ splitPath os arr =
     shouldFilterOut (off, len) =
         len == 0 ||
             (len == 1 && unsafeIndexChar off arr == '.')
+
+-- | Join paths by path separator. Does not check if the paths being appended
+-- are rooted or path segments. Note that splitting and joining may not give
+-- exactly the original path but an equivalent, normalized path.
+{-# INLINE unsafeJoinPaths #-}
+unsafeJoinPaths
+    :: forall a m. (Unbox a, Integral a, MonadIO m)
+    => OS -> Stream m (Array a) -> m (Array a)
+unsafeJoinPaths os =
+    -- XXX This can be implemented more efficiently using an Array intersperse
+    -- operation. Which can be implemented by directly copying arrays rather
+    -- than converting them to stream first. Also fromStreamN would be more
+    -- efficient if we have to use streams.
+    -- XXX We can remove leading and trailing separators first, if any except
+    -- the leading separator from the first path. But it is not necessary.
+    -- Instead we can avoid adding a separator if it is already present.
+    Array.fromStream . Array.concatSepBy (charToWord $ primarySeparator os)
