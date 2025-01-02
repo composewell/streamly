@@ -34,6 +34,7 @@ jobs:
         Data.ParserK.Chunked.Generic
         Data.RingArray
         Data.Scanl.Window
+        Data.Scanl
         Data.Serialize
         Data.Stream
         Data.Stream.Concurrent
