@@ -3601,6 +3601,58 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
 --
 -- >>> splitEndBySeq pat f = Stream.foldMany (Fold.takeEndBySeq pat f)
 --
+-- Usage:
+--
+-- >>> splitOnSuffix p xs = Stream.fold Fold.toList $ Stream.splitEndBySeq (Array.fromList p) Fold.toList (Stream.fromList xs)
+--
+-- >>> splitOnSuffix "" ""
+-- []
+--
+-- >>> splitOnSuffix "." ""
+-- []
+--
+-- >>> splitOnSuffix ".." ""
+-- []
+--
+-- >>> splitOnSuffix "..." ""
+-- []
+--
+-- >>> splitOnSuffix "" "a...b"
+-- ["a",".",".",".","b"]
+--
+-- >>> splitOnSuffix "." "a...b"
+-- ["a.",".",".","b"]
+--
+-- >>> splitOnSuffix ".." "a...b"
+-- ["a..",".b"]
+--
+-- >>> splitOnSuffix "..." "a...b"
+-- ["a...","b"]
+--
+-- >>> splitOnSuffix "." "abc"
+-- ["abc"]
+--
+-- >>> splitOnSuffix ".." "abc"
+-- ["abc"]
+--
+-- >>> splitOnSuffix "..." "abc"
+-- ["abc"]
+--
+-- >>> splitOnSuffix "." "."
+-- ["."]
+--
+-- >>> splitOnSuffix ".." ".."
+-- [".."]
+--
+-- >>> splitOnSuffix "..." "..."
+-- ["..."]
+--
+-- >>> splitOnSuffix "." ".a"
+-- [".","a"]
+--
+-- >>> splitOnSuffix "." "a."
+-- ["a."]
+--
 -- Uses Rabin-Karp algorithm for substring search.
 --
 {-# INLINE_NORMAL splitEndBySeq #-}
@@ -3617,6 +3669,58 @@ splitEndBySeq = splitOnSuffixSeq True
 -- Equivalent to the following:
 --
 -- >>> splitEndBySeq_ pat f = Stream.foldMany (Fold.takeEndBySeq_ pat f)
+--
+-- Usage:
+--
+-- >>> splitOnSuffix p xs = Stream.fold Fold.toList $ Stream.splitEndBySeq_ (Array.fromList p) Fold.toList (Stream.fromList xs)
+--
+-- >>> splitOnSuffix "" ""
+-- []
+--
+-- >>> splitOnSuffix "." ""
+-- []
+--
+-- >>> splitOnSuffix ".." ""
+-- []
+--
+-- >>> splitOnSuffix "..." ""
+-- []
+--
+-- >>> splitOnSuffix "" "a...b"
+-- ["a",".",".",".","b"]
+--
+-- >>> splitOnSuffix "." "a...b"
+-- ["a","","","b"]
+--
+-- >>> splitOnSuffix ".." "a...b"
+-- ["a",".b"]
+--
+-- >>> splitOnSuffix "..." "a...b"
+-- ["a","b"]
+--
+-- >>> splitOnSuffix "." "abc"
+-- ["abc"]
+--
+-- >>> splitOnSuffix ".." "abc"
+-- ["abc"]
+--
+-- >>> splitOnSuffix "..." "abc"
+-- ["abc"]
+--
+-- >>> splitOnSuffix "." "."
+-- [""]
+--
+-- >>> splitOnSuffix ".." ".."
+-- [""]
+--
+-- >>> splitOnSuffix "..." "..."
+-- [""]
+--
+-- >>> splitOnSuffix "." ".a"
+-- ["","a"]
+--
+-- >>> splitOnSuffix "." "a."
+-- ["a"]
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --
