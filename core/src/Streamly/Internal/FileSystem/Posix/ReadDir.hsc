@@ -163,6 +163,9 @@ lstatDname parent dname = do
 {-# INLINE checkDirStatus #-}
 checkDirStatus
     :: PosixPath -> Ptr CChar -> #{type unsigned char} -> IO (Bool, Bool)
+#ifdef FORCE_LSTAT_READDIR
+checkDirStatus parent dname _ = lstatDname parent dname
+#else
 checkDirStatus parent dname dtype =
     if dtype == #const DT_UNKNOWN
     then lstatDname parent dname
@@ -171,6 +174,7 @@ checkDirStatus parent dname dtype =
         isMeta <- liftIO $ isMetaDir dname
         pure (True, isMeta)
     else pure (False, False)
+#endif
 
 -- XXX We can use getdents64 directly so that we can use array slices from the
 -- same buffer that we passed to the OS. That way we can also avoid any
