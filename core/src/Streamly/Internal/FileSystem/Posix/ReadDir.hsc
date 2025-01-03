@@ -152,8 +152,8 @@ lstatDname parent dname = do
         Array.asCStringUnsafe (Path.toChunk path) $ \cStr -> do
             res <- c_lstat_is_directory cStr
             case res of
-                x | x == 0 -> pure (True, False)
-                x | x == 1 -> pure (False, False)
+                x | x == 1 -> pure (True, False)
+                x | x == 0 -> pure (False, False)
                 -- XXX Need to check if and how we should handle some errors
                 -- like EACCES.
                 _ -> throwErrno "checkIfDirectory"
