@@ -13,6 +13,8 @@ module Streamly.Internal.FileSystem.Windows.ReadDir
     , openDirStream
     , closeDirStream
     , readDirStreamEither
+    , eitherReader
+    , reader
 #endif
     )
 where
@@ -21,16 +23,21 @@ where
 
 import Control.Exception (throwIO)
 import Control.Monad (void)
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord, isSpace)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Foreign.C (CInt(..), CWchar(..), Errno(..), errnoToIOError, peekCWString)
 import Numeric (showHex)
 import Streamly.Internal.Data.Array (Array(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Stream (Step(..))
+import Streamly.Internal.FileSystem.Path (Path)
 import Streamly.Internal.FileSystem.WindowsPath (WindowsPath(..))
 import System.IO.Error (ioeSetErrorString)
 
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 import qualified System.Win32 as Win32 (failWith)
 
@@ -212,4 +219,48 @@ readDirStreamEither (DirStream (h, ref, fdata)) =
             then return Nothing
             -- XXX Print the path in the error message
             else Win32.failWith "findNextFile" err
+
+{-# INLINE streamEitherReader #-}
+streamEitherReader :: MonadIO m =>
+    Unfold m DirStream (Either Path Path)
+streamEitherReader = Unfold step return
+    where
+
+    step strm = do
+        r <- liftIO $ readDirStreamEither strm
+        case r of
+            Nothing -> return Stop
+            Just x -> return $ Yield x strm
+
+{-# INLINE streamReader #-}
+streamReader :: MonadIO m => Unfold m DirStream Path
+streamReader = fmap (either id id) streamEitherReader
+
+--  | Read a directory emitting a stream with names of the children. Filter out
+--  "." and ".." entries.
+--
+--  /Internal/
+
+{-# INLINE reader #-}
+reader :: (MonadIO m, MonadCatch m) => Unfold m Path Path
+reader =
+-- XXX Instead of using bracketIO for each iteration of the loop we should
+-- instead yield a buffer of dir entries in each iteration and then use an
+-- unfold and concat to flatten those entries. That should improve the
+-- performance.
+      UF.bracketIO openDirStream closeDirStream streamReader
+
+-- | Read directories as Left and files as Right. Filter out "." and ".."
+-- entries.
+--
+--  /Internal/
+--
+{-# INLINE eitherReader #-}
+eitherReader :: (MonadIO m, MonadCatch m) =>
+    Unfold m Path (Either Path Path)
+eitherReader =
+    -- XXX The measured overhead of bracketIO is not noticeable, if it turns
+    -- out to be a problem for small filenames we can use getdents64 to use
+    -- chunked read to avoid the overhead.
+      UF.bracketIO openDirStream closeDirStream streamEitherReader
 #endif
