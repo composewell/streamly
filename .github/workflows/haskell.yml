@@ -176,10 +176,11 @@ jobs:
             disable_sdist_build: "y"
             cabal_project: cabal.project
             ignore_error: false
-          - name: 9.4.7
+          - name: 9.4.7-lstat-readir
             ghc_version: 9.4.7
             runner: ubuntu-latest
             build: cabal
+            cabal_build_options: "--flag force-lstat-readdir"
             cabal_version: 3.8.1.0
             disable_sdist_build: "y"
             cabal_project: cabal.project

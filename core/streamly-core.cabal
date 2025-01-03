@@ -152,12 +152,20 @@ flag use-folds
   manual: True
   default: False
 
+flag force-lstat-readdir
+  description: Use lstat instead of checking for dtype in ReadDir
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
 
 common compile-options
     default-language: Haskell2010
+
+    if flag(force-lstat-readdir)
+      cpp-options:    -DFORCE_LSTAT_READDIR
 
     if flag(dev)
       cpp-options:    -DDEVBUILD
