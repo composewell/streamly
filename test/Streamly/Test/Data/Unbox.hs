@@ -332,9 +332,9 @@ testCases = do
         $ testGenericConsistency (Identity 56760 :: Identity Int)
 
     -- Fingerprint does not work for GHC 8.6.5
-    -- it "Fingerprint" $ testSerialization (Fingerprint 123456 876588)
-    -- it "GenericConsistency Fingerprint"
-    --     $ testGenericConsistency (Fingerprint 123456 876588)
+    it "Fingerprint" $ testSerialization (Fingerprint 123456 876588)
+    it "GenericConsistency Fingerprint"
+        $ testGenericConsistency (Fingerprint 123456 876588)
 
 --------------------------------------------------------------------------------
 -- Main function
