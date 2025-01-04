@@ -32,6 +32,7 @@ import Data.Functor.Identity (Identity (..))
 import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic, Rep)
 import GHC.Real (Ratio(..))
+import GHC.Fingerprint (Fingerprint(..))
 
 import Streamly.Internal.Data.MutByteArray
 import qualified Streamly.Internal.Data.MutByteArray as MBA
