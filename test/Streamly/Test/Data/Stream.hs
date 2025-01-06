@@ -422,17 +422,80 @@ groupSplitOps desc = do
     splitOnSuffixSeq splitOnSuffixSeqStream
     -- Some ad-hoc tests
     it "splitEndBySeq word hash cases" $ do
-        let f input result =
+        let f sep input result =
                 Stream.toList
-                    ( Stream.splitEndBySeq (Array.fromList "ab") Fold.toList
+                    ( Stream.splitEndBySeq (Array.fromList sep) Fold.toList
                     $ Stream.fromList input
                     ) `shouldReturn` result
-        f "a" ["a"]
-        f "ab" ["ab"]
-        f "aba" ["ab","a"]
-        f "abab" ["ab","ab"]
-        f "abc" ["ab","c"]
-        f "xab" ["xab"]
+
+        f "ab" "a" ["a"]
+        f "ab" "ab" ["ab"]
+        f "ab" "aba" ["ab","a"]
+        f "ab" "abab" ["ab","ab"]
+        f "ab" "abc" ["ab","c"]
+        f "ab" "xab" ["xab"]
+        f "" "" []
+        f "." "" []
+        f ".." "" []
+        f "..." "" []
+        f "" "a...b" ["a",".",".",".","b"]
+        f "." "a...b" ["a.",".",".","b"]
+        f ".." "a...b" ["a..",".b"]
+        f "..." "a...b" ["a...","b"]
+        f "." "abc" ["abc"]
+        f ".." "abc" ["abc"]
+        f "..." "abc" ["abc"]
+        f "." "." ["."]
+        f ".." ".." [".."]
+        f "..." "..." ["..."]
+        f "." ".a" [".","a"]
+        f "." "a." ["a."]
+
+    it "splitEndBySeq_ word hash cases" $ do
+        let f sep input result =
+                Stream.toList
+                    ( Stream.splitEndBySeq_ (Array.fromList sep) Fold.toList
+                    $ Stream.fromList input
+                    ) `shouldReturn` result
+        f "" "" []
+        f "." "" []
+        f ".." "" []
+        f "..." "" []
+        f "" "a...b" ["a",".",".",".","b"]
+        f "." "a...b" ["a","","","b"]
+        f ".." "a...b" ["a",".b"]
+        f "..." "a...b" ["a","b"]
+        f "." "abc" ["abc"]
+        f ".." "abc" ["abc"]
+        f "..." "abc" ["abc"]
+        f "." "." [""]
+        f ".." ".." [""]
+        f "..." "..." [""]
+        f "." ".a" ["","a"]
+        f "." "a." ["a"]
+
+    it "splitSepBySeq_ word hash cases" $ do
+        let f sep input result =
+                Stream.toList
+                    ( Stream.splitSepBySeq_ (Array.fromList sep) Fold.toList
+                    $ Stream.fromList input
+                    ) `shouldReturn` result
+        f "" "" []
+        f "." "" []
+        f ".." "" []
+        f "..." "" []
+        f "" "a...b" ["a",".",".",".","b"]
+        f "." "a...b" ["a","","","b"]
+        f ".." "a...b" ["a",".b"]
+        f "..." "a...b" ["a","b"]
+        f "." "abc" ["abc"]
+        f ".." "abc" ["abc"]
+        f "..." "abc" ["abc"]
+        f "." "." ["",""]
+        f ".." ".." ["",""]
+        f "..." "..." ["",""]
+        f "." ".a" ["","a"]
+        f "." "a." ["a",""]
 
     let takeEndBySeq pat input result =
                 Stream.toList
