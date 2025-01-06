@@ -132,9 +132,9 @@ evalStateT s xs = fromStreamD $ D.evalStateT s (toStreamD xs)
 usingStateT
     :: Monad m
     => m s
-    -> (SerialT (StateT s m) a -> SerialT (StateT s m) a)
+    -> (SerialT (StateT s m) a -> SerialT (StateT s m) b)
     -> SerialT m a
-    -> SerialT m a
+    -> SerialT m b
 usingStateT s f = evalStateT s . f . liftInner
 
 -- | Evaluate the inner monad of a stream as 'StateT' and emit the resulting
