@@ -203,7 +203,7 @@ runStateT initial (Stream step state) = Stream step' (state, initial)
 usingStateT
     :: Monad m
     => m s
-    -> (Stream (StateT s m) a -> Stream (StateT s m) a)
+    -> (Stream (StateT s m) a -> Stream (StateT s m) b)
     -> Stream m a
-    -> Stream m a
+    -> Stream m b
 usingStateT s f = evalStateT s . f . liftInner
