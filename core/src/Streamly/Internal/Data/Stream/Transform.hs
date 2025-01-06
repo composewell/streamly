@@ -2153,7 +2153,7 @@ catEithers = fmap (either id id)
 data SplitSepBy s fs b a
     = SplitSepByInit s
     | SplitSepByInitFold0 s
-    | SplitSepByInitFold1 s a
+    | SplitSepByInitFold1 s fs
     | SplitSepByCheck s a fs
     | SplitSepByNext s fs
     | SplitSepByYield b (SplitSepBy s fs b a)
@@ -2234,12 +2234,13 @@ splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
     -- On the other hand, in most cases the fold will not terminate without
     -- consuming anything. So both ways are similar.
     {-# INLINE_LATE step #-}
-    step gst (SplitSepByInit st) = do
-        r <- step1 (adaptState gst) st
-        case r of
-            Yield x s -> return $ Skip $ SplitSepByInitFold1 s x
-            Skip s -> return $ Skip (SplitSepByInit s)
-            Stop -> return Stop
+    step _ (SplitSepByInit st) = do
+        fres <- initial
+        return
+            $ Skip
+            $ case fres of
+                  FL.Done b -> SplitSepByYield b (SplitSepByInit st)
+                  FL.Partial fs -> SplitSepByInitFold1 st fs
 
     step _ (SplitSepByInitFold0 st) = do
         fres <- initial
@@ -2249,13 +2250,12 @@ splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
                   FL.Done b -> SplitSepByYield b (SplitSepByInitFold0 st)
                   FL.Partial fs -> SplitSepByNext st fs
 
-    step _ (SplitSepByInitFold1 st x) = do
-        fres <- initial
-        return
-            $ Skip
-            $ case fres of
-                  FL.Done b -> SplitSepByYield b (SplitSepByInitFold1 st x)
-                  FL.Partial fs -> SplitSepByCheck st x fs
+    step gst (SplitSepByInitFold1 st fs) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield x s -> return $ Skip $ SplitSepByCheck s x fs
+            Skip s -> return $ Skip (SplitSepByInitFold1 s fs)
+            Stop -> final fs >> return Stop
 
     step _ (SplitSepByCheck st x fs) = do
         if predicate x
