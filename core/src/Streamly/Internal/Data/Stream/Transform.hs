@@ -2224,6 +2224,15 @@ splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
 
     where
 
+    -- Note: there is a question of whether we should initialize the fold
+    -- before we run the stream or only after the stream yields an element. If
+    -- we initialize it before then we may have to discard an effect if the
+    -- stream does not yield anything. If we initialize it after then we may
+    -- have to discard the stream element if the fold terminates without
+    -- consuming anything. Though the state machine is simpler if we initialize
+    -- the fold first. Also, in most common cases the fold is not effectful.
+    -- On the other hand, in most cases the fold will not terminate without
+    -- consuming anything. So both ways are similar.
     {-# INLINE_LATE step #-}
     step gst (SplitSepByInit st) = do
         r <- step1 (adaptState gst) st
