@@ -2776,59 +2776,59 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 
 -- XXX Need to fix empty stream split behavior
 
--- | Like 'splitOn' but splits the stream on a sequence of elements rather than
+-- | Like 'splitSepBy_' but splits the stream on a sequence of elements rather than
 -- a single element. Parses a sequence of tokens separated by an infixed
 -- separator e.g. @a;b;c@ is parsed as @a@, @b@, @c@. If the pattern is empty
 -- then each element is a match, thus the fold is finalized on each element.
 --
--- >>> splitOn p xs = Stream.fold Fold.toList $ Stream.splitSepBySeq_ (Array.fromList p) Fold.toList (Stream.fromList xs)
+-- >>> splitSepBy p xs = Stream.fold Fold.toList $ Stream.splitSepBySeq_ (Array.fromList p) Fold.toList (Stream.fromList xs)
 --
--- >>> splitOn "" ""
+-- >>> splitSepBy "" ""
 -- []
 --
--- >>> splitOn "." ""
+-- >>> splitSepBy "." ""
 -- []
 --
--- >>> splitOn ".." ""
+-- >>> splitSepBy ".." ""
 -- []
 --
--- >>> splitOn "..." ""
+-- >>> splitSepBy "..." ""
 -- []
 --
--- >>> splitOn "" "a...b"
+-- >>> splitSepBy "" "a...b"
 -- ["a",".",".",".","b"]
 --
--- >>> splitOn "." "a...b"
+-- >>> splitSepBy "." "a...b"
 -- ["a","","","b"]
 --
--- >>> splitOn ".." "a...b"
+-- >>> splitSepBy ".." "a...b"
 -- ["a",".b"]
 --
--- >>> splitOn "..." "a...b"
+-- >>> splitSepBy "..." "a...b"
 -- ["a","b"]
 --
--- >>> splitOn "." "abc"
+-- >>> splitSepBy "." "abc"
 -- ["abc"]
 --
--- >>> splitOn ".." "abc"
+-- >>> splitSepBy ".." "abc"
 -- ["abc"]
 --
--- >>> splitOn "..." "abc"
+-- >>> splitSepBy "..." "abc"
 -- ["abc"]
 --
--- >>> splitOn "." "."
+-- >>> splitSepBy "." "."
 -- ["",""]
 --
--- >>> splitOn ".." ".."
+-- >>> splitSepBy ".." ".."
 -- ["",""]
 --
--- >>> splitOn "..." "..."
+-- >>> splitSepBy "..." "..."
 -- ["",""]
 --
--- >>> splitOn "." ".a"
+-- >>> splitSepBy "." ".a"
 -- ["","a"]
 --
--- >>> splitOn "." "a."
+-- >>> splitSepBy "." "a."
 -- ["a",""]
 --
 -- Uses Rabin-Karp algorithm for substring search.
@@ -2941,11 +2941,11 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
     -- Single Pattern
     -----------------
 
-    -- TODO: Commonize the Yield part and check the performance
     stepOuter gst (SplitOnSeqSingle0 fs st pat) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
+                -- XXX This code block is duplicated in SplitOnSeqSingle state
                 let jump c = SplitOnSeqSingle c s pat
                 if pat == x
                 then final fs >>= yieldReinit jump
@@ -3603,54 +3603,55 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
 --
 -- Usage:
 --
--- >>> splitOnSuffix p xs = Stream.fold Fold.toList $ Stream.splitEndBySeq (Array.fromList p) Fold.toList (Stream.fromList xs)
+-- >>> f p = Stream.splitEndBySeq (Array.fromList p) Fold.toList
+-- >>> splitEndBy p xs = Stream.fold Fold.toList $ f p (Stream.fromList xs)
 --
--- >>> splitOnSuffix "" ""
+-- >>> splitEndBy "" ""
 -- []
 --
--- >>> splitOnSuffix "." ""
+-- >>> splitEndBy "." ""
 -- []
 --
--- >>> splitOnSuffix ".." ""
+-- >>> splitEndBy ".." ""
 -- []
 --
--- >>> splitOnSuffix "..." ""
+-- >>> splitEndBy "..." ""
 -- []
 --
--- >>> splitOnSuffix "" "a...b"
+-- >>> splitEndBy "" "a...b"
 -- ["a",".",".",".","b"]
 --
--- >>> splitOnSuffix "." "a...b"
+-- >>> splitEndBy "." "a...b"
 -- ["a.",".",".","b"]
 --
--- >>> splitOnSuffix ".." "a...b"
+-- >>> splitEndBy ".." "a...b"
 -- ["a..",".b"]
 --
--- >>> splitOnSuffix "..." "a...b"
+-- >>> splitEndBy "..." "a...b"
 -- ["a...","b"]
 --
--- >>> splitOnSuffix "." "abc"
+-- >>> splitEndBy "." "abc"
 -- ["abc"]
 --
--- >>> splitOnSuffix ".." "abc"
+-- >>> splitEndBy ".." "abc"
 -- ["abc"]
 --
--- >>> splitOnSuffix "..." "abc"
+-- >>> splitEndBy "..." "abc"
 -- ["abc"]
 --
--- >>> splitOnSuffix "." "."
+-- >>> splitEndBy "." "."
 -- ["."]
 --
--- >>> splitOnSuffix ".." ".."
+-- >>> splitEndBy ".." ".."
 -- [".."]
 --
--- >>> splitOnSuffix "..." "..."
+-- >>> splitEndBy "..." "..."
 -- ["..."]
 --
--- >>> splitOnSuffix "." ".a"
+-- >>> splitEndBy "." ".a"
 -- [".","a"]
 --
--- >>> splitOnSuffix "." "a."
+-- >>> splitEndBy "." "a."
 -- ["a."]
 --
 -- Uses Rabin-Karp algorithm for substring search.
@@ -3672,54 +3673,55 @@ splitEndBySeq = splitOnSuffixSeq True
 --
 -- Usage:
 --
--- >>> splitOnSuffix p xs = Stream.fold Fold.toList $ Stream.splitEndBySeq_ (Array.fromList p) Fold.toList (Stream.fromList xs)
+-- >>> f p = Stream.splitEndBySeq_ (Array.fromList p) Fold.toList
+-- >>> splitEndBy_ p xs = Stream.fold Fold.toList $ f p (Stream.fromList xs)
 --
--- >>> splitOnSuffix "" ""
+-- >>> splitEndBy_ "" ""
 -- []
 --
--- >>> splitOnSuffix "." ""
+-- >>> splitEndBy_ "." ""
 -- []
 --
--- >>> splitOnSuffix ".." ""
+-- >>> splitEndBy_ ".." ""
 -- []
 --
--- >>> splitOnSuffix "..." ""
+-- >>> splitEndBy_ "..." ""
 -- []
 --
--- >>> splitOnSuffix "" "a...b"
+-- >>> splitEndBy_ "" "a...b"
 -- ["a",".",".",".","b"]
 --
--- >>> splitOnSuffix "." "a...b"
+-- >>> splitEndBy_ "." "a...b"
 -- ["a","","","b"]
 --
--- >>> splitOnSuffix ".." "a...b"
+-- >>> splitEndBy_ ".." "a...b"
 -- ["a",".b"]
 --
--- >>> splitOnSuffix "..." "a...b"
+-- >>> splitEndBy_ "..." "a...b"
 -- ["a","b"]
 --
--- >>> splitOnSuffix "." "abc"
+-- >>> splitEndBy_ "." "abc"
 -- ["abc"]
 --
--- >>> splitOnSuffix ".." "abc"
+-- >>> splitEndBy_ ".." "abc"
 -- ["abc"]
 --
--- >>> splitOnSuffix "..." "abc"
+-- >>> splitEndBy_ "..." "abc"
 -- ["abc"]
 --
--- >>> splitOnSuffix "." "."
+-- >>> splitEndBy_ "." "."
 -- [""]
 --
--- >>> splitOnSuffix ".." ".."
+-- >>> splitEndBy_ ".." ".."
 -- [""]
 --
--- >>> splitOnSuffix "..." "..."
+-- >>> splitEndBy_ "..." "..."
 -- [""]
 --
--- >>> splitOnSuffix "." ".a"
+-- >>> splitEndBy_ "." ".a"
 -- ["","a"]
 --
--- >>> splitOnSuffix "." "a."
+-- >>> splitEndBy_ "." "a."
 -- ["a"]
 --
 -- Uses Rabin-Karp algorithm for substring search.
