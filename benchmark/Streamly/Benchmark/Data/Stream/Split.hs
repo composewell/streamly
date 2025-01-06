@@ -61,7 +61,7 @@ toarr = Array.fromList . map (fromIntegral . ord)
 splitOn :: Handle -> IO Int
 splitOn inh =
     (Stream.fold Fold.length
-        $ Stream.splitOn (== lf) Fold.drain
+        $ Stream.splitSepBy_ (== lf) Fold.drain
         $ Handle.read inh) -- >>= print
 
 #ifdef INSPECTION
