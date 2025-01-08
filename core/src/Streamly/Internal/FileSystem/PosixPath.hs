@@ -43,6 +43,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     , adapt
 
     -- * Construction
+    , isValid
     , fromChunk
     , unsafeFromChunk
     , fromChars
@@ -80,10 +81,19 @@ module Streamly.Internal.FileSystem.OS_PATH
     -- , isSeparator
     , unsafeAppend
     , append
+    , splitRoot
+    , splitPath
+    , splitPath_
+    , splitFile
+    , splitExtension
+    , eqPath
+    , eqPathStrict
+    , eqPathBytes
     )
 where
 
 import Control.Monad.Catch (MonadThrow(..))
+import Data.Bifunctor (bimap)
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
 #if defined(IS_WINDOWS)
@@ -189,6 +199,9 @@ adapt p = fromPath (toPath p :: OS_PATH)
 dropTrailingSeparators :: OS_PATH -> OS_PATH
 dropTrailingSeparators (OS_PATH arr) =
     OS_PATH (Common.dropTrailingSeparators Common.OS_NAME arr)
+
+isValid :: OS_PATH -> Bool
+isValid (OS_PATH a) = Common.isValid Common.OS_NAME a
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -360,3 +373,44 @@ append (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
+
+------------------------------------------------------------------------------
+-- Splitting path
+------------------------------------------------------------------------------
+
+splitRoot :: OS_PATH -> (OS_PATH, OS_PATH)
+splitRoot (OS_PATH a) =
+    bimap OS_PATH OS_PATH $ Common.splitRoot Common.OS_NAME a
+
+{-# INLINE splitPath #-}
+splitPath :: Monad m => OS_PATH -> Stream m OS_PATH
+splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
+
+{-# INLINE splitPath_ #-}
+splitPath_ :: Monad m => OS_PATH -> Stream m OS_PATH
+splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
+
+splitFile :: OS_PATH -> (OS_PATH, OS_PATH)
+splitFile (OS_PATH a) =
+    bimap OS_PATH OS_PATH $ Common.splitFile Common.OS_NAME a
+
+splitExtension :: OS_PATH -> (OS_PATH, OS_PATH)
+splitExtension (OS_PATH a) =
+    bimap OS_PATH OS_PATH $ Common.splitExtension Common.OS_NAME a
+
+------------------------------------------------------------------------------
+-- Path equality
+------------------------------------------------------------------------------
+
+eqPath :: OS_PATH -> OS_PATH -> Bool
+#ifdef IS_WINDOWS
+eqPath (OS_PATH a) (OS_PATH b) = Common.eqWindowsPath a b
+#else
+eqPath (OS_PATH a) (OS_PATH b) = Common.eqPosixPath a b
+#endif
+
+eqPathStrict :: OS_PATH -> OS_PATH -> Bool
+eqPathStrict (OS_PATH a) (OS_PATH b) = Common.eqPathStrict Common.OS_NAME a b
+
+eqPathBytes :: OS_PATH -> OS_PATH -> Bool
+eqPathBytes (OS_PATH a) (OS_PATH b) = Common.eqPathBytes a b
