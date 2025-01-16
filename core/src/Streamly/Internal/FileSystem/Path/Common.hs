@@ -128,6 +128,1214 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode
 data OS = Windows | Posix deriving Eq
 
 ------------------------------------------------------------------------------
+-- Parsing Operations
+------------------------------------------------------------------------------
+
+-- XXX We can use Enum type class to include the Char type as well so that the
+-- functions can work on Array Word8/Word16/Char but that may be slow.
+
+-- | Unsafe, may tructate to shorter word types, can only be used safely for
+-- characters that fit in the given word size.
+charToWord :: Integral a => Char -> a
+charToWord c =
+    let n = ord c
+     in assert (n <= 255) (fromIntegral n)
+
+-- | Unsafe, should be a valid character.
+wordToChar :: Integral a => a -> Char
+wordToChar = unsafeChr . fromIntegral
+
+------------------------------------------------------------------------------
+-- Array utils
+------------------------------------------------------------------------------
+
+-- | Index a word in an array and convert it to Char.
+unsafeIndexChar :: (Unbox a, Integral a) => Int -> Array a -> Char
+unsafeIndexChar i a = wordToChar (Array.unsafeGetIndex i a)
+
+-- XXX put this in array module, we can have Array.fold and Array.foldM
+foldArr :: Unbox a => Fold.Fold Identity a b -> Array a -> b
+foldArr f arr = runIdentity $ Array.fold f arr
+
+countWhile :: (a -> Bool) -> Stream Identity a -> Int
+countWhile p =
+      runIdentity
+    . Stream.fold Fold.length
+    . Stream.takeWhile p
+
+{-# INLINE countLeadingBy #-}
+countLeadingBy :: Unbox a => (a -> Bool) -> Array a -> Int
+countLeadingBy p = countWhile p . Array.read
+
+countTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Int
+countTrailingBy p = countWhile p . Array.readRev
+
+------------------------------------------------------------------------------
+-- Separator parsing
+------------------------------------------------------------------------------
+
+extensionWord :: Integral a => a
+extensionWord = charToWord '.'
+
+posixSeparator :: Char
+posixSeparator = '/'
+
+windowsSeparator :: Char
+windowsSeparator = '\\'
+
+-- | Primary path separator character, @/@ on Posix and @\\@ on Windows.
+-- Windows supports @/@ too as a separator. Please use 'isSeparator' for
+-- testing if a char is a separator char.
+{-# INLINE primarySeparator #-}
+primarySeparator :: OS -> Char
+primarySeparator Posix = posixSeparator
+primarySeparator Windows = windowsSeparator
+
+-- | On Posix only @/@ is a path separator but in windows it could be either
+-- @/@ or @\\@.
+{-# INLINE isSeparator #-}
+isSeparator :: OS -> Char -> Bool
+isSeparator Windows c = (c == windowsSeparator) || (c == posixSeparator)
+isSeparator Posix c = c == posixSeparator
+
+{-# INLINE isSeparatorWord #-}
+isSeparatorWord :: Integral a => OS -> a -> Bool
+isSeparatorWord os = isSeparator os . wordToChar
+
+------------------------------------------------------------------------------
+-- Separator normalization
+------------------------------------------------------------------------------
+
+-- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
+-- @a@. On Windows "c:" and "c:/" are different paths, therefore, we do not
+-- drop the trailing separator from "c:/" or for that matter a separator
+-- preceded by a ':'.
+{-# INLINE dropTrailingBy #-}
+dropTrailingBy :: (Unbox a, Integral a) =>
+    OS -> (a -> Bool) -> Array a -> Array a
+dropTrailingBy os p arr =
+    let len = Array.length arr
+        n = countTrailingBy p arr
+        arr1 = fst $ Array.unsafeSplitAt (len - n) arr
+     in if n == 0
+        then arr
+        else if n == len -- "////"
+        then fst $ Array.unsafeSplitAt 1 arr
+        -- "c:////"
+        else if (os == Windows)
+                && (Array.unsafeGetIndex (len - n - 1) arr == charToWord ':')
+        then fst $ Array.unsafeSplitAt (len - n + 1) arr
+        else arr1
+
+{-# INLINE compactTrailingBy #-}
+compactTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Array a
+compactTrailingBy p arr =
+    let len = Array.length arr
+        n = countTrailingBy p arr
+     in if n <= 1
+        then arr
+        else fst $ Array.unsafeSplitAt (len - n + 1) arr
+
+-- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
+-- @a@. On Windows "c:" and "c:/" are different paths, therefore, we do not
+-- drop the trailing separator from "c:/".
+--
+-- Note that a path with trailing separators may implicitly be considered as a
+-- directory by some applications. So dropping it may change the dir nature of
+-- the path.
+--
+-- >>> f a = unpackPosix $ Common.dropTrailingSeparators Common.Posix (packPosix a)
+-- >>> f "./"
+-- "."
+--
+{-# INLINE dropTrailingSeparators #-}
+dropTrailingSeparators :: (Unbox a, Integral a) => OS -> Array a -> Array a
+dropTrailingSeparators os =
+    dropTrailingBy os (isSeparator os . wordToChar)
+
+-- | A path starting with a separator.
+hasLeadingSeparator :: (Unbox a, Integral a) => OS -> Array a -> Bool
+hasLeadingSeparator os a
+    | Array.length a == 0 = False -- empty path should not occur
+    | isSeparatorWord os (Array.unsafeGetIndex 0 a) = True
+    | otherwise = False
+
+{-# INLINE hasTrailingSeparator #-}
+hasTrailingSeparator :: (Integral a, Unbox a) => OS -> Array a -> Bool
+hasTrailingSeparator os path =
+    let e = Array.getIndexRev 0 path
+     in case e of
+            Nothing -> False
+            Just x -> isSeparatorWord os x
+
+{-# INLINE toDefaultSeparator #-}
+toDefaultSeparator :: Integral a => a -> a
+toDefaultSeparator x =
+    if isSeparatorWord Windows x
+    then charToWord (primarySeparator Windows)
+    else x
+
+-- | Change all separators in the path to default separator on windows.
+{-# INLINE normalizeSeparators #-}
+normalizeSeparators :: (Integral a, Unbox a) => Array a -> Array a
+normalizeSeparators a =
+    -- XXX We can check and return the original array if no change is needed.
+    Array.fromPureStreamN (Array.length a)
+        $ fmap toDefaultSeparator
+        $ Array.read a
+
+------------------------------------------------------------------------------
+-- Windows drive parsing
+------------------------------------------------------------------------------
+
+-- | @C:...@, does not check array length.
+{-# INLINE unsafeHasDrive #-}
+unsafeHasDrive :: (Unbox a, Integral a) => Array a -> Bool
+unsafeHasDrive a
+    -- Check colon first for quicker return
+    | unsafeIndexChar 1 a /= ':' = False
+    -- XXX If we found a colon anyway this cannot be a valid path unless it has
+    -- a drive prefix. colon is not a valid path character.
+    -- XXX check isAlpha perf
+    | not (isAlpha (unsafeIndexChar 0 a)) = False
+    | otherwise = True
+
+-- | A path that starts with a alphabet followed by a colon e.g. @C:...@.
+hasDrive :: (Unbox a, Integral a) => Array a -> Bool
+hasDrive a = Array.length a >= 2 && unsafeHasDrive a
+
+-- | A path that contains only an alphabet followed by a colon e.g. @C:@.
+isDrive :: (Unbox a, Integral a) => Array a -> Bool
+isDrive a = Array.length a == 2 && unsafeHasDrive a
+
+------------------------------------------------------------------------------
+-- Relative or Absolute
+------------------------------------------------------------------------------
+
+-- | A path relative to cur dir it is either @.@ or starts with @./@.
+isRelativeCurDir :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isRelativeCurDir os a
+    | len == 0 = False -- empty path should not occur
+    | wordToChar (Array.unsafeGetIndex 0 a) /= '.' = False
+    | len < 2 = True
+    | otherwise = isSeparatorWord os (Array.unsafeGetIndex 1 a)
+
+    where
+
+    len = Array.length a
+
+-- | A non-UNC path starting with a separator.
+-- Note that "\\/share/x" is treated as "C:/share/x".
+isRelativeCurDriveRoot :: (Unbox a, Integral a) => Array a -> Bool
+isRelativeCurDriveRoot a
+    | len == 0 = False -- empty path should not occur
+    | len == 1 && sep0 = True
+    | sep0 && c0 /= c1 = True -- "\\/share/x" is treated as "C:/share/x".
+    | otherwise = False
+
+    where
+
+    len = Array.length a
+    c0 = Array.unsafeGetIndex 0 a
+    c1 = Array.unsafeGetIndex 1 a
+    sep0 = isSeparatorWord Windows c0
+
+-- | @C:@ or @C:a...@.
+isRelativeWithDrive :: (Unbox a, Integral a) => Array a -> Bool
+isRelativeWithDrive a =
+    hasDrive a
+        && (  Array.length a < 3
+           || not (isSeparator Windows (unsafeIndexChar 2 a))
+           )
+
+isRootRelative :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isRootRelative Posix a = isRelativeCurDir Posix a
+isRootRelative Windows a =
+    isRelativeCurDir Windows a
+        || isRelativeCurDriveRoot a
+        || isRelativeWithDrive a
+
+-- | @C:\...@. Note that "C:" or "C:a" is not absolute.
+isAbsoluteWithDrive :: (Unbox a, Integral a) => Array a -> Bool
+isAbsoluteWithDrive a =
+    Array.length a >= 3
+        && unsafeHasDrive a
+        && isSeparator Windows (unsafeIndexChar 2 a)
+
+-- | @\\\\...@ or @//...@
+isAbsoluteUNC :: (Unbox a, Integral a) => Array a -> Bool
+isAbsoluteUNC a
+    | Array.length a < 2 = False
+    | isSeparatorWord Windows c0 && c0 == c1 = True
+    | otherwise = False
+
+    where
+
+    c0 = Array.unsafeGetIndex 0 a
+    c1 = Array.unsafeGetIndex 1 a
+
+-- XXX rename to isRootAbsolute
+
+-- | Note that on Windows a path starting with a separator is relative to
+-- current drive while on Posix this is absolute path as there is only one
+-- drive.
+isAbsolute :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isAbsolute Posix arr =
+    hasLeadingSeparator Posix arr
+isAbsolute Windows arr =
+    isAbsoluteWithDrive arr || isAbsoluteUNC arr
+
+------------------------------------------------------------------------------
+-- Location or Segment
+------------------------------------------------------------------------------
+
+-- XXX API for static processing of .. (normalizeParentRefs)
+--
+-- Note: paths starting with . or .. are ambiguous and can be considered
+-- segments or rooted. We consider a path starting with "." as rooted, when
+-- someone uses "./x" they explicitly mean x in the current directory whereas
+-- just "x" can be taken to mean a path segment without any specific root.
+-- However, in typed paths the programmer can convey the meaning whether they
+-- mean it as a segment or a rooted path. So even "./x" can potentially be used
+-- as a segment which can just mean "x".
+--
+-- XXX For the untyped Path we can allow appending "./x" to other paths. We can
+-- leave this to the programmer. In typed paths we can allow "./x" in segments.
+-- XXX Empty path can be taken to mean "." except in case of UNC paths
+--
+-- | Any path that starts with a separator, @./@ or a drive prefix is a rooted
+-- path.
+--
+-- Rooted paths on Posix and Windows,
+-- * @/...@ a path starting with a separator
+-- * @.@ current dir
+-- * @./...@ a location relative to current dir
+--
+-- Rooted paths on Windows:
+-- * @C:@ local drive cur dir location
+-- * @C:a\\b@ local drive relative to cur dir location
+-- * @C:\\@ local drive absolute location
+-- * @\\@ local path relative to current drive
+-- * @\\\\share\\@ UNC network location
+-- * @\\\\?\\C:\\@ Long UNC local path
+-- * @\\\\?\\UNC\\@ Long UNC server location
+-- * @\\\\.\\@ DOS local device namespace
+-- * @\\\\??\\@ DOS global namespace
+--
+isLocation :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isLocation Posix a =
+    hasLeadingSeparator Posix a
+        || isRelativeCurDir Posix a
+isLocation Windows a =
+    hasLeadingSeparator Windows a
+        || isRelativeCurDir Windows a
+        || hasDrive a -- curdir-in-drive relative, drive absolute
+
+-- XXX rename to isUnrooted?
+isSegment :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isSegment os = not . isLocation os
+
+------------------------------------------------------------------------------
+-- Split root
+------------------------------------------------------------------------------
+
+unsafeSplitPrefix :: (Unbox a, Integral a) =>
+    OS -> Int -> Array a -> (Array a, Array a)
+unsafeSplitPrefix os prefixLen arr =
+    Array.unsafeSplitAt cnt arr
+
+    where
+
+    afterDrive = snd $ Array.unsafeSplitAt prefixLen arr
+    n = countLeadingBy (isSeparatorWord os) afterDrive
+    cnt = prefixLen + n
+
+-- Note: We can have normalized splitting functions to normalize as we split
+-- for efficiency. But then we will have to allocate new arrays instead of
+-- slicing which can make it inefficient.
+
+-- | Split a path prefixed with a separator into (drive, path) tuple.
+--
+-- >>> toListPosix (a,b) = (unpackPosix a, unpackPosix b)
+-- >>> splitPosix = toListPosix . Common.unsafeSplitTopLevel Common.Posix . packPosix
+--
+-- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
+-- >>> splitWin = toListWin . Common.unsafeSplitTopLevel Common.Windows . packWindows
+--
+-- >>> splitPosix "/"
+-- ("/","")
+--
+-- >>> splitPosix "//"
+-- ("//","")
+--
+-- >>> splitPosix "/home"
+-- ("/","home")
+--
+-- >>> splitPosix "/home/user"
+-- ("/","home/user")
+--
+-- >>> splitWin "\\"
+-- ("\\","")
+--
+-- >>> splitWin "\\home"
+-- ("\\","home")
+unsafeSplitTopLevel :: (Unbox a, Integral a) =>
+    OS -> Array a -> (Array a, Array a)
+-- Note on Windows we should be here only when the path starts with exactly one
+-- separator, otherwise it would be UNC path. But on posix multiple separators
+-- are valid.
+unsafeSplitTopLevel os = unsafeSplitPrefix os 1
+
+-- In some cases there is no valid drive component e.g. "\\a\\b", though if we
+-- consider relative roots then we could use "\\" as the root in this case. In
+-- other cases there is no valid path component e.g. "C:" or "\\share\\" though
+-- the latter is not a valid path and in the former case we can use "." as the
+-- path component.
+
+-- | Split a path prefixed with drive into (drive, path) tuple.
+--
+-- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
+-- >>> split = toList . Common.unsafeSplitDrive . packPosix
+--
+-- >>> split "C:"
+-- ("C:","")
+--
+-- >>> split "C:a"
+-- ("C:","a")
+--
+-- >>> split "C:\\"
+-- ("C:\\","")
+--
+-- >>> split "C:\\\\" -- this is invalid path
+-- ("C:\\\\","")
+--
+-- >>> split "C:\\\\a" -- this is invalid path
+-- ("C:\\\\","a")
+--
+-- >>> split "C:\\/a/b" -- is this valid path?
+-- ("C:\\/","a/b")
+unsafeSplitDrive :: (Unbox a, Integral a) => Array a -> (Array a, Array a)
+unsafeSplitDrive = unsafeSplitPrefix Windows 2
+
+-- | Skip separators and then parse the next path segment.
+-- Return (segment offset, segment length).
+parseSegment :: (Unbox a, Integral a) => Array a -> Int -> (Int, Int)
+parseSegment arr sepOff = (segOff, segCnt)
+
+    where
+
+    arr1 = snd $ Array.unsafeSplitAt sepOff arr
+    sepCnt = countLeadingBy (isSeparatorWord Windows) arr1
+    segOff = sepOff + sepCnt
+
+    arr2 = snd $ Array.unsafeSplitAt segOff arr
+    segCnt = countLeadingBy (not . isSeparatorWord Windows) arr2
+
+-- XXX We can split a path as "root, . , rest" or "root, /, rest".
+-- XXX We can remove the redundant path separator after the root. With that
+-- joining root vs other paths will become similar. But there are some special
+-- cases e.g. (1) "C:a" does not have a separator, can we make this "C:.\\a"?
+-- (2) In case of "/home" we have "/" as root - while joining root and path we
+-- should not add another separator between root and path - thus joining root
+-- and path in this case is anyway special.
+
+-- | Split a path prefixed with "\\" into (drive, path) tuple.
+--
+-- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
+-- >>> split = toList . Common.unsafeSplitUNC . packPosix
+--
+-- >> split ""
+-- ("","")
+--
+-- >>> split "\\\\"
+-- ("\\\\","")
+--
+-- >>> split "\\\\server"
+-- ("\\\\server","")
+--
+-- >>> split "\\\\server\\"
+-- ("\\\\server\\","")
+--
+-- >>> split "\\\\server\\home"
+-- ("\\\\server\\","home")
+--
+-- >>> split "\\\\?\\c:"
+-- ("\\\\?\\c:","")
+--
+-- >>> split "\\\\?\\c:/"
+-- ("\\\\?\\c:/","")
+--
+-- >>> split "\\\\?\\c:\\home"
+-- ("\\\\?\\c:\\","home")
+--
+-- >>> split "\\\\?\\UNC/"
+-- ("\\\\?\\UNC/","")
+--
+-- >>> split "\\\\?\\UNC\\server"
+-- ("\\\\?\\UNC\\server","")
+--
+-- >>> split "\\\\?\\UNC/server\\home"
+-- ("\\\\?\\UNC/server\\","home")
+--
+unsafeSplitUNC :: (Unbox a, Integral a) => Array a -> (Array a, Array a)
+unsafeSplitUNC arr =
+    if cnt1 == 1 && unsafeIndexChar 2 arr == '?'
+    then do
+        if uncLen == 3
+                && unsafeIndexChar uncOff arr == 'U'
+                && unsafeIndexChar (uncOff + 1) arr == 'N'
+                && unsafeIndexChar (uncOff + 2) arr == 'C'
+        then unsafeSplitPrefix Windows (serverOff + serverLen) arr
+        else unsafeSplitPrefix Windows sepOff1 arr
+    else unsafeSplitPrefix Windows sepOff arr
+
+    where
+
+    arr1 = snd $ Array.unsafeSplitAt 2 arr
+    cnt1 = countLeadingBy (not . isSeparatorWord Windows) arr1
+    sepOff = 2 + cnt1
+
+    -- XXX there should be only one separator in a valid path?
+    -- XXX it should either be UNC or two letter drive in a valid path
+    (uncOff, uncLen) = parseSegment arr sepOff
+    sepOff1 = uncOff + uncLen
+    (serverOff, serverLen) = parseSegment arr sepOff1
+
+-- XXX should we make the root Maybe? Both components will have to be Maybe to
+-- avoid an empty path.
+-- XXX Should we keep the trailing separator in the directory components?
+
+-- | If a path is rooted then separate the root and the remaining path
+-- otherwise root is returned as empty. If the path is rooted then the non-root
+-- part is guaranteed to not start with a separator.
+--
+-- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
+-- >>> splitPosix = toList . Common.splitRoot Common.Posix . packPosix
+--
+-- >>> splitPosix "/"
+-- ("/","")
+--
+-- >>> splitPosix "."
+-- (".","")
+--
+-- >>> splitPosix "/home"
+-- ("/","home")
+--
+-- >>> splitPosix "//"
+-- ("//","")
+--
+-- >>> splitPosix "./home"
+-- ("./","home")
+--
+-- >>> splitPosix "home"
+-- ("","home")
+--
+{-# INLINE splitRoot #-}
+splitRoot :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
+splitRoot Posix arr
+    | isLocation Posix arr
+        = unsafeSplitTopLevel Posix arr
+    | otherwise = (Array.empty, arr)
+splitRoot Windows arr
+    | isRelativeCurDriveRoot arr || isRelativeCurDir Windows arr
+        = unsafeSplitTopLevel Windows arr
+    | hasDrive arr = unsafeSplitDrive arr
+    | isAbsoluteUNC arr = unsafeSplitUNC arr
+    | otherwise = (Array.empty, arr)
+
+------------------------------------------------------------------------------
+-- Split path
+------------------------------------------------------------------------------
+
+-- | Raw split an array on path separartor word using a filter to filter out
+-- some splits.
+{-# INLINE splitWithFilter #-}
+splitWithFilter
+    :: (Unbox a, Integral a, Monad m)
+    => ((Int, Int) -> Bool)
+    -> Bool
+    -> OS
+    -> Array a
+    -> Stream m (Array a)
+splitWithFilter filt withSep os arr =
+      f (isSeparatorWord os) (Array.read arr)
+    & Stream.filter filt
+    & fmap (\(i, len) -> Array.unsafeGetSlice i len arr)
+
+    where
+
+    f = if withSep then Stream.indexEndBy else Stream.indexEndBy_
+
+-- | Split a path on separator chars and compact contiguous separators and
+-- remove /./ components. Note this does not treat the path root in a special
+-- way.
+{-# INLINE splitCompact #-}
+splitCompact
+    :: (Unbox a, Integral a, Monad m)
+    => Bool
+    -> OS
+    -> Array a
+    -> Stream m (Array a)
+splitCompact withSep os arr =
+    splitWithFilter (not . shouldFilterOut) withSep os arr
+
+    where
+
+    sepFilter (off, len) =
+        ( len == 1
+        && isSeparator os (unsafeIndexChar off arr)
+        )
+        ||
+        -- Note, last component may have len == 2 but second char may not
+        -- be slash, so we need to check for slash explicitly.
+        --
+        ( len == 2
+        && unsafeIndexChar off arr == '.'
+        && isSeparator os (unsafeIndexChar (off + 1) arr)
+        )
+
+    {-# INLINE shouldFilterOut #-}
+    shouldFilterOut (off, len) =
+        len == 0
+            -- Note this is needed even when withSep is true - for the last
+            -- component case.
+            || (len == 1 && unsafeIndexChar off arr == '.')
+            -- XXX Ensure that these are statically removed by GHC when withSep
+            -- is False.
+            || (withSep && sepFilter (off, len))
+
+{-# INLINE splitPathUsing #-}
+splitPathUsing
+    :: (Unbox a, Integral a, Monad m)
+    => Bool
+    -> OS
+    -> Array a
+    -> Stream m (Array a)
+splitPathUsing withSep os arr =
+    let stream = splitCompact withSep os rest
+    in if Array.null root
+       then stream
+       else Stream.cons root1 stream
+
+    where
+
+    -- We should not filter out a leading '.' on Posix or Windows.
+    -- We should not filter out a '.' in the middle of a UNC root on windows.
+    -- Therefore, we split the root and treat it in a special way.
+    (root, rest) = splitRoot os arr
+    root1 =
+        if withSep
+        then compactTrailingBy (isSeparator os . wordToChar) root
+        else dropTrailingSeparators os root
+
+-- | Split a path into components separated by the path separator. "."
+-- components in the path are ignored except when in the leading position.
+-- Trailing separators in non-root components are dropped.
+--
+-- >>> :{
+--  splitPosix = Stream.toList . fmap unpackPosix . Common.splitPath_ Common.Posix . packPosix
+--  splitWin = Stream.toList . fmap unpackWindows . Common.splitPath_ Common.Windows . packWindows
+-- :}
+--
+-- >>> splitPosix "."
+-- ["."]
+--
+-- >>> splitPosix "././"
+-- ["."]
+--
+-- >>> splitPosix ".//"
+-- ["."]
+--
+-- >>> splitWin "c:x"
+-- ["c:","x"]
+--
+-- >>> splitWin "c:/" -- Note, c:/ is not the same as c:
+-- ["c:/"]
+--
+-- >>> splitWin "c:/x"
+-- ["c:/","x"]
+--
+-- >>> splitPosix "//"
+-- ["/"]
+--
+-- >>> splitPosix "//x/y/"
+-- ["/","x","y"]
+--
+-- >>> splitWin "//x/y/"
+-- ["//x","y"]
+--
+-- >>> splitPosix "./a"
+-- [".","a"]
+--
+-- >>> splitWin "./a"
+-- [".","a"]
+--
+-- >>> splitWin "c:./a"
+-- ["c:","a"]
+--
+-- >>> splitPosix "a/."
+-- ["a"]
+--
+-- >>> splitWin "a/."
+-- ["a"]
+--
+-- >>> splitPosix "/"
+-- ["/"]
+--
+-- >>> splitPosix "/x"
+-- ["/","x"]
+--
+-- >>> splitWin "/x"
+-- ["/","x"]
+--
+-- >>> splitPosix "/./x/"
+-- ["/","x"]
+--
+-- >>> splitPosix "/x/./y"
+-- ["/","x","y"]
+--
+-- >>> splitPosix "/x/../y"
+-- ["/","x","..","y"]
+--
+-- >>> splitPosix "/x///y"
+-- ["/","x","y"]
+--
+-- >>> splitPosix "/x/\\y"
+-- ["/","x","\\y"]
+--
+-- >>> splitWin "/x/\\y"
+-- ["/","x","y"]
+--
+-- >>> splitWin "\\x/\\y"
+-- ["\\","x","y"]
+--
+{-# INLINE splitPath_ #-}
+splitPath_
+    :: (Unbox a, Integral a, Monad m)
+    => OS -> Array a -> Stream m (Array a)
+splitPath_ = splitPathUsing False
+
+-- | Split the path components keeping separators between path components
+-- attached to the dir part. Redundant separators are removed, only the first
+-- one is kept, but separators are not changed to the default on Windows.
+-- Separators are not added either e.g. "." and ".." may not have trailing
+-- separators if the original path does not.
+--
+-- >>> :{
+--  splitPosix = Stream.toList . fmap unpackPosix . Common.splitPath Common.Posix . packPosix
+--  splitWin = Stream.toList . fmap unpackWindows . Common.splitPath Common.Windows . packWindows
+-- :}
+--
+-- >>> splitPosix "."
+-- ["."]
+--
+-- >>> splitPosix "././"
+-- ["./"]
+--
+-- >>> splitPosix "./a/b/."
+-- ["./","a/","b/"]
+--
+-- >>> splitPosix ".."
+-- [".."]
+--
+-- >>> splitPosix "../"
+-- ["../"]
+--
+-- >>> splitPosix "a/.."
+-- ["a/",".."]
+--
+-- >>> splitPosix "/"
+-- ["/"]
+--
+-- >>> splitPosix "//"
+-- ["/"]
+--
+-- >>> splitPosix "/x"
+-- ["/","x"]
+--
+-- >>> splitWin "/x"
+-- ["/","x"]
+--
+-- >>> splitPosix "/./x/"
+-- ["/","x/"]
+--
+-- >>> splitPosix "/x/./y"
+-- ["/","x/","y"]
+--
+-- >>> splitPosix "/x/../y"
+-- ["/","x/","../","y"]
+--
+-- >>> splitPosix "/x///y"
+-- ["/","x/","y"]
+--
+-- >>> splitPosix "/x/\\y"
+-- ["/","x/","\\y"]
+--
+-- >>> splitWin "/x/\\y"
+-- ["/","x/","y"]
+--
+-- >>> splitWin "\\x/\\y" -- this is not valid, multiple seps after share?
+-- ["\\","x/","y"]
+--
+{-# INLINE splitPath #-}
+splitPath
+    :: (Unbox a, Integral a, Monad m)
+    => OS -> Array a -> Stream m (Array a)
+splitPath = splitPathUsing True
+
+-- | Split the first non-empty path component.
+--
+-- /Unimplemented/
+{-# INLINE splitHead #-}
+splitHead :: -- (Unbox a, Integral a) =>
+    OS -> Array a -> (Array a, Array a)
+splitHead _os _arr = undefined
+
+-- | Split the last non-empty path component.
+--
+-- /Unimplemented/
+{-# INLINE splitTail #-}
+splitTail :: -- (Unbox a, Integral a) =>
+    OS -> Array a -> (Array a, Array a)
+splitTail _os _arr = undefined
+
+------------------------------------------------------------------------------
+-- File or Dir
+------------------------------------------------------------------------------
+
+-- | Returns () if the path can be a valid file, otherwise throws an
+-- exception.
+maybeFile :: (MonadThrow m, Unbox a, Integral a) => OS -> Array a -> m ()
+maybeFile os arr = do
+    s1 <-
+            Stream.toList
+                $ Stream.take 3
+                $ Stream.takeWhile (not . isSeparator os)
+                $ fmap wordToChar
+                $ Array.readRev arr
+    -- XXX On posix we just need to check last 3 bytes of the array
+    -- XXX Display the path in the exception messages.
+    case s1 of
+        [] -> throwM $ InvalidPath "A file name cannot have a trailing separator"
+        '.' : xs ->
+            case xs of
+                [] -> throwM $ InvalidPath "A file name cannot have a trailing \".\""
+                '.' : [] ->
+                    throwM $ InvalidPath "A file name cannot have a trailing \"..\""
+                _ -> pure ()
+        _ -> pure ()
+
+    case os of
+        Windows ->
+            -- XXX We can exclude a UNC root as well but just the UNC root is
+            -- not even a valid path.
+            when (isDrive arr)
+                $ throwM $ InvalidPath "A drive root is not a valid file name"
+        Posix -> pure ()
+
+-- | Split a multi-component path into (dir, file) if its last component can be
+-- a file i.e.:
+--
+-- * the path does not end with a separator
+-- * the path does not end with a . or .. component
+--
+-- Split a single component into ("", path) if it can be a file i.e. it is not
+-- a path root, "." or "..".
+--
+-- If the path cannot be a file then (path, "") is returned.
+--
+-- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
+-- >>> splitPosix = toList . Common.splitFile Common.Posix . packPosix
+--
+-- >>> splitPosix "/"
+-- ("/","")
+--
+-- >>> splitPosix "."
+-- (".","")
+--
+-- >>> splitPosix "/."
+-- ("/.","")
+--
+-- >>> splitPosix ".."
+-- ("..","")
+--
+-- >>> splitPosix "//"
+-- ("//","")
+--
+-- >>> splitPosix "/home"
+-- ("/","home")
+--
+-- >>> splitPosix "./home"
+-- ("./","home")
+--
+-- >>> splitPosix "home"
+-- ("","home")
+--
+-- >>> splitPosix "x/"
+-- ("x/","")
+--
+-- >>> splitPosix "x/y"
+-- ("x/","y")
+--
+-- >>> splitPosix "x//y"
+-- ("x//","y")
+--
+-- >>> splitPosix "x/./y"
+-- ("x/./","y")
+{-# INLINE splitFile #-}
+splitFile :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
+splitFile os arr =
+    let p x =
+            if os == Windows
+            then x == charToWord ':' || isSeparatorWord os x
+            else isSeparatorWord os x
+        -- XXX Use Array.revBreakEndBy?
+        fileLen = runIdentity
+                $ Stream.fold (Fold.takeEndBy_ p Fold.length)
+                $ Array.readRev arr
+        arrLen = Array.length arr
+        baseLen = arrLen - fileLen
+        (base, file) = Array.unsafeSplitAt baseLen arr
+        fileFirst = Array.unsafeGetIndex 0 file
+        fileSecond = Array.unsafeGetIndex 1 file
+     in
+        if fileLen > 0
+            -- exclude the file == '.' case
+            && not (fileLen == 1 && fileFirst == charToWord '.')
+            -- exclude the file == '..' case
+            && not (fileLen == 2
+                && fileFirst == charToWord '.'
+                && fileSecond == charToWord '.')
+        then
+            if baseLen <= 0
+            then (Array.empty, arr)
+            else (Array.unsafeGetSlice 0 baseLen base, file) -- "/"
+        else (arr, Array.empty)
+
+-- | Split a multi-component path into (dir, last component). If the path has a
+-- single component and it is a root then return (path, "") otherwise return
+-- ("", path).
+--
+-- Split a single component into (dir, "") if it can be a dir i.e. it is either
+-- a path root, "." or ".." or has a trailing separator.
+--
+-- The only difference between splitFile and splitDir:
+--
+-- >> splitFile "a/b/"
+-- ("a/b/", "")
+-- >> splitDir "a/b/"
+-- ("a/", "b/")
+--
+-- This is equivalent to splitPath and keeping the last component but is usually
+-- faster.
+--
+-- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
+-- >>> splitPosix = toList . Common.splitDir Common.Posix . packPosix
+--
+-- >> splitPosix "/"
+-- ("/","")
+--
+-- >> splitPosix "."
+-- (".","")
+--
+-- >> splitPosix "/."
+-- ("/.","")
+--
+-- >> splitPosix "/x"
+-- ("/","x")
+--
+-- >> splitPosix "/x/"
+-- ("/","x/")
+--
+-- >> splitPosix "//"
+-- ("//","")
+--
+-- >> splitPosix "./x"
+-- ("./","x")
+--
+-- >> splitPosix "x"
+-- ("","x")
+--
+-- >> splitPosix "x/"
+-- ("x/","")
+--
+-- >> splitPosix "x/y"
+-- ("x/","y")
+--
+-- >> splitPosix "x/y/"
+-- ("x/","y/")
+--
+-- >> splitPosix "x/y//"
+-- ("x/","y//")
+--
+-- >> splitPosix "x//y"
+-- ("x//","y")
+--
+-- >> splitPosix "x/./y"
+-- ("x/./","y")
+--
+-- /Unimplemented/
+{-# INLINE splitDir #-}
+splitDir :: -- (Unbox a, Integral a) =>
+    OS -> Array a -> (Array a, Array a)
+splitDir _os _arr = undefined
+
+------------------------------------------------------------------------------
+-- Split extensions
+------------------------------------------------------------------------------
+
+-- | Like split extension but we can specify the extension char to be used.
+{-# INLINE splitExtensionBy #-}
+splitExtensionBy :: (Unbox a, Integral a) =>
+    a -> OS -> Array a -> (Array a, Array a)
+splitExtensionBy c os arr =
+    let p x = x == c || isSeparatorWord os x
+        -- XXX Use Array.revBreakEndBy_
+        extLen = runIdentity
+                $ Stream.fold (Fold.takeEndBy p Fold.length)
+                $ Array.readRev arr
+        arrLen = Array.length arr
+        baseLen = arrLen - extLen
+        -- XXX We can use reverse split operation on the array
+        res@(base, ext) = Array.unsafeSplitAt baseLen arr
+        baseLast = Array.unsafeGetIndexRev 0 base
+        extFirst = Array.unsafeGetIndex 0 ext
+     in
+        -- For an extension to be present the path must be at least 3 chars.
+        -- non-empty base followed by extension char followed by non-empty
+        -- extension.
+        if arrLen > 2
+            -- If ext is empty, then there is no extension and we should not
+            -- strip an extension char if any at the end of base.
+            && extLen > 1
+            && extFirst == c
+            -- baseLast is always either base name char or '/' unless empty
+            -- if baseLen is 0 then we have not found an extension.
+            && baseLen > 0
+            -- If baseLast is '/' then base name is empty which means it is a
+            -- dot file and there is no extension.
+            && not (isSeparatorWord os baseLast)
+            -- On Windows if base is 'c:.' or a UNC path ending in '/c:.' then
+            -- it is a dot file, no extension.
+            && not (os == Windows && baseLast == charToWord ':')
+        then res
+        else (arr, Array.empty)
+
+-- | For the purposes of this function a file is considered to have an
+-- extension if the file name can be broken down into a non-empty filename
+-- followed by an extension separator (usually ".") followed by a non-empty
+-- extension with at least one character other than the extension separator
+-- characters. The shortest suffix obtained by this rule, starting with the
+-- extension separator is returned as the extension and the remaining prefix
+-- part as the filename.
+--
+-- A directory name does not have an extension.
+--
+-- Note: On Windows we cannot create a file named "prn." or "prn..". Thus it
+-- considers anything starting with and including the first "." as the
+-- extension and the part before it as the filename. Our definition considers
+-- "prn." as a filename without an extension.
+
+-- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
+-- >>> splitPosix = toList . Common.splitExtension Common.Posix . packPosix
+--
+-- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
+-- >>> splitWin = toListWin . Common.splitExtension Common.Windows . packWindows
+--
+-- >>> splitPosix "/"
+-- ("/","")
+--
+-- >>> splitPosix "."
+-- (".","")
+--
+-- >>> splitPosix ".."
+-- ("..","")
+--
+-- >>> splitPosix "x"
+-- ("x","")
+--
+-- >>> splitPosix "/x"
+-- ("/x","")
+--
+-- >>> splitPosix "x/"
+-- ("x/","")
+--
+-- >>> splitPosix "./x"
+-- ("./x","")
+--
+-- >>> splitPosix "x/."
+-- ("x/.","")
+--
+-- >>> splitPosix "x/y."
+-- ("x/y.","")
+--
+-- >>> splitPosix "/x.y"
+-- ("/x",".y")
+--
+-- >>> splitPosix "/x.y."
+-- ("/x",".y.")
+--
+-- >>> splitPosix "/x.y.."
+-- ("/x",".y..")
+--
+-- >>> splitPosix "x/.y"
+-- ("x/.y","")
+--
+-- >>> splitPosix ".x"
+-- (".x","")
+--
+-- >>> splitPosix "x."
+-- ("x.","")
+--
+-- >>> splitPosix ".x.y"
+-- (".x",".y")
+--
+-- >>> splitPosix "x/y.z"
+-- ("x/y",".z")
+--
+-- >>> splitPosix "x.y.z"
+-- ("x.y",".z")
+--
+-- >>> splitPosix "x..y"
+-- ("x.",".y")
+--
+-- >>> splitPosix "..."
+-- ("...","")
+--
+-- >>> splitPosix "..x"
+-- (".",".x")
+--
+-- >>> splitPosix "...x"
+-- ("..",".x")
+--
+-- >>> splitPosix "x/y.z/"
+-- ("x/y.z/","")
+--
+-- >>> splitPosix "x/y"
+-- ("x/y","")
+--
+-- >>> splitWin "x:y"
+-- ("x:y","")
+--
+-- >>> splitWin "x:.y"
+-- ("x:.y","")
+--
+{-# INLINE splitExtension #-}
+splitExtension :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
+splitExtension = splitExtensionBy extensionWord
+
+{-
+-- Instead of this keep calling splitExtension until there is no more extension
+-- returned.
+{-# INLINE splitAllExtensionsBy #-}
+splitAllExtensionsBy :: (Unbox a, Integral a) =>
+    Bool -> a -> OS -> Array a -> (Array a, Array a)
+-- If the isFileName arg is true, it means that the path supplied does not have
+-- any separator chars, so we can do it more efficiently.
+splitAllExtensionsBy isFileName extChar os arr =
+    let file =
+            if isFileName
+            then arr
+            else snd $ splitFile os arr
+        fileLen = Array.length file
+        arrLen = Array.length arr
+        baseLen = foldArr (Fold.takeEndBy_ (== extChar) Fold.length) file
+        extLen = fileLen - baseLen
+     in
+        -- XXX unsafeSplitAt itself should use Array.empty in case of no split
+        if fileLen > 0 && extLen > 1 && extLen /= fileLen
+        then (Array.unsafeSplitAt (arrLen - extLen) arr)
+        else (arr, Array.empty)
+
+-- |
+--
+-- TODO: This function needs to be consistent with splitExtension. It should
+-- strip all valid extensions by that definition.
+--
+-- splitAllExtensions "x/y.tar.gz" gives ("x/y", ".tar.gz")
+--
+-- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
+-- >>> splitPosix = toList . Common.splitAllExtensions Common.Posix . packPosix
+--
+-- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
+-- >>> splitWin = toListWin . Common.splitAllExtensions Common.Windows . packWindows
+--
+-- >>> splitPosix "/"
+-- ("/","")
+--
+-- >>> splitPosix "."
+-- (".","")
+--
+-- >>> splitPosix "x"
+-- ("x","")
+--
+-- >>> splitPosix "/x"
+-- ("/x","")
+--
+-- >>> splitPosix "x/"
+-- ("x/","")
+--
+-- >>> splitPosix "./x"
+-- ("./x","")
+--
+-- >>> splitPosix "x/."
+-- ("x/.","")
+--
+-- >>> splitPosix "x/y."
+-- ("x/y.","")
+--
+-- >>> splitPosix "/x.y"
+-- ("/x",".y")
+--
+-- >>> splitPosix "x/.y"
+-- ("x/.y","")
+--
+-- >>> splitPosix ".x"
+-- (".x","")
+--
+-- >>> splitPosix "x."
+-- ("x.","")
+--
+-- >>> splitPosix ".x.y"
+-- (".x",".y")
+--
+-- >>> splitPosix "x/y.z"
+-- ("x/y",".z")
+--
+-- >>> splitPosix "x.y.z"
+-- ("x",".y.z")
+--
+-- >>> splitPosix "x..y" -- ??
+-- ("x.",".y")
+--
+-- >>> splitPosix ".."
+-- ("..","")
+--
+-- >>> splitPosix "..."
+-- ("...","")
+--
+-- >>> splitPosix "...x"
+-- ("...x","")
+--
+-- >>> splitPosix "x/y.z/"
+-- ("x/y.z/","")
+--
+-- >>> splitPosix "x/y"
+-- ("x/y","")
+--
+-- >>> splitWin "x:y"
+-- ("x:y","")
+--
+-- >>> splitWin "x:.y"
+-- ("x:.y","")
+--
+{-# INLINE splitAllExtensions #-}
+splitAllExtensions :: (Unbox a, Integral a) =>
+    OS -> Array a -> (Array a, Array a)
+splitAllExtensions = splitAllExtensionsBy False extensionWord
+-}
+
+------------------------------------------------------------------------------
 -- Construction
 ------------------------------------------------------------------------------
 
@@ -156,10 +1364,6 @@ isInvalidPathComponent = fmap (fmap charToWord)
     , "COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9"
     , "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"
     ]
-
--- XXX put this in array module, we can have Array.fold and Array.foldM
-foldArr :: Unbox a => Fold.Fold Identity a b -> Array a -> b
-foldArr f arr = runIdentity $ Array.fold f arr
 
 -- Note: "//share/x" works in powershell.
 -- But mixed forward and backward slashes do not work, it is treated as a path
@@ -457,313 +1661,6 @@ mkQ f =
     ++ ", can be used only as an expression"
 
 ------------------------------------------------------------------------------
--- Parsing Operations
-------------------------------------------------------------------------------
-
--- XXX We can use Enum type class to include the Char type as well so that the
--- functions can work on Array Word8/Word16/Char but that may be slow.
-
--- | Unsafe, may tructate to shorter word types, can only be used safely for
--- characters that fit in the given word size.
-charToWord :: Integral a => Char -> a
-charToWord c =
-    let n = ord c
-     in assert (n <= 255) (fromIntegral n)
-
--- | Unsafe, should be a valid character.
-wordToChar :: Integral a => a -> Char
-wordToChar = unsafeChr . fromIntegral
-
--- | Index a word in an array and convert it to Char.
-unsafeIndexChar :: (Unbox a, Integral a) => Int -> Array a -> Char
-unsafeIndexChar i a = wordToChar (Array.unsafeGetIndex i a)
-
-------------------------------------------------------------------------------
--- Separator parsing
-------------------------------------------------------------------------------
-
-posixSeparator :: Char
-posixSeparator = '/'
-
-windowsSeparator :: Char
-windowsSeparator = '\\'
-
--- | Primary path separator character, @/@ on Posix and @\\@ on Windows.
--- Windows supports @/@ too as a separator. Please use 'isSeparator' for
--- testing if a char is a separator char.
-{-# INLINE primarySeparator #-}
-primarySeparator :: OS -> Char
-primarySeparator Posix = posixSeparator
-primarySeparator Windows = windowsSeparator
-
--- | On Posix only @/@ is a path separator but in windows it could be either
--- @/@ or @\\@.
-{-# INLINE isSeparator #-}
-isSeparator :: OS -> Char -> Bool
-isSeparator Windows c = (c == windowsSeparator) || (c == posixSeparator)
-isSeparator Posix c = c == posixSeparator
-
-{-# INLINE isSeparatorWord #-}
-isSeparatorWord :: Integral a => OS -> a -> Bool
-isSeparatorWord os = isSeparator os . wordToChar
-
-------------------------------------------------------------------------------
--- Path normalization
-------------------------------------------------------------------------------
-
-countWhile :: (a -> Bool) -> Stream Identity a -> Int
-countWhile p =
-      runIdentity
-    . Stream.fold Fold.length
-    . Stream.takeWhile p
-
-{-# INLINE countLeadingBy #-}
-countLeadingBy :: Unbox a => (a -> Bool) -> Array a -> Int
-countLeadingBy p = countWhile p . Array.read
-
-countTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Int
-countTrailingBy p = countWhile p . Array.readRev
-
--- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
--- @a@. On Windows "c:" and "c:/" are different paths, therefore, we do not
--- drop the trailing separator from "c:/" or for that matter a separator
--- preceded by a ':'.
-{-# INLINE dropTrailingBy #-}
-dropTrailingBy :: (Unbox a, Integral a) =>
-    OS -> (a -> Bool) -> Array a -> Array a
-dropTrailingBy os p arr =
-    let len = Array.length arr
-        n = countTrailingBy p arr
-        arr1 = fst $ Array.unsafeSplitAt (len - n) arr
-     in if n == 0
-        then arr
-        else if n == len -- "////"
-        then fst $ Array.unsafeSplitAt 1 arr
-        -- "c:////"
-        else if (os == Windows)
-                && (Array.unsafeGetIndex (len - n - 1) arr == charToWord ':')
-        then fst $ Array.unsafeSplitAt (len - n + 1) arr
-        else arr1
-
-{-# INLINE compactTrailingBy #-}
-compactTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Array a
-compactTrailingBy p arr =
-    let len = Array.length arr
-        n = countTrailingBy p arr
-     in if n <= 1
-        then arr
-        else fst $ Array.unsafeSplitAt (len - n + 1) arr
-
--- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
--- @a@. On Windows "c:" and "c:/" are different paths, therefore, we do not
--- drop the trailing separator from "c:/".
---
--- Note that a path with trailing separators may implicitly be considered as a
--- directory by some applications. So dropping it may change the dir nature of
--- the path.
---
--- >>> f a = unpackPosix $ Common.dropTrailingSeparators Common.Posix (packPosix a)
--- >>> f "./"
--- "."
---
-{-# INLINE dropTrailingSeparators #-}
-dropTrailingSeparators :: (Unbox a, Integral a) => OS -> Array a -> Array a
-dropTrailingSeparators os =
-    dropTrailingBy os (isSeparator os . wordToChar)
-
-------------------------------------------------------------------------------
--- Drive parsing
-------------------------------------------------------------------------------
-
--- | @C:...@, does not check array length.
-{-# INLINE unsafeHasDrive #-}
-unsafeHasDrive :: (Unbox a, Integral a) => Array a -> Bool
-unsafeHasDrive a
-    -- Check colon first for quicker return
-    | unsafeIndexChar 1 a /= ':' = False
-    -- XXX If we found a colon anyway this cannot be a valid path unless it has
-    -- a drive prefix. colon is not a valid path character.
-    -- XXX check isAlpha perf
-    | not (isAlpha (unsafeIndexChar 0 a)) = False
-    | otherwise = True
-
--- | A path that starts with a alphabet followed by a colon e.g. @C:...@.
-hasDrive :: (Unbox a, Integral a) => Array a -> Bool
-hasDrive a = Array.length a >= 2 && unsafeHasDrive a
-
--- | A path that contains only an alphabet followed by a colon e.g. @C:@.
-isDrive :: (Unbox a, Integral a) => Array a -> Bool
-isDrive a = Array.length a == 2 && unsafeHasDrive a
-
-------------------------------------------------------------------------------
--- Relative or Absolute
-------------------------------------------------------------------------------
-
--- | A path relative to cur dir it is either @.@ or starts with @./@.
-isRelativeCurDir :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isRelativeCurDir os a
-    | len == 0 = False -- empty path should not occur
-    | wordToChar (Array.unsafeGetIndex 0 a) /= '.' = False
-    | len < 2 = True
-    | otherwise = isSeparatorWord os (Array.unsafeGetIndex 1 a)
-
-    where
-
-    len = Array.length a
-
--- | A path starting with a separator.
-hasLeadingSeparator :: (Unbox a, Integral a) => OS -> Array a -> Bool
-hasLeadingSeparator os a
-    | Array.length a == 0 = False -- empty path should not occur
-    | isSeparatorWord os (Array.unsafeGetIndex 0 a) = True
-    | otherwise = False
-
--- | A non-UNC path starting with a separator.
--- Note that "\\/share/x" is treated as "C:/share/x".
-isRelativeCurDriveRoot :: (Unbox a, Integral a) => Array a -> Bool
-isRelativeCurDriveRoot a
-    | len == 0 = False -- empty path should not occur
-    | len == 1 && sep0 = True
-    | sep0 && c0 /= c1 = True -- "\\/share/x" is treated as "C:/share/x".
-    | otherwise = False
-
-    where
-
-    len = Array.length a
-    c0 = Array.unsafeGetIndex 0 a
-    c1 = Array.unsafeGetIndex 1 a
-    sep0 = isSeparatorWord Windows c0
-
--- | @C:@ or @C:a...@.
-isRelativeWithDrive :: (Unbox a, Integral a) => Array a -> Bool
-isRelativeWithDrive a =
-    hasDrive a
-        && (  Array.length a < 3
-           || not (isSeparator Windows (unsafeIndexChar 2 a))
-           )
-
-isRootRelative :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isRootRelative Posix a = isRelativeCurDir Posix a
-isRootRelative Windows a =
-    isRelativeCurDir Windows a
-        || isRelativeCurDriveRoot a
-        || isRelativeWithDrive a
-
--- | @C:\...@. Note that "C:" or "C:a" is not absolute.
-isAbsoluteWithDrive :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteWithDrive a =
-    Array.length a >= 3
-        && unsafeHasDrive a
-        && isSeparator Windows (unsafeIndexChar 2 a)
-
--- | @\\\\...@ or @//...@
-isAbsoluteUNC :: (Unbox a, Integral a) => Array a -> Bool
-isAbsoluteUNC a
-    | Array.length a < 2 = False
-    | isSeparatorWord Windows c0 && c0 == c1 = True
-    | otherwise = False
-
-    where
-
-    c0 = Array.unsafeGetIndex 0 a
-    c1 = Array.unsafeGetIndex 1 a
-
--- XXX rename to isRootAbsolute
-
--- | Note that on Windows a path starting with a separator is relative to
--- current drive while on Posix this is absolute path as there is only one
--- drive.
-isAbsolute :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isAbsolute Posix arr =
-    hasLeadingSeparator Posix arr
-isAbsolute Windows arr =
-    isAbsoluteWithDrive arr || isAbsoluteUNC arr
-
-------------------------------------------------------------------------------
--- Location or Segment
-------------------------------------------------------------------------------
-
--- XXX API for static processing of .. (normalizeParentRefs)
---
--- Note: paths starting with . or .. are ambiguous and can be considered
--- segments or rooted. We consider a path starting with "." as rooted, when
--- someone uses "./x" they explicitly mean x in the current directory whereas
--- just "x" can be taken to mean a path segment without any specific root.
--- However, in typed paths the programmer can convey the meaning whether they
--- mean it as a segment or a rooted path. So even "./x" can potentially be used
--- as a segment which can just mean "x".
---
--- XXX For the untyped Path we can allow appending "./x" to other paths. We can
--- leave this to the programmer. In typed paths we can allow "./x" in segments.
--- XXX Empty path can be taken to mean "." except in case of UNC paths
---
--- | Any path that starts with a separator, @./@ or a drive prefix is a rooted
--- path.
---
--- Rooted paths on Posix and Windows,
--- * @/...@ a path starting with a separator
--- * @.@ current dir
--- * @./...@ a location relative to current dir
---
--- Rooted paths on Windows:
--- * @C:@ local drive cur dir location
--- * @C:a\\b@ local drive relative to cur dir location
--- * @C:\\@ local drive absolute location
--- * @\\@ local path relative to current drive
--- * @\\\\share\\@ UNC network location
--- * @\\\\?\\C:\\@ Long UNC local path
--- * @\\\\?\\UNC\\@ Long UNC server location
--- * @\\\\.\\@ DOS local device namespace
--- * @\\\\??\\@ DOS global namespace
---
-isLocation :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isLocation Posix a =
-    hasLeadingSeparator Posix a
-        || isRelativeCurDir Posix a
-isLocation Windows a =
-    hasLeadingSeparator Windows a
-        || isRelativeCurDir Windows a
-        || hasDrive a -- curdir-in-drive relative, drive absolute
-
--- XXX rename to isUnrooted?
-isSegment :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isSegment os = not . isLocation os
-
-------------------------------------------------------------------------------
--- File or Dir
-------------------------------------------------------------------------------
-
--- | Returns () if the path can be a valid file, otherwise throws an
--- exception.
-maybeFile :: (MonadThrow m, Unbox a, Integral a) => OS -> Array a -> m ()
-maybeFile os arr = do
-    s1 <-
-            Stream.toList
-                $ Stream.take 3
-                $ Stream.takeWhile (not . isSeparator os)
-                $ fmap wordToChar
-                $ Array.readRev arr
-    -- XXX On posix we just need to check last 3 bytes of the array
-    -- XXX Display the path in the exception messages.
-    case s1 of
-        [] -> throwM $ InvalidPath "A file name cannot have a trailing separator"
-        '.' : xs ->
-            case xs of
-                [] -> throwM $ InvalidPath "A file name cannot have a trailing \".\""
-                '.' : [] ->
-                    throwM $ InvalidPath "A file name cannot have a trailing \"..\""
-                _ -> pure ()
-        _ -> pure ()
-
-    case os of
-        Windows ->
-            -- XXX We can exclude a UNC root as well but just the UNC root is
-            -- not even a valid path.
-            when (isDrive arr)
-                $ throwM $ InvalidPath "A drive root is not a valid file name"
-        Posix -> pure ()
-
-------------------------------------------------------------------------------
 -- Operations of Path
 ------------------------------------------------------------------------------
 
@@ -824,867 +1721,6 @@ append :: (Unbox a, Integral a) =>
 append os toStr a b =
     withAppendCheck os toStr b (doAppend os a b)
 
-------------------------------------------------------------------------------
--- Splitting
-------------------------------------------------------------------------------
-
-unsafeSplitPrefix :: (Unbox a, Integral a) =>
-    OS -> Int -> Array a -> (Array a, Array a)
-unsafeSplitPrefix os prefixLen arr =
-    Array.unsafeSplitAt cnt arr
-
-    where
-
-    afterDrive = snd $ Array.unsafeSplitAt prefixLen arr
-    n = countLeadingBy (isSeparatorWord os) afterDrive
-    cnt = prefixLen + n
-
--- Note: We can have normalized splitting functions to normalize as we split
--- for efficiency. But then we will have to allocate new arrays instead of
--- slicing which can make it inefficient.
-
--- | Split a path prefixed with a separator into (drive, path) tuple.
---
--- >>> toListPosix (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toListPosix . Common.unsafeSplitTopLevel Common.Posix . packPosix
---
--- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
--- >>> splitWin = toListWin . Common.unsafeSplitTopLevel Common.Windows . packWindows
---
--- >>> splitPosix "/"
--- ("/","")
---
--- >>> splitPosix "//"
--- ("//","")
---
--- >>> splitPosix "/home"
--- ("/","home")
---
--- >>> splitPosix "/home/user"
--- ("/","home/user")
---
--- >>> splitWin "\\"
--- ("\\","")
---
--- >>> splitWin "\\home"
--- ("\\","home")
-unsafeSplitTopLevel :: (Unbox a, Integral a) =>
-    OS -> Array a -> (Array a, Array a)
--- Note on Windows we should be here only when the path starts with exactly one
--- separator, otherwise it would be UNC path. But on posix multiple separators
--- are valid.
-unsafeSplitTopLevel os = unsafeSplitPrefix os 1
-
--- In some cases there is no valid drive component e.g. "\\a\\b", though if we
--- consider relative roots then we could use "\\" as the root in this case. In
--- other cases there is no valid path component e.g. "C:" or "\\share\\" though
--- the latter is not a valid path and in the former case we can use "." as the
--- path component.
-
--- | Split a path prefixed with drive into (drive, path) tuple.
---
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> split = toList . Common.unsafeSplitDrive . packPosix
---
--- >>> split "C:"
--- ("C:","")
---
--- >>> split "C:a"
--- ("C:","a")
---
--- >>> split "C:\\"
--- ("C:\\","")
---
--- >>> split "C:\\\\" -- this is invalid path
--- ("C:\\\\","")
---
--- >>> split "C:\\\\a" -- this is invalid path
--- ("C:\\\\","a")
---
--- >>> split "C:\\/a/b" -- is this valid path?
--- ("C:\\/","a/b")
-unsafeSplitDrive :: (Unbox a, Integral a) => Array a -> (Array a, Array a)
-unsafeSplitDrive = unsafeSplitPrefix Windows 2
-
--- | Skip separators and then parse the next path segment.
--- Return (segment offset, segment length).
-parseSegment :: (Unbox a, Integral a) => Array a -> Int -> (Int, Int)
-parseSegment arr sepOff = (segOff, segCnt)
-
-    where
-
-    arr1 = snd $ Array.unsafeSplitAt sepOff arr
-    sepCnt = countLeadingBy (isSeparatorWord Windows) arr1
-    segOff = sepOff + sepCnt
-
-    arr2 = snd $ Array.unsafeSplitAt segOff arr
-    segCnt = countLeadingBy (not . isSeparatorWord Windows) arr2
-
--- XXX We can split a path as "root, . , rest" or "root, /, rest".
--- XXX We can remove the redundant path separator after the root. With that
--- joining root vs other paths will become similar. But there are some special
--- cases e.g. (1) "C:a" does not have a separator, can we make this "C:.\\a"?
--- (2) In case of "/home" we have "/" as root - while joining root and path we
--- should not add another separator between root and path - thus joining root
--- and path in this case is anyway special.
-
--- | Split a path prefixed with "\\" into (drive, path) tuple.
---
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> split = toList . Common.unsafeSplitUNC . packPosix
---
--- >> split ""
--- ("","")
---
--- >>> split "\\\\"
--- ("\\\\","")
---
--- >>> split "\\\\server"
--- ("\\\\server","")
---
--- >>> split "\\\\server\\"
--- ("\\\\server\\","")
---
--- >>> split "\\\\server\\home"
--- ("\\\\server\\","home")
---
--- >>> split "\\\\?\\c:"
--- ("\\\\?\\c:","")
---
--- >>> split "\\\\?\\c:/"
--- ("\\\\?\\c:/","")
---
--- >>> split "\\\\?\\c:\\home"
--- ("\\\\?\\c:\\","home")
---
--- >>> split "\\\\?\\UNC/"
--- ("\\\\?\\UNC/","")
---
--- >>> split "\\\\?\\UNC\\server"
--- ("\\\\?\\UNC\\server","")
---
--- >>> split "\\\\?\\UNC/server\\home"
--- ("\\\\?\\UNC/server\\","home")
---
-unsafeSplitUNC :: (Unbox a, Integral a) => Array a -> (Array a, Array a)
-unsafeSplitUNC arr =
-    if cnt1 == 1 && unsafeIndexChar 2 arr == '?'
-    then do
-        if uncLen == 3
-                && unsafeIndexChar uncOff arr == 'U'
-                && unsafeIndexChar (uncOff + 1) arr == 'N'
-                && unsafeIndexChar (uncOff + 2) arr == 'C'
-        then unsafeSplitPrefix Windows (serverOff + serverLen) arr
-        else unsafeSplitPrefix Windows sepOff1 arr
-    else unsafeSplitPrefix Windows sepOff arr
-
-    where
-
-    arr1 = snd $ Array.unsafeSplitAt 2 arr
-    cnt1 = countLeadingBy (not . isSeparatorWord Windows) arr1
-    sepOff = 2 + cnt1
-
-    -- XXX there should be only one separator in a valid path?
-    -- XXX it should either be UNC or two letter drive in a valid path
-    (uncOff, uncLen) = parseSegment arr sepOff
-    sepOff1 = uncOff + uncLen
-    (serverOff, serverLen) = parseSegment arr sepOff1
-
--- XXX should we make the root Maybe? Both components will have to be Maybe to
--- avoid an empty path.
--- XXX Should we keep the trailing separator in the directory components?
-
--- | If a path is rooted then separate the root and the remaining path
--- otherwise root is returned as empty. If the path is rooted then the non-root
--- part is guaranteed to not start with a separator.
---
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toList . Common.splitRoot Common.Posix . packPosix
---
--- >>> splitPosix "/"
--- ("/","")
---
--- >>> splitPosix "."
--- (".","")
---
--- >>> splitPosix "/home"
--- ("/","home")
---
--- >>> splitPosix "//"
--- ("//","")
---
--- >>> splitPosix "./home"
--- ("./","home")
---
--- >>> splitPosix "home"
--- ("","home")
---
-{-# INLINE splitRoot #-}
-splitRoot :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
-splitRoot Posix arr
-    | isLocation Posix arr
-        = unsafeSplitTopLevel Posix arr
-    | otherwise = (Array.empty, arr)
-splitRoot Windows arr
-    | isRelativeCurDriveRoot arr || isRelativeCurDir Windows arr
-        = unsafeSplitTopLevel Windows arr
-    | hasDrive arr = unsafeSplitDrive arr
-    | isAbsoluteUNC arr = unsafeSplitUNC arr
-    | otherwise = (Array.empty, arr)
-
--- | Raw split an array on path separartor word using a filter to filter out
--- some splits.
-{-# INLINE splitWithFilter #-}
-splitWithFilter
-    :: (Unbox a, Integral a, Monad m)
-    => ((Int, Int) -> Bool)
-    -> Bool
-    -> OS
-    -> Array a
-    -> Stream m (Array a)
-splitWithFilter filt withSep os arr =
-      f (isSeparatorWord os) (Array.read arr)
-    & Stream.filter filt
-    & fmap (\(i, len) -> Array.unsafeGetSlice i len arr)
-
-    where
-
-    f = if withSep then Stream.indexEndBy else Stream.indexEndBy_
-
--- | Split a path on separator chars and compact contiguous separators and
--- remove /./ components. Note this does not treat the path root in a special
--- way.
-{-# INLINE splitCompact #-}
-splitCompact
-    :: (Unbox a, Integral a, Monad m)
-    => Bool
-    -> OS
-    -> Array a
-    -> Stream m (Array a)
-splitCompact withSep os arr =
-    splitWithFilter (not . shouldFilterOut) withSep os arr
-
-    where
-
-    sepFilter (off, len) =
-        ( len == 1
-        && isSeparator os (unsafeIndexChar off arr)
-        )
-        ||
-        -- Note, last component may have len == 2 but second char may not
-        -- be slash, so we need to check for slash explicitly.
-        --
-        ( len == 2
-        && unsafeIndexChar off arr == '.'
-        && isSeparator os (unsafeIndexChar (off + 1) arr)
-        )
-
-    {-# INLINE shouldFilterOut #-}
-    shouldFilterOut (off, len) =
-        len == 0
-            -- Note this is needed even when withSep is true - for the last
-            -- component case.
-            || (len == 1 && unsafeIndexChar off arr == '.')
-            -- XXX Ensure that these are statically removed by GHC when withSep
-            -- is False.
-            || (withSep && sepFilter (off, len))
-
-{-# INLINE splitPathUsing #-}
-splitPathUsing
-    :: (Unbox a, Integral a, Monad m)
-    => Bool
-    -> OS
-    -> Array a
-    -> Stream m (Array a)
-splitPathUsing withSep os arr =
-    let stream = splitCompact withSep os rest
-    in if Array.null root
-       then stream
-       else Stream.cons root1 stream
-
-    where
-
-    -- We should not filter out a leading '.' on Posix or Windows.
-    -- We should not filter out a '.' in the middle of a UNC root on windows.
-    -- Therefore, we split the root and treat it in a special way.
-    (root, rest) = splitRoot os arr
-    root1 =
-        if withSep
-        then compactTrailingBy (isSeparator os . wordToChar) root
-        else dropTrailingSeparators os root
-
--- | Split a path into components separated by the path separator. "."
--- components in the path are ignored except when in the leading position.
--- Trailing separators in non-root components are dropped.
---
--- >>> :{
---  splitPosix = Stream.toList . fmap unpackPosix . Common.splitPath_ Common.Posix . packPosix
---  splitWin = Stream.toList . fmap unpackWindows . Common.splitPath_ Common.Windows . packWindows
--- :}
---
--- >>> splitPosix "."
--- ["."]
---
--- >>> splitPosix "././"
--- ["."]
---
--- >>> splitPosix ".//"
--- ["."]
---
--- >>> splitWin "c:x"
--- ["c:","x"]
---
--- >>> splitWin "c:/" -- Note, c:/ is not the same as c:
--- ["c:/"]
---
--- >>> splitWin "c:/x"
--- ["c:/","x"]
---
--- >>> splitPosix "//"
--- ["/"]
---
--- >>> splitPosix "//x/y/"
--- ["/","x","y"]
---
--- >>> splitWin "//x/y/"
--- ["//x","y"]
---
--- >>> splitPosix "./a"
--- [".","a"]
---
--- >>> splitWin "./a"
--- [".","a"]
---
--- >>> splitWin "c:./a"
--- ["c:","a"]
---
--- >>> splitPosix "a/."
--- ["a"]
---
--- >>> splitWin "a/."
--- ["a"]
---
--- >>> splitPosix "/"
--- ["/"]
---
--- >>> splitPosix "/x"
--- ["/","x"]
---
--- >>> splitWin "/x"
--- ["/","x"]
---
--- >>> splitPosix "/./x/"
--- ["/","x"]
---
--- >>> splitPosix "/x/./y"
--- ["/","x","y"]
---
--- >>> splitPosix "/x/../y"
--- ["/","x","..","y"]
---
--- >>> splitPosix "/x///y"
--- ["/","x","y"]
---
--- >>> splitPosix "/x/\\y"
--- ["/","x","\\y"]
---
--- >>> splitWin "/x/\\y"
--- ["/","x","y"]
---
--- >>> splitWin "\\x/\\y"
--- ["\\","x","y"]
---
-{-# INLINE splitPath_ #-}
-splitPath_
-    :: (Unbox a, Integral a, Monad m)
-    => OS -> Array a -> Stream m (Array a)
-splitPath_ = splitPathUsing False
-
--- | Split the path components keeping separators between path components
--- attached to the dir part. Redundant separators are removed, only the first
--- one is kept, but separators are not changed to the default on Windows.
--- Separators are not added either e.g. "." and ".." may not have trailing
--- separators if the original path does not.
---
--- >>> :{
---  splitPosix = Stream.toList . fmap unpackPosix . Common.splitPath Common.Posix . packPosix
---  splitWin = Stream.toList . fmap unpackWindows . Common.splitPath Common.Windows . packWindows
--- :}
---
--- >>> splitPosix "."
--- ["."]
---
--- >>> splitPosix "././"
--- ["./"]
---
--- >>> splitPosix "./a/b/."
--- ["./","a/","b/"]
---
--- >>> splitPosix ".."
--- [".."]
---
--- >>> splitPosix "../"
--- ["../"]
---
--- >>> splitPosix "a/.."
--- ["a/",".."]
---
--- >>> splitPosix "/"
--- ["/"]
---
--- >>> splitPosix "//"
--- ["/"]
---
--- >>> splitPosix "/x"
--- ["/","x"]
---
--- >>> splitWin "/x"
--- ["/","x"]
---
--- >>> splitPosix "/./x/"
--- ["/","x/"]
---
--- >>> splitPosix "/x/./y"
--- ["/","x/","y"]
---
--- >>> splitPosix "/x/../y"
--- ["/","x/","../","y"]
---
--- >>> splitPosix "/x///y"
--- ["/","x/","y"]
---
--- >>> splitPosix "/x/\\y"
--- ["/","x/","\\y"]
---
--- >>> splitWin "/x/\\y"
--- ["/","x/","y"]
---
--- >>> splitWin "\\x/\\y" -- this is not valid, multiple seps after share?
--- ["\\","x/","y"]
---
-{-# INLINE splitPath #-}
-splitPath
-    :: (Unbox a, Integral a, Monad m)
-    => OS -> Array a -> Stream m (Array a)
-splitPath = splitPathUsing True
-
--- | Split the first non-empty path component.
---
--- /Unimplemented/
-{-# INLINE splitHead #-}
-splitHead :: -- (Unbox a, Integral a) =>
-    OS -> Array a -> (Array a, Array a)
-splitHead _os _arr = undefined
-
--- | Split the last non-empty path component.
---
--- /Unimplemented/
-{-# INLINE splitTail #-}
-splitTail :: -- (Unbox a, Integral a) =>
-    OS -> Array a -> (Array a, Array a)
-splitTail _os _arr = undefined
-
--- | Split a multi-component path into (dir, file) if its last component can be
--- a file i.e.:
---
--- * the path does not end with a separator
--- * the path does not end with a . or .. component
---
--- Split a single component into ("", path) if it can be a file i.e. it is not
--- a path root, "." or "..".
---
--- If the path cannot be a file then (path, "") is returned.
---
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toList . Common.splitFile Common.Posix . packPosix
---
--- >>> splitPosix "/"
--- ("/","")
---
--- >>> splitPosix "."
--- (".","")
---
--- >>> splitPosix "/."
--- ("/.","")
---
--- >>> splitPosix ".."
--- ("..","")
---
--- >>> splitPosix "//"
--- ("//","")
---
--- >>> splitPosix "/home"
--- ("/","home")
---
--- >>> splitPosix "./home"
--- ("./","home")
---
--- >>> splitPosix "home"
--- ("","home")
---
--- >>> splitPosix "x/"
--- ("x/","")
---
--- >>> splitPosix "x/y"
--- ("x/","y")
---
--- >>> splitPosix "x//y"
--- ("x//","y")
---
--- >>> splitPosix "x/./y"
--- ("x/./","y")
-{-# INLINE splitFile #-}
-splitFile :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
-splitFile os arr =
-    let p x =
-            if os == Windows
-            then x == charToWord ':' || isSeparatorWord os x
-            else isSeparatorWord os x
-        -- XXX Use Array.revBreakEndBy?
-        fileLen = runIdentity
-                $ Stream.fold (Fold.takeEndBy_ p Fold.length)
-                $ Array.readRev arr
-        arrLen = Array.length arr
-        baseLen = arrLen - fileLen
-        (base, file) = Array.unsafeSplitAt baseLen arr
-        fileFirst = Array.unsafeGetIndex 0 file
-        fileSecond = Array.unsafeGetIndex 1 file
-     in
-        if fileLen > 0
-            -- exclude the file == '.' case
-            && not (fileLen == 1 && fileFirst == charToWord '.')
-            -- exclude the file == '..' case
-            && not (fileLen == 2
-                && fileFirst == charToWord '.'
-                && fileSecond == charToWord '.')
-        then
-            if baseLen <= 0
-            then (Array.empty, arr)
-            else (Array.unsafeGetSlice 0 baseLen base, file) -- "/"
-        else (arr, Array.empty)
-
--- | Split a multi-component path into (dir, last component). If the path has a
--- single component and it is a root then return (path, "") otherwise return
--- ("", path).
---
--- Split a single component into (dir, "") if it can be a dir i.e. it is either
--- a path root, "." or ".." or has a trailing separator.
---
--- The only difference between splitFile and splitDir:
---
--- >> splitFile "a/b/"
--- ("a/b/", "")
--- >> splitDir "a/b/"
--- ("a/", "b/")
---
--- This is equivalent to splitPath and keeping the last component but is usually
--- faster.
---
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toList . Common.splitDir Common.Posix . packPosix
---
--- >> splitPosix "/"
--- ("/","")
---
--- >> splitPosix "."
--- (".","")
---
--- >> splitPosix "/."
--- ("/.","")
---
--- >> splitPosix "/x"
--- ("/","x")
---
--- >> splitPosix "/x/"
--- ("/","x/")
---
--- >> splitPosix "//"
--- ("//","")
---
--- >> splitPosix "./x"
--- ("./","x")
---
--- >> splitPosix "x"
--- ("","x")
---
--- >> splitPosix "x/"
--- ("x/","")
---
--- >> splitPosix "x/y"
--- ("x/","y")
---
--- >> splitPosix "x/y/"
--- ("x/","y/")
---
--- >> splitPosix "x/y//"
--- ("x/","y//")
---
--- >> splitPosix "x//y"
--- ("x//","y")
---
--- >> splitPosix "x/./y"
--- ("x/./","y")
---
--- /Unimplemented/
-{-# INLINE splitDir #-}
-splitDir :: -- (Unbox a, Integral a) =>
-    OS -> Array a -> (Array a, Array a)
-splitDir _os _arr = undefined
-
-extensionWord :: Integral a => a
-extensionWord = charToWord '.'
-
--- | Like split extension but we can specify the extension char to be used.
-{-# INLINE splitExtensionBy #-}
-splitExtensionBy :: (Unbox a, Integral a) =>
-    a -> OS -> Array a -> (Array a, Array a)
-splitExtensionBy c os arr =
-    let p x = x == c || isSeparatorWord os x
-        -- XXX Use Array.revBreakEndBy_
-        extLen = runIdentity
-                $ Stream.fold (Fold.takeEndBy p Fold.length)
-                $ Array.readRev arr
-        arrLen = Array.length arr
-        baseLen = arrLen - extLen
-        -- XXX We can use reverse split operation on the array
-        res@(base, ext) = Array.unsafeSplitAt baseLen arr
-        baseLast = Array.unsafeGetIndexRev 0 base
-        extFirst = Array.unsafeGetIndex 0 ext
-     in
-        -- For an extension to be present the path must be at least 3 chars.
-        -- non-empty base followed by extension char followed by non-empty
-        -- extension.
-        if arrLen > 2
-            -- If ext is empty, then there is no extension and we should not
-            -- strip an extension char if any at the end of base.
-            && extLen > 1
-            && extFirst == c
-            -- baseLast is always either base name char or '/' unless empty
-            -- if baseLen is 0 then we have not found an extension.
-            && baseLen > 0
-            -- If baseLast is '/' then base name is empty which means it is a
-            -- dot file and there is no extension.
-            && not (isSeparatorWord os baseLast)
-            -- On Windows if base is 'c:.' or a UNC path ending in '/c:.' then
-            -- it is a dot file, no extension.
-            && not (os == Windows && baseLast == charToWord ':')
-        then res
-        else (arr, Array.empty)
-
--- | For the purposes of this function a file is considered to have an
--- extension if the file name can be broken down into a non-empty filename
--- followed by an extension separator (usually ".") followed by a non-empty
--- extension with at least one character other than the extension separator
--- characters. The shortest suffix obtained by this rule, starting with the
--- extension separator is returned as the extension and the remaining prefix
--- part as the filename.
---
--- A directory name does not have an extension.
---
--- Note: On Windows we cannot create a file named "prn." or "prn..". Thus it
--- considers anything starting with and including the first "." as the
--- extension and the part before it as the filename. Our definition considers
--- "prn." as a filename without an extension.
-
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toList . Common.splitExtension Common.Posix . packPosix
---
--- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
--- >>> splitWin = toListWin . Common.splitExtension Common.Windows . packWindows
---
--- >>> splitPosix "/"
--- ("/","")
---
--- >>> splitPosix "."
--- (".","")
---
--- >>> splitPosix ".."
--- ("..","")
---
--- >>> splitPosix "x"
--- ("x","")
---
--- >>> splitPosix "/x"
--- ("/x","")
---
--- >>> splitPosix "x/"
--- ("x/","")
---
--- >>> splitPosix "./x"
--- ("./x","")
---
--- >>> splitPosix "x/."
--- ("x/.","")
---
--- >>> splitPosix "x/y."
--- ("x/y.","")
---
--- >>> splitPosix "/x.y"
--- ("/x",".y")
---
--- >>> splitPosix "/x.y."
--- ("/x",".y.")
---
--- >>> splitPosix "/x.y.."
--- ("/x",".y..")
---
--- >>> splitPosix "x/.y"
--- ("x/.y","")
---
--- >>> splitPosix ".x"
--- (".x","")
---
--- >>> splitPosix "x."
--- ("x.","")
---
--- >>> splitPosix ".x.y"
--- (".x",".y")
---
--- >>> splitPosix "x/y.z"
--- ("x/y",".z")
---
--- >>> splitPosix "x.y.z"
--- ("x.y",".z")
---
--- >>> splitPosix "x..y"
--- ("x.",".y")
---
--- >>> splitPosix "..."
--- ("...","")
---
--- >>> splitPosix "..x"
--- (".",".x")
---
--- >>> splitPosix "...x"
--- ("..",".x")
---
--- >>> splitPosix "x/y.z/"
--- ("x/y.z/","")
---
--- >>> splitPosix "x/y"
--- ("x/y","")
---
--- >>> splitWin "x:y"
--- ("x:y","")
---
--- >>> splitWin "x:.y"
--- ("x:.y","")
---
-{-# INLINE splitExtension #-}
-splitExtension :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
-splitExtension = splitExtensionBy extensionWord
-
-{-
--- Instead of this keep calling splitExtension until there is no more extension
--- returned.
-{-# INLINE splitAllExtensionsBy #-}
-splitAllExtensionsBy :: (Unbox a, Integral a) =>
-    Bool -> a -> OS -> Array a -> (Array a, Array a)
--- If the isFileName arg is true, it means that the path supplied does not have
--- any separator chars, so we can do it more efficiently.
-splitAllExtensionsBy isFileName extChar os arr =
-    let file =
-            if isFileName
-            then arr
-            else snd $ splitFile os arr
-        fileLen = Array.length file
-        arrLen = Array.length arr
-        baseLen = foldArr (Fold.takeEndBy_ (== extChar) Fold.length) file
-        extLen = fileLen - baseLen
-     in
-        -- XXX unsafeSplitAt itself should use Array.empty in case of no split
-        if fileLen > 0 && extLen > 1 && extLen /= fileLen
-        then (Array.unsafeSplitAt (arrLen - extLen) arr)
-        else (arr, Array.empty)
-
--- |
---
--- TODO: This function needs to be consistent with splitExtension. It should
--- strip all valid extensions by that definition.
---
--- splitAllExtensions "x/y.tar.gz" gives ("x/y", ".tar.gz")
---
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toList . Common.splitAllExtensions Common.Posix . packPosix
---
--- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
--- >>> splitWin = toListWin . Common.splitAllExtensions Common.Windows . packWindows
---
--- >>> splitPosix "/"
--- ("/","")
---
--- >>> splitPosix "."
--- (".","")
---
--- >>> splitPosix "x"
--- ("x","")
---
--- >>> splitPosix "/x"
--- ("/x","")
---
--- >>> splitPosix "x/"
--- ("x/","")
---
--- >>> splitPosix "./x"
--- ("./x","")
---
--- >>> splitPosix "x/."
--- ("x/.","")
---
--- >>> splitPosix "x/y."
--- ("x/y.","")
---
--- >>> splitPosix "/x.y"
--- ("/x",".y")
---
--- >>> splitPosix "x/.y"
--- ("x/.y","")
---
--- >>> splitPosix ".x"
--- (".x","")
---
--- >>> splitPosix "x."
--- ("x.","")
---
--- >>> splitPosix ".x.y"
--- (".x",".y")
---
--- >>> splitPosix "x/y.z"
--- ("x/y",".z")
---
--- >>> splitPosix "x.y.z"
--- ("x",".y.z")
---
--- >>> splitPosix "x..y" -- ??
--- ("x.",".y")
---
--- >>> splitPosix ".."
--- ("..","")
---
--- >>> splitPosix "..."
--- ("...","")
---
--- >>> splitPosix "...x"
--- ("...x","")
---
--- >>> splitPosix "x/y.z/"
--- ("x/y.z/","")
---
--- >>> splitPosix "x/y"
--- ("x/y","")
---
--- >>> splitWin "x:y"
--- ("x:y","")
---
--- >>> splitWin "x:.y"
--- ("x:.y","")
---
-{-# INLINE splitAllExtensions #-}
-splitAllExtensions :: (Unbox a, Integral a) =>
-    OS -> Array a -> (Array a, Array a)
-splitAllExtensions = splitAllExtensionsBy False extensionWord
--}
-
 -- XXX MonadIO?
 
 -- | Join paths by path separator. Does not check if the paths being appended
@@ -1735,30 +1771,6 @@ unsafeJoinPaths os =
 --
 eqPathBytes :: Array a -> Array a -> Bool
 eqPathBytes = Array.byteEq
-
-{-# INLINE toDefaultSeparator #-}
-toDefaultSeparator :: Integral a => a -> a
-toDefaultSeparator x =
-    if isSeparatorWord Windows x
-    then charToWord (primarySeparator Windows)
-    else x
-
--- | Change all separators in the path to default separator on windows.
-{-# INLINE normalizeSeparators #-}
-normalizeSeparators :: (Integral a, Unbox a) => Array a -> Array a
-normalizeSeparators a =
-    -- XXX We can check and return the original array if no change is needed.
-    Array.fromPureStreamN (Array.length a)
-        $ fmap toDefaultSeparator
-        $ Array.read a
-
-{-# INLINE hasTrailingSeparator #-}
-hasTrailingSeparator :: (Integral a, Unbox a) => OS -> Array a -> Bool
-hasTrailingSeparator os path =
-    let e = Array.getIndexRev 0 path
-     in case e of
-            Nothing -> False
-            Just x -> isSeparatorWord os x
 
 {-# INLINE eqComponents #-}
 eqComponents :: (Integral a, Unbox a) => OS -> Array a -> Array a -> Bool
