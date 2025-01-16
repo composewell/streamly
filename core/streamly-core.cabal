@@ -380,17 +380,17 @@ library
                      -- Filesystem/IO
 
                      , Streamly.Internal.FileSystem.Path
-                     , Streamly.Internal.FileSystem.Path.LocSeg
+                     , Streamly.Internal.FileSystem.Path.Seg
                      , Streamly.Internal.FileSystem.Path.FileDir
                      , Streamly.Internal.FileSystem.Path.Typed
 
                      , Streamly.Internal.FileSystem.PosixPath
-                     , Streamly.Internal.FileSystem.PosixPath.LocSeg
+                     , Streamly.Internal.FileSystem.PosixPath.Seg
                      , Streamly.Internal.FileSystem.PosixPath.FileDir
                      , Streamly.Internal.FileSystem.PosixPath.Typed
 
                      , Streamly.Internal.FileSystem.WindowsPath
-                     , Streamly.Internal.FileSystem.WindowsPath.LocSeg
+                     , Streamly.Internal.FileSystem.WindowsPath.Seg
                      , Streamly.Internal.FileSystem.WindowsPath.FileDir
                      , Streamly.Internal.FileSystem.WindowsPath.Typed
 
@@ -447,7 +447,7 @@ library
                      , Streamly.FileSystem.File
                      , Streamly.FileSystem.Handle
                      , Streamly.FileSystem.Path
-                     , Streamly.FileSystem.Path.LocSeg
+                     , Streamly.FileSystem.Path.Seg
                      , Streamly.FileSystem.Path.FileDir
                      , Streamly.FileSystem.Path.Typed
                      , Streamly.Unicode.Parser

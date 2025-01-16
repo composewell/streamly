@@ -11,7 +11,7 @@
 #endif
 
 -- |
--- Module      : Streamly.Internal.FileSystem.OS_PATH.LocSeg
+-- Module      : Streamly.Internal.FileSystem.OS_PATH.Seg
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -29,7 +29,7 @@
 -- fail. These types do not allow appending a location to a path segment or to
 -- another location. Only path segments can be appended.
 --
-module Streamly.Internal.FileSystem.OS_PATH.LocSeg
+module Streamly.Internal.FileSystem.OS_PATH.Seg
     (
     -- * Types
       Loc (..)
@@ -68,9 +68,9 @@ import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 For APIs that have not been released yet.
 
 >>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
->>> import Streamly.Internal.FileSystem.PosixPath.LocSeg (Loc, Seg, loc, seg)
+>>> import Streamly.Internal.FileSystem.PosixPath.Seg (Loc, Seg, loc, seg)
 >>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
->>> import qualified Streamly.Internal.FileSystem.PosixPath.LocSeg as PathLS
+>>> import qualified Streamly.Internal.FileSystem.PosixPath.Seg as Seg
 -}
 
 newtype Loc a = Loc a
@@ -156,9 +156,9 @@ seg = mkQ segE
 
 -- | Append a 'Seg' path to a 'Loc' or 'Seg' path.
 --
--- >>> Path.toString (PathLS.append [loc|/usr|] [seg|bin|] :: Loc PosixPath)
+-- >>> Path.toString (Seg.append [loc|/usr|] [seg|bin|] :: Loc PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (PathLS.append [seg|usr|] [seg|bin|] :: Seg PosixPath)
+-- >>> Path.toString (Seg.append [seg|usr|] [seg|bin|] :: Seg PosixPath)
 -- "usr/bin"
 --
 {-# INLINE append #-}

@@ -1,11 +1,11 @@
 -- |
--- Module      : Streamly.FileSystem.Path.LocSeg
+-- Module      : Streamly.FileSystem.Path.Seg
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
-module Streamly.FileSystem.Path.LocSeg
+module Streamly.FileSystem.Path.Seg
     (
     -- * Types
       Loc
@@ -27,4 +27,4 @@ module Streamly.FileSystem.Path.LocSeg
     )
 where
 
-import Streamly.Internal.FileSystem.Path.LocSeg
+import Streamly.Internal.FileSystem.Path.Seg

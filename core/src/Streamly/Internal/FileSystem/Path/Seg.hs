@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.FileSystem.Path.LocSeg
+-- Module      : Streamly.Internal.FileSystem.Path.Seg
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -11,10 +11,10 @@
 #define OS_PATH PosixPath
 #endif
 
-module Streamly.Internal.FileSystem.Path.LocSeg
+module Streamly.Internal.FileSystem.Path.Seg
     (
-      module Streamly.Internal.FileSystem.OS_PATH.LocSeg
+      module Streamly.Internal.FileSystem.OS_PATH.Seg
     )
 where
 
-import Streamly.Internal.FileSystem.OS_PATH.LocSeg
+import Streamly.Internal.FileSystem.OS_PATH.Seg
