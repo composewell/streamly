@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.FileSystem.Path.FileDir
+-- Module      : Streamly.Internal.FileSystem.Path.Node
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -11,10 +11,10 @@
 #define OS_PATH PosixPath
 #endif
 
-module Streamly.Internal.FileSystem.Path.FileDir
+module Streamly.Internal.FileSystem.Path.Node
     (
-      module Streamly.Internal.FileSystem.OS_PATH.FileDir
+      module Streamly.Internal.FileSystem.OS_PATH.Node
     )
 where
 
-import Streamly.Internal.FileSystem.OS_PATH.FileDir
+import Streamly.Internal.FileSystem.OS_PATH.Node

@@ -48,7 +48,7 @@ import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.FileSystem.Path.Common (mkQ)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
 import Streamly.Internal.FileSystem.OS_PATH.Seg (Loc(..), Seg(..))
-import Streamly.Internal.FileSystem.OS_PATH.FileDir (File(..), Dir(..))
+import Streamly.Internal.FileSystem.OS_PATH.Node (File(..), Dir(..))
 
 import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 
@@ -63,7 +63,7 @@ import Streamly.Internal.Data.Path
 For APIs that have not been released yet.
 
 >>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
->>> import Streamly.Internal.FileSystem.PosixPath.FileDir (Dir, File, dir, file)
+>>> import Streamly.Internal.FileSystem.PosixPath.Node (Dir, File, dir, file)
 >>> import Streamly.Internal.FileSystem.PosixPath.Seg (Loc, Seg, loc, seg)
 >>> import Streamly.Internal.FileSystem.PosixPath.Typed (dirloc, dirseg, fileloc, fileseg)
 >>> import qualified Streamly.Internal.FileSystem.PosixPath as Path

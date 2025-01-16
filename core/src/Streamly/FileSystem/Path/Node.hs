@@ -1,11 +1,11 @@
 -- |
--- Module      : Streamly.FileSystem.Path.FileDir
+-- Module      : Streamly.FileSystem.Path.Node
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
-module Streamly.FileSystem.Path.FileDir
+module Streamly.FileSystem.Path.Node
     (
     -- * Types
       File
@@ -27,4 +27,4 @@ module Streamly.FileSystem.Path.FileDir
     )
 where
 
-import Streamly.Internal.FileSystem.Path.FileDir
+import Streamly.Internal.FileSystem.Path.Node

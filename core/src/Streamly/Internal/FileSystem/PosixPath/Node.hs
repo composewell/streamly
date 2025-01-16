@@ -11,7 +11,7 @@
 #endif
 
 -- |
--- Module      : Streamly.Internal.FileSystem.OS_PATH.FileDir
+-- Module      : Streamly.Internal.FileSystem.OS_PATH.Node
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -24,7 +24,7 @@
 -- This distinction provides safety against appending a path to a file. Append
 -- operation allows appending to only 'Dir' types.
 --
-module Streamly.Internal.FileSystem.OS_PATH.FileDir
+module Streamly.Internal.FileSystem.OS_PATH.Node
     (
     -- * Types
       File (..)
@@ -63,9 +63,9 @@ import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 For APIs that have not been released yet.
 
 >>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
->>> import Streamly.Internal.FileSystem.PosixPath.FileDir (File, Dir, file, dir)
+>>> import Streamly.Internal.FileSystem.PosixPath.Node (File, Dir, file, dir)
 >>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
->>> import qualified Streamly.Internal.FileSystem.PosixPath.FileDir as PathFD
+>>> import qualified Streamly.Internal.FileSystem.PosixPath.Node as Node
 -}
 
 newtype File a = File a
@@ -147,9 +147,9 @@ file = mkQ fileE
 
 -- | Append a 'Dir' or 'File' path to a 'Dir' path.
 --
--- >>> Path.toString (PathFD.append [dir|/usr|] [dir|bin|] :: Dir PosixPath)
+-- >>> Path.toString (Node.append [dir|/usr|] [dir|bin|] :: Dir PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (PathFD.append [dir|/usr|] [file|bin|] :: File PosixPath)
+-- >>> Path.toString (Node.append [dir|/usr|] [file|bin|] :: File PosixPath)
 -- "/usr/bin"
 --
 -- Fails if the second path is a specific location and not a path segment.
