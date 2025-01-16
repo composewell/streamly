@@ -157,18 +157,12 @@ unsafeIndexChar i a = wordToChar (Array.unsafeGetIndex i a)
 foldArr :: Unbox a => Fold.Fold Identity a b -> Array a -> b
 foldArr f arr = runIdentity $ Array.fold f arr
 
-countWhile :: (a -> Bool) -> Stream Identity a -> Int
-countWhile p =
-      runIdentity
-    . Stream.fold Fold.length
-    . Stream.takeWhile p
-
 {-# INLINE countLeadingBy #-}
 countLeadingBy :: Unbox a => (a -> Bool) -> Array a -> Int
-countLeadingBy p = countWhile p . Array.read
+countLeadingBy p = foldArr (Fold.takeEndBy_ (not . p) Fold.length)
 
 countTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Int
-countTrailingBy p = countWhile p . Array.readRev
+countTrailingBy p = Array.foldRev (Fold.takeEndBy_ (not . p) Fold.length)
 
 ------------------------------------------------------------------------------
 -- Separator parsing
@@ -256,7 +250,7 @@ dropTrailingSeparators os =
 -- | A path starting with a separator.
 hasLeadingSeparator :: (Unbox a, Integral a) => OS -> Array a -> Bool
 hasLeadingSeparator os a
-    | Array.length a == 0 = False -- empty path should not occur
+    | Array.null a = False -- empty path should not occur
     | isSeparatorWord os (Array.unsafeGetIndex 0 a) = True
     | otherwise = False
 
@@ -402,7 +396,7 @@ isAbsolute Windows arr =
 -- XXX For the untyped Path we can allow appending "./x" to other paths. We can
 -- leave this to the programmer. In typed paths we can allow "./x" in segments.
 -- XXX Empty path can be taken to mean "." except in case of UNC paths
---
+
 -- | Any path that starts with a separator, @./@ or a drive prefix is a rooted
 -- path.
 --
