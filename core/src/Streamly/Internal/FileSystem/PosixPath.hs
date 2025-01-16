@@ -70,8 +70,8 @@ module Streamly.Internal.FileSystem.OS_PATH
 
     -- * Operations
     , dropTrailingSeparators
-    , isLocation
-    , isSegment
+    , isRooted
+    , isBranch
 
     -- * Combinators
     -- Do we need to export the separator functions? They are not essential if
@@ -320,7 +320,9 @@ toString = runIdentity . Stream.toList . toChars
 ------------------------------------------------------------------------------
 
 #ifdef IS_WINDOWS
--- | A path referring to a specific file system object.
+-- | A path that is attached to a root. "C:\" is considered an absolute root
+-- and "." as a dynamic root. ".." is not considered a root, "../x" or "x/y"
+-- are not rooted paths.
 --
 -- Absolute locations:
 --
@@ -337,20 +339,22 @@ toString = runIdentity . Stream.toList . toChars
 -- * @.\\@ relative to current directory
 -- * @C:file@ relative to current directory in drive
 #else
--- | A path referring to a specific file system object:
+-- | A path that is attached to a root e.g. "/x" or "./x" are rooted paths. "/"
+-- is considered an absolute root and "." as a dynamic root. ".." is not
+-- considered a root, "../x" or "x/y" are not rooted paths.
 --
--- * An absolute location: @/@ starting from file system root
--- * A relative location: @./@ relative to current directory
+-- * An absolute rooted path: @/@ starting from file system root
+-- * A dynamic rooted path: @./@ relative to current directory
 #endif
-isLocation :: OS_PATH -> Bool
-isLocation (OS_PATH arr) = Common.isLocation Common.OS_NAME arr
+isRooted :: OS_PATH -> Bool
+isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 
--- | A sequence of path segments e.g. @a\/b\/c@ or @..\/b\/c@.
+-- | A path that is not attached to a root e.g. @a\/b\/c@ or @..\/b\/c@.
 --
--- >>> isSegment = not . Path.isLocation
+-- >>> isBranch = not . Path.isRooted
 --
-isSegment :: OS_PATH -> Bool
-isSegment = not . isLocation
+isBranch :: OS_PATH -> Bool
+isBranch = not . isRooted
 
 -- XXX This can be generalized to an Array intersperse operation
 -- XXX This can work on a polymorphic IsPath type.

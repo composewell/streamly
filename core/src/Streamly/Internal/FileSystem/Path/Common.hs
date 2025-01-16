@@ -30,8 +30,8 @@ module Streamly.Internal.FileSystem.Path.Common
     , isSeparator
     , dropTrailingSeparators
     , hasTrailingSeparator
-    , isSegment
-    , isLocation
+    , isBranch
+    , isRooted
     , maybeFile
     , isAbsolute
     , isRootRelative
@@ -416,18 +416,17 @@ isAbsolute Windows arr =
 -- * @\\\\.\\@ DOS local device namespace
 -- * @\\\\??\\@ DOS global namespace
 --
-isLocation :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isLocation Posix a =
+isRooted :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isRooted Posix a =
     hasLeadingSeparator Posix a
         || isRelativeCurDir Posix a
-isLocation Windows a =
+isRooted Windows a =
     hasLeadingSeparator Windows a
         || isRelativeCurDir Windows a
         || hasDrive a -- curdir-in-drive relative, drive absolute
 
--- XXX rename to isUnrooted?
-isSegment :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isSegment os = not . isLocation os
+isBranch :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isBranch os = not . isRooted os
 
 ------------------------------------------------------------------------------
 -- Split root
@@ -627,7 +626,7 @@ unsafeSplitUNC arr =
 {-# INLINE splitRoot #-}
 splitRoot :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
 splitRoot Posix arr
-    | isLocation Posix arr
+    | isRooted Posix arr
         = unsafeSplitTopLevel Posix arr
     | otherwise = (Array.empty, arr)
 splitRoot Windows arr
@@ -1680,8 +1679,8 @@ doAppend os a b = unsafePerformIO $ do
 withAppendCheck :: (Unbox b, Integral b) =>
     OS -> (Array b -> String) -> Array b -> a -> a
 withAppendCheck os toStr arr f =
-    if isLocation os arr
-    then error $ "append: cannot append absolute or located path " ++ toStr arr
+    if isRooted os arr
+    then error $ "append: cannot append a rooted path " ++ toStr arr
     else f
 
 -- | Does not check if any of the path is empty or if the second path is

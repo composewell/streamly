@@ -123,8 +123,8 @@ module Streamly.FileSystem.Path
 
     -- * Operations
     -- , dropTrailingSeparators
-    , isLocation
-    , isSegment
+    , isRooted
+    , isBranch
 
     -- * Combinators
     , append

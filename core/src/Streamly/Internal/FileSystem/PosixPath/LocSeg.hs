@@ -79,7 +79,7 @@ newtype Seg a = Seg a
 instance IsPath OS_PATH (Loc OS_PATH) where
     unsafeFromPath = Loc
     fromPath p =
-        if OsPath.isLocation p
+        if OsPath.isRooted p
         then pure (Loc p)
         -- XXX Add more detailed error msg with all valid examples.
         else throwM $ InvalidPath
@@ -90,7 +90,7 @@ instance IsPath OS_PATH (Loc OS_PATH) where
 instance IsPath OS_PATH (Seg OS_PATH) where
     unsafeFromPath = Seg
     fromPath p =
-        if OsPath.isSegment p
+        if OsPath.isBranch p
         then pure (Seg p)
         -- XXX Add more detailed error msg with all valid examples.
         else throwM $ InvalidPath
