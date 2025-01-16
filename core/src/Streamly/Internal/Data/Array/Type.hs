@@ -41,8 +41,18 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Slicing
     -- | Get a subarray without copying
+    , unsafeSplitAt
     , splitAt
     , breakOn -- XXX requires MonadIO
+    , breakEndBy
+    , breakEndBy_
+    , revBreakEndBy
+    , revBreakEndBy_
+    -- drop
+    -- dropRev/dropEnd
+    , strip -- XXX stripAroundBy or dropAroundBy?
+    , stripStart -- XXX stripBy or dropWhile?
+    , stripEnd -- XXX revStripBy or revDropWhile?
 
     -- *** Stream Folds
     , unsafeMakePure
@@ -78,7 +88,9 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Indexing
     , unsafeGetIndexIO
+    , unsafeGetIndexRevIO
     , unsafeGetIndex
+    , unsafeGetIndexRev
 
     -- *** To Streams
     , read
@@ -104,6 +116,8 @@ module Streamly.Internal.Data.Array.Type
     , foldr
     , byteCmp
     , byteEq
+    , listCmp
+    , listEq
 
     -- ** Appending
     , splice -- XXX requires MonadIO
@@ -121,6 +135,8 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Split
     -- | Split an array into slices.
+    , splitEndBy
+    , splitEndBy_
 
     -- *** Concat
     -- | Append the arrays in a stream to form a stream of elements.
@@ -562,13 +578,24 @@ chunksEndByLn' :: (MonadIO m)
     => D.Stream m Word8 -> D.Stream m (Array Word8)
 chunksEndByLn' = chunksEndBy' (== fromIntegral (ord '\n'))
 
+-- XXX Remove MonadIO
+
+{-# INLINE splitEndBy #-}
+splitEndBy :: (MonadIO m, Unbox a) =>
+    (a -> Bool) -> Array a -> Stream m (Array a)
+splitEndBy p arr = D.map unsafeFreeze $ MA.splitEndBy p (unsafeThaw arr)
+
+{-# INLINE splitEndBy_ #-}
+splitEndBy_ :: (MonadIO m, Unbox a) =>
+    (a -> Bool) -> Array a -> Stream m (Array a)
+splitEndBy_ p arr = D.map unsafeFreeze $ MA.sliceEndBy_ p (unsafeThaw arr)
+
 -- | Convert a stream of arrays into a stream of their elements.
 --
 -- >>> concat = Stream.unfoldEach Array.reader
 --
 {-# INLINE_NORMAL concat #-}
 concat :: (Monad m, Unbox a) => Stream m (Array a) -> Stream m a
--- XXX this requires MonadIO whereas the unfoldMany version does not
 concat = MA.concatWith (pure . unsafeInlineIO) . D.map unsafeThaw
 -- concat = D.unfoldMany reader
 
@@ -715,6 +742,15 @@ unsafeGetIndex i arr = let !r = unsafeInlineIO $ unsafeGetIndexIO i arr in r
 unsafeIndex :: forall a. Unbox a => Int -> Array a -> a
 unsafeIndex = unsafeGetIndex
 
+{-# INLINE_NORMAL unsafeGetIndexRevIO #-}
+unsafeGetIndexRevIO :: forall a. Unbox a => Int -> Array a -> IO a
+unsafeGetIndexRevIO i arr = MA.unsafeGetIndexRev i (unsafeThaw arr)
+
+{-# INLINE_NORMAL unsafeGetIndexRev #-}
+unsafeGetIndexRev :: forall a. Unbox a => Int -> Array a -> a
+unsafeGetIndexRev i arr =
+    let !r = unsafeInlineIO $ unsafeGetIndexRevIO i arr in r
+
 -- | /O(1)/ Get the byte length of the array.
 --
 {-# INLINE byteLength #-}
@@ -839,14 +875,85 @@ foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
 foldr :: Unbox a => (a -> b -> b) -> b -> Array a -> b
 foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 
+-- | Like 'splitAt' but does not check whether the index is valid.
+--
+{-# INLINE unsafeSplitAt #-}
+unsafeSplitAt :: Unbox a =>
+    Int -> Array a -> (Array a, Array a)
+unsafeSplitAt i arr = (unsafeFreeze a, unsafeFreeze b)
+
+    where
+
+    (a, b) = MA.unsafeSplitAt i (unsafeThaw arr)
+
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
 --
 {-# INLINE splitAt #-}
 splitAt :: Unbox a => Int -> Array a -> (Array a, Array a)
 splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
-  where
+
+    where
+
     (a, b) = MA.splitAt i (unsafeThaw arr)
+
+{-# INLINE breakEndBy #-}
+breakEndBy :: Unbox a => (a -> Bool) -> Array a -> (Array a, Array a)
+breakEndBy p arr = (unsafeFreeze a, unsafeFreeze b)
+
+    where
+
+    (a, b) = unsafePerformIO $ MA.breakEndBy p (unsafeThaw arr)
+
+{-# INLINE breakEndBy_ #-}
+breakEndBy_ :: Unbox a => (a -> Bool) -> Array a -> (Array a, Array a)
+breakEndBy_ p arr = (unsafeFreeze a, unsafeFreeze b)
+
+    where
+
+    (a, b) = unsafePerformIO $ MA.breakEndBy_ p (unsafeThaw arr)
+
+{-# INLINE revBreakEndBy #-}
+revBreakEndBy :: Unbox a => (a -> Bool) -> Array a -> (Array a, Array a)
+revBreakEndBy p arr = (unsafeFreeze a, unsafeFreeze b)
+
+    where
+
+    (a, b) = unsafePerformIO $ MA.revBreakEndBy p (unsafeThaw arr)
+
+{-# INLINE revBreakEndBy_ #-}
+revBreakEndBy_ :: Unbox a => (a -> Bool) -> Array a -> (Array a, Array a)
+revBreakEndBy_ p arr = (unsafeFreeze a, unsafeFreeze b)
+
+    where
+
+    (a, b) = unsafePerformIO $ MA.revBreakEndBy_ p (unsafeThaw arr)
+
+-- XXX Remove unsafePerformIO
+
+-- | Strip elements which match the predicate, from both ends.
+--
+-- /Pre-release/
+{-# INLINE strip #-}
+strip :: Unbox a => (a -> Bool) -> Array a -> Array a
+strip eq arr =
+    unsafeFreeze $ unsafePerformIO $ MA.strip eq (unsafeThaw arr)
+
+-- | Strip elements which match the predicate, from the start of the array.
+--
+-- /Pre-release/
+{-# INLINE stripStart #-}
+stripStart :: Unbox a => (a -> Bool) -> Array a -> Array a
+stripStart eq arr =
+    unsafeFreeze $ unsafePerformIO $ MA.stripStart eq (unsafeThaw arr)
+
+-- | Strip elements which match the predicate, from the end of the array.
+--
+-- /Pre-release/
+{-# INLINE stripEnd #-}
+stripEnd :: Unbox a => (a -> Bool) -> Array a -> Array a
+stripEnd eq arr =
+    unsafeFreeze $ unsafePerformIO $ MA.stripEnd eq (unsafeThaw arr)
 
 -- Use foldr/build fusion to fuse with list consumers
 -- This can be useful when using the IsList instance
@@ -1139,6 +1246,16 @@ instance Unbox a => IsList (Array a) where
     fromListN = fromListN
     {-# INLINE toList #-}
     toList = toList
+
+-- | Compare an array with a list.
+{-# INLINE listCmp #-}
+listCmp :: (Unbox a, Ord a) => [a] -> Array a -> Ordering
+listCmp xs arr = runIdentity $ D.cmpBy compare (D.fromList xs) (toStream arr)
+
+-- | Check equality of an array with a list.
+{-# INLINE listEq #-}
+listEq :: (Unbox a, Ord a) => [a] -> Array a -> Bool
+listEq xs arr = runIdentity $ D.eqBy (==) (D.fromList xs) (toStream arr)
 
 -- | Byte compare two arrays. Compare the length of the arrays. If the length
 -- is equal, compare the lexicographical ordering of two underlying byte arrays

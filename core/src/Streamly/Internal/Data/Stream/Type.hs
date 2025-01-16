@@ -76,6 +76,8 @@ module Streamly.Internal.Data.Stream.Type
 
     -- ** Specific Folds
     , drain
+    , head
+    , headElse
     , Streamly.Internal.Data.Stream.Type.toList
 
     -- * Mapping
@@ -143,6 +145,7 @@ module Streamly.Internal.Data.Stream.Type
     , foldIterateBfs
 
     -- * Splitting
+    , indexEndBy
     , indexEndBy_
 
     -- * Multi-stream folds
@@ -175,7 +178,8 @@ import Fusion.Plugin.Types (Fuse(..))
 import GHC.Base (build)
 import GHC.Exts (IsList(..), IsString(..), oneShot)
 import GHC.Types (SPEC(..))
-import Prelude hiding (map, mapM, take, concatMap, takeWhile, zipWith, concat)
+import Prelude hiding
+    (head, map, mapM, take, concatMap, takeWhile, zipWith, concat)
 import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
@@ -727,6 +731,18 @@ drain (Stream step state) = go SPEC state
             Yield _ s -> go SPEC s
             Skip s    -> go SPEC s
             Stop      -> return ()
+
+{-# INLINE_NORMAL head #-}
+head :: Monad m => Stream m a -> m (Maybe a)
+#ifdef USE_FOLDS_EVERYWHERE
+head = fold Fold.one
+#else
+head = foldrM (\x _ -> return (Just x)) (return Nothing)
+#endif
+
+{-# INLINE_NORMAL headElse #-}
+headElse :: Monad m => a -> Stream m a -> m a
+headElse a = foldrM (\x _ -> return x) (return a)
 
 ------------------------------------------------------------------------------
 -- To Containers
@@ -2155,6 +2171,21 @@ _indexEndBy_ p (Stream step1 state1) = Stream step (Just (state1, 0, 0))
 {-# DEPRECATED sliceOnSuffix "Please use indexEndBy_ instead." #-}
 sliceOnSuffix :: Monad m => (a -> Bool) -> Stream m a -> Stream m (Int, Int)
 sliceOnSuffix = indexEndBy_
+
+-- | Like 'splitEndBy' but generates a stream of (index, len) tuples marking
+-- the places where the predicate matches in the stream.
+--
+-- >>> Stream.toList $ Stream.indexEndBy (== '/') $ Stream.fromList "/home/harendra"
+-- [(0,1),(1,5),(6,8)]
+--
+-- /Pre-release/
+{-# INLINE indexEndBy #-}
+indexEndBy :: Monad m =>
+    (a -> Bool) -> Stream m a -> Stream m (Int, Int)
+indexEndBy predicate =
+    refoldIterateM
+        (indexerBy (FL.takeEndBy predicate FL.length) 0)
+        (return (0, 0))
 
 ------------------------------------------------------------------------------
 -- Stream with a cross product style monad instance

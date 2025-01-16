@@ -183,6 +183,9 @@ import Streamly.Internal.Data.Array.Type
 --
 -- >>> null arr = Array.byteLength arr == 0
 --
+-- Note that this may be faster than checking Array.length as length
+-- calculation involves a division operation.
+--
 -- /Pre-release/
 {-# INLINE null #-}
 null :: Array a -> Bool
@@ -518,7 +521,8 @@ asCStringUnsafe arr act = do
 -- Folds
 -------------------------------------------------------------------------------
 
--- XXX We can directly use toStreamD and D.fold here.
+-- XXX Use runIdentity for pure fold
+-- XXX Rename fold to foldM, we can then use "fold" for pure folds.
 
 -- | Fold an array using a 'Fold'.
 --

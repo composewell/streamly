@@ -28,8 +28,6 @@ module Streamly.Internal.Data.Stream.Eliminate
     -- * Specific Fold Functions
     , mapM_ -- Map and Fold
     , null
-    , head
-    , headElse
     , init
     , tail
     , last
@@ -358,18 +356,6 @@ null = fold Fold.null
 #else
 null = foldrM (\_ _ -> return False) (return True)
 #endif
-
-{-# INLINE_NORMAL head #-}
-head :: Monad m => Stream m a -> m (Maybe a)
-#ifdef USE_FOLDS_EVERYWHERE
-head = fold Fold.one
-#else
-head = foldrM (\x _ -> return (Just x)) (return Nothing)
-#endif
-
-{-# INLINE_NORMAL headElse #-}
-headElse :: Monad m => a -> Stream m a -> m a
-headElse a = foldrM (\x _ -> return x) (return a)
 
 {-# INLINE_NORMAL init #-}
 init :: Monad m => Stream m a -> m (Maybe (Stream m a))

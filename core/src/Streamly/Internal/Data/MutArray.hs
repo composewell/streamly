@@ -19,7 +19,9 @@ module Streamly.Internal.Data.MutArray
       module Streamly.Internal.Data.MutArray.Type
     -- * MutArray module
     , sliceIndexerFromLen
-    , slicerFromLen
+    , slicerFromLen -- XXX splitterFromLen
+    -- , splitFromLen
+    -- , slicesOf
     , compactMax
     , compactMax'
     , compactSepByByte_

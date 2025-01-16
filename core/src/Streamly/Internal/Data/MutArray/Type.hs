@@ -66,10 +66,19 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- *** Slicing
     -- | Get a subarray without copying
-    , unsafeGetSlice
-    , getSlice
-    , splitAt -- XXX should be able to express using getSlice
-    , breakOn
+    , unsafeGetSlice -- XXX unsafeSliceAtLen
+    , getSlice -- XXX sliceAtLen
+    , unsafeSplitAt -- XXX unsafeBreakAt
+    , splitAt -- XXX breakAt
+    , breakOn -- XXX breakAtWord8_
+    , breakEndBy
+    , breakEndBy_
+    , revBreakEndBy
+    , revBreakEndBy_
+    -- , breakSepBy_
+    , strip
+    , stripStart
+    , stripEnd
 
     -- *** Stream Folds
     , ArrayUnsafe (..)
@@ -127,6 +136,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- *** Indexing
     , getIndex
     , unsafeGetIndex
+    , unsafeGetIndexRev
     -- , getFromThenTo
     , getIndexRev -- getRevIndex?
     , indexReader
@@ -182,7 +192,6 @@ module Streamly.Internal.Data.MutArray.Type
     , byteEq
 
     -- ** In-place Mutation Algorithms
-    , strip
     , reverse
     , permute
     , partitionBy
@@ -254,11 +263,12 @@ module Streamly.Internal.Data.MutArray.Type
     -- , chunksBeginBySeq -- for parsing streams with headers
 
     -- *** Split
-    -- | Split an array into slices.
+    -- | Split an array into a stream of slices.
 
-    -- , getSlicesFromLenN
-    , sliceEndBy_
-    -- , slicesOf
+    -- Note: some splitting APIs are in MutArray.hs
+    , sliceEndBy_ -- XXX splitEndBy_
+    , splitEndBy
+    -- , splitSepBy_
 
     -- *** Concat
     -- | Append the arrays in a stream to form a stream of elements.
@@ -1325,6 +1335,14 @@ getIndex i MutArray{..} = do
     then liftIO $ Just <$> peekAt index arrContents
     else return Nothing
 
+{-# INLINE_NORMAL unsafeGetIndexRev #-}
+unsafeGetIndexRev :: forall m a. (MonadIO m, Unbox a) =>
+    Int -> MutArray a -> m a
+unsafeGetIndexRev i MutArray{..} = do
+    let index = RINDEX_OF(arrEnd,i,a)
+    assert (i >= 0 && INDEX_VALID(index,arrEnd,a)) (return ())
+    liftIO $ peekAt index arrContents
+
 -- | /O(1)/ Lookup the element at the given index from the end of the array.
 -- Index starts from 0.
 --
@@ -1389,6 +1407,8 @@ getIndices = indexReader
 -------------------------------------------------------------------------------
 
 -- XXX We can also get immutable slices.
+-- XXX Rename getSlice to sliceAtLen indicating argument usage
+-- XXX sliceFromLen for a stream of slices starting from a given index
 
 -- | /O(1)/ Slice an array in constant time.
 --
@@ -2888,6 +2908,14 @@ spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 -- Splitting
 -------------------------------------------------------------------------------
 
+{-# INLINE splitUsing #-}
+splitUsing :: (MonadIO m, Unbox a) =>
+    ((a -> Bool) -> Stream m a -> Stream m (Int, Int))
+    -> (a -> Bool) -> MutArray a -> Stream m (MutArray a)
+splitUsing f predicate arr =
+    fmap (\(i, len) -> unsafeGetSlice i len arr)
+        $ f predicate (read arr)
+
 -- | Generate a stream of array slices using a predicate. The array element
 -- matching the predicate is dropped.
 --
@@ -2895,13 +2923,87 @@ spliceExp = spliceWith (\l1 l2 -> max (l1 * 2) (l1 + l2))
 {-# INLINE sliceEndBy_ #-}
 sliceEndBy_, splitOn :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> Stream m (MutArray a)
-sliceEndBy_ predicate arr =
-    fmap (\(i, len) -> unsafeGetSlice i len arr)
-        $ D.indexEndBy_ predicate (read arr)
+sliceEndBy_ = splitUsing D.indexEndBy_
 
 RENAME(splitOn,sliceEndBy_)
 
--- XXX breakEndBy_?
+-- | Generate a stream of array slices using a predicate. The array element
+-- matching the predicate is included.
+--
+-- /Pre-release/
+{-# INLINE splitEndBy #-}
+splitEndBy :: (MonadIO m, Unbox a) =>
+    (a -> Bool) -> MutArray a -> Stream m (MutArray a)
+splitEndBy = splitUsing D.indexEndBy
+
+-- XXX check perf see comment in strip.
+
+{-# INLINE breakUsing #-}
+breakUsing :: (MonadIO m, Unbox a) =>
+    Int -> ((a -> Bool) -> Stream m a -> Stream m (Int, Int))
+    -> (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
+breakUsing adj indexer predicate arr = do
+    r <- D.head $ indexer predicate (read arr)
+    case r of
+        Just (i, len) ->
+            -- assert (i == 0)
+            -- XXX avoid using length (div operation)
+            let arrLen = length arr
+                i1 = len + adj
+                arr1 =
+                    if i1 >= arrLen
+                    then empty
+                    else unsafeGetSlice i1 (arrLen - i1) arr
+             in return (unsafeGetSlice i len arr, arr1)
+        Nothing -> return (arr, empty)
+
+{-# INLINE revBreakUsing #-}
+revBreakUsing :: (MonadIO m, Unbox a) =>
+    Int -> ((a -> Bool) -> Stream m a -> Stream m (Int, Int))
+    -> (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
+revBreakUsing adj indexer predicate arr = do
+    r <- D.head $ indexer predicate (readRev arr)
+    case r of
+        Just (i, len) ->
+            -- assert (i == 0)
+            -- XXX avoid using length (div operation)
+            let arrLen = length arr
+                len1 = len + adj
+                arr0 =
+                    if len1 >= arrLen
+                    then empty
+                    else unsafeGetSlice 0 (arrLen - len1) arr
+             in return (arr0, unsafeGetSlice (arrLen - 1 - i) len arr)
+        Nothing -> return (arr, empty)
+
+{-# INLINE breakEndBy #-}
+breakEndBy :: (MonadIO m, Unbox a) =>
+    (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
+breakEndBy = breakUsing 0 D.indexEndBy
+
+-- | Break the array into two slices when the predicate succeeds. The array
+-- element matching the predicate is dropped. If the predicate never succeeds
+-- the second array is empty.
+--
+-- /Pre-release/
+{-# INLINE breakEndBy_ #-}
+breakEndBy_ :: (MonadIO m, Unbox a) =>
+    (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
+breakEndBy_ = breakUsing 1 D.indexEndBy_
+
+{-# INLINE revBreakEndBy #-}
+revBreakEndBy :: (MonadIO m, Unbox a) =>
+    (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
+revBreakEndBy = revBreakUsing 0 D.indexEndBy
+
+{-# INLINE revBreakEndBy_ #-}
+revBreakEndBy_ :: (MonadIO m, Unbox a) =>
+    (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
+revBreakEndBy_ = revBreakUsing 1 D.indexEndBy_
+
+-- Note: We could return empty array instead of Nothing. But then we cannot
+-- distinguish if the separator was found in the end or was not found at all.
+-- XXX Do we need to distinguish that?
 
 -- | Drops the separator byte
 {-# INLINE breakOn #-}
@@ -2934,10 +3036,13 @@ breakOn sep arr@MutArray{..} = liftIO $ do
 
 -- | Like 'splitAt' but does not check whether the index is valid.
 --
+-- >>> unsafeSplitAt i arr = (MutArray.unsafeGetSlice 0 i arr, MutArray.unsafeGetSlice i (MutArray.length arr - i) arr)
+--
 {-# INLINE unsafeSplitAt #-}
 unsafeSplitAt :: forall a. Unbox a =>
     Int -> MutArray a -> (MutArray a, MutArray a)
 unsafeSplitAt i MutArray{..} =
+    -- (unsafeGetSlice 0 i arr, unsafeGetSlice i (length arr - i) arr)
     let off = i * SIZE_OF(a)
         p = arrStart + off
      in ( MutArray
@@ -3498,7 +3603,9 @@ compactExact _n = undefined -- D.parseManyD (pCompactEQ n)
 -- In-place mutation algorithms
 -------------------------------------------------------------------------------
 
--- | Strip elements which match with predicate from both ends.
+-- XXX Reuse the code across strip/stripStart/stripEnd?
+
+-- | Strip elements which match the predicate, from both ends.
 --
 -- /Pre-release/
 {-# INLINE strip #-}
@@ -3507,7 +3614,7 @@ strip :: forall a m. (Unbox a, MonadIO m) =>
 strip eq arr@MutArray{..} = liftIO $ do
     st <- getStart arrStart
     end <- getLast arrEnd st
-    return arr {arrStart = st, arrEnd = end, arrBound = end}
+    return arr {arrStart = st, arrEnd = end, arrBound = arrBound}
 
     where
 
@@ -3529,6 +3636,49 @@ strip eq arr@MutArray{..} = liftIO $ do
             then getStart (INDEX_NEXT(cur,a))
             else return cur
         else return cur
+
+    getLast cur low = do
+        if cur > low
+        then do
+            let prev = INDEX_PREV(cur,a)
+            r <- peekAt prev arrContents
+            if eq r
+            then getLast prev low
+            else return cur
+        else return cur
+
+-- | Strip elements which match the predicate, from the start of the array.
+--
+-- /Pre-release/
+{-# INLINE stripStart #-}
+stripStart :: forall a m. (Unbox a, MonadIO m) =>
+    (a -> Bool) -> MutArray a -> m (MutArray a)
+stripStart eq arr@MutArray{..} = liftIO $ do
+    st <- getStart arrStart
+    return arr {arrStart = st, arrEnd = arrEnd, arrBound = arrBound}
+
+    where
+
+    getStart cur = do
+        if cur < arrEnd
+        then do
+            r <- peekAt cur arrContents
+            if eq r
+            then getStart (INDEX_NEXT(cur,a))
+            else return cur
+        else return cur
+
+-- | Strip elements which match the predicate, from the end of the array.
+--
+-- /Pre-release/
+{-# INLINE stripEnd #-}
+stripEnd :: forall a m. (Unbox a, MonadIO m) =>
+    (a -> Bool) -> MutArray a -> m (MutArray a)
+stripEnd eq arr@MutArray{..} = liftIO $ do
+    end <- getLast arrEnd arrStart
+    return arr {arrStart = arrStart, arrEnd = end, arrBound = arrBound}
+
+    where
 
     getLast cur low = do
         if cur > low
