@@ -208,6 +208,7 @@ jobs:
             subdir: core
             ignore_error: false
           - name: 8.10.7-noopt
+            ghc_version: 8.10.7
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.6.2.0
