@@ -65,6 +65,8 @@ module Streamly.Internal.Data.Array
     -- * Folding
     , streamFold
     , fold
+    , foldM
+    , foldRev
 
     -- * Stream of Arrays
     , concatSepBy
@@ -115,7 +117,7 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 -- import Data.Bifunctor (first)
 -- import Data.Either (fromRight)
-import Data.Functor.Identity (Identity)
+import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Foreign.C.String (CString)
@@ -523,13 +525,21 @@ asCStringUnsafe arr act = do
 
 -- XXX Use runIdentity for pure fold
 -- XXX Rename fold to foldM, we can then use "fold" for pure folds.
+-- XXX We do not need an INLINE on fold?
 
 -- | Fold an array using a 'Fold'.
 --
 -- /Pre-release/
+{-# INLINE foldM #-}
+foldM :: (Monad m, Unbox a) => Fold m a b -> Array a -> m b
+foldM f arr = Stream.fold f (read arr)
+
 {-# INLINE fold #-}
-fold :: forall m a b. (Monad m, Unbox a) => Fold m a b -> Array a -> m b
-fold f arr = Stream.fold f (read arr)
+fold :: (Monad m, Unbox a) => Fold m a b -> Array a -> m b
+fold = foldM
+
+foldRev :: Unbox a => Fold.Fold Identity a b -> Array a -> b
+foldRev f arr = runIdentity $ Stream.fold f (readRev arr)
 
 -- | Fold an array using a stream fold operation.
 --
