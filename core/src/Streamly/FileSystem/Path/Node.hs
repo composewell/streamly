@@ -10,7 +10,7 @@ module Streamly.FileSystem.Path.Node
     -- * Types
       File
     , Dir
-    , IsFileDir
+    , IsNode
 
     -- * Statically Verified Path Literals
     -- | Quasiquoters.

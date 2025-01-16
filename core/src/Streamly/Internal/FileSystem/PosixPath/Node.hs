@@ -29,7 +29,7 @@ module Streamly.Internal.FileSystem.OS_PATH.Node
     -- * Types
       File (..)
     , Dir (..)
-    , IsFileDir
+    , IsNode
 
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
@@ -73,10 +73,10 @@ newtype Dir a = Dir a
 
 -- | Constraint to check if a type uses 'File' or 'Dir' as the outermost
 -- constructor.
-class IsFileDir a
+class IsNode a
 
-instance IsFileDir (File a)
-instance IsFileDir (Dir a)
+instance IsNode (File a)
+instance IsNode (Dir a)
 
 instance IsPath OS_PATH (File OS_PATH) where
     unsafeFromPath = File
@@ -155,7 +155,7 @@ file = mkQ fileE
 -- Fails if the second path is a specific location and not a path segment.
 --
 {-# INLINE append #-}
-append :: (IsPath OS_PATH (a OS_PATH), IsFileDir (a OS_PATH)) =>
+append :: (IsPath OS_PATH (a OS_PATH), IsNode (a OS_PATH)) =>
     Dir OS_PATH -> a OS_PATH -> a OS_PATH
 append (Dir a) b =
     unsafeFromPath $ OsPath.unsafeAppend (toPath a) (toPath b)
