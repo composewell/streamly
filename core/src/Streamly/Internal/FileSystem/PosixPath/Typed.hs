@@ -18,26 +18,26 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- When @Loc/Seg@ and @File/Dir@ both are present, @Loc/Seg@ must be
--- outermost constructors and @File/Dir@ as inner. Thus the types File (Loc
--- a) or Dir (Loc a) are not allowed but Loc (Dir a) and Loc (File a) are
+-- When @Rooted/Branch@ and @File/Dir@ both are present, @Rooted/Branch@ must be
+-- outermost constructors and @File/Dir@ as inner. Thus the types File (Rooted
+-- a) or Dir (Rooted a) are not allowed but Rooted (Dir a) and Rooted (File a) are
 -- allowed.
 
 module Streamly.Internal.FileSystem.OS_PATH.Typed
     (
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
-      dirloc
-    , dirseg
-    , fileloc
-    , fileseg
+      rtdir
+    , brdir
+    , rtfile
+    , brfile
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
-    , dirLocE
-    , dirSegE
-    , fileLocE
-    , fileSegE
+    , rtdirE
+    , brdirE
+    , rtfileE
+    , brfileE
 
     -- * Operations
     , append
@@ -47,12 +47,12 @@ where
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.FileSystem.Path.Common (mkQ)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
-import Streamly.Internal.FileSystem.OS_PATH.Seg (Loc(..), Seg(..))
+import Streamly.Internal.FileSystem.OS_PATH.Seg (Rooted(..), Branch(..))
 import Streamly.Internal.FileSystem.OS_PATH.Node (File(..), Dir(..))
 
 import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 
-import Language.Haskell.TH hiding (Loc)
+import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 import Streamly.Internal.Data.Path
 
@@ -64,93 +64,93 @@ For APIs that have not been released yet.
 
 >>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 >>> import Streamly.Internal.FileSystem.PosixPath.Node (Dir, File, dir, file)
->>> import Streamly.Internal.FileSystem.PosixPath.Seg (Loc, Seg, loc, seg)
->>> import Streamly.Internal.FileSystem.PosixPath.Typed (dirloc, dirseg, fileloc, fileseg)
+>>> import Streamly.Internal.FileSystem.PosixPath.Seg (Rooted, Branch, rt, br)
+>>> import Streamly.Internal.FileSystem.PosixPath.Typed (rtdir, brdir, rtfile, brfile)
 >>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
 >>> import qualified Streamly.Internal.FileSystem.PosixPath.Typed as PathTyp
 -}
 
--- Note that (Loc a) may also be a directory if "a" is (Dir b), but it can also
+-- Note that (Rooted a) may also be a directory if "a" is (Dir b), but it can also
 -- be a file if "a" is (File b). Therefore, the constraints are put on a more
--- specific type e.g. (Loc OS_PATH) may be a dir.
+-- specific type e.g. (Rooted OS_PATH) may be a dir.
 
 {-
 -- | Constraint to check if a type represents a directory.
 class HasDir a
 
 instance HasDir (Dir a)
-instance HasDir (Loc (Dir a))
-instance HasDir (Seg (Dir a))
+instance HasDir (Rooted (Dir a))
+instance HasDir (Branch (Dir a))
 -}
 
 -- Design notes:
 --
 -- There are two ways in which we can lift or upgrade a lower level path to a
--- higher level one. Lift each type directly from the base path e.g. Loc (Dir
+-- higher level one. Lift each type directly from the base path e.g. Rooted (Dir
 -- PosixPath) can be created directly from PosixPath. This allows us to do dir
 -- checks and loc checks at the same time in a monolithic manner. But this also
--- makes us do the Dir checks again if we are lifting from Dir to Loc. This
+-- makes us do the Dir checks again if we are lifting from Dir to Rooted. This
 -- leads to less complicated constraints, more convenient type conversions.
 --
 -- Another alternative is to lift one segment at a time, so we lift PosixPath
--- to Dir and then Dir to Loc. This way the checks are serialized, we perform
--- the dir checks first and then Loc checks, we cannot combine them together.
--- The advantage is that when lifting from Dir to Loc we do not need to do the
+-- to Dir and then Dir to Rooted. This way the checks are serialized, we perform
+-- the dir checks first and then Rooted checks, we cannot combine them together.
+-- The advantage is that when lifting from Dir to Rooted we do not need to do the
 -- Dir checks. The disadvantage is less convenient conversion because of
 -- stronger typing, we will need two steps - fromPath . fromPath and toPath .
 -- toPath to upgrade or downgrade instead of just adapt.
 --
 {-
-instance IsPath (File OS_PATH) (Loc (File OS_PATH)) where
-    unsafeFromPath = Loc
+instance IsPath (File OS_PATH) (Rooted (File OS_PATH)) where
+    unsafeFromPath = Rooted
     fromPath (File p) = do
-        _ :: Loc OS_PATH <- fromPath p
-        pure $ Loc (File p)
-    toPath (Loc p) = p
+        _ :: Rooted OS_PATH <- fromPath p
+        pure $ Rooted (File p)
+    toPath (Rooted p) = p
 
-instance IsPath (Loc OS_PATH) (Loc (File OS_PATH)) where
-    unsafeFromPath = Loc
+instance IsPath (Rooted OS_PATH) (Rooted (File OS_PATH)) where
+    unsafeFromPath = Rooted
     fromPath (File p) = do
         _ :: File OS_PATH <- fromPath p
-        pure $ Loc (File p)
-    toPath (Loc p) = p
+        pure $ Rooted (File p)
+    toPath (Rooted p) = p
 -}
 
--- Assuming that lifting from Dir/File to Loc/Seg is not common and even if it
--- is then the combined cost of doing Dir/Loc checks would be almost the same
+-- Assuming that lifting from Dir/File to Rooted/Branch is not common and even if it
+-- is then the combined cost of doing Dir/Rooted checks would be almost the same
 -- as individual checks, we take the first approach.
 
-instance IsPath OS_PATH (Loc (File OS_PATH)) where
-    unsafeFromPath p = Loc (File p)
+instance IsPath OS_PATH (Rooted (File OS_PATH)) where
+    unsafeFromPath p = Rooted (File p)
     fromPath p = do
         _ :: File OS_PATH <- fromPath p
-        _ :: Loc OS_PATH <- fromPath p
-        pure $ Loc (File p)
-    toPath (Loc (File p)) = p
+        _ :: Rooted OS_PATH <- fromPath p
+        pure $ Rooted (File p)
+    toPath (Rooted (File p)) = p
 
-instance IsPath OS_PATH (Loc (Dir OS_PATH)) where
-    unsafeFromPath p = Loc (Dir p)
+instance IsPath OS_PATH (Rooted (Dir OS_PATH)) where
+    unsafeFromPath p = Rooted (Dir p)
     fromPath p = do
         _ :: Dir OS_PATH <- fromPath p
-        _ :: Loc OS_PATH <- fromPath p
-        pure $ Loc (Dir p)
-    toPath (Loc (Dir p)) = p
+        _ :: Rooted OS_PATH <- fromPath p
+        pure $ Rooted (Dir p)
+    toPath (Rooted (Dir p)) = p
 
-instance IsPath OS_PATH (Seg (File OS_PATH)) where
-    unsafeFromPath p = Seg (File p)
+instance IsPath OS_PATH (Branch (File OS_PATH)) where
+    unsafeFromPath p = Branch (File p)
     fromPath p = do
         _ :: File OS_PATH <- fromPath p
-        _ :: Seg OS_PATH <- fromPath p
-        pure $ Seg (File p)
-    toPath (Seg (File p)) = p
+        _ :: Branch OS_PATH <- fromPath p
+        pure $ Branch (File p)
+    toPath (Branch (File p)) = p
 
-instance IsPath OS_PATH (Seg (Dir OS_PATH)) where
-    unsafeFromPath p = Seg (Dir p)
+instance IsPath OS_PATH (Branch (Dir OS_PATH)) where
+    unsafeFromPath p = Branch (Dir p)
     fromPath p = do
         _ :: Dir OS_PATH <- fromPath p
-        _ :: Seg OS_PATH <- fromPath p
-        pure $ Seg (Dir p)
-    toPath (Seg (Dir p)) = p
+        _ :: Branch OS_PATH <- fromPath p
+        pure $ Branch (Dir p)
+    toPath (Branch (Dir p)) = p
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
@@ -159,41 +159,41 @@ instance IsPath OS_PATH (Seg (Dir OS_PATH)) where
 -- XXX We can lift the array directly, ByteArray has a lift instance. Does that
 -- work better?
 
-liftDirLoc :: Loc (Dir OS_PATH) -> Q Exp
-liftDirLoc (Loc (Dir p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Loc (Dir OS_PATH)|]
+liftRootedDir :: Rooted (Dir OS_PATH) -> Q Exp
+liftRootedDir (Rooted (Dir p)) =
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Rooted (Dir OS_PATH)|]
 
-liftDirSeg :: Seg (Dir OS_PATH) -> Q Exp
-liftDirSeg (Seg (Dir p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Seg (Dir OS_PATH) |]
+liftBranchDir :: Branch (Dir OS_PATH) -> Q Exp
+liftBranchDir (Branch (Dir p)) =
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Branch (Dir OS_PATH) |]
 
-liftFileLoc :: Loc (File OS_PATH) -> Q Exp
-liftFileLoc (Loc (File p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Loc (File OS_PATH)|]
+liftRootedFile :: Rooted (File OS_PATH) -> Q Exp
+liftRootedFile (Rooted (File p)) =
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Rooted (File OS_PATH)|]
 
-liftFileSeg :: Seg (File OS_PATH) -> Q Exp
-liftFileSeg (Seg (File p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Seg (File OS_PATH)|]
+liftBranchFile :: Branch (File OS_PATH) -> Q Exp
+liftBranchFile (Branch (File p)) =
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Branch (File OS_PATH)|]
 
--- | Generates a Haskell expression of type @Loc (Dir OS_PATH)@.
+-- | Generates a Haskell expression of type @Rooted (Dir OS_PATH)@.
 --
-dirLocE :: String -> Q Exp
-dirLocE = either (error . show) liftDirLoc . OsPath.fromString
+rtdirE :: String -> Q Exp
+rtdirE = either (error . show) liftRootedDir . OsPath.fromString
 
--- | Generates a Haskell expression of type @Seg (Dir OS_PATH)@.
+-- | Generates a Haskell expression of type @Branch (Dir OS_PATH)@.
 --
-dirSegE :: String -> Q Exp
-dirSegE = either (error . show) liftDirSeg . OsPath.fromString
+brdirE :: String -> Q Exp
+brdirE = either (error . show) liftBranchDir . OsPath.fromString
 
--- | Generates a Haskell expression of type @Loc (File OS_PATH)@.
+-- | Generates a Haskell expression of type @Rooted (File OS_PATH)@.
 --
-fileLocE :: String -> Q Exp
-fileLocE = either (error . show) liftFileLoc . OsPath.fromString
+rtfileE :: String -> Q Exp
+rtfileE = either (error . show) liftRootedFile . OsPath.fromString
 
--- | Generates a Haskell expression of type @Seg (File OS_PATH)@.
+-- | Generates a Haskell expression of type @Branch (File OS_PATH)@.
 --
-fileSegE :: String -> Q Exp
-fileSegE = either (error . show) liftFileSeg . OsPath.fromString
+brfileE :: String -> Q Exp
+brfileE = either (error . show) liftBranchFile . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -204,78 +204,74 @@ fileSegE = either (error . show) liftFileSeg . OsPath.fromString
 -- for free. Interpolated vars if any have to be of appropriate type depending
 -- on the context so that we can splice them safely.
 
--- XXX Change to "dirloc"?
-
--- | Generates an @Loc (Dir OS_PATH)@ type from a quoted literal.
+-- | Generates a @Rooted (Dir OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([dirloc|/usr|] :: Loc (Dir PosixPath))
+-- >>> Path.toString ([rtdir|/usr|] :: Rooted (Dir PosixPath))
 -- "/usr"
 --
-dirloc :: QuasiQuoter
-dirloc = mkQ dirLocE
+rtdir :: QuasiQuoter
+rtdir = mkQ rtdirE
 
--- | Generates a @Seg (Dir OS_PATH)@ type from a quoted literal.
+-- | Generates a @Branch (Dir OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([dirseg|usr|] :: Seg (Dir PosixPath))
+-- >>> Path.toString ([brdir|usr|] :: Branch (Dir PosixPath))
 -- "usr"
 --
-dirseg :: QuasiQuoter
-dirseg = mkQ dirSegE
+brdir :: QuasiQuoter
+brdir = mkQ brdirE
 
--- XXX Change to "fileloc"?
-
--- | Generates an @Loc (File OS_PATH)@ type from a quoted literal.
+-- | Generates an @Rooted (File OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([fileloc|/usr|] :: Loc (File PosixPath))
+-- >>> Path.toString ([rtfile|/usr|] :: Rooted (File PosixPath))
 -- "/usr"
 --
-fileloc :: QuasiQuoter
-fileloc = mkQ fileLocE
+rtfile :: QuasiQuoter
+rtfile = mkQ rtfileE
 
--- | Generates an @Seg (File OS_PATH)@ type from a quoted literal.
+-- | Generates an @Branch (File OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([fileseg|usr|] :: Seg (File PosixPath))
--- "usr"
+-- >>> Path.toString ([brfile|x.txt|] :: Branch (File PosixPath))
+-- "x.txt"
 --
-fileseg :: QuasiQuoter
-fileseg = mkQ fileSegE
+brfile :: QuasiQuoter
+brfile = mkQ brfileE
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
--- type path, and (2) second path can only be a Seg path.
+-- type path, and (2) second path can only be a Branch path.
 
 {-
--- If the first path is 'Loc' then the return type is also 'Loc'.
+-- If the first path is 'Rooted' then the return type is also 'Rooted'.
 --
 -- If the second path does not have 'File' or 'Dir' information then the return
 -- type too cannot have it.
 --
--- >> Path.toString (PathTyp.append [dirloc|/usr|] [seg|bin|] :: Loc PosixPath)
+-- >> Path.toString (PathTyp.append [rtdir|/usr|] [seg|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (PathTyp.append [dirseg|usr|] [seg|bin|] :: Seg PosixPath)
+-- >> Path.toString (PathTyp.append [brdir|usr|] [seg|bin|] :: Branch PosixPath)
 -- "usr/bin"
 --
--- >> Path.toString (PathTyp.append [loc|/usr|] [seg|bin|] :: Loc PosixPath)
+-- >> Path.toString (PathTyp.append [loc|/usr|] [seg|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (PathTyp.append [seg|usr|] [seg|bin|] :: Seg PosixPath)
+-- >> Path.toString (PathTyp.append [seg|usr|] [seg|bin|] :: Branch PosixPath)
 -- "usr/bin"
 --
 -- If the second path has 'File' or 'Dir' information then the return type
 -- also has it.
 --
--- >> Path.toString (PathTyp.append [loc|/usr|] [dirseg|bin|] :: Loc (Dir PosixPath))
+-- >> Path.toString (PathTyp.append [loc|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >> Path.toString (PathTyp.append [loc|/usr|] [fileseg|bin|] :: Loc (File PosixPath))
+-- >> Path.toString (PathTyp.append [loc|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >> Path.toString (PathTyp.append [seg|usr|] [dirseg|bin|] :: Seg (Dir PosixPath))
+-- >> Path.toString (PathTyp.append [seg|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
 -- "usr/bin"
--- >> Path.toString (PathTyp.append [seg|usr|] [fileseg|bin|] :: Seg (File PosixPath))
+-- >> Path.toString (PathTyp.append [seg|usr|] [brfile|bin|] :: Branch (File PosixPath))
 -- "usr/bin"
 --
 -- Type error cases:
 --
--- >> PathTyp.append [dir|/usr|] [seg|bin|] -- first arg must be Loc/Seg
--- >> PathTyp.append [file|/usr|] [seg|bin|] -- first arg must be Loc/Seg
--- >> PathTyp.append [fileloc|/usr|] [seg|bin|] -- first arg must be a dir
+-- >> PathTyp.append [dir|/usr|] [seg|bin|] -- first arg must be Rooted/Branch
+-- >> PathTyp.append [file|/usr|] [seg|bin|] -- first arg must be Rooted/Branch
+-- >> PathTyp.append [rtfile|/usr|] [seg|bin|] -- first arg must be a dir
 -- >> PathTyp.append [loc|/usr|] [loc|/bin|] -- second arg must be seg
 -- >> PathTyp.append [loc|/usr|] [dir|bin|] -- second arg must be seg
 -- >> PathTyp.append [loc|/usr|] [file|bin|] -- second arg must be seg
@@ -283,24 +279,24 @@ fileseg = mkQ fileSegE
 {-# INLINE append #-}
 append ::
     (
-      IsLocSeg (a b)
+      IsSeg (a b)
     , HasDir (a b)
     , IsPath OS_PATH (a b)
     , IsPath OS_PATH c
     , IsPath OS_PATH (a c)
-    ) => a b -> Seg c -> a c
-append a (Seg c) = unsafeFromPath $ OS_NAME.unsafeAppend (toPath a) (toPath c)
+    ) => a b -> Branch c -> a c
+append a (Branch c) = unsafeFromPath $ OS_NAME.unsafeAppend (toPath a) (toPath c)
 -}
 
--- | Append a path segment to a directory.
+-- | Append a branch type path to a directory.
 --
--- >>> Path.toString (PathTyp.append [dirloc|/usr|] [dirseg|bin|] :: Loc (Dir PosixPath))
+-- >>> Path.toString (PathTyp.append [rtdir|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (PathTyp.append [dirloc|/usr|] [fileseg|bin|] :: Loc (File PosixPath))
+-- >>> Path.toString (PathTyp.append [rtdir|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (PathTyp.append [dirseg|usr|] [dirseg|bin|] :: Seg (Dir PosixPath))
+-- >>> Path.toString (PathTyp.append [brdir|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
 -- "usr/bin"
--- >>> Path.toString (PathTyp.append [dirseg|usr|] [fileseg|bin|] :: Seg (File PosixPath))
+-- >>> Path.toString (PathTyp.append [brdir|usr|] [brfile|bin|] :: Branch (File PosixPath))
 -- "usr/bin"
 --
 {-# INLINE append #-}
@@ -309,6 +305,6 @@ append ::
       IsPath OS_PATH (a (Dir OS_PATH))
     , IsPath OS_PATH (b OS_PATH)
     , IsPath OS_PATH (a (b OS_PATH))
-    ) => a (Dir OS_PATH) -> Seg (b OS_PATH) -> a (b OS_PATH)
-append p1 (Seg p2) =
+    ) => a (Dir OS_PATH) -> Branch (b OS_PATH) -> a (b OS_PATH)
+append p1 (Branch p2) =
     unsafeFromPath $ OsPath.unsafeAppend (toPath p1) (toPath p2)

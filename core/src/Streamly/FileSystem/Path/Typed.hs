@@ -10,17 +10,17 @@ module Streamly.FileSystem.Path.Typed
     (
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
-      dirloc
-    , dirseg
-    , fileloc
-    , fileseg
+      rtdir
+    , brdir
+    , rtfile
+    , brfile
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
-    , dirLocE
-    , dirSegE
-    , fileLocE
-    , fileSegE
+    , rtdirE
+    , brdirE
+    , rtfileE
+    , brfileE
 
     -- * Operations
     , append

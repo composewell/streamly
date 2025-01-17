@@ -8,19 +8,19 @@
 module Streamly.FileSystem.Path.Seg
     (
     -- * Types
-      Loc
-    , Seg
-    , IsLocSeg
+      Rooted
+    , Branch
+    , IsSeg
 
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
-    , loc
-    , seg
+    , rt
+    , br
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
-    , locE
-    , segE
+    , rtE
+    , brE
 
     -- * Operations
     , append

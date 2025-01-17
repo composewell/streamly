@@ -18,33 +18,33 @@
 -- Portability : GHC
 --
 -- This module provides a type safe path append operation by distinguishing
--- paths between locations and segments. Locations are represented by the @Loc
--- OS_PATH@ type and path segments are represented by the @Seg OS_PATH@ type.
--- Locations are paths pointing to specific objects in the file system absolute
--- or relative e.g. @\/usr\/bin@, @.\/local\/bin@, or @.@. Segments are a
--- sequence of path components without any reference to a location e.g.
--- @usr\/bin@, @local\/bin@, or @../bin@ are segments.
+-- paths between rooted paths and branches. Rooted paths are represented by the
+-- @Rooted OS_PATH@ type and branches are represented by the @Branch OS_PATH@
+-- type. Rooted paths are paths that are attached to specific roots in the file
+-- system. Rooted paths could be absolute or relative e.g. @\/usr\/bin@,
+-- @.\/local\/bin@, or @.@. Branches are a paths that are not attached to a
+-- specific root e.g. @usr\/bin@, @local\/bin@, or @../bin@ are branches.
 --
--- This distinction provides a safe append operation on paths which cannot
--- fail. These types do not allow appending a location to a path segment or to
--- another location. Only path segments can be appended.
+-- This distinction provides a safe path append operation which cannot fail.
+-- These types do not allow appending a rooted path to any other path. Only
+-- branches can be appended.
 --
 module Streamly.Internal.FileSystem.OS_PATH.Seg
     (
     -- * Types
-      Loc (..)
-    , Seg (..)
-    , IsLocSeg
+      Rooted (..)
+    , Branch (..)
+    , IsSeg
 
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
-    , loc
-    , seg
+    , rt
+    , br
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
-    , locE
-    , segE
+    , rtE
+    , brE
 
     -- * Operations
     , append
@@ -68,63 +68,63 @@ import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 For APIs that have not been released yet.
 
 >>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
->>> import Streamly.Internal.FileSystem.PosixPath.Seg (Loc, Seg, loc, seg)
+>>> import Streamly.Internal.FileSystem.PosixPath.Seg (Rooted, Branch, rt, br)
 >>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
 >>> import qualified Streamly.Internal.FileSystem.PosixPath.Seg as Seg
 -}
 
-newtype Loc a = Loc a
-newtype Seg a = Seg a
+newtype Rooted a = Rooted a
+newtype Branch a = Branch a
 
-instance IsPath OS_PATH (Loc OS_PATH) where
-    unsafeFromPath = Loc
+instance IsPath OS_PATH (Rooted OS_PATH) where
+    unsafeFromPath = Rooted
     fromPath p =
         if OsPath.isRooted p
-        then pure (Loc p)
+        then pure (Rooted p)
         -- XXX Add more detailed error msg with all valid examples.
         else throwM $ InvalidPath
                 $ "Must be a specific location, not a path segment: "
                 ++ OsPath.toString p
-    toPath (Loc p) = p
+    toPath (Rooted p) = p
 
-instance IsPath OS_PATH (Seg OS_PATH) where
-    unsafeFromPath = Seg
+instance IsPath OS_PATH (Branch OS_PATH) where
+    unsafeFromPath = Branch
     fromPath p =
         if OsPath.isBranch p
-        then pure (Seg p)
+        then pure (Branch p)
         -- XXX Add more detailed error msg with all valid examples.
         else throwM $ InvalidPath
                 $ "Must be a path segment, not a specific location: "
                 ++ OsPath.toString p
-    toPath (Seg p) = p
+    toPath (Branch p) = p
 
--- | Constraint to check if a type has Loc or Seg annotations.
-class IsLocSeg a
+-- | Constraint to check if a type has Rooted or Branch annotations.
+class IsSeg a
 
-instance IsLocSeg (Loc a)
-instance IsLocSeg (Seg a)
+instance IsSeg (Rooted a)
+instance IsSeg (Branch a)
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
 ------------------------------------------------------------------------------
 
-liftLoc :: Loc OS_PATH -> Q Exp
-liftLoc (Loc p) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Loc OS_PATH |]
+liftRooted :: Rooted OS_PATH -> Q Exp
+liftRooted (Rooted p) =
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Rooted OS_PATH |]
 
-liftSeg :: Seg OS_PATH -> Q Exp
-liftSeg (Seg p) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Seg OS_PATH |]
+liftBranch :: Branch OS_PATH -> Q Exp
+liftBranch (Branch p) =
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Branch OS_PATH |]
 
--- | Generates a Haskell expression of type @Loc OS_PATH@.
+-- | Generates a Haskell expression of type @Rooted OS_PATH@.
 --
-locE :: String -> Q Exp
-locE = either (error . show) liftLoc . OsPath.fromString
+rtE :: String -> Q Exp
+rtE = either (error . show) liftRooted . OsPath.fromString
 
--- | Generates a Haskell expression of type @Seg OS_PATH@.
+-- | Generates a Haskell expression of type @Branch OS_PATH@.
 --
-segE :: String -> Q Exp
-segE = either (error . show) liftSeg . OsPath.fromString
+brE :: String -> Q Exp
+brE = either (error . show) liftBranch . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -135,36 +135,36 @@ segE = either (error . show) liftSeg . OsPath.fromString
 -- for free. Interpolated vars if any have to be of appropriate type depending
 -- on the context so that we can splice them safely.
 
--- | Generates a @Loc Path@ type from a quoted literal.
+-- | Generates a @Rooted Path@ type from a quoted literal.
 --
--- >>> Path.toString ([loc|/usr|] :: Loc PosixPath)
+-- >>> Path.toString ([rt|/usr|] :: Rooted PosixPath)
 -- "/usr"
 --
-loc :: QuasiQuoter
-loc = mkQ locE
+rt :: QuasiQuoter
+rt = mkQ rtE
 
--- | Generates a @Seg Path@ type from a quoted literal.
+-- | Generates a @Branch Path@ type from a quoted literal.
 --
--- >>> Path.toString ([seg|usr|] :: Seg PosixPath)
+-- >>> Path.toString ([br|usr|] :: Branch PosixPath)
 -- "usr"
 --
-seg :: QuasiQuoter
-seg = mkQ segE
+br :: QuasiQuoter
+br = mkQ brE
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
--- type path, and (2) second path can only be a Seg path.
+-- type path, and (2) second path can only be a Branch path.
 
--- | Append a 'Seg' path to a 'Loc' or 'Seg' path.
+-- | Append a 'Branch' type path to a 'Rooted' path or 'Branch' path.
 --
--- >>> Path.toString (Seg.append [loc|/usr|] [seg|bin|] :: Loc PosixPath)
+-- >>> Path.toString (Seg.append [rt|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (Seg.append [seg|usr|] [seg|bin|] :: Seg PosixPath)
+-- >>> Path.toString (Seg.append [br|usr|] [br|bin|] :: Branch PosixPath)
 -- "usr/bin"
 --
 {-# INLINE append #-}
 append ::
     (
-      IsLocSeg (a OS_PATH)
+      IsSeg (a OS_PATH)
     , IsPath OS_PATH (a OS_PATH)
-    ) => a OS_PATH -> Seg OS_PATH -> a OS_PATH
-append a (Seg c) = unsafeFromPath $ OsPath.unsafeAppend (toPath a) (toPath c)
+    ) => a OS_PATH -> Branch OS_PATH -> a OS_PATH
+append a (Branch c) = unsafeFromPath $ OsPath.unsafeAppend (toPath a) (toPath c)
