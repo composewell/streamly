@@ -81,24 +81,6 @@ where
 
 #include "assert.hs"
 
-{- $setup
->>> :m
-
->>> import Data.Functor.Identity (runIdentity)
->>> import System.IO.Unsafe (unsafePerformIO)
->>> import qualified Streamly.Data.Stream as Stream
->>> import qualified Streamly.Unicode.Stream as Unicode
->>> import qualified Streamly.Internal.Data.Array as Array
->>> import qualified Streamly.Internal.FileSystem.Path.Common as Common
->>> import qualified Streamly.Internal.Unicode.Stream as Unicode
-
->>> packPosix = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf8' . Stream.fromList
->>> unpackPosix = runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.read
-
->>> packWindows = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf16le' . Stream.fromList
->>> unpackWindows = runIdentity . Stream.toList . Unicode.decodeUtf16le' . Array.read
--}
-
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow(..))
 import Control.Monad.IO.Class (MonadIO(..))
@@ -124,6 +106,24 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Unicode.Stream as Unicode
+
+{- $setup
+>>> :m
+
+>>> import Data.Functor.Identity (runIdentity)
+>>> import System.IO.Unsafe (unsafePerformIO)
+>>> import qualified Streamly.Data.Stream as Stream
+>>> import qualified Streamly.Unicode.Stream as Unicode
+>>> import qualified Streamly.Internal.Data.Array as Array
+>>> import qualified Streamly.Internal.FileSystem.Path.Common as Common
+>>> import qualified Streamly.Internal.Unicode.Stream as Unicode
+
+>>> packPosix = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf8' . Stream.fromList
+>>> unpackPosix = runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.read
+
+>>> packWindows = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf16le' . Stream.fromList
+>>> unpackWindows = runIdentity . Stream.toList . Unicode.decodeUtf16le' . Array.read
+-}
 
 data OS = Windows | Posix deriving Eq
 
