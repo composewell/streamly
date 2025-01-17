@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.FileSystem.Path.Typed
+-- Module      : Streamly.FileSystem.Path.SegNode
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
 
-module Streamly.FileSystem.Path.Typed
+module Streamly.FileSystem.Path.SegNode
     (
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
@@ -27,4 +27,4 @@ module Streamly.FileSystem.Path.Typed
     )
 where
 
-import Streamly.Internal.FileSystem.Path.Typed
+import Streamly.Internal.FileSystem.Path.SegNode

@@ -12,7 +12,7 @@
 #endif
 
 -- |
--- Module      : Streamly.Internal.FileSystem.OS_PATH.Typed
+-- Module      : Streamly.Internal.FileSystem.OS_PATH.SegNode
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -23,7 +23,7 @@
 -- a) or Dir (Rooted a) are not allowed but Rooted (Dir a) and Rooted (File a) are
 -- allowed.
 
-module Streamly.Internal.FileSystem.OS_PATH.Typed
+module Streamly.Internal.FileSystem.OS_PATH.SegNode
     (
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
@@ -65,9 +65,9 @@ For APIs that have not been released yet.
 >>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 >>> import Streamly.Internal.FileSystem.PosixPath.Node (Dir, File, dir, file)
 >>> import Streamly.Internal.FileSystem.PosixPath.Seg (Rooted, Branch, rt, br)
->>> import Streamly.Internal.FileSystem.PosixPath.Typed (rtdir, brdir, rtfile, brfile)
+>>> import Streamly.Internal.FileSystem.PosixPath.SegNode (rtdir, brdir, rtfile, brfile)
 >>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
->>> import qualified Streamly.Internal.FileSystem.PosixPath.Typed as PathTyp
+>>> import qualified Streamly.Internal.FileSystem.PosixPath.SegNode as SegNode
 -}
 
 -- Note that (Rooted a) may also be a directory if "a" is (Dir b), but it can also
@@ -245,36 +245,36 @@ brfile = mkQ brfileE
 -- If the second path does not have 'File' or 'Dir' information then the return
 -- type too cannot have it.
 --
--- >> Path.toString (PathTyp.append [rtdir|/usr|] [seg|bin|] :: Rooted PosixPath)
+-- >> Path.toString (SegNode.append [rtdir|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (PathTyp.append [brdir|usr|] [seg|bin|] :: Branch PosixPath)
+-- >> Path.toString (SegNode.append [brdir|usr|] [br|bin|] :: Branch PosixPath)
 -- "usr/bin"
 --
--- >> Path.toString (PathTyp.append [loc|/usr|] [seg|bin|] :: Rooted PosixPath)
+-- >> Path.toString (SegNode.append [rt|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (PathTyp.append [seg|usr|] [seg|bin|] :: Branch PosixPath)
+-- >> Path.toString (SegNode.append [br|usr|] [br|bin|] :: Branch PosixPath)
 -- "usr/bin"
 --
 -- If the second path has 'File' or 'Dir' information then the return type
 -- also has it.
 --
--- >> Path.toString (PathTyp.append [loc|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
+-- >> Path.toString (SegNode.append [rt|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >> Path.toString (PathTyp.append [loc|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
+-- >> Path.toString (SegNode.append [rt|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >> Path.toString (PathTyp.append [seg|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
+-- >> Path.toString (SegNode.append [br|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
 -- "usr/bin"
--- >> Path.toString (PathTyp.append [seg|usr|] [brfile|bin|] :: Branch (File PosixPath))
+-- >> Path.toString (SegNode.append [br|usr|] [brfile|bin|] :: Branch (File PosixPath))
 -- "usr/bin"
 --
 -- Type error cases:
 --
--- >> PathTyp.append [dir|/usr|] [seg|bin|] -- first arg must be Rooted/Branch
--- >> PathTyp.append [file|/usr|] [seg|bin|] -- first arg must be Rooted/Branch
--- >> PathTyp.append [rtfile|/usr|] [seg|bin|] -- first arg must be a dir
--- >> PathTyp.append [loc|/usr|] [loc|/bin|] -- second arg must be seg
--- >> PathTyp.append [loc|/usr|] [dir|bin|] -- second arg must be seg
--- >> PathTyp.append [loc|/usr|] [file|bin|] -- second arg must be seg
+-- >> SegNode.append [dir|/usr|] [br|bin|] -- first arg must be Rooted/Branch
+-- >> SegNode.append [file|/usr|] [br|bin|] -- first arg must be Rooted/Branch
+-- >> SegNode.append [rtfile|/usr|] [br|bin|] -- first arg must be a dir
+-- >> SegNode.append [rt|/usr|] [rt|/bin|] -- second arg must be seg
+-- >> SegNode.append [rt|/usr|] [dir|bin|] -- second arg must be seg
+-- >> SegNode.append [rt|/usr|] [file|bin|] -- second arg must be seg
 --
 {-# INLINE append #-}
 append ::
@@ -290,13 +290,13 @@ append a (Branch c) = unsafeFromPath $ OS_NAME.unsafeAppend (toPath a) (toPath c
 
 -- | Append a branch type path to a directory.
 --
--- >>> Path.toString (PathTyp.append [rtdir|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
+-- >>> Path.toString (SegNode.append [rtdir|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (PathTyp.append [rtdir|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
+-- >>> Path.toString (SegNode.append [rtdir|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (PathTyp.append [brdir|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
+-- >>> Path.toString (SegNode.append [brdir|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
 -- "usr/bin"
--- >>> Path.toString (PathTyp.append [brdir|usr|] [brfile|bin|] :: Branch (File PosixPath))
+-- >>> Path.toString (SegNode.append [brdir|usr|] [brfile|bin|] :: Branch (File PosixPath))
 -- "usr/bin"
 --
 {-# INLINE append #-}

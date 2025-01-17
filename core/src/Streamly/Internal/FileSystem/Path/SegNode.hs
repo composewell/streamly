@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.FileSystem.Path.Typed
+-- Module      : Streamly.Internal.FileSystem.Path.SegNode
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -11,10 +11,10 @@
 #define OS_PATH PosixPath
 #endif
 
-module Streamly.Internal.FileSystem.Path.Typed
+module Streamly.Internal.FileSystem.Path.SegNode
     (
-      module Streamly.Internal.FileSystem.OS_PATH.Typed
+      module Streamly.Internal.FileSystem.OS_PATH.SegNode
     )
 where
 
-import Streamly.Internal.FileSystem.OS_PATH.Typed
+import Streamly.Internal.FileSystem.OS_PATH.SegNode

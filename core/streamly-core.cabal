@@ -382,17 +382,17 @@ library
                      , Streamly.Internal.FileSystem.Path
                      , Streamly.Internal.FileSystem.Path.Seg
                      , Streamly.Internal.FileSystem.Path.Node
-                     , Streamly.Internal.FileSystem.Path.Typed
+                     , Streamly.Internal.FileSystem.Path.SegNode
 
                      , Streamly.Internal.FileSystem.PosixPath
                      , Streamly.Internal.FileSystem.PosixPath.Seg
                      , Streamly.Internal.FileSystem.PosixPath.Node
-                     , Streamly.Internal.FileSystem.PosixPath.Typed
+                     , Streamly.Internal.FileSystem.PosixPath.SegNode
 
                      , Streamly.Internal.FileSystem.WindowsPath
                      , Streamly.Internal.FileSystem.WindowsPath.Seg
                      , Streamly.Internal.FileSystem.WindowsPath.Node
-                     , Streamly.Internal.FileSystem.WindowsPath.Typed
+                     , Streamly.Internal.FileSystem.WindowsPath.SegNode
 
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
@@ -449,7 +449,7 @@ library
                      , Streamly.FileSystem.Path
                      , Streamly.FileSystem.Path.Seg
                      , Streamly.FileSystem.Path.Node
-                     , Streamly.FileSystem.Path.Typed
+                     , Streamly.FileSystem.Path.SegNode
                      , Streamly.Unicode.Parser
                      , Streamly.Unicode.Stream
                      , Streamly.Unicode.String
