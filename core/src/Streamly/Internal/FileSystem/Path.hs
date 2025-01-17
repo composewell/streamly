@@ -24,31 +24,31 @@
 -- in the presence of symlinks it could be a DAG or a graph, because directory
 -- symlinks can create cycles.
 --
--- == Location and Segments
+-- == Rooted and Branch paths
 --
--- We make two distinctions for paths, a path could refer to a location or it
--- could refer to a segment or segments.
+-- We make two distinctions for paths, a path may a specific filesystem root
+-- attached to it or it may be a free branch without a root attached.
 --
--- A path that refers to a particular object in the file system  is called a
--- location e.g. /usr is a location, . is a location, ./bin is a location. A
--- location could be absolute e.g. /usr or it could be relative e.g. ./bin . A
--- location always has two components, a specific "root" which could be
--- explicit or implicit, and a path segment relative to the root. A location
--- with a fixed root is known as an absolute location whereas a location with
--- an implicit root e.g. "./bin" is known as a relative location.
+-- A path that has a root attached to it is called a rooted path e.g. /usr is a
+-- rooted path, . is a rooted path, ./bin is a rooted path. A rooted path could
+-- be absolute e.g. /usr or it could be relative e.g. ./bin . A rooted path
+-- always has two components, a specific "root" which could be explicit or
+-- implicit, and a path segment relative to the root. A rooted path with a
+-- fixed root is known as an absolute path whereas a rooted path with an
+-- implicit root e.g. "./bin" is known as a relative path.
 --
--- A path that does not refer to a particular location but defines steps to go
--- from some place to another is a path segment. For example, "local/bin" is a
--- path segment whereas "./local/bin" is a location.
+-- A path that does not have a root attached but defines steps to go from some
+-- place to another is a path branch. For example, "local/bin" is a path branch
+-- whereas "./local/bin" is a rooted path.
 --
--- Locations can never be appended to another location or to a path segment
--- whereas a segment can be appended.
+-- Rooted paths can never be appended to any other path whereas a branch can be
+-- appended.
 --
 -- == Comparing Paths
 --
--- We can compare two absolute locations or path segments but we cannot compare
--- two relative locations. If each component of the path is the same then the
--- paths are considered to be equal.
+-- We can compare two absolute rooted paths or path branches but we cannot
+-- compare two relative rooted paths. If each component of the path is the same
+-- then the paths are considered to be equal.
 --
 -- == Implicit Roots (.)
 --
@@ -68,16 +68,16 @@
 -- We can treat @.\/bin\/ls@ as an absolute path with "." as an implicit root.
 -- The relative path is "bin/ls" which represents steps from somewhere to
 -- somewhere else rather than a particular location. We can also call @./bin@
--- as a "located path" as it points to particular location rather than "steps"
--- from one place to another. If we want to append such paths we need to first
--- make them explicitly relative by dropping the implicit root. Or we can use
--- unsafeAppend to force it anyway or unsafeCast to convert absolute to
--- relative.
+-- as a "rooted path" as it starts from particular location rather than
+-- defining "steps" to go from one place to another. If we want to append such
+-- paths we need to first make them explicitly relative by dropping the
+-- implicit root. Or we can use unsafeAppend to force it anyway or unsafeCast
+-- to convert absolute to relative.
 --
--- On these absolute (located/Loc) paths if we use takeRoot, it should return
+-- On these absolute (Rooted) paths if we use takeRoot, it should return
 -- RootCurDir, RootCurDrive and @Root Path@ to distinguish @./@, @/@, @C:/@. We
--- could represent them by different types but that would make the types even more
--- complicated. So runtime checks are are a good balance.
+-- could represent them by different types but that would make the types even
+-- more complicated. So runtime checks are are a good balance.
 --
 -- Path comparison should return EqTrue, EqFalse or EqUnknown. If we compare
 -- these absolute/located paths having implicit roots then result should be

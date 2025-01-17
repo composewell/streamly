@@ -220,15 +220,15 @@ rtdir = mkQ rtdirE
 brdir :: QuasiQuoter
 brdir = mkQ brdirE
 
--- | Generates an @Rooted (File OS_PATH)@ type from a quoted literal.
+-- | Generates a @Rooted (File OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([rtfile|/usr|] :: Rooted (File PosixPath))
--- "/usr"
+-- >>> Path.toString ([rtfile|/x.txt|] :: Rooted (File PosixPath))
+-- "/x.txt"
 --
 rtfile :: QuasiQuoter
 rtfile = mkQ rtfileE
 
--- | Generates an @Branch (File OS_PATH)@ type from a quoted literal.
+-- | Generates a @Branch (File OS_PATH)@ type from a quoted literal.
 --
 -- >>> Path.toString ([brfile|x.txt|] :: Branch (File PosixPath))
 -- "x.txt"

@@ -37,8 +37,8 @@ description:
   This package covers some or all of the functionality covered
   by @streaming, pipes, conduit, list-t, logic-t, foldl, attoparsec,
   array, primitive, vector, vector-algorithms, binary, cereal, store,
-  bytestring, text, stringsearch, interpolate@. Streamly provides a
-  consistent, concise, modular and performant interface for all this
+  bytestring, text, stringsearch, interpolate, filepath, path@. Streamly
+  provides a consistent, concise, modular and performant interface for all this
   functionality.
   .
   Note: The dependencies "heaps" and "monad-control" are included in

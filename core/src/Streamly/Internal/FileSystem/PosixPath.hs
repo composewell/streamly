@@ -366,8 +366,12 @@ unsafeAppend (OS_PATH a) (OS_PATH b) =
         $ Common.unsafeAppend
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | Append a OS_PATH to another. Fails if the second path refers to a location
--- and not a path segment.
+-- XXX Should we fail if the first path does not have a trailing separator i.e.
+-- it is not a directory?
+
+-- | Append a OS_PATH to another. Fails if the second path refers to a rooted
+-- path and not a branch. Use 'unsafeAppend' to avoid failure if you know it is
+-- ok to append the path.
 --
 -- >>> Path.toString $ Path.append [path|/usr|] [path|bin|]
 -- "/usr/bin"
