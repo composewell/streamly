@@ -12,6 +12,8 @@ module Streamly.Internal.FileSystem.Path.Common
 
     -- * Construction
     , isValid
+    , validatePath
+    , validateFile
     , fromChunk
     , unsafeFromChunk
     , fromChars
@@ -32,7 +34,6 @@ module Streamly.Internal.FileSystem.Path.Common
     , hasTrailingSeparator
     , isBranch
     , isRooted
-    , maybeFile
     , isAbsolute
     , isRootRelative
     , isRelativeWithDrive
@@ -84,7 +85,7 @@ where
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow(..))
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Char (ord, isAlpha, toUpper)
+import Data.Char (chr, ord, isAlpha, toUpper)
 import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
 #ifdef DEBUG
@@ -189,8 +190,8 @@ primarySeparator Windows = windowsSeparator
 -- @/@ or @\\@.
 {-# INLINE isSeparator #-}
 isSeparator :: OS -> Char -> Bool
-isSeparator Windows c = (c == windowsSeparator) || (c == posixSeparator)
 isSeparator Posix c = c == posixSeparator
+isSeparator Windows c = (c == windowsSeparator) || (c == posixSeparator)
 
 {-# INLINE isSeparatorWord #-}
 isSeparatorWord :: Integral a => OS -> a -> Bool
@@ -625,6 +626,9 @@ unsafeSplitUNC arr =
 --
 {-# INLINE splitRoot #-}
 splitRoot :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
+-- NOTE: validatePath depends on splitRoot splitting the path without removing
+-- any redundant chars etc. It should just split and do nothing else.
+-- XXX We can put an assert here "arrLen == rootLen + stemLen".
 splitRoot Posix arr
     | isRooted Posix arr
         = unsafeSplitTopLevel Posix arr
@@ -898,8 +902,8 @@ splitTail _os _arr = undefined
 
 -- | Returns () if the path can be a valid file, otherwise throws an
 -- exception.
-maybeFile :: (MonadThrow m, Unbox a, Integral a) => OS -> Array a -> m ()
-maybeFile os arr = do
+validateFile :: (MonadThrow m, Unbox a, Integral a) => OS -> Array a -> m ()
+validateFile os arr = do
     s1 <-
             Stream.toList
                 $ Stream.take 3
@@ -1332,7 +1336,7 @@ splitAllExtensions = splitAllExtensionsBy False extensionWord
 -- Construction
 ------------------------------------------------------------------------------
 
--- | Only for Windows.
+{-# INLINE isInvalidPathChar #-}
 isInvalidPathChar :: Integral a => OS -> a -> Bool
 isInvalidPathChar Posix x = x == 0
 isInvalidPathChar Windows x =
@@ -1347,6 +1351,11 @@ isInvalidPathChar Windows x =
         124 -> True -- '|'
         _ -> x <= charToWord '\US'
 
+countLeadingValid :: (Unbox a, Integral a) => OS -> Array a -> Int
+countLeadingValid os path =
+    let f = Fold.takeEndBy_ (isInvalidPathChar os) Fold.length
+     in foldArr f path
+
 -- XXX Supply it an array for checking and use a more efficient prefix matching
 -- check.
 
@@ -1358,11 +1367,110 @@ isInvalidPathComponent = fmap (fmap charToWord)
     , "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"
     ]
 
--- Note: "//share/x" works in powershell.
+validatePath :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
+validatePath Posix path =
+    let pathLen = Array.length path
+        validLen = countLeadingValid Posix path
+     in if pathLen == 0
+        then throwM $ InvalidPath "Empty path"
+        else if pathLen /= validLen
+        then throwM $ InvalidPath
+            $ "Null char found after " ++ show validLen ++ " characters."
+        else pure ()
+validatePath Windows path
+  | Array.null path = throwM $ InvalidPath "Empty path"
+  | otherwise = do
+      -- XXX give position of the first invalid char.
+        if hasDrive path && postDriveSep > 1 -- "C://"
+        then throwM $ InvalidPath
+            $ "More than one separators between drive root and the path"
+        else if isAbsoluteUNC path
+        then
+            if postDriveSep > 1 -- "///x"
+            then throwM $ InvalidPath
+                $ "Path starts with more than two separators"
+            -- XXX covered by the previous check
+            -- else if Array.length path == postDriveSep + 2
+            -- then throwM $ InvalidPath $ "Only separators in share root"
+            else if invalidRootComponent -- "//prn/x"
+            then throwM $ InvalidPath
+                -- XXX print the invalid component name
+                $ "Special filename component in share root"
+            else if rootEndSeps /= 1 -- "//share//x"
+            then throwM $ InvalidPath
+                $ "Share name is needed and exactly one separator is needed "
+                ++ "between share root and the path"
+            else if Array.null stem -- "//share/"
+            then throwM $ InvalidPath
+                $ "the share root must be followed by a non-empty path"
+            else pure ()
+        else pure ()
+
+        if stemLen /= validStemLen -- "x/x>y"
+        then throwM $ InvalidPath
+            $ "Disallowed char found after "
+            ++ show (rootLen + validStemLen)
+            ++ " characters. The invalid char is: "
+            ++ show (chr (fromIntegral invalidVal))
+            ++ " [" ++ show invalidVal ++ "]"
+        else if invalidComponent -- "x/prn/y"
+        -- XXX print the invalid component name
+        then throwM $ InvalidPath $ "Disallowed Windows filename in path"
+        else pure ()
+
+    where
+
+    postDrive = snd $ Array.unsafeSplitAt 2 path
+    postDriveSep = countLeadingBy (isSeparatorWord Windows) postDrive
+
+    -- XXX check invalid chars in the path root as well - except . and '?'?
+    (root, stem) = splitRoot Windows path
+    rootLen = Array.length root
+    stemLen = Array.length stem
+    validStemLen = countLeadingValid Windows stem
+    invalidVal = fromIntegral (Array.unsafeGetIndex validStemLen stem) :: Word16
+
+    rootEndSeps  = countTrailingBy (isSeparatorWord Windows) root
+
+    -- TBD: We are not currently validating the sharenames against disallowed
+    -- file names. Apparently windows does not allow even sharenames with those
+    -- names. To match against sharenames we will have to strip the separators
+    -- and drive etc from the root. Or we can use the parsing routines
+    -- themselves to validate.
+    toUp w16 =
+        if w16 < 256
+        then charToWord $ toUpper (wordToChar w16)
+        else w16
+
+    -- Should we strip all space chars as in Data.Char.isSpace?
+    isSpace x = x == charToWord ' '
+
+    -- XXX instead of using a list based check, pass the array to the checker.
+    -- We do not need to upcase the array, it can be done in the checker. Thus
+    -- we do not need to create a new array, the original slice can be checked.
+    getBaseName x =
+          runIdentity
+        $ Stream.toList
+        $ fmap toUp
+        $ Array.read
+        $ Array.strip isSpace
+        $ fst $ Array.breakEndBy_ (== extensionWord) x
+
+    components =
+          runIdentity
+        . Stream.toList
+        . fmap getBaseName
+        . splitCompact False Windows
+
+    invalidRootComponent =
+        List.any (`List.elem` isInvalidPathComponent) (components root)
+    invalidComponent =
+        List.any (`List.elem` isInvalidPathComponent) (components stem)
+
+-- Note: We can use powershell for testing path validity.
+-- "//share/x" works in powershell.
 -- But mixed forward and backward slashes do not work, it is treated as a path
 -- relative to current drive e.g. "\\/share/x" is treated as "C:/share/x".
-
--- XXX Throw exception pinpointing the failure reason.
 
 -- | Check if the filepath is valid i.e. does the operating system allow such a
 -- path in listing or creating files?
@@ -1486,63 +1594,10 @@ isInvalidPathComponent = fmap (fmap charToWord)
 -- >>> isValidWin "\\\\??\\x"
 -- True
 isValid :: (Integral a, Unbox a) => OS -> Array a -> Bool
-isValid Posix path
-  | Array.null path = False
-  | foldArr (Fold.elem 0) path = False
-  | otherwise = True
-isValid Windows path
-  | Array.null path = False
-  | otherwise =
-             not (foldArr (Fold.any (isInvalidPathChar Windows)) stem)
-          && not (List.any (`List.elem` isInvalidPathComponent) (components stem))
-          && not (hasDrive path && postDriveSep > 1)
-          && not (isAbsoluteUNC path
-                && (   postDriveSep > 1
-                   || Array.length path == postDriveSep + 2
-                   || List.any (`List.elem` isInvalidPathComponent) (components root)
-                   --  || not (hasTrailingSeparator Windows root)
-                   || rootEndSeps /= 1
-                   || Array.null stem
-                   )
-             )
-
-    where
-
-    postDrive = snd $ Array.unsafeSplitAt 2 path
-    postDriveSep = countLeadingBy (isSeparatorWord Windows) postDrive
-
-    (root, stem) = splitRoot Windows path
-    rootEndSeps  = countTrailingBy (isSeparatorWord Windows) root
-
-    -- TBD: We are not currently validating the sharenames against disallowed
-    -- file names. Apparently windows does not allow even sharenames with those
-    -- names. To match against sharenames we will have to strip the separators
-    -- and drive etc from the root. Or we can use the parsing routines
-    -- themselves to validate.
-    toUp w16 =
-        if w16 < 256
-        then charToWord $ toUpper (wordToChar w16)
-        else w16
-
-    -- Should we strip all space chars as in Data.Char.isSpace?
-    isSpace x = x == charToWord ' '
-
-    -- XXX instead of using a list based check, pass the array to the checker.
-    -- We do not need to upcase the array, it can be done in the checker. Thus
-    -- we do not need to create a new array, the original slice can be checked.
-    getBaseName x =
-          runIdentity
-        $ Stream.toList
-        $ fmap toUp
-        $ Array.read
-        $ Array.strip isSpace
-        $ fst $ Array.breakEndBy_ (== extensionWord) x
-
-    components =
-          runIdentity
-        . Stream.toList
-        . fmap getBaseName
-        . splitCompact False Windows
+isValid os path =
+    case validatePath os path of
+        Nothing -> False
+        Just _ -> True
 
 -- A chunk is essentially an untyped Array i.e. Array Word8.  We can either use
 -- the term ByteArray for that or just Chunk. The latter is shorter and we have
@@ -1553,17 +1608,8 @@ isValid Windows path
 -- the definition of the 'Path' type. On Windows, the array passed must be a
 -- multiple of 2 bytes as the underlying representation uses 'Word16'.
 {-# INLINE unsafeFromChunk #-}
-unsafeFromChunk ::
-#ifdef DEBUG
-    Unbox a =>
-#endif
-    Array Word8 -> Array a
-unsafeFromChunk =
-#ifndef DEBUG
-    Array.unsafeCast
-#else
-    fromJust . fromChunk
-#endif
+unsafeFromChunk :: Array Word8 -> Array a
+unsafeFromChunk = Array.unsafeCast
 
 -- XXX Also check for invalid chars on windows.
 
@@ -1572,33 +1618,31 @@ unsafeFromChunk =
 -- representation uses 'Word16'.
 --
 -- Throws 'InvalidPath'.
-fromChunk :: (MonadThrow m, Unbox a) => Array Word8 -> m (Array a)
-fromChunk arr =
+fromChunk :: forall m a. (MonadThrow m, Unbox a, Integral a) =>
+    OS -> Array Word8 -> m (Array a)
+fromChunk Posix arr =
+    let arr1 = Array.unsafeCast arr :: Array a
+     in validatePath Posix arr1 >> pure arr1
+fromChunk Windows arr =
     case Array.cast arr of
         Nothing ->
-            -- XXX Windows only message.
             throwM
                 $ InvalidPath
                 $ "Encoded path length " ++ show (Array.byteLength arr)
                     ++ " is not a multiple of 16-bit."
-        Just x -> pure x
+        Just x -> validatePath Windows x >> pure x
 
 -- | Convert 'Path' to an array of bytes.
 toChunk :: Array a -> Array Word8
 toChunk = Array.asBytes
 
 unsafeFromChars :: (Unbox a) =>
-       (Char -> Bool)
-    -> (Stream Identity Char -> Stream Identity a)
+       (Stream Identity Char -> Stream Identity a)
     -> Stream Identity Char
     -> Array a
-unsafeFromChars _p encode s =
-#ifndef DEBUG
+unsafeFromChars encode s =
     let n = runIdentity $ Stream.fold Fold.length s
      in Array.fromPureStreamN n (encode s)
-#else
-     fromJust (fromChars _p encode s)
-#endif
 
 -- Note: We do not sanitize the path i.e. remove duplicate separators, .
 -- segments, trailing separator etc because that would require unnecessary
@@ -1609,29 +1653,21 @@ unsafeFromChars _p encode s =
 -- XXX Writing a custom fold for parsing a Posix path may be better for
 -- efficient bulk parsing when needed. We need the same code to validate a
 -- Chunk where we do not need to create an array.
-fromChars :: (MonadThrow m, Unbox a) =>
-       (Char -> Bool)
+fromChars :: (MonadThrow m, Unbox a, Integral a) =>
+       OS
     -> (Stream Identity Char -> Stream Identity a)
     -> Stream Identity Char
     -> m (Array a)
-fromChars p encode s =
-    -- XXX on windows terminate at first invalid char
-    let lengths = Fold.tee Fold.length (Fold.takeEndBy_ p Fold.length)
-        (n, n1) = runIdentity $ Stream.fold lengths s
-        arr = Array.fromPureStreamN n (encode s)
-        sample = Stream.takeWhile p s
-     in
-        if n <= 0
-        then throwM $ InvalidPath "Path cannot be empty."
-        else if n1 < n
-        then throwM $ InvalidPath $ "Path contains a NULL char at position: "
-                ++ show n1 ++ " after " ++ runIdentity (Stream.toList sample)
-        else pure arr
+fromChars os encode s =
+    let arr = unsafeFromChars encode s
+     in fromChunk os (Array.unsafeCast arr)
 
-toChars :: (Monad m, Unbox a) => (Stream m a -> Stream m Char) -> Array a -> Stream m Char
+toChars :: (Monad m, Unbox a) =>
+    (Stream m a -> Stream m Char) -> Array a -> Stream m Char
 toChars decode arr = decode $ Array.read arr
 
-toString :: Unbox a => (Stream Identity a -> Stream Identity Char) -> Array a -> [Char]
+toString :: Unbox a =>
+    (Stream Identity a -> Stream Identity Char) -> Array a -> [Char]
 toString decode = runIdentity . Stream.toList . toChars decode
 
 ------------------------------------------------------------------------------
@@ -1697,6 +1733,8 @@ unsafeAppend os toStr a b =
 -- need a joinRoot.
 --
 -- XXX Also, we cannot append "/" to "c:/" as it will make the path invalid.
+-- XXX On Windows a path starting with / is not absolute and can be appended to
+-- a path/drive ending with :.
 
 -- | Note that append joins two paths using a separator between the paths.
 -- Using append to join a root with a path segment can change the meaning of
@@ -1790,6 +1828,14 @@ eqWindowsAbsRootStrict a b =
         $ Stream.eqBy (==)
             (fmap toDefaultSeparator $ Array.read a)
             (fmap toDefaultSeparator $ Array.read b)
+
+-- XXX Use options in the same eqPath routine instead of having different
+-- routines. On posix even macos can have case insensitive comparison.
+-- ALLOW_RELATIVE_PATH_EQUALITY, IGNORE_TRAILING_SEPARATOR,
+-- IGNORE_CASE.
+--
+-- The following options can be added later: PROCESS_PARENT_REFS,
+-- DONT_IGNORE_REDUNDANT_SEPARATORS, DONT_IGNORE_DOT_COMPONENTS.
 
 -- | Checks two paths for logical equality. It performs some normalizations on
 -- the paths before comparing them, specifically it drops redundant path
@@ -1961,6 +2007,7 @@ eqWindowsComponents a b =
 -- strict equality routine.
 --
 -- * A leading dot is ignored, thus "./x == ./x" and "./x == x".
+-- * On Windows leading non-root drive prefix is ignored "C:x == C:x"
 -- * A trailing separator is ignored thus "x/ == x".
 -- * On Windows the comparison is case insensitive thus "X == x".
 --

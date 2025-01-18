@@ -2,7 +2,6 @@
 
 -- Anything other than windows (Linux/macOS/FreeBSD) is Posix
 #if defined(IS_WINDOWS)
-#define IS_WINDOWS
 #define OS_NAME Windows
 #define OS_PATH WindowsPath
 #define WORD_TYPE Word16
@@ -43,6 +42,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     , adapt
 
     -- * Construction
+    , validatePath
     , isValid
     , fromChunk
     , unsafeFromChunk
@@ -200,6 +200,9 @@ dropTrailingSeparators :: OS_PATH -> OS_PATH
 dropTrailingSeparators (OS_PATH arr) =
     OS_PATH (Common.dropTrailingSeparators Common.OS_NAME arr)
 
+validatePath :: MonadThrow m => OS_PATH -> m ()
+validatePath (OS_PATH a) = Common.validatePath Common.OS_NAME a
+
 isValid :: OS_PATH -> Bool
 isValid (OS_PATH a) = Common.isValid Common.OS_NAME a
 
@@ -216,14 +219,19 @@ isValid (OS_PATH a) = Common.isValid Common.OS_NAME a
 -- OS_PATH are satisfied.
 {-# INLINE unsafeFromChunk #-}
 unsafeFromChunk :: IsPath OS_PATH a => Array Word8 -> a
-unsafeFromChunk = unsafeFromPath . OS_PATH . Common.unsafeFromChunk
+unsafeFromChunk =
+#ifndef DEBUG
+    unsafeFromPath . OS_PATH . Common.unsafeFromChunk
+#else
+    fromJust . fromChunk
+#endif
 
 -- XXX mkPath?
 
 -- | See 'fromChars' for failure cases.
 --
 fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array Word8 -> m a
-fromChunk arr = Common.fromChunk arr >>= fromPath . OS_PATH
+fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 
 -- XXX Should be a Fold instead?
 
@@ -234,22 +242,30 @@ fromChunk arr = Common.fromChunk arr >>= fromPath . OS_PATH
 -- * the stream contains null characters
 -- * the stream contains invalid unicode characters
 #if defined(IS_WINDOWS)
--- * the stream contains characters not allowed in paths
+-- * the path starts with more than 2 separators
+-- * the share root must be followed by a non-empty path
+-- * the root drive or share name and the path is separated by more than one separators
+-- * the path contains special characters not allowed in paths
+-- * the path contains special file names not allowed in paths
 #endif
 --
 -- Unicode normalization is not done. If normalization is needed the user can
 -- normalize it and use the fromChunk API.
 fromChars :: (MonadThrow m, IsPath OS_PATH a) => Stream Identity Char -> m a
 fromChars s =
-    Common.fromChars (== '\0') Unicode.UNICODE_ENCODER s
+    Common.fromChars Common.OS_NAME Unicode.UNICODE_ENCODER s
         >>= fromPath . OS_PATH
 
 unsafeFromString :: IsPath OS_PATH a => [Char] -> a
 unsafeFromString =
+#ifndef DEBUG
       unsafeFromPath
     . OS_PATH
-    . Common.unsafeFromChars (== '\0') Unicode.UNICODE_ENCODER
+    . Common.unsafeFromChars Unicode.UNICODE_ENCODER
     . Stream.fromList
+#else
+    fromJust . fromString
+#endif
 
 -- | See fromChars.
 --

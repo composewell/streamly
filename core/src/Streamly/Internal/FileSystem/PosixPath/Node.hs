@@ -82,7 +82,7 @@ instance IsPath OS_PATH (File OS_PATH) where
     unsafeFromPath = File
 
     fromPath p@(OS_PATH arr) = do
-        !_ <- Common.maybeFile OS_NAME arr
+        !_ <- Common.validateFile OS_NAME arr
         pure $ File p
 
     toPath (File p) = p
