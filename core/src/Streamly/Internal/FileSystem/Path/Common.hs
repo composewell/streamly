@@ -11,8 +11,10 @@ module Streamly.Internal.FileSystem.Path.Common
       OS (..)
 
     -- * Construction
-    , isValid
+    , isValidPath
+    , isValidPath'
     , validatePath
+    , validatePath'
     , validateFile
     , fromChunk
     , unsafeFromChunk
@@ -42,6 +44,7 @@ module Streamly.Internal.FileSystem.Path.Common
     -- operation. search path is separated by : and : is allowed in paths on
     -- posix. Shell would escape it which needs to be handled.
     , append
+    , append'
     , unsafeAppend
     , unsafeJoinPaths
 
@@ -88,9 +91,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (chr, ord, isAlpha, toUpper)
 import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
-#ifdef DEBUG
-import Data.Maybe (fromJust)
-#endif
 import Data.Word (Word8, Word16)
 import GHC.Base (unsafeChr)
 import Language.Haskell.TH (Q, Exp)
@@ -417,6 +417,43 @@ isAbsolute Windows arr =
 -- * @\\\\.\\@ DOS local device namespace
 -- * @\\\\??\\@ DOS global namespace
 --
+-- >>> fPosix = Common.isRooted Common.Posix . packPosix
+-- >>> fWin = Common.isRooted Common.Windows . packPosix
+--
+-- >>> fPosix "/"
+-- True
+-- >>> fPosix "/x"
+-- True
+-- >>> fPosix "."
+-- True
+-- >>> fPosix "./x"
+-- True
+-- >>> fPosix ".."
+-- False
+-- >>> fPosix "../x"
+-- False
+--
+-- >>> fWin "/"
+-- True
+-- >>> fWin "/x"
+-- True
+-- >>> fWin "."
+-- True
+-- >>> fWin "./x"
+-- True
+-- >>> fWin ".."
+-- False
+-- >>> fWin "../x"
+-- False
+-- >>> fWin "c:"
+-- True
+-- >>> fWin "c:x"
+-- True
+-- >>> fWin "c:/"
+-- True
+-- >>> fWin "//x/y"
+-- True
+--
 isRooted :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isRooted Posix a =
     hasLeadingSeparator Posix a
@@ -603,14 +640,19 @@ unsafeSplitUNC arr =
 -- otherwise root is returned as empty. If the path is rooted then the non-root
 -- part is guaranteed to not start with a separator.
 --
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toList . Common.splitRoot Common.Posix . packPosix
+-- >>> toListPosix (a,b) = (unpackPosix a, unpackPosix b)
+-- >>> splitPosix = toListPosix . Common.splitRoot Common.Posix . packPosix
+-- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
+-- >>> splitWin = toListWin . Common.splitRoot Common.Windows . packWindows
 --
 -- >>> splitPosix "/"
 -- ("/","")
 --
 -- >>> splitPosix "."
 -- (".","")
+--
+-- >>> splitPosix "./"
+-- ("./","")
 --
 -- >>> splitPosix "/home"
 -- ("/","home")
@@ -624,11 +666,28 @@ unsafeSplitUNC arr =
 -- >>> splitPosix "home"
 -- ("","home")
 --
+-- >>> splitWin "c:"
+-- ("c:","")
+--
+-- >>> splitWin "c:/"
+-- ("c:/","")
+--
+-- >>> splitWin "//"
+-- ("//","")
+--
+-- >>> splitWin "//x/y"
+-- ("//x/","y")
+--
+--
 {-# INLINE splitRoot #-}
 splitRoot :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
 -- NOTE: validatePath depends on splitRoot splitting the path without removing
 -- any redundant chars etc. It should just split and do nothing else.
 -- XXX We can put an assert here "arrLen == rootLen + stemLen".
+-- XXX assert (isValidPath path == isValidPath root)
+--
+-- NOTE: we cannot drop the trailing "/" on the root even if we want to -
+-- because "c:/" will become "c:" and the two are not equivalent.
 splitRoot Posix arr
     | isRooted Posix arr
         = unsafeSplitTopLevel Posix arr
@@ -1367,8 +1426,10 @@ isInvalidPathComponent = fmap (fmap charToWord)
     , "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"
     ]
 
-validatePath :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
-validatePath Posix path =
+{- HLINT ignore "Use when" -}
+validatePathWith :: (MonadThrow m, Integral a, Unbox a) =>
+    Bool -> OS -> Array a -> m ()
+validatePathWith _ Posix path =
     let pathLen = Array.length path
         validLen = countLeadingValid Posix path
      in if pathLen == 0
@@ -1377,32 +1438,28 @@ validatePath Posix path =
         then throwM $ InvalidPath
             $ "Null char found after " ++ show validLen ++ " characters."
         else pure ()
-validatePath Windows path
+validatePathWith allowRoot Windows path
   | Array.null path = throwM $ InvalidPath "Empty path"
   | otherwise = do
-      -- XXX give position of the first invalid char.
         if hasDrive path && postDriveSep > 1 -- "C://"
         then throwM $ InvalidPath
-            $ "More than one separators between drive root and the path"
+            "More than one separators between drive root and the path"
         else if isAbsoluteUNC path
         then
             if postDriveSep > 1 -- "///x"
             then throwM $ InvalidPath
-                $ "Path starts with more than two separators"
-            -- XXX covered by the previous check
-            -- else if Array.length path == postDriveSep + 2
-            -- then throwM $ InvalidPath $ "Only separators in share root"
+                "Path starts with more than two separators"
             else if invalidRootComponent -- "//prn/x"
             then throwM $ InvalidPath
                 -- XXX print the invalid component name
-                $ "Special filename component in share root"
+                "Special filename component found in share root"
             else if rootEndSeps /= 1 -- "//share//x"
             then throwM $ InvalidPath
                 $ "Share name is needed and exactly one separator is needed "
-                ++ "between share root and the path"
-            else if Array.null stem -- "//share/"
+                ++ "after the share root"
+            else if not allowRoot && Array.null stem -- "//share/"
             then throwM $ InvalidPath
-                $ "the share root must be followed by a non-empty path"
+                "the share root must be followed by a non-empty path"
             else pure ()
         else pure ()
 
@@ -1415,7 +1472,7 @@ validatePath Windows path
             ++ " [" ++ show invalidVal ++ "]"
         else if invalidComponent -- "x/prn/y"
         -- XXX print the invalid component name
-        then throwM $ InvalidPath $ "Disallowed Windows filename in path"
+        then throwM $ InvalidPath "Disallowed Windows filename in path"
         else pure ()
 
     where
@@ -1467,16 +1524,29 @@ validatePath Windows path
     invalidComponent =
         List.any (`List.elem` isInvalidPathComponent) (components stem)
 
+-- | A valid root, share root or a valid path.
+validatePath :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
+validatePath = validatePathWith True
+
+-- | Like validatePath but on Windows only full paths are allowed, path roots
+-- only are not allowed. Thus "//x/" is not valid.
+validatePath' :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
+validatePath' = validatePathWith False
+
 -- Note: We can use powershell for testing path validity.
 -- "//share/x" works in powershell.
 -- But mixed forward and backward slashes do not work, it is treated as a path
 -- relative to current drive e.g. "\\/share/x" is treated as "C:/share/x".
-
--- | Check if the filepath is valid i.e. does the operating system allow such a
--- path in listing or creating files?
 --
--- >>> isValidPosix = Common.isValid Common.Posix . packPosix
--- >>> isValidWin = Common.isValid Common.Windows . packWindows
+-- XXX Note: Windows may have case sensitive behavior depending on the file
+-- system being used. Does it impact any of the case insensitive validations
+-- below?
+
+-- | Check if the filepath is valid i.e. does the operating system or the file
+-- system allow such a path in listing or creating files?
+--
+-- >>> isValidPosix = Common.isValidPath Common.Posix . packPosix
+-- >>> isValidWin = Common.isValidPath Common.Windows . packWindows
 --
 -- Posix and Windows:
 --
@@ -1514,7 +1584,7 @@ validatePath Windows path
 -- False
 -- >>> isValidWin "c:\\ pRn \\x"
 -- False
--- >>> isValidWin "pRn.x.txt" -- is this allowed?
+-- >>> isValidWin "pRn.x.txt"
 -- False
 --
 -- Windows drive root validations:
@@ -1547,7 +1617,7 @@ validatePath Windows path
 -- >>> isValidWin "\\\\x"
 -- False
 -- >>> isValidWin "\\\\x\\"
--- False
+-- True
 -- >>> isValidWin "\\\\x\\y"
 -- True
 -- >>> isValidWin "//x/y"
@@ -1580,8 +1650,8 @@ validatePath Windows path
 --
 -- Windows long UNC path validations:
 --
--- >>> isValidWin "\\\\?\\UnC\\x"
--- False
+-- >>> isValidWin "\\\\?\\UnC\\x" -- UnC treated as share name
+-- True
 -- >>> isValidWin "\\\\?\\UNC\\x"
 -- True
 -- >>> isValidWin "\\\\?\\UNC\\c:\\x"
@@ -1593,9 +1663,24 @@ validatePath Windows path
 -- True
 -- >>> isValidWin "\\\\??\\x"
 -- True
-isValid :: (Integral a, Unbox a) => OS -> Array a -> Bool
-isValid os path =
+isValidPath :: (Integral a, Unbox a) => OS -> Array a -> Bool
+isValidPath os path =
     case validatePath os path of
+        Nothing -> False
+        Just _ -> True
+
+-- |
+-- >>> isValidWin = Common.isValidPath' Common.Windows . packWindows
+--
+-- The following roots allowed by isValidPath are not allowed:
+--
+-- >>> isValidWin "\\\\x\\"
+-- False
+-- >>> isValidWin "\\\\?\\UNC\\x"
+-- False
+isValidPath' :: (Integral a, Unbox a) => OS -> Array a -> Bool
+isValidPath' os path =
+    case validatePath' os path of
         Nothing -> False
         Just _ -> True
 
@@ -1610,8 +1695,6 @@ isValid os path =
 {-# INLINE unsafeFromChunk #-}
 unsafeFromChunk :: Array Word8 -> Array a
 unsafeFromChunk = Array.unsafeCast
-
--- XXX Also check for invalid chars on windows.
 
 -- | On Posix it may fail if the byte array contains null characters. On
 -- Windows the array passed must be a multiple of 2 bytes as the underlying
@@ -1644,11 +1727,14 @@ unsafeFromChars encode s =
     let n = runIdentity $ Stream.fold Fold.length s
      in Array.fromPureStreamN n (encode s)
 
--- Note: We do not sanitize the path i.e. remove duplicate separators, .
+-- | Note: We do not sanitize the path i.e. remove duplicate separators, .
 -- segments, trailing separator etc because that would require unnecessary
--- checks and modifications to the path which may not be required, this is only
--- needed for path equality and is done during the equality check. If
--- normalization is desired users can do it explicitly.
+-- checks and modifications to the path which may not be used ever for any
+-- useful purpose, it is only needed for path equality and can be done during
+-- the equality check. If normalization is desired users can do it explicitly.
+--
+-- fromChars should accept both - just root or path. Otherwise we will need a
+-- separate type for Root.
 --
 -- XXX Writing a custom fold for parsing a Posix path may be better for
 -- efficient bulk parsing when needed. We need the same code to validate a
@@ -1693,22 +1779,31 @@ mkQ f =
 -- Operations of Path
 ------------------------------------------------------------------------------
 
--- XXX This can be generalized to an Array intersperse operation
-
 {-# INLINE doAppend #-}
 doAppend :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Array a
 doAppend os a b = unsafePerformIO $ do
     let lenA = Array.length a
         lenB = Array.length b
     assertM(lenA /= 0 && lenB /= 0)
-    assertM(countTrailingBy (isSeparatorWord os) a == 0)
+    let lastA = Array.unsafeGetIndexRev 0 a
+        sepA = isSeparatorWord os lastA
+        sepB = isSeparatorWord os (Array.unsafeGetIndex 0 b)
     let len = lenA + 1 + lenB
     arr <- MutArray.emptyOf len
     arr1 <- MutArray.unsafeSplice arr (Array.unsafeThaw a)
-    -- XXX Do not add the separator if already present in the first or the
-    -- second path
-    arr2 <- MutArray.unsafeSnoc arr1 (charToWord (primarySeparator os))
-    arr3 <- MutArray.unsafeSplice arr2 (Array.unsafeThaw b)
+    arr2 <-
+            if     lenA /= 0
+                && lenB /= 0
+                && not sepA
+                && not sepB
+                && not (os == Windows && lastA == charToWord ':')
+            then MutArray.unsafeSnoc arr1 (charToWord (primarySeparator os))
+            else pure arr1
+    let arrB =
+            if sepA && sepB
+            then snd $ Array.unsafeSplitAt 1 b
+            else b
+    arr3 <- MutArray.unsafeSplice arr2 (Array.unsafeThaw arrB)
     return (Array.unsafeFreeze arr3)
 
 {-# INLINE withAppendCheck #-}
@@ -1721,36 +1816,125 @@ withAppendCheck os toStr arr f =
 
 -- | Does not check if any of the path is empty or if the second path is
 -- absolute.
-{-# INLINE unsafeAppend #-}
-unsafeAppend :: (Unbox a, Integral a) =>
-    OS -> (Array a -> String) -> Array a -> Array a -> Array a
-unsafeAppend os toStr a b =
-    assert (withAppendCheck os toStr b True) (doAppend os a b)
-
--- XXX Note: an altrenative way of joining "c:" and "x" could be treat ":" as a
--- separator and not add a "/". If someone wants to add a slash then they can
--- append it to the root e.g. append "c:" "/". If we do this then we will not
--- need a joinRoot.
 --
--- XXX Also, we cannot append "/" to "c:/" as it will make the path invalid.
--- XXX On Windows a path starting with / is not absolute and can be appended to
--- a path/drive ending with :.
-
--- | Note that append joins two paths using a separator between the paths.
--- Using append to join a root with a path segment can change the meaning of
--- the path on windows at least in one case e.g. "c:/x" is not the same as
--- "c:x". For such cases we should use joinRoot.
---
--- >>> appendPosix a b = unpackPosix $ Common.append Common.Posix (Common.toString Unicode.decodeUtf8) (packPosix a) (packPosix b)
+-- >>> appendPosix a b = unpackPosix $ Common.unsafeAppend Common.Posix (Common.toString Unicode.decodeUtf8) (packPosix a) (packPosix b)
+-- >>> appendWin a b = unpackWindows $ Common.unsafeAppend Common.Windows (Common.toString Unicode.decodeUtf16le') (packWindows a) (packWindows b)
 --
 -- >>> appendPosix "x" "y"
 -- "x/y"
+-- >>> appendPosix "x/" "y"
+-- "x/y"
+-- >>> appendPosix "x" "/y"
+-- "x/y"
+-- >>> appendPosix "x/" "/y"
+-- "x/y"
 --
+{-# INLINE unsafeAppend #-}
+unsafeAppend :: (Unbox a, Integral a) =>
+    OS -> (Array a -> String) -> Array a -> Array a -> Array a
+unsafeAppend os _toStr = doAppend os
+
+-- | Note that append joins two paths using a separator between the paths.
+--
+-- On Windows, joining a drive "c:" with "x" does not add a separator between
+-- the two because "c:x" is different from "c:/x". Note "c:" and "/x" are both
+-- rooted paths, therefore, append cannot be used to join them. You will need
+-- to use dropRoot on the second path before joining them. Similarly for
+-- joining "//x/" and "/y".
+--
+-- >>> import Data.Either (Either, isLeft)
+-- >>> import Control.Exception (SomeException, evaluate, try)
+--
+-- >>> appendPosix a b = unpackPosix $ Common.append Common.Posix (Common.toString Unicode.decodeUtf8) (packPosix a) (packPosix b)
+-- >>> appendWin a b = unpackWindows $ Common.append Common.Windows (Common.toString Unicode.decodeUtf16le') (packWindows a) (packWindows b)
+-- >>> failPosix a b = (try (evaluate (appendPosix a b)) :: IO (Either SomeException String)) >>= return . isLeft
+-- >>> failWin a b = (try (evaluate (appendWin a b)) :: IO (Either SomeException String)) >>= return . isLeft
+--
+-- >>> appendPosix "x" "y"
+-- "x/y"
+-- >>> appendPosix "x/" "y"
+-- "x/y"
+-- >>> failPosix "x" "/"
+-- True
+--
+-- >>> appendWin "x" "y"
+-- "x\\y"
+-- >>> appendWin "x/" "y"
+-- "x/y"
+-- >>> appendWin "c:" "x"
+-- "c:x"
+-- >>> appendWin "c:/" "x"
+-- "c:/x"
+-- >>> appendWin "//x" "y"
+-- "//x\\y"
+-- >>> appendWin "//x/" "y"
+-- "//x/y"
+--
+-- >>> failWin "c:" "/"
+-- True
+-- >>> failWin "c:" "/x"
+-- True
+-- >>> failWin "c:/" "/x"
+-- True
+-- >>> failWin "//x/" "/y"
+-- True
 {-# INLINE append #-}
 append :: (Unbox a, Integral a) =>
     OS -> (Array a -> String) -> Array a -> Array a -> Array a
-append os toStr a b =
-    withAppendCheck os toStr b (doAppend os a b)
+append os toStr a b = withAppendCheck os toStr b (doAppend os a b)
+
+-- | A stricter version of append which requires the first path to be a
+-- directory like path i.e. with a trailing separator.
+--
+-- >>> import Data.Either (Either, isLeft)
+-- >>> import Control.Exception (SomeException, evaluate, try)
+--
+-- >>> appendPosix a b = unpackPosix $ Common.append' Common.Posix (Common.toString Unicode.decodeUtf8) (packPosix a) (packPosix b)
+-- >>> appendWin a b = unpackWindows $ Common.append' Common.Windows (Common.toString Unicode.decodeUtf16le') (packWindows a) (packWindows b)
+-- >>> failPosix a b = (try (evaluate (appendPosix a b)) :: IO (Either SomeException String)) >>= return . isLeft
+-- >>> failWin a b = (try (evaluate (appendWin a b)) :: IO (Either SomeException String)) >>= return . isLeft
+--
+-- >>> failPosix "x" "y"
+-- True
+-- >>> appendPosix "x/" "y"
+-- "x/y"
+-- >>> failPosix "x" "/"
+-- True
+--
+-- >>> failWin "x" "y"
+-- True
+-- >>> appendWin "x/" "y"
+-- "x/y"
+-- >>> appendWin "c:" "x"
+-- "c:x"
+-- >>> appendWin "c:/" "x"
+-- "c:/x"
+-- >>> failWin "//x" "y"
+-- True
+-- >>> appendWin "//x/" "y"
+-- "//x/y"
+--
+-- >>> failWin "c:" "/"
+-- True
+-- >>> failWin "c:" "/x"
+-- True
+-- >>> failWin "c:/" "/x"
+-- True
+-- >>> failWin "//x/" "/y"
+-- True
+{-# INLINE append' #-}
+append' :: (Unbox a, Integral a) =>
+    OS -> (Array a -> String) -> Array a -> Array a -> Array a
+append' os toStr a b =
+    let hasSep = countTrailingBy (isSeparatorWord os) a > 0
+        hasColon =
+               os == Windows
+            && Array.getIndexRev 0 a == Just (charToWord ':')
+     in if hasSep || hasColon
+        then withAppendCheck os toStr b (doAppend os a b)
+        else error
+                $ "append': first path must be dir like i.e. must have a "
+                ++ "trailing separator or colon on windows: " ++ toStr a
 
 -- XXX MonadIO?
 
@@ -1830,9 +2014,9 @@ eqWindowsAbsRootStrict a b =
             (fmap toDefaultSeparator $ Array.read b)
 
 -- XXX Use options in the same eqPath routine instead of having different
--- routines. On posix even macos can have case insensitive comparison.
--- ALLOW_RELATIVE_PATH_EQUALITY, IGNORE_TRAILING_SEPARATOR,
--- IGNORE_CASE.
+-- routines. On posix even macOs can have case insensitive comparison. On
+-- Windows also case sensitive behavior may depend on the file system being
+-- used. ALLOW_RELATIVE_EQ, IGNORE_TRAILING_SEPARATOR, IGNORE_CASE.
 --
 -- The following options can be added later: PROCESS_PARENT_REFS,
 -- DONT_IGNORE_REDUNDANT_SEPARATORS, DONT_IGNORE_DOT_COMPONENTS.

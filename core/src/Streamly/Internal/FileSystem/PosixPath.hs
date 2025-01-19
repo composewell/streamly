@@ -43,7 +43,8 @@ module Streamly.Internal.FileSystem.OS_PATH
 
     -- * Construction
     , validatePath
-    , isValid
+    , validatePath'
+    , isValidPath
     , fromChunk
     , unsafeFromChunk
     , fromChars
@@ -69,18 +70,19 @@ module Streamly.Internal.FileSystem.OS_PATH
     , toString
 
     -- * Operations
-    , dropTrailingSeparators
-    , isRooted
-    , isBranch
-
-    -- * Combinators
     -- Do we need to export the separator functions? They are not essential if
     -- operations to split and combine paths are provided. If someone wants to
     -- work on paths at low level then they know what they are.
     -- , isPrimarySeparator
     -- , isSeparator
+    , dropTrailingSeparators
+    , isRooted
+    , isBranch
+
+    -- * Combinators
     , unsafeAppend
     , append
+    , append'
     , splitRoot
     , splitPath
     , splitPath_
@@ -95,6 +97,9 @@ where
 import Control.Monad.Catch (MonadThrow(..))
 import Data.Bifunctor (bimap)
 import Data.Functor.Identity (Identity(..))
+#ifdef DEBUG
+import Data.Maybe (fromJust)
+#endif
 import Data.Word (Word8)
 #if defined(IS_WINDOWS)
 import Data.Word (Word16)
@@ -138,36 +143,31 @@ For APIs that have not been released yet.
 
 -- | A type representing file system paths on OS_NAME.
 --
--- A OS_PATH is validated before construction unless unsafe constructors are used
--- to create it. Rules and invariants maintained by the safe construction
--- methods are as follows:
---
--- * Does not contain a null character.
--- * Does not have a trailing separator except in the root path.
--- * Does not have a trailing @.@ component.
--- * Does not have consecutive separators except in UNC prefixes on Windows.
--- * Does not contain @\/.\/@ path components except in a UNC prefix on
---   Windows.
+-- A OS_PATH is validated before construction unless unsafe constructors are
+-- used to create it. For validations performed by the safe construction
+-- methods see the 'fromChars' function.
 --
 -- Note that in some cases the file system may perform unicode normalization on
 -- paths (e.g. Apple HFS), it may cause surprising results as the path used by
 -- the user may not have the same bytes as later returned by the file system.
 newtype OS_PATH = OS_PATH (Array WORD_TYPE)
 
--- Show instance prints raw bytes without any decoding for rountdtripping. We
--- can use a Lax Utf8 decoding and print it as a string for convenience? Should
--- we print raw path as a string instead, may be useful for ascii chars but
--- utf8 encoded chars may be unprintable.  Better use toString if you want to
--- pretty print the path.
+-- Show instance is not provided because Show and Read should be inverses but
+-- we cannot ensure that as the path encoding may depend on the OS or the
+-- file system. We can print the byte values though but that won't be very
+-- useful. If we do not care about Show and Read being striclty faithful
+-- inverses we can use the default encoding/decoding to implement them.
+-- Otherwise we can just use toString, fromString for Show and Read purposes.
+--
 {-
 instance Show OS_PATH where
     show (OS_PATH x) = show x
 -}
 
--- XXX The Eq instance needs to make sure that the paths are equivalent. If we
--- normalize the paths we can do a byte comparison. However, on windows paths
--- are case insensitive but the case is preserved, therefore, we cannot
--- normalize and need to do case insensitive comparison.
+-- XXX The Eq instance may be provided but it will require some sensible
+-- defaults for comparison. For example, should we use case sensitive or
+-- insensitive comparison? It depends on the underlying file system. For now
+-- now we have eqPath operations for equality comparison.
 
 instance IsPath OS_PATH OS_PATH where
     unsafeFromPath = id
@@ -176,8 +176,8 @@ instance IsPath OS_PATH OS_PATH where
 
 -- XXX Use rewrite rules to eliminate intermediate conversions for better
 -- efficiency. If the argument path is already verfied for a property, we
--- should not verify it again e.g. if we adapt (Loc path) as (Loc (Dir path))
--- then we should not verify it to be Loc again.
+-- should not verify it again e.g. if we adapt (Rooted path) as (Rooted (Dir
+-- path)) then we should not verify it to be Rooted again.
 
 -- XXX castPath?
 
@@ -203,8 +203,17 @@ dropTrailingSeparators (OS_PATH arr) =
 validatePath :: MonadThrow m => OS_PATH -> m ()
 validatePath (OS_PATH a) = Common.validatePath Common.OS_NAME a
 
-isValid :: OS_PATH -> Bool
-isValid (OS_PATH a) = Common.isValid Common.OS_NAME a
+isValidPath :: OS_PATH -> Bool
+isValidPath (OS_PATH a) = Common.isValidPath Common.OS_NAME a
+
+-- Note: CPP gets confused by the prime suffix, so we have to put the CPP
+-- macros on the next line to get it to work.
+
+validatePath' :: MonadThrow m =>
+    OS_PATH -> m ()
+validatePath'
+    (OS_PATH a) = Common.validatePath'
+        Common.OS_NAME a
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -243,7 +252,6 @@ fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 -- * the stream contains invalid unicode characters
 #if defined(IS_WINDOWS)
 -- * the path starts with more than 2 separators
--- * the share root must be followed by a non-empty path
 -- * the root drive or share name and the path is separated by more than one separators
 -- * the path contains special characters not allowed in paths
 -- * the path contains special file names not allowed in paths
@@ -387,7 +395,8 @@ unsafeAppend (OS_PATH a) (OS_PATH b) =
 
 -- | Append a OS_PATH to another. Fails if the second path refers to a rooted
 -- path and not a branch. Use 'unsafeAppend' to avoid failure if you know it is
--- ok to append the path.
+-- ok to append the path or use the typesafe "Streamly.FileSystem.OS_PATH.Seg"
+-- module.
 --
 -- >>> Path.toString $ Path.append [path|/usr|] [path|bin|]
 -- "/usr/bin"
@@ -396,6 +405,17 @@ append :: OS_PATH -> OS_PATH -> OS_PATH
 append (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append
+            Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
+
+-- | A stricter version of 'append' which requires the first path to be a
+-- directory like path i.e. with a trailing separator.
+--
+append' ::
+    OS_PATH -> OS_PATH -> OS_PATH
+append'
+    (OS_PATH a) (OS_PATH b) =
+    OS_PATH
+        $ Common.append'
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
 ------------------------------------------------------------------------------
