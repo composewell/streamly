@@ -10,12 +10,14 @@ module Streamly.Internal.FileSystem.Path.Common
     -- * Types
       OS (..)
 
-    -- * Construction
+    -- * Validation
     , isValidPath
     , isValidPath'
     , validatePath
     , validatePath'
     , validateFile
+
+    -- * Construction
     , fromChunk
     , unsafeFromChunk
     , fromChars
@@ -29,45 +31,64 @@ module Streamly.Internal.FileSystem.Path.Common
     , toString
     , toChars
 
-    -- * Operations
+    -- * Separators
     , primarySeparator
     , isSeparator
     , dropTrailingSeparators
     , hasTrailingSeparator
+    , hasLeadingSeparator
+
+    -- * Tests
     , isBranch
     , isRooted
     , isAbsolute
-    , isRootRelative
-    , isRelativeWithDrive
+ -- , isRelative -- not isAbsolute
+    , isRootRelative -- XXX hasRelativeRoot
+    , isRelativeWithDrive -- XXX hasRelativeDriveRoot
+    , hasDrive
 
-    -- Note: splitting the search path does not belong here, it is shell aware
-    -- operation. search path is separated by : and : is allowed in paths on
-    -- posix. Shell would escape it which needs to be handled.
+    -- * Joining
     , append
     , append'
     , unsafeAppend
     , unsafeJoinPaths
+ -- , joinRoot -- XXX append should be enough
 
-    -- Path splitting
+    -- * Splitting
+
+    -- Note: splitting the search path does not belong here, it is shell aware
+    -- operation. search path is separated by : and : is allowed in paths on
+    -- posix. Shell would escape it which needs to be handled.
+
     , splitRoot
  -- , dropRoot
- -- , joinRoot
+ -- , dropRelRoot -- if relative then dropRoot
     , splitHead
     , splitTail
-    , splitFile
-    , splitDir
     , splitPath
     , splitPath_
-    , splitExtension
-    , extensionWord
- -- , processParentRefs
 
-    -- Path equality
+    -- * Dir and File
+    , splitFile
+    , splitDir
+
+    -- * Extensions
+    , extensionWord
+    , splitExtension
+ -- , addExtension
+
+    -- * Equality
+ -- , processParentRefs
     , normalizeSeparators
+ -- , normalize -- separators and /./ components (split/combine)
     , eqPathBytes
-    , eqPathStrict
-    , eqPosixPath
-    , eqWindowsPath
+    , EqCfg(..)
+    , eqCfg
+    , eqPathWith
+    , eqPath
+ -- , commonPrefix -- common prefix of two paths
+ -- , eqPrefix -- common prefix is equal to first path
+ -- , dropPrefix
 
     -- * Utilities
     , wordToChar
@@ -1987,39 +2008,226 @@ unsafeJoinPaths os =
 eqPathBytes :: Array a -> Array a -> Bool
 eqPathBytes = Array.byteEq
 
-{-# INLINE eqComponents #-}
-eqComponents :: (Integral a, Unbox a) => OS -> Array a -> Array a -> Bool
-eqComponents os a b =
-    runIdentity
-        $ Stream.eqBy
-            Array.byteEq (splitPath_ os a) (splitPath_ os b)
+-- On posix even macOs can have case insensitive comparison. On Windows also
+-- case sensitive behavior may depend on the file system being used.
 
-{-# INLINE eqStemStrict #-}
-eqStemStrict :: (Integral a, Unbox a) => OS -> Array a -> Array a -> Bool
-eqStemStrict os a b =
-    hasTrailingSeparator os a == hasTrailingSeparator os b
-        && eqComponents os a b
+-- Use eq prefix?
 
--- XXX On Windows, for invalid paths the behavior may be indeterminate.
--- In a drive component of a valid path we cannot have multiple redundant
--- separators anywhere including at the end, therefore, we do not compact the
--- separator.
+-- | Options for path comparison operation. By default path comparison uses a
+-- strict criteria for equality. The following options are provided to
+-- control the strictness.
+data EqCfg =
+    EqCfg
+    { ignoreTrailingSeparators :: Bool -- ^ Allows "x/" == "x"
+    , ignoreCase :: Bool               -- ^ Allows "x" == "X"
+    , allowRelativeEquality :: Bool
+    -- ^ A leading dot is ignored, thus "./x" == "./x" and "./x" == "x".
+    -- On Windows allows "/x" == /x" and "C:x == C:x"
 
--- | Case sensitive comparison of absolute path with drive or share name.
-eqWindowsAbsRootStrict :: (Integral a, Unbox a) => Array a -> Array a -> Bool
-eqWindowsAbsRootStrict a b =
-    runIdentity
-        $ Stream.eqBy (==)
-            (fmap toDefaultSeparator $ Array.read a)
-            (fmap toDefaultSeparator $ Array.read b)
+    -- , resolveParentReferences -- "x/../y" == "y"
+    -- , noIgnoreRedundantSeparators -- "x//y" /= "x/y"
+    -- , noIgnoreRedundantDot -- "x/./" /= "x"
+    }
 
--- XXX Use options in the same eqPath routine instead of having different
--- routines. On posix even macOs can have case insensitive comparison. On
--- Windows also case sensitive behavior may depend on the file system being
--- used. ALLOW_RELATIVE_EQ, IGNORE_TRAILING_SEPARATOR, IGNORE_CASE.
+eqCfg :: EqCfg
+eqCfg = EqCfg
+    { ignoreTrailingSeparators = False
+    , ignoreCase = False
+    , allowRelativeEquality = False
+    }
+
+data PosixRoot = PosixRootAbs | PosixRootRel deriving Eq
+
+data WindowsRoot =
+      WindowsRootPosix -- /x or ./x
+    | WindowsRootNonPosix -- C:... or \\...
+    deriving Eq
+
+-- | Change to upper case and replace separators by primary separator
+{-# INLINE normalizeCaseAndSeparators #-}
+normalizeCaseAndSeparators :: Monad m => Array Word16 -> Stream m Char
+normalizeCaseAndSeparators =
+      fmap toUpper
+    . Unicode.decodeUtf16le'
+    . fmap toDefaultSeparator
+    . Array.read
+
+{-# INLINE normalizeCaseWith #-}
+normalizeCaseWith :: (Monad m, Unbox a) =>
+    (Stream m a -> Stream m Char) -> Array a -> Stream m Char
+normalizeCaseWith decoder =
+      fmap toUpper
+    . decoder
+    . Array.read
+
+eqWindowsRootStrict :: (Unbox a, Integral a) =>
+    Bool -> Array a -> Array a -> Bool
+eqWindowsRootStrict ignCase a b =
+    let f = normalizeCaseAndSeparators
+     in if ignCase
+        then
+            -- XXX We probably do not want to equate UNC with UnC etc.
+            runIdentity
+                $ Stream.eqBy (==)
+                    (f $ Array.unsafeCast a) (f $ Array.unsafeCast b)
+        else
+            runIdentity
+                $ Stream.eqBy (==)
+                    (fmap toDefaultSeparator $ Array.read a)
+                    (fmap toDefaultSeparator $ Array.read b)
+
+{-# INLINE eqRootStrict #-}
+eqRootStrict :: (Unbox a, Integral a) =>
+    Bool -> OS -> Array a -> Array a -> Bool
+eqRootStrict _ Posix a b =
+    -- a can be "/" and b can be "//"
+    -- We call this only when the roots are either absolute or null.
+    Array.null a == Array.null b
+eqRootStrict ignCase Windows a b = eqWindowsRootStrict ignCase a b
+
+-- | Compare Posix roots or Windows roots without a drive or share name.
+{-# INLINE eqPosixRootLax #-}
+eqPosixRootLax :: (Unbox a, Integral a) => Array a -> Array a -> Bool
+eqPosixRootLax a b = getRoot a == getRoot b
+
+    where
+
+    -- Can only be either "", '.', './' or '/' (or Windows separators)
+    getRoot arr =
+        if Array.null arr || unsafeIndexChar 0 arr == '.'
+        then PosixRootRel
+        else PosixRootAbs
+
+{-# INLINABLE eqRootLax #-}
+eqRootLax :: (Unbox a, Integral a) => Bool -> OS -> Array a -> Array a -> Bool
+eqRootLax _ Posix a b = eqPosixRootLax a b
+eqRootLax ignCase Windows a b =
+    let aType = getRootType a
+        bType = getRootType b
+     in aType == bType
+        && (
+            (aType == WindowsRootPosix && eqPosixRootLax a b)
+            || eqWindowsRootStrict ignCase a b
+           )
+
+    where
+
+    getRootType arr =
+        if isAbsoluteUNC arr || hasDrive arr
+        then WindowsRootNonPosix
+        else WindowsRootPosix
+
+{-# INLINE eqComponentsWith #-}
+eqComponentsWith :: (Unbox a, Integral a) =>
+       Bool
+    -> (Stream Identity a -> Stream Identity Char)
+    -> OS
+    -> Array a
+    -> Array a
+    -> Bool
+eqComponentsWith ignCase decoder os a b =
+    if ignCase
+    then
+        let streamEq x y = runIdentity $ Stream.eqBy (==) x y
+            toComponents = fmap (normalizeCaseWith decoder) . splitPath_ os
+        -- XXX check perf/fusion
+         in runIdentity
+                $ Stream.eqBy streamEq (toComponents a) (toComponents b)
+    else
+        runIdentity
+            $ Stream.eqBy
+                Array.byteEq (splitPath_ os a) (splitPath_ os b)
+
+-- XXX can we do something like SpecConstr for such functions e.g. without
+-- inlining the function we can use two copies one for allowRelativeEquality
+-- True and other for False and so on for other values of PathEq.
+
+-- | Like eqPath but we can control the equality options.
 --
--- The following options can be added later: PROCESS_PARENT_REFS,
--- DONT_IGNORE_REDUNDANT_SEPARATORS, DONT_IGNORE_DOT_COMPONENTS.
+-- >>> :{
+--  cfg = Common.eqCfg {Common.ignoreTrailingSeparators = True, Common.allowRelativeEquality = True}
+--  eq a b = Common.eqPathWith Unicode.decodeUtf8' Common.Posix cfg (packPosix a) (packPosix b)
+-- :}
+--
+-- >>> eq "."  "."
+-- True
+--
+-- >>> eq "./"  ".//"
+-- True
+--
+-- >>> eq "./x"  "./x"
+-- True
+--
+-- >>> eq "./x"  "x"
+-- True
+--
+-- >>> eq "x/"  "x"
+-- True
+--
+-- >>> eq "x/"  "X"
+-- False
+--
+-- >>> eq "x//y"  "x/y"
+-- True
+--
+-- >>> eq "x/./y"  "x/y"
+-- True
+--
+-- >>> eq "x"  "x"
+-- True
+--
+-- >>> :{
+--  cfg = Common.eqCfg {Common.ignoreTrailingSeparators = True, Common.ignoreCase = True, Common.allowRelativeEquality = True}
+--  eq a b = Common.eqPathWith Unicode.decodeUtf16le' Common.Windows cfg (packWindows a) (packWindows b)
+-- :}
+--
+-- >>> eq "./x"  "x"
+-- True
+--
+-- >>> eq "X/"  "x"
+-- True
+--
+-- >>> eq "C:x"  "c:X"
+-- True
+--
+-- >>> eq ".\\x"  "./X"
+-- True
+--
+-- >>> eq "x//y"  "x/y"
+-- True
+--
+-- >>> eq "x/./y"  "x/y"
+-- True
+--
+-- >>> eq "x"  "x"
+-- True
+--
+{-# INLINE eqPathWith #-}
+eqPathWith :: (Unbox a, Integral a) =>
+    (Stream Identity a -> Stream Identity Char)
+    -> OS -> EqCfg -> Array a -> Array a -> Bool
+eqPathWith decoder os EqCfg{..} a b =
+    let (rootA, stemA) = splitRoot os a
+        (rootB, stemB) = splitRoot os b
+
+        eqRelative =
+               if allowRelativeEquality
+               then eqRootLax ignoreCase os rootA rootB
+               else (not (isRootRelative os rootA)
+                    && not (isRootRelative os rootB))
+                    && eqRootStrict ignoreCase os rootA rootB
+
+        -- XXX If one ends in a "." and the other ends in ./ (and same for ".."
+        -- and "../") then they can be equal. We can append a slash in these two
+        -- cases before comparing.
+        eqTrailingSep =
+            ignoreTrailingSeparators
+                || hasTrailingSeparator os a == hasTrailingSeparator os b
+
+     in
+           eqRelative
+        && eqTrailingSep
+        && eqComponentsWith ignoreCase decoder os stemA stemB
 
 -- | Checks two paths for logical equality. It performs some normalizations on
 -- the paths before comparing them, specifically it drops redundant path
@@ -2056,9 +2264,12 @@ eqWindowsAbsRootStrict a b =
 -- must be files or both must be directories.
 --
 -- >>> :{
---  eqPosix a b = Common.eqPathStrict Common.Posix (packPosix a) (packPosix b)
---  eqWindows a b = Common.eqPathStrict Common.Windows (packWindows a) (packWindows b)
+--  eqPosix a b = Common.eqPath Unicode.decodeUtf8' Common.Posix (packPosix a) (packPosix b)
+--  eqWindows a b = Common.eqPath Unicode.decodeUtf16le' Common.Windows (packWindows a) (packWindows b)
 -- :}
+--
+-- >>> eqPosix "/x"  "//x"
+-- True
 --
 -- >>> eqPosix "x//y"  "x/y"
 -- True
@@ -2102,165 +2313,8 @@ eqWindowsAbsRootStrict a b =
 -- >>> eqWindows "c:x"  "c:x"
 -- False
 --
-eqPathStrict :: (Integral a, Unbox a) => OS -> Array a -> Array a -> Bool
-eqPathStrict Posix a b =
-    not (isRootRelative Posix a)
-        && not (isRootRelative Posix b)
-        -- XXX If one ends in a "." and the other ends in ./ and same for ".."
-        -- and "../" then they can be equal. We can append a slash in these two
-        -- cases before comparing.
-        && eqStemStrict Posix a b
-eqPathStrict Windows a b =
-    let (rootA, stemA) = splitRoot Windows a
-        (rootB, stemB) = splitRoot Windows b
-     in
-        not (isRootRelative Windows a)
-            && not (isRootRelative Windows b)
-            -- XXX make it case insensitive?
-            && eqWindowsAbsRootStrict rootA rootB
-            && eqStemStrict Windows stemA stemB
-
-data PosixRoot = PosixRootAbs | PosixRootRel deriving Eq
-
--- | Compare Posix roots or Windows roots without a drive or share name.
-eqPosixRoot :: (Integral a, Unbox a) => Array a -> Array a -> Bool
-eqPosixRoot a b = getRoot a == getRoot b
-
-    where
-
-    -- Can only be either "", '.', './' or '/' (or Windows separators)
-    getRoot arr =
-        if Array.null arr || unsafeIndexChar 0 arr == '.'
-        then PosixRootRel
-        else PosixRootAbs
-
-data WindowsRoot =
-      WindowsRootPosix -- /x or ./x
-    | WindowsRootNonPosix -- C:... or \\...
-    deriving Eq
-
--- | Change to upper case and replace separators by primary separator
-{-# INLINE normalizeCaseAndSeparators #-}
-normalizeCaseAndSeparators :: Monad m => Array Word16 -> Stream m Char
-normalizeCaseAndSeparators =
-      fmap toUpper
-    . Unicode.decodeUtf16le'
-    . fmap toDefaultSeparator
-    . Array.read
-
--- | Change to upper case.
-{-# INLINE normalizeCase #-}
-normalizeCase :: Monad m => Array Word16 -> Stream m Char
-normalizeCase =
-      fmap toUpper
-    . Unicode.decodeUtf16le'
-    . Array.read
-
--- | Case insensitive comparison of windows path roots.
-eqWindowsRoot :: Array Word16 -> Array Word16 -> Bool
-eqWindowsRoot a b =
-    let aType = getRoot a
-        bType = getRoot b
-     in aType == bType
-        && ((aType == WindowsRootPosix && eqPosixRoot a b) || eqNonPosix)
-
-    where
-
-    getRoot arr =
-        if isAbsoluteUNC arr || hasDrive arr
-        then WindowsRootNonPosix
-        else WindowsRootPosix
-
-    f = normalizeCaseAndSeparators
-    eqNonPosix = runIdentity $ Stream.eqBy (==) (f a) (f b)
-
--- | Compare path components of a windows path without a drive or share.
-{-# INLINE eqWindowsComponents #-}
-eqWindowsComponents :: Array Word16 -> Array Word16 -> Bool
-eqWindowsComponents a b =
-    -- XXX check perf/fusion
-    runIdentity $ Stream.eqBy streamEq (toComponents a) (toComponents b)
-
-    where
-
-    streamEq x y = runIdentity $ Stream.eqBy (==) x y
-
-    toComponents = fmap normalizeCase . splitPath_ Windows
-
--- | The following additional equalities are allowed in comparison to the
--- strict equality routine.
---
--- * A leading dot is ignored, thus "./x == ./x" and "./x == x".
--- * On Windows leading non-root drive prefix is ignored "C:x == C:x"
--- * A trailing separator is ignored thus "x/ == x".
--- * On Windows the comparison is case insensitive thus "X == x".
---
--- >>> :{
---  eq a b = Common.eqPosixPath (packPosix a) (packPosix b)
--- :}
---
--- >>> eq "."  "."
--- True
---
--- >>> eq "./"  ".//"
--- True
---
--- >>> eq "./x"  "./x"
--- True
---
--- >>> eq "./x"  "x"
--- True
---
--- >>> eq "x/"  "x"
--- True
---
--- >>> eq "x/"  "X"
--- False
---
--- >>> eq "x//y"  "x/y"
--- True
---
--- >>> eq "x/./y"  "x/y"
--- True
---
--- >>> eq "x"  "x"
--- True
---
-eqPosixPath :: Array Word8 -> Array Word8 -> Bool
-eqPosixPath a b =
-    let (rootA, stemA) = splitRoot Posix a
-        (rootB, stemB) = splitRoot Posix b
-    in eqPosixRoot rootA rootB && eqComponents Posix stemA stemB
-
--- |
---
--- >>> :{
---  eq a b = Common.eqWindowsPath (packWindows a) (packWindows b)
--- :}
---
--- >>> eq "./x"  "x"
--- True
---
--- >>> eq "X/"  "x"
--- True
---
--- >>> eq "C:x"  "c:X"
--- True
---
--- >>> eq ".\\x"  "./X"
--- True
---
--- >>> eq "x//y"  "x/y"
--- True
---
--- >>> eq "x/./y"  "x/y"
--- True
---
--- >>> eq "x"  "x"
--- True
---
-eqWindowsPath :: Array Word16 -> Array Word16 -> Bool
-eqWindowsPath a b =
-    let (rootA, stemA) = splitRoot Windows a
-        (rootB, stemB) = splitRoot Windows b
-     in eqWindowsRoot rootA rootB && eqWindowsComponents stemA stemB
+{-# INLINE eqPath #-}
+eqPath :: (Unbox a, Integral a) =>
+    (Stream Identity a -> Stream Identity Char)
+        -> OS -> Array a -> Array a -> Bool
+eqPath decoder os = eqPathWith decoder os eqCfg

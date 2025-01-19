@@ -41,10 +41,12 @@ module Streamly.Internal.FileSystem.OS_PATH
     , IsPath (..)
     , adapt
 
-    -- * Construction
+    -- * Validation
     , validatePath
     , validatePath'
     , isValidPath
+
+    -- * Construction
     , fromChunk
     , unsafeFromChunk
     , fromChars
@@ -69,27 +71,35 @@ module Streamly.Internal.FileSystem.OS_PATH
     , toChars
     , toString
 
-    -- * Operations
+    -- * Separators
     -- Do we need to export the separator functions? They are not essential if
     -- operations to split and combine paths are provided. If someone wants to
     -- work on paths at low level then they know what they are.
     -- , isPrimarySeparator
     -- , isSeparator
     , dropTrailingSeparators
+
+    -- * Tests
     , isRooted
     , isBranch
 
-    -- * Combinators
+    -- * Joining
     , unsafeAppend
     , append
     , append'
+
+    -- * Splitting
     , splitRoot
     , splitPath
     , splitPath_
     , splitFile
     , splitExtension
+
+    -- * Equality
     , eqPath
-    , eqPathStrict
+    , EqCfg(..)
+    , eqCfg
+    , eqPathWith
     , eqPathBytes
     )
 where
@@ -107,7 +117,7 @@ import Data.Word (Word16)
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.FileSystem.Path.Common (mkQ)
+import Streamly.Internal.FileSystem.Path.Common (mkQ, EqCfg(..), eqCfg)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
@@ -447,14 +457,14 @@ splitExtension (OS_PATH a) =
 ------------------------------------------------------------------------------
 
 eqPath :: OS_PATH -> OS_PATH -> Bool
-#ifdef IS_WINDOWS
-eqPath (OS_PATH a) (OS_PATH b) = Common.eqWindowsPath a b
-#else
-eqPath (OS_PATH a) (OS_PATH b) = Common.eqPosixPath a b
-#endif
+eqPath (OS_PATH a) (OS_PATH b) =
+    Common.eqPath Unicode.UNICODE_DECODER
+        Common.OS_NAME a b
 
-eqPathStrict :: OS_PATH -> OS_PATH -> Bool
-eqPathStrict (OS_PATH a) (OS_PATH b) = Common.eqPathStrict Common.OS_NAME a b
+eqPathWith :: EqCfg -> OS_PATH -> OS_PATH -> Bool
+eqPathWith cfg (OS_PATH a) (OS_PATH b) =
+    Common.eqPathWith Unicode.UNICODE_DECODER
+        Common.OS_NAME cfg a b
 
 eqPathBytes :: OS_PATH -> OS_PATH -> Bool
 eqPathBytes (OS_PATH a) (OS_PATH b) = Common.eqPathBytes a b
