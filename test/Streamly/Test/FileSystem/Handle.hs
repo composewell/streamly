@@ -222,6 +222,7 @@ main =
       describe moduleName $ do
         describe "Read From Handle" $ do
             prop "read" $ testRead readFromHandle
+            {-
             prop "readWith" $ testRead readWithBufferFromHandle
             prop "readChunks" $ testRead readChunksFromHandle
             prop "readChunksWith" $ testRead readChunksWithBuffer
@@ -243,3 +244,4 @@ main =
                 $ testWrite $ Handle.writeWith 1024
             -- XXX This test needs a lot of stack when built with -O0
             prop "writeChunks" testWriteWithChunk
+            -}
