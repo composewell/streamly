@@ -96,11 +96,13 @@ targets =
     , ("Data.Scanl",
             [ "infinite_grp"
             , "fold_parser_grp"
+            , "noTest"
             ]
       )
     , ("Data.Scanl.Window",
             [ "infinite_grp"
             , "fold_parser_grp"
+            , "noTest"
             ]
       )
     , ("Data.Serialize",
