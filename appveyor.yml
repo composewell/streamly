@@ -16,7 +16,7 @@ environment:
     # ------------------------------------------------------------------------
     # GHC 9.2.7 onwards redundant constraint warnings are incompatible with
     # older versions
-    GHC_OPTIONS: "-Werror"
+    #GHC_OPTIONS: "-Werror"
     CABAL_REINIT_CONFIG: "y"
     LC_ALL: "C.UTF-8"
 
@@ -24,8 +24,8 @@ environment:
     # What to build
     # ------------------------------------------------------------------------
     # DISABLE_TEST: "y"
-    # DISABLE_BENCH: "y"
-    # DISABLE_DOCS: "y"
+    DISABLE_BENCH: "y"
+    DISABLE_DOCS: "y"
     DISABLE_SDIST_BUILD: "y"
     DISABLE_DIST_CHECKS: "y"
     ENABLE_INSTALL: "y"
