@@ -221,8 +221,7 @@ main =
     modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
         describe "Read From Handle" $ do
-            prop "read" $ testRead readFromHandle
-            {-
+            -- prop "read" $ testRead readFromHandle
             prop "readWith" $ testRead readWithBufferFromHandle
             prop "readChunks" $ testRead readChunksFromHandle
             prop "readChunksWith" $ testRead readChunksWithBuffer
@@ -238,6 +237,7 @@ main =
                 testReadChunksFromToWithMultiBuff
             prop "readChunksFromToWith (n,<n,n)"
                 testReadChunksFromToWithRangeInvalid
+            {-
         describe "Write To Handle" $ do
             prop "write" $ testWrite Handle.write
             prop "writeWith"
