@@ -188,6 +188,8 @@ module Streamly.Internal.Data.MutArray.Type
     -- ** Folding
     , foldl'
     , foldr
+    , fold
+    , foldRev
     , byteCmp
     , byteEq
 
@@ -2094,6 +2096,26 @@ foldl' f z arr = D.foldl' f z $ read arr
 foldr :: (MonadIO m, Unbox a) => (a -> b -> b) -> b -> MutArray a -> m b
 foldr f z arr = D.foldr f z $ read arr
 
+-- | Fold an array using a 'Fold'.
+--
+-- For example:
+--
+-- >>> findIndex eq = MutArray.fold (Fold.findIndex eq)
+--
+-- /Pre-release/
+{-# INLINE fold #-}
+fold :: (MonadIO m, Unbox a) => Fold m a b -> MutArray a -> m b
+fold f arr = D.fold f (read arr)
+
+-- | Fold an arary starting from end up to beginning.
+--
+-- For example:
+--
+-- >>> findIndexRev eq = MutArray.foldRev (Fold.findIndex eq)
+--
+foldRev :: (MonadIO m, Unbox a) => Fold m a b -> MutArray a -> m b
+foldRev f arr = D.fold f (readRev arr)
+
 -------------------------------------------------------------------------------
 -- Folds
 -------------------------------------------------------------------------------
@@ -2936,13 +2958,16 @@ splitEndBy :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> Stream m (MutArray a)
 splitEndBy = splitUsing D.indexEndBy
 
--- XXX check perf see comment in strip.
+-- XXX See advanceStartTill for a potential performance issue with this type of
+-- code which needed to be investigated. Measure the perf of this and use
+-- advanceStartTill if that turns out to be better.
 
 {-# INLINE breakUsing #-}
 breakUsing :: (MonadIO m, Unbox a) =>
     Int -> ((a -> Bool) -> Stream m a -> Stream m (Int, Int))
     -> (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
 breakUsing adj indexer predicate arr = do
+    -- XXX Use MutArray.fold Fold.findIndex instead.
     r <- D.head $ indexer predicate (read arr)
     case r of
         Just (i, len) ->
@@ -2959,12 +2984,14 @@ breakUsing adj indexer predicate arr = do
 
 {-# INLINE revBreakUsing #-}
 revBreakUsing :: (MonadIO m, Unbox a) =>
-    Int -> ((a -> Bool) -> Stream m a -> Stream m (Int, Int))
-    -> (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
-revBreakUsing adj indexer predicate arr = do
+    Bool -> (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
+revBreakUsing withSep predicate arr = do
+    let indexer = if withSep then D.indexEndBy else D.indexEndBy_
+        adj = if withSep then 0 else 1
+    -- XXX Use MutArray.foldRev Fold.findIndex instead.
     r <- D.head $ indexer predicate (readRev arr)
     case r of
-        Just (i, len) ->
+        Just (_, len) ->
             -- assert (i == 0)
             -- XXX avoid using length (div operation)
             let arrLen = length arr
@@ -2973,9 +3000,18 @@ revBreakUsing adj indexer predicate arr = do
                     if len1 >= arrLen
                     then empty
                     else unsafeGetSlice 0 (arrLen - len1) arr
-             in return (arr0, unsafeGetSlice (arrLen - 1 - i) len arr)
+                arr1 = unsafeGetSlice (arrLen - len) len arr
+             in return (arr0, arr1)
         Nothing -> return (arr, empty)
 
+-- |
+-- >>> arr <- MutArray.fromList "hello world"
+-- >>> (a,b) <- MutArray.breakEndBy (== ' ') arr
+-- >>> MutArray.toList a
+-- "hello "
+-- >>> MutArray.toList b
+-- "world"
+--
 {-# INLINE breakEndBy #-}
 breakEndBy :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
@@ -2985,21 +3021,46 @@ breakEndBy = breakUsing 0 D.indexEndBy
 -- element matching the predicate is dropped. If the predicate never succeeds
 -- the second array is empty.
 --
+-- >>> arr <- MutArray.fromList "hello world"
+-- >>> (a,b) <- MutArray.breakEndBy_ (== ' ') arr
+-- >>> MutArray.toList a
+-- "hello"
+-- >>> MutArray.toList b
+-- "world"
+--
 -- /Pre-release/
 {-# INLINE breakEndBy_ #-}
 breakEndBy_ :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
 breakEndBy_ = breakUsing 1 D.indexEndBy_
 
+-- |
+--
+-- >>> arr <- MutArray.fromList "hello world"
+-- >>> (a,b) <- MutArray.revBreakEndBy (== ' ') arr
+-- >>> MutArray.toList a
+-- "hello"
+-- >>> MutArray.toList b
+-- " world"
+--
 {-# INLINE revBreakEndBy #-}
 revBreakEndBy :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
-revBreakEndBy = revBreakUsing 0 D.indexEndBy
+revBreakEndBy = revBreakUsing True
 
+-- |
+--
+-- >>> arr <- MutArray.fromList "hello world"
+-- >>> (a,b) <- MutArray.revBreakEndBy_ (== ' ') arr
+-- >>> MutArray.toList a
+-- "hello"
+-- >>> MutArray.toList b
+-- "world"
+--
 {-# INLINE revBreakEndBy_ #-}
 revBreakEndBy_ :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> m (MutArray a, MutArray a)
-revBreakEndBy_ = revBreakUsing 1 D.indexEndBy_
+revBreakEndBy_ = revBreakUsing False
 
 -- Note: We could return empty array instead of Nothing. But then we cannot
 -- distinguish if the separator was found in the end or was not found at all.
@@ -3603,18 +3664,12 @@ compactExact _n = undefined -- D.parseManyD (pCompactEQ n)
 -- In-place mutation algorithms
 -------------------------------------------------------------------------------
 
--- XXX Reuse the code across strip/stripStart/stripEnd?
+-- XXX Can use SIMD
+-- XXX findIndex can be implemented using this if fold perf is not good enough.
 
--- | Strip elements which match the predicate, from both ends.
---
--- /Pre-release/
-{-# INLINE strip #-}
-strip :: forall a m. (Unbox a, MonadIO m) =>
-    (a -> Bool) -> MutArray a -> m (MutArray a)
-strip eq arr@MutArray{..} = liftIO $ do
-    st <- getStart arrStart
-    end <- getLast arrEnd st
-    return arr {arrStart = st, arrEnd = end, arrBound = arrBound}
+{-# INLINE advanceStartTill #-}
+advanceStartTill :: forall a. (Unbox a) => (a -> Bool) -> MutArray a -> IO Int
+advanceStartTill eq MutArray{..} = go arrStart
 
     where
 
@@ -3628,67 +3683,81 @@ strip eq arr@MutArray{..} = liftIO $ do
                 Just i -> PTR_INDEX(arrStart,i,a)
     -}
 
-    getStart cur = do
+    go cur =
         if cur < arrEnd
         then do
             r <- peekAt cur arrContents
             if eq r
-            then getStart (INDEX_NEXT(cur,a))
+            then go (INDEX_NEXT(cur,a))
             else return cur
         else return cur
 
-    getLast cur low = do
-        if cur > low
+{-# INLINE retractEndTill #-}
+retractEndTill :: forall a. (Unbox a) => (a -> Bool) -> MutArray a -> IO Int
+retractEndTill eq MutArray{..} = go arrEnd
+
+    where
+
+    go cur = do
+        if cur > arrStart
         then do
             let prev = INDEX_PREV(cur,a)
             r <- peekAt prev arrContents
             if eq r
-            then getLast prev low
+            then go prev
             else return cur
         else return cur
 
 -- | Strip elements which match the predicate, from the start of the array.
+--
+-- >>> arr <- MutArray.fromList "    hello world"
+-- >>> a <- MutArray.stripStart (== ' ') arr
+-- >>> MutArray.toList a
+-- "hello world"
 --
 -- /Pre-release/
 {-# INLINE stripStart #-}
 stripStart :: forall a m. (Unbox a, MonadIO m) =>
     (a -> Bool) -> MutArray a -> m (MutArray a)
 stripStart eq arr@MutArray{..} = liftIO $ do
-    st <- getStart arrStart
-    return arr {arrStart = st, arrEnd = arrEnd, arrBound = arrBound}
-
-    where
-
-    getStart cur = do
-        if cur < arrEnd
-        then do
-            r <- peekAt cur arrContents
-            if eq r
-            then getStart (INDEX_NEXT(cur,a))
-            else return cur
-        else return cur
+    st <- advanceStartTill eq arr
+    -- return arr{arrStart = st}
+    return $
+        if st >= arrEnd
+        then empty
+        else arr{arrStart = st}
 
 -- | Strip elements which match the predicate, from the end of the array.
+--
+-- >>> arr <- MutArray.fromList "hello world    "
+-- >>> a <- MutArray.stripEnd (== ' ') arr
+-- >>> MutArray.toList a
+-- "hello world"
 --
 -- /Pre-release/
 {-# INLINE stripEnd #-}
 stripEnd :: forall a m. (Unbox a, MonadIO m) =>
     (a -> Bool) -> MutArray a -> m (MutArray a)
 stripEnd eq arr@MutArray{..} = liftIO $ do
-    end <- getLast arrEnd arrStart
-    return arr {arrStart = arrStart, arrEnd = end, arrBound = arrBound}
+    end <- retractEndTill eq arr
+    -- return arr {arrEnd = end}
+    return $
+        if end <= arrStart
+        then empty
+        else arr{arrEnd = end}
 
-    where
-
-    getLast cur low = do
-        if cur > low
-        then do
-            let prev = INDEX_PREV(cur,a)
-            r <- peekAt prev arrContents
-            if eq r
-            then getLast prev low
-            else return cur
-        else return cur
+-- | Strip elements which match the predicate, from both ends.
+--
+-- >>> arr <- MutArray.fromList "   hello world    "
+-- >>> a <- MutArray.strip (== ' ') arr
+-- >>> MutArray.toList a
+-- "hello world"
+--
+-- /Pre-release/
+{-# INLINE strip #-}
+strip :: forall a m. (Unbox a, MonadIO m) =>
+    (a -> Bool) -> MutArray a -> m (MutArray a)
+strip eq arr = liftIO $ stripStart eq arr >>= stripEnd eq
 
 -- | Given an array sorted in ascending order except the last element being out
 -- of order, use bubble sort to place the last element at the right place such
