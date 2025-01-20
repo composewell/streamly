@@ -1,5 +1,3 @@
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Internal.FileSystem.FileIO
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -113,12 +111,13 @@ import Streamly.Internal.FileSystem.Path (Path)
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Array.Type as IA (pinnedChunksOf)
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.Data.Fold.Type as FL
     (Step(..), snoc, reduce)
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.File.Utils as FU
+
+#include "inline.hs"
 
 -------------------------------------------------------------------------------
 -- References
@@ -401,7 +400,7 @@ fromChunks = fromChunksMode WriteMode
 {-# INLINE fromBytesWith #-}
 fromBytesWith :: (MonadIO m, MonadCatch m)
     => Int -> Path -> Stream m Word8 -> m ()
-fromBytesWith n file xs = fromChunks file $ IA.pinnedChunksOf n xs
+fromBytesWith n file xs = fromChunks file $ A.chunksOf' n xs
 
 {-# DEPRECATED fromBytesWithBufferOf "Please use 'fromBytesWith' instead"  #-}
 {-# INLINE fromBytesWithBufferOf #-}
@@ -463,7 +462,7 @@ writeChunks path = Fold step initial extract final
 writeWith :: (MonadIO m, MonadCatch m)
     => Int -> Path -> Fold m Word8 ()
 writeWith n path =
-    groupsOf n (A.unsafePinnedCreateOf n) (writeChunks path)
+    groupsOf n (A.unsafeCreateOf' n) (writeChunks path)
 
 {-# DEPRECATED writeWithBufferOf "Please use 'writeWith' instead"  #-}
 {-# INLINE writeWithBufferOf #-}
@@ -502,7 +501,7 @@ writeAppendChunks = fromChunksMode AppendMode
 writeAppendWith :: (MonadIO m, MonadCatch m)
     => Int -> Path -> Stream m Word8 -> m ()
 writeAppendWith n file xs =
-    writeAppendChunks file $ IA.pinnedChunksOf n xs
+    writeAppendChunks file $ A.chunksOf' n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data
