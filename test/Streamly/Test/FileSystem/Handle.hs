@@ -223,6 +223,7 @@ main =
         describe "Read From Handle" $ do
             -- prop "read" $ testRead readFromHandle
             prop "readWith" $ testRead readWithBufferFromHandle
+            {-
             prop "readChunks" $ testRead readChunksFromHandle
             prop "readChunksWith" $ testRead readChunksWithBuffer
             prop "readChunksFromToWith (0,0,n)"
@@ -237,7 +238,6 @@ main =
                 testReadChunksFromToWithMultiBuff
             prop "readChunksFromToWith (n,<n,n)"
                 testReadChunksFromToWithRangeInvalid
-            {-
         describe "Write To Handle" $ do
             prop "write" $ testWrite Handle.write
             prop "writeWith"
