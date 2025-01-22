@@ -228,7 +228,7 @@ getTime clock =
 #elif HS_CLOCK_OSX
 
 -- XXX perform error checks inside c implementation
-foreign import ccall
+foreign import ccall unsafe
     clock_gettime_darwin :: #{type clock_id_t} -> Ptr TimeSpec -> IO ()
 
 {-# INLINABLE getTime #-}
@@ -238,10 +238,10 @@ getTime clock = getTimeWith $ clock_gettime_darwin (clockToOSXClockId clock)
 #elif HS_CLOCK_WINDOWS
 
 -- XXX perform error checks inside c implementation
-foreign import ccall clock_gettime_win32_monotonic :: Ptr TimeSpec -> IO ()
-foreign import ccall clock_gettime_win32_realtime :: Ptr TimeSpec -> IO ()
-foreign import ccall clock_gettime_win32_processtime :: Ptr TimeSpec -> IO ()
-foreign import ccall clock_gettime_win32_threadtime :: Ptr TimeSpec -> IO ()
+foreign import ccall unsafe clock_gettime_win32_monotonic :: Ptr TimeSpec -> IO ()
+foreign import ccall unsafe clock_gettime_win32_realtime :: Ptr TimeSpec -> IO ()
+foreign import ccall unsafe clock_gettime_win32_processtime :: Ptr TimeSpec -> IO ()
+foreign import ccall unsafe clock_gettime_win32_threadtime :: Ptr TimeSpec -> IO ()
 
 {-# INLINABLE getTime #-}
 getTime :: Clock -> IO AbsTime
