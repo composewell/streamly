@@ -37,6 +37,8 @@ module Streamly.Internal.Data.MutArray
     -- * Serialization
     , serialize
     , deserialize
+    , serializePtrN
+    , deserializePtrN
 
     -- * Deprecated
     , genSlicesFromLen
@@ -55,6 +57,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
+import Foreign.Ptr (Ptr)
 import Streamly.Internal.Data.MutByteArray.Type (PinnedState(..))
 import Streamly.Internal.Data.Serialize.Type (Serialize)
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -160,6 +163,33 @@ serializeWith sizer arr@(MutArray mbarr start end bound) x = do
         pure $ MutArray mbarr start off bound
     -- XXX this will inhibit unboxing?
     else serializeRealloc sizer arr x
+
+-- | Serializes a (Ptr, len) pair in the same way as an array. The serialized
+-- value can be de-serialized as an array or consumed as a pointer using
+-- deserializePtrN.
+--
+-- The Ptr must be pinned or the existence of the Ptr must be ensured by the
+-- user of this API.
+--
+-- /Unimplemented/
+{-# INLINE serializePtrN #-}
+serializePtrN :: -- (MonadIO m) =>
+    MutArray Word8 -> Ptr a -> Int -> m (MutArray Word8)
+-- assert/error out if Ptr is not pinned. unsafe prefix?
+-- First serialize the length and then splice the ptr
+serializePtrN _arr _ptr _len = undefined
+
+-- | Consume a serialized array or (Ptr, length) from the MutArray using an IO
+-- action that consumes the pointer directly.
+--
+-- WARNING! The array must be a pinned array.
+--
+-- /Unimplemented/
+{-# INLINE deserializePtrN #-}
+deserializePtrN :: -- (MonadIO m) =>
+    MutArray Word8 -> (Ptr a -> Int -> m b) -> m (a, MutArray Word8)
+-- assert/error out if the array is not pinned. unsafe prefix?
+deserializePtrN _arr _action = undefined
 
 -- | Serialize the supplied Haskell value at the end of the mutable array,
 -- growing the array size. If there is no reserve capacity left in the array
