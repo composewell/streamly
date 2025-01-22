@@ -127,21 +127,24 @@ isMetaDir :: Ptr CChar -> IO Bool
 isMetaDir dname = do
     -- XXX Assuming an encoding that maps "." to ".", this is true for
     -- UTF8.
+    -- Load as soon as possible to optimize memory accesses
     c1 <- peek dname
+    c2 :: Word8 <- peekByteOff dname 1
     if (c1 /= fromIntegral (ord '.'))
     then return False
     else do
-        c2 :: Word8 <- peekByteOff dname 1
         if (c2 == 0)
         then return True
-        else if (c2 /= fromIntegral (ord '.'))
-        then return False
         else do
-            c3 :: Word8 <- peekByteOff dname 2
-            if (c3 == 0)
-            then return True
-            else return False
+            if (c2 /= fromIntegral (ord '.'))
+            then return False
+            else do
+                c3 :: Word8 <- peekByteOff dname 2
+                if (c3 == 0)
+                then return True
+                else return False
 
+{-# NOINLINE lstatDname #-}
 lstatDname :: PosixPath -> Ptr CChar -> IO (Bool, Bool)
 lstatDname parent dname = do
     isMeta <- liftIO $ isMetaDir dname
@@ -167,13 +170,13 @@ checkDirStatus
 checkDirStatus parent dname _ = lstatDname parent dname
 #else
 checkDirStatus parent dname dtype =
-    if dtype == #const DT_UNKNOWN
-    then lstatDname parent dname
-    else if dtype == (#const DT_DIR)
+    if dtype == (#const DT_DIR)
     then do
         isMeta <- liftIO $ isMetaDir dname
         pure (True, isMeta)
-    else pure (False, False)
+    else if dtype /= #const DT_UNKNOWN
+         then pure (False, False)
+         else lstatDname parent dname
 #endif
 
 -- XXX We can use getdents64 directly so that we can use array slices from the
