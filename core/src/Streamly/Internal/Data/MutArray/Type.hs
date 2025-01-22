@@ -220,6 +220,7 @@ module Streamly.Internal.Data.MutArray.Type
     , appendN
     , appendWith
     , append
+    , unsafeAppendPtrN
 
     -- *** Appending arrays
     , spliceCopy
@@ -437,15 +438,19 @@ import Prelude hiding
 -- Foreign helpers
 -------------------------------------------------------------------------------
 
--- NOTE: Have to be "ccall unsafe" so that we can pass unpinned memory to these
-foreign import ccall unsafe "string.h memcpy" c_memcpy
+-- NOTE: Have to be "ccall unsafe" so that we can pass unpinned memory to
+-- these. For passing unpinned memory safely we have to pass unlifted byte
+-- array pointers in FFI so that neither the constructor nor the array can
+-- become stale if a GC kicks in at any point before the call.
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy_pinned_src
     :: MutableByteArray# RealWorld -> Ptr Word8 -> CSize -> IO (Ptr Word8)
 
 foreign import ccall unsafe "memchr_index" c_memchr_index
     :: MutableByteArray# RealWorld -> CSize -> Word8 -> CSize -> IO CSize
 
-foreign import ccall unsafe "string.h strlen" c_strlen
-    :: Ptr Word8 -> IO CSize
+foreign import ccall unsafe "string.h strlen" c_strlen_pinned
+    :: Addr# -> IO CSize
 
 -- | Given an 'Unboxed' type (unused first arg) and a number of bytes, return
 -- how many elements of that type will completely fit in those bytes.
@@ -2602,9 +2607,10 @@ fromPureStream xs =
 --
 -- /Unsafe:/
 --
--- 1. The memory pointed by @addr@ must be pinned or static.
--- 2. The caller is responsible to ensure that the pointer passed is valid up
--- to the given length.
+-- The caller has to ensure that:
+--
+-- 1. the pointer is pinned and alive during the call.
+-- 2. the pointer passed is valid up to the given length.
 --
 {-# INLINABLE fromPtrN #-}
 fromPtrN :: MonadIO m => Int -> Ptr Word8 -> m (MutArray Word8)
@@ -2614,17 +2620,18 @@ fromPtrN len addr = do
     -- first and then remaining Word8.
     (arr :: MutArray Word8) <- emptyOf len
     let mbarr = getMutByteArray# (arrContents arr)
-    _ <- liftIO $ c_memcpy mbarr addr (fromIntegral len)
+    _ <- liftIO $ c_memcpy_pinned_src mbarr addr (fromIntegral len)
     pure (arr { arrEnd = len })
 
--- | @fromW16CString# addr@ copies a C string consisting of bytes and
+-- | @fromCString# addr@ copies a C string consisting of bytes and
 -- terminated by a null byte, into a Word8 array. The null byte is not copied.
 --
 -- /Unsafe:/
 --
--- 1. The memory pointed by @addr@ must be pinned or static.
--- 2. The caller is responsible to ensure that the pointer passed is valid up
--- to the point where null byte is found.
+-- The caller has to ensure that:
+--
+-- 1. the @addr@ is pinned and alive during the call.
+-- 2. the pointer passed is valid up to the point where null byte is found.
 --
 {-# INLINABLE fromCString# #-}
 fromCString# :: MonadIO m => Addr# -> m (MutArray Word8)
@@ -2635,7 +2642,7 @@ fromCString# addr = do
     -- version. https://github.com/bminor/glibc/blob/master/string/strlen.c
     -- XXX We can possibly use a stream of Word64 to do the same.
     -- fromByteStr# addr = fromPureStream (D.fromByteStr# addr)
-    len <- liftIO $ c_strlen (Ptr addr)
+    len <- liftIO $ c_strlen_pinned addr
     fromPtrN (fromIntegral len) (Ptr addr)
 
 {-# DEPRECATED fromByteStr# "Please fromCString# instead." #-}
@@ -2651,9 +2658,10 @@ fromByteStr# = fromCString#
 --
 -- /Unsafe:/
 --
--- 1. The memory pointed by @addr@ must be pinned or static.
--- 2. The caller is responsible to ensure that the pointer passed is valid up
--- to the point where null Word16 is found.
+-- The caller has to ensure that:
+--
+-- 1. the @addr@ is pinned and alive during the call.
+-- 2. the pointer passed is valid up to the point where null Word16 is found.
 --
 {-# INLINABLE fromW16CString# #-}
 fromW16CString# :: MonadIO m => Addr# -> m (MutArray Word16)
@@ -2868,15 +2876,33 @@ spliceCopy arr1 arr2 = do
 {-# INLINE unsafeSplice #-}
 spliceUnsafe, unsafeSplice :: MonadIO m =>
     MutArray a -> MutArray a -> m (MutArray a)
-unsafeSplice dst src =
-    do
-         let startSrc = arrStart src
-             srcLen = arrEnd src - startSrc
-             endDst = arrEnd dst
-         assertM(endDst + srcLen <= arrBound dst)
-         unsafePutSlice
-             (arrContents src) startSrc (arrContents dst) endDst srcLen
-         return $ dst {arrEnd = endDst + srcLen}
+unsafeSplice dst src = do
+     let startSrc = arrStart src
+         srcLen = arrEnd src - startSrc
+         endDst = arrEnd dst
+     assertM(endDst + srcLen <= arrBound dst)
+     unsafePutSlice
+         (arrContents src) startSrc (arrContents dst) endDst srcLen
+     return $ dst {arrEnd = endDst + srcLen}
+
+-- | Append specified number of bytes from a given pointer to the MutArray.
+--
+-- /Unsafe:/
+--
+-- The caller has to ensure that:
+--
+-- 1. the MutArray is valid up to the given length.
+-- 2. the source pointer is pinned and alive during the call.
+-- 3. the pointer passed is valid up to the given length.
+--
+{-# INLINE unsafeAppendPtrN #-}
+unsafeAppendPtrN :: MonadIO m =>
+    MutArray Word8 -> Ptr Word8 -> Int -> m (MutArray Word8)
+unsafeAppendPtrN dst ptr ptrLen = do
+    let newEnd = arrEnd dst + ptrLen
+    assertM(newEnd <= arrBound dst)
+    Unboxed.unsafePutPtrN ptr (arrContents dst) (arrEnd dst) ptrLen
+    return $ dst {arrEnd = newEnd}
 
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
 -- reserved space available in @dst@ it is reallocated to a size determined by

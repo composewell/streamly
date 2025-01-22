@@ -1,4 +1,5 @@
 {-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE UnliftedFFITypes #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.MutByteArray.Type
@@ -28,16 +29,16 @@ module Streamly.Internal.Data.MutByteArray.Type
     , empty
     , newAs
     , new
-    , pinnedNew
+    , pinnedNew -- XXX new'
     , reallocSliceAs
 
     -- ** Access
     , length
     , unsafePutSlice
+    , unsafePutPtrN
     , unsafeCloneSliceAs
     , unsafeCloneSlice
-    , unsafePinnedCloneSlice
-    , unsafePinnedAsPtr
+    , unsafePinnedCloneSlice -- XXX unsafeCloneSlice'
     , unsafeAsPtr
 
     -- ** Capacity Management
@@ -55,6 +56,7 @@ module Streamly.Internal.Data.MutByteArray.Type
     , pinnedCloneSliceUnsafe
     , pinnedNewAlignedBytes
     , asPtrUnsafe
+    , unsafePinnedAsPtr
     , nil
     ) where
 
@@ -62,9 +64,11 @@ module Streamly.Internal.Data.MutByteArray.Type
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
+import Data.Word (Word8)
 #ifdef DEBUG
 import Debug.Trace (trace)
 #endif
+import Foreign.C.Types (CSize(..))
 import GHC.Base (IO(..))
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -252,9 +256,11 @@ reallocSliceAs ps newLen (MutByteArray src#) srcStart srcLen = do
 -- https://github.com/bminor/glibc/blob/4290aed05135ae4c0272006442d147f2155e70d7/string/memcpy.c
 -- https://github.com/bminor/glibc/blob/4290aed05135ae4c0272006442d147f2155e70d7/string/wordcopy.c
 
--- | Put a sub range of a source array into a subrange of a destination array.
--- This is not safe as it does not check the bounds of neither the src array
--- nor the destination array.
+-- | @unsafePutSlice src srcOffset dst dstOffset len@ copies @len@ bytes from
+-- @src@ at @srcOffset@ to dst at @dstOffset@.
+--
+-- This is unsafe as it does not check the bounds of @src@ or @dst@.
+--
 {-# INLINE unsafePutSlice #-}
 putSliceUnsafe, unsafePutSlice ::
        MonadIO m
@@ -283,6 +289,41 @@ unsafePutSlice src srcStartBytes dst dstStartBytes lenBytes = liftIO $ do
     IO $ \s# -> (# copyMutableByteArray#
                     arrS# srcStartBytes# arrD# dstStartBytes# lenBytes# s#
                 , () #)
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy_pinned
+    :: Addr# -> Addr# -> CSize -> IO (Ptr Word8)
+
+-- | @unsafePutPtrN srcPtr dst dstOffset len@ copies @len@ bytes from @srcPtr@
+-- to dst at @dstOffset@.
+--
+-- /Unsafe/:
+--
+-- The caller has to ensure that:
+--
+-- * the MutByteArray @dst@ is valid up to @dstOffset + len@.
+-- * the @srcPtr@ is alive and pinned during the call.
+-- * the @srcPtr@ is valid up to length @len@.
+--
+{-# INLINE unsafePutPtrN #-}
+unsafePutPtrN ::
+       MonadIO m
+    => Ptr Word8
+    -> MutByteArray
+    -> Int
+    -> Int
+    -> m ()
+unsafePutPtrN (Ptr srcAddr) dst dstOffset len = liftIO $ do
+#ifdef DEBUG
+    dstLen <- length dst
+    when (dstLen - dstOffset < len)
+        $ error $ "unsafePutPtrN: dst overflow: start" ++ show dstOffset
+            ++ " end " ++ show dstLen ++ " len " ++ show len
+#endif
+    let !dstAddr# = byteArrayContents# (unsafeCoerce# (getMutByteArray# dst))
+        !(I# dstOff#) = dstOffset
+        !dstAddr1# = plusAddr# dstAddr# dstOff#
+    _ <- c_memcpy_pinned dstAddr1# srcAddr (fromIntegral len)
+    pure ()
 
 -- | Unsafe as it does not check whether the start offset and length supplied
 -- are valid inside the array.

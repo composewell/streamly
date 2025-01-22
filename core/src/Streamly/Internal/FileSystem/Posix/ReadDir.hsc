@@ -42,6 +42,7 @@ import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
+import qualified Streamly.Internal.FileSystem.Path.Common as PathC
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 #include <dirent.h>
@@ -151,6 +152,8 @@ lstatDname parent dname = do
     if isMeta
     then pure (True, True)
     else do
+        -- XXX We can create a pinned array right here since the next call pins
+        -- it anyway.
         path <- appendCString parent dname
         Array.asCStringUnsafe (Path.toChunk path) $ \cStr -> do
             res <- c_lstat_is_directory cStr
@@ -283,13 +286,9 @@ eitherReader =
 
 {-# INLINE appendCString #-}
 appendCString :: PosixPath -> CString -> IO PosixPath
-appendCString a b = do
-    -- XXX We do not need to create an Array from the CString first. We can
-    -- append it directly if Path can provide a known length stream append
-    -- operation. Should we ensure that this is pinned in the DT_UNKNOWN case
-    -- because we always pass it to a C function which pins it anyway.
-    b1 <- Array.fromCString (castPtr b)
-    pure $ Path.append a (Path.unsafeFromChunk b1)
+appendCString (PosixPath a) b = do
+    arr <- PathC.appendCString PathC.Posix a b
+    pure $ PosixPath arr
 
 {-# ANN type ChunkStreamState Fuse #-}
 data ChunkStreamState =

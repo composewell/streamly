@@ -1,3 +1,4 @@
+{-# LANGUAGE UnliftedFFITypes #-}
 -- |
 -- Module      : Streamly.Internal.FileSystem.Path.Common
 -- Copyright   : (c) 2023 Composewell Technologies
@@ -51,6 +52,7 @@ module Streamly.Internal.FileSystem.Path.Common
     , append
     , append'
     , unsafeAppend
+    , appendCString
     , unsafeJoinPaths
  -- , joinRoot -- XXX append should be enough
 
@@ -113,7 +115,10 @@ import Data.Char (chr, ord, isAlpha, toUpper)
 import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8, Word16)
-import GHC.Base (unsafeChr)
+import Foreign (castPtr)
+import Foreign.C (CString, CSize(..))
+import GHC.Base (unsafeChr, Addr#)
+import GHC.Ptr (Ptr(..))
 import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Streamly.Internal.Data.Array (Array(..))
@@ -1799,6 +1804,25 @@ mkQ f =
 ------------------------------------------------------------------------------
 -- Operations of Path
 ------------------------------------------------------------------------------
+
+foreign import ccall unsafe "string.h strlen" c_strlen_pinned
+    :: Addr# -> IO CSize
+
+-- | Append a separator and a CString to the Array.
+--
+{-# INLINE appendCString #-}
+appendCString :: OS -> Array Word8 -> CString -> IO (Array Word8)
+appendCString os a b@(Ptr addrB#) = do
+    let lenA = Array.length a
+    lenB <- fmap fromIntegral $ c_strlen_pinned addrB#
+    assertM(lenA /= 0 && lenB /= 0)
+    let len = lenA + 1 + lenB
+    arr <- MutArray.emptyOf len
+    arr1 <- MutArray.unsafeSplice arr (Array.unsafeThaw a)
+    arr2 <- MutArray.unsafeSnoc arr1 (charToWord (primarySeparator os))
+    arr3 :: MutArray.MutArray Word8 <-
+        MutArray.unsafeAppendPtrN arr2 (castPtr b) lenB
+    return (Array.unsafeFreeze arr3)
 
 {-# INLINE doAppend #-}
 doAppend :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Array a
