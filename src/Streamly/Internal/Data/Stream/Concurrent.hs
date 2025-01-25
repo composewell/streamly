@@ -61,12 +61,15 @@ module Streamly.Internal.Data.Stream.Concurrent
     -- | Shares a single channel across many streams.
     , parConcat
     , parConcatMap
+    , parMergeMap
 
     -- *** ConcatIterate
     , parConcatIterate
+    , parMergeIterate
 
     -- ** Reactive
     , newStreamAndCallback
+    , parYieldWith
     , fromCallback
     , parTapCount
     , tapCount
@@ -338,6 +341,15 @@ parConcatMap modifier f stream =
         $ parConcatMapK
             modifier (Stream.toStreamK . f) (Stream.toStreamK stream)
 
+-- | Same as 'mergeMapWith interleave' but concurrent.
+--
+-- /Unimplemented/
+--
+{-# INLINE parMergeMap #-}
+parMergeMap :: -- MonadAsync m =>
+    (Config -> Config) -> (a -> Stream m b) -> Stream m a -> Stream m b
+parMergeMap _modifier _f _stream = undefined
+
 -- | Evaluate the streams in the input stream concurrently and combine them.
 --
 -- >>> parConcat modifier = Stream.parConcatMap modifier id
@@ -350,6 +362,8 @@ parConcat modifier = parConcatMap modifier id
 -------------------------------------------------------------------------------
 -- concat Lists
 -------------------------------------------------------------------------------
+
+-- XXX Rename to parListCat?
 
 -- | Like 'parConcat' but works on a list of streams.
 --
@@ -415,6 +429,8 @@ parListEagerMin = parList (eager True . stopWhen AnyStops)
 -------------------------------------------------------------------------------
 -- Applicative
 -------------------------------------------------------------------------------
+
+-- XXX Rename to parStreamApply?
 
 -- | Apply an argument stream to a function stream concurrently. Uses a
 -- shared channel for all individual applications within a stream application.
@@ -562,6 +578,17 @@ parConcatIterate modifier f input =
     -- XXX The channel q should be FIFO for DFS, otherwise it is BFS
     generate chan x = x `K.cons` iterateStream chan (Stream.toStreamK $ f x)
 
+-- | Same as 'mergeIterateWith interleave' but concurrent.
+--
+-- /Unimplemented/
+{-# INLINE parMergeIterate #-}
+parMergeIterate :: -- MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Stream m a)
+    -> Stream m a
+    -> Stream m a
+parMergeIterate _modifier _f _input = undefined
+
 -------------------------------------------------------------------------------
 -- Generate
 -------------------------------------------------------------------------------
@@ -635,20 +662,26 @@ newStreamAndCallback = do
 
 -- XXX Take the Channel config as argument.  What config can be set by user
 -- here?
---
--- XXX What happens if an exception occurs when evaluating the stream? The
--- result of callback can be used to communicate that. But we can only know
--- about the exception on the next callback call. For better handling the user
--- can supply an exception sender function as argument to fromCallback.
 
--- | @fromCallback f@ creates an entangled pair of a callback and a stream i.e.
--- whenever the callback is called a value appears in the stream. The function
--- @f@ is invoked with the callback as argument, and the stream is returned.
--- @f@ would store the callback for calling it later for generating values in
--- the stream.
+-- | @fromCallback action@ runs @action@ with a callback which is used by
+-- the action to send values that appear in the resulting stream. The action
+-- must be run in a separate thread independent of the one in which the stream
+-- is being evaluated. The action is supposed to be run forever in an infinite
+-- loop.
 --
--- The callback queues a value to a concurrent channel associated with the
--- stream. The stream can be evaluated safely in any thread.
+-- Example:
+--
+-- >> import Control.Concurrent (threadDelay, forkIO)
+-- >> import Control.Monad (void, forever)
+-- >> import qualified Streamly.Data.Fold as Fold
+-- >> import qualified Streamly.Data.Stream.Prelude as Stream
+-- >>
+-- >> main = do
+-- >>     Stream.fold (Fold.drainMapM print)
+-- >>         $ Stream.fromCallback
+-- >>         $ \yield ->
+-- >>             void $ forkIO $ forever $ do
+-- >>                 yield "x" >> threadDelay 1000000
 --
 -- /Pre-release/
 --
@@ -658,6 +691,29 @@ fromCallback setCallback = Stream.concatEffect $ do
     (callback, stream) <- newStreamAndCallback
     setCallback callback
     return stream
+
+-- XXX What happens if an exception occurs when evaluating the stream? The
+-- result of callback can be used to communicate that. But we can only know
+-- about the exception on the next callback call. For better handling the user
+-- can supply an exception sender function as argument to fromCallback. Or
+-- maybe we should just forward all exceptions the parent stream.
+--
+-- XXX Add a serial version of this i.e. yieldWith?
+-- XXX For folds a parAwaitWith is possible.
+-- XXX For pipes parYieldAwaitWith
+
+-- | An improved version of 'fromCallback'.
+--
+-- * Takes a channel config modifier
+-- * Evaluates the action in a parallel thread
+-- * The action is supplied with a yield function to yield values to the stream
+-- * Any exception generated is forwarded to the stream
+-- * Sends a Stop event when the action is done.
+--
+-- /Unimplemented/
+parYieldWith :: -- MonadAsync m =>
+    (Config -> Config) -> ((a -> m b) -> m c) -> Stream m a
+parYieldWith = undefined
 
 -- | @parTapCount predicate fold stream@ taps the count of those elements in
 -- the stream that pass the @predicate@. The resulting count stream is sent to
