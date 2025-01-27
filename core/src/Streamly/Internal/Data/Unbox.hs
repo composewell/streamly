@@ -58,7 +58,9 @@ import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Real (Ratio(..))
 import GHC.Stable (StablePtr(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
-#if MIN_VERSION_base(4,15,0)
+#if MIN_VERSION_base(4,21,0)
+import GHC.IO.SubSystem (IoSubSystem (..))
+#elif MIN_VERSION_base(4,15,0)
 import GHC.RTS.Flags (IoSubSystem(..))
 #endif
 import Streamly.Internal.Data.Builder (Builder (..))
@@ -462,37 +464,19 @@ instance Unbox () where
 
 #if MIN_VERSION_base(4,15,0)
 
--- We could use Word8 instead of Int here but that would be a silent breaking
--- change.
-
--- base that ships with GHC 9.12 removes the Enum instance for IoSubSystem. It's
--- easier to remove the use of Enum for every version than to play around with
--- CPP macros.
-
-{-# INLINE fromEnumIoSubSystem #-}
-fromEnumIoSubSystem :: IoSubSystem -> Int
-fromEnumIoSubSystem IoPOSIX = 1
-fromEnumIoSubSystem IoNative = 0
-
-{-# INLINE toEnumIoSubSystem #-}
-toEnumIoSubSystem :: Int -> IoSubSystem
-toEnumIoSubSystem 0 = IoNative
-toEnumIoSubSystem 1 = IoPOSIX
-toEnumIoSubSystem val = error $ show val ++ ": Invalid tag for IoSubSystem"
-
 instance Unbox IoSubSystem where
 
     {-# INLINE peekAt #-}
     peekAt i arr =
         checkBounds
             "peek IoSubSystem" (i + sizeOf (Proxy :: Proxy IoSubSystem)) arr
-        >> toEnumIoSubSystem <$> peekAt i arr
+        >> toEnum <$> peekAt i arr
 
     {-# INLINE pokeAt #-}
     pokeAt i arr a =
         checkBounds
             "poke IoSubSystem" (i + sizeOf (Proxy :: Proxy IoSubSystem)) arr
-        >> pokeAt i arr (fromEnumIoSubSystem a)
+        >> pokeAt i arr (fromEnum a)
 
     {-# INLINE sizeOf #-}
     sizeOf _ = sizeOf (Proxy :: Proxy Int)
