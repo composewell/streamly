@@ -177,7 +177,7 @@ unsafeIndexChar i a = wordToChar (Array.unsafeGetIndex i a)
 
 -- XXX put this in array module, we can have Array.fold and Array.foldM
 foldArr :: Unbox a => Fold.Fold Identity a b -> Array a -> b
-foldArr f arr = runIdentity $ Array.fold f arr
+foldArr f arr = runIdentity $ Array.foldM f arr
 
 {-# INLINE countLeadingBy #-}
 countLeadingBy :: Unbox a => (a -> Bool) -> Array a -> Int
