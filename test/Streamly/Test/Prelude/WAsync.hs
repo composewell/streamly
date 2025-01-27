@@ -145,7 +145,7 @@ main = hspec
 
     describe "Stream transform and combine operations" $ do
         wAsyncOps $ transformCombineOpsCommon S.fromFoldable "wAsyncly" sortEq
-        wAsyncOps $ transformCombineOpsCommon folded "wAsyncly" sortEq
+        wAsyncOps $ transformCombineOpsCommon folded "wAsyncly folded" sortEq
 
     describe "Stream elimination operations" $ do
         wAsyncOps $ eliminationOps S.fromFoldable "wAsyncly"
