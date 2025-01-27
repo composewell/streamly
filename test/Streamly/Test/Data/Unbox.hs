@@ -26,6 +26,8 @@ import Data.Word (Word8)
 import qualified Streamly.Internal.Data.Array as Array
 #endif
 
+import GHC.Fingerprint (Fingerprint(..))
+
 import Data.Complex (Complex ((:+)))
 import Data.Functor.Const (Const (..))
 import Data.Functor.Identity (Identity (..))
@@ -168,8 +170,11 @@ DERIVE_UNBOX(NestedSOP)
 -- Standalone derivations
 --------------------------------------------------------------------------------
 
--- Ratio does not have a Generic instance by default
+-- The following types don't have a Generic instance by default
 deriving instance Generic (Ratio Int)
+#if !MIN_VERSION_base(4,15,0)
+deriving instance Generic (Fingerprint)
+#endif
 
 #if defined(USE_SERIALIZE)
 $(deriveSerialize
@@ -331,10 +336,9 @@ testCases = do
     it "GenericConsistency (Identity Int)"
         $ testGenericConsistency (Identity 56760 :: Identity Int)
 
-    -- Fingerprint does not work for GHC 8.6.5
-    -- it "Fingerprint" $ testSerialization (Fingerprint 123456 876588)
-    -- it "GenericConsistency Fingerprint"
-    --     $ testGenericConsistency (Fingerprint 123456 876588)
+    it "Fingerprint" $ testSerialization (Fingerprint 123456 876588)
+    it "GenericConsistency Fingerprint"
+        $ testGenericConsistency (Fingerprint 123456 876588)
 
 --------------------------------------------------------------------------------
 -- Main function

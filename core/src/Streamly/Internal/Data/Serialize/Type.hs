@@ -25,6 +25,7 @@ import Streamly.Internal.Data.Array.Type (Array(..))
 import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
 import GHC.Stable (StablePtr(..))
+import GHC.Fingerprint.Type (Fingerprint)
 
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.MutArray.Type as MutArray
@@ -238,6 +239,7 @@ DERIVE_SERIALIZE_FROM_UNBOX(Float)
 DERIVE_SERIALIZE_FROM_UNBOX((StablePtr a))
 DERIVE_SERIALIZE_FROM_UNBOX((Ptr a))
 DERIVE_SERIALIZE_FROM_UNBOX((FunPtr a))
+DERIVE_SERIALIZE_FROM_UNBOX(Fingerprint)
 
 instance forall a. Serialize a => Serialize [a] where
 
