@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 {-# LANGUAGE CPP #-}
@@ -58,7 +57,7 @@ foldableSum = P.sum
 {-# INLINE sourceIntFromToFromStream #-}
 sourceIntFromToFromStream :: MonadIO m => Int -> Int -> m (Stream Int)
 sourceIntFromToFromStream value n =
-    S.fold A.write $ S.enumerateFromTo n (n + value)
+    S.fold A.create $ S.enumerateFromTo n (n + value)
 
 -------------------------------------------------------------------------------
 -- Bench groups

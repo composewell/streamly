@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- |
 -- Module      : Streamly.Benchmark.FileSystem.Handle
@@ -135,7 +134,7 @@ _readChunks inh devNull = IUF.fold fld unf inh
     where
 
     fld = FH.write devNull
-    unf = IUF.many A.reader FH.chunkReader
+    unf = IUF.unfoldEach A.reader FH.chunkReader
 
 -- | Send the chunk content to /dev/null
 -- Implicitly benchmarked via 'readWithFromBytesNull'
@@ -145,7 +144,7 @@ _readChunksWith inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
     where
 
     fld = FH.write devNull
-    unf = IUF.many A.reader FH.chunkReaderWith
+    unf = IUF.unfoldEach A.reader FH.chunkReaderWith
 
 o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
 o_1_space_copy_fromBytes env =

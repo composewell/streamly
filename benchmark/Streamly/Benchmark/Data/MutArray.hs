@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- |
@@ -47,6 +46,7 @@ import Streamly.Internal.Data.MutArray (MutArray)
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
@@ -95,7 +95,7 @@ drain = Stream.fold Fold.drain
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: MonadIO m => Int -> Int -> m (Stream Int)
 sourceUnfoldr value n =
-    Stream.fold (MArray.writeN value) $ Stream.unfoldr step n
+    Stream.fold (MArray.createOf value) $ Stream.unfoldr step n
 
     where
 
@@ -107,12 +107,12 @@ sourceUnfoldr value n =
 {-# INLINE sourceIntFromTo #-}
 sourceIntFromTo :: MonadIO m => Int -> Int -> m (Stream Int)
 sourceIntFromTo value n =
-    Stream.fold (MArray.writeN value) $ Stream.enumerateFromTo n (n + value)
+    Stream.fold (MArray.createOf value) $ Stream.enumerateFromTo n (n + value)
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: MonadIO m => Int -> Int -> m (Stream Int)
 sourceFromList value n =
-    Stream.fold (MArray.writeN value) $ Stream.fromList [n .. n + value]
+    Stream.fold (MArray.createOf value) $ Stream.fromList [n .. n + value]
 
 {-# INLINE sourceIntFromToFromList #-}
 sourceIntFromToFromList :: MonadIO m => Int -> Int -> m (Stream Int)
@@ -121,7 +121,7 @@ sourceIntFromToFromList value n = MArray.fromListN value [n..n + value]
 {-# INLINE sourceIntFromToFromStream #-}
 sourceIntFromToFromStream :: MonadIO m => Int -> Int -> m (Stream Int)
 sourceIntFromToFromStream value n =
-    Stream.fold MArray.write $ Stream.enumerateFromTo n (n + value)
+    Stream.fold MArray.create $ Stream.enumerateFromTo n (n + value)
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: Monad m => Int -> Int -> Stream.Stream m Int
@@ -149,7 +149,7 @@ composeN n f x =
 
 {-# INLINE scanl' #-}
 scanl' :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-scanl' value n = composeN n $ onArray value $ Stream.scan (Fold.foldl' (+) 0)
+scanl' value n = composeN n $ onArray value $ Stream.scanl (Scanl.mkScanl (+) 0)
 
 {-# INLINE scanl1' #-}
 scanl1' :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
@@ -165,7 +165,7 @@ onArray
     -> Stream Int
     -> m (Stream Int)
 onArray value f arr =
-    Stream.fold (MArray.writeN value) $ f $ Stream.unfold MArray.reader arr
+    Stream.fold (MArray.createOf value) $ f $ Stream.unfold MArray.reader arr
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -199,12 +199,12 @@ o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup
         "generation"
-        [ benchIOSrc "writeN . intFromTo" (sourceIntFromTo value)
+        [ benchIOSrc "createOf . intFromTo" (sourceIntFromTo value)
         , benchIOSrc
               "fromList . intFromTo"
               (sourceIntFromToFromList value)
-        , benchIOSrc "writeN . unfoldr" (sourceUnfoldr value)
-        , benchIOSrc "writeN . fromList" (sourceFromList value)
+        , benchIOSrc "createOf . unfoldr" (sourceUnfoldr value)
+        , benchIOSrc "createOf . fromList" (sourceFromList value)
         , benchIOSrc "write . intFromTo" (sourceIntFromToFromStream value)
         ]
     ]
@@ -226,7 +226,7 @@ o_n_heap_serial value =
     [ bgroup "elimination"
         [
         -- Converting the stream to an array
-            benchFold "writeN" (Stream.fold (MArray.writeN value))
+            benchFold "createOf" (Stream.fold (MArray.createOf value))
                 (sourceUnfoldrM value)
          ]
     ]

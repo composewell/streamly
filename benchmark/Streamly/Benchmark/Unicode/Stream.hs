@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 --
 -- Module      : Streamly.Unicode.Stream
@@ -104,8 +103,8 @@ linesUnlinesCopy inh outh =
 linesUnlinesArrayWord8Copy :: Handle -> Handle -> IO ()
 linesUnlinesArrayWord8Copy inh outh =
     Stream.fold (Handle.write outh)
-      $ Stream.interposeSuffix 10 Array.reader
-      $ splitOnSuffix (== 10) Array.write
+      $ Stream.unfoldEachEndBy 10 Array.reader
+      $ splitOnSuffix (== 10) Array.create
       $ Stream.unfold Handle.reader inh
 
 -- XXX splitSuffixOn requires -funfolding-use-threshold=150 for better fusion
@@ -144,7 +143,7 @@ linesUnlinesArrayUtf8Copy inh outh =
 wordsUnwordsCopyWord8 :: Handle -> Handle -> IO ()
 wordsUnwordsCopyWord8 inh outh =
     Stream.fold (Handle.write outh)
-        $ Stream.interposeSuffix 32 Unfold.fromList
+        $ Stream.unfoldEachEndBy 32 Unfold.fromList
         $ Stream.wordsBy isSp Fold.toList
         $ Stream.unfold Handle.reader inh
 

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- |
 -- Module      : Streamly.Test.Network.Socket
@@ -87,7 +86,7 @@ basePort = 64000
 server :: PortNumber -> MVar () -> (Socket -> IO ()) -> IO ()
 server port sem handler = do
     putMVar sem ()
-    Stream.unfold TCP.acceptorOnPort port
+    Stream.unfold TCP.acceptor port
         & Stream.mapM (Socket.forSocketM handler)
         & Stream.fold Fold.drain
 

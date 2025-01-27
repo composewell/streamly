@@ -607,6 +607,7 @@ benchmark Unicode.Parser
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Parser.hs
+
 executable nano-bench
   import: bench-options
   hs-source-dirs: .

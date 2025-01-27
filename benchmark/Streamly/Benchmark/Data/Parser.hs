@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 #undef FUSION_CHECK
 #ifdef FUSION_CHECK
@@ -136,11 +135,11 @@ takeGE value = Stream.parse (PR.takeGE value Fold.drain)
 dropWhile :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
 dropWhile value = Stream.parse (PR.dropWhile (<= value))
 
-{-# INLINE takeStartBy #-}
-takeStartBy :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
-takeStartBy value stream = do
+{-# INLINE takeBeginBy #-}
+takeBeginBy :: Monad m => Int -> Stream m Int -> m (Either ParseError ())
+takeBeginBy value stream = do
     let stream2 = value `Stream.cons` stream
-    Stream.parse (PR.takeStartBy (== value) Fold.drain) stream2
+    Stream.parse (PR.takeBeginBy (== value) Fold.drain) stream2
 
 takeFramedByEsc_ :: Monad m => Int -> Stream m Char -> m (Either ParseError ())
 takeFramedByEsc_ _ = Stream.parse parser
@@ -718,7 +717,7 @@ o_1_space_serial value =
     , benchIOSink value "takeWhileP" $ takeWhileP value
     , benchIOSink value "takeP" $ takeP value
     , benchIOSink value "dropWhile" $ dropWhile value
-    , benchIOSink value "takeStartBy" $ takeStartBy value
+    , benchIOSink value "takeBeginBy" $ takeBeginBy value
     , benchIOSink value "takeEndBy_" $ takeEndBy_ value
     , benchIOSink value "groupBy" $ groupBy
     , benchIOSink value "groupByRolling" $ groupByRolling

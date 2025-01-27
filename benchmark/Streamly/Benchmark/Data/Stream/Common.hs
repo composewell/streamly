@@ -10,7 +10,6 @@
 -- Maintainer  : streamly@composewell.com
 
 #ifdef USE_PRELUDE
-{-# OPTIONS_GHC -Wno-deprecations #-}
 #endif
 
 module Stream.Common

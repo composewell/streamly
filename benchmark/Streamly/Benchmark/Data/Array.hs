@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 {-# LANGUAGE CPP #-}
@@ -73,7 +72,7 @@ sourceIsString value n = GHC.fromString (P.replicate (n + value) 'a')
 
 {-# INLINE sourceIntFromToFromStream #-}
 sourceIntFromToFromStream :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceIntFromToFromStream value n = S.fold A.write $ S.enumerateFromTo n (n + value)
+sourceIntFromToFromStream value n = S.fold A.create $ S.enumerateFromTo n (n + value)
 
 -------------------------------------------------------------------------------
 -- Bench groups

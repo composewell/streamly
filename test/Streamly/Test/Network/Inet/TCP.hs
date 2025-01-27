@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- |
 -- Module      : Streamly.Test.Network.Socket
@@ -113,7 +112,7 @@ validateOnPort :: Property
 validateOnPort = monadicIO $ do
     res <- run $ do
         ls2 <-
-            execute TCP.acceptorOnPort basePort defaultChunkSize handlerRW
+            execute TCP.acceptor basePort defaultChunkSize handlerRW
         let dataChunk = take defaultChunkSize testDataSource
         Stream.eqBy (==) (Stream.fromList dataChunk) ls2
     assert res
@@ -123,7 +122,7 @@ validateOnPortLocal = monadicIO $ do
     res <- run $ do
         ls2 <-
             execute
-                TCP.acceptorOnPortLocal
+                TCP.acceptorLocal
                 (basePort + 1)
                 defaultChunkSize
                 handlerRW

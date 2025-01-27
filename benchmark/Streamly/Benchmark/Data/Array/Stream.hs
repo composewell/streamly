@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- |
 -- Module      : Streamly.Benchmark.Data.ParserD
@@ -39,7 +38,6 @@ import Prelude hiding ()
 
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Array.Stream as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -138,7 +136,7 @@ inspect $ hasNoTypeClasses 'toChunksDecodeUtf8Arrays
 toChunksSplitOnSuffix :: Handle -> IO Int
 toChunksSplitOnSuffix =
     Stream.fold Fold.length
-        . ArrayStream.splitOnSuffix 10
+        . Array.compactEndByByte_ 10
         . Handle.readChunks
 
 #ifdef INSPECTION
@@ -151,7 +149,7 @@ inspect $ 'toChunksSplitOnSuffix `hasNoType` ''Step
 toChunksSplitOn :: Handle -> IO Int
 toChunksSplitOn =
     Stream.fold Fold.length
-        . ArrayStream.splitOn 32
+        . Array.compactSepByByte_ 32
         . Handle.readChunks
 
 #ifdef INSPECTION
@@ -190,7 +188,7 @@ o_1_space_read_chunked env =
 copyChunksSplitInterposeSuffix :: Handle -> Handle -> IO ()
 copyChunksSplitInterposeSuffix inh outh =
     Stream.fold (Handle.write outh)
-        $ ArrayStream.interposeSuffix 10 . ArrayStream.splitOnSuffix 10
+        $ Array.concatEndBy 10 . Array.compactEndByByte_ 10
         $ Handle.readChunks inh
 
 #ifdef INSPECTION
@@ -204,7 +202,7 @@ copyChunksSplitInterpose :: Handle -> Handle -> IO ()
 copyChunksSplitInterpose inh outh =
     Stream.fold (Handle.write outh)
         -- XXX this is not correct word splitting combinator
-        $ ArrayStream.interpose 32 . ArrayStream.splitOn 32
+        $ Array.concatSepBy 32 . Array.compactSepByByte_ 32
         $ Handle.readChunks inh
 
 #ifdef INSPECTION
@@ -236,23 +234,23 @@ drainWhile p = Parser.takeWhile p Fold.drain
 
 {-# INLINE fold #-}
 fold :: Stream IO (Array.Array Int) -> IO ()
-fold s = void $ ArrayStream.foldBreak Fold.drain $ StreamK.fromStream s
+fold s = void $ Array.foldBreakChunksK Fold.drain $ StreamK.fromStream s
 
 {-# INLINE parse #-}
 parse :: Int -> Stream IO (Array.Array Int) -> IO ()
 parse value s =
-    void $ ArrayStream.parseBreak (drainWhile (< value)) $ StreamK.fromStream s
+    void $ Array.parseBreakChunksK (drainWhile (< value)) $ StreamK.fromStream s
 
 {-# INLINE foldBreak #-}
 foldBreak :: StreamK IO (Array.Array Int) -> IO ()
 foldBreak s = do
-    (r, s1) <- ArrayStream.foldBreak Fold.one s
+    (r, s1) <- Array.foldBreakChunksK Fold.one s
     when (isJust r) $ foldBreak s1
 
 {-# INLINE parseBreak #-}
 parseBreak :: StreamK IO (Array.Array Int) -> IO ()
 parseBreak s = do
-    r <- ArrayStream.parseBreak Parser.one s
+    r <- Array.parseBreakChunksK Parser.one s
     case r of
         (Left _, _) -> return ()
         (Right _, s1) -> parseBreak s1

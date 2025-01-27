@@ -11,7 +11,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 #ifdef USE_PRELUDE
-{-# OPTIONS_GHC -Wno-deprecations #-}
 #endif
 
 #ifdef __HADDOCK_VERSION__
