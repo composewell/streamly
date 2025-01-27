@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- |
 -- Module      : Stream.Split
@@ -88,7 +87,7 @@ inspect $ 'wordsBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 -- | Split on a word8 sequence.
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
-    (Stream.fold Fold.length $ Stream.splitOnSeq (toarr str) Fold.drain
+    (Stream.fold Fold.length $ Stream.splitSepBySeq_ (toarr str) Fold.drain
         $ Handle.read inh) -- >>= print
 
 #ifdef INSPECTION
@@ -145,7 +144,7 @@ splitOnSeq100k :: Handle -> IO Int
 splitOnSeq100k inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
     (Stream.fold Fold.length
-        $ Stream.splitOnSeq arr Fold.drain
+        $ Stream.splitSepBySeq_ arr Fold.drain
         $ Handle.read inh) -- >>= print
 
 -- | Split on suffix sequence.
@@ -282,7 +281,7 @@ o_1_space_reduce_read_split env =
 splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
     (Stream.fold Fold.length
-        $ Stream.splitOnSeq (Array.fromList str) Fold.drain
+        $ Stream.splitSepBySeq_ (Array.fromList str) Fold.drain
         $ Unicode.decodeUtf8Chunks
         $ Handle.readChunks inh) -- >>= print
 

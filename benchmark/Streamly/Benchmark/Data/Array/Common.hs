@@ -71,7 +71,7 @@ onArray
     -> m (Stream Int)
 onArray value f arr = S.fold (A.createOf value) $ f $ S.unfold A.reader arr
 
-scanl'  value n = composeN n $ onArray value $ S.scan (Fold.foldl' (+) 0)
+scanl'  value n = composeN n $ onArray value $ S.scanl (Scanl.mkScanl (+) 0)
 scanl1' value n = composeN n $ onArray value $ Stream.scanl1' (+)
 map     value n = composeN n $ onArray value $ fmap (+1)
 -- map           n = composeN n $ A.map (+1)

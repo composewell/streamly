@@ -6,6 +6,7 @@ import Data.Functor ((<&>))
 import System.Random (randomRIO)
 
 import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Scanl as Scanl
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as Stream
 

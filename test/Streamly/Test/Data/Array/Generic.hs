@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- |
 -- Module      : Streamly.Test.Data.Array.Generic
@@ -27,7 +26,7 @@ testFromStreamToStream =
 
 testFoldUnfold :: Property
 testFoldUnfold =
-    genericTestFromTo (const (S.fold A.write)) (S.unfold A.reader) (==)
+    genericTestFromTo (const (S.fold A.create)) (S.unfold A.reader) (==)
 
 testFromList :: Property
 testFromList =

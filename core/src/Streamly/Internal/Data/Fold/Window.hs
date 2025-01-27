@@ -25,7 +25,7 @@
 -- XXX Deprecate all the functions in this module. These should be scans only.
 
 module Streamly.Internal.Data.Fold.Window
-    {-# DEPRECATED "Please use Streamly.Internal.Data.Scanl.Window instead." #-}
+    {-# DEPRECATED "Please use Streamly.Internal.Data.Scanl instead." #-}
     (
     -- * Incremental Folds
     -- | Folds of type @Fold m (a, Maybe a) b@ are incremental sliding window

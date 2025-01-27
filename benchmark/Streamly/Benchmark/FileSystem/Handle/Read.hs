@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- |
 -- Module      : Streamly.Benchmark.FileSystem.Handle
@@ -61,7 +60,7 @@ import Test.Inspection
 
 -- | Get the last byte from a file bytestream.
 readLast :: Handle -> IO (Maybe Word8)
-readLast = S.fold Fold.last . S.unfold FH.reader
+readLast = S.fold Fold.latest . S.unfold FH.reader
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readLast
@@ -191,7 +190,7 @@ getChunksConcatUnfoldCountLines inh =
         $ IUS.lines FL.drain
         $ SS.decodeLatin1
         -- XXX replace with toBytes
-        $ S.unfoldMany A.reader (IFH.readChunks inh)
+        $ S.unfoldEach A.reader (IFH.readChunks inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'getChunksConcatUnfoldCountLines

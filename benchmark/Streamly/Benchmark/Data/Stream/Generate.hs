@@ -12,7 +12,6 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 #ifdef USE_PRELUDE
-{-# OPTIONS_GHC -Wno-deprecations #-}
 #endif
 
 module Stream.Generate (benchmarks) where

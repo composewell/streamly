@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Main (main) where
 
@@ -10,7 +9,6 @@ import Test.QuickCheck (forAll, Property, vectorOf, Gen, Arbitrary (arbitrary))
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.Array.Stream as ArrayStream
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -57,10 +55,10 @@ parseBreak = do
                     let input =
                             Stream.toStreamK
                                 $ chunksOf
-                                clen (Array.writeN clen) (Stream.fromList ls)
+                                clen (Array.createOf clen) (Stream.fromList ls)
                         parser = Parser.fromFold (Fold.take tlen Fold.toList)
-                     in run $ ArrayStream.parseBreak parser input
-                ls2 <- run $ Stream.fold Fold.toList (ArrayStream.concat $ Stream.fromStreamK str)
+                     in run $ Array.parseBreakChunksK parser input
+                ls2 <- run $ Stream.fold Fold.toList (Array.concat $ Stream.fromStreamK str)
                 case ls1 of
                     Right x -> listEquals (==) (x ++ ls2) ls
                     Left _ -> assert False
@@ -69,8 +67,8 @@ splitOnSuffix :: Word8 -> [Word8] -> [[Word8]] -> IO ()
 splitOnSuffix sep inp out = do
     res <-
         Stream.fold Fold.toList
-            $ ArrayStream.splitOnSuffix sep
-            $ chunksOf 2 (Array.writeN 2) $ Stream.fromList inp
+            $ Array.compactEndByByte_ sep
+            $ chunksOf 2 (Array.createOf 2) $ Stream.fromList inp
     fmap Array.toList res `shouldBe` out
 
 -------------------------------------------------------------------------------
@@ -88,7 +86,7 @@ concatArrayW8 =
     forAll (vectorOf 10000 (arbitrary :: Gen Word8))
         $ \w8List -> do
               let w8ArrList = Array.fromList . (: []) <$> w8List
-              f2 <- Stream.fold Fold.toList $ ArrayStream.concat $ Stream.fromList w8ArrList
+              f2 <- Stream.fold Fold.toList $ Array.concat $ Stream.fromList w8ArrList
               w8List `shouldBe` f2
 
 
