@@ -16,6 +16,7 @@ module Streamly.Internal.Data.MutByteArray.Type
 
     -- ** Helpers
     , unsafeByteCmp
+    , touch
 
     -- ** Pinning
     , PinnedState(..)
@@ -114,9 +115,13 @@ touch (MutByteArray contents) =
 {-# DEPRECATED unsafePinnedAsPtr "Pin the array and then use unsafeAsPtr." #-}
 {-# INLINE unsafePinnedAsPtr #-}
 unsafePinnedAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
-unsafePinnedAsPtr arr f = do
-    arr1 <- liftIO $ pin arr
-    unsafeAsPtr arr1 f
+unsafePinnedAsPtr arr0 f = do
+    arr <- liftIO $ pin arr0
+    let !ptr = Ptr (byteArrayContents#
+                     (unsafeCoerce# (getMutByteArray# arr)))
+    r <- f ptr
+    liftIO $ touch arr
+    return r
 
 {-# DEPRECATED asPtrUnsafe "Pin the array and then use unsafeAsPtr." #-}
 {-# INLINE asPtrUnsafe #-}
@@ -137,8 +142,8 @@ asPtrUnsafe = unsafePinnedAsPtr
 -- /Pre-release/
 --
 {-# INLINE unsafeAsPtr #-}
-unsafeAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
-unsafeAsPtr arr f = do
+unsafeAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> IO b) -> m b
+unsafeAsPtr arr f = liftIO $ do
     when (not (isPinned arr))
         $ error "unsafeAsPtr requires the array to be pinned"
 
@@ -147,7 +152,7 @@ unsafeAsPtr arr f = do
     r <- f ptr
     -- While f is using the bare pointer, the MutByteArray may be garbage
     -- collected by the GC, tell the GC that we are still using it.
-    liftIO $ touch arr
+    touch arr
     return r
 
 --------------------------------------------------------------------------------

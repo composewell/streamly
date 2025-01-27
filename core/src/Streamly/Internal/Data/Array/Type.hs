@@ -296,7 +296,7 @@ data Array a =
 -- /Pre-release/
 --
 {-# INLINE unsafePinnedAsPtr #-}
-unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> Int -> m b) -> m b
+unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> Int -> IO b) -> m b
 unsafePinnedAsPtr arr f = do
     let marr = unsafeThaw arr
     pinned <- liftIO $ MA.pin marr
@@ -311,7 +311,7 @@ unsafePinnedAsPtr arr f = do
 --
 {-# INLINE unsafeAsForeignPtr #-}
 unsafeAsForeignPtr
-    :: MonadIO m => Array a -> (ForeignPtr a -> Int -> m b) -> m b
+    :: MonadIO m => Array a -> (ForeignPtr a -> Int -> IO b) -> m b
 unsafeAsForeignPtr arr0 f = do
     let marr = unsafeThaw arr0
     pinned <- liftIO $ MA.pin marr
@@ -346,7 +346,7 @@ unsafeFromForeignPtr (ForeignPtr addr# _) len =
 {-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
 {-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
-asPtrUnsafe arr f = unsafePinnedAsPtr arr (\p _ -> f p)
+asPtrUnsafe arr f = MA.unsafePinnedAsPtr (unsafeThaw arr) (\p _ -> f p)
 
 -------------------------------------------------------------------------------
 -- Freezing and Thawing
