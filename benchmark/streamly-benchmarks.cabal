@@ -189,7 +189,7 @@ common bench-depends
     , process             >= 1.4 && < 1.7
     , directory         >= 1.2.2 && < 1.4
     , filepath          >= 1.4.1 && < 1.6
-    , ghc-prim          >= 0.4   && < 0.12
+    , ghc-prim          >= 0.4   && < 0.14
     , tasty-bench       >= 0.3 && < 0.5
     , tasty             >= 1.4.1 && < 1.6
     , streamly-core
@@ -201,7 +201,7 @@ common bench-depends
     build-depends:
         fusion-plugin     >= 0.2   && < 0.3
   if flag(inspection)
-    build-depends:     template-haskell   >= 2.14  && < 2.23
+    build-depends:     template-haskell   >= 2.14  && < 2.24
                      , inspection-testing >= 0.4   && < 0.6
   -- Array uses a Storable constraint in dev build making several inspection
   -- tests fail
