@@ -475,13 +475,13 @@ import Data.Either (fromLeft, fromRight, isLeft, isRight)
 import Data.Functor.Identity (Identity(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Either.Strict (Either'(..))
-import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 import Streamly.Internal.Data.Scanl.Type (Scanl(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 -- import qualified Streamly.Internal.Data.Stream.Step as Stream
 import qualified Streamly.Internal.Data.StreamK.Type as K
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 
 import Prelude hiding (Foldable(..), concatMap, filter, map, take, scanl, last)
 
@@ -601,6 +601,11 @@ rmapM f (Fold step initial extract final) =
 -- Left fold constructors
 ------------------------------------------------------------------------------
 
+-- | Convert a left scan to a fold.
+{-# INLINE fromScanl #-}
+fromScanl :: Scanl m a b -> Fold m a b
+fromScanl (Scanl step initial extract final) = Fold step initial extract final
+
 -- | Make a fold from a left fold style pure step function and initial value of
 -- the accumulator.
 --
@@ -616,12 +621,7 @@ rmapM f (Fold step initial extract final) =
 --
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Fold m a b
-foldl' step initial =
-    Fold
-        (\s a -> return $ Partial $ step s a)
-        (return (Partial initial))
-        return
-        return
+foldl' step = fromScanl . Scanl.mkScanl step
 
 -- | Make a fold from a left fold style monadic step function and initial value
 -- of the accumulator.
@@ -635,8 +635,7 @@ foldl' step initial =
 --
 {-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
-foldlM' step initial =
-    Fold (\s a -> Partial <$> step s a) (Partial <$> initial) return return
+foldlM' step = fromScanl . Scanl.mkScanlM step
 
 -- | Make a strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns Nothing if the stream is empty.
@@ -644,12 +643,7 @@ foldlM' step initial =
 -- /Pre-release/
 {-# INLINE foldl1' #-}
 foldl1' :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
-foldl1' step = fmap toMaybe $ foldl' step1 Nothing'
-
-    where
-
-    step1 Nothing' a = Just' a
-    step1 (Just' x) a = Just' $ step x a
+foldl1' = fromScanl . Scanl.mkScanl1
 
 -- | Like 'foldl1\'' but with a monadic step function.
 --
@@ -664,12 +658,7 @@ foldlM1' = foldl1M'
 -- /Pre-release/
 {-# INLINE foldl1M' #-}
 foldl1M' :: Monad m => (a -> a -> m a) -> Fold m a (Maybe a)
-foldl1M'  step = fmap toMaybe $ foldlM' step1 (return Nothing')
-
-    where
-
-    step1 Nothing' a = return $ Just' a
-    step1 (Just' x) a = Just' <$> step x a
+foldl1M' = fromScanl . Scanl.mkScanl1M
 
 {-
 data FromScan s b = FromScanInit !s | FromScanGo !s !b
@@ -713,11 +702,6 @@ fromScan (Scan consume initial) =
     fextract (FromScanGo _ acc) = return (Just acc)
 -}
 
--- | Convert a left scan to a fold.
-{-# INLINE fromScanl #-}
-fromScanl :: Scanl m a b -> Fold m a b
-fromScanl (Scanl step initial extract final) = Fold step initial extract final
-
 ------------------------------------------------------------------------------
 -- Right fold constructors
 ------------------------------------------------------------------------------
@@ -739,7 +723,7 @@ fromScanl (Scanl step initial extract final) = Fold step initial extract final
 --
 {-# INLINE foldr' #-}
 foldr' :: Monad m => (a -> b -> b) -> b -> Fold m a b
-foldr' f z = fmap ($ z) $ foldl' (\g x -> g . f x) id
+foldr' f = fromScanl . Scanl.mkScanr f
 
 {-# DEPRECATED foldr "Please use foldr' instead." #-}
 {-# INLINE foldr #-}
@@ -760,8 +744,7 @@ foldr = foldr'
 -- /Pre-release/
 {-# INLINE foldrM' #-}
 foldrM' :: Monad m => (a -> b -> m b) -> m b -> Fold m a b
-foldrM' g z =
-    rmapM (z >>=) $ foldlM' (\f x -> return $ g x >=> f) (return return)
+foldrM' g = fromScanl . Scanl.mkScanrM g
 
 ------------------------------------------------------------------------------
 -- General fold constructors
@@ -788,12 +771,7 @@ foldrM' g z =
 --
 {-# INLINE foldt' #-}
 foldt' :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
-foldt' step initial extract =
-    Fold
-        (\s a -> return $ step s a)
-        (return initial)
-        (return . extract)
-        (return . extract)
+foldt' step initial = fromScanl . Scanl.mkScant step initial
 
 -- | Make a terminating fold with an effectful step function and initial state,
 -- and a state extraction function.
@@ -834,7 +812,7 @@ fromRefold (Refold step inject extract) c =
 --
 {-# INLINE drain #-}
 drain :: Monad m => Fold m a ()
-drain = foldl' (\_ _ -> ()) ()
+drain = fromScanl Scanl.drain
 
 ------------------------------------------------------------------------------
 -- To Containers
@@ -850,7 +828,7 @@ drain = foldl' (\_ _ -> ()) ()
 --
 {-# INLINE toList #-}
 toList :: Monad m => Fold m a [a]
-toList = foldr' (:) []
+toList = fromScanl Scanl.toList
 
 -- $toListRev
 -- This is more efficient than 'Streamly.Internal.Data.Fold.toList'. toList is
@@ -884,7 +862,7 @@ toListRev = foldl' (flip (:)) []
 --  xn : ... : x2 : x1 : []
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: Monad m => Fold m a (K.StreamK n a)
-toStreamKRev = foldl' (flip K.cons) K.nil
+toStreamKRev = fromScanl Scanl.toStreamKRev
 
 -- | A fold that buffers its input to a pure stream.
 --
@@ -894,7 +872,7 @@ toStreamKRev = foldl' (flip K.cons) K.nil
 -- /Internal/
 {-# INLINE toStreamK #-}
 toStreamK :: Monad m => Fold m a (K.StreamK n a)
-toStreamK = foldr K.cons K.nil
+toStreamK = fromScanl Scanl.toStreamK
 
 -- | Like 'length', except with a more general 'Num' return value
 --
@@ -906,7 +884,7 @@ toStreamK = foldr K.cons K.nil
 -- /Pre-release/
 {-# INLINE genericLength #-}
 genericLength :: (Monad m, Num b) => Fold m a b
-genericLength = foldl' (\n _ -> n + 1) 0
+genericLength = fromScanl Scanl.genericLength
 
 -- | Determine the length of the input stream.
 --
@@ -917,7 +895,7 @@ genericLength = foldl' (\n _ -> n + 1) 0
 --
 {-# INLINE length #-}
 length :: Monad m => Fold m a Int
-length = genericLength
+length = fromScanl Scanl.length
 
 -- | Returns the latest element of the input stream, if any.
 --
@@ -926,7 +904,7 @@ length = genericLength
 --
 {-# INLINE latest #-}
 latest :: Monad m => Fold m a (Maybe a)
-latest = foldl1' (\_ x -> x)
+latest = fromScanl Scanl.latest
 
 {-# DEPRECATED last "Please use 'latest' instead." #-}
 {-# INLINE last #-}
@@ -976,7 +954,7 @@ instance Functor m => Functor (Fold m a) where
 --
 {-# INLINE fromPure #-}
 fromPure :: Applicative m => b -> Fold m a b
-fromPure b = Fold undefined (pure $ Done b) pure pure
+fromPure = fromScanl . Scanl.const
 
 -- | Make a fold that yields the result of the supplied effectful action
 -- without consuming any further input.
@@ -985,7 +963,7 @@ fromPure b = Fold undefined (pure $ Done b) pure pure
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Applicative m => m b -> Fold m a b
-fromEffect b = Fold undefined (Done <$> b) pure pure
+fromEffect = fromScanl . Scanl.constM
 
 {-# ANN type SeqFoldState Fuse #-}
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
@@ -1850,36 +1828,11 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 
 {-# INLINE taking #-}
 taking :: Monad m => Int -> Fold m a (Maybe a)
-taking n = foldt' step initial extract
-
-    where
-
-    initial =
-        if n <= 0
-        then Done Nothing
-        else Partial (Tuple'Fused n Nothing)
-
-    step (Tuple'Fused i _) a =
-        if i > 1
-        then Partial (Tuple'Fused (i - 1) (Just a))
-        else Done (Just a)
-
-    extract (Tuple'Fused _ r) = r
+taking = fromScanl . Scanl.taking
 
 {-# INLINE dropping #-}
 dropping :: Monad m => Int -> Fold m a (Maybe a)
-dropping n = foldt' step initial extract
-
-    where
-
-    initial = Partial (Tuple'Fused n Nothing)
-
-    step (Tuple'Fused i _) a =
-        if i > 0
-        then Partial (Tuple'Fused (i - 1) Nothing)
-        else Partial (Tuple'Fused i (Just a))
-
-    extract (Tuple'Fused _ r) = r
+dropping = fromScanl . Scanl.dropping
 
 -- | Take at most @n@ input elements and fold them using the supplied fold. A
 -- negative count is treated as 0.

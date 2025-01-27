@@ -119,9 +119,9 @@ import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Scanl.Type (Scanl(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 
-import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.IsMap as IsMap
+import qualified Streamly.Internal.Data.Scanl.Container as Scanl
 
 import Prelude hiding (Foldable(..))
 import Streamly.Internal.Data.Fold.Type
@@ -136,7 +136,7 @@ import Streamly.Internal.Data.Fold.Type
 --
 {-# INLINE toSet #-}
 toSet :: (Monad m, Ord a) => Fold m a (Set a)
-toSet = foldl' (flip Set.insert) Set.empty
+toSet = fromScanl Scanl.toSet
 
 -- | Fold the input to an int set. For integer inputs this performs better than
 -- 'toSet'.
@@ -147,7 +147,7 @@ toSet = foldl' (flip Set.insert) Set.empty
 --
 {-# INLINE toIntSet #-}
 toIntSet :: Monad m => Fold m Int IntSet
-toIntSet = foldl' (flip IntSet.insert) IntSet.empty
+toIntSet = fromScanl Scanl.toIntSet
 
 -- XXX Name as nubOrd? Or write a nubGeneric
 
@@ -164,32 +164,14 @@ toIntSet = foldl' (flip IntSet.insert) IntSet.empty
 -- /Pre-release/
 {-# INLINE nub #-}
 nub :: (Monad m, Ord a) => Fold m a (Maybe a)
-nub = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
-
-    where
-
-    initial = Tuple' Set.empty Nothing
-
-    step (Tuple' set _) x =
-        if Set.member x set
-        then Tuple' set Nothing
-        else Tuple' (Set.insert x set) (Just x)
+nub = fromScanl Scanl.nub
 
 -- | Like 'nub' but specialized to a stream of 'Int', for better performance.
 --
 -- /Pre-release/
 {-# INLINE nubInt #-}
 nubInt :: Monad m => Fold m Int (Maybe Int)
-nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
-
-    where
-
-    initial = Tuple' IntSet.empty Nothing
-
-    step (Tuple' set _) x =
-        if IntSet.member x set
-        then Tuple' set Nothing
-        else Tuple' (IntSet.insert x set) (Just x)
+nubInt = fromScanl Scanl.nubInt
 
 -- XXX Try Hash set
 -- XXX Add a countDistinct window fold
@@ -213,7 +195,7 @@ nubInt = fmap (\(Tuple' _ x) -> x) $ foldl' step initial
 {-# INLINE countDistinct #-}
 countDistinct :: (Monad m, Ord a) => Fold m a Int
 -- countDistinct = postscan nub $ catMaybes length
-countDistinct = fmap Set.size toSet
+countDistinct = fromScanl Scanl.countDistinct
 {-
 countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 
@@ -242,7 +224,7 @@ countDistinct = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 {-# INLINE countDistinctInt #-}
 countDistinctInt :: Monad m => Fold m Int Int
 -- countDistinctInt = postscan nubInt $ catMaybes length
-countDistinctInt = fmap IntSet.size toIntSet
+countDistinctInt = fromScanl Scanl.countDistinctInt
 {-
 countDistinctInt = fmap (\(Tuple' _ n) -> n) $ foldl' step initial
 
