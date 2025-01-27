@@ -58,6 +58,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     , indexingWith
     , indexing
     , indexingRev
+    , rollingMap
     , rollingMapM
 
     -- *** Filters
