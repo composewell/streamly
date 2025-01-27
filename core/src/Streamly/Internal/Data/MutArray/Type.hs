@@ -404,6 +404,7 @@ import Streamly.Internal.Data.Unbox (Unbox(..))
 import GHC.Base (noinline)
 import GHC.Exts (Addr#, MutableByteArray#, RealWorld)
 import GHC.Ptr (Ptr(..))
+import GHC.Exts (byteArrayContents#, unsafeCoerce#)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Producer.Type (Producer (..))
@@ -456,6 +457,16 @@ bytesToElemCount _ n = n `div` SIZE_OF(a)
 -------------------------------------------------------------------------------
 -- MutArray Data Type
 -------------------------------------------------------------------------------
+
+-- Note on using "IO" callbacks:
+--
+-- The Array APIs should use "IO" callbacks instead of lifted callbacks as the
+-- lifted callbacks aren't optimized properly.
+--
+-- See:
+-- https://github.com/composewell/streamly/issues/2820
+-- https://github.com/composewell/streamly/issues/2589
+
 
 -- $arrayNotes
 --
@@ -573,8 +584,8 @@ isPinned MutArray{..} = Unboxed.isPinned arrContents
 -- /Pre-release/
 {-# INLINE emptyWithAligned #-}
 newArrayWith, emptyWithAligned :: forall m a. (MonadIO m, Unbox a)
-    => (Int -> Int -> m MutByteArray) -> Int -> Int -> m (MutArray a)
-emptyWithAligned alloc alignSize count = do
+    => (Int -> Int -> IO MutByteArray) -> Int -> Int -> m (MutArray a)
+emptyWithAligned alloc alignSize count = liftIO $ do
     let size = max (count * SIZE_OF(a)) 0
     contents <- alloc size alignSize
     return $ MutArray
@@ -2226,6 +2237,7 @@ writeAppend :: forall m a. (MonadIO m, Unbox a) =>
     m (MutArray a) -> Fold m a (MutArray a)
 writeAppend = append
 
+-- XXX Use "IO" instead of "m" in the alloc function
 -- XXX We can carry bound as well in the state to make sure we do not lose the
 -- remaining capacity. Need to check perf impact.
 --
@@ -2291,6 +2303,8 @@ RENAME_PRIME(unsafePinnedCreateOf,unsafeCreateOf)
 pinnedWriteNUnsafe :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
 pinnedWriteNUnsafe = unsafeCreateOf'
+
+-- XXX Use "IO" instead of "m" in the alloc function
 
 -- | @createWithOf alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
@@ -3180,9 +3194,14 @@ cast arr =
 {-# DEPRECATED unsafePinnedAsPtr "Pin the array and then use unsafeAsPtr." #-}
 {-# INLINE unsafePinnedAsPtr #-}
 unsafePinnedAsPtr :: MonadIO m => MutArray a -> (Ptr a -> Int -> m b) -> m b
-unsafePinnedAsPtr arr f = do
-    arr1 <- liftIO $ pin arr
-    unsafeAsPtr arr1 f
+unsafePinnedAsPtr mutarr f = do
+    let arr0 = arrContents mutarr
+    arr <- liftIO $ Unboxed.pin arr0
+    let !ptr = Ptr (byteArrayContents#
+                     (unsafeCoerce# (getMutByteArray# arr)))
+    r <- f (ptr `plusPtr` arrStart mutarr) (byteLength mutarr)
+    liftIO $ Unboxed.touch arr
+    return r
 
 {-# DEPRECATED asPtrUnsafe "Pin the array and then use unsafeAsPtr." #-}
 {-# INLINE asPtrUnsafe #-}
@@ -3200,7 +3219,7 @@ asPtrUnsafe a f = unsafePinnedAsPtr a (\p _ -> f p)
 -- /Pre-release/
 --
 {-# INLINE unsafeAsPtr #-}
-unsafeAsPtr :: MonadIO m => MutArray a -> (Ptr a -> Int -> m b) -> m b
+unsafeAsPtr :: MonadIO m => MutArray a -> (Ptr a -> Int -> IO b) -> m b
 unsafeAsPtr arr f =
     Unboxed.unsafeAsPtr
         (arrContents arr)
@@ -3216,7 +3235,7 @@ unsafeAsPtr arr f =
 -- to the total capacity.
 {-# INLINE unsafePinnedCreateUsingPtr #-}
 unsafePinnedCreateUsingPtr
-    :: MonadIO m => Int -> (Ptr Word8 -> m Int) -> m (MutArray Word8)
+    :: MonadIO m => Int -> (Ptr Word8 -> IO Int) -> m (MutArray Word8)
 unsafePinnedCreateUsingPtr cap pop = do
     (arr :: MutArray Word8) <- emptyOf' cap
     len <- Unboxed.unsafeAsPtr (arrContents arr) pop
