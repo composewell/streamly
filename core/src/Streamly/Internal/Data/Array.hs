@@ -64,7 +64,6 @@ module Streamly.Internal.Data.Array
 
     -- * Folding
     , streamFold
-    , fold
     , foldM
     , foldRev
 
@@ -106,6 +105,7 @@ module Streamly.Internal.Data.Array
     , compactOnByte
     , compactOnByteSuffix
     , splitOn
+    , fold
     )
 where
 
@@ -531,12 +531,9 @@ asCStringUnsafe arr act = do
 --
 -- /Pre-release/
 {-# INLINE foldM #-}
-foldM :: (Monad m, Unbox a) => Fold m a b -> Array a -> m b
+fold, foldM :: (Monad m, Unbox a) => Fold m a b -> Array a -> m b
 foldM f arr = Stream.fold f (read arr)
-
-{-# INLINE fold #-}
-fold :: (Monad m, Unbox a) => Fold m a b -> Array a -> m b
-fold = foldM
+RENAME(fold,foldM)
 
 foldRev :: Unbox a => Fold.Fold Identity a b -> Array a -> b
 foldRev f arr = runIdentity $ Stream.fold f (readRev arr)
