@@ -397,6 +397,8 @@ library
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
                      , Streamly.Internal.FileSystem.DirIO
+                     , Streamly.Internal.FileSystem.Posix.Errno
+                     , Streamly.Internal.FileSystem.Posix.File
                      , Streamly.Internal.FileSystem.Posix.ReadDir
                      , Streamly.Internal.FileSystem.Windows.ReadDir
 
