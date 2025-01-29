@@ -954,7 +954,7 @@ instance Functor m => Functor (Fold m a) where
 --
 {-# INLINE fromPure #-}
 fromPure :: Applicative m => b -> Fold m a b
-fromPure = fromScanl . Scanl.const
+fromPure b = Fold undefined (pure $ Done b) pure pure
 
 -- | Make a fold that yields the result of the supplied effectful action
 -- without consuming any further input.
@@ -963,7 +963,7 @@ fromPure = fromScanl . Scanl.const
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Applicative m => m b -> Fold m a b
-fromEffect = fromScanl . Scanl.constM
+fromEffect b = Fold undefined (Done <$> b) pure pure
 
 {-# ANN type SeqFoldState Fuse #-}
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
