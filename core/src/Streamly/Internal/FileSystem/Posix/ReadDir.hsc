@@ -9,12 +9,13 @@
 module Streamly.Internal.FileSystem.Posix.ReadDir
     (
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-      DirStream
+      DirStream (..)
     , openDirStream
     , closeDirStream
     , readDirStreamEither
     , readEitherChunks
     , readEitherByteChunks
+    , readEitherByteChunksAt
     , eitherReader
     , reader
 #endif
@@ -29,15 +30,18 @@ import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr)
 import Foreign.C
     (resetErrno, Errno(..), getErrno, eINTR, throwErrno
     , throwErrnoIfMinus1Retry_, CInt(..), CString, CChar, CSize(..))
-import Foreign.C.Error (errnoToIOError)
 import Foreign.Storable (poke)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
+import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
+import Streamly.Internal.FileSystem.Posix.Errno (throwErrnoPathIfNullRetry)
+import Streamly.Internal.FileSystem.Posix.File
+    (OpenMode(..), openFd, openFdAt, closeFd)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
-import Streamly.Internal.Data.Stream (Stream(..), Step(..))
+import System.Posix.Types (Fd(..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
@@ -47,39 +51,6 @@ import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 #include <dirent.h>
 
--------------------------------------------------------------------------------
--- From unix
--------------------------------------------------------------------------------
-
--- | as 'throwErrno', but exceptions include the given path when appropriate.
---
-throwErrnoPath :: String -> PosixPath -> IO a
-throwErrnoPath loc path =
-  do
-    errno <- getErrno
-    -- XXX toString uses strict decoding, may fail
-    ioError (errnoToIOError loc errno Nothing (Just (Path.toString path)))
-
-throwErrnoPathIfRetry :: (a -> Bool) -> String -> PosixPath -> IO a -> IO a
-throwErrnoPathIfRetry pr loc rpath f =
-  do
-    res <- f
-    if pr res
-      then do
-        err <- getErrno
-        if err == eINTR
-          then throwErrnoPathIfRetry pr loc rpath f
-          else throwErrnoPath loc rpath
-      else return res
-
-throwErrnoPathIfNullRetry :: String -> PosixPath -> IO (Ptr a) -> IO (Ptr a)
-throwErrnoPathIfNullRetry loc path f =
-  throwErrnoPathIfRetry (== nullPtr) loc path f
-
--------------------------------------------------------------------------------
--- import System.Posix.Directory (closeDirStream)
--- import System.Posix.Directory.Internals (DirStream(..), CDir, CDirent)
--- requires unix >= 2.8
 -------------------------------------------------------------------------------
 
 data {-# CTYPE "DIR" #-} CDir
@@ -94,6 +65,9 @@ foreign import ccall unsafe "closedir"
 
 foreign import capi unsafe "dirent.h opendir"
     c_opendir :: CString  -> IO (Ptr CDir)
+
+foreign import capi unsafe "dirent.h fdopendir"
+    c_fdopendir :: CInt  -> IO (Ptr CDir)
 
 -- XXX The "unix" package uses a wrapper over readdir __hscore_readdir (see
 -- cbits/HsUnix.c in unix package) which uses readdir_r in some cases where
@@ -114,8 +88,19 @@ foreign import ccall unsafe "lstat_is_directory"
 -- {-# INLINE openDirStream #-}
 openDirStream :: PosixPath -> IO DirStream
 openDirStream p =
-  Array.asCStringUnsafe (Path.toChunk p) $ \s -> do
-    dirp <- throwErrnoPathIfNullRetry "openDirStream" p $ c_opendir s
+    Array.asCStringUnsafe (Path.toChunk p) $ \s -> do
+        dirp <- throwErrnoPathIfNullRetry "openDirStream" p $ c_opendir s
+        return (DirStream dirp)
+
+-- | Note that the supplied Fd is used by DirStream and when we close the
+-- DirStream the fd will be closed.
+openDirStreamAt :: Fd -> PosixPath -> IO DirStream
+openDirStreamAt fd p = do
+    fd1 <- openFdAt (Just fd) p ReadOnly
+    -- liftIO $ putStrLn $ "opened: " ++ show fd1
+    dirp <- throwErrnoPathIfNullRetry "openDirStreamAt" p
+        $ c_fdopendir (fromIntegral fd1)
+    -- XXX can we somehow clone fd1 instead of opening again?
     return (DirStream dirp)
 
 -- | @closeDirStream dp@ calls @closedir@ to close
@@ -368,6 +353,7 @@ readEitherChunks alldirs =
             then return $ Skip st
             else do
                 let (Errno n) = errno
+                -- XXX Exception safety
                 liftIO $ closeDirStream (DirStream dirp)
                 if (n == 0)
                 then return $ Skip (ChunkStreamInit xs dirs ndirs files nfiles)
@@ -512,6 +498,9 @@ readEitherByteChunks alldirs =
                             return $ Skip
                                 (ChunkStreamByteLoop curdir xs dirp dirs ndirs mbarr pos1)
                         Nothing -> do
+                            -- XXX we do not need to yield the out dirs here
+                            -- XXX But we should yield if the number of dirs
+                            -- become more than a threshold.
                             if ndirs > 0
                             then
                                 return $ Yield (Left dirs)
@@ -533,6 +522,8 @@ readEitherByteChunks alldirs =
                                 (ChunkStreamByteLoop curdir xs dirp dirs1 ndirs1 mbarr pos1)
                         Nothing -> do
                             -- We know dirs1 in not empty here
+                            -- XXX Yield only if dirs are more than a threshold
+                            -- otherwise skip.
                             return $ Yield (Left dirs1)
                                 (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
         else do
@@ -541,8 +532,184 @@ readEitherByteChunks alldirs =
             then return $ Skip st
             else do
                 let (Errno n) = errno
+                -- XXX Exception safety
                 liftIO $ closeDirStream (DirStream dirp)
                 if (n == 0)
                 then return $ Skip (ChunkStreamByteInit xs dirs ndirs mbarr pos)
+                else liftIO $ throwErrno "readEitherByteChunks"
+
+{-# ANN type ByteChunksAt Fuse #-}
+data ByteChunksAt =
+      ByteChunksAtInit0
+    | ByteChunksAtInit
+        Fd
+        [PosixPath] -- input dirs
+        -- (Handle, [PosixPath]) -- output dirs
+        -- Int -- count of output dirs
+        MutByteArray -- output files and dirs
+        Int -- position in MutByteArray
+    | ByteChunksAtLoop
+        Fd
+        (Ptr CDir) -- current dir stream
+        PosixPath -- current dir path
+        [PosixPath]  -- remaining dirs
+        [PosixPath] -- output dirs
+        Int    -- output dir count
+        MutByteArray
+        Int
+    | ByteChunksAtRealloc
+        (Ptr CChar) -- pending item
+        Fd
+        (Ptr CDir) -- current dir stream
+        PosixPath -- current dir path
+        [PosixPath]  -- remaining dirs
+        [PosixPath] -- output dirs
+        Int    -- output dir count
+        MutByteArray
+        Int
+
+-- The advantage of readEitherByteChunks over readEitherByteChunksAt is that we
+-- do not need to open the dir handles and thus requires less open fd.
+{-# INLINE readEitherByteChunksAt #-}
+readEitherByteChunksAt :: MonadIO m =>
+       -- (parent dir path, child dir paths rel to parent)
+       (PosixPath, [PosixPath])
+    -> Stream m (Either (PosixPath, [PosixPath]) (Array Word8))
+readEitherByteChunksAt (ppath, alldirs) =
+    Stream step (ByteChunksAtInit0)
+
+    where
+
+    bufSize = 4000
+
+    copyToBuf dstArr pos dirPath name = do
+        nameLen <- fmap fromIntegral (liftIO $ c_strlen name)
+        -- XXX prepend ppath to dirPath
+        let PosixPath (Array dirArr start end) = dirPath
+            dirLen = end - start
+            -- XXX We may need to decode and encode the path if the
+            -- output encoding differs from fs encoding.
+            --
+            -- Account for separator and newline bytes.
+            byteCount = dirLen + nameLen + 2
+        if pos + byteCount <= bufSize
+        then do
+            -- XXX append a path separator to a dir path
+            -- We know it is already pinned.
+            MutByteArray.unsafeAsPtr dstArr (\ptr -> liftIO $ do
+                MutByteArray.unsafePutSlice  dirArr start dstArr pos dirLen
+                let ptr1 = ptr `plusPtr` (pos + dirLen)
+                    separator = 47 :: Word8
+                poke ptr1 separator
+                let ptr2 = ptr1 `plusPtr` 1
+                _ <- c_memcpy ptr2 (castPtr name) (fromIntegral nameLen)
+                let ptr3 = ptr2 `plusPtr` nameLen
+                    newline = 10 :: Word8
+                poke ptr3 newline
+                )
+            return (Just (pos + byteCount))
+        else return Nothing
+
+    step _ ByteChunksAtInit0 = do
+        pfd <- liftIO $ openFd ppath ReadOnly
+        mbarr <- liftIO $ MutByteArray.pinnedNew bufSize
+        return $ Skip (ByteChunksAtInit pfd alldirs mbarr 0)
+
+    step _ (ByteChunksAtInit ph (x:xs) mbarr pos) = do
+        (DirStream dirp) <- liftIO $ openDirStreamAt ph x
+        return $ Skip (ByteChunksAtLoop ph dirp x xs [] 0 mbarr pos)
+
+    step _ (ByteChunksAtInit pfd [] _ 0) = do
+        liftIO $ closeFd (pfd)
+        return Stop
+
+    step _ (ByteChunksAtInit pfd [] mbarr pos) = do
+        return
+            $ Yield
+                (Right (Array mbarr 0 pos))
+                (ByteChunksAtInit pfd [] mbarr 0)
+
+    step _ (ByteChunksAtRealloc pending pfd dirp curdir xs dirs ndirs mbarr pos) = do
+        mbarr1 <- liftIO $ MutByteArray.pinnedNew bufSize
+        r1 <- copyToBuf mbarr1 0 curdir pending
+        case r1 of
+            Just pos2 ->
+                return $ Yield (Right (Array mbarr 0 pos))
+                    (ByteChunksAtLoop pfd dirp curdir xs dirs ndirs mbarr1 pos2)
+            Nothing -> error "Dirname too big for bufSize"
+
+    step _ st@(ByteChunksAtLoop pfd dirp curdir xs dirs ndirs mbarr pos) = do
+        liftIO resetErrno
+        dentPtr <- liftIO $ c_readdir dirp
+        if (dentPtr /= nullPtr)
+        then do
+            let dname = #{ptr struct dirent, d_name} dentPtr
+            dtype :: #{type unsigned char} <-
+                liftIO $ #{peek struct dirent, d_type} dentPtr
+
+            -- Keep the file check first as it is more likely
+            (isDir, isMeta) <- liftIO $ checkDirStatus curdir dname dtype
+            if not isDir
+            then do
+                    r <- copyToBuf mbarr pos curdir dname
+                    case r of
+                        Just pos1 ->
+                            return $ Skip
+                                (ByteChunksAtLoop
+                                    pfd dirp curdir xs dirs ndirs mbarr pos1)
+                        Nothing ->
+                            return $ Skip
+                                (ByteChunksAtRealloc
+                                    dname pfd dirp curdir xs dirs ndirs mbarr pos)
+            else do
+                if isMeta
+                then return $ Skip st
+                else do
+                    arr <- Array.fromCString (castPtr dname)
+                    let path = Path.unsafeFromChunk arr
+                    let dirs1 = path : dirs
+                        ndirs1 = ndirs + 1
+                    r <- copyToBuf mbarr pos curdir dname
+                    case r of
+                        Just pos1 ->
+                            -- XXX When there is less parallelization at the
+                            -- top of the tree, we should use smaller chunks.
+                            {-
+                            if ndirs > 64
+                            then do
+                                let fpath = Path.unsafeAppend ppath curdir
+                                return $ Yield
+                                    (Left (fpath, dirs1))
+                                    (ByteChunksAtLoop pfd dirp curdir xs [] 0 mbarr pos1)
+                            else
+                            -}
+                                return $ Skip
+                                    (ByteChunksAtLoop
+                                        pfd dirp curdir xs dirs1 ndirs1 mbarr pos1)
+                        Nothing -> do
+                            return $ Skip
+                                (ByteChunksAtRealloc
+                                    dname pfd dirp curdir xs dirs1 ndirs1 mbarr pos)
+        else do
+            errno <- liftIO getErrno
+            if (errno == eINTR)
+            then return $ Skip st
+            else do
+                let (Errno n) = errno
+                -- XXX What if an exception occurs in the code before this?
+                -- Should we attach a weak IORef to close the fd on GC.
+                liftIO $ closeDirStream (DirStream dirp)
+                if (n == 0)
+                then
+                    -- XXX Yielding on each dir completion may hurt perf when
+                    -- there are many small directories. However, it may also
+                    -- help parallelize more in IO bound case.
+                    if ndirs > 0
+                    then do
+                        let fpath = Path.unsafeAppend ppath curdir
+                        return $ Yield
+                            (Left (fpath, dirs))
+                            (ByteChunksAtInit pfd xs mbarr pos)
+                    else return $ Skip (ByteChunksAtInit pfd xs mbarr pos)
                 else liftIO $ throwErrno "readEitherByteChunks"
 #endif
