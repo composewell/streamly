@@ -77,6 +77,8 @@ module Streamly.Data.MutArray
     , readerRev
 
     -- * Stream of Arrays
+    -- | Also see the "Streamly.Data.Stream.Prelude" module in the "streamly"
+    -- package for chunking of a stream with timeout.
     , chunksOf
 
     -- * Casting
