@@ -8,6 +8,7 @@
 -- Portability : GHC
 --
 module Streamly.Internal.Data.Unfold.SVar
+    {-# DEPRECATED "The functionality is moved to Channel.*" #-}
     (
       fromSVar
     , fromProducer
