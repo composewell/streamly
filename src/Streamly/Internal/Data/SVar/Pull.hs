@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.SVar.Pull
 -- Copyright   : (c) 2017 Composewell Technologies
@@ -8,6 +10,7 @@
 --
 --
 module Streamly.Internal.Data.SVar.Pull
+    {-# DEPRECATED "The functionality is moved to Channel.*" #-}
     (
     -- * Read Output
       readOutputQBasic

@@ -9,6 +9,7 @@
 --
 --
 module Streamly.Internal.Data.Fold.SVar
+    {-# DEPRECATED "The functionality is moved to Fold.Concurrent" #-}
     (
       write
     , writeLimited

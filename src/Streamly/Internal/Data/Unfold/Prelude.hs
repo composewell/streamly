@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Unfold.Prelude
 -- Copyright   : (c) 2022 Composewell Technologies
@@ -9,6 +11,7 @@
 module Streamly.Internal.Data.Unfold.Prelude
     (
       module Streamly.Internal.Data.Unfold.Exception
+    -- * Deprecated
     , module Streamly.Internal.Data.Unfold.SVar
     )
 where

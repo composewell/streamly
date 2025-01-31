@@ -18,6 +18,7 @@
 --
 --
 module Streamly.Internal.Data.Stream.SVar.Generate
+    {-# DEPRECATED "SVar is replaced by Channel." #-}
     (
     -- * Write to SVar
       toSVar

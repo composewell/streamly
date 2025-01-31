@@ -10,6 +10,7 @@
 -- Eliminate a stream by distributing it to multiple SVars concurrently.
 --
 module Streamly.Internal.Data.Stream.SVar.Eliminate
+    {-# DEPRECATED "The functionality is moved to Channel.*" #-}
     (
     -- * Concurrent Function Application
       toSVarParallel
