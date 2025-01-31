@@ -42,6 +42,17 @@ module Streamly.Internal.Data.Array.Type
     -- ** Construction
     , empty
 
+    -- * Random Access
+    -- , (!!)
+    , getIndex
+    , getIndexRev
+    , head
+    , last
+    , init
+    , tail
+    , uncons
+    , unsnoc
+
     -- *** Slicing
     -- | Get a subarray without copying
     , unsafeBreakAt
@@ -111,6 +122,7 @@ module Streamly.Internal.Data.Array.Type
     , readerRev
 
     -- *** Size
+    , null
     , length
     , byteLength
 
@@ -222,7 +234,7 @@ import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents(..))
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..), nullPtr)
 import Streamly.Internal.Data.Producer.Type (Producer(..))
-import Streamly.Internal.Data.MutArray.Type (MutArray(..))
+import Streamly.Internal.Data.MutArray.Type (MutArray)
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Scanl.Type (Scanl (..))
@@ -232,7 +244,9 @@ import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec)
 
-import Prelude hiding (Foldable(..), concat, read, unlines, splitAt, dropWhile)
+import Prelude hiding
+    ( Foldable(..), concat, head, init, last, read, tail, unlines, splitAt
+    , dropWhile)
 
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Type as Fold
@@ -377,14 +391,14 @@ asPtrUnsafe arr f = MA.unsafePinnedAsPtr (unsafeThaw arr) (\p _ -> f p)
 -- /Pre-release/
 {-# INLINE unsafeFreeze #-}
 unsafeFreeze :: MutArray a -> Array a
-unsafeFreeze (MutArray ac as ae _) = Array ac as ae
+unsafeFreeze (MA.MutArray ac as ae _) = Array ac as ae
 
 -- | Similar to 'unsafeFreeze' but uses 'MA.rightSize' on the mutable array
 -- first.
 {-# INLINE unsafeFreezeWithShrink #-}
 unsafeFreezeWithShrink :: Unbox a => MutArray a -> Array a
 unsafeFreezeWithShrink arr = unsafePerformIO $ do
-  MutArray ac as ae _ <- MA.rightSize arr
+  MA.MutArray ac as ae _ <- MA.rightSize arr
   return $ Array ac as ae
 
 -- | Makes a mutable array using the underlying memory of the immutable array.
@@ -397,7 +411,7 @@ unsafeFreezeWithShrink arr = unsafePerformIO $ do
 -- /Pre-release/
 {-# INLINE unsafeThaw #-}
 unsafeThaw :: Array a -> MutArray a
-unsafeThaw (Array ac as ae) = MutArray ac as ae ae
+unsafeThaw (Array ac as ae) = MA.MutArray ac as ae ae
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
@@ -546,6 +560,92 @@ unsafeSliceOffLen index len (Array contents start e) =
         end1 = start1 + (len * size)
      in assert (end1 <= e) (Array contents start1 end1)
 RENAME(unsafeGetSlice,unsafeSliceOffLen)
+
+-------------------------------------------------------------------------------
+-- Elimination
+-------------------------------------------------------------------------------
+
+-- |
+--
+-- >>> null arr = Array.byteLength arr == 0
+--
+-- Note that this may be faster than checking Array.length as length
+-- calculation involves a division operation.
+--
+-- /Pre-release/
+{-# INLINE null #-}
+null :: Array a -> Bool
+null arr = byteLength arr == 0
+
+-- XXX Change this to a partial function instead of a Maybe type? And use
+-- MA.getIndex instead.
+
+-- | /O(1)/ Lookup the element at the given index. Index starts from 0.
+--
+{-# INLINE getIndex #-}
+getIndex :: forall a. Unbox a => Int -> Array a -> Maybe a
+getIndex i arr =
+    unsafeInlineIO $ do
+        let elemPtr = INDEX_OF(arrStart arr, i, a)
+        if i >= 0 && INDEX_VALID(elemPtr, arrEnd arr, a)
+        then Just <$> peekAt elemPtr (arrContents arr)
+        else return Nothing
+
+-- | Like 'getIndex' but indexes the array in reverse from the end.
+--
+-- /Pre-release/
+{-# INLINE getIndexRev #-}
+getIndexRev :: forall a. Unbox a => Int -> Array a -> Maybe a
+getIndexRev i arr =
+    unsafeInlineIO $ do
+        let elemPtr = RINDEX_OF(arrEnd arr, i, a)
+        if i >= 0 && elemPtr >= arrStart arr
+        then Just <$> peekAt elemPtr (arrContents arr)
+        else return Nothing
+
+{-# INLINE head #-}
+head :: Unbox a => Array a -> Maybe a
+head = getIndex 0
+
+{-# INLINE last #-}
+last :: Unbox a => Array a -> Maybe a
+last = getIndexRev 0
+
+{-# INLINE unsafeTail #-}
+unsafeTail :: forall a. Unbox a => Array a -> Array a
+unsafeTail Array{..} = Array arrContents (arrStart + SIZE_OF(a)) arrEnd
+
+{-# INLINE tail #-}
+tail :: Unbox a => Array a -> Array a
+tail arr@Array{..} =
+    if arrEnd > arrStart
+    then unsafeTail arr
+    else arr
+
+{-# INLINE uncons #-}
+uncons :: Unbox a => Array a -> Maybe (a, Array a)
+uncons arr =
+    if null arr
+    then Nothing
+    else Just (unsafeGetIndex 0 arr, unsafeTail arr)
+
+{-# INLINE unsafeInit #-}
+unsafeInit :: forall a. Unbox a => Array a -> Array a
+unsafeInit Array{..} = Array arrContents arrStart (arrEnd - SIZE_OF(a))
+
+{-# INLINE init #-}
+init :: Unbox a => Array a -> Array a
+init arr@Array{..} =
+    if arrEnd > arrStart
+    then unsafeInit arr
+    else arr
+
+{-# INLINE unsnoc #-}
+unsnoc :: Unbox a => Array a -> Maybe (Array a, a)
+unsnoc arr =
+    if null arr
+    then Nothing
+    else Just (unsafeTail arr, unsafeGetIndexRev 0 arr)
 
 -------------------------------------------------------------------------------
 -- Streams of arrays

@@ -23,10 +23,6 @@ module Streamly.Internal.Data.Array
     , createOfLast
 
     -- * Random Access
-    -- , (!!)
-    , getIndex
-    , getIndexRev
-    , last           -- XXX getLastIndex?
     -- , getIndicesFrom    -- read from a given position to the end of file
     -- , getIndicesUpto    -- read from beginning up to the given position
     -- , getIndicesFromTo
@@ -34,9 +30,6 @@ module Streamly.Internal.Data.Array
     -- , getIndicesUptoRev  -- read from end to the given position in file
     , indexReader
     , indexReaderFromThenTo
-
-    -- * Size
-    , null
 
     -- * Search
     , binarySearch
@@ -179,44 +172,6 @@ import Streamly.Internal.Data.Array.Type
 -- pressure to GC.
 
 -------------------------------------------------------------------------------
--- Elimination
--------------------------------------------------------------------------------
-
--- |
---
--- >>> null arr = Array.byteLength arr == 0
---
--- Note that this may be faster than checking Array.length as length
--- calculation involves a division operation.
---
--- /Pre-release/
-{-# INLINE null #-}
-null :: Array a -> Bool
-null arr = byteLength arr == 0
-
--- | Like 'getIndex' but indexes the array in reverse from the end.
---
--- /Pre-release/
-{-# INLINE getIndexRev #-}
-getIndexRev :: forall a. Unbox a => Int -> Array a -> Maybe a
-getIndexRev i arr =
-    unsafeInlineIO
-        $ do
-                let elemPtr = RINDEX_OF(arrEnd arr, i, a)
-                if i >= 0 && elemPtr >= arrStart arr
-                then Just <$> peekAt elemPtr (arrContents arr)
-                else return Nothing
-
--- |
---
--- >>> last arr = Array.getIndexRev arr 0
---
--- /Pre-release/
-{-# INLINE last #-}
-last :: Unbox a => Array a -> Maybe a
-last = getIndexRev 0
-
--------------------------------------------------------------------------------
 -- Folds with Array as the container
 -------------------------------------------------------------------------------
 
@@ -351,21 +306,6 @@ getSlicesFromLen = splitterFromLen
 -------------------------------------------------------------------------------
 -- Random reads and writes
 -------------------------------------------------------------------------------
-
--- XXX Change this to a partial function instead of a Maybe type? And use
--- MA.getIndex instead.
---
--- | /O(1)/ Lookup the element at the given index. Index starts from 0.
---
-{-# INLINE getIndex #-}
-getIndex :: forall a. Unbox a => Int -> Array a -> Maybe a
-getIndex i arr =
-    unsafeInlineIO
-        $ do
-                let elemPtr = INDEX_OF(arrStart arr, i, a)
-                if i >= 0 && INDEX_VALID(elemPtr, arrEnd arr, a)
-                then Just <$> peekAt elemPtr (arrContents arr)
-                else return Nothing
 
 -- | Given a stream of array indices, read the elements on those indices from
 -- the supplied Array. An exception is thrown if an index is out of bounds.
