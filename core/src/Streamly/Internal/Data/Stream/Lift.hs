@@ -13,7 +13,7 @@ module Streamly.Internal.Data.Stream.Lift
     (
     -- * Generalize Inner Monad
       morphInner
-    , generalizeInner
+    , generalizeInner -- XXX rename to morphPure
 
     -- * Transform Inner Monad
     , liftInnerWith
