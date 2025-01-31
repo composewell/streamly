@@ -158,12 +158,17 @@ import Prelude hiding (read, length)
 -- See the 'fromPureStream' unreleased API to generate an array from an
 -- Identity stream safely without using MonadIO constraint.
 --
--- Note that 'Identity' streams can be generalized to IO streams:
+-- >>> fromPureStream = Stream.fold Array.create . Stream.generalizeInner
 --
 -- >>> stream = Stream.fromList [1,2,3] :: Stream Identity Int
--- >>> pure2IO s = Stream.morphInner (return . runIdentity) s :: Stream IO Int
--- >>> Stream.fold Array.create (pure2IO stream)
+-- >>> fromPureStream stream
 -- fromList [1,2,3]
+--
+-- == Performance Considerations
+--
+-- If you are consuming an array piecemeal (uncons, unsnoc) or by slicing,
+-- immutable Array type may be a tiny bit better than MutArray because it uses
+-- a smaller constructor size.
 --
 -- == Programming Tips
 --
