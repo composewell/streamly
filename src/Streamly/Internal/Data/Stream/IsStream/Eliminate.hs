@@ -392,7 +392,7 @@ parseK p = parse (PRK.toParser p)
 -- result in an error.  For example:
 --
 -- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
--- Left (ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0")
+-- Left (ParseError 0 "takeEQ: Expecting exactly 1 elements, input terminated on 0")
 --
 -- Note:
 --

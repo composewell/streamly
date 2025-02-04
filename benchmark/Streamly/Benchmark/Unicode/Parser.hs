@@ -72,7 +72,7 @@ moduleName = "Unicode.Parser"
 
 instance NFData ParseError where
     {-# INLINE rnf #-}
-    rnf (ParseError x) = rnf x
+    rnf (ParseError i x) = rnf i `seq` rnf x
 
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
