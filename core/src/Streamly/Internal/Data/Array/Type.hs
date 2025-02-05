@@ -36,6 +36,9 @@ module Streamly.Internal.Data.Array.Type
     , unsafePinnedAsPtr
     , unsafeAsForeignPtr
 
+    -- * Subarrays
+    , unsafeGetSlice
+
     -- ** Construction
     , empty
 
@@ -519,6 +522,30 @@ fromStreamD :: forall m a. (MonadIO m, Unbox a)
 fromStreamD = fromStream
 
 -------------------------------------------------------------------------------
+-- Slice
+-------------------------------------------------------------------------------
+
+-- | /O(1)/ Slice an array in constant time.
+--
+-- Caution: The bounds of the slice are not checked.
+--
+-- /Unsafe/
+--
+-- /Pre-release/
+{-# INLINE unsafeGetSlice #-}
+unsafeGetSlice ::
+       forall a. Unbox a
+    => Int -- ^ starting index
+    -> Int -- ^ length of the slice
+    -> Array a
+    -> Array a
+unsafeGetSlice index len (Array contents start e) =
+    let size = SIZE_OF(a)
+        start1 = start + (index * size)
+        end1 = start1 + (len * size)
+     in assert (end1 <= e) (Array contents start1 end1)
+
+-------------------------------------------------------------------------------
 -- Streams of arrays
 -------------------------------------------------------------------------------
 
@@ -591,10 +618,16 @@ splitEndBy :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
 splitEndBy p arr = D.map unsafeFreeze $ MA.splitEndBy p (unsafeThaw arr)
 
+-- | Split the array into a stream of slices using a predicate. The element
+-- matching the predicate is dropped.
+--
+-- /Pre-release/
 {-# INLINE splitEndBy_ #-}
-splitEndBy_ :: (MonadIO m, Unbox a) =>
+splitEndBy_ :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
-splitEndBy_ p arr = D.map unsafeFreeze $ MA.splitEndBy_ p (unsafeThaw arr)
+splitEndBy_ predicate arr =
+    fmap (\(i, len) -> unsafeGetSlice i len arr)
+        $ D.indexEndBy_ predicate (read arr)
 
 -- | Convert a stream of arrays into a stream of their elements.
 --

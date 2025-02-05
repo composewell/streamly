@@ -53,11 +53,9 @@ module Streamly.Internal.Data.Array
     , asCStringUnsafe
 
     -- * Subarrays
-    , unsafeGetSlice
     -- , getSlice
     , indexerFromLen
     , splitterFromLen
-    , splitEndBy_
 
     -- * Streaming Operations
     , streamTransform
@@ -297,39 +295,16 @@ find = Unfold.fold Fold.null . Stream.unfold (indexFinder p)
 -- Slice
 -------------------------------------------------------------------------------
 
--- | /O(1)/ Slice an array in constant time.
---
--- Caution: The bounds of the slice are not checked.
---
--- /Unsafe/
---
--- /Pre-release/
-{-# INLINE unsafeGetSlice #-}
-unsafeGetSlice, getSliceUnsafe ::
+getSliceUnsafe ::
        forall a. Unbox a
     => Int -- ^ starting index
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-unsafeGetSlice index len (Array contents start e) =
-    let size = SIZE_OF(a)
-        start1 = start + (index * size)
-        end1 = start1 + (len * size)
-     in assert (end1 <= e) (Array contents start1 end1)
-
 RENAME(getSliceUnsafe,unsafeGetSlice)
 
--- | Split the array into a stream of slices using a predicate. The element
--- matching the predicate is dropped.
---
--- /Pre-release/
-{-# INLINE splitEndBy_ #-}
-splitEndBy_, sliceEndBy_, splitOn :: (Monad m, Unbox a) =>
+sliceEndBy_, splitOn :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
-splitEndBy_ predicate arr =
-    fmap (\(i, len) -> getSliceUnsafe i len arr)
-        $ D.indexEndBy_ predicate (read arr)
-
 RENAME(splitOn,splitEndBy_)
 RENAME(sliceEndBy_,splitEndBy_)
 
