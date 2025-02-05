@@ -110,7 +110,7 @@ module Streamly.Internal.Data.MutArray.Generic
     , length
 
     -- * In-place Mutation Algorithms
-    , strip
+    , dropAround
     -- , reverse
     -- , permute
     -- , partitionBy
@@ -162,6 +162,7 @@ module Streamly.Internal.Data.MutArray.Generic
     , clone
 
     -- * Deprecated
+    , strip
     , new
     , writeNUnsafe
     , writeN
@@ -926,9 +927,9 @@ eq a1 a2 =
             then loop (i - 1)
             else return False
 
-{-# INLINE strip #-}
-strip :: MonadIO m => (a -> Bool) -> MutArray a -> m (MutArray a)
-strip p arr = liftIO $ do
+{-# INLINE dropAround #-}
+dropAround, strip :: MonadIO m => (a -> Bool) -> MutArray a -> m (MutArray a)
+dropAround p arr = liftIO $ do
     let lastIndex = length arr - 1
     indexR <- getIndexR lastIndex -- last predicate failing index
     if indexR < 0
@@ -961,6 +962,7 @@ strip p arr = liftIO $ do
 -- Renaming
 --------------------------------------------------------------------------------
 
+RENAME(strip,dropAround)
 RENAME(putIndexUnsafe, unsafePutIndex)
 RENAME(modifyIndexUnsafe, unsafeModifyIndex)
 RENAME(getIndexUnsafe, unsafeGetIndex)

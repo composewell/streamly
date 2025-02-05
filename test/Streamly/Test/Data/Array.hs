@@ -84,42 +84,42 @@ testLastN_LN len n = do
 testStrip :: IO Bool
 testStrip = do
     dt <- MA.fromList "abcDEFgeh"
-    dt' <- MA.strip isLower dt
+    dt' <- MA.dropAround isLower dt
     x <- MA.toList dt'
     return $ x == "DEF"
 
 testStripLeft :: IO Bool
 testStripLeft = do
     dt <- MA.fromList "abcDEF"
-    dt' <- MA.strip isLower dt
+    dt' <- MA.dropAround isLower dt
     x <- MA.toList dt'
     return $ x == "DEF"
 
 testStripRight :: IO Bool
 testStripRight = do
     dt <- MA.fromList "DEFgeh"
-    dt' <- MA.strip isLower dt
+    dt' <- MA.dropAround isLower dt
     x <- MA.toList dt'
     return $ x == "DEF"
 
 testStripZero :: IO Bool
 testStripZero = do
     dt <- MA.fromList "DEF"
-    dt' <- MA.strip isLower dt
+    dt' <- MA.dropAround isLower dt
     x <- MA.toList dt'
     return $ x == "DEF"
 
 testStripEmpty :: IO Bool
 testStripEmpty = do
     dt <- MA.fromList "abc"
-    dt' <- MA.strip isLower dt
+    dt' <- MA.dropAround isLower dt
     x <- MA.toList dt'
     return $ x == ""
 
 testStripNull :: IO Bool
 testStripNull = do
     dt <- MA.fromList ""
-    dt' <- MA.strip isLower dt
+    dt' <- MA.dropAround isLower dt
     x <- MA.toList dt'
     return $ x == ""
 
@@ -168,7 +168,7 @@ testByteLengthWithMA _ = do
 
 testBreakOn :: [Word8] -> Word8 -> [Word8] -> Maybe [Word8] -> IO ()
 testBreakOn inp sep bef aft = do
-    (bef_, aft_) <- A.breakOn sep (A.fromList inp)
+    (bef_, aft_) <- A.breakEndByWord8_ sep (A.fromList inp)
     bef_ `shouldBe` A.fromList bef
     aft_ `shouldBe` fmap A.fromList aft
 

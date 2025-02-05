@@ -43,9 +43,10 @@ module Streamly.Internal.Data.Array.Generic
     , unsafeGetIndex
     , getIndex
     , unsafeGetSlice
-    , strip
+    , dropAround
 
     -- * Deprecated
+    , strip
     , getIndexUnsafe
     , getSliceUnsafe
     , writeN
@@ -298,9 +299,10 @@ unsafeGetSlice offset len =
 
 -- | Truncate the array at the beginning and end as long as the predicate
 -- holds true. Returns a slice of the original array.
-{-# INLINE strip #-}
-strip :: (a -> Bool) -> Array a -> Array a
-strip p arr = unsafeFreeze $ unsafePerformIO $ MArray.strip p (unsafeThaw arr)
+{-# INLINE dropAround #-}
+dropAround, strip :: (a -> Bool) -> Array a -> Array a
+dropAround p arr =
+    unsafeFreeze $ unsafePerformIO $ MArray.dropAround p (unsafeThaw arr)
 
 -------------------------------------------------------------------------------
 -- Instances
@@ -354,5 +356,6 @@ instance Read a => Read (Array a) where
 -- Backward Compatibility
 -------------------------------------------------------------------------------
 
+RENAME(strip,dropAround)
 RENAME(getSliceUnsafe,unsafeGetSlice)
 RENAME(getIndexUnsafe,unsafeGetIndex)

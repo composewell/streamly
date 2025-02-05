@@ -68,17 +68,17 @@ module Streamly.Internal.Data.MutArray.Type
     -- | Get a subarray without copying
     , unsafeGetSlice -- XXX unsafeSliceAtLen
     , getSlice -- XXX sliceAtLen
-    , unsafeSplitAt -- XXX unsafeBreakAt
-    , splitAt -- XXX breakAt
-    , breakOn -- XXX breakAtWord8_
+    , unsafeBreakAt
+    , breakAt
+    , breakEndByWord8_
     , breakEndBy
     , breakEndBy_
     , revBreakEndBy
     , revBreakEndBy_
     -- , breakSepBy_
-    , strip
-    , stripStart
-    , stripEnd
+    , dropAround
+    , dropWhile
+    , revDropWhile
 
     -- *** Stream Folds
     , ArrayUnsafe (..)
@@ -268,7 +268,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- | Split an array into a stream of slices.
 
     -- Note: some splitting APIs are in MutArray.hs
-    , sliceEndBy_ -- XXX splitEndBy_
+    , splitEndBy_
     , splitEndBy
     -- , splitSepBy_
 
@@ -308,6 +308,13 @@ module Streamly.Internal.Data.MutArray.Type
     , roundUpToPower2
 
     -- * Deprecated
+    , sliceEndBy_
+    , strip
+    , stripStart
+    , stripEnd
+    , breakOn
+    , splitAt
+    , unsafeSplitAt
     , realloc
     , createOfWith
     , peekUncons
@@ -429,7 +436,7 @@ import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Prelude
 
 import Prelude hiding
-    (Foldable(..), concat, read, unlines, splitAt, reverse, truncate)
+    (Foldable(..), concat, read, unlines, splitAt, reverse, truncate, dropWhile)
 
 #include "DocTestDataMutArray.hs"
 
@@ -2956,12 +2963,13 @@ splitUsing f predicate arr =
 -- matching the predicate is dropped.
 --
 -- /Pre-release/
-{-# INLINE sliceEndBy_ #-}
-sliceEndBy_, splitOn :: (MonadIO m, Unbox a) =>
+{-# INLINE splitEndBy_ #-}
+splitEndBy_, sliceEndBy_, splitOn :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> Stream m (MutArray a)
-sliceEndBy_ = splitUsing D.indexEndBy_
+splitEndBy_ = splitUsing D.indexEndBy_
 
-RENAME(splitOn,sliceEndBy_)
+RENAME(splitOn,splitEndBy_)
+RENAME(sliceEndBy_,splitEndBy_)
 
 -- | Generate a stream of array slices using a predicate. The array element
 -- matching the predicate is included.
@@ -3081,10 +3089,10 @@ revBreakEndBy_ = revBreakUsing False
 -- XXX Do we need to distinguish that?
 
 -- | Drops the separator byte
-{-# INLINE breakOn #-}
-breakOn :: MonadIO m
+{-# INLINE breakEndByWord8_ #-}
+breakEndByWord8_, breakOn :: MonadIO m
     => Word8 -> MutArray Word8 -> m (MutArray Word8, Maybe (MutArray Word8))
-breakOn sep arr@MutArray{..} = liftIO $ do
+breakEndByWord8_ sep arr@MutArray{..} = liftIO $ do
     -- XXX We do not need memchr here, we can use a Haskell equivalent.
     -- Need efficient stream based primitives that work on Word64.
     let marr = getMutByteArray# arrContents
@@ -3108,15 +3116,16 @@ breakOn sep arr@MutArray{..} = liftIO $ do
                     , arrBound = arrBound
                     }
             )
+RENAME(breakOn,breakEndByWord8_)
 
--- | Like 'splitAt' but does not check whether the index is valid.
+-- | Like 'breakAt' but does not check whether the index is valid.
 --
--- >>> unsafeSplitAt i arr = (MutArray.unsafeGetSlice 0 i arr, MutArray.unsafeGetSlice i (MutArray.length arr - i) arr)
+-- >>> unsafeBreakAt i arr = (MutArray.unsafeGetSlice 0 i arr, MutArray.unsafeGetSlice i (MutArray.length arr - i) arr)
 --
-{-# INLINE unsafeSplitAt #-}
-unsafeSplitAt :: forall a. Unbox a =>
+{-# INLINE unsafeBreakAt #-}
+unsafeBreakAt, unsafeSplitAt :: forall a. Unbox a =>
     Int -> MutArray a -> (MutArray a, MutArray a)
-unsafeSplitAt i MutArray{..} =
+unsafeBreakAt i MutArray{..} =
     -- (unsafeGetSlice 0 i arr, unsafeGetSlice i (length arr - i) arr)
     let off = i * SIZE_OF(a)
         p = arrStart + off
@@ -3133,20 +3142,23 @@ unsafeSplitAt i MutArray{..} =
           , arrBound = arrBound
           }
         )
+RENAME(unsafeSplitAt,unsafeBreakAt)
 
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
 --
-{-# INLINE splitAt #-}
-splitAt :: forall a. Unbox a => Int -> MutArray a -> (MutArray a, MutArray a)
-splitAt i arr =
+{-# INLINE breakAt #-}
+breakAt, splitAt
+    :: forall a. Unbox a => Int -> MutArray a -> (MutArray a, MutArray a)
+breakAt i arr =
     let maxIndex = length arr - 1
     in  if i < 0
         then error "sliceAt: negative array index"
         else if i > maxIndex
              then error $ "sliceAt: specified array index " ++ show i
                         ++ " is beyond the maximum index " ++ show maxIndex
-             else unsafeSplitAt i arr
+             else unsafeBreakAt i arr
+RENAME(splitAt,breakAt)
 
 -------------------------------------------------------------------------------
 -- Casting
@@ -3730,53 +3742,56 @@ retractEndTill eq MutArray{..} = go arrEnd
 -- | Strip elements which match the predicate, from the start of the array.
 --
 -- >>> arr <- MutArray.fromList "    hello world"
--- >>> a <- MutArray.stripStart (== ' ') arr
+-- >>> a <- MutArray.dropWhile (== ' ') arr
 -- >>> MutArray.toList a
 -- "hello world"
 --
 -- /Pre-release/
-{-# INLINE stripStart #-}
-stripStart :: forall a m. (Unbox a, MonadIO m) =>
+{-# INLINE dropWhile #-}
+dropWhile, stripStart :: forall a m. (Unbox a, MonadIO m) =>
     (a -> Bool) -> MutArray a -> m (MutArray a)
-stripStart eq arr@MutArray{..} = liftIO $ do
+dropWhile eq arr@MutArray{..} = liftIO $ do
     st <- advanceStartTill eq arr
     -- return arr{arrStart = st}
     return $
         if st >= arrEnd
         then empty
         else arr{arrStart = st}
+RENAME(stripStart,dropWhile)
 
 -- | Strip elements which match the predicate, from the end of the array.
 --
 -- >>> arr <- MutArray.fromList "hello world    "
--- >>> a <- MutArray.stripEnd (== ' ') arr
+-- >>> a <- MutArray.revDropWhile (== ' ') arr
 -- >>> MutArray.toList a
 -- "hello world"
 --
 -- /Pre-release/
-{-# INLINE stripEnd #-}
-stripEnd :: forall a m. (Unbox a, MonadIO m) =>
+{-# INLINE revDropWhile #-}
+revDropWhile, stripEnd :: forall a m. (Unbox a, MonadIO m) =>
     (a -> Bool) -> MutArray a -> m (MutArray a)
-stripEnd eq arr@MutArray{..} = liftIO $ do
+revDropWhile eq arr@MutArray{..} = liftIO $ do
     end <- retractEndTill eq arr
     -- return arr {arrEnd = end}
     return $
         if end <= arrStart
         then empty
         else arr{arrEnd = end}
+RENAME(stripEnd,revDropWhile)
 
 -- | Strip elements which match the predicate, from both ends.
 --
 -- >>> arr <- MutArray.fromList "   hello world    "
--- >>> a <- MutArray.strip (== ' ') arr
+-- >>> a <- MutArray.dropAround (== ' ') arr
 -- >>> MutArray.toList a
 -- "hello world"
 --
 -- /Pre-release/
-{-# INLINE strip #-}
-strip :: forall a m. (Unbox a, MonadIO m) =>
+{-# INLINE dropAround #-}
+dropAround, strip :: forall a m. (Unbox a, MonadIO m) =>
     (a -> Bool) -> MutArray a -> m (MutArray a)
-strip eq arr = liftIO $ stripStart eq arr >>= stripEnd eq
+dropAround eq arr = liftIO $ dropWhile eq arr >>= revDropWhile eq
+RENAME(strip,dropAround)
 
 -- | Given an array sorted in ascending order except the last element being out
 -- of order, use bubble sort to place the last element at the right place such
