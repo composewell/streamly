@@ -151,11 +151,11 @@ ticks = periodic (return ())
 -- speed.
 --
 -- >>> tickStream = Stream.repeatM (return ())
--- >>> ticksRate r = Stream.parEval (Stream.rate (Just r)) tickStream
+-- >>> ticksRate r = Stream.parBuffered (Stream.rate (Just r)) tickStream
 --
 {-# INLINE ticksRate #-}
 ticksRate :: MonadAsync m => Rate -> Stream m ()
-ticksRate r = parEval (rate (Just r)) $ Stream.repeatM (return ())
+ticksRate r = parBuffered (rate (Just r)) $ Stream.repeatM (return ())
 
 -- XXX The case when the interval is 0, we should run only the stream being
 -- interjected.
@@ -236,7 +236,7 @@ dropLastInterval = undefined
 --
 -- Example:
 --
--- >>> twoPerSec = Stream.parEval (Stream.constRate 2) $ Stream.enumerateFrom 1
+-- >>> twoPerSec = Stream.parBuffered (Stream.constRate 2) $ Stream.enumerateFrom 1
 -- >>> intervals = Stream.intervalsOf 1 Fold.toList twoPerSec
 -- >>> Stream.fold Fold.toList $ Stream.take 2 intervals
 -- [...,...]

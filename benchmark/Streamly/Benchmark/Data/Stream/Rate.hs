@@ -36,7 +36,7 @@ avgRate :: MonadAsync m =>
 avgRate f cfg value rt = f (Stream.avgRate rt . cfg) . sourceUnfoldrM value
 
 {-
--- parEval should be maxThreads 1 anyway
+-- parBuffered should be maxThreads 1 anyway
 {-# INLINE avgRateThreads1 #-}
 avgRateThreads1 :: MonadAsync m =>
     ((Config -> Config) -> Stream m Int -> Stream m Int)
@@ -68,34 +68,34 @@ constRate f cfg value rt = f (Stream.constRate rt . cfg) . sourceUnfoldrM value
 o_1_space_async :: Int -> [Benchmark]
 o_1_space_async value =
     [ bgroup
-          "default/parEval"
+          "default/parBuffered"
           [ bgroup
                 "avgRate"
                 -- benchIO "unfoldr" $ toNull
-                [ benchIOSrc "baseline" (Stream.parEval id . sourceUnfoldrM value)
-                , benchIOSrc "Nothing" $ rateNothing Stream.parEval id value
-                , benchIOSrc "1M" $ avgRate Stream.parEval id value 1000000
-                , benchIOSrc "3M" $ avgRate Stream.parEval id value 3000000
-                -- , benchIOSrc "10M/maxThreads1" $ avgRateThreads1 Stream.parEval value 10000000
-                , benchIOSrc "10M" $ avgRate Stream.parEval id value 10000000
-                , benchIOSrc "20M" $ avgRate Stream.parEval id value 20000000
+                [ benchIOSrc "baseline" (Stream.parBuffered id . sourceUnfoldrM value)
+                , benchIOSrc "Nothing" $ rateNothing Stream.parBuffered id value
+                , benchIOSrc "1M" $ avgRate Stream.parBuffered id value 1000000
+                , benchIOSrc "3M" $ avgRate Stream.parBuffered id value 3000000
+                -- , benchIOSrc "10M/maxThreads1" $ avgRateThreads1 Stream.parBuffered value 10000000
+                , benchIOSrc "10M" $ avgRate Stream.parBuffered id value 10000000
+                , benchIOSrc "20M" $ avgRate Stream.parBuffered id value 20000000
                 ]
           , bgroup
                 "minRate"
-                [ benchIOSrc "1M" $ minRate Stream.parEval id value 1000000
-                , benchIOSrc "10M" $ minRate Stream.parEval id value 10000000
-                , benchIOSrc "20M" $ minRate Stream.parEval id value 20000000
+                [ benchIOSrc "1M" $ minRate Stream.parBuffered id value 1000000
+                , benchIOSrc "10M" $ minRate Stream.parBuffered id value 10000000
+                , benchIOSrc "20M" $ minRate Stream.parBuffered id value 20000000
                 ]
           , bgroup
                 "maxRate"
                 [ -- benchIOSrc "10K" $ maxRate value 10000
-                  benchIOSrc "10M" $ maxRate Stream.parEval id value 10000000
+                  benchIOSrc "10M" $ maxRate Stream.parBuffered id value 10000000
                 ]
           , bgroup
                 "constRate"
                 [ -- benchIOSrc "10K" $ constRate value 10000
-                  benchIOSrc "1M" $ constRate Stream.parEval id value 1000000
-                , benchIOSrc "10M" $ constRate Stream.parEval id value 10000000
+                  benchIOSrc "1M" $ constRate Stream.parBuffered id value 1000000
+                , benchIOSrc "10M" $ constRate Stream.parBuffered id value 10000000
                 ]
           ]
     ]
@@ -103,15 +103,15 @@ o_1_space_async value =
 o_1_space_ahead :: Int -> [Benchmark]
 o_1_space_ahead value =
     [ bgroup
-        "ordered/parEval"
+        "ordered/parBuffered"
         [ benchIOSrc "avgRate/1M"
-            $ avgRate Stream.parEval (Stream.ordered True) value 1000000
+            $ avgRate Stream.parBuffered (Stream.ordered True) value 1000000
         , benchIOSrc "minRate/1M"
-            $ minRate Stream.parEval (Stream.ordered True) value 1000000
+            $ minRate Stream.parBuffered (Stream.ordered True) value 1000000
         , benchIOSrc "maxRate/1M"
-            $ maxRate Stream.parEval (Stream.ordered True) value 1000000
+            $ maxRate Stream.parBuffered (Stream.ordered True) value 1000000
         , benchIOSrc "constRate/1M"
-            $ constRate Stream.parEval (Stream.ordered True) value 1000000
+            $ constRate Stream.parBuffered (Stream.ordered True) value 1000000
         ]
     ]
 

@@ -56,7 +56,7 @@ o_n_heap_buffering :: Int -> (Config -> Config) -> [Benchmark]
 o_n_heap_buffering value f =
     [ bgroup "buffered"
         [ benchIOSink value "mkAsync"
-            (Stream.fold Fold.drain . Async.parEval f)
+            (Stream.fold Fold.drain . Async.parBuffered f)
         ]
     ]
 
@@ -174,7 +174,7 @@ o_1_space_concatMap label value f =
 toNullAp :: (Config -> Config) -> Int -> Int -> IO ()
 toNullAp f linearCount start =
     Stream.fold Fold.drain
-        $ Async.parApply f
+        $ Async.parCrossApply f
             (fmap (+) (sourceUnfoldrM nestedCount2 start))
             (sourceUnfoldrM nestedCount2 start)
 

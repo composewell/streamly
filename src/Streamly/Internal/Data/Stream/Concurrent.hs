@@ -22,7 +22,7 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** Evaluate
     -- | Evaluates a stream concurrently using a channel.
-    , parEval
+    , parBuffered
     -- Add unfoldrM/iterateM?
 
     -- ** Generate
@@ -55,7 +55,7 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- ** Stream of streams
     -- *** Apply
-    , parApply
+    , parCrossApply
 
     -- *** Concat
     -- | Shares a single channel across many streams.
@@ -66,13 +66,19 @@ module Streamly.Internal.Data.Stream.Concurrent
     , parConcatIterate
 
     -- ** Reactive
+    , newStreamAndCallback
     , fromCallback
     , parTapCount
     , tapCount
+
+    -- ** Deprecated
+    , parEval
+    , parApply
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
 import Control.Concurrent (myThreadId, killThread)
 import Control.Monad (void, when)
@@ -121,9 +127,9 @@ import Streamly.Internal.Data.Channel.Types
 -------------------------------------------------------------------------------
 
 {-
-{-# INLINE_NORMAL parEvalD #-}
-parEvalD :: MonadAsync m => (Config -> Config) -> D.Stream m a -> D.Stream m a
-parEvalD modifier m = D.Stream step Nothing
+{-# INLINE_NORMAL parBufferedD #-}
+parBufferedD :: MonadAsync m => (Config -> Config) -> D.Stream m a -> D.Stream m a
+parBufferedD modifier m = D.Stream step Nothing
     where
 
     step _ Nothing = do
@@ -140,14 +146,14 @@ parEvalD modifier m = D.Stream step Nothing
             D.Stop      -> D.Stop
 -}
 
--- | 'parEval' evaluates a stream as a whole asynchronously with respect to
+-- | 'parBuffered' evaluates a stream as a whole asynchronously with respect to
 -- the consumer of the stream. A worker thread evaluates multiple elements of
 -- the stream ahead of time and buffers the results; the consumer of the stream
 -- runs in another thread consuming the elements from the buffer, thus
--- decoupling the production and consumption of the stream. 'parEval' can be
+-- decoupling the production and consumption of the stream. 'parBuffered' can be
 -- used to run different stages of a pipeline concurrently.
 --
--- It is important to note that 'parEval' does not evaluate individual actions
+-- It is important to note that 'parBuffered' does not evaluate individual actions
 -- in the stream concurrently with respect to each other, it merely evaluates
 -- the stream serially but in a different thread than the consumer thread,
 -- thus the consumer and producer can run concurrently. See 'parMapM' and
@@ -156,16 +162,18 @@ parEvalD modifier m = D.Stream step Nothing
 -- The evaluation requires only one thread as only one stream needs to be
 -- evaluated. Therefore, the concurrency options that are relevant to multiple
 -- streams do not apply here e.g. maxThreads, eager, interleaved, ordered,
--- stopWhen options do not have any effect on 'parEval'.
+-- stopWhen options do not have any effect on 'parBuffered'.
 --
 -- Useful idioms:
 --
--- >>> parUnfoldrM step = Stream.parEval id . Stream.unfoldrM step
--- >>> parIterateM step = Stream.parEval id . Stream.iterateM step
-{-# INLINE parEval #-}
-parEval :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
-parEval modifier input = withChannel modifier input (const id)
-    -- Stream.fromStreamD $ parEvalD cfg $ Stream.toStreamD stream
+-- >>> parUnfoldrM step = Stream.parBuffered id . Stream.unfoldrM step
+-- >>> parIterateM step = Stream.parBuffered id . Stream.iterateM step
+{-# INLINE parBuffered #-}
+parBuffered, parEval
+    :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
+parBuffered modifier input = withChannel modifier input (const id)
+    -- Stream.fromStreamD $ parBufferedD cfg $ Stream.toStreamD stream
+RENAME(parEval,parBuffered)
 
 -------------------------------------------------------------------------------
 -- combining two streams
@@ -410,16 +418,17 @@ parListEagerMin = parList (eager True . stopWhen AnyStops)
 
 -- | Apply an argument stream to a function stream concurrently. Uses a
 -- shared channel for all individual applications within a stream application.
-{-# INLINE parApply #-}
-{-# SPECIALIZE parApply ::
+{-# INLINE parCrossApply #-}
+{-# SPECIALIZE parCrossApply ::
    (Config -> Config) -> Stream IO (a -> b) -> Stream IO a -> Stream IO b #-}
-parApply :: MonadAsync m =>
+parCrossApply, parApply :: MonadAsync m =>
     (Config -> Config) -> Stream m (a -> b) -> Stream m a -> Stream m b
-parApply modifier stream1 stream2 =
+parCrossApply modifier stream1 stream2 =
     parConcatMap
         modifier
         (\g -> parConcatMap modifier (Stream.fromPure . g) stream2)
         stream1
+RENAME(parApply,parCrossApply)
 
 -------------------------------------------------------------------------------
 -- Map
@@ -463,13 +472,13 @@ parSequence modifier = parMapM modifier id
 -- | Evaluates the streams being zipped in separate threads than the consumer.
 -- The zip function is evaluated in the consumer thread.
 --
--- >>> parZipWithM cfg f m1 m2 = Stream.zipWithM f (Stream.parEval cfg m1) (Stream.parEval cfg m2)
+-- >>> parZipWithM cfg f m1 m2 = Stream.zipWithM f (Stream.parBuffered cfg m1) (Stream.parBuffered cfg m2)
 --
 -- Multi-stream concurrency options won't apply here, see the notes in
--- 'parEval'.
+-- 'parBuffered'.
 --
 -- If you want to evaluate the zip function as well in a separate thread, you
--- can use a 'parEval' on 'parZipWithM'.
+-- can use a 'parBuffered' on 'parZipWithM'.
 --
 {-# INLINE parZipWithM #-}
 parZipWithM :: MonadAsync m
@@ -478,7 +487,8 @@ parZipWithM :: MonadAsync m
     -> Stream m a
     -> Stream m b
     -> Stream m c
-parZipWithM cfg f m1 m2 = Stream.zipWithM f (parEval cfg m1) (parEval cfg m2)
+parZipWithM cfg f m1 m2 =
+    Stream.zipWithM f (parBuffered cfg m1) (parBuffered cfg m2)
 
 -- |
 -- >>> parZipWith cfg f = Stream.parZipWithM cfg (\a b -> return $ f a b)
@@ -501,7 +511,7 @@ parZipWith cfg f = parZipWithM cfg (\a b -> return $ f a b)
 --
 -- Definition:
 --
--- >>> parMergeByM cfg f m1 m2 = Stream.mergeByM f (Stream.parEval cfg m1) (Stream.parEval cfg m2)
+-- >>> parMergeByM cfg f m1 m2 = Stream.mergeByM f (Stream.parBuffered cfg m1) (Stream.parBuffered cfg m2)
 --
 {-# INLINE parMergeByM #-}
 parMergeByM :: MonadAsync m
@@ -510,7 +520,8 @@ parMergeByM :: MonadAsync m
     -> Stream m a
     -> Stream m a
     -> Stream m a
-parMergeByM cfg f m1 m2 = Stream.mergeByM f (parEval cfg m1) (parEval cfg m2)
+parMergeByM cfg f m1 m2 =
+    Stream.mergeByM f (parBuffered cfg m1) (parBuffered cfg m2)
 
 -- | Like 'mergeBy' but evaluates both the streams concurrently.
 --
@@ -600,9 +611,9 @@ parReplicateM cfg n = parSequence cfg . Stream.replicate n
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL newCallbackStream #-}
-newCallbackStream :: MonadAsync m => m (a -> m (), Stream m a)
-newCallbackStream = do
+{-# INLINE_NORMAL newStreamAndCallback #-}
+newStreamAndCallback :: MonadAsync m => m (a -> m (), Stream m a)
+newStreamAndCallback = do
     chan <- newChannel (eager True)
 
     -- XXX Add our own thread-id to the SVar as we can not know the callback's
@@ -622,8 +633,8 @@ newCallbackStream = do
     -- XXX Use fromChannelD?
     return (callback, fromChannel chan)
 
--- XXX Rename this to parSetCallback. Also take the Channel config as argument.
--- What config can be set by user here?
+-- XXX Take the Channel config as argument.  What config can be set by user
+-- here?
 --
 -- XXX What happens if an exception occurs when evaluating the stream? The
 -- result of callback can be used to communicate that. But we can only know
@@ -644,7 +655,7 @@ newCallbackStream = do
 {-# INLINE fromCallback #-}
 fromCallback :: MonadAsync m => ((a -> m ()) -> m ()) -> Stream m a
 fromCallback setCallback = Stream.concatEffect $ do
-    (callback, stream) <- newCallbackStream
+    (callback, stream) <- newStreamAndCallback
     setCallback callback
     return stream
 
@@ -777,7 +788,7 @@ tapCount = parTapCount
 parTap :: MonadAsync m => (Stream m a -> m b) -> Stream m a -> Stream m a
 parTap f m = undefined
 
--- Can we just use a parEval fold in tap?
+-- Can we just use a parBuffered fold in tap?
 -- We can easily convert the Fold to "Stream m a -> m b" form. Check if this
 -- provides the same perf as above.
 {-# INLINE parTap #-}
