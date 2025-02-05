@@ -41,18 +41,18 @@ module Streamly.Internal.Data.Array.Type
 
     -- *** Slicing
     -- | Get a subarray without copying
-    , unsafeSplitAt
-    , splitAt
-    , breakOn -- XXX requires MonadIO
+    , unsafeBreakAt
+    , breakAt
+    , breakEndByWord8_
     , breakEndBy
     , breakEndBy_
     , revBreakEndBy
     , revBreakEndBy_
     -- drop
     -- dropRev/dropEnd
-    , strip -- XXX stripAroundBy or dropAroundBy?
-    , stripStart -- XXX stripBy or dropWhile?
-    , stripEnd -- XXX revStripBy or revDropWhile?
+    , dropAround
+    , dropWhile
+    , revDropWhile
 
     -- *** Stream Folds
     , unsafeMakePure
@@ -152,6 +152,12 @@ module Streamly.Internal.Data.Array.Type
     , compactMin
 
     -- ** Deprecated
+    , strip
+    , stripStart
+    , stripEnd
+    , breakOn
+    , splitAt
+    , unsafeSplitAt
     , asPtrUnsafe
     , unsafeIndex
     , bufferChunks
@@ -222,7 +228,7 @@ import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Text.Read (readPrec)
 
-import Prelude hiding (Foldable(..), concat, read, unlines, splitAt)
+import Prelude hiding (Foldable(..), concat, read, unlines, splitAt, dropWhile)
 
 import qualified GHC.Exts as Exts
 import qualified Streamly.Internal.Data.Fold.Type as Fold
@@ -588,7 +594,7 @@ splitEndBy p arr = D.map unsafeFreeze $ MA.splitEndBy p (unsafeThaw arr)
 {-# INLINE splitEndBy_ #-}
 splitEndBy_ :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
-splitEndBy_ p arr = D.map unsafeFreeze $ MA.sliceEndBy_ p (unsafeThaw arr)
+splitEndBy_ p arr = D.map unsafeFreeze $ MA.splitEndBy_ p (unsafeThaw arr)
 
 -- | Convert a stream of arrays into a stream of their elements.
 --
@@ -714,12 +720,13 @@ scanCompactMin' n =
 -------------------------------------------------------------------------------
 
 -- Drops the separator byte
-{-# INLINE breakOn #-}
-breakOn :: MonadIO m
+{-# INLINE breakEndByWord8_ #-}
+breakEndByWord8_, breakOn :: MonadIO m
     => Word8 -> Array Word8 -> m (Array Word8, Maybe (Array Word8))
-breakOn sep arr = do
+breakEndByWord8_ sep arr = do
   (a, b) <- MA.breakOn sep (unsafeThaw arr)
   return (unsafeFreeze a, unsafeFreeze <$> b)
+RENAME(breakOn,breakEndByWord8_)
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -875,27 +882,29 @@ foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
 foldr :: Unbox a => (a -> b -> b) -> b -> Array a -> b
 foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 
--- | Like 'splitAt' but does not check whether the index is valid.
+-- | Like 'breakAt' but does not check whether the index is valid.
 --
-{-# INLINE unsafeSplitAt #-}
-unsafeSplitAt :: Unbox a =>
+{-# INLINE unsafeBreakAt #-}
+unsafeBreakAt, unsafeSplitAt :: Unbox a =>
     Int -> Array a -> (Array a, Array a)
-unsafeSplitAt i arr = (unsafeFreeze a, unsafeFreeze b)
+unsafeBreakAt i arr = (unsafeFreeze a, unsafeFreeze b)
 
     where
 
-    (a, b) = MA.unsafeSplitAt i (unsafeThaw arr)
+    (a, b) = MA.unsafeBreakAt i (unsafeThaw arr)
+RENAME(unsafeSplitAt,unsafeBreakAt)
 
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
 --
-{-# INLINE splitAt #-}
-splitAt :: Unbox a => Int -> Array a -> (Array a, Array a)
-splitAt i arr = (unsafeFreeze a, unsafeFreeze b)
+{-# INLINE breakAt #-}
+breakAt, splitAt :: Unbox a => Int -> Array a -> (Array a, Array a)
+breakAt i arr = (unsafeFreeze a, unsafeFreeze b)
 
     where
 
-    (a, b) = MA.splitAt i (unsafeThaw arr)
+    (a, b) = MA.breakAt i (unsafeThaw arr)
+RENAME(splitAt,breakAt)
 
 {-# INLINE breakEndBy #-}
 breakEndBy :: Unbox a => (a -> Bool) -> Array a -> (Array a, Array a)
@@ -934,26 +943,29 @@ revBreakEndBy_ p arr = (unsafeFreeze a, unsafeFreeze b)
 -- | Strip elements which match the predicate, from both ends.
 --
 -- /Pre-release/
-{-# INLINE strip #-}
-strip :: Unbox a => (a -> Bool) -> Array a -> Array a
-strip eq arr =
-    unsafeFreeze $ unsafePerformIO $ MA.strip eq (unsafeThaw arr)
+{-# INLINE dropAround #-}
+dropAround, strip :: Unbox a => (a -> Bool) -> Array a -> Array a
+dropAround eq arr =
+    unsafeFreeze $ unsafePerformIO $ MA.dropAround eq (unsafeThaw arr)
+RENAME(strip,dropAround)
 
 -- | Strip elements which match the predicate, from the start of the array.
 --
 -- /Pre-release/
-{-# INLINE stripStart #-}
-stripStart :: Unbox a => (a -> Bool) -> Array a -> Array a
-stripStart eq arr =
-    unsafeFreeze $ unsafePerformIO $ MA.stripStart eq (unsafeThaw arr)
+{-# INLINE dropWhile #-}
+dropWhile, stripStart :: Unbox a => (a -> Bool) -> Array a -> Array a
+dropWhile eq arr =
+    unsafeFreeze $ unsafePerformIO $ MA.dropWhile eq (unsafeThaw arr)
+RENAME(stripStart,dropWhile)
 
 -- | Strip elements which match the predicate, from the end of the array.
 --
 -- /Pre-release/
-{-# INLINE stripEnd #-}
-stripEnd :: Unbox a => (a -> Bool) -> Array a -> Array a
-stripEnd eq arr =
-    unsafeFreeze $ unsafePerformIO $ MA.stripEnd eq (unsafeThaw arr)
+{-# INLINE revDropWhile #-}
+revDropWhile, stripEnd :: Unbox a => (a -> Bool) -> Array a -> Array a
+revDropWhile eq arr =
+    unsafeFreeze $ unsafePerformIO $ MA.revDropWhile eq (unsafeThaw arr)
+RENAME(stripEnd,revDropWhile)
 
 -- Use foldr/build fusion to fuse with list consumers
 -- This can be useful when using the IsList instance

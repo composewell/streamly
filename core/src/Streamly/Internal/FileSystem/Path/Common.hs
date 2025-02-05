@@ -237,15 +237,15 @@ dropTrailingBy :: (Unbox a, Integral a) =>
 dropTrailingBy os p arr =
     let len = Array.length arr
         n = countTrailingBy p arr
-        arr1 = fst $ Array.unsafeSplitAt (len - n) arr
+        arr1 = fst $ Array.unsafeBreakAt (len - n) arr
      in if n == 0
         then arr
         else if n == len -- "////"
-        then fst $ Array.unsafeSplitAt 1 arr
+        then fst $ Array.unsafeBreakAt 1 arr
         -- "c:////"
         else if (os == Windows)
                 && (Array.unsafeGetIndex (len - n - 1) arr == charToWord ':')
-        then fst $ Array.unsafeSplitAt (len - n + 1) arr
+        then fst $ Array.unsafeBreakAt (len - n + 1) arr
         else arr1
 
 {-# INLINE compactTrailingBy #-}
@@ -255,7 +255,7 @@ compactTrailingBy p arr =
         n = countTrailingBy p arr
      in if n <= 1
         then arr
-        else fst $ Array.unsafeSplitAt (len - n + 1) arr
+        else fst $ Array.unsafeBreakAt (len - n + 1) arr
 
 -- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
 -- @a@. On Windows "c:" and "c:/" are different paths, therefore, we do not
@@ -499,11 +499,11 @@ isBranch os = not . isRooted os
 unsafeSplitPrefix :: (Unbox a, Integral a) =>
     OS -> Int -> Array a -> (Array a, Array a)
 unsafeSplitPrefix os prefixLen arr =
-    Array.unsafeSplitAt cnt arr
+    Array.unsafeBreakAt cnt arr
 
     where
 
-    afterDrive = snd $ Array.unsafeSplitAt prefixLen arr
+    afterDrive = snd $ Array.unsafeBreakAt prefixLen arr
     n = countLeadingBy (isSeparatorWord os) afterDrive
     cnt = prefixLen + n
 
@@ -581,11 +581,11 @@ parseSegment arr sepOff = (segOff, segCnt)
 
     where
 
-    arr1 = snd $ Array.unsafeSplitAt sepOff arr
+    arr1 = snd $ Array.unsafeBreakAt sepOff arr
     sepCnt = countLeadingBy (isSeparatorWord Windows) arr1
     segOff = sepOff + sepCnt
 
-    arr2 = snd $ Array.unsafeSplitAt segOff arr
+    arr2 = snd $ Array.unsafeBreakAt segOff arr
     segCnt = countLeadingBy (not . isSeparatorWord Windows) arr2
 
 -- XXX We can split a path as "root, . , rest" or "root, /, rest".
@@ -648,7 +648,7 @@ unsafeSplitUNC arr =
 
     where
 
-    arr1 = snd $ Array.unsafeSplitAt 2 arr
+    arr1 = snd $ Array.unsafeBreakAt 2 arr
     cnt1 = countLeadingBy (not . isSeparatorWord Windows) arr1
     sepOff = 2 + cnt1
 
@@ -1077,7 +1077,7 @@ splitFile os arr =
                 $ Array.readRev arr
         arrLen = Array.length arr
         baseLen = arrLen - fileLen
-        (base, file) = Array.unsafeSplitAt baseLen arr
+        (base, file) = Array.unsafeBreakAt baseLen arr
         fileFirst = Array.unsafeGetIndex 0 file
         fileSecond = Array.unsafeGetIndex 1 file
      in
@@ -1179,7 +1179,7 @@ splitExtensionBy c os arr =
         arrLen = Array.length arr
         baseLen = arrLen - extLen
         -- XXX We can use reverse split operation on the array
-        res@(base, ext) = Array.unsafeSplitAt baseLen arr
+        res@(base, ext) = Array.unsafeBreakAt baseLen arr
         baseLast = Array.unsafeGetIndexRev 0 base
         extFirst = Array.unsafeGetIndex 0 ext
      in
@@ -1324,9 +1324,9 @@ splitAllExtensionsBy isFileName extChar os arr =
         baseLen = foldArr (Fold.takeEndBy_ (== extChar) Fold.length) file
         extLen = fileLen - baseLen
      in
-        -- XXX unsafeSplitAt itself should use Array.empty in case of no split
+        -- XXX unsafeBreakAt itself should use Array.empty in case of no split
         if fileLen > 0 && extLen > 1 && extLen /= fileLen
-        then (Array.unsafeSplitAt (arrLen - extLen) arr)
+        then (Array.unsafeBreakAt (arrLen - extLen) arr)
         else (arr, Array.empty)
 
 -- |
@@ -1503,7 +1503,7 @@ validatePathWith allowRoot Windows path
 
     where
 
-    postDrive = snd $ Array.unsafeSplitAt 2 path
+    postDrive = snd $ Array.unsafeBreakAt 2 path
     postDriveSep = countLeadingBy (isSeparatorWord Windows) postDrive
 
     -- XXX check invalid chars in the path root as well - except . and '?'?
@@ -1536,7 +1536,7 @@ validatePathWith allowRoot Windows path
         $ Stream.toList
         $ fmap toUp
         $ Array.read
-        $ Array.strip isSpace
+        $ Array.dropAround isSpace
         $ fst $ Array.breakEndBy_ (== extensionWord) x
 
     components =
@@ -1846,7 +1846,7 @@ doAppend os a b = unsafePerformIO $ do
             else pure arr1
     let arrB =
             if sepA && sepB
-            then snd $ Array.unsafeSplitAt 1 b
+            then snd $ Array.unsafeBreakAt 1 b
             else b
     arr3 <- MutArray.unsafeSplice arr2 (Array.unsafeThaw arrB)
     return (Array.unsafeFreeze arr3)

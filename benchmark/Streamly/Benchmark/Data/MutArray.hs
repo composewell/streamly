@@ -261,9 +261,9 @@ o_1_space_serial_marray value ~(array, indices) =
     , benchIO' "partitionBy (> value/2)" (const (return array))
         $ MArray.partitionBy (> (value `div` 2))
     , benchIO' "strip (< value/2 || > value/2)" (const (return array))
-        $ MArray.strip (\x -> x < value `div` 2 || x > value `div` 2)
+        $ MArray.dropAround (\x -> x < value `div` 2 || x > value `div` 2)
     , benchIO' "strip (> 0)" (const (return array))
-        $ MArray.strip (> 0)
+        $ MArray.dropAround (> 0)
     , benchIO' "modifyIndices (+ 1)" (const (return indices))
         $ Stream.fold (MArray.modifyIndices array (\_idx val -> val + 1))
         . Stream.unfold Array.reader

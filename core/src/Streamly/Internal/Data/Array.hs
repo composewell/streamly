@@ -55,9 +55,9 @@ module Streamly.Internal.Data.Array
     -- * Subarrays
     , unsafeGetSlice
     -- , getSlice
-    , sliceIndexerFromLen
-    , slicerFromLen
-    , sliceEndBy_
+    , indexerFromLen
+    , splitterFromLen
+    , splitEndBy_
 
     -- * Streaming Operations
     , streamTransform
@@ -90,6 +90,9 @@ module Streamly.Internal.Data.Array
     , deserialize
 
     -- * Deprecated
+    , sliceEndBy_
+    , slicerFromLen
+    , sliceIndexerFromLen
     , castUnsafe
     , getSliceUnsafe
     , pinnedSerialize
@@ -320,52 +323,55 @@ RENAME(getSliceUnsafe,unsafeGetSlice)
 -- matching the predicate is dropped.
 --
 -- /Pre-release/
-{-# INLINE sliceEndBy_ #-}
-sliceEndBy_, splitOn :: (Monad m, Unbox a) =>
+{-# INLINE splitEndBy_ #-}
+splitEndBy_, sliceEndBy_, splitOn :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
-sliceEndBy_ predicate arr =
+splitEndBy_ predicate arr =
     fmap (\(i, len) -> getSliceUnsafe i len arr)
         $ D.indexEndBy_ predicate (read arr)
 
-RENAME(splitOn,sliceEndBy_)
+RENAME(splitOn,splitEndBy_)
+RENAME(sliceEndBy_,splitEndBy_)
 
-{-# INLINE sliceIndexerFromLen #-}
-sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)
+{-# INLINE indexerFromLen #-}
+indexerFromLen, sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Int, Int)
-sliceIndexerFromLen from len =
-    Unfold.lmap unsafeThaw (MA.sliceIndexerFromLen from len)
+indexerFromLen from len =
+    Unfold.lmap unsafeThaw (MA.indexerFromLen from len)
+RENAME(sliceIndexerFromLen,indexerFromLen)
 
-{-# DEPRECATED genSlicesFromLen "Please use sliceIndexerFromLen instead." #-}
+{-# DEPRECATED genSlicesFromLen "Please use indexerFromLen instead." #-}
 {-# INLINE genSlicesFromLen #-}
 genSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Int, Int)
-genSlicesFromLen = sliceIndexerFromLen
+genSlicesFromLen = indexerFromLen
 
 -- | Generate a stream of slices of specified length from an array, starting
 -- from the supplied array index. The last slice may be shorter than the
 -- requested length.
 --
 -- /Pre-release//
-{-# INLINE slicerFromLen #-}
-slicerFromLen :: forall m a. (Monad m, Unbox a)
+{-# INLINE splitterFromLen #-}
+splitterFromLen, slicerFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Array a)
-slicerFromLen from len =
+splitterFromLen from len =
     fmap unsafeFreeze
-        $ Unfold.lmap unsafeThaw (MA.slicerFromLen from len)
+        $ Unfold.lmap unsafeThaw (MA.splitterFromLen from len)
+RENAME(slicerFromLen,splitterFromLen)
 
-{-# DEPRECATED getSlicesFromLen "Please use slicerFromLen instead." #-}
+{-# DEPRECATED getSlicesFromLen "Please use splitterFromLen instead." #-}
 {-# INLINE getSlicesFromLen #-}
 getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (Array a) (Array a)
-getSlicesFromLen = slicerFromLen
+getSlicesFromLen = splitterFromLen
 
 -------------------------------------------------------------------------------
 -- Random reads and writes

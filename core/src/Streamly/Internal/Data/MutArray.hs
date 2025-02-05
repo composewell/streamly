@@ -18,8 +18,8 @@ module Streamly.Internal.Data.MutArray
     -- * MutArray.Type module
       module Streamly.Internal.Data.MutArray.Type
     -- * MutArray module
-    , sliceIndexerFromLen
-    , slicerFromLen -- XXX splitterFromLen
+    , indexerFromLen
+    , splitterFromLen
     -- , splitFromLen
     -- , slicesOf
     , compactMax
@@ -41,6 +41,8 @@ module Streamly.Internal.Data.MutArray
     , deserializePtrN
 
     -- * Deprecated
+    , slicerFromLen
+    , sliceIndexerFromLen
     , genSlicesFromLen
     , getSlicesFromLen
     , compactLE
@@ -82,45 +84,47 @@ import Streamly.Internal.Data.IORef.Unboxed
 -- may be shorter than the requested length depending on the array length.
 --
 -- /Pre-release/
-{-# INLINE sliceIndexerFromLen #-}
-sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)
+{-# INLINE indexerFromLen #-}
+indexerFromLen, sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (Int, Int)
-sliceIndexerFromLen from len =
+indexerFromLen from len =
     let fromThenTo n = (from, from + len, n - 1)
         mkSlice n i = return (i, min len (n - i))
      in Unfold.lmap length
         $ Unfold.mapM2 mkSlice
         $ Unfold.lmap fromThenTo Unfold.enumerateFromThenTo
+RENAME(sliceIndexerFromLen,indexerFromLen)
 
-{-# DEPRECATED genSlicesFromLen "Please use sliceIndexerFromLen instead." #-}
+{-# DEPRECATED genSlicesFromLen "Please use indexerFromLen instead." #-}
 genSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (Int, Int)
-genSlicesFromLen = sliceIndexerFromLen
+genSlicesFromLen = indexerFromLen
 
 -- | Generate a stream of slices of specified length from an array, starting
 -- from the supplied array index. The last slice may be shorter than the
 -- requested length depending on the array length.
 --
 -- /Pre-release/
-{-# INLINE slicerFromLen #-}
-slicerFromLen :: forall m a. (Monad m, Unbox a)
+{-# INLINE splitterFromLen #-}
+splitterFromLen, slicerFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (MutArray a)
-slicerFromLen from len =
+splitterFromLen from len =
     let mkSlice arr (i, n) = return $ unsafeGetSlice i n arr
-     in Unfold.mapM2 mkSlice (sliceIndexerFromLen from len)
+     in Unfold.mapM2 mkSlice (indexerFromLen from len)
+RENAME(slicerFromLen,splitterFromLen)
 
-{-# DEPRECATED getSlicesFromLen "Please use slicerFromLen instead." #-}
+{-# DEPRECATED getSlicesFromLen "Please use splitterFromLen instead." #-}
 getSlicesFromLen :: forall m a. (Monad m, Unbox a)
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (MutArray a)
-getSlicesFromLen = slicerFromLen
+getSlicesFromLen = splitterFromLen
 
 --------------------------------------------------------------------------------
 -- Serialization/Deserialization using Serialize
@@ -296,7 +300,7 @@ _compactSepByByteCustom byte (Stream.Stream step state) =
         r <- step gst st
         case r of
             Stream.Yield arr s -> do
-                (arr1, marr2) <- breakOn byte arr
+                (arr1, marr2) <- breakEndByWord8_ byte arr
                 return $ case marr2 of
                     Nothing   -> Stream.Skip (Buffering s arr1)
                     Just arr2 -> Stream.Skip (Yielding arr1 (Splitting s arr2))
@@ -307,7 +311,7 @@ _compactSepByByteCustom byte (Stream.Stream step state) =
         r <- step gst st
         case r of
             Stream.Yield arr s -> do
-                (arr1, marr2) <- breakOn byte arr
+                (arr1, marr2) <- breakEndByWord8_ byte arr
                 -- XXX Use spliceExp instead and then rightSize?
                 buf1 <- splice buf arr1
                 return $ case marr2 of
@@ -320,7 +324,7 @@ _compactSepByByteCustom byte (Stream.Stream step state) =
                 else Stream.Skip (Yielding buf Finishing)
 
     step' _ (Splitting st buf) = do
-        (arr1, marr2) <- breakOn byte buf
+        (arr1, marr2) <- breakEndByWord8_ byte buf
         return $ case marr2 of
                 Nothing -> Stream.Skip $ Buffering st arr1
                 Just arr2 -> Stream.Skip $ Yielding arr1 (Splitting st arr2)
@@ -344,7 +348,7 @@ compactSepByByte_, compactOnByte
 -- XXX compare perf of custom vs idiomatic version
 -- compactOnByte = _compactOnByteCustom
 -- XXX use spliceExp and rightSize?
-compactSepByByte_ byte = Stream.splitInnerBy (breakOn byte) splice
+compactSepByByte_ byte = Stream.splitInnerBy (breakEndByWord8_ byte) splice
 
 RENAME(compactOnByte,compactSepByByte_)
 
@@ -360,7 +364,7 @@ compactEndByByte_, compactOnByteSuffix
 compactEndByByte_ byte =
         -- XXX use spliceExp and rightSize?
         Stream.splitInnerBySuffix
-            (\arr -> byteLength arr == 0) (breakOn byte) splice
+            (\arr -> byteLength arr == 0) (breakEndByWord8_ byte) splice
 
 RENAME(compactOnByteSuffix,compactEndByByte_)
 
