@@ -8,19 +8,19 @@
 --
 -- = Asynchronous Evaluation
 --
--- Using 'parEval' a fold can be decoupled from the driver and evaluated
+-- Using 'parBuffered' a fold can be decoupled from the driver and evaluated
 -- concurrently with the driver. The driver just pushes an element to the
 -- fold's buffer and waits for async evaluation to finish.
 --
--- Stages in a fold pipeline can be made concurrent using 'parEval'.
+-- Stages in a fold pipeline can be made concurrent using 'parBuffered'.
 --
 -- = Concurrent Fold Combinators
 --
--- The 'demux' combinator can be made concurrent by using 'parEval' on the fold
+-- The 'demux' combinator can be made concurrent by using 'parBuffered' on the fold
 -- returned by the fold-generating function. Thus, we can fold values for each
 -- key in the input stream concurrently.
 --
--- Similarly, we can use 'parEval' with other cobminators like 'toMap',
+-- Similarly, we can use 'parBuffered' with other cobminators like 'toMap',
 -- 'demuxToMap', 'classify', 'tee', 'distribute', 'partition' etc. Basically,
 -- any combinator that composes multiple folds or multiple instances of a fold
 -- is a good candidate for running folds concurrently.
@@ -28,7 +28,7 @@
 -- = Finalization
 --
 -- Before a fold returns "done" it has to drain the child folds. For example,
--- consider a "take" operation on a `parEval` fold, the take should return as
+-- consider a "take" operation on a `parBuffered` fold, the take should return as
 -- soon as it has taken required number of elements but we have to ensure that
 -- any asynchronous child folds finish before it returns. This is achieved by
 -- calling the "final" operation of the fold.
@@ -47,7 +47,7 @@
 
 module Streamly.Internal.Data.Fold.Concurrent
     (
-      parEval
+      parBuffered
     , parLmapM
     , parTeeWith
     , parDistribute
@@ -55,10 +55,14 @@ module Streamly.Internal.Data.Fold.Concurrent
     , parUnzipWithM
     , parDistributeScan
     , parDemuxScan
+
+    -- Deprecated
+    , parEval
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
 import Control.Concurrent (newEmptyMVar, takeMVar, throwTo)
 import Control.Monad.Catch (throwM)
@@ -90,9 +94,9 @@ import Streamly.Internal.Data.Channel.Types
 -- Evaluating a Fold
 -------------------------------------------------------------------------------
 
--- | 'parEval' introduces a concurrent stage at the input of the fold. The
+-- | 'parBuffered' introduces a concurrent stage at the input of the fold. The
 -- inputs are asynchronously queued in a buffer and evaluated concurrently with
--- the evaluation of the source stream. On finalization, 'parEval' waits for
+-- the evaluation of the source stream. On finalization, 'parBuffered' waits for
 -- the asynchronous fold to complete before it returns.
 --
 -- In the following example both the stream and the fold have a 1 second delay,
@@ -101,7 +105,7 @@ import Streamly.Internal.Data.Channel.Types
 -- >>> delay x = threadDelay 1000000 >> print x >> return x
 --
 -- >>> src = Stream.delay 1 (Stream.enumerateFromTo 1 3)
--- >>> dst = Fold.parEval id (Fold.lmapM delay Fold.sum)
+-- >>> dst = Fold.parBuffered id (Fold.lmapM delay Fold.sum)
 -- >>> Stream.fold dst src
 -- ...
 --
@@ -110,9 +114,10 @@ import Streamly.Internal.Data.Channel.Types
 -- >>> Stream.toList $ Stream.groupsOf 4 dst src
 -- ...
 --
-{-# INLINABLE parEval #-}
-parEval :: MonadAsync m => (Config -> Config) -> Fold m a b -> Fold m a b
-parEval modifier f =
+{-# INLINABLE parBuffered #-}
+parBuffered, parEval
+    :: MonadAsync m => (Config -> Config) -> Fold m a b -> Fold m a b
+parBuffered modifier f =
     Fold step initial extract final
 
     where
@@ -141,7 +146,7 @@ parEval modifier f =
     -- events and tick events, latter are guaranteed to arrive.
     --
     -- XXX We can use the config to indicate if the fold is a scanning type or
-    -- one-shot, or use a separate parEvalScan for scanning. For a scanning
+    -- one-shot, or use a separate parBufferedScan for scanning. For a scanning
     -- type fold the worker would always send the intermediate values back to
     -- the driver. An intermediate value can be returned on an input, or the
     -- driver can poll even without input, if we have the Skip input support.
@@ -173,13 +178,14 @@ parEval modifier f =
                     $ withDiagMVar
                         (svarInspectMode chan)
                         (dumpChannel chan)
-                        "parEval: waiting to drain"
+                        "parBuffered: waiting to drain"
                     $ takeMVar (outputDoorBell chan)
                 -- XXX remove recursion
                 final chan
             Just b -> do
                 cleanup chan
                 return b
+RENAME(parEval,parBuffered)
 
 -- XXX We can have a lconcatMap (unfoldMany) to expand the chunks in the input
 -- to streams before folding. This will require an input Skip constructor. In
@@ -198,7 +204,7 @@ parLmapM = undefined
 --
 -- Definition:
 --
--- >>> parTeeWith cfg f c1 c2 = Fold.teeWith f (Fold.parEval cfg c1) (Fold.parEval cfg c2)
+-- >>> parTeeWith cfg f c1 c2 = Fold.teeWith f (Fold.parBuffered cfg c1) (Fold.parBuffered cfg c2)
 --
 -- Example:
 --
@@ -216,13 +222,13 @@ parTeeWith :: MonadAsync m =>
     -> Fold m x a
     -> Fold m x b
     -> Fold m x c
-parTeeWith cfg f c1 c2 = Fold.teeWith f (parEval cfg c1) (parEval cfg c2)
+parTeeWith cfg f c1 c2 = Fold.teeWith f (parBuffered cfg c1) (parBuffered cfg c2)
 
 -- | Distribute the input to all the folds in the supplied list concurrently.
 --
 -- Definition:
 --
--- >>> parDistribute cfg = Fold.distribute . fmap (Fold.parEval cfg)
+-- >>> parDistribute cfg = Fold.distribute . fmap (Fold.parBuffered cfg)
 --
 -- Example:
 --
@@ -235,14 +241,14 @@ parTeeWith cfg f c1 c2 = Fold.teeWith f (parEval cfg c1) (parEval cfg c2)
 {-# INLINABLE parDistribute #-}
 parDistribute :: MonadAsync m =>
     (Config -> Config) -> [Fold m a b] -> Fold m a [b]
-parDistribute cfg = Fold.distribute . fmap (parEval cfg)
+parDistribute cfg = Fold.distribute . fmap (parBuffered cfg)
 
 -- | Select first fold for Left input and second for Right input. Both folds
 -- run concurrently.
 --
 -- Definition
 --
--- >>> parPartition cfg c1 c2 = Fold.partition (Fold.parEval cfg c1) (Fold.parEval cfg c2)
+-- >>> parPartition cfg c1 c2 = Fold.partition (Fold.parBuffered cfg c1) (Fold.parBuffered cfg c2)
 --
 -- Example:
 --
@@ -256,14 +262,14 @@ parDistribute cfg = Fold.distribute . fmap (parEval cfg)
 {-# INLINABLE parPartition #-}
 parPartition :: MonadAsync m =>
     (Config -> Config) -> Fold m b x -> Fold m c y -> Fold m (Either b c) (x, y)
-parPartition cfg c1 c2 = Fold.partition (parEval cfg c1) (parEval cfg c2)
+parPartition cfg c1 c2 = Fold.partition (parBuffered cfg c1) (parBuffered cfg c2)
 
 -- | Split and distribute the output to two different folds and then zip the
 -- results. Both the consumer folds run concurrently.
 --
 -- Definition
 --
--- >>> parUnzipWithM cfg f c1 c2 = Fold.unzipWithM f (Fold.parEval cfg c1) (Fold.parEval cfg c2)
+-- >>> parUnzipWithM cfg f c1 c2 = Fold.unzipWithM f (Fold.parBuffered cfg c1) (Fold.parBuffered cfg c2)
 --
 -- Example:
 --
@@ -277,7 +283,7 @@ parPartition cfg c1 c2 = Fold.partition (parEval cfg c1) (parEval cfg c2)
 {-# INLINABLE parUnzipWithM #-}
 parUnzipWithM :: MonadAsync m
     => (Config -> Config) -> (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
-parUnzipWithM cfg f c1 c2 = Fold.unzipWithM f (parEval cfg c1) (parEval cfg c2)
+parUnzipWithM cfg f c1 c2 = Fold.unzipWithM f (parBuffered cfg c1) (parBuffered cfg c2)
 
 -- There are two ways to implement a concurrent scan.
 --

@@ -110,6 +110,7 @@ extra-source-files:
     src/assert.hs
     src/config.h.in
     src/inline.hs
+    src/deprecation.h
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/CommonImports.hs
     test/Streamly/Test/Data/Array/Common.hs

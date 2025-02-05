@@ -259,10 +259,10 @@ main = hspec
   $ describe moduleName $ do
         let transform = transformCombineFromList Stream.fromList sortEq
 
-        prop "parEval" $
+        prop "parBuffered" $
             transform
                 (fmap (+2))
-                (fmap (+1) . Async.parEval id . fmap (+1))
+                (fmap (+1) . Async.parBuffered id . fmap (+1))
 
         asyncSpec $ prop "parSequence" . sequenceReplicate
 
@@ -346,17 +346,17 @@ main = hspec
                         (Stream.fromPure 1)
                         (Stream.fromPure 2)
                 s1 cfg =
-                    Async.parApply
+                    Async.parCrossApply
                         cfg
                         (Stream.fromPure (,))
                         (par2 cfg)
                 s2 cfg =
-                    Async.parApply
+                    Async.parCrossApply
                         cfg
                         (s1 cfg)
                         (Stream.fromPure 3) :: Stream IO (Int, Int)
             in prop1
-                "parApply (async arg1)" . cmp (==) ( [(1, 3), (2, 3)]) . s2
+                "parCrossApply (async arg1)" . cmp (==) ( [(1, 3), (2, 3)]) . s2
 
         asyncSpec $
             let par2 cfg =
@@ -365,7 +365,7 @@ main = hspec
                         (Stream.fromPure (2 :: Int))
                         (Stream.fromPure 3)
                 s1 = Stream.fromPure (1 :: Int,)
-                s2 cfg = Async.parApply cfg s1 (par2 cfg)
+                s2 cfg = Async.parCrossApply cfg s1 (par2 cfg)
             in prop1 "apply (async arg2)" . cmp (==) ([(1, 2), (1, 3)]) . s2
 
         -- concat

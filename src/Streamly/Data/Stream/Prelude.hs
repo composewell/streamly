@@ -64,7 +64,7 @@ module Streamly.Data.Stream.Prelude
     -- | Evaluate a stream as a whole concurrently with respect to the consumer
     -- of the stream.
 
-    , parEval
+    , parBuffered
 
     -- *** Generate
     -- | Generate a stream by evaluating multiple actions concurrently.
@@ -98,7 +98,7 @@ module Streamly.Data.Stream.Prelude
     -- *** Stream of streams
     -- **** Apply
 
-    , parApply
+    , parCrossApply
 
     -- **** Concat
     -- | Shares a single channel across many streams.
@@ -138,6 +138,8 @@ module Streamly.Data.Stream.Prelude
 
     -- ** Deprecated
     , tapCount
+    , parEval
+    , parApply
     )
 where
 
@@ -156,15 +158,15 @@ import Streamly.Internal.Data.Stream.Prelude
 --
 -- == Primitives
 --
--- There are only a few fundamental abstractions for concurrency, 'parEval',
+-- There are only a few fundamental abstractions for concurrency, 'parBuffered',
 -- 'parConcatMap', and 'parConcatIterate', all concurrency combinators can be
 -- expressed in terms of these.
 --
--- 'parEval' evaluates a stream as a whole asynchronously with respect to
+-- 'parBuffered' evaluates a stream as a whole asynchronously with respect to
 -- the consumer of the stream. A worker thread evaluates multiple elements of
 -- the stream ahead of time and buffers the results; the consumer of the stream
 -- runs in another thread consuming the elements from the buffer, thus
--- decoupling the production and consumption of the stream. 'parEval' can be
+-- decoupling the production and consumption of the stream. 'parBuffered' can be
 -- used to run different stages of a pipeline concurrently.
 --
 -- 'parConcatMap' is used to evaluate multiple actions in a stream concurrently
@@ -217,8 +219,8 @@ import Streamly.Internal.Data.Stream.Prelude
 -- Using the few fundamental concurrency primitives we can implement all the
 -- usual streaming combinators with concurrent behavior. Combinators like
 -- 'unfoldrM', 'iterateM' that are inherently serial can be evaluated
--- concurrently with respect to the consumer pipeline using 'parEval'.
--- Combinators like 'zipWithM', 'mergeByM' can also use 'parEval' on the input
+-- concurrently with respect to the consumer pipeline using 'parBuffered'.
+-- Combinators like 'zipWithM', 'mergeByM' can also use 'parBuffered' on the input
 -- streams to evaluate them concurrently before combining.
 --
 -- Combinators like 'repeatM', 'replicateM', 'fromListM', 'sequence', 'mapM' in

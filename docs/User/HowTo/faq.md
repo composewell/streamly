@@ -27,13 +27,13 @@ f1 x =
         & Stream.fold Fold.toList                    -- Fold to list
 ```
 
-Use `parApply` to zip streams concurrently. Here, we zip three singleton
+Use `parZipWith` to zip streams concurrently. Here, we zip three singleton
 streams:
 
 ```haskell ghci
 
 f2 x =
-  let app = Stream.parApply id
+  let app = Stream.parZipWith id ($)
   in (,,)
       `fmap` Stream.fromEffect (return $ show x)
       `app`  Stream.fromEffect (return $ x + 1)
@@ -61,7 +61,7 @@ transformations using the distribute/zip operations.
 [Just ("1",2,0.5),Just ("2",3,1.0),Just ("3",4,1.5),Just ("4",5,2.0)]
 ```
 
-Instead of using `parApply` directly, you can use `mkZipType` to
+Instead of using `parZipWith` directly, you can use `mkZipType` to
 create a zip Applicative newtype so that you can use the `Applicative`
 instance.
 
@@ -73,7 +73,7 @@ instance.
 
 import Streamly.Internal.Data.Stream.TypeGen
 
-app = parApply id
+app = parZipWith id ($)
 $(mkZippingType "ZipConcurrent" "app" True)
 ```
 

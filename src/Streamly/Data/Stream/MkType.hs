@@ -66,8 +66,8 @@
 -- For 'Streamly.Prelude.ZipAsync' concurrent zipping applicative type:
 --
 -- >>> :{
---  parApply = Stream.parApply id
---  $(mkZipType "ZipAsync" "parApply" True)
+--  parCrossApply = Stream.parCrossApply id
+--  $(mkZipType "ZipAsync" "parCrossApply" True)
 -- :}
 --
 -- Instead of using these macros directly you could use the generated code as
