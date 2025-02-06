@@ -737,7 +737,7 @@ mkEvenW8Chunks (D.Stream step state) = D.Stream step1 (MECSInit state)
                 Yield arr st1 ->
                     let len = Array.length arr
                      in if (len .&. 1) == 1
-                        then let arr1 = Array.unsafeGetSlice 0 (len - 1) arr
+                        then let arr1 = Array.unsafeSliceOffLen 0 (len - 1) arr
                                  remElem = Array.unsafeGetIndex (len - 1) arr
                               in Yield arr1 (MECSBuffer remElem st1)
                         else Yield arr (MECSInit st1)
@@ -756,11 +756,11 @@ mkEvenW8Chunks (D.Stream step state) = D.Stream step1 (MECSInit state)
                 Yield arr st1 ->
                     let len = Array.length arr
                      in if (len .&. 1) == 1
-                        then let arr1 = Array.unsafeGetSlice 1 (len - 1) arr
+                        then let arr1 = Array.unsafeSliceOffLen 1 (len - 1) arr
                                  fstElem = Array.unsafeGetIndex 0 arr
                                  w16 = Array.fromList [remElem, fstElem]
                               in Yield w16 (MECSYieldAndInit arr1 st1)
-                        else let arr1 = Array.unsafeGetSlice 1 (len - 2) arr
+                        else let arr1 = Array.unsafeSliceOffLen 1 (len - 2) arr
                                  fstElem = Array.unsafeGetIndex 0 arr
                                  lstElem = Array.unsafeGetIndex (len - 1) arr
                                  w16 = Array.fromList [remElem, fstElem]

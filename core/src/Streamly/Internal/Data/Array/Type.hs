@@ -37,7 +37,7 @@ module Streamly.Internal.Data.Array.Type
     , unsafeAsForeignPtr
 
     -- * Subarrays
-    , unsafeGetSlice
+    , unsafeSliceOffLen
 
     -- ** Construction
     , empty
@@ -155,6 +155,7 @@ module Streamly.Internal.Data.Array.Type
     , compactMin
 
     -- ** Deprecated
+    , unsafeGetSlice
     , strip
     , stripStart
     , stripEnd
@@ -532,18 +533,19 @@ fromStreamD = fromStream
 -- /Unsafe/
 --
 -- /Pre-release/
-{-# INLINE unsafeGetSlice #-}
-unsafeGetSlice ::
+{-# INLINE unsafeSliceOffLen #-}
+unsafeSliceOffLen, unsafeGetSlice ::
        forall a. Unbox a
     => Int -- ^ starting index
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-unsafeGetSlice index len (Array contents start e) =
+unsafeSliceOffLen index len (Array contents start e) =
     let size = SIZE_OF(a)
         start1 = start + (index * size)
         end1 = start1 + (len * size)
      in assert (end1 <= e) (Array contents start1 end1)
+RENAME(unsafeGetSlice,unsafeSliceOffLen)
 
 -------------------------------------------------------------------------------
 -- Streams of arrays
@@ -626,7 +628,7 @@ splitEndBy p arr = D.map unsafeFreeze $ MA.splitEndBy p (unsafeThaw arr)
 splitEndBy_ :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
 splitEndBy_ predicate arr =
-    fmap (\(i, len) -> unsafeGetSlice i len arr)
+    fmap (\(i, len) -> unsafeSliceOffLen i len arr)
         $ D.indexEndBy_ predicate (read arr)
 
 -- | Convert a stream of arrays into a stream of their elements.
