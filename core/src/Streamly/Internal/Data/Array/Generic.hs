@@ -42,13 +42,14 @@ module Streamly.Internal.Data.Array.Generic
     -- * Random Access
     , unsafeGetIndex
     , getIndex
-    , unsafeGetSlice
+    , unsafeSliceOffLen
     , dropAround
 
     -- * Deprecated
     , strip
     , getIndexUnsafe
     , getSliceUnsafe
+    , unsafeGetSlice
     , writeN
     , write
     , fromByteStr#
@@ -288,10 +289,11 @@ createOfLast n = FL.rmapM f (RB.createOf n)
         arr <- RB.copyToMutArray 0 n rb
         return $ unsafeFreeze arr
 
-{-# INLINE unsafeGetSlice #-}
-unsafeGetSlice, getSliceUnsafe :: Int -> Int -> Array a -> Array a
-unsafeGetSlice offset len =
-    unsafeFreeze . MArray.unsafeGetSlice offset len . unsafeThaw
+{-# INLINE unsafeSliceOffLen #-}
+unsafeSliceOffLen, getSliceUnsafe, unsafeGetSlice
+    :: Int -> Int -> Array a -> Array a
+unsafeSliceOffLen offset len =
+    unsafeFreeze . MArray.unsafeSliceOffLen offset len . unsafeThaw
 
 -- XXX This is not efficient as it copies the array. We should support array
 -- slicing so that we can just refer to the underlying array memory instead of
@@ -357,5 +359,6 @@ instance Read a => Read (Array a) where
 -------------------------------------------------------------------------------
 
 RENAME(strip,dropAround)
-RENAME(getSliceUnsafe,unsafeGetSlice)
+RENAME(getSliceUnsafe,unsafeSliceOffLen)
+RENAME(unsafeGetSlice,unsafeSliceOffLen)
 RENAME(getIndexUnsafe,unsafeGetIndex)

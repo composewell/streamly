@@ -53,7 +53,7 @@ module Streamly.Internal.Data.Array
     , asCStringUnsafe
 
     -- * Subarrays
-    -- , getSlice
+    -- , sliceOffLen
     , indexerFromLen
     , splitterFromLen
 
@@ -301,7 +301,7 @@ getSliceUnsafe ::
     -> Int -- ^ length of the slice
     -> Array a
     -> Array a
-RENAME(getSliceUnsafe,unsafeGetSlice)
+RENAME(getSliceUnsafe,unsafeSliceOffLen)
 
 sliceEndBy_, splitOn :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)

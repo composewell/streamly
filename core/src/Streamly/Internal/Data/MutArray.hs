@@ -112,7 +112,7 @@ splitterFromLen, slicerFromLen :: forall m a. (Monad m, Unbox a)
     -> Int -- ^ length of the slice
     -> Unfold m (MutArray a) (MutArray a)
 splitterFromLen from len =
-    let mkSlice arr (i, n) = return $ unsafeGetSlice i n arr
+    let mkSlice arr (i, n) = return $ unsafeSliceOffLen i n arr
      in Unfold.mapM2 mkSlice (indexerFromLen from len)
 RENAME(slicerFromLen,splitterFromLen)
 

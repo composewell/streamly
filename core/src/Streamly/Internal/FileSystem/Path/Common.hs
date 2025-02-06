@@ -737,7 +737,7 @@ splitWithFilter
 splitWithFilter filt withSep os arr =
       f (isSeparatorWord os) (Array.read arr)
     & Stream.filter filt
-    & fmap (\(i, len) -> Array.unsafeGetSlice i len arr)
+    & fmap (\(i, len) -> Array.unsafeSliceOffLen i len arr)
 
     where
 
@@ -1086,7 +1086,7 @@ splitFile os arr =
         then
             if baseLen <= 0
             then (Array.empty, arr)
-            else (Array.unsafeGetSlice 0 baseLen base, file) -- "/"
+            else (Array.unsafeSliceOffLen 0 baseLen base, file) -- "/"
         else (arr, Array.empty)
 
 -- | Split a multi-component path into (dir, last component). If the path has a

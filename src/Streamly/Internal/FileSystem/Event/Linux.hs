@@ -192,7 +192,7 @@ import qualified Streamly.Internal.FileSystem.Path as Path
 
 import qualified Streamly.Internal.Data.Array as A
     ( asCStringUnsafe, unsafePinnedAsPtr
-    , unsafeGetSlice, read
+    , unsafeSliceOffLen, read
     )
 import qualified Streamly.Internal.FileSystem.DirIO as Dir (readDirs)
 import qualified Streamly.Internal.Data.Parser as PR
@@ -664,7 +664,7 @@ removeTrailingSlash path =
             Nothing -> error "removeTrailingSlash: Bug: Invalid index"
             Just x ->
                 if x == fromIntegral (ord '/')
-                then A.unsafeGetSlice 0 n path
+                then A.unsafeSliceOffLen 0 n path
                 else path
     else path
 

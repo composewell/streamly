@@ -144,10 +144,10 @@ module Streamly.Internal.Data.MutArray.Generic
 
     -- ** Construct from arrays
     -- get chunks without copying
-    , unsafeGetSlice
-    , getSlice
+    , unsafeSliceOffLen
+    , sliceOffLen
     -- , getSlicesFromLenN
-    -- , splitAt -- XXX should be able to express using getSlice
+    -- , splitAt -- XXX should be able to express using sliceOffLen
     -- , breakOn
 
     -- ** Appending arrays
@@ -162,6 +162,8 @@ module Streamly.Internal.Data.MutArray.Generic
     , clone
 
     -- * Deprecated
+    , unsafeGetSlice
+    , getSlice
     , strip
     , new
     , writeNUnsafe
@@ -527,13 +529,13 @@ getIndex i arr =
 -- /Unsafe/
 --
 -- /Pre-release/
-{-# INLINE unsafeGetSlice #-}
-unsafeGetSlice, getSliceUnsafe
+{-# INLINE unsafeSliceOffLen #-}
+unsafeSliceOffLen, getSliceUnsafe, unsafeGetSlice
     :: Int -- ^ from index
     -> Int -- ^ length of the slice
     -> MutArray a
     -> MutArray a
-unsafeGetSlice index len arr@MutArray {..} =
+unsafeSliceOffLen index len arr@MutArray {..} =
     assert (index >= 0 && len >= 0 && index + len <= length arr)
         $ arr {arrStart = newStart, arrEnd = newEnd}
     where
@@ -544,17 +546,17 @@ unsafeGetSlice index len arr@MutArray {..} =
 -- extends out of the array bounds.
 --
 -- /Pre-release/
-{-# INLINE getSlice #-}
-getSlice
+{-# INLINE sliceOffLen #-}
+sliceOffLen, getSlice
     :: Int -- ^ from index
     -> Int -- ^ length of the slice
     -> MutArray a
     -> MutArray a
-getSlice index len arr@MutArray{..} =
+sliceOffLen index len arr@MutArray{..} =
     if index >= 0 && len >= 0 && index + len <= length arr
     then arr {arrStart = newStart, arrEnd = newEnd}
     else error
-             $ "getSlice: invalid slice, index "
+             $ "sliceOffLen: invalid slice, index "
              ++ show index ++ " length " ++ show len
     where
     newStart = arrStart + index
@@ -940,7 +942,7 @@ dropAround p arr = liftIO $ do
         then return arr
         else
            let newLen = indexR - indexL + 1
-            in return $ unsafeGetSlice indexL newLen arr
+            in return $ unsafeSliceOffLen indexL newLen arr
 
     where
 
@@ -967,6 +969,8 @@ RENAME(putIndexUnsafe, unsafePutIndex)
 RENAME(modifyIndexUnsafe, unsafeModifyIndex)
 RENAME(getIndexUnsafe, unsafeGetIndex)
 RENAME(getIndexUnsafeWith, unsafeGetIndexWith)
-RENAME(getSliceUnsafe, unsafeGetSlice)
+RENAME(getSliceUnsafe,unsafeSliceOffLen)
+RENAME(unsafeGetSlice,unsafeSliceOffLen)
 RENAME(putSliceUnsafe, unsafePutSlice)
+RENAME(getSlice,sliceOffLen)
 RENAME(snocUnsafe, unsafeSnoc)

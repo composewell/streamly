@@ -126,7 +126,7 @@ testStripNull = do
 unsafeSlice :: Int -> Int -> [Int] -> Bool
 unsafeSlice i n list =
     let lst = take n $ drop i list
-        arr = A.toList $ A.unsafeGetSlice i n $ A.fromList list
+        arr = A.toList $ A.unsafeSliceOffLen i n $ A.fromList list
      in arr == lst
 
 testBubbleWith :: Bool -> Property
@@ -211,13 +211,13 @@ testAsPtrUnsafeMA = do
 
 testUnsafePinnedAsPtr :: IO ()
 testUnsafePinnedAsPtr = do
-    arr <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Int])
+    arr <- MA.unsafeSliceOffLen 10 50 <$> MA.fromList ([0 .. 99] :: [Int])
     let arr1 = A.unsafeFreeze arr
     A.unsafePinnedAsPtr arr1 getIntList `shouldReturn` [10 .. 59]
 
 testUnsafeAsForeignPtr :: IO ()
 testUnsafeAsForeignPtr = do
-    arr <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Int])
+    arr <- MA.unsafeSliceOffLen 10 50 <$> MA.fromList ([0 .. 99] :: [Int])
     let arr1 = A.unsafeFreeze arr
     A.unsafeAsForeignPtr arr1 getIntList1 `shouldReturn` [10 .. 59]
     where
@@ -225,7 +225,7 @@ testUnsafeAsForeignPtr = do
 
 testForeignPtrConversionId :: IO ()
 testForeignPtrConversionId = do
-    arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
+    arr0 <- MA.unsafeSliceOffLen 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
     let arr = A.unsafeFreeze arr0
     A.unsafeAsForeignPtr arr $ \a b -> do
         res <- A.unsafeFromForeignPtr a b
@@ -235,7 +235,7 @@ testForeignPtrConversionId = do
 
 testUnsafeFromForeignPtr :: IO ()
 testUnsafeFromForeignPtr = do
-    arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
+    arr0 <- MA.unsafeSliceOffLen 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
     let arr = A.unsafeFreeze arr0
     A.unsafePinnedAsPtr arr $ \ptr len -> do
         fptr <- newForeignPtr_ ptr
@@ -244,7 +244,7 @@ testUnsafeFromForeignPtr = do
 
 testFromCString# :: IO ()
 testFromCString# = do
-    arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
+    arr0 <- MA.unsafeSliceOffLen 10 50 <$> MA.fromList ([0 .. 99] :: [Word8])
     let arr = A.unsafeFreeze arr0
     A.unsafePinnedAsPtr (arr <> A.fromList [0]) $ \(Ptr addr#) _ -> do
         arr1 <- A.fromCString# addr#
@@ -253,7 +253,7 @@ testFromCString# = do
 
 testFromW16CString# :: IO ()
 testFromW16CString# = do
-    arr0 <- MA.unsafeGetSlice 10 50 <$> MA.fromList ([0 .. 99] :: [Word16])
+    arr0 <- MA.unsafeSliceOffLen 10 50 <$> MA.fromList ([0 .. 99] :: [Word16])
     let arr = A.unsafeFreeze arr0
     A.unsafePinnedAsPtr (arr <> A.fromList [0]) $ \(Ptr addr#) _ -> do
         arr1 <- A.fromW16CString# addr#

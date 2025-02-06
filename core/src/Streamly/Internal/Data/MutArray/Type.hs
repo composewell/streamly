@@ -66,8 +66,8 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- *** Slicing
     -- | Get a subarray without copying
-    , unsafeGetSlice -- XXX unsafeSliceAtLen
-    , getSlice -- XXX sliceAtLen
+    , unsafeSliceOffLen
+    , sliceOffLen
     , unsafeBreakAt
     , breakAt
     , breakEndByWord8_
@@ -308,6 +308,8 @@ module Streamly.Internal.Data.MutArray.Type
     , roundUpToPower2
 
     -- * Deprecated
+    , unsafeGetSlice
+    , getSlice
     , sliceEndBy_
     , strip
     , stripStart
@@ -1427,7 +1429,6 @@ getIndices = indexReader
 -------------------------------------------------------------------------------
 
 -- XXX We can also get immutable slices.
--- XXX Rename getSlice to sliceAtLen indicating argument usage
 -- XXX sliceFromLen for a stream of slices starting from a given index
 
 -- | /O(1)/ Slice an array in constant time.
@@ -1437,13 +1438,13 @@ getIndices = indexReader
 -- /Unsafe/
 --
 -- /Pre-release/
-{-# INLINE unsafeGetSlice #-}
-getSliceUnsafe, unsafeGetSlice :: forall a. Unbox a
+{-# INLINE unsafeSliceOffLen #-}
+unsafeSliceOffLen, getSliceUnsafe, unsafeGetSlice :: forall a. Unbox a
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> MutArray a
     -> MutArray a
-unsafeGetSlice index len (MutArray contents start e _) =
+unsafeSliceOffLen index len (MutArray contents start e _) =
     let fp1 = INDEX_OF(start,index,a)
         end = fp1 + (len * SIZE_OF(a))
      in assert
@@ -1456,13 +1457,13 @@ unsafeGetSlice index len (MutArray contents start e _) =
 -- extends out of the array bounds.
 --
 -- /Pre-release/
-{-# INLINE getSlice #-}
-getSlice :: forall a. Unbox a =>
+{-# INLINE sliceOffLen #-}
+sliceOffLen, getSlice :: forall a. Unbox a =>
        Int -- ^ from index
     -> Int -- ^ length of the slice
     -> MutArray a
     -> MutArray a
-getSlice index len (MutArray contents start e _) =
+sliceOffLen index len (MutArray contents start e _) =
     let fp1 = INDEX_OF(start,index,a)
         end = fp1 + (len * SIZE_OF(a))
      in if index >= 0 && len >= 0 && end <= e
@@ -1470,7 +1471,7 @@ getSlice index len (MutArray contents start e _) =
         -- cannot overwrite elements beyond the end of the slice.
         then MutArray contents fp1 end end
         else error
-                $ "getSlice: invalid slice, index "
+                $ "sliceOffLen: invalid slice, index "
                 ++ show index ++ " length " ++ show len
 
 -------------------------------------------------------------------------------
@@ -2816,7 +2817,7 @@ cloneAs ps src =
 
 -- | Clones a MutArray.
 --
--- To clone a slice of "MutArray" you can create a slice with "unsafeGetSlice"
+-- To clone a slice of "MutArray" you can create a slice with "unsafeSliceOffLen"
 -- and then use "clone".
 --
 -- The new "MutArray" is unpinned in nature. Use "clone'" to clone the
@@ -2956,7 +2957,7 @@ splitUsing :: (MonadIO m, Unbox a) =>
     ((a -> Bool) -> Stream m a -> Stream m (Int, Int))
     -> (a -> Bool) -> MutArray a -> Stream m (MutArray a)
 splitUsing f predicate arr =
-    fmap (\(i, len) -> unsafeGetSlice i len arr)
+    fmap (\(i, len) -> unsafeSliceOffLen i len arr)
         $ f predicate (read arr)
 
 -- | Generate a stream of array slices using a predicate. The array element
@@ -3000,8 +3001,8 @@ breakUsing adj indexer predicate arr = do
                 arr1 =
                     if i1 >= arrLen
                     then empty
-                    else unsafeGetSlice i1 (arrLen - i1) arr
-             in return (unsafeGetSlice i len arr, arr1)
+                    else unsafeSliceOffLen i1 (arrLen - i1) arr
+             in return (unsafeSliceOffLen i len arr, arr1)
         Nothing -> return (arr, empty)
 
 {-# INLINE revBreakUsing #-}
@@ -3021,8 +3022,8 @@ revBreakUsing withSep predicate arr = do
                 arr0 =
                     if len1 >= arrLen
                     then empty
-                    else unsafeGetSlice 0 (arrLen - len1) arr
-                arr1 = unsafeGetSlice (arrLen - len) len arr
+                    else unsafeSliceOffLen 0 (arrLen - len1) arr
+                arr1 = unsafeSliceOffLen (arrLen - len) len arr
              in return (arr0, arr1)
         Nothing -> return (arr, empty)
 
@@ -3120,13 +3121,13 @@ RENAME(breakOn,breakEndByWord8_)
 
 -- | Like 'breakAt' but does not check whether the index is valid.
 --
--- >>> unsafeBreakAt i arr = (MutArray.unsafeGetSlice 0 i arr, MutArray.unsafeGetSlice i (MutArray.length arr - i) arr)
+-- >>> unsafeBreakAt i arr = (MutArray.unsafeSliceOffLen 0 i arr, MutArray.unsafeSliceOffLen i (MutArray.length arr - i) arr)
 --
 {-# INLINE unsafeBreakAt #-}
 unsafeBreakAt, unsafeSplitAt :: forall a. Unbox a =>
     Int -> MutArray a -> (MutArray a, MutArray a)
 unsafeBreakAt i MutArray{..} =
-    -- (unsafeGetSlice 0 i arr, unsafeGetSlice i (length arr - i) arr)
+    -- (unsafeSliceOffLen 0 i arr, unsafeSliceOffLen i (length arr - i) arr)
     let off = i * SIZE_OF(a)
         p = arrStart + off
      in ( MutArray
@@ -3827,7 +3828,9 @@ bubble cmp0 arr =
 RENAME(realloc,reallocBytes)
 RENAME(castUnsafe,unsafeCast)
 RENAME(newArrayWith,emptyWithAligned)
-RENAME(getSliceUnsafe,unsafeGetSlice)
+RENAME(getSliceUnsafe,unsafeSliceOffLen)
+RENAME(unsafeGetSlice,unsafeSliceOffLen)
+RENAME(getSlice,sliceOffLen)
 RENAME(putIndexUnsafe,unsafePutIndex)
 RENAME(modifyIndexUnsafe,unsafeModifyIndex)
 RENAME(getIndexUnsafe,unsafeGetIndex)
