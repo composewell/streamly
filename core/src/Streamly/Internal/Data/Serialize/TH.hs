@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Serialize.TH
 
 import Data.List (foldl')
 import Data.Word (Word16, Word32, Word64, Word8)
+import Data.Foldable (length)
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
@@ -44,6 +45,7 @@ import qualified Streamly.Internal.Data.Serialize.TH.RecHeader as RecHeader
 import Streamly.Internal.Data.Serialize.TH.Bottom
 import Streamly.Internal.Data.Serialize.TH.Common
 import Streamly.Internal.Data.Serialize.TH.RecHeader
+import Prelude hiding (Foldable(..))
 
 --------------------------------------------------------------------------------
 -- Domain specific helpers

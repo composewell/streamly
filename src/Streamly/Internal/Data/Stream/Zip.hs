@@ -1,5 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Zip

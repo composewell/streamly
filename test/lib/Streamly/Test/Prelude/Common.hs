@@ -130,6 +130,8 @@ import Test.Hspec.QuickCheck
 import Test.Hspec
 import Test.QuickCheck (Property, choose, forAll, listOf, withMaxSuccess)
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
+import Data.Foldable
+    (elem, foldl, foldMap, foldr, length, maximum, minimum, null, product, sum)
 
 import Streamly.Prelude (SerialT, IsStream, (.:), nil, (|&), fromSerial)
 #ifndef COVERAGE_BUILD
@@ -144,6 +146,7 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Data.Map.Strict as Map
 
 import Streamly.Test.Common
+import Prelude hiding (Foldable(..))
 
 maxStreamLen :: Int
 maxStreamLen = 1000

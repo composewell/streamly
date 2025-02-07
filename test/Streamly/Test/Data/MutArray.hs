@@ -19,7 +19,9 @@ import Test.Hspec (hspec, describe, it)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, Property)
 import Test.QuickCheck.Monadic (monadicIO, assert)
-#if MIN_VERSION_base(4,15,0)
+#if MIN_VERSION_base(4,21,0)
+import GHC.IO.SubSystem (IoSubSystem (..))
+#elif MIN_VERSION_base(4,15,0)
 import GHC.RTS.Flags (IoSubSystem(..))
 #endif
 
