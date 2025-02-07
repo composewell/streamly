@@ -33,7 +33,7 @@ module Streamly.Data.MutArray
 
     -- Uninitialized Arrays
     , emptyOf
-    , pinnedEmptyOf
+    , emptyOf'
 
     -- From containers
     , fromListN
@@ -90,6 +90,7 @@ module Streamly.Data.MutArray
     , Unbox (..)
 
     -- * Deprecated
+    , pinnedEmptyOf
     , newPinned
     , new
     , pinnedNew
@@ -110,7 +111,7 @@ import Control.Monad.IO.Class (MonadIO)
 
 #include "DocTestDataMutArray.hs"
 
-{-# DEPRECATED newPinned "Please use pinnedEmptyOf instead." #-}
+{-# DEPRECATED newPinned "Please use emptyOf' instead." #-}
 {-# INLINE newPinned #-}
 newPinned :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
 newPinned = emptyOf'
