@@ -101,7 +101,7 @@ import qualified Streamly.Internal.Data.Array as A
     ( unsafeFreeze, unsafePinnedAsPtr, byteLength, pinnedChunksOf,
       pinnedCreateOf, unsafePinnedCreateOf, lCompactGE )
 import qualified Streamly.Internal.Data.MutArray as MArray
-    (MutArray(..), unsafePinnedAsPtr, pinnedEmptyOf)
+    (MutArray(..), unsafeAsPtr, pinnedEmptyOf)
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
 import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
@@ -263,7 +263,8 @@ readArrayUptoWith
 readArrayUptoWith f size h = do
     arr <- MArray.pinnedEmptyOf size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    MArray.unsafePinnedAsPtr arr $ \p -> do
+    -- Since the array is pinned (pinnedEmptyOf) we can safely use unsafeAsPtr
+    MArray.unsafeAsPtr arr $ \p -> do
         n <- f h p size
         let v = A.unsafeFreeze
                 $ arr { MArray.arrEnd = n, MArray.arrBound = size }

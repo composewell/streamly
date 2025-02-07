@@ -247,7 +247,10 @@ data Array a =
 --
 {-# INLINE unsafePinnedAsPtr #-}
 unsafePinnedAsPtr :: MonadIO m => Array a -> (Ptr a -> m b) -> m b
-unsafePinnedAsPtr arr = MA.unsafePinnedAsPtr (unsafeThaw arr)
+unsafePinnedAsPtr arr f = do
+    let marr = unsafeThaw arr
+    pinned <- liftIO $ MA.pin marr
+    MA.unsafeAsPtr pinned f
 
 {-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
 {-# INLINE asPtrUnsafe #-}

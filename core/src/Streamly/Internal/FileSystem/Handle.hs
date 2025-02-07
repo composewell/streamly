@@ -179,7 +179,8 @@ getChunk :: MonadIO m => Int -> Handle -> m (Array Word8)
 getChunk size h = liftIO $ do
     arr :: MArray.MutArray Word8 <- MArray.pinnedEmptyOf size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    MArray.unsafePinnedAsPtr arr $ \p -> do
+    -- Since the array is pinned (pinnedEmptyOf) we can safely use unsafeAsPtr
+    MArray.unsafeAsPtr arr $ \p -> do
         n <- hGetBufSome h p size
         -- XXX shrink only if the diff is significant
         return $

@@ -294,6 +294,8 @@ library
         , src/Streamly/Internal/Data/Array
         , src/Streamly/Internal/Data/Stream
 
+    c-sources: src/Streamly/Internal/Data/MutArray/Lib.c
+
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Clock/Windows.c
 

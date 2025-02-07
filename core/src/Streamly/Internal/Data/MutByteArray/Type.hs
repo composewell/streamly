@@ -12,7 +12,6 @@ module Streamly.Internal.Data.MutByteArray.Type
     (
     -- ** MutByteArray
       MutByteArray(..)
-    , MutableByteArray
     , getMutableByteArray# -- XXX getMutByteArray#
 
     -- ** Pinning
@@ -38,13 +37,14 @@ module Streamly.Internal.Data.MutByteArray.Type
     , unsafeAsPtr
 
     -- ** Deprecated
+    , MutableByteArray
     , asPtrUnsafe
     , nil
     ) where
 
 import Control.Monad.IO.Class (MonadIO(..))
-#ifdef DEBUG
 import Control.Monad (when)
+#ifdef DEBUG
 import Debug.Trace (trace)
 #endif
 import GHC.Base (IO(..))
@@ -102,31 +102,15 @@ touch (MutByteArray contents) =
 -- guarantees that unsafe calls will be performed in the calling thread. Making
 -- it safe to pass heap-allocated objects to unsafe functions.
 
--- | Use a @MutByteArray@ as @Ptr a@. This is useful when we want to pass
--- an array as a pointer to some operating system call or to a "safe" FFI call.
---
--- If the array is not pinned it is copied to pinned memory before passing it
--- to the monadic action.
---
--- /Performance Notes:/ Forces a copy if the array is not pinned. It is advised
--- that the programmer keeps this in mind and creates a pinned array
--- opportunistically before this operation occurs, to avoid the cost of a copy
--- if possible.
---
--- /Unsafe/ because of direct pointer operations. The user must ensure that
--- they are writing within the legal bounds of the array.
---
--- /Pre-release/
---
+-- | NOTE: this is deprecated because it can lead to accidental problems if the
+-- user tries to use it to mutate the array because it does not return the new
+-- array after pinning.
+{-# DEPRECATED unsafePinnedAsPtr "Pin the array and then use unsafeAsPtr." #-}
 {-# INLINE unsafePinnedAsPtr #-}
 unsafePinnedAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
 unsafePinnedAsPtr arr f = do
-  contents <- liftIO $ pin arr
-  let !ptr = Ptr (byteArrayContents#
-                     (unsafeCoerce# (getMutableByteArray# contents)))
-  r <- f ptr
-  liftIO $ touch contents
-  return r
+    arr1 <- liftIO $ pin arr
+    unsafeAsPtr arr1 f
 
 {-# DEPRECATED asPtrUnsafe "Please use unsafePinnedAsPtr instead." #-}
 {-# INLINE asPtrUnsafe #-}
@@ -137,11 +121,15 @@ asPtrUnsafe = unsafePinnedAsPtr
 {-# INLINE unsafeAsPtr #-}
 unsafeAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
 unsafeAsPtr arr f = do
-  let !ptr = Ptr (byteArrayContents#
+    when (not (isPinned arr))
+        $ error "unsafeAsPtr requires the array to be pinned"
+    let !ptr = Ptr (byteArrayContents#
                      (unsafeCoerce# (getMutableByteArray# arr)))
-  r <- f ptr
-  liftIO $ touch arr
-  return r
+    r <- f ptr
+    -- While f is using the bare pointer, the MutByteArray may be garbage
+    -- collected by the GC, tell the GC that we are still using it.
+    liftIO $ touch arr
+    return r
 
 --------------------------------------------------------------------------------
 -- Creation
