@@ -44,7 +44,6 @@ module Streamly.Internal.Data.MutArray.Type
     , cast
     , unsafeCast
     , asBytes
-    , unsafePinnedAsPtr
     , unsafeAsPtr
 
     -- ** Construction
@@ -54,14 +53,8 @@ module Streamly.Internal.Data.MutArray.Type
     -- | New arrays are always empty arrays with some reserve capacity to
     -- extend the length without reallocating.
     , emptyOf
-    , emptyWithAligned
+    , emptyWithAligned -- XXX emptyAlignAtWith
     , emptyOf'
-    , pinnedNewAligned -- XXX not required
-    -- , new -- uninitialized array of specified length
-
-    -- *** Cloning
-    , clone
-    , clone'
 
     -- *** Slicing
     -- | Get a subarray without copying
@@ -80,21 +73,34 @@ module Streamly.Internal.Data.MutArray.Type
     , revDropWhile
 
     -- *** Stream Folds
+    -- | Note: create is just appending to an empty array. So keep the names
+    -- consistent with append operations.
     , ArrayUnsafe (..)
-    , unsafeCreateOfWith
+
+    -- With allocator, of capacity
+    , unsafeCreateOfWith -- XXX unsafeCreateWithOf
+    , createWithOf -- create alloc with
+
     , unsafeCreateOf
+    , createOf
+    , createMinOf
+    , create -- XXX should we change the min to one elem or one Word?
+ -- , createGrowBy
+
+    -- Reverse variants
+    , revCreateOf
+ -- , revCreate
+
+    -- Pinned variants
+
     , unsafeCreateOf'
     , createOf'
-    , createWithOf
-    , createOf
-    , revCreateOf
-
     , create'
-    , createWith
-    , create
-    -- , revCreate
 
     -- *** From containers
+    -- | These can be implemented by appending a stream to an empty array.
+    , clone -- XXX fromMutArray or copyMutArray
+    , clone'
     , fromListN
     , fromListN'
     , fromList
@@ -167,28 +173,37 @@ module Streamly.Internal.Data.MutArray.Type
     -- *** Size
     , length
     , byteLength
-    , vacate
 
-    -- *** Capacity
-    -- , capacity
+    -- *** Capacity Reporting
+    , capacity
+    , free
     , byteCapacity
     , bytesFree
 
     -- *** Capacity Management
+    -- There are two ways of growing an array:
+    --
+    -- * grow: double, align to next power of 2 if large, never shrink
+    -- * growBy: align to block size if large, never shrink
+
     , blockSize
     , arrayChunkBytes
     , allocBytesToElemCount
     , reallocBytes
     , reallocBytesWith
-    , grow
+
+ -- , grow -- double the used capacity and align to power of 2
+    , growTo
+    , growBy
     , growExp
     , rightSize
+    , vacate
 
     -- ** Folding
     , foldl'
     , foldr
     , fold
-    , foldRev
+    , foldRev -- XXX revFold
     , byteCmp
     , byteEq
 
@@ -204,28 +219,64 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- ** Growing and Shrinking
     -- | Arrays grow only at the end, though technically it is possible to
-    -- grow on both sides and therefore have a cons as well as snoc. But that
-    -- will require both lower and upper bound in the array representation.
+    -- grow on both sides and therefore we can have a cons as well as snoc. But
+    -- cons is not implemented yet.
 
     -- *** Appending elements
-    , snocWith
+    -- | snoc is the fundamental operation for growing arrays. Streaming folds,
+    -- appending streams can be implemented in terms of snoc.
+
+    -- XXX snoc 128/256/512 bit data using SIMD.
+    , snocWith -- XXX snocGrowWith
     , snoc
-    , snocLinear
+    , snocGrowBy
     , snocMay
     , unsafeSnoc
 
-    -- *** Appending streams
-    , unsafeAppendN
-    , appendN
-    , appendWith
-    , append
-    , unsafeAppendPtrN
+ -- , revSnoc -- cons
+ -- , revSnocGrowBy  -- consGrowBy
 
-    -- *** Appending arrays
-    , spliceCopy
-    , spliceWith
+    -- *** Folds for appending streams
+    -- | Fundamentally these are a sequence of snoc operations.
+    -- Folds are named "append" whereas joining two arrays is named as "splice".
+
+    , appendWith -- XXX replace by pure appendGrowWith
+
+    , unsafeAppendMax -- can be renamed to unsafeAppendN later
+    , appendMax -- can be renamed to appendN later
+ -- , appendMin -- like createMinOf, supplies a min hint to reduce allocs
+ -- , appendGrowWith
+    , append2   -- to be renamed to append later
+    , appendGrowBy
+
+ -- , revAppend
+ -- , revAppendN
+ -- , revAppendGrowBy
+
+    -- *** Appending streams
+    -- | Fundamentally these are a sequence of snoc operations. These are
+    -- convenience operations implemented in terms of folds.
+    , unsafeAppendPtrN
+    , appendPtrN
+    , appendCString#
+ -- , appendStreamGrowWith
+    , appendStream
+    , appendStreamN
+ -- , appendStreamGrowBy
+
+    -- *** Splicing arrays
+    -- | TODO: We can replace memcpy with stream copy using Word64. Arrays are
+    -- aligned on 64-bit boundaries on 64-bit CPUs. A fast way to copy an
+    -- array is to unsafeCast it to Word64, read it as a stream, write the
+    -- stream to Word64 array and unsafeCast it again. We can use SIMD
+    -- read/write as well.
+
+    , spliceCopy -- XXX freeze and splice instead?
     , splice
-    , spliceExp
+    , spliceWith -- XXX spliceGrowWith
+    , spliceExp -- XXX spliceGrowExp
+ -- , spliceN
+ -- , spliceGrowBy
     , unsafeSplice
     -- , putSlice
     -- , appendSlice
@@ -235,16 +286,22 @@ module Streamly.Internal.Data.MutArray.Type
     -- monads instead? Decide after implementing the monads.
 
     -- ** Serialization using Unbox
-    -- Fixed length serialization.
+    -- | Fixed length serialization.
+    -- Serialization operations are essentially a combination of serialization
+    -- using Unbox/Serialize type class, followed by snoc. TODO: use SIMD for
+    -- snoc.
     , poke
     , pokeMay
-    , unsafePokeSkip
+ -- , pokeGrowBy
+    , unsafePokeSkip -- XXX unsafePoke_
+ -- , revPoke
 
     -- ** Deserialization using Unbox
     -- Fixed length deserialization.
     , peek
-    , unsafePeek -- unsafePeekUncons
-    , unsafePeekSkip
+    , unsafePeek
+    , unsafePeekSkip -- XXX unsafePeek_
+ -- , revPeek
 
     -- Arrays of arrays
     --  We can add dimensionality parameter to the array type to get
@@ -283,7 +340,8 @@ module Streamly.Internal.Data.MutArray.Type
     , concatRevWith -- internal
 
     -- *** Compact
-    -- | Append the arrays in a stream to form a stream of larger arrays.
+    -- | Coalesce arrays together in a stream of arrays to form a stream of
+    -- larger arrays.
     , SpliceState (..)
     , compactLeAs -- internal
 
@@ -381,6 +439,14 @@ module Streamly.Internal.Data.MutArray.Type
     , pinnedClone
     , unsafePinnedCreateOf
     , splitOn
+    , pinnedNewAligned
+    , unsafePinnedAsPtr
+    , grow -- XXX to be deprecated
+    , createWith -- XXX to be deprecated
+    , snocLinear -- XXX deprecate, replace by snocGrowBy or rename snoc1KB
+    , unsafeAppendN -- XXX deprecate, replaced by unsafeAppendMax
+    , appendN -- XXX deprecate, replaced by appendMax
+    , append -- XXX deprecate, replaced by append2
     )
 where
 
@@ -680,7 +746,7 @@ newAs ps =
 -- | Allocates a pinned array of zero length but growable to the specified
 -- capacity without reallocation.
 {-# INLINE emptyOf' #-}
-pinnedEmptyOf, emptyOf' :: forall m a. (MonadIO m, Unbox a) => Int -> m (MutArray a)
+pinnedEmptyOf, emptyOf' :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
 emptyOf' = newAs Pinned
 RENAME_PRIME(pinnedEmptyOf,emptyOf)
 
@@ -1008,32 +1074,55 @@ reallocBytesWith label capSizer minIncrBytes arr = do
             , ". Please check the sizing function passed."
             ]
 
--- | @grow newCapacity array@ changes the total capacity of the array so that
+-- | @growTo newCapacity array@ changes the total capacity of the array so that
 -- it is enough to hold the specified number of elements.  Nothing is done if
 -- the specified capacity is less than the length of the array.
 --
 -- If the capacity is more than 'largeObjectThreshold' then it is rounded up to
 -- the block size (4K).
 --
+-- Nothing is done if the requested capacity is <= 0.
+--
 -- /Pre-release/
-{-# INLINE grow #-}
-grow :: forall m a. (MonadIO m, Unbox a) =>
+{-# INLINE growTo #-}
+growTo, grow :: forall m a. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> m (MutArray a)
-grow nElems arr@MutArray{..} = do
+growTo nElems arr@MutArray{..} = do
     let req = SIZE_OF(a) * nElems
         cap = arrBound - arrStart
     if req < cap
     then return arr
     else realloc req arr
 
-{-# DEPRECATED resize "Please use grow instead." #-}
+{-# INLINE grow #-}
+grow = growTo
+
+-- | Like 'growTo' but specifies the required reserve (unused) capacity rather
+-- than the total capacity. Increases the reserve capacity, if required, to at
+-- least the given amount.
+--
+-- Nothing is done if the requested capacity is <= 0.
+--
+{-# INLINE growBy #-}
+growBy :: forall m a. (MonadIO m, Unbox a) =>
+    Int -> MutArray a -> m (MutArray a)
+growBy nElems arr@MutArray{..} = do
+    let req = arrEnd - arrStart + SIZE_OF(a) * nElems
+        cap = arrBound - arrStart
+    if req < cap
+    then return arr
+    else realloc req arr
+
+{-# DEPRECATED resize "Please use growTo instead." #-}
 {-# INLINE resize #-}
 resize :: forall m a. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> m (MutArray a)
 resize = grow
 
--- | Like 'grow' but if the requested byte capacity is more than
+-- | Like 'growTo' but if the requested byte capacity is more than
 -- 'largeObjectThreshold' then it is rounded up to the closest power of 2.
+--
+-- Nothing is done if the requested capacity is <= 0.
 --
 -- /Pre-release/
 {-# INLINE growExp #-}
@@ -1070,13 +1159,13 @@ rightSize arr@MutArray{..} = do
     assert (arrEnd <= arrBound) (return ())
     let start = arrStart
         len = arrEnd - start
-        capacity = arrBound - start
+        cap = arrBound - start
         target = roundUpLargeArray len
         waste = arrBound - arrEnd
     assert (target >= len) (return ())
     assert (len `mod` SIZE_OF(a) == 0) (return ())
     -- We trade off some wastage (25%) to avoid reallocations and copying.
-    if target < capacity && len < 3 * waste
+    if target < cap && len < 3 * waste
     then realloc target arr
     else return arr
 
@@ -1133,6 +1222,9 @@ snocMay arr@MutArray{..} x = do
     then Just <$> snocNewEnd newEnd arr x
     else return Nothing
 
+-- | Increments the capacity such that there is at least one unused slot even
+-- if the sizer returns a size less than or equal to current size.
+
 -- NOINLINE to move it out of the way and not pollute the instruction cache.
 {-# NOINLINE snocWithRealloc #-}
 snocWithRealloc :: forall m a. (MonadIO m, Unbox a) =>
@@ -1144,15 +1236,21 @@ snocWithRealloc sizer arr x = do
     arr1 <- reallocBytesWith "snocWith" sizer (SIZE_OF(a)) arr
     unsafeSnoc arr1 x
 
--- | @snocWith sizer arr elem@ mutates @arr@ to append @elem@. The length of
--- the array increases by 1.
+-- XXX sizer should use elements instead of bytes? That may increase the cost
+-- but sizing is not a frequent operation.
+
+-- | @snocWith sizer arr elem@ mutates @arr@ to append @elem@. The used length
+-- of the array increases by 1.
 --
 -- If there is no reserved space available in @arr@ it is reallocated to a size
 -- in bytes determined by the @sizer oldSizeBytes@ function, where
--- @oldSizeBytes@ is the original size of the array in bytes.
+-- @oldSizeBytes@ is the original size of the array in bytes. The sizer
+-- function should return a capacity more than or equal to the current used
+-- size. If the capacity returned is less than or equal to the current used
+-- size, the array is still grown by one element.
 --
--- If the new array size is more than 'largeObjectThreshold' we automatically
--- round it up to 'blockSize'.
+-- If the new array size is more than 'largeObjectThreshold' then it is rounded
+-- up to 'blockSize'.
 --
 -- Note that the returned array may be a mutated version of the original array.
 --
@@ -1163,11 +1261,11 @@ snocWith :: forall m a. (MonadIO m, Unbox a) =>
     -> MutArray a
     -> a
     -> m (MutArray a)
-snocWith allocSize arr x = do
+snocWith sizer arr x = do
     let newEnd = INDEX_NEXT(arrEnd arr,a)
     if newEnd <= arrBound arr
     then snocNewEnd newEnd arr x
-    else snocWithRealloc allocSize arr x
+    else snocWithRealloc sizer arr x
 
 -- | The array is mutated to append an additional element to it. If there
 -- is no reserved space available in the array then it is reallocated to grow
@@ -1183,18 +1281,35 @@ snocWith allocSize arr x = do
 snocLinear :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
 snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
 
+-- | The array is mutated to append an additional element to it.
+--
+-- If there is no reserved space available in the array then it is reallocated
+-- to grow it by adding space for the requested number of elements, the new
+-- size is rounded up to 'blockSize' when the size becomes more than
+-- 'largeObjectThreshold'. If the size specified is <= 0 then the array is
+-- grown by one element.
+--
+-- Note that the returned array may be a mutated version of the original array.
+--
+-- Performs O(n^2) copies to grow but is thrifty on memory compared to 'snoc'.
+--
+-- /Pre-release/
+{-# INLINE snocGrowBy #-}
+snocGrowBy :: forall m a. (MonadIO m, Unbox a) =>
+    Int -> MutArray a -> a -> m (MutArray a)
+snocGrowBy n = snocWith (+ (n * SIZE_OF(a)))
+
 -- | The array is mutated to append an additional element to it. If there is no
 -- reserved space available in the array then it is reallocated to double the
--- original size.
+-- original size and aligned to a power of 2.
 --
 -- This is useful to reduce allocations when appending unknown number of
 -- elements.
 --
 -- Note that the returned array may be a mutated version of the original array.
 --
--- >>> snoc = MutArray.snocWith (* 2)
---
--- Performs O(n * log n) copies to grow, but is liberal with memory allocation.
+-- Performs only O(n * log n) copies to grow, but is liberal with memory
+-- allocation compared to 'snocGrowBy'.
 --
 {-# INLINE snoc #-}
 snoc :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
@@ -1648,8 +1763,8 @@ byteLength MutArray{..} =
 -- Note: try to avoid the use of length in performance sensitive internal
 -- routines as it involves a costly 'div' operation. Instead use the end ptr
 -- in the array to check the bounds etc.
---
--- | /O(1)/ Get the length of the array i.e. the number of elements in the
+
+-- | /O(1)/ Get the used length of the array i.e. the number of elements in the
 -- array.
 --
 -- Note that 'byteLength' is less expensive than this operation, as 'length'
@@ -1681,6 +1796,20 @@ bytesFree :: MutArray a -> Int
 bytesFree MutArray{..} =
     let n = arrBound - arrEnd
     in assert (n >= 0) n
+
+{-# INLINE capacity #-}
+capacity :: forall a. Unbox a => MutArray a -> Int
+capacity arr =
+    let elemSize = SIZE_OF(a)
+        bcap = byteCapacity arr
+     in assert (bcap `mod` elemSize == 0) (bcap `div` elemSize)
+
+{-# INLINE free #-}
+free :: forall a. Unbox a => MutArray a -> Int
+free arr =
+    let elemSize = SIZE_OF(a)
+        bfree = bytesFree arr
+     in assert (bfree `mod` elemSize == 0) (bfree `div` elemSize)
 
 -------------------------------------------------------------------------------
 -- Streams of arrays - Creation
@@ -2140,7 +2269,7 @@ foldRev :: (MonadIO m, Unbox a) => Fold m a b -> MutArray a -> m b
 foldRev f arr = D.fold f (readRev arr)
 
 -------------------------------------------------------------------------------
--- Folds
+-- Folds for appending
 -------------------------------------------------------------------------------
 
 -- Note: Arrays may be allocated with a specific alignment at the beginning of
@@ -2171,19 +2300,57 @@ unsafeAppendN n action = fmap fromArrayUnsafe $ FL.foldlM' step initial
     initial = do
         assert (n >= 0) (return ())
         arr@(MutArray _ _ end bound) <- action
-        let free = bound - end
+        let free_ = bound - end
             needed = n * SIZE_OF(a)
         -- XXX We can also reallocate if the array has too much free space,
         -- otherwise we lose that space.
         arr1 <-
-            if free < needed
+            if free_ < needed
             then noinline reallocBytesWith "unsafeAppendN" (+ needed) needed arr
             else return arr
         return $ toArrayUnsafe arr1
 
     step (ArrayUnsafe contents start end) x = do
         liftIO $ pokeAt end contents x
+        -- We are using end as the bound, so no reserved space left.
         return $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
+
+-- | @unsafeAppendMax n arr@ appends up to @n@ input items to the supplied
+-- array.
+--
+-- Unsafe: Do not drive the fold beyond @n@ elements, it will lead to memory
+-- corruption or segfault.
+--
+-- /Internal/
+{-# INLINE_NORMAL unsafeAppendMax #-}
+unsafeAppendMax :: forall m a. (MonadIO m, Unbox a) =>
+       Int
+    -> MutArray a
+    -> Fold m a (MutArray a)
+unsafeAppendMax n arr@MutArray{..} =
+    fmap final $ FL.foldlM' step initial
+
+    where
+
+    free_ = arrBound - arrEnd
+    needed = n * SIZE_OF(a)
+    bound = arrBound + needed - free_
+
+    initial = do
+        assert (n >= 0) (return ())
+        arr1 <-
+            if free_ < needed
+            then noinline
+                    reallocBytesWith "unsafeAppendMax" (+ needed) needed arr
+            else return arr
+        return $ toArrayUnsafe arr1
+
+    step (ArrayUnsafe contents start end) x = do
+        liftIO $ pokeAt end contents x
+        return $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
+
+    final (ArrayUnsafe contents start end) =
+        MutArray contents start end bound
 
 {-# DEPRECATED writeAppendNUnsafe "Please use unsafeAppendN instead." #-}
 {-# INLINE writeAppendNUnsafe #-}
@@ -2203,16 +2370,29 @@ appendN :: forall m a. (MonadIO m, Unbox a) =>
     Int -> m (MutArray a) -> Fold m a (MutArray a)
 appendN n initial = FL.take n (unsafeAppendN n initial)
 
+-- | Allocates space for n additional elements. The fold terminates after
+-- appending n elements. If less than n elements are supplied then the space
+-- for the remaining elements is guaranteed to be reserved.
+--
+-- >>> appendMax n arr = Fold.take n (MutArray.unsafeAppendMax n arr)
+--
+{-# INLINE_NORMAL appendMax #-}
+appendMax :: forall m a. (MonadIO m, Unbox a) =>
+    Int -> MutArray a -> Fold m a (MutArray a)
+appendMax n initial = FL.take n (unsafeAppendMax n initial)
+
 {-# DEPRECATED writeAppendN "Please use appendN instead." #-}
 {-# INLINE writeAppendN #-}
 writeAppendN :: forall m a. (MonadIO m, Unbox a) =>
     Int -> m (MutArray a) -> Fold m a (MutArray a)
 writeAppendN = appendN
 
--- | @appendWith realloc action@ mutates the array generated by @action@ to
+-- | @appendWith sizer action@ mutates the array generated by @action@ to
 -- append the input stream. If there is no reserved space available in the
--- array it is reallocated to a size in bytes  determined by @realloc oldSize@,
--- where @oldSize@ is the current size of the array in bytes.
+-- array it is reallocated to a size in bytes determined by @sizer oldSize@,
+-- where @oldSize@ is the current size of the array in bytes. If the sizer
+-- returns less than or equal to the current size then the size is incremented
+-- by one element.
 --
 -- Note that the returned array may be a mutated version of original array.
 --
@@ -2232,16 +2412,29 @@ writeAppendWith = appendWith
 
 -- | @append action@ mutates the array generated by @action@ to append the
 -- input stream. If there is no reserved space available in the array it is
--- reallocated to double the size.
+-- reallocated to double the size and aligned to power of 2.
 --
 -- Note that the returned array may be a mutated version of original array.
 --
--- >>> append = MutArray.appendWith (* 2)
+-- >>> append = Fold.foldlM' MutArray.snoc
 --
 {-# INLINE append #-}
 append :: forall m a. (MonadIO m, Unbox a) =>
     m (MutArray a) -> Fold m a (MutArray a)
-append = appendWith (* 2)
+-- append = appendWith (* 2)
+append = FL.foldlM' snoc
+
+-- | Fold @append2 arr@ mutates the array arr to append the input stream. If
+-- there is no reserved space available in the array it is reallocated to
+-- double the size and aligned to power of 2.
+--
+-- Note that the returned array may be a mutated version of original array.
+--
+-- >>> append2 arr = Fold.foldlM' MutArray.snoc (pure arr)
+--
+{-# INLINE append2 #-}
+append2 :: (MonadIO m, Unbox a) => MutArray a -> Fold m a (MutArray a)
+append2 arr = FL.foldlM' snoc (pure arr)
 
 {-# DEPRECATED writeAppend "Please use append instead." #-}
 {-# INLINE writeAppend #-}
@@ -2249,10 +2442,56 @@ writeAppend :: forall m a. (MonadIO m, Unbox a) =>
     m (MutArray a) -> Fold m a (MutArray a)
 writeAppend = append
 
+-- | @appendGrowBy arr@ mutates the array arr to append the input stream. If
+-- there is no reserved space available in the array it is reallocated to add
+-- space for the min number of elements supplied and align to block size if the
+-- array becomes larger than 'largeObjectThreshold'.
+--
+-- Note that the returned array may be a mutated version of original array.
+--
+-- >>> appendGrowBy n arr = Fold.foldlM' (MutArray.snocGrowBy n) (pure arr)
+--
+{-# INLINE appendGrowBy #-}
+appendGrowBy :: (MonadIO m, Unbox a) =>
+    Int -> MutArray a -> Fold m a (MutArray a)
+appendGrowBy n arr = FL.foldlM' (snocGrowBy n) (pure arr)
+
+-------------------------------------------------------------------------------
+-- Actions for Appending streams
+-------------------------------------------------------------------------------
+
+-- |
+-- >>> appendStream arr = Stream.fold (MutArray.append (pure arr))
+--
+{-# INLINE appendStream #-}
+appendStream :: (MonadIO m, Unbox a) =>
+    MutArray a -> Stream m a -> m (MutArray a)
+appendStream arr = D.fold (append (pure arr))
+
+-- |
+-- >>> appendStreamN n arr = Stream.fold (MutArray.appendMax n arr)
+--
+{-# INLINE appendStreamN #-}
+appendStreamN :: (MonadIO m, Unbox a) =>
+    Int -> MutArray a -> Stream m a -> m (MutArray a)
+appendStreamN n arr = D.fold (appendMax n arr)
+
+-- | The array grown only by required amount of space.
+{-# INLINE appendCString# #-}
+appendCString# :: MonadIO m => Addr# -> MutArray Word8 -> m (MutArray Word8)
+appendCString# addr arr = do
+    len <- liftIO $ c_strlen_pinned addr
+    appendPtrN arr (Ptr addr) (fromIntegral len)
+
+-------------------------------------------------------------------------------
+-- Folds for creating
+-------------------------------------------------------------------------------
+
 -- XXX Use "IO" instead of "m" in the alloc function
+
 -- XXX We can carry bound as well in the state to make sure we do not lose the
 -- remaining capacity. Need to check perf impact.
---
+
 -- | Like 'unsafeCreateOf' but takes a new array allocator @alloc size@
 -- function as argument.
 --
@@ -2321,6 +2560,8 @@ pinnedWriteNUnsafe = unsafeCreateOf'
 -- | @createWithOf alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
 --
+-- The array capacity is guranteed to be at least @n@.
+--
 -- >>> createWithOf alloc n = Fold.take n (MutArray.unsafeCreateOfWith alloc n)
 -- >>> createWithOf alloc n = MutArray.appendN (alloc n) n
 --
@@ -2346,9 +2587,11 @@ writeNAs ps = createWithOf (newAs ps)
 -- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'MutArray'.
 --
+-- The array capacity is guranteed to be at least @n@.
+--
 -- >>> createOf = MutArray.createWithOf MutArray.emptyOf
 -- >>> createOf n = Fold.take n (MutArray.unsafeCreateOf n)
--- >>> createOf n = MutArray.appendN n (MutArray.emptyOf n)
+-- >>> createOf n = MutArray.appendMax n MutArray.empty
 --
 {-# INLINE_NORMAL createOf #-}
 createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (MutArray a)
@@ -2451,6 +2694,7 @@ writeChunks :: (MonadIO m, Unbox a) =>
     Int -> Fold m a (StreamK n (MutArray a))
 writeChunks = buildChunks
 
+-- | Grows by doubling
 {-# INLINE_NORMAL writeWithAs #-}
 writeWithAs :: forall m a. (MonadIO m, Unbox a)
     => PinnedState -> Int -> Fold m a (MutArray a)
@@ -2460,6 +2704,7 @@ writeWithAs ps elemCount =
 
     where
 
+    -- XXX create an empty Array if the count is <= 0?
     initial = do
         when (elemCount < 0) $ error "createWith: elemCount is negative"
         newAs ps elemCount
@@ -2485,15 +2730,17 @@ writeWithAs ps elemCount =
 -- we know the exact size in the end. However, memory copying does not seem to
 -- be as expensive as the allocations. Therefore, we need to reduce the number
 -- of allocations instead. Also, the size of allocations matters, right sizing
--- an allocation even at the cost of copying sems to help.  Should be measured
+-- an allocation even at the cost of copying seems to help.  Should be measured
 -- on a big stream with heavy calls to toArray to see the effect.
 --
 -- XXX check if GHC's memory allocator is efficient enough. We can try the C
 -- malloc to compare against.
 
--- | @createWith minCount@ folds the whole input to a single array. The array
+-- | @createMinOf count@ folds the whole input to a single array. The array
 -- starts at a size big enough to hold minCount elements, the size is doubled
 -- every time the array needs to be grown.
+--
+-- The array capacity is guaranteed to be at least count.
 --
 -- /Caution! Do not use this on infinite streams./
 --
@@ -2502,28 +2749,31 @@ writeWithAs ps elemCount =
 -- >>> createWith n = Fold.rmapM MutArray.fromChunksK (MutArray.buildChunks n)
 --
 -- /Pre-release/
-{-# INLINE_NORMAL createWith #-}
-createWith :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL createMinOf #-}
+createMinOf, createWith :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
 -- createWith n = FL.rmapM rightSize $ appendWith (* 2) (emptyOf n)
-createWith = writeWithAs Unpinned
+createMinOf = writeWithAs Unpinned
 
-{-# DEPRECATED writeWith "Please use createWith instead." #-}
+createWith = createMinOf
+
+{-# DEPRECATED writeWith "Please use createMinOf instead." #-}
 {-# INLINE writeWith #-}
 writeWith :: forall m a. (MonadIO m, Unbox a)
     => Int -> Fold m a (MutArray a)
-writeWith = createWith
+writeWith = createMinOf
 
 -- | Fold the whole input to a single array.
 --
--- Same as 'createWith' using an initial array size of 'arrayChunkBytes' bytes
--- rounded up to the element size.
+-- Same as 'createMinOf using an initial array size of 'arrayChunkBytes' bytes
+-- rounded up to the element size. If the array is expected to be smaller than
+-- 'arrayChunkBytes' then use 'createMinOf' to avoid wasting memory.
 --
 -- /Caution! Do not use this on infinite streams./
 --
 {-# INLINE create #-}
 create :: forall m a. (MonadIO m, Unbox a) => Fold m a (MutArray a)
-create = createWith (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
+create = createMinOf (allocBytesToElemCount (undefined :: a) arrayChunkBytes)
 
 {-# DEPRECATED write "Please use create instead." #-}
 {-# INLINE write #-}
@@ -2551,7 +2801,10 @@ fromStreamDNAs :: forall m a. (MonadIO m, Unbox a)
     => PinnedState -> Int -> D.Stream m a -> m (MutArray a)
 fromStreamDNAs ps limit str = do
     (arr :: MutArray a) <- newAs ps limit
-    end <- D.foldlM' (fwrite (arrContents arr)) (return $ arrEnd arr) $ D.take limit str
+    end <- D.foldlM'
+            (fwrite (arrContents arr))
+            (return $ arrEnd arr)
+            $ D.take limit str
     return $ arr {arrEnd = end}
 
     where
@@ -2560,7 +2813,7 @@ fromStreamDNAs ps limit str = do
         liftIO $ pokeAt ptr arrContents  x
         return $ INDEX_NEXT(ptr,a)
 
--- | Use the 'createOf' fold instead.
+-- | Create a MutArray of given size from a stream.
 --
 -- >>> fromStreamN n = Stream.fold (MutArray.createOf n)
 --
@@ -2582,7 +2835,7 @@ fromStreamDN = fromStreamN
 --
 {-# INLINABLE fromListN #-}
 fromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
-fromListN n xs = fromStreamDN n $ D.fromList xs
+fromListN n xs = fromStreamN n $ D.fromList xs
 
 -- | Like 'fromListN' but creates a pinned array.
 {-# INLINABLE fromListN' #-}
@@ -2601,14 +2854,12 @@ fromListRevN n xs = D.fold (revCreateOf n) $ D.fromList xs
 {-# INLINABLE fromPureStreamN #-}
 fromPureStreamN :: (MonadIO m, Unbox a) =>
     Int -> Stream Identity a -> m (MutArray a)
-fromPureStreamN n xs =
-    D.fold (createOf n) $ D.morphInner (return . runIdentity) xs
+fromPureStreamN n = D.fold (createOf n) . D.generalizeInner
 
 -- | Convert a pure stream in Identity monad to a mutable array.
 {-# INLINABLE fromPureStream #-}
 fromPureStream :: (MonadIO m, Unbox a) => Stream Identity a -> m (MutArray a)
-fromPureStream xs =
-    D.fold create $ D.morphInner (return . runIdentity) xs
+fromPureStream = D.fold create . D.generalizeInner
 
 -- | @fromPtrN len addr@ copies @len@ bytes from @addr@ into an array.
 --
@@ -2632,6 +2883,8 @@ fromPtrN len addr = do
 
 -- | @fromCString# addr@ copies a C string consisting of bytes and
 -- terminated by a null byte, into a Word8 array. The null byte is not copied.
+--
+-- >>> MutArray.fromCString# "hello"#
 --
 -- /Unsafe:/
 --
@@ -2822,7 +3075,7 @@ cloneAs ps src =
             Unboxed.unsafeCloneSliceAs ps startSrc srcLen (arrContents src)
         return $ MutArray newArrContents 0 srcLen srcLen
 
--- | Clones a MutArray.
+-- | Clone the elements of a MutArray. Does not clone the reserve capacity.
 --
 -- To clone a slice of "MutArray" you can create a slice with "unsafeSliceOffLen"
 -- and then use "clone".
@@ -2857,6 +3110,8 @@ RENAME_PRIME(pinnedClone,clone)
 
 -- | Copy two arrays into a newly allocated array. If the first array is pinned
 -- the spliced array is also pinned.
+--
+-- Note: If you freeze and splice it will create a new array.
 {-# INLINE spliceCopy #-}
 spliceCopy :: forall m a. MonadIO m =>
 #ifdef DEVBUILD
@@ -2905,11 +3160,18 @@ unsafeSplice dst src = do
 {-# INLINE unsafeAppendPtrN #-}
 unsafeAppendPtrN :: MonadIO m =>
     MutArray Word8 -> Ptr Word8 -> Int -> m (MutArray Word8)
-unsafeAppendPtrN dst ptr ptrLen = do
-    let newEnd = arrEnd dst + ptrLen
-    assertM(newEnd <= arrBound dst)
-    Unboxed.unsafePutPtrN ptr (arrContents dst) (arrEnd dst) ptrLen
-    return $ dst {arrEnd = newEnd}
+unsafeAppendPtrN arr ptr ptrLen = do
+    let newEnd = arrEnd arr + ptrLen
+    assertM(newEnd <= arrBound arr)
+    Unboxed.unsafePutPtrN ptr (arrContents arr) (arrEnd arr) ptrLen
+    return $ arr {arrEnd = newEnd}
+
+{-# INLINE appendPtrN #-}
+appendPtrN :: MonadIO m =>
+    MutArray Word8 -> Ptr Word8 -> Int -> m (MutArray Word8)
+appendPtrN arr ptr ptrLen = do
+    arr1 <- growBy ptrLen arr
+    unsafeAppendPtrN arr1 ptr ptrLen
 
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
 -- reserved space available in @dst@ it is reallocated to a size determined by
@@ -2944,11 +3206,12 @@ spliceWith sizer dst@(MutArray _ start end bound) src = do
         else return dst
     unsafeSplice dst1 src
 
--- | The first array is mutated to append the second array. If there is no
--- reserved space available in the first array a new allocation of exact
+-- | The first array is extended in-place to append the second array. If there is no
+-- reserved space available in the first array then a new allocation of exact
 -- required size is done.
 --
--- Note that the returned array may be a mutated version of first array.
+-- Note that the returned array may be an extended version of first array,
+-- referring to the same memory as the original array.
 --
 -- >>> splice = MutArray.spliceWith (+)
 --

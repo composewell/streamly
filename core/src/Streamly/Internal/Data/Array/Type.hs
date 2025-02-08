@@ -136,6 +136,8 @@ module Streamly.Internal.Data.Array.Type
 
     -- ** Appending
     , splice -- XXX requires MonadIO
+    -- appendString
+    -- appendCString/CString#
 
     -- ** Streams of arrays
     -- *** Chunk
