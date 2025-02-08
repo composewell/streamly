@@ -52,6 +52,8 @@ module Streamly.Internal.FileSystem.OS_PATH
     , fromChars
     , fromString
     , unsafeFromString
+    -- , fromCString#
+    -- , fromW16CString#
 
     -- * Statically Verified String Literals
     -- | Quasiquoters.
@@ -60,16 +62,18 @@ module Streamly.Internal.FileSystem.OS_PATH
     -- * Statically Verified Strings
     -- | Template Haskell expression splices.
 
-    -- Note: We expose these eventhough we have quasiquoters as these TH helpers
-    -- are more powerful. They are useful if we are generating strings
-    -- statically using methods other than literals or if we are doing some text
-    -- processing on strings before using them.
+    -- Note: We expose these even though we have quasiquoters as these TH
+    -- helpers are more powerful. They are useful if we are generating strings
+    -- statically using methods other than literals or if we are doing some
+    -- text processing on strings before using them.
     , pathE
 
     -- * Elimination
     , toChunk
     , toChars
     , toString
+    -- , toCString
+    -- , toW16CString
 
     -- * Separators
     -- Do we need to export the separator functions? They are not essential if
@@ -87,6 +91,10 @@ module Streamly.Internal.FileSystem.OS_PATH
     , unsafeAppend
     , append
     , append'
+#ifndef IS_WINDOWS
+    , appendCString
+    , appendCString'
+#endif
 
     -- * Splitting
     , splitRoot
@@ -113,6 +121,9 @@ import Data.Maybe (fromJust)
 import Data.Word (Word8)
 #if defined(IS_WINDOWS)
 import Data.Word (Word16)
+#endif
+#ifndef IS_WINDOWS
+import Foreign.C (CString)
 #endif
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
@@ -269,6 +280,7 @@ fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 --
 -- Unicode normalization is not done. If normalization is needed the user can
 -- normalize it and use the fromChunk API.
+{-# INLINE fromChars #-}
 fromChars :: (MonadThrow m, IsPath OS_PATH a) => Stream Identity Char -> m a
 fromChars s =
     Common.fromChars Common.OS_NAME Unicode.UNICODE_ENCODER s
@@ -338,6 +350,7 @@ toChunk :: IsPath OS_PATH a => a -> Array Word8
 toChunk p = let OS_PATH arr = toPath p in Common.toChunk arr
 
 -- | Decode the path to a stream of Unicode chars using strict CODEC_NAME decoding.
+{-# INLINE toChars #-}
 toChars :: (Monad m, IsPath OS_PATH a) => a -> Stream m Char
 toChars p =
     let (OS_PATH arr) =
@@ -427,6 +440,33 @@ append'
     OS_PATH
         $ Common.append'
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
+
+-- XXX This can be pure, like append.
+-- XXX add appendW16CString for Windows?
+
+#ifndef IS_WINDOWS
+-- | Append a separator and a CString to the Array.
+--
+-- TODO: This always appends a separator and does not perform any other
+-- checks like append.
+appendCString :: OS_PATH -> CString -> IO OS_PATH
+appendCString (OS_PATH a) str =
+    fmap OS_PATH
+        $ Common.appendCString
+            Common.OS_NAME a str
+
+-- | Append a separator and a CString to the Array.
+--
+-- TODO: This always appends a separator and does not perform any other
+-- checks like append.
+appendCString' ::
+    OS_PATH -> CString -> IO OS_PATH
+appendCString'
+    (OS_PATH a) str =
+    fmap OS_PATH
+        $ Common.appendCString'
+            Common.OS_NAME a str
+#endif
 
 ------------------------------------------------------------------------------
 -- Splitting path

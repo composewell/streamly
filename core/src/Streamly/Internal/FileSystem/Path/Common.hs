@@ -53,6 +53,7 @@ module Streamly.Internal.FileSystem.Path.Common
     , append'
     , unsafeAppend
     , appendCString
+    , appendCString'
     , unsafeJoinPaths
  -- , joinRoot -- XXX append should be enough
 
@@ -122,6 +123,7 @@ import GHC.Ptr (Ptr(..))
 import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Streamly.Internal.Data.Array (Array(..))
+import Streamly.Internal.Data.MutArray (MutArray)
 import Streamly.Internal.Data.MutByteArray (Unbox(..))
 import Streamly.Internal.Data.Path (PathException(..))
 import Streamly.Internal.Data.Stream (Stream)
@@ -1551,11 +1553,13 @@ validatePathWith allowRoot Windows path
         List.any (`List.elem` isInvalidPathComponent) (components stem)
 
 -- | A valid root, share root or a valid path.
+{-# INLINE validatePath #-}
 validatePath :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
 validatePath = validatePathWith True
 
 -- | Like validatePath but on Windows only full paths are allowed, path roots
 -- only are not allowed. Thus "//x/" is not valid.
+{-# INLINE validatePath' #-}
 validatePath' :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
 validatePath' = validatePathWith False
 
@@ -1689,6 +1693,7 @@ validatePath' = validatePathWith False
 -- True
 -- >>> isValidWin "\\\\??\\x"
 -- True
+{-# INLINE isValidPath #-}
 isValidPath :: (Integral a, Unbox a) => OS -> Array a -> Bool
 isValidPath os path =
     case validatePath os path of
@@ -1704,6 +1709,7 @@ isValidPath os path =
 -- False
 -- >>> isValidWin "\\\\?\\UNC\\x"
 -- False
+{-# INLINE isValidPath' #-}
 isValidPath' :: (Integral a, Unbox a) => OS -> Array a -> Bool
 isValidPath' os path =
     case validatePath' os path of
@@ -1727,6 +1733,7 @@ unsafeFromChunk = Array.unsafeCast
 -- representation uses 'Word16'.
 --
 -- Throws 'InvalidPath'.
+{-# INLINE fromChunk #-}
 fromChunk :: forall m a. (MonadThrow m, Unbox a, Integral a) =>
     OS -> Array Word8 -> m (Array a)
 fromChunk Posix arr =
@@ -1742,9 +1749,11 @@ fromChunk Windows arr =
         Just x -> validatePath Windows x >> pure x
 
 -- | Convert 'Path' to an array of bytes.
+{-# INLINE toChunk #-}
 toChunk :: Array a -> Array Word8
 toChunk = Array.asBytes
 
+{-# INLINE unsafeFromChars #-}
 unsafeFromChars :: (Unbox a) =>
        (Stream Identity Char -> Stream Identity a)
     -> Stream Identity Char
@@ -1765,6 +1774,7 @@ unsafeFromChars encode s =
 -- XXX Writing a custom fold for parsing a Posix path may be better for
 -- efficient bulk parsing when needed. We need the same code to validate a
 -- Chunk where we do not need to create an array.
+{-# INLINE fromChars #-}
 fromChars :: (MonadThrow m, Unbox a, Integral a) =>
        OS
     -> (Stream Identity Char -> Stream Identity a)
@@ -1774,10 +1784,12 @@ fromChars os encode s =
     let arr = unsafeFromChars encode s
      in fromChunk os (Array.unsafeCast arr)
 
+{-# INLINE toChars #-}
 toChars :: (Monad m, Unbox a) =>
     (Stream m a -> Stream m Char) -> Array a -> Stream m Char
 toChars decode arr = decode $ Array.read arr
 
+{-# INLINE toString #-}
 toString :: Unbox a =>
     (Stream Identity a -> Stream Identity Char) -> Array a -> [Char]
 toString decode = runIdentity . Stream.toList . toChars decode
@@ -1810,19 +1822,36 @@ foreign import ccall unsafe "string.h strlen" c_strlen_pinned
 
 -- | Append a separator and a CString to the Array.
 --
-{-# INLINE appendCString #-}
-appendCString :: OS -> Array Word8 -> CString -> IO (Array Word8)
-appendCString os a b@(Ptr addrB#) = do
+{-# INLINE appendCStringWith #-}
+appendCStringWith ::
+       (Int -> IO (MutArray Word8))
+    -> OS
+    -> Array Word8
+    -> CString
+    -> IO (Array Word8)
+appendCStringWith create os a b@(Ptr addrB#) = do
     let lenA = Array.length a
     lenB <- fmap fromIntegral $ c_strlen_pinned addrB#
     assertM(lenA /= 0 && lenB /= 0)
     let len = lenA + 1 + lenB
-    arr <- MutArray.emptyOf len
+    arr <- create len
     arr1 <- MutArray.unsafeSplice arr (Array.unsafeThaw a)
     arr2 <- MutArray.unsafeSnoc arr1 (charToWord (primarySeparator os))
     arr3 :: MutArray.MutArray Word8 <-
         MutArray.unsafeAppendPtrN arr2 (castPtr b) lenB
     return (Array.unsafeFreeze arr3)
+
+-- | Append a separator and a CString to the Array.
+--
+{-# INLINE appendCString #-}
+appendCString :: OS -> Array Word8 -> CString -> IO (Array Word8)
+appendCString = appendCStringWith MutArray.emptyOf
+
+-- | Like 'appendCString' but create a pinned Array.
+--
+{-# INLINE appendCString' #-}
+appendCString' :: OS -> Array Word8 -> CString -> IO (Array Word8)
+appendCString' = appendCStringWith MutArray.emptyOf'
 
 {-# INLINE doAppend #-}
 doAppend :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Array a
