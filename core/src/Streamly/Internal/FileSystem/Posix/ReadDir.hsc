@@ -11,6 +11,7 @@ module Streamly.Internal.FileSystem.Posix.ReadDir
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
       DirStream (..)
     , openDirStream
+    , openDirStreamCString
     , closeDirStream
     , readDirStreamEither
     , readEitherChunks
@@ -29,7 +30,7 @@ import Data.Char (ord)
 import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr)
 import Foreign.C
     (resetErrno, Errno(..), getErrno, eINTR, throwErrno
-    , throwErrnoIfMinus1Retry_, CInt(..), CString, CChar, CSize(..))
+    , throwErrnoIfMinus1Retry_, throwErrnoIfNullRetry, CInt(..), CString, CChar, CSize(..))
 import Foreign.Storable (poke)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Array (Array(..))
@@ -80,15 +81,22 @@ foreign import ccall unsafe "dirent.h readdir"
 foreign import ccall unsafe "lstat_is_directory"
     c_lstat_is_directory  :: CString -> IO CInt
 
--- XXX Use openat instead of open so that we do not have to build and resolve
--- absolute paths.
---
+-- | The CString must be pinned.
+{-# INLINE openDirStreamCString #-}
+openDirStreamCString :: CString -> IO DirStream
+openDirStreamCString s = do
+    -- XXX we do not decode the path here, just print it as cstring
+    -- XXX pass lazy concat of "openDirStream: " ++ s
+    dirp <- throwErrnoIfNullRetry "openDirStream" $ c_opendir s
+    return (DirStream dirp)
+
 -- XXX Path is not null terminated therefore we need to make a copy even if the
 -- array is pinned.
 -- {-# INLINE openDirStream #-}
 openDirStream :: PosixPath -> IO DirStream
 openDirStream p =
     Array.asCStringUnsafe (Path.toChunk p) $ \s -> do
+        -- openDirStreamCString s
         dirp <- throwErrnoPathIfNullRetry "openDirStream" p $ c_opendir s
         return (DirStream dirp)
 
