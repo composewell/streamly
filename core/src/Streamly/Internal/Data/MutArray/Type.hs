@@ -121,6 +121,7 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- ** Random writes
     , putIndex
+ -- , putIndexRev -- or revPutIndex
     , unsafePutIndex
     , putIndices
     -- , putFromThenTo
@@ -258,6 +259,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- convenience operations implemented in terms of folds.
     , unsafeAppendPtrN
     , appendPtrN
+    , appendCString
     , appendCString#
  -- , appendStreamGrowWith
     , appendStream
@@ -1572,8 +1574,16 @@ unsafeSliceOffLen index len (MutArray contents start e _) =
             -- user cannot overwrite elements beyond the end of the slice.
             (MutArray contents fp1 end end)
 
--- | /O(1)/ Slice an array in constant time. Throws an error if the slice
--- extends out of the array bounds.
+-- | /O(1)/ Get a reference to a slice from a mutable array. Throws an error if
+-- the slice extends out of the array bounds.
+--
+-- The capacity of the slice is the same as its length i.e. it does not have
+-- any unused or reserved space at the end.
+--
+-- The slice shares the same underlying mutable array when created. However, if
+-- the slice or the original array is reallocated by growing or shrinking then
+-- it will be copied to new memory and they will no longer share the same
+-- memory.
 --
 -- /Pre-release/
 {-# INLINE sliceOffLen #-}
@@ -2476,12 +2486,18 @@ appendStreamN :: (MonadIO m, Unbox a) =>
     Int -> MutArray a -> Stream m a -> m (MutArray a)
 appendStreamN n arr = D.fold (appendMax n arr)
 
--- | The array grown only by required amount of space.
+-- | The array is grown only by the required amount of space.
 {-# INLINE appendCString# #-}
-appendCString# :: MonadIO m => Addr# -> MutArray Word8 -> m (MutArray Word8)
-appendCString# addr arr = do
+appendCString# :: MonadIO m => MutArray Word8 -> Addr# -> m (MutArray Word8)
+appendCString# arr addr = do
     len <- liftIO $ c_strlen_pinned addr
     appendPtrN arr (Ptr addr) (fromIntegral len)
+
+-- Note: in hsc code # is treated in a special way, so it is difficult to use
+-- appendCString#
+{-# INLINE appendCString #-}
+appendCString :: MonadIO m => MutArray Word8 -> Ptr a -> m (MutArray Word8)
+appendCString arr (Ptr addr) = appendCString# arr addr
 
 -------------------------------------------------------------------------------
 -- Folds for creating
