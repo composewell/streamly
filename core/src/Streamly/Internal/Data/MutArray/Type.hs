@@ -525,6 +525,7 @@ foreign import ccall unsafe "string.h memcpy" c_memcpy_pinned_src
 foreign import ccall unsafe "memchr_index" c_memchr_index
     :: MutableByteArray# RealWorld -> CSize -> Word8 -> CSize -> IO CSize
 
+-- XXX Use cstringLength# from GHC.CString in ghc-prim
 foreign import ccall unsafe "string.h strlen" c_strlen_pinned
     :: Addr# -> IO CSize
 
