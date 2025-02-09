@@ -16,7 +16,6 @@ module Streamly.Internal.Data.MutByteArray.Type
     , getMutByteArray#
 
     -- ** Helpers
-    , unsafeByteCmp
     , touch
 
     -- ** Pinning
@@ -34,12 +33,19 @@ module Streamly.Internal.Data.MutByteArray.Type
 
     -- ** Access
     , length
+    , unsafeAsPtr
+
+    -- ** Modify
     , unsafePutSlice
     , unsafePutPtrN
+
+    -- ** Copy
     , unsafeCloneSliceAs
     , unsafeCloneSlice
     , unsafePinnedCloneSlice -- XXX unsafeCloneSlice'
-    , unsafeAsPtr
+
+    -- ** Compare
+    , unsafeByteCmp
 
     -- ** Capacity Management
     , blockSize
