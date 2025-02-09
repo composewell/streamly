@@ -370,6 +370,7 @@ readEitherChunks alldirs =
 foreign import ccall unsafe "string.h memcpy" c_memcpy
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
 
+-- See also cstringLength# in GHC.CString in ghc-prim
 foreign import ccall unsafe "string.h strlen" c_strlen
     :: Ptr CChar -> IO CSize
 

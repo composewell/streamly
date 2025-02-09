@@ -1817,6 +1817,7 @@ mkQ f =
 -- Operations of Path
 ------------------------------------------------------------------------------
 
+-- See also cstringLength# in GHC.CString in ghc-prim
 foreign import ccall unsafe "string.h strlen" c_strlen_pinned
     :: Addr# -> IO CSize
 
