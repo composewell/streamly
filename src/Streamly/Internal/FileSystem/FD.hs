@@ -219,7 +219,7 @@ openFile path mode = Handle . fst <$> FD.openFile path mode True
 readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size (Handle fd) = do
     arr <-
-        MArray.unsafePinnedCreateUsingPtr size $ \p ->
+        MArray.unsafeCreateWithPtr' size $ \p ->
              -- n <- hGetBufSome h p size
 #if MIN_VERSION_base(4,15,0)
             RawIO.read fd p 0 size

@@ -117,7 +117,7 @@ module Streamly.Internal.Data.MutArray.Type
     , fromChunksK
     , fromChunksRealloced -- fromSmallChunks
 
-    , unsafePinnedCreateUsingPtr
+    , unsafeCreateWithPtr'
 
     -- ** Random writes
     , putIndex
@@ -3526,7 +3526,7 @@ unsafeAsPtr arr f =
         (arrContents arr)
         (\ptr -> f (ptr `plusPtr` arrStart arr) (byteLength arr))
 
--- | @unsafePinnedCreateUsingPtr capacity populator@ creates a pinned array of
+-- | @unsafeCreateWithPtr' capacity populator@ creates a pinned array of
 -- @capacity@ bytes and invokes the @populator@ function to populate it.
 -- @populator ptr len@ gets the pointer to the array and MUST return the amount
 -- of the capacity populated in bytes.
@@ -3534,10 +3534,10 @@ unsafeAsPtr arr f =
 -- /Unsafe/ because the populator is allowed to use the pointer only up to
 -- specified length. In other words, bytes populated MUST be less than or equal
 -- to the total capacity.
-{-# INLINE unsafePinnedCreateUsingPtr #-}
-unsafePinnedCreateUsingPtr
+{-# INLINE unsafeCreateWithPtr' #-}
+unsafeCreateWithPtr'
     :: MonadIO m => Int -> (Ptr Word8 -> IO Int) -> m (MutArray Word8)
-unsafePinnedCreateUsingPtr cap pop = do
+unsafeCreateWithPtr' cap pop = do
     (arr :: MutArray Word8) <- emptyOf' cap
     len <- Unboxed.unsafeAsPtr (arrContents arr) pop
     when (len > cap) (error (errMsg len))
@@ -3548,7 +3548,7 @@ unsafePinnedCreateUsingPtr cap pop = do
     where
 
     errMsg len =
-        "unsafePinnedCreateUsingPtr: length > capacity, "
+        "unsafeCreateWithPtr': length > capacity, "
              ++ "length = " ++ show len ++ ", "
              ++ "capacity = " ++ show cap
 
