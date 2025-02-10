@@ -101,7 +101,7 @@ import qualified Streamly.Internal.Data.Array as A
     ( unsafeFreeze, unsafePinnedAsPtr, chunksOf',
       createOf', unsafeCreateOf, scanCompactMin )
 import qualified Streamly.Internal.Data.MutArray as MArray
-    (unsafePinnedCreateUsingPtr)
+    (unsafeCreateWithPtr')
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
 import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
@@ -261,7 +261,7 @@ readArrayUptoWith
     -> h
     -> IO (Array Word8)
 readArrayUptoWith f size h = do
-    arr <- MArray.unsafePinnedCreateUsingPtr size $ \p -> f h p size
+    arr <- MArray.unsafeCreateWithPtr' size $ \p -> f h p size
     -- XXX shrink only if the diff is significant
     -- unsafeFreezeWithShrink
     pure $ A.unsafeFreeze arr

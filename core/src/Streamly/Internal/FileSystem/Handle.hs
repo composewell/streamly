@@ -178,7 +178,7 @@ import qualified Streamly.Internal.Data.StreamK.Type as K (mkStream)
 getChunk :: MonadIO m => Int -> Handle -> m (Array Word8)
 getChunk size h = liftIO $ do
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    arr <- MArray.unsafePinnedCreateUsingPtr size $ \p -> hGetBufSome h p size
+    arr <- MArray.unsafeCreateWithPtr' size $ \p -> hGetBufSome h p size
     -- XXX shrink only if the diff is significant
     pure $ unsafeFreezeWithShrink arr
 
