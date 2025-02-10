@@ -371,6 +371,9 @@ library
                      , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array
 
+                     -- Unboxed IORef
+                     , Streamly.Internal.Data.IORef
+
                     -- streamly-unicode-core
                      , Streamly.Internal.Unicode.Stream
                      , Streamly.Internal.Unicode.String
@@ -508,9 +511,6 @@ library
                     , Streamly.Internal.Data.MutArray.Type
 
                     , Streamly.Internal.Data.Array.Type
-
-                    -- Unboxed IORef
-                    , Streamly.Internal.Data.IORef.Unboxed
 
                     , Streamly.Internal.Data.MutByteArray.Type
                     , Streamly.Internal.Data.Unbox

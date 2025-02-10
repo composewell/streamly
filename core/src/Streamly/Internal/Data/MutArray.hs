@@ -28,8 +28,6 @@ module Streamly.Internal.Data.MutArray
     , compactEndByByte_
     , compactEndByLn_
     , createOfLast
-    -- * Unboxed IORef
-    , module Streamly.Internal.Data.IORef.Unboxed
 
     -- XXX Do not expose these yet, we should perhaps expose only the Get/Put
     -- monads instead? Decide after implementing the monads.
@@ -49,6 +47,12 @@ module Streamly.Internal.Data.MutArray
     , pinnedCompactLE
     , compactOnByte
     , compactOnByteSuffix
+    , IORef
+    , newIORef
+    , writeIORef
+    , modifyIORef'
+    , readIORef
+    , pollIntIORef
     )
 where
 
@@ -67,6 +71,7 @@ import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Fold.Type (Fold)
 
+import qualified Streamly.Internal.Data.IORef as IORef
 import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Serialize.Type as Serialize
 import qualified Streamly.Internal.Data.Stream.Nesting as Stream
@@ -77,7 +82,6 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Prelude hiding (foldr, length, read, splitAt)
 import Streamly.Internal.Data.MutArray.Type
-import Streamly.Internal.Data.IORef.Unboxed
 
 -- | Generate a stream of array slice descriptors ((index, len)) of specified
 -- length from an array, starting from the supplied array index. The last slice
@@ -388,3 +392,33 @@ createOfLast n =
         (pure (n <= 0))
         (Fold.fromPure empty)
         (Fold.rmapM RingArray.toMutArray $ RingArray.createOfLast n)
+
+--------------------------------------------------------------------------------
+-- IoRef (Deprecated)
+--------------------------------------------------------------------------------
+
+{-# DEPRECATED IORef "Use IORef from MutByteArray module." #-}
+type IORef = IORef.IORef
+
+{-# DEPRECATED pollIntIORef "Use pollIntIORef from MutByteArray module." #-}
+pollIntIORef :: (MonadIO m, Unbox a) => IORef a -> Stream m a
+pollIntIORef = IORef.pollIntIORef
+
+{-# DEPRECATED newIORef "Use newIORef from MutByteArray module." #-}
+newIORef :: forall a. Unbox a => a -> IO (IORef a)
+newIORef = IORef.newIORef
+
+
+{-# DEPRECATED writeIORef "Use writeIORef from MutByteArray module." #-}
+writeIORef :: Unbox a => IORef a -> a -> IO ()
+writeIORef = IORef.writeIORef
+
+
+{-# DEPRECATED modifyIORef' "Use modifyIORef' from MutByteArray module." #-}
+modifyIORef' :: Unbox a => IORef a -> (a -> a) -> IO ()
+modifyIORef' = IORef.modifyIORef'
+
+
+{-# DEPRECATED readIORef "Use readIORef from MutByteArray module." #-}
+readIORef :: Unbox a => IORef a -> IO a
+readIORef = IORef.readIORef

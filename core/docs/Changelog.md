@@ -33,6 +33,7 @@
 
 * Remove the `Storable` constraint from several functions involving the ring
   buffer.
+* `Streamly.Internal.Data.IORef` is a new module exposing `IORef` and friends.
 
 ### API Renaming
 

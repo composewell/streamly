@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.IORef.Unboxed
+-- Module      : Streamly.Internal.Data.IORef
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -19,7 +19,7 @@
 -- reading it from another thread should give consistent old or new value. The
 -- same holds true for 32-bit values on a 32-bit platform.
 
-module Streamly.Internal.Data.IORef.Unboxed
+module Streamly.Internal.Data.IORef
     (
       IORef
 

@@ -33,7 +33,7 @@ import Streamly.Internal.Data.Time.Units
     (MicroSecond64(..), fromAbsTime, addToAbsTime, toRelTime)
 import Streamly.Internal.Control.ForkIO (forkIOManaged)
 
-import qualified Streamly.Internal.Data.IORef.Unboxed as Unboxed
+import qualified Streamly.Internal.Data.IORef as Unboxed
 
 import Streamly.Internal.Data.Time.Clock.Type
 
