@@ -366,6 +366,7 @@ test-suite FileSystem.Event
   ghc-options: -main-is Streamly.Test.FileSystem.Event
   main-is: Streamly/Test/FileSystem/Event.hs
   other-modules: Streamly.Test.FileSystem.Event.Common
+  buildable: False
   if flag(use-streamly-core)
     buildable: False
 
@@ -376,6 +377,7 @@ test-suite FileSystem.Event.Darwin
   other-modules: Streamly.Test.FileSystem.Event.Common
   cpp-options: -DFILESYSTEM_EVENT_DARWIN
   ghc-options: -main-is Streamly.Test.FileSystem.Event.Darwin
+  buildable: False
   if !os(darwin)
     buildable: False
   if flag(use-streamly-core)
@@ -388,6 +390,7 @@ test-suite FileSystem.Event.Linux
   other-modules: Streamly.Test.FileSystem.Event.Common
   cpp-options: -DFILESYSTEM_EVENT_LINUX
   ghc-options: -main-is Streamly.Test.FileSystem.Event.Linux
+  buildable: False
   if !os(linux) || !flag(dev) || flag(use-streamly-core)
     buildable: False
 
@@ -398,6 +401,7 @@ test-suite FileSystem.Event.Windows
   other-modules: Streamly.Test.FileSystem.Event.Common
   cpp-options: -DFILESYSTEM_EVENT_WINDOWS
   ghc-options: -main-is Streamly.Test.FileSystem.Event.Windows
+  buildable: False
   if !os(windows)
     buildable: False
   if flag(use-streamly-core)
