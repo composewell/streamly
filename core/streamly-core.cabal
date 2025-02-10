@@ -341,6 +341,7 @@ library
 
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.MutByteArray
+                     , Streamly.Internal.Data.CString
 
                      -- streaming and parsing Haskell types to/from bytes
                      , Streamly.Internal.Data.Binary.Parser
