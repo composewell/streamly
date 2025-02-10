@@ -93,7 +93,7 @@ import Streamly.Internal.Data.Stream.Channel
     , withChannel, shutdown, chanConcatMapK
     )
 
-import qualified Streamly.Internal.Data.MutArray as Unboxed
+import qualified Streamly.Internal.Data.IORef as Unboxed
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
