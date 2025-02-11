@@ -19,7 +19,7 @@ jobs:
         ./ghcup set ghc $GHCVER
         cabal update
 
-    - uses: actions/cache@v2
+    - uses: actions/cache@v4
       name: Cache ~/.cabal
       with:
         path: |
