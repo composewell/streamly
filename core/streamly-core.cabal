@@ -117,6 +117,7 @@ extra-doc-files:
     docs/ApiChangelogs/0.1.0.txt
     docs/ApiChangelogs/0.1.0-0.2.0.txt
     docs/ApiChangelogs/0.2.0-0.2.2.txt
+    docs/ApiChangelogs/0.2.2-0.2.3.txt
 
 source-repository head
     type: git

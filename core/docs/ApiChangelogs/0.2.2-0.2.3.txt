@@ -1,0 +1,28 @@
+---------------------------------
+API Annotations
+---------------------------------
+
+[A] : Added
+[R] : Removed
+[C] : Changed
+[O] : Old definition
+[N] : New definition
+[D] : Deprecated
+
+---------------------------------
+API diff
+---------------------------------
+
+
+
+---------------------------------
+Internal API diff
+---------------------------------
+
+[C] Streamly.Internal.Data.MutByteArray
+    [D] unsafePinnedAsPtr :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
+[C] Streamly.Internal.Data.MutArray
+    [D] unsafePinnedAsPtr :: MonadIO m => MutArray a -> (Ptr a -> m b) -> m b
+    [D] memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
+    [D] memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
+    [D] c_memchr :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
