@@ -2,7 +2,7 @@
 {-# LANGUAGE UnliftedFFITypes #-}
 
 -- |
--- Module      : Streamly.Internal.Data.MutByteArray.CString
+-- Module      : Streamly.Internal.Data.CString
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -12,7 +12,7 @@
 -- All APIs in this module are unsafe and caution must be used when using them.
 -- Completely experimental. Everything is subject to change without notice.
 
-module Streamly.Internal.Data.MutByteArray.CString
+module Streamly.Internal.Data.CString
     (
       splice
     , spliceCString
