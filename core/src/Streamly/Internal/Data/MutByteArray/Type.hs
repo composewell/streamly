@@ -51,6 +51,11 @@ module Streamly.Internal.Data.MutByteArray.Type
     , blockSize
     , largeObjectThreshold
 
+    -- ** Mutable Cells
+    , mutVar'
+    , withMutVar'
+    , emptyMutVar'
+
     -- ** Deprecated
     , MutableByteArray
     , getMutableByteArray#
@@ -137,6 +142,8 @@ unsafePinnedAsPtr arr0 f = do
 {-# INLINE asPtrUnsafe #-}
 asPtrUnsafe :: MonadIO m => MutByteArray -> (Ptr a -> m b) -> m b
 asPtrUnsafe = unsafePinnedAsPtr
+
+-- XXX We are not passing the length like in the MutArray API or Array API.
 
 -- | Use a @MutByteArray@ as @Ptr a@. This is useful when we want to pass
 -- an array as a pointer to some operating system call or to a "safe" FFI call.
@@ -235,6 +242,39 @@ pinnedNewAlignedBytes (I# nbytes) (I# align) = IO $ \s ->
 newBytesAs, newAs :: PinnedState -> Int -> IO MutByteArray
 newAs Unpinned = new
 newAs Pinned = pinnedNew
+
+-- | Like mutVar' but without initialization.
+{-# NOINLINE emptyMutVar' #-}
+emptyMutVar' :: Int -> MutByteArray
+emptyMutVar' = unsafePerformIO . pinnedNew
+
+-- | A pinned mutable cell to be used for variable length data in local scopes
+-- for temporary storage, reducing allocations and for better cache benefits.
+-- It is pure so that we can declare it within a global or local scope without
+-- a monadic context. In local scopes it may be better to use the IO monad
+-- instead of declaring mutvars.
+--
+-- MutByteArray 'Unbox' and 'Serialize' instances can be used to conveniently
+-- use the mutable cell.
+--
+-- Also see "Streamly.Internal.Data.IORef.Unboxed" for safer and easier to use
+-- mutvars for fixed length data structrures. See
+-- "Streamly.Internal.Data.MutArray" for array type mutvars.
+--
+-- /Unsafe:/ you should not write beyond the length of the mutvar.
+--
+{-# NOINLINE mutVar' #-}
+mutVar' :: Int -> (MutByteArray -> IO Int) -> (MutByteArray, Int)
+mutVar' n action = unsafePerformIO $ do
+    arr <- pinnedNew n
+    i <- action arr
+    -- return $ Tuple' arr i
+    return (arr, i)
+
+withMutVar' :: Int -> (MutByteArray -> IO a) -> IO a
+withMutVar' n action = do
+    arr <- pinnedNew n
+    action arr
 
 -- | @reallocSliceAs pinType newLen array offset len@ reallocates a slice
 -- from @array@ starting at @offset@ and having length @len@ to a new array of

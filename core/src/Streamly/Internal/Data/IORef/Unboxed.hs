@@ -14,7 +14,7 @@
 --
 -- In general, any value that straddles a machine word cannot be guaranteed to
 -- be consistently read from another thread without a lock.  GHC heap objects
--- are always machine word aligned, therefore, a 'IORef' is also word aligned.
+-- are always machine word aligned, therefore, an 'IORef' is also word aligned.
 -- On a 64-bit platform, writing a 64-bit aligned type from one thread and
 -- reading it from another thread should give consistent old or new value. The
 -- same holds true for 32-bit values on a 32-bit platform.
@@ -25,6 +25,8 @@ module Streamly.Internal.Data.IORef.Unboxed
 
     -- Construction
     , newIORef
+    , mutVar'
+    , emptyMutVar'
 
     -- Write
     , writeIORef
@@ -42,6 +44,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Unbox (Unbox(..), sizeOf)
+import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.Stream.Type as D
@@ -57,6 +60,27 @@ newIORef :: forall a. Unbox a => a -> IO (IORef a)
 newIORef x = do
     var <- MBA.new (sizeOf (Proxy :: Proxy a))
     pokeAt 0 var x
+    return $ IORef var
+
+-- | A lazy pinned mutable cell to be used for fixed length data in local
+-- scopes for temporary storage, reducing allocations and for better cache
+-- benefits. It is pure so that we can declare it within a global or local
+-- scope without a monadic context. In local scopes it may be better to use the
+-- IO monad instead of declaring mutvars.
+--
+-- Also see "Streamly.Internal.Data.MutByteArray" for more versatile but less
+-- safe mutable cells for variable length data structrures. See
+-- "Streamly.Internal.Data.MutArray" for array type mutvars.
+--
+{-# NOINLINE mutVar' #-}
+mutVar' :: Unbox a => a -> IORef a
+mutVar' = unsafePerformIO . newIORef
+
+-- | Like mutVar' but without initialization.
+{-# NOINLINE emptyMutVar' #-}
+emptyMutVar' :: forall a. Unbox a => IORef a
+emptyMutVar' = unsafePerformIO $ do
+    var <- MBA.new (sizeOf (Proxy :: Proxy a))
     return $ IORef var
 
 -- | Write a value to an 'IORef'.

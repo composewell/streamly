@@ -55,6 +55,8 @@ module Streamly.Internal.Data.MutArray.Type
     , emptyOf
     , emptyWithAligned -- XXX emptyAlignAtWith
     , emptyOf'
+    , emptyMutVar'
+    , mutVar'
 
     -- *** Slicing
     -- | Get a subarray without copying
@@ -493,6 +495,7 @@ import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
+import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
@@ -769,6 +772,27 @@ emptyOf = newAs Unpinned
 {-# INLINE new #-}
 new :: (MonadIO m, Unbox a) => Int -> m (MutArray a)
 new = emptyOf
+
+-- | Like mutVar' but without initialization.
+emptyMutVar' :: Unbox a => Int -> MutArray a
+emptyMutVar' = unsafePerformIO . pinnedNew
+
+-- | A lazy pinned mutable array to be used for variable length data in local
+-- scopes for temporary storage, reducing allocations and for better cache
+-- benefits. It is pure so that we can declare it within a global or local
+-- scope without a monadic context. In local scopes it may be better to use the
+-- IO monad instead of declaring mutvars.
+--
+-- Also see "Streamly.Internal.Data.IORef.Unboxed" for mutvars for fixed length
+-- data structrures. See "Streamly.Internal.Data.MutByteArray" for more
+-- versatile but less safe mutable cells.
+--
+{-# NOINLINE mutVar' #-}
+mutVar' :: Unbox a => Int -> (MutArray a -> IO ()) -> MutArray a
+mutVar' n action = unsafePerformIO $ do
+    arr <- pinnedNew n
+    action arr
+    return arr
 
 -------------------------------------------------------------------------------
 -- Random writes
@@ -2494,6 +2518,7 @@ appendCString# arr addr = do
     len <- liftIO $ c_strlen_pinned addr
     appendPtrN arr (Ptr addr) (fromIntegral len)
 
+-- XXX Make the type CString instead of Ptr a?
 -- Note: in hsc code # is treated in a special way, so it is difficult to use
 -- appendCString#
 {-# INLINE appendCString #-}

@@ -7,8 +7,12 @@
 * Functions in internal (mut)array modules now explicitly use `IO` callback
   instead of a lifted callback.
 
-### General Changes
+### Enhancements
 
+* Add mutVar APIs for lazy pinned mutable memory cells that can be
+  used at global scope or within local scopes, especially in loops for
+  reducing allocations and for better cache effects in high performance
+  applications.
 * The `FileSystem.Event.*` modules have been deprecated in favor of the
   [streamly-fsevents](https://github.com/composewell/streamly-fsevents) package.
 * Add several concurrent combinators for folds in `Streamly.Data.Fold.Prelude`.
