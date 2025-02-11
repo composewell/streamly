@@ -77,7 +77,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Prelude hiding (foldr, length, read, splitAt)
 import Streamly.Internal.Data.MutArray.Type
-import Streamly.Internal.Data.IORef.Unboxed
+import Streamly.Internal.Data.IORef.Unboxed hiding (mutVar', emptyMutVar')
 
 -- | Generate a stream of array slice descriptors ((index, len)) of specified
 -- length from an array, starting from the supplied array index. The last slice

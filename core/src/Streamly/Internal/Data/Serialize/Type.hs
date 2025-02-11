@@ -275,6 +275,8 @@ instance forall a. Serialize a => Serialize [a] where
               pokeList (acc + 1) o1 xs
         pokeList 0 off1 val
 
+-- XXX Add instances for MutByteArray and CString
+
 instance
 #ifdef DEVBUILD
     Unbox a =>
