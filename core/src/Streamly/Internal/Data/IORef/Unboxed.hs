@@ -25,6 +25,7 @@ module Streamly.Internal.Data.IORef.Unboxed
 
     -- Construction
     , newIORef
+    , newIORef'
     , mutVar'
     , emptyMutVar'
 
@@ -62,6 +63,16 @@ newIORef x = do
     pokeAt 0 var x
     return $ IORef var
 
+-- | Create a new pinned 'IORef'.
+--
+-- /Pre-release/
+{-# INLINE newIORef' #-}
+newIORef' :: forall a. Unbox a => a -> IO (IORef a)
+newIORef' x = do
+    var <- MBA.pinnedNew (sizeOf (Proxy :: Proxy a))
+    pokeAt 0 var x
+    return $ IORef var
+
 -- | A lazy pinned mutable cell to be used for fixed length data in local
 -- scopes for temporary storage, reducing allocations and for better cache
 -- benefits. It is pure so that we can declare it within a global or local
@@ -74,13 +85,13 @@ newIORef x = do
 --
 {-# NOINLINE mutVar' #-}
 mutVar' :: Unbox a => a -> IORef a
-mutVar' = unsafePerformIO . newIORef
+mutVar' = unsafePerformIO . newIORef'
 
 -- | Like mutVar' but without initialization.
 {-# NOINLINE emptyMutVar' #-}
 emptyMutVar' :: forall a. Unbox a => IORef a
 emptyMutVar' = unsafePerformIO $ do
-    var <- MBA.new (sizeOf (Proxy :: Proxy a))
+    var <- MBA.pinnedNew (sizeOf (Proxy :: Proxy a))
     return $ IORef var
 
 -- | Write a value to an 'IORef'.
