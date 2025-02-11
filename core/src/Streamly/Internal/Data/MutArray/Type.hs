@@ -732,7 +732,7 @@ pinnedNewBytes = newBytesAs Pinned
 {-# DEPRECATED pinnedNewAligned "Please use emptyOf' to create a Word8 array and cast it accordingly." #-}
 {-# INLINE pinnedNewAligned #-}
 pinnedNewAligned :: (MonadIO m, Unbox a) => Int -> Int -> m (MutArray a)
-pinnedNewAligned = emptyWithAligned (\s _ -> liftIO $ Unboxed.pinnedNew s)
+pinnedNewAligned = emptyWithAligned (\s _ -> liftIO $ Unboxed.new' s)
 
 {-# INLINE newAs #-}
 newAs :: (MonadIO m, Unbox a) => PinnedState -> Int -> m (MutArray a)
@@ -3126,7 +3126,7 @@ spliceCopy arr1 arr2 = do
     let len = len1 + len2
     newArrContents <-
         if Unboxed.isPinned (arrContents arr1)
-        then liftIO $ Unboxed.pinnedNew len
+        then liftIO $ Unboxed.new' len
         else liftIO $ Unboxed.new len
     unsafePutSlice (arrContents arr1) start1 newArrContents 0 len1
     unsafePutSlice (arrContents arr2) start2 newArrContents len1 len2

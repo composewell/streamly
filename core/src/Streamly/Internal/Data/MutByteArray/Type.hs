@@ -29,7 +29,7 @@ module Streamly.Internal.Data.MutByteArray.Type
     , empty
     , newAs
     , new
-    , pinnedNew -- XXX new'
+    , new'
     , reallocSliceAs
 
     -- ** Access
@@ -58,6 +58,7 @@ module Streamly.Internal.Data.MutByteArray.Type
     , asPtrUnsafe
     , unsafePinnedAsPtr
     , nil
+    , pinnedNew
     ) where
 
 #include "deprecation.h"
@@ -193,11 +194,12 @@ pinnedNewRaw (I# nbytes) = IO $ \s ->
            let c = MutByteArray mbarr#
             in (# s', c #)
 
-{-# INLINE pinnedNew #-}
-pinnedNew :: Int -> IO MutByteArray
-pinnedNew nbytes | nbytes < 0 =
-  errorWithoutStackTrace "pinnedNew: size must be >= 0"
-pinnedNew nbytes = pinnedNewRaw nbytes
+{-# INLINE new' #-}
+new', pinnedNew :: Int -> IO MutByteArray
+new' nbytes | nbytes < 0 =
+  errorWithoutStackTrace "new': size must be >= 0"
+new' nbytes = pinnedNewRaw nbytes
+RENAME_PRIME(pinnedNew,new)
 
 -- XXX add "newRoundedUp" to round up the large size to the next page boundary
 -- and return the allocated size.

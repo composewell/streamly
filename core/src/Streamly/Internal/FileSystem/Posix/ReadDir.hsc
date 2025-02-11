@@ -451,7 +451,7 @@ readEitherByteChunks alldirs =
         else return Nothing
 
     step _ ChunkStreamByteInit0 = do
-        mbarr <- liftIO $ MutByteArray.pinnedNew bufSize
+        mbarr <- liftIO $ MutByteArray.new' bufSize
         return $ Skip (ChunkStreamByteInit alldirs [] 0 mbarr 0)
 
     step _ (ChunkStreamByteInit (x:xs) dirs ndirs mbarr pos) = do
@@ -468,7 +468,7 @@ readEitherByteChunks alldirs =
         return $ Yield (Left dirs) (ChunkStreamByteInit [] [] 0 mbarr pos)
 
     step _ (ChunkStreamByteLoopPending pending curdir xs dirp mbarr pos) = do
-        mbarr1 <- liftIO $ MutByteArray.pinnedNew bufSize
+        mbarr1 <- liftIO $ MutByteArray.new' bufSize
         r1 <- copyToBuf mbarr1 0 curdir pending
         case r1 of
             Just pos2 ->
@@ -612,7 +612,7 @@ readEitherByteChunksAt (ppath, alldirs) =
 
     step _ ByteChunksAtInit0 = do
         pfd <- liftIO $ openFd ppath ReadOnly
-        mbarr <- liftIO $ MutByteArray.pinnedNew bufSize
+        mbarr <- liftIO $ MutByteArray.new' bufSize
         return $ Skip (ByteChunksAtInit pfd alldirs mbarr 0)
 
     step _ (ByteChunksAtInit ph (x:xs) mbarr pos) = do
@@ -630,7 +630,7 @@ readEitherByteChunksAt (ppath, alldirs) =
                 (ByteChunksAtInit pfd [] mbarr 0)
 
     step _ (ByteChunksAtRealloc pending pfd dirp curdir xs dirs ndirs mbarr pos) = do
-        mbarr1 <- liftIO $ MutByteArray.pinnedNew bufSize
+        mbarr1 <- liftIO $ MutByteArray.new' bufSize
         r1 <- copyToBuf mbarr1 0 curdir pending
         case r1 of
             Just pos2 ->
