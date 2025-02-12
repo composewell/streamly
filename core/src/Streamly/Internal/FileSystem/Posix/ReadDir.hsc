@@ -341,24 +341,24 @@ readEitherChunks alldirs =
             gsRes <- liftIO $ checkDirStatus curdir dname dtype
             case gsRes of
                 GSIsRegDir -> do
-                     path <- liftIO $ appendCString curdir dname
-                     let dirs1 = path : dirs
-                         ndirs1 = ndirs + 1
-                      in if ndirs1 >= dirMax
-                         then return $ Yield (Left dirs1)
-                            (ChunkStreamLoop curdir xs dirp [] 0 files nfiles)
-                         else return $ Skip
-                            (ChunkStreamLoop curdir xs dirp dirs1 ndirs1 files nfiles)
+                    path <- liftIO $ appendCString curdir dname
+                    let dirs1 = path : dirs
+                        ndirs1 = ndirs + 1
+                     in if ndirs1 >= dirMax
+                        then return $ Yield (Left dirs1)
+                           (ChunkStreamLoop curdir xs dirp [] 0 files nfiles)
+                        else return $ Skip
+                           (ChunkStreamLoop curdir xs dirp dirs1 ndirs1 files nfiles)
                 GSIsMetaDir ->  return $ Skip st
                 GSIsNotDir -> do
-                 path <- liftIO $ appendCString curdir dname
-                 let files1 = path : files
-                     nfiles1 = nfiles + 1
-                  in if nfiles1 >= fileMax
-                     then return $ Yield (Right files1)
-                        (ChunkStreamLoop curdir xs dirp dirs ndirs [] 0)
-                     else return $ Skip
-                        (ChunkStreamLoop curdir xs dirp dirs ndirs files1 nfiles1)
+                    path <- liftIO $ appendCString curdir dname
+                    let files1 = path : files
+                        nfiles1 = nfiles + 1
+                     in if nfiles1 >= fileMax
+                        then return $ Yield (Right files1)
+                           (ChunkStreamLoop curdir xs dirp dirs ndirs [] 0)
+                        else return $ Skip
+                           (ChunkStreamLoop curdir xs dirp dirs ndirs files1 nfiles1)
                 -- We ignore the error in this case
                 GSStatError -> return $ Skip st
         else do
