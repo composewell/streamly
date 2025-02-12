@@ -153,7 +153,7 @@ gstatDname followSym parent dname = do
                 x | x == 0 -> pure (False, False)
                 -- XXX Need to check if and how we should handle some errors
                 -- like EACCES.
-                _ -> throwErrno "checkIfDirectory"
+                _ -> throwErrno ("gstatDname: " ++ Path.toString path)
 
 -- | Checks if dname is a directory and additionaly returns if dname is a meta
 -- directory.
