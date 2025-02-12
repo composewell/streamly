@@ -157,6 +157,11 @@ flag force-lstat-readdir
   manual: True
   default: False
 
+flag force-stat-readdir
+  description: Use lstat instead of checking for dtype in ReadDir
+  manual: True
+  default: False
+
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -166,6 +171,9 @@ common compile-options
 
     if flag(force-lstat-readdir)
       cpp-options:    -DFORCE_LSTAT_READDIR
+
+    if flag(force-stat-readdir)
+      cpp-options:    -DFORCE_STAT_READDIR
 
     if flag(dev)
       cpp-options:    -DDEVBUILD

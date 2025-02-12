@@ -80,6 +80,9 @@ foreign import ccall unsafe "dirent.h readdir"
 foreign import ccall unsafe "lstat_is_directory"
     c_lstat_is_directory  :: CString -> IO CInt
 
+foreign import ccall unsafe "stat_is_directory"
+    c_stat_is_directory  :: CString -> IO CInt
+
 -- XXX Use openat instead of open so that we do not have to build and resolve
 -- absolute paths.
 --
@@ -130,9 +133,9 @@ isMetaDir dname = do
                 then return True
                 else return False
 
-{-# NOINLINE lstatDname #-}
-lstatDname :: PosixPath -> Ptr CChar -> IO (Bool, Bool)
-lstatDname parent dname = do
+{-# NOINLINE gstatDname #-}
+gstatDname :: Bool -> PosixPath -> Ptr CChar -> IO (Bool, Bool)
+gstatDname followSym parent dname = do
     isMeta <- liftIO $ isMetaDir dname
     if isMeta
     then pure (True, True)
@@ -141,7 +144,10 @@ lstatDname parent dname = do
         -- it anyway.
         path <- appendCString parent dname
         Array.asCStringUnsafe (Path.toChunk path) $ \cStr -> do
-            res <- c_lstat_is_directory cStr
+            res <-
+                if followSym
+                then c_stat_is_directory cStr
+                else c_lstat_is_directory cStr
             case res of
                 x | x == 1 -> pure (True, False)
                 x | x == 0 -> pure (False, False)
@@ -155,7 +161,9 @@ lstatDname parent dname = do
 checkDirStatus
     :: PosixPath -> Ptr CChar -> #{type unsigned char} -> IO (Bool, Bool)
 #ifdef FORCE_LSTAT_READDIR
-checkDirStatus parent dname _ = lstatDname parent dname
+checkDirStatus parent dname _ = gstatDname False parent dname
+#elif defined(FORCE_STAT_READDIR)
+checkDirStatus parent dname _ = gstatDname True parent dname
 #else
 checkDirStatus parent dname dtype =
     if dtype == (#const DT_DIR)
@@ -164,7 +172,7 @@ checkDirStatus parent dname dtype =
         pure (True, isMeta)
     else if dtype /= #const DT_UNKNOWN
          then pure (False, False)
-         else lstatDname parent dname
+         else gstatDname False parent dname
 #endif
 
 -- XXX We can use getdents64 directly so that we can use array slices from the
