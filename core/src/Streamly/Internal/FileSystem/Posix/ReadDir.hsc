@@ -177,7 +177,7 @@ checkDirStatus parent dname dtype =
         isMeta <- liftIO $ isMetaDir dname
         pure $ if isMeta then GSIsMetaDir else GSIsRegDir
     else if dtype /= #const DT_UNKNOWN
-         then pure (False, False)
+         then pure GSIsNotDir
          else gstatDname False parent dname
 #endif
 
