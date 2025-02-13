@@ -9,6 +9,10 @@
 
 ### General Changes
 
+* FileSystem.Dir module has been deprecated and replaced by FileSystem.DirIO.
+  The new module uses the Streamly `Path` type for representing file paths.
+  Please note that the directory read APIs in the new module do not follow
+  symlinks by default.
 * The `FileSystem.Event.*` modules have been deprecated in favor of the
   [streamly-fsevents](https://github.com/composewell/streamly-fsevents) package.
 * Add several concurrent combinators for folds in `Streamly.Data.Fold.Prelude`.
