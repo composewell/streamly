@@ -9,7 +9,18 @@
 module Streamly.Internal.FileSystem.Posix.ReadDir
     (
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-      DirStream (..)
+      ReadOptions
+    , followSymlinks
+    , ignoreLoopErrors
+    , ignoreNonExisting
+    , ignoreInAccessible
+    , defaultReadOptions
+
+    , readScanWith_
+    , readScanWith
+    , readPlusScanWith
+
+    , DirStream (..)
     , openDirStream
     , openDirStreamCString
     , closeDirStream
@@ -35,6 +46,7 @@ import Foreign.Storable (poke)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
+import Streamly.Internal.Data.Scanl (Scanl)
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
@@ -51,13 +63,76 @@ import qualified Streamly.Internal.FileSystem.Path.Common as PathC
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 #include <dirent.h>
+#include <sys/stat.h>
 
 -------------------------------------------------------------------------------
 
 data {-# CTYPE "DIR" #-} CDir
 data {-# CTYPE "struct dirent" #-} CDirent
+data {-# CTYPE "struct stat" #-} CStat
 
 newtype DirStream = DirStream (Ptr CDir)
+
+data ReadOptions =
+    ReadOptions
+    { _followSymlinks :: Bool
+    , _ignoreSymlinkLoopErrors :: Bool
+    , _ignoreNonExistingFiles :: Bool
+    , _ignoreInAccessibleFiles :: Bool
+    }
+
+followSymlinks :: Bool -> ReadOptions -> ReadOptions
+followSymlinks x opts = opts {_followSymlinks = x}
+
+ignoreLoopErrors :: Bool -> ReadOptions -> ReadOptions
+ignoreLoopErrors x opts = opts {_ignoreSymlinkLoopErrors = x}
+
+ignoreNonExisting :: Bool -> ReadOptions -> ReadOptions
+ignoreNonExisting x opts = opts {_ignoreNonExistingFiles = x}
+
+ignoreInAccessible :: Bool -> ReadOptions -> ReadOptions
+ignoreInAccessible x opts = opts {_ignoreInAccessibleFiles = x}
+
+defaultReadOptions :: ReadOptions
+defaultReadOptions =
+    ReadOptions
+    { _followSymlinks = False
+    , _ignoreSymlinkLoopErrors = True
+    , _ignoreNonExistingFiles = True
+    , _ignoreInAccessibleFiles = True
+    }
+
+-- | Minimal read without any metadata.
+{-# INLINE readScanWith_ #-}
+readScanWith_ :: -- (MonadIO m, MonadCatch m) =>
+       Scanl m (Path, CString) a
+    -> (ReadOptions -> ReadOptions)
+    -> Path
+    -> Stream m a
+readScanWith_ = undefined
+
+-- | Read with essential metadata. The scan takes the parent dir, the child
+-- name, the child metadata and produces an output. The scan can do filtering,
+-- formatting of the output, colorizing the output etc.
+--
+-- The options are to ignore errors encountered when reading a path, turn the
+-- errors into a nil stream instead.
+{-# INLINE readScanWith #-}
+readScanWith :: -- (MonadIO m, MonadCatch m) =>
+       Scanl m (Path, CString, Ptr CDirent) a
+    -> (ReadOptions -> ReadOptions)
+    -> Path
+    -> Stream m a
+readScanWith = undefined
+
+-- | Read with full metadata.
+{-# INLINE readPlusScanWith #-}
+readPlusScanWith :: -- (MonadIO m, MonadCatch m) =>
+       Scanl m (Path, CString, Ptr CStat) a
+    -> (ReadOptions -> ReadOptions)
+    -> Path
+    -> Stream m a
+readPlusScanWith = undefined
 
 -------------------------------------------------------------------------------
 -- readdir operations
@@ -310,6 +385,10 @@ data ChunkStreamState =
         Int -- file count
 
 -- XXX We can use a fold for collecting files and dirs.
+-- A fold may be useful to translate the output to whatever format we want, we
+-- can add a prefix or we can colorize it. The Right output would be the output
+-- of the fold which can be any type not just a Path.
+
 -- XXX We can write a two fold scan to buffer and yield whichever fills first
 -- like foldMany, it would be foldEither.
 {-# INLINE readEitherChunks #-}
@@ -411,16 +490,16 @@ data ChunkStreamByteState =
 -- XXX Add follow-symlinks option.
 -- XXX Detect cycles.
 
--- XXX We can also emit both files and directories together this will be
--- especially useful when we are emitting chunks.
---
--- Since we are separating paths by newlines, it cannot support newlines in
+-- XXX Since we are separating paths by newlines, it cannot support newlines in
 -- paths. Or we can return null separated paths as well. Provide a Mut array
 -- API to replace the nulls with newlines in-place.
 --
 -- We can pass a fold to make this modular, but if we are passing readdir
 -- managed memory then we will have to consume it immediately. Otherwise we can
 -- use getdents64 directly and use GHC managed memory instead.
+--
+-- A fold may be useful to translate the output to whatever format we want, we
+-- can add a prefix or we can colorize it.
 
 -- | Left is directories. Right is a buffer containing directories and files
 -- separated by newlines.

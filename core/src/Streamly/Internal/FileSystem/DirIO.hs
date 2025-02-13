@@ -7,29 +7,88 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
+--
+--  API Design notes:
+--
+-- The paths returned by "read" can be absolute (/usr/bin/ls), relative to
+-- current directory (./bin/ls) or path segments relative to current dir
+-- (bin/ls). To accomodate all the cases we can provide a prefix to attach
+-- to the paths being generated. Alternatively, we could take the approach
+-- of the higher layer doing that, but it is more efficient to allocate the
+-- path buffer once rather than modifying it later. We can do this by
+-- passing a fold to transform the output.
+--
+-- Also it may be more efficient to apply a filter to the paths right here
+-- instead of applying it in a layer above. Cut the output at the source
+-- rather than generate and then discard it later. We can do this by
+-- passing a fold to filter the input.
+--
+-- When reading a symlink directory we can resolve the symlink and read the
+-- destination directory or we can just emit the file it is pointing to and
+-- the read can happen next at the higher level, in the traversal logic
+-- (concatIterate). Not sure if one approach has any significant perf impact
+-- over the other. Similar thinking applies to a mount point as well. Also, if
+-- we resolve the symlinks in concatIterate, then each resolution will be
+-- counted as depth level increment whereas if we resolve that at lower level
+-- then it won't. We can do this by passing an option to modify the behavior.
+--
+-- When resolving cyclic directory symlinks one way to curtail it is ELOOP
+-- which gives up if it encounters too many level. Another way is to use
+-- the inode information to check if we are traversing an already traversed
+-- inode, this is in general helpful in a graph traversal. We can ignore
+-- ELOOP by passing an option but it may be inefficient because we may
+-- encounter the loop from any node in the cycle.
+--
+-- If we encounter an error reading a directory because of permission
+-- issues should we ignore it in this low level API or catch it in the
+-- higher level traversal functionality? Similarly, if there are broken
+-- symlinks, where to handle the error? Need to check performance when
+-- handling it in ListDir. Suppressing the error at the lower level may be
+-- more efficient than propagating it up and then handling it there. We can
+-- do this by passing an option.
+--
+-- Returning the metadata:
+--
+-- Specific scans can be used to return the metadata in the output stream if
+-- needed. However, we may need three different APIs:
+-- one with fast metadata, and
+-- another with full metadata. In the two cases the fold input would be
+-- different.
+--
+-- * readMinimal: read only the path names, no metadata
+-- * readStandard: read the path and minimal metadata
+-- * readFull: read full metadata
+--
+-- NOTE: Full metadata can be read by mapping a stat call to a stream of paths
+-- rather than via readdir API. Does it help the performance to do it in the
+-- readdir API?
+
+-- Design pattern:
+--
+-- By passing a scan we can process the output right at the source and produce
+-- a cooked output. Otherwise we may have to produce a stream of intermediate
+-- structures which may have more per item overhead and that overhead may not
+-- get eliminated by fusion. For example, a fold can directly write the CString
+-- from readdir to the output buffer whereas if we output the Path then we will
+-- incur an overhead of intermediate structure.
 
 module Streamly.Internal.FileSystem.DirIO
     (
+    -- XXX Create a Metadata or Meta module for stat, access, getxattr, chmod,
+    -- chown, utime, rename operations.
+    --
+    -- * Metadata
+    -- getMetadata GetMetadata (followSymlinks, noAutoMount - see fstatat)
+
     -- * Streams
       read
 
-    -- read not just the names but also the inode attrs of the children. This
-    -- abstraction makes sense because when we read the dir contents we also
-    -- get the inodes, and it is cheaper to get the attrs from the inodes
-    -- instead of resolving the paths and get those. This abstraction may be
-    -- less portable as different platforms may have different attrs. To
-    -- optimize, we can also add a filter/pattern/parser on the names of the
-    -- children that we want to read. We can call that readAttrsWith? Or just
-    -- have the default readAttrs do that? Usually we won't need that, so it
-    -- may be better to keep that a separate API.
-    -- , readAttrs
+    -- Is there a benefit in providing a low level recursive read or
+    -- concatIterate is good enough? Could be more efficient for non-concurrent
+    -- reads by using a local loop. Or during concurrent reads use
+    -- non-concurrent reads as we go deeper down in the tree.
+    -- , readAttrsRecursive
 
-    -- recursive read requires us to read the attributes of the children to
-    -- determine if something is a directory or not. Therefore, it may be a good
-    -- idea to have a low level routine that also spits out the attributes of
-    -- the files, we get that for free. We can also add a filter/pattern/parser
-    -- on the names of the children that we want to read.
-    --, readAttrsRecursive -- Options: acyclic, follow symlinks
     , readFiles
     , readDirs
     , readEither
