@@ -1,4 +1,4 @@
-# All your packages are belong to us!
+# All your packages belong to us!
 
 <!--
 Bring the docs from streamly-core/streamly cabal package description here.
