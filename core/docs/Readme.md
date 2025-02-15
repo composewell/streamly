@@ -1,1 +1,2 @@
-Please refer to the "streamly" package for tutorials and other documentation.
+Please refer to the [streamly](/docs/User/Tutorials/using-the-library.md)
+package for tutorials and other documentation.
