@@ -7,6 +7,7 @@
 #define WORD_TYPE Word16
 #define UNICODE_ENCODER encodeUtf16le'
 #define UNICODE_DECODER decodeUtf16le'
+#define UNICODE_DECODER_LAX decodeUtf16le
 #define CODEC_NAME UTF-16LE
 #define SEPARATORS @/, \\@
 #else
@@ -15,6 +16,7 @@
 #define WORD_TYPE Word8
 #define UNICODE_ENCODER encodeUtf8'
 #define UNICODE_DECODER decodeUtf8'
+#define UNICODE_DECODER_LAX decodeUtf8
 #define CODEC_NAME UTF-8
 #define SEPARATORS @/@
 #endif
@@ -54,6 +56,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     , unsafeFromString
     -- , fromCString#
     -- , fromW16CString#
+    , readRaw
 
     -- * Statically Verified String Literals
     -- | Quasiquoters.
@@ -71,9 +74,12 @@ module Streamly.Internal.FileSystem.OS_PATH
     -- * Elimination
     , toChunk
     , toChars
+    , toChars_
     , toString
     -- , toCString
     -- , toW16CString
+    , toString_
+    , showRaw
 
     -- * Separators
     -- Do we need to export the separator functions? They are not essential if
@@ -115,9 +121,7 @@ where
 import Control.Monad.Catch (MonadThrow(..))
 import Data.Bifunctor (bimap)
 import Data.Functor.Identity (Identity(..))
-#ifdef DEBUG
 import Data.Maybe (fromJust)
-#endif
 import Data.Word (Word8)
 #if defined(IS_WINDOWS)
 import Data.Word (Word16)
@@ -172,18 +176,6 @@ For APIs that have not been released yet.
 -- paths (e.g. Apple HFS), it may cause surprising results as the path used by
 -- the user may not have the same bytes as later returned by the file system.
 newtype OS_PATH = OS_PATH (Array WORD_TYPE)
-
--- Show instance is not provided because Show and Read should be inverses but
--- we cannot ensure that as the path encoding may depend on the OS or the
--- file system. We can print the byte values though but that won't be very
--- useful. If we do not care about Show and Read being striclty faithful
--- inverses we can use the default encoding/decoding to implement them.
--- Otherwise we can just use toString, fromString for Show and Read purposes.
---
-{-
-instance Show OS_PATH where
-    show (OS_PATH x) = show x
--}
 
 -- XXX The Eq instance may be provided but it will require some sensible
 -- defaults for comparison. For example, should we use case sensitive or
@@ -356,11 +348,39 @@ toChars p =
     let (OS_PATH arr) =
             toPath p in Common.toChars Unicode.UNICODE_DECODER arr
 
+-- | Decode the path to a stream of Unicode chars using lax CODEC_NAME decoding.
+toChars_ :: (Monad m, IsPath OS_PATH a) => a -> Stream m Char
+toChars_ p =
+    let (OS_PATH arr) =
+            toPath p in Common.toChars Unicode.UNICODE_DECODER_LAX arr
+
 -- XXX When showing, append a "/" to dir types?
 
 -- | Decode the path to a Unicode string using strict CODEC_NAME decoding.
 toString :: IsPath OS_PATH a => a -> [Char]
 toString = runIdentity . Stream.toList . toChars
+
+-- | Decode the path to a Unicode string using strict CODEC_NAME decoding.
+toString_ :: IsPath OS_PATH a => a -> [Char]
+toString_ = runIdentity . Stream.toList . toChars_
+
+showRaw :: IsPath OS_PATH a => a -> [Char]
+showRaw p =
+    let (OS_PATH arr) =
+            toPath p in show arr
+
+readRaw :: IsPath OS_PATH a => [Char] -> a
+readRaw = fromJust . fromChunk . read
+
+-- We cannot show decoded path in the Show instance as it may not always
+-- succeed and it depends on the encoding which we may not even know. The
+-- encoding may depend on the OS and the file system. Also we need Show and
+-- Read to be inverses. The best we can provide is to show the bytes as
+-- Hex or decimal values.
+{-
+instance Show OS_PATH where
+    show (OS_PATH x) = show x
+-}
 
 ------------------------------------------------------------------------------
 -- Operations on Path
