@@ -1,0 +1,17 @@
+cabal-version:      3.0
+name:               dummy-package
+version:            0.1.0.0
+license:            BSD-3-Clause
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:  MyLib
+    build-depends:    base
+                    , streamly
+                    , streamly-core
+    hs-source-dirs:   .
+    default-language: Haskell2010

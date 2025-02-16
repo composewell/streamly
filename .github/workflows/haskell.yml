@@ -95,6 +95,16 @@ jobs:
             cabal_project: cabal.project.ghc-head
             disable_sdist_build: "y"
             ignore_error: true
+          # This CI makes sure that the packages on hackage are compatible with
+          # the latest GHC release.
+          - name: 9.12.1-hackage-sdist
+            ghc_version: 9.12.1
+            runner: ubuntu-latest
+            build: cabal
+            cabal_build_options: "--flag limit-build-mem"
+            cabal_version: 3.12.1.0
+            ignore_error: false
+            subdir: dummy-package
           - name: 9.12.1
             ghc_version: 9.12.1
             runner: ubuntu-latest

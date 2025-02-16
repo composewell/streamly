@@ -35,3 +35,5 @@ targets/default.nix
 targets/cabal.project
 test/test-runner/default.nix
 test/test-runner/cabal.project
+dummy-package/dummy-package.cabal
+dummy-package/MyLib.hs
