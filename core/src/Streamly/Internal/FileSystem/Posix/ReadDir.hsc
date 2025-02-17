@@ -60,8 +60,14 @@ data {-# CTYPE "struct dirent" #-} CDirent
 newtype DirStream = DirStream (Ptr CDir)
 
 -------------------------------------------------------------------------------
+-- readdir operations
+-------------------------------------------------------------------------------
 
-foreign import ccall unsafe "closedir"
+-- IMPORTANT NOTE: Use capi FFI for all readdir APIs. This is required at
+-- least on macOS for correctness. We saw random directory entries when ccall
+-- was used on macOS 15.3. Looks like it was picking the wrong version of
+-- dirent structure. Did not see the problem in CIs on macOS 14.7.2 though.
+foreign import capi unsafe "closedir"
    c_closedir :: Ptr CDir -> IO CInt
 
 foreign import capi unsafe "dirent.h opendir"
@@ -75,7 +81,7 @@ foreign import capi unsafe "dirent.h fdopendir"
 -- readdir is not known to be re-entrant. We are not doing that here. We are
 -- assuming that readdir is re-entrant which may not be the case on some old
 -- unix systems.
-foreign import ccall unsafe "dirent.h readdir"
+foreign import capi unsafe "dirent.h readdir"
     c_readdir  :: Ptr CDir -> IO (Ptr CDirent)
 
 foreign import ccall unsafe "lstat_is_directory"
@@ -116,6 +122,10 @@ openDirStreamAt fd p = do
 closeDirStream :: DirStream -> IO ()
 closeDirStream (DirStream dirp) = do
   throwErrnoIfMinus1Retry_ "closeDirStream" (c_closedir dirp)
+
+-------------------------------------------------------------------------------
+-- determining filetype
+-------------------------------------------------------------------------------
 
 isMetaDir :: Ptr CChar -> IO Bool
 isMetaDir dname = do
@@ -174,6 +184,10 @@ checkDirStatus parent dname dtype =
          then pure (False, False)
          else lstatDname parent dname
 #endif
+
+-------------------------------------------------------------------------------
+-- streaming reads
+-------------------------------------------------------------------------------
 
 -- XXX We can use getdents64 directly so that we can use array slices from the
 -- same buffer that we passed to the OS. That way we can also avoid any
