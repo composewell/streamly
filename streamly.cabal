@@ -68,6 +68,9 @@ stability:           Stable
 build-type:          Configure
 
 extra-source-files:
+    bench-test-lib/create_dir_structure.sh
+    bench-test-lib/bench-test-lib.cabal
+    bench-test-lib/src/BenchTestLib/DirIO.hs
     benchmark/*.hs
     benchmark/bench-runner/Main.hs
     benchmark/bench-runner/bench-runner.cabal

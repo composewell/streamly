@@ -6,6 +6,7 @@ packages:   streamly.cabal
           , core/streamly-core.cabal
           , test/streamly-tests.cabal
           , benchmark/streamly-benchmarks.cabal
+          , bench-test-lib/bench-test-lib.cabal
 
 write-ghc-environment-files: always
 

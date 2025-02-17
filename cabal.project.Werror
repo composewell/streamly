@@ -3,6 +3,7 @@ packages:
   benchmark
   test
   core
+  bench-test-lib
 
 package streamly
   ghc-options: -Werror

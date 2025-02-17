@@ -2,6 +2,7 @@ packages:   streamly.cabal
           , core/streamly-core.cabal
           -- for QuickCheck in property doctests
           , test/streamly-tests.cabal
+          , bench-test-lib/bench-test-lib.cabal
 
 -- Keep the flags same as cabal.project.O0 because we utilize the same build
 -- for doctest in CI.

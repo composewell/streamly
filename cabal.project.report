@@ -2,6 +2,7 @@ packages:
   targets/streamly-targets.cabal
   benchmark/bench-runner/bench-runner.cabal
   test/test-runner/test-runner.cabal
+  bench-test-lib/bench-test-lib.cabal
 
 package bench-report
   flags: +no-charts

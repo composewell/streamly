@@ -193,6 +193,7 @@ common bench-depends
     , tasty-bench       >= 0.3 && < 0.5
     , tasty             >= 1.4.1 && < 1.6
     , streamly-core
+    , bench-test-lib
 
   if !flag(use-streamly-core)
     build-depends: streamly
@@ -588,6 +589,16 @@ benchmark FileSystem.Handle
     , Handle.ReadWrite
   if flag(limit-build-mem)
     ghc-options: +RTS -M1000M -RTS
+  if flag(use-streamly-core)
+    buildable: False
+  else
+    buildable: True
+
+benchmark FileSystem.DirIO
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/FileSystem
+  main-is: DirIO.hs
   if flag(use-streamly-core)
     buildable: False
   else

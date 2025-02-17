@@ -1,0 +1,67 @@
+cabal-version:      3.0
+name:               bench-test-lib
+version:            0.1.0.0
+build-type:         Simple
+
+common compile-options
+    default-language: Haskell2010
+    ghc-options:    -Weverything
+                    -Wno-implicit-prelude
+                    -Wno-missing-deriving-strategies
+                    -Wno-missing-exported-signatures
+                    -Wno-missing-import-lists
+                    -Wno-missing-local-signatures
+                    -Wno-missing-safe-haskell-mode
+                    -Wno-missed-specialisations
+                    -Wno-all-missed-specialisations
+                    -Wno-monomorphism-restriction
+                    -Wno-prepositive-qualified-module
+                    -Wno-unsafe
+                    -Rghc-timing
+
+    if impl(ghc >= 9.2)
+      ghc-options:
+        -Wno-missing-kind-signatures
+        -Wno-redundant-bang-patterns
+        -Wno-operator-whitespace
+
+    if impl(ghc >= 9.8)
+      ghc-options:
+        -Wno-missing-role-annotations
+
+common default-extensions
+    default-extensions:
+        BangPatterns
+        ConstraintKinds
+        DeriveDataTypeable
+        DeriveGeneric
+        DeriveTraversable
+        ExistentialQuantification
+        FlexibleContexts
+        FlexibleInstances
+        GeneralizedNewtypeDeriving
+        InstanceSigs
+        KindSignatures
+        MultiParamTypeClasses
+        RankNTypes
+        ScopedTypeVariables
+        TupleSections
+        TypeApplications
+        TypeOperators
+
+        -- Not GHC2021
+        CApiFFI
+        CPP
+        LambdaCase
+        MagicHash
+        RecordWildCards
+
+library
+    import:           compile-options, default-extensions
+    exposed-modules:  BenchTestLib.DirIO
+    build-depends:    base
+                    , streamly-core
+                    , streamly
+                    , process
+    hs-source-dirs:   src
+    default-language: Haskell2010
