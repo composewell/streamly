@@ -8,23 +8,29 @@
 
 {-# LANGUAGE CPP #-}
 
+{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
+
 module Main (main) where
 
 --------------------------------------------------------------------------------
 -- Imports
 --------------------------------------------------------------------------------
 
+import Control.Exception (try, IOException)
 import Data.Word (Word8)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 import Streamly.Data.Array (Array)
 #endif
+import System.Directory (createDirectoryLink)
 
 import qualified Streamly.Unicode.Stream as Unicode
 import qualified Streamly.Internal.Unicode.Stream as Unicode (lines)
 import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.StreamK as StreamK
+import qualified Streamly.Internal.FileSystem.DirIO as Dir
 
 import Prelude hiding (last, length)
 import BenchTestLib.DirIO
@@ -39,28 +45,87 @@ moduleName :: String
 moduleName = "FileSystem.DirIO"
 
 testCorrectness
-    :: Stream.Stream IO [Char] -> Stream.Stream IO Word8 -> Expectation
-testCorrectness strmBase lister = do
-    let strm =
-            StreamK.toStream
-                $ StreamK.sortBy compare
-                $ StreamK.fromStream
-                $ Unicode.lines Fold.toList
-                $ Unicode.decodeUtf8 lister
-    Stream.eqBy (==) strm strmBase `shouldReturn` True
+    :: [FilePath] -> Stream.Stream IO Word8 -> Expectation
+testCorrectness expectation lister = do
+    reality <-
+        Stream.fold Fold.toList
+            $ StreamK.toStream
+            $ StreamK.sortBy compare
+            $ StreamK.fromStream
+            $ Unicode.lines Fold.toList
+            $ Unicode.decodeUtf8 lister
+    reality `shouldBe` expectation
 
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 testCorrectnessByteChunked
-    :: Stream.Stream IO [Char] -> Stream.Stream IO (Array Word8) -> Expectation
-testCorrectnessByteChunked strmBase lister = do
-    let strm =
-            StreamK.toStream
-                $ StreamK.sortBy compare
-                $ StreamK.fromStream
-                $ Unicode.lines Fold.toList
-                $ Unicode.decodeUtf8Chunks lister
-    Stream.eqBy (==) strm strmBase `shouldReturn` True
+    :: [FilePath] -> Stream.Stream IO (Array Word8) -> Expectation
+testCorrectnessByteChunked expectation lister = do
+    reality <-
+         Stream.fold Fold.toList
+             $ StreamK.toStream
+             $ StreamK.sortBy compare
+             $ StreamK.fromStream
+             $ Unicode.lines Fold.toList
+             $ Unicode.decodeUtf8Chunks lister
+    reality `shouldBe` expectation
 #endif
+
+ignoringError :: IO a -> IO ()
+ignoringError act = do
+    (_ :: Either IOException a) <- try act
+    pure ()
+
+testSymLinkFollow :: Spec
+testSymLinkFollow = do
+    let fp = "benchmark-tmp/dir-structure-small-sym"
+    -- We create and use a different directory tree here for these tests because
+    -- of convinence.
+    pathsUnsorted <- runIO $ createDirStucture fp 2 3
+    paths <-
+        runIO
+            $ Stream.fold Fold.toList
+            $ StreamK.toStream
+            $ StreamK.sortBy compare
+            $ StreamK.fromStream $ Stream.fromList pathsUnsorted
+    runIO $ ignoringError $ do
+        createDirectoryLink "./dir_1" (fp ++ "/sym-link-1")
+        createDirectoryLink "./dir_1/dir_2" (fp ++ "/sym-link-2")
+        createDirectoryLink "./broken_link" (fp ++ "/sym-link-3")
+    let answerFollowSym =
+            (fp ++ "/sym-link-1")
+                : (fp ++ "/sym-link-1/dir_1")
+                : (fp ++ "/sym-link-1/dir_2")
+                : (fp ++ "/sym-link-1/dir_3")
+                : (fp ++ "/sym-link-2")
+                : paths
+        answerNoFollowSym =
+            (fp ++ "/sym-link-1")
+                : (fp ++ "/sym-link-2")
+                : (fp ++ "/sym-link-3")
+                : paths
+    sortedAnswerFollowSym <-
+        Stream.fold Fold.toList
+            $ StreamK.toStream
+            $ StreamK.sortBy compare
+            $ StreamK.fromStream $ Stream.fromList answerFollowSym
+    sortedAnswerNoFollowSym <-
+        Stream.fold Fold.toList
+            $ StreamK.toStream
+            $ StreamK.sortBy compare
+            $ StreamK.fromStream $ Stream.fromList answerNoFollowSym
+    describe "Symlink" $ do
+        it "followSymlinks True" $
+            testCorrectness
+                sortedAnswerFollowSym
+                (listDirUnfoldDfs
+                     (Dir.followSymlinks True . Dir.ignoreNonExisting True)
+                     fp)
+        it "followSymlinks False" $
+            testCorrectness
+                sortedAnswerNoFollowSym
+                (listDirUnfoldDfs
+                     (Dir.followSymlinks False . Dir.ignoreNonExisting True)
+                     fp)
 
 -- | List the current directory recursively
 main :: IO ()
@@ -69,67 +134,67 @@ main = do
 
     let smallTree = "benchmark-tmp/dir-structure-small"
         bigTree = "benchmark-tmp/dir-structure-big"
-    resSmall <- createDirStucture smallTree 2 3
-    resBig <- createDirStucture bigTree 5 5
+    pathsSmallUnsorted <- createDirStucture smallTree 2 3
+    pathsBigUnsorted <- createDirStucture bigTree 5 5
 
-    strmBaseCacheSmall <-
+    pathsSmall <-
         Stream.fold Fold.toList
             $ StreamK.toStream
             $ StreamK.sortBy compare
-            $ StreamK.fromStream $ Stream.fromList resSmall
-    strmBaseCacheBig <-
+            $ StreamK.fromStream $ Stream.fromList pathsSmallUnsorted
+    pathsBig <-
         Stream.fold Fold.toList
             $ StreamK.toStream
             $ StreamK.sortBy compare
-            $ StreamK.fromStream $ Stream.fromList resBig
-    let strmBaseSmall = Stream.fromList strmBaseCacheSmall
-    let strmBaseBig = Stream.fromList strmBaseCacheBig
+            $ StreamK.fromStream $ Stream.fromList pathsBigUnsorted
 
     hspec $
-        describe moduleName $ do
+      describe moduleName $ do
+        describe "Sanity" $ do
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
             it "listDirByteChunked" $
                 testCorrectnessByteChunked
-                    (Stream.drop 1 strmBaseBig) (listDirByteChunked bigTree)
+                    (tail pathsBig) (listDirByteChunked bigTree)
 #endif
             -- NOTE: The BFS traversal fails with:
             -- openDirStream: resource exhausted (Too many open files)
             -- if a bigger directory tree is used
             it "listDirUnfoldDfs" $
-               testCorrectness strmBaseBig (listDirUnfoldDfs bigTree)
+               testCorrectness pathsBig (listDirUnfoldDfs id bigTree)
             it "listDirUnfoldBfs" $
-               testCorrectness strmBaseSmall (listDirUnfoldBfs smallTree)
+               testCorrectness pathsSmall (listDirUnfoldBfs id smallTree)
             it "listDirUnfoldBfsRev" $
-               testCorrectness strmBaseSmall (listDirUnfoldBfsRev smallTree)
+               testCorrectness pathsSmall (listDirUnfoldBfsRev id smallTree)
             it "listDirConcatDfs" $
-               testCorrectness strmBaseBig (listDirConcatDfs bigTree)
+               testCorrectness pathsBig (listDirConcatDfs id bigTree)
             it "listDirConcatBfs" $
-               testCorrectness strmBaseSmall (listDirConcatBfs smallTree)
+               testCorrectness pathsSmall (listDirConcatBfs id smallTree)
             it "listDirConcatBfsRev" $
-               testCorrectness strmBaseSmall (listDirConcatBfsRev smallTree)
+               testCorrectness pathsSmall (listDirConcatBfsRev id smallTree)
             it "listDirAppend" $
-               testCorrectness strmBaseBig (listDirAppend bigTree)
+               testCorrectness pathsBig (listDirAppend id bigTree)
             it "listDirInterleave" $
-               testCorrectness strmBaseBig (listDirInterleave bigTree)
+               testCorrectness pathsBig (listDirInterleave id bigTree)
             it "listDirPar" $
-               testCorrectness strmBaseBig (listDirPar bigTree)
+               testCorrectness pathsBig (listDirPar id bigTree)
             it "listDirParInterleaved" $
-               testCorrectness strmBaseBig (listDirParInterleaved bigTree)
+               testCorrectness pathsBig (listDirParInterleaved id bigTree)
             it "listDirParOrdered" $
-               testCorrectness strmBaseBig (listDirParOrdered bigTree)
+               testCorrectness pathsBig (listDirParOrdered id bigTree)
             it "listDirChunkDfs" $
-               testCorrectness strmBaseBig (listDirChunkDfs bigTree)
+               testCorrectness pathsBig (listDirChunkDfs id bigTree)
             it "listDirChunkBfs" $
-               testCorrectness strmBaseSmall (listDirChunkBfs smallTree)
+               testCorrectness pathsSmall (listDirChunkBfs id smallTree)
             it "listDirChunkBfsRev" $
-               testCorrectness strmBaseSmall (listDirChunkBfsRev smallTree)
+               testCorrectness pathsSmall (listDirChunkBfsRev id smallTree)
             it "listDirChunkAppend" $
-               testCorrectness strmBaseBig (listDirChunkAppend bigTree)
+               testCorrectness pathsBig (listDirChunkAppend id bigTree)
             it "listDirChunkInterleave" $
-               testCorrectness strmBaseBig (listDirChunkInterleave bigTree)
+               testCorrectness pathsBig (listDirChunkInterleave id bigTree)
             it "listDirChunkPar" $
-               testCorrectness strmBaseBig (listDirChunkPar bigTree)
+               testCorrectness pathsBig (listDirChunkPar id bigTree)
             it "listDirChunkParInterleaved" $
-               testCorrectness strmBaseBig (listDirChunkParInterleaved bigTree)
+               testCorrectness pathsBig (listDirChunkParInterleaved id bigTree)
             it "listDirChunkParOrdered" $
-               testCorrectness strmBaseBig (listDirChunkParOrdered bigTree)
+               testCorrectness pathsBig (listDirChunkParOrdered id bigTree)
+        testSymLinkFollow

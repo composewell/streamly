@@ -1568,7 +1568,7 @@ concatIterateBfsRev f stream = Stream step (stream, [])
 --
 -- Example, list a directory tree using BFS:
 --
--- >>> f = either (Just . Dir.readEitherPaths) (const Nothing)
+-- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
 -- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = Stream.concatIterateBfs f input
 --
@@ -1607,7 +1607,7 @@ concatIterateBfs f stream = Stream step (stream, [], [])
 --
 -- Example, list a directory tree using DFS:
 --
--- >>> f = either (Just . Dir.readEitherPaths) (const Nothing)
+-- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
 -- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = Stream.concatIterateDfs f input
 --
@@ -1648,7 +1648,7 @@ data IterateUnfoldState o i =
 --
 -- Example, list a directory tree using DFS:
 --
--- >>> f = Unfold.either Dir.eitherReaderPaths Unfold.nil
+-- >>> f = Unfold.either (Dir.eitherReaderPaths id) Unfold.nil
 -- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = Stream.unfoldIterateDfs f input
 --

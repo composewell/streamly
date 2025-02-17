@@ -1542,7 +1542,7 @@ concatUnfoldr = undefined
 --
 -- Example, list a directory tree using DFS:
 --
--- >>> f = StreamK.fromStream . either Dir.readEitherPaths (const Stream.nil)
+-- >>> f = StreamK.fromStream . either (Dir.readEitherPaths id) (const Stream.nil)
 -- >>> input = StreamK.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = StreamK.concatIterateWith StreamK.append f input
 --
@@ -1572,7 +1572,7 @@ concatIterateWith combine f = iterateStream
 --
 -- Example, list a directory tree using balanced traversal:
 --
--- >>> f = StreamK.fromStream . either Dir.readEitherPaths (const Stream.nil)
+-- >>> f = StreamK.fromStream . either (Dir.readEitherPaths id) (const Stream.nil)
 -- >>> input = StreamK.fromEffect (Left <$> Path.fromString ".")
 -- >>> ls = StreamK.mergeIterateWith StreamK.interleave f input
 --
@@ -1663,7 +1663,7 @@ concatMapEitherWith = undefined
 -- To traverse a directory tree:
 --
 -- >>> input = StreamK.fromEffect (Left <$> Path.fromString ".")
--- >>> ls = StreamK.concatIterateLeftsWith StreamK.append (StreamK.fromStream . Dir.readEither) input
+-- >>> ls = StreamK.concatIterateLeftsWith StreamK.append (StreamK.fromStream . Dir.readEither id) input
 --
 -- /Pre-release/
 --

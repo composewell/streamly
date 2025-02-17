@@ -11,8 +11,8 @@ module Streamly.Internal.FileSystem.Posix.ReadDir
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
       ReadOptions
     , followSymlinks
-    , ignoreLoopErrors
     , ignoreNonExisting
+    , ignoreLoopErrors
     , ignoreInAccessible
     , defaultReadOptions
 
@@ -35,13 +35,19 @@ module Streamly.Internal.FileSystem.Posix.ReadDir
 where
 
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+import Control.Monad (unless)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord)
-import Foreign (Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr)
+import Foreign
+    ( Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr, (.&.)
+    , allocaBytes
+    )
 import Foreign.C
-    (resetErrno, Errno(..), getErrno, eINTR, throwErrno
-    , throwErrnoIfMinus1Retry_, throwErrnoIfNullRetry, CInt(..), CString, CChar, CSize(..))
+    ( resetErrno, throwErrno, throwErrnoIfMinus1Retry_, throwErrnoIfNullRetry
+    , Errno(..), getErrno, eINTR, eNOENT, eACCES, eLOOP
+    , CInt(..), CString, CChar, CSize(..)
+    )
 import Foreign.Storable (poke)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Array (Array(..))
@@ -54,7 +60,7 @@ import Streamly.Internal.FileSystem.Posix.Errno (throwErrnoPathIfNullRetry)
 import Streamly.Internal.FileSystem.Posix.File
     (OpenMode(..), openFd, openFdAt, closeFd)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
-import System.Posix.Types (Fd(..))
+import System.Posix.Types (Fd(..), CMode)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
@@ -159,8 +165,52 @@ foreign import capi unsafe "dirent.h fdopendir"
 foreign import capi unsafe "dirent.h readdir"
     c_readdir  :: Ptr CDir -> IO (Ptr CDirent)
 
-foreign import ccall unsafe "lstat_is_directory"
-    c_lstat_is_directory  :: CString -> IO CInt
+--------------------------------------------------------------------------------
+-- Stat
+--------------------------------------------------------------------------------
+
+foreign import ccall unsafe "stat.h lstat"
+    c_lstat :: CString -> Ptr CStat -> IO CInt
+
+foreign import ccall unsafe "stat.h stat"
+    c_stat :: CString -> Ptr CStat -> IO CInt
+
+s_IFMT :: CMode
+s_IFMT  = #{const S_IFMT}
+
+s_IFDIR :: CMode
+s_IFDIR = #{const S_IFDIR}
+
+{-
+s_IFREG :: CMode
+s_IFREG = #{const S_IFREG}
+
+s_IFLNK :: CMode
+s_IFLNK = #{const S_IFLNK}
+-}
+
+-- NOTE: Using fstatat with a dirfd and relative path would be faster.
+stat :: Bool -> CString -> IO (Either Errno CMode)
+stat followSym cstr =
+    allocaBytes #{size struct stat} $ \p_stat -> do
+        resetErrno
+        result <-
+            if followSym
+            then c_stat cstr p_stat
+            else c_lstat cstr p_stat
+        if result /= 0
+        then do
+            errno <- getErrno
+            if errno == eINTR
+            then stat followSym cstr
+            else pure $ Left errno
+        else do
+            mode <- #{peek struct stat, st_mode} p_stat
+            pure $ Right (mode .&. s_IFMT)
+
+--------------------------------------------------------------------------------
+-- Functions
+--------------------------------------------------------------------------------
 
 -- | The CString must be pinned.
 {-# INLINE openDirStreamCString #-}
@@ -223,41 +273,70 @@ isMetaDir dname = do
                 then return True
                 else return False
 
-{-# NOINLINE lstatDname #-}
-lstatDname :: PosixPath -> Ptr CChar -> IO (Bool, Bool)
-lstatDname parent dname = do
+data GStatRes
+    = GSIsMetaDir
+    | GSIsRegDir
+    | GSIsNotDir
+    | GSIgnoreError Errno
+
+{-# NOINLINE gstatDname #-}
+gstatDname
+    :: ReadOptions -> PosixPath -> Ptr CChar -> IO GStatRes
+gstatDname conf parent dname = do
     isMeta <- liftIO $ isMetaDir dname
     if isMeta
-    then pure (True, True)
+    then pure GSIsMetaDir
     else do
         -- XXX We can create a pinned array right here since the next call pins
         -- it anyway.
         path <- appendCString parent dname
         Array.asCStringUnsafe (Path.toChunk path) $ \cStr -> do
-            res <- c_lstat_is_directory cStr
+            res <- stat (_followSymlinks conf) cStr
             case res of
-                x | x == 1 -> pure (True, False)
-                x | x == 0 -> pure (False, False)
-                -- XXX Need to check if and how we should handle some errors
-                -- like EACCES.
-                _ -> throwErrno "checkIfDirectory"
+                Right mode -> pure $
+                    if (mode == s_IFDIR)
+                    then GSIsRegDir
+                    else GSIsNotDir
+                Left errno -> do
+                    if errno == eNOENT
+                    then unless (_ignoreNonExistingFiles conf) $
+                             throwErrno (errMsg path)
+                    else if errno == eACCES
+                    then unless (_ignoreInAccessibleFiles conf) $
+                             throwErrno (errMsg path)
+                    else if errno == eLOOP
+                    then unless (_ignoreSymlinkLoopErrors conf) $
+                             throwErrno (errMsg path)
+                    else throwErrno (errMsg path)
+                    pure $ GSIgnoreError errno
+    where
+    errMsg path =
+        let pathStr = Path.toString_ path
+         in "statDname: " ++ pathStr
 
 -- | Checks if dname is a directory and additionaly returns if dname is a meta
 -- directory.
 {-# INLINE checkDirStatus #-}
 checkDirStatus
-    :: PosixPath -> Ptr CChar -> #{type unsigned char} -> IO (Bool, Bool)
+    :: ReadOptions
+    -> PosixPath -> Ptr CChar -> #{type unsigned char} -> IO GStatRes
 #ifdef FORCE_LSTAT_READDIR
-checkDirStatus parent dname _ = lstatDname parent dname
+checkDirStatus conf parent dname _ =
+    gstatDname conf parent dname
 #else
-checkDirStatus parent dname dtype =
+checkDirStatus conf parent dname dtype =
     if dtype == (#const DT_DIR)
     then do
         isMeta <- liftIO $ isMetaDir dname
-        pure (True, isMeta)
-    else if dtype /= #const DT_UNKNOWN
-         then pure (False, False)
-         else lstatDname parent dname
+        pure $ if isMeta then GSIsMetaDir else GSIsRegDir
+    else if dtype == (#const DT_LNK)
+         then
+             if _followSymlinks conf
+             then gstatDname conf parent dname
+             else pure GSIsNotDir
+         else if dtype /= #const DT_UNKNOWN
+              then pure GSIsNotDir
+              else gstatDname conf parent dname
 #endif
 
 -------------------------------------------------------------------------------
@@ -272,10 +351,13 @@ checkDirStatus parent dname dtype =
 -- {-# INLINE readDirStreamEither #-}
 readDirStreamEither ::
     -- DirStream -> IO (Either (Rel (Dir Path)) (Rel (File Path)))
+    (ReadOptions -> ReadOptions) ->
     (PosixPath, DirStream) -> IO (Maybe (Either PosixPath PosixPath))
-readDirStreamEither (curdir, (DirStream dirp)) = loop
+readDirStreamEither confMod (curdir, (DirStream dirp)) = loop
 
   where
+
+  conf = confMod defaultReadOptions
 
   -- mkPath :: IsPath (Rel (a Path)) => Array Word8 -> Rel (a Path)
   -- {-# INLINE mkPath #-}
@@ -294,13 +376,12 @@ readDirStreamEither (curdir, (DirStream dirp)) = loop
         -- fromPtrN, but it is not straightforward because the reclen is
         -- padded to 8-byte boundary.
         name <- Array.fromCString (castPtr dname)
-        (isDir, isMeta) <- checkDirStatus curdir dname dtype
-        if isDir
-        then do
-            if isMeta
-            then loop
-            else return (Just (Left (mkPath name)))
-        else return (Just (Right (mkPath name)))
+        gsRes <- checkDirStatus conf curdir dname dtype
+        case gsRes of
+            GSIsRegDir -> return (Just (Left (mkPath name)))
+            GSIsNotDir -> return (Just (Right (mkPath name)))
+            -- Loop if it's a meta directory or an error that we can ignore
+            _ -> loop
     else do
         errno <- getErrno
         if (errno == eINTR)
@@ -316,19 +397,22 @@ readDirStreamEither (curdir, (DirStream dirp)) = loop
 -- redundant for windows case though.
 {-# INLINE streamEitherReader #-}
 streamEitherReader :: MonadIO m =>
+    (ReadOptions -> ReadOptions) ->
     Unfold m (PosixPath, DirStream) (Either Path Path)
-streamEitherReader = Unfold step return
+streamEitherReader confMod = Unfold step return
     where
 
     step s = do
-        r <- liftIO $ readDirStreamEither s
+        r <- liftIO $ readDirStreamEither confMod s
         case r of
             Nothing -> return Stop
             Just x -> return $ Yield x s
 
 {-# INLINE streamReader #-}
-streamReader :: MonadIO m => Unfold m (PosixPath, DirStream) Path
-streamReader = fmap (either id id) streamEitherReader
+streamReader
+    :: MonadIO m
+    => (ReadOptions -> ReadOptions) -> Unfold m (PosixPath, DirStream) Path
+streamReader confMod = fmap (either id id) (streamEitherReader confMod)
 
 {-# INLINE before #-}
 before :: PosixPath -> IO (PosixPath, DirStream)
@@ -344,13 +428,14 @@ after (_, dirStream) = closeDirStream dirStream
 --  /Internal/
 --
 {-# INLINE reader #-}
-reader :: (MonadIO m, MonadCatch m) => Unfold m Path Path
-reader =
+reader :: (MonadIO m, MonadCatch m)
+       => (ReadOptions -> ReadOptions) -> Unfold m Path Path
+reader confMod =
     -- XXX Instead of using bracketIO for each iteration of the loop we should
     -- instead yield a buffer of dir entries in each iteration and then use an
     -- unfold and concat to flatten those entries. That should improve the
     -- performance.
-    UF.bracketIO before after streamReader
+    UF.bracketIO before after (streamReader confMod)
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries.
@@ -359,12 +444,12 @@ reader =
 --
 {-# INLINE eitherReader #-}
 eitherReader :: (MonadIO m, MonadCatch m) =>
-    Unfold m Path (Either Path Path)
-eitherReader =
+    (ReadOptions -> ReadOptions) -> Unfold m Path (Either Path Path)
+eitherReader confMod =
     -- XXX The measured overhead of bracketIO is not noticeable, if it turns
     -- out to be a problem for small filenames we can use getdents64 to use
     -- chunked read to avoid the overhead.
-    UF.bracketIO before after streamEitherReader
+    UF.bracketIO before after (streamEitherReader confMod)
 
 {-# INLINE appendCString #-}
 appendCString :: PosixPath -> CString -> IO PosixPath
@@ -392,11 +477,16 @@ data ChunkStreamState =
 -- XXX We can write a two fold scan to buffer and yield whichever fills first
 -- like foldMany, it would be foldEither.
 {-# INLINE readEitherChunks #-}
-readEitherChunks :: MonadIO m => [PosixPath] -> Stream m (Either [PosixPath] [PosixPath])
-readEitherChunks alldirs =
+readEitherChunks
+    :: MonadIO m
+    => (ReadOptions -> ReadOptions)
+    -> [PosixPath] -> Stream m (Either [PosixPath] [PosixPath])
+readEitherChunks confMod alldirs =
     Stream step (ChunkStreamInit alldirs [] 0 [] 0)
 
     where
+
+    conf = confMod defaultReadOptions
 
     -- We want to keep the dir batching as low as possible for better
     -- concurrency esp when the number of dirs is low.
@@ -425,12 +515,9 @@ readEitherChunks alldirs =
             dtype :: #{type unsigned char} <-
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
-            (isDir, isMeta) <- liftIO $ checkDirStatus curdir dname dtype
-            if isDir
-            then do
-                if isMeta
-                then return $ Skip st
-                else do
+            gsRes <- liftIO $ checkDirStatus conf curdir dname dtype
+            case gsRes of
+                GSIsRegDir -> do
                      path <- liftIO $ appendCString curdir dname
                      let dirs1 = path : dirs
                          ndirs1 = ndirs + 1
@@ -439,7 +526,7 @@ readEitherChunks alldirs =
                             (ChunkStreamLoop curdir xs dirp [] 0 files nfiles)
                          else return $ Skip
                             (ChunkStreamLoop curdir xs dirp dirs1 ndirs1 files nfiles)
-            else do
+                GSIsNotDir -> do
                  path <- liftIO $ appendCString curdir dname
                  let files1 = path : files
                      nfiles1 = nfiles + 1
@@ -448,6 +535,8 @@ readEitherChunks alldirs =
                         (ChunkStreamLoop curdir xs dirp dirs ndirs [] 0)
                      else return $ Skip
                         (ChunkStreamLoop curdir xs dirp dirs ndirs files1 nfiles1)
+                -- Loop if it's a meta directory or an error that we can ignore
+                _ -> return $ Skip st
         else do
             errno <- liftIO getErrno
             if (errno == eINTR)
@@ -505,11 +594,14 @@ data ChunkStreamByteState =
 -- separated by newlines.
 {-# INLINE readEitherByteChunks #-}
 readEitherByteChunks :: MonadIO m =>
+    (ReadOptions -> ReadOptions) ->
     [PosixPath] -> Stream m (Either [PosixPath] (Array Word8))
-readEitherByteChunks alldirs =
+readEitherByteChunks confMod alldirs =
     Stream step (ChunkStreamByteInit0)
 
     where
+
+    conf = confMod defaultReadOptions
 
     -- XXX A single worker may not have enough directories to list at once to
     -- fill up a large buffer. We need to change the concurrency model such
@@ -591,9 +683,10 @@ readEitherByteChunks alldirs =
             -- XXX Skips come around the entire loop, does that impact perf
             -- because it has a StreamK in the middle.
             -- Keep the file check first as it is more likely
-            (isDir, isMeta) <- liftIO $ checkDirStatus curdir dname dtype
-            if not isDir
-            then do
+
+            gsRes <- liftIO $ checkDirStatus conf curdir dname dtype
+            case gsRes of
+                GSIsNotDir -> do
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
                         Just pos1 ->
@@ -610,10 +703,7 @@ readEitherByteChunks alldirs =
                             else
                                 return $ Skip
                                     (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
-            else do
-                if isMeta
-                then return $ Skip st
-                else do
+                GSIsRegDir -> do
                     path <- liftIO $ appendCString curdir dname
                     let dirs1 = path : dirs
                         ndirs1 = ndirs + 1
@@ -628,7 +718,9 @@ readEitherByteChunks alldirs =
                             -- otherwise skip.
                             return $ Yield (Left dirs1)
                                 (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
-        else do
+                -- Loop if it's a meta directory or an error that we can ignore
+                _ ->  return $ Skip st
+          else do
             errno <- liftIO getErrno
             if (errno == eINTR)
             then return $ Skip st
@@ -673,14 +765,15 @@ data ByteChunksAt =
 -- The advantage of readEitherByteChunks over readEitherByteChunksAt is that we
 -- do not need to open the dir handles and thus requires less open fd.
 {-# INLINE readEitherByteChunksAt #-}
-readEitherByteChunksAt :: MonadIO m =>
+readEitherByteChunksAt :: MonadIO m => (ReadOptions -> ReadOptions) ->
        -- (parent dir path, child dir paths rel to parent)
        (PosixPath, [PosixPath])
     -> Stream m (Either (PosixPath, [PosixPath]) (Array Word8))
-readEitherByteChunksAt (ppath, alldirs) =
+readEitherByteChunksAt confMod (ppath, alldirs) =
     Stream step (ByteChunksAtInit0)
 
     where
+    conf = confMod defaultReadOptions
 
     bufSize = 4000
 
@@ -750,9 +843,9 @@ readEitherByteChunksAt (ppath, alldirs) =
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
             -- Keep the file check first as it is more likely
-            (isDir, isMeta) <- liftIO $ checkDirStatus curdir dname dtype
-            if not isDir
-            then do
+            gsRes <- liftIO $ checkDirStatus conf curdir dname dtype
+            case gsRes of
+                GSIsNotDir -> do
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
                         Just pos1 ->
@@ -763,10 +856,7 @@ readEitherByteChunksAt (ppath, alldirs) =
                             return $ Skip
                                 (ByteChunksAtRealloc
                                     dname pfd dirp curdir xs dirs ndirs mbarr pos)
-            else do
-                if isMeta
-                then return $ Skip st
-                else do
+                GSIsRegDir -> do
                     arr <- Array.fromCString (castPtr dname)
                     let path = Path.unsafeFromChunk arr
                     let dirs1 = path : dirs
@@ -792,6 +882,8 @@ readEitherByteChunksAt (ppath, alldirs) =
                             return $ Skip
                                 (ByteChunksAtRealloc
                                     dname pfd dirp curdir xs dirs1 ndirs1 mbarr pos)
+                -- Loop if it's a meta directory or an error that we can ignore
+                _ ->  return $ Skip st
         else do
             errno <- liftIO getErrno
             if (errno == eINTR)

@@ -123,6 +123,12 @@ pMapUnfoldE = fmap ePathMap . Unfold.lmapM Path.fromString
 -- Functions
 --------------------------------------------------------------------------------
 
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+#define CONF id
+#else
+#define CONF (DirIO.followSymlinks True)
+#endif
+
 --  | Read a directory emitting a stream with names of the children. Filter out
 --  "." and ".." entries.
 --
@@ -130,7 +136,7 @@ pMapUnfoldE = fmap ePathMap . Unfold.lmapM Path.fromString
 --
 {-# INLINE reader #-}
 reader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
-reader = fmap Path.toString $ Unfold.lmapM Path.fromString DirIO.reader
+reader = fmap Path.toString $ Unfold.lmapM Path.fromString (DirIO.reader CONF)
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries.
@@ -139,12 +145,12 @@ reader = fmap Path.toString $ Unfold.lmapM Path.fromString DirIO.reader
 --
 {-# INLINE eitherReader #-}
 eitherReader :: (MonadIO m, MonadCatch m) => Unfold m FilePath (Either FilePath FilePath)
-eitherReader = pMapUnfoldE DirIO.eitherReader
+eitherReader = pMapUnfoldE (DirIO.eitherReader CONF)
 
 
 {-# INLINE eitherReaderPaths #-}
 eitherReaderPaths ::(MonadIO m, MonadCatch m) => Unfold m FilePath (Either FilePath FilePath)
-eitherReaderPaths = pMapUnfoldE DirIO.eitherReaderPaths
+eitherReaderPaths = pMapUnfoldE (DirIO.eitherReaderPaths CONF)
 
 --
 -- | Read files only.
@@ -153,7 +159,7 @@ eitherReaderPaths = pMapUnfoldE DirIO.eitherReaderPaths
 --
 {-# INLINE fileReader #-}
 fileReader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
-fileReader = pMapUnfold DirIO.fileReader
+fileReader = pMapUnfold (DirIO.fileReader CONF)
 
 -- | Read directories only. Filter out "." and ".." entries.
 --
@@ -161,7 +167,7 @@ fileReader = pMapUnfold DirIO.fileReader
 --
 {-# INLINE dirReader #-}
 dirReader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
-dirReader = pMapUnfold DirIO.dirReader
+dirReader = pMapUnfold (DirIO.dirReader CONF)
 
 -- | Raw read of a directory.
 --
