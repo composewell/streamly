@@ -6,6 +6,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 
+{-# LANGUAGE QuasiQuotes #-}
+
 module BenchTestLib.DirIO
     ( createDirStucture
     , listDirUnfoldDfs
@@ -45,6 +47,7 @@ import Streamly.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
 import Streamly.FileSystem.Path (Path)
 import System.Process (callCommand)
+import Streamly.Unicode.String (str)
 
 import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Data.Array as Array
@@ -116,10 +119,12 @@ streamDirChunked = either Dir.readEitherChunks (const Stream.nil)
 -- Functions
 --------------------------------------------------------------------------------
 
-createDirStucture :: FilePath -> IO ()
-createDirStucture dirRoot = do
-    let cmd =
-            "bench-test-lib/create_dir_structure.sh  " ++ dirRoot ++ " 5 5"
+createDirStucture :: FilePath -> Int -> Int -> IO ()
+createDirStucture dirRoot depth width = do
+    let dStr = show depth
+        wStr = show width
+        cmd =
+            [str|./bench-test-lib/create_dir_structure.sh #{dirRoot} #{dStr} #{wStr}|]
     callCommand ("mkdir -p " ++ dirRoot)
     callCommand cmd
 

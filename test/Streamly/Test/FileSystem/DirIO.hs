@@ -65,49 +65,64 @@ testCorrectnessByteChunked strmBase lister = do
     Stream.eqBy (==) strm strmBase `shouldReturn` True
 #endif
 
-#define IT(x) \
+#define IT(x,sb,dr) \
 it " x " $ \
-    testCorrectness strmBase (x dirRoot)
+    testCorrectness sb (x dr)
 
 -- | List the current directory recursively
 main :: IO ()
 main = do
     setLocaleEncoding utf8
-    let dirRoot = "benchmark-tmp/dir-structure"
-    createDirStucture dirRoot
-    findRes <- readCreateProcess ((shell [str|find #{dirRoot}|])) ""
-    strmBaseCache <-
+
+    let smallTree = "benchmark-tmp/dir-structure-small"
+        bigTree = "benchmark-tmp/dir-structure-big"
+    createDirStucture smallTree 2 3
+    createDirStucture bigTree 5 5
+
+    findResBig <- readCreateProcess (shell [str|find #{bigTree}|]) ""
+    findResSmall <- readCreateProcess (shell [str|find #{smallTree}|]) ""
+
+    strmBaseCacheSmall <-
         Stream.fold Fold.toList
             $ StreamK.toStream
             $ StreamK.sortBy compare
             $ StreamK.fromStream
-            $ Unicode.lines Fold.toList $ Stream.fromList findRes
-    let strmBase = Stream.fromList strmBaseCache
+            $ Unicode.lines Fold.toList $ Stream.fromList findResSmall
+    strmBaseCacheBig <-
+        Stream.fold Fold.toList
+            $ StreamK.toStream
+            $ StreamK.sortBy compare
+            $ StreamK.fromStream
+            $ Unicode.lines Fold.toList $ Stream.fromList findResBig
+    let strmBaseSmall = Stream.fromList strmBaseCacheSmall
+    let strmBaseBig = Stream.fromList strmBaseCacheBig
+
     hspec $
         describe moduleName $ do
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
             it "listDirByteChunked" $
                 testCorrectnessByteChunked
-                    (Stream.drop 1 strmBase) (listDirByteChunked dirRoot)
+                    (Stream.drop 1 strmBaseBig) (listDirByteChunked bigTree)
 #endif
             -- NOTE: The BFS traversal fails with:
             -- openDirStream: resource exhausted (Too many open files)
-            IT(listDirUnfoldDfs)
-            -- IT(listDirUnfoldBfs)
-            -- IT(listDirUnfoldBfsRev)
-            IT(listDirConcatDfs)
-            -- IT(listDirConcatBfs)
-            -- IT(listDirConcatBfsRev)
-            IT(listDirAppend)
-            IT(listDirInterleave)
-            IT(listDirPar)
-            IT(listDirParInterleaved)
-            IT(listDirParOrdered)
-            IT(listDirChunkDfs)
-            -- IT(listDirChunkBfs)
-            -- IT(listDirChunkBfsRev)
-            IT(listDirChunkAppend)
-            IT(listDirChunkInterleave)
-            IT(listDirChunkPar)
-            IT(listDirChunkParInterleaved)
-            IT(listDirChunkParOrdered)
+            -- if a bigger directory tree is used
+            IT(listDirUnfoldDfs,strmBaseBig,bigTree)
+            IT(listDirUnfoldBfs,strmBaseSmall,smallTree)
+            IT(listDirUnfoldBfsRev,strmBaseSmall,smallTree)
+            IT(listDirConcatDfs,strmBaseBig,bigTree)
+            IT(listDirConcatBfs,strmBaseSmall,smallTree)
+            IT(listDirConcatBfsRev,strmBaseSmall,smallTree)
+            IT(listDirAppend,strmBaseBig,bigTree)
+            IT(listDirInterleave,strmBaseBig,bigTree)
+            IT(listDirPar,strmBaseBig,bigTree)
+            IT(listDirParInterleaved,strmBaseBig,bigTree)
+            IT(listDirParOrdered,strmBaseBig,bigTree)
+            IT(listDirChunkDfs,strmBaseBig,bigTree)
+            IT(listDirChunkBfs,strmBaseSmall,smallTree)
+            IT(listDirChunkBfsRev,strmBaseSmall,smallTree)
+            IT(listDirChunkAppend,strmBaseBig,bigTree)
+            IT(listDirChunkInterleave,strmBaseBig,bigTree)
+            IT(listDirChunkPar,strmBaseBig,bigTree)
+            IT(listDirChunkParInterleaved,strmBaseBig,bigTree)
+            IT(listDirChunkParOrdered,strmBaseBig,bigTree)
