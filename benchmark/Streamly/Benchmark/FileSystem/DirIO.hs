@@ -31,45 +31,48 @@ import BenchTestLib.DirIO
 moduleName :: String
 moduleName = "FileSystem.DirIO"
 
-#define BENCH(x) \
+#define BENCH(x,fp) \
 bench " x " $ nfIO $ \
-    Stream.fold Fold.drain $ x dirRoot
+    Stream.fold Fold.drain $ x fp
 
 -- | List the current directory recursively
 main :: IO ()
 main = do
     setLocaleEncoding utf8
 
-    let dirRoot = "benchmark-tmp/dir-structure"
-    createDirStucture dirRoot
+    let smallTree = "benchmark-tmp/dir-structure-small"
+        bigTree = "benchmark-tmp/dir-structure-big"
+    createDirStucture smallTree 2 3
+    createDirStucture bigTree 5 5
 
     defaultMain
         [ bgroup (o_1_space_prefix moduleName)
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-           $ (bench "listDirByteChunked" $ nfIO $
-               Stream.fold Fold.drain $ listDirByteChunked dirRoot) :
+           $ bench "listDirByteChunked" (nfIO $
+               Stream.fold Fold.drain $ listDirByteChunked bigTree) :
 #endif
-            [ BENCH(listDirUnfoldDfs)
-              -- NOTE: The BFS traversal fails with:
-              -- openDirStream: resource exhausted (Too many open files)
-            , BENCH(listDirUnfoldDfs)
-            -- , BENCH(listDirUnfoldBfs)
-            -- , BENCH(listDirUnfoldBfsRev)
-            , BENCH(listDirConcatDfs)
-            -- , BENCH(listDirConcatBfs)
-            -- , BENCH(listDirConcatBfsRev)
-            , BENCH(listDirAppend)
-            , BENCH(listDirInterleave)
-            , BENCH(listDirPar)
-            , BENCH(listDirParInterleaved)
-            , BENCH(listDirParOrdered)
-            , BENCH(listDirChunkDfs)
-            -- , BENCH(listDirChunkBfs)
-            -- , BENCH(listDirChunkBfsRev)
-            , BENCH(listDirChunkAppend)
-            , BENCH(listDirChunkInterleave)
-            , BENCH(listDirChunkPar)
-            , BENCH(listDirChunkParInterleaved)
-            , BENCH(listDirChunkParOrdered)
+            -- NOTE: The BFS traversal fails with:
+            -- openDirStream: resource exhausted (Too many open files)
+            -- if a bigger directory tree is used
+            [ BENCH(listDirUnfoldDfs,bigTree)
+            , BENCH(listDirUnfoldDfs,bigTree)
+            , BENCH(listDirUnfoldBfs,smallTree)
+            , BENCH(listDirUnfoldBfsRev,smallTree)
+            , BENCH(listDirConcatDfs,bigTree)
+            , BENCH(listDirConcatBfs,smallTree)
+            , BENCH(listDirConcatBfsRev,smallTree)
+            , BENCH(listDirAppend,bigTree)
+            , BENCH(listDirInterleave,bigTree)
+            , BENCH(listDirPar,bigTree)
+            , BENCH(listDirParInterleaved,bigTree)
+            , BENCH(listDirParOrdered,bigTree)
+            , BENCH(listDirChunkDfs,bigTree)
+            , BENCH(listDirChunkBfs,smallTree)
+            , BENCH(listDirChunkBfsRev,smallTree)
+            , BENCH(listDirChunkAppend,bigTree)
+            , BENCH(listDirChunkInterleave,bigTree)
+            , BENCH(listDirChunkPar,bigTree)
+            , BENCH(listDirChunkParInterleaved,bigTree)
+            , BENCH(listDirChunkParOrdered,bigTree)
             ]
         ]
