@@ -130,6 +130,7 @@ createDirStucture dirRoot depth width = do
 
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 -- Fastest implementation, only works for posix as of now.
+{-# INLINE listDirByteChunked #-}
 listDirByteChunked :: FilePath -> Stream IO (Array Word8)
 listDirByteChunked inp = do
      Stream.catRights
@@ -138,6 +139,7 @@ listDirByteChunked inp = do
 #endif
 
 -- Faster than the listDir implementation below
+{-# INLINE listDirChunkedWith #-}
 listDirChunkedWith
     :: (Stream IO (Either [Path] b) -> Stream IO (Either [Path] [Path]))
     -> [Char] -> Stream IO Word8
@@ -149,6 +151,7 @@ listDirChunkedWith act inp = do
         $ act
         $ Stream.fromPure (Left [fromJust $ Path.fromString inp])
 
+{-# INLINE listDirWith #-}
 listDirWith
     :: (Stream IO (Either Path Path) -> Stream IO (Either Path Path))
     -> [Char] -> Stream IO Word8
@@ -159,6 +162,7 @@ listDirWith act inp = do
         $ Stream.fromPure (Left (fromJust $ Path.fromString inp))
 
 #define DEF_LIST_DIR(x,y); \
+{-# INLINE x #-}; \
 x :: [Char] -> Stream IO Word8;\
 x = listDirWith (y)
 
@@ -175,6 +179,7 @@ DEF_LIST_DIR(listDirParInterleaved, Stream.parConcatIterate (Stream.interleaved 
 DEF_LIST_DIR(listDirParOrdered, Stream.parConcatIterate (Stream.ordered True) streamDir)
 
 #define DEF_LIST_DIR_CHUNKED(x,y); \
+{-# INLINE x #-}; \
 x :: [Char] -> Stream IO Word8;\
 x = listDirChunkedWith (y)
 
