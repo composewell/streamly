@@ -194,7 +194,8 @@ import qualified Streamly.Internal.Data.Array as A
     ( asCStringUnsafe, unsafePinnedAsPtr
     , unsafeSliceOffLen, read
     )
-import qualified Streamly.Internal.FileSystem.DirIO as Dir (readDirs)
+import qualified Streamly.Internal.FileSystem.DirIO as Dir
+    (readDirs, followSymlinks)
 import qualified Streamly.Internal.Data.Parser as PR
     (takeEQ, fromEffect, fromFold)
 
@@ -738,7 +739,7 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
         let f = addToWatch cfg watch0 root . appendPaths path
             in S.fold (FL.drainMapM f)
                 $ S.mapM toUtf8
-                $ Dir.readDirs p
+                $ Dir.readDirs (Dir.followSymlinks True) p
 
 foreign import ccall unsafe
     "sys/inotify.h inotify_rm_watch" c_inotify_rm_watch

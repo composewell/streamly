@@ -9,7 +9,10 @@
 module Streamly.Internal.FileSystem.Windows.ReadDir
     (
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-      DirStream
+      ReadOptions
+    , defaultReadOptions
+
+    , DirStream
     , openDirStream
     , closeDirStream
     , readDirStreamEither
@@ -136,6 +139,15 @@ iNVALID_HANDLE_VALUE :: HANDLE
 iNVALID_HANDLE_VALUE = castUINTPtrToPtr maxBound
 
 ------------------------------------------------------------------------------
+-- Config
+------------------------------------------------------------------------------
+
+data ReadOptions = ReadOptions
+
+defaultReadOptions :: ReadOptions
+defaultReadOptions = ReadOptions
+
+------------------------------------------------------------------------------
 -- Dir stream implementation
 ------------------------------------------------------------------------------
 
@@ -181,8 +193,10 @@ isMetaDir dname = do
             then return True
             else return False
 
-readDirStreamEither :: DirStream -> IO (Maybe (Either WindowsPath WindowsPath))
-readDirStreamEither (DirStream (h, ref, fdata)) =
+readDirStreamEither ::
+    (ReadOptions -> ReadOptions) ->
+    DirStream -> IO (Maybe (Either WindowsPath WindowsPath))
+readDirStreamEither _ (DirStream (h, ref, fdata)) =
     withForeignPtr fdata $ \ptr -> do
         firstTime <- readIORef ref
         if firstTime
@@ -222,19 +236,21 @@ readDirStreamEither (DirStream (h, ref, fdata)) =
 
 {-# INLINE streamEitherReader #-}
 streamEitherReader :: MonadIO m =>
+    (ReadOptions -> ReadOptions) ->
     Unfold m DirStream (Either Path Path)
-streamEitherReader = Unfold step return
+streamEitherReader f = Unfold step return
     where
 
     step strm = do
-        r <- liftIO $ readDirStreamEither strm
+        r <- liftIO $ readDirStreamEither f strm
         case r of
             Nothing -> return Stop
             Just x -> return $ Yield x strm
 
 {-# INLINE streamReader #-}
-streamReader :: MonadIO m => Unfold m DirStream Path
-streamReader = fmap (either id id) streamEitherReader
+streamReader :: MonadIO m =>
+    (ReadOptions -> ReadOptions) -> Unfold m DirStream Path
+streamReader f = fmap (either id id) (streamEitherReader f)
 
 --  | Read a directory emitting a stream with names of the children. Filter out
 --  "." and ".." entries.
@@ -242,13 +258,14 @@ streamReader = fmap (either id id) streamEitherReader
 --  /Internal/
 
 {-# INLINE reader #-}
-reader :: (MonadIO m, MonadCatch m) => Unfold m Path Path
-reader =
+reader :: (MonadIO m, MonadCatch m) =>
+    (ReadOptions -> ReadOptions) -> Unfold m Path Path
+reader f =
 -- XXX Instead of using bracketIO for each iteration of the loop we should
 -- instead yield a buffer of dir entries in each iteration and then use an
 -- unfold and concat to flatten those entries. That should improve the
 -- performance.
-      UF.bracketIO openDirStream closeDirStream streamReader
+      UF.bracketIO openDirStream closeDirStream (streamReader f)
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries.
@@ -257,10 +274,10 @@ reader =
 --
 {-# INLINE eitherReader #-}
 eitherReader :: (MonadIO m, MonadCatch m) =>
-    Unfold m Path (Either Path Path)
-eitherReader =
+    (ReadOptions -> ReadOptions) -> Unfold m Path (Either Path Path)
+eitherReader f =
     -- XXX The measured overhead of bracketIO is not noticeable, if it turns
     -- out to be a problem for small filenames we can use getdents64 to use
     -- chunked read to avoid the overhead.
-      UF.bracketIO openDirStream closeDirStream streamEitherReader
+      UF.bracketIO openDirStream closeDirStream (streamEitherReader f)
 #endif

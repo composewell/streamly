@@ -91,31 +91,43 @@ mergeIterateWith nxt f =
     . StreamK.mergeIterateWith f (StreamK.fromStream . nxt)
     . StreamK.fromStream
 
-streamDir :: Either Path b -> Stream IO (Either Path Path)
-streamDir = either Dir.readEitherPaths (const Stream.nil)
+streamDir
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Either Path b -> Stream IO (Either Path Path)
+streamDir f = either (Dir.readEitherPaths f) (const Stream.nil)
 
-unfoldDir :: Unfold IO (Either Path b) (Either Path Path)
-unfoldDir = Unfold.either Dir.eitherReaderPaths Unfold.nil
+unfoldDir
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Unfold IO (Either Path b) (Either Path Path)
+unfoldDir f = Unfold.either (Dir.eitherReaderPaths f) Unfold.nil
 
-streamDirMaybe :: Either Path b -> Maybe (Stream IO (Either Path Path))
-streamDirMaybe = either (Just . Dir.readEitherPaths) (const Nothing)
+streamDirMaybe
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Either Path b -> Maybe (Stream IO (Either Path Path))
+streamDirMaybe f = either (Just . Dir.readEitherPaths f) (const Nothing)
 
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 _streamDirByteChunked
-    :: Either [Path] b -> Stream IO (Either [Path] (Array Word8))
-_streamDirByteChunked = either Dir.readEitherByteChunks (const Stream.nil)
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Either [Path] b -> Stream IO (Either [Path] (Array Word8))
+_streamDirByteChunked f = either (Dir.readEitherByteChunks f) (const Stream.nil)
 
 streamDirByteChunkedMaybe
-    :: Either [Path] b -> Maybe (Stream IO (Either [Path] (Array Word8)))
-streamDirByteChunkedMaybe =
-    either (Just . Dir.readEitherByteChunks) (const Nothing)
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Either [Path] b -> Maybe (Stream IO (Either [Path] (Array Word8)))
+streamDirByteChunkedMaybe f =
+    either (Just . Dir.readEitherByteChunks f) (const Nothing)
 #endif
 
-streamDirChunkedMaybe :: Either [Path] b -> Maybe (Stream IO (Either [Path] [Path]))
-streamDirChunkedMaybe = either (Just . Dir.readEitherChunks) (const Nothing)
+streamDirChunkedMaybe
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Either [Path] b -> Maybe (Stream IO (Either [Path] [Path]))
+streamDirChunkedMaybe f = either (Just . Dir.readEitherChunks f) (const Nothing)
 
-streamDirChunked :: Either [Path] b -> Stream IO (Either [Path] [Path])
-streamDirChunked = either Dir.readEitherChunks (const Stream.nil)
+streamDirChunked
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Either [Path] b -> Stream IO (Either [Path] [Path])
+streamDirChunked f = either (Dir.readEitherChunks f) (const Stream.nil)
 
 --------------------------------------------------------------------------------
 -- Functions
@@ -142,7 +154,7 @@ createDirStucture root d w = do
 listDirByteChunked :: FilePath -> Stream IO (Array Word8)
 listDirByteChunked inp = do
      Stream.catRights
-        $ Stream.concatIterateDfs streamDirByteChunkedMaybe
+        $ Stream.concatIterateDfs (streamDirByteChunkedMaybe id)
         $ Stream.fromPure (Left [fromJust $ Path.fromString inp])
 #endif
 
@@ -169,33 +181,121 @@ listDirWith act inp = do
         $ act
         $ Stream.fromPure (Left (fromJust $ Path.fromString inp))
 
-#define DEF_LIST_DIR(x,y); \
-{-# INLINE x #-}; \
-x :: [Char] -> Stream IO Word8;\
-x = listDirWith (y)
+--------------------------------------------------------------------------------
+-- Non chunked
+--------------------------------------------------------------------------------
 
-DEF_LIST_DIR(listDirUnfoldDfs, Stream.unfoldIterateDfs unfoldDir)
-DEF_LIST_DIR(listDirUnfoldBfs, Stream.unfoldIterateBfs unfoldDir)
-DEF_LIST_DIR(listDirUnfoldBfsRev, Stream.unfoldIterateBfsRev unfoldDir)
-DEF_LIST_DIR(listDirConcatDfs, Stream.concatIterateDfs streamDirMaybe)
-DEF_LIST_DIR(listDirConcatBfs, Stream.concatIterateBfs streamDirMaybe)
-DEF_LIST_DIR(listDirConcatBfsRev, Stream.concatIterateBfsRev streamDirMaybe)
-DEF_LIST_DIR(listDirAppend, concatIterateWith streamDir StreamK.append)
-DEF_LIST_DIR(listDirInterleave, mergeIterateWith streamDir StreamK.interleave)
-DEF_LIST_DIR(listDirPar, Stream.parConcatIterate id streamDir)
-DEF_LIST_DIR(listDirParInterleaved, Stream.parConcatIterate (Stream.interleaved True) streamDir)
-DEF_LIST_DIR(listDirParOrdered, Stream.parConcatIterate (Stream.ordered True) streamDir)
+{-# INLINE listDirUnfoldDfs #-}
+listDirUnfoldDfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirUnfoldDfs f = listDirWith (Stream.unfoldIterateDfs (unfoldDir f))
 
-#define DEF_LIST_DIR_CHUNKED(x,y); \
-{-# INLINE x #-}; \
-x :: [Char] -> Stream IO Word8;\
-x = listDirChunkedWith (y)
+{-# INLINE listDirUnfoldBfs #-}
+listDirUnfoldBfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirUnfoldBfs f = listDirWith (Stream.unfoldIterateBfs (unfoldDir f))
 
-DEF_LIST_DIR_CHUNKED(listDirChunkDfs, Stream.concatIterateDfs streamDirChunkedMaybe)
-DEF_LIST_DIR_CHUNKED(listDirChunkBfs, Stream.concatIterateBfs streamDirChunkedMaybe)
-DEF_LIST_DIR_CHUNKED(listDirChunkBfsRev, Stream.concatIterateBfsRev streamDirChunkedMaybe)
-DEF_LIST_DIR_CHUNKED(listDirChunkAppend, concatIterateWith streamDirChunked StreamK.append)
-DEF_LIST_DIR_CHUNKED(listDirChunkInterleave, mergeIterateWith streamDirChunked StreamK.interleave)
-DEF_LIST_DIR_CHUNKED(listDirChunkPar, Stream.parConcatIterate id streamDirChunked)
-DEF_LIST_DIR_CHUNKED(listDirChunkParInterleaved, Stream.parConcatIterate (Stream.interleaved True) streamDirChunked)
-DEF_LIST_DIR_CHUNKED(listDirChunkParOrdered, Stream.parConcatIterate (Stream.ordered True) streamDirChunked)
+{-# INLINE listDirUnfoldBfsRev #-}
+listDirUnfoldBfsRev
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirUnfoldBfsRev f = listDirWith (Stream.unfoldIterateBfsRev (unfoldDir f))
+
+{-# INLINE listDirConcatDfs #-}
+listDirConcatDfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirConcatDfs f = listDirWith (Stream.concatIterateDfs (streamDirMaybe f))
+
+{-# INLINE listDirConcatBfs #-}
+listDirConcatBfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirConcatBfs f = listDirWith (Stream.concatIterateBfs (streamDirMaybe f))
+
+{-# INLINE listDirConcatBfsRev #-}
+listDirConcatBfsRev
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirConcatBfsRev f =
+    listDirWith (Stream.concatIterateBfsRev (streamDirMaybe f))
+
+{-# INLINE listDirAppend #-}
+listDirAppend
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirAppend f = listDirWith (concatIterateWith (streamDir f) StreamK.append)
+
+{-# INLINE listDirInterleave #-}
+listDirInterleave
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirInterleave f =
+    listDirWith (mergeIterateWith (streamDir f) StreamK.interleave)
+
+{-# INLINE listDirPar #-}
+listDirPar
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirPar f = listDirWith (Stream.parConcatIterate id (streamDir f))
+
+{-# INLINE listDirParInterleaved #-}
+listDirParInterleaved
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirParInterleaved f =
+    listDirWith
+        (Stream.parConcatIterate (Stream.interleaved True) (streamDir f))
+
+{-# INLINE listDirParOrdered #-}
+listDirParOrdered
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirParOrdered f =
+    listDirWith (Stream.parConcatIterate (Stream.ordered True) (streamDir f))
+
+--------------------------------------------------------------------------------
+-- Chunked
+--------------------------------------------------------------------------------
+
+{-# INLINE listDirChunkDfs #-}
+listDirChunkDfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkDfs f =
+    listDirChunkedWith (Stream.concatIterateDfs (streamDirChunkedMaybe f))
+
+{-# INLINE listDirChunkBfs #-}
+listDirChunkBfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkBfs f =
+    listDirChunkedWith (Stream.concatIterateBfs (streamDirChunkedMaybe f))
+
+{-# INLINE listDirChunkBfsRev #-}
+listDirChunkBfsRev
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkBfsRev f =
+    listDirChunkedWith (Stream.concatIterateBfsRev (streamDirChunkedMaybe f))
+
+{-# INLINE listDirChunkAppend #-}
+listDirChunkAppend
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkAppend f =
+    listDirChunkedWith (concatIterateWith (streamDirChunked f) StreamK.append)
+
+{-# INLINE listDirChunkInterleave #-}
+listDirChunkInterleave
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkInterleave f =
+    listDirChunkedWith
+        (mergeIterateWith (streamDirChunked f) StreamK.interleave)
+
+{-# INLINE listDirChunkPar #-}
+listDirChunkPar
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkPar f =
+    listDirChunkedWith (Stream.parConcatIterate id (streamDirChunked f))
+
+{-# INLINE listDirChunkParInterleaved #-}
+listDirChunkParInterleaved
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkParInterleaved f =
+    listDirChunkedWith
+        (Stream.parConcatIterate (Stream.interleaved True) (streamDirChunked f))
+
+{-# INLINE listDirChunkParOrdered #-}
+listDirChunkParOrdered
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkParOrdered f =
+    listDirChunkedWith
+        (Stream.parConcatIterate (Stream.ordered True) (streamDirChunked f))
