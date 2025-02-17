@@ -3,6 +3,7 @@ packages:
   test
   benchmark
   core
+  bench-test-lib
 
 -- Keep the flags same as cabal.project.doctest because we utilize the
 -- same build for doctests in CI.

@@ -4,6 +4,7 @@ packages:
 - './benchmark'
 - './test'
 - './core'
+- './bench-test-lib'
 
 extra-deps:
   #- tasty-bench-0.3.1

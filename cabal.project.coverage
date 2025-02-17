@@ -2,6 +2,7 @@ packages:
   ./
   test
   core
+  bench-test-lib
 
 package streamly
   coverage: true
