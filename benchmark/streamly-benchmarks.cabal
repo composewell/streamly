@@ -603,6 +603,9 @@ benchmark FileSystem.DirIO
     buildable: False
   else
     buildable: True
+  -- Fix this benchmark for Windows
+  if os(windows)
+    buildable: False
 
 benchmark Unicode.Char
   import: bench-options
