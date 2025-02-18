@@ -38,6 +38,7 @@ module BenchTestLib.DirIO
 -- Imports
 --------------------------------------------------------------------------------
 
+import Data.IORef (newIORef, modifyIORef', readIORef)
 import Data.Maybe (fromJust)
 import Data.Word (Word8)
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
@@ -120,14 +121,20 @@ streamDirChunked = either Dir.readEitherChunks (const Stream.nil)
 -- Functions
 --------------------------------------------------------------------------------
 
-createDirStucture :: FilePath -> Int -> Int -> IO ()
-createDirStucture _ depth _ | depth <= 0 = pure ()
-createDirStucture parentDir depth width = do
-    for_ [1..width] $ \i -> do
-        let iStr = show i
-            subDir = [str|#{parentDir}/dir_#{iStr}|]
-        createDirectoryIfMissing True subDir
-        createDirStucture subDir (depth - 1) width
+createDirStucture :: FilePath -> Int -> Int -> IO [FilePath]
+createDirStucture root d w = do
+    ref <- newIORef [root]
+    createDirStucture_ ref root d w
+    readIORef ref
+    where
+    createDirStucture_ _ _ depth _ | depth <= 0 = pure ()
+    createDirStucture_ ref parentDir depth width = do
+        for_ [1..width] $ \i -> do
+            let iStr = show i
+                subDir = [str|#{parentDir}/dir_#{iStr}|]
+            createDirectoryIfMissing True subDir
+            modifyIORef' ref (subDir:)
+            createDirStucture_ ref subDir (depth - 1) width
 
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 -- Fastest implementation, only works for posix as of now.

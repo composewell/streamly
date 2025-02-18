@@ -7,7 +7,6 @@
 -- Portability : GHC
 
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module Main (main) where
 
@@ -17,8 +16,6 @@ module Main (main) where
 
 import Data.Word (Word8)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
-import Streamly.Unicode.String (str)
-import System.Process (readCreateProcess, shell)
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 import Streamly.Data.Array (Array)
 #endif
@@ -72,24 +69,19 @@ main = do
 
     let smallTree = "benchmark-tmp/dir-structure-small"
         bigTree = "benchmark-tmp/dir-structure-big"
-    createDirStucture smallTree 2 3
-    createDirStucture bigTree 5 5
-
-    findResBig <- readCreateProcess (shell [str|find #{bigTree}|]) ""
-    findResSmall <- readCreateProcess (shell [str|find #{smallTree}|]) ""
+    resSmall <- createDirStucture smallTree 2 3
+    resBig <- createDirStucture bigTree 5 5
 
     strmBaseCacheSmall <-
         Stream.fold Fold.toList
             $ StreamK.toStream
             $ StreamK.sortBy compare
-            $ StreamK.fromStream
-            $ Unicode.lines Fold.toList $ Stream.fromList findResSmall
+            $ StreamK.fromStream $ Stream.fromList resSmall
     strmBaseCacheBig <-
         Stream.fold Fold.toList
             $ StreamK.toStream
             $ StreamK.sortBy compare
-            $ StreamK.fromStream
-            $ Unicode.lines Fold.toList $ Stream.fromList findResBig
+            $ StreamK.fromStream $ Stream.fromList resBig
     let strmBaseSmall = Stream.fromList strmBaseCacheSmall
     let strmBaseBig = Stream.fromList strmBaseCacheBig
 
