@@ -454,6 +454,9 @@ test-suite FileSystem.DirIO
   build-depends:
       bench-test-lib
     , process
+  -- Fix this test-suite for Windows
+  if os(windows)
+    buildable: False
 
 test-suite Network.Inet.TCP
   import: lib-options
