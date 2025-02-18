@@ -31,10 +31,6 @@ import BenchTestLib.DirIO
 moduleName :: String
 moduleName = "FileSystem.DirIO"
 
-#define BENCH(x,fp) \
-bench " x " $ nfIO $ \
-    Stream.fold Fold.drain $ x fp
-
 -- | List the current directory recursively
 main :: IO ()
 main = do
@@ -54,25 +50,43 @@ main = do
             -- NOTE: The BFS traversal fails with:
             -- openDirStream: resource exhausted (Too many open files)
             -- if a bigger directory tree is used
-            [ BENCH(listDirUnfoldDfs,bigTree)
-            , BENCH(listDirUnfoldDfs,bigTree)
-            , BENCH(listDirUnfoldBfs,smallTree)
-            , BENCH(listDirUnfoldBfsRev,smallTree)
-            , BENCH(listDirConcatDfs,bigTree)
-            , BENCH(listDirConcatBfs,smallTree)
-            , BENCH(listDirConcatBfsRev,smallTree)
-            , BENCH(listDirAppend,bigTree)
-            , BENCH(listDirInterleave,bigTree)
-            , BENCH(listDirPar,bigTree)
-            , BENCH(listDirParInterleaved,bigTree)
-            , BENCH(listDirParOrdered,bigTree)
-            , BENCH(listDirChunkDfs,bigTree)
-            , BENCH(listDirChunkBfs,smallTree)
-            , BENCH(listDirChunkBfsRev,smallTree)
-            , BENCH(listDirChunkAppend,bigTree)
-            , BENCH(listDirChunkInterleave,bigTree)
-            , BENCH(listDirChunkPar,bigTree)
-            , BENCH(listDirChunkParInterleaved,bigTree)
-            , BENCH(listDirChunkParOrdered,bigTree)
+            [ bench "listDirUnfoldDfs" $ nfIO $
+                  Stream.fold Fold.drain $ listDirUnfoldDfs bigTree
+            , bench "listDirUnfoldBfs" $ nfIO $
+                  Stream.fold Fold.drain $ listDirUnfoldBfs smallTree
+            , bench "listDirUnfoldBfsRev" $ nfIO $
+                  Stream.fold Fold.drain $ listDirUnfoldBfsRev smallTree
+            , bench "listDirConcatDfs" $ nfIO $
+                  Stream.fold Fold.drain $ listDirConcatDfs bigTree
+            , bench "listDirConcatBfs" $ nfIO $
+                  Stream.fold Fold.drain $ listDirConcatBfs smallTree
+            , bench "listDirConcatBfsRev" $ nfIO $
+                  Stream.fold Fold.drain $ listDirConcatBfsRev smallTree
+            , bench "listDirAppend" $ nfIO $
+                  Stream.fold Fold.drain $ listDirAppend bigTree
+            , bench "listDirInterleave" $ nfIO $
+                  Stream.fold Fold.drain $ listDirInterleave bigTree
+            , bench "listDirPar" $ nfIO $
+                  Stream.fold Fold.drain $ listDirPar bigTree
+            , bench "listDirParInterleaved" $ nfIO $
+                  Stream.fold Fold.drain $ listDirParInterleaved bigTree
+            , bench "listDirParOrdered" $ nfIO $
+                  Stream.fold Fold.drain $ listDirParOrdered bigTree
+            , bench "listDirChunkDfs" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkDfs bigTree
+            , bench "listDirChunkBfs" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkBfs smallTree
+            , bench "listDirChunkBfsRev" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkBfsRev smallTree
+            , bench "listDirChunkAppend" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkAppend bigTree
+            , bench "listDirChunkInterleave" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkInterleave bigTree
+            , bench "listDirChunkPar" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkPar bigTree
+            , bench "listDirChunkParInterleaved" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkParInterleaved bigTree
+            , bench "listDirChunkParOrdered" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkParOrdered bigTree
             ]
         ]
