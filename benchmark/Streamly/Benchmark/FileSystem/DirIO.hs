@@ -14,6 +14,7 @@ module Main (main) where
 -- Imports
 --------------------------------------------------------------------------------
 
+import Control.Monad (void)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import Streamly.Benchmark.Common (o_1_space_prefix)
 
@@ -38,8 +39,8 @@ main = do
 
     let smallTree = "benchmark-tmp/dir-structure-small"
         bigTree = "benchmark-tmp/dir-structure-big"
-    createDirStucture smallTree 2 3
-    createDirStucture bigTree 5 5
+    void $ createDirStucture smallTree 2 3
+    void $ createDirStucture bigTree 5 5
 
     defaultMain
         [ bgroup (o_1_space_prefix moduleName)
