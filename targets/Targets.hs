@@ -236,6 +236,7 @@ targets =
       )
 #endif
     , ("FileSystem.Handle", [])
+    , ("FileSystem.DirIO", [])
     , ("Network.Inet.TCP", ["noBench"])
     , ("Network.Socket", ["noBench"])
     , ("Unicode.Char", ["testDevOnly"])
