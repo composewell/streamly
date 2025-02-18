@@ -65,10 +65,6 @@ testCorrectnessByteChunked strmBase lister = do
     Stream.eqBy (==) strm strmBase `shouldReturn` True
 #endif
 
-#define IT(x,sb,dr) \
-it " x " $ \
-    testCorrectness sb (x dr)
-
 -- | List the current directory recursively
 main :: IO ()
 main = do
@@ -107,22 +103,41 @@ main = do
             -- NOTE: The BFS traversal fails with:
             -- openDirStream: resource exhausted (Too many open files)
             -- if a bigger directory tree is used
-            IT(listDirUnfoldDfs,strmBaseBig,bigTree)
-            IT(listDirUnfoldBfs,strmBaseSmall,smallTree)
-            IT(listDirUnfoldBfsRev,strmBaseSmall,smallTree)
-            IT(listDirConcatDfs,strmBaseBig,bigTree)
-            IT(listDirConcatBfs,strmBaseSmall,smallTree)
-            IT(listDirConcatBfsRev,strmBaseSmall,smallTree)
-            IT(listDirAppend,strmBaseBig,bigTree)
-            IT(listDirInterleave,strmBaseBig,bigTree)
-            IT(listDirPar,strmBaseBig,bigTree)
-            IT(listDirParInterleaved,strmBaseBig,bigTree)
-            IT(listDirParOrdered,strmBaseBig,bigTree)
-            IT(listDirChunkDfs,strmBaseBig,bigTree)
-            IT(listDirChunkBfs,strmBaseSmall,smallTree)
-            IT(listDirChunkBfsRev,strmBaseSmall,smallTree)
-            IT(listDirChunkAppend,strmBaseBig,bigTree)
-            IT(listDirChunkInterleave,strmBaseBig,bigTree)
-            IT(listDirChunkPar,strmBaseBig,bigTree)
-            IT(listDirChunkParInterleaved,strmBaseBig,bigTree)
-            IT(listDirChunkParOrdered,strmBaseBig,bigTree)
+            it "listDirUnfoldDfs" $
+               testCorrectness strmBaseBig (listDirUnfoldDfs bigTree)
+            it "listDirUnfoldBfs" $
+               testCorrectness strmBaseSmall (listDirUnfoldBfs smallTree)
+            it "listDirUnfoldBfsRev" $
+               testCorrectness strmBaseSmall (listDirUnfoldBfsRev smallTree)
+            it "listDirConcatDfs" $
+               testCorrectness strmBaseBig (listDirConcatDfs bigTree)
+            it "listDirConcatBfs" $
+               testCorrectness strmBaseSmall (listDirConcatBfs smallTree)
+            it "listDirConcatBfsRev" $
+               testCorrectness strmBaseSmall (listDirConcatBfsRev smallTree)
+            it "listDirAppend" $
+               testCorrectness strmBaseBig (listDirAppend bigTree)
+            it "listDirInterleave" $
+               testCorrectness strmBaseBig (listDirInterleave bigTree)
+            it "listDirPar" $
+               testCorrectness strmBaseBig (listDirPar bigTree)
+            it "listDirParInterleaved" $
+               testCorrectness strmBaseBig (listDirParInterleaved bigTree)
+            it "listDirParOrdered" $
+               testCorrectness strmBaseBig (listDirParOrdered bigTree)
+            it "listDirChunkDfs" $
+               testCorrectness strmBaseBig (listDirChunkDfs bigTree)
+            it "listDirChunkBfs" $
+               testCorrectness strmBaseSmall (listDirChunkBfs smallTree)
+            it "listDirChunkBfsRev" $
+               testCorrectness strmBaseSmall (listDirChunkBfsRev smallTree)
+            it "listDirChunkAppend" $
+               testCorrectness strmBaseBig (listDirChunkAppend bigTree)
+            it "listDirChunkInterleave" $
+               testCorrectness strmBaseBig (listDirChunkInterleave bigTree)
+            it "listDirChunkPar" $
+               testCorrectness strmBaseBig (listDirChunkPar bigTree)
+            it "listDirChunkParInterleaved" $
+               testCorrectness strmBaseBig (listDirChunkParInterleaved bigTree)
+            it "listDirChunkParOrdered" $
+               testCorrectness strmBaseBig (listDirChunkParOrdered bigTree)
