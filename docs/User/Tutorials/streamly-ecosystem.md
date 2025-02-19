@@ -1,6 +1,6 @@
 # Streamly Ecosystem
 
-Streamly ecosystem consists of package built on top of streamly to provide
+Streamly ecosystem consists of packages built on top of streamly to provide
 higher level functionality.
 
 ## streamly-process
@@ -60,4 +60,3 @@ Package for converting streamly `Array` type to the `text` package's
 
 Package for converting streamly `Path` type to the `filepath` package's
 `OsPath` type and vice-versa.
-
