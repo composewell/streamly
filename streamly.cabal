@@ -172,6 +172,7 @@ extra-doc-files:
     docs/Developer/*.link
     docs/User/*.md
     docs/User/Tutorials/*.md
+    docs/User/Tutorials/all-your-base.jpg
     docs/User/Tutorials/*.link
     docs/User/HowTo/*.md
     docs/User/HowTo/*.svg
